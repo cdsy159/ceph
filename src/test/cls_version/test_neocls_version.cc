@@ -10,26 +10,21 @@
  *
  */
 
-#include "neorados/cls/version.h"
-
-#include <boost/asio/post.hpp>
 #include <coroutine>
 #include <memory>
 #include <string_view>
 #include <utility>
 
+#include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "cls/version/cls_version_types.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "neorados/cls/version.h"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace version = neorados::cls::version;
@@ -124,20 +119,20 @@ CORO_TEST_F(neocls_version, test_version_inc_cond, NeoRadosTest)
 
   // A bunch of conditions that should fail
   co_await expect_error_code(
-    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_EQ))),
-    operation_canceled);
+      execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_EQ))),
+      operation_canceled);
 
   co_await expect_error_code(
-    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LT))),
-    operation_canceled);
+      execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LT))),
+      operation_canceled);
 
   co_await expect_error_code(
-    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LE))),
-    operation_canceled);
+      execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LE))),
+      operation_canceled);
 
   co_await expect_error_code(
-    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_TAG_NE))),
-    operation_canceled);
+      execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_TAG_NE))),
+      operation_canceled);
 
   ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver2.ver, ver.ver);
@@ -148,8 +143,7 @@ CORO_TEST_F(neocls_version, test_version_inc_cond, NeoRadosTest)
   co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_GT)));
   co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_GE)));
 
-  co_await execute(oid, WriteOp{}
-                   .exec(version::inc(cond_ver, VER_COND_TAG_EQ)));
+  co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_TAG_EQ)));
 }
 
 CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
@@ -177,8 +171,8 @@ CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
 
   co_await execute(oid, ReadOp{}.exec(version::check(cond_ver, VER_COND_LE)));
 
-  co_await execute(oid, ReadOp{}
-                   .exec(version::check(cond_ver, VER_COND_TAG_EQ)));
+  co_await execute(
+      oid, ReadOp{}.exec(version::check(cond_ver, VER_COND_TAG_EQ)));
 
   co_await execute(oid, WriteOp{}.exec(version::inc()));
 
@@ -188,16 +182,16 @@ CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
 
   // A bunch of conditions that should fail
   co_await expect_error_code(
-    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LT))),
-    operation_canceled);
+      execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LT))),
+      operation_canceled);
 
   co_await expect_error_code(
-    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LE))),
-    operation_canceled);
+      execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LE))),
+      operation_canceled);
 
   co_await expect_error_code(
-    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_TAG_NE))),
-    operation_canceled);
+      execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_TAG_NE))),
+      operation_canceled);
 }
 
 #if 0 // Disabled until we get rid of GCC11.

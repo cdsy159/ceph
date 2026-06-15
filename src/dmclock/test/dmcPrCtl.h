@@ -16,23 +16,28 @@
 // essentially the same as ceph's PrCtl.h, copied into the dmclock library
 
 #ifdef HAVE_SYS_PRCTL_H
-#include <iostream>
-#include <sys/prctl.h>
 #include <errno.h>
+#include <sys/prctl.h>
+
+#include <iostream>
 
 struct PrCtl {
   int saved_state = -1;
-  int set_dumpable(int new_state) {
+
+  int
+  set_dumpable(int new_state)
+  {
     int r = prctl(PR_SET_DUMPABLE, new_state);
     if (r) {
       r = -errno;
       std::cerr << "warning: unable to " << (new_state ? "set" : "unset")
-                << " dumpable flag: " << strerror(r)
-                << std::endl;
+                << " dumpable flag: " << strerror(r) << std::endl;
     }
     return r;
   }
-  PrCtl(int new_state = 0) {
+
+  PrCtl(int new_state = 0)
+  {
     int r = prctl(PR_GET_DUMPABLE);
     if (r == -1) {
       r = errno;
@@ -44,7 +49,9 @@ struct PrCtl {
       }
     }
   }
-  ~PrCtl() {
+
+  ~PrCtl()
+  {
     if (saved_state < 0) {
       return;
     }

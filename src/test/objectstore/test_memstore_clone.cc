@@ -12,14 +12,18 @@
  * Foundation. See file COPYING.
  *
  */
-#include <boost/intrusive_ptr.hpp>
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "os/ObjectStore.h"
 #include <gtest/gtest.h>
-#include "include/ceph_assert.h"
+
 #include "common/debug.h"
+
+#include <boost/intrusive_ptr.hpp>
+
+#include "common/ceph_argparse.h"
 #include "common/errno.h"
+#include "global/global_init.h"
+#include "include/ceph_assert.h"
+#include "os/ObjectStore.h"
+
 #include "store_test_fixture.h"
 
 #define dout_context g_ceph_context
@@ -30,7 +34,8 @@ namespace {
 
 const coll_t cid;
 
-ghobject_t make_ghobject(const char *oid)
+ghobject_t
+make_ghobject(const char* oid)
 {
   return ghobject_t{hobject_t{oid, "", CEPH_NOSNAP, 0, 0, ""}};
 }
@@ -39,10 +44,13 @@ ghobject_t make_ghobject(const char *oid)
 
 class MemStoreClone : public StoreTestFixture {
 public:
-  MemStoreClone()
-    : StoreTestFixture("memstore")
+  MemStoreClone() :
+    StoreTestFixture("memstore")
   {}
-  void SetUp() override {
+
+  void
+  SetUp() override
+  {
     StoreTestFixture::SetUp();
     if (HasFailure()) {
       return;
@@ -56,7 +64,10 @@ public:
     }
     ASSERT_EQ(0U, r);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     ch.reset();
     StoreTestFixture::TearDown();
   }
@@ -184,19 +195,19 @@ TEST_F(MemStoreClone, CloneRangeHoleEnd)
   ASSERT_EQ(expected, result);
 }
 
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
   // default to memstore
-  map<string,string> defaults = {
-    { "osd_objectstore", "memstore" },
-    { "osd_data", "msc.test_temp_dir" },
-    { "memstore_page_size", "4" }
-  };
+  map<string, string> defaults = {
+      {"osd_objectstore", "memstore"},
+      {"osd_data", "msc.test_temp_dir"},
+      {"memstore_page_size", "4"}};
 
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(&defaults, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   ::testing::InitGoogleTest(&argc, argv);

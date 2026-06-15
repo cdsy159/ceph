@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "mon/MonCommand.h"
 #include <vector>
+
+#include "mon/MonCommand.h"
 
 extern const std::vector<MonCommand> mgr_commands;

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,6 +13,9 @@
  * 
  */
 
+#include "auth/Auth.h"
+#include "auth/Crypto.h"
+#include "auth/KeyRing.h"
 #include "common/ConfUtils.h"
 #include "common/ceph_argparse.h"
 #include "common/config_proxy.h"
@@ -20,51 +23,61 @@
 #include "global/global_context.h"
 #include "global/global_init.h"
 
-#include "auth/Crypto.h"
-#include "auth/Auth.h"
-#include "auth/KeyRing.h"
-
+using std::cerr;
+using std::cout;
 using std::map;
 using std::string;
 using std::vector;
-using std::cerr;
-using std::cout;
 
-void usage()
+void
+usage()
 {
   cout << "usage: ceph-authtool keyringfile [OPTIONS]...\n"
        << "where the options are:\n"
-       << "  -l, --list                    will list all keys and capabilities present in\n"
+       << "  -l, --list                    will list all keys and capabilities "
+          "present in\n"
        << "                                the keyring\n"
-       << "  -p, --print-key               will print an encoded key for the specified\n"
-       << "                                entityname. This is suitable for the\n"
+       << "  -p, --print-key               will print an encoded key for the "
+          "specified\n"
+       << "                                entityname. This is suitable for "
+          "the\n"
        << "                                'mount -o secret=..' argument\n"
-       << "  -C, --create-keyring          will create a new keyring, overwriting any\n"
+       << "  -C, --create-keyring          will create a new keyring, "
+          "overwriting any\n"
        << "                                existing keyringfile\n"
-       << "  -g, --gen-key                 will generate a new secret key for the\n"
+       << "  -g, --gen-key                 will generate a new secret key for "
+          "the\n"
        << "                                specified entityname\n"
-       << "  --gen-print-key               will generate a new secret key without set it\n"
-       << "                                to the keyringfile, prints the secret to stdout\n"
-       << "  --import-keyring FILE         will import the content of a given keyring\n"
+       << "  --gen-print-key               will generate a new secret key "
+          "without set it\n"
+       << "                                to the keyringfile, prints the "
+          "secret to stdout\n"
+       << "  --import-keyring FILE         will import the content of a given "
+          "keyring\n"
        << "                                into the keyringfile\n"
        << "  -n NAME, --name NAME          specify entityname to operate on\n"
-       << "  -a BASE64, --add-key BASE64   will add an encoded key to the keyring\n"
-       << "  --cap SUBSYSTEM CAPABILITY    will set the capability for given subsystem\n"
-       << "  --caps CAPSFILE               will set all of capabilities associated with a\n"
+       << "  -a BASE64, --add-key BASE64   will add an encoded key to the "
+          "keyring\n"
+       << "  --cap SUBSYSTEM CAPABILITY    will set the capability for given "
+          "subsystem\n"
+       << "  --caps CAPSFILE               will set all of capabilities "
+          "associated with a\n"
        << "                                given key, for all subsystems\n"
-       << "  --mode MODE                   will set the desired file mode to the keyring\n"
+       << "  --mode MODE                   will set the desired file mode to "
+          "the keyring\n"
        << "                                e.g: '0644', defaults to '0600'"
        << std::endl;
   exit(1);
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   std::string add_key;
   std::string caps_fn;
   std::string import_keyring;
-  map<string,bufferlist> caps;
+  map<string, bufferlist> caps;
   std::string fn;
 
   if (args.empty()) {
@@ -76,9 +89,9 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
   bool gen_key = false;
   bool gen_print_key = false;
@@ -91,7 +104,7 @@ int main(int argc, const char **argv)
   /* Handle options unique to ceph-authtool
    * -n NAME, --name NAME is handled by global_init
    * */
-  for (i = args.begin(); i != args.end(); ) {
+  for (i = args.begin(); i != args.end();) {
     std::string val;
     if (ceph_argparse_double_dash(args, i)) {
       break;
@@ -99,7 +112,8 @@ int main(int argc, const char **argv)
       gen_key = true;
     } else if (ceph_argparse_flag(args, i, "--gen-print-key", (char*)NULL)) {
       gen_print_key = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "-a", "--add-key", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-a", "--add-key", (char*)NULL)) {
       if (val.empty()) {
         cerr << "Option --add-key requires an argument" << std::endl;
         exit(1);
@@ -112,17 +126,19 @@ int main(int argc, const char **argv)
     } else if (ceph_argparse_witharg(args, i, &val, "--cap", (char*)NULL)) {
       std::string my_key = val;
       if (i == args.end()) {
-	cerr << "must give two arguments to --cap: key and val." << std::endl;
-	exit(1);
+        cerr << "must give two arguments to --cap: key and val." << std::endl;
+        exit(1);
       }
       std::string my_val = *i;
       ++i;
       encode(my_val, caps[my_key]);
     } else if (ceph_argparse_flag(args, i, "-p", "--print-key", (char*)NULL)) {
       print_key = true;
-    } else if (ceph_argparse_flag(args, i, "-C", "--create-keyring", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "-C", "--create-keyring", (char*)NULL)) {
       create_keyring = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "--import-keyring", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--import-keyring", (char*)NULL)) {
       import_keyring = val;
     } else if (ceph_argparse_witharg(args, i, &val, "--mode", (char*)NULL)) {
       std::string err;
@@ -143,15 +159,9 @@ int main(int argc, const char **argv)
     cerr << argv[0] << ": must specify filename" << std::endl;
     usage();
   }
-  if (!(gen_key ||
-	gen_print_key ||
-	!add_key.empty() ||
-	list ||
-	!caps_fn.empty() ||
-	!caps.empty() ||
-	print_key ||
-	create_keyring ||
-	!import_keyring.empty())) {
+  if (!(gen_key || gen_print_key || !add_key.empty() || list ||
+        !caps_fn.empty() || !caps.empty() || print_key || create_keyring ||
+        !import_keyring.empty())) {
     cerr << "no command specified" << std::endl;
     usage();
   }
@@ -192,11 +202,11 @@ int main(int argc, const char **argv)
     r = bl.read_file(fn.c_str(), &err);
     if (r >= 0) {
       try {
-	auto iter = bl.cbegin();
-	decode(keyring, iter);
-      } catch (const buffer::error &err) {
-	cerr << "error reading file " << fn << std::endl;
-	exit(1);
+        auto iter = bl.cbegin();
+        decode(keyring, iter);
+      } catch (const buffer::error& err) {
+        cerr << "error reading file " << fn << std::endl;
+        exit(1);
       }
     } else {
       cerr << "can't open " << fn << ": " << err << std::endl;
@@ -209,7 +219,7 @@ int main(int argc, const char **argv)
   if (!gen_key && add_key.empty() && !caps.empty()) {
     CryptoKey key;
     if (!keyring.get_secret(ename, key)) {
-      cerr << "can't find existing key for " << ename 
+      cerr << "can't find existing key for " << ename
            << " and neither gen-key nor add-key specified" << std::endl;
       exit(1);
     }
@@ -223,14 +233,15 @@ int main(int argc, const char **argv)
     int r = obl.read_file(import_keyring.c_str(), &err);
     if (r >= 0) {
       try {
-	auto iter = obl.cbegin();
-	decode(other, iter);
-      } catch (const buffer::error &err) {
-	cerr << "error reading file " << import_keyring << std::endl;
-	exit(1);
+        auto iter = obl.cbegin();
+        decode(other, iter);
+      } catch (const buffer::error& err) {
+        cerr << "error reading file " << import_keyring << std::endl;
+        exit(1);
       }
 
-      cout << "importing contents of " << import_keyring << " into " << fn << std::endl;
+      cout << "importing contents of " << import_keyring << " into " << fn
+           << std::endl;
       //other.print(cout);
       keyring.import(g_ceph_context, other);
       modified = true;
@@ -249,7 +260,7 @@ int main(int argc, const char **argv)
     EntityAuth eauth;
     try {
       eauth.key.decode_base64(add_key);
-    } catch (const buffer::error &err) {
+    } catch (const buffer::error& err) {
       cerr << "can't decode key '" << add_key << "'" << std::endl;
       exit(1);
     }
@@ -265,14 +276,14 @@ int main(int argc, const char **argv)
       exit(1);
     }
     map<string, bufferlist> caps;
-    const char *key_names[] = { "mon", "osd", "mds", "mgr", NULL };
-    for (int i=0; key_names[i]; i++) {
+    const char* key_names[] = {"mon", "osd", "mds", "mgr", NULL};
+    for (int i = 0; key_names[i]; i++) {
       std::string val;
       if (cf.read("global", key_names[i], val) == 0) {
-	bufferlist bl;
-	encode(val, bl);
-	string s(key_names[i]);
-	caps[s] = bl;
+        bufferlist bl;
+        encode(val, bl);
+        string s(key_names[i]);
+        caps[s] = bl;
       }
     }
     keyring.set_caps(ename, caps);
@@ -290,7 +301,7 @@ int main(int argc, const char **argv)
   if (list) {
     try {
       keyring.print(cout);
-    } catch (ceph::buffer::end_of_buffer &eob) {
+    } catch (ceph::buffer::end_of_buffer& eob) {
       cout << "Exception (end_of_buffer) in print(), exit." << std::endl;
       exit(1);
     }

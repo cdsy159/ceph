@@ -14,20 +14,22 @@ namespace librbd {
 namespace migration {
 
 struct StreamInterface {
-  virtual ~StreamInterface() {
-  }
+  virtual ~StreamInterface() {}
 
   virtual void open(Context* on_finish) = 0;
   virtual void close(Context* on_finish) = 0;
 
   virtual void get_size(uint64_t* size, Context* on_finish) = 0;
 
-  virtual void read(io::Extents&& byte_extents, bufferlist* data,
-                    Context* on_finish) = 0;
+  virtual void read(
+      io::Extents&& byte_extents,
+      bufferlist* data,
+      Context* on_finish) = 0;
 
-  virtual void list_sparse_extents(io::Extents&& byte_extents,
-                                   io::SparseExtents* sparse_extents,
-                                   Context* on_finish) = 0;
+  virtual void list_sparse_extents(
+      io::Extents&& byte_extents,
+      io::SparseExtents* sparse_extents,
+      Context* on_finish) = 0;
 };
 
 } // namespace migration

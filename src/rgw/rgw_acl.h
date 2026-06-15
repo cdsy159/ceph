@@ -3,16 +3,17 @@
 
 #pragma once
 
+#include <include/types.h>
+
 #include <map>
 #include <string>
 #include <string_view>
 #include <variant>
-#include <include/types.h>
-
-#include <boost/optional.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 
 #include "common/debug.h"
+
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/optional.hpp>
 
 #include "rgw_basic_types.h" //includes rgw_acl_types.h
 
@@ -21,70 +22,95 @@ struct ACLGranteeCanonicalUser {
   rgw_owner id;
   std::string name;
 
-  friend auto operator<=>(const ACLGranteeCanonicalUser&,
-                          const ACLGranteeCanonicalUser&) = default;
+  friend auto operator<=>(
+      const ACLGranteeCanonicalUser&,
+      const ACLGranteeCanonicalUser&) = default;
 };
+
 struct ACLGranteeEmailUser {
   std::string address;
 
-  friend auto operator<=>(const ACLGranteeEmailUser&,
-                          const ACLGranteeEmailUser&) = default;
+  friend auto operator<=>(
+      const ACLGranteeEmailUser&,
+      const ACLGranteeEmailUser&) = default;
 };
+
 struct ACLGranteeGroup {
   ACLGroupTypeEnum type = ACL_GROUP_NONE;
 
-  friend auto operator<=>(const ACLGranteeGroup&,
-                          const ACLGranteeGroup&) = default;
+  friend auto operator<=>(const ACLGranteeGroup&, const ACLGranteeGroup&) =
+      default;
 };
+
 struct ACLGranteeUnknown {
-  friend auto operator<=>(const ACLGranteeUnknown&,
-                          const ACLGranteeUnknown&) = default;
+  friend auto operator<=>(const ACLGranteeUnknown&, const ACLGranteeUnknown&) =
+      default;
 };
+
 struct ACLGranteeReferer {
   std::string url_spec;
 
-  friend auto operator<=>(const ACLGranteeReferer&,
-                          const ACLGranteeReferer&) = default;
+  friend auto operator<=>(const ACLGranteeReferer&, const ACLGranteeReferer&) =
+      default;
 };
 
-class ACLGrant
-{
+class ACLGrant {
 protected:
   // acl grantee variant, where variant index matches ACLGranteeTypeEnum
   using ACLGrantee = std::variant<
-    ACLGranteeCanonicalUser,
-    ACLGranteeEmailUser,
-    ACLGranteeGroup,
-    ACLGranteeUnknown,
-    ACLGranteeReferer>;
+      ACLGranteeCanonicalUser,
+      ACLGranteeEmailUser,
+      ACLGranteeGroup,
+      ACLGranteeUnknown,
+      ACLGranteeReferer>;
 
   ACLGrantee grantee;
   ACLPermission permission;
 
 public:
-  ACLGranteeType get_type() const {
+  ACLGranteeType
+  get_type() const
+  {
     return static_cast<ACLGranteeTypeEnum>(grantee.index());
   }
-  ACLPermission get_permission() const { return permission; }
+
+  ACLPermission
+  get_permission() const
+  {
+    return permission;
+  }
 
   // return the user grantee, or nullptr
-  const ACLGranteeCanonicalUser* get_user() const {
+  const ACLGranteeCanonicalUser*
+  get_user() const
+  {
     return std::get_if<ACLGranteeCanonicalUser>(&grantee);
   }
+
   // return the email grantee, or nullptr
-  const ACLGranteeEmailUser* get_email() const {
+  const ACLGranteeEmailUser*
+  get_email() const
+  {
     return std::get_if<ACLGranteeEmailUser>(&grantee);
   }
+
   // return the group grantee, or nullptr
-  const ACLGranteeGroup* get_group() const {
+  const ACLGranteeGroup*
+  get_group() const
+  {
     return std::get_if<ACLGranteeGroup>(&grantee);
   }
+
   // return the referer grantee, or nullptr
-  const ACLGranteeReferer* get_referer() const {
+  const ACLGranteeReferer*
+  get_referer() const
+  {
     return std::get_if<ACLGranteeReferer>(&grantee);
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(5, 3, bl);
     ACLGranteeType type = get_type();
     encode(type, bl);
@@ -125,7 +151,10 @@ public:
     }
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(5, 3, 3, bl);
     ACLGranteeType type;
     decode(type, bl);
@@ -156,39 +185,48 @@ public:
 
     // construct the grantee type
     switch (type) {
-      case ACL_TYPE_CANON_USER:
-        grantee = std::move(user);
-        break;
-      case ACL_TYPE_EMAIL_USER:
-        grantee = std::move(email);
-        break;
-      case ACL_TYPE_GROUP:
-        grantee = std::move(group);
-        break;
-      case ACL_TYPE_REFERER:
-        grantee = std::move(referer);
-        break;
-      case ACL_TYPE_UNKNOWN:
-      default:
-        grantee = ACLGranteeUnknown{};
-        break;
+    case ACL_TYPE_CANON_USER:
+      grantee = std::move(user);
+      break;
+    case ACL_TYPE_EMAIL_USER:
+      grantee = std::move(email);
+      break;
+    case ACL_TYPE_GROUP:
+      grantee = std::move(group);
+      break;
+    case ACL_TYPE_REFERER:
+      grantee = std::move(referer);
+      break;
+    case ACL_TYPE_UNKNOWN:
+    default:
+      grantee = ACLGranteeUnknown{};
+      break;
     }
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<ACLGrant> generate_test_instances();
 
   static ACLGroupTypeEnum uri_to_group(std::string_view uri);
 
-  void set_canon(const rgw_owner& id, const std::string& name, uint32_t perm) {
+  void
+  set_canon(const rgw_owner& id, const std::string& name, uint32_t perm)
+  {
     grantee = ACLGranteeCanonicalUser{id, name};
     permission.set_permissions(perm);
   }
-  void set_group(ACLGroupTypeEnum group, uint32_t perm) {
+
+  void
+  set_group(ACLGroupTypeEnum group, uint32_t perm)
+  {
     grantee = ACLGranteeGroup{group};
     permission.set_permissions(perm);
   }
-  void set_referer(const std::string& url_spec, uint32_t perm) {
+
+  void
+  set_referer(const std::string& url_spec, uint32_t perm)
+  {
     grantee = ACLGranteeReferer{url_spec};
     permission.set_permissions(perm);
   }
@@ -202,14 +240,17 @@ struct ACLReferer {
   std::string url_spec;
   uint32_t perm;
 
-  ACLReferer() : perm(0) {}
-  ACLReferer(const std::string& url_spec,
-             const uint32_t perm)
-    : url_spec(url_spec),
-      perm(perm) {
-  }
+  ACLReferer() :
+    perm(0)
+  {}
 
-  bool is_match(std::string_view http_referer) const {
+  ACLReferer(const std::string& url_spec, const uint32_t perm) :
+    url_spec(url_spec), perm(perm)
+  {}
+
+  bool
+  is_match(std::string_view http_referer) const
+  {
     const auto http_host = get_http_host(http_referer);
     if (!http_host || http_host->length() < url_spec.length()) {
       return false;
@@ -232,28 +273,38 @@ struct ACLReferer {
     return false;
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(url_spec, bl);
     encode(perm, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(1, 1, 1, bl);
     decode(url_spec, bl);
     decode(perm, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
 
   friend bool operator==(const ACLReferer& lhs, const ACLReferer& rhs);
   friend bool operator!=(const ACLReferer& lhs, const ACLReferer& rhs);
 
 private:
-  boost::optional<std::string_view> get_http_host(const std::string_view url) const {
+  boost::optional<std::string_view>
+  get_http_host(const std::string_view url) const
+  {
     size_t pos = url.find("://");
-    if (pos == std::string_view::npos || boost::algorithm::starts_with(url, "://") ||
-        boost::algorithm::ends_with(url, "://") || boost::algorithm::ends_with(url, "@")) {
+    if (pos == std::string_view::npos ||
+        boost::algorithm::starts_with(url, "://") ||
+        boost::algorithm::ends_with(url, "://") ||
+        boost::algorithm::ends_with(url, "@")) {
       return boost::none;
     }
     std::string_view url_sub = url.substr(pos + strlen("://"));
@@ -273,14 +324,13 @@ WRITE_CLASS_ENCODER(ACLReferer)
 
 namespace rgw {
 namespace auth {
-  class Identity;
+class Identity;
 }
-}
+} // namespace rgw
 
 using ACLGrantMap = std::multimap<std::string, ACLGrant>;
 
-class RGWAccessControlList
-{
+class RGWAccessControlList {
 protected:
   /* FIXME: in the feature we should consider switching to uint32_t also
    * in data structures. */
@@ -290,15 +340,25 @@ protected:
   ACLGrantMap grant_map;
   // register a grant in the correspoding acl_user/group_map
   void register_grant(const ACLGrant& grant);
+
 public:
-  uint32_t get_perm(const DoutPrefixProvider* dpp,
-                    const rgw::auth::Identity& auth_identity,
-                    uint32_t perm_mask) const;
-  uint32_t get_group_perm(const DoutPrefixProvider *dpp, ACLGroupTypeEnum group, uint32_t perm_mask) const;
-  uint32_t get_referer_perm(const DoutPrefixProvider *dpp, uint32_t current_perm,
-                            std::string http_referer,
-                            uint32_t perm_mask) const;
-  void encode(bufferlist& bl) const {
+  uint32_t get_perm(
+      const DoutPrefixProvider* dpp,
+      const rgw::auth::Identity& auth_identity,
+      uint32_t perm_mask) const;
+  uint32_t get_group_perm(
+      const DoutPrefixProvider* dpp,
+      ACLGroupTypeEnum group,
+      uint32_t perm_mask) const;
+  uint32_t get_referer_perm(
+      const DoutPrefixProvider* dpp,
+      uint32_t current_perm,
+      std::string http_referer,
+      uint32_t perm_mask) const;
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(4, 3, bl);
     bool maps_initialized = true;
     encode(maps_initialized, bl);
@@ -308,7 +368,10 @@ public:
     encode(referer_list, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(4, 3, 3, bl);
     bool maps_initialized;
     decode(maps_initialized, bl);
@@ -327,18 +390,34 @@ public:
     }
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<RGWAccessControlList> generate_test_instances();
 
-  bool empty() const { return grant_map.empty(); }
+  bool
+  empty() const
+  {
+    return grant_map.empty();
+  }
 
   void add_grant(const ACLGrant& grant);
   void remove_canon_user_grant(const rgw_owner& user_id);
 
-  ACLGrantMap& get_grant_map() { return grant_map; }
-  const ACLGrantMap& get_grant_map() const { return grant_map; }
+  ACLGrantMap&
+  get_grant_map()
+  {
+    return grant_map;
+  }
 
-  void create_default(const rgw_owner& id, const std::string& name) {
+  const ACLGrantMap&
+  get_grant_map() const
+  {
+    return grant_map;
+  }
+
+  void
+  create_default(const rgw_owner& id, const std::string& name)
+  {
     acl_user_map.clear();
     acl_group_map.clear();
     referer_list.clear();
@@ -348,8 +427,12 @@ public:
     add_grant(grant);
   }
 
-  friend bool operator==(const RGWAccessControlList& lhs, const RGWAccessControlList& rhs);
-  friend bool operator!=(const RGWAccessControlList& lhs, const RGWAccessControlList& rhs);
+  friend bool operator==(
+      const RGWAccessControlList& lhs,
+      const RGWAccessControlList& rhs);
+  friend bool operator!=(
+      const RGWAccessControlList& lhs,
+      const RGWAccessControlList& rhs);
 };
 WRITE_CLASS_ENCODER(RGWAccessControlList)
 
@@ -357,14 +440,19 @@ struct ACLOwner {
   rgw_owner id;
   std::string display_name;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(3, 2, bl);
     const std::string s = to_string(id);
     encode(s, bl);
     encode(display_name, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(3, 2, 2, bl);
     std::string s;
     decode(s, bl);
@@ -372,8 +460,9 @@ struct ACLOwner {
     decode(display_name, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<ACLOwner> generate_test_instances();
 
   bool empty() const;
@@ -382,66 +471,106 @@ struct ACLOwner {
 };
 WRITE_CLASS_ENCODER(ACLOwner)
 
-class RGWAccessControlPolicy
-{
+class RGWAccessControlPolicy {
 protected:
   RGWAccessControlList acl;
   ACLOwner owner;
 
 public:
-  uint32_t get_perm(const DoutPrefixProvider* dpp,
-                    const rgw::auth::Identity& auth_identity,
-                    uint32_t perm_mask,
-                    const char * http_referer,
-                    bool ignore_public_acls=false) const;
-  bool verify_permission(const DoutPrefixProvider* dpp,
-                         const rgw::auth::Identity& auth_identity,
-                         uint32_t user_perm_mask,
-                         uint32_t perm,
-                         const char * http_referer = nullptr,
-                         bool ignore_public_acls=false) const;
+  uint32_t get_perm(
+      const DoutPrefixProvider* dpp,
+      const rgw::auth::Identity& auth_identity,
+      uint32_t perm_mask,
+      const char* http_referer,
+      bool ignore_public_acls = false) const;
+  bool verify_permission(
+      const DoutPrefixProvider* dpp,
+      const rgw::auth::Identity& auth_identity,
+      uint32_t user_perm_mask,
+      uint32_t perm,
+      const char* http_referer = nullptr,
+      bool ignore_public_acls = false) const;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 2, bl);
     encode(owner, bl);
     encode(acl, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
     decode(owner, bl);
     decode(acl, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<RGWAccessControlPolicy> generate_test_instances();
-  void decode_owner(bufferlist::const_iterator& bl) { // sometimes we only need that, should be faster
+
+  void
+  decode_owner(bufferlist::const_iterator& bl)
+  { // sometimes we only need that, should be faster
     DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
     decode(owner, bl);
     DECODE_FINISH(bl);
   }
 
-  bool empty() const { return acl.empty() && owner.empty(); }
+  bool
+  empty() const
+  {
+    return acl.empty() && owner.empty();
+  }
 
-  void set_owner(const ACLOwner& o) { owner = o; }
-  const ACLOwner& get_owner() const { return owner; }
-  ACLOwner& get_owner() { return owner; }
+  void
+  set_owner(const ACLOwner& o)
+  {
+    owner = o;
+  }
 
-  void create_default(const rgw_owner& id, const std::string& name) {
+  const ACLOwner&
+  get_owner() const
+  {
+    return owner;
+  }
+
+  ACLOwner&
+  get_owner()
+  {
+    return owner;
+  }
+
+  void
+  create_default(const rgw_owner& id, const std::string& name)
+  {
     acl.create_default(id, name);
     owner.id = id;
     owner.display_name = name;
   }
-  RGWAccessControlList& get_acl() {
-    return acl;
-  }
-  const RGWAccessControlList& get_acl() const {
+
+  RGWAccessControlList&
+  get_acl()
+  {
     return acl;
   }
 
-  bool is_public(const DoutPrefixProvider *dpp) const;
+  const RGWAccessControlList&
+  get_acl() const
+  {
+    return acl;
+  }
 
-  friend bool operator==(const RGWAccessControlPolicy& lhs, const RGWAccessControlPolicy& rhs);
-  friend bool operator!=(const RGWAccessControlPolicy& lhs, const RGWAccessControlPolicy& rhs);
+  bool is_public(const DoutPrefixProvider* dpp) const;
+
+  friend bool operator==(
+      const RGWAccessControlPolicy& lhs,
+      const RGWAccessControlPolicy& rhs);
+  friend bool operator!=(
+      const RGWAccessControlPolicy& lhs,
+      const RGWAccessControlPolicy& rhs);
 };
 WRITE_CLASS_ENCODER(RGWAccessControlPolicy)

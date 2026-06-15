@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,11 +14,10 @@
  */
 #include <string>
 
-#include "common/ceph_argparse.h"
 #include "common/Clock.h" // for ceph_clock_now()
+#include "common/ceph_argparse.h"
 #include "common/errno.h"
 #include "common/strtol.h"
-
 #include "global/global_context.h"
 #include "global/global_init.h"
 #include "include/str_list.h"
@@ -34,7 +33,8 @@ using std::string;
 using std::string_view;
 using std::vector;
 
-void usage()
+void
+usage()
 {
   cout << "usage: monmaptool [--print] [--create [--clobber] [--fsid uuid]]\n"
        << "        [--enable-all-features]\n"
@@ -45,11 +45,11 @@ void usage()
        << "        [--feature-set <value> [--optional|--persistent]]\n"
        << "        [--feature-unset <value> [--optional|--persistent]]\n"
        << "        [--set-min-mon-release <release-major-number>]\n"
-       << "        <mapfilename>"
-       << std::endl;
+       << "        <mapfilename>" << std::endl;
 }
 
-void helpful_exit()
+void
+helpful_exit()
 {
   cerr << "monmaptool -h for usage" << std::endl;
   exit(1);
@@ -74,20 +74,38 @@ struct feature_op_t {
   type_t type;
   mon_feature_t feature;
 
-  feature_op_t() : op(OP_LIST), type(NONE) { }
-  // default to 'persistent' feature if not specified
-  feature_op_t(op_t o) : op(o), type(PERSISTENT) { }
-  feature_op_t(op_t o, type_t t) : op(o), type(t) { }
-  feature_op_t(op_t o, type_t t, mon_feature_t &f) :
-    op(o), type(t), feature(t) { }
+  feature_op_t() :
+    op(OP_LIST), type(NONE)
+  {}
 
-  void set_optional() {
+  // default to 'persistent' feature if not specified
+  feature_op_t(op_t o) :
+    op(o), type(PERSISTENT)
+  {}
+
+  feature_op_t(op_t o, type_t t) :
+    op(o), type(t)
+  {}
+
+  feature_op_t(op_t o, type_t t, mon_feature_t& f) :
+    op(o), type(t), feature(t)
+  {}
+
+  void
+  set_optional()
+  {
     type = OPTIONAL;
   }
-  void set_persistent() {
+
+  void
+  set_persistent()
+  {
     type = PERSISTENT;
   }
-  bool parse_value(string &s, ostream *errout = NULL) {
+
+  bool
+  parse_value(string& s, ostream* errout = NULL)
+  {
 
     feature = ceph::features::mon::get_feature_by_name(s);
     if (feature != ceph::features::mon::FEATURE_NONE) {
@@ -110,7 +128,8 @@ struct feature_op_t {
   }
 };
 
-void features_list(feature_op_t &f, MonMap &m)
+void
+features_list(feature_op_t& f, MonMap& m)
 {
   if (f.type == feature_op_t::type_t::PLAIN) {
 
@@ -153,24 +172,26 @@ void features_list(feature_op_t &f, MonMap &m)
   }
 }
 
-bool handle_features(list<feature_op_t>& lst, MonMap &m)
+bool
+handle_features(list<feature_op_t>& lst, MonMap& m)
 {
   if (lst.empty())
     return false;
 
   bool modified = false;
 
-  for (auto &f : lst) {
+  for (auto& f : lst) {
     if (f.op == feature_op_t::op_t::OP_LIST) {
       features_list(f, m);
-    } else if (f.op == feature_op_t::op_t::OP_SET ||
-               f.op == feature_op_t::op_t::OP_UNSET) {
+    } else if (
+        f.op == feature_op_t::op_t::OP_SET ||
+        f.op == feature_op_t::op_t::OP_UNSET) {
 
       modified = true;
 
-      mon_feature_t &target =
-        ( f.type == feature_op_t::type_t::OPTIONAL ?
-            m.optional_features : m.persistent_features );
+      mon_feature_t& target =
+          (f.type == feature_op_t::type_t::OPTIONAL ? m.optional_features
+                                                    : m.persistent_features);
 
       if (f.op == feature_op_t::op_t::OP_SET) {
         target.set_feature(f.feature);
@@ -184,7 +205,8 @@ bool handle_features(list<feature_op_t>& lst, MonMap &m)
   return modified;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -196,7 +218,7 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  const char *me = argv[0];
+  const char* me = argv[0];
 
   std::string fn;
   bool print = false;
@@ -208,44 +230,46 @@ int main(int argc, const char **argv)
   bool generate = false;
   bool filter = false;
   ceph_release_t min_mon_release = ceph_release_t::unknown;
-  map<string,entity_addr_t> add;
-  map<string,entity_addrvec_t> addv;
+  map<string, entity_addr_t> add;
+  map<string, entity_addrvec_t> addv;
   list<string> rm;
   list<feature_op_t> features;
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
   std::string val;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
     } else if (ceph_argparse_flag(args, i, "-p", "--print", (char*)NULL)) {
       print = true;
     } else if (ceph_argparse_flag(args, i, "--create", (char*)NULL)) {
       create = true;
-    } else if (ceph_argparse_flag(args, i, "--enable-all-features", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--enable-all-features", (char*)NULL)) {
       enable_all_features = true;
     } else if (ceph_argparse_flag(args, i, "--clobber", (char*)NULL)) {
       clobber = true;
     } else if (ceph_argparse_flag(args, i, "--generate", (char*)NULL)) {
       generate = true;
-    } else if (ceph_argparse_flag(args, i, "--set-initial-members", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--set-initial-members", (char*)NULL)) {
       filter = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "--set-min-mon-release",
-				     (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--set-min-mon-release", (char*)NULL)) {
       min_mon_release = ceph_release_from_name(val);
     } else if (ceph_argparse_flag(args, i, "--add", (char*)NULL)) {
       string name = *i;
       i = args.erase(i);
       if (i == args.end())
-	helpful_exit();
+        helpful_exit();
       entity_addr_t addr;
       if (!addr.parse(string_view{*i})) {
         // Either we couldn't parse the address or we didn't consume the entire token
-	cerr << me << ": invalid ip:port '" << *i << "'" << std::endl;
-	return -1;
+        cerr << me << ": invalid ip:port '" << *i << "'" << std::endl;
+        return -1;
       }
       add[name] = addr;
       modified = true;
@@ -254,11 +278,11 @@ int main(int argc, const char **argv)
       string name = *i;
       i = args.erase(i);
       if (i == args.end())
-	helpful_exit();
+        helpful_exit();
       entity_addrvec_t addrs;
       if (!addrs.parse(*i)) {
-	cerr << me << ": invalid ip:port '" << *i << "'" << std::endl;
-	return -1;
+        cerr << me << ": invalid ip:port '" << *i << "'" << std::endl;
+        return -1;
       }
       addv[name] = addrs;
       modified = true;
@@ -274,8 +298,7 @@ int main(int argc, const char **argv)
         format = "plain";
       }
 
-      feature_op_t f(feature_op_t::op_t::OP_LIST,
-                   feature_op_t::type_t::PLAIN);
+      feature_op_t f(feature_op_t::op_t::OP_LIST, feature_op_t::type_t::PLAIN);
 
       if (format == "parseable") {
         f.type = feature_op_t::type_t::PARSEABLE;
@@ -286,8 +309,8 @@ int main(int argc, const char **argv)
 
       features.push_back(f);
       show_features = true;
-    } else if (ceph_argparse_witharg(args, i, &val,
-                                     "--feature-set", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--feature-set", (char*)NULL)) {
       // parse value
       feature_op_t f(feature_op_t::op_t::OP_SET);
       if (!f.parse_value(val, &cerr)) {
@@ -295,8 +318,8 @@ int main(int argc, const char **argv)
       }
       features.push_back(f);
 
-    } else if (ceph_argparse_witharg(args, i, &val,
-                                     "--feature-unset", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--feature-unset", (char*)NULL)) {
       // parse value
       feature_op_t f(feature_op_t::op_t::OP_UNSET);
       if (!f.parse_value(val, &cerr)) {
@@ -320,13 +343,12 @@ int main(int argc, const char **argv)
   if (args.empty()) {
     cerr << me << ": must specify monmap filename" << std::endl;
     helpful_exit();
-  }
-  else if (args.size() > 1) {
+  } else if (args.size() > 1) {
     cerr << me << ": too many arguments" << std::endl;
     helpful_exit();
   }
   fn = args[0];
-  
+
   MonMap monmap;
 
   cout << me << ": monmap file " << fn << std::endl;
@@ -342,10 +364,10 @@ int main(int argc, const char **argv)
   }
 
   if (!create && r < 0) {
-    cerr << me << ": couldn't open " << fn << ": " << cpp_strerror(r) << std::endl;
+    cerr << me << ": couldn't open " << fn << ": " << cpp_strerror(r)
+         << std::endl;
     return -1;
-  }    
-  else if (create && !clobber && r == 0) {
+  } else if (create && !clobber && r == 0) {
     cerr << me << ": " << fn << " exists, --clobber to overwrite" << std::endl;
     return -1;
   }
@@ -360,7 +382,7 @@ int main(int argc, const char **argv)
       cout << me << ": generated fsid " << monmap.fsid << std::endl;
     }
     monmap.strategy = static_cast<MonMap::election_strategy>(
-		  g_conf().get_val<uint64_t>("mon_election_default_strategy"));
+        g_conf().get_val<uint64_t>("mon_election_default_strategy"));
     if (min_mon_release == ceph_release_t::unknown) {
       min_mon_release = ceph_release_t::umbrella;
     }
@@ -394,11 +416,12 @@ int main(int argc, const char **argv)
     list<string> initial_members;
     get_str_list(g_conf()->mon_initial_members, initial_members);
     if (!initial_members.empty()) {
-      cout << "initial_members " << initial_members << ", filtering seed monmap" << std::endl;
+      cout << "initial_members " << initial_members << ", filtering seed monmap"
+           << std::endl;
       set<entity_addrvec_t> removed;
-      monmap.set_initial_members(g_ceph_context, initial_members,
-				 string(), entity_addrvec_t(),
-				 &removed);
+      monmap.set_initial_members(
+          g_ceph_context, initial_members, string(), entity_addrvec_t(),
+          &removed);
       cout << "removed " << removed << std::endl;
     }
     modified = true;
@@ -419,25 +442,25 @@ int main(int argc, const char **argv)
     }
     if (addr.get_port() == 0) {
       if (monmap.persistent_features.contains_all(
-	    ceph::features::mon::FEATURE_NAUTILUS)) {
-	addr.set_type(entity_addr_t::TYPE_MSGR2);
-	addr.set_port(CEPH_MON_PORT_IANA);
-	addrs.v.push_back(addr);
-	addr.set_type(entity_addr_t::TYPE_LEGACY);
-	addr.set_port(CEPH_MON_PORT_LEGACY);
-	addrs.v.push_back(addr);
+              ceph::features::mon::FEATURE_NAUTILUS)) {
+        addr.set_type(entity_addr_t::TYPE_MSGR2);
+        addr.set_port(CEPH_MON_PORT_IANA);
+        addrs.v.push_back(addr);
+        addr.set_type(entity_addr_t::TYPE_LEGACY);
+        addr.set_port(CEPH_MON_PORT_LEGACY);
+        addrs.v.push_back(addr);
       } else {
-	addr.set_type(entity_addr_t::TYPE_LEGACY);
-	addr.set_port(CEPH_MON_PORT_LEGACY);
-	addrs.v.push_back(addr);
+        addr.set_type(entity_addr_t::TYPE_LEGACY);
+        addr.set_port(CEPH_MON_PORT_LEGACY);
+        addrs.v.push_back(addr);
       }
     } else if (addr.get_port() == CEPH_MON_PORT_LEGACY) {
       addr.set_type(entity_addr_t::TYPE_LEGACY);
       addrs.v.push_back(addr);
     } else {
       if (monmap.persistent_features.contains_all(
-	    ceph::features::mon::FEATURE_NAUTILUS)) {
-	addr.set_type(entity_addr_t::TYPE_MSGR2);
+              ceph::features::mon::FEATURE_NAUTILUS)) {
+        addr.set_type(entity_addr_t::TYPE_MSGR2);
       }
       addrs.v.push_back(addr);
     }
@@ -472,22 +495,21 @@ int main(int argc, const char **argv)
     helpful_exit();
   }
 
-  if (print) 
+  if (print)
     monmap.print(cout);
 
   if (modified) {
     // write it out
-    cout << me << ": writing epoch " << monmap.epoch
-	 << " to " << fn
-	 << " (" << monmap.size() << " monitors)" 
-	 << std::endl;
+    cout << me << ": writing epoch " << monmap.epoch << " to " << fn << " ("
+         << monmap.size() << " monitors)" << std::endl;
     int r = monmap.write(fn.c_str());
     if (r < 0) {
-      cerr << "monmaptool: error writing to '" << fn << "': " << cpp_strerror(r) << std::endl;
+      cerr << "monmaptool: error writing to '" << fn << "': " << cpp_strerror(r)
+           << std::endl;
       return 1;
     }
   }
-  
+
 
   return 0;
 }

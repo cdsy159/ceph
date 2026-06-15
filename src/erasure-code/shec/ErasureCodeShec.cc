@@ -19,19 +19,22 @@
  *
  */
 
+#include "ErasureCodeShec.h"
+
+#include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cerrno>
-#include <algorithm>
-#include "common/debug.h"
-#include "common/strtol.h"
-#include "ErasureCodeShec.h"
-extern "C" {
-#include "jerasure/include/jerasure.h"
-#include "jerasure/include/galois.h"
 
-extern int calc_determinant(int *matrix, int dim);
+#include "common/debug.h"
+
+#include "common/strtol.h"
+extern "C" {
+#include "jerasure/include/galois.h"
+#include "jerasure/include/jerasure.h"
+
+extern int calc_determinant(int* matrix, int dim);
 extern int* reed_sol_vandermonde_coding_matrix(int k, int m, int w);
 }
 
@@ -43,14 +46,14 @@ extern int* reed_sol_vandermonde_coding_matrix(int k, int m, int w);
 using namespace std;
 using namespace ceph;
 
-
-static ostream& _prefix(std::ostream* _dout)
+static ostream&
+_prefix(std::ostream* _dout)
 {
   return *_dout << "ErasureCodeShec: ";
 }
 
-int ErasureCodeShec::init(ErasureCodeProfile &profile,
-			  ostream *ss)
+int
+ErasureCodeShec::init(ErasureCodeProfile& profile, ostream* ss)
 {
   int err = 0;
   err |= parse(profile);
@@ -60,7 +63,8 @@ int ErasureCodeShec::init(ErasureCodeProfile &profile,
   return ErasureCode::init(profile, ss);
 }
 
-unsigned int ErasureCodeShec::get_chunk_size(unsigned int stripe_width) const
+unsigned int
+ErasureCodeShec::get_chunk_size(unsigned int stripe_width) const
 {
   unsigned alignment = get_alignment();
   unsigned tail = stripe_width % alignment;
@@ -72,18 +76,25 @@ unsigned int ErasureCodeShec::get_chunk_size(unsigned int stripe_width) const
 
 IGNORE_DEPRECATED
 [[deprecated]]
-int ErasureCodeShec::_minimum_to_decode(const set<int> &want_to_read,
-				       const set<int> &available_chunks,
-				       set<int> *minimum_chunks)
+int
+ErasureCodeShec::_minimum_to_decode(
+    const set<int>& want_to_read,
+    const set<int>& available_chunks,
+    set<int>* minimum_chunks)
 {
-  if (!minimum_chunks) return -EINVAL;
+  if (!minimum_chunks)
+    return -EINVAL;
 
-  for (set<int>::iterator it = available_chunks.begin(); it != available_chunks.end(); ++it){
-    if (*it < 0 || k+m <= *it) return -EINVAL;
+  for (set<int>::iterator it = available_chunks.begin();
+       it != available_chunks.end(); ++it) {
+    if (*it < 0 || k + m <= *it)
+      return -EINVAL;
   }
 
-  for (set<int>::iterator it = want_to_read.begin(); it != want_to_read.end(); ++it){
-    if (*it < 0 || k+m <= *it) return -EINVAL;
+  for (set<int>::iterator it = want_to_read.begin(); it != want_to_read.end();
+       ++it) {
+    if (*it < 0 || k + m <= *it)
+      return -EINVAL;
   }
 
   int want[k + m];
@@ -96,49 +107,58 @@ int ErasureCodeShec::_minimum_to_decode(const set<int> &want_to_read,
   (*minimum_chunks).clear();
 
   for (set<int>::const_iterator i = want_to_read.begin();
-       i != want_to_read.end();
-       ++i) {
+       i != want_to_read.end(); ++i) {
     want[*i] = 1;
   }
 
   for (set<int>::const_iterator i = available_chunks.begin();
-       i != available_chunks.end();
-       ++i) {
+       i != available_chunks.end(); ++i) {
     avails[*i] = 1;
   }
 
   {
-    int decoding_matrix[k*k];
+    int decoding_matrix[k * k];
     int dm_row[k];
     int dm_column[k];
     memset(decoding_matrix, 0, sizeof(decoding_matrix));
     memset(dm_row, 0, sizeof(dm_row));
     memset(dm_column, 0, sizeof(dm_column));
-    if (shec_make_decoding_matrix(true, want, avails, decoding_matrix, dm_row, dm_column, minimum) < 0) {
+    if (shec_make_decoding_matrix(
+            true, want, avails, decoding_matrix, dm_row, dm_column, minimum) <
+        0) {
       return -EIO;
     }
   }
 
   for (int i = 0; i < k + m; i++) {
-    if (minimum[i] == 1) minimum_chunks->insert(i);
+    if (minimum[i] == 1)
+      minimum_chunks->insert(i);
   }
 
   return 0;
 }
+
 END_IGNORE_DEPRECATED
 
-int ErasureCodeShec::_minimum_to_decode(const shard_id_set &want_to_read,
-				       const shard_id_set &available_chunks,
-				       shard_id_set *minimum_chunks)
+int
+ErasureCodeShec::_minimum_to_decode(
+    const shard_id_set& want_to_read,
+    const shard_id_set& available_chunks,
+    shard_id_set* minimum_chunks)
 {
-  if (!minimum_chunks) return -EINVAL;
+  if (!minimum_chunks)
+    return -EINVAL;
 
-  for (shard_id_set::const_iterator it = available_chunks.begin(); it != available_chunks.end(); ++it){
-    if (*it < 0 || k+m <= *it) return -EINVAL;
+  for (shard_id_set::const_iterator it = available_chunks.begin();
+       it != available_chunks.end(); ++it) {
+    if (*it < 0 || k + m <= *it)
+      return -EINVAL;
   }
 
-  for (shard_id_set::const_iterator it = want_to_read.begin(); it != want_to_read.end(); ++it){
-    if (*it < 0 || k+m <= *it) return -EINVAL;
+  for (shard_id_set::const_iterator it = want_to_read.begin();
+       it != want_to_read.end(); ++it) {
+    if (*it < 0 || k + m <= *it)
+      return -EINVAL;
   }
 
   int want[k + m];
@@ -159,19 +179,22 @@ int ErasureCodeShec::_minimum_to_decode(const shard_id_set &want_to_read,
   }
 
   {
-    int decoding_matrix[k*k];
+    int decoding_matrix[k * k];
     int dm_row[k];
     int dm_column[k];
     memset(decoding_matrix, 0, sizeof(decoding_matrix));
     memset(dm_row, 0, sizeof(dm_row));
     memset(dm_column, 0, sizeof(dm_column));
-    if (shec_make_decoding_matrix(true, want, avails, decoding_matrix, dm_row, dm_column, minimum) < 0) {
+    if (shec_make_decoding_matrix(
+            true, want, avails, decoding_matrix, dm_row, dm_column, minimum) <
+        0) {
       return -EIO;
     }
   }
 
   for (int i = 0; i < k + m; i++) {
-    if (minimum[i] == 1) minimum_chunks->insert(shard_id_t(i));
+    if (minimum[i] == 1)
+      minimum_chunks->insert(shard_id_t(i));
   }
 
   return 0;
@@ -179,30 +202,33 @@ int ErasureCodeShec::_minimum_to_decode(const shard_id_set &want_to_read,
 
 IGNORE_DEPRECATED
 [[deprecated]]
-int ErasureCodeShec::minimum_to_decode_with_cost(const set<int> &want_to_read,
-						 const map<int, int> &available,
-						 set<int> *minimum_chunks)
+int
+ErasureCodeShec::minimum_to_decode_with_cost(
+    const set<int>& want_to_read,
+    const map<int, int>& available,
+    set<int>* minimum_chunks)
 {
-  set <int> available_chunks;
+  set<int> available_chunks;
 
   for (map<int, int>::const_iterator i = available.begin();
-       i != available.end();
-       ++i)
+       i != available.end(); ++i)
     available_chunks.insert(i->first);
 
   return _minimum_to_decode(want_to_read, available_chunks, minimum_chunks);
 }
+
 END_IGNORE_DEPRECATED
 
-int ErasureCodeShec::minimum_to_decode_with_cost(const shard_id_set &want_to_read,
-						 const shard_id_map<int> &available,
-						 shard_id_set *minimum_chunks)
+int
+ErasureCodeShec::minimum_to_decode_with_cost(
+    const shard_id_set& want_to_read,
+    const shard_id_map<int>& available,
+    shard_id_set* minimum_chunks)
 {
   shard_id_set available_chunks;
 
   for (shard_id_map<int>::const_iterator i = available.begin();
-       i != available.end();
-       ++i)
+       i != available.end(); ++i)
     available_chunks.insert(i->first);
 
   return _minimum_to_decode(want_to_read, available_chunks, minimum_chunks);
@@ -210,15 +236,17 @@ int ErasureCodeShec::minimum_to_decode_with_cost(const shard_id_set &want_to_rea
 
 IGNORE_DEPRECATED
 [[deprecated]]
-int ErasureCodeShec::encode(const set<int> &want_to_encode,
-			    const bufferlist &in,
-			    map<int, bufferlist> *encoded)
+int
+ErasureCodeShec::encode(
+    const set<int>& want_to_encode,
+    const bufferlist& in,
+    map<int, bufferlist>* encoded)
 {
   unsigned int k = get_data_chunk_count();
   unsigned int m = get_chunk_count() - k;
   bufferlist out;
 
-  if (!encoded || !encoded->empty()){
+  if (!encoded || !encoded->empty()) {
     return -EINVAL;
   }
 
@@ -234,26 +262,31 @@ int ErasureCodeShec::encode(const set<int> &want_to_encode,
 }
 
 [[deprecated]]
-int ErasureCodeShec::encode_chunks(const set<int> &want_to_encode,
-				   map<int, bufferlist> *encoded)
+int
+ErasureCodeShec::encode_chunks(
+    const set<int>& want_to_encode,
+    map<int, bufferlist>* encoded)
 {
-  char *chunks[k + m];
-  for (int i = 0; i < k + m; i++){
+  char* chunks[k + m];
+  for (int i = 0; i < k + m; i++) {
     chunks[i] = (*encoded)[i].c_str();
   }
   shec_encode(&chunks[0], &chunks[k], (*encoded)[0].length());
   return 0;
 }
+
 END_IGNORE_DEPRECATED
 
-int ErasureCodeShec::encode_chunks(const shard_id_map<bufferptr> &in,
-                                   shard_id_map<bufferptr> &out)
+int
+ErasureCodeShec::encode_chunks(
+    const shard_id_map<bufferptr>& in,
+    shard_id_map<bufferptr>& out)
 {
-  char *chunks[k + m]; //TODO don't use variable length arrays
+  char* chunks[k + m]; //TODO don't use variable length arrays
   memset(chunks, 0, sizeof(char*) * (k + m));
   uint64_t size = 0;
 
-  for (auto &&[shard, ptr] : in) {
+  for (auto&& [shard, ptr] : in) {
     if (size == 0) {
       size = ptr.length();
     } else {
@@ -262,7 +295,7 @@ int ErasureCodeShec::encode_chunks(const shard_id_map<bufferptr> &in,
     chunks[static_cast<int>(shard)] = const_cast<char*>(ptr.c_str());
   }
 
-  for (auto &&[shard, ptr] : out) {
+  for (auto&& [shard, ptr] : out) {
     if (size == 0) {
       size = ptr.length();
     } else {
@@ -271,10 +304,11 @@ int ErasureCodeShec::encode_chunks(const shard_id_map<bufferptr> &in,
     chunks[static_cast<int>(shard)] = ptr.c_str();
   }
 
-  char *zeros = nullptr;
+  char* zeros = nullptr;
 
   for (shard_id_t i; i < k + m; ++i) {
-    if (in.contains(i) || out.contains(i)) continue;
+    if (in.contains(i) || out.contains(i))
+      continue;
 
     if (zeros == nullptr) {
       zeros = (char*)malloc(size);
@@ -286,20 +320,23 @@ int ErasureCodeShec::encode_chunks(const shard_id_map<bufferptr> &in,
 
   shec_encode(&chunks[0], &chunks[k], size);
 
-  if (zeros != nullptr) free(zeros);
+  if (zeros != nullptr)
+    free(zeros);
 
   return 0;
 }
 
 IGNORE_DEPRECATED
 [[deprecated]]
-int ErasureCodeShec::_decode(const set<int> &want_to_read,
-			    const map<int, bufferlist> &chunks,
-			    map<int, bufferlist> *decoded)
+int
+ErasureCodeShec::_decode(
+    const set<int>& want_to_read,
+    const map<int, bufferlist>& chunks,
+    map<int, bufferlist>* decoded)
 {
   vector<int> have;
 
-  if (!decoded || !decoded->empty()){
+  if (!decoded || !decoded->empty()) {
     return -EINVAL;
   }
   if (!want_to_read.empty() && chunks.empty()) {
@@ -309,15 +346,13 @@ int ErasureCodeShec::_decode(const set<int> &want_to_read,
 
   have.reserve(chunks.size());
   for (map<int, bufferlist>::const_iterator i = chunks.begin();
-       i != chunks.end();
-       ++i) {
+       i != chunks.end(); ++i) {
     have.push_back(i->first);
   }
   if (includes(
-	have.begin(), have.end(), want_to_read.begin(), want_to_read.end())) {
-    for (set<int>::iterator i = want_to_read.begin();
-	 i != want_to_read.end();
-	 ++i) {
+          have.begin(), have.end(), want_to_read.begin(), want_to_read.end())) {
+    for (set<int>::iterator i = want_to_read.begin(); i != want_to_read.end();
+         ++i) {
       (*decoded)[*i] = chunks.find(*i)->second;
     }
     return 0;
@@ -325,7 +360,7 @@ int ErasureCodeShec::_decode(const set<int> &want_to_read,
   unsigned int k = get_data_chunk_count();
   unsigned int m = get_chunk_count() - k;
   unsigned blocksize = (*chunks.begin()).second.length();
-  for (unsigned int i =  0; i < k + m; i++) {
+  for (unsigned int i = 0; i < k + m; i++) {
     if (chunks.find(i) == chunks.end()) {
       bufferlist tmp;
       bufferptr ptr(buffer::create_aligned(blocksize, SIMD_ALIGN));
@@ -341,23 +376,25 @@ int ErasureCodeShec::_decode(const set<int> &want_to_read,
 }
 
 [[deprecated]]
-int ErasureCodeShec::decode_chunks(const set<int> &want_to_read,
-				   const map<int, bufferlist> &chunks,
-				   map<int, bufferlist> *decoded)
+int
+ErasureCodeShec::decode_chunks(
+    const set<int>& want_to_read,
+    const map<int, bufferlist>& chunks,
+    map<int, bufferlist>* decoded)
 {
   unsigned blocksize = (*chunks.begin()).second.length();
   int erased[k + m];
   int erased_count = 0;
   int avails[k + m];
-  char *data[k];
-  char *coding[m];
+  char* data[k];
+  char* coding[m];
 
   for (int i = 0; i < k + m; i++) {
     erased[i] = 0;
     if (chunks.find(i) == chunks.end()) {
       if (want_to_read.count(i) > 0) {
-	erased[i] = 1;
-	erased_count++;
+        erased[i] = 1;
+        erased_count++;
       }
       avails[i] = 0;
     } else {
@@ -375,20 +412,23 @@ int ErasureCodeShec::decode_chunks(const set<int> &want_to_read,
     return 0;
   }
 }
+
 END_IGNORE_DEPRECATED
 
-int ErasureCodeShec::decode_chunks(const shard_id_set &want_to_read,
-                                   shard_id_map<bufferptr> &in,
-                                   shard_id_map<bufferptr> &out)
+int
+ErasureCodeShec::decode_chunks(
+    const shard_id_set& want_to_read,
+    shard_id_map<bufferptr>& in,
+    shard_id_map<bufferptr>& out)
 {
   unsigned int size = 0;
   int erased[k + m];
   int erased_count = 0;
   int avails[k + m];
-  char *data[k];
-  char *coding[m];
+  char* data[k];
+  char* coding[m];
 
-  for (auto &&[shard, ptr] : in) {
+  for (auto&& [shard, ptr] : in) {
     if (size == 0) {
       size = ptr.length();
     } else {
@@ -404,7 +444,7 @@ int ErasureCodeShec::decode_chunks(const shard_id_set &want_to_read,
     erased[static_cast<int>(shard)] = 0;
   }
 
-  for (auto &&[shard, ptr] : out) {
+  for (auto&& [shard, ptr] : out) {
     if (size == 0) {
       size = ptr.length();
     } else {
@@ -436,36 +476,46 @@ int ErasureCodeShec::decode_chunks(const shard_id_set &want_to_read,
 // ErasureCodeShecReedSolomonVandermonde
 //
 
-void ErasureCodeShecReedSolomonVandermonde::shec_encode(char **data,
-					     char **coding,
-					     int blocksize)
+void
+ErasureCodeShecReedSolomonVandermonde::shec_encode(
+    char** data,
+    char** coding,
+    int blocksize)
 {
   jerasure_matrix_encode(k, m, w, matrix, data, coding, blocksize);
 }
 
-int ErasureCodeShecReedSolomonVandermonde::shec_decode(int *erased,
-					    int *avails,
-					    char **data,
-					    char **coding,
-					    int blocksize)
+int
+ErasureCodeShecReedSolomonVandermonde::shec_decode(
+    int* erased,
+    int* avails,
+    char** data,
+    char** coding,
+    int blocksize)
 {
   return shec_matrix_decode(erased, avails, data, coding, blocksize);
 }
 
-void ErasureCodeShecReedSolomonVandermonde::encode_delta(const bufferptr &old_data,
-                                                         const bufferptr &new_data,
-                                                         bufferptr *delta_maybe_in_place)
+void
+ErasureCodeShecReedSolomonVandermonde::encode_delta(
+    const bufferptr& old_data,
+    const bufferptr& new_data,
+    bufferptr* delta_maybe_in_place)
 {
   if (&old_data != delta_maybe_in_place) {
-    memcpy(delta_maybe_in_place->c_str(), old_data.c_str(), delta_maybe_in_place->length());
+    memcpy(
+        delta_maybe_in_place->c_str(), old_data.c_str(),
+        delta_maybe_in_place->length());
   }
-  char *new_data_p = const_cast<char*>(new_data.c_str());
-  char *delta_p = delta_maybe_in_place->c_str();
+  char* new_data_p = const_cast<char*>(new_data.c_str());
+  char* delta_p = delta_maybe_in_place->c_str();
   galois_region_xor(new_data_p, delta_p, delta_maybe_in_place->length());
 }
 
-void ErasureCodeShecReedSolomonVandermonde::apply_delta(const shard_id_map<bufferptr> &in,
-                                                        shard_id_map<bufferptr> &out)
+void
+ErasureCodeShecReedSolomonVandermonde::apply_delta(
+    const shard_id_map<bufferptr>& in,
+    shard_id_map<bufferptr>& out)
 {
   auto first = in.begin();
   const unsigned blocksize = first->second.length();
@@ -482,49 +532,58 @@ void ErasureCodeShecReedSolomonVandermonde::apply_delta(const shard_id_map<buffe
       char* input_data = const_cast<char*>(databuf.c_str());
       char* output_data = codingbuf.c_str();
       switch (w) {
-        // We always update one parity at a time, so specify the correct row
-        // in the matrix for this particular parity
-        case 8:
-          galois_w08_region_multiply(
-              input_data,
-              matrix[static_cast<int>(datashard) + (k * (static_cast<int>(codingshard) - k))],
-              blocksize, output_data, 1);
-          break;
-        case 16:
-          galois_w16_region_multiply(
-              input_data,
-              matrix[static_cast<int>(datashard) + (k * (static_cast<int>(codingshard) - k))],
-              blocksize, output_data, 1);
-          break;
-        case 32:
-          galois_w32_region_multiply(
-              input_data,
-              matrix[static_cast<int>(datashard) + (k * (int(codingshard) - k))],
-              blocksize, output_data, 1);
-          break;
+      // We always update one parity at a time, so specify the correct row
+      // in the matrix for this particular parity
+      case 8:
+        galois_w08_region_multiply(
+            input_data,
+            matrix
+                [static_cast<int>(datashard) +
+                 (k * (static_cast<int>(codingshard) - k))],
+            blocksize, output_data, 1);
+        break;
+      case 16:
+        galois_w16_region_multiply(
+            input_data,
+            matrix
+                [static_cast<int>(datashard) +
+                 (k * (static_cast<int>(codingshard) - k))],
+            blocksize, output_data, 1);
+        break;
+      case 32:
+        galois_w32_region_multiply(
+            input_data,
+            matrix[static_cast<int>(datashard) + (k * (int(codingshard) - k))],
+            blocksize, output_data, 1);
+        break;
       }
     }
   }
 }
 
-unsigned ErasureCodeShecReedSolomonVandermonde::get_alignment() const
+unsigned
+ErasureCodeShecReedSolomonVandermonde::get_alignment() const
 {
-  return k*w*sizeof(int);
+  return k * w * sizeof(int);
 }
 
-int ErasureCodeShecReedSolomonVandermonde::parse(const ErasureCodeProfile &profile)
+int
+ErasureCodeShecReedSolomonVandermonde::parse(const ErasureCodeProfile& profile)
 {
   int err = 0;
   // k, m, c
   if (profile.find("k") == profile.end() &&
       profile.find("m") == profile.end() &&
-      profile.find("c") == profile.end()){
-    dout(10) << "(k, m, c) default to " << "(" << DEFAULT_K
-	     << ", " << DEFAULT_M << ", " << DEFAULT_C << ")" << dendl;
-    k = DEFAULT_K; m = DEFAULT_M; c = DEFAULT_C;
-  } else if (profile.find("k") == profile.end() ||
-	     profile.find("m") == profile.end() ||
-	     profile.find("c") == profile.end()){
+      profile.find("c") == profile.end()) {
+    dout(10) << "(k, m, c) default to " << "(" << DEFAULT_K << ", " << DEFAULT_M
+             << ", " << DEFAULT_C << ")" << dendl;
+    k = DEFAULT_K;
+    m = DEFAULT_M;
+    c = DEFAULT_C;
+  } else if (
+      profile.find("k") == profile.end() ||
+      profile.find("m") == profile.end() ||
+      profile.find("c") == profile.end()) {
     dout(10) << "(k, m, c) must be chosen" << dendl;
     err = -EINVAL;
   } else {
@@ -536,57 +595,50 @@ int ErasureCodeShecReedSolomonVandermonde::parse(const ErasureCodeProfile &profi
     m = strict_strtol(value_m.c_str(), 10, &err_m);
     c = strict_strtol(value_c.c_str(), 10, &err_c);
 
-    if (!err_k.empty() || !err_m.empty() || !err_c.empty()){
-      if (!err_k.empty()){
-	derr << "could not convert k=" << value_k << "to int" << dendl;
-      } else if (!err_m.empty()){
-	derr << "could not convert m=" << value_m << "to int" << dendl;
-      } else if (!err_c.empty()){
-	derr << "could not convert c=" << value_c << "to int" << dendl;
+    if (!err_k.empty() || !err_m.empty() || !err_c.empty()) {
+      if (!err_k.empty()) {
+        derr << "could not convert k=" << value_k << "to int" << dendl;
+      } else if (!err_m.empty()) {
+        derr << "could not convert m=" << value_m << "to int" << dendl;
+      } else if (!err_c.empty()) {
+        derr << "could not convert c=" << value_c << "to int" << dendl;
       }
       err = -EINVAL;
-    } else if (k <= 0){
-      derr << "k=" << k
-	   << " must be a positive number" << dendl;
+    } else if (k <= 0) {
+      derr << "k=" << k << " must be a positive number" << dendl;
       err = -EINVAL;
-    } else if (m <= 0){
-      derr << "m=" << m
-	   << " must be a positive number" << dendl;
+    } else if (m <= 0) {
+      derr << "m=" << m << " must be a positive number" << dendl;
       err = -EINVAL;
-    } else if (c <= 0){
-      derr << "c=" << c
-	   << " must be a positive number" << dendl;
+    } else if (c <= 0) {
+      derr << "c=" << c << " must be a positive number" << dendl;
       err = -EINVAL;
-    } else if (m < c){
-      derr << "c=" << c
-	   << " must be less than or equal to m=" << m << dendl;
+    } else if (m < c) {
+      derr << "c=" << c << " must be less than or equal to m=" << m << dendl;
       err = -EINVAL;
-    } else if (k > 12){
-      derr << "k=" << k
-	   << " must be less than or equal to 12" << dendl;
+    } else if (k > 12) {
+      derr << "k=" << k << " must be less than or equal to 12" << dendl;
       err = -EINVAL;
-    } else if (k+m > 20){
-      derr << "k+m=" << k+m
-	   << " must be less than or equal to 20" << dendl;
+    } else if (k + m > 20) {
+      derr << "k+m=" << k + m << " must be less than or equal to 20" << dendl;
       err = -EINVAL;
-    } else if (k<m){
-      derr << "m=" << m
-	   << " must be less than or equal to k=" << k << dendl;
+    } else if (k < m) {
+      derr << "m=" << m << " must be less than or equal to k=" << k << dendl;
       err = -EINVAL;
     }
   }
 
   if (err) {
     derr << "(k, m, c)=(" << k << ", " << m << ", " << c
-	 << ") is not a valid parameter." << dendl;
+         << ") is not a valid parameter." << dendl;
     return err;
   }
 
-  dout(10) << "(k, m, c) set to " << "(" << k << ", " << m << ", "
-	   << c << ")"<< dendl;
+  dout(10) << "(k, m, c) set to " << "(" << k << ", " << m << ", " << c << ")"
+           << dendl;
 
   // w
-  if (profile.find("w") == profile.end()){
+  if (profile.find("w") == profile.end()) {
     dout(10) << "w default to " << DEFAULT_W << dendl;
     w = DEFAULT_W;
   } else {
@@ -594,14 +646,13 @@ int ErasureCodeShecReedSolomonVandermonde::parse(const ErasureCodeProfile &profi
     value_w = profile.find("w")->second;
     w = strict_strtol(value_w.c_str(), 10, &err_w);
 
-    if (!err_w.empty()){
+    if (!err_w.empty()) {
       derr << "could not convert w=" << value_w << "to int" << dendl;
       dout(10) << "w default to " << DEFAULT_W << dendl;
       w = DEFAULT_W;
 
     } else if (w != 8 && w != 16 && w != 32) {
-      derr << "w=" << w
-	   << " must be one of {8, 16, 32}" << dendl;
+      derr << "w=" << w << " must be one of {8, 16, 32}" << dendl;
       dout(10) << "w default to " << DEFAULT_W << dendl;
       w = DEFAULT_W;
 
@@ -612,15 +663,15 @@ int ErasureCodeShecReedSolomonVandermonde::parse(const ErasureCodeProfile &profi
   return 0;
 }
 
-void ErasureCodeShecReedSolomonVandermonde::prepare()
+void
+ErasureCodeShecReedSolomonVandermonde::prepare()
 {
   // setup shared encoding table
-  int** p_enc_table =
-    tcache.getEncodingTable(technique, k, m, c, w);
+  int** p_enc_table = tcache.getEncodingTable(technique, k, m, c, w);
 
   if (!*p_enc_table) {
-    dout(10) << "[ cache tables ] creating coeff for k=" <<
-      k << " m=" << m << " c=" << c << " w=" << w << dendl;
+    dout(10) << "[ cache tables ] creating coeff for k=" << k << " m=" << m
+             << " c=" << c << " w=" << w << dendl;
 
     matrix = shec_reedsolomon_coding_matrix(technique);
 
@@ -630,10 +681,10 @@ void ErasureCodeShecReedSolomonVandermonde::prepare()
     matrix = tcache.setEncodingTable(technique, k, m, c, w, matrix);
 
     dout(10) << "matrix = " << dendl;
-    for (int i=0; i<m; i++) {
-      char mat[k+1];
-      for (int j=0; j<k; j++) {
-        if (matrix[i*k+j] > 0) {
+    for (int i = 0; i < m; i++) {
+      char mat[k + 1];
+      for (int j = 0; j < k; j++) {
+        if (matrix[i * k + j] > 0) {
           mat[j] = '1';
         } else {
           mat[j] = '0';
@@ -646,79 +697,95 @@ void ErasureCodeShecReedSolomonVandermonde::prepare()
     matrix = *p_enc_table;
   }
 
-  dout(10) << " [ technique ] = " <<
-    ((technique == MULTIPLE) ? "multiple" : "single") << dendl;
+  dout(10) << " [ technique ] = "
+           << ((technique == MULTIPLE) ? "multiple" : "single") << dendl;
 
   ceph_assert((technique == SINGLE) || (technique == MULTIPLE));
-
 }
 
 // ErasureCodeShec::
 // Mearged from shec.cc.
 
-double ErasureCodeShec::shec_calc_recovery_efficiency1(int k, int m1, int m2, int c1, int c2){
+double
+ErasureCodeShec::shec_calc_recovery_efficiency1(
+    int k,
+    int m1,
+    int m2,
+    int c1,
+    int c2)
+{
   int r_eff_k[k];
   double r_e1;
   int i, rr, cc, start, end;
   int first_flag;
 
-  if (m1 < c1 || m2 < c2) return -1;
-  if ((m1 == 0 && c1 != 0) || (m2 == 0 && c2 != 0)) return -1;
+  if (m1 < c1 || m2 < c2)
+    return -1;
+  if ((m1 == 0 && c1 != 0) || (m2 == 0 && c2 != 0))
+    return -1;
 
-  for (i=0; i<k; i++) r_eff_k[i] = 100000000;
+  for (i = 0; i < k; i++)
+    r_eff_k[i] = 100000000;
   r_e1 = 0;
 
-  for (rr=0; rr<m1; rr++){
-    start = ((rr*k)/m1) % k;
-    end = (((rr+c1)*k)/m1) % k;
-    for (cc=start, first_flag=1; first_flag || cc!=end; cc=(cc+1)%k){
+  for (rr = 0; rr < m1; rr++) {
+    start = ((rr * k) / m1) % k;
+    end = (((rr + c1) * k) / m1) % k;
+    for (cc = start, first_flag = 1; first_flag || cc != end;
+         cc = (cc + 1) % k) {
       first_flag = 0;
-      r_eff_k[cc] = std::min(r_eff_k[cc], ((rr+c1)*k)/m1 - (rr*k)/m1);
+      r_eff_k[cc] = std::min(r_eff_k[cc], ((rr + c1) * k) / m1 - (rr * k) / m1);
     }
-    r_e1 += ((rr+c1)*k)/m1 - (rr*k)/m1;
+    r_e1 += ((rr + c1) * k) / m1 - (rr * k) / m1;
   }
 
-  for (rr=0; rr<m2; rr++){
-    start = ((rr*k)/m2) % k;
-    end = (((rr+c2)*k)/m2) % k;
-    for (cc=start, first_flag=1; first_flag || cc!=end; cc=(cc+1)%k){
+  for (rr = 0; rr < m2; rr++) {
+    start = ((rr * k) / m2) % k;
+    end = (((rr + c2) * k) / m2) % k;
+    for (cc = start, first_flag = 1; first_flag || cc != end;
+         cc = (cc + 1) % k) {
       first_flag = 0;
-      r_eff_k[cc] = std::min(r_eff_k[cc], ((rr+c2)*k)/m2 - (rr*k)/m2);
+      r_eff_k[cc] = std::min(r_eff_k[cc], ((rr + c2) * k) / m2 - (rr * k) / m2);
     }
-    r_e1 += ((rr+c2)*k)/m2 - (rr*k)/m2;
+    r_e1 += ((rr + c2) * k) / m2 - (rr * k) / m2;
   }
 
-  for (i=0; i<k; i++){
+  for (i = 0; i < k; i++) {
     r_e1 += r_eff_k[i];
   }
 
-  r_e1 /= (k+m1+m2);
+  r_e1 /= (k + m1 + m2);
 
   return r_e1;
 }
 
-int* ErasureCodeShec::shec_reedsolomon_coding_matrix(int is_single)
+int*
+ErasureCodeShec::shec_reedsolomon_coding_matrix(int is_single)
 {
-  int *matrix;
+  int* matrix;
   int rr, cc, start, end;
   int m1, m2, c1, c2;
 
-  if (w != 8 && w != 16 && w != 32) return NULL;
+  if (w != 8 && w != 16 && w != 32)
+    return NULL;
 
-  if (!is_single){
+  if (!is_single) {
     int c1_best = -1, m1_best = -1;
     double min_r_e1 = 100.0;
 
     // create all multiple shec pattern and choose best.
 
-    for (c1=0; c1 <= c/2; c1++){
-      for (m1=0; m1 <= m; m1++){
-        c2 = c-c1;
-        m2 = m-m1;
+    for (c1 = 0; c1 <= c / 2; c1++) {
+      for (m1 = 0; m1 <= m; m1++) {
+        c2 = c - c1;
+        m2 = m - m1;
 
-        if (m1 < c1 || m2 < c2) continue;
-        if ((m1 == 0 && c1 != 0) || (m2 == 0 && c2 != 0)) continue;
-        if ((m1 != 0 && c1 == 0) || (m2 != 0 && c2 == 0)) continue;
+        if (m1 < c1 || m2 < c2)
+          continue;
+        if ((m1 == 0 && c1 != 0) || (m2 == 0 && c2 != 0))
+          continue;
+        if ((m1 != 0 && c1 == 0) || (m2 != 0 && c2 == 0))
+          continue;
 
         // minimize r_e1
 
@@ -726,7 +793,7 @@ int* ErasureCodeShec::shec_reedsolomon_coding_matrix(int is_single)
           double r_e1;
           r_e1 = shec_calc_recovery_efficiency1(k, m1, m2, c1, c2);
           if (min_r_e1 - r_e1 > std::numeric_limits<double>::epsilon() &&
-	      r_e1 < min_r_e1) {
+              r_e1 < min_r_e1) {
             min_r_e1 = r_e1;
             c1_best = c1;
             m1_best = m1;
@@ -748,30 +815,36 @@ int* ErasureCodeShec::shec_reedsolomon_coding_matrix(int is_single)
   // create matrix
   matrix = reed_sol_vandermonde_coding_matrix(k, m, w);
 
-  for (rr=0; rr<m1; rr++){
-    end = ((rr*k)/m1) % k;
-    start = (((rr+c1)*k)/m1) % k;
-    for (cc=start; cc!=end; cc=(cc+1)%k){
-      matrix[cc + rr*k] = 0;
+  for (rr = 0; rr < m1; rr++) {
+    end = ((rr * k) / m1) % k;
+    start = (((rr + c1) * k) / m1) % k;
+    for (cc = start; cc != end; cc = (cc + 1) % k) {
+      matrix[cc + rr * k] = 0;
     }
   }
 
-  for (rr=0; rr<m2; rr++){
-    end = ((rr*k)/m2) % k;
-    start = (((rr+c2)*k)/m2) % k;
-    for (cc=start; cc!=end; cc=(cc+1)%k){
-      matrix[cc + (rr+m1)*k] = 0;
+  for (rr = 0; rr < m2; rr++) {
+    end = ((rr * k) / m2) % k;
+    start = (((rr + c2) * k) / m2) % k;
+    for (cc = start; cc != end; cc = (cc + 1) % k) {
+      matrix[cc + (rr + m1) * k] = 0;
     }
   }
 
   return matrix;
 }
 
-int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *avails,
-                                               int *decoding_matrix, int *dm_row, int *dm_column,
-                                               int *minimum)
+int
+ErasureCodeShec::shec_make_decoding_matrix(
+    bool prepare,
+    int* want_,
+    int* avails,
+    int* decoding_matrix,
+    int* dm_row,
+    int* dm_column,
+    int* minimum)
 {
-  int mindup = k+1, minp = k+1;
+  int mindup = k + 1, minp = k + 1;
   int want[k + m];
 
   memset(want, 0, sizeof(want));
@@ -782,7 +855,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
 
   for (int i = 0; i < m; ++i) {
     if (want[i + k] && !avails[i + k]) {
-      for (int j=0; j < k; ++j) {
+      for (int j = 0; j < k; ++j) {
         if (matrix[i * k + j] > 0) {
           want[j] = 1;
         }
@@ -790,11 +863,9 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
     }
   }
 
-  if (tcache.getDecodingTableFromCache(decoding_matrix,
-                                       dm_row, dm_column, minimum,
-                                       technique,
-                                       k, m, c, w,
-                                       want, avails)) {
+  if (tcache.getDecodingTableFromCache(
+          decoding_matrix, dm_row, dm_column, minimum, technique, k, m, c, w,
+          want, avails)) {
     return 0;
   }
 
@@ -803,7 +874,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
     // select parity chunks
     int ek = 0;
     int p[m];
-    for (int i=0; i < m; ++i) {
+    for (int i = 0; i < m; ++i) {
       if (pp & (1ull << i)) {
         p[ek++] = i;
       }
@@ -815,7 +886,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
     // Are selected parity chunks avail?
     bool ok = true;
     for (int i = 0; i < ek && ok; i++) {
-      if (!avails[k+p[i]]) {
+      if (!avails[k + p[i]]) {
         ok = false;
         break;
       }
@@ -834,7 +905,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
       tmpcolumn[i] = 0;
     }
 
-    for (int i=0; i < k; i++) {
+    for (int i = 0; i < k; i++) {
       if (want[i] && !avails[i]) {
         tmpcolumn[i] = 1;
       }
@@ -915,12 +986,12 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
         }
 
         mindup = dup;
-        for (int i=0; i < k + m; i++) {
+        for (int i = 0; i < k + m; i++) {
           if (tmprow[i]) {
             dm_row[row_id++] = i;
           }
         }
-        for (int i=0; i < k; i++) {
+        for (int i = 0; i < k; i++) {
           if (tmpcolumn[i]) {
             dm_column[column_id++] = i;
           }
@@ -931,7 +1002,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
   }
 
 
-  if (mindup == k+1) {
+  if (mindup == k + 1) {
     dout(10) << __func__ << ": can't find recover matrix." << dendl;
     return -1;
   }
@@ -940,7 +1011,7 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
     minimum[i] = 0;
   }
 
-  for (int i=0; i < k && dm_row[i] != -1; i++) {
+  for (int i = 0; i < k && dm_row[i] != -1; i++) {
     minimum[dm_row[i]] = 1;
   }
 
@@ -966,8 +1037,8 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
   }
 
   int tmpmat[mindup * mindup];
-  for (int i=0; i < mindup; i++) {
-    for (int j=0; j < mindup; j++) {
+  for (int i = 0; i < mindup; i++) {
+    for (int j = 0; j < mindup; j++) {
       if (dm_row[i] < k) {
         tmpmat[i * mindup + j] = (dm_row[i] == dm_column[j] ? 1 : 0);
       } else {
@@ -991,16 +1062,22 @@ int ErasureCodeShec::shec_make_decoding_matrix(bool prepare, int *want_, int *av
 
   int ret = jerasure_invert_matrix(tmpmat, decoding_matrix, mindup, w);
 
-  tcache.putDecodingTableToCache(decoding_matrix, dm_row, dm_column, minimum, technique,
-                                 k, m, c, w, want, avails);
+  tcache.putDecodingTableToCache(
+      decoding_matrix, dm_row, dm_column, minimum, technique, k, m, c, w, want,
+      avails);
 
   return ret;
 }
 
-int ErasureCodeShec::shec_matrix_decode(int *want, int *avails, char **data_ptrs,
-                                        char **coding_ptrs, int size)
+int
+ErasureCodeShec::shec_matrix_decode(
+    int* want,
+    int* avails,
+    char** data_ptrs,
+    char** coding_ptrs,
+    int size)
 {
-  int decoding_matrix[k*k];
+  int decoding_matrix[k * k];
   int dm_row[k], dm_column[k];
   int minimum[k + m];
 
@@ -1009,10 +1086,12 @@ int ErasureCodeShec::shec_matrix_decode(int *want, int *avails, char **data_ptrs
   memset(dm_column, -1, sizeof(dm_column));
   memset(minimum, -1, sizeof(minimum));
 
-  if (w != 8 && w != 16 && w != 32) return -1;
+  if (w != 8 && w != 16 && w != 32)
+    return -1;
 
-  if (shec_make_decoding_matrix(false, want, avails, decoding_matrix,
-                                dm_row, dm_column, minimum) < 0) {
+  if (shec_make_decoding_matrix(
+          false, want, avails, decoding_matrix, dm_row, dm_column, minimum) <
+      0) {
     return -1;
   }
 
@@ -1025,7 +1104,7 @@ int ErasureCodeShec::shec_matrix_decode(int *want, int *avails, char **data_ptrs
     dm_size++;
   }
 
-  char *dm_data_ptrs[dm_size];
+  char* dm_data_ptrs[dm_size];
   for (int i = 0; i < dm_size; i++) {
     dm_data_ptrs[i] = data_ptrs[dm_column[i]];
   }
@@ -1033,16 +1112,17 @@ int ErasureCodeShec::shec_matrix_decode(int *want, int *avails, char **data_ptrs
   // Decode the data drives
   for (int i = 0; i < dm_size; i++) {
     if (!avails[dm_column[i]]) {
-      jerasure_matrix_dotprod(dm_size, w, decoding_matrix + (i * dm_size),
-                              dm_row, i, dm_data_ptrs, coding_ptrs, size);
+      jerasure_matrix_dotprod(
+          dm_size, w, decoding_matrix + (i * dm_size), dm_row, i, dm_data_ptrs,
+          coding_ptrs, size);
     }
   }
 
   // Re-encode any erased coding devices
   for (int i = 0; i < m; i++) {
-    if (want[k+i] && !avails[k+i]) {
-      jerasure_matrix_dotprod(k, w, matrix + (i * k), NULL, i+k,
-                              data_ptrs, coding_ptrs, size);
+    if (want[k + i] && !avails[k + i]) {
+      jerasure_matrix_dotprod(
+          k, w, matrix + (i * k), NULL, i + k, data_ptrs, coding_ptrs, size);
     }
   }
 

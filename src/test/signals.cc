@@ -1,23 +1,23 @@
-#include "common/config.h"
-#include "common/signal.h"
-#include "global/signal_handler.h"
-#include "common/debug.h"
-#include "include/coredumpctl.h"
-#include "log/Log.h"
-
-#include "gtest/gtest.h"
-
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "common/debug.h"
+
+#include "common/config.h"
+#include "common/signal.h"
+#include "global/signal_handler.h"
+#include "gtest/gtest.h"
 #include "include/ceph_assert.h"
+#include "include/coredumpctl.h"
+#include "log/Log.h"
 
 #define dout_context g_ceph_context
 static volatile sig_atomic_t got_sigusr1 = 0;
 
-static void handle_sigusr1(int signo)
+static void
+handle_sigusr1(int signo)
 {
   got_sigusr1 = 1;
 }
@@ -48,20 +48,20 @@ TEST(SignalApi, SimpleInstallAndTest)
   ASSERT_EQ(got_sigusr1, 1);
 }
 
-TEST(SignalEffects, ErrnoTest1)
-{
-}
+TEST(SignalEffects, ErrnoTest1) {}
 
 bool usr1 = false;
 bool usr2 = false;
 
-void reset()
+void
+reset()
 {
   usr1 = false;
   usr2 = false;
 }
 
-void testhandler(int signal)
+void
+testhandler(int signal)
 {
   switch (signal) {
   case SIGUSR1:
@@ -126,7 +126,6 @@ TEST(SignalHandler, LogInternal)
   }
   g_ceph_context->_log->reset_segv();
 }
-
 
 /*
 TEST(SignalHandler, MultipleBigFd)

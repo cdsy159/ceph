@@ -16,29 +16,32 @@
 #pragma once
 
 
-#include <ostream>
 #include <assert.h>
 
+#include <ostream>
 
 namespace crimson {
-  namespace simple_scheduler {
+namespace simple_scheduler {
 
-    // since we send no additional data out
-    // NOTE: Change name to RespParams? Is it used elsewhere?
-    struct NullData {
-      friend std::ostream& operator<<(std::ostream& out, const NullData& n) {
-	out << "NullData{ EMPTY }";
-	return out;
-      }
-    }; // struct NullData
-
-
-    struct ReqParams {
-      friend std::ostream& operator<<(std::ostream& out, const ReqParams& rp) {
-	out << "ReqParams{ EMPTY }";
-	return out;
-      }
-    };
-
+// since we send no additional data out
+// NOTE: Change name to RespParams? Is it used elsewhere?
+struct NullData {
+  friend std::ostream&
+  operator<<(std::ostream& out, const NullData& n)
+  {
+    out << "NullData{ EMPTY }";
+    return out;
   }
-}
+}; // struct NullData
+
+struct ReqParams {
+  friend std::ostream&
+  operator<<(std::ostream& out, const ReqParams& rp)
+  {
+    out << "ReqParams{ EMPTY }";
+    return out;
+  }
+};
+
+} // namespace simple_scheduler
+} // namespace crimson

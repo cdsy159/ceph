@@ -3,19 +3,19 @@
 
 #pragma once
 
+#include <seastar/core/shared_future.hh>
+#include <seastar/core/smp.hh>
+
 #include <concepts>
 #include <limits>
 #include <optional>
 #include <type_traits>
 #include <vector>
 
-#include <seastar/core/shared_future.hh>
-#include <seastar/core/smp.hh>
-
 #include "common/likely.h"
+#include "crimson/common/coroutine.h"
 #include "crimson/common/errorator.h"
 #include "crimson/common/utility.h"
-#include "crimson/common/coroutine.h"
 
 namespace crimson {
 
@@ -23,8 +23,10 @@ using core_id_t = seastar::shard_id;
 using store_index_t = uint32_t;
 using store_shard_t = uint32_t;
 static constexpr core_id_t NULL_CORE = std::numeric_limits<core_id_t>::max();
-static constexpr store_index_t NULL_STORE_INDEX = std::numeric_limits<store_index_t>::max();
-static constexpr store_shard_t GLOBAL_STORE = std::numeric_limits<store_shard_t>::max();
+static constexpr store_index_t NULL_STORE_INDEX =
+    std::numeric_limits<store_index_t>::max();
+static constexpr store_shard_t GLOBAL_STORE =
+    std::numeric_limits<store_shard_t>::max();
 static constexpr store_index_t META_STORE_INDEX = 0;
 
 /**
@@ -32,14 +34,14 @@ static constexpr store_index_t META_STORE_INDEX = 0;
  *
  * Transparently deal with vanilla and errorated futures
  */
-auto submit_to(core_id_t core, auto &&f) {
+auto
+submit_to(core_id_t core, auto&& f)
+{
   using ret_type = decltype(f());
   if constexpr (is_errorated_future_v<ret_type>) {
-    auto ret = seastar::smp::submit_to(
-      core,
-      [f=std::move(f)]() mutable {
-	return f().to_base();
-      });
+    auto ret = seastar::smp::submit_to(core, [f = std::move(f)]() mutable {
+      return f().to_base();
+    });
     return ret_type(std::move(ret));
   } else {
     return seastar::smp::submit_to(core, std::move(f));
@@ -47,14 +49,15 @@ auto submit_to(core_id_t core, auto &&f) {
 }
 
 template <typename Obj, typename Method, typename... Args>
-auto proxy_method_on_core(
-  core_id_t core, Obj &obj, Method method, Args&&... args) {
+auto
+proxy_method_on_core(core_id_t core, Obj& obj, Method method, Args&&... args)
+{
   return crimson::submit_to(
-    core,
-    [&obj, method,
-     arg_tuple=std::make_tuple(std::forward<Args>(args)...)]() mutable {
-      return apply_method_to_tuple(obj, method, std::move(arg_tuple));
-    });
+      core,
+      [&obj, method,
+       arg_tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+        return apply_method_to_tuple(obj, method, std::move(arg_tuple));
+      });
 }
 
 /**
@@ -65,14 +68,18 @@ auto proxy_method_on_core(
  * f is copied here and is kept alive due to coroutine parameter copying.
  */
 template <typename F>
-auto invoke_on_all_seq(F f) -> decltype(seastar::futurize_invoke(f)) {
-  for (auto core: seastar::smp::all_cpus()) {
-      co_await crimson::submit_to(core, [&f] { return seastar::futurize_invoke(f);});
+auto
+invoke_on_all_seq(F f) -> decltype(seastar::futurize_invoke(f))
+{
+  for (auto core : seastar::smp::all_cpus()) {
+    co_await crimson::submit_to(core, [&f] {
+      return seastar::futurize_invoke(f);
+    });
   }
 }
 
 enum class crosscore_type_t {
-  ONE,   // from 1 to 1 core
+  ONE, // from 1 to 1 core
   ONE_N, // from 1 to n cores
   N_ONE, // from n to 1 core
 };
@@ -92,12 +99,17 @@ class smp_crosscore_ordering_t {
 public:
   using seq_t = uint64_t;
 
-  smp_crosscore_ordering_t() requires IS_ONE
-    : out_seqs(0) { }
+  smp_crosscore_ordering_t()
+    requires IS_ONE
+    :
+    out_seqs(0)
+  {}
 
-  smp_crosscore_ordering_t() requires (!IS_ONE)
-    : out_seqs(seastar::smp::count, 0),
-      in_controls(seastar::smp::count) {}
+  smp_crosscore_ordering_t()
+    requires(!IS_ONE)
+    :
+    out_seqs(seastar::smp::count, 0), in_controls(seastar::smp::count)
+  {}
 
   ~smp_crosscore_ordering_t() = default;
 
@@ -105,15 +117,24 @@ public:
    * Called by the original core to get the ordering sequence
    */
 
-  seq_t prepare_submit() requires IS_ONE {
+  seq_t
+  prepare_submit()
+    requires IS_ONE
+  {
     return do_prepare_submit(out_seqs);
   }
 
-  seq_t prepare_submit(core_id_t target_core) requires IS_ONE_N {
+  seq_t
+  prepare_submit(core_id_t target_core)
+    requires IS_ONE_N
+  {
     return do_prepare_submit(out_seqs[target_core]);
   }
 
-  seq_t prepare_submit() requires IS_N_ONE {
+  seq_t
+  prepare_submit()
+    requires IS_N_ONE
+  {
     return do_prepare_submit(out_seqs[seastar::this_shard_id()]);
   }
 
@@ -121,44 +142,74 @@ public:
    * Called by the target core to preserve the ordering
    */
 
-  seq_t get_in_seq() const requires IS_ONE {
+  seq_t
+  get_in_seq() const
+    requires IS_ONE
+  {
     return in_controls.seq + 1;
   }
 
-  seq_t get_in_seq() const requires IS_ONE_N {
+  seq_t
+  get_in_seq() const
+    requires IS_ONE_N
+  {
     return in_controls[seastar::this_shard_id()].seq + 1;
   }
 
-  seq_t get_in_seq(core_id_t source_core) const requires IS_N_ONE {
+  seq_t
+  get_in_seq(core_id_t source_core) const
+    requires IS_N_ONE
+  {
     return in_controls[source_core].seq + 1;
   }
 
-  bool proceed_or_wait(seq_t seq) requires IS_ONE {
+  bool
+  proceed_or_wait(seq_t seq)
+    requires IS_ONE
+  {
     return in_controls.proceed_or_wait(seq);
   }
 
-  bool proceed_or_wait(seq_t seq) requires IS_ONE_N {
+  bool
+  proceed_or_wait(seq_t seq)
+    requires IS_ONE_N
+  {
     return in_controls[seastar::this_shard_id()].proceed_or_wait(seq);
   }
 
-  bool proceed_or_wait(seq_t seq, core_id_t source_core) requires IS_N_ONE {
+  bool
+  proceed_or_wait(seq_t seq, core_id_t source_core)
+    requires IS_N_ONE
+  {
     return in_controls[source_core].proceed_or_wait(seq);
   }
 
-  seastar::future<> wait(seq_t seq) requires IS_ONE {
+  seastar::future<>
+  wait(seq_t seq)
+    requires IS_ONE
+  {
     return in_controls.wait(seq);
   }
 
-  seastar::future<> wait(seq_t seq) requires IS_ONE_N {
+  seastar::future<>
+  wait(seq_t seq)
+    requires IS_ONE_N
+  {
     return in_controls[seastar::this_shard_id()].wait(seq);
   }
 
-  seastar::future<> wait(seq_t seq, core_id_t source_core) requires IS_N_ONE {
+  seastar::future<>
+  wait(seq_t seq, core_id_t source_core)
+    requires IS_N_ONE
+  {
     return in_controls[source_core].wait(seq);
   }
 
-  void reset_wait() requires IS_N_ONE {
-    for (auto &in_control : in_controls) {
+  void
+  reset_wait()
+    requires IS_N_ONE
+  {
+    for (auto& in_control : in_controls) {
       in_control.reset_wait();
     }
   }
@@ -168,7 +219,9 @@ private:
     seq_t seq = 0;
     std::optional<seastar::shared_promise<>> pr_wait;
 
-    bool proceed_or_wait(seq_t in_seq) {
+    bool
+    proceed_or_wait(seq_t in_seq)
+    {
       if (in_seq == seq + 1) {
         ++seq;
         reset_wait();
@@ -178,7 +231,9 @@ private:
       }
     }
 
-    seastar::future<> wait(seq_t in_seq) {
+    seastar::future<>
+    wait(seq_t in_seq)
+    {
       assert(in_seq != seq + 1);
       if (!pr_wait.has_value()) {
         pr_wait = seastar::shared_promise<>();
@@ -186,7 +241,9 @@ private:
       return pr_wait->get_shared_future();
     }
 
-    void reset_wait() {
+    void
+    reset_wait()
+    {
       if (unlikely(pr_wait.has_value())) {
         pr_wait->set_value();
         pr_wait = std::nullopt;
@@ -194,19 +251,15 @@ private:
     }
   };
 
-  seq_t do_prepare_submit(seq_t &out_seq) {
+  seq_t
+  do_prepare_submit(seq_t& out_seq)
+  {
     return ++out_seq;
   }
 
-  std::conditional_t<
-    IS_ONE,
-    seq_t, std::vector<seq_t>
-  > out_seqs;
+  std::conditional_t<IS_ONE, seq_t, std::vector<seq_t>> out_seqs;
 
-  std::conditional_t<
-    IS_ONE,
-    in_control_t, std::vector<in_control_t>
-  > in_controls;
+  std::conditional_t<IS_ONE, in_control_t, std::vector<in_control_t>> in_controls;
 };
 
 } // namespace crimson

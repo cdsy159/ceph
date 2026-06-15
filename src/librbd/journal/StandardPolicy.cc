@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/journal/StandardPolicy.h"
+
 #include "librbd/ImageCtx.h"
 #include "librbd/Journal.h"
 #include "librbd/asio/ContextWQ.h"
@@ -13,8 +14,10 @@
 namespace librbd {
 namespace journal {
 
-template<typename I>
-void StandardPolicy<I>::allocate_tag_on_lock(Context *on_finish) {
+template <typename I>
+void
+StandardPolicy<I>::allocate_tag_on_lock(Context* on_finish)
+{
   ceph_assert(m_image_ctx->journal != nullptr);
 
   if (!m_image_ctx->journal->is_tag_owner()) {

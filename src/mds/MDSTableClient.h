@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,15 +16,16 @@
 #ifndef CEPH_MDSTABLECLIENT_H
 #define CEPH_MDSTABLECLIENT_H
 
-#include "include/buffer.h"
-#include "include/types.h"
-#include "include/cephfs/types.h" // for mds_rank_t
-#include "common/ref.h" // for cref_t
-#include "LogSegmentRef.h"
-
 #include <list>
 #include <map>
 #include <set>
+
+#include "common/ref.h" // for cref_t
+#include "include/buffer.h"
+#include "include/cephfs/types.h" // for mds_rank_t
+#include "include/types.h"
+
+#include "LogSegmentRef.h"
 
 class MDSContext;
 class MMDSTableRequest;
@@ -36,13 +37,19 @@ using ceph::cref_t;
 
 class MDSTableClient {
 public:
-  MDSTableClient(MDSRank *m, int tab) :
-    mds(m), table(tab) {}
+  MDSTableClient(MDSRank* m, int tab) :
+    mds(m), table(tab)
+  {}
+
   virtual ~MDSTableClient() {}
 
-  void handle_request(const cref_t<MMDSTableRequest> &m);
+  void handle_request(const cref_t<MMDSTableRequest>& m);
 
-  void _prepare(bufferlist& mutation, version_t *ptid, bufferlist *pbl, MDSContext *onfinish);
+  void _prepare(
+      bufferlist& mutation,
+      version_t* ptid,
+      bufferlist* pbl,
+      MDSContext* onfinish);
   void commit(version_t tid, LogSegmentRef const& ls);
 
   void resend_commits();
@@ -52,14 +59,21 @@ public:
   void got_journaled_agree(version_t tid, LogSegmentRef const& ls);
   void got_journaled_ack(version_t tid);
 
-  bool has_committed(version_t tid) const {
+  bool
+  has_committed(version_t tid) const
+  {
     return pending_commit.count(tid) == 0;
   }
-  void wait_for_ack(version_t tid, MDSContext *c) {
+
+  void
+  wait_for_ack(version_t tid, MDSContext* c)
+  {
     ack_waiters[tid].push_back(c);
   }
 
-  std::set<version_t> get_journaled_tids() const {
+  std::set<version_t>
+  get_journaled_tids() const
+  {
     std::set<version_t> tids;
     for (auto p : pending_commit)
       tids.insert(p.first);
@@ -68,34 +82,39 @@ public:
 
   void handle_mds_failure(mds_rank_t mds);
 
-  bool is_server_ready(void) const {
+  bool
+  is_server_ready(void) const
+  {
     return server_ready;
   }
 
   // child must implement
   virtual void resend_queries() = 0;
-  virtual void handle_query_result(const cref_t<MMDSTableRequest> &m) = 0;
-  virtual void handle_notify_prep(const cref_t<MMDSTableRequest> &m) = 0;
+  virtual void handle_query_result(const cref_t<MMDSTableRequest>& m) = 0;
+  virtual void handle_notify_prep(const cref_t<MMDSTableRequest>& m) = 0;
   virtual void notify_commit(version_t tid) = 0;
+
 protected:
   // prepares
   struct _pending_prepare {
     _pending_prepare() {}
-    _pending_prepare(MDSContext *c, version_t *pt, bufferlist *pb, bufferlist& m) :
-      onfinish(c), ptid(pt), pbl(pb), mutation(m) {}
 
-    MDSContext *onfinish = nullptr;
-    version_t *ptid = nullptr;
-    bufferlist *pbl = nullptr;
+    _pending_prepare(MDSContext* c, version_t* pt, bufferlist* pb, bufferlist& m) :
+      onfinish(c), ptid(pt), pbl(pb), mutation(m)
+    {}
+
+    MDSContext* onfinish = nullptr;
+    version_t* ptid = nullptr;
+    bufferlist* pbl = nullptr;
     bufferlist mutation;
   };
 
   friend class C_LoggedAck;
 
-  void handle_reply(class MMDSTableQuery *m);
+  void handle_reply(class MMDSTableQuery* m);
   void _logged_ack(version_t tid);
 
-  MDSRank *mds;
+  MDSRank* mds;
   int table;
 
   uint64_t last_reqid = ~0ULL;
@@ -108,6 +127,6 @@ protected:
 
   // pending commits
   std::map<version_t, LogSegmentRef> pending_commit;
-  std::map<version_t, std::vector<MDSContext*> > ack_waiters;
+  std::map<version_t, std::vector<MDSContext*>> ack_waiters;
 };
 #endif

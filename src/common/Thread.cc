@@ -16,16 +16,17 @@
 #include <signal.h>
 #include <unistd.h>
 #ifdef __linux__
-#include <sys/syscall.h>   /* For SYS_xxx definitions */
+#include <sys/syscall.h> /* For SYS_xxx definitions */
 #endif
 
 #ifdef WITH_CRIMSON
 #include "crimson/os/alienstore/alien_store.h"
 #endif
 
+#include "common/debug.h"
+
 #include "common/Thread.h"
 #include "common/code_environment.h"
-#include "common/debug.h"
 #include "common/signal.h"
 
 #ifdef HAVE_SCHED
@@ -33,7 +34,8 @@
 #endif
 
 
-pid_t ceph_gettid(void)
+pid_t
+ceph_gettid(void)
 {
 #ifdef __linux__
   return syscall(SYS_gettid);
@@ -42,7 +44,8 @@ pid_t ceph_gettid(void)
 #endif
 }
 
-static int _set_affinity(int id)
+static int
+_set_affinity(int id)
 {
 #ifdef HAVE_SCHED
   if (id >= 0 && id < CPU_SETSIZE) {
@@ -60,23 +63,21 @@ static int _set_affinity(int id)
   return 0;
 }
 
-Thread::Thread()
-  : thread_id(0),
-    pid(0),
-    cpuid(-1)
-{
-}
+Thread::Thread() :
+  thread_id(0), pid(0), cpuid(-1)
+{}
 
-Thread::~Thread()
-{
-}
+Thread::~Thread() {}
 
-void *Thread::_entry_func(void *arg) {
-  void *r = ((Thread*)arg)->entry_wrapper();
+void*
+Thread::_entry_func(void* arg)
+{
+  void* r = ((Thread*)arg)->entry_wrapper();
   return r;
 }
 
-void *Thread::entry_wrapper()
+void*
+Thread::entry_wrapper()
 {
   int p = ceph_gettid(); // may return -ENOSYS on other platforms
   if (p > 0)
@@ -88,22 +89,26 @@ void *Thread::entry_wrapper()
   return entry();
 }
 
-const pthread_t &Thread::get_thread_id() const
+const pthread_t&
+Thread::get_thread_id() const
 {
   return thread_id;
 }
 
-bool Thread::is_started() const
+bool
+Thread::is_started() const
 {
   return thread_id != 0;
 }
 
-bool Thread::am_self() const
+bool
+Thread::am_self() const
 {
   return (pthread_self() == thread_id);
 }
 
-int Thread::kill(int signal)
+int
+Thread::kill(int signal)
 {
   if (thread_id)
     return pthread_kill(thread_id, signal);
@@ -111,12 +116,13 @@ int Thread::kill(int signal)
     return -EINVAL;
 }
 
-int Thread::try_create(size_t stacksize)
+int
+Thread::try_create(size_t stacksize)
 {
-  pthread_attr_t *thread_attr = NULL;
+  pthread_attr_t* thread_attr = NULL;
   pthread_attr_t thread_attr_loc;
-  
-  stacksize &= CEPH_PAGE_MASK;  // must be multiple of page
+
+  stacksize &= CEPH_PAGE_MASK; // must be multiple of page
   if (stacksize) {
     thread_attr = &thread_attr_loc;
     pthread_attr_init(thread_attr);
@@ -130,29 +136,29 @@ int Thread::try_create(size_t stacksize)
   // signals than usual for a little while-- they will just be delivered to
   // another thread or delieverd to this thread later.)
 
-  #ifndef _WIN32
+#ifndef _WIN32
   sigset_t old_sigset;
   if (g_code_env == CODE_ENVIRONMENT_LIBRARY) {
     block_signals(NULL, &old_sigset);
-  }
-  else {
-    int to_block[] = { SIGPIPE , 0 };
+  } else {
+    int to_block[] = {SIGPIPE, 0};
     block_signals(to_block, &old_sigset);
   }
   r = pthread_create(&thread_id, thread_attr, _entry_func, (void*)this);
   restore_sigset(&old_sigset);
-  #else
+#else
   r = pthread_create(&thread_id, thread_attr, _entry_func, (void*)this);
-  #endif
+#endif
 
   if (thread_attr) {
-    pthread_attr_destroy(thread_attr);	
+    pthread_attr_destroy(thread_attr);
   }
 
   return r;
 }
 
-void Thread::create(const char *name, size_t stacksize)
+void
+Thread::create(const char* name, size_t stacksize)
 {
   ceph_assert(strlen(name) < 16);
   thread_name = name;
@@ -160,14 +166,18 @@ void Thread::create(const char *name, size_t stacksize)
   int ret = try_create(stacksize);
   if (ret != 0) {
     char buf[256];
-    snprintf(buf, sizeof(buf), "Thread::try_create(): pthread_create "
-	     "failed with error %d", ret);
+    snprintf(
+        buf, sizeof(buf),
+        "Thread::try_create(): pthread_create "
+        "failed with error %d",
+        ret);
     dout_emergency(buf);
     ceph_assert(ret == 0);
   }
 }
 
-int Thread::join(void **prval)
+int
+Thread::join(void** prval)
 {
   if (thread_id == 0) {
     ceph_abort_msg("join on thread that was never started");
@@ -177,8 +187,11 @@ int Thread::join(void **prval)
   int status = pthread_join(thread_id, prval);
   if (status != 0) {
     char buf[256];
-    snprintf(buf, sizeof(buf), "Thread::join(): pthread_join "
-             "failed with error %d\n", status);
+    snprintf(
+        buf, sizeof(buf),
+        "Thread::join(): pthread_join "
+        "failed with error %d\n",
+        status);
     dout_emergency(buf);
     ceph_assert(status == 0);
   }
@@ -187,12 +200,14 @@ int Thread::join(void **prval)
   return status;
 }
 
-int Thread::detach()
+int
+Thread::detach()
 {
   return pthread_detach(thread_id);
 }
 
-int Thread::set_affinity(int id)
+int
+Thread::set_affinity(int id)
 {
   int r = 0;
   cpuid = id;
@@ -204,7 +219,8 @@ int Thread::set_affinity(int id)
 // Functions for std::thread
 // =========================
 
-void kill(std::thread& t, int signal)
+void
+kill(std::thread& t, int signal)
 {
   auto r = ceph_pthread_kill(t.native_handle(), signal);
   if (r != 0) {

@@ -2,9 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/DemoteRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -13,12 +16,10 @@
 #include "librbd/mirror/GetInfoRequest.h"
 #include "librbd/mirror/snapshot/DemoteRequest.h"
 
-#include <shared_mutex> // for std::shared_lock
-
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::DemoteRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::mirror::DemoteRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -26,26 +27,32 @@ namespace mirror {
 using librbd::util::create_context_callback;
 
 template <typename I>
-void DemoteRequest<I>::send() {
+void
+DemoteRequest<I>::send()
+{
   get_info();
 }
 
 template <typename I>
-void DemoteRequest<I>::get_info() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::get_info()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_get_info>(this);
-  auto req = GetInfoRequest<I>::create(m_image_ctx, &m_mirror_image,
-                                       &m_promotion_state,
-                                       &m_primary_mirror_uuid, ctx);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_get_info>(this);
+  auto req = GetInfoRequest<I>::create(
+      m_image_ctx, &m_mirror_image, &m_promotion_state, &m_primary_mirror_uuid,
+      ctx);
   req->send();
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_get_info(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_get_info(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -67,8 +74,10 @@ void DemoteRequest<I>::handle_get_info(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::acquire_lock() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::acquire_lock()
+{
+  CephContext* cct = m_image_ctx.cct;
 
   m_image_ctx.owner_lock.lock_shared();
   if (m_image_ctx.exclusive_lock == nullptr) {
@@ -96,15 +105,17 @@ void DemoteRequest<I>::acquire_lock() {
   ldout(cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>,
-    &DemoteRequest<I>::handle_acquire_lock>(this, m_image_ctx.exclusive_lock);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_acquire_lock>(
+      this, m_image_ctx.exclusive_lock);
   m_image_ctx.exclusive_lock->acquire_lock(ctx);
   m_image_ctx.owner_lock.unlock_shared();
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_acquire_lock(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_acquire_lock(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -128,17 +139,20 @@ void DemoteRequest<I>::handle_acquire_lock(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::demote() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::demote()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
-  auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_demote>(this);
+  auto ctx =
+      create_context_callback<DemoteRequest<I>, &DemoteRequest<I>::handle_demote>(
+          this);
   if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_JOURNAL) {
     Journal<I>::demote(&m_image_ctx, ctx);
   } else if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_SNAPSHOT) {
     auto req = mirror::snapshot::DemoteRequest<I>::create(
-      &m_image_ctx, m_mirror_image.global_image_id, ctx);
+        &m_image_ctx, m_mirror_image.global_image_id, ctx);
     req->send();
   } else {
     lderr(cct) << "unknown image mirror mode: " << m_mirror_image.mode << dendl;
@@ -148,8 +162,10 @@ void DemoteRequest<I>::demote() {
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_demote(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_demote(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -161,8 +177,10 @@ void DemoteRequest<I>::handle_demote(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::release_lock() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::release_lock()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   m_image_ctx.owner_lock.lock_shared();
@@ -173,15 +191,17 @@ void DemoteRequest<I>::release_lock() {
   }
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>,
-    &DemoteRequest<I>::handle_release_lock>(this, m_image_ctx.exclusive_lock);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_release_lock>(
+      this, m_image_ctx.exclusive_lock);
   m_image_ctx.exclusive_lock->release_lock(ctx);
   m_image_ctx.owner_lock.unlock_shared();
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_release_lock(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_release_lock(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -193,7 +213,9 @@ void DemoteRequest<I>::handle_release_lock(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::finish(int r) {
+void
+DemoteRequest<I>::finish(int r)
+{
   if (m_ret_val < 0) {
     r = m_ret_val;
   }
@@ -205,7 +227,7 @@ void DemoteRequest<I>::finish(int r) {
     }
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

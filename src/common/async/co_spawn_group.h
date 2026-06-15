@@ -15,8 +15,10 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/execution/executor.hpp>
-#include "cancel_on_error.h"
+
 #include "detail/co_spawn_group.h"
+
+#include "cancel_on_error.h"
 
 namespace ceph::async {
 
@@ -55,20 +57,20 @@ class co_spawn_group {
   using impl_type = detail::co_spawn_group_impl<Executor>;
   boost::intrusive_ptr<impl_type> impl;
 
- public:
-  co_spawn_group(Executor ex, size_t limit,
-                 cancel_on_error on_error = cancel_on_error::none)
-    : impl(new impl_type(ex, limit, on_error))
-  {
-  }
+public:
+  co_spawn_group(
+      Executor ex,
+      size_t limit,
+      cancel_on_error on_error = cancel_on_error::none) :
+    impl(new impl_type(ex, limit, on_error))
+  {}
 
-  ~co_spawn_group()
-  {
-    impl->cancel();
-  }
+  ~co_spawn_group() { impl->cancel(); }
 
   using executor_type = Executor;
-  executor_type get_executor() const
+
+  executor_type
+  get_executor() const
   {
     return impl->get_executor();
   }
@@ -76,7 +78,8 @@ class co_spawn_group {
   /// Spawn the given coroutine \ref cr on the group's executor. Throws a
   /// std::length_error exception if the number of outstanding coroutines
   /// would exceed the group's limit.
-  void spawn(boost::asio::awaitable<void, executor_type> cr)
+  void
+  spawn(boost::asio::awaitable<void, executor_type> cr)
   {
     impl->spawn(std::move(cr));
   }
@@ -87,13 +90,15 @@ class co_spawn_group {
   ///
   /// After wait() completes, whether by exception or co_return, the spawn
   /// group can be reused to spawn and await additional coroutines.
-  boost::asio::awaitable<void, executor_type> wait()
+  boost::asio::awaitable<void, executor_type>
+  wait()
   {
     return impl->wait();
   }
 
   /// Cancel all outstanding coroutines.
-  void cancel()
+  void
+  cancel()
   {
     impl->cancel();
   }

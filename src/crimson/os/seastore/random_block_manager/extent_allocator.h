@@ -3,11 +3,13 @@
 
 #pragma once
 
+#include <seastar/core/future.hh>
+
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
-#include <seastar/core/future.hh>
-#include "crimson/os/seastore/seastore_types.h"
+
 #include "crimson/os/seastore/random_block_manager.h"
+#include "crimson/os/seastore/seastore_types.h"
 #include "include/interval_set.h"
 
 namespace crimson::os::seastore {
@@ -25,7 +27,7 @@ public:
    * @return nullopt or the address range (rbm_abs_addr, len)
    */
   virtual std::optional<interval_set<rbm_abs_addr>> alloc_extent(
-    size_t size) = 0;
+      size_t size) = 0;
 
   /**
    * alloc_extents
@@ -35,7 +37,7 @@ public:
    *
    */
   virtual std::optional<interval_set<rbm_abs_addr>> alloc_extents(
-    size_t size) = 0;
+      size_t size) = 0;
 
   /**
    * free_extent
@@ -78,9 +80,11 @@ public:
    */
   virtual void complete_allocation(rbm_abs_addr start, size_t size) = 0;
   virtual rbm_extent_state_t get_extent_state(rbm_abs_addr addr, size_t size) = 0;
+
   virtual ~ExtentAllocator() {}
 };
+
 using ExtentAllocatorRef = std::unique_ptr<ExtentAllocator>;
 
 
-}
+} // namespace crimson::os::seastore

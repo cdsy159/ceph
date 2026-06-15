@@ -33,12 +33,14 @@ enum class error {
 /// net error category
 const std::error_category& net_category();
 
-inline std::error_code make_error_code(error e)
+inline std::error_code
+make_error_code(error e)
 {
   return {static_cast<int>(e), net_category()};
 }
 
-inline std::error_condition make_error_condition(error e)
+inline std::error_condition
+make_error_condition(error e)
 {
   return {static_cast<int>(e), net_category()};
 }

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,20 +18,24 @@
 #ifndef CEPH_MSG_EVENTEPOLL_H
 #define CEPH_MSG_EVENTEPOLL_H
 
-#include <unistd.h>
 #include <sys/epoll.h>
+#include <unistd.h>
 
 #include "Event.h"
 
 class EpollDriver : public EventDriver {
   int epfd;
-  struct epoll_event *events;
-  CephContext *cct;
+  struct epoll_event* events;
+  CephContext* cct;
   int nevent;
 
- public:
-  explicit EpollDriver(CephContext *c): epfd(-1), events(NULL), cct(c), nevent(0) {}
-  ~EpollDriver() override {
+public:
+  explicit EpollDriver(CephContext* c) :
+    epfd(-1), events(NULL), cct(c), nevent(0)
+  {}
+
+  ~EpollDriver() override
+  {
     if (epfd != -1)
       close(epfd);
 
@@ -39,12 +43,13 @@ class EpollDriver : public EventDriver {
       free(events);
   }
 
-  int init(EventCenter *c, int nevent) override;
+  int init(EventCenter* c, int nevent) override;
   int add_event(int fd, int cur_mask, int add_mask) override;
   int del_event(int fd, int cur_mask, int del_mask) override;
   int resize_events(int newsize) override;
-  int event_wait(std::vector<FiredFileEvent> &fired_events,
-		 struct timeval *tp) override;
+  int event_wait(
+      std::vector<FiredFileEvent>& fired_events,
+      struct timeval* tp) override;
 };
 
 #endif

@@ -24,16 +24,16 @@ private:
   static constexpr int COMPAT_VERSION = 1;
 
 public:
-
   std::string daemon_name;
-  std::string service_name;  // optional; otherwise infer from entity type
+  std::string service_name; // optional; otherwise infer from entity type
 
-  std::map<std::string,std::string> daemon_metadata;
-  std::map<std::string,std::string> daemon_status;
+  std::map<std::string, std::string> daemon_metadata;
+  std::map<std::string, std::string> daemon_status;
 
   bool need_metadata_update = false;
 
-  void decode_payload() override
+  void
+  decode_payload() override
   {
     using ceph::decode;
     auto p = payload.cbegin();
@@ -42,13 +42,15 @@ public:
       decode(service_name, p);
       decode(need_metadata_update, p);
       if (need_metadata_update) {
-	decode(daemon_metadata, p);
-	decode(daemon_status, p);
+        decode(daemon_metadata, p);
+        decode(daemon_status, p);
       }
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(daemon_name, payload);
     encode(service_name, payload);
@@ -59,8 +61,15 @@ public:
     }
   }
 
-  std::string_view get_type_name() const override { return "mgrupdate"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mgrupdate";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << get_type_name() << "(";
     if (service_name.length()) {
       out << service_name;
@@ -72,14 +81,14 @@ public:
   }
 
 private:
-  MMgrUpdate()
-    : Message{MSG_MGR_UPDATE, HEAD_VERSION, COMPAT_VERSION}
+  MMgrUpdate() :
+    Message{MSG_MGR_UPDATE, HEAD_VERSION, COMPAT_VERSION}
   {}
-  using RefCountedObject::put;
+
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 
 #endif
-

@@ -3,11 +3,13 @@
 
 #pragma once
 
-#include <boost/intrusive_ptr.hpp>
 #include <seastar/core/future.hh>
 #include <seastar/core/weak_ptr.hh>
-#include "messages/MOSDPGPCT.h"
+
+#include <boost/intrusive_ptr.hpp>
+
 #include "include/buffer_fwd.h"
+#include "messages/MOSDPGPCT.h"
 #include "osd/osd_types.h"
 
 #include "acked_peers.h"
@@ -17,54 +19,57 @@ namespace crimson::osd {
 class ShardServices;
 class PG;
 
-class ReplicatedBackend : public PGBackend
-{
+class ReplicatedBackend : public PGBackend {
 public:
-  using interruptor = ::crimson::interruptible::interruptor<
-    ::crimson::osd::IOInterruptCondition>;
+  using interruptor =
+      ::crimson::interruptible::interruptor<::crimson::osd::IOInterruptCondition>;
   template <typename T = void>
-  using interruptible_future =
-    ::crimson::interruptible::interruptible_future<
-      ::crimson::osd::IOInterruptCondition, T>;
-  ReplicatedBackend(pg_t pgid, pg_shard_t whoami,
-		    crimson::osd::PG& pg,
-		    CollectionRef coll,
-		    crimson::osd::ShardServices& shard_services,
-		    DoutPrefixProvider &dpp);
+  using interruptible_future = ::crimson::interruptible::
+      interruptible_future<::crimson::osd::IOInterruptCondition, T>;
+  ReplicatedBackend(
+      pg_t pgid,
+      pg_shard_t whoami,
+      crimson::osd::PG& pg,
+      CollectionRef coll,
+      crimson::osd::ShardServices& shard_services,
+      DoutPrefixProvider& dpp);
   void got_rep_op_reply(const MOSDRepOpReply& reply) final;
   seastar::future<> stop() final;
   void on_actingset_changed(bool same_primary) final;
 
   PGBackend::get_attr_ierrorator::future<ceph::bufferlist> getxattr(
-    const hobject_t& soid,
-    std::string&& key) const final;
+      const hobject_t& soid,
+      std::string&& key) const final;
 
 private:
-  ll_read_ierrorator::future<ceph::bufferlist>
-  _read(const hobject_t& hoid,
-        uint64_t object_size,
-        uint64_t off,
-        uint64_t len,
-        uint32_t flags) final;
+  ll_read_ierrorator::future<ceph::bufferlist> _read(
+      const hobject_t& hoid,
+      uint64_t object_size,
+      uint64_t off,
+      uint64_t len,
+      uint32_t flags) final;
   rep_op_fut_t submit_transaction(
-    const std::set<pg_shard_t> &pg_shards,
-    crimson::osd::ObjectContextRef&& obc,
-    crimson::osd::ObjectContextRef&& new_clone,
-    ceph::os::Transaction&& txn,
-    osd_op_params_t&& osd_op_p,
-    epoch_t min_epoch, epoch_t max_epoch,
-    std::vector<pg_log_entry_t>&& log_entries) final;
+      const std::set<pg_shard_t>& pg_shards,
+      crimson::osd::ObjectContextRef&& obc,
+      crimson::osd::ObjectContextRef&& new_clone,
+      ceph::os::Transaction&& txn,
+      osd_op_params_t&& osd_op_p,
+      epoch_t min_epoch,
+      epoch_t max_epoch,
+      std::vector<pg_log_entry_t>&& log_entries) final;
   const pg_t pgid;
+
   class pending_on_t : public seastar::weakly_referencable<pending_on_t> {
   public:
     pending_on_t(
-      size_t pending,
-      const eversion_t& at_version,
-      const eversion_t& last_complete)
-      : pending{static_cast<unsigned>(pending)},
-	at_version(at_version),
-	last_complete(last_complete)
+        size_t pending,
+        const eversion_t& at_version,
+        const eversion_t& last_complete) :
+      pending{static_cast<unsigned>(pending)},
+      at_version(at_version),
+      last_complete(last_complete)
     {}
+
     unsigned pending;
     // The order of pending_txns' at_version must be the same as their
     // corresponding ceph_tid_t, as we rely on this condition for checking
@@ -76,24 +81,26 @@ private:
     crimson::osd::acked_peers_t acked_peers;
     seastar::shared_promise<> all_committed;
   };
+
   using pending_transactions_t = std::map<ceph_tid_t, pending_on_t>;
   pending_transactions_t pending_trans;
   crimson::osd::PG& pg;
 
   MURef<MOSDRepOp> new_repop_msg(
-    const pg_shard_t &pg_shard,
-    const hobject_t &hoid,
-    bufferlist &encoded_txn_p_bl,
-    bufferlist &encoded_txn_d_bl,
-    const osd_op_params_t &osd_op_p,
-    epoch_t min_epoch,
-    epoch_t map_epoch,
-    const std::vector<pg_log_entry_t> &log_entries,
-    bool send_op,
-    ceph_tid_t tid);
+      const pg_shard_t& pg_shard,
+      const hobject_t& hoid,
+      bufferlist& encoded_txn_p_bl,
+      bufferlist& encoded_txn_d_bl,
+      const osd_op_params_t& osd_op_p,
+      epoch_t min_epoch,
+      epoch_t map_epoch,
+      const std::vector<pg_log_entry_t>& log_entries,
+      bool send_op,
+      ceph_tid_t tid);
 
   seastar::future<> request_committed(
-    const osd_reqid_t& reqid, const eversion_t& at_version) final;
+      const osd_reqid_t& reqid,
+      const eversion_t& at_version) final;
 
   seastar::timer<seastar::lowres_clock> pct_timer;
 
@@ -108,7 +115,7 @@ private:
 
 public:
   /// Handle MOSDPGPCT message
-  void do_pct(const MOSDPGPCT &m);
+  void do_pct(const MOSDPGPCT& m);
 };
 
-}
+} // namespace crimson::osd

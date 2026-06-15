@@ -1,22 +1,24 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "bucket_cache.h"
-#include <iostream>
-#include <fstream>
+#include <stdint.h>
+
 #include <filesystem>
-#include <string>
-#include <string_view>
+#include <fstream>
+#include <iostream>
 #include <random>
 #include <ranges>
+#include <string>
+#include <string_view>
 #include <thread>
-#include <stdint.h>
+
+#include "bucket_cache.h"
 
 #undef FMT_HEADER_ONLY
 #define FMT_HEADER_ONLY 1
 #include <fmt/format.h>
-
 #include <gtest/gtest.h>
+
 #include "common/common_init.h"
 #include "global/global_init.h"
 
@@ -24,73 +26,92 @@ using namespace std::chrono_literals;
 
 namespace {
 
-  namespace sf = std::filesystem;
+namespace sf = std::filesystem;
 
-  static const std::string bucket_root = "bucket_root";
-  static const std::string database_root = "lmdb_root";
-  static const std::string tdir1 = "tdir1";
-  static const std::string tdir2 = "tdir2";
+static const std::string bucket_root = "bucket_root";
+static const std::string database_root = "lmdb_root";
+static const std::string tdir1 = "tdir1";
+static const std::string tdir2 = "tdir2";
 
-  std::random_device rd;
-  std::mt19937 mt(rd());
-  std::uniform_int_distribution<> dist_1m(1, 1000000);
-} // anonymous ns
+std::random_device rd;
+std::mt19937 mt(rd());
+std::uniform_int_distribution<> dist_1m(1, 1000000);
+} // namespace
 
 class BucketCacheFixtureBase {
 protected:
-  static constexpr std::string_view bucket1_marker = ""; // start at the beginning
+  static constexpr std::string_view bucket1_marker =
+      ""; // start at the beginning
 
   DoutPrefixProvider* dpp{nullptr};
   std::vector<std::string> bvec;
 
-  class MockSalDriver
-  {
-    std::vector<const char *> args;
+  class MockSalDriver {
+    std::vector<const char*> args;
 
   public:
     boost::intrusive_ptr<CephContext> cct;
-    MockSalDriver() {
+
+    MockSalDriver()
+    {
       /* Proceed with environment setup */
-      cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                        CODE_ENVIRONMENT_UTILITY,
-                        CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+      cct = global_init(
+          nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+          CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
     }
+
     /* called by BucketCache layer when a new object is discovered
      * by inotify or similar */
-    int mint_listing_entry(
-      const std::string& bucket, rgw_bucket_dir_entry& bde /* OUT */) {
+    int
+    mint_listing_entry(
+        const std::string& bucket,
+        rgw_bucket_dir_entry& bde /* OUT */)
+    {
 
       return 0;
     }
-    CephContext *ctx(void) { return cct.get(); }
+
+    CephContext*
+    ctx(void)
+    {
+      return cct.get();
+    }
   }; /* MockSalDriver */
 
-  class MockSalBucket
-  {
+  class MockSalBucket {
     std::string name;
+
   public:
-    MockSalBucket(const std::string& name)
-      : name(name)
-      {}
-    const std::string& get_name() {
+    MockSalBucket(const std::string& name) :
+      name(name)
+    {}
+
+    const std::string&
+    get_name()
+    {
       return name;
     }
 
     using fill_cache_cb_t = file::listing::fill_cache_cb_t;
 
-    int fill_cache(const DoutPrefixProvider* dpp, optional_yield y, fill_cache_cb_t cb) {
+    int
+    fill_cache(
+        const DoutPrefixProvider* dpp,
+        optional_yield y,
+        fill_cache_cb_t cb)
+    {
       sf::path rp{bucket_root};
       sf::path bp{rp / name};
-      if (! (sf::exists(rp) && sf::is_directory(rp))) {
-	std::cerr << fmt::format("{} bucket {} invalid", __func__, name)
-		  << std::endl;
-	exit(1);
+      if (!(sf::exists(rp) && sf::is_directory(rp))) {
+        std::cerr << fmt::format("{} bucket {} invalid", __func__, name)
+                  << std::endl;
+        exit(1);
       }
       for (const auto& dir_entry : sf::directory_iterator{bp}) {
-	rgw_bucket_dir_entry bde{};
-	auto fname = dir_entry.path().filename().string();
-	bde.key.name = fname;
-	cb(dpp, bde);
+        rgw_bucket_dir_entry bde{};
+        auto fname = dir_entry.path().filename().string();
+        bde.key.name = fname;
+        cb(dpp, bde);
       }
       return 0;
     } /* fill_cache */
@@ -102,7 +123,9 @@ protected:
   static MockSalDriver sal_driver;
   static BucketCache* bucket_cache;
 
-  static std::vector<std::string> setup_buckets() {
+  static std::vector<std::string>
+  setup_buckets()
+  {
     int nbuckets = 5;
     int nfiles = 10;
 
@@ -120,15 +143,15 @@ protected:
       std::string fbase{"file_"};
       for (int ix = 0; ix < nfiles; ++ix) {
       retry:
-	auto n = dist_1m(mt);
-	sf::path ttp{tp / fmt::format("{}{}", fbase, n)};
-	if (sf::exists(ttp)) {
-	  goto retry;
-	} else {
-  	std::ofstream ofs(ttp);
-	  ofs << "data for " << ttp << std::endl;
-	  ofs.close();
-	}
+        auto n = dist_1m(mt);
+        sf::path ttp{tp / fmt::format("{}{}", fbase, n)};
+        if (sf::exists(ttp)) {
+          goto retry;
+        } else {
+          std::ofstream ofs(ttp);
+          ofs << "data for " << ttp << std::endl;
+          ofs.close();
+        }
       } /* for buckets */
     }
     return bvec;
@@ -136,18 +159,21 @@ protected:
 };
 
 BucketCacheFixtureBase::MockSalDriver BucketCacheFixtureBase::sal_driver;
-BucketCacheFixtureBase::BucketCache* BucketCacheFixtureBase::bucket_cache = nullptr;
+BucketCacheFixtureBase::BucketCache* BucketCacheFixtureBase::bucket_cache =
+    nullptr;
 
 namespace sf = std::filesystem;
 
-auto func = [](const rgw_bucket_dir_entry& bde) -> bool
-  {
-    //std::cout << fmt::format("called back with {}", bde.key.name) << std::endl;
-    return true;
-  };
+auto func = [](const rgw_bucket_dir_entry& bde) -> bool {
+  //std::cout << fmt::format("called back with {}", bde.key.name) << std::endl;
+  return true;
+};
 
-class BucketCacheFixtureDefault : public testing::Test, protected BucketCacheFixtureBase {
-  static void setup_dir1() {
+class BucketCacheFixtureDefault : public testing::Test,
+                                  protected BucketCacheFixtureBase {
+  static void
+  setup_dir1()
+  {
     sf::path tp{sf::path{bucket_root} / tdir1};
     sf::remove_all(tp);
     sf::create_directory(tp);
@@ -159,16 +185,18 @@ class BucketCacheFixtureDefault : public testing::Test, protected BucketCacheFix
       auto n = dist_1m(mt);
       sf::path ttp{tp / fmt::format("{}{}", fbase, n)};
       if (sf::exists(ttp)) {
-	goto retry;
+        goto retry;
       } else {
-	std::ofstream ofs(ttp);
-	ofs << "data for " << ttp << std::endl;
-	ofs.close();
+        std::ofstream ofs(ttp);
+        ofs << "data for " << ttp << std::endl;
+        ofs.close();
       }
     } /* for 100K */
   }
 
-  static void setup_dir2() {
+  static void
+  setup_dir2()
+  {
     sf::path tp{sf::path{bucket_root} / tdir2};
     sf::remove_all(tp);
     sf::create_directory(tp);
@@ -178,7 +206,9 @@ class BucketCacheFixtureDefault : public testing::Test, protected BucketCacheFix
 protected:
   virtual ~BucketCacheFixtureDefault() = default;
 
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     setup_dir1();
     setup_dir2();
 
@@ -186,7 +216,9 @@ protected:
     bucket_cache = new BucketCache{&sal_driver, bucket_root, database_root};
   }
 
-  static void TearDownTestSuite() {
+  static void
+  TearDownTestSuite()
+  {
     delete bucket_cache;
     bucket_cache = nullptr;
   }
@@ -196,34 +228,35 @@ TEST_F(BucketCacheFixtureDefault, ListTDir1)
 {
   MockSalBucket sb{tdir1};
   std::string marker{bucket1_marker};
-  (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
+  (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
 }
 
 TEST_F(BucketCacheFixtureDefault, ListEmpty)
 {
   MockSalBucket sb{tdir2};
   std::string marker{bucket1_marker};
-  (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
+  (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
 }
 
-TEST_F(BucketCacheFixtureDefault, ListThreads) /* clocked at 21ms on lemon, and yes,
+TEST_F(
+    BucketCacheFixtureDefault,
+    ListThreads) /* clocked at 21ms on lemon, and yes,
 				* it did list 100K entries per thread */
 {
   auto nthreads = 15;
   std::vector<std::thread> threads;
 
-  auto func = [](const rgw_bucket_dir_entry& bde) -> int
-    {
-      //std::cout << fmt::format("called back with {}", bde.key.name) << std::endl;
-      return 0;
-    };
+  auto func = [](const rgw_bucket_dir_entry& bde) -> int {
+    //std::cout << fmt::format("called back with {}", bde.key.name) << std::endl;
+    return 0;
+  };
 
   MockSalBucket sb{tdir1};
   std::string marker{bucket1_marker};
 
   for (int ix = 0; ix < nthreads; ++ix) {
     threads.push_back(std::thread([&]() {
-      (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
+      (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
     }));
   }
   for (auto& t : threads) {
@@ -231,16 +264,22 @@ TEST_F(BucketCacheFixtureDefault, ListThreads) /* clocked at 21ms on lemon, and 
   }
 }
 
-class BucketCacheFixtureRecycle1 : public testing::Test, protected BucketCacheFixtureBase {
+class BucketCacheFixtureRecycle1 : public testing::Test,
+                                   protected BucketCacheFixtureBase {
 protected:
   static std::vector<std::string> bvec;
 
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     bvec = setup_buckets();
-    bucket_cache = new BucketCache{&sal_driver, bucket_root, database_root, 1, 1, 1, 1};
+    bucket_cache =
+        new BucketCache{&sal_driver, bucket_root, database_root, 1, 1, 1, 1};
   }
 
-  static void TearDownTestSuite() {
+  static void
+  TearDownTestSuite()
+  {
     delete bucket_cache;
     bucket_cache = nullptr;
   }
@@ -254,20 +293,32 @@ TEST_F(BucketCacheFixtureRecycle1, ListNRecycle1)
   for (auto& bucket : bvec) {
     MockSalBucket sb{bucket};
     std::string marker{bucket1_marker};
-    (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
+    (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
   }
   ASSERT_EQ(bucket_cache->recycle_count, 4);
 }
 
-class BucketCacheFixtureRecyclePartitions1 : public testing::Test, protected BucketCacheFixtureBase {
+class BucketCacheFixtureRecyclePartitions1 : public testing::Test,
+                                             protected BucketCacheFixtureBase {
 protected:
   static std::vector<std::string> bvec;
 
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     bvec = setup_buckets();
-    bucket_cache = new BucketCache{&sal_driver, bucket_root, database_root, 1, 1, 5 /* max partitions */, 1};
+    bucket_cache = new BucketCache{&sal_driver,
+                                   bucket_root,
+                                   database_root,
+                                   1,
+                                   1,
+                                   5 /* max partitions */,
+                                   1};
   }
-  static void TearDownTestSuite() {
+
+  static void
+  TearDownTestSuite()
+  {
     delete bucket_cache;
     bucket_cache = nullptr;
   }
@@ -283,14 +334,17 @@ TEST_F(BucketCacheFixtureRecyclePartitions1, ListNRecyclePartitions1)
   for (auto& bucket : bvec) {
     MockSalBucket sb{bucket};
     std::string marker{bucket1_marker};
-    (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
+    (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, func);
   }
   ASSERT_EQ(bucket_cache->recycle_count, 4);
 }
 
-class BucketCacheFixtureMarker1 : public testing::Test, protected BucketCacheFixtureBase {
+class BucketCacheFixtureMarker1 : public testing::Test,
+                                  protected BucketCacheFixtureBase {
 protected:
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     int nfiles = 20;
     std::string bucket{"marker1"};
 
@@ -308,7 +362,9 @@ protected:
     bucket_cache = new BucketCache{&sal_driver, bucket_root, database_root};
   }
 
-  static void TearDownTestSuite() {
+  static void
+  TearDownTestSuite()
+  {
     delete bucket_cache;
     bucket_cache = nullptr;
   }
@@ -327,23 +383,28 @@ TEST_F(BucketCacheFixtureMarker1, ListMarker1)
   };
 
   MockSalBucket sb{bucket};
-  (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, f);
+  (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, f);
 
   ASSERT_EQ(names.size(), 10);
   ASSERT_EQ(*names.begin(), "file_18");
   ASSERT_EQ(*names.rbegin(), "file_9");
 }
 
-class BucketCacheFixtureInotify1 : public testing::Test, protected BucketCacheFixtureBase {
+class BucketCacheFixtureInotify1 : public testing::Test,
+                                   protected BucketCacheFixtureBase {
 protected:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     sf::path tp{sf::path{bucket_root} / "inotify1"};
     sf::remove_all(tp);
     sf::create_directory(tp);
     bucket_cache = new BucketCache{&sal_driver, bucket_root, database_root};
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     delete bucket_cache;
     bucket_cache = nullptr;
     sf::path tp{sf::path{bucket_root} / "inotify1"};
@@ -351,7 +412,9 @@ protected:
     sf::create_directory(tp);
   }
 
-  static void create_files(std::string bucket, std::string fbase, int nfiles) {
+  static void
+  create_files(std::string bucket, std::string fbase, int nfiles)
+  {
     sf::path tp{sf::path{bucket_root} / "inotify1"};
 
     for (int ix = 0; ix < nfiles; ++ix) {
@@ -363,7 +426,9 @@ protected:
     }
   }
 
-  static void remove_files(std::string bucket, std::string fbase, int fstart, int fend) {
+  static void
+  remove_files(std::string bucket, std::string fbase, int fstart, int fend)
+  {
     sf::path tp{sf::path{bucket_root} / "inotify1"};
     for (int ix = fstart; ix < fend; ++ix) {
       sf::path ttp{tp / fmt::format("{}{}", fbase, ix)};
@@ -371,7 +436,6 @@ protected:
       ASSERT_FALSE(sf::exists(ttp));
     }
   }
-
 };
 
 TEST_F(BucketCacheFixtureInotify1, ListInotify1)
@@ -391,7 +455,7 @@ TEST_F(BucketCacheFixtureInotify1, ListInotify1)
 
   MockSalBucket sb{bucket};
 
-  (void) bucket_cache->list_bucket(dpp, null_yield, &sb, marker, f);
+  (void)bucket_cache->list_bucket(dpp, null_yield, &sb, marker, f);
   ASSERT_EQ(names.size(), nfiles);
 } /* ListInotify1 */
 
@@ -477,7 +541,8 @@ TEST_F(BucketCacheFixtureInotify1, List2Inotify1)
 } /* List2Inotify1 */
 #endif
 
-int main (int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
 
   sf::path br{sf::path{bucket_root}};

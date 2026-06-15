@@ -23,8 +23,15 @@ class MMDSScrubStats : public MMDSOp {
   static constexpr int COMPAT_VERSION = 1;
 
 public:
-  std::string_view get_type_name() const override { return "mds_scrub_stats"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mds_scrub_stats";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "mds_scrub_stats(e" << epoch;
     if (update_scrubbing)
       o << " [" << scrubbing_tags << "]";
@@ -33,23 +40,53 @@ public:
     o << ")";
   }
 
-  unsigned get_epoch() const { return epoch; }
-  const auto& get_scrubbing_tags() const { return scrubbing_tags; }
-  bool is_aborting() const { return aborting; }
-  bool is_finished(const std::string& tag) const {
+  unsigned
+  get_epoch() const
+  {
+    return epoch;
+  }
+
+  const auto&
+  get_scrubbing_tags() const
+  {
+    return scrubbing_tags;
+  }
+
+  bool
+  is_aborting() const
+  {
+    return aborting;
+  }
+
+  bool
+  is_finished(const std::string& tag) const
+  {
     return update_scrubbing && !scrubbing_tags.count(tag);
   }
-  const std::unordered_map<std::string, std::unordered_map<int, std::vector<_inodeno_t>>>& get_uninline_failed_meta_info() const {
+
+  const std::unordered_map<
+      std::string,
+      std::unordered_map<int, std::vector<_inodeno_t>>>&
+  get_uninline_failed_meta_info() const
+  {
     return uninline_failed_meta_info;
   }
-  const std::unordered_map<_inodeno_t, std::string>& get_paths() const {
+
+  const std::unordered_map<_inodeno_t, std::string>&
+  get_paths() const
+  {
     return paths;
   }
-  const std::unordered_map<std::string, std::vector<uint64_t>>& get_counters() const {
+
+  const std::unordered_map<std::string, std::vector<uint64_t>>&
+  get_counters() const
+  {
     return counters;
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(epoch, payload);
     encode(scrubbing_tags, payload);
@@ -57,7 +94,10 @@ public:
     encode(aborting, payload);
     encode_uninline_failed_info();
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(epoch, p);
@@ -69,7 +109,9 @@ public:
     }
   }
 
-  void encode_uninline_failed_info() {
+  void
+  encode_uninline_failed_info()
+  {
     using ceph::encode;
     int count = (int)uninline_failed_meta_info.size();
     encode(count, payload);
@@ -78,8 +120,8 @@ public:
       count = (int)meta_info_map.size();
       encode(count, payload);
       for (const auto& [error_code, ino_vec] : meta_info_map) {
-	encode(error_code, payload);
-	encode(ino_vec, payload);
+        encode(error_code, payload);
+        encode(ino_vec, payload);
       }
     }
     count = (int)paths.size();
@@ -103,7 +145,10 @@ public:
       encode(skipped, payload);
     }
   }
-  void decode_uninline_failed_info(ceph::bufferlist::const_iterator& p) {
+
+  void
+  decode_uninline_failed_info(ceph::bufferlist::const_iterator& p)
+  {
     using ceph::decode;
     int tag_count = 0;
     decode(tag_count, p);
@@ -114,11 +159,11 @@ public:
       decode(count, p);
       std::unordered_map<int, std::vector<_inodeno_t>> uninline_failed_info;
       while (count--) {
-	int error_code;
-	std::vector<_inodeno_t> ino_vec;
-	decode(error_code, p);
-	decode(ino_vec, p);
-	uninline_failed_info[error_code] = std::move(ino_vec);
+        int error_code;
+        std::vector<_inodeno_t> ino_vec;
+        decode(error_code, p);
+        decode(ino_vec, p);
+        uninline_failed_info[error_code] = std::move(ino_vec);
       }
       uninline_failed_meta_info[tag] = std::move(uninline_failed_info);
     }
@@ -151,24 +196,48 @@ public:
   }
 
 protected:
-  MMDSScrubStats(unsigned e=0) :
+  MMDSScrubStats(unsigned e = 0) :
+    MMDSOp(MSG_MDS_SCRUB_STATS, HEAD_VERSION, COMPAT_VERSION), epoch(e)
+  {}
+
+  MMDSScrubStats(unsigned e, std::set<std::string>&& tags, bool abrt = false) :
     MMDSOp(MSG_MDS_SCRUB_STATS, HEAD_VERSION, COMPAT_VERSION),
-    epoch(e) {}
-  MMDSScrubStats(unsigned e, std::set<std::string>&& tags, bool abrt=false) :
+    epoch(e),
+    scrubbing_tags(std::move(tags)),
+    update_scrubbing(true),
+    aborting(abrt)
+  {}
+
+  MMDSScrubStats(
+      unsigned e,
+      const std::set<std::string>& tags,
+      bool abrt = false) :
     MMDSOp(MSG_MDS_SCRUB_STATS, HEAD_VERSION, COMPAT_VERSION),
-    epoch(e), scrubbing_tags(std::move(tags)), update_scrubbing(true), aborting(abrt) {}
-  MMDSScrubStats(unsigned e, const std::set<std::string>& tags, bool abrt=false) :
+    epoch(e),
+    scrubbing_tags(tags),
+    update_scrubbing(true),
+    aborting(abrt)
+  {}
+
+  MMDSScrubStats(
+      unsigned e,
+      const std::set<std::string>& tags,
+      std::unordered_map<
+          std::string,
+          std::unordered_map<int, std::vector<_inodeno_t>>>&& ufmi,
+      std::unordered_map<_inodeno_t, std::string>&& paths_,
+      std::unordered_map<std::string, std::vector<uint64_t>>&& counters_,
+      bool abrt = false) :
     MMDSOp(MSG_MDS_SCRUB_STATS, HEAD_VERSION, COMPAT_VERSION),
-    epoch(e), scrubbing_tags(tags), update_scrubbing(true), aborting(abrt) {}
-  MMDSScrubStats(unsigned e, const std::set<std::string>& tags,
-    std::unordered_map<std::string, std::unordered_map<int, std::vector<_inodeno_t>>>&& ufmi,
-    std::unordered_map<_inodeno_t, std::string>&& paths_,
-    std::unordered_map<std::string, std::vector<uint64_t>>&& counters_,
-    bool abrt = false) :
-    MMDSOp(MSG_MDS_SCRUB_STATS, HEAD_VERSION, COMPAT_VERSION),
-    epoch(e), scrubbing_tags(tags), update_scrubbing(true), aborting(abrt),
-    uninline_failed_meta_info(std::move(ufmi)), paths(std::move(paths_)),
-    counters(std::move(counters_)) {}
+    epoch(e),
+    scrubbing_tags(tags),
+    update_scrubbing(true),
+    aborting(abrt),
+    uninline_failed_meta_info(std::move(ufmi)),
+    paths(std::move(paths_)),
+    counters(std::move(counters_))
+  {}
+
   ~MMDSScrubStats() override {}
 
 private:
@@ -177,13 +246,14 @@ private:
   bool update_scrubbing = false;
   bool aborting = false;
   // <tag, <error_code, [ino1, ino2, ...]>>
-  std::unordered_map<std::string, std::unordered_map<int, std::vector<_inodeno_t>>> uninline_failed_meta_info;
+  std::unordered_map<std::string, std::unordered_map<int, std::vector<_inodeno_t>>>
+      uninline_failed_meta_info;
   std::unordered_map<_inodeno_t, std::string> paths;
   std::unordered_map<std::string, std::vector<uint64_t>> counters;
 
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

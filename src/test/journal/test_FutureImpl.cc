@@ -1,40 +1,49 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "journal/FutureImpl.h"
 #include "common/Cond.h"
 #include "gtest/gtest.h"
+#include "journal/FutureImpl.h"
 #include "test/journal/RadosTestFixture.h"
 
 class TestFutureImpl : public RadosTestFixture {
 public:
   struct FlushHandler : public journal::FutureImpl::FlushHandler {
     uint64_t flushes = 0;
-    void flush(const ceph::ref_t<journal::FutureImpl>& future) override {
+
+    void
+    flush(const ceph::ref_t<journal::FutureImpl>& future) override
+    {
       ++flushes;
     }
+
     FlushHandler() = default;
   };
 
-  TestFutureImpl() {
-    m_flush_handler = std::make_shared<FlushHandler>();
-  }
+  TestFutureImpl() { m_flush_handler = std::make_shared<FlushHandler>(); }
 
-  auto create_future(uint64_t tag_tid, uint64_t entry_tid,
-                     uint64_t commit_tid,
-                     ceph::ref_t<journal::FutureImpl> prev = nullptr) {
-    auto future = ceph::make_ref<journal::FutureImpl>(tag_tid, entry_tid, commit_tid);
+  auto
+  create_future(
+      uint64_t tag_tid,
+      uint64_t entry_tid,
+      uint64_t commit_tid,
+      ceph::ref_t<journal::FutureImpl> prev = nullptr)
+  {
+    auto future =
+        ceph::make_ref<journal::FutureImpl>(tag_tid, entry_tid, commit_tid);
     future->init(prev);
     return future;
   }
 
-  void flush(const ceph::ref_t<journal::FutureImpl>& future) {
-  }
+  void
+  flush(const ceph::ref_t<journal::FutureImpl>& future)
+  {}
 
   std::shared_ptr<FlushHandler> m_flush_handler;
 };
 
-TEST_F(TestFutureImpl, Getters) {
+TEST_F(TestFutureImpl, Getters)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -47,7 +56,8 @@ TEST_F(TestFutureImpl, Getters) {
   ASSERT_EQ(456U, future->get_commit_tid());
 }
 
-TEST_F(TestFutureImpl, Attach) {
+TEST_F(TestFutureImpl, Attach)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -59,7 +69,8 @@ TEST_F(TestFutureImpl, Attach) {
   ASSERT_EQ(2U, m_flush_handler.use_count());
 }
 
-TEST_F(TestFutureImpl, AttachWithPendingFlush) {
+TEST_F(TestFutureImpl, AttachWithPendingFlush)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -73,7 +84,8 @@ TEST_F(TestFutureImpl, AttachWithPendingFlush) {
   ASSERT_EQ(2U, m_flush_handler.use_count());
 }
 
-TEST_F(TestFutureImpl, Detach) {
+TEST_F(TestFutureImpl, Detach)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -86,7 +98,8 @@ TEST_F(TestFutureImpl, Detach) {
   ASSERT_EQ(1U, m_flush_handler.use_count());
 }
 
-TEST_F(TestFutureImpl, DetachImplicit) {
+TEST_F(TestFutureImpl, DetachImplicit)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -99,7 +112,8 @@ TEST_F(TestFutureImpl, DetachImplicit) {
   ASSERT_EQ(1U, m_flush_handler.use_count());
 }
 
-TEST_F(TestFutureImpl, Flush) {
+TEST_F(TestFutureImpl, Flush)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -117,7 +131,8 @@ TEST_F(TestFutureImpl, Flush) {
   ASSERT_EQ(-EIO, cond.wait());
 }
 
-TEST_F(TestFutureImpl, FlushWithoutContext) {
+TEST_F(TestFutureImpl, FlushWithoutContext)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -134,7 +149,8 @@ TEST_F(TestFutureImpl, FlushWithoutContext) {
   ASSERT_EQ(-EIO, future->get_return_value());
 }
 
-TEST_F(TestFutureImpl, FlushChain) {
+TEST_F(TestFutureImpl, FlushChain)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -169,7 +185,8 @@ TEST_F(TestFutureImpl, FlushChain) {
   ASSERT_EQ(0, future1->get_return_value());
 }
 
-TEST_F(TestFutureImpl, FlushInProgress) {
+TEST_F(TestFutureImpl, FlushInProgress)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -190,7 +207,8 @@ TEST_F(TestFutureImpl, FlushInProgress) {
   future1->safe(0);
 }
 
-TEST_F(TestFutureImpl, FlushAlreadyComplete) {
+TEST_F(TestFutureImpl, FlushAlreadyComplete)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -205,7 +223,8 @@ TEST_F(TestFutureImpl, FlushAlreadyComplete) {
   ASSERT_EQ(-EIO, cond.wait());
 }
 
-TEST_F(TestFutureImpl, Wait) {
+TEST_F(TestFutureImpl, Wait)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -220,7 +239,8 @@ TEST_F(TestFutureImpl, Wait) {
   ASSERT_EQ(-EEXIST, cond.wait());
 }
 
-TEST_F(TestFutureImpl, WaitAlreadyComplete) {
+TEST_F(TestFutureImpl, WaitAlreadyComplete)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -235,7 +255,8 @@ TEST_F(TestFutureImpl, WaitAlreadyComplete) {
   ASSERT_EQ(-EEXIST, cond.wait());
 }
 
-TEST_F(TestFutureImpl, SafePreservesError) {
+TEST_F(TestFutureImpl, SafePreservesError)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));
@@ -251,7 +272,8 @@ TEST_F(TestFutureImpl, SafePreservesError) {
   ASSERT_EQ(-EIO, future2->get_return_value());
 }
 
-TEST_F(TestFutureImpl, ConsistentPreservesError) {
+TEST_F(TestFutureImpl, ConsistentPreservesError)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid));
   ASSERT_EQ(0, client_register(oid));

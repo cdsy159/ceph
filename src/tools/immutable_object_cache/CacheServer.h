@@ -7,10 +7,9 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
 
-#include "Types.h"
-#include "SocketCommon.h"
 #include "CacheSession.h"
-
+#include "SocketCommon.h"
+#include "Types.h"
 
 namespace ceph {
 namespace immutable_obj_cache {
@@ -18,7 +17,7 @@ namespace immutable_obj_cache {
 using boost::asio::local::stream_protocol;
 
 class CacheServer {
- public:
+public:
   CacheServer(CephContext* cct, const std::string& file, ProcessMsg processmsg);
   ~CacheServer();
 
@@ -26,12 +25,13 @@ class CacheServer {
   int start_accept();
   int stop();
 
- private:
+private:
   void accept();
-  void handle_accept(CacheSessionPtr new_session,
-                     const boost::system::error_code& error);
+  void handle_accept(
+      CacheSessionPtr new_session,
+      const boost::system::error_code& error);
 
- private:
+private:
   CephContext* cct;
   boost::asio::io_context m_io_service;
   ProcessMsg m_server_process_msg;
@@ -39,7 +39,7 @@ class CacheServer {
   stream_protocol::acceptor m_acceptor;
 };
 
-}  // namespace immutable_obj_cache
-}  // namespace ceph
+} // namespace immutable_obj_cache
+} // namespace ceph
 
 #endif

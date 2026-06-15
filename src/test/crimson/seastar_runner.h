@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <signal.h>
-#include <thread>
-
+#include <seastar/core/alien.hh>
 #include <seastar/core/app-template.hh>
 #include <seastar/core/future-util.hh>
 #include <seastar/core/reactor.hh>
-#include <seastar/core/alien.hh>
 #include <seastar/core/thread.hh>
+#include <signal.h>
+#include <stdio.h>
+
+#include <thread>
 
 #include "test/crimson/ctest_utils.h"
 
@@ -28,15 +28,19 @@ struct SeastarRunner {
   bool begin_signaled = false;
 
   SeastarRunner() :
-    app{get_smp_opts_from_ctest()}, begin_fd{seastar::file_desc::eventfd(0, 0)} {}
+    app{get_smp_opts_from_ctest()}, begin_fd{seastar::file_desc::eventfd(0, 0)}
+  {}
 
   ~SeastarRunner() {}
 
-  bool is_running() const {
+  bool
+  is_running() const
+  {
     return !!on_end;
   }
 
-  int init(int argc, char **argv)
+  int
+  init(int argc, char** argv)
   {
     thread = std::thread([argc, argv, this] { reactor(argc, argv); });
     eventfd_t result;
@@ -54,8 +58,9 @@ struct SeastarRunner {
       return 1;
     }
   }
-  
-  void stop()
+
+  void
+  stop()
   {
     if (is_running()) {
       run([this] {
@@ -66,11 +71,13 @@ struct SeastarRunner {
     thread.join();
   }
 
-  void reactor(int argc, char **argv)
+  void
+  reactor(int argc, char** argv)
   {
     auto ret = app.run(argc, argv, [this] {
       on_end.reset(new seastar::readable_eventfd);
-      return seastar::now().then([this] {
+      return seastar::now()
+          .then([this] {
 // FIXME: The stall detector uses glibc backtrace function to
 // collect backtraces, this causes ASAN failures on ARM.
 // For now we just extend timeout duration to 10000h in order to
@@ -79,22 +86,23 @@ struct SeastarRunner {
 // Will remove once the ticket fixed.
 // Ceph ticket see: https://tracker.ceph.com/issues/65635
 #ifdef __aarch64__
-	seastar::smp::invoke_on_all([] {
-	  using namespace std::chrono;
-	  seastar::engine().update_blocked_reactor_notify_ms(duration_cast<milliseconds>(10000h));
-	}).get();
+            seastar::smp::invoke_on_all([] {
+              using namespace std::chrono;
+              seastar::engine().update_blocked_reactor_notify_ms(
+                  duration_cast<milliseconds>(10000h));
+            }).get();
 #endif
-	begin_signaled = true;
-	[[maybe_unused]] auto r = ::eventfd_write(begin_fd.get(), APP_RUNNING);
-	assert(r == 0);
-	return seastar::now();
-      }).then([this] {
-	return on_end->wait().then([](size_t){});
-      }).handle_exception([](auto ep) {
-	std::cerr << "Error: " << ep << std::endl;
-      }).finally([this] {
-	on_end.reset();
-      });
+            begin_signaled = true;
+            [[maybe_unused]] auto r =
+                ::eventfd_write(begin_fd.get(), APP_RUNNING);
+            assert(r == 0);
+            return seastar::now();
+          })
+          .then([this] { return on_end->wait().then([](size_t) {}); })
+          .handle_exception([](auto ep) {
+            std::cerr << "Error: " << ep << std::endl;
+          })
+          .finally([this] { on_end.reset(); });
     });
     if (ret != 0) {
       std::cerr << "Seastar app returns " << ret << std::endl;
@@ -106,12 +114,12 @@ struct SeastarRunner {
   }
 
   template <typename Func>
-  void run(Func &&func) {
+  void
+  run(Func&& func)
+  {
     assert(is_running());
-    auto fut = seastar::alien::submit_to(app.alien(), 0,
-					 std::forward<Func>(func));
+    auto fut =
+        seastar::alien::submit_to(app.alien(), 0, std::forward<Func>(func));
     fut.get();
   }
 };
-
-

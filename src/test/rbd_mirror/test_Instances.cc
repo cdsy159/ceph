@@ -1,24 +1,25 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <vector>
+
+#include "cls/rbd/cls_rbd_client.h"
+#include "common/Cond.h"
+#include "gtest/gtest.h"
 #include "include/rados/librados.hpp"
 #include "include/rbd_types.h" // for RBD_MIRROR_LEADER
-#include "cls/rbd/cls_rbd_client.h"
+#include "test/librados/test.h"
 #include "test/rbd_mirror/test_fixture.h"
 #include "tools/rbd_mirror/InstanceWatcher.h"
 #include "tools/rbd_mirror/Instances.h"
 #include "tools/rbd_mirror/Threads.h"
-#include "common/Cond.h"
 
-#include "test/librados/test.h"
-#include "gtest/gtest.h"
-#include <vector>
-
-using rbd::mirror::InstanceWatcher;
 using rbd::mirror::Instances;
+using rbd::mirror::InstanceWatcher;
 
-void register_test_instances() {
-}
+void
+register_test_instances()
+{}
 
 class TestInstances : public ::rbd::mirror::TestFixture {
 public:
@@ -34,7 +35,9 @@ public:
     Instance add;
     Instance remove;
 
-    void handle(const InstanceIds& instance_ids, Instance* instance) {
+    void
+    handle(const InstanceIds& instance_ids, Instance* instance)
+    {
       std::unique_lock<std::mutex> locker(lock);
       for (auto& instance_id : instance_ids) {
         ceph_assert(instance->count > 0);
@@ -47,16 +50,22 @@ public:
       }
     }
 
-    void handle_added(const InstanceIds& instance_ids) override {
+    void
+    handle_added(const InstanceIds& instance_ids) override
+    {
       handle(instance_ids, &add);
     }
 
-    void handle_removed(const InstanceIds& instance_ids) override {
+    void
+    handle_removed(const InstanceIds& instance_ids) override
+    {
       handle(instance_ids, &remove);
     }
   };
 
-  virtual void SetUp() {
+  virtual void
+  SetUp()
+  {
     TestFixture::SetUp();
     m_local_io_ctx.remove(RBD_MIRROR_LEADER);
     EXPECT_EQ(0, m_local_io_ctx.create(RBD_MIRROR_LEADER, true));
@@ -74,8 +83,8 @@ TEST_F(TestInstances, InitShutdown)
   Instances<> instances(m_threads, m_local_io_ctx, m_instance_id, m_listener);
 
   std::string instance_id = "instance_id";
-  ASSERT_EQ(0, librbd::cls_client::mirror_instances_add(&m_local_io_ctx,
-                                                        instance_id));
+  ASSERT_EQ(
+      0, librbd::cls_client::mirror_instances_add(&m_local_io_ctx, instance_id));
 
   C_SaferCond on_init;
   instances.init(&on_init);
@@ -111,10 +120,10 @@ TEST_F(TestInstances, NotifyRemove)
 {
   // speed testing up a little
   EXPECT_EQ(0, _rados->conf_set("rbd_mirror_leader_heartbeat_interval", "1"));
-  EXPECT_EQ(0, _rados->conf_set("rbd_mirror_leader_max_missed_heartbeats",
-                                "2"));
-  EXPECT_EQ(0, _rados->conf_set("rbd_mirror_leader_max_acquire_attempts_before_break",
-                                "0"));
+  EXPECT_EQ(0, _rados->conf_set("rbd_mirror_leader_max_missed_heartbeats", "2"));
+  EXPECT_EQ(
+      0, _rados->conf_set(
+             "rbd_mirror_leader_max_acquire_attempts_before_break", "0"));
 
   m_listener.add.count = 2;
   m_listener.remove.count = 1;
@@ -123,8 +132,9 @@ TEST_F(TestInstances, NotifyRemove)
   std::string instance_id1 = "instance_id1";
   std::string instance_id2 = "instance_id2";
 
-  ASSERT_EQ(0, librbd::cls_client::mirror_instances_add(&m_local_io_ctx,
-                                                        instance_id1));
+  ASSERT_EQ(
+      0,
+      librbd::cls_client::mirror_instances_add(&m_local_io_ctx, instance_id1));
 
   C_SaferCond on_init;
   instances.init(&on_init);
@@ -136,8 +146,8 @@ TEST_F(TestInstances, NotifyRemove)
   instances.unblock_listener();
 
   ASSERT_EQ(0, m_listener.add.ctx.wait());
-  ASSERT_EQ(std::set<std::string>({instance_id1, instance_id2}),
-            m_listener.add.ids);
+  ASSERT_EQ(
+      std::set<std::string>({instance_id1, instance_id2}), m_listener.add.ids);
 
   std::vector<std::string> instance_ids;
   for (int i = 0; i < 100; i++) {
@@ -149,8 +159,7 @@ TEST_F(TestInstances, NotifyRemove)
 
   instances.acked({instance_id1});
   ASSERT_EQ(0, m_listener.remove.ctx.wait());
-  ASSERT_EQ(std::set<std::string>({instance_id2}),
-           m_listener.remove.ids);
+  ASSERT_EQ(std::set<std::string>({instance_id2}), m_listener.remove.ids);
 
   C_SaferCond on_get;
   instances.acked({instance_id1});

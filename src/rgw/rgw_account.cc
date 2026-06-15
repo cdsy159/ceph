@@ -15,8 +15,9 @@
 
 #include "rgw_account.h"
 
-#include <algorithm>
 #include <fmt/format.h>
+
+#include <algorithm>
 
 #include "common/random_string.h"
 #include "common/utf8.h"
@@ -34,7 +35,8 @@ namespace rgw::account {
 static constexpr std::string_view id_prefix = "RGW";
 static constexpr std::size_t id_len = 20;
 
-std::string generate_id(CephContext* cct)
+std::string
+generate_id(CephContext* cct)
 {
   // fill with random numeric digits
   std::string id = gen_rand_numeric(cct, id_len);
@@ -43,7 +45,8 @@ std::string generate_id(CephContext* cct)
   return id;
 }
 
-bool validate_id(std::string_view id, std::string* err_msg)
+bool
+validate_id(std::string_view id, std::string* err_msg)
 {
   if (id.size() != id_len) {
     if (err_msg) {
@@ -59,7 +62,7 @@ bool validate_id(std::string_view id, std::string* err_msg)
   }
   auto suffix = id.substr(id_prefix.size());
   // all remaining bytes must be digits
-  constexpr auto digit = [] (int c) { return std::isdigit(c); };
+  constexpr auto digit = [](int c) { return std::isdigit(c); };
   if (!std::all_of(suffix.begin(), suffix.end(), digit)) {
     if (err_msg) {
       *err_msg = "account id must end with numeric digits";
@@ -69,7 +72,8 @@ bool validate_id(std::string_view id, std::string* err_msg)
   return true;
 }
 
-bool validate_name(std::string_view name, std::string* err_msg)
+bool
+validate_name(std::string_view name, std::string* err_msg)
 {
   if (name.empty()) {
     if (err_msg) {
@@ -101,13 +105,14 @@ bool validate_name(std::string_view name, std::string* err_msg)
   return true;
 }
 
-
-int create(const DoutPrefixProvider* dpp,
-           rgw::sal::Driver* driver,
-           AdminOpState& op_state,
-           std::string& err_msg,
-           RGWFormatterFlusher& flusher,
-           optional_yield y)
+int
+create(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   // validate account name if specified
   if (!op_state.account_name.empty() &&
@@ -116,9 +121,9 @@ int create(const DoutPrefixProvider* dpp,
   }
 
   auto info = RGWAccountInfo{
-    .tenant = op_state.tenant,
-    .name = op_state.account_name,
-    .email = op_state.email,
+      .tenant = op_state.tenant,
+      .name = op_state.account_name,
+      .email = op_state.email,
   };
 
   if (op_state.max_users) {
@@ -156,8 +161,8 @@ int create(const DoutPrefixProvider* dpp,
   RGWObjVersionTracker objv;
   objv.generate_new_write_ver(dpp->get_cct());
 
-  int ret = driver->store_account(dpp, y, exclusive, info,
-                                  old_info, attrs, objv);
+  int ret =
+      driver->store_account(dpp, y, exclusive, info, old_info, attrs, objv);
   if (ret < 0) {
     return ret;
   }
@@ -169,27 +174,28 @@ int create(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int modify(const DoutPrefixProvider* dpp,
-           rgw::sal::Driver* driver,
-           AdminOpState& op_state,
-           std::string& err_msg,
-           RGWFormatterFlusher& flusher,
-           optional_yield y)
+int
+modify(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   int ret = 0;
   RGWAccountInfo info;
   rgw::sal::Attrs attrs;
   RGWObjVersionTracker objv;
   if (!op_state.account_id.empty()) {
-    ret = driver->load_account_by_id(dpp, y, op_state.account_id,
-                                     info, attrs, objv);
+    ret = driver->load_account_by_id(
+        dpp, y, op_state.account_id, info, attrs, objv);
   } else if (!op_state.account_name.empty()) {
-    ret = driver->load_account_by_name(dpp, y, op_state.tenant,
-                                       op_state.account_name,
-                                       info, attrs, objv);
+    ret = driver->load_account_by_name(
+        dpp, y, op_state.tenant, op_state.account_name, info, attrs, objv);
   } else if (!op_state.email.empty()) {
-    ret = driver->load_account_by_email(dpp, y, op_state.email,
-                                        info, attrs, objv);
+    ret = driver->load_account_by_email(
+        dpp, y, op_state.email, info, attrs, objv);
   } else {
     err_msg = "requires --account-id or --account-name or --email";
     return -EINVAL;
@@ -264,12 +270,14 @@ int modify(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int remove(const DoutPrefixProvider* dpp,
-           rgw::sal::Driver* driver,
-           AdminOpState& op_state,
-           std::string& err_msg,
-           RGWFormatterFlusher& flusher,
-           optional_yield y)
+int
+remove(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   int ret = 0;
   RGWAccountInfo info;
@@ -277,15 +285,14 @@ int remove(const DoutPrefixProvider* dpp,
   RGWObjVersionTracker objv;
 
   if (!op_state.account_id.empty()) {
-    ret = driver->load_account_by_id(dpp, y, op_state.account_id,
-                                     info, attrs, objv);
+    ret = driver->load_account_by_id(
+        dpp, y, op_state.account_id, info, attrs, objv);
   } else if (!op_state.account_name.empty()) {
-    ret = driver->load_account_by_name(dpp, y, op_state.tenant,
-                                       op_state.account_name,
-                                       info, attrs, objv);
+    ret = driver->load_account_by_name(
+        dpp, y, op_state.tenant, op_state.account_name, info, attrs, objv);
   } else if (!op_state.email.empty()) {
-    ret = driver->load_account_by_email(dpp, y, op_state.email,
-                                        info, attrs, objv);
+    ret = driver->load_account_by_email(
+        dpp, y, op_state.email, info, attrs, objv);
   } else {
     err_msg = "requires --account-id or --account-name or --email";
     return -EINVAL;
@@ -300,8 +307,9 @@ int remove(const DoutPrefixProvider* dpp,
 
   rgw::sal::UserList users;
   do {
-    ret = driver->list_account_users(dpp, y, info.id, info.tenant, path_prefix,
-                                     users.next_marker, max_items, users);
+    ret = driver->list_account_users(
+        dpp, y, info.id, info.tenant, path_prefix, users.next_marker, max_items,
+        users);
     if (ret < 0) {
       err_msg = "Unable to list account users";
       return ret;
@@ -325,9 +333,9 @@ int remove(const DoutPrefixProvider* dpp,
   constexpr bool need_stats = false;
   rgw::sal::BucketList buckets;
   do {
-    ret = driver->list_buckets(dpp, info.id, info.tenant,
-                               buckets.next_marker, "",
-                               max_items, need_stats, buckets, y);
+    ret = driver->list_buckets(
+        dpp, info.id, info.tenant, buckets.next_marker, "", max_items,
+        need_stats, buckets, y);
     if (ret < 0) {
       err_msg = "Unable to list account buckets";
       return ret;
@@ -358,8 +366,8 @@ int remove(const DoutPrefixProvider* dpp,
 
   rgw::sal::RoleList roles;
   do {
-    ret = driver->list_account_roles(dpp, y, info.id, path_prefix,
-                                     roles.next_marker, max_items, roles);
+    ret = driver->list_account_roles(
+        dpp, y, info.id, path_prefix, roles.next_marker, max_items, roles);
     if (ret < 0) {
       err_msg = "Unable to list account roles";
       return ret;
@@ -382,8 +390,8 @@ int remove(const DoutPrefixProvider* dpp,
 
   rgw::sal::GroupList groups;
   do {
-    ret = driver->list_account_groups(dpp, y, info.id, path_prefix,
-                                      groups.next_marker, max_items, groups);
+    ret = driver->list_account_groups(
+        dpp, y, info.id, path_prefix, groups.next_marker, max_items, groups);
     if (ret < 0) {
       err_msg = "Unable to list account groups";
       return ret;
@@ -411,14 +419,17 @@ int remove(const DoutPrefixProvider* dpp,
     return ret;
   }
   if (!providers.empty() && !op_state.purge_data) {
-    err_msg = "The account cannot be deleted until all OpenIDConnectProviders are removed.";
+    err_msg =
+        "The account cannot be deleted until all OpenIDConnectProviders are "
+        "removed.";
     return -ENOTEMPTY;
   }
 
   for (const auto& info : providers) {
     ret = driver->delete_oidc_provider(dpp, y, info.tenant, info.provider_url);
     if (ret < 0) {
-      err_msg = fmt::format("unable to delete oidc provider {}", info.provider_url);
+      err_msg =
+          fmt::format("unable to delete oidc provider {}", info.provider_url);
       return ret;
     }
     ldpp_dout_fmt(dpp, 1, "Deleted account oidc provider {}", info.provider_url);
@@ -426,8 +437,8 @@ int remove(const DoutPrefixProvider* dpp,
 
   rgw::sal::TopicList topics;
   do {
-    ret = driver->list_account_topics(dpp, y, info.tenant,
-                                      topics.next_marker, max_items, topics);
+    ret = driver->list_account_topics(
+        dpp, y, info.tenant, topics.next_marker, max_items, topics);
     if (ret < 0) {
       err_msg = "Unable to list account topics";
       return ret;
@@ -451,12 +462,14 @@ int remove(const DoutPrefixProvider* dpp,
   return driver->delete_account(dpp, y, info, objv);
 }
 
-int info(const DoutPrefixProvider* dpp,
-         rgw::sal::Driver* driver,
-         AdminOpState& op_state,
-         std::string& err_msg,
-         RGWFormatterFlusher& flusher,
-         optional_yield y)
+int
+info(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   int ret = 0;
   RGWAccountInfo info;
@@ -464,15 +477,14 @@ int info(const DoutPrefixProvider* dpp,
   RGWObjVersionTracker objv;
 
   if (!op_state.account_id.empty()) {
-    ret = driver->load_account_by_id(dpp, y, op_state.account_id,
-                                     info, attrs, objv);
+    ret = driver->load_account_by_id(
+        dpp, y, op_state.account_id, info, attrs, objv);
   } else if (!op_state.account_name.empty()) {
-    ret = driver->load_account_by_name(dpp, y, op_state.tenant,
-                                       op_state.account_name,
-                                       info, attrs, objv);
+    ret = driver->load_account_by_name(
+        dpp, y, op_state.tenant, op_state.account_name, info, attrs, objv);
   } else if (!op_state.email.empty()) {
-    ret = driver->load_account_by_email(dpp, y, op_state.email,
-                                        info, attrs, objv);
+    ret = driver->load_account_by_email(
+        dpp, y, op_state.email, info, attrs, objv);
   } else {
     err_msg = "requires --account-id or --account-name or --email";
     return -EINVAL;
@@ -488,14 +500,16 @@ int info(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int stats(const DoutPrefixProvider* dpp,
-          rgw::sal::Driver* driver,
-          AdminOpState& op_state,
-          bool sync_stats,
-          bool reset_stats,
-          std::string& err_msg,
-          RGWFormatterFlusher& flusher,
-          optional_yield y)
+int
+stats(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    bool sync_stats,
+    bool reset_stats,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   int ret = 0;
   RGWAccountInfo info;
@@ -504,13 +518,12 @@ int stats(const DoutPrefixProvider* dpp,
 
   if (!op_state.account_id.empty()) {
     // look up account by id
-    ret = driver->load_account_by_id(dpp, y, op_state.account_id,
-                                     info, attrs, objv);
+    ret = driver->load_account_by_id(
+        dpp, y, op_state.account_id, info, attrs, objv);
   } else if (!op_state.account_name.empty()) {
     // look up account by tenant/name
-    ret = driver->load_account_by_name(dpp, y, op_state.tenant,
-                                       op_state.account_name,
-                                       info, attrs, objv);
+    ret = driver->load_account_by_name(
+        dpp, y, op_state.tenant, op_state.account_name, info, attrs, objv);
   } else {
     err_msg = "requires account id or name";
     return -EINVAL;
@@ -539,8 +552,7 @@ int stats(const DoutPrefixProvider* dpp,
   RGWStorageStats stats;
   ceph::real_time last_synced;
   ceph::real_time last_updated;
-  ret = driver->load_stats(dpp, y, owner, stats,
-                           last_synced, last_updated);
+  ret = driver->load_stats(dpp, y, owner, stats, last_synced, last_updated);
   if (ret < 0) {
     return ret;
   }
@@ -557,11 +569,19 @@ int stats(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int list_users(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-               AdminOpState& op_state, const std::string& path_prefix,
-               const std::string& marker, bool max_entries_specified,
-               int max_entries, bool root_only, std::string& err_msg,
-               RGWFormatterFlusher& flusher, optional_yield y)
+int
+list_users(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    const std::string& path_prefix,
+    const std::string& marker,
+    bool max_entries_specified,
+    int max_entries,
+    bool root_only,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y)
 {
   int ret = 0;
   RGWAccountInfo info;
@@ -570,13 +590,12 @@ int list_users(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
 
   if (!op_state.account_id.empty()) {
     // look up account by id
-    ret = driver->load_account_by_id(dpp, y, op_state.account_id,
-                                     info, attrs, objv);
+    ret = driver->load_account_by_id(
+        dpp, y, op_state.account_id, info, attrs, objv);
   } else if (!op_state.account_name.empty()) {
     // look up account by tenant/name
-    ret = driver->load_account_by_name(dpp, y, op_state.tenant,
-                                       op_state.account_name,
-                                       info, attrs, objv);
+    ret = driver->load_account_by_name(
+        dpp, y, op_state.tenant, op_state.account_name, info, attrs, objv);
   } else {
     err_msg = "requires account id or name";
     return -EINVAL;
@@ -603,9 +622,9 @@ int list_users(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
     constexpr int32_t max_chunk = 100;
     int32_t count = std::min(max_chunk, remaining);
 
-    ret = driver->list_account_users(dpp, y, info.id, info.tenant,
-                                     path_prefix, listing.next_marker,
-                                     count, listing);
+    ret = driver->list_account_users(
+        dpp, y, info.id, info.tenant, path_prefix, listing.next_marker, count,
+        listing);
     if (ret == -ENOENT) {
       ret = 0;
     } else if (ret < 0) {

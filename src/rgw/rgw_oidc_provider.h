@@ -9,8 +9,7 @@
 
 #include "common/ceph_json.h"
 
-struct RGWOIDCProviderInfo
-{
+struct RGWOIDCProviderInfo {
   std::string id;
   std::string provider_url;
   std::string arn;
@@ -19,7 +18,9 @@ struct RGWOIDCProviderInfo
   std::vector<std::string> client_ids;
   std::vector<std::string> thumbprints;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(3, 1, bl);
     encode(id, bl);
     encode(provider_url, bl);
@@ -31,7 +32,9 @@ struct RGWOIDCProviderInfo
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(3, bl);
     decode(id, bl);
     decode(provider_url, bl);
@@ -43,8 +46,8 @@ struct RGWOIDCProviderInfo
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWOIDCProviderInfo> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWOIDCProviderInfo)

@@ -2,26 +2,26 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <errno.h>
+
 #include <map>
+#include <regex>
 #include <sstream>
 #include <string>
-#include <regex>
 
-#include "gtest/gtest.h"
-
-#include "include/err.h"
-#include "include/buffer.h"
-#include "include/rbd_types.h"
-#include "include/rados.h"
-#include "include/rados/librados.hpp"
-#include "include/scope_guard.h"
-#include "include/stringify.h"
 #include "common/Checksummer.h"
 #include "common/config_proxy.h" // for class ConfigProxy
-#include "mds/mdstypes.h"
 #include "global/global_context.h"
-#include "test/librados/testcase_cxx.h"
+#include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/err.h"
+#include "include/rados.h"
+#include "include/rados/librados.hpp"
+#include "include/rbd_types.h"
+#include "include/scope_guard.h"
+#include "include/stringify.h"
+#include "mds/mdstypes.h"
 #include "test/librados/test_cxx.h"
+#include "test/librados/testcase_cxx.h"
 
 #include "crimson_utils.h"
 
@@ -31,121 +31,88 @@ using namespace librados;
 typedef RadosTestPP LibRadosMiscPP;
 typedef RadosTestECPP LibRadosMiscECPP;
 
-TEST(LibRadosMiscVersion, VersionPP) {
+TEST(LibRadosMiscVersion, VersionPP)
+{
   int major, minor, extra;
   Rados::version(&major, &minor, &extra);
 }
 
-TEST_F(LibRadosMiscPP, WaitOSDMapPP) {
+TEST_F(LibRadosMiscPP, WaitOSDMapPP)
+{
   ASSERT_EQ(0, cluster.wait_for_latest_osdmap());
 }
 
-TEST_F(LibRadosMiscPP, LongNamePP) {
+TEST_F(LibRadosMiscPP, LongNamePP)
+{
   bufferlist bl;
   bl.append("content");
   int maxlen = g_conf()->osd_max_object_name_len;
-  ASSERT_EQ(0, ioctx.write(string(maxlen/2, 'a').c_str(), bl, bl.length(), 0));
-  ASSERT_EQ(0, ioctx.write(string(maxlen-1, 'a').c_str(), bl, bl.length(), 0));
+  ASSERT_EQ(0, ioctx.write(string(maxlen / 2, 'a').c_str(), bl, bl.length(), 0));
+  ASSERT_EQ(0, ioctx.write(string(maxlen - 1, 'a').c_str(), bl, bl.length(), 0));
   ASSERT_EQ(0, ioctx.write(string(maxlen, 'a').c_str(), bl, bl.length(), 0));
-  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string(maxlen+1, 'a').c_str(), bl, bl.length(), 0));
-  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string(maxlen*2, 'a').c_str(), bl, bl.length(), 0));
+  ASSERT_EQ(
+      -ENAMETOOLONG,
+      ioctx.write(string(maxlen + 1, 'a').c_str(), bl, bl.length(), 0));
+  ASSERT_EQ(
+      -ENAMETOOLONG,
+      ioctx.write(string(maxlen * 2, 'a').c_str(), bl, bl.length(), 0));
 }
 
-TEST_F(LibRadosMiscPP, LongLocatorPP) {
+TEST_F(LibRadosMiscPP, LongLocatorPP)
+{
   SKIP_IF_CRIMSON();
   bufferlist bl;
   bl.append("content");
   int maxlen = g_conf()->osd_max_object_name_len;
-  ioctx.locator_set_key(
-    string((maxlen/2), 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.locator_set_key(
-    string(maxlen - 1, 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.locator_set_key(
-    string(maxlen, 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.locator_set_key(
-    string(maxlen+1, 'a'));
-  ASSERT_EQ(
-    -ENAMETOOLONG,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.locator_set_key(
-    string((maxlen*2), 'a'));
-  ASSERT_EQ(
-    -ENAMETOOLONG,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
+  ioctx.locator_set_key(string((maxlen / 2), 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.locator_set_key(string(maxlen - 1, 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.locator_set_key(string(maxlen, 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.locator_set_key(string(maxlen + 1, 'a'));
+  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.locator_set_key(string((maxlen * 2), 'a'));
+  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
 }
 
-TEST_F(LibRadosMiscPP, LongNSpacePP) {
+TEST_F(LibRadosMiscPP, LongNSpacePP)
+{
   bufferlist bl;
   bl.append("content");
   int maxlen = g_conf()->osd_max_object_namespace_len;
-  ioctx.set_namespace(
-    string((maxlen/2), 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.set_namespace(
-    string(maxlen - 1, 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.set_namespace(
-    string(maxlen, 'a'));
-  ASSERT_EQ(
-    0,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.set_namespace(
-    string(maxlen+1, 'a'));
-  ASSERT_EQ(
-    -ENAMETOOLONG,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
-  ioctx.set_namespace(
-    string((maxlen*2), 'a'));
-  ASSERT_EQ(
-    -ENAMETOOLONG,
-    ioctx.write(
-      string("a").c_str(),
-      bl, bl.length(), 0));
+  ioctx.set_namespace(string((maxlen / 2), 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.set_namespace(string(maxlen - 1, 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.set_namespace(string(maxlen, 'a'));
+  ASSERT_EQ(0, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.set_namespace(string(maxlen + 1, 'a'));
+  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
+  ioctx.set_namespace(string((maxlen * 2), 'a'));
+  ASSERT_EQ(-ENAMETOOLONG, ioctx.write(string("a").c_str(), bl, bl.length(), 0));
 }
 
-TEST_F(LibRadosMiscPP, LongAttrNamePP) {
+TEST_F(LibRadosMiscPP, LongAttrNamePP)
+{
   bufferlist bl;
   bl.append("content");
   int maxlen = g_conf()->osd_max_attr_name_len;
-  ASSERT_EQ(0, ioctx.setxattr("bigattrobj", string(maxlen/2, 'a').c_str(), bl));
-  ASSERT_EQ(0, ioctx.setxattr("bigattrobj", string(maxlen-1, 'a').c_str(), bl));
+  ASSERT_EQ(
+      0, ioctx.setxattr("bigattrobj", string(maxlen / 2, 'a').c_str(), bl));
+  ASSERT_EQ(
+      0, ioctx.setxattr("bigattrobj", string(maxlen - 1, 'a').c_str(), bl));
   ASSERT_EQ(0, ioctx.setxattr("bigattrobj", string(maxlen, 'a').c_str(), bl));
-  ASSERT_EQ(-ENAMETOOLONG, ioctx.setxattr("bigattrobj", string(maxlen+1, 'a').c_str(), bl));
-  ASSERT_EQ(-ENAMETOOLONG, ioctx.setxattr("bigattrobj", string(maxlen*2, 'a').c_str(), bl));
+  ASSERT_EQ(
+      -ENAMETOOLONG,
+      ioctx.setxattr("bigattrobj", string(maxlen + 1, 'a').c_str(), bl));
+  ASSERT_EQ(
+      -ENAMETOOLONG,
+      ioctx.setxattr("bigattrobj", string(maxlen * 2, 'a').c_str(), bl));
 }
 
-TEST_F(LibRadosMiscPP, ExecPP) {
+TEST_F(LibRadosMiscPP, ExecPP)
+{
   bufferlist bl;
   ASSERT_EQ(0, ioctx.write("foo", bl, 0, 0));
   bufferlist bl2, out;
@@ -158,13 +125,15 @@ TEST_F(LibRadosMiscPP, ExecPP) {
   ASSERT_NE(all_features, (unsigned)0);
 }
 
-void set_completion_complete(rados_completion_t cb, void *arg)
+void
+set_completion_complete(rados_completion_t cb, void* arg)
 {
-  bool *my_aio_complete = (bool*)arg;
+  bool* my_aio_complete = (bool*)arg;
   *my_aio_complete = true;
 }
 
-TEST_F(LibRadosMiscPP, BadFlagsPP) {
+TEST_F(LibRadosMiscPP, BadFlagsPP)
+{
   unsigned badflags = CEPH_OSD_FLAG_PARALLELEXEC;
   {
     bufferlist bl;
@@ -176,7 +145,8 @@ TEST_F(LibRadosMiscPP, BadFlagsPP) {
   }
 }
 
-TEST_F(LibRadosMiscPP, Operate1PP) {
+TEST_F(LibRadosMiscPP, Operate1PP)
+{
   ObjectWriteOperation o;
   {
     bufferlist bl;
@@ -216,7 +186,8 @@ TEST_F(LibRadosMiscPP, Operate1PP) {
   ASSERT_EQ(-ECANCELED, ioctx.operate("foo", &o3));
 }
 
-TEST_F(LibRadosMiscPP, Operate2PP) {
+TEST_F(LibRadosMiscPP, Operate2PP)
+{
   ObjectWriteOperation o;
   {
     bufferlist bl;
@@ -237,7 +208,8 @@ TEST_F(LibRadosMiscPP, Operate2PP) {
   ASSERT_EQ(0U, size);
 }
 
-TEST_F(LibRadosMiscPP, BigObjectPP) {
+TEST_F(LibRadosMiscPP, BigObjectPP)
+{
   bufferlist bl;
   bl.append("abcdefg");
   ASSERT_EQ(0, ioctx.write("foo", bl, bl.length(), 0));
@@ -269,11 +241,12 @@ TEST_F(LibRadosMiscPP, BigObjectPP) {
 #endif
 }
 
-TEST_F(LibRadosMiscPP, AioOperatePP) {
+TEST_F(LibRadosMiscPP, AioOperatePP)
+{
   bool my_aio_complete = false;
-  AioCompletion *my_completion = cluster.aio_create_completion(
-	  (void*)&my_aio_complete, set_completion_complete);
-  AioCompletion *my_completion_null = NULL;
+  AioCompletion* my_completion = cluster.aio_create_completion(
+      (void*)&my_aio_complete, set_completion_complete);
+  AioCompletion* my_completion_null = NULL;
   ASSERT_NE(my_completion, my_completion_null);
 
   ObjectWriteOperation o;
@@ -303,7 +276,8 @@ TEST_F(LibRadosMiscPP, AioOperatePP) {
   ASSERT_EQ(1024U, size);
 }
 
-TEST_F(LibRadosMiscPP, AssertExistsPP) {
+TEST_F(LibRadosMiscPP, AssertExistsPP)
+{
   char buf[64];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -318,7 +292,8 @@ TEST_F(LibRadosMiscPP, AssertExistsPP) {
   ASSERT_EQ(-EEXIST, ioctx.create("asdffoo", true));
 }
 
-TEST_F(LibRadosMiscPP, AssertVersionPP) {
+TEST_F(LibRadosMiscPP, AssertVersionPP)
+{
   char buf[64];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -333,11 +308,11 @@ TEST_F(LibRadosMiscPP, AssertVersionPP) {
 
   uint64_t v = ioctx.get_last_version();
   ObjectWriteOperation op1;
-  op1.assert_version(v+1);
+  op1.assert_version(v + 1);
   op1.write(0, bl);
   ASSERT_EQ(-EOVERFLOW, ioctx.operate("asdfbar", &op1));
   ObjectWriteOperation op2;
-  op2.assert_version(v-1);
+  op2.assert_version(v - 1);
   op2.write(0, bl);
   ASSERT_EQ(-ERANGE, ioctx.operate("asdfbar", &op2));
   ObjectWriteOperation op3;
@@ -346,7 +321,8 @@ TEST_F(LibRadosMiscPP, AssertVersionPP) {
   ASSERT_EQ(0, ioctx.operate("asdfbar", &op3));
 }
 
-TEST_F(LibRadosMiscPP, BigAttrPP) {
+TEST_F(LibRadosMiscPP, BigAttrPP)
+{
   char buf[64];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -366,17 +342,17 @@ TEST_F(LibRadosMiscPP, BigAttrPP) {
     ASSERT_TRUE(bl.contents_equal(got));
 
     bl.clear();
-    bl.append(buffer::create(g_conf()->osd_max_attr_size+1));
+    bl.append(buffer::create(g_conf()->osd_max_attr_size + 1));
     ASSERT_EQ(-EFBIG, ioctx.setxattr("foo", "one", bl));
   } else {
     cout << "osd_max_attr_size == 0; skipping test" << std::endl;
   }
 
-  for (int i=0; i<1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     bl.clear();
     got.clear();
-    bl.append(buffer::create(std::min<uint64_t>(g_conf()->osd_max_attr_size,
-						1024)));
+    bl.append(
+        buffer::create(std::min<uint64_t>(g_conf()->osd_max_attr_size, 1024)));
     char n[10];
     snprintf(n, sizeof(n), "a%d", i);
     ASSERT_EQ(0, ioctx.setxattr("foo", n, bl));
@@ -385,7 +361,8 @@ TEST_F(LibRadosMiscPP, BigAttrPP) {
   }
 }
 
-TEST_F(LibRadosMiscPP, CopyPP) {
+TEST_F(LibRadosMiscPP, CopyPP)
+{
   SKIP_IF_CRIMSON();
   bufferlist bl, x;
   bl.append("hi there");
@@ -446,7 +423,9 @@ TEST_F(LibRadosMiscPP, CopyPP) {
 
   {
     ObjectWriteOperation op;
-    op.copy_from("big", ioctx, ioctx.get_last_version(), LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
+    op.copy_from(
+        "big", ioctx, ioctx.get_last_version(),
+        LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
     ASSERT_EQ(0, ioctx.operate("big.copy", &op));
 
     bufferlist bl2, x2;
@@ -469,13 +448,15 @@ TEST_F(LibRadosMiscPP, CopyPP) {
   }
 }
 
-class LibRadosTwoPoolsECPP : public RadosTestECPP
-{
+class LibRadosTwoPoolsECPP : public RadosTestECPP {
 public:
-  LibRadosTwoPoolsECPP() {};
-  ~LibRadosTwoPoolsECPP() override {};
+  LibRadosTwoPoolsECPP(){};
+  ~LibRadosTwoPoolsECPP() override{};
+
 protected:
-  static void SetUpTestCase() {
+  static void
+  SetUpTestCase()
+  {
     SKIP_IF_CRIMSON();
     pool_name = get_temp_pool_name();
     ASSERT_EQ("", create_one_ec_pool_pp(pool_name, s_cluster));
@@ -490,20 +471,29 @@ protected:
     ASSERT_EQ(0, s_cluster.ioctx_create(src_pool_name.c_str(), src_ioctx));
     src_ioctx.application_enable("rados", true);
   }
-  static void TearDownTestCase() {
+
+  static void
+  TearDownTestCase()
+  {
     SKIP_IF_CRIMSON();
     ASSERT_EQ(0, s_cluster.pool_delete(src_pool_name.c_str()));
     ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, s_cluster));
   }
+
   static std::string src_pool_name;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     SKIP_IF_CRIMSON();
     RadosTestECPP::SetUp();
     ASSERT_EQ(0, cluster.ioctx_create(src_pool_name.c_str(), src_ioctx));
     src_ioctx.set_namespace(nspace);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     SKIP_IF_CRIMSON();
     // wait for maps to settle before next test
     cluster.wait_for_latest_osdmap();
@@ -518,13 +508,15 @@ protected:
 
   librados::IoCtx src_ioctx;
 };
+
 std::string LibRadosTwoPoolsECPP::src_pool_name;
 
 //copy_from between ecpool and no-ecpool.
-TEST_F(LibRadosTwoPoolsECPP, CopyFrom) {
+TEST_F(LibRadosTwoPoolsECPP, CopyFrom)
+{
   SKIP_IF_CRIMSON();
   bufferlist z;
-  z.append_zero(4194304*2);
+  z.append_zero(4194304 * 2);
   bufferlist b;
   b.append("copyfrom");
 
@@ -548,10 +540,11 @@ TEST_F(LibRadosTwoPoolsECPP, CopyFrom) {
   }
 }
 
-TEST_F(LibRadosMiscPP, CopyScrubPP) {
+TEST_F(LibRadosMiscPP, CopyScrubPP)
+{
   SKIP_IF_CRIMSON();
   bufferlist bl, x;
-  for (int i=0; i<100; ++i)
+  for (int i = 0; i < 100; ++i)
     x.append("barrrrrrrrrrrrrrrrrrrrrrrrrr");
   bl.append(buffer::create(g_conf()->osd_copyfrom_max_chunk * 3));
   bl.zero();
@@ -559,7 +552,7 @@ TEST_F(LibRadosMiscPP, CopyScrubPP) {
   bufferlist cbl;
 
   map<string, bufferlist> to_set;
-  for (int i=0; i<1000; ++i)
+  for (int i = 0; i < 1000; ++i)
     to_set[string("foo") + stringify(i)] = x;
 
   // small
@@ -586,11 +579,10 @@ TEST_F(LibRadosMiscPP, CopyScrubPP) {
 
   // deep scrub to ensure digests are in place
   {
-    for (int i=0; i<10; ++i) {
+    for (int i = 0; i < 10; ++i) {
       ostringstream ss;
-      ss << "{\"prefix\": \"pg deep-scrub\", \"pgid\": \""
-	 << ioctx.get_id() << "." << i
-	 << "\"}";
+      ss << "{\"prefix\": \"pg deep-scrub\", \"pgid\": \"" << ioctx.get_id()
+         << "." << i << "\"}";
       cluster.mon_command(ss.str(), {}, NULL, NULL);
     }
 
@@ -626,11 +618,10 @@ TEST_F(LibRadosMiscPP, CopyScrubPP) {
 
   // deep scrub to ensure digests are correct
   {
-    for (int i=0; i<10; ++i) {
+    for (int i = 0; i < 10; ++i) {
       ostringstream ss;
-      ss << "{\"prefix\": \"pg deep-scrub\", \"pgid\": \""
-	 << ioctx.get_id() << "." << i
-	 << "\"}";
+      ss << "{\"prefix\": \"pg deep-scrub\", \"pgid\": \"" << ioctx.get_id()
+         << "." << i << "\"}";
       cluster.mon_command(ss.str(), {}, NULL, NULL);
     }
 
@@ -641,12 +632,13 @@ TEST_F(LibRadosMiscPP, CopyScrubPP) {
   }
 }
 
-TEST_F(LibRadosMiscPP, WriteSamePP) {
+TEST_F(LibRadosMiscPP, WriteSamePP)
+{
   bufferlist bl;
   char buf[128];
   bufferlist fl;
   char full[128 * 4];
-  char *cmp;
+  char* cmp;
 
   /* zero the full range before using writesame */
   memset(full, 0, sizeof(full));
@@ -672,13 +664,11 @@ TEST_F(LibRadosMiscPP, WriteSamePP) {
   bl.clear();
   bl.append(buf, sizeof(buf));
   ASSERT_EQ(-EINVAL, ioctx.writesame("ws", bl, (sizeof(buf) * 4) - 1, 0));
-  ASSERT_EQ(-EINVAL,
-	    ioctx.writesame("ws", bl, bl.length() / 2, 0));
+  ASSERT_EQ(-EINVAL, ioctx.writesame("ws", bl, bl.length() / 2, 0));
   /* write_len = data_len, i.e. same as write() */
   ASSERT_EQ(0, ioctx.writesame("ws", bl, sizeof(buf), 0));
   bl.clear();
-  ASSERT_EQ(-EINVAL,
-	    ioctx.writesame("ws", bl, sizeof(buf), 0));
+  ASSERT_EQ(-EINVAL, ioctx.writesame("ws", bl, sizeof(buf), 0));
 }
 
 template <typename T>
@@ -695,7 +685,9 @@ public:
   using LibRadosMiscPP::SetUpTestCase;
   using LibRadosMiscPP::TearDownTestCase;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     LibRadosMiscPP::SetUp();
 
     std::string content(4096, '\0');
@@ -716,17 +708,21 @@ public:
 };
 
 typedef ::testing::Types<
-    LibRadosChecksumParams<LIBRADOS_CHECKSUM_TYPE_XXHASH32,
-			   Checksummer::xxhash32, ceph_le32>,
-    LibRadosChecksumParams<LIBRADOS_CHECKSUM_TYPE_XXHASH64,
-			   Checksummer::xxhash64, ceph_le64>,
-    LibRadosChecksumParams<LIBRADOS_CHECKSUM_TYPE_CRC32C,
-			   Checksummer::crc32c, ceph_le32>
-  > LibRadosChecksumTypes;
+    LibRadosChecksumParams<
+        LIBRADOS_CHECKSUM_TYPE_XXHASH32,
+        Checksummer::xxhash32,
+        ceph_le32>,
+    LibRadosChecksumParams<
+        LIBRADOS_CHECKSUM_TYPE_XXHASH64,
+        Checksummer::xxhash64,
+        ceph_le64>,
+    LibRadosChecksumParams<LIBRADOS_CHECKSUM_TYPE_CRC32C, Checksummer::crc32c, ceph_le32>>
+    LibRadosChecksumTypes;
 
 TYPED_TEST_SUITE(LibRadosChecksum, LibRadosChecksumTypes);
 
-TYPED_TEST(LibRadosChecksum, Subset) {
+TYPED_TEST(LibRadosChecksum, Subset)
+{
   uint32_t chunk_size = 1024;
   uint32_t csum_count = this->content_bl.length() / chunk_size;
 
@@ -740,8 +736,9 @@ TYPED_TEST(LibRadosChecksum, Subset) {
   // individual checksum ops for each chunk
   ObjectReadOperation op;
   for (uint32_t i = 0; i < csum_count; ++i) {
-    op.checksum(TestFixture::type, init_value_bl, i * chunk_size, chunk_size,
-		0, &checksum_bls[i], &checksum_rvals[i]);
+    op.checksum(
+        TestFixture::type, init_value_bl, i * chunk_size, chunk_size, 0,
+        &checksum_bls[i], &checksum_rvals[i]);
   }
   ASSERT_EQ(0, this->ioctx.operate("foo", &op, NULL));
 
@@ -761,15 +758,16 @@ TYPED_TEST(LibRadosChecksum, Subset) {
 
     typename TestFixture::value_t expected_value;
     bufferptr expected_value_bp = buffer::create_static(
-      sizeof(expected_value), reinterpret_cast<char*>(&expected_value));
+        sizeof(expected_value), reinterpret_cast<char*>(&expected_value));
     Checksummer::template calculate<typename TestFixture::alg_t>(
-      init_value, chunk_size, 0, chunk_size, content_sub_bl,
-      &expected_value_bp);
+        init_value, chunk_size, 0, chunk_size, content_sub_bl,
+        &expected_value_bp);
     ASSERT_EQ(expected_value, value);
   }
 }
 
-TYPED_TEST(LibRadosChecksum, Chunked) {
+TYPED_TEST(LibRadosChecksum, Chunked)
+{
   uint32_t chunk_size = 1024;
   uint32_t csum_count = this->content_bl.length() / chunk_size;
 
@@ -782,8 +780,9 @@ TYPED_TEST(LibRadosChecksum, Chunked) {
 
   // single op with chunked checksum results
   ObjectReadOperation op;
-  op.checksum(TestFixture::type, init_value_bl, 0, this->content_bl.length(),
-	      chunk_size, &checksum_bl, &checksum_rval);
+  op.checksum(
+      TestFixture::type, init_value_bl, 0, this->content_bl.length(),
+      chunk_size, &checksum_bl, &checksum_rval);
   ASSERT_EQ(0, this->ioctx.operate("foo", &op, NULL));
   ASSERT_EQ(0, checksum_rval);
 
@@ -794,12 +793,12 @@ TYPED_TEST(LibRadosChecksum, Chunked) {
 
   std::vector<typename TestFixture::value_t> expected_values(csum_count);
   bufferptr expected_values_bp = buffer::create_static(
-    csum_count * sizeof(typename TestFixture::value_t),
-    reinterpret_cast<char*>(&expected_values[0]));
+      csum_count * sizeof(typename TestFixture::value_t),
+      reinterpret_cast<char*>(&expected_values[0]));
 
   Checksummer::template calculate<typename TestFixture::alg_t>(
-    init_value, chunk_size, 0, this->content_bl.length(), this->content_bl,
-    &expected_values_bp);
+      init_value, chunk_size, 0, this->content_bl.length(), this->content_bl,
+      &expected_values_bp);
 
   for (uint32_t i = 0; i < csum_count; ++i) {
     typename TestFixture::value_t value;
@@ -808,7 +807,8 @@ TYPED_TEST(LibRadosChecksum, Chunked) {
   }
 }
 
-TEST_F(LibRadosMiscPP, CmpExtPP) {
+TEST_F(LibRadosMiscPP, CmpExtPP)
+{
   bufferlist cmp_bl, bad_cmp_bl, write_bl;
   char stored_str[] = "1234567891";
   char mismatch_str[] = "1234577777";
@@ -822,15 +822,16 @@ TEST_F(LibRadosMiscPP, CmpExtPP) {
   ASSERT_EQ(-MAX_ERRNO - 5, ioctx.cmpext("cmpextpp", 0, bad_cmp_bl));
 }
 
-TEST_F(LibRadosMiscPP, Applications) {
+TEST_F(LibRadosMiscPP, Applications)
+{
   bufferlist outbl;
   string outs;
-  ASSERT_EQ(0, cluster.mon_command("{\"prefix\": \"osd dump\"}",
-				   {}, &outbl, &outs));
+  ASSERT_EQ(
+      0, cluster.mon_command("{\"prefix\": \"osd dump\"}", {}, &outbl, &outs));
   ASSERT_LT(0u, outbl.length());
   ASSERT_LE(0u, outs.length());
-  if (!std::regex_search(outbl.to_str(),
-			 std::regex("require_osd_release [l-z]"))) {
+  if (!std::regex_search(
+          outbl.to_str(), std::regex("require_osd_release [l-z]"))) {
     std::cout << "SKIPPING";
     return;
   }
@@ -869,7 +870,8 @@ TEST_F(LibRadosMiscPP, Applications) {
   ASSERT_EQ(expected_meta, meta);
 }
 
-TEST_F(LibRadosMiscECPP, CompareExtentRange) {
+TEST_F(LibRadosMiscECPP, CompareExtentRange)
+{
   SKIP_IF_CRIMSON();
   bufferlist bl1;
   bl1.append("ceph");
@@ -891,18 +893,21 @@ TEST_F(LibRadosMiscECPP, CompareExtentRange) {
   ASSERT_EQ(0, ioctx.operate("foo", &read2, nullptr));
 }
 
-TEST_F(LibRadosMiscPP, MinCompatOSD) {
+TEST_F(LibRadosMiscPP, MinCompatOSD)
+{
   int8_t require_osd_release;
   ASSERT_EQ(0, cluster.get_min_compatible_osd(&require_osd_release));
   ASSERT_LE(-1, require_osd_release);
   ASSERT_GT(CEPH_RELEASE_MAX, require_osd_release);
 }
 
-TEST_F(LibRadosMiscPP, MinCompatClient) {
+TEST_F(LibRadosMiscPP, MinCompatClient)
+{
   int8_t min_compat_client;
   int8_t require_min_compat_client;
-  ASSERT_EQ(0, cluster.get_min_compatible_client(&min_compat_client,
-                                                 &require_min_compat_client));
+  ASSERT_EQ(
+      0, cluster.get_min_compatible_client(
+             &min_compat_client, &require_min_compat_client));
   ASSERT_LE(-1, min_compat_client);
   ASSERT_GT(CEPH_RELEASE_MAX, min_compat_client);
 
@@ -910,7 +915,8 @@ TEST_F(LibRadosMiscPP, MinCompatClient) {
   ASSERT_GT(CEPH_RELEASE_MAX, require_min_compat_client);
 }
 
-TEST_F(LibRadosMiscPP, Conf) {
+TEST_F(LibRadosMiscPP, Conf)
+{
   const char* const option = "bluestore_throttle_bytes";
   size_t new_size = 1 << 20;
   std::string original;
@@ -925,7 +931,8 @@ TEST_F(LibRadosMiscPP, Conf) {
   ASSERT_EQ(expected, actual);
 }
 
-TEST_F(LibRadosMiscPP, NoVer) {
+TEST_F(LibRadosMiscPP, NoVer)
+{
   bufferlist bl;
   bl.append("ceph");
   ObjectWriteOperation write, write2;

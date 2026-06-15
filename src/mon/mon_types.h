@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,15 +22,15 @@
 #include <sstream>
 #include <string>
 
+#include "common/Clock.h"
+#include "common/Formatter.h"
+#include "common/bit_str.h"
+#include "common/ceph_releases.h"
 #include "include/ceph_features.h" // for CEPH_FEATURE_*
 #include "include/types.h" // for operator<<(std::map)
 #include "include/util.h"
 #include "include/utime.h"
-#include "common/Formatter.h"
-#include "common/bit_str.h"
-#include "common/ceph_releases.h"
 #include "msg/msg_types.h" // for entity_addrvec_t
-#include "common/Clock.h"
 
 // use as paxos_service index
 enum {
@@ -52,20 +52,26 @@ enum {
 
 // map of entity_type -> features -> count
 struct FeatureMap {
-  std::map<uint32_t,std::map<uint64_t,uint64_t>> m;
+  std::map<uint32_t, std::map<uint64_t, uint64_t>> m;
 
-  void add(uint32_t type, uint64_t features) {
+  void
+  add(uint32_t type, uint64_t features)
+  {
     if (type == CEPH_ENTITY_TYPE_MON) {
       return;
     }
     m[type][features]++;
   }
 
-  void add_mon(uint64_t features) {
+  void
+  add_mon(uint64_t features)
+  {
     m[CEPH_ENTITY_TYPE_MON][features]++;
   }
 
-  void rm(uint32_t type, uint64_t features) {
+  void
+  rm(uint32_t type, uint64_t features)
+  {
     if (type == CEPH_ENTITY_TYPE_MON) {
       return;
     }
@@ -76,51 +82,61 @@ struct FeatureMap {
     if (--q->second == 0) {
       p->second.erase(q);
       if (p->second.empty()) {
-	m.erase(p);
+        m.erase(p);
       }
     }
   }
 
-  FeatureMap& operator+=(const FeatureMap& o) {
+  FeatureMap&
+  operator+=(const FeatureMap& o)
+  {
     for (auto& p : o.m) {
-      auto &v = m[p.first];
+      auto& v = m[p.first];
       for (auto& q : p.second) {
-	v[q.first] += q.second;
+        v[q.first] += q.second;
       }
     }
     return *this;
   }
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(m, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& p) {
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(m, p);
     DECODE_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     for (auto& p : m) {
       f->open_array_section(ceph_entity_type_name(p.first));
       for (auto& q : p.second) {
-	f->open_object_section("group");
+        f->open_object_section("group");
         std::stringstream ss;
         ss << "0x" << std::hex << q.first << std::dec;
         f->dump_string("features", ss.str());
-	f->dump_string("release", ceph_release_name(
-			 ceph_release_from_features(q.first)));
-	f->dump_unsigned("num", q.second);
-	f->close_section();
+        f->dump_string(
+            "release", ceph_release_name(ceph_release_from_features(q.first)));
+        f->dump_unsigned("num", q.second);
+        f->close_section();
       }
       f->close_section();
     }
   }
 
-  static std::list<FeatureMap> generate_test_instances() {
+  static std::list<FeatureMap>
+  generate_test_instances()
+  {
     std::list<FeatureMap> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -144,13 +160,12 @@ struct MonitorDBStoreStats {
   utime_t last_update;
 
   MonitorDBStoreStats() :
-    bytes_total(0),
-    bytes_sst(0),
-    bytes_log(0),
-    bytes_misc(0)
+    bytes_total(0), bytes_sst(0), bytes_log(0), bytes_misc(0)
   {}
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     ceph_assert(f != NULL);
     f->dump_int("bytes_total", bytes_total);
     f->dump_int("bytes_sst", bytes_sst);
@@ -159,7 +174,9 @@ struct MonitorDBStoreStats {
     f->dump_stream("last_updated") << last_update;
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(bytes_total, bl);
     encode(bytes_sst, bl);
@@ -169,7 +186,9 @@ struct MonitorDBStoreStats {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &p) {
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(bytes_total, p);
     decode(bytes_sst, p);
@@ -179,14 +198,16 @@ struct MonitorDBStoreStats {
     DECODE_FINISH(p);
   }
 
-  static std::list<MonitorDBStoreStats> generate_test_instances() {
+  static std::list<MonitorDBStoreStats>
+  generate_test_instances()
+  {
     std::list<MonitorDBStoreStats> ls;
     ls.emplace_back();
     ls.emplace_back();
-    ls.back().bytes_total = 1024*1024;
-    ls.back().bytes_sst = 512*1024;
-    ls.back().bytes_log = 256*1024;
-    ls.back().bytes_misc = 256*1024;
+    ls.back().bytes_total = 1024 * 1024;
+    ls.back().bytes_sst = 512 * 1024;
+    ls.back().bytes_log = 256 * 1024;
+    ls.back().bytes_misc = 256 * 1024;
     ls.back().last_update = utime_t();
     return ls;
   }
@@ -201,35 +222,42 @@ struct DataStats {
   utime_t last_update;
   MonitorDBStoreStats store_stats;
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     ceph_assert(f != NULL);
-    f->dump_int("kb_total", (fs_stats.byte_total/1024));
-    f->dump_int("kb_used", (fs_stats.byte_used/1024));
-    f->dump_int("kb_avail", (fs_stats.byte_avail/1024));
+    f->dump_int("kb_total", (fs_stats.byte_total / 1024));
+    f->dump_int("kb_used", (fs_stats.byte_used / 1024));
+    f->dump_int("kb_avail", (fs_stats.byte_avail / 1024));
     f->dump_int("avail_percent", fs_stats.avail_percent);
     f->dump_stream("last_updated") << last_update;
     f->open_object_section("store_stats");
     store_stats.dump(f);
     f->close_section();
   }
-  static std::list<DataStats> generate_test_instances() {
+
+  static std::list<DataStats>
+  generate_test_instances()
+  {
     std::list<DataStats> ls;
     ls.emplace_back();
     ls.emplace_back();
-    ls.back().fs_stats.byte_total = 1024*1024;
-    ls.back().fs_stats.byte_used = 512*1024;
-    ls.back().fs_stats.byte_avail = 256*1024;
+    ls.back().fs_stats.byte_total = 1024 * 1024;
+    ls.back().fs_stats.byte_used = 512 * 1024;
+    ls.back().fs_stats.byte_avail = 256 * 1024;
     ls.back().fs_stats.avail_percent = 50;
     ls.back().last_update = utime_t();
-    ls.back().store_stats.bytes_total = 1024*1024;
-    ls.back().store_stats.bytes_sst = 512*1024;
-    ls.back().store_stats.bytes_log = 256*1024;
-    ls.back().store_stats.bytes_misc = 256*1024;
+    ls.back().store_stats.bytes_total = 1024 * 1024;
+    ls.back().store_stats.bytes_sst = 512 * 1024;
+    ls.back().store_stats.bytes_log = 256 * 1024;
+    ls.back().store_stats.bytes_misc = 256 * 1024;
     ls.back().store_stats.last_update = utime_t();
     return ls;
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(3, 1, bl);
     encode(fs_stats.byte_total, bl);
     encode(fs_stats.byte_used, bl);
@@ -239,7 +267,10 @@ struct DataStats {
     encode(store_stats, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator &p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(3, p);
     // we moved from having fields in kb to fields in byte
     if (struct_v > 2) {
@@ -249,11 +280,11 @@ struct DataStats {
     } else {
       uint64_t t;
       decode(t, p);
-      fs_stats.byte_total = t*1024;
+      fs_stats.byte_total = t * 1024;
       decode(t, p);
-      fs_stats.byte_used = t*1024;
+      fs_stats.byte_used = t * 1024;
       decode(t, p);
-      fs_stats.byte_avail = t*1024;
+      fs_stats.byte_avail = t * 1024;
     }
     decode(fs_stats.avail_percent, p);
     decode(last_update, p);
@@ -266,26 +297,36 @@ struct DataStats {
 WRITE_CLASS_ENCODER(DataStats)
 
 struct ScrubResult {
-  std::map<std::string,uint32_t> prefix_crc;  ///< prefix -> crc
-  std::map<std::string,uint64_t> prefix_keys; ///< prefix -> key count
+  std::map<std::string, uint32_t> prefix_crc; ///< prefix -> crc
+  std::map<std::string, uint64_t> prefix_keys; ///< prefix -> key count
 
-  bool operator!=(const ScrubResult& other) {
+  bool
+  operator!=(const ScrubResult& other)
+  {
     return prefix_crc != other.prefix_crc || prefix_keys != other.prefix_keys;
   }
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(prefix_crc, bl);
     encode(prefix_keys, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(prefix_crc, p);
     decode(prefix_keys, p);
     DECODE_FINISH(p);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->open_object_section("crc");
     for (auto p = prefix_crc.begin(); p != prefix_crc.end(); ++p)
       f->dump_unsigned(p->first.c_str(), p->second);
@@ -295,7 +336,10 @@ struct ScrubResult {
       f->dump_unsigned(p->first.c_str(), p->second);
     f->close_section();
   }
-  static std::list<ScrubResult> generate_test_instances() {
+
+  static std::list<ScrubResult>
+  generate_test_instances()
+  {
     std::list<ScrubResult> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -306,17 +350,20 @@ struct ScrubResult {
 };
 WRITE_CLASS_ENCODER(ScrubResult)
 
-inline std::ostream& operator<<(std::ostream& out, const ScrubResult& r) {
-  return out << "ScrubResult(keys " << r.prefix_keys << " crc " << r.prefix_crc << ")";
+inline std::ostream&
+operator<<(std::ostream& out, const ScrubResult& r)
+{
+  return out << "ScrubResult(keys " << r.prefix_keys << " crc " << r.prefix_crc
+             << ")";
 }
 
 /// for information like os, kernel, hostname, memory info, cpu model.
 typedef std::map<std::string, std::string> Metadata;
 
 namespace ceph {
-  namespace features {
-    namespace mon {
-      /**
+namespace features {
+namespace mon {
+/**
        * Get a feature's name based on its value.
        *
        * @param b raw feature value
@@ -328,13 +375,13 @@ namespace ceph {
        *    of the raw features. When this happens, this interface will change
        *    accordingly. So should consumers of this interface.
        */
-      static inline const char *get_feature_name(uint64_t b);
-    }
-  }
-}
+static inline const char* get_feature_name(uint64_t b);
+} // namespace mon
+} // namespace features
+} // namespace ceph
 
-
-inline const char *ceph_mon_feature_name(uint64_t b)
+inline const char*
+ceph_mon_feature_name(uint64_t b)
 {
   return ceph::features::mon::get_feature_name(b);
 };
@@ -348,18 +395,21 @@ class mon_feature_t {
   uint64_t features;
 
 public:
-
-  explicit constexpr
-  mon_feature_t(const uint64_t f) : features(f) { }
+  explicit constexpr mon_feature_t(const uint64_t f) :
+    features(f)
+  {}
 
   mon_feature_t() :
-    features(0) { }
+    features(0)
+  {}
 
-  constexpr
-  mon_feature_t(const mon_feature_t &o) :
-    features(o.features) { }
+  constexpr mon_feature_t(const mon_feature_t& o) :
+    features(o.features)
+  {}
 
-  mon_feature_t& operator&=(const mon_feature_t other) {
+  mon_feature_t&
+  operator&=(const mon_feature_t other)
+  {
     features &= other.features;
     return (*this);
   }
@@ -374,47 +424,59 @@ public:
    *    of the raw features. When this happens, this interface will change
    *    accordingly. So should consumers of this interface.
    */
-  uint64_t get_raw() const {
+  uint64_t
+  get_raw() const
+  {
     return features;
   }
 
-  constexpr
-  friend mon_feature_t operator&(const mon_feature_t a,
-                                 const mon_feature_t b) {
+  constexpr friend mon_feature_t
+  operator&(const mon_feature_t a, const mon_feature_t b)
+  {
     return mon_feature_t(a.features & b.features);
   }
 
-  mon_feature_t& operator|=(const mon_feature_t other) {
+  mon_feature_t&
+  operator|=(const mon_feature_t other)
+  {
     features |= other.features;
     return (*this);
   }
 
-  constexpr
-  friend mon_feature_t operator|(const mon_feature_t a,
-                                 const mon_feature_t b) {
+  constexpr friend mon_feature_t
+  operator|(const mon_feature_t a, const mon_feature_t b)
+  {
     return mon_feature_t(a.features | b.features);
   }
 
-  constexpr
-  friend mon_feature_t operator^(const mon_feature_t a,
-                                 const mon_feature_t b) {
+  constexpr friend mon_feature_t
+  operator^(const mon_feature_t a, const mon_feature_t b)
+  {
     return mon_feature_t(a.features ^ b.features);
   }
 
-  mon_feature_t& operator^=(const mon_feature_t other) {
+  mon_feature_t&
+  operator^=(const mon_feature_t other)
+  {
     features ^= other.features;
     return (*this);
   }
 
-  bool operator==(const mon_feature_t other) const {
+  bool
+  operator==(const mon_feature_t other) const
+  {
     return (features == other.features);
   }
 
-  bool operator!=(const mon_feature_t other) const {
+  bool
+  operator!=(const mon_feature_t other) const
+  {
     return (features != other.features);
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return features == 0;
   }
 
@@ -425,7 +487,9 @@ public:
    *
    * @returns all the features not in @p other
    */
-  mon_feature_t diff(const mon_feature_t other) const {
+  mon_feature_t
+  diff(const mon_feature_t other) const
+  {
     return mon_feature_t((features ^ other.features) & features);
   }
 
@@ -437,7 +501,9 @@ public:
    *
    * @returns the features common to @p other and us
    */
-  mon_feature_t intersection(const mon_feature_t other) const {
+  mon_feature_t
+  intersection(const mon_feature_t other) const
+  {
     return mon_feature_t((features & other.features));
   }
 
@@ -449,7 +515,9 @@ public:
    * @returns true if we contain all the features in @p other
    * @returns false if we do not contain some of the features in @p other
    */
-  bool contains_all(const mon_feature_t other) const {
+  bool
+  contains_all(const mon_feature_t other) const
+  {
     mon_feature_t d = intersection(other);
     return d == other;
   }
@@ -460,55 +528,76 @@ public:
    * @returns true if we contain any of the features in @p other
    * @returns false if we don't contain any of the features in @p other
    */
-  bool contains_any(const mon_feature_t other) const {
+  bool
+  contains_any(const mon_feature_t other) const
+  {
     mon_feature_t d = intersection(other);
     return !d.empty();
   }
 
-  void set_feature(const mon_feature_t f) {
+  void
+  set_feature(const mon_feature_t f)
+  {
     features |= f.features;
   }
 
-  void unset_feature(const mon_feature_t f) {
+  void
+  unset_feature(const mon_feature_t f)
+  {
     features &= ~(f.features);
   }
 
-  void print(std::ostream& out) const {
+  void
+  print(std::ostream& out) const
+  {
     out << "[";
     print_bit_str(features, out, ceph::features::mon::get_feature_name);
     out << "]";
   }
 
-  void print_with_value(std::ostream& out) const {
+  void
+  print_with_value(std::ostream& out) const
+  {
     out << "[";
     print_bit_str(features, out, ceph::features::mon::get_feature_name, true);
     out << "]";
   }
 
-  void dump(ceph::Formatter *f, const char *sec_name = NULL) const {
+  void
+  dump(ceph::Formatter* f, const char* sec_name = NULL) const
+  {
     f->open_array_section((sec_name ? sec_name : "features"));
     dump_bit_str(features, f, ceph::features::mon::get_feature_name);
     f->close_section();
   }
 
-  void dump_with_value(ceph::Formatter *f, const char *sec_name = NULL) const {
+  void
+  dump_with_value(ceph::Formatter* f, const char* sec_name = NULL) const
+  {
     f->open_array_section((sec_name ? sec_name : "features"));
     dump_bit_str(features, f, ceph::features::mon::get_feature_name, true);
     f->close_section();
   }
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(HEAD_VERSION, COMPAT_VERSION, bl);
     encode(features, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(COMPAT_VERSION, p);
     decode(features, p);
     DECODE_FINISH(p);
   }
 
-  static std::list<mon_feature_t> generate_test_instances() {
+  static std::list<mon_feature_t>
+  generate_test_instances()
+  {
     std::list<mon_feature_t> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -521,58 +610,51 @@ public:
 WRITE_CLASS_ENCODER(mon_feature_t)
 
 namespace ceph {
-  namespace features {
-    namespace mon {
-      constexpr mon_feature_t FEATURE_KRAKEN(     (1ULL << 0));
-      constexpr mon_feature_t FEATURE_LUMINOUS(   (1ULL << 1));
-      constexpr mon_feature_t FEATURE_MIMIC(      (1ULL << 2));
-      constexpr mon_feature_t FEATURE_OSDMAP_PRUNE (1ULL << 3);
-      constexpr mon_feature_t FEATURE_NAUTILUS(    (1ULL << 4));
-      constexpr mon_feature_t FEATURE_OCTOPUS(    (1ULL << 5));
-      constexpr mon_feature_t FEATURE_PACIFIC(    (1ULL << 6));
-      // elector pinging and CONNECTIVITY mode:
-      constexpr mon_feature_t FEATURE_PINGING(    (1ULL << 7));
-      constexpr mon_feature_t FEATURE_QUINCY(     (1ULL << 8));
-      constexpr mon_feature_t FEATURE_REEF(       (1ULL << 9));
-      constexpr mon_feature_t FEATURE_SQUID(      (1ULL << 10));
-      constexpr mon_feature_t FEATURE_TENTACLE(   (1ULL << 11));
-      constexpr mon_feature_t FEATURE_UMBRELLA(   (1ULL << 12));
+namespace features {
+namespace mon {
+constexpr mon_feature_t FEATURE_KRAKEN((1ULL << 0));
+constexpr mon_feature_t FEATURE_LUMINOUS((1ULL << 1));
+constexpr mon_feature_t FEATURE_MIMIC((1ULL << 2));
+constexpr mon_feature_t FEATURE_OSDMAP_PRUNE(1ULL << 3);
+constexpr mon_feature_t FEATURE_NAUTILUS((1ULL << 4));
+constexpr mon_feature_t FEATURE_OCTOPUS((1ULL << 5));
+constexpr mon_feature_t FEATURE_PACIFIC((1ULL << 6));
+// elector pinging and CONNECTIVITY mode:
+constexpr mon_feature_t FEATURE_PINGING((1ULL << 7));
+constexpr mon_feature_t FEATURE_QUINCY((1ULL << 8));
+constexpr mon_feature_t FEATURE_REEF((1ULL << 9));
+constexpr mon_feature_t FEATURE_SQUID((1ULL << 10));
+constexpr mon_feature_t FEATURE_TENTACLE((1ULL << 11));
+constexpr mon_feature_t FEATURE_UMBRELLA((1ULL << 12));
 
 
-      // Release-independent features
-      constexpr mon_feature_t FEATURE_NVMEOF_BEACON_DIFF(   (1ULL << 32));
+// Release-independent features
+constexpr mon_feature_t FEATURE_NVMEOF_BEACON_DIFF((1ULL << 32));
 
-      constexpr mon_feature_t FEATURE_RESERVED(   (1ULL << 63));
-      constexpr mon_feature_t FEATURE_NONE(       (0ULL));
+constexpr mon_feature_t FEATURE_RESERVED((1ULL << 63));
+constexpr mon_feature_t FEATURE_NONE((0ULL));
 
-      /**
+/**
        * All the features this monitor supports
        *
        * If there's a feature above, it should be OR'ed to this list.
        */
-      constexpr mon_feature_t get_supported() {
-        return (
-	  FEATURE_KRAKEN |
-	  FEATURE_LUMINOUS |
-	  FEATURE_MIMIC |
-          FEATURE_OSDMAP_PRUNE |
-	  FEATURE_NAUTILUS |
-	  FEATURE_OCTOPUS |
-	  FEATURE_PACIFIC |
-	  FEATURE_PINGING |
-	  FEATURE_QUINCY |
-	  FEATURE_REEF |
-	  FEATURE_SQUID |
-	  FEATURE_TENTACLE |
-	  FEATURE_UMBRELLA |
+constexpr mon_feature_t
+get_supported()
+{
+  return (
+      FEATURE_KRAKEN | FEATURE_LUMINOUS | FEATURE_MIMIC | FEATURE_OSDMAP_PRUNE |
+      FEATURE_NAUTILUS | FEATURE_OCTOPUS | FEATURE_PACIFIC | FEATURE_PINGING |
+      FEATURE_QUINCY | FEATURE_REEF | FEATURE_SQUID | FEATURE_TENTACLE |
+      FEATURE_UMBRELLA |
 
-	  // Release-independent features
-	  FEATURE_NVMEOF_BEACON_DIFF |
+      // Release-independent features
+      FEATURE_NVMEOF_BEACON_DIFF |
 
-	  FEATURE_NONE
-	  );
-      }
-      /**
+      FEATURE_NONE);
+}
+
+/**
        * All the features that, once set, cannot be removed.
        *
        * Features should only be added to this list if you want to make
@@ -582,42 +664,34 @@ namespace ceph {
        * Any feature in this list will be automatically set on the monmap's
        * features once all the monitors in the quorum support it.
        */
-      constexpr mon_feature_t get_persistent() {
-        return (
-	  FEATURE_KRAKEN |
-	  FEATURE_LUMINOUS |
-	  FEATURE_MIMIC |
-	  FEATURE_NAUTILUS |
-	  FEATURE_OSDMAP_PRUNE |
-	  FEATURE_OCTOPUS |
-	  FEATURE_PACIFIC |
-	  FEATURE_PINGING |
-	  FEATURE_QUINCY |
-	  FEATURE_REEF |
-	  FEATURE_SQUID |
-	  FEATURE_TENTACLE |
-	  FEATURE_UMBRELLA |
+constexpr mon_feature_t
+get_persistent()
+{
+  return (
+      FEATURE_KRAKEN | FEATURE_LUMINOUS | FEATURE_MIMIC | FEATURE_NAUTILUS |
+      FEATURE_OSDMAP_PRUNE | FEATURE_OCTOPUS | FEATURE_PACIFIC |
+      FEATURE_PINGING | FEATURE_QUINCY | FEATURE_REEF | FEATURE_SQUID |
+      FEATURE_TENTACLE | FEATURE_UMBRELLA |
 
-	  // Release-independent features
-	  FEATURE_NVMEOF_BEACON_DIFF |
+      // Release-independent features
+      FEATURE_NVMEOF_BEACON_DIFF |
 
-	  FEATURE_NONE
-	  );
-      }
-
-      constexpr mon_feature_t get_optional() {
-        return (
-          FEATURE_OSDMAP_PRUNE |
-          FEATURE_NONE
-          );
-      }
-
-      static inline mon_feature_t get_feature_by_name(const std::string &n);
-    }
-  }
+      FEATURE_NONE);
 }
 
-static inline ceph_release_t infer_ceph_release_from_mon_features(mon_feature_t f)
+constexpr mon_feature_t
+get_optional()
+{
+  return (FEATURE_OSDMAP_PRUNE | FEATURE_NONE);
+}
+
+static inline mon_feature_t get_feature_by_name(const std::string& n);
+} // namespace mon
+} // namespace features
+} // namespace ceph
+
+static inline ceph_release_t
+infer_ceph_release_from_mon_features(mon_feature_t f)
 {
   if (f.contains_all(ceph::features::mon::FEATURE_UMBRELLA)) {
     return ceph_release_t::umbrella;
@@ -655,7 +729,9 @@ static inline ceph_release_t infer_ceph_release_from_mon_features(mon_feature_t 
   return ceph_release_t::unknown;
 }
 
-static inline const char *ceph::features::mon::get_feature_name(uint64_t b) {
+static inline const char*
+ceph::features::mon::get_feature_name(uint64_t b)
+{
   mon_feature_t f(b);
 
   if (f == FEATURE_KRAKEN) {
@@ -684,7 +760,7 @@ static inline const char *ceph::features::mon::get_feature_name(uint64_t b) {
     return "tentacle";
   } else if (f == FEATURE_UMBRELLA) {
     return "umbrella";
-  // Release-independent features
+    // Release-independent features
   } else if (f == FEATURE_NVMEOF_BEACON_DIFF) {
     return "nvmeof_beacon_diff";
   } else if (f == FEATURE_RESERVED) {
@@ -693,7 +769,9 @@ static inline const char *ceph::features::mon::get_feature_name(uint64_t b) {
   return "unknown";
 }
 
-inline mon_feature_t ceph::features::mon::get_feature_by_name(const std::string &n) {
+inline mon_feature_t
+ceph::features::mon::get_feature_by_name(const std::string& n)
+{
 
   if (n == "kraken") {
     return FEATURE_KRAKEN;
@@ -721,7 +799,7 @@ inline mon_feature_t ceph::features::mon::get_feature_by_name(const std::string 
     return FEATURE_TENTACLE;
   } else if (n == "umbrella") {
     return FEATURE_UMBRELLA;
-  // Release-independent features
+    // Release-independent features
   } else if (n == "nvmeof_beacon_diff") {
     return FEATURE_NVMEOF_BEACON_DIFF;
   } else if (n == "reserved") {
@@ -730,44 +808,57 @@ inline mon_feature_t ceph::features::mon::get_feature_by_name(const std::string 
   return FEATURE_NONE;
 }
 
-inline std::ostream& operator<<(std::ostream& out, const mon_feature_t& f) {
+inline std::ostream&
+operator<<(std::ostream& out, const mon_feature_t& f)
+{
   out << "mon_feature_t(";
   f.print(out);
   out << ")";
   return out;
 }
 
-
 struct ProgressEvent {
-  std::string message;                  ///< event description
-  float progress = 0.0f;                  ///< [0..1]
+  std::string message; ///< event description
+  float progress = 0.0f; ///< [0..1]
   bool add_to_ceph_s = false;
-  void encode(ceph::buffer::list& bl) const {
+
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(message, bl);
     encode(progress, bl);
     encode(add_to_ceph_s, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(2, p);
     decode(message, p);
     decode(progress, p);
-    if (struct_v >= 2){
-	decode(add_to_ceph_s, p);
+    if (struct_v >= 2) {
+      decode(add_to_ceph_s, p);
     } else {
       if (!message.empty()) {
-	add_to_ceph_s = true;
+        add_to_ceph_s = true;
       }
     }
     DECODE_FINISH(p);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("message", message);
     f->dump_float("progress", progress);
     f->dump_bool("add_to_ceph_s", add_to_ceph_s);
   }
-  static std::list<ProgressEvent> generate_test_instances() {
+
+  static std::list<ProgressEvent>
+  generate_test_instances()
+  {
     std::list<ProgressEvent> o;
     o.emplace_back();
     o.emplace_back();
@@ -780,7 +871,7 @@ struct ProgressEvent {
 WRITE_CLASS_ENCODER(ProgressEvent)
 
 struct PoolAvailability {
-  std::string pool_name  = "";
+  std::string pool_name = "";
   utime_t started_at = ceph_clock_now();
   uint64_t uptime = 0;
   utime_t last_uptime = ceph_clock_now();
@@ -791,7 +882,9 @@ struct PoolAvailability {
 
   PoolAvailability() {}
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     ceph_assert(f != NULL);
     f->dump_stream("pool_name") << pool_name;
     f->dump_stream("started_at") << started_at;
@@ -803,7 +896,9 @@ struct PoolAvailability {
     f->dump_bool("is_avail", is_avail);
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(pool_name, bl);
     encode(started_at, bl);
@@ -816,7 +911,9 @@ struct PoolAvailability {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &p) {
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(pool_name, p);
     decode(started_at, p);
@@ -829,7 +926,9 @@ struct PoolAvailability {
     DECODE_FINISH(p);
   }
 
-  static std::list<PoolAvailability> generate_test_instances() {
+  static std::list<PoolAvailability>
+  generate_test_instances()
+  {
     std::list<PoolAvailability> o;
     o.emplace_back();
     o.back().started_at = utime_t(123, 456);
@@ -845,7 +944,7 @@ struct PoolAvailability {
     o.back().num_failures = 2;
     o.back().is_avail = true;
     return o;
-  }  
+  }
 };
 WRITE_CLASS_ENCODER(PoolAvailability)
 

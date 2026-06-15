@@ -1,11 +1,11 @@
 //-*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/buffer.h"
-#include "crimson/os/seastore/random_block_manager/rbm_device.h"
 #include "crimson/os/seastore/random_block_manager/nvme_block_device.h"
-#include "test/crimson/gtest_seastar.h"
+#include "crimson/os/seastore/random_block_manager/rbm_device.h"
+#include "include/buffer.h"
 #include "include/stringify.h"
+#include "test/crimson/gtest_seastar.h"
 
 using namespace crimson;
 using namespace crimson::os;
@@ -21,15 +21,15 @@ struct nvdev_test_t : seastar_test_suite_t {
 
   nvdev_test_t() :
     device(nullptr),
-    dev_path("randomblock_manager.test_nvmedevice" + stringify(getpid())) {
-    int fd = ::open(dev_path.c_str(), O_CREAT|O_RDWR|O_TRUNC, 0644);
+    dev_path("randomblock_manager.test_nvmedevice" + stringify(getpid()))
+  {
+    int fd = ::open(dev_path.c_str(), O_CREAT | O_RDWR | O_TRUNC, 0644);
     ceph_assert(fd >= 0);
     ::ftruncate(fd, DEV_SIZE);
     ::close(fd);
   }
-  ~nvdev_test_t() {
-    ::unlink(dev_path.c_str());
-  }
+
+  ~nvdev_test_t() { ::unlink(dev_path.c_str()); }
 };
 
 static const uint64_t BUF_SIZE = 1024;
@@ -38,37 +38,34 @@ static const uint64_t BLK_SIZE = 4096;
 struct nvdev_test_block_t {
   uint8_t data[BUF_SIZE];
 
-  DENC(nvdev_test_block_t, v, p) {
+  DENC(nvdev_test_block_t, v, p)
+  {
     DENC_START(1, 1, p);
-    for (uint64_t i = 0 ; i < BUF_SIZE; i++)
-    {
+    for (uint64_t i = 0; i < BUF_SIZE; i++) {
       denc(v.data[i], p);
     }
     DENC_FINISH(p);
   }
 };
 
-WRITE_CLASS_DENC_BOUNDED(
-  nvdev_test_block_t
-)
+WRITE_CLASS_DENC_BOUNDED(nvdev_test_block_t)
 
 using crimson::common::local_conf;
+
 TEST_F(nvdev_test_t, write_and_verify_test)
 {
   run_async([this] {
     device.reset(new random_block_device::nvme::NVMeBlockDevice(dev_path));
     local_conf().set_val("seastore_cbjournal_size", "1048576").get();
     device->start(seastar::smp::count).get();
-    device->mkfs(
-      device_config_t{
-	true,
-	device_spec_t{
-	(magic_t)std::rand(),
-	device_type_t::RANDOM_BLOCK_SSD,
-	static_cast<device_id_t>(DEVICE_ID_RANDOM_BLOCK_MIN)},
-	seastore_meta_t{uuid_d()},
-	secondary_device_set_t()}
-    ).unsafe_get();
+    device
+        ->mkfs(device_config_t{
+            true,
+            device_spec_t{
+                (magic_t)std::rand(), device_type_t::RANDOM_BLOCK_SSD,
+                static_cast<device_id_t>(DEVICE_ID_RANDOM_BLOCK_MIN)},
+            seastore_meta_t{uuid_d()}, secondary_device_set_t()})
+        .unsafe_get();
     device->mount().unsafe_get();
     nvdev_test_block_t original_data;
     std::minstd_rand0 generator;
@@ -102,4 +99,3 @@ TEST_F(nvdev_test_t, write_and_verify_test)
     device.reset(nullptr);
   });
 }
-

@@ -30,6 +30,7 @@
 #include "erasure-code/ErasureCodeInterface.h"
 // -----------------------------------------------------------------------------
 #include <list>
+
 // -----------------------------------------------------------------------------
 
 class ErasureCodeIsaTableCache {
@@ -42,18 +43,18 @@ class ErasureCodeIsaTableCache {
   // ---------------------------------------------------------------------------
 
 public:
-
   // the cache size is sufficient up to (12,4) decodings
 
   static const int decoding_tables_lru_length = 2516;
 
-  typedef std::pair<std::list<std::string>::iterator, ceph::buffer::ptr> lru_entry_t;
-  typedef std::map< int, unsigned char** > codec_table_t;
-  typedef std::map< int, codec_table_t > codec_tables_t;
-  typedef std::map< int, codec_tables_t > codec_technique_tables_t;
+  typedef std::pair<std::list<std::string>::iterator, ceph::buffer::ptr>
+      lru_entry_t;
+  typedef std::map<int, unsigned char**> codec_table_t;
+  typedef std::map<int, codec_table_t> codec_tables_t;
+  typedef std::map<int, codec_tables_t> codec_technique_tables_t;
 
-  typedef std::map< std::string, lru_entry_t > lru_map_t;
-  typedef std::list< std::string > lru_list_t;
+  typedef std::map<std::string, lru_entry_t> lru_map_t;
+  typedef std::list<std::string> lru_list_t;
 
   ErasureCodeIsaTableCache() = default;
 
@@ -62,17 +63,19 @@ public:
   // mutex used to protect modifications in encoding/decoding table maps
   ceph::mutex codec_tables_guard = ceph::make_mutex("isa-lru-cache");
 
-  bool getDecodingTableFromCache(std::string &signature,
-                                 unsigned char* &table,
-                                 int matrixtype,
-                                 int k,
-                                 int m);
+  bool getDecodingTableFromCache(
+      std::string& signature,
+      unsigned char*& table,
+      int matrixtype,
+      int k,
+      int m);
 
-  void putDecodingTableToCache(std::string&,
-                               unsigned char*&,
-                               int matrixtype,
-                               int k,
-                               int m);
+  void putDecodingTableToCache(
+      std::string&,
+      unsigned char*&,
+      int matrixtype,
+      int k,
+      int m);
 
   unsigned char** getEncodingTable(int matrix, int k, int m);
   unsigned char** getEncodingCoefficient(int matrix, int k, int m);
@@ -86,18 +89,21 @@ public:
   int getDecodingTableCacheSize(int matrixtype = 0);
 
 private:
-  codec_technique_tables_t encoding_coefficient; // encoding coefficients accessed via table[matrix][k][m]
-  codec_technique_tables_t encoding_table; // encoding coefficients accessed via table[matrix][k][m]
+  codec_technique_tables_t
+      encoding_coefficient; // encoding coefficients accessed via table[matrix][k][m]
+  codec_technique_tables_t
+      encoding_table; // encoding coefficients accessed via table[matrix][k][m]
 
-  std::map<int, lru_map_t*> decoding_tables; // decoding table cache accessed via map[matrixtype]
-  std::map<int, lru_list_t*> decoding_tables_lru; // decoding table lru list accessed via list[matrixtype]
+  std::map<int, lru_map_t*>
+      decoding_tables; // decoding table cache accessed via map[matrixtype]
+  std::map<int, lru_list_t*>
+      decoding_tables_lru; // decoding table lru list accessed via list[matrixtype]
 
   lru_map_t* getDecodingTables(int matrix_type);
 
   lru_list_t* getDecodingTablesLru(int matrix_type);
 
   ceph::mutex* getLock();
-
 };
 
 #endif

@@ -19,20 +19,23 @@
  *
  */
 
-#include "ceph_ver.h"
 #include "ExtBlkDevPluginVdo.h"
+
 #include "common/ceph_context.h"
 
+#include "ceph_ver.h"
 
 // This plugin does not require any capabilities to be set
-int ExtBlkDevPluginVdo::get_required_cap_set(cap_t caps)
+int
+ExtBlkDevPluginVdo::get_required_cap_set(cap_t caps)
 {
   return 0;
 }
 
-
-int ExtBlkDevPluginVdo::factory(const std::string& logdevname,
-				ceph::ExtBlkDevInterfaceRef& ext_blk_dev)
+int
+ExtBlkDevPluginVdo::factory(
+    const std::string& logdevname,
+    ceph::ExtBlkDevInterfaceRef& ext_blk_dev)
 {
   auto vdo = new ExtBlkDevVdo(cct);
   int r = vdo->init(logdevname);
@@ -44,16 +47,23 @@ int ExtBlkDevPluginVdo::factory(const std::string& logdevname,
   return 0;
 };
 
-const char *__ceph_plugin_version() { return CEPH_GIT_NICE_VER; }
+const char*
+__ceph_plugin_version()
+{
+  return CEPH_GIT_NICE_VER;
+}
 
-int __ceph_plugin_init(CephContext *cct,
-		       const std::string& type,
-		       const std::string& name)
+int
+__ceph_plugin_init(
+    CephContext* cct,
+    const std::string& type,
+    const std::string& name)
 {
   auto plg = new ExtBlkDevPluginVdo(cct);
-  if(plg == 0) return -ENOMEM;
+  if (plg == 0)
+    return -ENOMEM;
   int rc = cct->get_plugin_registry()->add(type, name, plg);
-  if(rc != 0){
+  if (rc != 0) {
     delete plg;
   }
   return rc;

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,8 +16,9 @@
  * 
  */
 
-#include "common/debug.h"
 #include "jerasure_init.h"
+
+#include "common/debug.h"
 
 extern "C" {
 #include "galois.h"
@@ -25,19 +26,22 @@ extern "C" {
 
 #define dout_context g_ceph_context
 
-extern "C" int jerasure_init(int count, int *words)
+extern "C" int
+jerasure_init(int count, int* words)
 {
-  for(int i = 0; i < count; i++) {
+  for (int i = 0; i < count; i++) {
     int r = galois_init_default_field(words[i]);
     if (r) {
-      derr << "failed to galois_init_default_field(" << words[i] << ")" << dendl;
+      derr << "failed to galois_init_default_field(" << words[i] << ")"
+           << dendl;
       return -r;
     }
   }
   return 0;
 }
 
-void jerasure_finish()
+void
+jerasure_finish()
 {
   // jerasure based codings generate matrices using Galois field operations via
   // the Jerasure library. The underlying acceleration functions for different

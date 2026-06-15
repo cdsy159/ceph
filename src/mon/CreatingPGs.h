@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #pragma once
@@ -9,7 +9,6 @@
 
 #include "include/encoding.h"
 #include "include/utime.h"
-
 #include "osd/osd_types.h"
 
 struct creating_pgs_t {
@@ -28,13 +27,15 @@ struct creating_pgs_t {
     pg_history_t history;
     PastIntervals past_intervals;
 
-    void encode(ceph::buffer::list& bl, uint64_t features) const {
+    void
+    encode(ceph::buffer::list& bl, uint64_t features) const
+    {
       using ceph::encode;
       if (!HAVE_FEATURE(features, SERVER_OCTOPUS)) {
-	// was pair<epoch_t,utime_t> prior to octopus
-	encode(create_epoch, bl);
-	encode(create_stamp, bl);
-	return;
+        // was pair<epoch_t,utime_t> prior to octopus
+        encode(create_epoch, bl);
+        encode(create_stamp, bl);
+        return;
       }
       ENCODE_START(1, 1, bl);
       encode(create_epoch, bl);
@@ -47,12 +48,18 @@ struct creating_pgs_t {
       encode(past_intervals, bl);
       ENCODE_FINISH(bl);
     }
-    void decode_legacy(ceph::buffer::list::const_iterator& p) {
+
+    void
+    decode_legacy(ceph::buffer::list::const_iterator& p)
+    {
       using ceph::decode;
       decode(create_epoch, p);
       decode(create_stamp, p);
     }
-    void decode(ceph::buffer::list::const_iterator& p) {
+
+    void
+    decode(ceph::buffer::list::const_iterator& p)
+    {
       using ceph::decode;
       DECODE_START(1, p);
       decode(create_epoch, p);
@@ -65,25 +72,31 @@ struct creating_pgs_t {
       decode(past_intervals, p);
       DECODE_FINISH(p);
     }
-    void dump(ceph::Formatter *f) const {
+
+    void
+    dump(ceph::Formatter* f) const
+    {
       f->dump_unsigned("create_epoch", create_epoch);
       f->dump_stream("create_stamp") << create_stamp;
       f->open_array_section("up");
       for (auto& i : up) {
-	f->dump_unsigned("osd", i);
+        f->dump_unsigned("osd", i);
       }
       f->close_section();
       f->dump_int("up_primary", up_primary);
       f->open_array_section("acting");
       for (auto& i : acting) {
-	f->dump_unsigned("osd", i);
+        f->dump_unsigned("osd", i);
       }
       f->close_section();
       f->dump_int("acting_primary", up_primary);
       f->dump_object("pg_history", history);
       f->dump_object("past_intervals", past_intervals);
     }
-    static std::list<pg_create_info> generate_test_instances() {
+
+    static std::list<pg_create_info>
+    generate_test_instances()
+    {
       std::list<pg_create_info> o;
       o.emplace_back();
       o.back().create_epoch = 10;
@@ -97,11 +110,13 @@ struct creating_pgs_t {
       return o;
     }
 
-    pg_create_info() 
-      : create_epoch(0) {}
-    pg_create_info(epoch_t e, utime_t t)
-      : create_epoch(e),
-	create_stamp(t) {
+    pg_create_info() :
+      create_epoch(0)
+    {}
+
+    pg_create_info(epoch_t e, utime_t t) :
+      create_epoch(e), create_stamp(t)
+    {
       // NOTE: we don't initialize the other fields here; see
       // OSDMonitor::update_pending_pgs()
     }
@@ -115,17 +130,26 @@ struct creating_pgs_t {
     utime_t modified;
     uint64_t start = 0;
     uint64_t end = 0;
-    bool done() const {
+
+    bool
+    done() const
+    {
       return start >= end;
     }
-    void encode(ceph::buffer::list& bl) const {
+
+    void
+    encode(ceph::buffer::list& bl) const
+    {
       using ceph::encode;
       encode(created, bl);
       encode(modified, bl);
       encode(start, bl);
       encode(end, bl);
     }
-    void decode(ceph::buffer::list::const_iterator& p) {
+
+    void
+    decode(ceph::buffer::list::const_iterator& p)
+    {
       using ceph::decode;
       decode(created, p);
       decode(modified, p);
@@ -135,15 +159,17 @@ struct creating_pgs_t {
   };
 
   /// queue of pgs we still need to create (poolid -> <created, set of ps>)
-  std::map<int64_t,pool_create_info> queue;
+  std::map<int64_t, pool_create_info> queue;
 
   /// pools that exist in the osdmap for which at least one pg has been created
   std::set<int64_t> created_pools;
 
-  bool still_creating_pool(int64_t poolid) {
+  bool
+  still_creating_pool(int64_t poolid)
+  {
     for (auto& i : pgs) {
       if (i.first.pool() == poolid) {
-	return true;
+        return true;
       }
     }
     if (queue.count(poolid)) {
@@ -151,8 +177,10 @@ struct creating_pgs_t {
     }
     return false;
   }
-  void create_pool(int64_t poolid, uint32_t pg_num,
-		   epoch_t created, utime_t modified) {
+
+  void
+  create_pool(int64_t poolid, uint32_t pg_num, epoch_t created, utime_t modified)
+  {
     ceph_assert(created_pools.count(poolid) == 0);
     auto& c = queue[poolid];
     c.created = created;
@@ -160,7 +188,10 @@ struct creating_pgs_t {
     c.end = pg_num;
     created_pools.insert(poolid);
   }
-  unsigned remove_pool(int64_t removed_pool) {
+
+  unsigned
+  remove_pool(int64_t removed_pool)
+  {
     const unsigned total = pgs.size();
     auto first = pgs.lower_bound(pg_t{0, (uint64_t)removed_pool});
     auto last = pgs.lower_bound(pg_t{0, (uint64_t)removed_pool + 1});
@@ -169,7 +200,10 @@ struct creating_pgs_t {
     queue.erase(removed_pool);
     return total - pgs.size();
   }
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     unsigned v = 3;
     if (!HAVE_FEATURE(features, SERVER_OCTOPUS)) {
       v = 2;
@@ -181,7 +215,10 @@ struct creating_pgs_t {
     encode(queue, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(3, bl);
     decode(last_scan_epoch, bl);
     if (struct_v >= 3) {
@@ -192,9 +229,9 @@ struct creating_pgs_t {
       uint32_t num;
       decode(num, bl);
       while (num--) {
-	pg_t pgid;
-	decode(pgid, bl);
-	pgs[pgid].decode_legacy(bl);
+        pg_t pgid;
+        decode(pgid, bl);
+        pgs[pgid].decode_legacy(bl);
       }
     }
     decode(created_pools, bl);
@@ -202,7 +239,10 @@ struct creating_pgs_t {
       decode(queue, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("last_scan_epoch", last_scan_epoch);
     f->open_array_section("creating_pgs");
     for (auto& pg : pgs) {
@@ -229,7 +269,10 @@ struct creating_pgs_t {
     }
     f->close_section();
   }
-  static std::list<creating_pgs_t> generate_test_instances() {
+
+  static std::list<creating_pgs_t>
+  generate_test_instances()
+  {
     std::list<creating_pgs_t> o;
     auto c = creating_pgs_t{};
     c.last_scan_epoch = 17;

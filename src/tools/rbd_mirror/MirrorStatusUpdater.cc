@@ -2,11 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/MirrorStatusUpdater.h"
+
+#include "common/debug.h"
+
+#include "common/Timer.h"
+#include "common/errno.h"
 #include "include/Context.h"
 #include "include/stringify.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include "common/Timer.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
@@ -16,8 +18,9 @@
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::MirrorStatusUpdater " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                        \
+  *_dout << "rbd::mirror::MirrorStatusUpdater " << this << " " << __func__ \
+         << ": "
 
 namespace rbd {
 namespace mirror {
@@ -30,24 +33,30 @@ using librbd::util::create_rados_callback;
 
 template <typename I>
 MirrorStatusUpdater<I>::MirrorStatusUpdater(
-    librados::IoCtx& io_ctx, Threads<I> *threads,
-    const std::string& local_mirror_uuid)
-  : m_io_ctx(io_ctx), m_threads(threads),
-    m_local_mirror_uuid(local_mirror_uuid),
-    m_lock(ceph::make_mutex("rbd::mirror::MirrorStatusUpdater " +
-                              stringify(m_io_ctx.get_id()))) {
+    librados::IoCtx& io_ctx,
+    Threads<I>* threads,
+    const std::string& local_mirror_uuid) :
+  m_io_ctx(io_ctx),
+  m_threads(threads),
+  m_local_mirror_uuid(local_mirror_uuid),
+  m_lock(ceph::make_mutex(
+      "rbd::mirror::MirrorStatusUpdater " + stringify(m_io_ctx.get_id())))
+{
   dout(10) << "local_mirror_uuid=" << local_mirror_uuid << ", "
            << "pool_id=" << m_io_ctx.get_id() << dendl;
 }
 
 template <typename I>
-MirrorStatusUpdater<I>::~MirrorStatusUpdater() {
+MirrorStatusUpdater<I>::~MirrorStatusUpdater()
+{
   ceph_assert(!m_initialized);
   delete m_mirror_status_watcher;
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::init(Context* on_finish) {
+void
+MirrorStatusUpdater<I>::init(Context* on_finish)
+{
   dout(10) << dendl;
 
   ceph_assert(!m_initialized);
@@ -62,20 +71,25 @@ void MirrorStatusUpdater<I>::init(Context* on_finish) {
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::init_mirror_status_watcher(Context* on_finish) {
+void
+MirrorStatusUpdater<I>::init_mirror_status_watcher(Context* on_finish)
+{
   dout(10) << dendl;
 
   auto ctx = new LambdaContext([this, on_finish](int r) {
-      handle_init_mirror_status_watcher(r, on_finish);
-    });
-  m_mirror_status_watcher = MirrorStatusWatcher<I>::create(
-    m_io_ctx, m_threads->work_queue);
+    handle_init_mirror_status_watcher(r, on_finish);
+  });
+  m_mirror_status_watcher =
+      MirrorStatusWatcher<I>::create(m_io_ctx, m_threads->work_queue);
   m_mirror_status_watcher->init(ctx);
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::handle_init_mirror_status_watcher(
-    int r, Context* on_finish) {
+void
+MirrorStatusUpdater<I>::handle_init_mirror_status_watcher(
+    int r,
+    Context* on_finish)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -86,8 +100,8 @@ void MirrorStatusUpdater<I>::handle_init_mirror_status_watcher(
     m_mirror_status_watcher = nullptr;
 
     on_finish = new LambdaContext([r, on_finish](int) {
-        on_finish->complete(r);
-      });
+      on_finish->complete(r);
+    });
     shut_down(on_finish);
     return;
   }
@@ -96,7 +110,9 @@ void MirrorStatusUpdater<I>::handle_init_mirror_status_watcher(
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::shut_down(Context* on_finish) {
+void
+MirrorStatusUpdater<I>::shut_down(Context* on_finish)
+{
   dout(10) << dendl;
 
   {
@@ -115,8 +131,9 @@ void MirrorStatusUpdater<I>::shut_down(Context* on_finish) {
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::shut_down_mirror_status_watcher(
-    Context* on_finish) {
+void
+MirrorStatusUpdater<I>::shut_down_mirror_status_watcher(Context* on_finish)
+{
   if (m_mirror_status_watcher == nullptr) {
     finalize_shutdown(0, on_finish);
     return;
@@ -125,14 +142,17 @@ void MirrorStatusUpdater<I>::shut_down_mirror_status_watcher(
   dout(10) << dendl;
 
   auto ctx = new LambdaContext([this, on_finish](int r) {
-      handle_shut_down_mirror_status_watcher(r, on_finish);
-    });
+    handle_shut_down_mirror_status_watcher(r, on_finish);
+  });
   m_mirror_status_watcher->shut_down(ctx);
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::handle_shut_down_mirror_status_watcher(
-    int r, Context* on_finish) {
+void
+MirrorStatusUpdater<I>::handle_shut_down_mirror_status_watcher(
+    int r,
+    Context* on_finish)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -144,7 +164,9 @@ void MirrorStatusUpdater<I>::handle_shut_down_mirror_status_watcher(
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::finalize_shutdown(int r, Context* on_finish) {
+void
+MirrorStatusUpdater<I>::finalize_shutdown(int r, Context* on_finish)
+{
   dout(10) << dendl;
 
   {
@@ -152,8 +174,8 @@ void MirrorStatusUpdater<I>::finalize_shutdown(int r, Context* on_finish) {
     if (m_update_in_progress) {
       if (r < 0) {
         on_finish = new LambdaContext([r, on_finish](int) {
-            on_finish->complete(r);
-          });
+          on_finish->complete(r);
+        });
       }
 
       m_update_on_finish_ctxs.push_back(on_finish);
@@ -165,7 +187,9 @@ void MirrorStatusUpdater<I>::finalize_shutdown(int r, Context* on_finish) {
 }
 
 template <typename I>
-bool MirrorStatusUpdater<I>::exists(const std::string& global_image_id) {
+bool
+MirrorStatusUpdater<I>::exists(const std::string& global_image_id)
+{
   dout(15) << "global_image_id=" << global_image_id << dendl;
 
   std::unique_lock locker(m_lock);
@@ -173,10 +197,12 @@ bool MirrorStatusUpdater<I>::exists(const std::string& global_image_id) {
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::set_mirror_image_status(
+void
+MirrorStatusUpdater<I>::set_mirror_image_status(
     const std::string& global_image_id,
     const cls::rbd::MirrorImageSiteStatus& mirror_image_site_status,
-    bool immediate_update) {
+    bool immediate_update)
+{
   dout(15) << "global_image_id=" << global_image_id << ", "
            << "mirror_image_site_status=" << mirror_image_site_status << dendl;
 
@@ -190,29 +216,37 @@ void MirrorStatusUpdater<I>::set_mirror_image_status(
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::remove_refresh_mirror_image_status(
+void
+MirrorStatusUpdater<I>::remove_refresh_mirror_image_status(
     const std::string& global_image_id,
-    Context* on_finish) {
-  if (try_remove_mirror_image_status(global_image_id, false, false,
-                                     on_finish)) {
+    Context* on_finish)
+{
+  if (try_remove_mirror_image_status(global_image_id, false, false, on_finish)) {
     m_threads->work_queue->queue(on_finish, 0);
   }
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::remove_mirror_image_status(
-    const std::string& global_image_id, bool immediate_update,
-    Context* on_finish) {
-  if (try_remove_mirror_image_status(global_image_id, true, immediate_update,
-                                     on_finish)) {
+void
+MirrorStatusUpdater<I>::remove_mirror_image_status(
+    const std::string& global_image_id,
+    bool immediate_update,
+    Context* on_finish)
+{
+  if (try_remove_mirror_image_status(
+          global_image_id, true, immediate_update, on_finish)) {
     m_threads->work_queue->queue(on_finish, 0);
   }
 }
 
 template <typename I>
-bool MirrorStatusUpdater<I>::try_remove_mirror_image_status(
-    const std::string& global_image_id, bool queue_update,
-    bool immediate_update, Context* on_finish) {
+bool
+MirrorStatusUpdater<I>::try_remove_mirror_image_status(
+    const std::string& global_image_id,
+    bool queue_update,
+    bool immediate_update,
+    Context* on_finish)
+{
   dout(15) << "global_image_id=" << global_image_id << ", "
            << "queue_update=" << queue_update << ", "
            << "immediate_update=" << immediate_update << dendl;
@@ -223,14 +257,13 @@ bool MirrorStatusUpdater<I>::try_remove_mirror_image_status(
       ((m_update_in_progress || m_update_requested) &&
        m_update_global_image_ids.count(global_image_id) > 0)) {
     // if update is scheduled/in-progress, wait for it to complete
-    on_finish = new LambdaContext(
-      [this, global_image_id, queue_update, immediate_update,
-             on_finish](int r) {
-        if (try_remove_mirror_image_status(global_image_id, queue_update,
-                                           immediate_update, on_finish)) {
-          on_finish->complete(0);
-        }
-      });
+    on_finish = new LambdaContext([this, global_image_id, queue_update,
+                                   immediate_update, on_finish](int r) {
+      if (try_remove_mirror_image_status(
+              global_image_id, queue_update, immediate_update, on_finish)) {
+        on_finish->complete(0);
+      }
+    });
     m_update_on_finish_ctxs.push_back(on_finish);
     return false;
   }
@@ -247,19 +280,22 @@ bool MirrorStatusUpdater<I>::try_remove_mirror_image_status(
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::schedule_timer_task() {
+void
+MirrorStatusUpdater<I>::schedule_timer_task()
+{
   dout(10) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
   ceph_assert(m_timer_task == nullptr);
   m_timer_task = create_context_callback<
-    MirrorStatusUpdater<I>,
-    &MirrorStatusUpdater<I>::handle_timer_task>(this);
+      MirrorStatusUpdater<I>, &MirrorStatusUpdater<I>::handle_timer_task>(this);
   m_threads->timer->add_event_after(UPDATE_INTERVAL_SECONDS, m_timer_task);
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::handle_timer_task(int r) {
+void
+MirrorStatusUpdater<I>::handle_timer_task(int r)
+{
   dout(10) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
@@ -276,8 +312,9 @@ void MirrorStatusUpdater<I>::handle_timer_task(int r) {
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::queue_update_task(
-  std::unique_lock<ceph::mutex>&& locker) {
+void
+MirrorStatusUpdater<I>::queue_update_task(std::unique_lock<ceph::mutex>&& locker)
+{
   if (!m_initialized) {
     return;
   }
@@ -297,13 +334,14 @@ void MirrorStatusUpdater<I>::queue_update_task(
 
   dout(10) << dendl;
   auto ctx = create_context_callback<
-    MirrorStatusUpdater<I>,
-    &MirrorStatusUpdater<I>::update_task>(this);
+      MirrorStatusUpdater<I>, &MirrorStatusUpdater<I>::update_task>(this);
   m_threads->work_queue->queue(ctx);
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::update_task(int r) {
+void
+MirrorStatusUpdater<I>::update_task(int r)
+{
   dout(10) << dendl;
 
   std::unique_lock locker(m_lock);
@@ -317,8 +355,7 @@ void MirrorStatusUpdater<I>::update_task(int r) {
   locker.unlock();
 
   Context* ctx = create_context_callback<
-    MirrorStatusUpdater<I>,
-    &MirrorStatusUpdater<I>::handle_update_task>(this);
+      MirrorStatusUpdater<I>, &MirrorStatusUpdater<I>::handle_update_task>(this);
   if (updating_global_image_ids.empty()) {
     ctx->complete(0);
     return;
@@ -344,8 +381,8 @@ void MirrorStatusUpdater<I>::update_task(int r) {
       }
 
       status_it->second.mirror_uuid = m_local_mirror_uuid;
-      librbd::cls_client::mirror_image_status_set(&op, global_image_id,
-                                                  status_it->second);
+      librbd::cls_client::mirror_image_status_set(
+          &op, global_image_id, status_it->second);
       ++op_count;
     }
 
@@ -359,7 +396,9 @@ void MirrorStatusUpdater<I>::update_task(int r) {
 }
 
 template <typename I>
-void MirrorStatusUpdater<I>::handle_update_task(int r) {
+void
+MirrorStatusUpdater<I>::handle_update_task(int r)
+{
   dout(10) << dendl;
   if (r < 0) {
     derr << "failed to update mirror image statuses: " << cpp_strerror(r)

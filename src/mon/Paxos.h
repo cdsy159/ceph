@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -110,17 +110,18 @@ e 12v
 #ifndef CEPH_MON_PAXOS_H
 #define CEPH_MON_PAXOS_H
 
-#include "include/types.h"
-#include "mon_types.h"
-#include "include/buffer.h"
-#include "msg/msg_types.h"
-#include "include/Context.h"
-#include "common/JSONFormatter.h"
-#include "common/perf_counters.h"
 #include <errno.h>
 
-#include "MonitorDBStore.h"
+#include "common/JSONFormatter.h"
+#include "common/perf_counters.h"
+#include "include/Context.h"
+#include "include/buffer.h"
+#include "include/types.h"
 #include "mon/MonOpRequest.h"
+#include "msg/msg_types.h"
+
+#include "MonitorDBStore.h"
+#include "mon_types.h"
 
 class Monitor;
 class MMonPaxos;
@@ -161,7 +162,6 @@ enum {
   l_paxos_last,
 };
 
-
 // i am one state machine.
 /**
  * This library is based on the Paxos algorithm, but varies in a few key ways:
@@ -181,10 +181,10 @@ class Paxos {
   /**
    * The Monitor to which this Paxos class is associated with.
    */
-  Monitor &mon;
+  Monitor& mon;
 
   /// perf counter for internal instrumentations
-  PerfCounters *logger;
+  PerfCounters* logger;
 
   void init_logger();
 
@@ -199,6 +199,7 @@ class Paxos {
   // LEADER+PEON
 
   // -- generic state --
+
 public:
   /**
    * @defgroup Paxos_h_states States on which the leader/peon may be.
@@ -245,7 +246,9 @@ public:
    * @param s State value.
    * @return The state's name.
    */
-  static const std::string get_statename(int s) {
+  static const std::string
+  get_statename(int s)
+  {
     switch (s) {
     case STATE_RECOVERING:
       return "recovering";
@@ -286,37 +289,71 @@ public:
    *
    * @return 'true' if we are on the Recovering state; 'false' otherwise.
    */
-  bool is_recovering() const { return (state == STATE_RECOVERING); }
+  bool
+  is_recovering() const
+  {
+    return (state == STATE_RECOVERING);
+  }
+
   /**
    * Check if we are active.
    *
    * @return 'true' if we are on the Active state; 'false' otherwise.
    */
-  bool is_active() const { return state == STATE_ACTIVE; }
+  bool
+  is_active() const
+  {
+    return state == STATE_ACTIVE;
+  }
+
   /**
    * Check if we are updating.
    *
    * @return 'true' if we are on the Updating state; 'false' otherwise.
    */
-  bool is_updating() const { return state == STATE_UPDATING; }
+  bool
+  is_updating() const
+  {
+    return state == STATE_UPDATING;
+  }
 
   /**
    * Check if we are updating/proposing a previous value from a
    * previous quorum
    */
-  bool is_updating_previous() const { return state == STATE_UPDATING_PREVIOUS; }
+  bool
+  is_updating_previous() const
+  {
+    return state == STATE_UPDATING_PREVIOUS;
+  }
 
   /// @return 'true' if we are writing an update to disk
-  bool is_writing() const { return state == STATE_WRITING; }
+  bool
+  is_writing() const
+  {
+    return state == STATE_WRITING;
+  }
 
   /// @return 'true' if we are writing an update-previous to disk
-  bool is_writing_previous() const { return state == STATE_WRITING_PREVIOUS; }
+  bool
+  is_writing_previous() const
+  {
+    return state == STATE_WRITING_PREVIOUS;
+  }
 
   /// @return 'true' if we are refreshing an update just committed
-  bool is_refresh() const { return state == STATE_REFRESH; }
+  bool
+  is_refresh() const
+  {
+    return state == STATE_REFRESH;
+  }
 
   /// @return 'true' if we are in the process of shutting down
-  bool is_shutdown() const { return state == STATE_SHUTDOWN; }
+  bool
+  is_shutdown() const
+  {
+    return state == STATE_SHUTDOWN;
+  }
 
 private:
   /**
@@ -379,7 +416,7 @@ private:
    * When the Leader starts the collect phase, each Peon will reply with its
    * first committed version, which will then be kept in this map.
    */
-  std::map<int,version_t> peer_first_committed;
+  std::map<int, version_t> peer_first_committed;
   /**
    * Map holding the last committed version by each quorum member.
    *
@@ -387,7 +424,7 @@ private:
    * When the Leader starts the collect phase, each Peon will reply with its
    * last committed version, which will then be kept in this map.
    */
-  std::map<int,version_t> peer_last_committed;
+  std::map<int, version_t> peer_last_committed;
   /**
    * @}
    */
@@ -443,7 +480,7 @@ private:
    * is used to determine whether or not we have received replies from the
    * whole quorum.
    */
-  unsigned   num_last;
+  unsigned num_last;
   /**
    * Uncommitted value's version.
    *
@@ -455,7 +492,7 @@ private:
    *	   the Leader does not know about, and trustingly the Leader will 
    *	   propose this version's value.
    */
-  version_t  uncommitted_v;
+  version_t uncommitted_v;
   /**
    * Uncommitted value's Proposal Number.
    *
@@ -465,7 +502,7 @@ private:
    * to infer if this value is more recent than the one the Leader has, thus
    * more relevant.
    */
-  version_t  uncommitted_pn;
+  version_t uncommitted_pn;
   /**
    * Uncommitted Value.
    *
@@ -483,7 +520,7 @@ private:
   /**
    * Used to specify when an on-going collect phase times out.
    */
-  Context    *collect_timeout_event;
+  Context* collect_timeout_event;
   /**
    * @}
    */
@@ -501,15 +538,15 @@ private:
    * members, guaranteeing that we trigger new elections if some don't ack in
    * the expected timeframe.
    */
-  std::set<int>   acked_lease;
+  std::set<int> acked_lease;
   /**
    * Callback responsible for extending the lease periodically.
    */
-  Context    *lease_renew_event;
+  Context* lease_renew_event;
   /**
    * Callback to trigger new elections once the time for acks is out.
    */
-  Context    *lease_ack_timeout_event;
+  Context* lease_ack_timeout_event;
   /**
    * @}
    */
@@ -524,7 +561,7 @@ private:
    * we cancel the event and reschedule a new one with starting from the
    * beginning).
    */
-  Context    *lease_timeout_event;
+  Context* lease_timeout_event;
   /**
    * @}
    */
@@ -549,7 +586,7 @@ private:
    * participants has accepted the proposal), and when to extend the lease
    * (when all the quorum members have accepted the proposal).
    */
-  std::set<int>   accepted;
+  std::set<int> accepted;
   /**
    * Callback to trigger a new election if the proposal is not accepted by the
    * full quorum within a given timeframe.
@@ -565,7 +602,7 @@ private:
    * from the quorum, then we cannot extend the lease, as some participants
    * may not have the latest committed value.
    */
-  Context    *accept_timeout_event;
+  Context* accept_timeout_event;
 
   /**
    * List of callbacks waiting for it to be possible to write again.
@@ -662,32 +699,38 @@ private:
   /**
    *
    */
+
 public:
   class C_Proposal : public Context {
-    Context *proposer_context;
+    Context* proposer_context;
+
   public:
     ceph::buffer::list bl;
     // for debug purposes. Will go away. Soon.
     bool proposed;
     utime_t proposal_time;
 
-    C_Proposal(Context *c, ceph::buffer::list& proposal_bl) :
-	proposer_context(c),
-	bl(proposal_bl),
-	proposed(false),
-	proposal_time(ceph_clock_now())
-      { }
+    C_Proposal(Context* c, ceph::buffer::list& proposal_bl) :
+      proposer_context(c),
+      bl(proposal_bl),
+      proposed(false),
+      proposal_time(ceph_clock_now())
+    {}
 
-    void finish(int r) override {
+    void
+    finish(int r) override
+    {
       if (proposer_context) {
-	proposer_context->complete(r);
-	proposer_context = NULL;
+        proposer_context->complete(r);
+        proposer_context = NULL;
       }
     }
   };
+
   /**
    * @}
    */
+
 private:
   /**
    * @defgroup Paxos_h_election_triggered Steps triggered by an election.
@@ -891,8 +934,8 @@ private:
    * @post Quorum members instructed to commit the new value.
    */
   void commit_start();
-  void commit_finish();   ///< finish a commit after txn becomes durable
-  void abort_commit();    ///< Handle commit finish after shutdown started
+  void commit_finish(); ///< finish a commit after txn becomes durable
+  void abort_commit(); ///< Handle commit finish after shutdown started
   /**
    * Commit the new value to stable storage as being the latest available
    * version.
@@ -995,7 +1038,7 @@ private:
    * @pre We are a Peon
    * @post Trigger fresh elections
    */
-  void lease_timeout();        // on peon, if lease isn't extended
+  void lease_timeout(); // on peon, if lease isn't extended
 
   /// restart the lease timeout timer
   void reset_lease_timeout();
@@ -1016,8 +1059,8 @@ private:
    * @param gt A hint for the geration of the Proposal Number
    * @return A globally unique, monotonically increasing Proposal Number
    */
-  version_t get_new_proposal_number(version_t gt=0);
- 
+  version_t get_new_proposal_number(version_t gt = 0);
+
   /**
    * @todo document sync function
    */
@@ -1047,45 +1090,49 @@ public:
    * @param name A name for the paxos service. It serves as the naming space
    * of the underlying persistent storage for this service.
    */
-  Paxos(Monitor &m, const std::string &name) 
-		 : mon(m),
-		   logger(NULL),
-		   paxos_name(name),
-		   state(STATE_RECOVERING),
-		   first_committed(0),
-		   last_pn(0),
-		   last_committed(0),
-		   accepted_pn(0),
-		   accepted_pn_from(0),
-		   num_last(0),
-		   uncommitted_v(0), uncommitted_pn(0),
-		   collect_timeout_event(0),
-		   lease_renew_event(0),
-		   lease_ack_timeout_event(0),
-		   lease_timeout_event(0),
-		   accept_timeout_event(0),
-		   clock_drift_warned(0),
-		   trimming(false) { }
+  Paxos(Monitor& m, const std::string& name) :
+    mon(m),
+    logger(NULL),
+    paxos_name(name),
+    state(STATE_RECOVERING),
+    first_committed(0),
+    last_pn(0),
+    last_committed(0),
+    accepted_pn(0),
+    accepted_pn_from(0),
+    num_last(0),
+    uncommitted_v(0),
+    uncommitted_pn(0),
+    collect_timeout_event(0),
+    lease_renew_event(0),
+    lease_ack_timeout_event(0),
+    lease_timeout_event(0),
+    accept_timeout_event(0),
+    clock_drift_warned(0),
+    trimming(false)
+  {}
 
-  ~Paxos() {
-    delete logger;
-  }
+  ~Paxos() { delete logger; }
 
-  const std::string get_name() const {
+  const std::string
+  get_name() const
+  {
     return paxos_name;
   }
 
   void dispatch(MonOpRequestRef op);
 
-  void read_and_prepare_transactions(MonitorDBStore::TransactionRef tx,
-				     version_t from, version_t last);
+  void read_and_prepare_transactions(
+      MonitorDBStore::TransactionRef tx,
+      version_t from,
+      version_t last);
 
   void init();
 
   /**
    * dump state info to a formatter
    */
-  void dump_info(ceph::Formatter *f);
+  void dump_info(ceph::Formatter* f);
 
   /**
    * This function runs basic consistency checks. Importantly, if
@@ -1130,8 +1177,10 @@ public:
    * @param peer_first_committed Lowest version to take into account
    * @param peer_last_committed Highest version to take into account
    */
-  void share_state(MMonPaxos *m, version_t peer_first_committed,
-		   version_t peer_last_committed);
+  void share_state(
+      MMonPaxos* m,
+      version_t peer_first_committed,
+      version_t peer_last_committed);
   /**
    * Store on disk a state that was shared with us
    *
@@ -1147,7 +1196,7 @@ public:
    * @param m A message
    * @returns true if we stored something new; false otherwise
    */
-  bool store_state(MMonPaxos *m);
+  bool store_state(MMonPaxos* m);
   void _sanity_check_store();
 
   /**
@@ -1161,8 +1210,11 @@ public:
    * @param t The transaction to which we will append the operations
    * @param bl A ceph::buffer::list containing an encoded transaction
    */
-  static void decode_append_transaction(MonitorDBStore::TransactionRef t,
-					ceph::buffer::list& bl) {
+  static void
+  decode_append_transaction(
+      MonitorDBStore::TransactionRef t,
+      ceph::buffer::list& bl)
+  {
     auto vt(std::make_shared<MonitorDBStore::Transaction>());
     auto it = bl.cbegin();
     vt->decode(it);
@@ -1174,7 +1226,9 @@ public:
    *	   its objective is to allow a third-party to have a "private"
    *	   state dir. -JL
    */
-  void add_extra_state_dir(std::string s) {
+  void
+  add_extra_state_dir(std::string s)
+  {
     extra_state_dirs.push_back(s);
   }
 
@@ -1184,12 +1238,17 @@ public:
    *
    * @param c A callback
    */
-  void wait_for_active(MonOpRequestRef op, Context *c) {
+  void
+  wait_for_active(MonOpRequestRef op, Context* c)
+  {
     if (op)
       op->mark_event("paxos:wait_for_active");
     waiting_for_active.push_back(c);
   }
-  void wait_for_active(Context *c) {
+
+  void
+  wait_for_active(Context* c)
+  {
     MonOpRequestRef o;
     wait_for_active(o, c);
   }
@@ -1207,7 +1266,9 @@ public:
    *
    * @returns true if we should trim; false otherwise.
    */
-  bool should_trim() {
+  bool
+  should_trim()
+  {
     int available_versions = get_version() - get_first_committed();
     int maximum_versions = g_conf()->paxos_min + g_conf()->paxos_trim_min;
 
@@ -1217,14 +1278,22 @@ public:
     return true;
   }
 
-  bool is_plugged() const {
+  bool
+  is_plugged() const
+  {
     return plugged;
   }
-  void plug() {
+
+  void
+  plug()
+  {
     ceph_assert(plugged == false);
     plugged = true;
   }
-  void unplug() {
+
+  void
+  unplug()
+  {
     ceph_assert(plugged == true);
     plugged = false;
   }
@@ -1239,13 +1308,23 @@ public:
    *
    * @return latest committed version
    */
-  version_t get_version() { return last_committed; }
+  version_t
+  get_version()
+  {
+    return last_committed;
+  }
+
   /**
    * Get first committed version
    *
    * @return the first committed version
    */
-  version_t get_first_committed() { return first_committed; }
+  version_t
+  get_first_committed()
+  {
+    return first_committed;
+  }
+
   /**
    * Check if a given version is readable.
    *
@@ -1258,7 +1337,7 @@ public:
    * @param seen The version we want to check if it is readable.
    * @return 'true' if the version is readable; 'false' otherwise.
    */
-  bool is_readable(version_t seen=0);
+  bool is_readable(version_t seen = 0);
   /**
    * Read version @e v and store its value in @e bl
    *
@@ -1266,7 +1345,7 @@ public:
    * @param[out] bl The version's value
    * @return 'true' if we successfully read the value; 'false' otherwise
    */
-  bool read(version_t v, ceph::buffer::list &bl);
+  bool read(version_t v, ceph::buffer::list& bl);
   /**
    * Read the latest committed version
    *
@@ -1274,22 +1353,29 @@ public:
    * @return the latest committed version if we successfully read the value;
    *	     or 0 (zero) otherwise.
    */
-  version_t read_current(ceph::buffer::list &bl);
+  version_t read_current(ceph::buffer::list& bl);
+
   /**
    * Add onreadable to the list of callbacks waiting for us to become readable.
    *
    * @param onreadable A callback
    */
-  void wait_for_readable(MonOpRequestRef op, Context *onreadable) {
+  void
+  wait_for_readable(MonOpRequestRef op, Context* onreadable)
+  {
     ceph_assert(!is_readable());
     if (op)
       op->mark_event("paxos:wait_for_readable");
     waiting_for_readable.push_back(onreadable);
   }
-  void wait_for_readable(Context *onreadable) {
+
+  void
+  wait_for_readable(Context* onreadable)
+  {
     MonOpRequestRef o;
     wait_for_readable(o, onreadable);
   }
+
   /**
    * @}
    */
@@ -1317,18 +1403,24 @@ public:
    * @return 'true' if we are writeable; 'false' otherwise.
    */
   bool is_writeable();
+
   /**
    * Add c to the list of callbacks waiting for us to become writeable.
    *
    * @param c A callback
    */
-  void wait_for_writeable(MonOpRequestRef op, Context *c) {
+  void
+  wait_for_writeable(MonOpRequestRef op, Context* c)
+  {
     ceph_assert(!is_writeable());
     if (op)
       op->mark_event("paxos:wait_for_writeable");
     waiting_for_writeable.push_back(c);
   }
-  void wait_for_writeable(Context *c) {
+
+  void
+  wait_for_writeable(Context* c)
+  {
     MonOpRequestRef o;
     wait_for_writeable(o, c);
   }
@@ -1347,7 +1439,7 @@ public:
    * This completion will get triggered when the pending proposal
    * transaction commits.
    */
-  void queue_pending_finisher(Context *onfinished);
+  void queue_pending_finisher(Context* onfinished);
 
   /**
    * (try to) trigger a proposal
@@ -1364,15 +1456,16 @@ public:
   /**
    * @}
    */
- protected:
-  MonitorDBStore *get_store();
+
+protected:
+  MonitorDBStore* get_store();
 };
 
-inline std::ostream& operator<<(std::ostream& out, Paxos::C_Proposal& p)
+inline std::ostream&
+operator<<(std::ostream& out, Paxos::C_Proposal& p)
 {
   std::string proposed = (p.proposed ? "proposed" : "unproposed");
-  out << " " << proposed
-      << " queued " << (ceph_clock_now() - p.proposal_time)
+  out << " " << proposed << " queued " << (ceph_clock_now() - p.proposal_time)
       << " tx dump:\n";
   auto t(std::make_shared<MonitorDBStore::Transaction>());
   auto p_it = p.bl.cbegin();

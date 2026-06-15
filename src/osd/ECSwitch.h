@@ -20,12 +20,11 @@
 
 #pragma once
 
-#include "PGBackend.h"
-#include "ECBackendL.h"
 #include "ECBackend.h"
+#include "ECBackendL.h"
+#include "PGBackend.h"
 
-class ECSwitch : public PGBackend
-{
+class ECSwitch : public PGBackend {
   friend class ECRecPred;
   friend class ECReadPred;
 
@@ -35,24 +34,28 @@ class ECSwitch : public PGBackend
 
 public:
   ECSwitch(
-    PGBackend::Listener *pg,
-    const coll_t &coll,
-    ObjectStore::CollectionHandle &ch,
-    ObjectStore *store,
-    CephContext *cct,
-    ceph::ErasureCodeInterfaceRef ec_impl,
-    uint64_t stripe_width,
-    ECExtentCache::LRU &lru) :
+      PGBackend::Listener* pg,
+      const coll_t& coll,
+      ObjectStore::CollectionHandle& ch,
+      ObjectStore* store,
+      CephContext* cct,
+      ceph::ErasureCodeInterfaceRef ec_impl,
+      uint64_t stripe_width,
+      ECExtentCache::LRU& lru) :
     PGBackend(cct, pg, store, coll, ch),
     legacy(pg, cct, ec_impl, stripe_width, this),
     optimized(pg, cct, ec_impl, stripe_width, this, lru),
-    is_optimized_actual(get_parent()->get_pool().allows_ecoptimizations()) {}
+    is_optimized_actual(get_parent()->get_pool().allows_ecoptimizations())
+  {}
 
-  bool is_optimized() const
+  bool
+  is_optimized() const
   {
     // FIXME: Once we trust this, we can remove this assert, as it adds
     //        function call overhead.
-    ceph_assert(is_optimized_actual == get_parent()->get_pool().allows_ecoptimizations());
+    ceph_assert(
+        is_optimized_actual ==
+        get_parent()->get_pool().allows_ecoptimizations());
     return is_optimized_actual;
   }
 
@@ -60,15 +63,16 @@ public:
    * use the old EC and after on change need the new.  There are a small
    * number of functions here where we need to tolerate the cache being
    * inaccurate. */
-  bool is_optimized_unchecked() const
+  bool
+  is_optimized_unchecked() const
   {
     return is_optimized_actual;
   }
 
-  class ECRecPred : public IsPGRecoverablePredicate
-  {
+  class ECRecPred : public IsPGRecoverablePredicate {
   public:
-    bool operator()(const std::set<pg_shard_t> &have) const override
+    bool
+    operator()(const std::set<pg_shard_t>& have) const override
     {
       if (switcher->is_optimized_unchecked()) {
         return (*optimized)(have);
@@ -76,24 +80,23 @@ public:
       return (*legacy)(have);
     }
 
-    ECRecPred(const ECSwitch *s) :
-      IsPGRecoverablePredicate(),
-      switcher(s)
+    ECRecPred(const ECSwitch* s) :
+      IsPGRecoverablePredicate(), switcher(s)
     {
       legacy = s->legacy.get_is_recoverable_predicate();
       optimized = s->optimized.get_is_recoverable_predicate();
     }
 
   private:
-    const ECSwitch *switcher;
+    const ECSwitch* switcher;
     std::unique_ptr<ECLegacy::ECBackendL::ECRecPred> legacy;
     std::unique_ptr<ECBackend::ECRecPred> optimized;
   };
 
-  class ECReadPred : public IsPGReadablePredicate
-  {
+  class ECReadPred : public IsPGReadablePredicate {
   public:
-    bool operator()(const std::set<pg_shard_t> &have) const override
+    bool
+    operator()(const std::set<pg_shard_t>& have) const override
     {
       if (switcher->is_optimized()) {
         return (*optimized)(have);
@@ -101,23 +104,23 @@ public:
       return (*legacy)(have);
     }
 
-    ECReadPred(const ECSwitch *s) :
-      IsPGReadablePredicate(),
-      switcher(s)
+    ECReadPred(const ECSwitch* s) :
+      IsPGReadablePredicate(), switcher(s)
     {
-      legacy = s->legacy.get_is_readable_predicate(
-        s->get_parent()->whoami_shard());
+      legacy =
+          s->legacy.get_is_readable_predicate(s->get_parent()->whoami_shard());
       optimized = s->optimized.get_is_readable_predicate(
-        s->get_parent()->whoami_shard());
+          s->get_parent()->whoami_shard());
     }
 
   private:
-    const ECSwitch *switcher;
+    const ECSwitch* switcher;
     std::unique_ptr<ECLegacy::ECBackendL::ECReadPred> legacy;
     std::unique_ptr<ECBackend::ECReadPred> optimized;
   };
 
-  RecoveryHandle *open_recovery_op() override
+  RecoveryHandle*
+  open_recovery_op() override
   {
     if (is_optimized()) {
       return optimized.open_recovery_op();
@@ -125,7 +128,8 @@ public:
     return legacy.open_recovery_op();
   }
 
-  void run_recovery_op(RecoveryHandle *h, int priority) override
+  void
+  run_recovery_op(RecoveryHandle* h, int priority) override
   {
     if (is_optimized()) {
       return optimized.run_recovery_op(h, priority);
@@ -133,8 +137,13 @@ public:
     return legacy.run_recovery_op(h, priority);
   }
 
-  int recover_object(const hobject_t &hoid, eversion_t v, ObjectContextRef head,
-                     ObjectContextRef obc, RecoveryHandle *h) override
+  int
+  recover_object(
+      const hobject_t& hoid,
+      eversion_t v,
+      ObjectContextRef head,
+      ObjectContextRef obc,
+      RecoveryHandle* h) override
   {
     if (is_optimized()) {
       return optimized.recover_object(hoid, v, head, obc, h);
@@ -142,7 +151,8 @@ public:
     return legacy.recover_object(hoid, v, head, obc, h);
   }
 
-  bool can_handle_while_inactive(OpRequestRef op) override
+  bool
+  can_handle_while_inactive(OpRequestRef op) override
   {
     if (is_optimized()) {
       return optimized.can_handle_while_inactive(op);
@@ -150,13 +160,13 @@ public:
     return legacy.can_handle_while_inactive(op);
   }
 
-  bool _handle_message(OpRequestRef op) override
+  bool
+  _handle_message(OpRequestRef op) override
   {
     bool r;
     if (is_optimized_unchecked()) {
       r = optimized._handle_message(op);
-    }
-    else {
+    } else {
       r = legacy._handle_message(op);
     }
 
@@ -168,7 +178,8 @@ public:
     return r;
   }
 
-  void check_recovery_sources(const OSDMapRef &osdmap) override
+  void
+  check_recovery_sources(const OSDMapRef& osdmap) override
   {
     if (is_optimized_unchecked()) {
       return optimized.check_recovery_sources(osdmap);
@@ -176,12 +187,12 @@ public:
     return legacy.check_recovery_sources(osdmap);
   }
 
-  void on_change() override
+  void
+  on_change() override
   {
     if (is_optimized_unchecked()) {
       optimized.on_change();
-    }
-    else {
+    } else {
       legacy.on_change();
     }
 
@@ -191,75 +202,81 @@ public:
       ceph_assert(get_parent()->get_pool().allows_ecoptimizations());
   }
 
-  void clear_recovery_state() override
+  void
+  clear_recovery_state() override
   {
     if (is_optimized_unchecked()) {
       optimized.clear_recovery_state();
-    }
-    else {
+    } else {
       legacy.clear_recovery_state();
     }
   }
 
-  IsPGRecoverablePredicate *get_is_recoverable_predicate() const override
+  IsPGRecoverablePredicate*
+  get_is_recoverable_predicate() const override
   {
     return new ECRecPred(this);
   }
 
-  IsPGReadablePredicate *get_is_readable_predicate() const override
+  IsPGReadablePredicate*
+  get_is_readable_predicate() const override
   {
     return new ECReadPred(this);
   }
 
-  void dump_recovery_info(ceph::Formatter *f) const override
+  void
+  dump_recovery_info(ceph::Formatter* f) const override
   {
     if (is_optimized()) {
       optimized.dump_recovery_info(f);
-    }
-    else {
+    } else {
       legacy.dump_recovery_info(f);
     }
   }
 
-  void submit_transaction(const hobject_t &hoid,
-                          const object_stat_sum_t &delta_stats,
-                          const eversion_t &at_version,
-                          PGTransactionUPtr &&t, const eversion_t &trim_to,
-                          const eversion_t &pg_committed_to,
-                          std::vector<pg_log_entry_t> &&log_entries,
-                          std::optional<pg_hit_set_history_t> &hset_history,
-                          Context *on_all_commit,
-                          ceph_tid_t tid, osd_reqid_t reqid,
-                          OpRequestRef op) override
+  void
+  submit_transaction(
+      const hobject_t& hoid,
+      const object_stat_sum_t& delta_stats,
+      const eversion_t& at_version,
+      PGTransactionUPtr&& t,
+      const eversion_t& trim_to,
+      const eversion_t& pg_committed_to,
+      std::vector<pg_log_entry_t>&& log_entries,
+      std::optional<pg_hit_set_history_t>& hset_history,
+      Context* on_all_commit,
+      ceph_tid_t tid,
+      osd_reqid_t reqid,
+      OpRequestRef op) override
   {
     if (is_optimized()) {
-      optimized.submit_transaction(hoid, delta_stats,
-                                   at_version, std::move(t), trim_to,
-                                   pg_committed_to,
-                                   std::move(log_entries), hset_history,
-                                   on_all_commit, tid, reqid, op);
-    }
-    else {
-      legacy.submit_transaction(hoid, delta_stats,
-                                at_version, std::move(t), trim_to,
-                                pg_committed_to,
-                                std::move(log_entries), hset_history,
-                                on_all_commit, tid, reqid, op);
+      optimized.submit_transaction(
+          hoid, delta_stats, at_version, std::move(t), trim_to, pg_committed_to,
+          std::move(log_entries), hset_history, on_all_commit, tid, reqid, op);
+    } else {
+      legacy.submit_transaction(
+          hoid, delta_stats, at_version, std::move(t), trim_to, pg_committed_to,
+          std::move(log_entries), hset_history, on_all_commit, tid, reqid, op);
     }
   }
 
-  void call_write_ordered(std::function<void()> &&cb) override
+  void
+  call_write_ordered(std::function<void()>&& cb) override
   {
     if (is_optimized()) {
       optimized.call_write_ordered(std::move(cb));
-    }
-    else {
+    } else {
       legacy.call_write_ordered(std::move(cb));
     }
   }
 
-  int objects_read_sync(const hobject_t &hoid, uint64_t off, uint64_t len,
-                        uint32_t op_flags, ceph::buffer::list *bl) override
+  int
+  objects_read_sync(
+      const hobject_t& hoid,
+      uint64_t off,
+      uint64_t len,
+      uint32_t op_flags,
+      ceph::buffer::list* bl) override
   {
     if (is_optimized()) {
       return optimized.objects_read_sync(hoid, off, len, op_flags, bl);
@@ -267,10 +284,12 @@ public:
     return legacy.objects_read_sync(hoid, off, len, op_flags, bl);
   }
 
-  int objects_readv_sync(const hobject_t &hoid,
-     std::map<uint64_t, uint64_t>& m,
-     uint32_t op_flags,
-     ceph::buffer::list *bl) override
+  int
+  objects_readv_sync(
+      const hobject_t& hoid,
+      std::map<uint64_t, uint64_t>& m,
+      uint32_t op_flags,
+      ceph::buffer::list* bl) override
   {
     if (is_optimized()) {
       return optimized.objects_readv_sync(hoid, m, op_flags, bl);
@@ -278,33 +297,36 @@ public:
     ceph_abort_msg("Sync reads legacy EC");
   }
 
-  std::pair<uint64_t, uint64_t> extent_to_shard_extent(
-    uint64_t off, uint64_t len) override {
+  std::pair<uint64_t, uint64_t>
+  extent_to_shard_extent(uint64_t off, uint64_t len) override
+  {
     if (is_optimized()) {
       return optimized.extent_to_shard_extent(off, len);
     }
     ceph_abort_msg("Extent conversion not supported in legacy EC");
   }
 
-  void objects_read_async(
-    const hobject_t &hoid,
-    uint64_t object_size,
-    const std::list<std::pair<ec_align_t,
-                              std::pair<ceph::buffer::list*, Context*>>> &
-    to_read,
-    Context *on_complete, bool fast_read = false) override
+  void
+  objects_read_async(
+      const hobject_t& hoid,
+      uint64_t object_size,
+      const std::list<
+          std::pair<ec_align_t, std::pair<ceph::buffer::list*, Context*>>>&
+          to_read,
+      Context* on_complete,
+      bool fast_read = false) override
   {
     if (is_optimized()) {
-      optimized.objects_read_async(hoid, object_size, to_read, on_complete,
-                                   fast_read);
-    }
-    else {
-      legacy.objects_read_async(hoid, object_size, to_read, on_complete,
-                                fast_read);
+      optimized.objects_read_async(
+          hoid, object_size, to_read, on_complete, fast_read);
+    } else {
+      legacy.objects_read_async(
+          hoid, object_size, to_read, on_complete, fast_read);
     }
   }
 
-  bool auto_repair_supported() const override
+  bool
+  auto_repair_supported() const override
   {
     if (is_optimized()) {
       return optimized.auto_repair_supported();
@@ -312,20 +334,26 @@ public:
     return legacy.auto_repair_supported();
   }
 
-  uint64_t be_get_ondisk_size(uint64_t logical_size,
-                              shard_id_t shard_id,
-                              bool object_is_legacy_ec) const final {
-    if (is_optimized())
-    {
-      return optimized.be_get_ondisk_size(logical_size, shard_id, object_is_legacy_ec);
+  uint64_t
+  be_get_ondisk_size(
+      uint64_t logical_size,
+      shard_id_t shard_id,
+      bool object_is_legacy_ec) const final
+  {
+    if (is_optimized()) {
+      return optimized.be_get_ondisk_size(
+          logical_size, shard_id, object_is_legacy_ec);
     }
     return legacy.be_get_ondisk_size(logical_size);
   }
 
-  int be_deep_scrub(
-      const Scrub::ScrubCounterSet &io_counters,
-      const hobject_t &oid, ScrubMap &map, ScrubMapBuilder &pos,
-      ScrubMap::object &o) override
+  int
+  be_deep_scrub(
+      const Scrub::ScrubCounterSet& io_counters,
+      const hobject_t& oid,
+      ScrubMap& map,
+      ScrubMapBuilder& pos,
+      ScrubMap::object& o) override
   {
     if (is_optimized()) {
       return optimized.be_deep_scrub(io_counters, oid, map, pos, o);
@@ -333,7 +361,8 @@ public:
     return legacy.be_deep_scrub(io_counters, oid, map, pos, o);
   }
 
-  unsigned get_ec_data_chunk_count() const override
+  unsigned
+  get_ec_data_chunk_count() const override
   {
     if (is_optimized()) {
       return optimized.get_ec_data_chunk_count();
@@ -341,7 +370,8 @@ public:
     return legacy.get_ec_data_chunk_count();
   }
 
-  int get_ec_stripe_chunk_size() const override
+  int
+  get_ec_stripe_chunk_size() const override
   {
     if (is_optimized()) {
       return optimized.get_ec_stripe_chunk_size();
@@ -349,14 +379,18 @@ public:
     return legacy.get_ec_stripe_chunk_size();
   }
 
-  bool get_ec_supports_crc_encode_decode() const override {
+  bool
+  get_ec_supports_crc_encode_decode() const override
+  {
     if (is_optimized()) {
       return optimized.get_ec_supports_crc_encode_decode();
     }
     return legacy.get_ec_supports_crc_encode_decode();
   }
 
-  bool ec_can_decode(const shard_id_set &available_shards) const override {
+  bool
+  ec_can_decode(const shard_id_set& available_shards) const override
+  {
     if (is_optimized()) {
       return optimized.ec_can_decode(available_shards);
     }
@@ -364,8 +398,9 @@ public:
     return false;
   }
 
-  shard_id_map<bufferlist> ec_encode_acting_set(
-      const bufferlist &in_bl) const override {
+  shard_id_map<bufferlist>
+  ec_encode_acting_set(const bufferlist& in_bl) const override
+  {
     if (is_optimized()) {
       return optimized.ec_encode_acting_set(in_bl);
     }
@@ -374,9 +409,11 @@ public:
     return {0};
   }
 
-  shard_id_map<bufferlist> ec_decode_acting_set(
-      const shard_id_map<bufferlist> &shard_map,
-      int chunk_size) const override {
+  shard_id_map<bufferlist>
+  ec_decode_acting_set(
+      const shard_id_map<bufferlist>& shard_map,
+      int chunk_size) const override
+  {
     if (is_optimized()) {
       return optimized.ec_decode_acting_set(shard_map, chunk_size);
     }
@@ -385,7 +422,9 @@ public:
     return {0};
   }
 
-  ECUtil::stripe_info_t ec_get_sinfo() const {
+  ECUtil::stripe_info_t
+  ec_get_sinfo() const
+  {
     if (is_optimized()) {
       return optimized.ec_get_sinfo();
     }
@@ -394,9 +433,10 @@ public:
     return {0, 0, 0};
   }
 
-  int objects_get_attrs(
-    const hobject_t &hoid,
-    std::map<std::string, ceph::buffer::list, std::less<>> *out) override
+  int
+  objects_get_attrs(
+      const hobject_t& hoid,
+      std::map<std::string, ceph::buffer::list, std::less<>>* out) override
   {
     // call from parents -- get raw attrs, without any filtering for hinfo
     int r = PGBackend::objects_get_attrs(hoid, out);
@@ -408,9 +448,10 @@ public:
     return legacy.objects_get_attrs(hoid, out);
   }
 
-  int objects_get_attrs_with_hinfo(
-    const hobject_t &hoid,
-    std::map<std::string, ceph::buffer::list, std::less<>> *out)
+  int
+  objects_get_attrs_with_hinfo(
+      const hobject_t& hoid,
+      std::map<std::string, ceph::buffer::list, std::less<>>* out)
   {
     // call from parents -- get raw attrs, without any filtering for hinfo
     return PGBackend::objects_get_attrs(hoid, out);
@@ -425,16 +466,25 @@ public:
     return legacy.object_size_to_shard_size(size);
     // All shards are the same size.
   }
-  bool get_is_nonprimary_shard(shard_id_t shard) const final {
+
+  bool
+  get_is_nonprimary_shard(shard_id_t shard) const final
+  {
     if (is_optimized()) {
       return optimized.get_is_nonprimary_shard(shard);
     }
     return false;
   }
-  bool get_is_hinfo_required() const final {
+
+  bool
+  get_is_hinfo_required() const final
+  {
     return !is_optimized();
   }
-  bool get_is_ec_optimized() const final {
+
+  bool
+  get_is_ec_optimized() const final
+  {
     return is_optimized();
   }
 };

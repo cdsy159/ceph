@@ -4,15 +4,16 @@
 #ifndef CEPH_LIBRBD_IMAGE_REFRESH_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_REFRESH_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/utime.h"
-#include "common/snap_types.h"
-#include "cls/lock/cls_lock_types.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/Types.h"
 #include <string>
 #include <vector>
+
+#include "cls/lock/cls_lock_types.h"
+#include "common/snap_types.h"
+#include "include/buffer.h"
+#include "include/int_types.h"
+#include "include/utime.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/Types.h"
 
 class Context;
 
@@ -22,21 +23,30 @@ class ImageCtx;
 
 namespace image {
 
-template<typename> class RefreshParentRequest;
+template <typename>
+class RefreshParentRequest;
 
-template<typename ImageCtxT = ImageCtx>
+template <typename ImageCtxT = ImageCtx>
 class RefreshRequest {
 public:
   static constexpr int MAX_ENOENT_RETRIES = 10;
 
-  static RefreshRequest *create(ImageCtxT &image_ctx, bool acquiring_lock,
-                                bool skip_open_parent, Context *on_finish) {
-    return new RefreshRequest(image_ctx, acquiring_lock, skip_open_parent,
-                              on_finish);
+  static RefreshRequest*
+  create(
+      ImageCtxT& image_ctx,
+      bool acquiring_lock,
+      bool skip_open_parent,
+      Context* on_finish)
+  {
+    return new RefreshRequest(
+        image_ctx, acquiring_lock, skip_open_parent, on_finish);
   }
 
-  RefreshRequest(ImageCtxT &image_ctx, bool acquiring_lock,
-                 bool skip_open_parent, Context *on_finish);
+  RefreshRequest(
+      ImageCtxT& image_ctx,
+      bool acquiring_lock,
+      bool skip_open_parent,
+      Context* on_finish);
   ~RefreshRequest();
 
   void send();
@@ -128,10 +138,10 @@ private:
     LEGACY_SNAPSHOT_ENABLED_NO_TIMESTAMP
   };
 
-  ImageCtxT &m_image_ctx;
+  ImageCtxT& m_image_ctx;
   bool m_acquiring_lock;
   bool m_skip_open_parent_image;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   cls::rbd::MigrationSpec m_migration_spec;
   int m_error_result;
@@ -139,7 +149,7 @@ private:
   decltype(m_image_ctx.exclusive_lock) m_exclusive_lock;
   decltype(m_image_ctx.object_map) m_object_map;
   decltype(m_image_ctx.journal) m_journal;
-  RefreshParentRequest<ImageCtxT> *m_refresh_parent;
+  RefreshParentRequest<ImageCtxT>* m_refresh_parent;
 
   bufferlist m_out_bl;
 
@@ -171,8 +181,8 @@ private:
   std::vector<uint8_t> m_snap_protection;
   std::vector<uint64_t> m_snap_flags;
 
-  std::map<rados::cls::lock::locker_id_t,
-           rados::cls::lock::locker_info_t> m_lockers;
+  std::map<rados::cls::lock::locker_id_t, rados::cls::lock::locker_info_t>
+      m_lockers;
   std::string m_lock_tag;
   bool m_exclusive_locked = false;
 
@@ -180,91 +190,96 @@ private:
   bool m_incomplete_update = false;
 
   void send_get_migration_header();
-  Context *handle_get_migration_header(int *result);
+  Context* handle_get_migration_header(int* result);
 
   void send_v1_read_header();
-  Context *handle_v1_read_header(int *result);
+  Context* handle_v1_read_header(int* result);
 
   void send_v1_get_snapshots();
-  Context *handle_v1_get_snapshots(int *result);
+  Context* handle_v1_get_snapshots(int* result);
 
   void send_v1_get_locks();
-  Context *handle_v1_get_locks(int *result);
+  Context* handle_v1_get_locks(int* result);
 
   void send_v1_apply();
-  Context *handle_v1_apply(int *result);
+  Context* handle_v1_apply(int* result);
 
   void send_v2_get_mutable_metadata();
-  Context *handle_v2_get_mutable_metadata(int *result);
+  Context* handle_v2_get_mutable_metadata(int* result);
 
   void send_v2_get_parent();
-  Context *handle_v2_get_parent(int *result);
+  Context* handle_v2_get_parent(int* result);
 
   void send_v2_get_metadata();
-  Context *handle_v2_get_metadata(int *result);
+  Context* handle_v2_get_metadata(int* result);
 
   void send_v2_get_pool_metadata();
-  Context *handle_v2_get_pool_metadata(int *result);
+  Context* handle_v2_get_pool_metadata(int* result);
 
   void send_v2_get_op_features();
-  Context *handle_v2_get_op_features(int *result);
+  Context* handle_v2_get_op_features(int* result);
 
   void send_v2_get_group();
-  Context *handle_v2_get_group(int *result);
+  Context* handle_v2_get_group(int* result);
 
   void send_v2_get_snapshots();
-  Context *handle_v2_get_snapshots(int *result);
+  Context* handle_v2_get_snapshots(int* result);
 
   void send_v2_get_snapshots_legacy();
-  Context *handle_v2_get_snapshots_legacy(int *result);
+  Context* handle_v2_get_snapshots_legacy(int* result);
 
   void send_v2_refresh_parent();
-  Context *handle_v2_refresh_parent(int *result);
+  Context* handle_v2_refresh_parent(int* result);
 
   void send_v2_init_exclusive_lock();
-  Context *handle_v2_init_exclusive_lock(int *result);
+  Context* handle_v2_init_exclusive_lock(int* result);
 
   void send_v2_open_journal();
-  Context *handle_v2_open_journal(int *result);
+  Context* handle_v2_open_journal(int* result);
 
   void send_v2_block_writes();
-  Context *handle_v2_block_writes(int *result);
+  Context* handle_v2_block_writes(int* result);
 
   void send_v2_open_object_map();
-  Context *handle_v2_open_object_map(int *result);
+  Context* handle_v2_open_object_map(int* result);
 
   void send_v2_apply();
-  Context *handle_v2_apply(int *result);
+  Context* handle_v2_apply(int* result);
 
-  Context *send_v2_finalize_refresh_parent();
-  Context *handle_v2_finalize_refresh_parent(int *result);
+  Context* send_v2_finalize_refresh_parent();
+  Context* handle_v2_finalize_refresh_parent(int* result);
 
-  Context *send_v2_shut_down_exclusive_lock();
-  Context *handle_v2_shut_down_exclusive_lock(int *result);
+  Context* send_v2_shut_down_exclusive_lock();
+  Context* handle_v2_shut_down_exclusive_lock(int* result);
 
-  Context *send_v2_close_journal();
-  Context *handle_v2_close_journal(int *result);
+  Context* send_v2_close_journal();
+  Context* handle_v2_close_journal(int* result);
 
-  Context *send_v2_close_object_map();
-  Context *handle_v2_close_object_map(int *result);
+  Context* send_v2_close_object_map();
+  Context* handle_v2_close_object_map(int* result);
 
-  Context *send_flush_aio();
-  Context *handle_flush_aio(int *result);
+  Context* send_flush_aio();
+  Context* handle_flush_aio(int* result);
 
-  Context *handle_error(int *result);
+  Context* handle_error(int* result);
 
-  void save_result(int *result) {
+  void
+  save_result(int* result)
+  {
     if (m_error_result == 0 && *result < 0) {
       m_error_result = *result;
     }
   }
 
   void apply();
-  int get_parent_info(uint64_t snap_id, ParentImageInfo *parent_md,
-                      MigrationInfo *migration_info);
-  int get_migration_info(ParentImageInfo *parent_md,
-                         MigrationInfo *migration_info,
-                         bool* migration_info_valid);
+  int get_parent_info(
+      uint64_t snap_id,
+      ParentImageInfo* parent_md,
+      MigrationInfo* migration_info);
+  int get_migration_info(
+      ParentImageInfo* parent_md,
+      MigrationInfo* migration_info,
+      bool* migration_info_valid);
 };
 
 } // namespace image

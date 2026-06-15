@@ -19,6 +19,7 @@
 
 #include "include/common_fwd.h"
 #include "include/types.h"
+
 #include "Auth.h"
 
 #define SESSION_SIGNATURE_FAILURE -1
@@ -29,24 +30,30 @@ class Message;
 
 struct AuthSessionHandler {
   virtual ~AuthSessionHandler() = default;
-  virtual int sign_message(Message *message) = 0;
-  virtual int check_message_signature(Message *message) = 0;
+  virtual int sign_message(Message* message) = 0;
+  virtual int check_message_signature(Message* message) = 0;
 };
 
 struct DummyAuthSessionHandler : AuthSessionHandler {
-  int sign_message(Message*) final {
+  int
+  sign_message(Message*) final
+  {
     return 0;
   }
-  int check_message_signature(Message*) final {
+
+  int
+  check_message_signature(Message*) final
+  {
     return 0;
   }
 };
 
 struct DecryptionError : public std::exception {};
 
-extern AuthSessionHandler *get_auth_session_handler(
-  CephContext *cct, int protocol,
-  const CryptoKey& key,
-  uint64_t features);
+extern AuthSessionHandler* get_auth_session_handler(
+    CephContext* cct,
+    int protocol,
+    const CryptoKey& key,
+    uint64_t features);
 
 #endif

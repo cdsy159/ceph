@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -20,64 +20,73 @@
 #define CEPH_ERASURE_CODE_PLUGIN_H
 
 #include "common/ceph_mutex.h"
+
 #include "ErasureCodeInterface.h"
 
 extern "C" {
-  const char *__erasure_code_version();
-  int __erasure_code_init(char *plugin_name, char *directory);
+const char* __erasure_code_version();
+int __erasure_code_init(char* plugin_name, char* directory);
 }
 
 namespace ceph {
 
-  class ErasureCodePlugin {
-  public:
-    void *library;
+class ErasureCodePlugin {
+public:
+  void* library;
 
-    ErasureCodePlugin() :
-      library(0) {}
-    virtual ~ErasureCodePlugin() {}
+  ErasureCodePlugin() :
+    library(0)
+  {}
 
-    virtual int factory(const std::string &directory,
-			ErasureCodeProfile &profile,
-                        ErasureCodeInterfaceRef *erasure_code,
-			std::ostream *ss) = 0;
-  };
+  virtual ~ErasureCodePlugin() {}
 
-  class ErasureCodePluginRegistry {
-  public:
-    ceph::mutex lock = ceph::make_mutex("ErasureCodePluginRegistry::lock");
-    bool loading = false;
-    bool disable_dlclose = false;
-    std::map<std::string,ErasureCodePlugin*> plugins;
+  virtual int factory(
+      const std::string& directory,
+      ErasureCodeProfile& profile,
+      ErasureCodeInterfaceRef* erasure_code,
+      std::ostream* ss) = 0;
+};
 
-    static ErasureCodePluginRegistry singleton;
+class ErasureCodePluginRegistry {
+public:
+  ceph::mutex lock = ceph::make_mutex("ErasureCodePluginRegistry::lock");
+  bool loading = false;
+  bool disable_dlclose = false;
+  std::map<std::string, ErasureCodePlugin*> plugins;
 
-    ErasureCodePluginRegistry();
-    ~ErasureCodePluginRegistry();
+  static ErasureCodePluginRegistry singleton;
 
-    static ErasureCodePluginRegistry &instance() {
-      return singleton;
-    }
+  ErasureCodePluginRegistry();
+  ~ErasureCodePluginRegistry();
 
-    int factory(const std::string &plugin,
-		const std::string &directory,
-		ErasureCodeProfile &profile,
-		ErasureCodeInterfaceRef *erasure_code,
-		std::ostream *ss);
+  static ErasureCodePluginRegistry&
+  instance()
+  {
+    return singleton;
+  }
 
-    int add(const std::string &name, ErasureCodePlugin *plugin);
-    int remove(const std::string &name);
-    ErasureCodePlugin *get(const std::string &name);
+  int factory(
+      const std::string& plugin,
+      const std::string& directory,
+      ErasureCodeProfile& profile,
+      ErasureCodeInterfaceRef* erasure_code,
+      std::ostream* ss);
 
-    int load(const std::string &plugin_name,
-	     const std::string &directory,
-	     ErasureCodePlugin **plugin,
-	     std::ostream *ss);
+  int add(const std::string& name, ErasureCodePlugin* plugin);
+  int remove(const std::string& name);
+  ErasureCodePlugin* get(const std::string& name);
 
-    int preload(const std::string &plugins,
-		const std::string &directory,
-		std::ostream *ss);
-  };
-}
+  int load(
+      const std::string& plugin_name,
+      const std::string& directory,
+      ErasureCodePlugin** plugin,
+      std::ostream* ss);
+
+  int preload(
+      const std::string& plugins,
+      const std::string& directory,
+      std::ostream* ss);
+};
+} // namespace ceph
 
 #endif

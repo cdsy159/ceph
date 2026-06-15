@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,12 +14,11 @@
  */
 
 
-
 #ifndef CEPH_MROUTE_H
 #define CEPH_MROUTE_H
 
-#include "msg/Message.h"
 #include "include/encoding.h"
+#include "msg/Message.h"
 
 class MRoute final : public Message {
 public:
@@ -27,26 +26,34 @@ public:
   static constexpr int COMPAT_VERSION = 3;
 
   uint64_t session_mon_tid;
-  Message *msg;
+  Message* msg;
   epoch_t send_osdmap_first;
-  
-  MRoute() : Message{MSG_ROUTE, HEAD_VERSION, COMPAT_VERSION},
-	     session_mon_tid(0),
-	     msg(NULL),
-	     send_osdmap_first(0) {}
-  MRoute(uint64_t t, Message *m)
-    : Message{MSG_ROUTE, HEAD_VERSION, COMPAT_VERSION},
-      session_mon_tid(t),
-      msg(m),
-      send_osdmap_first(0) {}
+
+  MRoute() :
+    Message{MSG_ROUTE, HEAD_VERSION, COMPAT_VERSION},
+    session_mon_tid(0),
+    msg(NULL),
+    send_osdmap_first(0)
+  {}
+
+  MRoute(uint64_t t, Message* m) :
+    Message{MSG_ROUTE, HEAD_VERSION, COMPAT_VERSION},
+    session_mon_tid(t),
+    msg(m),
+    send_osdmap_first(0)
+  {}
+
 private:
-  ~MRoute() final {
+  ~MRoute() final
+  {
     if (msg)
       msg->put();
   }
 
 public:
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     using ceph::decode;
     decode(session_mon_tid, p);
@@ -58,7 +65,10 @@ public:
       msg = decode_message(NULL, 0, p);
     decode(send_osdmap_first, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(session_mon_tid, payload);
     entity_inst_t dest_unused;
@@ -70,8 +80,15 @@ public:
     encode(send_osdmap_first, payload);
   }
 
-  std::string_view get_type_name() const override { return "route"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "route";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     if (msg)
       o << "route(" << *msg;
     else
@@ -83,8 +100,9 @@ public:
     else
       o << " tid (none)";
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

@@ -13,10 +13,13 @@
 class RGWAsioFrontend : public RGWFrontend {
   class Impl;
   std::unique_ptr<Impl> impl;
+
 public:
-  RGWAsioFrontend(RGWProcessEnv& env, RGWFrontendConfig* conf,
-		  rgw::dmclock::SchedulerCtx& sched_ctx,
-		  boost::asio::io_context& io_context);
+  RGWAsioFrontend(
+      RGWProcessEnv& env,
+      RGWFrontendConfig* conf,
+      rgw::dmclock::SchedulerCtx& sched_ctx,
+      boost::asio::io_context& io_context);
   ~RGWAsioFrontend() override;
 
   int init() override;

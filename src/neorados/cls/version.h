@@ -29,11 +29,9 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/system/error_code.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "cls/version/cls_version_ops.h"
 #include "cls/version/cls_version_types.h"
-
+#include "include/neorados/RADOS.hpp"
 #include "neorados/cls/common.h"
 
 namespace neorados::cls::version {
@@ -44,15 +42,15 @@ namespace neorados::cls::version {
 /// \param ver Version to set
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto set(const obj_version& ver)
+[[nodiscard]] inline auto
+set(const obj_version& ver)
 {
   buffer::list in;
   cls_version_set_op call;
   call.objv = ver;
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("version", "set", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("version", "set", in); }};
 }
 
 /// \brief Unconditional increment version
@@ -61,14 +59,14 @@ namespace neorados::cls::version {
 /// portion of a version.
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto inc()
+[[nodiscard]] inline auto
+inc()
 {
   buffer::list in;
   cls_version_inc_op call;
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("version", "inc", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("version", "inc", in); }};
 }
 
 /// \brief Conditionally increment version
@@ -81,7 +79,8 @@ namespace neorados::cls::version {
 /// \param cond Comparison operator
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto inc(const obj_version& objv, const VersionCond cond)
+[[nodiscard]] inline auto
+inc(const obj_version& objv, const VersionCond cond)
 {
   buffer::list in;
   cls_version_inc_op call;
@@ -110,7 +109,8 @@ namespace neorados::cls::version {
 /// \param cond Comparison operator
 ///
 /// \return The ClsOp to be passed to {Read,Write}Op::exec
-[[nodiscard]] inline auto check(const obj_version& ver, const VersionCond cond)
+[[nodiscard]] inline auto
+check(const obj_version& ver, const VersionCond cond)
 {
   buffer::list in;
   cls_version_check_op call;
@@ -123,9 +123,8 @@ namespace neorados::cls::version {
   call.conds.push_back(c);
 
   encode(call, in);
-  return ClsOp{[in = std::move(in)](Op& op) {
-    op.exec("version", "check_conds", in);
-  }};
+  return ClsOp{
+      [in = std::move(in)](Op& op) { op.exec("version", "check_conds", in); }};
 }
 
 /// \brief Read the stored object version
@@ -135,34 +134,33 @@ namespace neorados::cls::version {
 /// \param objv Location to store the version
 ///
 /// \return The ClsReadOp to be passed to ReadOp::exec
-[[nodiscard]] inline auto read(obj_version* const objv)
+[[nodiscard]] inline auto
+read(obj_version* const objv)
 {
   using boost::system::error_code;
   return ClsReadOp{[objv](Op& op) {
     namespace sys = boost::system;
-    op.exec("version", "read", {},
-	    [objv](error_code ec,
-		   const buffer::list& bl) {
-	      cls_version_read_ret ret;
-	      if (!ec) {
-		auto iter = bl.cbegin();
-		try {
-		  decode(ret, iter);
-		} catch (const sys::system_error& e) {
-		  // This works by accident in the paleorados version,
-		  // since they just don't report decode errors.
-		  if (e.code() == buffer::errc::end_of_buffer) {
-		    if (objv) {
-		      objv->clear();
-		    }
-		  } else {
-		    throw;
-		  }
-		}
-		if (objv)
-		  *objv = std::move(ret.objv);
-	      }
-	    });
+    op.exec("version", "read", {}, [objv](error_code ec, const buffer::list& bl) {
+      cls_version_read_ret ret;
+      if (!ec) {
+        auto iter = bl.cbegin();
+        try {
+          decode(ret, iter);
+        } catch (const sys::system_error& e) {
+          // This works by accident in the paleorados version,
+          // since they just don't report decode errors.
+          if (e.code() == buffer::errc::end_of_buffer) {
+            if (objv) {
+              objv->clear();
+            }
+          } else {
+            throw;
+          }
+        }
+        if (objv)
+          *objv = std::move(ret.objv);
+      }
+    });
   }};
 }
 
@@ -203,17 +201,21 @@ inline auto read(RADOS& r, Object o, IOContext ioc,
 ///
 /// \return The object version in a way appropriate to the completion
 /// token. See Boost.Asio documentation.
-template<typename E>
+template <typename E>
 inline boost::asio::awaitable<obj_version, E>
-read(RADOS& r, Object o, IOContext ioc,
-     // Hack to avoid changing most current uses
-     boost::asio::use_awaitable_t<E> = boost::asio::use_awaitable)
+read(
+    RADOS& r,
+    Object o,
+    IOContext ioc,
+    // Hack to avoid changing most current uses
+    boost::asio::use_awaitable_t<E> = boost::asio::use_awaitable)
 {
   ReadOp op;
   obj_version objv;
   op.exec(read(&objv));
-  co_await r.execute(std::move(o), std::move(ioc), std::move(op),
-		     nullptr, boost::asio::use_awaitable);
+  co_await r.execute(
+      std::move(o), std::move(ioc), std::move(op), nullptr,
+      boost::asio::use_awaitable);
   co_return objv;
 }
 } // namespace neorados::cls::version

@@ -2,16 +2,16 @@
 #if defined(__linux__)
 #pragma once
 
-#include "fscrypt_uapi.h"
-
-#include "common/ceph_mutex.h"
+#include <openssl/conf.h>
+#include <openssl/core_names.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
 
 #include <map>
 
-#include <openssl/conf.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/core_names.h>
+#include "common/ceph_mutex.h"
+
+#include "fscrypt_uapi.h"
 
 #define FSCRYPT_FILE_NONCE_SIZE 16
 
@@ -27,27 +27,38 @@
 // block size. Set it to nearest fscrypt block without exceeding INT_MAX
 #define FSCRYPT_MAXIO_SIZE fscrypt_block_start(INT_MAX)
 
-static inline uint64_t fscrypt_align_ofs(uint64_t ofs) {
+static inline uint64_t
+fscrypt_align_ofs(uint64_t ofs)
+{
   return (ofs + FSCRYPT_DATA_ALIGNMENT - 1) & ~(FSCRYPT_DATA_ALIGNMENT - 1);
 }
 
-static inline int fscrypt_ofs_in_block(uint64_t pos) {
+static inline int
+fscrypt_ofs_in_block(uint64_t pos)
+{
   return pos & (FSCRYPT_BLOCK_SIZE - 1);
 }
 
-static inline int fscrypt_block_from_ofs(uint64_t ofs) {
+static inline int
+fscrypt_block_from_ofs(uint64_t ofs)
+{
   return ofs >> FSCRYPT_BLOCK_BITS;
 }
 
-static inline uint64_t fscrypt_block_start(uint64_t ofs) {
+static inline uint64_t
+fscrypt_block_start(uint64_t ofs)
+{
   return ofs & ~(FSCRYPT_BLOCK_SIZE - 1);
 }
 
-static inline uint64_t fscrypt_next_block_start(uint64_t ofs) {
+static inline uint64_t
+fscrypt_next_block_start(uint64_t ofs)
+{
   return (ofs + FSCRYPT_BLOCK_SIZE - 1) & ~(FSCRYPT_BLOCK_SIZE - 1);
 }
 
-static inline std::string fscrypt_hex_str(const void *p, int len)
+static inline std::string
+fscrypt_hex_str(const void* p, int len)
 {
   if (!p) {
     return "<null>";
@@ -61,59 +72,80 @@ static inline std::string fscrypt_hex_str(const void *p, int len)
   return ss.str();
 }
 
-int fscrypt_fname_armor(const char *src, int src_len,
-                        char *result, int max_len);
-int fscrypt_fname_unarmor(const char *src, int src_len,
-                          char *result, int max_len);
+int fscrypt_fname_armor(const char* src, int src_len, char* result, int max_len);
+int
+fscrypt_fname_unarmor(const char* src, int src_len, char* result, int max_len);
 
-int fscrypt_calc_hkdf(char hkdf_context,
-                      const char *nonce, int nonce_len,
-                      const char *salt, int salt_len,
-                      const char *key, int key_len,
-                      char *dest, int dest_len);
-
+int fscrypt_calc_hkdf(
+    char hkdf_context,
+    const char* nonce,
+    int nonce_len,
+    const char* salt,
+    int salt_len,
+    const char* key,
+    int key_len,
+    char* dest,
+    int dest_len);
 
 struct ceph_fscrypt_key_identifier {
   char raw[FSCRYPT_KEY_IDENTIFIER_SIZE];
 
-  int init(const char *k, int klen);
+  int init(const char* k, int klen);
   int init(const struct fscrypt_key_specifier& k);
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     bl.copy(sizeof(raw), raw);
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     bl.append(raw, sizeof(raw));
   }
 
   bool operator<(const struct ceph_fscrypt_key_identifier& r) const;
 };
 
-std::ostream& operator<<(std::ostream& out, const ceph_fscrypt_key_identifier& kid);
+std::ostream& operator<<(
+    std::ostream& out,
+    const ceph_fscrypt_key_identifier& kid);
 
 class FSCryptKey {
   bufferlist key;
   ceph_fscrypt_key_identifier identifier;
+
 public:
-  int init(const char *k, int klen);
+  int init(const char* k, int klen);
 
-  int calc_hkdf(char ctx_indentifier,
-                const char *nonce, int nonce_len,
-                char *result, int result_len);
+  int calc_hkdf(
+      char ctx_indentifier,
+      const char* nonce,
+      int nonce_len,
+      char* result,
+      int result_len);
 
-  const ceph_fscrypt_key_identifier& get_identifier() const {
+  const ceph_fscrypt_key_identifier&
+  get_identifier() const
+  {
     return identifier;
   }
 
-  bufferlist& get_key() { return key; }
+  bufferlist&
+  get_key()
+  {
+    return key;
+  }
 };
 
 using FSCryptKeyRef = std::shared_ptr<FSCryptKey>;
 
 #define FSCRYPT_MAX_IV_SIZE 32
+
 union FSCryptIV {
   uint8_t raw[FSCRYPT_MAX_IV_SIZE];
+
   struct {
     ceph_le64 block_num;
     uint8_t nonce[FSCRYPT_FILE_NONCE_SIZE];
@@ -130,27 +162,36 @@ public:
 
   virtual ~FSCryptPolicy() {}
 
-  bool is_supported_policy(fscrypt_policy_v2 policy) {
+  bool
+  is_supported_policy(fscrypt_policy_v2 policy)
+  {
     if (policy.version != 2) {
       return false;
     }
 
     if (policy.contents_encryption_mode != FSCRYPT_MODE_AES_256_XTS ||
-	policy.filenames_encryption_mode != FSCRYPT_MODE_AES_256_CTS) {
+        policy.filenames_encryption_mode != FSCRYPT_MODE_AES_256_CTS) {
       return false;
     }
 
     return true;
   }
-  void init(const struct fscrypt_policy_v2& policy) {
+
+  void
+  init(const struct fscrypt_policy_v2& policy)
+  {
     version = policy.version;
     contents_encryption_mode = policy.contents_encryption_mode;
     filenames_encryption_mode = policy.filenames_encryption_mode;
     flags = policy.flags;
-    memcpy(master_key_identifier.raw, policy.master_key_identifier, sizeof(master_key_identifier.raw));
+    memcpy(
+        master_key_identifier.raw, policy.master_key_identifier,
+        sizeof(master_key_identifier.raw));
   }
 
-  void decode(bufferlist::const_iterator& env_bl) {
+  void
+  decode(bufferlist::const_iterator& env_bl)
+  {
     uint32_t v;
 
     ceph::decode(v, env_bl);
@@ -173,9 +214,13 @@ public:
     decode_extra(bl);
   }
 
-  virtual void decode_extra(bufferlist::const_iterator& bl) {}
+  virtual void
+  decode_extra(bufferlist::const_iterator& bl)
+  {}
 
-  void encode(bufferlist& env_bl) const {
+  void
+  encode(bufferlist& env_bl) const
+  {
     uint32_t v = 1;
     ceph::encode(v, env_bl);
 
@@ -194,53 +239,70 @@ public:
     encode_extra(bl);
 
     ceph::encode(bl, env_bl);
-
   }
 
-  virtual void encode_extra(bufferlist& bl) const {}
+  virtual void
+  encode_extra(bufferlist& bl) const
+  {}
 
-  void standardize(struct fscrypt_policy_v2 src, struct fscrypt_policy_v2 *dest) {
+  void
+  standardize(struct fscrypt_policy_v2 src, struct fscrypt_policy_v2* dest)
+  {
     memset(dest, 0, sizeof(struct fscrypt_policy_v2));
 
     dest->version = src.version;
     dest->contents_encryption_mode = src.contents_encryption_mode;
     dest->filenames_encryption_mode = src.filenames_encryption_mode;
     dest->flags = src.flags;
-    memcpy(dest->master_key_identifier, src.master_key_identifier, sizeof(src.master_key_identifier));
+    memcpy(
+        dest->master_key_identifier, src.master_key_identifier,
+        sizeof(src.master_key_identifier));
   }
 
-  void convert_to(struct fscrypt_policy_v2 *dest) {
+  void
+  convert_to(struct fscrypt_policy_v2* dest)
+  {
     memset(dest, 0, sizeof(struct fscrypt_policy_v2));
 
     dest->version = version;
     dest->contents_encryption_mode = contents_encryption_mode;
     dest->filenames_encryption_mode = filenames_encryption_mode;
     dest->flags = flags;
-    memcpy(dest->master_key_identifier, master_key_identifier.raw, sizeof(master_key_identifier.raw));
+    memcpy(
+        dest->master_key_identifier, master_key_identifier.raw,
+        sizeof(master_key_identifier.raw));
   }
 
-  uint8_t get_filename_padding_bytes() const {
-      uint8_t padding_bits = flags & FSCRYPT_POLICY_FLAGS_PAD_MASK;
-      uint8_t padding_bytes = 4 << padding_bits;
-      return padding_bytes;
+  uint8_t
+  get_filename_padding_bytes() const
+  {
+    uint8_t padding_bits = flags & FSCRYPT_POLICY_FLAGS_PAD_MASK;
+    uint8_t padding_bytes = 4 << padding_bits;
+    return padding_bytes;
   }
 };
 
 using FSCryptPolicyRef = std::shared_ptr<FSCryptPolicy>;
 
 struct FSCryptContext : public FSCryptPolicy {
-  CephContext *cct;
+  CephContext* cct;
 
-  FSCryptContext(CephContext *_cct) : cct(_cct) {}
+  FSCryptContext(CephContext* _cct) :
+    cct(_cct)
+  {}
 
   uint8_t nonce[FSCRYPT_FILE_NONCE_SIZE];
 
-  void decode_extra(bufferlist::const_iterator& bl) override {
-    bl.copy(sizeof(nonce), (char *)nonce);
+  void
+  decode_extra(bufferlist::const_iterator& bl) override
+  {
+    bl.copy(sizeof(nonce), (char*)nonce);
   }
 
-  void encode_extra(bufferlist& bl) const override {
-    bl.append((char *)nonce, sizeof(nonce));
+  void
+  encode_extra(bufferlist& bl) const override
+  {
+    bl.append((char*)nonce, sizeof(nonce));
   }
 
   void generate_new_nonce();
@@ -251,7 +313,7 @@ using FSCryptContextRef = std::shared_ptr<FSCryptContext>;
 
 class FSCryptDenc {
 protected:
-  CephContext *cct;
+  CephContext* cct;
 
   FSCryptContextRef ctx;
   FSCryptKeyRef master_key;
@@ -262,53 +324,62 @@ protected:
   int key_size = 0;
   int iv_size = 0;
 
-  EVP_CIPHER *cipher;
-  EVP_CIPHER_CTX *cipher_ctx;
+  EVP_CIPHER* cipher;
+  EVP_CIPHER_CTX* cipher_ctx;
   std::vector<OSSL_PARAM> cipher_params;
 
-  int calc_key(char ctx_identifier,
-               int key_size,
-               uint64_t block_num);
+  int calc_key(char ctx_identifier, int key_size, uint64_t block_num);
 
   bool do_setup_cipher(int encryption_mode);
 
 public:
-  FSCryptDenc(CephContext *_cct);
+  FSCryptDenc(CephContext* _cct);
   virtual ~FSCryptDenc();
 
   virtual bool setup_cipher() = 0;
 
-  void init_cipher(EVP_CIPHER *cipher, std::vector<OSSL_PARAM> params);
-  bool setup(const FSCryptContextRef& _ctx,
-             FSCryptKeyRef& _master_key);
+  void init_cipher(EVP_CIPHER* cipher, std::vector<OSSL_PARAM> params);
+  bool setup(const FSCryptContextRef& _ctx, FSCryptKeyRef& _master_key);
 
-  int calc_fname_key() {
+  int
+  calc_fname_key()
+  {
     return calc_key(HKDF_CONTEXT_PER_FILE_ENC_KEY, key_size, 0);
   }
 
-  int calc_fdata_key(uint64_t block_num) {
+  int
+  calc_fdata_key(uint64_t block_num)
+  {
     return calc_key(HKDF_CONTEXT_PER_FILE_ENC_KEY, key_size, block_num);
   }
 
-  int decrypt(const char *in_data, int in_len,
-              char *out_data, int out_len);
-  int encrypt(const char *in_data, int in_len,
-              char *out_data, int out_len);
+  int decrypt(const char* in_data, int in_len, char* out_data, int out_len);
+  int encrypt(const char* in_data, int in_len, char* out_data, int out_len);
 };
 
 using FSCryptDencRef = std::shared_ptr<FSCryptDenc>;
 
 class FSCryptFNameDenc : public FSCryptDenc {
 public:
-  FSCryptFNameDenc(CephContext *_cct) : FSCryptDenc(_cct) {}
+  FSCryptFNameDenc(CephContext* _cct) :
+    FSCryptDenc(_cct)
+  {}
 
   bool setup_cipher() override;
 
-  int get_encrypted_fname(const std::string& plain, std::string *encrypted, std::string *alt_name, bool force_alt);
-  int get_decrypted_fname(const std::string& b64enc, const std::string& alt_name, std::string *decrypted);
+  int get_encrypted_fname(
+      const std::string& plain,
+      std::string* encrypted,
+      std::string* alt_name,
+      bool force_alt);
+  int get_decrypted_fname(
+      const std::string& b64enc,
+      const std::string& alt_name,
+      std::string* decrypted);
 
-  int get_encrypted_symlink(const std::string& plain, std::string *encrypted);
-  int get_decrypted_symlink(const std::string& b64enc, std::string *decrypted);
+  int get_encrypted_symlink(const std::string& plain, std::string* encrypted);
+  int get_decrypted_symlink(const std::string& b64enc, std::string* decrypted);
+
 private:
   int get_encrypted_name_length(const int& plain_size) const;
   int get_encrypted_symlink_length(const int& plain_size) const;
@@ -318,14 +389,21 @@ using FSCryptFNameDencRef = std::shared_ptr<FSCryptFNameDenc>;
 
 class FSCryptFDataDenc : public FSCryptDenc {
 public:
-  FSCryptFDataDenc(CephContext *_cct) : FSCryptDenc(_cct) {}
+  FSCryptFDataDenc(CephContext* _cct) :
+    FSCryptDenc(_cct)
+  {}
 
   using Segment = std::pair<uint64_t, uint64_t>;
 
   bool setup_cipher() override;
 
-  int decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const std::vector<Segment>& holes, bufferlist *bl);
-  int encrypt_bl(uint64_t off, uint64_t len, bufferlist& bl, bufferlist *encbl);
+  int decrypt_bl(
+      uint64_t off,
+      uint64_t len,
+      uint64_t pos,
+      const std::vector<Segment>& holes,
+      bufferlist* bl);
+  int encrypt_bl(uint64_t off, uint64_t len, bufferlist& bl, bufferlist* encbl);
 };
 
 using FSCryptFDataDencRef = std::shared_ptr<FSCryptFDataDenc>;
@@ -335,11 +413,15 @@ class FSCryptDecryptedInodes {
   int open_inodes;
 
 public:
-  void add_inode(ino_t inode) {
+  void
+  add_inode(ino_t inode)
+  {
     decrypted_inodes.emplace_back(inode);
   }
 
-  int del_inode(ino_t inode) {
+  int
+  del_inode(ino_t inode)
+  {
     if (decrypted_inodes.size() == 0)
       return 0;
     auto it = std::find(decrypted_inodes.begin(), decrypted_inodes.end(), inode);
@@ -347,7 +429,10 @@ public:
       decrypted_inodes.erase(it);
     return 0;
   }
-  std::list<ino_t> get_inodes() {
+
+  std::list<ino_t>
+  get_inodes()
+  {
     return decrypted_inodes;
   }
 };
@@ -359,15 +444,25 @@ class FSCryptKeyHandler {
   int64_t epoch = -1;
   FSCryptKeyRef key;
   std::list<int> users;
+
 public:
   FSCryptKeyHandler() {}
-  FSCryptKeyHandler(int64_t epoch, FSCryptKeyRef k) : epoch(epoch), key(k) {}
+
+  FSCryptKeyHandler(int64_t epoch, FSCryptKeyRef k) :
+    epoch(epoch), key(k)
+  {}
 
   void reset(int64_t epoch, FSCryptKeyRef k);
 
   int64_t get_epoch();
   FSCryptDecryptedInodesRef di;
-  std::list<int>& get_users() { return users; }
+
+  std::list<int>&
+  get_users()
+  {
+    return users;
+  }
+
   FSCryptKeyRef& get_key();
   FSCryptDecryptedInodesRef& get_di();
   bool present = false;
@@ -376,64 +471,86 @@ public:
 using FSCryptKeyHandlerRef = std::shared_ptr<FSCryptKeyHandler>;
 
 class FSCryptKeyStore {
-  CephContext *cct;
+  CephContext* cct;
 
   ceph::shared_mutex lock = ceph::make_shared_mutex("FSCryptKeyStore");
   int64_t epoch = 0;
   std::map<ceph_fscrypt_key_identifier, FSCryptKeyHandlerRef> m;
 
-  int _find(const struct ceph_fscrypt_key_identifier& id, FSCryptKeyHandlerRef& key);
+  int _find(
+      const struct ceph_fscrypt_key_identifier& id,
+      FSCryptKeyHandlerRef& key);
+
 public:
-  FSCryptKeyStore(CephContext *_cct) : cct(_cct) {}
+  FSCryptKeyStore(CephContext* _cct) :
+    cct(_cct)
+  {}
 
   bool valid_key_spec(const struct fscrypt_key_specifier& k);
   int master_key_spec_len(const struct fscrypt_key_specifier& spec);
   int maybe_add_user(std::list<int>* users, int user);
-  int maybe_remove_user(struct fscrypt_remove_key_arg* arg, std::list<int>* users, int user);
-  int create(const char *k, int klen, FSCryptKeyHandlerRef& key, int user);
-  int find(const struct ceph_fscrypt_key_identifier& id, FSCryptKeyHandlerRef& key);
+  int maybe_remove_user(
+      struct fscrypt_remove_key_arg* arg,
+      std::list<int>* users,
+      int user);
+  int create(const char* k, int klen, FSCryptKeyHandlerRef& key, int user);
+  int find(
+      const struct ceph_fscrypt_key_identifier& id,
+      FSCryptKeyHandlerRef& key);
   int invalidate(struct fscrypt_remove_key_arg* id, int user);
 };
 
 struct FSCryptKeyValidator {
-  CephContext *cct;
+  CephContext* cct;
   FSCryptKeyHandlerRef handler;
   int64_t epoch;
 
-  FSCryptKeyValidator(CephContext *cct, FSCryptKeyHandlerRef& kh, int64_t e);
+  FSCryptKeyValidator(CephContext* cct, FSCryptKeyHandlerRef& kh, int64_t e);
 
   bool is_valid() const;
 };
 
 using FSCryptKeyValidatorRef = std::shared_ptr<FSCryptKeyValidator>;
 
-
 class FSCrypt {
-  CephContext *cct;
+  CephContext* cct;
 
   FSCryptKeyStore key_store;
 
-  FSCryptDenc *init_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv,
-                         std::function<FSCryptDenc *()> gen_denc);
+  FSCryptDenc* init_denc(
+      const FSCryptContextRef& ctx,
+      FSCryptKeyValidatorRef* kv,
+      std::function<FSCryptDenc*()> gen_denc);
+
 public:
-  FSCrypt(CephContext *_cct) : cct(_cct), key_store(cct) {}
+  FSCrypt(CephContext* _cct) :
+    cct(_cct), key_store(cct)
+  {}
 
   FSCryptContextRef init_ctx(const std::vector<unsigned char>& fscrypt_auth);
 
-  FSCryptKeyStore& get_key_store() {
+  FSCryptKeyStore&
+  get_key_store()
+  {
     return key_store;
   }
 
-  FSCryptFNameDencRef get_fname_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv, bool calc_key);
-  FSCryptFDataDencRef get_fdata_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv);
+  FSCryptFNameDencRef get_fname_denc(
+      const FSCryptContextRef& ctx,
+      FSCryptKeyValidatorRef* kv,
+      bool calc_key);
+  FSCryptFDataDencRef get_fdata_denc(
+      const FSCryptContextRef& ctx,
+      FSCryptKeyValidatorRef* kv);
 
-  void prepare_data_read(const FSCryptContextRef& ctx,
-                         FSCryptKeyValidatorRef *kv,
-                         uint64_t off,
-                         uint64_t len,
-                         uint64_t file_raw_size,
-                         uint64_t *read_start,
-                         uint64_t *read_len,
-                         FSCryptFDataDencRef *denc);
+  void prepare_data_read(
+      const FSCryptContextRef& ctx,
+      FSCryptKeyValidatorRef* kv,
+      uint64_t off,
+      uint64_t len,
+      uint64_t file_raw_size,
+      uint64_t* read_start,
+      uint64_t* read_len,
+      FSCryptFDataDencRef* denc);
 };
 #endif

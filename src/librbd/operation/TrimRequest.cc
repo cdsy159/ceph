@@ -2,24 +2,25 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/TrimRequest.h"
-#include "librbd/AsyncObjectThrottle.h"
-#include "librbd/ExclusiveLock.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/internal.h"
-#include "librbd/ObjectMap.h"
-#include "librbd/Utils.h"
-#include "librbd/io/ObjectDispatchSpec.h"
-#include "librbd/io/ObjectDispatcherInterface.h"
-#include "common/ContextCompletion.h"
-#include "common/dout.h"
-#include "common/errno.h"
-#include "osdc/Striper.h"
+
+#include <shared_mutex> // for std::shared_lock
 
 #include <boost/lambda/bind.hpp>
 #include <boost/lambda/construct.hpp>
 #include <boost/scope_exit.hpp>
 
-#include <shared_mutex> // for std::shared_lock
+#include "common/ContextCompletion.h"
+#include "common/dout.h"
+#include "common/errno.h"
+#include "librbd/AsyncObjectThrottle.h"
+#include "librbd/ExclusiveLock.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/ObjectMap.h"
+#include "librbd/Utils.h"
+#include "librbd/internal.h"
+#include "librbd/io/ObjectDispatchSpec.h"
+#include "librbd/io/ObjectDispatcherInterface.h"
+#include "osdc/Striper.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -31,29 +32,36 @@ namespace operation {
 template <typename I>
 class C_CopyupObject : public C_AsyncObjectThrottle<I> {
 public:
-  C_CopyupObject(AsyncObjectThrottle<I> &throttle, I *image_ctx,
-                 IOContext io_context, uint64_t object_no)
-    : C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_io_context(io_context),
-      m_object_no(object_no)
-  {
-  }
+  C_CopyupObject(
+      AsyncObjectThrottle<I>& throttle,
+      I* image_ctx,
+      IOContext io_context,
+      uint64_t object_no) :
+    C_AsyncObjectThrottle<I>(throttle, *image_ctx),
+    m_io_context(io_context),
+    m_object_no(object_no)
+  {}
 
-  int send() override {
-    I &image_ctx = this->m_image_ctx;
+  int
+  send() override
+  {
+    I& image_ctx = this->m_image_ctx;
     ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
-    ceph_assert(image_ctx.exclusive_lock == nullptr ||
-                image_ctx.exclusive_lock->is_lock_owner());
+    ceph_assert(
+        image_ctx.exclusive_lock == nullptr ||
+        image_ctx.exclusive_lock->is_lock_owner());
 
     std::string oid = image_ctx.get_object_name(m_object_no);
     ldout(image_ctx.cct, 10) << "removing (with copyup) " << oid << dendl;
 
     auto object_dispatch_spec = io::ObjectDispatchSpec::create_discard(
-      &image_ctx, io::OBJECT_DISPATCH_LAYER_NONE, m_object_no, 0,
-      image_ctx.layout.object_size, m_io_context,
-      io::OBJECT_DISCARD_FLAG_DISABLE_OBJECT_MAP_UPDATE, 0, {}, this);
+        &image_ctx, io::OBJECT_DISPATCH_LAYER_NONE, m_object_no, 0,
+        image_ctx.layout.object_size, m_io_context,
+        io::OBJECT_DISCARD_FLAG_DISABLE_OBJECT_MAP_UPDATE, 0, {}, this);
     object_dispatch_spec->send();
     return 0;
   }
+
 private:
   IOContext m_io_context;
   uint64_t m_object_no;
@@ -62,17 +70,21 @@ private:
 template <typename I>
 class C_RemoveObject : public C_AsyncObjectThrottle<I> {
 public:
-  C_RemoveObject(AsyncObjectThrottle<I> &throttle, I *image_ctx,
-                 uint64_t object_no)
-    : C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_object_no(object_no)
-  {
-  }
+  C_RemoveObject(
+      AsyncObjectThrottle<I>& throttle,
+      I* image_ctx,
+      uint64_t object_no) :
+    C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_object_no(object_no)
+  {}
 
-  int send() override {
-    I &image_ctx = this->m_image_ctx;
+  int
+  send() override
+  {
+    I& image_ctx = this->m_image_ctx;
     ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
-    ceph_assert(image_ctx.exclusive_lock == nullptr ||
-                image_ctx.exclusive_lock->is_lock_owner());
+    ceph_assert(
+        image_ctx.exclusive_lock == nullptr ||
+        image_ctx.exclusive_lock->is_lock_owner());
 
     {
       std::shared_lock image_locker{image_ctx.image_lock};
@@ -85,8 +97,8 @@ public:
     std::string oid = image_ctx.get_object_name(m_object_no);
     ldout(image_ctx.cct, 10) << "removing " << oid << dendl;
 
-    librados::AioCompletion *rados_completion =
-      util::create_rados_callback(this);
+    librados::AioCompletion* rados_completion =
+        util::create_rados_callback(this);
     int r = image_ctx.data_ctx.aio_remove(oid, rados_completion);
     ceph_assert(r == 0);
     rados_completion->release();
@@ -98,11 +110,15 @@ private:
 };
 
 template <typename I>
-TrimRequest<I>::TrimRequest(I &image_ctx, Context *on_finish,
-                            uint64_t original_size, uint64_t new_size,
-                            ProgressContext &prog_ctx)
-  : AsyncRequest<I>(image_ctx, on_finish), m_new_size(new_size),
-    m_prog_ctx(prog_ctx)
+TrimRequest<I>::TrimRequest(
+    I& image_ctx,
+    Context* on_finish,
+    uint64_t original_size,
+    uint64_t new_size,
+    ProgressContext& prog_ctx) :
+  AsyncRequest<I>(image_ctx, on_finish),
+  m_new_size(new_size),
+  m_prog_ctx(prog_ctx)
 {
   uint64_t period = image_ctx.get_stripe_period();
   uint64_t new_num_periods = ((m_new_size + period - 1) / period);
@@ -112,19 +128,19 @@ TrimRequest<I>::TrimRequest(I &image_ctx, Context *on_finish,
   m_delete_start_min = m_delete_start;
   m_num_objects = Striper::get_num_objects(image_ctx.layout, original_size);
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 10) << this << " trim image " << original_size << " -> "
-		 << m_new_size << " periods " << new_num_periods
-                 << " discard to offset " << m_delete_off
-                 << " delete objects " << m_delete_start
-                 << " to " << m_num_objects << dendl;
+                 << m_new_size << " periods " << new_num_periods
+                 << " discard to offset " << m_delete_off << " delete objects "
+                 << m_delete_start << " to " << m_num_objects << dendl;
 }
 
 template <typename I>
-bool TrimRequest<I>::should_complete(int r)
+bool
+TrimRequest<I>::should_complete(int r)
 {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " should_complete: r=" << r << dendl;
   if (r == -ERESTART) {
     ldout(cct, 5) << "trim operation interrupted" << dendl;
@@ -174,9 +190,11 @@ bool TrimRequest<I>::should_complete(int r)
 }
 
 template <typename I>
-void TrimRequest<I>::send() {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+TrimRequest<I>::send()
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
 
   if (!image_ctx.data_ctx.is_valid()) {
     lderr(cct) << "missing data pool" << dendl;
@@ -187,9 +205,11 @@ void TrimRequest<I>::send() {
   send_pre_trim();
 }
 
-template<typename I>
-void TrimRequest<I>::send_pre_trim() {
-  I &image_ctx = this->m_image_ctx;
+template <typename I>
+void
+TrimRequest<I>::send_pre_trim()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
   if (m_delete_start >= m_num_objects) {
@@ -200,16 +220,17 @@ void TrimRequest<I>::send_pre_trim() {
   {
     std::shared_lock image_locker{image_ctx.image_lock};
     if (image_ctx.object_map != nullptr) {
-      ldout(image_ctx.cct, 5) << this << " send_pre_trim: "
-                              << " delete_start_min=" << m_delete_start_min
-                              << " num_objects=" << m_num_objects << dendl;
+      ldout(image_ctx.cct, 5)
+          << this
+          << " send_pre_trim: " << " delete_start_min=" << m_delete_start_min
+          << " num_objects=" << m_num_objects << dendl;
       m_state = STATE_PRE_TRIM;
 
       ceph_assert(image_ctx.exclusive_lock->is_lock_owner());
 
-      if (image_ctx.object_map->template aio_update<AsyncRequest<I> >(
-            CEPH_NOSNAP, m_delete_start_min, m_num_objects, OBJECT_PENDING,
-            OBJECT_EXISTS, {}, false, this)) {
+      if (image_ctx.object_map->template aio_update<AsyncRequest<I>>(
+              CEPH_NOSNAP, m_delete_start_min, m_num_objects, OBJECT_PENDING,
+              OBJECT_EXISTS, {}, false, this)) {
         return;
       }
     }
@@ -218,9 +239,11 @@ void TrimRequest<I>::send_pre_trim() {
   send_copyup_objects();
 }
 
-template<typename I>
-void TrimRequest<I>::send_copyup_objects() {
-  I &image_ctx = this->m_image_ctx;
+template <typename I>
+void
+TrimRequest<I>::send_copyup_objects()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
   IOContext io_context;
@@ -233,8 +256,7 @@ void TrimRequest<I>::send_copyup_objects() {
     has_snapshots = !image_ctx.snaps.empty();
 
     uint64_t crypto_header_objects = Striper::get_num_objects(
-        image_ctx.layout,
-        image_ctx.get_area_size(io::ImageArea::CRYPTO_HEADER));
+        image_ctx.layout, image_ctx.get_area_size(io::ImageArea::CRYPTO_HEADER));
 
     uint64_t raw_overlap;
     int r = image_ctx.get_parent_overlap(CEPH_NOSNAP, &raw_overlap);
@@ -264,56 +286,63 @@ void TrimRequest<I>::send_copyup_objects() {
                           << " end object=" << copyup_end << dendl;
   m_state = STATE_COPYUP_OBJECTS;
 
-  Context *ctx = this->create_callback_context();
+  Context* ctx = this->create_callback_context();
   typename AsyncObjectThrottle<I>::ContextFactory context_factory(
-    boost::lambda::bind(boost::lambda::new_ptr<C_CopyupObject<I> >(),
-      boost::lambda::_1, &image_ctx, io_context, boost::lambda::_2));
-  AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
-    this, image_ctx, context_factory, ctx, &m_prog_ctx, copyup_start,
-    copyup_end);
-  throttle->start_ops(
-    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
+      boost::lambda::bind(
+          boost::lambda::new_ptr<C_CopyupObject<I>>(), boost::lambda::_1,
+          &image_ctx, io_context, boost::lambda::_2));
+  AsyncObjectThrottle<I>* throttle = new AsyncObjectThrottle<I>(
+      this, image_ctx, context_factory, ctx, &m_prog_ctx, copyup_start,
+      copyup_end);
+  throttle->start_ops(image_ctx.config.template get_val<uint64_t>(
+      "rbd_concurrent_management_ops"));
 }
 
 template <typename I>
-void TrimRequest<I>::send_remove_objects() {
-  I &image_ctx = this->m_image_ctx;
+void
+TrimRequest<I>::send_remove_objects()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
   ldout(image_ctx.cct, 5) << this << " send_remove_objects: "
-			    << " delete_start=" << m_delete_start
-			    << " num_objects=" << m_num_objects << dendl;
+                          << " delete_start=" << m_delete_start
+                          << " num_objects=" << m_num_objects << dendl;
   m_state = STATE_REMOVE_OBJECTS;
 
-  Context *ctx = this->create_callback_context();
+  Context* ctx = this->create_callback_context();
   typename AsyncObjectThrottle<I>::ContextFactory context_factory(
-    boost::lambda::bind(boost::lambda::new_ptr<C_RemoveObject<I> >(),
-      boost::lambda::_1, &image_ctx, boost::lambda::_2));
-  AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
-    this, image_ctx, context_factory, ctx, &m_prog_ctx, m_delete_start,
-    m_num_objects);
-  throttle->start_ops(
-    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
+      boost::lambda::bind(
+          boost::lambda::new_ptr<C_RemoveObject<I>>(), boost::lambda::_1,
+          &image_ctx, boost::lambda::_2));
+  AsyncObjectThrottle<I>* throttle = new AsyncObjectThrottle<I>(
+      this, image_ctx, context_factory, ctx, &m_prog_ctx, m_delete_start,
+      m_num_objects);
+  throttle->start_ops(image_ctx.config.template get_val<uint64_t>(
+      "rbd_concurrent_management_ops"));
 }
 
-template<typename I>
-void TrimRequest<I>::send_post_trim() {
-  I &image_ctx = this->m_image_ctx;
+template <typename I>
+void
+TrimRequest<I>::send_post_trim()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
   {
     std::shared_lock image_locker{image_ctx.image_lock};
     if (image_ctx.object_map != nullptr) {
-      ldout(image_ctx.cct, 5) << this << " send_post_trim:"
-                              << " delete_start_min=" << m_delete_start_min
-                              << " num_objects=" << m_num_objects << dendl;
+      ldout(image_ctx.cct, 5)
+          << this
+          << " send_post_trim:" << " delete_start_min=" << m_delete_start_min
+          << " num_objects=" << m_num_objects << dendl;
       m_state = STATE_POST_TRIM;
 
       ceph_assert(image_ctx.exclusive_lock->is_lock_owner());
 
-      if (image_ctx.object_map->template aio_update<AsyncRequest<I> >(
-            CEPH_NOSNAP, m_delete_start_min, m_num_objects, OBJECT_NONEXISTENT,
-            OBJECT_PENDING, {}, false, this)) {
+      if (image_ctx.object_map->template aio_update<AsyncRequest<I>>(
+              CEPH_NOSNAP, m_delete_start_min, m_num_objects,
+              OBJECT_NONEXISTENT, OBJECT_PENDING, {}, false, this)) {
         return;
       }
     }
@@ -323,22 +352,24 @@ void TrimRequest<I>::send_post_trim() {
 }
 
 template <typename I>
-void TrimRequest<I>::send_clean_boundary() {
-  I &image_ctx = this->m_image_ctx;
+void
+TrimRequest<I>::send_clean_boundary()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   if (m_delete_off <= m_new_size) {
     send_finish(0);
     return;
   }
 
   // should have been canceled prior to releasing lock
-  ceph_assert(image_ctx.exclusive_lock == nullptr ||
-              image_ctx.exclusive_lock->is_lock_owner());
+  ceph_assert(
+      image_ctx.exclusive_lock == nullptr ||
+      image_ctx.exclusive_lock->is_lock_owner());
   uint64_t delete_len = m_delete_off - m_new_size;
-  ldout(image_ctx.cct, 5) << this << " send_clean_boundary: "
-			    << " delete_off=" << m_delete_off
-			    << " length=" << delete_len << dendl;
+  ldout(image_ctx.cct, 5) << this << " send_clean_boundary: " << " delete_off="
+                          << m_delete_off << " length=" << delete_len << dendl;
   m_state = STATE_CLEAN_BOUNDARY;
 
   IOContext io_context;
@@ -349,15 +380,15 @@ void TrimRequest<I>::send_clean_boundary() {
 
   // discard the weird boundary
   std::vector<ObjectExtent> extents;
-  Striper::file_to_extents(cct, image_ctx.format_string,
-			   &image_ctx.layout, m_new_size, delete_len, 0,
-                           extents);
+  Striper::file_to_extents(
+      cct, image_ctx.format_string, &image_ctx.layout, m_new_size, delete_len,
+      0, extents);
 
-  ContextCompletion *completion =
-    new ContextCompletion(this->create_async_callback_context(), true);
+  ContextCompletion* completion =
+      new ContextCompletion(this->create_async_callback_context(), true);
   for (auto& extent : extents) {
     ldout(cct, 20) << " ex " << extent << dendl;
-    Context *req_comp = new C_ContextCompletion(*completion);
+    Context* req_comp = new C_ContextCompletion(*completion);
 
     if (extent.offset == 0) {
       // treat as a full object delete on the boundary
@@ -365,15 +396,17 @@ void TrimRequest<I>::send_clean_boundary() {
     }
 
     auto object_dispatch_spec = io::ObjectDispatchSpec::create_discard(
-      &image_ctx, io::OBJECT_DISPATCH_LAYER_NONE, extent.objectno, extent.offset,
-      extent.length, io_context, 0, 0, {}, req_comp);
+        &image_ctx, io::OBJECT_DISPATCH_LAYER_NONE, extent.objectno,
+        extent.offset, extent.length, io_context, 0, 0, {}, req_comp);
     object_dispatch_spec->send();
   }
   completion->finish_adding_requests();
 }
 
 template <typename I>
-void TrimRequest<I>::send_finish(int r) {
+void
+TrimRequest<I>::send_finish(int r)
+{
   m_state = STATE_FINISHED;
   this->async_complete(r);
 }

@@ -2,20 +2,21 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/io/Utils.h"
-#include "common/dout.h"
-#include "include/buffer.h"
-#include "include/rados/librados.hpp"
-#include "include/neorados/RADOS.hpp"
-#include "librbd/internal.h"
-#include "librbd/Utils.h"
-#include "librbd/io/AioCompletion.h"
-#include "librbd/io/ImageDispatchSpec.h"
-#include "librbd/io/ObjectRequest.h"
-#include "librbd/io/ImageDispatcherInterface.h"
-#include "osd/osd_types.h"
-#include "osdc/Striper.h"
 
 #include <shared_mutex> // for std::shared_lock
+
+#include "common/dout.h"
+#include "include/buffer.h"
+#include "include/neorados/RADOS.hpp"
+#include "include/rados/librados.hpp"
+#include "librbd/Utils.h"
+#include "librbd/internal.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/ImageDispatchSpec.h"
+#include "librbd/io/ImageDispatcherInterface.h"
+#include "librbd/io/ObjectRequest.h"
+#include "osd/osd_types.h"
+#include "osdc/Striper.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -25,7 +26,9 @@ namespace librbd {
 namespace io {
 namespace util {
 
-void apply_op_flags(uint32_t op_flags, uint32_t flags, neorados::Op* op) {
+void
+apply_op_flags(uint32_t op_flags, uint32_t flags, neorados::Op* op)
+{
   if (op_flags & LIBRADOS_OP_FLAG_FADVISE_RANDOM)
     op->set_fadvise_random();
   if (op_flags & LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL)
@@ -43,9 +46,13 @@ void apply_op_flags(uint32_t op_flags, uint32_t flags, neorados::Op* op) {
     op->localize_reads();
 }
 
-bool assemble_write_same_extent(
-    const LightweightObjectExtent &object_extent, const ceph::bufferlist& data,
-    ceph::bufferlist *ws_data, bool force_write) {
+bool
+assemble_write_same_extent(
+    const LightweightObjectExtent& object_extent,
+    const ceph::bufferlist& data,
+    ceph::bufferlist* ws_data,
+    bool force_write)
+{
   size_t data_len = data.length();
 
   if (!force_write) {
@@ -73,8 +80,8 @@ bool assemble_write_same_extent(
       ws_data->claim_append(sub_bl);
       extent_left -= sub_len;
       if (sub_off) {
-	sub_off = 0;
-	sub_len = data_len;
+        sub_off = 0;
+        sub_len = data_len;
       }
     }
     if (extent_left) {
@@ -86,9 +93,15 @@ bool assemble_write_same_extent(
 }
 
 template <typename I>
-void read_parent(I *image_ctx, uint64_t object_no, ReadExtents* read_extents,
-                 librados::snap_t snap_id, const ZTracer::Trace &trace,
-                 Context* on_finish) {
+void
+read_parent(
+    I* image_ctx,
+    uint64_t object_no,
+    ReadExtents* read_extents,
+    librados::snap_t snap_id,
+    const ZTracer::Trace& trace,
+    Context* on_finish)
+{
 
   auto cct = image_ctx->cct;
 
@@ -105,10 +118,10 @@ void read_parent(I *image_ctx, uint64_t object_no, ReadExtents* read_extents,
     for (const auto& extent : *read_extents) {
       extents.emplace_back(extent.offset, extent.length);
     }
-    std::tie(parent_extents, area) = object_to_area_extents(image_ctx,
-                                                            object_no, extents);
-    object_overlap = image_ctx->prune_parent_extents(parent_extents, area,
-                                                     raw_overlap, false);
+    std::tie(parent_extents, area) =
+        object_to_area_extents(image_ctx, object_no, extents);
+    object_overlap = image_ctx->prune_parent_extents(
+        parent_extents, area, raw_overlap, false);
   }
   if (object_overlap == 0) {
     image_locker.unlock();
@@ -119,25 +132,28 @@ void read_parent(I *image_ctx, uint64_t object_no, ReadExtents* read_extents,
 
   ldout(cct, 20) << dendl;
 
-  auto comp = AioCompletion::create_and_start(on_finish, image_ctx->parent,
-                                              AIO_TYPE_READ);
+  auto comp = AioCompletion::create_and_start(
+      on_finish, image_ctx->parent, AIO_TYPE_READ);
   ldout(cct, 20) << "completion=" << comp
-                 << " parent_extents=" << parent_extents
-                 << " area=" << area << dendl;
+                 << " parent_extents=" << parent_extents << " area=" << area
+                 << dendl;
   auto req = io::ImageDispatchSpec::create_read(
-    *image_ctx->parent, io::IMAGE_DISPATCH_LAYER_INTERNAL_START, comp,
-    std::move(parent_extents), area, ReadResult{read_extents},
-    image_ctx->parent->get_data_io_context(), 0, 0, trace);
+      *image_ctx->parent, io::IMAGE_DISPATCH_LAYER_INTERNAL_START, comp,
+      std::move(parent_extents), area, ReadResult{read_extents},
+      image_ctx->parent->get_data_io_context(), 0, 0, trace);
   req->send();
 }
 
 template <typename I>
-int clip_request(I* image_ctx, Extents* image_extents, ImageArea area) {
+int
+clip_request(I* image_ctx, Extents* image_extents, ImageArea area)
+{
   std::shared_lock image_locker{image_ctx->image_lock};
-  for (auto &image_extent : *image_extents) {
+  for (auto& image_extent : *image_extents) {
     auto clip_len = image_extent.second;
-    int r = clip_io(librbd::util::get_image_ctx(image_ctx),
-                    image_extent.first, &clip_len, area);
+    int r = clip_io(
+        librbd::util::get_image_ctx(image_ctx), image_extent.first, &clip_len,
+        area);
     if (r < 0) {
       return r;
     }
@@ -147,7 +163,9 @@ int clip_request(I* image_ctx, Extents* image_extents, ImageArea area) {
   return 0;
 }
 
-void prune_extents(Extents& extents, uint64_t size) {
+void
+prune_extents(Extents& extents, uint64_t size)
+{
   // drop extents completely beyond size
   while (!extents.empty() && extents.back().first >= size) {
     extents.pop_back();
@@ -162,25 +180,35 @@ void prune_extents(Extents& extents, uint64_t size) {
   }
 }
 
-void unsparsify(CephContext* cct, ceph::bufferlist* bl,
-                const Extents& extent_map, uint64_t bl_off,
-                uint64_t out_bl_len) {
+void
+unsparsify(
+    CephContext* cct,
+    ceph::bufferlist* bl,
+    const Extents& extent_map,
+    uint64_t bl_off,
+    uint64_t out_bl_len)
+{
   Striper::StripedReadResult destriper;
   bufferlist out_bl;
 
-  destriper.add_partial_sparse_result(cct, std::move(*bl), extent_map, bl_off,
-                                      {{0, out_bl_len}});
+  destriper.add_partial_sparse_result(
+      cct, std::move(*bl), extent_map, bl_off, {{0, out_bl_len}});
   destriper.assemble_result(cct, out_bl, true);
   *bl = out_bl;
 }
 
 template <typename I>
-bool trigger_copyup(I* image_ctx, uint64_t object_no, IOContext io_context,
-                    Context* on_finish) {
+bool
+trigger_copyup(
+    I* image_ctx,
+    uint64_t object_no,
+    IOContext io_context,
+    Context* on_finish)
+{
   bufferlist bl;
   auto req = new ObjectWriteRequest<I>(
-          image_ctx, object_no, 0, std::move(bl), io_context, 0, 0,
-          std::nullopt, {}, on_finish);
+      image_ctx, object_no, 0, std::move(bl), io_context, 0, 0, std::nullopt,
+      {}, on_finish);
   if (!req->has_parent()) {
     delete req;
     return false;
@@ -191,21 +219,32 @@ bool trigger_copyup(I* image_ctx, uint64_t object_no, IOContext io_context,
 }
 
 template <typename I>
-void area_to_object_extents(I* image_ctx, uint64_t offset, uint64_t length,
-                            ImageArea area, uint64_t buffer_offset,
-                            striper::LightweightObjectExtents* object_extents) {
+void
+area_to_object_extents(
+    I* image_ctx,
+    uint64_t offset,
+    uint64_t length,
+    ImageArea area,
+    uint64_t buffer_offset,
+    striper::LightweightObjectExtents* object_extents)
+{
   offset = area_to_raw_offset(*image_ctx, offset, area);
-  Striper::file_to_extents(image_ctx->cct, &image_ctx->layout, offset, length,
-                           0, buffer_offset, object_extents);
+  Striper::file_to_extents(
+      image_ctx->cct, &image_ctx->layout, offset, length, 0, buffer_offset,
+      object_extents);
 }
 
 template <typename I>
-std::pair<Extents, ImageArea> object_to_area_extents(
-    I* image_ctx, uint64_t object_no, const Extents& object_extents) {
+std::pair<Extents, ImageArea>
+object_to_area_extents(
+    I* image_ctx,
+    uint64_t object_no,
+    const Extents& object_extents)
+{
   Extents extents;
   for (auto [off, len] : object_extents) {
-    Striper::extent_to_file(image_ctx->cct, &image_ctx->layout, object_no, off,
-                            len, extents);
+    Striper::extent_to_file(
+        image_ctx->cct, &image_ctx->layout, object_no, off, len, extents);
   }
 
   auto area = ImageArea::DATA;
@@ -229,8 +268,9 @@ std::pair<Extents, ImageArea> object_to_area_extents(
 }
 
 template <typename I>
-uint64_t area_to_raw_offset(const I& image_ctx, uint64_t offset,
-                            ImageArea area) {
+uint64_t
+area_to_raw_offset(const I& image_ctx, uint64_t offset, ImageArea area)
+{
   switch (area) {
   case ImageArea::DATA:
     return offset + image_ctx.get_data_offset();
@@ -244,8 +284,9 @@ uint64_t area_to_raw_offset(const I& image_ctx, uint64_t offset,
 }
 
 template <typename I>
-std::pair<uint64_t, ImageArea> raw_to_area_offset(const I& image_ctx,
-                                                  uint64_t offset) {
+std::pair<uint64_t, ImageArea>
+raw_to_area_offset(const I& image_ctx, uint64_t offset)
+{
   uint64_t data_offset = image_ctx.get_data_offset();
   if (offset >= data_offset) {
     return {offset - data_offset, ImageArea::DATA};
@@ -258,22 +299,36 @@ std::pair<uint64_t, ImageArea> raw_to_area_offset(const I& image_ctx,
 } // namespace librbd
 
 template void librbd::io::util::read_parent(
-    librbd::ImageCtx *image_ctx, uint64_t object_no, ReadExtents* extents,
-    librados::snap_t snap_id, const ZTracer::Trace &trace, Context* on_finish);
+    librbd::ImageCtx* image_ctx,
+    uint64_t object_no,
+    ReadExtents* extents,
+    librados::snap_t snap_id,
+    const ZTracer::Trace& trace,
+    Context* on_finish);
 template int librbd::io::util::clip_request(
-    librbd::ImageCtx* image_ctx, Extents* image_extents, ImageArea area);
+    librbd::ImageCtx* image_ctx,
+    Extents* image_extents,
+    ImageArea area);
 template bool librbd::io::util::trigger_copyup(
-        librbd::ImageCtx *image_ctx, uint64_t object_no, IOContext io_context,
-        Context* on_finish);
+    librbd::ImageCtx* image_ctx,
+    uint64_t object_no,
+    IOContext io_context,
+    Context* on_finish);
 template void librbd::io::util::area_to_object_extents(
-    librbd::ImageCtx* image_ctx, uint64_t offset, uint64_t length,
-    ImageArea area, uint64_t buffer_offset,
+    librbd::ImageCtx* image_ctx,
+    uint64_t offset,
+    uint64_t length,
+    ImageArea area,
+    uint64_t buffer_offset,
     striper::LightweightObjectExtents* object_extents);
 template auto librbd::io::util::object_to_area_extents(
-    librbd::ImageCtx* image_ctx, uint64_t object_no, const Extents& extents)
-    -> std::pair<Extents, ImageArea>;
+    librbd::ImageCtx* image_ctx,
+    uint64_t object_no,
+    const Extents& extents) -> std::pair<Extents, ImageArea>;
 template uint64_t librbd::io::util::area_to_raw_offset(
-    const librbd::ImageCtx& image_ctx, uint64_t offset, ImageArea area);
+    const librbd::ImageCtx& image_ctx,
+    uint64_t offset,
+    ImageArea area);
 template auto librbd::io::util::raw_to_area_offset(
-    const librbd::ImageCtx& image_ctx, uint64_t offset)
-    -> std::pair<uint64_t, ImageArea>;
+    const librbd::ImageCtx& image_ctx,
+    uint64_t offset) -> std::pair<uint64_t, ImageArea>;

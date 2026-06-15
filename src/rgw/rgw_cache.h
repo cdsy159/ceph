@@ -3,16 +3,17 @@
 
 #pragma once
 
+#include <map>
 #include <shared_mutex> // for std::shared_lock
 #include <string>
-#include <map>
 #include <unordered_map>
-#include "include/types.h"
-#include "include/utime.h"
-#include "include/ceph_assert.h"
-#include "common/ceph_mutex.h"
 
 #include "cls/version/cls_version_types.h"
+#include "common/ceph_mutex.h"
+#include "include/ceph_assert.h"
+#include "include/types.h"
+#include "include/utime.h"
+
 #include "rgw_common.h"
 
 enum {
@@ -20,31 +21,39 @@ enum {
   INVALIDATE_OBJ,
 };
 
-#define CACHE_FLAG_DATA           0x01
-#define CACHE_FLAG_XATTRS         0x02
-#define CACHE_FLAG_META           0x04
-#define CACHE_FLAG_MODIFY_XATTRS  0x08
-#define CACHE_FLAG_OBJV           0x10
+#define CACHE_FLAG_DATA 0x01
+#define CACHE_FLAG_XATTRS 0x02
+#define CACHE_FLAG_META 0x04
+#define CACHE_FLAG_MODIFY_XATTRS 0x08
+#define CACHE_FLAG_OBJV 0x10
 
 struct ObjectMetaInfo {
   uint64_t size;
   real_time mtime;
 
-  ObjectMetaInfo() : size(0) {}
+  ObjectMetaInfo() :
+    size(0)
+  {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 2, bl);
     encode(size, bl);
     encode(mtime, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
     decode(size, bl);
     decode(mtime, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<ObjectMetaInfo> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(ObjectMetaInfo)
@@ -62,7 +71,9 @@ struct ObjectCacheInfo {
 
   ObjectCacheInfo() = default;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(5, 3, bl);
     encode(status, bl);
     encode(flags, bl);
@@ -74,7 +85,10 @@ struct ObjectCacheInfo {
     encode(version, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(5, 3, 3, bl);
     decode(status, bl);
     decode(flags, bl);
@@ -89,7 +103,8 @@ struct ObjectCacheInfo {
       decode(version, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<ObjectCacheInfo> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(ObjectCacheInfo)
@@ -101,9 +116,13 @@ struct RGWCacheNotifyInfo {
   off_t ofs;
   std::string ns;
 
-  RGWCacheNotifyInfo() : op(0), ofs(0) {}
+  RGWCacheNotifyInfo() :
+    op(0), ofs(0)
+  {}
 
-  void encode(bufferlist& obl) const {
+  void
+  encode(bufferlist& obl) const
+  {
     ENCODE_START(2, 2, obl);
     encode(op, obl);
     encode(obj, obl);
@@ -112,7 +131,10 @@ struct RGWCacheNotifyInfo {
     encode(ns, obl);
     ENCODE_FINISH(obl);
   }
-  void decode(bufferlist::const_iterator& ibl) {
+
+  void
+  decode(bufferlist::const_iterator& ibl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, ibl);
     decode(op, ibl);
     decode(obj, ibl);
@@ -121,42 +143,52 @@ struct RGWCacheNotifyInfo {
     decode(ns, ibl);
     DECODE_FINISH(ibl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<RGWCacheNotifyInfo> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWCacheNotifyInfo)
-inline std::ostream& operator <<(std::ostream& m, const RGWCacheNotifyInfo& cni) {
-  return m << "[op: " << cni.op << ", obj: " << cni.obj
-	   << ", ofs" << cni.ofs << ", ns" << cni.ns << "]";
-}
 
+inline std::ostream&
+operator<<(std::ostream& m, const RGWCacheNotifyInfo& cni)
+{
+  return m << "[op: " << cni.op << ", obj: " << cni.obj << ", ofs" << cni.ofs
+           << ", ns" << cni.ns << "]";
+}
 
 class RGWChainedCache {
 public:
   virtual ~RGWChainedCache() {}
-  virtual void chain_cb(const std::string& key, void *data) = 0;
+
+  virtual void chain_cb(const std::string& key, void* data) = 0;
   virtual void invalidate(const std::string& key) = 0;
   virtual void invalidate_all() = 0;
-  virtual void unregistered() {}
+
+  virtual void
+  unregistered()
+  {}
 
   struct Entry {
-    RGWChainedCache *cache;
+    RGWChainedCache* cache;
     const std::string& key;
-    void *data;
+    void* data;
 
-    Entry(RGWChainedCache *_c, const std::string& _k, void *_d) : cache(_c), key(_k), data(_d) {}
+    Entry(RGWChainedCache* _c, const std::string& _k, void* _d) :
+      cache(_c), key(_k), data(_d)
+    {}
   };
 };
-
 
 struct ObjectCacheEntry {
   ObjectCacheInfo info;
   std::list<std::string>::iterator lru_iter;
   uint64_t lru_promotion_ts;
   uint64_t gen;
-  std::vector<std::pair<RGWChainedCache *, std::string> > chained_entries;
+  std::vector<std::pair<RGWChainedCache*, std::string>> chained_entries;
 
-  ObjectCacheEntry() : lru_promotion_ts(0), gen(0) {}
+  ObjectCacheEntry() :
+    lru_promotion_ts(0), gen(0)
+  {}
 };
 
 class ObjectCache {
@@ -166,35 +198,53 @@ class ObjectCache {
   unsigned long lru_counter;
   unsigned long lru_window;
   ceph::shared_mutex lock = ceph::make_shared_mutex("ObjectCache");
-  CephContext *cct;
+  CephContext* cct;
 
-  std::vector<RGWChainedCache *> chained_cache;
+  std::vector<RGWChainedCache*> chained_cache;
 
   bool enabled;
   ceph::timespan expiry;
 
-  void touch_lru(const DoutPrefixProvider *dpp, const std::string& name, ObjectCacheEntry& entry,
-		 std::list<std::string>::iterator& lru_iter);
-  void remove_lru(const std::string& name, std::list<std::string>::iterator& lru_iter);
+  void touch_lru(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      ObjectCacheEntry& entry,
+      std::list<std::string>::iterator& lru_iter);
+  void remove_lru(
+      const std::string& name,
+      std::list<std::string>::iterator& lru_iter);
   void invalidate_lru(ObjectCacheEntry& entry);
 
   void do_invalidate_all();
 
 public:
-  ObjectCache() : lru_size(0), lru_counter(0), lru_window(0), cct(NULL), enabled(false) { }
+  ObjectCache() :
+    lru_size(0), lru_counter(0), lru_window(0), cct(NULL), enabled(false)
+  {}
+
   ~ObjectCache();
-  int get(const DoutPrefixProvider *dpp, const std::string& name, ObjectCacheInfo& bl, uint32_t mask, rgw_cache_entry_info *cache_info);
-  std::optional<ObjectCacheInfo> get(const DoutPrefixProvider *dpp, const std::string& name) {
+  int get(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      ObjectCacheInfo& bl,
+      uint32_t mask,
+      rgw_cache_entry_info* cache_info);
+
+  std::optional<ObjectCacheInfo>
+  get(const DoutPrefixProvider* dpp, const std::string& name)
+  {
     std::optional<ObjectCacheInfo> info{std::in_place};
     auto r = get(dpp, name, *info, 0, nullptr);
     return r < 0 ? std::nullopt : info;
   }
 
-  template<typename F>
-  void for_each(const F& f) {
+  template <typename F>
+  void
+  for_each(const F& f)
+  {
     std::shared_lock l{lock};
     if (enabled) {
-      auto now  = ceph::coarse_mono_clock::now();
+      auto now = ceph::coarse_mono_clock::now();
       for (const auto& [name, entry] : cache_map) {
         if (expiry.count() && (now - entry.info.time_added) < expiry) {
           f(name, entry);
@@ -203,21 +253,30 @@ public:
     }
   }
 
-  void put(const DoutPrefixProvider *dpp, const std::string& name, ObjectCacheInfo& bl, rgw_cache_entry_info *cache_info);
-  bool invalidate_remove(const DoutPrefixProvider *dpp, const std::string& name);
-  void set_ctx(CephContext *_cct) {
+  void put(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      ObjectCacheInfo& bl,
+      rgw_cache_entry_info* cache_info);
+  bool invalidate_remove(const DoutPrefixProvider* dpp, const std::string& name);
+
+  void
+  set_ctx(CephContext* _cct)
+  {
     cct = _cct;
     lru_window = cct->_conf->rgw_cache_lru_size / 2;
-    expiry = std::chrono::seconds(cct->_conf.get_val<uint64_t>(
-						"rgw_cache_expiry_interval"));
+    expiry = std::chrono::seconds(
+        cct->_conf.get_val<uint64_t>("rgw_cache_expiry_interval"));
   }
-  bool chain_cache_entry(const DoutPrefixProvider *dpp,
-                         std::initializer_list<rgw_cache_entry_info*> cache_info_entries,
-			 RGWChainedCache::Entry *chained_entry);
+
+  bool chain_cache_entry(
+      const DoutPrefixProvider* dpp,
+      std::initializer_list<rgw_cache_entry_info*> cache_info_entries,
+      RGWChainedCache::Entry* chained_entry);
 
   void set_enabled(bool status);
 
-  void chain_cache(RGWChainedCache *cache);
-  void unchain_cache(RGWChainedCache *cache);
+  void chain_cache(RGWChainedCache* cache);
+  void unchain_cache(RGWChainedCache* cache);
   void invalidate_all();
 };

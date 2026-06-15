@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -25,49 +25,75 @@ class MDentryUnlink final : public MMDSOp {
 private:
   static constexpr int HEAD_VERSION = 1;
   static constexpr int COMPAT_VERSION = 1;
-  
+
   dirfrag_t dirfrag;
   std::string dn;
 
- public:
-  dirfrag_t get_dirfrag() const { return dirfrag; }
-  const std::string& get_dn() const { return dn; }
+public:
+  dirfrag_t
+  get_dirfrag() const
+  {
+    return dirfrag;
+  }
+
+  const std::string&
+  get_dn() const
+  {
+    return dn;
+  }
 
   ceph::buffer::list straybl;
   ceph::buffer::list snapbl;
 
 protected:
   MDentryUnlink() :
-    MMDSOp(MSG_MDS_DENTRYUNLINK, HEAD_VERSION, COMPAT_VERSION) { }
+    MMDSOp(MSG_MDS_DENTRYUNLINK, HEAD_VERSION, COMPAT_VERSION)
+  {}
+
   MDentryUnlink(dirfrag_t df, std::string_view n) :
     MMDSOp(MSG_MDS_DENTRYUNLINK, HEAD_VERSION, COMPAT_VERSION),
     dirfrag(df),
-    dn(n) {}
+    dn(n)
+  {}
+
   ~MDentryUnlink() final {}
 
 public:
-  std::string_view get_type_name() const override { return "dentry_unlink";}
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "dentry_unlink";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "dentry_unlink(" << dirfrag << " " << dn << ")";
   }
-  
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dirfrag, p);
     decode(dn, p);
     decode(straybl, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dirfrag, payload);
     encode(dn, payload);
     encode(straybl, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

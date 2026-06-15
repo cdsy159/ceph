@@ -2,16 +2,18 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/ImageStateUpdateRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/MirroringWatcher.h"
 #include "librbd/Utils.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::ImageStateUpdateRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                    \
+  *_dout << "librbd::mirror::ImageStateUpdateRequest: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -24,20 +26,28 @@ ImageStateUpdateRequest<I>::ImageStateUpdateRequest(
     const std::string& image_id,
     cls::rbd::MirrorImageState mirror_image_state,
     const cls::rbd::MirrorImage& mirror_image,
-    Context* on_finish)
-  : m_io_ctx(io_ctx), m_image_id(image_id),
-    m_mirror_image_state(mirror_image_state), m_mirror_image(mirror_image),
-    m_on_finish(on_finish), m_cct(static_cast<CephContext*>(m_io_ctx.cct())) {
+    Context* on_finish) :
+  m_io_ctx(io_ctx),
+  m_image_id(image_id),
+  m_mirror_image_state(mirror_image_state),
+  m_mirror_image(mirror_image),
+  m_on_finish(on_finish),
+  m_cct(static_cast<CephContext*>(m_io_ctx.cct()))
+{
   ceph_assert(m_mirror_image_state != cls::rbd::MIRROR_IMAGE_STATE_DISABLED);
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::send() {
+void
+ImageStateUpdateRequest<I>::send()
+{
   get_mirror_image();
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::get_mirror_image() {
+void
+ImageStateUpdateRequest<I>::get_mirror_image()
+{
   if (!m_mirror_image.global_image_id.empty()) {
     set_mirror_image();
     return;
@@ -48,15 +58,17 @@ void ImageStateUpdateRequest<I>::get_mirror_image() {
   cls_client::mirror_image_get_start(&op, m_image_id);
 
   auto comp = create_rados_callback<
-    ImageStateUpdateRequest<I>,
-    &ImageStateUpdateRequest<I>::handle_get_mirror_image>(this);
+      ImageStateUpdateRequest<I>,
+      &ImageStateUpdateRequest<I>::handle_get_mirror_image>(this);
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::handle_get_mirror_image(int r) {
+void
+ImageStateUpdateRequest<I>::handle_get_mirror_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r == 0) {
@@ -79,7 +91,9 @@ void ImageStateUpdateRequest<I>::handle_get_mirror_image(int r) {
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::set_mirror_image() {
+void
+ImageStateUpdateRequest<I>::set_mirror_image()
+{
   if (m_mirror_image.state == m_mirror_image_state) {
     finish(0);
     return;
@@ -92,15 +106,17 @@ void ImageStateUpdateRequest<I>::set_mirror_image() {
   cls_client::mirror_image_set(&op, m_image_id, m_mirror_image);
 
   auto comp = create_rados_callback<
-    ImageStateUpdateRequest<I>,
-    &ImageStateUpdateRequest<I>::handle_set_mirror_image>(this);
+      ImageStateUpdateRequest<I>,
+      &ImageStateUpdateRequest<I>::handle_set_mirror_image>(this);
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, comp, &op);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::handle_set_mirror_image(int r) {
+void
+ImageStateUpdateRequest<I>::handle_set_mirror_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -114,19 +130,23 @@ void ImageStateUpdateRequest<I>::handle_set_mirror_image(int r) {
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::notify_mirroring_watcher() {
+void
+ImageStateUpdateRequest<I>::notify_mirroring_watcher()
+{
   ldout(m_cct, 10) << dendl;
 
   auto ctx = util::create_context_callback<
-    ImageStateUpdateRequest<I>,
-    &ImageStateUpdateRequest<I>::handle_notify_mirroring_watcher>(this);
+      ImageStateUpdateRequest<I>,
+      &ImageStateUpdateRequest<I>::handle_notify_mirroring_watcher>(this);
   MirroringWatcher<I>::notify_image_updated(
-    m_io_ctx, m_mirror_image_state, m_image_id, m_mirror_image.global_image_id,
-    ctx);
+      m_io_ctx, m_mirror_image_state, m_image_id,
+      m_mirror_image.global_image_id, ctx);
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::handle_notify_mirroring_watcher(int r) {
+void
+ImageStateUpdateRequest<I>::handle_notify_mirroring_watcher(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -138,7 +158,9 @@ void ImageStateUpdateRequest<I>::handle_notify_mirroring_watcher(int r) {
 }
 
 template <typename I>
-void ImageStateUpdateRequest<I>::finish(int r) {
+void
+ImageStateUpdateRequest<I>::finish(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include <seastar/core/future-util.hh>
+
 #include <exception>
 #include <system_error>
-
-#include <seastar/core/future-util.hh>
 
 #include "crimson/common/utility.h"
 #include "include/ceph_assert.h"
@@ -21,7 +21,7 @@ class parallel_for_each_state;
 template <typename, typename>
 class interruptible_future_detail;
 
-}
+} // namespace crimson::interruptible
 
 namespace crimson {
 
@@ -34,12 +34,19 @@ class do_for_each_state final : public seastar::continuation_base<> {
   seastar::promise<> _pr;
 
 public:
-  do_for_each_state(Iterator begin, Iterator end, AsyncAction action,
-      FutureT&& first_unavailable)
-    : _begin(std::move(begin)), _end(std::move(end)), _action(std::move(action)) {
-      seastar::internal::set_callback(std::move(first_unavailable), this);
+  do_for_each_state(
+      Iterator begin,
+      Iterator end,
+      AsyncAction action,
+      FutureT&& first_unavailable) :
+    _begin(std::move(begin)), _end(std::move(end)), _action(std::move(action))
+  {
+    seastar::internal::set_callback(std::move(first_unavailable), this);
   }
-  virtual void run_and_dispose() noexcept override {
+
+  virtual void
+  run_and_dispose() noexcept override
+  {
     std::unique_ptr<do_for_each_state> zis(this);
     if (_state.failed()) {
       _pr.set_urgent_state(std::move(_state));
@@ -54,24 +61,35 @@ public:
       }
       if (!f.available() || seastar::need_preempt()) {
         _state = {};
-	seastar::internal::set_callback(std::move(f), this);
+        seastar::internal::set_callback(std::move(f), this);
         zis.release();
         return;
       }
     }
     _pr.set_value();
   }
-  task* waiting_task() noexcept override {
+
+  task*
+  waiting_task() noexcept override
+  {
     return _pr.waiting_task();
   }
-  FutureT get_future() {
+
+  FutureT
+  get_future()
+  {
     return _pr.get_future();
   }
 };
 
-template<typename Iterator, typename AsyncAction,
-  typename FutureT = std::invoke_result_t<AsyncAction, typename Iterator::reference>>
-inline FutureT do_for_each_impl(Iterator begin, Iterator end, AsyncAction action) {
+template <
+    typename Iterator,
+    typename AsyncAction,
+    typename FutureT =
+        std::invoke_result_t<AsyncAction, typename Iterator::reference>>
+inline FutureT
+do_for_each_impl(Iterator begin, Iterator end, AsyncAction action)
+{
   while (begin != end) {
     auto f = seastar::futurize_invoke(action, *begin);
     ++begin;
@@ -81,47 +99,49 @@ inline FutureT do_for_each_impl(Iterator begin, Iterator end, AsyncAction action
     if (!f.available() || seastar::need_preempt()) {
       // s will be freed by run_and_dispose()
       auto* s = new crimson::do_for_each_state<Iterator, AsyncAction, FutureT>{
-        std::move(begin), std::move(end), std::move(action), std::move(f)};
-        return s->get_future();
+          std::move(begin), std::move(end), std::move(action), std::move(f)};
+      return s->get_future();
     }
   }
   return seastar::make_ready_future<>();
 }
 
-template<typename Iterator, typename AsyncAction>
-inline auto do_for_each(Iterator begin, Iterator end, AsyncAction action) {
+template <typename Iterator, typename AsyncAction>
+inline auto
+do_for_each(Iterator begin, Iterator end, AsyncAction action)
+{
   return ::crimson::do_for_each_impl(begin, end, std::move(action));
 }
 
-template<typename Container, typename AsyncAction>
-inline auto do_for_each(Container& c, AsyncAction action) {
+template <typename Container, typename AsyncAction>
+inline auto
+do_for_each(Container& c, AsyncAction action)
+{
   return ::crimson::do_for_each(std::begin(c), std::end(c), std::move(action));
 }
 
-template<typename AsyncAction>
-inline auto repeat(AsyncAction action) {
-  using errorator_t =
-    typename ::seastar::futurize_t<std::invoke_result_t<AsyncAction>>::errorator_type;
+template <typename AsyncAction>
+inline auto
+repeat(AsyncAction action)
+{
+  using errorator_t = typename ::seastar::futurize_t<
+      std::invoke_result_t<AsyncAction>>::errorator_type;
 
   while (true) {
     auto f = ::seastar::futurize_invoke(action);
     if (f.failed()) {
-      return errorator_t::template make_exception_future2<>(
-        f.get_exception()
-      );
+      return errorator_t::template make_exception_future2<>(f.get_exception());
     } else if (f.available()) {
       if (auto done = f.get()) {
         return errorator_t::template make_ready_future<>();
       }
     } else {
-      return std::move(f)._then(
-        [action = std::move(action)] (auto stop) mutable {
-          if (stop == seastar::stop_iteration::yes) {
-            return errorator_t::template make_ready_future<>();
-          }
-          return ::crimson::repeat(
-            std::move(action));
-        });
+      return std::move(f)._then([action = std::move(action)](auto stop) mutable {
+        if (stop == seastar::stop_iteration::yes) {
+          return errorator_t::template make_ready_future<>();
+        }
+        return ::crimson::repeat(std::move(action));
+      });
     }
   }
 }
@@ -129,11 +149,14 @@ inline auto repeat(AsyncAction action) {
 // define the interface between error types and errorator
 template <class ConcreteErrorT>
 class error_t {
-  static constexpr const std::type_info& get_exception_ptr_type_info() {
+  static constexpr const std::type_info&
+  get_exception_ptr_type_info()
+  {
     return ConcreteErrorT::exception_ptr_type_info();
   }
 
-  decltype(auto) static from_exception_ptr(std::exception_ptr ep) {
+  decltype(auto) static from_exception_ptr(std::exception_ptr ep)
+  {
     return ConcreteErrorT::from_exception_ptr(std::move(ep));
   }
 
@@ -144,14 +167,18 @@ class error_t {
   friend class maybe_handle_error_t;
 
 protected:
-  std::exception_ptr to_exception_ptr() const {
+  std::exception_ptr
+  to_exception_ptr() const
+  {
     const auto* concrete_error = static_cast<const ConcreteErrorT*>(this);
     return concrete_error->to_exception_ptr();
   }
 
 public:
   template <class Func>
-  static decltype(auto) handle(Func&& func) {
+  static decltype(auto)
+  handle(Func&& func)
+  {
     return ConcreteErrorT::handle(std::forward<Func>(func));
   }
 };
@@ -168,26 +195,31 @@ struct unthrowable_wrapper : error_t<unthrowable_wrapper<ErrorT, ErrorV>> {
   using error_type_t = ErrorT;
 
   unthrowable_wrapper(const unthrowable_wrapper&) = delete;
-  [[nodiscard]] static const auto& make() {
+
+  [[nodiscard]] static const auto&
+  make()
+  {
     static constexpr unthrowable_wrapper instance{};
     return instance;
   }
 
-  static auto exception_ptr() {
+  static auto
+  exception_ptr()
+  {
     return make().to_exception_ptr();
   }
 
-  template<class Func>
-  static auto handle(Func&& func) {
-    return [
-      func = std::forward<Func>(func)
-    ] (const unthrowable_wrapper& raw_error) mutable -> decltype(auto) {
+  template <class Func>
+  static auto
+  handle(Func&& func)
+  {
+    return [func = std::forward<Func>(func)](
+               const unthrowable_wrapper& raw_error) mutable -> decltype(auto) {
       if constexpr (std::is_invocable_v<Func, ErrorT, decltype(raw_error)>) {
-	// check whether the handler wants to take the raw error object which
-	// would be the case if it wants conditionally handle-or-pass-further.
-        return std::invoke(std::forward<Func>(func),
-                           ErrorV,
-                           std::move(raw_error));
+        // check whether the handler wants to take the raw error object which
+        // would be the case if it wants conditionally handle-or-pass-further.
+        return std::invoke(
+            std::forward<Func>(func), ErrorV, std::move(raw_error));
       } else if constexpr (std::is_invocable_v<Func, ErrorT>) {
         return std::invoke(std::forward<Func>(func), ErrorV);
       } else {
@@ -197,26 +229,33 @@ struct unthrowable_wrapper : error_t<unthrowable_wrapper<ErrorT, ErrorV>> {
   }
 
   struct pass_further {
-    decltype(auto) operator()(const unthrowable_wrapper& e) {
+    decltype(auto)
+    operator()(const unthrowable_wrapper& e)
+    {
       return e;
     }
   };
 
   struct discard {
-    decltype(auto) operator()(const unthrowable_wrapper&) {
-    }
+    decltype(auto)
+    operator()(const unthrowable_wrapper&)
+    {}
   };
 
   class assert_failure {
     const char* const msg = nullptr;
+
   public:
-    assert_failure(const char* msg)
-      : msg(msg) {
-    }
+    assert_failure(const char* msg) :
+      msg(msg)
+    {}
+
     assert_failure() = default;
 
-    no_touch_error_marker operator()(const unthrowable_wrapper& raw_error) {
-      handle([this] (auto&& error_v) {
+    no_touch_error_marker
+    operator()(const unthrowable_wrapper& raw_error)
+    {
+      handle([this](auto&& error_v) {
         ceph_abort_msgf("%s: %s", msg ? msg : "", error_v.message().c_str());
       })(raw_error);
       return no_touch_error_marker{};
@@ -228,13 +267,19 @@ private:
   explicit unthrowable_wrapper() = default;
 
   // implement the errorable interface
-  struct throwable_carrier{};
+  struct throwable_carrier {};
+
   static std::exception_ptr carrier_instance;
 
-  static constexpr const std::type_info& exception_ptr_type_info() {
+  static constexpr const std::type_info&
+  exception_ptr_type_info()
+  {
     return typeid(throwable_carrier);
   }
-  auto to_exception_ptr() const {
+
+  auto
+  to_exception_ptr() const
+  {
     // error codes don't need to instantiate `std::exception_ptr` each
     // time as the code is actually a part of the type itself.
     // `std::make_exception_ptr()` on modern enough GCCs is quite cheap
@@ -243,7 +288,10 @@ private:
     // ref-counting.
     return carrier_instance;
   }
-  static const auto& from_exception_ptr(std::exception_ptr) {
+
+  static const auto&
+  from_exception_ptr(std::exception_ptr)
+  {
     return make();
   }
 
@@ -251,10 +299,9 @@ private:
 };
 
 template <class ErrorT, ErrorT ErrorV>
-std::exception_ptr unthrowable_wrapper<ErrorT, ErrorV>::carrier_instance = \
-  std::make_exception_ptr<
-    unthrowable_wrapper<ErrorT, ErrorV>::throwable_carrier>({});
-
+std::exception_ptr unthrowable_wrapper<ErrorT, ErrorV>::carrier_instance =
+    std::make_exception_ptr<
+        unthrowable_wrapper<ErrorT, ErrorV>::throwable_carrier>({});
 
 template <class ErrorT>
 struct stateful_error_t : error_t<stateful_error_t<ErrorT>> {
@@ -262,15 +309,16 @@ struct stateful_error_t : error_t<stateful_error_t<ErrorT>> {
   using error_type_t = ErrorT;
 
   template <class... Args>
-  explicit stateful_error_t(Args&&... args)
-    : ep(std::make_exception_ptr<ErrorT>(std::forward<Args>(args)...)) {
-  }
+  explicit stateful_error_t(Args&&... args) :
+    ep(std::make_exception_ptr<ErrorT>(std::forward<Args>(args)...))
+  {}
 
-  template<class Func>
-  static auto handle(Func&& func) {
-    return [
-      func = std::forward<Func>(func)
-    ] (stateful_error_t<ErrorT>&& e) mutable -> decltype(auto) {
+  template <class Func>
+  static auto
+  handle(Func&& func)
+  {
+    return [func = std::forward<Func>(func)](
+               stateful_error_t<ErrorT>&& e) mutable -> decltype(auto) {
       if constexpr (std::is_invocable_v<Func>) {
         return std::invoke(std::forward<Func>(func));
       }
@@ -279,9 +327,9 @@ struct stateful_error_t : error_t<stateful_error_t<ErrorT>> {
       } catch (const ErrorT& obj) {
         if constexpr (std::is_invocable_v<Func, decltype(obj), decltype(e)>) {
           return std::invoke(std::forward<Func>(func), obj, e);
-	} else if constexpr (std::is_invocable_v<Func, decltype(obj)>) {
+        } else if constexpr (std::is_invocable_v<Func, decltype(obj)>) {
           return std::invoke(std::forward<Func>(func), obj);
-	}
+        }
       }
       ceph_abort_msg("exception type mismatch -- impossible!");
     };
@@ -289,36 +337,52 @@ struct stateful_error_t : error_t<stateful_error_t<ErrorT>> {
 
   class assert_failure {
     const char* const msg = nullptr;
+
   public:
-    assert_failure(const char* msg)
-      : msg(msg) {
-    }
+    assert_failure(const char* msg) :
+      msg(msg)
+    {}
+
     assert_failure() = default;
 
-    no_touch_error_marker operator()(stateful_error_t<ErrorT>&& raw_error) {
-      handle([this] (auto&& error_v) {
+    no_touch_error_marker
+    operator()(stateful_error_t<ErrorT>&& raw_error)
+    {
+      handle([this](auto&& error_v) {
         ceph_abort_msgf("%s: %s", msg ? msg : "", error_v.message().c_str());
       })(std::move(raw_error));
       return no_touch_error_marker{};
     }
   };
 
-  auto exception_ptr() {
+  auto
+  exception_ptr()
+  {
     return ep;
   }
 
 private:
   std::exception_ptr ep;
 
-  explicit stateful_error_t(std::exception_ptr ep) : ep(std::move(ep)) {}
+  explicit stateful_error_t(std::exception_ptr ep) :
+    ep(std::move(ep))
+  {}
 
-  static constexpr const std::type_info& exception_ptr_type_info() {
+  static constexpr const std::type_info&
+  exception_ptr_type_info()
+  {
     return typeid(ErrorT);
   }
-  auto to_exception_ptr() const {
+
+  auto
+  to_exception_ptr() const
+  {
     return ep;
   }
-  static stateful_error_t<ErrorT> from_exception_ptr(std::exception_ptr ep) {
+
+  static stateful_error_t<ErrorT>
+  from_exception_ptr(std::exception_ptr ep)
+  {
     return stateful_error_t<ErrorT>(std::move(ep));
   }
 
@@ -326,8 +390,9 @@ private:
 };
 
 namespace _impl {
-  template <class T> struct always_false : std::false_type {};
-};
+template <class T>
+struct always_false : std::false_type {};
+}; // namespace _impl
 
 template <class ErrorVisitorT, class FuturatorT>
 class maybe_handle_error_t {
@@ -340,22 +405,25 @@ public:
   // It should be available both in GCC and Clang but a fallback
   // (based on `std::rethrow_exception()` and `catch`) can be made
   // to handle other platforms if necessary.
-  maybe_handle_error_t(ErrorVisitorT&& errfunc, std::exception_ptr ep)
-    : type_info(*ep.__cxa_exception_type()),
-      result(FuturatorT::make_exception_future(std::move(ep))),
-      errfunc(std::forward<ErrorVisitorT>(errfunc)) {
-  }
+  maybe_handle_error_t(ErrorVisitorT&& errfunc, std::exception_ptr ep) :
+    type_info(*ep.__cxa_exception_type()),
+    result(FuturatorT::make_exception_future(std::move(ep))),
+    errfunc(std::forward<ErrorVisitorT>(errfunc))
+  {}
 
   template <class ErrorT>
-  void handle() {
-    static_assert(std::is_invocable<ErrorVisitorT, ErrorT>::value,
-                  "provided Error Visitor is not exhaustive");
+  void
+  handle()
+  {
+    static_assert(
+        std::is_invocable<ErrorVisitorT, ErrorT>::value,
+        "provided Error Visitor is not exhaustive");
 
     // Forbid any error handlers that are returning void.
     // See: https://tracker.ceph.com/issues/69406
     using return_t = std::invoke_result_t<ErrorVisitorT, ErrorT>;
-    static_assert(!std::is_same_v<return_t, void>,
-                  "error handlers mustn't return void");
+    static_assert(
+        !std::is_same_v<return_t, void>, "error handlers mustn't return void");
 
     // The code below checks for exact match only while
     // `catch` would allow to match against a base class as well.
@@ -363,7 +431,7 @@ public:
     // ErrorVisitorT are already checked for exhaustiveness at compile-time.
     // TODO: why/when is this possible?
     if (type_info != ErrorT::error_t::get_exception_ptr_type_info()) {
-        return;
+      return;
     }
 
     auto ep = take_exception_from_future();
@@ -376,8 +444,9 @@ public:
     // label of: no_touch_error_marker. Otherwise we would fail the above
     // static assertion.
     if constexpr (std::is_same_v<return_t, no_touch_error_marker>) {
-      std::ignore = std::invoke(std::forward<ErrorVisitorT>(errfunc),
-                                ErrorT::error_t::from_exception_ptr(std::move(ep)));
+      std::ignore = std::invoke(
+          std::forward<ErrorVisitorT>(errfunc),
+          ErrorT::error_t::from_exception_ptr(std::move(ep)));
     } else {
       // In C++ throwing an exception isn't the sole way to signal
       // error with it. This approach nicely fits cold, infrequent cases
@@ -391,19 +460,22 @@ public:
       // `catch`. The limitation here is lack of support for hierarchies
       // of exceptions.
 
-       // TODO: add missing explanation
+      // TODO: add missing explanation
       if constexpr (std::is_assignable_v<decltype(result), return_t>) {
-        result = std::invoke(std::forward<ErrorVisitorT>(errfunc),
-                             ErrorT::error_t::from_exception_ptr(std::move(ep)));
+        result = std::invoke(
+            std::forward<ErrorVisitorT>(errfunc),
+            ErrorT::error_t::from_exception_ptr(std::move(ep)));
       } else {
         result = FuturatorT::invoke(
-          std::forward<ErrorVisitorT>(errfunc),
-          ErrorT::error_t::from_exception_ptr(std::move(ep)));
+            std::forward<ErrorVisitorT>(errfunc),
+            ErrorT::error_t::from_exception_ptr(std::move(ep)));
       }
     }
   }
 
-  auto get_result() && {
+  auto
+  get_result() &&
+  {
     return std::move(result);
   }
 
@@ -411,41 +483,43 @@ public:
   // This will result in the future state to be "state::invalid".
   // That way when using seastar::future `operator=()`,
   // report_failed_future() won't be called.
-  std::exception_ptr take_exception_from_future() {
+  std::exception_ptr
+  take_exception_from_future()
+  {
     auto&& ep = std::move(result).get_exception();
     return ep;
   }
 };
 
 template <class FuncHead, class... FuncTail>
-static constexpr auto composer(FuncHead&& head, FuncTail&&... tail) {
-  return [
-    head = std::forward<FuncHead>(head),
-    // perfect forwarding in lambda's closure isn't available in C++17
-    // using tuple as workaround; see: https://stackoverflow.com/a/49902823
-    tail = std::make_tuple(std::forward<FuncTail>(tail)...)
-  ] (auto&&... args) mutable -> decltype(auto) {
+static constexpr auto
+composer(FuncHead&& head, FuncTail&&... tail)
+{
+  return [head = std::forward<FuncHead>(head),
+          // perfect forwarding in lambda's closure isn't available in C++17
+          // using tuple as workaround; see: https://stackoverflow.com/a/49902823
+          tail = std::make_tuple(std::forward<FuncTail>(tail)...)](
+             auto&&... args) mutable -> decltype(auto) {
     if constexpr (std::is_invocable_v<FuncHead, decltype(args)...>) {
-      return std::invoke(std::forward<FuncHead>(head),
-                         std::forward<decltype(args)>(args)...);
+      return std::invoke(
+          std::forward<FuncHead>(head), std::forward<decltype(args)>(args)...);
     } else if constexpr (sizeof...(FuncTail) > 0) {
       using next_composer_t = decltype(composer<FuncTail...>);
-      auto&& next = std::apply<next_composer_t>(composer<FuncTail...>,
-                                                std::move(tail));
-      return std::invoke(std::move(next),
-                         std::forward<decltype(args)>(args)...);
+      auto&& next =
+          std::apply<next_composer_t>(composer<FuncTail...>, std::move(tail));
+      return std::invoke(std::move(next), std::forward<decltype(args)>(args)...);
     } else {
       static_assert(
-	std::is_invocable_v<FuncHead, decltype(args)...> ||
-	(sizeof...(FuncTail) > 0),
-      "composition is not exhaustive");
+          std::is_invocable_v<FuncHead, decltype(args)...> ||
+              (sizeof...(FuncTail) > 0),
+          "composition is not exhaustive");
       return no_touch_error_marker{};
     }
   };
 }
 
 template <class ValueT>
-struct errorated_future_marker{};
+struct errorated_future_marker {};
 
 template <class... AllowedErrors>
 class parallel_for_each_state;
@@ -463,14 +537,16 @@ parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept;
 template <class... AllowedErrors>
 struct errorator {
 
-  static_assert((... && is_error_v<AllowedErrors>),
-                "errorator expects presence of ::is_error in all error types");
+  static_assert(
+      (... && is_error_v<AllowedErrors>),
+      "errorator expects presence of ::is_error in all error types");
 
   template <class ErrorT>
   struct contains_once {
-    static constexpr bool value =
-      (0 + ... + std::is_same_v<ErrorT, AllowedErrors>) == 1;
+    static constexpr bool value = (0 + ... +
+                                   std::is_same_v<ErrorT, AllowedErrors>) == 1;
   };
+
   template <class... Errors>
   struct contains_once<errorator<Errors...>> {
     static constexpr bool value = (... && contains_once<Errors>::value);
@@ -478,16 +554,19 @@ struct errorator {
   template <class T>
   static constexpr bool contains_once_v = contains_once<T>::value;
 
-  static_assert((... && contains_once_v<AllowedErrors>),
-                "no error type in errorator can be duplicated");
+  static_assert(
+      (... && contains_once_v<AllowedErrors>),
+      "no error type in errorator can be duplicated");
 
-  struct ready_future_marker{};
-  struct exception_future_marker{};
+  struct ready_future_marker {};
+
+  struct exception_future_marker {};
 
 private:
   // see the comment for `using future = _future` below.
   template <class>
   class [[nodiscard]] _future {};
+
   template <class ValueT>
   class [[nodiscard]] _future<::crimson::errorated_future_marker<ValueT>>
     : private seastar::future<ValueT> {
@@ -505,7 +584,10 @@ private:
     friend struct seastar::futurize;
 
     template <typename T1, typename T2, typename... More>
-    friend auto seastar::internal::do_with_impl(T1&& rv1, T2&& rv2, More&&... more);
+    friend auto seastar::internal::do_with_impl(
+        T1&& rv1,
+        T2&& rv2,
+        More&&... more);
 
     template <class, class = std::void_t<>>
     struct get_errorator {
@@ -513,9 +595,9 @@ private:
       // vanilla seastar::future as well).
       using type = errorator<>;
     };
+
     template <class FutureT>
-    struct get_errorator<FutureT,
-                         std::void_t<typename FutureT::errorator_type>> {
+    struct get_errorator<FutureT, std::void_t<typename FutureT::errorator_type>> {
       using type = typename FutureT::errorator_type;
     };
     template <class T>
@@ -525,12 +607,15 @@ private:
     struct make_errorator {
       // NOP. The generic template.
     };
-    template <class... ValueFuncAllowedErrors,
-              class    ErrorVisitorRetsHeadT,
-              class... ErrorVisitorRetsTailT>
-    struct make_errorator<errorator<ValueFuncAllowedErrors...>,
-                          ErrorVisitorRetsHeadT,
-                          ErrorVisitorRetsTailT...> {
+
+    template <
+        class... ValueFuncAllowedErrors,
+        class ErrorVisitorRetsHeadT,
+        class... ErrorVisitorRetsTailT>
+    struct make_errorator<
+        errorator<ValueFuncAllowedErrors...>,
+        ErrorVisitorRetsHeadT,
+        ErrorVisitorRetsTailT...> {
     private:
       using step_errorator = errorator<ValueFuncAllowedErrors...>;
       // add ErrorVisitorRetsHeadT only if 1) it's an error type and
@@ -538,18 +623,19 @@ private:
       // It's enough to negate contains_once_v as any errorator<...>
       // type is already guaranteed to be free of duplications.
       using _next_errorator = std::conditional_t<
-        is_error_v<ErrorVisitorRetsHeadT> &&
-          !step_errorator::template contains_once_v<ErrorVisitorRetsHeadT>,
-        typename step_errorator::template extend<ErrorVisitorRetsHeadT>,
-        step_errorator>;
+          is_error_v<ErrorVisitorRetsHeadT> &&
+              !step_errorator::template contains_once_v<ErrorVisitorRetsHeadT>,
+          typename step_errorator::template extend<ErrorVisitorRetsHeadT>,
+          step_errorator>;
       using maybe_head_ertr = get_errorator_t<ErrorVisitorRetsHeadT>;
       using next_errorator =
-	typename _next_errorator::template extend_ertr<maybe_head_ertr>;
+          typename _next_errorator::template extend_ertr<maybe_head_ertr>;
 
     public:
-      using type = typename make_errorator<next_errorator,
-                                           ErrorVisitorRetsTailT...>::type;
+      using type =
+          typename make_errorator<next_errorator, ErrorVisitorRetsTailT...>::type;
     };
+
     // finish the recursion
     template <class... ValueFuncAllowedErrors>
     struct make_errorator<errorator<ValueFuncAllowedErrors...>> {
@@ -562,18 +648,19 @@ private:
 
     template <class Futurator, class Future, class ErrorVisitor>
     [[gnu::noinline]]
-    static auto _safe_then_handle_errors(Future&& future,
-                                         ErrorVisitor&& errfunc) {
+    static auto
+    _safe_then_handle_errors(Future&& future, ErrorVisitor&& errfunc)
+    {
       maybe_handle_error_t<ErrorVisitor, Futurator> maybe_handle_error(
-        std::forward<ErrorVisitor>(errfunc),
-        std::move(future).get_exception()
-      );
-      (maybe_handle_error.template handle<AllowedErrors>() , ...);
+          std::forward<ErrorVisitor>(errfunc),
+          std::move(future).get_exception());
+      (maybe_handle_error.template handle<AllowedErrors>(), ...);
       return std::move(maybe_handle_error).get_result();
     }
 
   protected:
     friend class ::transaction_manager_test_t;
+
   public:
     using base_t::get_exception;
     using errorator_type = ::crimson::errorator<AllowedErrors...>;
@@ -585,38 +672,46 @@ private:
     using base_t::handle_exception_type;
 
     [[gnu::always_inline]]
-    _future(base_t&& base)
-      : base_t(std::move(base)) {
-    }
+    _future(base_t&& base) :
+      base_t(std::move(base))
+    {}
 
-    base_t to_base() && {
+    base_t
+    to_base() &&
+    {
       return std::move(*this);
     }
 
     template <class... A>
-    [[gnu::always_inline]]
-    _future(ready_future_marker, A&&... a)
-      : base_t(::seastar::make_ready_future<ValueT>(std::forward<A>(a)...)) {
-    }
-    [[gnu::always_inline]]
-    _future(exception_future_marker, ::seastar::future_state_base&& state) noexcept
-      : base_t(::seastar::futurize<base_t>::make_exception_future(std::move(state))) {
-    }
-    [[gnu::always_inline]]
-    _future(exception_future_marker, std::exception_ptr&& ep) noexcept
-      : base_t(::seastar::futurize<base_t>::make_exception_future(std::move(ep))) {
-    }
+    [[gnu::always_inline]] _future(ready_future_marker, A&&... a) :
+      base_t(::seastar::make_ready_future<ValueT>(std::forward<A>(a)...))
+    {}
 
-    template <template <class...> class ErroratedFuture,
-              class = std::void_t<
-                typename ErroratedFuture<
-                  ::crimson::errorated_future_marker<ValueT>>::errorator_type>>
-    operator ErroratedFuture<errorated_future_marker<ValueT>> () && {
-      using dest_errorator_t = \
-        typename ErroratedFuture<
+    [[gnu::always_inline]]
+    _future(
+        exception_future_marker,
+        ::seastar::future_state_base&& state) noexcept :
+      base_t(
+          ::seastar::futurize<base_t>::make_exception_future(std::move(state)))
+    {}
+
+    [[gnu::always_inline]]
+    _future(exception_future_marker, std::exception_ptr&& ep) noexcept :
+      base_t(::seastar::futurize<base_t>::make_exception_future(std::move(ep)))
+    {}
+
+    template <
+        template <class...>
+        class ErroratedFuture,
+        class = std::void_t<typename ErroratedFuture<
+            ::crimson::errorated_future_marker<ValueT>>::errorator_type>>
+    operator ErroratedFuture<errorated_future_marker<ValueT>>() &&
+    {
+      using dest_errorator_t = typename ErroratedFuture<
           ::crimson::errorated_future_marker<ValueT>>::errorator_type;
-      static_assert(dest_errorator_t::template contains_once_v<errorator_type>,
-                    "conversion is possible to more-or-eq errorated future!");
+      static_assert(
+          dest_errorator_t::template contains_once_v<errorator_type>,
+          "conversion is possible to more-or-eq errorated future!");
       return static_cast<base_t&&>(*this);
     }
 
@@ -646,34 +741,40 @@ private:
     // TODO: we don't really need to `make_exception_ptr` each time. It still
     // allocates memory underneath while can be replaced with single instance
     // per type created on start-up.
-    template <class ErrorT,
-              class DecayedT = std::decay_t<ErrorT>,
-              bool IsError = is_error_v<DecayedT>,
-              class = std::enable_if_t<IsError>>
-    _future(ErrorT&& e)
-      : base_t(
-          seastar::make_exception_future<ValueT>(
-            errorator_type::make_exception_ptr(e))) {
-      static_assert(errorator_type::contains_once_v<DecayedT>,
-                    "ErrorT is not enlisted in errorator");
+    template <
+        class ErrorT,
+        class DecayedT = std::decay_t<ErrorT>,
+        bool IsError = is_error_v<DecayedT>,
+        class = std::enable_if_t<IsError>>
+    _future(ErrorT&& e) :
+      base_t(seastar::make_exception_future<ValueT>(
+          errorator_type::make_exception_ptr(e)))
+    {
+      static_assert(
+          errorator_type::contains_once_v<DecayedT>,
+          "ErrorT is not enlisted in errorator");
     }
 
-    void set_coroutine(seastar::task& coroutine) noexcept {
+    void
+    set_coroutine(seastar::task& coroutine) noexcept
+    {
       base_t::set_coroutine(coroutine);
     }
 
     template <class ValueFuncT, class ErrorVisitorT>
-    auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
-      static_assert((... && std::is_invocable_v<ErrorVisitorT,
-                                                AllowedErrors>),
-                    "provided Error Visitor is not exhaustive");
-      static_assert(std::is_void_v<ValueT> ? std::is_invocable_v<ValueFuncT>
-		                           : std::is_invocable_v<ValueFuncT, ValueT>,
-                    "Value Func is not invocable with future's value");
-      using value_func_result_t =
-        typename std::conditional_t<std::is_void_v<ValueT>,
-				    std::invoke_result<ValueFuncT>,
-				    std::invoke_result<ValueFuncT, ValueT>>::type;
+    auto
+    safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc)
+    {
+      static_assert(
+          (... && std::is_invocable_v<ErrorVisitorT, AllowedErrors>),
+          "provided Error Visitor is not exhaustive");
+      static_assert(
+          std::is_void_v<ValueT> ? std::is_invocable_v<ValueFuncT>
+                                 : std::is_invocable_v<ValueFuncT, ValueT>,
+          "Value Func is not invocable with future's value");
+      using value_func_result_t = typename std::conditional_t<
+          std::is_void_v<ValueT>, std::invoke_result<ValueFuncT>,
+          std::invoke_result<ValueFuncT, ValueT>>::type;
       // recognize whether there can be any error coming from the Value
       // Function.
       using value_func_errorator_t = get_errorator_t<value_func_result_t>;
@@ -682,15 +783,15 @@ private:
       // handling at one step and delegate even broader set of issues
       // to next continuation.
       using return_errorator_t = make_errorator_t<
-        value_func_errorator_t,
-        std::decay_t<std::invoke_result_t<ErrorVisitorT, AllowedErrors>>...>;
+          value_func_errorator_t,
+          std::decay_t<std::invoke_result_t<ErrorVisitorT, AllowedErrors>>...>;
       // OK, now we know about all errors next continuation must take
       // care about. If Visitor handled everything and the Value Func
       // doesn't return any, we'll finish with errorator<>::future
       // which is just vanilla seastar::future – that's it, next cont
       // finally could use `.then()`!
-      using futurator_t = \
-        typename return_errorator_t::template futurize<value_func_result_t>;
+      using futurator_t =
+          typename return_errorator_t::template futurize<value_func_result_t>;
       // `seastar::futurize`, used internally by `then_wrapped()`, would
       // wrap any non-`seastar::future` type coming from Value Func into
       // `seastar::future`. As we really don't want to end with things
@@ -702,46 +803,45 @@ private:
       // As C++17 doesn't guarantee copy elision when non-same types are
       // involved while examination of assemblies from GCC 8.1 confirmed
       // extra copying, switch to the second approach has been made.
-      return this->then_wrapped(
-        [ valfunc = std::forward<ValueFuncT>(valfunc),
-          errfunc = std::forward<ErrorVisitorT>(errfunc)
-        ] (auto&& future) mutable noexcept {
-          if (__builtin_expect(future.failed(), false)) {
-            return _safe_then_handle_errors<futurator_t>(
+      return this->then_wrapped([valfunc = std::forward<ValueFuncT>(valfunc),
+                                 errfunc = std::forward<ErrorVisitorT>(
+                                     errfunc)](auto&& future) mutable noexcept {
+        if (__builtin_expect(future.failed(), false)) {
+          return _safe_then_handle_errors<futurator_t>(
               std::move(future), std::forward<ErrorVisitorT>(errfunc));
-          } else {
-            // NOTE: using `seastar::future::get()` here is a bit bloaty
-            // as the method rechecks availability of future's value and,
-            // if it's unavailable, does the `::do_wait()` path (yes, it
-            // targets `seastar::thread`). Actually this is dead code as
-            // `then_wrapped()` executes the lambda only when the future
-            // is available (which means: failed or ready). However, GCC
-            // hasn't optimized it out:
-            //
-            //          if (__builtin_expect(future.failed(), false)) {
-            //    ea25:       48 83 bd c8 fe ff ff    cmpq   $0x2,-0x138(%rbp)
-            //    ea2c:       02
-            //    ea2d:       0f 87 f0 05 00 00       ja     f023 <ceph::osd::
-            // ...
-            //    /// If get() is called in a \ref seastar::thread context,
-            //    /// then it need not be available; instead, the thread will
-            //    /// be paused until the future becomes available.
-            //    [[gnu::always_inline]]
-            //    std::tuple<T...> get() {
-            //        if (!_state.available()) {
-            //    ea3a:       0f 85 1b 05 00 00       jne    ef5b <ceph::osd::
-            //    }
-            // ...
-            //
-            // I don't perceive this as huge issue. Though, it cannot be
-            // claimed errorator has 0 overhead on hot path. The perfect
-            // solution here would be mark the `::get_available_state()`
-            // as `protected` and use dedicated `get_value()` exactly as
-            // `::then()` already does.
-            return futurator_t::invoke(std::forward<ValueFuncT>(valfunc),
-                                       std::move(future).get());
-          }
-        });
+        } else {
+          // NOTE: using `seastar::future::get()` here is a bit bloaty
+          // as the method rechecks availability of future's value and,
+          // if it's unavailable, does the `::do_wait()` path (yes, it
+          // targets `seastar::thread`). Actually this is dead code as
+          // `then_wrapped()` executes the lambda only when the future
+          // is available (which means: failed or ready). However, GCC
+          // hasn't optimized it out:
+          //
+          //          if (__builtin_expect(future.failed(), false)) {
+          //    ea25:       48 83 bd c8 fe ff ff    cmpq   $0x2,-0x138(%rbp)
+          //    ea2c:       02
+          //    ea2d:       0f 87 f0 05 00 00       ja     f023 <ceph::osd::
+          // ...
+          //    /// If get() is called in a \ref seastar::thread context,
+          //    /// then it need not be available; instead, the thread will
+          //    /// be paused until the future becomes available.
+          //    [[gnu::always_inline]]
+          //    std::tuple<T...> get() {
+          //        if (!_state.available()) {
+          //    ea3a:       0f 85 1b 05 00 00       jne    ef5b <ceph::osd::
+          //    }
+          // ...
+          //
+          // I don't perceive this as huge issue. Though, it cannot be
+          // claimed errorator has 0 overhead on hot path. The perfect
+          // solution here would be mark the `::get_available_state()`
+          // as `protected` and use dedicated `get_value()` exactly as
+          // `::then()` already does.
+          return futurator_t::invoke(
+              std::forward<ValueFuncT>(valfunc), std::move(future).get());
+        }
+      });
     }
 
     /**
@@ -753,24 +853,31 @@ private:
      * Should really only be used within test code
      * (see test/crimson/gtest_seastar.h).
      */
-    auto &&unsafe_get() {
+    auto&&
+    unsafe_get()
+    {
       return seastar::future<ValueT>::get();
     }
-    void unsafe_wait() {
+
+    void
+    unsafe_wait()
+    {
       seastar::future<ValueT>::wait();
     }
 
     template <class FuncT>
-    _future finally(FuncT &&func) {
-      return this->then_wrapped(
-        [func = std::forward<FuncT>(func)](auto &&result) mutable noexcept {
+    _future
+    finally(FuncT&& func)
+    {
+      return this->then_wrapped([func = std::forward<FuncT>(func)](
+                                    auto&& result) mutable noexcept {
         if constexpr (seastar::InvokeReturnsAnyFuture<FuncT>) {
-          return ::seastar::futurize_invoke(std::forward<FuncT>(func)).then_wrapped(
-            [result = std::move(result)](auto&& f_res) mutable {
-            // TODO: f_res.failed()
-            (void)f_res.discard_result();
-            return std::move(result);
-          });
+          return ::seastar::futurize_invoke(std::forward<FuncT>(func))
+              .then_wrapped([result = std::move(result)](auto&& f_res) mutable {
+                // TODO: f_res.failed()
+                (void)f_res.discard_result();
+                return std::move(result);
+              });
         } else {
           try {
             func();
@@ -783,109 +890,127 @@ private:
     }
 
     _future<::crimson::errorated_future_marker<void>>
-    discard_result() noexcept {
+    discard_result() noexcept
+    {
       return safe_then([](auto&&) {});
     }
 
     // taking ErrorFuncOne and ErrorFuncTwo separately from ErrorFuncTail
     // to avoid SFINAE
-    template <class ValueFunc,
-              class ErrorFuncHead,
-              class... ErrorFuncTail>
-    auto safe_then(ValueFunc&& value_func,
-                   ErrorFuncHead&& error_func_head,
-                   ErrorFuncTail&&... error_func_tail) {
+    template <class ValueFunc, class ErrorFuncHead, class... ErrorFuncTail>
+    auto
+    safe_then(
+        ValueFunc&& value_func,
+        ErrorFuncHead&& error_func_head,
+        ErrorFuncTail&&... error_func_tail)
+    {
       static_assert(sizeof...(ErrorFuncTail) > 0);
       return safe_then(
-        std::forward<ValueFunc>(value_func),
-        composer(std::forward<ErrorFuncHead>(error_func_head),
-                 std::forward<ErrorFuncTail>(error_func_tail)...));
+          std::forward<ValueFunc>(value_func),
+          composer(
+              std::forward<ErrorFuncHead>(error_func_head),
+              std::forward<ErrorFuncTail>(error_func_tail)...));
     }
 
     template <class ValueFunc>
-    auto safe_then(ValueFunc&& value_func) {
-      return safe_then(std::forward<ValueFunc>(value_func),
-                       errorator_type::pass_further{});
+    auto
+    safe_then(ValueFunc&& value_func)
+    {
+      return safe_then(
+          std::forward<ValueFunc>(value_func), errorator_type::pass_further{});
     }
 
-    template <class ValueFunc,
-              class... ErrorFuncs>
-    auto safe_then_unpack(ValueFunc&& value_func,
-                          ErrorFuncs&&... error_funcs) {
+    template <class ValueFunc, class... ErrorFuncs>
+    auto
+    safe_then_unpack(ValueFunc&& value_func, ErrorFuncs&&... error_funcs)
+    {
       return safe_then(
-        [value_func=std::move(value_func)] (ValueT&& tuple) mutable {
-          assert_moveable(value_func);
-          return std::apply(std::move(value_func), std::move(tuple));
-        },
-        std::forward<ErrorFuncs>(error_funcs)...
-      );
+          [value_func = std::move(value_func)](ValueT&& tuple) mutable {
+            assert_moveable(value_func);
+            return std::apply(std::move(value_func), std::move(tuple));
+          },
+          std::forward<ErrorFuncs>(error_funcs)...);
     }
 
     template <class Func>
     void then(Func&&) = delete;
 
     template <class ErrorVisitorT>
-    auto handle_error(ErrorVisitorT&& errfunc) {
-      static_assert((... && std::is_invocable_v<ErrorVisitorT,
-                                                AllowedErrors>),
-                    "provided Error Visitor is not exhaustive");
+    auto
+    handle_error(ErrorVisitorT&& errfunc)
+    {
+      static_assert(
+          (... && std::is_invocable_v<ErrorVisitorT, AllowedErrors>),
+          "provided Error Visitor is not exhaustive");
       using return_errorator_t = make_errorator_t<
-        errorator<>,
-        std::decay_t<std::invoke_result_t<ErrorVisitorT, AllowedErrors>>...>;
-      using futurator_t = \
-        typename return_errorator_t::template futurize<::seastar::future<ValueT>>;
-      return this->then_wrapped(
-        [ errfunc = std::forward<ErrorVisitorT>(errfunc)
-        ] (auto&& future) mutable noexcept {
-          if (__builtin_expect(future.failed(), false)) {
-            return _safe_then_handle_errors<futurator_t>(
+          errorator<>,
+          std::decay_t<std::invoke_result_t<ErrorVisitorT, AllowedErrors>>...>;
+      using futurator_t = typename return_errorator_t::template futurize<
+          ::seastar::future<ValueT>>;
+      return this->then_wrapped([errfunc = std::forward<ErrorVisitorT>(
+                                     errfunc)](auto&& future) mutable noexcept {
+        if (__builtin_expect(future.failed(), false)) {
+          return _safe_then_handle_errors<futurator_t>(
               std::move(future), std::forward<ErrorVisitorT>(errfunc));
-          } else {
-            return typename futurator_t::type{ std::move(future) };
-          }
-        });
+        } else {
+          return typename futurator_t::type{std::move(future)};
+        }
+      });
     }
 
-    template <class ErrorFuncHead,
-              class... ErrorFuncTail>
-    auto handle_error(ErrorFuncHead&& error_func_head,
-                      ErrorFuncTail&&... error_func_tail) {
+    template <class ErrorFuncHead, class... ErrorFuncTail>
+    auto
+    handle_error(
+        ErrorFuncHead&& error_func_head,
+        ErrorFuncTail&&... error_func_tail)
+    {
       static_assert(sizeof...(ErrorFuncTail) > 0);
-      return this->handle_error(
-        composer(std::forward<ErrorFuncHead>(error_func_head),
-                 std::forward<ErrorFuncTail>(error_func_tail)...));
+      return this->handle_error(composer(
+          std::forward<ErrorFuncHead>(error_func_head),
+          std::forward<ErrorFuncTail>(error_func_tail)...));
     }
 
   private:
     // for ::crimson::do_for_each
     template <class Func>
-    auto _then(Func&& func) {
+    auto
+    _then(Func&& func)
+    {
       return base_t::then(std::forward<Func>(func));
     }
+
     template <class T>
-    auto _forward_to(T&& pr) {
+    auto
+    _forward_to(T&& pr)
+    {
       return base_t::forward_to(std::forward<T>(pr));
     }
-    template<typename Iterator, typename AsyncAction>
-    friend inline auto ::crimson::do_for_each(Iterator begin,
-                                              Iterator end,
-                                              AsyncAction action);
+
+    template <typename Iterator, typename AsyncAction>
+    friend inline auto ::crimson::do_for_each(
+        Iterator begin,
+        Iterator end,
+        AsyncAction action);
 
     template <typename Iterator, typename AsyncAction, typename FutureT>
     friend class ::crimson::do_for_each_state;
 
-    template<typename AsyncAction>
+    template <typename AsyncAction>
     friend inline auto ::crimson::repeat(AsyncAction action);
 
     template <typename Result>
     friend class ::seastar::future;
 
     // let seastar::do_with_impl to up-cast us to seastar::future.
-    template<typename T, typename F>
+    template <typename T, typename F>
     friend inline auto ::seastar::internal::do_with_impl(T&& rvalue, F&& f);
-    template<typename T1, typename T2, typename T3_or_F, typename... More>
-    friend inline auto ::seastar::internal::do_with_impl(T1&& rv1, T2&& rv2, T3_or_F&& rv3, More&&... more);
-    template<typename, typename>
+    template <typename T1, typename T2, typename T3_or_F, typename... More>
+    friend inline auto ::seastar::internal::do_with_impl(
+        T1&& rv1,
+        T2&& rv2,
+        T3_or_F&& rv3,
+        More&&... more);
+    template <typename, typename>
     friend class ::crimson::interruptible::interruptible_future_detail;
     friend class ::crimson::parallel_for_each_state<AllowedErrors...>;
     template <typename IC, typename FT>
@@ -895,19 +1020,24 @@ private:
   class Enabler {};
 
   template <typename T>
-  using EnableIf = typename std::enable_if<contains_once_v<std::decay_t<T>>, Enabler>::type;
+  using EnableIf =
+      typename std::enable_if<contains_once_v<std::decay_t<T>>, Enabler>::type;
 
   template <typename ErrorFunc>
   struct all_same_way_t {
     ErrorFunc func;
-    all_same_way_t(ErrorFunc &&error_func)
-      : func(std::forward<ErrorFunc>(error_func)) {}
+
+    all_same_way_t(ErrorFunc&& error_func) :
+      func(std::forward<ErrorFunc>(error_func))
+    {}
 
     template <typename ErrorT, EnableIf<ErrorT>...>
-    decltype(auto) operator()(ErrorT&& e) {
+    decltype(auto)
+    operator()(ErrorT&& e)
+    {
       using decayed_t = std::decay_t<decltype(e)>;
-      return decayed_t::error_t::handle(std::forward<ErrorFunc>(func))
-                                       (std::forward<ErrorT>(e));
+      return decayed_t::error_t::handle(std::forward<ErrorFunc>(func))(
+          std::forward<ErrorT>(e));
     }
   };
 
@@ -920,38 +1050,46 @@ public:
   // Unfortunately, this technique can't be applied as the `futurize`
   // lacks the optional parameter. The problem looks awfully similar
   // to following SO item:  https://stackoverflow.com/a/38860413.
-  template <class ValueT=void>
+  template <class ValueT = void>
   using future = _future<::crimson::errorated_future_marker<ValueT>>;
 
   // the visitor that forwards handling of all errors to next continuation
   struct pass_further {
     template <class ErrorT, EnableIf<ErrorT>...>
-    decltype(auto) operator()(ErrorT&& e) {
-      static_assert(contains_once_v<std::decay_t<ErrorT>>,
-                    "passing further disallowed ErrorT");
+    decltype(auto)
+    operator()(ErrorT&& e)
+    {
+      static_assert(
+          contains_once_v<std::decay_t<ErrorT>>,
+          "passing further disallowed ErrorT");
       return std::forward<ErrorT>(e);
     }
   };
 
   template <typename T>
-  static future<T> make_errorator_future(seastar::future<T>&& fut) {
+  static future<T>
+  make_errorator_future(seastar::future<T>&& fut)
+  {
     return std::move(fut);
   }
 
   class assert_all {
     const char* const msg = nullptr;
+
   public:
-    assert_all(const char* msg)
-      : msg(msg) {
-    }
+    assert_all(const char* msg) :
+      msg(msg)
+    {}
+
     assert_all() = default;
 
     template <class ErrorT, EnableIf<ErrorT>...>
-    no_touch_error_marker operator()(ErrorT&& raw_error) {
+    no_touch_error_marker
+    operator()(ErrorT&& raw_error)
+    {
       using decayed_t = std::decay_t<ErrorT>;
-      static_assert(contains_once_v<decayed_t>,
-                    "discarding disallowed ErrorT");
-      decayed_t::error_t::handle([this] (auto&& error_v) {
+      static_assert(contains_once_v<decayed_t>, "discarding disallowed ErrorT");
+      decayed_t::error_t::handle([this](auto&& error_v) {
         ceph_abort_msgf("%s: %s", msg ? msg : "", error_v.message().c_str());
       })(std::forward<ErrorT>(raw_error));
       return no_touch_error_marker{};
@@ -961,16 +1099,20 @@ public:
   template <typename Func>
   class assert_all_func_t {
   public:
-    assert_all_func_t(Func &&f)
-      : f(std::forward<Func>(f)) {}
+    assert_all_func_t(Func&& f) :
+      f(std::forward<Func>(f))
+    {}
 
     template <class ErrorT, EnableIf<ErrorT>...>
-    no_touch_error_marker operator()(ErrorT&& e) {
-      static_assert(contains_once_v<std::decay_t<ErrorT>>,
-                    "discarding disallowed ErrorT");
+    no_touch_error_marker
+    operator()(ErrorT&& e)
+    {
+      static_assert(
+          contains_once_v<std::decay_t<ErrorT>>,
+          "discarding disallowed ErrorT");
       try {
         std::rethrow_exception(e.exception_ptr());
-      } catch(const typename std::decay_t<ErrorT>::error_type_t& err) {
+      } catch (const typename std::decay_t<ErrorT>::error_type_t& err) {
         f(err);
       }
       ceph_abort();
@@ -982,12 +1124,16 @@ public:
   };
 
   template <typename Func>
-  static auto assert_all_func(Func &&f) {
+  static auto
+  assert_all_func(Func&& f)
+  {
     return assert_all_func_t<Func>{std::forward<Func>(f)};
   }
 
   template <class ErrorFunc>
-  static decltype(auto) all_same_way(ErrorFunc&& error_func) {
+  static decltype(auto)
+  all_same_way(ErrorFunc&& error_func)
+  {
     return all_same_way_t<ErrorFunc>{std::forward<ErrorFunc>(error_func)};
   };
 
@@ -1002,10 +1148,9 @@ public:
   struct unify {
     // 1st: generic NOP template
   };
-  template <class    OtherAllowedErrorsHead,
-            class... OtherAllowedErrorsTail>
-  struct unify<errorator<OtherAllowedErrorsHead,
-                         OtherAllowedErrorsTail...>> {
+
+  template <class OtherAllowedErrorsHead, class... OtherAllowedErrorsTail>
+  struct unify<errorator<OtherAllowedErrorsHead, OtherAllowedErrorsTail...>> {
   private:
     // 2nd: specialization for errorators with non-empty error set.
     //
@@ -1013,14 +1158,15 @@ public:
     // into head and tail. Mix error set of this errorator with head
     // of the other one only if it isn't already present in the set.
     using step_errorator = std::conditional_t<
-      contains_once_v<OtherAllowedErrorsHead> == false,
-      errorator<AllowedErrors..., OtherAllowedErrorsHead>,
-      errorator<AllowedErrors...>>;
+        contains_once_v<OtherAllowedErrorsHead> == false,
+        errorator<AllowedErrors..., OtherAllowedErrorsHead>,
+        errorator<AllowedErrors...>>;
     using rest_errorator = errorator<OtherAllowedErrorsTail...>;
 
   public:
     using type = typename step_errorator::template unify<rest_errorator>::type;
   };
+
   template <class... EmptyPack>
   struct unify<errorator<EmptyPack...>> {
     // 3rd: recursion finisher
@@ -1032,47 +1178,58 @@ public:
   template <class E>
   using extend_ertr = typename unify<E>::type;
 
-  template <typename T=void, typename... A>
-  static future<T> make_ready_future(A&&... value) {
+  template <typename T = void, typename... A>
+  static future<T>
+  make_ready_future(A&&... value)
+  {
     return future<T>(ready_future_marker(), std::forward<A>(value)...);
   }
 
-  template <typename T=void>
-  static
-  future<T> make_exception_future2(std::exception_ptr&& ex) noexcept {
+  template <typename T = void>
+  static future<T>
+  make_exception_future2(std::exception_ptr&& ex) noexcept
+  {
     return future<T>(exception_future_marker(), std::move(ex));
   }
-  template <typename T=void>
-  static
-  future<T> make_exception_future2(seastar::future_state_base&& state) noexcept {
+
+  template <typename T = void>
+  static future<T>
+  make_exception_future2(seastar::future_state_base&& state) noexcept
+  {
     return future<T>(exception_future_marker(), std::move(state));
   }
-  template <typename T=void, typename Exception>
-  static
-  future<T> make_exception_future2(Exception&& ex) noexcept {
-    return make_exception_future2<T>(std::make_exception_ptr(std::forward<Exception>(ex)));
+
+  template <typename T = void, typename Exception>
+  static future<T>
+  make_exception_future2(Exception&& ex) noexcept
+  {
+    return make_exception_future2<T>(
+        std::make_exception_ptr(std::forward<Exception>(ex)));
   }
 
-  static auto now() {
+  static auto
+  now()
+  {
     return make_ready_future<>();
   }
 
   template <typename Container, typename Func>
-  static inline auto parallel_for_each(Container&& container, Func&& func) noexcept {
-    return crimson::parallel_for_each<decltype(std::begin(container)), Func, AllowedErrors...>(
-        std::begin(container),
-        std::end(container),
-        std::forward<Func>(func));
+  static inline auto
+  parallel_for_each(Container&& container, Func&& func) noexcept
+  {
+    return crimson::parallel_for_each<
+        decltype(std::begin(container)), Func, AllowedErrors...>(
+        std::begin(container), std::end(container), std::forward<Func>(func));
   }
 
   template <typename Iterator, typename Func>
   static inline errorator<AllowedErrors...>::future<>
-  parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept {
+  parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept
+  {
     return crimson::parallel_for_each<Iterator, Func, AllowedErrors...>(
-      first,
-      last,
-      std::forward<Func>(func));
+        first, last, std::forward<Func>(func));
   }
+
 private:
   template <class T>
   class futurize {
@@ -1085,27 +1242,32 @@ private:
     struct stored_to_future {
       using type = future<Stored>;
     };
+
     template <int Dummy>
-    struct stored_to_future <seastar::internal::monostate, Dummy> {
+    struct stored_to_future<seastar::internal::monostate, Dummy> {
       using type = future<>;
     };
 
   public:
     using type =
-      typename stored_to_future<typename vanilla_futurize::value_type>::type;
+        typename stored_to_future<typename vanilla_futurize::value_type>::type;
 
     template <class Func, class... Args>
-    static type invoke(Func&& func, Args&&... args) {
+    static type
+    invoke(Func&& func, Args&&... args)
+    {
       try {
-        return vanilla_futurize::invoke(std::forward<Func>(func),
-                                        std::forward<Args>(args)...);
+        return vanilla_futurize::invoke(
+            std::forward<Func>(func), std::forward<Args>(args)...);
       } catch (...) {
         return make_exception_future(std::current_exception());
       }
     }
 
     template <class Func>
-    static type invoke(Func&& func, seastar::internal::monostate) {
+    static type
+    invoke(Func&& func, seastar::internal::monostate)
+    {
       try {
         return vanilla_futurize::invoke(std::forward<Func>(func));
       } catch (...) {
@@ -1114,28 +1276,34 @@ private:
     }
 
     template <typename Arg>
-    static type make_exception_future(Arg&& arg) {
+    static type
+    make_exception_future(Arg&& arg)
+    {
       return vanilla_futurize::make_exception_future(std::forward<Arg>(arg));
     }
   };
-  template <template <class...> class ErroratedFutureT,
-            class ValueT>
+
+  template <template <class...> class ErroratedFutureT, class ValueT>
   class futurize<ErroratedFutureT<::crimson::errorated_future_marker<ValueT>>> {
   public:
     using type = ::crimson::errorator<AllowedErrors...>::future<ValueT>;
 
     template <class Func, class... Args>
-    static type invoke(Func&& func, Args&&... args) {
+    static type
+    invoke(Func&& func, Args&&... args)
+    {
       try {
-        return ::seastar::futurize_invoke(std::forward<Func>(func),
-                                          std::forward<Args>(args)...);
+        return ::seastar::futurize_invoke(
+            std::forward<Func>(func), std::forward<Args>(args)...);
       } catch (...) {
         return make_exception_future(std::current_exception());
       }
     }
 
     template <class Func>
-    static type invoke(Func&& func, seastar::internal::monostate) {
+    static type
+    invoke(Func&& func, seastar::internal::monostate)
+    {
       try {
         return ::seastar::futurize_invoke(std::forward<Func>(func));
       } catch (...) {
@@ -1144,53 +1312,66 @@ private:
     }
 
     template <typename Arg>
-    static type make_exception_future(Arg&& arg) {
-      return ::crimson::errorator<AllowedErrors...>::make_exception_future2<ValueT>(std::forward<Arg>(arg));
+    static type
+    make_exception_future(Arg&& arg)
+    {
+      return ::crimson::errorator<AllowedErrors...>::make_exception_future2<
+          ValueT>(std::forward<Arg>(arg));
     }
   };
 
   template <typename InterruptCond, typename FutureType>
-  class futurize<
-	  ::crimson::interruptible::interruptible_future_detail<
-	    InterruptCond, FutureType>> {
+  class futurize<::crimson::interruptible::
+                     interruptible_future_detail<InterruptCond, FutureType>> {
   public:
     using type = ::crimson::interruptible::interruptible_future_detail<
-	    InterruptCond, typename futurize<FutureType>::type>;
+        InterruptCond,
+        typename futurize<FutureType>::type>;
 
     template <typename Func, typename... Args>
-    static type invoke(Func&& func, Args&&... args) {
+    static type
+    invoke(Func&& func, Args&&... args)
+    {
       try {
-	return ::seastar::futurize_invoke(std::forward<Func>(func),
-					  std::forward<Args>(args)...);
-      } catch(...) {
-	return seastar::futurize<
-	  ::crimson::interruptible::interruptible_future_detail<
-	    InterruptCond, FutureType>>::make_exception_future(
-		std::current_exception());
+        return ::seastar::futurize_invoke(
+            std::forward<Func>(func), std::forward<Args>(args)...);
+      } catch (...) {
+        return seastar::futurize<
+            ::crimson::interruptible::interruptible_future_detail<
+                InterruptCond,
+                FutureType>>::make_exception_future(std::current_exception());
       }
     }
+
     template <typename Func>
-    static type invoke(Func&& func, seastar::internal::monostate) {
+    static type
+    invoke(Func&& func, seastar::internal::monostate)
+    {
       try {
-	return ::seastar::futurize_invoke(std::forward<Func>(func));
-      } catch(...) {
-	return seastar::futurize<
-	  ::crimson::interruptible::interruptible_future_detail<
-	    InterruptCond, FutureType>>::make_exception_future(
-		std::current_exception());
+        return ::seastar::futurize_invoke(std::forward<Func>(func));
+      } catch (...) {
+        return seastar::futurize<
+            ::crimson::interruptible::interruptible_future_detail<
+                InterruptCond,
+                FutureType>>::make_exception_future(std::current_exception());
       }
     }
+
     template <typename Arg>
-    static type make_exception_future(Arg&& arg) {
+    static type
+    make_exception_future(Arg&& arg)
+    {
       return ::seastar::futurize<
-	::crimson::interruptible::interruptible_future_detail<
-	  InterruptCond, FutureType>>::make_exception_future(
-	      std::forward<Arg>(arg));
+          ::crimson::interruptible::interruptible_future_detail<
+              InterruptCond,
+              FutureType>>::make_exception_future(std::forward<Arg>(arg));
     }
   };
 
   template <class ErrorT>
-  static std::exception_ptr make_exception_ptr(ErrorT&& e) {
+  static std::exception_ptr
+  make_exception_ptr(ErrorT&& e)
+  {
     // calling via interface class due to encapsulation and friend relations.
     return e.error_t<std::decay_t<ErrorT>>::to_exception_ptr();
   }
@@ -1203,7 +1384,7 @@ private:
   // we were exploiting before.
   template <class...>
   friend class errorator;
-  template<typename, typename>
+  template <typename, typename>
   friend class ::crimson::interruptible::interruptible_future_detail;
 }; // class errorator, generic template
 
@@ -1211,7 +1392,7 @@ private:
 template <>
 class errorator<> {
 public:
-  template <class ValueT=void>
+  template <class ValueT = void>
   using future = ::seastar::futurize_t<ValueT>;
 
   template <class T>
@@ -1230,28 +1411,22 @@ public:
   static constexpr bool contains_once_v = false;
 }; // class errorator, <> specialization
 
-
-template <class    ErroratorOne,
-          class    ErroratorTwo,
-          class... FurtherErrators>
+template <class ErroratorOne, class ErroratorTwo, class... FurtherErrators>
 struct compound_errorator {
 private:
   // generic template. Empty `FurtherErrators` are handled by
   // the specialization below.
   static_assert(sizeof...(FurtherErrators) > 0);
-  using step =
-    typename compound_errorator<ErroratorOne, ErroratorTwo>::type;
+  using step = typename compound_errorator<ErroratorOne, ErroratorTwo>::type;
 
 public:
-  using type =
-    typename compound_errorator<step, FurtherErrators...>::type;
+  using type = typename compound_errorator<step, FurtherErrators...>::type;
 };
-template <class ErroratorOne,
-          class ErroratorTwo>
-struct compound_errorator<ErroratorOne, ErroratorTwo>  {
+
+template <class ErroratorOne, class ErroratorTwo>
+struct compound_errorator<ErroratorOne, ErroratorTwo> {
   // specialization for empty `FurtherErrators` arg pack
-  using type =
-    typename ErroratorOne::template unify<ErroratorTwo>::type;
+  using type = typename ErroratorOne::template unify<ErroratorTwo>::type;
 };
 template <class... Args>
 using compound_errorator_t = typename compound_errorator<Args...>::type;
@@ -1266,73 +1441,85 @@ template <int ErrorV>
 using ct_error_code = unthrowable_wrapper<const std::error_code&, ec<ErrorV>>;
 
 namespace ct_error {
-  using enoent = ct_error_code<static_cast<int>(std::errc::no_such_file_or_directory)>;
-  using enodata = ct_error_code<static_cast<int>(std::errc::no_message_available)>;
-  using invarg =  ct_error_code<static_cast<int>(std::errc::invalid_argument)>;
-  using input_output_error = ct_error_code<static_cast<int>(std::errc::io_error)>;
-  using object_corrupted = ct_error_code<static_cast<int>(std::errc::illegal_byte_sequence)>;
-  using permission_denied = ct_error_code<static_cast<int>(std::errc::permission_denied)>;
-  using operation_not_supported =
+using enoent =
+    ct_error_code<static_cast<int>(std::errc::no_such_file_or_directory)>;
+using enodata = ct_error_code<static_cast<int>(std::errc::no_message_available)>;
+using invarg = ct_error_code<static_cast<int>(std::errc::invalid_argument)>;
+using input_output_error = ct_error_code<static_cast<int>(std::errc::io_error)>;
+using object_corrupted =
+    ct_error_code<static_cast<int>(std::errc::illegal_byte_sequence)>;
+using permission_denied =
+    ct_error_code<static_cast<int>(std::errc::permission_denied)>;
+using operation_not_supported =
     ct_error_code<static_cast<int>(std::errc::operation_not_supported)>;
-  using not_connected = ct_error_code<static_cast<int>(std::errc::not_connected)>;
-  using timed_out = ct_error_code<static_cast<int>(std::errc::timed_out)>;
-  using erange =
-    ct_error_code<static_cast<int>(std::errc::result_out_of_range)>;
-  using ebadf =
-    ct_error_code<static_cast<int>(std::errc::bad_file_descriptor)>;
-  using enospc =
-    ct_error_code<static_cast<int>(std::errc::no_space_on_device)>;
-  using value_too_large = ct_error_code<static_cast<int>(std::errc::value_too_large)>;
-  using eagain =
+using not_connected = ct_error_code<static_cast<int>(std::errc::not_connected)>;
+using timed_out = ct_error_code<static_cast<int>(std::errc::timed_out)>;
+using erange = ct_error_code<static_cast<int>(std::errc::result_out_of_range)>;
+using ebadf = ct_error_code<static_cast<int>(std::errc::bad_file_descriptor)>;
+using enospc = ct_error_code<static_cast<int>(std::errc::no_space_on_device)>;
+using value_too_large =
+    ct_error_code<static_cast<int>(std::errc::value_too_large)>;
+using eagain =
     ct_error_code<static_cast<int>(std::errc::resource_unavailable_try_again)>;
-  using file_too_large =
+using file_too_large =
     ct_error_code<static_cast<int>(std::errc::file_too_large)>;
-  using address_in_use = ct_error_code<static_cast<int>(std::errc::address_in_use)>;
-  using address_not_available = ct_error_code<static_cast<int>(std::errc::address_not_available)>;
-  using ecanceled = ct_error_code<static_cast<int>(std::errc::operation_canceled)>;
-  using einprogress = ct_error_code<static_cast<int>(std::errc::operation_in_progress)>;
-  using enametoolong = ct_error_code<static_cast<int>(std::errc::filename_too_long)>;
-  using eexist = ct_error_code<static_cast<int>(std::errc::file_exists)>;
-  using edquot = ct_error_code<int(122)>;
-  constexpr int cmp_fail_error_value = 4095;
-  using cmp_fail = ct_error_code<int(cmp_fail_error_value)>;
+using address_in_use =
+    ct_error_code<static_cast<int>(std::errc::address_in_use)>;
+using address_not_available =
+    ct_error_code<static_cast<int>(std::errc::address_not_available)>;
+using ecanceled = ct_error_code<static_cast<int>(std::errc::operation_canceled)>;
+using einprogress =
+    ct_error_code<static_cast<int>(std::errc::operation_in_progress)>;
+using enametoolong =
+    ct_error_code<static_cast<int>(std::errc::filename_too_long)>;
+using eexist = ct_error_code<static_cast<int>(std::errc::file_exists)>;
+using edquot = ct_error_code<int(122)>;
+constexpr int cmp_fail_error_value = 4095;
+using cmp_fail = ct_error_code<int(cmp_fail_error_value)>;
 
-  struct pass_further_all {
-    template <class ErrorT>
-    decltype(auto) operator()(ErrorT&& e) {
-      return std::forward<ErrorT>(e);
-    }
+struct pass_further_all {
+  template <class ErrorT>
+  decltype(auto)
+  operator()(ErrorT&& e)
+  {
+    return std::forward<ErrorT>(e);
+  }
+};
+
+class assert_all {
+  const char* const msg = nullptr;
+
+public:
+  assert_all(const char* msg) :
+    msg(msg)
+  {}
+
+  assert_all() = default;
+
+  template <class ErrorT>
+  no_touch_error_marker
+  operator()(ErrorT&& raw_error)
+  {
+    using decayed_t = std::decay_t<ErrorT>;
+    decayed_t::error_t::handle([this](auto&& error_v) {
+      ceph_abort_msgf("%s: %s", msg ? msg : "", error_v.message().c_str());
+    })(std::forward<ErrorT>(raw_error));
+    return no_touch_error_marker{};
+  }
+};
+
+template <class ErrorFunc>
+static decltype(auto)
+all_same_way(ErrorFunc&& error_func)
+{
+  return [error_func = std::forward<ErrorFunc>(error_func)](
+             auto&& e) mutable -> decltype(auto) {
+    using decayed_t = std::decay_t<decltype(e)>;
+    return decayed_t::error_t::handle(std::forward<ErrorFunc>(error_func))(
+        std::forward<decltype(e)>(e));
   };
-
-  class assert_all {
-    const char* const msg = nullptr;
-  public:
-    assert_all(const char* msg)
-      : msg(msg) {
-    }
-    assert_all() = default;
-
-    template <class ErrorT>
-    no_touch_error_marker operator()(ErrorT&& raw_error) {
-      using decayed_t = std::decay_t<ErrorT>;
-      decayed_t::error_t::handle([this] (auto&& error_v) {
-        ceph_abort_msgf("%s: %s", msg ? msg : "", error_v.message().c_str());
-      })(std::forward<ErrorT>(raw_error));
-      return no_touch_error_marker{};
-    }
-  };
-
-  template <class ErrorFunc>
-  static decltype(auto) all_same_way(ErrorFunc&& error_func) {
-    return [
-      error_func = std::forward<ErrorFunc>(error_func)
-    ] (auto&& e) mutable -> decltype(auto) {
-      using decayed_t = std::decay_t<decltype(e)>;
-      return decayed_t::error_t::handle(std::forward<ErrorFunc>(error_func))
-                                       (std::forward<decltype(e)>(e));
-    };
-  };
-}
+};
+} // namespace ct_error
 
 using stateful_errc = stateful_error_t<std::errc>;
 using stateful_errint = stateful_error_t<int>;
@@ -1342,18 +1529,17 @@ template <typename F>
 struct is_errorated_future {
   static constexpr bool value = false;
 };
-template <template <class...> class ErroratedFutureT,
-	  class ValueT>
+
+template <template <class...> class ErroratedFutureT, class ValueT>
 struct is_errorated_future<
-  ErroratedFutureT<::crimson::errorated_future_marker<ValueT>>
-  > {
+    ErroratedFutureT<::crimson::errorated_future_marker<ValueT>>> {
   static constexpr bool value = true;
 };
+
 template <typename T>
 constexpr bool is_errorated_future_v = is_errorated_future<T>::value;
 
 } // namespace crimson
-
 
 // open the `seastar` namespace to specialize `futurize`. This is not
 // pretty for sure. I just hope it's not worse than e.g. specializing
@@ -1362,30 +1548,32 @@ constexpr bool is_errorated_future_v = is_errorated_future<T>::value;
 namespace seastar {
 
 // Container is a placeholder for errorator::_future<> template
-template <template <class> class Container,
-          class Value>
+template <template <class> class Container, class Value>
 struct futurize<Container<::crimson::errorated_future_marker<Value>>> {
   using errorator_type = typename Container<
-    ::crimson::errorated_future_marker<Value>>::errorator_type;
+      ::crimson::errorated_future_marker<Value>>::errorator_type;
 
   using type = typename errorator_type::template future<Value>;
   using value_type = seastar::internal::future_stored_type_t<Value>;
 
-  template<typename Func, typename... FuncArgs>
+  template <typename Func, typename... FuncArgs>
   [[gnu::always_inline]]
-  static type apply(Func&& func, std::tuple<FuncArgs...>&& args) noexcept {
+  static type
+  apply(Func&& func, std::tuple<FuncArgs...>&& args) noexcept
+  {
     try {
       return std::apply(
-	std::forward<Func>(func),
-	std::forward<std::tuple<FuncArgs...>>(args));
+          std::forward<Func>(func), std::forward<std::tuple<FuncArgs...>>(args));
     } catch (...) {
       return make_exception_future(std::current_exception());
     }
   }
 
-  template<typename Func, typename... FuncArgs>
+  template <typename Func, typename... FuncArgs>
   [[gnu::always_inline]]
-  static inline type invoke(Func&& func, FuncArgs&&... args) noexcept {
+  static inline type
+  invoke(Func&& func, FuncArgs&&... args) noexcept
+  {
     try {
       return func(std::forward<FuncArgs>(args)...);
     } catch (...) {
@@ -1395,7 +1583,9 @@ struct futurize<Container<::crimson::errorated_future_marker<Value>>> {
 
   template <class Func>
   [[gnu::always_inline]]
-  static type invoke(Func&& func, seastar::internal::monostate) noexcept {
+  static type
+  invoke(Func&& func, seastar::internal::monostate) noexcept
+  {
     try {
       return func();
     } catch (...) {
@@ -1405,13 +1595,18 @@ struct futurize<Container<::crimson::errorated_future_marker<Value>>> {
 
   template <typename Arg>
   [[gnu::always_inline]]
-  static type make_exception_future(Arg&& arg) {
-    return errorator_type::template make_exception_future2<Value>(std::forward<Arg>(arg));
+  static type
+  make_exception_future(Arg&& arg)
+  {
+    return errorator_type::template make_exception_future2<Value>(
+        std::forward<Arg>(arg));
   }
 
 private:
-  template<typename PromiseT, typename Func>
-  static void satisfy_with_result_of(PromiseT&& pr, Func&& func) {
+  template <typename PromiseT, typename Func>
+  static void
+  satisfy_with_result_of(PromiseT&& pr, Func&& func)
+  {
     // this may use the protected variant of `seastar::future::forward_to()`
     // because:
     //   1. `seastar::future` established a friendship with with all
@@ -1425,9 +1620,9 @@ private:
   friend class future;
 };
 
-template <template <class> class Container,
-          class Value>
-struct continuation_base_from_future<Container<::crimson::errorated_future_marker<Value>>> {
+template <template <class> class Container, class Value>
+struct continuation_base_from_future<
+    Container<::crimson::errorated_future_marker<Value>>> {
   using type = continuation_base<Value>;
 };
 

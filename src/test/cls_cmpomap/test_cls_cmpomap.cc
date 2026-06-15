@@ -12,74 +12,92 @@
  * Foundation.  See file COPYING.
  */
 
-#include "cls/cmpomap/client.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
-
 #include <optional>
+
+#include "cls/cmpomap/client.h"
+#include "gtest/gtest.h"
+#include "test/librados/test_cxx.h"
 
 // create/destroy a pool that's shared by all tests in the process
 struct RadosEnv : public ::testing::Environment {
   static std::optional<std::string> pool_name;
- public:
+
+public:
   static librados::Rados rados;
   static librados::IoCtx ioctx;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     // create pool
     std::string name = get_temp_pool_name();
     ASSERT_EQ("", create_one_pool_pp(name, rados));
     pool_name = name;
     ASSERT_EQ(rados.ioctx_create(name.c_str(), ioctx), 0);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     ioctx.close();
     if (pool_name) {
       ASSERT_EQ(destroy_one_pool_pp(*pool_name, rados), 0);
     }
   }
 };
+
 std::optional<std::string> RadosEnv::pool_name;
 librados::Rados RadosEnv::rados;
 librados::IoCtx RadosEnv::ioctx;
 
-auto *const rados_env = ::testing::AddGlobalTestEnvironment(new RadosEnv);
+auto* const rados_env = ::testing::AddGlobalTestEnvironment(new RadosEnv);
 
 namespace cls::cmpomap {
 
 // test fixture with helper functions
 class CmpOmap : public ::testing::Test {
- protected:
+protected:
   librados::IoCtx& ioctx = RadosEnv::ioctx;
 
-  int do_cmp_vals(const std::string& oid, Mode mode,
-                  Op comparison, ComparisonMap values,
-                  std::optional<bufferlist> def = std::nullopt)
+  int
+  do_cmp_vals(
+      const std::string& oid,
+      Mode mode,
+      Op comparison,
+      ComparisonMap values,
+      std::optional<bufferlist> def = std::nullopt)
   {
     librados::ObjectReadOperation op;
-    int ret = cmp_vals(op, mode, comparison,
-                       std::move(values), std::move(def));
+    int ret = cmp_vals(op, mode, comparison, std::move(values), std::move(def));
     if (ret < 0) {
       return ret;
     }
     return ioctx.operate(oid, &op, nullptr);
   }
 
-  int do_cmp_set_vals(const std::string& oid, Mode mode,
-                      Op comparison, ComparisonMap values,
-                      std::optional<bufferlist> def = std::nullopt)
+  int
+  do_cmp_set_vals(
+      const std::string& oid,
+      Mode mode,
+      Op comparison,
+      ComparisonMap values,
+      std::optional<bufferlist> def = std::nullopt)
   {
     librados::ObjectWriteOperation op;
-    int ret = cmp_set_vals(op, mode, comparison,
-                           std::move(values), std::move(def));
+    int ret =
+        cmp_set_vals(op, mode, comparison, std::move(values), std::move(def));
     if (ret < 0) {
       return ret;
     }
     return ioctx.operate(oid, &op);
   }
 
-  int do_cmp_rm_keys(const std::string& oid, Mode mode,
-                     Op comparison, ComparisonMap values)
+  int
+  do_cmp_rm_keys(
+      const std::string& oid,
+      Mode mode,
+      Op comparison,
+      ComparisonMap values)
   {
     librados::ObjectWriteOperation op;
     int ret = cmp_rm_keys(op, mode, comparison, std::move(values));
@@ -89,7 +107,8 @@ class CmpOmap : public ::testing::Test {
     return ioctx.operate(oid, &op);
   }
 
-  int get_vals(const std::string& oid, std::map<std::string, bufferlist>* vals)
+  int
+  get_vals(const std::string& oid, std::map<std::string, bufferlist>* vals)
   {
     std::string marker;
     bool more = false;
@@ -133,10 +152,13 @@ TEST_F(CmpOmap, cmp_vals_noexist_str_default)
   // compare a nonempty value against a missing key with nonempty default
   const bufferlist input = string_buffer("a");
   const bufferlist def = string_buffer("b");
-  EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::EQ, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::String, Op::EQ, {{key, input}}, def), -ECANCELED);
   EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::NE, {{key, input}}, def), 0);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GT, {{key, input}}, def), -ECANCELED);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GTE, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::String, Op::GT, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::String, Op::GTE, {{key, input}}, def), -ECANCELED);
   EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LT, {{key, input}}, def), 0);
   EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LTE, {{key, input}}, def), 0);
 }
@@ -166,10 +188,13 @@ TEST_F(CmpOmap, cmp_vals_noexist_u64_default)
   // 1 == noexist
   const bufferlist input = u64_buffer(1);
   const bufferlist def = u64_buffer(2);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::EQ, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::EQ, {{key, input}}, def), -ECANCELED);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::NE, {{key, input}}, def), 0);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::GT, {{key, input}}, def), -ECANCELED);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::GTE, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::GT, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::GTE, {{key, input}}, def), -ECANCELED);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::LT, {{key, input}}, def), 0);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::LTE, {{key, input}}, def), 0);
 }
@@ -182,32 +207,41 @@ TEST_F(CmpOmap, cmp_vals_str)
   {
     // empty < existing
     const bufferlist empty;
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::EQ, {{key, empty}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::EQ, {{key, empty}}), -ECANCELED);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::NE, {{key, empty}}), 0);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GT, {{key, empty}}), -ECANCELED);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GTE, {{key, empty}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::GT, {{key, empty}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::GTE, {{key, empty}}), -ECANCELED);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LT, {{key, empty}}), 0);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LTE, {{key, empty}}), 0);
   }
   {
     // value < existing
     const bufferlist value = string_buffer("aaa");
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::EQ, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::EQ, {{key, value}}), -ECANCELED);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::NE, {{key, value}}), 0);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GT, {{key, value}}), -ECANCELED);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GTE, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::GT, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::GTE, {{key, value}}), -ECANCELED);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LT, {{key, value}}), 0);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LTE, {{key, value}}), 0);
   }
   {
     // value > existing
     const bufferlist value = string_buffer("bbbb");
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::EQ, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::EQ, {{key, value}}), -ECANCELED);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::NE, {{key, value}}), 0);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GT, {{key, value}}), 0);
     EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::GTE, {{key, value}}), 0);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LT, {{key, value}}), -ECANCELED);
-    EXPECT_EQ(do_cmp_vals(oid, Mode::String, Op::LTE, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::LT, {{key, value}}), -ECANCELED);
+    EXPECT_EQ(
+        do_cmp_vals(oid, Mode::String, Op::LTE, {{key, value}}), -ECANCELED);
   }
 }
 
@@ -286,12 +320,15 @@ TEST_F(CmpOmap, cmp_vals_u64_empty_default)
   const std::string key = "key";
   const bufferlist input = u64_buffer(1);
   const bufferlist def; // empty buffer defaults to 0
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::EQ, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::EQ, {{key, input}}, def), -ECANCELED);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::NE, {{key, input}}, def), 0);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::GT, {{key, input}}, def), 0);
   EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::GTE, {{key, input}}, def), 0);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::LT, {{key, input}}, def), -ECANCELED);
-  EXPECT_EQ(do_cmp_vals(oid, Mode::U64, Op::LTE, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::LT, {{key, input}}, def), -ECANCELED);
+  EXPECT_EQ(
+      do_cmp_vals(oid, Mode::U64, Op::LTE, {{key, input}}, def), -ECANCELED);
 }
 
 TEST_F(CmpOmap, cmp_vals_u64_invalid_value)
@@ -317,7 +354,8 @@ TEST_F(CmpOmap, cmp_vals_at_max_keys)
     comparisons.emplace(std::to_string(i), empty);
   }
   librados::ObjectReadOperation op;
-  EXPECT_EQ(cmp_vals(op, Mode::String, Op::EQ, std::move(comparisons), empty), 0);
+  EXPECT_EQ(
+      cmp_vals(op, Mode::String, Op::EQ, std::move(comparisons), empty), 0);
 }
 
 TEST_F(CmpOmap, cmp_vals_over_max_keys)
@@ -328,7 +366,8 @@ TEST_F(CmpOmap, cmp_vals_over_max_keys)
     comparisons.emplace(std::to_string(i), empty);
   }
   librados::ObjectReadOperation op;
-  EXPECT_EQ(cmp_vals(op, Mode::String, Op::EQ, std::move(comparisons), empty), -E2BIG);
+  EXPECT_EQ(
+      cmp_vals(op, Mode::String, Op::EQ, std::move(comparisons), empty), -E2BIG);
 }
 
 TEST_F(CmpOmap, cmp_set_vals_noexist_str)
@@ -356,9 +395,11 @@ TEST_F(CmpOmap, cmp_set_vals_noexist_str_default)
   EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::EQ, {{"eq", value}}, def), 0);
   EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::NE, {{"ne", value}}, def), 0);
   EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::GT, {{"gt", value}}, def), 0);
-  EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::GTE, {{"gte", value}}, def), 0);
+  EXPECT_EQ(
+      do_cmp_set_vals(oid, Mode::String, Op::GTE, {{"gte", value}}, def), 0);
   EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::LT, {{"lt", value}}, def), 0);
-  EXPECT_EQ(do_cmp_set_vals(oid, Mode::String, Op::LTE, {{"lte", value}}, def), 0);
+  EXPECT_EQ(
+      do_cmp_set_vals(oid, Mode::String, Op::LTE, {{"lte", value}}, def), 0);
 
   std::map<std::string, bufferlist> vals;
   ASSERT_EQ(get_vals(oid, &vals), 0);
@@ -416,12 +457,8 @@ TEST_F(CmpOmap, cmp_set_vals_str)
   const bufferlist value2 = string_buffer("ccc");
   {
     std::map<std::string, bufferlist> vals = {
-      {"eq", value1},
-      {"ne", value1},
-      {"gt", value1},
-      {"gte", value1},
-      {"lt", value1},
-      {"lte", value1},
+        {"eq", value1},  {"ne", value1}, {"gt", value1},
+        {"gte", value1}, {"lt", value1}, {"lte", value1},
     };
     ASSERT_EQ(ioctx.omap_set(oid, vals), 0);
   }
@@ -453,12 +490,8 @@ TEST_F(CmpOmap, cmp_set_vals_u64)
   const bufferlist value2 = u64_buffer(42);
   {
     std::map<std::string, bufferlist> vals = {
-      {"eq", value1},
-      {"ne", value1},
-      {"gt", value1},
-      {"gte", value1},
-      {"lt", value1},
-      {"lte", value1},
+        {"eq", value1},  {"ne", value1}, {"gt", value1},
+        {"gte", value1}, {"lt", value1}, {"lte", value1},
     };
     ASSERT_EQ(ioctx.omap_set(oid, vals), 0);
   }
@@ -517,7 +550,9 @@ TEST_F(CmpOmap, cmp_set_vals_at_max_keys)
     comparisons.emplace(std::to_string(i), value);
   }
   librados::ObjectWriteOperation op;
-  EXPECT_EQ(cmp_set_vals(op, Mode::U64, Op::EQ, std::move(comparisons), std::nullopt), 0);
+  EXPECT_EQ(
+      cmp_set_vals(op, Mode::U64, Op::EQ, std::move(comparisons), std::nullopt),
+      0);
 }
 
 TEST_F(CmpOmap, cmp_set_vals_over_max_keys)
@@ -528,7 +563,9 @@ TEST_F(CmpOmap, cmp_set_vals_over_max_keys)
     comparisons.emplace(std::to_string(i), value);
   }
   librados::ObjectWriteOperation op;
-  EXPECT_EQ(cmp_set_vals(op, Mode::U64, Op::EQ, std::move(comparisons), std::nullopt), -E2BIG);
+  EXPECT_EQ(
+      cmp_set_vals(op, Mode::U64, Op::EQ, std::move(comparisons), std::nullopt),
+      -E2BIG);
 }
 
 TEST_F(CmpOmap, cmp_rm_keys_noexist_str)
@@ -568,12 +605,8 @@ TEST_F(CmpOmap, cmp_rm_keys_str)
   const bufferlist value2 = string_buffer("ccc");
   {
     std::map<std::string, bufferlist> vals = {
-      {"eq", value1},
-      {"ne", value1},
-      {"gt", value1},
-      {"gte", value1},
-      {"lt", value1},
-      {"lte", value1},
+        {"eq", value1},  {"ne", value1}, {"gt", value1},
+        {"gte", value1}, {"lt", value1}, {"lte", value1},
     };
     ASSERT_EQ(ioctx.omap_set(oid, vals), 0);
   }
@@ -604,12 +637,8 @@ TEST_F(CmpOmap, cmp_rm_keys_u64)
   const bufferlist value2 = u64_buffer(42);
   {
     std::map<std::string, bufferlist> vals = {
-      {"eq", value1},
-      {"ne", value1},
-      {"gt", value1},
-      {"gte", value1},
-      {"lt", value1},
-      {"lte", value1},
+        {"eq", value1},  {"ne", value1}, {"gt", value1},
+        {"gte", value1}, {"lt", value1}, {"lte", value1},
     };
     ASSERT_EQ(ioctx.omap_set(oid, vals), 0);
   }
@@ -688,12 +717,8 @@ TEST_F(CmpOmap, cmp_rm_keys_u64_empty)
   const bufferlist value2 = u64_buffer(42);
   {
     std::map<std::string, bufferlist> vals = {
-      {"eq", value1},
-      {"ne", value1},
-      {"gt", value1},
-      {"gte", value1},
-      {"lt", value1},
-      {"lte", value1},
+        {"eq", value1},  {"ne", value1}, {"gt", value1},
+        {"gte", value1}, {"lt", value1}, {"lte", value1},
     };
     ASSERT_EQ(ioctx.omap_set(oid, vals), 0);
   }

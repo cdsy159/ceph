@@ -18,10 +18,11 @@
 #include <map>
 #include <memory>
 #include <string>
-#include "include/buffer_fwd.h"
-#include "include/rados/librados_fwd.hpp"
+
 #include "common/async/yield_context.h"
 #include "common/ceph_time.h"
+#include "include/buffer_fwd.h"
+#include "include/rados/librados_fwd.hpp"
 
 class DoutPrefixProvider;
 struct rgw_raw_obj;
@@ -34,57 +35,61 @@ class RGWZoneParams;
 namespace rgwrados::group {
 
 /// Group metadata handler factory
-auto create_metadata_handler(RGWSI_SysObj& sysobj, librados::Rados& rados,
-                             const RGWZoneParams& zone)
-    -> std::unique_ptr<RGWMetadataHandler>;
+auto create_metadata_handler(
+    RGWSI_SysObj& sysobj,
+    librados::Rados& rados,
+    const RGWZoneParams& zone) -> std::unique_ptr<RGWMetadataHandler>;
 
 /// Return the rados object that tracks the given group's users
-rgw_raw_obj get_users_obj(const RGWZoneParams& zone,
-                          std::string_view group_id);
+rgw_raw_obj get_users_obj(const RGWZoneParams& zone, std::string_view group_id);
 
 
 /// Read group info by id
-int read(const DoutPrefixProvider* dpp,
-         optional_yield y,
-         RGWSI_SysObj& sysobj,
-         const RGWZoneParams& zone,
-         std::string_view id,
-         RGWGroupInfo& info,
-         std::map<std::string, ceph::buffer::list>& attrs,
-         ceph::real_time& mtime,
-         RGWObjVersionTracker& objv);
+int read(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    std::string_view id,
+    RGWGroupInfo& info,
+    std::map<std::string, ceph::buffer::list>& attrs,
+    ceph::real_time& mtime,
+    RGWObjVersionTracker& objv);
 
 /// Read group info by name
-int read_by_name(const DoutPrefixProvider* dpp,
-                 optional_yield y,
-                 RGWSI_SysObj& sysobj,
-                 const RGWZoneParams& zone,
-                 std::string_view account_id,
-                 std::string_view name,
-                 RGWGroupInfo& info,
-                 std::map<std::string, ceph::buffer::list>& attrs,
-                 RGWObjVersionTracker& objv);
+int read_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    std::string_view account_id,
+    std::string_view name,
+    RGWGroupInfo& info,
+    std::map<std::string, ceph::buffer::list>& attrs,
+    RGWObjVersionTracker& objv);
 
 /// Write group info and update name index
-int write(const DoutPrefixProvider* dpp,
-          optional_yield y,
-          RGWSI_SysObj& sysobj,
-          librados::Rados& rados,
-          const RGWZoneParams& zone,
-          const RGWGroupInfo& info,
-          const RGWGroupInfo* old_info,
-          const std::map<std::string, ceph::buffer::list>& attrs,
-          ceph::real_time mtime,
-          bool exclusive,
-          RGWObjVersionTracker& objv);
+int write(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    librados::Rados& rados,
+    const RGWZoneParams& zone,
+    const RGWGroupInfo& info,
+    const RGWGroupInfo* old_info,
+    const std::map<std::string, ceph::buffer::list>& attrs,
+    ceph::real_time mtime,
+    bool exclusive,
+    RGWObjVersionTracker& objv);
 
 /// Remove group info and name index
-int remove(const DoutPrefixProvider* dpp,
-           optional_yield y,
-           RGWSI_SysObj& sysobj,
-           librados::Rados& rados,
-           const RGWZoneParams& zone,
-           const RGWGroupInfo& info,
-           RGWObjVersionTracker& objv);
+int remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    librados::Rados& rados,
+    const RGWZoneParams& zone,
+    const RGWGroupInfo& info,
+    RGWObjVersionTracker& objv);
 
 } // namespace rgwrados::group

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,29 +16,29 @@
  * 
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <fstream>
 #include <type_traits>
 
 #include "common/debug.h"
-#include "common/errno.h"
-#include "common/config.h"
-#include "common/Formatter.h"
-#include "common/strtol.h" // for strict_strtol()
 
+#include "common/Formatter.h"
 #include "common/ceph_argparse.h"
-#include "include/stringify.h"
-#include "global/global_context.h"
-#include "global/global_init.h"
-#include "osd/OSDMap.h"
-#include "crush/CrushWrapper.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "common/strtol.h" // for strict_strtol()
 #include "crush/CrushCompiler.h"
 #include "crush/CrushTester.h"
+#include "crush/CrushWrapper.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
 #include "include/ceph_assert.h"
+#include "include/stringify.h"
+#include "osd/OSDMap.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_crush
@@ -56,14 +56,15 @@ using std::set;
 using std::string;
 using std::vector;
 
-const char *infn = "stdin";
+const char* infn = "stdin";
 
-static int get_fd_data(int fd, bufferlist &bl)
+static int
+get_fd_data(int fd, bufferlist& bl)
 {
 
   uint64_t total = 0;
   do {
-    ssize_t bytes = bl.read_fd(fd, 1024*1024);
+    ssize_t bytes = bl.read_fd(fd, 1024 * 1024);
     if (bytes < 0) {
       cerr << "read_fd error " << cpp_strerror(-bytes) << "\n";
       return -1;
@@ -73,7 +74,7 @@ static int get_fd_data(int fd, bufferlist &bl)
       break;
 
     total += bytes;
-  } while(true);
+  } while (true);
 
   ceph_assert(bl.length() == total);
   return 0;
@@ -81,45 +82,59 @@ static int get_fd_data(int fd, bufferlist &bl)
 
 ////////////////////////////////////////////////////////////////////////////
 
-void data_analysis_usage()
+void
+data_analysis_usage()
 {
-cout << "data output from testing routine ...\n";
-cout << "           absolute_weights\n";
-cout << "                  the decimal weight of each OSD\n";
-cout << "                  data layout: ROW MAJOR\n";
-cout << "                               OSD id (int), weight (int)\n";
-cout << "           batch_device_expected_utilization_all\n";
-cout << "                  the expected number of objects each OSD should receive per placement batch\n";
-cout << "                  which may be a decimal value\n";
-cout << "                  data layout: COLUMN MAJOR\n";
-cout << "                               round (int), objects expected on OSD 0...OSD n (float)\n";
-cout << "           batch_device_utilization_all\n";
-cout << "                  the number of objects stored on each OSD during each placement round\n";
-cout << "                  data layout: COLUMN MAJOR\n";
-cout << "                               round (int), objects stored on OSD 0...OSD n (int)\n";
-cout << "           device_utilization_all\n";
-cout << "                  the number of objects stored on each OSD at the end of placements\n";
-cout << "                  data_layout: ROW MAJOR\n";
-cout << "                               OSD id (int), objects stored (int), objects expected (float)\n";
-cout << "           device_utilization\n";
-cout << "                  the number of objects stored on each OSD marked 'up' at the end of placements\n";
-cout << "                  data_layout: ROW MAJOR\n";
-cout << "                               OSD id (int), objects stored (int), objects expected (float)\n";
-cout << "           placement_information\n";
-cout << "                  the map of input -> OSD\n";
-cout << "                  data_layout: ROW MAJOR\n";
-cout << "                               input (int), OSD's mapped (int)\n";
-cout << "           proportional_weights_all\n";
-cout << "                  the proportional weight of each OSD specified in the CRUSH map\n";
-cout << "                  data_layout: ROW MAJOR\n";
-cout << "                               OSD id (int), proportional weight (float)\n";
-cout << "           proportional_weights\n";
-cout << "                  the proportional weight of each 'up' OSD specified in the CRUSH map\n";
-cout << "                  data_layout: ROW MAJOR\n";
-cout << "                               OSD id (int), proportional weight (float)\n";
+  cout << "data output from testing routine ...\n";
+  cout << "           absolute_weights\n";
+  cout << "                  the decimal weight of each OSD\n";
+  cout << "                  data layout: ROW MAJOR\n";
+  cout << "                               OSD id (int), weight (int)\n";
+  cout << "           batch_device_expected_utilization_all\n";
+  cout << "                  the expected number of objects each OSD should "
+          "receive per placement batch\n";
+  cout << "                  which may be a decimal value\n";
+  cout << "                  data layout: COLUMN MAJOR\n";
+  cout << "                               round (int), objects expected on OSD "
+          "0...OSD n (float)\n";
+  cout << "           batch_device_utilization_all\n";
+  cout << "                  the number of objects stored on each OSD during "
+          "each placement round\n";
+  cout << "                  data layout: COLUMN MAJOR\n";
+  cout << "                               round (int), objects stored on OSD "
+          "0...OSD n (int)\n";
+  cout << "           device_utilization_all\n";
+  cout << "                  the number of objects stored on each OSD at the "
+          "end of placements\n";
+  cout << "                  data_layout: ROW MAJOR\n";
+  cout << "                               OSD id (int), objects stored (int), "
+          "objects expected (float)\n";
+  cout << "           device_utilization\n";
+  cout << "                  the number of objects stored on each OSD marked "
+          "'up' at the end of placements\n";
+  cout << "                  data_layout: ROW MAJOR\n";
+  cout << "                               OSD id (int), objects stored (int), "
+          "objects expected (float)\n";
+  cout << "           placement_information\n";
+  cout << "                  the map of input -> OSD\n";
+  cout << "                  data_layout: ROW MAJOR\n";
+  cout << "                               input (int), OSD's mapped (int)\n";
+  cout << "           proportional_weights_all\n";
+  cout << "                  the proportional weight of each OSD specified in "
+          "the CRUSH map\n";
+  cout << "                  data_layout: ROW MAJOR\n";
+  cout << "                               OSD id (int), proportional weight "
+          "(float)\n";
+  cout << "           proportional_weights\n";
+  cout << "                  the proportional weight of each 'up' OSD "
+          "specified in the CRUSH map\n";
+  cout << "                  data_layout: ROW MAJOR\n";
+  cout << "                               OSD id (int), proportional weight "
+          "(float)\n";
 }
 
-void usage()
+void
+usage()
 {
   cout << "usage: crushtool ...\n";
   cout << "\n";
@@ -148,23 +163,28 @@ void usage()
   cout << "                         compile with unsafe tunables\n";
   cout << "   --build --num_osds N layer1 ...\n";
   cout << "                         build a new map, where each 'layer' is\n";
-  cout << "                         'name (uniform|straw2|straw|list|tree) size'\n";
+  cout << "                         'name (uniform|straw2|straw|list|tree) "
+          "size'\n";
   cout << "\n";
   cout << "Options for the tunables adjustments stage\n";
   cout << "\n";
   cout << "   --set-choose-local-tries N\n";
-  cout << "                         set choose local retries before re-descent\n";
+  cout << "                         set choose local retries before "
+          "re-descent\n";
   cout << "   --set-choose-local-fallback-tries N\n";
   cout << "                         set choose local retries using fallback\n";
   cout << "                         permutation before re-descent\n";
   cout << "   --set-choose-total-tries N\n";
   cout << "                         set choose total descent attempts\n";
   cout << "   --set-chooseleaf-descend-once <0|1>\n";
-  cout << "                         set chooseleaf to (not) retry the recursive descent\n";
+  cout << "                         set chooseleaf to (not) retry the "
+          "recursive descent\n";
   cout << "   --set-chooseleaf-vary-r <0|1>\n";
-  cout << "                         set chooseleaf to (not) vary r based on parent\n";
+  cout << "                         set chooseleaf to (not) vary r based on "
+          "parent\n";
   cout << "   --set-chooseleaf-stable <0|1>\n";
-  cout << "                         set chooseleaf firstn to (not) return stable results\n";
+  cout << "                         set chooseleaf firstn to (not) return "
+          "stable results\n";
   cout << "\n";
   cout << "Options for the modifications stage\n";
   cout << "\n";
@@ -172,27 +192,35 @@ void usage()
   cout << "                         insert an item into the hierarchy at the\n";
   cout << "                         given location\n";
   cout << "   -i mapfn --update-item id weight name [--loc type name ...]\n";
-  cout << "                         insert or move an item into the hierarchy at the\n";
+  cout << "                         insert or move an item into the hierarchy "
+          "at the\n";
   cout << "                         given location\n";
   cout << "   -i mapfn --remove-item name\n"
        << "                         remove the given item\n";
   cout << "   -i mapfn --reweight-item name weight\n";
-  cout << "                         reweight a given item (and adjust ancestor\n"
-       << "                         weights as needed)\n";
+  cout
+      << "                         reweight a given item (and adjust ancestor\n"
+      << "                         weights as needed)\n";
   cout << "   -i mapfn --add-bucket name type [--loc type name ...]\n"
-       << "                         insert a bucket into the hierarchy at the given\n"
+       << "                         insert a bucket into the hierarchy at the "
+          "given\n"
        << "                         location\n";
-  cout << "   -i mapfn --move       name --loc type name ...\n"
-       << "                         move the given item to specified location\n";
+  cout
+      << "   -i mapfn --move       name --loc type name ...\n"
+      << "                         move the given item to specified location\n";
   cout << "   -i mapfn --reweight   recalculate all bucket weights\n";
   cout << "   -i mapfn --rebuild-class-roots\n";
-  cout << "                         rebuild the per-class shadow trees (normally a no-op)\n";
+  cout << "                         rebuild the per-class shadow trees "
+          "(normally a no-op)\n";
   cout << "   -i mapfn --create-simple-rule name root type mode\n"
-       << "                         create crush rule <name> to start from <root>,\n"
-       << "                         replicate across buckets of type <type>, using\n"
+       << "                         create crush rule <name> to start from "
+          "<root>,\n"
+       << "                         replicate across buckets of type <type>, "
+          "using\n"
        << "                         a choose mode of <firstn|indep>\n";
   cout << "   -i mapfn --create-replicated-rule name root type\n"
-       << "                         create crush rule <name> to start from <root>,\n"
+       << "                         create crush rule <name> to start from "
+          "<root>,\n"
        << "                         replicate across buckets of type <type>\n";
   cout << "   --device-class <class>\n";
   cout << "                         use device class <class> for new rule\n";
@@ -201,14 +229,18 @@ void usage()
   cout << "\n";
   cout << "Options for the display/test stage\n";
   cout << "\n";
-  cout << "   -f --format           the format of --dump, defaults to json-pretty\n";
-  cout << "                         can be one of json, json-pretty, xml, xml-pretty,\n";
+  cout << "   -f --format           the format of --dump, defaults to "
+          "json-pretty\n";
+  cout << "                         can be one of json, json-pretty, xml, "
+          "xml-pretty,\n";
   cout << "                         table, table-kv, html, html-pretty\n";
   cout << "   --dump                dump the crush map\n";
   cout << "   --tree                print map summary as a tree\n";
   cout << "   --bucket-tree         print bucket map summary as a tree\n";
-  cout << "   --bucket-name         specify bucket bucket name for bucket-tree\n";
-  cout << "   --check [max_id]      check if any item is referencing an unknown name/type\n";
+  cout << "   --bucket-name         specify bucket bucket name for "
+          "bucket-tree\n";
+  cout << "   --check [max_id]      check if any item is referencing an "
+          "unknown name/type\n";
   cout << "   -i mapfn --show-location id\n";
   cout << "                         show location for given device id\n";
   cout << "   -i mapfn --test       test a range of inputs on the map\n";
@@ -216,7 +248,8 @@ void usage()
   cout << "      [--min-rule r] [--max-rule r] [--rule r]\n";
   cout << "      [--min-rep n] [--max-rep n] [--num-rep n]\n";
   cout << "      [--pool-id n]      specifies pool id\n";
-  cout << "      [--batches b]      split the CRUSH mapping into b > 1 rounds\n";
+  cout
+      << "      [--batches b]      split the CRUSH mapping into b > 1 rounds\n";
   cout << "      [--weight|-w devno weight]\n";
   cout << "                         where weight is 0 to 1.0\n";
   cout << "      [--simulate]       simulate placements using a random\n";
@@ -230,18 +263,23 @@ void usage()
   cout << "   --show-bad-mappings   show bad mappings\n";
   cout << "   --show-choose-tries   show choose tries histogram\n";
   cout << "   --output-name name\n";
-  cout << "                         prepend the data file(s) generated during the\n";
+  cout << "                         prepend the data file(s) generated during "
+          "the\n";
   cout << "                         testing routine with name\n";
   cout << "   --output-csv\n";
-  cout << "                         export select data generated during testing routine\n";
-  cout << "                         to CSV files for off-line post-processing\n";
+  cout << "                         export select data generated during "
+          "testing routine\n";
+  cout
+      << "                         to CSV files for off-line post-processing\n";
   cout << "                         use --help-output for more information\n";
-  cout << "   --reclassify          transform legacy CRUSH map buckets and rules\n";
+  cout << "   --reclassify          transform legacy CRUSH map buckets and "
+          "rules\n";
   cout << "                         by adding classes\n";
   cout << "      --reclassify-bucket <bucket-match> <class> <default-parent>\n";
   cout << "      --reclassify-root <bucket-name> <class>\n";
   cout << "   --set-subtree-class <bucket-name> <class>\n";
-  cout << "                         set class for all items beneath bucket-name\n";
+  cout << "                         set class for all items beneath "
+          "bucket-name\n";
   cout << "   --compare <otherfile> compare two maps using --test parameters\n";
   cout << "\n";
   cout << "Options for the output stage\n";
@@ -252,29 +290,28 @@ void usage()
 }
 
 struct bucket_types_t {
-  const char *name;
+  const char* name;
   int type;
 } bucket_types[] = {
-  { "uniform", CRUSH_BUCKET_UNIFORM },
-  { "list", CRUSH_BUCKET_LIST },
-  { "straw", CRUSH_BUCKET_STRAW },
-  { "straw2", CRUSH_BUCKET_STRAW2 },
-  { "tree", CRUSH_BUCKET_TREE },
-  { 0, 0 },
+    {"uniform", CRUSH_BUCKET_UNIFORM}, {"list", CRUSH_BUCKET_LIST},
+    {"straw", CRUSH_BUCKET_STRAW},     {"straw2", CRUSH_BUCKET_STRAW2},
+    {"tree", CRUSH_BUCKET_TREE},       {0, 0},
 };
 
 struct layer_t {
-  const char *name;
-  const char *buckettype;
+  const char* name;
+  const char* buckettype;
   int size;
 };
 
-template<typename... Args>
-bool argparse_withargs(std::vector<const char*> &args,
-		       std::vector<const char*>::iterator& i,
-		       std::ostream& oss,
-		       const char* opt,
-		       Args*... opts)
+template <typename... Args>
+bool
+argparse_withargs(
+    std::vector<const char*>& args,
+    std::vector<const char*>::iterator& i,
+    std::ostream& oss,
+    const char* opt,
+    Args*... opts)
 {
   if (!ceph_argparse_flag(args, i, opt, nullptr)) {
     return false;
@@ -305,12 +342,15 @@ bool argparse_withargs(std::vector<const char*> &args,
   return true;
 }
 
-int do_add_bucket(CephContext* cct,
-		  const char* me,
-		  CrushWrapper& crush,
-		  const string& add_name,
-		  const string& add_type,
-		  const map<string,string>& add_loc) {
+int
+do_add_bucket(
+    CephContext* cct,
+    const char* me,
+    CrushWrapper& crush,
+    const string& add_name,
+    const string& add_type,
+    const map<string, string>& add_loc)
+{
   int bucketno;
   if (crush.name_exists(add_name)) {
     cerr << me << " bucket '" << add_name << "' already exists" << std::endl;
@@ -321,7 +361,8 @@ int do_add_bucket(CephContext* cct,
     cerr << me << " bad bucket type: " << add_type << std::endl;
     return -EINVAL;
   }
-  if (int r = crush.add_bucket(0, 0, CRUSH_HASH_DEFAULT, type, 0, nullptr, nullptr, &bucketno);
+  if (int r = crush.add_bucket(
+          0, 0, CRUSH_HASH_DEFAULT, type, 0, nullptr, nullptr, &bucketno);
       r < 0) {
     cerr << me << " unable to add bucket: " << cpp_strerror(r) << std::endl;
     return r;
@@ -333,8 +374,9 @@ int do_add_bucket(CephContext* cct,
   if (!add_loc.empty()) {
     if (!crush.check_item_loc(cct, bucketno, add_loc, (int*)nullptr)) {
       if (int r = crush.move_bucket(cct, bucketno, add_loc); r < 0) {
-	cerr << me << " error moving bucket '" << add_name << "' to " << add_loc << std::endl;
-	return r;
+        cerr << me << " error moving bucket '" << add_name << "' to " << add_loc
+             << std::endl;
+        return r;
       }
     }
   }
@@ -342,11 +384,13 @@ int do_add_bucket(CephContext* cct,
 }
 
 // return 1 for no change, 0 for successful change, negative on error
-int do_move_item(CephContext* cct,
-		 const char *me,
-		 CrushWrapper& crush,
-		 const string& name,
-		 const map<string,string>& loc)
+int
+do_move_item(
+    CephContext* cct,
+    const char* me,
+    CrushWrapper& crush,
+    const string& name,
+    const map<string, string>& loc)
 {
   if (!crush.name_exists(name)) {
     cerr << me << " item '" << name << "' does not exist" << std::endl;
@@ -376,7 +420,8 @@ int do_move_item(CephContext* cct,
   }
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -388,10 +433,10 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  const char *me = argv[0];
+  const char* me = argv[0];
 
   std::string infn, srcfn, outfn, add_name, add_type, remove_name,
-    reweight_name, bucket_name;
+      reweight_name, bucket_name;
   std::string move_name;
   bool compile = false;
   bool decompile = false;
@@ -419,13 +464,13 @@ int main(int argc, const char **argv)
   std::string rule_name, rule_root, rule_type, rule_mode, rule_device_class;
   bool del_rule = false;
   float add_weight = 0;
-  map<string,string> add_loc;
+  map<string, string> add_loc;
   float reweight_weight = 0;
 
   bool adjust = false;
 
   int build = 0;
-  int num_osds =0;
+  int num_osds = 0;
   vector<layer_t> layers;
 
   int choose_local_tries = -1;
@@ -438,9 +483,10 @@ int main(int argc, const char **argv)
   int allowed_bucket_algs = -1;
 
   bool reclassify = false;
-  map<string,pair<string,string>> reclassify_bucket; // %suffix or prefix% -> class, default_root
-  map<string,string> reclassify_root;        // bucket -> class
-  map<string,string> set_subtree_class;     // bucket -> class
+  map<string, pair<string, string>>
+      reclassify_bucket; // %suffix or prefix% -> class, default_root
+  map<string, string> reclassify_root; // bucket -> class
+  map<string, string> set_subtree_class; // bucket -> class
 
   string compare;
 
@@ -450,11 +496,10 @@ int main(int argc, const char **argv)
 
   // we use -c, don't confuse the generic arg parsing
   // only parse arguments from CEPH_ARGS, if in the environment
-  vector<const char *> empty_args;
-  auto cct = global_init(NULL, empty_args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE|
-			 CINIT_FLAG_NO_DAEMON_ACTIONS);
+  vector<const char*> empty_args;
+  auto cct = global_init(
+      NULL, empty_args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE | CINIT_FLAG_NO_DAEMON_ACTIONS);
   // crushtool times out occasionally when quits. so do not
   // release the g_ceph_context. This causes other problems
   // see https://tracker.ceph.com/issues/71027
@@ -468,15 +513,18 @@ int main(int argc, const char **argv)
   std::string val;
   std::ostringstream err;
   int tmp;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    } else if (ceph_argparse_witharg(args, i, &val, "-d", "--decompile", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "-d", "--decompile", (char*)NULL)) {
       infn = val;
       decompile = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "-i", "--infn", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-i", "--infn", (char*)NULL)) {
       infn = val;
-    } else if (ceph_argparse_witharg(args, i, &val, "-o", "--outfn", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-o", "--outfn", (char*)NULL)) {
       outfn = val;
     } else if (ceph_argparse_flag(args, i, "-v", "--verbose", (char*)NULL)) {
       verbose += 1;
@@ -484,33 +532,33 @@ int main(int argc, const char **argv)
       compare = val;
     } else if (ceph_argparse_flag(args, i, "--reclassify", (char*)NULL)) {
       reclassify = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "--reclassify-bucket",
-				     (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--reclassify-bucket", (char*)NULL)) {
       if (i == args.end()) {
-	cerr << "expecting additional argument" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument" << std::endl;
+        return EXIT_FAILURE;
       }
       string c = *i;
       i = args.erase(i);
       if (i == args.end()) {
-	cerr << "expecting additional argument" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument" << std::endl;
+        return EXIT_FAILURE;
       }
       reclassify_bucket[val] = make_pair(c, *i);
       i = args.erase(i);
-    } else if (ceph_argparse_witharg(args, i, &val, "--reclassify-root",
-				     (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--reclassify-root", (char*)NULL)) {
       if (i == args.end()) {
-	cerr << "expecting additional argument" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument" << std::endl;
+        return EXIT_FAILURE;
       }
       reclassify_root[val] = *i;
       i = args.erase(i);
-    } else if (ceph_argparse_witharg(args, i, &val, "--set-subtree-class",
-				     (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--set-subtree-class", (char*)NULL)) {
       if (i == args.end()) {
-	cerr << "expecting additional argument" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument" << std::endl;
+        return EXIT_FAILURE;
       }
       set_subtree_class[val] = *i;
       i = args.erase(i);
@@ -518,16 +566,19 @@ int main(int argc, const char **argv)
       tree = true;
     } else if (ceph_argparse_flag(args, i, "--bucket-tree", (char*)NULL)) {
       bucket_tree = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "-b", "--bucket-name", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "-b", "--bucket-name", (char*)NULL)) {
       bucket_name = val;
-    } else if (ceph_argparse_witharg(args, i, &val, "-f", "--format", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-f", "--format", (char*)NULL)) {
       dump_format = val;
     } else if (ceph_argparse_flag(args, i, "--dump", (char*)NULL)) {
       dump = true;
     } else if (ceph_argparse_flag(args, i, "--show_utilization", (char*)NULL)) {
       display = true;
       tester.set_output_utilization(true);
-    } else if (ceph_argparse_flag(args, i, "--show_utilization_all", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--show_utilization_all", (char*)NULL)) {
       display = true;
       tester.set_output_utilization_all(true);
     } else if (ceph_argparse_flag(args, i, "--show_statistics", (char*)NULL)) {
@@ -542,145 +593,165 @@ int main(int argc, const char **argv)
     } else if (ceph_argparse_flag(args, i, "--show_choose_tries", (char*)NULL)) {
       display = true;
       tester.set_output_choose_tries(true);
-    } else if (ceph_argparse_witharg(args, i, &val, "-c", "--compile", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-c", "--compile", (char*)NULL)) {
       srcfn = val;
       compile = true;
-    } else if (ceph_argparse_witharg(args, i, &max_id, err, "--check", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &max_id, err, "--check", (char*)NULL)) {
       check = true;
     } else if (ceph_argparse_flag(args, i, "-t", "--test", (char*)NULL)) {
       test = true;
-    } else if (ceph_argparse_witharg(args, i, &full_location, err, "--show-location", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &full_location, err, "--show-location",
+                   (char*)NULL)) {
     } else if (ceph_argparse_flag(args, i, "-s", "--simulate", (char*)NULL)) {
       tester.set_random_placement();
-    } else if (ceph_argparse_flag(args, i, "--enable-unsafe-tunables", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--enable-unsafe-tunables", (char*)NULL)) {
       unsafe_tunables = true;
-    } else if (ceph_argparse_witharg(args, i, &choose_local_tries, err,
-				     "--set_choose_local_tries", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &choose_local_tries, err,
+                   "--set_choose_local_tries", (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &choose_local_fallback_tries, err,
-				     "--set_choose_local_fallback_tries", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &choose_local_fallback_tries, err,
+                   "--set_choose_local_fallback_tries", (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &choose_total_tries, err,
-				     "--set_choose_total_tries", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &choose_total_tries, err,
+                   "--set_choose_total_tries", (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &chooseleaf_descend_once, err,
-				     "--set_chooseleaf_descend_once", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &chooseleaf_descend_once, err,
+                   "--set_chooseleaf_descend_once", (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &chooseleaf_vary_r, err,
-				     "--set_chooseleaf_vary_r", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &chooseleaf_vary_r, err, "--set_chooseleaf_vary_r",
+                   (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &chooseleaf_stable, err,
-				     "--set_chooseleaf_stable", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &chooseleaf_stable, err, "--set_chooseleaf_stable",
+                   (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &straw_calc_version, err,
-				     "--set_straw_calc_version", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &straw_calc_version, err,
+                   "--set_straw_calc_version", (char*)NULL)) {
       adjust = true;
-    } else if (ceph_argparse_witharg(args, i, &allowed_bucket_algs, err,
-				     "--set_allowed_bucket_algs", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &allowed_bucket_algs, err,
+                   "--set_allowed_bucket_algs", (char*)NULL)) {
       adjust = true;
     } else if (ceph_argparse_flag(args, i, "--reweight", (char*)NULL)) {
       reweight = true;
-    } else if (ceph_argparse_flag(args, i, "--rebuild-class-roots", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--rebuild-class-roots", (char*)NULL)) {
       rebuild_class_roots = true;
-    } else if (ceph_argparse_witharg(args, i, &add_item, err, "--add_item", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &add_item, err, "--add_item", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       if (i == args.end()) {
-	cerr << "expecting additional argument to --add-item" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --add-item" << std::endl;
+        return EXIT_FAILURE;
       }
       add_weight = atof(*i);
       i = args.erase(i);
       if (i == args.end()) {
-	cerr << "expecting additional argument to --add-item" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --add-item" << std::endl;
+        return EXIT_FAILURE;
       }
       add_name.assign(*i);
       i = args.erase(i);
-    } else if (ceph_argparse_witharg(args, i, &add_item, err, "--update_item", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &add_item, err, "--update_item", (char*)NULL)) {
       update_item = true;
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       if (i == args.end()) {
-	cerr << "expecting additional argument to --update-item" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --update-item" << std::endl;
+        return EXIT_FAILURE;
       }
       add_weight = atof(*i);
       i = args.erase(i);
       if (i == args.end()) {
-	cerr << "expecting additional argument to --update-item" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --update-item" << std::endl;
+        return EXIT_FAILURE;
       }
       add_name.assign(*i);
       i = args.erase(i);
-    } else if (argparse_withargs(args, i, err, "--add-bucket",
-				 &add_name, &add_type)) {
+    } else if (
+        argparse_withargs(args, i, err, "--add-bucket", &add_name, &add_type)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       add_bucket = true;
-    } else if (argparse_withargs(args, i, err, "--move",
-				 &move_name)) {
+    } else if (argparse_withargs(args, i, err, "--move", &move_name)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       move_item = true;
-    } else if (ceph_argparse_witharg(args, i, &val, err, "--create-simple-rule", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, err, "--create-simple-rule", (char*)NULL)) {
       rule_name.assign(val);
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
         return EXIT_FAILURE;
       }
       if (i == args.end()) {
-        cerr << "expecting additional argument to --create-simple-rule" << std::endl;
+        cerr << "expecting additional argument to --create-simple-rule"
+             << std::endl;
         return EXIT_FAILURE;
       }
 
       rule_root.assign(*i);
       i = args.erase(i);
       if (i == args.end()) {
-        cerr << "expecting additional argument to --create-simple-rule" << std::endl;
+        cerr << "expecting additional argument to --create-simple-rule"
+             << std::endl;
         return EXIT_FAILURE;
       }
 
       rule_type.assign(*i);
       i = args.erase(i);
       if (i == args.end()) {
-        cerr << "expecting additional argument to --create-simple-rule" << std::endl;
+        cerr << "expecting additional argument to --create-simple-rule"
+             << std::endl;
         return EXIT_FAILURE;
       }
 
       rule_mode.assign(*i);
       i = args.erase(i);
 
-      cout << "--create-simple-rule:"
-           << " name=" << rule_name
-           << " root=" << rule_root
-           << " type=" << rule_type
-           << " mode=" << rule_mode
-           << std::endl;
+      cout << "--create-simple-rule:" << " name=" << rule_name
+           << " root=" << rule_root << " type=" << rule_type
+           << " mode=" << rule_mode << std::endl;
       add_rule = true;
-    } else if (ceph_argparse_witharg(args, i, &val, err, "--create-replicated-rule", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, err, "--create-replicated-rule",
+                   (char*)NULL)) {
       rule_name.assign(val);
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
         return EXIT_FAILURE;
       }
       if (i == args.end()) {
-        cerr << "expecting additional argument to --create-replicated-rule" << std::endl;
+        cerr << "expecting additional argument to --create-replicated-rule"
+             << std::endl;
         return EXIT_FAILURE;
       }
 
       rule_root.assign(*i);
       i = args.erase(i);
       if (i == args.end()) {
-        cerr << "expecting additional argument to --create-replicated-rule" << std::endl;
+        cerr << "expecting additional argument to --create-replicated-rule"
+             << std::endl;
         return EXIT_FAILURE;
       }
 
@@ -688,20 +759,19 @@ int main(int argc, const char **argv)
       i = args.erase(i);
       rule_mode = "firstn";
 
-      cout << "--create-replicated-rule:"
-           << " name=" << rule_name
-           << " root=" << rule_root
-           << " type=" << rule_type
-           << std::endl;
+      cout << "--create-replicated-rule:" << " name=" << rule_name
+           << " root=" << rule_root << " type=" << rule_type << std::endl;
       add_rule = true;
 
-    } else if (ceph_argparse_witharg(args, i, &val, "--device-class", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--device-class", (char*)NULL)) {
       rule_device_class.assign(val);
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
         return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &val, "--remove-rule", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--remove-rule", (char*)NULL)) {
       rule_name.assign(val);
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
@@ -711,8 +781,8 @@ int main(int argc, const char **argv)
     } else if (ceph_argparse_witharg(args, i, &val, "--loc", (char*)NULL)) {
       std::string type(val);
       if (i == args.end()) {
-	cerr << "expecting additional argument to --loc" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --loc" << std::endl;
+        return EXIT_FAILURE;
       }
       std::string name(*i);
       i = args.erase(i);
@@ -724,142 +794,155 @@ int main(int argc, const char **argv)
     } else if (ceph_argparse_flag(args, i, "--help-output", (char*)NULL)) {
       data_analysis_usage();
       return EXIT_SUCCESS;
-    } else if (ceph_argparse_witharg(args, i, &val, "--output-name", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--output-name", (char*)NULL)) {
       std::string name(val);
       if (i == args.end()) {
-	cerr << "expecting additional argument to --output-name" << std::endl;
-	return EXIT_FAILURE;
-      }
-      else {
+        cerr << "expecting additional argument to --output-name" << std::endl;
+        return EXIT_FAILURE;
+      } else {
         tester.set_output_data_file_name(name + "-");
       }
-    } else if (ceph_argparse_witharg(args, i, &val, "--remove_item", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--remove_item", (char*)NULL)) {
       remove_name = val;
-    } else if (ceph_argparse_witharg(args, i, &val, "--reweight_item", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--reweight_item", (char*)NULL)) {
       reweight_name = val;
       if (i == args.end()) {
-	cerr << "expecting additional argument to --reweight-item" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --reweight-item" << std::endl;
+        return EXIT_FAILURE;
       }
       reweight_weight = atof(*i);
       i = args.erase(i);
     } else if (ceph_argparse_flag(args, i, "--build", (char*)NULL)) {
       build = true;
-    } else if (ceph_argparse_witharg(args, i, &num_osds, err, "--num_osds", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &num_osds, err, "--num_osds", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--num_rep", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--num_rep", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_num_rep(x);
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--min_rep", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--min_rep", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_min_rep(x);
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--max_rep", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--max_rep", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_max_rep(x);
     } else if (ceph_argparse_witharg(args, i, &x, err, "--max_x", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_max_x(x);
     } else if (ceph_argparse_witharg(args, i, &x, err, "--min_x", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_min_x(x);
-    } else if (ceph_argparse_witharg(args, i, &z, err, "--pool_id", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &z, err, "--pool_id", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_pool_id(z);
     } else if (ceph_argparse_witharg(args, i, &x, err, "--x", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_x(x);
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--max_rule", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--max_rule", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_max_rule(x);
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--min_rule", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--min_rule", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_min_rule(x);
     } else if (ceph_argparse_witharg(args, i, &x, err, "--rule", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_rule(x);
-    } else if (ceph_argparse_witharg(args, i, &x, err, "--batches", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &x, err, "--batches", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       tester.set_batches(x);
-    } else if (ceph_argparse_witharg(args, i, &y, err, "--mark-down-ratio", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &y, err, "--mark-down-ratio", (char*)NULL)) {
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
         return EXIT_FAILURE;
       }
       tester.set_device_down_ratio(y);
-    } else if (ceph_argparse_witharg(args, i, &y, err, "--mark-down-bucket-ratio", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &y, err, "--mark-down-bucket-ratio", (char*)NULL)) {
       if (!err.str().empty()) {
         cerr << err.str() << std::endl;
         return EXIT_FAILURE;
       }
       tester.set_bucket_down_ratio(y);
-    } else if (ceph_argparse_witharg(args, i, &tmp, err, "--weight", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &tmp, err, "--weight", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
       int dev = tmp;
       if (i == args.end()) {
-	cerr << "expecting additional argument to --weight" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "expecting additional argument to --weight" << std::endl;
+        return EXIT_FAILURE;
       }
       float f = atof(*i);
       i = args.erase(i);
       tester.set_device_weight(dev, f);
-    }
-    else {
+    } else {
       ++i;
     }
   }
 
   if (test && !check && !display && !write_to_file && compare.empty()) {
-    cerr << "WARNING: no output selected; use --output-csv or --show-X" << std::endl;
+    cerr << "WARNING: no output selected; use --output-csv or --show-X"
+         << std::endl;
   }
 
   if (decompile + compile + build > 1) {
-    cerr << "cannot specify more than one of compile, decompile, and build" << std::endl;
+    cerr << "cannot specify more than one of compile, decompile, and build"
+         << std::endl;
     return EXIT_FAILURE;
   }
-  if (!check && !compile && !decompile && !build && !test && !reweight && !adjust && !tree && !dump &&
-      add_item < 0 && !add_bucket && !move_item && !add_rule && !del_rule && full_location < 0 &&
-      !bucket_tree &&
-      !reclassify && !rebuild_class_roots &&
-      compare.empty() &&
+  if (!check && !compile && !decompile && !build && !test && !reweight &&
+      !adjust && !tree && !dump && add_item < 0 && !add_bucket && !move_item &&
+      !add_rule && !del_rule && full_location < 0 && !bucket_tree &&
+      !reclassify && !rebuild_class_roots && compare.empty() &&
 
       remove_name.empty() && reweight_name.empty()) {
     cerr << "no action specified; -h for help" << std::endl;
@@ -868,19 +951,19 @@ int main(int argc, const char **argv)
   if ((!build) && (!args.empty())) {
     cerr << "unrecognized arguments: " << args << std::endl;
     return EXIT_FAILURE;
-  }
-  else {
+  } else {
     if ((args.size() % 3) != 0U) {
       cerr << "remaining args: " << args << std::endl;
-      cerr << "layers must be specified with 3-tuples of (name, buckettype, size)"
-    	   << std::endl;
+      cerr << "layers must be specified with 3-tuples of (name, buckettype, "
+              "size)"
+           << std::endl;
       return EXIT_FAILURE;
     }
     for (size_t j = 0; j < args.size(); j += 3) {
       layer_t l;
       l.name = args[j];
-      l.buckettype = args[j+1];
-      l.size = atoi(args[j+2]);
+      l.buckettype = args[j + 1];
+      l.size = atoi(args[j + 2]);
       layers.push_back(l);
     }
   }
@@ -913,15 +996,15 @@ int main(int argc, const char **argv)
     } else {
       r = bl.read_file(infn.c_str(), &error);
       if (r < 0) {
-        cerr << me << ": error reading '" << infn << "': " 
-             << error << std::endl;
+        cerr << me << ": error reading '" << infn << "': " << error
+             << std::endl;
         return EXIT_FAILURE;
       }
     }
     auto p = bl.cbegin();
     try {
       crush.decode(p);
-    } catch(...) {
+    } catch (...) {
       cerr << me << ": unable to decode " << infn << std::endl;
       return EXIT_FAILURE;
     }
@@ -941,7 +1024,7 @@ int main(int argc, const char **argv)
     if (unsafe_tunables)
       cc.enable_unsafe_tunables();
     int r = cc.compile(in, srcfn.c_str());
-    if (r < 0) 
+    if (r < 0)
       return EXIT_FAILURE;
 
     modified = true;
@@ -959,7 +1042,7 @@ int main(int argc, const char **argv)
     vector<int> lower_weights;
 
     crush.set_max_devices(num_osds);
-    for (int i=0; i<num_osds; i++) {
+    for (int i = 0; i < num_osds; i++) {
       lower_items.push_back(i);
       lower_weights.push_back(0x10000);
       crush.set_item_name(i, "osd." + stringify(i));
@@ -967,100 +1050,100 @@ int main(int argc, const char **argv)
 
     crush.set_type_name(0, "osd");
     int type = 1;
-    for (vector<layer_t>::iterator p = layers.begin(); p != layers.end(); ++p, type++) {
-      layer_t &l = *p;
+    for (vector<layer_t>::iterator p = layers.begin(); p != layers.end();
+         ++p, type++) {
+      layer_t& l = *p;
 
-      dout(2) << "layer " << type
-	      << "  " << l.name
-	      << "  bucket type " << l.buckettype
-	      << "  " << l.size 
-	      << dendl;
+      dout(2) << "layer " << type << "  " << l.name << "  bucket type "
+              << l.buckettype << "  " << l.size << dendl;
 
       crush.set_type_name(type, l.name);
 
       int buckettype = -1;
       for (int i = 0; bucket_types[i].name; i++)
-	if (l.buckettype && strcmp(l.buckettype, bucket_types[i].name) == 0) {
-	  buckettype = bucket_types[i].type;
-	  break;
-	}
+        if (l.buckettype && strcmp(l.buckettype, bucket_types[i].name) == 0) {
+          buckettype = bucket_types[i].type;
+          break;
+        }
       if (buckettype < 0) {
-	cerr << "unknown bucket type '" << l.buckettype << "'" << std::endl;
-	return EXIT_FAILURE;
+        cerr << "unknown bucket type '" << l.buckettype << "'" << std::endl;
+        return EXIT_FAILURE;
       }
 
       // build items
       vector<int> cur_items;
       vector<int> cur_weights;
-      unsigned lower_pos = 0;  // lower pos
+      unsigned lower_pos = 0; // lower pos
 
       dout(2) << "lower_items " << lower_items << dendl;
       dout(2) << "lower_weights " << lower_weights << dendl;
 
       int i = 0;
       while (1) {
-	if (lower_pos == lower_items.size())
-	  break;
+        if (lower_pos == lower_items.size())
+          break;
 
-	int items[num_osds];
-	int weights[num_osds];
+        int items[num_osds];
+        int weights[num_osds];
 
-	int weight = 0;
-	int j;
-	for (j=0; j<l.size || l.size==0; j++) {
-	  if (lower_pos == lower_items.size())
-	    break;
-	  items[j] = lower_items[lower_pos];
-	  weights[j] = lower_weights[lower_pos];
-	  weight += weights[j];
-	  lower_pos++;
-	  dout(2) << "  item " << items[j] << " weight " << weights[j] << dendl;
-	}
+        int weight = 0;
+        int j;
+        for (j = 0; j < l.size || l.size == 0; j++) {
+          if (lower_pos == lower_items.size())
+            break;
+          items[j] = lower_items[lower_pos];
+          weights[j] = lower_weights[lower_pos];
+          weight += weights[j];
+          lower_pos++;
+          dout(2) << "  item " << items[j] << " weight " << weights[j] << dendl;
+        }
 
-	int id;
-	int r = crush.add_bucket(0, buckettype, CRUSH_HASH_DEFAULT, type, j, items, weights, &id);
-	if (r < 0) {
+        int id;
+        int r = crush.add_bucket(
+            0, buckettype, CRUSH_HASH_DEFAULT, type, j, items, weights, &id);
+        if (r < 0) {
           cerr << " Couldn't add bucket: " << cpp_strerror(r) << std::endl;
           return r;
         }
 
-	char format[20];
-	format[sizeof(format)-1] = '\0';
-	if (l.size)
-	  snprintf(format, sizeof(format)-1, "%s%%d", l.name);
-	else
-	  strncpy(format, l.name, sizeof(format)-1);
-	char name[20];
-	snprintf(name, sizeof(name), format, i);
-	crush.set_item_name(id, name);
+        char format[20];
+        format[sizeof(format) - 1] = '\0';
+        if (l.size)
+          snprintf(format, sizeof(format) - 1, "%s%%d", l.name);
+        else
+          strncpy(format, l.name, sizeof(format) - 1);
+        char name[20];
+        snprintf(name, sizeof(name), format, i);
+        crush.set_item_name(id, name);
 
-	dout(2) << " in bucket " << id << " '" << name << "' size " << j << " weight " << weight << dendl;
+        dout(2) << " in bucket " << id << " '" << name << "' size " << j
+                << " weight " << weight << dendl;
 
-	cur_items.push_back(id);
-	cur_weights.push_back(weight);
-	i++;
+        cur_items.push_back(id);
+        cur_weights.push_back(weight);
+        i++;
       }
 
       lower_items.swap(cur_items);
       lower_weights.swap(cur_weights);
     }
 
-    string root = layers.back().size == 0 ? layers.back().name :
-      string(layers.back().name) + "0";
+    string root = layers.back().size == 0 ? layers.back().name
+                                          : string(layers.back().name) + "0";
 
     {
       set<int> roots;
       crush.find_roots(&roots);
       if (roots.size() > 1) {
-	cerr << "The crush rules will use the root " << root << "\n"
-	     << "and ignore the others.\n"
-	     << "There are " << roots.size() << " roots, they can be\n"
-	     << "grouped into a single root by appending something like:\n"
-	     << "  root straw 0\n"
-	     << std::endl;
+        cerr << "The crush rules will use the root " << root << "\n"
+             << "and ignore the others.\n"
+             << "There are " << roots.size() << " roots, they can be\n"
+             << "grouped into a single root by appending something like:\n"
+             << "  root straw 0\n"
+             << std::endl;
       }
     }
-    
+
     if (OSDMap::build_simple_crush_rules(g_ceph_context, crush, root, &cerr))
       return EXIT_FAILURE;
 
@@ -1103,7 +1186,8 @@ int main(int argc, const char **argv)
   }
 
   if (!reweight_name.empty()) {
-    cout << me << " reweighting item " << reweight_name << " to " << reweight_weight << std::endl;
+    cout << me << " reweighting item " << reweight_name << " to "
+         << reweight_weight << std::endl;
     int r;
     if (!crush.name_exists(reweight_name)) {
       cerr << " name " << reweight_name << " dne" << std::endl;
@@ -1141,9 +1225,11 @@ int main(int argc, const char **argv)
   if (add_item >= 0) {
     int r;
     if (update_item) {
-      r = crush.update_item(g_ceph_context, add_item, add_weight, add_name.c_str(), add_loc);
+      r = crush.update_item(
+          g_ceph_context, add_item, add_weight, add_name.c_str(), add_loc);
     } else {
-      r = crush.insert_item(g_ceph_context, add_item, add_weight, add_name.c_str(), add_loc);
+      r = crush.insert_item(
+          g_ceph_context, add_item, add_weight, add_name.c_str(), add_loc);
     }
     if (r >= 0) {
       modified = true;
@@ -1154,7 +1240,8 @@ int main(int argc, const char **argv)
   }
 
   if (add_bucket) {
-    if (int r = do_add_bucket(cct.get(), me, crush, add_name, add_type, add_loc); !r) {
+    if (int r = do_add_bucket(cct.get(), me, crush, add_name, add_type, add_loc);
+        !r) {
       modified = true;
     } else {
       return r;
@@ -1173,9 +1260,9 @@ int main(int argc, const char **argv)
       cerr << "rule " << rule_name << " already exists" << std::endl;
       return EXIT_FAILURE;
     }
-    int r = crush.add_simple_rule(rule_name, rule_root, rule_type,
-				  rule_device_class,
-				  rule_mode, pg_pool_t::TYPE_REPLICATED, &err);
+    int r = crush.add_simple_rule(
+        rule_name, rule_root, rule_type, rule_device_class, rule_mode,
+        pg_pool_t::TYPE_REPLICATED, &err);
     if (r < 0) {
       cerr << err.str() << std::endl;
       return EXIT_FAILURE;
@@ -1217,10 +1304,7 @@ int main(int argc, const char **argv)
   }
   if (reclassify) {
     int r = crush.reclassify(
-      g_ceph_context,
-      cout,
-      reclassify_root,
-      reclassify_bucket);
+        g_ceph_context, cout, reclassify_root, reclassify_bucket);
     if (r < 0) {
       cerr << "failed to reclassify map" << std::endl;
       return EXIT_FAILURE;
@@ -1231,9 +1315,7 @@ int main(int argc, const char **argv)
   // display ---
   if (full_location >= 0) {
     map<string, string> loc = crush.get_full_location(full_location);
-    for (map<string,string>::iterator p = loc.begin();
-	 p != loc.end();
-	 ++p) {
+    for (map<string, string>::iterator p = loc.begin(); p != loc.end(); ++p) {
       cout << p->first << "\t" << p->second << std::endl;
     }
   }
@@ -1245,18 +1327,18 @@ int main(int argc, const char **argv)
   if (bucket_tree) {
     if (bucket_name.empty()) {
       cerr << ": error bucket_name is empty" << std::endl;
-    }
-    else {
+    } else {
       set<int> osd_ids;
       crush.get_leaves(bucket_name.c_str(), &osd_ids);
-      for (auto &id : osd_ids) {
+      for (auto& id : osd_ids) {
         cout << "osd." << id << std::endl;
       }
     }
   }
 
   if (dump) {
-    boost::scoped_ptr<Formatter> f(Formatter::create(dump_format, "json-pretty", "json-pretty"));
+    boost::scoped_ptr<Formatter> f(
+        Formatter::create(dump_format, "json-pretty", "json-pretty"));
     f->open_object_section("crush_map");
     crush.dump(f.get());
     f->close_section();
@@ -1270,8 +1352,8 @@ int main(int argc, const char **argv)
       ofstream o;
       o.open(outfn.c_str(), ios::out | ios::binary | ios::trunc);
       if (!o.is_open()) {
-	cerr << me << ": error writing '" << outfn << "'" << std::endl;
-	return EXIT_FAILURE;
+        cerr << me << ": error writing '" << outfn << "'" << std::endl;
+        return EXIT_FAILURE;
       }
       cc.decompile(o);
       o.close();
@@ -1283,14 +1365,13 @@ int main(int argc, const char **argv)
   if (check) {
     if (max_id >= 0) {
       if (!tester.check_name_maps(max_id)) {
-	return EXIT_FAILURE;
+        return EXIT_FAILURE;
       }
     }
   }
 
   if (test) {
-    if (tester.get_output_utilization_all() ||
-	tester.get_output_utilization())
+    if (tester.get_output_utilization_all() || tester.get_output_utilization())
       tester.set_output_statistics(true);
 
     int r = tester.test(cct->get());
@@ -1304,14 +1385,14 @@ int main(int argc, const char **argv)
     string error;
     int r = in.read_file(compare.c_str(), &error);
     if (r < 0) {
-      cerr << me << ": error reading '" << compare << "': "
-	   << error << std::endl;
+      cerr << me << ": error reading '" << compare << "': " << error
+           << std::endl;
       return EXIT_FAILURE;
     }
     auto p = in.cbegin();
     try {
       crush2.decode(p);
-    } catch(...) {
+    } catch (...) {
       cerr << me << ": unable to decode " << compare << std::endl;
       return EXIT_FAILURE;
     }
@@ -1325,22 +1406,25 @@ int main(int argc, const char **argv)
     crush.finalize();
 
     if (outfn.empty()) {
-      cout << me << " successfully built or modified map.  Use '-o <file>' to write it out." << std::endl;
+      cout << me << " successfully built or modified map.  Use '-o <file>' to write it out."
+           << std::endl;
     } else {
       bufferlist bl;
       crush.encode(bl, CEPH_FEATURES_SUPPORTED_DEFAULT);
       int r = bl.write_file(outfn.c_str());
       if (r < 0) {
-	cerr << me << ": error writing '" << outfn << "': " << cpp_strerror(r) << std::endl;
-	return EXIT_FAILURE;
+        cerr << me << ": error writing '" << outfn << "': " << cpp_strerror(r)
+             << std::endl;
+        return EXIT_FAILURE;
       }
       if (verbose)
-	cout << "wrote crush map to " << outfn << std::endl;
+        cout << "wrote crush map to " << outfn << std::endl;
     }
   }
 
   return 0;
 }
+
 /*
  * Local Variables:
  * compile-command: "cd .. ; make crushtool && test/run-cli-tests"

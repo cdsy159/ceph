@@ -13,14 +13,17 @@
  *
  */
 #include "common/mime.h"
-#include "gtest/gtest.h"
 
 #include <stdint.h>
+
 #include <string>
+
+#include "gtest/gtest.h"
 
 using std::string;
 
-TEST(MimeTests, SimpleEncode) {
+TEST(MimeTests, SimpleEncode)
+{
   char output[256];
   memset(output, 0, sizeof(output));
   int len;
@@ -44,7 +47,8 @@ TEST(MimeTests, SimpleEncode) {
   ASSERT_EQ(string("Libert=C3=A9"), string(output));
 }
 
-TEST(MimeTests, EncodeOutOfSpace) {
+TEST(MimeTests, EncodeOutOfSpace)
+{
   char output[256];
   memset(output, 0, sizeof(output));
   int len;
@@ -66,7 +70,8 @@ TEST(MimeTests, EncodeOutOfSpace) {
   ASSERT_EQ(string("a"), string(output));
 }
 
-TEST(MimeTests, SimpleDecode) {
+TEST(MimeTests, SimpleDecode)
+{
   char output[256];
   memset(output, 0, sizeof(output));
   int len;
@@ -90,7 +95,8 @@ TEST(MimeTests, SimpleDecode) {
   ASSERT_EQ(string("Libert\xc3\xa9"), string(output));
 }
 
-TEST(MimeTests, LowercaseDecode) {
+TEST(MimeTests, LowercaseDecode)
+{
   char output[256];
   memset(output, 0, sizeof(output));
   int len;
@@ -102,7 +108,8 @@ TEST(MimeTests, LowercaseDecode) {
   ASSERT_EQ(string("Libert\xc3\xa9"), string(output));
 }
 
-TEST(MimeTests, DecodeOutOfSpace) {
+TEST(MimeTests, DecodeOutOfSpace)
+{
   char output[256];
   memset(output, 0, sizeof(output));
   int len;
@@ -124,7 +131,8 @@ TEST(MimeTests, DecodeOutOfSpace) {
   ASSERT_EQ(string("a="), string(output));
 }
 
-TEST(MimeTests, DecodeErrors) {
+TEST(MimeTests, DecodeErrors)
+{
   char output[128];
   memset(output, 0, sizeof(output));
   int len;
@@ -144,8 +152,8 @@ TEST(MimeTests, DecodeErrors) {
   ASSERT_LT(len, 0);
 
   // high bit should not be set in quoted-printable mime output
-  unsigned char bad_input2[] = { 0x81, 0x6a, 0x0 };
-  len = mime_decode_from_qp(reinterpret_cast<const char*>(bad_input2),
-			    output, sizeof(output));
+  unsigned char bad_input2[] = {0x81, 0x6a, 0x0};
+  len = mime_decode_from_qp(
+      reinterpret_cast<const char*>(bad_input2), output, sizeof(output));
   ASSERT_LT(len, 0);
 }

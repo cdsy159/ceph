@@ -16,10 +16,11 @@
 #include "common/errno.h"
 
 #ifndef _WIN32
-#include <sstream>
 #include <stdarg.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <sstream>
 #include <vector>
 #else
 #include "common/SubProcess.h"
@@ -28,12 +29,13 @@
 using std::ostringstream;
 
 #ifndef _WIN32
-std::string run_cmd(const char *cmd, ...)
+std::string
+run_cmd(const char* cmd, ...)
 {
-  std::vector <const char *> arr;
+  std::vector<const char*> arr;
   va_list ap;
   va_start(ap, cmd);
-  const char *c = cmd;
+  const char* c = cmd;
   do {
     arr.push_back(c);
     c = va_arg(ap, const char*);
@@ -47,13 +49,12 @@ std::string run_cmd(const char *cmd, ...)
     ostringstream oss;
     oss << "run_cmd(" << cmd << "): unable to fork(): " << cpp_strerror(err);
     return oss.str();
-  }
-  else if (fret == 0) {
+  } else if (fret == 0) {
     // execvp doesn't modify its arguments, so the const-cast here is safe.
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
-    execvp(cmd, (char * const*)&arr[0]);
+    execvp(cmd, (char* const*)&arr[0]);
     _exit(127);
   }
   int status;
@@ -62,8 +63,7 @@ std::string run_cmd(const char *cmd, ...)
     if (err == EINTR)
       continue;
     ostringstream oss;
-    oss << "run_cmd(" << cmd << "): waitpid error: "
-	 << cpp_strerror(err);
+    oss << "run_cmd(" << cmd << "): waitpid error: " << cpp_strerror(err);
     return oss.str();
   }
   if (WIFEXITED(status)) {
@@ -74,8 +74,7 @@ std::string run_cmd(const char *cmd, ...)
       return oss.str();
     }
     return "";
-  }
-  else if (WIFSIGNALED(status)) {
+  } else if (WIFSIGNALED(status)) {
     ostringstream oss;
     oss << "run_cmd(" << cmd << "): terminated by signal";
     return oss.str();
@@ -85,13 +84,14 @@ std::string run_cmd(const char *cmd, ...)
   return oss.str();
 }
 #else
-std::string run_cmd(const char *cmd, ...)
+std::string
+run_cmd(const char* cmd, ...)
 {
   SubProcess p(cmd, SubProcess::CLOSE, SubProcess::PIPE, SubProcess::CLOSE);
 
   va_list ap;
   va_start(ap, cmd);
-  const char *c = cmd;
+  const char* c = cmd;
   c = va_arg(ap, const char*);
   while (c != NULL) {
     p.add_cmd_arg(c);

@@ -15,7 +15,9 @@
 #pragma once
 
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
+
 #include "common/intrusive_lru.h"
+
 #include "rgw_data_sync.h"
 
 namespace rgw::bucket_sync {
@@ -31,10 +33,14 @@ struct State {
   // highest timestamp applied by all sources
   ceph::real_time progress_timestamp;
 
-  State(const std::pair<rgw_bucket_shard, std::optional<uint64_t>>& key ) noexcept
-    : key(key) {}
-  State(const rgw_bucket_shard& shard, std::optional<uint64_t> gen) noexcept
-    : key(shard, gen) {}
+  State(const std::pair<rgw_bucket_shard, std::optional<uint64_t>>& key) noexcept
+    :
+    key(key)
+  {}
+
+  State(const rgw_bucket_shard& shard, std::optional<uint64_t> gen) noexcept :
+    key(shard, gen)
+  {}
 };
 
 struct Entry;
@@ -42,7 +48,9 @@ struct EntryToKey;
 class Handle;
 
 using lru_config = ceph::common::intrusive_lru_config<
-  std::pair<rgw_bucket_shard, std::optional<uint64_t>>, Entry, EntryToKey>;
+    std::pair<rgw_bucket_shard, std::optional<uint64_t>>,
+    Entry,
+    EntryToKey>;
 
 // a recyclable cache entry
 struct Entry : State, ceph::common::intrusive_lru_base<lru_config> {
@@ -51,24 +59,31 @@ struct Entry : State, ceph::common::intrusive_lru_base<lru_config> {
 
 struct EntryToKey {
   using type = std::pair<rgw_bucket_shard, std::optional<uint64_t>>;
-  const type& operator()(const Entry& e) { return e.key; }
+
+  const type&
+  operator()(const Entry& e)
+  {
+    return e.key;
+  }
 };
 
 // use a non-atomic reference count since these aren't shared across threads
 template <typename T>
-using thread_unsafe_ref_counter = boost::intrusive_ref_counter<
-    T, boost::thread_unsafe_counter>;
+using thread_unsafe_ref_counter =
+    boost::intrusive_ref_counter<T, boost::thread_unsafe_counter>;
 
 // a state cache for entries within a single datalog shard
 class Cache : public thread_unsafe_ref_counter<Cache> {
   ceph::common::intrusive_lru<lru_config> cache;
- protected:
+
+protected:
   // protected ctor to enforce the use of factory function create()
-  explicit Cache(size_t target_size) {
-    cache.set_target_size(target_size);
-  }
- public:
-  static boost::intrusive_ptr<Cache> create(size_t target_size) {
+  explicit Cache(size_t target_size) { cache.set_target_size(target_size); }
+
+public:
+  static boost::intrusive_ptr<Cache>
+  create(size_t target_size)
+  {
     return new Cache(target_size);
   }
 
@@ -81,35 +96,61 @@ class Cache : public thread_unsafe_ref_counter<Cache> {
 class Handle {
   boost::intrusive_ptr<Cache> cache;
   boost::intrusive_ptr<Entry> entry;
- public:
+
+public:
   Handle() noexcept = default;
   ~Handle() = default;
-  Handle(boost::intrusive_ptr<Cache> cache,
-         boost::intrusive_ptr<Entry> entry) noexcept
-    : cache(std::move(cache)), entry(std::move(entry)) {}
+
+  Handle(
+      boost::intrusive_ptr<Cache> cache,
+      boost::intrusive_ptr<Entry> entry) noexcept :
+    cache(std::move(cache)), entry(std::move(entry))
+  {}
+
   Handle(Handle&&) = default;
   Handle(const Handle&) = default;
-  Handle& operator=(Handle&& o) noexcept {
+
+  Handle&
+  operator=(Handle&& o) noexcept
+  {
     // move the entry first so that its cache stays referenced over destruction
     entry = std::move(o.entry);
     cache = std::move(o.cache);
     return *this;
   }
-  Handle& operator=(const Handle& o) noexcept {
+
+  Handle&
+  operator=(const Handle& o) noexcept
+  {
     // copy the entry first so that its cache stays referenced over destruction
     entry = o.entry;
     cache = o.cache;
     return *this;
   }
 
-  explicit operator bool() const noexcept { return static_cast<bool>(entry); }
-  State& operator*() const noexcept { return *entry; }
-  State* operator->() const noexcept { return entry.get(); }
+  explicit
+  operator bool() const noexcept
+  {
+    return static_cast<bool>(entry);
+  }
+
+  State&
+  operator*() const noexcept
+  {
+    return *entry;
+  }
+
+  State*
+  operator->() const noexcept
+  {
+    return entry.get();
+  }
 };
 
-inline Handle Cache::get(const rgw_bucket_shard& shard, std::optional<uint64_t> gen)
+inline Handle
+Cache::get(const rgw_bucket_shard& shard, std::optional<uint64_t> gen)
 {
-  auto result = cache.get_or_create({ shard, gen });
+  auto result = cache.get_or_create({shard, gen});
   return {this, std::move(result.first)};
 }
 

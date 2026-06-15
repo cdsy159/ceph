@@ -1,43 +1,46 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/migration/MockStreamInterface.h"
-#include "include/rbd_types.h"
 #include "common/ceph_mutex.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "include/rbd_types.h"
+#include "json_spirit/json_spirit.h"
 #include "librbd/migration/QCOWFormat.h"
 #include "librbd/migration/SourceSpecBuilder.h"
+#include "test/librbd/mock/migration/MockStreamInterface.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
+
 #include "acconfig.h"
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
-#include "json_spirit/json_spirit.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
 
 namespace migration {
 
-template<>
+template <>
 struct SourceSpecBuilder<librbd::MockTestImageCtx> {
 
-  MOCK_CONST_METHOD2(build_stream, int(const json_spirit::mObject&,
-                                       std::shared_ptr<StreamInterface>*));
-
+  MOCK_CONST_METHOD2(
+      build_stream,
+      int(const json_spirit::mObject&, std::shared_ptr<StreamInterface>*));
 };
 
 } // namespace migration
 
-bool operator==(const SnapInfo& lhs, const SnapInfo& rhs) {
-    return (lhs.name == rhs.name &&
-            lhs.size == rhs.size);
+bool
+operator==(const SnapInfo& lhs, const SnapInfo& rhs)
+{
+  return (lhs.name == rhs.name && lhs.size == rhs.size);
 }
 
 } // namespace librbd
@@ -61,9 +64,11 @@ public:
   typedef QCOWFormat<MockTestImageCtx> MockQCOWFormat;
   typedef SourceSpecBuilder<MockTestImageCtx> MockSourceSpecBuilder;
 
-  librbd::ImageCtx *m_image_ctx;
+  librbd::ImageCtx* m_image_ctx;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
 
     ASSERT_EQ(0, open_image(m_image_name, &m_image_ctx));
@@ -73,39 +78,56 @@ public:
     json_object["stream"] = stream_obj;
   }
 
-  void expect_build_stream(MockSourceSpecBuilder& mock_source_spec_builder,
-                           MockStreamInterface* mock_stream_interface, int r) {
+  void
+  expect_build_stream(
+      MockSourceSpecBuilder& mock_source_spec_builder,
+      MockStreamInterface* mock_stream_interface,
+      int r)
+  {
     EXPECT_CALL(mock_source_spec_builder, build_stream(_, _))
-      .WillOnce(WithArgs<1>(Invoke([mock_stream_interface, r]
-        (std::shared_ptr<StreamInterface>* ptr) {
-          ptr->reset(mock_stream_interface);
-          return r;
-        })));
+        .WillOnce(WithArgs<1>(Invoke(
+            [mock_stream_interface, r](std::shared_ptr<StreamInterface>* ptr) {
+              ptr->reset(mock_stream_interface);
+              return r;
+            })));
   }
 
-  void expect_stream_open(MockStreamInterface& mock_stream_interface, int r) {
+  void
+  expect_stream_open(MockStreamInterface& mock_stream_interface, int r)
+  {
     EXPECT_CALL(mock_stream_interface, open(_))
-      .WillOnce(Invoke([r](Context* ctx) { ctx->complete(r); }));
+        .WillOnce(Invoke([r](Context* ctx) { ctx->complete(r); }));
   }
 
-  void expect_stream_close(MockStreamInterface& mock_stream_interface, int r) {
+  void
+  expect_stream_close(MockStreamInterface& mock_stream_interface, int r)
+  {
     EXPECT_CALL(mock_stream_interface, close(_))
-      .WillOnce(Invoke([r](Context* ctx) { ctx->complete(r); }));
+        .WillOnce(Invoke([r](Context* ctx) { ctx->complete(r); }));
   }
 
-  void expect_stream_read(MockStreamInterface& mock_stream_interface,
-                          const io::Extents& byte_extents,
-                          const bufferlist& bl, int r) {
+  void
+  expect_stream_read(
+      MockStreamInterface& mock_stream_interface,
+      const io::Extents& byte_extents,
+      const bufferlist& bl,
+      int r)
+  {
     EXPECT_CALL(mock_stream_interface, read(byte_extents, _, _))
-      .WillOnce(WithArgs<1, 2>(Invoke([bl, r]
-        (bufferlist* out_bl, Context* ctx) {
-          *out_bl = bl;
-          ctx->complete(r);
-        })));
+        .WillOnce(
+            WithArgs<1, 2>(Invoke([bl, r](bufferlist* out_bl, Context* ctx) {
+              *out_bl = bl;
+              ctx->complete(r);
+            })));
   }
 
-  void expect_probe_header(MockStreamInterface& mock_stream_interface,
-                           uint32_t magic, uint32_t version, int r) {
+  void
+  expect_probe_header(
+      MockStreamInterface& mock_stream_interface,
+      uint32_t magic,
+      uint32_t version,
+      int r)
+  {
     magic = htobe32(magic);
     version = htobe32(version);
 
@@ -115,31 +137,38 @@ public:
     expect_stream_read(mock_stream_interface, {{0, 8}}, probe_bl, r);
   }
 
-  void expect_read_header(MockStreamInterface& mock_stream_interface,
-                          uint32_t snapshot_count, int r) {
+  void
+  expect_read_header(
+      MockStreamInterface& mock_stream_interface,
+      uint32_t snapshot_count,
+      int r)
+  {
     QCowHeader qcow_header;
     memset(&qcow_header, 0, sizeof(qcow_header));
     qcow_header.magic = htobe32(QCOW_MAGIC);
     qcow_header.version = htobe32(2);
-    qcow_header.size = htobe64(1<<30);
+    qcow_header.size = htobe64(1 << 30);
     qcow_header.cluster_bits = htobe32(16);
     qcow_header.l1_size = htobe32(2);
-    qcow_header.l1_table_offset = htobe64(1<<20);
+    qcow_header.l1_table_offset = htobe64(1 << 20);
     if (snapshot_count > 0) {
       qcow_header.nb_snapshots = htobe32(snapshot_count);
-      qcow_header.snapshots_offset = htobe64(1<<21);
+      qcow_header.snapshots_offset = htobe64(1 << 21);
     }
 
     bufferlist header_bl;
-    header_bl.append(std::string_view(reinterpret_cast<char*>(&qcow_header),
-                     sizeof(qcow_header)));
-    expect_stream_read(mock_stream_interface, {{0, sizeof(qcow_header)}},
-                       header_bl, r);
+    header_bl.append(std::string_view(
+        reinterpret_cast<char*>(&qcow_header), sizeof(qcow_header)));
+    expect_stream_read(
+        mock_stream_interface, {{0, sizeof(qcow_header)}}, header_bl, r);
   }
 
-  void expect_read_l1_table(MockStreamInterface& mock_stream_interface,
-                            std::optional<std::vector<uint64_t>>&& l1_table,
-                            int r) {
+  void
+  expect_read_l1_table(
+      MockStreamInterface& mock_stream_interface,
+      std::optional<std::vector<uint64_t>>&& l1_table,
+      int r)
+  {
     bufferlist l1_table_bl;
     if (!l1_table) {
       l1_table.emplace(2);
@@ -151,15 +180,18 @@ public:
     }
 
     l1_table_bl.append(
-      std::string_view(reinterpret_cast<char*>(l1_table->data()), 16));
-    expect_stream_read(mock_stream_interface, {{1<<20, 16}}, l1_table_bl, r);
+        std::string_view(reinterpret_cast<char*>(l1_table->data()), 16));
+    expect_stream_read(mock_stream_interface, {{1 << 20, 16}}, l1_table_bl, r);
   }
 
-  void expect_read_l2_table(MockStreamInterface& mock_stream_interface,
-                            uint64_t l2_table_offset,
-                            std::optional<std::vector<uint64_t>>&& l2_table,
-                            int r) {
-    size_t l2_table_size = 1<<(16 - 3); // cluster_bit - 3 bits for offset
+  void
+  expect_read_l2_table(
+      MockStreamInterface& mock_stream_interface,
+      uint64_t l2_table_offset,
+      std::optional<std::vector<uint64_t>>&& l2_table,
+      int r)
+  {
+    size_t l2_table_size = 1 << (16 - 3); // cluster_bit - 3 bits for offset
     bufferlist l2_table_bl;
     if (!l2_table) {
       l2_table.emplace(l2_table_size);
@@ -170,18 +202,24 @@ public:
       (*l2_table)[idx] = htobe64((*l2_table)[idx]);
     }
 
-    l2_table_bl.append(
-      std::string_view(reinterpret_cast<char*>(l2_table->data()),
-                       l2_table->size() * sizeof(uint64_t)));
-    expect_stream_read(mock_stream_interface,
-                       {{l2_table_offset, l2_table->size() * sizeof(uint64_t)}},
-                       l2_table_bl, r);
+    l2_table_bl.append(std::string_view(
+        reinterpret_cast<char*>(l2_table->data()),
+        l2_table->size() * sizeof(uint64_t)));
+    expect_stream_read(
+        mock_stream_interface,
+        {{l2_table_offset, l2_table->size() * sizeof(uint64_t)}}, l2_table_bl,
+        r);
   }
 
-  void expect_read_cluster(MockStreamInterface& mock_stream_interface,
-                           uint64_t cluster_offset, uint32_t offset,
-                           const bufferlist& bl, int r) {
-    uint32_t cluster_size = 1<<16;
+  void
+  expect_read_cluster(
+      MockStreamInterface& mock_stream_interface,
+      uint64_t cluster_offset,
+      uint32_t offset,
+      const bufferlist& bl,
+      int r)
+  {
+    uint32_t cluster_size = 1 << 16;
 
     bufferlist cluster_bl;
     if (offset > 0) {
@@ -196,12 +234,16 @@ public:
       cluster_bl.append_zero(cluster_size);
     }
 
-    expect_stream_read(mock_stream_interface,
-                       {{cluster_offset, cluster_bl.length()}}, cluster_bl, r);
+    expect_stream_read(
+        mock_stream_interface, {{cluster_offset, cluster_bl.length()}},
+        cluster_bl, r);
   }
 
-  void expect_open(MockStreamInterface& mock_stream_interface,
-                   std::optional<std::vector<uint64_t>>&& l1_table) {
+  void
+  expect_open(
+      MockStreamInterface& mock_stream_interface,
+      std::optional<std::vector<uint64_t>>&& l1_table)
+  {
     expect_stream_open(mock_stream_interface, 0);
 
     expect_probe_header(mock_stream_interface, QCOW_MAGIC, 2, 0);
@@ -211,11 +253,15 @@ public:
     expect_read_l1_table(mock_stream_interface, std::move(l1_table), 0);
   }
 
-  void expect_read_snapshot_header(MockStreamInterface& mock_stream_interface,
-                                   const std::string& id,
-                                   const std::string& name,
-                                   uint64_t l1_table_offset,
-                                   uint64_t* snapshot_offset, int r) {
+  void
+  expect_read_snapshot_header(
+      MockStreamInterface& mock_stream_interface,
+      const std::string& id,
+      const std::string& name,
+      uint64_t l1_table_offset,
+      uint64_t* snapshot_offset,
+      int r)
+  {
     QCowSnapshotHeader snapshot_header;
     memset(&snapshot_header, 0, sizeof(snapshot_header));
     snapshot_header.id_str_size = htobe16(id.size());
@@ -225,63 +271,77 @@ public:
     snapshot_header.l1_table_offset = htobe64(l1_table_offset);
 
     bufferlist snapshot_header_bl;
-    snapshot_header_bl.append(
-      std::string_view(reinterpret_cast<char*>(&snapshot_header),
-                       sizeof(snapshot_header)));
-    expect_stream_read(mock_stream_interface,
-                       {{*snapshot_offset, sizeof(snapshot_header)}},
-                       snapshot_header_bl, r);
+    snapshot_header_bl.append(std::string_view(
+        reinterpret_cast<char*>(&snapshot_header), sizeof(snapshot_header)));
+    expect_stream_read(
+        mock_stream_interface, {{*snapshot_offset, sizeof(snapshot_header)}},
+        snapshot_header_bl, r);
     *snapshot_offset += sizeof(snapshot_header);
   }
 
-  void expect_read_snapshot_header_extra(
+  void
+  expect_read_snapshot_header_extra(
       MockStreamInterface& mock_stream_interface,
-      const std::string& id, const std::string& name, uint64_t size,
-      uint64_t* snapshot_offset, int r) {
+      const std::string& id,
+      const std::string& name,
+      uint64_t size,
+      uint64_t* snapshot_offset,
+      int r)
+  {
     QCowSnapshotExtraData snapshot_header_extra;
     memset(&snapshot_header_extra, 0, sizeof(snapshot_header_extra));
     snapshot_header_extra.disk_size = htobe64(size);
 
     bufferlist snapshot_header_extra_bl;
     snapshot_header_extra_bl.append(
-      std::string_view(reinterpret_cast<char*>(&snapshot_header_extra), 16));
+        std::string_view(reinterpret_cast<char*>(&snapshot_header_extra), 16));
     snapshot_header_extra_bl.append(id);
     snapshot_header_extra_bl.append(name);
-    expect_stream_read(mock_stream_interface,
-                       {{*snapshot_offset, 16 + id.size() + name.size()}},
-                       snapshot_header_extra_bl, r);
+    expect_stream_read(
+        mock_stream_interface,
+        {{*snapshot_offset, 16 + id.size() + name.size()}},
+        snapshot_header_extra_bl, r);
 
     *snapshot_offset += 16 + id.size() + name.size();
     *snapshot_offset = p2roundup(*snapshot_offset, static_cast<uint64_t>(8));
   }
 
-  void expect_read_snapshot_l1_table(MockStreamInterface& mock_stream_interface,
-                                     uint64_t l1_table_offset, int r) {
+  void
+  expect_read_snapshot_l1_table(
+      MockStreamInterface& mock_stream_interface,
+      uint64_t l1_table_offset,
+      int r)
+  {
     uint64_t l2_table_cluster = htobe64(l1_table_offset);
 
     bufferlist snapshot_l1_table_bl;
     snapshot_l1_table_bl.append(
-      std::string_view(reinterpret_cast<char*>(&l2_table_cluster), 8));
-    expect_stream_read(mock_stream_interface, {{l1_table_offset, 8}},
-                       snapshot_l1_table_bl, r);
+        std::string_view(reinterpret_cast<char*>(&l2_table_cluster), 8));
+    expect_stream_read(
+        mock_stream_interface, {{l1_table_offset, 8}}, snapshot_l1_table_bl, r);
   }
 
-
-  void expect_read_snapshot(MockStreamInterface& mock_stream_interface,
-                            const std::string& id, const std::string& name,
-                            uint64_t size, uint64_t l1_table_offset,
-                            uint64_t* snapshot_offset) {
-    expect_read_snapshot_header(mock_stream_interface, id, name,
-                                l1_table_offset, snapshot_offset, 0);
-    expect_read_snapshot_header_extra(mock_stream_interface, id, name,
-                                      size, snapshot_offset, 0);
+  void
+  expect_read_snapshot(
+      MockStreamInterface& mock_stream_interface,
+      const std::string& id,
+      const std::string& name,
+      uint64_t size,
+      uint64_t l1_table_offset,
+      uint64_t* snapshot_offset)
+  {
+    expect_read_snapshot_header(
+        mock_stream_interface, id, name, l1_table_offset, snapshot_offset, 0);
+    expect_read_snapshot_header_extra(
+        mock_stream_interface, id, name, size, snapshot_offset, 0);
     expect_read_snapshot_l1_table(mock_stream_interface, l1_table_offset, 0);
   }
 
   json_spirit::mObject json_object;
 };
 
-TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1) {
+TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -297,8 +357,8 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1) {
   memset(&qcow_header, 0, sizeof(qcow_header));
   qcow_header.magic = htobe32(QCOW_MAGIC);
   qcow_header.version = htobe32(1);
-  qcow_header.size = htobe64(1<<30);
-  qcow_header.l1_table_offset = htobe64(1<<20);
+  qcow_header.size = htobe64(1 << 30);
+  qcow_header.l1_table_offset = htobe64(1 << 20);
   qcow_header.cluster_bits = 16;
   qcow_header.l2_bits = 13;
 
@@ -309,14 +369,14 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1) {
 #ifdef WITH_RBD_MIGRATION_FORMAT_QCOW_V1
 
   bufferlist header_bl;
-  header_bl.append(std::string_view(reinterpret_cast<char*>(&qcow_header),
-                                    sizeof(qcow_header)));
-  expect_stream_read(*mock_stream_interface, {{0, sizeof(qcow_header)}},
-                     header_bl, 0);
+  header_bl.append(std::string_view(
+      reinterpret_cast<char*>(&qcow_header), sizeof(qcow_header)));
+  expect_stream_read(
+      *mock_stream_interface, {{0, sizeof(qcow_header)}}, header_bl, 0);
 
   bufferlist l1_table_bl;
   l1_table_bl.append_zero(16);
-  expect_stream_read(*mock_stream_interface, {{1<<20, 16}}, l1_table_bl, 0);
+  expect_stream_read(*mock_stream_interface, {{1 << 20, 16}}, l1_table_bl, 0);
 
 #else // WITH_RBD_MIGRATION_FORMAT_QCOW_V1
 
@@ -326,8 +386,8 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -338,7 +398,8 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV1) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, OpenCloseV2) {
+TEST_F(TestMockMigrationQCOWFormat, OpenCloseV2)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -351,8 +412,8 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV2) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -363,7 +424,8 @@ TEST_F(TestMockMigrationQCOWFormat, OpenCloseV2) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidMagic) {
+TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidMagic)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -378,8 +440,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidMagic) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -390,7 +452,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidMagic) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidVersion) {
+TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidVersion)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -405,8 +468,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidVersion) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -417,7 +480,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeInvalidVersion) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ProbeError) {
+TEST_F(TestMockMigrationQCOWFormat, ProbeError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -432,8 +496,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeError) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -446,7 +510,8 @@ TEST_F(TestMockMigrationQCOWFormat, ProbeError) {
 
 #ifdef WITH_RBD_MIGRATION_FORMAT_QCOW_V1
 
-TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV1Error) {
+TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV1Error)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -463,21 +528,21 @@ TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV1Error) {
   memset(&qcow_header, 0, sizeof(qcow_header));
   qcow_header.magic = htobe32(QCOW_MAGIC);
   qcow_header.version = htobe32(1);
-  qcow_header.size = htobe64(1<<30);
-  qcow_header.l1_table_offset = htobe64(1<<20);
+  qcow_header.size = htobe64(1 << 30);
+  qcow_header.l1_table_offset = htobe64(1 << 20);
   qcow_header.cluster_bits = 16;
   qcow_header.l2_bits = 13;
 
   bufferlist header_bl;
-  header_bl.append(std::string_view(reinterpret_cast<char*>(&qcow_header),
-                                    sizeof(qcow_header)));
-  expect_stream_read(*mock_stream_interface, {{0, sizeof(qcow_header)}},
-                     header_bl, -EPERM);
+  header_bl.append(std::string_view(
+      reinterpret_cast<char*>(&qcow_header), sizeof(qcow_header)));
+  expect_stream_read(
+      *mock_stream_interface, {{0, sizeof(qcow_header)}}, header_bl, -EPERM);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -490,7 +555,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV1Error) {
 
 #endif // WITH_RBD_MIGRATION_FORMAT_QCOW_V1
 
-TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV2Error) {
+TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV2Error)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -507,8 +573,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV2Error) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -519,7 +585,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadHeaderV2Error) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadL1TableError) {
+TEST_F(TestMockMigrationQCOWFormat, ReadL1TableError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -538,8 +605,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL1TableError) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -550,7 +617,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL1TableError) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, Snapshots) {
+TEST_F(TestMockMigrationQCOWFormat, Snapshots)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -565,18 +633,18 @@ TEST_F(TestMockMigrationQCOWFormat, Snapshots) {
 
   expect_read_header(*mock_stream_interface, 2, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot(*mock_stream_interface, "1", "snap1", 1<<29, 1<<22,
-                       &snapshot_offset);
-  expect_read_snapshot(*mock_stream_interface, "2", "snap2", 1<<29, 1<<22,
-                       &snapshot_offset);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot(
+      *mock_stream_interface, "1", "snap1", 1 << 29, 1 << 22, &snapshot_offset);
+  expect_read_snapshot(
+      *mock_stream_interface, "2", "snap2", 1 << 29, 1 << 22, &snapshot_offset);
 
   expect_read_l1_table(*mock_stream_interface, {}, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -588,8 +656,8 @@ TEST_F(TestMockMigrationQCOWFormat, Snapshots) {
   ASSERT_EQ(0, ctx2.wait());
 
   FormatInterface::SnapInfos expected_snap_infos{
-    {1, {"snap1", cls::rbd::UserSnapshotNamespace{}, 1<<29, {}, 0, 0, {}}},
-    {2, {"snap2", cls::rbd::UserSnapshotNamespace{}, 1<<29, {}, 0, 0, {}}}};
+      {1, {"snap1", cls::rbd::UserSnapshotNamespace{}, 1 << 29, {}, 0, 0, {}}},
+      {2, {"snap2", cls::rbd::UserSnapshotNamespace{}, 1 << 29, {}, 0, 0, {}}}};
   ASSERT_EQ(expected_snap_infos, snap_infos);
 
   C_SaferCond ctx3;
@@ -597,7 +665,8 @@ TEST_F(TestMockMigrationQCOWFormat, Snapshots) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, SnapshotHeaderError) {
+TEST_F(TestMockMigrationQCOWFormat, SnapshotHeaderError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -612,14 +681,14 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotHeaderError) {
 
   expect_read_header(*mock_stream_interface, 2, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot_header(*mock_stream_interface, "1", "snap1",
-                              1<<22, &snapshot_offset, -EINVAL);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot_header(
+      *mock_stream_interface, "1", "snap1", 1 << 22, &snapshot_offset, -EINVAL);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -630,7 +699,8 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotHeaderError) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, SnapshotExtraError) {
+TEST_F(TestMockMigrationQCOWFormat, SnapshotExtraError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -645,16 +715,16 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotExtraError) {
 
   expect_read_header(*mock_stream_interface, 2, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot_header(*mock_stream_interface, "1", "snap1",
-                              1<<22, &snapshot_offset, 0);
-  expect_read_snapshot_header_extra(*mock_stream_interface, "1", "snap1",
-                                    1<<29, &snapshot_offset, -EINVAL);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot_header(
+      *mock_stream_interface, "1", "snap1", 1 << 22, &snapshot_offset, 0);
+  expect_read_snapshot_header_extra(
+      *mock_stream_interface, "1", "snap1", 1 << 29, &snapshot_offset, -EINVAL);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -665,7 +735,8 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotExtraError) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, SnapshotL1TableError) {
+TEST_F(TestMockMigrationQCOWFormat, SnapshotL1TableError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -680,17 +751,17 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotL1TableError) {
 
   expect_read_header(*mock_stream_interface, 2, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot_header(*mock_stream_interface, "1", "snap1",
-                              1<<22, &snapshot_offset, 0);
-  expect_read_snapshot_header_extra(*mock_stream_interface, "1", "snap1",
-                                    1<<29, &snapshot_offset, 0);
-  expect_read_snapshot_l1_table(*mock_stream_interface, 1<<22, -EINVAL);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot_header(
+      *mock_stream_interface, "1", "snap1", 1 << 22, &snapshot_offset, 0);
+  expect_read_snapshot_header_extra(
+      *mock_stream_interface, "1", "snap1", 1 << 29, &snapshot_offset, 0);
+  expect_read_snapshot_l1_table(*mock_stream_interface, 1 << 22, -EINVAL);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -701,7 +772,8 @@ TEST_F(TestMockMigrationQCOWFormat, SnapshotL1TableError) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, GetImageSize) {
+TEST_F(TestMockMigrationQCOWFormat, GetImageSize)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -714,8 +786,8 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSize) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -725,14 +797,15 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSize) {
   C_SaferCond ctx2;
   mock_qcow_format.get_image_size(CEPH_NOSNAP, &size, &ctx2);
   ASSERT_EQ(0, ctx2.wait());
-  ASSERT_EQ(1<<30, size);
+  ASSERT_EQ(1 << 30, size);
 
   C_SaferCond ctx3;
   mock_qcow_format.close(&ctx3);
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnap) {
+TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnap)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -747,16 +820,16 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnap) {
 
   expect_read_header(*mock_stream_interface, 1, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot(*mock_stream_interface, "1", "snap1", 1<<29, 1<<22,
-                       &snapshot_offset);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot(
+      *mock_stream_interface, "1", "snap1", 1 << 29, 1 << 22, &snapshot_offset);
 
   expect_read_l1_table(*mock_stream_interface, {}, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -766,14 +839,15 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnap) {
   C_SaferCond ctx2;
   mock_qcow_format.get_image_size(1U, &size, &ctx2);
   ASSERT_EQ(0, ctx2.wait());
-  ASSERT_EQ(1<<29, size);
+  ASSERT_EQ(1 << 29, size);
 
   C_SaferCond ctx3;
   mock_qcow_format.close(&ctx3);
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnapDNE) {
+TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnapDNE)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -786,8 +860,8 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnapDNE) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -803,7 +877,8 @@ TEST_F(TestMockMigrationQCOWFormat, GetImageSizeSnapDNE) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, Read) {
+TEST_F(TestMockMigrationQCOWFormat, Read)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -812,19 +887,18 @@ TEST_F(TestMockMigrationQCOWFormat, Read) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, 1ULL<<32}}, 0);
+  expect_read_l2_table(*mock_stream_interface, 1ULL << 40, {{0, 1ULL << 32}}, 0);
 
   bufferlist expect_bl;
   expect_bl.append(std::string(123, '1'));
-  expect_read_cluster(*mock_stream_interface, 1ULL<<32, 123, expect_bl, 0);
+  expect_read_cluster(*mock_stream_interface, 1ULL << 32, 123, expect_bl, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -832,11 +906,11 @@ TEST_F(TestMockMigrationQCOWFormat, Read) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   ASSERT_EQ(expect_bl, bl);
 
@@ -845,7 +919,8 @@ TEST_F(TestMockMigrationQCOWFormat, Read) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadL1DNE) {
+TEST_F(TestMockMigrationQCOWFormat, ReadL1DNE)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -858,8 +933,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL1DNE) {
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -867,11 +942,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL1DNE) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{234, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{234, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   bufferlist expect_bl;
   expect_bl.append_zero(123);
@@ -882,7 +957,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL1DNE) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadL2DNE) {
+TEST_F(TestMockMigrationQCOWFormat, ReadL2DNE)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -891,15 +967,14 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2DNE) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, 1ULL<<32}}, 0);
+  expect_read_l2_table(*mock_stream_interface, 1ULL << 40, {{0, 1ULL << 32}}, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -907,11 +982,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2DNE) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{234, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{234, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   bufferlist expect_bl;
   expect_bl.append_zero(123);
@@ -922,7 +997,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2DNE) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadZero) {
+TEST_F(TestMockMigrationQCOWFormat, ReadZero)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -931,15 +1007,15 @@ TEST_F(TestMockMigrationQCOWFormat, ReadZero) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, QCOW_OFLAG_ZERO}}, 0);
+  expect_read_l2_table(
+      *mock_stream_interface, 1ULL << 40, {{0, QCOW_OFLAG_ZERO}}, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -947,11 +1023,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadZero) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   bufferlist expect_bl;
   expect_bl.append_zero(123);
@@ -962,7 +1038,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadZero) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadSnap) {
+TEST_F(TestMockMigrationQCOWFormat, ReadSnap)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -977,23 +1054,22 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnap) {
 
   expect_read_header(*mock_stream_interface, 1, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot(*mock_stream_interface, "1", "snap1", 1<<29, 1<<22,
-                       &snapshot_offset);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot(
+      *mock_stream_interface, "1", "snap1", 1 << 29, 1 << 22, &snapshot_offset);
 
   expect_read_l1_table(*mock_stream_interface, {}, 0);
 
-  expect_read_l2_table(*mock_stream_interface, 1<<22,
-                       {{0, 1ULL<<32}}, 0);
+  expect_read_l2_table(*mock_stream_interface, 1 << 22, {{0, 1ULL << 32}}, 0);
 
   bufferlist expect_bl;
   expect_bl.append(std::string(123, '1'));
-  expect_read_cluster(*mock_stream_interface, 1ULL<<32, 123, expect_bl, 0);
+  expect_read_cluster(*mock_stream_interface, 1ULL << 32, 123, expect_bl, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1001,11 +1077,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnap) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, 1, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, 1, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   ASSERT_EQ(expect_bl, bl);
 
@@ -1014,7 +1090,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnap) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadSnapDNE) {
+TEST_F(TestMockMigrationQCOWFormat, ReadSnapDNE)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -1023,12 +1100,12 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnapDNE) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1036,11 +1113,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnapDNE) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, 1, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, 1, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(-ENOENT, ctx2.wait());
 
   C_SaferCond ctx3;
@@ -1048,7 +1125,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadSnapDNE) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit) {
+TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -1057,10 +1135,9 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, 1ULL<<32}}, 0);
+  expect_read_l2_table(*mock_stream_interface, 1ULL << 40, {{0, 1ULL << 32}}, 0);
 
   bufferlist expect_bl1;
   expect_bl1.append(std::string(123, '1'));
@@ -1074,12 +1151,12 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit) {
   cluster_bl.append_zero(234);
   cluster_bl.append(expect_bl2);
 
-  expect_read_cluster(*mock_stream_interface, 1ULL<<32, 0, cluster_bl, 0);
+  expect_read_cluster(*mock_stream_interface, 1ULL << 32, 0, cluster_bl, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1087,21 +1164,21 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit) {
 
   C_SaferCond ctx2;
   auto aio_comp1 = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl1;
   io::ReadResult read_result1{&bl1};
-  mock_qcow_format.read(aio_comp1, CEPH_NOSNAP, {{65659, 123}},
-                        std::move(read_result1), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp1, CEPH_NOSNAP, {{65659, 123}}, std::move(read_result1), 0, 0, {});
   ASSERT_EQ(123, ctx2.wait());
   ASSERT_EQ(expect_bl1, bl1);
 
   C_SaferCond ctx3;
   auto aio_comp2 = io::AioCompletion::create_and_start(
-    &ctx3, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx3, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl2;
   io::ReadResult read_result2{&bl2};
-  mock_qcow_format.read(aio_comp2, CEPH_NOSNAP, {{66016, 234}},
-                        std::move(read_result2), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp2, CEPH_NOSNAP, {{66016, 234}}, std::move(read_result2), 0, 0, {});
   ASSERT_EQ(234, ctx3.wait());
   ASSERT_EQ(expect_bl2, bl2);
 
@@ -1110,7 +1187,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterCacheHit) {
   ASSERT_EQ(0, ctx4.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadClusterError) {
+TEST_F(TestMockMigrationQCOWFormat, ReadClusterError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -1119,19 +1197,18 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterError) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, 1ULL<<32}}, 0);
+  expect_read_l2_table(*mock_stream_interface, 1ULL << 40, {{0, 1ULL << 32}}, 0);
 
   bufferlist expect_bl;
   expect_bl.append(std::string(123, '1'));
-  expect_read_cluster(*mock_stream_interface, 1ULL<<32, 123, expect_bl, -EIO);
+  expect_read_cluster(*mock_stream_interface, 1ULL << 32, 123, expect_bl, -EIO);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1139,11 +1216,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterError) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(-EIO, ctx2.wait());
 
   C_SaferCond ctx3;
@@ -1151,7 +1228,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadClusterError) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ReadL2TableError) {
+TEST_F(TestMockMigrationQCOWFormat, ReadL2TableError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -1160,15 +1238,15 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2TableError) {
   auto mock_stream_interface = new MockStreamInterface();
   expect_build_stream(mock_source_spec_builder, mock_stream_interface, 0);
 
-  expect_open(*mock_stream_interface, {{1ULL<<40}});
+  expect_open(*mock_stream_interface, {{1ULL << 40}});
 
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<40,
-                       {{0, 1ULL<<32}}, -EIO);
+  expect_read_l2_table(
+      *mock_stream_interface, 1ULL << 40, {{0, 1ULL << 32}}, -EIO);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                  &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1176,11 +1254,11 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2TableError) {
 
   C_SaferCond ctx2;
   auto aio_comp = io::AioCompletion::create_and_start(
-    &ctx2, m_image_ctx, io::AIO_TYPE_READ);
+      &ctx2, m_image_ctx, io::AIO_TYPE_READ);
   bufferlist bl;
   io::ReadResult read_result{&bl};
-  mock_qcow_format.read(aio_comp, CEPH_NOSNAP, {{65659, 123}},
-                        std::move(read_result), 0, 0, {});
+  mock_qcow_format.read(
+      aio_comp, CEPH_NOSNAP, {{65659, 123}}, std::move(read_result), 0, 0, {});
   ASSERT_EQ(-EIO, ctx2.wait());
 
   C_SaferCond ctx3;
@@ -1188,7 +1266,8 @@ TEST_F(TestMockMigrationQCOWFormat, ReadL2TableError) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationQCOWFormat, ListSnaps) {
+TEST_F(TestMockMigrationQCOWFormat, ListSnaps)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   InSequence seq;
@@ -1203,36 +1282,38 @@ TEST_F(TestMockMigrationQCOWFormat, ListSnaps) {
 
   expect_read_header(*mock_stream_interface, 2, 0);
 
-  uint64_t snapshot_offset = 1<<21;
-  expect_read_snapshot(*mock_stream_interface, "1", "snap1", 1<<29, 1<<22,
-                       &snapshot_offset);
-  expect_read_snapshot(*mock_stream_interface, "2", "snap2", 1<<29, 1<<23,
-                       &snapshot_offset);
+  uint64_t snapshot_offset = 1 << 21;
+  expect_read_snapshot(
+      *mock_stream_interface, "1", "snap1", 1 << 29, 1 << 22, &snapshot_offset);
+  expect_read_snapshot(
+      *mock_stream_interface, "2", "snap2", 1 << 29, 1 << 23, &snapshot_offset);
 
-  expect_read_l1_table(*mock_stream_interface, {{1ULL<<28}}, 0);
+  expect_read_l1_table(*mock_stream_interface, {{1ULL << 28}}, 0);
 
   io::SparseExtents sparse_extents_1;
   sparse_extents_1.insert(0, 196608, {io::SPARSE_EXTENT_STATE_DATA, 196608});
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<22,
-                       {{1ULL<<23, 1ULL<<24, 1ULL<<25}}, 0);
+  expect_read_l2_table(
+      *mock_stream_interface, 1ULL << 22,
+      {{1ULL << 23, 1ULL << 24, 1ULL << 25}}, 0);
 
   io::SparseExtents sparse_extents_2;
   sparse_extents_2.insert(0, 65536, {io::SPARSE_EXTENT_STATE_DATA, 65536});
-  sparse_extents_2.insert(65536, 65536,
-                         {io::SPARSE_EXTENT_STATE_ZEROED, 65536});
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<23,
-                       {{1ULL<<26, QCOW_OFLAG_ZERO, 1ULL<<25}}, 0);
+  sparse_extents_2.insert(65536, 65536, {io::SPARSE_EXTENT_STATE_ZEROED, 65536});
+  expect_read_l2_table(
+      *mock_stream_interface, 1ULL << 23,
+      {{1ULL << 26, QCOW_OFLAG_ZERO, 1ULL << 25}}, 0);
 
   io::SparseExtents sparse_extents_head;
-  sparse_extents_head.insert(131072, 65536,
-                             {io::SPARSE_EXTENT_STATE_DATA, 65536});
-  expect_read_l2_table(*mock_stream_interface, 1ULL<<28,
-                       {{1ULL<<26, QCOW_OFLAG_ZERO, 1ULL<<27}}, 0);
+  sparse_extents_head.insert(
+      131072, 65536, {io::SPARSE_EXTENT_STATE_DATA, 65536});
+  expect_read_l2_table(
+      *mock_stream_interface, 1ULL << 28,
+      {{1ULL << 26, QCOW_OFLAG_ZERO, 1ULL << 27}}, 0);
 
   expect_stream_close(*mock_stream_interface, 0);
 
-  MockQCOWFormat mock_qcow_format(&mock_image_ctx, json_object,
-                                 &mock_source_spec_builder);
+  MockQCOWFormat mock_qcow_format(
+      &mock_image_ctx, json_object, &mock_source_spec_builder);
 
   C_SaferCond ctx1;
   mock_qcow_format.open(&ctx1);
@@ -1240,8 +1321,8 @@ TEST_F(TestMockMigrationQCOWFormat, ListSnaps) {
 
   C_SaferCond ctx2;
   io::SnapshotDelta snapshot_delta;
-  mock_qcow_format.list_snaps({{0, 196608}}, {1, CEPH_NOSNAP}, 0,
-                              &snapshot_delta, {}, &ctx2);
+  mock_qcow_format.list_snaps(
+      {{0, 196608}}, {1, CEPH_NOSNAP}, 0, &snapshot_delta, {}, &ctx2);
   ASSERT_EQ(0, ctx2.wait());
 
   io::SnapshotDelta expected_snapshot_delta;

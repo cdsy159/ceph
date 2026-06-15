@@ -17,21 +17,23 @@
 
 // -----------------------------------------------------------------------------
 #include "compressor/CompressionPlugin.h"
+
 #include "SnappyCompressor.h"
+
 // -----------------------------------------------------------------------------
 
 class CompressionPluginSnappy : public ceph::CompressionPlugin {
 
 public:
-
-  explicit CompressionPluginSnappy(CephContext* cct) : CompressionPlugin(cct)
+  explicit CompressionPluginSnappy(CephContext* cct) :
+    CompressionPlugin(cct)
   {}
 
-  int factory(CompressorRef *cs,
-                      std::ostream *ss) override
+  int
+  factory(CompressorRef* cs, std::ostream* ss) override
   {
     if (compressor == 0) {
-      SnappyCompressor *interface = new SnappyCompressor(cct);
+      SnappyCompressor* interface = new SnappyCompressor(cct);
       compressor = CompressorRef(interface);
     }
     *cs = compressor;

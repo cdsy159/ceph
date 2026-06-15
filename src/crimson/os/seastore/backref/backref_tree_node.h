@@ -44,169 +44,213 @@ constexpr size_t LEAF_NODE_CAPACITY = 193;
 
 using BackrefNode = FixedKVNode<paddr_t>;
 
-class BackrefInternalNode
-  : public FixedKVInternalNode<
-      INTERNAL_NODE_CAPACITY,
-      paddr_t, paddr_le_t,
-      BACKREF_NODE_SIZE,
-      BackrefInternalNode> {
+class BackrefInternalNode : public FixedKVInternalNode<
+                                INTERNAL_NODE_CAPACITY,
+                                paddr_t,
+                                paddr_le_t,
+                                BACKREF_NODE_SIZE,
+                                BackrefInternalNode> {
   static_assert(
-    check_capacity(BACKREF_NODE_SIZE),
-    "INTERNAL_NODE_CAPACITY doesn't fit in BACKREF_NODE_SIZE");
+      check_capacity(BACKREF_NODE_SIZE),
+      "INTERNAL_NODE_CAPACITY doesn't fit in BACKREF_NODE_SIZE");
+
 public:
   using key_type = paddr_t;
   static constexpr uint32_t CHILD_VEC_UNIT = 0;
+
   template <typename... T>
   BackrefInternalNode(T&&... t) :
-    FixedKVInternalNode(std::forward<T>(t)...) {}
+    FixedKVInternalNode(std::forward<T>(t)...)
+  {}
 
   static constexpr extent_types_t TYPE = extent_types_t::BACKREF_INTERNAL;
 
-  extent_types_t get_type() const final {
+  extent_types_t
+  get_type() const final
+  {
     return TYPE;
   }
 };
+
 using BackrefInternalNodeRef = BackrefInternalNode::Ref;
 
-class BackrefLeafNode
-  : public FixedKVLeafNode<
-      LEAF_NODE_CAPACITY,
-      paddr_t, paddr_le_t,
-      backref_map_val_t, backref_map_val_le_t,
-      BACKREF_NODE_SIZE,
-      BackrefInternalNode,
-      BackrefLeafNode> {
+class BackrefLeafNode : public FixedKVLeafNode<
+                            LEAF_NODE_CAPACITY,
+                            paddr_t,
+                            paddr_le_t,
+                            backref_map_val_t,
+                            backref_map_val_le_t,
+                            BACKREF_NODE_SIZE,
+                            BackrefInternalNode,
+                            BackrefLeafNode> {
   static_assert(
-    check_capacity(BACKREF_NODE_SIZE),
-    "LEAF_NODE_CAPACITY doesn't fit in BACKREF_NODE_SIZE");
+      check_capacity(BACKREF_NODE_SIZE),
+      "LEAF_NODE_CAPACITY doesn't fit in BACKREF_NODE_SIZE");
+
 public:
   using key_type = paddr_t;
+
   template <typename... T>
   BackrefLeafNode(T&&... t) :
-    FixedKVLeafNode(std::forward<T>(t)...) {}
+    FixedKVLeafNode(std::forward<T>(t)...)
+  {}
 
   static constexpr extent_types_t TYPE = extent_types_t::BACKREF_LEAF;
 
-  extent_types_t get_type() const final  {
+  extent_types_t
+  get_type() const final
+  {
     return TYPE;
   }
 
-  const_iterator insert(
-    const_iterator iter,
-    paddr_t key,
-    backref_map_val_t val) final {
-    journal_insert(
-      iter,
-      key,
-      val,
-      maybe_get_delta_buffer());
+  const_iterator
+  insert(const_iterator iter, paddr_t key, backref_map_val_t val) final
+  {
+    journal_insert(iter, key, val, maybe_get_delta_buffer());
     return iter;
   }
 
-  void update(
-    const_iterator iter,
-    backref_map_val_t val) final {
-    return journal_update(
-      iter,
-      val,
-      maybe_get_delta_buffer());
+  void
+  update(const_iterator iter, backref_map_val_t val) final
+  {
+    return journal_update(iter, val, maybe_get_delta_buffer());
   }
 
-  void remove(const_iterator iter) final {
-    return journal_remove(
-      iter,
-      maybe_get_delta_buffer());
+  void
+  remove(const_iterator iter) final
+  {
+    return journal_remove(iter, maybe_get_delta_buffer());
   }
 
-  void do_on_rewrite(Transaction &t, CachedExtent &extent) final {}
-  void do_on_replace_prior() final {}
-  void do_prepare_commit() final {}
+  void
+  do_on_rewrite(Transaction& t, CachedExtent& extent) final
+  {}
 
+  void
+  do_on_replace_prior() final
+  {}
 
-  void on_split(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right) final {}
+  void
+  do_prepare_commit() final
+  {}
 
-  void on_merge(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right) final {}
+  void
+  on_split(Transaction& t, BackrefLeafNode& left, BackrefLeafNode& right) final
+  {}
 
-  void on_balance(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right,
-    uint32_t pivot_idx,
-    BackrefLeafNode &replacement_left,
-    BackrefLeafNode &replacement_right) final {}
+  void
+  on_merge(Transaction& t, BackrefLeafNode& left, BackrefLeafNode& right) final
+  {}
 
-  void adjust_copy_src_dest_on_split(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right) final {}
+  void
+  on_balance(
+      Transaction& t,
+      BackrefLeafNode& left,
+      BackrefLeafNode& right,
+      uint32_t pivot_idx,
+      BackrefLeafNode& replacement_left,
+      BackrefLeafNode& replacement_right) final
+  {}
 
-  void adjust_copy_src_dest_on_merge(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right) final {}
+  void
+  adjust_copy_src_dest_on_split(
+      Transaction& t,
+      BackrefLeafNode& left,
+      BackrefLeafNode& right) final
+  {}
 
-  void adjust_copy_src_dest_on_balance(
-    Transaction &t,
-    BackrefLeafNode &left,
-    BackrefLeafNode &right,
-    uint32_t pivot_idx,
-    BackrefLeafNode &replacement_left,
-    BackrefLeafNode &replacement_right) final {}
+  void
+  adjust_copy_src_dest_on_merge(
+      Transaction& t,
+      BackrefLeafNode& left,
+      BackrefLeafNode& right) final
+  {}
+
+  void
+  adjust_copy_src_dest_on_balance(
+      Transaction& t,
+      BackrefLeafNode& left,
+      BackrefLeafNode& right,
+      uint32_t pivot_idx,
+      BackrefLeafNode& replacement_left,
+      BackrefLeafNode& replacement_right) final
+  {}
+
   // backref leaf nodes don't have to resolve relative addresses
-  void resolve_relative_addrs(paddr_t base) final {}
+  void
+  resolve_relative_addrs(paddr_t base) final
+  {}
 
-  void node_resolve_vals(iterator from, iterator to) const final {}
+  void
+  node_resolve_vals(iterator from, iterator to) const final
+  {}
 
-  void node_unresolve_vals(iterator from, iterator to) const final {}
+  void
+  node_unresolve_vals(iterator from, iterator to) const final
+  {}
 };
+
 using BackrefLeafNodeRef = BackrefLeafNode::Ref;
 
-struct BackrefCursor :
-  BtreeCursor<paddr_t, backref::backref_map_val_t, BackrefLeafNode>
-{
-  using Base = BtreeCursor<paddr_t,
-			   backref::backref_map_val_t,
-			   BackrefLeafNode>;
+struct BackrefCursor
+  : BtreeCursor<paddr_t, backref::backref_map_val_t, BackrefLeafNode> {
+  using Base = BtreeCursor<paddr_t, backref::backref_map_val_t, BackrefLeafNode>;
   using Base::BtreeCursor;
-  paddr_t get_paddr() const {
+
+  paddr_t
+  get_paddr() const
+  {
     assert(key.is_absolute());
     return key;
   }
-  laddr_t get_laddr() const {
+
+  laddr_t
+  get_laddr() const
+  {
     assert(is_viewable());
     assert(!is_end());
     return iter.get_val().laddr;
   }
-  extent_types_t get_type() const {
+
+  extent_types_t
+  get_type() const
+  {
     assert(!is_end());
     return iter.get_val().type;
   }
 
-  BackrefCursor* renew_cursor(Transaction &t) {
+  BackrefCursor*
+  renew_cursor(Transaction& t)
+  {
     auto c = op_context_t{ctx.cache, t};
     t.maybe_add_to_read_set(parent);
     return new BackrefCursor(
-      c,
-      std::move(parent),
-      modifications,
-      std::move(iter));
+        c, std::move(parent), modifications, std::move(iter));
   }
-
 };
+
 using BackrefCursorRef = boost::intrusive_ptr<BackrefCursor>;
 
 } // namespace crimson::os::seastore::backref
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::os::seastore::backref::backref_map_val_t> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<crimson::os::seastore::backref::BackrefInternalNode> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<crimson::os::seastore::backref::BackrefLeafNode> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<crimson::os::seastore::backref::backref_node_meta_t> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<crimson::os::seastore::backref::BackrefCursor> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::backref::backref_map_val_t>
+  : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<crimson::os::seastore::backref::BackrefInternalNode>
+  : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<crimson::os::seastore::backref::BackrefLeafNode>
+  : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<crimson::os::seastore::backref::backref_node_meta_t>
+  : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<crimson::os::seastore::backref::BackrefCursor>
+  : fmt::ostream_formatter {};
 #endif

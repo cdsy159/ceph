@@ -4,13 +4,14 @@
 #ifndef CEPH_LOG_CLOCK_H
 #define CEPH_LOG_CLOCK_H
 
-#include <cstdio>
-#include <chrono>
-#include <ctime>
 #include <sys/time.h>
 
-#include "include/ceph_assert.h"
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+
 #include "common/ceph_time.h"
+#include "include/ceph_assert.h"
 
 #ifndef HAVE_SUSECONDS_T
 typedef long suseconds_t;
@@ -36,10 +37,17 @@ struct taggedrep {
   uint64_t count;
   bool coarse;
 
-  explicit taggedrep(uint64_t count) : count(count), coarse(true) {}
-  taggedrep(uint64_t count, bool coarse) : count(count), coarse(coarse) {}
+  explicit taggedrep(uint64_t count) :
+    count(count), coarse(true)
+  {}
 
-  explicit operator uint64_t() {
+  taggedrep(uint64_t count, bool coarse) :
+    count(count), coarse(coarse)
+  {}
+
+  explicit
+  operator uint64_t()
+  {
     return count;
   }
 };
@@ -47,44 +55,76 @@ struct taggedrep {
 // Proper significant figure support would be a bit excessive. Also
 // we'd have to know the precision of the clocks on Linux and FreeBSD
 // and whatever else we want to support.
-inline taggedrep operator +(const taggedrep& l, const taggedrep& r) {
-  return { l.count + r.count, l.coarse || r.coarse };
+inline taggedrep
+operator+(const taggedrep& l, const taggedrep& r)
+{
+  return {l.count + r.count, l.coarse || r.coarse};
 }
-inline taggedrep operator -(const taggedrep& l, const taggedrep& r) {
-  return { l.count - r.count, l.coarse || r.coarse };
+
+inline taggedrep
+operator-(const taggedrep& l, const taggedrep& r)
+{
+  return {l.count - r.count, l.coarse || r.coarse};
 }
-inline taggedrep operator *(const taggedrep& l, const taggedrep& r) {
-  return { l.count * r.count, l.coarse || r.coarse };
+
+inline taggedrep
+operator*(const taggedrep& l, const taggedrep& r)
+{
+  return {l.count * r.count, l.coarse || r.coarse};
 }
-inline taggedrep operator /(const taggedrep& l, const taggedrep& r) {
-  return { l.count / r.count, l.coarse || r.coarse };
+
+inline taggedrep
+operator/(const taggedrep& l, const taggedrep& r)
+{
+  return {l.count / r.count, l.coarse || r.coarse};
 }
-inline taggedrep operator %(const taggedrep& l, const taggedrep& r) {
-  return { l.count % r.count, l.coarse || r.coarse };
+
+inline taggedrep
+operator%(const taggedrep& l, const taggedrep& r)
+{
+  return {l.count % r.count, l.coarse || r.coarse};
 }
 
 // You can compare coarse and fine time. You shouldn't do so in any
 // case where ordering actually MATTERS but in practice people won't
 // actually ping-pong their logs back and forth between them.
-inline bool operator ==(const taggedrep& l, const taggedrep& r) {
+inline bool
+operator==(const taggedrep& l, const taggedrep& r)
+{
   return l.count == r.count;
 }
-inline bool operator !=(const taggedrep& l, const taggedrep& r) {
+
+inline bool
+operator!=(const taggedrep& l, const taggedrep& r)
+{
   return l.count != r.count;
 }
-inline bool operator <(const taggedrep& l, const taggedrep& r) {
+
+inline bool
+operator<(const taggedrep& l, const taggedrep& r)
+{
   return l.count < r.count;
 }
-inline bool operator <=(const taggedrep& l, const taggedrep& r) {
+
+inline bool
+operator<=(const taggedrep& l, const taggedrep& r)
+{
   return l.count <= r.count;
 }
-inline bool operator >=(const taggedrep& l, const taggedrep& r) {
+
+inline bool
+operator>=(const taggedrep& l, const taggedrep& r)
+{
   return l.count >= r.count;
 }
-inline bool operator >(const taggedrep& l, const taggedrep& r) {
+
+inline bool
+operator>(const taggedrep& l, const taggedrep& r)
+{
   return l.count > r.count;
 }
-}
+} // namespace _logclock
+
 class log_clock {
 public:
   using rep = _logclock::taggedrep;
@@ -95,74 +135,98 @@ public:
   using time_point = std::chrono::time_point<log_clock>;
   static constexpr const bool is_steady = false;
 
-  time_point now() noexcept {
+  time_point
+  now() noexcept
+  {
     return appropriate_now();
   }
 
-  void coarsen() {
+  void
+  coarsen()
+  {
     appropriate_now = coarse_now;
   }
 
-  void refine() {
+  void
+  refine()
+  {
     appropriate_now = fine_now;
   }
 
   // Since our formatting is done in microseconds and we're using it
   // anyway, we may as well keep this one
-  static timeval to_timeval(time_point t) {
+  static timeval
+  to_timeval(time_point t)
+  {
     auto rep = t.time_since_epoch().count();
     timespan ts(rep.count);
-    #ifndef _WIN32
-    return { static_cast<time_t>(std::chrono::duration_cast<std::chrono::seconds>(ts).count()),
-             static_cast<suseconds_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-               ts % std::chrono::seconds(1)).count()) };
-    #else
-    return { static_cast<long>(std::chrono::duration_cast<std::chrono::seconds>(ts).count()),
-             static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(
-               ts % std::chrono::seconds(1)).count()) };
-    #endif
+#ifndef _WIN32
+    return {
+        static_cast<time_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(ts).count()),
+        static_cast<suseconds_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                ts % std::chrono::seconds(1))
+                .count())};
+#else
+    return {
+        static_cast<long>(
+            std::chrono::duration_cast<std::chrono::seconds>(ts).count()),
+        static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(
+                              ts % std::chrono::seconds(1))
+                              .count())};
+#endif
   }
+
 private:
-  static time_point coarse_now() {
-    return time_point(
-      duration(_logclock::taggedrep(coarse_real_clock::now()
-				    .time_since_epoch().count(), true)));
+  static time_point
+  coarse_now()
+  {
+    return time_point(duration(_logclock::taggedrep(
+        coarse_real_clock::now().time_since_epoch().count(), true)));
   }
-  static time_point fine_now() {
-    return time_point(
-      duration(_logclock::taggedrep(real_clock::now()
-				    .time_since_epoch().count(), false)));
+
+  static time_point
+  fine_now()
+  {
+    return time_point(duration(_logclock::taggedrep(
+        real_clock::now().time_since_epoch().count(), false)));
   }
-  time_point(*appropriate_now)() = coarse_now;
+
+  time_point (*appropriate_now)() = coarse_now;
 };
+
 using log_time = log_clock::time_point;
-inline int append_time(const log_time& t, char *out, int outlen) {
+
+inline int
+append_time(const log_time& t, char* out, int outlen)
+{
   bool coarse = t.time_since_epoch().count().coarse;
   auto tv = log_clock::to_timeval(t);
   std::tm bdt;
   time_t t_sec = tv.tv_sec;
   localtime_r(&t_sec, &bdt);
-  char tz[32] = { 0 };
+  char tz[32] = {0};
   strftime(tz, sizeof(tz), "%z", &bdt);
 
   int r;
   if (coarse) {
-    r = std::snprintf(out, outlen, "%04d-%02d-%02dT%02d:%02d:%02d.%03ld%s",
-		      bdt.tm_year + 1900, bdt.tm_mon + 1, bdt.tm_mday,
-		      bdt.tm_hour, bdt.tm_min, bdt.tm_sec,
-		      static_cast<long>(tv.tv_usec / 1000), tz);
+    r = std::snprintf(
+        out, outlen, "%04d-%02d-%02dT%02d:%02d:%02d.%03ld%s",
+        bdt.tm_year + 1900, bdt.tm_mon + 1, bdt.tm_mday, bdt.tm_hour,
+        bdt.tm_min, bdt.tm_sec, static_cast<long>(tv.tv_usec / 1000), tz);
   } else {
-    r = std::snprintf(out, outlen, "%04d-%02d-%02dT%02d:%02d:%02d.%06ld%s",
-		      bdt.tm_year + 1900, bdt.tm_mon + 1, bdt.tm_mday,
-		      bdt.tm_hour, bdt.tm_min, bdt.tm_sec,
-		      static_cast<long>(tv.tv_usec), tz);
+    r = std::snprintf(
+        out, outlen, "%04d-%02d-%02dT%02d:%02d:%02d.%06ld%s",
+        bdt.tm_year + 1900, bdt.tm_mon + 1, bdt.tm_mday, bdt.tm_hour,
+        bdt.tm_min, bdt.tm_sec, static_cast<long>(tv.tv_usec), tz);
   }
   // Since our caller just adds the return value to something without
   // checking it…
   ceph_assert(r >= 0);
   return r;
 }
-}
-}
+} // namespace logging
+} // namespace ceph
 
 #endif

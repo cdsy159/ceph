@@ -23,4 +23,3 @@ extern void ceph_arch_riscv_probe(void);
 #endif
 
 #endif
-

@@ -20,16 +20,18 @@ std::vector<Option> get_mds_client_options();
 std::vector<Option> get_cephfs_mirror_options();
 std::vector<Option> get_ceph_exporter_options();
 
-std::vector<Option> build_options()
+std::vector<Option>
+build_options()
 {
   std::vector<Option> result = get_global_options();
 
   auto ingest = [&result](std::vector<Option>&& options, const char* svc) {
-    for (auto &o : options) {
-      if (std::none_of(o.services.begin(), o.services.end(),
-                       [svc](const char* known_svc) {
-                         return std::strcmp(known_svc, svc) == 0;
-                       })) {
+    for (auto& o : options) {
+      if (std::none_of(
+              o.services.begin(), o.services.end(),
+              [svc](const char* known_svc) {
+                return std::strcmp(known_svc, svc) == 0;
+              })) {
         o.add_service(svc);
       }
       result.push_back(std::move(o));

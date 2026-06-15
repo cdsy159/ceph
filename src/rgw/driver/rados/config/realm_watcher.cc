@@ -6,10 +6,9 @@
 #include "common/errno.h"
 #include "include/ceph_assert.h"
 
+#include "impl.h"
 #include "rgw_tools.h"
 #include "rgw_zone.h"
-
-#include "impl.h"
 #include "store.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -17,16 +16,19 @@
 #undef dout_prefix
 #define dout_prefix (*_dout << "rgw realm watcher: ")
 
-
 namespace rgw::rados {
 
-RadosRealmWatcher::RadosRealmWatcher(const DoutPrefixProvider* dpp, CephContext* cct,
-                                     librados::Rados& rados, const RGWRealm& realm)
-  : cct(cct)
+RadosRealmWatcher::RadosRealmWatcher(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    librados::Rados& rados,
+    const RGWRealm& realm) :
+  cct(cct)
 {
   // no default realm, nothing to watch
   if (realm.get_id().empty()) {
-    ldpp_dout(dpp, 4) << "No realm, disabling dynamic reconfiguration." << dendl;
+    ldpp_dout(dpp, 4) << "No realm, disabling dynamic reconfiguration."
+                      << dendl;
     return;
   }
 
@@ -34,18 +36,20 @@ RadosRealmWatcher::RadosRealmWatcher(const DoutPrefixProvider* dpp, CephContext*
   int r = watch_start(dpp, rados, realm);
   if (r < 0) {
     ldpp_dout(dpp, -1) << "Failed to establish a watch on RGWRealm, "
-        "disabling dynamic reconfiguration." << dendl;
+                          "disabling dynamic reconfiguration."
+                       << dendl;
     return;
   }
 }
 
-RadosRealmWatcher::~RadosRealmWatcher()
-{
-  watch_stop();
-}
+RadosRealmWatcher::~RadosRealmWatcher() { watch_stop(); }
 
-void RadosRealmWatcher::handle_notify(uint64_t notify_id, uint64_t cookie,
-                                      uint64_t notifier_id, bufferlist& bl)
+void
+RadosRealmWatcher::handle_notify(
+    uint64_t notify_id,
+    uint64_t cookie,
+    uint64_t notifier_id,
+    bufferlist& bl)
 {
   if (cookie != watch_handle)
     return;
@@ -62,36 +66,40 @@ void RadosRealmWatcher::handle_notify(uint64_t notify_id, uint64_t cookie,
       auto watcher = watchers.find(notify);
       if (watcher == watchers.end()) {
         lderr(cct) << "Failed to find a watcher for notify type "
-            << static_cast<int>(notify) << dendl;
+                   << static_cast<int>(notify) << dendl;
         break;
       }
       watcher->second.handle_notify(notify, p);
     }
-  } catch (const buffer::error &e) {
+  } catch (const buffer::error& e) {
     lderr(cct) << "Failed to decode realm notifications." << dendl;
   }
 }
 
-void RadosRealmWatcher::handle_error(uint64_t cookie, int err)
+void
+RadosRealmWatcher::handle_error(uint64_t cookie, int err)
 {
-  lderr(cct) << "RadosRealmWatcher::handle_error oid=" << watch_oid << " err=" << err << dendl;
+  lderr(cct) << "RadosRealmWatcher::handle_error oid=" << watch_oid
+             << " err=" << err << dendl;
   if (cookie != watch_handle)
     return;
 
   watch_restart();
 }
 
-int RadosRealmWatcher::watch_start(const DoutPrefixProvider* dpp,
-                                   librados::Rados& rados,
-                                   const RGWRealm& realm)
+int
+RadosRealmWatcher::watch_start(
+    const DoutPrefixProvider* dpp,
+    librados::Rados& rados,
+    const RGWRealm& realm)
 {
   // The Rados client should have been initialized by the ConfigStore
   // open an IoCtx for the realm's pool
   rgw_pool pool(realm.get_pool(cct));
   int r = rgw_init_ioctx(dpp, &rados, pool, pool_ctx);
   if (r < 0) {
-    ldpp_dout(dpp, -1) << "Failed to open pool " << pool
-        << " with " << cpp_strerror(-r) << dendl;
+    ldpp_dout(dpp, -1) << "Failed to open pool " << pool << " with "
+                       << cpp_strerror(-r) << dendl;
     rados.shutdown();
     return r;
   }
@@ -100,8 +108,8 @@ int RadosRealmWatcher::watch_start(const DoutPrefixProvider* dpp,
   auto oid = realm.get_control_oid();
   r = pool_ctx.watch2(oid, &watch_handle, this);
   if (r < 0) {
-    ldpp_dout(dpp, -1) << "Failed to watch " << oid
-        << " with " << cpp_strerror(-r) << dendl;
+    ldpp_dout(dpp, -1) << "Failed to watch " << oid << " with "
+                       << cpp_strerror(-r) << dendl;
     pool_ctx.close();
     rados.shutdown();
     return r;
@@ -112,25 +120,27 @@ int RadosRealmWatcher::watch_start(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosRealmWatcher::watch_restart()
+int
+RadosRealmWatcher::watch_restart()
 {
   ceph_assert(!watch_oid.empty());
   int r = pool_ctx.unwatch2(watch_handle);
   if (r < 0) {
-    lderr(cct) << "Failed to unwatch on " << watch_oid
-        << " with " << cpp_strerror(-r) << dendl;
+    lderr(cct) << "Failed to unwatch on " << watch_oid << " with "
+               << cpp_strerror(-r) << dendl;
   }
   r = pool_ctx.watch2(watch_oid, &watch_handle, this);
   if (r < 0) {
-    lderr(cct) << "Failed to restart watch on " << watch_oid
-        << " with " << cpp_strerror(-r) << dendl;
+    lderr(cct) << "Failed to restart watch on " << watch_oid << " with "
+               << cpp_strerror(-r) << dendl;
     pool_ctx.close();
     watch_oid.clear();
   }
   return r;
 }
 
-void RadosRealmWatcher::watch_stop()
+void
+RadosRealmWatcher::watch_stop()
 {
   if (!watch_oid.empty()) {
     pool_ctx.unwatch2(watch_handle);
@@ -139,12 +149,14 @@ void RadosRealmWatcher::watch_stop()
   }
 }
 
-auto RadosConfigStore::create_realm_watcher(const DoutPrefixProvider* dpp,
-                                            optional_yield y,
-                                            const RGWRealm& realm)
-  -> std::unique_ptr<RGWRealmWatcher>
+auto
+RadosConfigStore::create_realm_watcher(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const RGWRealm& realm) -> std::unique_ptr<RGWRealmWatcher>
 {
-  return std::make_unique<RadosRealmWatcher>(dpp, dpp->get_cct(), impl->rados, realm);
+  return std::make_unique<RadosRealmWatcher>(
+      dpp, dpp->get_cct(), impl->rados, realm);
 }
 
 } // namespace rgw::rados

@@ -1,26 +1,29 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/rados/librados.hpp"
-#include "include/types.h"
-
-#include "cls/version/cls_version_types.h"
-#include "cls/version/cls_version_client.h"
-
-#include "gtest/gtest.h"
-#include "test/librados/test_cxx.h"
-
 #include <errno.h>
+
 #include <string>
 #include <vector>
 
+#include "cls/version/cls_version_client.h"
+#include "cls/version/cls_version_types.h"
+#include "gtest/gtest.h"
+#include "include/rados/librados.hpp"
+#include "include/types.h"
+#include "test/librados/test_cxx.h"
+
 using namespace std;
 
-static librados::ObjectWriteOperation *new_op() {
+static librados::ObjectWriteOperation*
+new_op()
+{
   return new librados::ObjectWriteOperation();
 }
 
-static librados::ObjectReadOperation *new_rop() {
+static librados::ObjectReadOperation*
+new_rop()
+{
   return new librados::ObjectReadOperation();
 }
 
@@ -47,10 +50,10 @@ TEST(cls_rgw, test_version_inc_read)
   ASSERT_EQ(0, cls_version_read(ioctx, oid, &ver));
   ASSERT_EQ(0, (long long)ver.ver);
   ASSERT_EQ(0, (int)ver.tag.size());
-  
+
 
   /* inc version */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_version_inc(*op);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -74,7 +77,7 @@ TEST(cls_rgw, test_version_inc_read)
 
   obj_version ver3;
 
-  librados::ObjectReadOperation *rop = new_rop();
+  librados::ObjectReadOperation* rop = new_rop();
   cls_version_read(*rop, &ver3);
   bufferlist outbl;
   ASSERT_EQ(0, ioctx.operate(oid, rop, &outbl));
@@ -83,7 +86,6 @@ TEST(cls_rgw, test_version_inc_read)
 
   delete rop;
 }
-
 
 TEST(cls_rgw, test_version_set)
 {
@@ -114,7 +116,7 @@ TEST(cls_rgw, test_version_set)
   ver.tag = "foo";
 
   /* set version */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_version_set(*op, ver);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -150,9 +152,9 @@ TEST(cls_rgw, test_version_inc_cond)
   ASSERT_EQ(0, cls_version_read(ioctx, oid, &ver));
   ASSERT_EQ(0, (long long)ver.ver);
   ASSERT_EQ(0, (int)ver.tag.size());
-  
+
   /* inc version */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_version_inc(*op);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -256,9 +258,9 @@ TEST(cls_rgw, test_version_inc_check)
   ASSERT_EQ(0, cls_version_read(ioctx, oid, &ver));
   ASSERT_EQ(0, (long long)ver.ver);
   ASSERT_EQ(0, (int)ver.tag.size());
-  
+
   /* inc version */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_version_inc(*op);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -269,7 +271,7 @@ TEST(cls_rgw, test_version_inc_check)
   obj_version cond_ver = ver;
 
   /* a bunch of conditions that should succeed */
-  librados::ObjectReadOperation *rop = new_rop();
+  librados::ObjectReadOperation* rop = new_rop();
   cls_version_check(*rop, cond_ver, VER_COND_EQ);
   bufferlist bl;
   ASSERT_EQ(0, ioctx.operate(oid, rop, &bl));

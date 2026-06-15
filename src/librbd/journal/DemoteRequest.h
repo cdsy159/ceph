@@ -4,11 +4,11 @@
 #ifndef CEPH_LIBRBD_JOURNAL_DEMOTE_REQUEST_H
 #define CEPH_LIBRBD_JOURNAL_DEMOTE_REQUEST_H
 
-#include "common/ceph_mutex.h"
 #include "cls/journal/cls_journal_types.h"
+#include "common/ceph_mutex.h"
 #include "journal/Future.h"
-#include "librbd/journal/Types.h"
 #include "librbd/journal/TypeTraits.h"
+#include "librbd/journal/Types.h"
 
 struct Context;
 
@@ -21,11 +21,13 @@ namespace journal {
 template <typename ImageCtxT = librbd::ImageCtx>
 class DemoteRequest {
 public:
-  static DemoteRequest *create(ImageCtxT &image_ctx, Context *on_finish) {
+  static DemoteRequest*
+  create(ImageCtxT& image_ctx, Context* on_finish)
+  {
     return new DemoteRequest(image_ctx, on_finish);
   }
 
-  DemoteRequest(ImageCtxT &image_ctx, Context *on_finish);
+  DemoteRequest(ImageCtxT& image_ctx, Context* on_finish);
   ~DemoteRequest();
 
   void send();
@@ -63,10 +65,10 @@ private:
   typedef typename TypeTraits<ImageCtxT>::Journaler Journaler;
   typedef typename TypeTraits<ImageCtxT>::Future Future;
 
-  ImageCtxT &m_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT& m_image_ctx;
+  Context* m_on_finish;
 
-  Journaler *m_journaler = nullptr;
+  Journaler* m_journaler = nullptr;
   int m_ret_val = 0;
 
   ceph::mutex m_lock;
@@ -96,7 +98,6 @@ private:
   void handle_shut_down_journaler(int r);
 
   void finish(int r);
-
 };
 
 } // namespace journal

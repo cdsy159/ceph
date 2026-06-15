@@ -15,25 +15,29 @@
 
 #include "mds/Anchor.h"
 
+#include <dirent.h> // for DT_DIR
+
 #include "common/Formatter.h"
 #include "include/denc.h"
 
-#include <dirent.h> // for DT_DIR
-
-void Anchor::encode(bufferlist &bl) const
+void
+Anchor::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 1, bl);
-  encode(std::tuple{
-    ino,
-    dirino,
-  }, bl, 0);
+  encode(
+      std::tuple{
+          ino,
+          dirino,
+      },
+      bl, 0);
   encode(d_name, bl);
   encode(d_type, bl);
   encode(frags, bl);
   ENCODE_FINISH(bl);
 }
 
-void Anchor::decode(bufferlist::const_iterator &bl)
+void
+Anchor::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START(2, bl);
   decode(ino, bl);
@@ -45,7 +49,8 @@ void Anchor::decode(bufferlist::const_iterator &bl)
   DECODE_FINISH(bl);
 }
 
-void Anchor::dump(Formatter *f) const
+void
+Anchor::dump(Formatter* f) const
 {
   f->dump_unsigned("ino", ino);
   f->dump_unsigned("dirino", dirino);
@@ -53,7 +58,8 @@ void Anchor::dump(Formatter *f) const
   f->dump_unsigned("d_type", d_type);
 }
 
-std::list<Anchor> Anchor::generate_test_instances()
+std::list<Anchor>
+Anchor::generate_test_instances()
 {
   std::list<Anchor> ls;
   ls.emplace_back();
@@ -65,7 +71,9 @@ std::list<Anchor> Anchor::generate_test_instances()
   return ls;
 }
 
-std::ostream& operator<<(std::ostream& out, const Anchor &a)
+std::ostream&
+operator<<(std::ostream& out, const Anchor& a)
 {
-  return out << "a(" << a.ino << " " << a.dirino << "/'" << a.d_name << "' " << a.d_type << ")";
+  return out << "a(" << a.ino << " " << a.dirino << "/'" << a.d_name << "' "
+             << a.d_type << ")";
 }

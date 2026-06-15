@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "crimson/os/seastore/btree/btree_types.h"
 #include "crimson/os/seastore/backref/backref_tree_node.h"
+#include "crimson/os/seastore/btree/btree_types.h"
 
 namespace crimson::os::seastore {
 
@@ -12,50 +12,65 @@ class BackrefMapping {
   using BackrefCursorRef = backref::BackrefCursorRef;
   BackrefCursorRef cursor;
 
-  BackrefMapping(BackrefCursorRef cursor)
-      : cursor(std::move(cursor)) {}
+  BackrefMapping(BackrefCursorRef cursor) :
+    cursor(std::move(cursor))
+  {}
 
 public:
-  static BackrefMapping create(BackrefCursorRef cursor) {
+  static BackrefMapping
+  create(BackrefCursorRef cursor)
+  {
     return BackrefMapping(std::move(cursor));
   }
 
   BackrefMapping() = default;
 
-  BackrefMapping(const BackrefMapping &) = delete;
-  BackrefMapping(BackrefMapping &&) = default;
+  BackrefMapping(const BackrefMapping&) = delete;
+  BackrefMapping(BackrefMapping&&) = default;
 
-  BackrefMapping &operator=(const BackrefMapping &) = delete;
-  BackrefMapping &operator=(BackrefMapping &&) = default;
+  BackrefMapping& operator=(const BackrefMapping&) = delete;
+  BackrefMapping& operator=(BackrefMapping&&) = default;
 
   ~BackrefMapping() = default;
 
-  bool is_viewable() const {
+  bool
+  is_viewable() const
+  {
     assert(cursor);
     return cursor->is_viewable();
   }
 
-  extent_len_t get_length() const {
+  extent_len_t
+  get_length() const
+  {
     assert(cursor);
     return cursor->get_length();
   }
 
-  laddr_t get_val() const {
+  laddr_t
+  get_val() const
+  {
     assert(cursor);
     return cursor->get_laddr();
   }
 
-  paddr_t get_key() const {
+  paddr_t
+  get_key() const
+  {
     assert(cursor);
     return cursor->get_paddr();
   }
 
-  extent_types_t get_type() const {
+  extent_types_t
+  get_type() const
+  {
     assert(cursor);
     return cursor->get_type();
   }
 
-  void renew_cursor(Transaction &t) {
+  void
+  renew_cursor(Transaction& t)
+  {
     cursor.reset(cursor->renew_cursor(t));
   }
 };

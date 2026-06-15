@@ -13,15 +13,17 @@
  *
  */
 
-#include "common/async/spawn_throttle.h"
+#include <gtest/gtest.h>
 
 #include <optional>
+
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/steady_timer.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/spawn_throttle.h"
 #include "common/async/yield_waiter.h"
 
 namespace ceph::async {
@@ -29,50 +31,58 @@ namespace ceph::async {
 namespace asio = boost::asio;
 using error_code = boost::system::error_code;
 
-void rethrow(std::exception_ptr eptr)
+void
+rethrow(std::exception_ptr eptr)
 {
-  if (eptr) std::rethrow_exception(eptr);
+  if (eptr)
+    std::rethrow_exception(eptr);
 }
 
-auto capture(std::optional<std::exception_ptr>& eptr)
+auto
+capture(std::optional<std::exception_ptr>& eptr)
 {
-  return [&eptr] (std::exception_ptr e) { eptr = e; };
+  return [&eptr](std::exception_ptr e) { eptr = e; };
 }
 
-auto capture(asio::cancellation_signal& signal,
-             std::optional<std::exception_ptr>& eptr)
+auto
+capture(
+    asio::cancellation_signal& signal,
+    std::optional<std::exception_ptr>& eptr)
 {
   return asio::bind_cancellation_slot(signal.slot(), capture(eptr));
 }
 
 using namespace std::chrono_literals;
 
-void wait_for(std::chrono::milliseconds dur, asio::yield_context yield)
+void
+wait_for(std::chrono::milliseconds dur, asio::yield_context yield)
 {
   auto timer = asio::steady_timer{yield.get_executor(), dur};
   timer.async_wait(yield);
 }
 
-auto wait_for(std::chrono::milliseconds dur)
+auto
+wait_for(std::chrono::milliseconds dur)
 {
-  return [dur] (asio::yield_context yield) { wait_for(dur, yield); };
+  return [dur](asio::yield_context yield) { wait_for(dur, yield); };
 }
 
-auto wait_on(yield_waiter<void>& handler)
+auto
+wait_on(yield_waiter<void>& handler)
 {
-  return [&handler] (asio::yield_context yield) {
-    handler.async_wait(yield);
-  };
+  return [&handler](asio::yield_context yield) { handler.async_wait(yield); };
 }
-
 
 TEST(YieldGroupAsync, wait_empty)
 {
   asio::io_context ctx;
-  asio::spawn(ctx, [] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 2};
-      throttle.wait();
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 2};
+        throttle.wait();
+      },
+      rethrow);
 
   ctx.run();
 }
@@ -82,11 +92,14 @@ TEST(YieldGroupAsync, spawn_wait)
   asio::io_context ctx;
   yield_waiter<void> waiter;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 2};
-      throttle.spawn(wait_on(waiter));
-      throttle.wait(); // blocks
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 2};
+        throttle.spawn(wait_on(waiter));
+        throttle.wait(); // blocks
+      },
+      rethrow);
 
   ASSERT_FALSE(waiter);
 
@@ -108,14 +121,17 @@ TEST(YieldGroupAsync, spawn_over_limit)
   yield_waiter<void> waiter3;
   yield_waiter<void> waiter4;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 2};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2));
-      throttle.spawn(wait_on(waiter3)); // blocks
-      throttle.spawn(wait_on(waiter4)); // blocks
-      throttle.wait(); // blocks
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 2};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2));
+        throttle.spawn(wait_on(waiter3)); // blocks
+        throttle.spawn(wait_on(waiter4)); // blocks
+        throttle.wait(); // blocks
+      },
+      rethrow);
 
   ASSERT_FALSE(waiter1);
 
@@ -155,13 +171,16 @@ TEST(YieldGroupAsync, spawn_shutdown)
   yield_waiter<void> waiter1;
   yield_waiter<void> waiter2;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 2};
-      throttle.spawn(wait_on(waiter1));
-      waiter2.async_wait(yield); // blocks
-      // shut down while there's an outstanding child but throttle is not
-      // waiting on spawn() or wait()
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 2};
+        throttle.spawn(wait_on(waiter1));
+        waiter2.async_wait(yield); // blocks
+        // shut down while there's an outstanding child but throttle is not
+        // waiting on spawn() or wait()
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -175,12 +194,15 @@ TEST(YieldGroupAsync, spawn_throttled_shutdown)
   yield_waiter<void> waiter1;
   yield_waiter<void> waiter2;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2)); // blocks
-      // shut down while we're throttled on the second spawn
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2)); // blocks
+        // shut down while we're throttled on the second spawn
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -193,12 +215,15 @@ TEST(YieldGroupAsync, spawn_wait_shutdown)
   asio::io_context ctx;
   yield_waiter<void> waiter;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter));
-      throttle.wait(); // blocks
-      // shut down while we're wait()ing
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter));
+        throttle.wait(); // blocks
+        // shut down while we're wait()ing
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -213,11 +238,14 @@ TEST(YieldGroupAsync, spawn_throttled_error)
 
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2)); // blocks
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2)); // blocks
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -248,11 +276,14 @@ TEST(YieldGroupAsync, spawn_throttled_signal)
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2)); // blocks
-    }, capture(signal, result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2)); // blocks
+      },
+      capture(signal, result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -281,11 +312,14 @@ TEST(YieldGroupAsync, spawn_wait_error)
 
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter));
-      throttle.wait(); // blocks
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter));
+        throttle.wait(); // blocks
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -314,11 +348,14 @@ TEST(YieldGroupAsync, spawn_wait_signal)
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter));
-      throttle.wait(); // blocks
-    }, capture(signal, result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter));
+        throttle.wait(); // blocks
+      },
+      capture(signal, result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -346,12 +383,15 @@ TEST(YieldGroupAsync, spawn_cancel_wait)
   yield_waiter<void> waiter;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 2};
-      throttle.spawn(wait_on(waiter));
-      throttle.cancel();
-      throttle.wait();
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 2};
+        throttle.spawn(wait_on(waiter));
+        throttle.cancel();
+        throttle.wait();
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_TRUE(ctx.stopped());
@@ -374,13 +414,16 @@ TEST(YieldGroupAsync, spawn_cancel_on_error_none)
   yield_waiter<void> waiter3;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 4, cancel_on_error::none};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2));
-      throttle.spawn(wait_on(waiter3));
-      throttle.wait(); // blocks
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 4, cancel_on_error::none};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2));
+        throttle.spawn(wait_on(waiter3));
+        throttle.wait(); // blocks
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -421,13 +464,16 @@ TEST(YieldGroupAsync, spawn_cancel_on_error_after)
   yield_waiter<void> waiter3;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 4, cancel_on_error::after};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2));
-      throttle.spawn(wait_on(waiter3));
-      throttle.wait(); // blocks
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 4, cancel_on_error::after};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2));
+        throttle.spawn(wait_on(waiter3));
+        throttle.wait(); // blocks
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -464,13 +510,16 @@ TEST(YieldGroupAsync, spawn_cancel_on_error_all)
   yield_waiter<void> waiter3;
   std::optional<std::exception_ptr> result;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 4, cancel_on_error::all};
-      throttle.spawn(wait_on(waiter1));
-      throttle.spawn(wait_on(waiter2));
-      throttle.spawn(wait_on(waiter3));
-      throttle.wait(); // blocks
-    }, capture(result));
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 4, cancel_on_error::all};
+        throttle.spawn(wait_on(waiter1));
+        throttle.spawn(wait_on(waiter2));
+        throttle.spawn(wait_on(waiter3));
+        throttle.wait(); // blocks
+      },
+      capture(result));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -500,13 +549,16 @@ TEST(YieldGroupAsync, spawn_wait_spawn_wait)
   yield_waiter<void> waiter1;
   yield_waiter<void> waiter2;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      throttle.wait(); // blocks
-      throttle.spawn(wait_on(waiter2));
-      throttle.wait(); // blocks
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        throttle.wait(); // blocks
+        throttle.spawn(wait_on(waiter2));
+        throttle.wait(); // blocks
+      },
+      rethrow);
 
   ASSERT_FALSE(waiter1);
 
@@ -533,14 +585,17 @@ TEST(YieldGroupAsync, spawn_cancel_wait_spawn_wait)
   yield_waiter<void> waiter1;
   yield_waiter<void> waiter2;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      throttle.cancel();
-      EXPECT_THROW(throttle.wait(), boost::system::system_error);
-      throttle.spawn(wait_on(waiter2));
-      throttle.wait(); // blocks
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        throttle.cancel();
+        EXPECT_THROW(throttle.wait(), boost::system::system_error);
+        throttle.spawn(wait_on(waiter2));
+        throttle.wait(); // blocks
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -558,13 +613,16 @@ TEST(YieldGroupAsync, spawn_error_wait_spawn_wait)
   yield_waiter<void> waiter1;
   yield_waiter<void> waiter2;
 
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-      auto throttle = spawn_throttle{yield, 1};
-      throttle.spawn(wait_on(waiter1));
-      EXPECT_THROW(throttle.wait(), boost::system::system_error);
-      throttle.spawn(wait_on(waiter2));
-      throttle.wait(); // blocks
-    }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        auto throttle = spawn_throttle{yield, 1};
+        throttle.spawn(wait_on(waiter1));
+        EXPECT_THROW(throttle.wait(), boost::system::system_error);
+        throttle.spawn(wait_on(waiter2));
+        throttle.wait(); // blocks
+      },
+      rethrow);
 
   ASSERT_FALSE(waiter1);
 

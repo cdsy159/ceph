@@ -1,17 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <vector>
 #include <cstring>
 #include <random>
-
-#include "include/types.h"
-#include "include/buffer.h"
+#include <vector>
 
 #include "common/rabin.h"
 #include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/types.h"
 
-TEST(Rabin, rabin_hash_simple) {
+TEST(Rabin, rabin_hash_simple)
+{
   uint64_t expected = 680425538102669423;
   uint64_t result;
 
@@ -26,7 +26,8 @@ TEST(Rabin, rabin_hash_simple) {
   ASSERT_EQ(expected, result);
 }
 
-TEST(Rabin, chunk_check_min_max) {
+TEST(Rabin, chunk_check_min_max)
+{
   const char buf[] = "0123456789";
 
   bufferlist bl;
@@ -41,12 +42,13 @@ TEST(Rabin, chunk_check_min_max) {
 
   rabin.do_rabin_chunks(bl, chunks, min_chunk, max_chunk);
   uint64_t chunk_size = chunks[0].second;
-  ASSERT_GE(chunk_size , min_chunk);
-  ASSERT_LE(chunk_size , max_chunk);
+  ASSERT_GE(chunk_size, min_chunk);
+  ASSERT_LE(chunk_size, max_chunk);
 }
 
-TEST(Rabin, test_cdc) {
-  const char *base_str = "123456789012345678901234567890123456789012345678";
+TEST(Rabin, test_cdc)
+{
+  const char* base_str = "123456789012345678901234567890123456789012345678";
   bufferlist bl, cmp_bl;
   for (int i = 0; i < 100; i++) {
     bl.append(base_str);
@@ -68,11 +70,12 @@ TEST(Rabin, test_cdc) {
   ASSERT_EQ(chunks[4].second, cmp_chunks[4].second);
 }
 
-void generate_buffer(int size, bufferlist *outbl)
+void
+generate_buffer(int size, bufferlist* outbl)
 {
   outbl->clear();
   outbl->append_zero(size);
-  char *b = outbl->c_str();
+  char* b = outbl->c_str();
   std::mt19937_64 engine;
   for (size_t i = 0; i < size / sizeof(uint64_t); ++i) {
     ((uint64_t*)b)[i] = engine();
@@ -113,8 +116,8 @@ TEST(Rabin, shifts)
 }
 #endif
 
-void do_size_histogram(RabinChunk& rabin, bufferlist& bl,
-		       map<int,int> *h)
+void
+do_size_histogram(RabinChunk& rabin, bufferlist& bl, map<int, int>* h)
 {
   vector<pair<uint64_t, uint64_t>> chunks;
   rabin.do_rabin_chunks(bl, chunks);
@@ -125,7 +128,8 @@ void do_size_histogram(RabinChunk& rabin, bufferlist& bl,
   }
 }
 
-void print_histogram(map<int,int>& h)
+void
+print_histogram(map<int, int>& h)
 {
   cout << "size\tcount" << std::endl;
   for (auto i : h) {
@@ -138,12 +142,12 @@ TEST(Rabin, chunk_random)
   RabinChunk rabin;
   rabin.set_target_bits(18, 2);
 
-  map<int,int> h;
+  map<int, int> h;
   for (int i = 0; i < 8; ++i) {
     cout << ".";
     cout.flush();
     bufferlist r;
-    generate_buffer(16*1024*1024, &r);
+    generate_buffer(16 * 1024 * 1024, &r);
     do_size_histogram(rabin, r, &h);
   }
   cout << std::endl;

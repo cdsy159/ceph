@@ -4,12 +4,12 @@
 #ifndef CEPH_LIBRBD_JOURNAL_PROMOTE_REQUEST_H
 #define CEPH_LIBRBD_JOURNAL_PROMOTE_REQUEST_H
 
-#include "include/int_types.h"
-#include "common/ceph_mutex.h"
 #include "cls/journal/cls_journal_types.h"
+#include "common/ceph_mutex.h"
+#include "include/int_types.h"
 #include "journal/Future.h"
-#include "librbd/journal/Types.h"
 #include "librbd/journal/TypeTraits.h"
+#include "librbd/journal/Types.h"
 
 struct Context;
 
@@ -22,12 +22,13 @@ namespace journal {
 template <typename ImageCtxT = ImageCtx>
 class PromoteRequest {
 public:
-  static PromoteRequest* create(ImageCtxT *image_ctx, bool force,
-                                Context *on_finish) {
+  static PromoteRequest*
+  create(ImageCtxT* image_ctx, bool force, Context* on_finish)
+  {
     return new PromoteRequest(image_ctx, force, on_finish);
   }
 
-  PromoteRequest(ImageCtxT *image_ctx, bool force, Context *on_finish);
+  PromoteRequest(ImageCtxT* image_ctx, bool force, Context* on_finish);
 
   void send();
 
@@ -64,11 +65,11 @@ private:
   typedef typename TypeTraits<ImageCtxT>::Journaler Journaler;
   typedef typename TypeTraits<ImageCtxT>::Future Future;
 
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
   bool m_force;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
-  Journaler *m_journaler = nullptr;
+  Journaler* m_journaler = nullptr;
   int m_ret_val = 0;
 
   ceph::mutex m_lock;
@@ -98,7 +99,6 @@ private:
   void handle_shut_down(int r);
 
   void finish(int r);
-
 };
 
 } // namespace journal

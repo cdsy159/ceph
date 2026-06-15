@@ -18,30 +18,45 @@
 
 #include <iomanip>
 
-#include "rgw_multipart_meta_filter.h"
 #include "driver/rados/rgw_service.h"
+
+#include "rgw_multipart_meta_filter.h"
 
 class RGWMPObj {
   std::string oid;
   std::string prefix;
   std::string meta;
   std::string upload_id;
+
 public:
   RGWMPObj() {}
-  RGWMPObj(const std::string& _oid, const std::string& _upload_id) {
+
+  RGWMPObj(const std::string& _oid, const std::string& _upload_id)
+  {
     init(_oid, _upload_id, _upload_id);
   }
-  RGWMPObj(const std::string& _oid, std::optional<std::string> _upload_id) {
+
+  RGWMPObj(const std::string& _oid, std::optional<std::string> _upload_id)
+  {
     if (_upload_id) {
       init(_oid, *_upload_id, *_upload_id);
     } else {
       from_meta(_oid);
     }
   }
-  void init(const std::string& _oid, const std::string& _upload_id) {
+
+  void
+  init(const std::string& _oid, const std::string& _upload_id)
+  {
     init(_oid, _upload_id, _upload_id);
   }
-  void init(const std::string& _oid, const std::string& _upload_id, const std::string& part_unique_str) {
+
+  void
+  init(
+      const std::string& _oid,
+      const std::string& _upload_id,
+      const std::string& part_unique_str)
+  {
     if (_oid.empty()) {
       clear();
       return;
@@ -52,27 +67,47 @@ public:
     meta = prefix + upload_id + MP_META_SUFFIX;
     prefix.append(part_unique_str);
   }
-  const std::string& get_meta() const { return meta; }
-  std::string get_part(int num) const {
+
+  const std::string&
+  get_meta() const
+  {
+    return meta;
+  }
+
+  std::string
+  get_part(int num) const
+  {
     char buf[16];
     snprintf(buf, 16, ".%d", num);
     std::string s = prefix;
     s.append(buf);
     return s;
   }
-  std::string get_part(const std::string& part) const {
+
+  std::string
+  get_part(const std::string& part) const
+  {
     std::string s = prefix;
     s.append(".");
     s.append(part);
     return s;
   }
-  const std::string& get_upload_id() const {
+
+  const std::string&
+  get_upload_id() const
+  {
     return upload_id;
   }
-  const std::string& get_key() const {
+
+  const std::string&
+  get_key() const
+  {
     return oid;
   }
-  bool from_meta(const std::string& meta) {
+
+  bool
+  from_meta(const std::string& meta)
+  {
     int end_pos = meta.rfind('.'); // search for ".meta"
     if (end_pos < 0)
       return false;
@@ -84,30 +119,44 @@ public:
     init(oid, upload_id, upload_id);
     return true;
   }
-  void clear() {
+
+  void
+  clear()
+  {
     oid = "";
     prefix = "";
     meta = "";
     upload_id = "";
   }
-  friend std::ostream& operator<<(std::ostream& out, const RGWMPObj& obj) {
-    return out << "RGWMPObj:{ prefix=" << std::quoted(obj.prefix) <<
-      ", meta=" << std::quoted(obj.meta) << " }";
+
+  friend std::ostream&
+  operator<<(std::ostream& out, const RGWMPObj& obj)
+  {
+    return out << "RGWMPObj:{ prefix=" << std::quoted(obj.prefix)
+               << ", meta=" << std::quoted(obj.meta) << " }";
   }
 }; // class RGWMPObj
 
-class RGWSI_Tier_RADOS : public RGWServiceInstance
-{
-  RGWSI_Zone *zone_svc{nullptr};
+class RGWSI_Tier_RADOS : public RGWServiceInstance {
+  RGWSI_Zone* zone_svc{nullptr};
 
 public:
-  RGWSI_Tier_RADOS(CephContext *cct): RGWServiceInstance(cct) {}
+  RGWSI_Tier_RADOS(CephContext* cct) :
+    RGWServiceInstance(cct)
+  {}
 
-  void init(RGWSI_Zone *_zone_svc) {
+  void
+  init(RGWSI_Zone* _zone_svc)
+  {
     zone_svc = _zone_svc;
   }
 
-  static inline bool raw_obj_to_obj(const rgw_bucket& bucket, const rgw_raw_obj& raw_obj, rgw_obj *obj) {
+  static inline bool
+  raw_obj_to_obj(
+      const rgw_bucket& bucket,
+      const rgw_raw_obj& raw_obj,
+      rgw_obj* obj)
+  {
     ssize_t pos = raw_obj.oid.find('_', bucket.marker.length());
     if (pos < 0) {
       return false;
@@ -121,4 +170,3 @@ public:
     return true;
   }
 };
-

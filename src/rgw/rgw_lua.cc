@@ -1,13 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include <lua.hpp>
-#include "services/svc_zone.h"
-#include "rgw_lua_utils.h"
-#include "driver/rados/rgw_sal_rados.h"
 #include "rgw_lua.h"
+
+#include <lua.hpp>
+
+#include "driver/rados/rgw_sal_rados.h"
+#include "services/svc_zone.h"
+
+#include "rgw_lua_utils.h"
 #ifdef WITH_RADOSGW_LUA_PACKAGES
 #include <filesystem>
+
 #include <boost/process/v1/child.hpp>
 #include <boost/process/v1/env.hpp>
 #include <boost/process/v1/environment.hpp>
@@ -21,7 +25,8 @@
 
 namespace rgw::lua {
 
-context to_context(const std::string& s) 
+context
+to_context(const std::string& s)
 {
   if (strcasecmp(s.c_str(), "prerequest") == 0) {
     return context::preRequest;
@@ -44,28 +49,30 @@ context to_context(const std::string& s)
   return context::none;
 }
 
-std::string to_string(context ctx) 
+std::string
+to_string(context ctx)
 {
   switch (ctx) {
-    case context::preRequest:
-      return "prerequest";
-    case context::postAuth:
-      return "postauth";
-    case context::postRequest:
-      return "postrequest";
-    case context::background:
-      return "background";
-    case context::getData:
-      return "getdata";
-    case context::putData:
-      return "putdata";
-    case context::none:
-      break;
+  case context::preRequest:
+    return "prerequest";
+  case context::postAuth:
+    return "postauth";
+  case context::postRequest:
+    return "postrequest";
+  case context::background:
+    return "background";
+  case context::getData:
+    return "getdata";
+  case context::putData:
+    return "putdata";
+  case context::none:
+    break;
   }
   return "none";
 }
 
-bool verify(const std::string& script, std::string& err_msg) 
+bool
+verify(const std::string& script, std::string& err_msg)
 {
   // no memory and runtime limit, since we don't execute the script
   lua_state_guard lguard(0, 0, nullptr);
@@ -84,38 +91,75 @@ bool verify(const std::string& script, std::string& err_msg)
   return true;
 }
 
-std::string script_oid(context ctx, const std::string& tenant) {
+std::string
+script_oid(context ctx, const std::string& tenant)
+{
   static const std::string SCRIPT_OID_PREFIX("script.");
   return SCRIPT_OID_PREFIX + to_string(ctx) + "." + tenant;
 }
 
-
-int read_script(const DoutPrefixProvider *dpp, sal::LuaManager* manager, const std::string& tenant, optional_yield y, context ctx, std::string& script)
+int
+read_script(
+    const DoutPrefixProvider* dpp,
+    sal::LuaManager* manager,
+    const std::string& tenant,
+    optional_yield y,
+    context ctx,
+    std::string& script)
 {
-  return manager ? manager->get_script(dpp, y, script_oid(ctx, tenant), script) : -ENOENT;
+  return manager ? manager->get_script(dpp, y, script_oid(ctx, tenant), script)
+                 : -ENOENT;
 }
 
-std::tuple<LuaCodeType, int> read_script_or_bytecode(const DoutPrefixProvider *dpp, sal::LuaManager* manager,
-                                                     const std::string& tenant, optional_yield y, context ctx)
+std::tuple<LuaCodeType, int>
+read_script_or_bytecode(
+    const DoutPrefixProvider* dpp,
+    sal::LuaManager* manager,
+    const std::string& tenant,
+    optional_yield y,
+    context ctx)
 {
-  return manager ? manager->get_script_or_bytecode(dpp, y, script_oid(ctx, tenant)) : std::make_tuple("", -ENOENT);
+  return manager
+             ? manager->get_script_or_bytecode(dpp, y, script_oid(ctx, tenant))
+             : std::make_tuple("", -ENOENT);
 }
 
-int write_script(const DoutPrefixProvider *dpp, sal::LuaManager* manager, const std::string& tenant, optional_yield y, context ctx, const std::string& script)
+int
+write_script(
+    const DoutPrefixProvider* dpp,
+    sal::LuaManager* manager,
+    const std::string& tenant,
+    optional_yield y,
+    context ctx,
+    const std::string& script)
 {
-  return manager ? manager->put_script(dpp, y, script_oid(ctx, tenant), script) : -ENOENT;
+  return manager ? manager->put_script(dpp, y, script_oid(ctx, tenant), script)
+                 : -ENOENT;
 }
 
-int delete_script(const DoutPrefixProvider *dpp, sal::LuaManager* manager, const std::string& tenant, optional_yield y, context ctx)
+int
+delete_script(
+    const DoutPrefixProvider* dpp,
+    sal::LuaManager* manager,
+    const std::string& tenant,
+    optional_yield y,
+    context ctx)
 {
-  return manager ? manager->del_script(dpp, y, script_oid(ctx, tenant)) : -ENOENT;
+  return manager ? manager->del_script(dpp, y, script_oid(ctx, tenant))
+                 : -ENOENT;
 }
 
 #ifdef WITH_RADOSGW_LUA_PACKAGES
 
 namespace bp = boost::process::v1;
 
-int add_package(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver, optional_yield y, const std::string& package_name, bool allow_compilation)
+int
+add_package(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y,
+    const std::string& package_name,
+    bool allow_compilation)
 {
   // verify that luarocks can load this package
   const auto p = bp::search_path("luarocks");
@@ -123,11 +167,9 @@ int add_package(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver, optiona
     return -ECHILD;
   }
   bp::ipstream is;
-  const auto cmd = p.string() + " search --porcelain" + (allow_compilation ? " " : " --binary ") + package_name;
-  bp::child c(cmd,
-      bp::std_in.close(),
-      bp::std_err > bp::null,
-      bp::std_out > is);
+  const auto cmd = p.string() + " search --porcelain" +
+                   (allow_compilation ? " " : " --binary ") + package_name;
+  bp::child c(cmd, bp::std_in.close(), bp::std_err > bp::null, bp::std_out > is);
 
   std::string line;
   bool package_found = false;
@@ -145,7 +187,8 @@ int add_package(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver, optiona
   }
 
   //replace previous versions of the package
-  const std::string package_name_no_version = package_name.substr(0, package_name.find(" "));
+  const std::string package_name_no_version =
+      package_name.substr(0, package_name.find(" "));
   ret = remove_package(dpp, driver, y, package_name_no_version);
   if (ret < 0) {
     return ret;
@@ -154,12 +197,22 @@ int add_package(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver, optiona
   return driver->get_lua_manager("")->add_package(dpp, y, package_name);
 }
 
-int remove_package(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, optional_yield y, const std::string& package_name)
+int
+remove_package(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y,
+    const std::string& package_name)
 {
   return driver->get_lua_manager("")->remove_package(dpp, y, package_name);
 }
 
-int list_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, optional_yield y, packages_t& packages)
+int
+list_packages(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y,
+    packages_t& packages)
 {
   return driver->get_lua_manager("")->list_packages(dpp, y, packages);
 }
@@ -167,21 +220,24 @@ int list_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, optio
 namespace fs = std::filesystem;
 
 // similar to to the "mkdir -p" command
-int create_directory_p(const DoutPrefixProvider *dpp, const fs::path& p) {
+int
+create_directory_p(const DoutPrefixProvider* dpp, const fs::path& p)
+{
   std::error_code ec;
   fs::path total_path;
   for (const auto& pp : p) {
     total_path /= pp;
     auto should_create = !fs::exists(total_path, ec);
     if (ec) {
-      ldpp_dout(dpp, 1) << "cannot check if " << total_path << 
-        " directory exists. error: " << ec.message() << dendl;
+      ldpp_dout(dpp, 1) << "cannot check if " << total_path
+                        << " directory exists. error: " << ec.message()
+                        << dendl;
       return -ec.value();
     }
     if (should_create) {
       if (!create_directory(total_path, ec)) {
-        ldpp_dout(dpp, 1) << "failed to create  " << total_path << 
-          " directory. error: " << ec.message() << dendl;
+        ldpp_dout(dpp, 1) << "failed to create  " << total_path
+                          << " directory. error: " << ec.message() << dendl;
         return -ec.value();
       }
     }
@@ -189,9 +245,13 @@ int create_directory_p(const DoutPrefixProvider *dpp, const fs::path& p) {
   return 0;
 }
 
-void get_luarocks_config(const bp::filesystem::path& process,
+void
+get_luarocks_config(
+    const bp::filesystem::path& process,
     const std::string& luarocks_path,
-    const bp::environment& env, std::string& output) {
+    const bp::environment& env,
+    std::string& output)
+{
   bp::ipstream is;
   auto cmd = process.string();
   cmd.append(" config");
@@ -199,7 +259,9 @@ void get_luarocks_config(const bp::filesystem::path& process,
   output.append(cmd);
 
   try {
-    bp::child c(cmd, env, bp::std_in.close(), (bp::std_err & bp::std_out) > is, bp::start_dir(luarocks_path));
+    bp::child c(
+        cmd, env, bp::std_in.close(), (bp::std_err & bp::std_out) > is,
+        bp::start_dir(luarocks_path));
     std::string line;
     do {
       if (!line.empty()) {
@@ -208,24 +270,33 @@ void get_luarocks_config(const bp::filesystem::path& process,
     } while (c.running() && std::getline(is, line));
 
     c.wait();
-    output.append("\n\t").append("exit code: ").append(std::to_string(c.exit_code()));
+    output.append("\n\t")
+        .append("exit code: ")
+        .append(std::to_string(c.exit_code()));
   } catch (const std::runtime_error& err) {
     output.append("\n\t").append(err.what());
   }
 }
 
-int install_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
-                     optional_yield y, const std::string& luarocks_path,
-                     packages_t& failed_packages, std::string& install_dir) {
+int
+install_packages(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y,
+    const std::string& luarocks_path,
+    packages_t& failed_packages,
+    std::string& install_dir)
+{
 
   packages_t packages;
   auto ret = list_packages(dpp, driver, y, packages);
   if (ret == -ENOENT) {
-    // allowlist is empty 
+    // allowlist is empty
     return 0;
   }
   if (ret < 0) {
-    ldpp_dout(dpp, 1) << "Lua ERROR: failed to get package list. error: " << ret << dendl;
+    ldpp_dout(dpp, 1) << "Lua ERROR: failed to get package list. error: " << ret
+                      << dendl;
     return ret;
   }
   // verify that luarocks exists
@@ -238,20 +309,21 @@ int install_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
   // create the luarocks parent directory
   auto rc = create_directory_p(dpp, luarocks_path);
   if (rc < 0) {
-    ldpp_dout(dpp, 1) << "Lua ERROR: failed to recreate luarocks directory: " <<
-      luarocks_path << ". error: " << rc << dendl; 
+    ldpp_dout(dpp, 1) << "Lua ERROR: failed to recreate luarocks directory: "
+                      << luarocks_path << ". error: " << rc << dendl;
     return rc;
   }
-  
+
 
   // create a temporary sub-directory to install all luarocks packages
-  std::string tmp_path_template = luarocks_path;// fs::temp_directory_path();
+  std::string tmp_path_template = luarocks_path; // fs::temp_directory_path();
   tmp_path_template.append("/XXXXXX");
   const auto tmp_luarocks_path = mkdtemp(tmp_path_template.data());
-  if (!tmp_luarocks_path) { 
+  if (!tmp_luarocks_path) {
     const auto rc = -errno;
-    ldpp_dout(dpp, 1) << "Lua ERROR: failed to create temporary directory from template: " << 
-      tmp_path_template << ". error: " << rc << dendl;
+    ldpp_dout(dpp, 1)
+        << "Lua ERROR: failed to create temporary directory from template: "
+        << tmp_path_template << ". error: " << rc << dendl;
     return rc;
   } else {
     // rgw starts as root and will later drop to user ceph
@@ -274,13 +346,15 @@ int install_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
   for (const auto& package : packages) {
     bp::ipstream is;
     auto cmd = p.string();
-    cmd.append(" install --no-doc --lua-version ").
-      append(CEPH_LUA_VERSION).
-      append(" --tree ").
-      append(install_dir).
-      append(" --deps-mode one ").
-      append(package);
-    bp::child c(cmd, _env, bp::std_in.close(), (bp::std_err & bp::std_out) > is, bp::start_dir(luarocks_path));
+    cmd.append(" install --no-doc --lua-version ")
+        .append(CEPH_LUA_VERSION)
+        .append(" --tree ")
+        .append(install_dir)
+        .append(" --deps-mode one ")
+        .append(package);
+    bp::child c(
+        cmd, _env, bp::std_in.close(), (bp::std_err & bp::std_out) > is,
+        bp::start_dir(luarocks_path));
 
     if (dpp->get_cct()->_conf->subsys.should_gather<ceph_subsys_rgw, 20>()) {
       // TODO: yield when reading output
@@ -300,16 +374,19 @@ int install_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
       failed_packages.insert(package);
     }
   }
-  
+
   return 0;
 }
 
-int reload_packages(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, optional_yield y)
+int
+reload_packages(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y)
 {
   return driver->get_lua_manager("")->reload_packages(dpp, y);
 }
 
 #endif // WITH_RADOSGW_LUA_PACKAGES
 
-}
-
+} // namespace rgw::lua

@@ -28,17 +28,13 @@
 #include <boost/asio/co_composed.hpp>
 #include <boost/asio/deferred.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
+#include "cls/fifo/cls_fifo_ops.h"
+#include "cls/fifo/cls_fifo_types.h"
 #include "common/async/service.h"
-
 #include "common/dout.h"
 #include "common/dout_fmt.h"
 #include "common/strtol.h"
-
-#include "cls/fifo/cls_fifo_types.h"
-#include "cls/fifo/cls_fifo_ops.h"
-
+#include "include/neorados/RADOS.hpp"
 #include "neorados/cls/common.h"
 #include "neorados/cls/fifo/entry.h"
 
@@ -50,6 +46,7 @@
 
 namespace neorados::cls::fifo {
 class FIFOtest;
+
 namespace detail {
 
 namespace asio = boost::asio;
@@ -59,15 +56,14 @@ namespace async = ceph::async;
 namespace buffer = ceph::buffer;
 namespace fifo = rados::cls::fifo;
 
-using neorados::RADOS;
-using neorados::Object;
 using neorados::IOContext;
+using neorados::Object;
+using neorados::RADOS;
 using neorados::ReadOp;
 using neorados::WriteOp;
 
-
 class FIFOImpl : public std::enable_shared_from_this<FIFOImpl>,
-		 public async::service_list_base_hook {
+                 public async::service_list_base_hook {
   friend FIFOtest;
   friend async::service<FIFOImpl>;
 
@@ -90,7 +86,9 @@ class FIFOImpl : public std::enable_shared_from_this<FIFOImpl>,
   async::service<FIFOImpl>& svc;
   std::uint64_t subsystem = 0;
 
-  void service_shutdown() {
+  void
+  service_shutdown()
+  {
     // In case the last owner of a reference is an op we're about to
     // cancel. (This can happen if the `RADOS` object
     auto service_ref = shared_from_this();
@@ -104,7 +102,6 @@ class FIFOImpl : public std::enable_shared_from_this<FIFOImpl>,
   std::mutex m;
 
 public:
-
   /// Constructor
   ///
   /// \param rados RADOS handle
@@ -114,18 +111,20 @@ public:
   /// \param part_entry_overhead The additional space required to
   ///                            store an entry, above the size of the
   ///                            entry itself.
-  FIFOImpl(RADOS rados, Object obj, IOContext ioc)
-    : rados(rados), obj(std::move(obj)), ioc(std::move(ioc)),
-      svc(boost::asio::use_service<ceph::async::service<FIFOImpl>>(
-	    boost::asio::query(rados.get_executor(),
-			       boost::asio::execution::context))),
-      subsystem(rados.new_subsystem()) {
+  FIFOImpl(RADOS rados, Object obj, IOContext ioc) :
+    rados(rados),
+    obj(std::move(obj)),
+    ioc(std::move(ioc)),
+    svc(boost::asio::use_service<ceph::async::service<FIFOImpl>>(
+        boost::asio::query(
+            rados.get_executor(),
+            boost::asio::execution::context))),
+    subsystem(rados.new_subsystem())
+  {
     svc.add(*this);
   }
 
-  ~FIFOImpl() {
-    svc.remove(*this);
-  }
+  ~FIFOImpl() { svc.remove(*this); }
 
   /// A marker is a part number and byte offset used to indicate an
   /// entry.
@@ -140,14 +139,17 @@ public:
     ///
     /// \param num Part number
     /// \param ofs Offset within the part
-    marker(std::int64_t num, std::uint64_t ofs) : num(num), ofs(ofs) {}
+    marker(std::int64_t num, std::uint64_t ofs) :
+      num(num), ofs(ofs)
+    {}
 
     /// Return a string representation of the marker
-    std::string to_string() {
+    std::string
+    to_string()
+    {
       return fmt::format("{:0>20}:{:0>20}", num, ofs);
     }
   };
-
 
   /// \name Primitives
   ///
@@ -165,22 +167,28 @@ public:
   ///
   /// \return The metadata info, part header size, and entry overhead
   /// in a way appropriate to the completion token.
-  template<asio::completion_token_for<
-    void(sys::error_code, fifo::info, uint32_t, uint32_t)> CompletionToken>
-  static auto get_meta(RADOS& rados, Object obj, IOContext ioc,
-		       std::optional<fifo::objv> objv,
-		       CompletionToken&& token) {
+  template <asio::completion_token_for<
+      void(sys::error_code, fifo::info, uint32_t, uint32_t)> CompletionToken>
+  static auto
+  get_meta(
+      RADOS& rados,
+      Object obj,
+      IOContext ioc,
+      std::optional<fifo::objv> objv,
+      CompletionToken&& token)
+  {
     ReadOp op;
     fifo::op::get_meta gm;
     gm.version = objv;
     return exec<fifo::op::get_meta_reply>(
-      rados, std::move(obj), std::move(ioc),
-      fifo::op::CLASS, fifo::op::GET_META, std::move(gm),
-      [](fifo::op::get_meta_reply&& ret) {
-	return std::make_tuple(std::move(ret.info),
-			       ret.part_header_size,
-			       ret.part_entry_overhead);
-      }, std::forward<CompletionToken>(token));
+        rados, std::move(obj), std::move(ioc), fifo::op::CLASS,
+        fifo::op::GET_META, std::move(gm),
+        [](fifo::op::get_meta_reply&& ret) {
+          return std::make_tuple(
+              std::move(ret.info), ret.part_header_size,
+              ret.part_entry_overhead);
+        },
+        std::forward<CompletionToken>(token));
   }
 #else // BROKEN_CO_COMPOSED
   /// \brief Retrieve FIFO metadata
@@ -193,41 +201,48 @@ public:
   ///
   /// \return The metadata info, part header size, and entry overhead
   /// in a way appropriate to the completion token.
-  template<asio::completion_token_for<
-    void(sys::error_code, fifo::info, uint32_t, uint32_t)> CompletionToken>
-  static auto get_meta(RADOS& rados, Object obj, IOContext ioc,
-		       std::optional<fifo::objv> objv,
-		       CompletionToken&& token) {
+  template <asio::completion_token_for<
+      void(sys::error_code, fifo::info, uint32_t, uint32_t)> CompletionToken>
+  static auto
+  get_meta(
+      RADOS& rados,
+      Object obj,
+      IOContext ioc,
+      std::optional<fifo::objv> objv,
+      CompletionToken&& token)
+  {
     return asio::async_initiate<
-      CompletionToken, void(sys::error_code, fifo::info,
-			    uint32_t, uint32_t)>
-      (asio::co_composed<
-	void(sys::error_code, fifo::info, uint32_t, uint32_t)>
-       ([](auto state, RADOS& r, Object obj, IOContext ioc,
-	   std::optional<fifo::objv> objv) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
-	   buffer::list in;
-	   fifo::op::get_meta gm;
-	   gm.version = objv;
-	   encode(gm, in);
-	   ReadOp op;
-	   buffer::list out;
-	   op.exec(fifo::op::CLASS, fifo::op::GET_META, in, &out);
-	   co_await r.execute(std::move(obj), std::move(ioc), std::move(op), nullptr,
-			      asio::deferred);
-	   fifo::op::get_meta_reply ret;
-	   decode(ret, out);
-	   co_return std::make_tuple(sys::error_code{}, std::move(ret.info),
-				     ret.part_header_size,
-				     ret.part_entry_overhead);
-	 } catch (const sys::system_error& e) {
-	   co_return std::make_tuple(e.code(), fifo::info{}, uint32_t{},
-				     uint32_t{});
-	 }
-       }, rados.get_executor()),
-       token, std::ref(rados), std::move(obj), std::move(ioc), std::move(objv));
+        CompletionToken, void(sys::error_code, fifo::info, uint32_t, uint32_t)>(
+        asio::co_composed<void(sys::error_code, fifo::info, uint32_t, uint32_t)>(
+            [](auto state, RADOS& r, Object obj, IOContext ioc,
+               std::optional<fifo::objv> objv) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
+                buffer::list in;
+                fifo::op::get_meta gm;
+                gm.version = objv;
+                encode(gm, in);
+                ReadOp op;
+                buffer::list out;
+                op.exec(fifo::op::CLASS, fifo::op::GET_META, in, &out);
+                co_await r.execute(
+                    std::move(obj), std::move(ioc), std::move(op), nullptr,
+                    asio::deferred);
+                fifo::op::get_meta_reply ret;
+                decode(ret, out);
+                co_return std::make_tuple(
+                    sys::error_code{}, std::move(ret.info),
+                    ret.part_header_size, ret.part_entry_overhead);
+              } catch (const sys::system_error& e) {
+                co_return std::make_tuple(
+                    e.code(), fifo::info{}, uint32_t{}, uint32_t{});
+              }
+            },
+            rados.get_executor()),
+        token, std::ref(rados), std::move(obj), std::move(ioc),
+        std::move(objv));
   }
 #endif // BROKEN_CO_COMPOSED
 
@@ -238,21 +253,23 @@ public:
   /// \param token Boost.Asio CompletionToken
   ///
   /// \return The part info in a way appropriate to the completion token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, fifo::part_header)> CompletionToken>
-  auto get_part_info(std::int64_t part_num,
-		     CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code, fifo::part_header)>
+                CompletionToken>
+  auto
+  get_part_info(std::int64_t part_num, CompletionToken&& token)
+  {
     std::unique_lock l(m);
-    Object part_oid = info.part_oid(part_num);;
+    Object part_oid = info.part_oid(part_num);
+    ;
     l.unlock();
 
     return exec<fifo::op::get_part_info_reply>(
-      rados, std::move(std::move(part_oid)), ioc,
-      fifo::op::CLASS, fifo::op::GET_PART_INFO,
-      fifo::op::get_part_info{},
-      [](fifo::op::get_part_info_reply&& ret) {
-	return std::move(ret.header);
-      }, std::forward<CompletionToken>(token));
+        rados, std::move(std::move(part_oid)), ioc, fifo::op::CLASS,
+        fifo::op::GET_PART_INFO, fifo::op::get_part_info{},
+        [](fifo::op::get_part_info_reply&& ret) {
+          return std::move(ret.header);
+        },
+        std::forward<CompletionToken>(token));
   }
 #else // BROKEN_CO_COMPOSED
   /// \brief Retrieve part info
@@ -261,44 +278,47 @@ public:
   /// \param token Boost.Asio CompletionToken
   ///
   /// \return The part info in a way appropriate to the completion token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, fifo::part_header)>
-	   CompletionToken>
-  auto get_part_info(std::int64_t part_num,
-		     CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code, fifo::part_header)>
+                CompletionToken>
+  auto
+  get_part_info(std::int64_t part_num, CompletionToken&& token)
+  {
     std::unique_lock l(m);
-    Object part_oid = info.part_oid(part_num);;
+    Object part_oid = info.part_oid(part_num);
+    ;
     l.unlock();
     return asio::async_initiate<
-      CompletionToken, void(sys::error_code, fifo::part_header)>
-      (asio::co_composed<
-	void(sys::error_code, fifo::part_header)>
-       ([](auto state, Object part_oid, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
-	   buffer::list in;
-	   fifo::op::get_part_info gpi;
-	   encode(gpi, in);
-	   ReadOp op;
-	   buffer::list out;
-	   op.exec(fifo::op::CLASS, fifo::op::GET_PART_INFO, in, &out);
-	   co_await f->rados.execute(std::move(part_oid), f->ioc, std::move(op),
-				     nullptr, asio::deferred);
+        CompletionToken, void(sys::error_code, fifo::part_header)>(
+        asio::co_composed<void(sys::error_code, fifo::part_header)>(
+            [](auto state, Object part_oid, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
+                buffer::list in;
+                fifo::op::get_part_info gpi;
+                encode(gpi, in);
+                ReadOp op;
+                buffer::list out;
+                op.exec(fifo::op::CLASS, fifo::op::GET_PART_INFO, in, &out);
+                co_await f->rados.execute(
+                    std::move(part_oid), f->ioc, std::move(op), nullptr,
+                    asio::deferred);
 
-	   fifo::op::get_part_info_reply ret;
-	   decode(ret, out);
-	   co_return std::make_tuple(sys::error_code{}, std::move(ret.header));
-	 } catch (const sys::system_error& e) {
-	   co_return std::make_tuple(e.code(), fifo::part_header{});
-	 }
-       }, rados.get_executor()),
-       token, std::move(part_oid), this);
+                fifo::op::get_part_info_reply ret;
+                decode(ret, out);
+                co_return std::make_tuple(
+                    sys::error_code{}, std::move(ret.header));
+              } catch (const sys::system_error& e) {
+                co_return std::make_tuple(e.code(), fifo::part_header{});
+              }
+            },
+            rados.get_executor()),
+        token, std::move(part_oid), this);
   }
 #endif // BROKEN_CO_COMPOSED
 
 private:
-
   /// \brief Create a new part object
   ///
   /// \param part_num Part number
@@ -306,8 +326,10 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto create_part(std::int64_t part_num, CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  create_part(std::int64_t part_num, CompletionToken&& token)
+  {
     WriteOp op;
     op.create(false); /* We don't need exclusivity, part_init ensures we're
 			 creating from the same journal entry. */
@@ -319,8 +341,8 @@ private:
     op.exec(fifo::op::CLASS, fifo::op::INIT_PART, std::move(in));
     auto oid = info.part_oid(part_num);
     l.unlock();
-    return rados.execute(oid, ioc, std::move(op),
-			 std::forward<CompletionToken>(token));
+    return rados.execute(
+        oid, ioc, std::move(op), std::forward<CompletionToken>(token));
   }
 
   /// \brief Remove a part object
@@ -330,15 +352,17 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto remove_part(std::int64_t part_num, CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  remove_part(std::int64_t part_num, CompletionToken&& token)
+  {
     WriteOp op;
     op.remove();
     std::unique_lock l(m);
     auto oid = info.part_oid(part_num);
     l.unlock();
-    return rados.execute(oid, ioc, std::move(op),
-			 std::forward<CompletionToken>(token));
+    return rados.execute(
+        oid, ioc, std::move(op), std::forward<CompletionToken>(token));
   }
 
   /// \brief Update objclass FIFO metadata
@@ -349,9 +373,13 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto update_meta(const fifo::objv& objv, const fifo::update& update,
-		   CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  update_meta(
+      const fifo::objv& objv,
+      const fifo::update& update,
+      CompletionToken&& token)
+  {
     WriteOp op;
     fifo::op::update_meta um;
 
@@ -366,8 +394,8 @@ private:
     buffer::list in;
     encode(um, in);
     op.exec(fifo::op::CLASS, fifo::op::UPDATE_META, std::move(in));
-    return rados.execute(obj, ioc, std::move(op),
-			 std::forward<CompletionToken>(token));
+    return rados.execute(
+        obj, ioc, std::move(op), std::forward<CompletionToken>(token));
   }
 
   /// \brief Create FIFO head object
@@ -384,14 +412,19 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  static auto create_meta(RADOS& rados, Object obj, IOContext ioc,
-			  std::optional<fifo::objv> objv,
-			  std::optional<std::string> oid_prefix,
-			  bool exclusive,
-			  std::uint64_t max_part_size,
-			  std::uint64_t max_entry_size,
-			  CompletionToken&& token) {
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  static auto
+  create_meta(
+      RADOS& rados,
+      Object obj,
+      IOContext ioc,
+      std::optional<fifo::objv> objv,
+      std::optional<std::string> oid_prefix,
+      bool exclusive,
+      std::uint64_t max_part_size,
+      std::uint64_t max_entry_size,
+      CompletionToken&& token)
+  {
     WriteOp op;
     fifo::op::create_meta cm;
 
@@ -405,8 +438,9 @@ private:
     buffer::list in;
     encode(cm, in);
     op.exec(fifo::op::CLASS, fifo::op::CREATE_META, in);
-    return rados.execute(std::move(obj), std::move(ioc), std::move(op),
-			 std::forward<CompletionToken>(token));
+    return rados.execute(
+        std::move(obj), std::move(ioc), std::move(op),
+        std::forward<CompletionToken>(token));
   }
 
   /// \brief Push some entries to a given part
@@ -417,52 +451,57 @@ private:
   ///
   /// \return Possibly errors in a way appropriate to the completion
   /// token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, int)> CompletionToken>
-  auto push_entries(const DoutPrefixProvider* dpp,
-		    std::deque<buffer::list> entries,
-		    CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code, int)>
-      (asio::co_composed<void(sys::error_code, int)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::deque<buffer::list> entries, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code, int)> CompletionToken>
+  auto
+  push_entries(
+      const DoutPrefixProvider* dpp,
+      std::deque<buffer::list> entries,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code, int)>(
+        asio::co_composed<void(sys::error_code, int)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::deque<buffer::list> entries, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   std::unique_lock l(f->m);
-	   auto head_part_num = f->info.head_part_num;
-	   auto oid = f->info.part_oid(head_part_num);
-	   l.unlock();
+                std::unique_lock l(f->m);
+                auto head_part_num = f->info.head_part_num;
+                auto oid = f->info.part_oid(head_part_num);
+                l.unlock();
 
-	   WriteOp op;
-	   op.assert_exists();
+                WriteOp op;
+                op.assert_exists();
 
-	   fifo::op::push_part pp;
+                fifo::op::push_part pp;
 
-	   pp.data_bufs = std::move(entries);
-	   pp.total_len = 0;
+                pp.data_bufs = std::move(entries);
+                pp.total_len = 0;
 
-           for (const auto &bl : pp.data_bufs)
-             pp.total_len += bl.length();
+                for (const auto& bl : pp.data_bufs)
+                  pp.total_len += bl.length();
 
-           buffer::list in;
-           encode(pp, in);
-           int pushes;
-           op.exec(fifo::op::CLASS, fifo::op::PUSH_PART, in,
-                   [&pushes](sys::error_code, int r, const buffer::list &) {
-                     pushes = r;
-                   });
-           op.returnvec();
-           co_await f->rados.execute(std::move(oid), f->ioc, std::move(op),
-                                     asio::deferred);
-           co_return {sys::error_code{}, pushes};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout_fmt(dpp, 10, "push_entries failed: {}", e.what());
-	   co_return {e.code(), 0};
-	 }
-       }, rados.get_executor()),
-       token, dpp, std::move(entries), this);
+                buffer::list in;
+                encode(pp, in);
+                int pushes;
+                op.exec(
+                    fifo::op::CLASS, fifo::op::PUSH_PART, in,
+                    [&pushes](sys::error_code, int r, const buffer::list&) {
+                      pushes = r;
+                    });
+                op.returnvec();
+                co_await f->rados.execute(
+                    std::move(oid), f->ioc, std::move(op), asio::deferred);
+                co_return {sys::error_code{}, pushes};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 10, "push_entries failed: {}", e.what());
+                co_return {e.code(), 0};
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(entries), this);
   }
 
   /// \brief List entries from a given part
@@ -477,72 +516,77 @@ private:
   ///         are more entries within the part, and a bool indicating whether
   ///         the part is full all in a way appropriate to the completion
   ///         token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, std::span<entry>, bool, bool)>
-	   CompletionToken>
-  auto list_part(const DoutPrefixProvider* dpp,
-		 std::int64_t part_num, std::uint64_t ofs,
-		 std::span<entry> result,
-		 CompletionToken&& token) {
+  template <asio::completion_token_for<
+      void(sys::error_code, std::span<entry>, bool, bool)> CompletionToken>
+  auto
+  list_part(
+      const DoutPrefixProvider* dpp,
+      std::int64_t part_num,
+      std::uint64_t ofs,
+      std::span<entry> result,
+      CompletionToken&& token)
+  {
     return asio::async_initiate<
-      CompletionToken, void(sys::error_code, std::span<entry>, bool, bool)>
-      (asio::co_composed<
-       void(sys::error_code, std::span<entry>, bool, bool)>
-       ([](auto state, const DoutPrefixProvider* dpp, std::int64_t part_num,
-	   std::uint64_t ofs,std::span<entry> result,
-	   FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+        CompletionToken, void(sys::error_code, std::span<entry>, bool, bool)>(
+        asio::co_composed<void(sys::error_code, std::span<entry>, bool, bool)>(
+            [](auto state, const DoutPrefixProvider* dpp, std::int64_t part_num,
+               std::uint64_t ofs, std::span<entry> result, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   std::unique_lock l(f->m);
-	   auto oid = f->info.part_oid(part_num);
-	   l.unlock();
+                std::unique_lock l(f->m);
+                auto oid = f->info.part_oid(part_num);
+                l.unlock();
 
-	   ReadOp op;
-	   fifo::op::list_part lp;
+                ReadOp op;
+                fifo::op::list_part lp;
 
-	   lp.ofs = ofs;
-	   lp.max_entries = result.size();
+                lp.ofs = ofs;
+                lp.max_entries = result.size();
 
-	   buffer::list in;
-	   encode(lp, in);
-	   buffer::list bl;
-	   op.exec(fifo::op::CLASS, fifo::op::LIST_PART, in, &bl, nullptr);
-	   co_await f->rados.execute(oid, f->ioc, std::move(op), nullptr,
-				     asio::deferred);
-	   bool more, full_part;
-	   {
-	     buffer::list::const_iterator bi = bl.begin();
-	     DECODE_START(1, bi);
-	     std::string tag;
-	     decode(tag, bi);
-	     uint32_t len;
-	     decode(len, bi);
-	     if (len > result.size()) {
-	       throw buffer::end_of_buffer{};
-	     }
-	     result = result.first(len);
-	     for (auto i = 0u; i < len; ++i) {
-	       fifo::part_list_entry entry;
-	       decode(entry, bi);
-	       result[i] = {.data = std::move(entry.data),
-			    .marker = marker{part_num, entry.ofs}.to_string(),
-			    .mtime = entry.mtime};
-	     }
-	     decode(more, bi);
-	     decode(full_part, bi);
-	     DECODE_FINISH(bi);
-	   }
-	   co_return {sys::error_code{}, std::move(result), more, full_part};
-	 } catch (const sys::system_error &e) {
-	   if (e.code() != sys::errc::no_such_file_or_directory) {
-	     ldpp_dout_fmt(dpp, 10, "list_part failed: {}", e.what());
-	   }
-	   co_return {e.code(), std::span<entry>{}, false, false};
-	 }
-       }, rados.get_executor()),
-       token, dpp, part_num, ofs, std::move(result), this);
+                buffer::list in;
+                encode(lp, in);
+                buffer::list bl;
+                op.exec(fifo::op::CLASS, fifo::op::LIST_PART, in, &bl, nullptr);
+                co_await f->rados.execute(
+                    oid, f->ioc, std::move(op), nullptr, asio::deferred);
+                bool more, full_part;
+                {
+                  buffer::list::const_iterator bi = bl.begin();
+                  DECODE_START(1, bi);
+                  std::string tag;
+                  decode(tag, bi);
+                  uint32_t len;
+                  decode(len, bi);
+                  if (len > result.size()) {
+                    throw buffer::end_of_buffer{};
+                  }
+                  result = result.first(len);
+                  for (auto i = 0u; i < len; ++i) {
+                    fifo::part_list_entry entry;
+                    decode(entry, bi);
+                    result[i] = {
+                        .data = std::move(entry.data),
+                        .marker = marker{part_num, entry.ofs}.to_string(),
+                        .mtime = entry.mtime};
+                  }
+                  decode(more, bi);
+                  decode(full_part, bi);
+                  DECODE_FINISH(bi);
+                }
+                co_return {
+                    sys::error_code{}, std::move(result), more, full_part};
+              } catch (const sys::system_error& e) {
+                if (e.code() != sys::errc::no_such_file_or_directory) {
+                  ldpp_dout_fmt(dpp, 10, "list_part failed: {}", e.what());
+                }
+                co_return {e.code(), std::span<entry>{}, false, false};
+              }
+            },
+            rados.get_executor()),
+        token, dpp, part_num, ofs, std::move(result), this);
   }
 
   /// \brief Trim entries on a given part
@@ -555,44 +599,49 @@ private:
   ///
   /// \return Possibly errors in a way appropriate to the completion
   /// token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto trim_part(const DoutPrefixProvider* dpp,
-		 std::int64_t part_num,
-		 std::uint64_t ofs,
-		 bool exclusive,
-		 CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   int64_t part_num, uint64_t ofs, bool exclusive, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  trim_part(
+      const DoutPrefixProvider* dpp,
+      std::int64_t part_num,
+      std::uint64_t ofs,
+      bool exclusive,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp, int64_t part_num,
+               uint64_t ofs, bool exclusive, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   std::unique_lock l(f->m);
-	   auto oid = f->info.part_oid(part_num);
-	   l.unlock();
+                std::unique_lock l(f->m);
+                auto oid = f->info.part_oid(part_num);
+                l.unlock();
 
-	   WriteOp op;
-	   fifo::op::trim_part tp;
+                WriteOp op;
+                fifo::op::trim_part tp;
 
-	   tp.ofs = ofs;
-	   tp.exclusive = exclusive;
+                tp.ofs = ofs;
+                tp.exclusive = exclusive;
 
-	   buffer::list in;
-	   encode(tp, in);
-	   op.exec(fifo::op::CLASS, fifo::op::TRIM_PART, in);
-           co_await f->rados.execute(std::move(oid), f->ioc, std::move(op),
-                                     asio::deferred);
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout_fmt(dpp, 10, "trim_part failed: ",
-			 e.what());
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, part_num, ofs, exclusive, this);
+                buffer::list in;
+                encode(tp, in);
+                op.exec(fifo::op::CLASS, fifo::op::TRIM_PART, in);
+                co_await f->rados.execute(
+                    std::move(oid), f->ioc, std::move(op), asio::deferred);
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 10, "trim_part failed: ", e.what());
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, part_num, ofs, exclusive, this);
   }
+
   ///@}
 
   /// \name Logics
@@ -610,8 +659,9 @@ private:
   /// \param l Ownership of mutex
   ///
   /// \returns The marker or nullopt if the string representation is invalid
-  std::optional<marker> to_marker(std::string_view s,
-				  std::unique_lock<std::mutex>& l) {
+  std::optional<marker>
+  to_marker(std::string_view s, std::unique_lock<std::mutex>& l)
+  {
     assert(l.owns_lock());
     marker m;
     if (s.empty()) {
@@ -648,33 +698,36 @@ private:
   ///
   /// \return Possibly errors in a way appropriate to the completion
   /// token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto read_meta(const DoutPrefixProvider* dpp,
-		 CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-     ([](auto state, const DoutPrefixProvider* dpp,
-	 FIFOImpl* f) -> void {
-       try {
-	 state.throw_if_cancelled(true);
-	 state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  read_meta(const DoutPrefixProvider* dpp, CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	 ldpp_dout_fmt(dpp, 20, "read_meta: entering");
-	 auto [info, part_header_size, part_entry_overhead] = co_await get_meta(
-             f->rados, f->obj, f->ioc, std::nullopt, asio::deferred);
-         std::unique_lock l(f->m);
-	 if (info.version.same_or_later(f->info.version)) {
-	   f->info = std::move(info);
-	   f->part_header_size = part_header_size;
-	   f->part_entry_overhead = part_entry_overhead;
-	 }
-       } catch (const sys::system_error& e) {
-	 ldpp_dout_fmt(dpp, 5, "read_meta failed: {}", e.what());
-	 co_return e.code();
-       }
-       co_return sys::error_code{};
-     }, rados.get_executor()),
-       token, dpp, this);
+                ldpp_dout_fmt(dpp, 20, "read_meta: entering");
+                auto [info, part_header_size, part_entry_overhead] =
+                    co_await get_meta(
+                        f->rados, f->obj, f->ioc, std::nullopt, asio::deferred);
+                std::unique_lock l(f->m);
+                if (info.version.same_or_later(f->info.version)) {
+                  f->info = std::move(info);
+                  f->part_header_size = part_header_size;
+                  f->part_entry_overhead = part_entry_overhead;
+                }
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 5, "read_meta failed: {}", e.what());
+                co_return e.code();
+              }
+              co_return sys::error_code{};
+            },
+            rados.get_executor()),
+        token, dpp, this);
   }
 
   /// \brief Update local metadata
@@ -686,15 +739,18 @@ private:
   ///
   /// \exception boost::system::system_error equivalent to
   /// boost::system::errc::operation_canceled on version mismatch.
-  void apply_update(const DoutPrefixProvider *dpp,
-		    fifo::info* info,
-		    const fifo::objv& objv,
-		    const fifo::update& update) {
+  void
+  apply_update(
+      const DoutPrefixProvider* dpp,
+      fifo::info* info,
+      const fifo::objv& objv,
+      const fifo::update& update)
+  {
     ldpp_dout_fmt(dpp, 20, "apply_update: entering");
     std::unique_lock l(m);
     if (objv != info->version) {
-      ldpp_dout_fmt(dpp, 10, "apply_update, {}: version mismatch, canceling",
-		    __LINE__);
+      ldpp_dout_fmt(
+          dpp, 10, "apply_update, {}: version mismatch, canceling", __LINE__);
       throw sys::system_error(ECANCELED, sys::generic_category());
     }
 
@@ -710,51 +766,57 @@ private:
   ///
   /// \return True if the operation was canceled. false otherwise in a
   /// way appropriate to the completion token.
-  template<asio::completion_token_for<void(sys::error_code, bool)> CompletionToken>
-  auto update_meta(const DoutPrefixProvider* dpp,
-		   fifo::update update, fifo::objv version,
-		   CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code, bool)>
-      (asio::co_composed<void(sys::error_code, bool)>
-     ([](auto state, const DoutPrefixProvider* dpp,
-	 fifo::update update, fifo::objv version,
-	 FIFOImpl* f) -> void {
-       try {
-	 state.throw_if_cancelled(true);
-	 state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code, bool)> CompletionToken>
+  auto
+  update_meta(
+      const DoutPrefixProvider* dpp,
+      fifo::update update,
+      fifo::objv version,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code, bool)>(
+        asio::co_composed<void(sys::error_code, bool)>(
+            [](auto state, const DoutPrefixProvider* dpp, fifo::update update,
+               fifo::objv version, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	 ldpp_dout_fmt(dpp, 20, "update_meta: entering");
-	 auto [ec] = co_await f->update_meta(version, update,
-					     asio::as_tuple(asio::deferred));
-	 bool canceled;
-	 if (ec && ec != sys::errc::operation_canceled) {
-	   throw sys::system_error(ec);
-	 }
-	 canceled = (ec == sys::errc::operation_canceled);
-	 if (!canceled) {
-	   try {
-	     f->apply_update(dpp, &f->info, version, update);
-	   } catch (const sys::system_error& e) {
-	     if (e.code() == sys::errc::operation_canceled) {
-	       canceled = true;
-	     } else {
-	       throw;
-	     }
-	   }
-	 }
-	 if (canceled) {
-	   co_await f->read_meta(dpp, asio::deferred);
-	 }
-	 if (canceled) {
-           ldpp_dout_fmt(dpp, 20, "update_meta, {} canceled", __LINE__);
-	 }
-	 co_return {sys::error_code{}, canceled};
-       } catch (const sys::system_error& e) {
-	 ldpp_dout_fmt(dpp, 10, "update_meta failed with error: {}", e.what());
-	 co_return {e.code(), false};
-       }
-     }, rados.get_executor()),
-       token, dpp, std::move(update), std::move(version), this);
+                ldpp_dout_fmt(dpp, 20, "update_meta: entering");
+                auto [ec] = co_await f->update_meta(
+                    version, update, asio::as_tuple(asio::deferred));
+                bool canceled;
+                if (ec && ec != sys::errc::operation_canceled) {
+                  throw sys::system_error(ec);
+                }
+                canceled = (ec == sys::errc::operation_canceled);
+                if (!canceled) {
+                  try {
+                    f->apply_update(dpp, &f->info, version, update);
+                  } catch (const sys::system_error& e) {
+                    if (e.code() == sys::errc::operation_canceled) {
+                      canceled = true;
+                    } else {
+                      throw;
+                    }
+                  }
+                }
+                if (canceled) {
+                  co_await f->read_meta(dpp, asio::deferred);
+                }
+                if (canceled) {
+                  ldpp_dout_fmt(dpp, 20, "update_meta, {} canceled", __LINE__);
+                }
+                co_return {sys::error_code{}, canceled};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(
+                    dpp, 10, "update_meta failed with error: {}", e.what());
+                co_return {e.code(), false};
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(update), std::move(version), this);
   }
 
   /// \brief Process the journal
@@ -764,133 +826,155 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto process_journal(const DoutPrefixProvider* dpp,
-		       CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-     ([](auto state, const DoutPrefixProvider* dpp, FIFOImpl* f) -> void {
-       try {
-	 state.throw_if_cancelled(true);
-	 state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  process_journal(const DoutPrefixProvider* dpp, CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	 ldpp_dout_fmt(dpp, 20, "process_journal: entering", __LINE__);
-	 std::vector<fifo::journal_entry> processed;
+                ldpp_dout_fmt(dpp, 20, "process_journal: entering", __LINE__);
+                std::vector<fifo::journal_entry> processed;
 
-	 std::unique_lock l(f->m);
-	 auto tmpjournal = f->info.journal;
-	 auto new_tail = f->info.tail_part_num;
-	 auto new_head = f->info.head_part_num;
-	 auto new_max = f->info.max_push_part_num;
-	 l.unlock();
+                std::unique_lock l(f->m);
+                auto tmpjournal = f->info.journal;
+                auto new_tail = f->info.tail_part_num;
+                auto new_head = f->info.head_part_num;
+                auto new_max = f->info.max_push_part_num;
+                l.unlock();
 
-	 for (auto& entry : tmpjournal) {
-	   ldpp_dout_fmt(dpp, 20, "process_journal, {} processing entry: entry=",
-			 __LINE__, entry);
-	   switch (entry.op) {
-	     using enum fifo::journal_entry::Op;
-	   case create:
-	     ldpp_dout_fmt(dpp, 10, "process_journal, {}: Creating part {}",
-			   __LINE__, entry.part_num);
-	     co_await f->create_part(entry.part_num, asio::deferred);
-	     if (entry.part_num > new_max) {
-	       new_max = entry.part_num;
-	     }
-	     break;
-	   case set_head:
-	     ldpp_dout_fmt(dpp, 10, "process_journal, {}: Setting head to {}",
-			   __LINE__, entry.part_num);
-	     if (entry.part_num > new_head) {
-	       new_head = entry.part_num;
-	     }
-	     break;
-	   case remove:
-	     try {
-	       ldpp_dout_fmt(dpp, 10, "process_journal, {}: Removing part {}",
-			     __LINE__, entry.part_num);
-	       co_await f->remove_part(entry.part_num, asio::deferred);
-	       if (entry.part_num >= new_tail) {
-		 new_tail = entry.part_num + 1;
-	       }
-	     } catch (const sys::system_error& e) {
-	       if (e.code() != sys::errc::no_such_file_or_directory) {
-		 throw;
-	       }
-	     }
-	     break;
-	   default:
-	     ldpp_dout_fmt(dpp, 1, "process_journal, {}: "
-			   "unknown journaled op: entry={}",
-			   __LINE__, entry);
-	     throw sys::system_error{EINVAL, sys::generic_category()};
-	   }
+                for (auto& entry : tmpjournal) {
+                  ldpp_dout_fmt(
+                      dpp, 20,
+                      "process_journal, {} processing entry: entry=", __LINE__,
+                      entry);
+                  switch (entry.op) {
+                    using enum fifo::journal_entry::Op;
+                  case create:
+                    ldpp_dout_fmt(
+                        dpp, 10, "process_journal, {}: Creating part {}",
+                        __LINE__, entry.part_num);
+                    co_await f->create_part(entry.part_num, asio::deferred);
+                    if (entry.part_num > new_max) {
+                      new_max = entry.part_num;
+                    }
+                    break;
+                  case set_head:
+                    ldpp_dout_fmt(
+                        dpp, 10, "process_journal, {}: Setting head to {}",
+                        __LINE__, entry.part_num);
+                    if (entry.part_num > new_head) {
+                      new_head = entry.part_num;
+                    }
+                    break;
+                  case remove:
+                    try {
+                      ldpp_dout_fmt(
+                          dpp, 10, "process_journal, {}: Removing part {}",
+                          __LINE__, entry.part_num);
+                      co_await f->remove_part(entry.part_num, asio::deferred);
+                      if (entry.part_num >= new_tail) {
+                        new_tail = entry.part_num + 1;
+                      }
+                    } catch (const sys::system_error& e) {
+                      if (e.code() != sys::errc::no_such_file_or_directory) {
+                        throw;
+                      }
+                    }
+                    break;
+                  default:
+                    ldpp_dout_fmt(
+                        dpp, 1,
+                        "process_journal, {}: "
+                        "unknown journaled op: entry={}",
+                        __LINE__, entry);
+                    throw sys::system_error{EINVAL, sys::generic_category()};
+                  }
 
-	   processed.push_back(std::move(entry));
-	 }
+                  processed.push_back(std::move(entry));
+                }
 
-	 // Postprocess
-	 bool canceled = true;
+                // Postprocess
+                bool canceled = true;
 
-	 for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
-	   ldpp_dout_fmt(dpp, 20, "process_journal, {}: postprocessing: i={}",
-			 __LINE__, i);
+                for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
+                  ldpp_dout_fmt(
+                      dpp, 20, "process_journal, {}: postprocessing: i={}",
+                      __LINE__, i);
 
-	   std::optional<std::int64_t> tail_part_num;
-	   std::optional<std::int64_t> head_part_num;
-	   std::optional<std::int64_t> max_part_num;
+                  std::optional<std::int64_t> tail_part_num;
+                  std::optional<std::int64_t> head_part_num;
+                  std::optional<std::int64_t> max_part_num;
 
-           std::unique_lock l(f->m);
-           auto objv = f->info.version;
-           if (new_tail > tail_part_num)
-             tail_part_num = new_tail;
-           if (new_head > f->info.head_part_num)
-             head_part_num = new_head;
-           if (new_max > f->info.max_push_part_num)
-	     max_part_num = new_max;
-           l.unlock();
+                  std::unique_lock l(f->m);
+                  auto objv = f->info.version;
+                  if (new_tail > tail_part_num)
+                    tail_part_num = new_tail;
+                  if (new_head > f->info.head_part_num)
+                    head_part_num = new_head;
+                  if (new_max > f->info.max_push_part_num)
+                    max_part_num = new_max;
+                  l.unlock();
 
-           if (processed.empty() && !tail_part_num && !max_part_num) {
-             ldpp_dout_fmt(dpp, 20, "process_journal, {}: "
-			   "nothing to update any more: i={}",
-			   __LINE__, i);
-             canceled = false;
-             break;
-	   }
-	   auto u = fifo::update().tail_part_num(tail_part_num)
-	     .head_part_num(head_part_num).max_push_part_num(max_part_num)
-	     .journal_entries_rm(processed);
-	   ldpp_dout_fmt(dpp, 10, "process_journal, {}: "
-			 "Calling update_meta: update=",
-			 __LINE__, u);
+                  if (processed.empty() && !tail_part_num && !max_part_num) {
+                    ldpp_dout_fmt(
+                        dpp, 20,
+                        "process_journal, {}: "
+                        "nothing to update any more: i={}",
+                        __LINE__, i);
+                    canceled = false;
+                    break;
+                  }
+                  auto u = fifo::update()
+                               .tail_part_num(tail_part_num)
+                               .head_part_num(head_part_num)
+                               .max_push_part_num(max_part_num)
+                               .journal_entries_rm(processed);
+                  ldpp_dout_fmt(
+                      dpp, 10,
+                      "process_journal, {}: "
+                      "Calling update_meta: update=",
+                      __LINE__, u);
 
-	   canceled = co_await f->update_meta(dpp, u, objv, asio::deferred);
-	   if (canceled) {
-	     std::vector<fifo::journal_entry> new_processed;
-	     std::unique_lock l(f->m);
-	     ldpp_dout_fmt(dpp, 20, "process_journal, {}: "
-			   "update canceled, retrying: i=",
-			   __LINE__, i);
-	     for (auto& e : processed) {
-	       if (f->info.journal.contains(e)) {
-		 new_processed.push_back(e);
-	       }
-	     }
-	     processed = std::move(new_processed);
-	   }
-	 }
-	 if (canceled) {
-	   ldpp_dout_fmt(dpp, 5, "process_journal, {}: "
-			 "canceled too many times, giving up",
-			 __LINE__);
-	   throw sys::system_error(ECANCELED, sys::generic_category());
-	 }
-       } catch (const sys::system_error& e) {
-	 ldpp_dout_fmt(dpp, 3, "process_journal: failed: {}", e.what());
-	 co_return e.code();
-       }
-       co_return sys::error_code{};
-     }, rados.get_executor()),
-       token, dpp, this);
+                  canceled =
+                      co_await f->update_meta(dpp, u, objv, asio::deferred);
+                  if (canceled) {
+                    std::vector<fifo::journal_entry> new_processed;
+                    std::unique_lock l(f->m);
+                    ldpp_dout_fmt(
+                        dpp, 20,
+                        "process_journal, {}: "
+                        "update canceled, retrying: i=",
+                        __LINE__, i);
+                    for (auto& e : processed) {
+                      if (f->info.journal.contains(e)) {
+                        new_processed.push_back(e);
+                      }
+                    }
+                    processed = std::move(new_processed);
+                  }
+                }
+                if (canceled) {
+                  ldpp_dout_fmt(
+                      dpp, 5,
+                      "process_journal, {}: "
+                      "canceled too many times, giving up",
+                      __LINE__);
+                  throw sys::system_error(ECANCELED, sys::generic_category());
+                }
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 3, "process_journal: failed: {}", e.what());
+                co_return e.code();
+              }
+              co_return sys::error_code{};
+            },
+            rados.get_executor()),
+        token, dpp, this);
   }
 
   /// \brief Create a new part
@@ -904,84 +988,102 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto prepare_new_part(const DoutPrefixProvider* dpp,
-			std::int64_t new_part_num, bool is_head,
-			CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::int64_t new_part_num, bool is_head, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  prepare_new_part(
+      const DoutPrefixProvider* dpp,
+      std::int64_t new_part_num,
+      bool is_head,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::int64_t new_part_num, bool is_head, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
 
-	   ldpp_dout_fmt(dpp, 20, "prepare_new_part: entering");
-	   std::unique_lock l(f->m);
-	   using enum fifo::journal_entry::Op;
-	   std::vector<fifo::journal_entry> jentries{{create, new_part_num}};
-	   if (f->info.journal.contains({create, new_part_num}) &&
-	       (!is_head || f->info.journal.contains({set_head, new_part_num}))) {
-	     l.unlock();
-	     ldpp_dout_fmt(dpp, 5, "prepare_new_part, {} new part journaled, but not processed",
-			   __LINE__);
-	     co_await f->process_journal(dpp, asio::deferred);
-	     co_return sys::error_code{};
-	   }
-	   auto version = f->info.version;
+                ldpp_dout_fmt(dpp, 20, "prepare_new_part: entering");
+                std::unique_lock l(f->m);
+                using enum fifo::journal_entry::Op;
+                std::vector<fifo::journal_entry> jentries{
+                    {create, new_part_num}};
+                if (f->info.journal.contains({create, new_part_num}) &&
+                    (!is_head ||
+                     f->info.journal.contains({set_head, new_part_num}))) {
+                  l.unlock();
+                  ldpp_dout_fmt(
+                      dpp, 5,
+                      "prepare_new_part, {} new part journaled, but not "
+                      "processed",
+                      __LINE__);
+                  co_await f->process_journal(dpp, asio::deferred);
+                  co_return sys::error_code{};
+                }
+                auto version = f->info.version;
 
-	   if (is_head) {
-	     ldpp_dout_fmt(dpp, 20, "prepare_new_part, {}: needs new head",
-			   __LINE__);
-	     jentries.push_back({set_head, new_part_num});
-	   }
-	   l.unlock();
+                if (is_head) {
+                  ldpp_dout_fmt(
+                      dpp, 20, "prepare_new_part, {}: needs new head", __LINE__);
+                  jentries.push_back({set_head, new_part_num});
+                }
+                l.unlock();
 
-	   bool canceled = true;
-	   for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
-	     canceled = false;
-	     ldpp_dout_fmt(dpp, 20, "prepare_new_part, {}: updating metadata: i={}",
-			   __LINE__, i);
-	     auto u = fifo::update{}.journal_entries_add(jentries);
-	     canceled = co_await f->update_meta(dpp, u, version,
-						asio::deferred);
-	     if (canceled) {
-	       std::unique_lock l(f->m);
-	       version = f->info.version;
-	       auto found = (f->info.journal.contains({create, new_part_num}) ||
-			     f->info.journal.contains({set_head, new_part_num}));
-	       if ((f->info.max_push_part_num >= new_part_num &&
-		    f->info.head_part_num >= new_part_num)) {
-		 ldpp_dout_fmt(dpp, 20, "prepare_new_part, {}: "
-			       "raced, but journaled and processed: i={}",
-			       __LINE__, i);
-		 co_return sys::error_code{};
-	       }
-	       if (found) {
-		 ldpp_dout_fmt(dpp, 20,
-			       "prepare_new_part, {}: "
-			       "raced, journaled but not processed: i={}",
-			       __LINE__, i);
-		 canceled = false;
-	       }
-	       l.unlock();
-	     }
-	   }
-	   if (canceled) {
-	     ldpp_dout_fmt(dpp, 5, "prepare_new_part, {}: "
-			   "canceled too many times, giving up",
-			   __LINE__);
-	     throw sys::system_error{ECANCELED, sys::generic_category()};
-	   }
-	   co_await f->process_journal(dpp, asio::deferred);
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout_fmt(dpp, 5, "prepare_new_part failed: {}", e.what());
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, new_part_num, is_head, this);
+                bool canceled = true;
+                for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
+                  canceled = false;
+                  ldpp_dout_fmt(
+                      dpp, 20, "prepare_new_part, {}: updating metadata: i={}",
+                      __LINE__, i);
+                  auto u = fifo::update{}.journal_entries_add(jentries);
+                  canceled =
+                      co_await f->update_meta(dpp, u, version, asio::deferred);
+                  if (canceled) {
+                    std::unique_lock l(f->m);
+                    version = f->info.version;
+                    auto found =
+                        (f->info.journal.contains({create, new_part_num}) ||
+                         f->info.journal.contains({set_head, new_part_num}));
+                    if ((f->info.max_push_part_num >= new_part_num &&
+                         f->info.head_part_num >= new_part_num)) {
+                      ldpp_dout_fmt(
+                          dpp, 20,
+                          "prepare_new_part, {}: "
+                          "raced, but journaled and processed: i={}",
+                          __LINE__, i);
+                      co_return sys::error_code{};
+                    }
+                    if (found) {
+                      ldpp_dout_fmt(
+                          dpp, 20,
+                          "prepare_new_part, {}: "
+                          "raced, journaled but not processed: i={}",
+                          __LINE__, i);
+                      canceled = false;
+                    }
+                    l.unlock();
+                  }
+                }
+                if (canceled) {
+                  ldpp_dout_fmt(
+                      dpp, 5,
+                      "prepare_new_part, {}: "
+                      "canceled too many times, giving up",
+                      __LINE__);
+                  throw sys::system_error{ECANCELED, sys::generic_category()};
+                }
+                co_await f->process_journal(dpp, asio::deferred);
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 5, "prepare_new_part failed: {}", e.what());
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, new_part_num, is_head, this);
   }
 
   /// \brief Set a new part as head
@@ -994,94 +1096,109 @@ private:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto prepare_new_head(const DoutPrefixProvider* dpp,
-			std::int64_t new_head_part_num,
-			CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken, void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::int64_t new_head_part_num, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  prepare_new_head(
+      const DoutPrefixProvider* dpp,
+      std::int64_t new_head_part_num,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::int64_t new_head_part_num, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   ldpp_dout_fmt(dpp, 20, "prepare_new_head: entering");
-	   std::unique_lock l(f->m);
-	   auto max_push_part_num = f->info.max_push_part_num;
-	   auto version = f->info.version;
-	   l.unlock();
+                ldpp_dout_fmt(dpp, 20, "prepare_new_head: entering");
+                std::unique_lock l(f->m);
+                auto max_push_part_num = f->info.max_push_part_num;
+                auto version = f->info.version;
+                l.unlock();
 
-	   if (max_push_part_num < new_head_part_num) {
-	     ldpp_dout_fmt(dpp, 20, "prepare_new_head, {}: need new part",
-			   __LINE__);
-	     co_await f->prepare_new_part(dpp, new_head_part_num, true,
-					  asio::deferred);
-	     std::unique_lock l(f->m);
-	     if (f->info.max_push_part_num < new_head_part_num) {
-	       ldpp_dout_fmt(dpp, 1, "prepare_new_head, {}: inconsistency, "
-			     "push part less than head part.",
-			     __LINE__);
-	       throw sys::system_error(EIO, sys::generic_category());
-	     }
-	     l.unlock();
-	   }
+                if (max_push_part_num < new_head_part_num) {
+                  ldpp_dout_fmt(
+                      dpp, 20, "prepare_new_head, {}: need new part", __LINE__);
+                  co_await f->prepare_new_part(
+                      dpp, new_head_part_num, true, asio::deferred);
+                  std::unique_lock l(f->m);
+                  if (f->info.max_push_part_num < new_head_part_num) {
+                    ldpp_dout_fmt(
+                        dpp, 1,
+                        "prepare_new_head, {}: inconsistency, "
+                        "push part less than head part.",
+                        __LINE__);
+                    throw sys::system_error(EIO, sys::generic_category());
+                  }
+                  l.unlock();
+                }
 
-	   using enum fifo::journal_entry::Op;
-	   fifo::journal_entry jentry;
-	   jentry.op = set_head;
-	   jentry.part_num = new_head_part_num;
+                using enum fifo::journal_entry::Op;
+                fifo::journal_entry jentry;
+                jentry.op = set_head;
+                jentry.part_num = new_head_part_num;
 
-	   bool canceled = true;
-	   for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
-	     canceled = false;
-	     ldpp_dout_fmt(dpp, 20, "prepare_new_head, {}: "
-			   "updating metadata: i={}", __LINE__, i);
-	     auto u = fifo::update{}.journal_entries_add({{jentry}});
-	     canceled = co_await f->update_meta(dpp, u, version,
-						asio::deferred);
-	     if (canceled) {
-	       std::unique_lock l(f->m);
-	       auto found =
-		   (f->info.journal.contains({create, new_head_part_num}) ||
-		    f->info.journal.contains({set_head, new_head_part_num}));
-	       version = f->info.version;
-	       if ((f->info.head_part_num >= new_head_part_num)) {
-		 ldpp_dout_fmt(dpp, 20, "prepare_new_head, {}: raced, "
-			       "but journaled and processed: i={}",
-			       __LINE__, i);
-		 co_return sys::error_code{};
-	       }
-	       if (found) {
-		 ldpp_dout_fmt(dpp, 20,
-			       "prepare_new_head, {}: raced, "
-			       "journaled but not processed: i={}",
-			       __LINE__, i);
-		 canceled = false;
-	       }
-	       l.unlock();
-	     }
-	   }
-	   if (canceled) {
-	     ldpp_dout_fmt(dpp, 5, "prepare_new_head, {}: "
-			   "canceled too many times, giving up",
-			   __LINE__);
-	     throw sys::system_error(ECANCELED, sys::generic_category());
-	   }
-	   co_await f->process_journal(dpp, asio::deferred);
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout_fmt(dpp, 3, "prepare_new_head failed: {}", e.what());
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, new_head_part_num, this);
+                bool canceled = true;
+                for (auto i = 0; canceled && i < MAX_RACE_RETRIES; ++i) {
+                  canceled = false;
+                  ldpp_dout_fmt(
+                      dpp, 20,
+                      "prepare_new_head, {}: "
+                      "updating metadata: i={}",
+                      __LINE__, i);
+                  auto u = fifo::update{}.journal_entries_add({{jentry}});
+                  canceled =
+                      co_await f->update_meta(dpp, u, version, asio::deferred);
+                  if (canceled) {
+                    std::unique_lock l(f->m);
+                    auto found =
+                        (f->info.journal.contains({create, new_head_part_num}) ||
+                         f->info.journal.contains(
+                             {set_head, new_head_part_num}));
+                    version = f->info.version;
+                    if ((f->info.head_part_num >= new_head_part_num)) {
+                      ldpp_dout_fmt(
+                          dpp, 20,
+                          "prepare_new_head, {}: raced, "
+                          "but journaled and processed: i={}",
+                          __LINE__, i);
+                      co_return sys::error_code{};
+                    }
+                    if (found) {
+                      ldpp_dout_fmt(
+                          dpp, 20,
+                          "prepare_new_head, {}: raced, "
+                          "journaled but not processed: i={}",
+                          __LINE__, i);
+                      canceled = false;
+                    }
+                    l.unlock();
+                  }
+                }
+                if (canceled) {
+                  ldpp_dout_fmt(
+                      dpp, 5,
+                      "prepare_new_head, {}: "
+                      "canceled too many times, giving up",
+                      __LINE__);
+                  throw sys::system_error(ECANCELED, sys::generic_category());
+                }
+                co_await f->process_journal(dpp, asio::deferred);
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 3, "prepare_new_head failed: {}", e.what());
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, new_head_part_num, this);
   }
 
   ///@}
 
 public:
-
   /// \brief Open an existing FIFO
   ///
   /// \param dpp Prefix provider for debug logging
@@ -1092,84 +1209,91 @@ public:
   ///
   /// \return A `unique_ptr` to the open FIFO in a way appropriate to
   /// the completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto do_open(const DoutPrefixProvider* dpp,
-	       std::optional<fifo::objv> objv,
-	       bool probe, CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken,
-				void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::optional<fifo::objv> objv, bool probe,
-	   FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
-	   ldpp_dout_fmt(dpp, 20, "do_open: entering");
-	   std::tie(f->info, f->part_header_size, f->part_entry_overhead)
-	     = co_await get_meta(f->rados, f->obj, f->ioc, objv,
-				 asio::deferred);
-	   probe = 0;
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  do_open(
+      const DoutPrefixProvider* dpp,
+      std::optional<fifo::objv> objv,
+      bool probe,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::optional<fifo::objv> objv, bool probe, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
+                ldpp_dout_fmt(dpp, 20, "do_open: entering");
+                std::tie(f->info, f->part_header_size, f->part_entry_overhead) =
+                    co_await get_meta(
+                        f->rados, f->obj, f->ioc, objv, asio::deferred);
+                probe = 0;
 
-	   // If there are journal entries, process them, in case
-	   // someone crashed mid-transaction.
-	   if (!f->info.journal.empty()) {
-	     ldpp_dout_fmt(dpp, 20, "do_open, {}: processing leftover journal",
-			   __LINE__);
-	     co_await f->process_journal(dpp, asio::deferred);
-	   }
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   if (!probe ||
-	       (probe && !(e.code() == sys::errc::no_such_file_or_directory ||
-			   e.code() == sys::errc::no_message_available))) {
-	     ldpp_dout_fmt(dpp, 5, "do_open failed: {}:", e.what());
-	   }
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, std::move(objv), probe, this);
+                // If there are journal entries, process them, in case
+                // someone crashed mid-transaction.
+                if (!f->info.journal.empty()) {
+                  ldpp_dout_fmt(
+                      dpp, 20, "do_open, {}: processing leftover journal",
+                      __LINE__);
+                  co_await f->process_journal(dpp, asio::deferred);
+                }
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                if (!probe ||
+                    (probe &&
+                     !(e.code() == sys::errc::no_such_file_or_directory ||
+                       e.code() == sys::errc::no_message_available))) {
+                  ldpp_dout_fmt(dpp, 5, "do_open failed: {}:", e.what());
+                }
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(objv), probe, this);
   }
 
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto do_create(const DoutPrefixProvider* dpp,
-		 std::optional<fifo::objv> objv,
-		 std::optional<std::string> oid_prefix,
-		 bool exclusive,
-		 std::uint64_t max_part_size,
-		 std::uint64_t max_entry_size,
-		 CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken,
-				void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::optional<fifo::objv> objv,
-	   std::optional<std::string> oid_prefix,
-	   bool exclusive,
-	   std::uint64_t max_part_size,
-	   std::uint64_t max_entry_size,
-	   FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
-	   ldpp_dout_fmt(dpp, 20, "do_create: entering");
-	   co_await create_meta(f->rados, f->obj, f->ioc, objv, oid_prefix,
-				exclusive, max_part_size, max_entry_size,
-				asio::deferred);
-	   co_await f->do_open(dpp, objv, false, asio::deferred);
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  do_create(
+      const DoutPrefixProvider* dpp,
+      std::optional<fifo::objv> objv,
+      std::optional<std::string> oid_prefix,
+      bool exclusive,
+      std::uint64_t max_part_size,
+      std::uint64_t max_entry_size,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::optional<fifo::objv> objv,
+               std::optional<std::string> oid_prefix, bool exclusive,
+               std::uint64_t max_part_size, std::uint64_t max_entry_size,
+               FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
+                ldpp_dout_fmt(dpp, 20, "do_create: entering");
+                co_await create_meta(
+                    f->rados, f->obj, f->ioc, objv, oid_prefix, exclusive,
+                    max_part_size, max_entry_size, asio::deferred);
+                co_await f->do_open(dpp, objv, false, asio::deferred);
 
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout_fmt(dpp, 5, "do_create failed: {}", e.what());
-	   co_return e.code();
-       }
-       }, rados.get_executor()),
-       token, dpp, std::move(objv), oid_prefix, exclusive, max_part_size,
-       max_entry_size, this);
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                ldpp_dout_fmt(dpp, 5, "do_create failed: {}", e.what());
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(objv), oid_prefix, exclusive, max_part_size,
+        max_entry_size, this);
   }
 
 public:
-
   /// \brief Push entries to the FIFO
   ///
   /// \param dpp Prefix provider for debug logging
@@ -1178,137 +1302,144 @@ public:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto push(const DoutPrefixProvider* dpp,
-	    std::deque<buffer::list> entries,
-	    CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken,
-				void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::deque<buffer::list> remaining, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  push(
+      const DoutPrefixProvider* dpp,
+      std::deque<buffer::list> entries,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp,
+               std::deque<buffer::list> remaining, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   std::unique_lock l(f->m);
-	   auto max_entry_size = f->info.params.max_entry_size;
-	   auto need_new_head = f->info.need_new_head();
-	   auto head_part_num = f->info.head_part_num;
-	   l.unlock();
-	   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " entering" << dendl;
-	   if (remaining.empty()) {
-	     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " empty push, returning success" << dendl;
-	     co_return sys::error_code{};
-	   }
+                std::unique_lock l(f->m);
+                auto max_entry_size = f->info.params.max_entry_size;
+                auto need_new_head = f->info.need_new_head();
+                auto head_part_num = f->info.head_part_num;
+                l.unlock();
+                ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " entering" << dendl;
+                if (remaining.empty()) {
+                  ldpp_dout(dpp, 20)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " empty push, returning success" << dendl;
+                  co_return sys::error_code{};
+                }
 
-	   // Validate sizes
-	   for (const auto& bl : remaining) {
-	     if (bl.length() > max_entry_size) {
-	       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " entry bigger than max_entry_size"
-				  << dendl;
-	       co_return sys::error_code{E2BIG, sys::generic_category()};
-	     }
-	   }
+                // Validate sizes
+                for (const auto& bl : remaining) {
+                  if (bl.length() > max_entry_size) {
+                    ldpp_dout(dpp, -1)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " entry bigger than max_entry_size" << dendl;
+                    co_return sys::error_code{E2BIG, sys::generic_category()};
+                  }
+                }
 
-	   if (need_new_head) {
-	     ldpp_dout(dpp, 10) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " need new head: "
-				<< head_part_num + 1 << dendl;
-	     co_await f->prepare_new_head(dpp, head_part_num + 1, asio::deferred);
-	   }
+                if (need_new_head) {
+                  ldpp_dout(dpp, 10)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " need new head: " << head_part_num + 1 << dendl;
+                  co_await f->prepare_new_head(
+                      dpp, head_part_num + 1, asio::deferred);
+                }
 
-	   std::deque<buffer::list> batch;
+                std::deque<buffer::list> batch;
 
-	   uint64_t batch_len = 0;
-	   auto retries = 0;
-	   bool canceled = true;
-	   while ((!remaining.empty() || !batch.empty()) &&
-		  (retries <= MAX_RACE_RETRIES)) {
-	     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " preparing push: remaining=" << remaining.size()
-				<< " batch=" << batch.size() << " retries=" << retries
-				<< dendl;
-	     std::unique_lock l(f->m);
-	     head_part_num = f->info.head_part_num;
-	     auto max_part_size = f->info.params.max_part_size;
-	     auto overhead = f->part_entry_overhead;
-	     l.unlock();
+                uint64_t batch_len = 0;
+                auto retries = 0;
+                bool canceled = true;
+                while ((!remaining.empty() || !batch.empty()) &&
+                       (retries <= MAX_RACE_RETRIES)) {
+                  ldpp_dout(dpp, 20)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " preparing push: remaining=" << remaining.size()
+                      << " batch=" << batch.size() << " retries=" << retries
+                      << dendl;
+                  std::unique_lock l(f->m);
+                  head_part_num = f->info.head_part_num;
+                  auto max_part_size = f->info.params.max_part_size;
+                  auto overhead = f->part_entry_overhead;
+                  l.unlock();
 
-	     while (!remaining.empty() &&
-		    (remaining.front().length() + batch_len <= max_part_size)) {
-	       /* We can send entries with data_len up to max_entry_size,
+                  while (!remaining.empty() &&
+                         (remaining.front().length() + batch_len <=
+                          max_part_size)) {
+                    /* We can send entries with data_len up to max_entry_size,
 		  however, we want to also account the overhead when
 		  dealing with multiple entries. Previous check doesn't
 		  account for overhead on purpose. */
-	       batch_len += remaining.front().length() + overhead;
-	       batch.push_back(std::move(remaining.front()));
-	       remaining.pop_front();
-	     }
-	     ldpp_dout(dpp, 20)
-	       << __PRETTY_FUNCTION__ << ":" << __LINE__
-	       << " prepared push: remaining=" << remaining.size()
-	       << " batch=" << batch.size() << " retries=" << retries
-	       << " batch_len=" << batch_len << dendl;
+                    batch_len += remaining.front().length() + overhead;
+                    batch.push_back(std::move(remaining.front()));
+                    remaining.pop_front();
+                  }
+                  ldpp_dout(dpp, 20)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " prepared push: remaining=" << remaining.size()
+                      << " batch=" << batch.size() << " retries=" << retries
+                      << " batch_len=" << batch_len << dendl;
 
-	     auto [ec, n] =
-	       co_await f->push_entries(dpp, batch,
-					asio::as_tuple(asio::deferred));
-	     if (ec == sys::errc::result_out_of_range) {
-	       canceled = true;
-	       ++retries;
-	       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " need new head " << head_part_num + 1
-				  << dendl;
-	       co_await f->prepare_new_head(dpp, head_part_num + 1,
-					    asio::deferred);
-	       continue;
-	     } else if (ec == sys::errc::no_such_file_or_directory) {
-	       ldpp_dout(dpp, 20)
-		 << __PRETTY_FUNCTION__ << ":" << __LINE__
-		 << " racing client trimmed part, rereading metadata "
-		 << dendl;
-	       canceled = true;
-	       ++retries;
-	       co_await f->read_meta(dpp, asio::deferred);
-	       continue;
-	     } else if (ec) {
-	       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " push_entries failed: " << ec.message()
-				  << dendl;
-	       throw sys::system_error(ec);
-	     }
-	     assert(n >= 0);
-	     // Made forward progress!
-	     canceled = false;
-	     retries = 0;
-	     batch_len = 0;
-	     if (n == ssize(batch)) {
-	       batch.clear();
-	     } else  {
-	       batch.erase(batch.begin(), batch.begin() + n);
-	       for (const auto& b : batch) {
-		 batch_len +=  b.length() + overhead;
-	       }
-	     }
-	   }
-	   if (canceled) {
-	     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " canceled too many times, giving up."
-				<< dendl;
-	     co_return sys::error_code{ECANCELED, sys::generic_category()};
-	   }
-	   co_return sys::error_code{};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " push failed: " << e.what() << dendl;
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, std::move(entries), this);
+                  auto [ec, n] = co_await f->push_entries(
+                      dpp, batch, asio::as_tuple(asio::deferred));
+                  if (ec == sys::errc::result_out_of_range) {
+                    canceled = true;
+                    ++retries;
+                    ldpp_dout(dpp, 20)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " need new head " << head_part_num + 1 << dendl;
+                    co_await f->prepare_new_head(
+                        dpp, head_part_num + 1, asio::deferred);
+                    continue;
+                  } else if (ec == sys::errc::no_such_file_or_directory) {
+                    ldpp_dout(dpp, 20)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " racing client trimmed part, rereading metadata "
+                        << dendl;
+                    canceled = true;
+                    ++retries;
+                    co_await f->read_meta(dpp, asio::deferred);
+                    continue;
+                  } else if (ec) {
+                    ldpp_dout(dpp, -1)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " push_entries failed: " << ec.message() << dendl;
+                    throw sys::system_error(ec);
+                  }
+                  assert(n >= 0);
+                  // Made forward progress!
+                  canceled = false;
+                  retries = 0;
+                  batch_len = 0;
+                  if (n == ssize(batch)) {
+                    batch.clear();
+                  } else {
+                    batch.erase(batch.begin(), batch.begin() + n);
+                    for (const auto& b : batch) {
+                      batch_len += b.length() + overhead;
+                    }
+                  }
+                }
+                if (canceled) {
+                  ldpp_dout(dpp, -1)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " canceled too many times, giving up." << dendl;
+                  co_return sys::error_code{ECANCELED, sys::generic_category()};
+                }
+                co_return sys::error_code{};
+              } catch (const sys::system_error& e) {
+                ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " push failed: " << e.what() << dendl;
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(entries), this);
   }
 
   /// \brief List entries in the FIFO
@@ -1321,111 +1452,117 @@ public:
   /// \return (span<entry>, marker) where the span is long enough to hold
   ///         returned entries, and marker is non-null if the listing was
   ///         incomplete, in a way appropriate to the completion token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, std::span<entry>,
-                  std::string)> CompletionToken>
-  auto list(const DoutPrefixProvider* dpp,
-	    std::string markstr, std::span<entry> entries,
-	    CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken,
-				void(sys::error_code, std::span<entry>,
-                                     std::string)>
-      (asio::co_composed<void(sys::error_code,
-			      std::span<entry>,
-			      std::string)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::string markstr, std::span<entry> entries,
-	   FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<
+      void(sys::error_code, std::span<entry>, std::string)> CompletionToken>
+  auto
+  list(
+      const DoutPrefixProvider* dpp,
+      std::string markstr,
+      std::span<entry> entries,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<
+        CompletionToken, void(sys::error_code, std::span<entry>, std::string)>(
+        asio::co_composed<void(sys::error_code, std::span<entry>, std::string)>(
+            [](auto state, const DoutPrefixProvider* dpp, std::string markstr,
+               std::span<entry> entries, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " entering" << dendl;
-	   std::unique_lock l(f->m);
-	   std::int64_t part_num = f->info.tail_part_num;
-	   std::uint64_t ofs = 0;
-	   if (!markstr.empty()) {
-	     auto marker = f->to_marker(markstr, l);
-	     if (!marker) {
-	       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " invalid marker string: " << markstr
-				  << dendl;
-	       throw sys::system_error{EINVAL, sys::generic_category()};
-	     }
-	     part_num = marker->num;
-	     ofs = marker->ofs;
-	   }
-	   l.unlock();
+                ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " entering" << dendl;
+                std::unique_lock l(f->m);
+                std::int64_t part_num = f->info.tail_part_num;
+                std::uint64_t ofs = 0;
+                if (!markstr.empty()) {
+                  auto marker = f->to_marker(markstr, l);
+                  if (!marker) {
+                    ldpp_dout(dpp, -1)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " invalid marker string: " << markstr << dendl;
+                    throw sys::system_error{EINVAL, sys::generic_category()};
+                  }
+                  part_num = marker->num;
+                  ofs = marker->ofs;
+                }
+                l.unlock();
 
-	   bool more = false;
+                bool more = false;
 
-	   auto entries_left = entries;
+                auto entries_left = entries;
 
-	   while (entries_left.size() > 0) {
-	     more = false;
-	     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " entries_left.size()="
-				<< entries_left.size() << dendl;
-	     auto [ec, res, part_more, part_full] =
-	       co_await f->list_part(dpp, part_num, ofs, entries_left,
-				     asio::as_tuple(asio::deferred));
-	     if (ec == sys::errc::no_such_file_or_directory) {
-	       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " missing part, rereading metadata"
-				  << dendl;
-	       co_await f->read_meta(dpp, asio::deferred);
-	       std::unique_lock l(f->m);
-	       if (part_num < f->info.tail_part_num) {
-		 /* raced with trim? restart */
-		 ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				    << " raced with trim, restarting" << dendl;
-		 entries_left = entries;
-		 part_num = f->info.tail_part_num;
-		 l.unlock();
-		 ofs = 0;
-		 continue;
-	       }
-	       l.unlock();
-	       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " assuming part was not written yet, "
-				  << "so end of data" << dendl;
-	       break;
-	     } else if (ec) {
-	       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " list_entries failed: " << ec.message()
-				  << dendl;
-	       throw sys::system_error(ec);
-	     }
-	     more = part_full || part_more;
-	     entries_left = entries_left.last(entries_left.size() - res.size());
+                while (entries_left.size() > 0) {
+                  more = false;
+                  ldpp_dout(dpp, 20)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " entries_left.size()=" << entries_left.size()
+                      << dendl;
+                  auto [ec, res, part_more, part_full] = co_await f->list_part(
+                      dpp, part_num, ofs, entries_left,
+                      asio::as_tuple(asio::deferred));
+                  if (ec == sys::errc::no_such_file_or_directory) {
+                    ldpp_dout(dpp, 20)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " missing part, rereading metadata" << dendl;
+                    co_await f->read_meta(dpp, asio::deferred);
+                    std::unique_lock l(f->m);
+                    if (part_num < f->info.tail_part_num) {
+                      /* raced with trim? restart */
+                      ldpp_dout(dpp, 20)
+                          << __PRETTY_FUNCTION__ << ":" << __LINE__
+                          << " raced with trim, restarting" << dendl;
+                      entries_left = entries;
+                      part_num = f->info.tail_part_num;
+                      l.unlock();
+                      ofs = 0;
+                      continue;
+                    }
+                    l.unlock();
+                    ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                       << " assuming part was not written yet, "
+                                       << "so end of data" << dendl;
+                    break;
+                  } else if (ec) {
+                    ldpp_dout(dpp, -1)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " list_entries failed: " << ec.message() << dendl;
+                    throw sys::system_error(ec);
+                  }
+                  more = part_full || part_more;
+                  entries_left =
+                      entries_left.last(entries_left.size() - res.size());
 
-	     if (!part_full) {
-	       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " head part is not full, so we can assume "
-				  << "we're done" << dendl;
-	       break;
-	     }
-	     if (!part_more) {
-	       ++part_num;
-	       ofs = 0;
-	     }
-	   }
-	   std::string marker;
-	   if (entries_left.size() > 0) {
-	     entries = entries.first(entries.size() - entries_left.size());
-	   }
-	   if (more && !entries.empty()) {
-	     marker = entries.back().marker;
-	   }
-	   co_return {sys::error_code{}, std::move(entries), std::move(marker)};
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " list failed: " << e.what() << dendl;
-	   co_return {e.code(), std::span<entry>{}, std::string{}};
-	 }
-       }, rados.get_executor()),
-       token, dpp, std::move(markstr), std::move(entries), this);
+                  if (!part_full) {
+                    ldpp_dout(dpp, 20)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " head part is not full, so we can assume "
+                        << "we're done" << dendl;
+                    break;
+                  }
+                  if (!part_more) {
+                    ++part_num;
+                    ofs = 0;
+                  }
+                }
+                std::string marker;
+                if (entries_left.size() > 0) {
+                  entries = entries.first(entries.size() - entries_left.size());
+                }
+                if (more && !entries.empty()) {
+                  marker = entries.back().marker;
+                }
+                co_return {
+                    sys::error_code{}, std::move(entries), std::move(marker)};
+              } catch (const sys::system_error& e) {
+                ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " list failed: " << e.what() << dendl;
+                co_return {e.code(), std::span<entry>{}, std::string{}};
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(markstr), std::move(entries), this);
   }
 
   /// \brief Trim entries from the FIFO
@@ -1438,115 +1575,121 @@ public:
   ///
   /// \return Nothing, but may error in a way appropriate to the
   /// completion token.
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  auto trim(const DoutPrefixProvider* dpp,
-	    std::string marker, bool exclusive,
-	    CompletionToken&& token) {
-    return asio::async_initiate<CompletionToken,
-				void(sys::error_code)>
-      (asio::co_composed<void(sys::error_code)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   std::string markstr, bool exclusive, FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  auto
+  trim(
+      const DoutPrefixProvider* dpp,
+      std::string marker,
+      bool exclusive,
+      CompletionToken&& token)
+  {
+    return asio::async_initiate<CompletionToken, void(sys::error_code)>(
+        asio::co_composed<void(sys::error_code)>(
+            [](auto state, const DoutPrefixProvider* dpp, std::string markstr,
+               bool exclusive, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " entering" << dendl;
-	   bool overshoot = false;
-	   std::unique_lock l(f->m);
-	   auto marker = f->to_marker(markstr, l);
-	   if (!marker) {
-	     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " invalid marker string: " << markstr
-				<< dendl;
-	     throw sys::system_error{EINVAL, sys::generic_category()};
-	   }
-	   auto part_num = marker->num;
-	   auto ofs = marker->ofs;
-	   auto hn = f->info.head_part_num;
-	   const auto max_part_size = f->info.params.max_part_size;
-	   if (part_num > hn) {
-	     l.unlock();
-	     co_await f->read_meta(dpp, asio::deferred);
-	     l.lock();
-	     hn = f->info.head_part_num;
-	     if (part_num > hn) {
-	       overshoot = true;
-	       part_num = hn;
-	       ofs = max_part_size;
-	     }
-	   }
-	   if (part_num < f->info.tail_part_num) {
-	     throw sys::system_error(ENODATA, sys::generic_category());
-	   }
-	   auto pn = f->info.tail_part_num;
-	   l.unlock();
+                ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " entering" << dendl;
+                bool overshoot = false;
+                std::unique_lock l(f->m);
+                auto marker = f->to_marker(markstr, l);
+                if (!marker) {
+                  ldpp_dout(dpp, -1)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " invalid marker string: " << markstr << dendl;
+                  throw sys::system_error{EINVAL, sys::generic_category()};
+                }
+                auto part_num = marker->num;
+                auto ofs = marker->ofs;
+                auto hn = f->info.head_part_num;
+                const auto max_part_size = f->info.params.max_part_size;
+                if (part_num > hn) {
+                  l.unlock();
+                  co_await f->read_meta(dpp, asio::deferred);
+                  l.lock();
+                  hn = f->info.head_part_num;
+                  if (part_num > hn) {
+                    overshoot = true;
+                    part_num = hn;
+                    ofs = max_part_size;
+                  }
+                }
+                if (part_num < f->info.tail_part_num) {
+                  throw sys::system_error(ENODATA, sys::generic_category());
+                }
+                auto pn = f->info.tail_part_num;
+                l.unlock();
 
-	   while (pn < part_num) {
-	     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " pn=" << pn << dendl;
-	     auto [ec] = co_await f->trim_part(dpp, pn, max_part_size, false,
-					       asio::as_tuple(asio::deferred));
-	     if (ec && ec == sys::errc::no_such_file_or_directory) {
-	       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " trim_part failed: " << ec.message()
-				  << dendl;
-	       throw sys::system_error(ec);
-	     }
-	     ++pn;
-	   }
+                while (pn < part_num) {
+                  ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                     << " pn=" << pn << dendl;
+                  auto [ec] = co_await f->trim_part(
+                      dpp, pn, max_part_size, false,
+                      asio::as_tuple(asio::deferred));
+                  if (ec && ec == sys::errc::no_such_file_or_directory) {
+                    ldpp_dout(dpp, -1)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " trim_part failed: " << ec.message() << dendl;
+                    throw sys::system_error(ec);
+                  }
+                  ++pn;
+                }
 
-	   auto [ec] = co_await f->trim_part(dpp, pn, ofs, exclusive,
-					     asio::as_tuple(asio::deferred));
-	   if (ec && ec == sys::errc::no_such_file_or_directory) {
-	     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " trim_part failed: " << ec.message()
-				<< dendl;
-	     throw sys::system_error(ec);
-	   }
+                auto [ec] = co_await f->trim_part(
+                    dpp, pn, ofs, exclusive, asio::as_tuple(asio::deferred));
+                if (ec && ec == sys::errc::no_such_file_or_directory) {
+                  ldpp_dout(dpp, -1)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " trim_part failed: " << ec.message() << dendl;
+                  throw sys::system_error(ec);
+                }
 
-	   l.lock();
-	   auto tail_part_num = f->info.tail_part_num;
-	   auto objv = f->info.version;
-	   l.unlock();
-	   bool canceled = tail_part_num < part_num;
-	   int retries = 0;
-	   while ((tail_part_num < part_num) &&
-		  canceled &&
-		  (retries <= MAX_RACE_RETRIES)) {
-             canceled = co_await f->update_meta(dpp, fifo::update{}
-                                                .tail_part_num(part_num),
-						objv, asio::deferred);
-	     if (canceled) {
-	       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				  << " canceled: retries=" << retries
-				  << dendl;
-	       l.lock();
-	       tail_part_num = f->info.tail_part_num;
-	       objv = f->info.version;
-	       l.unlock();
-	       ++retries;
-	     }
-	   }
-	   if (canceled) {
-	     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-				<< " canceled too many times, giving up"
-				<< dendl;
-	     throw sys::system_error(EIO, sys::generic_category());
-	   }
-	   co_return (overshoot ?
-		      sys::error_code{ENODATA, sys::generic_category()} :
-		      sys::error_code{});
-	 } catch (const sys::system_error& e) {
-	   if (ceph::from_error_code(e.code()) != -ENODATA) {
-	     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-	                        << " trim failed: " << e.what() << dendl;
-	   }
-	   co_return e.code();
-	 }
-       }, rados.get_executor()),
-       token, dpp, std::move(marker), exclusive, this);
+                l.lock();
+                auto tail_part_num = f->info.tail_part_num;
+                auto objv = f->info.version;
+                l.unlock();
+                bool canceled = tail_part_num < part_num;
+                int retries = 0;
+                while ((tail_part_num < part_num) && canceled &&
+                       (retries <= MAX_RACE_RETRIES)) {
+                  canceled = co_await f->update_meta(
+                      dpp, fifo::update{}.tail_part_num(part_num), objv,
+                      asio::deferred);
+                  if (canceled) {
+                    ldpp_dout(dpp, 20)
+                        << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " canceled: retries=" << retries << dendl;
+                    l.lock();
+                    tail_part_num = f->info.tail_part_num;
+                    objv = f->info.version;
+                    l.unlock();
+                    ++retries;
+                  }
+                }
+                if (canceled) {
+                  ldpp_dout(dpp, -1)
+                      << __PRETTY_FUNCTION__ << ":" << __LINE__
+                      << " canceled too many times, giving up" << dendl;
+                  throw sys::system_error(EIO, sys::generic_category());
+                }
+                co_return (
+                    overshoot
+                        ? sys::error_code{ENODATA, sys::generic_category()}
+                        : sys::error_code{});
+              } catch (const sys::system_error& e) {
+                if (ceph::from_error_code(e.code()) != -ENODATA) {
+                  ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                     << " trim failed: " << e.what() << dendl;
+                }
+                co_return e.code();
+              }
+            },
+            rados.get_executor()),
+        token, dpp, std::move(marker), exclusive, this);
   }
 
   /// \brief Get information on the last entry
@@ -1556,48 +1699,54 @@ public:
   ///
   /// \return {marker, time} for the latest entry in a way appropriate
   /// to the completion token.
-  template<asio::completion_token_for<
-	     void(sys::error_code, std::string, ceph::real_time)>
-	   CompletionToken>
-  auto last_entry_info(const DoutPrefixProvider* dpp,
-		       CompletionToken&& token) {
+  template <asio::completion_token_for<
+      void(sys::error_code, std::string, ceph::real_time)> CompletionToken>
+  auto
+  last_entry_info(const DoutPrefixProvider* dpp, CompletionToken&& token)
+  {
     return asio::async_initiate<
-      CompletionToken, void(sys::error_code, std::string, ceph::real_time)>
-      (asio::co_composed<void(sys::error_code, std::string, ceph::real_time)>
-       ([](auto state, const DoutPrefixProvider* dpp,
-	   FIFOImpl* f) -> void {
-	 try {
-	   state.throw_if_cancelled(true);
-	   state.reset_cancellation_state(asio::enable_terminal_cancellation());
+        CompletionToken, void(sys::error_code, std::string, ceph::real_time)>(
+        asio::co_composed<void(sys::error_code, std::string, ceph::real_time)>(
+            [](auto state, const DoutPrefixProvider* dpp, FIFOImpl* f) -> void {
+              try {
+                state.throw_if_cancelled(true);
+                state.reset_cancellation_state(
+                    asio::enable_terminal_cancellation());
 
-	   co_await f->read_meta(dpp, asio::deferred);
-	   std::unique_lock l(f->m);
-	   auto head_part_num = f->info.head_part_num;
-	   l.unlock();
+                co_await f->read_meta(dpp, asio::deferred);
+                std::unique_lock l(f->m);
+                auto head_part_num = f->info.head_part_num;
+                l.unlock();
 
-	   if (head_part_num < 0) {
-	     co_return {sys::error_code{}, std::string{},
-	                ceph::real_clock::zero()};
-	   } else {
-	     auto header =
-	       co_await f->get_part_info(head_part_num, asio::deferred);
-	     co_return {sys::error_code{},
-	                marker{head_part_num, header.last_ofs}.to_string(),
-	                header.max_time};
-	   }
-	 } catch (const sys::system_error& e) {
-	   ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			      << " read failed: " << e.what() << dendl;
-	   co_return {e.code(), std::string{}, ceph::real_time{}};
-	 }
-       }, rados.get_executor()),
-       token, dpp, this);
+                if (head_part_num < 0) {
+                  co_return {
+                      sys::error_code{}, std::string{},
+                      ceph::real_clock::zero()};
+                } else {
+                  auto header =
+                      co_await f->get_part_info(head_part_num, asio::deferred);
+                  co_return {
+                      sys::error_code{},
+                      marker{head_part_num, header.last_ofs}.to_string(),
+                      header.max_time};
+                }
+              } catch (const sys::system_error& e) {
+                ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                                   << " read failed: " << e.what() << dendl;
+                co_return {e.code(), std::string{}, ceph::real_time{}};
+              }
+            },
+            rados.get_executor()),
+        token, dpp, this);
   }
 
   using executor_type = RADOS::executor_type;
-  executor_type get_executor() {
+
+  executor_type
+  get_executor()
+  {
     return rados.get_executor();
   }
 };
 } // namespace detail
-} // namespace neorados::clas::fifo
+} // namespace neorados::cls::fifo

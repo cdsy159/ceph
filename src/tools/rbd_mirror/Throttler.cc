@@ -14,8 +14,10 @@
  */
 
 #include "Throttler.h"
-#include "common/Formatter.h"
+
 #include "common/debug.h"
+
+#include "common/Formatter.h"
 #include "common/errno.h"
 #include "include/types.h" // for operator<<(std::pair)
 #include "librbd/Utils.h"
@@ -23,24 +25,27 @@
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::Throttler:: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::Throttler:: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
 
 template <typename I>
-Throttler<I>::Throttler(CephContext *cct, const std::string &config_key)
-  : m_cct(cct), m_config_key(config_key),
-    m_lock(ceph::make_mutex(
+Throttler<I>::Throttler(CephContext* cct, const std::string& config_key) :
+  m_cct(cct),
+  m_config_key(config_key),
+  m_lock(ceph::make_mutex(
       librbd::util::unique_lock_name("rbd::mirror::Throttler", this))),
-    m_max_concurrent_ops(cct->_conf.get_val<uint64_t>(m_config_key)) {
+  m_max_concurrent_ops(cct->_conf.get_val<uint64_t>(m_config_key))
+{
   dout(20) << m_config_key << "=" << m_max_concurrent_ops << dendl;
   m_cct->_conf.add_observer(this);
 }
 
 template <typename I>
-Throttler<I>::~Throttler() {
+Throttler<I>::~Throttler()
+{
   m_cct->_conf.remove_observer(this);
 
   std::lock_guard locker{m_lock};
@@ -49,9 +54,12 @@ Throttler<I>::~Throttler() {
 }
 
 template <typename I>
-void Throttler<I>::start_op(const std::string &ns,
-                                     const std::string &id_,
-                                     Context *on_start) {
+void
+Throttler<I>::start_op(
+    const std::string& ns,
+    const std::string& id_,
+    Context* on_start)
+{
   Id id{ns, id_};
 
   dout(20) << "id=" << id << dendl;
@@ -66,8 +74,9 @@ void Throttler<I>::start_op(const std::string &ns,
       dout(20) << "duplicate for already queued op " << id << dendl;
       std::swap(m_queued_ops[id], on_start);
       r = -ENOENT;
-    } else if (m_max_concurrent_ops == 0 ||
-               m_inflight_ops.size() < m_max_concurrent_ops) {
+    } else if (
+        m_max_concurrent_ops == 0 ||
+        m_inflight_ops.size() < m_max_concurrent_ops) {
       ceph_assert(m_queue.empty());
       m_inflight_ops.insert(id);
       dout(20) << "ready to start op for " << id << " ["
@@ -86,13 +95,14 @@ void Throttler<I>::start_op(const std::string &ns,
 }
 
 template <typename I>
-bool Throttler<I>::cancel_op(const std::string &ns,
-                                      const std::string &id_) {
+bool
+Throttler<I>::cancel_op(const std::string& ns, const std::string& id_)
+{
   Id id{ns, id_};
 
   dout(20) << "id=" << id << dendl;
 
-  Context *on_start = nullptr;
+  Context* on_start = nullptr;
   {
     std::lock_guard locker{m_lock};
     auto it = m_queued_ops.find(id);
@@ -113,8 +123,9 @@ bool Throttler<I>::cancel_op(const std::string &ns,
 }
 
 template <typename I>
-void Throttler<I>::finish_op(const std::string &ns,
-                                      const std::string &id_) {
+void
+Throttler<I>::finish_op(const std::string& ns, const std::string& id_)
+{
   Id id{ns, id_};
 
   dout(20) << "id=" << id << dendl;
@@ -123,7 +134,7 @@ void Throttler<I>::finish_op(const std::string &ns,
     return;
   }
 
-  Context *on_start = nullptr;
+  Context* on_start = nullptr;
   {
     std::lock_guard locker{m_lock};
 
@@ -149,13 +160,15 @@ void Throttler<I>::finish_op(const std::string &ns,
 }
 
 template <typename I>
-void Throttler<I>::drain(const std::string &ns, int r) {
+void
+Throttler<I>::drain(const std::string& ns, int r)
+{
   dout(20) << "ns=" << ns << dendl;
 
-  std::map<Id, Context *> queued_ops;
+  std::map<Id, Context*> queued_ops;
   {
     std::lock_guard locker{m_lock};
-    for (auto it = m_queued_ops.begin(); it != m_queued_ops.end(); ) {
+    for (auto it = m_queued_ops.begin(); it != m_queued_ops.end();) {
       if (it->first.first == ns) {
         queued_ops[it->first] = it->second;
         m_queue.remove(it->first);
@@ -164,7 +177,7 @@ void Throttler<I>::drain(const std::string &ns, int r) {
         it++;
       }
     }
-    for (auto it = m_inflight_ops.begin(); it != m_inflight_ops.end(); ) {
+    for (auto it = m_inflight_ops.begin(); it != m_inflight_ops.end();) {
       if (it->first == ns) {
         dout(20) << "inflight_op " << *it << dendl;
         it = m_inflight_ops.erase(it);
@@ -174,17 +187,19 @@ void Throttler<I>::drain(const std::string &ns, int r) {
     }
   }
 
-  for (auto &it : queued_ops) {
+  for (auto& it : queued_ops) {
     dout(20) << "queued_op " << it.first << dendl;
     it.second->complete(r);
   }
 }
 
 template <typename I>
-void Throttler<I>::set_max_concurrent_ops(uint32_t max) {
+void
+Throttler<I>::set_max_concurrent_ops(uint32_t max)
+{
   dout(20) << "max=" << max << dendl;
 
-  std::list<Context *> ops;
+  std::list<Context*> ops;
   {
     std::lock_guard locker{m_lock};
     m_max_concurrent_ops = max;
@@ -212,7 +227,9 @@ void Throttler<I>::set_max_concurrent_ops(uint32_t max) {
 }
 
 template <typename I>
-void Throttler<I>::print_status(ceph::Formatter *f) {
+void
+Throttler<I>::print_status(ceph::Formatter* f)
+{
   dout(20) << dendl;
 
   std::lock_guard locker{m_lock};
@@ -223,8 +240,11 @@ void Throttler<I>::print_status(ceph::Formatter *f) {
 }
 
 template <typename I>
-void Throttler<I>::handle_conf_change(const ConfigProxy& conf,
-                                      const std::set<std::string> &changed) {
+void
+Throttler<I>::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
+{
   if (changed.count(m_config_key)) {
     set_max_concurrent_ops(conf.get_val<uint64_t>(m_config_key));
   }

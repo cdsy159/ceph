@@ -7,13 +7,14 @@
 #include <map>
 #include <memory>
 #include <ostream>
+
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
 #include "crimson/common/type_helpers.h"
-
-#include "node_extent_mutable.h"
 #include "stages/key_layout.h"
 #include "stages/stage_types.h"
+
+#include "node_extent_mutable.h"
 #include "super.h"
 #include "value.h"
 
@@ -49,14 +50,20 @@ class LeafNode;
 class InternalNode;
 
 using layout_version_t = uint32_t;
+
 struct node_version_t {
   layout_version_t layout;
   nextent_state_t state;
 
-  bool operator==(const node_version_t& rhs) const {
+  bool
+  operator==(const node_version_t& rhs) const
+  {
     return (layout == rhs.layout && state == rhs.state);
   }
-  bool operator!=(const node_version_t& rhs) const {
+
+  bool
+  operator!=(const node_version_t& rhs) const
+  {
     return !(*this == rhs);
   }
 };
@@ -72,9 +79,9 @@ struct node_version_t {
  * Exposes public interfaces for Btree::Cursor.
  */
 class tree_cursor_t final
-  : public boost::intrusive_ref_counter<
-           tree_cursor_t, boost::thread_unsafe_counter> {
- public:
+  : public boost::
+        intrusive_ref_counter<tree_cursor_t, boost::thread_unsafe_counter> {
+public:
   ~tree_cursor_t();
   tree_cursor_t(const tree_cursor_t&) = delete;
   tree_cursor_t(tree_cursor_t&&) = delete;
@@ -90,7 +97,11 @@ class tree_cursor_t final
    * pairs in the tree. An end cursor won't contain valid key-value
    * information.
    */
-  bool is_end() const { return !!ref_leaf_node && position.is_end(); }
+  bool
+  is_end() const
+  {
+    return !!ref_leaf_node && position.is_end();
+  }
 
   /**
    * is_tracked
@@ -98,7 +109,11 @@ class tree_cursor_t final
    * Represents a key-value pair stored in the tree, which is always tracked
    * across insert/split/erase/merge operations.
    */
-  bool is_tracked() const { return !!ref_leaf_node && !position.is_end(); }
+  bool
+  is_tracked() const
+  {
+    return !!ref_leaf_node && !position.is_end();
+  }
 
   /**
    * is_invalid
@@ -106,10 +121,16 @@ class tree_cursor_t final
    * Represents an invalid cursor which was once valid and tracked by the tree
    * but is now erased and untracked. User may still hold an invalid cursor.
    */
-  bool is_invalid() const { return !ref_leaf_node; }
+  bool
+  is_invalid() const
+  {
+    return !ref_leaf_node;
+  }
 
   /// Returns the key view in tree if it is not an end cursor.
-  const key_view_t& get_key_view(value_magic_t magic) const {
+  const key_view_t&
+  get_key_view(value_magic_t magic) const
+  {
     assert(is_tracked());
     return cache.get_key_view(magic, position);
   }
@@ -129,14 +150,17 @@ class tree_cursor_t final
   // public to Value
 
   /// Get the latest value_header_t pointer for read.
-  const value_header_t* read_value_header(value_magic_t magic) const {
+  const value_header_t*
+  read_value_header(value_magic_t magic) const
+  {
     assert(is_tracked());
     return cache.get_p_value_header(magic, position);
   }
 
   /// Prepare the node extent to be mutable and recorded.
   std::pair<NodeExtentMutable&, ValueDeltaRecorder*>
-  prepare_mutate_value_payload(context_t c) {
+  prepare_mutate_value_payload(context_t c)
+  {
     assert(is_tracked());
     if (!is_mutated) {
       is_mutated = true;
@@ -151,42 +175,66 @@ class tree_cursor_t final
   /// Trim and shrink the value payload.
   eagain_ifuture<> trim_value(context_t, value_size_t);
 
-  static Ref<tree_cursor_t> get_invalid() {
+  static Ref<tree_cursor_t>
+  get_invalid()
+  {
     Ref<tree_cursor_t> INVALID = new tree_cursor_t();
     return INVALID;
   }
 
- private:
+private:
   // create from insert
   tree_cursor_t(Ref<LeafNode>, const search_position_t&);
   // create from lookup
-  tree_cursor_t(Ref<LeafNode>, const search_position_t&,
-                const key_view_t&, const value_header_t*);
+  tree_cursor_t(
+      Ref<LeafNode>,
+      const search_position_t&,
+      const key_view_t&,
+      const value_header_t*);
   // lookup reaches the end, contain leaf node for further insert
   tree_cursor_t(Ref<LeafNode>);
-  // create an invalid tree_cursor_t
-  tree_cursor_t() : cache{ref_leaf_node} {}
 
-  const search_position_t& get_position() const { return position; }
-  Ref<LeafNode> get_leaf_node() const { return ref_leaf_node; }
+  // create an invalid tree_cursor_t
+  tree_cursor_t() :
+    cache{ref_leaf_node}
+  {}
+
+  const search_position_t&
+  get_position() const
+  {
+    return position;
+  }
+
+  Ref<LeafNode>
+  get_leaf_node() const
+  {
+    return ref_leaf_node;
+  }
+
   template <bool VALIDATE>
   void update_track(Ref<LeafNode>, const search_position_t&);
-  void update_cache_same_node(const key_view_t&,
-                              const value_header_t*) const;
+  void update_cache_same_node(const key_view_t&, const value_header_t*) const;
   void invalidate();
 
-  static Ref<tree_cursor_t> create_inserted(
-      Ref<LeafNode> node, const search_position_t& pos) {
+  static Ref<tree_cursor_t>
+  create_inserted(Ref<LeafNode> node, const search_position_t& pos)
+  {
     return new tree_cursor_t(node, pos);
   }
 
-  static Ref<tree_cursor_t> create_tracked(
-      Ref<LeafNode> node, const search_position_t& pos,
-      const key_view_t& key, const value_header_t* p_header) {
+  static Ref<tree_cursor_t>
+  create_tracked(
+      Ref<LeafNode> node,
+      const search_position_t& pos,
+      const key_view_t& key,
+      const value_header_t* p_header)
+  {
     return new tree_cursor_t(node, pos, key, p_header);
   }
 
-  static Ref<tree_cursor_t> create_end(Ref<LeafNode> node) {
+  static Ref<tree_cursor_t>
+  create_end(Ref<LeafNode> node)
+  {
     return new tree_cursor_t(node);
   }
 
@@ -208,25 +256,39 @@ class tree_cursor_t final
    * extent copy-on-write or asynchronous leaf node updates.
    */
   class Cache {
-   public:
+  public:
     Cache(Ref<LeafNode>&);
     void validate_is_latest(const search_position_t&) const;
-    void invalidate() { needs_update_all = true; }
-    void update_all(const node_version_t&, const key_view_t&, const value_header_t*);
-    const key_view_t& get_key_view(
-        value_magic_t magic, const search_position_t& pos) {
+
+    void
+    invalidate()
+    {
+      needs_update_all = true;
+    }
+
+    void update_all(
+        const node_version_t&,
+        const key_view_t&,
+        const value_header_t*);
+
+    const key_view_t&
+    get_key_view(value_magic_t magic, const search_position_t& pos)
+    {
       make_latest(magic, pos);
       return *key_view;
     }
-    const value_header_t* get_p_value_header(
-        value_magic_t magic, const search_position_t& pos) {
+
+    const value_header_t*
+    get_p_value_header(value_magic_t magic, const search_position_t& pos)
+    {
       make_latest(magic, pos);
       return p_value_header;
     }
+
     std::pair<NodeExtentMutable&, ValueDeltaRecorder*>
     prepare_mutate_value_payload(context_t, const search_position_t&);
 
-   private:
+  private:
     void maybe_duplicate(const node_version_t&);
     void make_latest(value_magic_t, const search_position_t&);
 
@@ -244,6 +306,7 @@ class tree_cursor_t final
     std::optional<NodeExtentMutable> value_payload_mut;
     ValueDeltaRecorder* p_value_recorder = nullptr;
   };
+
   mutable Cache cache;
 
   friend class LeafNode;
@@ -258,21 +321,29 @@ class tree_cursor_t final
  * Exposes public interfaces for Btree.
  */
 class Node
-  : public boost::intrusive_ref_counter<
-           Node, boost::thread_unsafe_counter> {
- public:
+  : public boost::intrusive_ref_counter<Node, boost::thread_unsafe_counter> {
+public:
   // public to Btree
   struct search_result_t {
-    bool is_end() const { return p_cursor->is_end(); }
+    bool
+    is_end() const
+    {
+      return p_cursor->is_end();
+    }
+
     Ref<tree_cursor_t> p_cursor;
     match_stat_t mstat;
 
-    MatchKindBS match() const {
+    MatchKindBS
+    match() const
+    {
       assert(mstat >= MSTAT_MIN && mstat <= MSTAT_MAX);
       return (mstat == MSTAT_EQ ? MatchKindBS::EQ : MatchKindBS::NE);
     }
 
-    void validate_input_key(const key_hobj_t& key, value_magic_t magic) const {
+    void
+    validate_input_key(const key_hobj_t& key, value_magic_t magic) const
+    {
 #ifndef NDEBUG
       if (match() == MatchKindBS::EQ) {
         assert(key == p_cursor->get_key_view(magic));
@@ -347,8 +418,8 @@ class Node
    * - If true, the returned cursor points to the inserted element in tree;
    * - If false, the returned cursor points to the conflicting element in tree;
    */
-  eagain_ifuture<std::pair<Ref<tree_cursor_t>, bool>> insert(
-      context_t, const key_hobj_t&, value_config_t, Ref<Node>&&);
+  eagain_ifuture<std::pair<Ref<tree_cursor_t>, bool>>
+  insert(context_t, const key_hobj_t&, value_config_t, Ref<Node>&&);
 
   /**
    * erase
@@ -381,41 +452,57 @@ class Node
   void test_make_destructable(context_t, NodeExtentMutable&, Super::URef&&);
   virtual eagain_ifuture<> test_clone_root(context_t, RootNodeTracker&) const = 0;
 
- protected:
-  virtual eagain_ifuture<> test_clone_non_root(context_t, Ref<InternalNode>) const {
+protected:
+  virtual eagain_ifuture<>
+  test_clone_non_root(context_t, Ref<InternalNode>) const
+  {
     ceph_abort_msg("impossible path");
   }
+
   virtual eagain_ifuture<search_result_t> lower_bound_tracked(
-      context_t, const key_hobj_t&, MatchHistory&) = 0;
+      context_t,
+      const key_hobj_t&,
+      MatchHistory&) = 0;
   virtual eagain_ifuture<> do_get_tree_stats(context_t, tree_stats_t&) = 0;
 
   virtual bool is_tracking() const = 0;
 
   virtual void track_merge(Ref<Node>, match_stage_t, search_position_t&) = 0;
 
- protected:
+protected:
   Node(NodeImplURef&&);
 
-  bool is_tracked() const {
+  bool
+  is_tracked() const
+  {
     assert(!(super && _parent_info.has_value()));
     return (super || _parent_info.has_value());
   }
 
-  bool is_root() const {
+  bool
+  is_root() const
+  {
     assert(is_tracked());
     return !_parent_info.has_value();
   }
 
   // as root
   void make_root(context_t c, Super::URef&& _super);
-  void make_root_new(context_t c, Super::URef&& _super) {
+
+  void
+  make_root_new(context_t c, Super::URef&& _super)
+  {
     assert(_super->get_root_laddr() == L_ADDR_NULL);
     make_root(c, std::move(_super));
   }
-  void make_root_from(context_t c, Super::URef&& _super, laddr_t from_addr) {
+
+  void
+  make_root_from(context_t c, Super::URef&& _super, laddr_t from_addr)
+  {
     assert(_super->get_root_laddr() == from_addr);
     make_root(c, std::move(_super));
   }
+
   void as_root(Super::URef&& _super);
   eagain_ifuture<> upgrade_root(context_t, laddr_t);
 
@@ -429,11 +516,17 @@ class Node
     search_position_t position;
     Ref<InternalNode> ptr;
   };
-  const parent_info_t& parent_info() const { return *_parent_info; }
+
+  const parent_info_t&
+  parent_info() const
+  {
+    return *_parent_info;
+  }
 
   Ref<InternalNode> deref_parent();
 
-  eagain_ifuture<> apply_split_to_parent(context_t, Ref<Node>&&, Ref<Node>&&, bool);
+  eagain_ifuture<>
+  apply_split_to_parent(context_t, Ref<Node>&&, Ref<Node>&&, bool);
   eagain_ifuture<Ref<tree_cursor_t>> get_next_cursor_from_parent(context_t);
   template <bool FORCE_MERGE = false>
   eagain_ifuture<> try_merge_adjacent(context_t, bool, Ref<Node>&&);
@@ -444,7 +537,7 @@ class Node
   eagain_ifuture<> retire(context_t, Ref<Node>&&);
   void make_tail(context_t);
 
- private:
+private:
   /**
    * Reversed resource management (Node)
    *
@@ -459,13 +552,19 @@ class Node
   // as child/non-root
   std::optional<parent_info_t> _parent_info;
 
- private:
-  static eagain_ifuture<Ref<Node>> load(context_t, laddr_t, bool expect_is_level_tail);
+private:
+  static eagain_ifuture<Ref<Node>> load(
+      context_t,
+      laddr_t,
+      bool expect_is_level_tail);
 
   NodeImplURef impl;
   friend class InternalNode;
 };
-inline std::ostream& operator<<(std::ostream& os, const Node& node) {
+
+inline std::ostream&
+operator<<(std::ostream& os, const Node& node)
+{
   return node.dump_brief(os);
 }
 
@@ -477,21 +576,28 @@ inline std::ostream& operator<<(std::ostream& os, const Node& node) {
  * addresses to its child nodes. An internal node cannot be empty.
  */
 class InternalNode final : public Node {
- public:
+public:
   // public to Node
   InternalNode(InternalNodeImpl*, NodeImplURef&&);
+
   ~InternalNode() override { assert(tracked_child_nodes.empty()); }
+
   InternalNode(const InternalNode&) = delete;
   InternalNode(InternalNode&&) = delete;
   InternalNode& operator=(const InternalNode&) = delete;
   InternalNode& operator=(InternalNode&&) = delete;
 
-  eagain_ifuture<Ref<tree_cursor_t>> get_next_cursor(context_t, const search_position_t&);
+  eagain_ifuture<Ref<tree_cursor_t>> get_next_cursor(
+      context_t,
+      const search_position_t&);
 
-  eagain_ifuture<> apply_child_split(context_t, Ref<Node>&& left, Ref<Node>&& right, bool);
+  eagain_ifuture<>
+  apply_child_split(context_t, Ref<Node>&& left, Ref<Node>&& right, bool);
 
   template <bool VALIDATE>
-  void do_track_child(Node& child) {
+  void
+  do_track_child(Node& child)
+  {
     if constexpr (VALIDATE) {
       validate_child(child);
     }
@@ -500,14 +606,18 @@ class InternalNode final : public Node {
     tracked_child_nodes[child_pos] = &child;
   }
 
-  void do_untrack_child(const Node& child) {
+  void
+  do_untrack_child(const Node& child)
+  {
     assert(check_is_tracking(child));
     auto& child_pos = child.parent_info().position;
     [[maybe_unused]] auto removed = tracked_child_nodes.erase(child_pos);
     assert(removed);
   }
 
-  bool check_is_tracking(const Node& child) const {
+  bool
+  check_is_tracking(const Node& child) const
+  {
     auto& child_pos = child.parent_info().position;
     auto found = tracked_child_nodes.find(child_pos);
     if (found != tracked_child_nodes.end() && found->second == &child) {
@@ -519,7 +629,8 @@ class InternalNode final : public Node {
   }
 
   eagain_ifuture<std::pair<Ref<Node>, Ref<Node>>> get_child_peers(
-      context_t, const search_position_t&);
+      context_t,
+      const search_position_t&);
 
   eagain_ifuture<> erase_child(context_t, Ref<Node>&&);
 
@@ -528,18 +639,29 @@ class InternalNode final : public Node {
 
   template <bool FORCE_MERGE = false>
   eagain_ifuture<> apply_children_merge(
-      context_t, Ref<Node>&& left, laddr_t, Ref<Node>&& right, bool update_index);
+      context_t,
+      Ref<Node>&& left,
+      laddr_t,
+      Ref<Node>&& right,
+      bool update_index);
 
-  void validate_child_tracked(const Node& child) const {
+  void
+  validate_child_tracked(const Node& child) const
+  {
     validate_child(child);
-    assert(tracked_child_nodes.find(child.parent_info().position) !=
-           tracked_child_nodes.end());
-    assert(tracked_child_nodes.find(child.parent_info().position)->second == &child);
+    assert(
+        tracked_child_nodes.find(child.parent_info().position) !=
+        tracked_child_nodes.end());
+    assert(
+        tracked_child_nodes.find(child.parent_info().position)->second ==
+        &child);
   }
 
   void validate_child_inconsistent(const Node& child) const;
 
-  void validate_tracked_children() const {
+  void
+  validate_tracked_children() const
+  {
 #ifndef NDEBUG
     for (auto& kv : tracked_child_nodes) {
       assert(kv.first == kv.second->parent_info().position);
@@ -550,35 +672,50 @@ class InternalNode final : public Node {
 
   void track_make_tail(const search_position_t&);
 
-  static eagain_ifuture<Ref<InternalNode>> allocate_root(
-      context_t, laddr_t, level_t, laddr_t, Super::URef&&);
+  static eagain_ifuture<Ref<InternalNode>>
+  allocate_root(context_t, laddr_t, level_t, laddr_t, Super::URef&&);
 
- protected:
+protected:
   eagain_ifuture<Ref<tree_cursor_t>> lookup_smallest(context_t) override;
   eagain_ifuture<Ref<tree_cursor_t>> lookup_largest(context_t) override;
   eagain_ifuture<search_result_t> lower_bound_tracked(
-      context_t, const key_hobj_t&, MatchHistory&) override;
+      context_t,
+      const key_hobj_t&,
+      MatchHistory&) override;
   eagain_ifuture<> do_get_tree_stats(context_t, tree_stats_t&) override;
-  bool is_tracking() const override {
-     return !tracked_child_nodes.empty();
+
+  bool
+  is_tracking() const override
+  {
+    return !tracked_child_nodes.empty();
   }
+
   void track_merge(Ref<Node>, match_stage_t, search_position_t&) override;
 
   eagain_ifuture<> test_clone_root(context_t, RootNodeTracker&) const override;
 
- private:
+private:
   eagain_ifuture<> try_downgrade_root(context_t, Ref<Node>&&);
 
   eagain_ifuture<Ref<InternalNode>> insert_or_split(
-      context_t, const search_position_t&, const key_view_t&, Ref<Node>,
-      Ref<Node> outdated_child=nullptr);
+      context_t,
+      const search_position_t&,
+      const key_view_t&,
+      Ref<Node>,
+      Ref<Node> outdated_child = nullptr);
 
   // XXX: extract a common tracker for InternalNode to track Node,
   // and LeafNode to track tree_cursor_t.
-  eagain_ifuture<Ref<Node>> get_or_track_child(context_t, const search_position_t&, laddr_t);
+  eagain_ifuture<Ref<Node>> get_or_track_child(
+      context_t,
+      const search_position_t&,
+      laddr_t);
   template <bool VALIDATE = true>
   void track_insert(
-      const search_position_t&, match_stage_t, Ref<Node>, Ref<Node> nxt_child = nullptr);
+      const search_position_t&,
+      match_stage_t,
+      Ref<Node>,
+      Ref<Node> nxt_child = nullptr);
   void replace_track(Ref<Node> new_child, Ref<Node> old_child, bool);
   void track_split(const search_position_t&, Ref<InternalNode>);
   template <bool VALIDATE = true>
@@ -588,13 +725,18 @@ class InternalNode final : public Node {
   struct fresh_node_t {
     Ref<InternalNode> node;
     NodeExtentMutable mut;
-    std::pair<Ref<Node>, NodeExtentMutable> make_pair() {
+
+    std::pair<Ref<Node>, NodeExtentMutable>
+    make_pair()
+    {
       return std::make_pair(Ref<Node>(node), mut);
     }
   };
-  static eagain_ifuture<fresh_node_t> allocate(context_t, laddr_t, field_type_t, bool, level_t);
 
- private:
+  static eagain_ifuture<fresh_node_t>
+  allocate(context_t, laddr_t, field_type_t, bool, level_t);
+
+private:
   /**
    * Reversed resource management (InternalNode)
    *
@@ -614,9 +756,10 @@ class InternalNode final : public Node {
  * Its level is always 0. A leaf node can only be empty if it is root.
  */
 class LeafNode final : public Node {
- public:
+public:
   // public to tree_cursor_t
   ~LeafNode() override { assert(tracked_cursors.empty()); }
+
   LeafNode(const LeafNode&) = delete;
   LeafNode(LeafNode&&) = delete;
   LeafNode& operator=(const LeafNode&) = delete;
@@ -626,8 +769,11 @@ class LeafNode final : public Node {
   node_version_t get_version() const;
   const char* read() const;
   extent_len_t get_node_size() const;
-  std::tuple<key_view_t, const value_header_t*> get_kv(const search_position_t&) const;
-  eagain_ifuture<Ref<tree_cursor_t>> get_next_cursor(context_t, const search_position_t&);
+  std::tuple<key_view_t, const value_header_t*> get_kv(
+      const search_position_t&) const;
+  eagain_ifuture<Ref<tree_cursor_t>> get_next_cursor(
+      context_t,
+      const search_position_t&);
 
   /**
    * erase
@@ -639,10 +785,14 @@ class LeafNode final : public Node {
    */
   template <bool FORCE_MERGE>
   eagain_ifuture<Ref<tree_cursor_t>> erase(
-      context_t, const search_position_t&, bool get_next);
+      context_t,
+      const search_position_t&,
+      bool get_next);
 
   template <bool VALIDATE>
-  void do_track_cursor(tree_cursor_t& cursor) {
+  void
+  do_track_cursor(tree_cursor_t& cursor)
+  {
     if constexpr (VALIDATE) {
       validate_cursor(cursor);
     }
@@ -650,14 +800,20 @@ class LeafNode final : public Node {
     assert(tracked_cursors.find(cursor_pos) == tracked_cursors.end());
     tracked_cursors.emplace(cursor_pos, &cursor);
   }
-  void do_untrack_cursor(const tree_cursor_t& cursor) {
+
+  void
+  do_untrack_cursor(const tree_cursor_t& cursor)
+  {
     validate_cursor(cursor);
     auto& cursor_pos = cursor.get_position();
     assert(check_is_tracking(cursor));
     [[maybe_unused]] auto removed = tracked_cursors.erase(cursor_pos);
     assert(removed);
   }
-  bool check_is_tracking(const tree_cursor_t& cursor) const {
+
+  bool
+  check_is_tracking(const tree_cursor_t& cursor) const
+  {
     auto& cursor_pos = cursor.get_position();
     auto found = tracked_cursors.find(cursor_pos);
     if (found != tracked_cursors.end() && found->second == &cursor) {
@@ -668,44 +824,63 @@ class LeafNode final : public Node {
     }
   }
 
-  eagain_ifuture<> extend_value(context_t, const search_position_t&, value_size_t);
+  eagain_ifuture<> extend_value(
+      context_t,
+      const search_position_t&,
+      value_size_t);
   eagain_ifuture<> trim_value(context_t, const search_position_t&, value_size_t);
 
   std::pair<NodeExtentMutable&, ValueDeltaRecorder*>
-  prepare_mutate_value_payload(context_t);
+      prepare_mutate_value_payload(context_t);
 
- protected:
+protected:
   eagain_ifuture<Ref<tree_cursor_t>> lookup_smallest(context_t) override;
   eagain_ifuture<Ref<tree_cursor_t>> lookup_largest(context_t) override;
   eagain_ifuture<search_result_t> lower_bound_tracked(
-      context_t, const key_hobj_t&, MatchHistory&) override;
+      context_t,
+      const key_hobj_t&,
+      MatchHistory&) override;
   eagain_ifuture<> do_get_tree_stats(context_t, tree_stats_t&) override;
-  bool is_tracking() const override {
+
+  bool
+  is_tracking() const override
+  {
     return !tracked_cursors.empty();
   }
+
   void track_merge(Ref<Node>, match_stage_t, search_position_t&) override;
 
   eagain_ifuture<> test_clone_root(context_t, RootNodeTracker&) const override;
 
- private:
+private:
   LeafNode(LeafNodeImpl*, NodeImplURef&&);
   eagain_ifuture<Ref<tree_cursor_t>> insert_value(
-      context_t, const key_hobj_t&, value_config_t,
-      const search_position_t&, const MatchHistory&,
+      context_t,
+      const key_hobj_t&,
+      value_config_t,
+      const search_position_t&,
+      const MatchHistory&,
       match_stat_t mstat);
   static eagain_ifuture<Ref<LeafNode>> allocate_root(context_t, RootNodeTracker&);
   friend class Node;
 
- private:
+private:
   // XXX: extract a common tracker for InternalNode to track Node,
   // and LeafNode to track tree_cursor_t.
   Ref<tree_cursor_t> get_or_track_cursor(
-      const search_position_t&, const key_view_t&, const value_header_t*);
+      const search_position_t&,
+      const key_view_t&,
+      const value_header_t*);
   Ref<tree_cursor_t> track_insert(
-      const search_position_t&, match_stage_t, const value_header_t*);
+      const search_position_t&,
+      match_stage_t,
+      const value_header_t*);
   void track_split(const search_position_t&, Ref<LeafNode>);
   void track_erase(const search_position_t&, match_stage_t);
-  void validate_tracked_cursors() const {
+
+  void
+  validate_tracked_cursors() const
+  {
 #ifndef NDEBUG
     for (auto& kv : tracked_cursors) {
       assert(kv.first == kv.second->get_position());
@@ -713,20 +888,31 @@ class LeafNode final : public Node {
     }
 #endif
   }
+
   void validate_cursor(const tree_cursor_t& cursor) const;
+
   // invalidate p_value pointers in tree_cursor_t
-  void on_layout_change() { ++layout_version; }
+  void
+  on_layout_change()
+  {
+    ++layout_version;
+  }
 
   struct fresh_node_t {
     Ref<LeafNode> node;
     NodeExtentMutable mut;
-    std::pair<Ref<Node>, NodeExtentMutable> make_pair() {
+
+    std::pair<Ref<Node>, NodeExtentMutable>
+    make_pair()
+    {
       return std::make_pair(Ref<Node>(node), mut);
     }
   };
-  static eagain_ifuture<fresh_node_t> allocate(context_t, laddr_t, field_type_t, bool);
 
- private:
+  static eagain_ifuture<fresh_node_t>
+  allocate(context_t, laddr_t, field_type_t, bool);
+
+private:
   /**
    * Reversed resource management (LeafNode)
    *
@@ -740,4 +926,4 @@ class LeafNode final : public Node {
   layout_version_t layout_version = 0;
 };
 
-}
+} // namespace crimson::os::seastore::onode

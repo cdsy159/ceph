@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,11 +16,12 @@
 #ifndef CEPH_AUTHSERVICEHANDLER_H
 #define CEPH_AUTHSERVICEHANDLER_H
 
-#include <stddef.h>              // for NULL
-#include <stdint.h>              // for uint64_t
-#include "common/entity_name.h"  // for EntityName
+#include <stddef.h> // for NULL
+#include <stdint.h> // for uint64_t
+
+#include "common/entity_name.h" // for EntityName
+#include "include/buffer_fwd.h" // for ceph::buffer::list
 #include "include/common_fwd.h"
-#include "include/buffer_fwd.h"  // for ceph::buffer::list
 
 class KeyServer;
 class CryptoKey;
@@ -42,43 +43,64 @@ enum class global_id_status_t {
   RECLAIM_INSECURE
 };
 
-std::ostream& operator<<(std::ostream& os,
-			 global_id_status_t global_id_status);
+std::ostream& operator<<(std::ostream& os, global_id_status_t global_id_status);
 
 struct AuthServiceHandler {
 protected:
-  CephContext *cct;
+  CephContext* cct;
   EntityName entity_name;
   uint64_t global_id = 0;
   global_id_status_t global_id_status = global_id_status_t::NONE;
 
 public:
-  explicit AuthServiceHandler(CephContext *cct_) : cct(cct_) {}
+  explicit AuthServiceHandler(CephContext* cct_) :
+    cct(cct_)
+  {}
 
-  virtual ~AuthServiceHandler() { }
+  virtual ~AuthServiceHandler() {}
 
-  int start_session(const EntityName& entity_name,
-		    uint64_t global_id,
-		    bool is_new_global_id,
-		    ceph::buffer::list *result,
-		    AuthCapsInfo *caps);
-  virtual int handle_request(ceph::buffer::list::const_iterator& indata,
-			     size_t connection_secret_required_length,
-			     ceph::buffer::list *result,
-			     AuthCapsInfo *caps,
-			     CryptoKey *session_key,
-			     std::string *connection_secret) = 0;
+  int start_session(
+      const EntityName& entity_name,
+      uint64_t global_id,
+      bool is_new_global_id,
+      ceph::buffer::list* result,
+      AuthCapsInfo* caps);
+  virtual int handle_request(
+      ceph::buffer::list::const_iterator& indata,
+      size_t connection_secret_required_length,
+      ceph::buffer::list* result,
+      AuthCapsInfo* caps,
+      CryptoKey* session_key,
+      std::string* connection_secret) = 0;
 
-  const EntityName& get_entity_name() { return entity_name; }
-  uint64_t get_global_id() { return global_id; }
-  global_id_status_t get_global_id_status() { return global_id_status; }
+  const EntityName&
+  get_entity_name()
+  {
+    return entity_name;
+  }
+
+  uint64_t
+  get_global_id()
+  {
+    return global_id;
+  }
+
+  global_id_status_t
+  get_global_id_status()
+  {
+    return global_id_status;
+  }
 
 private:
-  virtual int do_start_session(bool is_new_global_id,
-			       ceph::buffer::list *result,
-			       AuthCapsInfo *caps) = 0;
+  virtual int do_start_session(
+      bool is_new_global_id,
+      ceph::buffer::list* result,
+      AuthCapsInfo* caps) = 0;
 };
 
-extern AuthServiceHandler *get_auth_service_handler(int type, CephContext *cct, KeyServer *ks);
+extern AuthServiceHandler* get_auth_service_handler(
+    int type,
+    CephContext* cct,
+    KeyServer* ks);
 
 #endif

@@ -1,31 +1,33 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_sts.h"
+
 #include <errno.h>
+
 #include <ctime>
 #include <regex>
-#include <boost/format.hpp>
-#include <boost/algorithm/string/replace.hpp>
 
-#include "common/errno.h"
+#include <boost/algorithm/string/replace.hpp>
+#include <boost/format.hpp>
+
+#include "auth/Crypto.h"
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
 #include "common/ceph_time.h"
-#include "auth/Crypto.h"
-#include "include/ceph_fs.h"
+#include "common/errno.h"
 #include "common/iso_8601.h"
-
+#include "driver/rados/rgw_user.h"
+#include "include/ceph_fs.h"
 #include "include/types.h"
-#include "rgw_string.h"
 
 #include "rgw_account.h"
 #include "rgw_b64.h"
 #include "rgw_common.h"
-#include "rgw_role.h"
-#include "driver/rados/rgw_user.h"
 #include "rgw_iam_policy.h"
-#include "rgw_sts.h"
+#include "rgw_role.h"
 #include "rgw_sal.h"
+#include "rgw_string.h"
 #ifdef WITH_RADOSGW_RADOS
 #include "rgw_sal_rados.h"
 #endif
@@ -36,34 +38,40 @@ using namespace std;
 
 namespace STS {
 
-void Credentials::dump(Formatter *f) const
+void
+Credentials::dump(Formatter* f) const
 {
-  encode_json("AccessKeyId", accessKeyId , f);
-  encode_json("Expiration", expiration , f);
-  encode_json("SecretAccessKey", secretAccessKey , f);
-  encode_json("SessionToken", sessionToken , f);
+  encode_json("AccessKeyId", accessKeyId, f);
+  encode_json("Expiration", expiration, f);
+  encode_json("SecretAccessKey", secretAccessKey, f);
+  encode_json("SessionToken", sessionToken, f);
 }
 
-int Credentials::generateCredentials(const DoutPrefixProvider *dpp,
-                          CephContext* cct,
-                          const uint64_t& duration,
-                          const boost::optional<std::string>& policy,
-                          const boost::optional<std::string>& roleId,
-                          const boost::optional<std::string>& role_session,
-                          const boost::optional<std::vector<std::string>>& token_claims,
-                          const boost::optional<std::vector<std::pair<std::string,std::string>>>& session_princ_tags,
-                          boost::optional<rgw_user> user,
-                          rgw::auth::Identity* identity)
+int
+Credentials::generateCredentials(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    const uint64_t& duration,
+    const boost::optional<std::string>& policy,
+    const boost::optional<std::string>& roleId,
+    const boost::optional<std::string>& role_session,
+    const boost::optional<std::vector<std::string>>& token_claims,
+    const boost::optional<std::vector<std::pair<std::string, std::string>>>&
+        session_princ_tags,
+    boost::optional<rgw_user> user,
+    rgw::auth::Identity* identity)
 {
   uuid_d accessKey, secretKey;
-  char accessKeyId_str[MAX_ACCESS_KEY_LEN + 1], secretAccessKey_str[MAX_SECRET_KEY_LEN + 1];
+  char accessKeyId_str[MAX_ACCESS_KEY_LEN + 1],
+      secretAccessKey_str[MAX_SECRET_KEY_LEN + 1];
 
   //AccessKeyId
   gen_rand_alphanumeric_plain(cct, accessKeyId_str, sizeof(accessKeyId_str));
   accessKeyId = accessKeyId_str;
 
   //SecretAccessKey
-  gen_rand_alphanumeric_upper(cct, secretAccessKey_str, sizeof(secretAccessKey_str));
+  gen_rand_alphanumeric_upper(
+      cct, secretAccessKey_str, sizeof(secretAccessKey_str));
   secretAccessKey = secretAccessKey_str;
 
   //Expiration
@@ -73,7 +81,7 @@ int Credentials::generateCredentials(const DoutPrefixProvider *dpp,
 
   //Session Token - Encrypt using AES
   auto* cryptohandler = cct->get_crypto_handler(CEPH_CRYPTO_AES);
-  if (! cryptohandler) {
+  if (!cryptohandler) {
     ldpp_dout(dpp, 0) << "ERROR: No AES crypto handler found !" << dendl;
     return -EINVAL;
   }
@@ -86,12 +94,15 @@ int Credentials::generateCredentials(const DoutPrefixProvider *dpp,
   buffer::ptr secret(secret_s.c_str(), secret_s.length());
   int ret = 0;
   if (ret = cryptohandler->validate_secret(secret); ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: Invalid rgw sts key, please ensure it is an alphanumeric key of length 16" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: Invalid rgw sts key, please ensure it is an "
+                         "alphanumeric key of length 16"
+                      << dendl;
     return ret;
   }
   string error;
-  std::unique_ptr<CryptoKeyHandler> keyhandler(cryptohandler->get_key_handler(secret, error));
-  if (! keyhandler) {
+  std::unique_ptr<CryptoKeyHandler> keyhandler(
+      cryptohandler->get_key_handler(secret, error));
+  if (!keyhandler) {
     ldpp_dout(dpp, 0) << "ERROR: No Key handler found !" << dendl;
     return -EINVAL;
   }
@@ -147,7 +158,8 @@ int Credentials::generateCredentials(const DoutPrefixProvider *dpp,
   encode(token, input);
 
   if (ret = keyhandler->encrypt(input, enc_output, &error); ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: Encrypting session token returned an error !" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: Encrypting session token returned an error !"
+                      << dendl;
     return ret;
   }
 
@@ -159,26 +171,28 @@ int Credentials::generateCredentials(const DoutPrefixProvider *dpp,
   return ret;
 }
 
-void AssumedRoleUser::dump(Formatter *f) const
+void
+AssumedRoleUser::dump(Formatter* f) const
 {
-  encode_json("Arn", arn , f);
-  encode_json("AssumeRoleId", assumeRoleId , f);
+  encode_json("Arn", arn, f);
+  encode_json("AssumeRoleId", assumeRoleId, f);
 }
 
-int AssumedRoleUser::generateAssumedRoleUser(CephContext* cct,
-                                              rgw::sal::Driver* driver,
-                                              const string& roleId,
-                                              const rgw::ARN& roleArn,
-                                              const string& roleSessionName)
+int
+AssumedRoleUser::generateAssumedRoleUser(
+    CephContext* cct,
+    rgw::sal::Driver* driver,
+    const string& roleId,
+    const rgw::ARN& roleArn,
+    const string& roleSessionName)
 {
   string resource = std::move(roleArn.resource);
   boost::replace_first(resource, "role", "assumed-role");
   resource.append("/");
   resource.append(roleSessionName);
-  
-  rgw::ARN assumed_role_arn(rgw::Partition::aws,
-                                  rgw::Service::sts,
-                                  "", roleArn.account, resource);
+
+  rgw::ARN assumed_role_arn(
+      rgw::Partition::aws, rgw::Service::sts, "", roleArn.account, resource);
   arn = assumed_role_arn.to_string();
 
   //Assumeroleid = roleid:rolesessionname
@@ -187,12 +201,16 @@ int AssumedRoleUser::generateAssumedRoleUser(CephContext* cct,
   return 0;
 }
 
-AssumeRoleRequestBase::AssumeRoleRequestBase( CephContext* cct,
-                                              const string& duration,
-                                              const string& iamPolicy,
-                                              const string& roleArn,
-                                              const string& roleSessionName)
-  : cct(cct), iamPolicy(iamPolicy), roleArn(roleArn), roleSessionName(roleSessionName)
+AssumeRoleRequestBase::AssumeRoleRequestBase(
+    CephContext* cct,
+    const string& duration,
+    const string& iamPolicy,
+    const string& roleArn,
+    const string& roleSessionName) :
+  cct(cct),
+  iamPolicy(iamPolicy),
+  roleArn(roleArn),
+  roleSessionName(roleSessionName)
 {
   MIN_DURATION_IN_SECS = cct->_conf->rgw_sts_min_session_duration;
   if (duration.empty()) {
@@ -202,40 +220,47 @@ AssumeRoleRequestBase::AssumeRoleRequestBase( CephContext* cct,
   }
 }
 
-int AssumeRoleRequestBase::validate_input(const DoutPrefixProvider *dpp) const
+int
+AssumeRoleRequestBase::validate_input(const DoutPrefixProvider* dpp) const
 {
   if (!err_msg.empty()) {
     ldpp_dout(dpp, 0) << "ERROR: error message is empty !" << dendl;
     return -EINVAL;
   }
 
-  if (duration < MIN_DURATION_IN_SECS ||
-          duration > MAX_DURATION_IN_SECS) {
-    ldpp_dout(dpp, 0) << "ERROR: Incorrect value of duration: " << duration << dendl;
+  if (duration < MIN_DURATION_IN_SECS || duration > MAX_DURATION_IN_SECS) {
+    ldpp_dout(dpp, 0) << "ERROR: Incorrect value of duration: " << duration
+                      << dendl;
     return -EINVAL;
   }
 
-  if (! iamPolicy.empty() &&
-          (iamPolicy.size() < MIN_POLICY_SIZE || iamPolicy.size() > MAX_POLICY_SIZE)) {
-    ldpp_dout(dpp, 0) << "ERROR: Incorrect size of iamPolicy: " << iamPolicy.size() << dendl;
+  if (!iamPolicy.empty() && (iamPolicy.size() < MIN_POLICY_SIZE ||
+                             iamPolicy.size() > MAX_POLICY_SIZE)) {
+    ldpp_dout(dpp, 0) << "ERROR: Incorrect size of iamPolicy: "
+                      << iamPolicy.size() << dendl;
     return -ERR_PACKED_POLICY_TOO_LARGE;
   }
 
-  if (! roleArn.empty() &&
-          (roleArn.size() < MIN_ROLE_ARN_SIZE || roleArn.size() > MAX_ROLE_ARN_SIZE)) {
-    ldpp_dout(dpp, 0) << "ERROR: Incorrect size of roleArn: " << roleArn.size() << dendl;
+  if (!roleArn.empty() && (roleArn.size() < MIN_ROLE_ARN_SIZE ||
+                           roleArn.size() > MAX_ROLE_ARN_SIZE)) {
+    ldpp_dout(dpp, 0) << "ERROR: Incorrect size of roleArn: " << roleArn.size()
+                      << dendl;
     return -EINVAL;
   }
 
-  if (! roleSessionName.empty()) {
-    if (roleSessionName.size() < MIN_ROLE_SESSION_SIZE || roleSessionName.size() > MAX_ROLE_SESSION_SIZE) {
-      ldpp_dout(dpp, 0) << "ERROR: Either role session name is empty or role session size is incorrect: " << roleSessionName.size() << dendl;
+  if (!roleSessionName.empty()) {
+    if (roleSessionName.size() < MIN_ROLE_SESSION_SIZE ||
+        roleSessionName.size() > MAX_ROLE_SESSION_SIZE) {
+      ldpp_dout(dpp, 0) << "ERROR: Either role session name is empty or role "
+                           "session size is incorrect: "
+                        << roleSessionName.size() << dendl;
       return -EINVAL;
     }
 
     std::regex regex_roleSession("[A-Za-z0-9_=,.@-]+");
-    if (! std::regex_match(roleSessionName, regex_roleSession)) {
-      ldpp_dout(dpp, 0) << "ERROR: Role session name is incorrect: " << roleSessionName << dendl;
+    if (!std::regex_match(roleSessionName, regex_roleSession)) {
+      ldpp_dout(dpp, 0) << "ERROR: Role session name is incorrect: "
+                        << roleSessionName << dendl;
       return -EINVAL;
     }
   }
@@ -243,56 +268,71 @@ int AssumeRoleRequestBase::validate_input(const DoutPrefixProvider *dpp) const
   return 0;
 }
 
-int AssumeRoleWithWebIdentityRequest::validate_input(const DoutPrefixProvider *dpp) const
+int
+AssumeRoleWithWebIdentityRequest::validate_input(
+    const DoutPrefixProvider* dpp) const
 {
-  if (! providerId.empty()) {
+  if (!providerId.empty()) {
     if (providerId.length() < MIN_PROVIDER_ID_LEN ||
-          providerId.length() > MAX_PROVIDER_ID_LEN) {
-      ldpp_dout(dpp, 0) << "ERROR: Either provider id is empty or provider id length is incorrect: " << providerId.length() << dendl;
+        providerId.length() > MAX_PROVIDER_ID_LEN) {
+      ldpp_dout(dpp, 0) << "ERROR: Either provider id is empty or provider id "
+                           "length is incorrect: "
+                        << providerId.length() << dendl;
       return -EINVAL;
     }
   }
   return AssumeRoleRequestBase::validate_input(dpp);
 }
 
-int AssumeRoleRequest::validate_input(const DoutPrefixProvider *dpp) const
+int
+AssumeRoleRequest::validate_input(const DoutPrefixProvider* dpp) const
 {
-  if (! externalId.empty()) {
+  if (!externalId.empty()) {
     if (externalId.length() < MIN_EXTERNAL_ID_LEN ||
-          externalId.length() > MAX_EXTERNAL_ID_LEN) {
-      ldpp_dout(dpp, 0) << "ERROR: Either external id is empty or external id length is incorrect: " << externalId.length() << dendl;
+        externalId.length() > MAX_EXTERNAL_ID_LEN) {
+      ldpp_dout(dpp, 0) << "ERROR: Either external id is empty or external id "
+                           "length is incorrect: "
+                        << externalId.length() << dendl;
       return -EINVAL;
     }
 
     std::regex regex_externalId("[A-Za-z0-9_=,.@:/-]+");
-    if (! std::regex_match(externalId, regex_externalId)) {
-      ldpp_dout(dpp, 0) << "ERROR: Invalid external Id: " << externalId << dendl;
+    if (!std::regex_match(externalId, regex_externalId)) {
+      ldpp_dout(dpp, 0) << "ERROR: Invalid external Id: " << externalId
+                        << dendl;
       return -EINVAL;
     }
   }
-  if (! serialNumber.empty()){
-    if (serialNumber.size() < MIN_SERIAL_NUMBER_SIZE || serialNumber.size() > MAX_SERIAL_NUMBER_SIZE) {
-      ldpp_dout(dpp, 0) << "Either serial number is empty or serial number length is incorrect: " << serialNumber.size() << dendl;
+  if (!serialNumber.empty()) {
+    if (serialNumber.size() < MIN_SERIAL_NUMBER_SIZE ||
+        serialNumber.size() > MAX_SERIAL_NUMBER_SIZE) {
+      ldpp_dout(dpp, 0) << "Either serial number is empty or serial number "
+                           "length is incorrect: "
+                        << serialNumber.size() << dendl;
       return -EINVAL;
     }
 
     std::regex regex_serialNumber("[A-Za-z0-9_=/:,.@-]+");
-    if (! std::regex_match(serialNumber, regex_serialNumber)) {
+    if (!std::regex_match(serialNumber, regex_serialNumber)) {
       ldpp_dout(dpp, 0) << "Incorrect serial number: " << serialNumber << dendl;
       return -EINVAL;
     }
   }
-  if (! tokenCode.empty() && tokenCode.size() == TOKEN_CODE_SIZE) {
-    ldpp_dout(dpp, 0) << "Either token code is empty or token code size is invalid: " << tokenCode.size() << dendl;
+  if (!tokenCode.empty() && tokenCode.size() == TOKEN_CODE_SIZE) {
+    ldpp_dout(dpp, 0)
+        << "Either token code is empty or token code size is invalid: "
+        << tokenCode.size() << dendl;
     return -EINVAL;
   }
 
   return AssumeRoleRequestBase::validate_input(dpp);
 }
 
-std::tuple<int, rgw::sal::RGWRole*> STSService::getRoleInfo(const DoutPrefixProvider *dpp,
-                                                 const string& arn,
-						 optional_yield y)
+std::tuple<int, rgw::sal::RGWRole*>
+STSService::getRoleInfo(
+    const DoutPrefixProvider* dpp,
+    const string& arn,
+    optional_yield y)
 {
   if (auto r_arn = rgw::ARN::parse(arn); r_arn) {
     auto pos = r_arn->resource.find_last_of('/');
@@ -305,7 +345,8 @@ std::tuple<int, rgw::sal::RGWRole*> STSService::getRoleInfo(const DoutPrefixProv
       tenant.clear();
     }
 
-    std::unique_ptr<rgw::sal::RGWRole> role = driver->get_role(roleName, tenant, account);
+    std::unique_ptr<rgw::sal::RGWRole> role =
+        driver->get_role(roleName, tenant, account);
     if (int ret = role->load_by_name(dpp, y); ret < 0) {
       if (ret == -ENOENT) {
         ldpp_dout(dpp, 0) << "Role doesn't exist: " << roleName << dendl;
@@ -322,7 +363,9 @@ std::tuple<int, rgw::sal::RGWRole*> STSService::getRoleInfo(const DoutPrefixProv
       }
       string r_path = role->get_path();
       if (path != r_path) {
-        ldpp_dout(dpp, 0) << "Invalid Role ARN: Path in ARN does not match with the role path: " << path << " " << r_path << dendl;
+        ldpp_dout(dpp, 0) << "Invalid Role ARN: Path in ARN does not match "
+                             "with the role path: "
+                          << path << " " << r_path << dendl;
         return make_tuple(-EACCES, nullptr);
       }
       this->role = std::move(role);
@@ -334,7 +377,10 @@ std::tuple<int, rgw::sal::RGWRole*> STSService::getRoleInfo(const DoutPrefixProv
   }
 }
 
-AssumeRoleWithWebIdentityResponse STSService::assumeRoleWithWebIdentity(const DoutPrefixProvider *dpp, AssumeRoleWithWebIdentityRequest& req)
+AssumeRoleWithWebIdentityResponse
+STSService::assumeRoleWithWebIdentity(
+    const DoutPrefixProvider* dpp,
+    AssumeRoleWithWebIdentityRequest& req)
 {
   AssumeRoleWithWebIdentityResponse response;
   response.assumeRoleResp.packedPolicySize = 0;
@@ -353,7 +399,8 @@ AssumeRoleWithWebIdentityResponse STSService::assumeRoleWithWebIdentity(const Do
   //Get the role info which is being assumed
   boost::optional<rgw::ARN> r_arn = rgw::ARN::parse(req.getRoleARN());
   if (r_arn == boost::none) {
-    ldpp_dout(dpp, 0) << "Error in parsing role arn: " << req.getRoleARN() << dendl;
+    ldpp_dout(dpp, 0) << "Error in parsing role arn: " << req.getRoleARN()
+                      << dendl;
     response.assumeRoleResp.retCode = -EINVAL;
     return response;
   }
@@ -370,26 +417,24 @@ AssumeRoleWithWebIdentityResponse STSService::assumeRoleWithWebIdentity(const Do
 
   //Calculate PackedPolicySize
   string policy = req.getPolicy();
-  response.assumeRoleResp.packedPolicySize = (policy.size() / req.getMaxPolicySize()) * 100;
+  response.assumeRoleResp.packedPolicySize =
+      (policy.size() / req.getMaxPolicySize()) * 100;
 
   //Generate Assumed Role User
-  response.assumeRoleResp.retCode = response.assumeRoleResp.user.generateAssumedRoleUser(cct,
-                                                                                          driver,
-                                                                                          roleId,
-                                                                                          r_arn.get(),
-                                                                                          req.getRoleSessionName());
+  response.assumeRoleResp.retCode =
+      response.assumeRoleResp.user.generateAssumedRoleUser(
+          cct, driver, roleId, r_arn.get(), req.getRoleSessionName());
   if (response.assumeRoleResp.retCode < 0) {
     return response;
   }
 
   //Generate Credentials
   //Role and Policy provide the authorization info, user id and applier info are not needed
-  response.assumeRoleResp.retCode = response.assumeRoleResp.creds.generateCredentials(dpp, cct, req.getDuration(),
-                                                                                      req.getPolicy(), roleId,
-                                                                                      req.getRoleSessionName(),
-                                                                                      token_claims,
-                                                                                      req.getPrincipalTags(),
-                                                                                      user_id, nullptr);
+  response.assumeRoleResp.retCode =
+      response.assumeRoleResp.creds.generateCredentials(
+          dpp, cct, req.getDuration(), req.getPolicy(), roleId,
+          req.getRoleSessionName(), token_claims, req.getPrincipalTags(),
+          user_id, nullptr);
   if (response.assumeRoleResp.retCode < 0) {
     return response;
   }
@@ -398,9 +443,11 @@ AssumeRoleWithWebIdentityResponse STSService::assumeRoleWithWebIdentity(const Do
   return response;
 }
 
-AssumeRoleResponse STSService::assumeRole(const DoutPrefixProvider *dpp, 
-                                          AssumeRoleRequest& req,
-					  optional_yield y)
+AssumeRoleResponse
+STSService::assumeRole(
+    const DoutPrefixProvider* dpp,
+    AssumeRoleRequest& req,
+    optional_yield y)
 {
   AssumeRoleResponse response;
   response.packedPolicySize = 0;
@@ -428,19 +475,17 @@ AssumeRoleResponse STSService::assumeRole(const DoutPrefixProvider *dpp,
   response.packedPolicySize = (policy.size() / req.getMaxPolicySize()) * 100;
 
   //Generate Assumed Role User
-  response.retCode = response.user.generateAssumedRoleUser(cct, driver, roleId, r_arn.get(), req.getRoleSessionName());
+  response.retCode = response.user.generateAssumedRoleUser(
+      cct, driver, roleId, r_arn.get(), req.getRoleSessionName());
   if (response.retCode < 0) {
     return response;
   }
 
   //Generate Credentials
   //Role and Policy provide the authorization info, user id and applier info are not needed
-  response.retCode = response.creds.generateCredentials(dpp, cct, req.getDuration(),
-                                              req.getPolicy(), roleId,
-                                              req.getRoleSessionName(),
-                                              boost::none,
-                                              boost::none,
-                                              user_id, nullptr);
+  response.retCode = response.creds.generateCredentials(
+      dpp, cct, req.getDuration(), req.getPolicy(), roleId,
+      req.getRoleSessionName(), boost::none, boost::none, user_id, nullptr);
   if (response.retCode < 0) {
     return response;
   }
@@ -449,7 +494,10 @@ AssumeRoleResponse STSService::assumeRole(const DoutPrefixProvider *dpp,
   return response;
 }
 
-GetSessionTokenRequest::GetSessionTokenRequest(const string& duration, const string& serialNumber, const string& tokenCode)
+GetSessionTokenRequest::GetSessionTokenRequest(
+    const string& duration,
+    const string& serialNumber,
+    const string& tokenCode)
 {
   if (duration.empty()) {
     this->duration = DEFAULT_DURATION_IN_SECS;
@@ -460,25 +508,23 @@ GetSessionTokenRequest::GetSessionTokenRequest(const string& duration, const str
   this->tokenCode = tokenCode;
 }
 
-GetSessionTokenResponse STSService::getSessionToken(const DoutPrefixProvider *dpp, GetSessionTokenRequest& req)
+GetSessionTokenResponse
+STSService::getSessionToken(
+    const DoutPrefixProvider* dpp,
+    GetSessionTokenRequest& req)
 {
   int ret;
   Credentials cred;
 
   //Generate Credentials
-  if (ret = cred.generateCredentials(dpp, cct,
-                                      req.getDuration(),
-                                      boost::none,
-                                      boost::none,
-                                      boost::none,
-                                      boost::none,
-                                      boost::none,
-                                      user_id,
-                                      identity); ret < 0) {
+  if (ret = cred.generateCredentials(
+          dpp, cct, req.getDuration(), boost::none, boost::none, boost::none,
+          boost::none, boost::none, user_id, identity);
+      ret < 0) {
     return make_tuple(ret, cred);
   }
 
   return make_tuple(0, cred);
 }
 
-}
+} // namespace STS

@@ -5,21 +5,23 @@
 #pragma once
 
 #include <errno.h>
-#include <array>
 #include <string.h>
+
+#include <array>
 #include <string_view>
 
-#include "common/ceph_crypto.h"
-#include "common/split.h"
-#include "common/Formatter.h"
-#include "common/utf8.h"
-#include "common/ceph_json.h"
-#include "common/safe_io.h"
-#include "common/errno.h"
-#include "auth/Crypto.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/tokenizer.hpp>
+
+#include "auth/Crypto.h"
+#include "common/Formatter.h"
+#include "common/ceph_crypto.h"
+#include "common/ceph_json.h"
+#include "common/errno.h"
+#include "common/safe_io.h"
+#include "common/split.h"
+#include "common/utf8.h"
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #ifdef HAVE_WARN_IMPLICIT_CONST_INT_FLOAT_CONVERSION
 #pragma clang diagnostic push
@@ -48,22 +50,21 @@
 #include "rgw_rest_s3.h"
 #include "rgw_s3select.h"
 
-class aws_response_handler
-{
+class aws_response_handler {
 
 private:
-  std::string sql_result;//SQL result buffer
-  std::string continue_result;//CONT-MESG buffer
-  std::string error_result;//SQL error buffer
+  std::string sql_result; //SQL result buffer
+  std::string continue_result; //CONT-MESG buffer
+  std::string error_result; //SQL error buffer
   req_state* s;
   uint32_t header_size;
   // the parameters are according to CRC-32 algorithm and its aligned with AWS-cli checksum
   boost::crc_optimal<32, 0x04C11DB7, 0xFFFFFFFF, 0xFFFFFFFF, true, true> crc32;
   RGWOp* m_rgwop;
-  std::string m_buff_header_;//response buffer
-  std::string m_buff_continue;//response buffer
+  std::string m_buff_header_; //response buffer
+  std::string m_buff_continue; //response buffer
   //m_buff_ptr : a switch between m_buff_header_ and m_buff_continue
-  std::string* m_buff_ptr=nullptr;
+  std::string* m_buff_ptr = nullptr;
   uint64_t total_bytes_returned;
   uint64_t processed_size;
   uint32_t m_success_header_size;
@@ -90,33 +91,49 @@ private:
     ERROR_TYPE
   };
 
-  const char* PAYLOAD_LINE= "\n<Payload>\n<Records>\n<Payload>\n";
-  const char* END_PAYLOAD_LINE= "\n</Payload></Records></Payload>";
-  const char* header_name_str[5] =  {":event-type", ":content-type", ":message-type", ":error-code", ":error-message"};
-  const char* header_value_str[10] = {"Records", "application/octet-stream", "event", "Cont", "Progress", "End", "text/xml", "Stats", "s3select-engine-error", "error"};
+  const char* PAYLOAD_LINE = "\n<Payload>\n<Records>\n<Payload>\n";
+  const char* END_PAYLOAD_LINE = "\n</Payload></Records></Payload>";
+  const char* header_name_str[5] = {
+      ":event-type", ":content-type", ":message-type", ":error-code",
+      ":error-message"};
+  const char* header_value_str[10] = {
+      "Records",
+      "application/octet-stream",
+      "event",
+      "Cont",
+      "Progress",
+      "End",
+      "text/xml",
+      "Stats",
+      "s3select-engine-error",
+      "error"};
   static constexpr size_t header_crc_size = 12;
 
   void push_header(const char* header_name, const char* header_value);
 
-  int create_message(u_int32_t header_len,std::string*);
+  int create_message(u_int32_t header_len, std::string*);
   std::function<void(void)> m_fp_chunk_encoding;
 
 public:
-  aws_response_handler(req_state* ps, RGWOp* rgwop) : s(ps), m_rgwop(rgwop), total_bytes_returned{0}, processed_size{0}
+  aws_response_handler(req_state* ps, RGWOp* rgwop) :
+    s(ps), m_rgwop(rgwop), total_bytes_returned{0}, processed_size{0}
   {}
 
-  aws_response_handler() : s(nullptr), m_rgwop(nullptr), total_bytes_returned{0}, processed_size{0}
+  aws_response_handler() :
+    s(nullptr), m_rgwop(nullptr), total_bytes_returned{0}, processed_size{0}
   {}
 
-  bool is_set()
+  bool
+  is_set()
   {
-    if(s==nullptr || m_rgwop == nullptr){
+    if (s == nullptr || m_rgwop == nullptr) {
       return false;
-    } 
+    }
     return true;
   }
 
-  void set(req_state* ps, RGWOp* rgwop, std::function<void(void)>& fp_chunk_encoding)
+  void
+  set(req_state* ps, RGWOp* rgwop, std::function<void(void)>& fp_chunk_encoding)
   {
     s = ps;
     m_rgwop = rgwop;
@@ -157,8 +174,7 @@ public:
 
   void init_stats_response();
 
-  void send_error_response(const char* error_code,
-                           const char* error_message);
+  void send_error_response(const char* error_code, const char* error_message);
 
   void send_success_response();
 
@@ -166,29 +182,33 @@ public:
 
   void send_stats_response();
 
-  void send_error_response_rgw_formatter(const char* error_code,
-                           const char* error_message);
+  void send_error_response_rgw_formatter(
+      const char* error_code,
+      const char* error_message);
 
-  std::string* get_buffer()
+  std::string*
+  get_buffer()
   {
-    if(!m_buff_ptr) set_main_buffer();
+    if (!m_buff_ptr)
+      set_main_buffer();
     return m_buff_ptr;
   }
 
-  void set_continue_buffer()
+  void
+  set_continue_buffer()
   {
     m_buff_ptr = &m_buff_continue;
   }
 
-  void set_main_buffer()
+  void
+  set_main_buffer()
   {
     m_buff_ptr = &m_buff_header_;
   }
 
 }; //end class aws_response_handler
 
-class RGWSelectObj_ObjStore_S3 : public RGWGetObj_ObjStore_S3
-{
+class RGWSelectObj_ObjStore_S3 : public RGWGetObj_ObjStore_S3 {
 
 private:
   s3selectEngine::s3select s3select_syntax;
@@ -262,20 +282,28 @@ public:
   virtual void execute(optional_yield) override;
 
 private:
-
   int csv_processing(bufferlist& bl, off_t ofs, off_t len);
 
   int parquet_processing(bufferlist& bl, off_t ofs, off_t len);
 
   int json_processing(bufferlist& bl, off_t ofs, off_t len);
 
-  int run_s3select_on_csv(const char* query, const char* input, size_t input_length);
+  int run_s3select_on_csv(
+      const char* query,
+      const char* input,
+      size_t input_length);
 
   int run_s3select_on_parquet(const char* query);
 
-  int run_s3select_on_json(const char* query, const char* input, size_t input_length);
+  int run_s3select_on_json(
+      const char* query,
+      const char* input,
+      size_t input_length);
 
-  int extract_by_tag(std::string input, std::string tag_name, std::string& result);
+  int extract_by_tag(
+      std::string input,
+      std::string tag_name,
+      std::string& result);
 
   void convert_escape_seq(std::string& esc);
 
@@ -289,4 +317,3 @@ private:
 
   void shape_chunk_per_trino_requests(const char*, off_t& ofs, off_t& len);
 };
-

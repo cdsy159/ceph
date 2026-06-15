@@ -3,43 +3,47 @@
 
 #pragma once
 
-#include <seastar/core/timer.hh>
 #include <seastar/core/shared_mutex.hh>
+#include <seastar/core/timer.hh>
 
 #include "crimson/common/gated.h"
 #include "crimson/net/Dispatcher.h"
 #include "crimson/net/Fwd.h"
 #include "mgr/DaemonHealthMetric.h"
-#include "mon/MgrMap.h"
 #include "mgr/MetricTypes.h"
+#include "mon/MgrMap.h"
 
-template<typename Message> using Ref = boost::intrusive_ptr<Message>;
+template <typename Message>
+using Ref = boost::intrusive_ptr<Message>;
+
 namespace crimson::net {
-  class Messenger;
+class Messenger;
 }
 
 class MMgrMap;
 class MMgrConfigure;
 
-namespace crimson::mgr
-{
+namespace crimson::mgr {
 
 // implement WithStats if you want to report stats to mgr periodically
 class WithStats {
 public:
   virtual seastar::future<MessageURef> get_stats() = 0;
+
   virtual ~WithStats() {}
 };
 
 class Client : public crimson::net::Dispatcher {
-  using get_perf_report_cb_t = std::function<seastar::future<MetricPayload> ()>;
+  using get_perf_report_cb_t = std::function<seastar::future<MetricPayload>()>;
   using set_perf_queries_cb_t =
-    std::function<seastar::future<> (const ConfigPayload &)>;
+      std::function<seastar::future<>(const ConfigPayload&)>;
+
 public:
-  Client(crimson::net::Messenger& msgr,
-	 WithStats& with_stats,
-	 set_perf_queries_cb_t cb_set,
-	 get_perf_report_cb_t cb_get);
+  Client(
+      crimson::net::Messenger& msgr,
+      WithStats& with_stats,
+      set_perf_queries_cb_t cb_set,
+      get_perf_report_cb_t cb_get);
   seastar::future<> start();
   seastar::future<> stop();
   seastar::future<> send(MessageURef msg);
@@ -48,18 +52,24 @@ public:
 
 private:
   std::optional<seastar::future<>> ms_dispatch(
-      crimson::net::ConnectionRef conn, Ref<Message> m) override;
+      crimson::net::ConnectionRef conn,
+      Ref<Message> m) override;
   void ms_handle_reset(crimson::net::ConnectionRef conn, bool is_replace) final;
-  void ms_handle_connect(crimson::net::ConnectionRef conn, seastar::shard_id) final;
-  seastar::future<> handle_mgr_map(crimson::net::ConnectionRef conn,
-				   Ref<MMgrMap> m);
-  seastar::future<> handle_mgr_conf(crimson::net::ConnectionRef conn,
-				    Ref<MMgrConfigure> m);
+  void ms_handle_connect(
+      crimson::net::ConnectionRef conn,
+      seastar::shard_id) final;
+  seastar::future<> handle_mgr_map(
+      crimson::net::ConnectionRef conn,
+      Ref<MMgrMap> m);
+  seastar::future<> handle_mgr_conf(
+      crimson::net::ConnectionRef conn,
+      Ref<MMgrConfigure> m);
   seastar::future<> reconnect();
   seastar::future<> retry_interval();
 
   void print(std::ostream&) const;
   friend std::ostream& operator<<(std::ostream& out, const Client& client);
+
 private:
   MgrMap mgrmap;
   crimson::net::Messenger& msgr;
@@ -78,13 +88,16 @@ private:
   void _send_report();
 };
 
-inline std::ostream& operator<<(std::ostream& out, const Client& client) {
+inline std::ostream&
+operator<<(std::ostream& out, const Client& client)
+{
   client.print(out);
   return out;
 }
 
-}
+} // namespace crimson::mgr
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::mgr::Client> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::mgr::Client> : fmt::ostream_formatter {};
 #endif

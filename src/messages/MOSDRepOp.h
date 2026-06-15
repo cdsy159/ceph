@@ -54,7 +54,7 @@ public:
   eversion_t version;
 
   // piggybacked osd/og state
-  eversion_t pg_trim_to;   // primary->replica: trim to here
+  eversion_t pg_trim_to; // primary->replica: trim to here
 
   /**
    * pg_committed_to
@@ -80,34 +80,48 @@ public:
    */
   eversion_t pg_committed_to;
 
-  hobject_t new_temp_oid;      ///< new temp object that we must now start tracking
-  hobject_t discard_temp_oid;  ///< previously used temp object that we can now stop tracking
+  hobject_t new_temp_oid; ///< new temp object that we must now start tracking
+  hobject_t
+      discard_temp_oid; ///< previously used temp object that we can now stop tracking
 
   /// non-empty if this transaction involves a hit_set history update
   std::optional<pg_hit_set_history_t> updated_hit_set_history;
 
   bufferlist txn_payload;
 
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  epoch_t
+  get_min_epoch() const override
+  {
     return min_epoch;
   }
-  spg_t get_spg() const override {
+
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
 
-  int get_cost() const override {
+  int
+  get_cost() const override
+  {
     return data.length();
   }
 
-  void set_txn_payload(bufferlist bl)
+  void
+  set_txn_payload(bufferlist bl)
   {
     txn_payload = bl;
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     p = payload.cbegin();
     // split to partial and final
@@ -122,7 +136,9 @@ public:
     decode(pgid, p);
   }
 
-  void finish_decode() {
+  void
+  finish_decode()
+  {
     using ceph::decode;
     if (!final_decode_needed)
       return; // Message is already final decoded
@@ -146,7 +162,9 @@ public:
     final_decode_needed = false;
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(map_epoch, payload);
     assert(HAVE_FEATURE(features, SERVER_OCTOPUS));
@@ -171,23 +189,34 @@ public:
     set_middle(middle);
   }
 
-  MOSDRepOp()
-    : MOSDFastDispatchOp{MSG_OSD_REPOP, HEAD_VERSION, COMPAT_VERSION},
-      map_epoch(0),
-      final_decode_needed(true), acks_wanted (0) {}
-  MOSDRepOp(osd_reqid_t r, pg_shard_t from,
-	    spg_t p, const hobject_t& po, int aw,
-	    epoch_t mape, epoch_t min_epoch, ceph_tid_t rtid, eversion_t v)
-    : MOSDFastDispatchOp{MSG_OSD_REPOP, HEAD_VERSION, COMPAT_VERSION},
-      map_epoch(mape),
-      min_epoch(min_epoch),
-      reqid(r),
-      pgid(p),
-      final_decode_needed(false),
-      from(from),
-      poid(po),
-      acks_wanted(aw),
-      version(v) {
+  MOSDRepOp() :
+    MOSDFastDispatchOp{MSG_OSD_REPOP, HEAD_VERSION, COMPAT_VERSION},
+    map_epoch(0),
+    final_decode_needed(true),
+    acks_wanted(0)
+  {}
+
+  MOSDRepOp(
+      osd_reqid_t r,
+      pg_shard_t from,
+      spg_t p,
+      const hobject_t& po,
+      int aw,
+      epoch_t mape,
+      epoch_t min_epoch,
+      ceph_tid_t rtid,
+      eversion_t v) :
+    MOSDFastDispatchOp{MSG_OSD_REPOP, HEAD_VERSION, COMPAT_VERSION},
+    map_epoch(mape),
+    min_epoch(min_epoch),
+    reqid(r),
+    pgid(p),
+    final_decode_needed(false),
+    from(from),
+    poid(po),
+    acks_wanted(aw),
+    version(v)
+  {
     set_tid(rtid);
   }
 
@@ -195,10 +224,17 @@ private:
   ~MOSDRepOp() final {}
 
 public:
-  std::string_view get_type_name() const override { return "osd_repop"; }
-  void print(std::ostream& out) const override {
-    out << "osd_repop(" << reqid
-	<< " " << pgid << " e" << map_epoch << "/" << min_epoch;
+  std::string_view
+  get_type_name() const override
+  {
+    return "osd_repop";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "osd_repop(" << reqid << " " << pgid << " e" << map_epoch << "/"
+        << min_epoch;
     if (!final_decode_needed) {
       out << " " << poid << " v " << version;
       if (updated_hit_set_history)
@@ -207,8 +243,9 @@ public:
     }
     out << ")";
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

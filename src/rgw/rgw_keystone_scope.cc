@@ -2,15 +2,18 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 
 #include "rgw_keystone_scope.h"
-#include "rgw_keystone.h"
-#include "common/ceph_context.h"
+
 #include "common/Formatter.h"
+#include "common/ceph_context.h"
+
+#include "rgw_keystone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 namespace rgw::keystone {
 
-void ScopeInfo::dump(ceph::Formatter *f) const
+void
+ScopeInfo::dump(ceph::Formatter* f) const
 {
   f->open_object_section("keystone_scope");
 
@@ -57,9 +60,8 @@ void ScopeInfo::dump(ceph::Formatter *f) const
   f->close_section(); // keystone_scope
 }
 
-std::optional<ScopeInfo> build_scope_info(
-    CephContext* cct,
-    const TokenEnvelope& token)
+std::optional<ScopeInfo>
+build_scope_info(CephContext* cct, const TokenEnvelope& token)
 {
   // Check if scope logging is enabled
   if (!cct->_conf->rgw_keystone_scope_enabled) {

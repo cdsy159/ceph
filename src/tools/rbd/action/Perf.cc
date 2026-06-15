@@ -1,30 +1,33 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-#include "include/stringify.h"
+#include "common/Formatter.h"
+#include "common/TextTable.h"
 #include "common/ceph_context.h"
 #include "common/ceph_json.h"
 #include "common/errno.h"
-#include "common/Formatter.h"
-#include "common/TextTable.h"
 #include "global/global_context.h"
+#include "include/stringify.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 #ifdef HAVE_CURSES
 #include <ncurses.h>
 #endif
 #include <stdio.h>
-#include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
+
 #include <iomanip>
 #include <iostream>
 #include <vector>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/assign.hpp>
 #include <boost/bimap.hpp>
 #include <boost/program_options.hpp>
+
 #include "json_spirit/json_spirit.h"
 
 namespace rbd {
@@ -48,15 +51,17 @@ enum class StatDescriptor {
 typedef boost::bimap<StatDescriptor, std::string> StatDescriptors;
 
 static const StatDescriptors STAT_DESCRIPTORS =
-  boost::assign::list_of<StatDescriptors::relation>
-    (StatDescriptor::WRITE_OPS, "write_ops")
-    (StatDescriptor::READ_OPS, "read_ops")
-    (StatDescriptor::WRITE_BYTES, "write_bytes")
-    (StatDescriptor::READ_BYTES, "read_bytes")
-    (StatDescriptor::WRITE_LATENCY, "write_latency")
-    (StatDescriptor::READ_LATENCY, "read_latency");
+    boost::assign::list_of<StatDescriptors::relation>(
+        StatDescriptor::WRITE_OPS,
+        "write_ops")(StatDescriptor::READ_OPS, "read_ops")(
+        StatDescriptor::WRITE_BYTES,
+        "write_bytes")(StatDescriptor::READ_BYTES, "read_bytes")(
+        StatDescriptor::WRITE_LATENCY,
+        "write_latency")(StatDescriptor::READ_LATENCY, "read_latency");
 
-std::ostream& operator<<(std::ostream& os, const StatDescriptor& val) {
+std::ostream&
+operator<<(std::ostream& os, const StatDescriptor& val)
+{
   auto it = STAT_DESCRIPTORS.left.find(val);
   if (it == STAT_DESCRIPTORS.left.end()) {
     os << "unknown (" << static_cast<int>(val) << ")";
@@ -66,8 +71,13 @@ std::ostream& operator<<(std::ostream& os, const StatDescriptor& val) {
   return os;
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              StatDescriptor *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    StatDescriptor* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
   std::string s = po::validators::get_single_string(values);
   boost::replace_all(s, "_", " ");
@@ -81,10 +91,12 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 }
 
 struct ImageStat {
-  ImageStat(const std::string& pool_name, const std::string& pool_namespace,
-            const std::string& image_name)
-    : pool_name(pool_name), pool_namespace(pool_namespace),
-      image_name(image_name) {
+  ImageStat(
+      const std::string& pool_name,
+      const std::string& pool_namespace,
+      const std::string& image_name) :
+    pool_name(pool_name), pool_namespace(pool_namespace), image_name(image_name)
+  {
     stats.resize(STAT_DESCRIPTORS.size());
   }
 
@@ -98,8 +110,9 @@ typedef std::vector<ImageStat> ImageStats;
 
 typedef std::pair<std::string, std::string> SpecPair;
 
-std::string format_pool_spec(const std::string& pool,
-                             const std::string& pool_namespace) {
+std::string
+format_pool_spec(const std::string& pool, const std::string& pool_namespace)
+{
   std::string pool_spec{pool};
   if (!pool_namespace.empty()) {
     pool_spec += "/" + pool_namespace;
@@ -107,16 +120,23 @@ std::string format_pool_spec(const std::string& pool,
   return pool_spec;
 }
 
-int query_iostats(librados::Rados& rados, const std::string& pool_spec,
-                  StatDescriptor sort_by, ImageStats* image_stats,
-                  std::ostream& err_os) {
+int
+query_iostats(
+    librados::Rados& rados,
+    const std::string& pool_spec,
+    StatDescriptor sort_by,
+    ImageStats* image_stats,
+    std::ostream& err_os)
+{
   auto sort_by_str = STAT_DESCRIPTORS.left.find(sort_by)->second;
 
   std::string cmd = R"(
     {
       "prefix": "rbd perf image stats",
-      "pool_spec": ")" + pool_spec + R"(",
-      "sort_by": ")" + sort_by_str + R"(",
+      "pool_spec": ")" +
+                    pool_spec + R"(",
+      "sort_by": ")" +
+                    sort_by_str + R"(",
       "format": "json"
     }")";
 
@@ -124,8 +144,8 @@ int query_iostats(librados::Rados& rados, const std::string& pool_spec,
   std::string outs;
   int r = rados.mgr_command(std::move(cmd), {}, &out_bl, &outs);
   if (r == -EOPNOTSUPP) {
-    err_os << "rbd: 'rbd_support' mgr module is not enabled."
-           << std::endl << std::endl
+    err_os << "rbd: 'rbd_support' mgr module is not enabled." << std::endl
+           << std::endl
            << "Use 'ceph mgr module enable rbd_support' to enable."
            << std::endl;
     return r;
@@ -152,8 +172,8 @@ int query_iostats(librados::Rados& rados, const std::string& pool_spec,
     std::map<uint32_t, uint32_t> json_to_internal_stats;
     auto& json_stat_descriptors = root["stat_descriptors"].get_array();
     for (size_t idx = 0; idx < json_stat_descriptors.size(); ++idx) {
-      auto it = STAT_DESCRIPTORS.right.find(
-        json_stat_descriptors[idx].get_str());
+      auto it =
+          STAT_DESCRIPTORS.right.find(json_stat_descriptors[idx].get_str());
       if (it == STAT_DESCRIPTORS.right.end()) {
         continue;
       }
@@ -193,7 +213,7 @@ int query_iostats(librados::Rados& rados, const std::string& pool_spec,
         }
 
         image_stats->emplace_back(
-          pool_it->second.first, pool_it->second.second, pair.second);
+            pool_it->second.first, pool_it->second.second, pair.second);
 
         auto& image_stat = image_stats->back();
         auto& data = stat_obj.begin()->second.get_array();
@@ -202,7 +222,7 @@ int query_iostats(librados::Rados& rados, const std::string& pool_spec,
         }
       }
     }
-  } catch (std::runtime_error &e) {
+  } catch (std::runtime_error& e) {
     err_os << "rbd: error parsing perf stats: " << e.what() << std::endl;
     return -EINVAL;
   }
@@ -210,8 +230,9 @@ int query_iostats(librados::Rados& rados, const std::string& pool_spec,
   return 0;
 }
 
-void format_stat(StatDescriptor stat_descriptor, double stat,
-                 std::ostream& os) {
+void
+format_stat(StatDescriptor stat_descriptor, double stat, std::ostream& os)
+{
   switch (stat_descriptor) {
   case StatDescriptor::WRITE_OPS:
   case StatDescriptor::READ_OPS:
@@ -246,8 +267,13 @@ namespace iostat {
 
 struct Iterations {};
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              Iterations *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    Iterations* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
   auto& s = po::validators::get_single_string(values);
 
@@ -257,12 +283,14 @@ void validate(boost::any& v, const std::vector<std::string>& values,
       v = boost::any(iterations);
       return;
     }
-  } catch (const boost::bad_lexical_cast &) {
+  } catch (const boost::bad_lexical_cast&) {
   }
   throw po::validation_error(po::validation_error::invalid_option_value);
 }
 
-void format(const ImageStats& image_stats, Formatter* f, bool global_search) {
+void
+format(const ImageStats& image_stats, Formatter* f, bool global_search)
+{
   TextTable tbl;
   if (f) {
     f->open_array_section("images");
@@ -298,14 +326,15 @@ void format(const ImageStats& image_stats, Formatter* f, bool global_search) {
   }
 
   for (auto& image_stat : image_stats) {
-    if (f)  {
+    if (f) {
       f->open_object_section("image");
       f->dump_string("pool", image_stat.pool_name);
       f->dump_string("pool_namespace", image_stat.pool_namespace);
       f->dump_string("image", image_stat.image_name);
       for (auto& pair : STAT_DESCRIPTORS.left) {
-        f->dump_float(pair.second.c_str(),
-                      image_stat.stats[static_cast<size_t>(pair.first)]);
+        f->dump_float(
+            pair.second.c_str(),
+            image_stat.stats[static_cast<size_t>(pair.first)]);
       }
       f->close_section();
     } else {
@@ -321,8 +350,8 @@ void format(const ImageStats& image_stats, Formatter* f, bool global_search) {
       tbl << name;
       for (auto& pair : STAT_DESCRIPTORS.left) {
         std::stringstream str;
-        format_stat(pair.first,
-                    image_stat.stats[static_cast<size_t>(pair.first)], str);
+        format_stat(
+            pair.first, image_stat.stats[static_cast<size_t>(pair.first)], str);
         str << ' ';
         tbl << str.str();
       }
@@ -345,8 +374,9 @@ namespace iotop {
 
 class MainWindow {
 public:
-  MainWindow(librados::Rados& rados, const std::string& pool_spec)
-  : m_rados(rados), m_pool_spec(pool_spec) {
+  MainWindow(librados::Rados& rados, const std::string& pool_spec) :
+    m_rados(rados), m_pool_spec(pool_spec)
+  {
     initscr();
     curs_set(0);
     cbreak();
@@ -357,14 +387,16 @@ public:
     init_columns();
   }
 
-  int run() {
+  int
+  run()
+  {
     redraw();
 
     int r = 0;
     std::stringstream err_str;
     while (true) {
-      r = query_iostats(m_rados, m_pool_spec, m_sort_by, &m_image_stats,
-                        err_str);
+      r = query_iostats(
+          m_rados, m_pool_spec, m_sort_by, &m_image_stats, err_str);
       if (r < 0) {
         break;
         return r;
@@ -415,7 +447,9 @@ private:
 
   std::map<StatDescriptor, std::string> m_columns;
 
-  void init_columns() {
+  void
+  init_columns()
+  {
     m_columns.clear();
     for (auto& pair : STAT_DESCRIPTORS.left) {
       std::string title;
@@ -446,7 +480,9 @@ private:
     }
   }
 
-  void redraw() {
+  void
+  redraw()
+  {
     getmaxyx(stdscr, m_height, m_width);
 
     redraw_main_window();
@@ -455,7 +491,9 @@ private:
     doupdate();
   }
 
-  void redraw_main_window() {
+  void
+  redraw_main_window()
+  {
     werase(stdscr);
     mvhline(0, 0, ' ' | A_REVERSE, m_width);
 
@@ -474,9 +512,8 @@ private:
       title += pair.second;
 
       str.str("");
-      str << std::right << std::setfill(' ')
-         << std::setw(STAT_COLUMN_WIDTH)
-         << title << ' ';
+      str << std::right << std::setfill(' ') << std::setw(STAT_COLUMN_WIDTH)
+          << title << ' ';
 
       attrset(attr);
       addstr(str.str().c_str());
@@ -499,21 +536,21 @@ private:
       move(row++, 0);
       for (auto& pair : m_columns) {
         str.str("");
-        format_stat(pair.first,
-                    image_stat.stats[static_cast<size_t>(pair.first)], str);
+        format_stat(
+            pair.first, image_stat.stats[static_cast<size_t>(pair.first)], str);
         auto value = str.str().substr(0, STAT_COLUMN_WIDTH);
 
         str.str("");
-        str << std::right << std::setfill(' ')
-            << std::setw(STAT_COLUMN_WIDTH)
+        str << std::right << std::setfill(' ') << std::setw(STAT_COLUMN_WIDTH)
             << value << ' ';
         addstr(str.str().c_str());
       }
 
       std::string image;
       if (m_pool_spec.empty()) {
-        image = format_pool_spec(image_stat.pool_name,
-                                 image_stat.pool_namespace) + "/";
+        image =
+            format_pool_spec(image_stat.pool_name, image_stat.pool_namespace) +
+            "/";
       }
       image += image_stat.image_name;
       addstr(image.substr(0, remaining_cols).c_str());
@@ -522,11 +559,14 @@ private:
     wnoutrefresh(stdscr);
   }
 
-  void redraw_pending_window() {
+  void
+  redraw_pending_window()
+  {
     // draw a "please by patient" window while waiting
     const char* msg = "Waiting for initial stats";
     int height = 5;
-    int width = strlen(msg) + 4;;
+    int width = strlen(msg) + 4;
+    ;
     int starty = (m_height - height) / 2;
     int startx = (m_width - width) / 2;
 
@@ -537,7 +577,7 @@ private:
 
     if (m_pending_win != nullptr) {
       if (m_image_stats.empty()) {
-        box(m_pending_win, 0 , 0);
+        box(m_pending_win, 0, 0);
         mvwaddstr(m_pending_win, 2, 2, msg);
         wnoutrefresh(m_pending_win);
       } else {
@@ -547,15 +587,17 @@ private:
     }
   }
 
-  void wait_for_key_or_delay() {
+  void
+  wait_for_key_or_delay()
+  {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(STDIN_FILENO, &fds);
 
     // no point to refreshing faster than the stats period
     struct timeval tval;
-    tval.tv_sec = std::min<uint32_t>(
-      10, g_conf().get_val<int64_t>("mgr_stats_period"));
+    tval.tv_sec =
+        std::min<uint32_t>(10, g_conf().get_val<int64_t>("mgr_stats_period"));
     tval.tv_usec = 0;
 
     select(STDIN_FILENO + 1, &fds, NULL, NULL, &tval);
@@ -566,26 +608,34 @@ private:
 #endif // HAVE_CURSES
 
 
-void get_arguments_iostat(po::options_description *positional,
-                          po::options_description *options) {
+void
+get_arguments_iostat(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
-  options->add_options()
-    ("iterations", po::value<iostat::Iterations>(),
-     "iterations of metric collection [> 0]")
-    ("sort-by", po::value<StatDescriptor>()->default_value(StatDescriptor::WRITE_OPS),
-     "sort-by IO metric "
-     "(write-ops, read-ops, write-bytes, read-bytes, write-latency, read-latency) "
-     "[default: write-ops]");
+  options->add_options()(
+      "iterations", po::value<iostat::Iterations>(),
+      "iterations of metric collection [> 0]")(
+      "sort-by",
+      po::value<StatDescriptor>()->default_value(StatDescriptor::WRITE_OPS),
+      "sort-by IO metric "
+      "(write-ops, read-ops, write-bytes, read-bytes, write-latency, "
+      "read-latency) "
+      "[default: write-ops]");
   at::add_format_options(options);
 }
 
-int execute_iostat(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_iostat(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool;
   std::string pool_namespace;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool,
-                                              &pool_namespace, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool, &pool_namespace, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -629,7 +679,8 @@ int execute_iostat(const po::variables_map &vm,
   std::string pool_spec = format_pool_spec(pool, pool_namespace);
 
   // no point to refreshing faster than the stats period
-  auto delay = std::min<uint32_t>(10, g_conf().get_val<int64_t>("mgr_stats_period"));
+  auto delay =
+      std::min<uint32_t>(10, g_conf().get_val<int64_t>("mgr_stats_period"));
 
   ImageStats image_stats;
   uint32_t count = 0;
@@ -643,8 +694,9 @@ int execute_iostat(const po::variables_map &vm,
     if (count == 1 && image_stats.empty()) {
       count = 0;
       if (!printed_notice) {
-        std::cerr << "rbd: waiting for initial image stats"
-                  << std::endl << std::endl;;
+        std::cerr << "rbd: waiting for initial image stats" << std::endl
+                  << std::endl;
+        ;
         printed_notice = true;
       }
     } else {
@@ -661,18 +713,24 @@ int execute_iostat(const po::variables_map &vm,
 }
 
 #ifdef HAVE_CURSES
-void get_arguments_iotop(po::options_description *positional,
-                         po::options_description *options) {
+void
+get_arguments_iotop(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
 }
 
-int execute_iotop(const po::variables_map &vm,
-                  const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_iotop(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool;
   std::string pool_namespace;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool,
-                                              &pool_namespace, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool, &pool_namespace, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -704,14 +762,22 @@ int execute_iotop(const po::variables_map &vm,
 }
 
 Shell::Action top_action(
-  {"perf", "image", "iotop"}, {}, "Display a top-like IO monitor.", "",
-  &get_arguments_iotop, &execute_iotop);
+    {"perf", "image", "iotop"},
+    {},
+    "Display a top-like IO monitor.",
+    "",
+    &get_arguments_iotop,
+    &execute_iotop);
 
 #endif // HAVE_CURSES
 
 Shell::Action stat_action(
-  {"perf", "image", "iostat"}, {}, "Display image IO statistics.", "",
-  &get_arguments_iostat, &execute_iostat);
+    {"perf", "image", "iostat"},
+    {},
+    "Display image IO statistics.",
+    "",
+    &get_arguments_iostat,
+    &execute_iostat);
 } // namespace perf
 } // namespace action
 } // namespace rbd

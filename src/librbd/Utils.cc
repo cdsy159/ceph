@@ -1,23 +1,24 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <boost/algorithm/string.hpp>
-#include <boost/lexical_cast.hpp>
-
 #include "librbd/Utils.h"
-#include "include/random.h"
-#include "include/rbd_types.h"
-#include "include/stringify.h"
-#include "include/neorados/RADOS.hpp"
-#include "include/rbd/features.h"
-#include "common/dout.h"
-#include "common/errno.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/Features.h"
 
-#include <boost/algorithm/string/predicate.hpp>
 #include <bitset>
 #include <random>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/lexical_cast.hpp>
+
+#include "common/dout.h"
+#include "common/errno.h"
+#include "include/neorados/RADOS.hpp"
+#include "include/random.h"
+#include "include/rbd/features.h"
+#include "include/rbd_types.h"
+#include "include/stringify.h"
+#include "librbd/Features.h"
+#include "librbd/ImageCtx.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -29,7 +30,9 @@ namespace {
 
 const std::string CONFIG_KEY_URI_PREFIX{"config://"};
 
-uint32_t quiesce_mode_to_snap_create_flags(const std::string& mode) {
+uint32_t
+quiesce_mode_to_snap_create_flags(const std::string& mode)
+{
   if (mode == "required") {
     return 0;
   } else if (mode == "ignore-error") {
@@ -43,36 +46,46 @@ uint32_t quiesce_mode_to_snap_create_flags(const std::string& mode) {
 
 } // anonymous namespace
 
-const std::string group_header_name(const std::string &group_id)
+const std::string
+group_header_name(const std::string& group_id)
 {
   return RBD_GROUP_HEADER_PREFIX + group_id;
 }
 
-const std::string id_obj_name(const std::string &name)
+const std::string
+id_obj_name(const std::string& name)
 {
   return RBD_ID_PREFIX + name;
 }
 
-const std::string header_name(const std::string &image_id)
+const std::string
+header_name(const std::string& image_id)
 {
   return RBD_HEADER_PREFIX + image_id;
 }
 
-const std::string old_header_name(const std::string &image_name)
+const std::string
+old_header_name(const std::string& image_name)
 {
   return image_name + RBD_SUFFIX;
 }
 
-std::string unique_lock_name(const std::string &name, void *address) {
+std::string
+unique_lock_name(const std::string& name, void* address)
+{
   return name + " (" + stringify(address) + ")";
 }
 
-librados::AioCompletion *create_rados_callback(Context *on_finish) {
+librados::AioCompletion*
+create_rados_callback(Context* on_finish)
+{
   return create_rados_callback<Context, &Context::complete>(on_finish);
 }
 
 // also used for group and group snapshot ids
-std::string generate_image_id(librados::IoCtx &ioctx) {
+std::string
+generate_image_id(librados::IoCtx& ioctx)
+{
   librados::Rados rados(ioctx);
 
   uint64_t bid = rados.get_instance_id();
@@ -92,19 +105,22 @@ std::string generate_image_id(librados::IoCtx &ioctx) {
   return id;
 }
 
-uint64_t get_rbd_default_features(CephContext* cct)
+uint64_t
+get_rbd_default_features(CephContext* cct)
 {
   auto value = cct->_conf.get_val<std::string>("rbd_default_features");
   return librbd::rbd_features_from_string(value, nullptr);
 }
 
-
-bool calc_sparse_extent(const bufferptr &bp,
-                        size_t sparse_size,
-                        uint64_t length,
-                        size_t *write_offset,
-                        size_t *write_length,
-                        size_t *offset) {
+bool
+calc_sparse_extent(
+    const bufferptr& bp,
+    size_t sparse_size,
+    uint64_t length,
+    size_t* write_offset,
+    size_t* write_length,
+    size_t* offset)
+{
   size_t extent_size;
   if (*offset + sparse_size > length) {
     extent_size = length - *offset;
@@ -129,24 +145,31 @@ bool calc_sparse_extent(const bufferptr &bp,
   return false;
 }
 
-bool is_metadata_config_override(const std::string& metadata_key,
-                                 std::string* config_key) {
+bool
+is_metadata_config_override(
+    const std::string& metadata_key,
+    std::string* config_key)
+{
   size_t prefix_len = librbd::ImageCtx::METADATA_CONF_PREFIX.size();
   if (metadata_key.size() > prefix_len &&
-      metadata_key.compare(0, prefix_len,
-                           librbd::ImageCtx::METADATA_CONF_PREFIX) == 0) {
-    *config_key = metadata_key.substr(prefix_len,
-                                      metadata_key.size() - prefix_len);
+      metadata_key.compare(
+          0, prefix_len, librbd::ImageCtx::METADATA_CONF_PREFIX) == 0) {
+    *config_key =
+        metadata_key.substr(prefix_len, metadata_key.size() - prefix_len);
     return true;
   }
   return false;
 }
 
-int create_ioctx(librados::IoCtx& src_io_ctx, const std::string& pool_desc,
-                 int64_t pool_id,
-                 const std::optional<std::string>& pool_namespace,
-                 librados::IoCtx* dst_io_ctx) {
-  auto cct = (CephContext *)src_io_ctx.cct();
+int
+create_ioctx(
+    librados::IoCtx& src_io_ctx,
+    const std::string& pool_desc,
+    int64_t pool_id,
+    const std::optional<std::string>& pool_namespace,
+    librados::IoCtx* dst_io_ctx)
+{
+  auto cct = (CephContext*)src_io_ctx.cct();
 
   librados::Rados rados(src_io_ctx);
   int r = rados.ioctx_create2(pool_id, *dst_io_ctx);
@@ -161,15 +184,19 @@ int create_ioctx(librados::IoCtx& src_io_ctx, const std::string& pool_desc,
   }
 
   dst_io_ctx->set_namespace(
-    pool_namespace ? *pool_namespace : src_io_ctx.get_namespace());
+      pool_namespace ? *pool_namespace : src_io_ctx.get_namespace());
   if (src_io_ctx.get_pool_full_try()) {
     dst_io_ctx->set_pool_full_try();
   }
   return 0;
 }
 
-int snap_create_flags_api_to_internal(CephContext *cct, uint32_t api_flags,
-                                      uint64_t *internal_flags) {
+int
+snap_create_flags_api_to_internal(
+    CephContext* cct,
+    uint32_t api_flags,
+    uint64_t* internal_flags)
+{
   *internal_flags = 0;
 
   if (api_flags & RBD_SNAP_CREATE_SKIP_QUIESCE) {
@@ -181,54 +208,64 @@ int snap_create_flags_api_to_internal(CephContext *cct, uint32_t api_flags,
   }
 
   if (api_flags != 0) {
-    lderr(cct) << "invalid snap create flags: "
-                     << std::bitset<32>(api_flags) << dendl;
+    lderr(cct) << "invalid snap create flags: " << std::bitset<32>(api_flags)
+               << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-uint32_t get_default_snap_create_flags(ImageCtx *ictx) {
-  auto mode = ictx->config.get_val<std::string>(
-      "rbd_default_snapshot_quiesce_mode");
+uint32_t
+get_default_snap_create_flags(ImageCtx* ictx)
+{
+  auto mode =
+      ictx->config.get_val<std::string>("rbd_default_snapshot_quiesce_mode");
 
   return quiesce_mode_to_snap_create_flags(mode);
 }
 
-uint32_t get_default_snap_create_flags(librados::IoCtx& group_ioctx) {
+uint32_t
+get_default_snap_create_flags(librados::IoCtx& group_ioctx)
+{
   auto cct = reinterpret_cast<CephContext*>(group_ioctx.cct());
-  auto mode = cct->_conf.get_val<std::string>(
-      "rbd_default_snapshot_quiesce_mode");
+  auto mode =
+      cct->_conf.get_val<std::string>("rbd_default_snapshot_quiesce_mode");
 
   return quiesce_mode_to_snap_create_flags(mode);
 }
 
-SnapContext get_snap_context(
-    const std::optional<
-      std::pair<std::uint64_t,
-                std::vector<std::uint64_t>>>& write_snap_context) {
+SnapContext
+get_snap_context(
+    const std::optional<std::pair<std::uint64_t, std::vector<std::uint64_t>>>&
+        write_snap_context)
+{
   SnapContext snapc;
   if (write_snap_context) {
-    snapc = SnapContext{write_snap_context->first,
-                        {write_snap_context->second.begin(),
-                         write_snap_context->second.end()}};
+    snapc = SnapContext{
+        write_snap_context->first,
+        {write_snap_context->second.begin(), write_snap_context->second.end()}};
   }
   return snapc;
 }
 
-uint64_t reserve_async_request_id() {
+uint64_t
+reserve_async_request_id()
+{
   static std::atomic<uint64_t> async_request_seq = 0;
 
   return ++async_request_seq;
 }
 
-bool is_config_key_uri(const std::string& uri) {
+bool
+is_config_key_uri(const std::string& uri)
+{
   return boost::starts_with(uri, CONFIG_KEY_URI_PREFIX);
 }
 
-int get_config_key(librados::Rados& rados, const std::string& uri,
-                   std::string* value) {
+int
+get_config_key(librados::Rados& rados, const std::string& uri, std::string* value)
+{
   auto cct = reinterpret_cast<CephContext*>(rados.cct());
 
   if (!is_config_key_uri(uri)) {
@@ -237,10 +274,12 @@ int get_config_key(librados::Rados& rados, const std::string& uri,
 
   std::string key = uri.substr(CONFIG_KEY_URI_PREFIX.size());
   std::string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config-key get\", "
-      "\"key\": \"" + key + "\""
-    "}";
+      "\"key\": \"" +
+      key +
+      "\""
+      "}";
 
   bufferlist in_bl;
   bufferlist out_bl;

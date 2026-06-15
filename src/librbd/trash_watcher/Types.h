@@ -4,15 +4,15 @@
 #ifndef CEPH_LIBRBD_TRASH_WATCHER_TYPES_H
 #define CEPH_LIBRBD_TRASH_WATCHER_TYPES_H
 
-#include "include/int_types.h"
-#include "include/buffer_fwd.h"
-#include "include/encoding.h"
-#include "cls/rbd/cls_rbd_types.h"
 #include <iosfwd>
 #include <list>
 #include <string>
 #include <variant>
 
+#include "cls/rbd/cls_rbd_types.h"
+#include "include/buffer_fwd.h"
+#include "include/encoding.h"
+#include "include/int_types.h"
 
 namespace librbd {
 namespace trash_watcher {
@@ -28,16 +28,17 @@ struct ImageAddedPayload {
   std::string image_id;
   cls::rbd::TrashImageSpec trash_image_spec;
 
-  ImageAddedPayload() {
-  }
-  ImageAddedPayload(const std::string& image_id,
-                    const cls::rbd::TrashImageSpec& trash_image_spec)
-    : image_id(image_id), trash_image_spec(trash_image_spec) {
-  }
+  ImageAddedPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  ImageAddedPayload(
+      const std::string& image_id,
+      const cls::rbd::TrashImageSpec& trash_image_spec) :
+    image_id(image_id), trash_image_spec(trash_image_spec)
+  {}
+
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
 struct ImageRemovedPayload {
@@ -45,53 +46,52 @@ struct ImageRemovedPayload {
 
   std::string image_id;
 
-  ImageRemovedPayload() {
-  }
-  ImageRemovedPayload(const std::string& image_id)
-    : image_id(image_id) {
-  }
+  ImageRemovedPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  ImageRemovedPayload(const std::string& image_id) :
+    image_id(image_id)
+  {}
+
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
 struct UnknownPayload {
   static const NotifyOp NOTIFY_OP = static_cast<NotifyOp>(-1);
 
-  UnknownPayload() {
-  }
+  UnknownPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
-typedef std::variant<ImageAddedPayload,
-		     ImageRemovedPayload,
-		     UnknownPayload> Payload;
+typedef std::variant<ImageAddedPayload, ImageRemovedPayload, UnknownPayload>
+    Payload;
 
 struct NotifyMessage {
-  NotifyMessage(const Payload &payload = UnknownPayload()) : payload(payload) {
-  }
+  NotifyMessage(const Payload& payload = UnknownPayload()) :
+    payload(payload)
+  {}
 
   Payload payload;
 
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& it);
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 
   static std::list<NotifyMessage> generate_test_instances();
 };
 
 WRITE_CLASS_ENCODER(NotifyMessage);
 
-std::ostream &operator<<(std::ostream &out, const NotifyOp &op);
+std::ostream& operator<<(std::ostream& out, const NotifyOp& op);
 
 } // namespace trash_watcher
 } // namespace librbd
 
-using librbd::trash_watcher::encode;
 using librbd::trash_watcher::decode;
+using librbd::trash_watcher::encode;
 
 #endif // CEPH_LIBRBD_TRASH_WATCHER_TYPES_H

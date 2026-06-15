@@ -6,11 +6,12 @@
 #include <map>
 #include <string>
 
-#include "include/encoding.h"
 #include "common/async/yield_context.h"
 #include "common/ceph_context.h"
 #include "common/ceph_json.h"
 #include "common/ceph_time.h"
+#include "include/encoding.h"
+
 #include "rgw_common.h"
 #include "rgw_iam_managed_policy.h"
 
@@ -29,7 +30,7 @@ struct RGWRoleInfo // TODO: move to rgw_common.h
   std::string tenant;
   std::string description;
   uint64_t max_session_duration = 0;
-  std::multimap<std::string,std::string> tags;
+  std::multimap<std::string, std::string> tags;
   RGWObjVersionTracker objv_tracker;
   ceph::real_time mtime;
   rgw_account_id account_id;
@@ -38,7 +39,9 @@ struct RGWRoleInfo // TODO: move to rgw_common.h
 
   ~RGWRoleInfo() = default;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(4, 1, bl);
     encode(id, bl);
     encode(name, bl);
@@ -55,7 +58,9 @@ struct RGWRoleInfo // TODO: move to rgw_common.h
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(4, bl);
     decode(id, bl);
     decode(name, bl);
@@ -78,75 +83,162 @@ struct RGWRoleInfo // TODO: move to rgw_common.h
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(RGWRoleInfo)
 
 namespace rgw::sal {
 
-class RGWRole
-{
+class RGWRole {
 public:
   static const std::string role_arn_prefix;
   static constexpr int MAX_ROLE_NAME_LEN = 64;
   static constexpr int MAX_PATH_NAME_LEN = 512;
   static constexpr uint64_t SESSION_DURATION_MIN = 3600; // in seconds
   static constexpr uint64_t SESSION_DURATION_MAX = 43200; // in seconds
+
 protected:
   RGWRoleInfo info;
+
 public:
   bool validate_max_session_duration(const DoutPrefixProvider* dpp);
   bool validate_input(const DoutPrefixProvider* dpp);
   void extract_name_tenant(const std::string& str);
 
-  RGWRole(std::string name,
-              std::string tenant,
-              rgw_account_id account_id,
-              std::string path="",
-              std::string trust_policy="",
-              std::string description="",
-              std::string max_session_duration_str="",
-              std::multimap<std::string,std::string> tags={});
+  RGWRole(
+      std::string name,
+      std::string tenant,
+      rgw_account_id account_id,
+      std::string path = "",
+      std::string trust_policy = "",
+      std::string description = "",
+      std::string max_session_duration_str = "",
+      std::multimap<std::string, std::string> tags = {});
 
   explicit RGWRole(std::string id);
 
-  explicit RGWRole(const RGWRoleInfo& info) : info(info) {}
+  explicit RGWRole(const RGWRoleInfo& info) :
+    info(info)
+  {}
 
   RGWRole() = default;
 
   virtual ~RGWRole() = default;
 
   // virtual interface
-  virtual int load_by_name(const DoutPrefixProvider *dpp, optional_yield y) = 0;
-  virtual int load_by_id(const DoutPrefixProvider *dpp, optional_yield y) = 0;
-  virtual int store_info(const DoutPrefixProvider *dpp, bool exclusive, optional_yield y) = 0;
-  virtual int delete_obj(const DoutPrefixProvider *dpp, optional_yield y) = 0;
+  virtual int load_by_name(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  virtual int load_by_id(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  virtual int store_info(
+      const DoutPrefixProvider* dpp,
+      bool exclusive,
+      optional_yield y) = 0;
+  virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y) = 0;
 
-  const std::string& get_id() const { return info.id; }
-  const std::string& get_name() const { return info.name; }
-  const std::string& get_tenant() const { return info.tenant; }
-  const rgw_account_id& get_account_id() const { return info.account_id; }
-  const std::string& get_path() const { return info.path; }
-  const std::string& get_create_date() const { return info.creation_date; }
-  const std::string& get_assume_role_policy() const { return info.trust_policy;}
-  const uint64_t& get_max_session_duration() const { return info.max_session_duration; }
-  RGWObjVersionTracker& get_objv_tracker() { return info.objv_tracker; }
-  const RGWObjVersionTracker& get_objv_tracker() const { return info.objv_tracker; }
-  const real_time& get_mtime() const { return info.mtime; }
-  RGWRoleInfo& get_info() { return info; }
+  const std::string&
+  get_id() const
+  {
+    return info.id;
+  }
 
-  void set_id(const std::string& id) { this->info.id = id; }
-  void set_mtime(const real_time& mtime) { this->info.mtime = mtime; }
+  const std::string&
+  get_name() const
+  {
+    return info.name;
+  }
 
-  int create(const DoutPrefixProvider *dpp, const std::string &role_id, optional_yield y);
+  const std::string&
+  get_tenant() const
+  {
+    return info.tenant;
+  }
+
+  const rgw_account_id&
+  get_account_id() const
+  {
+    return info.account_id;
+  }
+
+  const std::string&
+  get_path() const
+  {
+    return info.path;
+  }
+
+  const std::string&
+  get_create_date() const
+  {
+    return info.creation_date;
+  }
+
+  const std::string&
+  get_assume_role_policy() const
+  {
+    return info.trust_policy;
+  }
+
+  const uint64_t&
+  get_max_session_duration() const
+  {
+    return info.max_session_duration;
+  }
+
+  RGWObjVersionTracker&
+  get_objv_tracker()
+  {
+    return info.objv_tracker;
+  }
+
+  const RGWObjVersionTracker&
+  get_objv_tracker() const
+  {
+    return info.objv_tracker;
+  }
+
+  const real_time&
+  get_mtime() const
+  {
+    return info.mtime;
+  }
+
+  RGWRoleInfo&
+  get_info()
+  {
+    return info;
+  }
+
+  void
+  set_id(const std::string& id)
+  {
+    this->info.id = id;
+  }
+
+  void
+  set_mtime(const real_time& mtime)
+  {
+    this->info.mtime = mtime;
+  }
+
+  int create(
+      const DoutPrefixProvider* dpp,
+      const std::string& role_id,
+      optional_yield y);
   void update_trust_policy(std::string& trust_policy);
-  void set_perm_policy(const std::string& policy_name, const std::string& perm_policy);
+  void set_perm_policy(
+      const std::string& policy_name,
+      const std::string& perm_policy);
   std::vector<std::string> get_role_policy_names();
-  int get_role_policy(const DoutPrefixProvider* dpp, const std::string& policy_name, std::string& perm_policy);
-  int delete_policy(const DoutPrefixProvider* dpp, const std::string& policy_name);
-  int set_tags(const DoutPrefixProvider* dpp, const std::multimap<std::string,std::string>& tags_map);
-  boost::optional<std::multimap<std::string,std::string>> get_tags();
+  int get_role_policy(
+      const DoutPrefixProvider* dpp,
+      const std::string& policy_name,
+      std::string& perm_policy);
+  int delete_policy(
+      const DoutPrefixProvider* dpp,
+      const std::string& policy_name);
+  int set_tags(
+      const DoutPrefixProvider* dpp,
+      const std::multimap<std::string, std::string>& tags_map);
+  boost::optional<std::multimap<std::string, std::string>> get_tags();
   void erase_tags(const std::vector<std::string>& tagKeys);
   void update_max_session_duration(const std::string& max_session_duration_str);
 };

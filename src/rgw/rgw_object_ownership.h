@@ -18,11 +18,16 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+
 #include "include/encoding.h"
+
 #include "rgw_sal_fwd.h"
 
 class XMLObj;
-namespace ceph { class Formatter; }
+
+namespace ceph {
+class Formatter;
+}
 
 namespace rgw::s3 {
 
@@ -37,9 +42,10 @@ enum class ObjectOwnership : uint8_t {
 std::string to_string(ObjectOwnership ownership);
 
 /// Parse ObjectOwnership configuration from a string
-bool parse(std::string_view input, ObjectOwnership& ownership,
-           std::string& error_message);
-
+bool parse(
+    std::string_view input,
+    ObjectOwnership& ownership,
+    std::string& error_message);
 
 /// Ownership controls for a bucket, encoded in RGW_ATTR_OWNERSHIP_CONTROLS.
 struct OwnershipControls {
@@ -49,7 +55,7 @@ struct OwnershipControls {
   void dump_xml(ceph::Formatter* f) const;
 };
 
-void encode(const OwnershipControls&, bufferlist&, uint64_t f=0);
+void encode(const OwnershipControls&, bufferlist&, uint64_t f = 0);
 void decode(OwnershipControls&, bufferlist::const_iterator&);
 
 /// Return the ObjectOwnership from RGW_ATTR_OWNERSHIP_CONTROLS,

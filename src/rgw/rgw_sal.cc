@@ -13,11 +13,11 @@
  *
  */
 
-#include <optional>
-
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#include <optional>
 
 #include "common/errno.h"
 //#include "common/dout.h"
@@ -28,22 +28,23 @@
 #ifdef WITH_RADOSGW_RADOS
 #include "rgw_sal_rados.h"
 #endif
-#include "driver/rados/config/store.h"
 #include "driver/json_config/store.h"
+#include "driver/rados/config/store.h"
 #ifdef WITH_RADOSGW_RADOS
 #include "rgw_d3n_datacache.h"
 #endif
 
 #ifdef WITH_RADOSGW_DBSTORE
-#include "rgw_sal_dbstore.h"
 #include "driver/dbstore/config/store.h"
+
+#include "rgw_sal_dbstore.h"
 #endif
 #ifdef WITH_RADOSGW_POSIX
-#include "driver/posix/rgw_sal_posix.h"
 #include "driver/dbstore/config/store.h"
+#include "driver/posix/rgw_sal_posix.h"
 #endif
 #ifdef WITH_RADOSGW_D4N
-#include "driver/d4n/rgw_sal_d4n.h" 
+#include "driver/d4n/rgw_sal_d4n.h"
 #endif
 
 #ifdef WITH_RADOSGW_MOTR
@@ -62,77 +63,85 @@ extern "C" {
 extern rgw::sal::Driver* newRadosStore(void* io_context, CephContext* cct);
 #endif
 #ifdef WITH_RADOSGW_DBSTORE
-extern rgw::sal::Driver* newDBStore(CephContext *cct);
+extern rgw::sal::Driver* newDBStore(CephContext* cct);
 #endif
 #ifdef WITH_RADOSGW_POSIX
-extern rgw::sal::Driver* newPOSIXDriver(CephContext *cct);
+extern rgw::sal::Driver* newPOSIXDriver(CephContext* cct);
 #endif
 #ifdef WITH_RADOSGW_MOTR
-extern rgw::sal::Driver* newMotrStore(CephContext *cct);
+extern rgw::sal::Driver* newMotrStore(CephContext* cct);
 #endif
 #ifdef WITH_RADOSGW_DAOS
-extern rgw::sal::Driver* newDaosStore(CephContext *cct);
+extern rgw::sal::Driver* newDaosStore(CephContext* cct);
 #endif
 extern rgw::sal::Driver* newBaseFilter(rgw::sal::Driver* next);
 #ifdef WITH_RADOSGW_D4N
-extern rgw::sal::Driver* newD4NFilter(rgw::sal::Driver* next, boost::asio::io_context& io_context, bool admin);
+extern rgw::sal::Driver* newD4NFilter(
+    rgw::sal::Driver* next,
+    boost::asio::io_context& io_context,
+    bool admin);
 #endif
 }
 
 
 #ifdef WITH_RADOSGW_RADOS
 std::optional<neorados::RADOS>
-make_neorados(CephContext* cct, boost::asio::io_context& io_context) {
+make_neorados(CephContext* cct, boost::asio::io_context& io_context)
+{
   try {
-    auto neorados = neorados::RADOS::make_with_cct(boost::intrusive_ptr{cct},
-                                                   io_context,
-                                                   ceph::async::use_blocked);
+    auto neorados = neorados::RADOS::make_with_cct(
+        boost::intrusive_ptr{cct}, io_context, ceph::async::use_blocked);
     return neorados;
   } catch (const std::exception& e) {
     ldout(cct, 0) << "Failed constructing neroados handle: " << e.what()
-		  << dendl;
+                  << dendl;
   }
   return std::nullopt;
 }
 #endif
 
-rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider* dpp,
-						     CephContext* cct,
-						     const Config& cfg,
-						     boost::asio::io_context& io_context,
-						     const rgw::SiteConfig& site_config,
-						     bool use_gc_thread,
-						     bool use_lc_thread,
-					             bool use_restore_thread,
-						     bool quota_threads,
-						     bool run_sync_thread,
-						     bool run_reshard_thread,
-						     bool run_notification_thread,
-						     bool run_bucket_logging_thread,
-						     bool use_cache,
-						     bool use_gc,
-						     bool background_tasks,
-						    optional_yield y, rgw::sal::ConfigStore* cfgstore, bool admin)
+rgw::sal::Driver*
+DriverManager::init_storage_provider(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    const Config& cfg,
+    boost::asio::io_context& io_context,
+    const rgw::SiteConfig& site_config,
+    bool use_gc_thread,
+    bool use_lc_thread,
+    bool use_restore_thread,
+    bool quota_threads,
+    bool run_sync_thread,
+    bool run_reshard_thread,
+    bool run_notification_thread,
+    bool run_bucket_logging_thread,
+    bool use_cache,
+    bool use_gc,
+    bool background_tasks,
+    optional_yield y,
+    rgw::sal::ConfigStore* cfgstore,
+    bool admin)
 {
   rgw::sal::Driver* driver{nullptr};
 
   if (cfg.store_name.compare("rados") == 0) {
 #ifdef WITH_RADOSGW_RADOS
     driver = newRadosStore(&io_context, cct);
-    RGWRados* rados = static_cast<rgw::sal::RadosStore* >(driver)->getRados();
+    RGWRados* rados = static_cast<rgw::sal::RadosStore*>(driver)->getRados();
 
-    if ((*rados).set_use_cache(use_cache)
-                .set_use_datacache(false)
-                .set_use_gc(use_gc)
-                .set_run_gc_thread(use_gc_thread)
-                .set_run_lc_thread(use_lc_thread)
-		.set_run_restore_thread(use_restore_thread)
-                .set_run_quota_threads(quota_threads)
-                .set_run_sync_thread(run_sync_thread)
-                .set_run_reshard_thread(run_reshard_thread)
-                .set_run_notification_thread(run_notification_thread)
-                .set_run_bucket_logging_thread(run_bucket_logging_thread)
-	              .init_begin(cct, dpp, background_tasks, site_config, cfgstore) < 0) {
+    if ((*rados)
+            .set_use_cache(use_cache)
+            .set_use_datacache(false)
+            .set_use_gc(use_gc)
+            .set_run_gc_thread(use_gc_thread)
+            .set_run_lc_thread(use_lc_thread)
+            .set_run_restore_thread(use_restore_thread)
+            .set_run_quota_threads(quota_threads)
+            .set_run_sync_thread(run_sync_thread)
+            .set_run_reshard_thread(run_reshard_thread)
+            .set_run_notification_thread(run_notification_thread)
+            .set_run_bucket_logging_thread(run_bucket_logging_thread)
+            .init_begin(cct, dpp, background_tasks, site_config, cfgstore) < 0) {
       delete driver;
       return nullptr;
     }
@@ -155,19 +164,20 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     driver = new rgw::sal::RadosStore(*neorados);
     RGWRados* rados = new D3nRGWDataCache<RGWRados>;
     dynamic_cast<rgw::sal::RadosStore*>(driver)->setRados(rados);
-    rados->set_store(static_cast<rgw::sal::RadosStore* >(driver));
+    rados->set_store(static_cast<rgw::sal::RadosStore*>(driver));
 
-    if ((*rados).set_use_cache(use_cache)
-                .set_use_datacache(true)
-                .set_run_gc_thread(use_gc_thread)
-                .set_run_lc_thread(use_lc_thread)
-		.set_run_restore_thread(use_restore_thread)
-                .set_run_quota_threads(quota_threads)
-                .set_run_sync_thread(run_sync_thread)
-                .set_run_reshard_thread(run_reshard_thread)
-                .set_run_notification_thread(run_notification_thread)
-                .set_run_bucket_logging_thread(run_bucket_logging_thread)
-	              .init_begin(cct, dpp, background_tasks, site_config, cfgstore) < 0) {
+    if ((*rados)
+            .set_use_cache(use_cache)
+            .set_use_datacache(true)
+            .set_run_gc_thread(use_gc_thread)
+            .set_run_lc_thread(use_lc_thread)
+            .set_run_restore_thread(use_restore_thread)
+            .set_run_quota_threads(quota_threads)
+            .set_run_sync_thread(run_sync_thread)
+            .set_run_reshard_thread(run_reshard_thread)
+            .set_run_notification_thread(run_notification_thread)
+            .set_run_bucket_logging_thread(run_bucket_logging_thread)
+            .init_begin(cct, dpp, background_tasks, site_config, cfgstore) < 0) {
       delete driver;
       return nullptr;
     }
@@ -180,26 +190,30 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
       return nullptr;
     }
 
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_local_datacache_enabled=" <<
-      cct->_conf->rgw_d3n_l1_local_datacache_enabled << dendl;
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_datacache_persistent_path='" <<
-      cct->_conf->rgw_d3n_l1_datacache_persistent_path << "'" << dendl;
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_datacache_size=" <<
-      cct->_conf->rgw_d3n_l1_datacache_size << dendl;
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_evict_cache_on_start=" <<
-      cct->_conf->rgw_d3n_l1_evict_cache_on_start << dendl;
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_fadvise=" <<
-      cct->_conf->rgw_d3n_l1_fadvise << dendl;
-    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_eviction_policy=" <<
-      cct->_conf->rgw_d3n_l1_eviction_policy << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_local_datacache_enabled="
+                          << cct->_conf->rgw_d3n_l1_local_datacache_enabled
+                          << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_datacache_persistent_path='"
+                          << cct->_conf->rgw_d3n_l1_datacache_persistent_path
+                          << "'" << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_datacache_size="
+                          << cct->_conf->rgw_d3n_l1_datacache_size << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_evict_cache_on_start="
+                          << cct->_conf->rgw_d3n_l1_evict_cache_on_start
+                          << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_fadvise="
+                          << cct->_conf->rgw_d3n_l1_fadvise << dendl;
+    lsubdout(cct, rgw, 1) << "rgw_d3n: rgw_d3n_l1_eviction_policy="
+                          << cct->_conf->rgw_d3n_l1_eviction_policy << dendl;
   }
 #endif
 #ifdef WITH_RADOSGW_DBSTORE
   else if (cfg.store_name.compare("dbstore") == 0) {
     driver = newDBStore(cct);
 
-    if ((*(rgw::sal::DBStore*)driver).set_run_lc_thread(use_lc_thread)
-                                    .initialize(cct, dpp) < 0) {
+    if ((*(rgw::sal::DBStore*)driver)
+            .set_run_lc_thread(use_lc_thread)
+            .initialize(cct, dpp) < 0) {
       delete driver;
       return nullptr;
     }
@@ -224,7 +238,7 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
       ldpp_dout(dpp, 0) << "newMotrStore() failed!" << dendl;
       return driver;
     }
-    ((rgw::sal::MotrStore *)driver)->init_metadata_cache(dpp, cct);
+    ((rgw::sal::MotrStore*)driver)->init_metadata_cache(dpp, cct);
 
     return driver;
   }
@@ -239,7 +253,8 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     }
     int ret = driver->initialize(cct, dpp);
     if (ret != 0) {
-      ldpp_dout(dpp, 20) << "ERROR: store->initialize() failed: " << ret << dendl;
+      ldpp_dout(dpp, 20) << "ERROR: store->initialize() failed: " << ret
+                         << dendl;
       delete driver;
       return nullptr;
     }
@@ -256,8 +271,8 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
       delete next;
       return nullptr;
     }
-  } 
-#ifdef WITH_RADOSGW_D4N 
+  }
+#ifdef WITH_RADOSGW_D4N
   else if (cfg.filter_name.compare("d4n") == 0) {
     rgw::sal::Driver* next = driver;
     driver = newD4NFilter(next, io_context, admin);
@@ -273,15 +288,20 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
   return driver;
 }
 
-rgw::sal::Driver* DriverManager::init_raw_storage_provider(const DoutPrefixProvider* dpp, CephContext* cct,
-							   const Config& cfg, boost::asio::io_context& io_context,
-							   const rgw::SiteConfig& site_config, rgw::sal::ConfigStore* cfgstore)
+rgw::sal::Driver*
+DriverManager::init_raw_storage_provider(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    const Config& cfg,
+    boost::asio::io_context& io_context,
+    const rgw::SiteConfig& site_config,
+    rgw::sal::ConfigStore* cfgstore)
 {
   rgw::sal::Driver* driver = nullptr;
   if (cfg.store_name.compare("rados") == 0) {
 #ifdef WITH_RADOSGW_RADOS
     driver = newRadosStore(&io_context, cct);
-    RGWRados* rados = static_cast<rgw::sal::RadosStore* >(driver)->getRados();
+    RGWRados* rados = static_cast<rgw::sal::RadosStore*>(driver)->getRados();
 
     rados->set_context(cct);
 
@@ -292,7 +312,8 @@ rgw::sal::Driver* DriverManager::init_raw_storage_provider(const DoutPrefixProvi
 
     int ret = rados->init_svc(true, dpp, false, site_config, cfgstore);
     if (ret < 0) {
-      ldout(cct, 0) << "ERROR: failed to init services (ret=" << cpp_strerror(-ret) << ")" << dendl;
+      ldout(cct, 0) << "ERROR: failed to init services (ret="
+                    << cpp_strerror(-ret) << ")" << dendl;
       delete driver;
       return nullptr;
     }
@@ -357,7 +378,8 @@ rgw::sal::Driver* DriverManager::init_raw_storage_provider(const DoutPrefixProvi
   return driver;
 }
 
-void DriverManager::close_storage(rgw::sal::Driver* driver)
+void
+DriverManager::close_storage(rgw::sal::Driver* driver)
 {
   if (!driver)
     return;
@@ -367,7 +389,8 @@ void DriverManager::close_storage(rgw::sal::Driver* driver)
   delete driver;
 }
 
-DriverManager::Config DriverManager::get_config(bool admin, CephContext* cct)
+DriverManager::Config
+DriverManager::get_config(bool admin, CephContext* cct)
 {
   DriverManager::Config cfg;
 
@@ -378,15 +401,22 @@ DriverManager::Config DriverManager::get_config(bool admin, CephContext* cct)
     cfg.store_name = "rados";
 
     /* Check to see if d3n is configured, but only for non-admin */
-    const auto& d3n = g_conf().get_val<bool>("rgw_d3n_l1_local_datacache_enabled");
+    const auto& d3n =
+        g_conf().get_val<bool>("rgw_d3n_l1_local_datacache_enabled");
     if (!admin && d3n) {
       if (g_conf().get_val<Option::size_t>("rgw_max_chunk_size") !=
-	  g_conf().get_val<Option::size_t>("rgw_obj_stripe_size")) {
-	lsubdout(cct, rgw_datacache, 0) << "rgw_d3n:  WARNING: D3N DataCache disabling (D3N requires that the chunk_size equals stripe_size)" << dendl;
+          g_conf().get_val<Option::size_t>("rgw_obj_stripe_size")) {
+        lsubdout(cct, rgw_datacache, 0)
+            << "rgw_d3n:  WARNING: D3N DataCache disabling (D3N requires that "
+               "the chunk_size equals stripe_size)"
+            << dendl;
       } else if (!g_conf().get_val<bool>("rgw_beast_enable_async")) {
-	lsubdout(cct, rgw_datacache, 0) << "rgw_d3n:  WARNING: D3N DataCache disabling (D3N requires yield context - rgw_beast_enable_async=true)" << dendl;
+        lsubdout(cct, rgw_datacache, 0)
+            << "rgw_d3n:  WARNING: D3N DataCache disabling (D3N requires yield "
+               "context - rgw_beast_enable_async=true)"
+            << dendl;
       } else {
-	cfg.store_name = "d3n";
+        cfg.store_name = "d3n";
       }
     }
 #endif
@@ -420,16 +450,17 @@ DriverManager::Config DriverManager::get_config(bool admin, CephContext* cct)
   }
 #ifdef WITH_RADOSGW_D4N
   else if (config_filter == "d4n") {
-    cfg.filter_name= "d4n";
+    cfg.filter_name = "d4n";
   }
 #endif
 
   return cfg;
 }
 
-auto DriverManager::create_config_store(const DoutPrefixProvider* dpp,
-                                       std::string_view type)
-  -> std::unique_ptr<rgw::sal::ConfigStore>
+auto
+DriverManager::create_config_store(
+    const DoutPrefixProvider* dpp,
+    std::string_view type) -> std::unique_ptr<rgw::sal::ConfigStore>
 {
   try {
 #ifdef WITH_RADOSGW_RADOS
@@ -453,19 +484,20 @@ auto DriverManager::create_config_store(const DoutPrefixProvider* dpp,
       auto filename = g_conf().get_val<std::string>("rgw_json_config");
       return rgw::sal::create_json_config_store(dpp, filename);
     } else {
-      ldpp_dout(dpp, -1) << "ERROR: unrecognized config store type '"
-          << type << "'" << dendl;
+      ldpp_dout(dpp, -1) << "ERROR: unrecognized config store type '" << type
+                         << "'" << dendl;
       return nullptr;
     }
   } catch (const std::exception& e) {
-    ldpp_dout(dpp, -1) << "ERROR: failed to initialize config store '"
-        << type << "': " << e.what() << dendl;
+    ldpp_dout(dpp, -1) << "ERROR: failed to initialize config store '" << type
+                       << "': " << e.what() << dendl;
   }
   return nullptr;
 }
 
 namespace rgw::sal {
-int Object::range_to_ofs(uint64_t obj_size, int64_t &ofs, int64_t &end)
+int
+Object::range_to_ofs(uint64_t obj_size, int64_t& ofs, int64_t& end)
 {
   if (ofs < 0) {
     ofs += obj_size;
@@ -487,11 +519,10 @@ int Object::range_to_ofs(uint64_t obj_size, int64_t &ofs, int64_t &end)
   return 0;
 }
 
-
-std::string_view rgw_restore_status_dump(rgw::sal::RGWRestoreStatus status)
+std::string_view
+rgw_restore_status_dump(rgw::sal::RGWRestoreStatus status)
 {
-  switch (status)
-  {
+  switch (status) {
   case RGWRestoreStatus::None:
     return "None";
   case RGWRestoreStatus::RestoreAlreadyInProgress:
@@ -505,10 +536,10 @@ std::string_view rgw_restore_status_dump(rgw::sal::RGWRestoreStatus status)
   }
 }
 
-std::string_view rgw_restore_type_dump(rgw::sal::RGWRestoreType type)
+std::string_view
+rgw_restore_type_dump(rgw::sal::RGWRestoreType type)
 {
-  switch (type)
-  {
+  switch (type) {
   case RGWRestoreType::None:
     return "None";
   case RGWRestoreType::Temporary:

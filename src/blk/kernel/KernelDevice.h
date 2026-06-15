@@ -18,15 +18,15 @@
 
 #include <atomic>
 
-#include "include/types.h"
-#include "include/interval_set.h"
-#include "common/config_obs.h"
+#include "aio/aio.h"
 #include "common/Thread.h"
+#include "common/config_obs.h"
+#include "extblkdev/ExtBlkDevPlugin.h"
+#include "include/interval_set.h"
+#include "include/types.h"
 #include "include/utime.h"
 
-#include "aio/aio.h"
 #include "BlockDevice.h"
-#include "extblkdev/ExtBlkDevPlugin.h"
 
 #define RW_IO_MAX (INT_MAX & CEPH_PAGE_MASK)
 
@@ -37,18 +37,19 @@ enum {
   l_blk_kernel_device_last,
 };
 
-class KernelDevice : public BlockDevice,
-                     public md_config_obs_t {
+class KernelDevice : public BlockDevice, public md_config_obs_t {
 protected:
   std::string path;
+
 private:
   std::vector<int> fd_directs, fd_buffereds;
   bool enable_wrt = true;
   bool aio, dio;
 
-  ExtBlkDevInterfaceRef ebd_impl;  // structure for retrieving compression state from extended block device
+  ExtBlkDevInterfaceRef
+      ebd_impl; // structure for retrieving compression state from extended block device
 
-  std::string devname;  ///< kernel dev name (/sys/block/$devname), if any
+  std::string devname; ///< kernel dev name (/sys/block/$devname), if any
 
   ceph::mutex debug_lock = ceph::make_mutex("KernelDevice::debug_lock");
   interval_set<uint64_t> debug_inflight;
@@ -58,7 +59,7 @@ private:
 
   std::unique_ptr<io_queue_t> io_queue;
   aio_callback_t discard_callback;
-  void *discard_callback_priv;
+  void* discard_callback_priv;
   bool aio_stop;
   bool need_notify = false;
   std::unique_ptr<PerfCounters> logger;
@@ -69,37 +70,57 @@ private:
   interval_set<uint64_t> discard_queued;
 
   struct AioCompletionThread : public Thread {
-    KernelDevice *bdev;
-    explicit AioCompletionThread(KernelDevice *b) : bdev(b) {}
-    void *entry() override {
+    KernelDevice* bdev;
+
+    explicit AioCompletionThread(KernelDevice* b) :
+      bdev(b)
+    {}
+
+    void*
+    entry() override
+    {
       bdev->_aio_thread();
       return NULL;
     }
   } aio_thread;
 
   struct DiscardThread : public Thread {
-    KernelDevice *bdev;
+    KernelDevice* bdev;
     bool stop = false;
-    explicit DiscardThread(KernelDevice *b) : bdev(b) {
-    }
-    void *entry() override {
+
+    explicit DiscardThread(KernelDevice* b) :
+      bdev(b)
+    {}
+
+    void*
+    entry() override
+    {
       bdev->_discard_thread(this);
       return NULL;
     }
   };
+
   std::vector<DiscardThread*> discard_threads;
 
   std::atomic_int injecting_crash;
 
-  virtual int _post_open() { return 0; }  // hook for child implementations
-  virtual void  _pre_close() { }  // hook for child implementations
+  virtual int
+  _post_open()
+  {
+    return 0;
+  } // hook for child implementations
+
+  virtual void
+  _pre_close()
+  {} // hook for child implementations
 
   void _aio_thread();
   void _discard_thread(DiscardThread* thr);
-  bool _queue_discard(interval_set<uint64_t> &to_release);
-  bool try_discard(interval_set<uint64_t> &to_release,
-                   bool async = true,
-                   bool force = false) override;
+  bool _queue_discard(interval_set<uint64_t>& to_release);
+  bool try_discard(
+      interval_set<uint64_t>& to_release,
+      bool async = true,
+      bool force = false) override;
 
   int _aio_start();
   void _aio_stop();
@@ -108,60 +129,90 @@ private:
   void _discard_stop();
   bool _discard_started();
 
-  void _aio_log_start(IOContext *ioc, uint64_t offset, uint64_t length);
-  void _aio_log_finish(IOContext *ioc, uint64_t offset, uint64_t length);
+  void _aio_log_start(IOContext* ioc, uint64_t offset, uint64_t length);
+  void _aio_log_finish(IOContext* ioc, uint64_t offset, uint64_t length);
 
-  int _sync_write(uint64_t off, ceph::buffer::list& bl, bool buffered, int write_hint);
+  int _sync_write(
+      uint64_t off,
+      ceph::buffer::list& bl,
+      bool buffered,
+      int write_hint);
 
   int _lock();
 
-  int direct_read_unaligned(uint64_t off, uint64_t len, char *buf);
+  int direct_read_unaligned(uint64_t off, uint64_t len, char* buf);
 
   // stalled aio debugging
   aio_list_t debug_queue;
-  ceph::mutex debug_queue_lock = ceph::make_mutex("KernelDevice::debug_queue_lock");
-  aio_t *debug_oldest = nullptr;
+  ceph::mutex debug_queue_lock =
+      ceph::make_mutex("KernelDevice::debug_queue_lock");
+  aio_t* debug_oldest = nullptr;
   utime_t debug_stall_since;
   void debug_aio_link(aio_t& aio);
   void debug_aio_unlink(aio_t& aio);
 
   int choose_fd(bool buffered, int write_hint) const;
 
-  ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(size_t len, IOContext* ioc) const;
+  ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(
+      size_t len,
+      IOContext* ioc) const;
 
 public:
-  KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv, aio_callback_t d_cb,
-    void *d_cbpriv, const char* dev_name = "");
+  KernelDevice(
+      CephContext* cct,
+      aio_callback_t cb,
+      void* cbpriv,
+      aio_callback_t d_cb,
+      void* d_cbpriv,
+      const char* dev_name = "");
   ~KernelDevice();
 
-  void aio_submit(IOContext *ioc) override;
+  void aio_submit(IOContext* ioc) override;
   void discard_drain() override;
   void swap_discard_queued(interval_set<uint64_t>& other) override;
-  int collect_metadata(const std::string& prefix, std::map<std::string,std::string> *pm) const override;
-  int get_devname(std::string *s) const override {
+  int collect_metadata(
+      const std::string& prefix,
+      std::map<std::string, std::string>* pm) const override;
+
+  int
+  get_devname(std::string* s) const override
+  {
     if (devname.empty()) {
       return -ENOENT;
     }
     *s = devname;
     return 0;
   }
-  int get_devices(std::set<std::string> *ls) const override;
 
-  int get_ebd_state(ExtBlkDevState &state) const override;
+  int get_devices(std::set<std::string>* ls) const override;
+
+  int get_ebd_state(ExtBlkDevState& state) const override;
   int get_ebd_id(std::string& id) const override;
 
-  int read(uint64_t off, uint64_t len, ceph::buffer::list *pbl,
-	   IOContext *ioc,
-	   bool buffered) override;
-  int aio_read(uint64_t off, uint64_t len, ceph::buffer::list *pbl,
-	       IOContext *ioc) override;
-  int read_random(uint64_t off, uint64_t len, char *buf, bool buffered) override;
+  int read(
+      uint64_t off,
+      uint64_t len,
+      ceph::buffer::list* pbl,
+      IOContext* ioc,
+      bool buffered) override;
+  int aio_read(
+      uint64_t off,
+      uint64_t len,
+      ceph::buffer::list* pbl,
+      IOContext* ioc) override;
+  int read_random(uint64_t off, uint64_t len, char* buf, bool buffered) override;
 
-  int write(uint64_t off, ceph::buffer::list& bl, bool buffered, int write_hint = WRITE_LIFE_NOT_SET) override;
-  int aio_write(uint64_t off, ceph::buffer::list& bl,
-		IOContext *ioc,
-		bool buffered,
-		int write_hint = WRITE_LIFE_NOT_SET) override;
+  int write(
+      uint64_t off,
+      ceph::buffer::list& bl,
+      bool buffered,
+      int write_hint = WRITE_LIFE_NOT_SET) override;
+  int aio_write(
+      uint64_t off,
+      ceph::buffer::list& bl,
+      IOContext* ioc,
+      bool buffered,
+      int write_hint = WRITE_LIFE_NOT_SET) override;
   int flush() override;
   int _discard(uint64_t offset, uint64_t len);
 
@@ -172,8 +223,9 @@ public:
 
   // config observer bits
   std::vector<std::string> get_tracked_keys() const noexcept override;
-  void handle_conf_change(const ConfigProxy& conf,
-                          const std::set <std::string> &changed) override;
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override;
 };
 
 #endif

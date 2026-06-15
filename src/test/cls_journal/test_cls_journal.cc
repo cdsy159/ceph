@@ -1,19 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "cls/journal/cls_journal_client.h"
-#include "include/stringify.h"
-#include "common/Cond.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
 #include <errno.h>
+
 #include <set>
 #include <string>
 
+#include "cls/journal/cls_journal_client.h"
+#include "common/Cond.h"
+#include "gtest/gtest.h"
+#include "include/stringify.h"
+#include "test/librados/test_cxx.h"
+
 using namespace cls::journal;
 
-static bool is_sparse_read_supported(librados::IoCtx &ioctx,
-                                     const std::string &oid) {
+static bool
+is_sparse_read_supported(librados::IoCtx& ioctx, const std::string& oid)
+{
   EXPECT_EQ(0, ioctx.create(oid, true));
   bufferlist inbl;
   inbl.append(std::string(1, 'X'));
@@ -30,23 +33,29 @@ static bool is_sparse_read_supported(librados::IoCtx &ioctx,
   bufferlist expected_outbl;
   expected_outbl.append(std::string(2, 'X'));
 
-  return (r == expected_r && m == expected_m &&
-          outbl.contents_equal(expected_outbl));
+  return (
+      r == expected_r && m == expected_m &&
+      outbl.contents_equal(expected_outbl));
 }
 
 class TestClsJournal : public ::testing::Test {
 public:
-
-  static void SetUpTestCase() {
+  static void
+  SetUpTestCase()
+  {
     _pool_name = get_temp_pool_name();
     ASSERT_EQ("", create_one_pool_pp(_pool_name, _rados));
   }
 
-  static void TearDownTestCase() {
+  static void
+  TearDownTestCase()
+  {
     ASSERT_EQ(0, destroy_one_pool_pp(_pool_name, _rados));
   }
 
-  std::string get_temp_image_name() {
+  std::string
+  get_temp_image_name()
+  {
     ++_image_number;
     return "image" + stringify(_image_number);
   }
@@ -54,14 +63,14 @@ public:
   static std::string _pool_name;
   static librados::Rados _rados;
   static uint64_t _image_number;
-
 };
 
 std::string TestClsJournal::_pool_name;
 librados::Rados TestClsJournal::_rados;
 uint64_t TestClsJournal::_image_number = 0;
 
-TEST_F(TestClsJournal, Create) {
+TEST_F(TestClsJournal, Create)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -76,15 +85,16 @@ TEST_F(TestClsJournal, Create) {
   uint8_t read_splay_width;
   int64_t read_pool_id;
   C_SaferCond cond;
-  client::get_immutable_metadata(ioctx, oid, &read_order, &read_splay_width,
-                                 &read_pool_id, &cond);
+  client::get_immutable_metadata(
+      ioctx, oid, &read_order, &read_splay_width, &read_pool_id, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(order, read_order);
   ASSERT_EQ(splay_width, read_splay_width);
   ASSERT_EQ(pool_id, read_pool_id);
 }
 
-TEST_F(TestClsJournal, MinimumSet) {
+TEST_F(TestClsJournal, MinimumSet)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -105,13 +115,14 @@ TEST_F(TestClsJournal, MinimumSet) {
   uint64_t read_minimum_set;
   uint64_t read_active_set;
   std::set<cls::journal::Client> read_clients;
-  client::get_mutable_metadata(ioctx, oid, &read_minimum_set, &read_active_set,
-                               &read_clients, &cond);
+  client::get_mutable_metadata(
+      ioctx, oid, &read_minimum_set, &read_active_set, &read_clients, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(minimum_set, read_minimum_set);
 }
 
-TEST_F(TestClsJournal, MinimumSetStale) {
+TEST_F(TestClsJournal, MinimumSetStale)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -136,13 +147,14 @@ TEST_F(TestClsJournal, MinimumSetStale) {
   uint64_t read_minimum_set;
   uint64_t read_active_set;
   std::set<cls::journal::Client> read_clients;
-  client::get_mutable_metadata(ioctx, oid, &read_minimum_set, &read_active_set,
-                               &read_clients, &cond);
+  client::get_mutable_metadata(
+      ioctx, oid, &read_minimum_set, &read_active_set, &read_clients, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(minimum_set, read_minimum_set);
 }
 
-TEST_F(TestClsJournal, MinimumSetOrderConstraint) {
+TEST_F(TestClsJournal, MinimumSetOrderConstraint)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -158,13 +170,14 @@ TEST_F(TestClsJournal, MinimumSetOrderConstraint) {
   uint64_t read_minimum_set;
   uint64_t read_active_set;
   std::set<cls::journal::Client> read_clients;
-  client::get_mutable_metadata(ioctx, oid, &read_minimum_set, &read_active_set,
-                               &read_clients, &cond);
+  client::get_mutable_metadata(
+      ioctx, oid, &read_minimum_set, &read_active_set, &read_clients, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(0U, read_minimum_set);
 }
 
-TEST_F(TestClsJournal, ActiveSet) {
+TEST_F(TestClsJournal, ActiveSet)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -181,13 +194,14 @@ TEST_F(TestClsJournal, ActiveSet) {
   uint64_t read_minimum_set;
   uint64_t read_active_set;
   std::set<cls::journal::Client> read_clients;
-  client::get_mutable_metadata(ioctx, oid, &read_minimum_set, &read_active_set,
-                               &read_clients, &cond);
+  client::get_mutable_metadata(
+      ioctx, oid, &read_minimum_set, &read_active_set, &read_clients, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(active_set, read_active_set);
 }
 
-TEST_F(TestClsJournal, ActiveSetStale) {
+TEST_F(TestClsJournal, ActiveSetStale)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -204,7 +218,8 @@ TEST_F(TestClsJournal, ActiveSetStale) {
   ASSERT_EQ(-ESTALE, ioctx.operate(oid, &op2));
 }
 
-TEST_F(TestClsJournal, CreateDuplicate) {
+TEST_F(TestClsJournal, CreateDuplicate)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -214,7 +229,8 @@ TEST_F(TestClsJournal, CreateDuplicate) {
   ASSERT_EQ(-EEXIST, client::create(ioctx, oid, 3, 5, ioctx.get_id()));
 }
 
-TEST_F(TestClsJournal, GetClient) {
+TEST_F(TestClsJournal, GetClient)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -233,7 +249,8 @@ TEST_F(TestClsJournal, GetClient) {
   ASSERT_EQ(expected_client, client);
 }
 
-TEST_F(TestClsJournal, ClientRegister) {
+TEST_F(TestClsJournal, ClientRegister)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -249,7 +266,8 @@ TEST_F(TestClsJournal, ClientRegister) {
   ASSERT_EQ(expected_clients, clients);
 }
 
-TEST_F(TestClsJournal, ClientRegisterDuplicate) {
+TEST_F(TestClsJournal, ClientRegisterDuplicate)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -260,15 +278,16 @@ TEST_F(TestClsJournal, ClientRegisterDuplicate) {
   ASSERT_EQ(-EEXIST, client::client_register(ioctx, oid, "id1", bufferlist()));
 }
 
-TEST_F(TestClsJournal, ClientUpdateData) {
+TEST_F(TestClsJournal, ClientUpdateData)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
   std::string oid = get_temp_image_name();
   ASSERT_EQ(0, client::create(ioctx, oid, 2, 4, ioctx.get_id()));
 
-  ASSERT_EQ(-ENOENT, client::client_update_data(ioctx, oid, "id1",
-                                                bufferlist()));
+  ASSERT_EQ(
+      -ENOENT, client::client_update_data(ioctx, oid, "id1", bufferlist()));
 
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id1", bufferlist()));
 
@@ -282,22 +301,25 @@ TEST_F(TestClsJournal, ClientUpdateData) {
   ASSERT_EQ(expected_client, client);
 }
 
-TEST_F(TestClsJournal, ClientUpdateState) {
+TEST_F(TestClsJournal, ClientUpdateState)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
   std::string oid = get_temp_image_name();
   ASSERT_EQ(0, client::create(ioctx, oid, 2, 4, ioctx.get_id()));
 
-  ASSERT_EQ(-ENOENT, client::client_update_state(ioctx, oid, "id1",
-                                                 CLIENT_STATE_DISCONNECTED));
+  ASSERT_EQ(
+      -ENOENT,
+      client::client_update_state(ioctx, oid, "id1", CLIENT_STATE_DISCONNECTED));
 
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id1", bufferlist()));
 
   bufferlist data;
   data.append(std::string(128, '1'));
-  ASSERT_EQ(0, client::client_update_state(ioctx, oid, "id1",
-                                           CLIENT_STATE_DISCONNECTED));
+  ASSERT_EQ(
+      0,
+      client::client_update_state(ioctx, oid, "id1", CLIENT_STATE_DISCONNECTED));
 
   Client client;
   ASSERT_EQ(0, client::get_client(ioctx, oid, "id1", &client));
@@ -307,7 +329,8 @@ TEST_F(TestClsJournal, ClientUpdateState) {
   ASSERT_EQ(expected_client, client);
 }
 
-TEST_F(TestClsJournal, ClientUnregister) {
+TEST_F(TestClsJournal, ClientUnregister)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -318,7 +341,8 @@ TEST_F(TestClsJournal, ClientUnregister) {
   ASSERT_EQ(0, client::client_unregister(ioctx, oid, "id1"));
 }
 
-TEST_F(TestClsJournal, ClientUnregisterDNE) {
+TEST_F(TestClsJournal, ClientUnregisterDNE)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -330,7 +354,8 @@ TEST_F(TestClsJournal, ClientUnregisterDNE) {
   ASSERT_EQ(-ENOENT, client::client_unregister(ioctx, oid, "id1"));
 }
 
-TEST_F(TestClsJournal, ClientUnregisterPruneTags) {
+TEST_F(TestClsJournal, ClientUnregisterPruneTags)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -340,10 +365,10 @@ TEST_F(TestClsJournal, ClientUnregisterPruneTags) {
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id1", bufferlist()));
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id2", bufferlist()));
 
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW, bufferlist()));
 
   for (uint32_t i = 2; i <= 96; ++i) {
     ASSERT_EQ(0, client::tag_create(ioctx, oid, i, 1, bufferlist()));
@@ -360,12 +385,14 @@ TEST_F(TestClsJournal, ClientUnregisterPruneTags) {
     expected_tags.insert({i, 1, {}});
   }
   std::set<Tag> tags;
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1",
-                                boost::optional<uint64_t>(), &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(), &tags));
   ASSERT_EQ(expected_tags, tags);
 }
 
-TEST_F(TestClsJournal, ClientCommit) {
+TEST_F(TestClsJournal, ClientCommit)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -376,10 +403,9 @@ TEST_F(TestClsJournal, ClientCommit) {
 
   cls::journal::ObjectPositions object_positions;
   object_positions = {
-    cls::journal::ObjectPosition(0, 234, 120),
-    cls::journal::ObjectPosition(3, 235, 121)};
-  cls::journal::ObjectSetPosition object_set_position(
-    object_positions);
+      cls::journal::ObjectPosition(0, 234, 120),
+      cls::journal::ObjectPosition(3, 235, 121)};
+  cls::journal::ObjectSetPosition object_set_position(object_positions);
 
   librados::ObjectWriteOperation op2;
   client::client_commit(&op2, "id1", object_set_position);
@@ -389,11 +415,12 @@ TEST_F(TestClsJournal, ClientCommit) {
   ASSERT_EQ(0, client::client_list(ioctx, oid, &clients));
 
   std::set<Client> expected_clients = {
-    Client("id1", bufferlist(), object_set_position)};
+      Client("id1", bufferlist(), object_set_position)};
   ASSERT_EQ(expected_clients, clients);
 }
 
-TEST_F(TestClsJournal, ClientCommitInvalid) {
+TEST_F(TestClsJournal, ClientCommitInvalid)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -404,18 +431,18 @@ TEST_F(TestClsJournal, ClientCommitInvalid) {
 
   cls::journal::ObjectPositions object_positions;
   object_positions = {
-    cls::journal::ObjectPosition(0, 234, 120),
-    cls::journal::ObjectPosition(4, 234, 121),
-    cls::journal::ObjectPosition(5, 235, 121)};
-  cls::journal::ObjectSetPosition object_set_position(
-    object_positions);
+      cls::journal::ObjectPosition(0, 234, 120),
+      cls::journal::ObjectPosition(4, 234, 121),
+      cls::journal::ObjectPosition(5, 235, 121)};
+  cls::journal::ObjectSetPosition object_set_position(object_positions);
 
   librados::ObjectWriteOperation op2;
   client::client_commit(&op2, "id1", object_set_position);
   ASSERT_EQ(-EINVAL, ioctx.operate(oid, &op2));
 }
 
-TEST_F(TestClsJournal, ClientCommitDNE) {
+TEST_F(TestClsJournal, ClientCommitDNE)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -428,7 +455,8 @@ TEST_F(TestClsJournal, ClientCommitDNE) {
   ASSERT_EQ(-ENOENT, ioctx.operate(oid, &op1));
 }
 
-TEST_F(TestClsJournal, ClientList) {
+TEST_F(TestClsJournal, ClientList)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -439,7 +467,7 @@ TEST_F(TestClsJournal, ClientList) {
   std::set<Client> expected_clients;
   librados::ObjectWriteOperation op1;
   for (uint32_t i = 0; i < 512; ++i) {
-    std::string id =  "id" + stringify(i + 1);
+    std::string id = "id" + stringify(i + 1);
     expected_clients.insert(Client(id, bufferlist()));
     client::client_register(&op1, id, bufferlist());
   }
@@ -453,13 +481,14 @@ TEST_F(TestClsJournal, ClientList) {
   uint64_t read_minimum_set;
   uint64_t read_active_set;
   std::set<cls::journal::Client> read_clients;
-  client::get_mutable_metadata(ioctx, oid, &read_minimum_set, &read_active_set,
-                               &read_clients, &cond);
+  client::get_mutable_metadata(
+      ioctx, oid, &read_minimum_set, &read_active_set, &read_clients, &cond);
   ASSERT_EQ(0, cond.wait());
   ASSERT_EQ(expected_clients, read_clients);
 }
 
-TEST_F(TestClsJournal, GetNextTagTid) {
+TEST_F(TestClsJournal, GetNextTagTid)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -474,45 +503,50 @@ TEST_F(TestClsJournal, GetNextTagTid) {
   ASSERT_EQ(0, client::get_next_tag_tid(ioctx, oid, &tag_tid));
   ASSERT_EQ(0U, tag_tid);
 
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
   ASSERT_EQ(0, client::get_next_tag_tid(ioctx, oid, &tag_tid));
   ASSERT_EQ(1U, tag_tid);
 }
 
-TEST_F(TestClsJournal, TagCreate) {
+TEST_F(TestClsJournal, TagCreate)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
   std::string oid = get_temp_image_name();
 
-  ASSERT_EQ(-ENOENT, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                        bufferlist()));
+  ASSERT_EQ(
+      -ENOENT,
+      client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
 
   ASSERT_EQ(0, client::create(ioctx, oid, 2, 2, ioctx.get_id()));
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id1", bufferlist()));
 
-  ASSERT_EQ(-ESTALE, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW,
-                                        bufferlist()));
+  ASSERT_EQ(
+      -ESTALE,
+      client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW, bufferlist()));
   ASSERT_EQ(-EINVAL, client::tag_create(ioctx, oid, 0, 1, bufferlist()));
 
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
-  ASSERT_EQ(-EEXIST, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                        bufferlist()));
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
+  ASSERT_EQ(
+      -EEXIST,
+      client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW, bufferlist()));
   ASSERT_EQ(0, client::tag_create(ioctx, oid, 2, 1, bufferlist()));
 
-  std::set<Tag> expected_tags = {
-    {0, 0, {}}, {1, 1, {}}, {2, 1, {}}};
+  std::set<Tag> expected_tags = {{0, 0, {}}, {1, 1, {}}, {2, 1, {}}};
   std::set<Tag> tags;
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1",
-                                boost::optional<uint64_t>(), &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(), &tags));
   ASSERT_EQ(expected_tags, tags);
 }
 
-TEST_F(TestClsJournal, TagCreatePrunesTags) {
+TEST_F(TestClsJournal, TagCreatePrunesTags)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -521,10 +555,10 @@ TEST_F(TestClsJournal, TagCreatePrunesTags) {
   ASSERT_EQ(0, client::create(ioctx, oid, 2, 2, ioctx.get_id()));
   ASSERT_EQ(0, client::client_register(ioctx, oid, "id1", bufferlist()));
 
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
-  ASSERT_EQ(0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW,
-                                  bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 0, Tag::TAG_CLASS_NEW, bufferlist()));
+  ASSERT_EQ(
+      0, client::tag_create(ioctx, oid, 1, Tag::TAG_CLASS_NEW, bufferlist()));
   ASSERT_EQ(0, client::tag_create(ioctx, oid, 2, 1, bufferlist()));
 
   librados::ObjectWriteOperation op1;
@@ -533,15 +567,16 @@ TEST_F(TestClsJournal, TagCreatePrunesTags) {
 
   ASSERT_EQ(0, client::tag_create(ioctx, oid, 3, 0, bufferlist()));
 
-  std::set<Tag> expected_tags = {
-    {0, 0, {}}, {2, 1, {}}, {3, 0, {}}};
+  std::set<Tag> expected_tags = {{0, 0, {}}, {2, 1, {}}, {3, 0, {}}};
   std::set<Tag> tags;
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1",
-                                boost::optional<uint64_t>(), &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(), &tags));
   ASSERT_EQ(expected_tags, tags);
 }
 
-TEST_F(TestClsJournal, TagList) {
+TEST_F(TestClsJournal, TagList)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -563,29 +598,32 @@ TEST_F(TestClsJournal, TagList) {
     if (i % 2 == 0) {
       expected_filtered_tags.insert(tag);
     }
-    ASSERT_EQ(0, client::tag_create(ioctx, oid, i, tag_class,
-                                    bufferlist()));
+    ASSERT_EQ(0, client::tag_create(ioctx, oid, i, tag_class, bufferlist()));
   }
 
   std::set<Tag> tags;
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(),
-                                &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(), &tags));
   ASSERT_EQ(expected_all_tags, tags);
 
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(0),
-                                &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(0), &tags));
   ASSERT_EQ(expected_filtered_tags, tags);
 
   librados::ObjectWriteOperation op1;
   client::client_commit(&op1, "id1", {{{96, 0, 120}}});
   ASSERT_EQ(0, ioctx.operate(oid, &op1));
 
-  ASSERT_EQ(0, client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(),
-                                &tags));
+  ASSERT_EQ(
+      0,
+      client::tag_list(ioctx, oid, "id1", boost::optional<uint64_t>(), &tags));
   ASSERT_EQ(expected_all_tags, tags);
 }
 
-TEST_F(TestClsJournal, GuardAppend) {
+TEST_F(TestClsJournal, GuardAppend)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -603,7 +641,8 @@ TEST_F(TestClsJournal, GuardAppend) {
   ASSERT_EQ(0, ioctx.operate(oid, &op2));
 }
 
-TEST_F(TestClsJournal, GuardAppendDNE) {
+TEST_F(TestClsJournal, GuardAppendDNE)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -614,7 +653,8 @@ TEST_F(TestClsJournal, GuardAppendDNE) {
   ASSERT_EQ(0, ioctx.operate(oid, &op2));
 }
 
-TEST_F(TestClsJournal, GuardAppendOverflow) {
+TEST_F(TestClsJournal, GuardAppendOverflow)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -632,7 +672,8 @@ TEST_F(TestClsJournal, GuardAppendOverflow) {
   ASSERT_EQ(-EOVERFLOW, ioctx.operate(oid, &op2));
 }
 
-TEST_F(TestClsJournal, Append) {
+TEST_F(TestClsJournal, Append)
+{
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(_pool_name.c_str(), ioctx));
 
@@ -680,13 +721,13 @@ TEST_F(TestClsJournal, Append) {
   std::map<uint64_t, uint64_t> m;
   uint64_t pad_len = outbl.length();
   outbl.clear();
-  std::map<uint64_t, uint64_t> expected_m =
-      {{0, bl.length()}, {pad_len, bl.length()}};
+  std::map<uint64_t, uint64_t> expected_m = {
+      {0, bl.length()}, {pad_len, bl.length()}};
   ASSERT_EQ(expected_m.size(), ioctx.sparse_read(oid, m, outbl, 2 * pad_len, 0));
   ASSERT_EQ(m, expected_m);
 
   uint64_t buffer_offset = 0;
-  for (auto &it : m) {
+  for (auto& it : m) {
     tmpbl.clear();
     tmpbl.substr_of(outbl, buffer_offset, it.second);
     ASSERT_TRUE(bl.contents_equal(tmpbl));

@@ -2,12 +2,17 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "BlueAdmin.h"
-#include "Compression.h"
-#include "common/pretty_binary.h"
-#include "common/debug.h"
+
 #include <asm-generic/errno-base.h>
-#include <vector>
+
 #include <limits>
+#include <vector>
+
+#include "common/debug.h"
+
+#include "common/pretty_binary.h"
+
+#include "Compression.h"
 
 #define dout_subsys ceph_subsys_bluestore
 #define dout_context store.cct
@@ -16,62 +21,56 @@ using ceph::bufferlist;
 using ceph::Formatter;
 using ceph::common::cmd_getval;
 
-BlueStore::SocketHook::SocketHook(BlueStore& store)
-  : store(store)
+BlueStore::SocketHook::SocketHook(BlueStore& store) :
+  store(store)
 {
-  AdminSocket *admin_socket = store.cct->get_admin_socket();
+  AdminSocket* admin_socket = store.cct->get_admin_socket();
   if (admin_socket) {
     int r = admin_socket->register_command(
-      "bluestore collections",
-      this,
-      "list all collections");
+        "bluestore collections", this, "list all collections");
     if (r != 0) {
       dout(1) << __func__ << " cannot register SocketHook" << dendl;
       return;
     }
     r = admin_socket->register_command(
-      "bluestore list "
-      "name=collection,type=CephString,req=true "
-      "name=start,type=CephString,req=false "
-      "name=max,type=CephInt,req=false",
-      this,
-      "list objects in specific collection");
+        "bluestore list "
+        "name=collection,type=CephString,req=true "
+        "name=start,type=CephString,req=false "
+        "name=max,type=CephInt,req=false",
+        this, "list objects in specific collection");
     ceph_assert(r == 0);
     r = admin_socket->register_command(
-      "bluestore onode metadata "
-      "name=object_name,type=CephString,req=true",
-      this,
-      "print object internals");
+        "bluestore onode metadata "
+        "name=object_name,type=CephString,req=true",
+        this, "print object internals");
     ceph_assert(r == 0);
     r = admin_socket->register_command(
-      "bluestore compression stats "
-      "name=collection,type=CephString,req=false",
-      this,
-      "print compression stats, per collection");
+        "bluestore compression stats "
+        "name=collection,type=CephString,req=false",
+        this, "print compression stats, per collection");
     ceph_assert(r == 0);
     r = admin_socket->register_command(
-      "bluestore show sharding ",
-      this,
-      "print RocksDB sharding");
+        "bluestore show sharding ", this, "print RocksDB sharding");
     ceph_assert(r == 0);
   }
 }
 
 BlueStore::SocketHook::~SocketHook()
 {
-  AdminSocket *admin_socket = store.cct->get_admin_socket();
+  AdminSocket* admin_socket = store.cct->get_admin_socket();
   if (admin_socket) {
     admin_socket->unregister_commands(this);
   }
 }
 
-int BlueStore::SocketHook::call(
-  std::string_view command,
-  const cmdmap_t& cmdmap,
-  const bufferlist& inbl,
-  Formatter *f,
-  std::ostream& ss,
-  bufferlist& out)
+int
+BlueStore::SocketHook::call(
+    std::string_view command,
+    const cmdmap_t& cmdmap,
+    const bufferlist& inbl,
+    Formatter* f,
+    std::ostream& ss,
+    bufferlist& out)
 {
   int r = 0;
   if (command == "bluestore collections") {
@@ -109,14 +108,15 @@ int BlueStore::SocketHook::call(
     if (start.length() > 0) {
       if (start_object.parse(start) == false) {
         ss << "Cannot parse start object";
-	return -EINVAL;
+        return -EINVAL;
       }
     }
     std::vector<ghobject_t> list;
     {
       std::shared_lock l(col->lock);
-      r = store._collection_list(col.get(), start_object, ghobject_t::get_max(),
-        max, false, &list, nullptr);
+      r = store._collection_list(
+          col.get(), start_object, ghobject_t::get_max(), max, false, &list,
+          nullptr);
     }
     if (r != 0) {
       return 0;
@@ -147,7 +147,9 @@ int BlueStore::SocketHook::call(
         o->extent_map.fault_range(store.db, 0, 0xffffffff);
         using P = BlueStore::printer;
         std::stringstream result;
-        result << o->print(P::PTR + P::DISK + P::USE + P::BUF + P::CHK + P::ATTRS) << std::endl;
+        result << o->print(
+                      P::PTR + P::DISK + P::USE + P::BUF + P::CHK + P::ATTRS)
+               << std::endl;
         out.append(result.str());
         return 0;
       }
@@ -168,8 +170,7 @@ int BlueStore::SocketHook::call(
     f->open_array_section("compression");
     for (const auto& c : copied) {
       std::shared_lock l(c->lock);
-      if ((coll.empty() && bool(c->estimator))
-        || coll == c->get_cid().c_str()) {
+      if ((coll.empty() && bool(c->estimator)) || coll == c->get_cid().c_str()) {
         f->open_object_section("collection");
         f->dump_string("cid", c->get_cid().c_str());
         f->open_object_section("estimator");

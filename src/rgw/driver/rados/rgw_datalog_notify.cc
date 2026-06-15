@@ -2,23 +2,28 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include "rgw_datalog_notify.h"
+
 #include "rgw_datalog.h"
 
 // custom encoding for v1 notify API
 struct EntryEncoderV1 {
   const rgw_data_notify_entry& entry;
 };
+
 struct SetEncoderV1 {
   const bc::flat_set<rgw_data_notify_entry>& entries;
 };
 
 // encode rgw_data_notify_entry as string
-void encode_json(const char *name, const EntryEncoderV1& e, Formatter *f)
+void
+encode_json(const char* name, const EntryEncoderV1& e, Formatter* f)
 {
   f->dump_string(name, e.entry.key); // encode the key only
 }
+
 // encode set<rgw_data_notify_entry> as set<string>
-void encode_json(const char *name, const SetEncoderV1& e, Formatter *f)
+void
+encode_json(const char* name, const SetEncoderV1& e, Formatter* f)
 {
   f->open_array_section(name);
   for (auto& entry : e.entries) {
@@ -26,8 +31,10 @@ void encode_json(const char *name, const SetEncoderV1& e, Formatter *f)
   }
   f->close_section();
 }
+
 // encode map<int, set<rgw_data_notify_entry>> as map<int, set<string>>
-void encode_json(const char *name, const rgw_data_notify_v1_encoder& e, Formatter *f)
+void
+encode_json(const char* name, const rgw_data_notify_v1_encoder& e, Formatter* f)
 {
   f->open_array_section(name);
   for (auto& [key, val] : e.shards) {
@@ -42,18 +49,22 @@ void encode_json(const char *name, const rgw_data_notify_v1_encoder& e, Formatte
 struct EntryDecoderV1 {
   rgw_data_notify_entry& entry;
 };
+
 struct SetDecoderV1 {
   bc::flat_set<rgw_data_notify_entry>& entries;
 };
 
 // decode string into rgw_data_notify_entry
-void decode_json_obj(EntryDecoderV1& d, JSONObj *obj)
+void
+decode_json_obj(EntryDecoderV1& d, JSONObj* obj)
 {
   decode_json_obj(d.entry.key, obj);
   d.entry.gen = 0;
 }
+
 // decode set<string> into set<rgw_data_notify_entry>
-void decode_json_obj(SetDecoderV1& d, JSONObj *obj)
+void
+decode_json_obj(SetDecoderV1& d, JSONObj* obj)
 {
   for (JSONObjIter o = obj->find_first(); !o.end(); ++o) {
     rgw_data_notify_entry val;
@@ -62,8 +73,10 @@ void decode_json_obj(SetDecoderV1& d, JSONObj *obj)
     d.entries.insert(std::move(val));
   }
 }
+
 // decode map<int, set<string>> into map<int, set<rgw_data_notify_entry>>
-void decode_json_obj(rgw_data_notify_v1_decoder& d, JSONObj *obj)
+void
+decode_json_obj(rgw_data_notify_v1_decoder& d, JSONObj* obj)
 {
   for (JSONObjIter o = obj->find_first(); !o.end(); ++o) {
     int shard_id = 0;

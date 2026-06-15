@@ -14,18 +14,33 @@
  */
 
 #include <gtest/gtest.h>
-#include "osd/PGTransaction.h"
-#include "osd/ECTransactionL.h"
+
 #include "common/debug.h"
 
+#include "osd/ECTransactionL.h"
+#include "osd/PGTransaction.h"
 #include "test/unit.cc"
 
 using namespace ECLegacy;
 
 struct mydpp : public DoutPrefixProvider {
-  std::ostream& gen_prefix(std::ostream& out) const override { return out << "foo"; }
-  CephContext *get_cct() const override { return g_ceph_context; }
-  unsigned get_subsys() const override { return ceph_subsys_osd; }
+  std::ostream&
+  gen_prefix(std::ostream& out) const override
+  {
+    return out << "foo";
+  }
+
+  CephContext*
+  get_cct() const override
+  {
+    return g_ceph_context;
+  }
+
+  unsigned
+  get_subsys() const override
+  {
+    return ceph_subsys_osd;
+  }
 } dpp;
 
 #define dout_context g_ceph_context
@@ -43,13 +58,12 @@ TEST(ectransaction, two_writes_separated)
 
   ECUtilL::stripe_info_t sinfo(2, 2, 8192);
   auto plan = ECTransactionL::get_write_plan(
-    sinfo,
-    *t,
-    [&](const hobject_t &i) {
-      ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
-      return ref;
-    },
-    &dpp);
+      sinfo, *t,
+      [&](const hobject_t& i) {
+        ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
+        return ref;
+      },
+      &dpp);
   generic_derr << "to_read " << plan.to_read << dendl;
   generic_derr << "will_write " << plan.will_write << dendl;
 
@@ -72,13 +86,12 @@ TEST(ectransaction, two_writes_nearby)
   t->write(h, 569856, b.length(), b, 0);
 
   auto plan = ECTransactionL::get_write_plan(
-    sinfo,
-    *t,
-    [&](const hobject_t &i) {
-      ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
-      return ref;
-    },
-    &dpp);
+      sinfo, *t,
+      [&](const hobject_t& i) {
+        ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
+        return ref;
+      },
+      &dpp);
   generic_derr << "to_read " << plan.to_read << dendl;
   generic_derr << "will_write " << plan.will_write << dendl;
 
@@ -113,13 +126,12 @@ TEST(ectransaction, many_writes)
   t->write(h, 2813952, b.length(), b, 0);
 
   auto plan = ECTransactionL::get_write_plan(
-    sinfo,
-    *t,
-    [&](const hobject_t &i) {
-      ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
-      return ref;
-    },
-    &dpp);
+      sinfo, *t,
+      [&](const hobject_t& i) {
+        ECUtilL::HashInfoRef ref(new ECUtilL::HashInfo(1));
+        return ref;
+      },
+      &dpp);
   generic_derr << "to_read " << plan.to_read << dendl;
   generic_derr << "will_write " << plan.will_write << dendl;
 

@@ -1,12 +1,14 @@
-#include <iostream>
 #include <errno.h>
 
-#include "test/librados/test_cxx.h"
+#include <iostream>
+
 #include "gtest/gtest.h"
+#include "test/librados/test_cxx.h"
 
 using namespace librados;
 
-TEST(ClsSDK, TestSDKCoverageWrite) {
+TEST(ClsSDK, TestSDKCoverageWrite)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -21,7 +23,8 @@ TEST(ClsSDK, TestSDKCoverageWrite) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsSDK, TestSDKCoverageReplay) {
+TEST(ClsSDK, TestSDKCoverageReplay)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -39,4 +42,3 @@ TEST(ClsSDK, TestSDKCoverageReplay) {
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
-

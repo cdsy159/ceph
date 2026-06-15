@@ -14,26 +14,28 @@
  *
  */
 
-#include "include/compat.h"
-#include "gtest/gtest.h"
-#include "include/cephfs/libcephfs.h"
-#include "mds/mdstypes.h"
-#include "include/stat.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/resource.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "gtest/gtest.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
+#include "include/stat.h"
+#include "mds/mdstypes.h"
 
 #ifdef __linux__
 #include <limits.h>
 #include <sys/xattr.h>
 #endif
 
-TEST(LibCephFS, SnapQuota) {
-  struct ceph_mount_info *cmount;
+TEST(LibCephFS, SnapQuota)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(ceph_create(&cmount, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(cmount, NULL), 0);
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
@@ -55,18 +57,28 @@ TEST(LibCephFS, SnapQuota) {
 
   sprintf(xattrk, "ceph.quota.max_bytes");
   sprintf(xattrv, "65536");
-  ASSERT_EQ(0, ceph_setxattr(cmount, test_snap_dir_quota_xattr, xattrk, (void *)xattrv, 5, XATTR_CREATE));
+  ASSERT_EQ(
+      0, ceph_setxattr(
+             cmount, test_snap_dir_quota_xattr, xattrk, (void*)xattrv, 5,
+             XATTR_CREATE));
 
   // create subdir and set quota
-  sprintf(test_snap_subdir_quota_xattr, "test_snap_dir_quota_xattr_%d/subdir_quota", mypid);
+  sprintf(
+      test_snap_subdir_quota_xattr, "test_snap_dir_quota_xattr_%d/subdir_quota",
+      mypid);
   ASSERT_EQ(0, ceph_mkdirs(cmount, test_snap_subdir_quota_xattr, 0777));
 
   sprintf(xattrk, "ceph.quota.max_bytes");
   sprintf(xattrv, "32768");
-  ASSERT_EQ(0, ceph_setxattr(cmount, test_snap_subdir_quota_xattr, xattrk, (void *)xattrv, 5, XATTR_CREATE));
+  ASSERT_EQ(
+      0, ceph_setxattr(
+             cmount, test_snap_subdir_quota_xattr, xattrk, (void*)xattrv, 5,
+             XATTR_CREATE));
 
   // create subdir with no quota
-  sprintf(test_snap_subdir_noquota_xattr, "test_snap_dir_quota_xattr_%d/subdir_noquota", mypid);
+  sprintf(
+      test_snap_subdir_noquota_xattr,
+      "test_snap_dir_quota_xattr_%d/subdir_noquota", mypid);
   ASSERT_EQ(0, ceph_mkdirs(cmount, test_snap_subdir_noquota_xattr, 0777));
 
   // snapshot dir
@@ -74,31 +86,50 @@ TEST(LibCephFS, SnapQuota) {
   ASSERT_EQ(0, ceph_mkdirs(cmount, c_temp, 0777));
 
   // check dir quota under snap
-  sprintf(c_temp, "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d", mypid, mypid);
-  int alen = ceph_getxattr(cmount, c_temp, "ceph.quota.max_bytes", (void *)gxattrv, xbuflen);
+  sprintf(
+      c_temp,
+      "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d",
+      mypid, mypid);
+  int alen = ceph_getxattr(
+      cmount, c_temp, "ceph.quota.max_bytes", (void*)gxattrv, xbuflen);
   ASSERT_LT(0, alen);
   ASSERT_LT(alen, xbuflen);
   gxattrv[alen] = '\0';
   ASSERT_STREQ(gxattrv, "65536");
 
   // check subdir quota under snap
-  sprintf(c_temp, "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d/subdir_quota", mypid, mypid);
-  alen = ceph_getxattr(cmount, c_temp, "ceph.quota.max_bytes", (void *)gxattrv, xbuflen);
+  sprintf(
+      c_temp,
+      "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d/"
+      "subdir_quota",
+      mypid, mypid);
+  alen = ceph_getxattr(
+      cmount, c_temp, "ceph.quota.max_bytes", (void*)gxattrv, xbuflen);
   ASSERT_LT(0, alen);
   ASSERT_LT(alen, xbuflen);
   gxattrv[alen] = '\0';
   ASSERT_STREQ(gxattrv, "32768");
 
   // ensure subdir noquota xattr under snap
-  sprintf(c_temp, "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d/subdir_noquota", mypid, mypid);
-  EXPECT_EQ(-ENODATA, ceph_getxattr(cmount, c_temp, "ceph.quota.max_bytes", (void *)gxattrv, xbuflen));
+  sprintf(
+      c_temp,
+      "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d/"
+      "subdir_noquota",
+      mypid, mypid);
+  EXPECT_EQ(
+      -ENODATA,
+      ceph_getxattr(
+          cmount, c_temp, "ceph.quota.max_bytes", (void*)gxattrv, xbuflen));
 
   // listxattr() shouldn't return ceph.quota.max_bytes vxattr
-  sprintf(c_temp, "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d", mypid, mypid);
+  sprintf(
+      c_temp,
+      "/.snap/test_snap_dir_quota_xattr_snap_%d/test_snap_dir_quota_xattr_%d",
+      mypid, mypid);
   char xattrlist[512];
   int len = ceph_listxattr(cmount, c_temp, xattrlist, sizeof(xattrlist));
   ASSERT_GE(sizeof(xattrlist), (size_t)len);
-  char *p = xattrlist;
+  char* p = xattrlist;
   int found = 0;
   while (len > 0) {
     if (strcmp(p, "ceph.quota.max_bytes") == 0)
@@ -111,8 +142,12 @@ TEST(LibCephFS, SnapQuota) {
   ceph_shutdown(cmount);
 }
 
-void statfs_quota_size_check(struct ceph_mount_info *cmount, const char *path,
-                             int blocks, int bsize)
+void
+statfs_quota_size_check(
+    struct ceph_mount_info* cmount,
+    const char* path,
+    int blocks,
+    int bsize)
 {
   struct statvfs stvfs;
 
@@ -122,7 +157,8 @@ void statfs_quota_size_check(struct ceph_mount_info *cmount, const char *path,
   ASSERT_EQ(bsize, stvfs.f_frsize);
 }
 
-TEST(LibCephFS, QuotaRealm) {
+TEST(LibCephFS, QuotaRealm)
+{
   struct ceph_mount_info *cmount, *pmount1, *pmount2;
   char test_quota_realm_pdir[128];
   char test_quota_realm_cdir[256];
@@ -141,14 +177,21 @@ TEST(LibCephFS, QuotaRealm) {
   ASSERT_EQ(0, ceph_mkdir(cmount, test_quota_realm_pdir, 0777));
   sprintf(xattrk, "ceph.quota.max_bytes");
   sprintf(xattrv, "8388608"); // 8MB
-  ASSERT_EQ(0, ceph_setxattr(cmount, test_quota_realm_pdir, xattrk, (void *)xattrv, 7, XATTR_CREATE));
+  ASSERT_EQ(
+      0, ceph_setxattr(
+             cmount, test_quota_realm_pdir, xattrk, (void*)xattrv, 7,
+             XATTR_CREATE));
 
   // create child directory and set quota file
-  sprintf(test_quota_realm_cdir, "%s/test_quota_realm_cdir", test_quota_realm_pdir);
+  sprintf(
+      test_quota_realm_cdir, "%s/test_quota_realm_cdir", test_quota_realm_pdir);
   ASSERT_EQ(0, ceph_mkdir(cmount, test_quota_realm_cdir, 0777));
   sprintf(xattrk, "ceph.quota.max_files");
   sprintf(xattrv, "1024"); // 1K files
-  ASSERT_EQ(0, ceph_setxattr(cmount, test_quota_realm_cdir, xattrk, (void *)xattrv, 4, XATTR_CREATE));
+  ASSERT_EQ(
+      0, ceph_setxattr(
+             cmount, test_quota_realm_cdir, xattrk, (void*)xattrv, 4,
+             XATTR_CREATE));
 
   ASSERT_EQ(ceph_create(&pmount1, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(pmount1, NULL), 0);

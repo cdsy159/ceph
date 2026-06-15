@@ -1,27 +1,28 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "gtest_seastar.h"
+
 #include <cstdlib>
 #include <iostream>
-
-#include "include/ceph_assert.h"
-#include "gtest_seastar.h"
 
 #include "common/ceph_argparse.h"
 #include "crimson/common/config_proxy.h"
 #include "crimson/common/perf_counters_collection.h"
+#include "include/ceph_assert.h"
 
 SeastarRunner seastar_test_suite_t::seastar_env;
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   // preprocess args
   std::vector<const char*> args;
   bool global_log_level_is_set = false;
   const char* prefix_log_level = "--default-log-level";
   for (int i = 0; i < argc; ++i) {
-    if (std::strncmp(argv[i], prefix_log_level,
-                     std::strlen(prefix_log_level)) == 0) {
+    if (std::strncmp(argv[i], prefix_log_level, std::strlen(prefix_log_level)) ==
+        0) {
       global_log_level_is_set = true;
     }
     args.push_back(argv[i]);
@@ -45,11 +46,9 @@ int main(int argc, char **argv)
   }
 
   seastar_test_suite_t::seastar_env.run([] {
-    return crimson::common::sharded_conf().start(
-      EntityName{}, std::string_view{"ceph"}
-    ).then([] {
-      return crimson::common::sharded_perf_coll().start();
-    });
+    return crimson::common::sharded_conf()
+        .start(EntityName{}, std::string_view{"ceph"})
+        .then([] { return crimson::common::sharded_perf_coll().start(); });
   });
 
   ret = RUN_ALL_TESTS();

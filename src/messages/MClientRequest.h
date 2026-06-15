@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -34,6 +34,11 @@
  *  
  */
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <utime.h>
+
 #include <list>
 #include <map>
 #include <ostream>
@@ -41,38 +46,43 @@
 #include <string_view>
 #include <vector>
 
-#include "include/filepath.h"
-#include "mds/mdstypes.h"
 #include "common/Formatter.h"
 #include "include/ceph_features.h"
+#include "include/filepath.h"
 #include "mds/cephfs_features.h"
+#include "mds/mdstypes.h"
 #include "messages/MMDSOp.h"
-
-#include <sys/types.h>
-#include <utime.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 struct SnapPayload {
   std::map<std::string, std::string> metadata;
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(metadata, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &iter) {
+  void
+  decode(ceph::buffer::list::const_iterator& iter)
+  {
     DECODE_START(1, iter);
     decode(metadata, iter);
     DECODE_FINISH(iter);
   }
-  void dump(ceph::Formatter *f) const {
-    for (const auto &i : metadata) {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
+    for (const auto& i : metadata) {
       f->dump_string(i.first.c_str(), i.second);
     }
   }
-  static std::list<SnapPayload> generate_test_instances() {
+
+  static std::list<SnapPayload>
+  generate_test_instances()
+  {
     std::list<SnapPayload> o;
     o.emplace_back();
     o.emplace_back();
@@ -100,23 +110,34 @@ public:
     mutable ceph_mds_request_release item;
     std::string dname;
 
-    Release() : item(), dname() {}
-    Release(const ceph_mds_request_release& rel, std::string name) :
-      item(rel), dname(name) {}
+    Release() :
+      item(), dname()
+    {}
 
-    void encode(ceph::buffer::list& bl) const {
+    Release(const ceph_mds_request_release& rel, std::string name) :
+      item(rel), dname(name)
+    {}
+
+    void
+    encode(ceph::buffer::list& bl) const
+    {
       using ceph::encode;
       item.dname_len = dname.length();
       encode(item, bl);
       ceph::encode_nohead(dname, bl);
     }
-    void decode(ceph::buffer::list::const_iterator& bl) {
+
+    void
+    decode(ceph::buffer::list::const_iterator& bl)
+    {
       using ceph::decode;
       decode(item, bl);
       ceph::decode_nohead(item.dname_len, dname, bl);
     }
 
-    void dump(ceph::Formatter *f) const {
+    void
+    dump(ceph::Formatter* f) const
+    {
       f->dump_string("dname", dname);
       f->dump_unsigned("ino", item.ino);
       f->dump_unsigned("cap_id", item.cap_id);
@@ -129,7 +150,9 @@ public:
       f->dump_unsigned("dname_len", item.dname_len);
     }
 
-    static std::list<Release> generate_test_instances() {
+    static std::list<Release>
+    generate_test_instances()
+    {
       std::list<Release> ls;
       ls.emplace_back();
       ls.emplace_back();
@@ -138,6 +161,7 @@ public:
       return ls;
     }
   };
+
   mutable std::vector<Release> releases; /* XXX HACK! */
 
   // path arguments
@@ -153,117 +177,297 @@ public:
 
 protected:
   // cons
-  MClientRequest()
-    : MMDSOp(CEPH_MSG_CLIENT_REQUEST, HEAD_VERSION, COMPAT_VERSION) {
+  MClientRequest() :
+    MMDSOp(CEPH_MSG_CLIENT_REQUEST, HEAD_VERSION, COMPAT_VERSION)
+  {
     memset(&head, 0, sizeof(head));
     head.owner_uid = -1;
     head.owner_gid = -1;
   }
-  MClientRequest(int op, feature_bitset_t features = 0)
-    : MMDSOp(CEPH_MSG_CLIENT_REQUEST, HEAD_VERSION, COMPAT_VERSION) {
+
+  MClientRequest(int op, feature_bitset_t features = 0) :
+    MMDSOp(CEPH_MSG_CLIENT_REQUEST, HEAD_VERSION, COMPAT_VERSION)
+  {
     memset(&head, 0, sizeof(head));
     head.op = op;
     mds_features = features;
     head.owner_uid = -1;
     head.owner_gid = -1;
   }
+
   ~MClientRequest() final {}
 
 public:
-  void set_mdsmap_epoch(epoch_t e) { head.mdsmap_epoch = e; }
-  epoch_t get_mdsmap_epoch() const { return head.mdsmap_epoch; }
-  epoch_t get_osdmap_epoch() const {
+  void
+  set_mdsmap_epoch(epoch_t e)
+  {
+    head.mdsmap_epoch = e;
+  }
+
+  epoch_t
+  get_mdsmap_epoch() const
+  {
+    return head.mdsmap_epoch;
+  }
+
+  epoch_t
+  get_osdmap_epoch() const
+  {
     ceph_assert(head.op == CEPH_MDS_OP_SETXATTR);
     if (header.version >= 3)
       return head.args.setxattr.osdmap_epoch;
     else
       return 0;
   }
-  void set_osdmap_epoch(epoch_t e) {
+
+  void
+  set_osdmap_epoch(epoch_t e)
+  {
     ceph_assert(head.op == CEPH_MDS_OP_SETXATTR);
     head.args.setxattr.osdmap_epoch = e;
   }
 
-  metareqid_t get_reqid() const {
+  metareqid_t
+  get_reqid() const
+  {
     // FIXME: for now, assume clients always have 1 incarnation
-    return metareqid_t(get_orig_source(), header.tid); 
+    return metareqid_t(get_orig_source(), header.tid);
   }
 
   /*bool open_file_mode_is_readonly() {
     return file_mode_is_readonly(ceph_flags_to_mode(head.args.open.flags));
     }*/
-  bool may_write() const {
-    return
-      (head.op & CEPH_MDS_OP_WRITE) || 
-      (head.op == CEPH_MDS_OP_OPEN && (head.args.open.flags & (O_CREAT|O_TRUNC)));
+  bool
+  may_write() const
+  {
+    return (head.op & CEPH_MDS_OP_WRITE) ||
+           (head.op == CEPH_MDS_OP_OPEN &&
+            (head.args.open.flags & (O_CREAT | O_TRUNC)));
   }
 
-  int get_flags() const {
+  int
+  get_flags() const
+  {
     return head.flags;
   }
-  bool is_replay() const {
+
+  bool
+  is_replay() const
+  {
     return get_flags() & CEPH_MDS_FLAG_REPLAY;
   }
-  bool is_async() const {
+
+  bool
+  is_async() const
+  {
     return get_flags() & CEPH_MDS_FLAG_ASYNC;
   }
 
   // normal fields
-  void set_stamp(utime_t t) { stamp = t; }
-  void set_oldest_client_tid(ceph_tid_t t) { head.oldest_client_tid = t; }
-  void inc_num_fwd() { head.ext_num_fwd = head.ext_num_fwd + 1; }
-  void set_retry_attempt(int a) { head.ext_num_retry = a; }
-  void set_filepath(const filepath& fp) { path = fp; }
-  void set_filepath2(const filepath& fp) { path2 = fp; }
-  void set_string2(const char *s) { path2.set_path(std::string_view(s), 0); }
-  void set_caller_uid(unsigned u) { head.caller_uid = u; }
-  void set_caller_gid(unsigned g) { head.caller_gid = g; }
-  void set_gid_list(int count, const gid_t *gids) {
+  void
+  set_stamp(utime_t t)
+  {
+    stamp = t;
+  }
+
+  void
+  set_oldest_client_tid(ceph_tid_t t)
+  {
+    head.oldest_client_tid = t;
+  }
+
+  void
+  inc_num_fwd()
+  {
+    head.ext_num_fwd = head.ext_num_fwd + 1;
+  }
+
+  void
+  set_retry_attempt(int a)
+  {
+    head.ext_num_retry = a;
+  }
+
+  void
+  set_filepath(const filepath& fp)
+  {
+    path = fp;
+  }
+
+  void
+  set_filepath2(const filepath& fp)
+  {
+    path2 = fp;
+  }
+
+  void
+  set_string2(const char* s)
+  {
+    path2.set_path(std::string_view(s), 0);
+  }
+
+  void
+  set_caller_uid(unsigned u)
+  {
+    head.caller_uid = u;
+  }
+
+  void
+  set_caller_gid(unsigned g)
+  {
+    head.caller_gid = g;
+  }
+
+  void
+  set_gid_list(int count, const gid_t* gids)
+  {
     gid_list.reserve(count);
     for (int i = 0; i < count; ++i) {
       gid_list.push_back(gids[i]);
     }
   }
-  void set_dentry_wanted() {
+
+  void
+  set_dentry_wanted()
+  {
     head.flags = head.flags | CEPH_MDS_FLAG_WANT_DENTRY;
   }
-  void set_replayed_op() {
+
+  void
+  set_replayed_op()
+  {
     head.flags = head.flags | CEPH_MDS_FLAG_REPLAY;
   }
-  void set_async_op() {
+
+  void
+  set_async_op()
+  {
     head.flags = head.flags | CEPH_MDS_FLAG_ASYNC;
   }
 
-  void set_alternate_name(std::string _alternate_name) {
+  void
+  set_alternate_name(std::string _alternate_name)
+  {
     alternate_name = std::move(_alternate_name);
   }
-  void set_alternate_name(bufferptr&& cipher) {
+
+  void
+  set_alternate_name(bufferptr&& cipher)
+  {
     alternate_name = std::move(cipher.c_str());
   }
 
-  utime_t get_stamp() const { return stamp; }
-  ceph_tid_t get_oldest_client_tid() const { return head.oldest_client_tid; }
-  int get_num_fwd() const { return head.ext_num_fwd; }
-  int get_retry_attempt() const { return head.ext_num_retry; }
-  int get_op() const { return head.op; }
-  unsigned get_caller_uid() const { return head.caller_uid; }
-  unsigned get_caller_gid() const { return head.caller_gid; }
-  unsigned get_owner_uid() const { return head.owner_uid; }
-  unsigned get_owner_gid() const { return head.owner_gid; }
-  const std::vector<uint64_t>& get_caller_gid_list() const { return gid_list; }
+  utime_t
+  get_stamp() const
+  {
+    return stamp;
+  }
 
-  const std::string& get_path() const { return path.get_path(); }
-  const filepath& get_filepath() const { return path; }
-  const std::string& get_path2() const { return path2.get_path(); }
-  const filepath& get_filepath2() const { return path2; }
-  std::string_view get_alternate_name() const { return std::string_view(alternate_name); }
+  ceph_tid_t
+  get_oldest_client_tid() const
+  {
+    return head.oldest_client_tid;
+  }
 
-  int get_dentry_wanted() const { return get_flags() & CEPH_MDS_FLAG_WANT_DENTRY; }
+  int
+  get_num_fwd() const
+  {
+    return head.ext_num_fwd;
+  }
 
-  void mark_queued_for_replay() const { queued_for_replay = true; }
-  bool is_queued_for_replay() const { return queued_for_replay; }
+  int
+  get_retry_attempt() const
+  {
+    return head.ext_num_retry;
+  }
 
-  void decode_payload() override {
+  int
+  get_op() const
+  {
+    return head.op;
+  }
+
+  unsigned
+  get_caller_uid() const
+  {
+    return head.caller_uid;
+  }
+
+  unsigned
+  get_caller_gid() const
+  {
+    return head.caller_gid;
+  }
+
+  unsigned
+  get_owner_uid() const
+  {
+    return head.owner_uid;
+  }
+
+  unsigned
+  get_owner_gid() const
+  {
+    return head.owner_gid;
+  }
+
+  const std::vector<uint64_t>&
+  get_caller_gid_list() const
+  {
+    return gid_list;
+  }
+
+  const std::string&
+  get_path() const
+  {
+    return path.get_path();
+  }
+
+  const filepath&
+  get_filepath() const
+  {
+    return path;
+  }
+
+  const std::string&
+  get_path2() const
+  {
+    return path2.get_path();
+  }
+
+  const filepath&
+  get_filepath2() const
+  {
+    return path2;
+  }
+
+  std::string_view
+  get_alternate_name() const
+  {
+    return std::string_view(alternate_name);
+  }
+
+  int
+  get_dentry_wanted() const
+  {
+    return get_flags() & CEPH_MDS_FLAG_WANT_DENTRY;
+  }
+
+  void
+  mark_queued_for_replay() const
+  {
+    queued_for_replay = true;
+  }
+
+  bool
+  is_queued_for_replay() const
+  {
+    return queued_for_replay;
+  }
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
 
@@ -284,12 +488,12 @@ public:
 
       /* Can't set the btime from legacy struct */
       if (head.op == CEPH_MDS_OP_SETATTR) {
-	int localmask = head.args.setattr.mask;
+        int localmask = head.args.setattr.mask;
 
-	localmask &= ~CEPH_SETATTR_BTIME;
+        localmask &= ~CEPH_SETATTR_BTIME;
 
-	head.args.setattr.btime = { ceph_le32(0), ceph_le32(0) };
-	head.args.setattr.mask = localmask;
+        head.args.setattr.btime = {ceph_le32(0), ceph_le32(0)};
+        head.args.setattr.mask = localmask;
       }
     }
 
@@ -308,7 +512,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     head.num_releases = releases.size();
     /*
@@ -344,42 +550,48 @@ public:
     encode(fscrypt_file, payload);
   }
 
-  std::string_view get_type_name() const override { return "creq"; }
-  void print(std::ostream& out) const override {
-    out << "client_request(" << get_orig_source()
-	<< ":" << get_tid()
-	<< " " << ceph_mds_op_name(get_op());
+  std::string_view
+  get_type_name() const override
+  {
+    return "creq";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "client_request(" << get_orig_source() << ":" << get_tid() << " "
+        << ceph_mds_op_name(get_op());
     if (IS_CEPH_MDS_OP_NEWINODE(head.op)) {
       out << " owner_uid=" << head.owner_uid
-	  << ", owner_gid=" << head.owner_gid;
+          << ", owner_gid=" << head.owner_gid;
     }
     if (head.op == CEPH_MDS_OP_GETATTR)
       out << " " << ccap_string(head.args.getattr.mask);
     if (head.op == CEPH_MDS_OP_SETATTR) {
       if (head.args.setattr.mask & CEPH_SETATTR_MODE)
-	out << " mode=0" << std::oct << head.args.setattr.mode << std::dec;
+        out << " mode=0" << std::oct << head.args.setattr.mode << std::dec;
       if (head.args.setattr.mask & CEPH_SETATTR_UID)
-	out << " uid=" << head.args.setattr.uid;
+        out << " uid=" << head.args.setattr.uid;
       if (head.args.setattr.mask & CEPH_SETATTR_GID)
-	out << " gid=" << head.args.setattr.gid;
+        out << " gid=" << head.args.setattr.gid;
       if (head.args.setattr.mask & CEPH_SETATTR_SIZE)
-	out << " size=" << head.args.setattr.size;
+        out << " size=" << head.args.setattr.size;
       if (head.args.setattr.mask & CEPH_SETATTR_MTIME)
-	out << " mtime=" << utime_t(head.args.setattr.mtime);
+        out << " mtime=" << utime_t(head.args.setattr.mtime);
       if (head.args.setattr.mask & CEPH_SETATTR_ATIME)
-	out << " atime=" << utime_t(head.args.setattr.atime);
+        out << " atime=" << utime_t(head.args.setattr.atime);
     }
     if (head.op == CEPH_MDS_OP_SETFILELOCK ||
-	head.op == CEPH_MDS_OP_GETFILELOCK) {
-      out << " rule " << (int)head.args.filelock_change.rule
-	  << ", type " << (int)head.args.filelock_change.type
-	  << ", owner " << head.args.filelock_change.owner
-	  << ", pid " << head.args.filelock_change.pid
-	  << ", start " << head.args.filelock_change.start
-	  << ", length " << head.args.filelock_change.length
-	  << ", wait " << (int)head.args.filelock_change.wait;
+        head.op == CEPH_MDS_OP_GETFILELOCK) {
+      out << " rule " << (int)head.args.filelock_change.rule << ", type "
+          << (int)head.args.filelock_change.type << ", owner "
+          << head.args.filelock_change.owner << ", pid "
+          << head.args.filelock_change.pid << ", start "
+          << head.args.filelock_change.start << ", length "
+          << head.args.filelock_change.length << ", wait "
+          << (int)head.args.filelock_change.wait;
     }
-    //if (!get_filepath().empty()) 
+    //if (!get_filepath().empty())
     out << " " << get_filepath();
     if (alternate_name.size())
       out << " (" << alternate_name << ") ";
@@ -398,17 +610,16 @@ public:
     if (queued_for_replay)
       out << " QUEUED_FOR_REPLAY";
     out << " caller_uid=" << head.caller_uid
-	<< ", caller_gid=" << head.caller_gid
-	<< '{';
+        << ", caller_gid=" << head.caller_gid << '{';
     for (auto i = gid_list.begin(); i != gid_list.end(); ++i)
       out << *i << ',';
-    out << '}'
-	<< ")";
+    out << '}' << ")";
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

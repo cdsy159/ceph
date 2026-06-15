@@ -1,19 +1,22 @@
 
 
-#include "rgw_common.h"
 #include "rgw_sync_policy.h"
+
 #include "rgw_bucket.h"
+#include "rgw_common.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-string rgw_sync_bucket_entity::bucket_key() const
+string
+rgw_sync_bucket_entity::bucket_key() const
 {
   return rgw_sync_bucket_entities::bucket_key(bucket);
 }
 
-bool rgw_sync_pipe_filter_tag::from_str(const string& s)
+bool
+rgw_sync_pipe_filter_tag::from_str(const string& s)
 {
   if (s.empty()) {
     return false;
@@ -33,7 +36,8 @@ bool rgw_sync_pipe_filter_tag::from_str(const string& s)
   return true;
 }
 
-bool rgw_sync_pipe_filter_tag::operator==(const string& s) const
+bool
+rgw_sync_pipe_filter_tag::operator==(const string& s) const
 {
   if (s.empty()) {
     return false;
@@ -48,7 +52,8 @@ bool rgw_sync_pipe_filter_tag::operator==(const string& s) const
          s.compare(pos + 1, s.size() - pos - 1, value) == 0;
 }
 
-void rgw_sync_pipe_filter::encode(bufferlist& bl) const
+void
+rgw_sync_pipe_filter::encode(bufferlist& bl) const
 {
   ENCODE_START(1, 1, bl);
   encode(prefix, bl);
@@ -56,7 +61,8 @@ void rgw_sync_pipe_filter::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void rgw_sync_pipe_filter::decode(bufferlist::const_iterator& bl)
+void
+rgw_sync_pipe_filter::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(prefix, bl);
@@ -64,17 +70,20 @@ void rgw_sync_pipe_filter::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void rgw_sync_pipe_filter::set_prefix(std::optional<std::string> opt_prefix,
-                                      bool prefix_rm)
+void
+rgw_sync_pipe_filter::set_prefix(
+    std::optional<std::string> opt_prefix,
+    bool prefix_rm)
 {
   if (opt_prefix) {
-    prefix = *opt_prefix;    
+    prefix = *opt_prefix;
   } else if (prefix_rm) {
     prefix.reset();
   }
 }
 
-bool rgw_sync_pipe_filter::check_prefix(const std::string& obj_name) const
+bool
+rgw_sync_pipe_filter::check_prefix(const std::string& obj_name) const
 {
   if (prefix.has_value()) {
     return boost::starts_with(obj_name, prefix.value());
@@ -82,8 +91,10 @@ bool rgw_sync_pipe_filter::check_prefix(const std::string& obj_name) const
   return true;
 }
 
-void rgw_sync_pipe_filter::set_tags(std::list<std::string>& tags_add,
-                                    std::list<std::string>& tags_rm)
+void
+rgw_sync_pipe_filter::set_tags(
+    std::list<std::string>& tags_add,
+    std::list<std::string>& tags_rm)
 {
   for (auto& t : tags_rm) {
     rgw_sync_pipe_filter_tag tag;
@@ -100,7 +111,8 @@ void rgw_sync_pipe_filter::set_tags(std::list<std::string>& tags_add,
   }
 }
 
-bool rgw_sync_pipe_filter::is_subset_of(const rgw_sync_pipe_filter& f) const
+bool
+rgw_sync_pipe_filter::is_subset_of(const rgw_sync_pipe_filter& f) const
 {
   if (f.prefix) {
     if (!prefix) {
@@ -125,7 +137,8 @@ bool rgw_sync_pipe_filter::is_subset_of(const rgw_sync_pipe_filter& f) const
   return true;
 }
 
-bool rgw_sync_pipe_filter::check_tag(const string& s) const
+bool
+rgw_sync_pipe_filter::check_tag(const string& s) const
 {
   if (tags.empty()) { /* tag filter wasn't defined */
     return true;
@@ -135,7 +148,8 @@ bool rgw_sync_pipe_filter::check_tag(const string& s) const
   return (iter != tags.end());
 }
 
-bool rgw_sync_pipe_filter::check_tag(const string& k, const string& v) const
+bool
+rgw_sync_pipe_filter::check_tag(const string& k, const string& v) const
 {
   if (tags.empty()) { /* tag filter wasn't defined */
     return true;
@@ -145,17 +159,20 @@ bool rgw_sync_pipe_filter::check_tag(const string& k, const string& v) const
   return (iter != tags.end());
 }
 
-bool rgw_sync_pipe_filter::has_tags() const
+bool
+rgw_sync_pipe_filter::has_tags() const
 {
   return !tags.empty();
 }
 
-bool rgw_sync_pipe_filter::has_prefix() const
+bool
+rgw_sync_pipe_filter::has_prefix() const
 {
   return prefix.has_value();
 }
 
-bool rgw_sync_pipe_filter::check_tags(const std::vector<string>& _tags) const
+bool
+rgw_sync_pipe_filter::check_tags(const std::vector<string>& _tags) const
 {
   if (tags.empty()) {
     return true;
@@ -169,7 +186,8 @@ bool rgw_sync_pipe_filter::check_tags(const std::vector<string>& _tags) const
   return false;
 }
 
-bool rgw_sync_pipe_filter::check_tags(const RGWObjTags::tag_map_t& _tags) const
+bool
+rgw_sync_pipe_filter::check_tags(const RGWObjTags::tag_map_t& _tags) const
 {
   if (tags.empty()) {
     return true;
@@ -183,19 +201,21 @@ bool rgw_sync_pipe_filter::check_tags(const RGWObjTags::tag_map_t& _tags) const
   return false;
 }
 
-void rgw_sync_bucket_entity::apply_bucket(std::optional<rgw_bucket> b)
+void
+rgw_sync_bucket_entity::apply_bucket(std::optional<rgw_bucket> b)
 {
   if (!b) {
     return;
   }
 
-  if (!bucket ||
-      bucket->name.empty()) {
+  if (!bucket || bucket->name.empty()) {
     bucket = b;
   }
 }
 
-void rgw_sync_bucket_entities::add_zones(const std::vector<rgw_zone_id>& new_zones) {
+void
+rgw_sync_bucket_entities::add_zones(const std::vector<rgw_zone_id>& new_zones)
+{
   for (auto& z : new_zones) {
     if (z == "*") {
       all_zones = true;
@@ -213,7 +233,8 @@ void rgw_sync_bucket_entities::add_zones(const std::vector<rgw_zone_id>& new_zon
   }
 }
 
-std::vector<rgw_sync_bucket_entity> rgw_sync_bucket_entities::expand() const
+std::vector<rgw_sync_bucket_entity>
+rgw_sync_bucket_entities::expand() const
 {
   std::vector<rgw_sync_bucket_entity> result;
   rgw_bucket b = get_bucket();
@@ -240,7 +261,9 @@ std::vector<rgw_sync_bucket_entity> rgw_sync_bucket_entities::expand() const
   return result;
 }
 
-void rgw_sync_bucket_entities::remove_zones(const std::vector<rgw_zone_id>& rm_zones) {
+void
+rgw_sync_bucket_entities::remove_zones(const std::vector<rgw_zone_id>& rm_zones)
+{
   all_zones = false;
 
   if (!zones) {
@@ -252,7 +275,9 @@ void rgw_sync_bucket_entities::remove_zones(const std::vector<rgw_zone_id>& rm_z
   }
 }
 
-static void set_bucket_field(std::optional<string> source, string *field) {
+static void
+set_bucket_field(std::optional<string> source, string* field)
+{
   if (!source) {
     return;
   }
@@ -263,9 +288,11 @@ static void set_bucket_field(std::optional<string> source, string *field) {
   *field = *source;
 }
 
-void rgw_sync_bucket_entities::set_bucket(std::optional<string> tenant,
-                std::optional<string> bucket_name,
-                std::optional<string> bucket_id)
+void
+rgw_sync_bucket_entities::set_bucket(
+    std::optional<string> tenant,
+    std::optional<string> bucket_name,
+    std::optional<string> bucket_id)
 {
   if ((!bucket) && (tenant || bucket_name || bucket_id)) {
     bucket.emplace();
@@ -279,16 +306,17 @@ void rgw_sync_bucket_entities::set_bucket(std::optional<string> tenant,
   set_bucket_field(bucket_name, &bucket->name);
   set_bucket_field(bucket_id, &bucket->bucket_id);
 
-  if (bucket->tenant.empty() &&
-      bucket->name.empty() &&
+  if (bucket->tenant.empty() && bucket->name.empty() &&
       bucket->bucket_id.empty()) {
     bucket.reset();
   }
 }
 
-void rgw_sync_bucket_entities::remove_bucket(std::optional<string> tenant,
-                                           std::optional<string> bucket_name,
-                                           std::optional<string> bucket_id)
+void
+rgw_sync_bucket_entities::remove_bucket(
+    std::optional<string> tenant,
+    std::optional<string> bucket_name,
+    std::optional<string> bucket_id)
 {
   if (!bucket) {
     return;
@@ -304,15 +332,14 @@ void rgw_sync_bucket_entities::remove_bucket(std::optional<string> tenant,
     bucket->bucket_id.clear();
   }
 
-  if (bucket->tenant.empty() &&
-      bucket->name.empty() &&
+  if (bucket->tenant.empty() && bucket->name.empty() &&
       bucket->bucket_id.empty()) {
     bucket.reset();
   }
 }
 
-
-string rgw_sync_bucket_entities::bucket_key(std::optional<rgw_bucket> b)
+string
+rgw_sync_bucket_entities::bucket_key(std::optional<rgw_bucket> b)
 {
   if (!b) {
     return string("*");
@@ -327,7 +354,8 @@ string rgw_sync_bucket_entities::bucket_key(std::optional<rgw_bucket> b)
   return _b.get_key();
 }
 
-std::vector<rgw_sync_bucket_pipe> rgw_sync_bucket_pipes::expand() const
+std::vector<rgw_sync_bucket_pipe>
+rgw_sync_bucket_pipes::expand() const
 {
   std::vector<rgw_sync_bucket_pipe> result;
 
@@ -348,10 +376,11 @@ std::vector<rgw_sync_bucket_pipe> rgw_sync_bucket_pipes::expand() const
   return result;
 }
 
-
-void rgw_sync_bucket_pipes::get_potential_related_buckets(const rgw_bucket& bucket,
-                                                          std::set<rgw_bucket> *sources,
-                                                          std::set<rgw_bucket> *dests) const
+void
+rgw_sync_bucket_pipes::get_potential_related_buckets(
+    const rgw_bucket& bucket,
+    std::set<rgw_bucket>* sources,
+    std::set<rgw_bucket>* dests) const
 {
   if (dest.match_bucket(bucket)) {
     auto expanded_sources = source.expand();
@@ -374,7 +403,10 @@ void rgw_sync_bucket_pipes::get_potential_related_buckets(const rgw_bucket& buck
   }
 }
 
-bool rgw_sync_data_flow_group::find_or_create_symmetrical(const string& flow_id, rgw_sync_symmetric_group **flow_group)
+bool
+rgw_sync_data_flow_group::find_or_create_symmetrical(
+    const string& flow_id,
+    rgw_sync_symmetric_group** flow_group)
 {
   for (auto& group : symmetrical) {
     if (flow_id == group.id) {
@@ -389,7 +421,10 @@ bool rgw_sync_data_flow_group::find_or_create_symmetrical(const string& flow_id,
   return true;
 }
 
-void rgw_sync_data_flow_group::remove_symmetrical(const string& flow_id, std::optional<std::vector<rgw_zone_id> > zones)
+void
+rgw_sync_data_flow_group::remove_symmetrical(
+    const string& flow_id,
+    std::optional<std::vector<rgw_zone_id>> zones)
 {
   if (symmetrical.empty()) {
     return;
@@ -430,11 +465,14 @@ void rgw_sync_data_flow_group::remove_symmetrical(const string& flow_id, std::op
   }
 }
 
-bool rgw_sync_data_flow_group::find_or_create_directional(const rgw_zone_id& source_zone, const rgw_zone_id& dest_zone, rgw_sync_directional_rule **flow_group)
+bool
+rgw_sync_data_flow_group::find_or_create_directional(
+    const rgw_zone_id& source_zone,
+    const rgw_zone_id& dest_zone,
+    rgw_sync_directional_rule** flow_group)
 {
   for (auto& rule : directional) {
-    if (source_zone == rule.source_zone &&
-        dest_zone == rule.dest_zone) {
+    if (source_zone == rule.source_zone && dest_zone == rule.dest_zone) {
       *flow_group = &rule;
       return true;
     }
@@ -449,7 +487,10 @@ bool rgw_sync_data_flow_group::find_or_create_directional(const rgw_zone_id& sou
   return true;
 }
 
-void rgw_sync_data_flow_group::remove_directional(const rgw_zone_id& source_zone, const rgw_zone_id& dest_zone)
+void
+rgw_sync_data_flow_group::remove_directional(
+    const rgw_zone_id& source_zone,
+    const rgw_zone_id& dest_zone)
 {
   if (directional.empty()) {
     return;
@@ -457,21 +498,25 @@ void rgw_sync_data_flow_group::remove_directional(const rgw_zone_id& source_zone
 
   for (auto iter = directional.begin(); iter != directional.end(); ++iter) {
     auto& rule = *iter;
-    if (source_zone == rule.source_zone &&
-        dest_zone == rule.dest_zone) {
+    if (source_zone == rule.source_zone && dest_zone == rule.dest_zone) {
       directional.erase(iter);
       return;
     }
   }
 }
 
-void rgw_sync_data_flow_group::init_default(const std::set<rgw_zone_id>& zones)
+void
+rgw_sync_data_flow_group::init_default(const std::set<rgw_zone_id>& zones)
 {
   symmetrical.clear();
   symmetrical.push_back(rgw_sync_symmetric_group("default", zones));
 }
 
-bool rgw_sync_policy_group::find_pipe(const string& pipe_id, bool create, rgw_sync_bucket_pipes **pipe)
+bool
+rgw_sync_policy_group::find_pipe(
+    const string& pipe_id,
+    bool create,
+    rgw_sync_bucket_pipes** pipe)
 {
   for (auto& p : pipes) {
     if (pipe_id == p.id) {
@@ -491,7 +536,8 @@ bool rgw_sync_policy_group::find_pipe(const string& pipe_id, bool create, rgw_sy
   return true;
 }
 
-void rgw_sync_policy_group::remove_pipe(const string& pipe_id)
+void
+rgw_sync_policy_group::remove_pipe(const string& pipe_id)
 {
   for (auto iter = pipes.begin(); iter != pipes.end(); ++iter) {
     if (pipe_id == iter->id) {
@@ -501,18 +547,22 @@ void rgw_sync_policy_group::remove_pipe(const string& pipe_id)
   }
 }
 
-void rgw_sync_policy_group::get_potential_related_buckets(const rgw_bucket& bucket,
-                                                          std::set<rgw_bucket> *sources,
-                                                          std::set<rgw_bucket> *dests) const
+void
+rgw_sync_policy_group::get_potential_related_buckets(
+    const rgw_bucket& bucket,
+    std::set<rgw_bucket>* sources,
+    std::set<rgw_bucket>* dests) const
 {
   for (auto& pipe : pipes) {
     pipe.get_potential_related_buckets(bucket, sources, dests);
   }
 }
 
-void rgw_sync_policy_info::get_potential_related_buckets(const rgw_bucket& bucket,
-                                                         std::set<rgw_bucket> *sources,
-                                                         std::set<rgw_bucket> *dests) const
+void
+rgw_sync_policy_info::get_potential_related_buckets(
+    const rgw_bucket& bucket,
+    std::set<rgw_bucket>* sources,
+    std::set<rgw_bucket>* dests) const
 {
   for (auto& entry : groups) {
     auto& group = entry.second;
@@ -520,37 +570,43 @@ void rgw_sync_policy_info::get_potential_related_buckets(const rgw_bucket& bucke
   }
 }
 
-void rgw_sync_directional_rule::dump(Formatter *f) const
+void
+rgw_sync_directional_rule::dump(Formatter* f) const
 {
   encode_json("source_zone", source_zone, f);
   encode_json("dest_zone", dest_zone, f);
 }
 
-void rgw_sync_directional_rule::decode_json(JSONObj *obj)
+void
+rgw_sync_directional_rule::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("source_zone", source_zone, obj);
   JSONDecoder::decode_json("dest_zone", dest_zone, obj);
 }
 
-void rgw_sync_symmetric_group::dump(Formatter *f) const
+void
+rgw_sync_symmetric_group::dump(Formatter* f) const
 {
   encode_json("id", id, f);
   encode_json("zones", zones, f);
 }
 
-void rgw_sync_symmetric_group::decode_json(JSONObj *obj)
+void
+rgw_sync_symmetric_group::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("zones", zones, obj);
 }
 
-void rgw_sync_bucket_entity::dump(Formatter *f) const
+void
+rgw_sync_bucket_entity::dump(Formatter* f) const
 {
   encode_json("zone", zone, f);
   encode_json("bucket", bucket_key(), f);
 }
 
-void rgw_sync_bucket_entity::decode_json(JSONObj *obj)
+void
+rgw_sync_bucket_entity::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("zone", zone, obj);
   string s;
@@ -565,74 +621,85 @@ void rgw_sync_bucket_entity::decode_json(JSONObj *obj)
   }
 }
 
-void rgw_sync_pipe_filter_tag::dump(Formatter *f) const
+void
+rgw_sync_pipe_filter_tag::dump(Formatter* f) const
 {
   encode_json("key", key, f);
   encode_json("value", value, f);
 }
 
-void rgw_sync_pipe_filter_tag::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_filter_tag::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("key", key, obj);
   JSONDecoder::decode_json("value", value, obj);
 }
 
-void rgw_sync_pipe_filter::dump(Formatter *f) const
+void
+rgw_sync_pipe_filter::dump(Formatter* f) const
 {
   encode_json("prefix", prefix, f);
   encode_json("tags", tags, f);
 }
 
-void rgw_sync_pipe_filter::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_filter::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("prefix", prefix, obj);
   JSONDecoder::decode_json("tags", tags, obj);
 }
 
-void rgw_sync_pipe_acl_translation::dump(Formatter *f) const
+void
+rgw_sync_pipe_acl_translation::dump(Formatter* f) const
 {
   encode_json("owner", owner, f);
 }
 
-void rgw_sync_pipe_acl_translation::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_acl_translation::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("owner", owner, obj);
 }
 
-void rgw_sync_pipe_source_params::dump(Formatter *f) const
+void
+rgw_sync_pipe_source_params::dump(Formatter* f) const
 {
   encode_json("filter", filter, f);
 }
 
-void rgw_sync_pipe_source_params::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_source_params::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("filter", filter, obj);
 }
 
-void rgw_sync_pipe_dest_params::dump(Formatter *f) const
+void
+rgw_sync_pipe_dest_params::dump(Formatter* f) const
 {
   encode_json("acl_translation", acl_translation, f);
   encode_json("storage_class", storage_class, f);
 }
 
-void rgw_sync_pipe_dest_params::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_dest_params::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("acl_translation", acl_translation, obj);
   JSONDecoder::decode_json("storage_class", storage_class, obj);
 }
 
-void rgw_sync_pipe_params::dump(Formatter *f) const
+void
+rgw_sync_pipe_params::dump(Formatter* f) const
 {
   encode_json("source", source, f);
   encode_json("dest", dest, f);
   encode_json("priority", priority, f);
   string s;
   switch (mode) {
-    case MODE_SYSTEM:
-      s = "system";
-      break;
-    default:
-      s = "user";
+  case MODE_SYSTEM:
+    s = "system";
+    break;
+  default:
+    s = "user";
   }
   encode_json("mode", s, f);
   if (user) {
@@ -640,7 +707,8 @@ void rgw_sync_pipe_params::dump(Formatter *f) const
   }
 }
 
-void rgw_sync_pipe_params::decode_json(JSONObj *obj)
+void
+rgw_sync_pipe_params::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("source", source, obj);
   JSONDecoder::decode_json("dest", dest, obj);
@@ -655,18 +723,20 @@ void rgw_sync_pipe_params::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("user", user, obj);
 }
 
-void rgw_sync_bucket_entities::dump(Formatter *f) const
+void
+rgw_sync_bucket_entities::dump(Formatter* f) const
 {
   encode_json("bucket", rgw_sync_bucket_entities::bucket_key(bucket), f);
   if (zones) {
     encode_json("zones", zones, f);
   } else if (all_zones) {
-    set<string> z = { "*" };
+    set<string> z = {"*"};
     encode_json("zones", z, f);
   }
 }
 
-void rgw_sync_bucket_entities::decode_json(JSONObj *obj)
+void
+rgw_sync_bucket_entities::decode_json(JSONObj* obj)
 {
   string s;
   JSONDecoder::decode_json("bucket", s, obj);
@@ -700,7 +770,8 @@ void rgw_sync_bucket_entities::decode_json(JSONObj *obj)
   }
 }
 
-void rgw_sync_bucket_pipe::dump(Formatter *f) const
+void
+rgw_sync_bucket_pipe::dump(Formatter* f) const
 {
   encode_json("id", id, f);
   encode_json("source", source, f);
@@ -708,7 +779,8 @@ void rgw_sync_bucket_pipe::dump(Formatter *f) const
   encode_json("params", params, f);
 }
 
-void rgw_sync_bucket_pipe::decode_json(JSONObj *obj)
+void
+rgw_sync_bucket_pipe::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("source", source, obj);
@@ -716,7 +788,8 @@ void rgw_sync_bucket_pipe::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("params", params, obj);
 }
 
-void rgw_sync_bucket_pipes::dump(Formatter *f) const
+void
+rgw_sync_bucket_pipes::dump(Formatter* f) const
 {
   encode_json("id", id, f);
   encode_json("source", source, f);
@@ -724,7 +797,8 @@ void rgw_sync_bucket_pipes::dump(Formatter *f) const
   encode_json("params", params, f);
 }
 
-void rgw_sync_bucket_pipes::decode_json(JSONObj *obj)
+void
+rgw_sync_bucket_pipes::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("source", source, obj);
@@ -732,7 +806,8 @@ void rgw_sync_bucket_pipes::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("params", params, obj);
 }
 
-void rgw_sync_data_flow_group::dump(Formatter *f) const
+void
+rgw_sync_data_flow_group::dump(Formatter* f) const
 {
   if (!symmetrical.empty()) {
     encode_json("symmetrical", symmetrical, f);
@@ -743,35 +818,38 @@ void rgw_sync_data_flow_group::dump(Formatter *f) const
   }
 }
 
-void rgw_sync_data_flow_group::decode_json(JSONObj *obj)
+void
+rgw_sync_data_flow_group::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("symmetrical", symmetrical, obj);
   JSONDecoder::decode_json("directional", directional, obj);
 }
 
-void rgw_sync_policy_group::dump(Formatter *f) const
+void
+rgw_sync_policy_group::dump(Formatter* f) const
 {
   encode_json("id", id, f);
   encode_json("data_flow", data_flow, f);
   encode_json("pipes", pipes, f);
   string s;
   switch (status) {
-    case  rgw_sync_policy_group::Status::FORBIDDEN:
-      s = "forbidden";
-      break;
-    case  rgw_sync_policy_group::Status::ALLOWED:
-      s = "allowed";
-      break;
-    case  rgw_sync_policy_group::Status::ENABLED:
-      s = "enabled";
-      break;
-    default:
-      s = "unknown";
+  case rgw_sync_policy_group::Status::FORBIDDEN:
+    s = "forbidden";
+    break;
+  case rgw_sync_policy_group::Status::ALLOWED:
+    s = "allowed";
+    break;
+  case rgw_sync_policy_group::Status::ENABLED:
+    s = "enabled";
+    break;
+  default:
+    s = "unknown";
   }
   encode_json("status", s, f);
 }
 
-void rgw_sync_policy_group::decode_json(JSONObj *obj)
+void
+rgw_sync_policy_group::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("data_flow", data_flow, obj);
@@ -781,22 +859,25 @@ void rgw_sync_policy_group::decode_json(JSONObj *obj)
   set_status(s);
 }
 
-void rgw_sync_policy_info::dump(Formatter *f) const
+void
+rgw_sync_policy_info::dump(Formatter* f) const
 {
   Formatter::ArraySection section(*f, "groups");
-  for (auto& group : groups ) {
+  for (auto& group : groups) {
     encode_json("group", group.second, f);
   }
 }
 
-list<rgw_sync_policy_info> rgw_sync_policy_info::generate_test_instances()
+list<rgw_sync_policy_info>
+rgw_sync_policy_info::generate_test_instances()
 {
   list<rgw_sync_policy_info> o;
   o.emplace_back();
   return o;
 }
 
-void rgw_sync_policy_info::decode_json(JSONObj *obj)
+void
+rgw_sync_policy_info::decode_json(JSONObj* obj)
 {
   vector<rgw_sync_policy_group> groups_vec;
 
@@ -806,4 +887,3 @@ void rgw_sync_policy_info::decode_json(JSONObj *obj)
     groups.emplace(std::make_pair(group.id, std::move(group)));
   }
 }
-

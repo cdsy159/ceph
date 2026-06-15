@@ -20,43 +20,45 @@
  * the highest object seen for a given inode
  */
 class ObjCeiling {
-  public:
-    uint64_t id;
-    uint64_t size;
+public:
+  uint64_t id;
+  uint64_t size;
 
-    ObjCeiling()
-      : id(0), size(0)
-    {}
+  ObjCeiling() :
+    id(0), size(0)
+  {}
 
-    ObjCeiling(uint64_t id_, uint64_t size_)
-      : id(id_), size(size_)
-    {}
+  ObjCeiling(uint64_t id_, uint64_t size_) :
+    id(id_), size(size_)
+  {}
 
-    bool operator >(ObjCeiling const &rhs) const
-    {
-      return id > rhs.id;
-    }
+  bool
+  operator>(ObjCeiling const& rhs) const
+  {
+    return id > rhs.id;
+  }
 
-    void encode(ceph::buffer::list &bl) const
-    {
-      ENCODE_START(1, 1, bl);
-      encode(id, bl);
-      encode(size, bl);
-      ENCODE_FINISH(bl);
-    }
+  void
+  encode(ceph::buffer::list& bl) const
+  {
+    ENCODE_START(1, 1, bl);
+    encode(id, bl);
+    encode(size, bl);
+    ENCODE_FINISH(bl);
+  }
 
-    void decode(ceph::buffer::list::const_iterator &p)
-    {
-      DECODE_START(1, p);
-      decode(id, p);
-      decode(size, p);
-      DECODE_FINISH(p);
-    }
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
+    DECODE_START(1, p);
+    decode(id, p);
+    decode(size, p);
+    DECODE_FINISH(p);
+  }
 };
 WRITE_CLASS_ENCODER(ObjCeiling)
 
-class AccumulateArgs
-{
+class AccumulateArgs {
 public:
   uint64_t obj_index;
   uint64_t obj_size;
@@ -69,22 +71,23 @@ public:
       uint64_t obj_index_,
       uint64_t obj_size_,
       time_t mtime_,
-      const std::string &obj_xattr_name_,
-      const std::string &mtime_xattr_name_,
-      const std::string &obj_size_xattr_name_)
-   : obj_index(obj_index_),
-     obj_size(obj_size_),
-     mtime(mtime_),
-     obj_xattr_name(obj_xattr_name_),
-     mtime_xattr_name(mtime_xattr_name_),
-     obj_size_xattr_name(obj_size_xattr_name_)
+      const std::string& obj_xattr_name_,
+      const std::string& mtime_xattr_name_,
+      const std::string& obj_size_xattr_name_) :
+    obj_index(obj_index_),
+    obj_size(obj_size_),
+    mtime(mtime_),
+    obj_xattr_name(obj_xattr_name_),
+    mtime_xattr_name(mtime_xattr_name_),
+    obj_size_xattr_name(obj_size_xattr_name_)
   {}
 
-  AccumulateArgs()
-    : obj_index(0), obj_size(0), mtime(0)
+  AccumulateArgs() :
+    obj_index(0), obj_size(0), mtime(0)
   {}
 
-  void encode(ceph::buffer::list &bl) const
+  void
+  encode(ceph::buffer::list& bl) const
   {
     ENCODE_START(1, 1, bl);
     encode(obj_xattr_name, bl);
@@ -96,7 +99,8 @@ public:
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &bl)
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
   {
     DECODE_START(1, bl);
     decode(obj_xattr_name, bl);
@@ -109,19 +113,20 @@ public:
   }
 };
 
-class InodeTagFilterArgs
-{
-  public:
-    std::string scrub_tag;
+class InodeTagFilterArgs {
+public:
+  std::string scrub_tag;
 
-  void encode(ceph::buffer::list &bl) const
+  void
+  encode(ceph::buffer::list& bl) const
   {
     ENCODE_START(1, 1, bl);
     encode(scrub_tag, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &bl)
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
   {
     DECODE_START(1, bl);
     decode(scrub_tag, bl);
@@ -129,8 +134,7 @@ class InodeTagFilterArgs
   }
 };
 
-class AccumulateResult
-{
+class AccumulateResult {
 public:
   // Index of the highest-indexed object seen
   uint64_t ceiling_obj_index;
@@ -141,11 +145,13 @@ public:
   // Non-default object pool id seen
   int64_t obj_pool_id;
   // Highest mtime seen
-  int64_t   max_mtime;
+  int64_t max_mtime;
 
-  AccumulateResult()
-    : ceiling_obj_index(0), ceiling_obj_size(0), max_obj_size(0),
-      obj_pool_id(-1), max_mtime(0)
+  AccumulateResult() :
+    ceiling_obj_index(0),
+    ceiling_obj_size(0),
+    max_obj_size(0),
+    obj_pool_id(-1),
+    max_mtime(0)
   {}
 };
-

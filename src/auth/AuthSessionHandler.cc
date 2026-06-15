@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,27 +13,30 @@
  * 
  */
 
-#include "common/debug.h"
 #include "AuthSessionHandler.h"
+
+#include "common/debug.h"
+
 #include "cephx/CephxSessionHandler.h"
 #ifdef HAVE_GSSAPI
 #include "krb/KrbSessionHandler.hpp"
 #endif
-#include "none/AuthNoneSessionHandler.h"
-
 #include "common/ceph_crypto.h"
+#include "none/AuthNoneSessionHandler.h"
 #define dout_subsys ceph_subsys_auth
 
-
-AuthSessionHandler *get_auth_session_handler(
-  CephContext *cct, int protocol,
-  const CryptoKey& key,
-  uint64_t features)
+AuthSessionHandler*
+get_auth_session_handler(
+    CephContext* cct,
+    int protocol,
+    const CryptoKey& key,
+    uint64_t features)
 {
 
   // Should add code to only print the SHA1 hash of the key, unless in secure debugging mode
 #ifndef WITH_CRIMSON
-  ldout(cct,10) << "In get_auth_session_handler for protocol " << protocol << dendl;
+  ldout(cct, 10) << "In get_auth_session_handler for protocol " << protocol
+                 << dendl;
 #endif
   switch (protocol) {
   case CEPH_AUTH_CEPHX:
@@ -45,11 +48,10 @@ AuthSessionHandler *get_auth_session_handler(
   case CEPH_AUTH_NONE:
     return new AuthNoneSessionHandler();
 #ifdef HAVE_GSSAPI
-  case CEPH_AUTH_GSS: 
+  case CEPH_AUTH_GSS:
     return new KrbSessionHandler();
 #endif
   default:
     return nullptr;
   }
 }
-

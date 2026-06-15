@@ -4,17 +4,18 @@
 #ifndef CEPH_RBD_MIRROR_SERVICE_DAEMON_TYPES_H
 #define CEPH_RBD_MIRROR_SERVICE_DAEMON_TYPES_H
 
-#include "include/int_types.h"
 #include <iosfwd>
 #include <string>
 #include <variant>
+
+#include "include/int_types.h"
 
 namespace rbd {
 namespace mirror {
 namespace service_daemon {
 
 typedef uint64_t CalloutId;
-const uint64_t CALLOUT_ID_NONE {0};
+const uint64_t CALLOUT_ID_NONE{0};
 
 enum CalloutLevel {
   CALLOUT_LEVEL_INFO,

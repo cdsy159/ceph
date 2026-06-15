@@ -16,9 +16,10 @@
 #pragma once
 
 #include <exception>
-#include <optional>
 #include <memory>
+#include <optional>
 #include <utility>
+
 #include <boost/asio/append.hpp>
 #include <boost/asio/associated_cancellation_slot.hpp>
 #include <boost/asio/async_result.hpp>
@@ -27,6 +28,7 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
+
 #include "common/async/cancel_on_error.h"
 #include "common/async/service.h"
 
@@ -35,19 +37,23 @@ namespace ceph::async::detail {
 struct spawn_throttle_handler;
 
 // Reference-counted spawn throttle implementation.
-class spawn_throttle_impl :
-    public boost::intrusive_ref_counter<spawn_throttle_impl,
-        boost::thread_unsafe_counter>,
-    public service_list_base_hook
-{
- public:
-  spawn_throttle_impl(boost::asio::yield_context yield,
-                      size_t limit, cancel_on_error on_error)
-    : svc(boost::asio::use_service<service<spawn_throttle_impl>>(
-              boost::asio::query(yield.get_executor(),
-                                 boost::asio::execution::context))),
-      yield(yield), limit(limit), on_error(on_error),
-      children(std::make_unique<child[]>(limit))
+class spawn_throttle_impl
+  : public boost::
+        intrusive_ref_counter<spawn_throttle_impl, boost::thread_unsafe_counter>,
+    public service_list_base_hook {
+public:
+  spawn_throttle_impl(
+      boost::asio::yield_context yield,
+      size_t limit,
+      cancel_on_error on_error) :
+    svc(boost::asio::use_service<service<spawn_throttle_impl>>(
+        boost::asio::query(
+            yield.get_executor(),
+            boost::asio::execution::context))),
+    yield(yield),
+    limit(limit),
+    on_error(on_error),
+    children(std::make_unique<child[]>(limit))
   {
     // register for service_shutdown() notifications
     svc.add(*this);
@@ -58,10 +64,7 @@ class spawn_throttle_impl :
     }
   }
 
-  ~spawn_throttle_impl()
-  {
-    svc.remove(*this);
-  }
+  ~spawn_throttle_impl() { svc.remove(*this); }
 
   // return the completion handler for a new child. may block due to throttling
   // or rethrow an exception from a previously-spawned child
@@ -74,25 +77,29 @@ class spawn_throttle_impl :
   };
 
   using executor_type = boost::asio::any_io_executor;
-  executor_type get_executor()
+
+  executor_type
+  get_executor()
   {
     return yield.get_executor();
   }
 
   // wait until count <= target_count
-  void wait_for(size_t target_count)
+  void
+  wait_for(size_t target_count)
   {
     if (count > target_count) {
       wait_for_count = target_count;
 
       boost::asio::async_initiate<boost::asio::yield_context, WaitSignature>(
-          [this] (auto handler) {
+          [this](auto handler) {
             auto slot = get_associated_cancellation_slot(handler);
             if (slot.is_connected()) {
               slot.template emplace<op_cancellation>(this);
             }
             waiter.emplace(std::move(handler));
-          }, yield);
+          },
+          yield);
       // this is a coroutine, so the wait has completed by this point
     }
 
@@ -100,7 +107,8 @@ class spawn_throttle_impl :
   }
 
   // cancel outstanding coroutines
-  void cancel()
+  void
+  cancel()
   {
     cancel_outstanding_from(outstanding.begin());
     if (waiter) {
@@ -109,7 +117,8 @@ class spawn_throttle_impl :
   }
 
   // complete the given child coroutine
-  void on_complete(child& c, std::exception_ptr eptr)
+  void
+  on_complete(child& c, std::exception_ptr eptr)
   {
     --count;
 
@@ -138,20 +147,21 @@ class spawn_throttle_impl :
     }
   }
 
-
-  void service_shutdown()
+  void
+  service_shutdown()
   {
     waiter.reset();
   }
 
- private:
+private:
   service<spawn_throttle_impl>& svc;
   boost::asio::yield_context yield;
   const size_t limit;
   const cancel_on_error on_error;
   size_t count = 0;
 
-  void report_exception()
+  void
+  report_exception()
   {
     if (unreported_exception) {
       std::rethrow_exception(std::exchange(unreported_exception, nullptr));
@@ -161,12 +171,13 @@ class spawn_throttle_impl :
   std::exception_ptr unreported_exception;
   std::unique_ptr<child[]> children;
 
-  using child_list = boost::intrusive::list<child,
-        boost::intrusive::constant_time_size<false>>;
+  using child_list =
+      boost::intrusive::list<child, boost::intrusive::constant_time_size<false>>;
   child_list outstanding;
   child_list free;
 
-  void cancel_outstanding_from(child_list::iterator i)
+  void
+  cancel_outstanding_from(child_list::iterator i)
   {
     while (i != outstanding.end()) {
       // increment before cancellation, which may invoke on_complete()
@@ -177,35 +188,41 @@ class spawn_throttle_impl :
   }
 
   using WaitSignature = void(boost::system::error_code);
+
   struct wait_state {
-    using Work = boost::asio::executor_work_guard<
-        boost::asio::any_io_executor>;
-    using Handler = typename boost::asio::async_result<
-        boost::asio::yield_context, WaitSignature>::handler_type;
+    using Work = boost::asio::executor_work_guard<boost::asio::any_io_executor>;
+    using Handler = typename boost::asio::
+        async_result<boost::asio::yield_context, WaitSignature>::handler_type;
 
     Work work;
     Handler handler;
 
-    explicit wait_state(Handler&& h)
-      : work(make_work_guard(h)),
-        handler(std::move(h))
+    explicit wait_state(Handler&& h) :
+      work(make_work_guard(h)), handler(std::move(h))
     {}
   };
+
   std::optional<wait_state> waiter;
   size_t wait_for_count = 0;
 
   struct op_cancellation {
     spawn_throttle_impl* self;
-    explicit op_cancellation(spawn_throttle_impl* self) noexcept
-      : self(self) {}
-    void operator()(boost::asio::cancellation_type type) {
+
+    explicit op_cancellation(spawn_throttle_impl* self) noexcept :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type type)
+    {
       if (type != boost::asio::cancellation_type::none) {
         self->cancel();
       }
     }
   };
 
-  void wait_complete(boost::system::error_code ec)
+  void
+  wait_complete(boost::system::error_code ec)
   {
     auto w = std::move(*waiter);
     waiter.reset();
@@ -222,30 +239,37 @@ struct spawn_throttle_handler {
   spawn_throttle_impl::child& c;
   boost::asio::cancellation_slot slot;
 
-  spawn_throttle_handler(boost::intrusive_ptr<spawn_throttle_impl> impl,
-                         spawn_throttle_impl::child& c)
-    : impl(std::move(impl)), c(c), slot(c.signal->slot())
+  spawn_throttle_handler(
+      boost::intrusive_ptr<spawn_throttle_impl> impl,
+      spawn_throttle_impl::child& c) :
+    impl(std::move(impl)), c(c), slot(c.signal->slot())
   {}
 
   using executor_type = spawn_throttle_impl::executor_type;
-  executor_type get_executor() const noexcept
+
+  executor_type
+  get_executor() const noexcept
   {
     return impl->get_executor();
   }
 
   using cancellation_slot_type = boost::asio::cancellation_slot;
-  cancellation_slot_type get_cancellation_slot() const noexcept
+
+  cancellation_slot_type
+  get_cancellation_slot() const noexcept
   {
     return slot;
   }
 
-  void operator()(std::exception_ptr eptr)
+  void
+  operator()(std::exception_ptr eptr)
   {
     impl->on_complete(c, eptr);
   }
 };
 
-inline spawn_throttle_handler spawn_throttle_impl::get()
+inline spawn_throttle_handler
+spawn_throttle_impl::get()
 {
   report_exception(); // throw unreported exception
 

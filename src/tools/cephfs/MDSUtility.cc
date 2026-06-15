@@ -13,12 +13,13 @@
  */
 
 #include "MDSUtility.h"
-#include "mon/MonClient.h"
+
 #include "common/debug.h"
+
+#include "mon/MonClient.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
-
 
 MDSUtility::MDSUtility() :
   Dispatcher(g_ceph_context),
@@ -33,7 +34,6 @@ MDSUtility::MDSUtility() :
   objecter = new Objecter(g_ceph_context, messenger, monc, poolctx);
 }
 
-
 MDSUtility::~MDSUtility()
 {
   if (inited) {
@@ -46,8 +46,8 @@ MDSUtility::~MDSUtility()
   ceph_assert(waiting_for_mds_map == NULL);
 }
 
-
-int MDSUtility::init()
+int
+MDSUtility::init()
 {
   // Initialize Messenger
   poolctx.start(1);
@@ -68,12 +68,15 @@ int MDSUtility::init()
     return -1;
   }
 
-  monc->set_want_keys(CEPH_ENTITY_TYPE_MON|CEPH_ENTITY_TYPE_OSD|CEPH_ENTITY_TYPE_MDS);
+  monc->set_want_keys(
+      CEPH_ENTITY_TYPE_MON | CEPH_ENTITY_TYPE_OSD | CEPH_ENTITY_TYPE_MDS);
   monc->set_messenger(messenger);
   monc->init();
   int r = monc->authenticate();
   if (r < 0) {
-    derr << "Authentication failed, did you specify an MDS ID with a valid keyring?" << dendl;
+    derr << "Authentication failed, did you specify an MDS ID with a valid "
+            "keyring?"
+         << dendl;
     monc->shutdown();
     objecter->shutdown();
     messenger->shutdown();
@@ -113,8 +116,8 @@ int MDSUtility::init()
   return 0;
 }
 
-
-void MDSUtility::shutdown()
+void
+MDSUtility::shutdown()
 {
   finisher.stop();
 
@@ -127,25 +130,25 @@ void MDSUtility::shutdown()
   poolctx.finish();
 }
 
-
-bool MDSUtility::ms_dispatch(Message *m)
+bool
+MDSUtility::ms_dispatch(Message* m)
 {
   std::lock_guard locker{lock};
-   switch (m->get_type()) {
-   case CEPH_MSG_FS_MAP:
-     handle_fs_map((MFSMap*)m);
-     break;
-   case CEPH_MSG_OSD_MAP:
-     break;
-   default:
-     return false;
-   }
-   m->put();
-   return true;
+  switch (m->get_type()) {
+  case CEPH_MSG_FS_MAP:
+    handle_fs_map((MFSMap*)m);
+    break;
+  case CEPH_MSG_OSD_MAP:
+    break;
+  default:
+    return false;
+  }
+  m->put();
+  return true;
 }
 
-
-void MDSUtility::handle_fs_map(MFSMap* m)
+void
+MDSUtility::handle_fs_map(MFSMap* m)
 {
   *fsmap = m->get_fsmap();
   if (waiting_for_mds_map) {
@@ -153,5 +156,3 @@ void MDSUtility::handle_fs_map(MFSMap* m)
     waiting_for_mds_map = NULL;
   }
 }
-
-

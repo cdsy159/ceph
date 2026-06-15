@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 //
@@ -54,7 +54,7 @@ namespace ceph::containers {
 //  4. std::unique_ptr<ValueT>: extra indirection together with memory
 //     fragmentation.
 
-template<typename Value, std::size_t InternalCapacity = 0>
+template <typename Value, std::size_t InternalCapacity = 0>
 class tiny_vector {
   // NOTE: to avoid false sharing consider aligning to cache line
   struct alignas(Value) storage_unit_t {
@@ -115,29 +115,34 @@ public:
     friend class tiny_vector;
 
     tiny_vector* parent;
-    emplacer(tiny_vector* const parent)
-      : parent(parent) {
-    }
+
+    emplacer(tiny_vector* const parent) :
+      parent(parent)
+    {}
 
   public:
-    void* data() {
+    void*
+    data()
+    {
       void* const ret = &parent->data[parent->_size++];
       parent = nullptr;
       return ret;
     }
 
-    template<class... Args>
-    void emplace(Args&&... args) {
+    template <class... Args>
+    void
+    emplace(Args&&... args)
+    {
       if (parent) {
         new (data()) Value(std::forward<Args>(args)...);
       }
     }
   };
 
-  template<typename F>
-  tiny_vector(const std::size_t count, F&& f)
-    : data(count <= InternalCapacity ? internal
-                                     : new storage_unit_t[count]) {
+  template <typename F>
+  tiny_vector(const std::size_t count, F&& f) :
+    data(count <= InternalCapacity ? internal : new storage_unit_t[count])
+  {
     for (std::size_t i = 0; i < count; ++i) {
       // caller MAY emplace up to `count` elements but it IS NOT
       // obliged to do so. The emplacer guarantees that the limit
@@ -146,48 +151,70 @@ public:
     }
   }
 
-  ~tiny_vector() {
+  ~tiny_vector()
+  {
     for (auto& elem : *this) {
       elem.~Value();
     }
 
     const auto data_addr = reinterpret_cast<std::uintptr_t>(data);
     const auto this_addr = reinterpret_cast<std::uintptr_t>(this);
-    if (data_addr < this_addr ||
-        data_addr >= this_addr + sizeof(*this)) {
+    if (data_addr < this_addr || data_addr >= this_addr + sizeof(*this)) {
       delete[] data;
     }
   }
 
-  reference       operator[](size_type pos) {
+  reference
+  operator[](size_type pos)
+  {
     return reinterpret_cast<reference>(data[pos]);
   }
-  const_reference operator[](size_type pos) const {
+
+  const_reference
+  operator[](size_type pos) const
+  {
     return reinterpret_cast<const_reference>(data[pos]);
   }
 
-  size_type size() const {
+  size_type
+  size() const
+  {
     return _size;
   }
 
-  pointer begin() {
+  pointer
+  begin()
+  {
     return reinterpret_cast<pointer>(&data[0]);
   }
-  pointer end() {
+
+  pointer
+  end()
+  {
     return reinterpret_cast<pointer>(&data[_size]);
   }
 
-  const pointer begin() const {
+  const pointer
+  begin() const
+  {
     return reinterpret_cast<pointer>(&data[0]);
   }
-  const pointer end() const {
+
+  const pointer
+  end() const
+  {
     return reinterpret_cast<pointer>(&data[_size]);
   }
 
-  const pointer cbegin() const {
+  const pointer
+  cbegin() const
+  {
     return reinterpret_cast<pointer>(&data[0]);
   }
-  const pointer cend() const {
+
+  const pointer
+  cend() const
+  {
     return reinterpret_cast<pointer>(&data[_size]);
   }
 };

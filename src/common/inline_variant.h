@@ -8,12 +8,15 @@
 #include <variant>
 
 template <class... Functions>
-struct overloaded : Functions... { using Functions::operator()...; };
+struct overloaded : Functions... {
+  using Functions::operator()...;
+};
 
 template <typename Variant, typename... Functions>
-auto match(Variant const& variant, Functions... functions)
+auto
+match(Variant const& variant, Functions... functions)
 {
-    return std::visit(overloaded{std::forward<Functions>(functions)...}, variant);
+  return std::visit(overloaded{std::forward<Functions>(functions)...}, variant);
 }
 
 #endif

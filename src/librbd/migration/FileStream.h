@@ -4,14 +4,17 @@
 #ifndef CEPH_LIBRBD_MIGRATION_FILE_STREAM_H
 #define CEPH_LIBRBD_MIGRATION_FILE_STREAM_H
 
-#include "include/int_types.h"
-#include "librbd/migration/StreamInterface.h"
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/posix/stream_descriptor.hpp>
 #include <json_spirit/json_spirit.h>
+
 #include <memory>
 #include <string>
+
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/posix/stream_descriptor.hpp>
+#include <boost/asio/strand.hpp>
+
+#include "include/int_types.h"
+#include "librbd/migration/StreamInterface.h"
 
 struct Context;
 
@@ -25,8 +28,9 @@ namespace migration {
 template <typename ImageCtxT>
 class FileStream : public StreamInterface {
 public:
-  static FileStream* create(ImageCtxT* image_ctx,
-                            const json_spirit::mObject& json_object) {
+  static FileStream*
+  create(ImageCtxT* image_ctx, const json_spirit::mObject& json_object)
+  {
     return new FileStream(image_ctx, json_object);
   }
 
@@ -41,12 +45,13 @@ public:
 
   void get_size(uint64_t* size, Context* on_finish) override;
 
-  void read(io::Extents&& byte_extents, bufferlist* data,
-            Context* on_finish) override;
+  void read(io::Extents&& byte_extents, bufferlist* data, Context* on_finish)
+      override;
 
-  void list_sparse_extents(io::Extents&& byte_extents,
-                           io::SparseExtents* sparse_extents,
-                           Context* on_finish) override;
+  void list_sparse_extents(
+      io::Extents&& byte_extents,
+      io::SparseExtents* sparse_extents,
+      Context* on_finish) override;
 
 private:
   CephContext* m_cct;

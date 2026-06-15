@@ -52,25 +52,31 @@
 
 class SubProcess {
 public:
-  enum std_fd_op{
+  enum std_fd_op {
     KEEP,
     CLOSE,
     PIPE
   };
+
 public:
-  SubProcess(const char *cmd,
-             std_fd_op stdin_op = CLOSE,
-             std_fd_op stdout_op = CLOSE,
-             std_fd_op stderr_op = CLOSE);
+  SubProcess(
+      const char* cmd,
+      std_fd_op stdin_op = CLOSE,
+      std_fd_op stdout_op = CLOSE,
+      std_fd_op stderr_op = CLOSE);
   virtual ~SubProcess();
 
-  void add_cmd_args(const char *arg, ...);
-  void add_cmd_arg(const char *arg);
+  void add_cmd_args(const char* arg, ...);
+  void add_cmd_arg(const char* arg);
 
   virtual int spawn(); // Returns 0 on success or -errno on failure.
-  virtual int join();  // Returns exit code (0 on success).
+  virtual int join(); // Returns exit code (0 on success).
 
-  bool is_spawned() const { return pid > 0; }
+  bool
+  is_spawned() const
+  {
+    return pid > 0;
+  }
 
   int get_stdin() const;
   int get_stdout() const;
@@ -85,13 +91,18 @@ public:
   const std::string err() const;
 
 protected:
-  bool is_child() const { return pid == 0; }
+  bool
+  is_child() const
+  {
+    return pid == 0;
+  }
+
   virtual void exec();
 
-  void close(int &fd);
+  void close(int& fd);
 
 #ifdef _WIN32
-  void close_h(HANDLE &handle);
+  void close_h(HANDLE& handle);
 #endif
 
 protected:
@@ -113,9 +124,13 @@ protected:
 
 class SubProcessTimed : public SubProcess {
 public:
-  SubProcessTimed(const char *cmd, std_fd_op stdin_op = CLOSE,
-		  std_fd_op stdout_op = CLOSE, std_fd_op stderr_op = CLOSE,
-		  int timeout = 0, int sigkill = SIGKILL);
+  SubProcessTimed(
+      const char* cmd,
+      std_fd_op stdin_op = CLOSE,
+      std_fd_op stdout_op = CLOSE,
+      std_fd_op stderr_op = CLOSE,
+      int timeout = 0,
+      int sigkill = SIGKILL);
 
 #ifdef _WIN32
   int spawn() override;

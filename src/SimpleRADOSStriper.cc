@@ -12,10 +12,12 @@
  *
  */
 
-#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include "SimpleRADOSStriper.h"
 
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -26,30 +28,28 @@
 #include <sstream>
 #include <string_view>
 
-#include <limits.h>
-#include <string.h>
+#include "common/debug.h"
 
-#include "include/ceph_assert.h"
-#include "include/rados/librados.hpp"
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #include "cls/lock/cls_lock_client.h"
-
 #include "common/ceph_argparse.h"
 #include "common/ceph_mutex.h"
 #include "common/common_init.h"
 #include "common/config.h"
-#include "common/debug.h"
 #include "common/errno.h"
 #include "common/strtol.h" // for strict_strtoll()
 #include "common/version.h"
-
-#include "SimpleRADOSStriper.h"
+#include "include/ceph_assert.h"
+#include "include/rados/librados.hpp"
 
 using ceph::bufferlist;
 
 #define dout_subsys ceph_subsys_cephsqlite
 #undef dout_prefix
-#define dout_prefix *_dout << "client." << ioctx.get_instance_id() << ": SimpleRADOSStriper: " << __func__ << ": " << oid << ": "
+#define dout_prefix                              \
+  *_dout << "client." << ioctx.get_instance_id() \
+         << ": SimpleRADOSStriper: " << __func__ << ": " << oid << ": "
 #define d(lvl) ldout((CephContext*)ioctx.cct(), (lvl))
 
 enum {
@@ -65,13 +65,20 @@ enum {
   P_LAST,
 };
 
-int SimpleRADOSStriper::config_logger(CephContext* cct, std::string_view name, std::shared_ptr<PerfCounters>* l)
+int
+SimpleRADOSStriper::config_logger(
+    CephContext* cct,
+    std::string_view name,
+    std::shared_ptr<PerfCounters>* l)
 {
   PerfCountersBuilder plb(cct, name.data(), P_FIRST, P_LAST);
-  plb.add_u64_counter(P_UPDATE_METADATA, "update_metadata", "Number of metadata updates");
-  plb.add_u64_counter(P_UPDATE_ALLOCATED, "update_allocated", "Number of allocated updates");
+  plb.add_u64_counter(
+      P_UPDATE_METADATA, "update_metadata", "Number of metadata updates");
+  plb.add_u64_counter(
+      P_UPDATE_ALLOCATED, "update_allocated", "Number of allocated updates");
   plb.add_u64_counter(P_UPDATE_SIZE, "update_size", "Number of size updates");
-  plb.add_u64_counter(P_UPDATE_VERSION, "update_version", "Number of version updates");
+  plb.add_u64_counter(
+      P_UPDATE_VERSION, "update_version", "Number of version updates");
   plb.add_u64_counter(P_SHRINK, "shrink", "Number of allocation shrinks");
   plb.add_u64_counter(P_SHRINK_BYTES, "shrink_bytes", "Bytes shrunk");
   plb.add_u64_counter(P_LOCK, "lock", "Number of locks");
@@ -97,23 +104,25 @@ SimpleRADOSStriper::~SimpleRADOSStriper()
   }
 }
 
-SimpleRADOSStriper::extent SimpleRADOSStriper::get_next_extent(uint64_t off, size_t len) const
+SimpleRADOSStriper::extent
+SimpleRADOSStriper::get_next_extent(uint64_t off, size_t len) const
 {
   extent e;
   {
-    uint64_t stripe = (off>>object_size);
+    uint64_t stripe = (off >> object_size);
     CachedStackStringStream css;
     *css << oid;
     *css << ".";
     *css << std::setw(16) << std::setfill('0') << std::hex << stripe;
     e.soid = css->str();
   }
-  e.off = off & ((1<<object_size)-1);
-  e.len = std::min<size_t>(len, (1<<object_size)-e.off);
+  e.off = off & ((1 << object_size) - 1);
+  e.len = std::min<size_t>(len, (1 << object_size) - e.off);
   return e;
 }
 
-int SimpleRADOSStriper::remove()
+int
+SimpleRADOSStriper::remove()
 {
   d(5) << dendl;
 
@@ -141,7 +150,8 @@ int SimpleRADOSStriper::remove()
   return 0;
 }
 
-int SimpleRADOSStriper::truncate(uint64_t size)
+int
+SimpleRADOSStriper::truncate(uint64_t size)
 {
   d(5) << size << dendl;
 
@@ -157,7 +167,8 @@ int SimpleRADOSStriper::truncate(uint64_t size)
   return 0;
 }
 
-int SimpleRADOSStriper::wait_for_aios(bool block)
+int
+SimpleRADOSStriper::wait_for_aios(bool block)
 {
   while (!aios.empty()) {
     auto& aiocp = aios.front();
@@ -182,7 +193,8 @@ int SimpleRADOSStriper::wait_for_aios(bool block)
   return aios_failure;
 }
 
-int SimpleRADOSStriper::flush()
+int
+SimpleRADOSStriper::flush()
 {
   d(5) << dendl;
 
@@ -204,7 +216,8 @@ int SimpleRADOSStriper::flush()
   return 0;
 }
 
-int SimpleRADOSStriper::stat(uint64_t* s)
+int
+SimpleRADOSStriper::stat(uint64_t* s)
 {
   d(5) << dendl;
 
@@ -216,7 +229,8 @@ int SimpleRADOSStriper::stat(uint64_t* s)
   return 0;
 }
 
-int SimpleRADOSStriper::create()
+int
+SimpleRADOSStriper::create()
 {
   d(5) << dendl;
 
@@ -234,14 +248,15 @@ int SimpleRADOSStriper::create()
   op.setxattr(XATTR_ALLOCATED, uint2bl(0));
   op.setxattr(XATTR_LAYOUT_STRIPE_UNIT, uint2bl(1));
   op.setxattr(XATTR_LAYOUT_STRIPE_COUNT, uint2bl(1));
-  op.setxattr(XATTR_LAYOUT_OBJECT_SIZE, uint2bl(1<<object_size));
+  op.setxattr(XATTR_LAYOUT_OBJECT_SIZE, uint2bl(1 << object_size));
   if (int rc = ioctx.operate(ext.soid, &op); rc < 0) {
     return rc; /* including EEXIST */
   }
   return 0;
 }
 
-int SimpleRADOSStriper::open()
+int
+SimpleRADOSStriper::open()
 {
   d(5) << oid << dendl;
 
@@ -280,17 +295,20 @@ int SimpleRADOSStriper::open()
     version = strict_strtoll(sstr.c_str(), 10, &err);
     ceph_assert(err.empty());
   }
-  d(15) << " size: " << size << " allocated: " << allocated << " version: " << version << dendl;
+  d(15) << " size: " << size << " allocated: " << allocated
+        << " version: " << version << dendl;
   return 0;
 }
 
-int SimpleRADOSStriper::shrink_alloc(uint64_t a)
+int
+SimpleRADOSStriper::shrink_alloc(uint64_t a)
 {
   d(5) << dendl;
   std::vector<aiocompletionptr> removes;
 
   ceph_assert(a <= allocated);
-  uint64_t prune = std::max<uint64_t>(a, (1u << object_size)); /* never delete first extent here */
+  uint64_t prune = std::max<uint64_t>(
+      a, (1u << object_size)); /* never delete first extent here */
   uint64_t len = allocated - prune;
   const uint64_t bytes_removed = len;
   uint64_t offset = prune;
@@ -318,8 +336,8 @@ int SimpleRADOSStriper::shrink_alloc(uint64_t a)
   auto aiocp = aiocompletionptr(librados::Rados::aio_create_completion());
   op.setxattr(XATTR_ALLOCATED, uint2bl(a));
   d(15) << " updating allocated to " << a << dendl;
-  op.setxattr(XATTR_VERSION, uint2bl(version+1));
-  d(15) << " updating version to " << (version+1) << dendl;
+  op.setxattr(XATTR_VERSION, uint2bl(version + 1));
+  d(15) << " updating version to " << (version + 1) << dendl;
   if (int rc = ioctx.aio_operate(ext.soid, aiocp.get(), &op); rc < 0) {
     d(1) << " update failed: " << cpp_strerror(rc) << dendl;
     return rc;
@@ -343,7 +361,8 @@ int SimpleRADOSStriper::shrink_alloc(uint64_t a)
   return 0;
 }
 
-int SimpleRADOSStriper::maybe_shrink_alloc()
+int
+SimpleRADOSStriper::maybe_shrink_alloc()
 {
   d(15) << dendl;
 
@@ -356,9 +375,10 @@ int SimpleRADOSStriper::maybe_shrink_alloc()
     }
   }
 
-  uint64_t mask = (1<<object_size)-1;
-  uint64_t new_allocated = min_growth + ((size + mask) & ~mask); /* round up base 2 */
-  if (allocated > new_allocated && ((allocated-new_allocated) > min_growth)) {
+  uint64_t mask = (1 << object_size) - 1;
+  uint64_t new_allocated = min_growth +
+                           ((size + mask) & ~mask); /* round up base 2 */
+  if (allocated > new_allocated && ((allocated - new_allocated) > min_growth)) {
     d(10) << "allocation shrink to " << new_allocated << dendl;
     return shrink_alloc(new_allocated);
   }
@@ -366,14 +386,16 @@ int SimpleRADOSStriper::maybe_shrink_alloc()
   return 0;
 }
 
-bufferlist SimpleRADOSStriper::str2bl(std::string_view sv)
+bufferlist
+SimpleRADOSStriper::str2bl(std::string_view sv)
 {
   bufferlist bl;
   bl.append(sv);
   return bl;
 }
 
-bufferlist SimpleRADOSStriper::uint2bl(uint64_t v)
+bufferlist
+SimpleRADOSStriper::uint2bl(uint64_t v)
 {
   CachedStackStringStream css;
   *css << std::dec << std::setw(16) << std::setfill('0') << v;
@@ -382,38 +404,40 @@ bufferlist SimpleRADOSStriper::uint2bl(uint64_t v)
   return bl;
 }
 
-int SimpleRADOSStriper::set_metadata(uint64_t new_size, bool update_size)
+int
+SimpleRADOSStriper::set_metadata(uint64_t new_size, bool update_size)
 {
-  d(10) << " new_size: " << new_size
-        << " update_size: " << update_size
-        << " allocated: " << allocated
-        << " size: " << size
-        << " version: " << version
-        << dendl;
+  d(10) << " new_size: " << new_size << " update_size: " << update_size
+        << " allocated: " << allocated << " size: " << size
+        << " version: " << version << dendl;
 
   bool do_op = false;
   auto new_allocated = allocated;
   auto ext = get_first_extent();
   auto op = librados::ObjectWriteOperation();
   if (new_size > allocated) {
-    uint64_t mask = (1<<object_size)-1;
+    uint64_t mask = (1 << object_size) - 1;
     new_allocated = min_growth + ((size + mask) & ~mask); /* round up base 2 */
     op.setxattr(XATTR_ALLOCATED, uint2bl(new_allocated));
     do_op = true;
-    if (logger) logger->inc(P_UPDATE_ALLOCATED);
+    if (logger)
+      logger->inc(P_UPDATE_ALLOCATED);
     d(15) << " updating allocated to " << new_allocated << dendl;
   }
   if (update_size) {
     op.setxattr(XATTR_SIZE, uint2bl(new_size));
     do_op = true;
-    if (logger) logger->inc(P_UPDATE_SIZE);
+    if (logger)
+      logger->inc(P_UPDATE_SIZE);
     d(15) << " updating size to " << new_size << dendl;
   }
   if (do_op) {
-    if (logger) logger->inc(P_UPDATE_METADATA);
-    if (logger) logger->inc(P_UPDATE_VERSION);
-    op.setxattr(XATTR_VERSION, uint2bl(version+1));
-    d(15) << " updating version to " << (version+1) << dendl;
+    if (logger)
+      logger->inc(P_UPDATE_METADATA);
+    if (logger)
+      logger->inc(P_UPDATE_VERSION);
+    op.setxattr(XATTR_VERSION, uint2bl(version + 1));
+    d(15) << " updating version to " << (version + 1) << dendl;
     auto aiocp = aiocompletionptr(librados::Rados::aio_create_completion());
     if (int rc = ioctx.aio_operate(ext.soid, aiocp.get(), &op); rc < 0) {
       d(1) << " update failure: " << cpp_strerror(rc) << dendl;
@@ -442,7 +466,8 @@ int SimpleRADOSStriper::set_metadata(uint64_t new_size, bool update_size)
   return 0;
 }
 
-ssize_t SimpleRADOSStriper::write(const void* data, size_t len, uint64_t off)
+ssize_t
+SimpleRADOSStriper::write(const void* data, size_t len, uint64_t off)
 {
   d(5) << off << "~" << len << dendl;
 
@@ -450,19 +475,20 @@ ssize_t SimpleRADOSStriper::write(const void* data, size_t len, uint64_t off)
     return -EBLOCKLISTED;
   }
 
-  if (allocated < (len+off)) {
-    if (int rc = set_metadata(len+off, false); rc < 0) {
+  if (allocated < (len + off)) {
+    if (int rc = set_metadata(len + off, false); rc < 0) {
       return rc;
     }
   }
 
   size_t w = 0;
-  while ((len-w) > 0) {
-    auto ext = get_next_extent(off+w, len-w);
+  while ((len - w) > 0) {
+    auto ext = get_next_extent(off + w, len - w);
     auto aiocp = aiocompletionptr(librados::Rados::aio_create_completion());
     bufferlist bl;
-    bl.append((const char*)data+w, ext.len);
-    if (int rc = ioctx.aio_write(ext.soid, aiocp.get(), bl, ext.len, ext.off); rc < 0) {
+    bl.append((const char*)data + w, ext.len);
+    if (int rc = ioctx.aio_write(ext.soid, aiocp.get(), bl, ext.len, ext.off);
+        rc < 0) {
       break;
     }
     aios.emplace(std::move(aiocp));
@@ -471,8 +497,8 @@ ssize_t SimpleRADOSStriper::write(const void* data, size_t len, uint64_t off)
 
   wait_for_aios(false); // clean up finished completions
 
-  if (size < (len+off)) {
-    size = len+off;
+  if (size < (len + off)) {
+    size = len + off;
     size_dirty = true;
     d(10) << " dirty size: " << size << dendl;
   }
@@ -480,7 +506,8 @@ ssize_t SimpleRADOSStriper::write(const void* data, size_t len, uint64_t off)
   return (ssize_t)w;
 }
 
-ssize_t SimpleRADOSStriper::read(void* data, size_t len, uint64_t off)
+ssize_t
+SimpleRADOSStriper::read(void* data, size_t len, uint64_t off)
 {
   d(5) << off << "~" << len << dendl;
 
@@ -493,11 +520,12 @@ ssize_t SimpleRADOSStriper::read(void* data, size_t len, uint64_t off)
   // as they are being moved whenever the vector resizes
   // and will cause invalidated references.
   std::deque<std::pair<bufferlist, aiocompletionptr>> reads;
-  while ((len-r) > 0) {
-    auto ext = get_next_extent(off+r, len-r);
+  while ((len - r) > 0) {
+    auto ext = get_next_extent(off + r, len - r);
     auto& [bl, aiocp] = reads.emplace_back();
     aiocp = aiocompletionptr(librados::Rados::aio_create_completion());
-    if (int rc = ioctx.aio_read(ext.soid, aiocp.get(), &bl, ext.len, ext.off); rc < 0) {
+    if (int rc = ioctx.aio_read(ext.soid, aiocp.get(), &bl, ext.len, ext.off);
+        rc < 0) {
       d(1) << " read failure: " << cpp_strerror(rc) << dendl;
       return rc;
     }
@@ -510,7 +538,7 @@ ssize_t SimpleRADOSStriper::read(void* data, size_t len, uint64_t off)
       d(1) << " read failure: " << cpp_strerror(rc) << dendl;
       return rc;
     }
-    bl.begin().copy(bl.length(), ((char*)data)+r);
+    bl.begin().copy(bl.length(), ((char*)data) + r);
     r += bl.length();
   }
   ceph_assert(r <= len);
@@ -518,23 +546,26 @@ ssize_t SimpleRADOSStriper::read(void* data, size_t len, uint64_t off)
   return r;
 }
 
-int SimpleRADOSStriper::print_lockers(std::ostream& out)
+int
+SimpleRADOSStriper::print_lockers(std::ostream& out)
 {
   int exclusive;
   std::string tag;
   std::list<librados::locker_t> lockers;
   auto ext = get_first_extent();
-  if (int rc = ioctx.list_lockers(ext.soid, biglock, &exclusive, &tag, &lockers); rc < 0) {
+  if (int rc = ioctx.list_lockers(ext.soid, biglock, &exclusive, &tag, &lockers);
+      rc < 0) {
     d(1) << " list_lockers failure: " << cpp_strerror(rc) << dendl;
     return rc;
   }
   if (lockers.empty()) {
     out << " lockers none";
   } else {
-    out << " lockers exclusive=" << exclusive  << " tag=" << tag << " lockers=[";
+    out << " lockers exclusive=" << exclusive << " tag=" << tag << " lockers=[";
     bool first = true;
     for (const auto& l : lockers) {
-      if (!first) out << ",";
+      if (!first)
+        out << ",";
       out << l.client << ":" << l.cookie << ":" << l.address;
     }
     out << "]";
@@ -548,7 +579,8 @@ int SimpleRADOSStriper::print_lockers(std::ostream& out)
  * want to allow "PRAGMA locking_mode = exclusive" where the application may
  * not use the sqlite3 database connection for an indeterminate amount of time.
  */
-void SimpleRADOSStriper::lock_keeper_main(void)
+void
+SimpleRADOSStriper::lock_keeper_main(void)
 {
   d(20) << dendl;
   const auto ext = get_first_extent();
@@ -556,12 +588,14 @@ void SimpleRADOSStriper::lock_keeper_main(void)
     d(20) << "tick" << dendl;
     std::unique_lock lock(lock_keeper_mutex);
     auto now = clock::now();
-    auto since = now-last_renewal;
+    auto since = now - last_renewal;
 
     if (since >= lock_keeper_interval && locked) {
       d(10) << "renewing lock" << dendl;
       auto tv = ceph::to_timeval(lock_keeper_timeout);
-      int rc = ioctx.lock_exclusive(ext.soid, biglock, cookie.to_string(), lockdesc, &tv, LIBRADOS_LOCK_FLAG_MUST_RENEW);
+      int rc = ioctx.lock_exclusive(
+          ext.soid, biglock, cookie.to_string(), lockdesc, &tv,
+          LIBRADOS_LOCK_FLAG_MUST_RENEW);
       if (rc) {
         /* If lock renewal fails, we cannot continue the application. Return
          * -EBLOCKLISTED for all calls into the striper for this instance, even
@@ -578,7 +612,8 @@ void SimpleRADOSStriper::lock_keeper_main(void)
   }
 }
 
-int SimpleRADOSStriper::recover_lock()
+int
+SimpleRADOSStriper::recover_lock()
 {
   d(5) << "attempting to recover lock" << dendl;
 
@@ -587,7 +622,9 @@ int SimpleRADOSStriper::recover_lock()
 
   {
     auto tv = ceph::to_timeval(lock_keeper_timeout);
-    if (int rc = ioctx.lock_exclusive(ext.soid, biglock, cookie.to_string(), lockdesc, &tv, 0); rc < 0) {
+    if (int rc = ioctx.lock_exclusive(
+            ext.soid, biglock, cookie.to_string(), lockdesc, &tv, 0);
+        rc < 0) {
       return rc;
     }
     locked = true;
@@ -623,7 +660,7 @@ int SimpleRADOSStriper::recover_lock()
     addrv.parse(addrs.c_str());
     auto R = librados::Rados(ioctx);
     std::string_view b = "blocklist";
-retry:
+  retry:
     for (auto& a : addrv.v) {
       CachedStackStringStream css;
       *css << "{\"prefix\":\"osd " << b << "\", \"" << b << "op\":\"add\",";
@@ -633,12 +670,15 @@ retry:
       std::vector<std::string> cmd = {css->str()};
       d(5) << "sending blocklist command: " << cmd << dendl;
       std::string out;
-      if (int rc = R.mon_command(css->str(), bufferlist(), nullptr, &out); rc < 0) {
+      if (int rc = R.mon_command(css->str(), bufferlist(), nullptr, &out);
+          rc < 0) {
         if (rc == -EINVAL && b == "blocklist") {
           b = "blacklist";
           goto retry;
         }
-        d(-1) << "Cannot proceed with recovery because I have failed to blocklist the old client: " << cpp_strerror(rc) << ", out = " << out << dendl;
+        d(-1) << "Cannot proceed with recovery because I have failed to "
+                 "blocklist the old client: "
+              << cpp_strerror(rc) << ", out = " << out << dendl;
         locked = false; /* it will drop eventually */
         return -EIO;
       }
@@ -660,7 +700,8 @@ setowner:
   return 0;
 }
 
-int SimpleRADOSStriper::lock(uint64_t timeoutms)
+int
+SimpleRADOSStriper::lock(uint64_t timeoutms)
 {
   /* XXX: timeoutms is unused */
   d(5) << "timeout=" << timeoutms << dendl;
@@ -690,7 +731,9 @@ int SimpleRADOSStriper::lock(uint64_t timeoutms)
     auto tv = ceph::to_timeval(lock_keeper_timeout);
     utime_t duration;
     duration.set_from_timeval(&tv);
-    rados::cls::lock::lock(&op, biglock, ClsLockType::EXCLUSIVE, cookie.to_string(), "", lockdesc, duration, 0);
+    rados::cls::lock::lock(
+        &op, biglock, ClsLockType::EXCLUSIVE, cookie.to_string(), "", lockdesc,
+        duration, 0);
     op.cmpxattr(XATTR_EXCL, LIBRADOS_CMPXATTR_OP_EQ, bufferlist());
     op.setxattr(XATTR_EXCL, str2bl(myaddrs));
     int rc = ioctx.operate(ext.soid, &op);
@@ -739,7 +782,8 @@ int SimpleRADOSStriper::lock(uint64_t timeoutms)
   return 0;
 }
 
-int SimpleRADOSStriper::unlock()
+int
+SimpleRADOSStriper::unlock()
 {
   d(5) << dendl;
 

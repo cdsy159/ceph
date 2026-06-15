@@ -13,51 +13,66 @@
  *
  */
 
-#include "common/async/max_concurrent_for_each.h"
+#include <gtest/gtest.h>
 
 #include <chrono>
 #include <exception>
 #include <optional>
+
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/steady_timer.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/max_concurrent_for_each.h"
 
 namespace ceph::async {
 
 namespace asio = boost::asio;
 
-void rethrow(std::exception_ptr eptr)
+void
+rethrow(std::exception_ptr eptr)
 {
-  if (eptr) std::rethrow_exception(eptr);
+  if (eptr)
+    std::rethrow_exception(eptr);
 }
 
 using namespace std::chrono_literals;
 
-void wait_for(std::chrono::milliseconds dur, asio::yield_context yield)
+void
+wait_for(std::chrono::milliseconds dur, asio::yield_context yield)
 {
   auto timer = asio::steady_timer{yield.get_executor(), dur};
   timer.async_wait(yield);
 }
 
-asio::awaitable<void> wait_for(std::chrono::milliseconds dur)
+asio::awaitable<void>
+wait_for(std::chrono::milliseconds dur)
 {
   auto timer = asio::steady_timer{co_await asio::this_coro::executor, dur};
   co_await timer.async_wait(asio::use_awaitable);
 }
 
 struct null_sentinel {};
-bool operator==(const char* c, null_sentinel) { return !*c; }
+
+bool
+operator==(const char* c, null_sentinel)
+{
+  return !*c;
+}
+
 static_assert(std::sentinel_for<null_sentinel, const char*>);
 
 TEST(iterator_yield, empty)
 {
   int* end = nullptr;
-  auto cr = [] (int, asio::yield_context) {};
+  auto cr = [](int, asio::yield_context) {};
 
   asio::io_context ctx;
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
         max_concurrent_for_each(end, end, 10, yield, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 }
 
@@ -67,7 +82,7 @@ TEST(iterator_yield, over_limit)
   int max_concurrent = 0;
   int completed = 0;
 
-  auto cr = [&] (int, asio::yield_context yield) {
+  auto cr = [&](int, asio::yield_context yield) {
     ++concurrent;
     if (max_concurrent < concurrent) {
       max_concurrent = concurrent;
@@ -80,10 +95,13 @@ TEST(iterator_yield, over_limit)
   };
 
   asio::io_context ctx;
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-        constexpr auto arr = std::array{1,2,3,4,5,6,7,8,9,10};
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        constexpr auto arr = std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         max_concurrent_for_each(begin(arr), end(arr), 2, yield, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(0, concurrent);
@@ -97,12 +115,15 @@ TEST(iterator_yield, sentinel)
   null_sentinel end;
 
   size_t completed = 0;
-  auto cr = [&completed] (char c, asio::yield_context) { ++completed; };
+  auto cr = [&completed](char c, asio::yield_context) { ++completed; };
 
   asio::io_context ctx;
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
         max_concurrent_for_each(begin, end, 10, yield, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(completed, 5);
@@ -111,12 +132,15 @@ TEST(iterator_yield, sentinel)
 TEST(range_yield, empty)
 {
   constexpr std::array<int, 0> arr{};
-  auto cr = [] (int, asio::yield_context) {};
+  auto cr = [](int, asio::yield_context) {};
 
   asio::io_context ctx;
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-  max_concurrent_for_each(arr, 10, yield, cr);
-      }, rethrow);
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        max_concurrent_for_each(arr, 10, yield, cr);
+      },
+      rethrow);
   ctx.run();
 }
 
@@ -126,7 +150,7 @@ TEST(range_yield, over_limit)
   int max_concurrent = 0;
   int completed = 0;
 
-  auto cr = [&] (int, asio::yield_context yield) {
+  auto cr = [&](int, asio::yield_context yield) {
     ++concurrent;
     if (max_concurrent < concurrent) {
       max_concurrent = concurrent;
@@ -139,10 +163,13 @@ TEST(range_yield, over_limit)
   };
 
   asio::io_context ctx;
-  asio::spawn(ctx, [&] (asio::yield_context yield) {
-        constexpr auto arr = std::array{1,2,3,4,5,6,7,8,9,10};
+  asio::spawn(
+      ctx,
+      [&](asio::yield_context yield) {
+        constexpr auto arr = std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         max_concurrent_for_each(arr, 2, yield, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(0, concurrent);
@@ -153,12 +180,15 @@ TEST(range_yield, over_limit)
 TEST(iterator_co, empty)
 {
   int* end = nullptr;
-  auto cr = [] (int) -> asio::awaitable<void> { co_return; };
+  auto cr = [](int) -> asio::awaitable<void> { co_return; };
 
   asio::io_context ctx;
-  asio::co_spawn(ctx, [&] () -> asio::awaitable<void> {
+  asio::co_spawn(
+      ctx,
+      [&]() -> asio::awaitable<void> {
         co_await max_concurrent_for_each(end, end, 10, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 }
 
@@ -168,7 +198,7 @@ TEST(iterator_co, over_limit)
   int max_concurrent = 0;
   int completed = 0;
 
-  auto cr = [&] (int) -> asio::awaitable<void> {
+  auto cr = [&](int) -> asio::awaitable<void> {
     ++concurrent;
     if (max_concurrent < concurrent) {
       max_concurrent = concurrent;
@@ -181,10 +211,13 @@ TEST(iterator_co, over_limit)
   };
 
   asio::io_context ctx;
-  asio::co_spawn(ctx, [&] () -> asio::awaitable<void> {
-        constexpr auto arr = std::array{1,2,3,4,5,6,7,8,9,10};
+  asio::co_spawn(
+      ctx,
+      [&]() -> asio::awaitable<void> {
+        constexpr auto arr = std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         co_await max_concurrent_for_each(begin(arr), end(arr), 2, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(0, concurrent);
@@ -198,15 +231,18 @@ TEST(iterator_co, sentinel)
   null_sentinel end;
 
   size_t completed = 0;
-  auto cr = [&completed] (char c) -> asio::awaitable<void> {
+  auto cr = [&completed](char c) -> asio::awaitable<void> {
     ++completed;
     co_return;
   };
 
   asio::io_context ctx;
-  asio::co_spawn(ctx, [&] () -> asio::awaitable<void> {
+  asio::co_spawn(
+      ctx,
+      [&]() -> asio::awaitable<void> {
         co_await max_concurrent_for_each(begin, end, 10, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(completed, 5);
@@ -215,12 +251,15 @@ TEST(iterator_co, sentinel)
 TEST(range_co, empty)
 {
   constexpr std::array<int, 0> arr{};
-  auto cr = [] (int) -> asio::awaitable<void> { co_return; };
+  auto cr = [](int) -> asio::awaitable<void> { co_return; };
 
   asio::io_context ctx;
-  asio::co_spawn(ctx, [&] () -> asio::awaitable<void> {
+  asio::co_spawn(
+      ctx,
+      [&]() -> asio::awaitable<void> {
         co_await max_concurrent_for_each(arr, 10, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 }
 
@@ -230,7 +269,7 @@ TEST(range_co, over_limit)
   int max_concurrent = 0;
   int completed = 0;
 
-  auto cr = [&] (int) -> asio::awaitable<void> {
+  auto cr = [&](int) -> asio::awaitable<void> {
     ++concurrent;
     if (max_concurrent < concurrent) {
       max_concurrent = concurrent;
@@ -243,10 +282,13 @@ TEST(range_co, over_limit)
   };
 
   asio::io_context ctx;
-  asio::co_spawn(ctx, [&] () -> asio::awaitable<void> {
-        constexpr auto arr = std::array{1,2,3,4,5,6,7,8,9,10};
+  asio::co_spawn(
+      ctx,
+      [&]() -> asio::awaitable<void> {
+        constexpr auto arr = std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         co_await max_concurrent_for_each(arr, 2, cr);
-      }, rethrow);
+      },
+      rethrow);
   ctx.run();
 
   EXPECT_EQ(0, concurrent);

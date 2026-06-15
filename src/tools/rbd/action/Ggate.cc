@@ -1,22 +1,21 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <sys/param.h>
 #include <errno.h>
+#include <sys/param.h>
 #include <unistd.h>
 
-#include "include/stringify.h"
-#include "common/SubProcess.h"
-
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
+#include <iostream>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/program_options.hpp>
 
-#include <iostream>
+#include "common/SubProcess.h"
+#include "include/stringify.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 namespace rbd {
 namespace action {
@@ -26,17 +25,20 @@ namespace at = argument_types;
 namespace po = boost::program_options;
 
 #if defined(__FreeBSD__)
-static int call_ggate_cmd(const po::variables_map &vm,
-                          const std::vector<std::string> &args,
-                          const std::vector<std::string> &ceph_global_args) {
-  SubProcess process("rbd-ggate", SubProcess::KEEP, SubProcess::KEEP,
-                     SubProcess::KEEP);
+static int
+call_ggate_cmd(
+    const po::variables_map& vm,
+    const std::vector<std::string>& args,
+    const std::vector<std::string>& ceph_global_args)
+{
+  SubProcess process(
+      "rbd-ggate", SubProcess::KEEP, SubProcess::KEEP, SubProcess::KEEP);
 
-  for (auto &arg : ceph_global_args) {
+  for (auto& arg : ceph_global_args) {
     process.add_cmd_arg(arg.c_str());
   }
 
-  for (auto &arg : args) {
+  for (auto& arg : args) {
     process.add_cmd_arg(arg.c_str());
   }
 
@@ -53,8 +55,11 @@ static int call_ggate_cmd(const po::variables_map &vm,
 }
 #endif
 
-int execute_list(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if !defined(__FreeBSD__)
   std::cerr << "rbd: ggate is only supported on FreeBSD" << std::endl;
   return -EOPNOTSUPP;
@@ -75,8 +80,11 @@ int execute_list(const po::variables_map &vm,
 #endif
 }
 
-int execute_map(const po::variables_map &vm,
-                const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_map(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if !defined(__FreeBSD__)
   std::cerr << "rbd: ggate is only supported on FreeBSD" << std::endl;
   return -EOPNOTSUPP;
@@ -108,16 +116,19 @@ int execute_map(const po::variables_map &vm,
   }
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_ggate_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-int execute_unmap(const po::variables_map &vm,
-                  const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_unmap(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if !defined(__FreeBSD__)
   std::cerr << "rbd: ggate is only supported on FreeBSD" << std::endl;
   return -EOPNOTSUPP;
@@ -147,16 +158,19 @@ int execute_unmap(const po::variables_map &vm,
   args.push_back(device_name.empty() ? image_name : device_name);
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_ggate_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-int execute_attach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_attach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if !defined(__FreeBSD__)
   std::cerr << "rbd: ggate is only supported on FreeBSD" << std::endl;
 #else
@@ -165,8 +179,11 @@ int execute_attach(const po::variables_map &vm,
   return -EOPNOTSUPP;
 }
 
-int execute_detach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_detach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if !defined(__FreeBSD__)
   std::cerr << "rbd: ggate is only supported on FreeBSD" << std::endl;
 #else

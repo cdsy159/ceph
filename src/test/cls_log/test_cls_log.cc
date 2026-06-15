@@ -1,47 +1,53 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "cls/log/cls_log_types.h"
-#include "cls/log/cls_log_client.h"
-
-#include "common/ceph_time.h"
-#include "global/global_context.h"
-
-#include "gtest/gtest.h"
-#include "test/librados/test_cxx.h"
-
 #include <errno.h>
+
 #include <string>
 #include <vector>
+
+#include "cls/log/cls_log_client.h"
+#include "cls/log/cls_log_types.h"
+#include "common/ceph_time.h"
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "include/types.h"
+#include "test/librados/test_cxx.h"
 
 using namespace std;
 using namespace std::literals;
 
-using ceph::real_time;
 using ceph::real_clock;
+using ceph::real_time;
 
 /// creates a temporary pool and initializes an IoCtx for each test
 class cls_log : public ::testing::Test {
   librados::Rados rados;
   std::string pool_name;
- protected:
+
+protected:
   librados::IoCtx ioctx;
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     pool_name = get_temp_pool_name();
     /* create pool */
     ASSERT_EQ("", create_one_pool_pp(pool_name, rados));
     ASSERT_EQ(0, rados.ioctx_create(pool_name.c_str(), ioctx));
   }
-  void TearDown() {
+
+  void
+  TearDown()
+  {
     /* remove pool */
     ioctx.close();
     ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
   }
 };
 
-static int read_bl(bufferlist& bl, int *i)
+static int
+read_bl(bufferlist& bl, int* i)
 {
   auto iter = bl.cbegin();
 
@@ -55,7 +61,13 @@ static int read_bl(bufferlist& bl, int *i)
   return 0;
 }
 
-void add_log(librados::ObjectWriteOperation *op, real_time timestamp, string& section, string&name, int i)
+void
+add_log(
+    librados::ObjectWriteOperation* op,
+    real_time timestamp,
+    string& section,
+    string& name,
+    int i)
 {
   bufferlist bl;
   encode(i, bl);
@@ -63,8 +75,8 @@ void add_log(librados::ObjectWriteOperation *op, real_time timestamp, string& se
   cls_log_add(*op, timestamp, section, name, bl);
 }
 
-
-string get_name(int i)
+string
+get_name(int i)
 {
   string name_prefix = "data-source";
 
@@ -73,7 +85,13 @@ string get_name(int i)
   return name_prefix + buf;
 }
 
-void generate_log(librados::IoCtx& ioctx, string& oid, int max, real_time start_time, bool modify_time)
+void
+generate_log(
+    librados::IoCtx& ioctx,
+    string& oid,
+    int max,
+    real_time start_time,
+    bool modify_time)
 {
   string section = "global";
 
@@ -95,13 +113,19 @@ void generate_log(librados::IoCtx& ioctx, string& oid, int max, real_time start_
   ASSERT_EQ(0, ioctx.operate(oid, &op));
 }
 
-real_time get_time(real_time start_time, int i, bool modify_time)
+real_time
+get_time(real_time start_time, int i, bool modify_time)
 {
   // coverity[store_truncates_time_t:SUPPRESS]
   return modify_time ? start_time + (i * 1s) : start_time;
 }
 
-void check_entry(cls::log::entry& entry, real_time start_time, int i, bool modified_time)
+void
+check_entry(
+    cls::log::entry& entry,
+    real_time start_time,
+    int i,
+    bool modified_time)
 {
   string section = "global";
   string name = get_name(i);
@@ -112,30 +136,45 @@ void check_entry(cls::log::entry& entry, real_time start_time, int i, bool modif
   ASSERT_EQ(ts, entry.timestamp);
 }
 
-static int log_list(librados::IoCtx& ioctx, const std::string& oid,
-                    real_time from, real_time to,
-                    const string& in_marker, int max_entries,
-                    vector<cls::log::entry>& entries,
-                    string *out_marker, bool *truncated)
+static int
+log_list(
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    real_time from,
+    real_time to,
+    const string& in_marker,
+    int max_entries,
+    vector<cls::log::entry>& entries,
+    string* out_marker,
+    bool* truncated)
 {
   librados::ObjectReadOperation rop;
-  cls_log_list(rop, from, to, in_marker, max_entries,
-               entries, out_marker, truncated);
+  cls_log_list(
+      rop, from, to, in_marker, max_entries, entries, out_marker, truncated);
   bufferlist obl;
   return ioctx.operate(oid, &rop, &obl);
 }
 
-static int log_list(librados::IoCtx& ioctx, const std::string& oid,
-                    real_time from, real_time to, int max_entries,
-                    vector<cls::log::entry>& entries, bool *truncated)
+static int
+log_list(
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    real_time from,
+    real_time to,
+    int max_entries,
+    vector<cls::log::entry>& entries,
+    bool* truncated)
 {
   std::string marker;
-  return log_list(ioctx, oid, from, to, marker, max_entries,
-                  entries, &marker, truncated);
+  return log_list(
+      ioctx, oid, from, to, marker, max_entries, entries, &marker, truncated);
 }
 
-static int log_list(librados::IoCtx& ioctx, const std::string& oid,
-                    vector<cls::log::entry>& entries)
+static int
+log_list(
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    vector<cls::log::entry>& entries)
 {
   real_time from, to;
   bool truncated{false};
@@ -160,8 +199,8 @@ TEST_F(cls_log, test_log_add_same_time)
 
   /* check list */
   {
-    ASSERT_EQ(0, log_list(ioctx, oid, start_time, to_time, 0,
-                          entries, &truncated));
+    ASSERT_EQ(
+        0, log_list(ioctx, oid, start_time, to_time, 0, entries, &truncated));
     ASSERT_EQ(10, (int)entries.size());
     ASSERT_EQ(0, (int)truncated);
   }
@@ -196,8 +235,8 @@ TEST_F(cls_log, test_log_add_same_time)
 
   /* check list again, now want to be truncated*/
   {
-    ASSERT_EQ(0, log_list(ioctx, oid, start_time, to_time, 1,
-                          entries, &truncated));
+    ASSERT_EQ(
+        0, log_list(ioctx, oid, start_time, to_time, 1, entries, &truncated));
     ASSERT_EQ(1, (int)entries.size());
     ASSERT_EQ(1, (int)truncated);
   }
@@ -222,8 +261,8 @@ TEST_F(cls_log, test_log_add_different_time)
 
   {
     /* check list */
-    ASSERT_EQ(0, log_list(ioctx, oid, start_time, to_time, 0,
-                          entries, &truncated));
+    ASSERT_EQ(
+        0, log_list(ioctx, oid, start_time, to_time, 0, entries, &truncated));
     ASSERT_EQ(10, (int)entries.size());
     ASSERT_EQ(0, (int)truncated);
   }
@@ -250,8 +289,8 @@ TEST_F(cls_log, test_log_add_different_time)
   /* check list again with shifted time */
   {
     auto next_time = get_time(start_time, 1, true);
-    ASSERT_EQ(0, log_list(ioctx, oid, next_time, to_time, 0,
-                          entries, &truncated));
+    ASSERT_EQ(
+        0, log_list(ioctx, oid, next_time, to_time, 0, entries, &truncated));
     ASSERT_EQ(9u, entries.size());
     ASSERT_FALSE(truncated);
   }
@@ -260,8 +299,10 @@ TEST_F(cls_log, test_log_add_different_time)
   i = 0;
   do {
     string old_marker = std::move(marker);
-    ASSERT_EQ(0, log_list(ioctx, oid, start_time, to_time, old_marker, 1,
-                          entries, &marker, &truncated));
+    ASSERT_EQ(
+        0, log_list(
+               ioctx, oid, start_time, to_time, old_marker, 1, entries, &marker,
+               &truncated));
     ASSERT_NE(old_marker, marker);
     ASSERT_EQ(1, (int)entries.size());
 
@@ -272,16 +313,24 @@ TEST_F(cls_log, test_log_add_different_time)
   ASSERT_EQ(10, i);
 }
 
-int do_log_trim(librados::IoCtx& ioctx, const std::string& oid,
-                const std::string& from_marker, const std::string& to_marker)
+int
+do_log_trim(
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    const std::string& from_marker,
+    const std::string& to_marker)
 {
   librados::ObjectWriteOperation op;
   cls_log_trim(op, {}, {}, from_marker, to_marker);
   return ioctx.operate(oid, &op);
 }
 
-int do_log_trim(librados::IoCtx& ioctx, const std::string& oid,
-                real_time from_time, real_time to_time)
+int
+do_log_trim(
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    real_time from_time,
+    real_time to_time)
 {
   librados::ObjectWriteOperation op;
   cls_log_trim(op, from_time, to_time, "", "");
@@ -316,8 +365,8 @@ TEST_F(cls_log, trim_by_time)
     ASSERT_EQ(0, do_log_trim(ioctx, oid, zero_time, trim_time));
     ASSERT_EQ(-ENODATA, do_log_trim(ioctx, oid, zero_time, trim_time));
 
-    ASSERT_EQ(0, log_list(ioctx, oid, start_time, to_time, 0,
-                          entries, &truncated));
+    ASSERT_EQ(
+        0, log_list(ioctx, oid, start_time, to_time, 0, entries, &truncated));
     ASSERT_EQ(9u - i, entries.size());
     ASSERT_FALSE(truncated);
   }
@@ -337,8 +386,9 @@ TEST_F(cls_log, trim_by_marker)
     ASSERT_EQ(0, log_list(ioctx, oid, entries));
     ASSERT_EQ(10u, entries.size());
 
-    log1.assign(std::make_move_iterator(entries.begin()),
-                std::make_move_iterator(entries.end()));
+    log1.assign(
+        std::make_move_iterator(entries.begin()),
+        std::make_move_iterator(entries.end()));
   }
   // trim front of log
   {

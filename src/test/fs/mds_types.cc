@@ -16,8 +16,8 @@
  */
 
 #include "gtest/gtest.h"
-#include "mds/mdstypes.h"
 #include "mds/inode_backtrace.h"
+#include "mds/mdstypes.h"
 
 TEST(inode_t, compare_equal)
 {
@@ -109,7 +109,7 @@ TEST(inode_backtrace_t, compare_equal)
 {
   inode_backtrace_t foo;
   inode_backtrace_t bar;
-  
+
   foo.ino = 1234;
   foo.pool = 12;
   foo.old_pools.push_back(10);
@@ -128,9 +128,9 @@ TEST(inode_backtrace_t, compare_equal)
   foop.dname = "l1";
   foop.version = 25;
   foo.ancestors.push_back(foop);
- 
+
   bar = foo;
-  
+
   int compare_r;
   bool equivalent;
   bool divergent;

@@ -14,11 +14,11 @@
 
 #include "common/dout.h"
 #include "common/errno.h"
-#include "rgw_realm_watcher.h"
-#include "rgw_zone.h"
 #include "driver/rados/config/store.h"
 
 #include "impl.h"
+#include "rgw_realm_watcher.h"
+#include "rgw_zone.h"
 
 namespace rgw::rados {
 
@@ -28,29 +28,38 @@ constexpr std::string_view realm_info_oid_prefix = "realms.";
 constexpr std::string_view realm_control_oid_suffix = ".control";
 constexpr std::string_view default_realm_info_oid = "default.realm";
 
-static std::string realm_info_oid(std::string_view realm_id)
+static std::string
+realm_info_oid(std::string_view realm_id)
 {
   return string_cat_reserve(realm_info_oid_prefix, realm_id);
 }
-static std::string realm_name_oid(std::string_view realm_id)
+
+static std::string
+realm_name_oid(std::string_view realm_id)
 {
   return string_cat_reserve(realm_names_oid_prefix, realm_id);
 }
-static std::string realm_control_oid(std::string_view realm_id)
+
+static std::string
+realm_control_oid(std::string_view realm_id)
 {
-  return string_cat_reserve(realm_info_oid_prefix, realm_id,
-                            realm_control_oid_suffix);
-}
-static std::string default_realm_oid(const ceph::common::ConfigProxy& conf)
-{
-  return std::string{name_or_default(conf->rgw_default_realm_info_oid,
-                                     default_realm_info_oid)};
+  return string_cat_reserve(
+      realm_info_oid_prefix, realm_id, realm_control_oid_suffix);
 }
 
+static std::string
+default_realm_oid(const ceph::common::ConfigProxy& conf)
+{
+  return std::string{
+      name_or_default(conf->rgw_default_realm_info_oid, default_realm_info_oid)};
+}
 
-int RadosConfigStore::write_default_realm_id(const DoutPrefixProvider* dpp,
-                                             optional_yield y, bool exclusive,
-                                             std::string_view realm_id)
+int
+RadosConfigStore::write_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    std::string_view realm_id)
 {
   const auto& pool = impl->realm_pool;
   const auto oid = default_realm_oid(dpp->get_cct()->_conf);
@@ -62,9 +71,11 @@ int RadosConfigStore::write_default_realm_id(const DoutPrefixProvider* dpp,
   return impl->write(dpp, y, pool, oid, create, default_info, nullptr);
 }
 
-int RadosConfigStore::read_default_realm_id(const DoutPrefixProvider* dpp,
-                                            optional_yield y,
-                                            std::string& realm_id)
+int
+RadosConfigStore::read_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string& realm_id)
 {
   const auto& pool = impl->realm_pool;
   const auto oid = default_realm_oid(dpp->get_cct()->_conf);
@@ -77,8 +88,10 @@ int RadosConfigStore::read_default_realm_id(const DoutPrefixProvider* dpp,
   return r;
 }
 
-int RadosConfigStore::delete_default_realm_id(const DoutPrefixProvider* dpp,
-                                              optional_yield y)
+int
+RadosConfigStore::delete_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   const auto& pool = impl->realm_pool;
   const auto oid = default_realm_oid(dpp->get_cct()->_conf);
@@ -86,22 +99,24 @@ int RadosConfigStore::delete_default_realm_id(const DoutPrefixProvider* dpp,
   return impl->remove(dpp, y, pool, oid, nullptr);
 }
 
-
 class RadosRealmWriter : public sal::RealmWriter {
   ConfigImpl* impl;
   RGWObjVersionTracker objv;
   std::string realm_id;
   std::string realm_name;
- public:
-  RadosRealmWriter(ConfigImpl* impl, RGWObjVersionTracker objv,
-                   std::string_view realm_id, std::string_view realm_name)
-    : impl(impl), objv(std::move(objv)),
-      realm_id(realm_id), realm_name(realm_name)
-  {
-  }
 
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const RGWRealm& info) override
+public:
+  RadosRealmWriter(
+      ConfigImpl* impl,
+      RGWObjVersionTracker objv,
+      std::string_view realm_id,
+      std::string_view realm_name) :
+    impl(impl), objv(std::move(objv)), realm_id(realm_id), realm_name(realm_name)
+  {}
+
+  int
+  write(const DoutPrefixProvider* dpp, optional_yield y, const RGWRealm& info)
+      override
   {
     if (realm_id != info.get_id() || realm_name != info.get_name()) {
       return -EINVAL; // can't modify realm id or name directly
@@ -112,8 +127,12 @@ class RadosRealmWriter : public sal::RealmWriter {
     return impl->write(dpp, y, pool, info_oid, Create::MustExist, info, &objv);
   }
 
-  int rename(const DoutPrefixProvider* dpp, optional_yield y,
-             RGWRealm& info, std::string_view new_name) override
+  int
+  rename(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      RGWRealm& info,
+      std::string_view new_name) override
   {
     if (realm_id != info.get_id() || realm_name != info.get_name()) {
       return -EINVAL; // can't modify realm id or name directly
@@ -132,8 +151,8 @@ class RadosRealmWriter : public sal::RealmWriter {
     // link the new name
     RGWObjVersionTracker new_objv;
     new_objv.generate_new_write_ver(dpp->get_cct());
-    int r = impl->write(dpp, y, pool, new_oid, Create::MustNotExist,
-                        name, &new_objv);
+    int r = impl->write(
+        dpp, y, pool, new_oid, Create::MustNotExist, name, &new_objv);
     if (r < 0) {
       return r;
     }
@@ -143,18 +162,19 @@ class RadosRealmWriter : public sal::RealmWriter {
     r = impl->write(dpp, y, pool, info_oid, Create::MustExist, info, &objv);
     if (r < 0) {
       // on failure, unlink the new name
-      (void) impl->remove(dpp, y, pool, new_oid, &new_objv);
+      (void)impl->remove(dpp, y, pool, new_oid, &new_objv);
       return r;
     }
 
     // unlink the old name
-    (void) impl->remove(dpp, y, pool, old_oid, nullptr);
+    (void)impl->remove(dpp, y, pool, old_oid, nullptr);
 
     realm_name = new_name;
     return 0;
   }
 
-  int remove(const DoutPrefixProvider* dpp, optional_yield y) override
+  int
+  remove(const DoutPrefixProvider* dpp, optional_yield y) override
   {
     const auto& pool = impl->realm_pool;
     const auto info_oid = realm_info_oid(realm_id);
@@ -163,18 +183,20 @@ class RadosRealmWriter : public sal::RealmWriter {
       return r;
     }
     const auto name_oid = realm_name_oid(realm_name);
-    (void) impl->remove(dpp, y, pool, name_oid, nullptr);
+    (void)impl->remove(dpp, y, pool, name_oid, nullptr);
     const auto control_oid = realm_control_oid(realm_id);
-    (void) impl->remove(dpp, y, pool, control_oid, nullptr);
+    (void)impl->remove(dpp, y, pool, control_oid, nullptr);
     return 0;
   }
 }; // RadosRealmWriter
 
-
-int RadosConfigStore::create_realm(const DoutPrefixProvider* dpp,
-                                   optional_yield y, bool exclusive,
-                                   const RGWRealm& info,
-                                   std::unique_ptr<sal::RealmWriter>* writer)
+int
+RadosConfigStore::create_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
   if (info.get_id().empty()) {
     ldpp_dout(dpp, 0) << "realm cannot have an empty id" << dendl;
@@ -206,18 +228,18 @@ int RadosConfigStore::create_realm(const DoutPrefixProvider* dpp,
 
   r = impl->write(dpp, y, pool, name_oid, create, name, &name_objv);
   if (r < 0) {
-    (void) impl->remove(dpp, y, pool, info_oid, &objv);
+    (void)impl->remove(dpp, y, pool, info_oid, &objv);
     return r;
   }
 
   // create control object for watch/notify
   const auto control_oid = realm_control_oid(info.get_id());
   bufferlist empty_bl;
-  r = impl->write(dpp, y, pool, control_oid, Create::MayExist,
-                  empty_bl, nullptr);
+  r = impl->write(
+      dpp, y, pool, control_oid, Create::MayExist, empty_bl, nullptr);
   if (r < 0) {
-    (void) impl->remove(dpp, y, pool, name_oid, &name_objv);
-    (void) impl->remove(dpp, y, pool, info_oid, &objv);
+    (void)impl->remove(dpp, y, pool, name_oid, &name_objv);
+    (void)impl->remove(dpp, y, pool, info_oid, &objv);
     return r;
   }
 
@@ -228,11 +250,13 @@ int RadosConfigStore::create_realm(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::read_realm_by_id(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       std::string_view realm_id,
-                                       RGWRealm& info,
-                                       std::unique_ptr<sal::RealmWriter>* writer)
+int
+RadosConfigStore::read_realm_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
   const auto& pool = impl->realm_pool;
   const auto info_oid = realm_info_oid(realm_id);
@@ -249,11 +273,13 @@ int RadosConfigStore::read_realm_by_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::read_realm_by_name(const DoutPrefixProvider* dpp,
-                                         optional_yield y,
-                                         std::string_view realm_name,
-                                         RGWRealm& info,
-                                         std::unique_ptr<sal::RealmWriter>* writer)
+int
+RadosConfigStore::read_realm_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_name,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
   const auto& pool = impl->realm_pool;
 
@@ -279,10 +305,12 @@ int RadosConfigStore::read_realm_by_name(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::read_default_realm(const DoutPrefixProvider* dpp,
-                                         optional_yield y,
-                                         RGWRealm& info,
-                                         std::unique_ptr<sal::RealmWriter>* writer)
+int
+RadosConfigStore::read_default_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
   const auto& pool = impl->realm_pool;
 
@@ -308,10 +336,12 @@ int RadosConfigStore::read_default_realm(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::read_realm_id(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view realm_name,
-                                    std::string& realm_id)
+int
+RadosConfigStore::read_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_name,
+    std::string& realm_id)
 {
   const auto& pool = impl->realm_pool;
   RGWNameToId name;
@@ -326,9 +356,11 @@ int RadosConfigStore::read_realm_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::realm_notify_new_period(const DoutPrefixProvider* dpp,
-                                              optional_yield y,
-                                              const RGWPeriod& period)
+int
+RadosConfigStore::realm_notify_new_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const RGWPeriod& period)
 {
   const auto& pool = impl->realm_pool;
   const auto control_oid = realm_control_oid(period.get_realm());
@@ -345,19 +377,21 @@ int RadosConfigStore::realm_notify_new_period(const DoutPrefixProvider* dpp,
   return impl->notify(dpp, y, pool, control_oid, bl, timeout_ms);
 }
 
-int RadosConfigStore::list_realm_names(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       const std::string& marker,
-                                       std::span<std::string> entries,
-                                       sal::ListResult<std::string>& result)
+int
+RadosConfigStore::list_realm_names(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
   const auto& pool = impl->realm_pool;
-  constexpr auto prefix = [] (std::string oid) -> std::string {
-      if (!oid.starts_with(realm_names_oid_prefix)) {
-        return {};
-      }
-      return oid.substr(realm_names_oid_prefix.size());
-    };
+  constexpr auto prefix = [](std::string oid) -> std::string {
+    if (!oid.starts_with(realm_names_oid_prefix)) {
+      return {};
+    }
+    return oid.substr(realm_names_oid_prefix.size());
+  };
   return impl->list(dpp, y, pool, marker, prefix, entries, result);
 }
 

@@ -26,18 +26,18 @@ extern "C" {
 #elif defined(__FreeBSD__)
 #include <sys/types.h>
 #endif
-#include <unistd.h>
 #include <string.h>
-#include "rados_types.h"
-
 #include <sys/time.h>
+#include <unistd.h>
+
+#include "rados_types.h"
 
 #ifndef CEPH_OSD_TMAP_SET
 /* These are also defined in rados.h and objclass.h. Keep them in sync! */
 #define CEPH_OSD_TMAP_HDR 'h'
 #define CEPH_OSD_TMAP_SET 's'
 #define CEPH_OSD_TMAP_CREATE 'c'
-#define CEPH_OSD_TMAP_RM  'r'
+#define CEPH_OSD_TMAP_RM 'r'
 #endif
 
 #define LIBRADOS_VER_MAJOR 3
@@ -46,7 +46,8 @@ extern "C" {
 
 #define LIBRADOS_VERSION(maj, min, extra) ((maj << 16) + (min << 8) + extra)
 
-#define LIBRADOS_VERSION_CODE LIBRADOS_VERSION(LIBRADOS_VER_MAJOR, LIBRADOS_VER_MINOR, LIBRADOS_VER_EXTRA)
+#define LIBRADOS_VERSION_CODE \
+  LIBRADOS_VERSION(LIBRADOS_VER_MAJOR, LIBRADOS_VER_MINOR, LIBRADOS_VER_EXTRA)
 
 #define LIBRADOS_SUPPORTS_WATCH 1
 #define LIBRADOS_SUPPORTS_SERVICES 1
@@ -56,9 +57,9 @@ extern "C" {
 /* RADOS lock flags
  * They are also defined in cls_lock_types.h. Keep them in sync!
  */
-#define LIBRADOS_LOCK_FLAG_RENEW       (1u<<0)
-#define LIBRADOS_LOCK_FLAG_MAY_RENEW   LIBRADOS_LOCK_FLAG_RENEW
-#define LIBRADOS_LOCK_FLAG_MUST_RENEW  (1u<<1)
+#define LIBRADOS_LOCK_FLAG_RENEW (1u << 0)
+#define LIBRADOS_LOCK_FLAG_MAY_RENEW LIBRADOS_LOCK_FLAG_RENEW
+#define LIBRADOS_LOCK_FLAG_MUST_RENEW (1u << 1)
 
 /*
  * Constants for rados_write_op_create().
@@ -72,21 +73,21 @@ extern "C" {
  */
 enum {
   // fail a create operation if the object already exists
-  LIBRADOS_OP_FLAG_EXCL               =  0x1,
+  LIBRADOS_OP_FLAG_EXCL = 0x1,
   // allow the transaction to succeed even if the flagged op fails
-  LIBRADOS_OP_FLAG_FAILOK 	      = 0x2,
+  LIBRADOS_OP_FLAG_FAILOK = 0x2,
   // indicate read/write op random
-  LIBRADOS_OP_FLAG_FADVISE_RANDOM     = 0x4,
+  LIBRADOS_OP_FLAG_FADVISE_RANDOM = 0x4,
   // indicate read/write op sequential
   LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL = 0x8,
   // indicate read/write data will be accessed in the near future (by someone)
-  LIBRADOS_OP_FLAG_FADVISE_WILLNEED   = 0x10,
+  LIBRADOS_OP_FLAG_FADVISE_WILLNEED = 0x10,
   // indicate read/write data will not accessed in the near future (by anyone)
-  LIBRADOS_OP_FLAG_FADVISE_DONTNEED   = 0x20,
+  LIBRADOS_OP_FLAG_FADVISE_DONTNEED = 0x20,
   // indicate read/write data will not accessed again (by *this* client)
-  LIBRADOS_OP_FLAG_FADVISE_NOCACHE    = 0x40,
+  LIBRADOS_OP_FLAG_FADVISE_NOCACHE = 0x40,
   // optionally support FUA (force unit access) on write requests
-  LIBRADOS_OP_FLAG_FADVISE_FUA        = 0x80,
+  LIBRADOS_OP_FLAG_FADVISE_FUA = 0x80,
 };
 
 #define CEPH_RADOS_API
@@ -100,13 +101,14 @@ enum {
  * @{
  */
 enum {
-	LIBRADOS_CMPXATTR_OP_EQ  = 1,
-	LIBRADOS_CMPXATTR_OP_NE  = 2,
-	LIBRADOS_CMPXATTR_OP_GT  = 3,
-	LIBRADOS_CMPXATTR_OP_GTE = 4,
-	LIBRADOS_CMPXATTR_OP_LT  = 5,
-	LIBRADOS_CMPXATTR_OP_LTE = 6
+  LIBRADOS_CMPXATTR_OP_EQ = 1,
+  LIBRADOS_CMPXATTR_OP_NE = 2,
+  LIBRADOS_CMPXATTR_OP_GT = 3,
+  LIBRADOS_CMPXATTR_OP_GTE = 4,
+  LIBRADOS_CMPXATTR_OP_LT = 5,
+  LIBRADOS_CMPXATTR_OP_LTE = 6
 };
+
 /** @} */
 
 /**
@@ -117,26 +119,27 @@ enum {
  * @{
  */
 enum {
-  LIBRADOS_OPERATION_NOFLAG             = 0,
-  LIBRADOS_OPERATION_BALANCE_READS      = 1,
-  LIBRADOS_OPERATION_LOCALIZE_READS     = 2,
+  LIBRADOS_OPERATION_NOFLAG = 0,
+  LIBRADOS_OPERATION_BALANCE_READS = 1,
+  LIBRADOS_OPERATION_LOCALIZE_READS = 2,
   LIBRADOS_OPERATION_ORDER_READS_WRITES = 4,
-  LIBRADOS_OPERATION_IGNORE_CACHE       = 8,
-  LIBRADOS_OPERATION_SKIPRWLOCKS        = 16,
-  LIBRADOS_OPERATION_IGNORE_OVERLAY     = 32,
+  LIBRADOS_OPERATION_IGNORE_CACHE = 8,
+  LIBRADOS_OPERATION_SKIPRWLOCKS = 16,
+  LIBRADOS_OPERATION_IGNORE_OVERLAY = 32,
   /* send requests to cluster despite the cluster or pool being marked
      full; ops will either succeed (e.g., delete) or return EDQUOT or
      ENOSPC. */
-  LIBRADOS_OPERATION_FULL_TRY           = 64,
+  LIBRADOS_OPERATION_FULL_TRY = 64,
   /*
    * Mainly for delete op
    */
-  LIBRADOS_OPERATION_FULL_FORCE		= 128,
-  LIBRADOS_OPERATION_IGNORE_REDIRECT	= 256,
-  LIBRADOS_OPERATION_ORDERSNAP          = 512,
+  LIBRADOS_OPERATION_FULL_FORCE = 128,
+  LIBRADOS_OPERATION_IGNORE_REDIRECT = 256,
+  LIBRADOS_OPERATION_ORDERSNAP = 512,
   /* enable/allow >0 return values and payloads on write/update */
-  LIBRADOS_OPERATION_RETURNVEC          = 1024,
+  LIBRADOS_OPERATION_RETURNVEC = 1024,
 };
+
 /** @} */
 
 /**
@@ -158,19 +161,20 @@ enum {
   LIBRADOS_ALLOC_HINT_FLAG_INCOMPRESSIBLE = 512,
   LIBRADOS_ALLOC_HINT_FLAG_LOG = 1024,
 };
+
 /** @} */
 
 typedef enum {
-	LIBRADOS_CHECKSUM_TYPE_XXHASH32 = 0,
-	LIBRADOS_CHECKSUM_TYPE_XXHASH64 = 1,
-	LIBRADOS_CHECKSUM_TYPE_CRC32C   = 2
+  LIBRADOS_CHECKSUM_TYPE_XXHASH32 = 0,
+  LIBRADOS_CHECKSUM_TYPE_XXHASH64 = 1,
+  LIBRADOS_CHECKSUM_TYPE_CRC32C = 2
 } rados_checksum_type_t;
 
 /*
  * snap id contants
  */
-#define LIBRADOS_SNAP_HEAD  UINT64_C(-2)
-#define LIBRADOS_SNAP_DIR   UINT64_C(-1)
+#define LIBRADOS_SNAP_HEAD UINT64_C(-2)
+#define LIBRADOS_SNAP_DIR UINT64_C(-1)
 
 /**
  * @typedef rados_t
@@ -183,7 +187,7 @@ typedef enum {
  */
 #ifndef VOIDPTR_RADOS_T
 #define VOIDPTR_RADOS_T
-typedef void *rados_t;
+typedef void* rados_t;
 #endif //VOIDPTR_RADOS_T
 
 /**
@@ -197,7 +201,7 @@ typedef void *rados_t;
  * counting.  As such, a rados_config_t handle retrieved from a given
  * rados_t is only valid as long as that rados_t.
  */
-typedef void *rados_config_t;
+typedef void* rados_config_t;
 
 /**
  * @typedef rados_ioctx_t
@@ -219,7 +223,7 @@ typedef void *rados_config_t;
  * librados users must synchronize any of these changes on their own,
  * or use separate io contexts for each thread
  */
-typedef void *rados_ioctx_t;
+typedef void* rados_ioctx_t;
 
 /**
  * @typedef rados_list_ctx_t
@@ -229,7 +233,7 @@ typedef void *rados_ioctx_t;
  * rados_nobjects_list_next(), rados_nobjects_list_next2(), and
  * rados_nobjects_list_close().
  */
-typedef void *rados_list_ctx_t;
+typedef void* rados_list_ctx_t;
 
 /**
  * @typedef rados_object_list_cursor
@@ -237,7 +241,7 @@ typedef void *rados_list_ctx_t;
  * The cursor used with rados_enumerate_objects
  * and accompanying methods.
  */
-typedef void * rados_object_list_cursor;
+typedef void* rados_object_list_cursor;
 
 /**
  * @struct rados_object_list_item
@@ -250,15 +254,15 @@ typedef struct {
   /// oid length
   size_t oid_length;
   /// name of the object
-  char *oid;
+  char* oid;
   /// namespace length
   size_t nspace_length;
   /// the object namespace
-  char *nspace;
+  char* nspace;
   /// locator length
   size_t locator_length;
   /// object locator
-  char *locator;
+  char* locator;
 } rados_object_list_item;
 
 /**
@@ -273,7 +277,7 @@ typedef uint64_t rados_snap_t;
  * Used with rados_getxattrs(), rados_getxattrs_next(), and
  * rados_getxattrs_end().
  */
-typedef void *rados_xattrs_iter_t;
+typedef void* rados_xattrs_iter_t;
 
 /**
  * @typedef rados_omap_iter_t
@@ -282,7 +286,7 @@ typedef void *rados_xattrs_iter_t;
  * rados_read_op_omap_get_vals_by_keys(), rados_omap_get_next(), and
  * rados_omap_get_end().
  */
-typedef void *rados_omap_iter_t;
+typedef void* rados_omap_iter_t;
 
 /**
  * @struct rados_pool_stat_t
@@ -360,7 +364,7 @@ struct rados_cluster_stat_t {
  * - Hints: rados_write_op_set_alloc_hint()
  * - Performing the operation: rados_write_op_operate(), rados_aio_write_op_operate()
  */
-typedef void *rados_write_op_t;
+typedef void* rados_write_op_t;
 
 /**
  * @typedef rados_read_op_t
@@ -382,7 +386,7 @@ typedef void *rados_write_op_t;
  * - Performing the operation: rados_read_op_operate(),
  *   rados_aio_read_op_operate()
  */
-typedef void *rados_read_op_t;
+typedef void* rados_read_op_t;
 
 /**
  * @typedef rados_completion_t
@@ -390,7 +394,7 @@ typedef void *rados_read_op_t;
  * return value once the operation completes, and can be used to block
  * until the operation is complete or safe.
  */
-typedef void *rados_completion_t;
+typedef void* rados_completion_t;
 
 /**
  * @struct blkin_trace_info
@@ -413,7 +417,7 @@ struct blkin_trace_info;
  * @param minor where to store the minor version number
  * @param extra where to store the extra version number
  */
-CEPH_RADOS_API void rados_version(int *major, int *minor, int *extra);
+CEPH_RADOS_API void rados_version(int* major, int* minor, int* extra);
 
 /**
  * @name Setup and Teardown
@@ -434,7 +438,7 @@ CEPH_RADOS_API void rados_version(int *major, int *minor, int *extra);
  * @param id the user to connect as (i.e. admin, not client.admin)
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_create(rados_t *cluster, const char * const id);
+CEPH_RADOS_API int rados_create(rados_t* cluster, const char* const id);
 
 /**
  * Extended version of rados_create.
@@ -444,9 +448,11 @@ CEPH_RADOS_API int rados_create(rados_t *cluster, const char * const id);
  * 2) allow specification of cluster name
  * 3) flags for future expansion
  */
-CEPH_RADOS_API int rados_create2(rados_t *pcluster,
-                                 const char *const clustername,
-                                 const char * const name, uint64_t flags);
+CEPH_RADOS_API int rados_create2(
+    rados_t* pcluster,
+    const char* const clustername,
+    const char* const name,
+    uint64_t flags);
 
 /**
  * Initialize a cluster handle from an existing configuration.
@@ -457,8 +463,9 @@ CEPH_RADOS_API int rados_create2(rados_t *pcluster,
  * @param cct the existing configuration to use
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_create_with_context(rados_t *cluster,
-                                             rados_config_t cct);
+CEPH_RADOS_API int rados_create_with_context(
+    rados_t* cluster,
+    rados_config_t cct);
 
 /**
  * Ping the monitor with ID mon_id, storing the resulting reply in
@@ -474,8 +481,11 @@ CEPH_RADOS_API int rados_create_with_context(rados_t *cluster,
  * @param outstr [out]    double pointer with the resulting reply
  * @param outstrlen [out] pointer with the size of the reply in outstr
  */
-CEPH_RADOS_API int rados_ping_monitor(rados_t cluster, const char *mon_id,
-                                      char **outstr, size_t *outstrlen);
+CEPH_RADOS_API int rados_ping_monitor(
+    rados_t cluster,
+    const char* mon_id,
+    char** outstr,
+    size_t* outstrlen);
 
 /**
  * Connect to the cluster.
@@ -550,7 +560,7 @@ CEPH_RADOS_API void rados_shutdown(rados_t cluster);
  * @param path path to a Ceph configuration file
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_conf_read_file(rados_t cluster, const char *path);
+CEPH_RADOS_API int rados_conf_read_file(rados_t cluster, const char* path);
 
 /**
  * Configure the cluster handle with command line arguments
@@ -569,8 +579,10 @@ CEPH_RADOS_API int rados_conf_read_file(rados_t cluster, const char *path);
  * @param argv arguments to parse
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_conf_parse_argv(rados_t cluster, int argc,
-                                         const char **argv);
+CEPH_RADOS_API int rados_conf_parse_argv(
+    rados_t cluster,
+    int argc,
+    const char** argv);
 
 
 /**
@@ -586,9 +598,11 @@ CEPH_RADOS_API int rados_conf_parse_argv(rados_t cluster, int argc,
  * @param remargv char* array for returned unrecognized arguments
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_conf_parse_argv_remainder(rados_t cluster, int argc,
-				                   const char **argv,
-                                                   const char **remargv);
+CEPH_RADOS_API int rados_conf_parse_argv_remainder(
+    rados_t cluster,
+    int argc,
+    const char** argv,
+    const char** remargv);
 /**
  * Configure the cluster handle based on an environment variable
  *
@@ -604,7 +618,7 @@ CEPH_RADOS_API int rados_conf_parse_argv_remainder(rados_t cluster, int argc,
  * @param var name of the environment variable to read
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_conf_parse_env(rados_t cluster, const char *var);
+CEPH_RADOS_API int rados_conf_parse_env(rados_t cluster, const char* var);
 
 /**
  * Set a configuration option
@@ -617,8 +631,10 @@ CEPH_RADOS_API int rados_conf_parse_env(rados_t cluster, const char *var);
  * @returns 0 on success, negative error code on failure
  * @returns -ENOENT when the option is not a Ceph configuration option
  */
-CEPH_RADOS_API int rados_conf_set(rados_t cluster, const char *option,
-                                  const char *value);
+CEPH_RADOS_API int rados_conf_set(
+    rados_t cluster,
+    const char* option,
+    const char* value);
 
 /**
  * Get the value of a configuration option
@@ -631,8 +647,8 @@ CEPH_RADOS_API int rados_conf_set(rados_t cluster, const char *option,
  * @returns -ENAMETOOLONG if the buffer is too short to contain the
  * requested value
  */
-CEPH_RADOS_API int rados_conf_get(rados_t cluster, const char *option,
-                                  char *buf, size_t len);
+CEPH_RADOS_API int
+rados_conf_get(rados_t cluster, const char* option, char* buf, size_t len);
 
 /** @} config */
 
@@ -647,8 +663,9 @@ CEPH_RADOS_API int rados_conf_get(rados_t cluster, const char *option,
  * @param result where to store the results
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_cluster_stat(rados_t cluster,
-                                      struct rados_cluster_stat_t *result);
+CEPH_RADOS_API int rados_cluster_stat(
+    rados_t cluster,
+    struct rados_cluster_stat_t* result);
 
 /**
  * Get the fsid of the cluster as a hexadecimal string.
@@ -662,7 +679,7 @@ CEPH_RADOS_API int rados_cluster_stat(rados_t cluster,
  * @returns -ERANGE if the buffer is too short to contain the
  * fsid
  */
-CEPH_RADOS_API int rados_cluster_fsid(rados_t cluster, char *buf, size_t len);
+CEPH_RADOS_API int rados_cluster_fsid(rados_t cluster, char* buf, size_t len);
 
 /**
  * Get/wait for the most recent osdmap
@@ -701,7 +718,7 @@ CEPH_RADOS_API int rados_wait_for_latest_osdmap(rados_t cluster);
  * @param len output buffer length
  * @returns length of the buffer we would need to list all pools
  */
-CEPH_RADOS_API int rados_pool_list(rados_t cluster, char *buf, size_t len);
+CEPH_RADOS_API int rados_pool_list(rados_t cluster, char* buf, size_t len);
 
 /**
  * List inconsistent placement groups of the given pool
@@ -719,8 +736,11 @@ CEPH_RADOS_API int rados_pool_list(rados_t cluster, char *buf, size_t len);
  * @param len output buffer length
  * @returns length of the buffer we would need to list all pools
  */
-CEPH_RADOS_API int rados_inconsistent_pg_list(rados_t cluster, int64_t pool,
-					      char *buf, size_t len);
+CEPH_RADOS_API int rados_inconsistent_pg_list(
+    rados_t cluster,
+    int64_t pool,
+    char* buf,
+    size_t len);
 
 /**
  * Get a configuration handle for a rados cluster handle
@@ -750,8 +770,9 @@ CEPH_RADOS_API uint64_t rados_get_instance_id(rados_t cluster);
  *  based upon the current features
  * @returns 0 on sucess, negative error code on failure
  */
-CEPH_RADOS_API int rados_get_min_compatible_osd(rados_t cluster,
-                                                int8_t* require_osd_release);
+CEPH_RADOS_API int rados_get_min_compatible_osd(
+    rados_t cluster,
+    int8_t* require_osd_release);
 
 /**
  * Gets the minimum compatible client version
@@ -763,9 +784,10 @@ CEPH_RADOS_API int rados_get_min_compatible_osd(rados_t cluster,
  *  based upon explicit setting
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_get_min_compatible_client(rados_t cluster,
-                                                   int8_t* min_compat_client,
-                                                   int8_t* require_min_compat_client);
+CEPH_RADOS_API int rados_get_min_compatible_client(
+    rados_t cluster,
+    int8_t* min_compat_client,
+    int8_t* require_min_compat_client);
 
 /**
  * Create an io context
@@ -778,10 +800,14 @@ CEPH_RADOS_API int rados_get_min_compatible_client(rados_t cluster,
  * @param ioctx where to store the io context
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_create(rados_t cluster, const char *pool_name,
-                                      rados_ioctx_t *ioctx);
-CEPH_RADOS_API int rados_ioctx_create2(rados_t cluster, int64_t pool_id,
-                                       rados_ioctx_t *ioctx);
+CEPH_RADOS_API int rados_ioctx_create(
+    rados_t cluster,
+    const char* pool_name,
+    rados_ioctx_t* ioctx);
+CEPH_RADOS_API int rados_ioctx_create2(
+    rados_t cluster,
+    int64_t pool_id,
+    rados_ioctx_t* ioctx);
 
 /**
  * The opposite of rados_ioctx_create
@@ -832,8 +858,9 @@ CEPH_RADOS_API rados_t rados_ioctx_get_cluster(rados_ioctx_t io);
  * @param stats where to store the results
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_pool_stat(rados_ioctx_t io,
-                                         struct rados_pool_stat_t *stats);
+CEPH_RADOS_API int rados_ioctx_pool_stat(
+    rados_ioctx_t io,
+    struct rados_pool_stat_t* stats);
 
 /**
  * Get the id of a pool
@@ -843,8 +870,7 @@ CEPH_RADOS_API int rados_ioctx_pool_stat(rados_ioctx_t io,
  * @returns id of the pool
  * @returns -ENOENT if the pool is not found
  */
-CEPH_RADOS_API int64_t rados_pool_lookup(rados_t cluster,
-                                         const char *pool_name);
+CEPH_RADOS_API int64_t rados_pool_lookup(rados_t cluster, const char* pool_name);
 
 /**
  * Get the name of a pool
@@ -855,8 +881,11 @@ CEPH_RADOS_API int64_t rados_pool_lookup(rados_t cluster,
  * @param maxlen size of buffer where name will be stored
  * @returns length of string stored, or -ERANGE if buffer too small
  */
-CEPH_RADOS_API int rados_pool_reverse_lookup(rados_t cluster, int64_t id,
-                                             char *buf, size_t maxlen);
+CEPH_RADOS_API int rados_pool_reverse_lookup(
+    rados_t cluster,
+    int64_t id,
+    char* buf,
+    size_t maxlen);
 
 /**
  * Create a pool with default settings
@@ -867,7 +896,7 @@ CEPH_RADOS_API int rados_pool_reverse_lookup(rados_t cluster, int64_t id,
  * @param pool_name the name of the new pool
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_create(rados_t cluster, const char *pool_name);
+CEPH_RADOS_API int rados_pool_create(rados_t cluster, const char* pool_name);
 
 /**
  * Create a pool owned by a specific auid.
@@ -880,10 +909,10 @@ CEPH_RADOS_API int rados_pool_create(rados_t cluster, const char *pool_name);
  * @param auid the id of the owner of the new pool
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_create_with_auid(rados_t cluster,
-                                               const char *pool_name,
-                                               uint64_t auid)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_pool_create_with_auid(
+    rados_t cluster,
+    const char* pool_name,
+    uint64_t auid) __attribute__((deprecated));
 
 /**
  * Create a pool with a specific CRUSH rule
@@ -893,9 +922,10 @@ CEPH_RADOS_API int rados_pool_create_with_auid(rados_t cluster,
  * @param crush_rule_num which rule to use for placement in the new pool1
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_create_with_crush_rule(rados_t cluster,
-                                                     const char *pool_name,
-				                     uint8_t crush_rule_num);
+CEPH_RADOS_API int rados_pool_create_with_crush_rule(
+    rados_t cluster,
+    const char* pool_name,
+    uint8_t crush_rule_num);
 
 /**
  * Create a pool with a specific CRUSH rule and auid
@@ -912,11 +942,11 @@ CEPH_RADOS_API int rados_pool_create_with_crush_rule(rados_t cluster,
  * @param auid the id of the owner of the new pool
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_create_with_all(rados_t cluster,
-                                              const char *pool_name,
-                                              uint64_t auid,
-			                      uint8_t crush_rule_num)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_pool_create_with_all(
+    rados_t cluster,
+    const char* pool_name,
+    uint64_t auid,
+    uint8_t crush_rule_num) __attribute__((deprecated));
 
 /**
  * Returns the pool that is the base tier for this pool.
@@ -929,8 +959,10 @@ CEPH_RADOS_API int rados_pool_create_with_all(rados_t cluster,
  * @param base_tier [out] base tier, or \c pool if tiering is not configured
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_get_base_tier(rados_t cluster, int64_t pool,
-                                            int64_t* base_tier);
+CEPH_RADOS_API int rados_pool_get_base_tier(
+    rados_t cluster,
+    int64_t pool,
+    int64_t* base_tier);
 
 /**
  * Delete a pool and all data inside it
@@ -942,7 +974,7 @@ CEPH_RADOS_API int rados_pool_get_base_tier(rados_t cluster, int64_t pool,
  * @param pool_name which pool to delete
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_pool_delete(rados_t cluster, const char *pool_name);
+CEPH_RADOS_API int rados_pool_delete(rados_t cluster, const char* pool_name);
 
 /**
  * Attempt to change an io context's associated auid "owner"
@@ -957,7 +989,7 @@ CEPH_RADOS_API int rados_pool_delete(rados_t cluster, const char *pool_name);
  * @returns 0 on success, negative error code on failure
  */
 CEPH_RADOS_API int rados_ioctx_pool_set_auid(rados_ioctx_t io, uint64_t auid)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 
 /**
@@ -970,12 +1002,12 @@ CEPH_RADOS_API int rados_ioctx_pool_set_auid(rados_ioctx_t io, uint64_t auid)
  * @param auid where to store the auid
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_pool_get_auid(rados_ioctx_t io, uint64_t *auid)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_ioctx_pool_get_auid(rados_ioctx_t io, uint64_t* auid)
+    __attribute__((deprecated));
 
 /* deprecated, use rados_ioctx_pool_requires_alignment2 instead */
 CEPH_RADOS_API int rados_ioctx_pool_requires_alignment(rados_ioctx_t io)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 /**
  * Test whether the specified pool requires alignment or not.
@@ -984,12 +1016,13 @@ CEPH_RADOS_API int rados_ioctx_pool_requires_alignment(rados_ioctx_t io)
  * @param req 1 if alignment is supported, 0 if not.
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_pool_requires_alignment2(rados_ioctx_t io,
-  int *req);
+CEPH_RADOS_API int rados_ioctx_pool_requires_alignment2(
+    rados_ioctx_t io,
+    int* req);
 
 /* deprecated, use rados_ioctx_pool_required_alignment2 instead */
 CEPH_RADOS_API uint64_t rados_ioctx_pool_required_alignment(rados_ioctx_t io)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 /**
  * Get the alignment flavor of a pool
@@ -998,8 +1031,9 @@ CEPH_RADOS_API uint64_t rados_ioctx_pool_required_alignment(rados_ioctx_t io)
  * @param alignment where to store the alignment flavor
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_pool_required_alignment2(rados_ioctx_t io,
-  uint64_t *alignment);
+CEPH_RADOS_API int rados_ioctx_pool_required_alignment2(
+    rados_ioctx_t io,
+    uint64_t* alignment);
 
 /**
  * Get the pool id of the io context
@@ -1017,8 +1051,10 @@ CEPH_RADOS_API int64_t rados_ioctx_get_id(rados_ioctx_t io);
  * @param maxlen size of buffer where name will be stored
  * @returns length of string stored, or -ERANGE if buffer too small
  */
-CEPH_RADOS_API int rados_ioctx_get_pool_name(rados_ioctx_t io, char *buf,
-                                             unsigned maxlen);
+CEPH_RADOS_API int rados_ioctx_get_pool_name(
+    rados_ioctx_t io,
+    char* buf,
+    unsigned maxlen);
 
 /** @} pools */
 
@@ -1040,8 +1076,9 @@ CEPH_RADOS_API int rados_ioctx_get_pool_name(rados_ioctx_t io, char *buf,
  * @param key the key to use as the object locator, or NULL to discard
  * any previously set key
  */
-CEPH_RADOS_API void rados_ioctx_locator_set_key(rados_ioctx_t io,
-                                                const char *key);
+CEPH_RADOS_API void rados_ioctx_locator_set_key(
+    rados_ioctx_t io,
+    const char* key);
 
 /**
  * Set the namespace for objects within an io context
@@ -1054,8 +1091,9 @@ CEPH_RADOS_API void rados_ioctx_locator_set_key(rados_ioctx_t io,
  * @param nspace the name to use as the namespace, or NULL use the
  * default namespace
  */
-CEPH_RADOS_API void rados_ioctx_set_namespace(rados_ioctx_t io,
-                                              const char *nspace);
+CEPH_RADOS_API void rados_ioctx_set_namespace(
+    rados_ioctx_t io,
+    const char* nspace);
 
 /**
  * Get the namespace for objects within the io context
@@ -1065,8 +1103,10 @@ CEPH_RADOS_API void rados_ioctx_set_namespace(rados_ioctx_t io,
  * @param maxlen size of buffer where name will be stored
  * @returns length of string stored, or -ERANGE if buffer too small
  */
-CEPH_RADOS_API int rados_ioctx_get_namespace(rados_ioctx_t io, char *buf,
-                                             unsigned maxlen);
+CEPH_RADOS_API int rados_ioctx_get_namespace(
+    rados_ioctx_t io,
+    char* buf,
+    unsigned maxlen);
 
 /** @} obj_loc */
 
@@ -1081,8 +1121,9 @@ CEPH_RADOS_API int rados_ioctx_get_namespace(rados_ioctx_t io, char *buf,
  * @param ctx the handle to store list context in
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_nobjects_list_open(rados_ioctx_t io,
-                                            rados_list_ctx_t *ctx);
+CEPH_RADOS_API int rados_nobjects_list_open(
+    rados_ioctx_t io,
+    rados_list_ctx_t* ctx);
 
 /**
  * Return hash position of iterator, rounded to the current PG
@@ -1090,7 +1131,8 @@ CEPH_RADOS_API int rados_nobjects_list_open(rados_ioctx_t io,
  * @param ctx iterator marking where you are in the listing
  * @returns current hash position, rounded to the current pg
  */
-CEPH_RADOS_API uint32_t rados_nobjects_list_get_pg_hash_position(rados_list_ctx_t ctx);
+CEPH_RADOS_API uint32_t rados_nobjects_list_get_pg_hash_position(
+    rados_list_ctx_t ctx);
 
 /**
  * Reposition object iterator to a different hash position
@@ -1099,8 +1141,8 @@ CEPH_RADOS_API uint32_t rados_nobjects_list_get_pg_hash_position(rados_list_ctx_
  * @param pos hash position to move to
  * @returns actual (rounded) position we moved to
  */
-CEPH_RADOS_API uint32_t rados_nobjects_list_seek(rados_list_ctx_t ctx,
-                                                 uint32_t pos);
+CEPH_RADOS_API uint32_t
+rados_nobjects_list_seek(rados_list_ctx_t ctx, uint32_t pos);
 
 /**
  * Reposition object iterator to a different position
@@ -1109,8 +1151,9 @@ CEPH_RADOS_API uint32_t rados_nobjects_list_seek(rados_list_ctx_t ctx,
  * @param cursor position to move to
  * @returns rounded position we moved to
  */
-CEPH_RADOS_API uint32_t rados_nobjects_list_seek_cursor(rados_list_ctx_t ctx,
-                                                        rados_object_list_cursor cursor);
+CEPH_RADOS_API uint32_t rados_nobjects_list_seek_cursor(
+    rados_list_ctx_t ctx,
+    rados_object_list_cursor cursor);
 
 /**
  * Reposition object iterator to a different position
@@ -1121,8 +1164,9 @@ CEPH_RADOS_API uint32_t rados_nobjects_list_seek_cursor(rados_list_ctx_t ctx,
  * @param cursor where to store cursor
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_nobjects_list_get_cursor(rados_list_ctx_t ctx,
-                                                  rados_object_list_cursor *cursor);
+CEPH_RADOS_API int rados_nobjects_list_get_cursor(
+    rados_list_ctx_t ctx,
+    rados_object_list_cursor* cursor);
 
 /**
  * Get the next object name and locator in the pool
@@ -1136,10 +1180,11 @@ CEPH_RADOS_API int rados_nobjects_list_get_cursor(rados_list_ctx_t ctx,
  * @returns 0 on success, negative error code on failure
  * @returns -ENOENT when there are no more objects to list
  */
-CEPH_RADOS_API int rados_nobjects_list_next(rados_list_ctx_t ctx,
-                                            const char **entry,
-	                                    const char **key,
-                                            const char **nspace);
+CEPH_RADOS_API int rados_nobjects_list_next(
+    rados_list_ctx_t ctx,
+    const char** entry,
+    const char** key,
+    const char** nspace);
 
 /**
  * Get the next object name, locator and their sizes in the pool
@@ -1159,13 +1204,14 @@ CEPH_RADOS_API int rados_nobjects_list_next(rados_list_ctx_t ctx,
  * @returns 0 on success, negative error code on failure
  * @returns -ENOENT when there are no more objects to list
  */
-CEPH_RADOS_API int rados_nobjects_list_next2(rados_list_ctx_t ctx,
-                                             const char **entry,
-                                             const char **key,
-                                             const char **nspace,
-                                             size_t *entry_size,
-                                             size_t *key_size,
-                                             size_t *nspace_size);
+CEPH_RADOS_API int rados_nobjects_list_next2(
+    rados_list_ctx_t ctx,
+    const char** entry,
+    const char** key,
+    const char** nspace,
+    size_t* entry_size,
+    size_t* key_size,
+    size_t* nspace_size);
 
 /**
  * Close the object listing handle.
@@ -1187,7 +1233,7 @@ CEPH_RADOS_API void rados_nobjects_list_close(rados_list_ctx_t ctx);
  * @returns handle for the pool, NULL on error (pool does not exist)
  */
 CEPH_RADOS_API rados_object_list_cursor rados_object_list_begin(
-  rados_ioctx_t io);
+    rados_ioctx_t io);
 
 /**
  * Get cursor handle pointing to the *end* of a pool.
@@ -1207,7 +1253,8 @@ CEPH_RADOS_API rados_object_list_cursor rados_object_list_end(rados_ioctx_t io);
  * @param cur cursor
  * @returns 1 if the cursor has reached the end of the pool, 0 otherwise
  */
-CEPH_RADOS_API int rados_object_list_is_end(rados_ioctx_t io,
+CEPH_RADOS_API int rados_object_list_is_end(
+    rados_ioctx_t io,
     rados_object_list_cursor cur);
 
 /**
@@ -1218,7 +1265,8 @@ CEPH_RADOS_API int rados_object_list_is_end(rados_ioctx_t io,
  * @param io ioctx
  * @param cur cursor
  */
-CEPH_RADOS_API void rados_object_list_cursor_free(rados_ioctx_t io,
+CEPH_RADOS_API void rados_object_list_cursor_free(
+    rados_ioctx_t io,
     rados_object_list_cursor cur);
 
 /**
@@ -1232,24 +1280,27 @@ CEPH_RADOS_API void rados_object_list_cursor_free(rados_ioctx_t io,
  * @param rhs second cursor
  * @returns -1, 0, or 1 for lhs < rhs, lhs == rhs, or lhs > rhs
  */
-CEPH_RADOS_API int rados_object_list_cursor_cmp(rados_ioctx_t io,
-    rados_object_list_cursor lhs, rados_object_list_cursor rhs);
+CEPH_RADOS_API int rados_object_list_cursor_cmp(
+    rados_ioctx_t io,
+    rados_object_list_cursor lhs,
+    rados_object_list_cursor rhs);
 
 /**
  * @return the number of items set in the results array
  */
-CEPH_RADOS_API int rados_object_list(rados_ioctx_t io,
+CEPH_RADOS_API int rados_object_list(
+    rados_ioctx_t io,
     const rados_object_list_cursor start,
     const rados_object_list_cursor finish,
     const size_t result_size,
-    const char *filter_buf,
+    const char* filter_buf,
     const size_t filter_buf_len,
-    rados_object_list_item *results,
-    rados_object_list_cursor *next);
+    rados_object_list_item* results,
+    rados_object_list_cursor* next);
 
 CEPH_RADOS_API void rados_object_list_free(
     const size_t result_size,
-    rados_object_list_item *results);
+    rados_object_list_item* results);
 
 /**
  * Obtain cursors delineating a subset of a range.  Use this
@@ -1265,13 +1316,14 @@ CEPH_RADOS_API void rados_object_list_free(
  * @param split_start cursor populated with start of the subrange (inclusive)
  * @param split_finish cursor populated with end of the subrange (exclusive)
  */
-CEPH_RADOS_API void rados_object_list_slice(rados_ioctx_t io,
+CEPH_RADOS_API void rados_object_list_slice(
+    rados_ioctx_t io,
     const rados_object_list_cursor start,
     const rados_object_list_cursor finish,
     const size_t n,
     const size_t m,
-    rados_object_list_cursor *split_start,
-    rados_object_list_cursor *split_finish);
+    rados_object_list_cursor* split_start,
+    rados_object_list_cursor* split_finish);
 
 
 /** @} Listing Objects */
@@ -1312,8 +1364,9 @@ CEPH_RADOS_API void rados_object_list_slice(rados_ioctx_t io,
  * @param snapname the name of the snapshot
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_snap_create(rados_ioctx_t io,
-                                           const char *snapname);
+CEPH_RADOS_API int rados_ioctx_snap_create(
+    rados_ioctx_t io,
+    const char* snapname);
 
 /**
  * Delete a pool snapshot
@@ -1322,8 +1375,9 @@ CEPH_RADOS_API int rados_ioctx_snap_create(rados_ioctx_t io,
  * @param snapname which snapshot to delete
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_snap_remove(rados_ioctx_t io,
-                                           const char *snapname);
+CEPH_RADOS_API int rados_ioctx_snap_remove(
+    rados_ioctx_t io,
+    const char* snapname);
 
 /**
  * Rollback an object to a pool snapshot
@@ -1336,15 +1390,18 @@ CEPH_RADOS_API int rados_ioctx_snap_remove(rados_ioctx_t io,
  * @param snapname which snapshot to rollback to
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_snap_rollback(rados_ioctx_t io, const char *oid,
-		                             const char *snapname);
+CEPH_RADOS_API int rados_ioctx_snap_rollback(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* snapname);
 
 /**
  * @warning Deprecated: Use rados_ioctx_snap_rollback() instead
  */
-CEPH_RADOS_API int rados_rollback(rados_ioctx_t io, const char *oid,
-				  const char *snapname)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_rollback(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* snapname) __attribute__((deprecated));
 
 /**
  * Set the snapshot from which reads are performed.
@@ -1356,8 +1413,9 @@ CEPH_RADOS_API int rados_rollback(rados_ioctx_t io, const char *oid,
  * @param snap the id of the snapshot to set, or LIBRADOS_SNAP_HEAD for no
  * snapshot (i.e. normal operation)
  */
-CEPH_RADOS_API void rados_ioctx_snap_set_read(rados_ioctx_t io,
-                                              rados_snap_t snap);
+CEPH_RADOS_API void rados_ioctx_snap_set_read(
+    rados_ioctx_t io,
+    rados_snap_t snap);
 
 /**
  * Allocate an ID for a self-managed snapshot
@@ -1370,12 +1428,13 @@ CEPH_RADOS_API void rados_ioctx_snap_set_read(rados_ioctx_t io,
  * @param snapid where to store the newly allocated snapshot ID
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_create(rados_ioctx_t io,
-                                                       rados_snap_t *snapid);
-CEPH_RADOS_API void
-rados_aio_ioctx_selfmanaged_snap_create(rados_ioctx_t io,
-                                        rados_snap_t *snapid,
-                                        rados_completion_t completion);
+CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_create(
+    rados_ioctx_t io,
+    rados_snap_t* snapid);
+CEPH_RADOS_API void rados_aio_ioctx_selfmanaged_snap_create(
+    rados_ioctx_t io,
+    rados_snap_t* snapid,
+    rados_completion_t completion);
 
 /**
  * Remove a self-managed snapshot
@@ -1387,12 +1446,13 @@ rados_aio_ioctx_selfmanaged_snap_create(rados_ioctx_t io,
  * @param snapid where to store the newly allocated snapshot ID
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_remove(rados_ioctx_t io,
-                                                       rados_snap_t snapid);
-CEPH_RADOS_API void
-rados_aio_ioctx_selfmanaged_snap_remove(rados_ioctx_t io,
-                                        rados_snap_t snapid,
-                                        rados_completion_t completion);
+CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_remove(
+    rados_ioctx_t io,
+    rados_snap_t snapid);
+CEPH_RADOS_API void rados_aio_ioctx_selfmanaged_snap_remove(
+    rados_ioctx_t io,
+    rados_snap_t snapid,
+    rados_completion_t completion);
 
 /**
  * Rollback an object to a self-managed snapshot
@@ -1405,9 +1465,10 @@ rados_aio_ioctx_selfmanaged_snap_remove(rados_ioctx_t io,
  * @param snapid which snapshot to rollback to
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_rollback(rados_ioctx_t io,
-                                                         const char *oid,
-                                                         rados_snap_t snapid);
+CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_rollback(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_snap_t snapid);
 
 /**
  * Set the snapshot context for use when writing to objects
@@ -1421,10 +1482,11 @@ CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_rollback(rados_ioctx_t io,
  * @returns 0 on success, negative error code on failure
  * @returns -EINVAL if snaps are not in descending order
  */
-CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_set_write_ctx(rados_ioctx_t io,
-                                                              rados_snap_t seq,
-                                                              rados_snap_t *snaps,
-                                                              int num_snaps);
+CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_set_write_ctx(
+    rados_ioctx_t io,
+    rados_snap_t seq,
+    rados_snap_t* snaps,
+    int num_snaps);
 
 /**
  * List all the ids of pool snapshots
@@ -1439,8 +1501,10 @@ CEPH_RADOS_API int rados_ioctx_selfmanaged_snap_set_write_ctx(rados_ioctx_t io,
  * @returns number of snapshots on success, negative error code on failure
  * @returns -ERANGE is returned if the snaps array is too short
  */
-CEPH_RADOS_API int rados_ioctx_snap_list(rados_ioctx_t io, rados_snap_t *snaps,
-                                         int maxlen);
+CEPH_RADOS_API int rados_ioctx_snap_list(
+    rados_ioctx_t io,
+    rados_snap_t* snaps,
+    int maxlen);
 
 /**
  * Get the id of a pool snapshot
@@ -1450,8 +1514,10 @@ CEPH_RADOS_API int rados_ioctx_snap_list(rados_ioctx_t io, rados_snap_t *snaps,
  * @param id where to store the result
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_snap_lookup(rados_ioctx_t io, const char *name,
-                                           rados_snap_t *id);
+CEPH_RADOS_API int rados_ioctx_snap_lookup(
+    rados_ioctx_t io,
+    const char* name,
+    rados_snap_t* id);
 
 /**
  * Get the name of a pool snapshot
@@ -1463,8 +1529,11 @@ CEPH_RADOS_API int rados_ioctx_snap_lookup(rados_ioctx_t io, const char *name,
  * @returns 0 on success, negative error code on failure
  * @returns -ERANGE if the name array is too small
  */
-CEPH_RADOS_API int rados_ioctx_snap_get_name(rados_ioctx_t io, rados_snap_t id,
-                                             char *name, int maxlen);
+CEPH_RADOS_API int rados_ioctx_snap_get_name(
+    rados_ioctx_t io,
+    rados_snap_t id,
+    char* name,
+    int maxlen);
 
 /**
  * Find when a pool snapshot occurred
@@ -1474,8 +1543,10 @@ CEPH_RADOS_API int rados_ioctx_snap_get_name(rados_ioctx_t io, rados_snap_t id,
  * @param t where to store the result
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_ioctx_snap_get_stamp(rados_ioctx_t io, rados_snap_t id,
-                                              time_t *t);
+CEPH_RADOS_API int rados_ioctx_snap_get_stamp(
+    rados_ioctx_t io,
+    rados_snap_t id,
+    time_t* t);
 
 /** @} Snapshots */
 
@@ -1515,8 +1586,12 @@ CEPH_RADOS_API uint64_t rados_get_last_version(rados_ioctx_t io);
  * @param off byte offset in the object to begin writing at
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_write(rados_ioctx_t io, const char *oid,
-                               const char *buf, size_t len, uint64_t off);
+CEPH_RADOS_API int rados_write(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* buf,
+    size_t len,
+    uint64_t off);
 
 /**
  * Write *len* bytes from *buf* into the *oid* object. The value of
@@ -1531,8 +1606,11 @@ CEPH_RADOS_API int rados_write(rados_ioctx_t io, const char *oid,
  * @param len length of the data, in bytes
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_write_full(rados_ioctx_t io, const char *oid,
-                                    const char *buf, size_t len);
+CEPH_RADOS_API int rados_write_full(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* buf,
+    size_t len);
 
 /**
  * Write the same *data_len* bytes from *buf* multiple times into the
@@ -1548,9 +1626,13 @@ CEPH_RADOS_API int rados_write_full(rados_ioctx_t io, const char *oid,
  * @param off byte offset in the object to begin writing at
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_writesame(rados_ioctx_t io, const char *oid,
-                                   const char *buf, size_t data_len,
-                                   size_t write_len, uint64_t off);
+CEPH_RADOS_API int rados_writesame(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* buf,
+    size_t data_len,
+    size_t write_len,
+    uint64_t off);
 
 /**
  * Append *len* bytes from *buf* into the *oid* object. The value of
@@ -1562,8 +1644,8 @@ CEPH_RADOS_API int rados_writesame(rados_ioctx_t io, const char *oid,
  * @param len length of buf (in bytes)
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_append(rados_ioctx_t io, const char *oid,
-                                const char *buf, size_t len);
+CEPH_RADOS_API int
+rados_append(rados_ioctx_t io, const char* oid, const char* buf, size_t len);
 
 /**
  * Read data from an object
@@ -1579,8 +1661,12 @@ CEPH_RADOS_API int rados_append(rados_ioctx_t io, const char *oid,
  * @returns number of bytes read on success, negative error code on
  * failure
  */
-CEPH_RADOS_API int rados_read(rados_ioctx_t io, const char *oid, char *buf,
-                              size_t len, uint64_t off);
+CEPH_RADOS_API int rados_read(
+    rados_ioctx_t io,
+    const char* oid,
+    char* buf,
+    size_t len,
+    uint64_t off);
 
 /**
  * Compute checksum from object data
@@ -1612,11 +1698,17 @@ CEPH_RADOS_API int rados_read(rados_ioctx_t io, const char *oid, char *buf,
  * @param checksum_len the number of bytes available for the result
  * @return negative error code on failure
  */
-CEPH_RADOS_API int rados_checksum(rados_ioctx_t io, const char *oid,
-				  rados_checksum_type_t type,
-				  const char *init_value, size_t init_value_len,
-				  size_t len, uint64_t off, size_t chunk_size,
-				  char *pchecksum, size_t checksum_len);
+CEPH_RADOS_API int rados_checksum(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_checksum_type_t type,
+    const char* init_value,
+    size_t init_value_len,
+    size_t len,
+    uint64_t off,
+    size_t chunk_size,
+    char* pchecksum,
+    size_t checksum_len);
 
 /**
  * Delete an object
@@ -1627,7 +1719,7 @@ CEPH_RADOS_API int rados_checksum(rados_ioctx_t io, const char *oid,
  * @param oid the name of the object to delete
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_remove(rados_ioctx_t io, const char *oid);
+CEPH_RADOS_API int rados_remove(rados_ioctx_t io, const char* oid);
 
 /**
  * Resize an object
@@ -1640,8 +1732,7 @@ CEPH_RADOS_API int rados_remove(rados_ioctx_t io, const char *oid);
  * @param size the new size of the object in bytes
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_trunc(rados_ioctx_t io, const char *oid,
-                               uint64_t size);
+CEPH_RADOS_API int rados_trunc(rados_ioctx_t io, const char* oid, uint64_t size);
 
 /**
  * Compare an on-disk object range with a buffer
@@ -1654,9 +1745,12 @@ CEPH_RADOS_API int rados_trunc(rados_ioctx_t io, const char *oid,
  * @returns 0 on success, negative error code on failure,
  *  (-MAX_ERRNO - mismatch_off) on mismatch
  */
-CEPH_RADOS_API int rados_cmpext(rados_ioctx_t io, const char *o,
-                                const char *cmp_buf, size_t cmp_len,
-                                uint64_t off);
+CEPH_RADOS_API int rados_cmpext(
+    rados_ioctx_t io,
+    const char* o,
+    const char* cmp_buf,
+    size_t cmp_len,
+    uint64_t off);
 
 /**
  * @name Xattrs
@@ -1678,8 +1772,12 @@ CEPH_RADOS_API int rados_cmpext(rados_ioctx_t io, const char *o,
  * @param len size of buf in bytes
  * @returns length of xattr value on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_getxattr(rados_ioctx_t io, const char *o,
-                                  const char *name, char *buf, size_t len);
+CEPH_RADOS_API int rados_getxattr(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    char* buf,
+    size_t len);
 
 /**
  * Set an extended attribute on an object.
@@ -1691,9 +1789,12 @@ CEPH_RADOS_API int rados_getxattr(rados_ioctx_t io, const char *o,
  * @param len the number of bytes in buf
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_setxattr(rados_ioctx_t io, const char *o,
-                                  const char *name, const char *buf,
-                                  size_t len);
+CEPH_RADOS_API int rados_setxattr(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    const char* buf,
+    size_t len);
 
 /**
  * Delete an extended attribute from an object.
@@ -1703,8 +1804,10 @@ CEPH_RADOS_API int rados_setxattr(rados_ioctx_t io, const char *o,
  * @param name which xattr to delete
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_rmxattr(rados_ioctx_t io, const char *o,
-                                 const char *name);
+CEPH_RADOS_API int rados_rmxattr(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name);
 
 /**
  * Start iterating over xattrs on an object.
@@ -1716,8 +1819,10 @@ CEPH_RADOS_API int rados_rmxattr(rados_ioctx_t io, const char *o,
  * @param iter where to store the iterator
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_getxattrs(rados_ioctx_t io, const char *oid,
-                                   rados_xattrs_iter_t *iter);
+CEPH_RADOS_API int rados_getxattrs(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_xattrs_iter_t* iter);
 
 /**
  * Get the next xattr on the object
@@ -1734,9 +1839,11 @@ CEPH_RADOS_API int rados_getxattrs(rados_ioctx_t io, const char *oid,
  * @param len the number of bytes in val
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_getxattrs_next(rados_xattrs_iter_t iter,
-                                        const char **name, const char **val,
-                                        size_t *len);
+CEPH_RADOS_API int rados_getxattrs_next(
+    rados_xattrs_iter_t iter,
+    const char** name,
+    const char** val,
+    size_t* len);
 
 /**
  * Close the xattr iterator.
@@ -1766,10 +1873,11 @@ CEPH_RADOS_API void rados_getxattrs_end(rados_xattrs_iter_t iter);
  * @param len where to store the number of bytes in val
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_omap_get_next(rados_omap_iter_t iter,
-                                       char **key,
-                                       char **val,
-                                       size_t *len);
+CEPH_RADOS_API int rados_omap_get_next(
+    rados_omap_iter_t iter,
+    char** key,
+    char** val,
+    size_t* len);
 
 /**
  * Get the next omap key/value pair on the object. Note that it's
@@ -1792,11 +1900,12 @@ CEPH_RADOS_API int rados_omap_get_next(rados_omap_iter_t iter,
  * @param val_len where to store the number of bytes in val
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_omap_get_next2(rados_omap_iter_t iter,
-                                       char **key,
-                                       char **val,
-                                       size_t *key_len,
-                                       size_t *val_len);
+CEPH_RADOS_API int rados_omap_get_next2(
+    rados_omap_iter_t iter,
+    char** key,
+    char** val,
+    size_t* key_len,
+    size_t* val_len);
 
 /**
  * Return number of elements in the iterator
@@ -1823,11 +1932,14 @@ CEPH_RADOS_API void rados_omap_get_end(rados_omap_iter_t iter);
  * @param pmtime where to store modification time
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_stat(rados_ioctx_t io, const char *o, uint64_t *psize,
-                              time_t *pmtime);
+CEPH_RADOS_API int
+rados_stat(rados_ioctx_t io, const char* o, uint64_t* psize, time_t* pmtime);
 
-CEPH_RADOS_API int rados_stat2(rados_ioctx_t io, const char *o, uint64_t *psize,
-                              struct timespec *pmtime);
+CEPH_RADOS_API int rados_stat2(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t* psize,
+    struct timespec* pmtime);
 
 /**
  * Execute an OSD class method on an object
@@ -1851,10 +1963,15 @@ CEPH_RADOS_API int rados_stat2(rados_ioctx_t io, const char *o, uint64_t *psize,
  * methods that don't return data, the return value is
  * method-specific.
  */
-CEPH_RADOS_API int rados_exec(rados_ioctx_t io, const char *oid,
-                              const char *cls, const char *method,
-	                      const char *in_buf, size_t in_len, char *buf,
-                              size_t out_len);
+CEPH_RADOS_API int rados_exec(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* cls,
+    const char* method,
+    const char* in_buf,
+    size_t in_len,
+    char* buf,
+    size_t out_len);
 
 
 /** @} Synchronous I/O */
@@ -1872,7 +1989,7 @@ CEPH_RADOS_API int rados_exec(rados_ioctx_t io, const char *oid,
  * - cb the completion that has finished
  * - arg application defined data made available to the callback function
  */
-typedef void (*rados_callback_t)(rados_completion_t cb, void *arg);
+typedef void (*rados_callback_t)(rados_completion_t cb, void* arg);
 
 /**
  * Constructs a completion to use with asynchronous operations
@@ -1896,10 +2013,11 @@ typedef void (*rados_callback_t)(rados_completion_t cb, void *arg);
  * @param pc where to store the completion
  * @returns 0
  */
-CEPH_RADOS_API int rados_aio_create_completion(void *cb_arg,
-                                               rados_callback_t cb_complete,
-                                               rados_callback_t cb_safe,
-				               rados_completion_t *pc);
+CEPH_RADOS_API int rados_aio_create_completion(
+    void* cb_arg,
+    rados_callback_t cb_complete,
+    rados_callback_t cb_safe,
+    rados_completion_t* pc);
 
 /**
  * Constructs a completion to use with asynchronous operations
@@ -1914,9 +2032,10 @@ CEPH_RADOS_API int rados_aio_create_completion(void *cb_arg,
  * @param pc where to store the completion
  * @returns 0
  */
-CEPH_RADOS_API int rados_aio_create_completion2(void *cb_arg,
-						rados_callback_t cb_complete,
-						rados_completion_t *pc);
+CEPH_RADOS_API int rados_aio_create_completion2(
+    void* cb_arg,
+    rados_callback_t cb_complete,
+    rados_completion_t* pc);
 
 /**
  * Block until an operation completes
@@ -1941,7 +2060,7 @@ CEPH_RADOS_API int rados_aio_wait_for_complete(rados_completion_t c);
  * @returns 0
  */
 CEPH_RADOS_API int rados_aio_wait_for_safe(rados_completion_t c)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 /**
  * Has an asynchronous operation completed?
@@ -1988,7 +2107,7 @@ CEPH_RADOS_API int rados_aio_wait_for_complete_and_cb(rados_completion_t c);
  * @returns 0
  */
 CEPH_RADOS_API int rados_aio_wait_for_safe_and_cb(rados_completion_t c)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 /**
  * Has an asynchronous operation and callback completed
@@ -2063,9 +2182,13 @@ CEPH_RADOS_API void rados_aio_release(rados_completion_t c);
  * @returns 0 on success, -EROFS if the io context specifies a snap_seq
  * other than LIBRADOS_SNAP_HEAD
  */
-CEPH_RADOS_API int rados_aio_write(rados_ioctx_t io, const char *oid,
-		                   rados_completion_t completion,
-		                   const char *buf, size_t len, uint64_t off);
+CEPH_RADOS_API int rados_aio_write(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    const char* buf,
+    size_t len,
+    uint64_t off);
 
 /**
  * Asynchronously append data to an object
@@ -2083,9 +2206,12 @@ CEPH_RADOS_API int rados_aio_write(rados_ioctx_t io, const char *oid,
  * @returns 0 on success, -EROFS if the io context specifies a snap_seq
  * other than LIBRADOS_SNAP_HEAD
  */
-CEPH_RADOS_API int rados_aio_append(rados_ioctx_t io, const char *oid,
-		                    rados_completion_t completion,
-		                    const char *buf, size_t len);
+CEPH_RADOS_API int rados_aio_append(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    const char* buf,
+    size_t len);
 
 /**
  * Asynchronously write an entire object
@@ -2105,9 +2231,12 @@ CEPH_RADOS_API int rados_aio_append(rados_ioctx_t io, const char *oid,
  * @returns 0 on success, -EROFS if the io context specifies a snap_seq
  * other than LIBRADOS_SNAP_HEAD
  */
-CEPH_RADOS_API int rados_aio_write_full(rados_ioctx_t io, const char *oid,
-			                rados_completion_t completion,
-			                const char *buf, size_t len);
+CEPH_RADOS_API int rados_aio_write_full(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    const char* buf,
+    size_t len);
 
 /**
  * Asynchronously write the same buffer multiple times
@@ -2127,10 +2256,14 @@ CEPH_RADOS_API int rados_aio_write_full(rados_ioctx_t io, const char *oid,
  * @returns 0 on success, -EROFS if the io context specifies a snap_seq
  * other than LIBRADOS_SNAP_HEAD
  */
-CEPH_RADOS_API int rados_aio_writesame(rados_ioctx_t io, const char *oid,
-			               rados_completion_t completion,
-			               const char *buf, size_t data_len,
-				       size_t write_len, uint64_t off);
+CEPH_RADOS_API int rados_aio_writesame(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    const char* buf,
+    size_t data_len,
+    size_t write_len,
+    uint64_t off);
 
 /**
  * Asynchronously remove an object
@@ -2146,8 +2279,10 @@ CEPH_RADOS_API int rados_aio_writesame(rados_ioctx_t io, const char *oid,
  * @returns 0 on success, -EROFS if the io context specifies a snap_seq
  * other than LIBRADOS_SNAP_HEAD
  */
-CEPH_RADOS_API int rados_aio_remove(rados_ioctx_t io, const char *oid,
-		                    rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_remove(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion);
 
 /**
  * Asynchronously read data from an object
@@ -2168,9 +2303,13 @@ CEPH_RADOS_API int rados_aio_remove(rados_ioctx_t io, const char *oid,
  * @param off the offset to start reading from in the object
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_read(rados_ioctx_t io, const char *oid,
-		                  rados_completion_t completion,
-		                  char *buf, size_t len, uint64_t off);
+CEPH_RADOS_API int rados_aio_read(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    char* buf,
+    size_t len,
+    uint64_t off);
 
 /**
  * Block until all pending writes in an io context are safe
@@ -2196,8 +2335,9 @@ CEPH_RADOS_API int rados_aio_flush(rados_ioctx_t io);
  * @param completion what to do when the writes are safe
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_flush_async(rados_ioctx_t io,
-                                         rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_flush_async(
+    rados_ioctx_t io,
+    rados_completion_t completion);
 
 
 /**
@@ -2210,13 +2350,19 @@ CEPH_RADOS_API int rados_aio_flush_async(rados_ioctx_t io,
  * @param pmtime where to store modification time
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_stat(rados_ioctx_t io, const char *o,
-		                  rados_completion_t completion,
-		                  uint64_t *psize, time_t *pmtime);
+CEPH_RADOS_API int rados_aio_stat(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    uint64_t* psize,
+    time_t* pmtime);
 
-CEPH_RADOS_API int rados_aio_stat2(rados_ioctx_t io, const char *o,
-		                  rados_completion_t completion,
-		                  uint64_t *psize, struct timespec *pmtime);
+CEPH_RADOS_API int rados_aio_stat2(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    uint64_t* psize,
+    struct timespec* pmtime);
 
 /**
  * Asynchronously compare an on-disk object range with a buffer
@@ -2230,11 +2376,13 @@ CEPH_RADOS_API int rados_aio_stat2(rados_ioctx_t io, const char *o,
  * @returns 0 on success, negative error code on failure,
  *  (-MAX_ERRNO - mismatch_off) on mismatch
  */
-CEPH_RADOS_API int rados_aio_cmpext(rados_ioctx_t io, const char *o,
-                                    rados_completion_t completion,
-                                    const char *cmp_buf,
-                                    size_t cmp_len,
-                                    uint64_t off);
+CEPH_RADOS_API int rados_aio_cmpext(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* cmp_buf,
+    size_t cmp_len,
+    uint64_t off);
 
 /**
  * Cancel async operation
@@ -2243,8 +2391,9 @@ CEPH_RADOS_API int rados_aio_cmpext(rados_ioctx_t io, const char *o,
  * @param completion completion handle
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_cancel(rados_ioctx_t io,
-                                    rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_cancel(
+    rados_ioctx_t io,
+    rados_completion_t completion);
 
 /**
  * Asynchronously execute an OSD class method on an object
@@ -2266,11 +2415,16 @@ CEPH_RADOS_API int rados_aio_cancel(rados_ioctx_t io,
  * @param out_len length of buf in bytes
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_exec(rados_ioctx_t io, const char *o,
-				  rados_completion_t completion,
-				  const char *cls, const char *method,
-				  const char *in_buf, size_t in_len,
-				  char *buf, size_t out_len);
+CEPH_RADOS_API int rados_aio_exec(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* cls,
+    const char* method,
+    const char* in_buf,
+    size_t in_len,
+    char* buf,
+    size_t out_len);
 
 /** @} Asynchronous I/O */
 
@@ -2295,9 +2449,13 @@ CEPH_RADOS_API int rados_aio_exec(rados_ioctx_t io, const char *o,
  * @param len size of buf in bytes
  * @returns length of xattr value on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_getxattr(rados_ioctx_t io, const char *o,
-				      rados_completion_t completion,
-				      const char *name, char *buf, size_t len);
+CEPH_RADOS_API int rados_aio_getxattr(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* name,
+    char* buf,
+    size_t len);
 
 /**
  * Asynchronously set an extended attribute on an object.
@@ -2310,10 +2468,13 @@ CEPH_RADOS_API int rados_aio_getxattr(rados_ioctx_t io, const char *o,
  * @param len the number of bytes in buf
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_setxattr(rados_ioctx_t io, const char *o,
-				      rados_completion_t completion,
-				      const char *name, const char *buf,
-				      size_t len);
+CEPH_RADOS_API int rados_aio_setxattr(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* name,
+    const char* buf,
+    size_t len);
 
 /**
  * Asynchronously delete an extended attribute from an object.
@@ -2324,9 +2485,11 @@ CEPH_RADOS_API int rados_aio_setxattr(rados_ioctx_t io, const char *o,
  * @param name which xattr to delete
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_rmxattr(rados_ioctx_t io, const char *o,
-				     rados_completion_t completion,
-				     const char *name);
+CEPH_RADOS_API int rados_aio_rmxattr(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* name);
 
 /**
  * Asynchronously start iterating over xattrs on an object.
@@ -2339,9 +2502,11 @@ CEPH_RADOS_API int rados_aio_rmxattr(rados_ioctx_t io, const char *o,
  * @param iter where to store the iterator
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_getxattrs(rados_ioctx_t io, const char *oid,
-				       rados_completion_t completion,
-				       rados_xattrs_iter_t *iter);
+CEPH_RADOS_API int rados_aio_getxattrs(
+    rados_ioctx_t io,
+    const char* oid,
+    rados_completion_t completion,
+    rados_xattrs_iter_t* iter);
 
 /** @} Asynchronous Xattrs */
 
@@ -2376,7 +2541,7 @@ CEPH_RADOS_API int rados_aio_getxattrs(rados_ioctx_t io, const char *oid,
  * @note BUG: opcode is an internal detail that shouldn't be exposed
  * @note BUG: ver is unused
  */
-typedef void (*rados_watchcb_t)(uint8_t opcode, uint64_t ver, void *arg);
+typedef void (*rados_watchcb_t)(uint8_t opcode, uint64_t ver, void* arg);
 
 /**
  * @typedef rados_watchcb2_t
@@ -2391,12 +2556,13 @@ typedef void (*rados_watchcb_t)(uint8_t opcode, uint64_t ver, void *arg);
  * @param data payload from the notifier
  * @param data_len length of payload buffer
  */
-typedef void (*rados_watchcb2_t)(void *arg,
-				 uint64_t notify_id,
-				 uint64_t handle,
-				 uint64_t notifier_id,
-				 void *data,
-				 size_t data_len);
+typedef void (*rados_watchcb2_t)(
+    void* arg,
+    uint64_t notify_id,
+    uint64_t handle,
+    uint64_t notifier_id,
+    void* data,
+    size_t data_len);
 
 /**
  * @typedef rados_watcherrcb_t
@@ -2411,7 +2577,7 @@ typedef void (*rados_watchcb2_t)(void *arg,
  * @param cookie the internal id assigned to the watch session
  * @param err error code
  */
-  typedef void (*rados_watcherrcb_t)(void *pre, uint64_t cookie, int err);
+typedef void (*rados_watcherrcb_t)(void* pre, uint64_t cookie, int err);
 
 /**
  * Register an interest in an object
@@ -2437,10 +2603,13 @@ typedef void (*rados_watchcb2_t)(void *arg,
  * @returns 0 on success, negative error code on failure
  * @returns -ERANGE if the version of the object is greater than ver
  */
-CEPH_RADOS_API int rados_watch(rados_ioctx_t io, const char *o, uint64_t ver,
-			       uint64_t *cookie,
-			       rados_watchcb_t watchcb, void *arg)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_watch(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t ver,
+    uint64_t* cookie,
+    rados_watchcb_t watchcb,
+    void* arg) __attribute__((deprecated));
 
 
 /**
@@ -2463,10 +2632,13 @@ CEPH_RADOS_API int rados_watch(rados_ioctx_t io, const char *o, uint64_t ver,
  * @param arg opaque value to pass to the callback
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_watch2(rados_ioctx_t io, const char *o, uint64_t *cookie,
-				rados_watchcb2_t watchcb,
-				rados_watcherrcb_t watcherrcb,
-				void *arg);
+CEPH_RADOS_API int rados_watch2(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t* cookie,
+    rados_watchcb2_t watchcb,
+    rados_watcherrcb_t watcherrcb,
+    void* arg);
 
 /**
  * Register an interest in an object
@@ -2486,11 +2658,14 @@ CEPH_RADOS_API int rados_watch2(rados_ioctx_t io, const char *o, uint64_t *cooki
  * @param arg opaque value to pass to the callback
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_watch3(rados_ioctx_t io, const char *o, uint64_t *cookie,
-        rados_watchcb2_t watchcb,
-        rados_watcherrcb_t watcherrcb,
-        uint32_t timeout,
-        void *arg);
+CEPH_RADOS_API int rados_watch3(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t* cookie,
+    rados_watchcb2_t watchcb,
+    rados_watcherrcb_t watcherrcb,
+    uint32_t timeout,
+    void* arg);
 
 /**
  * Asynchronous register an interest in an object
@@ -2512,11 +2687,14 @@ CEPH_RADOS_API int rados_watch3(rados_ioctx_t io, const char *o, uint64_t *cooki
  * @param arg opaque value to pass to the callback
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_watch(rados_ioctx_t io, const char *o,
-				   rados_completion_t completion, uint64_t *handle,
-				   rados_watchcb2_t watchcb,
-				   rados_watcherrcb_t watcherrcb,
-				   void *arg);
+CEPH_RADOS_API int rados_aio_watch(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    uint64_t* handle,
+    rados_watchcb2_t watchcb,
+    rados_watcherrcb_t watcherrcb,
+    void* arg);
 
 /**
  * Asynchronous register an interest in an object
@@ -2540,12 +2718,15 @@ CEPH_RADOS_API int rados_aio_watch(rados_ioctx_t io, const char *o,
  * @param arg opaque value to pass to the callback
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_watch2(rados_ioctx_t io, const char *o,
-           rados_completion_t completion, uint64_t *handle,
-           rados_watchcb2_t watchcb,
-           rados_watcherrcb_t watcherrcb,
-           uint32_t timeout,
-           void *arg);
+CEPH_RADOS_API int rados_aio_watch2(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    uint64_t* handle,
+    rados_watchcb2_t watchcb,
+    rados_watcherrcb_t watcherrcb,
+    uint32_t timeout,
+    void* arg);
 
 /**
  * Check on the status of a watch
@@ -2574,8 +2755,8 @@ CEPH_RADOS_API int rados_watch_check(rados_ioctx_t io, uint64_t cookie);
  * @param cookie which watch to unregister
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_unwatch(rados_ioctx_t io, const char *o, uint64_t cookie)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_unwatch(rados_ioctx_t io, const char* o, uint64_t cookie)
+    __attribute__((deprecated));
 
 /**
  * Unregister an interest in an object
@@ -2600,8 +2781,10 @@ CEPH_RADOS_API int rados_unwatch2(rados_ioctx_t io, uint64_t cookie);
  * @param cookie which watch to unregister
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_unwatch(rados_ioctx_t io, uint64_t cookie,
-                                     rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_unwatch(
+    rados_ioctx_t io,
+    uint64_t cookie,
+    rados_completion_t completion);
 
 /**
  * Sychronously notify watchers of an object
@@ -2619,9 +2802,12 @@ CEPH_RADOS_API int rados_aio_unwatch(rados_ioctx_t io, uint64_t cookie,
  * @param buf_len length of buf in bytes
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_notify(rados_ioctx_t io, const char *o, uint64_t ver,
-				const char *buf, int buf_len)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_notify(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t ver,
+    const char* buf,
+    int buf_len) __attribute__((deprecated));
 
 /**
  * Sychronously notify watchers of an object
@@ -2669,15 +2855,23 @@ CEPH_RADOS_API int rados_notify(rados_ioctx_t io, const char *o, uint64_t ver,
  * @param reply_buffer_len pointer to size of reply buffer
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_notify(rados_ioctx_t io, const char *o,
-				    rados_completion_t completion,
-				    const char *buf, int buf_len,
-				    uint64_t timeout_ms, char **reply_buffer,
-				    size_t *reply_buffer_len);
-CEPH_RADOS_API int rados_notify2(rados_ioctx_t io, const char *o,
-				 const char *buf, int buf_len,
-				 uint64_t timeout_ms,
-				 char **reply_buffer, size_t *reply_buffer_len);
+CEPH_RADOS_API int rados_aio_notify(
+    rados_ioctx_t io,
+    const char* o,
+    rados_completion_t completion,
+    const char* buf,
+    int buf_len,
+    uint64_t timeout_ms,
+    char** reply_buffer,
+    size_t* reply_buffer_len);
+CEPH_RADOS_API int rados_notify2(
+    rados_ioctx_t io,
+    const char* o,
+    const char* buf,
+    int buf_len,
+    uint64_t timeout_ms,
+    char** reply_buffer,
+    size_t* reply_buffer_len);
 
 /**
  * Decode a notify response
@@ -2693,9 +2887,13 @@ CEPH_RADOS_API int rados_notify2(rados_ioctx_t io, const char *o,
  * @param nr_timeouts pointer to timeout count
  * @returns 0 on success
  */
-CEPH_RADOS_API int rados_decode_notify_response(char *reply_buffer, size_t reply_buffer_len,
-                                                struct notify_ack_t **acks, size_t *nr_acks,
-                                                struct notify_timeout_t **timeouts, size_t *nr_timeouts);
+CEPH_RADOS_API int rados_decode_notify_response(
+    char* reply_buffer,
+    size_t reply_buffer_len,
+    struct notify_ack_t** acks,
+    size_t* nr_acks,
+    struct notify_timeout_t** timeouts,
+    size_t* nr_timeouts);
 
 /**
  * Free notify allocated buffer
@@ -2706,8 +2904,10 @@ CEPH_RADOS_API int rados_decode_notify_response(char *reply_buffer, size_t reply
  * @param nr_acks ack count
  * @param timeouts notify_timeout_t struct (from rados_decode_notify_response())
  */
-CEPH_RADOS_API void rados_free_notify_response(struct notify_ack_t *acks, size_t nr_acks,
-                                               struct notify_timeout_t *timeouts);
+CEPH_RADOS_API void rados_free_notify_response(
+    struct notify_ack_t* acks,
+    size_t nr_acks,
+    struct notify_timeout_t* timeouts);
 
 /**
  * Acknolwedge receipt of a notify
@@ -2720,9 +2920,13 @@ CEPH_RADOS_API void rados_free_notify_response(struct notify_ack_t *acks, size_t
  * @param buf_len payload length
  * @returns 0 on success
  */
-CEPH_RADOS_API int rados_notify_ack(rados_ioctx_t io, const char *o,
-				    uint64_t notify_id, uint64_t cookie,
-				    const char *buf, int buf_len);
+CEPH_RADOS_API int rados_notify_ack(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t notify_id,
+    uint64_t cookie,
+    const char* buf,
+    int buf_len);
 
 /**
  * Flush watch/notify callbacks
@@ -2751,7 +2955,9 @@ CEPH_RADOS_API int rados_watch_flush(rados_t cluster);
  * @param cluster the cluster handle
  * @param completion what to do when operation has been attempted
  */
-CEPH_RADOS_API int rados_aio_watch_flush(rados_t cluster, rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_watch_flush(
+    rados_t cluster,
+    rados_completion_t completion);
 
 /** @} Watch/Notify */
 
@@ -2765,7 +2971,7 @@ CEPH_RADOS_API int rados_aio_watch_flush(rados_t cluster, rados_completion_t com
  * @param o the object id
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_cache_pin(rados_ioctx_t io, const char *o);
+CEPH_RADOS_API int rados_cache_pin(rados_ioctx_t io, const char* o);
 
 /**
  * Unpin an object in the cache tier
@@ -2776,7 +2982,7 @@ CEPH_RADOS_API int rados_cache_pin(rados_ioctx_t io, const char *o);
  * @param o the object id
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_cache_unpin(rados_ioctx_t io, const char *o);
+CEPH_RADOS_API int rados_cache_unpin(rados_ioctx_t io, const char* o);
 
 /**
  * @name Hints
@@ -2797,9 +3003,11 @@ CEPH_RADOS_API int rados_cache_unpin(rados_ioctx_t io, const char *o);
  * @param expected_write_size expected size of writes to the object, in bytes
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_set_alloc_hint(rados_ioctx_t io, const char *o,
-                                        uint64_t expected_object_size,
-                                        uint64_t expected_write_size);
+CEPH_RADOS_API int rados_set_alloc_hint(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size);
 
 /**
  * Set allocation hint for an object
@@ -2815,10 +3023,12 @@ CEPH_RADOS_API int rados_set_alloc_hint(rados_ioctx_t io, const char *o,
  * @param flags hints about future IO patterns
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_set_alloc_hint2(rados_ioctx_t io, const char *o,
-					 uint64_t expected_object_size,
-					 uint64_t expected_write_size,
-					 uint32_t flags);
+CEPH_RADOS_API int rados_set_alloc_hint2(
+    rados_ioctx_t io,
+    const char* o,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size,
+    uint32_t flags);
 
 /** @} Hints */
 
@@ -2862,8 +3072,9 @@ CEPH_RADOS_API void rados_release_write_op(rados_write_op_t write_op);
  * @param write_op operation to add this action to
  * @param flags see librados.h constants beginning with LIBRADOS_OP_FLAG
  */
-CEPH_RADOS_API void rados_write_op_set_flags(rados_write_op_t write_op,
-                                             int flags);
+CEPH_RADOS_API void rados_write_op_set_flags(
+    rados_write_op_t write_op,
+    int flags);
 
 /**
  * Ensure that the object exists before writing
@@ -2884,7 +3095,9 @@ CEPH_RADOS_API void rados_write_op_assert_exists(rados_write_op_t write_op);
  * @param write_op operation to add this action to
  * @param ver object version number
  */
-CEPH_RADOS_API void rados_write_op_assert_version(rados_write_op_t write_op, uint64_t ver);
+CEPH_RADOS_API void rados_write_op_assert_version(
+    rados_write_op_t write_op,
+    uint64_t ver);
 
 /**
  * Ensure that given object range (extent) satisfies comparison.
@@ -2896,11 +3109,12 @@ CEPH_RADOS_API void rados_write_op_assert_version(rados_write_op_t write_op, uin
  * @param prval returned result of comparison, 0 on success, negative error code
  *  on failure, (-MAX_ERRNO - mismatch_off) on mismatch
  */
-CEPH_RADOS_API void rados_write_op_cmpext(rados_write_op_t write_op,
-                                          const char *cmp_buf,
-                                          size_t cmp_len,
-                                          uint64_t off,
-                                          int *prval);
+CEPH_RADOS_API void rados_write_op_cmpext(
+    rados_write_op_t write_op,
+    const char* cmp_buf,
+    size_t cmp_len,
+    uint64_t off,
+    int* prval);
 
 /**
  * Ensure that given xattr satisfies comparison.
@@ -2913,11 +3127,12 @@ CEPH_RADOS_API void rados_write_op_cmpext(rados_write_op_t write_op,
  * @param value buffer to compare actual xattr value to
  * @param value_len length of buffer to compare actual xattr value to
  */
-CEPH_RADOS_API void rados_write_op_cmpxattr(rados_write_op_t write_op,
-                                            const char *name,
-                                            uint8_t comparison_operator,
-                                            const char *value,
-                                            size_t value_len);
+CEPH_RADOS_API void rados_write_op_cmpxattr(
+    rados_write_op_t write_op,
+    const char* name,
+    uint8_t comparison_operator,
+    const char* value,
+    size_t value_len);
 
 /**
  * Ensure that the an omap value satisfies a comparison,
@@ -2932,12 +3147,13 @@ CEPH_RADOS_API void rados_write_op_cmpxattr(rados_write_op_t write_op,
  * @param val_len length of value in bytes
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_write_op_omap_cmp(rados_write_op_t write_op,
-                                            const char *key,
-                                            uint8_t comparison_operator,
-                                            const char *val,
-                                            size_t val_len,
-                                            int *prval);
+CEPH_RADOS_API void rados_write_op_omap_cmp(
+    rados_write_op_t write_op,
+    const char* key,
+    uint8_t comparison_operator,
+    const char* val,
+    size_t val_len,
+    int* prval);
 
 /**
  * Ensure that the an omap value satisfies a comparison,
@@ -2953,13 +3169,14 @@ CEPH_RADOS_API void rados_write_op_omap_cmp(rados_write_op_t write_op,
  * @param val_len length of value in bytes
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_write_op_omap_cmp2(rados_write_op_t write_op,
-                                            const char *key,
-                                            uint8_t comparison_operator,
-                                            const char *val,
-                                            size_t key_len,
-                                            size_t val_len,
-                                            int *prval);
+CEPH_RADOS_API void rados_write_op_omap_cmp2(
+    rados_write_op_t write_op,
+    const char* key,
+    uint8_t comparison_operator,
+    const char* val,
+    size_t key_len,
+    size_t val_len,
+    int* prval);
 
 /**
  * Set an xattr
@@ -2968,18 +3185,20 @@ CEPH_RADOS_API void rados_write_op_omap_cmp2(rados_write_op_t write_op,
  * @param value buffer to set xattr to
  * @param value_len length of buffer to set xattr to
  */
-CEPH_RADOS_API void rados_write_op_setxattr(rados_write_op_t write_op,
-                                            const char *name,
-                                            const char *value,
-                                            size_t value_len);
+CEPH_RADOS_API void rados_write_op_setxattr(
+    rados_write_op_t write_op,
+    const char* name,
+    const char* value,
+    size_t value_len);
 
 /**
  * Remove an xattr
  * @param write_op operation to add this action to
  * @param name name of the xattr to remove
  */
-CEPH_RADOS_API void rados_write_op_rmxattr(rados_write_op_t write_op,
-                                           const char *name);
+CEPH_RADOS_API void rados_write_op_rmxattr(
+    rados_write_op_t write_op,
+    const char* name);
 
 /**
  * Create the object
@@ -2989,9 +3208,10 @@ CEPH_RADOS_API void rados_write_op_rmxattr(rados_write_op_t write_op,
  * will error if the object already exists.
  * @param category category string (DEPRECATED, HAS NO EFFECT)
  */
-CEPH_RADOS_API void rados_write_op_create(rados_write_op_t write_op,
-                                          int exclusive,
-                                          const char* category);
+CEPH_RADOS_API void rados_write_op_create(
+    rados_write_op_t write_op,
+    int exclusive,
+    const char* category);
 
 /**
  * Write to offset
@@ -3000,10 +3220,11 @@ CEPH_RADOS_API void rados_write_op_create(rados_write_op_t write_op,
  * @param buffer bytes to write
  * @param len length of buffer
  */
-CEPH_RADOS_API void rados_write_op_write(rados_write_op_t write_op,
-                                         const char *buffer,
-                                         size_t len,
-                                         uint64_t offset);
+CEPH_RADOS_API void rados_write_op_write(
+    rados_write_op_t write_op,
+    const char* buffer,
+    size_t len,
+    uint64_t offset);
 
 /**
  * Write whole object, atomically replacing it.
@@ -3011,9 +3232,10 @@ CEPH_RADOS_API void rados_write_op_write(rados_write_op_t write_op,
  * @param buffer bytes to write
  * @param len length of buffer
  */
-CEPH_RADOS_API void rados_write_op_write_full(rados_write_op_t write_op,
-                                              const char *buffer,
-                                              size_t len);
+CEPH_RADOS_API void rados_write_op_write_full(
+    rados_write_op_t write_op,
+    const char* buffer,
+    size_t len);
 
 /**
  * Write the same buffer multiple times
@@ -3023,11 +3245,12 @@ CEPH_RADOS_API void rados_write_op_write_full(rados_write_op_t write_op,
  * @param write_len total number of bytes to write, as a multiple of @c data_len
  * @param offset offset to write to
  */
-CEPH_RADOS_API void rados_write_op_writesame(rados_write_op_t write_op,
-                                             const char *buffer,
-                                             size_t data_len,
-                                             size_t write_len,
-                                             uint64_t offset);
+CEPH_RADOS_API void rados_write_op_writesame(
+    rados_write_op_t write_op,
+    const char* buffer,
+    size_t data_len,
+    size_t write_len,
+    uint64_t offset);
 
 /**
  * Append to end of object.
@@ -3035,9 +3258,10 @@ CEPH_RADOS_API void rados_write_op_writesame(rados_write_op_t write_op,
  * @param buffer bytes to write
  * @param len length of buffer
  */
-CEPH_RADOS_API void rados_write_op_append(rados_write_op_t write_op,
-                                          const char *buffer,
-                                          size_t len);
+CEPH_RADOS_API void rados_write_op_append(
+    rados_write_op_t write_op,
+    const char* buffer,
+    size_t len);
 /**
  * Remove object
  * @param write_op operation to add this action to
@@ -3049,8 +3273,9 @@ CEPH_RADOS_API void rados_write_op_remove(rados_write_op_t write_op);
  * @param write_op operation to add this action to
  * @param offset Offset to truncate to
  */
-CEPH_RADOS_API void rados_write_op_truncate(rados_write_op_t write_op,
-                                            uint64_t offset);
+CEPH_RADOS_API void rados_write_op_truncate(
+    rados_write_op_t write_op,
+    uint64_t offset);
 
 /**
  * Zero part of an object
@@ -3058,9 +3283,10 @@ CEPH_RADOS_API void rados_write_op_truncate(rados_write_op_t write_op,
  * @param offset Offset to zero
  * @param len length to zero
  */
-CEPH_RADOS_API void rados_write_op_zero(rados_write_op_t write_op,
-			                uint64_t offset,
-			                uint64_t len);
+CEPH_RADOS_API void rados_write_op_zero(
+    rados_write_op_t write_op,
+    uint64_t offset,
+    uint64_t len);
 
 /**
  * Execute an OSD class method on an object
@@ -3073,12 +3299,13 @@ CEPH_RADOS_API void rados_write_op_zero(rados_write_op_t write_op,
  * @param in_len length of in_buf in bytes
  * @param prval where to store the return value from the method
  */
-CEPH_RADOS_API void rados_write_op_exec(rados_write_op_t write_op,
-			                const char *cls,
-			                const char *method,
-			                const char *in_buf,
-			                size_t in_len,
-			                int *prval);
+CEPH_RADOS_API void rados_write_op_exec(
+    rados_write_op_t write_op,
+    const char* cls,
+    const char* method,
+    const char* in_buf,
+    size_t in_len,
+    int* prval);
 
 /**
  * Set key/value pairs on an object
@@ -3089,11 +3316,12 @@ CEPH_RADOS_API void rados_write_op_exec(rados_write_op_t write_op,
  * @param lens array of lengths corresponding to each value
  * @param num number of key/value pairs to set
  */
-CEPH_RADOS_API void rados_write_op_omap_set(rados_write_op_t write_op,
-                                            char const* const* keys,
-                                            char const* const* vals,
-                                            const size_t *lens,
-                                            size_t num);
+CEPH_RADOS_API void rados_write_op_omap_set(
+    rados_write_op_t write_op,
+    char const* const* keys,
+    char const* const* vals,
+    const size_t* lens,
+    size_t num);
 
 /**
  * Set key/value pairs on an object
@@ -3105,12 +3333,13 @@ CEPH_RADOS_API void rados_write_op_omap_set(rados_write_op_t write_op,
  * @param val_lens array of lengths corresponding to each value
  * @param num number of key/value pairs to set
  */
-CEPH_RADOS_API void rados_write_op_omap_set2(rados_write_op_t write_op,
-                                            char const* const* keys,
-                                            char const* const* vals,
-                                            const size_t *key_lens,
-                                            const size_t *val_lens,
-                                            size_t num);
+CEPH_RADOS_API void rados_write_op_omap_set2(
+    rados_write_op_t write_op,
+    char const* const* keys,
+    char const* const* vals,
+    const size_t* key_lens,
+    const size_t* val_lens,
+    size_t num);
 
 /**
  * Remove key/value pairs from an object
@@ -3119,9 +3348,10 @@ CEPH_RADOS_API void rados_write_op_omap_set2(rados_write_op_t write_op,
  * @param keys array of null-terminated char arrays representing keys to remove
  * @param keys_len number of key/value pairs to remove
  */
-CEPH_RADOS_API void rados_write_op_omap_rm_keys(rados_write_op_t write_op,
-                                                char const* const* keys,
-                                                size_t keys_len);
+CEPH_RADOS_API void rados_write_op_omap_rm_keys(
+    rados_write_op_t write_op,
+    char const* const* keys,
+    size_t keys_len);
 
 /**
  * Remove key/value pairs from an object
@@ -3131,10 +3361,11 @@ CEPH_RADOS_API void rados_write_op_omap_rm_keys(rados_write_op_t write_op,
  * @param key_lens array of size_t values representing length of each key
  * @param keys_len number of key/value pairs to remove
  */
-CEPH_RADOS_API void rados_write_op_omap_rm_keys2(rados_write_op_t write_op,
-                                                char const* const* keys,
-                                                const size_t* key_lens,
-                                                size_t keys_len);
+CEPH_RADOS_API void rados_write_op_omap_rm_keys2(
+    rados_write_op_t write_op,
+    char const* const* keys,
+    const size_t* key_lens,
+    size_t keys_len);
 
 
 /**
@@ -3147,11 +3378,12 @@ CEPH_RADOS_API void rados_write_op_omap_rm_keys2(rados_write_op_t write_op,
  * @param key_end the upper bound of the key range to remove
  * @param key_end_len length of key_end
  */
-CEPH_RADOS_API void rados_write_op_omap_rm_range2(rados_write_op_t write_op,
-                                                  const char *key_begin,
-                                                  size_t key_begin_len,
-                                                  const char *key_end,
-                                                  size_t key_end_len);
+CEPH_RADOS_API void rados_write_op_omap_rm_range2(
+    rados_write_op_t write_op,
+    const char* key_begin,
+    size_t key_begin_len,
+    const char* key_end,
+    size_t key_end_len);
 
 /**
  * Remove all key/value pairs from an object
@@ -3167,9 +3399,10 @@ CEPH_RADOS_API void rados_write_op_omap_clear(rados_write_op_t write_op);
  * @param expected_object_size expected size of the object, in bytes
  * @param expected_write_size expected size of writes to the object, in bytes
  */
-CEPH_RADOS_API void rados_write_op_set_alloc_hint(rados_write_op_t write_op,
-                                                  uint64_t expected_object_size,
-                                                  uint64_t expected_write_size);
+CEPH_RADOS_API void rados_write_op_set_alloc_hint(
+    rados_write_op_t write_op,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size);
 
 /**
  * Set allocation hint for an object
@@ -3179,10 +3412,11 @@ CEPH_RADOS_API void rados_write_op_set_alloc_hint(rados_write_op_t write_op,
  * @param expected_write_size expected size of writes to the object, in bytes
  * @param flags hints about future IO patterns
  */
-CEPH_RADOS_API void rados_write_op_set_alloc_hint2(rados_write_op_t write_op,
-						   uint64_t expected_object_size,
-						   uint64_t expected_write_size,
-						   uint32_t flags);
+CEPH_RADOS_API void rados_write_op_set_alloc_hint2(
+    rados_write_op_t write_op,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size,
+    uint32_t flags);
 
 /**
  * Perform a write operation synchronously
@@ -3192,11 +3426,12 @@ CEPH_RADOS_API void rados_write_op_set_alloc_hint2(rados_write_op_t write_op,
  * @param mtime the time to set the mtime to, NULL for the current time
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
-CEPH_RADOS_API int rados_write_op_operate(rados_write_op_t write_op,
-			                  rados_ioctx_t io,
-			                  const char *oid,
-			                  time_t *mtime,
-			                  int flags);
+CEPH_RADOS_API int rados_write_op_operate(
+    rados_write_op_t write_op,
+    rados_ioctx_t io,
+    const char* oid,
+    time_t* mtime,
+    int flags);
 /**
  * Perform a write operation synchronously
  * @param write_op operation to perform
@@ -3206,11 +3441,12 @@ CEPH_RADOS_API int rados_write_op_operate(rados_write_op_t write_op,
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
 
-CEPH_RADOS_API int rados_write_op_operate2(rados_write_op_t write_op,
-                                           rados_ioctx_t io,
-                                           const char *oid,
-                                           struct timespec *mtime,
-                                           int flags);
+CEPH_RADOS_API int rados_write_op_operate2(
+    rados_write_op_t write_op,
+    rados_ioctx_t io,
+    const char* oid,
+    struct timespec* mtime,
+    int flags);
 
 /**
  * Perform a write operation asynchronously
@@ -3221,12 +3457,13 @@ CEPH_RADOS_API int rados_write_op_operate2(rados_write_op_t write_op,
  * @param mtime the time to set the mtime to, NULL for the current time
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
-CEPH_RADOS_API int rados_aio_write_op_operate(rados_write_op_t write_op,
-                                              rados_ioctx_t io,
-                                              rados_completion_t completion,
-                                              const char *oid,
-                                              time_t *mtime,
-			                      int flags);
+CEPH_RADOS_API int rados_aio_write_op_operate(
+    rados_write_op_t write_op,
+    rados_ioctx_t io,
+    rados_completion_t completion,
+    const char* oid,
+    time_t* mtime,
+    int flags);
 
 /**
  * Perform a write operation asynchronously
@@ -3237,12 +3474,13 @@ CEPH_RADOS_API int rados_aio_write_op_operate(rados_write_op_t write_op,
  * @param mtime the time to set the mtime to, NULL for the current time
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
-CEPH_RADOS_API int rados_aio_write_op_operate2(rados_write_op_t write_op,
-                                               rados_ioctx_t io,
-                                               rados_completion_t completion,
-                                               const char *oid,
-                                               struct timespec *mtime,
-                                               int flags);
+CEPH_RADOS_API int rados_aio_write_op_operate2(
+    rados_write_op_t write_op,
+    rados_ioctx_t io,
+    rados_completion_t completion,
+    const char* oid,
+    struct timespec* mtime,
+    int flags);
 
 /**
  * Create a new rados_read_op_t read operation. This will store all
@@ -3291,7 +3529,9 @@ CEPH_RADOS_API void rados_read_op_assert_exists(rados_read_op_t read_op);
  * @param read_op operation to add this action to
  * @param ver object version number
  */
-CEPH_RADOS_API void rados_read_op_assert_version(rados_read_op_t read_op, uint64_t ver);
+CEPH_RADOS_API void rados_read_op_assert_version(
+    rados_read_op_t read_op,
+    uint64_t ver);
 
 /**
  * Ensure that given object range (extent) satisfies comparison.
@@ -3303,11 +3543,12 @@ CEPH_RADOS_API void rados_read_op_assert_version(rados_read_op_t read_op, uint64
  * @param prval returned result of comparison, 0 on success, negative error code
  *  on failure, (-MAX_ERRNO - mismatch_off) on mismatch
  */
-CEPH_RADOS_API void rados_read_op_cmpext(rados_read_op_t read_op,
-                                         const char *cmp_buf,
-                                         size_t cmp_len,
-                                         uint64_t off,
-                                         int *prval);
+CEPH_RADOS_API void rados_read_op_cmpext(
+    rados_read_op_t read_op,
+    const char* cmp_buf,
+    size_t cmp_len,
+    uint64_t off,
+    int* prval);
 
 /**
  * Ensure that the an xattr satisfies a comparison
@@ -3320,11 +3561,12 @@ CEPH_RADOS_API void rados_read_op_cmpext(rados_read_op_t read_op,
  * @param value buffer to compare actual xattr value to
  * @param value_len length of buffer to compare actual xattr value to
  */
-CEPH_RADOS_API void rados_read_op_cmpxattr(rados_read_op_t read_op,
-			                   const char *name,
-			                   uint8_t comparison_operator,
-			                   const char *value,
-			                   size_t value_len);
+CEPH_RADOS_API void rados_read_op_cmpxattr(
+    rados_read_op_t read_op,
+    const char* name,
+    uint8_t comparison_operator,
+    const char* value,
+    size_t value_len);
 
 /**
  * Start iterating over xattrs on an object.
@@ -3333,9 +3575,10 @@ CEPH_RADOS_API void rados_read_op_cmpxattr(rados_read_op_t read_op,
  * @param iter where to store the iterator
  * @param prval where to store the return value of this action
  */
-CEPH_RADOS_API void rados_read_op_getxattrs(rados_read_op_t read_op,
-			                    rados_xattrs_iter_t *iter,
-			                    int *prval);
+CEPH_RADOS_API void rados_read_op_getxattrs(
+    rados_read_op_t read_op,
+    rados_xattrs_iter_t* iter,
+    int* prval);
 
 /**
  * Ensure that the an omap value satisfies a comparison,
@@ -3350,12 +3593,13 @@ CEPH_RADOS_API void rados_read_op_getxattrs(rados_read_op_t read_op,
  * @param val_len length of value in bytes
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_cmp(rados_read_op_t read_op,
-                                           const char *key,
-                                           uint8_t comparison_operator,
-                                           const char *val,
-                                           size_t val_len,
-                                           int *prval);
+CEPH_RADOS_API void rados_read_op_omap_cmp(
+    rados_read_op_t read_op,
+    const char* key,
+    uint8_t comparison_operator,
+    const char* val,
+    size_t val_len,
+    int* prval);
 
 /**
  * Ensure that the an omap value satisfies a comparison,
@@ -3371,13 +3615,14 @@ CEPH_RADOS_API void rados_read_op_omap_cmp(rados_read_op_t read_op,
  * @param val_len length of value in bytes
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_cmp2(rados_read_op_t read_op,
-                                           const char *key,
-                                           uint8_t comparison_operator,
-                                           const char *val,
-                                           size_t key_len,
-                                           size_t val_len,
-                                           int *prval);
+CEPH_RADOS_API void rados_read_op_omap_cmp2(
+    rados_read_op_t read_op,
+    const char* key,
+    uint8_t comparison_operator,
+    const char* val,
+    size_t key_len,
+    size_t val_len,
+    int* prval);
 
 /**
  * Get object size and mtime
@@ -3386,15 +3631,17 @@ CEPH_RADOS_API void rados_read_op_omap_cmp2(rados_read_op_t read_op,
  * @param pmtime where to store modification time
  * @param prval where to store the return value of this action
  */
-CEPH_RADOS_API void rados_read_op_stat(rados_read_op_t read_op,
-			               uint64_t *psize,
-			               time_t *pmtime,
-			               int *prval);
+CEPH_RADOS_API void rados_read_op_stat(
+    rados_read_op_t read_op,
+    uint64_t* psize,
+    time_t* pmtime,
+    int* prval);
 
-CEPH_RADOS_API void rados_read_op_stat2(rados_read_op_t read_op,
-			               uint64_t *psize,
-			               struct timespec *pmtime,
-			               int *prval);
+CEPH_RADOS_API void rados_read_op_stat2(
+    rados_read_op_t read_op,
+    uint64_t* psize,
+    struct timespec* pmtime,
+    int* prval);
 /**
  * Read bytes from offset into buffer.
  *
@@ -3409,12 +3656,13 @@ CEPH_RADOS_API void rados_read_op_stat2(rados_read_op_t read_op,
  * @param bytes_read where to store the number of bytes read by this action
  * @param prval where to store the return value of this action
  */
-CEPH_RADOS_API void rados_read_op_read(rados_read_op_t read_op,
-			               uint64_t offset,
-			               size_t len,
-			               char *buffer,
-			               size_t *bytes_read,
-			               int *prval);
+CEPH_RADOS_API void rados_read_op_read(
+    rados_read_op_t read_op,
+    uint64_t offset,
+    size_t len,
+    char* buffer,
+    size_t* bytes_read,
+    int* prval);
 
 /**
  * Compute checksum from object data
@@ -3430,13 +3678,17 @@ CEPH_RADOS_API void rados_read_op_read(rados_read_op_t read_op,
  * @param checksum_len the number of bytes available for the result
  * @param prval where to store the return value for this action
  */
-CEPH_RADOS_API void rados_read_op_checksum(rados_read_op_t read_op,
-					   rados_checksum_type_t type,
-					   const char *init_value,
-					   size_t init_value_len,
-					   uint64_t offset, size_t len,
-					   size_t chunk_size, char *pchecksum,
-					   size_t checksum_len, int *prval);
+CEPH_RADOS_API void rados_read_op_checksum(
+    rados_read_op_t read_op,
+    rados_checksum_type_t type,
+    const char* init_value,
+    size_t init_value_len,
+    uint64_t offset,
+    size_t len,
+    size_t chunk_size,
+    char* pchecksum,
+    size_t checksum_len,
+    int* prval);
 
 /**
  * Execute an OSD class method on an object
@@ -3456,14 +3708,15 @@ CEPH_RADOS_API void rados_read_op_checksum(rados_read_op_t read_op,
  * @param out_len length of out_buf in bytes
  * @param prval where to store the return value from the method
  */
-CEPH_RADOS_API void rados_read_op_exec(rados_read_op_t read_op,
-			               const char *cls,
-			               const char *method,
-			               const char *in_buf,
-			               size_t in_len,
-			               char **out_buf,
-			               size_t *out_len,
-			               int *prval);
+CEPH_RADOS_API void rados_read_op_exec(
+    rados_read_op_t read_op,
+    const char* cls,
+    const char* method,
+    const char* in_buf,
+    size_t in_len,
+    char** out_buf,
+    size_t* out_len,
+    int* prval);
 
 /**
  * Execute an OSD class method on an object
@@ -3482,15 +3735,16 @@ CEPH_RADOS_API void rados_read_op_exec(rados_read_op_t read_op,
  * @param used_len where to store the number of bytes read into out_buf
  * @param prval where to store the return value from the method
  */
-CEPH_RADOS_API void rados_read_op_exec_user_buf(rados_read_op_t read_op,
-				                const char *cls,
-				                const char *method,
-				                const char *in_buf,
-				                size_t in_len,
-				                char *out_buf,
-				                size_t out_len,
-				                size_t *used_len,
-				                int *prval);
+CEPH_RADOS_API void rados_read_op_exec_user_buf(
+    rados_read_op_t read_op,
+    const char* cls,
+    const char* method,
+    const char* in_buf,
+    size_t in_len,
+    char* out_buf,
+    size_t out_len,
+    size_t* used_len,
+    int* prval);
 
 /**
  * Start iterating over key/value pairs on an object.
@@ -3504,13 +3758,13 @@ CEPH_RADOS_API void rados_read_op_exec_user_buf(rados_read_op_t read_op,
  * @param iter where to store the iterator
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_vals(rados_read_op_t read_op,
-				                const char *start_after,
-				                const char *filter_prefix,
-				                uint64_t max_return,
-				                rados_omap_iter_t *iter,
-				                int *prval)
-  __attribute__((deprecated)); /* use v2 below */
+CEPH_RADOS_API void rados_read_op_omap_get_vals(
+    rados_read_op_t read_op,
+    const char* start_after,
+    const char* filter_prefix,
+    uint64_t max_return,
+    rados_omap_iter_t* iter,
+    int* prval) __attribute__((deprecated)); /* use v2 below */
 
 /**
  * Start iterating over key/value pairs on an object.
@@ -3525,13 +3779,14 @@ CEPH_RADOS_API void rados_read_op_omap_get_vals(rados_read_op_t read_op,
  * @param pmore flag indicating whether there are more keys to fetch
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_vals2(rados_read_op_t read_op,
-						 const char *start_after,
-						 const char *filter_prefix,
-						 uint64_t max_return,
-						 rados_omap_iter_t *iter,
-						 unsigned char *pmore,
-						 int *prval);
+CEPH_RADOS_API void rados_read_op_omap_get_vals2(
+    rados_read_op_t read_op,
+    const char* start_after,
+    const char* filter_prefix,
+    uint64_t max_return,
+    rados_omap_iter_t* iter,
+    unsigned char* pmore,
+    int* prval);
 
 /**
  * Start iterating over keys on an object.
@@ -3545,12 +3800,12 @@ CEPH_RADOS_API void rados_read_op_omap_get_vals2(rados_read_op_t read_op,
  * @param iter where to store the iterator
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_keys(rados_read_op_t read_op,
-				                const char *start_after,
-				                uint64_t max_return,
-				                rados_omap_iter_t *iter,
-				                int *prval)
-  __attribute__((deprecated)); /* use v2 below */
+CEPH_RADOS_API void rados_read_op_omap_get_keys(
+    rados_read_op_t read_op,
+    const char* start_after,
+    uint64_t max_return,
+    rados_omap_iter_t* iter,
+    int* prval) __attribute__((deprecated)); /* use v2 below */
 
 /**
  * Start iterating over keys on an object.
@@ -3565,12 +3820,13 @@ CEPH_RADOS_API void rados_read_op_omap_get_keys(rados_read_op_t read_op,
  * @param pmore flag indicating whether there are more keys to fetch
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_keys2(rados_read_op_t read_op,
-						 const char *start_after,
-						 uint64_t max_return,
-						 rados_omap_iter_t *iter,
-						 unsigned char *pmore,
-						 int *prval);
+CEPH_RADOS_API void rados_read_op_omap_get_keys2(
+    rados_read_op_t read_op,
+    const char* start_after,
+    uint64_t max_return,
+    rados_omap_iter_t* iter,
+    unsigned char* pmore,
+    int* prval);
 
 /**
  * Start iterating over specific key/value pairs
@@ -3583,11 +3839,12 @@ CEPH_RADOS_API void rados_read_op_omap_get_keys2(rados_read_op_t read_op,
  * @param iter where to store the iterator
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys(rados_read_op_t read_op,
-                                                        char const* const* keys,
-                                                        size_t keys_len,
-                                                        rados_omap_iter_t *iter,
-                                                        int *prval);
+CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys(
+    rados_read_op_t read_op,
+    char const* const* keys,
+    size_t keys_len,
+    rados_omap_iter_t* iter,
+    int* prval);
 
 /**
  * Start iterating over specific key/value pairs
@@ -3601,12 +3858,13 @@ CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys(rados_read_op_t read_op,
  * @param iter where to store the iterator
  * @param prval where to store the return value from this action
  */
-CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys2(rados_read_op_t read_op,
-                                                        char const* const* keys,
-                                                        size_t num_keys,
-                                                        const size_t* key_lens,
-                                                        rados_omap_iter_t *iter,
-                                                        int *prval);
+CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys2(
+    rados_read_op_t read_op,
+    char const* const* keys,
+    size_t num_keys,
+    const size_t* key_lens,
+    rados_omap_iter_t* iter,
+    int* prval);
 
 /**
  * Perform a read operation synchronously
@@ -3615,10 +3873,11 @@ CEPH_RADOS_API void rados_read_op_omap_get_vals_by_keys2(rados_read_op_t read_op
  * @param oid the object id
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
-CEPH_RADOS_API int rados_read_op_operate(rados_read_op_t read_op,
-			                 rados_ioctx_t io,
-			                 const char *oid,
-			                 int flags);
+CEPH_RADOS_API int rados_read_op_operate(
+    rados_read_op_t read_op,
+    rados_ioctx_t io,
+    const char* oid,
+    int flags);
 
 /**
  * Perform a read operation asynchronously
@@ -3628,11 +3887,12 @@ CEPH_RADOS_API int rados_read_op_operate(rados_read_op_t read_op,
  * @param oid the object id
  * @param flags flags to apply to the entire operation (LIBRADOS_OPERATION_*)
  */
-CEPH_RADOS_API int rados_aio_read_op_operate(rados_read_op_t read_op,
-			                     rados_ioctx_t io,
-			                     rados_completion_t completion,
-			                     const char *oid,
-			                     int flags);
+CEPH_RADOS_API int rados_aio_read_op_operate(
+    rados_read_op_t read_op,
+    rados_ioctx_t io,
+    rados_completion_t completion,
+    const char* oid,
+    int flags);
 
 /** @} Object Operations */
 
@@ -3650,11 +3910,14 @@ CEPH_RADOS_API int rados_aio_read_op_operate(rados_read_op_t read_op,
  * @returns -EBUSY if the lock is already held by another (client, cookie) pair
  * @returns -EEXIST if the lock is already held by the same (client, cookie) pair
  */
-CEPH_RADOS_API int rados_lock_exclusive(rados_ioctx_t io, const char * oid,
-                                        const char * name, const char * cookie,
-                                        const char * desc,
-                                        struct timeval * duration,
-                                        uint8_t flags);
+CEPH_RADOS_API int rados_lock_exclusive(
+    rados_ioctx_t io,
+    const char* oid,
+    const char* name,
+    const char* cookie,
+    const char* desc,
+    struct timeval* duration,
+    uint8_t flags);
 
 /**
  * Take a shared lock on an object.
@@ -3671,10 +3934,15 @@ CEPH_RADOS_API int rados_lock_exclusive(rados_ioctx_t io, const char * oid,
  * @returns -EBUSY if the lock is already held by another (client, cookie) pair
  * @returns -EEXIST if the lock is already held by the same (client, cookie) pair
  */
-CEPH_RADOS_API int rados_lock_shared(rados_ioctx_t io, const char * o,
-                                     const char * name, const char * cookie,
-                                     const char * tag, const char * desc,
-	                             struct timeval * duration, uint8_t flags);
+CEPH_RADOS_API int rados_lock_shared(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    const char* cookie,
+    const char* tag,
+    const char* desc,
+    struct timeval* duration,
+    uint8_t flags);
 
 /**
  * Release a shared or exclusive lock on an object.
@@ -3686,8 +3954,11 @@ CEPH_RADOS_API int rados_lock_shared(rados_ioctx_t io, const char * o,
  * @returns 0 on success, negative error code on failure
  * @returns -ENOENT if the lock is not held by the specified (client, cookie) pair
  */
-CEPH_RADOS_API int rados_unlock(rados_ioctx_t io, const char *o,
-                                const char *name, const char *cookie);
+CEPH_RADOS_API int rados_unlock(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    const char* cookie);
 
 /**
  * Asynchronous release a shared or exclusive lock on an object.
@@ -3699,9 +3970,12 @@ CEPH_RADOS_API int rados_unlock(rados_ioctx_t io, const char *o,
  * @param completion what to do when operation has been attempted
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_aio_unlock(rados_ioctx_t io, const char *o,
-                                    const char *name, const char *cookie,
-			            rados_completion_t completion);
+CEPH_RADOS_API int rados_aio_unlock(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    const char* cookie,
+    rados_completion_t completion);
 
 /**
  * List clients that have locked the named object lock and information about
@@ -3726,12 +4000,19 @@ CEPH_RADOS_API int rados_aio_unlock(rados_ioctx_t io, const char *o,
  * @returns number of lockers on success, negative error code on failure
  * @returns -ERANGE if any of the buffers are too short
  */
-CEPH_RADOS_API ssize_t rados_list_lockers(rados_ioctx_t io, const char *o,
-			                  const char *name, int *exclusive,
-			                  char *tag, size_t *tag_len,
-			                  char *clients, size_t *clients_len,
-			                  char *cookies, size_t *cookies_len,
-			                  char *addrs, size_t *addrs_len);
+CEPH_RADOS_API ssize_t rados_list_lockers(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    int* exclusive,
+    char* tag,
+    size_t* tag_len,
+    char* clients,
+    size_t* clients_len,
+    char* cookies,
+    size_t* cookies_len,
+    char* addrs,
+    size_t* addrs_len);
 
 /**
  * Releases a shared or exclusive lock on an object, which was taken by the
@@ -3746,9 +4027,12 @@ CEPH_RADOS_API ssize_t rados_list_lockers(rados_ioctx_t io, const char *o,
  * @returns -ENOENT if the lock is not held by the specified (client, cookie) pair
  * @returns -EINVAL if the client cannot be parsed
  */
-CEPH_RADOS_API int rados_break_lock(rados_ioctx_t io, const char *o,
-                                    const char *name, const char *client,
-                                    const char *cookie);
+CEPH_RADOS_API int rados_break_lock(
+    rados_ioctx_t io,
+    const char* o,
+    const char* name,
+    const char* client,
+    const char* cookie);
 
 /**
  * Blocklists the specified client from the OSDs
@@ -3758,13 +4042,14 @@ CEPH_RADOS_API int rados_break_lock(rados_ioctx_t io, const char *o,
  * @param expire_seconds number of seconds to blocklist (0 for default)
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_blocklist_add(rados_t cluster,
-				       char *client_address,
-				       uint32_t expire_seconds);
-CEPH_RADOS_API int rados_blacklist_add(rados_t cluster,
-				       char *client_address,
-				       uint32_t expire_seconds)
-  __attribute__((deprecated));
+CEPH_RADOS_API int rados_blocklist_add(
+    rados_t cluster,
+    char* client_address,
+    uint32_t expire_seconds);
+CEPH_RADOS_API int rados_blacklist_add(
+    rados_t cluster,
+    char* client_address,
+    uint32_t expire_seconds) __attribute__((deprecated));
 
 /**
  * Gets addresses of the RADOS session, suitable for blocklisting.
@@ -3776,10 +4061,10 @@ CEPH_RADOS_API int rados_blacklist_add(rados_t cluster,
 CEPH_RADOS_API int rados_getaddrs(rados_t cluster, char** addrs);
 
 CEPH_RADOS_API void rados_set_osdmap_full_try(rados_ioctx_t io)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 CEPH_RADOS_API void rados_unset_osdmap_full_try(rados_ioctx_t io)
-  __attribute__((deprecated));
+    __attribute__((deprecated));
 
 CEPH_RADOS_API void rados_set_pool_full_try(rados_ioctx_t io);
 
@@ -3793,8 +4078,10 @@ CEPH_RADOS_API void rados_unset_pool_full_try(rados_ioctx_t io);
  * @param force 0 if only single application per pool
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_application_enable(rados_ioctx_t io,
-                                            const char *app_name, int force);
+CEPH_RADOS_API int rados_application_enable(
+    rados_ioctx_t io,
+    const char* app_name,
+    int force);
 
 /**
  * List all enabled applications
@@ -3809,8 +4096,10 @@ CEPH_RADOS_API int rados_application_enable(rados_ioctx_t io,
  * @returns 0 on success, negative error code on failure
  * @returns -ERANGE if either buffer is too short
  */
-CEPH_RADOS_API int rados_application_list(rados_ioctx_t io, char *values,
-                                          size_t *values_len);
+CEPH_RADOS_API int rados_application_list(
+    rados_ioctx_t io,
+    char* values,
+    size_t* values_len);
 
 /**
  * Get application metadata value from pool
@@ -3822,10 +4111,12 @@ CEPH_RADOS_API int rados_application_list(rados_ioctx_t io, char *values,
  * @param value_len maximum len of value
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_application_metadata_get(rados_ioctx_t io,
-                                                  const char *app_name,
-                                                  const char *key, char *value,
-                                                  size_t *value_len);
+CEPH_RADOS_API int rados_application_metadata_get(
+    rados_ioctx_t io,
+    const char* app_name,
+    const char* key,
+    char* value,
+    size_t* value_len);
 
 /**
  * Set application metadata on a pool
@@ -3836,10 +4127,11 @@ CEPH_RADOS_API int rados_application_metadata_get(rados_ioctx_t io,
  * @param value metadata key
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_application_metadata_set(rados_ioctx_t io,
-                                                  const char *app_name,
-                                                  const char *key,
-                                                  const char *value);
+CEPH_RADOS_API int rados_application_metadata_set(
+    rados_ioctx_t io,
+    const char* app_name,
+    const char* key,
+    const char* value);
 
 /**
  * Remove application metadata from a pool
@@ -3849,9 +4141,10 @@ CEPH_RADOS_API int rados_application_metadata_set(rados_ioctx_t io,
  * @param key metadata key
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_application_metadata_remove(rados_ioctx_t io,
-                                                     const char *app_name,
-                                                     const char *key);
+CEPH_RADOS_API int rados_application_metadata_remove(
+    rados_ioctx_t io,
+    const char* app_name,
+    const char* key);
 
 /**
  * List all metadata key/value pairs associated with an application.
@@ -3872,11 +4165,13 @@ CEPH_RADOS_API int rados_application_metadata_remove(rados_ioctx_t io,
  * @returns 0 on success, negative error code on failure
  * @returns -ERANGE if either buffer is too short
  */
-CEPH_RADOS_API int rados_application_metadata_list(rados_ioctx_t io,
-                                                   const char *app_name,
-                                                   char *keys, size_t *key_len,
-                                                   char *values,
-                                                   size_t *vals_len);
+CEPH_RADOS_API int rados_application_metadata_list(
+    rados_ioctx_t io,
+    const char* app_name,
+    char* keys,
+    size_t* key_len,
+    char* values,
+    size_t* vals_len);
 
 /**
  * @name Mon/OSD/PG Commands
@@ -3908,11 +4203,16 @@ CEPH_RADOS_API int rados_application_metadata_list(rados_ioctx_t io,
  * @param outslen pointer to status string length
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_mon_command(rados_t cluster, const char **cmd,
-                                     size_t cmdlen, const char *inbuf,
-                                     size_t inbuflen, char **outbuf,
-                                     size_t *outbuflen, char **outs,
-                                     size_t *outslen);
+CEPH_RADOS_API int rados_mon_command(
+    rados_t cluster,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
 /**
  * Send ceph-mgr command.
@@ -3936,11 +4236,16 @@ CEPH_RADOS_API int rados_mon_command(rados_t cluster, const char **cmd,
  * @param outslen pointer to status string length
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_mgr_command(rados_t cluster, const char **cmd,
-                                     size_t cmdlen, const char *inbuf,
-                                     size_t inbuflen, char **outbuf,
-                                     size_t *outbuflen, char **outs,
-                                     size_t *outslen);
+CEPH_RADOS_API int rados_mgr_command(
+    rados_t cluster,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
 /**
  * Send ceph-mgr tell command.
@@ -3966,13 +4271,16 @@ CEPH_RADOS_API int rados_mgr_command(rados_t cluster, const char **cmd,
  * @returns 0 on success, negative error code on failure
  */
 CEPH_RADOS_API int rados_mgr_command_target(
-  rados_t cluster,
-  const char *name,
-  const char **cmd,
-  size_t cmdlen, const char *inbuf,
-  size_t inbuflen, char **outbuf,
-  size_t *outbuflen, char **outs,
-  size_t *outslen);
+    rados_t cluster,
+    const char* name,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
 /**
  * Send monitor command to a specific monitor.
@@ -3997,11 +4305,17 @@ CEPH_RADOS_API int rados_mgr_command_target(
  * @param outslen pointer to status string length
  * @returns 0 on success, negative error code on failure
  */
-CEPH_RADOS_API int rados_mon_command_target(rados_t cluster, const char *name,
-			                    const char **cmd, size_t cmdlen,
-			                    const char *inbuf, size_t inbuflen,
-			                    char **outbuf, size_t *outbuflen,
-			                    char **outs, size_t *outslen);
+CEPH_RADOS_API int rados_mon_command_target(
+    rados_t cluster,
+    const char* name,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
 /**
  * free a rados-allocated buffer
@@ -4010,48 +4324,31 @@ CEPH_RADOS_API int rados_mon_command_target(rados_t cluster, const char *name,
  *
  * @param buf buffer pointer
  */
-CEPH_RADOS_API void rados_buffer_free(char *buf);
+CEPH_RADOS_API void rados_buffer_free(char* buf);
 
-CEPH_RADOS_API int rados_osd_command(rados_t cluster, int osdid,
-                                     const char **cmd, size_t cmdlen,
-		                     const char *inbuf, size_t inbuflen,
-		                     char **outbuf, size_t *outbuflen,
-		                     char **outs, size_t *outslen);
+CEPH_RADOS_API int rados_osd_command(
+    rados_t cluster,
+    int osdid,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
-CEPH_RADOS_API int rados_pg_command(rados_t cluster, const char *pgstr,
-                                    const char **cmd, size_t cmdlen,
-		                    const char *inbuf, size_t inbuflen,
-		                    char **outbuf, size_t *outbuflen,
-		                    char **outs, size_t *outslen);
-
-/*
- * This is not a doxygen comment leadin, because doxygen breaks on
- * a typedef with function params and returns, and I can't figure out
- * how to fix it.
- *
- * Monitor cluster log
- *
- * Monitor events logged to the cluster log.  The callback get each
- * log entry both as a single formatted line and with each field in a
- * separate arg.
- *
- * Calling with a cb argument of NULL will deregister any previously
- * registered callback.
- *
- * @param cluster cluster handle
- * @param level minimum log level (debug, info, warn|warning, err|error)
- * @param cb callback to run for each log message. It MUST NOT block
- * nor call back into librados.
- * @param arg void argument to pass to cb
- *
- * @returns 0 on success, negative code on error
- */
-typedef void (*rados_log_callback_t)(void *arg,
-				     const char *line,
-				     const char *who, 
-				     uint64_t sec, uint64_t nsec,
-				     uint64_t seq, const char *level,
-				     const char *msg);
+CEPH_RADOS_API int rados_pg_command(
+    rados_t cluster,
+    const char* pgstr,
+    const char** cmd,
+    size_t cmdlen,
+    const char* inbuf,
+    size_t inbuflen,
+    char** outbuf,
+    size_t* outbuflen,
+    char** outs,
+    size_t* outslen);
 
 /*
  * This is not a doxygen comment leadin, because doxygen breaks on
@@ -4075,19 +4372,60 @@ typedef void (*rados_log_callback_t)(void *arg,
  *
  * @returns 0 on success, negative code on error
  */
-typedef void (*rados_log_callback2_t)(void *arg,
-				     const char *line,
-				     const char *channel,
-				     const char *who,
-				     const char *name,
-				     uint64_t sec, uint64_t nsec,
-				     uint64_t seq, const char *level,
-				     const char *msg);
+typedef void (*rados_log_callback_t)(
+    void* arg,
+    const char* line,
+    const char* who,
+    uint64_t sec,
+    uint64_t nsec,
+    uint64_t seq,
+    const char* level,
+    const char* msg);
 
-CEPH_RADOS_API int rados_monitor_log(rados_t cluster, const char *level,
-                                     rados_log_callback_t cb, void *arg);
-CEPH_RADOS_API int rados_monitor_log2(rados_t cluster, const char *level,
-				      rados_log_callback2_t cb, void *arg);
+/*
+ * This is not a doxygen comment leadin, because doxygen breaks on
+ * a typedef with function params and returns, and I can't figure out
+ * how to fix it.
+ *
+ * Monitor cluster log
+ *
+ * Monitor events logged to the cluster log.  The callback get each
+ * log entry both as a single formatted line and with each field in a
+ * separate arg.
+ *
+ * Calling with a cb argument of NULL will deregister any previously
+ * registered callback.
+ *
+ * @param cluster cluster handle
+ * @param level minimum log level (debug, info, warn|warning, err|error)
+ * @param cb callback to run for each log message. It MUST NOT block
+ * nor call back into librados.
+ * @param arg void argument to pass to cb
+ *
+ * @returns 0 on success, negative code on error
+ */
+typedef void (*rados_log_callback2_t)(
+    void* arg,
+    const char* line,
+    const char* channel,
+    const char* who,
+    const char* name,
+    uint64_t sec,
+    uint64_t nsec,
+    uint64_t seq,
+    const char* level,
+    const char* msg);
+
+CEPH_RADOS_API int rados_monitor_log(
+    rados_t cluster,
+    const char* level,
+    rados_log_callback_t cb,
+    void* arg);
+CEPH_RADOS_API int rados_monitor_log2(
+    rados_t cluster,
+    const char* level,
+    rados_log_callback2_t cb,
+    void* arg);
 
 
 /**
@@ -4109,10 +4447,10 @@ CEPH_RADOS_API int rados_monitor_log2(rados_t cluster, const char *level,
  * @param metadata_dict static daemon metadata dict
  */
 CEPH_RADOS_API int rados_service_register(
-  rados_t cluster,
-  const char *service,
-  const char *daemon,
-  const char *metadata_dict);
+    rados_t cluster,
+    const char* service,
+    const char* daemon,
+    const char* metadata_dict);
 
 /**
  * update daemon status
@@ -4127,8 +4465,8 @@ CEPH_RADOS_API int rados_service_register(
  * @param status_dict status dict
  */
 CEPH_RADOS_API int rados_service_update_status(
-  rados_t cluster,
-  const char *status_dict);
+    rados_t cluster,
+    const char* status_dict);
 
 /** @} Mon/OSD/PG commands */
 
@@ -4136,19 +4474,19 @@ CEPH_RADOS_API int rados_service_update_status(
  * These methods are no longer supported and return -ENOTSUP where possible.
  */
 CEPH_RADOS_API int rados_objects_list_open(
-  rados_ioctx_t io,
-  rados_list_ctx_t *ctx) __attribute__((deprecated));
+    rados_ioctx_t io,
+    rados_list_ctx_t* ctx) __attribute__((deprecated));
 CEPH_RADOS_API uint32_t rados_objects_list_get_pg_hash_position(
-  rados_list_ctx_t ctx) __attribute__((deprecated));
+    rados_list_ctx_t ctx) __attribute__((deprecated));
 CEPH_RADOS_API uint32_t rados_objects_list_seek(
-  rados_list_ctx_t ctx,
-  uint32_t pos) __attribute__((deprecated));
+    rados_list_ctx_t ctx,
+    uint32_t pos) __attribute__((deprecated));
 CEPH_RADOS_API int rados_objects_list_next(
-  rados_list_ctx_t ctx,
-  const char **entry,
-  const char **key) __attribute__((deprecated));
-CEPH_RADOS_API void rados_objects_list_close(
-  rados_list_ctx_t ctx) __attribute__((deprecated));
+    rados_list_ctx_t ctx,
+    const char** entry,
+    const char** key) __attribute__((deprecated));
+CEPH_RADOS_API void rados_objects_list_close(rados_list_ctx_t ctx)
+    __attribute__((deprecated));
 
 
 #ifdef __cplusplus

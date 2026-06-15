@@ -15,9 +15,10 @@
 
 #include "common/ceph_argparse.h"
 
-#include "gtest/gtest.h"
 #include <iostream> // for std::cout
 #include <vector>
+
+#include "gtest/gtest.h"
 #include "include/stringify.h"
 
 using namespace std;
@@ -29,50 +30,54 @@ using namespace std;
  * they find them.  So we keep a parallel vector, orig, to make sure that we
  * never forget to delete a string.
  */
-class VectorContainer
-{
+class VectorContainer {
 public:
-  explicit VectorContainer(const char** arr_) {
-    for (const char **a = arr_; *a; ++a) {
-      const char *str = (const char*)strdup(*a);
+  explicit VectorContainer(const char** arr_)
+  {
+    for (const char** a = arr_; *a; ++a) {
+      const char* str = (const char*)strdup(*a);
       arr.push_back(str);
       orig.push_back(str);
     }
   }
-  ~VectorContainer() {
-    for (std::vector<const char*>::iterator i = orig.begin();
-	   i != orig.end(); ++i)
-    {
-	 free((void*)*i);
+
+  ~VectorContainer()
+  {
+    for (std::vector<const char*>::iterator i = orig.begin(); i != orig.end();
+         ++i) {
+      free((void*)*i);
     }
   }
-  void refresh() {
+
+  void
+  refresh()
+  {
     arr.assign(orig.begin(), orig.end());
   }
-  std::vector < const char* > arr;
+
+  std::vector<const char*> arr;
 
 private:
-  std::vector < const char* > orig;
+  std::vector<const char*> orig;
 };
 
-TEST(CephArgParse, SimpleArgParse) {
-  const char *BAR5[] = { "./myprog", "--bar", "5", NULL };
-  const char *FOO[] = { "./myprog", "--foo", "--baz", NULL };
-  const char *NONE[] = { "./myprog", NULL };
+TEST(CephArgParse, SimpleArgParse)
+{
+  const char* BAR5[] = {"./myprog", "--bar", "5", NULL};
+  const char* FOO[] = {"./myprog", "--foo", "--baz", NULL};
+  const char* NONE[] = {"./myprog", NULL};
 
   bool found_foo = false;
   std::string found_bar;
   VectorContainer bar5(BAR5);
   for (std::vector<const char*>::iterator i = bar5.arr.begin();
-       i != bar5.arr.end(); )
-  {
-      if (ceph_argparse_flag(bar5.arr, i, "--foo", (char*)NULL)) {
-	found_foo = true;
-      }
-      else if (ceph_argparse_witharg(bar5.arr, i, &found_bar, "--bar", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != bar5.arr.end();) {
+    if (ceph_argparse_flag(bar5.arr, i, "--foo", (char*)NULL)) {
+      found_foo = true;
+    } else if (
+        ceph_argparse_witharg(bar5.arr, i, &found_bar, "--bar", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_foo, false);
   ASSERT_EQ(found_bar, "5");
@@ -84,19 +89,17 @@ TEST(CephArgParse, SimpleArgParse) {
   VectorContainer foo(FOO);
   ostringstream err;
   for (std::vector<const char*>::iterator i = foo.arr.begin();
-       i != foo.arr.end(); )
-  {
-      if (ceph_argparse_flag(foo.arr, i, "--foo", (char*)NULL)) {
-	found_foo = true;
-      }
-      else if (ceph_argparse_witharg(foo.arr, i, &found_bar, "--bar", (char*)NULL)) {
-      }
-      else if (ceph_argparse_witharg(foo.arr, i, &found_baz, err, "--baz", (char*)NULL)) {
-	ASSERT_NE(string(""), err.str());
-	baz_found = true;
-      }
-      else
-	++i;
+       i != foo.arr.end();) {
+    if (ceph_argparse_flag(foo.arr, i, "--foo", (char*)NULL)) {
+      found_foo = true;
+    } else if (
+        ceph_argparse_witharg(foo.arr, i, &found_bar, "--bar", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   foo.arr, i, &found_baz, err, "--baz", (char*)NULL)) {
+      ASSERT_NE(string(""), err.str());
+      baz_found = true;
+    } else
+      ++i;
   }
   ASSERT_EQ(found_foo, true);
   ASSERT_EQ(found_bar, "");
@@ -107,66 +110,60 @@ TEST(CephArgParse, SimpleArgParse) {
   found_bar = "";
   VectorContainer none(NONE);
   for (std::vector<const char*>::iterator i = none.arr.begin();
-       i != none.arr.end(); )
-  {
-      if (ceph_argparse_flag(none.arr, i, "--foo", (char*)NULL)) {
-	found_foo = true;
-      }
-      else if (ceph_argparse_witharg(none.arr, i, &found_bar, "--bar", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != none.arr.end();) {
+    if (ceph_argparse_flag(none.arr, i, "--foo", (char*)NULL)) {
+      found_foo = true;
+    } else if (
+        ceph_argparse_witharg(none.arr, i, &found_bar, "--bar", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_foo, false);
   ASSERT_EQ(found_bar, "");
 }
 
-TEST(CephArgParse, DoubleDash) {
-  const char *ARGS[] = { "./myprog", "--foo", "5", "--", "--bar", "6", NULL };
+TEST(CephArgParse, DoubleDash)
+{
+  const char* ARGS[] = {"./myprog", "--foo", "5", "--", "--bar", "6", NULL};
 
   int foo = -1, bar = -1;
   VectorContainer args(ARGS);
   for (std::vector<const char*>::iterator i = args.arr.begin();
-       i != args.arr.end(); )
-  {
+       i != args.arr.end();) {
     std::string myarg;
     if (ceph_argparse_double_dash(args.arr, i)) {
       break;
-    }
-    else if (ceph_argparse_witharg(args.arr, i, &myarg, "--foo", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(args.arr, i, &myarg, "--foo", (char*)NULL)) {
       foo = atoi(myarg.c_str());
-    }
-    else if (ceph_argparse_witharg(args.arr, i, &myarg, "--bar", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(args.arr, i, &myarg, "--bar", (char*)NULL)) {
       bar = atoi(myarg.c_str());
-    }
-    else
+    } else
       ++i;
   }
   ASSERT_EQ(foo, 5);
   ASSERT_EQ(bar, -1);
 }
 
-
-TEST(CephArgParse, WithDashesAndUnderscores) {
-  const char *BAZSTUFF1[] = { "./myprog", "--goo", "--baz-stuff", "50", "--end", NULL };
-  const char *BAZSTUFF2[] = { "./myprog", "--goo2", "--baz_stuff", "50", NULL };
-  const char *BAZSTUFF3[] = { "./myprog", "--goo2", "--baz-stuff=50", "50", NULL };
-  const char *BAZSTUFF4[] = { "./myprog", "--goo2", "--baz_stuff=50", "50", NULL };
-  const char *NONE1[] = { "./myprog", NULL };
-  const char *NONE2[] = { "./myprog", "--goo2", "--baz_stuff2", "50", NULL };
-  const char *NONE3[] = { "./myprog", "--goo2", "__baz_stuff", "50", NULL };
+TEST(CephArgParse, WithDashesAndUnderscores)
+{
+  const char* BAZSTUFF1[] = {"./myprog", "--goo", "--baz-stuff",
+                             "50",       "--end", NULL};
+  const char* BAZSTUFF2[] = {"./myprog", "--goo2", "--baz_stuff", "50", NULL};
+  const char* BAZSTUFF3[] = {"./myprog", "--goo2", "--baz-stuff=50", "50", NULL};
+  const char* BAZSTUFF4[] = {"./myprog", "--goo2", "--baz_stuff=50", "50", NULL};
+  const char* NONE1[] = {"./myprog", NULL};
+  const char* NONE2[] = {"./myprog", "--goo2", "--baz_stuff2", "50", NULL};
+  const char* NONE3[] = {"./myprog", "--goo2", "__baz_stuff", "50", NULL};
 
   // as flag
   std::string found_baz;
   VectorContainer bazstuff1(BAZSTUFF1);
   for (std::vector<const char*>::iterator i = bazstuff1.arr.begin();
-       i != bazstuff1.arr.end(); )
-  {
-      if (ceph_argparse_flag(bazstuff1.arr, i, "--baz-stuff", (char*)NULL)) {
-	found_baz = "true";
-      }
-      else
-	++i;
+       i != bazstuff1.arr.end();) {
+    if (ceph_argparse_flag(bazstuff1.arr, i, "--baz-stuff", (char*)NULL)) {
+      found_baz = "true";
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "true");
 
@@ -174,13 +171,11 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer bazstuff2(BAZSTUFF2);
   for (std::vector<const char*>::iterator i = bazstuff2.arr.begin();
-       i != bazstuff2.arr.end(); )
-  {
-      if (ceph_argparse_flag(bazstuff2.arr, i, "--baz-stuff", (char*)NULL)) {
-	found_baz = "true";
-      }
-      else
-	++i;
+       i != bazstuff2.arr.end();) {
+    if (ceph_argparse_flag(bazstuff2.arr, i, "--baz-stuff", (char*)NULL)) {
+      found_baz = "true";
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "true");
 
@@ -188,12 +183,11 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   bazstuff1.refresh();
   for (std::vector<const char*>::iterator i = bazstuff1.arr.begin();
-       i != bazstuff1.arr.end(); )
-  {
-      if (ceph_argparse_witharg(bazstuff1.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != bazstuff1.arr.end();) {
+    if (ceph_argparse_witharg(
+            bazstuff1.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "50");
 
@@ -201,12 +195,11 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   bazstuff2.refresh();
   for (std::vector<const char*>::iterator i = bazstuff2.arr.begin();
-       i != bazstuff2.arr.end(); )
-  {
-      if (ceph_argparse_witharg(bazstuff2.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != bazstuff2.arr.end();) {
+    if (ceph_argparse_witharg(
+            bazstuff2.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "50");
 
@@ -214,12 +207,11 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer bazstuff3(BAZSTUFF3);
   for (std::vector<const char*>::iterator i = bazstuff3.arr.begin();
-       i != bazstuff3.arr.end(); )
-  {
-      if (ceph_argparse_witharg(bazstuff3.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != bazstuff3.arr.end();) {
+    if (ceph_argparse_witharg(
+            bazstuff3.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "50");
 
@@ -227,12 +219,11 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer bazstuff4(BAZSTUFF4);
   for (std::vector<const char*>::iterator i = bazstuff4.arr.begin();
-       i != bazstuff4.arr.end(); )
-  {
-      if (ceph_argparse_witharg(bazstuff4.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != bazstuff4.arr.end();) {
+    if (ceph_argparse_witharg(
+            bazstuff4.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "50");
 
@@ -240,15 +231,13 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer none1(NONE1);
   for (std::vector<const char*>::iterator i = none1.arr.begin();
-       i != none1.arr.end(); )
-  {
-      if (ceph_argparse_flag(none1.arr, i, "--baz-stuff", (char*)NULL)) {
-	found_baz = "true";
-      }
-      else if (ceph_argparse_witharg(none1.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != none1.arr.end();) {
+    if (ceph_argparse_flag(none1.arr, i, "--baz-stuff", (char*)NULL)) {
+      found_baz = "true";
+    } else if (ceph_argparse_witharg(
+                   none1.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "");
 
@@ -256,15 +245,13 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer none2(NONE2);
   for (std::vector<const char*>::iterator i = none2.arr.begin();
-       i != none2.arr.end(); )
-  {
-      if (ceph_argparse_flag(none2.arr, i, "--baz-stuff", (char*)NULL)) {
-	found_baz = "true";
-      }
-      else if (ceph_argparse_witharg(none2.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != none2.arr.end();) {
+    if (ceph_argparse_flag(none2.arr, i, "--baz-stuff", (char*)NULL)) {
+      found_baz = "true";
+    } else if (ceph_argparse_witharg(
+                   none2.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "");
 
@@ -272,37 +259,36 @@ TEST(CephArgParse, WithDashesAndUnderscores) {
   found_baz = "";
   VectorContainer none3(NONE3);
   for (std::vector<const char*>::iterator i = none3.arr.begin();
-       i != none3.arr.end(); )
-  {
-      if (ceph_argparse_flag(none3.arr, i, "--baz-stuff", (char*)NULL)) {
-	found_baz = "true";
-      }
-      else if (ceph_argparse_witharg(none3.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
-      }
-      else
-	++i;
+       i != none3.arr.end();) {
+    if (ceph_argparse_flag(none3.arr, i, "--baz-stuff", (char*)NULL)) {
+      found_baz = "true";
+    } else if (ceph_argparse_witharg(
+                   none3.arr, i, &found_baz, "--baz-stuff", (char*)NULL)) {
+    } else
+      ++i;
   }
   ASSERT_EQ(found_baz, "");
 }
 
-TEST(CephArgParse, WithFloat) {
-  const char *BAZSTUFF1[] = { "./myprog", "--foo", "50.5", "--bar", "52", NULL };
+TEST(CephArgParse, WithFloat)
+{
+  const char* BAZSTUFF1[] = {"./myprog", "--foo", "50.5", "--bar", "52", NULL};
 
   VectorContainer bazstuff1(BAZSTUFF1);
   ostringstream err;
   float foo;
   int bar = -1;
   for (std::vector<const char*>::iterator i = bazstuff1.arr.begin();
-       i != bazstuff1.arr.end(); )
-  {
+       i != bazstuff1.arr.end();) {
     if (ceph_argparse_double_dash(bazstuff1.arr, i)) {
       break;
-    } else if (ceph_argparse_witharg(bazstuff1.arr, i, &foo, err, "--foo", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff1.arr, i, &foo, err, "--foo", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    } else if (ceph_argparse_witharg(bazstuff1.arr, i, &bar, err, "--bar", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff1.arr, i, &bar, err, "--bar", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    }
-    else {
+    } else {
       ++i;
     }
   }
@@ -310,26 +296,28 @@ TEST(CephArgParse, WithFloat) {
   ASSERT_EQ(bar, 52);
 }
 
-TEST(CephArgParse, WithInt) {
-  const char *BAZSTUFF1[] = { "./myprog", "--foo", "50", "--bar", "52", NULL };
-  const char *BAZSTUFF2[] = { "./myprog", "--foo", "--bar", "52", NULL };
-  const char *BAZSTUFF3[] = { "./myprog", "--foo", "40", "--", "--bar", "42", NULL };
+TEST(CephArgParse, WithInt)
+{
+  const char* BAZSTUFF1[] = {"./myprog", "--foo", "50", "--bar", "52", NULL};
+  const char* BAZSTUFF2[] = {"./myprog", "--foo", "--bar", "52", NULL};
+  const char* BAZSTUFF3[] = {"./myprog", "--foo", "40", "--",
+                             "--bar",    "42",    NULL};
 
   // normal test
   VectorContainer bazstuff1(BAZSTUFF1);
   ostringstream err;
   int foo = -1, bar = -1;
   for (std::vector<const char*>::iterator i = bazstuff1.arr.begin();
-       i != bazstuff1.arr.end(); )
-  {
+       i != bazstuff1.arr.end();) {
     if (ceph_argparse_double_dash(bazstuff1.arr, i)) {
       break;
-    } else if (ceph_argparse_witharg(bazstuff1.arr, i, &foo, err, "--foo", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff1.arr, i, &foo, err, "--foo", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    } else if (ceph_argparse_witharg(bazstuff1.arr, i, &bar, err, "--bar", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff1.arr, i, &bar, err, "--bar", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    }
-    else {
+    } else {
       ++i;
     }
   }
@@ -340,14 +328,13 @@ TEST(CephArgParse, WithInt) {
   VectorContainer bazstuff2(BAZSTUFF2);
   ostringstream err2;
   for (std::vector<const char*>::iterator i = bazstuff2.arr.begin();
-       i != bazstuff2.arr.end(); )
-  {
+       i != bazstuff2.arr.end();) {
     if (ceph_argparse_double_dash(bazstuff2.arr, i)) {
       break;
-    } else if (ceph_argparse_witharg(bazstuff2.arr, i, &foo, err2, "--foo", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff2.arr, i, &foo, err2, "--foo", (char*)NULL)) {
       ASSERT_NE(string(""), err2.str());
-    }
-    else {
+    } else {
       ++i;
     }
   }
@@ -356,16 +343,16 @@ TEST(CephArgParse, WithInt) {
   VectorContainer bazstuff3(BAZSTUFF3);
   foo = -1, bar = -1;
   for (std::vector<const char*>::iterator i = bazstuff3.arr.begin();
-       i != bazstuff3.arr.end(); )
-  {
+       i != bazstuff3.arr.end();) {
     if (ceph_argparse_double_dash(bazstuff3.arr, i)) {
       break;
-    } else if (ceph_argparse_witharg(bazstuff3.arr, i, &foo, err, "--foo", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff3.arr, i, &foo, err, "--foo", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    } else if (ceph_argparse_witharg(bazstuff3.arr, i, &bar, err, "--bar", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   bazstuff3.arr, i, &bar, err, "--bar", (char*)NULL)) {
       ASSERT_EQ(string(""), err.str());
-    }
-    else {
+    } else {
       ++i;
     }
   }
@@ -373,7 +360,8 @@ TEST(CephArgParse, WithInt) {
   ASSERT_EQ(bar, -1);
 }
 
-TEST(CephArgParse, env_to_vec) {
+TEST(CephArgParse, env_to_vec)
+{
   {
     std::vector<const char*> args;
     unsetenv("CEPH_ARGS");
@@ -488,37 +476,37 @@ TEST(CephArgParse, env_to_vec) {
   }
 }
 
-TEST(CephArgParse, parse_ip_port_vec) {
+TEST(CephArgParse, parse_ip_port_vec)
+{
   struct {
-    const char *from;
+    const char* from;
     int type;
-    const char *to;
+    const char* to;
   } tests[] = {
-    { "1.2.3.4", entity_addr_t::TYPE_MSGR2,
-      "v2:1.2.3.4:0/0\n" },
-    { "v1:1.2.3.4", entity_addr_t::TYPE_MSGR2,
-      "v1:1.2.3.4:0/0\n" },
-    { "1.2.3.4", entity_addr_t::TYPE_LEGACY,
-      "v1:1.2.3.4:0/0\n" },
-    { "[::],1.2.3.4", entity_addr_t::TYPE_LEGACY,
-      "v1:[::]:0/0\nv1:1.2.3.4:0/0\n" },
-    { "v2:1.2.3.4:111,v1:5.6.7.8:222", entity_addr_t::TYPE_LEGACY,
-      "v2:1.2.3.4:111/0\nv1:5.6.7.8:222/0\n" },
-    { "v2:1.2.3.4:111 v1:5.6.7.8:222", entity_addr_t::TYPE_LEGACY,
-      "v2:1.2.3.4:111/0\nv1:5.6.7.8:222/0\n" },
-    { "[v2:1.2.3.4:111,v1:5.6.7.8:222] [v2:[::]:3300,v1:[::]:6789]",
-      entity_addr_t::TYPE_LEGACY,
-      "[v2:1.2.3.4:111/0,v1:5.6.7.8:222/0]\n[v2:[::]:3300/0,v1:[::]:6789/0]\n" },
-    { "[v2:1.2.3.4:111,v1:5.6.7.8:222],[v2:[::]:3300,v1:[::]:6789]",
-      entity_addr_t::TYPE_LEGACY,
-      "[v2:1.2.3.4:111/0,v1:5.6.7.8:222/0]\n[v2:[::]:3300/0,v1:[::]:6789/0]\n" },
-    { 0, 0, 0 },
+      {"1.2.3.4", entity_addr_t::TYPE_MSGR2, "v2:1.2.3.4:0/0\n"},
+      {"v1:1.2.3.4", entity_addr_t::TYPE_MSGR2, "v1:1.2.3.4:0/0\n"},
+      {"1.2.3.4", entity_addr_t::TYPE_LEGACY, "v1:1.2.3.4:0/0\n"},
+      {"[::],1.2.3.4", entity_addr_t::TYPE_LEGACY,
+       "v1:[::]:0/0\nv1:1.2.3.4:0/0\n"},
+      {"v2:1.2.3.4:111,v1:5.6.7.8:222", entity_addr_t::TYPE_LEGACY,
+       "v2:1.2.3.4:111/0\nv1:5.6.7.8:222/0\n"},
+      {"v2:1.2.3.4:111 v1:5.6.7.8:222", entity_addr_t::TYPE_LEGACY,
+       "v2:1.2.3.4:111/0\nv1:5.6.7.8:222/0\n"},
+      {"[v2:1.2.3.4:111,v1:5.6.7.8:222] [v2:[::]:3300,v1:[::]:6789]",
+       entity_addr_t::TYPE_LEGACY,
+       "[v2:1.2.3.4:111/0,v1:5.6.7.8:222/0]\n[v2:[::]:3300/0,v1:[::]:6789/"
+       "0]\n"},
+      {"[v2:1.2.3.4:111,v1:5.6.7.8:222],[v2:[::]:3300,v1:[::]:6789]",
+       entity_addr_t::TYPE_LEGACY,
+       "[v2:1.2.3.4:111/0,v1:5.6.7.8:222/0]\n[v2:[::]:3300/0,v1:[::]:6789/"
+       "0]\n"},
+      {0, 0, 0},
   };
 
   for (unsigned i = 0; tests[i].from; ++i) {
     vector<entity_addrvec_t> v;
-    cout << "-- " << tests[i].from << " type " << tests[i].type
-	 << " ->\n" << tests[i].to;
+    cout << "-- " << tests[i].from << " type " << tests[i].type << " ->\n"
+         << tests[i].to;
     ASSERT_TRUE(parse_ip_port_vec(tests[i].from, v, tests[i].type));
     string actual;
     for (auto s : v) {
@@ -527,17 +515,13 @@ TEST(CephArgParse, parse_ip_port_vec) {
     ASSERT_EQ(actual, tests[i].to);
   }
 
-  const char *bad[] = {
-    "1.2.3.4 foo",
-    0
-  };
+  const char* bad[] = {"1.2.3.4 foo", 0};
   for (unsigned i = 0; bad[i]; ++i) {
     vector<entity_addrvec_t> v;
     cout << "bad " << bad[i] << std::endl;
     ASSERT_FALSE(parse_ip_port_vec(bad[i], v));
   }
 }
-
 
 /*
  * Local Variables:

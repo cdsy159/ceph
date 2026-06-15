@@ -20,19 +20,21 @@
  * Copyright (C) 2014 Cloudius Systems, Ltd.
  */
 
-#include "align.h"
 #include "TCP.h"
-#include "IP.h"
-#include "DPDKStack.h"
 
 #include "common/dout.h"
 #include "include/ceph_assert.h"
+
+#include "DPDKStack.h"
+#include "IP.h"
+#include "align.h"
 
 #define dout_subsys ceph_subsys_dpdk
 #undef dout_prefix
 #define dout_prefix *_dout << "tcp "
 
-void tcp_option::parse(uint8_t* beg, uint8_t* end)
+void
+tcp_option::parse(uint8_t* beg, uint8_t* end)
 {
   while (beg < end) {
     auto kind = option_kind(*beg);
@@ -44,41 +46,42 @@ void tcp_option::parse(uint8_t* beg, uint8_t* end)
       }
     }
     switch (kind) {
-      case option_kind::mss:
-        _mss_received = true;
-        _remote_mss = ntoh(reinterpret_cast<mss*>(beg)->mss);
-        beg += option_len::mss;
-        break;
-      case option_kind::win_scale:
-        _win_scale_received = true;
-        _remote_win_scale = reinterpret_cast<win_scale*>(beg)->shift;
-        // We can turn on win_scale option, 7 is Linux's default win scale size
-        _local_win_scale = 7;
-        beg += option_len::win_scale;
-        break;
-      case option_kind::sack:
-        _sack_received = true;
-        beg += option_len::sack;
-        break;
-      case option_kind::nop:
-        beg += option_len::nop;
-        break;
-      case option_kind::eol:
+    case option_kind::mss:
+      _mss_received = true;
+      _remote_mss = ntoh(reinterpret_cast<mss*>(beg)->mss);
+      beg += option_len::mss;
+      break;
+    case option_kind::win_scale:
+      _win_scale_received = true;
+      _remote_win_scale = reinterpret_cast<win_scale*>(beg)->shift;
+      // We can turn on win_scale option, 7 is Linux's default win scale size
+      _local_win_scale = 7;
+      beg += option_len::win_scale;
+      break;
+    case option_kind::sack:
+      _sack_received = true;
+      beg += option_len::sack;
+      break;
+    case option_kind::nop:
+      beg += option_len::nop;
+      break;
+    case option_kind::eol:
+      return;
+    default:
+      // Ignore options we do not understand
+      auto len = *(beg + 1);
+      beg += len;
+      // Prevent infinite loop
+      if (len == 0) {
         return;
-      default:
-        // Ignore options we do not understand
-        auto len = *(beg + 1);
-        beg += len;
-        // Prevent infinite loop
-        if (len == 0) {
-            return;
-        }
-        break;
+      }
+      break;
     }
   }
 }
 
-uint8_t tcp_option::fill(tcp_hdr* th, uint8_t options_size)
+uint8_t
+tcp_option::fill(tcp_hdr* th, uint8_t options_size)
 {
   auto hdr = reinterpret_cast<uint8_t*>(th);
   auto off = hdr + sizeof(tcp_hdr);
@@ -117,7 +120,8 @@ uint8_t tcp_option::fill(tcp_hdr* th, uint8_t options_size)
   return size;
 }
 
-uint8_t tcp_option::get_size(bool syn_on, bool ack_on)
+uint8_t
+tcp_option::get_size(bool syn_on, bool ack_on)
 {
   uint8_t size = 0;
   if (syn_on) {
@@ -136,27 +140,37 @@ uint8_t tcp_option::get_size(bool syn_on, bool ack_on)
   return size;
 }
 
-ipv4_tcp::ipv4_tcp(ipv4& inet, EventCenter *c)
-    : _inet_l4(inet), _tcp(std::unique_ptr<tcp<ipv4_traits>>(new tcp<ipv4_traits>(inet.cct, _inet_l4, c)))
-{ }
+ipv4_tcp::ipv4_tcp(ipv4& inet, EventCenter* c) :
+  _inet_l4(inet),
+  _tcp(std::unique_ptr<tcp<ipv4_traits>>(
+      new tcp<ipv4_traits>(inet.cct, _inet_l4, c)))
+{}
 
-ipv4_tcp::~ipv4_tcp() { }
+ipv4_tcp::~ipv4_tcp() {}
 
-void ipv4_tcp::received(Packet p, ipv4_address from, ipv4_address to)
+void
+ipv4_tcp::received(Packet p, ipv4_address from, ipv4_address to)
 {
   _tcp->received(std::move(p), from, to);
 }
 
-bool ipv4_tcp::forward(forward_hash& out_hash_data, Packet& p, size_t off)
+bool
+ipv4_tcp::forward(forward_hash& out_hash_data, Packet& p, size_t off)
 {
   return _tcp->forward(out_hash_data, p, off);
 }
 
-int tcpv4_listen(tcp<ipv4_traits>& tcpv4, uint16_t port, const SocketOptions &opts,
-                 int type, unsigned addr_slot, ServerSocket *sock)
+int
+tcpv4_listen(
+    tcp<ipv4_traits>& tcpv4,
+    uint16_t port,
+    const SocketOptions& opts,
+    int type,
+    unsigned addr_slot,
+    ServerSocket* sock)
 {
-  auto p = new DPDKServerSocketImpl<tcp<ipv4_traits>>(tcpv4, port, opts,
-						      type, addr_slot);
+  auto p = new DPDKServerSocketImpl<tcp<ipv4_traits>>(
+      tcpv4, port, opts, type, addr_slot);
   int r = p->listen();
   if (r < 0) {
     delete p;
@@ -166,20 +180,28 @@ int tcpv4_listen(tcp<ipv4_traits>& tcpv4, uint16_t port, const SocketOptions &op
   return 0;
 }
 
-int tcpv4_connect(tcp<ipv4_traits>& tcpv4, const entity_addr_t &addr,
-                  ConnectedSocket *sock)
+int
+tcpv4_connect(
+    tcp<ipv4_traits>& tcpv4,
+    const entity_addr_t& addr,
+    ConnectedSocket* sock)
 {
   auto conn = tcpv4.connect(addr);
   *sock = ConnectedSocket(std::unique_ptr<ConnectedSocketImpl>(
-          new NativeConnectedSocketImpl<tcp<ipv4_traits>>(std::move(conn))));
+      new NativeConnectedSocketImpl<tcp<ipv4_traits>>(std::move(conn))));
   return 0;
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::respond_with_reset(tcp_hdr* rth, ipaddr local_ip, ipaddr foreign_ip)
+void
+tcp<InetTraits>::respond_with_reset(
+    tcp_hdr* rth,
+    ipaddr local_ip,
+    ipaddr foreign_ip)
 {
-  ldout(cct, 20) << __func__ << " tcp header rst=" << bool(rth->f_rst) << " fin=" << bool(rth->f_fin)
-                 << " syn=" << bool(rth->f_syn) << dendl;
+  ldout(cct, 20) << __func__ << " tcp header rst=" << bool(rth->f_rst)
+                 << " fin=" << bool(rth->f_fin) << " syn=" << bool(rth->f_syn)
+                 << dendl;
   if (rth->f_rst) {
     return;
   }
@@ -202,7 +224,8 @@ void tcp<InetTraits>::respond_with_reset(tcp_hdr* rth, ipaddr local_ip, ipaddr f
 
   checksummer csum;
   offload_info oi;
-  InetTraits::tcp_pseudo_header_checksum(csum, local_ip, foreign_ip, sizeof(*th));
+  InetTraits::tcp_pseudo_header_checksum(
+      csum, local_ip, foreign_ip, sizeof(*th));
   if (get_hw_features().tx_csum_l4_offload) {
     th->checksum = ~csum.get();
     oi.needs_csum = true;
@@ -221,17 +244,24 @@ void tcp<InetTraits>::respond_with_reset(tcp_hdr* rth, ipaddr local_ip, ipaddr f
 
 #undef dout_prefix
 #define dout_prefix _prefix(_dout)
-template<typename InetTraits>
-std::ostream& tcp<InetTraits>::tcb::_prefix(std::ostream *_dout) {
-  return *_dout << "tcp " << _local_ip << ":" << _local_port << " -> " << _foreign_ip << ":" << _foreign_port
-                << " tcb(" << this << " fd=" << fd << " s=" << _state << ").";
+
+template <typename InetTraits>
+std::ostream&
+tcp<InetTraits>::tcb::_prefix(std::ostream* _dout)
+{
+  return *_dout << "tcp " << _local_ip << ":" << _local_port << " -> "
+                << _foreign_ip << ":" << _foreign_port << " tcb(" << this
+                << " fd=" << fd << " s=" << _state << ").";
 }
 
-template<typename InetTraits>
-void tcp<InetTraits>::tcb::input_handle_listen_state(tcp_hdr* th, Packet p)
+template <typename InetTraits>
+void
+tcp<InetTraits>::tcb::input_handle_listen_state(tcp_hdr* th, Packet p)
 {
   auto opt_len = th->data_offset * 4 - sizeof(tcp_hdr);
-  auto opt_start = reinterpret_cast<uint8_t*>(p.get_header(0, th->data_offset * 4)) + sizeof(tcp_hdr);
+  auto opt_start =
+      reinterpret_cast<uint8_t*>(p.get_header(0, th->data_offset * 4)) +
+      sizeof(tcp_hdr);
   auto opt_end = opt_start + opt_len;
   p.trim_front(th->data_offset * 4);
   tcp_sequence seg_seq = th->seq;
@@ -258,17 +288,21 @@ void tcp<InetTraits>::tcb::input_handle_listen_state(tcp_hdr* th, Packet p)
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::input_handle_syn_sent_state(tcp_hdr* th, Packet p)
+void
+tcp<InetTraits>::tcb::input_handle_syn_sent_state(tcp_hdr* th, Packet p)
 {
   auto opt_len = th->data_offset * 4 - sizeof(tcp_hdr);
-  auto opt_start = reinterpret_cast<uint8_t*>(p.get_header(0, th->data_offset * 4)) + sizeof(tcp_hdr);
+  auto opt_start =
+      reinterpret_cast<uint8_t*>(p.get_header(0, th->data_offset * 4)) +
+      sizeof(tcp_hdr);
   auto opt_end = opt_start + opt_len;
   p.trim_front(th->data_offset * 4);
   tcp_sequence seg_seq = th->seq;
   auto seg_ack = th->ack;
 
-  ldout(_tcp.cct, 20) << __func__ << " tcp header seq " << seg_seq.raw << " ack " << seg_ack.raw
-                      << " fin=" << bool(th->f_fin) << " syn=" << bool(th->f_syn) << dendl;
+  ldout(_tcp.cct, 20) << __func__ << " tcp header seq " << seg_seq.raw
+                      << " ack " << seg_ack.raw << " fin=" << bool(th->f_fin)
+                      << " syn=" << bool(th->f_syn) << dendl;
 
   bool acceptable = false;
   // 3.1 first check the ACK bit
@@ -314,14 +348,16 @@ void tcp<InetTraits>::tcb::input_handle_syn_sent_state(tcp_hdr* th, Packet p)
       // If SND.UNA > ISS (our SYN has been ACKed), change the connection
       // state to ESTABLISHED, form an ACK segment
       // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-      ldout(_tcp.cct, 20) << __func__ << " syn: SYN_SENT -> ESTABLISHED" << dendl;
+      ldout(_tcp.cct, 20) << __func__ << " syn: SYN_SENT -> ESTABLISHED"
+                          << dendl;
       init_from_options(th, opt_start, opt_end);
       do_established();
       output();
     } else {
       // Otherwise enter SYN_RECEIVED, form a SYN,ACK segment
       // <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-      ldout(_tcp.cct, 20) << __func__ << " syn: SYN_SENT -> SYN_RECEIVED" << dendl;
+      ldout(_tcp.cct, 20) << __func__ << " syn: SYN_SENT -> SYN_RECEIVED"
+                          << dendl;
       do_syn_received();
     }
   }
@@ -332,7 +368,8 @@ void tcp<InetTraits>::tcb::input_handle_syn_sent_state(tcp_hdr* th, Packet p)
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
+void
+tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
 {
   p.trim_front(th->data_offset * 4);
   bool do_output = false;
@@ -340,10 +377,12 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
   tcp_sequence seg_seq = th->seq;
   auto seg_ack = th->ack;
   auto seg_len = p.len();
-  ldout(_tcp.cct, 20) << __func__ << " tcp header seq " << seg_seq.raw << " ack " << seg_ack.raw
-                      << " snd next " << _snd.next.raw << " unack " << _snd.unacknowledged.raw
-                      << " rcv next " << _rcv.next.raw << " len " << seg_len
-                      << " fin=" << bool(th->f_fin) << " syn=" << bool(th->f_syn) << dendl;
+  ldout(_tcp.cct, 20) << __func__ << " tcp header seq " << seg_seq.raw
+                      << " ack " << seg_ack.raw << " snd next " << _snd.next.raw
+                      << " unack " << _snd.unacknowledged.raw << " rcv next "
+                      << _rcv.next.raw << " len " << seg_len
+                      << " fin=" << bool(th->f_fin)
+                      << " syn=" << bool(th->f_syn) << dendl;
 
   // 4.1 first check sequence number
   if (!segment_acceptable(seg_seq, seg_len)) {
@@ -365,9 +404,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
 
   if (seg_seq != _rcv.next) {
     ldout(_tcp.cct, 10) << __func__ << " out of order, expect " << _rcv.next.raw
-                        << " actual " << seg_seq.raw
-                        << " out of order size " << _rcv.out_of_order.map.size()
-                        << dendl;
+                        << " actual " << seg_seq.raw << " out of order size "
+                        << _rcv.out_of_order.map.size() << dendl;
     insert_out_of_order(seg_seq, std::move(p));
     // A TCP receiver SHOULD send an immediate duplicate ACK
     // when an out-of-order segment arrives.
@@ -435,12 +473,16 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
       // If SND.UNA =< SEG.ACK =< SND.NXT then enter ESTABLISHED state
       // and continue processing.
       if (_snd.unacknowledged <= seg_ack && seg_ack <= _snd.next) {
-        ldout(_tcp.cct, 20) << __func__ << " SYN_RECEIVED -> ESTABLISHED" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " SYN_RECEIVED -> ESTABLISHED" << dendl;
         do_established();
         if (_tcp.push_listen_queue(_local_port, this)) {
-          ldout(_tcp.cct, 20) << __func__ << " successfully accepting socket" << dendl;
+          ldout(_tcp.cct, 20)
+              << __func__ << " successfully accepting socket" << dendl;
         } else {
-          ldout(_tcp.cct, 5) << __func__ << " not exist listener or full queue, reset" << dendl;
+          ldout(_tcp.cct, 5)
+              << __func__ << " not exist listener or full queue, reset"
+              << dendl;
           return respond_with_reset(th);
         }
       } else {
@@ -450,7 +492,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
     }
     auto update_window = [this, th, seg_seq, seg_ack] {
       ldout(_tcp.cct, 20) << __func__ << " window update seg_seq=" << seg_seq
-                          << " seg_ack=" << seg_ack << " old window=" << th->window
+                          << " seg_ack=" << seg_ack
+                          << " old window=" << th->window
                           << " new window=" << int(_snd.window_scale) << dendl;
       _snd.window = th->window << _snd.window_scale;
       _snd.wl1 = seg_seq;
@@ -496,7 +539,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
           if (seg_ack > _snd.recover) {
             ldout(_tcp.cct, 20) << __func__ << " ack: full_ack" << dendl;
             // Set cwnd to min (ssthresh, max(FlightSize, SMSS) + SMSS)
-            _snd.cwnd = std::min(_snd.ssthresh, std::max(flight_size(), smss) + smss);
+            _snd.cwnd =
+                std::min(_snd.ssthresh, std::max(flight_size(), smss) + smss);
             // Exit the fast recovery procedure
             exit_fast_recovery();
             set_retransmit_timer();
@@ -531,10 +575,10 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
           exit_fast_recovery();
           set_retransmit_timer();
         }
-      } else if (!_snd.data.empty() && seg_len == 0 &&
-                 th->f_fin == 0 && th->f_syn == 0 &&
-                 th->ack == _snd.unacknowledged &&
-                 uint32_t(th->window << _snd.window_scale) == _snd.window) {
+      } else if (
+          !_snd.data.empty() && seg_len == 0 && th->f_fin == 0 &&
+          th->f_syn == 0 && th->ack == _snd.unacknowledged &&
+          uint32_t(th->window << _snd.window_scale) == _snd.window) {
         // Note:
         // RFC793 states:
         // If the ACK is a duplicate (SEG.ACK < SND.UNA), it can be ignored
@@ -554,7 +598,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
           if (seg_ack - 1 > _snd.recover) {
             _snd.recover = _snd.next - 1;
             // RFC5681 Step 3.2
-            _snd.ssthresh = std::max((flight_size() - _snd.limited_transfer) / 2, 2 * smss);
+            _snd.ssthresh =
+                std::max((flight_size() - _snd.limited_transfer) / 2, 2 * smss);
             fast_retransmit();
           } else {
             // Do not enter fast retransmit and do not reset ssthresh
@@ -582,7 +627,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
       // our FIN is now acknowledged then enter FIN-WAIT-2 and continue
       // processing in that state.
       if (seg_ack == _snd.next + 1) {
-        ldout(_tcp.cct, 20) << __func__ << " ack: FIN_WAIT_1 -> FIN_WAIT_2" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " ack: FIN_WAIT_1 -> FIN_WAIT_2" << dendl;
         _state = FIN_WAIT_2;
         do_local_fin_acked();
       }
@@ -597,7 +643,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
     // CLOSING STATE
     if (in_state(CLOSING)) {
       if (seg_ack == _snd.next + 1) {
-        ldout(_tcp.cct, 20) << __func__ << " ack: CLOSING -> TIME_WAIT" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " ack: CLOSING -> TIME_WAIT" << dendl;
         do_local_fin_acked();
         return do_time_wait();
       } else {
@@ -649,7 +696,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
       } else {
         do_output = should_send_ack(seg_len);
       }
-      ldout(_tcp.cct, 20) << __func__ << " merged=" << merged << " do_output=" << do_output << dendl;
+      ldout(_tcp.cct, 20) << __func__ << " merged=" << merged
+                          << " do_output=" << do_output << dendl;
     }
   } else if (in_state(CLOSE_WAIT | CLOSING | LAST_ACK | TIME_WAIT)) {
     // This should not occur, since a FIN has been received from the
@@ -678,7 +726,9 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
       _errno = 0;
 
       if (in_state(SYN_RECEIVED | ESTABLISHED)) {
-        ldout(_tcp.cct, 20) << __func__ << " fin: SYN_RECEIVED or ESTABLISHED -> CLOSE_WAIT" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " fin: SYN_RECEIVED or ESTABLISHED -> CLOSE_WAIT"
+            << dendl;
         _state = CLOSE_WAIT;
         // EOF
       }
@@ -688,11 +738,13 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
         // timers; otherwise enter the CLOSING state.
         // Note: If our FIN has been ACKed, we should be in FIN_WAIT_2
         // not FIN_WAIT_1 if we reach here.
-        ldout(_tcp.cct, 20) << __func__ << " fin: FIN_WAIT_1 -> CLOSING" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " fin: FIN_WAIT_1 -> CLOSING" << dendl;
         _state = CLOSING;
       }
       if (in_state(FIN_WAIT_2)) {
-        ldout(_tcp.cct, 20) << __func__ << " fin: FIN_WAIT_2 -> TIME_WAIT" << dendl;
+        ldout(_tcp.cct, 20)
+            << __func__ << " fin: FIN_WAIT_2 -> TIME_WAIT" << dendl;
         return do_time_wait();
       }
     }
@@ -705,7 +757,8 @@ void tcp<InetTraits>::tcb::input_handle_other_state(tcp_hdr* th, Packet p)
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::connect()
+void
+tcp<InetTraits>::tcb::connect()
 {
   ldout(_tcp.cct, 20) << __func__ << dendl;
   // An initial send sequence number (ISS) is selected.  A SYN segment of the
@@ -724,7 +777,8 @@ void tcp<InetTraits>::tcb::connect()
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::close_final_cleanup()
+void
+tcp<InetTraits>::tcb::close_final_cleanup()
 {
   if (_snd._all_data_acked_fd >= 0) {
     center->delete_file_event(_snd._all_data_acked_fd, EVENT_READABLE);
@@ -748,11 +802,12 @@ void tcp<InetTraits>::tcb::close_final_cleanup()
   // tcp::tcb::get_packet(), packet with FIN will not be generated.
   output_one();
   output();
-  center->delete_file_event(fd, EVENT_READABLE|EVENT_WRITABLE);
+  center->delete_file_event(fd, EVENT_READABLE | EVENT_WRITABLE);
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::retransmit()
+void
+tcp<InetTraits>::tcb::retransmit()
 {
   auto output_update_rto = [this] {
     output();
@@ -827,7 +882,9 @@ void tcp<InetTraits>::tcb::retransmit()
 }
 
 template <typename InetTraits>
-void tcp<InetTraits>::tcb::persist() {
+void
+tcp<InetTraits>::tcb::persist()
+{
   ldout(_tcp.cct, 20) << __func__ << " persist timer fired" << dendl;
   // Send 1 byte packet to probe peer's window size
   _snd.window_probe = true;

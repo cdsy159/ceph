@@ -12,15 +12,21 @@
  * Foundation.  See file COPYING.
  */
 
-#include "include/rados/librados.hpp"
 #include "client.h"
+
+#include "include/rados/librados.hpp"
+
 #include "ops.h"
 
 namespace cls::cmpomap {
 
-int cmp_vals(librados::ObjectReadOperation& op,
-             Mode mode, Op comparison, ComparisonMap values,
-             std::optional<ceph::bufferlist> default_value)
+int
+cmp_vals(
+    librados::ObjectReadOperation& op,
+    Mode mode,
+    Op comparison,
+    ComparisonMap values,
+    std::optional<ceph::bufferlist> default_value)
 {
   if (values.size() > max_keys) {
     return -E2BIG;
@@ -37,9 +43,13 @@ int cmp_vals(librados::ObjectReadOperation& op,
   return 0;
 }
 
-int cmp_set_vals(librados::ObjectWriteOperation& op,
-                 Mode mode, Op comparison, ComparisonMap values,
-                 std::optional<ceph::bufferlist> default_value)
+int
+cmp_set_vals(
+    librados::ObjectWriteOperation& op,
+    Mode mode,
+    Op comparison,
+    ComparisonMap values,
+    std::optional<ceph::bufferlist> default_value)
 {
   if (values.size() > max_keys) {
     return -E2BIG;
@@ -56,8 +66,12 @@ int cmp_set_vals(librados::ObjectWriteOperation& op,
   return 0;
 }
 
-int cmp_rm_keys(librados::ObjectWriteOperation& op,
-                Mode mode, Op comparison, ComparisonMap values)
+int
+cmp_rm_keys(
+    librados::ObjectWriteOperation& op,
+    Mode mode,
+    Op comparison,
+    ComparisonMap values)
 {
   if (values.size() > max_keys) {
     return -E2BIG;

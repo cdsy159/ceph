@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "rgw_cr_rados.h"
-#include "rgw_tools.h"
-#include "rgw_lc.h"
-
 #include "services/svc_bucket_sync.h"
+
+#include "rgw_cr_rados.h"
+#include "rgw_lc.h"
+#include "rgw_tools.h"
 
 struct rgw_user_create_params {
   rgw_user user;
@@ -43,8 +43,8 @@ struct rgw_get_bucket_info_result {
   std::unique_ptr<rgw::sal::Bucket> bucket;
 };
 
-using RGWGetBucketInfoCR = RGWSimpleAsyncCR<rgw_get_bucket_info_params, rgw_get_bucket_info_result>;
-
+using RGWGetBucketInfoCR =
+    RGWSimpleAsyncCR<rgw_get_bucket_info_params, rgw_get_bucket_info_result>;
 
 struct rgw_bucket_lifecycle_config_params {
   rgw::sal::Bucket* bucket;
@@ -52,7 +52,8 @@ struct rgw_bucket_lifecycle_config_params {
   RGWLifecycleConfiguration config;
 };
 
-using RGWBucketLifecycleConfigCR = RGWSimpleWriteOnlyAsyncCR<rgw_bucket_lifecycle_config_params>;
+using RGWBucketLifecycleConfigCR =
+    RGWSimpleWriteOnlyAsyncCR<rgw_bucket_lifecycle_config_params>;
 
 struct rgw_bucket_get_sync_policy_params {
   std::optional<rgw_zone_id> zone;
@@ -63,5 +64,6 @@ struct rgw_bucket_get_sync_policy_result {
   RGWBucketSyncPolicyHandlerRef policy_handler;
 };
 
-using RGWBucketGetSyncPolicyHandlerCR = RGWSimpleAsyncCR<rgw_bucket_get_sync_policy_params, rgw_bucket_get_sync_policy_result>;
-
+using RGWBucketGetSyncPolicyHandlerCR = RGWSimpleAsyncCR<
+    rgw_bucket_get_sync_policy_params,
+    rgw_bucket_get_sync_policy_result>;

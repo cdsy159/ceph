@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,34 +15,43 @@
  *
  */
 
-#include "msg/async/net_handler.h"
-#include "RDMAStack.h"
-
 #include "include/compat.h"
 #include "include/sock_compat.h"
+#include "msg/async/net_handler.h"
+
+#include "RDMAStack.h"
 
 #define dout_subsys ceph_subsys_ms
 #undef dout_prefix
 #define dout_prefix *_dout << " RDMAServerSocketImpl "
 
 RDMAServerSocketImpl::RDMAServerSocketImpl(
-  CephContext *cct, std::shared_ptr<Infiniband>& ib,
-  std::shared_ptr<RDMADispatcher>& rdma_dispatcher,
-  RDMAWorker *w, entity_addr_t& a, unsigned slot)
-  : ServerSocketImpl(a.get_type(), slot),
-    cct(cct), net(cct), server_setup_socket(-1), ib(ib),
-    dispatcher(rdma_dispatcher), worker(w), sa(a)
-{
-}
+    CephContext* cct,
+    std::shared_ptr<Infiniband>& ib,
+    std::shared_ptr<RDMADispatcher>& rdma_dispatcher,
+    RDMAWorker* w,
+    entity_addr_t& a,
+    unsigned slot) :
+  ServerSocketImpl(a.get_type(), slot),
+  cct(cct),
+  net(cct),
+  server_setup_socket(-1),
+  ib(ib),
+  dispatcher(rdma_dispatcher),
+  worker(w),
+  sa(a)
+{}
 
-int RDMAServerSocketImpl::listen(entity_addr_t &sa, const SocketOptions &opt)
+int
+RDMAServerSocketImpl::listen(entity_addr_t& sa, const SocketOptions& opt)
 {
   int rc = 0;
   server_setup_socket = net.create_socket(sa.get_family(), true);
   if (server_setup_socket < 0) {
     rc = -errno;
-    lderr(cct) << __func__ << " failed to create server socket: "
-               << cpp_strerror(errno) << dendl;
+    lderr(cct) << __func__
+               << " failed to create server socket: " << cpp_strerror(errno)
+               << dendl;
     return rc;
   }
 
@@ -60,18 +69,21 @@ int RDMAServerSocketImpl::listen(entity_addr_t &sa, const SocketOptions &opt)
   if (rc < 0) {
     rc = -errno;
     ldout(cct, 10) << __func__ << " unable to bind to " << sa.get_sockaddr()
-                   << " on port " << sa.get_port() << ": " << cpp_strerror(errno) << dendl;
+                   << " on port " << sa.get_port() << ": "
+                   << cpp_strerror(errno) << dendl;
     goto err;
   }
 
   rc = ::listen(server_setup_socket, cct->_conf->ms_tcp_listen_backlog);
   if (rc < 0) {
     rc = -errno;
-    lderr(cct) << __func__ << " unable to listen on " << sa << ": " << cpp_strerror(errno) << dendl;
+    lderr(cct) << __func__ << " unable to listen on " << sa << ": "
+               << cpp_strerror(errno) << dendl;
     goto err;
   }
 
-  ldout(cct, 20) << __func__ << " bind to " << sa.get_sockaddr() << " on port " << sa.get_port()  << dendl;
+  ldout(cct, 20) << __func__ << " bind to " << sa.get_sockaddr() << " on port "
+                 << sa.get_port() << dendl;
   return 0;
 
 err:
@@ -80,7 +92,12 @@ err:
   return rc;
 }
 
-int RDMAServerSocketImpl::accept(ConnectedSocket *sock, const SocketOptions &opt, entity_addr_t *out, Worker *w)
+int
+RDMAServerSocketImpl::accept(
+    ConnectedSocket* sock,
+    const SocketOptions& opt,
+    entity_addr_t* out,
+    Worker* w)
 {
   ldout(cct, 15) << __func__ << dendl;
 
@@ -113,7 +130,8 @@ int RDMAServerSocketImpl::accept(ConnectedSocket *sock, const SocketOptions &opt
 
   RDMAConnectedSocketImpl* server;
   //Worker* w = dispatcher->get_stack()->get_worker();
-  server = new RDMAConnectedSocketImpl(cct, ib, dispatcher, dynamic_cast<RDMAWorker*>(w));
+  server = new RDMAConnectedSocketImpl(
+      cct, ib, dispatcher, dynamic_cast<RDMAWorker*>(w));
   if (!server->get_qp()) {
     lderr(cct) << __func__ << " server->qp is null" << dendl;
     // cann't use delete server here, destructor will fail.
@@ -129,7 +147,8 @@ int RDMAServerSocketImpl::accept(ConnectedSocket *sock, const SocketOptions &opt
   return 0;
 }
 
-void RDMAServerSocketImpl::abort_accept()
+void
+RDMAServerSocketImpl::abort_accept()
 {
   if (server_setup_socket >= 0)
     ::close(server_setup_socket);

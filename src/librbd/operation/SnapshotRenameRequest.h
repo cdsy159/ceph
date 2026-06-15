@@ -4,8 +4,9 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_RENAME_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_RENAME_REQUEST_H
 
-#include "librbd/operation/Request.h"
 #include <string>
+
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -38,8 +39,11 @@ public:
     STATE_RENAME_SNAP
   };
 
-  SnapshotRenameRequest(ImageCtxT &image_ctx, Context *on_finish,
-                        uint64_t snap_id, const std::string &snap_name);
+  SnapshotRenameRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      uint64_t snap_id,
+      const std::string& snap_name);
 
   journal::Event create_event(uint64_t op_tid) const override;
 

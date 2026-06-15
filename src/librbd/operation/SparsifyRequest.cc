@@ -2,6 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/SparsifyRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
+#include <boost/lambda/bind.hpp>
+#include <boost/lambda/construct.hpp>
+
 #include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
@@ -13,10 +19,6 @@
 #include "librbd/io/ObjectRequest.h"
 #include "librbd/io/Utils.h"
 #include "osdc/Striper.h"
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/construct.hpp>
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_subsys ceph_subsys_rbd
 
@@ -25,9 +27,13 @@ namespace operation {
 
 namespace {
 
-bool may_be_trimmed(const std::map<uint64_t,uint64_t> &extent_map,
-                    const bufferlist &bl, size_t sparse_size,
-                    uint64_t *new_end_ptr) {
+bool
+may_be_trimmed(
+    const std::map<uint64_t, uint64_t>& extent_map,
+    const bufferlist& bl,
+    size_t sparse_size,
+    uint64_t* new_end_ptr)
+{
   if (extent_map.empty()) {
     *new_end_ptr = 0;
     return true;
@@ -79,13 +85,13 @@ using util::create_context_callback;
 using util::create_rados_callback;
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::operation::SparsifyObject: " << this \
-                           << " " << m_oid << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::operation::SparsifyObject: " << this << " " << m_oid \
+         << " " << __func__ << ": "
 
 template <typename I>
 class C_SparsifyObject : public C_AsyncObjectThrottle<I> {
 public:
-
   /**
    * @verbatim
    *
@@ -114,15 +120,22 @@ public:
    *
    */
 
-  C_SparsifyObject(AsyncObjectThrottle<I> &throttle, I *image_ctx,
-                   uint64_t object_no, size_t sparse_size)
-    : C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_cct(image_ctx->cct),
-      m_object_no(object_no), m_sparse_size(sparse_size),
-      m_oid(image_ctx->get_object_name(object_no)) {
-  }
+  C_SparsifyObject(
+      AsyncObjectThrottle<I>& throttle,
+      I* image_ctx,
+      uint64_t object_no,
+      size_t sparse_size) :
+    C_AsyncObjectThrottle<I>(throttle, *image_ctx),
+    m_cct(image_ctx->cct),
+    m_object_no(object_no),
+    m_sparse_size(sparse_size),
+    m_oid(image_ctx->get_object_name(object_no))
+  {}
 
-  int send() override {
-    I &image_ctx = this->m_image_ctx;
+  int
+  send() override
+  {
+    I& image_ctx = this->m_image_ctx;
     ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
     ldout(m_cct, 20) << dendl;
@@ -153,8 +166,8 @@ public:
       if (raw_overlap > 0) {
         auto [parent_extents, area] = io::util::object_to_area_extents(
             &image_ctx, m_object_no, {{0, image_ctx.layout.object_size}});
-        object_overlap = image_ctx.prune_parent_extents(parent_extents, area,
-                                                        raw_overlap, false);
+        object_overlap = image_ctx.prune_parent_extents(
+            parent_extents, area, raw_overlap, false);
       }
       m_remove_empty = object_overlap == 0;
     }
@@ -163,20 +176,24 @@ public:
     return 0;
   }
 
-  void send_sparsify() {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_sparsify()
+  {
+    I& image_ctx = this->m_image_ctx;
     ldout(m_cct, 20) << dendl;
 
     librados::ObjectWriteOperation op;
     cls_client::sparsify(&op, m_sparse_size, m_remove_empty);
     auto comp = create_rados_callback<
-      C_SparsifyObject, &C_SparsifyObject::handle_sparsify>(this);
+        C_SparsifyObject, &C_SparsifyObject::handle_sparsify>(this);
     int r = image_ctx.data_ctx.aio_operate(m_oid, comp, &op);
     ceph_assert(r == 0);
     comp->release();
   }
 
-  void handle_sparsify(int r) {
+  void
+  handle_sparsify(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (r == -EOPNOTSUPP) {
@@ -199,8 +216,10 @@ public:
     send_pre_update_object_map();
   }
 
-  void send_pre_update_object_map() {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_pre_update_object_map()
+  {
+    I& image_ctx = this->m_image_ctx;
 
     if (m_trying_trim) {
       if (!m_remove_empty || m_new_end != 0 ||
@@ -208,8 +227,8 @@ public:
         send_trim();
         return;
       }
-    } else if (!m_remove_empty ||
-               !image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    } else if (
+        !m_remove_empty || !image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
       finish_op(0);
       return;
     }
@@ -239,12 +258,13 @@ public:
     }
 
     auto ctx = create_context_callback<
-      C_SparsifyObject<I>,
-      &C_SparsifyObject<I>::handle_pre_update_object_map>(this);
+        C_SparsifyObject<I>, &C_SparsifyObject<I>::handle_pre_update_object_map>(
+        this);
 
-    bool sent = image_ctx.object_map->template aio_update<
-      Context, &Context::complete>(CEPH_NOSNAP, m_object_no, OBJECT_PENDING,
-                                   OBJECT_EXISTS, {}, false, ctx);
+    bool sent =
+        image_ctx.object_map->template aio_update<Context, &Context::complete>(
+            CEPH_NOSNAP, m_object_no, OBJECT_PENDING, OBJECT_EXISTS, {}, false,
+            ctx);
 
     // NOTE: state machine might complete before we reach here
     image_ctx.image_lock.unlock_shared();
@@ -254,7 +274,9 @@ public:
     }
   }
 
-  void handle_pre_update_object_map(int r) {
+  void
+  handle_pre_update_object_map(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (r < 0) {
@@ -271,8 +293,10 @@ public:
     }
   }
 
-  void send_check_exists() {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_check_exists()
+  {
+    I& image_ctx = this->m_image_ctx;
 
     ldout(m_cct, 20) << dendl;
 
@@ -280,13 +304,15 @@ public:
     op.stat(NULL, NULL, NULL);
     m_bl.clear();
     auto comp = create_rados_callback<
-      C_SparsifyObject, &C_SparsifyObject::handle_check_exists>(this);
+        C_SparsifyObject, &C_SparsifyObject::handle_check_exists>(this);
     int r = image_ctx.data_ctx.aio_operate(m_oid, comp, &op, &m_bl);
     ceph_assert(r == 0);
     comp->release();
   }
 
-  void handle_check_exists(int r) {
+  void
+  handle_check_exists(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (r < 0 && r != -ENOENT) {
@@ -298,14 +324,16 @@ public:
     send_post_update_object_map(r == 0);
   }
 
-  void send_post_update_object_map(bool exists) {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_post_update_object_map(bool exists)
+  {
+    I& image_ctx = this->m_image_ctx;
 
     ldout(m_cct, 20) << dendl;
 
     auto ctx = create_context_callback<
-      C_SparsifyObject<I>,
-      &C_SparsifyObject<I>::handle_post_update_object_map>(this);
+        C_SparsifyObject<I>, &C_SparsifyObject<I>::handle_post_update_object_map>(
+        this);
     bool sent;
     {
       std::shared_lock owner_locker{image_ctx.owner_lock};
@@ -314,17 +342,20 @@ public:
       assert(image_ctx.exclusive_lock->is_lock_owner());
       assert(image_ctx.object_map != nullptr);
 
-      sent = image_ctx.object_map->template aio_update<
-        Context, &Context::complete>(CEPH_NOSNAP, m_object_no,
-                                     exists ? OBJECT_EXISTS : OBJECT_NONEXISTENT,
-                                     OBJECT_PENDING, {}, false, ctx);
+      sent =
+          image_ctx.object_map->template aio_update<Context, &Context::complete>(
+              CEPH_NOSNAP, m_object_no,
+              exists ? OBJECT_EXISTS : OBJECT_NONEXISTENT, OBJECT_PENDING, {},
+              false, ctx);
     }
     if (!sent) {
       ctx->complete(0);
     }
   }
 
-  void handle_post_update_object_map(int r) {
+  void
+  handle_post_update_object_map(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (r < 0) {
@@ -337,23 +368,28 @@ public:
     finish_op(0);
   }
 
-  void send_read() {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_read()
+  {
+    I& image_ctx = this->m_image_ctx;
 
     ldout(m_cct, 20) << dendl;
 
     librados::ObjectReadOperation op;
     m_bl.clear();
-    op.sparse_read(0, image_ctx.layout.object_size, &m_extent_map, &m_bl,
-                   nullptr);
-    auto comp = create_rados_callback<
-      C_SparsifyObject, &C_SparsifyObject::handle_read>(this);
+    op.sparse_read(
+        0, image_ctx.layout.object_size, &m_extent_map, &m_bl, nullptr);
+    auto comp =
+        create_rados_callback<C_SparsifyObject, &C_SparsifyObject::handle_read>(
+            this);
     int r = image_ctx.data_ctx.aio_operate(m_oid, comp, &op, &m_bl);
     ceph_assert(r == 0);
     comp->release();
   }
 
-  void handle_read(int r) {
+  void
+  handle_read(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (r < 0) {
@@ -374,8 +410,10 @@ public:
     send_pre_update_object_map();
   }
 
-  void send_trim() {
-    I &image_ctx = this->m_image_ctx;
+  void
+  send_trim()
+  {
+    I& image_ctx = this->m_image_ctx;
 
     ldout(m_cct, 20) << dendl;
 
@@ -391,15 +429,18 @@ public:
       op.truncate(m_new_end);
     }
 
-    auto comp = create_rados_callback<
-      C_SparsifyObject, &C_SparsifyObject::handle_trim>(this);
+    auto comp =
+        create_rados_callback<C_SparsifyObject, &C_SparsifyObject::handle_trim>(
+            this);
     int r = image_ctx.data_ctx.aio_operate(m_oid, comp, &op);
     ceph_assert(r == 0);
     comp->release();
   }
 
-  void handle_trim(int r) {
-    I &image_ctx = this->m_image_ctx;
+  void
+  handle_trim(int r)
+  {
+    I& image_ctx = this->m_image_ctx;
 
     ldout(m_cct, 20) << "r=" << r << dendl;
 
@@ -425,7 +466,9 @@ public:
     send_post_update_object_map(false);
   }
 
-  void finish_op(int r) {
+  void
+  finish_op(int r)
+  {
     ldout(m_cct, 20) << "r=" << r << dendl;
 
     if (m_finish_op_ctx != nullptr) {
@@ -435,7 +478,7 @@ public:
   }
 
 private:
-  CephContext *m_cct;
+  CephContext* m_cct;
   uint64_t m_object_no;
   size_t m_sparse_size;
   std::string m_oid;
@@ -443,19 +486,22 @@ private:
   bool m_remove_empty = false;
   bool m_trying_trim = false;
   bufferlist m_bl;
-  std::map<uint64_t,uint64_t> m_extent_map;
+  std::map<uint64_t, uint64_t> m_extent_map;
   uint64_t m_new_end = 0;
-  Context *m_finish_op_ctx = nullptr;
+  Context* m_finish_op_ctx = nullptr;
 };
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::operation::SparsifyRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                           \
+  *_dout << "librbd::operation::SparsifyRequest: " << this << " " << __func__ \
+         << ": "
 
 template <typename I>
-bool SparsifyRequest<I>::should_complete(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+bool
+SparsifyRequest<I>::should_complete(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
   if (r < 0) {
     lderr(cct) << "encountered error: " << cpp_strerror(r) << dendl;
@@ -464,16 +510,20 @@ bool SparsifyRequest<I>::should_complete(int r) {
 }
 
 template <typename I>
-void SparsifyRequest<I>::send_op() {
+void
+SparsifyRequest<I>::send_op()
+{
   sparsify_objects();
 }
 
 template <typename I>
-void SparsifyRequest<I>::sparsify_objects() {
-  I &image_ctx = this->m_image_ctx;
+void
+SparsifyRequest<I>::sparsify_objects()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << dendl;
 
   assert(ceph_mutex_is_locked(image_ctx.owner_lock));
@@ -485,21 +535,23 @@ void SparsifyRequest<I>::sparsify_objects() {
   }
 
   auto ctx = create_context_callback<
-    SparsifyRequest<I>,
-    &SparsifyRequest<I>::handle_sparsify_objects>(this);
+      SparsifyRequest<I>, &SparsifyRequest<I>::handle_sparsify_objects>(this);
   typename AsyncObjectThrottle<I>::ContextFactory context_factory(
-    boost::lambda::bind(boost::lambda::new_ptr<C_SparsifyObject<I> >(),
-      boost::lambda::_1, &image_ctx, boost::lambda::_2, m_sparse_size));
-  AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
-    this, image_ctx, context_factory, ctx, &m_prog_ctx, 0, objects);
-  throttle->start_ops(
-    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
+      boost::lambda::bind(
+          boost::lambda::new_ptr<C_SparsifyObject<I>>(), boost::lambda::_1,
+          &image_ctx, boost::lambda::_2, m_sparse_size));
+  AsyncObjectThrottle<I>* throttle = new AsyncObjectThrottle<I>(
+      this, image_ctx, context_factory, ctx, &m_prog_ctx, 0, objects);
+  throttle->start_ops(image_ctx.config.template get_val<uint64_t>(
+      "rbd_concurrent_management_ops"));
 }
 
 template <typename I>
-void SparsifyRequest<I>::handle_sparsify_objects(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+SparsifyRequest<I>::handle_sparsify_objects(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
 
   if (r == -ERESTART) {

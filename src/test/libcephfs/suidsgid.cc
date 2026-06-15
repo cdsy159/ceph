@@ -13,23 +13,25 @@
  *
  */
 
-#include "gtest/gtest.h"
-#include "common/ceph_argparse.h"
-#include "include/buffer.h"
-#include "include/fs_types.h"
-#include "include/stringify.h"
-#include "include/cephfs/libcephfs.h"
-#include "include/rados/librados.h"
-#include <cerrno>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h>
+#include <sys/types.h>
 #include <sys/uio.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <iostream>
 #include <vector>
+
+#include "common/ceph_argparse.h"
+#include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/fs_types.h"
+#include "include/rados/librados.h"
+#include "include/stringify.h"
 #include "json_spirit/json_spirit.h"
 
 #ifdef __linux__
@@ -38,18 +40,19 @@
 #endif
 
 using namespace std;
-struct ceph_mount_info *admin;
-struct ceph_mount_info *cmount;
+struct ceph_mount_info* admin;
+struct ceph_mount_info* cmount;
 char filename[128];
 
-void run_fallocate_test_case(int mode, int result, bool with_admin=false)
+void
+run_fallocate_test_case(int mode, int result, bool with_admin = false)
 {
   struct ceph_statx stx;
   int flags = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
 
   ASSERT_EQ(0, ceph_chmod(admin, filename, mode));
 
-  struct ceph_mount_info *_cmount = cmount;
+  struct ceph_mount_info* _cmount = cmount;
   if (with_admin) {
     _cmount = admin;
   }
@@ -59,21 +62,21 @@ void run_fallocate_test_case(int mode, int result, bool with_admin=false)
   ASSERT_EQ(ceph_statx(_cmount, filename, &stx, CEPH_STATX_MODE, 0), 0);
   std::cout << "After ceph_fallocate, mode: 0" << oct << mode << " -> 0"
             << (stx.stx_mode & 07777) << dec << std::endl;
-  ASSERT_EQ(stx.stx_mode & (S_ISUID|S_ISGID), result);
+  ASSERT_EQ(stx.stx_mode & (S_ISUID | S_ISGID), result);
   ceph_close(_cmount, fd);
 }
 
 rados_t cluster;
 
-int do_mon_command(string s, string *key)
+int
+do_mon_command(string s, string* key)
 {
   char *outs, *outbuf;
   size_t outs_len, outbuf_len;
-  const char *ss = s.c_str();
-  int r = rados_mon_command(cluster, (const char **)&ss, 1,
-			    0, 0,
-			    &outbuf, &outbuf_len,
-			    &outs, &outs_len);
+  const char* ss = s.c_str();
+  int r = rados_mon_command(
+      cluster, (const char**)&ss, 1, 0, 0, &outbuf, &outbuf_len, &outs,
+      &outs_len);
   if (outbuf_len) {
     string s(outbuf, outbuf_len);
     std::cout << "out: " << s << std::endl;
@@ -96,13 +99,14 @@ int do_mon_command(string s, string *key)
   return r;
 }
 
-void run_write_test_case(int mode, int result, bool with_admin=false)
+void
+run_write_test_case(int mode, int result, bool with_admin = false)
 {
   struct ceph_statx stx;
 
   ASSERT_EQ(0, ceph_chmod(admin, filename, mode));
 
-  struct ceph_mount_info *_cmount = cmount;
+  struct ceph_mount_info* _cmount = cmount;
   if (with_admin) {
     _cmount = admin;
   }
@@ -112,17 +116,18 @@ void run_write_test_case(int mode, int result, bool with_admin=false)
   ASSERT_EQ(ceph_statx(_cmount, filename, &stx, CEPH_STATX_MODE, 0), 0);
   std::cout << "After ceph_write, mode: 0" << oct << mode << " -> 0"
             << (stx.stx_mode & 07777) << dec << std::endl;
-  ASSERT_EQ(stx.stx_mode & (S_ISUID|S_ISGID), result);
+  ASSERT_EQ(stx.stx_mode & (S_ISUID | S_ISGID), result);
   ceph_close(_cmount, fd);
 }
 
-void run_truncate_test_case(int mode, int result, size_t size, bool with_admin=false)
+void
+run_truncate_test_case(int mode, int result, size_t size, bool with_admin = false)
 {
   struct ceph_statx stx;
 
   ASSERT_EQ(0, ceph_chmod(admin, filename, mode));
 
-  struct ceph_mount_info *_cmount = cmount;
+  struct ceph_mount_info* _cmount = cmount;
   if (with_admin) {
     _cmount = admin;
   }
@@ -130,13 +135,14 @@ void run_truncate_test_case(int mode, int result, size_t size, bool with_admin=f
   ASSERT_LE(0, fd);
   ASSERT_GE(ceph_ftruncate(_cmount, fd, size), 0);
   ASSERT_EQ(ceph_statx(_cmount, filename, &stx, CEPH_STATX_MODE, 0), 0);
-  std::cout << "After ceph_truncate size " << size << " mode: 0" << oct
-            << mode << " -> 0" << (stx.stx_mode & 07777) << dec << std::endl;
-  ASSERT_EQ(stx.stx_mode & (S_ISUID|S_ISGID), result);
+  std::cout << "After ceph_truncate size " << size << " mode: 0" << oct << mode
+            << " -> 0" << (stx.stx_mode & 07777) << dec << std::endl;
+  ASSERT_EQ(stx.stx_mode & (S_ISUID | S_ISGID), result);
   ceph_close(_cmount, fd);
 }
 
-void run_change_mode_test_case()
+void
+run_change_mode_test_case()
 {
   char c_dir[1024];
   sprintf(c_dir, "/mode_test_%d", getpid());
@@ -144,9 +150,11 @@ void run_change_mode_test_case()
   ASSERT_EQ(ceph_chmod(cmount, c_dir, 0777), -EPERM);
 }
 
-static void run_set_sgid_suid_test_case(int old_suid_sgid,
-					int new_suid_sgid,
-					int expected_result)
+static void
+run_set_sgid_suid_test_case(
+    int old_suid_sgid,
+    int new_suid_sgid,
+    int expected_result)
 {
   char c_dir[1024];
   sprintf(c_dir, "/mode_test_%d", getpid());
@@ -155,31 +163,37 @@ static void run_set_sgid_suid_test_case(int old_suid_sgid,
   ASSERT_EQ(ceph_chmod(cmount, c_dir, mode | new_suid_sgid), expected_result);
 }
 
-TEST(SuidsgidTest, WriteClearSetuid) {
+TEST(SuidsgidTest, WriteClearSetuid)
+{
   ASSERT_EQ(0, ceph_create(&admin, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(admin, NULL));
   ASSERT_EQ(0, ceph_conf_parse_env(admin, NULL));
   ASSERT_EQ(0, ceph_mount(admin, "/"));
 
   sprintf(filename, "/clear_suidsgid_file_%d", getpid());
-  int fd = ceph_open(admin, filename, O_CREAT|O_RDWR, 0766);
+  int fd = ceph_open(admin, filename, O_CREAT | O_RDWR, 0766);
   ASSERT_GE(ceph_ftruncate(admin, fd, 10000000), 0);
   ceph_close(admin, fd);
 
   string user = "clear_suidsgid_" + stringify(rand());
   // create access key
   string key;
-  ASSERT_EQ(0, do_mon_command(
-      "{\"prefix\": \"auth get-or-create\", \"entity\": \"client." + user + "\", "
-      "\"caps\": [\"mon\", \"allow *\", \"osd\", \"allow *\", \"mgr\", \"allow *\", "
-      "\"mds\", \"allow *\"], \"format\": \"json\"}", &key));
+  ASSERT_EQ(
+      0,
+      do_mon_command(
+          "{\"prefix\": \"auth get-or-create\", \"entity\": \"client." + user +
+              "\", "
+              "\"caps\": [\"mon\", \"allow *\", \"osd\", \"allow *\", \"mgr\", "
+              "\"allow *\", "
+              "\"mds\", \"allow *\"], \"format\": \"json\"}",
+          &key));
 
   ASSERT_EQ(0, ceph_create(&cmount, user.c_str()));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
   ASSERT_EQ(0, ceph_conf_set(cmount, "key", key.c_str()));
   ASSERT_EQ(ceph_init(cmount), 0);
-  UserPerm *perms = ceph_userperm_new(123, 456, 0, NULL);
+  UserPerm* perms = ceph_userperm_new(123, 456, 0, NULL);
   ASSERT_NE(nullptr, perms);
   ASSERT_EQ(0, ceph_mount_perms_set(cmount, perms));
   ceph_userperm_destroy(perms);
@@ -198,16 +212,16 @@ TEST(SuidsgidTest, WriteClearSetuid) {
   run_fallocate_test_case(06777, 0); // a+rwxs
 
   // 5, Commit to a non-exec file by root leaves suid and sgid.
-  run_fallocate_test_case(06666, S_ISUID|S_ISGID, true); // a+rws
+  run_fallocate_test_case(06666, S_ISUID | S_ISGID, true); // a+rws
 
   // 6, Commit to a group-exec file by root leaves suid and sgid.
-  run_fallocate_test_case(06676, S_ISUID|S_ISGID, true); // g+x,a+rws
+  run_fallocate_test_case(06676, S_ISUID | S_ISGID, true); // g+x,a+rws
 
   // 7, Commit to a user-exec file by root leaves suid and sgid.
-  run_fallocate_test_case(06766, S_ISUID|S_ISGID, true); // u+x,a+rws,g-x
+  run_fallocate_test_case(06766, S_ISUID | S_ISGID, true); // u+x,a+rws,g-x
 
   // 8, Commit to a all-exec file by root leaves suid and sgid.
-  run_fallocate_test_case(06777, S_ISUID|S_ISGID, true); // a+rwxs
+  run_fallocate_test_case(06777, S_ISUID | S_ISGID, true); // a+rwxs
 
   // 9, Commit to a group-exec file by an unprivileged user clears sgid
   run_fallocate_test_case(02676, 0); // a+rw,g+rwxs
@@ -244,40 +258,46 @@ TEST(SuidsgidTest, WriteClearSetuid) {
   ceph_shutdown(admin);
 }
 
-TEST(LibCephFS, ChownClearSetuid) {
-  struct ceph_mount_info *cmount;
+TEST(LibCephFS, ChownClearSetuid)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(ceph_create(&cmount, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(cmount, NULL), 0);
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
   ASSERT_EQ(ceph_mount(cmount, "/"), 0);
 
-  Inode *root;
+  Inode* root;
   ASSERT_EQ(ceph_ll_lookup_root(cmount, &root), 0);
 
   char filename[32];
   sprintf(filename, "clearsetuid%x", getpid());
 
-  Fh *fh;
-  Inode *in;
+  Fh* fh;
+  Inode* in;
   struct ceph_statx stx;
   const mode_t after_mode = S_IRWXU;
   const mode_t before_mode = S_IRWXU | S_ISUID | S_ISGID;
-  const unsigned want = CEPH_STATX_UID|CEPH_STATX_GID|CEPH_STATX_MODE;
-  UserPerm *usercred = ceph_mount_perms(cmount);
+  const unsigned want = CEPH_STATX_UID | CEPH_STATX_GID | CEPH_STATX_MODE;
+  UserPerm* usercred = ceph_mount_perms(cmount);
 
   ceph_ll_unlink(cmount, root, filename, usercred);
-  ASSERT_EQ(ceph_ll_create(cmount, root, filename, before_mode,
-                          O_RDWR|O_CREAT|O_EXCL, &in, &fh, &stx, want, 0,
-                          usercred), 0);
+  ASSERT_EQ(
+      ceph_ll_create(
+          cmount, root, filename, before_mode, O_RDWR | O_CREAT | O_EXCL, &in,
+          &fh, &stx, want, 0, usercred),
+      0);
 
   ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, before_mode);
 
   // chown  -- for this we need to be "root"
-  UserPerm *rootcred = ceph_userperm_new(0, 0, 0, NULL);
+  UserPerm* rootcred = ceph_userperm_new(0, 0, 0, NULL);
   ASSERT_TRUE(rootcred);
   stx.stx_uid++;
   stx.stx_gid++;
-  ASSERT_EQ(ceph_ll_setattr(cmount, in, &stx, CEPH_SETATTR_UID|CEPH_SETATTR_GID, rootcred), 0);
+  ASSERT_EQ(
+      ceph_ll_setattr(
+          cmount, in, &stx, CEPH_SETATTR_UID | CEPH_SETATTR_GID, rootcred),
+      0);
   ASSERT_EQ(ceph_ll_getattr(cmount, in, &stx, CEPH_STATX_MODE, 0, usercred), 0);
   ASSERT_TRUE(stx.stx_mask & CEPH_STATX_MODE);
   ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, after_mode);
@@ -285,39 +305,45 @@ TEST(LibCephFS, ChownClearSetuid) {
   /* test chown with supplementary groups, and chown with/without exe bit */
   uid_t u = 65534;
   gid_t g = 65534;
-  gid_t gids[] = {65533,65532};
-  UserPerm *altcred = ceph_userperm_new(u, g, sizeof gids / sizeof gids[0], gids);
+  gid_t gids[] = {65533, 65532};
+  UserPerm* altcred =
+      ceph_userperm_new(u, g, sizeof gids / sizeof gids[0], gids);
   stx.stx_uid = u;
   stx.stx_gid = g;
-  mode_t m = S_ISGID|S_ISUID|S_IRUSR|S_IWUSR;
+  mode_t m = S_ISGID | S_ISUID | S_IRUSR | S_IWUSR;
   stx.stx_mode = m;
-  ASSERT_EQ(ceph_ll_setattr(cmount, in, &stx, CEPH_SETATTR_MODE|CEPH_SETATTR_UID|CEPH_SETATTR_GID, rootcred), 0);
+  ASSERT_EQ(
+      ceph_ll_setattr(
+          cmount, in, &stx,
+          CEPH_SETATTR_MODE | CEPH_SETATTR_UID | CEPH_SETATTR_GID, rootcred),
+      0);
   ASSERT_EQ(ceph_ll_getattr(cmount, in, &stx, CEPH_STATX_MODE, 0, altcred), 0);
-  ASSERT_EQ(stx.stx_mode&(mode_t)ALLPERMS, m);
+  ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, m);
   /* not dropped without exe bit */
   stx.stx_gid = gids[0];
   ASSERT_EQ(ceph_ll_setattr(cmount, in, &stx, CEPH_SETATTR_GID, altcred), 0);
   ASSERT_EQ(ceph_ll_getattr(cmount, in, &stx, CEPH_STATX_MODE, 0, altcred), 0);
-  ASSERT_EQ(stx.stx_mode&(mode_t)ALLPERMS, m);
+  ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, m);
   /* now check dropped with exe bit */
-  m = S_ISGID|S_ISUID|S_IRWXU;
+  m = S_ISGID | S_ISUID | S_IRWXU;
   stx.stx_mode = m;
   ASSERT_EQ(ceph_ll_setattr(cmount, in, &stx, CEPH_STATX_MODE, altcred), 0);
   ASSERT_EQ(ceph_ll_getattr(cmount, in, &stx, CEPH_STATX_MODE, 0, altcred), 0);
-  ASSERT_EQ(stx.stx_mode&(mode_t)ALLPERMS, m);
+  ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, m);
   stx.stx_gid = gids[1];
   ASSERT_EQ(ceph_ll_setattr(cmount, in, &stx, CEPH_SETATTR_GID, altcred), 0);
   ASSERT_EQ(ceph_ll_getattr(cmount, in, &stx, CEPH_STATX_MODE, 0, altcred), 0);
-  ASSERT_EQ(stx.stx_mode&(mode_t)ALLPERMS, m&(S_IRWXU|S_IRWXG|S_IRWXO));
+  ASSERT_EQ(stx.stx_mode & (mode_t)ALLPERMS, m & (S_IRWXU | S_IRWXG | S_IRWXO));
   ceph_userperm_destroy(altcred);
 
   ASSERT_EQ(ceph_ll_close(cmount, fh), 0);
   ceph_shutdown(cmount);
 }
 
-static int update_root_mode()
+static int
+update_root_mode()
 {
-  struct ceph_mount_info *admin;
+  struct ceph_mount_info* admin;
   int r = ceph_create(&admin, NULL);
   if (r < 0)
     return r;
@@ -333,7 +359,8 @@ out:
   return r;
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   int r = update_root_mode();
   if (r < 0)

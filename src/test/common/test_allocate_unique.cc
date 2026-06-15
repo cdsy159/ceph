@@ -13,10 +13,12 @@
  *
  */
 
-#include "common/allocate_unique.h"
+#include <gtest/gtest.h>
+
 #include <string>
 #include <vector>
-#include <gtest/gtest.h>
+
+#include "common/allocate_unique.h"
 
 namespace {
 
@@ -25,27 +27,38 @@ struct event {
   size_t size;
   bool allocated; // true for allocate(), false for deallocate()
 };
+
 using event_log = std::vector<event>;
 
 template <typename T>
 struct logging_allocator {
-  event_log *const log;
+  event_log* const log;
 
   using value_type = T;
 
-  explicit logging_allocator(event_log *log) : log(log) {}
-  logging_allocator(const logging_allocator& other) : log(other.log) {}
+  explicit logging_allocator(event_log* log) :
+    log(log)
+  {}
+
+  logging_allocator(const logging_allocator& other) :
+    log(other.log)
+  {}
 
   template <typename U>
-  logging_allocator(const logging_allocator<U>& other) : log(other.log) {}
+  logging_allocator(const logging_allocator<U>& other) :
+    log(other.log)
+  {}
 
-  T* allocate(size_t n)
+  T*
+  allocate(size_t n)
   {
     auto p = std::allocator<T>{}.allocate(n);
     log->emplace_back(event{n * sizeof(T), true});
     return p;
   }
-  void deallocate(T* p, size_t n)
+
+  void
+  deallocate(T* p, size_t n)
   {
     std::allocator<T>{}.deallocate(p, n);
     if (p) {
@@ -64,7 +77,8 @@ TEST(AllocateUnique, Allocate)
   auto alloc = logging_allocator<char>{&log};
   {
     auto p = allocate_unique<char>(alloc, 'a');
-    static_assert(std::is_same_v<decltype(p),
+    static_assert(std::is_same_v<
+                  decltype(p),
                   std::unique_ptr<char, deallocator<logging_allocator<char>>>>);
     ASSERT_TRUE(p);
     ASSERT_EQ(1, log.size());
@@ -82,9 +96,11 @@ TEST(AllocateUnique, RebindAllocate)
   auto alloc = logging_allocator<char>{&log};
   {
     auto p = allocate_unique<std::string>(alloc, "a");
-    static_assert(std::is_same_v<decltype(p),
-                  std::unique_ptr<std::string,
-                                  deallocator<logging_allocator<std::string>>>>);
+    static_assert(
+        std::is_same_v<
+            decltype(p),
+            std::unique_ptr<
+                std::string, deallocator<logging_allocator<std::string>>>>);
     ASSERT_TRUE(p);
     ASSERT_EQ(1, log.size());
     EXPECT_EQ(sizeof(std::string), log.front().size);

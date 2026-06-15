@@ -2,7 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ImageCopyRequest.h"
-#include "ObjectCopyRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/errno.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
@@ -11,12 +13,13 @@
 #include "librbd/object_map/DiffRequest.h"
 #include "osdc/Striper.h"
 
-#include <shared_mutex> // for std::shared_lock
+#include "ObjectCopyRequest.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::deep_copy::ImageCopyRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                            \
+  *_dout << "librbd::deep_copy::ImageCopyRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace deep_copy {
@@ -26,36 +29,47 @@ using librbd::util::create_context_callback;
 using librbd::util::unique_lock_name;
 
 template <typename I>
-ImageCopyRequest<I>::ImageCopyRequest(I *src_image_ctx, I *dst_image_ctx,
-                                      librados::snap_t src_snap_id_start,
-                                      librados::snap_t src_snap_id_end,
-                                      librados::snap_t dst_snap_id_start,
-                                      bool flatten,
-                                      const ObjectNumber &object_number,
-                                      const SnapSeqs &snap_seqs,
-                                      Handler *handler,
-                                      Context *on_finish)
-  : RefCountedObject(dst_image_ctx->cct), m_src_image_ctx(src_image_ctx),
-    m_dst_image_ctx(dst_image_ctx), m_src_snap_id_start(src_snap_id_start),
-    m_src_snap_id_end(src_snap_id_end), m_dst_snap_id_start(dst_snap_id_start),
-    m_flatten(flatten), m_object_number(object_number), m_snap_seqs(snap_seqs),
-    m_handler(handler), m_on_finish(on_finish), m_cct(dst_image_ctx->cct),
-    m_lock(ceph::make_mutex(unique_lock_name("ImageCopyRequest::m_lock", this))) {
+ImageCopyRequest<I>::ImageCopyRequest(
+    I* src_image_ctx,
+    I* dst_image_ctx,
+    librados::snap_t src_snap_id_start,
+    librados::snap_t src_snap_id_end,
+    librados::snap_t dst_snap_id_start,
+    bool flatten,
+    const ObjectNumber& object_number,
+    const SnapSeqs& snap_seqs,
+    Handler* handler,
+    Context* on_finish) :
+  RefCountedObject(dst_image_ctx->cct),
+  m_src_image_ctx(src_image_ctx),
+  m_dst_image_ctx(dst_image_ctx),
+  m_src_snap_id_start(src_snap_id_start),
+  m_src_snap_id_end(src_snap_id_end),
+  m_dst_snap_id_start(dst_snap_id_start),
+  m_flatten(flatten),
+  m_object_number(object_number),
+  m_snap_seqs(snap_seqs),
+  m_handler(handler),
+  m_on_finish(on_finish),
+  m_cct(dst_image_ctx->cct),
+  m_lock(ceph::make_mutex(unique_lock_name("ImageCopyRequest::m_lock", this)))
+{
 
-    ldout(m_cct, 20) << "src_image_id=" << m_src_image_ctx->id
-		     << ", dst_image_id=" << m_dst_image_ctx->id
-	             << ", src_snap_id_start=" << m_src_snap_id_start
-                     << ", src_snap_id_end=" << m_src_snap_id_end
-		     << ", dst_snap_id_start=" << m_dst_snap_id_start
-		     << dendl;
+  ldout(m_cct, 20) << "src_image_id=" << m_src_image_ctx->id
+                   << ", dst_image_id=" << m_dst_image_ctx->id
+                   << ", src_snap_id_start=" << m_src_snap_id_start
+                   << ", src_snap_id_end=" << m_src_snap_id_end
+                   << ", dst_snap_id_start=" << m_dst_snap_id_start << dendl;
 }
 
 template <typename I>
-void ImageCopyRequest<I>::send() {
+void
+ImageCopyRequest<I>::send()
+{
   m_dst_image_ctx->image_lock.lock_shared();
-  util::compute_snap_map(m_dst_image_ctx->cct, m_src_snap_id_start,
-                         m_src_snap_id_end, m_dst_image_ctx->snaps, m_snap_seqs,
-                         &m_snap_map);
+  util::compute_snap_map(
+      m_dst_image_ctx->cct, m_src_snap_id_start, m_src_snap_id_end,
+      m_dst_image_ctx->snaps, m_snap_seqs, &m_snap_map);
   m_dst_image_ctx->image_lock.unlock_shared();
 
   if (m_snap_map.empty()) {
@@ -68,7 +82,9 @@ void ImageCopyRequest<I>::send() {
 }
 
 template <typename I>
-void ImageCopyRequest<I>::cancel() {
+void
+ImageCopyRequest<I>::cancel()
+{
   std::lock_guard locker{m_lock};
 
   ldout(m_cct, 20) << dendl;
@@ -76,19 +92,23 @@ void ImageCopyRequest<I>::cancel() {
 }
 
 template <typename I>
-void ImageCopyRequest<I>::map_src_objects(uint64_t dst_object,
-                                          std::set<uint64_t> *src_objects) {
+void
+ImageCopyRequest<I>::map_src_objects(
+    uint64_t dst_object,
+    std::set<uint64_t>* src_objects)
+{
   std::vector<std::pair<uint64_t, uint64_t>> image_extents;
-  Striper::extent_to_file(m_cct, &m_dst_image_ctx->layout, dst_object, 0,
-                          m_dst_image_ctx->layout.object_size, image_extents);
+  Striper::extent_to_file(
+      m_cct, &m_dst_image_ctx->layout, dst_object, 0,
+      m_dst_image_ctx->layout.object_size, image_extents);
 
-  for (auto &e : image_extents) {
+  for (auto& e : image_extents) {
     std::map<object_t, std::vector<ObjectExtent>> src_object_extents;
-    Striper::file_to_extents(m_cct, m_src_image_ctx->format_string,
-                             &m_src_image_ctx->layout, e.first, e.second, 0,
-                             src_object_extents);
-    for (auto &p : src_object_extents) {
-      for (auto &s : p.second) {
+    Striper::file_to_extents(
+        m_cct, m_src_image_ctx->format_string, &m_src_image_ctx->layout,
+        e.first, e.second, 0, src_object_extents);
+    for (auto& p : src_object_extents) {
+      for (auto& s : p.second) {
         src_objects->insert(s.objectno);
       }
     }
@@ -100,7 +120,9 @@ void ImageCopyRequest<I>::map_src_objects(uint64_t dst_object,
 }
 
 template <typename I>
-void ImageCopyRequest<I>::compute_diff() {
+void
+ImageCopyRequest<I>::compute_diff()
+{
   if (m_flatten) {
     send_object_copies();
     return;
@@ -109,16 +131,17 @@ void ImageCopyRequest<I>::compute_diff() {
   ldout(m_cct, 10) << dendl;
 
   auto ctx = create_context_callback<
-    ImageCopyRequest<I>, &ImageCopyRequest<I>::handle_compute_diff>(this);
-  auto req = object_map::DiffRequest<I>::create(m_src_image_ctx,
-                                                m_src_snap_id_start,
-                                                m_src_snap_id_end, 0, UINT64_MAX,
-                                                &m_object_diff_state, ctx);
+      ImageCopyRequest<I>, &ImageCopyRequest<I>::handle_compute_diff>(this);
+  auto req = object_map::DiffRequest<I>::create(
+      m_src_image_ctx, m_src_snap_id_start, m_src_snap_id_end, 0, UINT64_MAX,
+      &m_object_diff_state, ctx);
   req->send();
 }
 
 template <typename I>
-void ImageCopyRequest<I>::handle_compute_diff(int r) {
+void
+ImageCopyRequest<I>::handle_compute_diff(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -130,7 +153,9 @@ void ImageCopyRequest<I>::handle_compute_diff(int r) {
 }
 
 template <typename I>
-void ImageCopyRequest<I>::send_object_copies() {
+void
+ImageCopyRequest<I>::send_object_copies()
+{
   m_object_no = 0;
   if (m_object_number) {
     m_object_no = *m_object_number + 1;
@@ -139,7 +164,7 @@ void ImageCopyRequest<I>::send_object_copies() {
   uint64_t size;
   {
     std::shared_lock image_locker{m_src_image_ctx->image_lock};
-    size =  m_src_image_ctx->get_image_size(CEPH_NOSNAP);
+    size = m_src_image_ctx->get_image_size(CEPH_NOSNAP);
     for (auto snap_id : m_src_image_ctx->snaps) {
       size = std::max(size, m_src_image_ctx->get_image_size(snap_id));
     }
@@ -153,7 +178,7 @@ void ImageCopyRequest<I>::send_object_copies() {
   {
     std::lock_guard locker{m_lock};
     auto max_ops = m_src_image_ctx->config.template get_val<uint64_t>(
-      "rbd_concurrent_management_ops");
+        "rbd_concurrent_management_ops");
 
     // attempt to schedule at least 'max_ops' initial requests where
     // some objects might be skipped if fast-diff notes no change
@@ -170,7 +195,9 @@ void ImageCopyRequest<I>::send_object_copies() {
 }
 
 template <typename I>
-void ImageCopyRequest<I>::send_next_object_copy() {
+void
+ImageCopyRequest<I>::send_next_object_copy()
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   if (m_canceled && m_ret_val == 0) {
@@ -183,10 +210,9 @@ void ImageCopyRequest<I>::send_next_object_copy() {
   }
 
   uint64_t ono = m_object_no++;
-  Context *ctx = new LambdaContext(
-    [this, ono](int r) {
-      handle_object_copy(ono, r);
-    });
+  Context* ctx = new LambdaContext([this, ono](int r) {
+    handle_object_copy(ono, r);
+  });
 
   ldout(m_cct, 20) << "object_num=" << ono << dendl;
   ++m_current_ops;
@@ -228,13 +254,15 @@ void ImageCopyRequest<I>::send_next_object_copy() {
   }
 
   auto req = ObjectCopyRequest<I>::create(
-    m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start, m_dst_snap_id_start,
-    m_snap_map, ono, flags, m_handler, ctx);
+      m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start,
+      m_dst_snap_id_start, m_snap_map, ono, flags, m_handler, ctx);
   req->send();
 }
 
 template <typename I>
-void ImageCopyRequest<I>::handle_object_copy(uint64_t object_no, int r) {
+void
+ImageCopyRequest<I>::handle_object_copy(uint64_t object_no, int r)
+{
   ldout(m_cct, 20) << "object_no=" << object_no << ", r=" << r << dendl;
 
   bool complete;
@@ -252,7 +280,7 @@ void ImageCopyRequest<I>::handle_object_copy(uint64_t object_no, int r) {
       m_copied_objects.push(object_no);
       while (!m_updating_progress && !m_copied_objects.empty() &&
              m_copied_objects.top() ==
-               (m_object_number ? *m_object_number + 1 : 0)) {
+                 (m_object_number ? *m_object_number + 1 : 0)) {
         m_object_number = m_copied_objects.top();
         m_copied_objects.pop();
         uint64_t progress_object_no = *m_object_number + 1;
@@ -275,7 +303,9 @@ void ImageCopyRequest<I>::handle_object_copy(uint64_t object_no, int r) {
 }
 
 template <typename I>
-void ImageCopyRequest<I>::finish(int r) {
+void
+ImageCopyRequest<I>::finish(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

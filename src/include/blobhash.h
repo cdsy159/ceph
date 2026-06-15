@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 /*
  * Ceph - scalable distributed file system
  *
@@ -15,11 +15,14 @@
 #define CEPH_BLOBHASH_H
 
 #include <cstdint>
+
 #include "hash.h"
 
 class blobhash {
 public:
-  uint32_t operator()(const void* p, size_t len) {
+  uint32_t
+  operator()(const void* p, size_t len)
+  {
     static rjhash<std::uint32_t> H;
     std::uint32_t acc = 0;
     auto buf = static_cast<const unsigned char*>(p);
@@ -41,8 +44,11 @@ public:
     }
     return H(acc);
   }
+
 private:
-  static inline std::uint32_t unaligned_load(const unsigned char* p) {
+  static inline std::uint32_t
+  unaligned_load(const unsigned char* p)
+  {
     std::uint32_t result;
     __builtin_memcpy(&result, p, sizeof(result));
     return result;

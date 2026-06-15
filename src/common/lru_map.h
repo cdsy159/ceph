@@ -1,11 +1,11 @@
 #ifndef CEPH_LRU_MAP_H
 #define CEPH_LRU_MAP_H
 
-#include "common/ceph_mutex.h"
-
 #include <cstddef>
 #include <list>
 #include <map>
+
+#include "common/ceph_mutex.h"
 
 template <class K, class V>
 class lru_map {
@@ -23,18 +23,21 @@ class lru_map {
 
 public:
   class UpdateContext {
-    public:
-      virtual ~UpdateContext() {}
+  public:
+    virtual ~UpdateContext() {}
 
-      /* update should return true if object is updated */
-      virtual bool update(V *v) = 0;
+    /* update should return true if object is updated */
+    virtual bool update(V* v) = 0;
   };
 
-  bool _find(const K& key, V *value, UpdateContext *ctx);
+  bool _find(const K& key, V* value, UpdateContext* ctx);
   void _add(const K& key, V& value);
 
 public:
-  lru_map(int _max) : max(_max) {}
+  lru_map(int _max) :
+    max(_max)
+  {}
+
   virtual ~lru_map() {}
 
   bool find(const K& key, V& value);
@@ -45,13 +48,14 @@ public:
    * - will return true if object is found
    * - if ctx is set will return true if object is found and updated
    */
-  bool find_and_update(const K& key, V *value, UpdateContext *ctx);
+  bool find_and_update(const K& key, V* value, UpdateContext* ctx);
   void add(const K& key, V& value);
   void erase(const K& key);
 };
 
 template <class K, class V>
-bool lru_map<K, V>::_find(const K& key, V *value, UpdateContext *ctx)
+bool
+lru_map<K, V>::_find(const K& key, V* value, UpdateContext* ctx)
 {
   typename std::map<K, entry>::iterator iter = entries.find(key);
   if (iter == entries.end()) {
@@ -76,21 +80,24 @@ bool lru_map<K, V>::_find(const K& key, V *value, UpdateContext *ctx)
 }
 
 template <class K, class V>
-bool lru_map<K, V>::find(const K& key, V& value)
+bool
+lru_map<K, V>::find(const K& key, V& value)
 {
   std::lock_guard l(lock);
   return _find(key, &value, NULL);
 }
 
 template <class K, class V>
-bool lru_map<K, V>::find_and_update(const K& key, V *value, UpdateContext *ctx)
+bool
+lru_map<K, V>::find_and_update(const K& key, V* value, UpdateContext* ctx)
 {
   std::lock_guard l(lock);
   return _find(key, value, ctx);
 }
 
 template <class K, class V>
-void lru_map<K, V>::_add(const K& key, V& value)
+void
+lru_map<K, V>::_add(const K& key, V& value)
 {
   typename std::map<K, entry>::iterator iter = entries.find(key);
   if (iter != entries.end()) {
@@ -112,16 +119,17 @@ void lru_map<K, V>::_add(const K& key, V& value)
   }
 }
 
-
 template <class K, class V>
-void lru_map<K, V>::add(const K& key, V& value)
+void
+lru_map<K, V>::add(const K& key, V& value)
 {
   std::lock_guard l(lock);
   _add(key, value);
 }
 
 template <class K, class V>
-void lru_map<K, V>::erase(const K& key)
+void
+lru_map<K, V>::erase(const K& key)
 {
   std::lock_guard l(lock);
   typename std::map<K, entry>::iterator iter = entries.find(key);

@@ -22,7 +22,8 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "dpdk "
 
-int UserspaceEventManager::get_eventfd()
+int
+UserspaceEventManager::get_eventfd()
 {
   int fd;
   if (!unused_fds.empty()) {
@@ -33,20 +34,21 @@ int UserspaceEventManager::get_eventfd()
     fds.resize(fd + 1);
   }
 
-  std::optional<UserspaceFDImpl> &impl = fds[fd];
+  std::optional<UserspaceFDImpl>& impl = fds[fd];
   ceph_assert(!impl);
   impl.emplace();
   ldout(cct, 20) << __func__ << " fd=" << fd << dendl;
   return fd;
 }
 
-int UserspaceEventManager::notify(int fd, int mask)
+int
+UserspaceEventManager::notify(int fd, int mask)
 {
   ldout(cct, 20) << __func__ << " fd=" << fd << " mask=" << mask << dendl;
   if ((size_t)fd >= fds.size())
     return -ENOENT;
 
-  std::optional<UserspaceFDImpl> &impl = fds[fd];
+  std::optional<UserspaceFDImpl>& impl = fds[fd];
   if (!impl)
     return -ENOENT;
 
@@ -60,26 +62,28 @@ int UserspaceEventManager::notify(int fd, int mask)
 
   if (impl->listening_mask & mask) {
     if (waiting_fds.size() <= max_wait_idx)
-      waiting_fds.resize(waiting_fds.size()*2);
+      waiting_fds.resize(waiting_fds.size() * 2);
     impl->waiting_idx = ++max_wait_idx;
     waiting_fds[max_wait_idx] = fd;
   }
 
   ldout(cct, 20) << __func__ << " activing=" << int(impl->activating_mask)
                  << " listening=" << int(impl->listening_mask)
-                 << " waiting_idx=" << int(impl->waiting_idx) << " done " << dendl;
+                 << " waiting_idx=" << int(impl->waiting_idx) << " done "
+                 << dendl;
   return 0;
 }
 
-void UserspaceEventManager::close(int fd)
+void
+UserspaceEventManager::close(int fd)
 {
   ldout(cct, 20) << __func__ << " fd=" << fd << dendl;
   if ((size_t)fd >= fds.size())
-    return ;
+    return;
 
-  std::optional<UserspaceFDImpl> &impl = fds[fd];
+  std::optional<UserspaceFDImpl>& impl = fds[fd];
   if (!impl)
-    return ;
+    return;
 
   if (fd == max_fd)
     --max_fd;
@@ -96,7 +100,12 @@ void UserspaceEventManager::close(int fd)
   impl.reset();
 }
 
-int UserspaceEventManager::poll(int *events, int *masks, int num_events, struct timeval *tp)
+int
+UserspaceEventManager::poll(
+    int* events,
+    int* masks,
+    int num_events,
+    struct timeval* tp)
 {
   int fd;
   uint32_t i = 0;
@@ -109,18 +118,20 @@ int UserspaceEventManager::poll(int *events, int *masks, int num_events, struct 
       continue;
 
     events[count] = fd;
-    std::optional<UserspaceFDImpl> &impl = fds[fd];
+    std::optional<UserspaceFDImpl>& impl = fds[fd];
     ceph_assert(impl);
     masks[count] = impl->listening_mask & impl->activating_mask;
     ceph_assert(masks[count]);
-    ldout(cct, 20) << __func__ << " fd=" << fd << " mask=" << masks[count] << dendl;
+    ldout(cct, 20) << __func__ << " fd=" << fd << " mask=" << masks[count]
+                   << dendl;
     impl->activating_mask &= (~masks[count]);
     impl->waiting_idx = 0;
     if (++count >= num_events)
       break;
   }
   if (i < max_wait_idx) {
-    memmove(&waiting_fds[1], &waiting_fds[i+1], sizeof(int)*(max_wait_idx-i));
+    memmove(
+        &waiting_fds[1], &waiting_fds[i + 1], sizeof(int) * (max_wait_idx - i));
   }
   max_wait_idx -= i;
   return count;

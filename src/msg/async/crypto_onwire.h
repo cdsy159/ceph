@@ -34,9 +34,9 @@ class always_aligned_t {
   T val;
 
   template <class... Args>
-  always_aligned_t(Args&&... args)
-    : val(std::forward<Args>(args)...) {
-  }
+  always_aligned_t(Args&&... args) :
+    val(std::forward<Args>(args)...)
+  {}
 };
 
 } // namespace ceph::math
@@ -44,14 +44,15 @@ class always_aligned_t {
 namespace ceph::crypto::onwire {
 
 struct MsgAuthError : public std::runtime_error {
-  MsgAuthError()
-    : runtime_error("message signature mismatch") {
-  }
+  MsgAuthError() :
+    runtime_error("message signature mismatch")
+  {}
 };
 
 struct TxHandlerError : public std::runtime_error {
-  TxHandlerError(const char* what)
-    : std::runtime_error(std::string("tx handler error: ") + what) {}
+  TxHandlerError(const char* what) :
+    std::runtime_error(std::string("tx handler error: ") + what)
+  {}
 };
 
 struct TxHandler {
@@ -69,10 +70,11 @@ struct TxHandler {
   // It's undefined what will happen if client doesn't follow the order.
   //
   // TODO: switch to always_aligned_t
-  virtual void reset_tx_handler(const uint32_t* first,
-                                const uint32_t* last) = 0;
+  virtual void reset_tx_handler(const uint32_t* first, const uint32_t* last) = 0;
 
-  void reset_tx_handler(std::initializer_list<uint32_t> update_size_sequence) {
+  void
+  reset_tx_handler(std::initializer_list<uint32_t> update_size_sequence)
+  {
     if (update_size_sequence.size() > 0) {
       const uint32_t* first = &*update_size_sequence.begin();
       reset_tx_handler(first, first + update_size_sequence.size());
@@ -85,7 +87,7 @@ struct TxHandler {
   // bufferlist. The method MUST NOT be called after _final() if there
   // was no call to _reset().
   virtual void authenticated_encrypt_update(
-    const ceph::bufferlist& plaintext) = 0;
+      const ceph::bufferlist& plaintext) = 0;
 
   // Generates authentication signature and returns bufferlist crafted
   // basing on plaintext from preceding call to _update().
@@ -127,10 +129,10 @@ struct rxtx_t {
   std::unique_ptr<TxHandler> tx;
 
   static rxtx_t create_handler_pair(
-    CephContext* ctx,
-    const class AuthConnectionMeta& auth_meta,
-    bool new_nonce_format,
-    bool crossed);
+      CephContext* ctx,
+      const class AuthConnectionMeta& auth_meta,
+      bool new_nonce_format,
+      bool crossed);
 };
 
 } // namespace ceph::crypto::onwire

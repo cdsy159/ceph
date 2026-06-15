@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/trash/RemoveRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -14,8 +15,8 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::trash::RemoveRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::trash::RemoveRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace trash {
@@ -24,17 +25,21 @@ using util::create_context_callback;
 using util::create_rados_callback;
 
 template <typename I>
-void RemoveRequest<I>::send() {
+void
+RemoveRequest<I>::send()
+{
   set_state();
 }
 
 template <typename I>
-void RemoveRequest<I>::set_state() {
+void
+RemoveRequest<I>::set_state()
+{
   ldout(m_cct, 10) << dendl;
 
   librados::ObjectWriteOperation op;
-  cls_client::trash_state_set(&op, m_image_id, m_trash_set_state,
-                              m_trash_expect_state);
+  cls_client::trash_state_set(
+      &op, m_image_id, m_trash_set_state, m_trash_expect_state);
 
   auto aio_comp = create_rados_callback<
       RemoveRequest<I>, &RemoveRequest<I>::handle_set_state>(this);
@@ -44,7 +49,9 @@ void RemoveRequest<I>::set_state() {
 }
 
 template <typename I>
-void RemoveRequest<I>::handle_set_state(int r) {
+void
+RemoveRequest<I>::handle_set_state(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0 && r != -EOPNOTSUPP) {
@@ -70,7 +77,9 @@ void RemoveRequest<I>::handle_set_state(int r) {
 }
 
 template <typename I>
-void RemoveRequest<I>::close_image() {
+void
+RemoveRequest<I>::close_image()
+{
   if (m_image_ctx == nullptr) {
     finish(m_ret_val);
     return;
@@ -84,7 +93,9 @@ void RemoveRequest<I>::close_image() {
 }
 
 template <typename I>
-void RemoveRequest<I>::handle_close_image(int r) {
+void
+RemoveRequest<I>::handle_close_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -96,7 +107,9 @@ void RemoveRequest<I>::handle_close_image(int r) {
 }
 
 template <typename I>
-void RemoveRequest<I>::remove_image() {
+void
+RemoveRequest<I>::remove_image()
+{
   ldout(m_cct, 10) << dendl;
 
   auto ctx = create_context_callback<
@@ -114,7 +127,9 @@ void RemoveRequest<I>::remove_image() {
 }
 
 template <typename I>
-void RemoveRequest<I>::handle_remove_image(int r) {
+void
+RemoveRequest<I>::handle_remove_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -132,7 +147,9 @@ void RemoveRequest<I>::handle_remove_image(int r) {
 }
 
 template <typename I>
-void RemoveRequest<I>::remove_trash_entry() {
+void
+RemoveRequest<I>::remove_trash_entry()
+{
   ldout(m_cct, 10) << dendl;
 
   librados::ObjectWriteOperation op;
@@ -146,7 +163,9 @@ void RemoveRequest<I>::remove_trash_entry() {
 }
 
 template <typename I>
-void RemoveRequest<I>::handle_remove_trash_entry(int r) {
+void
+RemoveRequest<I>::handle_remove_trash_entry(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -157,7 +176,9 @@ void RemoveRequest<I>::handle_remove_trash_entry(int r) {
 }
 
 template <typename I>
-void RemoveRequest<I>::finish(int r) {
+void
+RemoveRequest<I>::finish(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

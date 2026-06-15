@@ -6,12 +6,13 @@
  * \file fmtlib formatters for some osd_types.h classes
  */
 
-#include "common/hobject.h"
-#include "include/types_fmt.h"
-#include "osd/osd_types.h"
 #include <fmt/chrono.h>
 #include <fmt/ranges.h>
 #include <fmt/std.h>
+
+#include "common/hobject.h"
+#include "include/types_fmt.h"
+#include "osd/osd_types.h"
 #if FMT_VERSION >= 90000
 #include <fmt/ostream.h>
 #endif
@@ -19,22 +20,32 @@
 namespace fmt {
 template <>
 struct formatter<osd_reqid_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const osd_reqid_t& req_id, FormatContext& ctx) const
+  auto
+  format(const osd_reqid_t& req_id, FormatContext& ctx) const
   {
-    return fmt::format_to(ctx.out(), "{}.{}:{}", req_id.name, req_id.inc,
-			  req_id.tid);
+    return fmt::format_to(
+        ctx.out(), "{}.{}:{}", req_id.name, req_id.inc, req_id.tid);
   }
 };
 
 template <>
 struct formatter<pg_shard_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const pg_shard_t& shrd, FormatContext& ctx) const
+  auto
+  format(const pg_shard_t& shrd, FormatContext& ctx) const
   {
     if (shrd.is_undefined()) {
       return fmt::format_to(ctx.out(), "?");
@@ -48,10 +59,15 @@ struct formatter<pg_shard_t> {
 
 template <>
 struct formatter<eversion_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const eversion_t& ev, FormatContext& ctx) const
+  auto
+  format(const eversion_t& ev, FormatContext& ctx) const
   {
     return fmt::format_to(ctx.out(), "{}'{}", ev.epoch, ev.version);
   }
@@ -59,23 +75,33 @@ struct formatter<eversion_t> {
 
 template <>
 struct formatter<chunk_info_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const chunk_info_t& ci, FormatContext& ctx) const
+  auto
+  format(const chunk_info_t& ci, FormatContext& ctx) const
   {
-    return fmt::format_to(ctx.out(), "(len: {} oid: {} offset: {} flags: {})",
-			  ci.length, ci.oid, ci.offset,
-			  ci.get_flag_string(ci.flags));
+    return fmt::format_to(
+        ctx.out(), "(len: {} oid: {} offset: {} flags: {})", ci.length, ci.oid,
+        ci.offset, ci.get_flag_string(ci.flags));
   }
 };
 
 template <>
 struct formatter<object_manifest_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const object_manifest_t& om, FormatContext& ctx) const
+  auto
+  format(const object_manifest_t& om, FormatContext& ctx) const
   {
     fmt::format_to(ctx.out(), "manifest({}", om.get_type_name());
     if (om.is_redirect()) {
@@ -89,14 +115,19 @@ struct formatter<object_manifest_t> {
 
 template <>
 struct formatter<object_info_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const object_info_t& oi, FormatContext& ctx) const
+  auto
+  format(const object_info_t& oi, FormatContext& ctx) const
   {
-    fmt::format_to(ctx.out(), "{}({} {} {} s {} uv {}", oi.soid, oi.version,
-		   oi.last_reqid, (oi.flags ? oi.get_flag_string() : ""), oi.size,
-		   oi.user_version);
+    fmt::format_to(
+        ctx.out(), "{}({} {} {} s {} uv {}", oi.soid, oi.version, oi.last_reqid,
+        (oi.flags ? oi.get_flag_string() : ""), oi.size, oi.user_version);
     if (oi.is_data_digest()) {
       fmt::format_to(ctx.out(), " dd {:x}", oi.data_digest);
     }
@@ -104,8 +135,9 @@ struct formatter<object_info_t> {
       fmt::format_to(ctx.out(), " od {:x}", oi.omap_digest);
     }
 
-    fmt::format_to(ctx.out(), " alloc_hint [{} {} {}]", oi.expected_object_size,
-		   oi.expected_write_size, oi.alloc_hint_flags);
+    fmt::format_to(
+        ctx.out(), " alloc_hint [{} {} {}]", oi.expected_object_size,
+        oi.expected_write_size, oi.alloc_hint_flags);
 
     if (oi.has_manifest()) {
       fmt::format_to(ctx.out(), " {}", oi.manifest);
@@ -119,22 +151,31 @@ struct formatter<object_info_t> {
 
 template <>
 struct formatter<pg_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const pg_t& pg, FormatContext& ctx) const
+  auto
+  format(const pg_t& pg, FormatContext& ctx) const
   {
     return fmt::format_to(ctx.out(), "{}.{:x}", pg.pool(), pg.m_seed);
   }
 };
 
-
 template <>
 struct formatter<spg_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const spg_t& spg, FormatContext& ctx) const
+  auto
+  format(const spg_t& spg, FormatContext& ctx) const
   {
     if (shard_id_t::NO_SHARD == spg.shard) {
       return fmt::format_to(ctx.out(), "{}", spg.pgid);
@@ -146,26 +187,24 @@ struct formatter<spg_t> {
 
 template <>
 struct formatter<pg_history_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const pg_history_t& pgh, FormatContext& ctx) const
+  auto
+  format(const pg_history_t& pgh, FormatContext& ctx) const
   {
-    fmt::format_to(ctx.out(),
-		   "ec={}/{} lis/c={}/{} les/c/f={}/{}/{} sis={}",
-		   pgh.epoch_created,
-		   pgh.epoch_pool_created,
-		   pgh.last_interval_started,
-		   pgh.last_interval_clean,
-		   pgh.last_epoch_started,
-		   pgh.last_epoch_clean,
-		   pgh.last_epoch_marked_full,
-		   pgh.same_interval_since);
+    fmt::format_to(
+        ctx.out(), "ec={}/{} lis/c={}/{} les/c/f={}/{}/{} sis={}",
+        pgh.epoch_created, pgh.epoch_pool_created, pgh.last_interval_started,
+        pgh.last_interval_clean, pgh.last_epoch_started, pgh.last_epoch_clean,
+        pgh.last_epoch_marked_full, pgh.same_interval_since);
 
     if (pgh.prior_readable_until_ub != ceph::timespan::zero()) {
-      return fmt::format_to(ctx.out(),
-			    " pruub={}",
-			    pgh.prior_readable_until_ub);
+      return fmt::format_to(ctx.out(), " pruub={}", pgh.prior_readable_until_ub);
     } else {
       return ctx.out();
     }
@@ -174,10 +213,15 @@ struct formatter<pg_history_t> {
 
 template <>
 struct formatter<pg_info_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const pg_info_t& pgi, FormatContext& ctx) const
+  auto
+  format(const pg_info_t& pgi, FormatContext& ctx) const
   {
     fmt::format_to(ctx.out(), "{}({}", pgi.pgid, (pgi.dne() ? " DNE" : ""));
     if (pgi.is_empty()) {
@@ -185,21 +229,18 @@ struct formatter<pg_info_t> {
     } else {
       fmt::format_to(ctx.out(), " v {}", pgi.last_update);
       if (pgi.last_complete != pgi.last_update) {
-	fmt::format_to(ctx.out(), " lc {}", pgi.last_complete);
+        fmt::format_to(ctx.out(), " lc {}", pgi.last_complete);
       }
       fmt::format_to(ctx.out(), " ({},{}]", pgi.log_tail, pgi.last_update);
     }
     if (pgi.is_incomplete()) {
       fmt::format_to(ctx.out(), " lb {}", pgi.last_backfill);
     }
-    fmt::format_to(ctx.out(),
-		   " local-lis/les={}/{}",
-		   pgi.last_interval_started,
-		   pgi.last_epoch_started);
-    return fmt::format_to(ctx.out(),
-			  " n={} {})",
-			  pgi.stats.stats.sum.num_objects,
-			  pgi.history);
+    fmt::format_to(
+        ctx.out(), " local-lis/les={}/{}", pgi.last_interval_started,
+        pgi.last_epoch_started);
+    return fmt::format_to(
+        ctx.out(), " n={} {})", pgi.stats.stats.sum.num_objects, pgi.history);
   }
 };
 
@@ -208,7 +249,8 @@ struct formatter<pg_info_t> {
 template <>
 struct formatter<SnapSet> {
   template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
+  constexpr auto
+  parse(ParseContext& ctx)
   {
     auto it = ctx.begin();
     if (it != ctx.end() && *it == 'D') {
@@ -219,47 +261,43 @@ struct formatter<SnapSet> {
   }
 
   template <typename FormatContext>
-  auto format(const SnapSet& snps, FormatContext& ctx) const
+  auto
+  format(const SnapSet& snps, FormatContext& ctx) const
   {
     if (verbose) {
       // similar to SnapSet::dump()
-      fmt::format_to(ctx.out(),
-		     "snaps{{{}: clns ({}): ",
-		     snps.seq,
-		     snps.clones.size());
+      fmt::format_to(
+          ctx.out(), "snaps{{{}: clns ({}): ", snps.seq, snps.clones.size());
       for (auto cln : snps.clones) {
 
-	fmt::format_to(ctx.out(), "[{}: sz:", cln);
+        fmt::format_to(ctx.out(), "[{}: sz:", cln);
 
-	auto cs = snps.clone_size.find(cln);
-	if (cs != snps.clone_size.end()) {
-	  fmt::format_to(ctx.out(), "{} ", cs->second);
-	} else {
-	  fmt::format_to(ctx.out(), "??");
-	}
+        auto cs = snps.clone_size.find(cln);
+        if (cs != snps.clone_size.end()) {
+          fmt::format_to(ctx.out(), "{} ", cs->second);
+        } else {
+          fmt::format_to(ctx.out(), "??");
+        }
 
-	auto co = snps.clone_overlap.find(cln);
-	if (co != snps.clone_overlap.end()) {
-	  fmt::format_to(ctx.out(), "olp:{} ", co->second);
-	} else {
-	  fmt::format_to(ctx.out(), "olp:?? ");
-	}
+        auto co = snps.clone_overlap.find(cln);
+        if (co != snps.clone_overlap.end()) {
+          fmt::format_to(ctx.out(), "olp:{} ", co->second);
+        } else {
+          fmt::format_to(ctx.out(), "olp:?? ");
+        }
 
-	auto cln_snps = snps.clone_snaps.find(cln);
-	if (cln_snps != snps.clone_snaps.end()) {
-	  fmt::format_to(ctx.out(), "cl-snps:{} ]", cln_snps->second);
-	} else {
-	  fmt::format_to(ctx.out(), "cl-snps:?? ]");
-	}
+        auto cln_snps = snps.clone_snaps.find(cln);
+        if (cln_snps != snps.clone_snaps.end()) {
+          fmt::format_to(ctx.out(), "cl-snps:{} ]", cln_snps->second);
+        } else {
+          fmt::format_to(ctx.out(), "cl-snps:?? ]");
+        }
       }
 
       return fmt::format_to(ctx.out(), "}}");
 
     } else {
-      return fmt::format_to(ctx.out(),
-			    "{}={}",
-			    snps.seq,
-			    snps.clone_snaps);
+      return fmt::format_to(ctx.out(), "{}={}", snps.seq, snps.clone_snaps);
     }
   }
 
@@ -268,30 +306,33 @@ struct formatter<SnapSet> {
 
 template <>
 struct formatter<ScrubMap::object> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   ///\todo: consider passing the 'D" flag to control snapset dump
   template <typename FormatContext>
-  auto format(const ScrubMap::object& so, FormatContext& ctx) const
+  auto
+  format(const ScrubMap::object& so, FormatContext& ctx) const
   {
-    fmt::format_to(ctx.out(),
-		   "so{{ sz:{} dd:{} od:{} ",
-		   so.size,
-		   so.digest,
-		   so.digest_present);
+    fmt::format_to(
+        ctx.out(), "so{{ sz:{} dd:{} od:{} ", so.size, so.digest,
+        so.digest_present);
 
     // note the special handling of (1) OI_ATTR and (2) non-printables
     for (auto [k, v] : so.attrs) {
       std::string bkstr = v.to_str();
       if (k == std::string{OI_ATTR}) {
-	/// \todo consider parsing the OI args here. Maybe add a specific format
-	/// specifier
-	fmt::format_to(ctx.out(), "{{{}:<<OI_ATTR>>({})}} ", k, bkstr.length());
+        /// \todo consider parsing the OI args here. Maybe add a specific format
+        /// specifier
+        fmt::format_to(ctx.out(), "{{{}:<<OI_ATTR>>({})}} ", k, bkstr.length());
       } else if (k == std::string{SS_ATTR}) {
-	SnapSet sns{v};
-	fmt::format_to(ctx.out(), "{{{}:{:D}}} ", k, sns);
+        SnapSet sns{v};
+        fmt::format_to(ctx.out(), "{{{}:{:D}}} ", k, sns);
       } else {
-	fmt::format_to(ctx.out(), "{{{}:{}({})}} ", k, bkstr, bkstr.length());
+        fmt::format_to(ctx.out(), "{{{}:{}({})}} ", k, bkstr, bkstr.length());
       }
     }
 
@@ -302,28 +343,28 @@ struct formatter<ScrubMap::object> {
 template <>
 struct formatter<ScrubMap> {
   template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
+  constexpr auto
+  parse(ParseContext& ctx)
   {
     auto it = ctx.begin();
     if (it != ctx.end() && *it == 'D') {
-      debug_log = true;	 // list the objects
+      debug_log = true; // list the objects
       ++it;
     }
     return it;
   }
 
   template <typename FormatContext>
-  auto format(const ScrubMap& smap, FormatContext& ctx) const
+  auto
+  format(const ScrubMap& smap, FormatContext& ctx) const
   {
-    fmt::format_to(ctx.out(),
-		   "smap{{ valid:{} incr-since:{} #:{}",
-		   smap.valid_through,
-		   smap.incr_since,
-		   smap.objects.size());
+    fmt::format_to(
+        ctx.out(), "smap{{ valid:{} incr-since:{} #:{}", smap.valid_through,
+        smap.incr_since, smap.objects.size());
     if (debug_log) {
       fmt::format_to(ctx.out(), " objects:");
       for (const auto& [ho, so] : smap.objects) {
-	fmt::format_to(ctx.out(), "\n\th.o<{}>:<{}> ", ho, so);
+        fmt::format_to(ctx.out(), "\n\th.o<{}>:<{}> ", ho, so);
       }
       fmt::format_to(ctx.out(), "\n");
     }
@@ -335,12 +376,17 @@ struct formatter<ScrubMap> {
 
 template <>
 struct formatter<object_stat_sum_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const object_stat_sum_t &stats, FormatContext& ctx) const
+  auto
+  format(const object_stat_sum_t& stats, FormatContext& ctx) const
   {
-#define FORMAT(FIELD) fmt::format_to(ctx.out(), #FIELD"={}, ", stats.FIELD);
+#define FORMAT(FIELD) fmt::format_to(ctx.out(), #FIELD "={}, ", stats.FIELD);
     fmt::format_to(ctx.out(), "object_stat_sum_t(");
     FORMAT(num_bytes);
     FORMAT(num_objects);
@@ -382,19 +428,25 @@ struct formatter<object_stat_sum_t> {
     FORMAT(num_objects_pinned);
     FORMAT(num_legacy_snapsets);
     return fmt::format_to(
-      ctx.out(), "num_objects_repaired={})",
-      stats.num_objects_repaired);
+        ctx.out(), "num_objects_repaired={})", stats.num_objects_repaired);
 #undef FORMAT
   }
 };
 } // namespace fmt
 
-inline std::ostream &operator<<(std::ostream &lhs, const object_stat_sum_t &sum) {
+inline std::ostream&
+operator<<(std::ostream& lhs, const object_stat_sum_t& sum)
+{
   return lhs << fmt::format("{}", sum);
 }
 
 #if FMT_VERSION >= 90000
-template <bool TrackChanges> struct fmt::formatter<pg_missing_set<TrackChanges>> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<pool_opts_t> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<store_statfs_t> : fmt::ostream_formatter {};
+template <bool TrackChanges>
+struct fmt::formatter<pg_missing_set<TrackChanges>> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<pool_opts_t> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<store_statfs_t> : fmt::ostream_formatter {};
 #endif

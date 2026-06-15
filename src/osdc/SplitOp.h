@@ -16,16 +16,21 @@
 
 class SplitOp {
 
- protected:
+protected:
   using extent = std::pair<uint64_t, uint64_t>;
   using extents_map = std::map<uint64_t, uint64_t>;
   using extent_set = interval_set<uint64_t, std::map, false>;
 
   using ExtentPredicate = std::function<bool(const extent&)>;
   using extent_map_subrange = std::ranges::subrange<extents_map::const_iterator>;
-  using extent_map_subrange_view = std::ranges::take_while_view<extent_map_subrange, ExtentPredicate>;
-  using extent_variant = std::variant<std::ranges::single_view<extent>, extent_map_subrange_view, extent_map_subrange>;
-  using buffer_appender = std::function<void(bufferlist &, uint64_t *, extent_variant)>;
+  using extent_map_subrange_view =
+      std::ranges::take_while_view<extent_map_subrange, ExtentPredicate>;
+  using extent_variant = std::variant<
+      std::ranges::single_view<extent>,
+      extent_map_subrange_view,
+      extent_map_subrange>;
+  using buffer_appender =
+      std::function<void(bufferlist&, uint64_t*, extent_variant)>;
 
   // A simple struct to hold the data for each step of the iteration.
   struct ECChunkInfo {
@@ -34,17 +39,17 @@ class SplitOp {
     uint64_t length;
     shard_id_t shard;
 
-    friend std::ostream & operator<<(std::ostream &os, const ECChunkInfo &obj) {
-      return os
-          << "ro_offset: " << obj.ro_offset
-          << " shard_offset: " << obj.shard_offset
-          << " length: " << obj.length
-          << " shard: " << obj.shard;
+    friend std::ostream&
+    operator<<(std::ostream& os, const ECChunkInfo& obj)
+    {
+      return os << "ro_offset: " << obj.ro_offset
+                << " shard_offset: " << obj.shard_offset
+                << " length: " << obj.length << " shard: " << obj.shard;
     }
   };
 
   class ECStripeIterator {
-   public:
+  public:
     using iterator_category = std::input_iterator_tag;
     using value_type = ECChunkInfo;
     using difference_type = std::ptrdiff_t;
@@ -55,33 +60,40 @@ class SplitOp {
 
     // Constructor for the "begin" iterator
     ECStripeIterator(
-      uint64_t start_offset,
-      uint64_t total_len,
-      uint32_t chunk_s,
-      uint32_t data_chunks)
-      : chunk_size(chunk_s),
-        data_chunk_count(data_chunks) {
+        uint64_t start_offset,
+        uint64_t total_len,
+        uint32_t chunk_s,
+        uint32_t data_chunks) :
+      chunk_size(chunk_s), data_chunk_count(data_chunks)
+    {
       end_offset = start_offset + total_len;
       current_info.ro_offset = start_offset;
       uint64_t chunk = start_offset / chunk_size;
-      current_info.length = std::min(total_len, (chunk + 1) * chunk_size - start_offset);
+      current_info.length =
+          std::min(total_len, (chunk + 1) * chunk_size - start_offset);
 
       // Maybe this is paranoia, as compiler would probably detect that this
       // / and % could be done in a single op.
       auto chunk_div = std::lldiv(chunk, data_chunk_count);
       current_info.shard = shard_id_t(chunk_div.rem);
-      current_info.shard_offset = (chunk_div.quot) * chunk_size + start_offset % chunk_size;
+      current_info.shard_offset = (chunk_div.quot) * chunk_size +
+                                  start_offset % chunk_size;
     }
 
-    value_type operator*() const {
+    value_type
+    operator*() const
+    {
       return current_info;
     }
 
     // Pre-increment
-    ECStripeIterator& operator++() {
+    ECStripeIterator&
+    operator++()
+    {
       current_info.ro_offset += current_info.length;
       current_info.shard_offset += current_info.length - chunk_size;
-      current_info.length = std::min(chunk_size, end_offset - current_info.ro_offset);
+      current_info.length =
+          std::min(chunk_size, end_offset - current_info.ro_offset);
       ceph_assert(current_info.ro_offset <= end_offset);
       ++current_info.shard;
       if (unsigned(current_info.shard) == data_chunk_count) {
@@ -92,20 +104,27 @@ class SplitOp {
     }
 
     // post-increment
-    ECStripeIterator operator++(int) {
+    ECStripeIterator
+    operator++(int)
+    {
       ECStripeIterator tmp = *this;
       ++(*this);
       return tmp;
     }
 
-    bool operator!=(const ECStripeIterator& other) const {
+    bool
+    operator!=(const ECStripeIterator& other) const
+    {
       // This is only here to terminate the loop!
       return current_info.length != other.current_info.length;
     }
 
-    bool operator==(const ECStripeIterator& other) const {
+    bool
+    operator==(const ECStripeIterator& other) const
+    {
       return !(*this != other);
     }
+
     value_type current_info{};
 
   private:
@@ -114,25 +133,26 @@ class SplitOp {
     uint32_t data_chunk_count = 0;
   };
 
-
   // The custom range class that provides begin() and end()
   class ECStripeView {
-   public:
-    ECStripeView(
-      uint64_t offset,
-      uint64_t length,
-      const pg_pool_t *pi)
-      : start_offset(offset),
-        total_length(length),
-        data_chunk_count(pi->nonprimary_shards.size() + 1),
-        chunk_size(pi->get_stripe_width() / data_chunk_count) {
+  public:
+    ECStripeView(uint64_t offset, uint64_t length, const pg_pool_t* pi) :
+      start_offset(offset),
+      total_length(length),
+      data_chunk_count(pi->nonprimary_shards.size() + 1),
+      chunk_size(pi->get_stripe_width() / data_chunk_count)
+    {}
+
+    ECStripeIterator
+    begin() const
+    {
+      return ECStripeIterator(
+          start_offset, total_length, chunk_size, data_chunk_count);
     }
 
-    ECStripeIterator begin() const {
-      return ECStripeIterator(start_offset, total_length, chunk_size, data_chunk_count);
-    }
-
-    ECStripeIterator end() const {
+    ECStripeIterator
+    end() const
+    {
       ECStripeIterator end_iter;
       end_iter.current_info.length = 0;
       return end_iter;
@@ -144,8 +164,9 @@ class SplitOp {
     uint64_t chunk_size;
   };
 
-  static_assert(std::input_iterator<ECStripeIterator>,
-                "ECStripeIterator does not conform to the std::input_iterator concept");
+  static_assert(
+      std::input_iterator<ECStripeIterator>,
+      "ECStripeIterator does not conform to the std::input_iterator concept");
 
   struct Details {
     bufferlist bl;
@@ -159,7 +180,9 @@ class SplitOp {
     mini_flat_map<int, Details> details;
     int rc = -EIO;
 
-    SubRead(int count) : details(count) {}
+    SubRead(int count) :
+      details(count)
+    {}
   };
 
   // This structure self-destructs on each IO completions, using a legacy
@@ -168,58 +191,75 @@ class SplitOp {
   // completion of the parent IO.
   struct Finisher : Context {
     std::shared_ptr<SplitOp> split_read;
-    SubRead &sub_read;
+    SubRead& sub_read;
 
-    Finisher(std::shared_ptr<SplitOp> split_read, SubRead &sub_read) : split_read(split_read), sub_read(sub_read) {}
-    void finish(int r) override {
+    Finisher(std::shared_ptr<SplitOp> split_read, SubRead& sub_read) :
+      split_read(split_read), sub_read(sub_read)
+    {}
+
+    void
+    finish(int r) override
+    {
       sub_read.rc = r;
     }
   };
 
   int assemble_rc();
-  virtual std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(int ops_index) = 0;
-  virtual void assemble_buffer_read(bufferlist &bl_out, int ops_index) = 0;
-  virtual void init_read(OSDOp &op, bool sparse, int ops_index) = 0;
-  void init(OSDOp &op, int ops_index);
+  virtual std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(
+      int ops_index) = 0;
+  virtual void assemble_buffer_read(bufferlist& bl_out, int ops_index) = 0;
+  virtual void init_read(OSDOp& op, bool sparse, int ops_index) = 0;
+  void init(OSDOp& op, int ops_index);
 
-  Objecter::Op *orig_op;
-  Objecter &objecter;
+  Objecter::Op* orig_op;
+  Objecter& objecter;
   mini_flat_map<shard_id_t, SubRead> sub_reads;
-  CephContext *cct;
+  CephContext* cct;
   bool abort = false; // Last minute abort... We want to keep this to a minimum.
   int flags = 0;
   std::optional<shard_id_t> primary_shard;
   std::map<shard_id_t, std::vector<int>> op_offset_map;
 
- public:
-  SplitOp(Objecter::Op *op, Objecter &objecter, CephContext *cct, int count) : orig_op(op), objecter(objecter), sub_reads(count), cct(cct) {}
+public:
+  SplitOp(Objecter::Op* op, Objecter& objecter, CephContext* cct, int count) :
+    orig_op(op), objecter(objecter), sub_reads(count), cct(cct)
+  {}
+
   virtual ~SplitOp() = default;
   void complete();
-  static bool create(Objecter::Op *op, Objecter &objecter,
-    shunique_lock<ceph::shared_mutex>& sul, ceph_tid_t *ptid, int *ctx_budget, CephContext *cct);
+  static bool create(
+      Objecter::Op* op,
+      Objecter& objecter,
+      shunique_lock<ceph::shared_mutex>& sul,
+      ceph_tid_t* ptid,
+      int* ctx_budget,
+      CephContext* cct);
 };
 
-class ECSplitOp : public SplitOp{
- public:
+class ECSplitOp : public SplitOp {
+public:
   using SplitOp::SplitOp;
-  std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(int ops_index) override;
-  void assemble_buffer_read(bufferlist &bl_out, int ops_index) override;
-  void init_read(OSDOp &op, bool sparse, int ops_index) override;
-  ECSplitOp(Objecter::Op *op, Objecter &objecter, CephContext *cct, int count);
-  ~ECSplitOp() {
-    complete();
-  }
+  std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(
+      int ops_index) override;
+  void assemble_buffer_read(bufferlist& bl_out, int ops_index) override;
+  void init_read(OSDOp& op, bool sparse, int ops_index) override;
+  ECSplitOp(Objecter::Op* op, Objecter& objecter, CephContext* cct, int count);
+
+  ~ECSplitOp() { complete(); }
 };
 
 class ReplicaSplitOp : public SplitOp {
- public:
+public:
   using SplitOp::SplitOp;
-  std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(int ops_index) override;
-  void assemble_buffer_read(bufferlist &bl_out, int ops_index) override;
-  void init_read(OSDOp &op, bool sparse, int ops_index) override;
-  ReplicaSplitOp(Objecter::Op *op, Objecter &objecter, CephContext *cct, int pool_size);
-  ~ReplicaSplitOp() {
-    complete();
-  }
-};
+  std::pair<extent_set, bufferlist> assemble_buffer_sparse_read(
+      int ops_index) override;
+  void assemble_buffer_read(bufferlist& bl_out, int ops_index) override;
+  void init_read(OSDOp& op, bool sparse, int ops_index) override;
+  ReplicaSplitOp(
+      Objecter::Op* op,
+      Objecter& objecter,
+      CephContext* cct,
+      int pool_size);
 
+  ~ReplicaSplitOp() { complete(); }
+};

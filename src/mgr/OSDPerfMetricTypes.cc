@@ -1,15 +1,18 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/Formatter.h"
 #include "mgr/OSDPerfMetricTypes.h"
+
 #include <ostream>
+
+#include "common/Formatter.h"
 
 using ceph::bufferlist;
 
-std::ostream& operator<<(std::ostream& os,
-                         const OSDPerfMetricSubKeyDescriptor &d) {
-  switch(d.type) {
+std::ostream&
+operator<<(std::ostream& os, const OSDPerfMetricSubKeyDescriptor& d)
+{
+  switch (d.type) {
   case OSDPerfMetricSubKeyType::CLIENT_ID:
     os << "client_id";
     break;
@@ -40,11 +43,14 @@ std::ostream& operator<<(std::ostream& os,
   return os << "~/" << d.regex_str << "/";
 }
 
-void PerformanceCounterDescriptor::pack_counter(const PerformanceCounter &c,
-                                                bufferlist *bl) const {
+void
+PerformanceCounterDescriptor::pack_counter(
+    const PerformanceCounter& c,
+    bufferlist* bl) const
+{
   using ceph::encode;
   encode(c.first, *bl);
-  switch(type) {
+  switch (type) {
   case PerformanceCounterType::OPS:
   case PerformanceCounterType::WRITE_OPS:
   case PerformanceCounterType::READ_OPS:
@@ -62,11 +68,14 @@ void PerformanceCounterDescriptor::pack_counter(const PerformanceCounter &c,
   }
 }
 
-void PerformanceCounterDescriptor::unpack_counter(
-    bufferlist::const_iterator& bl, PerformanceCounter *c) const {
+void
+PerformanceCounterDescriptor::unpack_counter(
+    bufferlist::const_iterator& bl,
+    PerformanceCounter* c) const
+{
   using ceph::decode;
   decode(c->first, bl);
-  switch(type) {
+  switch (type) {
   case PerformanceCounterType::OPS:
   case PerformanceCounterType::WRITE_OPS:
   case PerformanceCounterType::READ_OPS:
@@ -84,9 +93,10 @@ void PerformanceCounterDescriptor::unpack_counter(
   }
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const PerformanceCounterDescriptor &d) {
-  switch(d.type) {
+std::ostream&
+operator<<(std::ostream& os, const PerformanceCounterDescriptor& d)
+{
+  switch (d.type) {
   case PerformanceCounterType::OPS:
     return os << "ops";
   case PerformanceCounterType::WRITE_OPS:
@@ -110,15 +120,20 @@ std::ostream& operator<<(std::ostream& os,
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const OSDPerfMetricLimit &limit) {
-  return os << "{order_by=" << limit.order_by << ", max_count="
-            << limit.max_count << "}";
+std::ostream&
+operator<<(std::ostream& os, const OSDPerfMetricLimit& limit)
+{
+  return os << "{order_by=" << limit.order_by
+            << ", max_count=" << limit.max_count << "}";
 }
 
-void OSDPerfMetricQuery::pack_counters(const PerformanceCounters &counters,
-                                       bufferlist *bl) const {
+void
+OSDPerfMetricQuery::pack_counters(
+    const PerformanceCounters& counters,
+    bufferlist* bl) const
+{
   auto it = counters.begin();
-  for (auto &descriptor : performance_counter_descriptors) {
+  for (auto& descriptor : performance_counter_descriptors) {
     if (it == counters.end()) {
       descriptor.pack_counter(PerformanceCounter(), bl);
     } else {
@@ -128,7 +143,9 @@ void OSDPerfMetricQuery::pack_counters(const PerformanceCounters &counters,
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const OSDPerfMetricQuery &query) {
-  return os << "{key=" << query.key_descriptor << ", counters="
-            << query.performance_counter_descriptors << "}";
+std::ostream&
+operator<<(std::ostream& os, const OSDPerfMetricQuery& query)
+{
+  return os << "{key=" << query.key_descriptor
+            << ", counters=" << query.performance_counter_descriptors << "}";
 }

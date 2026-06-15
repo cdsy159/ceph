@@ -13,52 +13,50 @@
  */
 
 
-#include "ssched_server.h"
-#include "ssched_client.h"
-
+#include "sim_client.h"
 #include "sim_recs.h"
 #include "sim_server.h"
-#include "sim_client.h"
-
 #include "simulate.h"
-
+#include "ssched_client.h"
+#include "ssched_server.h"
 
 namespace crimson {
-  namespace test_simple_scheduler {
+namespace test_simple_scheduler {
 
-    namespace ssched = crimson::simple_scheduler;
-    namespace sim = crimson::qos_simulation;
+namespace ssched = crimson::simple_scheduler;
+namespace sim = crimson::qos_simulation;
 
-    using Time = double;
+using Time = double;
 
-    struct SimpleAccum {
-      uint32_t request_count = 0;
-    };
+struct SimpleAccum {
+  uint32_t request_count = 0;
+};
 
-    using SimpleQueue = ssched::SimpleQueue<ClientId,sim::TestRequest,Time>;
+using SimpleQueue = ssched::SimpleQueue<ClientId, sim::TestRequest, Time>;
 
-    using SimpleServer = sim::SimulatedServer<SimpleQueue,
-					      ssched::ReqParams,
-					      ssched::NullData,
-					      SimpleAccum>;
-    using SimpleClient = sim::SimulatedClient<ssched::ServiceTracker<ServerId>,
-					      ssched::ReqParams,
-					      ssched::NullData,
-					      SimpleAccum>;
+using SimpleServer = sim::
+    SimulatedServer<SimpleQueue, ssched::ReqParams, ssched::NullData, SimpleAccum>;
+using SimpleClient = sim::SimulatedClient<
+    ssched::ServiceTracker<ServerId>,
+    ssched::ReqParams,
+    ssched::NullData,
+    SimpleAccum>;
 
-    using CreateQueueF =
-      std::function<SimpleQueue*(SimpleQueue::CanHandleRequestFunc,
-				 SimpleQueue::HandleRequestFunc)>;
+using CreateQueueF = std::function<SimpleQueue*(
+    SimpleQueue::CanHandleRequestFunc,
+    SimpleQueue::HandleRequestFunc)>;
 
 
-    using MySim = sim::Simulation<ServerId,ClientId,SimpleServer,SimpleClient>;
-  
-    using SubmitFunc = SimpleClient::SubmitFunc;
+using MySim = sim::Simulation<ServerId, ClientId, SimpleServer, SimpleClient>;
 
-    extern void simple_server_accumulate_f(SimpleAccum& a,
-					   const ssched::NullData& add_info);
+using SubmitFunc = SimpleClient::SubmitFunc;
 
-    extern void simple_client_accumulate_f(SimpleAccum& a,
-					   const ssched::NullData& ignore);
-  } // namespace test_simple
+extern void simple_server_accumulate_f(
+    SimpleAccum& a,
+    const ssched::NullData& add_info);
+
+extern void simple_client_accumulate_f(
+    SimpleAccum& a,
+    const ssched::NullData& ignore);
+} // namespace test_simple_scheduler
 } // namespace crimson

@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/image/RefreshParentRequest.h"
-#include "include/rados/librados.hpp"
+
 #include "common/dout.h"
 #include "common/errno.h"
+#include "include/rados/librados.hpp"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/Utils.h"
@@ -24,47 +25,66 @@ using util::create_context_callback;
 
 template <typename I>
 RefreshParentRequest<I>::RefreshParentRequest(
-    I &child_image_ctx, const ParentImageInfo &parent_md,
-    const MigrationInfo &migration_info, Context *on_finish)
-  : m_child_image_ctx(child_image_ctx), m_parent_md(parent_md),
-    m_migration_info(migration_info), m_on_finish(on_finish),
-    m_error_result(0) {
-}
+    I& child_image_ctx,
+    const ParentImageInfo& parent_md,
+    const MigrationInfo& migration_info,
+    Context* on_finish) :
+  m_child_image_ctx(child_image_ctx),
+  m_parent_md(parent_md),
+  m_migration_info(migration_info),
+  m_on_finish(on_finish),
+  m_error_result(0)
+{}
 
 template <typename I>
-bool RefreshParentRequest<I>::is_refresh_required(
-    I &child_image_ctx, const ParentImageInfo &parent_md,
-    const MigrationInfo &migration_info) {
+bool
+RefreshParentRequest<I>::is_refresh_required(
+    I& child_image_ctx,
+    const ParentImageInfo& parent_md,
+    const MigrationInfo& migration_info)
+{
   ceph_assert(ceph_mutex_is_locked(child_image_ctx.image_lock));
-  return (is_open_required(child_image_ctx, parent_md, migration_info) ||
-          is_close_required(child_image_ctx, parent_md, migration_info));
+  return (
+      is_open_required(child_image_ctx, parent_md, migration_info) ||
+      is_close_required(child_image_ctx, parent_md, migration_info));
 }
 
 template <typename I>
-bool RefreshParentRequest<I>::is_close_required(
-    I &child_image_ctx, const ParentImageInfo &parent_md,
-    const MigrationInfo &migration_info) {
-  return (child_image_ctx.parent != nullptr &&
-          !does_parent_exist(child_image_ctx, parent_md, migration_info));
+bool
+RefreshParentRequest<I>::is_close_required(
+    I& child_image_ctx,
+    const ParentImageInfo& parent_md,
+    const MigrationInfo& migration_info)
+{
+  return (
+      child_image_ctx.parent != nullptr &&
+      !does_parent_exist(child_image_ctx, parent_md, migration_info));
 }
 
 template <typename I>
-bool RefreshParentRequest<I>::is_open_required(
-    I &child_image_ctx, const ParentImageInfo &parent_md,
-    const MigrationInfo &migration_info) {
-  return (does_parent_exist(child_image_ctx, parent_md, migration_info) &&
-          (child_image_ctx.parent == nullptr ||
-           child_image_ctx.parent->md_ctx.get_id() != parent_md.spec.pool_id ||
-           child_image_ctx.parent->md_ctx.get_namespace() !=
-             parent_md.spec.pool_namespace ||
-           child_image_ctx.parent->id != parent_md.spec.image_id ||
-           child_image_ctx.parent->snap_id != parent_md.spec.snap_id));
+bool
+RefreshParentRequest<I>::is_open_required(
+    I& child_image_ctx,
+    const ParentImageInfo& parent_md,
+    const MigrationInfo& migration_info)
+{
+  return (
+      does_parent_exist(child_image_ctx, parent_md, migration_info) &&
+      (child_image_ctx.parent == nullptr ||
+       child_image_ctx.parent->md_ctx.get_id() != parent_md.spec.pool_id ||
+       child_image_ctx.parent->md_ctx.get_namespace() !=
+           parent_md.spec.pool_namespace ||
+       child_image_ctx.parent->id != parent_md.spec.image_id ||
+       child_image_ctx.parent->snap_id != parent_md.spec.snap_id));
 }
 
 template <typename I>
-bool RefreshParentRequest<I>::does_parent_exist(
-    I &child_image_ctx, const ParentImageInfo &parent_md,
-    const MigrationInfo &migration_info) {
+bool
+RefreshParentRequest<I>::does_parent_exist(
+    I& child_image_ctx,
+    const ParentImageInfo& parent_md,
+    const MigrationInfo& migration_info)
+{
   if (child_image_ctx.child != nullptr &&
       child_image_ctx.child->migration_info.empty() && parent_md.overlap == 0) {
     // intermediate, non-migrating images should only open their parent if they
@@ -73,11 +93,13 @@ bool RefreshParentRequest<I>::does_parent_exist(
   }
 
   return (parent_md.spec.pool_id > -1 && parent_md.overlap > 0) ||
-          !migration_info.empty();
+         !migration_info.empty();
 }
 
 template <typename I>
-void RefreshParentRequest<I>::send() {
+void
+RefreshParentRequest<I>::send()
+{
   if (is_open_required(m_child_image_ctx, m_parent_md, m_migration_info)) {
     send_open_parent();
   } else {
@@ -87,15 +109,19 @@ void RefreshParentRequest<I>::send() {
 }
 
 template <typename I>
-void RefreshParentRequest<I>::apply() {
+void
+RefreshParentRequest<I>::apply()
+{
   ceph_assert(ceph_mutex_is_wlocked(m_child_image_ctx.image_lock));
   std::swap(m_child_image_ctx.parent, m_parent_image_ctx);
   std::swap(m_child_image_ctx.parent_rados, m_parent_rados);
 }
 
 template <typename I>
-void RefreshParentRequest<I>::finalize(Context *on_finish) {
-  CephContext *cct = m_child_image_ctx.cct;
+void
+RefreshParentRequest<I>::finalize(Context* on_finish)
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   m_on_finish = on_finish;
@@ -108,54 +134,63 @@ void RefreshParentRequest<I>::finalize(Context *on_finish) {
 }
 
 template <typename I>
-void RefreshParentRequest<I>::send_open_parent() {
+void
+RefreshParentRequest<I>::send_open_parent()
+{
   ceph_assert(m_parent_md.spec.pool_id >= 0);
 
-  CephContext *cct = m_child_image_ctx.cct;
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   if (!m_migration_info.empty()) {
     auto ctx = create_async_context_callback(
-      m_child_image_ctx, create_context_callback<
-        RefreshParentRequest<I>,
-        &RefreshParentRequest<I>::handle_open_parent, false>(this));
+        m_child_image_ctx,
+        create_context_callback<
+            RefreshParentRequest<I>,
+            &RefreshParentRequest<I>::handle_open_parent, false>(this));
     auto req = migration::OpenSourceImageRequest<I>::create(
-      m_child_image_ctx.md_ctx, &m_child_image_ctx, m_parent_md.spec.snap_id,
-      m_migration_info, &m_parent_image_ctx, &m_parent_rados, ctx);
+        m_child_image_ctx.md_ctx, &m_child_image_ctx, m_parent_md.spec.snap_id,
+        m_migration_info, &m_parent_image_ctx, &m_parent_rados, ctx);
     req->send();
     return;
   }
 
   librados::IoCtx parent_io_ctx;
-  int r = util::create_ioctx(m_child_image_ctx.md_ctx, "parent image",
-                             m_parent_md.spec.pool_id,
-                             m_parent_md.spec.pool_namespace, &parent_io_ctx);
+  int r = util::create_ioctx(
+      m_child_image_ctx.md_ctx, "parent image", m_parent_md.spec.pool_id,
+      m_parent_md.spec.pool_namespace, &parent_io_ctx);
   if (r < 0) {
     send_complete(r);
     return;
   }
 
-  m_parent_image_ctx = new I("", m_parent_md.spec.image_id,
-                             m_parent_md.spec.snap_id, parent_io_ctx, true);
+  m_parent_image_ctx = new I(
+      "", m_parent_md.spec.image_id, m_parent_md.spec.snap_id, parent_io_ctx,
+      true);
   m_parent_image_ctx->child = &m_child_image_ctx;
 
   // set rados flags for reading the parent image
-  if (m_child_image_ctx.config.template get_val<bool>("rbd_balance_parent_reads")) {
+  if (m_child_image_ctx.config.template get_val<bool>(
+          "rbd_balance_parent_reads")) {
     m_parent_image_ctx->set_read_flag(librados::OPERATION_BALANCE_READS);
-  } else if (m_child_image_ctx.config.template get_val<bool>("rbd_localize_parent_reads")) {
+  } else if (m_child_image_ctx.config.template get_val<bool>(
+                 "rbd_localize_parent_reads")) {
     m_parent_image_ctx->set_read_flag(librados::OPERATION_LOCALIZE_READS);
   }
 
   auto ctx = create_async_context_callback(
-    m_child_image_ctx, create_context_callback<
-      RefreshParentRequest<I>,
-      &RefreshParentRequest<I>::handle_open_parent, false>(this));
+      m_child_image_ctx,
+      create_context_callback<
+          RefreshParentRequest<I>, &RefreshParentRequest<I>::handle_open_parent,
+          false>(this));
   m_parent_image_ctx->state->open(0U, ctx);
 }
 
 template <typename I>
-Context *RefreshParentRequest<I>::handle_open_parent(int *result) {
-  CephContext *cct = m_child_image_ctx.cct;
+Context*
+RefreshParentRequest<I>::handle_open_parent(int* result)
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
   save_result(result);
@@ -171,22 +206,27 @@ Context *RefreshParentRequest<I>::handle_open_parent(int *result) {
 }
 
 template <typename I>
-void RefreshParentRequest<I>::send_close_parent() {
+void
+RefreshParentRequest<I>::send_close_parent()
+{
   ceph_assert(m_parent_image_ctx != nullptr);
 
-  CephContext *cct = m_child_image_ctx.cct;
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   auto ctx = create_async_context_callback(
-    m_child_image_ctx, create_context_callback<
-      RefreshParentRequest<I>,
-      &RefreshParentRequest<I>::handle_close_parent, false>(this));
+      m_child_image_ctx,
+      create_context_callback<
+          RefreshParentRequest<I>,
+          &RefreshParentRequest<I>::handle_close_parent, false>(this));
   m_parent_image_ctx->state->close(ctx);
 }
 
 template <typename I>
-Context *RefreshParentRequest<I>::handle_close_parent(int *result) {
-  CephContext *cct = m_child_image_ctx.cct;
+Context*
+RefreshParentRequest<I>::handle_close_parent(int* result)
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
   m_parent_image_ctx = nullptr;
@@ -205,20 +245,25 @@ Context *RefreshParentRequest<I>::handle_close_parent(int *result) {
 }
 
 template <typename I>
-void RefreshParentRequest<I>::send_reset_existence_cache() {
-  CephContext *cct = m_child_image_ctx.cct;
+void
+RefreshParentRequest<I>::send_reset_existence_cache()
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
-  Context *ctx = create_async_context_callback(
-    m_child_image_ctx, create_context_callback<
-      RefreshParentRequest<I>,
-      &RefreshParentRequest<I>::handle_reset_existence_cache, false>(this));
+  Context* ctx = create_async_context_callback(
+      m_child_image_ctx,
+      create_context_callback<
+          RefreshParentRequest<I>,
+          &RefreshParentRequest<I>::handle_reset_existence_cache, false>(this));
   m_child_image_ctx.io_object_dispatcher->reset_existence_cache(ctx);
 }
 
 template <typename I>
-Context *RefreshParentRequest<I>::handle_reset_existence_cache(int *result) {
-  CephContext *cct = m_child_image_ctx.cct;
+Context*
+RefreshParentRequest<I>::handle_reset_existence_cache(int* result)
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
   if (*result < 0) {
@@ -236,8 +281,10 @@ Context *RefreshParentRequest<I>::handle_reset_existence_cache(int *result) {
 }
 
 template <typename I>
-void RefreshParentRequest<I>::send_complete(int r) {
-  CephContext *cct = m_child_image_ctx.cct;
+void
+RefreshParentRequest<I>::send_complete(int r)
+{
+  CephContext* cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   m_on_finish->complete(r);

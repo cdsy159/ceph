@@ -2,40 +2,53 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <gtest/gtest.h>
+
 #include "common/bitset_set.h"
 
 struct Key {
   int8_t k;
 
-  constexpr Key(int8_t k) : k(k) {
-  }
+  constexpr Key(int8_t k) :
+    k(k)
+  {}
 
-  explicit constexpr operator int8_t() const {
+  explicit constexpr
+  operator int8_t() const
+  {
     return k;
   }
-  explicit constexpr operator int() const {
+
+  explicit constexpr
+  operator int() const
+  {
     return k;
   }
 
-  friend std::ostream &operator<<(std::ostream &lhs, const Key &rhs) {
-    return lhs << (uint32_t) rhs.k;
+  friend std::ostream&
+  operator<<(std::ostream& lhs, const Key& rhs)
+  {
+    return lhs << (uint32_t)rhs.k;
   }
-  friend bool operator==(const Key &lhs, const Key &rhs) = default;
+
+  friend bool operator==(const Key& lhs, const Key& rhs) = default;
 };
 
 namespace fmt {
 template <>
 struct formatter<Key> : private formatter<int> {
   using formatter<int>::parse;
+
   template <typename FormatContext>
-  auto format(const Key& k, FormatContext& ctx) const {
+  auto
+  format(const Key& k, FormatContext& ctx) const
+  {
     return formatter<int>::format(k.k, ctx);
   }
 };
 } // namespace fmt
 
-
-TEST(bitset_set, constructors) {
+TEST(bitset_set, constructors)
+{
   bitset_set<128, Key> bs;
   ASSERT_TRUE(bs.empty());
   bs.insert(2);
@@ -49,14 +62,15 @@ TEST(bitset_set, constructors) {
   ASSERT_EQ(bs, bs4);
 }
 
-TEST(bitset_set, insert_emplace) {
+TEST(bitset_set, insert_emplace)
+{
   bitset_set<128, Key> bitset;
   bitset.insert(1);
   bitset.emplace(3);
 
   Key keys[] = {1, 3};
   int i = 0;
-  for (const Key &k : bitset) {
+  for (const Key& k : bitset) {
     ASSERT_EQ(k, keys[i++]);
   }
   ASSERT_EQ(2, i);
@@ -67,7 +81,8 @@ TEST(bitset_set, insert_emplace) {
   ASSERT_EQ(3, bitset2.size());
 }
 
-TEST(bitset_set, erase) {
+TEST(bitset_set, erase)
+{
   bitset_set<128, Key> bitset;
   bitset.insert(1);
   bitset.insert(3);
@@ -79,13 +94,14 @@ TEST(bitset_set, erase) {
   // i is used here to count the number of iterations and check it against the
   // reference array.
   int i = 0;
-  for (const Key &k : bitset) {
+  for (const Key& k : bitset) {
     ASSERT_EQ(keys[i++], k);
   }
   ASSERT_EQ(2, i);
 }
 
-void test_insert_range(int start, int length)
+void
+test_insert_range(int start, int length)
 {
   bitset_set<128, Key> bitset;
   bitset_set<128, Key> bitset_ref;
@@ -97,15 +113,17 @@ void test_insert_range(int start, int length)
   ASSERT_EQ(bitset_ref, bitset) << "start=" << start << " length=" << length;
 }
 
-TEST(bitset_set, insert_range) {
-  for (int i=0; i < 128; i++) {
-    for (int j=0; j <= 128 - i; j++) {
+TEST(bitset_set, insert_range)
+{
+  for (int i = 0; i < 128; i++) {
+    for (int j = 0; j <= 128 - i; j++) {
       test_insert_range(i, j);
     }
   }
 }
 
-void test_erase_range(int start, int length)
+void
+test_erase_range(int start, int length)
 {
   bitset_set<128, Key> bitset;
   bitset_set<128, Key> bitset_ref;
@@ -119,22 +137,25 @@ void test_erase_range(int start, int length)
   ASSERT_EQ(bitset_ref, bitset);
 }
 
-TEST(bitset_set, erase_range) {
-  for (int i=0; i < 128; i++) {
-    for (int j=0; j <= 128 - i; j++) {
+TEST(bitset_set, erase_range)
+{
+  for (int i = 0; i < 128; i++) {
+    for (int j = 0; j <= 128 - i; j++) {
       test_erase_range(i, j);
     }
   }
 }
 
-TEST(bitset_set, clear_empty) {
+TEST(bitset_set, clear_empty)
+{
   bitset_set<128, Key> bitset;
   bitset.insert_range(1, 4);
   bitset.clear();
   ASSERT_TRUE(bitset.empty());
 }
 
-TEST(bitset_set, count_contains_find) {
+TEST(bitset_set, count_contains_find)
+{
   bitset_set<128, Key> bitset;
   ASSERT_FALSE(bitset.contains(1));
   ASSERT_EQ(0, bitset.count(1));
@@ -146,7 +167,8 @@ TEST(bitset_set, count_contains_find) {
   ASSERT_EQ(bitset.begin(), bitset.find(1));
 }
 
-TEST(bitset_set, swap) {
+TEST(bitset_set, swap)
+{
   bitset_set<128, Key> bitset;
   bitset_set<128, Key> bitset2;
 
@@ -163,7 +185,8 @@ TEST(bitset_set, swap) {
   ASSERT_FALSE(bitset2.empty());
 }
 
-TEST(bitset_set, assign) {
+TEST(bitset_set, assign)
+{
   bitset_set<128, Key> bitset;
   bitset_set<128, Key> bitset2;
 
@@ -180,7 +203,8 @@ TEST(bitset_set, assign) {
   ASSERT_FALSE(bitset3.empty());
 }
 
-TEST(bitset_set, equality) {
+TEST(bitset_set, equality)
+{
   bitset_set<128, Key> bitset;
   bitset_set<128, Key> bitset2;
 
@@ -195,7 +219,8 @@ TEST(bitset_set, equality) {
   ASSERT_EQ(bitset, bitset2);
 }
 
-TEST(bitset_set, fmt_formatting) {
+TEST(bitset_set, fmt_formatting)
+{
   bitset_set<128, Key> bitset;
   // when empty:
   auto using_fmt = fmt::format("{}", bitset);
@@ -212,26 +237,27 @@ TEST(bitset_set, fmt_formatting) {
   EXPECT_EQ(using_fmt, oss.str());
 }
 
-TEST(bitset_set, find_nth) {
+TEST(bitset_set, find_nth)
+{
   constexpr size_t range = 128;
   bitset_set<range, Key> bitset;
 
-  ASSERT_EQ(bitset.end(), bitset.find_nth(0) );
-  ASSERT_EQ(bitset.end(), bitset.find_nth(1) );
-  ASSERT_EQ(bitset.end(), bitset.find_nth(range) );
+  ASSERT_EQ(bitset.end(), bitset.find_nth(0));
+  ASSERT_EQ(bitset.end(), bitset.find_nth(1));
+  ASSERT_EQ(bitset.end(), bitset.find_nth(range));
 
   bitset.insert(0);
-  ASSERT_EQ(Key(0), *bitset.find_nth(0) );
-  ASSERT_EQ(bitset.end(), bitset.find_nth(1) );
-  ASSERT_EQ(bitset.end(), bitset.find_nth(range) );
+  ASSERT_EQ(Key(0), *bitset.find_nth(0));
+  ASSERT_EQ(bitset.end(), bitset.find_nth(1));
+  ASSERT_EQ(bitset.end(), bitset.find_nth(range));
 
   // Single bit set
   for (unsigned int i = 0; i < range; i++) {
     bitset.clear();
     bitset.insert(i);
-    ASSERT_EQ(Key(i), *bitset.find_nth(0) );
-    ASSERT_EQ(bitset.end(), bitset.find_nth(1) );
-    ASSERT_EQ(bitset.end(), bitset.find_nth(range) );
+    ASSERT_EQ(Key(i), *bitset.find_nth(0));
+    ASSERT_EQ(bitset.end(), bitset.find_nth(1));
+    ASSERT_EQ(bitset.end(), bitset.find_nth(range));
   }
 
   /* Alt bits set */
@@ -240,9 +266,9 @@ TEST(bitset_set, find_nth) {
     bitset.insert(i);
   }
   for (unsigned int i = 0; i < range / 2; i++) {
-    ASSERT_EQ(Key(i * 2), *bitset.find_nth(i) );
+    ASSERT_EQ(Key(i * 2), *bitset.find_nth(i));
   }
-  ASSERT_EQ(bitset.end(), bitset.find_nth(range / 2) );
+  ASSERT_EQ(bitset.end(), bitset.find_nth(range / 2));
 
   /* Other alt bits set */
   bitset.clear();
@@ -250,15 +276,15 @@ TEST(bitset_set, find_nth) {
     bitset.insert(i);
   }
   for (unsigned int i = 0; i < range / 2; i++) {
-    ASSERT_EQ(Key(i * 2 + 1), *bitset.find_nth(i) );
+    ASSERT_EQ(Key(i * 2 + 1), *bitset.find_nth(i));
   }
-  ASSERT_EQ(bitset.end(), bitset.find_nth(range / 2) );
+  ASSERT_EQ(bitset.end(), bitset.find_nth(range / 2));
 
   /* All bits set */
   bitset.clear();
   bitset.insert_range(Key(0), range);
   for (unsigned int i = 0; i < range; i++) {
-    ASSERT_EQ(Key(i), *bitset.find_nth(i) );
+    ASSERT_EQ(Key(i), *bitset.find_nth(i));
   }
-  ASSERT_EQ(bitset.end(), bitset.find_nth(range) );
+  ASSERT_EQ(bitset.end(), bitset.find_nth(range));
 }

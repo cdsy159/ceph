@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "Types.h"
+
 #include "SocketCommon.h"
 
 #define dout_subsys ceph_subsys_immutable_obj_cache
@@ -12,11 +13,16 @@ namespace ceph {
 namespace immutable_obj_cache {
 
 ObjectCacheRequest::ObjectCacheRequest() {}
-ObjectCacheRequest::ObjectCacheRequest(uint16_t t, uint64_t s)
-  : type(t), seq(s) {}
+
+ObjectCacheRequest::ObjectCacheRequest(uint16_t t, uint64_t s) :
+  type(t), seq(s)
+{}
+
 ObjectCacheRequest::~ObjectCacheRequest() {}
 
-void ObjectCacheRequest::encode() {
+void
+ObjectCacheRequest::encode()
+{
   ENCODE_START(2, 1, payload);
   ceph::encode(type, payload);
   ceph::encode(seq, payload);
@@ -26,7 +32,9 @@ void ObjectCacheRequest::encode() {
   ENCODE_FINISH(payload);
 }
 
-void ObjectCacheRequest::decode(bufferlist& bl) {
+void
+ObjectCacheRequest::decode(bufferlist& bl)
+{
   auto i = bl.cbegin();
   DECODE_START(2, i);
   ceph::decode(type, i);
@@ -38,22 +46,31 @@ void ObjectCacheRequest::decode(bufferlist& bl) {
 }
 
 ObjectCacheRegData::ObjectCacheRegData() {}
-ObjectCacheRegData::ObjectCacheRegData(uint16_t t, uint64_t s)
-  : ObjectCacheRequest(t, s) {}
-ObjectCacheRegData::ObjectCacheRegData(uint16_t t, uint64_t s,
-                                       const std::string &version)
-  : ObjectCacheRequest(t, s),
-    version(version) {
-}
+
+ObjectCacheRegData::ObjectCacheRegData(uint16_t t, uint64_t s) :
+  ObjectCacheRequest(t, s)
+{}
+
+ObjectCacheRegData::ObjectCacheRegData(
+    uint16_t t,
+    uint64_t s,
+    const std::string& version) :
+  ObjectCacheRequest(t, s), version(version)
+{}
 
 ObjectCacheRegData::~ObjectCacheRegData() {}
 
-void ObjectCacheRegData::encode_payload() {
+void
+ObjectCacheRegData::encode_payload()
+{
   ceph::encode(version, payload);
 }
 
-void ObjectCacheRegData::decode_payload(bufferlist::const_iterator i,
-                                        __u8 encode_version) {
+void
+ObjectCacheRegData::decode_payload(
+    bufferlist::const_iterator i,
+    __u8 encode_version)
+{
   if (i.end()) {
     return;
   }
@@ -61,34 +78,52 @@ void ObjectCacheRegData::decode_payload(bufferlist::const_iterator i,
 }
 
 ObjectCacheRegReplyData::ObjectCacheRegReplyData() {}
-ObjectCacheRegReplyData::ObjectCacheRegReplyData(uint16_t t, uint64_t s)
-  : ObjectCacheRequest(t, s) {}
+
+ObjectCacheRegReplyData::ObjectCacheRegReplyData(uint16_t t, uint64_t s) :
+  ObjectCacheRequest(t, s)
+{}
 
 ObjectCacheRegReplyData::~ObjectCacheRegReplyData() {}
 
-void ObjectCacheRegReplyData::encode_payload() {}
-
-void ObjectCacheRegReplyData::decode_payload(bufferlist::const_iterator bl,
-                                            __u8 encode_version) {}
-
-ObjectCacheReadData::ObjectCacheReadData(uint16_t t, uint64_t s,
-                                         uint64_t read_offset,
-                                         uint64_t read_len,
-                                         uint64_t pool_id, uint64_t snap_id,
-                                         uint64_t object_size,
-                                         std::string oid,
-                                         std::string pool_namespace)
-  : ObjectCacheRequest(t, s), read_offset(read_offset),
-    read_len(read_len), pool_id(pool_id), snap_id(snap_id),
-    object_size(object_size), oid(oid), pool_namespace(pool_namespace)
+void
+ObjectCacheRegReplyData::encode_payload()
 {}
 
-ObjectCacheReadData::ObjectCacheReadData(uint16_t t, uint64_t s)
-  : ObjectCacheRequest(t, s) {}
+void
+ObjectCacheRegReplyData::decode_payload(
+    bufferlist::const_iterator bl,
+    __u8 encode_version)
+{}
+
+ObjectCacheReadData::ObjectCacheReadData(
+    uint16_t t,
+    uint64_t s,
+    uint64_t read_offset,
+    uint64_t read_len,
+    uint64_t pool_id,
+    uint64_t snap_id,
+    uint64_t object_size,
+    std::string oid,
+    std::string pool_namespace) :
+  ObjectCacheRequest(t, s),
+  read_offset(read_offset),
+  read_len(read_len),
+  pool_id(pool_id),
+  snap_id(snap_id),
+  object_size(object_size),
+  oid(oid),
+  pool_namespace(pool_namespace)
+{}
+
+ObjectCacheReadData::ObjectCacheReadData(uint16_t t, uint64_t s) :
+  ObjectCacheRequest(t, s)
+{}
 
 ObjectCacheReadData::~ObjectCacheReadData() {}
 
-void ObjectCacheReadData::encode_payload() {
+void
+ObjectCacheReadData::encode_payload()
+{
   ceph::encode(read_offset, payload);
   ceph::encode(read_len, payload);
   ceph::encode(pool_id, payload);
@@ -98,8 +133,11 @@ void ObjectCacheReadData::encode_payload() {
   ceph::encode(object_size, payload);
 }
 
-void ObjectCacheReadData::decode_payload(bufferlist::const_iterator i,
-                                        __u8 encode_version) {
+void
+ObjectCacheReadData::decode_payload(
+    bufferlist::const_iterator i,
+    __u8 encode_version)
+{
   ceph::decode(read_offset, i);
   ceph::decode(read_len, i);
   ceph::decode(pool_id, i);
@@ -111,35 +149,54 @@ void ObjectCacheReadData::decode_payload(bufferlist::const_iterator i,
   }
 }
 
-ObjectCacheReadReplyData::ObjectCacheReadReplyData(uint16_t t, uint64_t s,
-                                                   std::string cache_path)
-  : ObjectCacheRequest(t, s), cache_path(cache_path) {}
-ObjectCacheReadReplyData::ObjectCacheReadReplyData(uint16_t t, uint64_t s)
-  : ObjectCacheRequest(t, s) {}
+ObjectCacheReadReplyData::ObjectCacheReadReplyData(
+    uint16_t t,
+    uint64_t s,
+    std::string cache_path) :
+  ObjectCacheRequest(t, s), cache_path(cache_path)
+{}
+
+ObjectCacheReadReplyData::ObjectCacheReadReplyData(uint16_t t, uint64_t s) :
+  ObjectCacheRequest(t, s)
+{}
 
 ObjectCacheReadReplyData::~ObjectCacheReadReplyData() {}
 
-void ObjectCacheReadReplyData::encode_payload() {
+void
+ObjectCacheReadReplyData::encode_payload()
+{
   ceph::encode(cache_path, payload);
 }
 
-void ObjectCacheReadReplyData::decode_payload(bufferlist::const_iterator i,
-                                              __u8 encode_version) {
+void
+ObjectCacheReadReplyData::decode_payload(
+    bufferlist::const_iterator i,
+    __u8 encode_version)
+{
   ceph::decode(cache_path, i);
 }
 
 ObjectCacheReadRadosData::ObjectCacheReadRadosData() {}
-ObjectCacheReadRadosData::ObjectCacheReadRadosData(uint16_t t, uint64_t s)
-  : ObjectCacheRequest(t, s) {}
+
+ObjectCacheReadRadosData::ObjectCacheReadRadosData(uint16_t t, uint64_t s) :
+  ObjectCacheRequest(t, s)
+{}
 
 ObjectCacheReadRadosData::~ObjectCacheReadRadosData() {}
 
-void ObjectCacheReadRadosData::encode_payload() {}
+void
+ObjectCacheReadRadosData::encode_payload()
+{}
 
-void ObjectCacheReadRadosData::decode_payload(bufferlist::const_iterator i,
-                                              __u8 encode_version) {}
+void
+ObjectCacheReadRadosData::decode_payload(
+    bufferlist::const_iterator i,
+    __u8 encode_version)
+{}
 
-ObjectCacheRequest* decode_object_cache_request(bufferlist payload_buffer) {
+ObjectCacheRequest*
+decode_object_cache_request(bufferlist payload_buffer)
+{
   ObjectCacheRequest* req = nullptr;
 
   uint16_t type;
@@ -151,28 +208,28 @@ ObjectCacheRequest* decode_object_cache_request(bufferlist payload_buffer) {
   DECODE_FINISH(i);
 
   switch (type) {
-    case RBDSC_REGISTER: {
-      req = new ObjectCacheRegData(type, seq);
-      break;
-    }
-    case RBDSC_READ: {
-      req = new ObjectCacheReadData(type, seq);
-      break;
-    }
-    case RBDSC_REGISTER_REPLY: {
-      req = new ObjectCacheRegReplyData(type, seq);
-      break;
-    }
-    case RBDSC_READ_REPLY: {
-      req = new ObjectCacheReadReplyData(type, seq);
-      break;
-    }
-    case RBDSC_READ_RADOS: {
-      req = new ObjectCacheReadRadosData(type, seq);
-      break;
-    }
-    default:
-      ceph_assert(0);
+  case RBDSC_REGISTER: {
+    req = new ObjectCacheRegData(type, seq);
+    break;
+  }
+  case RBDSC_READ: {
+    req = new ObjectCacheReadData(type, seq);
+    break;
+  }
+  case RBDSC_REGISTER_REPLY: {
+    req = new ObjectCacheRegReplyData(type, seq);
+    break;
+  }
+  case RBDSC_READ_REPLY: {
+    req = new ObjectCacheReadReplyData(type, seq);
+    break;
+  }
+  case RBDSC_READ_RADOS: {
+    req = new ObjectCacheReadRadosData(type, seq);
+    break;
+  }
+  default:
+    ceph_assert(0);
   }
 
   req->decode(payload_buffer);
@@ -180,5 +237,5 @@ ObjectCacheRequest* decode_object_cache_request(bufferlist payload_buffer) {
   return req;
 }
 
-}  // namespace immutable_obj_cache
-}  // namespace ceph
+} // namespace immutable_obj_cache
+} // namespace ceph

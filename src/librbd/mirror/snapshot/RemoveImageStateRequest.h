@@ -19,15 +19,18 @@ namespace snapshot {
 template <typename ImageCtxT = librbd::ImageCtx>
 class RemoveImageStateRequest {
 public:
-  static RemoveImageStateRequest *create(ImageCtxT *image_ctx, uint64_t snap_id,
-                                         Context *on_finish) {
-      return new RemoveImageStateRequest(image_ctx, snap_id, on_finish);
+  static RemoveImageStateRequest*
+  create(ImageCtxT* image_ctx, uint64_t snap_id, Context* on_finish)
+  {
+    return new RemoveImageStateRequest(image_ctx, snap_id, on_finish);
   }
 
-  RemoveImageStateRequest(ImageCtxT *image_ctx, uint64_t snap_id,
-                          Context *on_finish)
-    : m_image_ctx(image_ctx), m_snap_id(snap_id), m_on_finish(on_finish) {
-  }
+  RemoveImageStateRequest(
+      ImageCtxT* image_ctx,
+      uint64_t snap_id,
+      Context* on_finish) :
+    m_image_ctx(image_ctx), m_snap_id(snap_id), m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -49,9 +52,9 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
   uint64_t m_snap_id;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   bufferlist m_bl;
 
@@ -70,6 +73,7 @@ private:
 } // namespace mirror
 } // namespace librbd
 
-extern template class librbd::mirror::snapshot::RemoveImageStateRequest<librbd::ImageCtx>;
+extern template class librbd::mirror::snapshot::RemoveImageStateRequest<
+    librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_MIRROR_SNAPSHOT_REMOVE_IMAGE_STATE_REQUEST_H

@@ -1,9 +1,10 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <cerrno>
 #include <gtest/gtest.h>
 #include <sys/stat.h>
+
+#include <cerrno>
 
 #include "common/Journald.h"
 #include "log/Entry.h"
@@ -12,12 +13,14 @@
 using namespace ceph::logging;
 
 class JournaldLoggerTest : public ::testing::Test {
- protected:
+protected:
   SubsystemMap subs;
   JournaldLogger journald = {&subs};
   MutableEntry entry = {0, 0};
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     struct stat buffer;
     if (stat("/run/systemd/journal/socket", &buffer) < 0) {
       if (errno == ENOENT) {

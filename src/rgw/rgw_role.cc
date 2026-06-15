@@ -1,40 +1,42 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_role.h"
+
 #include <errno.h>
+
 #include <ctime>
 #include <regex>
+
 #include <boost/algorithm/string/replace.hpp>
 
-#include "common/errno.h"
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
 #include "common/ceph_time.h"
-#include "rgw_zone.h"
-
+#include "common/errno.h"
 #include "include/types.h"
-#include "rgw_string.h"
+#include "services/svc_sys_obj.h"
+#include "services/svc_zone.h"
 
 #include "rgw_common.h"
-#include "rgw_role.h"
-
-#include "services/svc_zone.h"
-#include "services/svc_sys_obj.h"
+#include "rgw_string.h"
+#include "rgw_zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-void RGWRoleInfo::dump(Formatter *f) const
+void
+RGWRoleInfo::dump(Formatter* f) const
 {
-  encode_json("RoleId", id , f);
+  encode_json("RoleId", id, f);
   std::string role_name;
   if (tenant.empty()) {
     role_name = name;
   } else {
     role_name = tenant + '$' + name;
   }
-  encode_json("RoleName", role_name , f);
+  encode_json("RoleName", role_name, f);
   encode_json("Path", path, f);
   encode_json("Arn", arn, f);
   encode_json("CreateDate", creation_date, f);
@@ -71,7 +73,8 @@ void RGWRoleInfo::dump(Formatter *f) const
   }
 }
 
-void RGWRoleInfo::decode_json(JSONObj *obj)
+void
+RGWRoleInfo::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("RoleId", id, obj);
   JSONDecoder::decode_json("RoleName", name, obj);
@@ -118,7 +121,7 @@ void RGWRoleInfo::decode_json(JSONObj *obj)
 
   if (auto pos = name.find('$'); pos != std::string::npos) {
     tenant = name.substr(0, pos);
-    name = name.substr(pos+1);
+    name = name.substr(pos + 1);
   }
 }
 
@@ -126,14 +129,15 @@ namespace rgw::sal {
 
 const string RGWRole::role_arn_prefix = "arn:aws:iam::";
 
-RGWRole::RGWRole(std::string name,
-              std::string tenant,
-              rgw_account_id account_id,
-              std::string path,
-              std::string trust_policy,
-              std::string description,
-              std::string max_session_duration_str,
-              std::multimap<std::string,std::string> tags)
+RGWRole::RGWRole(
+    std::string name,
+    std::string tenant,
+    rgw_account_id account_id,
+    std::string path,
+    std::string trust_policy,
+    std::string description,
+    std::string max_session_duration_str,
+    std::multimap<std::string, std::string> tags)
 {
   info.name = std::move(name);
   info.account_id = std::move(account_id);
@@ -153,22 +157,23 @@ RGWRole::RGWRole(std::string name,
   info.mtime = real_time();
 }
 
-RGWRole::RGWRole(std::string id)
-{
-  info.id = std::move(id);
-}
+RGWRole::RGWRole(std::string id) { info.id = std::move(id); }
 
-bool RGWRole::validate_max_session_duration(const DoutPrefixProvider* dpp)
+bool
+RGWRole::validate_max_session_duration(const DoutPrefixProvider* dpp)
 {
   if (info.max_session_duration < SESSION_DURATION_MIN ||
-          info.max_session_duration > SESSION_DURATION_MAX) {
-    ldpp_dout(dpp, 0) << "ERROR: Invalid session duration, should be between 3600 and 43200 seconds " << dendl;
+      info.max_session_duration > SESSION_DURATION_MAX) {
+    ldpp_dout(dpp, 0) << "ERROR: Invalid session duration, should be between "
+                         "3600 and 43200 seconds "
+                      << dendl;
     return false;
   }
   return true;
 }
 
-bool RGWRole::validate_input(const DoutPrefixProvider* dpp)
+bool
+RGWRole::validate_input(const DoutPrefixProvider* dpp)
 {
   if (info.name.length() > MAX_ROLE_NAME_LEN) {
     ldpp_dout(dpp, 0) << "ERROR: Invalid name length " << dendl;
@@ -181,13 +186,13 @@ bool RGWRole::validate_input(const DoutPrefixProvider* dpp)
   }
 
   std::regex regex_name("[A-Za-z0-9:=,.@-]+");
-  if (! std::regex_match(info.name, regex_name)) {
+  if (!std::regex_match(info.name, regex_name)) {
     ldpp_dout(dpp, 0) << "ERROR: Invalid chars in name " << dendl;
     return false;
   }
 
   std::regex regex_path("(/[!-~]+/)|(/)");
-  if (! std::regex_match(info.path,regex_path)) {
+  if (!std::regex_match(info.path, regex_path)) {
     ldpp_dout(dpp, 0) << "ERROR: Invalid chars in path " << dendl;
     return false;
   }
@@ -198,17 +203,22 @@ bool RGWRole::validate_input(const DoutPrefixProvider* dpp)
   return true;
 }
 
-void RGWRole::extract_name_tenant(const std::string& str) {
-  if (auto pos = str.find('$');
-      pos != std::string::npos) {
+void
+RGWRole::extract_name_tenant(const std::string& str)
+{
+  if (auto pos = str.find('$'); pos != std::string::npos) {
     info.tenant = str.substr(0, pos);
-    info.name = str.substr(pos+1);
+    info.name = str.substr(pos + 1);
   }
 }
 
-int RGWRole::create(const DoutPrefixProvider *dpp, const std::string& role_id, optional_yield y)
+int
+RGWRole::create(
+    const DoutPrefixProvider* dpp,
+    const std::string& role_id,
+    optional_yield y)
 {
-  if (! validate_input(dpp)) {
+  if (!validate_input(dpp)) {
     return -EINVAL;
   }
 
@@ -226,8 +236,10 @@ int RGWRole::create(const DoutPrefixProvider *dpp, const std::string& role_id, o
   }
 
   //arn
-  std::string_view account = !info.account_id.empty() ? info.account_id : info.tenant;
-  info.arn = string_cat_reserve(role_arn_prefix, account, ":role", info.path, info.name);
+  std::string_view account = !info.account_id.empty() ? info.account_id
+                                                      : info.tenant;
+  info.arn = string_cat_reserve(
+      role_arn_prefix, account, ":role", info.path, info.name);
 
   if (info.creation_date.empty()) {
     // Creation time
@@ -239,8 +251,8 @@ int RGWRole::create(const DoutPrefixProvider *dpp, const std::string& role_id, o
     char buf[30];
     struct tm result;
     gmtime_r(&tv.tv_sec, &result);
-    strftime(buf,30,"%Y-%m-%dT%H:%M:%S", &result);
-    sprintf(buf + strlen(buf),".%03dZ",(int)tv.tv_usec/1000);
+    strftime(buf, 30, "%Y-%m-%dT%H:%M:%S", &result);
+    sprintf(buf + strlen(buf), ".%03dZ", (int)tv.tv_usec / 1000);
     info.creation_date.assign(buf, strlen(buf));
   }
 
@@ -248,27 +260,33 @@ int RGWRole::create(const DoutPrefixProvider *dpp, const std::string& role_id, o
   return store_info(dpp, exclusive, y);
 }
 
-void RGWRole::set_perm_policy(const string& policy_name, const string& perm_policy)
+void
+RGWRole::set_perm_policy(const string& policy_name, const string& perm_policy)
 {
   info.perm_policy_map[policy_name] = perm_policy;
 }
 
-vector<string> RGWRole::get_role_policy_names()
+vector<string>
+RGWRole::get_role_policy_names()
 {
   vector<string> policy_names;
-  for (const auto& it : info.perm_policy_map)
-  {
+  for (const auto& it : info.perm_policy_map) {
     policy_names.push_back(std::move(it.first));
   }
 
   return policy_names;
 }
 
-int RGWRole::get_role_policy(const DoutPrefixProvider* dpp, const string& policy_name, string& perm_policy)
+int
+RGWRole::get_role_policy(
+    const DoutPrefixProvider* dpp,
+    const string& policy_name,
+    string& perm_policy)
 {
   const auto it = info.perm_policy_map.find(policy_name);
   if (it == info.perm_policy_map.end()) {
-    ldpp_dout(dpp, 0) << "ERROR: Policy name: " << policy_name << " not found" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: Policy name: " << policy_name << " not found"
+                      << dendl;
     return -ENOENT;
   } else {
     perm_policy = it->second;
@@ -276,11 +294,13 @@ int RGWRole::get_role_policy(const DoutPrefixProvider* dpp, const string& policy
   return 0;
 }
 
-int RGWRole::delete_policy(const DoutPrefixProvider* dpp, const string& policy_name)
+int
+RGWRole::delete_policy(const DoutPrefixProvider* dpp, const string& policy_name)
 {
   const auto& it = info.perm_policy_map.find(policy_name);
   if (it == info.perm_policy_map.end()) {
-    ldpp_dout(dpp, 0) << "ERROR: Policy name: " << policy_name << " not found" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: Policy name: " << policy_name << " not found"
+                      << dendl;
     return -ENOENT;
   } else {
     info.perm_policy_map.erase(it);
@@ -288,12 +308,16 @@ int RGWRole::delete_policy(const DoutPrefixProvider* dpp, const string& policy_n
   return 0;
 }
 
-void RGWRole::update_trust_policy(string& trust_policy)
+void
+RGWRole::update_trust_policy(string& trust_policy)
 {
   this->info.trust_policy = trust_policy;
 }
 
-int RGWRole::set_tags(const DoutPrefixProvider* dpp, const multimap<string,string>& tags_map)
+int
+RGWRole::set_tags(
+    const DoutPrefixProvider* dpp,
+    const multimap<string, string>& tags_map)
 {
   for (auto& it : tags_map) {
     this->info.tags.emplace(it.first, it.second);
@@ -305,22 +329,25 @@ int RGWRole::set_tags(const DoutPrefixProvider* dpp, const multimap<string,strin
   return 0;
 }
 
-boost::optional<multimap<string,string>> RGWRole::get_tags()
+boost::optional<multimap<string, string>>
+RGWRole::get_tags()
 {
-  if(this->info.tags.empty()) {
+  if (this->info.tags.empty()) {
     return boost::none;
   }
   return this->info.tags;
 }
 
-void RGWRole::erase_tags(const vector<string>& tagKeys)
+void
+RGWRole::erase_tags(const vector<string>& tagKeys)
 {
   for (auto& it : tagKeys) {
     this->info.tags.erase(it);
   }
 }
 
-void RGWRole::update_max_session_duration(const std::string& max_session_duration_str)
+void
+RGWRole::update_max_session_duration(const std::string& max_session_duration_str)
 {
   if (max_session_duration_str.empty()) {
     info.max_session_duration = SESSION_DURATION_MIN;

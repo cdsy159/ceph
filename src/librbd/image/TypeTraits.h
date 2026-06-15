@@ -6,7 +6,9 @@
 
 namespace librbd {
 
-namespace asio { struct ContextWQ; }
+namespace asio {
+struct ContextWQ;
+}
 
 namespace image {
 

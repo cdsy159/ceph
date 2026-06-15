@@ -22,21 +22,19 @@
 #include <optional>
 #include <unordered_map>
 
-#include "include/types.h"
-#include "include/xlist.h"
-#include "include/spinlock.h"
-
-#include "common/ceph_mutex.h"
 #include "common/Cond.h"
 #include "common/Thread.h"
-
-#include "msg/SimplePolicyMessenger.h"
+#include "common/admin_socket.h"
+#include "common/ceph_mutex.h"
+#include "include/ceph_assert.h"
+#include "include/spinlock.h"
+#include "include/types.h"
+#include "include/xlist.h"
 #include "msg/DispatchQueue.h"
+#include "msg/SimplePolicyMessenger.h"
+
 #include "AsyncConnection.h"
 #include "Event.h"
-
-#include "include/ceph_assert.h"
-#include "common/admin_socket.h"
 
 class AsyncMessenger;
 
@@ -45,22 +43,24 @@ class AsyncMessenger;
  * and listens for incoming connections.
  */
 class Processor {
-  AsyncMessenger *msgr;
+  AsyncMessenger* msgr;
   ceph::NetHandler net;
-  Worker *worker;
+  Worker* worker;
   std::vector<ServerSocket> listen_sockets;
   EventCallbackRef listen_handler;
 
   class C_processor_accept;
 
- public:
-  Processor(AsyncMessenger *r, Worker *w, CephContext *c);
+public:
+  Processor(AsyncMessenger* r, Worker* w, CephContext* c);
+
   ~Processor() { delete listen_handler; };
 
   void stop();
-  int bind(const entity_addrvec_t &bind_addrs,
-	   const std::set<int>& avoid_ports,
-	   entity_addrvec_t* bound_addrs);
+  int bind(
+      const entity_addrvec_t& bind_addrs,
+      const std::set<int>& avoid_ports,
+      entity_addrvec_t* bound_addrs);
   void start();
   void accept();
   friend class AsyncMessenger;
@@ -69,18 +69,23 @@ class Processor {
 class AsyncMessengerSocketHook : public AdminSocketHook {
   std::map<std::string, AsyncMessenger*> m_msgrs;
 
- public:
+public:
   static constexpr std::string_view COMMAND =
       "messenger dump "
       "name=msgr,type=CephString,req=false "
       "name=dumpcontents,type=CephChoices,"
-      "strings=all|listen_sockets|connections|anon_conns|accepting_conns|deleted_conns,"
+      "strings=all|listen_sockets|connections|anon_conns|accepting_conns|"
+      "deleted_conns,"
       "n=N,req=false "
       "name=tcp_info,type=CephBool,req=false";
   AsyncMessengerSocketHook(AsyncMessenger& m, const std::string& name);
   int call(
-      std::string_view command, const cmdmap_t& cmdmap, const bufferlist&,
-      Formatter* f, std::ostream& errss, ceph::buffer::list& out) override;
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist&,
+      Formatter* f,
+      std::ostream& errss,
+      ceph::buffer::list& out) override;
   bool add_messenger(const std::string& name, AsyncMessenger& msgr);
   void remove_messenger(AsyncMessenger& msgr);
   std::list<std::string> messengers() const;
@@ -95,6 +100,7 @@ class AsyncMessengerSocketHook : public AdminSocketHook {
 
 class AsyncMessenger : public SimplePolicyMessenger {
   // First we have the public Messenger interface implementation...
+
 public:
   /**
    * Initialize the AsyncMessenger!
@@ -104,8 +110,12 @@ public:
    * _nonce A unique ID to use for this AsyncMessenger. It should not
    * be a value that will be repeated if the daemon restarts.
    */
-  AsyncMessenger(CephContext *cct, entity_name_t name, const std::string &type,
-                 std::string mname, uint64_t _nonce);
+  AsyncMessenger(
+      CephContext* cct,
+      entity_name_t name,
+      const std::string& type,
+      std::string mname,
+      uint64_t _nonce);
 
   /**
    * Destroy the AsyncMessenger. Pretty simple since all the work is done
@@ -116,31 +126,40 @@ public:
   /** @defgroup Accessors
    * @{
    */
-  bool set_addr_unknowns(const entity_addrvec_t &addr) override;
+  bool set_addr_unknowns(const entity_addrvec_t& addr) override;
 
-  int get_dispatch_queue_len() const override {
+  int
+  get_dispatch_queue_len() const override
+  {
     return dispatch_queue.get_queue_len();
   }
 
-  double get_dispatch_queue_max_age(utime_t now) const override {
+  double
+  get_dispatch_queue_max_age(utime_t now) const override
+  {
     return dispatch_queue.get_max_age(now);
   }
+
   /** @} Accessors */
 
   /**
    * @defgroup Configuration functions
    * @{
    */
-  void set_cluster_protocol(int p) override {
+  void
+  set_cluster_protocol(int p) override
+  {
     ceph_assert(!started && !did_bind);
     cluster_protocol = p;
   }
 
-  int bind(const entity_addr_t& bind_addr,
-	   std::optional<entity_addrvec_t> public_addrs=std::nullopt) override;
+  int bind(
+      const entity_addr_t& bind_addr,
+      std::optional<entity_addrvec_t> public_addrs = std::nullopt) override;
   int rebind(const std::set<int>& avoid_ports) override;
-  int bindv(const entity_addrvec_t& bind_addrs,
-	    std::optional<entity_addrvec_t> public_addrs=std::nullopt) override;
+  int bindv(
+      const entity_addrvec_t& bind_addrs,
+      std::optional<entity_addrvec_t> public_addrs = std::nullopt) override;
 
   int client_bind(const entity_addr_t& bind_addr) override;
 
@@ -159,8 +178,10 @@ public:
   int shutdown() override;
 
   void dump(
-      Formatter* f, std::function<bool(const std::string&)> filter =
-      [](const std::string&) { return true; }) const override;
+      Formatter* f,
+      std::function<bool(const std::string&)> filter = [](const std::string&) {
+        return true;
+      }) const override;
 
   /** @} // Startup/Shutdown */
 
@@ -168,7 +189,7 @@ public:
    * @defgroup Messaging
    * @{
    */
-  int send_to(Message *m, int type, const entity_addrvec_t& addrs) override;
+  int send_to(Message* m, int type, const entity_addrvec_t& addrs) override;
 
   /** @} // Messaging */
 
@@ -176,17 +197,27 @@ public:
    * @defgroup Connection Management
    * @{
    */
-  ConnectionRef connect_to(int type,
-			   const entity_addrvec_t& addrs,
-			   bool anon, bool not_local_dest=false) override;
+  ConnectionRef connect_to(
+      int type,
+      const entity_addrvec_t& addrs,
+      bool anon,
+      bool not_local_dest = false) override;
   ConnectionRef get_loopback_connection() override;
-  void mark_down(const entity_addr_t& addr) override {
+
+  void
+  mark_down(const entity_addr_t& addr) override
+  {
     mark_down_addrs(entity_addrvec_t(addr));
   }
+
   void mark_down_addrs(const entity_addrvec_t& addrs) override;
-  void mark_down_all() override {
+
+  void
+  mark_down_all() override
+  {
     shutdown_connections(true);
   }
+
   /** @} // Connection Management */
 
   /**
@@ -210,7 +241,6 @@ protected:
   /** @} // Messenger Interfaces */
 
 private:
-
   /**
    * @defgroup Utility functions
    * @{
@@ -227,23 +257,26 @@ private:
    * @return a pointer to the newly-created connection. Caller does not own a
    * reference; take one if you need it.
    */
-  AsyncConnectionRef create_connect(const entity_addrvec_t& addrs, int type,
-				    bool anon);
+  AsyncConnectionRef create_connect(
+      const entity_addrvec_t& addrs,
+      int type,
+      bool anon);
 
 
-  void _finish_bind(const entity_addrvec_t& bind_addrs,
-		    const entity_addrvec_t& listen_addrs);
+  void _finish_bind(
+      const entity_addrvec_t& bind_addrs,
+      const entity_addrvec_t& listen_addrs);
 
   entity_addrvec_t _filter_addrs(const entity_addrvec_t& addrs);
 
- private:
-  NetworkStack *stack;
+private:
+  NetworkStack* stack;
   std::vector<Processor*> processors;
   friend class Processor;
   DispatchQueue dispatch_queue;
 
   // the worker run messenger's cron jobs
-  Worker *local_worker;
+  Worker* local_worker;
 
   std::string ms_type;
 
@@ -328,11 +361,13 @@ private:
   /// internal cluster protocol version, if any, for talking to entities of the same type.
   int cluster_protocol = 0;
 
-  ceph::condition_variable  stop_cond;
+  ceph::condition_variable stop_cond;
   bool stopped = true;
 
   /* You must hold this->lock for the duration of use! */
-  const auto& _lookup_conn(const entity_addrvec_t& k) {
+  const auto&
+  _lookup_conn(const entity_addrvec_t& k)
+  {
     static const AsyncConnectionRef nullref;
     ceph_assert(ceph_mutex_is_locked(lock));
     auto p = conns.find(k);
@@ -345,16 +380,18 @@ private:
     if (p->second->is_unregistered()) {
       std::lock_guard l{deleted_lock};
       if (deleted_conns.erase(p->second)) {
-	p->second->get_perf_counter()->dec(l_msgr_active_connections);
-	conns.erase(p);
-	return nullref;
+        p->second->get_perf_counter()->dec(l_msgr_active_connections);
+        conns.erase(p);
+        return nullref;
       }
     }
 
     return p->second;
   }
 
-  void _init_local_connection() {
+  void
+  _init_local_connection()
+  {
     ceph_assert(ceph_mutex_is_locked(lock));
     local_connection->peer_addrs = *my_addrs;
     local_connection->peer_type = my_name.type();
@@ -365,7 +402,6 @@ private:
   void shutdown_connections(bool queue_reset);
 
 public:
-
   /// con used for sending messages to ourselves
   AsyncConnectionRef local_connection;
 
@@ -376,21 +412,30 @@ public:
   /**
    * This wraps _lookup_conn.
    */
-  AsyncConnectionRef lookup_conn(const entity_addrvec_t& k) {
+  AsyncConnectionRef
+  lookup_conn(const entity_addrvec_t& k)
+  {
     std::lock_guard l{lock};
     return _lookup_conn(k); /* make new ref! */
   }
 
   int accept_conn(const AsyncConnectionRef& conn);
-  bool learned_addr(const entity_addr_t &peer_addr_for_me);
-  void add_accept(Worker *w, ConnectedSocket cli_socket,
-		  const entity_addr_t &listen_addr,
-		  const entity_addr_t &peer_addr);
-  NetworkStack *get_stack() {
+  bool learned_addr(const entity_addr_t& peer_addr_for_me);
+  void add_accept(
+      Worker* w,
+      ConnectedSocket cli_socket,
+      const entity_addr_t& listen_addr,
+      const entity_addr_t& peer_addr);
+
+  NetworkStack*
+  get_stack()
+  {
     return stack;
   }
 
-  uint64_t get_nonce() const {
+  uint64_t
+  get_nonce() const
+  {
     return nonce;
   }
 
@@ -401,7 +446,7 @@ public:
    *
    * @return a global sequence ID that nobody else has seen.
    */
-  __u32 get_global_seq(__u32 old=0);
+  __u32 get_global_seq(__u32 old = 0);
 
   /**
    * Get the protocol version we support for the given peer type: either
@@ -414,7 +459,9 @@ public:
    * Fill in the address and peer type for the local connection, which
    * is used for delivering messages back to ourself.
    */
-  void init_local_connection() {
+  void
+  init_local_connection()
+  {
     std::lock_guard l{lock};
     local_connection->is_loopback = true;
     _init_local_connection();
@@ -425,7 +472,9 @@ public:
    *
    * See "deleted_conns"
    */
-  void unregister_conn(const AsyncConnectionRef& conn) {
+  void
+  unregister_conn(const AsyncConnectionRef& conn)
+  {
     std::lock_guard l{deleted_lock};
     deleted_conns.emplace(std::move(conn));
     conn->unregister();
@@ -447,6 +496,6 @@ public:
   /**
    * @} // AsyncMessenger Internals
    */
-} ;
+};
 
 #endif /* CEPH_ASYNCMESSENGER_H */

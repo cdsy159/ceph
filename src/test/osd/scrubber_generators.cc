@@ -10,7 +10,8 @@
 using namespace ScrubGenerator;
 
 // ref: PGLogTestRebuildMissing()
-bufferlist create_object_info(const ScrubGenerator::RealObj& objver)
+bufferlist
+create_object_info(const ScrubGenerator::RealObj& objver)
 {
   object_info_t oi{};
   oi.soid = objver.ghobj.hobj;
@@ -18,14 +19,14 @@ bufferlist create_object_info(const ScrubGenerator::RealObj& objver)
   oi.size = objver.data.size;
 
   bufferlist bl;
-  oi.encode(bl,
-	    0 /*get_osdmap()->get_features(CEPH_ENTITY_TYPE_OSD, nullptr)*/);
+  oi.encode(bl, 0 /*get_osdmap()->get_features(CEPH_ENTITY_TYPE_OSD, nullptr)*/);
   return bl;
 }
 
-std::pair<bufferlist, std::vector<snapid_t>> create_object_snapset(
-  const ScrubGenerator::RealObj& robj,
-  const SnapsetMockData* snapset_mock_data)
+std::pair<bufferlist, std::vector<snapid_t>>
+create_object_snapset(
+    const ScrubGenerator::RealObj& robj,
+    const SnapsetMockData* snapset_mock_data)
 {
   if (!snapset_mock_data) {
     return {bufferlist(), {}};
@@ -39,8 +40,9 @@ std::pair<bufferlist, std::vector<snapid_t>> create_object_snapset(
   return {bl, sns.clones};
 }
 
-RealObjsConf ScrubGenerator::make_erasure_code_configuration(int8_t k,
-                                                             int8_t m) {
+RealObjsConf
+ScrubGenerator::make_erasure_code_configuration(int8_t k, int8_t m)
+{
   RealObjsConf erasure_code_configuration;
   for (shard_id_t i{0}; i < k + m; ++i) {
     RealObj erasure_code_obj = ScrubDatasets::erasure_code_obj;
@@ -51,8 +53,9 @@ RealObjsConf ScrubGenerator::make_erasure_code_configuration(int8_t k,
   return erasure_code_configuration;
 }
 
-CorruptFuncList ScrubGenerator::make_erasure_code_hash_corruption_functions(
-    int num_osds) {
+CorruptFuncList
+ScrubGenerator::make_erasure_code_hash_corruption_functions(int num_osds)
+{
   CorruptFuncList ret_list = {};
   for (int i = 0; i < num_osds; ++i) {
     ret_list.insert({i, &crpt_object_hash});
@@ -61,20 +64,22 @@ CorruptFuncList ScrubGenerator::make_erasure_code_hash_corruption_functions(
   return ret_list;
 }
 
-RealObjsConfList ScrubGenerator::make_real_objs_conf(
-  int64_t pool_id,
-  const RealObjsConf& blueprint,
-  std::vector<int32_t> active_osds,
-  std::set<pg_shard_t> acting_shards,
-  bool erasure_coded_pool)
+RealObjsConfList
+ScrubGenerator::make_real_objs_conf(
+    int64_t pool_id,
+    const RealObjsConf& blueprint,
+    std::vector<int32_t> active_osds,
+    std::set<pg_shard_t> acting_shards,
+    bool erasure_coded_pool)
 {
   RealObjsConfList all_osds;
 
   for (auto osd : active_osds) {
-    shard_id_t shard = std::find_if(acting_shards.begin(), acting_shards.end(),
-                                    [&osd](pg_shard_t pg_shard) {
-                                      return osd == pg_shard.osd;
-                                    })
+    shard_id_t shard = std::find_if(
+                           acting_shards.begin(), acting_shards.end(),
+                           [&osd](pg_shard_t pg_shard) {
+                             return osd == pg_shard.osd;
+                           })
                            ->shard;
 
     RealObjsConfRef this_osd_fakes = std::make_unique<RealObjsConf>(blueprint);
@@ -86,25 +91,26 @@ RealObjsConfList ScrubGenerator::make_real_objs_conf(
     }
 
     if (erasure_coded_pool) {
-      this_osd_fakes->objs.erase(std::remove_if(this_osd_fakes->objs.begin(),
-                                                this_osd_fakes->objs.end(),
-                                                [pool_id](RealObj& robj) {
-                                                  return robj.ghobj.hobj.pool !=
-                                                         pool_id;
-                                                }),
-                                 this_osd_fakes->objs.end());
+      this_osd_fakes->objs.erase(
+          std::remove_if(
+              this_osd_fakes->objs.begin(), this_osd_fakes->objs.end(),
+              [pool_id](RealObj& robj) {
+                return robj.ghobj.hobj.pool != pool_id;
+              }),
+          this_osd_fakes->objs.end());
     }
 
     all_osds[osd] = std::move(this_osd_fakes);
   }
-  return all_osds;  // reconsider (maybe add a move ctor?)
+  return all_osds; // reconsider (maybe add a move ctor?)
 }
 
 ///\todo dispose of the created buffer pointers
 
-ScrubGenerator::SmapEntry ScrubGenerator::make_smobject(
-  const ScrubGenerator::RealObj& blueprint,
-  int osd_num)
+ScrubGenerator::SmapEntry
+ScrubGenerator::make_smobject(
+    const ScrubGenerator::RealObj& blueprint,
+    int osd_num)
 {
   ScrubGenerator::SmapEntry ret;
 
@@ -112,14 +118,12 @@ ScrubGenerator::SmapEntry ScrubGenerator::make_smobject(
   ret.smobj.attrs[OI_ATTR] = create_object_info(blueprint);
   if (blueprint.snapset_mock_data) {
     auto [bl, snaps] =
-      create_object_snapset(blueprint, blueprint.snapset_mock_data);
+        create_object_snapset(blueprint, blueprint.snapset_mock_data);
     ret.smobj.attrs[SS_ATTR] = bl;
-    std::cout << fmt::format("{}: ({}) osd:{} snaps:{}",
-			     __func__,
-			     ret.ghobj.hobj,
-			     osd_num,
-			     snaps)
-	      << std::endl;
+    std::cout << fmt::format(
+                     "{}: ({}) osd:{} snaps:{}", __func__, ret.ghobj.hobj,
+                     osd_num, snaps)
+              << std::endl;
   }
 
   for (const auto& [at_k, at_v] : blueprint.data.attrs) {
@@ -130,7 +134,7 @@ ScrubGenerator::SmapEntry ScrubGenerator::make_smobject(
       // verifying (to be removed after dev phase)
       std::string bkstr = ret.smobj.attrs[at_k].to_str();
       std::cout << fmt::format("{}: verification: {}", __func__, bkstr)
-		<< std::endl;
+                << std::endl;
     }
   }
   ret.smobj.size = blueprint.data.size;
@@ -143,13 +147,12 @@ ScrubGenerator::SmapEntry ScrubGenerator::make_smobject(
   return ret;
 }
 
-all_clones_snaps_t ScrubGenerator::all_clones(
-  const ScrubGenerator::RealObj& head_obj)
+all_clones_snaps_t
+ScrubGenerator::all_clones(const ScrubGenerator::RealObj& head_obj)
 {
-  std::cout << fmt::format("{}: head_obj.ghobj.hobj:{}",
-			   __func__,
-			   head_obj.ghobj.hobj)
-	    << std::endl;
+  std::cout << fmt::format(
+                   "{}: head_obj.ghobj.hobj:{}", __func__, head_obj.ghobj.hobj)
+            << std::endl;
 
   std::map<hobject_t, std::vector<snapid_t>> ret;
 
@@ -164,19 +167,20 @@ all_clones_snaps_t ScrubGenerator::all_clones(
     clone_hobj.snap = clone;
 
     ret[clone_hobj] = clone_set_it->second;
-    std::cout << fmt::format("{}: clone:{} clone_set:{}",
-			     __func__,
-			     clone_hobj,
-			     clone_set)
-	      << std::endl;
+    std::cout << fmt::format(
+                     "{}: clone:{} clone_set:{}", __func__, clone_hobj,
+                     clone_set)
+              << std::endl;
   }
 
   return ret;
 }
 
-void ScrubGenerator::add_object(ScrubMap& map,
-				const ScrubGenerator::RealObj& real_obj,
-				int osd_num)
+void
+ScrubGenerator::add_object(
+    ScrubMap& map,
+    const ScrubGenerator::RealObj& real_obj,
+    int osd_num)
 {
   // do we have data corruption recipe for this OSD?
   /// \todo c++20: use contains()
@@ -192,19 +196,15 @@ void ScrubGenerator::add_object(ScrubMap& map,
   // create a possibly-corrupted copy of the "real object"
   auto modified_obj = (relevant_fix)(real_obj, osd_num);
 
-  std::cout << fmt::format("{}: modified: osd:{} ho:{} key:{}",
-			   __func__,
-			   osd_num,
-			   modified_obj.ghobj.hobj,
-			   modified_obj.ghobj.hobj.get_key())
-	    << std::endl;
+  std::cout << fmt::format(
+                   "{}: modified: osd:{} ho:{} key:{}", __func__, osd_num,
+                   modified_obj.ghobj.hobj, modified_obj.ghobj.hobj.get_key())
+            << std::endl;
 
   auto entry = make_smobject(modified_obj, osd_num);
-  std::cout << fmt::format("{}: osd:{} smap entry: {} {}",
-			   __func__,
-			   osd_num,
-			   entry.smobj.size,
-			   entry.smobj.attrs.size())
-	    << std::endl;
+  std::cout << fmt::format(
+                   "{}: osd:{} smap entry: {} {}", __func__, osd_num,
+                   entry.smobj.size, entry.smobj.attrs.size())
+            << std::endl;
   map.objects[entry.ghobj.hobj] = entry.smobj;
 }

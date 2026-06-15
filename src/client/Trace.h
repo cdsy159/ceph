@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,12 +19,12 @@
 
 #include <stdlib.h>
 
+#include <fstream>
 #include <list>
 #include <string>
-#include <fstream>
+using std::ifstream;
 using std::list;
 using std::string;
-using std::ifstream;
 
 /*
 
@@ -35,31 +35,41 @@ using std::ifstream;
 
 class Trace {
   int _line;
-  const char *filename;
-  ifstream *fs;
+  const char* filename;
+  ifstream* fs;
   string line;
 
- public:
-  explicit Trace(const char* f) : _line(0), filename(f), fs(0) {}
-  ~Trace() { 
-    delete fs; 
-  }
+public:
+  explicit Trace(const char* f) :
+    _line(0), filename(f), fs(0)
+  {}
+
+  ~Trace() { delete fs; }
 
   Trace(const Trace& other);
   const Trace& operator=(const Trace& other);
 
-  int get_line() { return _line; }
+  int
+  get_line()
+  {
+    return _line;
+  }
 
   void start();
 
-  const char *peek_string(string &buf, const char *prefix);
-  const char *get_string(string &buf, const char *prefix);
+  const char* peek_string(string& buf, const char* prefix);
+  const char* get_string(string& buf, const char* prefix);
 
-  int64_t get_int() {
+  int64_t
+  get_int()
+  {
     string buf;
     return atoll(get_string(buf, 0));
   }
-  bool end() {
+
+  bool
+  end()
+  {
     return !fs || fs->eof();
     //return _cur == _end;
   }

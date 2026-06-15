@@ -16,58 +16,80 @@ public:
   static constexpr int COMPAT_VERSION = 1;
 
   pg_shard_t from;
-  spg_t pgid;            ///< target spg_t
+  spg_t pgid; ///< target spg_t
   epoch_t map_epoch, min_epoch;
-  std::list<std::pair<hobject_t, eversion_t>> objects;    ///< objects to remove
+  std::list<std::pair<hobject_t, eversion_t>> objects; ///< objects to remove
 
 private:
   uint64_t cost = 0;
 
 public:
-  int get_cost() const override {
+  int
+  get_cost() const override
+  {
     return cost;
   }
 
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  epoch_t
+  get_min_epoch() const override
+  {
     return min_epoch;
   }
-  spg_t get_spg() const override {
+
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
 
-  void set_cost(uint64_t c) {
+  void
+  set_cost(uint64_t c)
+  {
     cost = c;
   }
 
-  MOSDPGRecoveryDelete()
-    : MOSDFastDispatchOp{MSG_OSD_PG_RECOVERY_DELETE, HEAD_VERSION,
-			 COMPAT_VERSION}
+  MOSDPGRecoveryDelete() :
+    MOSDFastDispatchOp{MSG_OSD_PG_RECOVERY_DELETE, HEAD_VERSION, COMPAT_VERSION}
   {}
 
-  MOSDPGRecoveryDelete(pg_shard_t from, spg_t pgid, epoch_t map_epoch,
-		       epoch_t min_epoch)
-    : MOSDFastDispatchOp{MSG_OSD_PG_RECOVERY_DELETE, HEAD_VERSION,
-			 COMPAT_VERSION},
-      from(from),
-      pgid(pgid),
-      map_epoch(map_epoch),
-      min_epoch(min_epoch)
+  MOSDPGRecoveryDelete(
+      pg_shard_t from,
+      spg_t pgid,
+      epoch_t map_epoch,
+      epoch_t min_epoch) :
+    MOSDFastDispatchOp{MSG_OSD_PG_RECOVERY_DELETE, HEAD_VERSION, COMPAT_VERSION},
+    from(from),
+    pgid(pgid),
+    map_epoch(map_epoch),
+    min_epoch(min_epoch)
   {}
 
 private:
   ~MOSDPGRecoveryDelete() final {}
 
 public:
-  std::string_view get_type_name() const { return "recovery_delete"; }
-  void print(std::ostream& out) const {
-    out << "MOSDPGRecoveryDelete(" << pgid << " e" << map_epoch << ","
-	<< min_epoch << " " << objects << ")";
+  std::string_view
+  get_type_name() const
+  {
+    return "recovery_delete";
   }
 
-  void encode_payload(uint64_t features) {
+  void
+  print(std::ostream& out) const
+  {
+    out << "MOSDPGRecoveryDelete(" << pgid << " e" << map_epoch << ","
+        << min_epoch << " " << objects << ")";
+  }
+
+  void
+  encode_payload(uint64_t features)
+  {
     using ceph::encode;
     encode(from, payload);
     encode(pgid, payload);
@@ -76,7 +98,10 @@ public:
     encode(cost, payload);
     encode(objects, payload);
   }
-  void decode_payload() {
+
+  void
+  decode_payload()
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(from, p);
@@ -86,8 +111,9 @@ public:
     decode(cost, p);
     decode(objects, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

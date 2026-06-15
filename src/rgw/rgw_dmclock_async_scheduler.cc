@@ -1,8 +1,10 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "common/async/completion.h"
 #include "rgw_dmclock_async_scheduler.h"
+
+#include "common/async/completion.h"
+
 #include "rgw_dmclock_scheduler.h"
 
 using namespace std::literals;
@@ -17,15 +19,19 @@ AsyncScheduler::~AsyncScheduler()
   }
 }
 
-std::vector<std::string> AsyncScheduler::get_tracked_keys() const noexcept
+std::vector<std::string>
+AsyncScheduler::get_tracked_keys() const noexcept
 {
   if (observer) {
     return observer->get_tracked_keys();
   }
   return {"rgw_max_concurrent_requests"s};
 }
-void AsyncScheduler::handle_conf_change(const ConfigProxy& conf,
-                                        const std::set<std::string>& changed)
+
+void
+AsyncScheduler::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   if (observer) {
     observer->handle_conf_change(conf, changed);
@@ -38,48 +44,53 @@ void AsyncScheduler::handle_conf_change(const ConfigProxy& conf,
   schedule(crimson::dmclock::TimeZero);
 }
 
-int AsyncScheduler::schedule_request_impl(const client_id& client,
-                                          const ReqParams& params,
-                                          const Time& time, const Cost& cost,
-                                          optional_yield yield_ctx)
+int
+AsyncScheduler::schedule_request_impl(
+    const client_id& client,
+    const ReqParams& params,
+    const Time& time,
+    const Cost& cost,
+    optional_yield yield_ctx)
 {
-    ceph_assert(yield_ctx);
+  ceph_assert(yield_ctx);
 
-    auto &yield = yield_ctx.get_yield_context();
-    boost::system::error_code ec;
-    async_request(client, params, time, cost, yield[ec]);
+  auto& yield = yield_ctx.get_yield_context();
+  boost::system::error_code ec;
+  async_request(client, params, time, cost, yield[ec]);
 
-    if (ec){
-      if (ec == boost::system::errc::resource_unavailable_try_again)
-        return -EAGAIN;
-      else
-        return -ec.value();
-    }
+  if (ec) {
+    if (ec == boost::system::errc::resource_unavailable_try_again)
+      return -EAGAIN;
+    else
+      return -ec.value();
+  }
 
-    return 0;
+  return 0;
 }
 
-void AsyncScheduler::request_complete()
+void
+AsyncScheduler::request_complete()
 {
   --outstanding_requests;
-  if(auto c = counters(client_id::count)){
+  if (auto c = counters(client_id::count)) {
     c->inc(throttle_counters::l_outstanding, -1);
   }
   schedule(crimson::dmclock::TimeZero);
 }
 
-void AsyncScheduler::cancel()
+void
+AsyncScheduler::cancel()
 {
   ClientSums sums;
 
-  queue.remove_by_req_filter([&] (RequestRef&& request) {
-      inc(sums, request->client, request->cost);
-      auto c = static_cast<Completion*>(request.release());
-      Completion::dispatch(std::unique_ptr<Completion>{c},
-                           boost::asio::error::operation_aborted,
-                           PhaseType::priority);
-      return true;
-    });
+  queue.remove_by_req_filter([&](RequestRef&& request) {
+    inc(sums, request->client, request->cost);
+    auto c = static_cast<Completion*>(request.release());
+    Completion::dispatch(
+        std::unique_ptr<Completion>{c}, boost::asio::error::operation_aborted,
+        PhaseType::priority);
+    return true;
+  });
   timer.cancel();
 
   for (size_t i = 0; i < client_count; i++) {
@@ -89,37 +100,40 @@ void AsyncScheduler::cancel()
   }
 }
 
-void AsyncScheduler::cancel(const client_id& client)
+void
+AsyncScheduler::cancel(const client_id& client)
 {
   ClientSum sum;
 
-  queue.remove_by_client(client, false, [&] (RequestRef&& request) {
-      sum.count++;
-      sum.cost += request->cost;
-      auto c = static_cast<Completion*>(request.release());
-      Completion::dispatch(std::unique_ptr<Completion>{c},
-                           boost::asio::error::operation_aborted,
-                           PhaseType::priority);
-    });
+  queue.remove_by_client(client, false, [&](RequestRef&& request) {
+    sum.count++;
+    sum.cost += request->cost;
+    auto c = static_cast<Completion*>(request.release());
+    Completion::dispatch(
+        std::unique_ptr<Completion>{c}, boost::asio::error::operation_aborted,
+        PhaseType::priority);
+  });
   if (auto c = counters(client)) {
     on_cancel(c, sum);
   }
   schedule(crimson::dmclock::TimeZero);
 }
 
-void AsyncScheduler::schedule(const Time& time)
+void
+AsyncScheduler::schedule(const Time& time)
 {
   timer.expires_at(Clock::from_double(time));
-  timer.async_wait([this] (boost::system::error_code ec) {
-      // process requests unless the wait was canceled. note that a canceled
-      // wait may execute after this AsyncScheduler destructs
-      if (ec != boost::asio::error::operation_aborted) {
-        process(get_time());
-      }
-    });
+  timer.async_wait([this](boost::system::error_code ec) {
+    // process requests unless the wait was canceled. note that a canceled
+    // wait may execute after this AsyncScheduler destructs
+    if (ec != boost::asio::error::operation_aborted) {
+      process(get_time());
+    }
+  });
 }
 
-void AsyncScheduler::process(const Time& now)
+void
+AsyncScheduler::process(const Time& now)
 {
   // must run in the executor. we should only invoke completion handlers if the
   // executor is running
@@ -141,7 +155,7 @@ void AsyncScheduler::process(const Time& now)
       break;
     }
     ++outstanding_requests;
-    if(auto c = counters(client_id::count)){
+    if (auto c = counters(client_id::count)) {
       c->inc(throttle_counters::l_outstanding);
     }
 
@@ -152,8 +166,8 @@ void AsyncScheduler::process(const Time& now)
     auto started = r.request->started;
     auto cost = r.request->cost;
     auto c = static_cast<Completion*>(r.request.release());
-    Completion::post(std::unique_ptr<Completion>{c},
-                     boost::system::error_code{}, phase);
+    Completion::post(
+        std::unique_ptr<Completion>{c}, boost::system::error_code{}, phase);
 
     if (auto c = counters(client)) {
       auto lat = Clock::from_double(now) - Clock::from_double(started);
@@ -168,7 +182,7 @@ void AsyncScheduler::process(const Time& now)
   }
 
   if (outstanding_requests >= max_requests) {
-    if(auto c = counters(client_id::count)){
+    if (auto c = counters(client_id::count)) {
       c->inc(throttle_counters::l_throttle);
     }
   }

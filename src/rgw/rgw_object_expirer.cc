@@ -2,37 +2,33 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include <errno.h>
+
 #include <iostream>
 #include <sstream>
 #include <string>
 
-
 #include "auth/Crypto.h"
-
-#include "common/async/context_pool.h"
-
+#include "common/Formatter.h"
 #include "common/armor.h"
+#include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
 #include "common/ceph_json.h"
 #include "common/config.h"
-#include "common/ceph_argparse.h"
-#include "common/Formatter.h"
 #include "common/errno.h"
-
-#include "global/global_init.h"
-
-#include "include/utime.h"
-#include "include/str_list.h"
-
 #include "driver/rados/rgw_user.h"
-#include "rgw_bucket.h"
+#include "global/global_init.h"
+#include "include/str_list.h"
+#include "include/utime.h"
+
 #include "rgw_acl.h"
 #include "rgw_acl_s3.h"
-#include "rgw_log.h"
+#include "rgw_bucket.h"
 #include "rgw_formats.h"
-#include "rgw_usage.h"
+#include "rgw_log.h"
 #include "rgw_object_expirer_core.h"
-#include "rgw_zone.h"
 #include "rgw_sal_config.h"
+#include "rgw_usage.h"
+#include "rgw_zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -42,15 +38,20 @@ class StoreDestructor {
   rgw::sal::Driver* driver;
 
 public:
-  explicit StoreDestructor(rgw::sal::Driver* _s) : driver(_s) {}
-  ~StoreDestructor() {
+  explicit StoreDestructor(rgw::sal::Driver* _s) :
+    driver(_s)
+  {}
+
+  ~StoreDestructor()
+  {
     if (driver) {
       DriverManager::close_storage(driver);
     }
   }
 };
 
-static void usage()
+static void
+usage()
 {
   generic_server_usage();
 }
@@ -58,7 +59,8 @@ static void usage()
 // This has an uncaught exception. Even if the exception is caught, the program
 // would need to be terminated, so the warning is simply suppressed.
 // coverity[root_function:SUPPRESS]
-int main(const int argc, const char **argv)
+int
+main(const int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -70,11 +72,11 @@ int main(const int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_DAEMON,
-			 CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
 
-  for (std::vector<const char *>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
     }
@@ -104,7 +106,9 @@ int main(const int argc, const char **argv)
     exit(1);
   }
 
-  driver = DriverManager::get_storage(&dp, g_ceph_context, cfg, context_pool, site, false, false, false, false, false, false, false, false, true, null_yield, cfgstore.get());
+  driver = DriverManager::get_storage(
+      &dp, g_ceph_context, cfg, context_pool, site, false, false, false, false,
+      false, false, false, false, true, null_yield, cfgstore.get());
   if (!driver) {
     std::cerr << "couldn't init storage provider" << std::endl;
     return EIO;

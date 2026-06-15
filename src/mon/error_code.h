@@ -28,23 +28,27 @@ enum class mon_errc {
 };
 
 namespace boost::system {
-template<>
+template <>
 struct is_error_code_enum<::mon_errc> {
   static const bool value = true;
 };
 
-template<>
+template <>
 struct is_error_condition_enum<::mon_errc> {
   static const bool value = false;
 };
-}
+} // namespace boost::system
 
 //  explicit conversion:
-inline boost::system::error_code make_error_code(mon_errc e) noexcept {
-  return { static_cast<int>(e), mon_category() };
+inline boost::system::error_code
+make_error_code(mon_errc e) noexcept
+{
+  return {static_cast<int>(e), mon_category()};
 }
 
 // implicit conversion:
-inline boost::system::error_condition make_error_condition(mon_errc e) noexcept {
-  return { static_cast<int>(e), mon_category() };
+inline boost::system::error_condition
+make_error_condition(mon_errc e) noexcept
+{
+  return {static_cast<int>(e), mon_category()};
 }

@@ -13,18 +13,23 @@
 
 #include "cputrace.h"
 
-#include <linux/perf_event.h>
 #include <asm/unistd.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
 #include <errno.h>
-#include <stdlib.h>
+#include <linux/perf_event.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <thread>
 
-#define PROFILE_ASSERT(x) if (!(x)) { fprintf(stderr, "Assert failed %s:%d\n", __FILE__, __LINE__); exit(1); }
+#define PROFILE_ASSERT(x)                                         \
+  if (!(x)) {                                                     \
+    fprintf(stderr, "Assert failed %s:%d\n", __FILE__, __LINE__); \
+    exit(1);                                                      \
+  }
 
 static int thread_next_id = 0;
 static std::mutex thread_id_mtx;
@@ -36,7 +41,9 @@ static std::unordered_map<std::string, int> name_to_id;
 static int next_id = 0;
 static std::mutex name_id_mtx;
 
-int register_anchor(const char* name) {
+int
+register_anchor(const char* name)
+{
   std::lock_guard<std::mutex> lock(name_id_mtx);
   auto it = name_to_id.find(name);
   ceph_assert(it == name_to_id.end());
@@ -45,12 +52,15 @@ int register_anchor(const char* name) {
   return id;
 }
 
-std::vector<cpucounter_group*>& get_groups() {
+std::vector<cpucounter_group*>&
+get_groups()
+{
   static std::vector<cpucounter_group*> groups;
   return groups;
 }
 
-void cpucounter_group::register_group(cpucounter_group* group)
+void
+cpucounter_group::register_group(cpucounter_group* group)
 {
   std::lock_guard<std::mutex> lck(name_id_mtx); //reuse mutex
   get_groups().push_back(group);
@@ -58,18 +68,27 @@ void cpucounter_group::register_group(cpucounter_group* group)
 
 struct read_format {
   uint64_t nr;
+
   struct values {
     uint64_t value;
     uint64_t id;
   } values[];
 };
 
-static long perf_event_open(struct perf_event_attr* hw_event, pid_t pid,
-                            int cpu, int group_fd, unsigned long flags) {
+static long
+perf_event_open(
+    struct perf_event_attr* hw_event,
+    pid_t pid,
+    int cpu,
+    int group_fd,
+    unsigned long flags)
+{
   return syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
 }
 
-inline int get_thread_id() {
+inline int
+get_thread_id()
+{
   if (thread_id_local == -1) {
     std::lock_guard<std::mutex> lck(thread_id_mtx);
     thread_id_local = thread_next_id++ % CPUTRACE_MAX_THREADS;
@@ -77,7 +96,9 @@ inline int get_thread_id() {
   return thread_id_local;
 }
 
-static void setup_perf_event(struct perf_event_attr* pe, uint32_t type, uint64_t config) {
+static void
+setup_perf_event(struct perf_event_attr* pe, uint32_t type, uint64_t config)
+{
   memset(pe, 0, sizeof(*pe));
   pe->size = sizeof(*pe);
   pe->type = type;
@@ -91,18 +112,28 @@ static void setup_perf_event(struct perf_event_attr* pe, uint32_t type, uint64_t
   }
 }
 
-static void open_perf_fd(int& fd, uint64_t& id, struct perf_event_attr* pe, const char* name, int group_fd) {
+static void
+open_perf_fd(
+    int& fd,
+    uint64_t& id,
+    struct perf_event_attr* pe,
+    const char* name,
+    int group_fd)
+{
   fd = perf_event_open(pe, gettid(), -1, group_fd, 0);
   if (fd != -1) {
     ioctl(fd, PERF_EVENT_IOC_ID, &id);
     ioctl(fd, PERF_EVENT_IOC_RESET, 0);
   } else {
-    fprintf(stderr, "Failed to open perf event for %s: %s\n", name, strerror(errno));
+    fprintf(
+        stderr, "Failed to open perf event for %s: %s\n", name, strerror(errno));
     id = 0;
   }
 }
 
-static void close_perf_fd(int& fd) {
+static void
+close_perf_fd(int& fd)
+{
   if (fd != -1) {
     ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
     close(fd);
@@ -110,12 +141,11 @@ static void close_perf_fd(int& fd) {
   }
 }
 
-HW_ctx HW_ctx_empty = {
-  -1, -1, -1, -1, -1, -1,
-    0,  0,  0,  0,  0
-  };
+HW_ctx HW_ctx_empty = {-1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0};
 
-void HW_init(HW_ctx* ctx, cputrace_flags flags) {
+void
+HW_init(HW_ctx* ctx, cputrace_flags flags)
+{
   struct perf_event_attr pe;
   int parent_fd = -1;
 
@@ -170,7 +200,9 @@ void HW_init(HW_ctx* ctx, cputrace_flags flags) {
   }
 }
 
-void HW_clean(HW_ctx* ctx) {
+void
+HW_clean(HW_ctx* ctx)
+{
   close_perf_fd(ctx->fd_swi);
   close_perf_fd(ctx->fd_cyc);
   close_perf_fd(ctx->fd_cmiss);
@@ -178,13 +210,15 @@ void HW_clean(HW_ctx* ctx) {
   close_perf_fd(ctx->fd_ins);
 }
 
-void HW_read(HW_ctx* ctx, sample_t* measure) {
+void
+HW_read(HW_ctx* ctx, sample_t* measure)
+{
   if (ctx->parent_fd == -1) {
     return;
   }
   static constexpr uint64_t MAX_COUNTERS = 5;
   static constexpr size_t BUFFER_SIZE =
-    sizeof(read_format) + MAX_COUNTERS * sizeof(struct read_format::values);
+      sizeof(read_format) + MAX_COUNTERS * sizeof(struct read_format::values);
   char buf[BUFFER_SIZE];
 
   struct read_format* rf = (struct read_format*)buf;
@@ -205,13 +239,19 @@ void HW_read(HW_ctx* ctx, sample_t* measure) {
   }
 }
 
-static void collect_samples(sample_t* start, sample_t* end, cputrace_anchor* anchor) {
+static void
+collect_samples(sample_t* start, sample_t* end, cputrace_anchor* anchor)
+{
   sample_t elapsed = *end - *start;
   anchor->global_results.sample(elapsed);
 }
 
-HW_profile::HW_profile(const char* function, uint64_t index, cputrace_flags flags)
-  : function(function), index(index), flags(flags) {
+HW_profile::HW_profile(
+    const char* function,
+    uint64_t index,
+    cputrace_flags flags) :
+  function(function), index(index), flags(flags)
+{
   if (!g_profiler.profiling.load()) {
     return;
   }
@@ -240,7 +280,8 @@ HW_profile::HW_profile(const char* function, uint64_t index, cputrace_flags flag
   pthread_mutex_unlock(&anchor.lock);
 }
 
-HW_profile::~HW_profile() {
+HW_profile::~HW_profile()
+{
   if (!g_profiler.profiling.load()) {
     return;
   }
@@ -258,21 +299,22 @@ HW_profile::~HW_profile() {
   pthread_mutex_unlock(&anchor.lock);
 }
 
-measurement_t* get_named_measurement(const std::string& name) {
+measurement_t*
+get_named_measurement(const std::string& name)
+{
   std::lock_guard<std::mutex> g(g_named_measurements_lock);
   return &g_named_measurements[name];
 }
 
-HW_named_guard::HW_named_guard(const char* name, HW_ctx* ctx)
-  : name(name),
-    guard(ctx, get_named_measurement(name))
+HW_named_guard::HW_named_guard(const char* name, HW_ctx* ctx) :
+  name(name), guard(ctx, get_named_measurement(name))
+{}
+
+HW_named_guard::~HW_named_guard() {}
+
+void
+cputrace_start(ceph::Formatter* f)
 {
-}
-
-HW_named_guard::~HW_named_guard() {
-}
-
-void cputrace_start(ceph::Formatter* f) {
   if (g_profiler.profiling.load()) {
     if (f) {
       f->open_object_section("cputrace_start");
@@ -289,7 +331,9 @@ void cputrace_start(ceph::Formatter* f) {
   }
 }
 
-void cputrace_stop(ceph::Formatter* f) {
+void
+cputrace_stop(ceph::Formatter* f)
+{
   if (!g_profiler.profiling.load()) {
     if (f) {
       f->open_object_section("cputrace_stop");
@@ -322,9 +366,12 @@ void cputrace_stop(ceph::Formatter* f) {
   }
 }
 
-void cputrace_reset(ceph::Formatter* f) {
+void
+cputrace_reset(ceph::Formatter* f)
+{
   for (int i = 0; i < CPUTRACE_MAX_ANCHORS; ++i) {
-    if (!g_profiler.anchors[i].name) continue;
+    if (!g_profiler.anchors[i].name)
+      continue;
     pthread_mutex_lock(&g_profiler.anchors[i].lock);
     g_profiler.anchors[i].global_results.reset();
     pthread_mutex_unlock(&g_profiler.anchors[i].lock);
@@ -337,14 +384,19 @@ void cputrace_reset(ceph::Formatter* f) {
       }
     }
   }
-   if (f) {
+  if (f) {
     f->open_object_section("cputrace_reset");
     f->dump_format("status", "Counters reset");
     f->close_section();
   }
 }
 
-void cputrace_dump(ceph::Formatter* f, const std::string& logger, const std::string& counter) {
+void
+cputrace_dump(
+    ceph::Formatter* f,
+    const std::string& logger,
+    const std::string& counter)
+{
   f->open_object_section("cputrace");
   bool dumped = false;
 
@@ -374,19 +426,25 @@ void cputrace_dump(ceph::Formatter* f, const std::string& logger, const std::str
       f->open_object_section(g->name);
       for (auto& e : g->counters) {
         f->open_object_section(e.first);
-        e.second.dump(f,
-          HW_PROFILE_SWI | HW_PROFILE_CYC | HW_PROFILE_CMISS | HW_PROFILE_BMISS | HW_PROFILE_INS,
-          "");
+        e.second.dump(
+            f,
+            HW_PROFILE_SWI | HW_PROFILE_CYC | HW_PROFILE_CMISS |
+                HW_PROFILE_BMISS | HW_PROFILE_INS,
+            "");
         f->close_section();
         dumped = true;
       }
     }
   }
-  f->dump_format("status", dumped ? "Profiling data dumped" : "No profiling data available");
+  f->dump_format(
+      "status",
+      dumped ? "Profiling data dumped" : "No profiling data available");
   f->close_section();
 }
 
-void cputrace_print_to_stringstream(std::stringstream& ss) {
+void
+cputrace_print_to_stringstream(std::stringstream& ss)
+{
   ss << "cputrace:\n";
   bool dumped = false;
 
@@ -411,25 +469,35 @@ void cputrace_print_to_stringstream(std::stringstream& ss) {
     dumped = true;
   }
 
-  ss << "status: " << (dumped ? "Profiling data dumped" : "No profiling data available") << "\n";
+  ss << "status: "
+     << (dumped ? "Profiling data dumped" : "No profiling data available")
+     << "\n";
 }
 
-__attribute__((constructor)) static void cputrace_init() {
-  g_profiler.anchors = (cputrace_anchor*)calloc(CPUTRACE_MAX_ANCHORS, sizeof(cputrace_anchor));
+__attribute__((constructor)) static void
+cputrace_init()
+{
+  g_profiler.anchors =
+      (cputrace_anchor*)calloc(CPUTRACE_MAX_ANCHORS, sizeof(cputrace_anchor));
   if (!g_profiler.anchors) {
-    fprintf(stderr, "Failed to allocate memory for profiler anchors: %s\n", strerror(errno));
+    fprintf(
+        stderr, "Failed to allocate memory for profiler anchors: %s\n",
+        strerror(errno));
     exit(1);
   }
   for (int i = 0; i < CPUTRACE_MAX_ANCHORS; ++i) {
     if (pthread_mutex_init(&g_profiler.anchors[i].lock, nullptr) != 0) {
-      fprintf(stderr, "Failed to initialize mutex for anchor %d: %s\n", i, strerror(errno));
+      fprintf(
+          stderr, "Failed to initialize mutex for anchor %d: %s\n", i,
+          strerror(errno));
       exit(1);
     }
-
   }
 }
 
-__attribute__((destructor)) static void cputrace_fini() {
+__attribute__((destructor)) static void
+cputrace_fini()
+{
   for (int i = 0; i < CPUTRACE_MAX_ANCHORS; ++i) {
     cputrace_anchor& anchor = g_profiler.anchors[i];
     pthread_mutex_lock(&anchor.lock);
@@ -442,14 +510,18 @@ __attribute__((destructor)) static void cputrace_fini() {
     }
     pthread_mutex_unlock(&anchor.lock);
     if (pthread_mutex_destroy(&g_profiler.anchors[i].lock) != 0) {
-      fprintf(stderr, "Failed to destroy mutex for anchor %d: %s\n", i, strerror(errno));
+      fprintf(
+          stderr, "Failed to destroy mutex for anchor %d: %s\n", i,
+          strerror(errno));
     }
   }
   free(g_profiler.anchors);
   g_profiler.anchors = nullptr;
 }
 
-hw_per_thread_ctx* hw_per_thread_ctx::get_thread_local() {
+hw_per_thread_ctx*
+hw_per_thread_ctx::get_thread_local()
+{
   thread_local hw_per_thread_ctx thread_ctx;
   return &thread_ctx;
 }

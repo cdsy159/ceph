@@ -17,50 +17,52 @@
  * Test Ioctx::operate
  */
 
-#include "common/ceph_argparse.h"
+#include <errno.h>
+
+#include <iostream>
+#include <string>
+
 #include "common/debug.h"
+
+#include "common/ceph_argparse.h"
 #include "common/config.h"
 #include "global/global_init.h"
 #include "include/rados/librados.hpp"
 #include "include/types.h"
-
-#include <errno.h>
-#include <iostream>
-#include <string>
 
 using std::cerr;
 using std::string;
 
 using namespace librados;
 
-static void usage(void)
+static void
+usage(void)
 {
   cerr << "--oid           set object id to 'operate' on" << std::endl;
   cerr << "--pool          set pool to 'operate' on" << std::endl;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   string val;
   string oid("ceph_test_object");
   string pool_name("test_pool");
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    }
-    else if (ceph_argparse_witharg(args, i, &val, "--oid", "-o", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(args, i, &val, "--oid", "-o", (char*)NULL)) {
       oid = val;
-    }
-    else if (ceph_argparse_witharg(args, i, &val, "--pool", "-p", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--pool", "-p", (char*)NULL)) {
       pool_name = val;
-    }
-    else {
+    } else {
       cerr << "unknown command line option: " << *i << std::endl;
       cerr << std::endl;
       usage();
@@ -70,16 +72,16 @@ int main(int argc, const char **argv)
 
   Rados rados;
   if (rados.init_with_context(g_ceph_context) < 0) {
-     cerr << "couldn't initialize rados!" << std::endl;
-     return 1;
+    cerr << "couldn't initialize rados!" << std::endl;
+    return 1;
   }
   if (rados.conf_read_file(NULL) < 0) {
-     cerr << "failed to read rados configuration file!" << std::endl;
-     return 1;
+    cerr << "failed to read rados configuration file!" << std::endl;
+    return 1;
   }
   if (rados.connect() < 0) {
-     cerr << "couldn't connect to cluster!" << std::endl;
-     return 1;
+    cerr << "couldn't connect to cluster!" << std::endl;
+    return 1;
   }
 
   int ret = 0;
@@ -88,16 +90,16 @@ int main(int argc, const char **argv)
   if (rados.pool_lookup(pool_name.c_str()) <= 0) {
     ret = rados.pool_create(pool_name.c_str());
     if (ret) {
-       cerr << "failed to create pool named '" << pool_name
-	    << "': error " << ret << std::endl;
-       return 1;
+      cerr << "failed to create pool named '" << pool_name << "': error " << ret
+           << std::endl;
+      return 1;
     }
   }
   ret = rados.ioctx_create(pool_name.c_str(), ioctx);
   if (ret) {
-     cerr << "failed to create ioctx for pool '" << pool_name
-	  << "': error " << ret << std::endl;
-     return 1;
+    cerr << "failed to create ioctx for pool '" << pool_name << "': error "
+         << ret << std::endl;
+    return 1;
   }
   ioctx.application_enable("rados", true);
 
@@ -105,8 +107,8 @@ int main(int argc, const char **argv)
   op.create(true);
   ret = ioctx.operate(oid, &op);
   if (ret) {
-     cerr << "ioctx.operate failed: ret = " << ret << std::endl;
-     return 1;
+    cerr << "ioctx.operate failed: ret = " << ret << std::endl;
+    return 1;
   }
 
   return 0;

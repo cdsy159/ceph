@@ -1,19 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <set>
+#include <string>
+
+#include "gtest/gtest.h"
 #include "include/int_types.h"
 #include "include/rados/librados.h"
 #include "include/rbd/librbd.hpp"
 #include "librbd/ImageCtx.h"
-#include "gtest/gtest.h"
-#include <set>
-#include <string>
 
 using namespace ceph;
 
 class TestFixture : public ::testing::Test {
 public:
-
   TestFixture();
 
   static void SetUpTestCase();
@@ -24,22 +24,24 @@ public:
   void SetUp() override;
   void TearDown() override;
 
-  int open_image(const std::string &image_name, librbd::ImageCtx **ictx);
-  void close_image(librbd::ImageCtx *ictx);
+  int open_image(const std::string& image_name, librbd::ImageCtx** ictx);
+  void close_image(librbd::ImageCtx* ictx);
 
-  int snap_create(librbd::ImageCtx &ictx, const std::string &snap_name);
-  int snap_protect(librbd::ImageCtx &ictx, const std::string &snap_name);
+  int snap_create(librbd::ImageCtx& ictx, const std::string& snap_name);
+  int snap_protect(librbd::ImageCtx& ictx, const std::string& snap_name);
 
-  int flatten(librbd::ImageCtx &ictx, librbd::ProgressContext &prog_ctx);
-  int resize(librbd::ImageCtx *ictx, uint64_t size);
+  int flatten(librbd::ImageCtx& ictx, librbd::ProgressContext& prog_ctx);
+  int resize(librbd::ImageCtx* ictx, uint64_t size);
 
-  int lock_image(librbd::ImageCtx &ictx, ClsLockType lock_type,
-                 const std::string &cookie);
+  int lock_image(
+      librbd::ImageCtx& ictx,
+      ClsLockType lock_type,
+      const std::string& cookie);
   int unlock_image();
 
-  int flush_writeback_cache(librbd::ImageCtx *image_ctx);
+  int flush_writeback_cache(librbd::ImageCtx* image_ctx);
 
-  int acquire_exclusive_lock(librbd::ImageCtx &ictx);
+  int acquire_exclusive_lock(librbd::ImageCtx& ictx);
 
   static std::string _pool_name;
   static librados::Rados _rados;
@@ -54,7 +56,7 @@ public:
   std::string m_image_name;
   uint64_t m_image_size;
 
-  std::set<librbd::ImageCtx *> m_ictxs;
+  std::set<librbd::ImageCtx*> m_ictxs;
 
   std::string m_lock_object;
   std::string m_lock_cookie;

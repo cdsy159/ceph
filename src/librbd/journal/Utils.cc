@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/journal/Utils.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/journal/Types.h"
@@ -14,21 +15,24 @@ namespace librbd {
 namespace journal {
 namespace util {
 
-int C_DecodeTag::decode(bufferlist::const_iterator *it, TagData *tag_data) {
+int
+C_DecodeTag::decode(bufferlist::const_iterator* it, TagData* tag_data)
+{
   try {
     using ceph::decode;
     decode(*tag_data, *it);
-  } catch (const buffer::error &err) {
+  } catch (const buffer::error& err) {
     return -EBADMSG;
   }
   return 0;
 }
 
-int C_DecodeTag::process(int r) {
+int
+C_DecodeTag::process(int r)
+{
   if (r < 0) {
     lderr(cct) << "C_DecodeTag: " << this << " " << __func__ << ": "
-               << "failed to allocate tag: " << cpp_strerror(r)
-      	 << dendl;
+               << "failed to allocate tag: " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -44,13 +48,14 @@ int C_DecodeTag::process(int r) {
   }
 
   ldout(cct, 20) << "C_DecodeTag: " << this << " " << __func__ << ": "
-                 << "allocated journal tag: "
-                 << "tid=" << tag.tid << ", "
+                 << "allocated journal tag: " << "tid=" << tag.tid << ", "
                  << "data=" << *tag_data << dendl;
   return 0;
 }
 
-int C_DecodeTags::process(int r) {
+int
+C_DecodeTags::process(int r)
+{
   if (r < 0) {
     lderr(cct) << "C_DecodeTags: " << this << " " << __func__ << ": "
                << "failed to retrieve journal tags: " << cpp_strerror(r)
@@ -75,8 +80,7 @@ int C_DecodeTags::process(int r) {
   }
 
   ldout(cct, 20) << "C_DecodeTags: " << this << " " << __func__ << ": "
-                 << "most recent journal tag: "
-                 << "tid=" << *tag_tid << ", "
+                 << "most recent journal tag: " << "tid=" << *tag_tid << ", "
                  << "data=" << *tag_data << dendl;
   return 0;
 }

@@ -5,19 +5,19 @@
 
 #include <seastar/core/future.hh>
 
-#include "include/ceph_assert.h"
-#include "include/buffer.h"
-#include "include/denc.h"
-
 #include "crimson/os/seastore/async_cleaner.h"
 #include "crimson/os/seastore/journal.h"
-#include "crimson/os/seastore/segment_manager_group.h"
 #include "crimson/os/seastore/ordering_handle.h"
 #include "crimson/os/seastore/seastore_types.h"
-#include "crimson/osd/exceptions.h"
-#include "segment_allocator.h"
+#include "crimson/os/seastore/segment_manager_group.h"
 #include "crimson/os/seastore/segment_seq_allocator.h"
+#include "crimson/osd/exceptions.h"
+#include "include/buffer.h"
+#include "include/ceph_assert.h"
+#include "include/denc.h"
+
 #include "record_submitter.h"
+#include "segment_allocator.h"
 
 namespace crimson::os::seastore::journal {
 /**
@@ -27,15 +27,20 @@ class SegmentedJournal : public Journal {
 public:
   SegmentedJournal(
       store_index_t store_index,
-      SegmentProvider &segment_provider,
-      JournalTrimmer &trimmer);
+      SegmentProvider& segment_provider,
+      JournalTrimmer& trimmer);
+
   ~SegmentedJournal() {}
 
-  JournalTrimmer &get_trimmer() final {
+  JournalTrimmer&
+  get_trimmer() final
+  {
     return trimmer;
   }
 
-  writer_stats_t get_writer_stats() const final {
+  writer_stats_t
+  get_writer_stats() const final
+  {
     return record_submitter.get_stats();
   }
 
@@ -46,54 +51,60 @@ public:
   close_ertr::future<> close() final;
 
   submit_record_ertr::future<> submit_record(
-    record_t &&record,
-    OrderingHandle &handle,
-    transaction_type_t t_src,
-    on_submission_func_t &&on_submission) final;
+      record_t&& record,
+      OrderingHandle& handle,
+      transaction_type_t t_src,
+      on_submission_func_t&& on_submission) final;
 
-  seastar::future<> flush(OrderingHandle &handle) final;
+  seastar::future<> flush(OrderingHandle& handle) final;
 
-  replay_ret replay(delta_handler_t &&delta_handler) final;
+  replay_ret replay(delta_handler_t&& delta_handler) final;
 
-  void set_write_pipeline(WritePipeline *_write_pipeline) final {
+  void
+  set_write_pipeline(WritePipeline* _write_pipeline) final
+  {
     write_pipeline = _write_pipeline;
   }
 
-  backend_type_t get_type() final {
+  backend_type_t
+  get_type() final
+  {
     return backend_type_t::SEGMENTED;
   }
 
-  bool is_checksum_needed() final {
+  bool
+  is_checksum_needed() final
+  {
     // segmented journal always requires checksum
     return true;
   }
 
 private:
   submit_record_ertr::future<> do_submit_record(
-    record_t &&record,
-    OrderingHandle &handle,
-    on_submission_func_t &&on_submission);
+      record_t&& record,
+      OrderingHandle& handle,
+      on_submission_func_t&& on_submission);
 
   store_index_t store_index;
   SegmentSeqAllocatorRef segment_seq_allocator;
   SegmentAllocator journal_segment_allocator;
   RecordSubmitter record_submitter;
-  SegmentManagerGroup &sm_group;
-  JournalTrimmer &trimmer;
+  SegmentManagerGroup& sm_group;
+  JournalTrimmer& trimmer;
   WritePipeline* write_pipeline = nullptr;
 
   /// return ordered vector of segments to replay
-  using replay_segments_t = std::vector<
-    std::pair<journal_seq_t, segment_header_t>>;
-  using prep_replay_segments_fut = replay_ertr::future<
-    replay_segments_t>;
+  using replay_segments_t =
+      std::vector<std::pair<journal_seq_t, segment_header_t>>;
+  using prep_replay_segments_fut = replay_ertr::future<replay_segments_t>;
   prep_replay_segments_fut prep_replay_segments(
-    std::vector<std::pair<segment_id_t, segment_header_t>> segments);
+      std::vector<std::pair<segment_id_t, segment_header_t>> segments);
 
   /// scan the last segment for tail deltas
   using scan_last_segment_ertr = replay_ertr;
   scan_last_segment_ertr::future<> scan_last_segment(
-      const segment_id_t&, const segment_header_t&);
+      const segment_id_t&,
+      const segment_header_t&);
 
   struct replay_stats_t {
     std::size_t num_record_groups = 0;
@@ -103,13 +114,12 @@ private:
   };
 
   /// replays records starting at start through end of segment
-  replay_ertr::future<>
-  replay_segment(
-    journal_seq_t start,             ///< [in] starting addr, seq
-    segment_header_t header,         ///< [in] segment header
-    delta_handler_t &delta_handler,  ///< [in] processes deltas in order
-    replay_stats_t &stats            ///< [out] replay stats
+  replay_ertr::future<> replay_segment(
+      journal_seq_t start, ///< [in] starting addr, seq
+      segment_header_t header, ///< [in] segment header
+      delta_handler_t& delta_handler, ///< [in] processes deltas in order
+      replay_stats_t& stats ///< [out] replay stats
   );
 };
 
-}
+} // namespace crimson::os::seastore::journal

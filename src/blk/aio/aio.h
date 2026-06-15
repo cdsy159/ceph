@@ -12,36 +12,40 @@
 #include <sys/event.h>
 #endif
 
-#include <boost/intrusive/list.hpp>
 #include <boost/container/small_vector.hpp>
+#include <boost/intrusive/list.hpp>
 
 #include "include/buffer.h"
 #include "include/types.h"
 
 struct aio_t {
 #if defined(HAVE_LIBAIO)
-  struct iocb iocb{};  // must be first element; see shenanigans in aio_queue_t
+  struct iocb iocb {}; // must be first element; see shenanigans in aio_queue_t
 #elif defined(HAVE_POSIXAIO)
   //  static long aio_listio_max = -1;
   union {
     struct aiocb aiocb;
-    struct aiocb *aiocbp;
+    struct aiocb* aiocbp;
   } aio;
+
   int n_aiocb;
 #endif
-  void *priv;
+  void* priv;
   int fd;
-  boost::container::small_vector<iovec,4> iov;
+  boost::container::small_vector<iovec, 4> iov;
   uint64_t offset, length;
   long rval;
-  ceph::buffer::list bl;  ///< write payload (so that it remains stable for duration)
+  ceph::buffer::list bl; ///< write payload (so that it remains stable for duration)
 
   boost::intrusive::list_member_hook<> queue_item;
 
-  aio_t(void *p, int f) : priv(p), fd(f), offset(0), length(0), rval(-1000) {
-  }
+  aio_t(void* p, int f) :
+    priv(p), fd(f), offset(0), length(0), rval(-1000)
+  {}
 
-  void pwritev(uint64_t _offset, uint64_t len) {
+  void
+  pwritev(uint64_t _offset, uint64_t len)
+  {
     offset = _offset;
     length = len;
 #if defined(HAVE_LIBAIO)
@@ -60,7 +64,9 @@ struct aio_t {
 #endif
   }
 
-  void preadv(uint64_t _offset, uint64_t len) {
+  void
+  preadv(uint64_t _offset, uint64_t len)
+  {
     offset = _offset;
     length = len;
 #if defined(HAVE_LIBAIO)
@@ -79,7 +85,9 @@ struct aio_t {
 #endif
   }
 
-  long get_return_value() {
+  long
+  get_return_value()
+  {
     return rval;
   }
 };
@@ -87,23 +95,27 @@ struct aio_t {
 std::ostream& operator<<(std::ostream& os, const aio_t& aio);
 
 typedef boost::intrusive::list<
-  aio_t,
-  boost::intrusive::constant_time_size<false>,
-  boost::intrusive::member_hook<
     aio_t,
-    boost::intrusive::list_member_hook<>,
-    &aio_t::queue_item> > aio_list_t;
+    boost::intrusive::constant_time_size<false>,
+    boost::intrusive::
+        member_hook<aio_t, boost::intrusive::list_member_hook<>, &aio_t::queue_item>>
+    aio_list_t;
 
 struct io_queue_t {
   typedef std::list<aio_t>::iterator aio_iter;
 
-  virtual ~io_queue_t() {};
+  virtual ~io_queue_t(){};
 
-  virtual int init(std::vector<int> &fds) = 0;
+  virtual int init(std::vector<int>& fds) = 0;
   virtual void shutdown() = 0;
-  virtual int submit_batch(aio_iter begin, aio_iter end,
-			   void *priv, int *retries, int submit_retries, int initial_delay_us) = 0;
-  virtual int get_next_completed(int timeout_ms, aio_t **paio, int max) = 0;
+  virtual int submit_batch(
+      aio_iter begin,
+      aio_iter end,
+      void* priv,
+      int* retries,
+      int submit_retries,
+      int initial_delay_us) = 0;
+  virtual int get_next_completed(int timeout_ms, aio_t** paio, int max) = 0;
 };
 
 struct aio_queue_t final : public io_queue_t {
@@ -114,23 +126,23 @@ struct aio_queue_t final : public io_queue_t {
   int ctx;
 #endif
 
-  explicit aio_queue_t(unsigned max_iodepth)
-    : max_iodepth(max_iodepth),
-      ctx(0) {
-  }
-  ~aio_queue_t() final {
-    ceph_assert(ctx == 0);
-  }
+  explicit aio_queue_t(unsigned max_iodepth) :
+    max_iodepth(max_iodepth), ctx(0)
+  {}
 
-  int init(std::vector<int> &fds) final {
+  ~aio_queue_t() final { ceph_assert(ctx == 0); }
+
+  int
+  init(std::vector<int>& fds) final
+  {
     (void)fds;
     ceph_assert(ctx == 0);
 #if defined(HAVE_LIBAIO)
     int r = io_setup(max_iodepth, &ctx);
     if (r < 0) {
       if (ctx) {
-	io_destroy(ctx);
-	ctx = 0;
+        io_destroy(ctx);
+        ctx = 0;
       }
     }
     return r;
@@ -142,7 +154,10 @@ struct aio_queue_t final : public io_queue_t {
       return 0;
 #endif
   }
-  void shutdown() final {
+
+  void
+  shutdown() final
+  {
     if (ctx) {
 #if defined(HAVE_LIBAIO)
       int r = io_destroy(ctx);
@@ -154,7 +169,12 @@ struct aio_queue_t final : public io_queue_t {
     }
   }
 
-  int submit_batch(aio_iter begin, aio_iter end,
-		   void *priv, int *retries, int submit_retries, int initial_delay_us) final;
-  int get_next_completed(int timeout_ms, aio_t **paio, int max) final;
+  int submit_batch(
+      aio_iter begin,
+      aio_iter end,
+      void* priv,
+      int* retries,
+      int submit_retries,
+      int initial_delay_us) final;
+  int get_next_completed(int timeout_ms, aio_t** paio, int max) final;
 };

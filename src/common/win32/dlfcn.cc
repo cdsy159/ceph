@@ -13,27 +13,34 @@
  *
  */
 
-#include <sstream>
 #include <windows.h>
+
+#include <sstream>
 
 #include "common/errno.h"
 #include "include/dlfcn_compat.h"
 
-
-void* dlopen(const char *filename, int flags) {
+void*
+dlopen(const char* filename, int flags)
+{
   return LoadLibrary(filename);
 }
 
-int dlclose(void* handle) {
+int
+dlclose(void* handle)
+{
   //FreeLibrary returns 0 on error, as opposed to dlclose.
   return !FreeLibrary((HMODULE)handle);
 }
 
-void* dlsym(void* handle, const char* symbol) {
+void*
+dlsym(void* handle, const char* symbol)
+{
   return (void*)GetProcAddress((HMODULE)handle, symbol);
 }
 
-dl_errmsg_t dlerror() {
+dl_errmsg_t
+dlerror()
+{
   return win32_lasterror_str();
 }
-

@@ -1,13 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "Utils.h"
+
+#include "common/debug.h"
+
 #include "common/ceph_argparse.h"
 #include "common/ceph_context.h"
 #include "common/common_init.h"
-#include "common/debug.h"
 #include "common/errno.h"
-
-#include "Utils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_cephfs_mirror
@@ -17,11 +18,17 @@
 namespace cephfs {
 namespace mirror {
 
-int connect(std::string_view client_name, std::string_view cluster_name,
-            RadosRef *cluster, std::string_view mon_host, std::string_view cephx_key,
-            std::vector<const char *> args) {
-  dout(20) << ": connecting to cluster=" << cluster_name << ", client=" << client_name
-           << ", mon_host=" << mon_host << dendl;
+int
+connect(
+    std::string_view client_name,
+    std::string_view cluster_name,
+    RadosRef* cluster,
+    std::string_view mon_host,
+    std::string_view cephx_key,
+    std::vector<const char*> args)
+{
+  dout(20) << ": connecting to cluster=" << cluster_name
+           << ", client=" << client_name << ", mon_host=" << mon_host << dendl;
 
   CephInitParameters iparams(CEPH_ENTITY_TYPE_CLIENT);
   if (client_name.empty() || !iparams.name.from_str(client_name)) {
@@ -29,8 +36,9 @@ int connect(std::string_view client_name, std::string_view cluster_name,
     return -EINVAL;
   }
 
-  CephContext *cct = common_preinit(iparams, CODE_ENVIRONMENT_LIBRARY,
-                                    CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
+  CephContext* cct = common_preinit(
+      iparams, CODE_ENVIRONMENT_LIBRARY,
+      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
   if (mon_host.empty()) {
     cct->_conf->cluster = cluster_name;
   }
@@ -46,7 +54,8 @@ int connect(std::string_view client_name, std::string_view cluster_name,
   if (!args.empty()) {
     r = cct->_conf.parse_argv(args);
     if (r < 0) {
-      derr << ": could not parse command line args: " << cpp_strerror(r) << dendl;
+      derr << ": could not parse command line args: " << cpp_strerror(r)
+           << dendl;
       cct->put();
       return r;
     }
@@ -70,7 +79,8 @@ int connect(std::string_view client_name, std::string_view cluster_name,
     }
   }
 
-  dout(10) << ": using mon addr=" << cct->_conf.get_val<std::string>("mon_host") << dendl;
+  dout(10) << ": using mon addr=" << cct->_conf.get_val<std::string>("mon_host")
+           << dendl;
 
   cluster->reset(new librados::Rados());
 
@@ -85,18 +95,24 @@ int connect(std::string_view client_name, std::string_view cluster_name,
     return r;
   }
 
-  dout(10) << ": connected to cluster=" << cluster_name << " using client="
-           << client_name << dendl;
+  dout(10) << ": connected to cluster=" << cluster_name
+           << " using client=" << client_name << dendl;
 
   return 0;
 }
 
-int mount(RadosRef cluster, const Filesystem &filesystem, bool cross_check_fscid,
-          MountRef *mount) {
+int
+mount(
+    RadosRef cluster,
+    const Filesystem& filesystem,
+    bool cross_check_fscid,
+    MountRef* mount)
+{
   dout(20) << ": filesystem=" << filesystem << dendl;
 
-  ceph_mount_info *cmi;
-  int r = ceph_create_with_context(&cmi, reinterpret_cast<CephContext*>(cluster->cct()));
+  ceph_mount_info* cmi;
+  int r = ceph_create_with_context(
+      &cmi, reinterpret_cast<CephContext*>(cluster->cct()));
   if (r < 0) {
     derr << ": mount error: " << cpp_strerror(r) << dendl;
     return r;
@@ -115,8 +131,10 @@ int mount(RadosRef cluster, const Filesystem &filesystem, bool cross_check_fscid
   }
 
   // mount timeout applies for local and remote mounts.
-  auto mount_timeout = g_ceph_context->_conf.get_val<std::chrono::seconds>
-    ("cephfs_mirror_mount_timeout").count();
+  auto mount_timeout =
+      g_ceph_context->_conf
+          .get_val<std::chrono::seconds>("cephfs_mirror_mount_timeout")
+          .count();
   r = ceph_set_mount_timeout(cmi, mount_timeout);
   if (r < 0) {
     derr << ": mount error: " << cpp_strerror(r) << dendl;

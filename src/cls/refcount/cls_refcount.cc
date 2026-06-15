@@ -3,23 +3,23 @@
 
 #include <errno.h>
 
-#include "objclass/objclass.h"
 #include "cls/refcount/cls_refcount_ops.h"
-
 #include "include/compat.h"
+#include "objclass/objclass.h"
 
 using std::string;
 
 using ceph::bufferlist;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(refcount)
 
 #define REFCOUNT_ATTR "refcount"
 
 static string wildcard_tag;
 
-static int read_refcount(cls_method_context_t hctx, bool implicit_ref, obj_refcount *objr)
+static int
+read_refcount(cls_method_context_t hctx, bool implicit_ref, obj_refcount* objr)
 {
   bufferlist bl;
   objr->refs.clear();
@@ -44,7 +44,8 @@ static int read_refcount(cls_method_context_t hctx, bool implicit_ref, obj_refco
   return 0;
 }
 
-static int set_refcount(cls_method_context_t hctx, const struct obj_refcount& objr)
+static int
+set_refcount(cls_method_context_t hctx, const struct obj_refcount& objr)
 {
   bufferlist bl;
 
@@ -57,7 +58,8 @@ static int set_refcount(cls_method_context_t hctx, const struct obj_refcount& ob
   return 0;
 }
 
-static int cls_rc_refcount_get(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_rc_refcount_get(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -85,7 +87,8 @@ static int cls_rc_refcount_get(cls_method_context_t hctx, bufferlist *in, buffer
   return 0;
 }
 
-static int cls_rc_refcount_put(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_rc_refcount_put(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -102,8 +105,9 @@ static int cls_rc_refcount_put(cls_method_context_t hctx, bufferlist *in, buffer
   if (ret < 0)
     return ret;
 
-  if (objr.refs.empty()) {// shouldn't happen!
-    CLS_LOG(0, "ERROR: cls_rc_refcount_put() was called without any references!\n");
+  if (objr.refs.empty()) { // shouldn't happen!
+    CLS_LOG(
+        0, "ERROR: cls_rc_refcount_put() was called without any references!\n");
     return -EINVAL;
   }
 
@@ -120,8 +124,7 @@ static int cls_rc_refcount_put(cls_method_context_t hctx, bufferlist *in, buffer
     }
   }
 
-  if (!found ||
-      objr.retired_refs.find(op.tag) != objr.retired_refs.end())
+  if (!found || objr.retired_refs.find(op.tag) != objr.retired_refs.end())
     return 0;
 
   objr.retired_refs.insert(op.tag);
@@ -138,7 +141,8 @@ static int cls_rc_refcount_put(cls_method_context_t hctx, bufferlist *in, buffer
   return 0;
 }
 
-static int cls_rc_refcount_set(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_rc_refcount_set(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -166,7 +170,8 @@ static int cls_rc_refcount_set(cls_method_context_t hctx, bufferlist *in, buffer
   return 0;
 }
 
-static int cls_rc_refcount_read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_rc_refcount_read(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -207,11 +212,17 @@ CLS_INIT(refcount)
   cls_register("refcount", &h_class);
 
   /* refcount */
-  cls_register_cxx_method(h_class, "get", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_get, &h_refcount_get);
-  cls_register_cxx_method(h_class, "put", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_put, &h_refcount_put);
-  cls_register_cxx_method(h_class, "set", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_set, &h_refcount_set);
-  cls_register_cxx_method(h_class, "read", CLS_METHOD_RD, cls_rc_refcount_read, &h_refcount_read);
+  cls_register_cxx_method(
+      h_class, "get", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_get,
+      &h_refcount_get);
+  cls_register_cxx_method(
+      h_class, "put", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_put,
+      &h_refcount_put);
+  cls_register_cxx_method(
+      h_class, "set", CLS_METHOD_RD | CLS_METHOD_WR, cls_rc_refcount_set,
+      &h_refcount_set);
+  cls_register_cxx_method(
+      h_class, "read", CLS_METHOD_RD, cls_rc_refcount_read, &h_refcount_read);
 
   return;
 }
-

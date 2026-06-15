@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,12 +13,14 @@
  * 
  */
 
-#include <ostream>
+#include "FSMap.h"
+
 #include <algorithm>
+#include <ostream>
 #include <ranges>
 
-#include "FSMap.h"
 #include "common/debug.h"
+
 #include "common/StackStringStream.h"
 #include "common/strtol.h" // for strict_strtoll()
 
@@ -36,15 +38,17 @@
 #define dout_prefix *_dout << "FSMap "
 
 using std::list;
-using std::pair;
 using std::ostream;
+using std::pair;
 using std::string;
 using std::string_view;
 
 using ceph::bufferlist;
 using ceph::Formatter;
 
-void ClusterInfo::encode(ceph::buffer::list &bl) const {
+void
+ClusterInfo::encode(ceph::buffer::list& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(client_name, bl);
   encode(cluster_name, bl);
@@ -52,7 +56,9 @@ void ClusterInfo::encode(ceph::buffer::list &bl) const {
   ENCODE_FINISH(bl);
 }
 
-void ClusterInfo::decode(ceph::buffer::list::const_iterator &iter) {
+void
+ClusterInfo::decode(ceph::buffer::list::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(client_name, iter);
   decode(cluster_name, iter);
@@ -60,64 +66,84 @@ void ClusterInfo::decode(ceph::buffer::list::const_iterator &iter) {
   DECODE_FINISH(iter);
 }
 
-void ClusterInfo::dump(ceph::Formatter *f) const {
+void
+ClusterInfo::dump(ceph::Formatter* f) const
+{
   f->dump_string("client_name", client_name);
   f->dump_string("cluster_name", cluster_name);
   f->dump_string("fs_name", fs_name);
 }
 
-void ClusterInfo::print(std::ostream& out) const {
+void
+ClusterInfo::print(std::ostream& out) const
+{
   out << "[client_name=" << client_name << ", cluster_name=" << cluster_name
       << ", fs_name=" << fs_name << "]" << std::endl;
 }
 
-void Peer::encode(ceph::buffer::list &bl) const {
+void
+Peer::encode(ceph::buffer::list& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(uuid, bl);
   encode(remote, bl);
   ENCODE_FINISH(bl);
 }
 
-void Peer::decode(ceph::buffer::list::const_iterator &iter) {
+void
+Peer::decode(ceph::buffer::list::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(uuid, iter);
   decode(remote, iter);
   DECODE_FINISH(iter);
 }
 
-void Peer::dump(ceph::Formatter *f) const {
+void
+Peer::dump(ceph::Formatter* f) const
+{
   f->open_object_section(uuid);
   f->dump_object("remote", remote);
   f->close_section();
 }
 
-void Peer::print(std::ostream& out) const {
+void
+Peer::print(std::ostream& out) const
+{
   out << "[uuid=" << uuid << ", remote=" << remote << "]" << std::endl;
 }
 
-void MirrorInfo::encode(ceph::buffer::list &bl) const {
+void
+MirrorInfo::encode(ceph::buffer::list& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(mirrored, bl);
   encode(peers, bl);
   ENCODE_FINISH(bl);
 }
 
-void MirrorInfo::decode(ceph::buffer::list::const_iterator &iter) {
+void
+MirrorInfo::decode(ceph::buffer::list::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(mirrored, iter);
   decode(peers, iter);
   DECODE_FINISH(iter);
 }
 
-void MirrorInfo::dump(ceph::Formatter *f) const {
+void
+MirrorInfo::dump(ceph::Formatter* f) const
+{
   f->open_object_section("peers");
-  for (auto &peer : peers) {
+  for (auto& peer : peers) {
     peer.dump(f);
   }
   f->close_section(); // peers
 }
 
-std::list<MirrorInfo> MirrorInfo::generate_test_instances() {
+std::list<MirrorInfo>
+MirrorInfo::generate_test_instances()
+{
   std::list<MirrorInfo> ls;
   ls.push_back(MirrorInfo());
   ls.push_back(MirrorInfo());
@@ -127,11 +153,14 @@ std::list<MirrorInfo> MirrorInfo::generate_test_instances() {
   return ls;
 }
 
-void MirrorInfo::print(std::ostream& out) const {
+void
+MirrorInfo::print(std::ostream& out) const
+{
   out << "[peers=" << peers << "]" << std::endl;
 }
 
-void Filesystem::dump(Formatter *f) const
+void
+Filesystem::dump(Formatter* f) const
 {
   f->open_object_section("mdsmap");
   mds_map.dump(f);
@@ -144,7 +173,8 @@ void Filesystem::dump(Formatter *f) const
   }
 }
 
-void FSMap::dump(Formatter *f) const
+void
+FSMap::dump(Formatter* f) const
 {
   f->dump_int("epoch", epoch);
   f->dump_string("btime", fmt::format("{}", btime));
@@ -178,7 +208,8 @@ void FSMap::dump(Formatter *f) const
   f->close_section();
 }
 
-FSMap &FSMap::operator=(const FSMap &rhs)
+FSMap&
+FSMap::operator=(const FSMap& rhs)
 {
   epoch = rhs.epoch;
   btime = rhs.btime;
@@ -192,13 +223,16 @@ FSMap &FSMap::operator=(const FSMap &rhs)
 
   filesystems.clear();
   for (const auto& [fscid, fs] : rhs.filesystems) {
-    filesystems.emplace(std::piecewise_construct, std::forward_as_tuple(fscid), std::forward_as_tuple(fs));
+    filesystems.emplace(
+        std::piecewise_construct, std::forward_as_tuple(fscid),
+        std::forward_as_tuple(fs));
   }
 
   return *this;
 }
 
-std::list<FSMap> FSMap::generate_test_instances()
+std::list<FSMap>
+FSMap::generate_test_instances()
 {
   std::list<FSMap> ls;
 
@@ -217,7 +251,8 @@ std::list<FSMap> FSMap::generate_test_instances()
   return ls;
 }
 
-void FSMap::print(ostream& out) const
+void
+FSMap::print(ostream& out) const
 {
   out << "e" << epoch << std::endl;
   out << "btime " << fmt::format("{}", btime) << std::endl;
@@ -233,7 +268,7 @@ void FSMap::print(ostream& out) const
 
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
     fs.print(out);
-    out << " " << std::endl << " " << std::endl;  // Space out a bit
+    out << " " << std::endl << " " << std::endl; // Space out a bit
   }
 
   if (!standby_daemons.empty()) {
@@ -245,7 +280,8 @@ void FSMap::print(ostream& out) const
   }
 }
 
-void FSMap::print_daemon_summary(ostream& out) const
+void
+FSMap::print_daemon_summary(ostream& out) const
 {
   // this appears in the "services:" section of "ceph status"
   int num_up = 0, num_in = 0, num_failed = 0;
@@ -269,7 +305,8 @@ void FSMap::print_daemon_summary(ostream& out) const
   }
 }
 
-void FSMap::print_fs_summary(ostream& out) const
+void
+FSMap::print_fs_summary(ostream& out) const
 {
   // this appears in the "data:" section of "ceph status"
   if (!filesystems.empty()) {
@@ -277,20 +314,20 @@ void FSMap::print_fs_summary(ostream& out) const
     int num_damaged = 0;
     for ([[maybe_unused]] auto& [fscid, fs] : filesystems) {
       if (fs.mds_map.is_any_damaged()) {
-	++num_damaged;
+        ++num_damaged;
       }
       if (fs.mds_map.is_any_failed()) {
-	++num_failed;
+        ++num_failed;
       } else if (fs.mds_map.is_degraded()) {
-	++num_recovering;
+        ++num_recovering;
       } else if (fs.mds_map.get_max_mds() == 0) {
-	++num_stopped;
+        ++num_stopped;
       } else {
-	++num_healthy;
+        ++num_healthy;
       }
     }
-    out << "    volumes: "
-	<< num_healthy << "/" << filesystems.size() << " healthy";
+    out << "    volumes: " << num_healthy << "/" << filesystems.size()
+        << " healthy";
     if (num_recovering) {
       out << ", " << num_recovering << " recovering";
     }
@@ -307,7 +344,8 @@ void FSMap::print_fs_summary(ostream& out) const
   }
 }
 
-void FSMap::print_summary(Formatter *f, ostream *out) const
+void
+FSMap::print_summary(Formatter* f, ostream* out) const
 {
   if (f) {
     f->dump_unsigned("epoch", get_epoch());
@@ -327,7 +365,8 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
           *out << " ";
         }
         if (fs.mds_map.is_degraded()) {
-          *out << fs.mds_map.fs_name << ":" << fs.mds_map.up.size() << "/" << fs.mds_map.in.size();
+          *out << fs.mds_map.fs_name << ":" << fs.mds_map.up.size() << "/"
+               << fs.mds_map.in.size();
         } else {
           *out << fs.mds_map.fs_name << ":" << fs.mds_map.in.size();
         }
@@ -342,7 +381,8 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
         if (fs.mds_map.is_degraded()) {
           degraded++;
           if (degraded <= 3) {
-            *css << fs.mds_map.fs_name << ":" << fs.mds_map.up.size() << "/" << fs.mds_map.in.size();
+            *css << fs.mds_map.fs_name << ":" << fs.mds_map.up.size() << "/"
+                 << fs.mds_map.in.size();
           }
         }
       }
@@ -361,7 +401,7 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
     f->open_array_section("by_rank");
   }
 
-  std::map<MDSMap::DaemonState,unsigned> by_state;
+  std::map<MDSMap::DaemonState, unsigned> by_state;
   std::map<mds_role_t, std::pair<MDSMap::DaemonState, std::string>> by_rank;
   by_state[MDSMap::DaemonState::STATE_STANDBY] = standby_daemons.size();
   for (const auto& [gid, fscid] : mds_roles) {
@@ -383,7 +423,8 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
       f->dump_unsigned("gid", gid);
       f->close_section();
     } else if (info.state != MDSMap::DaemonState::STATE_STANDBY_REPLAY) {
-      by_rank[mds_role_t(fscid, info.rank)] = std::make_pair(info.state, info.name + "=" + s);
+      by_rank[mds_role_t(fscid, info.rank)] =
+          std::make_pair(info.state, info.name + "=" + s);
     }
     by_state[info.state]++;
   }
@@ -395,18 +436,20 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
       if (filesystems.size() > 1) {
         // Disambiguate filesystems
         std::map<std::string, std::string> pretty;
-        for (const auto& [role,status] : by_rank) {
-          const auto &fs_name = filesystems.at(role.fscid).mds_map.fs_name;
+        for (const auto& [role, status] : by_rank) {
+          const auto& fs_name = filesystems.at(role.fscid).mds_map.fs_name;
           CachedStackStringStream css;
           *css << fs_name << ":" << role.rank;
-          pretty.emplace(std::piecewise_construct, std::forward_as_tuple(css->strv()), std::forward_as_tuple(status.second));
+          pretty.emplace(
+              std::piecewise_construct, std::forward_as_tuple(css->strv()),
+              std::forward_as_tuple(status.second));
           --by_state[status.first]; /* already printed! */
         }
         *out << " " << pretty;
       } else {
         // Omit FSCID in output when only one filesystem exists
         std::map<mds_rank_t, std::string> shortened;
-        for (const auto& [role,status] : by_rank) {
+        for (const auto& [role, status] : by_rank) {
           shortened[role.rank] = status.second;
           --by_state[status.first]; /* already printed! */
         }
@@ -454,20 +497,25 @@ void FSMap::print_summary(Formatter *f, ostream *out) const
   //out << ", " << stopped.size() << " stopped";
 }
 
-mds_gid_t Filesystem::get_standby_replay(mds_gid_t who) const
+mds_gid_t
+Filesystem::get_standby_replay(mds_gid_t who) const
 {
-  for (const auto &i : mds_map.mds_info) {
-    const auto &info = i.second;
-    if (info.state == MDSMap::STATE_STANDBY_REPLAY
-        && info.rank == mds_map.mds_info.at(who).rank) {
+  for (const auto& i : mds_map.mds_info) {
+    const auto& info = i.second;
+    if (info.state == MDSMap::STATE_STANDBY_REPLAY &&
+        info.rank == mds_map.mds_info.at(who).rank) {
       return info.global_id;
     }
   }
   return MDS_GID_NONE;
 }
 
-Filesystem FSMap::create_filesystem(std::string_view name,
-    int64_t metadata_pool, int64_t data_pool, uint64_t features,
+Filesystem
+FSMap::create_filesystem(
+    std::string_view name,
+    int64_t metadata_pool,
+    int64_t data_pool,
+    uint64_t features,
     bool recover)
 {
   auto fs = Filesystem();
@@ -493,13 +541,15 @@ Filesystem FSMap::create_filesystem(std::string_view name,
   return fs;
 }
 
-const Filesystem& FSMap::commit_filesystem(fs_cluster_id_t fscid, Filesystem fs)
+const Filesystem&
+FSMap::commit_filesystem(fs_cluster_id_t fscid, Filesystem fs)
 {
   if (fscid == FS_CLUSTER_ID_NONE) {
     fs.fscid = next_filesystem_id++;
   } else {
     fs.fscid = fscid;
-    next_filesystem_id = std::max(fscid,  (fs_cluster_id_t)next_filesystem_id) + 1;
+    next_filesystem_id = std::max(fscid, (fs_cluster_id_t)next_filesystem_id) +
+                         1;
   }
 
   // File system's ID can be FS_CLUSTER_ID_ANONYMOUS if we're recovering
@@ -526,7 +576,8 @@ const Filesystem& FSMap::commit_filesystem(fs_cluster_id_t fscid, Filesystem fs)
   return it->second;
 }
 
-Filesystem const* FSMap::get_filesystem(std::string_view name) const
+Filesystem const*
+FSMap::get_filesystem(std::string_view name) const
 {
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
     if (fs.mds_map.fs_name == name) {
@@ -536,7 +587,8 @@ Filesystem const* FSMap::get_filesystem(std::string_view name) const
   return nullptr;
 }
 
-void FSMap::reset_filesystem(fs_cluster_id_t fscid)
+void
+FSMap::reset_filesystem(fs_cluster_id_t fscid)
 {
   auto fs = get_filesystem(fscid);
   auto new_fs = Filesystem();
@@ -562,15 +614,18 @@ void FSMap::reset_filesystem(fs_cluster_id_t fscid)
   // Remember mds ranks that have ever started. (They should load old inotable
   // instead of creating new one if they start again.)
   new_fs.mds_map.stopped.insert(fs.mds_map.in.begin(), fs.mds_map.in.end());
-  new_fs.mds_map.stopped.insert(fs.mds_map.stopped.begin(), fs.mds_map.stopped.end());
+  new_fs.mds_map.stopped.insert(
+      fs.mds_map.stopped.begin(), fs.mds_map.stopped.end());
   new_fs.mds_map.stopped.erase(mds_rank_t(0));
 
   // Persist the new FSMap
   filesystems[new_fs.fscid] = new_fs;
 }
 
-void FSMap::get_health(list<pair<health_status_t,string> >& summary,
-			list<pair<health_status_t,string> > *detail) const
+void
+FSMap::get_health(
+    list<pair<health_status_t, string>>& summary,
+    list<pair<health_status_t, string>>* detail) const
 {
   mds_rank_t standby_count_wanted = 0;
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
@@ -578,17 +633,22 @@ void FSMap::get_health(list<pair<health_status_t,string> >& summary,
     // all the messages with what filesystem they're talking about
     fs.mds_map.get_health(summary, detail);
 
-    standby_count_wanted = std::max(standby_count_wanted, fs.mds_map.get_standby_count_wanted((mds_rank_t)standby_daemons.size()));
+    standby_count_wanted = std::max(
+        standby_count_wanted,
+        fs.mds_map.get_standby_count_wanted((mds_rank_t)standby_daemons.size()));
   }
 
   if (standby_count_wanted) {
     CachedStackStringStream css;
-    *css << "insufficient standby daemons available: have " << standby_daemons.size() << "; want " << standby_count_wanted << " more";
+    *css << "insufficient standby daemons available: have "
+         << standby_daemons.size() << "; want " << standby_count_wanted
+         << " more";
     summary.push_back(make_pair(HEALTH_WARN, css->str()));
   }
 }
 
-bool FSMap::check_health(void)
+bool
+FSMap::check_health(void)
 {
   bool changed = false;
   for ([[maybe_unused]] auto& [fscid, fs] : filesystems) {
@@ -597,7 +657,8 @@ bool FSMap::check_health(void)
   return changed;
 }
 
-void FSMap::get_health_checks(health_check_map_t *checks) const
+void
+FSMap::get_health_checks(health_check_map_t* checks) const
 {
   mds_rank_t standby_count_wanted = 0;
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
@@ -610,7 +671,7 @@ void FSMap::get_health_checks(health_check_map_t *checks) const
     // ranks which are failed and have no standby replacement available.
     std::set<mds_rank_t> stuck_failed;
 
-    for (const auto &rank : fs.mds_map.failed) {
+    for (const auto& rank : fs.mds_map.failed) {
       auto rep_info = find_replacement_for({fs.fscid, rank});
       if (!rep_info) {
         stuck_failed.insert(rank);
@@ -620,31 +681,34 @@ void FSMap::get_health_checks(health_check_map_t *checks) const
     // FS_WITH_FAILED_MDS
     if (!stuck_failed.empty()) {
       health_check_t& fscheck = checks->get_or_add(
-        "FS_WITH_FAILED_MDS", HEALTH_WARN,
-        "%num% filesystem%plurals% %hasorhave% a failed mds daemon", 1);
+          "FS_WITH_FAILED_MDS", HEALTH_WARN,
+          "%num% filesystem%plurals% %hasorhave% a failed mds daemon", 1);
       CachedStackStringStream css;
       *css << "fs " << fs.mds_map.fs_name << " has " << stuck_failed.size()
-         << " failed mds" << (stuck_failed.size() > 1 ? "s" : "");
-      fscheck.detail.push_back(css->str()); }
+           << " failed mds" << (stuck_failed.size() > 1 ? "s" : "");
+      fscheck.detail.push_back(css->str());
+    }
 
     checks->merge(fschecks);
     standby_count_wanted = std::max(
-      standby_count_wanted,
-      fs.mds_map.get_standby_count_wanted((mds_rank_t)standby_daemons.size()));
+        standby_count_wanted,
+        fs.mds_map.get_standby_count_wanted((mds_rank_t)standby_daemons.size()));
   }
 
   // MDS_INSUFFICIENT_STANDBY
   if (standby_count_wanted) {
     CachedStackStringStream css1, css2;
     *css1 << "insufficient standby MDS daemons available";
-    auto& d = checks->get_or_add("MDS_INSUFFICIENT_STANDBY", HEALTH_WARN, css1->str(), 1);
-    *css2 << "have " << standby_daemons.size() << "; want " << standby_count_wanted
-	  << " more";
+    auto& d = checks->get_or_add(
+        "MDS_INSUFFICIENT_STANDBY", HEALTH_WARN, css1->str(), 1);
+    *css2 << "have " << standby_daemons.size() << "; want "
+          << standby_count_wanted << " more";
     d.detail.push_back(css2->str());
   }
 }
 
-void FSMap::encode(bufferlist& bl, uint64_t features) const
+void
+FSMap::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(STRUCT_VERSION, 6, bl);
   encode(epoch, bl);
@@ -667,7 +731,8 @@ void FSMap::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void FSMap::decode(bufferlist::const_iterator& p)
+void
+FSMap::decode(bufferlist::const_iterator& p)
 {
   struct_version = 0;
   DECODE_START(STRUCT_VERSION, p);
@@ -705,14 +770,16 @@ void FSMap::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void FSMap::sanitize(const std::function<bool(int64_t pool)>& pool_exists)
+void
+FSMap::sanitize(const std::function<bool(int64_t pool)>& pool_exists)
 {
   for ([[maybe_unused]] auto& [fscid, fs] : filesystems) {
     fs.mds_map.sanitize(pool_exists);
   }
 }
 
-void Filesystem::encode(bufferlist& bl, uint64_t features) const
+void
+Filesystem::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(2, 1, bl);
   encode(fscid, bl);
@@ -723,7 +790,8 @@ void Filesystem::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void Filesystem::decode(bufferlist::const_iterator& p)
+void
+Filesystem::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(2, p);
   decode(fscid, p);
@@ -737,7 +805,8 @@ void Filesystem::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-int FSMap::parse_filesystem(std::string_view ns_str, Filesystem const** result) const
+int
+FSMap::parse_filesystem(std::string_view ns_str, Filesystem const** result) const
 {
   std::string ns_err;
   std::string s(ns_str);
@@ -756,17 +825,19 @@ int FSMap::parse_filesystem(std::string_view ns_str, Filesystem const** result) 
   }
 }
 
-void Filesystem::print(std::ostream &out) const
+void
+Filesystem::print(std::ostream& out) const
 {
-  out << "Filesystem '" << mds_map.fs_name
-      << "' (" << fscid << ")" << std::endl;
+  out << "Filesystem '" << mds_map.fs_name << "' (" << fscid << ")"
+      << std::endl;
   mds_map.print(out);
   if (mirror_info.is_mirrored()) {
     mirror_info.print(out);
   }
 }
 
-bool FSMap::is_any_degraded() const
+bool
+FSMap::is_any_degraded() const
 {
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
     if (fs.mds_map.is_degraded()) {
@@ -776,16 +847,17 @@ bool FSMap::is_any_degraded() const
   return false;
 }
 
-std::map<mds_gid_t, MDSMap::mds_info_t> FSMap::get_mds_info() const
+std::map<mds_gid_t, MDSMap::mds_info_t>
+FSMap::get_mds_info() const
 {
   std::map<mds_gid_t, mds_info_t> result;
-  for (const auto &i : standby_daemons) {
+  for (const auto& i : standby_daemons) {
     result[i.first] = i.second;
   }
 
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
-    const auto &fs_info = fs.mds_map.get_mds_info();
-    for (const auto &j : fs_info) {
+    const auto& fs_info = fs.mds_map.get_mds_info();
+    for (const auto& j : fs_info) {
       result[j.first] = j.second;
     }
   }
@@ -793,7 +865,8 @@ std::map<mds_gid_t, MDSMap::mds_info_t> FSMap::get_mds_info() const
   return result;
 }
 
-const MDSMap::mds_info_t* FSMap::get_available_standby(const Filesystem& fs) const
+const MDSMap::mds_info_t*
+FSMap::get_available_standby(const Filesystem& fs) const
 {
   const bool upgradeable = fs.is_upgradeable();
   const mds_info_t* who = nullptr;
@@ -816,18 +889,20 @@ const MDSMap::mds_info_t* FSMap::get_available_standby(const Filesystem& fs) con
       break;
     } else if (info.join_fscid == FS_CLUSTER_ID_NONE) {
       who = &info; /* vanilla standby */
-    } else if (who == nullptr &&
-	       !fs.mds_map.test_flag(CEPH_MDSMAP_REFUSE_STANDBY_FOR_ANOTHER_FS)) {
+    } else if (
+        who == nullptr &&
+        !fs.mds_map.test_flag(CEPH_MDSMAP_REFUSE_STANDBY_FOR_ANOTHER_FS)) {
       who = &info; /* standby for another fs, last resort */
     }
   }
   return who;
 }
 
-mds_gid_t FSMap::find_mds_gid_by_name(std::string_view s) const
+mds_gid_t
+FSMap::find_mds_gid_by_name(std::string_view s) const
 {
   const auto info = get_mds_info();
-  for (const auto &p : info) {
+  for (const auto& p : info) {
     if (p.second.name == s) {
       return p.first;
     }
@@ -835,18 +910,19 @@ mds_gid_t FSMap::find_mds_gid_by_name(std::string_view s) const
   return MDS_GID_NONE;
 }
 
-const MDSMap::mds_info_t* FSMap::find_by_name(std::string_view name) const
+const MDSMap::mds_info_t*
+FSMap::find_by_name(std::string_view name) const
 {
   std::map<mds_gid_t, mds_info_t> result;
-  for (const auto &i : standby_daemons) {
+  for (const auto& i : standby_daemons) {
     if (i.second.name == name) {
       return &(i.second);
     }
   }
 
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
-    const auto &fs_info = fs.mds_map.get_mds_info();
-    for (const auto &j : fs_info) {
+    const auto& fs_info = fs.mds_map.get_mds_info();
+    for (const auto& j : fs_info) {
       if (j.second.name == name) {
         return &(j.second);
       }
@@ -856,7 +932,8 @@ const MDSMap::mds_info_t* FSMap::find_by_name(std::string_view name) const
   return nullptr;
 }
 
-const MDSMap::mds_info_t* FSMap::find_replacement_for(mds_role_t role) const
+const MDSMap::mds_info_t*
+FSMap::find_replacement_for(mds_role_t role) const
 {
   auto& fs = get_filesystem(role.fscid);
 
@@ -876,7 +953,8 @@ const MDSMap::mds_info_t* FSMap::find_replacement_for(mds_role_t role) const
   return get_available_standby(fs);
 }
 
-void FSMap::sanity(bool pending) const
+void
+FSMap::sanity(bool pending) const
 {
   /* Only do some sanity checks on **new** FSMaps. Older versions may not be
    * compliant.
@@ -887,7 +965,7 @@ void FSMap::sanity(bool pending) const
   }
 
   for ([[maybe_unused]] const auto& [fscid, fs] : filesystems) {
-    ceph_assert(fscid  == fs.fscid);
+    ceph_assert(fscid == fs.fscid);
     for (const auto& [gid, info] : fs.mds_map.mds_info) {
       ceph_assert(info.rank != MDS_RANK_NONE);
       ceph_assert(mds_roles.at(gid) == fscid);
@@ -906,9 +984,12 @@ void FSMap::sanity(bool pending) const
     auto const& leader = fs.mds_map.get_quiesce_db_cluster_leader();
     auto const& members = fs.mds_map.get_quiesce_db_cluster_members();
     ceph_assert(leader == MDS_GID_NONE || members.contains(leader));
-    ceph_assert(std::ranges::all_of(members, [&infos = fs.mds_map.mds_info](auto m){return infos.contains(m);}));
+    ceph_assert(
+        std::ranges::all_of(members, [&infos = fs.mds_map.mds_info](auto m) {
+          return infos.contains(m);
+        }));
 
-    for (const auto &j : fs.mds_map.up) {
+    for (const auto& j : fs.mds_map.up) {
       mds_rank_t rank = j.first;
       ceph_assert(fs.mds_map.in.count(rank) == 1);
       mds_gid_t gid = j.second;
@@ -916,7 +997,7 @@ void FSMap::sanity(bool pending) const
     }
   }
 
-  for (const auto &i : standby_daemons) {
+  for (const auto& i : standby_daemons) {
     ceph_assert(i.second.state == MDSMap::STATE_STANDBY);
     ceph_assert(i.second.rank == MDS_RANK_NONE);
     ceph_assert(i.second.global_id == i.first);
@@ -925,11 +1006,11 @@ void FSMap::sanity(bool pending) const
     ceph_assert(mds_roles.at(i.first) == FS_CLUSTER_ID_NONE);
   }
 
-  for (const auto &i : standby_epochs) {
+  for (const auto& i : standby_epochs) {
     ceph_assert(standby_daemons.count(i.first) == 1);
   }
 
-  for (const auto &i : mds_roles) {
+  for (const auto& i : mds_roles) {
     if (i.second == FS_CLUSTER_ID_NONE) {
       ceph_assert(standby_daemons.count(i.first) == 1);
     } else {
@@ -939,7 +1020,8 @@ void FSMap::sanity(bool pending) const
   }
 }
 
-void FSMap::promote(
+void
+FSMap::promote(
     mds_gid_t standby_gid,
     fs_cluster_id_t fscid,
     mds_rank_t assigned_rank)
@@ -952,14 +1034,15 @@ void FSMap::promote(
   }
 
   auto& fs = filesystems.at(fscid);
-  MDSMap &mds_map = fs.mds_map;
+  MDSMap& mds_map = fs.mds_map;
 
   // Insert daemon state to Filesystem
   if (!is_standby_replay) {
     mds_map.mds_info[standby_gid] = standby_daemons.at(standby_gid);
   } else {
     ceph_assert(mds_map.mds_info.count(standby_gid));
-    ceph_assert(mds_map.mds_info.at(standby_gid).state == MDSMap::STATE_STANDBY_REPLAY);
+    ceph_assert(
+        mds_map.mds_info.at(standby_gid).state == MDSMap::STATE_STANDBY_REPLAY);
     ceph_assert(mds_map.mds_info.at(standby_gid).rank == assigned_rank);
   }
   auto& info = mds_map.mds_info.at(standby_gid);
@@ -999,7 +1082,8 @@ void FSMap::promote(
   mds_map.modified = ceph_clock_now();
 }
 
-void FSMap::assign_standby_replay(
+void
+FSMap::assign_standby_replay(
     const mds_gid_t standby_gid,
     const fs_cluster_id_t leader_ns,
     const mds_rank_t leader_rank)
@@ -1025,14 +1109,15 @@ void FSMap::assign_standby_replay(
   fs.mds_map.modified = ceph_clock_now();
 }
 
-void FSMap::erase(mds_gid_t who, epoch_t blocklist_epoch)
+void
+FSMap::erase(mds_gid_t who, epoch_t blocklist_epoch)
 {
   if (mds_roles.at(who) == FS_CLUSTER_ID_NONE) {
     standby_daemons.erase(who);
     standby_epochs.erase(who);
   } else {
     auto& fs = filesystems.at(mds_roles.at(who));
-    const auto &info = fs.mds_map.mds_info.at(who);
+    const auto& info = fs.mds_map.mds_info.at(who);
     if (info.state != MDSMap::STATE_STANDBY_REPLAY) {
       if (info.state == MDSMap::STATE_CREATING) {
         // If this gid didn't make it past CREATING, then forget
@@ -1062,7 +1147,8 @@ void FSMap::erase(mds_gid_t who, epoch_t blocklist_epoch)
   mds_roles.erase(who);
 }
 
-void FSMap::damaged(mds_gid_t who, epoch_t blocklist_epoch)
+void
+FSMap::damaged(mds_gid_t who, epoch_t blocklist_epoch)
 {
   ceph_assert(mds_roles.at(who) != FS_CLUSTER_ID_NONE);
   auto& fs = filesystems.at(mds_roles.at(who));
@@ -1079,7 +1165,8 @@ void FSMap::damaged(mds_gid_t who, epoch_t blocklist_epoch)
  * Update to indicate that the rank `rank` is to be removed
  * from the damaged list of the filesystem `fscid`
  */
-bool FSMap::undamaged(const fs_cluster_id_t fscid, const mds_rank_t rank)
+bool
+FSMap::undamaged(const fs_cluster_id_t fscid, const mds_rank_t rank)
 {
   auto& fs = filesystems.at(fscid);
 
@@ -1093,7 +1180,8 @@ bool FSMap::undamaged(const fs_cluster_id_t fscid, const mds_rank_t rank)
   }
 }
 
-void FSMap::insert(const MDSMap::mds_info_t &new_info)
+void
+FSMap::insert(const MDSMap::mds_info_t& new_info)
 {
   static const CompatSet empty;
 
@@ -1114,27 +1202,28 @@ void FSMap::insert(const MDSMap::mds_info_t &new_info)
   standby_epochs[new_info.global_id] = epoch;
 }
 
-std::vector<mds_gid_t> FSMap::stop(mds_gid_t who)
+std::vector<mds_gid_t>
+FSMap::stop(mds_gid_t who)
 {
   ceph_assert(mds_roles.at(who) != FS_CLUSTER_ID_NONE);
   auto& fs = filesystems.at(mds_roles.at(who));
-  const auto &info = fs.mds_map.mds_info.at(who);
+  const auto& info = fs.mds_map.mds_info.at(who);
   fs.mds_map.up.erase(info.rank);
   fs.mds_map.in.erase(info.rank);
   fs.mds_map.stopped.insert(info.rank);
 
   // Also drop any standby replays that were following this rank
   std::vector<mds_gid_t> standbys;
-  for (const auto &i : fs.mds_map.mds_info) {
-    const auto &other_gid = i.first;
-    const auto &other_info = i.second;
-    if (other_info.rank == info.rank
-        && other_info.state == MDSMap::STATE_STANDBY_REPLAY) {
+  for (const auto& i : fs.mds_map.mds_info) {
+    const auto& other_gid = i.first;
+    const auto& other_info = i.second;
+    if (other_info.rank == info.rank &&
+        other_info.state == MDSMap::STATE_STANDBY_REPLAY) {
       standbys.push_back(other_gid);
     }
   }
 
-  for (const auto &other_gid : standbys) {
+  for (const auto& other_gid : standbys) {
     erase(other_gid, 0);
   }
 
@@ -1147,7 +1236,6 @@ std::vector<mds_gid_t> FSMap::stop(mds_gid_t who)
   return standbys;
 }
 
-
 /**
  * Given one of the following forms:
  *   <fs name>:<rank>
@@ -1158,14 +1246,16 @@ std::vector<mds_gid_t> FSMap::stop(mds_gid_t who)
  * if legacy_client_ns is set.
  */
 
-int FSMap::parse_role(
+int
+FSMap::parse_role(
     std::string_view role_str,
-    mds_role_t *role,
-    std::ostream &ss,
-    const std::vector<string> &filter) const
+    mds_role_t* role,
+    std::ostream& ss,
+    const std::vector<string>& filter) const
 {
   int r = parse_role(role_str, role, ss);
-  if (r < 0) return r;
+  if (r < 0)
+    return r;
 
   string_view fs_name = get_filesystem(role->fscid).mds_map.get_fs_name();
 
@@ -1180,10 +1270,9 @@ int FSMap::parse_role(
   return r;
 }
 
-int FSMap::parse_role(
-    std::string_view role_str,
-    mds_role_t *role,
-    std::ostream &ss) const
+int
+FSMap::parse_role(std::string_view role_str, mds_role_t* role, std::ostream& ss)
+    const
 {
   size_t colon_pos = role_str.find(":");
   size_t rank_pos;
@@ -1200,7 +1289,7 @@ int FSMap::parse_role(
       ss << "Invalid filesystem";
       return -ENOENT;
     }
-    rank_pos = colon_pos+1;
+    rank_pos = colon_pos + 1;
   }
 
   mds_rank_t rank;
@@ -1224,18 +1313,19 @@ int FSMap::parse_role(
   return 0;
 }
 
-bool FSMap::pool_in_use(int64_t poolid) const
+bool
+FSMap::pool_in_use(int64_t poolid) const
 {
   for ([[maybe_unused]] auto const& [fscid, fs] : filesystems) {
-    if (fs.mds_map.is_data_pool(poolid)
-        || fs.mds_map.metadata_pool == poolid) {
+    if (fs.mds_map.is_data_pool(poolid) || fs.mds_map.metadata_pool == poolid) {
       return true;
     }
   }
   return false;
 }
 
-void FSMap::erase_filesystem(fs_cluster_id_t fscid)
+void
+FSMap::erase_filesystem(fs_cluster_id_t fscid)
 {
   filesystems.erase(fscid);
   for (auto& [gid, info] : standby_daemons) {
@@ -1256,19 +1346,16 @@ void FSMap::erase_filesystem(fs_cluster_id_t fscid)
   }
 }
 
-void FSMap::swap_fscids(fs_cluster_id_t fscid1, fs_cluster_id_t fscid2)
+void
+FSMap::swap_fscids(fs_cluster_id_t fscid1, fs_cluster_id_t fscid2)
 {
   auto fs1 = std::move(filesystems.at(fscid1));
   filesystems[fscid1] = std::move(filesystems.at(fscid2));
   filesystems[fscid2] = std::move(fs1);
 
-  auto set_fs1_fscid = [fscid1](auto&& fs) {
-    fs.set_fscid(fscid1);
-  };
+  auto set_fs1_fscid = [fscid1](auto&& fs) { fs.set_fscid(fscid1); };
   modify_filesystem(fscid1, std::move(set_fs1_fscid));
 
-  auto set_fs2_fscid = [fscid2](auto&& fs) {
-    fs.set_fscid(fscid2);
-  };
+  auto set_fs2_fscid = [fscid2](auto&& fs) { fs.set_fscid(fscid2); };
   modify_filesystem(fscid2, std::move(set_fs2_fscid));
 }

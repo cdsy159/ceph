@@ -17,10 +17,12 @@
 #include <iterator>
 #include <ranges>
 #include <type_traits>
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/execution/executor.hpp>
 #include <boost/asio/this_coro.hpp>
+
 #include "co_spawn_group.h"
 
 namespace ceph::async {
@@ -39,19 +41,24 @@ namespace ceph::async {
 ///   co_await parallel_for_each(tasks.begin(), tasks.end(), child);
 /// }
 /// \endcode
-template <typename Iterator, typename Sentinel, typename VoidAwaitableFactory,
-          typename Value = std::iter_reference_t<Iterator>,
-          typename VoidAwaitable = std::invoke_result_t<
-              VoidAwaitableFactory, Value>,
-          typename AwaitableT = typename VoidAwaitable::value_type,
-          typename AwaitableExecutor = typename VoidAwaitable::executor_type>
-    requires (std::input_iterator<Iterator> &&
-              std::sentinel_for<Sentinel, Iterator> &&
-              std::same_as<AwaitableT, void> &&
-              boost::asio::execution::executor<AwaitableExecutor>)
-auto parallel_for_each(Iterator begin, Sentinel end,
-                       VoidAwaitableFactory&& factory,
-                       cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Iterator,
+    typename Sentinel,
+    typename VoidAwaitableFactory,
+    typename Value = std::iter_reference_t<Iterator>,
+    typename VoidAwaitable = std::invoke_result_t<VoidAwaitableFactory, Value>,
+    typename AwaitableT = typename VoidAwaitable::value_type,
+    typename AwaitableExecutor = typename VoidAwaitable::executor_type>
+  requires(std::input_iterator<Iterator> &&
+           std::sentinel_for<Sentinel, Iterator> &&
+           std::same_as<AwaitableT, void> &&
+           boost::asio::execution::executor<AwaitableExecutor>)
+auto
+parallel_for_each(
+    Iterator begin,
+    Sentinel end,
+    VoidAwaitableFactory&& factory,
+    cancel_on_error on_error = cancel_on_error::none)
     -> boost::asio::awaitable<void, AwaitableExecutor>
 {
   const size_t count = std::ranges::distance(begin, end);
@@ -67,21 +74,24 @@ auto parallel_for_each(Iterator begin, Sentinel end,
 }
 
 /// \overload
-template <typename Range, typename VoidAwaitableFactory,
-          typename Value = std::ranges::range_reference_t<Range>,
-          typename VoidAwaitable = std::invoke_result_t<
-              VoidAwaitableFactory, Value>,
-          typename AwaitableT = typename VoidAwaitable::value_type,
-          typename AwaitableExecutor = typename VoidAwaitable::executor_type>
-    requires (std::ranges::range<Range> &&
-              std::same_as<AwaitableT, void> &&
-              boost::asio::execution::executor<AwaitableExecutor>)
-auto parallel_for_each(Range&& range, VoidAwaitableFactory&& factory,
-                       cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Range,
+    typename VoidAwaitableFactory,
+    typename Value = std::ranges::range_reference_t<Range>,
+    typename VoidAwaitable = std::invoke_result_t<VoidAwaitableFactory, Value>,
+    typename AwaitableT = typename VoidAwaitable::value_type,
+    typename AwaitableExecutor = typename VoidAwaitable::executor_type>
+  requires(std::ranges::range<Range> && std::same_as<AwaitableT, void> &&
+           boost::asio::execution::executor<AwaitableExecutor>)
+auto
+parallel_for_each(
+    Range&& range,
+    VoidAwaitableFactory&& factory,
+    cancel_on_error on_error = cancel_on_error::none)
     -> boost::asio::awaitable<void, AwaitableExecutor>
 {
-  return parallel_for_each(std::begin(range), std::end(range),
-                           std::move(factory), on_error);
+  return parallel_for_each(
+      std::begin(range), std::end(range), std::move(factory), on_error);
 }
 
 } // namespace ceph::async

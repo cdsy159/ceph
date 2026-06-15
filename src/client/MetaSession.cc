@@ -1,28 +1,37 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "MetaSession.h"
+
+#include "common/Formatter.h"
 #include "include/types.h"
 #include "messages/MClientCapRelease.h"
 
-#include "MetaSession.h"
 #include "Inode.h"
 
-#include "common/Formatter.h"
-
-const char *MetaSession::get_state_name() const
+const char*
+MetaSession::get_state_name() const
 {
   switch (state) {
-  case STATE_NEW: return "new";
-  case STATE_OPENING: return "opening";
-  case STATE_OPEN: return "open";
-  case STATE_CLOSING: return "closing";
-  case STATE_CLOSED: return "closed";
-  case STATE_STALE: return "stale";
-  default: return "unknown";
+  case STATE_NEW:
+    return "new";
+  case STATE_OPENING:
+    return "opening";
+  case STATE_OPEN:
+    return "open";
+  case STATE_CLOSING:
+    return "closing";
+  case STATE_CLOSED:
+    return "closed";
+  case STATE_STALE:
+    return "stale";
+  default:
+    return "unknown";
   }
 }
 
-void MetaSession::dump(Formatter *f, bool cap_dump) const
+void
+MetaSession::dump(Formatter* f, bool cap_dump) const
 {
   f->dump_int("mds", mds_num);
   f->dump_object("addrs", addrs);
@@ -42,8 +51,13 @@ void MetaSession::dump(Formatter *f, bool cap_dump) const
   f->dump_string("state", get_state_name());
 }
 
-void MetaSession::enqueue_cap_release(inodeno_t ino, uint64_t cap_id, ceph_seq_t iseq,
-    ceph_seq_t mseq, epoch_t osd_barrier)
+void
+MetaSession::enqueue_cap_release(
+    inodeno_t ino,
+    uint64_t cap_id,
+    ceph_seq_t iseq,
+    ceph_seq_t mseq,
+    epoch_t osd_barrier)
 {
   if (!release) {
     release = ceph::make_message<MClientCapRelease>();

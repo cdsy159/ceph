@@ -20,15 +20,17 @@
  *
  */
 
-#include <stdio.h>
 #include <signal.h>
-#include "mon/Monitor.h"
+#include <stdio.h>
+
 #include "common/ceph_argparse.h"
 #include "global/global_init.h"
+#include "mon/Monitor.h"
 
 using namespace std;
 
-static void usage(ostream &out)
+static void
+usage(ostream& out)
 {
   out << "usage: get_command_descriptions [options ...]" << std::endl;
   out << "print on stdout the result of JSON formatted options\n";
@@ -44,71 +46,77 @@ static void usage(ostream &out)
   out << "  get_command_descriptions --pull585\n";
 }
 
-static void json_print(const std::vector<MonCommand> &mon_commands)
+static void
+json_print(const std::vector<MonCommand>& mon_commands)
 {
   bufferlist rdata;
   auto f = Formatter::create_unique("json");
-  Monitor::format_command_descriptions(mon_commands, f.get(),
-                                       CEPH_FEATURES_ALL, &rdata);
+  Monitor::format_command_descriptions(
+      mon_commands, f.get(), CEPH_FEATURES_ALL, &rdata);
   string data(rdata.c_str(), rdata.length());
   cout << data << std::endl;
 }
 
-static void all()
+static void
+all()
 {
 #undef FLAG
 #undef COMMAND
 #undef COMMAND_WITH_FLAG
   std::vector<MonCommand> mon_commands = {
 #define FLAG(f) (MonCommand::FLAG_##f)
-#define COMMAND(parsesig, helptext, modulename, req_perms)	\
-    {parsesig, helptext, modulename, req_perms, 0},
+#define COMMAND(parsesig, helptext, modulename, req_perms) \
+  {parsesig, helptext, modulename, req_perms, 0},
 #define COMMAND_WITH_FLAG(parsesig, helptext, modulename, req_perms, flags) \
-    {parsesig, helptext, modulename, req_perms, flags},
+  {parsesig, helptext, modulename, req_perms, flags},
 #include <mon/MonCommands.h>
 #undef COMMAND
 #undef COMMAND_WITH_FLAG
 
-#define COMMAND(parsesig, helptext, modulename, req_perms)	\
+#define COMMAND(parsesig, helptext, modulename, req_perms) \
   {parsesig, helptext, modulename, req_perms, FLAG(MGR)},
 #define COMMAND_WITH_FLAG(parsesig, helptext, modulename, req_perms, flags) \
   {parsesig, helptext, modulename, req_perms, flags | FLAG(MGR)},
 #include <mgr/MgrCommands.h>
- #undef COMMAND
+#undef COMMAND
 #undef COMMAND_WITH_FLAG
- };
-
-  json_print(mon_commands);
-}
-
-// syntax error https://github.com/ceph/ceph/pull/585
-static void pull585()
-{
-  std::vector<MonCommand> mon_commands = {
-    { "osd pool create "		       
-      "name=pool,type=CephPoolname " 
-      "name=pg_num,type=CephInt,range=0,req=false "
-      "name=pgp_num,type=CephInt,range=0,req=false" // !!! missing trailing space
-      "name=properties,type=CephString,n=N,req=false,goodchars=[A-Za-z0-9-_.=]", 
-      "create pool", "osd", "rw" }
   };
 
   json_print(mon_commands);
 }
 
-int main(int argc, char **argv) {
+// syntax error https://github.com/ceph/ceph/pull/585
+static void
+pull585()
+{
+  std::vector<MonCommand> mon_commands = {
+      {"osd pool create "
+       "name=pool,type=CephPoolname "
+       "name=pg_num,type=CephInt,range=0,req=false "
+       "name=pgp_num,type=CephInt,range=0,req=false" // !!! missing trailing space
+       "name=properties,type=CephString,n=N,req=false,goodchars=[A-Za-z0-9-_.="
+       "]",
+       "create pool", "osd", "rw"}};
+
+  json_print(mon_commands);
+}
+
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   if (args.empty()) {
     usage(cerr);
     exit(1);
   }
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ++i) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();
+       ++i) {
     string err;
 
     if (*i == string("help") || *i == string("-h") || *i == string("--help")) {
@@ -119,7 +127,7 @@ int main(int argc, char **argv) {
     } else if (*i == string("--pull585")) {
       pull585();
     }
-  }  
+  }
 }
 
 /*
@@ -129,4 +137,3 @@ int main(int argc, char **argv) {
  *   ./get_command_descriptions --all --pull585"
  * End:
  */
-

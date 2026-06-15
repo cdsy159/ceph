@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,8 +22,9 @@
 class MDLog;
 class MDSRank;
 
-#include "EMetaBlob.h"
 #include "../LogEvent.h"
+
+#include "EMetaBlob.h"
 
 class EImportStart : public LogEvent {
 protected:
@@ -33,29 +34,40 @@ protected:
 
 public:
   EMetaBlob metablob;
-  bufferlist client_map;  // encoded map<__u32,entity_inst_t>
+  bufferlist client_map; // encoded map<__u32,entity_inst_t>
   version_t cmapv{0};
 
-  EImportStart(MDLog *log, dirfrag_t di, const std::vector<dirfrag_t>& b, mds_rank_t f) :
-    LogEvent(EVENT_IMPORTSTART),
-    base(di), bounds(b), from(f) { }
+  EImportStart(
+      MDLog* log,
+      dirfrag_t di,
+      const std::vector<dirfrag_t>& b,
+      mds_rank_t f) :
+    LogEvent(EVENT_IMPORTSTART), base(di), bounds(b), from(f)
+  {}
+
   EImportStart() :
-    LogEvent(EVENT_IMPORTSTART), from(MDS_RANK_NONE) { }
-  
-  void print(std::ostream& out) const override {
+    LogEvent(EVENT_IMPORTSTART), from(MDS_RANK_NONE)
+  {}
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "EImportStart " << base << " from mds." << from << " " << metablob;
   }
 
-  EMetaBlob *get_metablob() override { return &metablob; }
-  
-  void encode(bufferlist &bl, uint64_t features) const override;
-  void decode(bufferlist::const_iterator &bl) override;
-  void dump(Formatter *f) const override;
-  static std::list<EImportStart> generate_test_instances();
-  
-  void update_segment() override;
-  void replay(MDSRank *mds) override;
+  EMetaBlob*
+  get_metablob() override
+  {
+    return &metablob;
+  }
 
+  void encode(bufferlist& bl, uint64_t features) const override;
+  void decode(bufferlist::const_iterator& bl) override;
+  void dump(Formatter* f) const override;
+  static std::list<EImportStart> generate_test_instances();
+
+  void update_segment() override;
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(EImportStart)
 

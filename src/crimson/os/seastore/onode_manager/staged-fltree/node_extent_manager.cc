@@ -8,7 +8,8 @@
 
 namespace crimson::os::seastore::onode {
 
-NodeExtentManagerURef NodeExtentManager::create_dummy(bool is_sync)
+NodeExtentManagerURef
+NodeExtentManager::create_dummy(bool is_sync)
 {
   if (is_sync) {
     return NodeExtentManagerURef(new DummyNodeExtentManager<true>());
@@ -17,8 +18,11 @@ NodeExtentManagerURef NodeExtentManager::create_dummy(bool is_sync)
   }
 }
 
-NodeExtentManagerURef NodeExtentManager::create_seastore(
-    TransactionManager &tm, laddr_t min_laddr, double p_eagain)
+NodeExtentManagerURef
+NodeExtentManager::create_seastore(
+    TransactionManager& tm,
+    laddr_t min_laddr,
+    double p_eagain)
 {
   if (p_eagain == 0.0) {
     return NodeExtentManagerURef(
@@ -29,4 +33,4 @@ NodeExtentManagerURef NodeExtentManager::create_seastore(
   }
 }
 
-}
+} // namespace crimson::os::seastore::onode

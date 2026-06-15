@@ -1,12 +1,14 @@
-#include "include/rados.h"
-#include "test/librados/test.h"
-#include "test/librados/TestCase.h"
-#include "crimson_utils.h"
+#include <errno.h>
 
 #include <algorithm>
-#include <errno.h>
-#include "gtest/gtest.h"
 #include <string>
+
+#include "gtest/gtest.h"
+#include "include/rados.h"
+#include "test/librados/TestCase.h"
+#include "test/librados/test.h"
+
+#include "crimson_utils.h"
 
 using std::string;
 
@@ -17,21 +19,23 @@ typedef RadosTestEC LibRadosSnapshotsSelfManagedEC;
 
 const int bufsize = 128;
 
-TEST_F(LibRadosSnapshots, SnapList) {
+TEST_F(LibRadosSnapshots, SnapList)
+{
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
   ASSERT_EQ(0, rados_ioctx_snap_create(ioctx, "snap1"));
   rados_snap_t snaps[10];
-  EXPECT_EQ(1, rados_ioctx_snap_list(ioctx, snaps,
-				     sizeof(snaps) / sizeof(snaps[0])));
+  EXPECT_EQ(
+      1, rados_ioctx_snap_list(ioctx, snaps, sizeof(snaps) / sizeof(snaps[0])));
   rados_snap_t rid;
   EXPECT_EQ(0, rados_ioctx_snap_lookup(ioctx, "snap1", &rid));
   EXPECT_EQ(rid, snaps[0]);
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snap1"));
 }
 
-TEST_F(LibRadosSnapshots, SnapRemove) {
+TEST_F(LibRadosSnapshots, SnapRemove)
+{
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
@@ -43,7 +47,8 @@ TEST_F(LibRadosSnapshots, SnapRemove) {
   ASSERT_EQ(-ENOENT, rados_ioctx_snap_lookup(ioctx, "snap1", &rid));
 }
 
-TEST_F(LibRadosSnapshots, Rollback) {
+TEST_F(LibRadosSnapshots, Rollback)
+{
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
@@ -58,7 +63,8 @@ TEST_F(LibRadosSnapshots, Rollback) {
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snap1"));
 }
 
-TEST_F(LibRadosSnapshots, SnapGetName) {
+TEST_F(LibRadosSnapshots, SnapGetName)
+{
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
@@ -75,13 +81,15 @@ TEST_F(LibRadosSnapshots, SnapGetName) {
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snapfoo"));
 }
 
-TEST_F(LibRadosSnapshotsSelfManaged, Snap) {
+TEST_F(LibRadosSnapshotsSelfManaged, Snap)
+{
   std::vector<uint64_t> my_snaps;
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -89,19 +97,19 @@ TEST_F(LibRadosSnapshotsSelfManaged, Snap) {
 
   my_snaps.push_back(-2);
   rados_completion_t completion;
-  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr,
-                                           &completion));
+  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr, &completion));
   rados_aio_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back(), completion);
   ASSERT_EQ(0, rados_aio_wait_for_complete(completion));
   rados_aio_release(completion);
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf2[sizeof(buf)];
   memset(buf2, 0xdd, sizeof(buf2));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf2, sizeof(buf2), 0));
-  rados_ioctx_snap_set_read(ioctx, my_snaps[1]-1);
+  rados_ioctx_snap_set_read(ioctx, my_snaps[1] - 1);
   char buf3[sizeof(buf)];
   ASSERT_EQ(-ENOENT, rados_read(ioctx, "foo", buf3, sizeof(buf3), 0));
 
@@ -109,8 +117,7 @@ TEST_F(LibRadosSnapshotsSelfManaged, Snap) {
   ASSERT_EQ((int)sizeof(buf3), rados_read(ioctx, "foo", buf3, sizeof(buf3), 0));
   ASSERT_EQ(0, memcmp(buf3, buf, sizeof(buf)));
 
-  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr,
-                                           &completion));
+  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr, &completion));
   rados_aio_ioctx_selfmanaged_snap_remove(ioctx, my_snaps.back(), completion);
   ASSERT_EQ(0, rados_aio_wait_for_complete(completion));
   rados_aio_release(completion);
@@ -121,13 +128,15 @@ TEST_F(LibRadosSnapshotsSelfManaged, Snap) {
   ASSERT_EQ(0, rados_remove(ioctx, "foo"));
 }
 
-TEST_F(LibRadosSnapshotsSelfManaged, Rollback) {
+TEST_F(LibRadosSnapshotsSelfManaged, Rollback)
+{
   std::vector<uint64_t> my_snaps;
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -137,8 +146,9 @@ TEST_F(LibRadosSnapshotsSelfManaged, Rollback) {
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf2[sizeof(buf)];
   memset(buf2, 0xdd, sizeof(buf2));
@@ -157,14 +167,16 @@ TEST_F(LibRadosSnapshotsSelfManaged, Rollback) {
   ASSERT_EQ(0, rados_remove(ioctx, "foo"));
 }
 
-TEST_F(LibRadosSnapshotsSelfManaged, FutureSnapRollback) {
+TEST_F(LibRadosSnapshotsSelfManaged, FutureSnapRollback)
+{
   std::vector<uint64_t> my_snaps;
   // Snapshot 1
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -175,8 +187,9 @@ TEST_F(LibRadosSnapshotsSelfManaged, FutureSnapRollback) {
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   char buf2[sizeof(buf)];
   memset(buf2, 0xdd, sizeof(buf2));
@@ -200,25 +213,25 @@ TEST_F(LibRadosSnapshotsSelfManaged, FutureSnapRollback) {
   ASSERT_EQ(0, rados_remove(ioctx, "foo"));
 }
 
-
-
 // EC testing
-TEST_F(LibRadosSnapshotsEC, SnapList) {
+TEST_F(LibRadosSnapshotsEC, SnapList)
+{
   SKIP_IF_CRIMSON();
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
   ASSERT_EQ(0, rados_ioctx_snap_create(ioctx, "snap1"));
   rados_snap_t snaps[10];
-  EXPECT_EQ(1, rados_ioctx_snap_list(ioctx, snaps,
-				     sizeof(snaps) / sizeof(snaps[0])));
+  EXPECT_EQ(
+      1, rados_ioctx_snap_list(ioctx, snaps, sizeof(snaps) / sizeof(snaps[0])));
   rados_snap_t rid;
   EXPECT_EQ(0, rados_ioctx_snap_lookup(ioctx, "snap1", &rid));
   EXPECT_EQ(rid, snaps[0]);
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snap1"));
 }
 
-TEST_F(LibRadosSnapshotsEC, SnapRemove) {
+TEST_F(LibRadosSnapshotsEC, SnapRemove)
+{
   SKIP_IF_CRIMSON();
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -231,7 +244,8 @@ TEST_F(LibRadosSnapshotsEC, SnapRemove) {
   ASSERT_EQ(-ENOENT, rados_ioctx_snap_lookup(ioctx, "snap1", &rid));
 }
 
-TEST_F(LibRadosSnapshotsEC, Rollback) {
+TEST_F(LibRadosSnapshotsEC, Rollback)
+{
   SKIP_IF_CRIMSON();
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -247,7 +261,8 @@ TEST_F(LibRadosSnapshotsEC, Rollback) {
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snap1"));
 }
 
-TEST_F(LibRadosSnapshotsEC, SnapGetName) {
+TEST_F(LibRadosSnapshotsEC, SnapGetName)
+{
   SKIP_IF_CRIMSON();
   char buf[bufsize];
   memset(buf, 0xcc, sizeof(buf));
@@ -265,44 +280,45 @@ TEST_F(LibRadosSnapshotsEC, SnapGetName) {
   EXPECT_EQ(0, rados_ioctx_snap_remove(ioctx, "snapfoo"));
 }
 
-TEST_F(LibRadosSnapshotsSelfManagedEC, Snap) {
+TEST_F(LibRadosSnapshotsSelfManagedEC, Snap)
+{
   SKIP_IF_CRIMSON();
   std::vector<uint64_t> my_snaps;
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   int bsize = alignment;
-  char *buf = (char *)new char[bsize];
+  char* buf = (char*)new char[bsize];
   memset(buf, 0xcc, bsize);
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, bsize, 0));
 
   my_snaps.push_back(-2);
   rados_completion_t completion;
-  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr,
-                                           &completion));
+  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr, &completion));
   rados_aio_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back(), completion);
   ASSERT_EQ(0, rados_aio_wait_for_complete(completion));
   rados_aio_release(completion);
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  char *buf2 = (char *)new char[bsize];
+  char* buf2 = (char*)new char[bsize];
   memset(buf2, 0xdd, bsize);
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf2, bsize, bsize));
-  rados_ioctx_snap_set_read(ioctx, my_snaps[1]-1);
-  char *buf3 = (char *)new char[bsize*2];
-  ASSERT_EQ(-ENOENT, rados_read(ioctx, "foo", buf3, bsize*2, 0));
+  rados_ioctx_snap_set_read(ioctx, my_snaps[1] - 1);
+  char* buf3 = (char*)new char[bsize * 2];
+  ASSERT_EQ(-ENOENT, rados_read(ioctx, "foo", buf3, bsize * 2, 0));
 
   rados_ioctx_snap_set_read(ioctx, my_snaps[1]);
-  ASSERT_EQ(bsize, rados_read(ioctx, "foo", buf3, bsize*2, 0));
+  ASSERT_EQ(bsize, rados_read(ioctx, "foo", buf3, bsize * 2, 0));
   ASSERT_EQ(0, memcmp(buf3, buf, bsize));
 
-  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr,
-                                           &completion));
+  ASSERT_EQ(0, rados_aio_create_completion2(nullptr, nullptr, &completion));
   rados_aio_ioctx_selfmanaged_snap_remove(ioctx, my_snaps.back(), completion);
   ASSERT_EQ(0, rados_aio_wait_for_complete(completion));
   rados_aio_release(completion);
@@ -316,33 +332,36 @@ TEST_F(LibRadosSnapshotsSelfManagedEC, Snap) {
   delete[] buf3;
 }
 
-TEST_F(LibRadosSnapshotsSelfManagedEC, Rollback) {
+TEST_F(LibRadosSnapshotsSelfManagedEC, Rollback)
+{
   SKIP_IF_CRIMSON();
   std::vector<uint64_t> my_snaps;
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
   int bsize = alignment;
-  char *buf = (char *)new char[bsize];
+  char* buf = (char*)new char[bsize];
   memset(buf, 0xcc, bsize);
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, bsize, 0));
 
   my_snaps.push_back(-2);
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps.back()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-					&my_snaps[0], my_snaps.size()));
+  ASSERT_EQ(
+      0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+             ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
   ::std::reverse(my_snaps.begin(), my_snaps.end());
-  char *buf2 = (char *)new char[bsize];
+  char* buf2 = (char*)new char[bsize];
   memset(buf2, 0xdd, bsize);
 
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf2, bsize, bsize));
   rados_ioctx_selfmanaged_snap_rollback(ioctx, "foo", my_snaps[1]);
-  char *buf3 = (char *)new char[bsize*2];
-  ASSERT_EQ(bsize, rados_read(ioctx, "foo", buf3, bsize*2, 0));
+  char* buf3 = (char*)new char[bsize * 2];
+  ASSERT_EQ(bsize, rados_read(ioctx, "foo", buf3, bsize * 2, 0));
   ASSERT_EQ(0, memcmp(buf3, buf, bsize));
 
   ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_remove(ioctx, my_snaps.back()));

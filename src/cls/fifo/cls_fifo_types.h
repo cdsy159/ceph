@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <map>
@@ -24,17 +26,14 @@
 #include <vector>
 
 #include <boost/container/flat_set.hpp>
-
-#include <fmt/format.h>
 #if FMT_VERSION >= 90000
 #include <fmt/ostream.h>
 #endif
+#include "common/Formatter.h"
+#include "common/ceph_time.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
 #include "include/types.h"
-
-#include "common/ceph_time.h"
-#include "common/Formatter.h"
 
 class JSONObj;
 
@@ -43,23 +42,34 @@ struct objv {
   std::string instance;
   std::uint64_t ver{0};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(instance, bl);
     encode(ver, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(instance, bl);
     decode(ver, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter* f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("instance", instance);
     f->dump_unsigned("ver", ver);
   }
-  static std::list<objv> generate_test_instances() {
+
+  static std::list<objv>
+  generate_test_instances()
+  {
     std::list<objv> o;
     o.emplace_back();
     o.emplace_back();
@@ -67,31 +77,43 @@ struct objv {
     o.back().ver = 1;
     return o;
   }
+
   void decode_json(JSONObj* obj);
 
-  bool operator ==(const objv& rhs) const {
-    return (instance == rhs.instance &&
-	    ver == rhs.ver);
-  }
-  bool operator !=(const objv& rhs) const {
-    return (instance != rhs.instance ||
-	    ver != rhs.ver);
-  }
-  bool same_or_later(const objv& rhs) const {
-    return (instance == rhs.instance &&
-	    ver >= rhs.ver);
+  bool
+  operator==(const objv& rhs) const
+  {
+    return (instance == rhs.instance && ver == rhs.ver);
   }
 
-  bool empty() const {
+  bool
+  operator!=(const objv& rhs) const
+  {
+    return (instance != rhs.instance || ver != rhs.ver);
+  }
+
+  bool
+  same_or_later(const objv& rhs) const
+  {
+    return (instance == rhs.instance && ver >= rhs.ver);
+  }
+
+  bool
+  empty() const
+  {
     return instance.empty();
   }
 
-  std::string to_str() const {
+  std::string
+  to_str() const
+  {
     return fmt::format("{}{{{}}}", instance, ver);
   }
 };
 WRITE_CLASS_ENCODER(objv)
-inline std::ostream& operator <<(std::ostream& os, const objv& objv)
+
+inline std::ostream&
+operator<<(std::ostream& os, const objv& objv)
 {
   return os << objv.to_str();
 }
@@ -101,26 +123,37 @@ struct data_params {
   std::uint64_t max_entry_size{0};
   std::uint64_t full_size_threshold{0};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(max_part_size, bl);
     encode(max_entry_size, bl);
     encode(full_size_threshold, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(max_part_size, bl);
     decode(max_entry_size, bl);
     decode(full_size_threshold, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter* f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("max_part_size", max_part_size);
     f->dump_unsigned("max_entry_size", max_entry_size);
     f->dump_unsigned("full_size_threshold", full_size_threshold);
   }
-  static std::list<data_params> generate_test_instances() {
+
+  static std::list<data_params>
+  generate_test_instances()
+  {
     std::list<data_params> o;
     o.emplace_back();
     o.emplace_back();
@@ -129,32 +162,40 @@ struct data_params {
     o.back().full_size_threshold = 3;
     return o;
   }
+
   void decode_json(JSONObj* obj);
 
-  auto operator <=>(const data_params&) const = default;
+  auto operator<=>(const data_params&) const = default;
 };
 WRITE_CLASS_ENCODER(data_params)
-inline std::ostream& operator <<(std::ostream& m, const data_params& d) {
+
+inline std::ostream&
+operator<<(std::ostream& m, const data_params& d)
+{
   return m << "max_part_size: " << d.max_part_size << ", "
-	   << "max_entry_size: " << d.max_entry_size << ", "
-	   << "full_size_threshold: " << d.full_size_threshold;
+           << "max_entry_size: " << d.max_entry_size << ", "
+           << "full_size_threshold: " << d.full_size_threshold;
 }
 
 struct journal_entry {
   enum class Op {
-    unknown  = -1,
-    create   = 1,
+    unknown = -1,
+    create = 1,
     set_head = 2,
-    remove   = 3,
+    remove = 3,
   } op{Op::unknown};
 
   std::int64_t part_num{-1};
 
-  bool valid() const {
+  bool
+  valid() const
+  {
     using enum Op;
     switch (op) {
-    case create: [[fallthrough]];
-    case set_head: [[fallthrough]];
+    case create:
+      [[fallthrough]];
+    case set_head:
+      [[fallthrough]];
     case remove:
       return part_num >= 0;
 
@@ -164,10 +205,14 @@ struct journal_entry {
   }
 
   journal_entry() = default;
-  journal_entry(Op op, std::int64_t part_num)
-    : op(op), part_num(part_num) {}
 
-  void encode(ceph::buffer::list& bl) const {
+  journal_entry(Op op, std::int64_t part_num) :
+    op(op), part_num(part_num)
+  {}
+
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ceph_assert(valid());
     ENCODE_START(1, 1, bl);
     encode((int)op, bl);
@@ -176,7 +221,10 @@ struct journal_entry {
     encode(part_tag, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     int i;
     decode(i, bl);
@@ -186,15 +234,21 @@ struct journal_entry {
     decode(part_tag, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter* f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_int("op", (int)op);
     f->dump_int("part_num", part_num);
   }
 
-  auto operator <=>(const journal_entry&) const = default;
+  auto operator<=>(const journal_entry&) const = default;
 };
 WRITE_CLASS_ENCODER(journal_entry)
-inline std::ostream& operator <<(std::ostream& m, const journal_entry::Op& o) {
+
+inline std::ostream&
+operator<<(std::ostream& m, const journal_entry::Op& o)
+{
   switch (o) {
   case journal_entry::Op::unknown:
     return m << "Op::unknown";
@@ -207,9 +261,11 @@ inline std::ostream& operator <<(std::ostream& m, const journal_entry::Op& o) {
   }
   return m << "Bad value: " << static_cast<int>(o);
 }
-inline std::ostream& operator <<(std::ostream& m, const journal_entry& j) {
-  return m << "op: " << j.op << ", "
-	   << "part_num: " << j.part_num;
+
+inline std::ostream&
+operator<<(std::ostream& m, const journal_entry& j)
+{
+  return m << "op: " << j.op << ", " << "part_num: " << j.part_num;
 }
 
 // This is actually a useful builder, since otherwise we end up with
@@ -223,46 +279,68 @@ class update {
   std::vector<fifo::journal_entry> journal_entries_rm_;
 
 public:
-
-  update&& tail_part_num(std::optional<std::int64_t> num) noexcept {
+  update&&
+  tail_part_num(std::optional<std::int64_t> num) noexcept
+  {
     tail_part_num_ = num;
     return std::move(*this);
   }
-  auto tail_part_num() const noexcept {
+
+  auto
+  tail_part_num() const noexcept
+  {
     return tail_part_num_;
   }
 
-  update&& head_part_num(std::optional<std::int64_t> num) noexcept {
+  update&&
+  head_part_num(std::optional<std::int64_t> num) noexcept
+  {
     head_part_num_ = num;
     return std::move(*this);
   }
-  auto head_part_num() const noexcept {
+
+  auto
+  head_part_num() const noexcept
+  {
     return head_part_num_;
   }
 
-  update&& min_push_part_num(std::optional<std::int64_t> num)
-    noexcept {
+  update&&
+  min_push_part_num(std::optional<std::int64_t> num) noexcept
+  {
     min_push_part_num_ = num;
     return std::move(*this);
   }
-  auto min_push_part_num() const noexcept {
+
+  auto
+  min_push_part_num() const noexcept
+  {
     return min_push_part_num_;
   }
 
-  update&& max_push_part_num(std::optional<std::int64_t> num) noexcept {
+  update&&
+  max_push_part_num(std::optional<std::int64_t> num) noexcept
+  {
     max_push_part_num_ = num;
     return std::move(*this);
   }
-  auto max_push_part_num() const noexcept {
+
+  auto
+  max_push_part_num() const noexcept
+  {
     return max_push_part_num_;
   }
 
-  update&& journal_entry_add(fifo::journal_entry entry) {
+  update&&
+  journal_entry_add(fifo::journal_entry entry)
+  {
     journal_entries_add_.push_back(std::move(entry));
     return std::move(*this);
   }
-  update&& journal_entries_add(
-    std::optional<std::vector<fifo::journal_entry>>&& entries) {
+
+  update&&
+  journal_entries_add(std::optional<std::vector<fifo::journal_entry>>&& entries)
+  {
     if (entries) {
       journal_entries_add_ = std::move(*entries);
     } else {
@@ -270,19 +348,29 @@ public:
     }
     return std::move(*this);
   }
-  const auto& journal_entries_add() const & noexcept {
+
+  const auto&
+  journal_entries_add() const& noexcept
+  {
     return journal_entries_add_;
   }
-  auto&& journal_entries_add() && noexcept {
+
+  auto&&
+  journal_entries_add() && noexcept
+  {
     return std::move(journal_entries_add_);
   }
 
-  update&& journal_entry_rm(fifo::journal_entry entry) {
+  update&&
+  journal_entry_rm(fifo::journal_entry entry)
+  {
     journal_entries_rm_.push_back(std::move(entry));
     return std::move(*this);
   }
-  update&& journal_entries_rm(
-    std::optional<std::vector<fifo::journal_entry>>&& entries) {
+
+  update&&
+  journal_entries_rm(std::optional<std::vector<fifo::journal_entry>>&& entries)
+  {
     if (entries) {
       journal_entries_rm_ = std::move(*entries);
     } else {
@@ -290,15 +378,25 @@ public:
     }
     return std::move(*this);
   }
-  const auto& journal_entries_rm() const & noexcept {
+
+  const auto&
+  journal_entries_rm() const& noexcept
+  {
     return journal_entries_rm_;
   }
-  auto&& journal_entries_rm() && noexcept {
+
+  auto&&
+  journal_entries_rm() && noexcept
+  {
     return std::move(journal_entries_rm_);
   }
-  friend std::ostream& operator <<(std::ostream& m, const update& u);
+
+  friend std::ostream& operator<<(std::ostream& m, const update& u);
 };
-inline std::ostream& operator <<(std::ostream& m, const update& u) {
+
+inline std::ostream&
+operator<<(std::ostream& m, const update& u)
+{
   bool prev = false;
   if (u.tail_part_num_) {
     m << "tail_part_num: " << *u.tail_part_num_;
@@ -354,7 +452,9 @@ struct info {
   static_assert(journal_entry::Op::create < journal_entry::Op::set_head);
 
   // So we can get rid of the multimap without breaking compatibility
-  void encode_journal(bufferlist& bl) const {
+  void
+  encode_journal(bufferlist& bl) const
+  {
     using ceph::encode;
     assert(journal.size() <= std::numeric_limits<uint32_t>::max());
     uint32_t n = static_cast<uint32_t>(journal.size());
@@ -365,7 +465,9 @@ struct info {
     }
   }
 
-  void decode_journal( bufferlist::const_iterator& p) {
+  void
+  decode_journal(bufferlist::const_iterator& p)
+  {
     using enum journal_entry::Op;
     using ceph::decode;
     uint32_t n;
@@ -377,21 +479,28 @@ struct info {
       journal_entry e;
       decode(e, p);
       if (!e.valid()) {
-	throw ceph::buffer::malformed_input();
+        throw ceph::buffer::malformed_input();
       } else {
-	journal.insert(std::move(e));
+        journal.insert(std::move(e));
       }
     }
   }
-  bool need_new_head() const {
+
+  bool
+  need_new_head() const
+  {
     return (head_part_num < min_push_part_num);
   }
 
-  bool need_new_part() const {
+  bool
+  need_new_part() const
+  {
     return (max_push_part_num < min_push_part_num);
   }
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(id, bl);
     encode(version, bl);
@@ -408,7 +517,10 @@ struct info {
     encode_journal(bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(id, bl);
     decode(version, bl);
@@ -425,7 +537,10 @@ struct info {
     decode_journal(bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter* f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("id", id);
     f->dump_object("version", version);
     f->dump_string("oid_prefix", oid_prefix);
@@ -442,7 +557,10 @@ struct info {
     }
     f->close_section();
   }
-  static std::list<info> generate_test_instances() {
+
+  static std::list<info>
+  generate_test_instances()
+  {
     std::list<info> o;
     o.emplace_back();
     o.emplace_back();
@@ -459,13 +577,18 @@ struct info {
     o.back().journal.insert(journal_entry(journal_entry::Op::create, 3));
     return o;
   }
+
   void decode_json(JSONObj* obj);
 
-  std::string part_oid(std::int64_t part_num) const {
+  std::string
+  part_oid(std::int64_t part_num) const
+  {
     return fmt::format("{}.{}", oid_prefix, part_num);
   }
 
-  bool apply_update(const update& update) {
+  bool
+  apply_update(const update& update)
+  {
     bool changed = false;
     if (update.tail_part_num() && (tail_part_num != *update.tail_part_num())) {
       tail_part_num = *update.tail_part_num();
@@ -473,13 +596,13 @@ struct info {
     }
 
     if (update.min_push_part_num() &&
-	(min_push_part_num !=  *update.min_push_part_num())) {
+        (min_push_part_num != *update.min_push_part_num())) {
       min_push_part_num = *update.min_push_part_num();
       changed = true;
     }
 
     if (update.max_push_part_num() &&
-	(max_push_part_num != *update.max_push_part_num())) {
+        (max_push_part_num != *update.max_push_part_num())) {
       max_push_part_num = *update.max_push_part_num();
       changed = true;
     }
@@ -487,14 +610,14 @@ struct info {
     for (const auto& entry : update.journal_entries_add()) {
       auto [iter, inserted] = journal.insert(entry);
       if (inserted) {
-	changed = true;
+        changed = true;
       }
     }
 
     for (const auto& entry : update.journal_entries_rm()) {
       auto count = journal.erase(entry);
       if (count > 0) {
-	changed = true;
+        changed = true;
       }
     }
 
@@ -509,16 +632,17 @@ struct info {
   }
 };
 WRITE_CLASS_ENCODER(info)
-inline std::ostream& operator <<(std::ostream& m, const info& i) {
-  return m << "id: " << i.id << ", "
-	   << "version: " << i.version << ", "
-	   << "oid_prefix: " << i.oid_prefix << ", "
-	   << "params: {" << i.params << "}, "
-	   << "tail_part_num: " << i.tail_part_num << ", "
-	   << "head_part_num: " << i.head_part_num << ", "
-	   << "min_push_part_num: " << i.min_push_part_num << ", "
-	   << "max_push_part_num: " << i.max_push_part_num << ", "
-	   << "journal: {" << i.journal;
+
+inline std::ostream&
+operator<<(std::ostream& m, const info& i)
+{
+  return m << "id: " << i.id << ", " << "version: " << i.version << ", "
+           << "oid_prefix: " << i.oid_prefix << ", " << "params: {" << i.params
+           << "}, " << "tail_part_num: " << i.tail_part_num << ", "
+           << "head_part_num: " << i.head_part_num << ", "
+           << "min_push_part_num: " << i.min_push_part_num << ", "
+           << "max_push_part_num: " << i.max_push_part_num << ", "
+           << "journal: {" << i.journal;
 }
 
 struct part_list_entry {
@@ -527,20 +651,24 @@ struct part_list_entry {
   ceph::real_time mtime;
 
   part_list_entry() {}
-  part_list_entry(ceph::buffer::list&& data,
-		  uint64_t ofs,
-		  ceph::real_time mtime)
-    : data(std::move(data)), ofs(ofs), mtime(mtime) {}
 
+  part_list_entry(ceph::buffer::list&& data, uint64_t ofs, ceph::real_time mtime) :
+    data(std::move(data)), ofs(ofs), mtime(mtime)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(data, bl);
     encode(ofs, bl);
     encode(mtime, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(data, bl);
     decode(ofs, bl);
@@ -549,12 +677,13 @@ struct part_list_entry {
   }
 };
 WRITE_CLASS_ENCODER(part_list_entry)
-inline std::ostream& operator <<(std::ostream& m,
-				 const part_list_entry& p) {
-  using ceph::operator <<;
-  return m << "data: " << p.data << ", "
-	   << "ofs: " << p.ofs << ", "
-	   << "mtime: " << p.mtime;
+
+inline std::ostream&
+operator<<(std::ostream& m, const part_list_entry& p)
+{
+  using ceph::operator<<;
+  return m << "data: " << p.data << ", " << "ofs: " << p.ofs << ", "
+           << "mtime: " << p.mtime;
 }
 
 struct part_header {
@@ -569,7 +698,9 @@ struct part_header {
   std::uint64_t max_index{0};
   ceph::real_time max_time;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::string tag;
     encode(tag, bl);
@@ -583,7 +714,10 @@ struct part_header {
     encode(max_time, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::string tag;
     decode(tag, bl);
@@ -599,26 +733,32 @@ struct part_header {
   }
 };
 WRITE_CLASS_ENCODER(part_header)
-inline std::ostream& operator <<(std::ostream& m, const part_header& p) {
-  using ceph::operator <<;
-  return m << "params: {" << p.params << "}, "
-	   << "magic: " << p.magic << ", "
-	   << "min_ofs: " << p.min_ofs << ", "
-	   << "last_ofs: " << p.last_ofs << ", "
-	   << "next_ofs: " << p.next_ofs << ", "
-	   << "min_index: " << p.min_index << ", "
-	   << "max_index: " << p.max_index << ", "
-	   << "max_time: " << p.max_time;
+
+inline std::ostream&
+operator<<(std::ostream& m, const part_header& p)
+{
+  using ceph::operator<<;
+  return m << "params: {" << p.params << "}, " << "magic: " << p.magic << ", "
+           << "min_ofs: " << p.min_ofs << ", " << "last_ofs: " << p.last_ofs
+           << ", " << "next_ofs: " << p.next_ofs << ", "
+           << "min_index: " << p.min_index << ", "
+           << "max_index: " << p.max_index << ", "
+           << "max_time: " << p.max_time;
 }
 } // namespace rados::cls::fifo
 
 #if FMT_VERSION >= 90000
-template<>
+template <>
 struct fmt::formatter<rados::cls::fifo::info> : fmt::ostream_formatter {};
-template<>
-struct fmt::formatter<rados::cls::fifo::part_header> : fmt::ostream_formatter {};
-template<>
-struct fmt::formatter<rados::cls::fifo::journal_entry> : fmt::ostream_formatter {};
-template<>
+
+template <>
+struct fmt::formatter<rados::cls::fifo::part_header> : fmt::ostream_formatter {
+};
+
+template <>
+struct fmt::formatter<rados::cls::fifo::journal_entry>
+  : fmt::ostream_formatter {};
+
+template <>
 struct fmt::formatter<rados::cls::fifo::update> : fmt::ostream_formatter {};
 #endif

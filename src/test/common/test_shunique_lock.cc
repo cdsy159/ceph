@@ -20,94 +20,118 @@
 
 #include "common/ceph_time.h"
 #include "common/shunique_lock.h"
-
 #include "gtest/gtest.h"
 
-template<typename SharedMutex>
-static bool test_try_lock(SharedMutex* sm) {
+template <typename SharedMutex>
+static bool
+test_try_lock(SharedMutex* sm)
+{
   if (!sm->try_lock())
     return false;
   sm->unlock();
   return true;
 }
 
-template<typename SharedMutex>
-static bool test_try_lock_shared(SharedMutex* sm) {
+template <typename SharedMutex>
+static bool
+test_try_lock_shared(SharedMutex* sm)
+{
   if (!sm->try_lock_shared())
     return false;
   sm->unlock_shared();
   return true;
 }
 
-template<typename SharedMutex, typename AcquireType>
-static void check_conflicts(SharedMutex sm, AcquireType) {
-}
+template <typename SharedMutex, typename AcquireType>
+static void
+check_conflicts(SharedMutex sm, AcquireType)
+{}
 
-template<typename SharedMutex>
-static void ensure_conflicts(SharedMutex& sm, ceph::acquire_unique_t) {
+template <typename SharedMutex>
+static void
+ensure_conflicts(SharedMutex& sm, ceph::acquire_unique_t)
+{
   auto ttl = &test_try_lock<std::shared_timed_mutex>;
   auto ttls = &test_try_lock_shared<std::shared_timed_mutex>;
   ASSERT_FALSE(std::async(std::launch::async, ttl, &sm).get());
   ASSERT_FALSE(std::async(std::launch::async, ttls, &sm).get());
 }
 
-template<typename SharedMutex>
-static void ensure_conflicts(SharedMutex& sm, ceph::acquire_shared_t) {
+template <typename SharedMutex>
+static void
+ensure_conflicts(SharedMutex& sm, ceph::acquire_shared_t)
+{
   auto ttl = &test_try_lock<std::shared_timed_mutex>;
   auto ttls = &test_try_lock_shared<std::shared_timed_mutex>;
   ASSERT_FALSE(std::async(std::launch::async, ttl, &sm).get());
   ASSERT_TRUE(std::async(std::launch::async, ttls, &sm).get());
 }
 
-template<typename SharedMutex>
-static void ensure_free(SharedMutex& sm) {
+template <typename SharedMutex>
+static void
+ensure_free(SharedMutex& sm)
+{
   auto ttl = &test_try_lock<std::shared_timed_mutex>;
   auto ttls = &test_try_lock_shared<std::shared_timed_mutex>;
   ASSERT_TRUE(std::async(std::launch::async, ttl, &sm).get());
   ASSERT_TRUE(std::async(std::launch::async, ttls, &sm).get());
 }
 
-template<typename SharedMutex, typename AcquireType>
-static void check_owns_lock(const SharedMutex& sm,
-			    const ceph::shunique_lock<SharedMutex>& sul,
-			    AcquireType) {
-}
+template <typename SharedMutex, typename AcquireType>
+static void
+check_owns_lock(
+    const SharedMutex& sm,
+    const ceph::shunique_lock<SharedMutex>& sul,
+    AcquireType)
+{}
 
-template<typename SharedMutex>
-static void check_owns_lock(const SharedMutex& sm,
-			    const ceph::shunique_lock<SharedMutex>& sul,
-			    ceph::acquire_unique_t) {
+template <typename SharedMutex>
+static void
+check_owns_lock(
+    const SharedMutex& sm,
+    const ceph::shunique_lock<SharedMutex>& sul,
+    ceph::acquire_unique_t)
+{
   ASSERT_TRUE(sul.mutex() == &sm);
   ASSERT_TRUE(sul.owns_lock());
   ASSERT_TRUE(!!sul);
 }
 
-template<typename SharedMutex>
-static void check_owns_lock(const SharedMutex& sm,
-			    const ceph::shunique_lock<SharedMutex>& sul,
-			    ceph::acquire_shared_t) {
+template <typename SharedMutex>
+static void
+check_owns_lock(
+    const SharedMutex& sm,
+    const ceph::shunique_lock<SharedMutex>& sul,
+    ceph::acquire_shared_t)
+{
   ASSERT_TRUE(sul.owns_lock_shared());
   ASSERT_TRUE(!!sul);
 }
 
-template<typename SharedMutex>
-static void check_abjures_lock(const SharedMutex& sm,
-			       const ceph::shunique_lock<SharedMutex>& sul) {
+template <typename SharedMutex>
+static void
+check_abjures_lock(
+    const SharedMutex& sm,
+    const ceph::shunique_lock<SharedMutex>& sul)
+{
   ASSERT_EQ(sul.mutex(), &sm);
   ASSERT_FALSE(sul.owns_lock());
   ASSERT_FALSE(sul.owns_lock_shared());
   ASSERT_FALSE(!!sul);
 }
 
-template<typename SharedMutex>
-static void check_abjures_lock(const ceph::shunique_lock<SharedMutex>& sul) {
+template <typename SharedMutex>
+static void
+check_abjures_lock(const ceph::shunique_lock<SharedMutex>& sul)
+{
   ASSERT_EQ(sul.mutex(), nullptr);
   ASSERT_FALSE(sul.owns_lock());
   ASSERT_FALSE(sul.owns_lock_shared());
   ASSERT_FALSE(!!sul);
 }
 
-TEST(ShuniqueLock, DefaultConstructor) {
+TEST(ShuniqueLock, DefaultConstructor)
+{
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
 
   shunique_lock l;
@@ -136,8 +160,10 @@ TEST(ShuniqueLock, DefaultConstructor) {
   ASSERT_FALSE(!!l);
 }
 
-template<typename AcquireType>
-void lock_unlock(AcquireType at) {
+template <typename AcquireType>
+void
+lock_unlock(AcquireType at)
+{
   std::shared_timed_mutex sm;
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
 
@@ -157,13 +183,16 @@ void lock_unlock(AcquireType at) {
   ensure_conflicts(sm, at);
 }
 
-TEST(ShuniqueLock, LockUnlock) {
+TEST(ShuniqueLock, LockUnlock)
+{
   lock_unlock(ceph::acquire_unique);
   lock_unlock(ceph::acquire_shared);
 }
 
-template<typename AcquireType>
-void lock_destruct(AcquireType at) {
+template <typename AcquireType>
+void
+lock_destruct(AcquireType at)
+{
   std::shared_timed_mutex sm;
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
 
@@ -177,13 +206,16 @@ void lock_destruct(AcquireType at) {
   ensure_free(sm);
 }
 
-TEST(ShuniqueLock, LockDestruct) {
+TEST(ShuniqueLock, LockDestruct)
+{
   lock_destruct(ceph::acquire_unique);
   lock_destruct(ceph::acquire_shared);
 }
 
-template<typename AcquireType>
-void move_construct(AcquireType at) {
+template <typename AcquireType>
+void
+move_construct(AcquireType at)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
@@ -215,7 +247,8 @@ void move_construct(AcquireType at) {
   }
 }
 
-TEST(ShuniqueLock, MoveConstruct) {
+TEST(ShuniqueLock, MoveConstruct)
+{
   move_construct(ceph::acquire_unique);
   move_construct(ceph::acquire_shared);
 
@@ -253,8 +286,10 @@ TEST(ShuniqueLock, MoveConstruct) {
   }
 }
 
-template<typename AcquireType>
-void move_assign(AcquireType at) {
+template <typename AcquireType>
+void
+move_assign(AcquireType at)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
@@ -294,7 +329,8 @@ void move_assign(AcquireType at) {
   }
 }
 
-TEST(ShuniqueLock, MoveAssign) {
+TEST(ShuniqueLock, MoveAssign)
+{
   move_assign(ceph::acquire_unique);
   move_assign(ceph::acquire_shared);
 
@@ -335,11 +371,12 @@ TEST(ShuniqueLock, MoveAssign) {
     l = std::move(sl);
     check_abjures_lock(l);
   }
-
 }
 
-template<typename AcquireType>
-void construct_deferred(AcquireType at) {
+template <typename AcquireType>
+void
+construct_deferred(AcquireType at)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
@@ -372,13 +409,16 @@ void construct_deferred(AcquireType at) {
   ensure_free(sm);
 }
 
-TEST(ShuniqueLock, ConstructDeferred) {
+TEST(ShuniqueLock, ConstructDeferred)
+{
   construct_deferred(ceph::acquire_unique);
   construct_deferred(ceph::acquire_shared);
 }
 
-template<typename AcquireType>
-void construct_try(AcquireType at) {
+template <typename AcquireType>
+void
+construct_try(AcquireType at)
+{
   std::shared_timed_mutex sm;
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
 
@@ -393,28 +433,31 @@ void construct_try(AcquireType at) {
     ensure_conflicts(sm, ceph::acquire_unique);
 
     std::async(std::launch::async, [&sm, at]() {
-	shunique_lock l(sm, at, std::try_to_lock);
-	check_abjures_lock(sm, l);
-	ensure_conflicts(sm, ceph::acquire_unique);
-      }).get();
+      shunique_lock l(sm, at, std::try_to_lock);
+      check_abjures_lock(sm, l);
+      ensure_conflicts(sm, ceph::acquire_unique);
+    }).get();
 
     l.unlock();
 
     std::async(std::launch::async, [&sm, at]() {
-	shunique_lock l(sm, at, std::try_to_lock);
-	check_owns_lock(sm, l, at);
-	ensure_conflicts(sm, at);
-      }).get();
+      shunique_lock l(sm, at, std::try_to_lock);
+      check_owns_lock(sm, l, at);
+      ensure_conflicts(sm, at);
+    }).get();
   }
 }
 
-TEST(ShuniqueLock, ConstructTry) {
+TEST(ShuniqueLock, ConstructTry)
+{
   construct_try(ceph::acquire_unique);
   construct_try(ceph::acquire_shared);
 }
 
-template<typename AcquireType>
-void construct_adopt(AcquireType at) {
+template <typename AcquireType>
+void
+construct_adopt(AcquireType at)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
@@ -435,13 +478,16 @@ void construct_adopt(AcquireType at) {
   ensure_free(sm);
 }
 
-TEST(ShuniqueLock, ConstructAdopt) {
+TEST(ShuniqueLock, ConstructAdopt)
+{
   construct_adopt(ceph::acquire_unique);
   construct_adopt(ceph::acquire_shared);
 }
 
-template<typename AcquireType>
-void try_lock(AcquireType at) {
+template <typename AcquireType>
+void
+try_lock(AcquireType at)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
@@ -458,31 +504,33 @@ void try_lock(AcquireType at) {
     std::unique_lock<std::shared_timed_mutex> l(sm);
 
     std::async(std::launch::async, [&sm, at]() {
-	shunique_lock l(sm, std::defer_lock);
-	l.try_lock(at);
+      shunique_lock l(sm, std::defer_lock);
+      l.try_lock(at);
 
-	check_abjures_lock(sm, l);
-	ensure_conflicts(sm, ceph::acquire_unique);
-      }).get();
+      check_abjures_lock(sm, l);
+      ensure_conflicts(sm, ceph::acquire_unique);
+    }).get();
 
 
     l.unlock();
     std::async(std::launch::async, [&sm, at]() {
-	shunique_lock l(sm, std::defer_lock);
-	l.try_lock(at);
+      shunique_lock l(sm, std::defer_lock);
+      l.try_lock(at);
 
-	check_owns_lock(sm, l, at);
-	ensure_conflicts(sm, at);
-      }).get();
+      check_owns_lock(sm, l, at);
+      ensure_conflicts(sm, at);
+    }).get();
   }
 }
 
-TEST(ShuniqueLock, TryLock) {
+TEST(ShuniqueLock, TryLock)
+{
   try_lock(ceph::acquire_unique);
   try_lock(ceph::acquire_shared);
 }
 
-TEST(ShuniqueLock, Release) {
+TEST(ShuniqueLock, Release)
+{
   std::shared_timed_mutex sm;
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;
 
@@ -553,7 +601,8 @@ TEST(ShuniqueLock, Release) {
   }
 }
 
-TEST(ShuniqueLock, NoRecursion) {
+TEST(ShuniqueLock, NoRecursion)
+{
   std::shared_timed_mutex sm;
 
   typedef ceph::shunique_lock<std::shared_timed_mutex> shunique_lock;

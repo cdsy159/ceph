@@ -116,8 +116,6 @@ TYPE(cls_rgw_gc_queue_init_op)
 TYPE(cls_rgw_gc_urgent_data)
 
 
-
-
 #include "cls/rgw/cls_rgw_client.h"
 TYPE(rgw_bi_log_entry)
 TYPE(cls_rgw_reshard_entry)

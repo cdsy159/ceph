@@ -1,33 +1,34 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <atomic>
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
 #include <string>
 #include <vector>
+
 #include <boost/scoped_ptr.hpp>
 
+#include "common/Clock.h" // for ceph_clock_now()
 #include "common/ceph_argparse.h"
 #include "common/ceph_mutex.h"
-#include "common/Clock.h" // for ceph_clock_now()
 #include "common/common_init.h"
 #include "common/config.h"
 #include "common/snap_types.h"
 #include "global/global_init.h"
-#include "include/buffer.h"
 #include "include/Context.h"
+#include "include/buffer.h"
 #include "include/stringify.h"
 #include "osdc/ObjectCacher.h"
 
 #include "FakeWriteback.h"
 #include "MemWriteback.h"
 
-#include <atomic>
-
 using namespace std;
 
-int flush_test()
+int
+flush_test()
 {
   bool fail = false;
   bool done = false;
@@ -45,20 +46,20 @@ int flush_test()
   int max_dirty_bhs = max_dirty / (1 << ceph::_page_shift); // 8
 
   std::cout << "Test configuration:\n"
-      << setw(20) << "max_cache: " << max_cache << "\n"
-      << setw(20) << "max_dirty_age: " << max_dirty_age << "\n"
-      << setw(20) << "max_dirty: " << max_dirty << "\n"
-      << setw(20) << "ceph::_page_shift: " << ceph::_page_shift << "\n"
-      << setw(20) << "max_dirty_bh: " << max_dirty_bhs << "\n"
-      << setw(20) << "write extent size: " << bl_size << "\n\n";
+            << setw(20) << "max_cache: " << max_cache << "\n"
+            << setw(20) << "max_dirty_age: " << max_dirty_age << "\n"
+            << setw(20) << "max_dirty: " << max_dirty << "\n"
+            << setw(20) << "ceph::_page_shift: " << ceph::_page_shift << "\n"
+            << setw(20) << "max_dirty_bh: " << max_dirty_bhs << "\n"
+            << setw(20) << "write extent size: " << bl_size << "\n\n";
 
-  ObjectCacher obc(g_ceph_context, "test", writeback, lock, NULL, NULL,
-		   max_cache, // max cache size, 1MB
-		   1, // max objects, just one
-		   max_dirty, // max dirty, 512KB
-		   target_dirty, // target dirty, 256KB
-		   max_dirty_age,
-		   true);
+  ObjectCacher obc(
+      g_ceph_context, "test", writeback, lock, NULL, NULL,
+      max_cache, // max cache size, 1MB
+      1, // max objects, just one
+      max_dirty, // max dirty, 512KB
+      target_dirty, // target dirty, 256KB
+      max_dirty_age, true);
   obc.start();
 
   SnapContext snapc;
@@ -75,10 +76,9 @@ int flush_test()
     if (i == (max_dirty_bhs - 1)) {
       last_start = ceph_clock_now();
     }
-    ObjectCacher::OSDWrite *wr = obc.prepare_write(snapc, zeroes_bl,
-						   ceph::real_clock::zero(), 0,
-						   ++journal_tid);
-    ObjectExtent extent(oid, 0, zeroes_bl.length()*i, zeroes_bl.length(), 0);
+    ObjectCacher::OSDWrite* wr = obc.prepare_write(
+        snapc, zeroes_bl, ceph::real_clock::zero(), 0, ++journal_tid);
+    ObjectExtent extent(oid, 0, zeroes_bl.length() * i, zeroes_bl.length(), 0);
     extent.oloc.pool = 0;
     extent.buffer_extents.push_back(make_pair(0, bl_size));
     wr->extents.push_back(extent);
@@ -88,18 +88,19 @@ int flush_test()
   }
   utime_t last_end = ceph_clock_now();
 
-  std::cout << "Write " << max_dirty_bhs << " extents"
-      << ", total size " << zeroes_bl.length() * max_dirty_bhs
-      << ", attain max dirty bufferheads " << max_dirty_bhs
-      << ", but below max dirty " << max_dirty << std::endl;
+  std::cout << "Write " << max_dirty_bhs << " extents" << ", total size "
+            << zeroes_bl.length() * max_dirty_bhs
+            << ", attain max dirty bufferheads " << max_dirty_bhs
+            << ", but below max dirty " << max_dirty << std::endl;
 
   if (last_end - last_start > utime_t(max_dirty_age, 0)) {
     std::cout << "Error: the last writex took more than " << max_dirty_age
-        << "s(max_dirty_age), fail to trigger flush" << std::endl;
-    fail = true;;
+              << "s(max_dirty_age), fail to trigger flush" << std::endl;
+    fail = true;
+    ;
   } else {
     std::cout << "Info: the last writex took " << last_end - last_start
-        << ", success to trigger flush" << std::endl;
+              << ", success to trigger flush" << std::endl;
   }
 
   for (int i = 0; i < max_dirty_bhs; ++i) {
@@ -129,12 +130,13 @@ int flush_test()
   return EXIT_SUCCESS;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   bool flush = false;
   std::vector<const char*>::iterator i;
   for (i = args.begin(); i != args.end();) {

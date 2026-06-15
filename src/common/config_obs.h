@@ -17,8 +17,8 @@
 #define CEPH_CONFIG_OBS_H
 
 #include <set>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "common/config_fwd.h"
 
@@ -29,7 +29,7 @@ namespace ceph {
  * Subscribe for configuration changes by calling the md_config_t::add_observer() method
  * and unsubscribe using md_config_t::remove_observer().
  */
-template<class ConfigProxy>
+template <class ConfigProxy>
 class md_config_obs_impl {
 public:
   virtual ~md_config_obs_impl() {}
@@ -46,10 +46,11 @@ public:
   virtual std::vector<std::string> get_tracked_keys() const noexcept = 0;
 
   /// React to a configuration change.
-  virtual void handle_conf_change(const ConfigProxy& conf,
-				  const std::set <std::string> &changed) = 0;
+  virtual void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) = 0;
 };
-}
+} // namespace ceph
 
 using md_config_obs_t = ceph::md_config_obs_impl<ConfigProxy>;
 

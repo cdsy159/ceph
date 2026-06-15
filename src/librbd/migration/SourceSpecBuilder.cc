@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/migration/SourceSpecBuilder.h"
+
 #include "common/dout.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/migration/FileStream.h"
@@ -17,8 +18,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::SourceSpecBuilder: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                 \
+  *_dout << "librbd::migration::SourceSpecBuilder: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace migration {
@@ -31,9 +33,11 @@ const std::string TYPE_KEY{"type"};
 } // anonymous namespace
 
 template <typename I>
-int SourceSpecBuilder<I>::parse_source_spec(
+int
+SourceSpecBuilder<I>::parse_source_spec(
     const std::string& source_spec,
-    json_spirit::mObject* source_spec_object) {
+    json_spirit::mObject* source_spec_object)
+{
   json_spirit::mValue json_root;
   if (json_spirit::read(source_spec, json_root)) {
     try {
@@ -47,9 +51,11 @@ int SourceSpecBuilder<I>::parse_source_spec(
 }
 
 template <typename I>
-int SourceSpecBuilder<I>::build_format(
+int
+SourceSpecBuilder<I>::build_format(
     const json_spirit::mObject& source_spec_object,
-    std::unique_ptr<FormatInterface>* format) const {
+    std::unique_ptr<FormatInterface>* format) const
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -74,9 +80,12 @@ int SourceSpecBuilder<I>::build_format(
 }
 
 template <typename I>
-int SourceSpecBuilder<I>::build_snapshot(
-    const json_spirit::mObject& source_spec_object, uint64_t index,
-    std::shared_ptr<SnapshotInterface>* snapshot) const {
+int
+SourceSpecBuilder<I>::build_snapshot(
+    const json_spirit::mObject& source_spec_object,
+    uint64_t index,
+    std::shared_ptr<SnapshotInterface>* snapshot) const
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -89,8 +98,8 @@ int SourceSpecBuilder<I>::build_snapshot(
 
   auto& type = type_value_it->second.get_str();
   if (type == "raw") {
-    snapshot->reset(RawSnapshot<I>::create(m_image_ctx, source_spec_object,
-                                           this, index));
+    snapshot->reset(
+        RawSnapshot<I>::create(m_image_ctx, source_spec_object, this, index));
   } else {
     lderr(cct) << "unknown or unsupported snapshot type '" << type << "'"
                << dendl;
@@ -100,9 +109,11 @@ int SourceSpecBuilder<I>::build_snapshot(
 }
 
 template <typename I>
-int SourceSpecBuilder<I>::build_stream(
+int
+SourceSpecBuilder<I>::build_stream(
     const json_spirit::mObject& source_spec_object,
-    std::shared_ptr<StreamInterface>* stream) const {
+    std::shared_ptr<StreamInterface>* stream) const
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 

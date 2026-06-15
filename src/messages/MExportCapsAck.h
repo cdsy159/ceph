@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -20,41 +20,58 @@
 #include "messages/MMDSOp.h"
 
 class MExportCapsAck final : public MMDSOp {
- static constexpr int HEAD_VERSION = 1;
- static constexpr int COMPAT_VERSION = 1;
+  static constexpr int HEAD_VERSION = 1;
+  static constexpr int COMPAT_VERSION = 1;
 
-public:  
+public:
   inodeno_t ino;
   ceph::buffer::list cap_bl;
 
 protected:
   MExportCapsAck() :
-    MMDSOp{MSG_MDS_EXPORTCAPSACK, HEAD_VERSION, COMPAT_VERSION} {}
+    MMDSOp{MSG_MDS_EXPORTCAPSACK, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MExportCapsAck(inodeno_t i) :
-    MMDSOp{MSG_MDS_EXPORTCAPSACK, HEAD_VERSION, COMPAT_VERSION}, ino(i) {}
+    MMDSOp{MSG_MDS_EXPORTCAPSACK, HEAD_VERSION, COMPAT_VERSION}, ino(i)
+  {}
+
   ~MExportCapsAck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "export_caps_ack"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "export_caps_ack";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export_caps_ack(" << ino << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(ino, payload);
     encode(cap_bl, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(ino, p);
     decode(cap_bl, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

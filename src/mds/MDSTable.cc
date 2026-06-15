@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,16 +14,16 @@
  */
 
 #include "MDSTable.h"
-#include "MDSContext.h"
-#include "MDSRank.h"
-
-#include "osdc/Objecter.h"
 
 #include "common/debug.h"
-#include "common/errno.h" // for cpp_strerror()
-#include "common/Finisher.h"
 
+#include "common/Finisher.h"
+#include "common/errno.h" // for cpp_strerror()
 #include "include/ceph_assert.h"
+#include "osdc/Objecter.h"
+
+#include "MDSContext.h"
+#include "MDSRank.h"
 
 
 #define dout_context g_ceph_context
@@ -33,43 +33,59 @@
 
 using namespace std;
 
-class MDSTableIOContext : public MDSIOContextBase
-{
-  protected:
-    MDSTable *ida;
-    MDSRank *get_mds() override {return ida->mds;}
-  public:
-    explicit MDSTableIOContext(MDSTable *ida_) : ida(ida_) {
-      ceph_assert(ida != NULL);
-    }
-};
+class MDSTableIOContext : public MDSIOContextBase {
+protected:
+  MDSTable* ida;
 
+  MDSRank*
+  get_mds() override
+  {
+    return ida->mds;
+  }
+
+public:
+  explicit MDSTableIOContext(MDSTable* ida_) :
+    ida(ida_)
+  {
+    ceph_assert(ida != NULL);
+  }
+};
 
 class C_IO_MT_Save : public MDSTableIOContext {
   version_t version;
+
 public:
-  C_IO_MT_Save(MDSTable *i, version_t v) : MDSTableIOContext(i), version(v) {}
-  void finish(int r) override {
+  C_IO_MT_Save(MDSTable* i, version_t v) :
+    MDSTableIOContext(i), version(v)
+  {}
+
+  void
+  finish(int r) override
+  {
     ida->save_2(r, version);
   }
-  void print(ostream& out) const override {
+
+  void
+  print(ostream& out) const override
+  {
     out << "table_save(" << ida->table_name << ")";
   }
 };
 
-void MDSTable::save(MDSContext *onfinish, version_t v)
+void
+MDSTable::save(MDSContext* onfinish, version_t v)
 {
   if (v > 0 && v <= committing_version) {
     dout(10) << "save v " << version << " - already saving "
-	     << committing_version << " >= needed " << v << dendl;
+             << committing_version << " >= needed " << v << dendl;
     if (onfinish)
       waitfor_save[v].push_back(onfinish);
     return;
   }
-  
+
   dout(10) << "save v " << version << dendl;
   ceph_assert(is_active());
-  
+
   bufferlist bl;
   encode(version, bl);
   encode_state(bl);
@@ -83,30 +99,30 @@ void MDSTable::save(MDSContext *onfinish, version_t v)
   SnapContext snapc;
   object_t oid = get_object_name();
   object_locator_t oloc(mds->get_metadata_pool());
-  mds->objecter->write_full(oid, oloc,
-			    snapc,
-			    bl, ceph::real_clock::now(), 0,
-			    new C_OnFinisher(new C_IO_MT_Save(this, version),
-					     mds->finisher));
+  mds->objecter->write_full(
+      oid, oloc, snapc, bl, ceph::real_clock::now(), 0,
+      new C_OnFinisher(new C_IO_MT_Save(this, version), mds->finisher));
 }
 
-void MDSTable::save_2(int r, version_t v)
+void
+MDSTable::save_2(int r, version_t v)
 {
   if (r < 0) {
     dout(1) << "save error " << r << " v " << v << dendl;
     mds->clog->error() << "failed to store table " << table_name << " object,"
-		       << " errno " << r;
+                       << " errno " << r;
     mds->handle_write_error(r);
     return;
   }
 
   dout(10) << "save_2 v " << v << dendl;
   committed_version = v;
-  
+
   MDSContext::vec ls;
   while (!waitfor_save.empty()) {
     auto it = waitfor_save.begin();
-    if (it->first > v) break;
+    if (it->first > v)
+      break;
     auto& v = it->second;
     ls.insert(ls.end(), v.begin(), v.end());
     waitfor_save.erase(it);
@@ -114,32 +130,40 @@ void MDSTable::save_2(int r, version_t v)
   finish_contexts(g_ceph_context, ls, 0);
 }
 
-
-void MDSTable::reset()
+void
+MDSTable::reset()
 {
   reset_state();
   projected_version = version;
   state = STATE_ACTIVE;
 }
 
-
-
 // -----------------------
 
 class C_IO_MT_Load : public MDSTableIOContext {
 public:
-  Context *onfinish;
+  Context* onfinish;
   bufferlist bl;
-  C_IO_MT_Load(MDSTable *i, Context *o) : MDSTableIOContext(i), onfinish(o) {}
-  void finish(int r) override {
+
+  C_IO_MT_Load(MDSTable* i, Context* o) :
+    MDSTableIOContext(i), onfinish(o)
+  {}
+
+  void
+  finish(int r) override
+  {
     ida->load_2(r, bl, onfinish);
   }
-  void print(ostream& out) const override {
+
+  void
+  print(ostream& out) const override
+  {
     out << "table_load(" << ida->table_name << ")";
   }
 };
 
-object_t MDSTable::get_object_name() const
+object_t
+MDSTable::get_object_name() const
 {
   char n[50];
   if (per_mds)
@@ -149,21 +173,23 @@ object_t MDSTable::get_object_name() const
   return object_t(n);
 }
 
-void MDSTable::load(MDSContext *onfinish)
-{ 
+void
+MDSTable::load(MDSContext* onfinish)
+{
   dout(10) << "load" << dendl;
 
   ceph_assert(is_undef());
   state = STATE_OPENING;
 
-  C_IO_MT_Load *c = new C_IO_MT_Load(this, onfinish);
+  C_IO_MT_Load* c = new C_IO_MT_Load(this, onfinish);
   object_t oid = get_object_name();
   object_locator_t oloc(mds->get_metadata_pool());
-  mds->objecter->read_full(oid, oloc, CEPH_NOSNAP, &c->bl, 0,
-			   new C_OnFinisher(c, mds->finisher));
+  mds->objecter->read_full(
+      oid, oloc, CEPH_NOSNAP, &c->bl, 0, new C_OnFinisher(c, mds->finisher));
 }
 
-void MDSTable::load_2(int r, bufferlist& bl, Context *onfinish)
+void
+MDSTable::load_2(int r, bufferlist& bl, Context* onfinish)
 {
   ceph_assert(is_opening());
   state = STATE_ACTIVE;
@@ -176,7 +202,8 @@ void MDSTable::load_2(int r, bufferlist& bl, Context *onfinish)
     mds->clog->error() << "error reading table object '" << get_object_name()
                        << "' " << r << " (" << cpp_strerror(r) << ")";
     mds->damaged();
-    ceph_assert(r >= 0);  // Should be unreachable because damaged() calls respawn()
+    ceph_assert(
+        r >= 0); // Should be unreachable because damaged() calls respawn()
   }
 
   dout(10) << "load_2 got " << bl.length() << " bytes" << dendl;
@@ -187,11 +214,12 @@ void MDSTable::load_2(int r, bufferlist& bl, Context *onfinish)
     projected_version = committed_version = version;
     dout(10) << "load_2 loaded v" << version << dendl;
     decode_state(p);
-  } catch (buffer::error &e) {
+  } catch (buffer::error& e) {
     mds->clog->error() << "error decoding table object '" << get_object_name()
                        << "': " << e.what();
     mds->damaged();
-    ceph_assert(r >= 0);  // Should be unreachable because damaged() calls respawn()
+    ceph_assert(
+        r >= 0); // Should be unreachable because damaged() calls respawn()
   }
 
   if (onfinish) {

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -26,49 +26,92 @@ private:
   static constexpr int COMPAT_VERSION = 1;
 
   dirfrag_t dirfrag;
+
 public:
   ceph::buffer::list basedir;
   std::list<dirfrag_t> bounds;
   std::list<ceph::buffer::list> traces;
+
 private:
   std::set<mds_rank_t> bystanders;
   bool b_did_assim = false;
 
 public:
-  dirfrag_t get_dirfrag() const { return dirfrag; }
-  const std::list<dirfrag_t>& get_bounds() const { return bounds; }
-  const std::set<mds_rank_t> &get_bystanders() const { return bystanders; }
+  dirfrag_t
+  get_dirfrag() const
+  {
+    return dirfrag;
+  }
 
-  bool did_assim() const { return b_did_assim; }
-  void mark_assim() { b_did_assim = true; }
+  const std::list<dirfrag_t>&
+  get_bounds() const
+  {
+    return bounds;
+  }
+
+  const std::set<mds_rank_t>&
+  get_bystanders() const
+  {
+    return bystanders;
+  }
+
+  bool
+  did_assim() const
+  {
+    return b_did_assim;
+  }
+
+  void
+  mark_assim()
+  {
+    b_did_assim = true;
+  }
 
 protected:
   MExportDirPrep() = default;
+
   MExportDirPrep(dirfrag_t df, uint64_t tid) :
-    MMDSOp{MSG_MDS_EXPORTDIRPREP, HEAD_VERSION, COMPAT_VERSION},
-    dirfrag(df)
+    MMDSOp{MSG_MDS_EXPORTDIRPREP, HEAD_VERSION, COMPAT_VERSION}, dirfrag(df)
   {
     set_tid(tid);
   }
+
   ~MExportDirPrep() final {}
 
 public:
-  std::string_view get_type_name() const override { return "ExP"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "ExP";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export_prep(" << dirfrag << ")";
   }
 
-  void add_bound(dirfrag_t df) {
-    bounds.push_back( df );
+  void
+  add_bound(dirfrag_t df)
+  {
+    bounds.push_back(df);
   }
-  void add_trace(ceph::buffer::list& bl) {
+
+  void
+  add_trace(ceph::buffer::list& bl)
+  {
     traces.push_back(bl);
   }
-  void add_bystander(mds_rank_t who) {
+
+  void
+  add_bystander(mds_rank_t who)
+  {
     bystanders.insert(who);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dirfrag, p);
@@ -78,7 +121,9 @@ public:
     decode(bystanders, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dirfrag, payload);
     encode(basedir, payload);
@@ -86,10 +131,11 @@ public:
     encode(traces, payload);
     encode(bystanders, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

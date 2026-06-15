@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -28,26 +28,42 @@ public:
   ceph::buffer::list bl;
 
 protected:
-  MMDSTableRequest() : MMDSOp{MSG_MDS_TABLE_REQUEST} {}
-  MMDSTableRequest(int tab, int o, uint64_t r, version_t v=0) : 
-    MMDSOp{MSG_MDS_TABLE_REQUEST},
-    table(tab), op(o), reqid(r) {
+  MMDSTableRequest() :
+    MMDSOp{MSG_MDS_TABLE_REQUEST}
+  {}
+
+  MMDSTableRequest(int tab, int o, uint64_t r, version_t v = 0) :
+    MMDSOp{MSG_MDS_TABLE_REQUEST}, table(tab), op(o), reqid(r)
+  {
     set_tid(v);
   }
+
   ~MMDSTableRequest() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mds_table_request"; }
-  void print(std::ostream& o) const override {
-    o << "mds_table_request(" << get_mdstable_name(table)
-      << " " << get_mdstableserver_opname(op);
-    if (reqid) o << " " << reqid;
-    if (get_tid()) o << " tid " << get_tid();
-    if (bl.length()) o << " " << bl.length() << " bytes";
+  std::string_view
+  get_type_name() const override
+  {
+    return "mds_table_request";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
+    o << "mds_table_request(" << get_mdstable_name(table) << " "
+      << get_mdstableserver_opname(op);
+    if (reqid)
+      o << " " << reqid;
+    if (get_tid())
+      o << " tid " << get_tid();
+    if (bl.length())
+      o << " " << bl.length() << " bytes";
     o << ")";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(table, p);
@@ -56,17 +72,20 @@ public:
     decode(bl, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(table, payload);
     encode(op, payload);
     encode(reqid, payload);
     encode(bl, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

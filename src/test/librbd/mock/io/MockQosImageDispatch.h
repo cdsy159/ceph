@@ -4,9 +4,10 @@
 #ifndef CEPH_TEST_LIBRBD_MOCK_IO_QOS_IMAGE_DISPATCH_H
 #define CEPH_TEST_LIBRBD_MOCK_IO_QOS_IMAGE_DISPATCH_H
 
+#include <atomic>
+
 #include "gmock/gmock.h"
 #include "librbd/io/Types.h"
-#include <atomic>
 
 struct Context;
 
@@ -14,8 +15,9 @@ namespace librbd {
 namespace io {
 
 struct MockQosImageDispatch {
-  MOCK_METHOD4(needs_throttle, bool(bool, const Extents&,
-                                    std::atomic<uint32_t>*, Context*));
+  MOCK_METHOD4(
+      needs_throttle,
+      bool(bool, const Extents&, std::atomic<uint32_t>*, Context*));
 };
 
 } // namespace io

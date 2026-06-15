@@ -13,28 +13,30 @@
  *
  */
 
-#include "gtest/gtest.h"
-#include "include/compat.h"
-#include "include/cephfs/libcephfs.h"
-#include "include/fs_types.h"
 #include <errno.h>
 #include <fcntl.h>
 
-TEST(LibCephFS, ReaddirRCB) {
-  struct ceph_mount_info *cmount;
+#include "gtest/gtest.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
+#include "include/fs_types.h"
+
+TEST(LibCephFS, ReaddirRCB)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
 
   char c_dir[256];
   sprintf(c_dir, "/readdir_r_cb_tests_%d", getpid());
-  struct ceph_dir_result *dirp;
+  struct ceph_dir_result* dirp;
   ASSERT_EQ(0, ceph_mkdirs(cmount, c_dir, 0777));
   ASSERT_LE(0, ceph_opendir(cmount, c_dir, &dirp));
 
   // dir is empty, check that it only contains . and ..
   int buflen = 100;
-  char *buf = new char[buflen];
+  char* buf = new char[buflen];
   // . is 2, .. is 3 (for null terminators)
   ASSERT_EQ(5, ceph_getdnames(cmount, dirp, buf, buflen));
   char c_file[256];

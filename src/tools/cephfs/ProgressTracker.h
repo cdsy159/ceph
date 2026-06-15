@@ -116,13 +116,13 @@ public:
     enable_progress_update = val;
   }
 
-  void set_progress_update_interval(const duration& interval)
+  void
+  set_progress_update_interval(const duration& interval)
   {
     progress_refresh_interval = std::chrono::duration_cast<duration>(interval);
   }
 
 private:
-
   /**
    * Display the current progress to stdout.
    *

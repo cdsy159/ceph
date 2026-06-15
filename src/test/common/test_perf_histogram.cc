@@ -14,7 +14,6 @@
  */
 
 #include "common/perf_histogram.h"
-
 #include "gtest/gtest.h"
 
 template <int DIM>
@@ -24,27 +23,36 @@ public:
 
   using Base::PerfHistogram;
 
-  static int64_t get_bucket_for_axis(
-      int64_t value, const PerfHistogramCommon::axis_config_d& axis_config) {
+  static int64_t
+  get_bucket_for_axis(
+      int64_t value,
+      const PerfHistogramCommon::axis_config_d& axis_config)
+  {
     return Base::get_bucket_for_axis(value, axis_config);
   }
 
-  static std::vector<std::pair<int64_t, int64_t>> get_axis_bucket_ranges(
-      const PerfHistogramCommon::axis_config_d& axis_config) {
+  static std::vector<std::pair<int64_t, int64_t>>
+  get_axis_bucket_ranges(const PerfHistogramCommon::axis_config_d& axis_config)
+  {
     return Base::get_axis_bucket_ranges(axis_config);
   }
 
-  const typename Base::axis_config_d& get_axis_config(int num) {
+  const typename Base::axis_config_d&
+  get_axis_config(int num)
+  {
     return Base::m_axes_config[num];
   }
 
   template <typename F1, typename F2, typename F3>
-  void visit_values(F1 f1, F2 f2, F3 f3) {
+  void
+  visit_values(F1 f1, F2 f2, F3 f3)
+  {
     Base::visit_values(f1, f2, f3);
   }
 };
 
-TEST(PerfHistogram, GetBucketForAxis) {
+TEST(PerfHistogram, GetBucketForAxis)
+{
   PerfHistogramCommon::axis_config_d linear{
       "", PerfHistogramCommon::SCALE_LINEAR, 100, 3, 4};
 
@@ -60,10 +68,12 @@ TEST(PerfHistogram, GetBucketForAxis) {
   ASSERT_EQ(3, PerfHistogramAccessor<1>::get_bucket_for_axis(108, linear));
   ASSERT_EQ(3, PerfHistogramAccessor<1>::get_bucket_for_axis(109, linear));
 
-  ASSERT_EQ(0, PerfHistogramAccessor<1>::get_bucket_for_axis(
-                   std::numeric_limits<int64_t>::min(), linear));
-  ASSERT_EQ(3, PerfHistogramAccessor<1>::get_bucket_for_axis(
-                   std::numeric_limits<int64_t>::max(), linear));
+  ASSERT_EQ(
+      0, PerfHistogramAccessor<1>::get_bucket_for_axis(
+             std::numeric_limits<int64_t>::min(), linear));
+  ASSERT_EQ(
+      3, PerfHistogramAccessor<1>::get_bucket_for_axis(
+             std::numeric_limits<int64_t>::max(), linear));
 
   PerfHistogramCommon::axis_config_d logarithmic{
       "", PerfHistogramCommon::SCALE_LOG2, 100, 3, 5};
@@ -81,10 +91,12 @@ TEST(PerfHistogram, GetBucketForAxis) {
   ASSERT_EQ(4, PerfHistogramAccessor<1>::get_bucket_for_axis(112, logarithmic));
   ASSERT_EQ(4, PerfHistogramAccessor<1>::get_bucket_for_axis(124, logarithmic));
 
-  ASSERT_EQ(0, PerfHistogramAccessor<1>::get_bucket_for_axis(
-                   std::numeric_limits<int64_t>::min(), logarithmic));
-  ASSERT_EQ(4, PerfHistogramAccessor<1>::get_bucket_for_axis(
-                   std::numeric_limits<int64_t>::max(), logarithmic));
+  ASSERT_EQ(
+      0, PerfHistogramAccessor<1>::get_bucket_for_axis(
+             std::numeric_limits<int64_t>::min(), logarithmic));
+  ASSERT_EQ(
+      4, PerfHistogramAccessor<1>::get_bucket_for_axis(
+             std::numeric_limits<int64_t>::max(), logarithmic));
 }
 
 static const int XS = 5;
@@ -95,7 +107,8 @@ static const auto x_axis = PerfHistogramCommon::axis_config_d{
 static const auto y_axis = PerfHistogramCommon::axis_config_d{
     "y", PerfHistogramCommon::SCALE_LOG2, 0, 1, YS};
 
-TEST(PerfHistogram, ZeroedInitially) {
+TEST(PerfHistogram, ZeroedInitially)
+{
   PerfHistogramAccessor<2> h{x_axis, y_axis};
   for (int x = 0; x < XS; ++x) {
     for (int y = 0; y < YS; ++y) {
@@ -104,7 +117,8 @@ TEST(PerfHistogram, ZeroedInitially) {
   }
 }
 
-TEST(PerfHistogram, Copy) {
+TEST(PerfHistogram, Copy)
+{
   PerfHistogramAccessor<2> h1{x_axis, y_axis};
   h1.inc_bucket(1, 1);
   h1.inc_bucket(2, 3);
@@ -141,7 +155,8 @@ TEST(PerfHistogram, Copy) {
   }
 }
 
-TEST(PerfHistogram, SimpleValues) {
+TEST(PerfHistogram, SimpleValues)
+{
   PerfHistogramAccessor<2> h{x_axis, y_axis};
   ASSERT_EQ(0UL, h.read_bucket(1, 1));
   h.inc(0, 0);
@@ -160,20 +175,22 @@ TEST(PerfHistogram, SimpleValues) {
   ASSERT_EQ(1UL, h.read_bucket(4, 3));
 }
 
-TEST(PerfHistogram, OneBucketRange) {
+TEST(PerfHistogram, OneBucketRange)
+{
   auto ranges = PerfHistogramAccessor<1>::get_axis_bucket_ranges(
-      PerfHistogramCommon::axis_config_d{"", PerfHistogramCommon::SCALE_LINEAR,
-                                         0, 1, 1});
+      PerfHistogramCommon::axis_config_d{
+          "", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 1});
 
   ASSERT_EQ(1UL, ranges.size());
   ASSERT_EQ(std::numeric_limits<int64_t>::min(), ranges[0].first);
   ASSERT_EQ(std::numeric_limits<int64_t>::max(), ranges[0].second);
 }
 
-TEST(PerfHistogram, TwoBucketRange) {
+TEST(PerfHistogram, TwoBucketRange)
+{
   auto ranges = PerfHistogramAccessor<1>::get_axis_bucket_ranges(
-      PerfHistogramCommon::axis_config_d{"", PerfHistogramCommon::SCALE_LINEAR,
-                                         0, 1, 2});
+      PerfHistogramCommon::axis_config_d{
+          "", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 2});
 
   ASSERT_EQ(2UL, ranges.size());
   ASSERT_EQ(std::numeric_limits<int64_t>::min(), ranges[0].first);
@@ -182,16 +199,19 @@ TEST(PerfHistogram, TwoBucketRange) {
   ASSERT_EQ(std::numeric_limits<int64_t>::max(), ranges[1].second);
 }
 
-TEST(PerfHistogram, LinearBucketRange) {
-  PerfHistogramCommon::axis_config_d ac{"", PerfHistogramCommon::SCALE_LINEAR,
-                                        100, 10, 15};
+TEST(PerfHistogram, LinearBucketRange)
+{
+  PerfHistogramCommon::axis_config_d ac{
+      "", PerfHistogramCommon::SCALE_LINEAR, 100, 10, 15};
   auto ranges = PerfHistogramAccessor<1>::get_axis_bucket_ranges(ac);
 
   for (size_t i = 0; i < ranges.size(); ++i) {
     ASSERT_EQ(
-      static_cast<long>(i), PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].first, ac));
+        static_cast<long>(i),
+        PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].first, ac));
     ASSERT_EQ(
-      static_cast<long>(i), PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].second, ac));
+        static_cast<long>(i),
+        PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].second, ac));
   }
 
   for (size_t i = 1; i < ranges.size(); ++i) {
@@ -199,16 +219,19 @@ TEST(PerfHistogram, LinearBucketRange) {
   }
 }
 
-TEST(PerfHistogram, LogarithmicBucketRange) {
-  PerfHistogramCommon::axis_config_d ac{"", PerfHistogramCommon::SCALE_LOG2,
-                                        100, 10, 15};
+TEST(PerfHistogram, LogarithmicBucketRange)
+{
+  PerfHistogramCommon::axis_config_d ac{
+      "", PerfHistogramCommon::SCALE_LOG2, 100, 10, 15};
   auto ranges = PerfHistogramAccessor<1>::get_axis_bucket_ranges(ac);
 
   for (size_t i = 0; i < ranges.size(); ++i) {
     ASSERT_EQ(
-      static_cast<long>(i), PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].first, ac));
+        static_cast<long>(i),
+        PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].first, ac));
     ASSERT_EQ(
-      static_cast<long>(i), PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].second, ac));
+        static_cast<long>(i),
+        PerfHistogramAccessor<1>::get_bucket_for_axis(ranges[i].second, ac));
   }
 
   for (size_t i = 1; i < ranges.size(); ++i) {
@@ -216,33 +239,34 @@ TEST(PerfHistogram, LogarithmicBucketRange) {
   }
 }
 
-TEST(PerfHistogram, AxisAddressing) {
-  PerfHistogramCommon::axis_config_d ac1{"", PerfHistogramCommon::SCALE_LINEAR,
-                                         0, 1, 7};
-  PerfHistogramCommon::axis_config_d ac2{"", PerfHistogramCommon::SCALE_LINEAR,
-                                         0, 1, 9};
-  PerfHistogramCommon::axis_config_d ac3{"", PerfHistogramCommon::SCALE_LINEAR,
-                                         0, 1, 11};
+TEST(PerfHistogram, AxisAddressing)
+{
+  PerfHistogramCommon::axis_config_d ac1{
+      "", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 7};
+  PerfHistogramCommon::axis_config_d ac2{
+      "", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 9};
+  PerfHistogramCommon::axis_config_d ac3{
+      "", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 11};
 
   PerfHistogramAccessor<3> h{ac1, ac2, ac3};
 
-  h.inc(1, 2, 3);  // Should end up in buckets 2, 3, 4
+  h.inc(1, 2, 3); // Should end up in buckets 2, 3, 4
   h.inc_bucket(4, 5, 6);
 
   std::vector<int64_t> rawValues;
-  h.visit_values([](int) {},
-                 [&rawValues](int64_t value) { rawValues.push_back(value); },
-                 [](int) {});
+  h.visit_values(
+      [](int) {}, [&rawValues](int64_t value) { rawValues.push_back(value); },
+      [](int) {});
 
   for (size_t i = 0; i < rawValues.size(); ++i) {
     switch (i) {
-      case 4 + 11 * (3 + 9 * 2):
-      case 6 + 11 * (5 + 9 * 4):
-        ASSERT_EQ(1, rawValues[i]);
-        break;
-      default:
-        ASSERT_EQ(0, rawValues[i]);
-        break;
+    case 4 + 11 * (3 + 9 * 2):
+    case 6 + 11 * (5 + 9 * 4):
+      ASSERT_EQ(1, rawValues[i]);
+      break;
+    default:
+      ASSERT_EQ(0, rawValues[i]);
+      break;
     }
   }
 }

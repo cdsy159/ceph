@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include <string>
 #include <map>
+#include <string>
 
+#include "common/Formatter.h"
 #include "include/health.h"
 #include "include/utime.h"
-#include "common/Formatter.h"
 
 struct health_check_t {
   health_status_t severity;
@@ -16,7 +16,8 @@ struct health_check_t {
   std::list<std::string> detail;
   int64_t count = 0;
 
-  DENC(health_check_t, v, p) {
+  DENC(health_check_t, v, p)
+  {
     DENC_START(2, 1, p);
     denc(v.severity, p);
     denc(v.summary, p);
@@ -27,19 +28,22 @@ struct health_check_t {
     DENC_FINISH(p);
   }
 
-  friend bool operator==(const health_check_t& l,
-			 const health_check_t& r) {
-    return l.severity == r.severity &&
-      l.summary == r.summary &&
-      l.detail == r.detail &&
-      l.count == r.count;
+  friend bool
+  operator==(const health_check_t& l, const health_check_t& r)
+  {
+    return l.severity == r.severity && l.summary == r.summary &&
+           l.detail == r.detail && l.count == r.count;
   }
-  friend bool operator!=(const health_check_t& l,
-			 const health_check_t& r) {
+
+  friend bool
+  operator!=(const health_check_t& l, const health_check_t& r)
+  {
     return !(l == r);
   }
 
-  void dump(ceph::Formatter *f, bool want_detail=true) const {
+  void
+  dump(ceph::Formatter* f, bool want_detail = true) const
+  {
     f->dump_stream("severity") << severity;
 
     f->open_object_section("summary");
@@ -50,15 +54,17 @@ struct health_check_t {
     if (want_detail) {
       f->open_array_section("detail");
       for (auto& p : detail) {
-	f->open_object_section("detail_item");
-	f->dump_string("message", p);
-	f->close_section();
+        f->open_object_section("detail_item");
+        f->dump_string("message", p);
+        f->close_section();
       }
       f->close_section();
     }
   }
 
-  static std::list<health_check_t> generate_test_instances() {
+  static std::list<health_check_t>
+  generate_test_instances()
+  {
     std::list<health_check_t> ls;
     ls.emplace_back();
     ls.back().severity = HEALTH_WARN;
@@ -72,7 +78,6 @@ struct health_check_t {
 };
 WRITE_CLASS_DENC(health_check_t)
 
-
 struct health_mute_t {
   std::string code;
   utime_t ttl;
@@ -80,7 +85,8 @@ struct health_mute_t {
   std::string summary;
   int64_t count;
 
-  DENC(health_mute_t, v, p) {
+  DENC(health_mute_t, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.code, p);
     denc(v.ttl, p);
@@ -90,7 +96,9 @@ struct health_mute_t {
     DENC_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("code", code);
     if (ttl != utime_t()) {
       f->dump_stream("ttl") << ttl;
@@ -100,7 +108,9 @@ struct health_mute_t {
     f->dump_int("count", count);
   }
 
-  static std::list<health_mute_t> generate_test_instances() {
+  static std::list<health_mute_t>
+  generate_test_instances()
+  {
     std::list<health_mute_t> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -115,21 +125,26 @@ struct health_mute_t {
 WRITE_CLASS_DENC(health_mute_t)
 
 struct health_check_map_t {
-  std::map<std::string,health_check_t> checks;
+  std::map<std::string, health_check_t> checks;
 
-  DENC(health_check_map_t, v, p) {
+  DENC(health_check_map_t, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.checks, p);
     DENC_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     for (auto& [code, check] : checks) {
       f->dump_object(code, check);
     }
   }
 
-  static std::list<health_check_map_t> generate_test_instances() {
+  static std::list<health_check_map_t>
+  generate_test_instances()
+  {
     std::list<health_check_map_t> ls;
 
     ls.emplace_back();
@@ -148,20 +163,30 @@ struct health_check_map_t {
     return ls;
   }
 
-  void clear() {
+  void
+  clear()
+  {
     checks.clear();
   }
-  bool empty() const {
+
+  bool
+  empty() const
+  {
     return checks.empty();
   }
-  void swap(health_check_map_t& other) {
+
+  void
+  swap(health_check_map_t& other)
+  {
     checks.swap(other.checks);
   }
 
-  health_check_t& add(const std::string& code,
-		      health_status_t severity,
-		      const std::string& summary,
-		      int64_t count) {
+  health_check_t&
+  add(const std::string& code,
+      health_status_t severity,
+      const std::string& summary,
+      int64_t count)
+  {
     ceph_assert(checks.count(code) == 0);
     health_check_t& r = checks[code];
     r.severity = severity;
@@ -169,10 +194,14 @@ struct health_check_map_t {
     r.count = count;
     return r;
   }
-  health_check_t& get_or_add(const std::string& code,
-			     health_status_t severity,
-			     const std::string& summary,
-			     int64_t count) {
+
+  health_check_t&
+  get_or_add(
+      const std::string& code,
+      health_status_t severity,
+      const std::string& summary,
+      int64_t count)
+  {
     health_check_t& r = checks[code];
     r.severity = severity;
     r.summary = summary;
@@ -180,26 +209,29 @@ struct health_check_map_t {
     return r;
   }
 
-  void merge(const health_check_map_t& o) {
+  void
+  merge(const health_check_map_t& o)
+  {
     for (auto& [code, check] : o.checks) {
       auto [it, new_check] = checks.try_emplace(code, check);
       if (!new_check) {
         // merge details, and hope the summary matches!
         it->second.detail.insert(
-          it->second.detail.end(),
-          check.detail.begin(),
-          check.detail.end());
+            it->second.detail.end(), check.detail.begin(), check.detail.end());
         it->second.count += check.count;
       }
     }
   }
 
-  friend bool operator==(const health_check_map_t& l,
-			 const health_check_map_t& r) {
+  friend bool
+  operator==(const health_check_map_t& l, const health_check_map_t& r)
+  {
     return l.checks == r.checks;
   }
-  friend bool operator!=(const health_check_map_t& l,
-			 const health_check_map_t& r) {
+
+  friend bool
+  operator!=(const health_check_map_t& l, const health_check_map_t& r)
+  {
     return !(l == r);
   }
 };

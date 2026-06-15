@@ -16,26 +16,30 @@
 #ifndef CEPH_STRESCAPE_H
 #define CEPH_STRESCAPE_H
 
+#include <ctype.h>
+
 #include <algorithm>
 #include <ostream>
 #include <string_view>
 
-#include <ctype.h>
-
-inline std::string binstrprint(std::string_view sv, size_t maxlen=0)
+inline std::string
+binstrprint(std::string_view sv, size_t maxlen = 0)
 {
   std::string s;
   if (maxlen == 0 || sv.size() < maxlen) {
     s = std::string(sv);
   } else {
     maxlen = std::max<size_t>(8, maxlen);
-    s = std::string(sv.substr(0, maxlen-3)) + "...";
+    s = std::string(sv.substr(0, maxlen - 3)) + "...";
   }
-  std::replace_if(s.begin(), s.end(), [](char c){ return !(isalnum(c) || ispunct(c)); }, '.');
+  std::replace_if(
+      s.begin(), s.end(), [](char c) { return !(isalnum(c) || ispunct(c)); },
+      '.');
   return s;
 }
 
-inline std::string get_trimmed_path_str(const std::string& path)
+inline std::string
+get_trimmed_path_str(const std::string& path)
 {
   // index of '/' before 10th component (count from end of the path).
   size_t n = 0;

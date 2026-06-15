@@ -3,19 +3,21 @@
 
 #pragma once
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <chrono>
-#include <boost/asio/basic_waitable_timer.hpp>
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/error.hpp>
-#include <boost/system/error_code.hpp>
-#include <condition_variable>
-#include <atomic>
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
+
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/basic_waitable_timer.hpp>
+#include <boost/asio/error.hpp>
+#include <boost/system/error_code.hpp>
+
 #include "rgw_common.h"
 #include "rgw_sal.h"
 
@@ -36,9 +38,10 @@ struct RestoreWaiter {
   std::weak_ptr<Timer> active_timer;
   std::atomic<bool> completed{false};
   std::atomic<bool> failed{false};
-  std::atomic<int16_t> result{0};  // Error codes fit in int16_t
-  std::string cached_key;  // Cached registry key to avoid recomputation in unregister
-  ceph::coarse_real_time last_used;  // Timestamp for pool eviction
+  std::atomic<int16_t> result{0}; // Error codes fit in int16_t
+  std::string
+      cached_key; // Cached registry key to avoid recomputation in unregister
+  ceph::coarse_real_time last_used; // Timestamp for pool eviction
 
   // Wait for completion for up to 'timeout'. Uses cv for blocking callers and
   // a timer for coroutine callers so we don't block the frontend coroutine.
@@ -56,10 +59,11 @@ private:
   std::mutex pool_mtx;
   std::vector<std::unique_ptr<RestoreWaiter>> free_list;
   static constexpr size_t MAX_POOL_SIZE = 256;
-  static constexpr std::chrono::seconds EVICTION_TIME{300};  // 5 minutes
+  static constexpr std::chrono::seconds EVICTION_TIME{300}; // 5 minutes
 
 public:
-  std::shared_ptr<RestoreWaiter> acquire(std::weak_ptr<RestoreWaiterRegistry> owner);
+  std::shared_ptr<RestoreWaiter> acquire(
+      std::weak_ptr<RestoreWaiterRegistry> owner);
 
 private:
   void release(RestoreWaiter* waiter);
@@ -67,30 +71,36 @@ private:
 };
 
 // Registry mapping object keys to waiting GET requests
-class RestoreWaiterRegistry : public std::enable_shared_from_this<RestoreWaiterRegistry> {
+class RestoreWaiterRegistry
+  : public std::enable_shared_from_this<RestoreWaiterRegistry> {
 private:
   mutable std::shared_mutex registry_mtx;
-  std::unordered_map<std::string, std::vector<std::shared_ptr<RestoreWaiter>>> waiters;
+  std::unordered_map<std::string, std::vector<std::shared_ptr<RestoreWaiter>>>
+      waiters;
   RestoreWaiterPool waiter_pool;
   std::atomic<bool> shutting_down{false};
   friend class RestoreWaiterPool;
 
-  static std::string make_key(const rgw_bucket& bucket, const rgw_obj_key& obj_key);
+  static std::string make_key(
+      const rgw_bucket& bucket,
+      const rgw_obj_key& obj_key);
   void release_waiter(RestoreWaiter* waiter);
 
 public:
   // Register a waiter for an object restore
-  std::shared_ptr<RestoreWaiter> register_waiter(const rgw_bucket& bucket,
-                                                   const rgw_obj_key& obj_key);
+  std::shared_ptr<RestoreWaiter> register_waiter(
+      const rgw_bucket& bucket,
+      const rgw_obj_key& obj_key);
 
   // Unregister a waiter (called on timeout or completion)
   void unregister_waiter(std::shared_ptr<RestoreWaiter> waiter);
 
   // Signal all waiters for an object (called by restore worker)
-  void notify_completion(const rgw_bucket& bucket,
-                         const rgw_obj_key& obj_key,
-                         bool success,
-                         int result);
+  void notify_completion(
+      const rgw_bucket& bucket,
+      const rgw_obj_key& obj_key,
+      bool success,
+      int result);
 
   // Cancel all waiters and prevent new registrations
   void shutdown();
@@ -101,10 +111,14 @@ struct WaiterGuard {
   std::shared_ptr<RestoreWaiterRegistry> registry;
   std::shared_ptr<RestoreWaiter> waiter;
 
-  WaiterGuard(std::shared_ptr<RestoreWaiterRegistry> reg, std::shared_ptr<RestoreWaiter> w)
-    : registry(std::move(reg)), waiter(std::move(w)) {}
+  WaiterGuard(
+      std::shared_ptr<RestoreWaiterRegistry> reg,
+      std::shared_ptr<RestoreWaiter> w) :
+    registry(std::move(reg)), waiter(std::move(w))
+  {}
 
-  ~WaiterGuard() {
+  ~WaiterGuard()
+  {
     if (registry && waiter) {
       registry->unregister_waiter(waiter);
     }

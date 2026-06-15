@@ -18,16 +18,14 @@
 
 #include <boost/optional.hpp>
 
-#include "msg/Message.h"
-#include "mgr/MetricTypes.h"
-#include "mgr/OSDPerfMetricTypes.h"
-
 #include "common/perf_counters.h"
 #include "include/common_fwd.h"
 #include "mgr/DaemonHealthMetric.h"
+#include "mgr/MetricTypes.h"
+#include "mgr/OSDPerfMetricTypes.h"
+#include "msg/Message.h"
 
-class PerfCounterType
-{
+class PerfCounterType {
 public:
   std::string path;
   std::string description;
@@ -40,7 +38,8 @@ public:
   uint8_t priority = PerfCountersBuilder::PRIO_USEFUL;
   enum unit_t unit;
 
-  void encode(ceph::buffer::list &bl) const
+  void
+  encode(ceph::buffer::list& bl) const
   {
     // TODO: decide whether to drop the per-type
     // encoding here, we could rely on the MgrReport
@@ -55,8 +54,9 @@ public:
     encode((uint8_t)unit, bl);
     ENCODE_FINISH(bl);
   }
-  
-  void decode(ceph::buffer::list::const_iterator &p)
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
   {
     DECODE_START(3, p);
     decode(path, p);
@@ -76,7 +76,8 @@ public:
     DECODE_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const
+  void
+  dump(ceph::Formatter* f) const
   {
     f->dump_string("path", path);
     f->dump_string("description", description);
@@ -85,7 +86,9 @@ public:
     f->dump_int("priority", priority);
     f->dump_int("unit", unit);
   }
-  static std::list<PerfCounterType> generate_test_instances()
+
+  static std::list<PerfCounterType>
+  generate_test_instances()
   {
     std::list<PerfCounterType> ls;
     ls.emplace_back();
@@ -124,22 +127,23 @@ public:
   ceph::buffer::list packed;
 
   std::string daemon_name;
-  std::string service_name;  // optional; otherwise infer from entity type
+  std::string service_name; // optional; otherwise infer from entity type
 
   // for service registration
-  boost::optional<std::map<std::string,std::string>> daemon_status;
-  boost::optional<std::map<std::string,std::string>> task_status;
+  boost::optional<std::map<std::string, std::string>> daemon_status;
+  boost::optional<std::map<std::string, std::string>> task_status;
 
   std::vector<DaemonHealthMetric> daemon_health_metrics;
 
   // encode map<string,map<int32_t,string>> of current config
   ceph::buffer::list config_bl;
 
-  std::map<OSDPerfMetricQuery, OSDPerfMetricReport>  osd_perf_metric_reports;
+  std::map<OSDPerfMetricQuery, OSDPerfMetricReport> osd_perf_metric_reports;
 
   boost::optional<MetricReportMessage> metric_report_message;
 
-  void decode_payload() override
+  void
+  decode_payload() override
   {
     using ceph::decode;
     auto p = payload.cbegin();
@@ -169,7 +173,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(daemon_name, payload);
     encode(declare_types, payload);
@@ -181,7 +187,8 @@ public:
     encode(config_bl, payload);
     encode(osd_perf_metric_reports, payload);
     encode(task_status, payload);
-    if (metric_report_message && metric_report_message->should_encode(features)) {
+    if (metric_report_message &&
+        metric_report_message->should_encode(features)) {
       encode(metric_report_message, payload);
     } else {
       boost::optional<MetricReportMessage> empty;
@@ -189,18 +196,23 @@ public:
     }
   }
 
-  std::string_view get_type_name() const override { return "mgrreport"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mgrreport";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << get_type_name() << "(";
     if (service_name.length()) {
       out << service_name;
     } else {
       out << ceph_entity_type_name(get_source().type());
     }
-    out << "." << daemon_name
-	<< " +" << declare_types.size()
-	<< "-" << undeclare_types.size()
-        << " packed " << packed.length();
+    out << "." << daemon_name << " +" << declare_types.size() << "-"
+        << undeclare_types.size() << " packed " << packed.length();
     if (daemon_status) {
       out << " status=" << daemon_status->size();
     }
@@ -214,14 +226,15 @@ public:
   }
 
 private:
-  MMgrReport()
-    : Message{MSG_MGR_REPORT, HEAD_VERSION, COMPAT_VERSION}
+  MMgrReport() :
+    Message{MSG_MGR_REPORT, HEAD_VERSION, COMPAT_VERSION}
   {}
-  using RefCountedObject::put;
+
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

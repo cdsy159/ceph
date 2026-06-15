@@ -4,9 +4,10 @@
 #ifndef CEPH_LIBRBD_MANAGED_LOCK_RELEASE_REQUEST_H
 #define CEPH_LIBRBD_MANAGED_LOCK_RELEASE_REQUEST_H
 
+#include <string>
+
 #include "include/rados/librados.hpp"
 #include "librbd/watcher/Types.h"
-#include <string>
 
 class Context;
 class ContextWQ;
@@ -14,7 +15,10 @@ class ContextWQ;
 namespace librbd {
 
 class Watcher;
-namespace asio { struct ContextWQ; }
+
+namespace asio {
+struct ContextWQ;
+}
 
 namespace managed_lock {
 
@@ -25,11 +29,13 @@ private:
   typedef typename TypeTraits::Watcher Watcher;
 
 public:
-  static ReleaseRequest* create(librados::IoCtx& ioctx, Watcher *watcher,
-                                asio::ContextWQ *work_queue,
-                                const std::string& oid,
-                                const std::string& cookie,
-                                Context *on_finish);
+  static ReleaseRequest* create(
+      librados::IoCtx& ioctx,
+      Watcher* watcher,
+      asio::ContextWQ* work_queue,
+      const std::string& oid,
+      const std::string& cookie,
+      Context* on_finish);
 
   ~ReleaseRequest();
   void send();
@@ -49,21 +55,24 @@ private:
    * @endverbatim
    */
 
-  ReleaseRequest(librados::IoCtx& ioctx, Watcher *watcher,
-                 asio::ContextWQ *work_queue, const std::string& oid,
-                 const std::string& cookie, Context *on_finish);
+  ReleaseRequest(
+      librados::IoCtx& ioctx,
+      Watcher* watcher,
+      asio::ContextWQ* work_queue,
+      const std::string& oid,
+      const std::string& cookie,
+      Context* on_finish);
 
   librados::IoCtx& m_ioctx;
-  Watcher *m_watcher;
+  Watcher* m_watcher;
   std::string m_oid;
   std::string m_cookie;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   void send_unlock();
   void handle_unlock(int r);
 
   void finish();
-
 };
 
 } // namespace managed_lock

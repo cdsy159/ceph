@@ -1,12 +1,13 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/debug.h"
-#include "common/errno.h"
-
 #include "mgr/MetricCollector.h"
-#include "mgr/OSDPerfMetricTypes.h"
+
+#include "common/debug.h"
+
+#include "common/errno.h"
 #include "mgr/MDSPerfMetricTypes.h"
+#include "mgr/OSDPerfMetricTypes.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
@@ -14,15 +15,17 @@
 #define dout_prefix *_dout << "mgr.metric_collector " << __func__ << ": "
 
 template <typename Query, typename Limit, typename Key, typename Report>
-MetricCollector<Query, Limit, Key, Report>::MetricCollector(MetricListener &listener)
-  : listener(listener)
-{
-}
+MetricCollector<Query, Limit, Key, Report>::MetricCollector(
+    MetricListener& listener) :
+  listener(listener)
+{}
 
 template <typename Query, typename Limit, typename Key, typename Report>
-MetricQueryID MetricCollector<Query, Limit, Key, Report>::add_query(
-    const Query &query,
-    const std::optional<Limit> &limit) {
+MetricQueryID
+MetricCollector<Query, Limit, Key, Report>::add_query(
+    const Query& query,
+    const std::optional<Limit>& limit)
+{
   dout(20) << "query=" << query << ", limit=" << limit << dendl;
   uint64_t query_id;
   bool notify = false;
@@ -33,7 +36,8 @@ MetricQueryID MetricCollector<Query, Limit, Key, Report>::add_query(
     query_id = next_query_id++;
     auto it = queries.find(query);
     if (it == queries.end()) {
-      it = queries.emplace(query, std::map<MetricQueryID, OptionalLimit>{}).first;
+      it =
+          queries.emplace(query, std::map<MetricQueryID, OptionalLimit>{}).first;
       notify = true;
     } else if (is_limited(it->second)) {
       notify = true;
@@ -54,7 +58,9 @@ MetricQueryID MetricCollector<Query, Limit, Key, Report>::add_query(
 }
 
 template <typename Query, typename Limit, typename Key, typename Report>
-int MetricCollector<Query, Limit, Key, Report>::remove_query(MetricQueryID query_id) {
+int
+MetricCollector<Query, Limit, Key, Report>::remove_query(MetricQueryID query_id)
+{
   dout(20) << "query_id=" << query_id << dendl;
   bool found = false;
   bool notify = false;
@@ -62,7 +68,7 @@ int MetricCollector<Query, Limit, Key, Report>::remove_query(MetricQueryID query
   {
     std::lock_guard locker(lock);
 
-    for (auto it = queries.begin() ; it != queries.end();) {
+    for (auto it = queries.begin(); it != queries.end();) {
       auto iter = it->second.find(query_id);
       if (iter == it->second.end()) {
         ++it;
@@ -98,7 +104,9 @@ int MetricCollector<Query, Limit, Key, Report>::remove_query(MetricQueryID query
 }
 
 template <typename Query, typename Limit, typename Key, typename Report>
-void MetricCollector<Query, Limit, Key, Report>::remove_all_queries() {
+void
+MetricCollector<Query, Limit, Key, Report>::remove_all_queries()
+{
   dout(20) << dendl;
   bool notify;
 
@@ -115,14 +123,19 @@ void MetricCollector<Query, Limit, Key, Report>::remove_all_queries() {
 }
 
 template <typename Query, typename Limit, typename Key, typename Report>
-void MetricCollector<Query, Limit, Key, Report>::reregister_queries() {
+void
+MetricCollector<Query, Limit, Key, Report>::reregister_queries()
+{
   dout(20) << dendl;
   listener.handle_query_updated();
 }
 
 template <typename Query, typename Limit, typename Key, typename Report>
-int MetricCollector<Query, Limit, Key, Report>::get_counters_generic(
-    MetricQueryID query_id, std::map<Key, PerformanceCounters> *c) {
+int
+MetricCollector<Query, Limit, Key, Report>::get_counters_generic(
+    MetricQueryID query_id,
+    std::map<Key, PerformanceCounters>* c)
+{
   dout(20) << dendl;
   ceph_assert(ceph_mutex_is_locked(lock));
 
@@ -139,8 +152,11 @@ int MetricCollector<Query, Limit, Key, Report>::get_counters_generic(
 }
 
 template <typename Query, typename Limit, typename Key, typename Report>
-void MetricCollector<Query, Limit, Key, Report>::process_reports_generic(
-    const std::map<Query, Report> &reports, UpdateCallback callback) {
+void
+MetricCollector<Query, Limit, Key, Report>::process_reports_generic(
+    const std::map<Query, Report>& reports,
+    UpdateCallback callback)
+{
   ceph_assert(ceph_mutex_is_locked(lock));
 
   if (reports.empty()) {
@@ -148,18 +164,18 @@ void MetricCollector<Query, Limit, Key, Report>::process_reports_generic(
   }
 
   for (auto& [query, report] : reports) {
-    dout(10) << "report for " << query << " query: "
-             << report.group_packed_performance_counters.size() << " records"
-             << dendl;
+    dout(10) << "report for " << query
+             << " query: " << report.group_packed_performance_counters.size()
+             << " records" << dendl;
 
     for (auto& [key, bl] : report.group_packed_performance_counters) {
       auto bl_it = bl.cbegin();
 
       for (auto& p : queries[query]) {
-        auto &key_counters = counters[p.first][key];
+        auto& key_counters = counters[p.first][key];
         if (key_counters.empty()) {
-          key_counters.resize(query.performance_counter_descriptors.size(),
-                              {0, 0});
+          key_counters.resize(
+              query.performance_counter_descriptors.size(), {0, 0});
         }
       }
 
@@ -176,7 +192,7 @@ void MetricCollector<Query, Limit, Key, Report>::process_reports_generic(
         dout(20) << "counter " << key << " " << *desc_it << ": " << c << dendl;
 
         for (auto& p : queries[query]) {
-          auto &key_counters = counters[p.first][key];
+          auto& key_counters = counters[p.first][key];
           callback(&key_counters[i], c);
         }
         desc_it++;
@@ -185,7 +201,13 @@ void MetricCollector<Query, Limit, Key, Report>::process_reports_generic(
   }
 }
 
-template class
-MetricCollector<OSDPerfMetricQuery, OSDPerfMetricLimit, OSDPerfMetricKey, OSDPerfMetricReport>;
-template class
-MetricCollector<MDSPerfMetricQuery, MDSPerfMetricLimit, MDSPerfMetricKey, MDSPerfMetrics>;
+template class MetricCollector<
+    OSDPerfMetricQuery,
+    OSDPerfMetricLimit,
+    OSDPerfMetricKey,
+    OSDPerfMetricReport>;
+template class MetricCollector<
+    MDSPerfMetricQuery,
+    MDSPerfMetricLimit,
+    MDSPerfMetricKey,
+    MDSPerfMetrics>;

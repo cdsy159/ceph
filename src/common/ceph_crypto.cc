@@ -13,20 +13,21 @@
  *
  */
 
-#include <vector>
-#include <utility>
-
-#include "common/ceph_context.h"
-#include "common/ceph_mutex.h"
-#include "common/config.h"
 #include "ceph_crypto.h"
 
 #include <openssl/evp.h>
 
+#include <utility>
+#include <vector>
+
+#include "common/ceph_context.h"
+#include "common/ceph_mutex.h"
+#include "common/config.h"
+
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-#  include <openssl/conf.h>
-#  include <openssl/engine.h>
-#  include <openssl/err.h>
+#include <openssl/conf.h>
+#include <openssl/engine.h>
+#include <openssl/err.h>
 #endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 
 #pragma GCC diagnostic push
@@ -42,26 +43,27 @@ static std::atomic_uint32_t crypto_refs;
 
 
 static auto ssl_mutexes = ceph::make_lock_container<ceph::shared_mutex>(
-  static_cast<size_t>(std::max(CRYPTO_num_locks(), 0)),
-  [](const size_t i) {
-    return ceph::make_shared_mutex(
-      std::string("ssl-mutex-") + std::to_string(i));
-  });
+    static_cast<size_t>(std::max(CRYPTO_num_locks(), 0)),
+    [](const size_t i) {
+      return ceph::make_shared_mutex(
+          std::string("ssl-mutex-") + std::to_string(i));
+    });
 
 static struct {
   // we could use e.g. unordered_set instead at the price of providing
   // std::hash<...> specialization. However, we can live with duplicates
   // quite well while the benefit is not worth the effort.
   std::vector<CRYPTO_THREADID> tids;
-  ceph::mutex lock = ceph::make_mutex("crypto::ssl::init_records::lock");;
+  ceph::mutex lock = ceph::make_mutex("crypto::ssl::init_records::lock");
+  ;
 } init_records;
 
 static void
 ssl_locking_callback(
-  const int mode,
-  const int mutex_num,
-  [[maybe_unused]] const char *file,
-  [[maybe_unused]] const int line)
+    const int mode,
+    const int mutex_num,
+    [[maybe_unused]] const char* file,
+    [[maybe_unused]] const int line)
 {
   if (mutex_num < 0 || static_cast<size_t>(mutex_num) >= ssl_mutexes.size()) {
     ceph_assert_always("openssl passed wrong mutex index" == nullptr);
@@ -96,7 +98,9 @@ ssl_get_thread_id(void)
 }
 #endif /* not OPENSSL_VERSION_NUMBER < 0x10100000L */
 
-static void init() {
+static void
+init()
+{
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
   if (++crypto_refs == 1) {
     // according to
@@ -129,7 +133,9 @@ static void init() {
 #endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 }
 
-static void shutdown() {
+static void
+shutdown()
+{
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
   if (--crypto_refs != 0) {
     return;
@@ -170,49 +176,57 @@ static void shutdown() {
 #endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 }
 
-void zeroize_for_security(void* const s, const size_t n) {
+void
+zeroize_for_security(void* const s, const size_t n)
+{
   OPENSSL_cleanse(s, n);
 }
 
-} // namespace TOPNSPC::crypto::openssl
-
+} // namespace TOPNSPC::crypto::ssl
 
 namespace TOPNSPC::crypto {
-void init() {
+void
+init()
+{
   ssl::init();
 }
 
-void shutdown([[maybe_unused]] const bool shared) {
+void
+shutdown([[maybe_unused]] const bool shared)
+{
   ssl::shutdown();
 }
 
-void zeroize_for_security(void* const s, const size_t n) {
+void
+zeroize_for_security(void* const s, const size_t n)
+{
   ssl::zeroize_for_security(s, n);
 }
 
-ssl::OpenSSLDigest::OpenSSLDigest(const EVP_MD * _type)
-  : mpContext(EVP_MD_CTX_create())
-  , mpType(_type) {
+ssl::OpenSSLDigest::OpenSSLDigest(const EVP_MD* _type) :
+  mpContext(EVP_MD_CTX_create()), mpType(_type)
+{
   this->Restart();
 }
 
-ssl::OpenSSLDigest::~OpenSSLDigest() {
+ssl::OpenSSLDigest::~OpenSSLDigest()
+{
   EVP_MD_CTX_destroy(mpContext);
   if (mpType_FIPS) {
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_MD_free(mpType_FIPS);
-#endif  // OPENSSL_VERSION_NUMBER >= 0x30000000L
+#endif // OPENSSL_VERSION_NUMBER >= 0x30000000L
   }
 }
 
-ssl::OpenSSLDigest::OpenSSLDigest(OpenSSLDigest&& o) noexcept
-  : mpContext(std::exchange(o.mpContext, nullptr)),
-    mpType(std::exchange(o.mpType, nullptr)),
-    mpType_FIPS(std::exchange(o.mpType_FIPS, nullptr))
-{
-}
+ssl::OpenSSLDigest::OpenSSLDigest(OpenSSLDigest&& o) noexcept :
+  mpContext(std::exchange(o.mpContext, nullptr)),
+  mpType(std::exchange(o.mpType, nullptr)),
+  mpType_FIPS(std::exchange(o.mpType_FIPS, nullptr))
+{}
 
-ssl::OpenSSLDigest& ssl::OpenSSLDigest::operator=(OpenSSLDigest&& o) noexcept
+ssl::OpenSSLDigest&
+ssl::OpenSSLDigest::operator=(OpenSSLDigest&& o) noexcept
 {
   std::swap(mpContext, o.mpContext);
   std::swap(mpType, o.mpType);
@@ -220,7 +234,9 @@ ssl::OpenSSLDigest& ssl::OpenSSLDigest::operator=(OpenSSLDigest&& o) noexcept
   return *this;
 }
 
-void ssl::OpenSSLDigest::Restart() {
+void
+ssl::OpenSSLDigest::Restart()
+{
   if (mpType_FIPS) {
     EVP_DigestInit_ex(mpContext, mpType_FIPS, NULL);
   } else {
@@ -228,29 +244,39 @@ void ssl::OpenSSLDigest::Restart() {
   }
 }
 
-void ssl::OpenSSLDigest::SetFlags(int flags) {
-  if (flags == EVP_MD_CTX_FLAG_NON_FIPS_ALLOW && OpenSSL_version_num() >= 0x30000000L && mpType == EVP_md5() && !mpType_FIPS) {
+void
+ssl::OpenSSLDigest::SetFlags(int flags)
+{
+  if (flags == EVP_MD_CTX_FLAG_NON_FIPS_ALLOW &&
+      OpenSSL_version_num() >= 0x30000000L && mpType == EVP_md5() &&
+      !mpType_FIPS) {
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     mpType_FIPS = EVP_MD_fetch(NULL, "MD5", "fips=no");
-#endif  // OPENSSL_VERSION_NUMBER >= 0x30000000L
+#endif // OPENSSL_VERSION_NUMBER >= 0x30000000L
   } else {
     EVP_MD_CTX_set_flags(mpContext, flags);
   }
   this->Restart();
 }
 
-void ssl::OpenSSLDigest::Update(const unsigned char *input, size_t length) {
+void
+ssl::OpenSSLDigest::Update(const unsigned char* input, size_t length)
+{
   if (length) {
-    EVP_DigestUpdate(mpContext, const_cast<void *>(reinterpret_cast<const void *>(input)), length);
+    EVP_DigestUpdate(
+        mpContext, const_cast<void*>(reinterpret_cast<const void*>(input)),
+        length);
   }
 }
 
-void ssl::OpenSSLDigest::Final(unsigned char *digest) {
+void
+ssl::OpenSSLDigest::Final(unsigned char* digest)
+{
   unsigned int s;
   EVP_DigestFinal_ex(mpContext, digest, &s);
 }
 
-}
+} // namespace TOPNSPC::crypto
 
 #pragma clang diagnostic pop
 #pragma GCC diagnostic pop

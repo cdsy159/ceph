@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "node_extent_mutable.h"
 #include "stages/node_stage.h"
 #include "stages/stage.h"
+
+#include "node_extent_mutable.h"
 
 namespace crimson::os::seastore::onode {
 
@@ -27,29 +28,34 @@ struct NodeLayoutReplayableT {
   static constexpr auto FIELD_TYPE = FieldType::FIELD_TYPE;
 
   template <KeyT KT>
-  static const value_t* insert(
+  static const value_t*
+  insert(
       NodeExtentMutable& mut,
       const node_stage_t& node_stage,
       const full_key_t<KT>& key,
       const value_input_t& value,
       position_t& insert_pos,
       match_stage_t& insert_stage,
-      node_offset_t& insert_size) {
+      node_offset_t& insert_size)
+  {
     auto p_value = stage_t::template proceed_insert<KT, false>(
         mut, node_stage, key, value, insert_pos, insert_stage, insert_size);
     return p_value;
   }
 
-  static void split(
+  static void
+  split(
       NodeExtentMutable& mut,
       const node_stage_t& node_stage,
-      StagedIterator& split_at) {
+      StagedIterator& split_at)
+  {
     node_stage_t::update_is_level_tail(mut, node_stage, false);
     stage_t::trim(mut, split_at);
   }
 
   template <KeyT KT>
-  static const value_t* split_insert(
+  static const value_t*
+  split_insert(
       NodeExtentMutable& mut,
       const node_stage_t& node_stage,
       StagedIterator& split_at,
@@ -57,7 +63,8 @@ struct NodeLayoutReplayableT {
       const value_input_t& value,
       position_t& insert_pos,
       match_stage_t& insert_stage,
-      node_offset_t& insert_size) {
+      node_offset_t& insert_size)
+  {
     node_stage_t::update_is_level_tail(mut, node_stage, false);
     stage_t::trim(mut, split_at);
     auto p_value = stage_t::template proceed_insert<KT, true>(
@@ -65,16 +72,22 @@ struct NodeLayoutReplayableT {
     return p_value;
   }
 
-  static void update_child_addr(
-      NodeExtentMutable& mut, const laddr_t new_addr, laddr_packed_t* p_addr) {
+  static void
+  update_child_addr(
+      NodeExtentMutable& mut,
+      const laddr_t new_addr,
+      laddr_packed_t* p_addr)
+  {
     assert(NODE_TYPE == node_type_t::INTERNAL);
     mut.copy_in_absolute(p_addr, new_addr);
   }
 
-  static std::tuple<match_stage_t, position_t> erase(
+  static std::tuple<match_stage_t, position_t>
+  erase(
       NodeExtentMutable& mut,
       const node_stage_t& node_stage,
-      const position_t& _erase_pos) {
+      const position_t& _erase_pos)
+  {
     if (_erase_pos.is_end()) {
       // must be internal node
       assert(node_stage.is_level_tail());
@@ -89,9 +102,9 @@ struct NodeLayoutReplayableT {
     return {erase_stage, erase_pos};
   }
 
-  static position_t make_tail(
-      NodeExtentMutable& mut,
-      const node_stage_t& node_stage) {
+  static position_t
+  make_tail(NodeExtentMutable& mut, const node_stage_t& node_stage)
+  {
     assert(!node_stage.is_level_tail());
     if constexpr (NODE_TYPE == node_type_t::INTERNAL) {
       auto [r_stage, r_last_pos] = update_last_to_tail(mut, node_stage);
@@ -104,10 +117,10 @@ struct NodeLayoutReplayableT {
     }
   }
 
- private:
-  static std::tuple<match_stage_t, position_t> update_last_to_tail(
-      NodeExtentMutable& mut,
-      const node_stage_t& node_stage) {
+private:
+  static std::tuple<match_stage_t, position_t>
+  update_last_to_tail(NodeExtentMutable& mut, const node_stage_t& node_stage)
+  {
     if constexpr (NODE_TYPE == node_type_t::INTERNAL) {
       assert(node_stage.keys() != 0);
       position_t last_pos;
@@ -124,8 +137,8 @@ struct NodeLayoutReplayableT {
       assert(erase_pos.is_end());
 
       node_stage_t::update_is_level_tail(mut, node_stage, true);
-      auto p_last_value = const_cast<laddr_packed_t*>(
-          node_stage.get_end_p_laddr());
+      auto p_last_value =
+          const_cast<laddr_packed_t*>(node_stage.get_end_p_laddr());
       mut.copy_in_absolute(p_last_value, last_value);
       // return erase_stage, last_pos
       return {erase_stage, last_pos};
@@ -135,4 +148,4 @@ struct NodeLayoutReplayableT {
   }
 };
 
-}
+} // namespace crimson::os::seastore::onode

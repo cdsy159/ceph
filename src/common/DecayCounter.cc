@@ -14,12 +14,14 @@
  */
 
 #include "DecayCounter.h"
-#include "Formatter.h"
-#include "StackStringStream.h"
 
 #include "include/encoding.h"
 
-void DecayCounter::encode(ceph::buffer::list& bl) const
+#include "Formatter.h"
+#include "StackStringStream.h"
+
+void
+DecayCounter::encode(ceph::buffer::list& bl) const
 {
   decay();
   ENCODE_START(5, 4, bl);
@@ -27,7 +29,8 @@ void DecayCounter::encode(ceph::buffer::list& bl) const
   ENCODE_FINISH(bl);
 }
 
-void DecayCounter::decode(ceph::buffer::list::const_iterator &p)
+void
+DecayCounter::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(5, 4, 4, p);
   if (struct_v < 2) {
@@ -49,16 +52,18 @@ void DecayCounter::decode(ceph::buffer::list::const_iterator &p)
   DECODE_FINISH(p);
 }
 
-void DecayCounter::dump(ceph::Formatter *f) const
+void
+DecayCounter::dump(ceph::Formatter* f) const
 {
   decay();
   f->dump_float("value", val);
   f->dump_float("halflife", rate.get_halflife());
 }
 
-std::list<DecayCounter> DecayCounter::generate_test_instances()
+std::list<DecayCounter>
+DecayCounter::generate_test_instances()
 {
-  std::list<DecayCounter>ls;
+  std::list<DecayCounter> ls;
 
   DecayCounter counter;
   counter.val = 3.0;
@@ -68,7 +73,8 @@ std::list<DecayCounter> DecayCounter::generate_test_instances()
   return ls;
 }
 
-void DecayCounter::decay(double delta) const
+void
+DecayCounter::decay(double delta) const
 {
   auto now = clock::now();
   double el = std::chrono::duration<double>(now - last_decay).count();
@@ -83,7 +89,9 @@ void DecayCounter::decay(double delta) const
   last_decay = now;
 }
 
-std::ostream& operator<<(std::ostream& out, const DecayCounter& d) {
+std::ostream&
+operator<<(std::ostream& out, const DecayCounter& d)
+{
   CachedStackStringStream css;
   css->precision(2);
   double val = d.get();

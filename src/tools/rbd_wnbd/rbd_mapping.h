@@ -16,26 +16,26 @@
 #include "rbd_mapping_config.h"
 #include "wnbd_handler.h"
 
-class WNBDWatchCtx : public librbd::UpdateWatchCtx
-{
+class WNBDWatchCtx : public librbd::UpdateWatchCtx {
 private:
-  librados::IoCtx &io_ctx;
+  librados::IoCtx& io_ctx;
   WnbdHandler* handler;
-  librbd::Image &image;
+  librbd::Image& image;
   uint64_t size;
+
 public:
-  WNBDWatchCtx(librados::IoCtx& io_ctx, WnbdHandler* handler,
-               librbd::Image& image, uint64_t size)
-    : io_ctx(io_ctx)
-    , handler(handler)
-    , image(image)
-    , size(size)
-  {
-  }
+  WNBDWatchCtx(
+      librados::IoCtx& io_ctx,
+      WnbdHandler* handler,
+      librbd::Image& image,
+      uint64_t size) :
+    io_ctx(io_ctx), handler(handler), image(image), size(size)
+  {}
 
   ~WNBDWatchCtx() override {}
 
-  void handle_notify() override
+  void
+  handle_notify() override
   {
     uint64_t new_size;
 
@@ -48,8 +48,7 @@ public:
 
 typedef std::function<void(std::string devpath, int ret)> disconnect_cbk_t;
 
-class RbdMapping
-{
+class RbdMapping {
 private:
   Config cfg;
   // We're sharing the rados object across mappings in order to
@@ -74,18 +73,15 @@ private:
   int init();
 
 public:
-  RbdMapping(Config& _cfg,
-             RadosClientCache& _client_cache)
-    : cfg(_cfg)
-    , client_cache(_client_cache)
+  RbdMapping(Config& _cfg, RadosClientCache& _client_cache) :
+    cfg(_cfg), client_cache(_client_cache)
   {}
 
-  RbdMapping(Config& _cfg,
-             RadosClientCache& _client_cache,
-             disconnect_cbk_t _disconnect_cbk)
-    : cfg(_cfg)
-    , client_cache(_client_cache)
-    , disconnect_cbk(_disconnect_cbk)
+  RbdMapping(
+      Config& _cfg,
+      RadosClientCache& _client_cache,
+      disconnect_cbk_t _disconnect_cbk) :
+    cfg(_cfg), client_cache(_client_cache), disconnect_cbk(_disconnect_cbk)
   {}
 
   ~RbdMapping();
@@ -99,8 +95,7 @@ public:
 // Wait for the mapped disk to become available.
 int wait_mapped_disk(Config& cfg);
 
-class RbdMappingDispatcher
-{
+class RbdMappingDispatcher {
 private:
   RadosClientCache& client_cache;
 
@@ -115,13 +110,11 @@ private:
   int get_mappings_count();
 
 public:
-  RbdMappingDispatcher(RadosClientCache& _client_cache)
-    : client_cache(_client_cache)
+  RbdMappingDispatcher(RadosClientCache& _client_cache) :
+    client_cache(_client_cache)
   {}
 
   int create(Config& cfg);
   std::shared_ptr<RbdMapping> get_mapping(std::string& devpath);
-  int stop(bool hard_disconnect,
-           int soft_disconnect_timeout,
-           int worker_count);
+  int stop(bool hard_disconnect, int soft_disconnect_timeout, int worker_count);
 };

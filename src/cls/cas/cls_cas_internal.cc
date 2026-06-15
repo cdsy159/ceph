@@ -3,13 +3,10 @@
 
 #include "cls_cas_internal.h"
 
+chunk_refs_t::chunk_refs_t(const chunk_refs_t& other) { *this = other; }
 
-chunk_refs_t::chunk_refs_t(const chunk_refs_t& other)
-{
-  *this = other;
-}
-
-chunk_refs_t& chunk_refs_t::operator=(const chunk_refs_t& other)
+chunk_refs_t&
+chunk_refs_t::operator=(const chunk_refs_t& other)
 {
   // this is inefficient, but easy.
   bufferlist bl;
@@ -19,21 +16,23 @@ chunk_refs_t& chunk_refs_t::operator=(const chunk_refs_t& other)
   return *this;
 }
 
-void chunk_refs_t::clear()
+void
+chunk_refs_t::clear()
 {
   // default to most precise impl
   r.reset(new chunk_refs_by_object_t);
 }
 
-
-void chunk_refs_t::encode(ceph::buffer::list& bl) const
+void
+chunk_refs_t::encode(ceph::buffer::list& bl) const
 {
   bufferlist t;
   _encode_r(t);
   _encode_final(bl, t);
 }
 
-void chunk_refs_t::_encode_r(ceph::bufferlist& bl) const
+void
+chunk_refs_t::_encode_r(ceph::bufferlist& bl) const
 {
   using ceph::encode;
   switch (r->get_type()) {
@@ -54,7 +53,8 @@ void chunk_refs_t::_encode_r(ceph::bufferlist& bl) const
   }
 }
 
-void chunk_refs_t::dynamic_encode(ceph::buffer::list& bl, size_t max)
+void
+chunk_refs_t::dynamic_encode(ceph::buffer::list& bl, size_t max)
 {
   bufferlist t;
   while (true) {
@@ -68,12 +68,12 @@ void chunk_refs_t::dynamic_encode(ceph::buffer::list& bl, size_t max)
     switch (r->get_type()) {
     case TYPE_BY_OBJECT:
       r.reset(new chunk_refs_by_hash_t(
-		static_cast<chunk_refs_by_object_t*>(r.get())));
+          static_cast<chunk_refs_by_object_t*>(r.get())));
       break;
     case TYPE_BY_HASH:
       if (!static_cast<chunk_refs_by_hash_t*>(r.get())->shrink()) {
-	r.reset(new chunk_refs_by_pool_t(
-		  static_cast<chunk_refs_by_hash_t*>(r.get())));
+        r.reset(new chunk_refs_by_pool_t(
+            static_cast<chunk_refs_by_hash_t*>(r.get())));
       }
       break;
     case TYPE_BY_POOL:
@@ -85,7 +85,8 @@ void chunk_refs_t::dynamic_encode(ceph::buffer::list& bl, size_t max)
   _encode_final(bl, t);
 }
 
-void chunk_refs_t::_encode_final(bufferlist& bl, bufferlist& t) const
+void
+chunk_refs_t::_encode_final(bufferlist& bl, bufferlist& t) const
 {
   ENCODE_START(1, 1, bl);
   encode(r->get_type(), bl);
@@ -93,44 +94,37 @@ void chunk_refs_t::_encode_final(bufferlist& bl, bufferlist& t) const
   ENCODE_FINISH(bl);
 }
 
-void chunk_refs_t::decode(ceph::buffer::list::const_iterator& p)
+void
+chunk_refs_t::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(1, p);
   uint8_t t;
   decode(t, p);
   switch (t) {
-  case TYPE_BY_OBJECT:
-    {
-      auto n = new chunk_refs_by_object_t();
-      decode(*n, p);
-      r.reset(n);
-    }
-    break;
-  case TYPE_BY_HASH:
-    {
-      auto n = new chunk_refs_by_hash_t();
-      decode(*n, p);
-      r.reset(n);
-    }
-    break;
-  case TYPE_BY_POOL:
-    {
-      auto n = new chunk_refs_by_pool_t();
-      decode(*n, p);
-      r.reset(n);
-    }
-    break;
-  case TYPE_COUNT:
-    {
-      auto n = new chunk_refs_count_t();
-      decode(*n, p);
-      r.reset(n);
-    }
-    break;
+  case TYPE_BY_OBJECT: {
+    auto n = new chunk_refs_by_object_t();
+    decode(*n, p);
+    r.reset(n);
+  } break;
+  case TYPE_BY_HASH: {
+    auto n = new chunk_refs_by_hash_t();
+    decode(*n, p);
+    r.reset(n);
+  } break;
+  case TYPE_BY_POOL: {
+    auto n = new chunk_refs_by_pool_t();
+    decode(*n, p);
+    r.reset(n);
+  } break;
+  case TYPE_COUNT: {
+    auto n = new chunk_refs_count_t();
+    decode(*n, p);
+    r.reset(n);
+  } break;
   default:
     throw ceph::buffer::malformed_input(
-      std::string("unrecognized chunk ref encoding type ") +
-      stringify((int)t));
+        std::string("unrecognized chunk ref encoding type ") +
+        stringify((int)t));
   }
   DECODE_FINISH(p);
 }

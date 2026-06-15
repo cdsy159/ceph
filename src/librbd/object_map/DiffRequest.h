@@ -4,12 +4,13 @@
 #ifndef CEPH_LIBRBD_OBJECT_MAP_DIFF_REQUEST_H
 #define CEPH_LIBRBD_OBJECT_MAP_DIFF_REQUEST_H
 
-#include "include/int_types.h"
-#include "common/bit_vector.hpp"
-#include "common/ceph_mutex.h"
-#include "librbd/object_map/Types.h"
 #include <set>
 #include <shared_mutex> // for std::shared_lock
+
+#include "common/bit_vector.hpp"
+#include "common/ceph_mutex.h"
+#include "include/int_types.h"
+#include "librbd/object_map/Types.h"
 
 struct Context;
 
@@ -22,20 +23,29 @@ namespace object_map {
 template <typename ImageCtxT>
 class DiffRequest {
 public:
-  static DiffRequest* create(ImageCtxT* image_ctx,
-                             uint64_t snap_id_start, uint64_t snap_id_end,
-                             uint64_t start_object_no, uint64_t end_object_no,
-                             BitVector<2>* object_diff_state,
-                             Context* on_finish) {
-    return new DiffRequest(image_ctx, snap_id_start, snap_id_end,
-                           start_object_no, end_object_no, object_diff_state,
-                           on_finish);
+  static DiffRequest*
+  create(
+      ImageCtxT* image_ctx,
+      uint64_t snap_id_start,
+      uint64_t snap_id_end,
+      uint64_t start_object_no,
+      uint64_t end_object_no,
+      BitVector<2>* object_diff_state,
+      Context* on_finish)
+  {
+    return new DiffRequest(
+        image_ctx, snap_id_start, snap_id_end, start_object_no, end_object_no,
+        object_diff_state, on_finish);
   }
 
-  DiffRequest(ImageCtxT* image_ctx,
-              uint64_t snap_id_start, uint64_t snap_id_end,
-              uint64_t start_object_no, uint64_t end_object_no,
-              BitVector<2>* object_diff_state, Context* on_finish);
+  DiffRequest(
+      ImageCtxT* image_ctx,
+      uint64_t snap_id_start,
+      uint64_t snap_id_end,
+      uint64_t start_object_no,
+      uint64_t end_object_no,
+      BitVector<2>* object_diff_state,
+      Context* on_finish);
 
   void send();
 
@@ -80,7 +90,6 @@ private:
   void handle_load_object_map(int r);
 
   void finish(int r);
-
 };
 
 } // namespace object_map

@@ -18,7 +18,7 @@
 // to avoid duplication and maintain consistency.
 
 // Beacon version constants
-#define BEACON_VERSION_LEGACY 1             // Legacy beacon format (no diff support)
-#define BEACON_VERSION_ENHANCED 2           // Enhanced beacon format (with diff support)
+#define BEACON_VERSION_LEGACY 1 // Legacy beacon format (no diff support)
+#define BEACON_VERSION_ENHANCED 2 // Enhanced beacon format (with diff support)
 
 #endif /* CEPH_NVMEOFGWBEACONCONSTANTS_H */

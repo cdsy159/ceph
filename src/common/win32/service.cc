@@ -13,14 +13,17 @@
 #define dout_context cct
 #define dout_subsys ceph_subsys_
 
-#include "common/debug.h"
-#include "common/errno.h"
 #include "common/win32/service.h"
 
-// Initialize the singleton service instance.
-ServiceBase *ServiceBase::s_service = NULL;
+#include "common/debug.h"
 
-ServiceBase::ServiceBase(CephContext *cct_): cct(cct_)
+#include "common/errno.h"
+
+// Initialize the singleton service instance.
+ServiceBase* ServiceBase::s_service = NULL;
+
+ServiceBase::ServiceBase(CephContext* cct_) :
+  cct(cct_)
 {
   status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
   status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
@@ -32,34 +35,33 @@ ServiceBase::ServiceBase(CephContext *cct_): cct(cct_)
 }
 
 /* Register service action callbacks */
-int ServiceBase::initialize(ServiceBase *service)
+int
+ServiceBase::initialize(ServiceBase* service)
 {
   s_service = service;
 
   SERVICE_TABLE_ENTRY service_table[] = {
-    {"", (LPSERVICE_MAIN_FUNCTION)run},
-    {NULL, NULL}
-  };
+      {"", (LPSERVICE_MAIN_FUNCTION)run}, {NULL, NULL}};
 
   /* StartServiceCtrlDispatcher blocks until the service is stopped. */
   if (!StartServiceCtrlDispatcher(service_table)) {
     int err = GetLastError();
-    lderr(service->cct) << "StartServiceCtrlDispatcher error: "
-                        << err << dendl;
+    lderr(service->cct) << "StartServiceCtrlDispatcher error: " << err << dendl;
     return -EINVAL;
   }
   return 0;
 }
 
-void WINAPI ServiceBase::run()
+void WINAPI
+ServiceBase::run()
 {
   assert(s_service != NULL);
 
   /* Register the control handler. This function is called by the service
    * manager to stop the service. The service name that we're passing here
    * doesn't have to be valid as we're using SERVICE_WIN32_OWN_PROCESS. */
-  s_service->hstatus = RegisterServiceCtrlHandler(
-    "", (LPHANDLER_FUNCTION)control_handler);
+  s_service->hstatus =
+      RegisterServiceCtrlHandler("", (LPHANDLER_FUNCTION)control_handler);
   if (!s_service->hstatus) {
     lderr(s_service->cct) << "Could not initialize service control handler. "
                           << "Error: " << GetLastError() << dendl;
@@ -72,8 +74,8 @@ void WINAPI ServiceBase::run()
   ldout(s_service->cct, 0) << "Starting service." << dendl;
   int err = s_service->run_hook();
   if (err) {
-    lderr(s_service->cct) << "Failed to start service. Error code: "
-                          << err << dendl;
+    lderr(s_service->cct) << "Failed to start service. Error code: " << err
+                          << dendl;
     s_service->shutdown(true);
   } else {
     ldout(s_service->cct, 0) << "Successfully started service." << dendl;
@@ -81,7 +83,8 @@ void WINAPI ServiceBase::run()
   }
 }
 
-void ServiceBase::shutdown(bool ignore_errors)
+void
+ServiceBase::shutdown(bool ignore_errors)
 {
   DWORD original_state = status.dwCurrentState;
   set_status(SERVICE_STOP_PENDING);
@@ -105,7 +108,8 @@ void ServiceBase::shutdown(bool ignore_errors)
   }
 }
 
-void ServiceBase::stop()
+void
+ServiceBase::stop()
 {
   DWORD original_state = status.dwCurrentState;
   set_status(SERVICE_STOP_PENDING);
@@ -125,7 +129,8 @@ void ServiceBase::stop()
 /* This function is registered with the Windows services manager through
  * a call to RegisterServiceCtrlHandler() and will be called by the Windows
  * service manager asynchronously to stop the service. */
-void ServiceBase::control_handler(DWORD request)
+void
+ServiceBase::control_handler(DWORD request)
 {
   switch (request) {
   case SERVICE_CONTROL_STOP:
@@ -139,7 +144,9 @@ void ServiceBase::control_handler(DWORD request)
   }
 }
 
-void ServiceBase::set_status(DWORD current_state, DWORD exit_code) {
+void
+ServiceBase::set_status(DWORD current_state, DWORD exit_code)
+{
   static DWORD dwCheckPoint = 1;
   if (current_state == SERVICE_RUNNING || current_state == SERVICE_STOPPED) {
     status.dwCheckPoint = dwCheckPoint++;
@@ -150,11 +157,11 @@ void ServiceBase::set_status(DWORD current_state, DWORD exit_code) {
 
   if (hstatus) {
     dout(5) << "Updating service service status (" << current_state
-             << ") and exit code(" << exit_code << ")." << dendl;
+            << ") and exit code(" << exit_code << ")." << dendl;
     ::SetServiceStatus(hstatus, &status);
   } else {
     derr << "Service control handler not initialized. Cannot "
-         << "update service status (" << current_state
-         << ") and exit code(" << exit_code << ")." << dendl;
+         << "update service status (" << current_state << ") and exit code("
+         << exit_code << ")." << dendl;
   }
 }

@@ -5,14 +5,15 @@
 #include <string>
 #include <vector>
 
-#include "include/denc.h"
-#include "crimson/os/seastore/seastore_types.h"
-#include "crimson/os/seastore/transaction_manager.h"
 #include "crimson/os/seastore/logging.h"
 #include "crimson/os/seastore/omap_manager.h"
+#include "crimson/os/seastore/seastore_types.h"
+#include "crimson/os/seastore/transaction_manager.h"
+#include "include/denc.h"
+
 #include "log_node.h"
 
-namespace crimson::os::seastore::log_manager{
+namespace crimson::os::seastore::log_manager {
 
 class LogNode;
 using LogNodeRef = TCachedExtentRef<LogNode>;
@@ -56,9 +57,11 @@ constexpr uint8_t BATCH_CREATE_SIZE = 50;
  */
 class LogManager : public OMapManager {
 public:
-  LogManager(TransactionManager &tm);
-  initialize_omap_ret initialize_omap(Transaction &t,
-    laddr_t hint, omap_type_t type) final;
+  LogManager(TransactionManager& tm);
+  initialize_omap_ret initialize_omap(
+      Transaction& t,
+      laddr_t hint,
+      omap_type_t type) final;
 
   /**
    * omap_set_keys
@@ -70,15 +73,17 @@ public:
    * @param t      Transaction context
    * @param _kvs   Batch of keys to set
    */
-  omap_set_keys_ret omap_set_keys(omap_root_t &log_root,
-    Transaction &t, std::map<std::string, ceph::bufferlist>&& _kvs) final;
+  omap_set_keys_ret omap_set_keys(
+      omap_root_t& log_root,
+      Transaction& t,
+      std::map<std::string, ceph::bufferlist>&& _kvs) final;
 
   // see omap_set_keys
   omap_set_key_ret omap_set_key(
-    omap_root_t &log_root,
-    Transaction &t,
-    const std::string &key,
-    const ceph::bufferlist &value) final;
+      omap_root_t& log_root,
+      Transaction& t,
+      const std::string& key,
+      const ceph::bufferlist& value) final;
 
   /**
    * omap_get_value
@@ -90,9 +95,10 @@ public:
    * @param key        The key to retrieve
    *
    */
-  omap_get_value_ret
-  omap_get_value(const omap_root_t &log_root, Transaction &t,
-    const std::string &key) final;
+  omap_get_value_ret omap_get_value(
+      const omap_root_t& log_root,
+      Transaction& t,
+      const std::string& key) final;
 
   /**
    * omap_list
@@ -109,12 +115,12 @@ public:
    * @param config  see OMapManager
    */
   omap_list_ret omap_list(
-    const omap_root_t &log_root,
-    Transaction &t,
-    const std::optional<std::string> &first,
-    const std::optional<std::string> &last,
-    OMapManager::omap_list_config_t config =
-    OMapManager::omap_list_config_t()) final;
+      const omap_root_t& log_root,
+      Transaction& t,
+      const std::optional<std::string>& first,
+      const std::optional<std::string>& last,
+      OMapManager::omap_list_config_t config =
+          OMapManager::omap_list_config_t()) final;
 
   /**
    * omap_rm_key_range
@@ -129,10 +135,10 @@ public:
    */
 
   omap_rm_key_range_ret omap_rm_key_range(
-    omap_root_t &log_root,
-    Transaction &t,
-    const std::string &first,
-    const std::string &last) final;
+      omap_root_t& log_root,
+      Transaction& t,
+      const std::string& first,
+      const std::string& last) final;
 
   /**
    * omap_rm_key
@@ -149,15 +155,15 @@ public:
    *
    */
   omap_rm_key_ret omap_rm_key(
-    omap_root_t &log_root,
-    Transaction &t,
-    const std::string &key) final;
+      omap_root_t& log_root,
+      Transaction& t,
+      const std::string& key) final;
 
 
   omap_rm_keys_ret omap_rm_keys(
-    omap_root_t &omap_root,
-    Transaction &t,
-    std::set<std::string>& keys) final;
+      omap_root_t& omap_root,
+      Transaction& t,
+      std::set<std::string>& keys) final;
 
   /**
    * omap_clear
@@ -168,8 +174,7 @@ public:
    * @param t          Transaction context 
    *
    */
-  omap_clear_ret omap_clear(omap_root_t &log_root,
-    Transaction &t) final;
+  omap_clear_ret omap_clear(omap_root_t& log_root, Transaction& t) final;
 
 
   /**
@@ -192,24 +197,29 @@ public:
    *
    */
   omap_iterate_ret omap_iterate(
-    const omap_root_t &log_root,
-    Transaction &t,
-    ObjectStore::omap_iter_seek_t &start_from,
-    omap_iterate_cb_t callback
-  ) final;
+      const omap_root_t& log_root,
+      Transaction& t,
+      ObjectStore::omap_iter_seek_t& start_from,
+      omap_iterate_cb_t callback) final;
 
 
-  omap_list_iertr::future<>
-  find_kvs(Transaction &t, laddr_t dst, const std::optional<std::string> &first,
-    const std::optional<std::string> &last, std::map<std::string, bufferlist> &kvs);
+  omap_list_iertr::future<> find_kvs(
+      Transaction& t,
+      laddr_t dst,
+      const std::optional<std::string>& first,
+      const std::optional<std::string>& last,
+      std::map<std::string, bufferlist>& kvs);
 
   using log_load_extent_iertr = base_iertr;
   template <typename T>
-  requires std::is_same_v<LogNode, T>
+    requires std::is_same_v<LogNode, T>
   log_load_extent_iertr::future<TCachedExtentRef<T>> log_load_extent(
-    Transaction &t, laddr_t laddr, std::string begin, std::string end);
+      Transaction& t,
+      laddr_t laddr,
+      std::string begin,
+      std::string end);
 
-  omap_get_value_ret find_kv(Transaction &t, laddr_t dst, const std::string &key);
+  omap_get_value_ret find_kv(Transaction& t, laddr_t dst, const std::string& key);
 
   /**
    * _log_set_key
@@ -228,9 +238,13 @@ public:
    * @param value     Value to set/append.
    *
    */
-  omap_set_key_ret _log_set_key(omap_root_t &log_root,
-    Transaction &t, LogNodeRef e, const std::string &key,
-    const ceph::bufferlist &value, bool can_ow = false);
+  omap_set_key_ret _log_set_key(
+      omap_root_t& log_root,
+      Transaction& t,
+      LogNodeRef e,
+      const std::string& key,
+      const ceph::bufferlist& value,
+      bool can_ow = false);
 
   /**
    * remove_kv
@@ -253,9 +267,12 @@ public:
    * @param prev  The next LogNode in the chain (nullptr if @dst is the tail).
    */
 
-  omap_rm_key_ret remove_kv(Transaction &t, laddr_t dst, const std::string &key,
-    LogNodeRef prev);
-  
+  omap_rm_key_ret remove_kv(
+      Transaction& t,
+      laddr_t dst,
+      const std::string& key,
+      LogNodeRef prev);
+
   /**
    * remove_kvs
    *
@@ -274,12 +291,14 @@ public:
    *
    * @return omap_rm_key_ret 
    */
-  omap_rm_key_ret remove_kvs(Transaction &t, laddr_t dst,
-    std::optional<std::string> first, 
-    std::optional<std::string> last,
-    LogNodeRef prev);
+  omap_rm_key_ret remove_kvs(
+      Transaction& t,
+      laddr_t dst,
+      std::optional<std::string> first,
+      std::optional<std::string> last,
+      LogNodeRef prev);
 
-  
+
   /**
    * remove_node
    *
@@ -295,11 +314,14 @@ public:
    * @param mut   The LogNode to be removed or re-initialized.
    * @param prev  The next LogNode in the chain (nullptr if @mut is the tail).
    */
-  LogManager::omap_rm_key_ret remove_node(Transaction &t,
-    LogNodeRef mut,
-    LogNodeRef prev);
+  LogManager::omap_rm_key_ret remove_node(
+      Transaction& t,
+      LogNodeRef mut,
+      LogNodeRef prev);
 
-  base_iertr::future<laddr_t> get_dup_addr_from_root(Transaction &t, laddr_t addr);
+  base_iertr::future<laddr_t> get_dup_addr_from_root(
+      Transaction& t,
+      laddr_t addr);
 
   /**
    *
@@ -329,48 +351,64 @@ public:
    *        +-------------------------------+
    *
    */
-  omap_get_value_iertr::future<>
-  find_multi_block_kv(Transaction &t, const std::string &key,
-    LogNodeRef extent, bufferlist &buf);
-  omap_list_iertr::future<>
-  find_multi_block_kvs(Transaction &t, LogNodeRef extent,
-    const std::optional<std::string> &first,
-    const std::optional<std::string> &last,
-    std::map<std::string, bufferlist> &kvs);
-  omap_set_key_ret
-  _log_set_multi_block_key(omap_root_t &log_root,
-    Transaction &t, LogNodeRef tail,
-    const std::string &key, const ceph::bufferlist &value);
+  omap_get_value_iertr::future<> find_multi_block_kv(
+      Transaction& t,
+      const std::string& key,
+      LogNodeRef extent,
+      bufferlist& buf);
+  omap_list_iertr::future<> find_multi_block_kvs(
+      Transaction& t,
+      LogNodeRef extent,
+      const std::optional<std::string>& first,
+      const std::optional<std::string>& last,
+      std::map<std::string, bufferlist>& kvs);
+  omap_set_key_ret _log_set_multi_block_key(
+      omap_root_t& log_root,
+      Transaction& t,
+      LogNodeRef tail,
+      const std::string& key,
+      const ceph::bufferlist& value);
 
 
-  TransactionManager &tm;
+  TransactionManager& tm;
 };
 
-inline bool is_log_key(const std::string &s) {
+inline bool
+is_log_key(const std::string& s)
+{
   pg_log_entry_t e;
   return (s.size() == e.get_key_name().size() &&
-      (s[0] >= (0 + '0') && s[0] <= (9 + '0'))) ||
-      s.starts_with("dup_");
+          (s[0] >= (0 + '0') && s[0] <= (9 + '0'))) ||
+         s.starts_with("dup_");
 }
 
-inline bool is_pg_log_key(const std::string &s) {
+inline bool
+is_pg_log_key(const std::string& s)
+{
   pg_log_entry_t e;
-  return (s.size() == e.get_key_name().size() &&
+  return (
+      s.size() == e.get_key_name().size() &&
       (s[0] >= (0 + '0') && s[0] <= (9 + '0')));
 }
 
-inline bool is_dup_log_key(const std::string &s) {
+inline bool
+is_dup_log_key(const std::string& s)
+{
   return s.starts_with("dup_");
 }
 
-inline bool is_ow_key(const std::string &s) {
+inline bool
+is_ow_key(const std::string& s)
+{
   return s == fastinfo_key;
 }
 
-inline std::string get_ow_key() {
+inline std::string
+get_ow_key()
+{
   return std::string(fastinfo_key);
 }
 
 bool is_continuous_fixed_width(const std::set<std::string>& keys);
 
-}
+} // namespace crimson::os::seastore::log_manager

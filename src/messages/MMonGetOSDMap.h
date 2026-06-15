@@ -20,9 +20,8 @@
 #include <string>
 #include <string_view>
 
-#include "msg/Message.h"
-
 #include "include/types.h"
+#include "msg/Message.h"
 
 class MMonGetOSDMap final : public PaxosServiceMessage {
 private:
@@ -30,41 +29,67 @@ private:
   epoch_t inc_first, inc_last;
 
 public:
-  MMonGetOSDMap()
-    : PaxosServiceMessage{CEPH_MSG_MON_GET_OSDMAP, 0},
-      full_first(0),
-      full_last(0),
-      inc_first(0),
-      inc_last(0) { }
+  MMonGetOSDMap() :
+    PaxosServiceMessage{CEPH_MSG_MON_GET_OSDMAP, 0},
+    full_first(0),
+    full_last(0),
+    inc_first(0),
+    inc_last(0)
+  {}
+
 private:
   ~MMonGetOSDMap() final {}
 
 public:
-  void request_full(epoch_t first, epoch_t last) {
+  void
+  request_full(epoch_t first, epoch_t last)
+  {
     ceph_assert(last >= first);
     full_first = first;
     full_last = last;
   }
-  void request_inc(epoch_t first, epoch_t last) {
+
+  void
+  request_inc(epoch_t first, epoch_t last)
+  {
     ceph_assert(last >= first);
     inc_first = first;
     inc_last = last;
   }
-  epoch_t get_full_first() const {
+
+  epoch_t
+  get_full_first() const
+  {
     return full_first;
   }
-  epoch_t get_full_last() const {
+
+  epoch_t
+  get_full_last() const
+  {
     return full_last;
   }
-  epoch_t get_inc_first() const {
+
+  epoch_t
+  get_inc_first() const
+  {
     return inc_first;
   }
-  epoch_t get_inc_last() const {
+
+  epoch_t
+  get_inc_last() const
+  {
     return inc_last;
   }
 
-  std::string_view get_type_name() const override { return "mon_get_osdmap"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_get_osdmap";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "mon_get_osdmap(";
     if (full_first && full_last)
       out << "full " << full_first << "-" << full_last;
@@ -73,7 +98,9 @@ public:
     out << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(full_first, payload);
@@ -81,7 +108,10 @@ public:
     encode(inc_first, payload);
     encode(inc_last, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -90,8 +120,9 @@ public:
     decode(inc_first, p);
     decode(inc_last, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

@@ -4,14 +4,15 @@
 #ifndef CEPH_LIBRBD_IO_OBJECT_DISPATCHER_H
 #define CEPH_LIBRBD_IO_OBJECT_DISPATCHER_H
 
-#include "include/int_types.h"
+#include <map>
+
 #include "common/ceph_mutex.h"
+#include "include/int_types.h"
 #include "librbd/io/Dispatcher.h"
 #include "librbd/io/ObjectDispatchInterface.h"
 #include "librbd/io/ObjectDispatchSpec.h"
 #include "librbd/io/ObjectDispatcherInterface.h"
 #include "librbd/io/Types.h"
-#include <map>
 
 struct Context;
 
@@ -31,25 +32,30 @@ public:
   void reset_existence_cache(Context* on_finish) override;
 
   void extent_overwritten(
-      uint64_t object_no, uint64_t object_off, uint64_t object_len,
-      uint64_t journal_tid, uint64_t new_journal_tid) override;
+      uint64_t object_no,
+      uint64_t object_off,
+      uint64_t object_len,
+      uint64_t journal_tid,
+      uint64_t new_journal_tid) override;
 
   int prepare_copyup(
       uint64_t object_no,
       SnapshotSparseBufferlist* snapshot_sparse_bufferlist) override;
 
-  using typename Dispatcher<ImageCtxT, ObjectDispatcherInterface>::C_LayerIterator;
+  using
+      typename Dispatcher<ImageCtxT, ObjectDispatcherInterface>::C_LayerIterator;
 
-  using typename Dispatcher<ImageCtxT, ObjectDispatcherInterface>::C_InvalidateCache;
+  using
+      typename Dispatcher<ImageCtxT, ObjectDispatcherInterface>::C_InvalidateCache;
 
 protected:
-  bool send_dispatch(ObjectDispatchInterface* object_dispatch,
-                     ObjectDispatchSpec* object_dispatch_spec) override;
+  bool send_dispatch(
+      ObjectDispatchInterface* object_dispatch,
+      ObjectDispatchSpec* object_dispatch_spec) override;
 
 private:
   struct C_ResetExistenceCache;
   struct SendVisitor;
-
 };
 
 } // namespace io

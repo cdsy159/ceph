@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,16 +14,17 @@
  */
 
 
+#include "CephxClientHandler.h"
+
 #include <errno.h>
 
-#include "CephxClientHandler.h"
-#include "CephxProtocol.h"
-
 #include "auth/KeyRing.h"
-#include "include/random.h"
 #include "common/ceph_context.h"
 #include "common/config.h"
 #include "common/dout.h"
+#include "include/random.h"
+
+#include "CephxProtocol.h"
 
 #define dout_subsys ceph_subsys_auth
 #undef dout_prefix
@@ -33,14 +34,16 @@ using std::string;
 
 using ceph::bufferlist;
 
-void CephxClientHandler::reset()
+void
+CephxClientHandler::reset()
 {
-  ldout(cct,10) << __func__ << dendl;
+  ldout(cct, 10) << __func__ << dendl;
   starting = true;
   server_challenge = 0;
 }
 
-int CephxClientHandler::build_request(bufferlist& bl) const
+int
+CephxClientHandler::build_request(bufferlist& bl) const
 {
   ldout(cct, 10) << "build_request" << dendl;
 
@@ -53,23 +56,26 @@ int CephxClientHandler::build_request(bufferlist& bl) const
     CryptoKey secret;
     const bool got = keyring->get_secret(cct->_conf->name, secret);
     if (!got) {
-      ldout(cct, 20) << "no secret found for entity: " << cct->_conf->name << dendl;
+      ldout(cct, 20) << "no secret found for entity: " << cct->_conf->name
+                     << dendl;
       return -ENOENT;
     }
 
     // is the key OK?
     if (!secret.get_secret().length()) {
-      ldout(cct, 20) << "secret for entity " << cct->_conf->name << " is invalid" << dendl;
+      ldout(cct, 20) << "secret for entity " << cct->_conf->name
+                     << " is invalid" << dendl;
       return -EINVAL;
     }
 
     CephXAuthenticate req;
     req.client_challenge = ceph::util::generate_random_number<uint64_t>();
     std::string error;
-    cephx_calc_client_server_challenge(cct, secret, server_challenge,
-				       req.client_challenge, &req.key, error);
+    cephx_calc_client_server_challenge(
+        cct, secret, server_challenge, req.client_challenge, &req.key, error);
     if (!error.empty()) {
-      ldout(cct, 20) << "cephx_calc_client_server_challenge error: " << error << dendl;
+      ldout(cct, 20) << "cephx_calc_client_server_challenge error: " << error
+                     << dendl;
       return -EIO;
     }
 
@@ -79,25 +85,27 @@ int CephxClientHandler::build_request(bufferlist& bl) const
     req.other_keys = need;
 
     if (req.old_ticket.blob.length()) {
-      ldout(cct, 20) << "old ticket len=" << req.old_ticket.blob.length() << dendl;
+      ldout(cct, 20) << "old ticket len=" << req.old_ticket.blob.length()
+                     << dendl;
     }
 
     encode(req, bl);
 
-    ldout(cct, 10) << "get auth session key: client_challenge "
-		   << std::hex << req.client_challenge << std::dec << dendl;
+    ldout(cct, 10) << "get auth session key: client_challenge " << std::hex
+                   << req.client_challenge << std::dec << dendl;
     return 0;
   }
 
   if (_need_tickets()) {
     /* get service tickets */
-    ldout(cct, 10) << "get service keys: want=" << want << " need=" << need << " have=" << have << dendl;
+    ldout(cct, 10) << "get service keys: want=" << want << " need=" << need
+                   << " have=" << have << dendl;
 
     CephXRequestHeader header;
     header.request_type = CEPHX_GET_PRINCIPAL_SESSION_KEY;
     encode(header, bl);
 
-    CephXAuthorizer *authorizer = ticket_handler->build_authorizer(global_id);
+    CephXAuthorizer* authorizer = ticket_handler->build_authorizer(global_id);
     if (!authorizer)
       return -EINVAL;
     bl.claim_append(authorizer->bl);
@@ -111,7 +119,8 @@ int CephxClientHandler::build_request(bufferlist& bl) const
   return 0;
 }
 
-bool CephxClientHandler::_need_tickets() const
+bool
+CephxClientHandler::_need_tickets() const
 {
   // do not bother (re)requesting tickets if we *only* need the MGR
   // ticket; that can happen during an upgrade and we want to avoid a
@@ -120,14 +129,15 @@ bool CephxClientHandler::_need_tickets() const
   return need && need != CEPH_ENTITY_TYPE_MGR;
 }
 
-int CephxClientHandler::handle_response(
-  int ret,
-  bufferlist::const_iterator& indata,
-  CryptoKey *session_key,
-  std::string *connection_secret)
+int
+CephxClientHandler::handle_response(
+    int ret,
+    bufferlist::const_iterator& indata,
+    CryptoKey* session_key,
+    std::string* connection_secret)
 {
   ldout(cct, 10) << this << " handle_response ret = " << ret << dendl;
-  
+
   if (ret < 0)
     return ret; // hrm!
 
@@ -136,13 +146,14 @@ int CephxClientHandler::handle_response(
     try {
       decode(ch, indata);
     } catch (ceph::buffer::error& e) {
-      ldout(cct, 1) << __func__ << " failed to decode CephXServerChallenge: "
-		    << e.what() << dendl;
+      ldout(cct, 1) << __func__
+                    << " failed to decode CephXServerChallenge: " << e.what()
+                    << dendl;
       return -EPERM;
     }
     server_challenge = ch.server_challenge;
-    ldout(cct, 10) << " got initial server challenge "
-		   << std::hex << server_challenge << std::dec << dendl;
+    ldout(cct, 10) << " got initial server challenge " << std::hex
+                   << server_challenge << std::dec << dendl;
     starting = false;
 
     tickets.invalidate_ticket(CEPH_ENTITY_TYPE_AUTH);
@@ -153,149 +164,148 @@ int CephxClientHandler::handle_response(
   try {
     decode(header, indata);
   } catch (ceph::buffer::error& e) {
-    ldout(cct, 1) << __func__ << " failed to decode CephXResponseHeader: "
-		  << e.what() << dendl;
+    ldout(cct, 1) << __func__
+                  << " failed to decode CephXResponseHeader: " << e.what()
+                  << dendl;
     return -EPERM;
   }
 
   switch (header.request_type) {
-  case CEPHX_GET_AUTH_SESSION_KEY:
-    {
-      ldout(cct, 10) << " get_auth_session_key" << dendl;
-      CryptoKey secret;
-      const bool got = keyring->get_secret(cct->_conf->name, secret);
-      if (!got) {
-	ldout(cct, 0) << "key not found for " << cct->_conf->name << dendl;
-	return -ENOENT;
-      }
-	
-      if (!tickets.verify_service_ticket_reply(secret, indata)) {
-	ldout(cct, 0) << "could not verify service_ticket reply" << dendl;
-	return -EACCES;
-      }
-      ldout(cct, 10) << " want=" << want << " need=" << need << " have=" << have << dendl;
-      if (!indata.end()) {
-	bufferlist cbl, extra_tickets;
-	using ceph::decode;
-	try {
-	  decode(cbl, indata);
-	  decode(extra_tickets, indata);
-	} catch (ceph::buffer::error& e) {
-	  ldout(cct, 1) << __func__ << " failed to decode tickets: "
-			<< e.what() << dendl;
-	  return -EPERM;
-	}
-	ldout(cct, 10) << " got connection bl " << cbl.length()
-		       << " and extra tickets " << extra_tickets.length()
-		       << dendl;
-	// for msgr1, both session_key and connection_secret are NULL
-	// so we skip extra_tickets and incur an additional round-trip
-	// to get service tickets via CEPHX_GET_PRINCIPAL_SESSION_KEY
-	// as if talking to a pre-nautilus mon
-	// this wasn't intended but turns out to be needed because in
-	// msgr1 case MonClient doesn't explicitly wait for the monmap
-	// (which is shared together with CEPHX_GET_AUTH_SESSION_KEY
-	// reply)
-	// instead, it waits for CEPHX_GET_PRINCIPAL_SESSION_KEY reply
-	// which comes after the monmap and hence the monmap is always
-	// handled by the time authentication is considered finished
-	// if we start to always process extra_tickets here, MonClient
-	// would have no reason to send CEPHX_GET_PRINCIPAL_SESSION_KEY
-	// and RadosClient::connect() or similar could return with no
-	// actual monmap but just an initial bootstrap stub, leading
-	// to mon commands going out with zero fsid and other issues
-	if (session_key && connection_secret) {
-	  CephXTicketHandler& ticket_handler =
-	    tickets.get_handler(CEPH_ENTITY_TYPE_AUTH);
-	  if (session_key) {
-	    *session_key = ticket_handler.session_key;
-	  }
-	  if (cbl.length() && connection_secret) {
-	    auto p = cbl.cbegin();
-	    string err;
-	    if (decode_decrypt(cct, *connection_secret, *session_key, p,
-			       err)) {
-	      lderr(cct) << __func__ << " failed to decrypt connection_secret"
-			 << dendl;
-	    } else {
-	      ldout(cct, 10) << " got connection_secret "
-			     << connection_secret->size() << " bytes" << dendl;
-	    }
-	  }
-	  if (extra_tickets.length())  {
-	    auto p = extra_tickets.cbegin();
-	    if (!tickets.verify_service_ticket_reply(
-		  *session_key, p)) {
-	      lderr(cct) << "could not verify extra service_tickets" << dendl;
-	    } else {
-	      ldout(cct, 10) << " got extra service_tickets" << dendl;
-	    }
-	  }
-	}
-      }
-      validate_tickets();
-      if (_need_tickets())
-	ret = -EAGAIN;
-      else
-	ret = 0;
-      }
-    break;
-
-  case CEPHX_GET_PRINCIPAL_SESSION_KEY:
-    {
-      CephXTicketHandler& ticket_handler = tickets.get_handler(CEPH_ENTITY_TYPE_AUTH);
-      ldout(cct, 10) << " get_principal_session_key session_key " << ticket_handler.session_key << dendl;
-  
-      if (!tickets.verify_service_ticket_reply(ticket_handler.session_key, indata)) {
-        ldout(cct, 0) << "could not verify service_ticket reply" << dendl;
-        return -EACCES;
-      }
-      validate_tickets();
-      if (!_need_tickets()) {
-	ret = 0;
-      }
+  case CEPHX_GET_AUTH_SESSION_KEY: {
+    ldout(cct, 10) << " get_auth_session_key" << dendl;
+    CryptoKey secret;
+    const bool got = keyring->get_secret(cct->_conf->name, secret);
+    if (!got) {
+      ldout(cct, 0) << "key not found for " << cct->_conf->name << dendl;
+      return -ENOENT;
     }
-    break;
 
-  case CEPHX_GET_ROTATING_KEY:
-    {
-      ldout(cct, 10) << " get_rotating_key" << dendl;
-      if (rotating_secrets) {
-	RotatingSecrets secrets;
-	CryptoKey secret_key;
-	const bool got = keyring->get_secret(cct->_conf->name, secret_key);
-        if (!got) {
-          ldout(cct, 0) << "key not found for " << cct->_conf->name << dendl;
-          return -ENOENT;
+    if (!tickets.verify_service_ticket_reply(secret, indata)) {
+      ldout(cct, 0) << "could not verify service_ticket reply" << dendl;
+      return -EACCES;
+    }
+    ldout(cct, 10) << " want=" << want << " need=" << need << " have=" << have
+                   << dendl;
+    if (!indata.end()) {
+      bufferlist cbl, extra_tickets;
+      using ceph::decode;
+      try {
+        decode(cbl, indata);
+        decode(extra_tickets, indata);
+      } catch (ceph::buffer::error& e) {
+        ldout(cct, 1) << __func__ << " failed to decode tickets: " << e.what()
+                      << dendl;
+        return -EPERM;
+      }
+      ldout(cct, 10) << " got connection bl " << cbl.length()
+                     << " and extra tickets " << extra_tickets.length()
+                     << dendl;
+      // for msgr1, both session_key and connection_secret are NULL
+      // so we skip extra_tickets and incur an additional round-trip
+      // to get service tickets via CEPHX_GET_PRINCIPAL_SESSION_KEY
+      // as if talking to a pre-nautilus mon
+      // this wasn't intended but turns out to be needed because in
+      // msgr1 case MonClient doesn't explicitly wait for the monmap
+      // (which is shared together with CEPHX_GET_AUTH_SESSION_KEY
+      // reply)
+      // instead, it waits for CEPHX_GET_PRINCIPAL_SESSION_KEY reply
+      // which comes after the monmap and hence the monmap is always
+      // handled by the time authentication is considered finished
+      // if we start to always process extra_tickets here, MonClient
+      // would have no reason to send CEPHX_GET_PRINCIPAL_SESSION_KEY
+      // and RadosClient::connect() or similar could return with no
+      // actual monmap but just an initial bootstrap stub, leading
+      // to mon commands going out with zero fsid and other issues
+      if (session_key && connection_secret) {
+        CephXTicketHandler& ticket_handler =
+            tickets.get_handler(CEPH_ENTITY_TYPE_AUTH);
+        if (session_key) {
+          *session_key = ticket_handler.session_key;
         }
-	std::string error;
-	if (decode_decrypt(cct, secrets, secret_key, indata, error)) {
-	  ldout(cct, 0) << "could not set rotating key: decode_decrypt failed. error:"
-	    << error << dendl;
-	  return -EINVAL;
-	} else {
-	  rotating_secrets->set_secrets(std::move(secrets));
-	}
+        if (cbl.length() && connection_secret) {
+          auto p = cbl.cbegin();
+          string err;
+          if (decode_decrypt(cct, *connection_secret, *session_key, p, err)) {
+            lderr(cct) << __func__ << " failed to decrypt connection_secret"
+                       << dendl;
+          } else {
+            ldout(cct, 10) << " got connection_secret "
+                           << connection_secret->size() << " bytes" << dendl;
+          }
+        }
+        if (extra_tickets.length()) {
+          auto p = extra_tickets.cbegin();
+          if (!tickets.verify_service_ticket_reply(*session_key, p)) {
+            lderr(cct) << "could not verify extra service_tickets" << dendl;
+          } else {
+            ldout(cct, 10) << " got extra service_tickets" << dendl;
+          }
+        }
       }
     }
-    break;
+    validate_tickets();
+    if (_need_tickets())
+      ret = -EAGAIN;
+    else
+      ret = 0;
+  } break;
+
+  case CEPHX_GET_PRINCIPAL_SESSION_KEY: {
+    CephXTicketHandler& ticket_handler =
+        tickets.get_handler(CEPH_ENTITY_TYPE_AUTH);
+    ldout(cct, 10) << " get_principal_session_key session_key "
+                   << ticket_handler.session_key << dendl;
+
+    if (!tickets.verify_service_ticket_reply(
+            ticket_handler.session_key, indata)) {
+      ldout(cct, 0) << "could not verify service_ticket reply" << dendl;
+      return -EACCES;
+    }
+    validate_tickets();
+    if (!_need_tickets()) {
+      ret = 0;
+    }
+  } break;
+
+  case CEPHX_GET_ROTATING_KEY: {
+    ldout(cct, 10) << " get_rotating_key" << dendl;
+    if (rotating_secrets) {
+      RotatingSecrets secrets;
+      CryptoKey secret_key;
+      const bool got = keyring->get_secret(cct->_conf->name, secret_key);
+      if (!got) {
+        ldout(cct, 0) << "key not found for " << cct->_conf->name << dendl;
+        return -ENOENT;
+      }
+      std::string error;
+      if (decode_decrypt(cct, secrets, secret_key, indata, error)) {
+        ldout(cct, 0)
+            << "could not set rotating key: decode_decrypt failed. error:"
+            << error << dendl;
+        return -EINVAL;
+      } else {
+        rotating_secrets->set_secrets(std::move(secrets));
+      }
+    }
+  } break;
 
   default:
-   ldout(cct, 0) << " unknown request_type " << header.request_type << dendl;
-   ceph_abort();
+    ldout(cct, 0) << " unknown request_type " << header.request_type << dendl;
+    ceph_abort();
   }
   return ret;
 }
 
-
-AuthAuthorizer *CephxClientHandler::build_authorizer(uint32_t service_id) const
+AuthAuthorizer*
+CephxClientHandler::build_authorizer(uint32_t service_id) const
 {
-  ldout(cct, 10) << "build_authorizer for service " << ceph_entity_type_name(service_id) << dendl;
+  ldout(cct, 10) << "build_authorizer for service "
+                 << ceph_entity_type_name(service_id) << dendl;
   return tickets.build_authorizer(service_id);
 }
 
-
-bool CephxClientHandler::build_rotating_request(bufferlist& bl) const
+bool
+CephxClientHandler::build_rotating_request(bufferlist& bl) const
 {
   ldout(cct, 10) << "build_rotating_request" << dendl;
   CephXRequestHeader header;
@@ -304,31 +314,32 @@ bool CephxClientHandler::build_rotating_request(bufferlist& bl) const
   return true;
 }
 
-void CephxClientHandler::prepare_build_request()
+void
+CephxClientHandler::prepare_build_request()
 {
   ldout(cct, 10) << "validate_tickets: want=" << want << " need=" << need
-		 << " have=" << have << dendl;
+                 << " have=" << have << dendl;
   validate_tickets();
   ldout(cct, 10) << "want=" << want << " need=" << need << " have=" << have
-		 << dendl;
+                 << dendl;
 
   ticket_handler = &(tickets.get_handler(CEPH_ENTITY_TYPE_AUTH));
 }
 
-void CephxClientHandler::validate_tickets()
+void
+CephxClientHandler::validate_tickets()
 {
   // lock should be held for write
   tickets.validate_tickets(want, have, need);
 }
 
-bool CephxClientHandler::need_tickets()
+bool
+CephxClientHandler::need_tickets()
 {
   validate_tickets();
 
-  ldout(cct, 20) << "need_tickets: want=" << want
-		 << " have=" << have
-		 << " need=" << need
-		 << dendl;
+  ldout(cct, 20) << "need_tickets: want=" << want << " have=" << have
+                 << " need=" << need << dendl;
 
   return _need_tickets();
 }

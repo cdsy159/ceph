@@ -7,8 +7,8 @@
 #include <list>
 #include <vector>
 
-#include "include/Context.h"
 #include "common/ceph_mutex.h"
+#include "include/Context.h"
 
 /**
    This class provides common state and logic for code that needs to perform readahead
@@ -73,7 +73,7 @@ public:
      Waits until the pending count reaches 0.
    */
   void wait_for_pending();
-  void wait_for_pending(Context *ctx);
+  void wait_for_pending(Context* ctx);
 
   /**
      Sets the number of sequential requests necessary to trigger readahead.
@@ -106,7 +106,7 @@ public:
      by increasing or decreasing the size of the request by 50\% or less, it will.
      Alignments are tested in order, so larger numbers should almost always come first.
    */
-  void set_alignments(const std::vector<uint64_t> &alignments);
+  void set_alignments(const std::vector<uint64_t>& alignments);
 
 private:
   /**
@@ -161,7 +161,7 @@ private:
   ceph::mutex m_pending_lock = ceph::make_mutex("Readahead::m_pending_lock");
 
   /// Waiters for pending readahead
-  std::list<Context *> m_pending_waiting;
+  std::list<Context*> m_pending_waiting;
 };
 
 #endif

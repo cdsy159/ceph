@@ -12,8 +12,8 @@
 #define SPDK_CRC64_H
 
 #if 0
-#include "spdk/stdinc.h"
 #include "spdk/config.h"
+#include "spdk/stdinc.h"
 #else
 #include <stdint.h>
 #include <sys/types.h>
@@ -31,7 +31,7 @@ extern "C" {
  * \param crc Previous CRC-64 value.
  * \return Updated CRC-64 value.
  */
-uint64_t spdk_crc64_nvme(const void *buf, size_t len, uint64_t crc);
+uint64_t spdk_crc64_nvme(const void* buf, size_t len, uint64_t crc);
 
 #ifdef __cplusplus
 }

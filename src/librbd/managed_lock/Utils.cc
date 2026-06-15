@@ -1,9 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/ceph_assert.h"
 #include "librbd/managed_lock/Utils.h"
+
 #include <sstream>
+
+#include "include/ceph_assert.h"
 
 namespace librbd {
 namespace managed_lock {
@@ -16,11 +18,15 @@ const std::string WATCHER_LOCK_TAG("internal");
 
 } // anonymous namespace
 
-const std::string &get_watcher_lock_tag() {
+const std::string&
+get_watcher_lock_tag()
+{
   return WATCHER_LOCK_TAG;
 }
 
-bool decode_lock_cookie(const std::string &tag, uint64_t *handle) {
+bool
+decode_lock_cookie(const std::string& tag, uint64_t* handle)
+{
   std::string prefix;
   std::istringstream ss(tag);
   if (!(ss >> prefix >> *handle) || prefix != WATCHER_LOCK_COOKIE_PREFIX) {
@@ -29,7 +35,9 @@ bool decode_lock_cookie(const std::string &tag, uint64_t *handle) {
   return true;
 }
 
-std::string encode_lock_cookie(uint64_t watch_handle) {
+std::string
+encode_lock_cookie(uint64_t watch_handle)
+{
   ceph_assert(watch_handle != 0);
   std::ostringstream ss;
   ss << WATCHER_LOCK_COOKIE_PREFIX << " " << watch_handle;
@@ -39,5 +47,3 @@ std::string encode_lock_cookie(uint64_t watch_handle) {
 } // namespace util
 } // namespace managed_lock
 } // namespace librbd
-
-

@@ -15,7 +15,10 @@ class PG;
 
 namespace Scrub {
 
-enum class PreemptionNoted { no_preemption, preempted };
+enum class PreemptionNoted {
+  no_preemption,
+  preempted
+};
 
 /// the interface exposed by the PgScrubber into its internal
 /// preemption_data object
@@ -47,11 +50,11 @@ struct preemption_t {
   virtual bool disable_and_test() = 0;
 };
 
-}  // namespace Scrub
+} // namespace Scrub
 
 struct ScrubMachineListener {
-  virtual CephContext *get_pg_cct() const = 0;
-  virtual LogChannelRef &get_clog() const = 0;
+  virtual CephContext* get_pg_cct() const = 0;
+  virtual LogChannelRef& get_clog() const = 0;
   virtual int get_whoami() const = 0;
   virtual spg_t get_spgid() const = 0;
   virtual PG* get_pg() const = 0;
@@ -83,7 +86,8 @@ struct ScrubMachineListener {
    * Returns an associated token to be used in cancel_callback below.
    */
   virtual scrubber_callback_cancel_token_t schedule_callback_after(
-    ceph::timespan duration, scrubber_callback_t &&cb) = 0;
+      ceph::timespan duration,
+      scrubber_callback_t&& cb) = 0;
 
   /**
    * cancel_callback
@@ -183,7 +187,7 @@ struct ScrubMachineListener {
    * is used when sending the message, but will be overwritten before that).
    */
   [[nodiscard]] virtual MsgAndEpoch prep_replica_map_msg(
-    Scrub::PreemptionNoted was_preempted) = 0;
+      Scrub::PreemptionNoted was_preempted) = 0;
 
   /**
    * Send to the primary the pre-prepared message containing the requested map

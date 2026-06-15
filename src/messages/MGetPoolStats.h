@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -24,10 +24,17 @@ public:
   uuid_d fsid;
   std::vector<std::string> pools;
 
-  MGetPoolStats() : PaxosServiceMessage{MSG_GETPOOLSTATS, 0} {}
-  MGetPoolStats(const uuid_d& f, ceph_tid_t t, std::vector<std::string>& ls, version_t l) :
-    PaxosServiceMessage{MSG_GETPOOLSTATS, l},
-    fsid(f), pools(ls) {
+  MGetPoolStats() :
+    PaxosServiceMessage{MSG_GETPOOLSTATS, 0}
+  {}
+
+  MGetPoolStats(
+      const uuid_d& f,
+      ceph_tid_t t,
+      std::vector<std::string>& ls,
+      version_t l) :
+    PaxosServiceMessage{MSG_GETPOOLSTATS, l}, fsid(f), pools(ls)
+  {
     set_tid(t);
   }
 
@@ -35,18 +42,31 @@ private:
   ~MGetPoolStats() final {}
 
 public:
-  std::string_view get_type_name() const override { return "getpoolstats"; }
-  void print(std::ostream& out) const override {
-    out << "getpoolstats(" << get_tid() << " " << pools << " v" << version << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "getpoolstats";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "getpoolstats(" << get_tid() << " " << pools << " v" << version
+        << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
     encode(pools, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);

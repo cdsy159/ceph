@@ -1,15 +1,16 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "tools/rbd/Schedule.h"
+
+#include <iostream>
+#include <regex>
+
 #include "common/Formatter.h"
 #include "common/TextTable.h"
 #include "common/ceph_json.h"
 #include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Schedule.h"
 #include "tools/rbd/Utils.h"
-
-#include <iostream>
-#include <regex>
 
 namespace rbd {
 
@@ -18,9 +19,14 @@ namespace po = boost::program_options;
 
 namespace {
 
-int parse_schedule_name(const std::string &name, bool allow_images,
-                        std::string *pool_name, std::string *namespace_name,
-                        std::string *image_name) {
+int
+parse_schedule_name(
+    const std::string& name,
+    bool allow_images,
+    std::string* pool_name,
+    std::string* namespace_name,
+    std::string* image_name)
+{
   // parse names like:
   // '', 'rbd/', 'rbd/ns/', 'rbd/image', 'rbd/ns/image'
   std::regex pattern("^(?:([^/]+)/(?:(?:([^/]+)/|)(?:([^/@]+))?)?)?$");
@@ -45,7 +51,7 @@ int parse_schedule_name(const std::string &name, bool allow_images,
 
   if (match[3].matched) {
     if (!allow_images) {
-        return -EINVAL;
+      return -EINVAL;
     }
     *image_name = match[3];
   } else {
@@ -57,8 +63,9 @@ int parse_schedule_name(const std::string &name, bool allow_images,
 
 } // anonymous namespace
 
-void add_level_spec_options(po::options_description *options,
-                            bool allow_image) {
+void
+add_level_spec_options(po::options_description* options, bool allow_image)
+{
   at::add_pool_option(options, at::ARGUMENT_MODIFIER_NONE);
   at::add_namespace_option(options, at::ARGUMENT_MODIFIER_NONE);
   if (allow_image) {
@@ -66,16 +73,19 @@ void add_level_spec_options(po::options_description *options,
   }
 }
 
-int get_level_spec_args(const po::variables_map &vm,
-                        std::map<std::string, std::string> *args) {
+int
+get_level_spec_args(
+    const po::variables_map& vm,
+    std::map<std::string, std::string>* args)
+{
   if (vm.count(at::IMAGE_NAME)) {
     std::string pool_name;
     std::string namespace_name;
     std::string image_name;
 
-    int r = utils::extract_spec(vm[at::IMAGE_NAME].as<std::string>(),
-                                &pool_name, &namespace_name, &image_name,
-                                nullptr, utils::SPEC_VALIDATION_FULL);
+    int r = utils::extract_spec(
+        vm[at::IMAGE_NAME].as<std::string>(), &pool_name, &namespace_name,
+        &image_name, nullptr, utils::SPEC_VALIDATION_FULL);
     if (r < 0) {
       return r;
     }
@@ -105,7 +115,7 @@ int get_level_spec_args(const po::variables_map &vm,
       (*args)["level_spec"] = pool_name + "/" + image_name;
     } else {
       (*args)["level_spec"] = pool_name + "/" + namespace_name + "/" +
-        image_name;
+                              image_name;
     }
     return 0;
   }
@@ -138,7 +148,9 @@ int get_level_spec_args(const po::variables_map &vm,
   return 0;
 }
 
-void normalize_level_spec_args(std::map<std::string, std::string> *args) {
+void
+normalize_level_spec_args(std::map<std::string, std::string>* args)
+{
   std::map<std::string, std::string> raw_args;
   std::swap(raw_args, *args);
 
@@ -152,23 +164,27 @@ void normalize_level_spec_args(std::map<std::string, std::string> *args) {
   }
 }
 
-void add_schedule_options(po::options_description *positional,
-                          bool mandatory) {
+void
+add_schedule_options(po::options_description* positional, bool mandatory)
+{
   if (mandatory) {
-    positional->add_options()
-      ("interval", "schedule interval");
+    positional->add_options()("interval", "schedule interval");
   } else {
-    positional->add_options()
-      ("interval", po::value<std::string>()->default_value(""),
-       "schedule interval");
+    positional->add_options()(
+        "interval", po::value<std::string>()->default_value(""),
+        "schedule interval");
   }
-  positional->add_options()
-    ("start-time", po::value<std::string>()->default_value(""),
-     "schedule start time");
+  positional->add_options()(
+      "start-time", po::value<std::string>()->default_value(""),
+      "schedule start time");
 }
 
-int get_schedule_args(const po::variables_map &vm, bool mandatory,
-                      std::map<std::string, std::string> *args) {
+int
+get_schedule_args(
+    const po::variables_map& vm,
+    bool mandatory,
+    std::map<std::string, std::string>* args)
+{
   size_t arg_index = 0;
 
   std::string interval = utils::get_positional_argument(vm, arg_index++);
@@ -189,7 +205,9 @@ int get_schedule_args(const po::variables_map &vm, bool mandatory,
   return 0;
 }
 
-int Schedule::parse(json_spirit::mValue &schedule_val) {
+int
+Schedule::parse(json_spirit::mValue& schedule_val)
+{
   if (schedule_val.type() != json_spirit::array_type) {
     std::cerr << "rbd: unexpected schedule JSON received: "
               << "schedule is not array" << std::endl;
@@ -197,14 +215,14 @@ int Schedule::parse(json_spirit::mValue &schedule_val) {
   }
 
   try {
-    for (auto &item_val : schedule_val.get_array()) {
+    for (auto& item_val : schedule_val.get_array()) {
       if (item_val.type() != json_spirit::obj_type) {
         std::cerr << "rbd: unexpected schedule JSON received: "
                   << "schedule item is not object" << std::endl;
         return -EBADMSG;
       }
 
-      auto &item = item_val.get_obj();
+      auto& item = item_val.get_obj();
 
       if (item["interval"].type() != json_spirit::str_type) {
         std::cerr << "rbd: unexpected schedule JSON received: "
@@ -221,7 +239,7 @@ int Schedule::parse(json_spirit::mValue &schedule_val) {
       items.push_back({interval, start_time});
     }
 
-  } catch (std::runtime_error &) {
+  } catch (std::runtime_error&) {
     std::cerr << "rbd: invalid schedule JSON received" << std::endl;
     return -EBADMSG;
   }
@@ -229,9 +247,11 @@ int Schedule::parse(json_spirit::mValue &schedule_val) {
   return 0;
 }
 
-void Schedule::dump(ceph::Formatter *f) {
+void
+Schedule::dump(ceph::Formatter* f)
+{
   f->open_array_section("items");
-  for (auto &item : items) {
+  for (auto& item : items) {
     f->open_object_section("item");
     f->dump_string("interval", item.first);
     f->dump_string("start_time", item.second);
@@ -240,9 +260,11 @@ void Schedule::dump(ceph::Formatter *f) {
   f->close_section(); // items
 }
 
-std::ostream& operator<<(std::ostream& os, Schedule &s) {
+std::ostream&
+operator<<(std::ostream& os, Schedule& s)
+{
   std::string delimiter;
-  for (auto &item : s.items) {
+  for (auto& item : s.items) {
     os << delimiter << "every " << item.first;
     if (!item.second.empty()) {
       os << " starting at " << item.second;
@@ -252,7 +274,9 @@ std::ostream& operator<<(std::ostream& os, Schedule &s) {
   return os;
 }
 
-int ScheduleList::parse(const std::string &list) {
+int
+ScheduleList::parse(const std::string& list)
+{
   json_spirit::mValue json_root;
   if (!json_spirit::read(list, json_root)) {
     std::cerr << "rbd: invalid schedule list JSON received" << std::endl;
@@ -260,13 +284,13 @@ int ScheduleList::parse(const std::string &list) {
   }
 
   try {
-    for (auto &[id, schedule_val] : json_root.get_obj()) {
+    for (auto& [id, schedule_val] : json_root.get_obj()) {
       if (schedule_val.type() != json_spirit::obj_type) {
         std::cerr << "rbd: unexpected schedule list JSON received: "
                   << "schedule_val is not object" << std::endl;
         return -EBADMSG;
       }
-      auto &schedule = schedule_val.get_obj();
+      auto& schedule = schedule_val.get_obj();
       if (schedule["name"].type() != json_spirit::str_type) {
         std::cerr << "rbd: unexpected schedule list JSON received: "
                   << "schedule name is not string" << std::endl;
@@ -287,7 +311,7 @@ int ScheduleList::parse(const std::string &list) {
       }
       schedules[name] = s;
     }
-  } catch (std::runtime_error &) {
+  } catch (std::runtime_error&) {
     std::cerr << "rbd: invalid schedule list JSON received" << std::endl;
     return -EBADMSG;
   }
@@ -295,7 +319,9 @@ int ScheduleList::parse(const std::string &list) {
   return 0;
 }
 
-Schedule *ScheduleList::find(const std::string &name) {
+Schedule*
+ScheduleList::find(const std::string& name)
+{
   auto it = schedules.find(name);
   if (it == schedules.end()) {
     return nullptr;
@@ -304,15 +330,17 @@ Schedule *ScheduleList::find(const std::string &name) {
   return &it->second;
 }
 
-void ScheduleList::dump(ceph::Formatter *f) {
+void
+ScheduleList::dump(ceph::Formatter* f)
+{
   f->open_array_section("schedules");
-  for (auto &[name, s] : schedules) {
+  for (auto& [name, s] : schedules) {
     std::string pool_name;
     std::string namespace_name;
     std::string image_name;
 
-    int r = parse_schedule_name(name, allow_images, &pool_name, &namespace_name,
-                                &image_name);
+    int r = parse_schedule_name(
+        name, allow_images, &pool_name, &namespace_name, &image_name);
     if (r < 0) {
       continue;
     }
@@ -329,7 +357,9 @@ void ScheduleList::dump(ceph::Formatter *f) {
   f->close_section();
 }
 
-std::ostream& operator<<(std::ostream& os, ScheduleList &l) {
+std::ostream&
+operator<<(std::ostream& os, ScheduleList& l)
+{
   TextTable tbl;
   tbl.define_column("POOL", TextTable::LEFT, TextTable::LEFT);
   tbl.define_column("NAMESPACE", TextTable::LEFT, TextTable::LEFT);
@@ -338,13 +368,13 @@ std::ostream& operator<<(std::ostream& os, ScheduleList &l) {
   }
   tbl.define_column("SCHEDULE", TextTable::LEFT, TextTable::LEFT);
 
-  for (auto &[name, s] : l.schedules) {
+  for (auto& [name, s] : l.schedules) {
     std::string pool_name;
     std::string namespace_name;
     std::string image_name;
 
-    int r = parse_schedule_name(name, l.allow_images, &pool_name,
-                                &namespace_name, &image_name);
+    int r = parse_schedule_name(
+        name, l.allow_images, &pool_name, &namespace_name, &image_name);
     if (r < 0) {
       continue;
     }
@@ -364,4 +394,3 @@ std::ostream& operator<<(std::ostream& os, ScheduleList &l) {
 }
 
 } // namespace rbd
-

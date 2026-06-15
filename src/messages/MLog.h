@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,40 +16,60 @@
 #ifndef CEPH_MLOG_H
 #define CEPH_MLOG_H
 
+#include <deque>
+
 #include "common/LogEntry.h"
 #include "messages/PaxosServiceMessage.h"
-
-#include <deque>
 
 class MLog final : public PaxosServiceMessage {
 public:
   uuid_d fsid;
   std::deque<LogEntry> entries;
 
-  MLog() : PaxosServiceMessage{MSG_LOG, 0} {}
-  MLog(const uuid_d& f, std::deque<LogEntry>&& e)
-    : PaxosServiceMessage{MSG_LOG, 0}, fsid(f), entries{std::move(e)} { }
-  MLog(const uuid_d& f) : PaxosServiceMessage(MSG_LOG, 0), fsid(f) { }
+  MLog() :
+    PaxosServiceMessage{MSG_LOG, 0}
+  {}
+
+  MLog(const uuid_d& f, std::deque<LogEntry>&& e) :
+    PaxosServiceMessage{MSG_LOG, 0}, fsid(f), entries{std::move(e)}
+  {}
+
+  MLog(const uuid_d& f) :
+    PaxosServiceMessage(MSG_LOG, 0), fsid(f)
+  {}
+
 private:
   ~MLog() final {}
 
 public:
-  std::string_view get_type_name() const override { return "log"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "log";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "log(";
     if (entries.size())
       out << entries.size() << " entries from seq " << entries.front().seq
-	  << " at " << entries.front().stamp;
+          << " at " << entries.front().stamp;
     out << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
     encode(entries, payload, features);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);

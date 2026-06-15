@@ -26,7 +26,7 @@ class DumpRecoveryReservationsHook;
 class DumpReactorBackendHook;
 class StoreShardNumsHook;
 
-template<class Hook, class... Args>
+template <class Hook, class... Args>
 std::unique_ptr<AdminSocketHook> make_asok_hook(Args&&... args);
 
-}  // namespace crimson::admin
+} // namespace crimson::admin

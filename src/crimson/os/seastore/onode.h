@@ -10,6 +10,7 @@
 
 #include "common/hobject.h"
 #include "include/byteorder.h"
+
 #include "seastore_types.h"
 
 namespace crimson::os::seastore {
@@ -48,10 +49,13 @@ struct onode_layout_t {
     */
   bool need_cow = false;
 
-  onode_layout_t() : omap_root(omap_type_t::OMAP),
-    xattr_root(omap_type_t::XATTR) {}
+  onode_layout_t() :
+    omap_root(omap_type_t::OMAP), xattr_root(omap_type_t::XATTR)
+  {}
 
-  const omap_root_le_t& get_root(omap_type_t type) const {
+  const omap_root_le_t&
+  get_root(omap_type_t type) const
+  {
     if (type == omap_type_t::XATTR) {
       return xattr_root;
     } else {
@@ -70,38 +74,47 @@ class Transaction;
  * return objects derived from this interface with layout referencing
  * internal representation of onode_layout_t.
  */
-class Onode : public boost::intrusive_ref_counter<
-  Onode,
-  boost::thread_unsafe_counter>
-{
+class Onode
+  : public boost::intrusive_ref_counter<Onode, boost::thread_unsafe_counter> {
 protected:
   virtual laddr_t get_hint() const = 0;
   const uint32_t default_metadata_offset = 0;
   const uint32_t default_metadata_range = 0;
   const hobject_t hobj;
+
 public:
-  Onode(uint32_t ddr, uint32_t dmr, const hobject_t &hobj)
-    : default_metadata_offset(ddr),
-      default_metadata_range(dmr),
-      hobj(hobj)
+  Onode(uint32_t ddr, uint32_t dmr, const hobject_t& hobj) :
+    default_metadata_offset(ddr), default_metadata_range(dmr), hobj(hobj)
   {}
 
   virtual bool is_alive() const = 0;
-  virtual const onode_layout_t &get_layout() const = 0;
+  virtual const onode_layout_t& get_layout() const = 0;
   virtual ~Onode() = default;
 
-  const hobject_t &get_hobj() const {
+  const hobject_t&
+  get_hobj() const
+  {
     return hobj;
   }
-  bool is_head() const {
+
+  bool
+  is_head() const
+  {
     return hobj.is_head();
   }
-  bool is_snap() const {
+
+  bool
+  is_snap() const
+  {
     return hobj.is_snap();
   }
-  bool need_cow() const {
+
+  bool
+  need_cow() const
+  {
     return get_layout().need_cow;
   }
+
   virtual void update_onode_size(Transaction&, uint32_t) = 0;
   virtual void update_omap_root(Transaction&, omap_root_t&) = 0;
   virtual void update_xattr_root(Transaction&, omap_root_t&) = 0;
@@ -114,28 +127,37 @@ public:
   virtual void unset_need_cow(Transaction&) = 0;
   virtual void swap_layout(Transaction&, Onode&) = 0;
 
-  laddr_t get_metadata_hint(uint64_t block_size) const {
+  laddr_t
+  get_metadata_hint(uint64_t block_size) const
+  {
     assert(default_metadata_offset);
     assert(default_metadata_range);
     uint64_t range_blocks = default_metadata_range / block_size;
     auto random_offset = default_metadata_offset +
-        (((uint32_t)std::rand() % range_blocks) * block_size);
+                         (((uint32_t)std::rand() % range_blocks) * block_size);
     return (get_hint() + random_offset).checked_to_laddr();
   }
-  laddr_t get_data_hint() const {
+
+  laddr_t
+  get_data_hint() const
+  {
     return get_hint();
   }
-  const omap_root_le_t& get_root(omap_type_t type) const {
+
+  const omap_root_le_t&
+  get_root(omap_type_t type) const
+  {
     return get_layout().get_root(type);
   }
-  friend std::ostream& operator<<(std::ostream &out, const Onode &rhs);
+
+  friend std::ostream& operator<<(std::ostream& out, const Onode& rhs);
 };
 
-
-std::ostream& operator<<(std::ostream &out, const Onode &rhs);
+std::ostream& operator<<(std::ostream& out, const Onode& rhs);
 using OnodeRef = boost::intrusive_ptr<Onode>;
-}
+} // namespace crimson::os::seastore
 
 #if FMT_VERSION >= 90000
-template<> struct fmt::formatter<crimson::os::seastore::Onode> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::Onode> : fmt::ostream_formatter {};
 #endif

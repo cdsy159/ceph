@@ -13,7 +13,8 @@
 template <>
 struct fmt::formatter<utime_t> {
   template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
+  constexpr auto
+  parse(ParseContext& ctx)
   {
     auto it = ctx.begin();
     if (it != ctx.end() && *it == 's') {
@@ -24,12 +25,13 @@ struct fmt::formatter<utime_t> {
   }
 
   template <typename FormatContext>
-  auto format(const utime_t& utime, FormatContext& ctx) const
+  auto
+  format(const utime_t& utime, FormatContext& ctx) const
   {
     if (utime.sec() < ((time_t)(60 * 60 * 24 * 365 * 10))) {
       // raw seconds.  this looks like a relative time.
-      return fmt::format_to(ctx.out(), "{}.{:06}", (long)utime.sec(),
-			    utime.usec());
+      return fmt::format_to(
+          ctx.out(), "{}.{:06}", (long)utime.sec(), utime.usec());
     }
 
     // this looks like an absolute time.
@@ -41,11 +43,11 @@ struct fmt::formatter<utime_t> {
       throw fmt::format_error("time_t value out of range");
     }
     if (short_format) {
-      return fmt::format_to(ctx.out(), "{:%FT%T}.{:03}", aslocal,
-			    utime.usec() / 1000);
+      return fmt::format_to(
+          ctx.out(), "{:%FT%T}.{:03}", aslocal, utime.usec() / 1000);
     }
-    return fmt::format_to(ctx.out(), "{:%FT%T}.{:06}{:%z}", aslocal,
-			  utime.usec(), aslocal);
+    return fmt::format_to(
+        ctx.out(), "{:%FT%T}.{:06}{:%z}", aslocal, utime.usec(), aslocal);
   }
 
   bool short_format{false};

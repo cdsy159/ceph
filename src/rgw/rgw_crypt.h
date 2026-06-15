@@ -7,13 +7,15 @@
 
 #pragma once
 
-#include <string_view>
-
 #include <rgw/rgw_op.h>
 #include <rgw/rgw_rest.h>
 #include <rgw/rgw_rest_s3.h>
-#include "rgw_putobj.h"
+
+#include <string_view>
+
 #include "common/async/yield_context.h"
+
+#include "rgw_putobj.h"
 
 /**
  * \brief Interface for block encryption methods
@@ -52,12 +54,13 @@ public:
    * stream_offset - location of <in_ofs,in_ofs+size) chunk in data stream, must be chunk-aligned
    * \return true iff successfully encrypted
    */
-  virtual bool encrypt(bufferlist& input,
-                       off_t in_ofs,
-                       size_t size,
-                       bufferlist& output,
-                       off_t stream_offset,
-                       optional_yield y) = 0;
+  virtual bool encrypt(
+      bufferlist& input,
+      off_t in_ofs,
+      size_t size,
+      bufferlist& output,
+      off_t stream_offset,
+      optional_yield y) = 0;
 
   /**
    * Decrypts data.
@@ -73,103 +76,113 @@ public:
    * stream_offset - location of <in_ofs,in_ofs+size) chunk in data stream, must be chunk-aligned
    * \return true iff successfully encrypted
    */
-  virtual bool decrypt(bufferlist& input,
-                       off_t in_ofs,
-                       size_t size,
-                       bufferlist& output,
-                       off_t stream_offset,
-                       optional_yield y) = 0;
+  virtual bool decrypt(
+      bufferlist& input,
+      off_t in_ofs,
+      size_t size,
+      bufferlist& output,
+      off_t stream_offset,
+      optional_yield y) = 0;
 };
 
 static const size_t AES_256_KEYSIZE = 256 / 8;
-bool AES_256_ECB_encrypt(const DoutPrefixProvider* dpp,
-                         CephContext* cct,
-                         const uint8_t* key,
-                         size_t key_size,
-                         const uint8_t* data_in,
-                         uint8_t* data_out,
-                         size_t data_size);
+bool AES_256_ECB_encrypt(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    const uint8_t* key,
+    size_t key_size,
+    const uint8_t* data_in,
+    uint8_t* data_out,
+    size_t data_size);
 
 class RGWGetObj_BlockDecrypt : public RGWGetObj_Filter {
-  const DoutPrefixProvider *dpp;
+  const DoutPrefixProvider* dpp;
   CephContext* cct;
   std::unique_ptr<BlockCrypt> crypt; /**< already configured stateless BlockCrypt
                                           for operations when enough data is accumulated */
   off_t enc_begin_skip; /**< amount of data to skip from beginning of received data */
   off_t ofs; /**< stream offset of data we expect to show up next through \ref handle_data */
   off_t end; /**< stream offset of last byte that is requested */
-  bufferlist cache; /**< stores extra data that could not (yet) be processed by BlockCrypt */
+  bufferlist
+      cache; /**< stores extra data that could not (yet) be processed by BlockCrypt */
   size_t block_size; /**< snapshot of \ref BlockCrypt.get_block_size() */
   optional_yield y;
-  std::vector<size_t> parts_len; /**< size of parts of multipart object, parsed from manifest */
+  std::vector<size_t>
+      parts_len; /**< size of parts of multipart object, parsed from manifest */
 
   int process(bufferlist& cipher, size_t part_ofs, size_t size);
 
 public:
-  RGWGetObj_BlockDecrypt(const DoutPrefixProvider *dpp,
-                         CephContext* cct,
-                         RGWGetObj_Filter* next,
-                         std::unique_ptr<BlockCrypt> crypt,
-                         std::vector<size_t> parts_len,
-                         optional_yield y);
+  RGWGetObj_BlockDecrypt(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      RGWGetObj_Filter* next,
+      std::unique_ptr<BlockCrypt> crypt,
+      std::vector<size_t> parts_len,
+      optional_yield y);
   virtual ~RGWGetObj_BlockDecrypt();
 
-  virtual int fixup_range(off_t& bl_ofs,
-                          off_t& bl_end) override;
-  virtual int handle_data(bufferlist& bl,
-                          off_t bl_ofs,
-                          off_t bl_len) override;
+  virtual int fixup_range(off_t& bl_ofs, off_t& bl_end) override;
+  virtual int handle_data(bufferlist& bl, off_t bl_ofs, off_t bl_len) override;
   virtual int flush() override;
 
-  static int read_manifest_parts(const DoutPrefixProvider *dpp,
-                                 const bufferlist& manifest_bl,
-                                 std::vector<size_t>& parts_len);
+  static int read_manifest_parts(
+      const DoutPrefixProvider* dpp,
+      const bufferlist& manifest_bl,
+      std::vector<size_t>& parts_len);
 }; /* RGWGetObj_BlockDecrypt */
 
-
-class RGWPutObj_BlockEncrypt : public rgw::putobj::Pipe
-{
-  const DoutPrefixProvider *dpp;
+class RGWPutObj_BlockEncrypt : public rgw::putobj::Pipe {
+  const DoutPrefixProvider* dpp;
   CephContext* cct;
   std::unique_ptr<BlockCrypt> crypt; /**< already configured stateless BlockCrypt
                                           for operations when enough data is accumulated */
-  bufferlist cache; /**< stores extra data that could not (yet) be processed by BlockCrypt */
+  bufferlist
+      cache; /**< stores extra data that could not (yet) be processed by BlockCrypt */
   const size_t block_size; /**< snapshot of \ref BlockCrypt.get_block_size() */
   optional_yield y;
+
 public:
-  RGWPutObj_BlockEncrypt(const DoutPrefixProvider *dpp,
-                         CephContext* cct,
-                         rgw::sal::DataProcessor *next,
-                         std::unique_ptr<BlockCrypt> crypt,
-                         optional_yield y);
+  RGWPutObj_BlockEncrypt(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      rgw::sal::DataProcessor* next,
+      std::unique_ptr<BlockCrypt> crypt,
+      optional_yield y);
 
   int process(bufferlist&& data, uint64_t logical_offset) override;
 }; /* RGWPutObj_BlockEncrypt */
 
+int rgw_s3_prepare_encrypt(
+    req_state* s,
+    optional_yield y,
+    std::map<std::string, ceph::bufferlist>& attrs,
+    std::unique_ptr<BlockCrypt>* block_crypt,
+    std::map<std::string, std::string>& crypt_http_responses);
 
-int rgw_s3_prepare_encrypt(req_state* s, optional_yield y,
-                           std::map<std::string, ceph::bufferlist>& attrs,
-                           std::unique_ptr<BlockCrypt>* block_crypt,
-                           std::map<std::string,
-                                    std::string>& crypt_http_responses);
+int rgw_s3_prepare_decrypt(
+    req_state* s,
+    optional_yield y,
+    std::map<std::string, ceph::bufferlist>& attrs,
+    std::unique_ptr<BlockCrypt>* block_crypt,
+    std::map<std::string, std::string>* crypt_http_responses,
+    bool copy_source);
 
-int rgw_s3_prepare_decrypt(req_state* s, optional_yield y,
-                           std::map<std::string, ceph::bufferlist>& attrs,
-                           std::unique_ptr<BlockCrypt>* block_crypt,
-                           std::map<std::string, std::string>* crypt_http_responses,
-                           bool copy_source);
-
-static inline void set_attr(std::map<std::string, bufferlist>& attrs,
-                            const char* key,
-                            std::string_view value)
+static inline void
+set_attr(
+    std::map<std::string, bufferlist>& attrs,
+    const char* key,
+    std::string_view value)
 {
   bufferlist bl;
   bl.append(value.data(), value.size());
   attrs[key] = std::move(bl);
 }
 
-static inline std::string get_str_attribute(const std::map<std::string, bufferlist>& attrs,
-                                            const char *name)
+static inline std::string
+get_str_attribute(
+    const std::map<std::string, bufferlist>& attrs,
+    const char* name)
 {
   auto iter = attrs.find(name);
   if (iter == attrs.end()) {
@@ -178,4 +191,4 @@ static inline std::string get_str_attribute(const std::map<std::string, bufferli
   return iter->second.to_str();
 }
 
-int rgw_remove_sse_s3_bucket_key(req_state *s, optional_yield y);
+int rgw_remove_sse_s3_bucket_key(req_state* s, optional_yield y);

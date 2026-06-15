@@ -2,33 +2,37 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/io/FlushTracker.h"
+
 #include "common/dout.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::io::FlushTracker: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::io::FlushTracker: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace io {
 
 template <typename I>
-FlushTracker<I>::FlushTracker(I* image_ctx)
-  : m_image_ctx(image_ctx),
-    m_lock(ceph::make_shared_mutex(
-      util::unique_lock_name("librbd::io::FlushTracker::m_lock", this))) {
-}
+FlushTracker<I>::FlushTracker(I* image_ctx) :
+  m_image_ctx(image_ctx),
+  m_lock(ceph::make_shared_mutex(
+      util::unique_lock_name("librbd::io::FlushTracker::m_lock", this)))
+{}
 
 template <typename I>
-FlushTracker<I>::~FlushTracker() {
+FlushTracker<I>::~FlushTracker()
+{
   std::unique_lock locker{m_lock};
   ceph_assert(m_flush_contexts.empty());
 }
 
 template <typename I>
-void FlushTracker<I>::shut_down() {
+void
+FlushTracker<I>::shut_down()
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
@@ -46,7 +50,9 @@ void FlushTracker<I>::shut_down() {
 }
 
 template <typename I>
-uint64_t FlushTracker<I>::start_io(uint64_t tid) {
+uint64_t
+FlushTracker<I>::start_io(uint64_t tid)
+{
   auto cct = m_image_ctx->cct;
 
   std::unique_lock locker{m_lock};
@@ -60,7 +66,9 @@ uint64_t FlushTracker<I>::start_io(uint64_t tid) {
 }
 
 template <typename I>
-void FlushTracker<I>::finish_io(uint64_t tid) {
+void
+FlushTracker<I>::finish_io(uint64_t tid)
+{
   auto cct = m_image_ctx->cct;
 
   std::unique_lock locker{m_lock};
@@ -104,7 +112,9 @@ void FlushTracker<I>::finish_io(uint64_t tid) {
 }
 
 template <typename I>
-void FlushTracker<I>::flush(Context* on_finish) {
+void
+FlushTracker<I>::flush(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
 
   std::unique_lock locker{m_lock};

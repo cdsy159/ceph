@@ -3,27 +3,33 @@
 
 #pragma once
 
-#include "common/ceph_time.h" // for ceph::coarse_real_time
+#include <unordered_map>
+
 #include "common/Formatter.h"
+#include "common/ceph_time.h" // for ceph::coarse_real_time
 #include "include/encoding.h"
 #include "include/types.h"
 
-#include <unordered_map>
-
-struct cls_2pc_reservation
-{
+struct cls_2pc_reservation {
   using id_t = uint32_t;
   inline static const id_t NO_ID{0};
-  uint64_t size = 0;                 // how much size to reserve (bytes)
-  ceph::coarse_real_time timestamp;  // when the reservation was done (used for cleaning stale reservations)
-  uint32_t entries = 0;              // how many entries are reserved
+  uint64_t size = 0; // how much size to reserve (bytes)
+  ceph::coarse_real_time
+      timestamp; // when the reservation was done (used for cleaning stale reservations)
+  uint32_t entries = 0; // how many entries are reserved
 
-  cls_2pc_reservation(uint64_t _size, ceph::coarse_real_time _timestamp, uint32_t _entries) :
-      size(_size), timestamp(_timestamp), entries(_entries) {}
+  cls_2pc_reservation(
+      uint64_t _size,
+      ceph::coarse_real_time _timestamp,
+      uint32_t _entries) :
+    size(_size), timestamp(_timestamp), entries(_entries)
+  {}
 
   cls_2pc_reservation() = default;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(size, bl);
     encode(timestamp, bl);
@@ -31,7 +37,9 @@ struct cls_2pc_reservation
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(size, bl);
     decode(timestamp, bl);
@@ -41,12 +49,16 @@ struct cls_2pc_reservation
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("size", size);
     f->dump_stream("timestamp") << timestamp;
   }
 
-  static std::list<cls_2pc_reservation> generate_test_instances() {
+  static std::list<cls_2pc_reservation>
+  generate_test_instances()
+  {
     std::list<cls_2pc_reservation> ls;
     ls.emplace_back();
     ls.back().size = 0;
@@ -58,10 +70,10 @@ struct cls_2pc_reservation
 };
 WRITE_CLASS_ENCODER(cls_2pc_reservation)
 
-using cls_2pc_reservations = std::unordered_map<cls_2pc_reservation::id_t, cls_2pc_reservation>;
+using cls_2pc_reservations =
+    std::unordered_map<cls_2pc_reservation::id_t, cls_2pc_reservation>;
 
-struct cls_2pc_urgent_data
-{
+struct cls_2pc_urgent_data {
   uint64_t reserved_size{0};
   // pending reservations size in bytes
   // For version >= 3: this counter is accurate and can be used directly
@@ -69,14 +81,16 @@ struct cls_2pc_urgent_data
   // historical drift)
   cls_2pc_reservation::id_t last_id{cls_2pc_reservation::NO_ID};
   // last allocated id
-  cls_2pc_reservations reservations;  // reservation list (keyed by id)
+  cls_2pc_reservations reservations; // reservation list (keyed by id)
   bool has_xattrs{false};
   uint32_t committed_entries{0}; // how many entries have been committed so far
   // Transient field (not persisted) - stores the version from which this was
   // decoded
   uint8_t decoded_struct_v{3};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(3, 1, bl);
     encode(reserved_size, bl);
     encode(last_id, bl);
@@ -86,7 +100,9 @@ struct cls_2pc_urgent_data
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(3, bl);
     decode(reserved_size, bl);
     decode(last_id, bl);
@@ -99,7 +115,9 @@ struct cls_2pc_urgent_data
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("reserved_size", reserved_size);
     f->dump_unsigned("last_id", last_id);
     f->open_array_section("reservations");
@@ -113,13 +131,16 @@ struct cls_2pc_urgent_data
     f->dump_bool("has_xattrs", has_xattrs);
   }
 
-  static std::list<cls_2pc_urgent_data> generate_test_instances() {
+  static std::list<cls_2pc_urgent_data>
+  generate_test_instances()
+  {
     std::list<cls_2pc_urgent_data> ls;
     ls.emplace_back();
     ls.emplace_back();
     ls.back().reserved_size = 123;
     ls.back().last_id = 456;
-    ls.back().reservations.emplace(789, cls_2pc_reservation(1, ceph::coarse_real_clock::zero(), 2));
+    ls.back().reservations.emplace(
+        789, cls_2pc_reservation(1, ceph::coarse_real_clock::zero(), 2));
     ls.back().has_xattrs = true;
     return ls;
   }

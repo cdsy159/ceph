@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+
 #include <boost/container/flat_map.hpp>
 
 #include "include/types.h"
@@ -18,23 +19,27 @@ struct rgw_s3_key_filter {
 
   bool has_content() const;
 
-  void dump(Formatter *f) const;
-  bool decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  bool decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
-      encode(prefix_rule, bl);
-      encode(suffix_rule, bl);
-      encode(regex_rule, bl);
+    encode(prefix_rule, bl);
+    encode(suffix_rule, bl);
+    encode(regex_rule, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
-      decode(prefix_rule, bl);
-      decode(suffix_rule, bl);
-      decode(regex_rule, bl);
+    decode(prefix_rule, bl);
+    decode(suffix_rule, bl);
+    decode(regex_rule, bl);
     DECODE_FINISH(bl);
   }
 };
@@ -48,18 +53,23 @@ struct rgw_s3_key_value_filter {
 
   bool has_content() const;
 
-  void dump(Formatter *f) const;
-  bool decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  bool decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
-      encode(kv, bl);
+    encode(kv, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
-      decode(kv, bl);
+    decode(kv, bl);
     DECODE_FINISH(bl);
   }
 };
@@ -72,25 +82,29 @@ struct rgw_s3_filter {
 
   bool has_content() const;
 
-  void dump(Formatter *f) const;
-  bool decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  bool decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
-      encode(key_filter, bl);
-      encode(metadata_filter, bl);
-      encode(tag_filter, bl);
+    encode(key_filter, bl);
+    encode(metadata_filter, bl);
+    encode(tag_filter, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
-      decode(key_filter, bl);
-      decode(metadata_filter, bl);
-      if (struct_v >= 2) {
-        decode(tag_filter, bl);
-      }
+    decode(key_filter, bl);
+    decode(metadata_filter, bl);
+    if (struct_v >= 2) {
+      decode(tag_filter, bl);
+    }
     DECODE_FINISH(bl);
   }
 };

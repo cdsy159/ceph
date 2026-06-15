@@ -52,9 +52,8 @@
  */
 
 
-#include <iostream>
 #include <fstream>
-
+#include <iostream>
 
 struct FileOfLines {
   const char* filename;
@@ -64,28 +63,33 @@ struct FileOfLines {
   bool is_eof;
 
   FileOfLines(const char* _filename) :
-    filename(_filename),
-    input(filename),
-    next_eof(false),
-    is_eof(false)
-  { }
+    filename(_filename), input(filename), next_eof(false), is_eof(false)
+  {}
 
-  void dump(const std::string& prefix) {
+  void
+  dump(const std::string& prefix)
+  {
     do {
       std::cout << prefix << this_line << std::endl;
       advance();
     } while (!eof());
   }
 
-  bool eof() const {
+  bool
+  eof() const
+  {
     return is_eof;
   }
 
-  bool good() const {
+  bool
+  good() const
+  {
     return input.good();
   }
 
-  void advance() {
+  void
+  advance()
+  {
     if (next_eof) {
       is_eof = true;
       return;
@@ -95,9 +99,9 @@ struct FileOfLines {
     std::getline(input, this_line);
     if (this_line.empty()) {
       if (!input.eof()) {
-	std::cerr << "Error: " << filename << " has an empty line." <<
-	  std::endl;
-	exit(4);
+        std::cerr << "Error: " << filename << " has an empty line."
+                  << std::endl;
+        exit(4);
       }
       is_eof = true;
       return;
@@ -106,18 +110,23 @@ struct FileOfLines {
     }
 
     if (this_line < prev_line) {
-      std::cerr << "Error: " << filename << " is not in sorted order; \"" <<
-	this_line << "\" follows \"" << prev_line << "\"." << std::endl;
+      std::cerr << "Error: " << filename << " is not in sorted order; \""
+                << this_line << "\" follows \"" << prev_line << "\"."
+                << std::endl;
       exit(4);
     }
   }
 
-  const std::string line() const {
+  const std::string
+  line() const
+  {
     return this_line;
   }
 };
 
-int main(int argc, const char* argv[]) {
+int
+main(int argc, const char* argv[])
+{
   if (argc != 3) {
     std::cerr << "Usage: " << argv[0] << " <file1> <file2>" << std::endl;
     exit(2);
@@ -125,15 +134,13 @@ int main(int argc, const char* argv[]) {
 
   FileOfLines input1(argv[1]);
   if (!input1.good()) {
-    std::cerr << "Error opening " << argv[1] <<
-      "." << std::endl;
+    std::cerr << "Error opening " << argv[1] << "." << std::endl;
     exit(3);
   }
 
   FileOfLines input2(argv[2]);
   if (!input2.good()) {
-    std::cerr << "Error opening " << argv[2] <<
-      "." << std::endl;
+    std::cerr << "Error opening " << argv[2] << "." << std::endl;
     exit(3);
   }
 

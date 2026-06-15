@@ -13,25 +13,29 @@
  *
  */
 
-#include "include/compat.h"
-#include "common/errno.h"
 #include "systest_runnable.h"
-#include "systest_settings.h"
 
 #include <errno.h>
 #include <pthread.h>
-#include <sstream>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sstream>
 #include <string>
+
+#include "common/errno.h"
+#include "include/compat.h"
+
+#include "systest_settings.h"
 #ifndef _WIN32
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #endif
 #include <sys/types.h>
 #include <unistd.h>
+
 #include <atomic>
 #include <limits>
 #include <vector>
@@ -39,24 +43,22 @@
 using std::ostringstream;
 using std::string;
 
-static pid_t do_gettid(void)
+static pid_t
+do_gettid(void)
 {
 #if defined(__linux__)
-  return static_cast < pid_t >(syscall(SYS_gettid));
+  return static_cast<pid_t>(syscall(SYS_gettid));
 #elif defined(_WIN32)
-  return static_cast < pid_t >(GetCurrentThreadId());
+  return static_cast<pid_t>(GetCurrentThreadId());
 #else
-  return static_cast < pid_t >(pthread_getthreadid_np());
+  return static_cast<pid_t>(pthread_getthreadid_np());
 #endif
 }
 
-std::atomic<unsigned> m_highest_id = { 0 };
+std::atomic<unsigned> m_highest_id = {0};
 
-SysTestRunnable::
-SysTestRunnable(int argc, const char **argv)
-  : m_argc(0),
-    m_argv(NULL),
-    m_argv_orig(NULL)
+SysTestRunnable::SysTestRunnable(int argc, const char** argv) :
+  m_argc(0), m_argv(NULL), m_argv_orig(NULL)
 {
   m_started = false;
   m_id = ++m_highest_id;
@@ -65,20 +67,16 @@ SysTestRunnable(int argc, const char **argv)
   set_argv(argc, argv);
 }
 
-SysTestRunnable::
-~SysTestRunnable()
-{
-  set_argv(0, NULL);
-}
+SysTestRunnable::~SysTestRunnable() { set_argv(0, NULL); }
 
-const char* SysTestRunnable::
-get_id_str(void) const
+const char*
+SysTestRunnable::get_id_str(void) const
 {
   return m_id_str;
 }
 
-int SysTestRunnable::
-start()
+int
+SysTestRunnable::start()
 {
   if (m_started) {
     return -EDOM;
@@ -86,16 +84,17 @@ start()
   int ret;
   bool use_threads = SysTestSettings::inst().use_threads();
   if (use_threads) {
-    ret = pthread_create(&m_pthread, NULL, systest_runnable_pthread_helper,
-			     static_cast<void*>(this));
+    ret = pthread_create(
+        &m_pthread, NULL, systest_runnable_pthread_helper,
+        static_cast<void*>(this));
     if (ret)
       return ret;
     m_started = true;
   } else {
-    #ifdef _WIN32
+#ifdef _WIN32
     printf("Using separate processes is not supported on Windows.\n");
     return -1;
-    #else
+#else
     std::string err_msg;
     ret = preforker.prefork(err_msg);
     if (ret < 0) {
@@ -105,18 +104,18 @@ start()
 
     if (preforker.is_child()) {
       m_started = true;
-      void *retptr = systest_runnable_pthread_helper(static_cast<void*>(this));
+      void* retptr = systest_runnable_pthread_helper(static_cast<void*>(this));
       preforker.exit((int)(uintptr_t)retptr);
     } else {
       m_started = true;
     }
-    #endif
+#endif
   }
   return 0;
 }
 
-std::string SysTestRunnable::
-join()
+std::string
+SysTestRunnable::join()
 {
   if (!m_started) {
     return "SysTestRunnable was never started.";
@@ -124,7 +123,7 @@ join()
   int ret;
   bool use_threads = SysTestSettings::inst().use_threads();
   if (use_threads) {
-    void *ptrretval;
+    void* ptrretval;
     ret = pthread_join(m_pthread, &ptrretval);
     if (ret) {
       ostringstream oss;
@@ -139,39 +138,39 @@ join()
     }
     return "";
   } else {
-    #ifdef _WIN32
+#ifdef _WIN32
     return "Using separate processes is not supported on Windows.\n";
-    #else
+#else
     std::string err_msg;
     ret = preforker.parent_wait(err_msg);
     return err_msg;
-    #endif
+#endif
   }
 }
 
-std::string SysTestRunnable::
-run_until_finished(std::vector < SysTestRunnable * > &runnables)
+std::string
+SysTestRunnable::run_until_finished(std::vector<SysTestRunnable*>& runnables)
 {
   int index = 0;
-  for (std::vector < SysTestRunnable * >::const_iterator r = runnables.begin();
-      r != runnables.end(); ++r) {
+  for (std::vector<SysTestRunnable*>::const_iterator r = runnables.begin();
+       r != runnables.end(); ++r) {
     int ret = (*r)->start();
     if (ret) {
       ostringstream oss;
       oss << "run_until_finished: got error " << ret
-	  << " when starting runnable " << index;
+          << " when starting runnable " << index;
       return oss.str();
     }
     ++index;
   }
 
-  for (std::vector < SysTestRunnable * >::const_iterator r = runnables.begin();
-      r != runnables.end(); ++r) {
+  for (std::vector<SysTestRunnable*>::const_iterator r = runnables.begin();
+       r != runnables.end(); ++r) {
     std::string rstr = (*r)->join();
     if (!rstr.empty()) {
       ostringstream oss;
-      oss << "run_until_finished: runnable " << (*r)->get_id_str() 
-	  << ": got error: " << rstr;
+      oss << "run_until_finished: runnable " << (*r)->get_id_str()
+          << ": got error: " << rstr;
       return oss.str();
     }
   }
@@ -179,9 +178,10 @@ run_until_finished(std::vector < SysTestRunnable * > &runnables)
   return "";
 }
 
-void *systest_runnable_pthread_helper(void *arg)
+void*
+systest_runnable_pthread_helper(void* arg)
 {
-  SysTestRunnable *st = static_cast < SysTestRunnable * >(arg);
+  SysTestRunnable* st = static_cast<SysTestRunnable*>(arg);
   st->update_id_str(true);
   printf("%s: starting.\n", st->get_id_str());
   int ret = st->run();
@@ -189,8 +189,8 @@ void *systest_runnable_pthread_helper(void *arg)
   return (void*)(uintptr_t)ret;
 }
 
-void SysTestRunnable::
-update_id_str(bool started)
+void
+SysTestRunnable::update_id_str(bool started)
 {
   bool use_threads = SysTestSettings::inst().use_threads();
   char extra[std::numeric_limits<int>::digits10 + 1];
@@ -209,8 +209,8 @@ update_id_str(bool started)
 }
 
 // Copy argv so that if some fiend decides to modify it, it's ok.
-void SysTestRunnable::
-set_argv(int argc, const char **argv)
+void
+SysTestRunnable::set_argv(int argc, const char** argv)
 {
   if (m_argv_orig != NULL) {
     for (int i = 0; i < m_argc; ++i)
@@ -224,11 +224,11 @@ set_argv(int argc, const char **argv)
   if (argv == NULL)
     return;
   m_argc = argc;
-  m_argv_orig = new const char*[m_argc+1];
+  m_argv_orig = new const char*[m_argc + 1];
   for (int i = 0; i < m_argc; ++i)
     m_argv_orig[i] = strdup(argv[i]);
   m_argv_orig[argc] = NULL;
-  m_argv = new const char*[m_argc+1];
+  m_argv = new const char*[m_argc + 1];
   for (int i = 0; i <= m_argc; ++i)
     m_argv[i] = m_argv_orig[i];
 }

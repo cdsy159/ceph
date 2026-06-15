@@ -12,16 +12,16 @@
 #include <stdint.h>
 
 // Compute the CRC a bit at a time.
-uint64_t crc64nvme_bit(uint64_t crc, void const *mem, size_t len);
+uint64_t crc64nvme_bit(uint64_t crc, void const* mem, size_t len);
 
 // Compute the CRC of the low bits bits in val.
 uint64_t crc64nvme_rem(uint64_t crc, unsigned val, unsigned bits);
 
 // Compute the CRC a byte at a time.
-uint64_t crc64nvme_byte(uint64_t crc, void const *mem, size_t len);
+uint64_t crc64nvme_byte(uint64_t crc, void const* mem, size_t len);
 
 // Compute the CRC a word at a time.
-uint64_t crc64nvme_word(uint64_t crc, void const *mem, size_t len);
+uint64_t crc64nvme_word(uint64_t crc, void const* mem, size_t len);
 
 // Compute the combination of two CRCs.
 uint64_t crc64nvme_comb(uint64_t crc1, uint64_t crc2, uintmax_t len2);

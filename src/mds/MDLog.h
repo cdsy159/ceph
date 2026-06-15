@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -42,25 +42,24 @@ enum {
   l_mdl_last,
 };
 
-#include "include/fs_types.h" // for inodeno_t
-#include "include/types.h"
-#include "include/Context.h"
-
-#include "common/Cond.h"
-#include "common/DecayCounter.h"
-#include "common/Thread.h"
-
-#include "LogSegment.h"
-#include "SegmentBoundary.h"
-#include "mdstypes.h"
-#include "LogSegmentRef.h"
-
 #include <atomic>
 #include <list>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
+
+#include "common/Cond.h"
+#include "common/DecayCounter.h"
+#include "common/Thread.h"
+#include "include/Context.h"
+#include "include/fs_types.h" // for inodeno_t
+#include "include/types.h"
+
+#include "LogSegment.h"
+#include "LogSegmentRef.h"
+#include "SegmentBoundary.h"
+#include "mdstypes.h"
 
 class Journaler;
 class JournalPointer;
@@ -74,11 +73,11 @@ class ESubtreeMap;
 
 class MDLog {
 public:
-
-  MDLog(MDSRank *m);
+  MDLog(MDSRank* m);
   ~MDLog();
 
-  const std::set<LogSegmentRef> &get_expiring_segments() const
+  const std::set<LogSegmentRef>&
+  get_expiring_segments() const
   {
     return expiring_segments;
   }
@@ -86,17 +85,23 @@ public:
   void create_logger();
   void set_write_iohint(unsigned iohint_flags);
 
-  LogSegmentRef const& peek_current_segment() {
+  LogSegmentRef const&
+  peek_current_segment()
+  {
     static LogSegmentRef const nullsegment = nullptr;
     return segments.empty() ? nullsegment : segments.rbegin()->second;
   }
 
-  LogSegmentRef const& get_current_segment() { 
+  LogSegmentRef const&
+  get_current_segment()
+  {
     ceph_assert(!segments.empty());
     return segments.rbegin()->second;
   }
 
-  LogSegmentRef const& get_segment(LogSegment::seq_t seq) {
+  LogSegmentRef const&
+  get_segment(LogSegment::seq_t seq)
+  {
     static LogSegmentRef const nullsegment = nullptr;
     auto it = segments.find(seq);
     if (it != segments.end()) {
@@ -106,38 +111,74 @@ public:
     }
   }
 
-  bool have_any_segments() const {
+  bool
+  have_any_segments() const
+  {
     return !segments.empty();
   }
 
   void flush_logger();
 
-  uint64_t get_num_events() const { return num_events; }
-  uint64_t get_num_segments() const { return segments.size(); }
+  uint64_t
+  get_num_events() const
+  {
+    return num_events;
+  }
 
-  auto get_debug_subtrees() const {
+  uint64_t
+  get_num_segments() const
+  {
+    return segments.size();
+  }
+
+  auto
+  get_debug_subtrees() const
+  {
     return events_per_segment;
   }
-  auto get_max_segments() const {
+
+  auto
+  get_max_segments() const
+  {
     return max_segments;
   }
 
   uint64_t get_read_pos() const;
   uint64_t get_write_pos() const;
   uint64_t get_safe_pos() const;
-  Journaler *get_journaler() { return journaler; }
-  bool empty() const { return segments.empty(); }
 
-  uint64_t get_last_major_segment_seq() const {
+  Journaler*
+  get_journaler()
+  {
+    return journaler;
+  }
+
+  bool
+  empty() const
+  {
+    return segments.empty();
+  }
+
+  uint64_t
+  get_last_major_segment_seq() const
+  {
     ceph_assert(!major_segments.empty());
     return *major_segments.rbegin();
   }
-  uint64_t get_last_segment_seq() const {
+
+  uint64_t
+  get_last_segment_seq() const
+  {
     ceph_assert(!segments.empty());
     return segments.rbegin()->first;
   }
 
-  bool is_capped() const { return mds_is_shutting_down; }
+  bool
+  is_capped() const
+  {
+    return mds_is_shutting_down;
+  }
+
   void cap();
 
   void kick_submitter();
@@ -145,7 +186,9 @@ public:
 
   void finish_head_waiters();
 
-  LogSegment::seq_t submit_entry(LogEvent *e, MDSLogContextBase* c = 0) {
+  LogSegment::seq_t
+  submit_entry(LogEvent* e, MDSLogContextBase* c = 0)
+  {
     std::lock_guard l(submit_mutex);
     auto seq = _submit_entry(e, c);
     _segment_upkeep();
@@ -155,33 +198,44 @@ public:
 
   void wait_for_safe(Context* c);
   void flush();
-  bool is_flushed() const {
+
+  bool
+  is_flushed() const
+  {
     return unflushed == 0;
   }
 
-  void trim_expired_segments(MDSContext* ctx=nullptr) {
+  void
+  trim_expired_segments(MDSContext* ctx = nullptr)
+  {
     std::unique_lock locker(submit_mutex);
     _trim_expired_segments(locker, ctx);
   }
-  int trim_all() {
+
+  int
+  trim_all()
+  {
     return trim_to(0);
   }
+
   int trim_to(SegmentBoundary::seq_t);
 
-  void create(MDSContext *onfinish);  // fresh, empty log! 
-  void open(MDSContext *onopen);      // append() or replay() to follow!
-  void reopen(MDSContext *onopen);
+  void create(MDSContext* onfinish); // fresh, empty log!
+  void open(MDSContext* onopen); // append() or replay() to follow!
+  void reopen(MDSContext* onopen);
   void append();
-  void replay(MDSContext *onfinish);
+  void replay(MDSContext* onfinish);
   EstimatedReplayTime get_estimated_replay_finish_time();
 
   void standby_trim_segments();
 
-  void handle_conf_change(const std::set<std::string>& changed, const MDSMap& mds_map);
+  void handle_conf_change(
+      const std::set<std::string>& changed,
+      const MDSMap& mds_map);
 
-  void dump_replay_status(Formatter *f) const;
+  void dump_replay_status(Formatter* f) const;
 
-  MDSRank *mds;
+  MDSRank* mds;
   // replay state
   std::map<inodeno_t, std::set<inodeno_t>> pending_exports;
 
@@ -190,8 +244,11 @@ public:
 
 protected:
   struct PendingEvent {
-    PendingEvent(LogEvent *e, Context* c, bool f=false) : le(e), fin(c), flush(f) {}
-    LogEvent *le;
+    PendingEvent(LogEvent* e, Context* c, bool f = false) :
+      le(e), fin(c), flush(f)
+    {}
+
+    LogEvent* le;
     Context* fin;
     bool flush;
   };
@@ -199,38 +256,61 @@ protected:
   // -- replay --
   class ReplayThread : public Thread {
   public:
-    explicit ReplayThread(MDLog *l) : log(l) {}
-    void* entry() override {
+    explicit ReplayThread(MDLog* l) :
+      log(l)
+    {}
+
+    void*
+    entry() override
+    {
       log->_replay_thread();
       return 0;
     }
+
   private:
-    MDLog *log;
+    MDLog* log;
   } replay_thread;
 
   // Journal recovery/rewrite logic
   class RecoveryThread : public Thread {
   public:
-    explicit RecoveryThread(MDLog *l) : log(l) {}
-    void set_completion(MDSContext *c) {completion = c;}
-    void* entry() override {
+    explicit RecoveryThread(MDLog* l) :
+      log(l)
+    {}
+
+    void
+    set_completion(MDSContext* c)
+    {
+      completion = c;
+    }
+
+    void*
+    entry() override
+    {
       log->_recovery_thread(completion);
       return 0;
     }
+
   private:
-    MDLog *log;
-    MDSContext *completion = nullptr;
+    MDLog* log;
+    MDSContext* completion = nullptr;
   } recovery_thread;
 
   class SubmitThread : public Thread {
   public:
-    explicit SubmitThread(MDLog *l) : log(l) {}
-    void* entry() override {
+    explicit SubmitThread(MDLog* l) :
+      log(l)
+    {}
+
+    void*
+    entry() override
+    {
       log->_submit_thread();
       return 0;
     }
+
   private:
-    MDLog *log;
+    MDLog* log;
   } submit_thread;
 
   friend class ReplayThread;
@@ -241,13 +321,17 @@ protected:
   friend class ESubtreeMap;
   friend class MDCache;
 
-  void _replay();         // old way
-  void _replay_thread();  // new way
+  void _replay(); // old way
+  void _replay_thread(); // new way
 
-  void _recovery_thread(MDSContext *completion);
-  void _reformat_journal(JournalPointer const &jp, Journaler *old_journal, MDSContext *completion);
+  void _recovery_thread(MDSContext* completion);
+  void _reformat_journal(
+      JournalPointer const& jp,
+      Journaler* old_journal,
+      MDSContext* completion);
 
-  void set_safe_pos(uint64_t pos)
+  void
+  set_safe_pos(uint64_t pos)
   {
     std::lock_guard l(submit_mutex);
     ceph_assert(pos >= safe_pos);
@@ -256,10 +340,15 @@ protected:
 
   void _submit_thread();
 
-  LogSegmentRef const& get_oldest_segment() {
+  LogSegmentRef const&
+  get_oldest_segment()
+  {
     return segments.begin()->second;
   }
-  void remove_oldest_segment() {
+
+  void
+  remove_oldest_segment()
+  {
     ceph_assert(!segments.empty());
     segments.erase(segments.begin());
   }
@@ -274,23 +363,25 @@ protected:
   uint64_t safe_pos = 0;
 
   inodeno_t ino;
-  Journaler *journaler = nullptr;
+  Journaler* journaler = nullptr;
 
-  PerfCounters *logger = nullptr;
+  PerfCounters* logger = nullptr;
 
   bool already_replayed = false;
 
   std::vector<MDSContext*> waitfor_replay;
 
   // -- segments --
-  std::map<uint64_t,LogSegmentRef> segments;
-  std::size_t pre_segments_size = 0;            // the num of segments when the mds finished replay-journal, to calc the num of segments growing
+  std::map<uint64_t, LogSegmentRef> segments;
+  std::size_t pre_segments_size =
+      0; // the num of segments when the mds finished replay-journal, to calc the num of segments growing
   LogSegment::seq_t event_seq = 0;
   uint64_t expiring_events = 0;
   uint64_t expired_events = 0;
 
   int64_t mdsmap_up_features = 0;
-  std::map<uint64_t,std::list<PendingEvent> > pending_events; // log segment -> event list
+  std::map<uint64_t, std::list<PendingEvent>>
+      pending_events; // log segment -> event list
   ceph::fair_mutex submit_mutex{"MDLog::submit_mutex"};
   std::condition_variable_any submit_cond;
 
@@ -307,8 +398,8 @@ private:
   void try_expire(LogSegmentRef const& ls, int op_prio);
   void _maybe_expired(LogSegmentRef const& ls, int op_prio);
   void _expired(LogSegmentRef const& ls);
-  void _trim_expired_segments(auto& locker, MDSContext* ctx=nullptr);
-  void write_head(MDSContext *onfinish);
+  void _trim_expired_segments(auto& locker, MDSContext* ctx = nullptr);
+  void write_head(MDSContext* onfinish);
 
   void trim();
   void log_trim_upkeep(void);
@@ -338,7 +429,8 @@ private:
   std::condition_variable_any cond;
   std::atomic<bool> upkeep_log_trim_shutdown{false};
 
-  std::map<uint64_t, std::vector<Context*>> waiting_for_expire; // protected by mds_lock
+  std::map<uint64_t, std::vector<Context*>>
+      waiting_for_expire; // protected by mds_lock
 
   ceph::coarse_mono_time replay_start_time = ceph::coarse_mono_clock::zero();
 };

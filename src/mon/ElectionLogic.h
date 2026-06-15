@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -146,6 +146,7 @@ public:
    * @returns true if the rank is in our current quorum, false otherwise.
    */
   virtual bool is_current_member(int rank) const = 0;
+
   virtual ~ElectionOwner() {}
 };
 
@@ -157,10 +158,10 @@ public:
  */
 
 class ElectionLogic {
-  ElectionOwner *elector;
-  ConnectionTracker *peer_tracker;
-  
-  CephContext *cct;
+  ElectionOwner* elector;
+  ConnectionTracker* peer_tracker;
+
+  CephContext* cct;
   /**
    * Latest epoch we've seen.
    *
@@ -189,16 +190,17 @@ class ElectionLogic {
    * Indicates who we have acked
    */
   int leader_acked;
-  
+
 public:
   enum election_strategy {
-			  // Keep in sync with MonMap.h!
+    // Keep in sync with MonMap.h!
     CLASSIC = 1, // the original rank-based one
     DISALLOW = 2, // disallow a set from being leader
     CONNECTIVITY = 3 // includes DISALLOW, extends to prefer stronger connections
   };
+
   election_strategy strategy;
-    
+
   /**
    * Indicates if we are participating in the quorum.
    *
@@ -226,9 +228,12 @@ public:
    */
   std::set<int> acked_me;
 
-  ElectionLogic(ElectionOwner *e, election_strategy es, ConnectionTracker *t,
-		double ipm,
-		CephContext *c);
+  ElectionLogic(
+      ElectionOwner* e,
+      election_strategy es,
+      ConnectionTracker* t,
+      double ipm,
+      CephContext* c);
 
   ~ElectionLogic() noexcept;
 
@@ -237,9 +242,12 @@ public:
    * electing cluster, you're going to have a bad time.
    * Defaults to CLASSIC.
    */
-  void set_election_strategy(election_strategy es) {
+  void
+  set_election_strategy(election_strategy es)
+  {
     strategy = es;
   }
+
   /**
    * If there are no other peers in this Paxos group, ElectionOwner
    * can simply declare victory and we will make it so.
@@ -299,7 +307,7 @@ public:
    *  Callers are responsible for deleting this -- we will copy it if we want
    *  to keep the data.
    */
-  void receive_propose(int from, epoch_t mepoch, const ConnectionTracker *ct);
+  void receive_propose(int from, epoch_t mepoch, const ConnectionTracker* ct);
   /**
    * Handle a message from some other participant Acking us as the Leader.
    *
@@ -345,13 +353,23 @@ public:
    * @param from_epoch The election epoch in which they claim victory
    */
   bool receive_victory_claim(int from, epoch_t from_epoch);
+
   /**
    * Obtain our epoch
    *
    * @returns Our current epoch number
    */
-  epoch_t get_epoch() const { return epoch; }
-  int get_election_winner() { return last_election_winner; }
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
+
+  int
+  get_election_winner()
+  {
+    return last_election_winner;
+  }
 
 private:
   /**
@@ -406,7 +424,10 @@ private:
    * @li Whether the other monitor or ourself has the most connectivity to peers
    * @li Whether the other monitor or ourself has the lower rank
    */
-  void propose_connectivity_handler(int from, epoch_t mepoch, const ConnectionTracker *ct);
+  void propose_connectivity_handler(
+      int from,
+      epoch_t mepoch,
+      const ConnectionTracker* ct);
   /**
    * Helper function for connectivity handler. Combines the disallowed list
    * with ConnectionTracker scores.

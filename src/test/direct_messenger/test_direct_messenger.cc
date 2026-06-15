@@ -1,31 +1,48 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <gtest/gtest.h>
+
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
-#include <gtest/gtest.h>
-
-#include "global/global_init.h"
 #include "common/ceph_argparse.h"
+#include "global/global_init.h"
+#include "messages/MPing.h"
 
 #include "DirectMessenger.h"
 #include "FastStrategy.h"
 #include "QueueStrategy.h"
-#include "messages/MPing.h"
-
 
 /// mock dispatcher that calls the given callback
 class MockDispatcher : public Dispatcher {
   std::function<void(Message*)> callback;
- public:
-  MockDispatcher(CephContext *cct, std::function<void(Message*)> callback)
-    : Dispatcher(cct), callback(std::move(callback)) {}
-  bool ms_handle_reset(Connection *con) override { return false; }
-  void ms_handle_remote_reset(Connection *con) override {}
-  bool ms_handle_refused(Connection *con) override { return false; }
-  bool ms_dispatch(Message *m) override {
+
+public:
+  MockDispatcher(CephContext* cct, std::function<void(Message*)> callback) :
+    Dispatcher(cct), callback(std::move(callback))
+  {}
+
+  bool
+  ms_handle_reset(Connection* con) override
+  {
+    return false;
+  }
+
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
+
+  bool
+  ms_handle_refused(Connection* con) override
+  {
+    return false;
+  }
+
+  bool
+  ms_dispatch(Message* m) override
+  {
     callback(m);
     m->put();
     return true;
@@ -38,10 +55,10 @@ TEST(DirectMessenger, SyncDispatch)
   auto cct = g_ceph_context;
 
   // use FastStrategy for synchronous dispatch
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new FastStrategy());
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new FastStrategy());
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   ASSERT_EQ(0, client.set_direct_peer(&server));
   ASSERT_EQ(0, server.set_direct_peer(&client));
@@ -49,12 +66,10 @@ TEST(DirectMessenger, SyncDispatch)
   bool got_request = false;
   bool got_reply = false;
 
-  MockDispatcher client_dispatcher(cct, [&] (Message *m) {
-    got_reply = true;
-  });
+  MockDispatcher client_dispatcher(cct, [&](Message* m) { got_reply = true; });
   client.add_dispatcher_head(&client_dispatcher);
 
-  MockDispatcher server_dispatcher(cct, [&] (Message *m) {
+  MockDispatcher server_dispatcher(cct, [&](Message* m) {
     got_request = true;
     ASSERT_EQ(0, m->get_connection()->send_message(new MPing()));
   });
@@ -118,10 +133,10 @@ TEST(DirectMessenger, AsyncDispatch)
   auto cct = g_ceph_context;
 
   // use QueueStrategy for async replies
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new QueueStrategy(1));
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new QueueStrategy(1));
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   ASSERT_EQ(0, client.set_direct_peer(&server));
   ASSERT_EQ(0, server.set_direct_peer(&client));
@@ -140,14 +155,14 @@ TEST(DirectMessenger, AsyncDispatch)
   };
 
   // client dispatcher signals the condition variable on reply
-  MockDispatcher client_dispatcher(cct, [&] (Message *m) {
+  MockDispatcher client_dispatcher(cct, [&](Message* m) {
     std::lock_guard<std::mutex> lock(mutex);
     done = true;
     cond.notify_one();
   });
   client.add_dispatcher_head(&client_dispatcher);
 
-  MockDispatcher server_dispatcher(cct, [&] (Message *m) {
+  MockDispatcher server_dispatcher(cct, [&](Message* m) {
     // hold the lock over the call to send_message() to prove that the client's
     // dispatch is asynchronous. if it isn't, it will deadlock
     std::lock_guard<std::mutex> lock(mutex);
@@ -208,10 +223,10 @@ TEST(DirectMessenger, WaitShutdown)
   auto cct = g_ceph_context;
 
   // test wait() with both Queue- and FastStrategy
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new QueueStrategy(1));
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new QueueStrategy(1));
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   ASSERT_EQ(0, client.set_direct_peer(&server));
   ASSERT_EQ(0, server.set_direct_peer(&client));
@@ -256,10 +271,10 @@ TEST(DirectMessenger, MarkDown)
 {
   auto cct = g_ceph_context;
 
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new FastStrategy());
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new FastStrategy());
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   ASSERT_EQ(0, client.set_direct_peer(&server));
   ASSERT_EQ(0, server.set_direct_peer(&client));
@@ -297,11 +312,10 @@ TEST(DirectMessenger, SendShutdown)
   auto cct = g_ceph_context;
 
   // put client on the heap so we can free it early
-  std::unique_ptr<DirectMessenger> client{
-    new DirectMessenger(cct, entity_name_t::CLIENT(1),
-                        "client", 0, new FastStrategy())};
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  std::unique_ptr<DirectMessenger> client{new DirectMessenger(
+      cct, entity_name_t::CLIENT(1), "client", 0, new FastStrategy())};
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   ASSERT_EQ(0, client->set_direct_peer(&server));
   ASSERT_EQ(0, server.set_direct_peer(client.get()));
@@ -344,10 +358,10 @@ TEST(DirectMessenger, Bind)
 {
   auto cct = g_ceph_context;
 
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new FastStrategy());
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new FastStrategy());
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   entity_addr_t client_addr;
   client_addr.set_family(AF_INET);
@@ -395,10 +409,10 @@ TEST(DirectMessenger, StartWithoutPeer)
 {
   auto cct = g_ceph_context;
 
-  DirectMessenger client(cct, entity_name_t::CLIENT(1),
-                         "client", 0, new FastStrategy());
-  DirectMessenger server(cct, entity_name_t::CLIENT(2),
-                         "server", 0, new FastStrategy());
+  DirectMessenger client(
+      cct, entity_name_t::CLIENT(1), "client", 0, new FastStrategy());
+  DirectMessenger server(
+      cct, entity_name_t::CLIENT(2), "server", 0, new FastStrategy());
 
   // can't start until set_direct_peer()
   ASSERT_EQ(-EINVAL, client.start());
@@ -421,14 +435,15 @@ TEST(DirectMessenger, StartWithoutPeer)
   client.wait();
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   // command-line arguments
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_ANY,
-                         CODE_ENVIRONMENT_DAEMON,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_ANY, CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(cct.get());
 
   ::testing::InitGoogleTest(&argc, argv);

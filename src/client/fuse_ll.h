@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,15 +15,16 @@
 
 class CephFuse {
 public:
-  CephFuse(Client *c, int fd);
+  CephFuse(Client* c, int fd);
   ~CephFuse();
-  int init(int argc, const char *argv[]);
+  int init(int argc, const char* argv[]);
   int start();
   int mount();
   int loop();
   void finalize();
   class Handle;
   std::string get_mount_point() const;
+
 private:
-  CephFuse::Handle *_handle;
+  CephFuse::Handle* _handle;
 };

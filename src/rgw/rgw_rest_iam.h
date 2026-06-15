@@ -14,7 +14,10 @@
 
 
 class DoutPrefixProvider;
-namespace rgw { class SiteConfig; }
+
+namespace rgw {
+class SiteConfig;
+}
 struct RGWUserInfo;
 struct RGWGroupInfo;
 
@@ -28,19 +31,26 @@ bool validate_iam_path(const std::string& path, std::string& err);
 std::string iam_user_arn(const RGWUserInfo& info);
 std::string iam_group_arn(const RGWGroupInfo& info);
 
-int forward_iam_request_to_master(const DoutPrefixProvider* dpp,
-                                  const rgw::SiteConfig& site,
-                                  const RGWUserInfo& user,
-                                  bufferlist& indata, RGWXMLParser& parser,
-                                  const req_info& req, rgw_err& err,
-                                  optional_yield y);
+int forward_iam_request_to_master(
+    const DoutPrefixProvider* dpp,
+    const rgw::SiteConfig& site,
+    const RGWUserInfo& user,
+    bufferlist& indata,
+    RGWXMLParser& parser,
+    const req_info& req,
+    rgw_err& err,
+    optional_yield y);
 
 /// Perform an atomic read-modify-write operation on the given user metadata.
 /// Racing writes are detected here as ECANCELED errors, where we reload the
 /// updated user metadata and retry the operation.
 template <std::invocable<> F>
-int retry_raced_user_write(const DoutPrefixProvider* dpp, optional_yield y,
-                           rgw::sal::User* u, const F& f)
+int
+retry_raced_user_write(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::User* u,
+    const F& f)
 {
   int r = f();
   for (int i = 0; i < 10 && r == -ECANCELED; ++i) {
@@ -57,10 +67,15 @@ int retry_raced_user_write(const DoutPrefixProvider* dpp, optional_yield y,
 /// Racing writes are detected here as ECANCELED errors, where we reload the
 /// updated group metadata and retry the operation.
 template <std::invocable<> F>
-int retry_raced_group_write(const DoutPrefixProvider* dpp, optional_yield y,
-                            rgw::sal::Driver* driver, RGWGroupInfo& info,
-                            rgw::sal::Attrs& attrs, RGWObjVersionTracker& objv,
-                            const F& f)
+int
+retry_raced_group_write(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::Driver* driver,
+    RGWGroupInfo& info,
+    rgw::sal::Attrs& attrs,
+    RGWObjVersionTracker& objv,
+    const F& f)
 {
   int r = f();
   for (int i = 0; i < 10 && r == -ECANCELED; ++i) {
@@ -77,8 +92,12 @@ int retry_raced_group_write(const DoutPrefixProvider* dpp, optional_yield y,
 /// Racing writes are detected here as ECANCELED errors, where we reload the
 /// updated group metadata and retry the operation.
 template <std::invocable<> F>
-int retry_raced_role_write(const DoutPrefixProvider* dpp, optional_yield y,
-                           rgw::sal::RGWRole* role, const F& f)
+int
+retry_raced_role_write(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::RGWRole* role,
+    const F& f)
 {
   int r = f();
   for (int i = 0; i < 10 && r == -ECANCELED; ++i) {
@@ -94,24 +113,28 @@ int retry_raced_role_write(const DoutPrefixProvider* dpp, optional_yield y,
 class RGWHandler_REST_IAM : public RGWHandler_REST {
   const rgw::auth::StrategyRegistry& auth_registry;
   bufferlist bl_post_body;
-  RGWOp *op_post() override;
+  RGWOp* op_post() override;
 
 public:
-
   static bool action_exists(const req_state* s);
 
-  RGWHandler_REST_IAM(const rgw::auth::StrategyRegistry& auth_registry,
-		      bufferlist& bl_post_body)
-    : RGWHandler_REST(),
-      auth_registry(auth_registry),
-      bl_post_body(bl_post_body) {}
+  RGWHandler_REST_IAM(
+      const rgw::auth::StrategyRegistry& auth_registry,
+      bufferlist& bl_post_body) :
+    RGWHandler_REST(), auth_registry(auth_registry), bl_post_body(bl_post_body)
+  {}
+
   ~RGWHandler_REST_IAM() override = default;
 
-  int init(rgw::sal::Driver* driver,
-           req_state *s,
-           rgw::io::BasicClient *cio) override;
+  int init(rgw::sal::Driver* driver, req_state* s, rgw::io::BasicClient* cio)
+      override;
   int authorize(const DoutPrefixProvider* dpp, optional_yield y) override;
-  int postauth_init(optional_yield y) override { return 0; }
+
+  int
+  postauth_init(optional_yield y) override
+  {
+    return 0;
+  }
 };
 
 class RGWRESTMgr_IAM : public RGWRESTMgr {
@@ -119,14 +142,18 @@ public:
   RGWRESTMgr_IAM() = default;
   ~RGWRESTMgr_IAM() override = default;
 
-  RGWRESTMgr *get_resource_mgr(req_state* const s,
-                               const std::string& uri,
-                               std::string* const out_uri) override {
+  RGWRESTMgr*
+  get_resource_mgr(
+      req_state* const s,
+      const std::string& uri,
+      std::string* const out_uri) override
+  {
     return this;
   }
 
-  RGWHandler_REST* get_handler(rgw::sal::Driver* driver,
-			       req_state*,
-                               const rgw::auth::StrategyRegistry&,
-                               const std::string&) override;
+  RGWHandler_REST* get_handler(
+      rgw::sal::Driver* driver,
+      req_state*,
+      const rgw::auth::StrategyRegistry&,
+      const std::string&) override;
 };

@@ -12,27 +12,30 @@
  * Foundation.  See file COPYING.
  *
  */
-#include "include/types.h"
-#include "gtest/gtest.h"
-#include "include/cephfs/libcephfs.h"
-#include "include/fs_types.h"
-#include "include/ceph_fs.h"
-#include "client/posix_acl.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "client/posix_acl.h"
+#include "gtest/gtest.h"
+#include "include/ceph_fs.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/fs_types.h"
+#include "include/types.h"
 #ifdef __linux__
 #include <sys/xattr.h>
 #endif
 
-static size_t acl_ea_size(int count)
+static size_t
+acl_ea_size(int count)
 {
   return sizeof(acl_ea_header) + count * sizeof(acl_ea_entry);
 }
 
-static int acl_ea_count(size_t size)
+static int
+acl_ea_count(size_t size)
 {
   if (size < sizeof(acl_ea_header))
     return -1;
@@ -42,35 +45,36 @@ static int acl_ea_count(size_t size)
   return size / sizeof(acl_ea_entry);
 }
 
-static int check_acl_and_mode(const void *buf, size_t size, mode_t mode)
+static int
+check_acl_and_mode(const void* buf, size_t size, mode_t mode)
 {
   const acl_ea_entry *group_entry = NULL, *mask_entry = NULL;
-  const acl_ea_header *header = reinterpret_cast<const acl_ea_header*>(buf);
-  const acl_ea_entry *entry = header->a_entries;
+  const acl_ea_header* header = reinterpret_cast<const acl_ea_header*>(buf);
+  const acl_ea_entry* entry = header->a_entries;
   int count = (size - sizeof(*header)) / sizeof(*entry);
   for (int i = 0; i < count; ++i) {
     __u16 tag = entry->e_tag;
     __u16 perm = entry->e_perm;
-    switch(tag) {
-      case ACL_USER_OBJ:
-	if (perm != ((mode >> 6) & 7))
-	  return -EINVAL;
-	break;
-      case ACL_USER:
-      case ACL_GROUP:
-	break;
-      case ACL_GROUP_OBJ:
-	group_entry = entry;
-	break;
-      case ACL_OTHER:
-	if (perm != (mode & 7))
-	  return -EINVAL;
-	break;
-      case ACL_MASK:
-	mask_entry = entry;
-	break;
-      default:
-	return -EIO;
+    switch (tag) {
+    case ACL_USER_OBJ:
+      if (perm != ((mode >> 6) & 7))
+        return -EINVAL;
+      break;
+    case ACL_USER:
+    case ACL_GROUP:
+      break;
+    case ACL_GROUP_OBJ:
+      group_entry = entry;
+      break;
+    case ACL_OTHER:
+      if (perm != (mode & 7))
+        return -EINVAL;
+      break;
+    case ACL_MASK:
+      mask_entry = entry;
+      break;
+    default:
+      return -EIO;
     }
     ++entry;
   }
@@ -88,13 +92,14 @@ static int check_acl_and_mode(const void *buf, size_t size, mode_t mode)
   return 0;
 }
 
-static int generate_test_acl(void *buf, size_t size, mode_t mode)
+static int
+generate_test_acl(void* buf, size_t size, mode_t mode)
 {
   if (acl_ea_count(size) != 5)
     return -1;
-  acl_ea_header *header = reinterpret_cast<acl_ea_header*>(buf);
+  acl_ea_header* header = reinterpret_cast<acl_ea_header*>(buf);
   header->a_version = (__u32)ACL_EA_VERSION;
-  acl_ea_entry *entry = header->a_entries;
+  acl_ea_entry* entry = header->a_entries;
   entry->e_tag = ACL_USER_OBJ;
   entry->e_perm = (mode >> 6) & 7;
   ++entry;
@@ -113,14 +118,15 @@ static int generate_test_acl(void *buf, size_t size, mode_t mode)
   return 0;
 }
 
-static int generate_empty_acl(void *buf, size_t size, mode_t mode)
+static int
+generate_empty_acl(void* buf, size_t size, mode_t mode)
 {
 
- if (acl_ea_count(size) != 3)
+  if (acl_ea_count(size) != 3)
     return -1;
-  acl_ea_header *header = reinterpret_cast<acl_ea_header*>(buf);
+  acl_ea_header* header = reinterpret_cast<acl_ea_header*>(buf);
   header->a_version = (__u32)ACL_EA_VERSION;
-  acl_ea_entry *entry = header->a_entries;
+  acl_ea_entry* entry = header->a_entries;
   entry->e_tag = ACL_USER_OBJ;
   entry->e_perm = (mode >> 6) & 7;
   ++entry;
@@ -132,8 +138,9 @@ static int generate_empty_acl(void *buf, size_t size, mode_t mode)
   return 0;
 }
 
-TEST(ACL, SetACL) {
-  struct ceph_mount_info *cmount;
+TEST(ACL, SetACL)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
@@ -143,25 +150,28 @@ TEST(ACL, SetACL) {
   char test_file[256];
   sprintf(test_file, "file1_setacl_%d", getpid());
 
-  int fd = ceph_open(cmount, test_file, O_CREAT|O_RDWR, 0600);
+  int fd = ceph_open(cmount, test_file, O_CREAT | O_RDWR, 0600);
   ASSERT_GT(fd, 0);
   // change ownership to nobody -- we assume nobody exists and id is always 65534
   ASSERT_EQ(ceph_fchown(cmount, fd, 65534, 65534), 0);
 
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_permissions", "1"));
-  // "nobody" will be ignored on Windows
-  #ifndef _WIN32
+// "nobody" will be ignored on Windows
+#ifndef _WIN32
   ASSERT_EQ(ceph_open(cmount, test_file, O_RDWR, 0), -EACCES);
-  #endif
+#endif
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_permissions", "0"));
 
   size_t acl_buf_size = acl_ea_size(5);
-  void *acl_buf = malloc(acl_buf_size);
+  void* acl_buf = malloc(acl_buf_size);
   ASSERT_EQ(generate_test_acl(acl_buf, acl_buf_size, 0750), 0);
 
   // can't set default acl for non-directory
-  ASSERT_EQ(ceph_fsetxattr(cmount, fd, ACL_EA_DEFAULT, acl_buf, acl_buf_size, 0), -EACCES);
-  ASSERT_EQ(ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
+  ASSERT_EQ(
+      ceph_fsetxattr(cmount, fd, ACL_EA_DEFAULT, acl_buf, acl_buf_size, 0),
+      -EACCES);
+  ASSERT_EQ(
+      ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
 
   int tmpfd = ceph_open(cmount, test_file, O_RDWR, 0);
   ASSERT_GT(tmpfd, 0);
@@ -176,7 +186,8 @@ TEST(ACL, SetACL) {
   acl_buf_size = acl_ea_size(3);
   // setting ACL that is equivalent to file mode
   ASSERT_EQ(generate_empty_acl(acl_buf, acl_buf_size, 0600), 0);
-  ASSERT_EQ(ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
+  ASSERT_EQ(
+      ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
   // ACL was deleted
   ASSERT_EQ(ceph_fgetxattr(cmount, fd, ACL_EA_ACCESS, NULL, 0), -ENODATA);
 
@@ -189,8 +200,9 @@ TEST(ACL, SetACL) {
   ceph_shutdown(cmount);
 }
 
-TEST(ACL, Chmod) {
-  struct ceph_mount_info *cmount;
+TEST(ACL, Chmod)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
@@ -199,13 +211,14 @@ TEST(ACL, Chmod) {
   char test_file[256];
   sprintf(test_file, "file1_acl_chmod_%d", getpid());
 
-  int fd = ceph_open(cmount, test_file, O_CREAT|O_RDWR, 0600);
+  int fd = ceph_open(cmount, test_file, O_CREAT | O_RDWR, 0600);
   ASSERT_GT(fd, 0);
 
   int acl_buf_size = acl_ea_size(5);
-  void *acl_buf = malloc(acl_buf_size);
+  void* acl_buf = malloc(acl_buf_size);
   ASSERT_EQ(generate_test_acl(acl_buf, acl_buf_size, 0775), 0);
-  ASSERT_EQ(ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
+  ASSERT_EQ(
+      ceph_fsetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), 0);
 
   struct ceph_statx stx;
   ASSERT_EQ(ceph_fstatx(cmount, fd, &stx, CEPH_STATX_MODE, 0), 0);
@@ -219,7 +232,9 @@ TEST(ACL, Chmod) {
   ASSERT_EQ(stx.stx_mode & 0777u, 0640u);
 
   // ACL was updated according to mode
-  ASSERT_EQ(ceph_fgetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_fgetxattr(cmount, fd, ACL_EA_ACCESS, acl_buf, acl_buf_size),
+      acl_buf_size);
   ASSERT_EQ(check_acl_and_mode(acl_buf, acl_buf_size, stx.stx_mode), 0);
 
   free(acl_buf);
@@ -227,16 +242,17 @@ TEST(ACL, Chmod) {
   ceph_shutdown(cmount);
 }
 
-TEST(ACL, DefaultACL) {
-  struct ceph_mount_info *cmount;
+TEST(ACL, DefaultACL)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_acl_type", "posix_acl"));
 
   int acl_buf_size = acl_ea_size(5);
-  void *acl1_buf = malloc(acl_buf_size);
-  void *acl2_buf = malloc(acl_buf_size);
+  void* acl1_buf = malloc(acl_buf_size);
+  void* acl2_buf = malloc(acl_buf_size);
 
   ASSERT_EQ(generate_test_acl(acl1_buf, acl_buf_size, 0750), 0);
 
@@ -245,18 +261,25 @@ TEST(ACL, DefaultACL) {
   ASSERT_EQ(ceph_mkdir(cmount, test_dir1, 0750), 0);
 
   // set default acl
-  ASSERT_EQ(ceph_setxattr(cmount, test_dir1, ACL_EA_DEFAULT, acl1_buf, acl_buf_size, 0), 0);
+  ASSERT_EQ(
+      ceph_setxattr(
+          cmount, test_dir1, ACL_EA_DEFAULT, acl1_buf, acl_buf_size, 0),
+      0);
 
   char test_dir2[262];
   sprintf(test_dir2, "%s/dir2", test_dir1);
   ASSERT_EQ(ceph_mkdir(cmount, test_dir2, 0755), 0);
 
   // inherit default acl
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2, ACL_EA_DEFAULT, acl2_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir2, ACL_EA_DEFAULT, acl2_buf, acl_buf_size),
+      acl_buf_size);
   ASSERT_EQ(memcmp(acl1_buf, acl2_buf, acl_buf_size), 0);
 
   // mode and ACL are updated
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2, ACL_EA_ACCESS, acl2_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir2, ACL_EA_ACCESS, acl2_buf, acl_buf_size),
+      acl_buf_size);
   {
     struct ceph_statx stx;
     ASSERT_EQ(ceph_statx(cmount, test_dir2, &stx, CEPH_STATX_MODE, 0), 0);
@@ -267,14 +290,16 @@ TEST(ACL, DefaultACL) {
 
   char test_file1[262];
   sprintf(test_file1, "%s/file1", test_dir1);
-  int fd = ceph_open(cmount, test_file1, O_CREAT|O_RDWR, 0666);
+  int fd = ceph_open(cmount, test_file1, O_CREAT | O_RDWR, 0666);
   ASSERT_GT(fd, 0);
 
   // no default acl
   ASSERT_EQ(ceph_fgetxattr(cmount, fd, ACL_EA_DEFAULT, NULL, 0), -ENODATA);
 
   // mode and ACL are updated
-  ASSERT_EQ(ceph_fgetxattr(cmount, fd, ACL_EA_ACCESS, acl2_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_fgetxattr(cmount, fd, ACL_EA_ACCESS, acl2_buf, acl_buf_size),
+      acl_buf_size);
   {
     struct ceph_statx stx;
     ASSERT_EQ(ceph_statx(cmount, test_file1, &stx, CEPH_STATX_MODE, 0), 0);
@@ -292,41 +317,51 @@ TEST(ACL, DefaultACL) {
   ceph_shutdown(cmount);
 }
 
-TEST(ACL, Disabled) {
-  struct ceph_mount_info *cmount;
+TEST(ACL, Disabled)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_acl_type", ""));
 
   size_t acl_buf_size = acl_ea_size(3);
-  void *acl_buf = malloc(acl_buf_size);
+  void* acl_buf = malloc(acl_buf_size);
   ASSERT_EQ(generate_empty_acl(acl_buf, acl_buf_size, 0755), 0);
 
   char test_dir[256];
   sprintf(test_dir, "dir1_acl_disabled_%d", getpid());
   ASSERT_EQ(ceph_mkdir(cmount, test_dir, 0750), 0);
 
-  ASSERT_EQ(ceph_setxattr(cmount, test_dir, ACL_EA_DEFAULT, acl_buf, acl_buf_size, 0), -EOPNOTSUPP);
-  ASSERT_EQ(ceph_setxattr(cmount, test_dir, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0), -EOPNOTSUPP);
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir, ACL_EA_DEFAULT, acl_buf, acl_buf_size), -EOPNOTSUPP);
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir, ACL_EA_ACCESS, acl_buf, acl_buf_size), -EOPNOTSUPP);
+  ASSERT_EQ(
+      ceph_setxattr(cmount, test_dir, ACL_EA_DEFAULT, acl_buf, acl_buf_size, 0),
+      -EOPNOTSUPP);
+  ASSERT_EQ(
+      ceph_setxattr(cmount, test_dir, ACL_EA_ACCESS, acl_buf, acl_buf_size, 0),
+      -EOPNOTSUPP);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir, ACL_EA_DEFAULT, acl_buf, acl_buf_size),
+      -EOPNOTSUPP);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir, ACL_EA_ACCESS, acl_buf, acl_buf_size),
+      -EOPNOTSUPP);
 
   free(acl_buf);
   ceph_shutdown(cmount);
 }
 
-TEST(ACL, SnapdirACL) {
-  struct ceph_mount_info *cmount;
+TEST(ACL, SnapdirACL)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_acl_type", "posix_acl"));
 
   int acl_buf_size = acl_ea_size(5);
-  void *acl1_buf = malloc(acl_buf_size);
-  void *acl2_buf = malloc(acl_buf_size);
-  void *acl3_buf = malloc(acl_buf_size);
+  void* acl1_buf = malloc(acl_buf_size);
+  void* acl2_buf = malloc(acl_buf_size);
+  void* acl3_buf = malloc(acl_buf_size);
 
   ASSERT_EQ(generate_test_acl(acl1_buf, acl_buf_size, 0750), 0);
 
@@ -335,28 +370,41 @@ TEST(ACL, SnapdirACL) {
   ASSERT_EQ(ceph_mkdir(cmount, test_dir1, 0750), 0);
 
   // set default acl
-  ASSERT_EQ(ceph_setxattr(cmount, test_dir1, ACL_EA_DEFAULT, acl1_buf, acl_buf_size, 0), 0);
+  ASSERT_EQ(
+      ceph_setxattr(
+          cmount, test_dir1, ACL_EA_DEFAULT, acl1_buf, acl_buf_size, 0),
+      0);
 
   char test_dir2[262];
   sprintf(test_dir2, "%s/dir2", test_dir1);
   ASSERT_EQ(ceph_mkdir(cmount, test_dir2, 0755), 0);
 
   // inherit default acl
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2, ACL_EA_DEFAULT, acl2_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir2, ACL_EA_DEFAULT, acl2_buf, acl_buf_size),
+      acl_buf_size);
   ASSERT_EQ(memcmp(acl1_buf, acl2_buf, acl_buf_size), 0);
 
   char test_dir2_snapdir[512];
   sprintf(test_dir2_snapdir, "%s/dir2/.snap", test_dir1);
 
   // inherit default acl
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2_snapdir, ACL_EA_DEFAULT, acl3_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(
+          cmount, test_dir2_snapdir, ACL_EA_DEFAULT, acl3_buf, acl_buf_size),
+      acl_buf_size);
   ASSERT_EQ(memcmp(acl2_buf, acl3_buf, acl_buf_size), 0);
 
   memset(acl2_buf, 0, acl_buf_size);
   memset(acl3_buf, 0, acl_buf_size);
 
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2, ACL_EA_ACCESS, acl2_buf, acl_buf_size), acl_buf_size);
-  ASSERT_EQ(ceph_getxattr(cmount, test_dir2_snapdir, ACL_EA_ACCESS, acl3_buf, acl_buf_size), acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(cmount, test_dir2, ACL_EA_ACCESS, acl2_buf, acl_buf_size),
+      acl_buf_size);
+  ASSERT_EQ(
+      ceph_getxattr(
+          cmount, test_dir2_snapdir, ACL_EA_ACCESS, acl3_buf, acl_buf_size),
+      acl_buf_size);
   ASSERT_EQ(memcmp(acl2_buf, acl3_buf, acl_buf_size), 0);
 
   free(acl1_buf);

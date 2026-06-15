@@ -14,17 +14,21 @@
 
 namespace crimson::os::seastore::onode {
 
-class TestReplayExtent final: public NodeExtent {
- public:
+class TestReplayExtent final : public NodeExtent {
+public:
   using Ref = crimson::os::seastore::TCachedExtentRef<TestReplayExtent>;
 
-  void prepare_replay(NodeExtentRef from_extent) {
+  void
+  prepare_replay(NodeExtentRef from_extent)
+  {
     assert(get_length() == from_extent->get_length());
     auto mut = do_get_mutable();
     std::memcpy(mut.get_write(), from_extent->get_read(), get_length());
   }
 
-  void replay_and_verify(NodeExtentRef replayed_extent) {
+  void
+  replay_and_verify(NodeExtentRef replayed_extent)
+  {
     assert(get_length() == replayed_extent->get_length());
     auto mut = do_get_mutable();
     auto bl = recorder->get_delta();
@@ -32,36 +36,64 @@ class TestReplayExtent final: public NodeExtent {
     auto p = bl.cbegin();
     recorder->apply_delta(p, mut, *this);
     assert(p == bl.end());
-    auto cmp = std::memcmp(get_read(), replayed_extent->get_read(), get_length());
+    auto cmp =
+        std::memcmp(get_read(), replayed_extent->get_read(), get_length());
     ceph_assert(cmp == 0 && "replay mismatch!");
   }
 
-  static Ref create(extent_len_t length, DeltaRecorderURef&& recorder) {
+  static Ref
+  create(extent_len_t length, DeltaRecorderURef&& recorder)
+  {
     auto r = ceph::buffer::create_aligned(length, 4096);
     auto bp = ceph::bufferptr(std::move(r));
     return new TestReplayExtent(std::move(bp), std::move(recorder));
   }
 
- protected:
-  NodeExtentRef mutate(context_t, DeltaRecorderURef&&) override {
-    ceph_abort_msg("impossible path"); }
-  DeltaRecorder* get_recorder() const override {
-    ceph_abort_msg("impossible path"); }
-  CachedExtentRef duplicate_for_write(Transaction&) override {
-    ceph_abort_msg("impossible path"); }
-  extent_types_t get_type() const override {
-    return extent_types_t::TEST_BLOCK; }
-  ceph::bufferlist get_delta() override {
-    ceph_abort_msg("impossible path"); }
-  void apply_delta(const ceph::bufferlist&) override {
-    ceph_abort_msg("impossible path"); }
+protected:
+  NodeExtentRef
+  mutate(context_t, DeltaRecorderURef&&) override
+  {
+    ceph_abort_msg("impossible path");
+  }
 
- private:
-  TestReplayExtent(ceph::bufferptr&& ptr, DeltaRecorderURef&& recorder)
-      : NodeExtent(std::move(ptr)), recorder(std::move(recorder)) {
+  DeltaRecorder*
+  get_recorder() const override
+  {
+    ceph_abort_msg("impossible path");
+  }
+
+  CachedExtentRef
+  duplicate_for_write(Transaction&) override
+  {
+    ceph_abort_msg("impossible path");
+  }
+
+  extent_types_t
+  get_type() const override
+  {
+    return extent_types_t::TEST_BLOCK;
+  }
+
+  ceph::bufferlist
+  get_delta() override
+  {
+    ceph_abort_msg("impossible path");
+  }
+
+  void
+  apply_delta(const ceph::bufferlist&) override
+  {
+    ceph_abort_msg("impossible path");
+  }
+
+private:
+  TestReplayExtent(ceph::bufferptr&& ptr, DeltaRecorderURef&& recorder) :
+    NodeExtent(std::move(ptr)), recorder(std::move(recorder))
+  {
     state = extent_state_t::MUTATION_PENDING;
   }
+
   DeltaRecorderURef recorder;
 };
 
-}
+} // namespace crimson::os::seastore::onode

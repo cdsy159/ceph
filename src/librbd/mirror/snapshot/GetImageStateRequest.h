@@ -21,17 +21,26 @@ struct ImageState;
 template <typename ImageCtxT = librbd::ImageCtx>
 class GetImageStateRequest {
 public:
-  static GetImageStateRequest *create(ImageCtxT *image_ctx, uint64_t snap_id,
-                                      ImageState *image_state,
-                                      Context *on_finish) {
+  static GetImageStateRequest*
+  create(
+      ImageCtxT* image_ctx,
+      uint64_t snap_id,
+      ImageState* image_state,
+      Context* on_finish)
+  {
     return new GetImageStateRequest(image_ctx, snap_id, image_state, on_finish);
   }
 
-  GetImageStateRequest(ImageCtxT *image_ctx, uint64_t snap_id,
-                       ImageState *image_state, Context *on_finish)
-    : m_image_ctx(image_ctx), m_snap_id(snap_id), m_image_state(image_state),
-      m_on_finish(on_finish) {
-  }
+  GetImageStateRequest(
+      ImageCtxT* image_ctx,
+      uint64_t snap_id,
+      ImageState* image_state,
+      Context* on_finish) :
+    m_image_ctx(image_ctx),
+    m_snap_id(snap_id),
+    m_image_state(image_state),
+    m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -50,10 +59,10 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
   uint64_t m_snap_id;
-  ImageState *m_image_state;
-  Context *m_on_finish;
+  ImageState* m_image_state;
+  Context* m_on_finish;
 
   bufferlist m_bl;
   bufferlist m_state_bl;
@@ -71,6 +80,7 @@ private:
 } // namespace mirror
 } // namespace librbd
 
-extern template class librbd::mirror::snapshot::GetImageStateRequest<librbd::ImageCtx>;
+extern template class librbd::mirror::snapshot::GetImageStateRequest<
+    librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_MIRROR_SNAPSHOT_GET_IMAGE_STATE_REQUEST_H

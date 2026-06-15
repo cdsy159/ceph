@@ -22,13 +22,25 @@ struct MDSMetaRequest {
 private:
   int op;
   ceph_tid_t tid;
+
 public:
   explicit MDSMetaRequest(int o, ceph_tid_t t) :
-    op(o), tid(t) { }
-  virtual ~MDSMetaRequest() { }
+    op(o), tid(t)
+  {}
 
-  int get_op() { return op; }
-  ceph_tid_t get_tid() { return tid; }
+  virtual ~MDSMetaRequest() {}
+
+  int
+  get_op()
+  {
+    return op;
+  }
+
+  ceph_tid_t
+  get_tid()
+  {
+    return tid;
+  }
 };
 
 #endif // !CEPH_MDS_META_REQUEST_H

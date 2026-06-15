@@ -14,11 +14,9 @@ struct HttpProcessorInterface {
   using EmptyBody = boost::beast::http::empty_body;
   using EmptyRequest = boost::beast::http::request<EmptyBody>;
 
-  virtual ~HttpProcessorInterface() {
-  }
+  virtual ~HttpProcessorInterface() {}
 
   virtual void process_request(EmptyRequest& request) = 0;
-
 };
 
 } // namespace migration

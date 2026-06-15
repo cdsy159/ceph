@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -28,17 +28,15 @@
 #define CEPH_MOSDPING_H
 
 #include "common/Clock.h"
-
 #include "msg/Message.h"
 #include "osd/osd_types.h"
-
 
 class MOSDPing final : public Message {
 private:
   static constexpr int HEAD_VERSION = 5;
   static constexpr int COMPAT_VERSION = 4;
 
- public:
+public:
   enum {
     HEARTBEAT = 0,
     START_HEARTBEAT = 1,
@@ -47,53 +45,72 @@ private:
     PING = 4,
     PING_REPLY = 5,
   };
-  const char *get_op_name(int op) const {
+
+  const char*
+  get_op_name(int op) const
+  {
     switch (op) {
-    case HEARTBEAT: return "heartbeat";
-    case START_HEARTBEAT: return "start_heartbeat";
-    case STOP_HEARTBEAT: return "stop_heartbeat";
-    case YOU_DIED: return "you_died";
-    case PING: return "ping";
-    case PING_REPLY: return "ping_reply";
-    default: return "???";
+    case HEARTBEAT:
+      return "heartbeat";
+    case START_HEARTBEAT:
+      return "start_heartbeat";
+    case STOP_HEARTBEAT:
+      return "stop_heartbeat";
+    case YOU_DIED:
+      return "you_died";
+    case PING:
+      return "ping";
+    case PING_REPLY:
+      return "ping_reply";
+    default:
+      return "???";
     }
   }
 
   uuid_d fsid;
   epoch_t map_epoch = 0;
   __u8 op = 0;
-  utime_t ping_stamp;               ///< when the PING was sent
+  utime_t ping_stamp; ///< when the PING was sent
   ceph::signedspan mono_ping_stamp; ///< relative to sender's clock
   ceph::signedspan mono_send_stamp; ///< replier's send stamp
-  std::optional<ceph::signedspan> delta_ub;  ///< ping sender
+  std::optional<ceph::signedspan> delta_ub; ///< ping sender
   epoch_t up_from = 0;
 
   uint32_t min_message_size = 0;
 
-  MOSDPing(const uuid_d& f, epoch_t e, __u8 o,
-	   utime_t s,
-	   ceph::signedspan ms,
-	   ceph::signedspan mss,
-	   epoch_t upf,
-	   uint32_t min_message,
-	   std::optional<ceph::signedspan> delta_ub = {})
-    : Message{MSG_OSD_PING, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f), map_epoch(e), op(o),
-      ping_stamp(s),
-      mono_ping_stamp(ms),
-      mono_send_stamp(mss),
-      delta_ub(delta_ub),
-      up_from(upf),
-      min_message_size(min_message)
-  { }
-  MOSDPing()
-    : Message{MSG_OSD_PING, HEAD_VERSION, COMPAT_VERSION}
+  MOSDPing(
+      const uuid_d& f,
+      epoch_t e,
+      __u8 o,
+      utime_t s,
+      ceph::signedspan ms,
+      ceph::signedspan mss,
+      epoch_t upf,
+      uint32_t min_message,
+      std::optional<ceph::signedspan> delta_ub = {}) :
+    Message{MSG_OSD_PING, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    map_epoch(e),
+    op(o),
+    ping_stamp(s),
+    mono_ping_stamp(ms),
+    mono_send_stamp(mss),
+    delta_ub(delta_ub),
+    up_from(upf),
+    min_message_size(min_message)
   {}
+
+  MOSDPing() :
+    Message{MSG_OSD_PING, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
 private:
   ~MOSDPing() final {}
 
 public:
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(fsid, p);
@@ -115,7 +132,10 @@ public:
     p += size;
     min_message_size = size + payload_mid_length;
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(fsid, payload);
     encode(map_epoch, payload);
@@ -149,20 +169,26 @@ public:
     }
   }
 
-  std::string_view get_type_name() const override { return "osd_ping"; }
-  void print(std::ostream& out) const override {
-    out << "osd_ping(" << get_op_name(op)
-	<< " e" << map_epoch
-	<< " up_from " << up_from
-	<< " ping_stamp " << ping_stamp << "/" << mono_ping_stamp
-	<< " send_stamp " << mono_send_stamp;
+  std::string_view
+  get_type_name() const override
+  {
+    return "osd_ping";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "osd_ping(" << get_op_name(op) << " e" << map_epoch << " up_from "
+        << up_from << " ping_stamp " << ping_stamp << "/" << mono_ping_stamp
+        << " send_stamp " << mono_send_stamp;
     if (delta_ub) {
       out << " delta_ub " << *delta_ub;
     }
     out << ")";
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

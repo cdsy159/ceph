@@ -15,9 +15,11 @@
 
 #pragma once
 
+#include <fmt/ostream.h>
+
 #include <iosfwd>
 #include <iterator>
-#include <fmt/ostream.h>
+
 #include "dout.h"
 
 /// \file dout_fmt.h
@@ -30,27 +32,27 @@
 /// chaining.
 
 // work around "warning: value computed is not used" with default dout_prefix
-inline void dout_fmt_use_prefix(std::ostream&) {}
+inline void
+dout_fmt_use_prefix(std::ostream&)
+{}
 
-#define lsubdout_fmt(cct, sub, v, ...) \
-  dout_impl(cct, ceph_subsys_##sub, v) \
-  dout_fmt_use_prefix(dout_prefix); \
-  fmt::print(*_dout, __VA_ARGS__); \
+#define lsubdout_fmt(cct, sub, v, ...)                                   \
+  dout_impl(cct, ceph_subsys_##sub, v) dout_fmt_use_prefix(dout_prefix); \
+  fmt::print(*_dout, __VA_ARGS__);                                       \
   *_dout << dendl
 
-#define ldout_fmt(cct, v, ...) \
-  dout_impl(cct, dout_subsys, v) \
-  dout_fmt_use_prefix(dout_prefix); \
-  fmt::print(*_dout, __VA_ARGS__); \
+#define ldout_fmt(cct, v, ...)                                     \
+  dout_impl(cct, dout_subsys, v) dout_fmt_use_prefix(dout_prefix); \
+  fmt::print(*_dout, __VA_ARGS__);                                 \
   *_dout << dendl
 
-#define dout_fmt(v, ...) \
-  ldout_fmt((dout_context), v, __VA_ARGS__)
+#define dout_fmt(v, ...) ldout_fmt((dout_context), v, __VA_ARGS__)
 
-#define ldpp_dout_fmt(dpp, v, ...) \
-  if (decltype(auto) pdpp = (dpp); pdpp) { /* workaround -Wnonnull-compare for 'this' */ \
+#define ldpp_dout_fmt(dpp, v, ...)                                              \
+  if (decltype(auto) pdpp = (dpp);                                              \
+      pdpp) { /* workaround -Wnonnull-compare for 'this' */                     \
     dout_impl(pdpp->get_cct(), ceph::dout::need_dynamic(pdpp->get_subsys()), v) \
-    pdpp->gen_prefix(*_dout); \
-    fmt::print(*_dout, __VA_ARGS__); \
-    *_dout << dendl; \
+        pdpp->gen_prefix(*_dout);                                               \
+    fmt::print(*_dout, __VA_ARGS__);                                            \
+    *_dout << dendl;                                                            \
   }

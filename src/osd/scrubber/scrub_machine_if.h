@@ -17,10 +17,9 @@ namespace Scrub {
 
 namespace sc = ::boost::statechart;
 
-
 /// the FSM API used by the scrubber
 class ScrubFsmIf {
- public:
+public:
   virtual ~ScrubFsmIf() = default;
 
   virtual void process_event(const sc::event_base& evt) = 0;
@@ -48,12 +47,10 @@ class ScrubFsmIf {
    * The returned data names the last request sent to the replicas, and
    * how many replicas responded / are yet expected to respond.
    */
-  virtual std::optional<pg_scrubbing_status_t> get_reservation_status()
-      const = 0;
+  virtual std::optional<pg_scrubbing_status_t> get_reservation_status() const = 0;
 
   /// "initiate" the state machine (an internal state_chart function)
   virtual void initiate() = 0;
 };
 
-}  // namespace Scrub
-
+} // namespace Scrub

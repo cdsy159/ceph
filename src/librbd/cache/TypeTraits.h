@@ -17,10 +17,10 @@ namespace cache {
 
 template <typename ImageCtxT>
 struct TypeTraits {
-  typedef ceph::immutable_obj_cache::CacheClient CacheClient;    
+  typedef ceph::immutable_obj_cache::CacheClient CacheClient;
 };
 
-} // namespace librbd
 } // namespace cache
+} // namespace librbd
 
 #endif

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "inode_backtrace.h"
@@ -7,7 +7,8 @@
 
 /* inode_backpointer_t */
 
-void inode_backpointer_t::encode(ceph::buffer::list& bl) const
+void
+inode_backpointer_t::encode(ceph::buffer::list& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(dirino, bl);
@@ -16,7 +17,8 @@ void inode_backpointer_t::encode(ceph::buffer::list& bl) const
   ENCODE_FINISH(bl);
 }
 
-void inode_backpointer_t::decode(ceph::buffer::list::const_iterator& bl)
+void
+inode_backpointer_t::decode(ceph::buffer::list::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(dirino, bl);
@@ -25,7 +27,8 @@ void inode_backpointer_t::decode(ceph::buffer::list::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void inode_backpointer_t::decode_old(ceph::buffer::list::const_iterator& bl)
+void
+inode_backpointer_t::decode_old(ceph::buffer::list::const_iterator& bl)
 {
   using ceph::decode;
   decode(dirino, bl);
@@ -33,14 +36,16 @@ void inode_backpointer_t::decode_old(ceph::buffer::list::const_iterator& bl)
   decode(version, bl);
 }
 
-void inode_backpointer_t::dump(ceph::Formatter *f) const
+void
+inode_backpointer_t::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("dirino", dirino);
   f->dump_string("dname", dname);
   f->dump_unsigned("version", version);
 }
 
-std::list<inode_backpointer_t> inode_backpointer_t::generate_test_instances()
+std::list<inode_backpointer_t>
+inode_backpointer_t::generate_test_instances()
 {
   std::list<inode_backpointer_t> ls;
   ls.emplace_back();
@@ -51,12 +56,12 @@ std::list<inode_backpointer_t> inode_backpointer_t::generate_test_instances()
   return ls;
 }
 
-
 /*
  * inode_backtrace_t
  */
 
-void inode_backtrace_t::encode(ceph::buffer::list& bl) const
+void
+inode_backtrace_t::encode(ceph::buffer::list& bl) const
 {
   ENCODE_START(5, 4, bl);
   encode(ino, bl);
@@ -66,11 +71,12 @@ void inode_backtrace_t::encode(ceph::buffer::list& bl) const
   ENCODE_FINISH(bl);
 }
 
-void inode_backtrace_t::decode(ceph::buffer::list::const_iterator& bl)
+void
+inode_backtrace_t::decode(ceph::buffer::list::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(5, 4, 4, bl);
   if (struct_v < 3)
-    return;  // sorry, the old data was crap
+    return; // sorry, the old data was crap
   decode(ino, bl);
   if (struct_v >= 4) {
     decode(ancestors, bl);
@@ -89,7 +95,8 @@ void inode_backtrace_t::decode(ceph::buffer::list::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void inode_backtrace_t::dump(ceph::Formatter *f) const
+void
+inode_backtrace_t::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("ino", ino);
   f->open_array_section("ancestors");
@@ -107,7 +114,8 @@ void inode_backtrace_t::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<inode_backtrace_t> inode_backtrace_t::generate_test_instances()
+std::list<inode_backtrace_t>
+inode_backtrace_t::generate_test_instances()
 {
   std::list<inode_backtrace_t> ls;
   ls.emplace_back();
@@ -123,10 +131,13 @@ std::list<inode_backtrace_t> inode_backtrace_t::generate_test_instances()
   return ls;
 }
 
-int inode_backtrace_t::compare(const inode_backtrace_t& other,
-                               bool *equivalent, bool *divergent) const
+int
+inode_backtrace_t::compare(
+    const inode_backtrace_t& other,
+    bool* equivalent,
+    bool* divergent) const
 {
-  int min_size = std::min(ancestors.size(),other.ancestors.size());
+  int min_size = std::min(ancestors.size(), other.ancestors.size());
   *equivalent = true;
   *divergent = false;
   if (min_size == 0)
@@ -166,10 +177,16 @@ int inode_backtrace_t::compare(const inode_backtrace_t& other,
   return comparator;
 }
 
-std::ostream& operator<<(std::ostream& out, const inode_backpointer_t& ib) {
-  return out << "<" << ib.dirino << "/" << ib.dname << " v" << ib.version << ">";
+std::ostream&
+operator<<(std::ostream& out, const inode_backpointer_t& ib)
+{
+  return out << "<" << ib.dirino << "/" << ib.dname << " v" << ib.version
+             << ">";
 }
 
-std::ostream& operator<<(std::ostream& out, const inode_backtrace_t& it) {
-  return out << "(" << it.pool << ")" << it.ino << ":" << it.ancestors << "//" << it.old_pools;
+std::ostream&
+operator<<(std::ostream& out, const inode_backtrace_t& it)
+{
+  return out << "(" << it.pool << ")" << it.ino << ":" << it.ancestors << "//"
+             << it.old_pools;
 }

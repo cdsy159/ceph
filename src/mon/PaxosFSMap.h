@@ -19,33 +19,51 @@
 #include <chrono>
 #include <map>
 
+#include "include/ceph_assert.h"
 #include "mds/FSMap.h"
 #include "mds/MDSMap.h"
-
-#include "include/ceph_assert.h"
 
 class PaxosFSMap {
 public:
   virtual ~PaxosFSMap() {}
 
-  const FSMap &get_pending_fsmap() const { ceph_assert(is_leader()); return pending_fsmap; }
-  const FSMap &get_fsmap() const { return fsmap; }
+  const FSMap&
+  get_pending_fsmap() const
+  {
+    ceph_assert(is_leader());
+    return pending_fsmap;
+  }
+
+  const FSMap&
+  get_fsmap() const
+  {
+    return fsmap;
+  }
 
   virtual bool is_leader() const = 0;
 
 protected:
-  FSMap &get_pending_fsmap_writeable() { ceph_assert(is_leader()); return pending_fsmap; }
+  FSMap&
+  get_pending_fsmap_writeable()
+  {
+    ceph_assert(is_leader());
+    return pending_fsmap;
+  }
 
-  FSMap &create_pending() {
+  FSMap&
+  create_pending()
+  {
     ceph_assert(is_leader());
     pending_fsmap = fsmap;
     pending_fsmap.inc_epoch();
     return pending_fsmap;
   }
 
-  void prune_fsmap_history() {
+  void
+  prune_fsmap_history()
+  {
     auto now = real_clock::now();
-    for (auto it = history.begin(); it != history.end(); ) {
+    for (auto it = history.begin(); it != history.end();) {
       auto since = now - it->second.get_btime();
       /* Be sure to not make the map empty */
       auto itnext = std::next(it);
@@ -66,26 +84,39 @@ protected:
     }
   }
 
-  void put_fsmap_history(const FSMap& _fsmap) {
+  void
+  put_fsmap_history(const FSMap& _fsmap)
+  {
     auto now = real_clock::now();
     auto since = now - _fsmap.get_btime();
     if (since < history_prune_time) {
-      history.emplace(std::piecewise_construct, std::forward_as_tuple(_fsmap.get_epoch()), std::forward_as_tuple(_fsmap));
+      history.emplace(
+          std::piecewise_construct, std::forward_as_tuple(_fsmap.get_epoch()),
+          std::forward_as_tuple(_fsmap));
     }
   }
 
-  void set_fsmap_history_threshold(std::chrono::seconds t) {
+  void
+  set_fsmap_history_threshold(std::chrono::seconds t)
+  {
     history_prune_time = t;
   }
-  std::chrono::seconds get_fsmap_history_threshold() const {
+
+  std::chrono::seconds
+  get_fsmap_history_threshold() const
+  {
     return history_prune_time;
   }
 
-  const auto& get_fsmap_history() const {
+  const auto&
+  get_fsmap_history() const
+  {
     return history;
   }
 
-  void decode(ceph::buffer::list &bl) {
+  void
+  decode(ceph::buffer::list& bl)
+  {
     fsmap.decode(bl);
     put_fsmap_history(fsmap);
     pending_fsmap = FSMap(); /* nuke it to catch invalid access */

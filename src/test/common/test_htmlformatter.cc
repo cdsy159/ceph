@@ -1,8 +1,8 @@
-#include "gtest/gtest.h"
-
-#include "common/HTMLFormatter.h"
 #include <sstream>
 #include <string>
+
+#include "common/HTMLFormatter.h"
+#include "gtest/gtest.h"
 
 using namespace ceph;
 
@@ -15,7 +15,9 @@ TEST(htmlformatter, dump_format_large_item)
   std::string bucket_name("bucket");
   std::string object_key(1024, 'a');
 
-  formatter.dump_format("Location", "%s/%s/%s", base_url.c_str(), bucket_name.c_str(), object_key.c_str());
+  formatter.dump_format(
+      "Location", "%s/%s/%s", base_url.c_str(), bucket_name.c_str(),
+      object_key.c_str());
 
   formatter.flush(sout);
 

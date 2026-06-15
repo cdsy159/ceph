@@ -19,13 +19,14 @@
 #include <fmt/chrono.h>
 #include <fmt/ostream.h>
 
-#include "include/rados.h" // for struct ceph_timespec
-#include "log/LogClock.h"
-#include "config.h"
-#include "strtol.h"
-
 #include <iomanip> // for std::setw()
 #include <sstream>
+
+#include "include/rados.h" // for struct ceph_timespec
+#include "log/LogClock.h"
+
+#include "config.h"
+#include "strtol.h"
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -36,7 +37,8 @@
 #define NSEC_PER_SEC 1000000000ULL
 #endif
 
-int clock_gettime(int clk_id, struct timespec *tp)
+int
+clock_gettime(int clk_id, struct timespec* tp)
 {
   if (clk_id == CLOCK_REALTIME) {
     // gettimeofday is much faster than clock_get_time
@@ -63,57 +65,68 @@ int clock_gettime(int clk_id, struct timespec *tp)
 using namespace std::literals;
 
 namespace ceph {
-using std::chrono::seconds;
 using std::chrono::nanoseconds;
-void real_clock::to_ceph_timespec(const time_point& t,
-				  struct ceph_timespec& ts) {
+using std::chrono::seconds;
+
+void
+real_clock::to_ceph_timespec(const time_point& t, struct ceph_timespec& ts)
+{
   ts.tv_sec = to_time_t(t);
   ts.tv_nsec = (t.time_since_epoch() % 1s).count();
 }
-struct ceph_timespec real_clock::to_ceph_timespec(const time_point& t) {
+
+struct ceph_timespec
+real_clock::to_ceph_timespec(const time_point& t)
+{
   struct ceph_timespec ts;
   to_ceph_timespec(t, ts);
   return ts;
 }
-real_clock::time_point real_clock::from_ceph_timespec(
-  const struct ceph_timespec& ts) {
+
+real_clock::time_point
+real_clock::from_ceph_timespec(const struct ceph_timespec& ts)
+{
   return time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
 }
 
-void coarse_real_clock::to_ceph_timespec(const time_point& t,
-					 struct ceph_timespec& ts) {
+void
+coarse_real_clock::to_ceph_timespec(const time_point& t, struct ceph_timespec& ts)
+{
   ts.tv_sec = to_time_t(t);
   ts.tv_nsec = (t.time_since_epoch() % seconds(1)).count();
 }
-struct ceph_timespec coarse_real_clock::to_ceph_timespec(
-  const time_point& t) {
+
+struct ceph_timespec
+coarse_real_clock::to_ceph_timespec(const time_point& t)
+{
   struct ceph_timespec ts;
   to_ceph_timespec(t, ts);
   return ts;
 }
-coarse_real_clock::time_point coarse_real_clock::from_ceph_timespec(
-  const struct ceph_timespec& ts) {
+
+coarse_real_clock::time_point
+coarse_real_clock::from_ceph_timespec(const struct ceph_timespec& ts)
+{
   return time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
 }
 
-
 using std::chrono::duration_cast;
-using std::chrono::seconds;
 using std::chrono::microseconds;
+using std::chrono::seconds;
 
-template<typename Clock,
-	 typename std::enable_if<Clock::is_steady>::type*>
-std::ostream& operator<<(std::ostream& m,
-			 const std::chrono::time_point<Clock>& t) {
-  return m << std::fixed << std::chrono::duration<double>(
-    t.time_since_epoch()).count()
-	   << 's';
+template <typename Clock, typename std::enable_if<Clock::is_steady>::type*>
+std::ostream&
+operator<<(std::ostream& m, const std::chrono::time_point<Clock>& t)
+{
+  return m << std::fixed
+           << std::chrono::duration<double>(t.time_since_epoch()).count()
+           << 's';
 }
 
-template<typename Clock,
-	 typename std::enable_if<!Clock::is_steady>::type*>
-std::ostream& operator<<(std::ostream& m,
-			 const std::chrono::time_point<Clock>& t) {
+template <typename Clock, typename std::enable_if<!Clock::is_steady>::type*>
+std::ostream&
+operator<<(std::ostream& m, const std::chrono::time_point<Clock>& t)
+{
   m.setf(std::ios::right);
   char oldfill = m.fill();
   m.fill('0');
@@ -122,33 +135,34 @@ std::ostream& operator<<(std::ostream& m,
   struct tm bdt;
   time_t tt = Clock::to_time_t(t);
   localtime_r(&tt, &bdt);
-  char tz[32] = { 0 };
+  char tz[32] = {0};
   strftime(tz, sizeof(tz), "%z", &bdt);
-  m << std::setw(4) << (bdt.tm_year+1900)  // 2007 -> '07'
-    << '-' << std::setw(2) << (bdt.tm_mon+1)
-    << '-' << std::setw(2) << bdt.tm_mday
-    << 'T'
-    << std::setw(2) << bdt.tm_hour
-    << ':' << std::setw(2) << bdt.tm_min
-    << ':' << std::setw(2) << bdt.tm_sec
-    << "." << std::setw(6) << duration_cast<microseconds>(
-      t.time_since_epoch() % seconds(1)).count()
+  m << std::setw(4) << (bdt.tm_year + 1900) // 2007 -> '07'
+    << '-' << std::setw(2) << (bdt.tm_mon + 1) << '-' << std::setw(2)
+    << bdt.tm_mday << 'T' << std::setw(2) << bdt.tm_hour << ':' << std::setw(2)
+    << bdt.tm_min << ':' << std::setw(2) << bdt.tm_sec << "." << std::setw(6)
+    << duration_cast<microseconds>(t.time_since_epoch() % seconds(1)).count()
     << tz;
   m.fill(oldfill);
   m.unsetf(std::ios::right);
   return m;
 }
 
-template std::ostream&
-operator<< <mono_clock>(std::ostream& m, const mono_time& t);
-template std::ostream&
-operator<< <real_clock>(std::ostream& m, const real_time& t);
-template std::ostream&
-operator<< <coarse_mono_clock>(std::ostream& m, const coarse_mono_time& t);
-template std::ostream&
-operator<< <coarse_real_clock>(std::ostream& m, const coarse_real_time& t);
+template std::ostream& operator<< <mono_clock>(
+    std::ostream& m,
+    const mono_time& t);
+template std::ostream& operator<< <real_clock>(
+    std::ostream& m,
+    const real_time& t);
+template std::ostream& operator<< <coarse_mono_clock>(
+    std::ostream& m,
+    const coarse_mono_time& t);
+template std::ostream& operator<< <coarse_real_clock>(
+    std::ostream& m,
+    const coarse_real_time& t);
 
-std::string timespan_str(timespan t)
+std::string
+timespan_str(timespan t)
 {
   // FIXME: somebody pretty please make a version of this function
   // that isn't as lame as this one!
@@ -193,7 +207,8 @@ std::string timespan_str(timespan t)
   return ss.str();
 }
 
-std::string exact_timespan_str(timespan t)
+std::string
+exact_timespan_str(timespan t)
 {
   uint64_t nsec = std::chrono::nanoseconds(t).count();
   uint64_t sec = nsec / 1'000'000'000;
@@ -239,35 +254,36 @@ std::string exact_timespan_str(timespan t)
   return ss.str();
 }
 
-std::chrono::seconds parse_timespan(const std::string& s)
+std::chrono::seconds
+parse_timespan(const std::string& s)
 {
-  static std::map<std::string,int> units = {
-    { "s", 1 },
-    { "sec", 1 },
-    { "second", 1 },
-    { "seconds", 1 },
-    { "m", 60 },
-    { "min", 60 },
-    { "minute", 60 },
-    { "minutes", 60 },
-    { "h", 60*60 },
-    { "hr", 60*60 },
-    { "hour", 60*60 },
-    { "hours", 60*60 },
-    { "d", 24*60*60 },
-    { "day", 24*60*60 },
-    { "days", 24*60*60 },
-    { "w", 7*24*60*60 },
-    { "wk", 7*24*60*60 },
-    { "week", 7*24*60*60 },
-    { "weeks", 7*24*60*60 },
-    { "mo", 30*24*60*60 },
-    { "month", 30*24*60*60 },
-    { "months", 30*24*60*60 },
-    { "y", 365*24*60*60 },
-    { "yr", 365*24*60*60 },
-    { "year", 365*24*60*60 },
-    { "years", 365*24*60*60 },
+  static std::map<std::string, int> units = {
+      {"s", 1},
+      {"sec", 1},
+      {"second", 1},
+      {"seconds", 1},
+      {"m", 60},
+      {"min", 60},
+      {"minute", 60},
+      {"minutes", 60},
+      {"h", 60 * 60},
+      {"hr", 60 * 60},
+      {"hour", 60 * 60},
+      {"hours", 60 * 60},
+      {"d", 24 * 60 * 60},
+      {"day", 24 * 60 * 60},
+      {"days", 24 * 60 * 60},
+      {"w", 7 * 24 * 60 * 60},
+      {"wk", 7 * 24 * 60 * 60},
+      {"week", 7 * 24 * 60 * 60},
+      {"weeks", 7 * 24 * 60 * 60},
+      {"mo", 30 * 24 * 60 * 60},
+      {"month", 30 * 24 * 60 * 60},
+      {"months", 30 * 24 * 60 * 60},
+      {"y", 365 * 24 * 60 * 60},
+      {"yr", 365 * 24 * 60 * 60},
+      {"year", 365 * 24 * 60 * 60},
+      {"years", 365 * 24 * 60 * 60},
   };
 
   auto r = 0s;
@@ -310,11 +326,12 @@ std::chrono::seconds parse_timespan(const std::string& s)
       auto unit = s.substr(unit_start, pos - unit_start);
       auto p = units.find(unit);
       if (p == units.end()) {
-	throw std::invalid_argument("unrecogized unit '"s + unit + "'");
+        throw std::invalid_argument("unrecogized unit '"s + unit + "'");
       }
       val *= p->second;
     } else if (pos < s.size()) {
-      throw std::invalid_argument("unexpected trailing '"s + s.substr(pos) + "'");
+      throw std::invalid_argument(
+          "unexpected trailing '"s + s.substr(pos) + "'");
     }
     r += std::chrono::seconds(val);
   }
@@ -348,13 +365,14 @@ to_pretty_timedelta(timespan duration)
   }
   return fmt::format("{}y", duration_seconds / (3600 * 24 * 365));
 }
-}
+} // namespace ceph
 
 namespace std {
-template<typename Rep, typename Period>
-ostream& operator<<(ostream& m, const chrono::duration<Rep, Period>& t) {
-  if constexpr (chrono::treat_as_floating_point_v<Rep> ||
-                Period::den > 1) {
+template <typename Rep, typename Period>
+ostream&
+operator<<(ostream& m, const chrono::duration<Rep, Period>& t)
+{
+  if constexpr (chrono::treat_as_floating_point_v<Rep> || Period::den > 1) {
     using seconds_t = chrono::duration<float>;
     ::fmt::print(m, "{:.9}", chrono::duration_cast<seconds_t>(t));
   } else {
@@ -363,20 +381,22 @@ ostream& operator<<(ostream& m, const chrono::duration<Rep, Period>& t) {
   return m;
 }
 
-template ostream&
-operator<< <::ceph::timespan::rep,
-            ::ceph::timespan::period> (ostream&, const ::ceph::timespan&);
+template ostream& operator<< <::ceph::timespan::rep, ::ceph::timespan::period>(
+    ostream&,
+    const ::ceph::timespan&);
 
 template ostream&
-operator<< <::ceph::signedspan::rep,
-            ::ceph::signedspan::period> (ostream&, const ::ceph::signedspan&);
+operator<< <::ceph::signedspan::rep, ::ceph::signedspan::period>(
+    ostream&,
+    const ::ceph::signedspan&);
+
+template ostream& operator<< <chrono::seconds::rep, chrono::seconds::period>(
+    ostream&,
+    const chrono::seconds&);
 
 template ostream&
-operator<< <chrono::seconds::rep,
-            chrono::seconds::period> (ostream&, const chrono::seconds&);
-
-template ostream&
-operator<< <chrono::milliseconds::rep,
-            chrono::milliseconds::period> (ostream&, const chrono::milliseconds&);
+operator<< <chrono::milliseconds::rep, chrono::milliseconds::period>(
+    ostream&,
+    const chrono::milliseconds&);
 
 } // namespace std

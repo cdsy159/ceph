@@ -6,26 +6,33 @@
 namespace rbd {
 namespace mirror {
 
-std::ostream &operator<<(std::ostream &os, const ImageId &image_id) {
+std::ostream&
+operator<<(std::ostream& os, const ImageId& image_id)
+{
   return os << "global id=" << image_id.global_id << ", "
             << "id=" << image_id.id;
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const LocalPoolMeta& local_pool_meta) {
+std::ostream&
+operator<<(std::ostream& os, const LocalPoolMeta& local_pool_meta)
+{
   return os << "mirror_uuid=" << local_pool_meta.mirror_uuid;
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const RemotePoolMeta& remote_pool_meta) {
-  return os << "mirror_uuid=" << remote_pool_meta.mirror_uuid << ", "
-                "mirror_peer_uuid=" << remote_pool_meta.mirror_peer_uuid;
+std::ostream&
+operator<<(std::ostream& os, const RemotePoolMeta& remote_pool_meta)
+{
+  return os << "mirror_uuid=" << remote_pool_meta.mirror_uuid
+            << ", "
+               "mirror_peer_uuid="
+            << remote_pool_meta.mirror_peer_uuid;
 }
 
-std::ostream& operator<<(std::ostream& os, const PeerSpec &peer) {
-  return os << "uuid: " << peer.uuid
-	     << " cluster: " << peer.cluster_name
-	     << " client: " << peer.client_name;
+std::ostream&
+operator<<(std::ostream& os, const PeerSpec& peer)
+{
+  return os << "uuid: " << peer.uuid << " cluster: " << peer.cluster_name
+            << " client: " << peer.client_name;
 }
 
 } // namespace mirror

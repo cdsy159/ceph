@@ -4,10 +4,10 @@
 #ifndef CEPH_LIBRBD_MIRROR_SNAPSHOT_DEMOTE_REQUEST_H
 #define CEPH_LIBRBD_MIRROR_SNAPSHOT_DEMOTE_REQUEST_H
 
-#include "include/buffer.h"
-
-#include <string>
 #include <set>
+#include <string>
+
+#include "include/buffer.h"
 
 struct Context;
 
@@ -21,17 +21,23 @@ namespace snapshot {
 template <typename ImageCtxT = librbd::ImageCtx>
 class DemoteRequest {
 public:
-  static DemoteRequest *create(ImageCtxT *image_ctx,
-                               const std::string& global_image_id,
-                               Context *on_finish) {
+  static DemoteRequest*
+  create(
+      ImageCtxT* image_ctx,
+      const std::string& global_image_id,
+      Context* on_finish)
+  {
     return new DemoteRequest(image_ctx, global_image_id, on_finish);
   }
 
-  DemoteRequest(ImageCtxT *image_ctx, const std::string& global_image_id,
-                Context *on_finish)
-    : m_image_ctx(image_ctx), m_global_image_id(global_image_id),
-      m_on_finish(on_finish) {
-  }
+  DemoteRequest(
+      ImageCtxT* image_ctx,
+      const std::string& global_image_id,
+      Context* on_finish) :
+    m_image_ctx(image_ctx),
+    m_global_image_id(global_image_id),
+    m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -53,9 +59,9 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
   std::string m_global_image_id;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   void enable_non_primary_feature();
   void handle_enable_non_primary_feature(int r);
@@ -64,7 +70,6 @@ private:
   void handle_create_snapshot(int r);
 
   void finish(int r);
-
 };
 
 } // namespace snapshot

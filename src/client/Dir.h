@@ -9,8 +9,8 @@ class Dentry;
 struct Inode;
 
 class Dir {
- public:
-  Inode    *parent_inode;  // my inode
+public:
+  Inode* parent_inode; // my inode
   std::unordered_map<std::string, Dentry*> dentries;
   unsigned num_null_dentries = 0;
 
@@ -18,7 +18,11 @@ class Dir {
 
   explicit Dir(Inode* in) { parent_inode = in; }
 
-  bool is_empty() {  return dentries.empty(); }
+  bool
+  is_empty()
+  {
+    return dentries.empty();
+  }
 };
 
 #endif

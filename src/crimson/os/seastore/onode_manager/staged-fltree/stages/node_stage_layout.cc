@@ -7,10 +7,13 @@
 
 namespace crimson::os::seastore::onode {
 
-void node_header_t::bootstrap_extent(
+void
+node_header_t::bootstrap_extent(
     NodeExtentMutable& mut,
-    field_type_t field_type, node_type_t node_type,
-    bool is_level_tail, level_t level)
+    field_type_t field_type,
+    node_type_t node_type,
+    bool is_level_tail,
+    level_t level)
 {
   node_header_t header;
   header.set_field_type(field_type);
@@ -20,8 +23,11 @@ void node_header_t::bootstrap_extent(
   mut.copy_in_relative(0, header);
 }
 
-void node_header_t::update_is_level_tail(
-    NodeExtentMutable& mut, const node_header_t& header, bool value)
+void
+node_header_t::update_is_level_tail(
+    NodeExtentMutable& mut,
+    const node_header_t& header,
+    bool value)
 {
   auto& _header = const_cast<node_header_t&>(header);
   _header.set_is_level_tail(value);
@@ -32,50 +38,57 @@ void node_header_t::update_is_level_tail(
 #define F013_INST(ST) _node_fields_013_t<ST>
 
 template <typename SlotType>
-void F013_T::update_size_at(
-    NodeExtentMutable& mut, const me_t& node, index_t index, int change)
+void
+F013_T::update_size_at(
+    NodeExtentMutable& mut,
+    const me_t& node,
+    index_t index,
+    int change)
 {
   assert(index <= node.num_keys);
   [[maybe_unused]] extent_len_t node_size = mut.get_length();
 #ifndef NDEBUG
   // check underflow
   if (change < 0 && index != node.num_keys) {
-    assert(node.get_item_start_offset(index, node_size) <
-           node.get_item_end_offset(index, node_size));
+    assert(
+        node.get_item_start_offset(index, node_size) <
+        node.get_item_end_offset(index, node_size));
   }
 #endif
   for (const auto* p_slot = &node.slots[index];
-       p_slot < &node.slots[node.num_keys];
-       ++p_slot) {
+       p_slot < &node.slots[node.num_keys]; ++p_slot) {
     node_offset_t offset = p_slot->right_offset;
     int new_offset = offset - change;
     assert(new_offset > 0);
     assert(new_offset < (int)node_size);
     mut.copy_in_absolute(
-        (void*)&(p_slot->right_offset),
-        node_offset_t(new_offset));
+        (void*)&(p_slot->right_offset), node_offset_t(new_offset));
   }
 #ifndef NDEBUG
   // check overflow
   if (change > 0 && index != node.num_keys) {
     assert(node.num_keys > 0);
-    assert(node.get_key_start_offset(node.num_keys, node_size) <=
-           node.slots[node.num_keys - 1].right_offset);
+    assert(
+        node.get_key_start_offset(node.num_keys, node_size) <=
+        node.slots[node.num_keys - 1].right_offset);
   }
 #endif
 }
 
 template <typename SlotType>
-void F013_T::append_key(
-    NodeExtentMutable& mut, const key_t& key, char*& p_append)
+void
+F013_T::append_key(NodeExtentMutable& mut, const key_t& key, char*& p_append)
 {
   mut.copy_in_absolute(p_append, key);
   p_append += sizeof(key_t);
 }
 
 template <typename SlotType>
-void F013_T::append_offset(
-    NodeExtentMutable& mut, node_offset_t offset_to_right, char*& p_append)
+void
+F013_T::append_offset(
+    NodeExtentMutable& mut,
+    node_offset_t offset_to_right,
+    char*& p_append)
 {
   mut.copy_in_absolute(p_append, offset_to_right);
   p_append += sizeof(node_offset_t);
@@ -83,9 +96,13 @@ void F013_T::append_offset(
 
 template <typename SlotType>
 template <IsFullKey Key>
-void F013_T::insert_at(
-    NodeExtentMutable& mut, const Key& key,
-    const me_t& node, index_t index, node_offset_t size_right)
+void
+F013_T::insert_at(
+    NodeExtentMutable& mut,
+    const Key& key,
+    const me_t& node,
+    index_t index,
+    node_offset_t size_right)
 {
   assert(index <= node.num_keys);
   extent_len_t node_size = mut.get_length();
@@ -102,9 +119,11 @@ void F013_T::insert_at(
   assert(new_offset < (int)node_size);
   append_offset(mut, new_offset, p_insert);
 }
-#define IA_TEMPLATE(ST, KT) template void F013_INST(ST)::      \
-    insert_at<KT>(NodeExtentMutable&, const KT&, \
-                  const F013_INST(ST)&, index_t, node_offset_t)
+
+#define IA_TEMPLATE(ST, KT)                                         \
+  template void F013_INST(ST)::insert_at<KT>(                       \
+      NodeExtentMutable&, const KT&, const F013_INST(ST)&, index_t, \
+      node_offset_t)
 IA_TEMPLATE(slot_0_t, key_view_t);
 IA_TEMPLATE(slot_1_t, key_view_t);
 IA_TEMPLATE(slot_3_t, key_view_t);
@@ -113,8 +132,12 @@ IA_TEMPLATE(slot_1_t, key_hobj_t);
 IA_TEMPLATE(slot_3_t, key_hobj_t);
 
 template <typename SlotType>
-node_offset_t F013_T::erase_at(
-    NodeExtentMutable& mut, const me_t& node, index_t index, const char* p_left_bound)
+node_offset_t
+F013_T::erase_at(
+    NodeExtentMutable& mut,
+    const me_t& node,
+    index_t index,
+    const char* p_left_bound)
 {
   extent_len_t node_size = mut.get_length();
   auto offset_item_start = node.get_item_start_offset(index, node_size);
@@ -143,11 +166,14 @@ F013_TEMPLATE(slot_0_t);
 F013_TEMPLATE(slot_1_t);
 F013_TEMPLATE(slot_3_t);
 
-void node_fields_2_t::append_offset(
-    NodeExtentMutable& mut, node_offset_t offset_to_right, char*& p_append)
+void
+node_fields_2_t::append_offset(
+    NodeExtentMutable& mut,
+    node_offset_t offset_to_right,
+    char*& p_append)
 {
   mut.copy_in_absolute(p_append, offset_to_right);
   p_append += sizeof(node_offset_t);
 }
 
-}
+} // namespace crimson::os::seastore::onode

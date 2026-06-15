@@ -16,17 +16,17 @@
 #include "wnbd_handler.h"
 
 #define _NTSCSI_USER_MODE_
-#include <rpc.h>
 #include <ddk/scsi.h>
+#include <rpc.h>
+
+#include "common/debug.h"
 
 #include <boost/thread/tss.hpp>
 
-#include "common/debug.h"
+#include "common/Formatter.h"
+#include "common/SubProcess.h"
 #include "common/errno.h"
 #include "common/safe_io.h"
-#include "common/SubProcess.h"
-#include "common/Formatter.h"
-
 #include "global/global_context.h"
 
 WnbdHandler::~WnbdHandler()
@@ -46,7 +46,8 @@ WnbdHandler::~WnbdHandler()
   }
 }
 
-int WnbdHandler::wait()
+int
+WnbdHandler::wait()
 {
   int err = 0;
   if (started && wnbd_disk) {
@@ -54,8 +55,8 @@ int WnbdHandler::wait()
 
     err = WnbdWaitDispatcher(wnbd_disk);
     if (err) {
-      derr << __func__ << ": failed waiting for dispatcher to stop: "
-           << instance_name
+      derr << __func__
+           << ": failed waiting for dispatcher to stop: " << instance_name
            << ". Error: " << err << dendl;
     } else {
       dout(10) << "WNBD mapping disconnected: " << instance_name << dendl;
@@ -65,26 +66,27 @@ int WnbdHandler::wait()
   return err;
 }
 
-WnbdAdminHook::WnbdAdminHook(WnbdHandler *handler, AdminSocket* admin_socket)
-  : m_handler(handler)
-  , m_admin_socket(admin_socket)
+WnbdAdminHook::WnbdAdminHook(WnbdHandler* handler, AdminSocket* admin_socket) :
+  m_handler(handler), m_admin_socket(admin_socket)
 {
   if (m_admin_socket) {
     m_admin_socket->register_command(
-      std::string("wnbd stats ") + m_handler->instance_name,
-      this, "get WNBD stats");
+        std::string("wnbd stats ") + m_handler->instance_name, this,
+        "get WNBD stats");
   } else {
     dout(0) << "no admin socket provided, skipped registering wnbd hooks"
             << dendl;
   }
 }
 
-int WnbdAdminHook::call (
-  std::string_view command, const cmdmap_t& cmdmap,
-  const bufferlist&,
-  Formatter *f,
-  std::ostream& errss,
-  bufferlist& out)
+int
+WnbdAdminHook::call(
+    std::string_view command,
+    const cmdmap_t& cmdmap,
+    const bufferlist&,
+    Formatter* f,
+    std::ostream& errss,
+    bufferlist& out)
 {
   if (command == "wnbd stats " + m_handler->instance_name) {
     return m_handler->dump_stats(f);
@@ -92,13 +94,14 @@ int WnbdAdminHook::call (
   return -ENOSYS;
 }
 
-int WnbdHandler::dump_stats(Formatter *f)
+int
+WnbdHandler::dump_stats(Formatter* f)
 {
   if (!f) {
     return -EINVAL;
   }
 
-  WNBD_USR_STATS stats = { 0 };
+  WNBD_USR_STATS stats = {0};
   DWORD err = WnbdGetUserspaceStats(wnbd_disk, &stats);
   if (err) {
     derr << "Failed to retrieve WNBD userspace stats. Error: " << err << dendl;
@@ -125,7 +128,8 @@ int WnbdHandler::dump_stats(Formatter *f)
   return 0;
 }
 
-void WnbdHandler::shutdown()
+void
+WnbdHandler::shutdown()
 {
   std::unique_lock l{shutdown_lock};
   if (!terminated && wnbd_disk) {
@@ -138,10 +142,11 @@ void WnbdHandler::shutdown()
   }
 }
 
-void WnbdHandler::aio_callback(librbd::completion_t cb, void *arg)
+void
+WnbdHandler::aio_callback(librbd::completion_t cb, void* arg)
 {
-  librbd::RBD::AioCompletion *aio_completion =
-    reinterpret_cast<librbd::RBD::AioCompletion*>(cb);
+  librbd::RBD::AioCompletion* aio_completion =
+      reinterpret_cast<librbd::RBD::AioCompletion*>(cb);
 
   WnbdHandler::IOContext* ctx = static_cast<WnbdHandler::IOContext*>(arg);
   int ret = aio_completion->get_return_value();
@@ -159,30 +164,29 @@ void WnbdHandler::aio_callback(librbd::completion_t cb, void *arg)
   if (ret < 0) {
     ctx->err_code = -ret;
     // TODO: check the actual error.
-    ctx->set_sense(SCSI_SENSE_MEDIUM_ERROR,
-                   SCSI_ADSENSE_UNRECOVERED_ERROR);
-  } else if ((ctx->req_type == WnbdReqTypeRead) &&
-              ret < static_cast<int>(ctx->req_size)) {
-    int pad_byte_count = static_cast<int> (ctx->req_size) - ret;
+    ctx->set_sense(SCSI_SENSE_MEDIUM_ERROR, SCSI_ADSENSE_UNRECOVERED_ERROR);
+  } else if (
+      (ctx->req_type == WnbdReqTypeRead) &&
+      ret < static_cast<int>(ctx->req_size)) {
+    int pad_byte_count = static_cast<int>(ctx->req_size) - ret;
     ctx->data.append_zero(pad_byte_count);
-    dout(20) << __func__ << ": " << *ctx << ": Pad byte count: "
-             << pad_byte_count << dendl;
+    dout(20) << __func__ << ": " << *ctx
+             << ": Pad byte count: " << pad_byte_count << dendl;
     ctx->err_code = 0;
   } else {
     ctx->err_code = 0;
   }
 
-  boost::asio::post(
-    *ctx->handler->reply_tpool,
-    [&, ctx]()
-    {
-      ctx->handler->send_io_response(ctx);
-    });
+  boost::asio::post(*ctx->handler->reply_tpool, [&, ctx]() {
+    ctx->handler->send_io_response(ctx);
+  });
 
   aio_completion->release();
 }
 
-void WnbdHandler::send_io_response(WnbdHandler::IOContext *ctx) {
+void
+WnbdHandler::send_io_response(WnbdHandler::IOContext* ctx)
+{
   std::unique_ptr<WnbdHandler::IOContext> pctx{ctx};
   ceph_assert(WNBD_DEFAULT_MAX_TRANSFER_LENGTH >= pctx->data.length());
 
@@ -195,18 +199,16 @@ void WnbdHandler::send_io_response(WnbdHandler::IOContext *ctx) {
   // Use TLS to store an overlapped structure so that we avoid
   // recreating one each time we send a reply.
   static boost::thread_specific_ptr<OVERLAPPED> overlapped_tls(
-    // Cleanup routine
-    [](LPOVERLAPPED p_overlapped)
-    {
-      if (p_overlapped->hEvent) {
-        CloseHandle(p_overlapped->hEvent);
-      }
-      delete p_overlapped;
-    });
+      // Cleanup routine
+      [](LPOVERLAPPED p_overlapped) {
+        if (p_overlapped->hEvent) {
+          CloseHandle(p_overlapped->hEvent);
+        }
+        delete p_overlapped;
+      });
 
   LPOVERLAPPED overlapped = overlapped_tls.get();
-  if (!overlapped)
-  {
+  if (!overlapped) {
     overlapped = new OVERLAPPED{0};
     HANDLE overlapped_evt = CreateEventA(0, TRUE, TRUE, NULL);
     if (!overlapped_evt) {
@@ -226,19 +228,16 @@ void WnbdHandler::send_io_response(WnbdHandler::IOContext *ctx) {
   }
 
   err = WnbdSendResponseEx(
-    pctx->handler->wnbd_disk,
-    &wnbd_rsp,
-    pctx->data.c_str(),
-    pctx->data.length(),
-    overlapped);
+      pctx->handler->wnbd_disk, &wnbd_rsp, pctx->data.c_str(),
+      pctx->data.length(), overlapped);
   if (err == ERROR_IO_PENDING) {
     DWORD returned_bytes = 0;
     err = 0;
     // We've got ERROR_IO_PENDING, which means that the operation is in
     // progress. We'll use GetOverlappedResult to wait for it to complete
     // and then retrieve the result.
-    if (!GetOverlappedResult(pctx->handler->wnbd_disk, overlapped,
-                             &returned_bytes, TRUE)) {
+    if (!GetOverlappedResult(
+            pctx->handler->wnbd_disk, overlapped, &returned_bytes, TRUE)) {
       err = GetLastError();
       derr << "Could not send response. Request id: " << wnbd_rsp.RequestHandle
            << ". Error: " << err << dendl;
@@ -246,23 +245,26 @@ void WnbdHandler::send_io_response(WnbdHandler::IOContext *ctx) {
   }
 }
 
-void WnbdHandler::IOContext::set_sense(uint8_t sense_key, uint8_t asc, uint64_t info)
+void
+WnbdHandler::IOContext::set_sense(uint8_t sense_key, uint8_t asc, uint64_t info)
 {
   WnbdSetSenseEx(&wnbd_status, sense_key, asc, info);
 }
 
-void WnbdHandler::IOContext::set_sense(uint8_t sense_key, uint8_t asc)
+void
+WnbdHandler::IOContext::set_sense(uint8_t sense_key, uint8_t asc)
 {
   WnbdSetSense(&wnbd_status, sense_key, asc);
 }
 
-void WnbdHandler::Read(
-  PWNBD_DISK Disk,
-  UINT64 RequestHandle,
-  PVOID Buffer,
-  UINT64 BlockAddress,
-  UINT32 BlockCount,
-  BOOLEAN ForceUnitAccess)
+void
+WnbdHandler::Read(
+    PWNBD_DISK Disk,
+    UINT64 RequestHandle,
+    PVOID Buffer,
+    UINT64 BlockAddress,
+    UINT32 BlockCount,
+    BOOLEAN ForceUnitAccess)
 {
   WnbdHandler* handler = nullptr;
   ceph_assert(!WnbdGetUserContext(Disk, (PVOID*)&handler));
@@ -282,19 +284,21 @@ void WnbdHandler::Read(
 
   dout(20) << *ctx << ": start" << dendl;
 
-  librbd::RBD::AioCompletion *c = new librbd::RBD::AioCompletion(ctx, aio_callback);
+  librbd::RBD::AioCompletion* c =
+      new librbd::RBD::AioCompletion(ctx, aio_callback);
   handler->image.aio_read2(ctx->req_from, ctx->req_size, ctx->data, c, op_flags);
 
   dout(20) << *ctx << ": submitted" << dendl;
 }
 
-void WnbdHandler::Write(
-  PWNBD_DISK Disk,
-  UINT64 RequestHandle,
-  PVOID Buffer,
-  UINT64 BlockAddress,
-  UINT32 BlockCount,
-  BOOLEAN ForceUnitAccess)
+void
+WnbdHandler::Write(
+    PWNBD_DISK Disk,
+    UINT64 RequestHandle,
+    PVOID Buffer,
+    UINT64 BlockAddress,
+    UINT32 BlockCount,
+    BOOLEAN ForceUnitAccess)
 {
   WnbdHandler* handler = nullptr;
   ceph_assert(!WnbdGetUserContext(Disk, (PVOID*)&handler));
@@ -316,17 +320,20 @@ void WnbdHandler::Write(
 
   dout(20) << *ctx << ": start" << dendl;
 
-  librbd::RBD::AioCompletion *c = new librbd::RBD::AioCompletion(ctx, aio_callback);
-  handler->image.aio_write2(ctx->req_from, ctx->req_size, ctx->data, c, op_flags);
+  librbd::RBD::AioCompletion* c =
+      new librbd::RBD::AioCompletion(ctx, aio_callback);
+  handler->image.aio_write2(
+      ctx->req_from, ctx->req_size, ctx->data, c, op_flags);
 
   dout(20) << *ctx << ": submitted" << dendl;
 }
 
-void WnbdHandler::Flush(
-  PWNBD_DISK Disk,
-  UINT64 RequestHandle,
-  UINT64 BlockAddress,
-  UINT32 BlockCount)
+void
+WnbdHandler::Flush(
+    PWNBD_DISK Disk,
+    UINT64 RequestHandle,
+    UINT64 BlockAddress,
+    UINT32 BlockCount)
 {
   WnbdHandler* handler = nullptr;
   ceph_assert(!WnbdGetUserContext(Disk, (PVOID*)&handler));
@@ -340,17 +347,19 @@ void WnbdHandler::Flush(
 
   dout(20) << *ctx << ": start" << dendl;
 
-  librbd::RBD::AioCompletion *c = new librbd::RBD::AioCompletion(ctx, aio_callback);
+  librbd::RBD::AioCompletion* c =
+      new librbd::RBD::AioCompletion(ctx, aio_callback);
   handler->image.aio_flush(c);
 
   dout(20) << *ctx << ": submitted" << dendl;
 }
 
-void WnbdHandler::Unmap(
-  PWNBD_DISK Disk,
-  UINT64 RequestHandle,
-  PWNBD_UNMAP_DESCRIPTOR Descriptors,
-  UINT32 Count)
+void
+WnbdHandler::Unmap(
+    PWNBD_DISK Disk,
+    UINT64 RequestHandle,
+    PWNBD_UNMAP_DESCRIPTOR Descriptors,
+    UINT32 Count)
 {
   WnbdHandler* handler = nullptr;
   ceph_assert(!WnbdGetUserContext(Disk, (PVOID*)&handler));
@@ -365,18 +374,20 @@ void WnbdHandler::Unmap(
 
   dout(20) << *ctx << ": start" << dendl;
 
-  librbd::RBD::AioCompletion *c = new librbd::RBD::AioCompletion(ctx, aio_callback);
+  librbd::RBD::AioCompletion* c =
+      new librbd::RBD::AioCompletion(ctx, aio_callback);
   handler->image.aio_discard(ctx->req_from, ctx->req_size, c);
 
   dout(20) << *ctx << ": submitted" << dendl;
 }
 
-void WnbdHandler::LogMessage(
-  WnbdLogLevel LogLevel,
-  const char* Message,
-  const char* FileName,
-  UINT32 Line,
-  const char* FunctionName)
+void
+WnbdHandler::LogMessage(
+    WnbdLogLevel LogLevel,
+    const char* Message,
+    const char* FileName,
+    UINT32 Line,
+    const char* FunctionName)
 {
   // We're already passing the log level to WNBD, so we'll use the highest
   // log level here.
@@ -384,20 +395,21 @@ void WnbdHandler::LogMessage(
           << WnbdLogLevelToStr(LogLevel) << " " << Message << dendl;
 }
 
-int WnbdHandler::resize(uint64_t new_size)
+int
+WnbdHandler::resize(uint64_t new_size)
 {
   int err = 0;
-  
+
   uint64_t new_block_count = new_size / block_size;
 
   dout(5) << "Resizing disk. Block size: " << block_size
           << ". New block count: " << new_block_count
-          << ". Old block count: "
-          << wnbd_disk->Properties.BlockCount << "." << dendl;
+          << ". Old block count: " << wnbd_disk->Properties.BlockCount << "."
+          << dendl;
   err = WnbdSetDiskSize(wnbd_disk, new_block_count);
   if (err) {
-    derr << "WNBD: Setting disk size failed with error: "
-         << win32_strerror(err) << dendl;
+    derr << "WNBD: Setting disk size failed with error: " << win32_strerror(err)
+         << dendl;
     return -EINVAL;
   }
 
@@ -406,7 +418,8 @@ int WnbdHandler::resize(uint64_t new_size)
   return 0;
 }
 
-int WnbdHandler::start()
+int
+WnbdHandler::start()
 {
   int err = 0;
   WNBD_PROPERTIES wnbd_props = {0};
@@ -426,8 +439,8 @@ int WnbdHandler::start()
     wnbd_props.Flags.FlushSupported = 1;
   }
 
-  err = WnbdCreate(&wnbd_props, (const PWNBD_INTERFACE) &RbdWnbdInterface,
-                   this, &wnbd_disk);
+  err = WnbdCreate(
+      &wnbd_props, (const PWNBD_INTERFACE)&RbdWnbdInterface, this, &wnbd_disk);
   if (err)
     goto exit;
 
@@ -435,19 +448,20 @@ int WnbdHandler::start()
 
   err = WnbdStartDispatcher(wnbd_disk, io_req_workers);
   if (err) {
-      derr << "Could not start WNBD dispatcher. Error: " << err << dendl;
+    derr << "Could not start WNBD dispatcher. Error: " << err << dendl;
   }
 
 exit:
   return err;
 }
 
-std::ostream &operator<<(std::ostream &os, const WnbdHandler::IOContext &ctx) {
+std::ostream&
+operator<<(std::ostream& os, const WnbdHandler::IOContext& ctx)
+{
 
   os << "[" << std::hex << ctx.req_handle;
 
-  switch (ctx.req_type)
-  {
+  switch (ctx.req_type) {
   case WnbdReqTypeRead:
     os << " READ ";
     break;
@@ -465,8 +479,8 @@ std::ostream &operator<<(std::ostream &os, const WnbdHandler::IOContext &ctx) {
     break;
   }
 
-  os << ctx.req_from << "~" << ctx.req_size << " "
-     << std::dec << ntohl(ctx.err_code) << "]";
+  os << ctx.req_from << "~" << ctx.req_size << " " << std::dec
+     << ntohl(ctx.err_code) << "]";
 
   return os;
 }

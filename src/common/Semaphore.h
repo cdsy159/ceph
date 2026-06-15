@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,25 +19,25 @@
 
 #include "common/ceph_mutex.h"
 
-class Semaphore
-{
+class Semaphore {
   ceph::mutex m = ceph::make_mutex("Semaphore::m");
   ceph::condition_variable c;
   int count = 0;
 
-  public:
-
-  void Put()
-  { 
+public:
+  void
+  Put()
+  {
     std::lock_guard l(m);
     count++;
     c.notify_all();
   }
 
-  void Get() 
+  void
+  Get()
   {
     std::unique_lock l(m);
-    while(count <= 0) {
+    while (count <= 0) {
       c.wait(l);
     }
     count--;

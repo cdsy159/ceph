@@ -4,8 +4,8 @@
 #ifndef CEPH_LIBRBD_OPERATION_OBJECT_MAP_ITERATE_H
 #define CEPH_LIBRBD_OPERATION_OBJECT_MAP_ITERATE_H
 
-#include <iostream>
 #include <atomic>
+#include <iostream>
 
 #include "include/int_types.h"
 #include "include/rbd/object_map_types.h"
@@ -19,21 +19,25 @@ class ProgressContext;
 namespace operation {
 
 template <typename ImageCtxT = ImageCtx>
-using ObjectIterateWork = bool(*)(ImageCtxT &image_ctx,
-				  uint64_t object_no,
-				  uint8_t current_state,
-				  uint8_t new_state);
+using ObjectIterateWork = bool (*)(
+    ImageCtxT& image_ctx,
+    uint64_t object_no,
+    uint8_t current_state,
+    uint8_t new_state);
 
 template <typename ImageCtxT = ImageCtx>
 class ObjectMapIterateRequest : public AsyncRequest<ImageCtxT> {
 public:
-  ObjectMapIterateRequest(ImageCtxT &image_ctx, Context *on_finish,
-			  ProgressContext &prog_ctx,
-			  ObjectIterateWork<ImageCtxT> handle_mismatch)
-    : AsyncRequest<ImageCtxT>(image_ctx, on_finish), m_image_ctx(image_ctx),
-    m_prog_ctx(prog_ctx), m_handle_mismatch(handle_mismatch)
-  {
-  }
+  ObjectMapIterateRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      ProgressContext& prog_ctx,
+      ObjectIterateWork<ImageCtxT> handle_mismatch) :
+    AsyncRequest<ImageCtxT>(image_ctx, on_finish),
+    m_image_ctx(image_ctx),
+    m_prog_ctx(prog_ctx),
+    m_handle_mismatch(handle_mismatch)
+  {}
 
   void send() override;
 
@@ -46,8 +50,8 @@ private:
     STATE_INVALIDATE_OBJECT_MAP
   };
 
-  ImageCtxT &m_image_ctx;
-  ProgressContext &m_prog_ctx;
+  ImageCtxT& m_image_ctx;
+  ProgressContext& m_prog_ctx;
   ObjectIterateWork<ImageCtxT> m_handle_mismatch;
   std::atomic_flag m_invalidate = ATOMIC_FLAG_INIT;
   State m_state = STATE_VERIFY_OBJECTS;

@@ -19,23 +19,25 @@
 #define CEPH_DPDK_RTE_H_
 
 
+#include <rte_config.h>
+#include <rte_version.h>
+
+#include <bitset>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
-#include <bitset>
-#include <rte_config.h>
-#include <rte_version.h>
 #include <boost/program_options.hpp>
 
 /*********************** Compat section ***************************************/
 // We currently support only versions 2.0 and above.
-#if (RTE_VERSION < RTE_VERSION_NUM(2,0,0,0))
+#if (RTE_VERSION < RTE_VERSION_NUM(2, 0, 0, 0))
 #error "DPDK version above 2.0.0 is required"
 #endif
 
 #if defined(RTE_MBUF_REFCNT_ATOMIC)
-#warning "CONFIG_RTE_MBUF_REFCNT_ATOMIC should be disabled in DPDK's " \
+#warning \
+    "CONFIG_RTE_MBUF_REFCNT_ATOMIC should be disabled in DPDK's " \
          "config/common_linuxapp"
 #endif
 /******************************************************************************/
@@ -44,19 +46,30 @@ namespace dpdk {
 
 // DPDK Environment Abstraction Layer
 class eal {
- public:
+public:
   using cpuset = std::bitset<RTE_MAX_LCORE>;
-  explicit eal(CephContext *cct) : cct(cct) {}
+
+  explicit eal(CephContext* cct) :
+    cct(cct)
+  {}
+
   int start();
   void stop();
-  void execute_on_master(std::function<void()> &&f) {
+
+  void
+  execute_on_master(std::function<void()>&& f)
+  {
     bool done = false;
     std::unique_lock<std::mutex> l(lock);
-    funcs.emplace_back([&]() { f(); done = true; });
+    funcs.emplace_back([&]() {
+      f();
+      done = true;
+    });
     cond.notify_all();
     while (!done)
       cond.wait(l);
   }
+
   /**
    * Returns the amount of memory needed for DPDK
    * @param num_cpus Number of CPUs the application is going to use
@@ -65,8 +78,9 @@ class eal {
    */
   size_t mem_size(int num_cpus);
   static bool rte_initialized;
- private:
-  CephContext *cct;
+
+private:
+  CephContext* cct;
   bool initialized = false;
   bool stopped = false;
   std::thread t;

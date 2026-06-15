@@ -33,8 +33,8 @@
 // uninitialized storage for unoccupied elements (and thus move/copy
 // constructors instead of move/copy assignments, which are less efficient).
 
-#include <memory>
 #include <algorithm>
+#include <memory>
 
 #include "transfer.h"
 
@@ -47,15 +47,18 @@ class circular_buffer {
     size_t end = 0;
     size_t capacity = 0;
   };
+
   impl _impl;
- public:
+
+public:
   using value_type = T;
   using size_type = size_t;
   using reference = T&;
   using pointer = T*;
   using const_reference = const T&;
   using const_pointer = const T*;
- public:
+
+public:
   circular_buffer() = default;
   circular_buffer(circular_buffer&& X);
   circular_buffer(const circular_buffer& X) = delete;
@@ -83,12 +86,13 @@ class circular_buffer {
   // access an element, may return wrong or destroyed element
   // only useful if you do not rely on data accuracy (e.g. prefetch)
   T& access_element_unsafe(size_t idx);
- private:
+
+private:
   void expand();
   void maybe_expand(size_t nr = 1);
   size_t mask(size_t idx) const;
 
-  template<typename CB, typename ValueType>
+  template <typename CB, typename ValueType>
   struct cbiterator {
     using iterator_category = std::random_access_iterator_tag;
     using value_type = ValueType;
@@ -96,126 +100,212 @@ class circular_buffer {
     using pointer = ValueType*;
     using reference = ValueType&;
 
-    ValueType& operator*() const { return cb->_impl.storage[cb->mask(idx)]; }
-    ValueType* operator->() const { return &cb->_impl.storage[cb->mask(idx)]; }
+    ValueType&
+    operator*() const
+    {
+      return cb->_impl.storage[cb->mask(idx)];
+    }
+
+    ValueType*
+    operator->() const
+    {
+      return &cb->_impl.storage[cb->mask(idx)];
+    }
+
     // prefix
-    cbiterator<CB, ValueType>& operator++() {
+    cbiterator<CB, ValueType>&
+    operator++()
+    {
       idx++;
       return *this;
     }
+
     // postfix
-    cbiterator<CB, ValueType> operator++(int unused) {
+    cbiterator<CB, ValueType>
+    operator++(int unused)
+    {
       auto v = *this;
       idx++;
       return v;
     }
+
     // prefix
-    cbiterator<CB, ValueType>& operator--() {
+    cbiterator<CB, ValueType>&
+    operator--()
+    {
       idx--;
       return *this;
     }
+
     // postfix
-    cbiterator<CB, ValueType> operator--(int unused) {
+    cbiterator<CB, ValueType>
+    operator--(int unused)
+    {
       auto v = *this;
       idx--;
       return v;
     }
-    cbiterator<CB, ValueType> operator+(difference_type n) const {
+
+    cbiterator<CB, ValueType>
+    operator+(difference_type n) const
+    {
       return cbiterator<CB, ValueType>(cb, idx + n);
     }
-    cbiterator<CB, ValueType> operator-(difference_type n) const {
+
+    cbiterator<CB, ValueType>
+    operator-(difference_type n) const
+    {
       return cbiterator<CB, ValueType>(cb, idx - n);
     }
-    cbiterator<CB, ValueType>& operator+=(difference_type n) {
+
+    cbiterator<CB, ValueType>&
+    operator+=(difference_type n)
+    {
       idx += n;
       return *this;
     }
-    cbiterator<CB, ValueType>& operator-=(difference_type n) {
+
+    cbiterator<CB, ValueType>&
+    operator-=(difference_type n)
+    {
       idx -= n;
       return *this;
     }
-    bool operator==(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator==(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx == rhs.idx;
     }
-    bool operator!=(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator!=(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx != rhs.idx;
     }
-    bool operator<(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator<(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx < rhs.idx;
     }
-    bool operator>(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator>(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx > rhs.idx;
     }
-    bool operator>=(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator>=(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx >= rhs.idx;
     }
-    bool operator<=(const cbiterator<CB, ValueType>& rhs) const {
+
+    bool
+    operator<=(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx <= rhs.idx;
     }
-    difference_type operator-(const cbiterator<CB, ValueType>& rhs) const {
+
+    difference_type
+    operator-(const cbiterator<CB, ValueType>& rhs) const
+    {
       return idx - rhs.idx;
     }
-   private:
+
+  private:
     CB* cb;
     size_t idx;
-    cbiterator<CB, ValueType>(CB* b, size_t i) : cb(b), idx(i) {}
+
+    cbiterator<CB, ValueType>(CB* b, size_t i) :
+      cb(b), idx(i)
+    {}
     friend class circular_buffer;
   };
   friend class iterator;
 
- public:
+public:
   typedef cbiterator<circular_buffer, T> iterator;
   typedef cbiterator<const circular_buffer, const T> const_iterator;
 
-  iterator begin() {
+  iterator
+  begin()
+  {
     return iterator(this, _impl.begin);
   }
-  const_iterator begin() const {
+
+  const_iterator
+  begin() const
+  {
     return const_iterator(this, _impl.begin);
   }
-  iterator end() {
+
+  iterator
+  end()
+  {
     return iterator(this, _impl.end);
   }
-  const_iterator end() const {
+
+  const_iterator
+  end() const
+  {
     return const_iterator(this, _impl.end);
   }
-  const_iterator cbegin() const {
+
+  const_iterator
+  cbegin() const
+  {
     return const_iterator(this, _impl.begin);
   }
-  const_iterator cend() const {
+
+  const_iterator
+  cend() const
+  {
     return const_iterator(this, _impl.end);
   }
 };
 
 template <typename T, typename Alloc>
-inline size_t circular_buffer<T, Alloc>::mask(size_t idx) const {
+inline size_t
+circular_buffer<T, Alloc>::mask(size_t idx) const
+{
   return idx & (_impl.capacity - 1);
 }
 
 template <typename T, typename Alloc>
-inline bool circular_buffer<T, Alloc>::empty() const {
+inline bool
+circular_buffer<T, Alloc>::empty() const
+{
   return _impl.begin == _impl.end;
 }
 
 template <typename T, typename Alloc>
-inline size_t circular_buffer<T, Alloc>::size() const {
+inline size_t
+circular_buffer<T, Alloc>::size() const
+{
   return _impl.end - _impl.begin;
 }
 
 template <typename T, typename Alloc>
-inline size_t circular_buffer<T, Alloc>::capacity() const {
+inline size_t
+circular_buffer<T, Alloc>::capacity() const
+{
   return _impl.capacity;
 }
 
 template <typename T, typename Alloc>
-inline circular_buffer<T, Alloc>::circular_buffer(circular_buffer&& x)
-    : _impl(std::move(x._impl)) {
+inline circular_buffer<T, Alloc>::circular_buffer(circular_buffer&& x) :
+  _impl(std::move(x._impl))
+{
   x._impl = {};
 }
 
 template <typename T, typename Alloc>
 template <typename Func>
-inline void circular_buffer<T, Alloc>::for_each(Func func) {
+inline void
+circular_buffer<T, Alloc>::for_each(Func func)
+{
   auto s = _impl.storage;
   auto m = _impl.capacity - 1;
   for (auto i = _impl.begin; i != _impl.end; ++i) {
@@ -224,20 +314,21 @@ inline void circular_buffer<T, Alloc>::for_each(Func func) {
 }
 
 template <typename T, typename Alloc>
-inline circular_buffer<T, Alloc>::~circular_buffer() {
-  for_each([this] (T& obj) {
-    _impl.destroy(&obj);
-  });
+inline circular_buffer<T, Alloc>::~circular_buffer()
+{
+  for_each([this](T& obj) { _impl.destroy(&obj); });
   _impl.deallocate(_impl.storage, _impl.capacity);
 }
 
 template <typename T, typename Alloc>
-void circular_buffer<T, Alloc>::expand() {
+void
+circular_buffer<T, Alloc>::expand()
+{
   auto new_cap = std::max<size_t>(_impl.capacity * 2, 1);
   auto new_storage = _impl.allocate(new_cap);
   auto p = new_storage;
   try {
-    for_each([this, &p] (T& obj) {
+    for_each([this, &p](T& obj) {
       transfer_pass1(_impl, &obj, p);
       p++;
     });
@@ -249,9 +340,7 @@ void circular_buffer<T, Alloc>::expand() {
     throw;
   }
   p = new_storage;
-  for_each([this, &p] (T& obj) {
-    transfer_pass2(_impl, &obj, p++);
-  });
+  for_each([this, &p](T& obj) { transfer_pass2(_impl, &obj, p++); });
   std::swap(_impl.storage, new_storage);
   std::swap(_impl.capacity, new_cap);
   _impl.begin = 0;
@@ -260,14 +349,18 @@ void circular_buffer<T, Alloc>::expand() {
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::maybe_expand(size_t nr) {
+inline void
+circular_buffer<T, Alloc>::maybe_expand(size_t nr)
+{
   if (_impl.end - _impl.begin + nr > _impl.capacity) {
     expand();
   }
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::push_front(const T& data) {
+inline void
+circular_buffer<T, Alloc>::push_front(const T& data)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.begin - 1)];
   _impl.construct(p, data);
@@ -275,7 +368,9 @@ inline void circular_buffer<T, Alloc>::push_front(const T& data) {
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::push_front(T&& data) {
+inline void
+circular_buffer<T, Alloc>::push_front(T&& data)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.begin - 1)];
   _impl.construct(p, std::move(data));
@@ -284,7 +379,9 @@ inline void circular_buffer<T, Alloc>::push_front(T&& data) {
 
 template <typename T, typename Alloc>
 template <typename... Args>
-inline void circular_buffer<T, Alloc>::emplace_front(Args&&... args) {
+inline void
+circular_buffer<T, Alloc>::emplace_front(Args&&... args)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.begin - 1)];
   _impl.construct(p, std::forward<Args>(args)...);
@@ -292,7 +389,9 @@ inline void circular_buffer<T, Alloc>::emplace_front(Args&&... args) {
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::push_back(const T& data) {
+inline void
+circular_buffer<T, Alloc>::push_back(const T& data)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.end)];
   _impl.construct(p, data);
@@ -300,7 +399,9 @@ inline void circular_buffer<T, Alloc>::push_back(const T& data) {
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::push_back(T&& data) {
+inline void
+circular_buffer<T, Alloc>::push_back(T&& data)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.end)];
   _impl.construct(p, std::move(data));
@@ -309,7 +410,9 @@ inline void circular_buffer<T, Alloc>::push_back(T&& data) {
 
 template <typename T, typename Alloc>
 template <typename... Args>
-inline void circular_buffer<T, Alloc>::emplace_back(Args&&... args) {
+inline void
+circular_buffer<T, Alloc>::emplace_back(Args&&... args)
+{
   maybe_expand();
   auto p = &_impl.storage[mask(_impl.end)];
   _impl.construct(p, std::forward<Args>(args)...);
@@ -317,34 +420,46 @@ inline void circular_buffer<T, Alloc>::emplace_back(Args&&... args) {
 }
 
 template <typename T, typename Alloc>
-inline T& circular_buffer<T, Alloc>::front() {
+inline T&
+circular_buffer<T, Alloc>::front()
+{
   return _impl.storage[mask(_impl.begin)];
 }
 
 template <typename T, typename Alloc>
-inline T& circular_buffer<T, Alloc>::back() {
+inline T&
+circular_buffer<T, Alloc>::back()
+{
   return _impl.storage[mask(_impl.end - 1)];
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::pop_front() {
+inline void
+circular_buffer<T, Alloc>::pop_front()
+{
   _impl.destroy(&front());
   ++_impl.begin;
 }
 
 template <typename T, typename Alloc>
-inline void circular_buffer<T, Alloc>::pop_back() {
+inline void
+circular_buffer<T, Alloc>::pop_back()
+{
   _impl.destroy(&back());
   --_impl.end;
 }
 
 template <typename T, typename Alloc>
-inline T& circular_buffer<T, Alloc>::operator[](size_t idx) {
+inline T&
+circular_buffer<T, Alloc>::operator[](size_t idx)
+{
   return _impl.storage[mask(_impl.begin + idx)];
 }
 
 template <typename T, typename Alloc>
-inline T& circular_buffer<T, Alloc>::access_element_unsafe(size_t idx) {
+inline T&
+circular_buffer<T, Alloc>::access_element_unsafe(size_t idx)
+{
   return _impl.storage[mask(_impl.begin + idx)];
 }
 

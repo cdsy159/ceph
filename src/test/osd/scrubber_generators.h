@@ -22,75 +22,111 @@ namespace ScrubGenerator {
 
 /// \todo enhance the MockLog to capture the log messages
 class MockLog : public LoggerSinkSet {
- public:
-  void debug(std::stringstream& s) final
+public:
+  void
+  debug(std::stringstream& s) final
   {
     std::cout << "\n<<debug>> " << s.str() << std::endl;
   }
-  void info(std::stringstream& s) final
+
+  void
+  info(std::stringstream& s) final
   {
     std::cout << "\n<<info>> " << s.str() << std::endl;
   }
-  void sec(std::stringstream& s) final
+
+  void
+  sec(std::stringstream& s) final
   {
     std::cout << "\n<<sec>> " << s.str() << std::endl;
   }
-  void warn(std::stringstream& s) final
+
+  void
+  warn(std::stringstream& s) final
   {
     std::cout << "\n<<warn>> " << s.str() << std::endl;
   }
-  void error(std::stringstream& s) final
+
+  void
+  error(std::stringstream& s) final
   {
     err_count++;
     std::cout << "\n<<error>> " << s.str() << std::endl;
   }
-  OstreamTemp info() final { return OstreamTemp(CLOG_INFO, this); }
-  OstreamTemp warn() final { return OstreamTemp(CLOG_WARN, this); }
-  OstreamTemp error() final { return OstreamTemp(CLOG_ERROR, this); }
-  OstreamTemp sec() final { return OstreamTemp(CLOG_ERROR, this); }
-  OstreamTemp debug() final { return OstreamTemp(CLOG_DEBUG, this); }
 
-  void do_log(clog_type prio, std::stringstream& ss) final
+  OstreamTemp
+  info() final
+  {
+    return OstreamTemp(CLOG_INFO, this);
+  }
+
+  OstreamTemp
+  warn() final
+  {
+    return OstreamTemp(CLOG_WARN, this);
+  }
+
+  OstreamTemp
+  error() final
+  {
+    return OstreamTemp(CLOG_ERROR, this);
+  }
+
+  OstreamTemp
+  sec() final
+  {
+    return OstreamTemp(CLOG_ERROR, this);
+  }
+
+  OstreamTemp
+  debug() final
+  {
+    return OstreamTemp(CLOG_DEBUG, this);
+  }
+
+  void
+  do_log(clog_type prio, std::stringstream& ss) final
   {
     switch (prio) {
-      case CLOG_DEBUG:
-	debug(ss);
-	break;
-      case CLOG_INFO:
-	info(ss);
-	break;
-      case CLOG_SEC:
-	sec(ss);
-	break;
-      case CLOG_WARN:
-	warn(ss);
-	break;
-      case CLOG_ERROR:
-      default:
-	error(ss);
-	break;
+    case CLOG_DEBUG:
+      debug(ss);
+      break;
+    case CLOG_INFO:
+      info(ss);
+      break;
+    case CLOG_SEC:
+      sec(ss);
+      break;
+    case CLOG_WARN:
+      warn(ss);
+      break;
+    case CLOG_ERROR:
+    default:
+      error(ss);
+      break;
     }
   }
 
-  void do_log(clog_type prio, const std::string& ss) final
+  void
+  do_log(clog_type prio, const std::string& ss) final
   {
     switch (prio) {
-      case CLOG_DEBUG:
-	debug() << ss;
-	break;
-      case CLOG_INFO:
-	info() << ss;
-	break;
-      case CLOG_SEC:
-	sec() << ss;
-	break;
-      case CLOG_WARN:
-	warn() << ss;
-	break;
-      case CLOG_ERROR:
-      default:
-	error() << ss;
-	break;
+    case CLOG_DEBUG:
+      debug() << ss;
+      break;
+    case CLOG_INFO:
+      info() << ss;
+      break;
+    case CLOG_SEC:
+      sec() << ss;
+      break;
+    case CLOG_WARN:
+      warn() << ss;
+      break;
+    case CLOG_ERROR:
+    default:
+      error() << ss;
+      break;
     }
   }
 
@@ -98,7 +134,12 @@ class MockLog : public LoggerSinkSet {
 
   int err_count{0};
   int expected_err_count{0};
-  void set_expected_err_count(int c) { expected_err_count = c; }
+
+  void
+  set_expected_err_count(int c)
+  {
+    expected_err_count = c;
+  }
 };
 
 // ///////////////////////////////////////////////////////////////////////// //
@@ -127,45 +168,45 @@ struct RealObj;
 
 // a function to manipulate (i.e. corrupt) an object in a specific OSD
 using CorruptFunc =
-  std::function<RealObj(const RealObj& s, [[maybe_unused]] int osd_num)>;
-using CorruptFuncList = std::map<int, CorruptFunc>;  // per OSD
+    std::function<RealObj(const RealObj& s, [[maybe_unused]] int osd_num)>;
+using CorruptFuncList = std::map<int, CorruptFunc>; // per OSD
 
 struct SnapsetMockData {
 
-  using CookedCloneSnaps =
-    std::tuple<std::map<snapid_t, uint64_t>,
-	       std::map<snapid_t, std::vector<snapid_t>>,
-	       std::map<snapid_t, interval_set<uint64_t>>>;
+  using CookedCloneSnaps = std::tuple<
+      std::map<snapid_t, uint64_t>,
+      std::map<snapid_t, std::vector<snapid_t>>,
+      std::map<snapid_t, interval_set<uint64_t>>>;
 
   // an auxiliary function to cook the data for the SnapsetMockData
   using clone_snaps_cooker = CookedCloneSnaps (*)();
 
   snapid_t seq;
-  std::vector<snapid_t> clones;	 // ascending
+  std::vector<snapid_t> clones; // ascending
 
-  std::map<snapid_t, interval_set<uint64_t>> clone_overlap;  // overlap w/ next
-							     // newest
+  std::map<snapid_t, interval_set<uint64_t>> clone_overlap; // overlap w/ next
+      // newest
   std::map<snapid_t, uint64_t> clone_size;
-  std::map<snapid_t, std::vector<snapid_t>> clone_snaps;  // descending
+  std::map<snapid_t, std::vector<snapid_t>> clone_snaps; // descending
 
-
-  SnapsetMockData(snapid_t seq,
-		  std::vector<snapid_t> clones,
-		  std::map<snapid_t, interval_set<uint64_t>> clone_overlap,
-		  std::map<snapid_t, uint64_t> clone_size,
-		  std::map<snapid_t, std::vector<snapid_t>> clone_snaps)
-      : seq(seq)
-      , clones(clones)
-      , clone_overlap(clone_overlap)
-      , clone_size(clone_size)
-      , clone_snaps(clone_snaps)
+  SnapsetMockData(
+      snapid_t seq,
+      std::vector<snapid_t> clones,
+      std::map<snapid_t, interval_set<uint64_t>> clone_overlap,
+      std::map<snapid_t, uint64_t> clone_size,
+      std::map<snapid_t, std::vector<snapid_t>> clone_snaps) :
+    seq(seq),
+    clones(clones),
+    clone_overlap(clone_overlap),
+    clone_size(clone_size),
+    clone_snaps(clone_snaps)
   {}
 
-  SnapsetMockData(snapid_t seq,
-		  std::vector<snapid_t> clones,
-		  clone_snaps_cooker func)
-      : seq{seq}
-      , clones(clones)
+  SnapsetMockData(
+      snapid_t seq,
+      std::vector<snapid_t> clones,
+      clone_snaps_cooker func) :
+    seq{seq}, clones(clones)
   {
     auto [clone_size_, clone_snaps_, clone_overlap_] = func();
     clone_size = clone_size_;
@@ -173,7 +214,8 @@ struct SnapsetMockData {
     clone_overlap = clone_overlap_;
   }
 
-  SnapSet make_snapset() const
+  SnapSet
+  make_snapset() const
   {
     SnapSet ss;
     ss.seq = seq;
@@ -206,13 +248,15 @@ struct RealObj {
   const SnapsetMockData* snapset_mock_data;
 };
 
-static inline RealObj crpt_do_nothing(const RealObj& s, int osdn)
+static inline RealObj
+crpt_do_nothing(const RealObj& s, int osdn)
 {
   return s;
 }
 
-static inline RealObj crpt_object_hash(const RealObj& s,
-                                       [[maybe_unused]] int osdn) {
+static inline RealObj
+crpt_object_hash(const RealObj& s, [[maybe_unused]] int osdn)
+{
   RealObj ret = s;
   ret.data.hash = s.data.hash + 1;
   return ret;
@@ -223,10 +267,9 @@ struct SmapEntry {
   ScrubMap::object smobj;
 };
 
-
 ScrubGenerator::SmapEntry make_smobject(
-  const ScrubGenerator::RealObj& blueprint,  // the whole set of versions
-  int osd_num);
+    const ScrubGenerator::RealObj& blueprint, // the whole set of versions
+    int osd_num);
 
 
 /**
@@ -249,11 +292,12 @@ using RealObjsConfRef = std::unique_ptr<RealObjsConf>;
 // activated on the data
 using RealObjsConfList = std::map<int, RealObjsConfRef>;
 
-RealObjsConfList make_real_objs_conf(int64_t pool_id,
-                                     const RealObjsConf& blueprint,
-                                     std::vector<int32_t> active_osds,
-                                     std::set<pg_shard_t> active_shards,
-                                     bool erasure_coded_pool);
+RealObjsConfList make_real_objs_conf(
+    int64_t pool_id,
+    const RealObjsConf& blueprint,
+    std::vector<int32_t> active_osds,
+    std::set<pg_shard_t> active_shards,
+    bool erasure_coded_pool);
 
 /**
  * create the snap-ids set for all clones appearing in the head
@@ -261,21 +305,24 @@ RealObjsConfList make_real_objs_conf(int64_t pool_id,
  * to be used as the 'snap_mapper')
  */
 all_clones_snaps_t all_clones(const RealObj& head_obj);
-}  // namespace ScrubGenerator
+} // namespace ScrubGenerator
 
 template <>
 struct fmt::formatter<ScrubGenerator::RealObj> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const ScrubGenerator::RealObj& rlo, FormatContext& ctx)
+  auto
+  format(const ScrubGenerator::RealObj& rlo, FormatContext& ctx)
   {
     using namespace ScrubGenerator;
-    return fmt::format_to(ctx.out(),
-			  "RealObj(gh:{}, dt:{}, clones:{})",
-			  rlo.ghobj,
-			  rlo.data.size,
-			  (rlo.snapset_mock_data ? rlo.snapset_mock_data->clones
-						 : std::vector<snapid_t>{}));
+    return fmt::format_to(
+        ctx.out(), "RealObj(gh:{}, dt:{}, clones:{})", rlo.ghobj, rlo.data.size,
+        (rlo.snapset_mock_data ? rlo.snapset_mock_data->clones
+                               : std::vector<snapid_t>{}));
   }
 };

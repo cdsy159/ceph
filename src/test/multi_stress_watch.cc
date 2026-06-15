@@ -1,37 +1,44 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
+#include <errno.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <condition_variable>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <string>
+
 #include "include/rados/librados.h"
 #include "include/rados/librados.hpp"
 #include "test/librados/test_cxx.h"
-
-#include <errno.h>
-
-#include <mutex>
-#include <condition_variable>
-#include <chrono>
-#include <map>
-#include <iostream>
-#include <string>
-#include <stdlib.h>
-#include <unistd.h>
 
 using namespace librados;
 using std::map;
 using std::string;
 
-class WatchNotifyTestCtx : public WatchCtx
-{
+class WatchNotifyTestCtx : public WatchCtx {
 public:
-  WatchNotifyTestCtx(std::mutex &lock)
-    : lock{lock} {}
-  void notify(uint8_t opcode, uint64_t ver, bufferlist &bl) override {
-    std::unique_lock locker {lock};
+  WatchNotifyTestCtx(std::mutex& lock) :
+    lock{lock}
+  {}
+
+  void
+  notify(uint8_t opcode, uint64_t ver, bufferlist& bl) override
+  {
+    std::unique_lock locker{lock};
     notified = true;
     cond.notify_one();
   }
-  bool wait() {
-    std::unique_lock locker {lock};
-    return cond.wait_for(locker, std::chrono::seconds(1200),
-			 [this] { return notified; });
+
+  bool
+  wait()
+  {
+    std::unique_lock locker{lock};
+    return cond.wait_for(locker, std::chrono::seconds(1200), [this] {
+      return notified;
+    });
   }
 
 private:
@@ -45,13 +52,14 @@ private:
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 void
-test_loop(Rados &cluster, std::string pool_name, std::string obj_name)
+test_loop(Rados& cluster, std::string pool_name, std::string obj_name)
 {
   int ret;
   IoCtx ioctx;
   ret = cluster.ioctx_create(pool_name.c_str(), ioctx);
   if (ret < 0) {
-    std::cerr << "ioctx_create " << pool_name << " failed with " << ret << std::endl;
+    std::cerr << "ioctx_create " << pool_name << " failed with " << ret
+              << std::endl;
     exit(1);
   }
   ioctx.application_enable("rados", true);
@@ -88,7 +96,10 @@ test_loop(Rados &cluster, std::string pool_name, std::string obj_name)
 #pragma GCC diagnostic warning "-Wpragmas"
 
 void
-test_replicated(Rados &cluster, std::string pool_name, const std::string &obj_name)
+test_replicated(
+    Rados& cluster,
+    std::string pool_name,
+    const std::string& obj_name)
 {
   // May already exist
   cluster.pool_create(pool_name.c_str());
@@ -97,23 +108,31 @@ test_replicated(Rados &cluster, std::string pool_name, const std::string &obj_na
 }
 
 void
-test_erasure(Rados &cluster, const std::string &pool_name, const std::string &obj_name)
+test_erasure(
+    Rados& cluster,
+    const std::string& pool_name,
+    const std::string& obj_name)
 {
   string outs;
   int ret;
   ret = cluster.mon_command(
-    "{\"prefix\": \"osd erasure-code-profile set\", \"name\": \"testprofile\", \"profile\": [ \"k=2\", \"m=1\", \"crush-failure-domain=osd\"]}",
-    {}, NULL, &outs);
+      "{\"prefix\": \"osd erasure-code-profile set\", \"name\": "
+      "\"testprofile\", \"profile\": [ \"k=2\", \"m=1\", "
+      "\"crush-failure-domain=osd\"]}",
+      {}, NULL, &outs);
   if (ret < 0) {
-    std::cerr << "mon_command erasure-code-profile set failed with " << ret << std::endl;
+    std::cerr << "mon_command erasure-code-profile set failed with " << ret
+              << std::endl;
     exit(1);
   }
   //std::cout << outs << std::endl;
 
   outs.clear();
   ret = cluster.mon_command(
-    "{\"prefix\": \"osd pool create\", \"pool\": \"" + pool_name + "\", \"pool_type\":\"erasure\", \"pg_num\":12, \"pgp_num\":12, \"erasure_code_profile\":\"testprofile\"}",
-    {}, NULL, &outs);
+      "{\"prefix\": \"osd pool create\", \"pool\": \"" + pool_name +
+          "\", \"pool_type\":\"erasure\", \"pg_num\":12, \"pgp_num\":12, "
+          "\"erasure_code_profile\":\"testprofile\"}",
+      {}, NULL, &outs);
   if (ret < 0) {
     std::cerr << outs << std::endl;
     std::cerr << "mon_command create pool failed with " << ret << std::endl;
@@ -126,10 +145,12 @@ test_erasure(Rados &cluster, const std::string &pool_name, const std::string &ob
   return;
 }
 
-int main(int args, char **argv)
+int
+main(int args, char** argv)
 {
   if (args != 3 && args != 4) {
-    std::cerr << "Error: " << argv[0] << " [ec|rep] pool_name obj_name" << std::endl;
+    std::cerr << "Error: " << argv[0] << " [ec|rep] pool_name obj_name"
+              << std::endl;
     return 1;
   }
 
@@ -145,18 +166,20 @@ int main(int args, char **argv)
     obj_name = argv[3];
   }
   std::cout << "Test type " << type << std::endl;
-  std::cout << "pool_name, obj_name are " << pool_name << ", " << obj_name << std::endl;
+  std::cout << "pool_name, obj_name are " << pool_name << ", " << obj_name
+            << std::endl;
 
   if (type != "ec" && type != "rep") {
-    std::cerr << "Error: " << argv[0] << " Invalid arg must be 'ec' or 'rep' saw " << type << std::endl;
+    std::cerr << "Error: " << argv[0]
+              << " Invalid arg must be 'ec' or 'rep' saw " << type << std::endl;
     return 1;
   }
 
   Rados cluster;
   std::string err = connect_cluster_pp(cluster);
   if (err.length()) {
-      std::cerr << "Error " << err << std::endl;
-      return 1;
+    std::cerr << "Error " << err << std::endl;
+    return 1;
   }
 
   if (type == "rep")

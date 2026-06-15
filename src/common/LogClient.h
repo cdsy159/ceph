@@ -41,9 +41,9 @@ class LogChannel;
 
 namespace ceph {
 namespace logging {
-  class Graylog;
+class Graylog;
 }
-}
+} // namespace ceph
 
 struct clog_targets_conf_t {
   std::string log_to_monitors;
@@ -66,94 +66,167 @@ struct clog_targets_conf_t {
  * Past queueing the LogEntry, the LogChannel is done with the whole thing.
  * LogClient will deal with sending and handling of LogEntries.
  */
-class LogChannel : public LoggerSinkSet
-{
+class LogChannel : public LoggerSinkSet {
 public:
+  LogChannel(CephContext* cct, LogClient* lc, const std::string& channel);
+  LogChannel(
+      CephContext* cct,
+      LogClient* lc,
+      const std::string& channel,
+      const std::string& facility,
+      const std::string& prio);
 
-  LogChannel(CephContext *cct, LogClient *lc, const std::string &channel);
-  LogChannel(CephContext *cct, LogClient *lc,
-             const std::string &channel,
-             const std::string &facility,
-             const std::string &prio);
-
-  OstreamTemp debug() final {
+  OstreamTemp
+  debug() final
+  {
     return OstreamTemp(CLOG_DEBUG, this);
   }
-  void debug(std::stringstream &s) final {
+
+  void
+  debug(std::stringstream& s) final
+  {
     do_log(CLOG_DEBUG, s);
   }
+
   /**
    * Convenience function mapping health status to
    * the appropriate cluster log severity.
    */
-  OstreamTemp health(health_status_t health) {
-    switch(health) {
-      case HEALTH_OK:
-        return info();
-      case HEALTH_WARN:
-        return warn();
-      case HEALTH_ERR:
-        return error();
-      default:
-        // Invalid health_status_t value
-        ceph_abort();
+  OstreamTemp
+  health(health_status_t health)
+  {
+    switch (health) {
+    case HEALTH_OK:
+      return info();
+    case HEALTH_WARN:
+      return warn();
+    case HEALTH_ERR:
+      return error();
+    default:
+      // Invalid health_status_t value
+      ceph_abort();
     }
   }
-  OstreamTemp info() final {
+
+  OstreamTemp
+  info() final
+  {
     return OstreamTemp(CLOG_INFO, this);
   }
-  void info(std::stringstream &s) final {
+
+  void
+  info(std::stringstream& s) final
+  {
     do_log(CLOG_INFO, s);
   }
-  OstreamTemp warn() final {
+
+  OstreamTemp
+  warn() final
+  {
     return OstreamTemp(CLOG_WARN, this);
   }
-  void warn(std::stringstream &s) final {
+
+  void
+  warn(std::stringstream& s) final
+  {
     do_log(CLOG_WARN, s);
   }
-  OstreamTemp error() final {
+
+  OstreamTemp
+  error() final
+  {
     return OstreamTemp(CLOG_ERROR, this);
   }
-  void error(std::stringstream &s) final {
+
+  void
+  error(std::stringstream& s) final
+  {
     do_log(CLOG_ERROR, s);
   }
-  OstreamTemp sec() final {
+
+  OstreamTemp
+  sec() final
+  {
     return OstreamTemp(CLOG_SEC, this);
   }
-  void sec(std::stringstream &s) final {
+
+  void
+  sec(std::stringstream& s) final
+  {
     do_log(CLOG_SEC, s);
   }
 
   void set_log_to_monitors(bool v);
-  void set_log_to_syslog(bool v) {
+
+  void
+  set_log_to_syslog(bool v)
+  {
     log_to_syslog = v;
   }
-  void set_log_channel(const std::string& v) {
+
+  void
+  set_log_channel(const std::string& v)
+  {
     log_channel = v;
   }
-  void set_log_prio(const std::string& v) {
+
+  void
+  set_log_prio(const std::string& v)
+  {
     log_prio = v;
   }
-  void set_syslog_facility(const std::string& v) {
+
+  void
+  set_syslog_facility(const std::string& v)
+  {
     syslog_facility = v;
   }
-  std::string get_log_prio() { return log_prio; }
-  std::string get_log_channel() { return log_channel; }
-  std::string get_syslog_facility() { return syslog_facility; }
-  bool must_log_to_syslog() { return log_to_syslog; }
+
+  std::string
+  get_log_prio()
+  {
+    return log_prio;
+  }
+
+  std::string
+  get_log_channel()
+  {
+    return log_channel;
+  }
+
+  std::string
+  get_syslog_facility()
+  {
+    return syslog_facility;
+  }
+
+  bool
+  must_log_to_syslog()
+  {
+    return log_to_syslog;
+  }
+
   /**
    * Do we want to log to syslog?
    *
    * @return true if log_to_syslog is true and both channel and prio
    *         are not empty; false otherwise.
    */
-  bool do_log_to_syslog() {
-    return must_log_to_syslog() &&
-          !log_prio.empty() && !log_channel.empty();
+  bool
+  do_log_to_syslog()
+  {
+    return must_log_to_syslog() && !log_prio.empty() && !log_channel.empty();
   }
-  bool must_log_to_monitors() { return log_to_monitors; }
 
-  bool do_log_to_graylog() {
+  bool
+  must_log_to_monitors()
+  {
+    return log_to_monitors;
+  }
+
+  bool
+  do_log_to_graylog()
+  {
     return (graylog != nullptr);
   }
 
@@ -172,8 +245,8 @@ public:
   void do_log(clog_type prio, const std::string& s) final;
 
 private:
-  CephContext *cct;
-  LogClient *parent;
+  CephContext* cct;
+  LogClient* parent;
   ceph::mutex channel_lock = ceph::make_mutex("LogChannel::channel_lock");
   std::string log_channel;
   std::string log_prio;
@@ -192,30 +265,30 @@ private:
 
 typedef LogChannel::Ref LogChannelRef;
 
-class LogClient
-{
+class LogClient {
 public:
   enum logclient_flag_t {
     NO_FLAGS = 0,
     FLAG_MON = 0x1,
   };
 
-  LogClient(CephContext *cct, Messenger *m, MonMap *mm,
-          logclient_flag_t flags);
+  LogClient(CephContext* cct, Messenger* m, MonMap* mm, logclient_flag_t flags);
 
-  virtual ~LogClient() {
-    channels.clear();
-  }
+  virtual ~LogClient() { channels.clear(); }
 
-  bool handle_log_ack(MLogAck *m);
+  bool handle_log_ack(MLogAck* m);
   ceph::ref_t<Message> get_mon_log_message(bool flush);
   bool are_pending();
 
-  LogChannelRef create_channel() {
+  LogChannelRef
+  create_channel()
+  {
     return create_channel(CLOG_CHANNEL_DEFAULT);
   }
 
-  LogChannelRef create_channel(const std::string& name) {
+  LogChannelRef
+  create_channel(const std::string& name)
+  {
     LogChannelRef c;
     if (channels.count(name))
       c = channels[name];
@@ -226,12 +299,16 @@ public:
     return c;
   }
 
-  void destroy_channel(const std::string& name) {
+  void
+  destroy_channel(const std::string& name)
+  {
     if (channels.count(name))
       channels.erase(name);
   }
 
-  void shutdown() {
+  void
+  shutdown()
+  {
     channels.clear();
   }
 
@@ -239,16 +316,16 @@ public:
   entity_addrvec_t get_myaddrs();
   const EntityName& get_myname();
   entity_name_t get_myrank();
-  version_t queue(LogEntry &entry);
+  version_t queue(LogEntry& entry);
   void reset();
 
 private:
   ceph::ref_t<Message> _get_mon_log_message();
   void _send_to_mon();
 
-  CephContext *cct;
-  Messenger *messenger;
-  MonMap *monmap;
+  CephContext* cct;
+  Messenger* messenger;
+  MonMap* monmap;
   bool is_mon;
   ceph::mutex log_lock = ceph::make_mutex("LogClient::log_lock");
   version_t last_log_sent;
@@ -256,6 +333,5 @@ private:
   std::deque<LogEntry> log_queue;
 
   std::map<std::string, LogChannelRef> channels;
-
 };
 #endif

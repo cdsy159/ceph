@@ -1,34 +1,33 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "librbd/cache/ObjectCacherWriteback.h"
+
 #include <errno.h>
 
-#include "librbd/cache/ObjectCacherWriteback.h"
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/ceph_context.h"
-#include "common/dout.h"
 #include "common/ceph_mutex.h"
-#include "osdc/Striper.h"
+#include "common/dout.h"
 #include "include/Context.h"
+#include "include/ceph_assert.h"
 #include "include/neorados/RADOS.hpp"
 #include "include/rados/librados.hpp"
 #include "include/rbd/librbd.hpp"
-
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
-#include "librbd/internal.h"
-#include "librbd/ObjectMap.h"
 #include "librbd/Journal.h"
+#include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
+#include "librbd/internal.h"
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/ObjectDispatchSpec.h"
 #include "librbd/io/ObjectDispatcherInterface.h"
 #include "librbd/io/ReadResult.h"
 #include "librbd/io/Utils.h"
-
-#include "include/ceph_assert.h"
-
-#include <shared_mutex> // for std::shared_lock
+#include "osdc/Striper.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -48,10 +47,13 @@ namespace cache {
  */
 class C_ReadRequest : public Context {
 public:
-  C_ReadRequest(CephContext *cct, Context *c, ceph::mutex *cache_lock)
-    : m_cct(cct), m_ctx(c), m_cache_lock(cache_lock) {
-  }
-  void finish(int r) override {
+  C_ReadRequest(CephContext* cct, Context* c, ceph::mutex* cache_lock) :
+    m_cct(cct), m_ctx(c), m_cache_lock(cache_lock)
+  {}
+
+  void
+  finish(int r) override
+  {
     ldout(m_cct, 20) << "aio_cb completing " << dendl;
     {
       std::lock_guard cache_locker{*m_cache_lock};
@@ -59,20 +61,28 @@ public:
     }
     ldout(m_cct, 20) << "aio_cb finished" << dendl;
   }
+
 private:
-  CephContext *m_cct;
-  Context *m_ctx;
-  ceph::mutex *m_cache_lock;
+  CephContext* m_cct;
+  Context* m_ctx;
+  ceph::mutex* m_cache_lock;
 };
 
 class C_OrderedWrite : public Context {
 public:
-  C_OrderedWrite(CephContext *cct,
-                 ObjectCacherWriteback::write_result_d *result,
-                 const ZTracer::Trace &trace, ObjectCacherWriteback *wb)
-    : m_cct(cct), m_result(result), m_trace(trace), m_wb_handler(wb) {}
+  C_OrderedWrite(
+      CephContext* cct,
+      ObjectCacherWriteback::write_result_d* result,
+      const ZTracer::Trace& trace,
+      ObjectCacherWriteback* wb) :
+    m_cct(cct), m_result(result), m_trace(trace), m_wb_handler(wb)
+  {}
+
   ~C_OrderedWrite() override {}
-  void finish(int r) override {
+
+  void
+  finish(int r) override
+  {
     ldout(m_cct, 20) << "C_OrderedWrite completing " << m_result << dendl;
     {
       std::lock_guard l{m_wb_handler->m_lock};
@@ -84,26 +94,34 @@ public:
     ldout(m_cct, 20) << "C_OrderedWrite finished " << m_result << dendl;
     m_trace.event("finish");
   }
+
 private:
-  CephContext *m_cct;
-  ObjectCacherWriteback::write_result_d *m_result;
+  CephContext* m_cct;
+  ObjectCacherWriteback::write_result_d* m_result;
   ZTracer::Trace m_trace;
-  ObjectCacherWriteback *m_wb_handler;
+  ObjectCacherWriteback* m_wb_handler;
 };
 
 struct C_CommitIOEventExtent : public Context {
-  ImageCtx *image_ctx;
+  ImageCtx* image_ctx;
   uint64_t journal_tid;
   uint64_t offset;
   uint64_t length;
 
-  C_CommitIOEventExtent(ImageCtx *image_ctx, uint64_t journal_tid,
-                        uint64_t offset, uint64_t length)
-    : image_ctx(image_ctx), journal_tid(journal_tid), offset(offset),
-      length(length) {
-  }
+  C_CommitIOEventExtent(
+      ImageCtx* image_ctx,
+      uint64_t journal_tid,
+      uint64_t offset,
+      uint64_t length) :
+    image_ctx(image_ctx),
+    journal_tid(journal_tid),
+    offset(offset),
+    length(length)
+  {}
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     // all IO operations are flushed prior to closing the journal
     ceph_assert(image_ctx->journal != nullptr);
 
@@ -111,17 +129,24 @@ struct C_CommitIOEventExtent : public Context {
   }
 };
 
-ObjectCacherWriteback::ObjectCacherWriteback(ImageCtx *ictx, ceph::mutex& lock)
-  : m_tid(0), m_lock(lock), m_ictx(ictx) {
-}
+ObjectCacherWriteback::ObjectCacherWriteback(ImageCtx* ictx, ceph::mutex& lock) :
+  m_tid(0), m_lock(lock), m_ictx(ictx)
+{}
 
-void ObjectCacherWriteback::read(const object_t& oid, uint64_t object_no,
-                                 const object_locator_t& oloc,
-                                 uint64_t off, uint64_t len, snapid_t snapid,
-                                 bufferlist *pbl, uint64_t trunc_size,
-                                 __u32 trunc_seq, int op_flags,
-                                 const ZTracer::Trace &parent_trace,
-                                 Context *onfinish)
+void
+ObjectCacherWriteback::read(
+    const object_t& oid,
+    uint64_t object_no,
+    const object_locator_t& oloc,
+    uint64_t off,
+    uint64_t len,
+    snapid_t snapid,
+    bufferlist* pbl,
+    uint64_t trunc_size,
+    __u32 trunc_seq,
+    int op_flags,
+    const ZTracer::Trace& parent_trace,
+    Context* onfinish)
 {
   ZTracer::Trace trace;
   if (parent_trace.valid()) {
@@ -134,13 +159,13 @@ void ObjectCacherWriteback::read(const object_t& oid, uint64_t object_no,
   onfinish = new C_ReadRequest(m_ictx->cct, onfinish, &m_lock);
 
   // re-use standard object read state machine
-  auto aio_comp = io::AioCompletion::create_and_start(onfinish, m_ictx,
-                                                      io::AIO_TYPE_READ);
+  auto aio_comp =
+      io::AioCompletion::create_and_start(onfinish, m_ictx, io::AIO_TYPE_READ);
   aio_comp->read_result = io::ReadResult{pbl};
   aio_comp->set_request_count(1);
 
   auto req_comp = new io::ReadResult::C_ObjectReadRequest(
-    aio_comp, {{off, len, {{0, len}}}});
+      aio_comp, {{off, len, {{0, len}}}});
 
   auto io_context = m_ictx->duplicate_data_io_context();
   if (snapid != CEPH_NOSNAP) {
@@ -152,15 +177,17 @@ void ObjectCacherWriteback::read(const object_t& oid, uint64_t object_no,
   op_flags &= ~READ_FLAGS_MASK;
 
   auto req = io::ObjectDispatchSpec::create_read(
-    m_ictx, io::OBJECT_DISPATCH_LAYER_CACHE, object_no, &req_comp->extents,
-    io_context, op_flags, read_flags, trace, nullptr, req_comp);
+      m_ictx, io::OBJECT_DISPATCH_LAYER_CACHE, object_no, &req_comp->extents,
+      io_context, op_flags, read_flags, trace, nullptr, req_comp);
   req->send();
 }
 
-bool ObjectCacherWriteback::may_copy_on_write(const object_t& oid,
-                                              uint64_t read_off,
-                                              uint64_t read_len,
-                                              snapid_t snapid)
+bool
+ObjectCacherWriteback::may_copy_on_write(
+    const object_t& oid,
+    uint64_t read_off,
+    uint64_t read_len,
+    snapid_t snapid)
 {
   std::shared_lock image_locker(m_ictx->image_lock);
   uint64_t raw_overlap = 0;
@@ -170,8 +197,8 @@ bool ObjectCacherWriteback::may_copy_on_write(const object_t& oid,
     uint64_t object_no = oid_to_object_no(oid.name, m_ictx->object_prefix);
     auto [parent_extents, area] = io::util::object_to_area_extents(
         m_ictx, object_no, {{0, m_ictx->layout.object_size}});
-    object_overlap = m_ictx->prune_parent_extents(parent_extents, area,
-                                                  raw_overlap, false);
+    object_overlap =
+        m_ictx->prune_parent_extents(parent_extents, area, raw_overlap, false);
   }
   bool may = object_overlap > 0;
   ldout(m_ictx->cct, 10) << "may_copy_on_write " << oid << " " << read_off
@@ -179,16 +206,20 @@ bool ObjectCacherWriteback::may_copy_on_write(const object_t& oid,
   return may;
 }
 
-ceph_tid_t ObjectCacherWriteback::write(const object_t& oid,
-                                        const object_locator_t& oloc,
-                                        uint64_t off, uint64_t len,
-                                        const SnapContext& snapc,
-                                        const bufferlist &bl,
-                                        ceph::real_time mtime,
-                                        uint64_t trunc_size,
-                                        __u32 trunc_seq, ceph_tid_t journal_tid,
-                                        const ZTracer::Trace &parent_trace,
-                                        Context *oncommit)
+ceph_tid_t
+ObjectCacherWriteback::write(
+    const object_t& oid,
+    const object_locator_t& oloc,
+    uint64_t off,
+    uint64_t len,
+    const SnapContext& snapc,
+    const bufferlist& bl,
+    ceph::real_time mtime,
+    uint64_t trunc_size,
+    __u32 trunc_seq,
+    ceph_tid_t journal_tid,
+    const ZTracer::Trace& parent_trace,
+    Context* oncommit)
 {
   ZTracer::Trace trace;
   if (parent_trace.valid()) {
@@ -199,65 +230,70 @@ ceph_tid_t ObjectCacherWriteback::write(const object_t& oid,
 
   uint64_t object_no = oid_to_object_no(oid.name, m_ictx->object_prefix);
 
-  write_result_d *result = new write_result_d(oid.name, oncommit);
+  write_result_d* result = new write_result_d(oid.name, oncommit);
   m_writes[oid.name].push(result);
   ldout(m_ictx->cct, 20) << "write will wait for result " << result << dendl;
 
   bufferlist bl_copy(bl);
 
-  Context *ctx = new C_OrderedWrite(m_ictx->cct, result, trace, this);
+  Context* ctx = new C_OrderedWrite(m_ictx->cct, result, trace, this);
   ctx = util::create_async_context_callback(*m_ictx, ctx);
 
   auto io_context = m_ictx->duplicate_data_io_context();
   if (!snapc.empty()) {
     io_context->set_write_snap_context(
-      {{snapc.seq, {snapc.snaps.begin(), snapc.snaps.end()}}});
+        {{snapc.seq, {snapc.snaps.begin(), snapc.snaps.end()}}});
   }
 
   auto req = io::ObjectDispatchSpec::create_write(
-    m_ictx, io::OBJECT_DISPATCH_LAYER_CACHE, object_no, off, std::move(bl_copy),
-    io_context, 0, 0, std::nullopt, journal_tid, trace, ctx);
-  req->object_dispatch_flags = (
-    io::OBJECT_DISPATCH_FLAG_FLUSH |
-    io::OBJECT_DISPATCH_FLAG_WILL_RETRY_ON_ERROR);
+      m_ictx, io::OBJECT_DISPATCH_LAYER_CACHE, object_no, off,
+      std::move(bl_copy), io_context, 0, 0, std::nullopt, journal_tid, trace,
+      ctx);
+  req->object_dispatch_flags =
+      (io::OBJECT_DISPATCH_FLAG_FLUSH |
+       io::OBJECT_DISPATCH_FLAG_WILL_RETRY_ON_ERROR);
   req->send();
 
   return ++m_tid;
 }
 
-
-void ObjectCacherWriteback::overwrite_extent(const object_t& oid, uint64_t off,
-                                             uint64_t len,
-                                             ceph_tid_t original_journal_tid,
-                                             ceph_tid_t new_journal_tid) {
-  ldout(m_ictx->cct, 20) << __func__ << ": " << oid << " "
-                         << off << "~" << len << " "
-                         << "journal_tid=" << original_journal_tid << ", "
-                         << "new_journal_tid=" << new_journal_tid << dendl;
+void
+ObjectCacherWriteback::overwrite_extent(
+    const object_t& oid,
+    uint64_t off,
+    uint64_t len,
+    ceph_tid_t original_journal_tid,
+    ceph_tid_t new_journal_tid)
+{
+  ldout(m_ictx->cct, 20) << __func__ << ": " << oid << " " << off << "~" << len
+                         << " " << "journal_tid=" << original_journal_tid
+                         << ", " << "new_journal_tid=" << new_journal_tid
+                         << dendl;
 
   uint64_t object_no = oid_to_object_no(oid.name, m_ictx->object_prefix);
 
   // all IO operations are flushed prior to closing the journal
   ceph_assert(original_journal_tid != 0 && m_ictx->journal != NULL);
 
-  auto [image_extents, _] = io::util::object_to_area_extents(m_ictx, object_no,
-                                                             {{off, len}});
+  auto [image_extents, _] =
+      io::util::object_to_area_extents(m_ictx, object_no, {{off, len}});
   for (auto it = image_extents.begin(); it != image_extents.end(); ++it) {
     if (new_journal_tid != 0) {
       // ensure new journal event is safely committed to disk before
       // committing old event
       m_ictx->journal->flush_event(
-        new_journal_tid, new C_CommitIOEventExtent(m_ictx,
-                                                   original_journal_tid,
-                                                   it->first, it->second));
+          new_journal_tid,
+          new C_CommitIOEventExtent(
+              m_ictx, original_journal_tid, it->first, it->second));
     } else {
-      m_ictx->journal->commit_io_event_extent(original_journal_tid, it->first,
-                                              it->second, 0);
+      m_ictx->journal->commit_io_event_extent(
+          original_journal_tid, it->first, it->second, 0);
     }
   }
 }
 
-void ObjectCacherWriteback::complete_writes(const std::string& oid)
+void
+ObjectCacherWriteback::complete_writes(const std::string& oid)
 {
   ceph_assert(ceph_mutex_is_locked(m_lock));
   std::queue<write_result_d*>& results = m_writes[oid];
@@ -265,7 +301,7 @@ void ObjectCacherWriteback::complete_writes(const std::string& oid)
   std::list<write_result_d*> finished;
 
   while (!results.empty()) {
-    write_result_d *result = results.front();
+    write_result_d* result = results.front();
     if (!result->done)
       break;
     finished.push_back(result);
@@ -277,7 +313,7 @@ void ObjectCacherWriteback::complete_writes(const std::string& oid)
 
   for (std::list<write_result_d*>::iterator it = finished.begin();
        it != finished.end(); ++it) {
-    write_result_d *result = *it;
+    write_result_d* result = *it;
     ldout(m_ictx->cct, 20) << "complete_writes() completing " << result
                            << dendl;
     result->oncommit->complete(result->ret);

@@ -12,7 +12,7 @@
 
 namespace ceph {
 class Formatter;
-}  // namespace ceph
+} // namespace ceph
 
 namespace Scrub {
 
@@ -67,9 +67,8 @@ enum class urgency_t {
  * for scheduling (target time & not_before).
  */
 struct SchedEntry {
-  constexpr SchedEntry(spg_t pgid, scrub_level_t level)
-      : pgid{pgid}
-      , level{level}
+  constexpr SchedEntry(spg_t pgid, scrub_level_t level) :
+    pgid{pgid}, level{level}
   {}
 
   SchedEntry(const SchedEntry&) = default;
@@ -92,10 +91,8 @@ struct SchedEntry {
   void dump(ceph::Formatter& f) const;
 };
 
-
-static inline std::weak_ordering cmp_ripe_entries(
-    const Scrub::SchedEntry& l,
-    const Scrub::SchedEntry& r) noexcept
+static inline std::weak_ordering
+cmp_ripe_entries(const Scrub::SchedEntry& l, const Scrub::SchedEntry& r) noexcept
 {
   // for 'higher is better' sub elements - the 'r.' is on the left
   if (auto cmp = r.urgency <=> l.urgency; cmp != 0) {
@@ -103,7 +100,7 @@ static inline std::weak_ordering cmp_ripe_entries(
   }
   // the 'utime_t' operator<=> is 'partial_ordering', it seems.
   if (auto cmp = std::weak_order(
-	  double(l.schedule.scheduled_at), double(r.schedule.scheduled_at));
+          double(l.schedule.scheduled_at), double(r.schedule.scheduled_at));
       cmp != 0) {
     return cmp;
   }
@@ -111,19 +108,18 @@ static inline std::weak_ordering cmp_ripe_entries(
     return std::weak_ordering::less;
   }
   if (auto cmp = std::weak_order(
-	  double(l.schedule.not_before), double(r.schedule.not_before));
+          double(l.schedule.not_before), double(r.schedule.not_before));
       cmp != 0) {
     return cmp;
   }
   return std::weak_ordering::greater;
 }
 
-static inline std::weak_ordering cmp_future_entries(
-    const Scrub::SchedEntry& l,
-    const Scrub::SchedEntry& r) noexcept
+static inline std::weak_ordering
+cmp_future_entries(const Scrub::SchedEntry& l, const Scrub::SchedEntry& r) noexcept
 {
   if (auto cmp = std::weak_order(
-	  double(l.schedule.not_before), double(r.schedule.not_before));
+          double(l.schedule.not_before), double(r.schedule.not_before));
       cmp != 0) {
     return cmp;
   }
@@ -132,7 +128,7 @@ static inline std::weak_ordering cmp_future_entries(
     return cmp;
   }
   if (auto cmp = std::weak_order(
-	  double(l.schedule.scheduled_at), double(r.schedule.scheduled_at));
+          double(l.schedule.scheduled_at), double(r.schedule.scheduled_at));
       cmp != 0) {
     return cmp;
   }
@@ -142,7 +138,8 @@ static inline std::weak_ordering cmp_future_entries(
   return std::weak_ordering::greater;
 }
 
-static inline std::weak_ordering cmp_entries(
+static inline std::weak_ordering
+cmp_entries(
     utime_t t,
     const Scrub::SchedEntry& l,
     const Scrub::SchedEntry& r) noexcept
@@ -163,28 +160,27 @@ static inline std::weak_ordering cmp_entries(
 
 // ---  the interface required by 'not_before_queue_t':
 
-static inline const utime_t& project_not_before(const Scrub::SchedEntry& e)
+static inline const utime_t&
+project_not_before(const Scrub::SchedEntry& e)
 {
   return e.schedule.not_before;
 }
 
-static inline const spg_t& project_removal_class(const Scrub::SchedEntry& e)
+static inline const spg_t&
+project_removal_class(const Scrub::SchedEntry& e)
 {
   return e.pgid;
 }
 
-
 /// 'not_before_queue_t' requires a '<' operator, to be used for
 /// eligible entries:
-static inline bool operator<(
-    const Scrub::SchedEntry& lhs,
-    const Scrub::SchedEntry& rhs)
+static inline bool
+operator<(const Scrub::SchedEntry& lhs, const Scrub::SchedEntry& rhs)
 {
   return cmp_ripe_entries(lhs, rhs) == std::weak_ordering::less;
 }
 
-}  // namespace Scrub
-
+} // namespace Scrub
 
 namespace fmt {
 
@@ -208,18 +204,25 @@ struct formatter<Scrub::urgency_t> : formatter<std::string_view> {
     return formatter<string_view>::format(desc, ctx);
   }
 };
+
 // clang-format on
 
 template <>
 struct formatter<Scrub::SchedEntry> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const Scrub::SchedEntry& st, FormatContext& ctx) const
+  auto
+  format(const Scrub::SchedEntry& st, FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(), "{}/{},nb:{:s},({},tr:{:s})", st.pgid.pgid,
-	(st.level == scrub_level_t::deep ? "dp" : "sh"), st.schedule.not_before,
-	st.urgency, st.schedule.scheduled_at);
+        ctx.out(), "{}/{},nb:{:s},({},tr:{:s})", st.pgid.pgid,
+        (st.level == scrub_level_t::deep ? "dp" : "sh"), st.schedule.not_before,
+        st.urgency, st.schedule.scheduled_at);
   }
 };
-}  // namespace fmt
+} // namespace fmt

@@ -6,14 +6,12 @@
 
 #include <string>
 
+#include "common/Formatter.h"
+#include "common/ceph_json.h"
+#include "common/ceph_time.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
 #include "include/types.h"
-
-#include "common/ceph_json.h"
-#include "common/Formatter.h"
-
-#include "common/ceph_time.h"
 
 class JSONObj;
 class JSONDecoder;
@@ -28,12 +26,20 @@ struct entry {
 
   entry() = default;
 
-  entry(ceph::real_time timestamp, std::string section,
-	std::string name, ceph::buffer::list&& data)
-    : section(std::move(section)), name(std::move(name)),
-      timestamp(timestamp), data(std::move(data)) {}
+  entry(
+      ceph::real_time timestamp,
+      std::string section,
+      std::string name,
+      ceph::buffer::list&& data) :
+    section(std::move(section)),
+    name(std::move(name)),
+    timestamp(timestamp),
+    data(std::move(data))
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(section, bl);
     encode(name, bl);
@@ -43,7 +49,9 @@ struct entry {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(section, bl);
     decode(name, bl);
@@ -54,7 +62,9 @@ struct entry {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     encode_json("section", section, f);
     encode_json("name", name, f);
     encode_json("timestamp", timestamp, f);
@@ -62,7 +72,9 @@ struct entry {
     encode_json("id", id, f);
   }
 
-  void decode_json(JSONObj* obj) {
+  void
+  decode_json(JSONObj* obj)
+  {
     JSONDecoder::decode_json("section", section, obj);
     JSONDecoder::decode_json("name", name, obj);
     JSONDecoder::decode_json("timestamp", timestamp, obj);
@@ -70,7 +82,9 @@ struct entry {
     JSONDecoder::decode_json("id", id, obj);
   }
 
-  static std::list<cls::log::entry> generate_test_instances() {
+  static std::list<cls::log::entry>
+  generate_test_instances()
+  {
     std::list<cls::log::entry> l;
     l.emplace_back();
     l.emplace_back();
@@ -90,25 +104,34 @@ struct header {
   std::string max_marker;
   ceph::real_time max_time;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(max_marker, bl);
     encode(max_time, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(max_marker, bl);
     decode(max_time, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("max_marker", max_marker);
     f->dump_stream("max_time") << max_time;
   }
-  static std::list<header> generate_test_instances() {
+
+  static std::list<header>
+  generate_test_instances()
+  {
     std::list<header> o;
     o.emplace_back();
     o.emplace_back();
@@ -116,7 +139,8 @@ struct header {
     o.back().max_time = ceph::real_clock::zero();
     return o;
   }
-  friend auto operator <=>(const header&, const header&) = default;
+
+  friend auto operator<=>(const header&, const header&) = default;
 };
 WRITE_CLASS_ENCODER(header)
 } // namespace cls::log

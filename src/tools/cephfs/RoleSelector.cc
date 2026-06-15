@@ -1,10 +1,10 @@
 
 #include "RoleSelector.h"
+
 #include "common/strtol.h"
 
-int MDSRoleSelector::parse_rank(
-    const FSMap &fsmap,
-    std::string const &str)
+int
+MDSRoleSelector::parse_rank(const FSMap& fsmap, std::string const& str)
 {
   auto& mds_map = fsmap.get_filesystem(fscid).get_mds_map();
   if (str == "all" || str == "*") {
@@ -30,8 +30,11 @@ int MDSRoleSelector::parse_rank(
   }
 }
 
-int MDSRoleSelector::parse(const FSMap &fsmap, std::string const &str,
-                           bool allow_unqualified_rank)
+int
+MDSRoleSelector::parse(
+    const FSMap& fsmap,
+    std::string const& str,
+    bool allow_unqualified_rank)
 {
   auto colon_pos = str.find(":");
   if (colon_pos == std::string::npos) {
@@ -57,4 +60,3 @@ int MDSRoleSelector::parse(const FSMap &fsmap, std::string const &str,
     return parse_rank(fsmap, rank_str);
   }
 }
-

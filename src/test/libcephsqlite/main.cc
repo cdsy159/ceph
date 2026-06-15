@@ -12,46 +12,46 @@
  *
  */
 
+#include <fmt/format.h>
+#include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <string_view>
 
-#include <stdlib.h>
-#include <string.h>
-
-#include <sqlite3.h>
-#include <fmt/format.h>
-#include "gtest/gtest.h"
-
-#include "include/uuid.h"
-#include "include/rados/librados.hpp"
-#include "include/libcephsqlite.h"
-#include "SimpleRADOSStriper.h"
+#include "common/debug.h"
 
 #include "common/ceph_argparse.h"
 #include "common/ceph_crypto.h"
 #include "common/ceph_time.h"
 #include "common/common_init.h"
-#include "common/debug.h"
+#include "gtest/gtest.h"
+#include "include/libcephsqlite.h"
+#include "include/rados/librados.hpp"
+#include "include/uuid.h"
+
+#include "SimpleRADOSStriper.h"
 
 #define dout_subsys ceph_subsys_client
 #undef dout_prefix
 #define dout_prefix *_dout << "unittest_libcephsqlite: "
 
-#define sqlcatchcode(S, code) \
-do {\
-    rc = S;\
-    if (rc != code) {\
-        std::cout << "[" << __FILE__ << ":" << __LINE__ << "]"\
-                  << " sqlite3 error: " << rc << " `" << sqlite3_errstr(rc)\
-                  << "': " << sqlite3_errmsg(db) << std::endl;\
-        sqlite3_finalize(stmt);\
-        stmt = NULL;\
-        goto out;\
-    }\
-} while (0)
+#define sqlcatchcode(S, code)                                             \
+  do {                                                                    \
+    rc = S;                                                               \
+    if (rc != code) {                                                     \
+      std::cout << "[" << __FILE__ << ":" << __LINE__ << "]"              \
+                << " sqlite3 error: " << rc << " `" << sqlite3_errstr(rc) \
+                << "': " << sqlite3_errmsg(db) << std::endl;              \
+      sqlite3_finalize(stmt);                                             \
+      stmt = NULL;                                                        \
+      goto out;                                                           \
+    }                                                                     \
+  } while (0)
 
 #define sqlcatch(S) sqlcatchcode(S, SQLITE_OK)
 
@@ -61,7 +61,9 @@ class CephSQLiteTest : public ::testing::Test {
 public:
   inline static const std::string pool = "cephsqlite";
 
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     librados::Rados cluster;
     ASSERT_LE(0, cluster.init_with_context(cct.get()));
     ASSERT_LE(0, cluster.connect());
@@ -71,14 +73,20 @@ public:
     cluster.shutdown();
     sleep(5);
   }
-  void SetUp() override {
+
+  void
+  SetUp() override
+  {
     uuid.generate_random();
     ASSERT_LE(0, cluster.init_with_context(cct.get()));
     ASSERT_LE(0, cluster.connect());
     ASSERT_LE(0, cluster.wait_for_latest_osdmap());
     ASSERT_EQ(0, db_open());
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     ASSERT_EQ(SQLITE_OK, sqlite3_close(db));
     db = nullptr;
     cluster.shutdown();
@@ -86,40 +94,47 @@ public:
   }
 
 protected:
-  int db_open()
+  int
+  db_open()
   {
     static const char SQL[] =
-      "PRAGMA journal_mode = PERSIST;"
-      "PRAGMA page_size = 65536;"
-      "PRAGMA cache_size = 32768;"
-      "PRAGMA temp_store = memory;"
-      "CREATE TEMPORARY TABLE perf (i INTEGER PRIMARY KEY, v TEXT);"
-      "INSERT INTO perf (v)"
-      "    VALUES (ceph_perf());"
-      ;
+        "PRAGMA journal_mode = PERSIST;"
+        "PRAGMA page_size = 65536;"
+        "PRAGMA cache_size = 32768;"
+        "PRAGMA temp_store = memory;"
+        "CREATE TEMPORARY TABLE perf (i INTEGER PRIMARY KEY, v TEXT);"
+        "INSERT INTO perf (v)"
+        "    VALUES (ceph_perf());";
 
-    sqlite3_stmt *stmt = NULL;
-    const char *current = SQL;
+    sqlite3_stmt* stmt = NULL;
+    const char* current = SQL;
     int rc;
 
     auto&& name = get_uri();
-    sqlcatch(sqlite3_open_v2(name.c_str(), &db, SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE|SQLITE_OPEN_URI, "ceph"));
+    sqlcatch(sqlite3_open_v2(
+        name.c_str(), &db,
+        SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_URI, "ceph"));
     std::cout << "using database: " << name << std::endl;
 
     std::cout << SQL << std::endl;
     sqlcatch(sqlite3_exec(db, current, NULL, NULL, NULL));
 
     rc = 0;
-out:
+  out:
     sqlite3_finalize(stmt);
     return rc;
   }
 
-  virtual std::string get_uri() const {
+  virtual std::string
+  get_uri() const
+  {
     auto uri = fmt::format("file:{}:/{}?vfs=ceph", pool, get_name());
     return uri;
   }
-  virtual std::string get_name() const {
+
+  virtual std::string
+  get_name() const
+  {
     auto name = fmt::format("{}.db", uuid.to_string());
     return name;
   }
@@ -129,13 +144,12 @@ out:
   librados::Rados cluster;
 };
 
-TEST_F(CephSQLiteTest, Create) {
-  static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    ;
+TEST_F(CephSQLiteTest, Create)
+{
+  static const char SQL[] = "CREATE TABLE foo (a INT);";
 
-  sqlite3_stmt *stmt = NULL;
-  const char *current = SQL;
+  sqlite3_stmt* stmt = NULL;
+  const char* current = SQL;
   int rc;
 
   std::cout << SQL << std::endl;
@@ -150,147 +164,147 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertBulk4096) {
+TEST_F(CephSQLiteTest, InsertBulk4096)
+{
   static const char SQL[] =
-    "PRAGMA page_size = 4096;"
-    "CREATE TABLE foo (a INT);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT RANDOM()"
-    "  FROM c"
-    "  LIMIT 1000000;"
-    "PRAGMA page_size;"
-    ;
+      "PRAGMA page_size = 4096;"
+      "CREATE TABLE foo (a INT);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT RANDOM()"
+      "  FROM c"
+      "  LIMIT 1000000;"
+      "PRAGMA page_size;";
 
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
 
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    ASSERT_EQ(sqlite3_column_int64(stmt, 0), 4096);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt, 0), 4096);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    rc = 0;
+  rc = 0;
 out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertBulk) {
+TEST_F(CephSQLiteTest, InsertBulk)
+{
   static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT RANDOM()"
-    "  FROM c"
-    "  LIMIT 1000000;"
-    ;
+      "CREATE TABLE foo (a INT);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT RANDOM()"
+      "  FROM c"
+      "  LIMIT 1000000;";
 
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
 
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_exec(db, current, NULL, NULL, NULL));
-    rc = 0;
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_exec(db, current, NULL, NULL, NULL));
+  rc = 0;
 out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, UpdateBulk) {
+TEST_F(CephSQLiteTest, UpdateBulk)
+{
   static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT x"
-    "  FROM c"
-    "  LIMIT 1000000;"
-    "SELECT SUM(a) FROM foo;"
-    "UPDATE foo"
-    "  SET a = a+a;"
-    "SELECT SUM(a) FROM foo;"
-    ;
+      "CREATE TABLE foo (a INT);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT x"
+      "  FROM c"
+      "  LIMIT 1000000;"
+      "SELECT SUM(a) FROM foo;"
+      "UPDATE foo"
+      "  SET a = a+a;"
+      "SELECT SUM(a) FROM foo;";
 
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
-    uint64_t sum, sum2;
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
+  uint64_t sum, sum2;
 
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    sum = sqlite3_column_int64(stmt, 0);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  sum = sqlite3_column_int64(stmt, 0);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    sum2 = sqlite3_column_int64(stmt, 0);
-    ASSERT_EQ(sum*2, sum2);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  sum2 = sqlite3_column_int64(stmt, 0);
+  ASSERT_EQ(sum * 2, sum2);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
-    rc = 0;
+  rc = 0;
 out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertRate) {
+TEST_F(CephSQLiteTest, InsertRate)
+{
   using clock = ceph::coarse_mono_clock;
   using time = ceph::coarse_mono_time;
 
   static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    ;
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   time t1, t2;
   int count = 100;
 
@@ -308,8 +322,9 @@ TEST_F(CephSQLiteTest, InsertRate) {
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   {
-    auto diff = std::chrono::duration<double>(t2-t1);
-    std::cout << "transactions per second: " << count/diff.count() << std::endl;
+    auto diff = std::chrono::duration<double>(t2 - t1);
+    std::cout << "transactions per second: " << count / diff.count()
+              << std::endl;
   }
 
   rc = 0;
@@ -318,28 +333,28 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, DatabaseShrink) {
+TEST_F(CephSQLiteTest, DatabaseShrink)
+{
   static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT x"
-    "  FROM c"
-    "  LIMIT 1000000;"
-    "DELETE FROM foo"
-    "  WHERE RANDOM()%4 < 3;"
-    "VACUUM;"
-    ;
+      "CREATE TABLE foo (a INT);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT x"
+      "  FROM c"
+      "  LIMIT 1000000;"
+      "DELETE FROM foo"
+      "  WHERE RANDOM()%4 < 3;"
+      "VACUUM;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   librados::IoCtx ioctx;
   std::unique_ptr<SimpleRADOSStriper> rs;
   uint64_t size1, size2;
@@ -370,7 +385,7 @@ TEST_F(CephSQLiteTest, DatabaseShrink) {
   ASSERT_EQ(0, rs->lock(1000));
   ASSERT_EQ(0, rs->stat(&size2));
   ASSERT_EQ(0, rs->unlock());
-  ASSERT_LT(size2, size1/2);
+  ASSERT_LT(size2, size1 / 2);
 
   rc = 0;
 out:
@@ -378,19 +393,19 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertExclusiveRate) {
+TEST_F(CephSQLiteTest, InsertExclusiveRate)
+{
   using clock = ceph::coarse_mono_clock;
   using time = ceph::coarse_mono_time;
 
   static const char SQL[] =
-    "PRAGMA locking_mode=EXCLUSIVE;"
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    ;
+      "PRAGMA locking_mode=EXCLUSIVE;"
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   time t1, t2;
   int count = 100;
 
@@ -413,8 +428,9 @@ TEST_F(CephSQLiteTest, InsertExclusiveRate) {
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   {
-    auto diff = std::chrono::duration<double>(t2-t1);
-    std::cout << "transactions per second: " << count/diff.count() << std::endl;
+    auto diff = std::chrono::duration<double>(t2 - t1);
+    std::cout << "transactions per second: " << count / diff.count()
+              << std::endl;
   }
 
   rc = 0;
@@ -423,20 +439,20 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertExclusiveWALRate) {
+TEST_F(CephSQLiteTest, InsertExclusiveWALRate)
+{
   using clock = ceph::coarse_mono_clock;
   using time = ceph::coarse_mono_time;
 
   static const char SQL[] =
-    "PRAGMA locking_mode=EXCLUSIVE;"
-    "PRAGMA journal_mode=WAL;"
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    ;
+      "PRAGMA locking_mode=EXCLUSIVE;"
+      "PRAGMA journal_mode=WAL;"
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   time t1, t2;
   int count = 100;
 
@@ -463,8 +479,9 @@ TEST_F(CephSQLiteTest, InsertExclusiveWALRate) {
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   {
-    auto diff = std::chrono::duration<double>(t2-t1);
-    std::cout << "transactions per second: " << count/diff.count() << std::endl;
+    auto diff = std::chrono::duration<double>(t2 - t1);
+    std::cout << "transactions per second: " << count / diff.count()
+              << std::endl;
   }
 
   rc = 0;
@@ -473,27 +490,27 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, WALTransactionSync) {
+TEST_F(CephSQLiteTest, WALTransactionSync)
+{
   static const char SQL[] =
-    "PRAGMA locking_mode=EXCLUSIVE;"
-    "PRAGMA journal_mode=WAL;"
-    "CREATE TABLE foo (a INT);" /* sets up the -wal journal */
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "BEGIN TRANSACTION;"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    "END TRANSACTION;"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_sync.avgcount') - "
-    "       json_extract(b.v, '$.libcephsqlite_vfs.opf_sync.avgcount') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
+      "PRAGMA locking_mode=EXCLUSIVE;"
+      "PRAGMA journal_mode=WAL;"
+      "CREATE TABLE foo (a INT);" /* sets up the -wal journal */
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "BEGIN TRANSACTION;"
+      "INSERT INTO foo (a) VALUES (RANDOM());"
+      "END TRANSACTION;"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_sync.avgcount') - "
+      "       json_extract(b.v, '$.libcephsqlite_vfs.opf_sync.avgcount') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   uint64_t id;
 
   std::cout << SQL << std::endl;
@@ -535,7 +552,7 @@ TEST_F(CephSQLiteTest, WALTransactionSync) {
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
   ASSERT_EQ(sqlite3_column_int64(stmt, 0), 1);
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
@@ -546,23 +563,23 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, PersistTransactionSync) {
+TEST_F(CephSQLiteTest, PersistTransactionSync)
+{
   static const char SQL[] =
-    "BEGIN TRANSACTION;"
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    "END TRANSACTION;"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_sync.avgcount') - "
-    "       json_extract(b.v, '$.libcephsqlite_vfs.opf_sync.avgcount') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
+      "BEGIN TRANSACTION;"
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());"
+      "END TRANSACTION;"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_sync.avgcount') - "
+      "       json_extract(b.v, '$.libcephsqlite_vfs.opf_sync.avgcount') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   uint64_t id;
 
   std::cout << SQL << std::endl;
@@ -590,9 +607,11 @@ TEST_F(CephSQLiteTest, PersistTransactionSync) {
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-  ASSERT_EQ(sqlite3_column_int64(stmt, 0), 3); /* journal, db, journal header (PERIST) */
+  ASSERT_EQ(
+      sqlite3_column_int64(stmt, 0),
+      3); /* journal, db, journal header (PERIST) */
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   rc = 0;
@@ -601,30 +620,30 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, InsertExclusiveLock) {
+TEST_F(CephSQLiteTest, InsertExclusiveLock)
+{
   static const char SQL[] =
-    "PRAGMA locking_mode=EXCLUSIVE;"
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_lock.avgcount'), "
-    "       json_extract(b.v, '$.libcephsqlite_vfs.opf_lock.avgcount'), "
-    "       json_extract(a.v, '$.libcephsqlite_vfs.opf_lock.avgcount') - "
-    "       json_extract(b.v, '$.libcephsqlite_vfs.opf_lock.avgcount') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    "SELECT json_extract(a.v, '$.libcephsqlite_striper.lock'), "
-    "       json_extract(b.v, '$.libcephsqlite_striper.lock'), "
-    "       json_extract(a.v, '$.libcephsqlite_striper.lock') - "
-    "       json_extract(b.v, '$.libcephsqlite_striper.lock') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
+      "PRAGMA locking_mode=EXCLUSIVE;"
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_vfs.opf_lock.avgcount'), "
+      "       json_extract(b.v, '$.libcephsqlite_vfs.opf_lock.avgcount'), "
+      "       json_extract(a.v, '$.libcephsqlite_vfs.opf_lock.avgcount') - "
+      "       json_extract(b.v, '$.libcephsqlite_vfs.opf_lock.avgcount') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;"
+      "SELECT json_extract(a.v, '$.libcephsqlite_striper.lock'), "
+      "       json_extract(b.v, '$.libcephsqlite_striper.lock'), "
+      "       json_extract(a.v, '$.libcephsqlite_striper.lock') - "
+      "       json_extract(b.v, '$.libcephsqlite_striper.lock') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   uint64_t id;
 
   std::cout << SQL << std::endl;
@@ -648,20 +667,23 @@ TEST_F(CephSQLiteTest, InsertExclusiveLock) {
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
   ASSERT_GT(sqlite3_column_int64(stmt, 0), 0);
   ASSERT_GT(sqlite3_column_int64(stmt, 1), 0);
-  ASSERT_EQ(sqlite3_column_int64(stmt, 2), 3); /* NONE -> SHARED; SHARED -> RESERVED; RESERVED -> EXCLUSIVE */
+  ASSERT_EQ(
+      sqlite3_column_int64(stmt, 2),
+      3); /* NONE -> SHARED; SHARED -> RESERVED; RESERVED -> EXCLUSIVE */
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
   ASSERT_GT(sqlite3_column_int64(stmt, 0), 0);
   ASSERT_GT(sqlite3_column_int64(stmt, 1), 0);
-  ASSERT_EQ(sqlite3_column_int64(stmt, 2), 1); /* one actual lock on the striper */
+  ASSERT_EQ(
+      sqlite3_column_int64(stmt, 2), 1); /* one actual lock on the striper */
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   rc = 0;
@@ -670,25 +692,25 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, TransactionSizeUpdate) {
+TEST_F(CephSQLiteTest, TransactionSizeUpdate)
+{
   static const char SQL[] =
-    "BEGIN TRANSACTION;"
-    "CREATE TABLE foo (a INT);"
-    "INSERT INTO foo (a) VALUES (RANDOM());"
-    "END TRANSACTION;"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_striper.update_size'), "
-    "       json_extract(b.v, '$.libcephsqlite_striper.update_size'), "
-    "       json_extract(a.v, '$.libcephsqlite_striper.update_size') - "
-    "       json_extract(b.v, '$.libcephsqlite_striper.update_size') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
+      "BEGIN TRANSACTION;"
+      "CREATE TABLE foo (a INT);"
+      "INSERT INTO foo (a) VALUES (RANDOM());"
+      "END TRANSACTION;"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_striper.update_size'), "
+      "       json_extract(b.v, '$.libcephsqlite_striper.update_size'), "
+      "       json_extract(a.v, '$.libcephsqlite_striper.update_size') - "
+      "       json_extract(b.v, '$.libcephsqlite_striper.update_size') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   uint64_t id;
 
   std::cout << SQL << std::endl;
@@ -716,11 +738,13 @@ TEST_F(CephSQLiteTest, TransactionSizeUpdate) {
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
   ASSERT_GT(sqlite3_column_int64(stmt, 0), 0);
   ASSERT_GT(sqlite3_column_int64(stmt, 1), 0);
-  ASSERT_EQ(sqlite3_column_int64(stmt, 2), 2); /* once for journal write and db write (but not journal header clear!) */
+  ASSERT_EQ(
+      sqlite3_column_int64(stmt, 2),
+      2); /* once for journal write and db write (but not journal header clear!) */
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
   rc = 0;
@@ -729,33 +753,33 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, AllocatedGrowth) {
+TEST_F(CephSQLiteTest, AllocatedGrowth)
+{
   static const char SQL[] =
-    "CREATE TABLE foo (a BLOB);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT RANDOMBLOB(1<<20)"
-    "  FROM c"
-    "  LIMIT 1024;"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_striper.update_allocated'), "
-    "       json_extract(b.v, '$.libcephsqlite_striper.update_allocated'), "
-    "       json_extract(a.v, '$.libcephsqlite_striper.update_allocated') - "
-    "       json_extract(b.v, '$.libcephsqlite_striper.update_allocated') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
+      "CREATE TABLE foo (a BLOB);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT RANDOMBLOB(1<<20)"
+      "  FROM c"
+      "  LIMIT 1024;"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_striper.update_allocated'), "
+      "       json_extract(b.v, '$.libcephsqlite_striper.update_allocated'), "
+      "       json_extract(a.v, '$.libcephsqlite_striper.update_allocated') - "
+      "       json_extract(b.v, '$.libcephsqlite_striper.update_allocated') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
   uint64_t id;
 
   std::cout << SQL << std::endl;
@@ -775,9 +799,10 @@ TEST_F(CephSQLiteTest, AllocatedGrowth) {
 
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
   sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-  sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
   sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-  ASSERT_GT(sqlite3_column_int64(stmt, 2), 8); /* max_growth = 128MB, 1024MB of data */
+  ASSERT_GT(
+      sqlite3_column_int64(stmt, 2), 8); /* max_growth = 128MB, 1024MB of data */
   ASSERT_LT(sqlite3_column_int64(stmt, 2), 12);
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
@@ -787,226 +812,205 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-
-TEST_F(CephSQLiteTest, DeleteBulk) {
+TEST_F(CephSQLiteTest, DeleteBulk)
+{
   static const char SQL[] =
-    "CREATE TABLE foo (a INT);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT x"
-    "  FROM c"
-    "  LIMIT 1000000;"
-    "DELETE FROM foo"
-    "  WHERE RANDOM()%2 == 0;"
-    ;
-
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
-
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    rc = 0;
-out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
-}
-
-TEST_F(CephSQLiteTest, DropMassive) {
-  static const char SQL[] =
-    "CREATE TABLE foo (a BLOB);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO foo (a)"
-    "  SELECT RANDOMBLOB(1<<20)"
-    "  FROM c"
-    "  LIMIT 1024;"
-    "DROP TABLE foo;"
-    "VACUUM;"
-    "INSERT INTO perf (v)"
-    "    VALUES (ceph_perf());"
-    "SELECT json_extract(a.v, '$.libcephsqlite_striper.shrink'), "
-    "       json_extract(b.v, '$.libcephsqlite_striper.shrink') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    "SELECT json_extract(a.v, '$.libcephsqlite_striper.shrink_bytes') - "
-    "       json_extract(b.v, '$.libcephsqlite_striper.shrink_bytes') "
-    "    FROM perf AS a, perf AS b"
-    "    WHERE a.i = ? AND b.i = ?;"
-    ;
-
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
-    uint64_t id;
-
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    id = sqlite3_last_insert_rowid(db);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-    sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    ASSERT_GT(sqlite3_column_int64(stmt, 0), sqlite3_column_int64(stmt, 1));
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatch(sqlite3_bind_int64(stmt, 1, id));
-    sqlcatch(sqlite3_bind_int64(stmt, 2, id-1));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    ASSERT_LT(512*(1<<20), sqlite3_column_int64(stmt, 0));
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    rc = 0;
-out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
-}
-
-TEST_F(CephSQLiteTest, InsertMassiveVerify) {
-  static const char SQL[] =
-    "CREATE TABLE foo (a BLOB);"
-    "CREATE TEMPORARY TABLE bar (a BLOB);"
-    "WITH RECURSIVE c(x) AS"
-    "  ("
-    "   VALUES(1)"
-    "  UNION ALL"
-    "   SELECT x+1"
-    "   FROM c"
-    "  )"
-    "INSERT INTO bar (a)"
-    "  SELECT RANDOMBLOB(1<<20)"
-    "  FROM c"
-    "  LIMIT 1024;"
-    "SELECT a FROM bar;"
-    "INSERT INTO foo (a)"
-    "  SELECT a FROM bar;"
-    "SELECT a FROM foo;"
-    ;
-
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
-    std::vector<std::string> hashes1, hashes2;
-
-    std::cout << SQL << std::endl;
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-      const void* blob = sqlite3_column_blob(stmt, 0);
-      ceph::bufferlist bl;
-      bl.append(std::string_view((const char*)blob, (size_t)sqlite3_column_bytes(stmt, 0)));
-      auto digest = ceph::crypto::digest<ceph::crypto::SHA1>(bl);
-      hashes1.emplace_back(digest.to_str());
-    }
-    sqlcatchcode(rc, SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-      const void* blob = sqlite3_column_blob(stmt, 0);
-      ceph::bufferlist bl;
-      bl.append(std::string_view((const char*)blob, (size_t)sqlite3_column_bytes(stmt, 0)));
-      auto digest = ceph::crypto::digest<ceph::crypto::SHA1>(bl);
-      hashes2.emplace_back(digest.to_str());
-    }
-    sqlcatchcode(rc, SQLITE_DONE);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    ASSERT_EQ(hashes1, hashes2);
-
-    rc = 0;
-out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
-}
-
-TEST_F(CephSQLiteTest, PerfValid) {
-  static const char SQL[] =
-    "SELECT json_valid(ceph_perf());"
-    ;
-
-    int rc;
-    const char *current = SQL;
-    sqlite3_stmt *stmt = NULL;
-
-    std::cout << SQL << std::endl;
-    sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
-    sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
-    ASSERT_EQ(sqlite3_column_int64(stmt, 0), 1);
-    sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
-
-    rc = 0;
-out:
-    sqlite3_finalize(stmt);
-    ASSERT_EQ(0, rc);
-}
-
-TEST_F(CephSQLiteTest, StatusValid) {
-  static const char SQL[] =
-    "SELECT json_valid(ceph_status());"
-    ;
+      "CREATE TABLE foo (a INT);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT x"
+      "  FROM c"
+      "  LIMIT 1000000;"
+      "DELETE FROM foo"
+      "  WHERE RANDOM()%2 == 0;";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
+
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  rc = 0;
+out:
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
+}
+
+TEST_F(CephSQLiteTest, DropMassive)
+{
+  static const char SQL[] =
+      "CREATE TABLE foo (a BLOB);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO foo (a)"
+      "  SELECT RANDOMBLOB(1<<20)"
+      "  FROM c"
+      "  LIMIT 1024;"
+      "DROP TABLE foo;"
+      "VACUUM;"
+      "INSERT INTO perf (v)"
+      "    VALUES (ceph_perf());"
+      "SELECT json_extract(a.v, '$.libcephsqlite_striper.shrink'), "
+      "       json_extract(b.v, '$.libcephsqlite_striper.shrink') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;"
+      "SELECT json_extract(a.v, '$.libcephsqlite_striper.shrink_bytes') - "
+      "       json_extract(b.v, '$.libcephsqlite_striper.shrink_bytes') "
+      "    FROM perf AS a, perf AS b"
+      "    WHERE a.i = ? AND b.i = ?;";
+
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
+  uint64_t id;
+
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  id = sqlite3_last_insert_rowid(db);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatch(sqlite3_bind_int64(stmt, 1, id));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  ASSERT_GT(sqlite3_column_int64(stmt, 0), sqlite3_column_int64(stmt, 1));
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatch(sqlite3_bind_int64(stmt, 1, id));
+  sqlcatch(sqlite3_bind_int64(stmt, 2, id - 1));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  ASSERT_LT(512 * (1 << 20), sqlite3_column_int64(stmt, 0));
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  rc = 0;
+out:
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
+}
+
+TEST_F(CephSQLiteTest, InsertMassiveVerify)
+{
+  static const char SQL[] =
+      "CREATE TABLE foo (a BLOB);"
+      "CREATE TEMPORARY TABLE bar (a BLOB);"
+      "WITH RECURSIVE c(x) AS"
+      "  ("
+      "   VALUES(1)"
+      "  UNION ALL"
+      "   SELECT x+1"
+      "   FROM c"
+      "  )"
+      "INSERT INTO bar (a)"
+      "  SELECT RANDOMBLOB(1<<20)"
+      "  FROM c"
+      "  LIMIT 1024;"
+      "SELECT a FROM bar;"
+      "INSERT INTO foo (a)"
+      "  SELECT a FROM bar;"
+      "SELECT a FROM foo;";
+
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
+  std::vector<std::string> hashes1, hashes2;
+
+  std::cout << SQL << std::endl;
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    const void* blob = sqlite3_column_blob(stmt, 0);
+    ceph::bufferlist bl;
+    bl.append(std::string_view(
+        (const char*)blob, (size_t)sqlite3_column_bytes(stmt, 0)));
+    auto digest = ceph::crypto::digest<ceph::crypto::SHA1>(bl);
+    hashes1.emplace_back(digest.to_str());
+  }
+  sqlcatchcode(rc, SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    const void* blob = sqlite3_column_blob(stmt, 0);
+    ceph::bufferlist bl;
+    bl.append(std::string_view(
+        (const char*)blob, (size_t)sqlite3_column_bytes(stmt, 0)));
+    auto digest = ceph::crypto::digest<ceph::crypto::SHA1>(bl);
+    hashes2.emplace_back(digest.to_str());
+  }
+  sqlcatchcode(rc, SQLITE_DONE);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  ASSERT_EQ(hashes1, hashes2);
+
+  rc = 0;
+out:
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
+}
+
+TEST_F(CephSQLiteTest, PerfValid)
+{
+  static const char SQL[] = "SELECT json_valid(ceph_perf());";
+
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
 
   std::cout << SQL << std::endl;
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
@@ -1020,14 +1024,33 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-TEST_F(CephSQLiteTest, CurrentTime) {
-  static const char SQL[] =
-    "SELECT strftime('%s', 'now');"
-    ;
+TEST_F(CephSQLiteTest, StatusValid)
+{
+  static const char SQL[] = "SELECT json_valid(ceph_status());";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
+
+  std::cout << SQL << std::endl;
+  sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
+  sqlcatchcode(sqlite3_step(stmt), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt, 0), 1);
+  sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
+
+  rc = 0;
+out:
+  sqlite3_finalize(stmt);
+  ASSERT_EQ(0, rc);
+}
+
+TEST_F(CephSQLiteTest, CurrentTime)
+{
+  static const char SQL[] = "SELECT strftime('%s', 'now');";
+
+  int rc;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
 
   std::cout << SQL << std::endl;
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
@@ -1035,7 +1058,7 @@ TEST_F(CephSQLiteTest, CurrentTime) {
   {
     time_t now = time(0);
     auto t = sqlite3_column_int64(stmt, 0);
-    ASSERT_LT(abs(now-t), 5);
+    ASSERT_LT(abs(now - t), 5);
   }
   sqlcatch(sqlite3_finalize(stmt); stmt = NULL);
 
@@ -1045,16 +1068,15 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-
-TEST_F(CephSQLiteTest, StatusFields) {
+TEST_F(CephSQLiteTest, StatusFields)
+{
   static const char SQL[] =
-    "SELECT json_extract(ceph_status(), '$.addr');"
-    "SELECT json_extract(ceph_status(), '$.id');"
-    ;
+      "SELECT json_extract(ceph_status(), '$.addr');"
+      "SELECT json_extract(ceph_status(), '$.id');";
 
   int rc;
-  const char *current = SQL;
-  sqlite3_stmt *stmt = NULL;
+  const char* current = SQL;
+  sqlite3_stmt* stmt = NULL;
 
   std::cout << SQL << std::endl;
   sqlcatch(sqlite3_prepare_v2(db, current, -1, &stmt, &current));
@@ -1080,15 +1102,19 @@ out:
   ASSERT_EQ(0, rc);
 }
 
-
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
 
   std::string conf_file_list;
   std::string cluster;
-  CephInitParameters iparams = ceph_argparse_early_args(args, CEPH_ENTITY_TYPE_CLIENT, &cluster, &conf_file_list);
-  cct = boost::intrusive_ptr<CephContext>(common_preinit(iparams, CODE_ENVIRONMENT_UTILITY, 0), false);
-  cct->_conf.parse_config_files(conf_file_list.empty() ? nullptr : conf_file_list.c_str(), &std::cerr, 0);
+  CephInitParameters iparams = ceph_argparse_early_args(
+      args, CEPH_ENTITY_TYPE_CLIENT, &cluster, &conf_file_list);
+  cct = boost::intrusive_ptr<CephContext>(
+      common_preinit(iparams, CODE_ENVIRONMENT_UTILITY, 0), false);
+  cct->_conf.parse_config_files(
+      conf_file_list.empty() ? nullptr : conf_file_list.c_str(), &std::cerr, 0);
   cct->_conf.parse_env(cct->get_module_type()); // environment variables override
   cct->_conf.parse_argv(args);
   cct->_conf.apply_changes(nullptr);
@@ -1102,7 +1128,8 @@ int main(int argc, char **argv) {
 
   sqlite3_auto_extension((void (*)())sqlite3_cephsqlite_init);
   sqlite3* db = nullptr;
-  if (int rc = sqlite3_open_v2(":memory:", &db, SQLITE_OPEN_READWRITE, nullptr); rc == SQLITE_OK) {
+  if (int rc = sqlite3_open_v2(":memory:", &db, SQLITE_OPEN_READWRITE, nullptr);
+      rc == SQLITE_OK) {
     sqlite3_close(db);
   } else {
     lderr(cct) << "could not open sqlite3: " << rc << dendl;

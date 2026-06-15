@@ -1,59 +1,76 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #ifndef METATOOL_H__
 #define METATOOL_H__
 
+#include <stack>
+#include <vector>
+
 #include "MDSUtility.h"
 #include "RoleSelector.h"
-#include <vector>
-#include <stack>
 using std::stack;
-#include "mds/mdstypes.h"
+#include "common/ceph_json.h"
+#include "include/rados/librados.hpp"
 #include "mds/LogEvent.h"
 #include "mds/events/EMetaBlob.h"
-
-#include "include/rados/librados.hpp"
-#include "common/ceph_json.h"
+#include "mds/mdstypes.h"
 
 using ::ceph::bufferlist;
-class MetaTool : public MDSUtility
-{
+
+class MetaTool : public MDSUtility {
 public:
   class inode_meta_t {
   public:
-    inode_meta_t(snapid_t f = CEPH_NOSNAP, char t = char(255), InodeStore* i = NULL):
-        _f(f),_t(t),_i(i) {
-    };
-    snapid_t get_snapid() const { 
+    inode_meta_t(
+        snapid_t f = CEPH_NOSNAP,
+        char t = char(255),
+        InodeStore* i = NULL) :
+      _f(f), _t(t), _i(i){};
+
+    snapid_t
+    get_snapid() const
+    {
       return _f;
     }
-    InodeStore* get_meta() const {
+
+    InodeStore*
+    get_meta() const
+    {
       if (_t == 'I')
         return _i;
       else
         return NULL;
     }
-    int get_type() const {
+
+    int
+    get_type() const
+    {
       return _t;
     }
-    void decode_json(JSONObj *obj);
+
+    void decode_json(JSONObj* obj);
     void encode(::ceph::bufferlist& bl, uint64_t features);
+
   private:
     snapid_t _f;
     char _t;
     InodeStore* _i;
   };
+
 private:
   class meta_op {
   public:
-    meta_op(bool debug = false, std::string out = "", std::string in = "", bool confirm = false):
-        _debug(debug),
-        _out(out),
-        _in(in),
-        _confirm(confirm)
-      {}
+    meta_op(
+        bool debug = false,
+        std::string out = "",
+        std::string in = "",
+        bool confirm = false) :
+      _debug(debug), _out(out), _in(in), _confirm(confirm)
+    {}
+
     void release();
+
     typedef enum {
       OP_LIST = 0,
       OP_LTRACE,
@@ -69,7 +86,9 @@ private:
       INO_F
     } ino_type;
 
-    static std::string op_type_name(op_type& t) {
+    static std::string
+    op_type_name(op_type& t)
+    {
       std::string name;
       switch (t) {
       case OP_LIST:
@@ -98,7 +117,10 @@ private:
       }
       return name;
     }
-    static std::string ino_type_name(ino_type& t) {
+
+    static std::string
+    ino_type_name(ino_type& t)
+    {
       std::string name;
       switch (t) {
       case INO_DIR:
@@ -112,28 +134,32 @@ private:
       }
       return name;
     }
+
     class sub_op {
     public:
-      sub_op(meta_op* mop):
-          trace_level(0),
-          _proc(false),
-          _mop(mop)
-        {}
-      void print() {
+      sub_op(meta_op* mop) :
+        trace_level(0), _proc(false), _mop(mop)
+      {}
+
+      void
+      print()
+      {
         std::cout << detail() << std::endl;
       }
-      std::string detail() {
+
+      std::string
+      detail()
+      {
         std::stringstream ds;
         ds << " [sub_op]" << op_type_name(sub_op_t) << "|"
-           << ino_type_name(sub_ino_t) << "|"
-           << ino << "|"
-           << frag << "|"
-           << ino_c << "|"
-           << trace_level << "|"
-           << name;
+           << ino_type_name(sub_ino_t) << "|" << ino << "|" << frag << "|"
+           << ino_c << "|" << trace_level << "|" << name;
         return ds.str();
       }
-      bool get_c_ancestor(inode_backpointer_t& bp) {
+
+      bool
+      get_c_ancestor(inode_backpointer_t& bp)
+      {
         if (!_mop || !ino_c)
           return false;
         auto item = _mop->ancestors.find(ino_c);
@@ -143,7 +169,10 @@ private:
         } else
           return false;
       }
-      bool get_ancestor(inode_backpointer_t& bp) {
+
+      bool
+      get_ancestor(inode_backpointer_t& bp)
+      {
         if (!_mop || !ino)
           return false;
         auto item = _mop->ancestors.find(ino);
@@ -153,6 +182,7 @@ private:
         } else
           return false;
       }
+
       op_type sub_op_t;
       ino_type sub_ino_t;
       inodeno_t ino;
@@ -163,45 +193,73 @@ private:
       bool _proc;
       meta_op* _mop;
     };
-      
-    std::map<inodeno_t, inode_backpointer_t > ancestors;
-    std::map<inodeno_t, inode_meta_t* > inodes;
-    std::map<inodeno_t, std::string > okeys;
-      
-    void clear_sops() {
-      while(!no_sops())
+
+    std::map<inodeno_t, inode_backpointer_t> ancestors;
+    std::map<inodeno_t, inode_meta_t*> inodes;
+    std::map<inodeno_t, std::string> okeys;
+
+    void
+    clear_sops()
+    {
+      while (!no_sops())
         pop_op();
     }
-    bool no_sops() {
+
+    bool
+    no_sops()
+    {
       return sub_ops.empty();
     }
-    void push_op(sub_op* sop) {
+
+    void
+    push_op(sub_op* sop)
+    {
       if (_debug)
         std::cout << "<<====" << sop->detail() << std::endl;
       sub_ops.push(sop);
     }
-    sub_op* top_op() {
+
+    sub_op*
+    top_op()
+    {
       return sub_ops.top();
     }
-    void pop_op() {
+
+    void
+    pop_op()
+    {
       sub_op* sop = sub_ops.top();
       if (_debug)
-        std::cout << "====>>" << sop->detail() << std::endl;;
+        std::cout << "====>>" << sop->detail() << std::endl;
+      ;
       delete sop;
       sub_ops.pop();
     }
-    std::string outfile() {
+
+    std::string
+    outfile()
+    {
       return _out;
     }
-    std::string infile() {
+
+    std::string
+    infile()
+    {
       return _in;
     }
-    bool is_debug() {
+
+    bool
+    is_debug()
+    {
       return _debug;
     }
-    bool confirm_chg() {
+
+    bool
+    confirm_chg()
+    {
       return _confirm;
     }
+
   private:
     stack<sub_op*> sub_ops;
     bool _debug;
@@ -209,9 +267,10 @@ private:
     std::string _in;
     bool _confirm;
   };
+
   MDSRoleSelector role_selector;
   mds_rank_t rank;
-    
+
   // I/O handles
   librados::Rados rados;
   librados::IoCtx io_meta;
@@ -220,54 +279,76 @@ private:
   bool _debug;
   uint64_t features;
 
-  std::string obj_name(inodeno_t ino, frag_t fg = frag_t(), const char *suffix = NULL) const;
-  std::string obj_name(inodeno_t ino, uint64_t offset, const char *suffix = NULL) const;
-  std::string obj_name(const char* ino, uint64_t offset, const char *suffix = NULL) const;
+  std::string obj_name(
+      inodeno_t ino,
+      frag_t fg = frag_t(),
+      const char* suffix = NULL) const;
+  std::string obj_name(
+      inodeno_t ino,
+      uint64_t offset,
+      const char* suffix = NULL) const;
+  std::string obj_name(
+      const char* ino,
+      uint64_t offset,
+      const char* suffix = NULL) const;
 
-  // 0 : continue to find 
+  // 0 : continue to find
   // 1 : stop to find it
-  int show_child(std::string_view key,
-                 std::string_view dname,
-                 const snapid_t last,
-                 bufferlist &bl,
-                 const int pos,
-                 const std::set<snapid_t> *snaps,
-                 bool *force_dirty,
-                 inodeno_t sp_ino = 0,
-                 meta_op* op = NULL
-                 );
+  int show_child(
+      std::string_view key,
+      std::string_view dname,
+      const snapid_t last,
+      bufferlist& bl,
+      const int pos,
+      const std::set<snapid_t>* snaps,
+      bool* force_dirty,
+      inodeno_t sp_ino = 0,
+      meta_op* op = NULL);
 
-  int process(std::string& mode, std::string& ino, std::string out, std::string in, bool confirm);
+  int process(
+      std::string& mode,
+      std::string& ino,
+      std::string out,
+      std::string in,
+      bool confirm);
   int show_meta_info(std::string& ino, std::string& out);
   int list_meta_info(std::string& ino, std::string& out);
   int amend_meta_info(std::string& ino, std::string& in, bool confirm);
   int show_fnode(std::string& ino, std::string& out);
   int amend_fnode(std::string& in, bool confirm);
-  int op_process(meta_op &op);
-  int list_meta(meta_op &op);
-  int file_meta(meta_op &op);
-  int show_meta(meta_op &op);
-  int amend_meta(meta_op &op);
-  int show_fn(meta_op &op);
-  int amend_fn(meta_op &op);
-  public:
-  int _file_meta(meta_op &op, librados::IoCtx& io);
+  int op_process(meta_op& op);
+  int list_meta(meta_op& op);
+  int file_meta(meta_op& op);
+  int show_meta(meta_op& op);
+  int amend_meta(meta_op& op);
+  int show_fn(meta_op& op);
+  int amend_fn(meta_op& op);
+
+public:
+  int _file_meta(meta_op& op, librados::IoCtx& io);
   int _show_meta(inode_meta_t& i, const std::string& fn);
-  int _amend_meta(std::string &k, inode_meta_t& i, const std::string& fn, meta_op& op);
+  int _amend_meta(
+      std::string& k,
+      inode_meta_t& i,
+      const std::string& fn,
+      meta_op& op);
   int _show_fn(inode_meta_t& i, const std::string& fn);
   int _amend_fn(const std::string& fn, bool confirm);
   void usage();
-  MetaTool(bool debug=false):
-      _debug(debug) {}
+
+  MetaTool(bool debug = false) :
+    _debug(debug)
+  {}
+
   ~MetaTool() {}
 
-  int main(std::string& mode,
-           std::string& rank_str,
-           std::string& minfo,
-           std::string&ino,
-           std::string& out,
-           std::string& in,
-           bool confirm = false
-           );
+  int main(
+      std::string& mode,
+      std::string& rank_str,
+      std::string& minfo,
+      std::string& ino,
+      std::string& out,
+      std::string& in,
+      bool confirm = false);
 };
 #endif // METATOOL_H__

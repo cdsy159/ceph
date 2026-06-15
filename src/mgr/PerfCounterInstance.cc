@@ -13,13 +13,14 @@
 
 #include "PerfCounterInstance.h"
 
-void PerfCounterInstance::push(utime_t t, uint64_t const &v)
+void
+PerfCounterInstance::push(utime_t t, uint64_t const& v)
 {
   buffer.push_back({t, v});
 }
 
-void PerfCounterInstance::push_avg(utime_t t, uint64_t const &s,
-                                   uint64_t const &c)
+void
+PerfCounterInstance::push_avg(utime_t t, uint64_t const& s, uint64_t const& c)
 {
   avg_buffer.push_back({t, s, c});
 }

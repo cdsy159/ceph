@@ -15,20 +15,21 @@
 
 #include "common/armor.h"
 #include "common/config.h"
+#include "gtest/gtest.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
 
-#include "gtest/gtest.h"
-
 using namespace std;
 
-TEST(RoundTrip, SimpleRoundTrip) {
+TEST(RoundTrip, SimpleRoundTrip)
+{
   static const int OUT_LEN = 4096;
-  const char * const original = "abracadabra";
-  const char * const correctly_encoded = "YWJyYWNhZGFicmE=";
+  const char* const original = "abracadabra";
+  const char* const correctly_encoded = "YWJyYWNhZGFicmE=";
   char out[OUT_LEN];
   memset(out, 0, sizeof(out));
-  int alen = ceph_armor(out, out + OUT_LEN, original, original + strlen(original));
+  int alen =
+      ceph_armor(out, out + OUT_LEN, original, original + strlen(original));
   ASSERT_STREQ(correctly_encoded, out);
 
   char out2[OUT_LEN];
@@ -37,7 +38,8 @@ TEST(RoundTrip, SimpleRoundTrip) {
   ASSERT_STREQ(original, out2);
 }
 
-TEST(RoundTrip, RandomRoundTrips) {
+TEST(RoundTrip, RandomRoundTrips)
+{
   static const int IN_MAX = 1024;
   static const int OUT_MAX = 4096;
   static const int ITERS = 1000;
@@ -64,28 +66,32 @@ TEST(RoundTrip, RandomRoundTrips) {
   }
 }
 
-TEST(EdgeCase, EndsInNewline) {
+TEST(EdgeCase, EndsInNewline)
+{
   static const int OUT_MAX = 4096;
 
-  char b64[] =
-    "aaaa\n";
+  char b64[] = "aaaa\n";
 
-    char decoded[OUT_MAX];
-    memset(decoded, 0, sizeof(decoded));
-    int blen = ceph_unarmor(decoded, decoded + OUT_MAX, b64, b64 + sizeof(b64)-1);
-    ASSERT_GE(blen, 0);
+  char decoded[OUT_MAX];
+  memset(decoded, 0, sizeof(decoded));
+  int blen =
+      ceph_unarmor(decoded, decoded + OUT_MAX, b64, b64 + sizeof(b64) - 1);
+  ASSERT_GE(blen, 0);
 }
 
-TEST(FuzzEncoding, BadDecode1) {
+TEST(FuzzEncoding, BadDecode1)
+{
   static const int OUT_LEN = 4096;
-  const char * const bad_encoded = "FAKEBASE64 foo";
+  const char* const bad_encoded = "FAKEBASE64 foo";
   char out[OUT_LEN];
   memset(out, 0, sizeof(out));
-  int alen = ceph_unarmor(out, out + OUT_LEN, bad_encoded, bad_encoded + strlen(bad_encoded));
+  int alen = ceph_unarmor(
+      out, out + OUT_LEN, bad_encoded, bad_encoded + strlen(bad_encoded));
   ASSERT_LT(alen, 0);
 }
 
-TEST(FuzzEncoding, BadDecode2) {
+TEST(FuzzEncoding, BadDecode2)
+{
   string str("FAKEBASE64 foo");
   bool failed = false;
   try {
@@ -95,8 +101,7 @@ TEST(FuzzEncoding, BadDecode2) {
     bufferlist cl;
     cl.decode_base64(bl);
     cl.hexdump(std::cerr);
-  }
-  catch (const buffer::error &err) {
+  } catch (const buffer::error& err) {
     failed = true;
   }
   ASSERT_EQ(failed, true);

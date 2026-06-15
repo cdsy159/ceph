@@ -1,52 +1,53 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
-
-#include "mds/mdstypes.h"
-#include "include/buffer.h"
-#include "include/rbd_types.h"
-#include "include/rados/librados.h"
-#include "include/rados/librados.hpp"
-#include "include/stringify.h"
-#include "include/types.h"
-#include "global/global_context.h"
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "common/common_init.h"
-#include "common/Cond.h"
-#include "json_spirit/json_spirit.h"
-
 #include <errno.h>
+
 #include <map>
 #include <sstream>
 #include <string>
 
+#include "common/Cond.h"
+#include "common/ceph_argparse.h"
+#include "common/common_init.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/rados/librados.h"
+#include "include/rados/librados.hpp"
+#include "include/rbd_types.h"
+#include "include/stringify.h"
+#include "include/types.h"
+#include "json_spirit/json_spirit.h"
+#include "mds/mdstypes.h"
+
 using namespace std;
 using namespace librados;
 
-int get_primary_osd(Rados& rados, const string& pool_name,
-		    const string& oid, int *pprimary)
+int
+get_primary_osd(
+    Rados& rados,
+    const string& pool_name,
+    const string& oid,
+    int* pprimary)
 {
-  string cmd = string("{\"prefix\": \"osd map\",\"pool\":\"")
-    + pool_name
-    + string("\",\"object\": \"")
-    + oid
-    + string("\",\"format\": \"json\"}");
+  string cmd = string("{\"prefix\": \"osd map\",\"pool\":\"") + pool_name +
+               string("\",\"object\": \"") + oid +
+               string("\",\"format\": \"json\"}");
   bufferlist outbl;
-  if (int r = rados.mon_command(std::move(cmd), {}, &outbl, nullptr);
-      r < 0) {
+  if (int r = rados.mon_command(std::move(cmd), {}, &outbl, nullptr); r < 0) {
     return r;
   }
   string outstr(outbl.c_str(), outbl.length());
   json_spirit::Value v;
   if (!json_spirit::read(outstr, v)) {
-    cerr <<" unable to parse json " << outstr << std::endl;
+    cerr << " unable to parse json " << outstr << std::endl;
     return -1;
   }
 
   json_spirit::Object& o = v.get_obj();
-  for (json_spirit::Object::size_type i=0; i<o.size(); i++) {
+  for (json_spirit::Object::size_type i = 0; i < o.size(); i++) {
     json_spirit::Pair& p = o[i];
     if (p.name_ == "acting_primary") {
       cout << "primary = " << p.value_.get_int() << std::endl;
@@ -58,24 +59,27 @@ int get_primary_osd(Rados& rados, const string& pool_name,
   return -1;
 }
 
-int fence_osd(Rados& rados, int osd)
+int
+fence_osd(Rados& rados, int osd)
 {
   bufferlist outbl;
-  string cmd("{\"prefix\": \"injectargs\",\"injected_args\":["
-	     "\"--ms-blackhole-osd\", "
-	     "\"--ms-blackhole-mon\"]}");
+  string cmd(
+      "{\"prefix\": \"injectargs\",\"injected_args\":["
+      "\"--ms-blackhole-osd\", "
+      "\"--ms-blackhole-mon\"]}");
   return rados.osd_command(osd, std::move(cmd), {}, &outbl, NULL);
 }
 
-int mark_down_osd(Rados& rados, int osd)
+int
+mark_down_osd(Rados& rados, int osd)
 {
   bufferlist outbl;
-  string cmd("{\"prefix\": \"osd down\",\"ids\":[\"" +
-	     stringify(osd) + "\"]}");
+  string cmd("{\"prefix\": \"osd down\",\"ids\":[\"" + stringify(osd) + "\"]}");
   return rados.mon_command(std::move(cmd), {}, &outbl, NULL);
 }
 
-TEST(OSD, StaleRead) {
+TEST(OSD, StaleRead)
+{
   // create two rados instances, one pool
   Rados rados1, rados2;
   IoCtx ioctx1, ioctx2;
@@ -167,10 +171,12 @@ TEST(OSD, StaleRead) {
   rados2.shutdown();
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY, 0);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   common_init_finish(g_ceph_context);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

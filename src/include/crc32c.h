@@ -7,7 +7,10 @@
 extern "C" {
 #endif
 
-typedef uint32_t (*ceph_crc32c_func_t)(uint32_t crc, unsigned char const *data, unsigned length);
+typedef uint32_t (*ceph_crc32c_func_t)(
+    uint32_t crc,
+    unsigned char const* data,
+    unsigned length);
 
 /*
  * this is a static global with the chosen crc32c implementation for
@@ -40,7 +43,8 @@ uint32_t ceph_crc32c_zeros(uint32_t crc, unsigned length);
  * @param data pointer to data buffer
  * @param length length of buffer
  */
-static inline uint32_t ceph_crc32c(uint32_t crc, unsigned char const *data, unsigned length)
+static inline uint32_t
+ceph_crc32c(uint32_t crc, unsigned char const* data, unsigned length)
 {
 #ifndef HAVE_POWER8
   if (!data && length > 16)

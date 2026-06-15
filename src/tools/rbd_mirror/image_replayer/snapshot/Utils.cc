@@ -2,15 +2,17 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "Utils.h"
+
 #include "common/debug.h"
-#include "common/errno.h"
+
 #include "cls/rbd/cls_rbd_types.h"
+#include "common/errno.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_replayer::snapshot::util::" \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::image_replayer::snapshot::util::" << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -18,10 +20,13 @@ namespace image_replayer {
 namespace snapshot {
 namespace util {
 
-uint64_t compute_remote_snap_id(
+uint64_t
+compute_remote_snap_id(
     const ceph::shared_mutex& local_image_lock,
     const std::map<librados::snap_t, librbd::SnapInfo>& local_snap_infos,
-    uint64_t local_snap_id, const std::string& remote_mirror_uuid) {
+    uint64_t local_snap_id,
+    const std::string& remote_mirror_uuid)
+{
   ceph_assert(ceph_mutex_is_locked(local_image_lock));
 
   // Search our local non-primary snapshots for a mapping to the remote
@@ -30,7 +35,7 @@ uint64_t compute_remote_snap_id(
   for (auto snap_it = local_snap_infos.lower_bound(local_snap_id);
        snap_it != local_snap_infos.end(); ++snap_it) {
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &snap_it->second.snap_namespace);
+        &snap_it->second.snap_namespace);
     if (mirror_ns == nullptr || !mirror_ns->is_non_primary()) {
       continue;
     }

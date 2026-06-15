@@ -11,14 +11,16 @@
 using namespace std::string_literals;
 
 namespace {
-  seastar::logger& logger() {
-    return crimson::get_logger(ceph_subsys_osd);
-  }
+seastar::logger&
+logger()
+{
+  return crimson::get_logger(ceph_subsys_osd);
 }
+} // namespace
 
 namespace crimson::osd {
 
-ObjectContextRegistry::ObjectContextRegistry(crimson::common::ConfigProxy &conf)
+ObjectContextRegistry::ObjectContextRegistry(crimson::common::ConfigProxy& conf)
 {
   obc_lru.set_target_size(conf.get_val<uint64_t>("crimson_osd_obc_lru_size"));
   conf.add_observer(this);
@@ -30,24 +32,25 @@ ObjectContextRegistry::~ObjectContextRegistry()
   obc_lru.set_target_size(0UL);
 }
 
-std::vector<std::string> ObjectContextRegistry::get_tracked_keys() const noexcept
+std::vector<std::string>
+ObjectContextRegistry::get_tracked_keys() const noexcept
 {
   return {"crimson_osd_obc_lru_size"s};
 }
 
-void ObjectContextRegistry::handle_conf_change(
-  const crimson::common::ConfigProxy& conf,
-  const std::set <std::string> &changed)
+void
+ObjectContextRegistry::handle_conf_change(
+    const crimson::common::ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   obc_lru.set_target_size(conf.get_val<uint64_t>("crimson_osd_obc_lru_size"));
 }
 
-std::optional<hobject_t> resolve_oid(
-  const SnapSet &ss,
-  const hobject_t &oid)
+std::optional<hobject_t>
+resolve_oid(const SnapSet& ss, const hobject_t& oid)
 {
-  logger().debug("{} oid.snap={},head snapset.seq={}",
-                 __func__, oid.snap, ss.seq);
+  logger().debug(
+      "{} oid.snap={},head snapset.seq={}", __func__, oid.snap, ss.seq);
   if (oid.snap > ss.seq) {
     // Because oid.snap > ss.seq, we are trying to read from a snapshot
     // taken after the most recent write to this object. Read from head.
@@ -55,9 +58,7 @@ std::optional<hobject_t> resolve_oid(
     return oid.get_head();
   } else {
     // which clone would it be?
-    auto clone = std::lower_bound(
-      begin(ss.clones), end(ss.clones),
-      oid.snap);
+    auto clone = std::lower_bound(begin(ss.clones), end(ss.clones), oid.snap);
     if (clone == end(ss.clones)) {
       // Doesn't exist, > last clone, < ss.seq
       return std::nullopt;
@@ -66,13 +67,12 @@ std::optional<hobject_t> resolve_oid(
     // TODO: how do we want to handle this kind of logic error?
     ceph_assert(citer != ss.clone_snaps.end());
 
-    if (std::find(
-      citer->second.begin(),
-      citer->second.end(),
-      oid.snap) == citer->second.end()) {
-       logger().debug("{} {} does not contain {} -- DNE",
-                      __func__, ss.clone_snaps, oid.snap);
-       return std::nullopt;
+    if (std::find(citer->second.begin(), citer->second.end(), oid.snap) ==
+        citer->second.end()) {
+      logger().debug(
+          "{} {} does not contain {} -- DNE", __func__, ss.clone_snaps,
+          oid.snap);
+      return std::nullopt;
     } else {
       auto soid = oid;
       soid.snap = *clone;
@@ -81,4 +81,4 @@ std::optional<hobject_t> resolve_oid(
   }
 }
 
-}
+} // namespace crimson::osd

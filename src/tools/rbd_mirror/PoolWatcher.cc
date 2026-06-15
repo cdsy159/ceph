@@ -2,33 +2,35 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/PoolWatcher.h"
-#include "include/rbd_types.h"
-#include "cls/rbd/cls_rbd_client.h"
+
 #include "common/debug.h"
-#include "common/errno.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/Timer.h"
+#include "common/errno.h"
+#include "include/rbd_types.h"
 #include "librbd/ImageCtx.h"
-#include "librbd/internal.h"
 #include "librbd/MirroringWatcher.h"
 #include "librbd/Utils.h"
 #include "librbd/api/Image.h"
 #include "librbd/api/Mirror.h"
 #include "librbd/asio/ContextWQ.h"
+#include "librbd/internal.h"
 #include "tools/rbd_mirror/Threads.h"
 #include "tools/rbd_mirror/pool_watcher/RefreshImagesRequest.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::PoolWatcher: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::PoolWatcher: " << this << " " << __func__ << ": "
 
+using librbd::util::create_context_callback;
+using librbd::util::create_rados_callback;
 using std::list;
 using std::string;
 using std::unique_ptr;
 using std::vector;
-using librbd::util::create_context_callback;
-using librbd::util::create_rados_callback;
 
 namespace rbd {
 namespace mirror {
@@ -37,64 +39,78 @@ template <typename I>
 class PoolWatcher<I>::MirroringWatcher : public librbd::MirroringWatcher<I> {
 public:
   using ContextWQ = typename std::decay<
-    typename std::remove_pointer<
-      decltype(Threads<I>::work_queue)>::type>::type;
+      typename std::remove_pointer<decltype(Threads<I>::work_queue)>::type>::type;
 
-  MirroringWatcher(librados::IoCtx &io_ctx, ContextWQ *work_queue,
-                   PoolWatcher *pool_watcher)
-    : librbd::MirroringWatcher<I>(io_ctx, work_queue),
-      m_pool_watcher(pool_watcher) {
-  }
+  MirroringWatcher(
+      librados::IoCtx& io_ctx,
+      ContextWQ* work_queue,
+      PoolWatcher* pool_watcher) :
+    librbd::MirroringWatcher<I>(io_ctx, work_queue),
+    m_pool_watcher(pool_watcher)
+  {}
 
-  void handle_rewatch_complete(int r) override {
+  void
+  handle_rewatch_complete(int r) override
+  {
     m_pool_watcher->handle_rewatch_complete(r);
   }
 
-  void handle_mode_updated(cls::rbd::MirrorMode mirror_mode) override {
+  void
+  handle_mode_updated(cls::rbd::MirrorMode mirror_mode) override
+  {
     // invalidate all image state and refresh the pool contents
     m_pool_watcher->schedule_refresh_images(5);
   }
 
-  void handle_image_updated(cls::rbd::MirrorImageState state,
-                            const std::string &image_id,
-                            const std::string &global_image_id) override {
+  void
+  handle_image_updated(
+      cls::rbd::MirrorImageState state,
+      const std::string& image_id,
+      const std::string& global_image_id) override
+  {
     bool enabled = (state == cls::rbd::MIRROR_IMAGE_STATE_ENABLED);
-    m_pool_watcher->handle_image_updated(image_id, global_image_id,
-                                         enabled);
+    m_pool_watcher->handle_image_updated(image_id, global_image_id, enabled);
   }
 
 private:
-  PoolWatcher *m_pool_watcher;
+  PoolWatcher* m_pool_watcher;
 };
 
 template <typename I>
-PoolWatcher<I>::PoolWatcher(Threads<I> *threads,
-                            librados::IoCtx &io_ctx,
-                            const std::string& mirror_uuid,
-                            pool_watcher::Listener &listener)
-  : m_threads(threads),
-    m_io_ctx(io_ctx),
-    m_mirror_uuid(mirror_uuid),
-    m_listener(listener),
-    m_lock(ceph::make_mutex(librbd::util::unique_lock_name(
-                              "rbd::mirror::PoolWatcher", this))) {
-  m_mirroring_watcher = new MirroringWatcher(m_io_ctx,
-                                             m_threads->work_queue, this);
+PoolWatcher<I>::PoolWatcher(
+    Threads<I>* threads,
+    librados::IoCtx& io_ctx,
+    const std::string& mirror_uuid,
+    pool_watcher::Listener& listener) :
+  m_threads(threads),
+  m_io_ctx(io_ctx),
+  m_mirror_uuid(mirror_uuid),
+  m_listener(listener),
+  m_lock(ceph::make_mutex(
+      librbd::util::unique_lock_name("rbd::mirror::PoolWatcher", this)))
+{
+  m_mirroring_watcher =
+      new MirroringWatcher(m_io_ctx, m_threads->work_queue, this);
 }
 
 template <typename I>
-PoolWatcher<I>::~PoolWatcher() {
+PoolWatcher<I>::~PoolWatcher()
+{
   delete m_mirroring_watcher;
 }
 
 template <typename I>
-bool PoolWatcher<I>::is_blocklisted() const {
+bool
+PoolWatcher<I>::is_blocklisted() const
+{
   std::lock_guard locker{m_lock};
   return m_blocklisted;
 }
 
 template <typename I>
-void PoolWatcher<I>::init(Context *on_finish) {
+void
+PoolWatcher<I>::init(Context* on_finish)
+{
   dout(5) << dendl;
 
   {
@@ -110,7 +126,9 @@ void PoolWatcher<I>::init(Context *on_finish) {
 }
 
 template <typename I>
-void PoolWatcher<I>::shut_down(Context *on_finish) {
+void
+PoolWatcher<I>::shut_down(Context* on_finish)
+{
   dout(5) << dendl;
 
   {
@@ -131,7 +149,9 @@ void PoolWatcher<I>::shut_down(Context *on_finish) {
 }
 
 template <typename I>
-void PoolWatcher<I>::register_watcher() {
+void
+PoolWatcher<I>::register_watcher()
+{
   {
     std::lock_guard locker{m_lock};
     ceph_assert(m_image_ids_invalid);
@@ -149,13 +169,15 @@ void PoolWatcher<I>::register_watcher() {
   dout(5) << dendl;
   m_async_op_tracker.start_op();
 
-  Context *ctx = create_context_callback<
-    PoolWatcher, &PoolWatcher<I>::handle_register_watcher>(this);
+  Context* ctx = create_context_callback<
+      PoolWatcher, &PoolWatcher<I>::handle_register_watcher>(this);
   m_mirroring_watcher->register_watch(ctx);
 }
 
 template <typename I>
-void PoolWatcher<I>::handle_register_watcher(int r) {
+void
+PoolWatcher<I>::handle_register_watcher(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   {
@@ -167,7 +189,7 @@ void PoolWatcher<I>::handle_register_watcher(int r) {
     }
   }
 
-  Context *on_init_finish = nullptr;
+  Context* on_init_finish = nullptr;
   if (r >= 0) {
     refresh_images();
   } else if (r == -EBLOCKLISTED) {
@@ -197,25 +219,29 @@ void PoolWatcher<I>::handle_register_watcher(int r) {
 }
 
 template <typename I>
-void PoolWatcher<I>::unregister_watcher() {
+void
+PoolWatcher<I>::unregister_watcher()
+{
   dout(5) << dendl;
 
   m_async_op_tracker.start_op();
-  Context *ctx = new LambdaContext([this](int r) {
-      dout(5) << "unregister_watcher: r=" << r << dendl;
-      if (r < 0) {
-        derr << "error unregistering watcher for "
-             << m_mirroring_watcher->get_oid() << " object: " << cpp_strerror(r)
-             << dendl;
-      }
-      m_async_op_tracker.finish_op();
-    });
+  Context* ctx = new LambdaContext([this](int r) {
+    dout(5) << "unregister_watcher: r=" << r << dendl;
+    if (r < 0) {
+      derr << "error unregistering watcher for "
+           << m_mirroring_watcher->get_oid() << " object: " << cpp_strerror(r)
+           << dendl;
+    }
+    m_async_op_tracker.finish_op();
+  });
 
   m_mirroring_watcher->unregister_watch(ctx);
 }
 
 template <typename I>
-void PoolWatcher<I>::refresh_images() {
+void
+PoolWatcher<I>::refresh_images()
+{
   dout(5) << dendl;
 
   {
@@ -231,21 +257,22 @@ void PoolWatcher<I>::refresh_images() {
 
   m_async_op_tracker.start_op();
   m_refresh_image_ids.clear();
-  Context *ctx = create_context_callback<
-    PoolWatcher, &PoolWatcher<I>::handle_refresh_images>(this);
-  auto req = pool_watcher::RefreshImagesRequest<I>::create(m_io_ctx,
-                                                           &m_refresh_image_ids,
-                                                           ctx);
+  Context* ctx = create_context_callback<
+      PoolWatcher, &PoolWatcher<I>::handle_refresh_images>(this);
+  auto req = pool_watcher::RefreshImagesRequest<I>::create(
+      m_io_ctx, &m_refresh_image_ids, ctx);
   req->send();
 }
 
 template <typename I>
-void PoolWatcher<I>::handle_refresh_images(int r) {
+void
+PoolWatcher<I>::handle_refresh_images(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   bool deferred_refresh = false;
   bool retry_refresh = false;
-  Context *on_init_finish = nullptr;
+  Context* on_init_finish = nullptr;
   {
     std::lock_guard locker{m_lock};
     ceph_assert(m_image_ids_invalid);
@@ -293,7 +320,9 @@ void PoolWatcher<I>::handle_refresh_images(int r) {
 }
 
 template <typename I>
-void PoolWatcher<I>::schedule_refresh_images(double interval) {
+void
+PoolWatcher<I>::schedule_refresh_images(double interval)
+{
   std::scoped_lock locker{m_threads->timer_lock, m_lock};
   if (m_shutting_down || m_refresh_in_progress || m_timer_ctx != nullptr) {
     if (m_refresh_in_progress && !m_deferred_refresh) {
@@ -305,14 +334,13 @@ void PoolWatcher<I>::schedule_refresh_images(double interval) {
 
   m_image_ids_invalid = true;
   m_timer_ctx = m_threads->timer->add_event_after(
-    interval,
-    new LambdaContext([this](int r) {
-	process_refresh_images();
-      }));
+      interval, new LambdaContext([this](int r) { process_refresh_images(); }));
 }
 
 template <typename I>
-void PoolWatcher<I>::handle_rewatch_complete(int r) {
+void
+PoolWatcher<I>::handle_rewatch_complete(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   if (r == -EBLOCKLISTED) {
@@ -332,12 +360,14 @@ void PoolWatcher<I>::handle_rewatch_complete(int r) {
 }
 
 template <typename I>
-void PoolWatcher<I>::handle_image_updated(const std::string &id,
-                                          const std::string &global_image_id,
-                                          bool enabled) {
-  dout(10) << "image_id=" << id << ", "
-           << "global_image_id=" << global_image_id << ", "
-           << "enabled=" << enabled << dendl;
+void
+PoolWatcher<I>::handle_image_updated(
+    const std::string& id,
+    const std::string& global_image_id,
+    bool enabled)
+{
+  dout(10) << "image_id=" << id << ", " << "global_image_id=" << global_image_id
+           << ", " << "enabled=" << enabled << dendl;
 
   std::lock_guard locker{m_lock};
   ImageId image_id(global_image_id, id);
@@ -354,7 +384,9 @@ void PoolWatcher<I>::handle_image_updated(const std::string &id,
 }
 
 template <typename I>
-void PoolWatcher<I>::process_refresh_images() {
+void
+PoolWatcher<I>::process_refresh_images()
+{
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
   ceph_assert(m_timer_ctx != nullptr);
   m_timer_ctx = nullptr;
@@ -368,15 +400,17 @@ void PoolWatcher<I>::process_refresh_images() {
 
   // execute outside of the timer's lock
   m_async_op_tracker.start_op();
-  Context *ctx = new LambdaContext([this](int r) {
-      register_watcher();
-      m_async_op_tracker.finish_op();
-    });
+  Context* ctx = new LambdaContext([this](int r) {
+    register_watcher();
+    m_async_op_tracker.finish_op();
+  });
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void PoolWatcher<I>::schedule_listener() {
+void
+PoolWatcher<I>::schedule_listener()
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
   m_pending_updates = true;
   if (m_shutting_down || m_image_ids_invalid || m_notify_listener_in_progress) {
@@ -386,17 +420,19 @@ void PoolWatcher<I>::schedule_listener() {
   dout(20) << dendl;
 
   m_async_op_tracker.start_op();
-  Context *ctx = new LambdaContext([this](int r) {
-      notify_listener();
-      m_async_op_tracker.finish_op();
-    });
+  Context* ctx = new LambdaContext([this](int r) {
+    notify_listener();
+    m_async_op_tracker.finish_op();
+  });
 
   m_notify_listener_in_progress = true;
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void PoolWatcher<I>::notify_listener() {
+void
+PoolWatcher<I>::notify_listener()
+{
   dout(10) << dendl;
 
   std::string mirror_uuid;
@@ -425,12 +461,12 @@ void PoolWatcher<I>::notify_listener() {
 
     // merge add/remove notifications into pending set (a given image
     // can only be in one set or another)
-    for (auto &image_id : m_pending_removed_image_ids) {
+    for (auto& image_id : m_pending_removed_image_ids) {
       dout(20) << "image_id=" << image_id << dendl;
       m_pending_image_ids.erase(image_id);
     }
 
-    for (auto &image_id : m_pending_added_image_ids) {
+    for (auto& image_id : m_pending_added_image_ids) {
       dout(20) << "image_id=" << image_id << dendl;
       m_pending_image_ids.erase(image_id);
       m_pending_image_ids.insert(image_id);
@@ -438,13 +474,13 @@ void PoolWatcher<I>::notify_listener() {
     m_pending_added_image_ids.clear();
 
     // compute added/removed images
-    for (auto &image_id : m_image_ids) {
+    for (auto& image_id : m_image_ids) {
       auto it = m_pending_image_ids.find(image_id);
       if (it == m_pending_image_ids.end() || it->id != image_id.id) {
         removed_image_ids.insert(image_id);
       }
     }
-    for (auto &image_id : m_pending_image_ids) {
+    for (auto& image_id : m_pending_image_ids) {
       auto it = m_image_ids.find(image_id);
       if (it == m_image_ids.end() || it->id != image_id.id) {
         added_image_ids.insert(image_id);
@@ -455,8 +491,8 @@ void PoolWatcher<I>::notify_listener() {
     m_image_ids = m_pending_image_ids;
   }
 
-  m_listener.handle_update(m_mirror_uuid, std::move(added_image_ids),
-                           std::move(removed_image_ids));
+  m_listener.handle_update(
+      m_mirror_uuid, std::move(added_image_ids), std::move(removed_image_ids));
 
   {
     std::lock_guard locker{m_lock};

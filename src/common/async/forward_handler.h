@@ -41,12 +41,14 @@ template <typename Handler>
 struct ForwardingHandler {
   Handler handler;
 
-  ForwardingHandler(Handler&& handler)
-    : handler(std::move(handler))
+  ForwardingHandler(Handler&& handler) :
+    handler(std::move(handler))
   {}
 
-  template <typename ...Args>
-  void operator()(Args&& ...args) {
+  template <typename... Args>
+  void
+  operator()(Args&&... args)
+  {
     std::move(handler)(std::forward<Args>(args)...);
   }
 };
@@ -56,17 +58,23 @@ struct ForwardingHandler {
 namespace boost::asio {
 
 // forward the handler's associated executor, allocator, cancellation slot, etc
-template <template <typename, typename> class Associator,
-          typename Handler, typename DefaultCandidate>
-struct associator<Associator,
-    ceph::async::ForwardingHandler<Handler>, DefaultCandidate>
-  : Associator<Handler, DefaultCandidate>
-{
-  static auto get(const ceph::async::ForwardingHandler<Handler>& h) noexcept {
+template <
+    template <typename, typename>
+    class Associator,
+    typename Handler,
+    typename DefaultCandidate>
+struct associator<Associator, ceph::async::ForwardingHandler<Handler>, DefaultCandidate>
+  : Associator<Handler, DefaultCandidate> {
+  static auto
+  get(const ceph::async::ForwardingHandler<Handler>& h) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler);
   }
-  static auto get(const ceph::async::ForwardingHandler<Handler>& h,
-                  const DefaultCandidate& c) noexcept {
+
+  static auto
+  get(const ceph::async::ForwardingHandler<Handler>& h,
+      const DefaultCandidate& c) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler, c);
   }
 };
@@ -96,7 +104,8 @@ namespace ceph::async {
  * @see ForwardingHandler
  */
 template <typename Handler>
-auto forward_handler(Handler&& h)
+auto
+forward_handler(Handler&& h)
 {
   return ForwardingHandler{std::forward<Handler>(h)};
 }

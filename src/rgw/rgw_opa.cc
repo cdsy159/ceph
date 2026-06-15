@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include "rgw_opa.h"
+
 #include "rgw_http_client.h"
 
 #define dout_context g_ceph_context
@@ -9,8 +10,8 @@
 
 using namespace std;
 
-int rgw_opa_authorize(RGWOp *& op,
-                      req_state * const s)
+int
+rgw_opa_authorize(RGWOp*& op, req_state* const s)
 {
 
   ldpp_dout(op, 2) << "authorizing request using OPA" << dendl;
@@ -42,7 +43,7 @@ int rgw_opa_authorize(RGWOp *& op,
   JSONFormatter jf;
   jf.open_object_section("");
   jf.open_object_section("input");
-  const char *request_method = s->info.env->get("REQUEST_METHOD");
+  const char* request_method = s->info.env->get("REQUEST_METHOD");
   if (request_method) {
     jf.dump_string("method", request_method);
   }

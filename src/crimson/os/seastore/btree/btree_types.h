@@ -6,7 +6,6 @@
 #include <boost/intrusive/set.hpp>
 
 #include "crimson/common/log.h"
-
 #include "crimson/os/seastore/cached_extent.h"
 #include "crimson/os/seastore/seastore_types.h"
 #include "crimson/os/seastore/transaction.h"
@@ -16,8 +15,8 @@ namespace crimson::os::seastore {
 class Cache;
 
 struct op_context_t {
-  Cache &cache;
-  Transaction &trans;
+  Cache& cache;
+  Transaction& trans;
 };
 
 template <typename bound_t>
@@ -26,51 +25,59 @@ struct fixed_kv_node_meta_t {
   bound_t end = min_max_t<bound_t>::min;
   depth_t depth = 0;
 
-  bool is_parent_of(const fixed_kv_node_meta_t &other) const {
-    return (depth == other.depth + 1) &&
-      (begin <= other.begin) &&
-      (end > other.begin);
+  bool
+  is_parent_of(const fixed_kv_node_meta_t& other) const
+  {
+    return (depth == other.depth + 1) && (begin <= other.begin) &&
+           (end > other.begin);
   }
 
-  bool is_in_range(const bound_t key) const {
+  bool
+  is_in_range(const bound_t key) const
+  {
     return begin <= key && end > key;
   }
 
-  std::pair<fixed_kv_node_meta_t, fixed_kv_node_meta_t> split_into(bound_t pivot) const {
+  std::pair<fixed_kv_node_meta_t, fixed_kv_node_meta_t>
+  split_into(bound_t pivot) const
+  {
     return std::make_pair(
-      fixed_kv_node_meta_t{begin, pivot, depth},
-      fixed_kv_node_meta_t{pivot, end, depth});
+        fixed_kv_node_meta_t{begin, pivot, depth},
+        fixed_kv_node_meta_t{pivot, end, depth});
   }
 
-  static fixed_kv_node_meta_t merge_from(
-    const fixed_kv_node_meta_t &lhs, const fixed_kv_node_meta_t &rhs) {
+  static fixed_kv_node_meta_t
+  merge_from(const fixed_kv_node_meta_t& lhs, const fixed_kv_node_meta_t& rhs)
+  {
     ceph_assert(lhs.depth == rhs.depth);
     return fixed_kv_node_meta_t{lhs.begin, rhs.end, lhs.depth};
   }
 
   static std::pair<fixed_kv_node_meta_t, fixed_kv_node_meta_t>
-  rebalance(const fixed_kv_node_meta_t &lhs, const fixed_kv_node_meta_t &rhs, bound_t pivot) {
+  rebalance(
+      const fixed_kv_node_meta_t& lhs,
+      const fixed_kv_node_meta_t& rhs,
+      bound_t pivot)
+  {
     ceph_assert(lhs.depth == rhs.depth);
     return std::make_pair(
-      fixed_kv_node_meta_t{lhs.begin, pivot, lhs.depth},
-      fixed_kv_node_meta_t{pivot, rhs.end, lhs.depth});
+        fixed_kv_node_meta_t{lhs.begin, pivot, lhs.depth},
+        fixed_kv_node_meta_t{pivot, rhs.end, lhs.depth});
   }
 
-  bool is_root() const {
+  bool
+  is_root() const
+  {
     return begin == min_max_t<bound_t>::min && end == min_max_t<bound_t>::max;
   }
 };
 
 template <typename bound_t>
-inline std::ostream &operator<<(
-  std::ostream &lhs,
-  const fixed_kv_node_meta_t<bound_t> &rhs)
+inline std::ostream&
+operator<<(std::ostream& lhs, const fixed_kv_node_meta_t<bound_t>& rhs)
 {
-  return lhs << "btree_node_meta_t("
-	     << "begin=" << rhs.begin
-	     << ", end=" << rhs.end
-	     << ", depth=" << rhs.depth
-	     << ")";
+  return lhs << "btree_node_meta_t(" << "begin=" << rhs.begin
+             << ", end=" << rhs.end << ", depth=" << rhs.depth << ")";
 }
 
 /**
@@ -85,17 +92,17 @@ struct __attribute__((packed)) fixed_kv_node_meta_le_t {
   depth_le_t depth = init_depth_le(0);
 
   fixed_kv_node_meta_le_t() = default;
-  fixed_kv_node_meta_le_t(
-    const fixed_kv_node_meta_le_t<bound_le_t> &) = default;
-  explicit fixed_kv_node_meta_le_t(
-    const fixed_kv_node_meta_t<typename bound_le_t::orig_type> &val)
-    : begin(val.begin),
-      end(val.end),
-      depth(init_depth_le(val.depth)) {}
+  fixed_kv_node_meta_le_t(const fixed_kv_node_meta_le_t<bound_le_t>&) = default;
 
-  operator fixed_kv_node_meta_t<typename bound_le_t::orig_type>() const {
+  explicit fixed_kv_node_meta_le_t(
+      const fixed_kv_node_meta_t<typename bound_le_t::orig_type>& val) :
+    begin(val.begin), end(val.end), depth(init_depth_le(val.depth))
+  {}
+
+  operator fixed_kv_node_meta_t<typename bound_le_t::orig_type>() const
+  {
     return fixed_kv_node_meta_t<typename bound_le_t::orig_type>{
-	    begin, end, depth };
+        begin, end, depth};
   }
 };
 
@@ -107,22 +114,25 @@ namespace lba {
  * struct representing a single lba mapping
  */
 struct lba_map_val_t {
-  extent_len_t len = 0;  ///< length of mapping
-  pladdr_t pladdr;         ///< direct addr of mapping or
-			   //	laddr of a direct lba mapping(see btree_lba_manager.h)
+  extent_len_t len = 0; ///< length of mapping
+  pladdr_t pladdr; ///< direct addr of mapping or
+      //	laddr of a direct lba mapping(see btree_lba_manager.h)
   extent_ref_count_t refcount = 0; ///< refcount
-  checksum_t checksum = 0; ///< checksum of original block written at paddr (TODO)
+  checksum_t checksum =
+      0; ///< checksum of original block written at paddr (TODO)
   extent_types_t type = extent_types_t::NONE;
 
   lba_map_val_t() = default;
+
   lba_map_val_t(
-    extent_len_t len,
-    pladdr_t pladdr,
-    extent_ref_count_t refcount,
-    checksum_t checksum,
-    extent_types_t type)
-    : len(len), pladdr(pladdr), refcount(refcount),
-      checksum(checksum), type(type) {}
+      extent_len_t len,
+      pladdr_t pladdr,
+      extent_ref_count_t refcount,
+      checksum_t checksum,
+      extent_types_t type) :
+    len(len), pladdr(pladdr), refcount(refcount), checksum(checksum), type(type)
+  {}
+
   bool operator==(const lba_map_val_t&) const = default;
 };
 
@@ -141,21 +151,19 @@ struct __attribute__((packed)) lba_map_val_le_t {
   extent_types_le_t type = 0;
 
   lba_map_val_le_t() = default;
-  lba_map_val_le_t(const lba_map_val_le_t &) = default;
-  explicit lba_map_val_le_t(const lba_map_val_t &val)
-    : len(init_extent_len_le(val.len)),
-      pladdr(pladdr_le_t(val.pladdr)),
-      refcount(val.refcount),
-      checksum(val.checksum),
-      type((extent_types_le_t)val.type) {}
+  lba_map_val_le_t(const lba_map_val_le_t&) = default;
 
-  operator lba_map_val_t() const {
-    return lba_map_val_t{
-      len,
-      pladdr,
-      refcount,
-      checksum,
-      (extent_types_t)type};
+  explicit lba_map_val_le_t(const lba_map_val_t& val) :
+    len(init_extent_len_le(val.len)),
+    pladdr(pladdr_le_t(val.pladdr)),
+    refcount(val.refcount),
+    checksum(val.checksum),
+    type((extent_types_le_t)val.type)
+  {}
+
+  operator lba_map_val_t() const
+  {
+    return lba_map_val_t{len, pladdr, refcount, checksum, (extent_types_t)type};
   }
 };
 
@@ -164,23 +172,24 @@ struct __attribute__((packed)) lba_map_val_le_t {
 namespace backref {
 
 struct backref_map_val_t {
-  extent_len_t len = 0;	///< length of extents
+  extent_len_t len = 0; ///< length of extents
   laddr_t laddr = L_ADDR_MIN; ///< logical address of extents
   extent_types_t type = extent_types_t::NONE;
 
   backref_map_val_t() = default;
-  backref_map_val_t(
-    extent_len_t len,
-    laddr_t laddr,
-    extent_types_t type)
-    : len(len), laddr(laddr), type(type) {}
 
-  bool operator==(const backref_map_val_t& rhs) const noexcept {
+  backref_map_val_t(extent_len_t len, laddr_t laddr, extent_types_t type) :
+    len(len), laddr(laddr), type(type)
+  {}
+
+  bool
+  operator==(const backref_map_val_t& rhs) const noexcept
+  {
     return len == rhs.len && laddr == rhs.laddr;
   }
 };
 
-std::ostream& operator<<(std::ostream &out, const backref_map_val_t& val);
+std::ostream& operator<<(std::ostream& out, const backref_map_val_t& val);
 
 struct __attribute__((packed)) backref_map_val_le_t {
   extent_len_le_t len = init_extent_len_le(0);
@@ -188,18 +197,21 @@ struct __attribute__((packed)) backref_map_val_le_t {
   extent_types_le_t type = 0;
 
   backref_map_val_le_t() = default;
-  backref_map_val_le_t(const backref_map_val_le_t &) = default;
-  explicit backref_map_val_le_t(const backref_map_val_t &val)
-    : len(init_extent_len_le(val.len)),
-      laddr(val.laddr),
-      type(extent_types_le_t(val.type)) {}
+  backref_map_val_le_t(const backref_map_val_le_t&) = default;
 
-  operator backref_map_val_t() const {
+  explicit backref_map_val_le_t(const backref_map_val_t& val) :
+    len(init_extent_len_le(val.len)),
+    laddr(val.laddr),
+    type(extent_types_le_t(val.type))
+  {}
+
+  operator backref_map_val_t() const
+  {
     return backref_map_val_t{len, laddr, (extent_types_t)type};
   }
 };
 
-} // namespace backerf
+} // namespace backref
 
 /**
  * BtreeCursor
@@ -209,30 +221,31 @@ struct __attribute__((packed)) backref_map_val_le_t {
  * time.
  */
 template <typename key_t, typename val_t, typename ParentT>
-struct BtreeCursor
-  : public boost::intrusive_ref_counter<
-      BtreeCursor<key_t, val_t, ParentT>, boost::thread_unsafe_counter> {
+struct BtreeCursor : public boost::intrusive_ref_counter<
+                         BtreeCursor<key_t, val_t, ParentT>,
+                         boost::thread_unsafe_counter> {
   BtreeCursor(
-    op_context_t &ctx,
-    TCachedExtentRef<ParentT> parent,
-    uint64_t modifications,
-    ParentT::iterator &&iter)
-      : ctx(ctx),
-	parent(std::move(parent)),
-	modifications(modifications),
-	iter(std::move(iter)),
-	key(iter == this->parent->end()
-	    ? min_max_t<key_t>::max
-	    : iter.get_key())
+      op_context_t& ctx,
+      TCachedExtentRef<ParentT> parent,
+      uint64_t modifications,
+      ParentT::iterator&& iter) :
+    ctx(ctx),
+    parent(std::move(parent)),
+    modifications(modifications),
+    iter(std::move(iter)),
+    key(iter == this->parent->end() ? min_max_t<key_t>::max : iter.get_key())
   {
     if constexpr (std::is_same_v<key_t, laddr_t>) {
-      static_assert(std::is_same_v<val_t, lba::lba_map_val_t>,
-        "the value type of laddr_t for BtreeCursor should be lba_map_val_t");
+      static_assert(
+          std::is_same_v<val_t, lba::lba_map_val_t>,
+          "the value type of laddr_t for BtreeCursor should be lba_map_val_t");
     } else {
-      static_assert(std::is_same_v<key_t, paddr_t>,
-        "the key type of BtreeCursor should be either laddr_t or paddr_t");
-      static_assert(std::is_same_v<val_t, backref::backref_map_val_t>,
-        "the value type should be either lba_map_val_t or backref_map_val_t");
+      static_assert(
+          std::is_same_v<key_t, paddr_t>,
+          "the key type of BtreeCursor should be either laddr_t or paddr_t");
+      static_assert(
+          std::is_same_v<val_t, backref::backref_map_val_t>,
+          "the value type should be either lba_map_val_t or backref_map_val_t");
     }
   }
 
@@ -248,46 +261,52 @@ struct BtreeCursor
   // current transaction in the long term.
   bool is_viewable() const;
 
-  bool is_end() const {
+  bool
+  is_end() const
+  {
     assert(is_viewable());
     return iter == parent->end();
   }
 
-  extent_len_t get_length() const {
+  extent_len_t
+  get_length() const
+  {
     assert(is_viewable());
     assert(!is_end());
     return iter.get_val().len;
   }
 
-  uint16_t get_pos() const {
+  uint16_t
+  get_pos() const
+  {
     return iter.get_offset();
   }
 
-  key_t get_key() const {
+  key_t
+  get_key() const
+  {
     return key;
   }
 };
 
 template <typename key_t, typename val_t, typename ParentT>
-std::ostream &operator<<(
-  std::ostream &out, const BtreeCursor<key_t, val_t, ParentT> &cursor)
+std::ostream&
+operator<<(std::ostream& out, const BtreeCursor<key_t, val_t, ParentT>& cursor)
 {
   if constexpr (std::is_same_v<key_t, laddr_t>) {
     out << "LBACursor(";
   } else {
     out << "BackrefCursor(";
   }
-  out << (void*)cursor.parent.get()
-      << "@" << cursor.iter.get_offset()
-      << "#" << cursor.modifications;
+  out << (void*)cursor.parent.get() << "@" << cursor.iter.get_offset() << "#"
+      << cursor.modifications;
   if (cursor.is_viewable()) {
     out << ",";
     if (cursor.is_end()) {
       return out << "END)";
     }
-    return out << "," << cursor.iter.get_key()
-	       << "~" << cursor.iter.get_val()
-	       << ")";
+    return out << "," << cursor.iter.get_key() << "~" << cursor.iter.get_val()
+               << ")";
   }
   return out;
 }

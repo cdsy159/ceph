@@ -15,18 +15,18 @@
 
 #pragma once
 
-#include <boost/container/small_vector.hpp>
-#include <seastar/core/future.hh>
 #include <seastar/core/future-util.hh>
-#include <seastar/core/shared_ptr.hh>
+#include <seastar/core/future.hh>
 #include <seastar/core/sharded.hh>
+#include <seastar/core/shared_ptr.hh>
 
-#include "msg/Connection.h"
-#include "msg/Message.h"
-#include "msg/msg_types.h"
+#include <boost/container/small_vector.hpp>
 
 #include "crimson/common/errorator.h"
 #include "crimson/common/local_shared_foreign_ptr.h"
+#include "msg/Connection.h"
+#include "msg/Message.h"
+#include "msg/msg_types.h"
 
 class AuthConnectionMeta;
 
@@ -45,7 +45,8 @@ using ConnectionXcoreRef = ::crimson::local_shared_foreign_ptr<ConnectionRef>;
 class Dispatcher;
 class ChainedDispatchers;
 constexpr std::size_t NUM_DISPATCHERS = 4u;
-using dispatchers_t = boost::container::small_vector<Dispatcher*, NUM_DISPATCHERS>;
+using dispatchers_t =
+    boost::container::small_vector<Dispatcher*, NUM_DISPATCHERS>;
 
 class Messenger;
 using MessengerRef = seastar::shared_ptr<Messenger>;

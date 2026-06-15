@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -41,43 +41,71 @@ public:
   PastIntervals past_intervals;
   std::optional<pg_lease_t> lease;
 
-  epoch_t get_epoch() const { return epoch; }
-  spg_t get_pgid() const { return spg_t(info.pgid.pgid, to); }
-  epoch_t get_query_epoch() const { return query_epoch; }
-
-  spg_t get_spg() const override {
-    return spg_t(info.pgid.pgid, to);
-  }
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_epoch() const
+  {
     return epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  spg_t
+  get_pgid() const
+  {
+    return spg_t(info.pgid.pgid, to);
+  }
+
+  epoch_t
+  get_query_epoch() const
+  {
     return query_epoch;
   }
 
-  PGPeeringEvent *get_event() override {
-    return new PGPeeringEvent(
-      epoch, query_epoch,
-      MLogRec(pg_shard_t(get_source().num(), from),
-	      this),
-      true,
-      new PGCreateInfo(
-	get_spg(),
-	query_epoch,
-	info.history,
-	past_intervals,
-	false));
+  spg_t
+  get_spg() const override
+  {
+    return spg_t(info.pgid.pgid, to);
   }
 
-  MOSDPGLog() : MOSDPeeringOp{MSG_OSD_PG_LOG, HEAD_VERSION, COMPAT_VERSION} {
-    set_priority(CEPH_MSG_PRIO_HIGH); 
+  epoch_t
+  get_map_epoch() const override
+  {
+    return epoch;
   }
-  MOSDPGLog(shard_id_t to, shard_id_t from,
-	    version_t mv, const pg_info_t& i, epoch_t query_epoch)
-    : MOSDPeeringOp{MSG_OSD_PG_LOG, HEAD_VERSION, COMPAT_VERSION},
-      epoch(mv), query_epoch(query_epoch),
-      to(to), from(from),
-      info(i)  {
+
+  epoch_t
+  get_min_epoch() const override
+  {
+    return query_epoch;
+  }
+
+  PGPeeringEvent*
+  get_event() override
+  {
+    return new PGPeeringEvent(
+        epoch, query_epoch, MLogRec(pg_shard_t(get_source().num(), from), this),
+        true,
+        new PGCreateInfo(
+            get_spg(), query_epoch, info.history, past_intervals, false));
+  }
+
+  MOSDPGLog() :
+    MOSDPeeringOp{MSG_OSD_PG_LOG, HEAD_VERSION, COMPAT_VERSION}
+  {
+    set_priority(CEPH_MSG_PRIO_HIGH);
+  }
+
+  MOSDPGLog(
+      shard_id_t to,
+      shard_id_t from,
+      version_t mv,
+      const pg_info_t& i,
+      epoch_t query_epoch) :
+    MOSDPeeringOp{MSG_OSD_PG_LOG, HEAD_VERSION, COMPAT_VERSION},
+    epoch(mv),
+    query_epoch(query_epoch),
+    to(to),
+    from(from),
+    info(i)
+  {
     set_priority(CEPH_MSG_PRIO_HIGH);
   }
 
@@ -85,18 +113,26 @@ private:
   ~MOSDPGLog() final {}
 
 public:
-  std::string_view get_type_name() const override { return "PGlog"; }
-  void inner_print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "PGlog";
+  }
+
+  void
+  inner_print(std::ostream& out) const override
+  {
     // NOTE: log is not const, but operator<< doesn't touch fields
     // swapped out by OSD code.
-    out << "log " << log
-	<< " pi " << past_intervals;
+    out << "log " << log << " pi " << past_intervals;
     if (lease) {
       out << " " << *lease;
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(epoch, payload);
     encode(info, payload);
@@ -109,7 +145,10 @@ public:
     encode(from, payload);
     encode(lease, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(epoch, p);
@@ -123,8 +162,9 @@ public:
     assert(header.version >= 6);
     decode(lease, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

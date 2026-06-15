@@ -16,8 +16,6 @@
 #ifndef COMMON_STACKSTRINGSTREAM_H
 #define COMMON_STACKSTRINGSTREAM_H
 
-#include <boost/container/small_vector.hpp>
-
 #include <algorithm>
 #include <memory>
 #include <ostream>
@@ -25,36 +23,41 @@
 #include <string_view>
 #include <vector>
 
+#include <boost/container/small_vector.hpp>
+
 #include "include/inline_memory.h"
 
-template<std::size_t SIZE>
-class StackStringBuf : public std::basic_streambuf<char>
-{
+template <std::size_t SIZE>
+class StackStringBuf : public std::basic_streambuf<char> {
 public:
-  StackStringBuf()
-    : vec{SIZE, boost::container::default_init_t{}}
+  StackStringBuf() :
+    vec{SIZE, boost::container::default_init_t{}}
   {
     setp(vec.data(), vec.data() + vec.size());
   }
+
   StackStringBuf(const StackStringBuf&) = delete;
   StackStringBuf& operator=(const StackStringBuf&) = delete;
   StackStringBuf(StackStringBuf&& o) = delete;
   StackStringBuf& operator=(StackStringBuf&& o) = delete;
   ~StackStringBuf() override = default;
 
-  void clear()
+  void
+  clear()
   {
     vec.resize(SIZE);
     setp(vec.data(), vec.data() + SIZE);
   }
 
-  std::string_view strv() const
+  std::string_view
+  strv() const
   {
     return std::string_view(pbase(), pptr() - pbase());
   }
 
 protected:
-  std::streamsize xsputn(const char *s, std::streamsize n) final
+  std::streamsize
+  xsputn(const char* s, std::streamsize n) final
   {
     std::streamsize capacity = epptr() - pptr();
     std::streamsize left = n;
@@ -72,7 +75,8 @@ protected:
     return n;
   }
 
-  int overflow(int c) final
+  int
+  overflow(int c) final
   {
     if (traits_type::not_eof(c)) {
       char str = traits_type::to_char_type(c);
@@ -86,31 +90,39 @@ protected:
   }
 
 private:
-
   boost::container::small_vector<char, SIZE> vec;
 };
 
-template<std::size_t SIZE>
-class StackStringStream : public std::basic_ostream<char>
-{
+template <std::size_t SIZE>
+class StackStringStream : public std::basic_ostream<char> {
 public:
-  StackStringStream() : basic_ostream<char>(&ssb), default_fmtflags(flags()) {}
+  StackStringStream() :
+    basic_ostream<char>(&ssb), default_fmtflags(flags())
+  {}
+
   StackStringStream(const StackStringStream& o) = delete;
   StackStringStream& operator=(const StackStringStream& o) = delete;
   StackStringStream(StackStringStream&& o) = delete;
   StackStringStream& operator=(StackStringStream&& o) = delete;
   ~StackStringStream() override = default;
 
-  void reset() {
+  void
+  reset()
+  {
     clear(); /* reset state flags */
     flags(default_fmtflags); /* reset fmtflags to constructor defaults */
     ssb.clear();
   }
 
-  std::string_view strv() const {
+  std::string_view
+  strv() const
+  {
     return ssb.strv();
   }
-  std::string str() const {
+
+  std::string
+  str() const
+  {
     return std::string(ssb.strv());
   }
 
@@ -130,7 +142,8 @@ public:
   using sss = StackStringStream<4096>;
   using osptr = std::unique_ptr<sss>;
 
-  CachedStackStringStream() {
+  CachedStackStringStream()
+  {
     if (cache.destructed || cache.c.empty()) {
       osp = std::make_unique<sss>();
     } else {
@@ -139,33 +152,52 @@ public:
       osp->reset();
     }
   }
+
   CachedStackStringStream(const CachedStackStringStream&) = delete;
   CachedStackStringStream& operator=(const CachedStackStringStream&) = delete;
   CachedStackStringStream(CachedStackStringStream&&) = delete;
   CachedStackStringStream& operator=(CachedStackStringStream&&) = delete;
-  ~CachedStackStringStream() {
+
+  ~CachedStackStringStream()
+  {
     if (!cache.destructed && cache.c.size() < max_elems) {
       cache.c.emplace_back(std::move(osp));
     }
   }
 
-  sss& operator*() {
+  sss&
+  operator*()
+  {
     return *osp;
   }
-  sss const& operator*() const {
+
+  sss const&
+  operator*() const
+  {
     return *osp;
   }
-  sss* operator->() {
-    return osp.get();
-  }
-  sss const* operator->() const {
+
+  sss*
+  operator->()
+  {
     return osp.get();
   }
 
-  sss const* get() const {
+  sss const*
+  operator->() const
+  {
     return osp.get();
   }
-  sss* get() {
+
+  sss const*
+  get() const
+  {
+    return osp.get();
+  }
+
+  sss*
+  get()
+  {
     return osp.get();
   }
 
@@ -181,6 +213,7 @@ private:
     using container = std::vector<osptr>;
 
     Cache() {}
+
     ~Cache() { destructed = true; }
 
     container c;

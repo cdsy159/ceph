@@ -18,42 +18,53 @@
 #include <iomanip>
 
 namespace {
-inline std::ostream& format_u(std::ostream& out, const uint64_t v, const uint64_t n,
-      const int index, const uint64_t mult, const char* u)
-  {
-    char buffer[32];
+inline std::ostream&
+format_u(
+    std::ostream& out,
+    const uint64_t v,
+    const uint64_t n,
+    const int index,
+    const uint64_t mult,
+    const char* u)
+{
+  char buffer[32];
 
-    if (index == 0) {
-      (void) snprintf(buffer, sizeof(buffer), "%" PRId64 "%s", n, u);
-    } else if ((v % mult) == 0) {
-      // If this is an even multiple of the base, always display
-      // without any decimal fraction.
-      (void) snprintf(buffer, sizeof(buffer), "%" PRId64 "%s", n, u);
-    } else {
-      // We want to choose a precision that reflects the best choice
-      // for fitting in 5 characters.  This can get rather tricky when
-      // we have numbers that are very close to an order of magnitude.
-      // For example, when displaying 10239 (which is really 9.999K),
-      // we want only a single place of precision for 10.0K.  We could
-      // develop some complex heuristics for this, but it's much
-      // easier just to try each combination in turn.
-      int i;
-      for (i = 2; i >= 0; i--) {
-        if (snprintf(buffer, sizeof(buffer), "%.*f%s", i,
-          static_cast<double>(v) / mult, u) <= 7)
-          break;
-      }
+  if (index == 0) {
+    (void)snprintf(buffer, sizeof(buffer), "%" PRId64 "%s", n, u);
+  } else if ((v % mult) == 0) {
+    // If this is an even multiple of the base, always display
+    // without any decimal fraction.
+    (void)snprintf(buffer, sizeof(buffer), "%" PRId64 "%s", n, u);
+  } else {
+    // We want to choose a precision that reflects the best choice
+    // for fitting in 5 characters.  This can get rather tricky when
+    // we have numbers that are very close to an order of magnitude.
+    // For example, when displaying 10239 (which is really 9.999K),
+    // we want only a single place of precision for 10.0K.  We could
+    // develop some complex heuristics for this, but it's much
+    // easier just to try each combination in turn.
+    int i;
+    for (i = 2; i >= 0; i--) {
+      if (snprintf(
+              buffer, sizeof(buffer), "%.*f%s", i,
+              static_cast<double>(v) / mult, u) <= 7)
+        break;
     }
-
-    return out << buffer;
   }
-}
 
-void client_t::dump(ceph::Formatter *f) const {
+  return out << buffer;
+}
+} // namespace
+
+void
+client_t::dump(ceph::Formatter* f) const
+{
   f->dump_int("id", v);
 }
 
-std::list<client_t> client_t::generate_test_instances() {
+std::list<client_t>
+client_t::generate_test_instances()
+{
   std::list<client_t> ls;
   ls.emplace_back();
   ls.push_back(client_t(1));
@@ -61,11 +72,14 @@ std::list<client_t> client_t::generate_test_instances() {
   return ls;
 }
 
-std::ostream& operator<<(std::ostream& out, const client_t& c) {
+std::ostream&
+operator<<(std::ostream& out, const client_t& c)
+{
   return out << c.v;
 }
 
-std::ostream& operator<<(std::ostream& out, const si_u_t& b)
+std::ostream&
+operator<<(std::ostream& out, const si_u_t& b)
 {
   uint64_t n = b.v;
   int index = 0;
@@ -81,7 +95,8 @@ std::ostream& operator<<(std::ostream& out, const si_u_t& b)
   return format_u(out, b.v, n, index, mult, u[index]);
 }
 
-std::ostream& operator<<(std::ostream& out, const byte_u_t& b)
+std::ostream&
+operator<<(std::ostream& out, const byte_u_t& b)
 {
   uint64_t n = b.v;
   int index = 0;
@@ -95,13 +110,15 @@ std::ostream& operator<<(std::ostream& out, const byte_u_t& b)
   return format_u(out, b.v, n, index, 1ULL << (10 * index), u[index]);
 }
 
-std::ostream& operator<<(std::ostream& out, const ceph_mon_subscribe_item& i)
+std::ostream&
+operator<<(std::ostream& out, const ceph_mon_subscribe_item& i)
 {
   return out << (long)i.start
-	     << ((i.flags & CEPH_SUBSCRIBE_ONETIME) ? "" : "+");
+             << ((i.flags & CEPH_SUBSCRIBE_ONETIME) ? "" : "+");
 }
 
-std::ostream& operator<<(std::ostream& out, const weightf_t& w)
+std::ostream&
+operator<<(std::ostream& out, const weightf_t& w)
 {
   if (w.v < -0.01F) {
     return out << "-";
@@ -109,26 +126,35 @@ std::ostream& operator<<(std::ostream& out, const weightf_t& w)
     return out << "0";
   } else {
     std::streamsize p = out.precision();
-    return out << std::fixed << std::setprecision(5) << w.v << std::setprecision(p);
- }
+    return out << std::fixed << std::setprecision(5) << w.v
+               << std::setprecision(p);
+  }
 }
 
-void shard_id_t::dump(ceph::Formatter *f) const {
+void
+shard_id_t::dump(ceph::Formatter* f) const
+{
   f->dump_int("id", id);
 }
 
-std::list<shard_id_t> shard_id_t::generate_test_instances() {
+std::list<shard_id_t>
+shard_id_t::generate_test_instances()
+{
   std::list<shard_id_t> ls;
   ls.push_back(shard_id_t(1));
   ls.push_back(shard_id_t(2));
   return ls;
 }
 
-void errorcode32_t::dump(ceph::Formatter *f) const {
+void
+errorcode32_t::dump(ceph::Formatter* f) const
+{
   f->dump_int("code", code);
 }
 
-std::list<errorcode32_t> errorcode32_t::generate_test_instances() {
+std::list<errorcode32_t>
+errorcode32_t::generate_test_instances()
+{
   std::list<errorcode32_t> ls;
   ls.push_back(errorcode32_t(1));
   ls.push_back(errorcode32_t(2));

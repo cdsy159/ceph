@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -20,7 +20,9 @@
 #include "common/Formatter.h"
 #include "include/types.h"
 
-void CompatSet::FeatureSet::encode(ceph::buffer::list& bl) const {
+void
+CompatSet::FeatureSet::encode(ceph::buffer::list& bl) const
+{
   using ceph::encode;
   /* See below, mask always has the lowest bit set in memory, but
    * unset in the encoding */
@@ -28,7 +30,9 @@ void CompatSet::FeatureSet::encode(ceph::buffer::list& bl) const {
   encode(names, bl);
 }
 
-void CompatSet::FeatureSet::decode(ceph::buffer::list::const_iterator& bl) {
+void
+CompatSet::FeatureSet::decode(ceph::buffer::list::const_iterator& bl)
+{
   using ceph::decode;
   decode(mask, bl);
   decode(names, bl);
@@ -54,7 +58,9 @@ void CompatSet::FeatureSet::decode(ceph::buffer::list::const_iterator& bl) {
   }
 }
 
-void CompatSet::FeatureSet::dump(ceph::Formatter *f) const {
+void
+CompatSet::FeatureSet::dump(ceph::Formatter* f) const
+{
   for (auto p = names.cbegin(); p != names.cend(); ++p) {
     char s[18];
     snprintf(s, sizeof(s), "feature_%llu", (unsigned long long)p->first);
@@ -62,7 +68,9 @@ void CompatSet::FeatureSet::dump(ceph::Formatter *f) const {
   }
 }
 
-std::ostream& CompatSet::printlite(std::ostream& o) const {
+std::ostream&
+CompatSet::printlite(std::ostream& o) const
+{
   o << "{c=[" << std::hex << compat.mask << "]";
   o << ",r=[" << std::hex << ro_compat.mask << "]";
   o << ",i=[" << std::hex << incompat.mask << "]}";
@@ -70,7 +78,9 @@ std::ostream& CompatSet::printlite(std::ostream& o) const {
   return o;
 }
 
-void CompatSet::dump(ceph::Formatter *f) const {
+void
+CompatSet::dump(ceph::Formatter* f) const
+{
   f->open_object_section("compat");
   compat.dump(f);
   f->close_section();
@@ -82,7 +92,9 @@ void CompatSet::dump(ceph::Formatter *f) const {
   f->close_section();
 }
 
-std::list<CompatSet> CompatSet::generate_test_instances() {
+std::list<CompatSet>
+CompatSet::generate_test_instances()
+{
   std::list<CompatSet> o;
   o.emplace_back();
   o.emplace_back();
@@ -93,19 +105,21 @@ std::list<CompatSet> CompatSet::generate_test_instances() {
   return o;
 }
 
-std::ostream& operator<<(std::ostream& out, const CompatSet::Feature& f)
+std::ostream&
+operator<<(std::ostream& out, const CompatSet::Feature& f)
 {
   return out << "F(" << f.id << ", \"" << f.name << "\")";
 }
 
-std::ostream& operator<<(std::ostream& out, const CompatSet::FeatureSet& fs)
+std::ostream&
+operator<<(std::ostream& out, const CompatSet::FeatureSet& fs)
 {
   return out << fs.names;
 }
 
-std::ostream& operator<<(std::ostream& out, const CompatSet& compat)
+std::ostream&
+operator<<(std::ostream& out, const CompatSet& compat)
 {
-  return out << "compat=" << compat.compat
-	     << ",rocompat=" << compat.ro_compat
-	     << ",incompat=" << compat.incompat;
+  return out << "compat=" << compat.compat << ",rocompat=" << compat.ro_compat
+             << ",incompat=" << compat.incompat;
 }

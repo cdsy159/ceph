@@ -11,10 +11,10 @@
 #include <list>
 #include <map>
 
-#include "common/ceph_mutex.h"
-#include "include/Context.h"
 #include "common/ThrottleInterface.h"
 #include "common/Timer.h"
+#include "common/ceph_mutex.h"
+#include "include/Context.h"
 #ifdef WITH_CRIMSON
 #include "crimson/common/perf_counters_collection.h"
 #else
@@ -30,27 +30,32 @@
  * back, so @p get_current() drops below the limit after fulfills the requests.
  */
 class Throttle final : public ThrottleInterface {
-  CephContext *cct;
+  CephContext* cct;
   const std::string name;
   PerfCountersRef logger;
-  std::atomic<int64_t> count = { 0 }, max = { 0 };
+  std::atomic<int64_t> count = {0}, max = {0};
   std::mutex lock;
   std::list<std::condition_variable> conds;
   const bool use_perf;
 
 public:
-  Throttle(CephContext *cct, const std::string& n, int64_t m = 0, bool _use_perf = true);
+  Throttle(
+      CephContext* cct,
+      const std::string& n,
+      int64_t m = 0,
+      bool _use_perf = true);
   ~Throttle() override;
 
 private:
   void _reset_max(int64_t m);
-  bool _should_wait(int64_t c) const {
+
+  bool
+  _should_wait(int64_t c) const
+  {
     int64_t m = max;
     int64_t cur = count;
-    return
-      m &&
-      ((c <= m && cur + c > m) || // normally stay under max
-       (c >= m && cur > m));     // except for large c
+    return m && ((c <= m && cur + c > m) || // normally stay under max
+                 (c >= m && cur > m)); // except for large c
   }
 
   bool _wait(int64_t c, std::unique_lock<std::mutex>& l);
@@ -60,7 +65,9 @@ public:
    * gets the number of currently taken slots
    * @returns the number of taken slots
    */
-  int64_t get_current() const {
+  int64_t
+  get_current() const
+  {
     return count;
   }
 
@@ -68,12 +75,18 @@ public:
    * get the max number of slots
    * @returns the max number of slots
    */
-  int64_t get_max() const { return max; }
+  int64_t
+  get_max() const
+  {
+    return max;
+  }
 
   /**
    * return true if past midpoint
    */
-  bool past_midpoint() const {
+  bool
+  past_midpoint() const
+  {
     return count >= max / 2;
   }
 
@@ -116,12 +129,14 @@ public:
    * @returns number of requests being hold after this
    */
   int64_t put(int64_t c = 1) override;
-   /**
+  /**
    * reset the zero to the stock
    */
   void reset();
 
-  void reset_max(int64_t m) {
+  void
+  reset_max(int64_t m)
+  {
     std::lock_guard l(lock);
     _reset_max(m);
   }
@@ -170,14 +185,18 @@ class BackoffThrottle {
   /// pointers into conds
   std::list<std::condition_variable*> waiters;
 
-  std::list<std::condition_variable*>::iterator _push_waiter() {
+  std::list<std::condition_variable*>::iterator
+  _push_waiter()
+  {
     unsigned next = next_cond++;
     if (next_cond == conds.size())
       next_cond = 0;
     return waiters.insert(waiters.end(), &(conds[next]));
   }
 
-  void _kick_waiters() {
+  void
+  _kick_waiters()
+  {
     if (!waiters.empty())
       waiters.front()->notify_all();
   }
@@ -209,29 +228,34 @@ public:
    * explanation.
    */
   bool set_params(
-    double _low_threshold,
-    double _high_threshold,
-    double expected_throughput,
-    double high_multiple,
-    double max_multiple,
-    uint64_t throttle_max,
-    std::ostream *errstream);
+      double _low_threshold,
+      double _high_threshold,
+      double expected_throughput,
+      double high_multiple,
+      double max_multiple,
+      uint64_t throttle_max,
+      std::ostream* errstream);
 
   ceph::timespan get(uint64_t c = 1);
-  ceph::timespan wait() {
+
+  ceph::timespan
+  wait()
+  {
     return get(0);
   }
+
   uint64_t put(uint64_t c = 1);
   uint64_t take(uint64_t c = 1);
   uint64_t get_current();
   uint64_t get_max();
 
-  BackoffThrottle(CephContext *cct, const std::string& n,
-    unsigned expected_concurrency, ///< [in] determines size of conds
-    bool _use_perf = true);
+  BackoffThrottle(
+      CephContext* cct,
+      const std::string& n,
+      unsigned expected_concurrency, ///< [in] determines size of conds
+      bool _use_perf = true);
   ~BackoffThrottle();
 };
-
 
 /**
  * @class SimpleThrottle
@@ -252,6 +276,7 @@ public:
   void end_op(int r);
   bool pending_error() const;
   int wait_for_ret();
+
 private:
   mutable std::mutex m_lock;
   std::condition_variable m_cond;
@@ -267,15 +292,15 @@ class OrderedThrottle;
 
 class C_OrderedThrottle : public Context {
 public:
-  C_OrderedThrottle(OrderedThrottle *ordered_throttle, uint64_t tid)
-    : m_ordered_throttle(ordered_throttle), m_tid(tid) {
-  }
+  C_OrderedThrottle(OrderedThrottle* ordered_throttle, uint64_t tid) :
+    m_ordered_throttle(ordered_throttle), m_tid(tid)
+  {}
 
 protected:
   void finish(int r) override;
 
 private:
-  OrderedThrottle *m_ordered_throttle;
+  OrderedThrottle* m_ordered_throttle;
   uint64_t m_tid;
 };
 
@@ -291,7 +316,7 @@ public:
   OrderedThrottle(uint64_t max, bool ignore_enoent);
   ~OrderedThrottle();
 
-  C_OrderedThrottle *start_op(Context *on_finish);
+  C_OrderedThrottle* start_op(Context* on_finish);
   void end_op(int r);
 
   bool pending_error() const;
@@ -306,11 +331,11 @@ private:
   struct Result {
     bool finished;
     int ret_val;
-    Context *on_finish;
+    Context* on_finish;
 
-    Result(Context *_on_finish = NULL)
-      : finished(false), ret_val(0), on_finish(_on_finish) {
-    }
+    Result(Context* _on_finish = NULL) :
+      finished(false), ret_val(0), on_finish(_on_finish)
+    {}
   };
 
   typedef std::map<uint64_t, Result> TidResult;
@@ -331,10 +356,9 @@ private:
   uint32_t waiters = 0;
 };
 
-
 class TokenBucketThrottle {
   struct Bucket {
-    CephContext *cct;
+    CephContext* cct;
     const std::string name;
 
     uint64_t remain;
@@ -342,8 +366,9 @@ class TokenBucketThrottle {
     uint64_t capacity;
     uint64_t available;
 
-    Bucket(CephContext *cct, const std::string &name, uint64_t m)
-      : cct(cct), name(name), remain(m), max(m), capacity(m), available(m) {}
+    Bucket(CephContext* cct, const std::string& name, uint64_t m) :
+      cct(cct), name(name), remain(m), max(m), capacity(m), available(m)
+    {}
 
     uint64_t get(uint64_t c);
     uint64_t put(uint64_t tokens, double burst_ratio);
@@ -352,20 +377,21 @@ class TokenBucketThrottle {
 
   struct Blocker {
     uint64_t tokens_requested;
-    Context *ctx;
+    Context* ctx;
 
-    Blocker(uint64_t _tokens_requested, Context* _ctx)
-      : tokens_requested(_tokens_requested), ctx(_ctx) {}
+    Blocker(uint64_t _tokens_requested, Context* _ctx) :
+      tokens_requested(_tokens_requested), ctx(_ctx)
+    {}
   };
 
-  CephContext *m_cct;
+  CephContext* m_cct;
   const std::string m_name;
   Bucket m_throttle;
   uint64_t m_burst = 0;
   uint64_t m_avg = 0;
-  SafeTimer *m_timer;
-  ceph::mutex *m_timer_lock;
-  Context *m_token_ctx = nullptr;
+  SafeTimer* m_timer;
+  ceph::mutex* m_timer_lock;
+  Context* m_token_ctx = nullptr;
   std::list<Blocker> m_blockers;
   ceph::mutex m_lock;
 
@@ -409,27 +435,37 @@ class TokenBucketThrottle {
   double m_schedule_tick = 1.0;
 
 public:
-  TokenBucketThrottle(CephContext *cct, const std::string &name,
-                      uint64_t burst, uint64_t avg,
-                      SafeTimer *timer, ceph::mutex *timer_lock);
+  TokenBucketThrottle(
+      CephContext* cct,
+      const std::string& name,
+      uint64_t burst,
+      uint64_t avg,
+      SafeTimer* timer,
+      ceph::mutex* timer_lock);
 
   ~TokenBucketThrottle();
 
-  const std::string &get_name() {
+  const std::string&
+  get_name()
+  {
     return m_name;
   }
 
   template <typename T, typename MF, typename I>
-  void add_blocker(uint64_t c, T&& t, MF&& mf, I&& item, uint64_t flag) {
-    auto ctx = new LambdaContext(
-      [t, mf, item=std::forward<I>(item), flag](int) mutable {
-        (t->*mf)(std::forward<I>(item), flag);
-      });
+  void
+  add_blocker(uint64_t c, T&& t, MF&& mf, I&& item, uint64_t flag)
+  {
+    auto ctx = new LambdaContext([t, mf, item = std::forward<I>(item),
+                                  flag](int) mutable {
+      (t->*mf)(std::forward<I>(item), flag);
+    });
     m_blockers.emplace_back(c, ctx);
   }
 
   template <typename T, typename MF, typename I>
-  bool get(uint64_t c, T&& t, MF&& mf, I&& item, uint64_t flag) {
+  bool
+  get(uint64_t c, T&& t, MF&& mf, I&& item, uint64_t flag)
+  {
     bool wait = false;
     uint64_t got = 0;
     std::lock_guard lock(m_lock);
@@ -448,8 +484,9 @@ public:
     }
 
     if (wait) {
-      add_blocker(c - got, std::forward<T>(t), std::forward<MF>(mf),
-                  std::forward<I>(item), flag);
+      add_blocker(
+          c - got, std::forward<T>(t), std::forward<MF>(mf),
+          std::forward<I>(item), flag);
     }
 
     return wait;

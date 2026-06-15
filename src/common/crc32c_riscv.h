@@ -16,11 +16,17 @@ extern "C" {
 #endif
 
 #if defined(__riscv) && defined(HAVE_RISCV_ZVBC)
-extern uint32_t ceph_crc32c_riscv(uint32_t crc, unsigned char const *buffer, unsigned len);
+extern uint32_t ceph_crc32c_riscv(
+    uint32_t crc,
+    unsigned char const* buffer,
+    unsigned len);
 #endif
 
 #if defined(__riscv) && defined(HAVE_RISCV_ZBC)
-extern uint32_t ceph_crc32c_riscv_zbc(uint32_t crc, unsigned char const *buffer, unsigned len);
+extern uint32_t ceph_crc32c_riscv_zbc(
+    uint32_t crc,
+    unsigned char const* buffer,
+    unsigned len);
 #endif
 
 #ifdef __cplusplus

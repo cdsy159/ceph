@@ -1,18 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "crimson/os/seastore/cache.h"
 #include "crimson/os/seastore/backref_manager.h"
+
 #include "crimson/os/seastore/backref/btree_backref_manager.h"
+#include "crimson/os/seastore/cache.h"
 
 namespace crimson::os::seastore {
 
-BackrefManagerRef create_backref_manager(
-  Cache &cache)
+BackrefManagerRef
+create_backref_manager(Cache& cache)
 {
-  return BackrefManagerRef(
-    new backref::BtreeBackrefManager(cache));
+  return BackrefManagerRef(new backref::BtreeBackrefManager(cache));
 }
 
-} // namespace crimson::os::seastore::backref
-
+} // namespace crimson::os::seastore

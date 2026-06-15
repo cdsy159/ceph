@@ -5,15 +5,17 @@
 
 #include "driver/rados/rgw_service.h"
 
-
-class RGWSI_Quota : public RGWServiceInstance
-{
-  RGWSI_Zone *zone_svc{nullptr};
+class RGWSI_Quota : public RGWServiceInstance {
+  RGWSI_Zone* zone_svc{nullptr};
 
 public:
-  RGWSI_Quota(CephContext *cct): RGWServiceInstance(cct) {}
+  RGWSI_Quota(CephContext* cct) :
+    RGWServiceInstance(cct)
+  {}
 
-  void init(RGWSI_Zone *_zone_svc) {
+  void
+  init(RGWSI_Zone* _zone_svc)
+  {
     zone_svc = _zone_svc;
   }
 

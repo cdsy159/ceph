@@ -21,17 +21,20 @@
 
 #include "gtest/gtest.h"
 
-
-template<typename Mutex>
-static bool test_try_lock(Mutex* m) {
+template <typename Mutex>
+static bool
+test_try_lock(Mutex* m)
+{
   if (!m->try_lock())
     return false;
   m->unlock();
   return true;
 }
 
-template<typename Mutex>
-static void test_lock() {
+template <typename Mutex>
+static void
+test_lock()
+{
   Mutex m("mutex");
   auto ttl = &test_try_lock<Mutex>;
 
@@ -54,11 +57,10 @@ static void test_lock() {
   ASSERT_FALSE(!!m);
 }
 
-TEST(MutexDebug, Lock) {
-  test_lock<ceph::mutex_debug>();
-}
+TEST(MutexDebug, Lock) { test_lock<ceph::mutex_debug>(); }
 
-TEST(MutexDebugDeathTest, NotRecursive) {
+TEST(MutexDebugDeathTest, NotRecursive)
+{
   ceph::mutex_debug m("foo");
   // avoid assert during test cleanup where the mutex is locked and cannot be
   // pthread_mutex_destroy'd
@@ -67,12 +69,10 @@ TEST(MutexDebugDeathTest, NotRecursive) {
   ASSERT_DEATH(m.lock(), "FAILED ceph_assert(recursive || !is_locked_by_me())");
 }
 
-TEST(MutexRecursiveDebug, Lock) {
-  test_lock<ceph::mutex_recursive_debug>();
-}
+TEST(MutexRecursiveDebug, Lock) { test_lock<ceph::mutex_recursive_debug>(); }
 
-
-TEST(MutexRecursiveDebug, Recursive) {
+TEST(MutexRecursiveDebug, Recursive)
+{
   ceph::mutex_recursive_debug m("m");
   auto ttl = &test_try_lock<mutex_recursive_debug>;
 

@@ -13,27 +13,45 @@
  *
  */
 
-#include "common/random_string.h"
-#include "common/ceph_context.h"
-#include "global/global_context.h"
 #include <gtest/gtest.h>
 
-inline bool is_alphanumeric_lower(char c) {
+#include "common/ceph_context.h"
+#include "common/random_string.h"
+#include "global/global_context.h"
+
+inline bool
+is_alphanumeric_lower(char c)
+{
   return std::islower(c) || std::isdigit(c);
 }
-inline bool is_alphanumeric_upper(char c) {
+
+inline bool
+is_alphanumeric_upper(char c)
+{
   return std::isupper(c) || std::isdigit(c);
 }
-inline bool is_alphanumeric_plain(char c) {
+
+inline bool
+is_alphanumeric_plain(char c)
+{
   return std::islower(c) || std::isupper(c) || std::isdigit(c);
 }
-inline bool is_alphanumeric_no_underscore(char c) {
+
+inline bool
+is_alphanumeric_no_underscore(char c)
+{
   return is_alphanumeric_plain(c) || c == '-' || c == '.';
 }
-inline bool is_alphanumeric(char c) {
+
+inline bool
+is_alphanumeric(char c)
+{
   return is_alphanumeric_plain(c) || c == '-' || c == '_';
 }
-inline bool is_base64(char c) {
+
+inline bool
+is_base64(char c)
+{
   return is_alphanumeric_plain(c) || c == '+' || c == '/';
 }
 
@@ -102,7 +120,8 @@ TEST(RandomString, alphanumeric_no_underscore_string)
 {
   std::string str = gen_rand_alphanumeric_no_underscore(g_ceph_context, 64);
   EXPECT_EQ(64, str.size());
-  EXPECT_TRUE(std::all_of(str.begin(), str.end(), is_alphanumeric_no_underscore));
+  EXPECT_TRUE(
+      std::all_of(str.begin(), str.end(), is_alphanumeric_no_underscore));
 }
 
 TEST(RandomString, alphanumeric_plain)

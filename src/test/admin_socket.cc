@@ -13,62 +13,77 @@
  *
  */
 
-#include "common/ceph_mutex.h"
-#include "common/Cond.h"
 #include "common/admin_socket.h"
-#include "common/admin_socket_client.h"
-#include "common/ceph_argparse.h"
-#include "common/JSONFormatter.h"
-#include "json_spirit/json_spirit.h"
-#include "gtest/gtest.h"
-#include "fmt/format.h"
 
+#include <signal.h>
 #include <stdint.h>
 #include <string.h>
-#include <string>
 #include <sys/un.h>
-#include <signal.h>
 
 #include <iostream> // for std::cout
+#include <string>
+
+#include "common/Cond.h"
+#include "common/JSONFormatter.h"
+#include "common/admin_socket_client.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
+#include "fmt/format.h"
+#include "gtest/gtest.h"
+#include "json_spirit/json_spirit.h"
 
 using namespace std;
 
-class AdminSocketTest
-{
+class AdminSocketTest {
 public:
-  explicit AdminSocketTest(AdminSocket *asokc)
-    : m_asokc(asokc)
+  explicit AdminSocketTest(AdminSocket* asokc) :
+    m_asokc(asokc)
+  {}
+
+  bool
+  init(const std::string& uri)
   {
-  }
-  bool init(const std::string &uri) {
     return m_asokc->init(uri);
   }
-  string bind_and_listen(const std::string &sock_path, int *fd) {
+
+  string
+  bind_and_listen(const std::string& sock_path, int* fd)
+  {
     return m_asokc->bind_and_listen(sock_path, fd);
   }
-  bool shutdown() {
+
+  bool
+  shutdown()
+  {
     m_asokc->shutdown();
     return true;
   }
-  AdminSocket *m_asokc;
+
+  AdminSocket* m_asokc;
 };
 
-TEST(AdminSocket, Teardown) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, Teardown)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
 }
 
-TEST(AdminSocket, TeardownSetup) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, TeardownSetup)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
   ASSERT_EQ(true, asoct.init(get_rand_socket_path()));
   ASSERT_EQ(true, asoct.shutdown());
 }
 
-TEST(AdminSocket, SendHelp) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, SendHelp)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
   ASSERT_EQ(true, asoct.init(get_rand_socket_path()));
@@ -81,25 +96,33 @@ TEST(AdminSocket, SendHelp) {
   }
   {
     string help;
-    ASSERT_EQ("", client.do_request("{"
-				    " \"prefix\":\"help\","
-				    " \"format\":\"xml\","
-				    "}", &help));
+    ASSERT_EQ(
+        "", client.do_request(
+                "{"
+                " \"prefix\":\"help\","
+                " \"format\":\"xml\","
+                "}",
+                &help));
     ASSERT_NE(string::npos, help.find(">list available commands<"));
   }
   {
     string help;
-    ASSERT_EQ("", client.do_request("{"
-				    " \"prefix\":\"help\","
-				    " \"format\":\"UNSUPPORTED\","
-				    "}", &help));
+    ASSERT_EQ(
+        "", client.do_request(
+                "{"
+                " \"prefix\":\"help\","
+                " \"format\":\"UNSUPPORTED\","
+                "}",
+                &help));
     ASSERT_NE(string::npos, help.find("\"list available commands\""));
   }
   ASSERT_EQ(true, asoct.shutdown());
 }
 
-TEST(AdminSocket, SendNoOp) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, SendNoOp)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
   ASSERT_EQ(true, asoct.init(get_rand_socket_path()));
@@ -110,8 +133,10 @@ TEST(AdminSocket, SendNoOp) {
   ASSERT_EQ(true, asoct.shutdown());
 }
 
-TEST(AdminSocket, SendTooLongRequest) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, SendTooLongRequest)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
   ASSERT_EQ(true, asoct.init(get_rand_socket_path()));
@@ -124,20 +149,24 @@ TEST(AdminSocket, SendTooLongRequest) {
 }
 
 class MyTest : public AdminSocketHook {
-  int call(std::string_view command, const cmdmap_t& cmdmap,
-	   const bufferlist&,
-	   Formatter *f,
-	   std::ostream& ss,
-	   bufferlist& result) override {
+  int
+  call(
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist&,
+      Formatter* f,
+      std::ostream& ss,
+      bufferlist& result) override
+  {
     std::vector<std::string> args;
     TOPNSPC::common::cmd_getval(cmdmap, "args", args);
     result.append(command);
     result.append("|");
     string resultstr;
-    for (std::vector<std::string>::iterator it = args.begin();
-	 it != args.end(); ++it) {
+    for (std::vector<std::string>::iterator it = args.begin(); it != args.end();
+         ++it) {
       if (it != args.begin())
-	resultstr += ' ';
+        resultstr += ' ';
       resultstr += *it;
     }
     result.append(resultstr);
@@ -145,8 +174,10 @@ class MyTest : public AdminSocketHook {
   }
 };
 
-TEST(AdminSocket, RegisterCommand) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, RegisterCommand)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   std::unique_ptr<AdminSocketHook> my_test_asok = std::make_unique<MyTest>();
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
@@ -160,20 +191,24 @@ TEST(AdminSocket, RegisterCommand) {
 }
 
 class MyTest2 : public AdminSocketHook {
-  int call(std::string_view command, const cmdmap_t& cmdmap,
-	   const bufferlist&,
-	   Formatter *f,
-	   std::ostream& ss,
-	   bufferlist& result) override {
+  int
+  call(
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist&,
+      Formatter* f,
+      std::ostream& ss,
+      bufferlist& result) override
+  {
     std::vector<std::string> args;
     TOPNSPC::common::cmd_getval(cmdmap, "args", args);
     result.append(command);
     result.append("|");
     string resultstr;
-    for (std::vector<std::string>::iterator it = args.begin();
-	 it != args.end(); ++it) {
+    for (std::vector<std::string>::iterator it = args.begin(); it != args.end();
+         ++it) {
       if (it != args.begin())
-	resultstr += ' ';
+        resultstr += ' ';
       resultstr += *it;
     }
     result.append(resultstr);
@@ -182,31 +217,48 @@ class MyTest2 : public AdminSocketHook {
   }
 };
 
-TEST(AdminSocket, RegisterCommandPrefixes) {
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+TEST(AdminSocket, RegisterCommandPrefixes)
+{
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   std::unique_ptr<AdminSocketHook> my_test_asok = std::make_unique<MyTest>();
   std::unique_ptr<AdminSocketHook> my_test2_asok = std::make_unique<MyTest2>();
   AdminSocketTest asoct(asokc.get());
   ASSERT_EQ(true, asoct.shutdown());
   ASSERT_EQ(true, asoct.init(get_rand_socket_path()));
   AdminSocketClient client(get_rand_socket_path());
-  ASSERT_EQ(0, asoct.m_asokc->register_command("test name=args,type=CephString,n=N", my_test_asok.get(), ""));
-  ASSERT_EQ(0, asoct.m_asokc->register_command("test command name=args,type=CephString,n=N", my_test2_asok.get(), ""));
+  ASSERT_EQ(
+      0, asoct.m_asokc->register_command(
+             "test name=args,type=CephString,n=N", my_test_asok.get(), ""));
+  ASSERT_EQ(
+      0, asoct.m_asokc->register_command(
+             "test command name=args,type=CephString,n=N", my_test2_asok.get(),
+             ""));
   string result;
   ASSERT_EQ("", client.do_request("{\"prefix\":\"test\"}", &result));
   ASSERT_EQ("test|", result);
   ASSERT_EQ("", client.do_request("{\"prefix\":\"test command\"}", &result));
   ASSERT_EQ("test command|", result);
-  ASSERT_EQ("", client.do_request("{\"prefix\":\"test command\",\"args\":[\"post\"]}", &result));
+  ASSERT_EQ(
+      "", client.do_request(
+              "{\"prefix\":\"test command\",\"args\":[\"post\"]}", &result));
   ASSERT_EQ("test command|post", result);
-  ASSERT_EQ("", client.do_request("{\"prefix\":\"test command\",\"args\":[\" post\"]}", &result));
+  ASSERT_EQ(
+      "", client.do_request(
+              "{\"prefix\":\"test command\",\"args\":[\" post\"]}", &result));
   ASSERT_EQ("test command| post", result);
-  ASSERT_EQ("", client.do_request("{\"prefix\":\"test\",\"args\":[\"this thing\"]}", &result));
+  ASSERT_EQ(
+      "", client.do_request(
+              "{\"prefix\":\"test\",\"args\":[\"this thing\"]}", &result));
   ASSERT_EQ("test|this thing", result);
 
-  ASSERT_EQ("", client.do_request("{\"prefix\":\"test\",\"args\":[\" command post\"]}", &result));
+  ASSERT_EQ(
+      "", client.do_request(
+              "{\"prefix\":\"test\",\"args\":[\" command post\"]}", &result));
   ASSERT_EQ("test| command post", result);
-  ASSERT_EQ("", client.do_request("{\"prefix\":\"test\",\"args\":[\" this thing\"]}", &result));
+  ASSERT_EQ(
+      "", client.do_request(
+              "{\"prefix\":\"test\",\"args\":[\" this thing\"]}", &result));
   ASSERT_EQ("test| this thing", result);
   ASSERT_EQ(true, asoct.shutdown());
 }
@@ -218,37 +270,43 @@ public:
 
   BlockingHook() = default;
 
-  int call(std::string_view command, const cmdmap_t& cmdmap,
-	   const bufferlist&,
-	   Formatter *f,
-	   std::ostream& ss,
-	   bufferlist& result) override {
+  int
+  call(
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist&,
+      Formatter* f,
+      std::ostream& ss,
+      bufferlist& result) override
+  {
     std::unique_lock l{_lock};
     _cond.wait(l);
     return 0;
   }
 };
 
-TEST(AdminSocketClient, Ping) {
+TEST(AdminSocketClient, Ping)
+{
   string path = get_rand_socket_path();
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
   AdminSocketClient client(path);
   // no socket
   {
     bool ok;
     std::string result = client.ping(&ok);
 #ifndef _WIN32
-// TODO: convert WSA errors.
+    // TODO: convert WSA errors.
     EXPECT_NE(std::string::npos, result.find("No such file or directory"));
 #endif
     ASSERT_FALSE(ok);
   }
-  // file exists but does not allow connections (no process, wrong type...)
-  #ifdef _WIN32
+// file exists but does not allow connections (no process, wrong type...)
+#ifdef _WIN32
   int fd = ::creat(path.c_str(), _S_IREAD | _S_IWRITE);
-  #else
+#else
   int fd = ::creat(path.c_str(), 0777);
-  #endif
+#endif
   ASSERT_TRUE(fd);
   // On Windows, we won't be able to remove the file unless we close it
   // first.
@@ -279,14 +337,15 @@ TEST(AdminSocketClient, Ping) {
   // hardcoded five seconds timeout prevents infinite blockage
   {
     AdminSocketTest asoct(asokc.get());
-    BlockingHook *blocking = new BlockingHook();
+    BlockingHook* blocking = new BlockingHook();
     ASSERT_EQ(0, asoct.m_asokc->register_command("0", blocking, ""));
     ASSERT_TRUE(asoct.init(path));
     bool ok;
     std::string result = client.ping(&ok);
-    #ifndef _WIN32
-    EXPECT_NE(std::string::npos, result.find("Resource temporarily unavailable"));
-    #endif
+#ifndef _WIN32
+    EXPECT_NE(
+        std::string::npos, result.find("Resource temporarily unavailable"));
+#endif
     ASSERT_FALSE(ok);
     {
       std::lock_guard l{blocking->_lock};
@@ -297,9 +356,11 @@ TEST(AdminSocketClient, Ping) {
   }
 }
 
-TEST(AdminSocket, bind_and_listen) {
+TEST(AdminSocket, bind_and_listen)
+{
   string path = get_rand_socket_path();
-  std::unique_ptr<AdminSocket> asokc = std::make_unique<AdminSocket>(g_ceph_context);
+  std::unique_ptr<AdminSocket> asokc =
+      std::make_unique<AdminSocket>(g_ceph_context);
 
   AdminSocketTest asoct(asokc.get());
   // successfull bind
@@ -316,11 +377,11 @@ TEST(AdminSocket, bind_and_listen) {
   {
     int fd = 0;
     string message;
-    #ifdef _WIN32
+#ifdef _WIN32
     int fd2 = ::creat(path.c_str(), _S_IREAD | _S_IWRITE);
-    #else
+#else
     int fd2 = ::creat(path.c_str(), 0777);
-    #endif
+#endif
     ASSERT_TRUE(fd2);
     // On Windows, we won't be able to remove the file unless we close it
     // first.
@@ -343,25 +404,30 @@ TEST(AdminSocket, bind_and_listen) {
   }
 }
 
-class AdminSocketRaise: public ::testing::Test 
-{
+class AdminSocketRaise : public ::testing::Test {
 public:
   struct TestSignal {
     int sig;
-    const char * name;
+    const char* name;
     std::atomic<int> count;
   };
 
-  static void SetUpTestSuite() {
+  static void
+  SetUpTestSuite()
+  {
     signal(sig1.sig, sighandler);
     signal(sig2.sig, sighandler);
   }
-  static void TearDownTestSuite()
+
+  static void
+  TearDownTestSuite()
   {
     signal(sig1.sig, SIG_DFL);
     signal(sig2.sig, SIG_DFL);
   }
-  void SetUp() override
+
+  void
+  SetUp() override
   {
     std::string path = get_rand_socket_path();
     asock = std::make_unique<AdminSocket>(g_ceph_context);
@@ -370,10 +436,13 @@ public:
     sig1.count = 0;
     sig2.count = 0;
   }
-  void TearDown() override
+
+  void
+  TearDown() override
   {
     AdminSocketTest(asock.get()).shutdown();
   }
+
 protected:
   static TestSignal sig1;
   static TestSignal sig2;
@@ -381,7 +450,8 @@ protected:
   std::unique_ptr<AdminSocket> asock;
   std::unique_ptr<AdminSocketClient> asock_client;
 
-  static void sighandler(int signal)
+  static void
+  sighandler(int signal)
   {
     if (signal == sig1.sig) {
       sig1.count++;
@@ -394,7 +464,12 @@ protected:
     // The below shouldn't hurt in any case.
     ::signal(signal, sighandler);
   }
-  std::string send_raise(std::optional<std::string> arg, std::optional<double> after, bool cancel)
+
+  std::string
+  send_raise(
+      std::optional<std::string> arg,
+      std::optional<double> after,
+      bool cancel)
   {
     JSONFormatter f;
     f.open_object_section("");
@@ -419,19 +494,24 @@ protected:
     return response;
   }
 
-  std::string send_raise_cancel(std::optional<std::string> arg = std::nullopt) {
+  std::string
+  send_raise_cancel(std::optional<std::string> arg = std::nullopt)
+  {
     return send_raise(arg, std::nullopt, true);
   }
 
-  std::string send_raise(std::string arg, std::optional<double> after = std::nullopt) {
+  std::string
+  send_raise(std::string arg, std::optional<double> after = std::nullopt)
+  {
     return send_raise(arg, after, false);
   }
 };
 
-AdminSocketRaise::TestSignal AdminSocketRaise::sig1 = { SIGINT, "INT", 0 };
-AdminSocketRaise::TestSignal AdminSocketRaise::sig2 = { SIGTERM, "TERM", 0 };
+AdminSocketRaise::TestSignal AdminSocketRaise::sig1 = {SIGINT, "INT", 0};
+AdminSocketRaise::TestSignal AdminSocketRaise::sig2 = {SIGTERM, "TERM", 0};
 
-TEST_F(AdminSocketRaise, List) {
+TEST_F(AdminSocketRaise, List)
+{
   auto r = send_raise("-l");
   json_spirit::mValue v;
   ASSERT_TRUE(json_spirit::read(r, v));
@@ -440,13 +520,18 @@ TEST_F(AdminSocketRaise, List) {
   EXPECT_EQ(sig2.sig, v.get_obj()[sig2.name].get_int());
 }
 
-TEST_F(AdminSocketRaise, ImmediateFormats) {
+TEST_F(AdminSocketRaise, ImmediateFormats)
+{
   std::string name1, name2;
 
   name1 = sig1.name;
-  std::transform(name1.begin(), name1.end(), name1.begin(), [](int c) { return std::tolower(c); });
+  std::transform(name1.begin(), name1.end(), name1.begin(), [](int c) {
+    return std::tolower(c);
+  });
   name2 = fmt::format("-{}", sig2.name);
-  std::transform(name2.begin(), name2.end(), name2.begin(), [](int c) { return std::tolower(c); });
+  std::transform(name2.begin(), name2.end(), name2.begin(), [](int c) {
+    return std::tolower(c);
+  });
 
   send_raise(fmt::format("-{}", sig1.sig));
   send_raise(name1);
@@ -565,4 +650,3 @@ TEST_F(AdminSocketRaise, StopCont)
  * "
  * End:
  */
-

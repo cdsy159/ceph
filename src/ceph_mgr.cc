@@ -16,23 +16,21 @@
  */
 
 #include <Python.h>
-
 #include <pthread.h>
 
-#include "include/types.h"
-#include "include/compat.h"
-#include "common/config.h"
 #include "common/ceph_argparse.h"
+#include "common/config.h"
 #include "common/errno.h"
 #include "common/pick_address.h"
 #include "global/global_init.h"
-
+#include "include/compat.h"
+#include "include/types.h"
 #include "mgr/MgrStandby.h"
 
-static void usage()
+static void
+usage()
 {
-  std::cout << "usage: ceph-mgr -i <ID> [flags]\n"
-	    << std::endl;
+  std::cout << "usage: ceph-mgr -i <ID> [flags]\n" << std::endl;
   generic_server_usage();
 }
 
@@ -40,7 +38,8 @@ static void usage()
  * A short main() which just instantiates a MgrStandby and
  * hands over control to that.
  */
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   ceph_pthread_setname("ceph-mgr");
 
@@ -54,11 +53,10 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  std::map<std::string,std::string> defaults = {
-    { "keyring", "$mgr_data/keyring" }
-  };
-  auto cct = global_init(&defaults, args, CEPH_ENTITY_TYPE_MGR,
-			 CODE_ENVIRONMENT_DAEMON, 0);
+  std::map<std::string, std::string> defaults = {
+      {"keyring", "$mgr_data/keyring"}};
+  auto cct = global_init(
+      &defaults, args, CEPH_ENTITY_TYPE_MGR, CODE_ENVIRONMENT_DAEMON, 0);
 
   pick_addresses(g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC);
 
@@ -69,10 +67,9 @@ int main(int argc, const char **argv)
   MgrStandby mgr(argc, argv);
   int rc = mgr.init();
   if (rc != 0) {
-      std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
-      return rc;
+    std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
+    return rc;
   }
 
   return mgr.main(args);
 }
-

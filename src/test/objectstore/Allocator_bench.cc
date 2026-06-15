@@ -5,20 +5,21 @@
  * In memory space allocator benchmarks.
  * Author: Igor Fedotov, ifedotov@suse.com
  */
-#include <iostream>
-#include <boost/scoped_ptr.hpp>
 #include <gtest/gtest.h>
+
+#include <iostream>
+
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/scoped_ptr.hpp>
 
 #include "common/Clock.h" // for ceph_clock_now()
 #include "common/Cond.h"
 #include "common/errno.h"
-#include "include/stringify.h"
 #include "include/Context.h"
+#include "include/stringify.h"
 #include "os/bluestore/Allocator.h"
 #include "os/bluestore/AllocatorBase.h"
-
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int.hpp>
 typedef boost::mt11213b gen_type;
 
 #include "common/debug.h"
@@ -31,30 +32,43 @@ class AllocTest : public ::testing::TestWithParam<const char*> {
 
 public:
   boost::scoped_ptr<Allocator> alloc;
-  AllocTest(): alloc(0) { }
-  void init_alloc(int64_t size, uint64_t min_alloc_size) {
+
+  AllocTest() :
+    alloc(0)
+  {}
+
+  void
+  init_alloc(int64_t size, uint64_t min_alloc_size)
+  {
     std::cout << "Creating alloc type " << string(GetParam()) << " \n";
-    alloc.reset(Allocator::create(g_ceph_context, GetParam(), size,
-				  min_alloc_size));
+    alloc.reset(
+        Allocator::create(g_ceph_context, GetParam(), size, min_alloc_size));
   }
 
-  void init_close() {
+  void
+  init_close()
+  {
     alloc.reset(0);
   }
-  void doOverwriteTest(uint64_t capacity, uint64_t prefill,
-    uint64_t overwrite);
-  void doOverwriteMPCTest(size_t thread_count,
-    uint64_t capacity, uint64_t prefill,
-    uint64_t overwrite);
-  void doOverwriteMPC2Test(size_t thread_count,
-    uint64_t capacity, uint64_t prefill,
-    uint64_t overwrite,
-    float extra = 0.05);
+
+  void doOverwriteTest(uint64_t capacity, uint64_t prefill, uint64_t overwrite);
+  void doOverwriteMPCTest(
+      size_t thread_count,
+      uint64_t capacity,
+      uint64_t prefill,
+      uint64_t overwrite);
+  void doOverwriteMPC2Test(
+      size_t thread_count,
+      uint64_t capacity,
+      uint64_t prefill,
+      uint64_t overwrite,
+      float extra = 0.05);
 };
 
 const uint64_t _1m = 1024 * 1024;
 
-void dump_mempools()
+void
+dump_mempools()
 {
   ostringstream ostr;
   Formatter* f = Formatter::create("json-pretty", "json-pretty", "json-pretty");
@@ -67,8 +81,7 @@ void dump_mempools()
   ldout(g_ceph_context, 0) << ostr.str() << dendl;
 }
 
-class AllocTracker
-{
+class AllocTracker {
   std::vector<uint64_t> allocations;
   uint64_t head = 0;
   uint64_t tail = 0;
@@ -76,27 +89,33 @@ class AllocTracker
   boost::uniform_int<uint64_t> u1;
 
 public:
-  AllocTracker(uint64_t capacity, uint64_t alloc_unit)
-    : u1(0, capacity)
+  AllocTracker(uint64_t capacity, uint64_t alloc_unit) :
+    u1(0, capacity)
   {
     ceph_assert(alloc_unit >= 0x100);
-    ceph_assert(capacity <= (uint64_t(1) << 48)); // we use 5 octets (bytes 1 - 5) to store
-				 // offset to save the required space.
-				 // This supports capacity up to 281 TB
+    ceph_assert(
+        capacity <=
+        (uint64_t(1) << 48)); // we use 5 octets (bytes 1 - 5) to store
+        // offset to save the required space.
+        // This supports capacity up to 281 TB
 
     allocations.resize(capacity / alloc_unit);
   }
-  inline uint64_t get_head() const
+
+  inline uint64_t
+  get_head() const
   {
     return head;
   }
 
-  inline uint64_t get_tail() const
+  inline uint64_t
+  get_tail() const
   {
     return tail;
   }
 
-  bool push(uint64_t offs, uint32_t len)
+  bool
+  push(uint64_t offs, uint32_t len)
   {
     ceph_assert((len & 0xff) == 0);
     ceph_assert((offs & 0xff) == 0);
@@ -110,7 +129,9 @@ public:
     ++size;
     return true;
   }
-  bool pop(uint64_t* offs, uint32_t* len)
+
+  bool
+  pop(uint64_t* offs, uint32_t* len)
   {
     if (size == 0)
       return false;
@@ -121,8 +142,9 @@ public:
     --size;
     return true;
   }
-  bool pop_random(gen_type& rng, uint64_t* offs, uint32_t* len,
-    uint32_t max_len = 0)
+
+  bool
+  pop_random(gen_type& rng, uint64_t* offs, uint32_t* len, uint32_t max_len = 0)
   {
     if (size == 0)
       return false;
@@ -156,30 +178,29 @@ TEST_P(AllocTest, test_alloc_bench_seq)
   alloc->init_add_free(0, capacity);
 
   utime_t start = ceph_clock_now();
-  for (uint64_t i = 0; i < capacity; i += want_size)
-  {
+  for (uint64_t i = 0; i < capacity; i += want_size) {
     tmp.clear();
-    EXPECT_EQ(static_cast<int64_t>(want_size),
-	      alloc->allocate(want_size, alloc_unit, 0, -1, &tmp));
+    EXPECT_EQ(
+        static_cast<int64_t>(want_size),
+        alloc->allocate(want_size, alloc_unit, 0, -1, &tmp));
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "alloc " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
 
   std::cout << "releasing..." << std::endl;
-  for (size_t i = 0; i < capacity; i += want_size)
-  {
+  for (size_t i = 0; i < capacity; i += want_size) {
     interval_set<uint64_t> release_set;
     release_set.insert(i, want_size);
     alloc->release(release_set);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "release " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
-  std::cout<<"Executed in "<< ceph_clock_now() - start << std::endl;
+  std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
   dump_mempools();
 }
 
@@ -204,14 +225,13 @@ TEST_P(AllocTest, test_alloc_bench_seq_interleaving)
   std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
 
   std::cout << "releasing..." << std::endl;
-  for (size_t i = 0; i < capacity; i += want_size * 2)
-  {
+  for (size_t i = 0; i < capacity; i += want_size * 2) {
     interval_set<uint64_t> release_set;
     release_set.insert(i, want_size);
     alloc->release(release_set);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "release " << i / 1024 / 1024 << " mb of "
-	<< capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
@@ -233,8 +253,7 @@ TEST_P(AllocTest, test_alloc_bench)
   boost::uniform_int<> u2(0, 7); // 4K-512K
 
   utime_t start = ceph_clock_now();
-  for (uint64_t i = 0; i < capacity * 2; )
-  {
+  for (uint64_t i = 0; i < capacity * 2;) {
     uint32_t want = alloc_unit << u1(rng);
 
     tmp.clear();
@@ -244,7 +263,7 @@ TEST_P(AllocTest, test_alloc_bench)
     }
     i += r;
 
-    for(auto a : tmp) {
+    for (auto a : tmp) {
       bool full = !at.push(a.offset, a.length);
       EXPECT_EQ(full, false);
     }
@@ -255,7 +274,7 @@ TEST_P(AllocTest, test_alloc_bench)
       uint32_t l = 0;
       interval_set<uint64_t> release_set;
       if (!at.pop_random(rng, &o, &l, want_release - released)) {
-	break;
+        break;
       }
       release_set.insert(o, l);
       alloc->release(release_set);
@@ -264,11 +283,11 @@ TEST_P(AllocTest, test_alloc_bench)
 
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "alloc " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
-  std::cout<<"Executed in "<< ceph_clock_now() - start << std::endl;
-  std::cout<<"Avail "<< alloc->get_free() / _1m << " MB" << std::endl;
+  std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
+  std::cout << "Avail " << alloc->get_free() / _1m << " MB" << std::endl;
   dump_mempools();
 }
 
@@ -286,35 +305,37 @@ struct OverwriteTextContext : public Thread {
   timespan r_time;
   timespan a_time;
 
-  OverwriteTextContext(size_t _idx,
-    AllocTracker* at,
-    Allocator* a,
-    uint64_t want,
-    uint64_t unit) :
+  OverwriteTextContext(
+      size_t _idx,
+      AllocTracker* at,
+      Allocator* a,
+      uint64_t want,
+      uint64_t unit) :
     idx(_idx), tracker(at), alloc(a), how_many(want), alloc_unit(unit)
-  {
-  }
+  {}
 
-  void build_histogram() {
+  void
+  build_histogram()
+  {
     const size_t num_buckets = 8;
     AllocatorBase::FreeStateHistogram hist(num_buckets);
-    alloc->foreach(
-      [&](size_t off, size_t len) {
-	hist.record_extent(uint64_t(alloc_unit), off, len);
-      });
+    alloc->foreach ([&](size_t off, size_t len) {
+      hist.record_extent(uint64_t(alloc_unit), off, len);
+    });
 
-    hist.foreach(
-      [&](uint64_t max_len, uint64_t total, uint64_t aligned, uint64_t units) {
-	uint64_t a_bytes = units * alloc_unit;
-	std::cout << "<=" << max_len
-	  << " -> " << total << "/" << aligned
-	  << " a_bytes " << a_bytes
-	  << " " << ((float)a_bytes / alloc->get_capacity() * 100) << "%"
-	  << std::endl;
-      });
+    hist.foreach ([&](uint64_t max_len, uint64_t total, uint64_t aligned,
+                      uint64_t units) {
+      uint64_t a_bytes = units * alloc_unit;
+      std::cout << "<=" << max_len << " -> " << total << "/" << aligned
+                << " a_bytes " << a_bytes << " "
+                << ((float)a_bytes / alloc->get_capacity() * 100) << "%"
+                << std::endl;
+    });
   }
 
-  void* entry() override {
+  void*
+  entry() override
+  {
     PExtentVector allocated, tmp;
     gen_type rng(time(NULL));
     boost::uniform_int<> u1(0, 9); // 4K-2M
@@ -323,19 +344,18 @@ struct OverwriteTextContext : public Thread {
     r_time = ceph::make_timespan(0);
     a_time = ceph::make_timespan(0);
 
-    for (uint64_t i = 0; i < how_many; )
-    {
+    for (uint64_t i = 0; i < how_many;) {
       uint64_t want_release = alloc_unit << u2(rng);
       uint64_t released = 0;
       interval_set<uint64_t> release_set;
       do {
-	uint64_t o = 0;
-	uint32_t l = 0;
-	if (!tracker->pop_random(rng, &o, &l, want_release - released)) {
-	  break;
-	}
-	release_set.insert(o, l);
-	released += l;
+        uint64_t o = 0;
+        uint32_t l = 0;
+        if (!tracker->pop_random(rng, &o, &l, want_release - released)) {
+          break;
+        }
+        release_set.insert(o, l);
+        released += l;
       } while (released < want_release);
 
       uint32_t want = alloc_unit << u1(rng);
@@ -346,33 +366,36 @@ struct OverwriteTextContext : public Thread {
       ae_count += tmp.size();
       a_time += mono_clock::now() - t0;
       if (r != want) {
-	std::cout << "Can't allocate more space, stopping." << std::endl;
-	break;
+        std::cout << "Can't allocate more space, stopping." << std::endl;
+        break;
       }
       i += r;
 
       for (auto a : tmp) {
-	bool full = !tracker->push(a.offset, a.length);
-	EXPECT_EQ(full, false);
+        bool full = !tracker->push(a.offset, a.length);
+        EXPECT_EQ(full, false);
       }
       {
-	auto t0 = mono_clock::now();
-	alloc->release(release_set);
-	r_count++;
-	r_time += mono_clock::now() - t0;
-	re_count += release_set.num_intervals();
+        auto t0 = mono_clock::now();
+        alloc->release(release_set);
+        r_count++;
+        r_time += mono_clock::now() - t0;
+        re_count += release_set.num_intervals();
       }
       if (0 == (i % (1 * 1024 * _1m))) {
-	std::cout << idx << ">> reuse " << i / 1024 / 1024 << " mb of "
-	  << how_many / 1024 / 1024 << std::endl;
+        std::cout << idx << ">> reuse " << i / 1024 / 1024 << " mb of "
+                  << how_many / 1024 / 1024 << std::endl;
       }
     }
     return nullptr;
   }
 };
 
-void AllocTest::doOverwriteTest(uint64_t capacity, uint64_t prefill,
-  uint64_t overwrite)
+void
+AllocTest::doOverwriteTest(
+    uint64_t capacity,
+    uint64_t prefill,
+    uint64_t overwrite)
 {
   uint64_t alloc_unit = 4096;
   PExtentVector allocated, tmp;
@@ -388,8 +411,7 @@ void AllocTest::doOverwriteTest(uint64_t capacity, uint64_t prefill,
   utime_t start = ceph_clock_now();
   // allocate 90% of the capacity
   auto cap = prefill;
-  for (uint64_t i = 0; i < cap; )
-  {
+  for (uint64_t i = 0; i < cap;) {
     uint32_t want = alloc_unit << u1(rng);
     tmp.clear();
     auto r = alloc->allocate(want, alloc_unit, 0, -1, &tmp);
@@ -398,14 +420,14 @@ void AllocTest::doOverwriteTest(uint64_t capacity, uint64_t prefill,
     }
     i += r;
 
-    for(auto a : tmp) {
+    for (auto a : tmp) {
 
       bool full = !at.push(a.offset, a.length);
       EXPECT_EQ(full, false);
     }
     if (0 == (i % (1 * 1024 * _1m))) {
-      std::cout << "alloc " << i / 1024 / 1024 << " mb of "
-        << cap / 1024 / 1024 << std::endl;
+      std::cout << "alloc " << i / 1024 / 1024 << " mb of " << cap / 1024 / 1024
+                << std::endl;
     }
   }
   std::cout << "Executed prefill in " << ceph_clock_now() - start << std::endl;
@@ -416,17 +438,20 @@ void AllocTest::doOverwriteTest(uint64_t capacity, uint64_t prefill,
   ctx.entry();
 
   std::cout << "Executed in " << ceph_clock_now() - start
-	    << " alloc:" << ctx.a_count << "/" << ctx.ae_count << " in " << ctx.a_time
-	    << " release:" << ctx.r_count << "/" << ctx.re_count << " in " << ctx.r_time
-	    << std::endl;
-  std::cout<<"Avail "<< alloc->get_free() / _1m << " MB" << std::endl;
+            << " alloc:" << ctx.a_count << "/" << ctx.ae_count << " in "
+            << ctx.a_time << " release:" << ctx.r_count << "/" << ctx.re_count
+            << " in " << ctx.r_time << std::endl;
+  std::cout << "Avail " << alloc->get_free() / _1m << " MB" << std::endl;
 
   dump_mempools();
 }
 
-void AllocTest::doOverwriteMPCTest(size_t thread_count,
-				   uint64_t capacity, uint64_t prefill,
-				   uint64_t overwrite)
+void
+AllocTest::doOverwriteMPCTest(
+    size_t thread_count,
+    uint64_t capacity,
+    uint64_t prefill,
+    uint64_t overwrite)
 {
   uint64_t alloc_unit = 4096;
   PExtentVector tmp;
@@ -440,7 +465,8 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
   ctx.resize(thread_count);
   for (size_t i = 0; i < thread_count; i++) {
     at[i] = new AllocTracker(capacity, alloc_unit);
-    ctx[i] = new OverwriteTextContext(i, at[i], alloc.get(), overwrite, alloc_unit);
+    ctx[i] =
+        new OverwriteTextContext(i, at[i], alloc.get(), overwrite, alloc_unit);
   }
 
   gen_type rng(time(NULL));
@@ -452,8 +478,7 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
   auto cap = prefill * (1 + extra);
 
   uint64_t idx = 0;
-  for (uint64_t i = 0; i < cap; )
-  {
+  for (uint64_t i = 0; i < cap;) {
     uint32_t want = alloc_unit << u1(rng);
     tmp.clear();
     auto r = alloc->allocate(want, alloc_unit, 0, 0, &tmp);
@@ -467,8 +492,8 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
       EXPECT_EQ(full, false);
     }
     if (0 == (i % (1 * 1024 * _1m))) {
-      std::cout << "alloc " << i / 1024 / 1024 << " mb of "
-	<< cap / 1024 / 1024 << std::endl;
+      std::cout << "alloc " << i / 1024 / 1024 << " mb of " << cap / 1024 / 1024
+                << std::endl;
     }
     idx = (idx + 1) % thread_count;
   }
@@ -476,8 +501,7 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
   // do release extra space to introduce some fragmentation
   cap = prefill * extra;
   idx = 0;
-  for (uint64_t i = 0; i < cap; )
-  {
+  for (uint64_t i = 0; i < cap;) {
     uint64_t want_release = alloc_unit << u1(rng);
     uint64_t released = 0;
     interval_set<uint64_t> release_set;
@@ -485,7 +509,7 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
       uint64_t o = 0;
       uint32_t l = 0;
       if (!at[idx]->pop_random(rng, &o, &l, want_release - released)) {
-	break;
+        break;
       }
       release_set.insert(o, l);
       released += l;
@@ -494,12 +518,12 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
     i += released;
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "release " << i / 1024 / 1024 << " mb of "
-	<< cap / 1024 / 1024 << std::endl;
+                << cap / 1024 / 1024 << std::endl;
     }
     idx = (idx + 1) % thread_count;
   }
   std::cout << "Executed prefill in " << ceph_clock_now() - start
-	    << " Fragmentation:" << alloc->get_fragmentation_score()
+            << " Fragmentation:" << alloc->get_fragmentation_score()
             << std::endl;
   ctx[0]->build_histogram();
 
@@ -511,16 +535,16 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
   for (size_t i = 0; i < thread_count; i++) {
     ctx.at(i)->join();
   }
-  std::cout << "Executed in " << ceph_clock_now() - start
-    << std::endl;
+  std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
   std::cout << "Avail " << alloc->get_free() / _1m << " MB"
             << " Fragmentation:" << alloc->get_fragmentation_score()
             << std::endl;
   for (size_t i = 0; i < thread_count; i++) {
     std::cout << "alloc/release stats for " << i
-      << " alloc:" << ctx.at(i)->a_count << "/" << ctx.at(i)->ae_count << " in " << ctx.at(i)->a_time
-      << " release:" << ctx.at(i)->r_count << "/" << ctx.at(i)->re_count << " in " << ctx.at(i)->r_time
-      << std::endl;
+              << " alloc:" << ctx.at(i)->a_count << "/" << ctx.at(i)->ae_count
+              << " in " << ctx.at(i)->a_time
+              << " release:" << ctx.at(i)->r_count << "/" << ctx.at(i)->re_count
+              << " in " << ctx.at(i)->r_time << std::endl;
   }
   ctx[0]->build_histogram();
   dump_mempools();
@@ -533,7 +557,10 @@ void AllocTest::doOverwriteMPCTest(size_t thread_count,
 struct OverwriteTextContext2 : public OverwriteTextContext {
 
   using OverwriteTextContext::OverwriteTextContext;
-  void* entry() override {
+
+  void*
+  entry() override
+  {
     PExtentVector allocated, tmp;
     gen_type rng(time(NULL));
     boost::uniform_int<> u1(1, 16); // alloc_unit * u1 => 4K-64K
@@ -542,19 +569,18 @@ struct OverwriteTextContext2 : public OverwriteTextContext {
     a_time = ceph::make_timespan(0);
     uint64_t processed = 0;
     auto t00 = ceph_clock_now();
-    for (uint64_t i = 0; i < how_many; )
-    {
+    for (uint64_t i = 0; i < how_many;) {
       int64_t want = alloc_unit * u1(rng);
       int64_t released = 0;
       interval_set<uint64_t> release_set;
       do {
-	uint64_t o = 0;
-	uint32_t l = 0;
-	if (!tracker->pop_random(rng, &o, &l, want - released)) {
-	  break;
-	}
-	release_set.insert(o, l);
-	released += l;
+        uint64_t o = 0;
+        uint32_t l = 0;
+        if (!tracker->pop_random(rng, &o, &l, want - released)) {
+          break;
+        }
+        release_set.insert(o, l);
+        released += l;
       } while (released < want);
       tmp.clear();
       auto t0 = mono_clock::now();
@@ -563,60 +589,62 @@ struct OverwriteTextContext2 : public OverwriteTextContext {
       ae_count += tmp.size();
       a_time += mono_clock::now() - t0;
       if (r != want) {
-	std::cout << "Can't allocate more space, stopping." << std::endl;
-	break;
+        std::cout << "Can't allocate more space, stopping." << std::endl;
+        break;
       }
       i += r;
 
       for (auto a : tmp) {
-	bool full = !tracker->push(a.offset, a.length);
-	EXPECT_EQ(full, false);
+        bool full = !tracker->push(a.offset, a.length);
+        EXPECT_EQ(full, false);
       }
       {
-	auto t0 = mono_clock::now();
-	alloc->release(release_set);
-	r_count++;
-	r_time += mono_clock::now() - t0;
-	re_count += release_set.num_intervals();
+        auto t0 = mono_clock::now();
+        alloc->release(release_set);
+        r_count++;
+        r_time += mono_clock::now() - t0;
+        re_count += release_set.num_intervals();
       }
       auto processed0 = processed;
       processed += want;
       auto _1g = 1024 * _1m;
       if (processed / _1g != processed0 / _1g) {
-	std::cout << idx << ">> reuse " << i / 1024 / 1024 << " mb of "
-	  << how_many / 1024 / 1024 << std::endl;
-
+        std::cout << idx << ">> reuse " << i / 1024 / 1024 << " mb of "
+                  << how_many / 1024 / 1024 << std::endl;
       }
       auto c = alloc->get_capacity();
       bool capacity_written = (processed / c) != (processed0 / c);
       if (capacity_written) {
-	std::cout << "> Single iteration writing completed in " << (ceph_clock_now() - t00)
-		  << " alloc/release stats for " << idx
-		  << " alloc:" << a_count << "/" << ae_count << " in " << a_time
-		  << " release:" << r_count << "/" << re_count << " in " << r_time
-		  << std::endl;
-	a_count = 0;
-	ae_count = 0;
-	r_count = 0;
-	re_count = 0;
-	r_time = ceph::make_timespan(0);
-	a_time = ceph::make_timespan(0);
-	if (idx == 0) {
-	  std::cout << " Fragmentation: " << alloc->get_fragmentation_score()
-		    << std::endl;
-	  build_histogram();
-	}
-	t00 = ceph_clock_now();
+        std::cout << "> Single iteration writing completed in "
+                  << (ceph_clock_now() - t00) << " alloc/release stats for "
+                  << idx << " alloc:" << a_count << "/" << ae_count << " in "
+                  << a_time << " release:" << r_count << "/" << re_count
+                  << " in " << r_time << std::endl;
+        a_count = 0;
+        ae_count = 0;
+        r_count = 0;
+        re_count = 0;
+        r_time = ceph::make_timespan(0);
+        a_time = ceph::make_timespan(0);
+        if (idx == 0) {
+          std::cout << " Fragmentation: " << alloc->get_fragmentation_score()
+                    << std::endl;
+          build_histogram();
+        }
+        t00 = ceph_clock_now();
       }
     }
     return nullptr;
   }
 };
 
-void AllocTest::doOverwriteMPC2Test(size_t thread_count,
-  uint64_t capacity, uint64_t prefill,
-  uint64_t overwrite,
-  float extra)
+void
+AllocTest::doOverwriteMPC2Test(
+    size_t thread_count,
+    uint64_t capacity,
+    uint64_t prefill,
+    uint64_t overwrite,
+    float extra)
 {
   uint64_t alloc_unit = 4096;
   PExtentVector tmp;
@@ -630,7 +658,8 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
   ctx.resize(thread_count);
   for (size_t i = 0; i < thread_count; i++) {
     at[i] = new AllocTracker(capacity, alloc_unit);
-    ctx[i] = new OverwriteTextContext2(i, at[i], alloc.get(), overwrite, alloc_unit);
+    ctx[i] =
+        new OverwriteTextContext2(i, at[i], alloc.get(), overwrite, alloc_unit);
   }
 
   gen_type rng(time(NULL));
@@ -642,8 +671,7 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
   float cap = prefill + capacity * extra;
 
   uint64_t idx = 0;
-  for (uint64_t i = 0; i < cap; )
-  {
+  for (uint64_t i = 0; i < cap;) {
     uint32_t want = alloc_unit << u1(rng);
     tmp.clear();
     auto r = alloc->allocate(want, alloc_unit, 0, 0, &tmp);
@@ -657,16 +685,15 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
       EXPECT_EQ(full, false);
     }
     if (0 == (i % (1 * 1024 * _1m))) {
-      std::cout << "alloc " << i / 1024 / 1024 << " mb of "
-	<< cap / 1024 / 1024 << std::endl;
+      std::cout << "alloc " << i / 1024 / 1024 << " mb of " << cap / 1024 / 1024
+                << std::endl;
     }
     idx = (idx + 1) % thread_count;
   }
   // do release extra space to introduce some fragmentation
   cap = capacity * extra;
   idx = 0;
-  for (uint64_t i = 0; i < (uint64_t)cap; )
-  {
+  for (uint64_t i = 0; i < (uint64_t)cap;) {
     uint64_t want_release = alloc_unit * u2(rng);
     uint64_t released = 0;
     interval_set<uint64_t> release_set;
@@ -674,7 +701,7 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
       uint64_t o = 0;
       uint32_t l = 0;
       if (!at[idx]->pop_random(rng, &o, &l, want_release - released)) {
-	break;
+        break;
       }
       release_set.insert(o, l);
       released += l;
@@ -683,14 +710,14 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
     i += released;
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "release " << i / 1024 / 1024 << " mb of "
-	<< cap / 1024 / 1024 << std::endl;
+                << cap / 1024 / 1024 << std::endl;
     }
     idx = (idx + 1) % thread_count;
   }
 
   std::cout << "Executed prefill in " << ceph_clock_now() - start
-    << " Fragmentation:" << alloc->get_fragmentation_score()
-    << std::endl;
+            << " Fragmentation:" << alloc->get_fragmentation_score()
+            << std::endl;
   ctx[0]->build_histogram();
 
   start = ceph_clock_now();
@@ -701,11 +728,10 @@ void AllocTest::doOverwriteMPC2Test(size_t thread_count,
   for (size_t i = 0; i < thread_count; i++) {
     ctx.at(i)->join();
   }
-  std::cout << "Executed in " << ceph_clock_now() - start
-    << std::endl;
+  std::cout << "Executed in " << ceph_clock_now() - start << std::endl;
   std::cout << "Avail " << alloc->get_free() / _1m << " MB"
-    << " Fragmentation:" << alloc->get_fragmentation_score()
-    << std::endl;
+            << " Fragmentation:" << alloc->get_fragmentation_score()
+            << std::endl;
   ctx[0]->build_histogram();
 
   dump_mempools();
@@ -824,8 +850,8 @@ TEST_P(AllocTest, mempoolAccounting)
 
   uint64_t alloc_size = 4 * 1024;
   uint64_t capacity = 512ll * 1024 * 1024 * 1024;
-  Allocator* alloc = Allocator::create(g_ceph_context, GetParam(),
-				       capacity, alloc_size);
+  Allocator* alloc =
+      Allocator::create(g_ceph_context, GetParam(), capacity, alloc_size);
   ASSERT_NE(alloc, nullptr);
   alloc->init_add_free(0, capacity);
 
@@ -846,12 +872,18 @@ TEST_P(AllocTest, mempoolAccounting)
     }
   }
 
-  delete(alloc);
+  delete (alloc);
   ASSERT_EQ(mempool::bluestore_alloc::allocated_bytes(), bytes);
   ASSERT_EQ(mempool::bluestore_alloc::allocated_items(), items);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-  Allocator,
-  AllocTest,
-  ::testing::Values("stupid", "bitmap", "avl", "hybrid", "btree", "hybrid_btree2"));
+    Allocator,
+    AllocTest,
+    ::testing::Values(
+        "stupid",
+        "bitmap",
+        "avl",
+        "hybrid",
+        "btree",
+        "hybrid_btree2"));

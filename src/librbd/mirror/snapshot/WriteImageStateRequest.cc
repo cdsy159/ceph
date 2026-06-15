@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/snapshot/WriteImageStateRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/mirror/snapshot/Utils.h"
@@ -12,8 +13,9 @@
 #define dout_subsys ceph_subsys_rbd
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::snapshot::WriteImageStateRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                      \
+  *_dout << "librbd::mirror::snapshot::WriteImageStateRequest: " << this \
+         << " " << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -21,7 +23,9 @@ namespace snapshot {
 
 namespace {
 
-static size_t header_length() {
+static size_t
+header_length()
+{
   bufferlist bl;
   ImageStateHeader header;
 
@@ -31,17 +35,23 @@ static size_t header_length() {
   return bl.length();
 }
 
-}
+} // namespace
+
 using librbd::util::create_rados_callback;
 
 template <typename I>
-WriteImageStateRequest<I>::WriteImageStateRequest(I *image_ctx,
-                                                  uint64_t snap_id,
-                                                  const ImageState &image_state,
-                                                  Context *on_finish)
-  : m_image_ctx(image_ctx), m_snap_id(snap_id), m_image_state(image_state),
-    m_on_finish(on_finish), m_object_size(
-      1 << image_ctx->config.template get_val<uint64_t>("rbd_default_order")) {
+WriteImageStateRequest<I>::WriteImageStateRequest(
+    I* image_ctx,
+    uint64_t snap_id,
+    const ImageState& image_state,
+    Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_snap_id(snap_id),
+  m_image_state(image_state),
+  m_on_finish(on_finish),
+  m_object_size(
+      1 << image_ctx->config.template get_val<uint64_t>("rbd_default_order"))
+{
   bufferlist bl;
   encode(m_image_state, bl);
 
@@ -53,19 +63,23 @@ WriteImageStateRequest<I>::WriteImageStateRequest(I *image_ctx,
 }
 
 template <typename I>
-void WriteImageStateRequest<I>::send() {
+void
+WriteImageStateRequest<I>::send()
+{
   write_object();
 }
 
 template <typename I>
-void WriteImageStateRequest<I>::write_object() {
-  CephContext *cct = m_image_ctx->cct;
+void
+WriteImageStateRequest<I>::write_object()
+{
+  CephContext* cct = m_image_ctx->cct;
   ceph_assert(m_object_count > 0);
 
   m_object_count--;
 
-  auto oid = util::image_state_object_name(m_image_ctx, m_snap_id,
-                                           m_object_count);
+  auto oid =
+      util::image_state_object_name(m_image_ctx, m_snap_id, m_object_count);
   ldout(cct, 15) << oid << dendl;
 
   size_t off = m_object_count * m_object_size;
@@ -76,22 +90,23 @@ void WriteImageStateRequest<I>::write_object() {
   librados::ObjectWriteOperation op;
   op.write_full(bl);
 
-  librados::AioCompletion *comp = create_rados_callback<
-    WriteImageStateRequest<I>,
-    &WriteImageStateRequest<I>::handle_write_object>(this);
+  librados::AioCompletion* comp = create_rados_callback<
+      WriteImageStateRequest<I>, &WriteImageStateRequest<I>::handle_write_object>(
+      this);
   int r = m_image_ctx->md_ctx.aio_operate(oid, comp, &op);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void WriteImageStateRequest<I>::handle_write_object(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+WriteImageStateRequest<I>::handle_write_object(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(cct) << "failed to write object: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to write object: " << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
@@ -105,8 +120,10 @@ void WriteImageStateRequest<I>::handle_write_object(int r) {
 }
 
 template <typename I>
-void WriteImageStateRequest<I>::finish(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+WriteImageStateRequest<I>::finish(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

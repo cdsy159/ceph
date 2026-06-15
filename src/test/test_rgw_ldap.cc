@@ -14,18 +14,20 @@
  */
 
 #include <stdint.h>
-#include <tuple>
+
 #include <iostream>
-#include <vector>
 #include <map>
 #include <random>
+#include <tuple>
+#include <vector>
+
+#include "common/debug.h"
+
+#include "common/ceph_argparse.h"
+#include "gtest/gtest.h"
 
 #include "rgw_ldap.h"
 #include "rgw_token.h"
-
-#include "gtest/gtest.h"
-#include "common/ceph_argparse.h"
-#include "common/debug.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -33,39 +35,53 @@ using namespace std;
 
 namespace {
 
-  struct {
-    int argc;
-    char **argv;
-  } saved_args;
+struct {
+  int argc;
+  char** argv;
+} saved_args;
 
-  bool do_hexdump = false;
+bool do_hexdump = false;
 
-  string access_key("ewogICAgIlJHV19UT0tFTiI6IHsKICAgICAgICAidmVyc2lvbiI6IDEsCiAgICAgICAgInR5cGUiOiAibGRhcCIsCiAgICAgICAgImlkIjogImFkbWluIiwKICAgICAgICAia2V5IjogImxpbnV4Ym94IgogICAgfQp9Cg=="); // {admin,linuxbox}
-  string other_key("ewogICAgIlJHV19UT0tFTiI6IHsKICAgICAgICAidmVyc2lvbiI6IDEsCiAgICAgICAgInR5cGUiOiAibGRhcCIsCiAgICAgICAgImlkIjogImFkbWluIiwKICAgICAgICAia2V5IjogImJhZHBhc3MiCiAgICB9Cn0K"); // {admin,badpass}
+string access_key(
+    "ewogICAgIlJHV19UT0tFTiI6IHsKICAgICAgICAidmVyc2lvbiI6IDEsCiAgICAgICAgInR5cG"
+    "UiOiAibGRhcCIsCiAgICAgICAgImlkIjogImFkbWluIiwKICAgICAgICAia2V5IjogImxpbnV4"
+    "Ym94IgogICAgfQp9Cg=="); // {admin,linuxbox}
+string other_key(
+    "ewogICAgIlJHV19UT0tFTiI6IHsKICAgICAgICAidmVyc2lvbiI6IDEsCiAgICAgICAgInR5cG"
+    "UiOiAibGRhcCIsCiAgICAgICAgImlkIjogImFkbWluIiwKICAgICAgICAia2V5IjogImJhZHBh"
+    "c3MiCiAgICB9Cn0K"); // {admin,badpass}
 
-  string ldap_uri = "ldaps://f23-kdc.rgw.com";
-  string ldap_binddn = "uid=admin,cn=users,cn=accounts,dc=rgw,dc=com";
-  string ldap_bindpw = "supersecret";
-  string ldap_searchdn = "cn=users,cn=accounts,dc=rgw,dc=com";
-  string ldap_searchfilter = "";
-  string ldap_dnattr = "uid";
+string ldap_uri = "ldaps://f23-kdc.rgw.com";
+string ldap_binddn = "uid=admin,cn=users,cn=accounts,dc=rgw,dc=com";
+string ldap_bindpw = "supersecret";
+string ldap_searchdn = "cn=users,cn=accounts,dc=rgw,dc=com";
+string ldap_searchfilter = "";
+string ldap_dnattr = "uid";
 
-  rgw::LDAPHelper ldh(ldap_uri, ldap_binddn, ldap_bindpw, ldap_searchdn,
-		      ldap_searchfilter, ldap_dnattr);
+rgw::LDAPHelper ldh(
+    ldap_uri,
+    ldap_binddn,
+    ldap_bindpw,
+    ldap_searchdn,
+    ldap_searchfilter,
+    ldap_dnattr);
 
 } /* namespace */
 
-TEST(RGW_LDAP, INIT) {
+TEST(RGW_LDAP, INIT)
+{
   int ret = ldh.init();
   ASSERT_EQ(ret, 0);
 }
 
-TEST(RGW_LDAP, BIND) {
+TEST(RGW_LDAP, BIND)
+{
   int ret = ldh.bind();
   ASSERT_EQ(ret, 0);
 }
 
-TEST(RGW_LDAP, AUTH) {
+TEST(RGW_LDAP, AUTH)
+{
   using std::get;
   using namespace rgw;
   int ret = 0;
@@ -81,22 +97,22 @@ TEST(RGW_LDAP, AUTH) {
   }
 }
 
-TEST(RGW_LDAP, SHUTDOWN) {
+TEST(RGW_LDAP, SHUTDOWN)
+{
   // nothing
 }
 
-int main(int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
   auto args = argv_to_vec(argc, argv);
   env_to_vec(args);
 
   string val;
   for (auto arg_iter = args.begin(); arg_iter != args.end();) {
-    if (ceph_argparse_witharg(args, arg_iter, &val, "--access",
-			      (char*) nullptr)) {
+    if (ceph_argparse_witharg(args, arg_iter, &val, "--access", (char*)nullptr)) {
       access_key = val;
-    } else if (ceph_argparse_flag(args, arg_iter, "--hexdump",
-					    (char*) nullptr)) {
+    } else if (ceph_argparse_flag(args, arg_iter, "--hexdump", (char*)nullptr)) {
       do_hexdump = true;
     } else {
       ++arg_iter;

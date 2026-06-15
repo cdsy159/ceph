@@ -2,18 +2,22 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "rbd_replay/ActionTypes.h"
-#include "include/ceph_assert.h"
-#include "include/byteorder.h"
-#include "include/stringify.h"
-#include "common/Formatter.h"
+
 #include <iostream>
+
+#include "common/Formatter.h"
+#include "include/byteorder.h"
+#include "include/ceph_assert.h"
+#include "include/stringify.h"
 
 namespace rbd_replay {
 namespace action {
 
 namespace {
 
-bool byte_swap_required(__u8 version) {
+bool
+byte_swap_required(__u8 version)
+{
 #if defined(CEPH_LITTLE_ENDIAN)
   return (version == 0);
 #else
@@ -21,7 +25,9 @@ bool byte_swap_required(__u8 version) {
 #endif
 }
 
-void decode_big_endian_string(std::string &str, bufferlist::const_iterator &it) {
+void
+decode_big_endian_string(std::string& str, bufferlist::const_iterator& it)
+{
   using ceph::decode;
 #if defined(CEPH_LITTLE_ENDIAN)
   uint32_t length;
@@ -36,61 +42,79 @@ void decode_big_endian_string(std::string &str, bufferlist::const_iterator &it) 
 
 class EncodeVisitor {
 public:
-  explicit EncodeVisitor(bufferlist &bl) : m_bl(bl) {
-  }
+  explicit EncodeVisitor(bufferlist& bl) :
+    m_bl(bl)
+  {}
 
   template <typename Action>
-  inline void operator()(const Action &action) const {
+  inline void
+  operator()(const Action& action) const
+  {
     using ceph::encode;
     encode(static_cast<uint8_t>(Action::ACTION_TYPE), m_bl);
     action.encode(m_bl);
   }
+
 private:
-  bufferlist &m_bl;
+  bufferlist& m_bl;
 };
 
 class DecodeVisitor {
 public:
-  DecodeVisitor(__u8 version, bufferlist::const_iterator &iter)
-    : m_version(version), m_iter(iter) {
-  }
+  DecodeVisitor(__u8 version, bufferlist::const_iterator& iter) :
+    m_version(version), m_iter(iter)
+  {}
 
   template <typename Action>
-  inline void operator()(Action &action) const {
+  inline void
+  operator()(Action& action) const
+  {
     action.decode(m_version, m_iter);
   }
+
 private:
   __u8 m_version;
-  bufferlist::const_iterator &m_iter;
+  bufferlist::const_iterator& m_iter;
 };
 
 class DumpVisitor {
 public:
-  explicit DumpVisitor(Formatter *formatter) : m_formatter(formatter) {}
+  explicit DumpVisitor(Formatter* formatter) :
+    m_formatter(formatter)
+  {}
 
   template <typename Action>
-  inline void operator()(const Action &action) const {
+  inline void
+  operator()(const Action& action) const
+  {
     ActionType action_type = Action::ACTION_TYPE;
     m_formatter->dump_string("action_type", stringify(action_type));
     action.dump(m_formatter);
   }
+
 private:
-  ceph::Formatter *m_formatter;
+  ceph::Formatter* m_formatter;
 };
 
 } // anonymous namespace
 
-void Dependency::encode(bufferlist &bl) const {
+void
+Dependency::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(id, bl);
   encode(time_delta, bl);
 }
 
-void Dependency::decode(bufferlist::const_iterator &it) {
+void
+Dependency::decode(bufferlist::const_iterator& it)
+{
   decode(1, it);
 }
 
-void Dependency::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+Dependency::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(id, it);
   decode(time_delta, it);
@@ -100,26 +124,34 @@ void Dependency::decode(__u8 version, bufferlist::const_iterator &it) {
   }
 }
 
-void Dependency::dump(Formatter *f) const {
+void
+Dependency::dump(Formatter* f) const
+{
   f->dump_unsigned("id", id);
   f->dump_unsigned("time_delta", time_delta);
 }
 
-std::list<Dependency> Dependency::generate_test_instances() {
+std::list<Dependency>
+Dependency::generate_test_instances()
+{
   std::list<Dependency> o;
   o.push_back(Dependency());
   o.push_back(Dependency(1, 123456789));
   return o;
 }
 
-void ActionBase::encode(bufferlist &bl) const {
+void
+ActionBase::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(id, bl);
   encode(thread_id, bl);
   encode(dependencies, bl);
 }
 
-void ActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+ActionBase::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(id, it);
   decode(thread_id, it);
@@ -147,7 +179,9 @@ void ActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
   }
 }
 
-void ActionBase::dump(Formatter *f) const {
+void
+ActionBase::dump(Formatter* f) const
+{
   f->dump_unsigned("id", id);
   f->dump_unsigned("thread_id", thread_id);
   f->open_array_section("dependencies");
@@ -159,13 +193,17 @@ void ActionBase::dump(Formatter *f) const {
   f->close_section();
 }
 
-void ImageActionBase::encode(bufferlist &bl) const {
+void
+ImageActionBase::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ActionBase::encode(bl);
   encode(imagectx_id, bl);
 }
 
-void ImageActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+ImageActionBase::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   ActionBase::decode(version, it);
   decode(imagectx_id, it);
@@ -174,19 +212,25 @@ void ImageActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
   }
 }
 
-void ImageActionBase::dump(Formatter *f) const {
+void
+ImageActionBase::dump(Formatter* f) const
+{
   ActionBase::dump(f);
   f->dump_unsigned("imagectx_id", imagectx_id);
 }
 
-void IoActionBase::encode(bufferlist &bl) const {
+void
+IoActionBase::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ImageActionBase::encode(bl);
   encode(offset, bl);
   encode(length, bl);
 }
 
-void IoActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+IoActionBase::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   ImageActionBase::decode(version, it);
   decode(offset, it);
@@ -197,13 +241,17 @@ void IoActionBase::decode(__u8 version, bufferlist::const_iterator &it) {
   }
 }
 
-void IoActionBase::dump(Formatter *f) const {
+void
+IoActionBase::dump(Formatter* f) const
+{
   ImageActionBase::dump(f);
   f->dump_unsigned("offset", offset);
   f->dump_unsigned("length", length);
 }
 
-void OpenImageAction::encode(bufferlist &bl) const {
+void
+OpenImageAction::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ImageActionBase::encode(bl);
   encode(name, bl);
@@ -211,7 +259,9 @@ void OpenImageAction::encode(bufferlist &bl) const {
   encode(read_only, bl);
 }
 
-void OpenImageAction::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+OpenImageAction::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   ImageActionBase::decode(version, it);
   if (byte_swap_required(version)) {
@@ -224,14 +274,18 @@ void OpenImageAction::decode(__u8 version, bufferlist::const_iterator &it) {
   decode(read_only, it);
 }
 
-void OpenImageAction::dump(Formatter *f) const {
+void
+OpenImageAction::dump(Formatter* f) const
+{
   ImageActionBase::dump(f);
   f->dump_string("name", name);
   f->dump_string("snap_name", snap_name);
   f->dump_bool("read_only", read_only);
 }
 
-void AioOpenImageAction::encode(bufferlist &bl) const {
+void
+AioOpenImageAction::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ImageActionBase::encode(bl);
   encode(name, bl);
@@ -239,7 +293,9 @@ void AioOpenImageAction::encode(bufferlist &bl) const {
   encode(read_only, bl);
 }
 
-void AioOpenImageAction::decode(__u8 version, bufferlist::const_iterator &it) {
+void
+AioOpenImageAction::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   ImageActionBase::decode(version, it);
   if (byte_swap_required(version)) {
@@ -252,40 +308,54 @@ void AioOpenImageAction::decode(__u8 version, bufferlist::const_iterator &it) {
   decode(read_only, it);
 }
 
-void AioOpenImageAction::dump(Formatter *f) const {
+void
+AioOpenImageAction::dump(Formatter* f) const
+{
   ImageActionBase::dump(f);
   f->dump_string("name", name);
   f->dump_string("snap_name", snap_name);
   f->dump_bool("read_only", read_only);
 }
 
-void UnknownAction::encode(bufferlist &bl) const {
+void
+UnknownAction::encode(bufferlist& bl) const
+{
   ceph_abort();
 }
 
-void UnknownAction::decode(__u8 version, bufferlist::const_iterator &it) {
-}
+void
+UnknownAction::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void UnknownAction::dump(Formatter *f) const {
-}
+void
+UnknownAction::dump(Formatter* f) const
+{}
 
-void ActionEntry::encode(bufferlist &bl) const {
+void
+ActionEntry::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   std::visit(EncodeVisitor(bl), action);
   ENCODE_FINISH(bl);
 }
 
-void ActionEntry::decode(bufferlist::const_iterator &it) {
+void
+ActionEntry::decode(bufferlist::const_iterator& it)
+{
   DECODE_START(1, it);
   decode_versioned(struct_v, it);
   DECODE_FINISH(it);
 }
 
-void ActionEntry::decode_unversioned(bufferlist::const_iterator &it) {
+void
+ActionEntry::decode_unversioned(bufferlist::const_iterator& it)
+{
   decode_versioned(0, it);
 }
 
-void ActionEntry::decode_versioned(__u8 version, bufferlist::const_iterator &it) {
+void
+ActionEntry::decode_versioned(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   uint8_t action_type;
   decode(action_type, it);
@@ -333,11 +403,15 @@ void ActionEntry::decode_versioned(__u8 version, bufferlist::const_iterator &it)
   std::visit(DecodeVisitor(version, it), action);
 }
 
-void ActionEntry::dump(Formatter *f) const {
+void
+ActionEntry::dump(Formatter* f) const
+{
   std::visit(DumpVisitor(f), action);
 }
 
-std::list<ActionEntry>  ActionEntry::generate_test_instances() {
+std::list<ActionEntry>
+ActionEntry::generate_test_instances()
+{
   std::list<ActionEntry> o;
 
   Dependencies dependencies;
@@ -352,40 +426,35 @@ std::list<ActionEntry>  ActionEntry::generate_test_instances() {
   o.push_back(ActionEntry(ReadAction()));
   o.push_back(ActionEntry(ReadAction(1, 123456789, dependencies, 3, 4, 5)));
   o.push_back(ActionEntry(WriteAction()));
-  o.push_back(ActionEntry(WriteAction(1, 123456789, dependencies, 3, 4,
-                                      5)));
+  o.push_back(ActionEntry(WriteAction(1, 123456789, dependencies, 3, 4, 5)));
   o.push_back(ActionEntry(DiscardAction()));
-  o.push_back(ActionEntry(DiscardAction(1, 123456789, dependencies, 3, 4,
-                                            5)));
+  o.push_back(ActionEntry(DiscardAction(1, 123456789, dependencies, 3, 4, 5)));
   o.push_back(ActionEntry(AioReadAction()));
-  o.push_back(ActionEntry(AioReadAction(1, 123456789, dependencies, 3, 4,
-                                        5)));
+  o.push_back(ActionEntry(AioReadAction(1, 123456789, dependencies, 3, 4, 5)));
   o.push_back(ActionEntry(AioWriteAction()));
-  o.push_back(ActionEntry(AioWriteAction(1, 123456789, dependencies, 3, 4,
-                                         5)));
+  o.push_back(ActionEntry(AioWriteAction(1, 123456789, dependencies, 3, 4, 5)));
   o.push_back(ActionEntry(AioDiscardAction()));
-  o.push_back(ActionEntry(AioDiscardAction(1, 123456789, dependencies, 3, 4,
-                                           5)));
+  o.push_back(
+      ActionEntry(AioDiscardAction(1, 123456789, dependencies, 3, 4, 5)));
 
   o.push_back(ActionEntry(OpenImageAction()));
-  o.push_back(ActionEntry(OpenImageAction(1, 123456789, dependencies, 3,
-                                          "image_name", "snap_name",
-                                          true)));
+  o.push_back(ActionEntry(OpenImageAction(
+      1, 123456789, dependencies, 3, "image_name", "snap_name", true)));
   o.push_back(ActionEntry(CloseImageAction()));
   o.push_back(ActionEntry(CloseImageAction(1, 123456789, dependencies, 3)));
 
   o.push_back(ActionEntry(AioOpenImageAction()));
-  o.push_back(ActionEntry(AioOpenImageAction(1, 123456789, dependencies, 3,
-					     "image_name", "snap_name",
-					     true)));
+  o.push_back(ActionEntry(AioOpenImageAction(
+      1, 123456789, dependencies, 3, "image_name", "snap_name", true)));
   o.push_back(ActionEntry(AioCloseImageAction()));
   o.push_back(ActionEntry(AioCloseImageAction(1, 123456789, dependencies, 3)));
 
   return o;
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const ActionType &type) {
+std::ostream&
+operator<<(std::ostream& out, const ActionType& type)
+{
   using namespace rbd_replay::action;
 
   switch (type) {

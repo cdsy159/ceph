@@ -14,12 +14,13 @@
 
 #pragma once
 
-#include "types.h"
-
 #include "common/Formatter.h"
 
-template<template<typename> class Allocator>
-void inode_t<Allocator>::dump(ceph::Formatter *f) const
+#include "types.h"
+
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("ino", ino);
   f->dump_unsigned("rdev", rdev);
@@ -37,7 +38,7 @@ void inode_t<Allocator>::dump(ceph::Formatter *f) const
   f->dump_object("layout", layout);
 
   f->open_array_section("old_pools");
-  for (const auto &p : old_pools) {
+  for (const auto& p : old_pools) {
     f->dump_int("pool", p);
   }
   f->close_section();
@@ -53,11 +54,12 @@ void inode_t<Allocator>::dump(ceph::Formatter *f) const
   f->dump_unsigned("change_attr", change_attr);
   f->dump_int("export_pin", export_pin);
   f->dump_float("export_ephemeral_random_pin", export_ephemeral_random_pin);
-  f->dump_bool("export_ephemeral_distributed_pin", get_ephemeral_distributed_pin());
+  f->dump_bool(
+      "export_ephemeral_distributed_pin", get_ephemeral_distributed_pin());
   f->dump_bool("quiesce_block", get_quiesce_block());
 
   f->open_array_section("client_ranges");
-  for (const auto &p : client_ranges) {
+  for (const auto& p : client_ranges) {
     f->open_object_section("client");
     f->dump_unsigned("client", p.first.v);
     p.second.dump(f);
@@ -97,33 +99,43 @@ void inode_t<Allocator>::dump(ceph::Formatter *f) const
   f->dump_unsigned("last_scrub_version", last_scrub_version);
 }
 
-inline void vinodeno_t::dump(ceph::Formatter *f) const {
+inline void
+vinodeno_t::dump(ceph::Formatter* f) const
+{
   f->dump_unsigned("ino", ino);
   f->dump_unsigned("snapid", snapid);
 }
 
-template<template<typename> class Allocator>
-void charmap_md_t<Allocator>::dump(ceph::Formatter* f) const {
+template <template <typename> class Allocator>
+void
+charmap_md_t<Allocator>::dump(ceph::Formatter* f) const
+{
   f->dump_bool("casesensitive", casesensitive);
   f->dump_string("normalization", normalization);
   f->dump_string("encoding", encoding);
 }
 
-template<template<typename> class Allocator>
-void unknown_md_t<Allocator>::dump(ceph::Formatter* f) const {
+template <template <typename> class Allocator>
+void
+unknown_md_t<Allocator>::dump(ceph::Formatter* f) const
+{
   f->dump_bool("length", payload.size());
 }
 
-template<typename M, template<typename> class Allocator>
-void optmetadata_singleton<M, Allocator>::dump(ceph::Formatter* f) const {
+template <typename M, template <typename> class Allocator>
+void
+optmetadata_singleton<M, Allocator>::dump(ceph::Formatter* f) const
+{
   f->dump_int("kind", u64kind);
   f->open_object_section("metadata");
   std::visit([f](auto& o) { o.dump(f); }, optmetadata);
   f->close_section();
 }
 
-template<typename Singleton, template<typename> class Allocator>
-void optmetadata_multiton<Singleton, Allocator>::dump(ceph::Formatter* f) const {
+template <typename Singleton, template <typename> class Allocator>
+void
+optmetadata_multiton<Singleton, Allocator>::dump(ceph::Formatter* f) const
+{
   f->dump_bool("length", opts.size());
   f->open_array_section("opts");
   for (auto& opt : opts) {

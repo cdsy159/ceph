@@ -32,12 +32,10 @@ TEST(TestRGWObjectCtx, create_and_destroy_many)
   // and exercise its methods on random objects in random order
   for (int t = 0; t < num_concurrent_requests; ++t) {
     threads.emplace_back([&, t]() {
-      std::mt19937_64 rng{
-        static_cast<std::mt19937_64::result_type>(
-          std::chrono::steady_clock::now().time_since_epoch().count() + t
-        )
-      };
-      std::uniform_int_distribution<int> obj_dist(0, num_concurrent_requests - 1);
+      std::mt19937_64 rng{static_cast<std::mt19937_64::result_type>(
+          std::chrono::steady_clock::now().time_since_epoch().count() + t)};
+      std::uniform_int_distribution<int> obj_dist(
+          0, num_concurrent_requests - 1);
       std::uniform_int_distribution<int> coin(0, 1);
 
       while (!stop.load(std::memory_order_relaxed)) {
@@ -62,7 +60,7 @@ TEST(TestRGWObjectCtx, create_and_destroy_many)
           ctx.invalidate(o);
         }
         if (coin(rng)) {
-          (void) ctx.get_driver();
+          (void)ctx.get_driver();
         }
       }
     });
@@ -71,5 +69,6 @@ TEST(TestRGWObjectCtx, create_and_destroy_many)
   // Let the threads run for some time
   std::this_thread::sleep_for(std::chrono::seconds(test_duration_secs));
   stop.store(true);
-  for (auto& th : threads) th.join();
+  for (auto& th : threads)
+    th.join();
 }

@@ -20,24 +20,25 @@
 #include <string>
 #include <vector>
 
-#include "msg/msg_types.h"
+#include "common/Clock.h"
+#include "common/ceph_releases.h"
+#include "common/options.h"
+#include "common/version.h"
 #include "include/encoding.h"
 #include "include/types.h" // for epoch_t
 #include "include/utime.h"
-#include "common/ceph_releases.h"
-#include "common/version.h"
-#include "common/options.h"
-#include "common/Clock.h"
+#include "msg/msg_types.h"
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
-class MgrMap
-{
+class MgrMap {
 public:
   struct ModuleOption {
     std::string name;
-    uint8_t type = Option::TYPE_STR;         // Option::type_t TYPE_*
-    uint8_t level = Option::LEVEL_ADVANCED;  // Option::level_t LEVEL_*
+    uint8_t type = Option::TYPE_STR; // Option::type_t TYPE_*
+    uint8_t level = Option::LEVEL_ADVANCED; // Option::level_t LEVEL_*
     uint32_t flags = 0; // Option::flag_t FLAG_*
     std::string default_value;
     std::string min, max;
@@ -48,60 +49,60 @@ public:
 
     void encode(ceph::buffer::list& bl) const;
     void decode(ceph::buffer::list::const_iterator& p);
-    void dump(ceph::Formatter *f) const;
+    void dump(ceph::Formatter* f) const;
     static std::list<ModuleOption> generate_test_instances();
   };
 
-  class ModuleInfo
-  {
-    public:
+  class ModuleInfo {
+  public:
     std::string name;
     bool can_run = true;
     std::string error_string;
-    std::map<std::string,ModuleOption> module_options;
+    std::map<std::string, ModuleOption> module_options;
 
-    void encode(ceph::buffer::list &bl) const;
-    void decode(ceph::buffer::list::const_iterator &bl);
+    void encode(ceph::buffer::list& bl) const;
+    void decode(ceph::buffer::list::const_iterator& bl);
 
-    bool operator==(const ModuleInfo &rhs) const
+    bool
+    operator==(const ModuleInfo& rhs) const
     {
       return (name == rhs.name) && (can_run == rhs.can_run);
     }
 
-    void dump(ceph::Formatter *f) const ;
+    void dump(ceph::Formatter* f) const;
     static std::list<ModuleInfo> generate_test_instances();
   };
 
-  class StandbyInfo
-  {
+  class StandbyInfo {
   public:
     uint64_t gid = 0;
     std::string name;
     std::vector<ModuleInfo> available_modules;
     uint64_t mgr_features = 0;
 
-    StandbyInfo(uint64_t gid_, const std::string &name_,
-                const std::vector<ModuleInfo>& am,
-		uint64_t feat)
-      : gid(gid_), name(name_), available_modules(am),
-	mgr_features(feat)
+    StandbyInfo(
+        uint64_t gid_,
+        const std::string& name_,
+        const std::vector<ModuleInfo>& am,
+        uint64_t feat) :
+      gid(gid_), name(name_), available_modules(am), mgr_features(feat)
     {}
 
     StandbyInfo() {}
 
     void encode(ceph::buffer::list& bl) const;
     void decode(ceph::buffer::list::const_iterator& p);
-    void dump(ceph::Formatter *f) const;
+    void dump(ceph::Formatter* f) const;
     static std::list<StandbyInfo> generate_test_instances();
 
-    bool have_module(const std::string &module_name) const;
+    bool have_module(const std::string& module_name) const;
   };
 
   epoch_t epoch = 0;
   epoch_t last_failure_osd_epoch = 0;
 
 
-  static const uint64_t FLAG_DOWN = (1<<0);
+  static const uint64_t FLAG_DOWN = (1 << 0);
   uint64_t flags = 0;
 
   /// global_id of the ceph-mgr instance selected as a leader
@@ -144,28 +145,70 @@ public:
 
   static MgrMap create_null_mgrmap();
 
-  epoch_t get_epoch() const { return epoch; }
-  epoch_t get_last_failure_osd_epoch() const { return last_failure_osd_epoch; }
-  const entity_addrvec_t& get_active_addrs() const { return active_addrs; }
-  uint64_t get_active_gid() const { return active_gid; }
-  bool get_available() const { return available; }
-  const std::string &get_active_name() const { return active_name; }
-  const utime_t& get_active_change() const { return active_change; }
-  int get_num_standby() const { return standbys.size(); }
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
+
+  epoch_t
+  get_last_failure_osd_epoch() const
+  {
+    return last_failure_osd_epoch;
+  }
+
+  const entity_addrvec_t&
+  get_active_addrs() const
+  {
+    return active_addrs;
+  }
+
+  uint64_t
+  get_active_gid() const
+  {
+    return active_gid;
+  }
+
+  bool
+  get_available() const
+  {
+    return available;
+  }
+
+  const std::string&
+  get_active_name() const
+  {
+    return active_name;
+  }
+
+  const utime_t&
+  get_active_change() const
+  {
+    return active_change;
+  }
+
+  int
+  get_num_standby() const
+  {
+    return standbys.size();
+  }
 
   bool all_support_module(const std::string& module);
 
-  bool have_module(const std::string &module_name) const;
-  const ModuleInfo *get_module_info(const std::string &module_name) const;
+  bool have_module(const std::string& module_name) const;
+  const ModuleInfo* get_module_info(const std::string& module_name) const;
 
-  bool can_run_module(const std::string &module_name, std::string *error) const;
+  bool can_run_module(const std::string& module_name, std::string* error) const;
 
-  bool module_enabled(const std::string& module_name) const
+  bool
+  module_enabled(const std::string& module_name) const
   {
     return modules.find(module_name) != modules.end();
   }
 
-  bool any_supports_module(const std::string& module) const {
+  bool
+  any_supports_module(const std::string& module) const
+  {
     if (have_module(module)) {
       return true;
     }
@@ -177,13 +220,15 @@ public:
     return false;
   }
 
-  bool have_name(const std::string& name) const {
+  bool
+  have_name(const std::string& name) const
+  {
     if (active_name == name) {
       return true;
     }
     for (auto& p : standbys) {
       if (p.second.name == name) {
-	return true;
+        return true;
       }
     }
     return false;
@@ -195,13 +240,15 @@ public:
   void encode(ceph::buffer::list& bl, uint64_t features) const;
   void decode(ceph::buffer::list::const_iterator& p);
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
 
   static std::list<MgrMap> generate_test_instances();
-  void print_summary(ceph::Formatter *f, std::ostream *ss) const;
+  void print_summary(ceph::Formatter* f, std::ostream* ss) const;
 
   friend std::ostream& operator<<(std::ostream& out, const MgrMap& m);
-  friend std::ostream& operator<<(std::ostream& out, const std::vector<ModuleInfo>& mi);
+  friend std::ostream& operator<<(
+      std::ostream& out,
+      const std::vector<ModuleInfo>& mi);
 };
 
 WRITE_CLASS_ENCODER_FEATURES(MgrMap)
@@ -210,4 +257,3 @@ WRITE_CLASS_ENCODER(MgrMap::ModuleInfo);
 WRITE_CLASS_ENCODER(MgrMap::ModuleOption);
 
 #endif
-

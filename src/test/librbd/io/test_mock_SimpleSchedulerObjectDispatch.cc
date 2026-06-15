@@ -1,22 +1,23 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
-#include "test/librbd/mock/MockSafeTimer.h"
-#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
-#include "test/librados_test_stub/MockTestMemRadosClient.h"
 #include "include/rbd/librbd.hpp"
 #include "librbd/io/ObjectDispatchSpec.h"
 #include "librbd/io/SimpleSchedulerObjectDispatch.h"
+#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
+#include "test/librados_test_stub/MockTestMemRadosClient.h"
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/mock/MockSafeTimer.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -30,21 +31,23 @@ struct TypeTraits<MockTestImageCtx> {
 
 template <>
 struct FlushTracker<MockTestImageCtx> {
-  FlushTracker(MockTestImageCtx*) {
-  }
+  FlushTracker(MockTestImageCtx*) {}
 
-  void shut_down() {
-  }
+  void
+  shut_down()
+  {}
 
-  void flush(Context*) {
-  }
+  void
+  flush(Context*)
+  {}
 
-  void start_io(uint64_t) {
-  }
+  void
+  start_io(uint64_t)
+  {}
 
-  void finish_io(uint64_t) {
-  }
-
+  void
+  finish_io(uint64_t)
+  {}
 };
 
 } // namespace io
@@ -61,52 +64,64 @@ using ::testing::Invoke;
 using ::testing::Return;
 
 struct TestMockIoSimpleSchedulerObjectDispatch : public TestMockFixture {
-  typedef SimpleSchedulerObjectDispatch<librbd::MockTestImageCtx> MockSimpleSchedulerObjectDispatch;
+  typedef SimpleSchedulerObjectDispatch<librbd::MockTestImageCtx>
+      MockSimpleSchedulerObjectDispatch;
 
   MockSafeTimer m_mock_timer;
   ceph::mutex m_mock_timer_lock =
-    ceph::make_mutex("TestMockIoSimpleSchedulerObjectDispatch::Mutex");
+      ceph::make_mutex("TestMockIoSimpleSchedulerObjectDispatch::Mutex");
 
-  TestMockIoSimpleSchedulerObjectDispatch() {
+  TestMockIoSimpleSchedulerObjectDispatch()
+  {
     MockTestImageCtx::set_timer_instance(&m_mock_timer, &m_mock_timer_lock);
     EXPECT_EQ(0, _rados.conf_set("rbd_io_scheduler_simple_max_delay", "1"));
   }
 
-  void expect_get_object_name(MockTestImageCtx &mock_image_ctx,
-                              uint64_t object_no) {
+  void
+  expect_get_object_name(MockTestImageCtx& mock_image_ctx, uint64_t object_no)
+  {
     EXPECT_CALL(mock_image_ctx, get_object_name(object_no))
-      .WillRepeatedly(Return(
-          mock_image_ctx.image_ctx->get_object_name(object_no)));
+        .WillRepeatedly(
+            Return(mock_image_ctx.image_ctx->get_object_name(object_no)));
   }
 
-  void expect_dispatch_delayed_requests(MockTestImageCtx &mock_image_ctx,
-                                        int r) {
+  void
+  expect_dispatch_delayed_requests(MockTestImageCtx& mock_image_ctx, int r)
+  {
     EXPECT_CALL(*mock_image_ctx.io_object_dispatcher, send(_))
-      .WillOnce(Invoke([&mock_image_ctx, r](ObjectDispatchSpec* spec) {
-                  spec->dispatch_result = io::DISPATCH_RESULT_COMPLETE;
-                  mock_image_ctx.image_ctx->op_work_queue->queue(
-                      &spec->dispatcher_ctx, r);
-                }));
+        .WillOnce(Invoke([&mock_image_ctx, r](ObjectDispatchSpec* spec) {
+          spec->dispatch_result = io::DISPATCH_RESULT_COMPLETE;
+          mock_image_ctx.image_ctx->op_work_queue->queue(
+              &spec->dispatcher_ctx, r);
+        }));
   }
 
-  void expect_cancel_timer_task(Context *timer_task) {
-      EXPECT_CALL(m_mock_timer, cancel_event(timer_task))
-        .WillOnce(Invoke([](Context *timer_task) {
-                    delete timer_task;
-                    return true;
-                  }));
+  void
+  expect_cancel_timer_task(Context* timer_task)
+  {
+    EXPECT_CALL(m_mock_timer, cancel_event(timer_task))
+        .WillOnce(Invoke([](Context* timer_task) {
+          delete timer_task;
+          return true;
+        }));
   }
 
-  void expect_add_timer_task(Context **timer_task) {
+  void
+  expect_add_timer_task(Context** timer_task)
+  {
     EXPECT_CALL(m_mock_timer, add_event_at(_, _))
-      .WillOnce(Invoke([timer_task](ceph::real_clock::time_point, Context *task) {
-                  *timer_task = task;
-                  return task;
-                }));
+        .WillOnce(
+            Invoke([timer_task](ceph::real_clock::time_point, Context* task) {
+              *timer_task = task;
+              return task;
+            }));
   }
 
-  void expect_schedule_dispatch_delayed_requests(Context *current_task,
-                                                 Context **new_task) {
+  void
+  expect_schedule_dispatch_delayed_requests(
+      Context* current_task,
+      Context** new_task)
+  {
     if (current_task != nullptr) {
       expect_cancel_timer_task(current_task);
     }
@@ -115,22 +130,25 @@ struct TestMockIoSimpleSchedulerObjectDispatch : public TestMockFixture {
     }
   }
 
-  void run_timer_task(Context *timer_task) {
+  void
+  run_timer_task(Context* timer_task)
+  {
     std::lock_guard timer_locker{m_mock_timer_lock};
     timer_task->complete(0);
   }
 };
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Read) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Read)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   io::ReadExtents extents = {{0, 4096}, {8192, 4096}};
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.read(
       0, &extents, mock_image_ctx.get_data_io_context(), 0, 0, {}, nullptr,
@@ -140,16 +158,17 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Read) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Discard) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Discard)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.discard(
       0, 0, 4096, mock_image_ctx.get_data_io_context(), 0, {}, nullptr, nullptr,
       nullptr, &on_finish, nullptr));
@@ -158,40 +177,42 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Discard) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Write) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Write)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   ceph::bufferlist data;
   data.append("X");
   int object_dispatch_flags = 0;
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
-      std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr,
-      &on_finish, nullptr));
+      std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish,
+      nullptr));
   ASSERT_NE(on_finish, &cond);
   on_finish->complete(0);
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteSame) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteSame)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   io::LightweightBufferExtents buffer_extents;
   ceph::bufferlist data;
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write_same(
       0, 0, 4096, std::move(buffer_extents), std::move(data),
       mock_image_ctx.get_data_io_context(), 0, {}, nullptr, nullptr, nullptr,
@@ -201,18 +222,19 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteSame) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, CompareAndWrite) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, CompareAndWrite)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   ceph::bufferlist cmp_data;
   ceph::bufferlist write_data;
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.compare_and_write(
       0, 0, std::move(cmp_data), std::move(write_data),
       mock_image_ctx.get_data_io_context(), 0, {}, nullptr, nullptr, nullptr,
@@ -222,17 +244,18 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, CompareAndWrite) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Flush) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Flush)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   io::DispatchResult dispatch_result;
   C_SaferCond cond;
-  Context *on_finish = &cond;
+  Context* on_finish = &cond;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.flush(
       FLUSH_SOURCE_USER, {}, nullptr, &dispatch_result, &on_finish, nullptr));
   ASSERT_EQ(io::DISPATCH_RESULT_CONTINUE, dispatch_result);
@@ -241,13 +264,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Flush) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayed) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayed)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
 
@@ -257,19 +281,19 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayed) {
   data.append("X");
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
@@ -289,13 +313,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayed) {
   ASSERT_EQ(0, cond2.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayedFlush) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayedFlush)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
 
@@ -305,19 +330,19 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayedFlush) {
   data.append("X");
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
@@ -331,7 +356,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayedFlush) {
   expect_schedule_dispatch_delayed_requests(timer_task, nullptr);
 
   C_SaferCond cond3;
-  Context *on_finish3 = &cond3;
+  Context* on_finish3 = &cond3;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.flush(
       FLUSH_SOURCE_USER, {}, nullptr, &dispatch_result, &on_finish3, nullptr));
   ASSERT_EQ(io::DISPATCH_RESULT_CONTINUE, dispatch_result);
@@ -346,13 +371,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteDelayedFlush) {
   ASSERT_EQ(0, cond3.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
 
@@ -362,14 +388,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.append("X");
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   uint64_t object_off = 20;
@@ -377,7 +403,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.append(std::string(10, 'A'));
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched2;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -391,7 +417,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.clear();
   data.append(std::string(10, 'B'));
   C_SaferCond cond3;
-  Context *on_finish3 = &cond3;
+  Context* on_finish3 = &cond3;
   C_SaferCond on_dispatched3;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -404,11 +430,11 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.clear();
   data.append(std::string(10, 'C'));
   C_SaferCond cond4;
-  Context *on_finish4 = &cond4;
+  Context* on_finish4 = &cond4;
   C_SaferCond on_dispatched4;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
-      0, std::nullopt, {},&object_dispatch_flags, nullptr, &dispatch_result,
+      0, std::nullopt, {}, &object_dispatch_flags, nullptr, &dispatch_result,
       &on_finish4, &on_dispatched4));
   ASSERT_EQ(dispatch_result, io::DISPATCH_RESULT_COMPLETE);
   ASSERT_NE(on_finish4, &cond4);
@@ -417,7 +443,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.clear();
   data.append(std::string(10, 'D'));
   C_SaferCond cond5;
-  Context *on_finish5 = &cond5;
+  Context* on_finish5 = &cond5;
   C_SaferCond on_dispatched5;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -430,7 +456,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   data.clear();
   data.append(std::string(10, 'E'));
   C_SaferCond cond6;
-  Context *on_finish6 = &cond6;
+  Context* on_finish6 = &cond6;
   C_SaferCond on_dispatched6;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -464,13 +490,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteMerged) {
   ASSERT_EQ(0, cond6.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
 
@@ -479,14 +506,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential) {
   ceph::bufferlist data;
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   uint64_t object_off = 0;
@@ -494,7 +521,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential) {
   data.append(std::string(10, 'X'));
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched2;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -511,7 +538,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential) {
   data.clear();
   data.append(std::string(10, 'Y'));
   C_SaferCond cond3;
-  Context *on_finish3 = &cond3;
+  Context* on_finish3 = &cond3;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
       0, std::nullopt, {}, &object_dispatch_flags, nullptr, &dispatch_result,
@@ -527,13 +554,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, WriteNonSequential) {
   ASSERT_EQ(0, cond3.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
 
@@ -544,7 +572,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   ceph::bufferlist data;
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
@@ -553,14 +581,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
 
   // write (2) 0~10 (delayed)
   // will wait for write (1) to finish or a non-seq io comes
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
   uint64_t object_off = 0;
   data.clear();
   data.append(std::string(10, 'A'));
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched2;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -576,7 +604,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   data.clear();
   data.append(std::string(10, 'B'));
   C_SaferCond cond3;
-  Context *on_finish3 = &cond3;
+  Context* on_finish3 = &cond3;
   C_SaferCond on_dispatched3;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -590,7 +618,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   expect_dispatch_delayed_requests(mock_image_ctx, 0);
   expect_schedule_dispatch_delayed_requests(timer_task, nullptr);
   C_SaferCond cond4;
-  Context *on_finish4 = &cond4;
+  Context* on_finish4 = &cond4;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.discard(
       0, 4096, 4096, mock_image_ctx.get_data_io_context(), 0, {}, nullptr,
       nullptr, nullptr, &on_finish4, nullptr));
@@ -606,7 +634,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   data.clear();
   data.append(std::string(10, 'C'));
   C_SaferCond cond5;
-  Context *on_finish5 = &cond5;
+  Context* on_finish5 = &cond5;
   C_SaferCond on_dispatched5;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -621,7 +649,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   expect_dispatch_delayed_requests(mock_image_ctx, 0);
   expect_schedule_dispatch_delayed_requests(timer_task, nullptr);
   C_SaferCond cond6;
-  Context *on_finish6 = &cond6;
+  Context* on_finish6 = &cond6;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.discard(
       0, 4096, 4096, mock_image_ctx.get_data_io_context(), 0, {}, nullptr,
       nullptr, nullptr, &on_finish6, nullptr));
@@ -636,7 +664,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   data.clear();
   data.append(std::string(10, 'D'));
   C_SaferCond cond7;
-  Context *on_finish7 = &cond7;
+  Context* on_finish7 = &cond7;
   C_SaferCond on_dispatched7;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, object_off, std::move(data), mock_image_ctx.get_data_io_context(), 0,
@@ -681,13 +709,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Mixed) {
   ASSERT_EQ(0, cond7.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
   expect_get_object_name(mock_image_ctx, 1);
@@ -700,20 +729,20 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue) {
   ceph::bufferlist data;
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       object_no, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   data.clear();
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched2;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       object_no, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
@@ -728,7 +757,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue) {
   object_no = 1;
   data.clear();
   C_SaferCond cond3;
-  Context *on_finish3 = &cond3;
+  Context* on_finish3 = &cond3;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       object_no, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish3,
@@ -737,7 +766,7 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue) {
 
   data.clear();
   C_SaferCond cond4;
-  Context *on_finish4 = &cond4;
+  Context* on_finish4 = &cond4;
   C_SaferCond on_dispatched4;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       object_no, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
@@ -769,13 +798,14 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, DispatchQueue) {
   ASSERT_EQ(0, cond4.wait());
 }
 
-TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Timer) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Timer)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
-  MockSimpleSchedulerObjectDispatch
-      mock_simple_scheduler_object_dispatch(&mock_image_ctx);
+  MockSimpleSchedulerObjectDispatch mock_simple_scheduler_object_dispatch(
+      &mock_image_ctx);
 
   expect_get_object_name(mock_image_ctx, 0);
   expect_op_work_queue(mock_image_ctx);
@@ -785,20 +815,20 @@ TEST_F(TestMockIoSimpleSchedulerObjectDispatch, Timer) {
   ceph::bufferlist data;
   int object_dispatch_flags = 0;
   C_SaferCond cond1;
-  Context *on_finish1 = &cond1;
+  Context* on_finish1 = &cond1;
   ASSERT_FALSE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,
       std::nullopt, {}, &object_dispatch_flags, nullptr, nullptr, &on_finish1,
       nullptr));
   ASSERT_NE(on_finish1, &cond1);
 
-  Context *timer_task = nullptr;
+  Context* timer_task = nullptr;
   expect_schedule_dispatch_delayed_requests(nullptr, &timer_task);
 
   data.clear();
   io::DispatchResult dispatch_result;
   C_SaferCond cond2;
-  Context *on_finish2 = &cond2;
+  Context* on_finish2 = &cond2;
   C_SaferCond on_dispatched;
   ASSERT_TRUE(mock_simple_scheduler_object_dispatch.write(
       0, 0, std::move(data), mock_image_ctx.get_data_io_context(), 0, 0,

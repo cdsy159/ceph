@@ -13,12 +13,14 @@
  *
  */
 
-#include <compare>
 #include <gtest/gtest.h>
+
+#include <compare>
+
 #include "common/static_ptr.h"
 
-using ceph::static_ptr;
 using ceph::make_static;
+using ceph::static_ptr;
 
 class base {
 public:
@@ -28,31 +30,56 @@ public:
 
 class sibling1 : public base {
 public:
-  int func() override { return 0; }
+  int
+  func() override
+  {
+    return 0;
+  }
 };
 
 class sibling2 : public base {
 public:
-  int func() override { return 9; }
+  int
+  func() override
+  {
+    return 9;
+  }
+
   virtual int call(int) = 0;
 };
 
 class grandchild : public sibling2 {
 protected:
   int val;
+
 public:
-  explicit grandchild(int val) : val(val) {}
-  virtual int call(int n) override { return n * val; }
+  explicit grandchild(int val) :
+    val(val)
+  {}
+
+  virtual int
+  call(int n) override
+  {
+    return n * val;
+  }
 };
 
 class great_grandchild : public grandchild {
 public:
-  explicit great_grandchild(int val) : grandchild(val) {}
-  int call(int n) override { return n + val; }
+  explicit great_grandchild(int val) :
+    grandchild(val)
+  {}
+
+  int
+  call(int n) override
+  {
+    return n + val;
+  }
 };
 
 #ifdef __cpp_lib_three_way_comparison
-TEST(StaticPtr, EmptyCreation) {
+TEST(StaticPtr, EmptyCreation)
+{
   static_ptr<base, sizeof(grandchild)> p;
   EXPECT_FALSE(p);
   EXPECT_EQ(p, nullptr);
@@ -60,7 +87,8 @@ TEST(StaticPtr, EmptyCreation) {
   EXPECT_TRUE(p.get() == nullptr);
 }
 
-TEST(StaticPtr, CreationCall) {
+TEST(StaticPtr, CreationCall)
+{
   {
     static_ptr<base, sizeof(grandchild)> p(std::in_place_type_t<sibling1>{});
     EXPECT_TRUE(p);
@@ -83,7 +111,8 @@ TEST(StaticPtr, CreationCall) {
   }
 }
 
-TEST(StaticPtr, CreateReset) {
+TEST(StaticPtr, CreateReset)
+{
   {
     static_ptr<base, sizeof(grandchild)> p(std::in_place_type_t<sibling1>{});
     EXPECT_EQ((p.get())->func(), 0);
@@ -105,28 +134,31 @@ TEST(StaticPtr, CreateReset) {
 }
 #endif // __cpp_lib_three_way_comparison
 
-TEST(StaticPtr, CreateEmplace) {
+TEST(StaticPtr, CreateEmplace)
+{
   static_ptr<base, sizeof(grandchild)> p(std::in_place_type_t<sibling1>{});
   EXPECT_EQ((p.get())->func(), 0);
   p.emplace<grandchild>(30);
   EXPECT_EQ(p->func(), 9);
 }
 
-TEST(StaticPtr, Move) {
+TEST(StaticPtr, Move)
+{
   // Won't compile. Good.
   // static_ptr<base, sizeof(base)> p1(std::in_place_type_t<grandchild>{}, 3);
 
   static_ptr<base, sizeof(base)> p1(std::in_place_type_t<sibling1>{});
-  static_ptr<base, sizeof(grandchild)> p2(std::in_place_type_t<grandchild>{},
-                                          3);
+  static_ptr<base, sizeof(grandchild)> p2(std::in_place_type_t<grandchild>{}, 3);
 
   p2 = std::move(p1);
   EXPECT_EQ(p1->func(), 0);
 }
 
-TEST(StaticPtr, ImplicitUpcast) {
+TEST(StaticPtr, ImplicitUpcast)
+{
   static_ptr<base, sizeof(grandchild)> p1;
-  static_ptr<sibling2, sizeof(grandchild)> p2(std::in_place_type_t<grandchild>{}, 3);
+  static_ptr<sibling2, sizeof(grandchild)> p2(
+      std::in_place_type_t<grandchild>{}, 3);
 
   p1 = std::move(p2);
   EXPECT_EQ(p1->func(), 9);
@@ -137,7 +169,8 @@ TEST(StaticPtr, ImplicitUpcast) {
   // p2 = p1;
 }
 
-TEST(StaticPtr, StaticCast) {
+TEST(StaticPtr, StaticCast)
+{
   static_ptr<base, sizeof(grandchild)> p1(std::in_place_type_t<grandchild>{}, 3);
   static_ptr<sibling2, sizeof(grandchild)> p2;
 
@@ -146,7 +179,8 @@ TEST(StaticPtr, StaticCast) {
   EXPECT_EQ(p2->call(10), 30);
 }
 
-TEST(StaticPtr, DynamicCast) {
+TEST(StaticPtr, DynamicCast)
+{
   static constexpr auto sz = sizeof(great_grandchild);
   {
     static_ptr<base, sz> p1(std::in_place_type_t<grandchild>{}, 3);
@@ -165,37 +199,47 @@ TEST(StaticPtr, DynamicCast) {
 
 class constable {
 public:
-  int foo() {
+  int
+  foo()
+  {
     return 2;
   }
-  int foo() const {
+
+  int
+  foo() const
+  {
     return 5;
   }
 };
 
-TEST(StaticPtr, ConstCast) {
+TEST(StaticPtr, ConstCast)
+{
   static constexpr auto sz = sizeof(constable);
   {
     auto p1 = make_static<const constable>();
     EXPECT_EQ(p1->foo(), 5);
     auto p2 = ceph::const_pointer_cast<constable, sz>(std::move(p1));
-    static_assert(!std::is_const<decltype(p2)::element_type>{},
-                  "Things are more const than they ought to be.");
+    static_assert(
+        !std::is_const<decltype(p2)::element_type>{},
+        "Things are more const than they ought to be.");
     EXPECT_TRUE(p2);
     EXPECT_EQ(p2->foo(), 2);
   }
 }
 
-TEST(StaticPtr, ReinterpretCast) {
+TEST(StaticPtr, ReinterpretCast)
+{
   static constexpr auto sz = sizeof(grandchild);
   {
     auto p1 = make_static<grandchild>(3);
     auto p2 = ceph::reinterpret_pointer_cast<constable, sz>(std::move(p1));
-    static_assert(std::is_same<decltype(p2)::element_type, constable>{},
-                  "Reinterpret is screwy.");
+    static_assert(
+        std::is_same<decltype(p2)::element_type, constable>{},
+        "Reinterpret is screwy.");
     auto p3 = ceph::reinterpret_pointer_cast<grandchild, sz>(std::move(p2));
-    static_assert(std::is_same<decltype(p3)::element_type, grandchild>{},
-                  "Reinterpret is screwy.");
+    static_assert(
+        std::is_same<decltype(p3)::element_type, grandchild>{},
+        "Reinterpret is screwy.");
     EXPECT_EQ(p3->func(), 9);
     EXPECT_EQ(p3->call(10), 30);
   }
@@ -203,15 +247,14 @@ TEST(StaticPtr, ReinterpretCast) {
 
 struct exceptional {
   exceptional() = default;
-  exceptional(const exceptional& e) {
-    throw std::exception();
-  }
-  exceptional(exceptional&& e) {
-    throw std::exception();
-  }
+
+  exceptional(const exceptional& e) { throw std::exception(); }
+
+  exceptional(exceptional&& e) { throw std::exception(); }
 };
 
-TEST(StaticPtr, Exceptional) {
+TEST(StaticPtr, Exceptional)
+{
   static_ptr<exceptional> p1(std::in_place_type_t<exceptional>{});
   EXPECT_ANY_THROW(static_ptr<exceptional> p2(std::move(p1)));
 }

@@ -13,9 +13,11 @@
  */
 
 #include "rgw_sync_error_repo.h"
+
+#include "cls/cmpomap/client.h"
+
 #include "rgw_coroutine.h"
 #include "rgw_sal.h"
-#include "cls/cmpomap/client.h"
 
 namespace rgw::error_repo {
 
@@ -30,7 +32,8 @@ struct key_type {
   std::optional<uint64_t> gen;
 };
 
-void encode(const key_type& k, bufferlist& bl, uint64_t f=0)
+void
+encode(const key_type& k, bufferlist& bl, uint64_t f = 0)
 {
   ENCODE_START(1, 1, bl);
   encode(k.bs, bl);
@@ -38,7 +41,8 @@ void encode(const key_type& k, bufferlist& bl, uint64_t f=0)
   ENCODE_FINISH(bl);
 }
 
-void decode(key_type& k, bufferlist::const_iterator& bl)
+void
+decode(key_type& k, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(k.bs, bl);
@@ -46,8 +50,8 @@ void decode(key_type& k, bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-std::string encode_key(const rgw_bucket_shard& bs,
-                       std::optional<uint64_t> gen)
+std::string
+encode_key(const rgw_bucket_shard& bs, std::optional<uint64_t> gen)
 {
   using ceph::encode;
   const auto key = key_type{bs, gen};
@@ -57,9 +61,11 @@ std::string encode_key(const rgw_bucket_shard& bs,
   return bl.to_str();
 }
 
-int decode_key(std::string encoded,
-               rgw_bucket_shard& bs,
-               std::optional<uint64_t>& gen)
+int
+decode_key(
+    std::string encoded,
+    rgw_bucket_shard& bs,
+    std::optional<uint64_t>& gen)
 {
   using ceph::decode;
   key_type key;
@@ -83,7 +89,8 @@ int decode_key(std::string encoded,
   return 0;
 }
 
-ceph::real_time decode_value(const bufferlist& bl)
+ceph::real_time
+decode_value(const bufferlist& bl)
 {
   uint64_t value;
   try {
@@ -95,9 +102,11 @@ ceph::real_time decode_value(const bufferlist& bl)
   return ceph::real_clock::zero() + ceph::timespan(value);
 }
 
-int write(librados::ObjectWriteOperation& op,
-          const std::string& key,
-          ceph::real_time timestamp)
+int
+write(
+    librados::ObjectWriteOperation& op,
+    const std::string& key,
+    ceph::real_time timestamp)
 {
   // overwrite the existing timestamp if value is greater
   const uint64_t value = timestamp.time_since_epoch().count();
@@ -106,9 +115,11 @@ int write(librados::ObjectWriteOperation& op,
   return cmp_set_vals(op, Mode::U64, Op::GT, {{key, u64_buffer(value)}}, zero);
 }
 
-int remove(librados::ObjectWriteOperation& op,
-           const std::string& key,
-           ceph::real_time timestamp)
+int
+remove(
+    librados::ObjectWriteOperation& op,
+    const std::string& key,
+    ceph::real_time timestamp)
 {
   // remove the omap key if value >= existing
   const uint64_t value = timestamp.time_since_epoch().count();
@@ -123,15 +134,23 @@ class RGWErrorRepoWriteCR : public RGWSimpleCoroutine {
   ceph::real_time timestamp;
 
   boost::intrusive_ptr<RGWAioCompletionNotifier> cn;
- public:
-  RGWErrorRepoWriteCR(librados::Rados* rados, const rgw_raw_obj& raw_obj,
-                      const std::string& key, ceph::real_time timestamp)
-    : RGWSimpleCoroutine(static_cast<CephContext*>(rados->cct())),
-      rados(rados), raw_obj(raw_obj),
-      key(key), timestamp(timestamp)
+
+public:
+  RGWErrorRepoWriteCR(
+      librados::Rados* rados,
+      const rgw_raw_obj& raw_obj,
+      const std::string& key,
+      ceph::real_time timestamp) :
+    RGWSimpleCoroutine(static_cast<CephContext*>(rados->cct())),
+    rados(rados),
+    raw_obj(raw_obj),
+    key(key),
+    timestamp(timestamp)
   {}
 
-  int send_request(const DoutPrefixProvider *dpp) override {
+  int
+  send_request(const DoutPrefixProvider* dpp) override
+  {
     librados::ObjectWriteOperation op;
     int r = write(op, key, timestamp);
     if (r < 0) {
@@ -147,19 +166,22 @@ class RGWErrorRepoWriteCR : public RGWSimpleCoroutine {
     return ref.aio_operate(cn->completion(), &op);
   }
 
-  int request_complete() override {
+  int
+  request_complete() override
+  {
     return cn->completion()->get_return_value();
   }
 };
 
-RGWCoroutine* write_cr(librados::Rados* rados,
-                       const rgw_raw_obj& obj,
-                       const std::string& key,
-                       ceph::real_time timestamp)
+RGWCoroutine*
+write_cr(
+    librados::Rados* rados,
+    const rgw_raw_obj& obj,
+    const std::string& key,
+    ceph::real_time timestamp)
 {
   return new RGWErrorRepoWriteCR(rados, obj, key, timestamp);
 }
-
 
 class RGWErrorRepoRemoveCR : public RGWSimpleCoroutine {
   librados::Rados* rados;
@@ -168,15 +190,23 @@ class RGWErrorRepoRemoveCR : public RGWSimpleCoroutine {
   ceph::real_time timestamp;
 
   boost::intrusive_ptr<RGWAioCompletionNotifier> cn;
- public:
-  RGWErrorRepoRemoveCR(librados::Rados* rados, const rgw_raw_obj& raw_obj,
-                       const std::string& key, ceph::real_time timestamp)
-    : RGWSimpleCoroutine(static_cast<CephContext*>(rados->cct())),
-      rados(rados), raw_obj(raw_obj),
-      key(key), timestamp(timestamp)
+
+public:
+  RGWErrorRepoRemoveCR(
+      librados::Rados* rados,
+      const rgw_raw_obj& raw_obj,
+      const std::string& key,
+      ceph::real_time timestamp) :
+    RGWSimpleCoroutine(static_cast<CephContext*>(rados->cct())),
+    rados(rados),
+    raw_obj(raw_obj),
+    key(key),
+    timestamp(timestamp)
   {}
 
-  int send_request(const DoutPrefixProvider *dpp) override {
+  int
+  send_request(const DoutPrefixProvider* dpp) override
+  {
     librados::ObjectWriteOperation op;
     int r = remove(op, key, timestamp);
     if (r < 0) {
@@ -192,15 +222,19 @@ class RGWErrorRepoRemoveCR : public RGWSimpleCoroutine {
     return ref.aio_operate(cn->completion(), &op);
   }
 
-  int request_complete() override {
+  int
+  request_complete() override
+  {
     return cn->completion()->get_return_value();
   }
 };
 
-RGWCoroutine* remove_cr(librados::Rados* rados,
-                        const rgw_raw_obj& obj,
-                        const std::string& key,
-                        ceph::real_time timestamp)
+RGWCoroutine*
+remove_cr(
+    librados::Rados* rados,
+    const rgw_raw_obj& obj,
+    const std::string& key,
+    ceph::real_time timestamp)
 {
   return new RGWErrorRepoRemoveCR(rados, obj, key, timestamp);
 }

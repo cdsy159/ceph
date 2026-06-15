@@ -19,11 +19,12 @@
 #include <memory>
 #include <string_view>
 
-#include "include/common_fwd.h"
-#include "include/encoding.h"
 #include "common/async/yield_context.h"
 #include "common/ceph_time.h"
 #include "common/dout.h"
+#include "include/common_fwd.h"
+#include "include/encoding.h"
+
 #include "rgw_common.h"
 
 class RGWCoroutine;
@@ -32,7 +33,7 @@ class RGWHTTPManager;
 namespace rgw {
 
 namespace sal {
-  class RadosStore;
+class RadosStore;
 }
 
 /// Interface to inform the trim process about which buckets are most active
@@ -65,17 +66,19 @@ struct BucketTrimConfig {
 };
 
 /// fill out the BucketTrimConfig from the ceph context
-void configure_bucket_trim(CephContext *cct, BucketTrimConfig& config);
+void configure_bucket_trim(CephContext* cct, BucketTrimConfig& config);
 
 /// Determines the buckets on which to focus trim activity, using two sources of
 /// input: the frequency of entries read from the data changes log, and a global
 /// listing of the bucket.instance metadata. This allows us to trim active
 /// buckets quickly, while also ensuring that all buckets will eventually trim
-class BucketTrimManager : public BucketChangeObserver, public DoutPrefixProvider {
+class BucketTrimManager : public BucketChangeObserver,
+                          public DoutPrefixProvider {
   class Impl;
   std::unique_ptr<Impl> impl;
- public:
-  BucketTrimManager(sal::RadosStore *store, const BucketTrimConfig& config);
+
+public:
+  BucketTrimManager(sal::RadosStore* store, const BucketTrimConfig& config);
   ~BucketTrimManager();
 
   int init();
@@ -84,12 +87,12 @@ class BucketTrimManager : public BucketChangeObserver, public DoutPrefixProvider
   void on_bucket_changed(const std::string_view& bucket_instance) override;
 
   /// create a coroutine to run the bucket trim process every trim interval
-  RGWCoroutine* create_bucket_trim_cr(RGWHTTPManager *http);
+  RGWCoroutine* create_bucket_trim_cr(RGWHTTPManager* http);
 
   /// create a coroutine to trim buckets directly via radosgw-admin
-  RGWCoroutine* create_admin_bucket_trim_cr(RGWHTTPManager *http);
+  RGWCoroutine* create_admin_bucket_trim_cr(RGWHTTPManager* http);
 
-  CephContext *get_cct() const override;
+  CephContext* get_cct() const override;
   unsigned get_subsys() const;
   std::ostream& gen_prefix(std::ostream& out) const;
 };
@@ -99,12 +102,17 @@ class BucketTrimManager : public BucketChangeObserver, public DoutPrefixProvider
 struct BucketTrimStatus {
   std::string marker; //< metadata key of current bucket instance
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(marker, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(marker, p);
     DECODE_FINISH(p);
@@ -117,7 +125,12 @@ struct BucketTrimStatus {
 
 WRITE_CLASS_ENCODER(rgw::BucketTrimStatus);
 
-int bilog_trim(const DoutPrefixProvider* p, optional_yield y,
-	       rgw::sal::RadosStore* store,
-	       RGWBucketInfo& bucket_info, uint64_t gen, int shard_id,
-	       std::string_view start_marker, std::string_view end_marker);
+int bilog_trim(
+    const DoutPrefixProvider* p,
+    optional_yield y,
+    rgw::sal::RadosStore* store,
+    RGWBucketInfo& bucket_info,
+    uint64_t gen,
+    int shard_id,
+    std::string_view start_marker,
+    std::string_view end_marker);

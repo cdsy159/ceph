@@ -11,15 +11,14 @@ class MonSession;
 
 extern const std::string KV_PREFIX;
 
-class KVMonitor : public PaxosService
-{
+class KVMonitor : public PaxosService {
   version_t version = 0;
-  std::map<std::string,std::optional<ceph::buffer::list>> pending;
+  std::map<std::string, std::optional<ceph::buffer::list>> pending;
 
-  bool _have_prefix(const std::string &prefix);
+  bool _have_prefix(const std::string& prefix);
 
 public:
-  KVMonitor(Monitor &m, Paxos &p, const std::string& service_name);
+  KVMonitor(Monitor& m, Paxos& p, const std::string& service_name);
 
   void init() override;
 
@@ -27,17 +26,19 @@ public:
 
   bool preprocess_command(MonOpRequestRef op);
   bool prepare_command(MonOpRequestRef op);
-  
+
   bool preprocess_query(MonOpRequestRef op) override;
   bool prepare_update(MonOpRequestRef op) override;
 
   void create_initial() override;
-  void update_from_paxos(bool *need_bootstrap) override;
+  void update_from_paxos(bool* need_bootstrap) override;
   void create_pending() override;
   void encode_pending(MonitorDBStore::TransactionRef t) override;
   version_t get_trim_to() const override;
 
-  void encode_full(MonitorDBStore::TransactionRef t) override { }
+  void
+  encode_full(MonitorDBStore::TransactionRef t) override
+  {}
 
   void on_active() override;
   void tick() override;
@@ -50,20 +51,24 @@ public:
       std::stringstream& ss);
   void do_osd_new(const uuid_d& uuid, const std::string& dmcrypt_key);
 
-  void check_sub(MonSession *s);
-  void check_sub(Subscription *sub);
+  void check_sub(MonSession* s);
+  void check_sub(Subscription* sub);
   void check_all_subs();
 
-  bool maybe_send_update(Subscription *sub);
-
+  bool maybe_send_update(Subscription* sub);
 
   // used by other services to adjust kv content; note that callers MUST ensure that
   // propose_pending() is called and a commit is forced to provide atomicity and
   // proper subscriber notifications.
-  void enqueue_set(const std::string& key, bufferlist &v) {
+  void
+  enqueue_set(const std::string& key, bufferlist& v)
+  {
     pending[key] = v;
   }
-  void enqueue_rm(const std::string& key) {
+
+  void
+  enqueue_rm(const std::string& key)
+  {
     pending[key].reset();
   }
 };

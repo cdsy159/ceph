@@ -13,26 +13,29 @@
  *
  */
 
-#include "include/compat.h"
-#include "debug.h"
-#include "errno.h"
-
 #include <dirent.h>
 
+#include "debug.h"
+
+#include "include/compat.h"
+
+#include "errno.h"
+
 #ifndef _WIN32
-void dump_open_fds(CephContext *cct)
+void
+dump_open_fds(CephContext* cct)
 {
 #ifdef __APPLE__
-  const char *fn = "/dev/fd";
+  const char* fn = "/dev/fd";
 #else
-  const char *fn = PROCPREFIX "/proc/self/fd";
+  const char* fn = PROCPREFIX "/proc/self/fd";
 #endif
-  DIR *d = opendir(fn);
+  DIR* d = opendir(fn);
   if (!d) {
     lderr(cct) << "dump_open_fds unable to open " << fn << dendl;
     return;
   }
-  struct dirent *de = nullptr;
+  struct dirent* de = nullptr;
 
   int n = 0;
   while ((de = ::readdir(d))) {
@@ -44,7 +47,8 @@ void dump_open_fds(CephContext *cct)
     ssize_t r = readlink(path, target, sizeof(target) - 1);
     if (r < 0) {
       r = -errno;
-      lderr(cct) << "dump_open_fds unable to readlink " << path << ": " << cpp_strerror(r) << dendl;
+      lderr(cct) << "dump_open_fds unable to readlink " << path << ": "
+                 << cpp_strerror(r) << dendl;
       continue;
     }
     target[r] = 0;
@@ -56,7 +60,7 @@ void dump_open_fds(CephContext *cct)
   closedir(d);
 }
 #else
-void dump_open_fds(CephContext *cct)
-{
-}
+void
+dump_open_fds(CephContext* cct)
+{}
 #endif

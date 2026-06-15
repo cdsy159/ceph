@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -24,8 +24,8 @@
 
 #include "include/common_fwd.h" // for CephContext
 #include "mds/MDSMap.h" // for MDSMap::DaemonState
-#include "msg/Dispatcher.h"
 #include "messages/MMDSBeacon.h" // for struct MDSHealth
+#include "msg/Dispatcher.h"
 
 class Connection;
 class Message;
@@ -42,33 +42,48 @@ class MMDSBeacon;
  * we keep copies of the data needed to generate beacon messages.  The MDS is
  * responsible for calling Beacon::notify_* when things change.
  */
-class Beacon : public Dispatcher
-{
+class Beacon : public Dispatcher {
 public:
   using clock = ceph::coarse_mono_clock;
   using time = ceph::coarse_mono_time;
   bool missed_beacon_ack_dump = false;
   bool missed_internal_heartbeat_dump = false;
 
-  Beacon(CephContext *cct, MonClient *monc, std::string_view name);
+  Beacon(CephContext* cct, MonClient* monc, std::string_view name);
   ~Beacon() override;
 
-  void init(const MDSMap &mdsmap);
+  void init(const MDSMap& mdsmap);
   void shutdown();
 
-  Dispatcher::dispatch_result_t ms_dispatch2(const ref_t<Message> &m) override;
-  void ms_handle_connect(Connection *c) override {}
-  bool ms_handle_reset(Connection *c) override {return false;}
-  void ms_handle_remote_reset(Connection *c) override {}
-  bool ms_handle_refused(Connection *c) override {return false;}
+  Dispatcher::dispatch_result_t ms_dispatch2(const ref_t<Message>& m) override;
 
-  void notify_mdsmap(const MDSMap &mdsmap);
-  void notify_health(const MDSRank *mds);
+  void
+  ms_handle_connect(Connection* c) override
+  {}
 
-  void handle_mds_beacon(const cref_t<MMDSBeacon> &m);
+  bool
+  ms_handle_reset(Connection* c) override
+  {
+    return false;
+  }
+
+  void
+  ms_handle_remote_reset(Connection* c) override
+  {}
+
+  bool
+  ms_handle_refused(Connection* c) override
+  {
+    return false;
+  }
+
+  void notify_mdsmap(const MDSMap& mdsmap);
+  void notify_health(const MDSRank* mds);
+
+  void handle_mds_beacon(const cref_t<MMDSBeacon>& m);
   void send();
 
-  void set_want_state(const MDSMap &mdsmap, MDSMap::DaemonState newstate);
+  void set_want_state(const MDSMap& mdsmap, MDSMap::DaemonState newstate);
   MDSMap::DaemonState get_want_state() const;
 
   /**
@@ -79,13 +94,16 @@ public:
   void send_and_wait(const double duration);
 
   bool is_laggy();
-  double last_cleared_laggy() const {
+
+  double
+  last_cleared_laggy() const
+  {
     std::unique_lock lock(mutex);
-    return std::chrono::duration<double>(clock::now()-last_laggy).count();
+    return std::chrono::duration<double>(clock::now() - last_laggy).count();
   }
 
 private:
-  void _notify_mdsmap(const MDSMap &mdsmap);
+  void _notify_mdsmap(const MDSMap& mdsmap);
   bool _send();
 
   mutable std::mutex mutex;
@@ -94,7 +112,7 @@ private:
   time last_send = clock::zero();
   double beacon_interval = 5.0;
   bool finished = false;
-  MonClient*    monc;
+  MonClient* monc;
 
   // Items we duplicate from the MDS to have access under our own lock
   std::string name;
@@ -104,8 +122,9 @@ private:
 
   // Internal beacon state
   version_t last_seq = 0; // last seq sent to monitor
-  std::map<version_t,time>  seq_stamp;    // seq # -> time sent
-  time last_acked_stamp = clock::zero();  // last time we sent a beacon that got acked
+  std::map<version_t, time> seq_stamp; // seq # -> time sent
+  time last_acked_stamp =
+      clock::zero(); // last time we sent a beacon that got acked
   bool laggy = false;
   time last_laggy = clock::zero();
 

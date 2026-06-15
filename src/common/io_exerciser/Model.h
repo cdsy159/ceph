@@ -5,13 +5,14 @@
 
 #include <boost/asio/io_context.hpp>
 
-#include "IoOp.h"
-#include "common/io_exerciser/IoSequence.h"
 #include "common/Thread.h"
+#include "common/io_exerciser/IoSequence.h"
 #include "global/global_context.h"
 #include "global/global_init.h"
 #include "include/interval_set.h"
 #include "librados/librados_asio.h"
+
+#include "IoOp.h"
 
 /* Overview
  *
@@ -28,7 +29,7 @@ namespace io_exerciser {
 class IoOp;
 
 class Model {
- protected:
+protected:
   int num_io{0};
   std::string primary_oid_base;
   std::string primary_oid;
@@ -40,9 +41,12 @@ class Model {
   void set_primary_oid(const std::string& new_oid);
   void set_secondary_oid(const std::string& new_oid);
 
- public:
-  Model(const std::string& primary_oid, const std::string& secondary_oid,
-        uint64_t block_size, bool delete_objects);
+public:
+  Model(
+      const std::string& primary_oid,
+      const std::string& secondary_oid,
+      uint64_t block_size,
+      bool delete_objects);
   virtual ~Model() = default;
 
   virtual bool readyForIoOp(IoOp& op) = 0;
@@ -56,5 +60,5 @@ class Model {
 
 /* Simple RADOS I/O generator */
 
-}  // namespace io_exerciser
-}  // namespace ceph
+} // namespace io_exerciser
+} // namespace ceph

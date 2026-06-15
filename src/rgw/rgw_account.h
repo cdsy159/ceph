@@ -38,7 +38,6 @@ bool validate_id(std::string_view id, std::string* err_msg = nullptr);
 /// check an account name for any invalid characters
 bool validate_name(std::string_view name, std::string* err_msg = nullptr);
 
-
 struct AdminOpState {
   std::string account_id;
   std::string tenant;
@@ -57,36 +56,64 @@ struct AdminOpState {
 };
 
 /// create an account
-int create(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-           AdminOpState& op_state, std::string& err_msg,
-           RGWFormatterFlusher& flusher, optional_yield y);
+int create(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 /// modify an existing account
-int modify(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-           AdminOpState& op_state, std::string& err_msg,
-           RGWFormatterFlusher& flusher, optional_yield y);
+int modify(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 /// remove an existing account
-int remove(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-           AdminOpState& op_state, std::string& err_msg,
-           RGWFormatterFlusher& flusher, optional_yield y);
+int remove(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 /// dump RGWAccountInfo
-int info(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-         AdminOpState& op_state, std::string& err_msg,
-         RGWFormatterFlusher& flusher, optional_yield y);
+int info(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 /// dump account storage stats
-int stats(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-          AdminOpState& op_state, bool sync_stats,
-          bool reset_stats, std::string& err_msg,
-          RGWFormatterFlusher& flusher, optional_yield y);
+int stats(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    bool sync_stats,
+    bool reset_stats,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 /// list account users
-int list_users(const DoutPrefixProvider* dpp, rgw::sal::Driver* driver,
-               AdminOpState& op_state, const std::string& path_prefix,
-               const std::string& marker, bool max_entries_specified,
-               int max_entries, bool root_only, std::string& err_msg,
-               RGWFormatterFlusher& flusher, optional_yield y);
+int list_users(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    AdminOpState& op_state,
+    const std::string& path_prefix,
+    const std::string& marker,
+    bool max_entries_specified,
+    int max_entries,
+    bool root_only,
+    std::string& err_msg,
+    RGWFormatterFlusher& flusher,
+    optional_yield y);
 
 } // namespace rgw::account

@@ -13,17 +13,19 @@
  *
  */
 
-#include "gtest/gtest.h"
-#include "include/rados/librados.h"
+#include <errno.h>
+#include <string.h>
 
 #include <sstream>
 #include <string>
-#include <string.h>
-#include <errno.h>
+
+#include "gtest/gtest.h"
+#include "include/rados/librados.h"
 
 using std::string;
 
-TEST(LibRadosConfig, SimpleSet) {
+TEST(LibRadosConfig, SimpleSet)
+{
   rados_t cl;
   int ret = rados_create(&cl, NULL);
   ASSERT_EQ(ret, 0);
@@ -40,13 +42,13 @@ TEST(LibRadosConfig, SimpleSet) {
   rados_shutdown(cl);
 }
 
-TEST(LibRadosConfig, ArgV) {
+TEST(LibRadosConfig, ArgV)
+{
   rados_t cl;
   int ret = rados_create(&cl, NULL);
   ASSERT_EQ(ret, 0);
 
-  const char *argv[] = { "foo", "--log_max_new", "2",
-			 "--key", "my-key", NULL };
+  const char* argv[] = {"foo", "--log_max_new", "2", "--key", "my-key", NULL};
   size_t argc = (sizeof(argv) / sizeof(argv[0])) - 1;
   rados_conf_parse_argv(cl, argc, argv);
 
@@ -64,7 +66,8 @@ TEST(LibRadosConfig, ArgV) {
   rados_shutdown(cl);
 }
 
-TEST(LibRadosConfig, DebugLevels) {
+TEST(LibRadosConfig, DebugLevels)
+{
   rados_t cl;
   int ret = rados_create(&cl, NULL);
   ASSERT_EQ(ret, 0);

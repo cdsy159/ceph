@@ -1,11 +1,12 @@
-#include <stdlib.h>
-#include <string>
-#include <iostream>
 #include <assert.h>
 #include <gtest/gtest.h>
+#include <stdlib.h>
 
-#include "common/errno.h"
+#include <iostream>
+#include <string>
+
 #include "common/config.h"
+#include "common/errno.h"
 #include "os/ObjectStore.h"
 
 #if defined(WITH_BLUESTORE)
@@ -15,7 +16,8 @@
 
 using namespace std;
 
-static void rm_r(const string& path)
+static void
+rm_r(const string& path)
 {
   string cmd = string("rm -r ") + path;
   cout << "==> " << cmd << std::endl;
@@ -26,13 +28,14 @@ static void rm_r(const string& path)
       cerr << "system() failed to fork() " << cpp_strerror(r)
            << ", continuing anyway" << std::endl;
     } else {
-      cerr << "failed with exit code " << r
-           << ", continuing anyway" << std::endl;
+      cerr << "failed with exit code " << r << ", continuing anyway"
+           << std::endl;
     }
   }
 }
 
-void StoreTestFixture::SetUp()
+void
+StoreTestFixture::SetUp()
 {
   // Create a unique temporary directory for this fixture instance so that
   // tests can safely run in parallel without colliding on the same path.
@@ -40,22 +43,22 @@ void StoreTestFixture::SetUp()
   char* tmp = ::mkdtemp(tmpl.data());
   if (!tmp) {
     int r = -errno;
-    cerr << __func__ << ": mkdtemp(" << tmpl << ") failed: " << cpp_strerror(r) << std::endl;
+    cerr << __func__ << ": mkdtemp(" << tmpl << ") failed: " << cpp_strerror(r)
+         << std::endl;
     ASSERT_TRUE(tmp);
   }
   data_dir = tmp;
   store.reset(nullptr);
-  store = ObjectStore::create(g_ceph_context,
-                              type,
-                              data_dir,
-                              "store_test_temp_journal");
+  store = ObjectStore::create(
+      g_ceph_context, type, data_dir, "store_test_temp_journal");
   if (!store) {
-    cerr << __func__ << ": objectstore type " << type << " doesn't exist yet!" << std::endl;
+    cerr << __func__ << ": objectstore type " << type << " doesn't exist yet!"
+         << std::endl;
   }
   ASSERT_TRUE(store);
 #if defined(WITH_BLUESTORE)
   if (type == "bluestore") {
-    BlueStore *s = static_cast<BlueStore*>(store.get());
+    BlueStore* s = static_cast<BlueStore*>(store.get());
     // better test coverage!
     s->set_cache_shards(5);
   }
@@ -69,7 +72,8 @@ void StoreTestFixture::SetUp()
   g_conf().set_safe_to_start_threads();
 }
 
-void StoreTestFixture::TearDown()
+void
+StoreTestFixture::TearDown()
 {
   if (store) {
     int r = store->umount();
@@ -82,7 +86,8 @@ void StoreTestFixture::TearDown()
   PopSettings(0);
 }
 
-void StoreTestFixture::SetVal(ConfigProxy& _conf, const char* key, const char* val)
+void
+StoreTestFixture::SetVal(ConfigProxy& _conf, const char* key, const char* val)
 {
   ceph_assert(!conf || conf == &_conf);
   conf = &_conf;
@@ -93,12 +98,12 @@ void StoreTestFixture::SetVal(ConfigProxy& _conf, const char* key, const char* v
   saved_settings.emplace(skey, prev_val);
 }
 
-void StoreTestFixture::PopSettings(size_t pos)
+void
+StoreTestFixture::PopSettings(size_t pos)
 {
   if (conf) {
     ceph_assert(pos == 0 || pos <= saved_settings.size()); // for sanity
-    while(pos < saved_settings.size())
-    {
+    while (pos < saved_settings.size()) {
       auto& e = saved_settings.top();
       conf->set_val_or_die(e.first, e.second);
       saved_settings.pop();
@@ -107,24 +112,25 @@ void StoreTestFixture::PopSettings(size_t pos)
   }
 }
 
-void StoreTestFixture::CloseAndReopen() {
+void
+StoreTestFixture::CloseAndReopen()
+{
   ceph_assert(store != nullptr);
   g_conf()._clear_safe_to_start_threads();
   int r = store->umount();
   EXPECT_EQ(0, r);
   ch.reset(nullptr);
   store.reset(nullptr);
-  store = ObjectStore::create(g_ceph_context,
-                              type,
-                              data_dir,
-                              "store_test_temp_journal");
+  store = ObjectStore::create(
+      g_ceph_context, type, data_dir, "store_test_temp_journal");
   if (!store) {
-    cerr << __func__ << ": objectstore type " << type << " failed to reopen!" << std::endl;
+    cerr << __func__ << ": objectstore type " << type << " failed to reopen!"
+         << std::endl;
   }
   ASSERT_TRUE(store);
 #if defined(WITH_BLUESTORE)
   if (type == "bluestore") {
-    BlueStore *s = static_cast<BlueStore*>(store.get());
+    BlueStore* s = static_cast<BlueStore*>(store.get());
     // better test coverage!
     s->set_cache_shards(5);
   }
@@ -133,6 +139,8 @@ void StoreTestFixture::CloseAndReopen() {
   g_conf().set_safe_to_start_threads();
 }
 
-void StoreTestFixture::RemoveTestObjectStore() {
+void
+StoreTestFixture::RemoveTestObjectStore()
+{
   rm_r(data_dir);
 }

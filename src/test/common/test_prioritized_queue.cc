@@ -1,26 +1,31 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
-#include "common/PrioritizedQueue.h"
-
-#include <numeric>
-#include <vector>
 #include <algorithm>
+#include <numeric>
 #include <random>
+#include <vector>
+
+#include "common/PrioritizedQueue.h"
+#include "gtest/gtest.h"
 
 using std::vector;
 
-class PrioritizedQueueTest : public testing::Test
-{
+class PrioritizedQueueTest : public testing::Test {
 protected:
   typedef int Klass;
   typedef unsigned Item;
   typedef PrioritizedQueue<Item, Klass> PQ;
-  enum { item_size  = 100, };
+
+  enum {
+    item_size = 100,
+  };
+
   vector<Item> items;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     for (int i = 0; i < item_size; i++) {
       items.push_back(Item(i));
     }
@@ -28,13 +33,17 @@ protected:
     std::default_random_engine rng(rd());
     std::shuffle(items.begin(), items.end(), rng);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     items.clear();
   }
 };
 
-TEST_F(PrioritizedQueueTest, capacity) {
-  const unsigned min_cost  = 10;
+TEST_F(PrioritizedQueueTest, capacity)
+{
+  const unsigned min_cost = 10;
   const unsigned max_tokens_per_subqueue = 50;
   PQ pq(max_tokens_per_subqueue, min_cost);
   EXPECT_TRUE(pq.empty());
@@ -56,7 +65,8 @@ TEST_F(PrioritizedQueueTest, capacity) {
   EXPECT_EQ(0u, pq.length());
 }
 
-TEST_F(PrioritizedQueueTest, strict_pq) {
+TEST_F(PrioritizedQueueTest, strict_pq)
+{
   const unsigned min_cost = 1;
   const unsigned max_tokens_per_subqueue = 50;
   PQ pq(max_tokens_per_subqueue, min_cost);
@@ -74,7 +84,8 @@ TEST_F(PrioritizedQueueTest, strict_pq) {
   }
 }
 
-TEST_F(PrioritizedQueueTest, lowest_among_eligible_otherwise_highest) {
+TEST_F(PrioritizedQueueTest, lowest_among_eligible_otherwise_highest)
+{
   // to minimize the effect of `distribute_tokens()`
   // all eligible items will be assigned with cost of min_cost
   const unsigned min_cost = 0;
@@ -133,7 +144,8 @@ static const unsigned num_classes = 4;
 // just a determinitic number
 #define ITEM_TO_CLASS(item_) Klass((item_ + 43) % num_classes)
 
-TEST_F(PrioritizedQueueTest, fairness_by_class) {
+TEST_F(PrioritizedQueueTest, fairness_by_class)
+{
   // dequeue should be fair to all classes in a certain bucket
   const unsigned min_cost = 1;
   const unsigned max_tokens_per_subqueue = 50;
@@ -156,17 +168,16 @@ TEST_F(PrioritizedQueueTest, fairness_by_class) {
     Klass k = ITEM_TO_CLASS(item);
     num_picked_in_class[k]++;
   }
-  unsigned total = std::accumulate(num_picked_in_class.begin(),
-				   num_picked_in_class.end(),
-				   0);
+  unsigned total = std::accumulate(
+      num_picked_in_class.begin(), num_picked_in_class.end(), 0);
   float avg = float(total) / num_classes;
   for (unsigned i = 0; i < num_classes; i++) {
     EXPECT_NEAR(avg, num_picked_in_class[i], 0.5);
   }
 }
 
-
-TEST_F(PrioritizedQueueTest, remove_by_class) {
+TEST_F(PrioritizedQueueTest, remove_by_class)
+{
   const unsigned min_cost = 1;
   const unsigned max_tokens_per_subqueue = 50;
   PQ pq(max_tokens_per_subqueue, min_cost);
@@ -184,8 +195,7 @@ TEST_F(PrioritizedQueueTest, remove_by_class) {
   pq.remove_by_class(class_to_remove, &removed);
 
   // see if the removed items are expected ones.
-  for (std::list<Item>::iterator it = removed.begin();
-       it != removed.end();
+  for (std::list<Item>::iterator it = removed.begin(); it != removed.end();
        ++it) {
     const Item& item = *it;
     Klass k = ITEM_TO_CLASS(item);

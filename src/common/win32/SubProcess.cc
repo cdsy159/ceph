@@ -10,19 +10,25 @@
  *
  */
 
-#include <stdarg.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <iostream>
-#include <iomanip>
-
 #include "common/SubProcess.h"
+
+#include <fcntl.h>
+#include <stdarg.h>
+#include <unistd.h>
+
+#include <iomanip>
+#include <iostream>
+
 #include "common/errno.h"
 #include "common/win32/wstring.h"
 #include "include/ceph_assert.h"
 #include "include/compat.h"
 
-SubProcess::SubProcess(const char *cmd_, std_fd_op stdin_op_, std_fd_op stdout_op_, std_fd_op stderr_op_) :
+SubProcess::SubProcess(
+    const char* cmd_,
+    std_fd_op stdin_op_,
+    std_fd_op stdout_op_,
+    std_fd_op stderr_op_) :
   cmd(cmd_),
   cmd_args(),
   stdin_op(stdin_op_),
@@ -32,22 +38,25 @@ SubProcess::SubProcess(const char *cmd_, std_fd_op stdin_op_, std_fd_op stdout_o
   stdout_pipe_in_fd(-1),
   stderr_pipe_in_fd(-1),
   pid(0),
-  errstr() {
-}
+  errstr()
+{}
 
-SubProcess::~SubProcess() {
+SubProcess::~SubProcess()
+{
   ceph_assert(!is_spawned());
   ceph_assert(stdin_pipe_out_fd == -1);
   ceph_assert(stdout_pipe_in_fd == -1);
   ceph_assert(stderr_pipe_in_fd == -1);
 }
 
-void SubProcess::add_cmd_args(const char *arg, ...) {
+void
+SubProcess::add_cmd_args(const char* arg, ...)
+{
   ceph_assert(!is_spawned());
 
   va_list ap;
   va_start(ap, arg);
-  const char *p = arg;
+  const char* p = arg;
   do {
     add_cmd_arg(p);
     p = va_arg(ap, const char*);
@@ -55,34 +64,44 @@ void SubProcess::add_cmd_args(const char *arg, ...) {
   va_end(ap);
 }
 
-void SubProcess::add_cmd_arg(const char *arg) {
+void
+SubProcess::add_cmd_arg(const char* arg)
+{
   ceph_assert(!is_spawned());
 
   cmd_args.push_back(arg);
 }
 
-int SubProcess::get_stdin() const {
+int
+SubProcess::get_stdin() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stdin_op == PIPE);
 
   return stdin_pipe_out_fd;
 }
 
-int SubProcess::get_stdout() const {
+int
+SubProcess::get_stdout() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stdout_op == PIPE);
 
   return stdout_pipe_in_fd;
 }
 
-int SubProcess::get_stderr() const {
+int
+SubProcess::get_stderr() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stderr_op == PIPE);
 
   return stderr_pipe_in_fd;
 }
 
-void SubProcess::close(int &fd) {
+void
+SubProcess::close(int& fd)
+{
   if (fd == -1)
     return;
 
@@ -90,45 +109,62 @@ void SubProcess::close(int &fd) {
   fd = -1;
 }
 
-void SubProcess::close_stdin() {
+void
+SubProcess::close_stdin()
+{
   ceph_assert(is_spawned());
   ceph_assert(stdin_op == PIPE);
 
   close(stdin_pipe_out_fd);
 }
 
-void SubProcess::close_stdout() {
+void
+SubProcess::close_stdout()
+{
   ceph_assert(is_spawned());
   ceph_assert(stdout_op == PIPE);
 
   close(stdout_pipe_in_fd);
 }
 
-void SubProcess::close_stderr() {
+void
+SubProcess::close_stderr()
+{
   ceph_assert(is_spawned());
   ceph_assert(stderr_op == PIPE);
 
   close(stderr_pipe_in_fd);
 }
 
-const std::string SubProcess::err() const {
+const std::string
+SubProcess::err() const
+{
   return errstr.str();
 }
 
-SubProcessTimed::SubProcessTimed(const char *cmd, std_fd_op stdin_op,
-                 std_fd_op stdout_op, std_fd_op stderr_op,
-                 int timeout_, int sigkill_) :
+SubProcessTimed::SubProcessTimed(
+    const char* cmd,
+    std_fd_op stdin_op,
+    std_fd_op stdout_op,
+    std_fd_op stderr_op,
+    int timeout_,
+    int sigkill_) :
   SubProcess(cmd, stdin_op, stdout_op, stderr_op),
   timeout(timeout_),
-  sigkill(sigkill_) {
-}
+  sigkill(sigkill_)
+{}
 
 static bool timedout = false;
-void timeout_sighandler(int sig) {
+
+void
+timeout_sighandler(int sig)
+{
   timedout = true;
 }
 
-void SubProcess::close_h(HANDLE &handle) {
+void
+SubProcess::close_h(HANDLE& handle)
+{
   if (handle == INVALID_HANDLE_VALUE)
     return;
 
@@ -136,7 +172,9 @@ void SubProcess::close_h(HANDLE &handle) {
   handle = INVALID_HANDLE_VALUE;
 }
 
-int SubProcess::join() {
+int
+SubProcess::join()
+{
   ceph_assert(is_spawned());
 
   close(stdin_pipe_out_fd);
@@ -164,12 +202,16 @@ int SubProcess::join() {
   return status;
 }
 
-void SubProcess::kill(int signo) const {
+void
+SubProcess::kill(int signo) const
+{
   ceph_assert(is_spawned());
   ceph_assert(TerminateProcess(proc_handle, 128 + SIGTERM));
 }
 
-int SubProcess::spawn() {
+int
+SubProcess::spawn()
+{
   std::ostringstream cmdline;
   cmdline << cmd;
   for (auto& arg : cmd_args) {
@@ -198,23 +240,31 @@ int SubProcess::spawn() {
 
   // The following handles will be used by the parent process and
   // must be marked as non-inheritable.
-  if ((stdin_op == PIPE && !SetHandleInformation(stdin_w, HANDLE_FLAG_INHERIT, 0)) ||
-      (stdout_op == PIPE && !SetHandleInformation(stdout_r, HANDLE_FLAG_INHERIT, 0)) ||
-      (stderr_op == PIPE && !SetHandleInformation(stderr_r, HANDLE_FLAG_INHERIT, 0))) {
-    errstr << cmd << ": SetHandleInformation failed: "
-           << GetLastError();
+  if ((stdin_op == PIPE &&
+       !SetHandleInformation(stdin_w, HANDLE_FLAG_INHERIT, 0)) ||
+      (stdout_op == PIPE &&
+       !SetHandleInformation(stdout_r, HANDLE_FLAG_INHERIT, 0)) ||
+      (stderr_op == PIPE &&
+       !SetHandleInformation(stderr_r, HANDLE_FLAG_INHERIT, 0))) {
+    errstr << cmd << ": SetHandleInformation failed: " << GetLastError();
     goto fail;
   }
 
   si.cb = sizeof(STARTUPINFO);
   si.hStdInput = stdin_op == KEEP ? GetStdHandle(STD_INPUT_HANDLE) : stdin_r;
-  si.hStdOutput = stdout_op == KEEP ? GetStdHandle(STD_OUTPUT_HANDLE) : stdout_w;
+  si.hStdOutput = stdout_op == KEEP ? GetStdHandle(STD_OUTPUT_HANDLE)
+                                    : stdout_w;
   si.hStdError = stderr_op == KEEP ? GetStdHandle(STD_ERROR_HANDLE) : stderr_w;
   si.dwFlags |= STARTF_USESTDHANDLES;
 
-  stdin_pipe_out_fd = stdin_op == PIPE ? _open_osfhandle((intptr_t)stdin_w, 0) : -1;
-  stdout_pipe_in_fd = stdout_op == PIPE ? _open_osfhandle((intptr_t)stdout_r, _O_RDONLY) : - 1;
-  stderr_pipe_in_fd = stderr_op == PIPE ? _open_osfhandle((intptr_t)stderr_r, _O_RDONLY) : -1;
+  stdin_pipe_out_fd = stdin_op == PIPE ? _open_osfhandle((intptr_t)stdin_w, 0)
+                                       : -1;
+  stdout_pipe_in_fd = stdout_op == PIPE
+                          ? _open_osfhandle((intptr_t)stdout_r, _O_RDONLY)
+                          : -1;
+  stderr_pipe_in_fd = stderr_op == PIPE
+                          ? _open_osfhandle((intptr_t)stderr_r, _O_RDONLY)
+                          : -1;
 
   if (stdin_op == PIPE && stdin_pipe_out_fd == -1 ||
       stdout_op == PIPE && stdout_pipe_in_fd == -1 ||
@@ -227,13 +277,13 @@ int SubProcess::spawn() {
   stdin_w = stdout_r = stderr_r = INVALID_HANDLE_VALUE;
 
   if (!CreateProcessW(
-      NULL, const_cast<wchar_t*>(cmdline_w.c_str()),
-      NULL, NULL, /* No special security attributes */
-      1, /* Inherit handles marked as inheritable */
-      0, /* No special flags */
-      NULL, /* Use the same environment variables */
-      NULL, /* use the same cwd */
-      &si, &pi)) {
+          NULL, const_cast<wchar_t*>(cmdline_w.c_str()), NULL,
+          NULL, /* No special security attributes */
+          1, /* Inherit handles marked as inheritable */
+          0, /* No special flags */
+          NULL, /* Use the same environment variables */
+          NULL, /* use the same cwd */
+          &si, &pi)) {
     errstr << cmd << ": CreateProcess failed: " << GetLastError();
     goto fail;
   }
@@ -270,16 +320,19 @@ fail:
   return -1;
 }
 
-void SubProcess::exec() {
-}
+void
+SubProcess::exec()
+{}
 
-int SubProcessTimed::spawn() {
+int
+SubProcessTimed::spawn()
+{
   if (auto ret = SubProcess::spawn(); ret < 0) {
     return ret;
   }
 
   if (timeout > 0) {
-    waiter = std::thread([&](){
+    waiter = std::thread([&]() {
       DWORD wait_status = WaitForSingleObject(proc_handle, timeout * 1000);
       ceph_assert(wait_status != WAIT_FAILED);
       if (wait_status == WAIT_TIMEOUT) {
@@ -294,15 +347,19 @@ int SubProcessTimed::spawn() {
   return 0;
 }
 
-int SubProcessTimed::join() {
+int
+SubProcessTimed::join()
+{
   ceph_assert(is_spawned());
 
   if (waiter.joinable()) {
     waiter.join();
   }
 
-  return SubProcess::join();;
+  return SubProcess::join();
+  ;
 }
 
-void SubProcessTimed::exec() {
-}
+void
+SubProcessTimed::exec()
+{}

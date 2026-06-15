@@ -4,25 +4,28 @@
 #include "Header.h"
 
 #include <errno.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <unistd.h>
+
 #include "common/dout.h"
 #include "common/errno.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::crypto::luks::Header: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::crypto::luks::Header: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace crypto {
 namespace luks {
 
-Header::Header(CephContext* cct) : m_cct(cct), m_fd(-1), m_cd(nullptr) {
-}
+Header::Header(CephContext* cct) :
+  m_cct(cct), m_fd(-1), m_cd(nullptr)
+{}
 
-Header::~Header() {
+Header::~Header()
+{
   if (m_fd != -1) {
     close(m_fd);
     m_fd = -1;
@@ -33,28 +36,34 @@ Header::~Header() {
   }
 }
 
-void Header::libcryptsetup_log_wrapper(int level, const char* msg, void* header) {
+void
+Header::libcryptsetup_log_wrapper(int level, const char* msg, void* header)
+{
   ((Header*)header)->libcryptsetup_log(level, msg);
 }
 
-void Header::libcryptsetup_log(int level, const char* msg) {
+void
+Header::libcryptsetup_log(int level, const char* msg)
+{
   switch (level) {
-    case CRYPT_LOG_NORMAL:
-      ldout(m_cct, 5) << "[libcryptsetup] " << msg << dendl;
-      break;
-    case CRYPT_LOG_ERROR:
-      lderr(m_cct) << "[libcryptsetup] " << msg << dendl;
-      break;
-    case CRYPT_LOG_VERBOSE:
-      ldout(m_cct, 10) << "[libcryptsetup] " << msg << dendl;
-      break;
-    case CRYPT_LOG_DEBUG:
-      ldout(m_cct, 20) << "[libcryptsetup] " << msg << dendl;
-      break;
+  case CRYPT_LOG_NORMAL:
+    ldout(m_cct, 5) << "[libcryptsetup] " << msg << dendl;
+    break;
+  case CRYPT_LOG_ERROR:
+    lderr(m_cct) << "[libcryptsetup] " << msg << dendl;
+    break;
+  case CRYPT_LOG_VERBOSE:
+    ldout(m_cct, 10) << "[libcryptsetup] " << msg << dendl;
+    break;
+  case CRYPT_LOG_DEBUG:
+    ldout(m_cct, 20) << "[libcryptsetup] " << msg << dendl;
+    break;
   }
 }
 
-int Header::init() {
+int
+Header::init()
+{
   if (m_fd != -1) {
     return 0;
   }
@@ -66,8 +75,8 @@ int Header::init() {
                  << dendl;
     return -errno;
   }
-  std::string path =
-          "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(m_fd);
+  std::string path = "/proc/" + std::to_string(getpid()) + "/fd/" +
+                     std::to_string(m_fd);
 
   if (m_cct->_conf->subsys.should_gather<dout_subsys, 30>()) {
     crypt_set_debug_level(CRYPT_DEBUG_ALL);
@@ -86,7 +95,9 @@ int Header::init() {
   return 0;
 }
 
-int Header::write(const ceph::bufferlist& bl) {
+int
+Header::write(const ceph::bufferlist& bl)
+{
   ceph_assert(m_fd != -1);
 
   auto r = bl.write_fd(m_fd);
@@ -96,7 +107,9 @@ int Header::write(const ceph::bufferlist& bl) {
   return r;
 }
 
-ssize_t Header::read(ceph::bufferlist* bl) {
+ssize_t
+Header::read(ceph::bufferlist* bl)
+{
   ceph_assert(m_fd != -1);
 
   // get current header size
@@ -118,14 +131,21 @@ ssize_t Header::read(ceph::bufferlist* bl) {
   return r;
 }
 
-int Header::format(const char* type, const char* alg, const char* key,
-                   size_t key_size, const char* cipher_mode,
-                   uint32_t sector_size, uint32_t data_alignment,
-                   bool insecure_fast_mode) {
+int
+Header::format(
+    const char* type,
+    const char* alg,
+    const char* key,
+    size_t key_size,
+    const char* cipher_mode,
+    uint32_t sector_size,
+    uint32_t data_alignment,
+    bool insecure_fast_mode)
+{
   ceph_assert(m_cd != nullptr);
 
-  ldout(m_cct, 20) << "sector size: " << sector_size << ", data alignment: "
-                   << data_alignment << dendl;
+  ldout(m_cct, 20) << "sector size: " << sector_size
+                   << ", data alignment: " << data_alignment << dendl;
 
   // required for passing libcryptsetup device size check
   if (ftruncate(m_fd, 4096) != 0) {
@@ -168,8 +188,8 @@ int Header::format(const char* type, const char* alg, const char* key,
     }
   }
 
-  auto r = crypt_format(
-          m_cd, type, alg, cipher_mode, NULL, key, key_size, params);
+  auto r =
+      crypt_format(m_cd, type, alg, cipher_mode, NULL, key, key_size, params);
   if (r != 0) {
     lderr(m_cct) << "crypt_format failed: " << cpp_strerror(r) << dendl;
     return r;
@@ -178,11 +198,13 @@ int Header::format(const char* type, const char* alg, const char* key,
   return 0;
 }
 
-int Header::add_keyslot(const char* passphrase, size_t passphrase_size) {
+int
+Header::add_keyslot(const char* passphrase, size_t passphrase_size)
+{
   ceph_assert(m_cd != nullptr);
 
   auto r = crypt_keyslot_add_by_volume_key(
-          m_cd, CRYPT_ANY_SLOT, NULL, 0, passphrase, passphrase_size);
+      m_cd, CRYPT_ANY_SLOT, NULL, 0, passphrase, passphrase_size);
   if (r < 0) {
     lderr(m_cct) << "crypt_keyslot_add_by_volume_key failed: "
                  << cpp_strerror(r) << dendl;
@@ -192,7 +214,9 @@ int Header::add_keyslot(const char* passphrase, size_t passphrase_size) {
   return 0;
 }
 
-int Header::load(const char* type) {
+int
+Header::load(const char* type)
+{
   ceph_assert(m_cd != nullptr);
 
   // libcryptsetup checks if device size matches the header and keyslots size
@@ -209,19 +233,24 @@ int Header::load(const char* type) {
     return r;
   }
 
-  ldout(m_cct, 20) << "sector size: " << get_sector_size() << ", data offset: "
-                   << get_data_offset() << dendl;
+  ldout(m_cct, 20) << "sector size: " << get_sector_size()
+                   << ", data offset: " << get_data_offset() << dendl;
 
   return 0;
 }
 
-int Header::read_volume_key(const char* passphrase, size_t passphrase_size,
-                            char* volume_key, size_t* volume_key_size) {
+int
+Header::read_volume_key(
+    const char* passphrase,
+    size_t passphrase_size,
+    char* volume_key,
+    size_t* volume_key_size)
+{
   ceph_assert(m_cd != nullptr);
 
   auto r = crypt_volume_key_get(
-          m_cd, CRYPT_ANY_SLOT, volume_key, volume_key_size, passphrase,
-          passphrase_size);
+      m_cd, CRYPT_ANY_SLOT, volume_key, volume_key_size, passphrase,
+      passphrase_size);
   if (r < 0) {
     ldout(m_cct, 20) << "crypt_volume_key_get failed: " << cpp_strerror(r)
                      << dendl;
@@ -231,27 +260,37 @@ int Header::read_volume_key(const char* passphrase, size_t passphrase_size,
   return 0;
 }
 
-int Header::get_sector_size() {
+int
+Header::get_sector_size()
+{
   ceph_assert(m_cd != nullptr);
   return crypt_get_sector_size(m_cd);
 }
 
-uint64_t Header::get_data_offset() {
+uint64_t
+Header::get_data_offset()
+{
   ceph_assert(m_cd != nullptr);
   return crypt_get_data_offset(m_cd) << 9;
 }
 
-const char* Header::get_cipher() {
+const char*
+Header::get_cipher()
+{
   ceph_assert(m_cd != nullptr);
   return crypt_get_cipher(m_cd);
 }
 
-const char* Header::get_cipher_mode() {
+const char*
+Header::get_cipher_mode()
+{
   ceph_assert(m_cd != nullptr);
   return crypt_get_cipher_mode(m_cd);
 }
 
-const char* Header::get_format_name() {
+const char*
+Header::get_format_name()
+{
   ceph_assert(m_cd != nullptr);
   return crypt_get_type(m_cd);
 }

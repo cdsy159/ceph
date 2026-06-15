@@ -21,26 +21,28 @@
 namespace rgw::dmclock {
 // TODO: implement read vs write
 enum class client_id {
-                      admin, //< /admin apis
-                      auth, //< swift auth, sts
-                      data, //< PutObj, GetObj
-                      metadata, //< bucket operations, object metadata
-                      count
+  admin, //< /admin apis
+  auth, //< swift auth, sts
+  data, //< PutObj, GetObj
+  metadata, //< bucket operations, object metadata
+  count
 };
 
 // TODO move these to dmclock/types or so in submodule
-using crimson::dmclock::Cost;
 using crimson::dmclock::ClientInfo;
+using crimson::dmclock::Cost;
 
 enum class scheduler_t {
-                        none,
-                        throttler,
-                        dmclock
+  none,
+  throttler,
+  dmclock
 };
 
-inline scheduler_t get_scheduler_t(CephContext* const cct)
+inline scheduler_t
+get_scheduler_t(CephContext* const cct)
 {
-  const auto scheduler_type = cct->_conf.get_val<std::string>("rgw_scheduler_type");
+  const auto scheduler_type =
+      cct->_conf.get_val<std::string>("rgw_scheduler_type");
   if (scheduler_type == "dmclock")
     return scheduler_t::dmclock;
   else if (scheduler_type == "throttler")

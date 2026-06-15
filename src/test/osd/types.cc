@@ -17,20 +17,22 @@
  */
 
 #include "include/types.h"
-#include "osd/osd_types.h"
-#include "osd/OSDMap.h"
-#include "gtest/gtest.h"
-#include "include/coredumpctl.h"
-#include "common/Thread.h"
-#include "include/stringify.h"
-#include "osd/ReplicatedBackend.h"
 
 #include <iostream> // for std::cout
 #include <sstream>
 
+#include "common/Thread.h"
+#include "gtest/gtest.h"
+#include "include/coredumpctl.h"
+#include "include/stringify.h"
+#include "osd/OSDMap.h"
+#include "osd/ReplicatedBackend.h"
+#include "osd/osd_types.h"
+
 using namespace std;
 
-void compare_pg_pool_t(const pg_pool_t l, const pg_pool_t r)
+void
+compare_pg_pool_t(const pg_pool_t l, const pg_pool_t r)
 {
   ASSERT_EQ(l.type, r.type);
   ASSERT_EQ(l.size, r.size);
@@ -62,17 +64,21 @@ void compare_pg_pool_t(const pg_pool_t l, const pg_pool_t r)
   ASSERT_EQ(l.cache_min_flush_age, r.cache_min_flush_age);
   ASSERT_EQ(l.cache_min_evict_age, r.cache_min_evict_age);
   ASSERT_EQ(l.erasure_code_profile, r.erasure_code_profile);
-  ASSERT_EQ(l.last_force_op_resend_preluminous, r.last_force_op_resend_preluminous);
+  ASSERT_EQ(
+      l.last_force_op_resend_preluminous, r.last_force_op_resend_preluminous);
   ASSERT_EQ(l.min_read_recency_for_promote, r.min_read_recency_for_promote);
   ASSERT_EQ(l.expected_num_objects, r.expected_num_objects);
-  ASSERT_EQ(l.cache_target_dirty_high_ratio_micro, r.cache_target_dirty_high_ratio_micro);
+  ASSERT_EQ(
+      l.cache_target_dirty_high_ratio_micro,
+      r.cache_target_dirty_high_ratio_micro);
   ASSERT_EQ(l.min_write_recency_for_promote, r.min_write_recency_for_promote);
   ASSERT_EQ(l.use_gmt_hitset, r.use_gmt_hitset);
   ASSERT_EQ(l.fast_read, r.fast_read);
   ASSERT_EQ(l.hit_set_grade_decay_rate, r.hit_set_grade_decay_rate);
   ASSERT_EQ(l.hit_set_search_last_n, r.hit_set_search_last_n);
   //ASSERT_EQ(l.opts, r.opts);
-  ASSERT_EQ(l.last_force_op_resend_prenautilus, r.last_force_op_resend_prenautilus);
+  ASSERT_EQ(
+      l.last_force_op_resend_prenautilus, r.last_force_op_resend_prenautilus);
   ASSERT_EQ(l.application_metadata, r.application_metadata);
   ASSERT_EQ(l.create_time, r.create_time);
   ASSERT_EQ(l.get_pg_num_target(), r.get_pg_num_target());
@@ -85,26 +91,24 @@ void compare_pg_pool_t(const pg_pool_t l, const pg_pool_t r)
   ASSERT_EQ(l.peering_crush_bucket_target, r.peering_crush_bucket_target);
   ASSERT_EQ(l.peering_crush_bucket_barrier, r.peering_crush_bucket_barrier);
   ASSERT_EQ(l.peering_crush_mandatory_member, r.peering_crush_mandatory_member);
-  ASSERT_EQ(l.peering_crush_bucket_count , r.peering_crush_bucket_count);
-  ASSERT_EQ(l.peering_crush_bucket_target , r.peering_crush_bucket_target);
-  ASSERT_EQ(l.peering_crush_bucket_barrier , r.peering_crush_bucket_barrier);
-  ASSERT_EQ(l.peering_crush_mandatory_member , r.peering_crush_mandatory_member);
+  ASSERT_EQ(l.peering_crush_bucket_count, r.peering_crush_bucket_count);
+  ASSERT_EQ(l.peering_crush_bucket_target, r.peering_crush_bucket_target);
+  ASSERT_EQ(l.peering_crush_bucket_barrier, r.peering_crush_bucket_barrier);
+  ASSERT_EQ(l.peering_crush_mandatory_member, r.peering_crush_mandatory_member);
 }
 
 TEST(pg_pool_t, encodeDecode)
 {
   uint64_t features = CEPH_FEATURE_CRUSH_TUNABLES5 |
-                          CEPH_FEATURE_INCARNATION_2 |
-                          CEPH_FEATURE_PGPOOL3 |
-                          CEPH_FEATURE_OSDENC |
-                          CEPH_FEATURE_OSD_POOLRESEND |
-                          CEPH_FEATURE_NEW_OSDOP_ENCODING |
-                          CEPH_FEATUREMASK_SERVER_LUMINOUS |
-                          CEPH_FEATUREMASK_SERVER_MIMIC |
-                          CEPH_FEATUREMASK_SERVER_NAUTILUS;
+                      CEPH_FEATURE_INCARNATION_2 | CEPH_FEATURE_PGPOOL3 |
+                      CEPH_FEATURE_OSDENC | CEPH_FEATURE_OSD_POOLRESEND |
+                      CEPH_FEATURE_NEW_OSDOP_ENCODING |
+                      CEPH_FEATUREMASK_SERVER_LUMINOUS |
+                      CEPH_FEATUREMASK_SERVER_MIMIC |
+                      CEPH_FEATUREMASK_SERVER_NAUTILUS;
   {
     std::list<pg_pool_t> pools = pg_pool_t::generate_test_instances();
-    for(auto p1 : pools){
+    for (auto p1 : pools) {
       bufferlist bl;
       p1.encode(bl, features);
       bl.hexdump(std::cout);
@@ -118,9 +122,9 @@ TEST(pg_pool_t, encodeDecode)
   {
     // test reef
     std::list<pg_pool_t> pools = pg_pool_t::generate_test_instances();
-    for(auto p1 : pools){
+    for (auto p1 : pools) {
       bufferlist bl;
-      p1.encode(bl, features|CEPH_FEATUREMASK_SERVER_REEF);
+      p1.encode(bl, features | CEPH_FEATUREMASK_SERVER_REEF);
       bl.hexdump(std::cout);
       auto pbl = bl.cbegin();
       pg_pool_t p2;
@@ -227,635 +231,450 @@ TEST(hobject, prefixes5)
 
 TEST(pg_interval_t, check_new_interval)
 {
-// iterate through all 4 combinations
-for (unsigned i = 0; i < 4; ++i) {
-  //
-  // Create a situation where osdmaps are the same so that
-  // each test case can diverge from it using minimal code.
-  //
-  int osd_id = 1;
-  epoch_t epoch = 40;
-  std::shared_ptr<OSDMap> osdmap(new OSDMap());
-  osdmap->set_max_osd(10);
-  osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-  osdmap->set_epoch(epoch);
-  std::shared_ptr<OSDMap> lastmap(new OSDMap());
-  lastmap->set_max_osd(10);
-  lastmap->set_state(osd_id, CEPH_OSD_EXISTS);
-  lastmap->set_epoch(epoch);
-  epoch_t same_interval_since = epoch;
-  epoch_t last_epoch_clean = same_interval_since;
-  int64_t pool_id = 200;
-  int pg_num = 4;
-  __u8 min_size = 2;
-  boost::scoped_ptr<IsPGRecoverablePredicate> recoverable(new ReplicatedBackend::RPCRecPred());
-  {
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    inc.new_pools[pool_id].set_pg_num_pending(pg_num);
-    inc.new_up_thru[osd_id] = epoch + 1;
-    osdmap->apply_incremental(inc);
-    lastmap->apply_incremental(inc);
-  }
-  vector<int> new_acting;
-  new_acting.push_back(osd_id);
-  new_acting.push_back(osd_id + 1);
-  vector<int> old_acting = new_acting;
-  int old_primary = osd_id;
-  int new_primary = osd_id;
-  vector<int> new_up;
-  new_up.push_back(osd_id);
-  int old_up_primary = osd_id;
-  int new_up_primary = osd_id;
-  vector<int> old_up = new_up;
-  pg_t pgid;
-  pgid.set_pool(pool_id);
-
-  //
-  // Do nothing if there are no modifications in
-  // acting, up or pool size and that the pool is not
-  // being split
-  //
-  {
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_FALSE(PastIntervals::check_new_interval(old_primary,
-						   new_primary,
-						   old_acting,
-						   new_acting,
-						   old_up_primary,
-						   new_up_primary,
-						   old_up,
-						   new_up,
-						   same_interval_since,
-						   last_epoch_clean,
-						   osdmap,
-						   lastmap,
-						   pgid,
-                                                   *recoverable,
-						   &past_intervals));
-    ASSERT_TRUE(past_intervals.empty());
-  }
-
-  //
-  // The acting set has changed
-  //
-  {
-    vector<int> new_acting;
-    int _new_primary = osd_id + 1;
-    new_acting.push_back(_new_primary);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals));
-    old_primary = new_primary;
-  }
-
-  //
-  // The up set has changed
-  //
-  {
-    vector<int> new_up;
-    int _new_primary = osd_id + 1;
-    new_up.push_back(_new_primary);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // The up primary has changed
-  //
-  {
-    vector<int> new_up;
-    int _new_up_primary = osd_id + 1;
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  _new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG is splitting
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    int new_pg_num = pg_num ^ 2;
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(new_pg_num);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG is pre-merge source
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
-    osdmap->apply_incremental(inc);
-    cout << "pg_num " << pg_num << std::endl;
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pg_t(pg_num - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG was pre-merge source
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
-    osdmap->apply_incremental(inc);
-
-    cout << "pg_num " << pg_num << std::endl;
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  lastmap,  // reverse order!
-						  osdmap,
-						  pg_t(pg_num - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG is merge source
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num - 1);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pg_t(pg_num - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG is pre-merge target
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pg_t(pg_num / 2 - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG was pre-merge target
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  lastmap,  // reverse order!
-						  osdmap,
-						  pg_t(pg_num / 2 - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG is merge target
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num - 1);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pg_t(pg_num / 2 - 1, pool_id),
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // PG size has changed
-  //
-  {
-    std::shared_ptr<OSDMap> osdmap(new OSDMap());
-    osdmap->set_max_osd(10);
-    osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    __u8 new_min_size = min_size + 1;
-    inc.new_pools[pool_id].min_size = new_min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    osdmap->apply_incremental(inc);
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals));
-  }
-
-  //
-  // The old acting set was empty : the previous interval could not
-  // have been rw
-  //
-  {
-    vector<int> old_acting;
-
-    PastIntervals past_intervals;
-
-    ostringstream out;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals,
-						  &out));
-    ASSERT_NE(string::npos, out.str().find("acting set is too small"));
-  }
-
-  //
-  // The old acting set did not have enough osd : it could
-  // not have been rw
-  //
-  {
-    vector<int> old_acting;
-    old_acting.push_back(osd_id);
-
+  // iterate through all 4 combinations
+  for (unsigned i = 0; i < 4; ++i) {
     //
-    // see http://tracker.ceph.com/issues/5780
-    // the size of the old acting set should be compared
-    // with the min_size of the old osdmap
+    // Create a situation where osdmaps are the same so that
+    // each test case can diverge from it using minimal code.
     //
-    // The new osdmap is created so that it triggers the
-    // bug.
-    //
+    int osd_id = 1;
+    epoch_t epoch = 40;
     std::shared_ptr<OSDMap> osdmap(new OSDMap());
     osdmap->set_max_osd(10);
     osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
     osdmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    __u8 new_min_size = old_acting.size();
-    inc.new_pools[pool_id].min_size = new_min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    osdmap->apply_incremental(inc);
-
-    ostringstream out;
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals,
-						  &out));
-    ASSERT_NE(string::npos, out.str().find("acting set is too small"));
-  }
-
-  //
-  // The acting set changes. The old acting set primary was up during the
-  // previous interval and may have been rw.
-  //
-  {
-    vector<int> new_acting;
-    new_acting.push_back(osd_id + 4);
-    new_acting.push_back(osd_id + 5);
-
-    ostringstream out;
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals,
-						  &out));
-    ASSERT_NE(string::npos, out.str().find("includes interval"));
-  }
-  //
-  // The acting set changes. The old acting set primary was not up
-  // during the old interval but last_epoch_clean is in the
-  // old interval and it may have been rw.
-  //
-  {
-    vector<int> new_acting;
-    new_acting.push_back(osd_id + 4);
-    new_acting.push_back(osd_id + 5);
-
     std::shared_ptr<OSDMap> lastmap(new OSDMap());
     lastmap->set_max_osd(10);
     lastmap->set_state(osd_id, CEPH_OSD_EXISTS);
     lastmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    inc.new_up_thru[osd_id] = epoch - 10;
-    lastmap->apply_incremental(inc);
-
-    ostringstream out;
-
-    PastIntervals past_intervals;
-
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals,
-						  &out));
-    ASSERT_NE(string::npos, out.str().find("presumed to have been rw"));
-  }
-
-  //
-  // The acting set changes. The old acting set primary was not up
-  // during the old interval and last_epoch_clean is before the
-  // old interval : the previous interval could not possibly have
-  // been rw.
-  //
-  {
+    epoch_t same_interval_since = epoch;
+    epoch_t last_epoch_clean = same_interval_since;
+    int64_t pool_id = 200;
+    int pg_num = 4;
+    __u8 min_size = 2;
+    boost::scoped_ptr<IsPGRecoverablePredicate> recoverable(
+        new ReplicatedBackend::RPCRecPred());
+    {
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      inc.new_pools[pool_id].set_pg_num_pending(pg_num);
+      inc.new_up_thru[osd_id] = epoch + 1;
+      osdmap->apply_incremental(inc);
+      lastmap->apply_incremental(inc);
+    }
     vector<int> new_acting;
-    new_acting.push_back(osd_id + 4);
-    new_acting.push_back(osd_id + 5);
+    new_acting.push_back(osd_id);
+    new_acting.push_back(osd_id + 1);
+    vector<int> old_acting = new_acting;
+    int old_primary = osd_id;
+    int new_primary = osd_id;
+    vector<int> new_up;
+    new_up.push_back(osd_id);
+    int old_up_primary = osd_id;
+    int new_up_primary = osd_id;
+    vector<int> old_up = new_up;
+    pg_t pgid;
+    pgid.set_pool(pool_id);
 
-    epoch_t last_epoch_clean = epoch - 10;
+    //
+    // Do nothing if there are no modifications in
+    // acting, up or pool size and that the pool is not
+    // being split
+    //
+    {
+      PastIntervals past_intervals;
 
-    std::shared_ptr<OSDMap> lastmap(new OSDMap());
-    lastmap->set_max_osd(10);
-    lastmap->set_state(osd_id, CEPH_OSD_EXISTS);
-    lastmap->set_epoch(epoch);
-    OSDMap::Incremental inc(epoch + 1);
-    inc.new_pools[pool_id].min_size = min_size;
-    inc.new_pools[pool_id].set_pg_num(pg_num);
-    inc.new_up_thru[osd_id] = last_epoch_clean;
-    lastmap->apply_incremental(inc);
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_FALSE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+      ASSERT_TRUE(past_intervals.empty());
+    }
 
-    ostringstream out;
+    //
+    // The acting set has changed
+    //
+    {
+      vector<int> new_acting;
+      int _new_primary = osd_id + 1;
+      new_acting.push_back(_new_primary);
 
-    PastIntervals past_intervals;
+      PastIntervals past_intervals;
 
-    ASSERT_TRUE(past_intervals.empty());
-    ASSERT_TRUE(PastIntervals::check_new_interval(old_primary,
-						  new_primary,
-						  old_acting,
-						  new_acting,
-						  old_up_primary,
-						  new_up_primary,
-						  old_up,
-						  new_up,
-						  same_interval_since,
-						  last_epoch_clean,
-						  osdmap,
-						  lastmap,
-						  pgid,
-                                                  *recoverable,
-						  &past_intervals,
-						  &out));
-    ASSERT_NE(string::npos, out.str().find("does not include interval"));
-  }
-} // end for, didn't want to reindent
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+      old_primary = new_primary;
+    }
+
+    //
+    // The up set has changed
+    //
+    {
+      vector<int> new_up;
+      int _new_primary = osd_id + 1;
+      new_up.push_back(_new_primary);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+    }
+
+    //
+    // The up primary has changed
+    //
+    {
+      vector<int> new_up;
+      int _new_up_primary = osd_id + 1;
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          _new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+    }
+
+    //
+    // PG is splitting
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      int new_pg_num = pg_num ^ 2;
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(new_pg_num);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+    }
+
+    //
+    // PG is pre-merge source
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
+      osdmap->apply_incremental(inc);
+      cout << "pg_num " << pg_num << std::endl;
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pg_t(pg_num - 1, pool_id), *recoverable,
+          &past_intervals));
+    }
+
+    //
+    // PG was pre-merge source
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
+      osdmap->apply_incremental(inc);
+
+      cout << "pg_num " << pg_num << std::endl;
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          lastmap, // reverse order!
+          osdmap, pg_t(pg_num - 1, pool_id), *recoverable, &past_intervals));
+    }
+
+    //
+    // PG is merge source
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num - 1);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pg_t(pg_num - 1, pool_id), *recoverable,
+          &past_intervals));
+    }
+
+    //
+    // PG is pre-merge target
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pg_t(pg_num / 2 - 1, pool_id), *recoverable,
+          &past_intervals));
+    }
+
+    //
+    // PG was pre-merge target
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num_pending(pg_num - 1);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          lastmap, // reverse order!
+          osdmap, pg_t(pg_num / 2 - 1, pool_id), *recoverable, &past_intervals));
+    }
+
+    //
+    // PG is merge target
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num - 1);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pg_t(pg_num / 2 - 1, pool_id), *recoverable,
+          &past_intervals));
+    }
+
+    //
+    // PG size has changed
+    //
+    {
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      __u8 new_min_size = min_size + 1;
+      inc.new_pools[pool_id].min_size = new_min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      osdmap->apply_incremental(inc);
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals));
+    }
+
+    //
+    // The old acting set was empty : the previous interval could not
+    // have been rw
+    //
+    {
+      vector<int> old_acting;
+
+      PastIntervals past_intervals;
+
+      ostringstream out;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals, &out));
+      ASSERT_NE(string::npos, out.str().find("acting set is too small"));
+    }
+
+    //
+    // The old acting set did not have enough osd : it could
+    // not have been rw
+    //
+    {
+      vector<int> old_acting;
+      old_acting.push_back(osd_id);
+
+      //
+      // see http://tracker.ceph.com/issues/5780
+      // the size of the old acting set should be compared
+      // with the min_size of the old osdmap
+      //
+      // The new osdmap is created so that it triggers the
+      // bug.
+      //
+      std::shared_ptr<OSDMap> osdmap(new OSDMap());
+      osdmap->set_max_osd(10);
+      osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      osdmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      __u8 new_min_size = old_acting.size();
+      inc.new_pools[pool_id].min_size = new_min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      osdmap->apply_incremental(inc);
+
+      ostringstream out;
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals, &out));
+      ASSERT_NE(string::npos, out.str().find("acting set is too small"));
+    }
+
+    //
+    // The acting set changes. The old acting set primary was up during the
+    // previous interval and may have been rw.
+    //
+    {
+      vector<int> new_acting;
+      new_acting.push_back(osd_id + 4);
+      new_acting.push_back(osd_id + 5);
+
+      ostringstream out;
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals, &out));
+      ASSERT_NE(string::npos, out.str().find("includes interval"));
+    }
+    //
+    // The acting set changes. The old acting set primary was not up
+    // during the old interval but last_epoch_clean is in the
+    // old interval and it may have been rw.
+    //
+    {
+      vector<int> new_acting;
+      new_acting.push_back(osd_id + 4);
+      new_acting.push_back(osd_id + 5);
+
+      std::shared_ptr<OSDMap> lastmap(new OSDMap());
+      lastmap->set_max_osd(10);
+      lastmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      lastmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      inc.new_up_thru[osd_id] = epoch - 10;
+      lastmap->apply_incremental(inc);
+
+      ostringstream out;
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals, &out));
+      ASSERT_NE(string::npos, out.str().find("presumed to have been rw"));
+    }
+
+    //
+    // The acting set changes. The old acting set primary was not up
+    // during the old interval and last_epoch_clean is before the
+    // old interval : the previous interval could not possibly have
+    // been rw.
+    //
+    {
+      vector<int> new_acting;
+      new_acting.push_back(osd_id + 4);
+      new_acting.push_back(osd_id + 5);
+
+      epoch_t last_epoch_clean = epoch - 10;
+
+      std::shared_ptr<OSDMap> lastmap(new OSDMap());
+      lastmap->set_max_osd(10);
+      lastmap->set_state(osd_id, CEPH_OSD_EXISTS);
+      lastmap->set_epoch(epoch);
+      OSDMap::Incremental inc(epoch + 1);
+      inc.new_pools[pool_id].min_size = min_size;
+      inc.new_pools[pool_id].set_pg_num(pg_num);
+      inc.new_up_thru[osd_id] = last_epoch_clean;
+      lastmap->apply_incremental(inc);
+
+      ostringstream out;
+
+      PastIntervals past_intervals;
+
+      ASSERT_TRUE(past_intervals.empty());
+      ASSERT_TRUE(PastIntervals::check_new_interval(
+          old_primary, new_primary, old_acting, new_acting, old_up_primary,
+          new_up_primary, old_up, new_up, same_interval_since, last_epoch_clean,
+          osdmap, lastmap, pgid, *recoverable, &past_intervals, &out));
+      ASSERT_NE(string::npos, out.str().find("does not include interval"));
+    }
+  } // end for, didn't want to reindent
 }
 
 TEST(pg_t, get_ancestor)
@@ -971,7 +790,6 @@ TEST(pg_t, split)
   ASSERT_TRUE(b);
   ASSERT_EQ(1u, s.size());
   ASSERT_TRUE(s.count(pg_t(7, 0)));
-
 }
 
 TEST(pg_t, merge)
@@ -1120,7 +938,7 @@ TEST(pg_missing_t, is_missing)
   {
     hobject_t oid(object_t("objname"), "key", 123, 456, 0, "");
     pg_missing_t missing;
-    eversion_t need(10,5);
+    eversion_t need(10, 5);
     EXPECT_FALSE(missing.is_missing(oid, eversion_t()));
     missing.add(oid, need, eversion_t(), false);
     EXPECT_TRUE(missing.is_missing(oid));
@@ -1133,11 +951,11 @@ TEST(pg_missing_t, add_next_event)
 {
   hobject_t oid(object_t("objname"), "key", 123, 456, 0, "");
   hobject_t oid_other(object_t("other"), "key", 9123, 9456, 0, "");
-  eversion_t version(10,5);
-  eversion_t prior_version(3,4);
-  pg_log_entry_t sample_e(pg_log_entry_t::DELETE, oid, version, prior_version,
-			  0, osd_reqid_t(entity_name_t::CLIENT(777), 8, 999),
-			  utime_t(8,9), 0);
+  eversion_t version(10, 5);
+  eversion_t prior_version(3, 4);
+  pg_log_entry_t sample_e(
+      pg_log_entry_t::DELETE, oid, version, prior_version, 0,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 999), utime_t(8, 9), 0);
 
   // new object (MODIFY)
   {
@@ -1294,15 +1112,15 @@ TEST(pg_missing_t, revise_need)
   pg_missing_t missing;
   // create a new entry
   EXPECT_FALSE(missing.is_missing(oid));
-  eversion_t need(10,10);
+  eversion_t need(10, 10);
   missing.revise_need(oid, need, false);
   EXPECT_TRUE(missing.is_missing(oid));
   EXPECT_EQ(eversion_t(), missing.get_items().at(oid).have);
   EXPECT_EQ(need, missing.get_items().at(oid).need);
   // update an existing entry and preserve have
-  eversion_t have(1,1);
+  eversion_t have(1, 1);
   missing.revise_have(oid, have);
-  eversion_t new_need(10,12);
+  eversion_t new_need(10, 12);
   EXPECT_EQ(have, missing.get_items().at(oid).have);
   missing.revise_need(oid, new_need, false);
   EXPECT_EQ(have, missing.get_items().at(oid).have);
@@ -1315,14 +1133,14 @@ TEST(pg_missing_t, revise_have)
   pg_missing_t missing;
   // a non existing entry means noop
   EXPECT_FALSE(missing.is_missing(oid));
-  eversion_t have(1,1);
+  eversion_t have(1, 1);
   missing.revise_have(oid, have);
   EXPECT_FALSE(missing.is_missing(oid));
   // update an existing entry
-  eversion_t need(10,12);
+  eversion_t need(10, 12);
   missing.add(oid, need, have, false);
   EXPECT_TRUE(missing.is_missing(oid));
-  eversion_t new_have(2,2);
+  eversion_t new_have(2, 2);
   EXPECT_EQ(have, missing.get_items().at(oid).have);
   missing.revise_have(oid, new_have);
   EXPECT_EQ(new_have, missing.get_items().at(oid).have);
@@ -1334,8 +1152,8 @@ TEST(pg_missing_t, add)
   hobject_t oid(object_t("objname"), "key", 123, 456, 0, "");
   pg_missing_t missing;
   EXPECT_FALSE(missing.is_missing(oid));
-  eversion_t have(1,1);
-  eversion_t need(10,10);
+  eversion_t have(1, 1);
+  eversion_t need(10, 10);
   missing.add(oid, need, have, false);
   EXPECT_TRUE(missing.is_missing(oid));
   EXPECT_EQ(have, missing.get_items().at(oid).have);
@@ -1350,14 +1168,14 @@ TEST(pg_missing_t, rm)
     pg_missing_t missing;
     EXPECT_FALSE(missing.is_missing(oid));
     epoch_t epoch = 10;
-    eversion_t need(epoch,10);
+    eversion_t need(epoch, 10);
     missing.add(oid, need, eversion_t(), false);
     EXPECT_TRUE(missing.is_missing(oid));
     // rm of an older version is a noop
-    missing.rm(oid, eversion_t(epoch / 2,20));
+    missing.rm(oid, eversion_t(epoch / 2, 20));
     EXPECT_TRUE(missing.is_missing(oid));
     // rm of a later version removes the object
-    missing.rm(oid, eversion_t(epoch * 2,20));
+    missing.rm(oid, eversion_t(epoch * 2, 20));
     EXPECT_FALSE(missing.is_missing(oid));
   }
   // void pg_missing_t::rm(const std::map<hobject_t, pg_missing_item>::iterator &m)
@@ -1386,16 +1204,16 @@ TEST(pg_missing_t, got)
     }
     EXPECT_FALSE(missing.is_missing(oid));
     epoch_t epoch = 10;
-    eversion_t need(epoch,10);
+    eversion_t need(epoch, 10);
     missing.add(oid, need, eversion_t(), false);
     EXPECT_TRUE(missing.is_missing(oid));
     // assert if that the version to be removed is lower than the version of the object
     {
       PrCtl unset_dumpable;
-      EXPECT_DEATH(missing.got(oid, eversion_t(epoch / 2,20)), "");
+      EXPECT_DEATH(missing.got(oid, eversion_t(epoch / 2, 20)), "");
     }
     // remove of a later version removes the object
-    missing.got(oid, eversion_t(epoch * 2,20));
+    missing.got(oid, eversion_t(epoch * 2, 20));
     EXPECT_FALSE(missing.is_missing(oid));
   }
   // void pg_missing_t::got(const std::map<hobject_t, pg_missing_item>::iterator &m)
@@ -1460,7 +1278,8 @@ TEST(pg_missing_t, is_missing_any_head_or_clone_of)
   EXPECT_TRUE(missing2.is_missing_any_head_or_clone_of(clone_oid));
 }
 
-TEST(pg_pool_t_test, get_pg_num_divisor) {
+TEST(pg_pool_t_test, get_pg_num_divisor)
+{
   pg_pool_t p;
   p.set_pg_num(16);
   p.set_pgp_num(16);
@@ -1485,7 +1304,8 @@ TEST(pg_pool_t_test, get_pg_num_divisor) {
   ASSERT_EQ(16u, p.get_pg_num_divisor(pg_t(11, 1)));
 }
 
-TEST(pg_pool_t_test, get_random_pg_position) {
+TEST(pg_pool_t_test, get_random_pg_position)
+{
   srand(getpid());
   for (int i = 0; i < 100; ++i) {
     pg_pool_t p;
@@ -1494,30 +1314,32 @@ TEST(pg_pool_t_test, get_random_pg_position) {
     pg_t pgid(rand() % p.get_pg_num(), 1);
     uint32_t h = p.get_random_pg_position(pgid, rand());
     uint32_t ps = p.raw_hash_to_pg(h);
-    cout << p.get_pg_num() << " " << pgid << ": "
-	 << h << " -> " << pg_t(ps, 1) << std::endl;
+    cout << p.get_pg_num() << " " << pgid << ": " << h << " -> " << pg_t(ps, 1)
+         << std::endl;
     ASSERT_EQ(pgid.ps(), ps);
   }
 }
 
-TEST(shard_id_t, iostream) {
-    set<shard_id_t> shards;
-    shards.insert(shard_id_t(0));
-    shards.insert(shard_id_t(1));
-    shards.insert(shard_id_t(2));
-    ostringstream out;
-    out << shards;
-    ASSERT_EQ(out.str(), "0,1,2");
+TEST(shard_id_t, iostream)
+{
+  set<shard_id_t> shards;
+  shards.insert(shard_id_t(0));
+  shards.insert(shard_id_t(1));
+  shards.insert(shard_id_t(2));
+  ostringstream out;
+  out << shards;
+  ASSERT_EQ(out.str(), "0,1,2");
 
-    shard_id_t noshard = shard_id_t::NO_SHARD;
-    shard_id_t zero(0);
-    ASSERT_GT(zero, noshard);
+  shard_id_t noshard = shard_id_t::NO_SHARD;
+  shard_id_t zero(0);
+  ASSERT_GT(zero, noshard);
 }
 
-TEST(spg_t, parse) {
-  spg_t a(pg_t(1,2), shard_id_t::NO_SHARD);
+TEST(spg_t, parse)
+{
+  spg_t a(pg_t(1, 2), shard_id_t::NO_SHARD);
   spg_t aa, bb;
-  spg_t b(pg_t(3,2), shard_id_t(2));
+  spg_t b(pg_t(3, 2), shard_id_t(2));
   std::string s = stringify(a);
   ASSERT_TRUE(aa.parse(s.c_str()));
   ASSERT_EQ(a, aa);
@@ -1527,28 +1349,14 @@ TEST(spg_t, parse) {
   ASSERT_EQ(b, bb);
 }
 
-TEST(coll_t, parse) {
-  const char *ok[] = {
-    "meta",
-    "1.2_head",
-    "1.2_TEMP",
-    "1.2s3_head",
-    "1.3s2_TEMP",
-    "1.2s0_head",
-    0
-  };
-  const char *bad[] = {
-    "foo",
-    "1.2_food",
-    "1.2_head ",
-    //" 1.2_head",   // hrm, this parses, which is not ideal.. pg_t's fault?
-    "1.2_temp",
-    "1.2_HEAD",
-    "1.xS3_HEAD",
-    "1.2s_HEAD",
-    "1.2sfoo_HEAD",
-    0
-  };
+TEST(coll_t, parse)
+{
+  const char* ok[] = {"meta",       "1.2_head",   "1.2_TEMP", "1.2s3_head",
+                      "1.3s2_TEMP", "1.2s0_head", 0};
+  const char* bad[] = {
+      "foo", "1.2_food", "1.2_head ",
+      //" 1.2_head",   // hrm, this parses, which is not ideal.. pg_t's fault?
+      "1.2_temp", "1.2_HEAD", "1.xS3_HEAD", "1.2s_HEAD", "1.2sfoo_HEAD", 0};
   coll_t a;
   for (int i = 0; ok[i]; ++i) {
     cout << "check ok " << ok[i] << std::endl;
@@ -1561,7 +1369,8 @@ TEST(coll_t, parse) {
   }
 }
 
-TEST(coll_t, temp) {
+TEST(coll_t, temp)
+{
   spg_t pgid;
   coll_t foo(pgid);
   ASSERT_EQ(foo.to_str(), string("0.0_head"));
@@ -1575,7 +1384,8 @@ TEST(coll_t, temp) {
   ASSERT_EQ(pgid, pgid2);
 }
 
-TEST(coll_t, assigment) {
+TEST(coll_t, assigment)
+{
   spg_t pgid;
   coll_t right(pgid);
   ASSERT_EQ(right.to_str(), string("0.0_head"));
@@ -1589,28 +1399,28 @@ TEST(coll_t, assigment) {
 
   ASSERT_EQ(left.to_str(), string("0.0_head"));
   ASSERT_EQ(middle.to_str(), string("0.0_head"));
-  
+
   ASSERT_NE(middle.c_str(), right.c_str());
   ASSERT_NE(left.c_str(), middle.c_str());
 }
 
-TEST(hobject_t, parse) {
-  const char *v[] = {
-    "MIN",
-    "MAX",
-    "-1:60c2fa6d:::inc_osdmap.1:0",
-    "-1:60c2fa6d:::inc_osdmap.1:333",
-    "0:00000000::::head",
-    "1:00000000:nspace:key:obj:head",
-    "-40:00000000:nspace::obj:head",
-    "20:00000000::key:obj:head",
-    "20:00000000:::o%fdj:head",
-    "20:00000000:::o%02fdj:head",
-    "20:00000000:::_zero_%00_:head",
-    NULL
-  };
+TEST(hobject_t, parse)
+{
+  const char* v[] = {
+      "MIN",
+      "MAX",
+      "-1:60c2fa6d:::inc_osdmap.1:0",
+      "-1:60c2fa6d:::inc_osdmap.1:333",
+      "0:00000000::::head",
+      "1:00000000:nspace:key:obj:head",
+      "-40:00000000:nspace::obj:head",
+      "20:00000000::key:obj:head",
+      "20:00000000:::o%fdj:head",
+      "20:00000000:::o%02fdj:head",
+      "20:00000000:::_zero_%00_:head",
+      NULL};
 
-  for (unsigned i=0; v[i]; ++i) {
+  for (unsigned i = 0; v[i]; ++i) {
     hobject_t o;
     bool b = o.parse(v[i]);
     if (!b) {
@@ -1625,7 +1435,8 @@ TEST(hobject_t, parse) {
   }
 }
 
-TEST(ghobject_t, cmp) {
+TEST(ghobject_t, cmp)
+{
   ghobject_t min;
   ghobject_t sep;
   sep.set_shard(shard_id_t(1));
@@ -1635,29 +1446,28 @@ TEST(ghobject_t, cmp) {
 
   sep.set_shard(shard_id_t::NO_SHARD);
   cout << "sep shard " << sep.shard_id << std::endl;
-  ghobject_t o(hobject_t(object_t(), string(), CEPH_NOSNAP, 0x42,
-			 1, string()));
+  ghobject_t o(hobject_t(object_t(), string(), CEPH_NOSNAP, 0x42, 1, string()));
   cout << "o " << o << std::endl;
   ASSERT_TRUE(o > sep);
 }
 
-TEST(ghobject_t, parse) {
-  const char *v[] = {
-    "GHMIN",
-    "GHMAX",
-    "13#0:00000000::::head#",
-    "13#0:00000000::::head#deadbeef",
-    "#-1:60c2fa6d:::inc_osdmap.1:333#deadbeef",
-    "#-1:60c2fa6d:::inc%02osdmap.1:333#deadbeef",
-    "#-1:60c2fa6d:::inc_osdmap.1:333#",
-    "1#MIN#deadbeefff",
-    "1#MAX#",
-    "#MAX#123",
-    "#-40:00000000:nspace::obj:head#",
-    NULL
-  };
+TEST(ghobject_t, parse)
+{
+  const char* v[] = {
+      "GHMIN",
+      "GHMAX",
+      "13#0:00000000::::head#",
+      "13#0:00000000::::head#deadbeef",
+      "#-1:60c2fa6d:::inc_osdmap.1:333#deadbeef",
+      "#-1:60c2fa6d:::inc%02osdmap.1:333#deadbeef",
+      "#-1:60c2fa6d:::inc_osdmap.1:333#",
+      "1#MIN#deadbeefff",
+      "1#MAX#",
+      "#MAX#123",
+      "#-40:00000000:nspace::obj:head#",
+      NULL};
 
-  for (unsigned i=0; v[i]; ++i) {
+  for (unsigned i = 0; v[i]; ++i) {
     ghobject_t o;
     bool b = o.parse(v[i]);
     if (!b) {
@@ -1672,17 +1482,20 @@ TEST(ghobject_t, parse) {
   }
 }
 
-TEST(pool_opts_t, invalid_opt) {
+TEST(pool_opts_t, invalid_opt)
+{
   EXPECT_FALSE(pool_opts_t::is_opt_name("INVALID_OPT"));
   PrCtl unset_dumpable;
   EXPECT_DEATH(pool_opts_t::get_opt_desc("INVALID_OPT"), "");
 }
 
-TEST(pool_opts_t, scrub_min_interval) {
+TEST(pool_opts_t, scrub_min_interval)
+{
   EXPECT_TRUE(pool_opts_t::is_opt_name("scrub_min_interval"));
-  EXPECT_EQ(pool_opts_t::get_opt_desc("scrub_min_interval"),
-            pool_opts_t::opt_desc_t(pool_opts_t::SCRUB_MIN_INTERVAL,
-                                    pool_opts_t::DOUBLE));
+  EXPECT_EQ(
+      pool_opts_t::get_opt_desc("scrub_min_interval"),
+      pool_opts_t::opt_desc_t(
+          pool_opts_t::SCRUB_MIN_INTERVAL, pool_opts_t::DOUBLE));
 
   pool_opts_t opts;
   EXPECT_FALSE(opts.is_set(pool_opts_t::SCRUB_MIN_INTERVAL));
@@ -1699,11 +1512,13 @@ TEST(pool_opts_t, scrub_min_interval) {
   EXPECT_FALSE(opts.is_set(pool_opts_t::SCRUB_MIN_INTERVAL));
 }
 
-TEST(pool_opts_t, scrub_max_interval) {
+TEST(pool_opts_t, scrub_max_interval)
+{
   EXPECT_TRUE(pool_opts_t::is_opt_name("scrub_max_interval"));
-  EXPECT_EQ(pool_opts_t::get_opt_desc("scrub_max_interval"),
-            pool_opts_t::opt_desc_t(pool_opts_t::SCRUB_MAX_INTERVAL,
-                                    pool_opts_t::DOUBLE));
+  EXPECT_EQ(
+      pool_opts_t::get_opt_desc("scrub_max_interval"),
+      pool_opts_t::opt_desc_t(
+          pool_opts_t::SCRUB_MAX_INTERVAL, pool_opts_t::DOUBLE));
 
   pool_opts_t opts;
   EXPECT_FALSE(opts.is_set(pool_opts_t::SCRUB_MAX_INTERVAL));
@@ -1720,11 +1535,13 @@ TEST(pool_opts_t, scrub_max_interval) {
   EXPECT_FALSE(opts.is_set(pool_opts_t::SCRUB_MAX_INTERVAL));
 }
 
-TEST(pool_opts_t, deep_scrub_interval) {
+TEST(pool_opts_t, deep_scrub_interval)
+{
   EXPECT_TRUE(pool_opts_t::is_opt_name("deep_scrub_interval"));
-  EXPECT_EQ(pool_opts_t::get_opt_desc("deep_scrub_interval"),
-            pool_opts_t::opt_desc_t(pool_opts_t::DEEP_SCRUB_INTERVAL,
-                                    pool_opts_t::DOUBLE));
+  EXPECT_EQ(
+      pool_opts_t::get_opt_desc("deep_scrub_interval"),
+      pool_opts_t::opt_desc_t(
+          pool_opts_t::DEEP_SCRUB_INTERVAL, pool_opts_t::DOUBLE));
 
   pool_opts_t opts;
   EXPECT_FALSE(opts.is_set(pool_opts_t::DEEP_SCRUB_INTERVAL));
@@ -1743,19 +1560,32 @@ TEST(pool_opts_t, deep_scrub_interval) {
 
 struct RequiredPredicate : IsPGRecoverablePredicate {
   unsigned required_size;
-  explicit RequiredPredicate(unsigned required_size) : required_size(required_size) {}
-  bool operator()(const set<pg_shard_t> &have) const override {
+
+  explicit RequiredPredicate(unsigned required_size) :
+    required_size(required_size)
+  {}
+
+  bool
+  operator()(const set<pg_shard_t>& have) const override
+  {
     return have.size() >= required_size;
   }
 };
 
 using namespace std;
+
 struct MapPredicate {
   map<int, pair<PastIntervals::osd_state_t, epoch_t>> states;
+
   explicit MapPredicate(
-    const vector<pair<int, pair<PastIntervals::osd_state_t, epoch_t>>> &_states)
-   : states(_states.begin(), _states.end()) {}
-  PastIntervals::osd_state_t operator()(epoch_t start, int osd, epoch_t *lost_at) {
+      const vector<pair<int, pair<PastIntervals::osd_state_t, epoch_t>>>&
+          _states) :
+    states(_states.begin(), _states.end())
+  {}
+
+  PastIntervals::osd_state_t
+  operator()(epoch_t start, int osd, epoch_t* lost_at)
+  {
     auto val = states.at(osd);
     if (lost_at)
       *lost_at = val.second;
@@ -1772,272 +1602,241 @@ const int N = 0x7fffffff /* CRUSH_ITEM_NONE, can't import crush.h here */;
 
 struct PITest : ::testing::Test {
   PITest() {}
-  void run(
-    bool ec_pool,
-    ivallst intervals,
-    epoch_t last_epoch_started,
-    unsigned min_to_peer,
-    vector<pair<int, pair<PastIntervals::osd_state_t, epoch_t>>> osd_states,
-    vector<int> up,
-    vector<int> acting,
-    set<pg_shard_t> probe,
-    set<int> down,
-    map<int, epoch_t> blocked_by,
-    bool pg_down) {
+
+  void
+  run(bool ec_pool,
+      ivallst intervals,
+      epoch_t last_epoch_started,
+      unsigned min_to_peer,
+      vector<pair<int, pair<PastIntervals::osd_state_t, epoch_t>>> osd_states,
+      vector<int> up,
+      vector<int> acting,
+      set<pg_shard_t> probe,
+      set<int> down,
+      map<int, epoch_t> blocked_by,
+      bool pg_down)
+  {
     RequiredPredicate rec_pred(min_to_peer);
     MapPredicate map_pred(osd_states);
 
     auto correct_pcontdec = std::make_unique<RequiredPredicate>(rec_pred);
     PI::PriorSet correct(
-      ec_pool,
-      probe,
-      down,
-      blocked_by,
-      pg_down,
-      correct_pcontdec.get());
+        ec_pool, probe, down, blocked_by, pg_down, correct_pcontdec.get());
 
     PastIntervals compact;
-    for (auto &&i: intervals) {
+    for (auto&& i : intervals) {
       compact.add_interval(ec_pool, i);
     }
     auto compact_ps_pcontdec = std::make_unique<RequiredPredicate>(rec_pred);
     PI::PriorSet compact_ps = compact.get_prior_set(
-      ec_pool,
-      last_epoch_started,
-      compact_ps_pcontdec.get(),
-      map_pred,
-      up,
-      acting,
-      nullptr);
+        ec_pool, last_epoch_started, compact_ps_pcontdec.get(), map_pred, up,
+        acting, nullptr);
     ASSERT_EQ(correct, compact_ps);
   }
 };
 
-TEST_F(PITest, past_intervals_rep) {
+TEST_F(PITest, past_intervals_rep)
+{
   run(
-    /* ec_pool    */ false,
-    /* intervals  */
-    { ival{{0, 1, 2}, {0, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{   1, 2}, {   1, 2}, 21, 30,  true, 1, 1}
-    , ival{{      2}, {      2}, 31, 35, false, 2, 2}
-    , ival{{0,    2}, {0,    2}, 36, 50,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 1,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::UP   , 0))
-    , make_pair(2, make_pair(PI::DOWN , 0))
-    },
-    /* acting     */ {0, 1   },
-    /* up         */ {0, 1   },
-    /* probe      */ {pst(0), pst(1)},
-    /* down       */ {2},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ false,
+      /* intervals  */
+      {ival{{0, 1, 2}, {0, 1, 2}, 10, 20, true, 0, 0},
+       ival{{1, 2}, {1, 2}, 21, 30, true, 1, 1},
+       ival{{2}, {2}, 31, 35, false, 2, 2},
+       ival{{0, 2}, {0, 2}, 36, 50, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 1,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::UP, 0)),
+       make_pair(2, make_pair(PI::DOWN, 0))},
+      /* acting     */ {0, 1},
+      /* up         */ {0, 1},
+      /* probe      */ {pst(0), pst(1)},
+      /* down       */ {2},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-TEST_F(PITest, past_intervals_ec) {
+TEST_F(PITest, past_intervals_ec)
+{
   run(
-    /* ec_pool    */ true,
-    /* intervals  */
-    { ival{{0, 1, 2}, {0, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{N, 1, 2}, {N, 1, 2}, 21, 30,  true, 1, 1}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 2,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::DOWN , 0))
-    , make_pair(1, make_pair(PI::UP   , 0))
-    , make_pair(2, make_pair(PI::UP   , 0))
-    },
-    /* acting     */ {N, 1, 2},
-    /* up         */ {N, 1, 2},
-    /* probe      */ {pst(1, sit(1)), pst(2, sit(2))},
-    /* down       */ {0},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ true,
+      /* intervals  */
+      {ival{{0, 1, 2}, {0, 1, 2}, 10, 20, true, 0, 0},
+       ival{{N, 1, 2}, {N, 1, 2}, 21, 30, true, 1, 1}},
+      /* les        */ 5,
+      /* min_peer   */ 2,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::DOWN, 0)), make_pair(1, make_pair(PI::UP, 0)),
+       make_pair(2, make_pair(PI::UP, 0))},
+      /* acting     */ {N, 1, 2},
+      /* up         */ {N, 1, 2},
+      /* probe      */ {pst(1, sit(1)), pst(2, sit(2))},
+      /* down       */ {0},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-TEST_F(PITest, past_intervals_rep_down) {
+TEST_F(PITest, past_intervals_rep_down)
+{
   run(
-    /* ec_pool    */ false,
-    /* intervals  */
-    { ival{{0, 1, 2}, {0, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{   1, 2}, {   1, 2}, 21, 30,  true, 1, 1}
-    , ival{{      2}, {      2}, 31, 35,  true, 2, 2}
-    , ival{{0,    2}, {0,    2}, 36, 50,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 1,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::UP   , 0))
-    , make_pair(2, make_pair(PI::DOWN , 0))
-    },
-    /* acting     */ {0, 1   },
-    /* up         */ {0, 1   },
-    /* probe      */ {pst(0), pst(1)},
-    /* down       */ {2},
-    /* blocked_by */ {{2, 0}},
-    /* pg_down    */ true);
+      /* ec_pool    */ false,
+      /* intervals  */
+      {ival{{0, 1, 2}, {0, 1, 2}, 10, 20, true, 0, 0},
+       ival{{1, 2}, {1, 2}, 21, 30, true, 1, 1},
+       ival{{2}, {2}, 31, 35, true, 2, 2},
+       ival{{0, 2}, {0, 2}, 36, 50, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 1,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::UP, 0)),
+       make_pair(2, make_pair(PI::DOWN, 0))},
+      /* acting     */ {0, 1},
+      /* up         */ {0, 1},
+      /* probe      */ {pst(0), pst(1)},
+      /* down       */ {2},
+      /* blocked_by */ {{2, 0}},
+      /* pg_down    */ true);
 }
 
-TEST_F(PITest, past_intervals_ec_down) {
+TEST_F(PITest, past_intervals_ec_down)
+{
   run(
-    /* ec_pool    */ true,
-    /* intervals  */
-    { ival{{0, 1, 2}, {0, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{N, 1, 2}, {N, 1, 2}, 21, 30,  true, 1, 1}
-    , ival{{N, N, 2}, {N, N, 2}, 31, 35, false, 2, 2}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 2,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::DOWN , 0))
-    , make_pair(2, make_pair(PI::UP   , 0))
-    },
-    /* acting     */ {0, N, 2},
-    /* up         */ {0, N, 2},
-    /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
-    /* down       */ {1},
-    /* blocked_by */ {{1, 0}},
-    /* pg_down    */ true);
+      /* ec_pool    */ true,
+      /* intervals  */
+      {ival{{0, 1, 2}, {0, 1, 2}, 10, 20, true, 0, 0},
+       ival{{N, 1, 2}, {N, 1, 2}, 21, 30, true, 1, 1},
+       ival{{N, N, 2}, {N, N, 2}, 31, 35, false, 2, 2}},
+      /* les        */ 5,
+      /* min_peer   */ 2,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::DOWN, 0)),
+       make_pair(2, make_pair(PI::UP, 0))},
+      /* acting     */ {0, N, 2},
+      /* up         */ {0, N, 2},
+      /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
+      /* down       */ {1},
+      /* blocked_by */ {{1, 0}},
+      /* pg_down    */ true);
 }
 
-TEST_F(PITest, past_intervals_rep_no_subsets) {
+TEST_F(PITest, past_intervals_rep_no_subsets)
+{
   run(
-    /* ec_pool    */ false,
-    /* intervals  */
-    { ival{{0,    2}, {0,    2}, 10, 20,  true, 0, 0}
-    , ival{{   1, 2}, {   1, 2}, 21, 30,  true, 1, 1}
-    , ival{{0, 1   }, {0, 1   }, 31, 35,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 1,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::UP   , 0))
-    , make_pair(2, make_pair(PI::DOWN , 0))
-    },
-    /* acting     */ {0, 1   },
-    /* up         */ {0, 1   },
-    /* probe      */ {pst(0), pst(1)},
-    /* down       */ {2},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ false,
+      /* intervals  */
+      {ival{{0, 2}, {0, 2}, 10, 20, true, 0, 0},
+       ival{{1, 2}, {1, 2}, 21, 30, true, 1, 1},
+       ival{{0, 1}, {0, 1}, 31, 35, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 1,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::UP, 0)),
+       make_pair(2, make_pair(PI::DOWN, 0))},
+      /* acting     */ {0, 1},
+      /* up         */ {0, 1},
+      /* probe      */ {pst(0), pst(1)},
+      /* down       */ {2},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-TEST_F(PITest, past_intervals_ec_no_subsets) {
+TEST_F(PITest, past_intervals_ec_no_subsets)
+{
   run(
-    /* ec_pool    */ true,
-    /* intervals  */
-    { ival{{0, N, 2}, {0, N, 2}, 10, 20,  true, 0, 0}
-    , ival{{N, 1, 2}, {N, 1, 2}, 21, 30,  true, 1, 1}
-    , ival{{0, 1, N}, {0, 1, N}, 31, 35,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 2,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::DOWN , 0))
-    , make_pair(2, make_pair(PI::UP   , 0))
-    },
-    /* acting     */ {0, N, 2},
-    /* up         */ {0, N, 2},
-    /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
-    /* down       */ {1},
-    /* blocked_by */ {{1, 0}},
-    /* pg_down    */ true);
+      /* ec_pool    */ true,
+      /* intervals  */
+      {ival{{0, N, 2}, {0, N, 2}, 10, 20, true, 0, 0},
+       ival{{N, 1, 2}, {N, 1, 2}, 21, 30, true, 1, 1},
+       ival{{0, 1, N}, {0, 1, N}, 31, 35, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 2,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::DOWN, 0)),
+       make_pair(2, make_pair(PI::UP, 0))},
+      /* acting     */ {0, N, 2},
+      /* up         */ {0, N, 2},
+      /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
+      /* down       */ {1},
+      /* blocked_by */ {{1, 0}},
+      /* pg_down    */ true);
 }
 
-TEST_F(PITest, past_intervals_ec_no_subsets2) {
+TEST_F(PITest, past_intervals_ec_no_subsets2)
+{
   run(
-    /* ec_pool    */ true,
-    /* intervals  */
-    { ival{{N, 1, 2}, {N, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{0, N, 2}, {0, N, 2}, 21, 30,  true, 1, 1}
-    , ival{{0, 3, N}, {0, 3, N}, 31, 35,  true, 0, 0}
-    },
-    /* les        */ 31,
-    /* min_peer   */ 2,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::DOWN , 0))
-    , make_pair(2, make_pair(PI::UP   , 0))
-    , make_pair(3, make_pair(PI::UP   , 0))
-    },
-    /* acting     */ {0, N, 2},
-    /* up         */ {0, N, 2},
-    /* probe      */ {pst(0, sit(0)), pst(2, sit(2)), pst(3, sit(1))},
-    /* down       */ {1},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ true,
+      /* intervals  */
+      {ival{{N, 1, 2}, {N, 1, 2}, 10, 20, true, 0, 0},
+       ival{{0, N, 2}, {0, N, 2}, 21, 30, true, 1, 1},
+       ival{{0, 3, N}, {0, 3, N}, 31, 35, true, 0, 0}},
+      /* les        */ 31,
+      /* min_peer   */ 2,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::DOWN, 0)),
+       make_pair(2, make_pair(PI::UP, 0)), make_pair(3, make_pair(PI::UP, 0))},
+      /* acting     */ {0, N, 2},
+      /* up         */ {0, N, 2},
+      /* probe      */ {pst(0, sit(0)), pst(2, sit(2)), pst(3, sit(1))},
+      /* down       */ {1},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-TEST_F(PITest, past_intervals_rep_lost) {
+TEST_F(PITest, past_intervals_rep_lost)
+{
   run(
-    /* ec_pool    */ false,
-    /* intervals  */
-    { ival{{0, 1, 2}, {0, 1, 2}, 10, 20,  true, 0, 0}
-    , ival{{   1, 2}, {   1, 2}, 21, 30,  true, 1, 1}
-    , ival{{      2}, {      2}, 31, 35,  true, 2, 2}
-    , ival{{0,    2}, {0,    2}, 36, 50,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 1,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::UP   , 0))
-    , make_pair(2, make_pair(PI::LOST , 55))
-    },
-    /* acting     */ {0, 1   },
-    /* up         */ {0, 1   },
-    /* probe      */ {pst(0), pst(1)},
-    /* down       */ {2},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ false,
+      /* intervals  */
+      {ival{{0, 1, 2}, {0, 1, 2}, 10, 20, true, 0, 0},
+       ival{{1, 2}, {1, 2}, 21, 30, true, 1, 1},
+       ival{{2}, {2}, 31, 35, true, 2, 2},
+       ival{{0, 2}, {0, 2}, 36, 50, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 1,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::UP, 0)),
+       make_pair(2, make_pair(PI::LOST, 55))},
+      /* acting     */ {0, 1},
+      /* up         */ {0, 1},
+      /* probe      */ {pst(0), pst(1)},
+      /* down       */ {2},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-TEST_F(PITest, past_intervals_ec_lost) {
+TEST_F(PITest, past_intervals_ec_lost)
+{
   run(
-    /* ec_pool    */ true,
-    /* intervals  */
-    { ival{{0, N, 2}, {0, N, 2}, 10, 20,  true, 0, 0}
-    , ival{{N, 1, 2}, {N, 1, 2}, 21, 30,  true, 1, 1}
-    , ival{{0, 1, N}, {0, 1, N}, 31, 35,  true, 0, 0}
-    },
-    /* les        */ 5,
-    /* min_peer   */ 2,
-    /* osd states at end */
-    { make_pair(0, make_pair(PI::UP   , 0))
-    , make_pair(1, make_pair(PI::LOST , 36))
-    , make_pair(2, make_pair(PI::UP   , 0))
-    },
-    /* acting     */ {0, N, 2},
-    /* up         */ {0, N, 2},
-    /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
-    /* down       */ {1},
-    /* blocked_by */ {},
-    /* pg_down    */ false);
+      /* ec_pool    */ true,
+      /* intervals  */
+      {ival{{0, N, 2}, {0, N, 2}, 10, 20, true, 0, 0},
+       ival{{N, 1, 2}, {N, 1, 2}, 21, 30, true, 1, 1},
+       ival{{0, 1, N}, {0, 1, N}, 31, 35, true, 0, 0}},
+      /* les        */ 5,
+      /* min_peer   */ 2,
+      /* osd states at end */
+      {make_pair(0, make_pair(PI::UP, 0)), make_pair(1, make_pair(PI::LOST, 36)),
+       make_pair(2, make_pair(PI::UP, 0))},
+      /* acting     */ {0, N, 2},
+      /* up         */ {0, N, 2},
+      /* probe      */ {pst(0, sit(0)), pst(2, sit(2))},
+      /* down       */ {1},
+      /* blocked_by */ {},
+      /* pg_down    */ false);
 }
 
-void ci_ref_test(
-  object_manifest_t l,
-  object_manifest_t to_remove,
-  object_manifest_t g,
-  object_ref_delta_t expected_delta)
+void
+ci_ref_test(
+    object_manifest_t l,
+    object_manifest_t to_remove,
+    object_manifest_t g,
+    object_ref_delta_t expected_delta)
 {
   {
     object_ref_delta_t delta;
-    to_remove.calc_refs_to_drop_on_removal(
-      &l,
-      &g,
-      delta);
-    ASSERT_EQ(
-      expected_delta,
-      delta);
+    to_remove.calc_refs_to_drop_on_removal(&l, &g, delta);
+    ASSERT_EQ(expected_delta, delta);
   }
 
   // calc_refs_to_drop specifically handles nullptr identically to empty
@@ -2045,70 +1844,54 @@ void ci_ref_test(
   if (l.chunk_map.empty() || g.chunk_map.empty()) {
     object_ref_delta_t delta;
     to_remove.calc_refs_to_drop_on_removal(
-      l.chunk_map.empty() ? nullptr : &l,
-      g.chunk_map.empty() ? nullptr : &g,
-      delta);
-    ASSERT_EQ(
-      expected_delta,
-      delta);
+        l.chunk_map.empty() ? nullptr : &l, g.chunk_map.empty() ? nullptr : &g,
+        delta);
+    ASSERT_EQ(expected_delta, delta);
   }
 }
 
-void ci_ref_test_on_modify(
-  object_manifest_t l,
-  object_manifest_t to_remove,
-  ObjectCleanRegions clean_regions,
-  object_ref_delta_t expected_delta)
+void
+ci_ref_test_on_modify(
+    object_manifest_t l,
+    object_manifest_t to_remove,
+    ObjectCleanRegions clean_regions,
+    object_ref_delta_t expected_delta)
 {
   {
     object_ref_delta_t delta;
-    to_remove.calc_refs_to_drop_on_modify(
-      &l,
-      clean_regions,
-      delta);
-    ASSERT_EQ(
-      expected_delta,
-      delta);
+    to_remove.calc_refs_to_drop_on_modify(&l, clean_regions, delta);
+    ASSERT_EQ(expected_delta, delta);
   }
 }
 
-void ci_ref_test_inc_on_set(
-  object_manifest_t l,
-  object_manifest_t added_set,
-  object_manifest_t g,
-  object_ref_delta_t expected_delta)
+void
+ci_ref_test_inc_on_set(
+    object_manifest_t l,
+    object_manifest_t added_set,
+    object_manifest_t g,
+    object_ref_delta_t expected_delta)
 {
   {
     object_ref_delta_t delta;
-    added_set.calc_refs_to_inc_on_set(
-      &l,
-      &g,
-      delta);
-    ASSERT_EQ(
-      expected_delta,
-      delta);
+    added_set.calc_refs_to_inc_on_set(&l, &g, delta);
+    ASSERT_EQ(expected_delta, delta);
   }
 }
 
-hobject_t mk_hobject(string name)
+hobject_t
+mk_hobject(string name)
 {
-  return hobject_t(
-    std::move(name),
-    string(),
-    CEPH_NOSNAP,
-    0x42,
-    1,
-    string());
+  return hobject_t(std::move(name), string(), CEPH_NOSNAP, 0x42, 1, string());
 }
 
-object_manifest_t mk_manifest(
-  std::map<uint64_t, std::tuple<uint64_t, uint64_t, string>> m)
+object_manifest_t
+mk_manifest(std::map<uint64_t, std::tuple<uint64_t, uint64_t, string>> m)
 {
   object_manifest_t ret;
   ret.type = object_manifest_t::TYPE_CHUNKED;
-  for (auto &[offset, tgt] : m) {
-    auto &[tgt_off, length, name] = tgt;
-    auto &ci = ret.chunk_map[offset];
+  for (auto& [offset, tgt] : m) {
+    auto& [tgt_off, length, name] = tgt;
+    auto& ci = ret.chunk_map[offset];
     ci.offset = tgt_off;
     ci.length = length;
     ci.oid = mk_hobject(name);
@@ -2116,216 +1899,225 @@ object_manifest_t mk_manifest(
   return ret;
 }
 
-object_ref_delta_t mk_delta(std::map<string, int> _m) {
+object_ref_delta_t
+mk_delta(std::map<string, int> _m)
+{
   std::map<hobject_t, int> m;
-  for (auto &[name, delta] : _m) {
-    m.insert(
-      std::make_pair(
-	mk_hobject(name),
-	delta));
+  for (auto& [name, delta] : _m) {
+    m.insert(std::make_pair(mk_hobject(name), delta));
   }
   return object_ref_delta_t(std::move(m));
 }
 
-TEST(chunk_info_test, calc_refs_to_drop) {
+TEST(chunk_info_test, calc_refs_to_drop)
+{
   ci_ref_test(
-    mk_manifest({}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({}),
-    mk_delta({{"foo", -1}}));
-
+      mk_manifest({}), mk_manifest({{0, {0, 1024, "foo"}}}), mk_manifest({}),
+      mk_delta({{"foo", -1}}));
 }
 
-
-TEST(chunk_info_test, calc_refs_to_drop_match) {
+TEST(chunk_info_test, calc_refs_to_drop_match)
+{
   ci_ref_test(
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_delta({}));
-
+      mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}}), mk_delta({}));
 }
 
-TEST(chunk_info_test, calc_refs_to_drop_head_match) {
+TEST(chunk_info_test, calc_refs_to_drop_head_match)
+{
   ci_ref_test(
-    mk_manifest({}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_delta({}));
-
+      mk_manifest({}), mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}}), mk_delta({}));
 }
 
-TEST(chunk_info_test, calc_refs_to_drop_tail_match) {
+TEST(chunk_info_test, calc_refs_to_drop_tail_match)
+{
   ci_ref_test(
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({}),
-    mk_delta({}));
-
+      mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}}), mk_manifest({}), mk_delta({}));
 }
 
-TEST(chunk_info_test, calc_refs_to_drop_second_reference) {
+TEST(chunk_info_test, calc_refs_to_drop_second_reference)
+{
   ci_ref_test(
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}, {4<<10, {0, 1<<10, "foo"}}}),
-    mk_manifest({}),
-    mk_delta({{"foo", -1}}));
-
+      mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}, {4 << 10, {0, 1 << 10, "foo"}}}),
+      mk_manifest({}), mk_delta({{"foo", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_offsets_dont_match) {
+TEST(chunk_info_test, calc_refs_offsets_dont_match)
+{
   ci_ref_test(
-    mk_manifest({{0, {0, 1024, "foo"}}}),
-    mk_manifest({{512, {0, 1024, "foo"}}, {(4<<10) + 512, {0, 1<<10, "foo"}}}),
-    mk_manifest({}),
-    mk_delta({{"foo", -2}}));
-
+      mk_manifest({{0, {0, 1024, "foo"}}}),
+      mk_manifest(
+          {{512, {0, 1024, "foo"}}, {(4 << 10) + 512, {0, 1 << 10, "foo"}}}),
+      mk_manifest({}), mk_delta({{"foo", -2}}));
 }
 
-TEST(chunk_info_test, calc_refs_g_l_match) {
+TEST(chunk_info_test, calc_refs_g_l_match)
+{
   ci_ref_test(
-    mk_manifest({{4096, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "foo"}}, {4096, {0, 1024, "bar"}}}),
-    mk_manifest({{4096, {0, 1024, "foo"}}}),
-    mk_delta({{"foo", -2}, {"bar", -1}}));
-
+      mk_manifest({{4096, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "foo"}}, {4096, {0, 1024, "bar"}}}),
+      mk_manifest({{4096, {0, 1024, "foo"}}}),
+      mk_delta({{"foo", -2}, {"bar", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_g_l_match_no_this) {
+TEST(chunk_info_test, calc_refs_g_l_match_no_this)
+{
   ci_ref_test(
-    mk_manifest({{4096, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "bar"}}}),
-    mk_manifest({{4096, {0, 1024, "foo"}}}),
-    mk_delta({{"foo", -1}, {"bar", -1}}));
-
+      mk_manifest({{4096, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "bar"}}}),
+      mk_manifest({{4096, {0, 1024, "foo"}}}),
+      mk_delta({{"foo", -1}, {"bar", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_mismatch) {
+TEST(chunk_info_test, calc_refs_modify_mismatch)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 1024);
   clean_regions.mark_data_region_dirty(512, 1024);
   ci_ref_test_on_modify(
-    mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{0, {0, 1024, "bar"}}, {512, {2048, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}, {"ttt", -1}}));
+      mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{0, {0, 1024, "bar"}}, {512, {2048, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}, {"ttt", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_match) {
+TEST(chunk_info_test, calc_refs_modify_match)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 1024);
   clean_regions.mark_data_region_dirty(512, 1024);
   clean_regions.mark_data_region_dirty(4096, 1024);
   ci_ref_test_on_modify(
-    mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    mk_manifest({{0, {0, 1024, "bar"}}, {512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}}));
+      mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
+      mk_manifest(
+          {{0, {0, 1024, "bar"}},
+           {512, {2048, 1024, "foo"}},
+           {4096, {0, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap) {
+TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 256);
   clean_regions.mark_data_region_dirty(256, 4096);
   ci_ref_test_on_modify(
-    mk_manifest({}),
-    mk_manifest({{0, {0, 256, "bar"}}, {512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}, {"foo", -1}, {"ttt", -1}}));
+      mk_manifest({}),
+      mk_manifest(
+          {{0, {0, 256, "bar"}},
+           {512, {2048, 1024, "foo"}},
+           {4096, {0, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}, {"foo", -1}, {"ttt", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap2) {
+TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap2)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 256);
   clean_regions.mark_data_region_dirty(256, 1024);
   clean_regions.mark_data_region_dirty(3584, 1024);
   ci_ref_test_on_modify(
-    mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    mk_manifest({{0, {0, 256, "bar"}}, {512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}}));
+      mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
+      mk_manifest(
+          {{0, {0, 256, "bar"}},
+           {512, {2048, 1024, "foo"}},
+           {4096, {0, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap3) {
+TEST(chunk_info_test, calc_refs_modify_match_dirty_overlap3)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 256);
   clean_regions.mark_data_region_dirty(256, 4096);
   ci_ref_test_on_modify(
-    mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    mk_manifest({{0, {0, 256, "bar"}}, {512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}}));
+      mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
+      mk_manifest(
+          {{0, {0, 256, "bar"}},
+           {512, {2048, 1024, "foo"}},
+           {4096, {0, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_match_clone_overlap) {
+TEST(chunk_info_test, calc_refs_modify_match_clone_overlap)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 256);
   clean_regions.mark_data_region_dirty(256, 1024);
   clean_regions.mark_data_region_dirty(3584, 1024);
   ci_ref_test_on_modify(
-    mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
-    mk_manifest({{0, {0, 256, "bar"}}, {256, {2048, 1024, "foo"}}, {3584, {0, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}, {"foo", -1}, {"ttt", -1}}));
+      mk_manifest({{512, {2048, 1024, "foo"}}, {4096, {0, 1024, "ttt"}}}),
+      mk_manifest(
+          {{0, {0, 256, "bar"}},
+           {256, {2048, 1024, "foo"}},
+           {3584, {0, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}, {"foo", -1}, {"ttt", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_modify_no_snap) {
+TEST(chunk_info_test, calc_refs_modify_no_snap)
+{
   ObjectCleanRegions clean_regions(0, 8192, false);
   clean_regions.mark_data_region_dirty(0, 1024);
   clean_regions.mark_data_region_dirty(512, 1024);
   ci_ref_test_on_modify(
-    mk_manifest({}),
-    mk_manifest({{0, {0, 1024, "bar"}}, {512, {2048, 1024, "ttt"}}}),
-    clean_regions,
-    mk_delta({{"bar", -1}, {"ttt", -1}}));
+      mk_manifest({}),
+      mk_manifest({{0, {0, 1024, "bar"}}, {512, {2048, 1024, "ttt"}}}),
+      clean_regions, mk_delta({{"bar", -1}, {"ttt", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc) {
+TEST(chunk_info_test, calc_refs_inc)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{1024, {0, 1024, "bar"}}}),
-    mk_manifest({{4096, {0, 1024, "foo"}}}),
-    mk_delta({{"bar", 1}}));
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{1024, {0, 1024, "bar"}}}),
+      mk_manifest({{4096, {0, 1024, "foo"}}}), mk_delta({{"bar", 1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc2) {
+TEST(chunk_info_test, calc_refs_inc2)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({{512, {0, 1024, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "bbb"}}}),
-    mk_manifest({{512, {0, 1024, "foo"}}}),
-    mk_delta({{"bar", 1}, {"bbb", 1}}));
+      mk_manifest({{512, {0, 1024, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "bbb"}}}),
+      mk_manifest({{512, {0, 1024, "foo"}}}),
+      mk_delta({{"bar", 1}, {"bbb", 1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc_no_l) {
+TEST(chunk_info_test, calc_refs_inc_no_l)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({}),
-    mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "bbb"}}}),
-    mk_manifest({{512, {0, 1024, "foo"}}}),
-    mk_delta({{"bar", 1}, {"bbb", 1}}));
+      mk_manifest({}),
+      mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "bbb"}}}),
+      mk_manifest({{512, {0, 1024, "foo"}}}),
+      mk_delta({{"bar", 1}, {"bbb", 1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc_no_g) {
+TEST(chunk_info_test, calc_refs_inc_no_g)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({{512, {0, 1024, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({}),
-    mk_delta({{"bar", 1}}));
+      mk_manifest({{512, {0, 1024, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{1024, {0, 1024, "bar"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({}), mk_delta({{"bar", 1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc_match_g_l) {
+TEST(chunk_info_test, calc_refs_inc_match_g_l)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_delta({{"aaa", -1}, {"foo", -1}}));
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_delta({{"aaa", -1}, {"foo", -1}}));
 }
 
-TEST(chunk_info_test, calc_refs_inc_match) {
+TEST(chunk_info_test, calc_refs_inc_match)
+{
   ci_ref_test_inc_on_set(
-    mk_manifest({{256, {0, 256, "bbb"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
-    mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "ccc"}}}),
-    mk_delta({}));
+      mk_manifest({{256, {0, 256, "bbb"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "foo"}}}),
+      mk_manifest({{256, {0, 256, "aaa"}}, {4096, {0, 1024, "ccc"}}}),
+      mk_delta({}));
 }
 
 /*

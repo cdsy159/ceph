@@ -17,28 +17,39 @@
 
 #include <stdint.h>
 #include <stdio.h>
+
 #include "BLAKE3/c/blake3.h"
 
-namespace rgw { namespace digest {
+namespace rgw {
+namespace digest {
 
 class Blake3 {
-  private:
-    blake3_hasher h;
+private:
+  blake3_hasher h;
 
-  public:
-    static constexpr uint16_t digest_size = BLAKE3_OUT_LEN /* 32 bytes */;
+public:
+  static constexpr uint16_t digest_size = BLAKE3_OUT_LEN /* 32 bytes */;
 
-    Blake3() { Restart(); }
+  Blake3() { Restart(); }
 
-    void Restart() { blake3_hasher_init(&h); }
+  void
+  Restart()
+  {
+    blake3_hasher_init(&h);
+  }
 
-    void Update(const unsigned char *data, uint64_t len) {
-	blake3_hasher_update(&h, data, len);
-    }
+  void
+  Update(const unsigned char* data, uint64_t len)
+  {
+    blake3_hasher_update(&h, data, len);
+  }
 
-    void Final(unsigned char* digest) {
-	blake3_hasher_finalize(&h, digest, digest_size);
-    }
+  void
+  Final(unsigned char* digest)
+  {
+    blake3_hasher_finalize(&h, digest, digest_size);
+  }
 }; /* Blake3 */
 
-}} /* namespace */
+} // namespace digest
+} // namespace rgw

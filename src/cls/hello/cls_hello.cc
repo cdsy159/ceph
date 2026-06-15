@@ -30,21 +30,21 @@
  */
 
 #include <algorithm>
-#include <string>
-#include <sstream>
 #include <cerrno>
+#include <sstream>
+#include <string>
 
 #include "objclass/objclass.h"
 #include "osd/osd_types.h"
 
-using std::string;
 using std::ostringstream;
+using std::string;
 
 using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(hello)
 
 /**
@@ -54,7 +54,8 @@ CLS_NAME(hello)
  * returns data to the caller, without depending on the local object
  * content.
  */
-static int say_hello(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+say_hello(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   // see if the input data from the client matches what this method
   // expects to receive.  your class can fill this buffer with what it
@@ -82,7 +83,8 @@ static int say_hello(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  * setxattr) which are accumulated and applied as an atomic
  * transaction.
  */
-static int record_hello(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+record_hello(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   // we can write arbitrary stuff to the ceph-osd debug log.  each log
   // message is accompanied by an integer log level.  smaller is
@@ -143,7 +145,8 @@ static int record_hello(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   return 0;
 }
 
-static int write_return_data(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+write_return_data(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   // make some change to the object
   bufferlist attrbl;
@@ -169,7 +172,11 @@ static int write_return_data(cls_method_context_t hctx, bufferlist *in, bufferli
   return 42;
 }
 
-static int write_too_much_return_data(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+write_too_much_return_data(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   // make some change to the object
   bufferlist attrbl;
@@ -180,7 +187,7 @@ static int write_too_much_return_data(cls_method_context_t hctx, bufferlist *in,
 
   // try to return too much data.  this should be enough to exceed
   // osd_max_write_op_reply_len, which defaults to a pretty small number.
-  for (unsigned i=0; i < 10; ++i) {
+  for (unsigned i = 0; i < 10; ++i) {
     out->append("you should not see this because it is toooooo long. ");
   }
 
@@ -193,7 +200,8 @@ static int write_too_much_return_data(cls_method_context_t hctx, bufferlist *in,
  * This is a read method that will retrieve a previously recorded
  * hello statement.
  */
-static int replay(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+replay(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   // read contents out of the on-disk object.  our behavior can be a
   // function of either the request alone, or the request and the
@@ -216,7 +224,8 @@ static int replay(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  * a read/modify/write operation).  This atomically transitions the
  * object state from the old content to the new content.
  */
-static int turn_it_to_11(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+turn_it_to_11(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   // see if the input data from the client matches what this method
   // expects to receive.  your class can fill this buffer with what it
@@ -259,7 +268,8 @@ static int turn_it_to_11(cls_method_context_t hctx, bufferlist *in, bufferlist *
  *
  * This method is registered as WR but tries to read
  */
-static int bad_reader(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+bad_reader(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   return cls_cxx_read(hctx, 0, 100, out);
 }
@@ -269,39 +279,42 @@ static int bad_reader(cls_method_context_t hctx, bufferlist *in, bufferlist *out
  *
  * This method is registered as RD but tries to write
  */
-static int bad_writer(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+bad_writer(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   return cls_cxx_write_full(hctx, in);
 }
 
-
 class PGLSHelloFilter : public PGLSFilter {
   string val;
+
 public:
-  int init(bufferlist::const_iterator& params) override {
+  int
+  init(bufferlist::const_iterator& params) override
+  {
     try {
       decode(xattr, params);
       decode(val, params);
-    } catch (ceph::buffer::error &e) {
+    } catch (ceph::buffer::error& e) {
       return -EINVAL;
     }
     return 0;
   }
 
   ~PGLSHelloFilter() override {}
-  bool filter(const hobject_t& obj,
-              const bufferlist&  xattr_data) const override
+
+  bool
+  filter(const hobject_t& obj, const bufferlist& xattr_data) const override
   {
     return xattr_data.contents_equal(val.c_str(), val.size());
   }
 };
 
-
-PGLSFilter *hello_filter()
+PGLSFilter*
+hello_filter()
 {
   return new PGLSHelloFilter();
 }
-
 
 /**
  * initialize class
@@ -337,36 +350,34 @@ CLS_INIT(hello)
   // neither, the data it returns to the caller is a function of the
   // request and not the object contents.
 
-  cls_register_cxx_method(h_class, "say_hello",
-			  CLS_METHOD_RD,
-			  say_hello, &h_say_hello);
-  cls_register_cxx_method(h_class, "record_hello",
-			  CLS_METHOD_WR | CLS_METHOD_PROMOTE,
-			  record_hello, &h_record_hello);
-  cls_register_cxx_method(h_class, "write_return_data",
-			  CLS_METHOD_WR,
-			  write_return_data, &h_write_return_data);
+  cls_register_cxx_method(
+      h_class, "say_hello", CLS_METHOD_RD, say_hello, &h_say_hello);
+  cls_register_cxx_method(
+      h_class, "record_hello", CLS_METHOD_WR | CLS_METHOD_PROMOTE, record_hello,
+      &h_record_hello);
+  cls_register_cxx_method(
+      h_class, "write_return_data", CLS_METHOD_WR, write_return_data,
+      &h_write_return_data);
   // legacy alias for this method for pre-octopus clients
-  cls_register_cxx_method(h_class, "writes_dont_return_data",
-			  CLS_METHOD_WR,
-			  write_return_data, &h_writes_dont_return_data);
-  cls_register_cxx_method(h_class, "write_too_much_return_data",
-			  CLS_METHOD_WR,
-			  write_too_much_return_data, &h_write_too_much_return_data);
-  cls_register_cxx_method(h_class, "replay",
-			  CLS_METHOD_RD,
-			  replay, &h_replay);
+  cls_register_cxx_method(
+      h_class, "writes_dont_return_data", CLS_METHOD_WR, write_return_data,
+      &h_writes_dont_return_data);
+  cls_register_cxx_method(
+      h_class, "write_too_much_return_data", CLS_METHOD_WR,
+      write_too_much_return_data, &h_write_too_much_return_data);
+  cls_register_cxx_method(h_class, "replay", CLS_METHOD_RD, replay, &h_replay);
 
   // RD | WR is a read-modify-write method.
-  cls_register_cxx_method(h_class, "turn_it_to_11",
-			  CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
-			  turn_it_to_11, &h_turn_it_to_11);
+  cls_register_cxx_method(
+      h_class, "turn_it_to_11",
+      CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE, turn_it_to_11,
+      &h_turn_it_to_11);
 
   // counter-examples
-  cls_register_cxx_method(h_class, "bad_reader", CLS_METHOD_WR,
-			  bad_reader, &h_bad_reader);
-  cls_register_cxx_method(h_class, "bad_writer", CLS_METHOD_RD,
-			  bad_writer, &h_bad_writer);
+  cls_register_cxx_method(
+      h_class, "bad_reader", CLS_METHOD_WR, bad_reader, &h_bad_reader);
+  cls_register_cxx_method(
+      h_class, "bad_writer", CLS_METHOD_RD, bad_writer, &h_bad_writer);
 
   // A PGLS filter
   cls_register_cxx_filter(h_class, "hello", hello_filter);

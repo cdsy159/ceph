@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -25,23 +25,44 @@ public:
   static constexpr int COMPAT_VERSION = 1;
   static constexpr uint32_t FLAG_FINISH = 1U << 31;
 
-  uint32_t get_flags() const { return flags; }
-  std::string_view get_uuid() const { return uuid; }
+  uint32_t
+  get_flags() const
+  {
+    return flags;
+  }
 
-  std::string_view get_type_name() const override { return "client_reclaim"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_uuid() const
+  {
+    return uuid;
+  }
+
+  std::string_view
+  get_type_name() const override
+  {
+    return "client_reclaim";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     std::ios_base::fmtflags f(o.flags());
-    o << "client_reclaim(" << get_uuid() << " flags 0x" << std::hex << get_flags() << ")";
+    o << "client_reclaim(" << get_uuid() << " flags 0x" << std::hex
+      << get_flags() << ")";
     o.flags(f);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(uuid, payload);
     encode(flags, payload);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(uuid, p);
@@ -50,19 +71,24 @@ public:
 
 protected:
   MClientReclaim() :
-    SafeMessage{CEPH_MSG_CLIENT_RECLAIM, HEAD_VERSION, COMPAT_VERSION} {}
+    SafeMessage{CEPH_MSG_CLIENT_RECLAIM, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MClientReclaim(std::string_view _uuid, uint32_t _flags) :
     SafeMessage{CEPH_MSG_CLIENT_RECLAIM, HEAD_VERSION, COMPAT_VERSION},
-    uuid(_uuid), flags(_flags) {}
+    uuid(_uuid),
+    flags(_flags)
+  {}
+
 private:
   ~MClientReclaim() final {}
 
   std::string uuid;
   uint32_t flags = 0;
 
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

@@ -1,27 +1,27 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include <boost/algorithm/string.hpp>
-
-#include "svc_user.h"
 #include "svc_user_rados.h"
-#include "svc_mdlog.h"
-#include "svc_zone.h"
-#include "svc_sys_obj.h"
-#include "svc_sys_obj_cache.h"
 
-#include "rgw_user.h"
-#include "rgw_account.h"
-#include "rgw_bucket.h"
-#include "rgw_metadata_lister.h"
-#include "driver/rados/rgw_tools.h"
-#include "rgw_zone.h"
-#include "rgw_rados.h"
+#include <boost/algorithm/string.hpp>
 
 #include "driver/rados/account.h"
 #include "driver/rados/buckets.h"
 #include "driver/rados/group.h"
+#include "driver/rados/rgw_tools.h"
 #include "driver/rados/users.h"
+
+#include "rgw_account.h"
+#include "rgw_bucket.h"
+#include "rgw_metadata_lister.h"
+#include "rgw_rados.h"
+#include "rgw_user.h"
+#include "rgw_zone.h"
+#include "svc_mdlog.h"
+#include "svc_sys_obj.h"
+#include "svc_sys_obj_cache.h"
+#include "svc_user.h"
+#include "svc_zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -29,17 +29,19 @@
 
 using namespace std;
 
-RGWSI_User_RADOS::RGWSI_User_RADOS(CephContext *cct): RGWSI_User(cct) {
-}
+RGWSI_User_RADOS::RGWSI_User_RADOS(CephContext* cct) :
+  RGWSI_User(cct)
+{}
 
-RGWSI_User_RADOS::~RGWSI_User_RADOS() {
-}
+RGWSI_User_RADOS::~RGWSI_User_RADOS() {}
 
-void RGWSI_User_RADOS::init(librados::Rados* rados_,
-                            RGWSI_Zone *_zone_svc,
-                            RGWSI_MDLog *mdlog_svc,
-                            RGWSI_SysObj *_sysobj_svc,
-                            RGWSI_SysObj_Cache *_cache_svc)
+void
+RGWSI_User_RADOS::init(
+    librados::Rados* rados_,
+    RGWSI_Zone* _zone_svc,
+    RGWSI_MDLog* mdlog_svc,
+    RGWSI_SysObj* _sysobj_svc,
+    RGWSI_SysObj_Cache* _cache_svc)
 {
   svc.user = this;
   rados = rados_;
@@ -49,40 +51,46 @@ void RGWSI_User_RADOS::init(librados::Rados* rados_,
   svc.cache = _cache_svc;
 }
 
-int RGWSI_User_RADOS::do_start(optional_yield, const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::do_start(optional_yield, const DoutPrefixProvider* dpp)
 {
   uinfo_cache.reset(new RGWChainedCacheImpl<user_info_cache_entry>);
   uinfo_cache->init(svc.cache);
   return 0;
 }
 
-rgw_raw_obj RGWSI_User_RADOS::get_buckets_obj(const rgw_user& user) const
+rgw_raw_obj
+RGWSI_User_RADOS::get_buckets_obj(const rgw_user& user) const
 {
   string oid = user.to_str() + RGW_BUCKETS_OBJ_SUFFIX;
   return rgw_raw_obj(svc.zone->get_zone_params().user_uid_pool, oid);
 }
 
 class UserLister : public RGWMetadataLister {
- public:
+public:
   using RGWMetadataLister::RGWMetadataLister;
 
-  void filter_transform(std::vector<std::string>& oids,
-                        std::list<std::string>& keys) override
+  void
+  filter_transform(
+      std::vector<std::string>& oids,
+      std::list<std::string>& keys) override
   {
     // filter out the user.buckets objects
-    constexpr auto filter = [] (const std::string& oid) {
-                              return oid.ends_with(RGW_BUCKETS_OBJ_SUFFIX);
-                            };
+    constexpr auto filter = [](const std::string& oid) {
+      return oid.ends_with(RGW_BUCKETS_OBJ_SUFFIX);
+    };
     // 'oids' is mutable so we can move its elements instead of copying
-    std::remove_copy_if(std::make_move_iterator(oids.begin()),
-                        std::make_move_iterator(oids.end()),
-                        std::back_inserter(keys), filter);
+    std::remove_copy_if(
+        std::make_move_iterator(oids.begin()),
+        std::make_move_iterator(oids.end()), std::back_inserter(keys), filter);
   }
 };
 
-int RGWSI_User_RADOS::create_lister(const DoutPrefixProvider* dpp,
-                                    const std::string& marker,
-                                    std::unique_ptr<RGWMetadataLister>& lister)
+int
+RGWSI_User_RADOS::create_lister(
+    const DoutPrefixProvider* dpp,
+    const std::string& marker,
+    std::unique_ptr<RGWMetadataLister>& lister)
 {
   const rgw_pool& pool = svc.zone->get_zone_params().user_uid_pool;
   auto p = std::make_unique<UserLister>(svc.sysobj->get_pool(pool));
@@ -94,17 +102,20 @@ int RGWSI_User_RADOS::create_lister(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RGWSI_User_RADOS::read_user_info(const rgw_user& user,
-                               RGWUserInfo *info,
-                               RGWObjVersionTracker * const objv_tracker,
-                               real_time * const pmtime,
-                               rgw_cache_entry_info * const cache_info,
-                               map<string, bufferlist> * const pattrs,
-                               optional_yield y,
-                               const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::read_user_info(
+    const rgw_user& user,
+    RGWUserInfo* info,
+    RGWObjVersionTracker* const objv_tracker,
+    real_time* const pmtime,
+    rgw_cache_entry_info* const cache_info,
+    map<string, bufferlist>* const pattrs,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
-  if(user.id == RGW_USER_ANON_ID) {
-    ldpp_dout(dpp, 20) << "RGWSI_User_RADOS::read_user_info(): anonymous user" << dendl;
+  if (user.id == RGW_USER_ANON_ID) {
+    ldpp_dout(dpp, 20) << "RGWSI_User_RADOS::read_user_info(): anonymous user"
+                       << dendl;
     return -ENOENT;
   }
   bufferlist bl;
@@ -112,9 +123,9 @@ int RGWSI_User_RADOS::read_user_info(const rgw_user& user,
 
   const rgw_pool& pool = svc.zone->get_zone_params().user_uid_pool;
   const std::string key = get_meta_key(user);
-  int ret = rgw_get_system_obj(svc.sysobj, pool, key, bl,
-                               objv_tracker, pmtime, y, dpp,
-                               pattrs, cache_info);
+  int ret = rgw_get_system_obj(
+      svc.sysobj, pool, key, bl, objv_tracker, pmtime, y, dpp, pattrs,
+      cache_info);
   if (ret < 0) {
     return ret;
   }
@@ -123,14 +134,17 @@ int RGWSI_User_RADOS::read_user_info(const rgw_user& user,
   try {
     decode(user_id, iter);
     if (rgw_user{user_id.id} != user) {
-      ldpp_dout(dpp, -1)  << "ERROR: rgw_get_user_info_by_uid(): user id mismatch: " << user_id.id << " != " << user << dendl;
+      ldpp_dout(dpp, -1)
+          << "ERROR: rgw_get_user_info_by_uid(): user id mismatch: "
+          << user_id.id << " != " << user << dendl;
       return -EIO;
     }
     if (!iter.end()) {
       decode(*info, iter);
     }
   } catch (buffer::error& err) {
-    ldpp_dout(dpp, 0) << "ERROR: failed to decode user info, caught buffer::error" << dendl;
+    ldpp_dout(dpp, 0)
+        << "ERROR: failed to decode user info, caught buffer::error" << dendl;
     return -EIO;
   }
 
@@ -141,18 +155,28 @@ int RGWSI_User_RADOS::read_user_info(const rgw_user& user,
 // links to the account users index
 struct users_entry {
   std::string_view account_id, path, name;
-  constexpr operator bool() { return !account_id.empty(); }
+
+  constexpr
+  operator bool()
+  {
+    return !account_id.empty();
+  }
+
   constexpr auto operator<=>(const users_entry&) const = default;
 };
 
-static users_entry account_users_link(const RGWUserInfo* info) {
+static users_entry
+account_users_link(const RGWUserInfo* info)
+{
   if (info && !info->account_id.empty()) {
     return {info->account_id, info->path, info->display_name};
   }
   return {};
 }
 
-static bool s3_key_active(const RGWUserInfo* info, const std::string& id) {
+static bool
+s3_key_active(const RGWUserInfo* info, const std::string& id)
+{
   if (!info) {
     return false;
   }
@@ -160,7 +184,9 @@ static bool s3_key_active(const RGWUserInfo* info, const std::string& id) {
   return i != info->access_keys.end() && i->second.active;
 }
 
-static bool swift_key_active(const RGWUserInfo* info, const std::string& id) {
+static bool
+swift_key_active(const RGWUserInfo* info, const std::string& id)
+{
   if (!info) {
     return false;
   }
@@ -168,44 +194,55 @@ static bool swift_key_active(const RGWUserInfo* info, const std::string& id) {
   return i != info->swift_keys.end() && i->second.active;
 }
 
-class PutOperation
-{
+class PutOperation {
   RGWSI_User_RADOS::Svc& svc;
   librados::Rados& rados;
   RGWUID ui;
   const RGWUserInfo& info;
-  RGWUserInfo *old_info;
-  RGWObjVersionTracker *objv_tracker;
+  RGWUserInfo* old_info;
+  RGWObjVersionTracker* objv_tracker;
   const real_time& mtime;
   bool exclusive;
-  map<string, bufferlist> *pattrs;
+  map<string, bufferlist>* pattrs;
   RGWObjVersionTracker ot;
   string err_msg;
   optional_yield y;
 
-  void set_err_msg(string msg) {
+  void
+  set_err_msg(string msg)
+  {
     if (!err_msg.empty()) {
       err_msg = std::move(msg);
     }
   }
 
-public:  
-  PutOperation(RGWSI_User_RADOS::Svc& svc,
-               librados::Rados& rados,
-               const RGWUserInfo& info,
-               RGWUserInfo *old_info,
-               RGWObjVersionTracker *objv_tracker,
-               const real_time& mtime,
-               bool exclusive,
-               map<string, bufferlist> *pattrs,
-               optional_yield y) :
-      svc(svc), rados(rados), info(info), old_info(old_info),
-      objv_tracker(objv_tracker), mtime(mtime),
-      exclusive(exclusive), pattrs(pattrs), y(y) {
+public:
+  PutOperation(
+      RGWSI_User_RADOS::Svc& svc,
+      librados::Rados& rados,
+      const RGWUserInfo& info,
+      RGWUserInfo* old_info,
+      RGWObjVersionTracker* objv_tracker,
+      const real_time& mtime,
+      bool exclusive,
+      map<string, bufferlist>* pattrs,
+      optional_yield y) :
+    svc(svc),
+    rados(rados),
+    info(info),
+    old_info(old_info),
+    objv_tracker(objv_tracker),
+    mtime(mtime),
+    exclusive(exclusive),
+    pattrs(pattrs),
+    y(y)
+  {
     ui.id = info.user_id.to_str();
   }
 
-  int prepare(const DoutPrefixProvider *dpp) {
+  int
+  prepare(const DoutPrefixProvider* dpp)
+  {
     if (objv_tracker) {
       ot = *objv_tracker;
     }
@@ -224,11 +261,13 @@ public:
         continue;
       /* check if swift mapping exists */
       RGWUserInfo inf;
-      int r = svc.user->get_user_info_by_swift(id, &inf, nullptr, nullptr, nullptr, y, dpp);
+      int r = svc.user->get_user_info_by_swift(
+          id, &inf, nullptr, nullptr, nullptr, y, dpp);
       if (r >= 0 && inf.user_id != info.user_id &&
           (!old_info || inf.user_id != old_info->user_id)) {
         ldpp_dout(dpp, 0) << "WARNING: can't store user info, swift id (" << id
-          << ") already mapped to another user (" << info.user_id << ")" << dendl;
+                          << ") already mapped to another user ("
+                          << info.user_id << ")" << dendl;
         return -EEXIST;
       }
     }
@@ -240,10 +279,13 @@ public:
       if (s3_key_active(old_info, id)) // old key already active
         continue;
       RGWUserInfo inf;
-      int r = svc.user->get_user_info_by_access_key(id, &inf, nullptr, nullptr, nullptr, y, dpp);
+      int r = svc.user->get_user_info_by_access_key(
+          id, &inf, nullptr, nullptr, nullptr, y, dpp);
       if (r >= 0 && inf.user_id != info.user_id &&
           (!old_info || inf.user_id != old_info->user_id)) {
-        ldpp_dout(dpp, 0) << "WARNING: can't store user info, access key already mapped to another user" << dendl;
+        ldpp_dout(dpp, 0) << "WARNING: can't store user info, access key "
+                             "already mapped to another user"
+                          << dendl;
         return -EEXIST;
       }
     }
@@ -252,18 +294,21 @@ public:
         account_users_link(&info) != account_users_link(old_info)) {
       if (info.display_name.empty()) {
         ldpp_dout(dpp, 0) << "WARNING: can't store user info, display name "
-            "can't be empty in an account" << dendl;
+                             "can't be empty in an account"
+                          << dendl;
         return -EINVAL;
       }
 
       const RGWZoneParams& zone = svc.zone->get_zone_params();
-      const auto& users = rgwrados::account::get_users_obj(zone, info.account_id);
+      const auto& users =
+          rgwrados::account::get_users_obj(zone, info.account_id);
       std::string existing_uid;
-      int r = rgwrados::users::get(dpp, y, rados, users,
-                                   info.display_name, existing_uid);
+      int r = rgwrados::users::get(
+          dpp, y, rados, users, info.display_name, existing_uid);
       if (r >= 0 && existing_uid != info.user_id.id) {
         ldpp_dout(dpp, 0) << "WARNING: can't store user info, display name "
-            "already exists in account" << dendl;
+                             "already exists in account"
+                          << dendl;
         return -EEXIST;
       }
     }
@@ -271,22 +316,26 @@ public:
     return 0;
   }
 
-  int put(const DoutPrefixProvider *dpp) {
+  int
+  put(const DoutPrefixProvider* dpp)
+  {
     bufferlist data_bl;
     encode(ui, data_bl);
     encode(info, data_bl);
 
     const rgw_pool& pool = svc.zone->get_zone_params().user_uid_pool;
     const std::string key = RGWSI_User::get_meta_key(info.user_id);
-    int r = rgw_put_system_obj(dpp, svc.sysobj, pool, key, data_bl,
-                               exclusive, &ot, mtime, y, pattrs);
+    int r = rgw_put_system_obj(
+        dpp, svc.sysobj, pool, key, data_bl, exclusive, &ot, mtime, y, pattrs);
     if (r < 0) {
       return r;
     }
     return svc.mdlog->complete_entry(dpp, y, "user", key, &ot);
   }
 
-  int complete(const DoutPrefixProvider *dpp) {
+  int
+  complete(const DoutPrefixProvider* dpp)
+  {
     int ret;
 
     bufferlist link_bl;
@@ -298,8 +347,9 @@ public:
         // store as lower case for case-insensitive matching
         std::string oid = info.user_email;
         boost::to_lower(oid);
-        ret = rgw_put_system_obj(dpp, svc.sysobj, svc.zone->get_zone_params().user_email_pool, oid,
-                                 link_bl, exclusive, NULL, real_time(), y);
+        ret = rgw_put_system_obj(
+            dpp, svc.sysobj, svc.zone->get_zone_params().user_email_pool, oid,
+            link_bl, exclusive, NULL, real_time(), y);
         if (ret < 0)
           return ret;
       }
@@ -312,8 +362,9 @@ public:
       if (s3_key_active(old_info, id) && !renamed)
         continue;
 
-      ret = rgw_put_system_obj(dpp, svc.sysobj, svc.zone->get_zone_params().user_keys_pool, id,
-                               link_bl, exclusive, NULL, real_time(), y);
+      ret = rgw_put_system_obj(
+          dpp, svc.sysobj, svc.zone->get_zone_params().user_keys_pool, id,
+          link_bl, exclusive, NULL, real_time(), y);
       if (ret < 0)
         return ret;
     }
@@ -324,8 +375,9 @@ public:
       if (swift_key_active(old_info, id) && !renamed)
         continue;
 
-      ret = rgw_put_system_obj(dpp, svc.sysobj, svc.zone->get_zone_params().user_swift_pool, id,
-                               link_bl, exclusive, NULL, real_time(), y);
+      ret = rgw_put_system_obj(
+          dpp, svc.sysobj, svc.zone->get_zone_params().user_swift_pool, id,
+          link_bl, exclusive, NULL, real_time(), y);
       if (ret < 0)
         return ret;
     }
@@ -341,17 +393,19 @@ public:
         account_users_link(&info) != account_users_link(old_info)) {
       // link the user to its account
       const RGWZoneParams& zone = svc.zone->get_zone_params();
-      const auto& users = rgwrados::account::get_users_obj(zone, info.account_id);
-      ret = rgwrados::users::add(dpp, y, rados, users, info, false,
-                                 std::numeric_limits<uint32_t>::max());
+      const auto& users =
+          rgwrados::account::get_users_obj(zone, info.account_id);
+      ret = rgwrados::users::add(
+          dpp, y, rados, users, info, false,
+          std::numeric_limits<uint32_t>::max());
       if (ret < 0) {
-        ldpp_dout(dpp, 20) << "WARNING: failed to link user "
-            << info.user_id << " to account " << info.account_id
-            << ": " << cpp_strerror(ret) << dendl;
+        ldpp_dout(dpp, 20) << "WARNING: failed to link user " << info.user_id
+                           << " to account " << info.account_id << ": "
+                           << cpp_strerror(ret) << dendl;
         return ret;
       }
-      ldpp_dout(dpp, 20) << "linked user " << info.user_id
-          << " to account " << info.account_id << dendl;
+      ldpp_dout(dpp, 20) << "linked user " << info.user_id << " to account "
+                         << info.account_id << dendl;
     }
 
     for (const auto& group_id : info.group_ids) {
@@ -361,33 +415,43 @@ public:
       // link the user to its group
       const RGWZoneParams& zone = svc.zone->get_zone_params();
       const auto& users = rgwrados::group::get_users_obj(zone, group_id);
-      ret = rgwrados::users::add(dpp, y, rados, users, info, false,
-                                 std::numeric_limits<uint32_t>::max());
+      ret = rgwrados::users::add(
+          dpp, y, rados, users, info, false,
+          std::numeric_limits<uint32_t>::max());
       if (ret < 0) {
-        ldpp_dout(dpp, 20) << "WARNING: failed to link user "
-            << info.user_id << " to group " << group_id
-            << ": " << cpp_strerror(ret) << dendl;
+        ldpp_dout(dpp, 20) << "WARNING: failed to link user " << info.user_id
+                           << " to group " << group_id << ": "
+                           << cpp_strerror(ret) << dendl;
         return ret;
       }
-      ldpp_dout(dpp, 20) << "linked user " << info.user_id
-          << " to group " << group_id << dendl;
+      ldpp_dout(dpp, 20) << "linked user " << info.user_id << " to group "
+                         << group_id << dendl;
     }
 
     return 0;
   }
 
-  int remove_old_indexes(const RGWUserInfo& old_info, const RGWUserInfo& new_info, optional_yield y, const DoutPrefixProvider *dpp) {
+  int
+  remove_old_indexes(
+      const RGWUserInfo& old_info,
+      const RGWUserInfo& new_info,
+      optional_yield y,
+      const DoutPrefixProvider* dpp)
+  {
     int ret;
 
-    if (!old_info.user_id.empty() &&
-        old_info.user_id != new_info.user_id) {
+    if (!old_info.user_id.empty() && old_info.user_id != new_info.user_id) {
       if (old_info.user_id.tenant != new_info.user_id.tenant) {
-        ldpp_dout(dpp, 0) << "ERROR: tenant mismatch: " << old_info.user_id.tenant << " != " << new_info.user_id.tenant << dendl;
+        ldpp_dout(dpp, 0) << "ERROR: tenant mismatch: "
+                          << old_info.user_id.tenant
+                          << " != " << new_info.user_id.tenant << dendl;
         return -EINVAL;
       }
       ret = svc.user->remove_uid_index(old_info, nullptr, y, dpp);
       if (ret < 0 && ret != -ENOENT) {
-        set_err_msg("ERROR: could not remove index for uid " + old_info.user_id.to_str());
+        set_err_msg(
+            "ERROR: could not remove index for uid " +
+            old_info.user_id.to_str());
         return ret;
       }
     }
@@ -396,7 +460,8 @@ public:
         !boost::iequals(old_info.user_email, new_info.user_email)) {
       ret = svc.user->remove_email_index(dpp, old_info.user_email, y);
       if (ret < 0 && ret != -ENOENT) {
-        set_err_msg("ERROR: could not remove index for email " + old_info.user_email);
+        set_err_msg(
+            "ERROR: could not remove index for email " + old_info.user_email);
         return ret;
       }
     }
@@ -425,10 +490,12 @@ public:
         account_users_link(&old_info) != account_users_link(&info)) {
       // unlink the old name from its account
       const RGWZoneParams& zone = svc.zone->get_zone_params();
-      const auto& users = rgwrados::account::get_users_obj(zone, old_info.account_id);
+      const auto& users =
+          rgwrados::account::get_users_obj(zone, old_info.account_id);
       ret = rgwrados::users::remove(dpp, y, rados, users, old_info.display_name);
       if (ret < 0 && ret != -ENOENT) {
-        set_err_msg("ERROR: could not unlink from account " + old_info.account_id);
+        set_err_msg(
+            "ERROR: could not unlink from account " + old_info.account_id);
         return ret;
       }
     }
@@ -450,22 +517,26 @@ public:
     return 0;
   }
 
-  const string& get_err_msg() {
+  const string&
+  get_err_msg()
+  {
     return err_msg;
   }
 };
 
-int RGWSI_User_RADOS::store_user_info(const RGWUserInfo& info,
-                                RGWUserInfo *old_info,
-                                RGWObjVersionTracker *objv_tracker,
-                                const real_time& mtime,
-                                bool exclusive,
-                                map<string, bufferlist> *attrs,
-                                optional_yield y,
-                                const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::store_user_info(
+    const RGWUserInfo& info,
+    RGWUserInfo* old_info,
+    RGWObjVersionTracker* objv_tracker,
+    const real_time& mtime,
+    bool exclusive,
+    map<string, bufferlist>* attrs,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
-  PutOperation op(svc, *rados, info, old_info, objv_tracker,
-                  mtime, exclusive, attrs, y);
+  PutOperation op(
+      svc, *rados, info, old_info, objv_tracker, mtime, exclusive, attrs, y);
 
   int r = op.prepare(dpp);
   if (r < 0) {
@@ -485,18 +556,22 @@ int RGWSI_User_RADOS::store_user_info(const RGWUserInfo& info,
   return 0;
 }
 
-int RGWSI_User_RADOS::remove_key_index(const DoutPrefixProvider *dpp, 
-                                       const RGWAccessKey& access_key,
-                                       optional_yield y)
+int
+RGWSI_User_RADOS::remove_key_index(
+    const DoutPrefixProvider* dpp,
+    const RGWAccessKey& access_key,
+    optional_yield y)
 {
   rgw_raw_obj obj(svc.zone->get_zone_params().user_keys_pool, access_key.id);
   auto sysobj = svc.sysobj->get_obj(obj);
   return sysobj.wop().remove(dpp, y);
 }
 
-int RGWSI_User_RADOS::remove_email_index(const DoutPrefixProvider *dpp, 
-                                         const string& email,
-                                         optional_yield y)
+int
+RGWSI_User_RADOS::remove_email_index(
+    const DoutPrefixProvider* dpp,
+    const string& email,
+    optional_yield y)
 {
   if (email.empty()) {
     return 0;
@@ -508,9 +583,11 @@ int RGWSI_User_RADOS::remove_email_index(const DoutPrefixProvider *dpp,
   return sysobj.wop().remove(dpp, y);
 }
 
-int RGWSI_User_RADOS::remove_swift_name_index(const DoutPrefixProvider *dpp,
-                                              const string& swift_name,
-                                              optional_yield y)
+int
+RGWSI_User_RADOS::remove_swift_name_index(
+    const DoutPrefixProvider* dpp,
+    const string& swift_name,
+    optional_yield y)
 {
   rgw_raw_obj obj(svc.zone->get_zone_params().user_swift_pool, swift_name);
   auto sysobj = svc.sysobj->get_obj(obj);
@@ -523,10 +600,12 @@ int RGWSI_User_RADOS::remove_swift_name_index(const DoutPrefixProvider *dpp,
  * from the user and user email pools. This leaves the pools
  * themselves alone, as well as any ACLs embedded in object xattrs.
  */
-int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
-                                 RGWObjVersionTracker *objv_tracker,
-                                 optional_yield y,
-                                 const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::remove_user_info(
+    const RGWUserInfo& info,
+    RGWObjVersionTracker* objv_tracker,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   int ret;
 
@@ -537,7 +616,9 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
     ldpp_dout(dpp, 10) << "removing key index: " << id << dendl;
     ret = remove_key_index(dpp, key, y);
     if (ret < 0 && ret != -ENOENT) {
-      ldpp_dout(dpp, 0) << "ERROR: could not remove " << id << " (access key object), should be fixed (err=" << ret << ")" << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not remove " << id
+                        << " (access key object), should be fixed (err=" << ret
+                        << ")" << dendl;
       return ret;
     }
   }
@@ -550,7 +631,9 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
     /* check if swift mapping exists */
     ret = remove_swift_name_index(dpp, id, y);
     if (ret < 0 && ret != -ENOENT) {
-      ldpp_dout(dpp, 0) << "ERROR: could not remove " << id << " (swift name object), should be fixed (err=" << ret << ")" << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not remove " << id
+                        << " (swift name object), should be fixed (err=" << ret
+                        << ")" << dendl;
       return ret;
     }
   }
@@ -559,7 +642,8 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
   ret = remove_email_index(dpp, info.user_email, y);
   if (ret < 0 && ret != -ENOENT) {
     ldpp_dout(dpp, 0) << "ERROR: could not remove email index object for "
-        << info.user_email << ", should be fixed (err=" << ret << ")" << dendl;
+                      << info.user_email << ", should be fixed (err=" << ret
+                      << ")" << dendl;
     return ret;
   }
 
@@ -569,7 +653,9 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
     auto sysobj = svc.sysobj->get_obj(uid_bucks);
     ret = sysobj.wop().remove(dpp, y);
     if (ret < 0 && ret != -ENOENT) {
-      ldpp_dout(dpp, 0) << "ERROR: could not remove " << info.user_id << ":" << uid_bucks << ", should be fixed (err=" << ret << ")" << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not remove " << info.user_id << ":"
+                        << uid_bucks << ", should be fixed (err=" << ret << ")"
+                        << dendl;
       return ret;
     }
   } else if (info.type != TYPE_ROOT) {
@@ -579,7 +665,8 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
     ret = rgwrados::users::remove(dpp, y, *rados, users, info.display_name);
     if (ret < 0) {
       ldpp_dout(dpp, 0) << "ERROR: could not unlink from account "
-          << info.account_id << ": " << cpp_strerror(ret) << dendl;
+                        << info.account_id << ": " << cpp_strerror(ret)
+                        << dendl;
       return ret;
     }
   }
@@ -589,8 +676,8 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
     const auto& users = rgwrados::group::get_users_obj(zone, group_id);
     ret = rgwrados::users::remove(dpp, y, *rados, users, info.display_name);
     if (ret < 0 && ret != -ENOENT) {
-      ldpp_dout(dpp, 0) << "ERROR: could not unlink from group "
-          << group_id << ": " << cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not unlink from group " << group_id
+                        << ": " << cpp_strerror(ret) << dendl;
       return ret;
     }
   }
@@ -603,34 +690,42 @@ int RGWSI_User_RADOS::remove_user_info(const RGWUserInfo& info,
   return 0;
 }
 
-int RGWSI_User_RADOS::remove_uid_index(const RGWUserInfo& user_info, RGWObjVersionTracker *objv_tracker,
-                                       optional_yield y, const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::remove_uid_index(
+    const RGWUserInfo& user_info,
+    RGWObjVersionTracker* objv_tracker,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   ldpp_dout(dpp, 10) << "removing user index: " << user_info.user_id << dendl;
 
   const rgw_pool& pool = svc.zone->get_zone_params().user_uid_pool;
   const std::string key = get_meta_key(user_info.user_id);
   int ret = rgw_delete_system_obj(dpp, svc.sysobj, pool, key, objv_tracker, y);
-  if (ret == -ENOENT || ret  == -ECANCELED) {
+  if (ret == -ENOENT || ret == -ECANCELED) {
     return 0; // success but no mdlog entry
   }
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not remove " << user_info.user_id
-        << ": " << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not remove " << user_info.user_id << ": "
+                      << cpp_strerror(ret) << dendl;
     return ret;
   }
 
   return svc.mdlog->complete_entry(dpp, y, "user", key, objv_tracker);
 }
 
-static int read_index(const DoutPrefixProvider* dpp, optional_yield y,
-                      RGWSI_SysObj* svc_sysobj, const rgw_pool& pool,
-                      const std::string& key, ceph::real_time* mtime,
-                      RGWUID& uid)
+static int
+read_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj* svc_sysobj,
+    const rgw_pool& pool,
+    const std::string& key,
+    ceph::real_time* mtime,
+    RGWUID& uid)
 {
   bufferlist bl;
-  int r = rgw_get_system_obj(svc_sysobj, pool, key, bl,
-                             nullptr, mtime, y, dpp);
+  int r = rgw_get_system_obj(svc_sysobj, pool, key, bl, nullptr, mtime, y, dpp);
   if (r < 0) {
     return r;
   }
@@ -643,13 +738,16 @@ static int read_index(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-int RGWSI_User_RADOS::get_user_info_from_index(const string& key,
-                                               const rgw_pool& pool,
-                                               RGWUserInfo *info,
-                                               RGWObjVersionTracker* objv_tracker,
-                                               std::map<std::string, bufferlist>* pattrs,
-                                               real_time* pmtime, optional_yield y,
-                                               const DoutPrefixProvider* dpp)
+int
+RGWSI_User_RADOS::get_user_info_from_index(
+    const string& key,
+    const rgw_pool& pool,
+    RGWUserInfo* info,
+    RGWObjVersionTracker* objv_tracker,
+    std::map<std::string, bufferlist>* pattrs,
+    real_time* pmtime,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   string cache_key = pool.to_str() + "/" + key;
 
@@ -678,20 +776,22 @@ int RGWSI_User_RADOS::get_user_info_from_index(const string& key,
   }
 
   rgw_cache_entry_info cache_info;
-  ret = read_user_info(rgw_user{uid.id}, &e.info, &e.objv_tracker,
-                       nullptr, &cache_info, &e.attrs, y, dpp);
+  ret = read_user_info(
+      rgw_user{uid.id}, &e.info, &e.objv_tracker, nullptr, &cache_info,
+      &e.attrs, y, dpp);
   if (ret < 0) {
     return ret;
   }
 
-  uinfo_cache->put(dpp, svc.cache, cache_key, &e, { &cache_info });
+  uinfo_cache->put(dpp, svc.cache, cache_key, &e, {&cache_info});
 
   *info = e.info;
   if (objv_tracker)
     *objv_tracker = e.objv_tracker;
   if (pmtime)
     *pmtime = e.mtime;
-  ldpp_dout(dpp, 20) << "get_user_info_from_index found " << e.attrs.size() << " xattrs" << dendl;
+  ldpp_dout(dpp, 20) << "get_user_info_from_index found " << e.attrs.size()
+                     << " xattrs" << dendl;
   if (pattrs)
     *pattrs = std::move(e.attrs);
 
@@ -702,54 +802,67 @@ int RGWSI_User_RADOS::get_user_info_from_index(const string& key,
  * Given an email, finds the user info associated with it.
  * returns: 0 on success, -ERR# on failure (including nonexistence)
  */
-int RGWSI_User_RADOS::get_user_info_by_email(const string& email, RGWUserInfo *info,
-                                       RGWObjVersionTracker *objv_tracker,
-                                       std::map<std::string, bufferlist>* pattrs,
-                                       real_time *pmtime, optional_yield y,
-                                       const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::get_user_info_by_email(
+    const string& email,
+    RGWUserInfo* info,
+    RGWObjVersionTracker* objv_tracker,
+    std::map<std::string, bufferlist>* pattrs,
+    real_time* pmtime,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   std::string oid = email;
   boost::to_lower(oid);
-  return get_user_info_from_index(oid, svc.zone->get_zone_params().user_email_pool,
-                                  info, objv_tracker, pattrs, pmtime, y, dpp);
+  return get_user_info_from_index(
+      oid, svc.zone->get_zone_params().user_email_pool, info, objv_tracker,
+      pattrs, pmtime, y, dpp);
 }
 
 /**
  * Given an swift username, finds the user_info associated with it.
  * returns: 0 on success, -ERR# on failure (including nonexistence)
  */
-int RGWSI_User_RADOS::get_user_info_by_swift(const string& swift_name,
-                                       RGWUserInfo *info,        /* out */
-                                       RGWObjVersionTracker * const objv_tracker,
-                                       std::map<std::string, bufferlist>* pattrs,
-                                       real_time * const pmtime, optional_yield y,
-                                       const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::get_user_info_by_swift(
+    const string& swift_name,
+    RGWUserInfo* info, /* out */
+    RGWObjVersionTracker* const objv_tracker,
+    std::map<std::string, bufferlist>* pattrs,
+    real_time* const pmtime,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
-  return get_user_info_from_index(swift_name,
-                                  svc.zone->get_zone_params().user_swift_pool,
-                                  info, objv_tracker, pattrs, pmtime, y, dpp);
+  return get_user_info_from_index(
+      swift_name, svc.zone->get_zone_params().user_swift_pool, info,
+      objv_tracker, pattrs, pmtime, y, dpp);
 }
 
 /**
  * Given an access key, finds the user info associated with it.
  * returns: 0 on success, -ERR# on failure (including nonexistence)
  */
-int RGWSI_User_RADOS::get_user_info_by_access_key(const std::string& access_key,
-                                            RGWUserInfo *info,
-                                            RGWObjVersionTracker* objv_tracker,
-                                            std::map<std::string, bufferlist>* pattrs,
-                                            real_time *pmtime, optional_yield y,
-                                            const DoutPrefixProvider *dpp)
+int
+RGWSI_User_RADOS::get_user_info_by_access_key(
+    const std::string& access_key,
+    RGWUserInfo* info,
+    RGWObjVersionTracker* objv_tracker,
+    std::map<std::string, bufferlist>* pattrs,
+    real_time* pmtime,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
-  return get_user_info_from_index(access_key,
-                                  svc.zone->get_zone_params().user_keys_pool,
-                                  info, objv_tracker, pattrs, pmtime, y, dpp);
+  return get_user_info_from_index(
+      access_key, svc.zone->get_zone_params().user_keys_pool, info,
+      objv_tracker, pattrs, pmtime, y, dpp);
 }
 
-int RGWSI_User_RADOS::read_email_index(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       std::string_view email,
-                                       RGWUID& uid)
+int
+RGWSI_User_RADOS::read_email_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view email,
+    RGWUID& uid)
 {
   const rgw_pool& pool = svc.zone->get_zone_params().user_email_pool;
   std::string oid{email};

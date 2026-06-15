@@ -2,14 +2,15 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "crimson/admin/osd_admin.h"
-#include <string>
-#include <string_view>
 
 #include <fmt/format.h>
 #include <seastar/core/do_with.hh>
 #include <seastar/core/future.hh>
-#include <seastar/core/thread.hh>
 #include <seastar/core/scollectd_api.hh>
+#include <seastar/core/thread.hh>
+
+#include <string>
+#include <string_view>
 
 #include "common/config.h"
 #include "crimson/admin/admin_socket.h"
@@ -22,18 +23,20 @@
 #include "crimson/osd/shard_services.h"
 
 SET_SUBSYS(osd);
+
 namespace {
-seastar::logger& logger()
+seastar::logger&
+logger()
 {
   return crimson::get_logger(ceph_subsys_osd);
 }
-}  // namespace
+} // namespace
 
 using namespace std::literals;
+using crimson::common::local_conf;
+using crimson::osd::OSD;
 using std::string_view;
 using std::unique_ptr;
-using crimson::osd::OSD;
-using crimson::common::local_conf;
 using namespace crimson::common;
 using ceph::common::cmd_getval;
 using ceph::common::cmd_getval_or;
@@ -41,7 +44,8 @@ using ceph::common::cmd_getval_or;
 namespace crimson::admin {
 
 template <class Hook, class... Args>
-std::unique_ptr<AdminSocketHook> make_asok_hook(Args&&... args)
+std::unique_ptr<AdminSocketHook>
+make_asok_hook(Args&&... args)
 {
   return std::make_unique<Hook>(std::forward<Args>(args)...);
 }
@@ -52,26 +56,29 @@ std::unique_ptr<AdminSocketHook> make_asok_hook(Args&&... args)
 class OsdStatusHook : public AdminSocketHook {
 public:
   explicit OsdStatusHook(const crimson::osd::OSD& osd) :
-    AdminSocketHook{"status", "", "OSD status"},
-    osd(osd)
+    AdminSocketHook{"status", "", "OSD status"}, osd(osd)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::OsdStatusHook);
     DEBUG("");
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("status");
     osd.dump_status(f.get());
     f->close_section();
     co_return std::move(f);
   }
+
 private:
   const crimson::osd::OSD& osd;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<OsdStatusHook>(const crimson::osd::OSD& osd);
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<OsdStatusHook>(
+    const crimson::osd::OSD& osd);
 
 /**
  * An OSD admin hook: send beacon
@@ -79,25 +86,26 @@ make_asok_hook<OsdStatusHook>(const crimson::osd::OSD& osd);
 class SendBeaconHook : public AdminSocketHook {
 public:
   explicit SendBeaconHook(crimson::osd::OSD& osd) :
-    AdminSocketHook{"send_beacon",
-		    "",
-		    "send OSD beacon to mon immediately"},
+    AdminSocketHook{"send_beacon", "", "send OSD beacon to mon immediately"},
     osd(osd)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::SendBeaconHook);
     DEBUG("");
     co_await osd.send_beacon();
     co_return tell_result_t();
   }
+
 private:
   crimson::osd::OSD& osd;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<SendBeaconHook>(crimson::osd::OSD& osd);
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<SendBeaconHook>(
+    crimson::osd::OSD& osd);
 
 /**
  * An OSD admin hook: run bench
@@ -110,17 +118,21 @@ make_asok_hook<SendBeaconHook>(crimson::osd::OSD& osd);
 class RunOSDBenchHook : public AdminSocketHook {
 public:
   explicit RunOSDBenchHook(crimson::osd::OSD& osd) :
-    AdminSocketHook{"bench",
-      "name=count,type=CephInt,req=false "
-      "name=size,type=CephInt,req=false "
-      "name=object_size,type=CephInt,req=false "
-      "name=object_num,type=CephInt,req=false",
-      "run OSD bench"},
+    AdminSocketHook{
+        "bench",
+        "name=count,type=CephInt,req=false "
+        "name=size,type=CephInt,req=false "
+        "name=object_size,type=CephInt,req=false "
+        "name=object_num,type=CephInt,req=false",
+        "run OSD bench"},
     osd(osd)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-              std::string_view format,
-              ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::RunOSDBenchHook::call);
     DEBUG("");
@@ -134,19 +146,22 @@ public:
       // let us limit the block size because the next checks rely on it
       // having a sane value.  If we allow any block size to be set things
       // can still go sideways.
-      INFO("block 'size' values are capped at {}. If you wish to use"
-        " a higher value, please adjust 'osd_bench_max_block_size'",
-        byte_u_t(max_block_size));
+      INFO(
+          "block 'size' values are capped at {}. If you wish to use"
+          " a higher value, please adjust 'osd_bench_max_block_size'",
+          byte_u_t(max_block_size));
       co_return tell_result_t(-EINVAL, "block size too large");
     } else if (bsize < (1LL << 20)) {
       // entering the realm of small block sizes.
       // limit the count to a sane value, assuming a configurable amount of
       // IOPS and duration, so that the OSD doesn't get hung up on this,
       // preventing timeouts from going off
-      int64_t max_count = bsize * duration * local_conf()->osd_bench_small_size_max_iops;
+      int64_t max_count = bsize * duration *
+                          local_conf()->osd_bench_small_size_max_iops;
       if (count > max_count) {
-        INFO("bench count {} > osd_bench_small_size_max_iops {}",
-          count, max_count);
+        INFO(
+            "bench count {} > osd_bench_small_size_max_iops {}", count,
+            max_count);
         co_return tell_result_t(-EINVAL, "count too large");
       }
     } else {
@@ -159,14 +174,16 @@ public:
       //       throughput.  The block size hardly impacts this unless it's
       //       way too big.  Given we already check how big the block size
       //       is, it's safe to assume everything will check out.
-      int64_t max_count = local_conf()->osd_bench_large_size_max_throughput * duration;
+      int64_t max_count = local_conf()->osd_bench_large_size_max_throughput *
+                          duration;
       if (count > max_count) {
-        INFO("'count' values greater than {} for a block size of {},"
-          " assuming {} IOPS, for {} seconds, can cause ill effects"
-          " on osd. Please adjust 'osd_bench_small_size_max_iops'"
-          " with a higher value if you wish to use a higher 'count'.",
-          max_count, byte_u_t(bsize), local_conf()->osd_bench_small_size_max_iops,
-          duration);
+        INFO(
+            "'count' values greater than {} for a block size of {},"
+            " assuming {} IOPS, for {} seconds, can cause ill effects"
+            " on osd. Please adjust 'osd_bench_small_size_max_iops'"
+            " with a higher value if you wish to use a higher 'count'.",
+            max_count, byte_u_t(bsize),
+            local_conf()->osd_bench_small_size_max_iops, duration);
         co_return tell_result_t(-EINVAL, "count too large");
       }
     }
@@ -179,7 +196,8 @@ public:
       co_return tell_result_t(elapsed, "bench failed with error");
     }
 
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("osd_bench_results");
     f->dump_int("bytes_written", count);
     f->dump_int("blocksize", bsize);
@@ -190,11 +208,13 @@ public:
 
     co_return std::move(f);
   }
+
 private:
   crimson::osd::OSD& osd;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<RunOSDBenchHook>(crimson::osd::OSD& osd);
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<RunOSDBenchHook>(
+    crimson::osd::OSD& osd);
 
 /**
  * send the latest pg stats to mgr
@@ -202,19 +222,17 @@ make_asok_hook<RunOSDBenchHook>(crimson::osd::OSD& osd);
 class FlushPgStatsHook : public AdminSocketHook {
 public:
   explicit FlushPgStatsHook(crimson::osd::OSD& osd) :
-    AdminSocketHook("flush_pg_stats",
-		    "",
-		    "flush pg stats"),
-    osd{osd}
+    AdminSocketHook("flush_pg_stats", "", "flush pg stats"), osd{osd}
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&&) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&&) const final
   {
     LOG_PREFIX(AdminSocketHook::FlushPgStatsHook);
     DEBUG("");
     return osd.send_pg_stats().then([format](uint64_t seq) {
-      unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+      unique_ptr<Formatter> f{
+          Formatter::create(format, "json-pretty", "json-pretty")};
       f->dump_unsigned("stat_seq", seq);
       return seastar::make_ready_future<tell_result_t>(std::move(f));
     });
@@ -223,28 +241,31 @@ public:
 private:
   crimson::osd::OSD& osd;
 };
-template std::unique_ptr<AdminSocketHook> make_asok_hook<FlushPgStatsHook>(crimson::osd::OSD& osd);
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<FlushPgStatsHook>(
+    crimson::osd::OSD& osd);
 
 /// dump the history of PGs' peering state
-class DumpPGStateHistory final: public AdminSocketHook {
+class DumpPGStateHistory final : public AdminSocketHook {
 public:
-  explicit DumpPGStateHistory(const crimson::osd::PGShardManager &pg_shard_manager) :
-    AdminSocketHook{"dump_pgstate_history",
-                    "",
-                    "dump history of PGs' peering state"},
+  explicit DumpPGStateHistory(
+      const crimson::osd::PGShardManager& pg_shard_manager) :
+    AdminSocketHook{
+        "dump_pgstate_history", "", "dump history of PGs' peering state"},
     pg_shard_manager{pg_shard_manager}
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-                                      std::string_view format,
-                                      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::DumpPGStateHistory);
     DEBUG("");
     std::unique_ptr<Formatter> fref{
-      Formatter::create(format, "json-pretty", "json-pretty")};
+        Formatter::create(format, "json-pretty", "json-pretty")};
     fref->open_object_section("pgstate_history");
     fref->open_array_section("pgs");
-    co_await pg_shard_manager.for_each_pg([f = fref.get()](auto &pgid, auto &pg) {
+    co_await pg_shard_manager.for_each_pg([f = fref.get()](auto& pgid, auto& pg) {
       f->open_object_section("pg");
       f->dump_stream("pg") << pgid;
       const auto& peering_state = pg->get_peering_state();
@@ -258,42 +279,45 @@ public:
   }
 
 private:
-  const crimson::osd::PGShardManager &pg_shard_manager;
+  const crimson::osd::PGShardManager& pg_shard_manager;
 };
+
 template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpPGStateHistory>(
-  const crimson::osd::PGShardManager &);
+    const crimson::osd::PGShardManager&);
 
 //dump the contents of perfcounters in osd and store
-class DumpPerfCountersHook final: public AdminSocketHook {
+class DumpPerfCountersHook final : public AdminSocketHook {
 public:
   explicit DumpPerfCountersHook() :
-    AdminSocketHook{"perfcounters_dump",
-                    "name=logger,type=CephString,req=false "
-                    "name=counter,type=CephString,req=false",
-                    "dump perfcounters in osd and store"}
+    AdminSocketHook{
+        "perfcounters_dump",
+        "name=logger,type=CephString,req=false "
+        "name=counter,type=CephString,req=false",
+        "dump perfcounters in osd and store"}
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-                                      std::string_view format,
-                                      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::DumpPerfCountersHook);
     DEBUG("");
-    std::unique_ptr<Formatter> f{Formatter::create(format,
-                                                   "json-pretty",
-                                                   "json-pretty")};
+    std::unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     std::string logger;
     std::string counter;
     cmd_getval(cmdmap, "logger", logger);
     cmd_getval(cmdmap, "counter", counter);
 
-    crimson::common::local_perf_coll().dump_formatted(f.get(), false,
-      select_labeled_t::unlabeled, logger, counter);
+    crimson::common::local_perf_coll().dump_formatted(
+        f.get(), false, select_labeled_t::unlabeled, logger, counter);
     co_return std::move(f);
   }
 };
+
 template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpPerfCountersHook>();
-
-
 
 /**
  * A CephContext admin hook: calling assert (if allowed by
@@ -301,14 +325,13 @@ template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpPerfCountersHook>()
  */
 class AssertAlwaysHook : public AdminSocketHook {
 public:
-  AssertAlwaysHook()  :
-    AdminSocketHook{"assert",
-		    "",
-		    "asserts"}
+  AssertAlwaysHook() :
+    AdminSocketHook{"assert", "", "asserts"}
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::AssertAlwaysHook);
     DEBUG("");
@@ -316,10 +339,12 @@ public:
       ceph_assert_always(0);
       co_return tell_result_t();
     } else {
-      co_return tell_result_t{-EPERM, "configuration set to disallow asok assert"};
+      co_return tell_result_t{
+          -EPERM, "configuration set to disallow asok assert"};
     }
   }
 };
+
 template std::unique_ptr<AdminSocketHook> make_asok_hook<AssertAlwaysHook>();
 
 /**
@@ -328,40 +353,44 @@ template std::unique_ptr<AdminSocketHook> make_asok_hook<AssertAlwaysHook>();
 class DumpMetricsHook : public AdminSocketHook {
 public:
   DumpMetricsHook() :
-    AdminSocketHook("dump_metrics",
-                    "name=group,type=CephString,req=false",
-                    "dump current configured seastar metrics and their values")
+    AdminSocketHook(
+        "dump_metrics",
+        "name=group,type=CephString,req=false",
+        "dump current configured seastar metrics and their values")
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-                                      std::string_view format,
-                                      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::DumpMetricsHook);
     DEBUG("");
-    std::unique_ptr<Formatter> fref{Formatter::create(format, "json-pretty", "json-pretty")};
+    std::unique_ptr<Formatter> fref{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     std::string prefix;
     cmd_getval(cmdmap, "group", prefix);
     fref->open_object_section("metrics");
     fref->open_array_section("metrics");
     co_await crimson::invoke_on_all_seq([f = fref.get(), &prefix] {
       crimson::metrics::dump_metric_value_map(
-	seastar::scollectd::get_value_map(),
-	f,
-	[prefix](const auto &full_name) {
-	  return prefix.empty() || full_name.compare(0, prefix.size(), prefix) == 0;
-	});
+          seastar::scollectd::get_value_map(), f,
+          [prefix](const auto& full_name) {
+            return prefix.empty() ||
+                   full_name.compare(0, prefix.size(), prefix) == 0;
+          });
     });
     fref->close_section();
     fref->close_section();
     co_return std::move(fref);
   }
 };
+
 template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpMetricsHook>();
 
-
-static ghobject_t test_ops_get_object_name(
-  const OSDMap& osdmap,
-  const cmdmap_t& cmdmap)
+static ghobject_t
+test_ops_get_object_name(const OSDMap& osdmap, const cmdmap_t& cmdmap)
 {
   auto pool = [&] {
     auto pool_arg = cmd_getval<std::string>(cmdmap, "pool");
@@ -374,14 +403,12 @@ static ghobject_t test_ops_get_object_name(
     }
     if (pool < 0) {
       // the return type of `fmt::format` is `std::string`
-      throw std::invalid_argument{
-        fmt::format("Invalid pool '{}'", *pool_arg)
-      };
+      throw std::invalid_argument{fmt::format("Invalid pool '{}'", *pool_arg)};
     }
     return pool;
   }();
 
-  auto [ objname, nspace, raw_pg ] = [&] {
+  auto [objname, nspace, raw_pg] = [&] {
     auto obj_arg = cmd_getval<std::string>(cmdmap, "objname");
     if (!obj_arg) {
       throw std::invalid_argument{"No 'objname' specified"};
@@ -390,49 +417,48 @@ static ghobject_t test_ops_get_object_name(
     if (std::size_t sep_pos = obj_arg->find_first_of('/');
         sep_pos != obj_arg->npos) {
       nspace = obj_arg->substr(0, sep_pos);
-      objname = obj_arg->substr(sep_pos+1);
+      objname = obj_arg->substr(sep_pos + 1);
     } else {
       objname = *obj_arg;
     }
     pg_t raw_pg;
     if (object_locator_t oloc(pool, nspace);
-        osdmap.object_locator_to_pg(object_t(objname), oloc,  raw_pg) < 0) {
+        osdmap.object_locator_to_pg(object_t(objname), oloc, raw_pg) < 0) {
       throw std::invalid_argument{"Invalid namespace/objname"};
     }
-    return std::make_tuple(std::move(objname),
-                           std::move(nspace),
-                           std::move(raw_pg));
+    return std::make_tuple(
+        std::move(objname), std::move(nspace), std::move(raw_pg));
   }();
 
-  auto shard_id = cmd_getval_or<int64_t>(cmdmap,
-					 "shardid",
-					 static_cast<int64_t>(shard_id_t::NO_SHARD));
+  auto shard_id = cmd_getval_or<int64_t>(
+      cmdmap, "shardid", static_cast<int64_t>(shard_id_t::NO_SHARD));
 
   return ghobject_t{
-    hobject_t{
-      object_t{objname}, std::string{}, CEPH_NOSNAP, raw_pg.ps(), pool, nspace
-    },
-    ghobject_t::NO_GEN,
-    shard_id_t{static_cast<int8_t>(shard_id)}
-  };
+      hobject_t{
+          object_t{objname}, std::string{}, CEPH_NOSNAP, raw_pg.ps(), pool,
+          nspace},
+      ghobject_t::NO_GEN, shard_id_t{static_cast<int8_t>(shard_id)}};
 }
 
 // Usage:
 //   injectdataerr <pool> [namespace/]<obj-name> [shardid]
 class InjectDataErrorHook : public AdminSocketHook {
 public:
-  InjectDataErrorHook(crimson::osd::ShardServices& shard_services)  :
-   AdminSocketHook("injectdataerr",
-    "name=pool,type=CephString " \
-    "name=objname,type=CephObjectname " \
-    "name=shardid,type=CephInt,req=false,range=0|255",
-    "inject data error to an object"),
-   shard_services(shard_services) {
-  }
+  InjectDataErrorHook(crimson::osd::ShardServices& shard_services) :
+    AdminSocketHook(
+        "injectdataerr",
+        "name=pool,type=CephString "
+        "name=objname,type=CephObjectname "
+        "name=shardid,type=CephInt,req=false,range=0|255",
+        "inject data error to an object"),
+    shard_services(shard_services)
+  {}
 
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::InjectDataErrorHook);
     DEBUG("");
@@ -443,40 +469,43 @@ public:
       logger().info("error during data error injection: {}", e.what());
       co_return tell_result_t(-EINVAL, e.what());
     }
-    co_await crimson::os::with_store<&crimson::os::FuturizedStore::Shard::inject_data_error>(
-      shard_services.get_store(META_STORE_INDEX),
-      obj);
+    co_await crimson::os::with_store<
+        &crimson::os::FuturizedStore::Shard::inject_data_error>(
+        shard_services.get_store(META_STORE_INDEX), obj);
     logger().info("successfully injected data error for obj={}", obj);
     ceph::bufferlist bl;
     bl.append("ok"sv);
-    co_return tell_result_t(0,
-                            std::string{}, // no err
-                            std::move(bl));
+    co_return tell_result_t(
+        0, std::string{}, // no err
+        std::move(bl));
   }
 
 private:
   crimson::osd::ShardServices& shard_services;
 };
-template std::unique_ptr<AdminSocketHook> make_asok_hook<InjectDataErrorHook>(
-  crimson::osd::ShardServices&);
 
+template std::unique_ptr<AdminSocketHook> make_asok_hook<InjectDataErrorHook>(
+    crimson::osd::ShardServices&);
 
 // Usage:
 //   injectmdataerr <pool> [namespace/]<obj-name> [shardid]
 class InjectMDataErrorHook : public AdminSocketHook {
 public:
-  InjectMDataErrorHook(crimson::osd::ShardServices& shard_services)  :
-   AdminSocketHook("injectmdataerr",
-    "name=pool,type=CephString " \
-    "name=objname,type=CephObjectname " \
-    "name=shardid,type=CephInt,req=false,range=0|255",
-    "inject data error to an object"),
-   shard_services(shard_services) {
-  }
+  InjectMDataErrorHook(crimson::osd::ShardServices& shard_services) :
+    AdminSocketHook(
+        "injectmdataerr",
+        "name=pool,type=CephString "
+        "name=objname,type=CephObjectname "
+        "name=shardid,type=CephInt,req=false,range=0|255",
+        "inject data error to an object"),
+    shard_services(shard_services)
+  {}
 
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::InjectMDataErrorHook);
     DEBUG("");
@@ -487,122 +516,141 @@ public:
       logger().info("error during metadata error injection: {}", e.what());
       co_return tell_result_t(-EINVAL, e.what());
     }
-    co_await crimson::os::with_store<&crimson::os::FuturizedStore::Shard::inject_mdata_error>(
-      shard_services.get_store(META_STORE_INDEX),
-      obj);
+    co_await crimson::os::with_store<
+        &crimson::os::FuturizedStore::Shard::inject_mdata_error>(
+        shard_services.get_store(META_STORE_INDEX), obj);
     logger().info("successfully injected metadata error for obj={}", obj);
     ceph::bufferlist bl;
     bl.append("ok"sv);
-    co_return tell_result_t(0,
-                            std::string{}, // no err
-                            std::move(bl));
+    co_return tell_result_t(
+        0, std::string{}, // no err
+        std::move(bl));
   }
 
 private:
   crimson::osd::ShardServices& shard_services;
 };
-template std::unique_ptr<AdminSocketHook> make_asok_hook<InjectMDataErrorHook>(
-  crimson::osd::ShardServices&);
 
+template std::unique_ptr<AdminSocketHook> make_asok_hook<InjectMDataErrorHook>(
+    crimson::osd::ShardServices&);
 
 /**
  * An InFlightOps admin hook: dump current in-flight operations
  */
 class DumpInFlightOpsHook : public AdminSocketHook {
 public:
-  explicit DumpInFlightOpsHook(const crimson::osd::PGShardManager &pg_shard_manager) :
-    AdminSocketHook{"dump_ops_in_flight", "", "show the ops currently in flight"},
+  explicit DumpInFlightOpsHook(
+      const crimson::osd::PGShardManager& pg_shard_manager) :
+    AdminSocketHook{
+        "dump_ops_in_flight", "", "show the ops currently in flight"},
     pg_shard_manager(pg_shard_manager)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::DumpInFlightOpsHook);
     DEBUG("");
-    std::unique_ptr<Formatter> fref{Formatter::create(format, "json-pretty", "json-pretty")};
+    std::unique_ptr<Formatter> fref{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     fref->open_object_section("ops_in_flight");
     fref->open_array_section("ops_in_flight");
     co_await pg_shard_manager.when_active();
     co_await pg_shard_manager.invoke_on_each_shard_seq(
-      [f = fref.get()](const auto &local_service) {
-        return local_service.dump_ops_in_flight(f);
-    });
+        [f = fref.get()](const auto& local_service) {
+          return local_service.dump_ops_in_flight(f);
+        });
     fref->close_section();
     fref->close_section();
     co_return std::move(fref);
   }
-private:
-  const crimson::osd::PGShardManager &pg_shard_manager;
-};
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<DumpInFlightOpsHook>(const crimson::osd::PGShardManager &);
 
+private:
+  const crimson::osd::PGShardManager& pg_shard_manager;
+};
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpInFlightOpsHook>(
+    const crimson::osd::PGShardManager&);
 
 class DumpHistoricOpsHook : public AdminSocketHook {
 public:
-  explicit DumpHistoricOpsHook(const crimson::osd::OSDOperationRegistry& op_registry) :
+  explicit DumpHistoricOpsHook(
+      const crimson::osd::OSDOperationRegistry& op_registry) :
     AdminSocketHook{"dump_historic_ops", "", "show recent ops"},
     op_registry(op_registry)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::DumpHistoricOpsHook);
     DEBUG("");
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("historic_ops");
     op_registry.dump_historic_client_requests(f.get());
     f->close_section();
     f->dump_int("num_ops", 0);
     co_return std::move(f);
   }
+
 private:
   const crimson::osd::OSDOperationRegistry& op_registry;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<DumpHistoricOpsHook>(const crimson::osd::OSDOperationRegistry& op_registry);
 
+template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpHistoricOpsHook>(
+    const crimson::osd::OSDOperationRegistry& op_registry);
 
 class DumpSlowestHistoricOpsHook : public AdminSocketHook {
 public:
-  explicit DumpSlowestHistoricOpsHook(const crimson::osd::OSDOperationRegistry& op_registry) :
+  explicit DumpSlowestHistoricOpsHook(
+      const crimson::osd::OSDOperationRegistry& op_registry) :
     AdminSocketHook{"dump_historic_slow_ops", "", "show slowest recent ops"},
     op_registry(op_registry)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::DumpSlowestHistoricOpsHook);
     DEBUG("");
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("historic_slow_ops");
     op_registry.dump_slowest_historic_client_requests(f.get());
     f->close_section();
     f->dump_int("num_ops", 0);
     co_return std::move(f);
   }
+
 private:
   const crimson::osd::OSDOperationRegistry& op_registry;
 };
+
 template std::unique_ptr<AdminSocketHook>
-make_asok_hook<DumpSlowestHistoricOpsHook>(const crimson::osd::OSDOperationRegistry& op_registry);
+make_asok_hook<DumpSlowestHistoricOpsHook>(
+    const crimson::osd::OSDOperationRegistry& op_registry);
 
 class DumpRecoveryReservationsHook : public AdminSocketHook {
 public:
-  explicit DumpRecoveryReservationsHook(crimson::osd::ShardServices& shard_services) :
-    AdminSocketHook{"dump_recovery_reservations", "", "show recovery reservations"},
+  explicit DumpRecoveryReservationsHook(
+      crimson::osd::ShardServices& shard_services) :
+    AdminSocketHook{
+        "dump_recovery_reservations", "", "show recovery reservations"},
     shard_services(shard_services)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-				      std::string_view format,
-				      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::DumpRecoveryReservationsHook);
     DEBUG("");
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("reservations");
     f->open_object_section("local_reservations");
     co_await shard_services.local_dump_reservations(f.get());
@@ -613,56 +661,68 @@ public:
     f->close_section();
     co_return std::move(f);
   }
+
 private:
   crimson::osd::ShardServices& shard_services;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<DumpRecoveryReservationsHook>(crimson::osd::ShardServices& shard_services);
 
-class DumpReactorBackendHook final: public AdminSocketHook {
+template std::unique_ptr<AdminSocketHook>
+make_asok_hook<DumpRecoveryReservationsHook>(
+    crimson::osd::ShardServices& shard_services);
+
+class DumpReactorBackendHook final : public AdminSocketHook {
 public:
   explicit DumpReactorBackendHook() :
-    AdminSocketHook{"reactor_backend",
-                    "",
-                    "seastar reactor backend used"}
+    AdminSocketHook{"reactor_backend", "", "seastar reactor backend used"}
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-                                      std::string_view format,
-                                      ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const final
   {
     LOG_PREFIX(AdminSocketHook::DumpReactorBackendHook);
     DEBUG("");
 
     std::string_view reactor_backend_name = seastar::engine().get_backend_name();
-    std::unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    std::unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->dump_string("reactor_backend_name", reactor_backend_name);
     co_return std::move(f);
   }
 };
-template std::unique_ptr<AdminSocketHook> make_asok_hook<DumpReactorBackendHook>();
+
+template std::unique_ptr<AdminSocketHook>
+make_asok_hook<DumpReactorBackendHook>();
 
 class StoreShardNumsHook : public AdminSocketHook {
 public:
   explicit StoreShardNumsHook(crimson::osd::ShardServices& shard_services) :
-    AdminSocketHook{"dump_store_shards", "", "show store shards on each osd shard"},
+    AdminSocketHook{
+        "dump_store_shards", "", "show store shards on each osd shard"},
     shard_services(shard_services)
   {}
-  seastar::future<tell_result_t> call(const cmdmap_t&,
-                                     std::string_view format,
-                                     ceph::bufferlist&& input) const final
+
+  seastar::future<tell_result_t>
+  call(const cmdmap_t&, std::string_view format, ceph::bufferlist&& input)
+      const final
   {
     LOG_PREFIX(AdminSocketHook::StoreShardNumsHook);
     DEBUG("");
-    unique_ptr<Formatter> f{Formatter::create(format, "json-pretty", "json-pretty")};
+    unique_ptr<Formatter> f{
+        Formatter::create(format, "json-pretty", "json-pretty")};
     f->open_object_section("Store shards");
     co_await shard_services.dump_store_shards(f.get());
     f->close_section();
     co_return std::move(f);
   }
+
 private:
   crimson::osd::ShardServices& shard_services;
 };
-template std::unique_ptr<AdminSocketHook>
-make_asok_hook<StoreShardNumsHook>(crimson::osd::ShardServices& shard_services);
+
+template std::unique_ptr<AdminSocketHook> make_asok_hook<StoreShardNumsHook>(
+    crimson::osd::ShardServices& shard_services);
 
 } // namespace crimson::admin

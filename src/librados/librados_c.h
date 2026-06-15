@@ -4,8 +4,8 @@
 #ifndef LIBRADOS_C_H
 #define LIBRADOS_C_H
 
-#include "include/types.h"
 #include "include/rados/librados.h"
+#include "include/types.h"
 
 namespace __librados_base {
 

@@ -1,10 +1,13 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 #include "ObjectContents.h"
-#include "include/buffer.h"
+
 #include <iostream>
 #include <map>
 
-bool test_object_contents()
+#include "include/buffer.h"
+
+bool
+test_object_contents()
 {
   ObjectContents c, d;
   ceph_assert(!c.exists());
@@ -15,30 +18,26 @@ bool test_object_contents()
 
   c.debug(std::cerr);
   bufferlist bl;
-  for (ObjectContents::Iterator iter = c.get_iterator();
-       iter.valid();
-       ++iter) {
+  for (ObjectContents::Iterator iter = c.get_iterator(); iter.valid(); ++iter) {
     bl.append(*iter);
   }
   ceph_assert(bl.length() == 20);
 
   bufferlist bl2;
-  for (unsigned i = 0; i < 8; ++i) bl2.append(bl[i]);
+  for (unsigned i = 0; i < 8; ++i)
+    bl2.append(bl[i]);
   c.write(10, 8, 4);
   c.debug(std::cerr);
   ObjectContents::Iterator iter = c.get_iterator();
   iter.seek_to(8);
-  for (uint64_t i = 8;
-       i < 12;
-       ++i, ++iter) {
+  for (uint64_t i = 8; i < 12; ++i, ++iter) {
     bl2.append(*iter);
   }
-  for (unsigned i = 12; i < 20; ++i) bl2.append(bl[i]);
+  for (unsigned i = 12; i < 20; ++i)
+    bl2.append(bl[i]);
   ceph_assert(bl2.length() == 20);
 
-  for (ObjectContents::Iterator iter3 = c.get_iterator();
-       iter.valid();
-       ++iter) {
+  for (ObjectContents::Iterator iter3 = c.get_iterator(); iter.valid(); ++iter) {
     ceph_assert(bl2[iter3.get_pos()] == *iter3);
   }
 
@@ -63,8 +62,8 @@ bool test_object_contents()
   return true;
 }
 
-
-unsigned int ObjectContents::Iterator::get_state(uint64_t _pos)
+unsigned int
+ObjectContents::Iterator::get_state(uint64_t _pos)
 {
   if (parent->seeds.count(_pos)) {
     return parent->seeds[_pos];
@@ -73,8 +72,10 @@ unsigned int ObjectContents::Iterator::get_state(uint64_t _pos)
   return current_state;
 }
 
-void ObjectContents::clone_range(ObjectContents &other,
-				 interval_set<uint64_t> &intervals)
+void
+ObjectContents::clone_range(
+    ObjectContents& other,
+    interval_set<uint64_t>& intervals)
 {
   interval_set<uint64_t> written_to_clone;
   written_to_clone.intersection_of(intervals, other.written);
@@ -86,19 +87,18 @@ void ObjectContents::clone_range(ObjectContents &other,
   written.subtract(zeroed);
 
   for (interval_set<uint64_t>::iterator i = written_to_clone.begin();
-       i != written_to_clone.end();
-       ++i) {
+       i != written_to_clone.end(); ++i) {
     uint64_t start = i.get_start();
     uint64_t len = i.get_len();
 
-    unsigned int seed = get_iterator().get_state(start+len);
+    unsigned int seed = get_iterator().get_state(start + len);
 
-    seeds[start+len] = seed;
-    seeds.erase(seeds.lower_bound(start), seeds.lower_bound(start+len));
+    seeds[start + len] = seed;
+    seeds.erase(seeds.lower_bound(start), seeds.lower_bound(start + len));
 
     seeds[start] = other.get_iterator().get_state(start);
-    seeds.insert(other.seeds.upper_bound(start),
-		 other.seeds.lower_bound(start+len));
+    seeds.insert(
+        other.seeds.upper_bound(start), other.seeds.lower_bound(start + len));
   }
 
   if (intervals.range_end() > _size)
@@ -107,15 +107,13 @@ void ObjectContents::clone_range(ObjectContents &other,
   return;
 }
 
-void ObjectContents::write(unsigned int seed,
-			   uint64_t start,
-			   uint64_t len)
+void
+ObjectContents::write(unsigned int seed, uint64_t start, uint64_t len)
 {
   _exists = true;
-  unsigned int _seed = get_iterator().get_state(start+len);
-  seeds[start+len] = _seed;
-  seeds.erase(seeds.lower_bound(start),
-	      seeds.lower_bound(start+len));
+  unsigned int _seed = get_iterator().get_state(start + len);
+  seeds[start + len] = _seed;
+  seeds.erase(seeds.lower_bound(start), seeds.lower_bound(start + len));
   seeds[start] = seed;
 
   interval_set<uint64_t> to_write;

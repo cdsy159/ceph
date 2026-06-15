@@ -1,8 +1,9 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "rgw_op.h"
 #include "rgw_rest_info.h"
+
+#include "rgw_op.h"
 #include "rgw_sal.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -12,16 +13,25 @@ class RGWOp_Info_Get : public RGWRESTOp {
 public:
   RGWOp_Info_Get() {}
 
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("info", RGW_CAP_READ);
   }
+
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "get_info"; }
+  const char*
+  name() const override
+  {
+    return "get_info";
+  }
 };
 
-void RGWOp_Info_Get::execute(optional_yield y) {
-  Formatter *formatter = flusher.get_formatter();
+void
+RGWOp_Info_Get::execute(optional_yield y)
+{
+  Formatter* formatter = flusher.get_formatter();
   flusher.start(0);
 
   /* extensible array of general info sections, currently only
@@ -43,7 +53,8 @@ void RGWOp_Info_Get::execute(optional_yield y) {
   flusher.flush();
 } /* RGWOp_Info_Get::execute */
 
-RGWOp *RGWHandler_Info::op_get()
+RGWOp*
+RGWHandler_Info::op_get()
 {
   return new RGWOp_Info_Get;
 }

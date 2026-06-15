@@ -16,7 +16,9 @@
 
 #include <memory>
 
-namespace rgw::sal { class RadosStore; }
+namespace rgw::sal {
+class RadosStore;
+}
 struct rgw_raw_obj;
 class RGWCoroutine;
 
@@ -30,7 +32,7 @@ class RGWCoroutine;
 namespace rgw::sync_fairness {
 
 class BidManager {
- public:
+public:
   virtual ~BidManager() {}
 
   /// establish a watch, creating the control object if necessary
@@ -45,9 +47,9 @@ class BidManager {
 };
 
 // rados BidManager factory
-auto create_rados_bid_manager(sal::RadosStore* store,
-                              const rgw_raw_obj& watch_obj,
-                              std::size_t num_shards)
-  -> std::unique_ptr<BidManager>;
+auto create_rados_bid_manager(
+    sal::RadosStore* store,
+    const rgw_raw_obj& watch_obj,
+    std::size_t num_shards) -> std::unique_ptr<BidManager>;
 
 } // namespace rgw::sync_fairness

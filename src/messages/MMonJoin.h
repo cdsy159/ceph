@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -32,30 +32,53 @@ public:
    * location. Generally the monitor will force an update if it's given a
    * location from the CLI on boot-up, and then never force again (so that it
    * can be moved/updated via the ceph tool from elsewhere). */
-  std::map<std::string,std::string> crush_loc;
+  std::map<std::string, std::string> crush_loc;
   bool force_loc{false};
 
-  MMonJoin() : PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION} {}
-  MMonJoin(uuid_d &f, std::string n, const entity_addrvec_t& av)
-    : PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f), name(n), addrs(av)
-  { }
-  MMonJoin(uuid_d &f, std::string n, const entity_addrvec_t& av,
-	   const std::map<std::string,std::string>& cloc, bool force)
-    : PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f), name(n), addrs(av), crush_loc(cloc), force_loc(force)
-  { }
-  
+  MMonJoin() :
+    PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MMonJoin(uuid_d& f, std::string n, const entity_addrvec_t& av) :
+    PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    name(n),
+    addrs(av)
+  {}
+
+  MMonJoin(
+      uuid_d& f,
+      std::string n,
+      const entity_addrvec_t& av,
+      const std::map<std::string, std::string>& cloc,
+      bool force) :
+    PaxosServiceMessage{MSG_MON_JOIN, 0, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    name(n),
+    addrs(av),
+    crush_loc(cloc),
+    force_loc(force)
+  {}
+
 private:
   ~MMonJoin() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_join"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_join";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "mon_join(" << name << " " << addrs << " " << crush_loc << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
@@ -67,7 +90,10 @@ public:
     encode(crush_loc, payload);
     encode(force_loc, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);

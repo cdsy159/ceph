@@ -12,11 +12,12 @@
 #ifndef CEPH_COMPAT_H
 #define CEPH_COMPAT_H
 
-#include "acconfig.h"
-#include <sys/types.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#include "acconfig.h"
 
 #if defined(__linux__)
 #define PROCPREFIX
@@ -24,8 +25,8 @@
 
 #include <fcntl.h>
 #ifndef F_OFD_SETLK
-#define F_OFD_SETLK F_SETLK 
-#endif 
+#define F_OFD_SETLK F_SETLK
+#endif
 
 #include <sys/stat.h>
 
@@ -34,17 +35,17 @@
 #endif
 
 #ifndef ACCESSPERMS
-#define ACCESSPERMS (S_IRWXU|S_IRWXG|S_IRWXO)
+#define ACCESSPERMS (S_IRWXU | S_IRWXG | S_IRWXO)
 #endif
 
 #ifndef ALLPERMS
-#define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)
+#define ALLPERMS (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO)
 #endif
 
 #if defined(__FreeBSD__)
 
 // FreeBSD supports Linux procfs with its compatibility module
-// And all compatibility stuff is standard mounted on this 
+// And all compatibility stuff is standard mounted on this
 #define PROCPREFIX "/compat/linux"
 
 #ifndef MSG_MORE
@@ -57,12 +58,10 @@
 
 /* And include the extra required include file */
 #include <pthread_np.h>
-
-#include <sys/param.h>
 #include <sys/cpuset.h>
+#include <sys/param.h>
 #define cpu_set_t cpuset_t
-int sched_setaffinity(pid_t pid, size_t cpusetsize,
-                      cpu_set_t *mask);
+int sched_setaffinity(pid_t pid, size_t cpusetsize, cpu_set_t* mask);
 
 #endif /* __FreeBSD__ */
 
@@ -127,8 +126,8 @@ struct cpu_set_t;
 #endif /* __APPLE__ */
 
 #ifndef HOST_NAME_MAX
-#ifdef MAXHOSTNAMELEN 
-#define HOST_NAME_MAX MAXHOSTNAMELEN 
+#ifdef MAXHOSTNAMELEN
+#define HOST_NAME_MAX MAXHOSTNAMELEN
 #else
 #define HOST_NAME_MAX 255
 #endif
@@ -145,20 +144,24 @@ struct cpu_set_t;
 #endif
 
 #ifndef TEMP_FAILURE_RETRY
-#define TEMP_FAILURE_RETRY(expression) ({     \
-  __typeof(expression) __result;              \
-  do {                                        \
-    __result = (expression);                  \
-  } while (__result == -1 && errno == EINTR); \
-  __result; })
+#define TEMP_FAILURE_RETRY(expression)          \
+  ({                                            \
+    __typeof(expression) __result;              \
+    do {                                        \
+      __result = (expression);                  \
+    } while (__result == -1 && errno == EINTR); \
+    __result;                                   \
+  })
 #endif
 
 #ifdef __cplusplus
-# define VOID_TEMP_FAILURE_RETRY(expression) \
-   static_cast<void>(TEMP_FAILURE_RETRY(expression))
+#define VOID_TEMP_FAILURE_RETRY(expression) \
+  static_cast<void>(TEMP_FAILURE_RETRY(expression))
 #else
-# define VOID_TEMP_FAILURE_RETRY(expression) \
-   do { (void)TEMP_FAILURE_RETRY(expression); } while (0)
+#define VOID_TEMP_FAILURE_RETRY(expression) \
+  do {                                      \
+    (void)TEMP_FAILURE_RETRY(expression);   \
+  } while (0)
 #endif
 
 #if defined(__FreeBSD__) || defined(__APPLE__)
@@ -166,28 +169,30 @@ struct cpu_set_t;
 #endif
 
 #if defined(__sun) || defined(_AIX)
-#define LOG_AUTHPRIV    (10<<3)
-#define LOG_FTP         (11<<3)
-#define __STRING(x)     "x"
+#define LOG_AUTHPRIV (10 << 3)
+#define LOG_FTP (11 << 3)
+#define __STRING(x) "x"
 #endif
 
 #if defined(__sun) || defined(_AIX) || defined(_WIN32)
-#define IFTODT(mode)   (((mode) & 0170000) >> 12)
+#define IFTODT(mode) (((mode) & 0170000) >> 12)
 #endif
 
 #if defined(_AIX)
 #define MSG_DONTWAIT MSG_NONBLOCK
 #endif
 
-#define pthread_kill_unsupported_helper(thread, signal) ({ \
-  int __i = -ENOTSUP;                                      \
-  __i; })
+#define pthread_kill_unsupported_helper(thread, signal) \
+  ({                                                    \
+    int __i = -ENOTSUP;                                 \
+    __i;                                                \
+  })
 
 #if defined(_WIN32) && defined(__clang__) && \
     !defined(_LIBCPP_HAS_THREAD_API_PTHREAD)
-  #define ceph_pthread_kill pthread_kill_unsupported_helper
+#define ceph_pthread_kill pthread_kill_unsupported_helper
 #else
-  #define ceph_pthread_kill pthread_kill
+#define ceph_pthread_kill pthread_kill
 #endif
 
 int ceph_posix_fallocate(int fd, off_t offset, off_t len);
@@ -200,13 +205,13 @@ int ceph_pthread_getname(char* name, size_t size);
 int ceph_pthread_setname(const char* name);
 
 int pipe_cloexec(int pipefd[2], int flags);
-char *ceph_strerror_r(int errnum, char *buf, size_t buflen);
+char* ceph_strerror_r(int errnum, char* buf, size_t buflen);
 unsigned get_page_size();
 // On success, returns the number of bytes written to the buffer. On
 // failure, returns -1.
 ssize_t get_self_exe_path(char* path, int buff_length);
 
-int ceph_memzero_s(void *dest, size_t destsz, size_t count);
+int ceph_memzero_s(void* dest, size_t destsz, size_t count);
 
 #ifdef __cplusplus
 }
@@ -214,12 +219,11 @@ int ceph_memzero_s(void *dest, size_t destsz, size_t count);
 
 #if defined(_WIN32)
 
-#include "include/win32/winsock_compat.h"
-
-#include <windows.h>
 #include <time.h>
+#include <windows.h>
 
 #include "include/win32/win32_errno.h"
+#include "include/win32/winsock_compat.h"
 
 // There are a few name collisions between Windows headers and Ceph.
 // Updating Ceph definitions would be the prefferable fix in order to avoid
@@ -243,16 +247,15 @@ typedef unsigned short nlink_t;
 
 typedef long long loff_t;
 
-#define CPU_SETSIZE (sizeof(size_t)*8)
+#define CPU_SETSIZE (sizeof(size_t) * 8)
 
-typedef union
-{
-  char cpuset[CPU_SETSIZE/8];
+typedef union {
+  char cpuset[CPU_SETSIZE / 8];
   size_t _align;
 } cpu_set_t;
 
 struct iovec {
-  void *iov_base;
+  void* iov_base;
   size_t iov_len;
 };
 
@@ -274,26 +277,26 @@ struct iovec {
 extern "C" {
 #endif
 
-ssize_t readv(int fd, const struct iovec *iov, int iov_cnt);
-ssize_t writev(int fd, const struct iovec *iov, int iov_cnt);
+ssize_t readv(int fd, const struct iovec* iov, int iov_cnt);
+ssize_t writev(int fd, const struct iovec* iov, int iov_cnt);
 
 int fsync(int fd);
-ssize_t pread(int fd, void *buf, size_t count, off_t offset);
-ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+ssize_t pread(int fd, void* buf, size_t count, off_t offset);
+ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset);
 
 long int lrand48(void);
 int random();
 
 int pipe(int pipefd[2]);
 
-int posix_memalign(void **memptr, size_t alignment, size_t size);
+int posix_memalign(void** memptr, size_t alignment, size_t size);
 
-char *strptime(const char *s, const char *format, struct tm *tm);
+char* strptime(const char* s, const char* format, struct tm* tm);
 
-int chown(const char *path, uid_t owner, gid_t group);
+int chown(const char* path, uid_t owner, gid_t group);
 int fchown(int fd, uid_t owner, gid_t group);
-int lchown(const char *path, uid_t owner, gid_t group);
-int setenv(const char *name, const char *value, int overwrite);
+int lchown(const char* path, uid_t owner, gid_t group);
+int setenv(const char* name, const char* value, int overwrite);
 
 int geteuid();
 int getegid();
@@ -305,7 +308,7 @@ int getgid();
 int win_socketpair(int socks[2]);
 
 #ifdef __MINGW32__
-extern _CRTIMP errno_t __cdecl _putenv_s(const char *_Name,const char *_Value);
+extern _CRTIMP errno_t __cdecl _putenv_s(const char* _Name, const char* _Value);
 
 #if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #define htobe16(x) __builtin_bswap16(x)
@@ -331,9 +334,12 @@ extern _CRTIMP errno_t __cdecl _putenv_s(const char *_Name,const char *_Value);
 #endif
 
 #define compat_closesocket closesocket
+
 // Use "aligned_free" when freeing memory allocated using posix_memalign or
 // _aligned_malloc. Using "free" will crash.
-static inline void aligned_free(void* ptr) {
+static inline void
+aligned_free(void* ptr)
+{
   _aligned_free(ptr);
 }
 
@@ -349,10 +355,15 @@ static inline void aligned_free(void* ptr) {
 
 #define SOCKOPT_VAL_TYPE void*
 
-static inline void aligned_free(void* ptr) {
+static inline void
+aligned_free(void* ptr)
+{
   free(ptr);
 }
-static inline int compat_closesocket(int fildes) {
+
+static inline int
+compat_closesocket(int fildes)
+{
   return close(fildes);
 }
 
@@ -368,19 +379,21 @@ static inline int compat_closesocket(int fildes) {
  *     }
  */
 #ifdef _MSC_VER
-#pragma section(".CRT$XCU",read)
-#define CEPH_CONSTRUCTOR(f) \
-  static void __cdecl f(void); \
-  __declspec(allocate(".CRT$XCU")) static void (__cdecl*f##_)(void) = f; \
+#pragma section(".CRT$XCU", read)
+#define CEPH_CONSTRUCTOR(f)                                               \
+  static void __cdecl f(void);                                            \
+  __declspec(allocate(".CRT$XCU")) static void(__cdecl * f##_)(void) = f; \
   static void __cdecl f(void)
 #else
-#define CEPH_CONSTRUCTOR(f) \
+#define CEPH_CONSTRUCTOR(f)                         \
   static void f(void) __attribute__((constructor)); \
   static void f(void)
 #endif
 
 /* This should only be used with the socket API. */
-static inline int ceph_sock_errno() {
+static inline int
+ceph_sock_errno()
+{
 #ifdef _WIN32
   return wsae_to_errno(WSAGetLastError());
 #else

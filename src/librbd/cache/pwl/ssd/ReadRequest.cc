@@ -2,28 +2,33 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ReadRequest.h"
-#include "common/Clock.h" // for ceph_clock_now()
+
 #include "common/debug.h"
+
+#include "common/Clock.h" // for ceph_clock_now()
 #include "common/perf_counters.h"
 
 #define dout_subsys ceph_subsys_rbd_pwl
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::cache::pwl::ssd::ReadRequest: " << this << " " \
-                           <<  __func__ << ": "
+#define dout_prefix                                                 \
+  *_dout << "librbd::cache::pwl::ssd::ReadRequest: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace cache {
 namespace pwl {
 namespace ssd {
 
-void C_ReadRequest::finish(int r) {
+void
+C_ReadRequest::finish(int r)
+{
   ldout(m_cct, 20) << "(" << get_name() << "): r=" << r << dendl;
   int hits = 0;
   int misses = 0;
   int hit_bytes = 0;
   int miss_bytes = 0;
   if (r >= 0) {
-      /*
+    /*
        * At this point the miss read has completed. We'll iterate through
        * m_read_extents and produce *m_out_bl by assembling pieces of m_miss_bl
        * and the individual hit extent bufs in the read extents that represent
@@ -50,8 +55,10 @@ void C_ReadRequest::finish(int r) {
           data_bl.substr_of(temp_bl, read_buffer_offset, extent->second);
           m_out_bl->claim_append(data_bl);
         } else if (extent->need_to_truncate) {
-          assert(extent->m_bl.length() >= extent->truncate_offset + extent->second);
-          data_bl.substr_of(extent->m_bl, extent->truncate_offset, extent->second);
+          assert(
+              extent->m_bl.length() >= extent->truncate_offset + extent->second);
+          data_bl.substr_of(
+              extent->m_bl, extent->truncate_offset, extent->second);
           m_out_bl->claim_append(data_bl);
         } else {
           assert(extent->second == extent->m_bl.length());
@@ -72,7 +79,8 @@ void C_ReadRequest::finish(int r) {
       }
     }
   }
-  ldout(m_cct, 20) << "(" << get_name() << "): r=" << r << " bl=" << *m_out_bl << dendl;
+  ldout(m_cct, 20) << "(" << get_name() << "): r=" << r << " bl=" << *m_out_bl
+                   << dendl;
   utime_t now = ceph_clock_now();
   ceph_assert((int)m_out_bl->length() == hit_bytes + miss_bytes);
   m_on_finish->complete(r);

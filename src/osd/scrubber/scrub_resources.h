@@ -6,9 +6,9 @@
 #include <functional>
 #include <string>
 
+#include "common/Formatter.h"
 #include "common/ceph_mutex.h"
 #include "common/config_proxy.h"
-#include "common/Formatter.h"
 #include "osd/osd_types.h"
 
 namespace Scrub {
@@ -42,7 +42,7 @@ class ScrubResources {
   mutable ceph::mutex resource_lock =
       ceph::make_mutex("ScrubQueue::resource_lock");
 
-  log_upwards_t log_upwards;  ///< access into the owner's dout()
+  log_upwards_t log_upwards; ///< access into the owner's dout()
 
   const ceph::common::ConfigProxy& conf;
 
@@ -50,7 +50,7 @@ class ScrubResources {
   /// the resource lock held.
   bool can_inc_local_scrubs_unlocked() const;
 
- public:
+public:
   explicit ScrubResources(
       log_upwards_t log_access,
       const ceph::common::ConfigProxy& config);
@@ -70,7 +70,6 @@ class ScrubResources {
   void dump_scrub_reservations(ceph::Formatter* f) const;
 };
 
-
 /**
  * a wrapper around a "local scrub resource". The resources bookkeeper
  * is handing these out to the PGs that acquired the local OSD's scrub
@@ -80,10 +79,9 @@ class ScrubResources {
 class LocalResourceWrapper {
   ScrubResources& m_resource_bookkeeper;
 
- public:
-  LocalResourceWrapper(
-      ScrubResources& resource_bookkeeper);
+public:
+  LocalResourceWrapper(ScrubResources& resource_bookkeeper);
   ~LocalResourceWrapper();
 };
 
-}  // namespace Scrub
+} // namespace Scrub

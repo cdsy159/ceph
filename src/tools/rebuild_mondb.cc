@@ -7,17 +7,19 @@
 
 using namespace std;
 
-static int update_auth(const string& keyring_path,
-                       const OSDSuperblock& sb,
-                       MonitorDBStore& ms);
+static int update_auth(
+    const string& keyring_path,
+    const OSDSuperblock& sb,
+    MonitorDBStore& ms);
 static int update_monitor(const OSDSuperblock& sb, MonitorDBStore& ms);
-static int update_osdmap(ObjectStore& fs,
-                         OSDSuperblock& sb,
-                         MonitorDBStore& ms);
+static int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms);
 
-int update_mon_db(ObjectStore& fs, OSDSuperblock& sb,
-                  const string& keyring,
-                  const string& store_path)
+int
+update_mon_db(
+    ObjectStore& fs,
+    OSDSuperblock& sb,
+    const string& keyring,
+    const string& store_path)
 {
   MonitorDBStore ms(store_path);
   int r = ms.create_and_open(cerr);
@@ -34,13 +36,13 @@ int update_mon_db(ObjectStore& fs, OSDSuperblock& sb,
   if ((r = update_monitor(sb, ms)) < 0) {
     goto out;
   }
- out:
+out:
   ms.close();
   return r;
 }
 
-static void add_auth(KeyServerData::Incremental& auth_inc,
-                     MonitorDBStore& ms)
+static void
+add_auth(KeyServerData::Incremental& auth_inc, MonitorDBStore& ms)
 {
   AuthMonitor::Incremental inc;
   inc.inc_type = AuthMonitor::AUTH_DATA;
@@ -64,9 +66,11 @@ static void add_auth(KeyServerData::Incremental& auth_inc,
   ms.apply_transaction(t);
 }
 
-static int get_auth_inc(const string& keyring_path,
-                        const OSDSuperblock& sb,
-                        KeyServerData::Incremental* auth_inc)
+static int
+get_auth_inc(
+    const string& keyring_path,
+    const OSDSuperblock& sb,
+    KeyServerData::Incremental* auth_inc)
 {
   auth_inc->op = KeyServerData::AUTH_INC_ADD;
 
@@ -84,12 +88,12 @@ static int get_auth_inc(const string& keyring_path,
     int r = bl.read_file(keyring_path.c_str(), &error);
     if (r < 0) {
       if (r == -ENOENT) {
-        cout << "ignoring keyring (" << keyring_path << ")"
-             << ": " << error << std::endl;
+        cout << "ignoring keyring (" << keyring_path << ")" << ": " << error
+             << std::endl;
         return 0;
       } else {
-        cerr << "unable to read keyring (" << keyring_path << ")"
-             << ": " << error << std::endl;
+        cerr << "unable to read keyring (" << keyring_path << ")" << ": "
+             << error << std::endl;
         return r;
       }
     } else if (bl.length() == 0) {
@@ -108,14 +112,14 @@ static int get_auth_inc(const string& keyring_path,
   // get the key
   EntityAuth new_inc;
   if (!keyring.get_auth(auth_inc->name, new_inc)) {
-    cerr << "key for " << auth_inc->name << " not found in keyring: "
-         << keyring_path << std::endl;
+    cerr << "key for " << auth_inc->name
+         << " not found in keyring: " << keyring_path << std::endl;
     return -EINVAL;
   }
   auth_inc->auth.key = new_inc.key;
 
   // get the caps
-  map<string,bufferlist> caps;
+  map<string, bufferlist> caps;
   if (new_inc.caps.empty()) {
     // fallback to default caps for an OSD
     //   osd 'allow *' mon 'allow rwx'
@@ -133,9 +137,11 @@ static int get_auth_inc(const string& keyring_path,
 //  - auth/${epoch}
 //  - auth/first_committed
 //  - auth/last_committed
-static int update_auth(const string& keyring_path,
-                       const OSDSuperblock& sb,
-                       MonitorDBStore& ms)
+static int
+update_auth(
+    const string& keyring_path,
+    const OSDSuperblock& sb,
+    MonitorDBStore& ms)
 {
   // stolen from AuthMonitor::prepare_command(), where prefix is "auth add"
   KeyServerData::Incremental auth_inc;
@@ -148,7 +154,8 @@ static int update_auth(const string& keyring_path,
 }
 
 // stolen from Monitor::check_fsid()
-static int check_fsid(const uuid_d& fsid, MonitorDBStore& ms)
+static int
+check_fsid(const uuid_d& fsid, MonitorDBStore& ms)
 {
   bufferlist bl;
   int r = ms.get("monitor", "cluster_uuid", bl);
@@ -173,7 +180,8 @@ static int check_fsid(const uuid_d& fsid, MonitorDBStore& ms)
 
 // rebuild
 //  - monitor/cluster_uuid
-int update_monitor(const OSDSuperblock& sb, MonitorDBStore& ms)
+int
+update_monitor(const OSDSuperblock& sb, MonitorDBStore& ms)
 {
   switch (check_fsid(sb.cluster_fsid, ms)) {
   case -ENOENT:
@@ -202,7 +210,8 @@ int update_monitor(const OSDSuperblock& sb, MonitorDBStore& ms)
 //  - osdmap/full_latest
 //  - osdmap/first_committed
 //  - osdmap/last_committed
-int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
+int
+update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
 {
   const string prefix("osdmap");
   const string first_committed_name("first_committed");
@@ -216,7 +225,8 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
   // osdmap starts at 1. if we have a "0" first_committed, then there is nothing
   // to trim. and "1 osdmaps trimmed" in the output message is misleading. so
   // let's make it an exception.
-  for (auto e = first_committed; first_committed && e < sb.get_oldest_map(); e++) {
+  for (auto e = first_committed; first_committed && e < sb.get_oldest_map();
+       e++) {
     t->erase(prefix, e);
     t->erase(prefix, ms.combine_strings("full", e));
     ntrimmed++;
@@ -240,7 +250,7 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
 
   auto ch = fs.open_collection(coll_t::meta());
   OSDMap osdmap;
-  for (auto e = std::max(last_committed+1, sb.get_oldest_map());
+  for (auto e = std::max(last_committed + 1, sb.get_oldest_map());
        e <= sb.get_newest_map(); e++) {
     bool have_crc = false;
     uint32_t crc = -1;
@@ -262,8 +272,8 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
       features = inc.encode_features | CEPH_FEATURE_RESERVED;
       if (osdmap.get_epoch() && e > 1) {
         if (osdmap.apply_incremental(inc)) {
-          cerr << "bad fsid: "
-               << osdmap.get_fsid() << " != " << inc.fsid << std::endl;
+          cerr << "bad fsid: " << osdmap.get_fsid() << " != " << inc.fsid
+               << std::endl;
           return -EINVAL;
         }
         have_crc = inc.have_crc;
@@ -272,8 +282,8 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
           bufferlist fbl;
           osdmap.encode(fbl, features);
           if (osdmap.get_crc() != inc.full_crc) {
-            cerr << "mismatched inc crc: "
-                 << osdmap.get_crc() << " != " << inc.full_crc << std::endl;
+            cerr << "mismatched inc crc: " << osdmap.get_crc()
+                 << " != " << inc.full_crc << std::endl;
             return -EINVAL;
           }
           // inc.decode() verifies `inc_crc`, so it's been taken care of.
@@ -307,16 +317,16 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
       osdmap.decode(p);
       if (osdmap.have_crc()) {
         if (have_crc && osdmap.get_crc() != crc) {
-          cerr << "mismatched full/inc crc: "
-               << osdmap.get_crc() << " != " << crc << std::endl;
+          cerr << "mismatched full/inc crc: " << osdmap.get_crc()
+               << " != " << crc << std::endl;
           return -EINVAL;
         }
         uint32_t saved_crc = osdmap.get_crc();
         bufferlist fbl;
         osdmap.encode(fbl, features);
         if (osdmap.get_crc() != saved_crc) {
-          cerr << "mismatched full crc: "
-               << saved_crc << " != " << osdmap.get_crc() << std::endl;
+          cerr << "mismatched full crc: " << saved_crc
+               << " != " << osdmap.get_crc() << std::endl;
           return -EINVAL;
         }
       }
@@ -344,10 +354,7 @@ int update_osdmap(ObjectStore& fs, OSDSuperblock& sb, MonitorDBStore& ms)
 
   string osd_name("osd.");
   osd_name += std::to_string(sb.whoami);
-  cout << std::left << setw(8)
-       << osd_name << ": "
-       << ntrimmed << " osdmaps trimmed, "
-       << nadded << " osdmaps added." << std::endl;
+  cout << std::left << setw(8) << osd_name << ": " << ntrimmed
+       << " osdmaps trimmed, " << nadded << " osdmaps added." << std::endl;
   return 0;
 }
-

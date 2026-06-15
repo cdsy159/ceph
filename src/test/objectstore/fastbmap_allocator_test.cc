@@ -1,54 +1,72 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <iostream>
 #include <gtest/gtest.h>
+
+#include <iostream>
 
 #include "os/bluestore/fastbmap_allocator_impl.h"
 
-class TestAllocatorLevel01 : public AllocatorLevel01Loose
-{
+class TestAllocatorLevel01 : public AllocatorLevel01Loose {
 public:
-  void init(uint64_t capacity, uint64_t alloc_unit)
+  void
+  init(uint64_t capacity, uint64_t alloc_unit)
   {
     _init(capacity, alloc_unit);
   }
-  interval_t allocate_l1_cont(uint64_t length, uint64_t min_length,
-    uint64_t pos_start, uint64_t pos_end)
+
+  interval_t
+  allocate_l1_cont(
+      uint64_t length,
+      uint64_t min_length,
+      uint64_t pos_start,
+      uint64_t pos_end)
   {
     return _allocate_l1_contiguous(length, min_length, 0, pos_start, pos_end);
   }
-  void free_l1(const interval_t& r)
+
+  void
+  free_l1(const interval_t& r)
   {
     _free_l1(r.offset, r.length);
   }
 };
 
-class TestAllocatorLevel02 : public AllocatorLevel02<AllocatorLevel01Loose>
-{
+class TestAllocatorLevel02 : public AllocatorLevel02<AllocatorLevel01Loose> {
 public:
-  void init(uint64_t capacity, uint64_t alloc_unit)
+  void
+  init(uint64_t capacity, uint64_t alloc_unit)
   {
     _init(capacity, alloc_unit);
   }
-  void allocate_l2(uint64_t length, uint64_t min_length,
-    uint64_t* allocated0,
-    interval_vector_t* res)
+
+  void
+  allocate_l2(
+      uint64_t length,
+      uint64_t min_length,
+      uint64_t* allocated0,
+      interval_vector_t* res)
   {
     uint64_t allocated = 0;
     uint64_t hint = 0; // trigger internal l2 hint support
     _allocate_l2(length, min_length, 0, hint, &allocated, res);
     *allocated0 += allocated;
   }
-  void free_l2(const interval_vector_t& r)
+
+  void
+  free_l2(const interval_vector_t& r)
   {
     _free_l2(r);
   }
-  void mark_free(uint64_t o, uint64_t len)
+
+  void
+  mark_free(uint64_t o, uint64_t len)
   {
     _mark_free(o, len);
   }
-  void mark_allocated(uint64_t o, uint64_t len)
+
+  void
+  mark_allocated(uint64_t o, uint64_t len)
   {
     _mark_allocated(o, len);
   }
@@ -108,7 +126,8 @@ TEST(TestAllocatorLevel01, test_l1)
   ASSERT_EQ(i1.offset, 0u);
   ASSERT_EQ(i1.length, 1024u * 1024u);
 
-  auto i3 = al1.allocate_l1_cont(1024 * 1024 + 0x1000, 0x1000, 0, num_l1_entries);
+  auto i3 =
+      al1.allocate_l1_cont(1024 * 1024 + 0x1000, 0x1000, 0, num_l1_entries);
   ASSERT_EQ(i3.offset, 2u * 2u * 1024u * 1024u);
   ASSERT_EQ(i3.length, 1024u * 1024u + 0x1000u);
 
@@ -249,7 +268,7 @@ TEST(TestAllocatorLevel01, test_l1)
 TEST(TestAllocatorLevel01, test_l2)
 {
   TestAllocatorLevel02 al2;
-  uint64_t num_l2_entries = 64;// *512;
+  uint64_t num_l2_entries = 64; // *512;
   uint64_t capacity = num_l2_entries * 256 * 512 * 4096;
   al2.init(capacity, 0x1000);
   std::cout << "Init L2" << std::endl;
@@ -333,7 +352,7 @@ TEST(TestAllocatorLevel01, test_l2)
     ASSERT_EQ(a4[0].length, 0x1000u);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "alloc1 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
 #else
@@ -358,7 +377,7 @@ TEST(TestAllocatorLevel01, test_l2)
     al2.free_l2(r);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "free1 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   ASSERT_EQ(capacity, al2.debug_get_free());
@@ -373,7 +392,7 @@ TEST(TestAllocatorLevel01, test_l2)
     ASSERT_EQ(a4[0].length, _1m);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "alloc2 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   ASSERT_EQ(0u, al2.debug_get_free());
@@ -390,7 +409,7 @@ TEST(TestAllocatorLevel01, test_l2)
     al2.free_l2(r);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "free2 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   ASSERT_EQ(capacity / 2, al2.debug_get_free());
@@ -409,7 +428,7 @@ TEST(TestAllocatorLevel01, test_l2)
     ASSERT_EQ(a4[0].length, 0x1000u);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "alloc3 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   ASSERT_EQ(0u, al2.debug_get_free());
@@ -443,7 +462,7 @@ TEST(TestAllocatorLevel01, test_l2_huge)
     ASSERT_EQ(a4[0].length, _1m - 0x1000);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "allocH " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   for (uint64_t i = 0; i < capacity; i += _1m) {
@@ -452,7 +471,7 @@ TEST(TestAllocatorLevel01, test_l2_huge)
     al2.free_l2(a4);
     if (0 == (i % (1 * 1024 * _1m))) {
       std::cout << "freeH1 " << i / 1024 / 1024 << " mb of "
-        << capacity / 1024 / 1024 << std::endl;
+                << capacity / 1024 / 1024 << std::endl;
     }
   }
   {
@@ -502,7 +521,7 @@ TEST(TestAllocatorLevel01, test_l2_unaligned)
       ASSERT_EQ(a4[0].length, _1m / 2);
       if (0 == (i % (1 * 1024 * _1m))) {
         std::cout << "allocU " << i / 1024 / 1024 << " mb of "
-          << capacity / 1024 / 1024 << std::endl;
+                  << capacity / 1024 / 1024 << std::endl;
       }
     }
     ASSERT_EQ(0u, al2.debug_get_free());
@@ -529,7 +548,7 @@ TEST(TestAllocatorLevel01, test_l2_unaligned)
       ASSERT_EQ(a4[0].length, _1m / 2);
       if (0 == (i % (1 * 1024 * _1m))) {
         std::cout << "allocU2 " << i / 1024 / 1024 << " mb of "
-          << capacity / 1024 / 1024 << std::endl;
+                  << capacity / 1024 / 1024 << std::endl;
       }
     }
     ASSERT_EQ(0u, al2.debug_get_free());
@@ -605,7 +624,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
     std::map<size_t, size_t> bins_overall;
     al2.collect_stats(bins_overall);
     ASSERT_EQ(bins_overall.size(), 1u);
-//    std::cout<<bins_overall.begin()->first << std::endl;
+    //    std::cout<<bins_overall.begin()->first << std::endl;
     ASSERT_EQ(bins_overall[cbits(num_chunks) - 1], 1u);
 
     for (uint64_t i = 0; i < capacity / 2; i += _1m) {
@@ -774,7 +793,6 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       ASSERT_EQ(bins_overall.size(), 2u);
       ASSERT_EQ(bins_overall[cbits((_1m - 0x2000 - 0x80000) / 0x1000) - 1], 1u);
       ASSERT_EQ(bins_overall[cbits((num_chunks - 256) / 2) - 1], 1u);
-
     }
     {
       // Original free space disposition (start chunk, count):
@@ -812,7 +830,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       // allocate 132M (=33792*4096) = using 4M granularity should go to (capacity / 2)
       uint64_t allocated4 = 0;
       interval_vector_t a4;
-      al2.allocate_l2(132 * _1m, 4 * _1m , &allocated4, &a4);
+      al2.allocate_l2(132 * _1m, 4 * _1m, &allocated4, &a4);
       ASSERT_EQ(a4.size(), 1u);
       ASSERT_EQ(a4[0].offset, capacity / 2);
       ASSERT_EQ(a4[0].length, 132 * _1m);
@@ -822,7 +840,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       ASSERT_EQ(bins_overall.size(), 3u);
       ASSERT_EQ(bins_overall[cbits((_1m + _1m / 2 - 0x1000) / 0x1000) - 1], 1u);
       ASSERT_EQ(bins_overall[cbits((_1m - 0x2000 - 0x80000) / 0x1000) - 1], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -836,7 +854,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
 
       ASSERT_EQ(bins_overall.size(), 2u);
       ASSERT_EQ(bins_overall[cbits((2 * _1m + 0x1000) / 0x1000) - 1], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -849,7 +867,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       al2.collect_stats(bins_overall);
       ASSERT_EQ(bins_overall.size(), 2u);
       ASSERT_EQ(bins_overall[cbits((2 * _1m + 0x1000) / 0x1000) - 1], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -858,7 +876,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       // (capacity / 2)
       uint64_t allocated4 = 0;
       interval_vector_t a4;
-      al2.allocate_l2(132 * _1m, 2 * _1m , &allocated4, &a4);
+      al2.allocate_l2(132 * _1m, 2 * _1m, &allocated4, &a4);
       ASSERT_EQ(a4.size(), 2u);
       ASSERT_EQ(a4[0].offset, 0u);
       ASSERT_EQ(a4[0].length, 2 * _1m);
@@ -870,7 +888,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
 
       ASSERT_EQ(bins_overall.size(), 2u);
       ASSERT_EQ(bins_overall[cbits(0)], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 33792) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -884,7 +902,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
 
       ASSERT_EQ(bins_overall.size(), 2u);
       ASSERT_EQ(bins_overall[cbits(0)], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -903,9 +921,11 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
 
       ASSERT_EQ(bins_overall.size(), 4u);
       ASSERT_EQ(bins_overall[cbits(0)], 1u);
-      ASSERT_EQ(bins_overall[cbits(0x4000 / 0x1000) - 1], 2u); // accounts both 0x4000 & 0x6000
+      ASSERT_EQ(
+          bins_overall[cbits(0x4000 / 0x1000) - 1],
+          2u); // accounts both 0x4000 & 0x6000
       ASSERT_EQ(bins_overall[cbits(0x8000 / 0x1000) - 1], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -931,7 +951,7 @@ TEST(TestAllocatorLevel01, test_l2_contiguous_alignment)
       ASSERT_EQ(bins_overall.size(), 3u);
       ASSERT_EQ(bins_overall[cbits(0)], 1u);
       ASSERT_EQ(bins_overall[cbits(0x2000 / 0x1000) - 1], 1u);
-      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 1)  - 1], 1u);
+      ASSERT_EQ(bins_overall[cbits(num_chunks / 2 - 1) - 1], 1u);
     }
     {
       // Original free space disposition (start chunk, count):
@@ -949,13 +969,13 @@ TEST(TestAllocatorLevel01, test_4G_alloc_bug)
     al2.init(capacity, 0x10000);
     std::cout << "Init L2 cont aligned" << std::endl;
 
-      uint64_t allocated4 = 0;
-      interval_vector_t a4;
-      al2.allocate_l2(_1m, _1m, &allocated4, &a4);
-      ASSERT_EQ(a4.size(), 1u); // the bug caused no allocations here
-      ASSERT_EQ(allocated4, _1m);
-      ASSERT_EQ(a4[0].offset, 0u);
-      ASSERT_EQ(a4[0].length, _1m);
+    uint64_t allocated4 = 0;
+    interval_vector_t a4;
+    al2.allocate_l2(_1m, _1m, &allocated4, &a4);
+    ASSERT_EQ(a4.size(), 1u); // the bug caused no allocations here
+    ASSERT_EQ(allocated4, _1m);
+    ASSERT_EQ(a4[0].offset, 0u);
+    ASSERT_EQ(a4[0].length, _1m);
   }
 }
 
@@ -975,7 +995,7 @@ TEST(TestAllocatorLevel01, test_4G_alloc_bug2)
       ASSERT_EQ(a4[0].offset, i);
       ASSERT_EQ(a4[0].length, _1m);
     }
-    ASSERT_EQ(0u , al2.debug_get_free());
+    ASSERT_EQ(0u, al2.debug_get_free());
 
     interval_vector_t r;
     r.emplace_back(0x5fec30000, 0x13d0000);
@@ -1007,22 +1027,22 @@ TEST(TestAllocatorLevel01, test_4G_alloc_bug3)
     al2.init(capacity, 0x10000);
     std::cout << "Init L2 cont aligned" << std::endl;
 
-      uint64_t allocated4 = 0;
-      interval_vector_t a4;
-      al2.allocate_l2(4096ull * _1m, _1m, &allocated4, &a4);
-      ASSERT_EQ(a4.size(), 2u); // allocator has to split into 2 allocations
-      ASSERT_EQ(allocated4, 4096ull * _1m);
-      ASSERT_EQ(a4[0].offset, 0u);
-      ASSERT_EQ(a4[0].length, 2048ull * _1m);
-      ASSERT_EQ(a4[1].offset, 2048ull * _1m);
-      ASSERT_EQ(a4[1].length, 2048ull * _1m);
+    uint64_t allocated4 = 0;
+    interval_vector_t a4;
+    al2.allocate_l2(4096ull * _1m, _1m, &allocated4, &a4);
+    ASSERT_EQ(a4.size(), 2u); // allocator has to split into 2 allocations
+    ASSERT_EQ(allocated4, 4096ull * _1m);
+    ASSERT_EQ(a4[0].offset, 0u);
+    ASSERT_EQ(a4[0].length, 2048ull * _1m);
+    ASSERT_EQ(a4[1].offset, 2048ull * _1m);
+    ASSERT_EQ(a4[1].length, 2048ull * _1m);
   }
 }
 
 TEST(TestAllocatorLevel01, test_claim_free_l2)
 {
   TestAllocatorLevel02 al2;
-  uint64_t num_l2_entries = 64;// *512;
+  uint64_t num_l2_entries = 64; // *512;
   uint64_t capacity = num_l2_entries * 256 * 512 * 4096;
   al2.init(capacity, 0x1000);
   std::cout << "Init L2" << std::endl;
@@ -1128,18 +1148,16 @@ TEST(TestAllocatorLevel01, test_claim_free_l2)
 
   claimed = al2.claim_free_to_right(0x407000);
   ASSERT_EQ(0x19000, claimed);
-  ASSERT_EQ(max_available2 - max_available - 0x3e2000 - 0x19000,
-    al2.get_available());
-  ASSERT_EQ(max_available2 - max_available - 0x3e2000 - 0x19000,
-    al2.debug_get_free());
+  ASSERT_EQ(
+      max_available2 - max_available - 0x3e2000 - 0x19000, al2.get_available());
+  ASSERT_EQ(
+      max_available2 - max_available - 0x3e2000 - 0x19000, al2.debug_get_free());
 
   claimed = al2.claim_free_to_right(0x407000);
   ASSERT_EQ(0, claimed);
 
   claimed = al2.claim_free_to_right(0x430000);
   ASSERT_EQ(max_available2 - 0x430000, claimed);
-  ASSERT_EQ(0x15000,
-    al2.get_available());
-  ASSERT_EQ(0x15000,
-    al2.debug_get_free());
+  ASSERT_EQ(0x15000, al2.get_available());
+  ASSERT_EQ(0x15000, al2.debug_get_free());
 }

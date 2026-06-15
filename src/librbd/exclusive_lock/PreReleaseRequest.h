@@ -4,8 +4,9 @@
 #ifndef CEPH_LIBRBD_EXCLUSIVE_LOCK_PRE_RELEASE_REQUEST_H
 #define CEPH_LIBRBD_EXCLUSIVE_LOCK_PRE_RELEASE_REQUEST_H
 
-#include "librbd/ImageCtx.h"
 #include <string>
+
+#include "librbd/ImageCtx.h"
 
 class AsyncOpTracker;
 class Context;
@@ -16,16 +17,18 @@ struct ImageCtx;
 
 namespace exclusive_lock {
 
-template <typename> struct ImageDispatch;
+template <typename>
+struct ImageDispatch;
 
 template <typename ImageCtxT = ImageCtx>
 class PreReleaseRequest {
 public:
-  static PreReleaseRequest* create(ImageCtxT &image_ctx,
-                                   ImageDispatch<ImageCtxT>* image_dispatch,
-                                   bool shutting_down,
-                                   AsyncOpTracker &async_op_tracker,
-                                   Context *on_finish);
+  static PreReleaseRequest* create(
+      ImageCtxT& image_ctx,
+      ImageDispatch<ImageCtxT>* image_dispatch,
+      bool shutting_down,
+      AsyncOpTracker& async_op_tracker,
+      Context* on_finish);
 
   ~PreReleaseRequest();
   void send();
@@ -75,16 +78,18 @@ private:
    * @endverbatim
    */
 
-  PreReleaseRequest(ImageCtxT &image_ctx,
-                    ImageDispatch<ImageCtxT>* image_dispatch,
-                    bool shutting_down, AsyncOpTracker &async_op_tracker,
-                    Context *on_finish);
+  PreReleaseRequest(
+      ImageCtxT& image_ctx,
+      ImageDispatch<ImageCtxT>* image_dispatch,
+      bool shutting_down,
+      AsyncOpTracker& async_op_tracker,
+      Context* on_finish);
 
-  ImageCtxT &m_image_ctx;
+  ImageCtxT& m_image_ctx;
   ImageDispatch<ImageCtxT>* m_image_dispatch;
   bool m_shutting_down;
-  AsyncOpTracker &m_async_op_tracker;
-  Context *m_on_finish;
+  AsyncOpTracker& m_async_op_tracker;
+  Context* m_on_finish;
 
   int m_error_result = 0;
 
@@ -125,12 +130,13 @@ private:
 
   void finish();
 
-  void save_result(int result) {
+  void
+  save_result(int result)
+  {
     if (m_error_result == 0 && result < 0) {
       m_error_result = result;
     }
   }
-
 };
 
 } // namespace exclusive_lock

@@ -20,18 +20,21 @@
  *
  */
 
-#include <stdio.h>
 #include <signal.h>
-#include "gtest/gtest.h"
-#include "osd/PGLog.h"
-#include "osd/OSDMap.h"
-#include "include/coredumpctl.h"
+#include <stdio.h>
+
 #include "../objectstore/store_test_fixture.h"
+#include "gtest/gtest.h"
+#include "include/coredumpctl.h"
+#include "osd/OSDMap.h"
+#include "osd/PGLog.h"
 
 using namespace std;
 
 struct PGLogTestBase {
-  static hobject_t mk_obj(unsigned id) {
+  static hobject_t
+  mk_obj(unsigned id)
+  {
     hobject_t hoid;
     stringstream ss;
     ss << "obj_" << id;
@@ -40,11 +43,20 @@ struct PGLogTestBase {
     hoid.pool = 1;
     return hoid;
   }
-  static eversion_t mk_evt(unsigned ep, unsigned v) {
+
+  static eversion_t
+  mk_evt(unsigned ep, unsigned v)
+  {
     return eversion_t(ep, v);
   }
-  static pg_log_entry_t mk_ple_mod(
-    const hobject_t &hoid, eversion_t v, eversion_t pv, osd_reqid_t reqid) {
+
+  static pg_log_entry_t
+  mk_ple_mod(
+      const hobject_t& hoid,
+      eversion_t v,
+      eversion_t pv,
+      osd_reqid_t reqid)
+  {
     pg_log_entry_t e;
     e.mark_unrollbackable();
     e.op = pg_log_entry_t::MODIFY;
@@ -54,8 +66,10 @@ struct PGLogTestBase {
     e.reqid = reqid;
     return e;
   }
-  static pg_log_entry_t mk_ple_dt(
-    const hobject_t &hoid, eversion_t v, eversion_t pv, osd_reqid_t reqid) {
+
+  static pg_log_entry_t
+  mk_ple_dt(const hobject_t& hoid, eversion_t v, eversion_t pv, osd_reqid_t reqid)
+  {
     pg_log_entry_t e;
     e.mark_unrollbackable();
     e.op = pg_log_entry_t::DELETE;
@@ -65,8 +79,10 @@ struct PGLogTestBase {
     e.reqid = reqid;
     return e;
   }
-  static pg_log_entry_t mk_ple_ldt(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_ldt(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     pg_log_entry_t e;
     e.mark_unrollbackable();
     e.op = pg_log_entry_t::LOST_DELETE;
@@ -75,8 +91,14 @@ struct PGLogTestBase {
     e.prior_version = pv;
     return e;
   }
-  static pg_log_entry_t mk_ple_mod_rb(
-    const hobject_t &hoid, eversion_t v, eversion_t pv, osd_reqid_t reqid) {
+
+  static pg_log_entry_t
+  mk_ple_mod_rb(
+      const hobject_t& hoid,
+      eversion_t v,
+      eversion_t pv,
+      osd_reqid_t reqid)
+  {
     pg_log_entry_t e;
     e.op = pg_log_entry_t::MODIFY;
     e.soid = hoid;
@@ -85,8 +107,14 @@ struct PGLogTestBase {
     e.reqid = reqid;
     return e;
   }
-  static pg_log_entry_t mk_ple_dt_rb(
-    const hobject_t &hoid, eversion_t v, eversion_t pv, osd_reqid_t reqid) {
+
+  static pg_log_entry_t
+  mk_ple_dt_rb(
+      const hobject_t& hoid,
+      eversion_t v,
+      eversion_t pv,
+      osd_reqid_t reqid)
+  {
     pg_log_entry_t e;
     e.op = pg_log_entry_t::DELETE;
     e.soid = hoid;
@@ -95,8 +123,10 @@ struct PGLogTestBase {
     e.reqid = reqid;
     return e;
   }
-  static pg_log_entry_t mk_ple_err(
-    const hobject_t &hoid, eversion_t v, osd_reqid_t reqid) {
+
+  static pg_log_entry_t
+  mk_ple_err(const hobject_t& hoid, eversion_t v, osd_reqid_t reqid)
+  {
     pg_log_entry_t e;
     e.op = pg_log_entry_t::ERROR;
     e.soid = hoid;
@@ -105,24 +135,34 @@ struct PGLogTestBase {
     e.reqid = reqid;
     return e;
   }
-  static pg_log_entry_t mk_ple_mod(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_mod(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     return mk_ple_mod(hoid, v, pv, osd_reqid_t());
   }
-  static pg_log_entry_t mk_ple_dt(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_dt(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     return mk_ple_dt(hoid, v, pv, osd_reqid_t());
   }
-  static pg_log_entry_t mk_ple_mod_rb(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_mod_rb(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     return mk_ple_mod_rb(hoid, v, pv, osd_reqid_t());
   }
-  static pg_log_entry_t mk_ple_dt_rb(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_dt_rb(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     return mk_ple_dt_rb(hoid, v, pv, osd_reqid_t());
   }
-  static pg_log_entry_t mk_ple_clone(
-    const hobject_t &hoid, eversion_t v, eversion_t pv) {
+
+  static pg_log_entry_t
+  mk_ple_clone(const hobject_t& hoid, eversion_t v, eversion_t pv)
+  {
     pg_log_entry_t e;
     e.mark_unrollbackable();
     e.op = pg_log_entry_t::CLONE;
@@ -131,27 +171,36 @@ struct PGLogTestBase {
     e.prior_version = pv;
     return e;
   }
-  static pg_log_entry_t mk_ple_err(
-    const hobject_t &hoid, eversion_t v) {
+
+  static pg_log_entry_t
+  mk_ple_err(const hobject_t& hoid, eversion_t v)
+  {
     return mk_ple_err(hoid, v, osd_reqid_t());
   }
 }; // PGLogTestBase
 
-
-class PGLogTest : virtual public ::testing::Test, protected PGLog, public PGLogTestBase  {
+class PGLogTest : virtual public ::testing::Test,
+                  protected PGLog,
+                  public PGLogTestBase {
 public:
-  PGLogTest() : PGLog(g_ceph_context) {}
-  void SetUp() override {
+  PGLogTest() :
+    PGLog(g_ceph_context)
+  {}
+
+  void
+  SetUp() override
+  {
     missing.may_include_deletes = true;
   }
 
 #include "common/ceph_context.h"
 #include "common/config.h"
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     clear();
   }
-
 
   struct TestCase {
     list<pg_log_entry_t> base;
@@ -170,9 +219,15 @@ public:
     IndexedLog fulldiv;
     pg_info_t authinfo;
     pg_info_t divinfo;
+
   public:
-    TestCase() : deletes_during_peering(false) {}
-    void setup() {
+    TestCase() :
+      deletes_during_peering(false)
+    {}
+
+    void
+    setup()
+    {
       init.may_include_deletes = !deletes_during_peering;
       final.may_include_deletes = !deletes_during_peering;
       fullauth.log.insert(fullauth.log.end(), base.begin(), base.end());
@@ -195,81 +250,120 @@ public:
       divinfo.last_backfill = hobject_t::get_max();
 
       if (init.get_items().empty()) {
-	divinfo.last_complete = divinfo.last_update;
+        divinfo.last_complete = divinfo.last_update;
       } else {
-	eversion_t fmissing = init.get_items().at(init.get_rmissing().begin()->second).need;
-	for (list<pg_log_entry_t>::const_iterator i = fulldiv.log.begin();
-	     i != fulldiv.log.end();
-	     ++i) {
-	  if (i->version < fmissing)
-	    divinfo.last_complete = i->version;
-	  else
-	    break;
-	}
+        eversion_t fmissing =
+            init.get_items().at(init.get_rmissing().begin()->second).need;
+        for (list<pg_log_entry_t>::const_iterator i = fulldiv.log.begin();
+             i != fulldiv.log.end(); ++i) {
+          if (i->version < fmissing)
+            divinfo.last_complete = i->version;
+          else
+            break;
+        }
       }
 
       fullauth.index();
       fulldiv.index();
     }
-    void set_div_bounds(eversion_t head, eversion_t tail) {
+
+    void
+    set_div_bounds(eversion_t head, eversion_t tail)
+    {
       fulldiv.tail = divinfo.log_tail = tail;
       fulldiv.head = divinfo.last_update = head;
     }
-    void set_auth_bounds(eversion_t head, eversion_t tail) {
+
+    void
+    set_auth_bounds(eversion_t head, eversion_t tail)
+    {
       fullauth.tail = authinfo.log_tail = tail;
       fullauth.head = authinfo.last_update = head;
     }
-    const IndexedLog &get_fullauth() const { return fullauth; }
-    const IndexedLog &get_fulldiv() const { return fulldiv; }
-    const pg_info_t &get_authinfo() const { return authinfo; }
-    const pg_info_t &get_divinfo() const { return divinfo; }
+
+    const IndexedLog&
+    get_fullauth() const
+    {
+      return fullauth;
+    }
+
+    const IndexedLog&
+    get_fulldiv() const
+    {
+      return fulldiv;
+    }
+
+    const pg_info_t&
+    get_authinfo() const
+    {
+      return authinfo;
+    }
+
+    const pg_info_t&
+    get_divinfo() const
+    {
+      return divinfo;
+    }
   }; // struct TestCase
 
   struct LogHandler : public PGLog::LogEntryHandler {
     set<hobject_t> removed;
     list<pg_log_entry_t> rolledback;
 
-    void rollback(
-      const pg_log_entry_t &entry) override {
+    void
+    rollback(const pg_log_entry_t& entry) override
+    {
       rolledback.push_back(entry);
     }
-    void rollforward(
-      const pg_log_entry_t &entry) override {}
-    void remove(
-      const hobject_t &hoid) override {
+
+    void
+    rollforward(const pg_log_entry_t& entry) override
+    {}
+
+    void
+    remove(const hobject_t& hoid) override
+    {
       removed.insert(hoid);
     }
-    void try_stash(const hobject_t &, version_t) override {
+
+    void
+    try_stash(const hobject_t&, version_t) override
+    {
       // lost/unfound cases are not tested yet
     }
-    void trim(
-      const pg_log_entry_t &entry) override {}
-    void partial_write(
-        pg_info_t *info,
+
+    void
+    trim(const pg_log_entry_t& entry) override
+    {}
+
+    void
+    partial_write(
+        pg_info_t* info,
         eversion_t previous_version,
-        const pg_log_entry_t &entry
-      ) override {}
+        const pg_log_entry_t& entry) override
+    {}
   };
 
   template <typename missing_t>
-  void verify_missing(
-    const TestCase &tcase,
-    const missing_t &missing) {
+  void
+  verify_missing(const TestCase& tcase, const missing_t& missing)
+  {
     ASSERT_EQ(tcase.final.get_items().size(), missing.get_items().size());
-    for (auto i = missing.get_items().begin();
-	 i != missing.get_items().end();
-	 ++i) {
+    for (auto i = missing.get_items().begin(); i != missing.get_items().end();
+         ++i) {
       EXPECT_TRUE(tcase.final.get_items().count(i->first));
-      EXPECT_EQ(tcase.final.get_items().find(i->first)->second.need, i->second.need);
-      EXPECT_EQ(tcase.final.get_items().find(i->first)->second.have, i->second.have);
+      EXPECT_EQ(
+          tcase.final.get_items().find(i->first)->second.need, i->second.need);
+      EXPECT_EQ(
+          tcase.final.get_items().find(i->first)->second.have, i->second.have);
     }
     bool correct = missing.debug_verify_from_init(tcase.init, &(std::cout));
     ASSERT_TRUE(correct);
   }
 
-  void verify_sideeffects(
-    const TestCase &tcase,
-    const LogHandler &handler) {
+  void
+  verify_sideeffects(const TestCase& tcase, const LogHandler& handler)
+  {
     ASSERT_EQ(tcase.toremove.size(), handler.removed.size());
     ASSERT_EQ(tcase.torollback.size(), handler.rolledback.size());
 
@@ -277,7 +371,7 @@ public:
       list<pg_log_entry_t>::const_iterator titer = tcase.torollback.begin();
       list<pg_log_entry_t>::const_iterator hiter = handler.rolledback.begin();
       for (; titer != tcase.torollback.end(); ++titer, ++hiter) {
-	EXPECT_EQ(titer->version, hiter->version);
+        EXPECT_EQ(titer->version, hiter->version);
       }
     }
 
@@ -285,12 +379,14 @@ public:
       set<hobject_t>::const_iterator titer = tcase.toremove.begin();
       set<hobject_t>::const_iterator hiter = handler.removed.begin();
       for (; titer != tcase.toremove.end(); ++titer, ++hiter) {
-	EXPECT_EQ(*titer, *hiter);
+        EXPECT_EQ(*titer, *hiter);
       }
     }
   }
 
-  void test_merge_log(const TestCase &tcase) {
+  void
+  test_merge_log(const TestCase& tcase)
+  {
     clear();
     log = tcase.get_fulldiv();
     pg_info_t info = tcase.get_divinfo();
@@ -306,15 +402,17 @@ public:
     bool dirty_info = false;
     bool dirty_big_info = false;
     merge_log(
-      oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info,
-      pg_pool_t(), pg_shard_t(), &h, dirty_info, dirty_big_info, false);
+        oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info, pg_pool_t(),
+        pg_shard_t(), &h, dirty_info, dirty_big_info, false);
 
     ASSERT_EQ(info.last_update, oinfo.last_update);
     verify_missing(tcase, missing);
     verify_sideeffects(tcase, h);
   }
 
-  void test_proc_replica_log(const TestCase &tcase) {
+  void
+  test_proc_replica_log(const TestCase& tcase)
+  {
     clear();
     log = tcase.get_fullauth();
     pg_info_t info = tcase.get_authinfo();
@@ -326,8 +424,8 @@ public:
     pg_info_t oinfo = tcase.get_divinfo();
 
     proc_replica_log(
-      oinfo, olog, omissing, pg_shard_t(1, shard_id_t(0)),
-      pg_shard_t(0, shard_id_t(1)), false);
+        oinfo, olog, omissing, pg_shard_t(1, shard_id_t(0)),
+        pg_shard_t(0, shard_id_t(1)), false);
 
     ceph_assert(oinfo.last_update >= log.tail);
 
@@ -336,51 +434,71 @@ public:
     }
 
     for (list<pg_log_entry_t>::const_iterator i = tcase.auth.begin();
-	 i != tcase.auth.end();
-	 ++i) {
+         i != tcase.auth.end(); ++i) {
       if (i->version > oinfo.last_update) {
-	if (i->is_delete() && tcase.deletes_during_peering) {
-	  omissing.rm(i->soid, i->version);
-	} else {
-	  omissing.add_next_event(*i, pg_pool_t(), shard_id_t());
-	}
+        if (i->is_delete() && tcase.deletes_during_peering) {
+          omissing.rm(i->soid, i->version);
+        } else {
+          omissing.add_next_event(*i, pg_pool_t(), shard_id_t());
+        }
       }
     }
     verify_missing(tcase, omissing);
   } // test_proc_replica_log
 
-  void run_test_case(const TestCase &tcase) {
+  void
+  run_test_case(const TestCase& tcase)
+  {
     test_merge_log(tcase);
     test_proc_replica_log(tcase);
   }
 }; // class PGLogTest
 
 struct TestHandler : public PGLog::LogEntryHandler {
-  list<hobject_t> &removed;
-  explicit TestHandler(list<hobject_t> &removed) : removed(removed) {}
+  list<hobject_t>& removed;
 
-  void rollback(
-    const pg_log_entry_t &entry) override {}
-  void rollforward(
-    const pg_log_entry_t &entry) override {}
-  void remove(
-    const hobject_t &hoid) override {
+  explicit TestHandler(list<hobject_t>& removed) :
+    removed(removed)
+  {}
+
+  void
+  rollback(const pg_log_entry_t& entry) override
+  {}
+
+  void
+  rollforward(const pg_log_entry_t& entry) override
+  {}
+
+  void
+  remove(const hobject_t& hoid) override
+  {
     removed.push_back(hoid);
   }
-  void cant_rollback(const pg_log_entry_t &entry) {}
-  void try_stash(const hobject_t &, version_t) override {
+
+  void
+  cant_rollback(const pg_log_entry_t& entry)
+  {}
+
+  void
+  try_stash(const hobject_t&, version_t) override
+  {
     // lost/unfound cases are not tested yet
   }
-  void trim(
-    const pg_log_entry_t &entry) override {}
-  void partial_write(
-      pg_info_t *info,
+
+  void
+  trim(const pg_log_entry_t& entry) override
+  {}
+
+  void
+  partial_write(
+      pg_info_t* info,
       eversion_t previous_version,
-      const pg_log_entry_t &entry
-    ) override {}
+      const pg_log_entry_t& entry) override
+  {}
 };
 
-TEST_F(PGLogTest, rewind_divergent_log) {
+TEST_F(PGLogTest, rewind_divergent_log)
+{
   /*        +----------------+
             |  log           |
             +--------+-------+
@@ -449,8 +567,8 @@ TEST_F(PGLogTest, rewind_divergent_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    rewind_divergent_log(newhead, info, &h,
-			 dirty_info, dirty_big_info, false, pg_shard_t());
+    rewind_divergent_log(
+        newhead, info, &h, dirty_info, dirty_big_info, false, pg_shard_t());
 
     EXPECT_TRUE(log.objects.count(divergent));
     EXPECT_TRUE(missing.is_missing(divergent_object));
@@ -514,8 +632,8 @@ TEST_F(PGLogTest, rewind_divergent_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    rewind_divergent_log(newhead, info, &h,
-			 dirty_info, dirty_big_info, false, pg_shard_t());
+    rewind_divergent_log(
+        newhead, info, &h, dirty_info, dirty_big_info, false, pg_shard_t());
 
     EXPECT_TRUE(missing.is_missing(divergent_object));
     EXPECT_EQ(0U, log.objects.count(divergent_object));
@@ -553,14 +671,16 @@ TEST_F(PGLogTest, rewind_divergent_log) {
     }
     TestHandler h(remove_snap);
     roll_forward_to(eversion_t(1, 6), &info, &h);
-    rewind_divergent_log(eversion_t(1, 5), info, &h,
-			 dirty_info, dirty_big_info, false, pg_shard_t());
+    rewind_divergent_log(
+        eversion_t(1, 5), info, &h, dirty_info, dirty_big_info, false,
+        pg_shard_t());
     pg_log_t log;
     reset_backfill_claim_log(log, &info, &h);
   }
 }
 
-TEST_F(PGLogTest, merge_old_entry) {
+TEST_F(PGLogTest, merge_old_entry)
+{
   // entries > last_backfill are silently ignored
   {
     clear();
@@ -604,7 +724,7 @@ TEST_F(PGLogTest, merge_old_entry) {
 
     pg_log_entry_t ne;
     ne.mark_unrollbackable();
-    ne.version = eversion_t(2,1);
+    ne.version = eversion_t(2, 1);
     log.add(ne);
 
     EXPECT_FALSE(is_dirty());
@@ -619,7 +739,7 @@ TEST_F(PGLogTest, merge_old_entry) {
       log.log.front().op = pg_log_entry_t::DELETE;
       pg_log_entry_t oe;
       oe.mark_unrollbackable();
-      oe.version = eversion_t(1,1);
+      oe.version = eversion_t(1, 1);
 
       TestHandler h(remove_snap);
       merge_old_entry(t, oe, info, &h);
@@ -627,12 +747,12 @@ TEST_F(PGLogTest, merge_old_entry) {
 
     // if the newer entry is not DELETE, the object must be in missing
     {
-      pg_log_entry_t &ne = log.log.front();
+      pg_log_entry_t& ne = log.log.front();
       ne.op = pg_log_entry_t::MODIFY;
       missing.add_next_event(ne, pg_pool_t(), shard_id_t());
       pg_log_entry_t oe;
       oe.mark_unrollbackable();
-      oe.version = eversion_t(1,1);
+      oe.version = eversion_t(1, 1);
 
       TestHandler h(remove_snap);
       merge_old_entry(t, oe, info, &h);
@@ -647,7 +767,6 @@ TEST_F(PGLogTest, merge_old_entry) {
     EXPECT_FALSE(missing.have_missing());
     EXPECT_EQ(1U, log.log.size());
     EXPECT_EQ(ne.version, log.log.front().version);
-
   }
 
   // the new entry (from the logs) has a version that is lower than
@@ -664,11 +783,11 @@ TEST_F(PGLogTest, merge_old_entry) {
 
     pg_log_entry_t ne;
     ne.mark_unrollbackable();
-    ne.version = eversion_t(1,1);
+    ne.version = eversion_t(1, 1);
     ne.op = pg_log_entry_t::DELETE;
     log.add(ne);
 
-    oe.version = eversion_t(2,1);
+    oe.version = eversion_t(2, 1);
     oe.op = pg_log_entry_t::DELETE;
 
     EXPECT_FALSE(is_dirty());
@@ -702,11 +821,11 @@ TEST_F(PGLogTest, merge_old_entry) {
 
     pg_log_entry_t ne;
     ne.mark_unrollbackable();
-    ne.version = eversion_t(1,1);
+    ne.version = eversion_t(1, 1);
     ne.op = pg_log_entry_t::DELETE;
     log.add(ne);
 
-    oe.version = eversion_t(2,1);
+    oe.version = eversion_t(2, 1);
     oe.op = pg_log_entry_t::MODIFY;
     missing.add_next_event(oe, pg_pool_t(), shard_id_t());
 
@@ -741,9 +860,9 @@ TEST_F(PGLogTest, merge_old_entry) {
     pg_info_t info;
     list<hobject_t> remove_snap;
 
-    info.log_tail = eversion_t(1,1);
+    info.log_tail = eversion_t(1, 1);
     oe.op = pg_log_entry_t::MODIFY;
-    oe.prior_version = eversion_t(2,1);
+    oe.prior_version = eversion_t(2, 1);
     missing_add(oe.soid, oe.prior_version, eversion_t());
 
     missing.flush();
@@ -779,10 +898,10 @@ TEST_F(PGLogTest, merge_old_entry) {
     pg_info_t info;
     list<hobject_t> remove_snap;
 
-    info.log_tail = eversion_t(2,1);
+    info.log_tail = eversion_t(2, 1);
     oe.soid.set_hash(1);
     oe.op = pg_log_entry_t::MODIFY;
-    oe.prior_version = eversion_t(1,1);
+    oe.prior_version = eversion_t(1, 1);
 
     EXPECT_FALSE(is_dirty());
     EXPECT_TRUE(remove_snap.empty());
@@ -816,10 +935,10 @@ TEST_F(PGLogTest, merge_old_entry) {
     pg_info_t info;
     list<hobject_t> remove_snap;
 
-    info.log_tail = eversion_t(2,1);
+    info.log_tail = eversion_t(2, 1);
     oe.soid.set_hash(1);
     oe.op = pg_log_entry_t::DELETE;
-    oe.prior_version = eversion_t(1,1);
+    oe.prior_version = eversion_t(1, 1);
 
     EXPECT_FALSE(is_dirty());
     EXPECT_TRUE(remove_snap.empty());
@@ -854,12 +973,12 @@ TEST_F(PGLogTest, merge_old_entry) {
     pg_info_t info;
     list<hobject_t> remove_snap;
 
-    info.log_tail = eversion_t(10,1);
+    info.log_tail = eversion_t(10, 1);
     oe.soid.set_hash(1);
     oe.op = pg_log_entry_t::MODIFY;
     oe.prior_version = eversion_t();
 
-    missing.add(oe.soid, eversion_t(1,1), eversion_t(), false);
+    missing.add(oe.soid, eversion_t(1, 1), eversion_t(), false);
 
     missing.flush();
     EXPECT_FALSE(is_dirty());
@@ -878,10 +997,10 @@ TEST_F(PGLogTest, merge_old_entry) {
     EXPECT_FALSE(missing.have_missing());
     EXPECT_TRUE(log.empty());
   }
-
 }
 
-TEST_F(PGLogTest, merge_log) {
+TEST_F(PGLogTest, merge_log)
+{
   // head and tail match, last_backfill is set:
   // noop
   {
@@ -913,8 +1032,9 @@ TEST_F(PGLogTest, merge_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h, dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     EXPECT_FALSE(missing.have_missing());
     EXPECT_EQ(0U, log.log.size());
@@ -963,8 +1083,9 @@ TEST_F(PGLogTest, merge_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h,dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     EXPECT_FALSE(missing.have_missing());
     EXPECT_EQ(0U, log.log.size());
@@ -1068,8 +1189,9 @@ TEST_F(PGLogTest, merge_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h, dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     EXPECT_FALSE(missing.have_missing());
     EXPECT_EQ(3U, log.log.size());
@@ -1132,7 +1254,7 @@ TEST_F(PGLogTest, merge_log) {
       e.version = eversion_t(1, 2);
       e.soid.set_hash(0x3);
       log.log.push_back(e);
-      e.version = eversion_t(1,3);
+      e.version = eversion_t(1, 3);
       e.soid.set_hash(0x9);
       divergent_object = e.soid;
       e.op = pg_log_entry_t::DELETE;
@@ -1177,8 +1299,9 @@ TEST_F(PGLogTest, merge_log) {
     EXPECT_FALSE(dirty_big_info);
 
     TestHandler h(remove_snap);
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h, dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     /* When the divergent entry is a DELETE and the authoritative
        entry is a MODIFY, the object will be added to missing : it is
@@ -1250,7 +1373,7 @@ TEST_F(PGLogTest, merge_log) {
       e.version = eversion_t(1, 2);
       e.soid.set_hash(0x3);
       log.log.push_back(e);
-      e.version = eversion_t(1,3);
+      e.version = eversion_t(1, 3);
       e.soid.set_hash(0x9);
       divergent_object = e.soid;
       e.op = pg_log_entry_t::DELETE;
@@ -1296,8 +1419,9 @@ TEST_F(PGLogTest, merge_log) {
 
     TestHandler h(remove_snap);
     missing.may_include_deletes = false;
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h, dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     /* When the divergent entry is a DELETE and the authoritative
        entry is a MODIFY, the object will be added to missing : it is
@@ -1398,8 +1522,9 @@ TEST_F(PGLogTest, merge_log) {
 
     TestHandler h(remove_snap);
     missing.may_include_deletes = false;
-    merge_log(oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(),
-              &h, dirty_info, dirty_big_info, false);
+    merge_log(
+        oinfo, std::move(olog), fromosd, info, pg_pool_t(), pg_shard_t(), &h,
+        dirty_info, dirty_big_info, false);
 
     EXPECT_FALSE(missing.have_missing());
     EXPECT_EQ(2U, log.log.size());
@@ -1410,10 +1535,10 @@ TEST_F(PGLogTest, merge_log) {
     EXPECT_TRUE(dirty_info);
     EXPECT_TRUE(dirty_big_info);
   }
-
 }
 
-TEST_F(PGLogTest, proc_replica_log) {
+TEST_F(PGLogTest, proc_replica_log)
+{
   // empty log : no side effect
   {
     clear();
@@ -1433,8 +1558,8 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(last_complete, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_FALSE(omissing.have_missing());
     EXPECT_EQ(last_update, oinfo.last_update);
@@ -1508,13 +1633,13 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(olog.head, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_FALSE(omissing.have_missing());
   }
 
- {
+  {
     clear();
 
     pg_log_t olog;
@@ -1529,78 +1654,78 @@ TEST_F(PGLogTest, proc_replica_log) {
       e.mark_unrollbackable();
 
       {
-	e.soid = divergent_object;
-	e.soid.set_hash(0x1);
-	e.version = eversion_t(1, 1);
-	log.tail = e.version;
-	log.log.push_back(e);
+        e.soid = divergent_object;
+        e.soid.set_hash(0x1);
+        e.version = eversion_t(1, 1);
+        log.tail = e.version;
+        log.log.push_back(e);
 
-	e.soid = divergent_object;
-	e.prior_version = eversion_t(1, 1);
-	e.version = eversion_t(1, 2);
-	log.tail = e.version;
-	log.log.push_back(e);
+        e.soid = divergent_object;
+        e.prior_version = eversion_t(1, 1);
+        e.version = eversion_t(1, 2);
+        log.tail = e.version;
+        log.log.push_back(e);
 
-	e.soid.set_hash(0x3);
-	e.version = eversion_t(1, 4);
-	log.log.push_back(e);
+        e.soid.set_hash(0x3);
+        e.version = eversion_t(1, 4);
+        log.log.push_back(e);
 
-	e.soid.set_hash(0x7);
-	e.version = eversion_t(1, 5);
-	log.log.push_back(e);
+        e.soid.set_hash(0x7);
+        e.version = eversion_t(1, 5);
+        log.log.push_back(e);
 
-	e.soid.set_hash(0x8);
-	e.version = eversion_t(1, 6);
-	log.log.push_back(e);
+        e.soid.set_hash(0x8);
+        e.version = eversion_t(1, 6);
+        log.log.push_back(e);
 
-	e.soid.set_hash(0x9);
-	e.op = pg_log_entry_t::DELETE;
-	e.version = eversion_t(2, 7);
-	log.log.push_back(e);
+        e.soid.set_hash(0x9);
+        e.op = pg_log_entry_t::DELETE;
+        e.version = eversion_t(2, 7);
+        log.log.push_back(e);
 
-	e.soid.set_hash(0xa);
-	e.version = eversion_t(2, 8);
-	log.head = e.version;
-	log.log.push_back(e);
+        e.soid.set_hash(0xa);
+        e.version = eversion_t(2, 8);
+        log.head = e.version;
+        log.log.push_back(e);
       }
       log.index();
 
       {
-	e.soid = divergent_object;
-	e.soid.set_hash(0x1);
-	e.version = eversion_t(1, 1);
-	olog.tail = e.version;
-	olog.log.push_back(e);
+        e.soid = divergent_object;
+        e.soid.set_hash(0x1);
+        e.version = eversion_t(1, 1);
+        olog.tail = e.version;
+        olog.log.push_back(e);
 
-	e.soid = divergent_object;
-	e.prior_version = eversion_t(1, 1);
-	e.version = eversion_t(1, 2);
-	olog.log.push_back(e);
+        e.soid = divergent_object;
+        e.prior_version = eversion_t(1, 1);
+        e.version = eversion_t(1, 2);
+        olog.log.push_back(e);
 
-	e.prior_version = eversion_t(0, 0);
-	e.soid.set_hash(0x3);
-	e.version = eversion_t(1, 4);
-	olog.log.push_back(e);
+        e.prior_version = eversion_t(0, 0);
+        e.soid.set_hash(0x3);
+        e.version = eversion_t(1, 4);
+        olog.log.push_back(e);
 
-	e.soid.set_hash(0x7);
-	e.version = eversion_t(1, 5);
-	olog.log.push_back(e);
+        e.soid.set_hash(0x7);
+        e.version = eversion_t(1, 5);
+        olog.log.push_back(e);
 
-	e.soid.set_hash(0x8);
-	e.version = eversion_t(1, 6);
-	olog.log.push_back(e);
+        e.soid.set_hash(0x8);
+        e.version = eversion_t(1, 6);
+        olog.log.push_back(e);
 
-	e.soid.set_hash(0x9); // should not be added to missing, create
-	e.op = pg_log_entry_t::MODIFY;
-	e.version = eversion_t(1, 7);
-	olog.log.push_back(e);
+        e.soid.set_hash(0x9); // should not be added to missing, create
+        e.op = pg_log_entry_t::MODIFY;
+        e.version = eversion_t(1, 7);
+        olog.log.push_back(e);
 
-	e.soid = divergent_object; // should be added to missing at 1,2
-	e.op = pg_log_entry_t::MODIFY;
-	e.version = eversion_t(1, 8);
-	e.prior_version = eversion_t(1, 2);
-	olog.log.push_back(e);
-	olog.head = e.version;
+        e.soid = divergent_object; // should be added to missing at 1,2
+        e.op = pg_log_entry_t::MODIFY;
+        e.version = eversion_t(1, 8);
+        e.prior_version = eversion_t(1, 2);
+        olog.log.push_back(e);
+        olog.head = e.version;
       }
       oinfo.last_update = olog.head;
       oinfo.last_complete = olog.head;
@@ -1611,8 +1736,8 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(olog.head, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_TRUE(omissing.have_missing());
     EXPECT_TRUE(omissing.is_missing(divergent_object));
@@ -1699,8 +1824,8 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(olog.head, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_TRUE(omissing.have_missing());
     EXPECT_TRUE(omissing.is_missing(divergent_object));
@@ -1790,8 +1915,8 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(olog.head, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_TRUE(omissing.have_missing());
     EXPECT_TRUE(omissing.is_missing(divergent_object));
@@ -1885,18 +2010,18 @@ TEST_F(PGLogTest, proc_replica_log) {
     EXPECT_EQ(olog.head, oinfo.last_complete);
 
     missing.may_include_deletes = false;
-    proc_replica_log(oinfo, olog, omissing, from,
-      pg_shard_t(0, shard_id_t(1)), false);
+    proc_replica_log(
+        oinfo, olog, omissing, from, pg_shard_t(0, shard_id_t(1)), false);
 
     EXPECT_TRUE(omissing.have_missing());
     EXPECT_TRUE(omissing.get_items().begin()->second.need == eversion_t(1, 1));
     EXPECT_EQ(last_update, oinfo.last_update);
     EXPECT_EQ(eversion_t(0, 0), oinfo.last_complete);
   }
-
 }
 
-TEST_F(PGLogTest, merge_log_1) {
+TEST_F(PGLogTest, merge_log_1)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1910,21 +2035,22 @@ TEST_F(PGLogTest, merge_log_1) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_2) {
+TEST_F(PGLogTest, merge_log_2)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
   t.div.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 101), mk_evt(10, 100)));
   t.div.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 102), mk_evt(10, 101)));
 
-  t.torollback.insert(
-    t.torollback.begin(), t.div.rbegin(), t.div.rend());
+  t.torollback.insert(t.torollback.begin(), t.div.rbegin(), t.div.rend());
 
   t.setup();
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_3) {
+TEST_F(PGLogTest, merge_log_3)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1939,7 +2065,8 @@ TEST_F(PGLogTest, merge_log_3) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_4) {
+TEST_F(PGLogTest, merge_log_4)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1953,7 +2080,8 @@ TEST_F(PGLogTest, merge_log_4) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_5) {
+TEST_F(PGLogTest, merge_log_5)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1970,7 +2098,8 @@ TEST_F(PGLogTest, merge_log_5) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_6) {
+TEST_F(PGLogTest, merge_log_6)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1982,7 +2111,8 @@ TEST_F(PGLogTest, merge_log_6) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_7) {
+TEST_F(PGLogTest, merge_log_7)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -1995,7 +2125,8 @@ TEST_F(PGLogTest, merge_log_7) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_8) {
+TEST_F(PGLogTest, merge_log_8)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -2008,7 +2139,8 @@ TEST_F(PGLogTest, merge_log_8) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_9) {
+TEST_F(PGLogTest, merge_log_9)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -2022,7 +2154,8 @@ TEST_F(PGLogTest, merge_log_9) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_10) {
+TEST_F(PGLogTest, merge_log_10)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -2035,7 +2168,8 @@ TEST_F(PGLogTest, merge_log_10) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_prior_version_have) {
+TEST_F(PGLogTest, merge_log_prior_version_have)
+{
   TestCase t;
   t.base.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 80)));
 
@@ -2047,7 +2181,8 @@ TEST_F(PGLogTest, merge_log_prior_version_have) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, merge_log_split_missing_entries_at_head) {
+TEST_F(PGLogTest, merge_log_split_missing_entries_at_head)
+{
   TestCase t;
   t.auth.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(10, 100), mk_evt(8, 70)));
   t.auth.push_back(mk_ple_mod_rb(mk_obj(1), mk_evt(15, 150), mk_evt(10, 100)));
@@ -2061,7 +2196,8 @@ TEST_F(PGLogTest, merge_log_split_missing_entries_at_head) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, olog_tail_gt_log_tail_split) {
+TEST_F(PGLogTest, olog_tail_gt_log_tail_split)
+{
   TestCase t;
   t.auth.push_back(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(8, 70)));
   t.auth.push_back(mk_ple_mod(mk_obj(1), mk_evt(15, 150), mk_evt(10, 100)));
@@ -2074,7 +2210,8 @@ TEST_F(PGLogTest, olog_tail_gt_log_tail_split) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, olog_tail_gt_log_tail_split2) {
+TEST_F(PGLogTest, olog_tail_gt_log_tail_split2)
+{
   TestCase t;
   t.auth.push_back(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(8, 70)));
   t.auth.push_back(mk_ple_mod(mk_obj(1), mk_evt(15, 150), mk_evt(10, 100)));
@@ -2089,7 +2226,8 @@ TEST_F(PGLogTest, olog_tail_gt_log_tail_split2) {
   run_test_case(t);
 }
 
-TEST_F(PGLogTest, filter_log_1) {
+TEST_F(PGLogTest, filter_log_1)
+{
   {
     clear();
 
@@ -2106,7 +2244,8 @@ TEST_F(PGLogTest, filter_log_1) {
     std::unique_ptr<OSDMap> osdmap(new OSDMap);
     uuid_d test_uuid;
     test_uuid.generate_random();
-    osdmap->build_simple_with_pool(g_ceph_context, epoch, test_uuid, max_osd, bits, bits);
+    osdmap->build_simple_with_pool(
+        g_ceph_context, epoch, test_uuid, max_osd, bits, bits);
     osdmap->set_state(osd_id, CEPH_OSD_EXISTS);
 
     const string hit_set_namespace("internal");
@@ -2126,9 +2265,9 @@ TEST_F(PGLogTest, filter_log_1) {
         ostringstream name;
         name << uuid_name;
         e.soid.oid.name = name.str();
-	// First has no namespace
+        // First has no namespace
         if (i != 1) {
-           // num_internal have the internal namspace
+          // num_internal have the internal namspace
           if (i <= num_internal + 1) {
             e.soid.nspace = hit_set_namespace;
           } else { // rest have different namespaces
@@ -2155,7 +2294,7 @@ TEST_F(PGLogTest, filter_log_1) {
     {
       pg_log_t filtered, reject;
       pg_log_t::filter_log(
-	pgid, *osdmap, hit_set_namespace, log, filtered, reject);
+          pgid, *osdmap, hit_set_namespace, log, filtered, reject);
       log = IndexedLog(filtered);
     }
     EXPECT_LE(log.log.size(), (size_t)total);
@@ -2165,7 +2304,7 @@ TEST_F(PGLogTest, filter_log_1) {
     {
       pg_log_t filtered, reject;
       pg_log_t::filter_log(
-	pgid, *osdmap, hit_set_namespace, log, filtered, reject);
+          pgid, *osdmap, hit_set_namespace, log, filtered, reject);
       log = IndexedLog(filtered);
     }
     EXPECT_EQ(log.log.size(), (size_t)total);
@@ -2174,7 +2313,7 @@ TEST_F(PGLogTest, filter_log_1) {
     int new_pg_num = pg_num * 16;
     OSDMap::Incremental inc(epoch + 1);
     inc.fsid = test_uuid;
-    const pg_pool_t *pool = osdmap->get_pg_pool(pool_id);
+    const pg_pool_t* pool = osdmap->get_pg_pool(pool_id);
     pg_pool_t newpool;
     newpool = *pool;
     newpool.set_pg_num(new_pg_num);
@@ -2187,55 +2326,53 @@ TEST_F(PGLogTest, filter_log_1) {
     {
       pg_log_t filtered, reject;
       pg_log_t::filter_log(
-	pgid, *osdmap, hit_set_namespace, log, filtered, reject);
+          pgid, *osdmap, hit_set_namespace, log, filtered, reject);
       log = IndexedLog(filtered);
     }
     EXPECT_LE(log.log.size(), (size_t)total);
 
     // Make sure all internal entries are retained
     int count = 0;
-    for (list<pg_log_entry_t>::iterator i = log.log.begin();
-         i != log.log.end(); ++i) {
-      if (i->soid.nspace == hit_set_namespace) count++;
+    for (list<pg_log_entry_t>::iterator i = log.log.begin(); i != log.log.end();
+         ++i) {
+      if (i->soid.nspace == hit_set_namespace)
+        count++;
     }
     EXPECT_EQ(count, num_internal);
   }
 }
 
-TEST_F(PGLogTest, get_request) {
+TEST_F(PGLogTest, get_request)
+{
   clear();
 
   // make sure writes, deletes, and errors are found
   vector<pg_log_entry_t> entries;
   hobject_t oid(object_t("objname"), "key", 123, 456, 0, "");
-  entries.push_back(
-    pg_log_entry_t(pg_log_entry_t::ERROR, oid, eversion_t(6,2), eversion_t(3,4),
-		   1, osd_reqid_t(entity_name_t::CLIENT(777), 8, 1),
-		   utime_t(0,1), -ENOENT));
-  entries.push_back(
-    pg_log_entry_t(pg_log_entry_t::MODIFY, oid, eversion_t(6,3), eversion_t(3,4),
-		   2, osd_reqid_t(entity_name_t::CLIENT(777), 8, 2),
-		   utime_t(1,2), 0));
-  entries.push_back(
-    pg_log_entry_t(pg_log_entry_t::DELETE, oid, eversion_t(7,4), eversion_t(7,4),
-		   3, osd_reqid_t(entity_name_t::CLIENT(777), 8, 3),
-		   utime_t(10,2), 0));
-  entries.push_back(
-    pg_log_entry_t(pg_log_entry_t::ERROR, oid, eversion_t(7,5), eversion_t(7,4),
-		   3, osd_reqid_t(entity_name_t::CLIENT(777), 8, 4),
-		   utime_t(20,1), -ENOENT));
+  entries.push_back(pg_log_entry_t(
+      pg_log_entry_t::ERROR, oid, eversion_t(6, 2), eversion_t(3, 4), 1,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 1), utime_t(0, 1), -ENOENT));
+  entries.push_back(pg_log_entry_t(
+      pg_log_entry_t::MODIFY, oid, eversion_t(6, 3), eversion_t(3, 4), 2,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 2), utime_t(1, 2), 0));
+  entries.push_back(pg_log_entry_t(
+      pg_log_entry_t::DELETE, oid, eversion_t(7, 4), eversion_t(7, 4), 3,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 3), utime_t(10, 2), 0));
+  entries.push_back(pg_log_entry_t(
+      pg_log_entry_t::ERROR, oid, eversion_t(7, 5), eversion_t(7, 4), 3,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 4), utime_t(20, 1), -ENOENT));
 
-  for (auto &entry : entries) {
+  for (auto& entry : entries) {
     log.add(entry);
   }
 
-  for (auto &entry : entries) {
+  for (auto& entry : entries) {
     eversion_t replay_version;
     version_t user_version;
     int return_code = 0;
     vector<pg_log_op_return_item_t> op_returns;
     bool got = log.get_request(
-      entry.reqid, &replay_version, &user_version, &return_code, &op_returns);
+        entry.reqid, &replay_version, &user_version, &return_code, &op_returns);
     EXPECT_TRUE(got);
     EXPECT_EQ(entry.return_code, return_code);
     EXPECT_EQ(entry.version, replay_version);
@@ -2243,36 +2380,34 @@ TEST_F(PGLogTest, get_request) {
   }
 }
 
-TEST_F(PGLogTest, ErrorNotIndexedByObject) {
+TEST_F(PGLogTest, ErrorNotIndexedByObject)
+{
   clear();
 
   // make sure writes, deletes, and errors are found
   hobject_t oid(object_t("objname"), "key", 123, 456, 0, "");
-  log.add(
-    pg_log_entry_t(pg_log_entry_t::ERROR, oid, eversion_t(6,2), eversion_t(3,4),
-		   1, osd_reqid_t(entity_name_t::CLIENT(777), 8, 1),
-		   utime_t(0,1), -ENOENT));
+  log.add(pg_log_entry_t(
+      pg_log_entry_t::ERROR, oid, eversion_t(6, 2), eversion_t(3, 4), 1,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 1), utime_t(0, 1), -ENOENT));
 
   EXPECT_FALSE(log.logged_object(oid));
 
-  pg_log_entry_t modify(pg_log_entry_t::MODIFY, oid, eversion_t(6,3),
-			eversion_t(3,4), 2,
-			osd_reqid_t(entity_name_t::CLIENT(777), 8, 2),
-			utime_t(1,2), 0);
+  pg_log_entry_t modify(
+      pg_log_entry_t::MODIFY, oid, eversion_t(6, 3), eversion_t(3, 4), 2,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 2), utime_t(1, 2), 0);
   log.add(modify);
 
   EXPECT_TRUE(log.logged_object(oid));
-  pg_log_entry_t *entry = log.objects[oid];
+  pg_log_entry_t* entry = log.objects[oid];
   EXPECT_EQ(modify.op, entry->op);
   EXPECT_EQ(modify.version, entry->version);
   EXPECT_EQ(modify.prior_version, entry->prior_version);
   EXPECT_EQ(modify.user_version, entry->user_version);
   EXPECT_EQ(modify.reqid, entry->reqid);
 
-  pg_log_entry_t del(pg_log_entry_t::DELETE, oid, eversion_t(7,4),
-		     eversion_t(7,4), 3,
-		     osd_reqid_t(entity_name_t::CLIENT(777), 8, 3),
-		     utime_t(10,2), 0);
+  pg_log_entry_t del(
+      pg_log_entry_t::DELETE, oid, eversion_t(7, 4), eversion_t(7, 4), 3,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 3), utime_t(10, 2), 0);
   log.add(del);
 
   EXPECT_TRUE(log.logged_object(oid));
@@ -2283,10 +2418,9 @@ TEST_F(PGLogTest, ErrorNotIndexedByObject) {
   EXPECT_EQ(del.user_version, entry->user_version);
   EXPECT_EQ(del.reqid, entry->reqid);
 
-  log.add(
-    pg_log_entry_t(pg_log_entry_t::ERROR, oid, eversion_t(7,5), eversion_t(7,4),
-		   3, osd_reqid_t(entity_name_t::CLIENT(777), 8, 4),
-		   utime_t(20,1), -ENOENT));
+  log.add(pg_log_entry_t(
+      pg_log_entry_t::ERROR, oid, eversion_t(7, 5), eversion_t(7, 4), 3,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 4), utime_t(20, 1), -ENOENT));
 
   EXPECT_TRUE(log.logged_object(oid));
   entry = log.objects[oid];
@@ -2297,7 +2431,8 @@ TEST_F(PGLogTest, ErrorNotIndexedByObject) {
   EXPECT_EQ(del.reqid, entry->reqid);
 }
 
-TEST_F(PGLogTest, split_into_preserves_may_include_deletes) {
+TEST_F(PGLogTest, split_into_preserves_may_include_deletes)
+{
   clear();
 
   {
@@ -2323,8 +2458,13 @@ TEST_F(PGLogTest, split_into_preserves_may_include_deletes) {
 
 class PGLogTestRebuildMissing : public PGLogTest, public StoreTestFixture {
 public:
-  PGLogTestRebuildMissing() : PGLogTest(), StoreTestFixture("memstore") {}
-  void SetUp() override {
+  PGLogTestRebuildMissing() :
+    PGLogTest(), StoreTestFixture("memstore")
+  {}
+
+  void
+  SetUp() override
+  {
     StoreTestFixture::SetUp();
     ObjectStore::Transaction t;
     test_coll = coll_t(spg_t(pg_t(1, 1)));
@@ -2346,7 +2486,9 @@ public:
     info.last_complete = eversion_t();
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     clear();
     missing.may_include_deletes = false;
     StoreTestFixture::TearDown();
@@ -2356,27 +2498,33 @@ public:
   coll_t test_coll;
   hobject_t existing_oid, nonexistent_oid;
 
-  void run_rebuild_missing_test(const map<hobject_t, pg_missing_item> &expected_missing_items) {
+  void
+  run_rebuild_missing_test(
+      const map<hobject_t, pg_missing_item>& expected_missing_items)
+  {
     rebuild_missing_set_with_deletes(store.get(), ch, info);
     ASSERT_EQ(expected_missing_items, missing.get_items());
   }
 };
 
-TEST_F(PGLogTestRebuildMissing, EmptyLog) {
+TEST_F(PGLogTestRebuildMissing, EmptyLog)
+{
   missing.add(existing_oid, mk_evt(6, 2), mk_evt(6, 3), false);
   missing.add(nonexistent_oid, mk_evt(7, 4), mk_evt(0, 0), false);
   map<hobject_t, pg_missing_item> orig_missing = missing.get_items();
   run_rebuild_missing_test(orig_missing);
 }
 
-TEST_F(PGLogTestRebuildMissing, SameVersionMod) {
+TEST_F(PGLogTestRebuildMissing, SameVersionMod)
+{
   missing.add(existing_oid, mk_evt(6, 2), mk_evt(6, 1), false);
   log.add(mk_ple_mod(existing_oid, mk_evt(6, 2), mk_evt(6, 1)));
   map<hobject_t, pg_missing_item> empty_missing;
   run_rebuild_missing_test(empty_missing);
 }
 
-TEST_F(PGLogTestRebuildMissing, DelExisting) {
+TEST_F(PGLogTestRebuildMissing, DelExisting)
+{
   missing.add(existing_oid, mk_evt(6, 3), mk_evt(6, 2), false);
   log.add(mk_ple_dt(existing_oid, mk_evt(7, 5), mk_evt(7, 4)));
   map<hobject_t, pg_missing_item> expected;
@@ -2384,14 +2532,16 @@ TEST_F(PGLogTestRebuildMissing, DelExisting) {
   run_rebuild_missing_test(expected);
 }
 
-TEST_F(PGLogTestRebuildMissing, DelNonexistent) {
+TEST_F(PGLogTestRebuildMissing, DelNonexistent)
+{
   log.add(mk_ple_dt(nonexistent_oid, mk_evt(7, 5), mk_evt(7, 4)));
   map<hobject_t, pg_missing_item> expected;
   expected[nonexistent_oid] = pg_missing_item(mk_evt(7, 5), mk_evt(0, 0), true);
   run_rebuild_missing_test(expected);
 }
 
-TEST_F(PGLogTestRebuildMissing, MissingNotInLog) {
+TEST_F(PGLogTestRebuildMissing, MissingNotInLog)
+{
   missing.add(mk_obj(10), mk_evt(8, 12), mk_evt(8, 10), false);
   log.add(mk_ple_dt(nonexistent_oid, mk_evt(7, 5), mk_evt(7, 4)));
   map<hobject_t, pg_missing_item> expected;
@@ -2400,14 +2550,16 @@ TEST_F(PGLogTestRebuildMissing, MissingNotInLog) {
   run_rebuild_missing_test(expected);
 }
 
-
 class PGLogMergeDupsTest : protected PGLog, public StoreTestFixture {
 
 public:
+  PGLogMergeDupsTest() :
+    PGLog(g_ceph_context), StoreTestFixture("memstore")
+  {}
 
-  PGLogMergeDupsTest() : PGLog(g_ceph_context), StoreTestFixture("memstore") { }
-
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     StoreTestFixture::SetUp();
     ObjectStore::Transaction t;
     test_coll = coll_t(spg_t(pg_t(1, 1)));
@@ -2416,62 +2568,71 @@ public:
     store->queue_transaction(ch, std::move(t));
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     test_disk_roundtrip();
     clear();
     StoreTestFixture::TearDown();
   }
 
-  static pg_log_dup_t create_dup_entry(uint a, uint b) {
+  static pg_log_dup_t
+  create_dup_entry(uint a, uint b)
+  {
     // make each dup_entry unique by using different client id's
     static uint client_id = 777;
-    return pg_log_dup_t(eversion_t(a, b),
-			a,
-			osd_reqid_t(entity_name_t::CLIENT(client_id++), 8, 1),
-			0);
+    return pg_log_dup_t(
+        eversion_t(a, b), a,
+        osd_reqid_t(entity_name_t::CLIENT(client_id++), 8, 1), 0);
   }
 
-  static std::vector<pg_log_dup_t> example_dups_1() {
+  static std::vector<pg_log_dup_t>
+  example_dups_1()
+  {
     std::vector<pg_log_dup_t> result = {
-      create_dup_entry(10, 11),
-      create_dup_entry(10, 12),
-      create_dup_entry(11, 1),
-      create_dup_entry(12, 3),
-      create_dup_entry(13, 99)
-    };
+        create_dup_entry(10, 11), create_dup_entry(10, 12),
+        create_dup_entry(11, 1), create_dup_entry(12, 3),
+        create_dup_entry(13, 99)};
     return result;
   }
 
-  static std::vector<pg_log_dup_t> example_dups_2() {
+  static std::vector<pg_log_dup_t>
+  example_dups_2()
+  {
     std::vector<pg_log_dup_t> result = {
-      create_dup_entry(12, 3),
-      create_dup_entry(13, 99),
-      create_dup_entry(15, 11),
-      create_dup_entry(16, 14),
-      create_dup_entry(16, 32)
-    };
+        create_dup_entry(12, 3), create_dup_entry(13, 99),
+        create_dup_entry(15, 11), create_dup_entry(16, 14),
+        create_dup_entry(16, 32)};
     return result;
   }
 
-  void add_dups(uint a, uint b) {
+  void
+  add_dups(uint a, uint b)
+  {
     log.dups.push_back(create_dup_entry(a, b));
     write_from_dups = std::min(write_from_dups, log.dups.back().version);
   }
 
-  void add_dups(const std::vector<pg_log_dup_t>& l) {
+  void
+  add_dups(const std::vector<pg_log_dup_t>& l)
+  {
     for (auto& i : l) {
       log.dups.push_back(i);
       write_from_dups = std::min(write_from_dups, log.dups.back().version);
     }
   }
 
-  static void add_dups(IndexedLog& log, const std::vector<pg_log_dup_t>& dups) {
+  static void
+  add_dups(IndexedLog& log, const std::vector<pg_log_dup_t>& dups)
+  {
     for (auto& i : dups) {
       log.dups.push_back(i);
     }
   }
 
-  void check_order() {
+  void
+  check_order()
+  {
     eversion_t prev(0, 0);
 
     for (auto& i : log.dups) {
@@ -2480,14 +2641,18 @@ public:
     }
   }
 
-  void check_index() {
+  void
+  check_index()
+  {
     EXPECT_EQ(log.dups.size(), log.dup_index.size());
     for (auto& i : log.dups) {
       EXPECT_EQ(1u, log.dup_index.count(i.reqid));
     }
   }
 
-  void test_disk_roundtrip() {
+  void
+  test_disk_roundtrip()
+  {
     ObjectStore::Transaction t;
     hobject_t hoid;
     hoid.pool = 1;
@@ -2504,8 +2669,8 @@ public:
     auto orig_dups = log.dups;
     clear();
     ostringstream err;
-    read_log_and_missing(store.get(), ch, log_oid,
-			 pg_info_t(), err, false, false);
+    read_log_and_missing(
+        store.get(), ch, log_oid, pg_info_t(), err, false, false);
     ASSERT_EQ(orig_dups.size(), log.dups.size());
     ASSERT_EQ(orig_dups, log.dups);
     auto dups_it = log.dups.begin();
@@ -2518,7 +2683,8 @@ public:
   coll_t test_coll;
 };
 
-TEST_F(PGLogMergeDupsTest, OtherEmpty) {
+TEST_F(PGLogMergeDupsTest, OtherEmpty)
+{
   log.tail = eversion_t(14, 5);
 
   IndexedLog olog;
@@ -2542,7 +2708,8 @@ TEST_F(PGLogMergeDupsTest, OtherEmpty) {
   check_index();
 }
 
-TEST_F(PGLogMergeDupsTest, AmEmpty) {
+TEST_F(PGLogMergeDupsTest, AmEmpty)
+{
   log.tail = eversion_t(14, 5);
   index();
 
@@ -2567,7 +2734,8 @@ TEST_F(PGLogMergeDupsTest, AmEmpty) {
   check_index();
 }
 
-TEST_F(PGLogMergeDupsTest, AmEmptyOverlap) {
+TEST_F(PGLogMergeDupsTest, AmEmptyOverlap)
+{
   log.tail = eversion_t(12, 3);
   index();
 
@@ -2592,7 +2760,8 @@ TEST_F(PGLogMergeDupsTest, AmEmptyOverlap) {
   check_index();
 }
 
-TEST_F(PGLogMergeDupsTest, Same) {
+TEST_F(PGLogMergeDupsTest, Same)
+{
   log.tail = eversion_t(14, 1);
 
   IndexedLog olog;
@@ -2618,8 +2787,8 @@ TEST_F(PGLogMergeDupsTest, Same) {
   check_index();
 }
 
-
-TEST_F(PGLogMergeDupsTest, Later) {
+TEST_F(PGLogMergeDupsTest, Later)
+{
   log.tail = eversion_t(16, 14);
 
   IndexedLog olog;
@@ -2645,8 +2814,8 @@ TEST_F(PGLogMergeDupsTest, Later) {
   check_index();
 }
 
-
-TEST_F(PGLogMergeDupsTest, Earlier) {
+TEST_F(PGLogMergeDupsTest, Earlier)
+{
   log.tail = eversion_t(17, 2);
 
   IndexedLog olog;
@@ -2672,8 +2841,8 @@ TEST_F(PGLogMergeDupsTest, Earlier) {
   check_index();
 }
 
-
-TEST_F(PGLogMergeDupsTest, Superset) {
+TEST_F(PGLogMergeDupsTest, Superset)
+{
   log.tail = eversion_t(17, 2);
 
   IndexedLog olog;
@@ -2701,16 +2870,16 @@ TEST_F(PGLogMergeDupsTest, Superset) {
   check_index();
 }
 
-
-struct PGLogTrimTest :
-  public ::testing::Test,
-  public PGLogTestBase,
-  public PGLog::IndexedLog
-{
-  CephContext *cct = g_ceph_context;
+struct PGLogTrimTest : public ::testing::Test,
+                       public PGLogTestBase,
+                       public PGLog::IndexedLog {
+  CephContext* cct = g_ceph_context;
 
   using ::testing::Test::SetUp;
-  void SetUp(unsigned dup_track) {
+
+  void
+  SetUp(unsigned dup_track)
+  {
     constexpr size_t size = 10;
 
     char dup_track_s[size];
@@ -2721,14 +2890,12 @@ struct PGLogTrimTest :
   }
 }; // struct PGLogTrimTest
 
-
 TEST_F(PGLogTrimTest, TestMakingCephContext)
 {
   SetUp(5);
 
   EXPECT_EQ(5u, cct->_conf->osd_pg_log_dups_tracked);
 }
-
 
 TEST_F(PGLogTrimTest, TestPartialTrim)
 {
@@ -2772,8 +2939,8 @@ TEST_F(PGLogTrimTest, TestPartialTrim)
   EXPECT_EQ(0u, trimmed_dups2.size());
 }
 
-
-TEST_F(PGLogTrimTest, TestTrimNoTrimmed) {
+TEST_F(PGLogTrimTest, TestTrimNoTrimmed)
+{
   SetUp(20);
   PGLog::IndexedLog log;
   log.head = mk_evt(20, 0);
@@ -2795,7 +2962,6 @@ TEST_F(PGLogTrimTest, TestTrimNoTrimmed) {
   EXPECT_EQ(3u, log.log.size());
   EXPECT_EQ(2u, log.dups.size());
 }
-
 
 TEST_F(PGLogTrimTest, TestTrimNoDups)
 {
@@ -2883,8 +3049,8 @@ TEST_F(PGLogTrimTest, TestTrimAll)
   EXPECT_EQ(0u, log.dup_index.size()); // dup_index entry should be trimmed
 }
 
-
-TEST_F(PGLogTrimTest, TestGetRequest) {
+TEST_F(PGLogTrimTest, TestGetRequest)
+{
   SetUp(20);
   PGLog::IndexedLog log;
   log.head = mk_evt(20, 0);
@@ -2893,18 +3059,18 @@ TEST_F(PGLogTrimTest, TestGetRequest) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(8, 70),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 150), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 155), mk_evt(15, 150),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 160), mk_evt(25, 152),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 165), mk_evt(26, 160),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 167), mk_evt(31, 166),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(8, 70), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 150), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 155), mk_evt(15, 150), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 160), mk_evt(25, 152), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 165), mk_evt(26, 160), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 167), mk_evt(31, 166), osd_reqid_t(client, 8, 6)));
 
   eversion_t write_from_dups = eversion_t::max();
 
@@ -2925,128 +3091,133 @@ TEST_F(PGLogTrimTest, TestGetRequest) {
 
   bool result;
 
-  result = log.get_request(log_reqid, &version, &user_version, &return_code,
-			   &op_returns);
+  result = log.get_request(
+      log_reqid, &version, &user_version, &return_code, &op_returns);
   EXPECT_EQ(true, result);
   EXPECT_EQ(mk_evt(21, 165), version);
 
-  result = log.get_request(dup_reqid, &version, &user_version, &return_code,
-			   &op_returns);
+  result = log.get_request(
+      dup_reqid, &version, &user_version, &return_code, &op_returns);
   EXPECT_EQ(true, result);
   EXPECT_EQ(mk_evt(15, 155), version);
 
-  result = log.get_request(bad_reqid, &version, &user_version, &return_code,
-			   &op_returns);
+  result = log.get_request(
+      bad_reqid, &version, &user_version, &return_code, &op_returns);
   EXPECT_FALSE(result);
 }
 
-TEST_F(PGLogTest, _merge_object_divergent_entries) {
+TEST_F(PGLogTest, _merge_object_divergent_entries)
+{
   {
     // Test for issue 20843
     clear();
-    hobject_t hoid(object_t(/*name*/"notify.7"),
-                   /*key*/string(""),
-                   /*snap*/7,
-                   /*hash*/77,
-                   /*pool*/5,
-                   /*nspace*/string(""));
+    hobject_t hoid(
+        object_t(/*name*/ "notify.7"),
+        /*key*/ string(""),
+        /*snap*/ 7,
+        /*hash*/ 77,
+        /*pool*/ 5,
+        /*nspace*/ string(""));
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    orig_entries.push_back(mk_ple_mod(hoid, eversion_t(8336, 957), eversion_t(8336, 952)));
+    orig_entries.push_back(
+        mk_ple_mod(hoid, eversion_t(8336, 957), eversion_t(8336, 952)));
     orig_entries.push_back(mk_ple_err(hoid, eversion_t(8336, 958)));
     orig_entries.push_back(mk_ple_err(hoid, eversion_t(8336, 959)));
-    orig_entries.push_back(mk_ple_mod(hoid, eversion_t(8336, 960), eversion_t(8336, 957)));
+    orig_entries.push_back(
+        mk_ple_mod(hoid, eversion_t(8336, 960), eversion_t(8336, 957)));
     log.add(mk_ple_mod(hoid, eversion_t(8973, 1075), eversion_t(8971, 1070)));
-    missing.add(hoid,
-                /*need*/eversion_t(8971, 1070),
-                /*have*/eversion_t(8336, 952),
-                false);
+    missing.add(
+        hoid,
+        /*need*/ eversion_t(8971, 1070),
+        /*have*/ eversion_t(8336, 952), false);
     pg_info_t oinfo;
     LogHandler rollbacker;
-    _merge_object_divergent_entries(log, hoid,
-                                    orig_entries, oinfo,
-                                    log.get_can_rollback_to(),
-                                    missing, &rollbacker,
-                                    false, shard_id_t(0), this);
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(0), this);
     // No core dump
   }
   {
     // skip leading error entries
     clear();
-    hobject_t hoid(object_t(/*name*/"notify.7"),
-                   /*key*/string(""),
-                   /*snap*/7,
-                   /*hash*/77,
-                   /*pool*/5,
-                   /*nspace*/string(""));
+    hobject_t hoid(
+        object_t(/*name*/ "notify.7"),
+        /*key*/ string(""),
+        /*snap*/ 7,
+        /*hash*/ 77,
+        /*pool*/ 5,
+        /*nspace*/ string(""));
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
     orig_entries.push_back(mk_ple_err(hoid, eversion_t(8336, 956)));
-    orig_entries.push_back(mk_ple_mod(hoid, eversion_t(8336, 957), eversion_t(8336, 952)));
+    orig_entries.push_back(
+        mk_ple_mod(hoid, eversion_t(8336, 957), eversion_t(8336, 952)));
     log.add(mk_ple_mod(hoid, eversion_t(8973, 1075), eversion_t(8971, 1070)));
-    missing.add(hoid,
-                /*need*/eversion_t(8971, 1070),
-                /*have*/eversion_t(8336, 952),
-                false);
+    missing.add(
+        hoid,
+        /*need*/ eversion_t(8971, 1070),
+        /*have*/ eversion_t(8336, 952), false);
     pg_info_t oinfo;
     LogHandler rollbacker;
-    _merge_object_divergent_entries(log, hoid,
-                                    orig_entries, oinfo,
-                                    log.get_can_rollback_to(),
-                                    missing, &rollbacker,
-                                    false, shard_id_t(0), this);
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(0), this);
     // No core dump
   }
 }
 
-TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes) {
+TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes)
+{
   {
     // Test case 1: Partial write on shard that did NOT participate
     // - should NOT remove object
     clear();
     hobject_t hoid = mk_obj(1);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     // Partial write: only shards 0 and 1 were written
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
 
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 2 did NOT participate in the partial write
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object should NOT be removed
     EXPECT_EQ(0U, rollbacker.removed.size());
   }
-  
+
   {
     // Test case 2: Partial write on shard that DID participate
     // - SHOULD remove object
     clear();
     hobject_t hoid = mk_obj(2);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 1 DID participate in the partial write
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(1), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(1), this);
+
     // Object SHOULD be removed (Case 1: more recent entry in log)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
@@ -3054,28 +3225,29 @@ TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes) {
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(), missing.get_items().at(hoid).have);
   }
-  
+
   {
     // Test case 3: Empty written_shards (full write)
     // - SHOULD remove object on any shard
     clear();
     hobject_t hoid = mk_obj(3);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     // Empty written_shards = full write to all shards
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Any shard should remove for full writes
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(5), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(5), this);
+
     // Object SHOULD be removed (Case 1: more recent entry in log)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
@@ -3083,36 +3255,38 @@ TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes) {
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(), missing.get_items().at(hoid).have);
   }
-  
+
   {
     // Test case 4: Multiple entries, shard participated in one
     clear();
     hobject_t hoid = mk_obj(4);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    
+
     // First entry: partial write to shards 0, 1
-    pg_log_entry_t entry1 = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry1 =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry1.written_shards.insert(shard_id_t(0));
     entry1.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry1);
-    
+
     // Second entry: partial write to shards 2, 3
-    pg_log_entry_t entry2 = mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
+    pg_log_entry_t entry2 =
+        mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
     entry2.written_shards.insert(shard_id_t(2));
     entry2.written_shards.insert(shard_id_t(3));
     orig_entries.push_back(entry2);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 2 participated in second entry
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object SHOULD be removed (Case 1: more recent entry in log)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
@@ -3120,271 +3294,281 @@ TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes) {
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(), missing.get_items().at(hoid).have);
   }
-  
+
   {
     // Test case 5: Multiple entries, shard participated in none
     clear();
     hobject_t hoid = mk_obj(5);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    
-    pg_log_entry_t entry1 = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+
+    pg_log_entry_t entry1 =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry1.written_shards.insert(shard_id_t(0));
     entry1.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry1);
-    
-    pg_log_entry_t entry2 = mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
+
+    pg_log_entry_t entry2 =
+        mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
     entry2.written_shards.insert(shard_id_t(2));
     entry2.written_shards.insert(shard_id_t(3));
     orig_entries.push_back(entry2);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 5 did NOT participate in any entry
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(5), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(5), this);
+
     // Object should NOT be removed
     EXPECT_EQ(0U, rollbacker.removed.size());
   }
-  
+
   {
     // Test case 7: Case 1 - More recent entry in log with partial write
     // Non-participating shard should NOT remove
     clear();
     hobject_t hoid = mk_obj(7);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     // Add more recent entry to log - triggers Case 1
     log.add(mk_ple_mod(hoid, eversion_t(10, 105), eversion_t(10, 100)));
     missing.add(hoid, eversion_t(10, 105), eversion_t(), false);
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 2 did NOT participate - Case 1 with partial write check
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object should NOT be removed (shard didn't participate)
     EXPECT_EQ(0U, rollbacker.removed.size());
     // Missing should be updated
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(), missing.get_items().at(hoid).have);
   }
-  
+
   {
     // Test case 8: Case 3 - Object in missing with have != prior_version
     // and participating shard - should revise need, not remove
     clear();
     hobject_t hoid = mk_obj(8);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(10, 105), eversion_t(10, 100)));
     missing.add(hoid, eversion_t(10, 105), eversion_t(), false);
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Case 3: object in missing, will revise need (not Case 1)
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(1), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(1), this);
+
     // Object should NOT be removed (Case 3 doesn't remove)
     EXPECT_EQ(0U, rollbacker.removed.size());
     // Should revise need
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(10, 99), missing.get_items().at(hoid).need);
   }
-  
+
   {
     // Test case 9: Case 2 - prior_version is eversion_t() (creation)
     // Should always remove regardless of shard
     clear();
     hobject_t hoid = mk_obj(9);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
     pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t());
     // Creation - no partial write, written_shards should be empty
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Case 2: prior_version is eversion_t() - always removes
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object SHOULD be removed (creation case)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
   }
-  
+
   {
     // Test case 10: Case 3 - Object in missing, have == prior_version
     // Should remove from missing but not call rollbacker->remove()
     clear();
     hobject_t hoid = mk_obj(10);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
     // Add to missing with have == prior_version - triggers Case 3
     missing.add(hoid, eversion_t(11, 110), eversion_t(10, 99), false);
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Case 3: missing.have == prior_version, shard participated
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(1), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(1), this);
+
     // Object should NOT be removed (Case 3 doesn't call remove)
     EXPECT_EQ(0U, rollbacker.removed.size());
     // Should be removed from missing
     EXPECT_FALSE(missing.is_missing(hoid));
   }
-  
+
   {
     // Test case 11: Case 3 - Object in missing, have != prior_version
     // Should revise need but not remove object
     clear();
     hobject_t hoid = mk_obj(11);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
     // Add to missing with have != prior_version
     missing.add(hoid, eversion_t(11, 110), eversion_t(10, 95), false);
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Case 3: missing.have != prior_version, shard participated
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(1), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(1), this);
+
     // Object should NOT be removed (Case 3)
     EXPECT_EQ(0U, rollbacker.removed.size());
     // Should still be in missing with revised need
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(10, 99), missing.get_items().at(hoid).need);
   }
-  
+
   {
     // Test case 12: Case 5 - Cannot rollback, partial write, non-participant
     // Should NOT add to missing and NOT remove object (entry skipped)
     clear();
     hobject_t hoid = mk_obj(12);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
     // Not in missing - will hit Case 5
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Shard 2 didn't participate - entry will be skipped, function returns early
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object should NOT be removed (didn't participate)
     EXPECT_EQ(0U, rollbacker.removed.size());
     // Should NOT be added to missing (entry was skipped)
     EXPECT_FALSE(missing.is_missing(hoid));
   }
-  
+
   {
     // Test case 13: Case 5 - Cannot rollback, full write
     // Should remove object and add to missing
     clear();
     hobject_t hoid = mk_obj(13);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     // Empty written_shards = full write
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Case 5: cannot rollback, full write
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(5), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(5), this);
+
     // Object SHOULD be removed (full write)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
     // Should be added to missing
     EXPECT_TRUE(missing.is_missing(hoid));
   }
-  
+
   {
     // Test case 14: Multiple divergent entries, first has partial write, second is full
     // Second entry is full write, so object SHOULD be removed
     clear();
     hobject_t hoid = mk_obj(14);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    
+
     // First entry: partial write, shard 2 didn't participate
-    pg_log_entry_t entry1 = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry1 =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry1.written_shards.insert(shard_id_t(0));
     entry1.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry1);
-    
+
     // Second entry: full write (empty written_shards)
-    pg_log_entry_t entry2 = mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
+    pg_log_entry_t entry2 =
+        mk_ple_mod(hoid, eversion_t(10, 101), eversion_t(10, 100));
     orig_entries.push_back(entry2);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Loop checks all entries - second is full write
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, false, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // Object SHOULD be removed (Case 1: more recent entry in log, second entry is full write)
     EXPECT_EQ(1U, rollbacker.removed.size());
     EXPECT_TRUE(rollbacker.removed.count(hoid));
@@ -3392,80 +3576,77 @@ TEST_F(PGLogTest, merge_object_divergent_entries_partial_writes) {
     EXPECT_TRUE(missing.is_missing(hoid));
     EXPECT_EQ(eversion_t(), missing.get_items().at(hoid).have);
   }
-  
+
   {
     // Test case 15: EC optimizations enabled with partial write
     // Should work correctly with ec_optimizations_enabled flag
     clear();
     hobject_t hoid = mk_obj(15);
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    pg_log_entry_t entry = mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
+    pg_log_entry_t entry =
+        mk_ple_mod(hoid, eversion_t(10, 100), eversion_t(10, 99));
     entry.written_shards.insert(shard_id_t(0));
     entry.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(entry);
-    
+
     log.add(mk_ple_mod(hoid, eversion_t(11, 110), eversion_t(10, 99)));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Test with ec_optimizations_enabled = true
-    _merge_object_divergent_entries(log, hoid, orig_entries, oinfo,
-                                    log.get_can_rollback_to(), missing,
-                                    &rollbacker, true, shard_id_t(2), this);
-    
+    _merge_object_divergent_entries(
+        log, hoid, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, true, shard_id_t(2), this);
+
     // Object should NOT be removed (shard didn't participate)
     EXPECT_EQ(0U, rollbacker.removed.size());
   }
 }
 
-TEST_F(PGLogTest, merge_divergent_entries_clone_with_partial_write) {
+TEST_F(PGLogTest, merge_divergent_entries_clone_with_partial_write)
+{
   // Test the scenario where:
   // 1. Clone head object to snap :1 (creates :1)
   // 2. Partial write to head object (which also affects :1)
   // The partial write log entry ends up on a non-primary shard
-  
+
   {
     // Test case 1: Shard did NOT participate in partial write
     clear();
     hobject_t head = mk_obj(100);
     hobject_t snap1 = head;
     snap1.snap = 1;
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    
+
     // Clone head to snap1 - this creates snap1
-    pg_log_entry_t clone_entry = mk_ple_clone(snap1, eversion_t(10, 100), eversion_t());
+    pg_log_entry_t clone_entry =
+        mk_ple_clone(snap1, eversion_t(10, 100), eversion_t());
     orig_entries.push_back(clone_entry);
-    
+
     // Partial write to head (which also affects snap1)
-    pg_log_entry_t partial_write = mk_ple_mod(head, eversion_t(10, 101), eversion_t(10, 100));
+    pg_log_entry_t partial_write =
+        mk_ple_mod(head, eversion_t(10, 101), eversion_t(10, 100));
     partial_write.written_shards.insert(shard_id_t(0));
     partial_write.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(partial_write);
-    
+
     // Add divergent entries in log
     log.add(mk_ple_mod(head, eversion_t(11, 110), eversion_t(10, 99)));
     log.add(mk_ple_mod(snap1, eversion_t(11, 111), eversion_t()));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Process for shard 2 which did NOT participate in the partial write
     // The clone entry should be kept (creates snap1)
     // The partial write entry should be skipped (shard 2 didn't participate)
     _merge_divergent_entries(
-      log,
-      orig_entries,
-      oinfo,
-      log.get_can_rollback_to(),
-      missing,
-      &rollbacker,
-      false,
-      shard_id_t(2),
-      this);
-    
+        log, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(2), this);
+
     // snap1 should be removed (it was created by clone, prior_version is eversion_t())
     EXPECT_TRUE(rollbacker.removed.count(snap1));
     // head should NOT be removed (shard 2 didn't participate in partial write)
@@ -3475,45 +3656,40 @@ TEST_F(PGLogTest, merge_divergent_entries_clone_with_partial_write) {
     // head should NOT be in missing (entry was skipped, no divergent entries processed)
     EXPECT_FALSE(missing.is_missing(head));
   }
-  
+
   {
     // Test case 2: Shard DID participate in partial write
     clear();
     hobject_t head = mk_obj(101);
     hobject_t snap1 = head;
     snap1.snap = 1;
-    
+
     mempool::osd_pglog::list<pg_log_entry_t> orig_entries;
-    
+
     // Clone head to snap1
-    pg_log_entry_t clone_entry = mk_ple_clone(snap1, eversion_t(10, 100), eversion_t());
+    pg_log_entry_t clone_entry =
+        mk_ple_clone(snap1, eversion_t(10, 100), eversion_t());
     orig_entries.push_back(clone_entry);
-    
+
     // Partial write to head
-    pg_log_entry_t partial_write = mk_ple_mod(head, eversion_t(10, 101), eversion_t(10, 100));
+    pg_log_entry_t partial_write =
+        mk_ple_mod(head, eversion_t(10, 101), eversion_t(10, 100));
     partial_write.written_shards.insert(shard_id_t(0));
     partial_write.written_shards.insert(shard_id_t(1));
     orig_entries.push_back(partial_write);
-    
+
     // Add divergent entries in log
     log.add(mk_ple_mod(head, eversion_t(11, 110), eversion_t(10, 99)));
     log.add(mk_ple_mod(snap1, eversion_t(11, 111), eversion_t()));
-    
+
     pg_info_t oinfo;
     LogHandler rollbacker;
-    
+
     // Process for shard 1 which DID participate in the partial write
     _merge_divergent_entries(
-      log,
-      orig_entries,
-      oinfo,
-      log.get_can_rollback_to(),
-      missing,
-      &rollbacker,
-      false,
-      shard_id_t(1),
-      this);
-    
+        log, orig_entries, oinfo, log.get_can_rollback_to(), missing,
+        &rollbacker, false, shard_id_t(1), this);
+
     // Both snap1 and head should be removed
     EXPECT_TRUE(rollbacker.removed.count(snap1));
     EXPECT_TRUE(rollbacker.removed.count(head));
@@ -3525,28 +3701,27 @@ TEST_F(PGLogTest, merge_divergent_entries_clone_with_partial_write) {
   }
 }
 
-
-
-TEST(eversion_t, get_key_name) {
+TEST(eversion_t, get_key_name)
+{
   eversion_t a(1234, 5678);
   std::string a_key_name = a.get_key_name();
   EXPECT_EQ("0000001234.00000000000000005678", a_key_name);
 }
 
-TEST(pg_log_dup_t, get_key_name) {
-  pg_log_dup_t a(eversion_t(1234, 5678),
-		 13,
-		 osd_reqid_t(entity_name_t::CLIENT(777), 8, 999),
-		 15);
+TEST(pg_log_dup_t, get_key_name)
+{
+  pg_log_dup_t a(
+      eversion_t(1234, 5678), 13,
+      osd_reqid_t(entity_name_t::CLIENT(777), 8, 999), 15);
   std::string a_key_name = a.get_key_name();
   EXPECT_EQ("dup_0000001234.00000000000000005678", a_key_name);
 }
 
-
 // This tests trim() to make copies of
 // 2 log entries (107, 106) and 3 additional for a total
 // of 5 dups.  Nothing from the original dups is copied.
-TEST_F(PGLogTrimTest, TestTrimDups) {
+TEST_F(PGLogTrimTest, TestTrimDups)
+{
   SetUp(5);
   PGLog::IndexedLog log;
   log.head = mk_evt(21, 107);
@@ -3556,25 +3731,25 @@ TEST_F(PGLogTrimTest, TestTrimDups) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   eversion_t write_from_dups = eversion_t::max();
 
@@ -3588,7 +3763,8 @@ TEST_F(PGLogTrimTest, TestTrimDups) {
 // This tests trim() to make copies of
 // 4 log entries (107, 106, 105, 104) and 5 additional for a total
 // of 9 dups.  Only 1 of 2 existing dups are copied.
-TEST_F(PGLogTrimTest, TestTrimDups2) {
+TEST_F(PGLogTrimTest, TestTrimDups2)
+{
   SetUp(9);
   PGLog::IndexedLog log;
   log.head = mk_evt(21, 107);
@@ -3598,27 +3774,27 @@ TEST_F(PGLogTrimTest, TestTrimDups2) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   eversion_t write_from_dups = eversion_t::max();
 
@@ -3632,7 +3808,8 @@ TEST_F(PGLogTrimTest, TestTrimDups2) {
 // This tests copy_up_to() to make copies of
 // 2 log entries (107, 106) and 3 additional for a total
 // of 5 dups.  Nothing from the original dups is copied.
-TEST_F(PGLogTrimTest, TestCopyUpTo) {
+TEST_F(PGLogTrimTest, TestCopyUpTo)
+{
   SetUp(5);
   PGLog::IndexedLog log, copy;
   log.tail = mk_evt(9, 99);
@@ -3640,25 +3817,25 @@ TEST_F(PGLogTrimTest, TestCopyUpTo) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   copy.copy_up_to(cct, log, 2);
 
@@ -3672,7 +3849,8 @@ TEST_F(PGLogTrimTest, TestCopyUpTo) {
 // This tests copy_up_to() to make copies of
 // 4 log entries (107, 106, 105, 104) and 5 additional for a total
 // of 5 dups.  Only 1 of 2 existing dups are copied.
-TEST_F(PGLogTrimTest, TestCopyUpTo2) {
+TEST_F(PGLogTrimTest, TestCopyUpTo2)
+{
   SetUp(9);
   PGLog::IndexedLog log, copy;
   log.tail = mk_evt(9, 99);
@@ -3680,27 +3858,27 @@ TEST_F(PGLogTrimTest, TestCopyUpTo2) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   copy.copy_up_to(cct, log, 4);
 
@@ -3714,7 +3892,8 @@ TEST_F(PGLogTrimTest, TestCopyUpTo2) {
 // This tests copy_after() by specifying a version that copies
 // 2 log entries (107, 106) and 3 additional for a total
 // of 5 dups.  Nothing of the original dups is copied.
-TEST_F(PGLogTrimTest, TestCopyAfter) {
+TEST_F(PGLogTrimTest, TestCopyAfter)
+{
   SetUp(5);
   PGLog::IndexedLog log, copy;
   log.tail = mk_evt(9, 99);
@@ -3722,25 +3901,25 @@ TEST_F(PGLogTrimTest, TestCopyAfter) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   copy.copy_after(cct, log, mk_evt(21, 105));
 
@@ -3753,7 +3932,8 @@ TEST_F(PGLogTrimTest, TestCopyAfter) {
 
 // This copies everything dups and log because of the large max dups
 // and value passed to copy_after().
-TEST_F(PGLogTrimTest, TestCopyAfter2) {
+TEST_F(PGLogTrimTest, TestCopyAfter2)
+{
   SetUp(3000);
   PGLog::IndexedLog log, copy;
   log.tail = mk_evt(9, 99);
@@ -3761,37 +3941,37 @@ TEST_F(PGLogTrimTest, TestCopyAfter2) {
 
   entity_name_t client = entity_name_t::CLIENT(777);
 
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 93), mk_evt(8, 92), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 94), mk_evt(8, 93), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 95), mk_evt(8, 94), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 96), mk_evt(8, 95), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 97), mk_evt(8, 96), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(8, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
-  log.dups.push_back(pg_log_dup_t(mk_ple_mod(mk_obj(1),
-	  mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 93), mk_evt(8, 92), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 94), mk_evt(8, 93), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 95), mk_evt(8, 94), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 96), mk_evt(8, 95), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 97), mk_evt(8, 96), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(8, 98), mk_evt(8, 97), osd_reqid_t(client, 8, 1))));
+  log.dups.push_back(pg_log_dup_t(mk_ple_mod(
+      mk_obj(1), mk_evt(9, 99), mk_evt(8, 98), osd_reqid_t(client, 8, 1))));
 
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(10, 100), mk_evt(9, 99),
-		     osd_reqid_t(client, 8, 1)));
-  log.add(mk_ple_dt(mk_obj(2), mk_evt(15, 101), mk_evt(10, 100),
-		    osd_reqid_t(client, 8, 2)));
-  log.add(mk_ple_mod_rb(mk_obj(3), mk_evt(15, 102), mk_evt(15, 101),
-			osd_reqid_t(client, 8, 3)));
-  log.add(mk_ple_mod(mk_obj(1), mk_evt(20, 103), mk_evt(15, 102),
-		     osd_reqid_t(client, 8, 4)));
-  log.add(mk_ple_mod(mk_obj(4), mk_evt(21, 104), mk_evt(20, 103),
-		     osd_reqid_t(client, 8, 5)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 105), mk_evt(21, 104),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 106), mk_evt(21, 105),
-		       osd_reqid_t(client, 8, 6)));
-  log.add(mk_ple_dt_rb(mk_obj(5), mk_evt(21, 107), mk_evt(21, 106),
-		       osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(10, 100), mk_evt(9, 99), osd_reqid_t(client, 8, 1)));
+  log.add(mk_ple_dt(
+      mk_obj(2), mk_evt(15, 101), mk_evt(10, 100), osd_reqid_t(client, 8, 2)));
+  log.add(mk_ple_mod_rb(
+      mk_obj(3), mk_evt(15, 102), mk_evt(15, 101), osd_reqid_t(client, 8, 3)));
+  log.add(mk_ple_mod(
+      mk_obj(1), mk_evt(20, 103), mk_evt(15, 102), osd_reqid_t(client, 8, 4)));
+  log.add(mk_ple_mod(
+      mk_obj(4), mk_evt(21, 104), mk_evt(20, 103), osd_reqid_t(client, 8, 5)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 105), mk_evt(21, 104), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 106), mk_evt(21, 105), osd_reqid_t(client, 8, 6)));
+  log.add(mk_ple_dt_rb(
+      mk_obj(5), mk_evt(21, 107), mk_evt(21, 106), osd_reqid_t(client, 8, 6)));
 
   copy.copy_after(cct, log, mk_evt(9, 99));
 
@@ -3807,7 +3987,8 @@ TEST_F(PGLogTrimTest, TestCopyAfter2) {
 // Test that merge_log correctly handles epoch changes with out-of-order recovery.
 // When objects are recovered out of order after an epoch change, the missing and
 // rmissing maps must remain consistent.
-TEST_F(PGLogTest, merge_log_epoch_change_out_of_order_recovery) {
+TEST_F(PGLogTest, merge_log_epoch_change_out_of_order_recovery)
+{
   clear();
 
   // Create objects matching the log scenario
@@ -3877,8 +4058,8 @@ TEST_F(PGLogTest, merge_log_epoch_change_out_of_order_recovery) {
   bool dirty_big_info = false;
 
   merge_log(
-    oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info,
-    pg_pool_t(), pg_shard_t(), &h, dirty_info, dirty_big_info, false);
+      oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info, pg_pool_t(),
+      pg_shard_t(), &h, dirty_info, dirty_big_info, false);
 
   // Recover objects in the order shown in the logs
   pg_info_t recovery_info;
@@ -3902,7 +4083,8 @@ TEST_F(PGLogTest, merge_log_epoch_change_out_of_order_recovery) {
 
 // Test basic invariant: after merge_log with epoch change, missing and rmissing
 // sizes must match. This is the fundamental consistency check.
-TEST_F(PGLogTest, merge_log_epoch_change_basic) {
+TEST_F(PGLogTest, merge_log_epoch_change_basic)
+{
   clear();
 
   // Create objects matching the log scenario
@@ -3956,8 +4138,8 @@ TEST_F(PGLogTest, merge_log_epoch_change_basic) {
   bool dirty_big_info = false;
 
   merge_log(
-    oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info,
-    pg_pool_t(), pg_shard_t(), &h, dirty_info, dirty_big_info, false);
+      oinfo, std::move(olog), pg_shard_t(1, shard_id_t(0)), info, pg_pool_t(),
+      pg_shard_t(), &h, dirty_info, dirty_big_info, false);
 
   // Revers missing should be same length as missing!
   ASSERT_EQ(2, missing.num_missing());

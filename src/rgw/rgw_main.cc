@@ -1,19 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_main.h"
+
 #include <boost/intrusive/list.hpp>
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "global/signal_handler.h"
-#include "common/config.h"
-#include "common/errno.h"
+
 #include "common/Timer.h"
 #include "common/TracepointProvider.h"
-#include "rgw_main.h"
-#include "rgw_signal.h"
+#include "common/ceph_argparse.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "global/global_init.h"
+#include "global/signal_handler.h"
+
 #include "rgw_common.h"
 #include "rgw_lib.h"
 #include "rgw_log.h"
+#include "rgw_signal.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -25,7 +28,8 @@ static constexpr auto dout_subsys = ceph_subsys_rgw;
 
 static sig_t sighandler_alrm;
 
-static void godown_alarm(int signum)
+static void
+godown_alarm(int signum)
 {
   _exit(0);
 }
@@ -33,13 +37,17 @@ static void godown_alarm(int signum)
 class C_InitTimeout : public Context {
 public:
   C_InitTimeout() {}
-  void finish(int r) override {
+
+  void
+  finish(int r) override
+  {
     derr << "Initialization timeout, failed to initialize" << dendl;
     exit(1);
   }
 };
 
-static int usage()
+static int
+usage()
 {
   cout << "usage: radosgw [options...]" << std::endl;
   cout << "options:\n";
@@ -62,8 +70,9 @@ static int usage()
  * would need to be terminated, so the warning is simply suppressed.
  */
 // coverity[root_function:SUPPRESS]
-int main(int argc, char *argv[])
-{ 
+int
+main(int argc, char* argv[])
+{
   int r{0};
 
   // dout() messages will be sent to stderr, but FCGX wants messages on stdout
@@ -77,14 +86,13 @@ int main(int argc, char *argv[])
   }
 
   /* alternative default for module */
-  map<std::string,std::string> defaults = {
-    { "debug_rgw", "1/5" },
-    { "keyring", "$rgw_data/keyring" },
-    { "objecter_inflight_ops", "24576" },
-    // require a secure mon connection by default
-    { "ms_mon_client_mode", "secure" },
-    { "auth_client_required", "cephx" }
-  };
+  map<std::string, std::string> defaults = {
+      {"debug_rgw", "1/5"},
+      {"keyring", "$rgw_data/keyring"},
+      {"objecter_inflight_ops", "24576"},
+      // require a secure mon connection by default
+      {"ms_mon_client_mode", "secure"},
+      {"auth_client_required", "cephx"}};
 
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -101,8 +109,8 @@ int main(int argc, char *argv[])
   // privileged ports
   flags |= CINIT_FLAG_DEFER_DROP_PRIVILEGES;
 
-  auto cct = rgw_global_init(&defaults, args, CEPH_ENTITY_TYPE_CLIENT,
-			     CODE_ENVIRONMENT_DAEMON, flags);
+  auto cct = rgw_global_init(
+      &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON, flags);
 
   DoutPrefix dp(cct.get(), dout_subsys, "rgw main: ");
   rgw::AppMain main(&dp);
@@ -128,7 +136,7 @@ int main(int argc, char *argv[])
   r = rgw::signal::signal_fd_init();
   if (r < 0) {
     derr << "ERROR: unable to initialize signal fds" << dendl;
-  exit(1);
+    exit(1);
   }
 
   register_async_signal_handler(SIGTERM, rgw::signal::handle_sigterm);
@@ -174,7 +182,8 @@ int main(int argc, char *argv[])
 
 #if defined(HAVE_SYS_PRCTL_H)
   if (prctl(PR_SET_DUMPABLE, 1) == -1) {
-    cerr << "warning: unable to set dumpable flag: " << cpp_strerror(errno) << std::endl;
+    cerr << "warning: unable to set dumpable flag: " << cpp_strerror(errno)
+         << std::endl;
   }
 #endif
 

@@ -4,11 +4,12 @@
 #ifndef CEPH_LIBRBD_IMAGE_PRE_REMOVE_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_PRE_REMOVE_REQUEST_H
 
-#include "include/rados/librados.hpp"
-#include "include/buffer.h"
-#include "librbd/ImageCtx.h"
 #include <list>
 #include <map>
+
+#include "include/buffer.h"
+#include "include/rados/librados.hpp"
+#include "librbd/ImageCtx.h"
 
 class Context;
 
@@ -18,15 +19,15 @@ namespace image {
 template <typename ImageCtxT>
 class PreRemoveRequest {
 public:
-
-  static PreRemoveRequest *create(ImageCtxT *image_ctx, bool force,
-                                  Context *on_finish) {
+  static PreRemoveRequest*
+  create(ImageCtxT* image_ctx, bool force, Context* on_finish)
+  {
     return new PreRemoveRequest(image_ctx, force, on_finish);
   }
 
-  PreRemoveRequest(ImageCtxT *image_ctx, bool force, Context *on_finish)
-    : m_image_ctx(image_ctx), m_force(force), m_on_finish(on_finish) {
-  }
+  PreRemoveRequest(ImageCtxT* image_ctx, bool force, Context* on_finish) :
+    m_image_ctx(image_ctx), m_force(force), m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -89,7 +90,6 @@ private:
   void handle_remove_snapshot(int r);
 
   void finish(int r);
-
 };
 
 } // namespace image

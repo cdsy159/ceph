@@ -356,7 +356,7 @@ MESSAGE(MMDSFragmentNotify)
 MESSAGE(MMDSLoadTargets)
 
 #include "messages/MMDSMap.h"
-MESSAGE(MMDSMap) 
+MESSAGE(MMDSMap)
 
 #include "messages/MMgrBeacon.h"
 MESSAGE(MMgrBeacon)
@@ -548,7 +548,7 @@ MESSAGE(MTimeCheck2)
 #include "messages/MWatchNotify.h"
 MESSAGE(MWatchNotify)
 
-#include "messages/MMgrUpdate.h" 
+#include "messages/MMgrUpdate.h"
 MESSAGE(MMgrUpdate)
 
 #include "messages/MOSDECSubOpRead.h"

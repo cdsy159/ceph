@@ -12,37 +12,37 @@
 * Foundation. See file COPYING.
 */
 #include <stdio.h>
-#include <string.h>
-#include <iostream>
-#include <sstream>
-#include <time.h>
 #include <stdlib.h>
-#include <map>
+#include <string.h>
+#include <time.h>
 
-#include "global/global_init.h"
-#include "global/global_context.h"
-#include "common/async/context_pool.h"
-#include "common/ceph_argparse.h"
-#include "common/version.h"
-#include "common/dout.h"
+#include <iostream>
+#include <map>
+#include <sstream>
+
 #include "common/debug.h"
-#include "common/ceph_mutex.h"
-#include "common/Timer.h"
-#include "common/errno.h"
-#include "mon/MonClient.h"
-#include "msg/Dispatcher.h"
-#include "include/err.h"
+
 #include <boost/scoped_ptr.hpp>
 
-#include "gtest/gtest.h"
-
+#include "common/Timer.h"
+#include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
 #include "common/config.h"
+#include "common/dout.h"
+#include "common/errno.h"
+#include "common/version.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "gtest/gtest.h"
 #include "include/ceph_assert.h"
-
-#include "messages/MMonProbe.h"
-#include "messages/MRoute.h"
+#include "include/err.h"
 #include "messages/MGenericMessage.h"
 #include "messages/MMonJoin.h"
+#include "messages/MMonProbe.h"
+#include "messages/MRoute.h"
+#include "mon/MonClient.h"
+#include "msg/Dispatcher.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_
@@ -51,12 +51,11 @@
 
 using namespace std;
 
-class MonClientHelper : public Dispatcher
-{
+class MonClientHelper : public Dispatcher {
 protected:
-  CephContext *cct;
+  CephContext* cct;
   ceph::async::io_context_pool poolctx;
-  Messenger *msg;
+  Messenger* msg;
   MonClient monc;
 
   ceph::mutex lock = ceph::make_mutex("mon-msg-test::lock");
@@ -64,17 +63,13 @@ protected:
   set<int> wanted;
 
 public:
+  explicit MonClientHelper(CephContext* cct_) :
+    Dispatcher(cct_), cct(cct_), poolctx(1), msg(NULL), monc(cct_, poolctx)
+  {}
 
-  explicit MonClientHelper(CephContext *cct_)
-    : Dispatcher(cct_),
-      cct(cct_),
-      poolctx(1),
-      msg(NULL),
-      monc(cct_, poolctx)
-  { }
-
-
-  int post_init() {
+  int
+  post_init()
+  {
     dout(1) << __func__ << dendl;
     if (!msg)
       return -EINVAL;
@@ -82,27 +77,34 @@ public:
     return 0;
   }
 
-  int init_messenger() {
+  int
+  init_messenger()
+  {
     dout(1) << __func__ << dendl;
 
-    std::string public_msgr_type = cct->_conf->ms_public_type.empty() ? cct->_conf.get_val<std::string>("ms_type") : cct->_conf->ms_public_type;
-    msg = Messenger::create(cct, public_msgr_type, entity_name_t::CLIENT(-1),
-                            "test-mon-msg", 0);
+    std::string public_msgr_type =
+        cct->_conf->ms_public_type.empty()
+            ? cct->_conf.get_val<std::string>("ms_type")
+            : cct->_conf->ms_public_type;
+    msg = Messenger::create(
+        cct, public_msgr_type, entity_name_t::CLIENT(-1), "test-mon-msg", 0);
     ceph_assert(msg != NULL);
     msg->set_default_policy(Messenger::Policy::lossy_client(0));
-    dout(0) << __func__ << " starting messenger at "
-            << msg->get_myaddrs() << dendl;
+    dout(0) << __func__ << " starting messenger at " << msg->get_myaddrs()
+            << dendl;
     msg->start();
     return 0;
   }
 
-  int init_monc() {
+  int
+  init_monc()
+  {
     dout(1) << __func__ << dendl;
     ceph_assert(msg != NULL);
     int err = monc.build_initial_monmap();
     if (err < 0) {
-      derr << __func__ << " error building monmap: "
-           << cpp_strerror(err) << dendl;
+      derr << __func__ << " error building monmap: " << cpp_strerror(err)
+           << dendl;
       return err;
     }
 
@@ -112,15 +114,13 @@ public:
     monc.set_want_keys(CEPH_ENTITY_TYPE_MON);
     err = monc.init();
     if (err < 0) {
-      derr << __func__ << " monc init failed: "
-           << cpp_strerror(err) << dendl;
+      derr << __func__ << " monc init failed: " << cpp_strerror(err) << dendl;
       goto fail;
     }
 
     err = monc.authenticate();
     if (err < 0) {
-      derr << __func__ << " monc auth failed: "
-           << cpp_strerror(err) << dendl;
+      derr << __func__ << " monc auth failed: " << cpp_strerror(err) << dendl;
       goto fail_monc;
     }
     monc.wait_auth_rotating(30.0);
@@ -128,35 +128,45 @@ public:
     dout(0) << __func__ << " finished" << dendl;
     return 0;
 
-fail_monc:
+  fail_monc:
     derr << __func__ << " failing monc" << dendl;
     monc.shutdown();
-fail:
+  fail:
     return err;
   }
 
-  void shutdown_messenger() {
+  void
+  shutdown_messenger()
+  {
     dout(0) << __func__ << dendl;
     msg->shutdown();
     msg->wait();
   }
 
-  void shutdown_monc() {
+  void
+  shutdown_monc()
+  {
     dout(0) << __func__ << dendl;
     monc.shutdown();
   }
 
-  void shutdown() {
+  void
+  shutdown()
+  {
     dout(0) << __func__ << dendl;
     shutdown_monc();
     shutdown_messenger();
   }
 
-  MonMap *get_monmap() {
+  MonMap*
+  get_monmap()
+  {
     return &monc.monmap;
   }
 
-  int init() {
+  int
+  init()
+  {
     int err = init_messenger();
     if (err < 0)
       goto fail;
@@ -167,17 +177,21 @@ fail:
     if (err < 0)
       goto fail_monc;
     return 0;
-fail_monc:
+  fail_monc:
     shutdown_monc();
-fail_msgr:
+  fail_msgr:
     shutdown_messenger();
-fail:
+  fail:
     return err;
   }
 
-  virtual void handle_wanted(Message *m) { }
+  virtual void
+  handle_wanted(Message* m)
+  {}
 
-  bool handle_message(Message *m) {
+  bool
+  handle_message(Message* m)
+  {
     dout(1) << __func__ << " " << *m << dendl;
     if (!is_wanted(m)) {
       dout(10) << __func__ << " not wanted" << dendl;
@@ -189,51 +203,82 @@ fail:
     return true;
   }
 
-  bool ms_dispatch(Message *m) override {
-    return handle_message(m);  
+  bool
+  ms_dispatch(Message* m) override
+  {
+    return handle_message(m);
   }
-  void ms_handle_connect(Connection *con) override { }
-  void ms_handle_remote_reset(Connection *con) override { }
-  bool ms_handle_reset(Connection *con) override { return false; }
-  bool ms_handle_refused(Connection *con) override { return false; }
 
-  bool is_wanted(Message *m) {
+  void
+  ms_handle_connect(Connection* con) override
+  {}
+
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
+
+  bool
+  ms_handle_reset(Connection* con) override
+  {
+    return false;
+  }
+
+  bool
+  ms_handle_refused(Connection* con) override
+  {
+    return false;
+  }
+
+  bool
+  is_wanted(Message* m)
+  {
     dout(20) << __func__ << " " << *m << " type " << m->get_type() << dendl;
     return (wanted.find(m->get_type()) != wanted.end());
   }
 
-  void add_wanted(int t) {
+  void
+  add_wanted(int t)
+  {
     dout(20) << __func__ << " type " << t << dendl;
     wanted.insert(t);
   }
 
-  void rm_wanted(int t) {
+  void
+  rm_wanted(int t)
+  {
     dout(20) << __func__ << " type " << t << dendl;
     wanted.erase(t);
   }
 
-  void send_message(Message *m) {
+  void
+  send_message(Message* m)
+  {
     dout(15) << __func__ << " " << *m << dendl;
     monc.send_mon_message(m);
   }
 
-  void wait() { msg->wait(); }
+  void
+  wait()
+  {
+    msg->wait();
+  }
 };
 
-class MonMsgTest : public MonClientHelper,
-                   public ::testing::Test
-{
+class MonMsgTest : public MonClientHelper, public ::testing::Test {
 protected:
   int reply_type = 0;
-  Message *reply_msg = nullptr;
+  Message* reply_msg = nullptr;
   ceph::mutex lock = ceph::make_mutex("lock");
   ceph::condition_variable cond;
 
   MonMsgTest() :
-    MonClientHelper(g_ceph_context) { }
+    MonClientHelper(g_ceph_context)
+  {}
 
 public:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     reply_type = -1;
     if (reply_msg) {
       reply_msg->put();
@@ -242,7 +287,9 @@ public:
     ASSERT_EQ(init(), 0);
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     shutdown();
     if (reply_msg) {
       reply_msg->put();
@@ -250,7 +297,9 @@ public:
     }
   }
 
-  void handle_wanted(Message *m) override {
+  void
+  handle_wanted(Message* m) override
+  {
     std::lock_guard l{lock};
     // caller will put() after they call us, so hold on to a ref
     m->get();
@@ -258,7 +307,9 @@ public:
     cond.notify_all();
   }
 
-  Message *send_wait_reply(Message *m, int t, double timeout=30.0) {
+  Message*
+  send_wait_reply(Message* m, int t, double timeout = 30.0)
+  {
     std::unique_lock l{lock};
     reply_type = t;
     add_wanted(t);
@@ -269,7 +320,7 @@ public:
       utime_t s = ceph_clock_now();
       status = cond.wait_for(l, ceph::make_timespan(timeout));
       utime_t e = ceph_clock_now();
-      dout(20) << __func__ << " took " << (e-s) << " seconds" << dendl;
+      dout(20) << __func__ << " took " << (e - s) << " seconds" << dendl;
     } else {
       cond.wait(l);
     }
@@ -290,20 +341,19 @@ public:
 
 TEST_F(MonMsgTest, MMonProbeTest)
 {
-  Message *m = new MMonProbe(get_monmap()->fsid,
-			     MMonProbe::OP_PROBE, "b", false,
-			     ceph_release());
-  Message *r = send_wait_reply(m, MSG_MON_PROBE);
+  Message* m = new MMonProbe(
+      get_monmap()->fsid, MMonProbe::OP_PROBE, "b", false, ceph_release());
+  Message* r = send_wait_reply(m, MSG_MON_PROBE);
   ASSERT_NE(IS_ERR(r), 0);
   ASSERT_EQ(PTR_ERR(r), -ETIMEDOUT);
 }
 
 TEST_F(MonMsgTest, MRouteTest)
 {
-  Message *payload = new MGenericMessage(CEPH_MSG_SHUTDOWN);
-  MRoute *m = new MRoute;
+  Message* payload = new MGenericMessage(CEPH_MSG_SHUTDOWN);
+  MRoute* m = new MRoute;
   m->msg = payload;
-  Message *r = send_wait_reply(m, CEPH_MSG_SHUTDOWN);
+  Message* r = send_wait_reply(m, CEPH_MSG_SHUTDOWN);
   // we want an error
   ASSERT_NE(IS_ERR(r), 0);
   ASSERT_EQ(PTR_ERR(r), -ETIMEDOUT);
@@ -315,8 +365,8 @@ TEST_F(MonMsgTest, MRouteTest)
  */
 TEST_F(MonMsgTest, MMonJoin)
 {
-  Message *m = new MMonJoin(get_monmap()->fsid, string("client"),
-                            msg->get_myaddrs());
+  Message* m =
+      new MMonJoin(get_monmap()->fsid, string("client"), msg->get_myaddrs());
   send_wait_reply(m, MSG_MON_PAXOS, 10.0);
 
   int r = monc.get_monmap();
@@ -324,17 +374,17 @@ TEST_F(MonMsgTest, MMonJoin)
   ASSERT_FALSE(monc.monmap.contains("client"));
 }
 
-int main(int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(nullptr, args,
-			 CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
   g_ceph_context->_conf.apply_changes(nullptr);
   ::testing::InitGoogleTest(&argc, argv);
 
   return RUN_ALL_TESTS();
 }
-

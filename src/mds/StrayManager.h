@@ -14,15 +14,16 @@
 #ifndef STRAY_MANAGER_H
 #define STRAY_MANAGER_H
 
-#include "include/common_fwd.h"
-#include "include/elist.h"
-#include "MDSMetaRequest.h"
-#include "CDentry.h"
+#include <set>
+#include <string>
 
 #include <boost/intrusive_ptr.hpp>
 
-#include <set>
-#include <string>
+#include "include/common_fwd.h"
+#include "include/elist.h"
+
+#include "CDentry.h"
+#include "MDSMetaRequest.h"
 
 class MDSRank;
 class CInode;
@@ -31,38 +32,53 @@ class PurgeQueue;
 struct MutationImpl;
 typedef boost::intrusive_ptr<MutationImpl> MutationRef;
 
-class StrayManager
-{
+class StrayManager {
   // My public interface is for consumption by MDCache
+
 public:
   struct StrayEvalRequest : public MDSMetaRequest {
-    CDentry *dentry;
+    CDentry* dentry;
+
   public:
-    explicit StrayEvalRequest(int o, ceph_tid_t t, CDentry *d) :
-      MDSMetaRequest(o, t), dentry(d) {
+    explicit StrayEvalRequest(int o, ceph_tid_t t, CDentry* d) :
+      MDSMetaRequest(o, t), dentry(d)
+    {
       dentry->get(CDentry::PIN_PURGING);
       dentry->reintegration_reqid = t;
     }
-    ~StrayEvalRequest() {
+
+    ~StrayEvalRequest()
+    {
       dentry->reintegration_reqid = 0;
       dentry->put(CDentry::PIN_PURGING);
     }
   };
 
-  explicit StrayManager(MDSRank *mds, PurgeQueue &purge_queue_);
-  void set_logger(PerfCounters *l) {logger = l;}
+  explicit StrayManager(MDSRank* mds, PurgeQueue& purge_queue_);
+
+  void
+  set_logger(PerfCounters* l)
+  {
+    logger = l;
+  }
+
   void activate();
 
-  bool eval_stray(CDentry *dn);
+  bool eval_stray(CDentry* dn);
 
   void set_num_strays(uint64_t num);
-  uint64_t get_num_strays() const { return num_strays; }
+
+  uint64_t
+  get_num_strays() const
+  {
+    return num_strays;
+  }
 
   /**
    * Queue dentry for later evaluation. (evaluate it while not in the
    * middle of another metadata operation)
    */
-  void queue_delayed(CDentry *dn);
+  void queue_delayed(CDentry* dn);
 
   /**
    * Eval strays in the delayed_eval_stray list
@@ -82,7 +98,7 @@ public:
    *                  as a hint for which remote to reintegrate into
    *                  if there are multiple remotes.
    */
-  void eval_remote(CDentry *remote_dn);
+  void eval_remote(CDentry* remote_dn);
 
   /**
    * Given a dentry within one of my stray directories,
@@ -100,7 +116,7 @@ public:
    * on completion of mv (i.e. inode put), resulting in a subsequent
    * reintegration.
    */
-  void migrate_stray(CDentry *dn, mds_rank_t dest);
+  void migrate_stray(CDentry* dn, mds_rank_t dest);
 
   /**
    * Update stats to reflect a newly created stray dentry. Needed
@@ -130,7 +146,7 @@ protected:
   friend class C_TruncateStrayLogged;
   friend class C_IO_PurgeStrayPurged;
 
-  void truncate(CDentry *dn);
+  void truncate(CDentry* dn);
 
   /**
    * Purge a dentry from a stray directory. This function
@@ -138,30 +154,30 @@ protected:
    * throttling is also satisfied. There is no going back
    * at this stage!
    */
-  void purge(CDentry *dn);
+  void purge(CDentry* dn);
 
   /**
    * Completion handler for a Filer::purge on a stray inode.
    */
-  void _purge_stray_purged(CDentry *dn, bool only_head);
+  void _purge_stray_purged(CDentry* dn, bool only_head);
 
-  void _purge_stray_logged(CDentry *dn, version_t pdv, MutationRef& mut);
+  void _purge_stray_logged(CDentry* dn, version_t pdv, MutationRef& mut);
 
   /**
    * Callback: we have logged the update to an inode's metadata
    * reflecting it's newly-zeroed length.
    */
-  void _truncate_stray_logged(CDentry *dn, MutationRef &mut);
+  void _truncate_stray_logged(CDentry* dn, MutationRef& mut);
   /**
    * Call this on a dentry that has been identified as
    * eligible for purging. It will be passed on to PurgeQueue.
    */
-  void enqueue(CDentry *dn, bool trunc);
+  void enqueue(CDentry* dn, bool trunc);
   /**
    * Final part of enqueue() which we may have to retry
    * after opening snap parents.
    */
-  void _enqueue(CDentry *dn, bool trunc);
+  void _enqueue(CDentry* dn, bool trunc);
 
   /**
    * When hard links exist to an inode whose primary dentry
@@ -172,7 +188,7 @@ protected:
    * dentry) by issuing a rename from the stray to the other
    * dentry.
    */
-  void reintegrate_stray(CDentry *dn, CDentry *rlink);
+  void reintegrate_stray(CDentry* dn, CDentry* rlink);
 
   /**
    * Evaluate a stray dentry for purging or reintegration.
@@ -187,9 +203,9 @@ protected:
    * @returns true if the dentry will be purged (caller should never
    *          take more refs after this happens), else false.
    */
-  bool _eval_stray(CDentry *dn);
+  bool _eval_stray(CDentry* dn);
 
-  void _eval_stray_remote(CDentry *stray_dn, CDentry *remote_dn);
+  void _eval_stray_remote(CDentry* stray_dn, CDentry* remote_dn);
 
   // Has passed through eval_stray and still has refs
   elist<CDentry*> delayed_eval_stray;
@@ -198,8 +214,8 @@ protected:
   std::set<std::string> trimmed_strays;
 
   // Global references for doing I/O
-  MDSRank *mds;
-  PerfCounters *logger = nullptr;
+  MDSRank* mds;
+  PerfCounters* logger = nullptr;
 
   bool started = false;
 
@@ -214,6 +230,6 @@ protected:
    */
   uint64_t num_strays_enqueuing = 0;
 
-  PurgeQueue &purge_queue;
+  PurgeQueue& purge_queue;
 };
-#endif  // STRAY_MANAGER_H
+#endif // STRAY_MANAGER_H

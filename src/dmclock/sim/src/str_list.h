@@ -28,8 +28,9 @@
  * @param [in] str String to split and save as list
  * @param [out] str_list List modified containing str after it has been split
 **/
-extern void get_str_list(const std::string& str,
-			 std::list<std::string>& str_list);
+extern void get_str_list(
+    const std::string& str,
+    std::list<std::string>& str_list);
 
 /**
  * Split **str** into a list of strings, using the **delims** delimiters and output the result in **str_list**.
@@ -38,9 +39,10 @@ extern void get_str_list(const std::string& str,
  * @param [in] delims characters used to split **str**
  * @param [out] str_list List modified containing str after it has been split
 **/
-extern void get_str_list(const std::string& str,
-                         const char *delims,
-			 std::list<std::string>& str_list);
+extern void get_str_list(
+    const std::string& str,
+    const char* delims,
+    std::list<std::string>& str_list);
 
 /**
  * Split **str** into a list of strings, using the ";,= \t" delimiters and output the result in **str_vec**.
@@ -48,8 +50,9 @@ extern void get_str_list(const std::string& str,
  * @param [in] str String to split and save as Vector
  * @param [out] str_vec Vector modified containing str after it has been split
 **/
-extern void get_str_vec(const std::string& str,
-			 std::vector<std::string>& str_vec);
+extern void get_str_vec(
+    const std::string& str,
+    std::vector<std::string>& str_vec);
 
 /**
  * Split **str** into a list of strings, using the **delims** delimiters and output the result in **str_vec**.
@@ -58,9 +61,10 @@ extern void get_str_vec(const std::string& str,
  * @param [in] delims characters used to split **str**
  * @param [out] str_vec Vector modified containing str after it has been split
 **/
-extern void get_str_vec(const std::string& str,
-                         const char *delims,
-			 std::vector<std::string>& str_vec);
+extern void get_str_vec(
+    const std::string& str,
+    const char* delims,
+    std::vector<std::string>& str_vec);
 
 /**
  * Split **str** into a list of strings, using the ";,= \t" delimiters and output the result in **str_list**.
@@ -68,8 +72,7 @@ extern void get_str_vec(const std::string& str,
  * @param [in] str String to split and save as Set
  * @param [out] str_list Set modified containing str after it has been split
 **/
-extern void get_str_set(const std::string& str,
-			std::set<std::string>& str_list);
+extern void get_str_set(const std::string& str, std::set<std::string>& str_list);
 
 /**
  * Split **str** into a list of strings, using the **delims** delimiters and output the result in **str_list**.
@@ -78,9 +81,10 @@ extern void get_str_set(const std::string& str,
  * @param [in] delims characters used to split **str**
  * @param [out] str_list Set modified containing str after it has been split
 **/
-extern void get_str_set(const std::string& str,
-                        const char *delims,
-			std::set<std::string>& str_list);
+extern void get_str_set(
+    const std::string& str,
+    const char* delims,
+    std::set<std::string>& str_list);
 
 /**
  * Return a String containing the vector **v** joined with **sep**
@@ -93,7 +97,8 @@ extern void get_str_set(const std::string& str,
  * @param [in] sep String used to join each element from **v**
  * @return empty string if **v** is empty or concatenated string
 **/
-inline std::string str_join(const std::vector<std::string>& v, const std::string& sep)
+inline std::string
+str_join(const std::vector<std::string>& v, const std::string& sep)
 {
   if (v.empty())
     return std::string();

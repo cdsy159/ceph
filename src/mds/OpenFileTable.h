@@ -22,8 +22,6 @@
 #include <string>
 #include <vector>
 
-#include "mdstypes.h"
-
 #include "common/config_proxy.h" // for class ConfigProxy
 #include "global/global_context.h" // for g_conf()
 #include "include/buffer_fwd.h"
@@ -33,7 +31,11 @@
 #include "include/object.h"
 #include "include/types.h" // for version_t
 
-namespace TOPNSPC::common { class PerfCounters; }
+#include "mdstypes.h"
+
+namespace TOPNSPC::common {
+class PerfCounters;
+}
 struct inode_backpointer_t;
 class Context;
 class CDir;
@@ -46,42 +48,75 @@ class RecoveredAnchor;
 
 struct ObjectOperation;
 
-class OpenFileTable
-{
+class OpenFileTable {
 public:
-  explicit OpenFileTable(MDSRank *m);
+  explicit OpenFileTable(MDSRank* m);
   ~OpenFileTable();
 
-  void add_inode(CInode *in);
-  void remove_inode(CInode *in);
-  void add_dirfrag(CDir *dir);
-  void remove_dirfrag(CDir *dir);
-  void notify_link(CInode *in);
-  void notify_unlink(CInode *in);
-  bool is_any_dirty() const { return !dirty_items.empty(); }
+  void add_inode(CInode* in);
+  void remove_inode(CInode* in);
+  void add_dirfrag(CDir* dir);
+  void remove_dirfrag(CDir* dir);
+  void notify_link(CInode* in);
+  void notify_unlink(CInode* in);
 
-  void commit(MDSContext *c, uint64_t log_seq, int op_prio);
-  uint64_t get_committed_log_seq() const { return committed_log_seq; }
-  bool is_any_committing() const { return num_pending_commit > 0; }
+  bool
+  is_any_dirty() const
+  {
+    return !dirty_items.empty();
+  }
 
-  void load(MDSContext *c);
-  bool is_loaded() const { return load_done; }
-  void wait_for_load(MDSContext *c) {
+  void commit(MDSContext* c, uint64_t log_seq, int op_prio);
+
+  uint64_t
+  get_committed_log_seq() const
+  {
+    return committed_log_seq;
+  }
+
+  bool
+  is_any_committing() const
+  {
+    return num_pending_commit > 0;
+  }
+
+  void load(MDSContext* c);
+
+  bool
+  is_loaded() const
+  {
+    return load_done;
+  }
+
+  void
+  wait_for_load(MDSContext* c)
+  {
     ceph_assert(!load_done);
     waiting_for_load.push_back(c);
   }
-  void wait_for_commit(uint64_t seq, Context* c) {
+
+  void
+  wait_for_commit(uint64_t seq, Context* c)
+  {
     waiting_for_commit[seq].push_back(c);
   }
 
   bool prefetch_inodes();
-  bool is_prefetched() const { return prefetch_state == DONE; }
-  void wait_for_prefetch(MDSContext *c) {
+
+  bool
+  is_prefetched() const
+  {
+    return prefetch_state == DONE;
+  }
+
+  void
+  wait_for_prefetch(MDSContext* c)
+  {
     ceph_assert(!is_prefetched());
     waiting_for_prefetch.push_back(c);
   }
 
-  bool should_log_open(CInode *in);
+  bool should_log_open(CInode* in);
 
   void note_destroyed_inos(uint64_t seq, const std::vector<inodeno_t>& inos);
   void trim_destroyed_inos(uint64_t seq);
@@ -93,40 +128,51 @@ protected:
   friend class C_IO_OFT_Journal;
   friend class C_OFT_OpenInoFinish;
 
-  uint64_t MAX_ITEMS_PER_OBJ = g_conf().get_val<uint64_t>("osd_deep_scrub_large_omap_object_key_threshold");
-  static const unsigned MAX_OBJECTS = 1024; // (1024 * osd_deep_scrub_large_omap_object_key_threshold) items at most
+  uint64_t MAX_ITEMS_PER_OBJ = g_conf().get_val<uint64_t>(
+      "osd_deep_scrub_large_omap_object_key_threshold");
+  static const unsigned MAX_OBJECTS =
+      1024; // (1024 * osd_deep_scrub_large_omap_object_key_threshold) items at most
 
-  static const int DIRTY_NEW	= -1;
-  static const int DIRTY_UNDEF	= -2;
+  static const int DIRTY_NEW = -1;
+  static const int DIRTY_UNDEF = -2;
 
   unsigned num_pending_commit = 0;
   void _encode_header(bufferlist& bl, int j_state);
-  void _commit_finish(int r, uint64_t log_seq, MDSContext *fin);
-  void _journal_finish(int r, uint64_t log_seq, MDSContext *fin,
-		       std::map<unsigned, std::vector<ObjectOperation> >& ops);
+  void _commit_finish(int r, uint64_t log_seq, MDSContext* fin);
+  void _journal_finish(
+      int r,
+      uint64_t log_seq,
+      MDSContext* fin,
+      std::map<unsigned, std::vector<ObjectOperation>>& ops);
 
-  void get_ref(CInode *in, frag_t fg=-1U);
-  void put_ref(CInode *in, frag_t fg=-1U);
+  void get_ref(CInode* in, frag_t fg = -1U);
+  void put_ref(CInode* in, frag_t fg = -1U);
 
   object_t get_object_name(unsigned idx) const;
 
   void _reset_states();
   void _read_omap_values(const std::string& key, unsigned idx, bool first);
-  void _load_finish(int op_r, int header_r, int values_r,
-		    unsigned idx, bool first, bool more,
-                    bufferlist &header_bl,
-		    std::map<std::string, bufferlist> &values);
+  void _load_finish(
+      int op_r,
+      int header_r,
+      int values_r,
+      unsigned idx,
+      bool first,
+      bool more,
+      bufferlist& header_bl,
+      std::map<std::string, bufferlist>& values);
   void _recover_finish(int r);
 
   void _open_ino_finish(inodeno_t ino, int r);
   void _prefetch_inodes();
   void _prefetch_dirfrags();
 
-  void _get_ancestors(const Anchor& parent,
-		      std::vector<inode_backpointer_t>& ancestors,
-		      mds_rank_t& auth_hint);
+  void _get_ancestors(
+      const Anchor& parent,
+      std::vector<inode_backpointer_t>& ancestors,
+      mds_rank_t& auth_hint);
 
-  MDSRank *mds;
+  MDSRank* mds;
 
   version_t omap_version = 0;
 
@@ -145,9 +191,10 @@ protected:
     JOURNAL_START = 1,
     JOURNAL_FINISH = 2,
   };
+
   int journal_state = 0;
 
-  std::vector<std::map<std::string, bufferlist> > loaded_journals;
+  std::vector<std::map<std::string, bufferlist>> loaded_journals;
   std::map<inodeno_t, RecoveredAnchor> loaded_anchor_map;
   std::vector<MDSContext*> waiting_for_load;
   bool load_done = false;
@@ -158,11 +205,12 @@ protected:
     FILE_INODES = 3,
     DONE = 4,
   };
+
   unsigned prefetch_state = 0;
   unsigned num_opening_inodes = 0;
   std::vector<MDSContext*> waiting_for_prefetch;
 
-  std::map<uint64_t, std::vector<inodeno_t> > logseg_destroyed_inos;
+  std::map<uint64_t, std::vector<inodeno_t>> logseg_destroyed_inos;
   std::set<inodeno_t> destroyed_inos_set;
 
   std::unique_ptr<TOPNSPC::common::PerfCounters> logger;

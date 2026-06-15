@@ -17,29 +17,33 @@
 #define MGR_STANDBY_H_
 
 #include "auth/Auth.h"
-#include "common/async/context_pool.h"
 #include "common/Finisher.h"
-#include "common/Timer.h"
 #include "common/LogClient.h"
-
+#include "common/Timer.h"
+#include "common/async/context_pool.h"
 #include "mon/MonClient.h"
 #include "osdc/Objecter.h"
-#include "PyModuleRegistry.h"
+
 #include "MgrClient.h"
+#include "PyModuleRegistry.h"
 
 class MMgrMap;
 class Mgr;
 class PyModuleConfig;
 class MgrHook;
 
-class MgrStandby : public Dispatcher,
-		   public md_config_obs_t {
+class MgrStandby : public Dispatcher, public md_config_obs_t {
 public:
   // config observer bits
   std::vector<std::string> get_tracked_keys() const noexcept override;
-  void handle_conf_change(const ConfigProxy& conf,
-			  const std::set <std::string> &changed) override;
-  int asok_command(std::string_view cmd, const cmdmap_t& cmdmap, Formatter* f, std::ostream& errss);
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override;
+  int asok_command(
+      std::string_view cmd,
+      const cmdmap_t& cmdmap,
+      Formatter* f,
+      std::ostream& errss);
 
 protected:
   ceph::async::io_context_pool poolctx;
@@ -61,7 +65,7 @@ protected:
   std::unique_ptr<MgrHook> asok_hook;
 
   int orig_argc;
-  const char **orig_argv;
+  const char** orig_argv;
 
   std::string state_str();
 
@@ -72,19 +76,28 @@ protected:
   bool available_in_map;
 
 public:
-  MgrStandby(int argc, const char **argv);
+  MgrStandby(int argc, const char** argv);
   ~MgrStandby() override;
 
-  Dispatcher::dispatch_result_t ms_dispatch2(const ceph::ref_t<Message>& m) override;
-  bool ms_handle_reset(Connection *con) override { return false; }
-  void ms_handle_remote_reset(Connection *con) override {}
-  bool ms_handle_refused(Connection *con) override;
+  Dispatcher::dispatch_result_t ms_dispatch2(
+      const ceph::ref_t<Message>& m) override;
+
+  bool
+  ms_handle_reset(Connection* con) override
+  {
+    return false;
+  }
+
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
+
+  bool ms_handle_refused(Connection* con) override;
 
   int init();
   void respawn();
-  int main(std::vector<const char *> args);
+  int main(std::vector<const char*> args);
   void tick();
 };
 
 #endif
-

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,45 +13,37 @@
  * 
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <iostream>
 #include <string>
 
+#include "common/debug.h"
+
+#include "auth/KeyRing.h"
+#include "common/Preforker.h"
+#include "common/Timer.h"
 #include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
+#include "common/config.h"
+#include "common/numa.h"
+#include "common/pick_address.h"
+#include "common/strtol.h"
+#include "global/global_init.h"
+#include "global/pidfile.h"
+#include "global/signal_handler.h"
+#include "include/ceph_assert.h"
 #include "include/ceph_features.h"
 #include "include/compat.h"
 #include "include/random.h"
-
-#include "common/config.h"
-#include "common/debug.h"
-#include "common/strtol.h"
-#include "common/numa.h"
-
-#include "mon/MonMap.h"
 #include "mds/MDSDaemon.h"
-
-#include "msg/Messenger.h"
-
-#include "common/Timer.h"
-#include "common/ceph_argparse.h"
-#include "common/pick_address.h"
-#include "common/Preforker.h"
-
-#include "global/global_init.h"
-#include "global/signal_handler.h"
-#include "global/pidfile.h"
-
 #include "mon/MonClient.h"
-
-#include "auth/KeyRing.h"
-
+#include "mon/MonMap.h"
+#include "msg/Messenger.h"
 #include "perfglue/heap_profiler.h"
-
-#include "include/ceph_assert.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
@@ -60,7 +52,8 @@ using std::cerr;
 using std::cout;
 using std::vector;
 
-static void usage()
+static void
+usage()
 {
   cout << "usage: ceph-mds -i <ID> [flags]\n"
        << "  -m monitorip:port\n"
@@ -71,17 +64,17 @@ static void usage()
   generic_server_usage();
 }
 
+MDSDaemon* mds = NULL;
 
-MDSDaemon *mds = NULL;
-
-
-static void handle_mds_signal(int signum)
+static void
+handle_mds_signal(int signum)
 {
   if (mds)
     mds->handle_signal(signum);
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   ceph_pthread_setname("ceph-mds");
 
@@ -95,8 +88,8 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args,
-			 CEPH_ENTITY_TYPE_MDS, CODE_ENVIRONMENT_DAEMON, 0);
+  auto cct =
+      global_init(NULL, args, CEPH_ENTITY_TYPE_MDS, CODE_ENVIRONMENT_DAEMON, 0);
   ceph_heap_profiler_init();
 
   int numa_node = g_conf().get_val<int64_t>("mds_numa_node");
@@ -112,21 +105,20 @@ int main(int argc, const char **argv)
       r = set_cpu_affinity_all_threads(numa_cpu_set_size, &numa_cpu_set);
       if (r < 0) {
         derr << __func__ << " failed to set numa affinity: " << cpp_strerror(r)
-        << dendl;
+             << dendl;
       }
     }
   } else {
     dout(1) << __func__ << " not setting numa affinity" << dendl;
   }
   std::string val, action;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    }
-    else if (ceph_argparse_witharg(args, i, &val, "--hot-standby", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--hot-standby", (char*)NULL)) {
       dout(0) << "--hot-standby is obsolete and has no effect" << dendl;
-    }
-    else {
+    } else {
       derr << "Error: can't understand argument: " << *i << "\n" << dendl;
       exit(1);
     }
@@ -143,10 +135,12 @@ int main(int argc, const char **argv)
     exit(1);
   }
 
-  if (g_conf()->name.get_id().empty() ||
-      (g_conf()->name.get_id()[0] >= '0' && g_conf()->name.get_id()[0] <= '9')) {
-    derr << "MDS id '" << g_conf()->name << "' is invalid. "
-      "MDS names may not start with a numeric digit." << dendl;
+  if (g_conf()->name.get_id().empty() || (g_conf()->name.get_id()[0] >= '0' &&
+                                          g_conf()->name.get_id()[0] <= '9')) {
+    derr << "MDS id '" << g_conf()->name
+         << "' is invalid. "
+            "MDS names may not start with a numeric digit."
+         << dendl;
     exit(1);
   }
 
@@ -168,27 +162,29 @@ int main(int argc, const char **argv)
   common_init_finish(g_ceph_context);
   global_init_chdir(g_ceph_context);
 
-  std::string public_msgr_type = g_conf()->ms_public_type.empty() ? g_conf().get_val<std::string>("ms_type") : g_conf()->ms_public_type;
-  Messenger *msgr = Messenger::create(g_ceph_context, public_msgr_type,
-				      entity_name_t::MDS(-1), "mds",
-				      Messenger::get_random_nonce());
+  std::string public_msgr_type = g_conf()->ms_public_type.empty()
+                                     ? g_conf().get_val<std::string>("ms_type")
+                                     : g_conf()->ms_public_type;
+  Messenger* msgr = Messenger::create(
+      g_ceph_context, public_msgr_type, entity_name_t::MDS(-1), "mds",
+      Messenger::get_random_nonce());
   if (!msgr)
     forker.exit(1);
   msgr->set_cluster_protocol(CEPH_MDS_PROTOCOL);
 
   cout << "starting " << g_conf()->name << " at " << msgr->get_myaddrs()
        << std::endl;
-  uint64_t required =
-    CEPH_FEATURE_OSDREPLYMUX;
+  uint64_t required = CEPH_FEATURE_OSDREPLYMUX;
 
   msgr->set_default_policy(Messenger::Policy::lossy_client(required));
-  msgr->set_policy(entity_name_t::TYPE_MON,
-                   Messenger::Policy::lossy_client(CEPH_FEATURE_UID |
-                                                   CEPH_FEATURE_PGID64));
-  msgr->set_policy(entity_name_t::TYPE_MDS,
-                   Messenger::Policy::lossless_peer(CEPH_FEATURE_UID));
-  msgr->set_policy(entity_name_t::TYPE_CLIENT,
-                   Messenger::Policy::stateful_server(0));
+  msgr->set_policy(
+      entity_name_t::TYPE_MON,
+      Messenger::Policy::lossy_client(CEPH_FEATURE_UID | CEPH_FEATURE_PGID64));
+  msgr->set_policy(
+      entity_name_t::TYPE_MDS,
+      Messenger::Policy::lossless_peer(CEPH_FEATURE_UID));
+  msgr->set_policy(
+      entity_name_t::TYPE_CLIENT, Messenger::Policy::stateful_server(0));
 
   int r = msgr->bindv(addrs);
   if (r < 0)
@@ -197,7 +193,7 @@ int main(int argc, const char **argv)
   // set up signal handlers, now that we've daemonized/forked.
   init_async_signal_handler();
   register_async_signal_handler(SIGHUP, sighup_handler);
-  
+
   // get monmap
   ceph::async::io_context_pool ctxpool(2);
   MonClient mc(g_ceph_context, ctxpool);
@@ -238,7 +234,7 @@ int main(int argc, const char **argv)
   unregister_async_signal_handler(SIGTERM, handle_mds_signal);
   shutdown_async_signal_handler();
 
- shutdown:
+shutdown:
   ctxpool.stop();
   // yuck: grab the mds lock, so we can be sure that whoever in *mds
   // called shutdown finishes what they were doing.

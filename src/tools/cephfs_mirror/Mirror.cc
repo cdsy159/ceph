@@ -1,22 +1,25 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "Mirror.h"
+
+#include "common/debug.h"
+
+#include "common/Cond.h"
+#include "common/Timer.h"
+#include "common/WorkQueue.h"
 #include "common/ceph_argparse.h"
 #include "common/ceph_context.h"
 #include "common/common_init.h"
-#include "common/Cond.h"
-#include "common/debug.h"
 #include "common/errno.h"
-#include "common/Timer.h"
-#include "common/WorkQueue.h"
 #include "common/perf_counters.h"
 #include "common/perf_counters_collection.h"
 #include "common/perf_counters_key.h"
 #include "include/types.h"
 #include "mon/MonClient.h"
 #include "msg/Messenger.h"
+
 #include "aio_utils.h"
-#include "Mirror.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_cephfs_mirror
@@ -44,19 +47,22 @@ class SafeTimerSingleton : public CommonSafeTimer<ceph::mutex> {
 public:
   ceph::mutex timer_lock = ceph::make_mutex("cephfs::mirror::timer_lock");
 
-  explicit SafeTimerSingleton(CephContext *cct)
-    : SafeTimer(cct, timer_lock, true) {
+  explicit SafeTimerSingleton(CephContext* cct) :
+    SafeTimer(cct, timer_lock, true)
+  {
     init();
   }
 };
 
 class ThreadPoolSingleton : public ThreadPool {
 public:
-  ContextWQ *work_queue = nullptr;
+  ContextWQ* work_queue = nullptr;
 
-  explicit ThreadPoolSingleton(CephContext *cct)
-    : ThreadPool(cct, "Mirror::thread_pool", "tp_mirror", 1) {
-    work_queue = new ContextWQ("Mirror::work_queue", ceph::make_timespan(60), this);
+  explicit ThreadPoolSingleton(CephContext* cct) :
+    ThreadPool(cct, "Mirror::thread_pool", "tp_mirror", 1)
+  {
+    work_queue =
+        new ContextWQ("Mirror::work_queue", ceph::make_timespan(60), this);
 
     start();
   }
@@ -65,88 +71,104 @@ public:
 } // anonymous namespace
 
 struct Mirror::C_EnableMirroring : Context {
-  Mirror *mirror;
+  Mirror* mirror;
   Filesystem filesystem;
   uint64_t pool_id;
 
-  C_EnableMirroring(Mirror *mirror, const Filesystem &filesystem, uint64_t pool_id)
-    : mirror(mirror),
-      filesystem(filesystem),
-      pool_id(pool_id) {
-  }
+  C_EnableMirroring(
+      Mirror* mirror,
+      const Filesystem& filesystem,
+      uint64_t pool_id) :
+    mirror(mirror), filesystem(filesystem), pool_id(pool_id)
+  {}
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     enable_mirroring();
   }
 
-  void enable_mirroring() {
-    Context *ctx = new C_CallbackAdapter<C_EnableMirroring,
-                                         &C_EnableMirroring::handle_enable_mirroring>(this);
+  void
+  enable_mirroring()
+  {
+    Context* ctx = new C_CallbackAdapter<
+        C_EnableMirroring, &C_EnableMirroring::handle_enable_mirroring>(this);
     mirror->enable_mirroring(filesystem, pool_id, ctx);
   }
 
-  void handle_enable_mirroring(int r) {
+  void
+  handle_enable_mirroring(int r)
+  {
     mirror->handle_enable_mirroring(filesystem, r);
     delete this;
   }
 
   // context needs to live post completion
-  void complete(int r) override {
+  void
+  complete(int r) override
+  {
     finish(r);
   }
 };
 
 struct Mirror::C_DisableMirroring : Context {
-  Mirror *mirror;
+  Mirror* mirror;
   Filesystem filesystem;
 
-  C_DisableMirroring(Mirror *mirror, const Filesystem &filesystem)
-    : mirror(mirror),
-      filesystem(filesystem) {
-  }
+  C_DisableMirroring(Mirror* mirror, const Filesystem& filesystem) :
+    mirror(mirror), filesystem(filesystem)
+  {}
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     disable_mirroring();
   }
 
-  void disable_mirroring() {
-    Context *ctx = new C_CallbackAdapter<C_DisableMirroring,
-                                         &C_DisableMirroring::handle_disable_mirroring>(this);
+  void
+  disable_mirroring()
+  {
+    Context* ctx = new C_CallbackAdapter<
+        C_DisableMirroring, &C_DisableMirroring::handle_disable_mirroring>(this);
     mirror->disable_mirroring(filesystem, ctx);
   }
 
-  void handle_disable_mirroring(int r) {
+  void
+  handle_disable_mirroring(int r)
+  {
     mirror->handle_disable_mirroring(filesystem, r);
     delete this;
   }
 
   // context needs to live post completion
-  void complete(int r) override {
+  void
+  complete(int r) override
+  {
     finish(r);
   }
 };
 
 struct Mirror::C_PeerUpdate : Context {
-  Mirror *mirror;
+  Mirror* mirror;
   Filesystem filesystem;
   Peer peer;
   bool remove = false;
 
-  C_PeerUpdate(Mirror *mirror, const Filesystem &filesystem,
-               const Peer &peer)
-    : mirror(mirror),
-      filesystem(filesystem),
-      peer(peer) {
-  }
-  C_PeerUpdate(Mirror *mirror, const Filesystem &filesystem,
-               const Peer &peer, bool remove)
-    : mirror(mirror),
-      filesystem(filesystem),
-      peer(peer),
-      remove(remove) {
-  }
+  C_PeerUpdate(Mirror* mirror, const Filesystem& filesystem, const Peer& peer) :
+    mirror(mirror), filesystem(filesystem), peer(peer)
+  {}
 
-  void finish(int r) override {
+  C_PeerUpdate(
+      Mirror* mirror,
+      const Filesystem& filesystem,
+      const Peer& peer,
+      bool remove) :
+    mirror(mirror), filesystem(filesystem), peer(peer), remove(remove)
+  {}
+
+  void
+  finish(int r) override
+  {
     if (remove) {
       mirror->remove_peer(filesystem, peer);
     } else {
@@ -156,64 +178,81 @@ struct Mirror::C_PeerUpdate : Context {
 };
 
 struct Mirror::C_RestartMirroring : Context {
-  Mirror *mirror;
+  Mirror* mirror;
   Filesystem filesystem;
   uint64_t pool_id;
   Peers peers;
 
-  C_RestartMirroring(Mirror *mirror, const Filesystem &filesystem,
-                     uint64_t pool_id, const Peers &peers)
-    : mirror(mirror),
-      filesystem(filesystem),
-      pool_id(pool_id),
-      peers(peers) {
-  }
+  C_RestartMirroring(
+      Mirror* mirror,
+      const Filesystem& filesystem,
+      uint64_t pool_id,
+      const Peers& peers) :
+    mirror(mirror), filesystem(filesystem), pool_id(pool_id), peers(peers)
+  {}
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     disable_mirroring();
   }
 
-  void disable_mirroring() {
-    Context *ctx = new C_CallbackAdapter<C_RestartMirroring,
-                                         &C_RestartMirroring::handle_disable_mirroring>(this);
+  void
+  disable_mirroring()
+  {
+    Context* ctx = new C_CallbackAdapter<
+        C_RestartMirroring, &C_RestartMirroring::handle_disable_mirroring>(this);
     mirror->disable_mirroring(filesystem, ctx);
   }
 
-  void handle_disable_mirroring(int r) {
+  void
+  handle_disable_mirroring(int r)
+  {
     enable_mirroring();
   }
 
-  void enable_mirroring() {
+  void
+  enable_mirroring()
+  {
     std::scoped_lock locker(mirror->m_lock);
-    Context *ctx = new C_CallbackAdapter<C_RestartMirroring,
-                                         &C_RestartMirroring::handle_enable_mirroring>(this);
+    Context* ctx = new C_CallbackAdapter<
+        C_RestartMirroring, &C_RestartMirroring::handle_enable_mirroring>(this);
     mirror->enable_mirroring(filesystem, pool_id, ctx, true);
   }
 
-  void handle_enable_mirroring(int r) {
+  void
+  handle_enable_mirroring(int r)
+  {
     mirror->handle_enable_mirroring(filesystem, peers, r);
     mirror->_unset_restarting(filesystem);
     delete this;
   }
 
   // context needs to live post completion
-  void complete(int r) override {
+  void
+  complete(int r) override
+  {
     finish(r);
   }
 };
 
-Mirror::Mirror(CephContext *cct, const std::vector<const char*> &args,
-                MonClient *monc, Messenger *msgr)
-  : m_cct(cct),
-    m_args(args),
-    m_monc(monc),
-    m_msgr(msgr),
-    m_listener(this),
-    m_local(new librados::Rados()) {
-  auto thread_pool = &(cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
-                         "cephfs::mirror::thread_pool", false, cct));
+Mirror::Mirror(
+    CephContext* cct,
+    const std::vector<const char*>& args,
+    MonClient* monc,
+    Messenger* msgr) :
+  m_cct(cct),
+  m_args(args),
+  m_monc(monc),
+  m_msgr(msgr),
+  m_listener(this),
+  m_local(new librados::Rados())
+{
+  auto thread_pool =
+      &(cct->lookup_or_create_singleton_object<ThreadPoolSingleton>(
+          "cephfs::mirror::thread_pool", false, cct));
   auto safe_timer = &(cct->lookup_or_create_singleton_object<SafeTimerSingleton>(
-                        "cephfs::mirror::safe_timer", false, cct));
+      "cephfs::mirror::safe_timer", false, cct));
   m_thread_pool = thread_pool;
   m_work_queue = thread_pool->work_queue;
   m_timer = safe_timer;
@@ -222,7 +261,8 @@ Mirror::Mirror(CephContext *cct, const std::vector<const char*> &args,
   schedule_mirror_update_task();
 }
 
-Mirror::~Mirror() {
+Mirror::~Mirror()
+{
   dout(10) << dendl;
   {
     std::scoped_lock timer_lock(*m_timer_lock);
@@ -237,7 +277,9 @@ Mirror::~Mirror() {
   }
 }
 
-int Mirror::init_mon_client() {
+int
+Mirror::init_mon_client()
+{
   dout(20) << dendl;
 
   m_monc->set_messenger(m_msgr);
@@ -250,7 +292,9 @@ int Mirror::init_mon_client() {
     return r;
   }
 
-  r = m_monc->authenticate(duration<double>(m_cct->_conf.get_val<seconds>("client_mount_timeout")).count());
+  r = m_monc->authenticate(
+      duration<double>(m_cct->_conf.get_val<seconds>("client_mount_timeout"))
+          .count());
   if (r < 0) {
     derr << ": failed to authenticate to monitor: " << cpp_strerror(r) << dendl;
     return r;
@@ -261,7 +305,9 @@ int Mirror::init_mon_client() {
   return 0;
 }
 
-int Mirror::init(std::string &reason) {
+int
+Mirror::init(std::string& reason)
+{
   dout(20) << dendl;
 
   std::scoped_lock locker(m_lock);
@@ -291,26 +337,31 @@ int Mirror::init(std::string &reason) {
   }
 
   std::string labels = ceph::perf_counters::key_create("cephfs_mirror");
-  PerfCountersBuilder plb(m_cct, labels, l_cephfs_mirror_first, l_cephfs_mirror_last);
+  PerfCountersBuilder plb(
+      m_cct, labels, l_cephfs_mirror_first, l_cephfs_mirror_last);
 
   auto prio = m_cct->_conf.get_val<int64_t>("cephfs_mirror_perf_stats_prio");
-  plb.add_u64(l_cephfs_mirror_file_systems_mirrorred,
-	      "mirrored_filesystems", "Filesystems mirrored", "mir", prio);
-  plb.add_u64_counter(l_cephfs_mirror_file_systems_mirror_enable_failures,
-		      "mirror_enable_failures", "Mirroring enable failures", "mirf", prio);
+  plb.add_u64(
+      l_cephfs_mirror_file_systems_mirrorred, "mirrored_filesystems",
+      "Filesystems mirrored", "mir", prio);
+  plb.add_u64_counter(
+      l_cephfs_mirror_file_systems_mirror_enable_failures,
+      "mirror_enable_failures", "Mirroring enable failures", "mirf", prio);
   m_perf_counters = plb.create_perf_counters();
   m_cct->get_perfcounters_collection()->add(m_perf_counters);
 
   return 0;
 }
 
-void Mirror::shutdown() {
+void
+Mirror::shutdown()
+{
   dout(20) << dendl;
   m_stopping = true;
   m_cluster_watcher->shutdown();
   m_cond.notify_all();
 
-  PerfCounters *perf_counters = nullptr;
+  PerfCounters* perf_counters = nullptr;
   std::swap(perf_counters, m_perf_counters);
   if (perf_counters != nullptr) {
     m_cct->get_perfcounters_collection()->remove(perf_counters);
@@ -318,14 +369,18 @@ void Mirror::shutdown() {
   }
 }
 
-void Mirror::reopen_logs() {
-  for (auto &[filesystem, mirror_action] : m_mirror_actions) {
+void
+Mirror::reopen_logs()
+{
+  for (auto& [filesystem, mirror_action] : m_mirror_actions) {
     mirror_action.fs_mirror->reopen_logs();
   }
   g_ceph_context->reopen_logs();
 }
 
-void Mirror::handle_signal(int signum) {
+void
+Mirror::handle_signal(int signum)
+{
   dout(10) << ": signal=" << signum << dendl;
 
   std::scoped_lock locker(m_lock);
@@ -342,13 +397,17 @@ void Mirror::handle_signal(int signum) {
   }
 }
 
-void Mirror::handle_enable_mirroring(const Filesystem &filesystem,
-                                     const Peers &peers, int r) {
+void
+Mirror::handle_enable_mirroring(
+    const Filesystem& filesystem,
+    const Peers& peers,
+    int r)
+{
   dout(20) << ": filesystem=" << filesystem << ", peers=" << peers
            << ", r=" << r << dendl;
 
   std::scoped_lock locker(m_lock);
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
 
   if (r < 0) {
     derr << ": failed to initialize FSMirror for filesystem=" << filesystem
@@ -356,9 +415,8 @@ void Mirror::handle_enable_mirroring(const Filesystem &filesystem,
     // since init failed, don't assert, just unset it directly
     mirror_action.action_in_progress = false;
     m_cond.notify_all();
-    m_service_daemon->add_or_update_fs_attribute(filesystem.fscid,
-                                                 SERVICE_DAEMON_MIRROR_ENABLE_FAILED_KEY,
-                                                 true);
+    m_service_daemon->add_or_update_fs_attribute(
+        filesystem.fscid, SERVICE_DAEMON_MIRROR_ENABLE_FAILED_KEY, true);
     if (m_perf_counters) {
       m_perf_counters->inc(l_cephfs_mirror_file_systems_mirror_enable_failures);
     }
@@ -370,7 +428,7 @@ void Mirror::handle_enable_mirroring(const Filesystem &filesystem,
   mirror_action.action_in_progress = false;
   m_cond.notify_all();
 
-  for (auto &peer : peers) {
+  for (auto& peer : peers) {
     mirror_action.fs_mirror->add_peer(peer);
   }
 
@@ -380,21 +438,22 @@ void Mirror::handle_enable_mirroring(const Filesystem &filesystem,
   }
 }
 
-void Mirror::handle_enable_mirroring(const Filesystem &filesystem, int r) {
+void
+Mirror::handle_enable_mirroring(const Filesystem& filesystem, int r)
+{
   dout(20) << ": filesystem=" << filesystem << ", r=" << r << dendl;
 
   std::scoped_lock locker(m_lock);
-  auto &mirror_action = m_mirror_actions.at(filesystem);
-  
+  auto& mirror_action = m_mirror_actions.at(filesystem);
+
   if (r < 0) {
     derr << ": failed to initialize FSMirror for filesystem=" << filesystem
          << ": " << cpp_strerror(r) << dendl;
     // since init failed, don't assert, just unset it directly
     mirror_action.action_in_progress = false;
     m_cond.notify_all();
-    m_service_daemon->add_or_update_fs_attribute(filesystem.fscid,
-                                                 SERVICE_DAEMON_MIRROR_ENABLE_FAILED_KEY,
-                                                 true);
+    m_service_daemon->add_or_update_fs_attribute(
+        filesystem.fscid, SERVICE_DAEMON_MIRROR_ENABLE_FAILED_KEY, true);
     if (m_perf_counters) {
       m_perf_counters->inc(l_cephfs_mirror_file_systems_mirror_enable_failures);
     }
@@ -412,11 +471,16 @@ void Mirror::handle_enable_mirroring(const Filesystem &filesystem, int r) {
   }
 }
 
-void Mirror::enable_mirroring(const Filesystem &filesystem, uint64_t local_pool_id,
-                              Context *on_finish, bool is_restart) {
+void
+Mirror::enable_mirroring(
+    const Filesystem& filesystem,
+    uint64_t local_pool_id,
+    Context* on_finish,
+    bool is_restart)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   if (is_restart) {
     mirror_action.fs_mirror.reset();
   } else {
@@ -428,13 +492,18 @@ void Mirror::enable_mirroring(const Filesystem &filesystem, uint64_t local_pool_
   dout(10) << ": starting FSMirror: filesystem=" << filesystem << dendl;
 
   mirror_action.action_in_progress = true;
-  mirror_action.fs_mirror = std::make_unique<FSMirror>(m_cct, filesystem, local_pool_id,
-                                                       m_service_daemon.get(), m_args, m_work_queue);
-  mirror_action.fs_mirror->init(new C_AsyncCallback<ContextWQ>(m_work_queue, on_finish));
+  mirror_action.fs_mirror = std::make_unique<FSMirror>(
+      m_cct, filesystem, local_pool_id, m_service_daemon.get(), m_args,
+      m_work_queue);
+  mirror_action.fs_mirror->init(
+      new C_AsyncCallback<ContextWQ>(m_work_queue, on_finish));
 }
 
-void Mirror::mirroring_enabled(const Filesystem &filesystem, uint64_t local_pool_id) {
-  dout(10) << ": filesystem=" << filesystem << ", pool_id=" << local_pool_id << dendl;
+void
+Mirror::mirroring_enabled(const Filesystem& filesystem, uint64_t local_pool_id)
+{
+  dout(10) << ": filesystem=" << filesystem << ", pool_id=" << local_pool_id
+           << dendl;
 
   std::scoped_lock locker(m_lock);
   if (m_stopping) {
@@ -442,15 +511,18 @@ void Mirror::mirroring_enabled(const Filesystem &filesystem, uint64_t local_pool
   }
 
   auto p = m_mirror_actions.emplace(filesystem, MirrorAction(local_pool_id));
-  auto &mirror_action = p.first->second;
-  mirror_action.action_ctxs.push_back(new C_EnableMirroring(this, filesystem, local_pool_id));
+  auto& mirror_action = p.first->second;
+  mirror_action.action_ctxs.push_back(
+      new C_EnableMirroring(this, filesystem, local_pool_id));
 }
 
-void Mirror::handle_disable_mirroring(const Filesystem &filesystem, int r) {
+void
+Mirror::handle_disable_mirroring(const Filesystem& filesystem, int r)
+{
   dout(10) << ": filesystem=" << filesystem << ", r=" << r << dendl;
 
   std::scoped_lock locker(m_lock);
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
 
   if (!mirror_action.fs_mirror->is_init_failed()) {
     ceph_assert(mirror_action.action_in_progress);
@@ -471,10 +543,12 @@ void Mirror::handle_disable_mirroring(const Filesystem &filesystem, int r) {
   }
 }
 
-void Mirror::disable_mirroring(const Filesystem &filesystem, Context *on_finish) {
+void
+Mirror::disable_mirroring(const Filesystem& filesystem, Context* on_finish)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   ceph_assert(mirror_action.fs_mirror);
   ceph_assert(!mirror_action.action_in_progress);
 
@@ -485,10 +559,13 @@ void Mirror::disable_mirroring(const Filesystem &filesystem, Context *on_finish)
   }
 
   mirror_action.action_in_progress = true;
-  mirror_action.fs_mirror->shutdown(new C_AsyncCallback<ContextWQ>(m_work_queue, on_finish));
+  mirror_action.fs_mirror->shutdown(
+      new C_AsyncCallback<ContextWQ>(m_work_queue, on_finish));
 }
 
-void Mirror::mirroring_disabled(const Filesystem &filesystem) {
+void
+Mirror::mirroring_disabled(const Filesystem& filesystem)
+{
   dout(10) << ": filesystem=" << filesystem << dendl;
 
   std::scoped_lock locker(m_lock);
@@ -497,21 +574,25 @@ void Mirror::mirroring_disabled(const Filesystem &filesystem) {
     return;
   }
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   mirror_action.action_ctxs.push_back(new C_DisableMirroring(this, filesystem));
 }
 
-void Mirror::add_peer(const Filesystem &filesystem, const Peer &peer) {
+void
+Mirror::add_peer(const Filesystem& filesystem, const Peer& peer)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   ceph_assert(mirror_action.fs_mirror);
   ceph_assert(!mirror_action.action_in_progress);
 
   mirror_action.fs_mirror->add_peer(peer);
 }
 
-void Mirror::peer_added(const Filesystem &filesystem, const Peer &peer) {
+void
+Mirror::peer_added(const Filesystem& filesystem, const Peer& peer)
+{
   dout(20) << ": filesystem=" << filesystem << ", peer=" << peer << dendl;
 
   std::scoped_lock locker(m_lock);
@@ -520,21 +601,25 @@ void Mirror::peer_added(const Filesystem &filesystem, const Peer &peer) {
     return;
   }
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   mirror_action.action_ctxs.push_back(new C_PeerUpdate(this, filesystem, peer));
 }
 
-void Mirror::remove_peer(const Filesystem &filesystem, const Peer &peer) {
+void
+Mirror::remove_peer(const Filesystem& filesystem, const Peer& peer)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
+  auto& mirror_action = m_mirror_actions.at(filesystem);
   ceph_assert(mirror_action.fs_mirror);
   ceph_assert(!mirror_action.action_in_progress);
 
   mirror_action.fs_mirror->remove_peer(peer);
 }
 
-void Mirror::peer_removed(const Filesystem &filesystem, const Peer &peer) {
+void
+Mirror::peer_removed(const Filesystem& filesystem, const Peer& peer)
+{
   dout(20) << ": filesystem=" << filesystem << ", peer=" << peer << dendl;
 
   std::scoped_lock locker(m_lock);
@@ -543,39 +628,54 @@ void Mirror::peer_removed(const Filesystem &filesystem, const Peer &peer) {
     return;
   }
 
-  auto &mirror_action = m_mirror_actions.at(filesystem);
-  mirror_action.action_ctxs.push_back(new C_PeerUpdate(this, filesystem, peer, true));
+  auto& mirror_action = m_mirror_actions.at(filesystem);
+  mirror_action.action_ctxs.push_back(
+      new C_PeerUpdate(this, filesystem, peer, true));
 }
 
-void Mirror::update_fs_mirrors() {
+void
+Mirror::update_fs_mirrors()
+{
   dout(20) << dendl;
 
-  seconds blocklist_interval = g_ceph_context->_conf.get_val<seconds>
-    ("cephfs_mirror_restart_mirror_on_blocklist_interval");
-  seconds failed_interval = g_ceph_context->_conf.get_val<seconds>
-    ("cephfs_mirror_restart_mirror_on_failure_interval");
+  seconds blocklist_interval = g_ceph_context->_conf.get_val<seconds>(
+      "cephfs_mirror_restart_mirror_on_blocklist_interval");
+  seconds failed_interval = g_ceph_context->_conf.get_val<seconds>(
+      "cephfs_mirror_restart_mirror_on_failure_interval");
 
   {
     std::scoped_lock locker(m_lock);
-    for (auto &[filesystem, mirror_action] : m_mirror_actions) {
-      auto failed_restart = mirror_action.fs_mirror && mirror_action.fs_mirror->is_failed() &&
-        (failed_interval.count() > 0 && duration_cast<seconds>(clock::now() - mirror_action.fs_mirror->get_failed_ts()).count() > failed_interval.count());
-      auto blocklisted_restart = mirror_action.fs_mirror && mirror_action.fs_mirror->is_blocklisted() &&
-        (blocklist_interval.count() > 0 && duration_cast<seconds>(clock::now() - mirror_action.fs_mirror->get_blocklisted_ts()).count() > blocklist_interval.count());
+    for (auto& [filesystem, mirror_action] : m_mirror_actions) {
+      auto failed_restart =
+          mirror_action.fs_mirror && mirror_action.fs_mirror->is_failed() &&
+          (failed_interval.count() > 0 &&
+           duration_cast<seconds>(
+               clock::now() - mirror_action.fs_mirror->get_failed_ts())
+                   .count() > failed_interval.count());
+      auto blocklisted_restart =
+          mirror_action.fs_mirror &&
+          mirror_action.fs_mirror->is_blocklisted() &&
+          (blocklist_interval.count() > 0 &&
+           duration_cast<seconds>(
+               clock::now() - mirror_action.fs_mirror->get_blocklisted_ts())
+                   .count() > blocklist_interval.count());
 
       if (!mirror_action.action_in_progress && !_is_restarting(filesystem)) {
-	if (failed_restart || blocklisted_restart) {
-	  dout(5) << ": filesystem=" << filesystem << " failed mirroring (failed: "
-		  << failed_restart << ", blocklisted: " << blocklisted_restart << ")" << dendl;
-	  _set_restarting(filesystem);
-	  auto peers = mirror_action.fs_mirror->get_peers();
-	  auto ctx =  new C_RestartMirroring(this, filesystem, mirror_action.pool_id, peers);
-	  ctx->complete(0);
-	}
+        if (failed_restart || blocklisted_restart) {
+          dout(5) << ": filesystem=" << filesystem
+                  << " failed mirroring (failed: " << failed_restart
+                  << ", blocklisted: " << blocklisted_restart << ")" << dendl;
+          _set_restarting(filesystem);
+          auto peers = mirror_action.fs_mirror->get_peers();
+          auto ctx = new C_RestartMirroring(
+              this, filesystem, mirror_action.pool_id, peers);
+          ctx->complete(0);
+        }
       }
 
-      if (!failed_restart && !blocklisted_restart && !mirror_action.action_ctxs.empty()
-          && !mirror_action.action_in_progress) {
+      if (!failed_restart && !blocklisted_restart &&
+          !mirror_action.action_ctxs.empty() &&
+          !mirror_action.action_in_progress) {
         auto ctx = std::move(mirror_action.action_ctxs.front());
         mirror_action.action_ctxs.pop_front();
         ctx->complete(0);
@@ -586,30 +686,36 @@ void Mirror::update_fs_mirrors() {
   schedule_mirror_update_task();
 }
 
-void Mirror::schedule_mirror_update_task() {
+void
+Mirror::schedule_mirror_update_task()
+{
   ceph_assert(m_timer_task == nullptr);
   ceph_assert(ceph_mutex_is_locked(*m_timer_lock));
 
   m_timer_task = new LambdaContext([this](int _) {
-                                     m_timer_task = nullptr;
-                                     update_fs_mirrors();
-                                   });
-  double after = g_ceph_context->_conf.get_val<seconds>
-    ("cephfs_mirror_action_update_interval").count();
+    m_timer_task = nullptr;
+    update_fs_mirrors();
+  });
+  double after = g_ceph_context->_conf
+                     .get_val<seconds>("cephfs_mirror_action_update_interval")
+                     .count();
   dout(20) << ": scheduling fs mirror update (" << m_timer_task << ") after "
            << after << " seconds" << dendl;
   m_timer->add_event_after(after, m_timer_task);
 }
 
-void Mirror::run() {
+void
+Mirror::run()
+{
   dout(20) << dendl;
 
   std::unique_lock locker(m_lock);
-  m_cluster_watcher.reset(new ClusterWatcher(m_cct, m_monc, m_service_daemon.get(), m_listener));
+  m_cluster_watcher.reset(
+      new ClusterWatcher(m_cct, m_monc, m_service_daemon.get(), m_listener));
   m_msgr->add_dispatcher_tail(m_cluster_watcher.get());
 
   m_cluster_watcher->init();
-  m_cond.wait(locker, [this]{return m_stopping;});
+  m_cond.wait(locker, [this] { return m_stopping; });
 
   locker.unlock();
   {
@@ -622,18 +728,20 @@ void Mirror::run() {
   }
   locker.lock();
 
-  for (auto &[filesystem, mirror_action] : m_mirror_actions) {
+  for (auto& [filesystem, mirror_action] : m_mirror_actions) {
     dout(10) << ": trying to shutdown filesystem=" << filesystem << dendl;
     // wait for in-progress action and shutdown
-    m_cond.wait(locker, [&mirror_action=mirror_action] 
-                {return !mirror_action.action_in_progress;});
-    if (mirror_action.fs_mirror &&
-        !mirror_action.fs_mirror->is_stopping() &&
+    m_cond.wait(locker, [&mirror_action = mirror_action] {
+      return !mirror_action.action_in_progress;
+    });
+    if (mirror_action.fs_mirror && !mirror_action.fs_mirror->is_stopping() &&
         !mirror_action.fs_mirror->is_init_failed()) {
       C_SaferCond cond;
-      mirror_action.fs_mirror->shutdown(new C_AsyncCallback<ContextWQ>(m_work_queue, &cond));
+      mirror_action.fs_mirror->shutdown(
+          new C_AsyncCallback<ContextWQ>(m_work_queue, &cond));
       int r = cond.wait();
-      dout(10) << ": shutdown filesystem=" << filesystem << ", r=" << r << dendl;
+      dout(10) << ": shutdown filesystem=" << filesystem << ", r=" << r
+               << dendl;
     }
 
     mirror_action.fs_mirror.reset();
@@ -642,4 +750,3 @@ void Mirror::run() {
 
 } // namespace mirror
 } // namespace cephfs
-

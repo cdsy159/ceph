@@ -12,11 +12,13 @@
  */
 
 #include "TrackedOp.h"
+
 #include "common/debug.h"
-#include "common/histogram.h"
+
 #include "common/Formatter.h"
-#include "common/perf_counters.h" // for class PerfCountersBuilder
 #include "common/StackStringStream.h"
+#include "common/histogram.h"
+#include "common/perf_counters.h" // for class PerfCountersBuilder
 
 #ifdef WITH_CRIMSON
 #include "crimson/common/perf_counters_collection.h"
@@ -42,19 +44,24 @@ using std::stringstream;
 
 using ceph::Formatter;
 
-static ostream& _prefix(std::ostream* _dout)
+static ostream&
+_prefix(std::ostream* _dout)
 {
   return *_dout << "-- op tracker -- ";
 }
 
-void OpHistoryServiceThread::break_thread() {
+void
+OpHistoryServiceThread::break_thread()
+{
   queue_spinlock.lock();
   _external_queue.clear();
   _break_thread = true;
   queue_spinlock.unlock();
 }
 
-void* OpHistoryServiceThread::entry() {
+void*
+OpHistoryServiceThread::entry()
+{
   int sleep_time = 1000;
   list<pair<utime_t, TrackedOpRef>> internal_queue;
   while (1) {
@@ -83,13 +90,16 @@ void* OpHistoryServiceThread::entry() {
   return nullptr;
 }
 
-OpHistory::OpHistory(CephContext *c) : cct(c), opsvc(this) {
-  PerfCountersBuilder b(cct, "trackedop",
-                             l_trackedop_slow_op_first, l_trackedop_slow_op_last);
+OpHistory::OpHistory(CephContext* c) :
+  cct(c), opsvc(this)
+{
+  PerfCountersBuilder b(
+      cct, "trackedop", l_trackedop_slow_op_first, l_trackedop_slow_op_last);
   b.set_prio_default(PerfCountersBuilder::PRIO_USEFUL);
 
-  b.add_u64_counter(l_trackedop_slow_op_count, "slow_ops_count",
-					       "Number of operations taking over ten second");
+  b.add_u64_counter(
+      l_trackedop_slow_op_count, "slow_ops_count",
+      "Number of operations taking over ten second");
 
   logger.reset(b.create_perf_counters());
   cct->get_perfcounters_collection()->add(logger.get());
@@ -97,17 +107,19 @@ OpHistory::OpHistory(CephContext *c) : cct(c), opsvc(this) {
   opsvc.create("OpHistorySvc");
 }
 
-OpHistory::~OpHistory() {
+OpHistory::~OpHistory()
+{
   ceph_assert(arrived.empty());
   ceph_assert(duration.empty());
   ceph_assert(slow_op.empty());
-  if(logger) {
+  if (logger) {
     cct->get_perfcounters_collection()->remove(logger.get());
     logger.reset();
   }
 }
 
-void OpHistory::on_shutdown()
+void
+OpHistory::on_shutdown()
 {
   opsvc.break_thread();
   opsvc.join();
@@ -118,7 +130,8 @@ void OpHistory::on_shutdown()
   shutdown = true;
 }
 
-void OpHistory::_insert_delayed(const utime_t& now, TrackedOpRef op)
+void
+OpHistory::_insert_delayed(const utime_t& now, TrackedOpRef op)
 {
   std::lock_guard history_lock(ops_history_lock);
   if (shutdown)
@@ -133,32 +146,34 @@ void OpHistory::_insert_delayed(const utime_t& now, TrackedOpRef op)
   cleanup(now);
 }
 
-void OpHistory::cleanup(utime_t now)
+void
+OpHistory::cleanup(utime_t now)
 {
   while (arrived.size() &&
-	 (now - arrived.begin()->first >
-	  (double)(history_duration.load()))) {
+         (now - arrived.begin()->first > (double)(history_duration.load()))) {
     duration.erase(make_pair(
-	arrived.begin()->second->get_duration(),
-	arrived.begin()->second));
+        arrived.begin()->second->get_duration(), arrived.begin()->second));
     arrived.erase(arrived.begin());
   }
 
   while (duration.size() > history_size.load()) {
     arrived.erase(make_pair(
-	duration.begin()->second->get_initiated(),
-	duration.begin()->second));
+        duration.begin()->second->get_initiated(), duration.begin()->second));
     duration.erase(duration.begin());
   }
 
   while (slow_op.size() > history_slow_op_size.load()) {
     slow_op.erase(make_pair(
-	slow_op.begin()->second->get_initiated(),
-	slow_op.begin()->second));
+        slow_op.begin()->second->get_initiated(), slow_op.begin()->second));
   }
 }
 
-void OpHistory::dump_ops(utime_t now, Formatter *f, set<string> filters, bool by_duration)
+void
+OpHistory::dump_ops(
+    utime_t now,
+    Formatter* f,
+    set<string> filters,
+    bool by_duration)
 {
   std::lock_guard history_lock(ops_history_lock);
   cleanup(now);
@@ -168,12 +183,12 @@ void OpHistory::dump_ops(utime_t now, Formatter *f, set<string> filters, bool by
   {
     f->open_array_section("ops");
     auto dump_fn = [&f, &now, &filters](auto begin_iter, auto end_iter) {
-      for (auto i=begin_iter; i!=end_iter; ++i) {
-	if (!i->second->filter_out(filters))
-	  continue;
-	f->open_object_section("op");
-	i->second->dump(now, f, OpTracker::default_dumper);
-	f->close_section();
+      for (auto i = begin_iter; i != end_iter; ++i) {
+        if (!i->second->filter_out(filters))
+          continue;
+        f->open_object_section("op");
+        i->second->dump(now, f, OpTracker::default_dumper);
+        f->close_section();
       }
     };
 
@@ -191,26 +206,33 @@ struct ShardedTrackingData {
   ceph::mutex ops_in_flight_lock_sharded;
   TrackedOp::tracked_op_list_t ops_in_flight_sharded;
   std::atomic<uint64_t> ops_in_flight_count{0};
-  explicit ShardedTrackingData(const char* lock_name)
-    : ops_in_flight_lock_sharded(ceph::make_mutex(lock_name)) {}
+
+  explicit ShardedTrackingData(const char* lock_name) :
+    ops_in_flight_lock_sharded(ceph::make_mutex(lock_name))
+  {}
 };
 
-OpTracker::OpTracker(CephContext *cct_, bool tracking, uint32_t num_shards):
+OpTracker::OpTracker(CephContext* cct_, bool tracking, uint32_t num_shards) :
   seq(0),
   history(cct_),
   num_optracker_shards(num_shards),
-  complaint_time(0), log_threshold(0),
+  complaint_time(0),
+  log_threshold(0),
   tracking_enabled(tracking),
-  cct(cct_) {
-    for (uint32_t i = 0; i < num_optracker_shards; i++) {
-      char lock_name[34] = {0};
-      snprintf(lock_name, sizeof(lock_name), "%s:%" PRIu32, "OpTracker::ShardedLock", i);
-      ShardedTrackingData* one_shard = new ShardedTrackingData(lock_name);
-      sharded_in_flight_list.push_back(one_shard);
-    }
+  cct(cct_)
+{
+  for (uint32_t i = 0; i < num_optracker_shards; i++) {
+    char lock_name[34] = {0};
+    snprintf(
+        lock_name, sizeof(lock_name), "%s:%" PRIu32, "OpTracker::ShardedLock",
+        i);
+    ShardedTrackingData* one_shard = new ShardedTrackingData(lock_name);
+    sharded_in_flight_list.push_back(one_shard);
+  }
 }
 
-OpTracker::~OpTracker() {
+OpTracker::~OpTracker()
+{
   while (!sharded_in_flight_list.empty()) {
     ShardedTrackingData* sdata = sharded_in_flight_list.back();
     ceph_assert(NULL != sdata);
@@ -226,7 +248,8 @@ OpTracker::~OpTracker() {
   }
 }
 
-bool OpTracker::dump_historic_ops(Formatter *f, bool by_duration, set<string> filters)
+bool
+OpTracker::dump_historic_ops(Formatter* f, bool by_duration, set<string> filters)
 {
   if (!tracking_enabled)
     return false;
@@ -237,7 +260,8 @@ bool OpTracker::dump_historic_ops(Formatter *f, bool by_duration, set<string> fi
   return true;
 }
 
-void OpHistory::dump_slow_ops(utime_t now, Formatter *f, set<string> filters)
+void
+OpHistory::dump_slow_ops(utime_t now, Formatter* f, set<string> filters)
 {
   std::lock_guard history_lock(ops_history_lock);
   cleanup(now);
@@ -258,7 +282,8 @@ void OpHistory::dump_slow_ops(utime_t now, Formatter *f, set<string> filters)
   f->close_section();
 }
 
-bool OpTracker::dump_historic_slow_ops(Formatter *f, set<string> filters)
+bool
+OpTracker::dump_historic_slow_ops(Formatter* f, set<string> filters)
 {
   if (!tracking_enabled)
     return false;
@@ -269,7 +294,13 @@ bool OpTracker::dump_historic_slow_ops(Formatter *f, set<string> filters)
   return true;
 }
 
-bool OpTracker::dump_ops_in_flight(Formatter *f, bool print_only_blocked, set<string> filters, bool count_only, dumper lambda)
+bool
+OpTracker::dump_ops_in_flight(
+    Formatter* f,
+    bool print_only_blocked,
+    set<string> filters,
+    bool count_only,
+    dumper lambda)
 {
   if (!tracking_enabled)
     return false;
@@ -285,14 +316,14 @@ bool OpTracker::dump_ops_in_flight(Formatter *f, bool print_only_blocked, set<st
   utime_t now = ceph_clock_now();
   for (uint32_t i = 0; i < num_optracker_shards; i++) {
     ShardedTrackingData* sdata = sharded_in_flight_list[i];
-    ceph_assert(NULL != sdata); 
+    ceph_assert(NULL != sdata);
     std::lock_guard locker(sdata->ops_in_flight_lock_sharded);
     for (auto& op : sdata->ops_in_flight_sharded) {
       if (print_only_blocked && (now - op.get_initiated() <= complaint_time))
         break;
       if (!op.filter_out(filters))
         continue;
-      
+
       if (!count_only) {
         f->open_object_section("op");
         op.dump(now, f, lambda);
@@ -317,7 +348,8 @@ bool OpTracker::dump_ops_in_flight(Formatter *f, bool print_only_blocked, set<st
   return true;
 }
 
-uint64_t OpTracker::get_num_ops_in_flight()
+uint64_t
+OpTracker::get_num_ops_in_flight()
 {
   if (!tracking_enabled)
     return 0;
@@ -327,12 +359,14 @@ uint64_t OpTracker::get_num_ops_in_flight()
   for (uint32_t i = 0; i < num_optracker_shards; ++i) {
     ShardedTrackingData* sdata = sharded_in_flight_list[i];
     ceph_assert(nullptr != sdata);
-    total_ops_in_flight += sdata->ops_in_flight_count.load(std::memory_order_relaxed);
+    total_ops_in_flight +=
+        sdata->ops_in_flight_count.load(std::memory_order_relaxed);
   }
   return total_ops_in_flight;
 }
 
-bool OpTracker::register_inflight_op(TrackedOp *i)
+bool
+OpTracker::register_inflight_op(TrackedOp* i)
 {
   if (!tracking_enabled)
     return false;
@@ -351,7 +385,8 @@ bool OpTracker::register_inflight_op(TrackedOp *i)
   return true;
 }
 
-void OpTracker::unregister_inflight_op(TrackedOp* const i)
+void
+OpTracker::unregister_inflight_op(TrackedOp* const i)
 {
   // caller checks;
   ceph_assert(i->state);
@@ -367,14 +402,17 @@ void OpTracker::unregister_inflight_op(TrackedOp* const i)
   }
 }
 
-void OpTracker::record_history_op(TrackedOpRef&& i)
+void
+OpTracker::record_history_op(TrackedOpRef&& i)
 {
   std::shared_lock l{lock};
   history.insert(ceph_clock_now(), std::move(i));
 }
 
-bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
-				    std::function<bool(TrackedOp&)>&& visit)
+bool
+OpTracker::visit_ops_in_flight(
+    utime_t* oldest_secs,
+    std::function<bool(TrackedOp&)>&& visit)
 {
   if (!tracking_enabled)
     return false;
@@ -397,7 +435,7 @@ bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
     std::lock_guard locker(sdata->ops_in_flight_lock_sharded);
     for (auto& op : sdata->ops_in_flight_sharded) {
       if (!op.warn_interval_multiplier || op.is_continuous())
-	continue;
+        continue;
 
       utime_t oldest_op_tmp = op.get_initiated();
       if (oldest_op_tmp < oldest_op) {
@@ -405,17 +443,17 @@ bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
       }
       break;
     }
-    std::transform(std::begin(sdata->ops_in_flight_sharded),
-                   std::end(sdata->ops_in_flight_sharded),
-                   std::back_inserter(ops_in_flight),
-                   [] (TrackedOp& op) { return TrackedOpRef(&op); });
+    std::transform(
+        std::begin(sdata->ops_in_flight_sharded),
+        std::end(sdata->ops_in_flight_sharded),
+        std::back_inserter(ops_in_flight),
+        [](TrackedOp& op) { return TrackedOpRef(&op); });
   }
   if (ops_in_flight.empty())
     return false;
   *oldest_secs = now - oldest_op;
-  dout(10) << "ops_in_flight.size: " << ops_in_flight.size()
-           << "; oldest is " << *oldest_secs
-           << " seconds old" << dendl;
+  dout(10) << "ops_in_flight.size: " << ops_in_flight.size() << "; oldest is "
+           << *oldest_secs << " seconds old" << dendl;
 
   if (*oldest_secs < complaint_time)
     return false;
@@ -432,10 +470,12 @@ bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
   return true;
 }
 
-bool OpTracker::with_slow_ops_in_flight(utime_t* oldest_secs,
-					int* num_slow_ops,
-					int* num_warned_ops,
-					std::function<void(TrackedOp&)>&& on_warn)
+bool
+OpTracker::with_slow_ops_in_flight(
+    utime_t* oldest_secs,
+    int* num_slow_ops,
+    int* num_warned_ops,
+    std::function<void(TrackedOp&)>&& on_warn)
 {
   const utime_t now = ceph_clock_now();
   auto too_old = now;
@@ -457,8 +497,8 @@ bool OpTracker::with_slow_ops_in_flight(utime_t* oldest_secs,
       // enough samples of slow ops
       return true;
     }
-    auto time_to_complain = (op.get_initiated() +
-			     complaint_time * op.warn_interval_multiplier);
+    auto time_to_complain =
+        (op.get_initiated() + complaint_time * op.warn_interval_multiplier);
     if (time_to_complain >= now) {
       // complain later if the op is still in flight
       return true;
@@ -479,9 +519,11 @@ bool OpTracker::with_slow_ops_in_flight(utime_t* oldest_secs,
   }
 }
 
-bool OpTracker::check_ops_in_flight(std::string* summary,
-				    std::vector<string> &warnings,
-				    int *num_slow_ops)
+bool
+OpTracker::check_ops_in_flight(
+    std::string* summary,
+    std::vector<string>& warnings,
+    int* num_slow_ops)
 {
   const utime_t now = ceph_clock_now();
   auto too_old = now;
@@ -492,8 +534,7 @@ bool OpTracker::check_ops_in_flight(std::string* summary,
     stringstream ss;
     utime_t age = now - op.get_initiated();
     ss << "slow request " << age << " seconds old, received at "
-       << op.get_initiated() << ": " << op.get_desc()
-       << " currently "
+       << op.get_initiated() << ": " << op.get_desc() << " currently "
        << op.state_string();
     warnings.push_back(ss.str());
     // only those that have been shown will backoff
@@ -503,9 +544,8 @@ bool OpTracker::check_ops_in_flight(std::string* summary,
   if (with_slow_ops_in_flight(&oldest_secs, &slow, &warned, warn_on_slow_op) &&
       slow > 0) {
     stringstream ss;
-    ss << slow << " slow requests, "
-       << warned << " included below; oldest blocked for > "
-       << oldest_secs << " secs";
+    ss << slow << " slow requests, " << warned
+       << " included below; oldest blocked for > " << oldest_secs << " secs";
     *summary = ss.str();
     if (num_slow_ops) {
       *num_slow_ops = slow;
@@ -516,7 +556,8 @@ bool OpTracker::check_ops_in_flight(std::string* summary,
   }
 }
 
-void OpTracker::get_age_ms_histogram(pow2_hist_t *h)
+void
+OpTracker::get_age_ms_histogram(pow2_hist_t* h)
 {
   h->clear();
   utime_t now = ceph_clock_now();
@@ -534,18 +575,21 @@ void OpTracker::get_age_ms_histogram(pow2_hist_t *h)
   }
 }
 
-
 #undef dout_context
 #define dout_context tracker->cct
 
-void TrackedOp::Event::dump(ceph::Formatter *f) const {
+void
+TrackedOp::Event::dump(ceph::Formatter* f) const
+{
   f->dump_stream("time") << stamp;
   f->dump_string("event", str);
 }
 
-void TrackedOp::put() {
-  again:
-    auto nref_snap = nref.load();
+void
+TrackedOp::put()
+{
+again:
+  auto nref_snap = nref.load();
   if (nref_snap == 1) {
     switch (state.load()) {
     case STATE_UNTRACKED:
@@ -558,11 +602,10 @@ void TrackedOp::put() {
       tracker->unregister_inflight_op(this);
       _unregistered();
       if (!tracker->is_tracking()) {
-	delete this;
+        delete this;
       } else {
-	state = TrackedOp::STATE_HISTORY;
-	tracker->record_history_op(
-	  TrackedOpRef(this, /* add_ref = */ false));
+        state = TrackedOp::STATE_HISTORY;
+        tracker->record_history_op(TrackedOpRef(this, /* add_ref = */ false));
       }
       break;
 
@@ -578,7 +621,9 @@ void TrackedOp::put() {
   }
 }
 
-std::string TrackedOp::get_desc() const {
+std::string
+TrackedOp::get_desc() const
+{
   std::string ret;
   {
     std::lock_guard l(desc_lock);
@@ -599,7 +644,8 @@ std::string TrackedOp::get_desc() const {
   }
 }
 
-void TrackedOp::mark_event(std::string_view event, utime_t stamp)
+void
+TrackedOp::mark_event(std::string_view event, utime_t stamp)
 {
   if (!state)
     return;
@@ -608,15 +654,13 @@ void TrackedOp::mark_event(std::string_view event, utime_t stamp)
     std::lock_guard l(lock);
     events.emplace_back(stamp, event);
   }
-  dout(6) << " seq: " << seq
-	  << ", time: " << stamp
-	  << ", event: " << event
-	  << ", op: " << get_desc()
-	  << dendl;
+  dout(6) << " seq: " << seq << ", time: " << stamp << ", event: " << event
+          << ", op: " << get_desc() << dendl;
   _event_marked();
 }
 
-void TrackedOp::dump(utime_t now, Formatter *f, OpTracker::dumper lambda) const
+void
+TrackedOp::dump(utime_t now, Formatter* f, OpTracker::dumper lambda) const
 {
   // Ignore if still in the constructor
   if (!state)

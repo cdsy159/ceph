@@ -3,11 +3,12 @@
 
 #include "tools/rbd/Shell.h"
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
-  #ifdef _WIN32
+#ifdef _WIN32
   SetConsoleOutputCP(CP_UTF8);
-  #endif
+#endif
   rbd::Shell shell;
   return shell.execute(argc, argv);
 }

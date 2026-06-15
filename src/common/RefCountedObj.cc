@@ -2,26 +2,24 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 //
-#include "include/ceph_assert.h"
-
 #include "common/RefCountedObj.h"
+
 #include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/valgrind.h"
+#include "include/ceph_assert.h"
 
 namespace TOPNSPC::common {
-RefCountedObject::~RefCountedObject()
-{
-  ceph_assert(nref == 0);
-}
+RefCountedObject::~RefCountedObject() { ceph_assert(nref == 0); }
 
-void RefCountedObject::put() const {
-  CephContext *local_cct = cct;
+void
+RefCountedObject::put() const
+{
+  CephContext* local_cct = cct;
   auto v = --nref;
   if (local_cct) {
     lsubdout(local_cct, refs, 1) << "RefCountedObject::put " << this << " "
-		   << (v + 1) << " -> " << v
-		   << dendl;
+                                 << (v + 1) << " -> " << v << dendl;
   }
   if (v == 0) {
     ANNOTATE_HAPPENS_AFTER(&nref);
@@ -32,13 +30,15 @@ void RefCountedObject::put() const {
   }
 }
 
-void RefCountedObject::_get() const {
+void
+RefCountedObject::_get() const
+{
   auto v = ++nref;
   ceph_assert(v > 1); /* it should never happen that _get() sees nref == 0 */
   if (cct) {
-    lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " "
-	     << (v - 1) << " -> " << v << dendl;
+    lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " " << (v - 1)
+                           << " -> " << v << dendl;
   }
 }
 
-}
+} // namespace TOPNSPC::common

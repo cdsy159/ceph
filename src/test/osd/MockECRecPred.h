@@ -15,6 +15,7 @@
 #pragma once
 
 #include <set>
+
 #include "osd/PGBackend.h"
 
 /**
@@ -33,14 +34,18 @@
  * and the PG should be marked Incomplete.
  */
 class MockECRecPred : public IsPGRecoverablePredicate {
- public:
+public:
   /**
    * @param k  Number of data chunks (0 = always-true mode)
    * @param m  Number of coding chunks (0 = always-true mode)
    */
-  explicit MockECRecPred(int k = 0, int m = 0) : k(k), m(m) {}
+  explicit MockECRecPred(int k = 0, int m = 0) :
+    k(k), m(m)
+  {}
 
-  bool operator()(const std::set<pg_shard_t> &have) const override {
+  bool
+  operator()(const std::set<pg_shard_t>& have) const override
+  {
     // When k==0 fall back to always-true (backward-compatible default)
     if (k == 0) {
       return true;
@@ -49,8 +54,7 @@ class MockECRecPred : public IsPGRecoverablePredicate {
     return static_cast<int>(have.size()) >= k;
   }
 
- private:
+private:
   int k;
   int m;
 };
-

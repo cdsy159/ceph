@@ -21,7 +21,7 @@
 #include "common/ceph_mutex.h"
 #include "include/Context.h"
 
-#define rdout(x) lgeneric_subdout(cct,reserver,x)
+#define rdout(x) lgeneric_subdout(cct, reserver, x)
 
 /**
  * Manages a configurable number of asynchronous reservations.
@@ -32,8 +32,8 @@
  */
 template <typename T, typename F>
 class AsyncReserver {
-  CephContext *cct;
-  F *f;
+  CephContext* cct;
+  F* f;
   unsigned max_allowed;
   unsigned min_priority;
   ceph::mutex lock = ceph::make_mutex("AsyncReserver::lock");
@@ -41,28 +41,41 @@ class AsyncReserver {
   struct Reservation {
     T item;
     unsigned prio = 0;
-    Context *grant = 0;
-    Context *preempt = 0;
+    Context* grant = 0;
+    Context* preempt = 0;
+
     Reservation() {}
-    Reservation(T i, unsigned pr, Context *g, Context *p = 0)
-      : item(i), prio(pr), grant(g), preempt(p) {}
-    void dump(ceph::Formatter *f) const {
+
+    Reservation(T i, unsigned pr, Context* g, Context* p = 0) :
+      item(i), prio(pr), grant(g), preempt(p)
+    {}
+
+    void
+    dump(ceph::Formatter* f) const
+    {
       f->dump_stream("item") << item;
       f->dump_unsigned("prio", prio);
       f->dump_bool("can_preempt", !!preempt);
     }
-    friend std::ostream& operator<<(std::ostream& out, const Reservation& r) {
+
+    friend std::ostream&
+    operator<<(std::ostream& out, const Reservation& r)
+    {
       return out << r.item << "(prio " << r.prio << " grant " << r.grant
-		 << " preempt " << r.preempt << ")";
+                 << " preempt " << r.preempt << ")";
     }
   };
 
   std::map<unsigned, std::list<Reservation>> queues;
-  std::map<T, std::pair<unsigned, typename std::list<Reservation>::iterator>> queue_pointers;
-  std::map<T,Reservation> in_progress;
-  std::set<std::pair<unsigned,T>> preempt_by_prio;  ///< in_progress that can be preempted
+  std::map<T, std::pair<unsigned, typename std::list<Reservation>::iterator>>
+      queue_pointers;
+  std::map<T, Reservation> in_progress;
+  std::set<std::pair<unsigned, T>>
+      preempt_by_prio; ///< in_progress that can be preempted
 
-  void preempt_one() {
+  void
+  preempt_one()
+  {
     ceph_assert(!preempt_by_prio.empty());
     auto q = in_progress.find(preempt_by_prio.begin()->second);
     ceph_assert(q != in_progress.end());
@@ -74,7 +87,9 @@ class AsyncReserver {
     preempt_by_prio.erase(preempt_by_prio.begin());
   }
 
-  void do_queues() {
+  void
+  do_queues()
+  {
     rdout(20) << __func__ << ":\n";
     ceph::JSONFormatter jf(true);
     jf.open_object_section("queue");
@@ -85,8 +100,8 @@ class AsyncReserver {
 
     // in case min_priority was adjusted up or max_allowed was adjusted down
     while (!preempt_by_prio.empty() &&
-	   (in_progress.size() > max_allowed ||
-	    preempt_by_prio.begin()->first < min_priority)) {
+           (in_progress.size() > max_allowed ||
+            preempt_by_prio.begin()->first < min_priority)) {
       preempt_one();
     }
 
@@ -96,15 +111,14 @@ class AsyncReserver {
       --it;
       ceph_assert(!it->second.empty());
       if (it->first < min_priority) {
-	break;
+        break;
       }
-      if (in_progress.size() >= max_allowed &&
-	  !preempt_by_prio.empty() &&
-	  it->first > preempt_by_prio.begin()->first) {
-	preempt_one();
+      if (in_progress.size() >= max_allowed && !preempt_by_prio.empty() &&
+          it->first > preempt_by_prio.begin()->first) {
+        preempt_one();
       }
       if (in_progress.size() >= max_allowed) {
-	break; // no room
+        break; // no room
       }
       // grant
       Reservation p = it->second.front();
@@ -112,36 +126,39 @@ class AsyncReserver {
       queue_pointers.erase(p.item);
       it->second.pop_front();
       if (it->second.empty()) {
-	queues.erase(it);
+        queues.erase(it);
       }
       if (p.grant) {
-	f->queue(p.grant);
-	p.grant = nullptr;
+        f->queue(p.grant);
+        p.grant = nullptr;
       }
       in_progress[p.item] = p;
       if (p.preempt) {
-	preempt_by_prio.insert(std::make_pair(p.prio, p.item));
+        preempt_by_prio.insert(std::make_pair(p.prio, p.item));
       }
     }
   }
+
 public:
   AsyncReserver(
-    CephContext *cct,
-    F *f,
-    unsigned max_allowed,
-    unsigned min_priority = 0)
-    : cct(cct),
-      f(f),
-      max_allowed(max_allowed),
-      min_priority(min_priority) {}
+      CephContext* cct,
+      F* f,
+      unsigned max_allowed,
+      unsigned min_priority = 0) :
+    cct(cct), f(f), max_allowed(max_allowed), min_priority(min_priority)
+  {}
 
-  void set_max(unsigned max) {
+  void
+  set_max(unsigned max)
+  {
     std::lock_guard l(lock);
     max_allowed = max;
     do_queues();
   }
 
-  void set_min_priority(unsigned min) {
+  void
+  set_min_priority(unsigned min)
+  {
     std::lock_guard l(lock);
     min_priority = min;
     do_queues();
@@ -162,7 +179,9 @@ public:
    * 4. Item is in progress, adjust priority if higher priority items waiting preempt item
    *
    */
-  void update_priority(T item, unsigned newprio) {
+  void
+  update_priority(T item, unsigned newprio)
+  {
     std::lock_guard l(lock);
     auto i = queue_pointers.find(item);
     if (i != queue_pointers.end()) {
@@ -174,56 +193,61 @@ public:
       // Like cancel_reservation() without preempting
       queues[prio].erase(i->second.second);
       if (queues[prio].empty()) {
-	queues.erase(prio);
+        queues.erase(prio);
       }
       queue_pointers.erase(i);
 
       // Like request_reservation() to re-queue it but with new priority
-      ceph_assert(!queue_pointers.count(item) &&
-	   !in_progress.count(item));
+      ceph_assert(!queue_pointers.count(item) && !in_progress.count(item));
       r.prio = newprio;
       queues[newprio].push_back(r);
-      queue_pointers.insert(std::make_pair(item,
-				    std::make_pair(newprio,--(queues[newprio]).end())));
+      queue_pointers.insert(std::make_pair(
+          item, std::make_pair(newprio, --(queues[newprio]).end())));
     } else {
       auto p = in_progress.find(item);
       if (p != in_progress.end()) {
         if (p->second.prio == newprio)
           return;
-	rdout(10) << __func__ << " update " << p->second
-		  << " (in progress)" << dendl;
+        rdout(10) << __func__ << " update " << p->second << " (in progress)"
+                  << dendl;
         // We want to preempt if priority goes down
         // and smaller then highest priority waiting
-	if (p->second.preempt) {
-	  if (newprio < p->second.prio && !queues.empty()) {
+        if (p->second.preempt) {
+          if (newprio < p->second.prio && !queues.empty()) {
             // choose highest priority queue
             auto it = queues.end();
             --it;
             ceph_assert(!it->second.empty());
             if (it->first > newprio) {
-	      rdout(10) << __func__ << " update " << p->second
-		        << " lowered priority let do_queues() preempt it" << dendl;
+              rdout(10) << __func__ << " update " << p->second
+                        << " lowered priority let do_queues() preempt it"
+                        << dendl;
             }
           }
-	  preempt_by_prio.erase(std::make_pair(p->second.prio, p->second.item));
+          preempt_by_prio.erase(std::make_pair(p->second.prio, p->second.item));
           p->second.prio = newprio;
-	  preempt_by_prio.insert(std::make_pair(p->second.prio, p->second.item));
-	} else {
+          preempt_by_prio.insert(std::make_pair(p->second.prio, p->second.item));
+        } else {
           p->second.prio = newprio;
         }
       } else {
-	rdout(10) << __func__ << " update " << item << " (not found)" << dendl;
+        rdout(10) << __func__ << " update " << item << " (not found)" << dendl;
       }
     }
     do_queues();
     return;
   }
 
-  void dump(ceph::Formatter *f) {
+  void
+  dump(ceph::Formatter* f)
+  {
     std::lock_guard l(lock);
     _dump(f);
   }
-  void _dump(ceph::Formatter *f) {
+
+  void
+  _dump(ceph::Formatter* f)
+  {
     f->dump_unsigned("max_allowed", max_allowed);
     f->dump_unsigned("min_priority", min_priority);
     f->open_array_section("queues");
@@ -232,7 +256,7 @@ public:
       f->dump_unsigned("priority", p.first);
       f->open_array_section("items");
       for (auto& q : p.second) {
-	f->dump_object("item", q);
+        f->dump_object("item", q);
       }
       f->close_section();
       f->close_section();
@@ -253,20 +277,22 @@ public:
    * with no locks held.  cancel_reservation must be called to release the
    * reservation slot.
    */
-  void request_reservation(
-    T item,                   ///< [in] reservation key
-    Context *on_reserved,     ///< [in] callback to be called on reservation
-    unsigned prio,            ///< [in] priority
-    Context *on_preempt = 0   ///< [in] callback to be called if we are preempted (optional)
-    ) {
+  void
+  request_reservation(
+      T item, ///< [in] reservation key
+      Context* on_reserved, ///< [in] callback to be called on reservation
+      unsigned prio, ///< [in] priority
+      Context* on_preempt =
+          0 ///< [in] callback to be called if we are preempted (optional)
+  )
+  {
     std::lock_guard l(lock);
     Reservation r(item, prio, on_reserved, on_preempt);
     rdout(10) << __func__ << " queue " << r << dendl;
-    ceph_assert(!queue_pointers.count(item) &&
-	   !in_progress.count(item));
+    ceph_assert(!queue_pointers.count(item) && !in_progress.count(item));
     queues[prio].push_back(r);
-    queue_pointers.insert(std::make_pair(item,
-				    std::make_pair(prio,--(queues[prio]).end())));
+    queue_pointers.insert(
+        std::make_pair(item, std::make_pair(prio, --(queues[prio]).end())));
     do_queues();
   }
 
@@ -276,8 +302,8 @@ public:
    * to scrub replica reservations, but still must count towards the max
    * active reservations.
    */
-  bool request_reservation_or_fail(
-      T item		     ///< [in] reservation key
+  bool
+  request_reservation_or_fail(T item ///< [in] reservation key
   )
   {
     std::lock_guard l(lock);
@@ -285,20 +311,20 @@ public:
 
     if (in_progress.size() >= max_allowed) {
       rdout(10) << fmt::format("{}: request: {} denied", __func__, item)
-		<< dendl;
+                << dendl;
       return false;
     }
 
     const unsigned prio = UINT_MAX;
     Reservation r(item, prio, nullptr, nullptr);
     queues[prio].push_back(r);
-    queue_pointers.insert(std::make_pair(
-	item, std::make_pair(prio, --(queues[prio]).end())));
+    queue_pointers.insert(
+        std::make_pair(item, std::make_pair(prio, --(queues[prio]).end())));
     do_queues();
     // the new request should be in_progress now
     ceph_assert(in_progress.count(item));
     rdout(10) << fmt::format("{}: request: {} granted", __func__, item)
-	      << dendl;
+              << dendl;
     return true;
   }
 
@@ -309,9 +335,10 @@ public:
    * Note, after cancel_reservation, the reservation_callback may or
    * may not still be called. 
    */
-  void cancel_reservation(
-    T item                   ///< [in] key for reservation to cancel
-    ) {
+  void
+  cancel_reservation(T item ///< [in] key for reservation to cancel
+  )
+  {
     std::lock_guard l(lock);
     auto i = queue_pointers.find(item);
     if (i != queue_pointers.end()) {
@@ -322,21 +349,21 @@ public:
       delete r.preempt;
       queues[prio].erase(i->second.second);
       if (queues[prio].empty()) {
-	queues.erase(prio);
+        queues.erase(prio);
       }
       queue_pointers.erase(i);
     } else {
       auto p = in_progress.find(item);
       if (p != in_progress.end()) {
-	rdout(10) << __func__ << " cancel " << p->second
-		  << " (was in progress)" << dendl;
-	if (p->second.preempt) {
-	  preempt_by_prio.erase(std::make_pair(p->second.prio, p->second.item));
-	  delete p->second.preempt;
-	}
-	in_progress.erase(p);
+        rdout(10) << __func__ << " cancel " << p->second << " (was in progress)"
+                  << dendl;
+        if (p->second.preempt) {
+          preempt_by_prio.erase(std::make_pair(p->second.prio, p->second.item));
+          delete p->second.preempt;
+        }
+        in_progress.erase(p);
       } else {
-	rdout(10) << __func__ << " cancel " << item << " (not found)" << dendl;
+        rdout(10) << __func__ << " cancel " << item << " (not found)" << dendl;
       }
     }
     do_queues();
@@ -347,10 +374,13 @@ public:
    *
    * Return true if there are reservations in progress
    */
-  bool has_reservation() {
+  bool
+  has_reservation()
+  {
     std::lock_guard l(lock);
     return !in_progress.empty();
   }
+
   static const unsigned MAX_PRIORITY = (unsigned)-1;
 };
 

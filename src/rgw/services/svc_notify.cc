@@ -1,19 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "include/random.h"
-#include "include/Context.h"
+#include "svc_notify.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/async/spawn_throttle.h"
 #include "common/errno.h"
 #include "common/error_code.h"
+#include "include/Context.h"
+#include "include/random.h"
 
 #include "rgw_cache.h"
-#include "svc_notify.h"
-#include "svc_zone.h"
-
 #include "rgw_zone.h"
-
-#include <shared_mutex> // for std::shared_lock
+#include "svc_zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -21,9 +21,9 @@ using namespace std;
 
 static string notify_oid_prefix = "notify";
 
-class RGWWatcher : public DoutPrefixProvider , public librados::WatchCtx2 {
-  CephContext *cct;
-  RGWSI_Notify *svc;
+class RGWWatcher : public DoutPrefixProvider, public librados::WatchCtx2 {
+  CephContext* cct;
+  RGWSI_Notify* svc;
   int index;
   rgw_rados_ref obj;
   uint64_t watch_handle;
@@ -31,44 +31,69 @@ class RGWWatcher : public DoutPrefixProvider , public librados::WatchCtx2 {
   uint64_t retries = 0;
 
   class C_ReinitWatch : public Context {
-    RGWWatcher *watcher;
-    public:
-      explicit C_ReinitWatch(RGWWatcher *_watcher) : watcher(_watcher) {}
-      void finish(int r) override {
-        watcher->reinit();
-      }
+    RGWWatcher* watcher;
+
+  public:
+    explicit C_ReinitWatch(RGWWatcher* _watcher) :
+      watcher(_watcher)
+    {}
+
+    void
+    finish(int r) override
+    {
+      watcher->reinit();
+    }
   };
 
-  CephContext *get_cct() const override { return cct; }
-  unsigned get_subsys() const override { return dout_subsys; }
-  std::ostream& gen_prefix(std::ostream& out) const override {
+  CephContext*
+  get_cct() const override
+  {
+    return cct;
+  }
+
+  unsigned
+  get_subsys() const override
+  {
+    return dout_subsys;
+  }
+
+  std::ostream&
+  gen_prefix(std::ostream& out) const override
+  {
     return out << "rgw watcher librados: ";
   }
 
 public:
-  RGWWatcher(CephContext *_cct, RGWSI_Notify *s, int i, rgw_rados_ref o)
-    : cct(_cct), svc(s), index(i), obj(std::move(o)), watch_handle(0) {}
+  RGWWatcher(CephContext* _cct, RGWSI_Notify* s, int i, rgw_rados_ref o) :
+    cct(_cct), svc(s), index(i), obj(std::move(o)), watch_handle(0)
+  {}
 
-  rgw_rados_ref& get_obj() { return obj; }
+  rgw_rados_ref&
+  get_obj()
+  {
+    return obj;
+  }
 
-  void handle_notify(uint64_t notify_id,
-		     uint64_t cookie,
-		     uint64_t notifier_id,
-		     bufferlist& bl) override {
-    ldpp_dout(this, 10) << "RGWWatcher::handle_notify() "
-                   << " notify_id " << notify_id
-                   << " cookie " << cookie
-                   << " notifier " << notifier_id
-                   << " bl.length()=" << bl.length() << dendl;
+  void
+  handle_notify(
+      uint64_t notify_id,
+      uint64_t cookie,
+      uint64_t notifier_id,
+      bufferlist& bl) override
+  {
+    ldpp_dout(this, 10) << "RGWWatcher::handle_notify() " << " notify_id "
+                        << notify_id << " cookie " << cookie << " notifier "
+                        << notifier_id << " bl.length()=" << bl.length()
+                        << dendl;
 
     if (unlikely(svc->inject_notify_timeout_probability == 1) ||
-	(svc->inject_notify_timeout_probability > 0 &&
+        (svc->inject_notify_timeout_probability > 0 &&
          (svc->inject_notify_timeout_probability >
-	  ceph::util::generate_random_number(0.0, 1.0)))) {
+          ceph::util::generate_random_number(0.0, 1.0)))) {
       ldpp_dout(this, 0)
-	<< "RGWWatcher::handle_notify() dropping notification! "
-	<< "If this isn't what you want, set "
-	<< "rgw_inject_notify_timeout_probability to zero!" << dendl;
+          << "RGWWatcher::handle_notify() dropping notification! "
+          << "If this isn't what you want, set "
+          << "rgw_inject_notify_timeout_probability to zero!" << dendl;
       return;
     }
 
@@ -77,30 +102,36 @@ public:
     bufferlist reply_bl; // empty reply payload
     obj.notify_ack(notify_id, cookie, reply_bl);
   }
-  void handle_error(uint64_t cookie, int err) override {
+
+  void
+  handle_error(uint64_t cookie, int err) override
+  {
     ldpp_dout(this, -1) << "RGWWatcher::handle_error cookie " << cookie
-			<< " err " << cpp_strerror(err) << dendl;
+                        << " err " << cpp_strerror(err) << dendl;
     svc->remove_watcher(index);
     svc->schedule_context(new C_ReinitWatch(this));
   }
 
-  void reinit() {
+  void
+  reinit()
+  {
     if (retries > 100) {
       lderr(cct) << "ERROR: Looping in attempt to reinit watch. Halting."
-		 << dendl;
+                 << dendl;
       abort();
     }
-    if(!unregister_done) {
+    if (!unregister_done) {
       int ret = unregister_watch(null_yield);
       if (ret < 0) {
-        ldout(cct, 0) << "ERROR: unregister_watch() returned ret=" << ret << dendl;
-	if (-2 == ret) {
-	  // Going down there is no such watch.
-	  return;
-	} else {
-	  ++retries;
-	  svc->schedule_context(new C_ReinitWatch(this));
-	}
+        ldout(cct, 0) << "ERROR: unregister_watch() returned ret=" << ret
+                      << dendl;
+        if (-2 == ret) {
+          // Going down there is no such watch.
+          return;
+        } else {
+          ++retries;
+          svc->schedule_context(new C_ReinitWatch(this));
+        }
       }
     }
     int ret = register_watch(null_yield);
@@ -112,7 +143,9 @@ public:
     }
   }
 
-  int unregister_watch(optional_yield y) {
+  int
+  unregister_watch(optional_yield y)
+  {
     int r = svc->unwatch(this, obj, watch_handle, y);
     unregister_done = true;
     if (r < 0) {
@@ -122,7 +155,9 @@ public:
     return 0;
   }
 
-  int register_watch(optional_yield y) {
+  int
+  register_watch(optional_yield y)
+  {
     int r = obj.watch(this, &watch_handle, this, y);
     if (r < 0) {
       return r;
@@ -133,16 +168,14 @@ public:
   }
 };
 
-RGWSI_Notify::RGWSI_Notify(CephContext *cct)
-  : RGWServiceInstance(cct), finisher(cct)
-{
-}
-RGWSI_Notify::~RGWSI_Notify()
-{
-  shutdown();
-}
+RGWSI_Notify::RGWSI_Notify(CephContext* cct) :
+  RGWServiceInstance(cct), finisher(cct)
+{}
 
-string RGWSI_Notify::get_control_oid(int i)
+RGWSI_Notify::~RGWSI_Notify() { shutdown(); }
+
+string
+RGWSI_Notify::get_control_oid(int i)
 {
   char buf[notify_oid_prefix.size() + 16];
   snprintf(buf, sizeof(buf), "%s.%d", notify_oid_prefix.c_str(), i);
@@ -151,7 +184,8 @@ string RGWSI_Notify::get_control_oid(int i)
 }
 
 // do not call pick_obj_control before init_watch
-rgw_rados_ref RGWSI_Notify::pick_control_obj(const string& key)
+rgw_rados_ref
+RGWSI_Notify::pick_control_obj(const string& key)
 {
   uint32_t r = ceph_str_hash_linux(key.c_str(), key.size());
 
@@ -159,8 +193,10 @@ rgw_rados_ref RGWSI_Notify::pick_control_obj(const string& key)
   return watchers[i].get_obj();
 }
 
-int RGWSI_Notify::init_watch(const DoutPrefixProvider *dpp,
-                             boost::asio::yield_context yield)
+int
+RGWSI_Notify::init_watch(
+    const DoutPrefixProvider* dpp,
+    boost::asio::yield_context yield)
 {
   num_watchers = cct->_conf->rgw_num_control_oids;
 
@@ -174,7 +210,7 @@ int RGWSI_Notify::init_watch(const DoutPrefixProvider *dpp,
       yield, max_aio, ceph::async::cancel_on_error::all};
   watchers.reserve(num_watchers);
 
-  for (int i=0; i < num_watchers; i++) {
+  for (int i = 0; i < num_watchers; i++) {
     string notify_oid;
 
     if (!compat_oid) {
@@ -184,8 +220,8 @@ int RGWSI_Notify::init_watch(const DoutPrefixProvider *dpp,
     }
 
     rgw_rados_ref notify_obj;
-    int r = rgw_get_rados_ref(dpp, rados, { control_pool, notify_oid },
-			      &notify_obj);
+    int r =
+        rgw_get_rados_ref(dpp, rados, {control_pool, notify_oid}, &notify_obj);
     if (r < 0) {
       ldpp_dout(dpp, 0) << "ERROR: notify_obj.open() returned r=" << r << dendl;
       return r;
@@ -193,22 +229,23 @@ int RGWSI_Notify::init_watch(const DoutPrefixProvider *dpp,
     auto& watcher = watchers.emplace_back(cct, this, i, std::move(notify_obj));
 
     try {
-      throttle.spawn([dpp, &watcher] (boost::asio::yield_context yield) {
-            // create the object if it doesn't exist
-            librados::ObjectWriteOperation op;
-            op.create(false);
+      throttle.spawn([dpp, &watcher](boost::asio::yield_context yield) {
+        // create the object if it doesn't exist
+        librados::ObjectWriteOperation op;
+        op.create(false);
 
-            int r = watcher.get_obj().operate(dpp, std::move(op), yield);
-            if (r < 0 && r != -EEXIST) {
-              ldpp_dout(dpp, 0) << "ERROR: notify_obj.operate() returned r=" << r << dendl;
-              throw boost::system::system_error(ceph::to_error_code(r));
-            }
+        int r = watcher.get_obj().operate(dpp, std::move(op), yield);
+        if (r < 0 && r != -EEXIST) {
+          ldpp_dout(dpp, 0)
+              << "ERROR: notify_obj.operate() returned r=" << r << dendl;
+          throw boost::system::system_error(ceph::to_error_code(r));
+        }
 
-            r = watcher.register_watch(yield);
-            if (r < 0) {
-              throw boost::system::system_error(ceph::to_error_code(r));
-            }
-          });
+        r = watcher.register_watch(yield);
+        if (r < 0) {
+          throw boost::system::system_error(ceph::to_error_code(r));
+        }
+      });
     } catch (const boost::system::system_error& e) {
       return ceph::from_error_code(e.code());
     }
@@ -223,7 +260,8 @@ int RGWSI_Notify::init_watch(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-void RGWSI_Notify::finalize_watch(boost::asio::yield_context yield)
+void
+RGWSI_Notify::finalize_watch(boost::asio::yield_context yield)
 {
   const size_t max_aio = cct->_conf.get_val<int64_t>("rgw_max_control_aio");
   auto throttle = ceph::async::spawn_throttle{
@@ -232,14 +270,15 @@ void RGWSI_Notify::finalize_watch(boost::asio::yield_context yield)
     if (!watchers_set.contains(i)) {
       continue;
     }
-    throttle.spawn([&watcher = watchers[i]] (boost::asio::yield_context yield) {
-          std::ignore = watcher.unregister_watch(yield);
-        });
+    throttle.spawn([&watcher = watchers[i]](boost::asio::yield_context yield) {
+      std::ignore = watcher.unregister_watch(yield);
+    });
   }
   throttle.wait();
 }
 
-int RGWSI_Notify::do_start(optional_yield y, const DoutPrefixProvider *dpp)
+int
+RGWSI_Notify::do_start(optional_yield y, const DoutPrefixProvider* dpp)
 {
   int r = zone_svc->start(y, dpp);
   if (r < 0) {
@@ -251,7 +290,7 @@ int RGWSI_Notify::do_start(optional_yield y, const DoutPrefixProvider *dpp)
   finisher.start();
 
   inject_notify_timeout_probability =
-    cct->_conf.get_val<double>("rgw_inject_notify_timeout_probability");
+      cct->_conf.get_val<double>("rgw_inject_notify_timeout_probability");
   max_notify_retries = cct->_conf.get_val<uint64_t>("rgw_max_notify_retries");
 
   control_pool = zone_svc->get_zone_params().control_pool;
@@ -261,11 +300,12 @@ int RGWSI_Notify::do_start(optional_yield y, const DoutPrefixProvider *dpp)
   // if we're not running in a coroutine, spawn one
   if (!y) {
     boost::asio::io_context context;
-    boost::asio::spawn(context,
-        [this, dpp] (boost::asio::yield_context yield) {
+    boost::asio::spawn(
+        context,
+        [this, dpp](boost::asio::yield_context yield) {
           return init_watch(dpp, yield);
         },
-        [&ret] (std::exception_ptr eptr, int result) {
+        [&ret](std::exception_ptr eptr, int result) {
           if (eptr) {
             std::rethrow_exception(eptr);
           } else {
@@ -277,14 +317,16 @@ int RGWSI_Notify::do_start(optional_yield y, const DoutPrefixProvider *dpp)
     ret = init_watch(dpp, y.get_yield_context());
   }
   if (ret < 0) {
-    ldpp_dout(dpp, -1) << "ERROR: failed to initialize watch: " << cpp_strerror(-ret) << dendl;
+    ldpp_dout(dpp, -1) << "ERROR: failed to initialize watch: "
+                       << cpp_strerror(-ret) << dendl;
     return ret;
   }
 
   return 0;
 }
 
-void RGWSI_Notify::shutdown()
+void
+RGWSI_Notify::shutdown()
 {
   if (finalized) {
     return;
@@ -292,12 +334,12 @@ void RGWSI_Notify::shutdown()
 
   // we're not running in a coroutine, so spawn one
   boost::asio::io_context context;
-  boost::asio::spawn(context,
-      [this] (boost::asio::yield_context yield) {
-        finalize_watch(yield);
-      },
-      [] (std::exception_ptr eptr) {
-        if (eptr) std::rethrow_exception(eptr);
+  boost::asio::spawn(
+      context,
+      [this](boost::asio::yield_context yield) { finalize_watch(yield); },
+      [](std::exception_ptr eptr) {
+        if (eptr)
+          std::rethrow_exception(eptr);
       });
   context.run();
 
@@ -311,8 +353,12 @@ void RGWSI_Notify::shutdown()
   finalized = true;
 }
 
-int RGWSI_Notify::unwatch(const DoutPrefixProvider* dpp, rgw_rados_ref& obj,
-                          uint64_t handle, optional_yield y)
+int
+RGWSI_Notify::unwatch(
+    const DoutPrefixProvider* dpp,
+    rgw_rados_ref& obj,
+    uint64_t handle,
+    optional_yield y)
 {
   int r = obj.unwatch(dpp, handle, y);
   if (r < 0) {
@@ -327,18 +373,21 @@ int RGWSI_Notify::unwatch(const DoutPrefixProvider* dpp, rgw_rados_ref& obj,
   return 0;
 }
 
-void RGWSI_Notify::add_watcher(int i)
+void
+RGWSI_Notify::add_watcher(int i)
 {
   ldout(cct, 20) << "add_watcher() i=" << i << dendl;
   std::unique_lock l{watchers_lock};
   watchers_set.insert(i);
-  if (watchers_set.size() ==  (size_t)num_watchers) {
-    ldout(cct, 2) << "all " << num_watchers << " watchers are set, enabling cache" << dendl;
+  if (watchers_set.size() == (size_t)num_watchers) {
+    ldout(cct, 2) << "all " << num_watchers
+                  << " watchers are set, enabling cache" << dendl;
     _set_enabled(true);
   }
 }
 
-void RGWSI_Notify::remove_watcher(int i)
+void
+RGWSI_Notify::remove_watcher(int i)
 {
   ldout(cct, 20) << "remove_watcher() i=" << i << dendl;
   std::unique_lock l{watchers_lock};
@@ -351,11 +400,13 @@ void RGWSI_Notify::remove_watcher(int i)
   }
 }
 
-int RGWSI_Notify::watch_cb(const DoutPrefixProvider *dpp,
-                           uint64_t notify_id,
-                           uint64_t cookie,
-                           uint64_t notifier_id,
-                           bufferlist& bl)
+int
+RGWSI_Notify::watch_cb(
+    const DoutPrefixProvider* dpp,
+    uint64_t notify_id,
+    uint64_t cookie,
+    uint64_t notifier_id,
+    bufferlist& bl)
 {
   std::shared_lock l{watchers_lock};
   if (cb) {
@@ -364,13 +415,15 @@ int RGWSI_Notify::watch_cb(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-void RGWSI_Notify::set_enabled(bool status)
+void
+RGWSI_Notify::set_enabled(bool status)
 {
   std::unique_lock l{watchers_lock};
   _set_enabled(status);
 }
 
-void RGWSI_Notify::_set_enabled(bool status)
+void
+RGWSI_Notify::_set_enabled(bool status)
 {
   enabled = status;
   if (cb) {
@@ -378,9 +431,12 @@ void RGWSI_Notify::_set_enabled(bool status)
   }
 }
 
-int RGWSI_Notify::distribute(const DoutPrefixProvider *dpp, const string& key,
-			     const RGWCacheNotifyInfo& cni,
-                             optional_yield y)
+int
+RGWSI_Notify::distribute(
+    const DoutPrefixProvider* dpp,
+    const string& key,
+    const RGWCacheNotifyInfo& cni,
+    optional_yield y)
 {
   /* The RGW uses the control pool to store the watch notify objects.
     The precedence in RGWSI_Notify::do_start is to call to zone_svc->start and later to init_watch().
@@ -392,7 +448,7 @@ int RGWSI_Notify::distribute(const DoutPrefixProvider *dpp, const string& key,
     auto notify_obj = pick_control_obj(key);
 
     ldpp_dout(dpp, 10) << "distributing notification oid=" << notify_obj.obj
-		       << " cni=" << cni << dendl;
+                       << " cni=" << cni << dendl;
     return robust_notify(dpp, notify_obj, cni, y);
   }
   return 0;
@@ -400,7 +456,8 @@ int RGWSI_Notify::distribute(const DoutPrefixProvider *dpp, const string& key,
 
 namespace librados {
 
-static std::ostream& operator<<(std::ostream& out, const notify_timeout_t& t)
+static std::ostream&
+operator<<(std::ostream& out, const notify_timeout_t& t)
 {
   return out << t.notifier_id << ':' << t.cookie;
 }
@@ -409,7 +466,8 @@ static std::ostream& operator<<(std::ostream& out, const notify_timeout_t& t)
 
 using timeout_vector = std::vector<librados::notify_timeout_t>;
 
-static timeout_vector decode_timeouts(const bufferlist& bl)
+static timeout_vector
+decode_timeouts(const bufferlist& bl)
 {
   using ceph::decode;
   auto p = bl.begin();
@@ -439,10 +497,12 @@ static timeout_vector decode_timeouts(const bufferlist& bl)
   return timeouts;
 }
 
-int RGWSI_Notify::robust_notify(const DoutPrefixProvider *dpp,
-                                rgw_rados_ref& notify_obj,
-				const RGWCacheNotifyInfo& cni,
-                                optional_yield y)
+int
+RGWSI_Notify::robust_notify(
+    const DoutPrefixProvider* dpp,
+    rgw_rados_ref& notify_obj,
+    const RGWCacheNotifyInfo& cni,
+    optional_yield y)
 {
   bufferlist bl, rbl;
   encode(cni, bl);
@@ -456,13 +516,13 @@ int RGWSI_Notify::robust_notify(const DoutPrefixProvider *dpp,
       timeouts = decode_timeouts(rbl);
     } catch (const buffer::error& e) {
       ldpp_dout(dpp, 0) << "robust_notify failed to decode notify response: "
-          << e.what() << dendl;
+                        << e.what() << dendl;
     }
 
-    ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-		      << " Watchers " << timeouts << " did not respond."
-		      << " Notify failed on object " << cni.obj << ": "
-		      << cpp_strerror(-r) << dendl;
+    ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__ << " Watchers "
+                      << timeouts << " did not respond."
+                      << " Notify failed on object " << cni.obj << ": "
+                      << cpp_strerror(-r) << dendl;
   }
 
   // If we timed out, get serious.
@@ -473,40 +533,42 @@ int RGWSI_Notify::robust_notify(const DoutPrefixProvider *dpp,
     bufferlist retrybl;
     encode(info, retrybl);
 
-    for (auto tries = 0u;
-	 r == -ETIMEDOUT && tries < max_notify_retries;
-	 ++tries) {
+    for (auto tries = 0u; r == -ETIMEDOUT && tries < max_notify_retries;
+         ++tries) {
       ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			<< " Invalidating obj=" << info.obj << " tries="
-			<< tries << dendl;
+                        << " Invalidating obj=" << info.obj
+                        << " tries=" << tries << dendl;
       r = notify_obj.notify(dpp, retrybl, 0, &rbl, y);
       if (r < 0) {
         timeout_vector timeouts;
         try {
           timeouts = decode_timeouts(rbl);
         } catch (const buffer::error& e) {
-          ldpp_dout(dpp, 0) << "robust_notify failed to decode notify response: "
-              << e.what() << dendl;
+          ldpp_dout(dpp, 0)
+              << "robust_notify failed to decode notify response: " << e.what()
+              << dendl;
         }
 
-	ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__
-			  << " Watchers " << timeouts << " did not respond."
-			  << " Invalidation attempt " << tries << " failed: "
-			  << cpp_strerror(-r) << dendl;
+        ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                          << " Watchers " << timeouts << " did not respond."
+                          << " Invalidation attempt " << tries
+                          << " failed: " << cpp_strerror(-r) << dendl;
       }
     }
   }
   return r;
 }
 
-void RGWSI_Notify::register_watch_cb(CB *_cb)
+void
+RGWSI_Notify::register_watch_cb(CB* _cb)
 {
   std::unique_lock l{watchers_lock};
   cb = _cb;
   _set_enabled(enabled);
 }
 
-void RGWSI_Notify::schedule_context(Context *c)
+void
+RGWSI_Notify::schedule_context(Context* c)
 {
   finisher.queue(c);
 }

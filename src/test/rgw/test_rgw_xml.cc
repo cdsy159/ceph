@@ -1,20 +1,24 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "rgw_xml.h"
-#include "common/XMLFormatter.h"
-
 #include <gtest/gtest.h>
+
 #include <list>
 #include <stdexcept>
+
+#include "common/XMLFormatter.h"
+
+#include "rgw_xml.h"
 
 struct NameAndStatus {
   // these are sub-tags
   std::string name;
   bool status;
-  
+
   // intrusive XML decoding API
-  bool decode_xml(XMLObj *obj) {
+  bool
+  decode_xml(XMLObj* obj)
+  {
     if (!RGWXMLDecoder::decode_xml("Name", name, obj, true)) {
       // name is mandatory
       return false;
@@ -36,9 +40,11 @@ struct Item {
   // these are attributes
   std::string date;
   std::string comment;
- 
+
   // intrusive XML decoding API
-  bool decode_xml(XMLObj *obj) {
+  bool
+  decode_xml(XMLObj* obj)
+  {
     if (!RGWXMLDecoder::decode_xml("NameAndStatus", name_and_status, obj, true)) {
       // name amd status are mandatory
       return false;
@@ -68,9 +74,11 @@ struct Item {
 struct Items {
   // these are sub-tags
   std::list<Item> item_list;
-  
+
   // intrusive XML decoding API
-  bool decode_xml(XMLObj *obj) {
+  bool
+  decode_xml(XMLObj* obj)
+  {
     do_decode_xml_obj(item_list, "Item", obj);
     return true;
   }
@@ -79,9 +87,11 @@ struct Items {
 // in case of non-intrusive decoding class
 // hierarchy should reflect the XML hierarchy
 
-class NameXMLObj: public XMLObj {
+class NameXMLObj : public XMLObj {
 protected:
-  void xml_handle_data(const char *s, int len) override {
+  void
+  xml_handle_data(const char* s, int len) override
+  {
     // no need to set "data", setting "name" directly
     value.append(s, len);
   }
@@ -91,9 +101,11 @@ public:
   ~NameXMLObj() override = default;
 };
 
-class StatusXMLObj: public XMLObj {
+class StatusXMLObj : public XMLObj {
 protected:
-  void xml_handle_data(const char *s, int len) override {
+  void
+  xml_handle_data(const char* s, int len) override
+  {
     std::istringstream is(std::string(s, len));
     is >> std::boolalpha >> value;
   }
@@ -103,11 +115,13 @@ public:
   ~StatusXMLObj() override = default;
 };
 
-class NameAndStatusXMLObj: public NameAndStatus, public XMLObj {
+class NameAndStatusXMLObj : public NameAndStatus, public XMLObj {
 public:
   ~NameAndStatusXMLObj() override = default;
 
-  bool xml_end(const char *el) override {
+  bool
+  xml_end(const char* el) override
+  {
     XMLObjIter iter = find("Name");
     NameXMLObj* _name = static_cast<NameXMLObj*>(iter.get_next());
     if (!_name) {
@@ -127,13 +141,16 @@ public:
   }
 };
 
-class ItemXMLObj: public Item, public XMLObj {
+class ItemXMLObj : public Item, public XMLObj {
 public:
   ~ItemXMLObj() override = default;
-  
-  bool xml_end(const char *el) override {
+
+  bool
+  xml_end(const char* el) override
+  {
     XMLObjIter iter = find("NameAndStatus");
-    NameAndStatusXMLObj* _name_and_status = static_cast<NameAndStatusXMLObj*>(iter.get_next());
+    NameAndStatusXMLObj* _name_and_status =
+        static_cast<NameAndStatusXMLObj*>(iter.get_next());
     if (!_name_and_status) {
       // name and status are mandatory
       return false;
@@ -177,11 +194,13 @@ public:
   }
 };
 
-class ItemsXMLObj: public Items, public XMLObj {
+class ItemsXMLObj : public Items, public XMLObj {
 public:
   ~ItemsXMLObj() override = default;
 
-  bool xml_end(const char *el) override {
+  bool
+  xml_end(const char* el) override
+  {
     XMLObjIter iter = find("Item");
     ItemXMLObj* item_ptr = static_cast<ItemXMLObj*>(iter.get_next());
     // mandatory to have at least one item
@@ -195,10 +214,13 @@ public:
   }
 };
 
-class ItemsXMLParser: public RGWXMLParser {
+class ItemsXMLParser : public RGWXMLParser {
   static const int MAX_NAME_LEN = 16;
+
 public:
-  XMLObj *alloc_obj(const char *el) override {
+  XMLObj*
+  alloc_obj(const char* el) override
+  {
     if (strncmp(el, "Items", MAX_NAME_LEN) == 0) {
       items = new ItemsXMLObj;
       return items;
@@ -213,39 +235,54 @@ public:
     }
     return nullptr;
   }
+
   // this is a pointer to the parsed results
   ItemsXMLObj* items;
 };
 
-static const char* good_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></Item>"
-                             "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item><Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                           "</Items>";
+static const char* good_input =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></"
+    "Item>"
+    "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item><Value>4</Value><ExtraValue>42</"
+    "ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></"
+    "NameAndStatus></Item>"
+    "</Items>";
 
-static const char* expected_output = "((hello,1),1,0),((world,1),2,99),((foo,1),3,0),((bar,0),4,42),";
+static const char* expected_output =
+    "((hello,1),1,0),((world,1),2,99),((foo,1),3,0),((bar,0),4,42),";
 
-std::string to_string(const Items& items) {
+std::string
+to_string(const Items& items)
+{
   std::stringstream ss;
   for (const auto& item : items.item_list) {
-    ss << "((" << item.name_and_status.name << "," << item.name_and_status.status << ")," << item.value << "," << item.extra_value << ")" << ",";
+    ss << "((" << item.name_and_status.name << ","
+       << item.name_and_status.status << ")," << item.value << ","
+       << item.extra_value << ")" << ",";
   }
   return ss.str();
 }
 
-std::string to_string_with_attributes(const Items& items) {
+std::string
+to_string_with_attributes(const Items& items)
+{
   std::stringstream ss;
   for (const auto& item : items.item_list) {
-    ss << "(" << item.date << "," << item.comment << ",(" << item.name_and_status.name << "," << item.name_and_status.status << ")," 
-      << item.value << "," << item.extra_value << ")" << ",";
+    ss << "(" << item.date << "," << item.comment << ",("
+       << item.name_and_status.name << "," << item.name_and_status.status
+       << ")," << item.value << "," << item.extra_value << ")" << ",";
   }
   return ss.str();
 }
 
 TEST(TestParser, BasicParsing)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
   ASSERT_TRUE(parser.parse(good_input, strlen(good_input), 1));
@@ -253,47 +290,65 @@ TEST(TestParser, BasicParsing)
   ASSERT_STREQ(to_string(*parser.items).c_str(), expected_output);
 }
 
-static const char* malformed_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value><Item>"
-                             "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item><Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                           "</Items>";
+static const char* malformed_input =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</"
+    "Value><Item>"
+    "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item><Value>4</Value><ExtraValue>42</"
+    "ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></"
+    "NameAndStatus></Item>"
+    "</Items>";
 
 TEST(TestParser, MalformedInput)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
   ASSERT_FALSE(parser.parse(good_input, strlen(malformed_input), 1));
 }
 
-static const char* missing_value_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></Item>"
-                             "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                           "</Items>";
+static const char* missing_value_input =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></"
+    "Item>"
+    "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</"
+    "Name><Status>False</Status></NameAndStatus></Item>"
+    "</Items>";
 
 TEST(TestParser, MissingMandatoryTag)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
-  ASSERT_FALSE(parser.parse(missing_value_input, strlen(missing_value_input), 1));
+  ASSERT_FALSE(
+      parser.parse(missing_value_input, strlen(missing_value_input), 1));
 }
 
-static const char* unknown_tag_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></Item>"
-                             "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus><Kaboom>0</Kaboom></Item>"
-                             "<Item><Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                             "<Kaboom>0</Kaboom>"
-                           "</Items>";
+static const char* unknown_tag_input =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></"
+    "Item>"
+    "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></"
+    "NameAndStatus><Kaboom>0</Kaboom></Item>"
+    "<Item><Value>4</Value><ExtraValue>42</"
+    "ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></"
+    "NameAndStatus></Item>"
+    "<Kaboom>0</Kaboom>"
+    "</Items>";
 
 TEST(TestParser, UnknownTag)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
   ASSERT_TRUE(parser.parse(unknown_tag_input, strlen(unknown_tag_input), 1));
@@ -301,33 +356,46 @@ TEST(TestParser, UnknownTag)
   ASSERT_STREQ(to_string(*parser.items).c_str(), expected_output);
 }
 
-static const char* invalid_value_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></Item>"
-                             "<Item><ExtraValue>kaboom</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item><Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                           "</Items>";
+static const char* invalid_value_input =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></"
+    "Item>"
+    "<Item><ExtraValue>kaboom</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item><Value>4</Value><ExtraValue>42</"
+    "ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></"
+    "NameAndStatus></Item>"
+    "</Items>";
 
 TEST(TestParser, InvalidValue)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
-  ASSERT_FALSE(parser.parse(invalid_value_input, strlen(invalid_value_input), 1));
+  ASSERT_FALSE(
+      parser.parse(invalid_value_input, strlen(invalid_value_input), 1));
 }
 
-static const char* good_input1 = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></Item>"
-                             "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name>";
+static const char* good_input1 =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item><NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value></"
+    "Item>"
+    "<Item><ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name>";
 
-static const char* good_input2 = "</NameAndStatus><Value>2</Value></Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item><Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus></Item>"
-                           "</Items>";
+static const char* good_input2 =
+    "</NameAndStatus><Value>2</Value></Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item><Value>4</Value><ExtraValue>42</"
+    "ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></"
+    "NameAndStatus></Item>"
+    "</Items>";
 
 TEST(TestParser, MultipleChunks)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
   ASSERT_TRUE(parser.parse(good_input1, strlen(good_input1), 0));
@@ -336,32 +404,39 @@ TEST(TestParser, MultipleChunks)
   ASSERT_STREQ(to_string(*parser.items).c_str(), expected_output);
 }
 
-static const char* input_with_attributes = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                           "<Items>"
-                             "<Item Date=\"Tue Dec 27 17:21:29 2011\" Kaboom=\"just ignore\">"
-                               "<NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value>"
-                             "</Item>"
-                             "<Item Comment=\"hello world\">"
-                               "<ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></NameAndStatus><Value>2</Value>"
-                             "</Item>"
-                             "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></Item>"
-                             "<Item Comment=\"goodbye\" Date=\"Thu Feb 28 10:00:18 UTC 2019 \">"
-                               "<Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</Name><Status>False</Status></NameAndStatus>"
-                             "</Item>"
-                           "</Items>";
+static const char* input_with_attributes =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<Items>"
+    "<Item Date=\"Tue Dec 27 17:21:29 2011\" Kaboom=\"just ignore\">"
+    "<NameAndStatus><Name>hello</Name></NameAndStatus><Value>1</Value>"
+    "</Item>"
+    "<Item Comment=\"hello world\">"
+    "<ExtraValue>99</ExtraValue><NameAndStatus><Name>world</Name></"
+    "NameAndStatus><Value>2</Value>"
+    "</Item>"
+    "<Item><Value>3</Value><NameAndStatus><Name>foo</Name></NameAndStatus></"
+    "Item>"
+    "<Item Comment=\"goodbye\" Date=\"Thu Feb 28 10:00:18 UTC 2019 \">"
+    "<Value>4</Value><ExtraValue>42</ExtraValue><NameAndStatus><Name>bar</"
+    "Name><Status>False</Status></NameAndStatus>"
+    "</Item>"
+    "</Items>";
 
-static const char* expected_output_with_attributes = "(Tue Dec 27 17:21:29 2011,no comment,(hello,1),1,0),"
-                                                     "(no date,hello world,(world,1),2,99),"
-                                                     "(no date,no comment,(foo,1),3,0),"
-                                                     "(Thu Feb 28 10:00:18 UTC 2019 ,goodbye,(bar,0),4,42),";
+static const char* expected_output_with_attributes =
+    "(Tue Dec 27 17:21:29 2011,no comment,(hello,1),1,0),"
+    "(no date,hello world,(world,1),2,99),"
+    "(no date,no comment,(foo,1),3,0),"
+    "(Thu Feb 28 10:00:18 UTC 2019 ,goodbye,(bar,0),4,42),";
 
 TEST(TestParser, Attributes)
-{  
+{
   ItemsXMLParser parser;
   ASSERT_TRUE(parser.init());
-  ASSERT_TRUE(parser.parse(input_with_attributes, strlen(input_with_attributes), 1));
+  ASSERT_TRUE(
+      parser.parse(input_with_attributes, strlen(input_with_attributes), 1));
   ASSERT_EQ(parser.items->item_list.size(), 4U);
-  ASSERT_STREQ(to_string_with_attributes(*parser.items).c_str(), 
+  ASSERT_STREQ(
+      to_string_with_attributes(*parser.items).c_str(),
       expected_output_with_attributes);
 }
 
@@ -408,7 +483,7 @@ TEST(TestDecoder, InvalidValue)
 }
 
 TEST(TestDecoder, MultipleChunks)
-{  
+{
   RGWXMLDecoder::XMLParser parser;
   ASSERT_TRUE(parser.init());
   ASSERT_TRUE(parser.parse(good_input1, strlen(good_input1), 0));
@@ -422,26 +497,40 @@ TEST(TestDecoder, MultipleChunks)
 }
 
 TEST(TestDecoder, Attributes)
-{  
+{
   RGWXMLDecoder::XMLParser parser;
   ASSERT_TRUE(parser.init());
-  ASSERT_TRUE(parser.parse(input_with_attributes, strlen(input_with_attributes), 1));
+  ASSERT_TRUE(
+      parser.parse(input_with_attributes, strlen(input_with_attributes), 1));
   Items result;
   ASSERT_NO_THROW({
     ASSERT_TRUE(RGWXMLDecoder::decode_xml("Items", result, &parser, true));
   });
   ASSERT_EQ(result.item_list.size(), 4U);
-  ASSERT_STREQ(to_string_with_attributes(result).c_str(), 
+  ASSERT_STREQ(
+      to_string_with_attributes(result).c_str(),
       expected_output_with_attributes);
 }
 
-static const char* expected_xml_output = "<Items xmlns=\"https://www.ceph.com/doc/\">"
-                             "<Item Order=\"0\"><NameAndStatus><Name>hello</Name><Status>True</Status></NameAndStatus><Value>0</Value></Item>"
-                             "<Item Order=\"1\"><NameAndStatus><Name>hello</Name><Status>False</Status></NameAndStatus><Value>1</Value></Item>"
-                             "<Item Order=\"2\"><NameAndStatus><Name>hello</Name><Status>True</Status></NameAndStatus><Value>2</Value></Item>"
-                             "<Item Order=\"3\"><NameAndStatus><Name>hello</Name><Status>False</Status></NameAndStatus><Value>3</Value></Item>"
-                             "<Item Order=\"4\"><NameAndStatus><Name>hello</Name><Status>True</Status></NameAndStatus><Value>4</Value></Item>"
-                           "</Items>";
+static const char* expected_xml_output =
+    "<Items xmlns=\"https://www.ceph.com/doc/\">"
+    "<Item "
+    "Order=\"0\"><NameAndStatus><Name>hello</Name><Status>True</Status></"
+    "NameAndStatus><Value>0</Value></Item>"
+    "<Item "
+    "Order=\"1\"><NameAndStatus><Name>hello</Name><Status>False</Status></"
+    "NameAndStatus><Value>1</Value></Item>"
+    "<Item "
+    "Order=\"2\"><NameAndStatus><Name>hello</Name><Status>True</Status></"
+    "NameAndStatus><Value>2</Value></Item>"
+    "<Item "
+    "Order=\"3\"><NameAndStatus><Name>hello</Name><Status>False</Status></"
+    "NameAndStatus><Value>3</Value></Item>"
+    "<Item "
+    "Order=\"4\"><NameAndStatus><Name>hello</Name><Status>True</Status></"
+    "NameAndStatus><Value>4</Value></Item>"
+    "</Items>";
+
 TEST(TestEncoder, ListWithAttrsAndNS)
 {
   XMLFormatter f;
@@ -452,7 +541,7 @@ TEST(TestEncoder, ListWithAttrsAndNS)
     f.open_object_section_with_attrs("Item", item_attrs);
     f.open_object_section("NameAndStatus");
     encode_xml("Name", "hello", &f);
-    encode_xml("Status", (i%2 == 0), &f);
+    encode_xml("Status", (i % 2 == 0), &f);
     f.close_section();
     encode_xml("Value", i, &f);
     f.close_section();
@@ -462,4 +551,3 @@ TEST(TestEncoder, ListWithAttrsAndNS)
   f.flush(ss);
   ASSERT_STREQ(ss.str().c_str(), expected_xml_output);
 }
-

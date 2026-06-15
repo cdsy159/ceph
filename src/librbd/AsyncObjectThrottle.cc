@@ -2,32 +2,42 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/AsyncObjectThrottle.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "librbd/AsyncRequest.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
 
-#include <shared_mutex> // for std::shared_lock
-
-namespace librbd
-{
+namespace librbd {
 
 template <typename T>
 AsyncObjectThrottle<T>::AsyncObjectThrottle(
-    const AsyncRequest<T>* async_request, T &image_ctx,
-    const ContextFactory& context_factory, Context *ctx,
-    ProgressContext *prog_ctx, uint64_t object_no, uint64_t end_object_no)
-  : m_lock(ceph::make_mutex(
+    const AsyncRequest<T>* async_request,
+    T& image_ctx,
+    const ContextFactory& context_factory,
+    Context* ctx,
+    ProgressContext* prog_ctx,
+    uint64_t object_no,
+    uint64_t end_object_no) :
+  m_lock(ceph::make_mutex(
       util::unique_lock_name("librbd::AsyncThrottle::m_lock", this))),
-    m_async_request(async_request), m_image_ctx(image_ctx),
-    m_context_factory(context_factory), m_ctx(ctx), m_prog_ctx(prog_ctx),
-    m_object_no(object_no), m_end_object_no(end_object_no), m_current_ops(0),
-    m_ret(0)
-{
-}
+  m_async_request(async_request),
+  m_image_ctx(image_ctx),
+  m_context_factory(context_factory),
+  m_ctx(ctx),
+  m_prog_ctx(prog_ctx),
+  m_object_no(object_no),
+  m_end_object_no(end_object_no),
+  m_current_ops(0),
+  m_ret(0)
+{}
 
 template <typename T>
-void AsyncObjectThrottle<T>::start_ops(uint64_t max_concurrent) {
+void
+AsyncObjectThrottle<T>::start_ops(uint64_t max_concurrent)
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx.owner_lock));
   bool complete;
   {
@@ -35,7 +45,7 @@ void AsyncObjectThrottle<T>::start_ops(uint64_t max_concurrent) {
     for (uint64_t i = 0; i < max_concurrent; ++i) {
       start_next_op();
       if (m_ret < 0 && m_current_ops == 0) {
-	break;
+        break;
       }
     }
     complete = (m_current_ops == 0);
@@ -48,7 +58,9 @@ void AsyncObjectThrottle<T>::start_ops(uint64_t max_concurrent) {
 }
 
 template <typename T>
-void AsyncObjectThrottle<T>::finish_op(int r) {
+void
+AsyncObjectThrottle<T>::finish_op(int r)
+{
   bool complete;
   {
     std::shared_lock owner_locker{m_image_ctx.owner_lock};
@@ -68,7 +80,9 @@ void AsyncObjectThrottle<T>::finish_op(int r) {
 }
 
 template <typename T>
-void AsyncObjectThrottle<T>::start_next_op() {
+void
+AsyncObjectThrottle<T>::start_next_op()
+{
   bool done = false;
   while (!done) {
     if (m_async_request != NULL && m_async_request->is_canceled() &&
@@ -81,7 +95,7 @@ void AsyncObjectThrottle<T>::start_next_op() {
     }
 
     uint64_t ono = m_object_no++;
-    C_AsyncObjectThrottle<T> *ctx = m_context_factory(*this, ono);
+    C_AsyncObjectThrottle<T>* ctx = m_context_factory(*this, ono);
 
     int r = ctx->send();
     if (r < 0) {

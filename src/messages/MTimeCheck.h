@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -20,8 +20,8 @@
 #include <map>
 
 #include "include/encoding.h"
-#include "include/utime.h"
 #include "include/types.h" // for version_t
+#include "include/utime.h"
 #include "msg/Message.h"
 
 class MTimeCheck final : public Message {
@@ -42,38 +42,53 @@ public:
   map<entity_inst_t, double> skews;
   map<entity_inst_t, double> latencies;
 
-  MTimeCheck() : Message{MSG_TIMECHECK, HEAD_VERSION} {}
+  MTimeCheck() :
+    Message{MSG_TIMECHECK, HEAD_VERSION}
+  {}
+
   MTimeCheck(int op) :
-    Message{MSG_TIMECHECK, HEAD_VERSION},
-    op(op)
+    Message{MSG_TIMECHECK, HEAD_VERSION}, op(op)
   {}
 
 private:
   ~MTimeCheck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "time_check"; }
-  const char *get_op_name() const {
+  std::string_view
+  get_type_name() const override
+  {
+    return "time_check";
+  }
+
+  const char*
+  get_op_name() const
+  {
     switch (op) {
-    case OP_PING: return "ping";
-    case OP_PONG: return "pong";
-    case OP_REPORT: return "report";
+    case OP_PING:
+      return "ping";
+    case OP_PONG:
+      return "pong";
+    case OP_REPORT:
+      return "report";
     }
     return "???";
   }
-  void print(std::ostream &o) const override {
-    o << "time_check( " << get_op_name()
-      << " e " << epoch << " r " << round;
+
+  void
+  print(std::ostream& o) const override
+  {
+    o << "time_check( " << get_op_name() << " e " << epoch << " r " << round;
     if (op == OP_PONG) {
       o << " ts " << timestamp;
     } else if (op == OP_REPORT) {
-      o << " #skews " << skews.size()
-        << " #latencies " << latencies.size();
+      o << " #skews " << skews.size() << " #latencies " << latencies.size();
     }
     o << " )";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(op, p);
@@ -84,7 +99,9 @@ public:
     decode(latencies, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(op, payload);
     encode(epoch, payload);
@@ -93,8 +110,9 @@ public:
     encode(skews, payload, features);
     encode(latencies, payload, features);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

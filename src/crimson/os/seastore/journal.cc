@@ -2,26 +2,30 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "journal.h"
-#include "journal/segmented_journal.h"
+
 #include "journal/circular_bounded_journal.h"
+#include "journal/segmented_journal.h"
 
 namespace crimson::os::seastore::journal {
 
-JournalRef make_segmented(
-  store_index_t store_index,
-  SegmentProvider &provider,
-  JournalTrimmer &trimmer)
+JournalRef
+make_segmented(
+    store_index_t store_index,
+    SegmentProvider& provider,
+    JournalTrimmer& trimmer)
 {
   return std::make_unique<SegmentedJournal>(store_index, provider, trimmer);
 }
 
-JournalRef make_circularbounded(
-  store_index_t store_index,
-  JournalTrimmer &trimmer,
-  crimson::os::seastore::random_block_device::RBMDevice* device,
-  std::string path)
+JournalRef
+make_circularbounded(
+    store_index_t store_index,
+    JournalTrimmer& trimmer,
+    crimson::os::seastore::random_block_device::RBMDevice* device,
+    std::string path)
 {
-  return std::make_unique<CircularBoundedJournal>(store_index, trimmer, device, path);
+  return std::make_unique<CircularBoundedJournal>(
+      store_index, trimmer, device, path);
 }
 
-}
+} // namespace crimson::os::seastore::journal

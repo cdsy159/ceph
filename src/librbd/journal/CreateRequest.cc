@@ -1,13 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "librbd/journal/CreateRequest.h"
+
+#include "common/Timer.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "include/ceph_assert.h"
-#include "librbd/Utils.h"
-#include "common/Timer.h"
 #include "journal/Settings.h"
-#include "librbd/journal/CreateRequest.h"
+#include "librbd/Utils.h"
 #include "librbd/journal/RemoveRequest.h"
 
 #define dout_subsys ceph_subsys_rbd
@@ -20,23 +21,36 @@ using util::create_context_callback;
 
 namespace journal {
 
-template<typename I>
-CreateRequest<I>::CreateRequest(IoCtx &ioctx, const std::string &imageid,
-                                uint8_t order, uint8_t splay_width,
-                                const std::string &object_pool,
-                                uint64_t tag_class, TagData &tag_data,
-                                const std::string &client_id,
-                                ContextWQ *op_work_queue,
-                                Context *on_finish)
-  : m_ioctx(ioctx), m_image_id(imageid), m_order(order),
-    m_splay_width(splay_width), m_object_pool(object_pool),
-    m_tag_class(tag_class), m_tag_data(tag_data), m_image_client_id(client_id),
-    m_op_work_queue(op_work_queue), m_on_finish(on_finish) {
-  m_cct = reinterpret_cast<CephContext *>(m_ioctx.cct());
+template <typename I>
+CreateRequest<I>::CreateRequest(
+    IoCtx& ioctx,
+    const std::string& imageid,
+    uint8_t order,
+    uint8_t splay_width,
+    const std::string& object_pool,
+    uint64_t tag_class,
+    TagData& tag_data,
+    const std::string& client_id,
+    ContextWQ* op_work_queue,
+    Context* on_finish) :
+  m_ioctx(ioctx),
+  m_image_id(imageid),
+  m_order(order),
+  m_splay_width(splay_width),
+  m_object_pool(object_pool),
+  m_tag_class(tag_class),
+  m_tag_data(tag_data),
+  m_image_client_id(client_id),
+  m_op_work_queue(op_work_queue),
+  m_on_finish(on_finish)
+{
+  m_cct = reinterpret_cast<CephContext*>(m_ioctx.cct());
 }
 
-template<typename I>
-void CreateRequest<I>::send() {
+template <typename I>
+void
+CreateRequest<I>::send()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   if (m_order > 64 || m_order < 12) {
@@ -52,8 +66,10 @@ void CreateRequest<I>::send() {
   get_pool_id();
 }
 
-template<typename I>
-void CreateRequest<I>::get_pool_id() {
+template <typename I>
+void
+CreateRequest<I>::get_pool_id()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   if (m_object_pool.empty()) {
@@ -77,26 +93,33 @@ void CreateRequest<I>::get_pool_id() {
   create_journal();
 }
 
-template<typename I>
-void CreateRequest<I>::create_journal() {
+template <typename I>
+void
+CreateRequest<I>::create_journal()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   ImageCtx::get_timer_instance(m_cct, &m_timer, &m_timer_lock);
-  m_journaler = new Journaler(m_op_work_queue, m_timer, m_timer_lock, m_ioctx,
-                              m_image_id, m_image_client_id, {}, nullptr);
+  m_journaler = new Journaler(
+      m_op_work_queue, m_timer, m_timer_lock, m_ioctx, m_image_id,
+      m_image_client_id, {}, nullptr);
 
   using klass = CreateRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_create_journal>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_create_journal>(this);
 
   m_journaler->create(m_order, m_splay_width, m_pool_id, ctx);
 }
 
-template<typename I>
-Context *CreateRequest<I>::handle_create_journal(int *result) {
+template <typename I>
+Context*
+CreateRequest<I>::handle_create_journal(int* result)
+{
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
   if (*result < 0) {
-    lderr(m_cct) << "failed to create journal: " << cpp_strerror(*result) << dendl;
+    lderr(m_cct) << "failed to create journal: " << cpp_strerror(*result)
+                 << dendl;
     shut_down_journaler(*result);
     return nullptr;
   }
@@ -105,23 +128,29 @@ Context *CreateRequest<I>::handle_create_journal(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void CreateRequest<I>::allocate_journal_tag() {
+template <typename I>
+void
+CreateRequest<I>::allocate_journal_tag()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   using klass = CreateRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_journal_tag>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_journal_tag>(this);
 
   encode(m_tag_data, m_bl);
   m_journaler->allocate_tag(m_tag_class, m_bl, &m_tag, ctx);
 }
 
-template<typename I>
-Context *CreateRequest<I>::handle_journal_tag(int *result) {
+template <typename I>
+Context*
+CreateRequest<I>::handle_journal_tag(int* result)
+{
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
   if (*result < 0) {
-    lderr(m_cct) << "failed to allocate tag: " << cpp_strerror(*result) << dendl;
+    lderr(m_cct) << "failed to allocate tag: " << cpp_strerror(*result)
+                 << dendl;
     shut_down_journaler(*result);
     return nullptr;
   }
@@ -130,49 +159,61 @@ Context *CreateRequest<I>::handle_journal_tag(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void CreateRequest<I>::register_client() {
+template <typename I>
+void
+CreateRequest<I>::register_client()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   m_bl.clear();
   encode(ClientData{ImageClientMeta{m_tag.tag_class}}, m_bl);
 
   using klass = CreateRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_register_client>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_register_client>(this);
 
   m_journaler->register_client(m_bl, ctx);
 }
 
-template<typename I>
-Context *CreateRequest<I>::handle_register_client(int *result) {
+template <typename I>
+Context*
+CreateRequest<I>::handle_register_client(int* result)
+{
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
   if (*result < 0) {
-    lderr(m_cct) << "failed to register client: " << cpp_strerror(*result) << dendl;
+    lderr(m_cct) << "failed to register client: " << cpp_strerror(*result)
+                 << dendl;
   }
 
   shut_down_journaler(*result);
   return nullptr;
 }
 
-template<typename I>
-void CreateRequest<I>::shut_down_journaler(int r) {
+template <typename I>
+void
+CreateRequest<I>::shut_down_journaler(int r)
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   m_r_saved = r;
 
   using klass = CreateRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_journaler_shutdown>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_journaler_shutdown>(this);
 
   m_journaler->shut_down(ctx);
 }
 
-template<typename I>
-Context *CreateRequest<I>::handle_journaler_shutdown(int *result) {
+template <typename I>
+Context*
+CreateRequest<I>::handle_journaler_shutdown(int* result)
+{
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
   if (*result < 0) {
-    lderr(m_cct) << "failed to shut down journaler: " << cpp_strerror(*result) << dendl;
+    lderr(m_cct) << "failed to shut down journaler: " << cpp_strerror(*result)
+                 << dendl;
   }
 
   delete m_journaler;
@@ -191,20 +232,25 @@ Context *CreateRequest<I>::handle_journaler_shutdown(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void CreateRequest<I>::remove_journal() {
+template <typename I>
+void
+CreateRequest<I>::remove_journal()
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   using klass = CreateRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_remove_journal>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_remove_journal>(this);
 
-  RemoveRequest<I> *req = RemoveRequest<I>::create(
-    m_ioctx, m_image_id, m_image_client_id, m_op_work_queue, ctx);
+  RemoveRequest<I>* req = RemoveRequest<I>::create(
+      m_ioctx, m_image_id, m_image_client_id, m_op_work_queue, ctx);
   req->send();
 }
 
-template<typename I>
-Context *CreateRequest<I>::handle_remove_journal(int *result) {
+template <typename I>
+Context*
+CreateRequest<I>::handle_remove_journal(int* result)
+{
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -216,8 +262,10 @@ Context *CreateRequest<I>::handle_remove_journal(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void CreateRequest<I>::complete(int r) {
+template <typename I>
+void
+CreateRequest<I>::complete(int r)
+{
   ldout(m_cct, 20) << this << " " << __func__ << dendl;
 
   if (r == 0) {

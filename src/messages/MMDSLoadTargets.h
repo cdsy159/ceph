@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,14 +16,13 @@
 #ifndef CEPH_MMDSLoadTargets_H
 #define CEPH_MMDSLoadTargets_H
 
+#include <map>
 #include <set>
 
-#include "msg/Message.h"
+#include "include/types.h"
 #include "mds/mdstypes.h"
 #include "messages/PaxosServiceMessage.h"
-#include "include/types.h"
-
-#include <map>
+#include "msg/Message.h"
 using std::map;
 
 class MMDSLoadTargets final : public PaxosServiceMessage {
@@ -32,19 +31,34 @@ public:
   std::set<mds_rank_t> targets;
 
 protected:
-  MMDSLoadTargets() : PaxosServiceMessage(MSG_MDS_OFFLOAD_TARGETS, 0) {}
+  MMDSLoadTargets() :
+    PaxosServiceMessage(MSG_MDS_OFFLOAD_TARGETS, 0)
+  {}
+
   MMDSLoadTargets(mds_gid_t g, std::set<mds_rank_t>& mds_targets) :
     PaxosServiceMessage(MSG_MDS_OFFLOAD_TARGETS, 0),
-    global_id(g), targets(mds_targets) {}
+    global_id(g),
+    targets(mds_targets)
+  {}
+
   ~MMDSLoadTargets() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mds_load_targets"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mds_load_targets";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "mds_load_targets(" << global_id << " " << targets << ")";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -52,16 +66,19 @@ public:
     decode(targets, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(global_id, payload);
     encode(targets, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

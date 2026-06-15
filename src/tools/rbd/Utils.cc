@@ -2,23 +2,26 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd/Utils.h"
-#include "include/ceph_assert.h"
-#include "include/Context.h"
-#include "include/encoding.h"
-#include "common/common_init.h"
-#include "include/stringify.h"
-#include "include/rbd/features.h"
-#include "common/config.h"
-#include "common/errno.h"
-#include "common/escape.h"
-#include "common/Formatter.h"
-#include "common/safe_io.h"
-#include "global/global_context.h"
+
 #include <fstream>
 #include <iostream>
 #include <regex>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+
+#include "common/Formatter.h"
+#include "common/common_init.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "common/escape.h"
+#include "common/safe_io.h"
+#include "global/global_context.h"
+#include "include/Context.h"
+#include "include/ceph_assert.h"
+#include "include/encoding.h"
+#include "include/rbd/features.h"
+#include "include/stringify.h"
 
 namespace rbd {
 namespace utils {
@@ -28,14 +31,15 @@ namespace po = boost::program_options;
 
 namespace {
 
-static std::string mgr_command_args_to_str(
-    const std::map<std::string, std::string> &args) {
+static std::string
+mgr_command_args_to_str(const std::map<std::string, std::string>& args)
+{
   std::string out = "";
 
   std::string delimiter;
-  for (auto &it : args) {
+  for (auto& it : args) {
     out += delimiter + "\"" + it.first + "\": \"" +
-      stringify(json_stream_escaper(it.second)) + "\"";
+           stringify(json_stream_escaper(it.second)) + "\"";
     delimiter = ",\n";
   }
 
@@ -44,45 +48,56 @@ static std::string mgr_command_args_to_str(
 
 } // anonymous namespace
 
-int ProgressContext::update_progress(uint64_t offset, uint64_t total) {
+int
+ProgressContext::update_progress(uint64_t offset, uint64_t total)
+{
   if (progress) {
     int pc = get_percentage(offset, total);
     if (pc > last_pc) {
-      std::cerr << "\r" << operation << ": "
-		<< pc << "% complete..." << std::flush;
+      std::cerr << "\r" << operation << ": " << pc << "% complete..."
+                << std::flush;
       last_pc = pc;
     }
   }
   return 0;
 }
 
-void ProgressContext::finish() {
+void
+ProgressContext::finish()
+{
   if (progress) {
     std::cerr << "\r" << operation << ": 100% complete...done." << std::endl;
   }
 }
 
-void ProgressContext::fail() {
+void
+ProgressContext::fail()
+{
   if (progress) {
     std::cerr << "\r" << operation << ": " << last_pc << "% complete...failed."
-	      << std::endl;
+              << std::endl;
   }
 }
 
-int get_percentage(uint64_t part, uint64_t whole) {
+int
+get_percentage(uint64_t part, uint64_t whole)
+{
   return whole ? (100 * part / whole) : 0;
 }
 
-void aio_context_callback(librbd::completion_t completion, void *arg)
+void
+aio_context_callback(librbd::completion_t completion, void* arg)
 {
-  librbd::RBD::AioCompletion *aio_completion =
-    reinterpret_cast<librbd::RBD::AioCompletion*>(completion);
-  Context *context = reinterpret_cast<Context *>(arg);
+  librbd::RBD::AioCompletion* aio_completion =
+      reinterpret_cast<librbd::RBD::AioCompletion*>(completion);
+  Context* context = reinterpret_cast<Context*>(arg);
   context->complete(aio_completion->get_return_value());
   aio_completion->release();
 }
 
-int read_string(int fd, unsigned max, std::string *out) {
+int
+read_string(int fd, unsigned max, std::string* out)
+{
   char buf[4];
 
   int r = safe_read_exact(fd, buf, 4);
@@ -105,9 +120,15 @@ int read_string(int fd, unsigned max, std::string *out) {
   return len;
 }
 
-int extract_spec(const std::string &spec, std::string *pool_name,
-                 std::string *namespace_name, std::string *name,
-                 std::string *snap_name, SpecValidation spec_validation) {
+int
+extract_spec(
+    const std::string& spec,
+    std::string* pool_name,
+    std::string* namespace_name,
+    std::string* name,
+    std::string* snap_name,
+    SpecValidation spec_validation)
+{
   if (!g_ceph_context->_conf.get_val<bool>("rbd_validate_names")) {
     spec_validation = SPEC_VALIDATION_NONE;
   }
@@ -174,33 +195,44 @@ int extract_spec(const std::string &spec, std::string *pool_name,
   return 0;
 }
 
-std::string get_positional_argument(const po::variables_map &vm, size_t index) {
+std::string
+get_positional_argument(const po::variables_map& vm, size_t index)
+{
   if (vm.count(at::POSITIONAL_ARGUMENTS) == 0) {
     return "";
   }
 
-  const std::vector<std::string> &args =
-    boost::any_cast<std::vector<std::string> >(
-      vm[at::POSITIONAL_ARGUMENTS].value());
+  const std::vector<std::string>& args =
+      boost::any_cast<std::vector<std::string>>(
+          vm[at::POSITIONAL_ARGUMENTS].value());
   if (index < args.size()) {
     return args[index];
   }
   return "";
 }
 
-void normalize_pool_name(std::string* pool_name) {
+void
+normalize_pool_name(std::string* pool_name)
+{
   if (pool_name->empty()) {
     *pool_name = get_default_pool_name();
   }
 }
 
-std::string get_default_pool_name() {
+std::string
+get_default_pool_name()
+{
   return g_ceph_context->_conf.get_val<std::string>("rbd_default_pool");
 }
 
-int get_pool_and_namespace_names(
-    const boost::program_options::variables_map &vm, bool validate_pool_name,
-    std::string* pool_name, std::string* namespace_name, size_t *arg_index) {
+int
+get_pool_and_namespace_names(
+    const boost::program_options::variables_map& vm,
+    bool validate_pool_name,
+    std::string* pool_name,
+    std::string* namespace_name,
+    size_t* arg_index)
+{
   if (namespace_name != nullptr && vm.count(at::NAMESPACE_NAME)) {
     *namespace_name = vm[at::NAMESPACE_NAME].as<std::string>();
   }
@@ -229,8 +261,9 @@ int get_pool_and_namespace_names(
       pool_name->find_first_of("/@") != std::string::npos) {
     std::cerr << "rbd: invalid pool '" << *pool_name << "'" << std::endl;
     return -EINVAL;
-  } else if (namespace_name != nullptr &&
-             namespace_name->find_first_of("/@") != std::string::npos) {
+  } else if (
+      namespace_name != nullptr &&
+      namespace_name->find_first_of("/@") != std::string::npos) {
     std::cerr << "rbd: invalid namespace '" << *namespace_name << "'"
               << std::endl;
     return -EINVAL;
@@ -239,11 +272,14 @@ int get_pool_and_namespace_names(
   return 0;
 }
 
-int get_pool_image_id(const po::variables_map &vm,
-                      size_t *spec_arg_index,
-                      std::string *pool_name,
-                      std::string *namespace_name,
-                      std::string *image_id) {
+int
+get_pool_image_id(
+    const po::variables_map& vm,
+    size_t* spec_arg_index,
+    std::string* pool_name,
+    std::string* namespace_name,
+    std::string* image_id)
+{
 
   if (vm.count(at::POOL_NAME) && pool_name != nullptr) {
     *pool_name = vm[at::POOL_NAME].as<std::string>();
@@ -259,8 +295,9 @@ int get_pool_image_id(const po::variables_map &vm,
   if (image_id != nullptr && spec_arg_index != nullptr && image_id->empty()) {
     std::string spec = get_positional_argument(vm, (*spec_arg_index)++);
     if (!spec.empty()) {
-      r = extract_spec(spec, pool_name, namespace_name, image_id, nullptr,
-                       SPEC_VALIDATION_FULL);
+      r = extract_spec(
+          spec, pool_name, namespace_name, image_id, nullptr,
+          SPEC_VALIDATION_FULL);
       if (r < 0) {
         return r;
       }
@@ -275,16 +312,18 @@ int get_pool_image_id(const po::variables_map &vm,
   return 0;
 }
 
-int get_image_or_snap_spec(const po::variables_map &vm, std::string *spec) {
+int
+get_image_or_snap_spec(const po::variables_map& vm, std::string* spec)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string nspace_name;
   std::string image_name;
   std::string snap_name;
   int r = get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &nspace_name,
-    &image_name, &snap_name, true, SNAPSHOT_PRESENCE_PERMITTED,
-    SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &nspace_name,
+      &image_name, &snap_name, true, SNAPSHOT_PRESENCE_PERMITTED,
+      SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -315,57 +354,67 @@ int get_image_or_snap_spec(const po::variables_map &vm, std::string *spec) {
   return 0;
 }
 
-void append_options_as_args(const std::vector<std::string> &options,
-                            std::vector<std::string> *args) {
-  for (auto &opts : options) {
+void
+append_options_as_args(
+    const std::vector<std::string>& options,
+    std::vector<std::string>* args)
+{
+  for (auto& opts : options) {
     std::vector<std::string> args_;
     boost::split(args_, opts, boost::is_any_of(","));
-    for (auto &o : args_) {
+    for (auto& o : args_) {
       args->push_back("--" + o);
     }
   }
 }
 
-int get_pool_image_snapshot_names(const po::variables_map &vm,
-                                  at::ArgumentModifier mod,
-                                  size_t *spec_arg_index,
-                                  std::string *pool_name,
-                                  std::string *namespace_name,
-                                  std::string *image_name,
-                                  std::string *snap_name,
-                                  bool image_name_required,
-                                  SnapshotPresence snapshot_presence,
-                                  SpecValidation spec_validation) {
-  std::string pool_key = (mod == at::ARGUMENT_MODIFIER_DEST ?
-    at::DEST_POOL_NAME : at::POOL_NAME);
-  std::string namespace_key = (mod == at::ARGUMENT_MODIFIER_DEST ?
-    at::DEST_NAMESPACE_NAME : at::NAMESPACE_NAME);
-  std::string image_key = (mod == at::ARGUMENT_MODIFIER_DEST ?
-    at::DEST_IMAGE_NAME : at::IMAGE_NAME);
+int
+get_pool_image_snapshot_names(
+    const po::variables_map& vm,
+    at::ArgumentModifier mod,
+    size_t* spec_arg_index,
+    std::string* pool_name,
+    std::string* namespace_name,
+    std::string* image_name,
+    std::string* snap_name,
+    bool image_name_required,
+    SnapshotPresence snapshot_presence,
+    SpecValidation spec_validation)
+{
+  std::string pool_key =
+      (mod == at::ARGUMENT_MODIFIER_DEST ? at::DEST_POOL_NAME : at::POOL_NAME);
+  std::string namespace_key =
+      (mod == at::ARGUMENT_MODIFIER_DEST ? at::DEST_NAMESPACE_NAME
+                                         : at::NAMESPACE_NAME);
+  std::string image_key =
+      (mod == at::ARGUMENT_MODIFIER_DEST ? at::DEST_IMAGE_NAME : at::IMAGE_NAME);
 
-  return get_pool_generic_snapshot_names(vm, mod, spec_arg_index, pool_key,
-                                         pool_name, namespace_key, namespace_name,
-                                         image_key, "image", image_name, snap_name,
-                                         image_name_required, snapshot_presence,
-                                         spec_validation);
+  return get_pool_generic_snapshot_names(
+      vm, mod, spec_arg_index, pool_key, pool_name, namespace_key,
+      namespace_name, image_key, "image", image_name, snap_name,
+      image_name_required, snapshot_presence, spec_validation);
 }
 
-int get_pool_generic_snapshot_names(const po::variables_map &vm,
-                                    at::ArgumentModifier mod,
-                                    size_t *spec_arg_index,
-                                    const std::string& pool_key,
-                                    std::string *pool_name,
-                                    const std::string& namespace_key,
-                                    std::string *namespace_name,
-                                    const std::string& generic_key,
-                                    const std::string& generic_key_desc,
-                                    std::string *generic_name,
-                                    std::string *snap_name,
-                                    bool generic_name_required,
-                                    SnapshotPresence snapshot_presence,
-                                    SpecValidation spec_validation) {
-  std::string snap_key = (mod == at::ARGUMENT_MODIFIER_DEST ?
-    at::DEST_SNAPSHOT_NAME : at::SNAPSHOT_NAME);
+int
+get_pool_generic_snapshot_names(
+    const po::variables_map& vm,
+    at::ArgumentModifier mod,
+    size_t* spec_arg_index,
+    const std::string& pool_key,
+    std::string* pool_name,
+    const std::string& namespace_key,
+    std::string* namespace_name,
+    const std::string& generic_key,
+    const std::string& generic_key_desc,
+    std::string* generic_name,
+    std::string* snap_name,
+    bool generic_name_required,
+    SnapshotPresence snapshot_presence,
+    SpecValidation spec_validation)
+{
+  std::string snap_key =
+      (mod == at::ARGUMENT_MODIFIER_DEST ? at::DEST_SNAPSHOT_NAME
+                                         : at::SNAPSHOT_NAME);
 
   if (vm.count(pool_key) && pool_name != nullptr) {
     *pool_name = vm[pool_key].as<std::string>();
@@ -386,8 +435,9 @@ int get_pool_generic_snapshot_names(const po::variables_map &vm,
     // despite the separate pool and snapshot name options,
     // we can also specify them via the image option
     std::string image_name_copy(*generic_name);
-    r = extract_spec(image_name_copy, pool_name, namespace_name, generic_name,
-                     snap_name, spec_validation);
+    r = extract_spec(
+        image_name_copy, pool_name, namespace_name, generic_name, snap_name,
+        spec_validation);
     if (r < 0) {
       return r;
     }
@@ -397,8 +447,9 @@ int get_pool_generic_snapshot_names(const po::variables_map &vm,
       generic_name->empty()) {
     std::string spec = get_positional_argument(vm, (*spec_arg_index)++);
     if (!spec.empty()) {
-      r = extract_spec(spec, pool_name, namespace_name, generic_name, snap_name,
-                       spec_validation);
+      r = extract_spec(
+          spec, pool_name, namespace_name, generic_name, snap_name,
+          spec_validation);
       if (r < 0) {
         return r;
       }
@@ -417,22 +468,22 @@ int get_pool_generic_snapshot_names(const po::variables_map &vm,
   std::regex pattern("^[^@/]*?$");
   if (spec_validation == SPEC_VALIDATION_FULL) {
     // validate pool name while creating/renaming/copying/cloning/importing/etc
-    if ((pool_name != nullptr) && !std::regex_match (*pool_name, pattern)) {
+    if ((pool_name != nullptr) && !std::regex_match(*pool_name, pattern)) {
       std::cerr << "rbd: invalid pool name '" << *pool_name << "'" << std::endl;
       return -EINVAL;
     }
   }
 
   if (namespace_name != nullptr && !namespace_name->empty() &&
-      !std::regex_match (*namespace_name, pattern)) {
+      !std::regex_match(*namespace_name, pattern)) {
     std::cerr << "rbd: invalid namespace name '" << *namespace_name << "'"
               << std::endl;
     return -EINVAL;
   }
 
   if (snap_name != nullptr) {
-    r = validate_snapshot_name(mod, *snap_name, snapshot_presence,
-	                       spec_validation);
+    r = validate_snapshot_name(
+        mod, *snap_name, snapshot_presence, spec_validation);
     if (r < 0) {
       return r;
     }
@@ -440,10 +491,13 @@ int get_pool_generic_snapshot_names(const po::variables_map &vm,
   return 0;
 }
 
-int validate_snapshot_name(at::ArgumentModifier mod,
-                           const std::string &snap_name,
-                           SnapshotPresence snapshot_presence,
-			   SpecValidation spec_validation) {
+int
+validate_snapshot_name(
+    at::ArgumentModifier mod,
+    const std::string& snap_name,
+    SnapshotPresence snapshot_presence,
+    SpecValidation spec_validation)
+{
   std::string prefix = at::get_description_prefix(mod);
   switch (snapshot_presence) {
   case SNAPSHOT_PRESENCE_PERMITTED:
@@ -470,7 +524,7 @@ int validate_snapshot_name(at::ArgumentModifier mod,
   if (spec_validation == SPEC_VALIDATION_SNAP) {
     // disallow "/" and "@" in snap name
     std::regex pattern("^[^@/]*?$");
-    if (!std::regex_match (snap_name, pattern)) {
+    if (!std::regex_match(snap_name, pattern)) {
       std::cerr << "rbd: invalid snap name '" << snap_name << "'" << std::endl;
       return -EINVAL;
     }
@@ -478,8 +532,12 @@ int validate_snapshot_name(at::ArgumentModifier mod,
   return 0;
 }
 
-int get_image_options(const boost::program_options::variables_map &vm,
-		      bool get_format, librbd::ImageOptions *opts) {
+int
+get_image_options(
+    const boost::program_options::variables_map& vm,
+    bool get_format,
+    librbd::ImageOptions* opts)
+{
   uint64_t order = 0, stripe_unit = 0, stripe_count = 0, object_size = 0;
   uint64_t features = 0, features_set = 0, features_clear = 0;
   std::string data_pool;
@@ -515,7 +573,7 @@ int get_image_options(const boost::program_options::variables_map &vm,
 
   if (vm.count(at::IMAGE_MIRROR_IMAGE_MODE) &&
       vm[at::IMAGE_MIRROR_IMAGE_MODE].as<librbd::mirror_image_mode_t>() ==
-      RBD_MIRROR_IMAGE_MODE_JOURNAL) {
+          RBD_MIRROR_IMAGE_MODE_JOURNAL) {
     features_set |= (RBD_FEATURE_EXCLUSIVE_LOCK | RBD_FEATURE_JOURNALING);
     features_set_specified = true;
   }
@@ -615,15 +673,19 @@ int get_image_options(const boost::program_options::variables_map &vm,
   }
 
   if (vm.count(at::IMAGE_MIRROR_IMAGE_MODE)) {
-    opts->set(RBD_IMAGE_OPTION_MIRROR_IMAGE_MODE,
-              vm[at::IMAGE_MIRROR_IMAGE_MODE].as<librbd::mirror_image_mode_t>());
+    opts->set(
+        RBD_IMAGE_OPTION_MIRROR_IMAGE_MODE,
+        vm[at::IMAGE_MIRROR_IMAGE_MODE].as<librbd::mirror_image_mode_t>());
   }
 
   return 0;
 }
 
-int get_journal_options(const boost::program_options::variables_map &vm,
-			librbd::ImageOptions *opts) {
+int
+get_journal_options(
+    const boost::program_options::variables_map& vm,
+    librbd::ImageOptions* opts)
+{
 
   if (vm.count(at::JOURNAL_OBJECT_SIZE)) {
     uint64_t size = vm[at::JOURNAL_OBJECT_SIZE].as<uint64_t>();
@@ -637,28 +699,32 @@ int get_journal_options(const boost::program_options::variables_map &vm,
     ceph_assert(r == 0);
   }
   if (vm.count(at::JOURNAL_SPLAY_WIDTH)) {
-    opts->set(RBD_IMAGE_OPTION_JOURNAL_SPLAY_WIDTH,
-	      vm[at::JOURNAL_SPLAY_WIDTH].as<uint64_t>());
+    opts->set(
+        RBD_IMAGE_OPTION_JOURNAL_SPLAY_WIDTH,
+        vm[at::JOURNAL_SPLAY_WIDTH].as<uint64_t>());
 
-    int r = g_conf().set_val("rbd_journal_splay_width",
-			    stringify(
-			      vm[at::JOURNAL_SPLAY_WIDTH].as<uint64_t>()));
+    int r = g_conf().set_val(
+        "rbd_journal_splay_width",
+        stringify(vm[at::JOURNAL_SPLAY_WIDTH].as<uint64_t>()));
     ceph_assert(r == 0);
   }
   if (vm.count(at::JOURNAL_POOL)) {
-    opts->set(RBD_IMAGE_OPTION_JOURNAL_POOL,
-	      vm[at::JOURNAL_POOL].as<std::string>());
+    opts->set(
+        RBD_IMAGE_OPTION_JOURNAL_POOL, vm[at::JOURNAL_POOL].as<std::string>());
 
-    int r = g_conf().set_val("rbd_journal_pool",
-			    vm[at::JOURNAL_POOL].as<std::string>());
+    int r = g_conf().set_val(
+        "rbd_journal_pool", vm[at::JOURNAL_POOL].as<std::string>());
     ceph_assert(r == 0);
   }
 
   return 0;
 }
 
-int get_flatten_option(const boost::program_options::variables_map &vm,
-                       librbd::ImageOptions *opts) {
+int
+get_flatten_option(
+    const boost::program_options::variables_map& vm,
+    librbd::ImageOptions* opts)
+{
   if (vm.count(at::IMAGE_FLATTEN) && vm[at::IMAGE_FLATTEN].as<bool>()) {
     uint64_t flatten = 1;
     opts->set(RBD_IMAGE_OPTION_FLATTEN, flatten);
@@ -666,8 +732,9 @@ int get_flatten_option(const boost::program_options::variables_map &vm,
   return 0;
 }
 
-int get_image_size(const boost::program_options::variables_map &vm,
-                   uint64_t *size) {
+int
+get_image_size(const boost::program_options::variables_map& vm, uint64_t* size)
+{
   if (vm.count(at::IMAGE_SIZE) == 0) {
     std::cerr << "rbd: must specify --size <M/G/T>" << std::endl;
     return -EINVAL;
@@ -677,8 +744,12 @@ int get_image_size(const boost::program_options::variables_map &vm,
   return 0;
 }
 
-int get_path(const boost::program_options::variables_map &vm,
-             size_t *arg_index, std::string *path) {
+int
+get_path(
+    const boost::program_options::variables_map& vm,
+    size_t* arg_index,
+    std::string* path)
+{
   if (vm.count(at::PATH)) {
     *path = vm[at::PATH].as<std::string>();
   } else {
@@ -695,8 +766,9 @@ int get_path(const boost::program_options::variables_map &vm,
   return 0;
 }
 
-int get_formatter(const po::variables_map &vm,
-                  at::Format::Formatter *formatter) {
+int
+get_formatter(const po::variables_map& vm, at::Format::Formatter* formatter)
+{
   if (vm.count(at::FORMAT)) {
     bool pretty = vm[at::PRETTY_FORMAT].as<bool>();
     *formatter = vm[at::FORMAT].as<at::Format>().create_formatter(pretty);
@@ -715,7 +787,9 @@ int get_formatter(const po::variables_map &vm,
   return 0;
 }
 
-int get_snap_create_flags(const po::variables_map &vm, uint32_t *flags) {
+int
+get_snap_create_flags(const po::variables_map& vm, uint32_t* flags)
+{
   if (vm[at::SKIP_QUIESCE].as<bool>() &&
       vm[at::IGNORE_QUIESCE_ERROR].as<bool>()) {
     std::cerr << "rbd: " << at::IGNORE_QUIESCE_ERROR
@@ -733,20 +807,24 @@ int get_snap_create_flags(const po::variables_map &vm, uint32_t *flags) {
   return 0;
 }
 
-int get_encryption_options(const boost::program_options::variables_map &vm,
-                           EncryptionOptions* result) {
+int
+get_encryption_options(
+    const boost::program_options::variables_map& vm,
+    EncryptionOptions* result)
+{
   std::vector<std::string> passphrase_files;
   if (vm.count(at::ENCRYPTION_PASSPHRASE_FILE)) {
     passphrase_files =
-            vm[at::ENCRYPTION_PASSPHRASE_FILE].as<std::vector<std::string>>();
+        vm[at::ENCRYPTION_PASSPHRASE_FILE].as<std::vector<std::string>>();
   }
 
   std::vector<at::EncryptionFormat> formats;
   if (vm.count(at::ENCRYPTION_FORMAT)) {
     formats = vm[at::ENCRYPTION_FORMAT].as<decltype(formats)>();
   } else if (vm.count(at::ENCRYPTION_PASSPHRASE_FILE)) {
-    formats.resize(passphrase_files.size(),
-                   at::EncryptionFormat{RBD_ENCRYPTION_FORMAT_LUKS});
+    formats.resize(
+        passphrase_files.size(),
+        at::EncryptionFormat{RBD_ENCRYPTION_FORMAT_LUKS});
   }
 
   if (formats.size() != passphrase_files.size()) {
@@ -765,16 +843,16 @@ int get_encryption_options(const boost::program_options::variables_map &vm,
                 << std::endl;
       return -errno;
     }
-    std::string passphrase((std::istreambuf_iterator<char>(file)),
-                           std::istreambuf_iterator<char>());
+    std::string passphrase(
+        (std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>());
     file.close();
 
     switch (formats[i].format) {
     case RBD_ENCRYPTION_FORMAT_LUKS: {
       auto opts = new librbd::encryption_luks_format_options_t{
           std::move(passphrase)};
-      result->specs.push_back(
-          {RBD_ENCRYPTION_FORMAT_LUKS, opts, sizeof(*opts)});
+      result->specs.push_back({RBD_ENCRYPTION_FORMAT_LUKS, opts, sizeof(*opts)});
       break;
     }
     case RBD_ENCRYPTION_FORMAT_LUKS1: {
@@ -799,12 +877,16 @@ int get_encryption_options(const boost::program_options::variables_map &vm,
   return 0;
 }
 
-void init_context() {
+void
+init_context()
+{
   g_conf().set_val_or_die("rbd_cache_writethrough_until_flush", "false");
   g_conf().apply_changes(nullptr);
 }
 
-int init_rados(librados::Rados *rados) {
+int
+init_rados(librados::Rados* rados)
+{
   init_context();
 
   int r = rados->init_with_context(g_ceph_context);
@@ -822,8 +904,13 @@ int init_rados(librados::Rados *rados) {
   return 0;
 }
 
-int init(const std::string &pool_name, const std::string& namespace_name,
-         librados::Rados *rados, librados::IoCtx *io_ctx) {
+int
+init(
+    const std::string& pool_name,
+    const std::string& namespace_name,
+    librados::Rados* rados,
+    librados::IoCtx* io_ctx)
+{
   init_context();
 
   int r = init_rados(rados);
@@ -838,20 +925,25 @@ int init(const std::string &pool_name, const std::string& namespace_name,
   return 0;
 }
 
-int init_io_ctx(librados::Rados &rados, std::string pool_name,
-                const std::string& namespace_name, librados::IoCtx *io_ctx) {
+int
+init_io_ctx(
+    librados::Rados& rados,
+    std::string pool_name,
+    const std::string& namespace_name,
+    librados::IoCtx* io_ctx)
+{
   normalize_pool_name(&pool_name);
 
   int r = rados.ioctx_create(pool_name.c_str(), *io_ctx);
   if (r < 0) {
     if (r == -ENOENT && pool_name == get_default_pool_name()) {
-      std::cerr << "rbd: error opening default pool "
-                << "'" << pool_name << "'" << std::endl
+      std::cerr << "rbd: error opening default pool " << "'" << pool_name << "'"
+                << std::endl
                 << "Ensure that the default pool has been created or specify "
                 << "an alternate pool name." << std::endl;
     } else {
-      std::cerr << "rbd: error opening pool '" << pool_name << "': "
-                << cpp_strerror(r) << std::endl;
+      std::cerr << "rbd: error opening pool '" << pool_name
+                << "': " << cpp_strerror(r) << std::endl;
     }
     return r;
   }
@@ -859,14 +951,16 @@ int init_io_ctx(librados::Rados &rados, std::string pool_name,
   return set_namespace(namespace_name, io_ctx);
 }
 
-int set_namespace(const std::string& namespace_name, librados::IoCtx *io_ctx) {
+int
+set_namespace(const std::string& namespace_name, librados::IoCtx* io_ctx)
+{
   if (!namespace_name.empty()) {
     librbd::RBD rbd;
     bool exists = false;
     int r = rbd.namespace_exists(*io_ctx, namespace_name.c_str(), &exists);
     if (r < 0) {
-      std::cerr << "rbd: error asserting namespace: "
-                << cpp_strerror(r) << std::endl;
+      std::cerr << "rbd: error asserting namespace: " << cpp_strerror(r)
+                << std::endl;
       return r;
     }
     if (!exists) {
@@ -879,12 +973,19 @@ int set_namespace(const std::string& namespace_name, librados::IoCtx *io_ctx) {
   return 0;
 }
 
-void disable_cache() {
+void
+disable_cache()
+{
   g_conf().set_val_or_die("rbd_cache", "false");
 }
 
-int open_image(librados::IoCtx &io_ctx, const std::string &image_name,
-               bool read_only, librbd::Image *image) {
+int
+open_image(
+    librados::IoCtx& io_ctx,
+    const std::string& image_name,
+    bool read_only,
+    librbd::Image* image)
+{
   int r;
   librbd::RBD rbd;
   if (read_only) {
@@ -901,8 +1002,13 @@ int open_image(librados::IoCtx &io_ctx, const std::string &image_name,
   return 0;
 }
 
-int open_image_by_id(librados::IoCtx &io_ctx, const std::string &image_id,
-                     bool read_only, librbd::Image *image) {
+int
+open_image_by_id(
+    librados::IoCtx& io_ctx,
+    const std::string& image_id,
+    bool read_only,
+    librbd::Image* image)
+{
   int r;
   librbd::RBD rbd;
   if (read_only) {
@@ -919,13 +1025,18 @@ int open_image_by_id(librados::IoCtx &io_ctx, const std::string &image_id,
   return 0;
 }
 
-int init_and_open_image(const std::string &pool_name,
-                        const std::string &namespace_name,
-                        const std::string &image_name,
-                        const std::string &image_id,
-                        const std::string &snap_name, bool read_only,
-                        librados::Rados *rados, librados::IoCtx *io_ctx,
-                        librbd::Image *image) {
+int
+init_and_open_image(
+    const std::string& pool_name,
+    const std::string& namespace_name,
+    const std::string& image_name,
+    const std::string& image_id,
+    const std::string& snap_name,
+    bool read_only,
+    librados::Rados* rados,
+    librados::IoCtx* io_ctx,
+    librbd::Image* image)
+{
   int r = init(pool_name, namespace_name, rados, io_ctx);
   if (r < 0) {
     return r;
@@ -950,7 +1061,9 @@ int init_and_open_image(const std::string &pool_name,
   return 0;
 }
 
-int snap_set(librbd::Image &image, const std::string &snap_name) {
+int
+snap_set(librbd::Image& image, const std::string& snap_name)
+{
   int r = image.snap_set(snap_name.c_str());
   if (r < 0) {
     std::cerr << "error setting snapshot context: " << cpp_strerror(r)
@@ -960,12 +1073,15 @@ int snap_set(librbd::Image &image, const std::string &snap_name) {
   return 0;
 }
 
-void calc_sparse_extent(const bufferptr &bp,
-                        size_t sparse_size,
-			size_t buffer_offset,
-                        uint64_t buffer_length,
-                        size_t *write_length,
-                        bool *zeroed) {
+void
+calc_sparse_extent(
+    const bufferptr& bp,
+    size_t sparse_size,
+    size_t buffer_offset,
+    uint64_t buffer_length,
+    size_t* write_length,
+    bool* zeroed)
+{
   if (sparse_size == 0) {
     // sparse writes are disabled -- write the full extent
     ceph_assert(buffer_offset == 0);
@@ -977,8 +1093,8 @@ void calc_sparse_extent(const bufferptr &bp,
   *write_length = 0;
   size_t original_offset = buffer_offset;
   while (buffer_offset < buffer_length) {
-    size_t extent_size = std::min<size_t>(
-      sparse_size, buffer_length - buffer_offset);
+    size_t extent_size =
+        std::min<size_t>(sparse_size, buffer_length - buffer_offset);
 
     bufferptr extent(bp, buffer_offset, extent_size);
 
@@ -995,7 +1111,9 @@ void calc_sparse_extent(const bufferptr &bp,
   }
 }
 
-std::string image_id(librbd::Image& image) {
+std::string
+image_id(librbd::Image& image)
+{
   std::string id;
   int r = image.get_id(&id);
   if (r < 0) {
@@ -1004,34 +1122,39 @@ std::string image_id(librbd::Image& image) {
   return id;
 }
 
-std::string mirror_image_mode(librbd::mirror_image_mode_t mode) {
+std::string
+mirror_image_mode(librbd::mirror_image_mode_t mode)
+{
   switch (mode) {
-    case RBD_MIRROR_IMAGE_MODE_JOURNAL:
-      return "journal";
-    case RBD_MIRROR_IMAGE_MODE_SNAPSHOT:
-      return "snapshot";
-    default:
-      return "unknown";
+  case RBD_MIRROR_IMAGE_MODE_JOURNAL:
+    return "journal";
+  case RBD_MIRROR_IMAGE_MODE_SNAPSHOT:
+    return "snapshot";
+  default:
+    return "unknown";
   }
 }
 
-std::string mirror_image_state(librbd::mirror_image_state_t state) {
+std::string
+mirror_image_state(librbd::mirror_image_state_t state)
+{
   switch (state) {
-    case RBD_MIRROR_IMAGE_DISABLING:
-      return "disabling";
-    case RBD_MIRROR_IMAGE_ENABLED:
-      return "enabled";
-    case RBD_MIRROR_IMAGE_DISABLED:
-      return "disabled";
-    case RBD_MIRROR_IMAGE_CREATING:
-      return "creating";
-    default:
-      return "unknown";
+  case RBD_MIRROR_IMAGE_DISABLING:
+    return "disabling";
+  case RBD_MIRROR_IMAGE_ENABLED:
+    return "enabled";
+  case RBD_MIRROR_IMAGE_DISABLED:
+    return "disabled";
+  case RBD_MIRROR_IMAGE_CREATING:
+    return "creating";
+  default:
+    return "unknown";
   }
 }
 
-std::string mirror_image_status_state(
-    librbd::mirror_image_status_state_t state) {
+std::string
+mirror_image_status_state(librbd::mirror_image_status_state_t state)
+{
   switch (state) {
   case MIRROR_IMAGE_STATUS_STATE_UNKNOWN:
     return "unknown";
@@ -1052,14 +1175,17 @@ std::string mirror_image_status_state(
   }
 }
 
-std::string mirror_image_site_status_state(
-    const librbd::mirror_image_site_status_t& status) {
+std::string
+mirror_image_site_status_state(const librbd::mirror_image_site_status_t& status)
+{
   return (status.up ? "up+" : "down+") +
-    mirror_image_status_state(status.state);
+         mirror_image_status_state(status.state);
 }
 
-std::string mirror_image_global_status_state(
-    const librbd::mirror_image_global_status_t& status) {
+std::string
+mirror_image_global_status_state(
+    const librbd::mirror_image_global_status_t& status)
+{
   librbd::mirror_image_site_status_t local_status;
   int r = get_local_mirror_image_status(status, &local_status);
   if (r < 0) {
@@ -1069,15 +1195,18 @@ std::string mirror_image_global_status_state(
   return mirror_image_site_status_state(local_status);
 }
 
-int get_local_mirror_image_status(
+int
+get_local_mirror_image_status(
     const librbd::mirror_image_global_status_t& status,
-    librbd::mirror_image_site_status_t* local_status) {
-  auto it = std::find_if(status.site_statuses.begin(),
-                         status.site_statuses.end(),
-                         [](auto& site_status) {
-      return (site_status.mirror_uuid ==
-                RBD_MIRROR_IMAGE_STATUS_LOCAL_MIRROR_UUID);
-    });
+    librbd::mirror_image_site_status_t* local_status)
+{
+  auto it = std::find_if(
+      status.site_statuses.begin(), status.site_statuses.end(),
+      [](auto& site_status) {
+        return (
+            site_status.mirror_uuid ==
+            RBD_MIRROR_IMAGE_STATUS_LOCAL_MIRROR_UUID);
+      });
   if (it == status.site_statuses.end()) {
     return -ENOENT;
   }
@@ -1086,7 +1215,9 @@ int get_local_mirror_image_status(
   return 0;
 }
 
-std::string timestr(time_t t) {
+std::string
+timestr(time_t t)
+{
   if (t == 0) {
     return "";
   }
@@ -1101,13 +1232,17 @@ std::string timestr(time_t t) {
   return buf;
 }
 
-uint64_t get_rbd_default_features(CephContext* cct) {
+uint64_t
+get_rbd_default_features(CephContext* cct)
+{
   auto features = cct->_conf.get_val<std::string>("rbd_default_features");
   return boost::lexical_cast<uint64_t>(features);
 }
 
-bool is_not_user_snap_namespace(librbd::Image* image,
-                                const librbd::snap_info_t &snap_info)
+bool
+is_not_user_snap_namespace(
+    librbd::Image* image,
+    const librbd::snap_info_t& snap_info)
 {
   librbd::snap_namespace_type_t namespace_type;
   int r = image->snap_get_namespace_type(snap_info.id, &namespace_type);
@@ -1117,9 +1252,11 @@ bool is_not_user_snap_namespace(librbd::Image* image,
   return namespace_type != RBD_SNAP_NAMESPACE_TYPE_USER;
 }
 
-void get_mirror_peer_sites(
+void
+get_mirror_peer_sites(
     librados::IoCtx& io_ctx,
-    std::vector<librbd::mirror_peer_site_t>* mirror_peers) {
+    std::vector<librbd::mirror_peer_site_t>* mirror_peers)
+{
   librados::IoCtx default_io_ctx;
   default_io_ctx.dup(io_ctx);
   default_io_ctx.set_namespace("");
@@ -1133,9 +1270,11 @@ void get_mirror_peer_sites(
   }
 }
 
-void get_mirror_peer_mirror_uuids_to_names(
+void
+get_mirror_peer_mirror_uuids_to_names(
     const std::vector<librbd::mirror_peer_site_t>& mirror_peers,
-    std::map<std::string, std::string>* mirror_uuids_to_name) {
+    std::map<std::string, std::string>* mirror_uuids_to_name)
+{
   mirror_uuids_to_name->clear();
   for (auto& peer : mirror_peers) {
     if (!peer.mirror_uuid.empty() && !peer.site_name.empty()) {
@@ -1144,17 +1283,20 @@ void get_mirror_peer_mirror_uuids_to_names(
   }
 }
 
-void populate_unknown_mirror_image_site_statuses(
+void
+populate_unknown_mirror_image_site_statuses(
     const std::vector<librbd::mirror_peer_site_t>& mirror_peers,
-    librbd::mirror_image_global_status_t* global_status) {
+    librbd::mirror_image_global_status_t* global_status)
+{
   std::set<std::string> missing_mirror_uuids;
   librbd::mirror_peer_direction_t mirror_peer_direction =
-    RBD_MIRROR_PEER_DIRECTION_RX_TX;
+      RBD_MIRROR_PEER_DIRECTION_RX_TX;
   for (auto& peer : mirror_peers) {
     if (peer.uuid == mirror_peers.begin()->uuid) {
       mirror_peer_direction = peer.direction;
-    } else if (mirror_peer_direction != RBD_MIRROR_PEER_DIRECTION_RX_TX &&
-               mirror_peer_direction != peer.direction) {
+    } else if (
+        mirror_peer_direction != RBD_MIRROR_PEER_DIRECTION_RX_TX &&
+        mirror_peer_direction != peer.direction) {
       mirror_peer_direction = RBD_MIRROR_PEER_DIRECTION_RX_TX;
     }
 
@@ -1179,19 +1321,26 @@ void populate_unknown_mirror_image_site_statuses(
   }
 
   for (auto& mirror_uuid : missing_mirror_uuids) {
-    site_statuses.push_back({mirror_uuid, MIRROR_IMAGE_STATUS_STATE_UNKNOWN,
-                             "status not found", 0, false});
+    site_statuses.push_back(
+        {mirror_uuid, MIRROR_IMAGE_STATUS_STATE_UNKNOWN, "status not found", 0,
+         false});
   }
 
   std::swap(global_status->site_statuses, site_statuses);
 }
 
-int mgr_command(librados::Rados& rados, const std::string& cmd,
-                const std::map<std::string, std::string> &args,
-                std::ostream *out_os, std::ostream *err_os) {
+int
+mgr_command(
+    librados::Rados& rados,
+    const std::string& cmd,
+    const std::map<std::string, std::string>& args,
+    std::ostream* out_os,
+    std::ostream* err_os)
+{
   std::string command = R"(
     {
-      "prefix": ")" + cmd + R"(", )" + mgr_command_args_to_str(args) + R"(
+      "prefix": ")" + cmd +
+                        R"(", )" + mgr_command_args_to_str(args) + R"(
     })";
 
   bufferlist out_bl;

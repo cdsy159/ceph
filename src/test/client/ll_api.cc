@@ -14,16 +14,18 @@
  */
 
 #include <errno.h>
+#include <fmt/format.h>
 
 #include <iostream>
 #include <string>
 
-#include <fmt/format.h>
-
 #include "test/client/TestClient.h"
 
-TEST_F(TestClient, LL_Walk) {
-  auto dir = fmt::format("/{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
+TEST_F(TestClient, LL_Walk)
+{
+  auto dir = fmt::format(
+      "/{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
   ASSERT_EQ(0, client->mkdir(dir.c_str(), 0777, myperm));
 
   ASSERT_EQ(0, client->chdir(dir.c_str(), myperm));

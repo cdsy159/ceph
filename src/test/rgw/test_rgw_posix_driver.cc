@@ -12,13 +12,16 @@
  * Foundation.  See file COPYING.
  */
 
-#include "rgw_sal_posix.h"
 #include <gtest/gtest.h>
-#include <iostream>
+
 #include <filesystem>
+#include <iostream>
+
 #include "common/common_init.h"
 #include "common/errno.h"
 #include "global/global_init.h"
+
+#include "rgw_sal_posix.h"
 
 using namespace rgw::sal;
 
@@ -42,7 +45,9 @@ public:
 
   virtual ~Environment() {}
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     sf::remove_all(base_path);
     sf::create_directory(base_path);
 
@@ -51,9 +56,9 @@ public:
     args.push_back("--debug-ms=1");
 
     /* Proceed with environment setup */
-    cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                      CODE_ENVIRONMENT_UTILITY,
-                      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+    cct = global_init(
+        nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+        CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
     dpp = nullptr;
     //dpp = new NoDoutPrefix(cct.get(), 1);
@@ -62,13 +67,15 @@ public:
     ASSERT_EQ(root->open(dpp), 0);
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     sf::remove_all(base_path);
   }
 };
 
-
-static inline void add_attr(Attrs& attrs, const std::string& name, const std::string& value)
+static inline void
+add_attr(Attrs& attrs, const std::string& name, const std::string& value)
 {
   bufferlist bl;
   encode(value, bl);
@@ -76,7 +83,8 @@ static inline void add_attr(Attrs& attrs, const std::string& name, const std::st
   attrs[name] = bl;
 }
 
-static inline bool get_attr(Attrs& attrs, const char* name, bufferlist& bl)
+static inline bool
+get_attr(Attrs& attrs, const char* name, bufferlist& bl)
 {
   auto iter = attrs.find(name);
   if (iter == attrs.end()) {
@@ -88,7 +96,9 @@ static inline bool get_attr(Attrs& attrs, const char* name, bufferlist& bl)
 }
 
 template <typename F>
-static bool decode_attr(Attrs &attrs, const char *name, F &f) {
+static bool
+decode_attr(Attrs& attrs, const char* name, F& f)
+{
   bufferlist bl;
   if (!get_attr(attrs, name, bl)) {
     return false;
@@ -97,7 +107,7 @@ static bool decode_attr(Attrs &attrs, const char *name, F &f) {
   try {
     auto bufit = bl.cbegin();
     decode(tmpf, bufit);
-  } catch (buffer::error &err) {
+  } catch (buffer::error& err) {
     return false;
   }
 
@@ -107,27 +117,52 @@ static bool decode_attr(Attrs &attrs, const char *name, F &f) {
 
 class TestDirectory : public Directory {
 public:
-  TestDirectory(std::string _name, Directory* _parent, CephContext* _ctx) : Directory(_name, _parent, _ctx)
-    {}
-  TestDirectory(std::string _name, Directory* _parent, struct statx& _stx, CephContext* _ctx) : Directory(_name, _parent, _stx, _ctx)
-    {}
+  TestDirectory(std::string _name, Directory* _parent, CephContext* _ctx) :
+    Directory(_name, _parent, _ctx)
+  {}
+
+  TestDirectory(
+      std::string _name,
+      Directory* _parent,
+      struct statx& _stx,
+      CephContext* _ctx) :
+    Directory(_name, _parent, _stx, _ctx)
+  {}
+
   virtual ~TestDirectory() { close(); }
 
-  bool get_stat_done() { return stat_done; }
+  bool
+  get_stat_done()
+  {
+    return stat_done;
+  }
 };
 
 class TestFile : public File {
 public:
-  TestFile(std::string _name, Directory* _parent, CephContext* _ctx) : File(_name, _parent, _ctx)
-    {}
-  TestFile(std::string _name, Directory* _parent, struct statx& _stx, CephContext* _ctx) : File(_name, _parent, _stx, _ctx)
-    {}
+  TestFile(std::string _name, Directory* _parent, CephContext* _ctx) :
+    File(_name, _parent, _ctx)
+  {}
+
+  TestFile(
+      std::string _name,
+      Directory* _parent,
+      struct statx& _stx,
+      CephContext* _ctx) :
+    File(_name, _parent, _stx, _ctx)
+  {}
+
   virtual ~TestFile() { close(); }
 
-  bool get_stat_done() { return stat_done; }
+  bool
+  get_stat_done()
+  {
+    return stat_done;
+  }
 };
 
-std::string get_test_name()
+std::string
+get_test_name()
 {
   std::string suitename =
       testing::UnitTest::GetInstance()->current_test_info()->test_suite_name();
@@ -137,14 +172,14 @@ std::string get_test_name()
   return suitename + testname;
 }
 
-
 // Directory
 
 TEST(FSEnt, DirCreate)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<Directory> testdir = std::make_unique<Directory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<Directory> testdir =
+      std::make_unique<Directory>(dirname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -161,7 +196,8 @@ TEST(FSEnt, DirBase)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<TestDirectory> testdir = std::make_unique<TestDirectory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<TestDirectory> testdir =
+      std::make_unique<TestDirectory>(dirname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -240,7 +276,8 @@ TEST(FSEnt, DirBase)
   EXPECT_TRUE(sf::exists(cp));
   EXPECT_TRUE(sf::is_directory(tp));
 
-  std::unique_ptr<TestDirectory> copydir = std::make_unique<TestDirectory>(copyname, root.get(), env->cct.get());
+  std::unique_ptr<TestDirectory> copydir =
+      std::make_unique<TestDirectory>(copyname, root.get(), env->cct.get());
   ret = copydir->open(env->dpp);
   EXPECT_EQ(ret, 0);
   EXPECT_GT(copydir->get_fd(), 0);
@@ -283,7 +320,8 @@ TEST(FSEnt, DirAddDir)
   bool existed{false};
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<Directory> testdir = std::make_unique<Directory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<Directory> testdir =
+      std::make_unique<Directory>(dirname, root.get(), env->cct.get());
   int ret = testdir->create(env->dpp, &existed);
   EXPECT_EQ(ret, 0);
 
@@ -292,7 +330,8 @@ TEST(FSEnt, DirAddDir)
 
   std::string subdirname{"SubDir"};
   sf::path sp{base_path / dirname / subdirname};
-  std::unique_ptr<Directory> subdir = std::make_unique<Directory>(subdirname, testdir.get(), env->cct.get());
+  std::unique_ptr<Directory> subdir =
+      std::make_unique<Directory>(subdirname, testdir.get(), env->cct.get());
   ret = subdir->create(env->dpp, &existed);
   EXPECT_EQ(ret, 0);
   EXPECT_FALSE(existed);
@@ -303,8 +342,9 @@ TEST(FSEnt, DirAddDir)
   EXPECT_EQ(ret, 0);
 
   std::string subsubdirname{"SubSubDir"};
-  sf::path ssp{base_path / dirname / subdirname / subsubdirname };
-  std::unique_ptr<Directory> subsubdir = std::make_unique<Directory>(subsubdirname, subdir.get(), env->cct.get());
+  sf::path ssp{base_path / dirname / subdirname / subsubdirname};
+  std::unique_ptr<Directory> subsubdir =
+      std::make_unique<Directory>(subsubdirname, subdir.get(), env->cct.get());
   ret = subsubdir->create(env->dpp, &existed);
   EXPECT_EQ(ret, 0);
   EXPECT_FALSE(existed);
@@ -317,7 +357,8 @@ TEST(FSEnt, DirRename)
   bool existed{false};
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<Directory> testdir = std::make_unique<Directory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<Directory> testdir =
+      std::make_unique<Directory>(dirname, root.get(), env->cct.get());
   int ret = testdir->create(env->dpp, &existed);
   EXPECT_EQ(ret, 0);
 
@@ -326,7 +367,8 @@ TEST(FSEnt, DirRename)
 
   std::string subdirname{"SubDir"};
   sf::path sp{base_path / dirname / subdirname};
-  std::unique_ptr<Directory> subdir = std::make_unique<Directory>(subdirname, testdir.get(), env->cct.get());
+  std::unique_ptr<Directory> subdir =
+      std::make_unique<Directory>(subdirname, testdir.get(), env->cct.get());
   ret = subdir->create(env->dpp, &existed);
   EXPECT_EQ(ret, 0);
   EXPECT_FALSE(existed);
@@ -345,7 +387,6 @@ TEST(FSEnt, DirRename)
   EXPECT_FALSE(sf::exists(sp));
   EXPECT_FALSE(sf::is_directory(sp));
 }
-
 
 // File
 
@@ -391,7 +432,8 @@ TEST(FSEnt, FileBase)
 {
   std::string fname = get_test_name();
   sf::path tp{base_path / fname};
-  std::unique_ptr<TestFile> testfile = std::make_unique<TestFile>(fname, root.get(), env->cct.get());
+  std::unique_ptr<TestFile> testfile =
+      std::make_unique<TestFile>(fname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
   EXPECT_EQ(testfile->get_fd(), -1);
@@ -461,7 +503,8 @@ TEST(FSEnt, FileBase)
   EXPECT_TRUE(sf::exists(cp));
   EXPECT_TRUE(sf::is_regular_file(tp));
 
-  std::unique_ptr<TestFile> copyfile = std::make_unique<TestFile>(copyname, root.get(), env->cct.get());
+  std::unique_ptr<TestFile> copyfile =
+      std::make_unique<TestFile>(copyname, root.get(), env->cct.get());
   ret = copyfile->open(env->dpp);
   EXPECT_EQ(ret, 0);
   EXPECT_GT(copyfile->get_fd(), 0);
@@ -494,7 +537,8 @@ TEST(FSEnt, FileReadWrite)
 {
   std::string fname = get_test_name();
   sf::path tp{base_path / fname};
-  std::unique_ptr<File> testfile{std::make_unique<File>(fname, root.get(), env->cct.get())};
+  std::unique_ptr<File> testfile{
+      std::make_unique<File>(fname, root.get(), env->cct.get())};
 
   int ret = testfile->create(env->dpp);
   EXPECT_EQ(ret, 0);
@@ -526,7 +570,8 @@ TEST(FSEnt, SymlinkBase)
   std::string fname = get_test_name();
   sf::path tp{base_path / fname};
   std::string target{"symlinktarget"};
-  std::unique_ptr<Symlink> testlink = std::make_unique<Symlink>(fname, root.get(), target, env->cct.get());
+  std::unique_ptr<Symlink> testlink =
+      std::make_unique<Symlink>(fname, root.get(), target, env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -558,7 +603,8 @@ TEST(FSEnt, MPDirBase)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<MPDirectory> testdir = std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<MPDirectory> testdir =
+      std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -635,7 +681,8 @@ TEST(FSEnt, MPDirBase)
   EXPECT_TRUE(sf::exists(cp));
   EXPECT_TRUE(sf::is_directory(tp));
 
-  std::unique_ptr<MPDirectory> copydir = std::make_unique<MPDirectory>(copyname, root.get(), env->cct.get());
+  std::unique_ptr<MPDirectory> copydir =
+      std::make_unique<MPDirectory>(copyname, root.get(), env->cct.get());
   ret = copydir->open(env->dpp);
   EXPECT_EQ(ret, 0);
   EXPECT_GT(copydir->get_fd(), 0);
@@ -676,7 +723,8 @@ TEST(FSEnt, MPDirTemp)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<MPDirectory> testdir = std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<MPDirectory> testdir =
+      std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -702,7 +750,8 @@ TEST(FSEnt, MPDirReadWrite)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<MPDirectory> testdir = std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<MPDirectory> testdir =
+      std::make_unique<MPDirectory>(dirname, root.get(), env->cct.get());
   int ret = testdir->create(env->dpp, nullptr);
   EXPECT_EQ(ret, 0);
   EXPECT_TRUE(sf::exists(tp));
@@ -767,7 +816,8 @@ TEST(FSEnt, VerDirBase)
 {
   std::string dirname = get_test_name();
   sf::path tp{base_path / dirname};
-  std::unique_ptr<VersionedDirectory> testdir = std::make_unique<VersionedDirectory>(dirname, root.get(), env->cct.get());
+  std::unique_ptr<VersionedDirectory> testdir =
+      std::make_unique<VersionedDirectory>(dirname, root.get(), env->cct.get());
 
   EXPECT_FALSE(sf::exists(tp));
 
@@ -845,7 +895,8 @@ TEST(FSEnt, VerDirBase)
   EXPECT_TRUE(sf::exists(cp));
   EXPECT_TRUE(sf::is_directory(tp));
 
-  std::unique_ptr<VersionedDirectory> copydir = std::make_unique<VersionedDirectory>(copyname, root.get(), env->cct.get());
+  std::unique_ptr<VersionedDirectory> copydir =
+      std::make_unique<VersionedDirectory>(copyname, root.get(), env->cct.get());
   ret = copydir->open(env->dpp);
   EXPECT_EQ(ret, 0);
   EXPECT_GT(copydir->get_fd(), 0);
@@ -896,8 +947,10 @@ TEST(FSEnt, VerDirReadWrite)
   int ret = verdir->create(env->dpp, /*existed=*/nullptr, /*temp_file=*/false);
   EXPECT_EQ(ret, 0);
 
-  std::unique_ptr<File> testfile{std::make_unique<File>(vfname, verdir.get(), env->cct.get())};
-  ret = verdir->add_file(env->dpp, std::move(testfile), /*existed=*/nullptr, /*temp_file=*/true);
+  std::unique_ptr<File> testfile{
+      std::make_unique<File>(vfname, verdir.get(), env->cct.get())};
+  ret = verdir->add_file(
+      env->dpp, std::move(testfile), /*existed=*/nullptr, /*temp_file=*/true);
   EXPECT_EQ(ret, 0);
 
   std::string temp_fname{fname + "-blargh"};
@@ -980,7 +1033,8 @@ TEST(FSEnt, MPVerDirReadWrite)
 {
   std::string testname = get_test_name();
   std::unique_ptr<VersionedDirectory> verdir{
-      std::make_unique<VersionedDirectory>(testname, root.get(), env->cct.get())};
+      std::make_unique<VersionedDirectory>(
+          testname, root.get(), env->cct.get())};
   std::string instance_id{verdir->get_new_instance()};
   std::string vfname{"_%3A" + instance_id + "_" + testname};
   sf::path vp{base_path / testname};
@@ -990,8 +1044,10 @@ TEST(FSEnt, MPVerDirReadWrite)
   int ret = verdir->create(env->dpp, /*existed=*/nullptr, /*temp_file=*/false);
   EXPECT_EQ(ret, 0);
 
-  std::unique_ptr<MPDirectory> mpdir{std::make_unique<MPDirectory>(vfname, verdir.get(), env->cct.get())};
-  ret = verdir->add_file(env->dpp, std::move(mpdir), /*existed=*/nullptr, /*temp_file=*/true);
+  std::unique_ptr<MPDirectory> mpdir{
+      std::make_unique<MPDirectory>(vfname, verdir.get(), env->cct.get())};
+  ret = verdir->add_file(
+      env->dpp, std::move(mpdir), /*existed=*/nullptr, /*temp_file=*/true);
   EXPECT_EQ(ret, 0);
 
   std::string temp_fname{testname + "-blargh"};
@@ -1066,16 +1122,19 @@ TEST(FSEnt, MPVerDirReadWrite)
 }
 
 class TestUser;
-class TestDriver : public POSIXDriver
-{
+
+class TestDriver : public POSIXDriver {
 public:
   std::string driver_base;
 
-  TestDriver(std::string _base_path) : POSIXDriver(nullptr), driver_base(_base_path)
-  { }
+  TestDriver(std::string _base_path) :
+    POSIXDriver(nullptr), driver_base(_base_path)
+  {}
+
   virtual ~TestDriver() = default;
 
-  int init(const DoutPrefixProvider* dpp)
+  int
+  init(const DoutPrefixProvider* dpp)
   {
     std::string cache_base = driver_base + "/cache";
     base_path = driver_base + "/root";
@@ -1085,7 +1144,7 @@ public:
     if (ret < 0) {
       if (ret == -ENOTDIR) {
         ldpp_dout(env->dpp, 0) << " ERROR: base path (" << base_path
-                          << "): was not a directory." << dendl;
+                               << "): was not a directory." << dendl;
         return ret;
       } else if (ret == -ENOENT) {
         ret = root_dir->create(env->dpp);
@@ -1099,13 +1158,16 @@ public:
     }
 
     /* ordered listing cache */
-    bucket_cache.reset(new BucketCache(
-        this, base_path, cache_base, 100, 3, 3, 3));
+    bucket_cache.reset(
+        new BucketCache(this, base_path, cache_base, 100, 3, 3, 3));
 
     ldpp_dout(env->dpp, 20) << "SUCCESS" << dendl;
     return 0;
   }
-  virtual CephContext* ctx(void) override {
+
+  virtual CephContext*
+  ctx(void) override
+  {
     return get_pointer(env->cct);
   }
 
@@ -1116,39 +1178,121 @@ class TestUser : public StoreUser {
   Attrs attrs;
 
 public:
-  TestUser(TestDriver *_dr, const rgw_user& _u) : StoreUser(_u) { }
-  TestUser(TestDriver *_dr, const RGWUserInfo& _i) : StoreUser(_i) { }
-  TestUser(TestDriver *_dr)  { }
+  TestUser(TestDriver* _dr, const rgw_user& _u) :
+    StoreUser(_u)
+  {}
+
+  TestUser(TestDriver* _dr, const RGWUserInfo& _i) :
+    StoreUser(_i)
+  {}
+
+  TestUser(TestDriver* _dr) {}
+
   TestUser(TestUser& _o) = default;
   virtual ~TestUser() = default;
 
-  virtual std::unique_ptr<User> clone() override {
+  virtual std::unique_ptr<User>
+  clone() override
+  {
     return std::unique_ptr<User>(new TestUser(*this));
   }
-  virtual Attrs& get_attrs() override { return attrs; }
-  virtual void set_attrs(Attrs &_attrs) override { attrs = _attrs; }
-  virtual int read_attrs(const DoutPrefixProvider* dpp, optional_yield y) override { return 0; }
-  virtual int merge_and_store_attrs(const DoutPrefixProvider* dpp, Attrs&
-				    new_attrs, optional_yield y) override { return 0; }
-  virtual int read_usage(const DoutPrefixProvider* dpp, uint64_t start_epoch,
-             uint64_t end_epoch, uint32_t max_entries, bool* is_truncated,
-             RGWUsageIter &usage_iter,
-             std::map<rgw_user_bucket, rgw_usage_log_entry> &usage) override { return 0; }
-  virtual int trim_usage(const DoutPrefixProvider* dpp, uint64_t start_epoch,
-                         uint64_t end_epoch, optional_yield y) override { return 0; }
-  virtual int load_user(const DoutPrefixProvider* dpp, optional_yield y) override { return 0; }
-  virtual int store_user(const DoutPrefixProvider* dpp, optional_yield y, bool
-			 exclusive, RGWUserInfo* old_info = nullptr) override { return 0; }
-  virtual int remove_user(const DoutPrefixProvider* dpp, optional_yield y) override { return 0; }
-  virtual int verify_mfa(const std::string &mfa_str, bool *verified,
-                         const DoutPrefixProvider* dpp,
-                         optional_yield y) override { return 0; }
-  virtual int list_groups(const DoutPrefixProvider *dpp, optional_yield y,
-                          std::string_view marker, uint32_t max_items,
-                          GroupList &listing) override { return -ENOTSUP; }
+
+  virtual Attrs&
+  get_attrs() override
+  {
+    return attrs;
+  }
+
+  virtual void
+  set_attrs(Attrs& _attrs) override
+  {
+    attrs = _attrs;
+  }
+
+  virtual int
+  read_attrs(const DoutPrefixProvider* dpp, optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  merge_and_store_attrs(
+      const DoutPrefixProvider* dpp,
+      Attrs& new_attrs,
+      optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  read_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      uint32_t max_entries,
+      bool* is_truncated,
+      RGWUsageIter& usage_iter,
+      std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) override
+  {
+    return 0;
+  }
+
+  virtual int
+  trim_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  load_user(const DoutPrefixProvider* dpp, optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  store_user(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      bool exclusive,
+      RGWUserInfo* old_info = nullptr) override
+  {
+    return 0;
+  }
+
+  virtual int
+  remove_user(const DoutPrefixProvider* dpp, optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  verify_mfa(
+      const std::string& mfa_str,
+      bool* verified,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) override
+  {
+    return 0;
+  }
+
+  virtual int
+  list_groups(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view marker,
+      uint32_t max_items,
+      GroupList& listing) override
+  {
+    return -ENOTSUP;
+  }
 };
 
-std::unique_ptr<User> TestDriver::get_user(const rgw_user &u)
+std::unique_ptr<User>
+TestDriver::get_user(const rgw_user& u)
 {
   return std::make_unique<TestUser>(this, u);
 }
@@ -1171,33 +1315,39 @@ TEST(POSIXDriver, CreateDriver)
 }
 
 class POSIXDriverTest : public ::testing::Test {
-  protected:
-    std::unique_ptr<TestDriver> driver;
-    rgw_owner owner;
-    ACLOwner acl_owner;
-    sf::path bp;
-    std::string testname;
+protected:
+  std::unique_ptr<TestDriver> driver;
+  rgw_owner owner;
+  ACLOwner acl_owner;
+  sf::path bp;
+  std::string testname;
 
-  public:
-    POSIXDriverTest() {}
+public:
+  POSIXDriverTest() {}
 
-    void SetUp() {
-      testname = get_test_name();
-      bp = sf::path{sf::absolute(sf::path{base_path / testname})};
-      sf::create_directory(bp);
-      sf::create_directory(bp / "cache");
-      sf::create_directory(bp / "root");
-      driver = std::make_unique<TestDriver>(bp);
-      int ret = driver->init(env->dpp);
-      EXPECT_EQ(ret, 0);
+  void
+  SetUp()
+  {
+    testname = get_test_name();
+    bp = sf::path{sf::absolute(sf::path{base_path / testname})};
+    sf::create_directory(bp);
+    sf::create_directory(bp / "cache");
+    sf::create_directory(bp / "root");
+    driver = std::make_unique<TestDriver>(bp);
+    int ret = driver->init(env->dpp);
+    EXPECT_EQ(ret, 0);
 
-      rgw_user uid{"tenant", testname};
-      owner = uid;
-      acl_owner.id = owner;
-      EXPECT_EQ(ret, 0);
-    }
+    rgw_user uid{"tenant", testname};
+    owner = uid;
+    acl_owner.id = owner;
+    EXPECT_EQ(ret, 0);
+  }
 
-    void TearDown() { sf::remove_all(bp); }
+  void
+  TearDown()
+  {
+    sf::remove_all(bp);
+  }
 };
 
 TEST_F(POSIXDriverTest, Bucket)
@@ -1215,7 +1365,6 @@ TEST_F(POSIXDriverTest, Bucket)
   EXPECT_EQ(bucket->get_key().bucket_id, "");
   EXPECT_FALSE(bucket->versioned());
   EXPECT_FALSE(bucket->versioning_enabled());
-
 }
 
 TEST_F(POSIXDriverTest, BucketCreate)
@@ -1253,7 +1402,9 @@ protected:
 public:
   POSIXBucketTest() {}
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     POSIXDriverTest::SetUp();
 
     RGWBucketInfo info;
@@ -1270,21 +1421,23 @@ public:
     EXPECT_EQ(ret, 0);
   }
 
-  void TearDown() {
+  void
+  TearDown()
+  {
     POSIXDriverTest::TearDown();
   }
 };
 
 TEST_F(POSIXBucketTest, Object)
 {
-  std::unique_ptr<rgw::sal::Object> object = bucket->get_object(rgw_obj_key(testname, "instance", "namespace"));
+  std::unique_ptr<rgw::sal::Object> object =
+      bucket->get_object(rgw_obj_key(testname, "instance", "namespace"));
   EXPECT_NE(object.get(), nullptr);
   EXPECT_EQ(object->get_name(), testname);
   EXPECT_EQ(object->get_key().name, testname);
   EXPECT_EQ(object->get_bucket(), bucket.get());
   EXPECT_EQ(object->get_oid(), "_namespace:instance_" + testname);
   EXPECT_EQ(object->get_instance(), "instance");
-
 }
 
 TEST_F(POSIXBucketTest, ObjectWrite)
@@ -1292,7 +1445,8 @@ TEST_F(POSIXBucketTest, ObjectWrite)
   sf::path tp{bp / "root" / testname / testname};
   EXPECT_FALSE(sf::exists(tp));
 
-  std::unique_ptr<rgw::sal::Object> object = bucket->get_object(rgw_obj_key(testname));
+  std::unique_ptr<rgw::sal::Object> object =
+      bucket->get_object(rgw_obj_key(testname));
   EXPECT_NE(object.get(), nullptr);
 
   std::unique_ptr<rgw::sal::Writer> writer = driver->get_atomic_writer(
@@ -1325,9 +1479,9 @@ TEST_F(POSIXBucketTest, ObjectWrite)
   attrs[ATTR1] = bl;
   req_context rctx{env->dpp, null_yield, nullptr};
 
-  ret = writer->complete(ofs, etag, &mtime, real_time(), attrs, std::nullopt,
-                         real_time(), nullptr, nullptr, nullptr, nullptr,
-                         nullptr, rctx, 0);
+  ret = writer->complete(
+      ofs, etag, &mtime, real_time(), attrs, std::nullopt, real_time(), nullptr,
+      nullptr, nullptr, nullptr, nullptr, rctx, 0);
   EXPECT_EQ(ret, 0);
   EXPECT_EQ(object->get_size(), ofs);
 
@@ -1347,13 +1501,18 @@ protected:
 public:
   POSIXObjectTest() {}
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     POSIXBucketTest::SetUp();
     object = write_object(testname);
   }
 
-  std::unique_ptr<rgw::sal::Object> write_object(std::string objname) {
-    std::unique_ptr<rgw::sal::Object> obj = bucket->get_object(rgw_obj_key(objname));
+  std::unique_ptr<rgw::sal::Object>
+  write_object(std::string objname)
+  {
+    std::unique_ptr<rgw::sal::Object> obj =
+        bucket->get_object(rgw_obj_key(objname));
     EXPECT_NE(obj.get(), nullptr);
 
     std::unique_ptr<rgw::sal::Writer> writer = driver->get_atomic_writer(
@@ -1384,25 +1543,34 @@ public:
     Attrs attrs;
     add_attr(attrs, ATTR1, ATTR1);
     req_context rctx{env->dpp, null_yield, nullptr};
-    ret = writer->complete(write_size, etag, &mtime, real_time(), attrs,
-                           std::nullopt, real_time(), nullptr, nullptr, nullptr,
-                           nullptr, nullptr, rctx, 0);
+    ret = writer->complete(
+        write_size, etag, &mtime, real_time(), attrs, std::nullopt, real_time(),
+        nullptr, nullptr, nullptr, nullptr, nullptr, rctx, 0);
     EXPECT_EQ(ret, 0);
 
     return obj;
   }
 
-  void TearDown() { POSIXBucketTest::TearDown(); }
+  void
+  TearDown()
+  {
+    POSIXBucketTest::TearDown();
+  }
 };
 
-class Read_CB : public RGWGetDataCB
-{
+class Read_CB : public RGWGetDataCB {
 public:
-  bufferlist *save_bl;
-  explicit Read_CB(bufferlist *_bl) : save_bl(_bl) {}
+  bufferlist* save_bl;
+
+  explicit Read_CB(bufferlist* _bl) :
+    save_bl(_bl)
+  {}
+
   ~Read_CB() override {}
 
-  int handle_data(bufferlist& bl, off_t bl_ofs, off_t bl_len) override {
+  int
+  handle_data(bufferlist& bl, off_t bl_ofs, off_t bl_len) override
+  {
     save_bl->append(bl);
     return 0;
   }
@@ -1503,7 +1671,8 @@ TEST_F(POSIXObjectTest, ObjectCopy)
   std::string dstname{testname + "-dst"};
   sf::path dp{bp / "root" / testname / dstname};
 
-  std::unique_ptr<rgw::sal::Object> dstobj = bucket->get_object(rgw_obj_key(dstname));
+  std::unique_ptr<rgw::sal::Object> dstobj =
+      bucket->get_object(rgw_obj_key(dstname));
   EXPECT_NE(dstobj.get(), nullptr);
   EXPECT_FALSE(sf::exists(dp));
 
@@ -1515,35 +1684,13 @@ TEST_F(POSIXObjectTest, ObjectCopy)
   Attrs attrs;
   std::string tag;
 
-  int ret = object->copy_object(acl_owner,
-	   std::get<rgw_user>(owner),
-	   &info,
-	   zone,
-	   dstobj.get(),
-	   bucket.get(),
-	   bucket.get(),
-	   placement,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   false,
-	   nullptr,
-	   nullptr,
-	   ATTRSMOD_NONE,
-	   false,
-	   attrs,
-	   RGWObjCategory::Main,
-	   0,
-	   boost::none,
-	   nullptr,
-	   &tag, /* use req_id as tag */
-	   &tag,
-	   nullptr,
-	   nullptr,
-	   nullptr,
-	   env->dpp,
-	   null_yield);
+  int ret = object->copy_object(
+      acl_owner, std::get<rgw_user>(owner), &info, zone, dstobj.get(),
+      bucket.get(), bucket.get(), placement, &mtime, &mtime, &mtime, &mtime,
+      false, nullptr, nullptr, ATTRSMOD_NONE, false, attrs,
+      RGWObjCategory::Main, 0, boost::none, nullptr,
+      &tag, /* use req_id as tag */
+      &tag, nullptr, nullptr, nullptr, env->dpp, null_yield);
   EXPECT_EQ(ret, 0);
 
   EXPECT_TRUE(sf::exists(sp));
@@ -1588,7 +1735,8 @@ TEST_F(POSIXObjectTest, ObjectAttrs)
 TEST_F(POSIXBucketTest, MultipartUpload)
 {
   std::string upload_id = "c0ffee";
-  std::unique_ptr<rgw::sal::MultipartUpload> upload = bucket->get_multipart_upload(testname, upload_id);
+  std::unique_ptr<rgw::sal::MultipartUpload> upload =
+      bucket->get_multipart_upload(testname, upload_id);
 
   EXPECT_NE(upload.get(), nullptr);
   EXPECT_EQ(upload->get_meta(), testname + "." + upload_id);
@@ -1603,7 +1751,8 @@ TEST_F(POSIXBucketTest, MPUploadCreate)
   sf::path tp{bp / "root" / testname / mpname};
   EXPECT_FALSE(sf::exists(tp));
 
-  std::unique_ptr<rgw::sal::MultipartUpload> upload = bucket->get_multipart_upload(testname, upload_id);
+  std::unique_ptr<rgw::sal::MultipartUpload> upload =
+      bucket->get_multipart_upload(testname, upload_id);
   EXPECT_NE(upload.get(), nullptr);
 
   rgw_placement_rule placement;
@@ -1625,16 +1774,20 @@ protected:
 public:
   POSIXMPObjectTest() {}
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     def_upload = get_upload("c0ffee");
   }
 
-  std::unique_ptr<rgw::sal::MultipartUpload> get_upload(std::string upload_id) {
+  std::unique_ptr<rgw::sal::MultipartUpload>
+  get_upload(std::string upload_id)
+  {
     POSIXBucketTest::SetUp();
     mpname = ".multipart_" + testname + "." + upload_id;
 
     std::unique_ptr<rgw::sal::MultipartUpload> upload =
-      bucket->get_multipart_upload(testname, upload_id);
+        bucket->get_multipart_upload(testname, upload_id);
     EXPECT_NE(upload.get(), nullptr);
 
     rgw_placement_rule placement;
@@ -1646,18 +1799,22 @@ public:
     return upload;
   }
 
-  void TearDown() {
+  void
+  TearDown()
+  {
     POSIXBucketTest::TearDown();
   }
 
-  int write_part(rgw::sal::MultipartUpload* upload, int part_num) {
+  int
+  write_part(rgw::sal::MultipartUpload* upload, int part_num)
+  {
     std::unique_ptr<rgw::sal::Writer> writer;
     rgw_placement_rule placement;
     std::string part_name = "part-" + fmt::format("{:0>5}", part_num);
     ACLOwner owner{bucket->get_owner()};
 
-    writer = upload->get_writer(env->dpp, null_yield, nullptr, owner,
-                                &placement, part_num, part_name);
+    writer = upload->get_writer(
+        env->dpp, null_yield, nullptr, owner, &placement, part_num, part_name);
     EXPECT_NE(writer.get(), nullptr);
 
     int ret = writer->prepare(null_yield);
@@ -1687,14 +1844,17 @@ public:
     attrs[ATTR1] = bl;
     req_context rctx{env->dpp, null_yield, nullptr};
 
-    ret = writer->complete(ofs, part_name, &mtime, real_time(), attrs,
-                           std::nullopt, real_time(), nullptr, nullptr, nullptr,
-                           nullptr, nullptr, rctx, 0);
+    ret = writer->complete(
+        ofs, part_name, &mtime, real_time(), attrs, std::nullopt, real_time(),
+        nullptr, nullptr, nullptr, nullptr, nullptr, rctx, 0);
     EXPECT_EQ(ret, 0);
 
     return ofs;
   }
-  uint64_t create_MPObj(rgw::sal::MultipartUpload* upload, std::string name) {
+
+  uint64_t
+  create_MPObj(rgw::sal::MultipartUpload* upload, std::string name)
+  {
     std::map<int, std::string> parts;
     int part_count{4};
     uint64_t write_size{0};
@@ -1715,9 +1875,10 @@ public:
     ACLOwner owner;
     owner.id = bucket->get_owner();
 
-    int ret = upload->complete(env->dpp, null_yield, get_pointer(env->cct), parts,
-                               remove_objs, accounted_size, compressed, cs_info,
-                               ofs, tag, owner, 0, mp_obj.get(), processed_prefixes);
+    int ret = upload->complete(
+        env->dpp, null_yield, get_pointer(env->cct), parts, remove_objs,
+        accounted_size, compressed, cs_info, ofs, tag, owner, 0, mp_obj.get(),
+        processed_prefixes);
     EXPECT_EQ(ret, 0);
     EXPECT_EQ(write_size, ofs);
     EXPECT_EQ(write_size, accounted_size);
@@ -1738,8 +1899,8 @@ TEST_F(POSIXMPObjectTest, MPUploadWrite)
   std::unique_ptr<rgw::sal::Writer> writer;
   rgw_placement_rule placement;
 
-  writer = def_upload->get_writer(env->dpp, null_yield, nullptr, acl_owner,
-                              &placement, 1, "00001");
+  writer = def_upload->get_writer(
+      env->dpp, null_yield, nullptr, acl_owner, &placement, 1, "00001");
   EXPECT_NE(writer.get(), nullptr);
 
   int ret = writer->prepare(null_yield);
@@ -1768,12 +1929,12 @@ TEST_F(POSIXMPObjectTest, MPUploadWrite)
   attrs[ATTR1] = bl;
   req_context rctx{env->dpp, null_yield, nullptr};
 
-  ret = writer->complete(ofs, etag, &mtime, real_time(), attrs, std::nullopt,
-                         real_time(), nullptr, nullptr, nullptr, nullptr,
-                         nullptr, rctx, 0);
+  ret = writer->complete(
+      ofs, etag, &mtime, real_time(), attrs, std::nullopt, real_time(), nullptr,
+      nullptr, nullptr, nullptr, nullptr, rctx, 0);
   EXPECT_EQ(ret, 0);
 
-  sf::path tp{bp / "root" / testname / mpname / "part-00001" };
+  sf::path tp{bp / "root" / testname / mpname / "part-00001"};
   EXPECT_TRUE(sf::exists(tp));
   EXPECT_TRUE(sf::is_regular_file(tp));
 }
@@ -1812,7 +1973,8 @@ TEST_F(POSIXMPObjectTest, MPUploadCopy)
 
   std::unique_ptr<Object> object = bucket->get_object(rgw_obj_key(testname));
   EXPECT_NE(object.get(), nullptr);
-  std::unique_ptr<rgw::sal::Object> dstobj = bucket->get_object(rgw_obj_key(dstname));
+  std::unique_ptr<rgw::sal::Object> dstobj =
+      bucket->get_object(rgw_obj_key(dstname));
   EXPECT_NE(dstobj.get(), nullptr);
   EXPECT_FALSE(sf::exists(dp));
 
@@ -1824,35 +1986,13 @@ TEST_F(POSIXMPObjectTest, MPUploadCopy)
   Attrs attrs;
   std::string tag;
 
-  int ret = object->copy_object(acl_owner,
-	   std::get<rgw_user>(owner),
-	   &info,
-	   zone,
-	   dstobj.get(),
-	   bucket.get(),
-	   bucket.get(),
-	   placement,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   false,
-	   nullptr,
-	   nullptr,
-	   ATTRSMOD_NONE,
-	   false,
-	   attrs,
-	   RGWObjCategory::Main,
-	   0,
-	   boost::none,
-	   nullptr,
-	   &tag, /* use req_id as tag */
-	   &tag,
-	   nullptr,
-	   nullptr,
-	   nullptr,
-	   env->dpp,
-	   null_yield);
+  int ret = object->copy_object(
+      acl_owner, std::get<rgw_user>(owner), &info, zone, dstobj.get(),
+      bucket.get(), bucket.get(), placement, &mtime, &mtime, &mtime, &mtime,
+      false, nullptr, nullptr, ATTRSMOD_NONE, false, attrs,
+      RGWObjCategory::Main, 0, boost::none, nullptr,
+      &tag, /* use req_id as tag */
+      &tag, nullptr, nullptr, nullptr, env->dpp, null_yield);
   EXPECT_EQ(ret, 0);
 
   EXPECT_TRUE(sf::exists(sp));
@@ -1863,15 +2003,18 @@ TEST_F(POSIXMPObjectTest, BucketList)
 {
   std::unique_ptr<rgw::sal::MultipartUpload> up1 = get_upload("c0ffee-1");
   create_MPObj(up1.get(), testname + "-1");
-  std::unique_ptr<Object> obj1 = bucket->get_object(rgw_obj_key(testname + "-1"));
+  std::unique_ptr<Object> obj1 =
+      bucket->get_object(rgw_obj_key(testname + "-1"));
   EXPECT_NE(obj1.get(), nullptr);
   std::unique_ptr<rgw::sal::MultipartUpload> up2 = get_upload("c0ffee-2");
   create_MPObj(up2.get(), testname + "-2");
-  std::unique_ptr<Object> obj2 = bucket->get_object(rgw_obj_key(testname + "-2"));
+  std::unique_ptr<Object> obj2 =
+      bucket->get_object(rgw_obj_key(testname + "-2"));
   EXPECT_NE(obj2.get(), nullptr);
   std::unique_ptr<rgw::sal::MultipartUpload> up3 = get_upload("c0ffee-3");
   create_MPObj(up3.get(), testname + "-3");
-  std::unique_ptr<Object> obj3 = bucket->get_object(rgw_obj_key(testname + "-3"));
+  std::unique_ptr<Object> obj3 =
+      bucket->get_object(rgw_obj_key(testname + "-3"));
   EXPECT_NE(obj3.get(), nullptr);
 
   rgw::sal::Bucket::ListParams params;
@@ -1903,7 +2046,8 @@ TEST_F(POSIXBucketTest, VersionedObjectWrite)
   sf::path tp{bp / "root" / testname / testname};
   EXPECT_FALSE(sf::exists(tp));
 
-  std::unique_ptr<rgw::sal::Object> object = bucket->get_object(rgw_obj_key(testname));
+  std::unique_ptr<rgw::sal::Object> object =
+      bucket->get_object(rgw_obj_key(testname));
   EXPECT_NE(object.get(), nullptr);
 
   object->gen_rand_obj_instance_name();
@@ -1939,9 +2083,9 @@ TEST_F(POSIXBucketTest, VersionedObjectWrite)
   attrs[ATTR1] = bl;
   req_context rctx{env->dpp, null_yield, nullptr};
 
-  ret = writer->complete(ofs, etag, &mtime, real_time(), attrs, std::nullopt,
-                         real_time(), nullptr, nullptr, nullptr, nullptr,
-                         nullptr, rctx, 0);
+  ret = writer->complete(
+      ofs, etag, &mtime, real_time(), attrs, std::nullopt, real_time(), nullptr,
+      nullptr, nullptr, nullptr, nullptr, rctx, 0);
   EXPECT_EQ(ret, 0);
   EXPECT_EQ(object->get_size(), ofs);
 
@@ -1961,15 +2105,16 @@ TEST_F(POSIXBucketTest, VersionedObjectWrite)
   EXPECT_TRUE(sf::is_symlink(curver));
   EXPECT_EQ(sf::read_symlink(curver), vfname);
 
-  std::unique_ptr<rgw::sal::Object> obj2 = bucket->get_object(rgw_obj_key(testname));
+  std::unique_ptr<rgw::sal::Object> obj2 =
+      bucket->get_object(rgw_obj_key(testname));
   EXPECT_NE(obj2.get(), nullptr);
 
   obj2->gen_rand_obj_instance_name();
   inst_id = obj2->get_instance();
 
   writer.reset();
-  writer = driver->get_atomic_writer(env->dpp, null_yield, obj2.get(), acl_owner, nullptr,
-				     0, testname);
+  writer = driver->get_atomic_writer(
+      env->dpp, null_yield, obj2.get(), acl_owner, nullptr, 0, testname);
   EXPECT_NE(writer.get(), nullptr);
 
   ret = writer->prepare(null_yield);
@@ -1995,9 +2140,9 @@ TEST_F(POSIXBucketTest, VersionedObjectWrite)
   encode(ATTR1, bl);
   attrs[ATTR1] = bl;
 
-  ret = writer->complete(ofs, etag, &mtime, real_time(), attrs, std::nullopt,
-                         real_time(), nullptr, nullptr, nullptr, nullptr,
-                         nullptr, rctx, 0);
+  ret = writer->complete(
+      ofs, etag, &mtime, real_time(), attrs, std::nullopt, real_time(), nullptr,
+      nullptr, nullptr, nullptr, nullptr, rctx, 0);
   EXPECT_EQ(ret, 0);
   EXPECT_EQ(obj2->get_size(), ofs);
 
@@ -2016,7 +2161,8 @@ TEST_F(POSIXBucketTest, VersionedObjectWrite)
   EXPECT_TRUE(sf::is_symlink(curver));
   EXPECT_EQ(sf::read_symlink(curver), vfname);
 
-  std::unique_ptr<rgw::sal::Object> robj = bucket->get_object(rgw_obj_key(testname));
+  std::unique_ptr<rgw::sal::Object> robj =
+      bucket->get_object(rgw_obj_key(testname));
   EXPECT_NE(robj.get(), nullptr);
 
   std::unique_ptr<rgw::sal::Object::ReadOp> read_op(robj->get_read_op());
@@ -2033,14 +2179,19 @@ protected:
 public:
   POSIXVerObjectTest() {}
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     POSIXBucketTest::SetUp();
 
     bucket->get_info().flags |= BUCKET_VERSIONED;
   }
 
-  std::unique_ptr<rgw::sal::Object>  write_version(std::string objname) {
-    std::unique_ptr<rgw::sal::Object> object = bucket->get_object(rgw_obj_key(objname));
+  std::unique_ptr<rgw::sal::Object>
+  write_version(std::string objname)
+  {
+    std::unique_ptr<rgw::sal::Object> object =
+        bucket->get_object(rgw_obj_key(objname));
     EXPECT_NE(object.get(), nullptr);
     object->gen_rand_obj_instance_name();
 
@@ -2072,15 +2223,19 @@ public:
     Attrs attrs;
     add_attr(attrs, ATTR1, ATTR1);
     req_context rctx{env->dpp, null_yield, nullptr};
-    ret = writer->complete(write_size, etag, &mtime, real_time(), attrs,
-                           std::nullopt, real_time(), nullptr, nullptr, nullptr,
-                           nullptr, nullptr, rctx, 0);
+    ret = writer->complete(
+        write_size, etag, &mtime, real_time(), attrs, std::nullopt, real_time(),
+        nullptr, nullptr, nullptr, nullptr, nullptr, rctx, 0);
     EXPECT_EQ(ret, 0);
 
     return object;
   }
 
-  void TearDown() { POSIXBucketTest::TearDown(); }
+  void
+  TearDown()
+  {
+    POSIXBucketTest::TearDown();
+  }
 };
 
 TEST_F(POSIXVerObjectTest, url_encode)
@@ -2100,7 +2255,6 @@ TEST_F(POSIXVerObjectTest, url_encode)
   EXPECT_TRUE(sf::exists(op1));
   EXPECT_TRUE(sf::is_regular_file(op1));
 }
-
 
 TEST_F(POSIXVerObjectTest, BucketListV)
 {
@@ -2139,7 +2293,6 @@ TEST_F(POSIXVerObjectTest, BucketListV)
   EXPECT_EQ(key5, obj2v1->get_key());
 }
 
-
 TEST_F(POSIXVerObjectTest, DeleteCurVersion)
 {
   std::string srcname{testname + "-1"};
@@ -2153,7 +2306,8 @@ TEST_F(POSIXVerObjectTest, DeleteCurVersion)
   EXPECT_NE(obj1v3.get(), nullptr);
   std::string obj1v3_inst = obj1v3->get_instance();
   sf::path sp{bp / "root" / testname / srcname};
-  std::unique_ptr<rgw::sal::Object> delobj = bucket->get_object(rgw_obj_key(srcname));
+  std::unique_ptr<rgw::sal::Object> delobj =
+      bucket->get_object(rgw_obj_key(srcname));
   EXPECT_NE(delobj.get(), nullptr);
   EXPECT_TRUE(sf::exists(sp));
   sf::path ops{sp / srcname};
@@ -2191,7 +2345,6 @@ TEST_F(POSIXVerObjectTest, DeleteCurVersion)
   EXPECT_TRUE(sf::is_symlink(ops));
   /* Need to find a way to get the correct version */
   //EXPECT_EQ(sf::read_symlink(ops), dfname);
-
 }
 
 TEST_F(POSIXVerObjectTest, DeleteOldVersion)
@@ -2207,7 +2360,8 @@ TEST_F(POSIXVerObjectTest, DeleteOldVersion)
   EXPECT_NE(obj1v3.get(), nullptr);
   std::string obj1v3_inst = obj1v3->get_instance();
   sf::path sp{bp / "root" / testname / srcname};
-  std::unique_ptr<rgw::sal::Object> delobj = bucket->get_object(rgw_obj_key(srcname, obj1v2_inst));
+  std::unique_ptr<rgw::sal::Object> delobj =
+      bucket->get_object(rgw_obj_key(srcname, obj1v2_inst));
   EXPECT_NE(delobj.get(), nullptr);
   EXPECT_TRUE(sf::exists(sp));
   sf::path ops{sp / srcname};
@@ -2241,7 +2395,6 @@ TEST_F(POSIXVerObjectTest, DeleteOldVersion)
   EXPECT_TRUE(sf::exists(ops));
   EXPECT_TRUE(sf::is_symlink(ops));
   EXPECT_EQ(sf::read_symlink(ops), vfname3);
-
 }
 
 TEST_F(POSIXVerObjectTest, ObjectCopy)
@@ -2254,7 +2407,8 @@ TEST_F(POSIXVerObjectTest, ObjectCopy)
   EXPECT_NE(obj1v2.get(), nullptr);
   std::string obj1v2_inst = obj1v2->get_instance();
   sf::path sp{bp / "root" / testname / srcname};
-  std::unique_ptr<rgw::sal::Object> srcobj = bucket->get_object(rgw_obj_key(srcname));
+  std::unique_ptr<rgw::sal::Object> srcobj =
+      bucket->get_object(rgw_obj_key(srcname));
   EXPECT_NE(srcobj.get(), nullptr);
   EXPECT_TRUE(sf::exists(sp));
 
@@ -2262,7 +2416,8 @@ TEST_F(POSIXVerObjectTest, ObjectCopy)
   std::string dstname{testname + "-dst"};
   sf::path dp{bp / "root" / testname / dstname};
 
-  std::unique_ptr<rgw::sal::Object> dstobj = bucket->get_object(rgw_obj_key(dstname));
+  std::unique_ptr<rgw::sal::Object> dstobj =
+      bucket->get_object(rgw_obj_key(dstname));
   EXPECT_NE(dstobj.get(), nullptr);
   EXPECT_FALSE(sf::exists(dp));
 
@@ -2274,35 +2429,13 @@ TEST_F(POSIXVerObjectTest, ObjectCopy)
   Attrs attrs;
   std::string tag;
 
-  int ret = srcobj->copy_object(acl_owner,
-	   std::get<rgw_user>(owner),
-	   &info,
-	   zone,
-	   dstobj.get(),
-	   bucket.get(),
-	   bucket.get(),
-	   placement,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   false,
-	   nullptr,
-	   nullptr,
-	   ATTRSMOD_NONE,
-	   false,
-	   attrs,
-	   RGWObjCategory::Main,
-	   0,
-	   boost::none,
-	   nullptr,
-	   &tag, /* use req_id as tag */
-	   &tag,
-	   nullptr,
-	   nullptr,
-	   nullptr,
-	   env->dpp,
-	   null_yield);
+  int ret = srcobj->copy_object(
+      acl_owner, std::get<rgw_user>(owner), &info, zone, dstobj.get(),
+      bucket.get(), bucket.get(), placement, &mtime, &mtime, &mtime, &mtime,
+      false, nullptr, nullptr, ATTRSMOD_NONE, false, attrs,
+      RGWObjCategory::Main, 0, boost::none, nullptr,
+      &tag, /* use req_id as tag */
+      &tag, nullptr, nullptr, nullptr, env->dpp, null_yield);
   EXPECT_EQ(ret, 0);
   EXPECT_TRUE(sf::exists(sp));
   EXPECT_TRUE(sf::exists(dp));
@@ -2332,7 +2465,8 @@ TEST_F(POSIXVerObjectTest, CopyVersion)
   std::string obj1v2_inst = obj1v2->get_instance();
   std::string vsrcname{"_%3A" + obj1v1_inst + "_" + srcname};
   sf::path sp{bp / "root" / testname / srcname / vsrcname};
-  std::unique_ptr<rgw::sal::Object> srcobj = bucket->get_object(rgw_obj_key(srcname, obj1v1_inst));
+  std::unique_ptr<rgw::sal::Object> srcobj =
+      bucket->get_object(rgw_obj_key(srcname, obj1v1_inst));
   EXPECT_NE(srcobj.get(), nullptr);
   EXPECT_TRUE(sf::exists(sp));
 
@@ -2340,7 +2474,8 @@ TEST_F(POSIXVerObjectTest, CopyVersion)
   std::string dstname{testname + "-dst"};
   sf::path dp{bp / "root" / testname / dstname};
 
-  std::unique_ptr<rgw::sal::Object> dstobj = bucket->get_object(rgw_obj_key(dstname));
+  std::unique_ptr<rgw::sal::Object> dstobj =
+      bucket->get_object(rgw_obj_key(dstname));
   EXPECT_NE(dstobj.get(), nullptr);
   EXPECT_FALSE(sf::exists(dp));
 
@@ -2352,35 +2487,13 @@ TEST_F(POSIXVerObjectTest, CopyVersion)
   Attrs attrs;
   std::string tag;
 
-  int ret = srcobj->copy_object(acl_owner,
-	   std::get<rgw_user>(owner),
-	   &info,
-	   zone,
-	   dstobj.get(),
-	   bucket.get(),
-	   bucket.get(),
-	   placement,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   &mtime,
-	   false,
-	   nullptr,
-	   nullptr,
-	   ATTRSMOD_NONE,
-	   false,
-	   attrs,
-	   RGWObjCategory::Main,
-	   0,
-	   boost::none,
-	   nullptr,
-	   &tag, /* use req_id as tag */
-	   &tag,
-	   nullptr,
-	   nullptr,
-	   nullptr,
-	   env->dpp,
-	   null_yield);
+  int ret = srcobj->copy_object(
+      acl_owner, std::get<rgw_user>(owner), &info, zone, dstobj.get(),
+      bucket.get(), bucket.get(), placement, &mtime, &mtime, &mtime, &mtime,
+      false, nullptr, nullptr, ATTRSMOD_NONE, false, attrs,
+      RGWObjCategory::Main, 0, boost::none, nullptr,
+      &tag, /* use req_id as tag */
+      &tag, nullptr, nullptr, nullptr, env->dpp, null_yield);
   EXPECT_EQ(ret, 0);
   EXPECT_TRUE(sf::exists(sp));
   EXPECT_TRUE(sf::exists(dp));
@@ -2409,7 +2522,9 @@ protected:
 public:
   POSIXVerMPObjectTest() {}
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     POSIXVerObjectTest::SetUp();
     mpname = ".multipart_" + testname + "." + upload_id;
 
@@ -2423,17 +2538,22 @@ public:
     EXPECT_EQ(ret, 0);
   }
 
-  void TearDown() {
+  void
+  TearDown()
+  {
     POSIXVerObjectTest::TearDown();
   }
 
-  int write_part(int part_num) {
+  int
+  write_part(int part_num)
+  {
     std::unique_ptr<rgw::sal::Writer> writer;
     rgw_placement_rule placement;
     std::string part_name = "part-" + fmt::format("{:0>5}", part_num);
 
-    writer = upload->get_writer(env->dpp, null_yield, nullptr, acl_owner,
-                                &placement, part_num, part_name);
+    writer = upload->get_writer(
+        env->dpp, null_yield, nullptr, acl_owner, &placement, part_num,
+        part_name);
     EXPECT_NE(writer.get(), nullptr);
 
     int ret = writer->prepare(null_yield);
@@ -2463,14 +2583,17 @@ public:
     attrs[ATTR1] = bl;
     req_context rctx{env->dpp, null_yield, nullptr};
 
-    ret = writer->complete(ofs, part_name, &mtime, real_time(), attrs,
-                           std::nullopt, real_time(), nullptr, nullptr, nullptr,
-                           nullptr, nullptr, rctx, 0);
+    ret = writer->complete(
+        ofs, part_name, &mtime, real_time(), attrs, std::nullopt, real_time(),
+        nullptr, nullptr, nullptr, nullptr, nullptr, rctx, 0);
     EXPECT_EQ(ret, 0);
 
     return ofs;
   }
-  void create_MPObj(std::string objname) {
+
+  void
+  create_MPObj(std::string objname)
+  {
     std::map<int, std::string> parts;
     int part_count{4};
 
@@ -2492,11 +2615,12 @@ public:
     mp_obj->gen_rand_obj_instance_name();
     std::string inst_id = mp_obj->get_instance();
     std::string vfname{"_%3A" + inst_id + "_" + objname};
-    sf::path op{bp / "root" / testname / objname / vfname };
+    sf::path op{bp / "root" / testname / objname / vfname};
 
-    int ret = upload->complete(env->dpp, null_yield, get_pointer(env->cct), parts,
-                               remove_objs, accounted_size, compressed, cs_info,
-                               ofs, tag, owner, 0, mp_obj.get(), processed_prefixes);
+    int ret = upload->complete(
+        env->dpp, null_yield, get_pointer(env->cct), parts, remove_objs,
+        accounted_size, compressed, cs_info, ofs, tag, owner, 0, mp_obj.get(),
+        processed_prefixes);
     EXPECT_EQ(ret, 0);
     EXPECT_EQ(write_size, ofs);
     EXPECT_EQ(write_size, accounted_size);
@@ -2523,7 +2647,8 @@ public:
     ret = decode_attr(object->get_attrs(), ATTR_OBJECT_TYPE.c_str(), type);
     EXPECT_EQ(type.type, ObjectType::VERSIONED);
 
-    std::unique_ptr<Object> vobj = bucket->get_object(rgw_obj_key(objname, inst_id));
+    std::unique_ptr<Object> vobj =
+        bucket->get_object(rgw_obj_key(objname, inst_id));
     std::unique_ptr<rgw::sal::Object::ReadOp> vread_op(vobj->get_read_op());
 
     ret = vread_op->prepare(null_yield, env->dpp);
@@ -2544,8 +2669,9 @@ TEST_F(POSIXVerMPObjectTest, MPUploadComplete)
   create_MPObj(testname + "MPVER");
 }
 
-
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[])
+{
   ::testing::InitGoogleTest(&argc, argv);
 
   env = new Environment();

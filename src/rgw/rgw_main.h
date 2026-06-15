@@ -15,25 +15,24 @@
 
 #pragma once
 
-#include <vector>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "common/async/context_pool.h"
 
 #include "rgw_common.h"
-#include "rgw_rest.h"
 #include "rgw_frontend.h"
-#include "rgw_period_pusher.h"
-#include "rgw_realm_reloader.h"
 #include "rgw_ldap.h"
 #include "rgw_lua.h"
+#include "rgw_period_pusher.h"
+#include "rgw_realm_reloader.h"
+#include "rgw_rest.h"
 #ifdef WITH_RADOSGW_RADOS
 #include "rgw_dedup.h"
 #endif
 #include "rgw_dmclock_scheduler_ctx.h"
 #include "rgw_ratelimit.h"
-
 
 class RGWPauser : public RGWRealmReloader::Pauser {
   std::vector<Pauser*> pausers;
@@ -41,28 +40,43 @@ class RGWPauser : public RGWRealmReloader::Pauser {
 public:
   ~RGWPauser() override = default;
 
-  void add_pauser(Pauser* pauser) {
+  void
+  add_pauser(Pauser* pauser)
+  {
     pausers.push_back(pauser);
   }
 
-  void pause() override {
-    std::for_each(pausers.begin(), pausers.end(), [](Pauser* p){p->pause();});
-  }
-  void resume(rgw::sal::Driver* driver) override {
-    std::for_each(pausers.begin(), pausers.end(), [driver](Pauser* p){p->resume(driver);});
+  void
+  pause() override
+  {
+    std::for_each(pausers.begin(), pausers.end(), [](Pauser* p) { p->pause(); });
   }
 
+  void
+  resume(rgw::sal::Driver* driver) override
+  {
+    std::for_each(pausers.begin(), pausers.end(), [driver](Pauser* p) {
+      p->resume(driver);
+    });
+  }
 };
 
 namespace rgw {
 
-namespace lua { class Background; }
+namespace lua {
+class Background;
+}
 #ifdef WITH_RADOSGW_RADOS
-namespace dedup{ class Background; }
+namespace dedup {
+class Background;
+}
 #endif
-namespace sal { class ConfigStore; }
+namespace sal {
+class ConfigStore;
+}
 
 class RGWLib;
+
 class AppMain {
   /* several components should be initalized only if librgw is
     * also serving HTTP */
@@ -101,7 +115,8 @@ class AppMain {
     const DoutPrefixProvider* dpp_;
 
   public:
-    explicit IOContextPoolHolder(const DoutPrefixProvider* dpp) : dpp_(dpp) {};
+    explicit IOContextPoolHolder(const DoutPrefixProvider* dpp) :
+      dpp_(dpp){};
     IOContextPoolHolder(const IOContextPoolHolder&) = delete;
     IOContextPoolHolder& operator=(const IOContextPoolHolder&) = delete;
 
@@ -109,21 +124,29 @@ class AppMain {
   };
 
   IOContextPoolHolder context_pool_holder;
+
 public:
   AppMain(const DoutPrefixProvider* dpp);
   ~AppMain();
 
-  void shutdown(std::function<void(void)> finalize_async_signals
-	       = []() { /* nada */});
+  void shutdown(
+      std::function<void(void)> finalize_async_signals = []() { /* nada */ });
 
-  sal::ConfigStore* get_config_store() const {
+  sal::ConfigStore*
+  get_config_store() const
+  {
     return cfgstore.get();
   }
-  rgw::sal::Driver* get_driver() {
+
+  rgw::sal::Driver*
+  get_driver()
+  {
     return env.driver;
   }
 
-  rgw::LDAPHelper* get_ldh() {
+  rgw::LDAPHelper*
+  get_ldh()
+  {
     return ldh.get();
   }
 
@@ -142,7 +165,9 @@ public:
   void init_dedup();
 #endif
 
-  bool have_http() {
+  bool
+  have_http()
+  {
     return have_http_frontend;
   }
 
@@ -150,13 +175,15 @@ public:
 }; /* AppMain */
 } // namespace rgw
 
-static inline RGWRESTMgr *set_logging(RGWRESTMgr* mgr)
+static inline RGWRESTMgr*
+set_logging(RGWRESTMgr* mgr)
 {
   mgr->set_logging(true);
   return mgr;
 }
 
-static inline RGWRESTMgr *rest_filter(rgw::sal::Driver* driver, int dialect, RGWRESTMgr* orig)
+static inline RGWRESTMgr*
+rest_filter(rgw::sal::Driver* driver, int dialect, RGWRESTMgr* orig)
 {
   RGWSyncModuleInstanceRef sync_module = driver->get_sync_module();
   if (sync_module) {
@@ -165,4 +192,3 @@ static inline RGWRESTMgr *rest_filter(rgw::sal::Driver* driver, int dialect, RGW
     return orig;
   }
 }
-

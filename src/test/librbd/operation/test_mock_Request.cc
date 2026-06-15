@@ -1,40 +1,46 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
-#include "test/librbd/mock/MockJournal.h"
+#include <shared_mutex> // for std::shared_lock
+
 #include "librbd/AsyncRequest.h"
 #include "librbd/operation/Request.h"
-
-#include <shared_mutex> // for std::shared_lock
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/mock/MockJournal.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
 
 template <>
 struct AsyncRequest<librbd::MockTestImageCtx> {
-  librbd::MockTestImageCtx &m_image_ctx;
-  Context *m_on_finish;
+  librbd::MockTestImageCtx& m_image_ctx;
+  Context* m_on_finish;
 
-  AsyncRequest(librbd::MockTestImageCtx &image_ctx, Context *on_finish)
-    : m_image_ctx(image_ctx), m_on_finish(on_finish) {
-  }
-  virtual ~AsyncRequest() {
-  }
+  AsyncRequest(librbd::MockTestImageCtx& image_ctx, Context* on_finish) :
+    m_image_ctx(image_ctx), m_on_finish(on_finish)
+  {}
 
-  virtual void finish(int r) {
+  virtual ~AsyncRequest() {}
+
+  virtual void
+  finish(int r)
+  {
     m_on_finish->complete(r);
   }
-  virtual void finish_and_destroy(int r) {
+
+  virtual void
+  finish_and_destroy(int r)
+  {
     finish(r);
     delete this;
   }
@@ -47,7 +53,9 @@ struct AsyncRequest<librbd::MockTestImageCtx> {
 namespace librbd {
 namespace journal {
 
-std::ostream& operator<<(std::ostream& os, const Event&) {
+std::ostream&
+operator<<(std::ostream& os, const Event&)
+{
   return os;
 }
 
@@ -60,22 +68,29 @@ using ::testing::Invoke;
 using ::testing::Return;
 
 struct MockRequest : public Request<librbd::MockTestImageCtx> {
-  MockRequest(librbd::MockTestImageCtx &image_ctx, Context *on_finish,
-              uint64_t journal_op_tid)
-    : Request<librbd::MockTestImageCtx>(image_ctx, on_finish, journal_op_tid) {
-  }
+  MockRequest(
+      librbd::MockTestImageCtx& image_ctx,
+      Context* on_finish,
+      uint64_t journal_op_tid) :
+    Request<librbd::MockTestImageCtx>(image_ctx, on_finish, journal_op_tid)
+  {}
 
-  void complete(int r) {
+  void
+  complete(int r)
+  {
     finish_and_destroy(r);
   }
 
-  void send_op_impl(int r) {
-    bool appending = append_op_event<
-      MockRequest, &MockRequest::handle_send>(this);
+  void
+  send_op_impl(int r)
+  {
+    bool appending =
+        append_op_event<MockRequest, &MockRequest::handle_send>(this);
     if (!appending) {
       complete(r);
     }
   }
+
   MOCK_METHOD1(should_complete, bool(int));
   MOCK_METHOD0(send_op, void());
   MOCK_METHOD1(handle_send, Context*(int*));
@@ -84,45 +99,54 @@ struct MockRequest : public Request<librbd::MockTestImageCtx> {
 };
 
 struct TestMockOperationRequest : public TestMockFixture {
-  void expect_can_affect_io(MockRequest &mock_request, bool can_affect) {
-    EXPECT_CALL(mock_request, can_affect_io())
-      .WillOnce(Return(can_affect));
+  void
+  expect_can_affect_io(MockRequest& mock_request, bool can_affect)
+  {
+    EXPECT_CALL(mock_request, can_affect_io()).WillOnce(Return(can_affect));
   }
 
-  void expect_is_journal_replaying(MockJournal &mock_journal, bool replaying) {
-    EXPECT_CALL(mock_journal, is_journal_replaying())
-      .WillOnce(Return(replaying));
+  void
+  expect_is_journal_replaying(MockJournal& mock_journal, bool replaying)
+  {
+    EXPECT_CALL(mock_journal, is_journal_replaying()).WillOnce(Return(replaying));
   }
 
-  void expect_is_journal_appending(MockJournal &mock_journal, bool appending) {
-    EXPECT_CALL(mock_journal, is_journal_appending())
-      .WillOnce(Return(appending));
+  void
+  expect_is_journal_appending(MockJournal& mock_journal, bool appending)
+  {
+    EXPECT_CALL(mock_journal, is_journal_appending()).WillOnce(Return(appending));
   }
 
-  void expect_send_op(MockRequest &mock_request, int r) {
+  void
+  expect_send_op(MockRequest& mock_request, int r)
+  {
+    EXPECT_CALL(mock_request, send_op()).WillOnce(Invoke([&mock_request, r]() {
+      mock_request.complete(r);
+    }));
+  }
+
+  void
+  expect_send_op_affects_io(
+      MockImageCtx& mock_image_ctx,
+      MockRequest& mock_request,
+      int r)
+  {
     EXPECT_CALL(mock_request, send_op())
-      .WillOnce(Invoke([&mock_request, r]() {
-                  mock_request.complete(r);
-                }));
+        .WillOnce(Invoke([&mock_image_ctx, &mock_request, r]() {
+          mock_image_ctx.image_ctx->op_work_queue->queue(
+              new LambdaContext([&mock_request, r](int _) {
+                mock_request.send_op_impl(r);
+              }),
+              0);
+        }));
   }
-
-  void expect_send_op_affects_io(MockImageCtx &mock_image_ctx,
-                                 MockRequest &mock_request, int r) {
-    EXPECT_CALL(mock_request, send_op())
-      .WillOnce(Invoke([&mock_image_ctx, &mock_request, r]() {
-                  mock_image_ctx.image_ctx->op_work_queue->queue(
-                    new LambdaContext([&mock_request, r](int _) {
-                      mock_request.send_op_impl(r);
-                    }), 0);
-                }));
-  }
-
 };
 
-TEST_F(TestMockOperationRequest, SendJournalDisabled) {
+TEST_F(TestMockOperationRequest, SendJournalDisabled)
+{
   REQUIRE_FEATURE(RBD_FEATURE_JOURNALING);
 
-  librbd::ImageCtx *ictx;
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
@@ -130,7 +154,7 @@ TEST_F(TestMockOperationRequest, SendJournalDisabled) {
   mock_image_ctx.journal = &mock_journal;
 
   C_SaferCond ctx;
-  MockRequest *mock_request = new MockRequest(mock_image_ctx, &ctx, 0);
+  MockRequest* mock_request = new MockRequest(mock_image_ctx, &ctx, 0);
 
   InSequence seq;
   expect_can_affect_io(*mock_request, false);
@@ -145,10 +169,11 @@ TEST_F(TestMockOperationRequest, SendJournalDisabled) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockOperationRequest, SendAffectsIOJournalDisabled) {
+TEST_F(TestMockOperationRequest, SendAffectsIOJournalDisabled)
+{
   REQUIRE_FEATURE(RBD_FEATURE_JOURNALING);
 
-  librbd::ImageCtx *ictx;
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockTestImageCtx mock_image_ctx(*ictx);
@@ -156,7 +181,7 @@ TEST_F(TestMockOperationRequest, SendAffectsIOJournalDisabled) {
   mock_image_ctx.journal = &mock_journal;
 
   C_SaferCond ctx;
-  MockRequest *mock_request = new MockRequest(mock_image_ctx, &ctx, 0);
+  MockRequest* mock_request = new MockRequest(mock_image_ctx, &ctx, 0);
 
   InSequence seq;
   expect_can_affect_io(*mock_request, true);

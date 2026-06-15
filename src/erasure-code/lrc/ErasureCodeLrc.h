@@ -19,38 +19,41 @@
 #ifndef CEPH_ERASURE_CODE_LRC_H
 #define CEPH_ERASURE_CODE_LRC_H
 
+#include "erasure-code/ErasureCode.h"
 #include "include/err.h"
 #include "json_spirit/json_spirit.h"
-#include "erasure-code/ErasureCode.h"
 
-#define ERROR_LRC_ARRAY			-(MAX_ERRNO + 1)
-#define ERROR_LRC_OBJECT		-(MAX_ERRNO + 2)
-#define ERROR_LRC_INT			-(MAX_ERRNO + 3)
-#define ERROR_LRC_STR			-(MAX_ERRNO + 4)
-#define ERROR_LRC_PLUGIN		-(MAX_ERRNO + 5)
-#define ERROR_LRC_DESCRIPTION		-(MAX_ERRNO + 6)
-#define ERROR_LRC_PARSE_JSON		-(MAX_ERRNO + 7)
-#define ERROR_LRC_MAPPING		-(MAX_ERRNO + 8)
-#define ERROR_LRC_MAPPING_SIZE		-(MAX_ERRNO + 9)
-#define ERROR_LRC_FIRST_MAPPING		-(MAX_ERRNO + 10)
-#define ERROR_LRC_COUNT_CONSTRAINT	-(MAX_ERRNO + 11)
-#define ERROR_LRC_CONFIG_OPTIONS	-(MAX_ERRNO + 12)
-#define ERROR_LRC_LAYERS_COUNT		-(MAX_ERRNO + 13)
-#define ERROR_LRC_RULE_OP		-(MAX_ERRNO + 14)
-#define ERROR_LRC_RULE_TYPE		-(MAX_ERRNO + 15)
-#define ERROR_LRC_RULE_N		-(MAX_ERRNO + 16)
-#define ERROR_LRC_ALL_OR_NOTHING	-(MAX_ERRNO + 17)
-#define ERROR_LRC_GENERATED		-(MAX_ERRNO + 18)
-#define ERROR_LRC_K_M_MODULO		-(MAX_ERRNO + 19)
-#define ERROR_LRC_K_MODULO		-(MAX_ERRNO + 20)
-#define ERROR_LRC_M_MODULO		-(MAX_ERRNO + 21)
+#define ERROR_LRC_ARRAY -(MAX_ERRNO + 1)
+#define ERROR_LRC_OBJECT -(MAX_ERRNO + 2)
+#define ERROR_LRC_INT -(MAX_ERRNO + 3)
+#define ERROR_LRC_STR -(MAX_ERRNO + 4)
+#define ERROR_LRC_PLUGIN -(MAX_ERRNO + 5)
+#define ERROR_LRC_DESCRIPTION -(MAX_ERRNO + 6)
+#define ERROR_LRC_PARSE_JSON -(MAX_ERRNO + 7)
+#define ERROR_LRC_MAPPING -(MAX_ERRNO + 8)
+#define ERROR_LRC_MAPPING_SIZE -(MAX_ERRNO + 9)
+#define ERROR_LRC_FIRST_MAPPING -(MAX_ERRNO + 10)
+#define ERROR_LRC_COUNT_CONSTRAINT -(MAX_ERRNO + 11)
+#define ERROR_LRC_CONFIG_OPTIONS -(MAX_ERRNO + 12)
+#define ERROR_LRC_LAYERS_COUNT -(MAX_ERRNO + 13)
+#define ERROR_LRC_RULE_OP -(MAX_ERRNO + 14)
+#define ERROR_LRC_RULE_TYPE -(MAX_ERRNO + 15)
+#define ERROR_LRC_RULE_N -(MAX_ERRNO + 16)
+#define ERROR_LRC_ALL_OR_NOTHING -(MAX_ERRNO + 17)
+#define ERROR_LRC_GENERATED -(MAX_ERRNO + 18)
+#define ERROR_LRC_K_M_MODULO -(MAX_ERRNO + 19)
+#define ERROR_LRC_K_MODULO -(MAX_ERRNO + 20)
+#define ERROR_LRC_M_MODULO -(MAX_ERRNO + 21)
 
 class ErasureCodeLrc final : public ceph::ErasureCode {
 public:
   static const std::string DEFAULT_KML;
 
   struct Layer {
-    explicit Layer(const std::string &_chunks_map) : chunks_map(_chunks_map) { }
+    explicit Layer(const std::string& _chunks_map) :
+      chunks_map(_chunks_map)
+    {}
+
     ceph::ErasureCodeInterfaceRef erasure_code;
     std::vector<int> data;
     std::vector<int> coding;
@@ -60,26 +63,28 @@ public:
     std::string chunks_map;
     ceph::ErasureCodeProfile profile;
   };
+
   std::vector<Layer> layers;
   std::string directory;
   unsigned int chunk_count;
   unsigned int data_chunk_count;
   std::string rule_root;
   std::string rule_device_class;
+
   struct Step {
-    Step(const std::string &_op, const std::string &_type, int _n) :
-      op(_op),
-      type(_type),
-      n(_n) {}
+    Step(const std::string& _op, const std::string& _type, int _n) :
+      op(_op), type(_type), n(_n)
+    {}
+
     std::string op;
     std::string type;
     int n;
   };
+
   std::vector<Step> rule_steps;
 
-  explicit ErasureCodeLrc(const std::string &dir)
-    : directory(dir),
-      chunk_count(0), data_chunk_count(0), rule_root("default")
+  explicit ErasureCodeLrc(const std::string& dir) :
+    directory(dir), chunk_count(0), data_chunk_count(0), rule_root("default")
   {
     rule_steps.push_back(Step("chooseleaf", "host", 0));
   }
@@ -87,35 +92,46 @@ public:
   ~ErasureCodeLrc() override {}
 
   [[deprecated]]
-  std::set<int> get_erasures(const std::set<int> &need,
-			const std::set<int> &available) const;
+  std::set<int> get_erasures(
+      const std::set<int>& need,
+      const std::set<int>& available) const;
 
-  shard_id_set get_erasures(const shard_id_set &need,
-			const shard_id_set &available) const;
+  shard_id_set get_erasures(
+      const shard_id_set& need,
+      const shard_id_set& available) const;
 
   [[deprecated]]
-  int _minimum_to_decode(const std::set<int> &want_to_read,
-			 const std::set<int> &available,
-			 std::set<int> *minimum) override;
-  int _minimum_to_decode(const shard_id_set &want_to_read,
-			 const shard_id_set &available,
-			 shard_id_set *minimum) override;
+  int _minimum_to_decode(
+      const std::set<int>& want_to_read,
+      const std::set<int>& available,
+      std::set<int>* minimum) override;
+  int _minimum_to_decode(
+      const shard_id_set& want_to_read,
+      const shard_id_set& available,
+      shard_id_set* minimum) override;
 
-  int create_rule(const std::string &name,
-			     CrushWrapper &crush,
-			     std::ostream *ss) const override;
+  int create_rule(
+      const std::string& name,
+      CrushWrapper& crush,
+      std::ostream* ss) const override;
 
-  uint64_t get_supported_optimizations() const override {
+  uint64_t
+  get_supported_optimizations() const override
+  {
     return FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION |
-      FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION |
-      FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION;
+           FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION |
+           FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION;
   }
 
-  unsigned int get_chunk_count() const override {
+  unsigned int
+  get_chunk_count() const override
+  {
     return chunk_count;
   }
 
-  unsigned int get_data_chunk_count() const override {
+  unsigned int
+  get_data_chunk_count() const override
+  {
     return data_chunk_count;
   }
 
@@ -124,40 +140,49 @@ public:
   size_t get_minimum_granularity() override;
 
   [[deprecated]]
-  int encode_chunks(const std::set<int> &want_to_encode,
-                  std::map<int, ceph::buffer::list> *encoded) override;
-  int encode_chunks(const shard_id_map<bufferptr> &in,
-                    shard_id_map<bufferptr> &out);
+  int encode_chunks(
+      const std::set<int>& want_to_encode,
+      std::map<int, ceph::buffer::list>* encoded) override;
+  int encode_chunks(
+      const shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out);
   [[deprecated]]
-  int decode_chunks(const std::set<int> &want_to_read,
-		    const std::map<int, ceph::buffer::list> &chunks,
-		    std::map<int, ceph::buffer::list> *decoded) override;
-  int decode_chunks(const shard_id_set &want_to_read,
-                    shard_id_map<bufferptr> &in,
-                    shard_id_map<bufferptr> &out) override;
+  int decode_chunks(
+      const std::set<int>& want_to_read,
+      const std::map<int, ceph::buffer::list>& chunks,
+      std::map<int, ceph::buffer::list>* decoded) override;
+  int decode_chunks(
+      const shard_id_set& want_to_read,
+      shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) override;
 
-  int init(ceph::ErasureCodeProfile &profile, std::ostream *ss) override;
+  int init(ceph::ErasureCodeProfile& profile, std::ostream* ss) override;
 
-  virtual int parse(ceph::ErasureCodeProfile &profile, std::ostream *ss);
+  virtual int parse(ceph::ErasureCodeProfile& profile, std::ostream* ss);
 
-  int parse_kml(ceph::ErasureCodeProfile &profile, std::ostream *ss);
+  int parse_kml(ceph::ErasureCodeProfile& profile, std::ostream* ss);
 
-  int parse_rule(ceph::ErasureCodeProfile &profile, std::ostream *ss);
+  int parse_rule(ceph::ErasureCodeProfile& profile, std::ostream* ss);
 
-  int parse_rule_step(const std::string &description_string,
-		      json_spirit::mArray description,
-		      std::ostream *ss);
+  int parse_rule_step(
+      const std::string& description_string,
+      json_spirit::mArray description,
+      std::ostream* ss);
 
-  int layers_description(const ceph::ErasureCodeProfile &profile,
-			 json_spirit::mArray *description,
-			 std::ostream *ss) const;
-  int layers_parse(const std::string &description_string,
-		   json_spirit::mArray description,
-		   std::ostream *ss);
-  int layers_init(std::ostream *ss);
-  int layers_sanity_checks(const std::string &description_string,
-			   std::ostream *ss) const;
+  int layers_description(
+      const ceph::ErasureCodeProfile& profile,
+      json_spirit::mArray* description,
+      std::ostream* ss) const;
+  int layers_parse(
+      const std::string& description_string,
+      json_spirit::mArray description,
+      std::ostream* ss);
+  int layers_init(std::ostream* ss);
+  int layers_sanity_checks(
+      const std::string& description_string,
+      std::ostream* ss) const;
 };
+
 static_assert(!std::is_abstract<ErasureCodeLrc>());
 
 #endif

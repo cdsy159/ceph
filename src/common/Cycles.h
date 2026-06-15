@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -41,21 +41,23 @@
  * times.
  */
 class Cycles {
- public:
+public:
   static void init();
 
   /**
    * Return the current value of the fine-grain CPU cycle counter
    * (accessed via the RDTSC instruction).
    */
-  static __inline __attribute__((always_inline)) uint64_t rdtsc() {
+  static __inline __attribute__((always_inline)) uint64_t
+  rdtsc()
+  {
 #if defined(__i386__)
     int64_t ret;
-    __asm__ volatile ("rdtsc" : "=A" (ret) );
+    __asm__ volatile("rdtsc" : "=A"(ret));
     return ret;
 #elif defined(__x86_64__) || defined(__amd64__)
     uint32_t lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
     return (((uint64_t)hi << 32) | lo);
 #elif defined(__aarch64__)
     //
@@ -64,30 +66,30 @@ class Cycles {
     // static inline u64 arch_counter_get_cntvct(void)
     // {
     //         u64 cval;
-    // 
+    //
     //         isb();
     //         asm volatile("mrs %0, cntvct_el0" : "=r" (cval));
-    // 
+    //
     //         return cval;
     // }
     //
     // https://github.com/cloudius-systems/osv/blob/master/arch/aarch64/arm-clock.cc
     uint64_t cntvct;
-    asm volatile ("isb; mrs %0, cntvct_el0; isb; " : "=r" (cntvct) :: "memory");
+    asm volatile("isb; mrs %0, cntvct_el0; isb; " : "=r"(cntvct)::"memory");
     return cntvct;
-#elif defined(__powerpc__) || defined (__powerpc64__)
+#elif defined(__powerpc__) || defined(__powerpc64__)
     // Based on:
     // https://github.com/randombit/botan/blob/net.randombit.botan/src/lib/entropy/hres_timer/hres_timer.cpp
     uint32_t lo = 0, hi = 0;
-    asm volatile("mftbu %0; mftb %1" : "=r" (hi), "=r" (lo));
+    asm volatile("mftbu %0; mftb %1" : "=r"(hi), "=r"(lo));
     return (((uint64_t)hi << 32) | lo);
 #elif defined(__s390__)
     uint64_t tsc;
-    asm volatile("stck %0" : "=Q" (tsc) : : "cc");
+    asm volatile("stck %0" : "=Q"(tsc) : : "cc");
     return tsc;
 #elif defined(__riscv) && __riscv_xlen == 64
     uint64_t tsc;
-    asm volatile ("rdtime %0" : "=r" (tsc));
+    asm volatile("rdtime %0" : "=r"(tsc));
     return tsc;
 #else
 #warning No high-precision counter available for your OS/arch
@@ -114,9 +116,11 @@ private:
    * Returns the conversion factor between cycles in seconds, using
    * a mock value for testing when appropriate.
    */
-  static __inline __attribute__((always_inline)) double get_cycles_per_sec() {
+  static __inline __attribute__((always_inline)) double
+  get_cycles_per_sec()
+  {
     return cycles_per_sec;
   }
 };
 
-#endif  // CEPH_CYCLES_H
+#endif // CEPH_CYCLES_H

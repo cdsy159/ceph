@@ -15,12 +15,13 @@
  */
 
 #include "gtest/gtest.h"
-#include "include/compat.h"
 #include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
 
-static int update_root_mode()
+static int
+update_root_mode()
 {
-  struct ceph_mount_info *admin;
+  struct ceph_mount_info* admin;
   int r = ceph_create(&admin, NULL);
   if (r < 0)
     return r;
@@ -36,8 +37,8 @@ out:
   return r;
 }
 
-
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   int r = update_root_mode();
   if (r < 0)

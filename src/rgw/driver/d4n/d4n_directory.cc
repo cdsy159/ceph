@@ -1,46 +1,62 @@
-#include <algorithm>
-#include <boost/asio/consign.hpp>
-#include <boost/algorithm/string.hpp>
-#include <memory>
-#include "common/async/blocked_completion.h"
-#include "common/dout.h" 
 #include "d4n_directory.h"
 
-namespace rgw { namespace d4n {
+#include <algorithm>
+#include <memory>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/asio/consign.hpp>
+
+#include "common/async/blocked_completion.h"
+#include "common/dout.h"
+
+namespace rgw {
+namespace d4n {
 
 // initiate a call to async_exec() on the connection's executor
 struct initiate_exec {
   std::shared_ptr<boost::redis::connection> conn;
 
   using executor_type = boost::redis::connection::executor_type;
-  executor_type get_executor() const noexcept { return conn->get_executor(); }
+
+  executor_type
+  get_executor() const noexcept
+  {
+    return conn->get_executor();
+  }
 
   template <typename Handler, typename Response>
-  void operator()(Handler handler, const boost::redis::request& req, Response& resp)
+  void
+  operator()(Handler handler, const boost::redis::request& req, Response& resp)
   {
     auto h = boost::asio::consign(std::move(handler), conn);
-    return boost::asio::dispatch(get_executor(),
-        [c = conn, &req, &resp, h = std::move(h)] () mutable {
-            return c->async_exec(req, resp, std::move(h));
-    });
+    return boost::asio::dispatch(
+        get_executor(), [c = conn, &req, &resp, h = std::move(h)]() mutable {
+          return c->async_exec(req, resp, std::move(h));
+        });
   }
 };
 
 template <typename Response, typename CompletionToken>
-auto async_exec(std::shared_ptr<connection> conn,
-                const boost::redis::request& req,
-                Response& resp, CompletionToken&& token)
+auto
+async_exec(
+    std::shared_ptr<connection> conn,
+    const boost::redis::request& req,
+    Response& resp,
+    CompletionToken&& token)
 {
-  return boost::asio::async_initiate<CompletionToken,
-         void(boost::system::error_code, std::size_t)>(
+  return boost::asio::async_initiate<
+      CompletionToken, void(boost::system::error_code, std::size_t)>(
       initiate_exec{std::move(conn)}, token, req, resp);
 }
 
 template <typename... Types>
-void redis_exec(std::shared_ptr<connection> conn,
-                boost::system::error_code& ec,
-                const boost::redis::request& req,
-                boost::redis::response<Types...>& resp, optional_yield y)
+void
+redis_exec(
+    std::shared_ptr<connection> conn,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::response<Types...>& resp,
+    optional_yield y)
 {
   if (y) {
     auto yield = y.get_yield_context();
@@ -51,36 +67,41 @@ void redis_exec(std::shared_ptr<connection> conn,
 }
 
 template <typename... Types>
-void redis_exec_cp(const DoutPrefixProvider* dpp,
-                std::shared_ptr<rgw::d4n::RedisPool> pool,
-                boost::system::error_code& ec,
-                const boost::redis::request& req,
-                boost::redis::response<Types...>& resp,
-		optional_yield y)
+void
+redis_exec_cp(
+    const DoutPrefixProvider* dpp,
+    std::shared_ptr<rgw::d4n::RedisPool> pool,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::response<Types...>& resp,
+    optional_yield y)
 {
-//purpose: Execute a Redis command using a connection from the pool
-	std::shared_ptr<connection> conn = pool->acquire(dpp);
-	try {
+  //purpose: Execute a Redis command using a connection from the pool
+  std::shared_ptr<connection> conn = pool->acquire(dpp);
+  try {
 
-  		if (y) {
-    		auto yield = y.get_yield_context();
-    		async_exec(conn, req, resp, yield[ec]);
-  		} else {
-    		async_exec(conn, req, resp, ceph::async::use_blocked[ec]);
-  		}
-	} catch (const std::exception& e) {
-		//release the connection upon exception
-    		pool->release(conn);
-    		throw;
-	}
-	//release the connection back to the pool after execution
-	pool->release(conn);
+    if (y) {
+      auto yield = y.get_yield_context();
+      async_exec(conn, req, resp, yield[ec]);
+    } else {
+      async_exec(conn, req, resp, ceph::async::use_blocked[ec]);
+    }
+  } catch (const std::exception& e) {
+    //release the connection upon exception
+    pool->release(conn);
+    throw;
+  }
+  //release the connection back to the pool after execution
+  pool->release(conn);
 }
 
-void redis_exec(std::shared_ptr<connection> conn,
-                boost::system::error_code& ec,
-                const boost::redis::request& req,
-    boost::redis::generic_response& resp, optional_yield y)
+void
+redis_exec(
+    std::shared_ptr<connection> conn,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::generic_response& resp,
+    optional_yield y)
 {
   if (y) {
     auto yield = y.get_yield_context();
@@ -90,31 +111,36 @@ void redis_exec(std::shared_ptr<connection> conn,
   }
 }
 
-void redis_exec_cp(const DoutPrefixProvider* dpp,
-                std::shared_ptr<rgw::d4n::RedisPool> pool,
-                boost::system::error_code& ec,
-                const boost::redis::request& req,
-                boost::redis::generic_response& resp, optional_yield y)
+void
+redis_exec_cp(
+    const DoutPrefixProvider* dpp,
+    std::shared_ptr<rgw::d4n::RedisPool> pool,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::generic_response& resp,
+    optional_yield y)
 {
-	//purpose: Execute a Redis command using a connection from the pool
-	std::shared_ptr<connection> conn = pool->acquire(dpp);
+  //purpose: Execute a Redis command using a connection from the pool
+  std::shared_ptr<connection> conn = pool->acquire(dpp);
 
-	try {
-  		if (y) {
-    			auto yield = y.get_yield_context();
-    			async_exec(conn, req, resp, yield[ec]);
-  		} else {
-    			async_exec(conn, req, resp, ceph::async::use_blocked[ec]);
-  		}	
-	} catch (const std::exception& e) {
-    			pool->release(conn);
-    			throw;
-	}
-	//release the connection back to the pool after execution
-	pool->release(conn);
+  try {
+    if (y) {
+      auto yield = y.get_yield_context();
+      async_exec(conn, req, resp, yield[ec]);
+    } else {
+      async_exec(conn, req, resp, ceph::async::use_blocked[ec]);
+    }
+  } catch (const std::exception& e) {
+    pool->release(conn);
+    throw;
+  }
+  //release the connection back to the pool after execution
+  pool->release(conn);
 }
 
-int check_bool(std::string str) {
+int
+check_bool(std::string str)
+{
   if (str == "true" || str == "1") {
     return 1;
   } else if (str == "false" || str == "0") {
@@ -124,42 +150,53 @@ int check_bool(std::string str) {
   }
 }
 
-void redis_exec_connection_pool(const DoutPrefixProvider* dpp,
-				std::shared_ptr<RedisPool> redis_pool,
-				std::shared_ptr<connection> conn,
-				boost::system::error_code& ec,
-				const boost::redis::request& req,
-				boost::redis::generic_response& resp,
-				optional_yield y)
+void
+redis_exec_connection_pool(
+    const DoutPrefixProvider* dpp,
+    std::shared_ptr<RedisPool> redis_pool,
+    std::shared_ptr<connection> conn,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::generic_response& resp,
+    optional_yield y)
 {
-    if(!redis_pool)[[unlikely]]
-    {
-	redis_exec(conn, ec, req, resp, y);
-	ldpp_dout(dpp, 0) << "Directory::" << __func__ << " not using connection-pool, it's using the shared connection " << dendl;
-    }
-    else[[likely]]
-    	redis_exec_cp(dpp, redis_pool, ec, req, resp, y);
+  if (!redis_pool) [[unlikely]] {
+    redis_exec(conn, ec, req, resp, y);
+    ldpp_dout(dpp, 0)
+        << "Directory::" << __func__
+        << " not using connection-pool, it's using the shared connection "
+        << dendl;
+  } else [[likely]]
+    redis_exec_cp(dpp, redis_pool, ec, req, resp, y);
 }
 
 template <typename... Types>
-void redis_exec_connection_pool(const DoutPrefixProvider* dpp,
-				std::shared_ptr<RedisPool> redis_pool,
-				std::shared_ptr<connection> conn,
-				boost::system::error_code& ec,
-				const boost::redis::request& req,
-				boost::redis::response<Types...>& resp,
-				optional_yield y)
+void
+redis_exec_connection_pool(
+    const DoutPrefixProvider* dpp,
+    std::shared_ptr<RedisPool> redis_pool,
+    std::shared_ptr<connection> conn,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::response<Types...>& resp,
+    optional_yield y)
 {
-    if(!redis_pool)[[unlikely]]
-    {
-	redis_exec(conn, ec, req, resp, y);
-	ldpp_dout(dpp, 0) << "Directory::" << __func__ << " not using connection-pool, it's using the shared connection " << dendl;
-    }
-    else[[likely]]
-    	redis_exec_cp(dpp, redis_pool, ec, req, resp, y);
+  if (!redis_pool) [[unlikely]] {
+    redis_exec(conn, ec, req, resp, y);
+    ldpp_dout(dpp, 0)
+        << "Directory::" << __func__
+        << " not using connection-pool, it's using the shared connection "
+        << dendl;
+  } else [[likely]]
+    redis_exec_cp(dpp, redis_pool, ec, req, resp, y);
 }
 
-int BucketDirectory::exist_key(const DoutPrefixProvider* dpp, const std::string& bucket_id, optional_yield y) {
+int
+BucketDirectory::exist_key(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    optional_yield y)
+{
   response<int> resp;
 
   try {
@@ -170,18 +207,27 @@ int BucketDirectory::exist_key(const DoutPrefixProvider* dpp, const std::string&
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return std::get<0>(resp).value();
 }
 
-int BucketDirectory::zadd(const DoutPrefixProvider* dpp, const std::string& bucket_id, double score, const std::string& member, optional_yield y, Pipeline* pipeline)
+int
+BucketDirectory::zadd(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    double score,
+    const std::string& member,
+    optional_yield y,
+    Pipeline* pipeline)
 {
   try {
     boost::system::error_code ec;
@@ -192,30 +238,38 @@ int BucketDirectory::zadd(const DoutPrefixProvider* dpp, const std::string& buck
       request req;
       req.push("ZADD", bucket_id, "CH", std::to_string(0), member);
 
-    response<std::string> resp;
+      response<std::string> resp;
 
-    redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+      redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-        ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+        ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
         return -ec.value();
       }
 
       if (std::get<0>(resp).value() != "1") {
-        ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__ << "() Response value is: " << std::get<0>(resp).value() << dendl;
+        ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__
+                           << "() Response value is: "
+                           << std::get<0>(resp).value() << dendl;
         return -ENOENT;
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
-
 }
 
-int BucketDirectory::zrem(const DoutPrefixProvider* dpp, const std::string& bucket_id, const std::string& member, optional_yield y)
+int
+BucketDirectory::zrem(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    const std::string& member,
+    optional_yield y)
 {
   try {
     boost::system::error_code ec;
@@ -226,24 +280,37 @@ int BucketDirectory::zrem(const DoutPrefixProvider* dpp, const std::string& buck
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value() != "1") {
-      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__ << "() Response is: " << std::get<0>(resp).value() << dendl;
+      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__
+                         << "() Response is: " << std::get<0>(resp).value()
+                         << dendl;
       return -ENOENT;
     }
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BucketDirectory::zrange(const DoutPrefixProvider* dpp, const std::string& bucket_id, const std::string& start, const std::string& stop, uint64_t offset, uint64_t count, std::vector<std::string>& members, optional_yield y)
+int
+BucketDirectory::zrange(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    const std::string& start,
+    const std::string& stop,
+    uint64_t offset,
+    uint64_t count,
+    std::vector<std::string>& members,
+    optional_yield y)
 {
   try {
     boost::system::error_code ec;
@@ -251,33 +318,46 @@ int BucketDirectory::zrange(const DoutPrefixProvider* dpp, const std::string& bu
     if (offset == 0 && count == 0) {
       req.push("ZRANGE", bucket_id, start, stop, "bylex");
     } else {
-      req.push("ZRANGE", bucket_id, start, stop, "bylex", "LIMIT", offset, count);
+      req.push(
+          "ZRANGE", bucket_id, start, stop, "bylex", "LIMIT", offset, count);
     }
 
-    response<std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().empty()) {
-      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__ << "() Empty response" << dendl;
+      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__
+                         << "() Empty response" << dendl;
       return -ENOENT;
     }
 
     members = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BucketDirectory::zscan(const DoutPrefixProvider* dpp, const std::string& bucket_id, uint64_t cursor, const std::string& pattern, uint64_t count, std::vector<std::string>& members, uint64_t next_cursor, optional_yield y)
+int
+BucketDirectory::zscan(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    uint64_t cursor,
+    const std::string& pattern,
+    uint64_t count,
+    std::vector<std::string>& members,
+    uint64_t next_cursor,
+    optional_yield y)
 {
   try {
     boost::system::error_code ec;
@@ -289,37 +369,50 @@ int BucketDirectory::zscan(const DoutPrefixProvider* dpp, const std::string& buc
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
-    std::vector<boost::redis::resp3::basic_node<std::__cxx11::basic_string<char> > > root_array;
+    std::vector<boost::redis::resp3::basic_node<std::__cxx11::basic_string<char>>>
+        root_array;
     if (resp.has_value()) {
       root_array = resp.value();
-      ldpp_dout(dpp, 20) << "BucketDirectory::" << __func__ << "() aggregate size is: " << root_array.size() << dendl;
+      ldpp_dout(dpp, 20) << "BucketDirectory::" << __func__
+                         << "() aggregate size is: " << root_array.size()
+                         << dendl;
       auto size = root_array.size();
       if (size >= 2) {
         //Nothing of interest at index 0, index 1 has the next cursor value
         next_cursor = std::stoull(root_array[1].value);
 
         //skip the first 3 values to get the actual member, score
-        for (uint64_t i = 3; i < size; i = i+2) {
+        for (uint64_t i = 3; i < size; i = i + 2) {
           members.emplace_back(root_array[i].value);
-          ldpp_dout(dpp, 20) << "BucketDirectory::" << __func__ << "() member is: " << root_array[i].value << dendl;
+          ldpp_dout(dpp, 20)
+              << "BucketDirectory::" << __func__
+              << "() member is: " << root_array[i].value << dendl;
         }
       }
     } else {
       return -ENOENT;
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BucketDirectory::zrank(const DoutPrefixProvider* dpp, const std::string& bucket_id, const std::string& member, uint64_t& rank, optional_yield y)
+int
+BucketDirectory::zrank(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    const std::string& member,
+    uint64_t& rank,
+    optional_yield y)
 {
   try {
     boost::system::error_code ec;
@@ -331,21 +424,27 @@ int BucketDirectory::zrank(const DoutPrefixProvider* dpp, const std::string& buc
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     rank = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BucketDirectory::del(const DoutPrefixProvider* dpp, const std::string& bucket_id, optional_yield y)
+int
+BucketDirectory::del(
+    const DoutPrefixProvider* dpp,
+    const std::string& bucket_id,
+    optional_yield y)
 {
   try {
     boost::system::error_code ec;
@@ -357,28 +456,37 @@ int BucketDirectory::del(const DoutPrefixProvider* dpp, const std::string& bucke
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value() != 1) {
-      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__ << "() Response is: " << std::get<0>(resp).value() << dendl;
+      ldpp_dout(dpp, 10) << "BucketDirectory::" << __func__
+                         << "() Response is: " << std::get<0>(resp).value()
+                         << dendl;
       return -ENOENT;
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BucketDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-std::string ObjectDirectory::build_index(CacheObj* object) 
+std::string
+ObjectDirectory::build_index(CacheObj* object)
 {
   return object->bucketName + "_" + object->objName;
 }
 
-int ObjectDirectory::exist_key(const DoutPrefixProvider* dpp, CacheObj* object, optional_yield y) 
+int
+ObjectDirectory::exist_key(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    optional_yield y)
 {
   std::string key = build_index(object);
   response<int> resp;
@@ -391,18 +499,24 @@ int ObjectDirectory::exist_key(const DoutPrefixProvider* dpp, CacheObj* object, 
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return std::get<0>(resp).value();
 }
 
-int ObjectDirectory::set(const DoutPrefixProvider* dpp, CacheObj* object, optional_yield y)
+int
+ObjectDirectory::set(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    optional_yield y)
 {
   /* For existing keys, call get method beforehand. 
      Sets completely overwrite existing values. */
@@ -410,20 +524,21 @@ int ObjectDirectory::set(const DoutPrefixProvider* dpp, CacheObj* object, option
 
   std::string endpoint;
   std::list<std::string> redisValues;
-    
+
   /* Creating a redisValues of the entry's properties */
   redisValues.push_back("objName");
   redisValues.push_back(object->objName);
   redisValues.push_back("bucketName");
   redisValues.push_back(object->bucketName);
   redisValues.push_back("creationTime");
-  redisValues.push_back(object->creationTime); 
+  redisValues.push_back(object->creationTime);
   redisValues.push_back("dirty");
   int ret = -1;
   if ((ret = check_bool(std::to_string(object->dirty))) != -EINVAL) {
     object->dirty = (ret != 0);
   } else {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: Invalid bool value" << dendl;
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: Invalid bool value" << dendl;
     return -EINVAL;
   }
   redisValues.push_back(std::to_string(object->dirty));
@@ -458,22 +573,29 @@ int ObjectDirectory::set(const DoutPrefixProvider* dpp, CacheObj* object, option
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int ObjectDirectory::get(const DoutPrefixProvider* dpp, CacheObj* object, optional_yield y) 
+int
+ObjectDirectory::get(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    optional_yield y)
 {
   std::string key = build_index(object);
   std::vector<std::string> fields;
-  ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): index is: " << key << dendl;
+  ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                     << "(): index is: " << key << dendl;
 
   fields.push_back("objName");
   fields.push_back("bucketName");
@@ -487,34 +609,45 @@ int ObjectDirectory::get(const DoutPrefixProvider* dpp, CacheObj* object, option
 
   try {
     boost::system::error_code ec;
-    response< std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     request req;
     req.push_range("HMGET", key, fields);
 
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().empty()) {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): No values returned." << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "(): No values returned." << dendl;
       return -ENOENT;
     }
 
     using Fields = rgw::d4n::ObjectFields;
     object->objName = std::get<0>(resp).value()[std::size_t(Fields::ObjName)];
-    object->bucketName = std::get<0>(resp).value()[std::size_t(Fields::BucketName)];
-    object->creationTime = std::get<0>(resp).value()[std::size_t(Fields::CreationTime)];
-    object->dirty = (std::stoi(std::get<0>(resp).value()[std::size_t(Fields::Dirty)]) != 0);
-    boost::split(object->hostsList, std::get<0>(resp).value()[std::size_t(Fields::Hosts)], boost::is_any_of("_"));
+    object->bucketName =
+        std::get<0>(resp).value()[std::size_t(Fields::BucketName)];
+    object->creationTime =
+        std::get<0>(resp).value()[std::size_t(Fields::CreationTime)];
+    object->dirty =
+        (std::stoi(std::get<0>(resp).value()[std::size_t(Fields::Dirty)]) != 0);
+    boost::split(
+        object->hostsList,
+        std::get<0>(resp).value()[std::size_t(Fields::Hosts)],
+        boost::is_any_of("_"));
     object->etag = std::get<0>(resp).value()[std::size_t(Fields::Etag)];
-    object->size = std::stoull(std::get<0>(resp).value()[std::size_t(Fields::ObjSize)]);
+    object->size =
+        std::stoull(std::get<0>(resp).value()[std::size_t(Fields::ObjSize)]);
     object->user_id = std::get<0>(resp).value()[std::size_t(Fields::UserID)];
-    object->display_name = std::get<0>(resp).value()[std::size_t(Fields::DisplayName)];
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+    object->display_name =
+        std::get<0>(resp).value()[std::size_t(Fields::DisplayName)];
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
@@ -522,20 +655,24 @@ int ObjectDirectory::get(const DoutPrefixProvider* dpp, CacheObj* object, option
 }
 
 /* Note: This method is not compatible for use on Ubuntu systems. */
-int ObjectDirectory::copy(const DoutPrefixProvider* dpp, CacheObj* object, const std::string& copyName, const std::string& copyBucketName, optional_yield y)
+int
+ObjectDirectory::copy(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    const std::string& copyName,
+    const std::string& copyBucketName,
+    optional_yield y)
 {
   std::string key = build_index(object);
-  auto copyObj = CacheObj{ .objName = copyName, .bucketName = copyBucketName };
+  auto copyObj = CacheObj{.objName = copyName, .bucketName = copyBucketName};
   std::string copyKey = build_index(&copyObj);
 
   try {
     boost::system::error_code ec;
     response<
-      ignore_t,
-      ignore_t,
-      ignore_t,
-      response<std::optional<int>, std::optional<int>> 
-    > resp;
+        ignore_t, ignore_t, ignore_t,
+        response<std::optional<int>, std::optional<int>>>
+        resp;
     request req;
     req.push("MULTI");
     req.push("COPY", key, copyKey);
@@ -545,28 +682,36 @@ int ObjectDirectory::copy(const DoutPrefixProvider* dpp, CacheObj* object, const
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(std::get<3>(resp).value()).value().value() == 1) {
       return 0;
     } else {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): No values copied." << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "(): No values copied." << dendl;
       return -ENOENT;
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 }
 
-int ObjectDirectory::del(const DoutPrefixProvider* dpp, std::vector<CacheObj>& objects, optional_yield y) 
+int
+ObjectDirectory::del(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheObj>& objects,
+    optional_yield y)
 {
   request req;
   for (auto object : objects) {
     std::string key = build_index(&object);
-    ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): index is: " << key << dendl;
+    ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
 
     req.push("UNLINK", key);
   }
@@ -578,21 +723,28 @@ int ObjectDirectory::del(const DoutPrefixProvider* dpp, std::vector<CacheObj>& o
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
-  return 0; 
+  return 0;
 }
 
-int ObjectDirectory::del(const DoutPrefixProvider* dpp, CacheObj* object, optional_yield y) 
+int
+ObjectDirectory::del(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    optional_yield y)
 {
   std::string key = build_index(object);
-  ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): index is: " << key << dendl;
+  ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                     << "(): index is: " << key << dendl;
 
   try {
     boost::system::error_code ec;
@@ -603,23 +755,32 @@ int ObjectDirectory::del(const DoutPrefixProvider* dpp, CacheObj* object, option
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (!std::get<0>(resp).value()) {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): No values deleted." << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "(): No values deleted." << dendl;
       return -ENOENT;
     }
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
-  return 0; 
+  return 0;
 }
 
-int ObjectDirectory::update_field(const DoutPrefixProvider* dpp, CacheObj* object, const std::string& field, std::string& value, optional_yield y)
+int
+ObjectDirectory::update_field(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    const std::string& field,
+    std::string& value,
+    optional_yield y)
 {
   int ret = -1;
   std::string key = build_index(object);
@@ -627,34 +788,37 @@ int ObjectDirectory::update_field(const DoutPrefixProvider* dpp, CacheObj* objec
   if ((ret = exist_key(dpp, object, y))) {
     try {
       if (field == "hosts") {
-	/* Append rather than overwrite */
-	ldpp_dout(dpp, 20) << "ObjectDirectory::" << __func__ << "(): Appending to hosts list." << dendl;
+        /* Append rather than overwrite */
+        ldpp_dout(dpp, 20) << "ObjectDirectory::" << __func__
+                           << "(): Appending to hosts list." << dendl;
 
-	boost::system::error_code ec;
-	response<std::string> resp;
-	request req;
-	req.push("HGET", key, field);
+        boost::system::error_code ec;
+        response<std::string> resp;
+        request req;
+        req.push("HGET", key, field);
 
-    redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+        redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
-	if (ec) {
-	  ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	  return -ec.value();
-	}
+        if (ec) {
+          ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                            << "() ERROR: " << ec.what() << dendl;
+          return -ec.value();
+        }
 
-	/* If entry exists, it should have at least one host */
-	std::get<0>(resp).value() += "_";
-	std::get<0>(resp).value() += value;
-	value = std::get<0>(resp).value();
-      } else if (field == "dirty") { 
-	int ret = -1;
-	if ((ret = check_bool(value)) != -EINVAL) {
+        /* If entry exists, it should have at least one host */
+        std::get<0>(resp).value() += "_";
+        std::get<0>(resp).value() += value;
+        value = std::get<0>(resp).value();
+      } else if (field == "dirty") {
+        int ret = -1;
+        if ((ret = check_bool(value)) != -EINVAL) {
           bool val = (ret != 0);
-	  value = std::to_string(val);
-	} else {
-	  ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: Invalid bool value" << dendl;
-	  return -EINVAL;
-	}
+          value = std::to_string(val);
+        } else {
+          ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                            << "() ERROR: Invalid bool value" << dendl;
+          return -EINVAL;
+        }
       }
 
       boost::system::error_code ec;
@@ -662,28 +826,39 @@ int ObjectDirectory::update_field(const DoutPrefixProvider* dpp, CacheObj* objec
       request req;
       req.push("HSET", key, field, value);
 
-    redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+      redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
 
-      return 0; 
-    } catch (std::exception &e) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+      return 0;
+    } catch (std::exception& e) {
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << e.what() << dendl;
       return -EINVAL;
     }
   } else if (ret == -ENOENT) {
-    ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "(): Object does not exist." << dendl;
+    ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                       << "(): Object does not exist." << dendl;
   } else {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "(): ERROR: ret=" << ret << dendl;
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "(): ERROR: ret=" << ret << dendl;
   }
-  
+
   return ret;
 }
 
-int ObjectDirectory::zadd(const DoutPrefixProvider* dpp, CacheObj* object, double score, const std::string& member, optional_yield y, Pipeline* pipeline)
+int
+ObjectDirectory::zadd(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    double score,
+    const std::string& member,
+    optional_yield y,
+    Pipeline* pipeline)
 {
   std::string key = build_index(object);
   try {
@@ -699,25 +874,35 @@ int ObjectDirectory::zadd(const DoutPrefixProvider* dpp, CacheObj* object, doubl
       redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-        ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+        ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
         return -ec.value();
       }
 
       if (std::get<0>(resp).value() != "1") {
-        ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "() Response value is: " << std::get<0>(resp).value() << dendl;
+        ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                           << "() Response value is: "
+                           << std::get<0>(resp).value() << dendl;
         return -ENOENT;
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
-
 }
 
-int ObjectDirectory::zrange(const DoutPrefixProvider* dpp, CacheObj* object, int start, int stop, std::vector<std::string>& members, optional_yield y)
+int
+ObjectDirectory::zrange(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    int start,
+    int stop,
+    std::vector<std::string>& members,
+    optional_yield y)
 {
   std::string key = build_index(object);
   try {
@@ -725,30 +910,40 @@ int ObjectDirectory::zrange(const DoutPrefixProvider* dpp, CacheObj* object, int
     request req;
     req.push("ZRANGE", key, std::to_string(start), std::to_string(stop));
 
-    response<std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().empty()) {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "() Empty response" << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "() Empty response" << dendl;
       return -ENOENT;
     }
 
     members = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int ObjectDirectory::zrevrange(const DoutPrefixProvider* dpp, CacheObj* object, const std::string& start, const std::string& stop, std::vector<std::string>& members, optional_yield y)
+int
+ObjectDirectory::zrevrange(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    const std::string& start,
+    const std::string& stop,
+    std::vector<std::string>& members,
+    optional_yield y)
 {
   std::string key = build_index(object);
   try {
@@ -756,25 +951,32 @@ int ObjectDirectory::zrevrange(const DoutPrefixProvider* dpp, CacheObj* object, 
     request req;
     req.push("ZREVRANGE", key, start, stop);
 
-    response<std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     members = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int ObjectDirectory::zrem(const DoutPrefixProvider* dpp, CacheObj* object, const std::string& member, optional_yield y)
+int
+ObjectDirectory::zrem(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    const std::string& member,
+    optional_yield y)
 {
   std::string key = build_index(object);
   try {
@@ -786,24 +988,34 @@ int ObjectDirectory::zrem(const DoutPrefixProvider* dpp, CacheObj* object, const
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value() != "1") {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "() Response is: " << std::get<0>(resp).value() << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "() Response is: " << std::get<0>(resp).value()
+                         << dendl;
       return -ENOENT;
     }
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int ObjectDirectory::zremrangebyscore(const DoutPrefixProvider* dpp, CacheObj* object, double min, double max, optional_yield y)
+int
+ObjectDirectory::zremrangebyscore(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    double min,
+    double max,
+    optional_yield y)
 {
   std::string key = build_index(object);
   try {
@@ -815,24 +1027,31 @@ int ObjectDirectory::zremrangebyscore(const DoutPrefixProvider* dpp, CacheObj* o
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value() == "0") {
-      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__ << "() No element removed!" << dendl;
+      ldpp_dout(dpp, 10) << "ObjectDirectory::" << __func__
+                         << "() No element removed!" << dendl;
       return -ENOENT;
     }
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int ObjectDirectory::incr(const DoutPrefixProvider* dpp, CacheObj* object, optional_yield y)
+int
+ObjectDirectory::incr(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    optional_yield y)
 {
   std::string key = build_index(object);
   key = key + "_versioned_epoch";
@@ -846,21 +1065,29 @@ int ObjectDirectory::incr(const DoutPrefixProvider* dpp, CacheObj* object, optio
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     value = std::stoull(std::get<0>(resp).value());
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return value;
 }
 
-int ObjectDirectory::zrank(const DoutPrefixProvider* dpp, CacheObj* object, const std::string& member, std::string& index, optional_yield y)
+int
+ObjectDirectory::zrank(
+    const DoutPrefixProvider* dpp,
+    CacheObj* object,
+    const std::string& member,
+    std::string& index,
+    optional_yield y)
 {
   std::string key = build_index(object);
   try {
@@ -872,25 +1099,33 @@ int ObjectDirectory::zrank(const DoutPrefixProvider* dpp, CacheObj* object, cons
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     index = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "ObjectDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
   return 0;
 }
 
-std::string BlockDirectory::build_index(CacheBlock* block) 
+std::string
+BlockDirectory::build_index(CacheBlock* block)
 {
-  return block->cacheObj.bucketName + "_" + block->cacheObj.objName + "_" + std::to_string(block->blockID) + "_" + std::to_string(block->size);
+  return block->cacheObj.bucketName + "_" + block->cacheObj.objName + "_" +
+         std::to_string(block->blockID) + "_" + std::to_string(block->size);
 }
 
-int BlockDirectory::exist_key(const DoutPrefixProvider* dpp, CacheBlock* block, optional_yield y) 
+int
+BlockDirectory::exist_key(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    optional_yield y)
 {
   std::string key = build_index(block);
   response<int> resp;
@@ -903,19 +1138,26 @@ int BlockDirectory::exist_key(const DoutPrefixProvider* dpp, CacheBlock* block, 
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return std::get<0>(resp).value();
 }
 
-template<SeqContainer Container>
-int BlockDirectory::set_values(const DoutPrefixProvider* dpp, CacheBlock& block, Container& redisValues, optional_yield y)
+template <SeqContainer Container>
+int
+BlockDirectory::set_values(
+    const DoutPrefixProvider* dpp,
+    CacheBlock& block,
+    Container& redisValues,
+    optional_yield y)
 {
   std::string hosts;
   /* Creating a redisValues of the entry's properties */
@@ -928,7 +1170,9 @@ int BlockDirectory::set_values(const DoutPrefixProvider* dpp, CacheBlock& block,
   if ((ret = check_bool(std::to_string(block.deleteMarker))) != -EINVAL) {
     block.deleteMarker = (ret != 0);
   } else {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: Invalid bool value for delete marker" << dendl;
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: Invalid bool value for delete marker"
+                      << dendl;
     return -EINVAL;
   }
   redisValues.push_back(std::to_string(block.deleteMarker));
@@ -946,7 +1190,8 @@ int BlockDirectory::set_values(const DoutPrefixProvider* dpp, CacheBlock& block,
   if ((ret = check_bool(std::to_string(block.cacheObj.dirty))) != -EINVAL) {
     block.cacheObj.dirty = (ret != 0);
   } else {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: Invalid bool value" << dendl;
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: Invalid bool value" << dendl;
     return -EINVAL;
   }
   redisValues.push_back(std::to_string(block.cacheObj.dirty));
@@ -955,13 +1200,13 @@ int BlockDirectory::set_values(const DoutPrefixProvider* dpp, CacheBlock& block,
   hosts.clear();
   for (auto const& host : block.cacheObj.hostsList) {
     if (hosts.empty())
-    hosts = host + "_";
+      hosts = host + "_";
     else
-    hosts = hosts + host + "_";
+      hosts = hosts + host + "_";
   }
 
   if (!hosts.empty())
-  hosts.pop_back();
+    hosts.pop_back();
 
   redisValues.push_back(hosts);
   redisValues.push_back("etag");
@@ -976,12 +1221,18 @@ int BlockDirectory::set_values(const DoutPrefixProvider* dpp, CacheBlock& block,
   return 0;
 }
 
-int BlockDirectory::set(const DoutPrefixProvider* dpp, CacheBlock* block, optional_yield y, Pipeline* pipeline)
+int
+BlockDirectory::set(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    optional_yield y,
+    Pipeline* pipeline)
 {
   /* For existing keys, call get method beforehand. 
      Sets completely overwrite existing values. */
   std::string key = build_index(block);
-  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                     << "(): index is: " << key << dendl;
 
   std::vector<std::string> redisValues;
 
@@ -1002,24 +1253,31 @@ int BlockDirectory::set(const DoutPrefixProvider* dpp, CacheBlock* block, option
 
       redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
       if (ec) {
-        ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+        ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
         return -ec.value();
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::set(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& blocks, optional_yield y)
+int
+BlockDirectory::set(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheBlock>& blocks,
+    optional_yield y)
 {
   request req;
   for (auto block : blocks) {
     std::string key = build_index(&block);
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
 
     //std::string hosts;
     std::list<std::string> redisValues;
@@ -1035,80 +1293,91 @@ int BlockDirectory::set(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
     boost::redis::generic_response resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-template<typename T, typename Seq>
+template <typename T, typename Seq>
 struct expander;
 
-template<typename T, std::size_t... Is>
+template <typename T, std::size_t... Is>
 struct expander<T, std::index_sequence<Is...>> {
-template<typename E, std::size_t>
-using elem = E;
+  template <typename E, std::size_t>
+  using elem = E;
 
-using type = boost::redis::response<elem<T, Is>...>;
+  using type = boost::redis::response<elem<T, Is>...>;
 };
 
 template <size_t N, class Type>
-struct redis_response
-{
+struct redis_response {
   using type = typename expander<Type, std::make_index_sequence<N>>::type;
 };
 
-template <typename Integer, Integer ...I, typename F>
-constexpr void constexpr_for_each(std::integer_sequence<Integer, I...>, F &&func)
+template <typename Integer, Integer... I, typename F>
+constexpr void
+constexpr_for_each(std::integer_sequence<Integer, I...>, F&& func)
 {
-    (func(std::integral_constant<Integer, I>{}) , ...);
+  (func(std::integral_constant<Integer, I>{}), ...);
 }
 
 template <auto N, typename F>
-constexpr void constexpr_for(F &&func)
+constexpr void
+constexpr_for(F&& func)
 {
-    if constexpr (N > 0)
-    {
-        constexpr_for_each(std::make_integer_sequence<decltype(N), N>{}, std::forward<F>(func));
-    }
+  if constexpr (N > 0) {
+    constexpr_for_each(
+        std::make_integer_sequence<decltype(N), N>{}, std::forward<F>(func));
+  }
 }
 
 template <typename T>
-void parse_response(T t, std::vector<std::vector<std::string>>& responses)
+void
+parse_response(T t, std::vector<std::vector<std::string>>& responses)
 {
-    constexpr_for<std::tuple_size_v<T>>([&](auto index)
-    {
-      std::vector<std::string> empty_vector;
-      constexpr auto i = index.value;
-      if (std::get<i>(t).value().has_value()) {
-        if (std::get<i>(t).value().value().empty()) {
-          responses.emplace_back(empty_vector);
-        } else {
-          responses.emplace_back(std::get<i>(t).value().value());
-        }
-      } else {
+  constexpr_for<std::tuple_size_v<T>>([&](auto index) {
+    std::vector<std::string> empty_vector;
+    constexpr auto i = index.value;
+    if (std::get<i>(t).value().has_value()) {
+      if (std::get<i>(t).value().value().empty()) {
         responses.emplace_back(empty_vector);
+      } else {
+        responses.emplace_back(std::get<i>(t).value().value());
       }
-    });
+    } else {
+      responses.emplace_back(empty_vector);
+    }
+  });
 }
 
 //explicit instantiation for 100 elements
-template int BlockDirectory::get<100>(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& blocks, optional_yield y);
+template int BlockDirectory::get<100>(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheBlock>& blocks,
+    optional_yield y);
 
 template <size_t N>
-int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& blocks, optional_yield y)
+int
+BlockDirectory::get(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheBlock>& blocks,
+    optional_yield y)
 {
   request req;
   typename redis_response<N, std::optional<std::vector<std::string>>>::type resp;
   for (auto block : blocks) {
     std::string key = build_index(&block);
     std::vector<std::string> fields;
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
 
     fields.push_back("blockID");
     fields.push_back("version");
@@ -1128,8 +1397,9 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
 
     try {
       req.push_range("HMGET", key, fields);
-    } catch (std::exception &e) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+    } catch (std::exception& e) {
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << e.what() << dendl;
       return -EINVAL;
     }
   } //end - for
@@ -1139,11 +1409,13 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
@@ -1154,21 +1426,26 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
     CacheBlock* block = &blocks[i];
     auto vec = responses[i];
     if (vec.empty()) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "(): No values returned for key=" << build_index(block) << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "(): No values returned for key="
+                        << build_index(block) << dendl;
       continue;
     }
 
     using Fields = rgw::d4n::BlockFields;
     block->blockID = std::stoull(vec[std::size_t(Fields::BlockID)]);
     block->version = vec[std::size_t(Fields::Version)];
-    block->deleteMarker = (std::stoi(vec[std::size_t(Fields::DeleteMarker)]) != 0);
+    block->deleteMarker =
+        (std::stoi(vec[std::size_t(Fields::DeleteMarker)]) != 0);
     block->size = std::stoull(vec[std::size_t(Fields::Size)]);
     block->globalWeight = std::stoull(vec[std::size_t(Fields::GlobalWeight)]);
     block->cacheObj.objName = vec[std::size_t(Fields::ObjName)];
     block->cacheObj.bucketName = vec[std::size_t(Fields::BucketName)];
     block->cacheObj.creationTime = vec[std::size_t(Fields::CreationTime)];
     block->cacheObj.dirty = (std::stoi(vec[std::size_t(Fields::Dirty)]) != 0);
-    boost::split(block->cacheObj.hostsList, vec[std::size_t(Fields::Hosts)], boost::is_any_of("_"));
+    boost::split(
+        block->cacheObj.hostsList, vec[std::size_t(Fields::Hosts)],
+        boost::is_any_of("_"));
     block->cacheObj.etag = vec[std::size_t(Fields::Etag)];
     block->cacheObj.size = std::stoull(vec[std::size_t(Fields::ObjSize)]);
     block->cacheObj.user_id = vec[std::size_t(Fields::UserID)];
@@ -1178,11 +1455,16 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
   return 0;
 }
 
-int BlockDirectory::get(const DoutPrefixProvider* dpp, CacheBlock* block, optional_yield y) 
+int
+BlockDirectory::get(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    optional_yield y)
 {
   std::string key = build_index(block);
   std::vector<std::string> fields;
-  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                     << "(): index is: " << key << dendl;
 
   fields.push_back("blockID");
   fields.push_back("version");
@@ -1202,21 +1484,23 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, CacheBlock* block, option
 
   try {
     boost::system::error_code ec;
-    response< std::optional<std::vector<std::string>> > resp;
+    response<std::optional<std::vector<std::string>>> resp;
     request req;
     req.push_range("HMGET", key, fields);
 
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().value().empty()) {
-      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): No values returned for key=" << key << dendl;
+      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                         << "(): No values returned for key=" << key << dendl;
       return -ENOENT;
-    } 
+    }
 
     block->blockID = std::stoull(std::get<0>(resp).value().value()[0]);
     block->version = std::get<0>(resp).value().value()[1];
@@ -1226,28 +1510,37 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, CacheBlock* block, option
     block->cacheObj.objName = std::get<0>(resp).value().value()[5];
     block->cacheObj.bucketName = std::get<0>(resp).value().value()[6];
     block->cacheObj.creationTime = std::get<0>(resp).value().value()[7];
-    block->cacheObj.dirty = (std::stoi(std::get<0>(resp).value().value()[8]) != 0);
-    boost::split(block->cacheObj.hostsList, std::get<0>(resp).value().value()[9], boost::is_any_of("_"));
+    block->cacheObj.dirty =
+        (std::stoi(std::get<0>(resp).value().value()[8]) != 0);
+    boost::split(
+        block->cacheObj.hostsList, std::get<0>(resp).value().value()[9],
+        boost::is_any_of("_"));
     block->cacheObj.etag = std::get<0>(resp).value().value()[10];
     block->cacheObj.size = std::stoull(std::get<0>(resp).value().value()[11]);
     block->cacheObj.user_id = std::get<0>(resp).value().value()[12];
     block->cacheObj.display_name = std::get<0>(resp).value().value()[13];
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& blocks, optional_yield y)
+int
+BlockDirectory::get(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheBlock>& blocks,
+    optional_yield y)
 {
   boost::redis::generic_response resp;
   request req;
   for (auto block : blocks) {
     std::string key = build_index(&block);
     std::vector<std::string> fields;
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
 
     fields.push_back("blockID");
     fields.push_back("version");
@@ -1267,8 +1560,9 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
 
     try {
       req.push("HGETALL", key);
-    } catch (std::exception &e) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+    } catch (std::exception& e) {
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << e.what() << dendl;
       return -EINVAL;
     }
   } //end - for
@@ -1278,48 +1572,59 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
   //i is used to index blocks
   //j is used to keep a track of number of elements for aggregate type map or array
   auto i = 0, j = 0;
-  bool field_key=true, field_val=false;
+  bool field_key = true, field_val = false;
   std::string key, fieldkey, fieldval, prev_val;
   int num_elements = 0;
   for (auto& element : resp.value()) {
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): i is: " << i << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): i is: " << i
+                       << dendl;
     CacheBlock* block = &blocks[i];
     std::string key = build_index(block);
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
-    if (element.data_type == boost::redis::resp3::type::array || element.data_type == boost::redis::resp3::type::map) {
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
+    if (element.data_type == boost::redis::resp3::type::array ||
+        element.data_type == boost::redis::resp3::type::map) {
       num_elements = element.aggregate_size;
       if (num_elements == 0) {
         i++;
         j = 0;
       }
-      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "() num_elements: " << num_elements << dendl;
+      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                         << "() num_elements: " << num_elements << dendl;
       continue;
     } else {
       if (j < num_elements) {
         if (field_key && !field_val) {
-          if (element.value == "blockID" || element.value == "version" || element.value == "deleteMarker" ||
-              element.value == "size" || element.value == "globalWeight" || element.value == "objName" ||
-              element.value == "bucketName" || element.value == "creationTime" || element.value == "dirty" ||
-              element.value == "hosts" || element.value == "etag" || element.value == "objSize" ||
-              element.value == "userId" || element.value == "displayName") {
+          if (element.value == "blockID" || element.value == "version" ||
+              element.value == "deleteMarker" || element.value == "size" ||
+              element.value == "globalWeight" || element.value == "objName" ||
+              element.value == "bucketName" ||
+              element.value == "creationTime" || element.value == "dirty" ||
+              element.value == "hosts" || element.value == "etag" ||
+              element.value == "objSize" || element.value == "userId" ||
+              element.value == "displayName") {
             prev_val = element.value;
-            ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "() field key: " << prev_val << dendl;
+            ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                               << "() field key: " << prev_val << dendl;
             field_key = false;
             field_val = true;
           }
           continue;
         } else {
-          ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "() field val: " << element.value << dendl;
+          ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                             << "() field val: " << element.value << dendl;
           if (prev_val == "blockID") {
             block->blockID = std::stoull(element.value);
           } else if (prev_val == "version") {
@@ -1339,7 +1644,8 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
           } else if (prev_val == "dirty") {
             block->cacheObj.dirty = (std::stoi(element.value) != 0);
           } else if (prev_val == "hosts") {
-            boost::split(block->cacheObj.hostsList, element.value, boost::is_any_of("_"));
+            boost::split(
+                block->cacheObj.hostsList, element.value, boost::is_any_of("_"));
           } else if (prev_val == "etag") {
             block->cacheObj.etag = element.value;
           } else if (prev_val == "objSize") {
@@ -1350,7 +1656,7 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
             block->cacheObj.display_name = element.value;
           }
           j++;
-          field_key= true;
+          field_key = true;
           field_val = false;
           prev_val.clear();
         }
@@ -1365,20 +1671,26 @@ int BlockDirectory::get(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
 }
 
 /* Note: This method is not compatible for use on Ubuntu systems. */
-int BlockDirectory::copy(const DoutPrefixProvider* dpp, CacheBlock* block, const std::string& copyName, const std::string& copyBucketName, optional_yield y)
+int
+BlockDirectory::copy(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    const std::string& copyName,
+    const std::string& copyBucketName,
+    optional_yield y)
 {
   std::string key = build_index(block);
-  auto copyBlock = CacheBlock{ .cacheObj = { .objName = copyName, .bucketName = copyBucketName }, .blockID = 0 };
+  auto copyBlock = CacheBlock{
+      .cacheObj = {.objName = copyName, .bucketName = copyBucketName},
+      .blockID = 0};
   std::string copyKey = build_index(&copyBlock);
 
   try {
     boost::system::error_code ec;
     response<
-      ignore_t,
-      ignore_t,
-      ignore_t,
-      response<std::optional<int>, std::optional<int>> 
-    > resp;
+        ignore_t, ignore_t, ignore_t,
+        response<std::optional<int>, std::optional<int>>>
+        resp;
     request req;
     req.push("MULTI");
     req.push("COPY", key, copyKey);
@@ -1388,28 +1700,36 @@ int BlockDirectory::copy(const DoutPrefixProvider* dpp, CacheBlock* block, const
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(std::get<3>(resp).value()).value().value() == 1) {
       return 0;
     } else {
-      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): No values copied." << dendl;
+      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                         << "(): No values copied." << dendl;
       return -ENOENT;
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 }
 
-int BlockDirectory::del(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& blocks, optional_yield y)
+int
+BlockDirectory::del(
+    const DoutPrefixProvider* dpp,
+    std::vector<CacheBlock>& blocks,
+    optional_yield y)
 {
   request req;
   for (auto block : blocks) {
     std::string key = build_index(&block);
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): index is: " << key << dendl;
 
     req.push("UNLINK", key);
   }
@@ -1418,23 +1738,30 @@ int BlockDirectory::del(const DoutPrefixProvider* dpp, std::vector<CacheBlock>& 
     boost::system::error_code ec;
     boost::redis::generic_response resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
-    
+
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::del(const DoutPrefixProvider* dpp, CacheBlock* block, optional_yield y)
+int
+BlockDirectory::del(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    optional_yield y)
 {
   std::string key = build_index(block);
-  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): index is: " << key << dendl;
+  ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                     << "(): index is: " << key << dendl;
 
   try {
     boost::system::error_code ec;
@@ -1443,59 +1770,73 @@ int BlockDirectory::del(const DoutPrefixProvider* dpp, CacheBlock* block, option
     response<int> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
     if (!std::get<0>(resp).value()) {
-      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): No values deleted for key=" << key << dendl;
+      ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                         << "(): No values deleted for key=" << key << dendl;
       return -ENOENT;
     }
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-      std::cout << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << std::endl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
+      std::cout << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what()
+                << std::endl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
-    std::cout << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << std::endl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
+    std::cout << "BlockDirectory::" << __func__ << "() ERROR: " << e.what()
+              << std::endl;
     return -EINVAL;
   }
 
-  return 0; 
+  return 0;
 }
 
-int BlockDirectory::update_field(const DoutPrefixProvider* dpp, CacheBlock* block, const std::string& field, std::string& value, optional_yield y)
+int
+BlockDirectory::update_field(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    const std::string& field,
+    std::string& value,
+    optional_yield y)
 {
   int ret = -1;
   std::string key = build_index(block);
 
   if ((ret = exist_key(dpp, block, y))) {
     try {
-      if (field == "hosts") { 
-	/* Append rather than overwrite */
-	ldpp_dout(dpp, 20) << "BlockDirectory::" << __func__ << "() Appending to hosts list." << dendl;
+      if (field == "hosts") {
+        /* Append rather than overwrite */
+        ldpp_dout(dpp, 20) << "BlockDirectory::" << __func__
+                           << "() Appending to hosts list." << dendl;
 
-	boost::system::error_code ec;
-	response< std::optional<std::string> > resp;
-	request req;
-	req.push("HGET", key, field);
+        boost::system::error_code ec;
+        response<std::optional<std::string>> resp;
+        request req;
+        req.push("HGET", key, field);
 
-    	redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+        redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
-	if (ec) {
-	  ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	  return -ec.value();
-	}
+        if (ec) {
+          ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                            << "() ERROR: " << ec.what() << dendl;
+          return -ec.value();
+        }
 
-	/* If entry exists, it should have at least one host */
-	std::get<0>(resp).value().value() += "_";
-	std::get<0>(resp).value().value() += value;
-	value = std::get<0>(resp).value().value();
-      } else if (field == "dirty") { 
-	int ret = -1;
-	if ((ret = check_bool(value)) != -EINVAL) {
+        /* If entry exists, it should have at least one host */
+        std::get<0>(resp).value().value() += "_";
+        std::get<0>(resp).value().value() += value;
+        value = std::get<0>(resp).value().value();
+      } else if (field == "dirty") {
+        int ret = -1;
+        if ((ret = check_bool(value)) != -EINVAL) {
           bool val = (ret != 0);
-	  value = std::to_string(val);
-	} else {
-	  ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: Invalid bool value" << dendl;
-	  return -EINVAL;
-	}
+          value = std::to_string(val);
+        } else {
+          ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                            << "() ERROR: Invalid bool value" << dendl;
+          return -EINVAL;
+        }
       }
 
       boost::system::error_code ec;
@@ -1503,69 +1844,81 @@ int BlockDirectory::update_field(const DoutPrefixProvider* dpp, CacheBlock* bloc
       request req;
       req.push("HSET", key, field, value);
 
-    	redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+      redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
 
-      return 0; 
-    } catch (std::exception &e) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+      return 0;
+    } catch (std::exception& e) {
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << e.what() << dendl;
       return -EINVAL;
     }
   } else if (ret == -ENOENT) {
-    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): Block does not exist." << dendl;
+    ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                       << "(): Block does not exist." << dendl;
   } else {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "(): ERROR: ret=" << ret << dendl;
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "(): ERROR: ret=" << ret << dendl;
   }
-  
+
   return ret;
 }
 
-int BlockDirectory::remove_host(const DoutPrefixProvider* dpp, CacheBlock* block, std::string& value, optional_yield y)
+int
+BlockDirectory::remove_host(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    std::string& value,
+    optional_yield y)
 {
   std::string key = build_index(block);
 
   try {
     {
       boost::system::error_code ec;
-      response< std::optional<std::string> > resp;
+      response<std::optional<std::string>> resp;
       request req;
       req.push("HGET", key, "hosts");
 
-    redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+      redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
 
       if (std::get<0>(resp).value().value().empty()) {
-	ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): No values returned." << dendl;
-	return -ENOENT;
+        ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                           << "(): No values returned." << dendl;
+        return -ENOENT;
       }
 
       std::string result = std::get<0>(resp).value().value();
       auto it = result.find(value);
-      if (it != std::string::npos) { 
-	result.erase(result.begin() + it, result.begin() + it + value.size());
+      if (it != std::string::npos) {
+        result.erase(result.begin() + it, result.begin() + it + value.size());
       } else {
-	ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__ << "(): Host was not found." << dendl;
-	return -ENOENT;
+        ldpp_dout(dpp, 10) << "BlockDirectory::" << __func__
+                           << "(): Host was not found." << dendl;
+        return -ENOENT;
       }
 
       if (result[0] == '_') {
-	result.erase(0, 1);
+        result.erase(0, 1);
       } else if (result.length() && result[result.length() - 1] == '_') {
-	result.erase(result.length() - 1, 1);
+        result.erase(result.length() - 1, 1);
       }
 
       if (result.length() == 0) /* Last host, delete entirely */
-	return del(dpp, block, y); 
+        return del(dpp, block, y);
 
-  value = result;
+      value = result;
     }
 
     {
@@ -1574,22 +1927,30 @@ int BlockDirectory::remove_host(const DoutPrefixProvider* dpp, CacheBlock* block
       request req;
       req.push("HSET", key, "hosts", value);
 
-    redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
+      redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                          << "() ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::zadd(const DoutPrefixProvider* dpp, CacheBlock* block, double score, const std::string& member, optional_yield y)
+int
+BlockDirectory::zadd(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    double score,
+    const std::string& member,
+    optional_yield y)
 {
   std::string key = build_index(block);
   try {
@@ -1601,24 +1962,34 @@ int BlockDirectory::zadd(const DoutPrefixProvider* dpp, CacheBlock* block, doubl
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
     if (std::get<0>(resp).value() != "1") {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Response value is: " << std::get<0>(resp).value() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() Response value is: " << std::get<0>(resp).value()
+                        << dendl;
       return -EINVAL;
     }
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
-
 }
 
-int BlockDirectory::zrange(const DoutPrefixProvider* dpp, CacheBlock* block, int start, int stop, std::vector<std::string>& members, optional_yield y)
+int
+BlockDirectory::zrange(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    int start,
+    int stop,
+    std::vector<std::string>& members,
+    optional_yield y)
 {
   std::string key = build_index(block);
   try {
@@ -1626,30 +1997,40 @@ int BlockDirectory::zrange(const DoutPrefixProvider* dpp, CacheBlock* block, int
     request req;
     req.push("ZRANGE", key, std::to_string(start), std::to_string(stop));
 
-    response<std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().empty()) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Empty response" << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Empty response"
+                        << dendl;
       return -EINVAL;
     }
 
     members = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::zrevrange(const DoutPrefixProvider* dpp, CacheBlock* block, int start, int stop, std::vector<std::string>& members, optional_yield y)
+int
+BlockDirectory::zrevrange(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    int start,
+    int stop,
+    std::vector<std::string>& members,
+    optional_yield y)
 {
   std::string key = build_index(block);
   try {
@@ -1657,30 +2038,38 @@ int BlockDirectory::zrevrange(const DoutPrefixProvider* dpp, CacheBlock* block, 
     request req;
     req.push("ZREVRANGE", key, std::to_string(start), std::to_string(stop));
 
-    response<std::vector<std::string> > resp;
+    response<std::vector<std::string>> resp;
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().empty()) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Empty response" << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Empty response"
+                        << dendl;
       return -EINVAL;
     }
 
     members = std::get<0>(resp).value();
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int BlockDirectory::zrem(const DoutPrefixProvider* dpp, CacheBlock* block, const std::string& member, optional_yield y)
+int
+BlockDirectory::zrem(
+    const DoutPrefixProvider* dpp,
+    CacheBlock* block,
+    const std::string& member,
+    optional_yield y)
 {
   std::string key = build_index(block);
   try {
@@ -1692,24 +2081,29 @@ int BlockDirectory::zrem(const DoutPrefixProvider* dpp, CacheBlock* block, const
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value() != "1") {
-      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() Response is: " << std::get<0>(resp).value() << dendl;
+      ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                        << "() Response is: " << std::get<0>(resp).value()
+                        << dendl;
       return -EINVAL;
     }
 
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "BlockDirectory::" << __func__
+                      << "() ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int Pipeline::execute(const DoutPrefixProvider* dpp, optional_yield y)
+int
+Pipeline::execute(const DoutPrefixProvider* dpp, optional_yield y)
 {
   boost::redis::generic_response resp;
   try {
@@ -1718,14 +2112,17 @@ int Pipeline::execute(const DoutPrefixProvider* dpp, optional_yield y)
     redis_exec_connection_pool(dpp, redis_pool, conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "Directory::" << __func__ << "() ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "Directory::" << __func__
+                        << "() ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "Directory::" << __func__ << "() ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "Directory::" << __func__ << "() ERROR: " << e.what()
+                      << dendl;
     return -EINVAL;
   }
   return 0;
 }
 
-} } // namespace rgw::d4n
+} // namespace d4n
+} // namespace rgw

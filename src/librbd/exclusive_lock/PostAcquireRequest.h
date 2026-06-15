@@ -4,11 +4,12 @@
 #ifndef CEPH_LIBRBD_EXCLUSIVE_LOCK_POST_ACQUIRE_REQUEST_H
 #define CEPH_LIBRBD_EXCLUSIVE_LOCK_POST_ACQUIRE_REQUEST_H
 
-#include "include/int_types.h"
+#include <string>
+
 #include "include/buffer.h"
+#include "include/int_types.h"
 #include "librbd/ImageCtx.h"
 #include "msg/msg_types.h"
-#include <string>
 
 class Context;
 
@@ -19,14 +20,15 @@ namespace exclusive_lock {
 template <typename ImageCtxT = ImageCtx>
 class PostAcquireRequest {
 public:
-  static PostAcquireRequest* create(ImageCtxT &image_ctx, Context *on_acquire,
-                                    Context *on_finish);
+  static PostAcquireRequest* create(
+      ImageCtxT& image_ctx,
+      Context* on_acquire,
+      Context* on_finish);
 
   ~PostAcquireRequest();
   void send();
 
 private:
-
   /**
    * @verbatim
    *
@@ -67,12 +69,14 @@ private:
    * @endverbatim
    */
 
-  PostAcquireRequest(ImageCtxT &image_ctx, Context *on_acquire,
-                     Context *on_finish);
+  PostAcquireRequest(
+      ImageCtxT& image_ctx,
+      Context* on_acquire,
+      Context* on_finish);
 
-  ImageCtxT &m_image_ctx;
-  Context *m_on_acquire;
-  Context *m_on_finish;
+  ImageCtxT& m_image_ctx;
+  Context* m_on_acquire;
+  Context* m_on_finish;
 
   decltype(m_image_ctx.object_map) m_object_map;
   decltype(m_image_ctx.journal) m_journal;
@@ -109,7 +113,9 @@ private:
 
   void finish();
 
-  void save_result(int result) {
+  void
+  save_result(int result)
+  {
     if (m_error_result == 0 && result < 0) {
       m_error_result = result;
     }

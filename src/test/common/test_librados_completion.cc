@@ -13,9 +13,6 @@
  *
  */
 
-#include "common/async/librados_completion.h"
-
-#include <boost/system/detail/errc.hpp>
 #include <gtest/gtest.h>
 
 #include <boost/asio/awaitable.hpp>
@@ -23,14 +20,14 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
-#include <boost/system/error_code.hpp>
+#include <boost/system/detail/errc.hpp>
 #include <boost/system/errc.hpp>
+#include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
-#include "include/rados/librados.hpp"
-
 #include "common/async/async_call.h"
+#include "common/async/librados_completion.h"
+#include "include/rados/librados.hpp"
 
 namespace asio = boost::asio;
 namespace sys = boost::system;
@@ -38,12 +35,12 @@ namespace async = ceph::async;
 
 TEST(CoroSucc, AioComplete)
 {
-  std::unique_ptr<librados::AioCompletion> lrc{librados::Rados::aio_create_completion()};
+  std::unique_ptr<librados::AioCompletion> lrc{
+      librados::Rados::aio_create_completion()};
   asio::io_context c;
-  asio::co_spawn(c.get_executor(),
-                 []() -> asio::awaitable<void> {
-                   co_return;
-                 }(), lrc.get());
+  asio::co_spawn(
+      c.get_executor(), []() -> asio::awaitable<void> { co_return; }(),
+      lrc.get());
   c.run();
   lrc->wait_for_complete();
   auto r = lrc->get_return_value();
@@ -52,13 +49,16 @@ TEST(CoroSucc, AioComplete)
 
 TEST(CoroExcept, AioComplete)
 {
-  std::unique_ptr<librados::AioCompletion> lrc{librados::Rados::aio_create_completion()};
+  std::unique_ptr<librados::AioCompletion> lrc{
+      librados::Rados::aio_create_completion()};
   asio::io_context c;
-  asio::co_spawn(c.get_executor(),
-                 []() -> asio::awaitable<void> {
-                   throw sys::system_error{ENOENT, sys::generic_category()};
-                   co_return;
-                 }(), lrc.get());
+  asio::co_spawn(
+      c.get_executor(),
+      []() -> asio::awaitable<void> {
+        throw sys::system_error{ENOENT, sys::generic_category()};
+        co_return;
+      }(),
+      lrc.get());
   c.run();
   lrc->wait_for_complete();
   auto r = lrc->get_return_value();
@@ -67,13 +67,16 @@ TEST(CoroExcept, AioComplete)
 
 TEST(CoroUnknownExcept, AioComplete)
 {
-  std::unique_ptr<librados::AioCompletion> lrc{librados::Rados::aio_create_completion()};
+  std::unique_ptr<librados::AioCompletion> lrc{
+      librados::Rados::aio_create_completion()};
   asio::io_context c;
-  asio::co_spawn(c.get_executor(),
-                 []() -> asio::awaitable<void> {
-                   throw std::exception{};
-                   co_return;
-                 }(), lrc.get());
+  asio::co_spawn(
+      c.get_executor(),
+      []() -> asio::awaitable<void> {
+        throw std::exception{};
+        co_return;
+      }(),
+      lrc.get());
   c.run();
   lrc->wait_for_complete();
   auto r = lrc->get_return_value();
@@ -82,12 +85,10 @@ TEST(CoroUnknownExcept, AioComplete)
 
 TEST(Int, AioComplete)
 {
-  std::unique_ptr<librados::AioCompletion> lrc{librados::Rados::aio_create_completion()};
+  std::unique_ptr<librados::AioCompletion> lrc{
+      librados::Rados::aio_create_completion()};
   asio::io_context c;
-  async::async_dispatch(c.get_executor(),
-                        []() {
-                         return -42;
-                       }, lrc.get());
+  async::async_dispatch(c.get_executor(), []() { return -42; }, lrc.get());
   c.run();
   lrc->wait_for_complete();
   auto r = lrc->get_return_value();
@@ -96,13 +97,13 @@ TEST(Int, AioComplete)
 
 TEST(EC, AioComplete)
 {
-  std::unique_ptr<librados::AioCompletion> lrc{librados::Rados::aio_create_completion()};
+  std::unique_ptr<librados::AioCompletion> lrc{
+      librados::Rados::aio_create_completion()};
   asio::io_context c;
-  async::async_dispatch(c.get_executor(),
-                        []() {
-                          return sys::error_code(ENOENT,
-                                                 sys::generic_category());
-                        }, lrc.get());
+  async::async_dispatch(
+      c.get_executor(),
+      []() { return sys::error_code(ENOENT, sys::generic_category()); },
+      lrc.get());
   c.run();
   lrc->wait_for_complete();
   auto r = lrc->get_return_value();

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,8 +18,8 @@
 #ifndef CEPH_MSG_EVENTKQUEUE_H
 #define CEPH_MSG_EVENTKQUEUE_H
 
-#include <sys/types.h>
 #include <sys/event.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "Event.h"
@@ -27,25 +27,28 @@
 class KqueueDriver : public EventDriver {
   int kqfd;
   pthread_t mythread;
-  struct kevent *res_events;
-  CephContext *cct;
+  struct kevent* res_events;
+  CephContext* cct;
   int size;
 
   // Keep what we set on the kqfd
-  struct SaveEvent{
+  struct SaveEvent {
     int fd;
     int mask;
   };
-  struct SaveEvent *sav_events;
+  struct SaveEvent* sav_events;
   int sav_max;
   int restore_events();
   int test_kqfd();
   int test_thread_change(const char* funcname);
 
- public:
-  explicit KqueueDriver(CephContext *c): kqfd(-1), res_events(NULL), cct(c), 
-		size(0), sav_max(0) {}
-  virtual ~KqueueDriver() {
+public:
+  explicit KqueueDriver(CephContext* c) :
+    kqfd(-1), res_events(NULL), cct(c), size(0), sav_max(0)
+  {}
+
+  virtual ~KqueueDriver()
+  {
     if (kqfd != -1)
       close(kqfd);
 
@@ -57,12 +60,13 @@ class KqueueDriver : public EventDriver {
     sav_max = 0;
   }
 
-  int init(EventCenter *c, int nevent) override;
+  int init(EventCenter* c, int nevent) override;
   int add_event(int fd, int cur_mask, int add_mask) override;
   int del_event(int fd, int cur_mask, int del_mask) override;
   int resize_events(int newsize) override;
-  int event_wait(std::vector<FiredFileEvent> &fired_events,
-		 struct timeval *tp) override;
+  int event_wait(
+      std::vector<FiredFileEvent>& fired_events,
+      struct timeval* tp) override;
 };
 
 #endif

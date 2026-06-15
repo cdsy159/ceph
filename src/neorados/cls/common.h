@@ -15,25 +15,22 @@
 #include <concepts>
 #include <cstddef>
 #include <string>
-#include <type_traits>
 #include <tuple>
+#include <type_traits>
 
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/deferred.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/co_composed.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
-#include <boost/asio/experimental/co_composed.hpp>
-
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "include/buffer.h"
 #include "include/encoding.h"
+#include "include/neorados/RADOS.hpp"
 
 #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ < 13)
 #define BROKEN_CO_COMPOSED
@@ -52,34 +49,34 @@
 
 namespace neorados::cls {
 namespace detail {
-template<typename...>
+template <typename...>
 struct return_sig;
 
-template<typename T>
+template <typename T>
 struct return_sig<T> {
-using type = void(boost::system::error_code, T);
+  using type = void(boost::system::error_code, T);
 };
-template<typename ...Ts>
+
+template <typename... Ts>
 struct return_sig<std::tuple<Ts...>> {
   using type = void(boost::system::error_code, Ts...);
 };
 
-template<typename... Ts>
+template <typename... Ts>
 using return_sig_t = typename return_sig<Ts...>::type;
 
-template<typename T>
-auto maybecat(boost::system::error_code ec,
-	      T&& t)
+template <typename T>
+auto
+maybecat(boost::system::error_code ec, T&& t)
 {
   return std::make_tuple(ec, std::forward<T>(t));
 }
 
-template<typename ...Ts>
-auto maybecat(boost::system::error_code ec,
-	      std::tuple<Ts...>&& ts)
+template <typename... Ts>
+auto
+maybecat(boost::system::error_code ec, std::tuple<Ts...>&& ts)
 {
-  return std::tuple_cat(std::tuple(ec),
-			std::move(ts));
+  return std::tuple_cat(std::tuple(ec), std::move(ts));
 }
 } // namespace detail
 
@@ -112,20 +109,23 @@ auto maybecat(boost::system::error_code ec,
 // matching `operator new`, returning its result.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-template<std::default_initializable Rep, typename Req,
-	 std::invocable<Rep&&> F,
-	 std::default_initializable Ret = std::invoke_result_t<F&&, Rep&&>,
-	 boost::asio::completion_token_for<
-	   detail::return_sig_t<Ret>> CompletionToken>
-auto exec(
-  RADOS& r,
-  Object oid,
-  IOContext ioc,
-  std::string cls,
-  std::string method,
-  const Req& req,
-  F&& f,
-  CompletionToken&& token)
+
+template <
+    std::default_initializable Rep,
+    typename Req,
+    std::invocable<Rep&&> F,
+    std::default_initializable Ret = std::invoke_result_t<F&&, Rep&&>,
+    boost::asio::completion_token_for<detail::return_sig_t<Ret>> CompletionToken>
+auto
+exec(
+    RADOS& r,
+    Object oid,
+    IOContext ioc,
+    std::string cls,
+    std::string method,
+    const Req& req,
+    F&& f,
+    CompletionToken&& token)
 {
   namespace asio = boost::asio;
   namespace buffer = ceph::buffer;
@@ -136,31 +136,33 @@ auto exec(
   if (!std::is_same_v<Req, std::nullptr_t>) {
     encode(req, in);
   }
-  return asio::async_initiate<CompletionToken, detail::return_sig_t<Ret>>
-    (asio::experimental::co_composed<detail::return_sig_t<Ret>>
-     ([](auto state, RADOS& r, Object oid, IOContext ioc, std::string cls,
-	 std::string method, buffer::list in, F&& f) -> void {
-       try {
-	 ReadOp op;
-	 buffer::list out;
-	 error_code ec;
-	 op.exec(cls, method, std::move(in), &out, &ec);
-	 co_await r.execute(std::move(oid), std::move(ioc), std::move(op),
-			    nullptr, asio::deferred);
-	 if (ec) {
-	   co_return detail::maybecat(ec, Ret{});
-	 }
-	 Rep rep;
-	 decode(rep, out);
-	 co_return detail::maybecat(error_code{},
-				    std::invoke(std::forward<F>(f),
-						std::move(rep)));
-       } catch (const system_error& e) {
-	 co_return detail::maybecat(e.code(), Ret{});
-       }
-     }, r.get_executor()),
-     token, std::ref(r), std::move(oid), std::move(ioc), std::move(cls),
-     std::move(method), std::move(in), std::forward<F>(f));
+  return asio::async_initiate<CompletionToken, detail::return_sig_t<Ret>>(
+      asio::experimental::co_composed<detail::return_sig_t<Ret>>(
+          [](auto state, RADOS& r, Object oid, IOContext ioc, std::string cls,
+             std::string method, buffer::list in, F&& f) -> void {
+            try {
+              ReadOp op;
+              buffer::list out;
+              error_code ec;
+              op.exec(cls, method, std::move(in), &out, &ec);
+              co_await r.execute(
+                  std::move(oid), std::move(ioc), std::move(op), nullptr,
+                  asio::deferred);
+              if (ec) {
+                co_return detail::maybecat(ec, Ret{});
+              }
+              Rep rep;
+              decode(rep, out);
+              co_return detail::maybecat(
+                  error_code{}, std::invoke(std::forward<F>(f), std::move(rep)));
+            } catch (const system_error& e) {
+              co_return detail::maybecat(e.code(), Ret{});
+            }
+          },
+          r.get_executor()),
+      token, std::ref(r), std::move(oid), std::move(ioc), std::move(cls),
+      std::move(method), std::move(in), std::forward<F>(f));
 }
+
 #pragma GCC diagnostic pop
 } // namespace neorados::cls

@@ -20,58 +20,60 @@
  * Copyright (C) 2014 Cloudius Systems, Ltd.
  */
 
-#include <atomic>
-#include <vector>
-#include <queue>
+#include "DPDK.h"
 
-#include <rte_config.h>
 #include <rte_common.h>
+#include <rte_config.h>
+#include <rte_cycles.h>
 #include <rte_eal.h>
-#include <rte_pci.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
-#include <rte_cycles.h>
 #include <rte_memzone.h>
+#include <rte_pci.h>
 
-#include "include/page.h"
-#include "align.h"
-#include "IP.h"
-#include "const.h"
-#include "dpdk_rte.h"
-#include "DPDK.h"
-#include "toeplitz.h"
+#include <atomic>
+#include <queue>
+#include <vector>
 
 #include "common/Cycles.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "include/ceph_assert.h"
+#include "include/page.h"
+
+#include "IP.h"
+#include "align.h"
+#include "const.h"
+#include "dpdk_rte.h"
+#include "toeplitz.h"
 
 #define dout_subsys ceph_subsys_dpdk
 #undef dout_prefix
 #define dout_prefix *_dout << "dpdk "
 
-
-void* as_cookie(struct rte_pktmbuf_pool_private& p) {
+void*
+as_cookie(struct rte_pktmbuf_pool_private& p)
+{
   return &p;
 };
 
 /******************* Net device related constatns *****************************/
-static constexpr uint16_t default_ring_size      = 512;
+static constexpr uint16_t default_ring_size = 512;
 
 //
 // We need 2 times the ring size of buffers because of the way PMDs
 // refill the ring.
 //
-static constexpr uint16_t mbufs_per_queue_rx     = 2 * default_ring_size;
-static constexpr uint16_t rx_gc_thresh           = 64;
+static constexpr uint16_t mbufs_per_queue_rx = 2 * default_ring_size;
+static constexpr uint16_t rx_gc_thresh = 64;
 
 //
 // No need to keep more descriptors in the air than can be sent in a single
 // rte_eth_tx_burst() call.
 //
-static constexpr uint16_t mbufs_per_queue_tx     = 2 * default_ring_size;
+static constexpr uint16_t mbufs_per_queue_tx = 2 * default_ring_size;
 
-static constexpr uint16_t mbuf_cache_size        = 512;
+static constexpr uint16_t mbuf_cache_size = 512;
 //
 // Size of the data buffer in the non-inline case.
 //
@@ -81,8 +83,8 @@ static constexpr uint16_t mbuf_cache_size        = 512;
 //
 static constexpr size_t mbuf_data_size = 4096;
 
-static constexpr uint16_t mbuf_overhead          =
-                          sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM;
+static constexpr uint16_t mbuf_overhead = sizeof(struct rte_mbuf) +
+                                          RTE_PKTMBUF_HEADROOM;
 //
 // We'll allocate 2K data buffers for an inline case because this would require
 // a single page per mbuf. If we used 4K data buffers here it would require 2
@@ -110,11 +112,13 @@ static constexpr uint8_t i40e_max_xmit_segment_frags = 8;
 //
 static constexpr uint8_t vmxnet3_max_xmit_segment_frags = 16;
 
-static constexpr uint16_t inline_mbuf_size = inline_mbuf_data_size + mbuf_overhead;
+static constexpr uint16_t inline_mbuf_size = inline_mbuf_data_size +
+                                             mbuf_overhead;
 
 static size_t huge_page_size = 512 * CEPH_PAGE_SIZE;
 
-uint32_t qp_mempool_obj_size()
+uint32_t
+qp_mempool_obj_size()
 {
   uint32_t mp_size = 0;
   struct rte_mempool_objsz mp_obj_sz = {};
@@ -125,28 +129,31 @@ uint32_t qp_mempool_obj_size()
   //
 
   // Rx
-  mp_size += align_up(rte_mempool_calc_obj_size(mbuf_overhead, 0, &mp_obj_sz)+
-                      sizeof(struct rte_pktmbuf_pool_private),
-                      huge_page_size);
+  mp_size += align_up(
+      rte_mempool_calc_obj_size(mbuf_overhead, 0, &mp_obj_sz) +
+          sizeof(struct rte_pktmbuf_pool_private),
+      huge_page_size);
 
   //Tx
   std::memset(&mp_obj_sz, 0, sizeof(mp_obj_sz));
-  mp_size += align_up(rte_mempool_calc_obj_size(inline_mbuf_size, 0,
-                                                &mp_obj_sz)+
-                      sizeof(struct rte_pktmbuf_pool_private),
-                      huge_page_size);
+  mp_size += align_up(
+      rte_mempool_calc_obj_size(inline_mbuf_size, 0, &mp_obj_sz) +
+          sizeof(struct rte_pktmbuf_pool_private),
+      huge_page_size);
   return mp_size;
 }
 
-static constexpr const char* pktmbuf_pool_name   = "dpdk_net_pktmbuf_pool";
+static constexpr const char* pktmbuf_pool_name = "dpdk_net_pktmbuf_pool";
 
 /*
  * When doing reads from the NIC queues, use this batch size
  */
-static constexpr uint8_t packet_read_size        = 32;
+static constexpr uint8_t packet_read_size = 32;
+
 /******************************************************************************/
 
-int DPDKDevice::init_port_start()
+int
+DPDKDevice::init_port_start()
 {
   ceph_assert(_port_idx < rte_eth_dev_count_avail());
 
@@ -159,12 +166,17 @@ int DPDKDevice::init_port_start()
   //
   if (std::string("rte_i40evf_pmd") == _dev_info.driver_name ||
       std::string("rte_i40e_pmd") == _dev_info.driver_name) {
-    ldout(cct, 1) << __func__ << " Device is an Intel's 40G NIC. Enabling 8 fragments hack!" << dendl;
+    ldout(cct, 1) << __func__
+                  << " Device is an Intel's 40G NIC. Enabling 8 fragments hack!"
+                  << dendl;
     _is_i40e_device = true;
   }
 
   if (std::string("rte_vmxnet3_pmd") == _dev_info.driver_name) {
-    ldout(cct, 1) << __func__ << " Device is a VMWare Virtual NIC. Enabling 16 fragments hack!" << dendl;
+    ldout(cct, 1)
+        << __func__
+        << " Device is a VMWare Virtual NIC. Enabling 16 fragments hack!"
+        << dendl;
     _is_vmxnet3_device = true;
   }
 
@@ -190,26 +202,19 @@ int DPDKDevice::init_port_start()
   // We want to support all available offload features
   // TODO: below features are implemented in 17.05, should support new ones
   const uint64_t tx_offloads_wanted =
-    DEV_TX_OFFLOAD_VLAN_INSERT      |
-    DEV_TX_OFFLOAD_IPV4_CKSUM       |
-    DEV_TX_OFFLOAD_UDP_CKSUM        |
-    DEV_TX_OFFLOAD_TCP_CKSUM        |
-    DEV_TX_OFFLOAD_SCTP_CKSUM       |
-    DEV_TX_OFFLOAD_TCP_TSO          |
-    DEV_TX_OFFLOAD_UDP_TSO          |
-    DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-    DEV_TX_OFFLOAD_QINQ_INSERT      |
-    DEV_TX_OFFLOAD_VXLAN_TNL_TSO    |
-    DEV_TX_OFFLOAD_GRE_TNL_TSO      |
-    DEV_TX_OFFLOAD_IPIP_TNL_TSO     |
-    DEV_TX_OFFLOAD_GENEVE_TNL_TSO   |
-    DEV_TX_OFFLOAD_MACSEC_INSERT;
+      DEV_TX_OFFLOAD_VLAN_INSERT | DEV_TX_OFFLOAD_IPV4_CKSUM |
+      DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM |
+      DEV_TX_OFFLOAD_SCTP_CKSUM | DEV_TX_OFFLOAD_TCP_TSO |
+      DEV_TX_OFFLOAD_UDP_TSO | DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+      DEV_TX_OFFLOAD_QINQ_INSERT | DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
+      DEV_TX_OFFLOAD_GRE_TNL_TSO | DEV_TX_OFFLOAD_IPIP_TNL_TSO |
+      DEV_TX_OFFLOAD_GENEVE_TNL_TSO | DEV_TX_OFFLOAD_MACSEC_INSERT;
 
-  _dev_info.default_txconf.offloads =
-    _dev_info.tx_offload_capa & tx_offloads_wanted;
+  _dev_info.default_txconf.offloads = _dev_info.tx_offload_capa &
+                                      tx_offloads_wanted;
 
   /* for port configuration all features are off by default */
-  rte_eth_conf port_conf = { 0 };
+  rte_eth_conf port_conf = {0};
 
   /* setting tx offloads for port */
   port_conf.txmode.offloads = _dev_info.default_txconf.offloads;
@@ -218,7 +223,8 @@ int DPDKDevice::init_port_start()
                 << _dev_info.max_rx_queues << "  max_tx_queues "
                 << _dev_info.max_tx_queues << dendl;
 
-  _num_queues = std::min({_num_queues, _dev_info.max_rx_queues, _dev_info.max_tx_queues});
+  _num_queues =
+      std::min({_num_queues, _dev_info.max_rx_queues, _dev_info.max_tx_queues});
 
   ldout(cct, 5) << __func__ << " Port " << int(_port_idx) << ": using "
                 << _num_queues << " queues" << dendl;
@@ -233,9 +239,9 @@ int DPDKDevice::init_port_start()
       _rss_key = default_rsskey_52bytes;
     } else if (_dev_info.hash_key_size != 0) {
       lderr(cct) << "Port " << int(_port_idx)
-	         << ": We support only 40 or 52 bytes RSS hash keys, "
-	         << int(_dev_info.hash_key_size) << " bytes key requested"
-	         << dendl;
+                 << ": We support only 40 or 52 bytes RSS hash keys, "
+                 << int(_dev_info.hash_key_size) << " bytes key requested"
+                 << dendl;
       return -EINVAL;
     } else {
       _rss_key = default_rsskey_40bytes;
@@ -246,7 +252,8 @@ int DPDKDevice::init_port_start()
     /* enable all supported rss offloads */
     port_conf.rx_adv_conf.rss_conf.rss_hf = _dev_info.flow_type_rss_offloads;
     if (_dev_info.hash_key_size) {
-      port_conf.rx_adv_conf.rss_conf.rss_key = const_cast<uint8_t *>(_rss_key.data());
+      port_conf.rx_adv_conf.rss_conf.rss_key =
+          const_cast<uint8_t*>(_rss_key.data());
       port_conf.rx_adv_conf.rss_conf.rss_key_len = _dev_info.hash_key_size;
     }
   } else {
@@ -291,10 +298,11 @@ int DPDKDevice::init_port_start()
   // all together. If this assumption breaks we need to rework the below logic
   // by splitting the csum offload feature bit into separate bits for IPv4,
   // TCP.
-  ceph_assert(((_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) &&
-          (_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_CKSUM)) ||
-         (!(_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) &&
-          !(_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_CKSUM)));
+  ceph_assert(
+      ((_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) &&
+       (_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_CKSUM)) ||
+      (!(_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) &&
+       !(_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_CKSUM)));
 
   // Set Rx checksum checking
   if ((_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) &&
@@ -313,7 +321,7 @@ int DPDKDevice::init_port_start()
   // TSO is abnormal in some DPDK versions (eg.dpdk-20.11-3.e18.aarch64), try
   // disable TSO by ms_dpdk_enable_tso=false
   if ((_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) &&
-       cct->_conf.get_val<bool>("ms_dpdk_enable_tso")) {
+      cct->_conf.get_val<bool>("ms_dpdk_enable_tso")) {
     ldout(cct, 1) << __func__ << " TSO is supported" << dendl;
     _hw_features.tx_tso = 1;
   }
@@ -322,8 +330,9 @@ int DPDKDevice::init_port_start()
   // or not set all together. If this assumption breaks we need to rework the
   // below logic by splitting the csum offload feature bit into separate bits
   // for TCP.
-  ceph_assert((_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) ||
-          !(_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM));
+  ceph_assert(
+      (_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) ||
+      !(_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM));
 
   if (_dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) {
     ldout(cct, 1) << __func__ << " TX TCP checksum offload supported" << dendl;
@@ -332,16 +341,18 @@ int DPDKDevice::init_port_start()
 
   int retval;
 
-  ldout(cct, 1) << __func__ << " Port " << int(_port_idx) << " init ... " << dendl;
+  ldout(cct, 1) << __func__ << " Port " << int(_port_idx) << " init ... "
+                << dendl;
 
   /*
    * Standard DPDK port initialisation - config port, then set up
    * rx and tx rings.
    */
-  if ((retval = rte_eth_dev_configure(_port_idx, _num_queues, _num_queues,
-                                      &port_conf)) != 0) {
+  if ((retval = rte_eth_dev_configure(
+           _port_idx, _num_queues, _num_queues, &port_conf)) != 0) {
     lderr(cct) << __func__ << " failed to configure port " << (int)_port_idx
-               << " rx/tx queues " << _num_queues << " error " << cpp_strerror(retval) << dendl;
+               << " rx/tx queues " << _num_queues << " error "
+               << cpp_strerror(retval) << dendl;
     return retval;
   }
 
@@ -351,7 +362,8 @@ int DPDKDevice::init_port_start()
   return 0;
 }
 
-void DPDKDevice::set_hw_flow_control()
+void
+DPDKDevice::set_hw_flow_control()
 {
   // Read the port's current/default flow control settings
   struct rte_eth_fc_conf fc_conf;
@@ -359,13 +371,15 @@ void DPDKDevice::set_hw_flow_control()
 
   if (ret == -ENOTSUP) {
     ldout(cct, 1) << __func__ << " port " << int(_port_idx)
-                  << ": not support to get hardware flow control settings: " << ret << dendl;
+                  << ": not support to get hardware flow control settings: "
+                  << ret << dendl;
     goto not_supported;
   }
 
   if (ret < 0) {
     lderr(cct) << __func__ << " port " << int(_port_idx)
-               << ": failed to get hardware flow control settings: " << ret << dendl;
+               << ": failed to get hardware flow control settings: " << ret
+               << dendl;
     ceph_abort();
   }
 
@@ -378,31 +392,43 @@ void DPDKDevice::set_hw_flow_control()
   ret = rte_eth_dev_flow_ctrl_set(_port_idx, &fc_conf);
   if (ret == -ENOTSUP) {
     ldout(cct, 1) << __func__ << " port " << int(_port_idx)
-                  << ": not support to set hardware flow control settings: " << ret << dendl;
+                  << ": not support to set hardware flow control settings: "
+                  << ret << dendl;
     goto not_supported;
   }
 
   if (ret < 0) {
     lderr(cct) << __func__ << " port " << int(_port_idx)
-               << ": failed to set hardware flow control settings: " << ret << dendl;
+               << ": failed to set hardware flow control settings: " << ret
+               << dendl;
     ceph_abort();
   }
 
-  ldout(cct, 1) << __func__ << " port " << int(_port_idx) << ":  HW FC " << _enable_fc << dendl;
+  ldout(cct, 1) << __func__ << " port " << int(_port_idx) << ":  HW FC "
+                << _enable_fc << dendl;
   return;
 
 not_supported:
-  ldout(cct, 1) << __func__ << " port " << int(_port_idx) << ": changing HW FC settings is not supported" << dendl;
+  ldout(cct, 1) << __func__ << " port " << int(_port_idx)
+                << ": changing HW FC settings is not supported" << dendl;
 }
 
 class XstatSocketHook : public AdminSocketHook {
-  DPDKDevice *dev;
- public:
-  explicit XstatSocketHook(DPDKDevice *dev) : dev(dev) {}
-  int call(std::string_view prefix, const cmdmap_t& cmdmap,
-           Formatter *f,
-           std::ostream& ss,
-           bufferlist& out) override {
+  DPDKDevice* dev;
+
+public:
+  explicit XstatSocketHook(DPDKDevice* dev) :
+    dev(dev)
+  {}
+
+  int
+  call(
+      std::string_view prefix,
+      const cmdmap_t& cmdmap,
+      Formatter* f,
+      std::ostream& ss,
+      bufferlist& out) override
+  {
     if (prefix == "show_pmd_stats") {
       dev->nic_stats_dump(f);
     } else if (prefix == "show_pmd_xstats") {
@@ -412,7 +438,8 @@ class XstatSocketHook : public AdminSocketHook {
   }
 };
 
-int DPDKDevice::init_port_fini()
+int
+DPDKDevice::init_port_fini()
 {
   // Changing FC requires HW reset, so set it before the port is initialized.
   set_hw_flow_control();
@@ -432,18 +459,19 @@ int DPDKDevice::init_port_fini()
   }
 
   ldout(cct, 5) << __func__ << " created DPDK device" << dendl;
-  AdminSocket *admin_socket = cct->get_admin_socket();
+  AdminSocket* admin_socket = cct->get_admin_socket();
   dfx_hook = std::make_unique<XstatSocketHook>(this);
-  int r = admin_socket->register_command("show_pmd_stats", dfx_hook.get(),
-                                         "show pmd stats statistics");
+  int r = admin_socket->register_command(
+      "show_pmd_stats", dfx_hook.get(), "show pmd stats statistics");
   ceph_assert(r == 0);
-  r = admin_socket->register_command("show_pmd_xstats", dfx_hook.get(),
-                                   "show pmd xstats statistics");
+  r = admin_socket->register_command(
+      "show_pmd_xstats", dfx_hook.get(), "show pmd xstats statistics");
   ceph_assert(r == 0);
   return 0;
 }
 
-void DPDKDevice::set_rss_table()
+void
+DPDKDevice::set_rss_table()
 {
   struct rte_flow_attr attr;
   struct rte_flow_item pattern[1];
@@ -471,9 +499,9 @@ void DPDKDevice::set_rss_table()
   rss_conf.func = RTE_ETH_HASH_FUNCTION_TOEPLITZ;
   rss_conf.types = ETH_RSS_FRAG_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP;
   rss_conf.queue_num = _num_queues;
-  rss_conf.queue = const_cast<uint16_t *>(_redir_table.data());
+  rss_conf.queue = const_cast<uint16_t*>(_redir_table.data());
   rss_conf.key_len = _dev_info.hash_key_size;
-  rss_conf.key = const_cast<uint8_t *>(_rss_key.data());
+  rss_conf.key = const_cast<uint8_t*>(_rss_key.data());
   rss_conf.level = 0;
   action[0].type = RTE_FLOW_ACTION_TYPE_RSS;
   action[0].conf = &rss_conf;
@@ -483,11 +511,12 @@ void DPDKDevice::set_rss_table()
     _flow = rte_flow_create(_port_idx, &attr, pattern, action, nullptr);
   else
     ldout(cct, 0) << __func__ << " Port " << _port_idx
-                  << ": flow rss func configuration is unsupported"
-                  << dendl;
+                  << ": flow rss func configuration is unsupported" << dendl;
 }
 
-void DPDKQueuePair::configure_proxies(const std::map<unsigned, float>& cpu_weights) {
+void
+DPDKQueuePair::configure_proxies(const std::map<unsigned, float>& cpu_weights)
+{
   ceph_assert(!cpu_weights.empty());
   if (cpu_weights.size() == 1 && cpu_weights.begin()->first == _qid) {
     // special case queue sending to self only, to avoid requiring a hash value
@@ -504,7 +533,9 @@ void DPDKQueuePair::configure_proxies(const std::map<unsigned, float>& cpu_weigh
   build_sw_reta(cpu_weights);
 }
 
-void DPDKQueuePair::build_sw_reta(const std::map<unsigned, float>& cpu_weights) {
+void
+DPDKQueuePair::build_sw_reta(const std::map<unsigned, float>& cpu_weights)
+{
   float total_weight = 0;
   for (auto&& x : cpu_weights) {
     total_weight += x.second;
@@ -523,10 +554,11 @@ void DPDKQueuePair::build_sw_reta(const std::map<unsigned, float>& cpu_weights) 
   _sw_reta = reta;
 }
 
-
-bool DPDKQueuePair::init_rx_mbuf_pool()
+bool
+DPDKQueuePair::init_rx_mbuf_pool()
 {
-  std::string name = std::string(pktmbuf_pool_name) + std::to_string(_qid) + "_rx";
+  std::string name = std::string(pktmbuf_pool_name) + std::to_string(_qid) +
+                     "_rx";
 
   // reserve the memory for Rx buffers containers
   _rx_free_pkts.reserve(mbufs_per_queue_rx);
@@ -535,7 +567,7 @@ bool DPDKQueuePair::init_rx_mbuf_pool()
   _pktmbuf_pool_rx = rte_mempool_lookup(name.c_str());
   if (!_pktmbuf_pool_rx) {
     ldout(cct, 1) << __func__ << " Creating Rx mbuf pool '" << name.c_str()
-                  << "' [" << mbufs_per_queue_rx << " mbufs] ..."<< dendl;
+                  << "' [" << mbufs_per_queue_rx << " mbufs] ..." << dendl;
 
     //
     // Don't pass single-producer/single-consumer flags to mbuf create as it
@@ -544,12 +576,9 @@ bool DPDKQueuePair::init_rx_mbuf_pool()
     struct rte_pktmbuf_pool_private roomsz = {};
     roomsz.mbuf_data_room_size = mbuf_data_size + RTE_PKTMBUF_HEADROOM;
     _pktmbuf_pool_rx = rte_mempool_create(
-        name.c_str(),
-        mbufs_per_queue_rx, mbuf_overhead + mbuf_data_size,
-        mbuf_cache_size,
-        sizeof(struct rte_pktmbuf_pool_private),
-        rte_pktmbuf_pool_init, as_cookie(roomsz),
-        rte_pktmbuf_init, nullptr,
+        name.c_str(), mbufs_per_queue_rx, mbuf_overhead + mbuf_data_size,
+        mbuf_cache_size, sizeof(struct rte_pktmbuf_pool_private),
+        rte_pktmbuf_pool_init, as_cookie(roomsz), rte_pktmbuf_init, nullptr,
         rte_socket_id(), 0);
     if (!_pktmbuf_pool_rx) {
       lderr(cct) << __func__ << " Failed to create mempool for rx" << dendl;
@@ -558,11 +587,13 @@ bool DPDKQueuePair::init_rx_mbuf_pool()
 
     //
     // allocate more data buffer
-    int bufs_count =  cct->_conf->ms_dpdk_rx_buffer_count_per_core - mbufs_per_queue_rx;
-    int mz_flags = RTE_MEMZONE_1GB|RTE_MEMZONE_SIZE_HINT_ONLY;
+    int bufs_count = cct->_conf->ms_dpdk_rx_buffer_count_per_core -
+                     mbufs_per_queue_rx;
+    int mz_flags = RTE_MEMZONE_1GB | RTE_MEMZONE_SIZE_HINT_ONLY;
     std::string mz_name = "rx_buffer_data" + std::to_string(_qid);
-    const struct rte_memzone *mz = rte_memzone_reserve_aligned(mz_name.c_str(),
-          mbuf_data_size*bufs_count, _pktmbuf_pool_rx->socket_id, mz_flags, mbuf_data_size);
+    const struct rte_memzone* mz = rte_memzone_reserve_aligned(
+        mz_name.c_str(), mbuf_data_size * bufs_count,
+        _pktmbuf_pool_rx->socket_id, mz_flags, mbuf_data_size);
     ceph_assert(mz);
     void* m = mz->addr;
     for (int i = 0; i < bufs_count; i++) {
@@ -571,9 +602,10 @@ bool DPDKQueuePair::init_rx_mbuf_pool()
       m += mbuf_data_size;
     }
 
-    if (rte_eth_rx_queue_setup(_dev_port_idx, _qid, default_ring_size,
-                               rte_eth_dev_socket_id(_dev_port_idx),
-                               _dev->def_rx_conf(), _pktmbuf_pool_rx) < 0) {
+    if (rte_eth_rx_queue_setup(
+            _dev_port_idx, _qid, default_ring_size,
+            rte_eth_dev_socket_id(_dev_port_idx), _dev->def_rx_conf(),
+            _pktmbuf_pool_rx) < 0) {
       lderr(cct) << __func__ << " cannot initialize rx queue" << dendl;
       return false;
     }
@@ -582,13 +614,14 @@ bool DPDKQueuePair::init_rx_mbuf_pool()
   return _pktmbuf_pool_rx != nullptr;
 }
 
-int DPDKDevice::check_port_link_status()
+int
+DPDKDevice::check_port_link_status()
 {
   int count = 0;
 
   ldout(cct, 20) << __func__ << dendl;
   const int sleep_time = 100 * 1000;
-  const int max_check_time = 90;  /* 9s (90 * 100ms) in total */
+  const int max_check_time = 90; /* 9s (90 * 100ms) in total */
   while (true) {
     struct rte_eth_link link;
     memset(&link, 0, sizeof(link));
@@ -597,17 +630,19 @@ int DPDKDevice::check_port_link_status()
     if (true) {
       if (link.link_status) {
         ldout(cct, 5) << __func__ << " done port "
-                      << static_cast<unsigned>(_port_idx)
-                      << " link Up - speed " << link.link_speed
-                      << " Mbps - "
-                      << ((link.link_duplex == ETH_LINK_FULL_DUPLEX) ? ("full-duplex") : ("half-duplex\n"))
+                      << static_cast<unsigned>(_port_idx) << " link Up - speed "
+                      << link.link_speed << " Mbps - "
+                      << ((link.link_duplex == ETH_LINK_FULL_DUPLEX)
+                              ? ("full-duplex")
+                              : ("half-duplex\n"))
                       << dendl;
         break;
       } else if (count++ < max_check_time) {
         ldout(cct, 20) << __func__ << " not ready, continue to wait." << dendl;
         usleep(sleep_time);
       } else {
-        lderr(cct) << __func__ << " done port " << _port_idx << " link down" << dendl;
+        lderr(cct) << __func__ << " done port " << _port_idx << " link down"
+                   << dendl;
         return -1;
       }
     }
@@ -616,63 +651,114 @@ int DPDKDevice::check_port_link_status()
 }
 
 class C_handle_dev_stats : public EventCallback {
-  DPDKQueuePair *_qp;
- public:
-  C_handle_dev_stats(DPDKQueuePair *qp): _qp(qp) { }
-  void do_request(uint64_t id) {
+  DPDKQueuePair* _qp;
+
+public:
+  C_handle_dev_stats(DPDKQueuePair* qp) :
+    _qp(qp)
+  {}
+
+  void
+  do_request(uint64_t id)
+  {
     _qp->handle_stats();
   }
 };
 
-DPDKQueuePair::DPDKQueuePair(CephContext *c, EventCenter *cen, DPDKDevice* dev, uint8_t qid)
-  : cct(c), _dev(dev), _dev_port_idx(dev->port_idx()), center(cen), _qid(qid),
-    _tx_poller(this), _rx_gc_poller(this), _tx_buf_factory(c, dev, qid),
-    _tx_gc_poller(this)
+DPDKQueuePair::DPDKQueuePair(
+    CephContext* c,
+    EventCenter* cen,
+    DPDKDevice* dev,
+    uint8_t qid) :
+  cct(c),
+  _dev(dev),
+  _dev_port_idx(dev->port_idx()),
+  center(cen),
+  _qid(qid),
+  _tx_poller(this),
+  _rx_gc_poller(this),
+  _tx_buf_factory(c, dev, qid),
+  _tx_gc_poller(this)
 {
   if (!init_rx_mbuf_pool()) {
     lderr(cct) << __func__ << " cannot initialize mbuf pools" << dendl;
     ceph_abort();
   }
 
-  static_assert(offsetof(tx_buf, private_end) -
-                offsetof(tx_buf, private_start) <= RTE_PKTMBUF_HEADROOM,
-                "RTE_PKTMBUF_HEADROOM is less than DPDKQueuePair::tx_buf size! "
-                "Increase the headroom size in the DPDK configuration");
-  static_assert(offsetof(tx_buf, _mbuf) == 0,
-                "There is a pad at the beginning of the tx_buf before _mbuf "
-                "field!");
-  static_assert((inline_mbuf_data_size & (inline_mbuf_data_size - 1)) == 0,
-                "inline_mbuf_data_size has to be a power of two!");
+  static_assert(
+      offsetof(tx_buf, private_end) - offsetof(tx_buf, private_start) <=
+          RTE_PKTMBUF_HEADROOM,
+      "RTE_PKTMBUF_HEADROOM is less than DPDKQueuePair::tx_buf size! "
+      "Increase the headroom size in the DPDK configuration");
+  static_assert(
+      offsetof(tx_buf, _mbuf) == 0,
+      "There is a pad at the beginning of the tx_buf before _mbuf "
+      "field!");
+  static_assert(
+      (inline_mbuf_data_size & (inline_mbuf_data_size - 1)) == 0,
+      "inline_mbuf_data_size has to be a power of two!");
 
   std::string name(std::string("queue") + std::to_string(qid));
   PerfCountersBuilder plb(cct, name, l_dpdk_qp_first, l_dpdk_qp_last);
 
-  plb.add_u64_counter(l_dpdk_qp_rx_packets, "dpdk_receive_packets", "DPDK received packets");
-  plb.add_u64_counter(l_dpdk_qp_tx_packets, "dpdk_send_packets", "DPDK sendd packets");
-  plb.add_u64_counter(l_dpdk_qp_rx_bad_checksum_errors, "dpdk_receive_bad_checksum_errors", "DPDK received bad checksum packets");
-  plb.add_u64_counter(l_dpdk_qp_rx_no_memory_errors, "dpdk_receive_no_memory_errors", "DPDK received no memory packets");
-  plb.add_u64_counter(l_dpdk_qp_rx_bytes, "dpdk_receive_bytes", "DPDK received bytes", NULL, 0, unit_t(UNIT_BYTES));
-  plb.add_u64_counter(l_dpdk_qp_tx_bytes, "dpdk_send_bytes", "DPDK sendd bytes", NULL, 0, unit_t(UNIT_BYTES));
-  plb.add_u64_counter(l_dpdk_qp_rx_last_bunch, "dpdk_receive_last_bunch", "DPDK last received bunch");
-  plb.add_u64_counter(l_dpdk_qp_tx_last_bunch, "dpdk_send_last_bunch", "DPDK last send bunch");
-  plb.add_u64_counter(l_dpdk_qp_rx_fragments, "dpdk_receive_fragments", "DPDK received total fragments");
-  plb.add_u64_counter(l_dpdk_qp_tx_fragments, "dpdk_send_fragments", "DPDK sendd total fragments");
-  plb.add_u64_counter(l_dpdk_qp_rx_copy_ops, "dpdk_receive_copy_ops", "DPDK received copy operations");
-  plb.add_u64_counter(l_dpdk_qp_tx_copy_ops, "dpdk_send_copy_ops", "DPDK sendd copy operations");
-  plb.add_u64_counter(l_dpdk_qp_rx_copy_bytes, "dpdk_receive_copy_bytes", "DPDK received copy bytes", NULL, 0, unit_t(UNIT_BYTES));
-  plb.add_u64_counter(l_dpdk_qp_tx_copy_bytes, "dpdk_send_copy_bytes", "DPDK send copy bytes", NULL, 0, unit_t(UNIT_BYTES));
-  plb.add_u64_counter(l_dpdk_qp_rx_linearize_ops, "dpdk_receive_linearize_ops", "DPDK received linearize operations");
-  plb.add_u64_counter(l_dpdk_qp_tx_linearize_ops, "dpdk_send_linearize_ops", "DPDK send linearize operations");
-  plb.add_u64_counter(l_dpdk_qp_tx_queue_length, "dpdk_send_queue_length", "DPDK send queue length");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_packets, "dpdk_receive_packets", "DPDK received packets");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_packets, "dpdk_send_packets", "DPDK sendd packets");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_bad_checksum_errors, "dpdk_receive_bad_checksum_errors",
+      "DPDK received bad checksum packets");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_no_memory_errors, "dpdk_receive_no_memory_errors",
+      "DPDK received no memory packets");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_bytes, "dpdk_receive_bytes", "DPDK received bytes", NULL, 0,
+      unit_t(UNIT_BYTES));
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_bytes, "dpdk_send_bytes", "DPDK sendd bytes", NULL, 0,
+      unit_t(UNIT_BYTES));
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_last_bunch, "dpdk_receive_last_bunch",
+      "DPDK last received bunch");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_last_bunch, "dpdk_send_last_bunch", "DPDK last send bunch");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_fragments, "dpdk_receive_fragments",
+      "DPDK received total fragments");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_fragments, "dpdk_send_fragments",
+      "DPDK sendd total fragments");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_copy_ops, "dpdk_receive_copy_ops",
+      "DPDK received copy operations");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_copy_ops, "dpdk_send_copy_ops", "DPDK sendd copy operations");
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_copy_bytes, "dpdk_receive_copy_bytes",
+      "DPDK received copy bytes", NULL, 0, unit_t(UNIT_BYTES));
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_copy_bytes, "dpdk_send_copy_bytes", "DPDK send copy bytes",
+      NULL, 0, unit_t(UNIT_BYTES));
+  plb.add_u64_counter(
+      l_dpdk_qp_rx_linearize_ops, "dpdk_receive_linearize_ops",
+      "DPDK received linearize operations");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_linearize_ops, "dpdk_send_linearize_ops",
+      "DPDK send linearize operations");
+  plb.add_u64_counter(
+      l_dpdk_qp_tx_queue_length, "dpdk_send_queue_length",
+      "DPDK send queue length");
 
   perf_logger = plb.create_perf_counters();
   cct->get_perfcounters_collection()->add(perf_logger);
 
   if (!_qid)
-    device_stat_time_fd = center->create_time_event(1000*1000, new C_handle_dev_stats(this));
+    device_stat_time_fd =
+        center->create_time_event(1000 * 1000, new C_handle_dev_stats(this));
 }
 
-void DPDKDevice::nic_stats_dump(Formatter *f)
+void
+DPDKDevice::nic_stats_dump(Formatter* f)
 {
   static uint64_t prev_pkts_rx[RTE_MAX_ETHPORTS];
   static uint64_t prev_pkts_tx[RTE_MAX_ETHPORTS];
@@ -682,7 +768,7 @@ void DPDKDevice::nic_stats_dump(Formatter *f)
   size_t tx_free_cnt = 0;
   size_t rx_free_cnt = 0;
 
-  for (auto &qp: _queues) {
+  for (auto& qp : _queues) {
     tx_fragments += qp->perf_logger->get(l_dpdk_qp_tx_fragments);
     rx_fragments += qp->perf_logger->get(l_dpdk_qp_rx_fragments);
     tx_free_cnt += qp->_tx_buf_factory.ring_size();
@@ -716,20 +802,27 @@ void DPDKDevice::nic_stats_dump(Formatter *f)
     diff_cycles = prev_cycles[_port_idx] - diff_cycles;
   }
 
-  uint64_t diff_pkts_rx = (stats.ipackets > prev_pkts_rx[_port_idx]) ?
-	         (stats.ipackets - prev_pkts_rx[_port_idx]) : 0;
-  uint64_t diff_pkts_tx = (stats.opackets > prev_pkts_tx[_port_idx]) ?
-	         (stats.opackets - prev_pkts_tx[_port_idx]) : 0;
+  uint64_t diff_pkts_rx = (stats.ipackets > prev_pkts_rx[_port_idx])
+                              ? (stats.ipackets - prev_pkts_rx[_port_idx])
+                              : 0;
+  uint64_t diff_pkts_tx = (stats.opackets > prev_pkts_tx[_port_idx])
+                              ? (stats.opackets - prev_pkts_tx[_port_idx])
+                              : 0;
   prev_pkts_rx[_port_idx] = stats.ipackets;
   prev_pkts_tx[_port_idx] = stats.opackets;
-  uint64_t mpps_rx = diff_cycles > 0 ? diff_pkts_rx * rte_get_tsc_hz() / diff_cycles : 0;
-  uint64_t mpps_tx = diff_cycles > 0 ? diff_pkts_tx * rte_get_tsc_hz() / diff_cycles : 0;
+  uint64_t mpps_rx = diff_cycles > 0
+                         ? diff_pkts_rx * rte_get_tsc_hz() / diff_cycles
+                         : 0;
+  uint64_t mpps_tx = diff_cycles > 0
+                         ? diff_pkts_tx * rte_get_tsc_hz() / diff_cycles
+                         : 0;
   f->dump_unsigned("Rx_pps", mpps_rx);
   f->dump_unsigned("Tx_pps", mpps_tx);
   f->close_section();
 }
 
-void DPDKDevice::nic_xstats_dump(Formatter *f)
+void
+DPDKDevice::nic_xstats_dump(Formatter* f)
 {
   // Get count
   int cnt_xstats = rte_eth_xstats_get_names(_port_idx, NULL, 0);
@@ -737,10 +830,11 @@ void DPDKDevice::nic_xstats_dump(Formatter *f)
     ldout(cct, 1) << "Error: Cannot get count of xstats" << dendl;
     return;
   }
- 
+
   // Get id-name lookup table
   std::vector<struct rte_eth_xstat_name> xstats_names(cnt_xstats);
-  if (cnt_xstats != rte_eth_xstats_get_names(_port_idx, xstats_names.data(), cnt_xstats)) {
+  if (cnt_xstats !=
+      rte_eth_xstats_get_names(_port_idx, xstats_names.data(), cnt_xstats)) {
     ldout(cct, 1) << "Error: Cannot get xstats lookup" << dendl;
     return;
   }
@@ -752,24 +846,27 @@ void DPDKDevice::nic_xstats_dump(Formatter *f)
     return;
   }
   f->open_object_section("xstats");
-  for (int i = 0; i < cnt_xstats; i++){
+  for (int i = 0; i < cnt_xstats; i++) {
     f->dump_unsigned(xstats_names[i].name, xstats[i].value);
   }
   f->close_section();
 }
 
-void DPDKQueuePair::handle_stats()
+void
+DPDKQueuePair::handle_stats()
 {
   ldout(cct, 20) << __func__ << " started." << dendl;
   rte_eth_stats rte_stats = {};
   int rc = rte_eth_stats_get(_dev_port_idx, &rte_stats);
 
   if (rc) {
-    ldout(cct, 0) << __func__ << " failed to get port statistics: " << cpp_strerror(rc) << dendl;
-    return ;
+    ldout(cct, 0) << __func__
+                  << " failed to get port statistics: " << cpp_strerror(rc)
+                  << dendl;
+    return;
   }
 
-#if RTE_VERSION < RTE_VERSION_NUM(16,7,0,0)
+#if RTE_VERSION < RTE_VERSION_NUM(16, 7, 0, 0)
   _dev->perf_logger->set(l_dpdk_dev_rx_mcast, rte_stats.imcasts);
   _dev->perf_logger->set(l_dpdk_dev_rx_badcrc_errors, rte_stats.ibadcrc);
 #endif
@@ -778,10 +875,13 @@ void DPDKQueuePair::handle_stats()
 
   _dev->perf_logger->set(l_dpdk_dev_rx_total_errors, rte_stats.ierrors);
   _dev->perf_logger->set(l_dpdk_dev_tx_total_errors, rte_stats.oerrors);
-  device_stat_time_fd = center->create_time_event(1000*1000, new C_handle_dev_stats(this));
+  device_stat_time_fd =
+      center->create_time_event(1000 * 1000, new C_handle_dev_stats(this));
 }
 
-bool DPDKQueuePair::poll_tx() {
+bool
+DPDKQueuePair::poll_tx()
+{
   bool nonloopback = !cct->_conf->ms_dpdk_debug_allow_loopback;
 #ifdef CEPH_PERF_DEV
   uint64_t start = Cycles::rdtsc();
@@ -829,7 +929,8 @@ bool DPDKQueuePair::poll_tx() {
   return false;
 }
 
-inline std::optional<Packet> DPDKQueuePair::from_mbuf_lro(rte_mbuf* m)
+inline std::optional<Packet>
+DPDKQueuePair::from_mbuf_lro(rte_mbuf* m)
 {
   _frags.clear();
   _bufs.clear();
@@ -842,14 +943,17 @@ inline std::optional<Packet> DPDKQueuePair::from_mbuf_lro(rte_mbuf* m)
   }
 
   auto del = std::bind(
-          [this](std::vector<char*> &bufs) {
-            for (auto&& b : bufs) { _alloc_bufs.push_back(b); }
-          }, std::move(_bufs));
-  return Packet(
-      _frags.begin(), _frags.end(), make_deleter(std::move(del)));
+      [this](std::vector<char*>& bufs) {
+        for (auto&& b : bufs) {
+          _alloc_bufs.push_back(b);
+        }
+      },
+      std::move(_bufs));
+  return Packet(_frags.begin(), _frags.end(), make_deleter(std::move(del)));
 }
 
-inline std::optional<Packet> DPDKQueuePair::from_mbuf(rte_mbuf* m)
+inline std::optional<Packet>
+DPDKQueuePair::from_mbuf(rte_mbuf* m)
 {
   _rx_free_pkts.push_back(m);
   _num_rx_free_segs += m->nb_segs;
@@ -857,14 +961,16 @@ inline std::optional<Packet> DPDKQueuePair::from_mbuf(rte_mbuf* m)
   if (!_dev->hw_features_ref().rx_lro || rte_pktmbuf_is_contiguous(m)) {
     char* data = rte_pktmbuf_mtod(m, char*);
 
-    return Packet(fragment{data, rte_pktmbuf_data_len(m)},
-                  make_deleter([this, data] { _alloc_bufs.push_back(data); }));
+    return Packet(
+        fragment{data, rte_pktmbuf_data_len(m)},
+        make_deleter([this, data] { _alloc_bufs.push_back(data); }));
   } else {
     return from_mbuf_lro(m);
   }
 }
 
-inline bool DPDKQueuePair::refill_one_cluster(rte_mbuf* head)
+inline bool
+DPDKQueuePair::refill_one_cluster(rte_mbuf* head)
 {
   for (; head != nullptr; head = head->next) {
     if (!refill_rx_mbuf(head, mbuf_data_size, _alloc_bufs)) {
@@ -881,13 +987,13 @@ inline bool DPDKQueuePair::refill_one_cluster(rte_mbuf* head)
   return true;
 }
 
-bool DPDKQueuePair::rx_gc(bool force)
+bool
+DPDKQueuePair::rx_gc(bool force)
 {
   if (_num_rx_free_segs >= rx_gc_thresh || force) {
     ldout(cct, 10) << __func__ << " free segs " << _num_rx_free_segs
-                   << " thresh " << rx_gc_thresh
-                   << " free pkts " << _rx_free_pkts.size()
-                   << dendl;
+                   << " thresh " << rx_gc_thresh << " free pkts "
+                   << _rx_free_pkts.size() << dendl;
 
     while (!_rx_free_pkts.empty()) {
       //
@@ -908,9 +1014,8 @@ bool DPDKQueuePair::rx_gc(bool force)
     }
 
     if (_rx_free_bufs.size()) {
-      rte_mempool_put_bulk(_pktmbuf_pool_rx,
-                           (void **)_rx_free_bufs.data(),
-                           _rx_free_bufs.size());
+      rte_mempool_put_bulk(
+          _pktmbuf_pool_rx, (void**)_rx_free_bufs.data(), _rx_free_bufs.size());
 
       // TODO: ceph_assert() in a fast path! Remove me ASAP!
       ceph_assert(_num_rx_free_segs >= _rx_free_bufs.size());
@@ -919,22 +1024,22 @@ bool DPDKQueuePair::rx_gc(bool force)
       _rx_free_bufs.clear();
 
       // TODO: ceph_assert() in a fast path! Remove me ASAP!
-      ceph_assert((_rx_free_pkts.empty() && !_num_rx_free_segs) ||
-             (!_rx_free_pkts.empty() && _num_rx_free_segs));
+      ceph_assert(
+          (_rx_free_pkts.empty() && !_num_rx_free_segs) ||
+          (!_rx_free_pkts.empty() && _num_rx_free_segs));
     }
   }
 
   return _num_rx_free_segs >= rx_gc_thresh;
 }
 
-
-void DPDKQueuePair::process_packets(
-    struct rte_mbuf **bufs, uint16_t count)
+void
+DPDKQueuePair::process_packets(struct rte_mbuf** bufs, uint16_t count)
 {
   uint64_t nr_frags = 0, bytes = 0;
 
   for (uint16_t i = 0; i < count; i++) {
-    struct rte_mbuf *m = bufs[i];
+    struct rte_mbuf* m = bufs[i];
     offload_info oi;
 
     std::optional<Packet> p = from_mbuf(m);
@@ -947,7 +1052,7 @@ void DPDKQueuePair::process_packets(
     // ldout(cct, 0) << __func__ << " len " << p->len() << " " << dendl;
 
     nr_frags += m->nb_segs;
-    bytes    += m->pkt_len;
+    bytes += m->pkt_len;
 
     // Set stipped VLAN value if available
     if ((_dev->_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP) &&
@@ -980,16 +1085,16 @@ void DPDKQueuePair::process_packets(
   perf_logger->inc(l_dpdk_qp_rx_bytes, bytes);
 }
 
-bool DPDKQueuePair::poll_rx_once()
+bool
+DPDKQueuePair::poll_rx_once()
 {
-  struct rte_mbuf *buf[packet_read_size];
+  struct rte_mbuf* buf[packet_read_size];
 
   /* read a port */
 #ifdef CEPH_PERF_DEV
   uint64_t start = Cycles::rdtsc();
 #endif
-  uint16_t count = rte_eth_rx_burst(_dev_port_idx, _qid,
-                                       buf, packet_read_size);
+  uint16_t count = rte_eth_rx_burst(_dev_port_idx, _qid, buf, packet_read_size);
 
   /* Now process the NIC packets read */
   if (likely(count > 0)) {
@@ -1002,8 +1107,10 @@ bool DPDKQueuePair::poll_rx_once()
 #ifdef CEPH_PERF_DEV
   else {
     if (rx_count > 10000 && tx_count) {
-      ldout(cct, 0) << __func__ << " rx count=" << rx_count << " avg rx=" << Cycles::to_nanoseconds(rx_cycles)/rx_count << "ns "
-                    << " tx count=" << tx_count << " avg tx=" << Cycles::to_nanoseconds(tx_cycles)/tx_count << "ns"
+      ldout(cct, 0) << __func__ << " rx count=" << rx_count << " avg rx="
+                    << Cycles::to_nanoseconds(rx_cycles) / rx_count << "ns "
+                    << " tx count=" << tx_count << " avg tx="
+                    << Cycles::to_nanoseconds(tx_cycles) / tx_count << "ns"
                     << dendl;
       rx_count = rx_cycles = tx_count = tx_cycles = 0;
     }
@@ -1013,10 +1120,14 @@ bool DPDKQueuePair::poll_rx_once()
   return count;
 }
 
-DPDKQueuePair::tx_buf_factory::tx_buf_factory(CephContext *c,
-        DPDKDevice *dev, uint8_t qid): cct(c)
+DPDKQueuePair::tx_buf_factory::tx_buf_factory(
+    CephContext* c,
+    DPDKDevice* dev,
+    uint8_t qid) :
+  cct(c)
 {
-  std::string name = std::string(pktmbuf_pool_name) + std::to_string(qid) + "_tx";
+  std::string name = std::string(pktmbuf_pool_name) + std::to_string(qid) +
+                     "_tx";
 
   _pool = rte_mempool_lookup(name.c_str());
   if (!_pool) {
@@ -1027,21 +1138,18 @@ DPDKQueuePair::tx_buf_factory::tx_buf_factory(CephContext *c,
     // the circular_buffer and then poll them from there anyway, so
     // we prefer to make a mempool non-atomic in this case.
     //
-    _pool = rte_mempool_create(name.c_str(),
-                               mbufs_per_queue_tx, inline_mbuf_size,
-                               mbuf_cache_size,
-                               sizeof(struct rte_pktmbuf_pool_private),
-                               rte_pktmbuf_pool_init, nullptr,
-                               rte_pktmbuf_init, nullptr,
-                               rte_socket_id(), 0);
+    _pool = rte_mempool_create(
+        name.c_str(), mbufs_per_queue_tx, inline_mbuf_size, mbuf_cache_size,
+        sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, nullptr,
+        rte_pktmbuf_init, nullptr, rte_socket_id(), 0);
 
     if (!_pool) {
       lderr(cct) << __func__ << " Failed to create mempool for Tx" << dendl;
       ceph_abort();
     }
-    if (rte_eth_tx_queue_setup(dev->port_idx(), qid, default_ring_size,
-                               rte_eth_dev_socket_id(dev->port_idx()),
-                               dev->def_tx_conf()) < 0) {
+    if (rte_eth_tx_queue_setup(
+            dev->port_idx(), qid, default_ring_size,
+            rte_eth_dev_socket_id(dev->port_idx()), dev->def_tx_conf()) < 0) {
       lderr(cct) << __func__ << " cannot initialize tx queue" << dendl;
       ceph_abort();
     }
@@ -1054,12 +1162,13 @@ DPDKQueuePair::tx_buf_factory::tx_buf_factory(CephContext *c,
   init_factory();
 }
 
-bool DPDKQueuePair::tx_buf::i40e_should_linearize(rte_mbuf *head)
+bool
+DPDKQueuePair::tx_buf::i40e_should_linearize(rte_mbuf* head)
 {
   bool is_tso = head->ol_flags & PKT_TX_TCP_SEG;
 
   // For a non-TSO case: number of fragments should not exceed 8
-  if (!is_tso){
+  if (!is_tso) {
     return head->nb_segs > i40e_max_xmit_segment_frags;
   }
 
@@ -1076,7 +1185,7 @@ bool DPDKQueuePair::tx_buf::i40e_should_linearize(rte_mbuf *head)
   size_t headers_size = head->l2_len + head->l3_len + head->l4_len;
   unsigned hdr_frags = 0;
   size_t cur_payload_len = 0;
-  rte_mbuf *cur_seg = head;
+  rte_mbuf* cur_seg = head;
 
   while (cur_seg && cur_payload_len < headers_size) {
     cur_payload_len += cur_seg->data_len;
@@ -1133,7 +1242,11 @@ bool DPDKQueuePair::tx_buf::i40e_should_linearize(rte_mbuf *head)
   return false;
 }
 
-void DPDKQueuePair::tx_buf::set_cluster_offload_info(const Packet& p, const DPDKQueuePair& qp, rte_mbuf* head)
+void
+DPDKQueuePair::tx_buf::set_cluster_offload_info(
+    const Packet& p,
+    const DPDKQueuePair& qp,
+    rte_mbuf* head)
 {
   // Handle TCP checksum offload
   auto oi = p.offload_info();
@@ -1160,8 +1273,11 @@ void DPDKQueuePair::tx_buf::set_cluster_offload_info(const Packet& p, const DPDK
   }
 }
 
-DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
-        CephContext *cct, Packet&& p, DPDKQueuePair& qp)
+DPDKQueuePair::tx_buf*
+DPDKQueuePair::tx_buf::from_packet_zc(
+    CephContext* cct,
+    Packet&& p,
+    DPDKQueuePair& qp)
 {
   // Too fragmented - linearize
   if (p.nr_frags() > max_frags) {
@@ -1169,7 +1285,7 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
     qp.perf_logger->inc(l_dpdk_qp_tx_linearize_ops);
   }
 
- build_mbuf_cluster:
+build_mbuf_cluster:
   rte_mbuf *head = nullptr, *last_seg = nullptr;
   unsigned nsegs = 0;
 
@@ -1179,11 +1295,13 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
   //
   if (!check_frag0(p)) {
     if (!copy_one_frag(qp, p.frag(0), head, last_seg, nsegs)) {
-      ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(0).size << dendl;
+      ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(0).size
+                    << dendl;
       return nullptr;
     }
   } else if (!translate_one_frag(qp, p.frag(0), head, last_seg, nsegs)) {
-    ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(0).size << dendl;
+    ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(0).size
+                  << dendl;
     return nullptr;
   }
 
@@ -1192,7 +1310,8 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
   for (unsigned i = 1; i < p.nr_frags(); i++) {
     rte_mbuf *h = nullptr, *new_last_seg = nullptr;
     if (!translate_one_frag(qp, p.frag(i), h, new_last_seg, nsegs)) {
-      ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(i).size << dendl;
+      ldout(cct, 1) << __func__ << " no available mbuf for " << p.frag(i).size
+                    << dendl;
       me(head)->recycle();
       return nullptr;
     }
@@ -1222,8 +1341,10 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
   //    - Build the cluster once again
   //
   if (head->nb_segs > max_frags ||
-      (p.nr_frags() > 1 && qp.port().is_i40e_device() && i40e_should_linearize(head)) ||
-      (p.nr_frags() > vmxnet3_max_xmit_segment_frags && qp.port().is_vmxnet3_device())) {
+      (p.nr_frags() > 1 && qp.port().is_i40e_device() &&
+       i40e_should_linearize(head)) ||
+      (p.nr_frags() > vmxnet3_max_xmit_segment_frags &&
+       qp.port().is_vmxnet3_device())) {
     me(head)->recycle();
     p.linearize();
     qp.perf_logger->inc(l_dpdk_qp_tx_linearize_ops);
@@ -1236,7 +1357,8 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_zc(
   return me(head);
 }
 
-void DPDKQueuePair::tx_buf::copy_packet_to_cluster(const Packet& p, rte_mbuf* head)
+void
+DPDKQueuePair::tx_buf::copy_packet_to_cluster(const Packet& p, rte_mbuf* head)
 {
   rte_mbuf* cur_seg = head;
   size_t cur_seg_offset = 0;
@@ -1244,11 +1366,13 @@ void DPDKQueuePair::tx_buf::copy_packet_to_cluster(const Packet& p, rte_mbuf* he
   size_t cur_frag_offset = 0;
 
   while (true) {
-    size_t to_copy = std::min(p.frag(cur_frag_idx).size - cur_frag_offset,
-                              inline_mbuf_data_size - cur_seg_offset);
+    size_t to_copy = std::min(
+        p.frag(cur_frag_idx).size - cur_frag_offset,
+        inline_mbuf_data_size - cur_seg_offset);
 
-    memcpy(rte_pktmbuf_mtod_offset(cur_seg, void*, cur_seg_offset),
-           p.frag(cur_frag_idx).base + cur_frag_offset, to_copy);
+    memcpy(
+        rte_pktmbuf_mtod_offset(cur_seg, void*, cur_seg_offset),
+        p.frag(cur_frag_idx).base + cur_frag_offset, to_copy);
 
     cur_frag_offset += to_copy;
     cur_seg_offset += to_copy;
@@ -1278,7 +1402,8 @@ void DPDKQueuePair::tx_buf::copy_packet_to_cluster(const Packet& p, rte_mbuf* he
   }
 }
 
-DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_copy(Packet&& p, DPDKQueuePair& qp)
+DPDKQueuePair::tx_buf*
+DPDKQueuePair::tx_buf::from_packet_copy(Packet&& p, DPDKQueuePair& qp)
 {
   // sanity
   if (!p.len()) {
@@ -1331,8 +1456,12 @@ DPDKQueuePair::tx_buf* DPDKQueuePair::tx_buf::from_packet_copy(Packet&& p, DPDKQ
   return me(head);
 }
 
-size_t DPDKQueuePair::tx_buf::copy_one_data_buf(
-    DPDKQueuePair& qp, rte_mbuf*& m, char* data, size_t buf_len)
+size_t
+DPDKQueuePair::tx_buf::copy_one_data_buf(
+    DPDKQueuePair& qp,
+    rte_mbuf*& m,
+    char* data,
+    size_t buf_len)
 {
   tx_buf* buf = qp.get_tx_buf();
   if (!buf) {
@@ -1345,7 +1474,7 @@ size_t DPDKQueuePair::tx_buf::copy_one_data_buf(
 
   // mbuf_put()
   m->data_len = len;
-  m->pkt_len  = len;
+  m->pkt_len = len;
 
   qp.perf_logger->inc(l_dpdk_qp_tx_copy_ops);
   qp.perf_logger->inc(l_dpdk_qp_tx_copy_bytes, len);
@@ -1357,8 +1486,9 @@ size_t DPDKQueuePair::tx_buf::copy_one_data_buf(
 
 /******************************** Interface functions *************************/
 
-std::unique_ptr<DPDKDevice> create_dpdk_net_device(
-    CephContext *cct,
+std::unique_ptr<DPDKDevice>
+create_dpdk_net_device(
+    CephContext* cct,
     unsigned cores,
     uint8_t port_idx,
     bool use_lro,
@@ -1368,7 +1498,9 @@ std::unique_ptr<DPDKDevice> create_dpdk_net_device(
   if (rte_eth_dev_count_avail() == 0) {
     ceph_assert(false && "No Ethernet ports - bye\n");
   } else {
-    ldout(cct, 10) << __func__ << " ports number: " << int(rte_eth_dev_count_avail()) << dendl;
+    ldout(cct, 10) << __func__
+                   << " ports number: " << int(rte_eth_dev_count_avail())
+                   << dendl;
   }
 
   return std::unique_ptr<DPDKDevice>(

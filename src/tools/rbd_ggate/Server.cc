@@ -1,28 +1,34 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/debug.h"
-#include "common/errno.h"
-#include "Driver.h"
 #include "Server.h"
+
+#include "common/debug.h"
+
+#include "common/errno.h"
+
+#include "Driver.h"
 #include "Request.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::ggate::Server: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::ggate::Server: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace ggate {
 
-Server::Server(Driver *drv, librbd::Image& image)
-  : m_drv(drv), m_image(image),
-    m_reader_thread(this, &Server::reader_entry),
-    m_writer_thread(this, &Server::writer_entry) {
-}
+Server::Server(Driver* drv, librbd::Image& image) :
+  m_drv(drv),
+  m_image(image),
+  m_reader_thread(this, &Server::reader_entry),
+  m_writer_thread(this, &Server::writer_entry)
+{}
 
-void Server::run() {
+void
+Server::run()
+{
   dout(10) << dendl;
 
   int r = start();
@@ -32,7 +38,7 @@ void Server::run() {
 
   {
     std::unique_lock locker{m_lock};
-    m_cond.wait(locker, [this] { return m_stopping;});
+    m_cond.wait(locker, [this] { return m_stopping; });
   }
 
   dout(20) << "exiting run loop" << dendl;
@@ -40,7 +46,9 @@ void Server::run() {
   stop();
 }
 
-int Server::start() {
+int
+Server::start()
+{
   dout(10) << dendl;
 
   m_reader_thread.create("rbd_reader");
@@ -48,7 +56,9 @@ int Server::start() {
   return 0;
 }
 
-void Server::stop() {
+void
+Server::stop()
+{
   dout(10) << dendl;
 
   {
@@ -62,14 +72,18 @@ void Server::stop() {
   wait_clean();
 }
 
-void Server::io_start(IOContext *ctx) {
+void
+Server::io_start(IOContext* ctx)
+{
   dout(20) << ctx << dendl;
 
   std::lock_guard locker{m_lock};
   m_io_pending.push_back(&ctx->item);
 }
 
-void Server::io_finish(IOContext *ctx) {
+void
+Server::io_finish(IOContext* ctx)
+{
   dout(20) << ctx << dendl;
 
   std::lock_guard locker{m_lock};
@@ -80,29 +94,33 @@ void Server::io_finish(IOContext *ctx) {
   m_cond.notify_all();
 }
 
-Server::IOContext *Server::wait_io_finish() {
+Server::IOContext*
+Server::wait_io_finish()
+{
   dout(20) << dendl;
 
   std::unique_lock locker{m_lock};
-  m_cond.wait(locker, [this] { return !m_io_finished.empty() || m_stopping;});
+  m_cond.wait(locker, [this] { return !m_io_finished.empty() || m_stopping; });
 
   if (m_io_finished.empty()) {
     return nullptr;
   }
 
-  IOContext *ret = m_io_finished.front();
+  IOContext* ret = m_io_finished.front();
   m_io_finished.pop_front();
 
   return ret;
 }
 
-void Server::wait_clean() {
+void
+Server::wait_clean()
+{
   dout(20) << dendl;
 
   ceph_assert(!m_reader_thread.is_started());
 
   std::unique_lock locker{m_lock};
-  m_cond.wait(locker, [this] { return m_io_pending.empty();});
+  m_cond.wait(locker, [this] { return m_io_pending.empty(); });
 
   while (!m_io_finished.empty()) {
     std::unique_ptr<IOContext> free_ctx(m_io_finished.front());
@@ -110,18 +128,22 @@ void Server::wait_clean() {
   }
 }
 
-void Server::aio_callback(librbd::completion_t cb, void *arg) {
-  librbd::RBD::AioCompletion *aio_completion =
-    reinterpret_cast<librbd::RBD::AioCompletion*>(cb);
+void
+Server::aio_callback(librbd::completion_t cb, void* arg)
+{
+  librbd::RBD::AioCompletion* aio_completion =
+      reinterpret_cast<librbd::RBD::AioCompletion*>(cb);
 
-  IOContext *ctx = reinterpret_cast<IOContext *>(arg);
+  IOContext* ctx = reinterpret_cast<IOContext*>(arg);
   int r = aio_completion->get_return_value();
 
   ctx->server->handle_aio(ctx, r);
   aio_completion->release();
 }
 
-void Server::handle_aio(IOContext *ctx, int r) {
+void
+Server::handle_aio(IOContext* ctx, int r)
+{
   dout(20) << ctx << ": r=" << r << dendl;
 
   if (r == -EINVAL) {
@@ -134,9 +156,10 @@ void Server::handle_aio(IOContext *ctx, int r) {
 
   if (r < 0) {
     ctx->req->set_error(-r);
-  } else if ((ctx->req->get_cmd() == Request::Read) &&
-             r != static_cast<int>(ctx->req->get_length())) {
-    int pad_byte_count = static_cast<int> (ctx->req->get_length()) - r;
+  } else if (
+      (ctx->req->get_cmd() == Request::Read) &&
+      r != static_cast<int>(ctx->req->get_length())) {
+    int pad_byte_count = static_cast<int>(ctx->req->get_length()) - r;
     ctx->req->bl.append_zero(pad_byte_count);
     dout(20) << ctx << ": pad byte count: " << pad_byte_count << dendl;
     ctx->req->set_error(0);
@@ -146,7 +169,9 @@ void Server::handle_aio(IOContext *ctx, int r) {
   io_finish(ctx);
 }
 
-void Server::reader_entry() {
+void
+Server::reader_entry()
+{
   dout(20) << dendl;
 
   while (!m_stopping) {
@@ -165,22 +190,21 @@ void Server::reader_entry() {
       return;
     }
 
-    IOContext *pctx = ctx.release();
+    IOContext* pctx = ctx.release();
 
     dout(20) << pctx << ": start: " << *pctx << dendl;
 
     io_start(pctx);
-    librbd::RBD::AioCompletion *c =
-      new librbd::RBD::AioCompletion(pctx, aio_callback);
-    switch (pctx->req->get_cmd())
-    {
+    librbd::RBD::AioCompletion* c =
+        new librbd::RBD::AioCompletion(pctx, aio_callback);
+    switch (pctx->req->get_cmd()) {
     case rbd::ggate::Request::Write:
-      m_image.aio_write(pctx->req->get_offset(), pctx->req->get_length(),
-                        pctx->req->bl, c);
+      m_image.aio_write(
+          pctx->req->get_offset(), pctx->req->get_length(), pctx->req->bl, c);
       break;
     case rbd::ggate::Request::Read:
-      m_image.aio_read(pctx->req->get_offset(), pctx->req->get_length(),
-                       pctx->req->bl, c);
+      m_image.aio_read(
+          pctx->req->get_offset(), pctx->req->get_length(), pctx->req->bl, c);
       break;
     case rbd::ggate::Request::Flush:
       m_image.aio_flush(c);
@@ -201,7 +225,9 @@ void Server::reader_entry() {
   dout(20) << "terminated" << dendl;
 }
 
-void Server::writer_entry() {
+void
+Server::writer_entry()
+{
   dout(20) << dendl;
 
   while (!m_stopping) {
@@ -228,12 +254,13 @@ void Server::writer_entry() {
   dout(20) << "terminated" << dendl;
 }
 
-std::ostream &operator<<(std::ostream &os, const Server::IOContext &ctx) {
+std::ostream&
+operator<<(std::ostream& os, const Server::IOContext& ctx)
+{
 
   os << "[" << ctx.req->get_id();
 
-  switch (ctx.req->get_cmd())
-  {
+  switch (ctx.req->get_cmd()) {
   case rbd::ggate::Request::Write:
     os << " Write ";
     break;
@@ -259,4 +286,3 @@ std::ostream &operator<<(std::ostream &os, const Server::IOContext &ctx) {
 
 } // namespace ggate
 } // namespace rbd
-

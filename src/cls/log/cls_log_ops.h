@@ -19,14 +19,18 @@ struct add_op {
 
   add_op() = default;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(entries, bl);
     encode(monotonic_inc, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(entries, bl);
     if (struct_v >= 2) {
@@ -35,12 +39,16 @@ struct add_op {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     encode_json("entries", entries, f);
     encode_json("monotonic_inc", monotonic_inc, f);
   }
 
-  static std::list<add_op> generate_test_instances() {
+  static std::list<add_op>
+  generate_test_instances()
+  {
     using namespace std::literals;
     std::list<add_op> l;
     l.emplace_back();
@@ -66,7 +74,9 @@ struct list_op {
 
   list_op() = default;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(from_time, bl);
     encode(marker, bl);
@@ -75,7 +85,9 @@ struct list_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(from_time, bl);
     decode(marker, bl);
@@ -84,13 +96,18 @@ struct list_op {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_stream("from_time") << from_time;
     f->dump_string("marker", marker);
     f->dump_stream("to_time") << to_time;
     f->dump_int("max_entries", max_entries);
   }
-  static std::list<list_op> generate_test_instances() {
+
+  static std::list<list_op>
+  generate_test_instances()
+  {
     using namespace std::literals;
     std::list<list_op> ls;
     ls.emplace_back();
@@ -109,9 +126,13 @@ struct list_ret {
   std::string marker;
   bool truncated;
 
-  list_ret() : truncated(false) {}
+  list_ret() :
+    truncated(false)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(entries, bl);
     encode(marker, bl);
@@ -119,7 +140,9 @@ struct list_ret {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(entries, bl);
     decode(marker, bl);
@@ -127,12 +150,17 @@ struct list_ret {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     encode_json("entries", entries, f);
     f->dump_string("marker", marker);
     f->dump_bool("truncated", truncated);
   }
-  static std::list<list_ret> generate_test_instances() {
+
+  static std::list<list_ret>
+  generate_test_instances()
+  {
     using namespace std::literals;
     std::list<list_ret> ls;
     ls.emplace_back();
@@ -163,7 +191,9 @@ struct trim_op {
 
   trim_op() = default;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(from_time, bl);
     encode(to_time, bl);
@@ -172,23 +202,31 @@ struct trim_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(from_time, bl);
     decode(to_time, bl);
     if (struct_v >= 2) {
-    decode(from_marker, bl);
-    decode(to_marker, bl);
+      decode(from_marker, bl);
+      decode(to_marker, bl);
     }
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter* f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_stream("from_time") << from_time;
     f->dump_stream("to_time") << to_time;
     f->dump_string("from_marker", from_marker);
     f->dump_string("to_marker", to_marker);
   }
-  static std::list<trim_op> generate_test_instances() {
+
+  static std::list<trim_op>
+  generate_test_instances()
+  {
     using namespace std::literals;
     std::list<trim_op> ls;
     ls.emplace_back();
@@ -205,22 +243,29 @@ WRITE_CLASS_ENCODER(trim_op)
 struct info_op {
   info_op() = default;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     // currently empty request
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     // currently empty request
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter* f) const {
-  }
+  void
+  dump(ceph::Formatter* f) const
+  {}
 
-  static std::list<info_op> generate_test_instances() {
+  static std::list<info_op>
+  generate_test_instances()
+  {
     std::list<info_op> ls;
     ls.emplace_back();
     return ls;
@@ -231,13 +276,17 @@ WRITE_CLASS_ENCODER(info_op)
 struct info_ret {
   cls::log::header header;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(this->header, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(this->header, bl);
     DECODE_FINISH(bl);

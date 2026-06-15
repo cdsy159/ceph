@@ -5,7 +5,9 @@
 
 namespace rbd {
 
-int IndentBuffer::overflow (int c) {
+int
+IndentBuffer::overflow(int c)
+{
   if (traits_type::eq_int_type(traits_type::eof(), c)) {
     return traits_type::not_eof(c);
   }
@@ -32,8 +34,7 @@ int IndentBuffer::overflow (int c) {
       if (word_offset != std::string::npos) {
         flush_line();
         m_streambuf->sputn(m_buffer.c_str(), word_offset);
-        m_buffer = std::string(m_buffer,
-                               word_offset + (space_delim ? 1 : 0));
+        m_buffer = std::string(m_buffer, word_offset + (space_delim ? 1 : 0));
       } else {
         flush_line();
         m_streambuf->sputn(m_buffer.c_str(), m_buffer.size());
@@ -46,7 +47,9 @@ int IndentBuffer::overflow (int c) {
   }
 }
 
-void IndentBuffer::flush_line() {
+void
+IndentBuffer::flush_line()
+{
   if (m_initial_offset >= m_indent) {
     m_initial_offset = 0;
     m_streambuf->sputc('\n');

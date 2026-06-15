@@ -13,21 +13,20 @@
  *
  */
 
-#include "common/async/blocked_completion.h"
+#include <gtest/gtest.h>
 
 #include <exception>
 
 #include <boost/asio/append.hpp>
-#include <boost/asio/awaitable.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
-
 #include <boost/system/error_code.hpp>
 
-#include <gtest/gtest.h>
+#include "common/async/blocked_completion.h"
 
 
 using namespace std::literals;
@@ -42,20 +41,25 @@ class context_thread {
   std::thread th;
 
 public:
-  context_thread() noexcept
-    : guard(asio::make_work_guard(c)),
-      th([this]() noexcept { c.run();}) {}
+  context_thread() noexcept :
+    guard(asio::make_work_guard(c)), th([this]() noexcept { c.run(); })
+  {}
 
-  ~context_thread() {
+  ~context_thread()
+  {
     guard.reset();
     th.join();
   }
 
-  asio::io_context& io_context() noexcept {
+  asio::io_context&
+  io_context() noexcept
+  {
     return c;
   }
 
-  asio::io_context::executor_type get_executor() noexcept {
+  asio::io_context::executor_type
+  get_executor() noexcept
+  {
     return c.get_executor();
   }
 };
@@ -70,19 +74,23 @@ struct move_only {
 
 struct defaultless {
   int a;
-  defaultless(int a) : a(a) {}
+
+  defaultless(int a) :
+    a(a)
+  {}
 };
 
-template<typename Executor, typename CompletionToken, typename... Args>
-auto id(const Executor& executor, CompletionToken&& token,
-	Args&& ...args)
+template <typename Executor, typename CompletionToken, typename... Args>
+auto
+id(const Executor& executor, CompletionToken&& token, Args&&... args)
 {
   return asio::async_initiate<CompletionToken, void(Args...)>(
       [executor]<typename... Args2>(auto handler, Args2&&... args2) mutable {
-        asio::post(executor,
-                   asio::append(std::move(handler),
-                                std::forward<Args2>(args2)...));
-    }, token, std::forward<Args>(args)...);
+        asio::post(
+            executor,
+            asio::append(std::move(handler), std::forward<Args2>(args2)...));
+      },
+      token, std::forward<Args>(args)...);
 }
 
 TEST(BlockedCompletion, Void)
@@ -106,12 +114,13 @@ TEST(BlockedCompletion, NoError)
   sys::error_code ec;
 
   EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked, sys::error_code{}));
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec], sys::error_code{}));
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec], sys::error_code{}));
   EXPECT_FALSE(ec);
 
   int i;
-  EXPECT_NO_THROW(i = id(t.get_executor(), async::use_blocked,
-			 sys::error_code{}, 5));
+  EXPECT_NO_THROW(
+      i = id(t.get_executor(), async::use_blocked, sys::error_code{}, 5));
   ASSERT_EQ(5, i);
   EXPECT_NO_THROW(
       i = id(t.get_executor(), async::use_blocked[ec], sys::error_code{}, 7));
@@ -120,12 +129,12 @@ TEST(BlockedCompletion, NoError)
 
   float j;
 
-  EXPECT_NO_THROW(std::tie(i, j) = id(t.get_executor(), async::use_blocked, 9,
-				      3.5));
+  EXPECT_NO_THROW(
+      std::tie(i, j) = id(t.get_executor(), async::use_blocked, 9, 3.5));
   ASSERT_EQ(9, i);
   ASSERT_EQ(3.5, j);
-  EXPECT_NO_THROW(std::tie(i, j) = id(t.get_executor(), async::use_blocked[ec],
-				      11, 2.25));
+  EXPECT_NO_THROW(
+      std::tie(i, j) = id(t.get_executor(), async::use_blocked[ec], 11, 2.25));
   EXPECT_FALSE(ec);
   ASSERT_EQ(11, i);
   ASSERT_EQ(2.25, j);
@@ -137,25 +146,31 @@ TEST(BlockedCompletion, AnError)
   asio::steady_timer timer(t.io_context(), 1s);
   sys::error_code ec;
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()}));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, 5),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()}, 5));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, 5),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, 5));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, 5, 3),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()}, 5, 3));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, 5, 3),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, 5, 3));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 }
 
@@ -165,34 +180,37 @@ TEST(BlockedCompletion, AnException)
   std::exception_ptr e = nullptr;
 
   ASSERT_FALSE(e);
-  ASSERT_THROW(asio::co_spawn(t.get_executor(),
-			      []() -> asio::awaitable<void> {
-				throw std::exception{};
-				co_return;
-			      }, async::use_blocked),
-	       std::exception);
+  ASSERT_THROW(
+      asio::co_spawn(
+          t.get_executor(),
+          []() -> asio::awaitable<void> {
+            throw std::exception{};
+            co_return;
+          },
+          async::use_blocked),
+      std::exception);
   // Have yet to divert an exception
   ASSERT_FALSE(e);
 
-  ASSERT_NO_THROW(asio::co_spawn(t.get_executor(),
-				 []() -> asio::awaitable<void> {
-				   throw std::exception{};
-				   co_return;
-				 }, async::use_blocked[e]));
+  ASSERT_NO_THROW(asio::co_spawn(
+      t.get_executor(),
+      []() -> asio::awaitable<void> {
+        throw std::exception{};
+        co_return;
+      },
+      async::use_blocked[e]));
   // Exception diverted
   ASSERT_TRUE(e);
 
-  ASSERT_NO_THROW(asio::co_spawn(t.get_executor(),
-				 []() -> asio::awaitable<void> {
-				   co_return;
-				 }, async::use_blocked));
+  ASSERT_NO_THROW(asio::co_spawn(
+      t.get_executor(), []() -> asio::awaitable<void> { co_return; },
+      async::use_blocked));
   // Previously diverted exception not overwritten
   ASSERT_TRUE(e);
 
-  ASSERT_NO_THROW(asio::co_spawn(t.get_executor(),
-				 []() -> asio::awaitable<void> {
-				   co_return;
-				 }, async::use_blocked[e]));
+  ASSERT_NO_THROW(asio::co_spawn(
+      t.get_executor(), []() -> asio::awaitable<void> { co_return; },
+      async::use_blocked[e]));
   // Success diverted to overwrite previous exception
   ASSERT_FALSE(e);
 }
@@ -204,10 +222,10 @@ TEST(BlockedCompletion, MoveOnly)
   sys::error_code ec;
 
 
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked,
-			 sys::error_code{}, move_only{}));
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{}, move_only{}));
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked, sys::error_code{}, move_only{}));
+  EXPECT_NO_THROW(id(
+      t.get_executor(), async::use_blocked[ec], sys::error_code{}, move_only{}));
   EXPECT_FALSE(ec);
 
   {
@@ -221,19 +239,22 @@ TEST(BlockedCompletion, MoveOnly)
   EXPECT_FALSE(ec);
 
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, move_only{}),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()}, move_only{}));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, move_only{}),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, move_only{}));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, move_only{}, 3),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()},
-		     move_only{}, 3));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, move_only{}, 3),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, move_only{}, 3));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 }
 
@@ -245,11 +266,15 @@ TEST(BlockedCompletion, DefaultLess)
 
 
   {
-    auto l = id(t.get_executor(), async::use_blocked, sys::error_code{}, defaultless{5});
+    auto l =
+        id(t.get_executor(), async::use_blocked, sys::error_code{},
+           defaultless{5});
     EXPECT_EQ(5, l.a);
   }
   {
-    auto l = id(t.get_executor(), async::use_blocked[ec], sys::error_code{}, defaultless{7});
+    auto l =
+        id(t.get_executor(), async::use_blocked[ec], sys::error_code{},
+           defaultless{7});
     EXPECT_EQ(7, l.a);
   }
 
@@ -259,24 +284,28 @@ TEST(BlockedCompletion, DefaultLess)
     EXPECT_EQ(j, 5);
   }
   {
-    auto [i, j] = id(t.get_executor(), async::use_blocked[ec], defaultless{3}, 5);
+    auto [i, j] =
+        id(t.get_executor(), async::use_blocked[ec], defaultless{3}, 5);
     EXPECT_EQ(i.a, 3);
     EXPECT_EQ(j, 5);
   }
   EXPECT_FALSE(ec);
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, move_only{}),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()}, move_only{}));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, move_only{}),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, move_only{}));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 
-  EXPECT_THROW(id(t.get_executor(), async::use_blocked,
-		  sys::error_code{EDOM, sys::system_category()}, move_only{}, 3),
-	       sys::system_error);
-  EXPECT_NO_THROW(id(t.get_executor(), async::use_blocked[ec],
-		     sys::error_code{EDOM, sys::system_category()},
-		     move_only{}, 3));
+  EXPECT_THROW(
+      id(t.get_executor(), async::use_blocked,
+         sys::error_code{EDOM, sys::system_category()}, move_only{}, 3),
+      sys::system_error);
+  EXPECT_NO_THROW(
+      id(t.get_executor(), async::use_blocked[ec],
+         sys::error_code{EDOM, sys::system_category()}, move_only{}, 3));
   EXPECT_EQ(sys::error_code(EDOM, sys::system_category()), ec);
 }

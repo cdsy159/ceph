@@ -7,8 +7,8 @@
 
 #include "common/config_proxy.h" // for class ConfigProxy
 #include "common/errno.h"
-#include "common/url_escape.h"
 #include "common/pretty_binary.h"
+#include "common/url_escape.h"
 #include "global/global_context.h" // for g_conf()
 #include "include/buffer.h"
 #include "include/types.h" // for struct byte_u_t
@@ -20,12 +20,13 @@
 
 using namespace std;
 
-StoreTool::StoreTool(const string& type,
-		     const string& path,
-                     bool read_only,
-		     bool to_repair,
-		     bool need_stats)
-  : store_path(path)
+StoreTool::StoreTool(
+    const string& type,
+    const string& path,
+    bool read_only,
+    bool to_repair,
+    bool need_stats) :
+  store_path(path)
 {
 
   if (need_stats) {
@@ -39,7 +40,8 @@ StoreTool::StoreTool(const string& type,
   } else {
     auto db_ptr = KeyValueDB::create(g_ceph_context, type, path);
     if (!to_repair) {
-      int r = read_only ? db_ptr->open_read_only(std::cerr) : db_ptr->open(std::cerr);
+      int r = read_only ? db_ptr->open_read_only(std::cerr)
+                        : db_ptr->open(std::cerr);
       if (r < 0) {
         cerr << "failed to open type " << type << " path " << path << ": "
              << cpp_strerror(r) << std::endl;
@@ -52,7 +54,8 @@ StoreTool::StoreTool(const string& type,
 
 
 #ifdef WITH_BLUESTORE
-void close_delete_bluestore(ObjectStore* store)
+void
+close_delete_bluestore(ObjectStore* store)
 {
   auto bluestore = dynamic_cast<BlueStore*>(store);
   ceph_assert(bluestore);
@@ -60,31 +63,35 @@ void close_delete_bluestore(ObjectStore* store)
   delete bluestore;
 }
 
-int StoreTool::load_bluestore(const string& path, bool read_only, bool to_repair)
+int
+StoreTool::load_bluestore(const string& path, bool read_only, bool to_repair)
 {
   auto bluestore = new BlueStore(g_ceph_context, path);
-  KeyValueDB *db_ptr;
+  KeyValueDB* db_ptr;
   int r = bluestore->open_db_environment(&db_ptr, read_only, to_repair);
   if (r < 0) {
-     return -EINVAL;
+    return -EINVAL;
   }
   db = decltype(db){db_ptr, Deleter(bluestore, close_delete_bluestore)};
   return 0;
 }
 #else
 
-int StoreTool::load_bluestore(const string& path, bool read_only, bool to_repair)
+int
+StoreTool::load_bluestore(const string& path, bool read_only, bool to_repair)
 {
-    cerr << "bluestore not compiled in" << std::endl;
-    return -1;
+  cerr << "bluestore not compiled in" << std::endl;
+  return -1;
 }
 #endif // WITH_BLUESTORE
 
 
-uint32_t StoreTool::traverse(const string& prefix,
-                             const bool do_crc,
-                             const bool do_value_dump,
-                             ostream *out)
+uint32_t
+StoreTool::traverse(
+    const string& prefix,
+    const bool do_crc,
+    const bool do_value_dump,
+    ostream* out)
 {
   KeyValueDB::WholeSpaceIterator iter = db->get_wholespace_iterator();
 
@@ -96,7 +103,7 @@ uint32_t StoreTool::traverse(const string& prefix,
   uint32_t crc = -1;
 
   while (iter->valid()) {
-    pair<string,string> rk = iter->raw_key();
+    pair<string, string> rk = iter->raw_key();
     if (!prefix.empty() && (rk.first != prefix))
       break;
 
@@ -129,13 +136,14 @@ uint32_t StoreTool::traverse(const string& prefix,
   return crc;
 }
 
-void StoreTool::list(const string& prefix, const bool do_crc,
-                     const bool do_value_dump)
+void
+StoreTool::list(const string& prefix, const bool do_crc, const bool do_value_dump)
 {
-  traverse(prefix, do_crc, do_value_dump,& std::cout);
+  traverse(prefix, do_crc, do_value_dump, &std::cout);
 }
 
-bool StoreTool::exists(const string& prefix)
+bool
+StoreTool::exists(const string& prefix)
 {
   ceph_assert(!prefix.empty());
   KeyValueDB::WholeSpaceIterator iter = db->get_wholespace_iterator();
@@ -143,7 +151,8 @@ bool StoreTool::exists(const string& prefix)
   return (iter->valid() && (iter->raw_key().first == prefix));
 }
 
-bool StoreTool::exists(const string& prefix, const string& key)
+bool
+StoreTool::exists(const string& prefix, const string& key)
 {
   ceph_assert(!prefix.empty());
 
@@ -155,13 +164,12 @@ bool StoreTool::exists(const string& prefix, const string& key)
   return exists;
 }
 
-bufferlist StoreTool::get(const string& prefix,
-			  const string& key,
-			  bool& exists)
+bufferlist
+StoreTool::get(const string& prefix, const string& key, bool& exists)
 {
   ceph_assert(!prefix.empty() && !key.empty());
 
-  map<string,bufferlist> result;
+  map<string, bufferlist> result;
   std::set<std::string> keys;
   keys.insert(key);
   db->get(prefix, keys, &result);
@@ -175,9 +183,10 @@ bufferlist StoreTool::get(const string& prefix,
   }
 }
 
-uint64_t StoreTool::get_size()
+uint64_t
+StoreTool::get_size()
 {
-  map<string,uint64_t> extras;
+  map<string, uint64_t> extras;
   uint64_t s = db->get_estimated_size(extras);
   for (auto& [name, size] : extras) {
     std::cout << name << " - " << size << std::endl;
@@ -186,7 +195,8 @@ uint64_t StoreTool::get_size()
   return s;
 }
 
-bool StoreTool::set(const string &prefix, const string &key, bufferlist &val)
+bool
+StoreTool::set(const string& prefix, const string& key, bufferlist& val)
 {
   ceph_assert(!prefix.empty());
   ceph_assert(!key.empty());
@@ -199,7 +209,8 @@ bool StoreTool::set(const string &prefix, const string &key, bufferlist &val)
   return (ret == 0);
 }
 
-bool StoreTool::rm(const string& prefix, const string& key)
+bool
+StoreTool::rm(const string& prefix, const string& key)
 {
   ceph_assert(!prefix.empty());
   ceph_assert(!key.empty());
@@ -211,7 +222,8 @@ bool StoreTool::rm(const string& prefix, const string& key)
   return (ret == 0);
 }
 
-bool StoreTool::rm_prefix(const string& prefix)
+bool
+StoreTool::rm_prefix(const string& prefix)
 {
   ceph_assert(!prefix.empty());
 
@@ -222,9 +234,14 @@ bool StoreTool::rm_prefix(const string& prefix)
   return (ret == 0);
 }
 
-void StoreTool::print_summary(const uint64_t total_keys, const uint64_t total_size,
-                              const uint64_t total_txs, const string& store_path,
-                              const string& other_path, const int duration) const
+void
+StoreTool::print_summary(
+    const uint64_t total_keys,
+    const uint64_t total_size,
+    const uint64_t total_txs,
+    const string& store_path,
+    const string& other_path,
+    const int duration) const
 {
   std::cout << "summary:" << std::endl;
   std::cout << "  copied " << total_keys << " keys" << std::endl;
@@ -235,7 +252,8 @@ void StoreTool::print_summary(const uint64_t total_keys, const uint64_t total_si
   std::cout << "  duration " << duration << " seconds" << std::endl;
 }
 
-int StoreTool::print_stats() const
+int
+StoreTool::print_stats() const
 {
   ostringstream ostr;
   Formatter* f = Formatter::create("json-pretty", "json-pretty", "json-pretty");
@@ -249,13 +267,14 @@ int StoreTool::print_stats() const
     ostr << "db_statistics not enabled";
     f->flush(ostr);
   }
-  std::cout <<  ostr.str() << std::endl;
+  std::cout << ostr.str() << std::endl;
   delete f;
   return ret;
 }
 
 //Itrerates through the db and collects the stats
-int StoreTool::build_size_histogram(const string& prefix0) const
+int
+StoreTool::build_size_histogram(const string& prefix0) const
 {
   ostringstream ostr;
   Formatter* f = Formatter::create("json-pretty", "json-pretty", "json-pretty");
@@ -310,13 +329,17 @@ int StoreTool::build_size_histogram(const string& prefix0) const
   delete f;
 
   std::cout << ostr.str() << std::endl;
-  std::cout << __func__ << " finished in " << duration << " seconds" << std::endl;
+  std::cout << __func__ << " finished in " << duration << " seconds"
+            << std::endl;
   return 0;
 }
 
-int StoreTool::copy_store_to(const string& type, const string& other_path,
-                             const int num_keys_per_tx,
-                             const string& other_type)
+int
+StoreTool::copy_store_to(
+    const string& type,
+    const string& other_path,
+    const int num_keys_per_tx,
+    const string& other_type)
 {
   if (num_keys_per_tx <= 0) {
     std::cerr << "must specify a number of keys/tx > 0" << std::endl;
@@ -325,9 +348,8 @@ int StoreTool::copy_store_to(const string& type, const string& other_path,
 
   // open or create a RocksDB store at @p other_path
   boost::scoped_ptr<KeyValueDB> other;
-  KeyValueDB *other_ptr = KeyValueDB::create(g_ceph_context,
-					     other_type,
-					     other_path);
+  KeyValueDB* other_ptr =
+      KeyValueDB::create(g_ceph_context, other_type, other_path);
   if (int err = other_ptr->create_and_open(std::cerr); err < 0) {
     return err;
   }
@@ -339,7 +361,7 @@ int StoreTool::copy_store_to(const string& type, const string& other_path,
   uint64_t total_size = 0;
   uint64_t total_txs = 0;
 
-  auto duration = [start=coarse_mono_clock::now()] {
+  auto duration = [start = coarse_mono_clock::now()] {
     const auto now = coarse_mono_clock::now();
     auto seconds = std::chrono::duration<double>(now - start);
     return seconds.count();
@@ -368,35 +390,39 @@ int StoreTool::copy_store_to(const string& type, const string& other_path,
       other->submit_transaction_sync(tx);
 
     std::cout << "ts = " << duration() << "s, copied " << total_keys
-              << " keys so far (" << byte_u_t(total_size) << ")"
-              << std::endl;
+              << " keys so far (" << byte_u_t(total_size) << ")" << std::endl;
 
   } while (it->valid());
 
-  print_summary(total_keys, total_size, total_txs, store_path, other_path,
-                duration());
+  print_summary(
+      total_keys, total_size, total_txs, store_path, other_path, duration());
 
   return 0;
 }
 
-void StoreTool::compact()
+void
+StoreTool::compact()
 {
   db->compact();
 }
 
-void StoreTool::compact_prefix(const string& prefix)
+void
+StoreTool::compact_prefix(const string& prefix)
 {
   db->compact_prefix(prefix);
 }
 
-void StoreTool::compact_range(const string& prefix,
-                              const string& start,
-                              const string& end)
+void
+StoreTool::compact_range(
+    const string& prefix,
+    const string& start,
+    const string& end)
 {
   db->compact_range(prefix, start, end);
 }
 
-int StoreTool::destructive_repair()
+int
+StoreTool::destructive_repair()
 {
   return db->repair(std::cout);
 }

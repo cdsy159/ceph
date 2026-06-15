@@ -4,23 +4,30 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_REPLAYER_STATE_BUILDER_H
 #define CEPH_RBD_MIRROR_IMAGE_REPLAYER_STATE_BUILDER_H
 
-#include "include/rados/librados_fwd.hpp"
 #include "cls/rbd/cls_rbd_types.h"
+#include "include/rados/librados_fwd.hpp"
 #include "librbd/mirror/Types.h"
 
 struct Context;
-namespace librbd { struct ImageCtx; }
+
+namespace librbd {
+struct ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
 
 struct BaseRequest;
-template <typename> class InstanceWatcher;
+template <typename>
+class InstanceWatcher;
 struct PoolMetaCache;
 struct ProgressContext;
-template <typename> class Threads;
+template <typename>
+class Threads;
 
-namespace image_sync { struct SyncPointHandler; }
+namespace image_sync {
+struct SyncPointHandler;
+}
 
 namespace image_replayer {
 
@@ -35,7 +42,9 @@ public:
 
   virtual ~StateBuilder();
 
-  virtual void destroy() {
+  virtual void
+  destroy()
+  {
     delete this;
   }
 
@@ -82,13 +91,13 @@ public:
 
   std::string local_image_id;
   librbd::mirror::PromotionState local_promotion_state =
-    librbd::mirror::PROMOTION_STATE_UNKNOWN;
+      librbd::mirror::PROMOTION_STATE_UNKNOWN;
   ImageCtxT* local_image_ctx = nullptr;
 
   std::string remote_mirror_uuid;
   std::string remote_image_id;
   librbd::mirror::PromotionState remote_promotion_state =
-    librbd::mirror::PROMOTION_STATE_UNKNOWN;
+      librbd::mirror::PROMOTION_STATE_UNKNOWN;
   ImageCtxT* remote_image_ctx = nullptr;
 
 protected:

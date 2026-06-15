@@ -14,21 +14,23 @@
  */
 
 #include "JSONFormatter.h"
-#include "common/escape.h"
-#include "common/StackStringStream.h"
-#include "include/ceph_assert.h"
-
-#include <boost/container/small_vector.hpp>
 
 #include <cmath> // for std::isfinite(), std::isnan()
 #include <limits>
 #include <utility>
 
+#include <boost/container/small_vector.hpp>
+
+#include "common/StackStringStream.h"
+#include "common/escape.h"
+#include "include/ceph_assert.h"
+
 #define LARGE_SIZE 1024
 
 namespace ceph {
 
-void JSONFormatter::flush(std::ostream& os)
+void
+JSONFormatter::flush(std::ostream& os)
 {
   finish_pending_string();
   os << m_ss.str();
@@ -38,7 +40,8 @@ void JSONFormatter::flush(std::ostream& os)
   m_ss.str("");
 }
 
-void JSONFormatter::reset()
+void
+JSONFormatter::reset()
 {
   m_stack.clear();
   m_ss.clear();
@@ -47,7 +50,8 @@ void JSONFormatter::reset()
   m_pending_string.str("");
 }
 
-void JSONFormatter::print_comma(json_formatter_stack_entry_d& entry)
+void
+JSONFormatter::print_comma(json_formatter_stack_entry_d& entry)
 {
   auto& ss = get_ss();
   if (entry.size) {
@@ -67,13 +71,15 @@ void JSONFormatter::print_comma(json_formatter_stack_entry_d& entry)
     ss << "    ";
 }
 
-void JSONFormatter::print_quoted_string(std::string_view s)
+void
+JSONFormatter::print_quoted_string(std::string_view s)
 {
   auto& ss = get_ss();
   ss << '\"' << json_stream_escaper(s) << '\"';
 }
 
-void JSONFormatter::print_name(std::string_view name)
+void
+JSONFormatter::print_name(std::string_view name)
 {
   auto& ss = get_ss();
   finish_pending_string();
@@ -94,7 +100,8 @@ void JSONFormatter::print_name(std::string_view name)
   ++entry.size;
 }
 
-void JSONFormatter::open_section(std::string_view name, const char *ns, bool is_array)
+void
+JSONFormatter::open_section(std::string_view name, const char* ns, bool is_array)
 {
   auto& ss = get_ss();
   if (handle_open_section(name, ns, is_array)) {
@@ -117,27 +124,32 @@ void JSONFormatter::open_section(std::string_view name, const char *ns, bool is_
   m_stack.push_back(n);
 }
 
-void JSONFormatter::open_array_section(std::string_view name)
+void
+JSONFormatter::open_array_section(std::string_view name)
 {
   open_section(name, nullptr, true);
 }
 
-void JSONFormatter::open_array_section_in_ns(std::string_view name, const char *ns)
+void
+JSONFormatter::open_array_section_in_ns(std::string_view name, const char* ns)
 {
   open_section(name, ns, true);
 }
 
-void JSONFormatter::open_object_section(std::string_view name)
+void
+JSONFormatter::open_object_section(std::string_view name)
 {
   open_section(name, nullptr, false);
 }
 
-void JSONFormatter::open_object_section_in_ns(std::string_view name, const char *ns)
+void
+JSONFormatter::open_object_section_in_ns(std::string_view name, const char* ns)
 {
   open_section(name, ns, false);
 }
 
-void JSONFormatter::close_section()
+void
+JSONFormatter::close_section()
 {
   auto& ss = get_ss();
   if (handle_close_section()) {
@@ -158,7 +170,8 @@ void JSONFormatter::close_section()
     ss << "\n";
 }
 
-void JSONFormatter::finish_pending_string()
+void
+JSONFormatter::finish_pending_string()
 {
   if (m_is_pending_string) {
     m_is_pending_string = false;
@@ -167,7 +180,9 @@ void JSONFormatter::finish_pending_string()
   }
 }
 
-void JSONFormatter::add_value(std::string_view name, double val) {
+void
+JSONFormatter::add_value(std::string_view name, double val)
+{
   CachedStackStringStream css;
   if (!std::isfinite(val) || std::isnan(val)) {
     *css << "null";
@@ -179,7 +194,8 @@ void JSONFormatter::add_value(std::string_view name, double val) {
 }
 
 template <class T>
-void JSONFormatter::add_value(std::string_view name, T val)
+void
+JSONFormatter::add_value(std::string_view name, T val)
 {
   CachedStackStringStream css;
   css->precision(std::numeric_limits<T>::max_digits10);
@@ -187,7 +203,8 @@ void JSONFormatter::add_value(std::string_view name, T val)
   add_value(name, css->strv(), false);
 }
 
-void JSONFormatter::add_value(std::string_view name, std::string_view val, bool quoted)
+void
+JSONFormatter::add_value(std::string_view name, std::string_view val, bool quoted)
 {
   auto& ss = get_ss();
   if (handle_value(name, val, quoted)) {
@@ -201,32 +218,38 @@ void JSONFormatter::add_value(std::string_view name, std::string_view val, bool 
   }
 }
 
-void JSONFormatter::dump_null(std::string_view name)
+void
+JSONFormatter::dump_null(std::string_view name)
 {
   add_value(name, "null");
 }
 
-void JSONFormatter::dump_unsigned(std::string_view name, uint64_t u)
+void
+JSONFormatter::dump_unsigned(std::string_view name, uint64_t u)
 {
   add_value(name, u);
 }
 
-void JSONFormatter::dump_int(std::string_view name, int64_t s)
+void
+JSONFormatter::dump_int(std::string_view name, int64_t s)
 {
   add_value(name, s);
 }
 
-void JSONFormatter::dump_float(std::string_view name, double d)
+void
+JSONFormatter::dump_float(std::string_view name, double d)
 {
   add_value(name, d);
 }
 
-void JSONFormatter::dump_string(std::string_view name, std::string_view s)
+void
+JSONFormatter::dump_string(std::string_view name, std::string_view s)
 {
   add_value(name, s, true);
 }
 
-std::ostream& JSONFormatter::dump_stream(std::string_view name)
+std::ostream&
+JSONFormatter::dump_stream(std::string_view name)
 {
   finish_pending_string();
   m_pending_name = name;
@@ -234,7 +257,13 @@ std::ostream& JSONFormatter::dump_stream(std::string_view name)
   return m_pending_string;
 }
 
-void JSONFormatter::dump_format_va(std::string_view name, const char *ns, bool quoted, const char *fmt, va_list ap)
+void
+JSONFormatter::dump_format_va(
+    std::string_view name,
+    const char* ns,
+    bool quoted,
+    const char* fmt,
+    va_list ap)
 {
   auto buf = boost::container::small_vector<char, LARGE_SIZE>{
       LARGE_SIZE, boost::container::default_init};
@@ -253,14 +282,16 @@ void JSONFormatter::dump_format_va(std::string_view name, const char *ns, bool q
   add_value(name, buf.data(), quoted);
 }
 
-int JSONFormatter::get_len() const
+int
+JSONFormatter::get_len() const
 {
   return m_ss.tellp();
 }
 
-void JSONFormatter::write_raw_data(const char *data)
+void
+JSONFormatter::write_raw_data(const char* data)
 {
   get_ss() << data;
 }
 
-}
+} // namespace ceph

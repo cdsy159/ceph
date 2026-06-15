@@ -19,34 +19,36 @@
 #include <string_view>
 #include <thread>
 
-#include "include/buffer.h"
-#include "include/rados/librados.hpp"
-#include "include/uuid.h"
-#include "include/types.h"
-
 #include "common/ceph_time.h"
 #include "common/perf_counters.h"
+#include "include/buffer.h"
+#include "include/rados/librados.hpp"
+#include "include/types.h"
+#include "include/uuid.h"
 
-class [[gnu::visibility("default")]] SimpleRADOSStriper
-{
+class [[gnu::visibility("default")]] SimpleRADOSStriper {
 public:
   using aiocompletionptr = std::unique_ptr<librados::AioCompletion>;
   using clock = ceph::coarse_mono_clock;
   using time = ceph::coarse_mono_time;
 
   static inline const uint64_t object_size = 22; /* power of 2 */
-  static inline const uint64_t min_growth = (1<<27); /* 128 MB */
-  static int config_logger(CephContext* cct, std::string_view name, std::shared_ptr<PerfCounters>* l);
+  static inline const uint64_t min_growth = (1 << 27); /* 128 MB */
+  static int config_logger(
+      CephContext* cct,
+      std::string_view name,
+      std::shared_ptr<PerfCounters>* l);
 
   SimpleRADOSStriper() = default;
-  SimpleRADOSStriper(librados::IoCtx _ioctx, std::string _oid)
-    : ioctx(std::move(_ioctx))
-    , oid(std::move(_oid))
+
+  SimpleRADOSStriper(librados::IoCtx _ioctx, std::string _oid) :
+    ioctx(std::move(_ioctx)), oid(std::move(_oid))
   {
     cookie.generate_random();
     auto r = librados::Rados(ioctx);
     myaddrs = r.get_addrs();
   }
+
   SimpleRADOSStriper(const SimpleRADOSStriper&) = delete;
   SimpleRADOSStriper& operator=(const SimpleRADOSStriper&) = delete;
   SimpleRADOSStriper& operator=(SimpleRADOSStriper&&) = delete;
@@ -63,20 +65,36 @@ public:
   int flush();
   int lock(uint64_t timeoutms);
   int unlock();
-  int is_locked() const {
+
+  int
+  is_locked() const
+  {
     return locked;
   }
+
   int print_lockers(std::ostream& out);
-  void set_logger(std::shared_ptr<PerfCounters> l) {
+
+  void
+  set_logger(std::shared_ptr<PerfCounters> l)
+  {
     logger = std::move(l);
   }
-  void set_lock_interval(std::chrono::milliseconds t) {
+
+  void
+  set_lock_interval(std::chrono::milliseconds t)
+  {
     lock_keeper_interval = t;
   }
-  void set_lock_timeout(std::chrono::milliseconds t) {
+
+  void
+  set_lock_timeout(std::chrono::milliseconds t)
+  {
     lock_keeper_timeout = t;
   }
-  void set_blocklist_the_dead(bool b) {
+
+  void
+  set_blocklist_the_dead(bool b)
+  {
     blocklist_the_dead = b;
   }
 
@@ -95,7 +113,10 @@ protected:
   int wait_for_aios(bool block);
   int recover_lock();
   extent get_next_extent(uint64_t off, size_t len) const;
-  extent get_first_extent() const {
+
+  extent
+  get_first_extent() const
+  {
     return get_next_extent(0, 0);
   }
 
@@ -104,9 +125,12 @@ private:
   static inline const char XATTR_SIZE[] = "striper.size";
   static inline const char XATTR_ALLOCATED[] = "striper.allocated";
   static inline const char XATTR_VERSION[] = "striper.version";
-  static inline const char XATTR_LAYOUT_STRIPE_UNIT[] = "striper.layout.stripe_unit";
-  static inline const char XATTR_LAYOUT_STRIPE_COUNT[] = "striper.layout.stripe_count";
-  static inline const char XATTR_LAYOUT_OBJECT_SIZE[] = "striper.layout.object_size";
+  static inline const char XATTR_LAYOUT_STRIPE_UNIT[] =
+      "striper.layout.stripe_unit";
+  static inline const char XATTR_LAYOUT_STRIPE_COUNT[] =
+      "striper.layout.stripe_count";
+  static inline const char XATTR_LAYOUT_OBJECT_SIZE[] =
+      "striper.layout.object_size";
   static inline const std::string biglock = "striper.lock";
   static inline const std::string lockdesc = "SimpleRADOSStriper";
 

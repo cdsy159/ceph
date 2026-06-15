@@ -17,4 +17,3 @@ enum {
 
   l_mgr_last,
 };
-

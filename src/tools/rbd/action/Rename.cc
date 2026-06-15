@@ -1,12 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/errno.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/errno.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -15,8 +17,12 @@ namespace rename {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static int do_rename(librbd::RBD &rbd, librados::IoCtx& io_ctx,
-                     const char *imgname, const char *destname)
+static int
+do_rename(
+    librbd::RBD& rbd,
+    librados::IoCtx& io_ctx,
+    const char* imgname,
+    const char* destname)
 {
   int r = rbd.rename(io_ctx, imgname, destname);
   if (r < 0)
@@ -24,23 +30,29 @@ static int do_rename(librbd::RBD &rbd, librados::IoCtx& io_ctx,
   return 0;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_SOURCE);
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_DEST);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_SOURCE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_SOURCE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -50,9 +62,9 @@ int execute(const po::variables_map &vm,
   std::string dst_pool_name = pool_name;
   std::string dst_namespace_name = namespace_name;
   r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_DEST, &arg_index, &dst_pool_name,
-    &dst_namespace_name, &dst_image_name, &dst_snap_name, true,
-    utils::SNAPSHOT_PRESENCE_NONE, utils::SPEC_VALIDATION_FULL);
+      vm, at::ARGUMENT_MODIFIER_DEST, &arg_index, &dst_pool_name,
+      &dst_namespace_name, &dst_image_name, &dst_snap_name, true,
+      utils::SNAPSHOT_PRESENCE_NONE, utils::SPEC_VALIDATION_FULL);
   if (r < 0) {
     return r;
   }
@@ -64,8 +76,8 @@ int execute(const po::variables_map &vm,
     return -EINVAL;
   } else if (namespace_name != dst_namespace_name) {
     std::cerr << "rbd: mv/rename across namespaces not supported" << std::endl
-              << "source namespace: " << namespace_name << " dest namespace: "
-              << dst_namespace_name << std::endl;
+              << "source namespace: " << namespace_name
+              << " dest namespace: " << dst_namespace_name << std::endl;
     return -EINVAL;
   }
 
@@ -86,8 +98,12 @@ int execute(const po::variables_map &vm,
 }
 
 Shell::Action action(
-  {"rename"}, {"mv"}, "Rename an image within its pool or namespace.", "",
-  &get_arguments, &execute);
+    {"rename"},
+    {"mv"},
+    "Rename an image within its pool or namespace.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace rename
 } // namespace action

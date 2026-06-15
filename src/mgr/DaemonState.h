@@ -17,30 +17,28 @@
 
 #include <cstdint>
 #include <map>
-#include <string>
 #include <memory>
-#include <shared_mutex> // for std::shared_lock
 #include <set>
+#include <shared_mutex> // for std::shared_lock
+#include <string>
 
-#include "common/ceph_mutex.h"
 #include "common/RefCountedObj.h"
+#include "common/ceph_mutex.h"
 #include "include/utime.h"
-
 #include "msg/msg_types.h"
 
 #include "DaemonKey.h"
 #include "DaemonPerfCounters.h"
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 class DaemonHealthMetric;
 
 // The state that we store about one daemon
-class DaemonState
-{
-  public:
+class DaemonState {
+public:
   ceph::mutex lock = ceph::make_mutex("DaemonState::lock");
 
   DaemonKey key;
@@ -53,10 +51,10 @@ class DaemonState
   std::map<std::string, std::string> metadata;
 
   /// device ids -> devname, derived from metadata[device_ids]
-  std::map<std::string,std::string> devices;
+  std::map<std::string, std::string> devices;
 
   /// device ids -> by-path, derived from metadata[device_ids]
-  std::map<std::string,std::string> devices_bypath;
+  std::map<std::string, std::string> devices_bypath;
 
   // TODO: this can be generalized to other daemons
   std::vector<DaemonHealthMetric> daemon_health_metrics;
@@ -68,43 +66,41 @@ class DaemonState
   utime_t last_service_beacon;
 
   // running config
-  std::map<std::string,std::map<int32_t,std::string>> config;
+  std::map<std::string, std::map<int32_t, std::string>> config;
 
   // mon config values we failed to set
-  std::map<std::string,std::string> ignored_mon_config;
+  std::map<std::string, std::string> ignored_mon_config;
 
   // compiled-in config defaults (rarely used, so we leave them encoded!)
   bufferlist config_defaults_bl;
-  std::map<std::string,std::string> config_defaults;
+  std::map<std::string, std::string> config_defaults;
 
   // The perf counters received in MMgrReport messages
   DaemonPerfCounters perf_counters;
 
-  explicit DaemonState(PerfCounterTypes &types_);
+  explicit DaemonState(PerfCounterTypes& types_);
   ~DaemonState() noexcept;
 
-  void set_metadata(const std::map<std::string,std::string>& m);
-  const std::map<std::string,std::string>& _get_config_defaults();
+  void set_metadata(const std::map<std::string, std::string>& m);
+  const std::map<std::string, std::string>& _get_config_defaults();
 };
 
 typedef std::shared_ptr<DaemonState> DaemonStatePtr;
 typedef std::map<DaemonKey, DaemonStatePtr> DaemonStateCollection;
 
-
-struct DeviceState : public RefCountedObject
-{
+struct DeviceState : public RefCountedObject {
   std::string devid;
   /// (server,devname,path)
-  std::set<std::tuple<std::string,std::string,std::string>> attachments;
+  std::set<std::tuple<std::string, std::string, std::string>> attachments;
   std::set<DaemonKey> daemons;
 
-  std::map<std::string,std::string> metadata;  ///< persistent metadata
+  std::map<std::string, std::string> metadata; ///< persistent metadata
 
-  std::pair<utime_t,utime_t> life_expectancy;  ///< when device failure is expected
-  utime_t life_expectancy_stamp;          ///< when life expectency was recorded
-  float wear_level = -1;                  ///< SSD wear level (negative if unknown)
+  std::pair<utime_t, utime_t> life_expectancy; ///< when device failure is expected
+  utime_t life_expectancy_stamp; ///< when life expectency was recorded
+  float wear_level = -1; ///< SSD wear level (negative if unknown)
 
-  void set_metadata(std::map<std::string,std::string>&& m);
+  void set_metadata(std::map<std::string, std::string>&& m);
 
   void set_life_expectancy(utime_t from, utime_t to, utime_t now);
   void rm_life_expectancy();
@@ -114,16 +110,21 @@ struct DeviceState : public RefCountedObject
   std::string get_life_expectancy_str(utime_t now) const;
 
   /// true of we can be safely forgotten/removed from memory
-  bool empty() const {
+  bool
+  empty() const
+  {
     return daemons.empty() && metadata.empty();
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   void print(std::ostream& out) const;
 
 private:
   FRIEND_MAKE_REF(DeviceState);
-  DeviceState(const std::string& n) : devid(n) {}
+
+  DeviceState(const std::string& n) :
+    devid(n)
+  {}
 };
 
 /**
@@ -131,21 +132,22 @@ private:
  * a view that can be queried by service type, ID or also
  * by server (aka fqdn).
  */
-class DaemonStateIndex
-{
+class DaemonStateIndex {
 private:
   mutable ceph::shared_mutex lock =
-    ceph::make_shared_mutex("DaemonStateIndex", true, true, true);
+      ceph::make_shared_mutex("DaemonStateIndex", true, true, true);
 
   std::map<std::string, DaemonStateCollection> by_server;
   DaemonStateCollection all;
   std::set<DaemonKey> updating;
 
-  std::map<std::string,ceph::ref_t<DeviceState>> devices;
+  std::map<std::string, ceph::ref_t<DeviceState>> devices;
 
   void _erase(const DaemonKey& dmk);
 
-  ceph::ref_t<DeviceState> _get_or_create_device(const std::string& dev) {
+  ceph::ref_t<DeviceState>
+  _get_or_create_device(const std::string& dev)
+  {
     auto em = devices.try_emplace(dev, nullptr);
     auto& d = em.first->second;
     if (em.second) {
@@ -153,7 +155,10 @@ private:
     }
     return d;
   }
-  void _erase_device(const ceph::ref_t<DeviceState>& d) {
+
+  void
+  _erase_device(const ceph::ref_t<DeviceState>& d)
+  {
     devices.erase(d->devid);
   }
 
@@ -167,32 +172,41 @@ public:
 
   void insert(DaemonStatePtr dm);
   void _insert(DaemonStatePtr dm);
-  bool exists(const DaemonKey &key) const;
-  DaemonStatePtr get(const DaemonKey &key);
-  void rm(const DaemonKey &key);
-  void _rm(const DaemonKey &key);
+  bool exists(const DaemonKey& key) const;
+  DaemonStatePtr get(const DaemonKey& key);
+  void rm(const DaemonKey& key);
+  void _rm(const DaemonKey& key);
 
   // Note that these return by value rather than reference to avoid
   // callers needing to stay in lock while using result.  Callers must
   // still take the individual DaemonState::lock on each entry though.
-  DaemonStateCollection get_by_server(const std::string &hostname) const;
-  DaemonStateCollection get_by_service(const std::string &svc_name) const;
-  DaemonStateCollection get_all() const {return all;}
+  DaemonStateCollection get_by_server(const std::string& hostname) const;
+  DaemonStateCollection get_by_service(const std::string& svc_name) const;
 
-  template<typename Callback, typename...Args>
-  auto with_daemons_by_server(Callback&& cb, Args&&... args) const ->
-    decltype(cb(by_server, std::forward<Args>(args)...)) {
+  DaemonStateCollection
+  get_all() const
+  {
+    return all;
+  }
+
+  template <typename Callback, typename... Args>
+  auto
+  with_daemons_by_server(Callback&& cb, Args&&... args) const
+      -> decltype(cb(by_server, std::forward<Args>(args)...))
+  {
     const decltype(by_server) by_server_copy = [&] {
       // Don't hold the lock any longer than necessary
       std::shared_lock l{lock};
       return by_server;
     }();
-    return std::forward<Callback>(cb)(by_server_copy, std::forward<Args>(args)...);
+    return std::forward<Callback>(cb)(
+        by_server_copy, std::forward<Args>(args)...);
   }
 
-  template<typename Callback, typename...Args>
-  bool with_device(const std::string& dev,
-		   Callback&& cb, Args&&... args) const {
+  template <typename Callback, typename... Args>
+  bool
+  with_device(const std::string& dev, Callback&& cb, Args&&... args) const
+  {
     std::shared_lock l{lock};
     auto p = devices.find(dev);
     if (p == devices.end()) {
@@ -202,9 +216,10 @@ public:
     return true;
   }
 
-  template<typename Callback, typename...Args>
-  bool with_device_write(const std::string& dev,
-			 Callback&& cb, Args&&... args) {
+  template <typename Callback, typename... Args>
+  bool
+  with_device_write(const std::string& dev, Callback&& cb, Args&&... args)
+  {
     std::unique_lock l{lock};
     auto p = devices.find(dev);
     if (p == devices.end()) {
@@ -217,26 +232,32 @@ public:
     return true;
   }
 
-  template<typename Callback, typename...Args>
-  void with_device_create(const std::string& dev,
-			  Callback&& cb, Args&&... args) {
+  template <typename Callback, typename... Args>
+  void
+  with_device_create(const std::string& dev, Callback&& cb, Args&&... args)
+  {
     std::unique_lock l{lock};
     auto d = _get_or_create_device(dev);
     std::forward<Callback>(cb)(*d, std::forward<Args>(args)...);
   }
 
-  template<typename Callback, typename...Args>
-  void with_devices(Callback&& cb, Args&&... args) const {
+  template <typename Callback, typename... Args>
+  void
+  with_devices(Callback&& cb, Args&&... args) const
+  {
     std::shared_lock l{lock};
     for (auto& i : devices) {
       std::forward<Callback>(cb)(*i.second, std::forward<Args>(args)...);
     }
   }
 
-  template<typename CallbackInitial, typename Callback, typename...Args>
-  void with_devices2(CallbackInitial&& cbi,  // with lock taken
-		     Callback&& cb,          // for each device
-		     Args&&... args) const {
+  template <typename CallbackInitial, typename Callback, typename... Args>
+  void
+  with_devices2(
+      CallbackInitial&& cbi, // with lock taken
+      Callback&& cb, // for each device
+      Args&&... args) const
+  {
     std::shared_lock l{lock};
     cbi();
     for (auto& i : devices) {
@@ -244,32 +265,44 @@ public:
     }
   }
 
-  void list_devids_by_server(const std::string& server,
-			     std::set<std::string> *ls) {
+  void
+  list_devids_by_server(const std::string& server, std::set<std::string>* ls)
+  {
     auto m = get_by_server(server);
     for (auto& i : m) {
       std::lock_guard l(i.second->lock);
       for (auto& j : i.second->devices) {
-	ls->insert(j.first);
+        ls->insert(j.first);
       }
     }
   }
 
-  void notify_updating(const DaemonKey &k) {
+  void
+  notify_updating(const DaemonKey& k)
+  {
     std::unique_lock l{lock};
     updating.insert(k);
   }
-  void clear_updating(const DaemonKey &k) {
+
+  void
+  clear_updating(const DaemonKey& k)
+  {
     std::unique_lock l{lock};
     updating.erase(k);
   }
-  bool is_updating(const DaemonKey &k) {
+
+  bool
+  is_updating(const DaemonKey& k)
+  {
     std::shared_lock l{lock};
     return updating.count(k) > 0;
   }
 
-  void update_metadata(DaemonStatePtr state,
-		       const std::map<std::string,std::string>& meta) {
+  void
+  update_metadata(
+      DaemonStatePtr state,
+      const std::map<std::string, std::string>& meta)
+  {
     // remove and re-insert in case the device metadata changed
     std::unique_lock l{lock};
     _rm(state->key);
@@ -286,10 +319,10 @@ public:
    * a cluster map and want to ensure that anything absent in the map
    * is also absent in this class.
    */
-  void cull(const std::string& svc_name,
-	    const std::set<std::string>& names_exist);
+  void cull(
+      const std::string& svc_name,
+      const std::set<std::string>& names_exist);
   void cull_services(const std::set<std::string>& types_exist);
 };
 
 #endif
-

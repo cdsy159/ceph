@@ -1,20 +1,23 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "tools/rbd/MirrorDaemonServiceInfo.h"
+
+#include <iostream>
+
+#include <boost/scope_exit.hpp>
+
 #include "common/ceph_json.h"
 #include "common/errno.h"
 #include "include/rados/librados.hpp"
 #include "include/stringify.h"
-#include "tools/rbd/MirrorDaemonServiceInfo.h"
-
-#include <boost/scope_exit.hpp>
-#include <iostream>
-
 #include "json_spirit/json_spirit.h"
 
 namespace rbd {
 
-std::ostream& operator<<(std::ostream& os, MirrorHealth mirror_health) {
+std::ostream&
+operator<<(std::ostream& os, MirrorHealth mirror_health)
+{
   switch (mirror_health) {
   case MIRROR_HEALTH_OK:
     os << "OK";
@@ -32,17 +35,20 @@ std::ostream& operator<<(std::ostream& os, MirrorHealth mirror_health) {
   return os;
 }
 
-std::string MirrorService::get_image_description() const {
-  std::string description = (!client_id.empty() ? client_id :
-                                                  stringify(service_id));
+std::string
+MirrorService::get_image_description() const
+{
+  std::string description =
+      (!client_id.empty() ? client_id : stringify(service_id));
   if (!hostname.empty()) {
     description += " on " + hostname;
   }
   return description;
 }
 
-void MirrorService::dump_image(
-    argument_types::Format::Formatter formatter) const {
+void
+MirrorService::dump_image(argument_types::Format::Formatter formatter) const
+{
   formatter->open_object_section("daemon_service");
   formatter->dump_string("service_id", service_id);
   formatter->dump_string("instance_id", instance_id);
@@ -51,7 +57,9 @@ void MirrorService::dump_image(
   formatter->close_section();
 }
 
-int MirrorDaemonServiceInfo::init() {
+int
+MirrorDaemonServiceInfo::init()
+{
   int r = get_mirror_service_dump();
   if (r < 0) {
     return r;
@@ -67,8 +75,9 @@ int MirrorDaemonServiceInfo::init() {
   return 0;
 }
 
-const MirrorService* MirrorDaemonServiceInfo::get_by_service_id(
-    const std::string& service_id) const {
+const MirrorService*
+MirrorDaemonServiceInfo::get_by_service_id(const std::string& service_id) const
+{
   auto it = m_mirror_services.find(service_id);
   if (it == m_mirror_services.end()) {
     return nullptr;
@@ -77,8 +86,9 @@ const MirrorService* MirrorDaemonServiceInfo::get_by_service_id(
   return &it->second;
 }
 
-const MirrorService* MirrorDaemonServiceInfo::get_by_instance_id(
-    const std::string& instance_id) const {
+const MirrorService*
+MirrorDaemonServiceInfo::get_by_instance_id(const std::string& instance_id) const
+{
   auto it = m_instance_to_service_ids.find(instance_id);
   if (it == m_instance_to_service_ids.end()) {
     return nullptr;
@@ -87,7 +97,9 @@ const MirrorService* MirrorDaemonServiceInfo::get_by_instance_id(
   return get_by_service_id(it->second);
 }
 
-MirrorServices MirrorDaemonServiceInfo::get_mirror_services() const {
+MirrorServices
+MirrorDaemonServiceInfo::get_mirror_services() const
+{
   MirrorServices mirror_services;
   for (auto& it : m_mirror_services) {
     mirror_services.push_back(it.second);
@@ -95,7 +107,9 @@ MirrorServices MirrorDaemonServiceInfo::get_mirror_services() const {
   return mirror_services;
 }
 
-int MirrorDaemonServiceInfo::get_mirror_service_dump() {
+int
+MirrorDaemonServiceInfo::get_mirror_service_dump()
+{
   librados::Rados rados(m_io_ctx);
   std::string cmd = R"({"prefix": "service dump", "format": "json"})";
   bufferlist out_bl;
@@ -108,7 +122,7 @@ int MirrorDaemonServiceInfo::get_mirror_service_dump() {
   }
 
   json_spirit::mValue json_root;
-  if(!json_spirit::read(out_bl.to_str(), json_root)) {
+  if (!json_spirit::read(out_bl.to_str(), json_root)) {
     std::cerr << "rbd: invalid service dump JSON received" << std::endl;
     return -EBADMSG;
   }
@@ -132,8 +146,8 @@ int MirrorDaemonServiceInfo::get_mirror_service_dump() {
     }
 
     for (auto& daemon_pair : daemons.get_obj()) {
-        // rbd-mirror instances will always be integers but other objects
-        // are included
+      // rbd-mirror instances will always be integers but other objects
+      // are included
       auto& service_id = daemon_pair.first;
       if (daemon_pair.second.type() != json_spirit::obj_type) {
         continue;
@@ -174,7 +188,9 @@ int MirrorDaemonServiceInfo::get_mirror_service_dump() {
   return 0;
 }
 
-int MirrorDaemonServiceInfo::get_mirror_service_status() {
+int
+MirrorDaemonServiceInfo::get_mirror_service_status()
+{
   librados::Rados rados(m_io_ctx);
   std::string cmd = R"({"prefix": "service status", "format": "json"})";
   bufferlist out_bl;
@@ -186,7 +202,7 @@ int MirrorDaemonServiceInfo::get_mirror_service_status() {
     return r;
   }
   json_spirit::mValue json_root;
-  if(!json_spirit::read(out_bl.to_str(), json_root)) {
+  if (!json_spirit::read(out_bl.to_str(), json_root)) {
     std::cerr << "rbd: invalid service status JSON received" << std::endl;
     return -EBADMSG;
   }
@@ -224,7 +240,7 @@ int MirrorDaemonServiceInfo::get_mirror_service_status() {
       }
 
       json_spirit::mValue json_status;
-      if(!json_spirit::read(json.get_str(), json_status)) {
+      if (!json_spirit::read(json.get_str(), json_status)) {
         std::cerr << "rbd: invalid service status daemon status JSON received"
                   << std::endl;
         return -EBADMSG;
@@ -266,8 +282,9 @@ int MirrorDaemonServiceInfo::get_mirror_service_status() {
           if (mirror_service_health < MIRROR_HEALTH_ERROR &&
               level_str == "error") {
             mirror_service_health = MIRROR_HEALTH_ERROR;
-          } else if (mirror_service_health < MIRROR_HEALTH_WARNING &&
-                     level_str == "warning") {
+          } else if (
+              mirror_service_health < MIRROR_HEALTH_WARNING &&
+              level_str == "warning") {
             mirror_service_health = MIRROR_HEALTH_WARNING;
           }
 
@@ -302,4 +319,3 @@ int MirrorDaemonServiceInfo::get_mirror_service_status() {
 }
 
 } // namespace rbd
-

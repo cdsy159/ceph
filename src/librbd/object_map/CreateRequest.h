@@ -4,9 +4,10 @@
 #ifndef CEPH_LIBRBD_OBJECT_MAP_CREATE_REQUEST_H
 #define CEPH_LIBRBD_OBJECT_MAP_CREATE_REQUEST_H
 
-#include "include/buffer.h"
 #include <map>
 #include <string>
+
+#include "include/buffer.h"
 
 class Context;
 
@@ -19,7 +20,9 @@ namespace object_map {
 template <typename ImageCtxT = ImageCtx>
 class CreateRequest {
 public:
-  static CreateRequest *create(ImageCtxT *image_ctx, Context *on_finish) {
+  static CreateRequest*
+  create(ImageCtxT* image_ctx, Context* on_finish)
+  {
     return new CreateRequest(image_ctx, on_finish);
   }
 
@@ -40,15 +43,15 @@ private:
    * @endverbatim
    */
 
-  CreateRequest(ImageCtxT *image_ctx, Context *on_finish);
+  CreateRequest(ImageCtxT* image_ctx, Context* on_finish);
 
-  ImageCtxT *m_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT* m_image_ctx;
+  Context* m_on_finish;
 
   std::vector<uint64_t> m_snap_ids;
 
   void send_object_map_resize();
-  Context *handle_object_map_resize(int *result);
+  Context* handle_object_map_resize(int* result);
 };
 
 } // namespace object_map

@@ -114,9 +114,10 @@ ScrubQueue interfaces (main functions):
 
 #include "common/AsyncReserver.h"
 #include "common/not_before_queue.h"
-#include "utime.h"
-#include "osd/scrubber/scrub_job.h"
 #include "osd/PG.h"
+#include "osd/scrubber/scrub_job.h"
+
+#include "utime.h"
 
 namespace Scrub {
 
@@ -124,8 +125,8 @@ using namespace ::std::literals;
 
 // the OSD services provided to the scrub scheduler
 class ScrubSchedListener {
- public:
-  virtual int get_nodeid() const = 0;  // returns the OSD number ('whoami')
+public:
+  virtual int get_nodeid() const = 0; // returns the OSD number ('whoami')
 
   /**
    * locks the named PG, returning an RAII wrapper that unlocks upon
@@ -143,8 +144,7 @@ class ScrubSchedListener {
   virtual ~ScrubSchedListener() {}
 };
 
-}  // namespace Scrub
-
+} // namespace Scrub
 
 /**
  * the queue of PGs waiting to be scrubbed.
@@ -152,7 +152,7 @@ class ScrubSchedListener {
  * time.
  */
 class ScrubQueue {
- public:
+public:
   ScrubQueue(CephContext* cct, Scrub::ScrubSchedListener& osds);
   virtual ~ScrubQueue() = default;
 
@@ -197,7 +197,7 @@ class ScrubQueue {
 
   std::ostream& gen_prefix(std::ostream& out, std::string_view fn) const;
 
- public:
+public:
   void dump_scrubs(ceph::Formatter& f) const;
 
   void for_each_job(
@@ -216,18 +216,26 @@ class ScrubQueue {
    * nullopt is returned if no such entry exists.
    */
   std::optional<Scrub::SchedEntry> pop_ready_entry(
-    EligibilityPred eligibility_pred,
-    Scrub::OSDRestrictions restrictions,
-    utime_t time_now);
+      EligibilityPred eligibility_pred,
+      Scrub::OSDRestrictions restrictions,
+      utime_t time_now);
 
- private:
+private:
   CephContext* cct;
   Scrub::ScrubSchedListener& osd_service;
 
 #ifdef WITH_CRIMSON
-  auto& conf() const { return local_conf(); }
+  auto&
+  conf() const
+  {
+    return local_conf();
+  }
 #else
-  auto& conf() const { return cct->_conf; }
+  auto&
+  conf() const
+  {
+    return cct->_conf;
+  }
 #endif
 
   /**
@@ -261,5 +269,9 @@ protected: // used by the unit-tests
   /**
    * unit-tests will override this function to return a mock time
    */
-  virtual utime_t time_now() const { return ceph_clock_now(); }
+  virtual utime_t
+  time_now() const
+  {
+    return ceph_clock_now();
+  }
 };

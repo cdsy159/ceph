@@ -3,22 +3,24 @@
 
 #include "include/lru.h"
 #include "include/xlist.h"
-
 #include "mds/mdstypes.h"
+
+#include "Dir.h"
 #include "Inode.h"
 #include "InodeRef.h"
-#include "Dir.h"
 
 class Dentry : public LRUObject {
 public:
-  explicit Dentry(Dir *_dir, const std::string &_name) :
+  explicit Dentry(Dir* _dir, const std::string& _name) :
     dir(_dir), name(_name), inode_xlist_link(this)
   {
     auto r = dir->dentries.insert(make_pair(name, this));
     ceph_assert(r.second);
     dir->num_null_dentries++;
   }
-  ~Dentry() {
+
+  ~Dentry()
+  {
     ceph_assert(ref == 0);
     ceph_assert(dir == nullptr);
   }
@@ -27,13 +29,18 @@ public:
    * ref==1 -> cached, unused
    * ref >1 -> pinned in lru
    */
-  void get() {
+  void
+  get()
+  {
     ceph_assert(ref > 0);
     if (++ref == 2)
       lru_pin();
     //cout << "dentry.get on " << this << " " << name << " now " << ref << std::endl;
   }
-  void put() {
+
+  void
+  put()
+  {
     ceph_assert(ref > 0);
     if (--ref == 1)
       lru_unpin();
@@ -41,7 +48,10 @@ public:
     if (ref == 0)
       delete this;
   }
-  void link(InodeRef in) {
+
+  void
+  link(InodeRef in)
+  {
     inode = in;
     inode->dentries.push_back(&inode_xlist_link);
     if (inode->is_dir()) {
@@ -52,7 +62,10 @@ public:
     }
     dir->num_null_dentries--;
   }
-  void unlink(void) {
+
+  void
+  unlink(void)
+  {
     if (inode->is_dir()) {
       if (inode->dir)
         put(); // dir -> dn pin
@@ -64,11 +77,17 @@ public:
     inode.reset();
     dir->num_null_dentries++;
   }
-  void mark_primary() {
+
+  void
+  mark_primary()
+  {
     if (inode && inode->dentries.front() != this)
       inode->dentries.push_front(&inode_xlist_link);
   }
-  void detach(void) {
+
+  void
+  detach(void)
+  {
     ceph_assert(!inode);
     auto p = dir->dentries.find(name);
     ceph_assert(p != dir->dentries.end());
@@ -77,7 +96,8 @@ public:
     dir = nullptr;
   }
 
-  bool make_path_string(std::string& s)
+  bool
+  make_path_string(std::string& s)
   {
     bool ret = false;
 
@@ -93,13 +113,13 @@ public:
     return ret;
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   void print(std::ostream&) const;
 
-  Dir	   *dir;
+  Dir* dir;
   const std::string name;
   InodeRef inode;
-  int	   ref = 1; // 1 if there's a dir beneath me.
+  int ref = 1; // 1 if there's a dir beneath me.
   int64_t offset = 0;
   mds_rank_t lease_mds = -1;
   utime_t lease_ttl;
@@ -110,7 +130,7 @@ public:
   bool is_renaming = false;
 
 private:
-  xlist<Dentry *>::item inode_xlist_link;
+  xlist<Dentry*>::item inode_xlist_link;
 };
 
 #endif

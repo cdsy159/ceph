@@ -15,9 +15,10 @@
 
 #pragma once
 
-#include <queue>
 #include <seastar/core/future.hh>
 #include <seastar/core/shared_ptr.hh>
+
+#include <queue>
 
 #include "Fwd.h"
 
@@ -34,7 +35,7 @@ using seq_num_t = uint64_t;
  * the connection originates.
  */
 class Connection : public seastar::enable_shared_from_this<Connection> {
- public:
+public:
   using clock_t = seastar::lowres_system_clock;
 
   Connection() {}
@@ -50,27 +51,65 @@ class Connection : public seastar::enable_shared_from_this<Connection> {
    */
   virtual const seastar::shard_id get_shard_id() const = 0;
 
-  virtual const entity_name_t &get_peer_name() const = 0;
+  virtual const entity_name_t& get_peer_name() const = 0;
 
-  entity_type_t get_peer_type() const { return get_peer_name().type(); }
-  int64_t get_peer_id() const { return get_peer_name().num(); }
-  bool peer_is_mon() const { return get_peer_name().is_mon(); }
-  bool peer_is_mgr() const { return get_peer_name().is_mgr(); }
-  bool peer_is_mds() const { return get_peer_name().is_mds(); }
-  bool peer_is_osd() const { return get_peer_name().is_osd(); }
-  bool peer_is_client() const { return get_peer_name().is_client(); }
+  entity_type_t
+  get_peer_type() const
+  {
+    return get_peer_name().type();
+  }
 
-  virtual const entity_addr_t &get_peer_addr() const = 0;
+  int64_t
+  get_peer_id() const
+  {
+    return get_peer_name().num();
+  }
 
-  const entity_addrvec_t get_peer_addrs() const {
+  bool
+  peer_is_mon() const
+  {
+    return get_peer_name().is_mon();
+  }
+
+  bool
+  peer_is_mgr() const
+  {
+    return get_peer_name().is_mgr();
+  }
+
+  bool
+  peer_is_mds() const
+  {
+    return get_peer_name().is_mds();
+  }
+
+  bool
+  peer_is_osd() const
+  {
+    return get_peer_name().is_osd();
+  }
+
+  bool
+  peer_is_client() const
+  {
+    return get_peer_name().is_client();
+  }
+
+  virtual const entity_addr_t& get_peer_addr() const = 0;
+
+  const entity_addrvec_t
+  get_peer_addrs() const
+  {
     return entity_addrvec_t(get_peer_addr());
   }
 
-  virtual const entity_addr_t &get_peer_socket_addr() const = 0;
+  virtual const entity_addr_t& get_peer_socket_addr() const = 0;
 
   virtual uint64_t get_features() const = 0;
 
-  bool has_feature(uint64_t f) const {
+  bool
+  has_feature(uint64_t f) const
+  {
     return get_features() & f;
   }
 
@@ -88,8 +127,7 @@ class Connection : public seastar::enable_shared_from_this<Connection> {
    * The returned future will be resolved only after the message is enqueued
    * remotely.
    */
-  virtual seastar::future<> send(
-      MessageURef msg) = 0;
+  virtual seastar::future<> send(MessageURef msg) = 0;
 
   /**
    * send_with_throttling
@@ -106,8 +144,9 @@ class Connection : public seastar::enable_shared_from_this<Connection> {
    * Gating is needed for graceful shutdown, to wait until the message is
    * enqueued remotely.
    */
-  seastar::future<> send_with_throttling(
-      MessageURef msg /* , seastar::gate & */) {
+  seastar::future<>
+  send_with_throttling(MessageURef msg /* , seastar::gate & */)
+  {
     std::ignore = send(std::move(msg));
     return seastar::now();
   }
@@ -140,7 +179,7 @@ class Connection : public seastar::enable_shared_from_this<Connection> {
 
   virtual bool has_user_private() const = 0;
 
-  virtual user_private_t &get_user_private() = 0;
+  virtual user_private_t& get_user_private() = 0;
 
   virtual void set_user_private(std::unique_ptr<user_private_t>) = 0;
 
@@ -159,7 +198,9 @@ class Connection : public seastar::enable_shared_from_this<Connection> {
 #endif
 };
 
-inline std::ostream& operator<<(std::ostream& out, const Connection& conn) {
+inline std::ostream&
+operator<<(std::ostream& out, const Connection& conn)
+{
   out << "[";
   conn.print(out);
   out << "]";
@@ -169,5 +210,6 @@ inline std::ostream& operator<<(std::ostream& out, const Connection& conn) {
 } // namespace crimson::net
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::net::Connection> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::net::Connection> : fmt::ostream_formatter {};
 #endif

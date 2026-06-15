@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,11 +17,11 @@
 #ifndef CEPH_CONTEXT_H
 #define CEPH_CONTEXT_H
 
-#include "common/dout.h"
-
 #include <functional>
 #include <list>
 #include <memory>
+
+#include "common/dout.h"
 
 #ifdef DEBUG_GATHER
 #include <set>
@@ -30,10 +30,9 @@
 #include <boost/function.hpp>
 #include <boost/system/error_code.hpp>
 
-#include "common/error_code.h"
-
-#include "include/ceph_assert.h"
 #include "common/ceph_mutex.h"
+#include "common/error_code.h"
+#include "include/ceph_assert.h"
 
 #ifdef DEBUG_GATHER
 #include "include/types.h" // for operator<<(std::set)
@@ -49,83 +48,110 @@ class GenContext {
   GenContext(const GenContext& other);
   const GenContext& operator=(const GenContext& other);
 
- protected:
+protected:
   virtual void finish(T t) = 0;
 
- public:
+public:
   GenContext() {}
-  virtual ~GenContext() {}       // we want a virtual destructor!!!
+
+  virtual ~GenContext() {} // we want a virtual destructor!!!
 
   template <typename C>
-  void complete(C &&t) {
+  void
+  complete(C&& t)
+  {
     finish(std::forward<C>(t));
     delete this;
   }
 
   template <typename C>
-  void operator()(C &&t) noexcept {
+  void
+  operator()(C&& t) noexcept
+  {
     complete(std::forward<C>(t));
   }
 
-  template<typename U = T>
-  auto operator()() noexcept
-    -> typename std::enable_if<std::is_default_constructible<U>::value,
-			       void>::type {
+  template <typename U = T>
+  auto
+  operator()() noexcept ->
+      typename std::enable_if<std::is_default_constructible<U>::value, void>::type
+  {
     complete(T{});
   }
 
-
-  std::reference_wrapper<GenContext> func() {
+  std::reference_wrapper<GenContext>
+  func()
+  {
     return std::ref(*this);
   }
 };
 
 template <typename T>
-using GenContextURef = std::unique_ptr<GenContext<T> >;
+using GenContextURef = std::unique_ptr<GenContext<T>>;
 
 /*
  * Context - abstract callback class
  */
 class Finisher;
+
 class Context {
   Context(const Context& other);
   const Context& operator=(const Context& other);
 
- protected:
+protected:
   virtual void finish(int r) = 0;
 
   // variant of finish that is safe to call "synchronously."  override should
   // return true.
-  virtual bool sync_finish(int r) {
+  virtual bool
+  sync_finish(int r)
+  {
     return false;
   }
 
- public:
+public:
   Context() {}
-  virtual ~Context() {}       // we want a virtual destructor!!!
-  virtual void complete(int r) {
+
+  virtual ~Context() {} // we want a virtual destructor!!!
+
+  virtual void
+  complete(int r)
+  {
     finish(r);
     delete this;
   }
-  virtual bool sync_complete(int r) {
+
+  virtual bool
+  sync_complete(int r)
+  {
     if (sync_finish(r)) {
       delete this;
       return true;
     }
     return false;
   }
-  void complete(boost::system::error_code ec) {
+
+  void
+  complete(boost::system::error_code ec)
+  {
     complete(ceph::from_error_code(ec));
   }
-  void operator()(boost::system::error_code ec) noexcept {
+
+  void
+  operator()(boost::system::error_code ec) noexcept
+  {
     complete(ec);
   }
 
-  void operator()() noexcept {
+  void
+  operator()() noexcept
+  {
     complete({});
   }
 
-  std::reference_wrapper<Context> func() {
+  std::reference_wrapper<Context>
+  func()
+  {
     return std::ref(*this);
   }
 };
@@ -133,75 +159,115 @@ class Context {
 /**
  * Simple context holding a single object
  */
-template<class T>
+template <class T>
 class ContainerContext : public Context {
   T obj;
+
 public:
-  ContainerContext(T &obj) : obj(obj) {}
-  void finish(int r) override {}
+  ContainerContext(T& obj) :
+    obj(obj)
+  {}
+
+  void
+  finish(int r) override
+  {}
 };
+
 template <typename T>
-ContainerContext<T> *make_container_context(T &&t) {
+ContainerContext<T>*
+make_container_context(T&& t)
+{
   return new ContainerContext<T>(std::forward<T>(t));
 }
 
 template <class T>
 struct Wrapper : public Context {
-  Context *to_run;
+  Context* to_run;
   T val;
-  Wrapper(Context *to_run, T val) : to_run(to_run), val(val) {}
-  void finish(int r) override {
+
+  Wrapper(Context* to_run, T val) :
+    to_run(to_run), val(val)
+  {}
+
+  void
+  finish(int r) override
+  {
     if (to_run)
       to_run->complete(r);
   }
 };
+
 struct RunOnDelete {
-  Context *to_run;
-  RunOnDelete(Context *to_run) : to_run(to_run) {}
-  ~RunOnDelete() {
+  Context* to_run;
+
+  RunOnDelete(Context* to_run) :
+    to_run(to_run)
+  {}
+
+  ~RunOnDelete()
+  {
     if (to_run)
       to_run->complete(0);
   }
 };
+
 typedef std::shared_ptr<RunOnDelete> RunOnDeleteRef;
 
 template <typename T>
 class LambdaContext : public Context {
 public:
-  LambdaContext(T &&t) : t(std::forward<T>(t)) {}
-  void finish(int r) override {
+  LambdaContext(T&& t) :
+    t(std::forward<T>(t))
+  {}
+
+  void
+  finish(int r) override
+  {
     if constexpr (std::is_invocable_v<T, int>)
       t(r);
     else
       t();
   }
+
 private:
   T t;
 };
 
 template <typename T>
-LambdaContext<T> *make_lambda_context(T &&t) {
+LambdaContext<T>*
+make_lambda_context(T&& t)
+{
   return new LambdaContext<T>(std::move(t));
 }
 
 template <typename F, typename T>
 struct LambdaGenContext : GenContext<T> {
   F f;
-  LambdaGenContext(F &&f) : f(std::forward<F>(f)) {}
-  void finish(T t) override {
+
+  LambdaGenContext(F&& f) :
+    f(std::forward<F>(f))
+  {}
+
+  void
+  finish(T t) override
+  {
     f(std::forward<T>(t));
   }
 };
+
 template <typename T, typename F>
-GenContextURef<T> make_gen_lambda_context(F &&f) {
+GenContextURef<T>
+make_gen_lambda_context(F&& f)
+{
   return GenContextURef<T>(new LambdaGenContext<F, T>(std::move(f)));
 }
 
 /*
  * finish and destroy a list of Contexts
  */
-template<class C>
-inline void finish_contexts(CephContext *cct, C& finished, int result = 0)
+template <class C>
+inline void
+finish_contexts(CephContext* cct, C& finished, int result = 0)
 {
   if (finished.empty())
     return;
@@ -210,28 +276,35 @@ inline void finish_contexts(CephContext *cct, C& finished, int result = 0)
   ls.swap(finished); // swap out of place to avoid weird loops
 
   if (cct)
-    mydout(cct,10) << ls.size() << " contexts to finish with " << result << dendl;
+    mydout(cct, 10) << ls.size() << " contexts to finish with " << result
+                    << dendl;
   for (Context* c : ls) {
     if (cct)
-      mydout(cct,10) << "---- " << c << dendl;
+      mydout(cct, 10) << "---- " << c << dendl;
     c->complete(result);
   }
 }
 
 class C_NoopContext : public Context {
 public:
-  void finish(int r) override { }
+  void
+  finish(int r) override
+  {}
 };
 
-
 struct C_Lock : public Context {
-  ceph::mutex *lock;
-  Context *fin;
-  C_Lock(ceph::mutex *l, Context *c) : lock(l), fin(c) {}
-  ~C_Lock() override {
-    delete fin;
-  }
-  void finish(int r) override {
+  ceph::mutex* lock;
+  Context* fin;
+
+  C_Lock(ceph::mutex* l, Context* c) :
+    lock(l), fin(c)
+  {}
+
+  ~C_Lock() override { delete fin; }
+
+  void
+  finish(int r) override
+  {
     if (fin) {
       std::lock_guard l{*lock};
       fin->complete(r);
@@ -246,53 +319,77 @@ struct C_Lock : public Context {
  * ContextType must be an ancestor class of ContextInstanceType, or the same class.
  * ContextInstanceType must be default-constructable.
  */
-template <class ContextType, class ContextInstanceType, class Container = std::list<ContextType *>>
+template <
+    class ContextType,
+    class ContextInstanceType,
+    class Container = std::list<ContextType*>>
 class C_ContextsBase : public ContextInstanceType {
 public:
-  CephContext *cct;
+  CephContext* cct;
   Container contexts;
 
-  C_ContextsBase(CephContext *cct_)
-    : cct(cct_)
+  C_ContextsBase(CephContext* cct_) :
+    cct(cct_)
+  {}
+
+  ~C_ContextsBase() override
   {
-  }
-  ~C_ContextsBase() override {
     for (auto c : contexts) {
       delete c;
     }
   }
-  void add(ContextType* c) {
+
+  void
+  add(ContextType* c)
+  {
     contexts.push_back(c);
   }
-  void take(Container& ls) {
+
+  void
+  take(Container& ls)
+  {
     Container c;
     c.swap(ls);
-    if constexpr (std::is_same_v<Container, std::list<ContextType *>>) {
+    if constexpr (std::is_same_v<Container, std::list<ContextType*>>) {
       contexts.splice(contexts.end(), c);
     } else {
       contexts.insert(contexts.end(), c.begin(), c.end());
     }
   }
-  void complete(int r) override {
+
+  void
+  complete(int r) override
+  {
     // Neuter any ContextInstanceType custom complete(), because although
     // I want to look like it, I don't actually want to run its code.
     Context::complete(r);
   }
-  void finish(int r) override {
+
+  void
+  finish(int r) override
+  {
     finish_contexts(cct, contexts, r);
   }
-  bool empty() { return contexts.empty(); }
 
-  template<class C>
-  static ContextType *list_to_context(C& cs) {
+  bool
+  empty()
+  {
+    return contexts.empty();
+  }
+
+  template <class C>
+  static ContextType*
+  list_to_context(C& cs)
+  {
     if (cs.size() == 0) {
       return 0;
     } else if (cs.size() == 1) {
-      ContextType *c = cs.front();
+      ContextType* c = cs.front();
       cs.clear();
       return c;
     } else {
-      C_ContextsBase<ContextType, ContextInstanceType> *c(new C_ContextsBase<ContextType, ContextInstanceType>(0));
+      C_ContextsBase<ContextType, ContextInstanceType>* c(
+          new C_ContextsBase<ContextType, ContextInstanceType>(0));
       c->take(cs);
       return c;
     }
@@ -312,30 +409,33 @@ typedef C_ContextsBase<Context, Context> C_Contexts;
 template <class ContextType, class ContextInstanceType>
 class C_GatherBase {
 private:
-  CephContext *cct;
+  CephContext* cct;
   int result = 0;
-  ContextType *onfinish;
+  ContextType* onfinish;
 #ifdef DEBUG_GATHER
   std::set<ContextType*> waitfor;
 #endif
   uint64_t sub_created_count = 0;
   uint64_t sub_existing_count = 0;
   mutable ceph::recursive_mutex lock =
-    ceph::make_recursive_mutex("C_GatherBase::lock"); // disable lockdep
+      ceph::make_recursive_mutex("C_GatherBase::lock"); // disable lockdep
   bool activated = false;
 
-  void sub_finish(ContextType* sub, int r) {
+  void
+  sub_finish(ContextType* sub, int r)
+  {
     lock.lock();
 #ifdef DEBUG_GATHER
     ceph_assert(waitfor.count(sub));
     waitfor.erase(sub);
 #endif
     --sub_existing_count;
-    mydout(cct,10) << "C_GatherBase " << this << ".sub_finish(r=" << r << ") " << sub
+    mydout(cct, 10) << "C_GatherBase " << this << ".sub_finish(r=" << r << ") "
+                    << sub
 #ifdef DEBUG_GATHER
-		    << " (remaining " << waitfor << ")"
+                    << " (remaining " << waitfor << ")"
 #endif
-		    << dendl;
+                    << dendl;
     if (r < 0 && result == 0)
       result = r;
     if ((activated == false) || (sub_existing_count != 0)) {
@@ -346,7 +446,9 @@ private:
     delete_me();
   }
 
-  void delete_me() {
+  void
+  delete_me()
+  {
     if (onfinish) {
       onfinish->complete(result);
       onfinish = 0;
@@ -355,41 +457,60 @@ private:
   }
 
   class C_GatherSub : public ContextInstanceType {
-    C_GatherBase *gather;
+    C_GatherBase* gather;
+
   public:
-    C_GatherSub(C_GatherBase *g) : gather(g) {}
-    void complete(int r) override {
+    C_GatherSub(C_GatherBase* g) :
+      gather(g)
+    {}
+
+    void
+    complete(int r) override
+    {
       // Cancel any customized complete() functionality
       // from the Context subclass we're templated for,
       // we only want to hit that in onfinish, not at each
       // sub finish.  e.g. MDSInternalContext.
       Context::complete(r);
     }
-    void finish(int r) override {
+
+    void
+    finish(int r) override
+    {
       gather->sub_finish(this, r);
       gather = 0;
     }
-    ~C_GatherSub() override {
+
+    ~C_GatherSub() override
+    {
       if (gather)
-	gather->sub_finish(this, 0);
+        gather->sub_finish(this, 0);
     }
   };
 
 public:
-  C_GatherBase(CephContext *cct_, ContextType *onfinish_)
-    : cct(cct_), onfinish(onfinish_)
+  C_GatherBase(CephContext* cct_, ContextType* onfinish_) :
+    cct(cct_), onfinish(onfinish_)
   {
-    mydout(cct,10) << "C_GatherBase " << this << ".new" << dendl;
+    mydout(cct, 10) << "C_GatherBase " << this << ".new" << dendl;
   }
-  ~C_GatherBase() {
-    mydout(cct,10) << "C_GatherBase " << this << ".delete" << dendl;
+
+  ~C_GatherBase()
+  {
+    mydout(cct, 10) << "C_GatherBase " << this << ".delete" << dendl;
   }
-  void set_finisher(ContextType *onfinish_) {
+
+  void
+  set_finisher(ContextType* onfinish_)
+  {
     std::lock_guard l{lock};
     ceph_assert(!onfinish);
     onfinish = onfinish_;
   }
-  void activate() {
+
+  void
+  activate()
+  {
     lock.lock();
     ceph_assert(activated == false);
     activated = true;
@@ -400,25 +521,33 @@ public:
     lock.unlock();
     delete_me();
   }
-  ContextType *new_sub() {
+
+  ContextType*
+  new_sub()
+  {
     std::lock_guard l{lock};
     ceph_assert(activated == false);
     sub_created_count++;
     sub_existing_count++;
-    ContextType *s = new C_GatherSub(this);
+    ContextType* s = new C_GatherSub(this);
 #ifdef DEBUG_GATHER
     waitfor.insert(s);
 #endif
-    mydout(cct,10) << "C_GatherBase " << this << ".new_sub is " << sub_created_count << " " << s << dendl;
+    mydout(cct, 10) << "C_GatherBase " << this << ".new_sub is "
+                    << sub_created_count << " " << s << dendl;
     return s;
   }
 
-  inline int get_sub_existing_count() const {
+  inline int
+  get_sub_existing_count() const
+  {
     std::lock_guard l{lock};
     return sub_existing_count;
   }
 
-  inline int get_sub_created_count() const {
+  inline int
+  get_sub_created_count() const
+  {
     std::lock_guard l{lock};
     return sub_created_count;
   }
@@ -457,56 +586,76 @@ public:
  * Note: Currently, subs must be manually freed by the caller (for some reason.)
  */
 template <class ContextType, class GatherType>
-class C_GatherBuilderBase
-{
+class C_GatherBuilderBase {
 public:
-  C_GatherBuilderBase(CephContext *cct_)
-    : cct(cct_), c_gather(NULL), finisher(NULL), activated(false)
+  C_GatherBuilderBase(CephContext* cct_) :
+    cct(cct_), c_gather(NULL), finisher(NULL), activated(false)
+  {}
+
+  C_GatherBuilderBase(CephContext* cct_, ContextType* finisher_) :
+    cct(cct_), c_gather(NULL), finisher(finisher_), activated(false)
+  {}
+
+  ~C_GatherBuilderBase()
   {
-  }
-  C_GatherBuilderBase(CephContext *cct_, ContextType *finisher_)
-    : cct(cct_), c_gather(NULL), finisher(finisher_), activated(false)
-  {
-  }
-  ~C_GatherBuilderBase() {
     if (c_gather) {
       ceph_assert(activated); // Don't forget to activate your C_Gather!
-    }
-    else {
+    } else {
       delete finisher;
     }
   }
-  ContextType *new_sub() {
+
+  ContextType*
+  new_sub()
+  {
     if (!c_gather) {
       c_gather = new GatherType(cct, finisher);
     }
     return c_gather->new_sub();
   }
-  void activate() {
+
+  void
+  activate()
+  {
     if (!c_gather)
       return;
     ceph_assert(finisher != NULL);
     activated = true;
     c_gather->activate();
   }
-  void set_finisher(ContextType *finisher_) {
+
+  void
+  set_finisher(ContextType* finisher_)
+  {
     finisher = finisher_;
     if (c_gather)
       c_gather->set_finisher(finisher);
   }
-  GatherType *get() const {
+
+  GatherType*
+  get() const
+  {
     return c_gather;
   }
-  bool has_subs() const {
+
+  bool
+  has_subs() const
+  {
     return (c_gather != NULL);
   }
-  int num_subs_created() {
+
+  int
+  num_subs_created()
+  {
     ceph_assert(!activated);
     if (c_gather == NULL)
       return 0;
     return c_gather->get_sub_created_count();
   }
-  int num_subs_remaining() {
+
+  int
+  num_subs_remaining()
+  {
     ceph_assert(!activated);
     if (c_gather == NULL)
       return 0;
@@ -514,29 +663,31 @@ public:
   }
 
 private:
-  CephContext *cct;
-  GatherType *c_gather;
-  ContextType *finisher;
+  CephContext* cct;
+  GatherType* c_gather;
+  ContextType* finisher;
   bool activated;
 };
 
 typedef C_GatherBase<Context, Context> C_Gather;
-typedef C_GatherBuilderBase<Context, C_Gather > C_GatherBuilder;
+typedef C_GatherBuilderBase<Context, C_Gather> C_GatherBuilder;
 
 template <class ContextType>
 class ContextFactory {
 public:
   virtual ~ContextFactory() {}
-  virtual ContextType *build() = 0;
+
+  virtual ContextType* build() = 0;
 };
 
-inline auto lambdafy(Context *c) {
-  return [fin = std::unique_ptr<Context>(c)]
-    (boost::system::error_code ec) mutable {
-	   fin.release()->complete(ceph::from_error_code(ec));
-	 };
+inline auto
+lambdafy(Context* c)
+{
+  return
+      [fin = std::unique_ptr<Context>(c)](boost::system::error_code ec) mutable {
+        fin.release()->complete(ceph::from_error_code(ec));
+      };
 }
-
 
 #undef mydout
 

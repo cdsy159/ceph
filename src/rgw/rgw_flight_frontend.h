@@ -11,13 +11,12 @@
 
 #pragma once
 
-#include "include/common_fwd.h"
+#include "arrow/status.h"
 #include "common/Thread.h"
+#include "include/common_fwd.h"
+
 #include "rgw_frontend.h"
 #include "rgw_op.h"
-
-#include "arrow/status.h"
-
 
 namespace rgw::flight {
 
@@ -29,7 +28,7 @@ class FlightServer;
 class FlightFrontend : public RGWFrontend {
 
   static constexpr std::string_view server_thread_name =
-    "Arrow Flight Server thread";
+      "Arrow Flight Server thread";
 
   RGWProcessEnv& env;
   std::thread flight_thread;
@@ -39,11 +38,8 @@ class FlightFrontend : public RGWFrontend {
   const DoutPrefix dp;
 
 public:
-
   // port <= 0 means let server decide; typically 8077
-  FlightFrontend(RGWProcessEnv& env,
-		 RGWFrontendConfig* config,
-		 int port = -1);
+  FlightFrontend(RGWProcessEnv& env, RGWFrontendConfig* config, int port = -1);
   ~FlightFrontend() override;
   int init() override;
   int run() override;
@@ -72,7 +68,6 @@ class FlightGetObj_Filter : public RGWGetObj_Filter {
   // proper flight authentication
 
 public:
-
   FlightGetObj_Filter(const req_state* request, RGWGetObj_Filter* next);
   ~FlightGetObj_Filter();
 

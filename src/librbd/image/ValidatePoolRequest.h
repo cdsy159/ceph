@@ -4,28 +4,32 @@
 #ifndef CEPH_LIBRBD_IMAGE_VALIDATE_POOL_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_VALIDATE_POOL_REQUEST_H
 
+#include "include/buffer.h"
 #include "include/common_fwd.h"
 #include "include/rados/librados.hpp"
-#include "include/buffer.h"
 
 class Context;
 
 namespace librbd {
 
 struct ImageCtx;
-namespace asio { struct ContextWQ; }
+
+namespace asio {
+struct ContextWQ;
+}
 
 namespace image {
 
 template <typename ImageCtxT>
 class ValidatePoolRequest {
 public:
-  static ValidatePoolRequest* create(librados::IoCtx& io_ctx,
-                                     Context *on_finish) {
+  static ValidatePoolRequest*
+  create(librados::IoCtx& io_ctx, Context* on_finish)
+  {
     return new ValidatePoolRequest(io_ctx, on_finish);
   }
 
-  ValidatePoolRequest(librados::IoCtx& io_ctx, Context *on_finish);
+  ValidatePoolRequest(librados::IoCtx& io_ctx, Context* on_finish);
 
   void send();
 
@@ -82,7 +86,6 @@ private:
   void handle_overwrite_rbd_info(int r);
 
   void finish(int r);
-
 };
 
 } // namespace image

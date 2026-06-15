@@ -2,28 +2,31 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/FlattenRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
+#include <boost/lambda/bind.hpp>
+#include <boost/lambda/construct.hpp>
+
+#include "common/dout.h"
+#include "common/errno.h"
 #include "librbd/AsyncObjectThrottle.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/Types.h"
 #include "librbd/crypto/CryptoInterface.h"
 #include "librbd/crypto/EncryptionFormat.h"
 #include "librbd/image/DetachChildRequest.h"
 #include "librbd/image/DetachParentRequest.h"
-#include "librbd/Types.h"
 #include "librbd/io/ObjectRequest.h"
 #include "librbd/io/Utils.h"
-#include "common/dout.h"
-#include "common/errno.h"
 #include "osdc/Striper.h"
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/construct.hpp>
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::operation::FlattenRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                          \
+  *_dout << "librbd::operation::FlattenRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace operation {
@@ -34,16 +37,22 @@ using util::create_rados_callback;
 template <typename I>
 class C_FlattenObject : public C_AsyncObjectThrottle<I> {
 public:
-  C_FlattenObject(AsyncObjectThrottle<I> &throttle, I *image_ctx,
-                  IOContext io_context, uint64_t object_no)
-    : C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_io_context(io_context),
-      m_object_no(object_no) {
-  }
+  C_FlattenObject(
+      AsyncObjectThrottle<I>& throttle,
+      I* image_ctx,
+      IOContext io_context,
+      uint64_t object_no) :
+    C_AsyncObjectThrottle<I>(throttle, *image_ctx),
+    m_io_context(io_context),
+    m_object_no(object_no)
+  {}
 
-  int send() override {
-    I &image_ctx = this->m_image_ctx;
+  int
+  send() override
+  {
+    I& image_ctx = this->m_image_ctx;
     ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
-    CephContext *cct = image_ctx.cct;
+    CephContext* cct = image_ctx.cct;
 
     if (image_ctx.exclusive_lock != nullptr &&
         !image_ctx.exclusive_lock->is_lock_owner()) {
@@ -51,8 +60,7 @@ public:
       return -ERESTART;
     }
 
-    if (!io::util::trigger_copyup(
-            &image_ctx, m_object_no, m_io_context, this)) {
+    if (!io::util::trigger_copyup(&image_ctx, m_object_no, m_io_context, this)) {
       // stop early if the parent went away - it just means
       // another flatten finished first or the image was resized
       return 1;
@@ -67,9 +75,11 @@ private:
 };
 
 template <typename I>
-bool FlattenRequest<I>::should_complete(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+bool
+FlattenRequest<I>::should_complete(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
   if (r < 0) {
     lderr(cct) << "encountered error: " << cpp_strerror(r) << dendl;
@@ -78,37 +88,42 @@ bool FlattenRequest<I>::should_complete(int r) {
 }
 
 template <typename I>
-void FlattenRequest<I>::send_op() {
+void
+FlattenRequest<I>::send_op()
+{
   flatten_objects();
 }
 
 template <typename I>
-void FlattenRequest<I>::flatten_objects() {
-  I &image_ctx = this->m_image_ctx;
+void
+FlattenRequest<I>::flatten_objects()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << dendl;
 
   assert(ceph_mutex_is_locked(image_ctx.owner_lock));
   auto ctx = create_context_callback<
-    FlattenRequest<I>,
-    &FlattenRequest<I>::handle_flatten_objects>(this);
+      FlattenRequest<I>, &FlattenRequest<I>::handle_flatten_objects>(this);
   typename AsyncObjectThrottle<I>::ContextFactory context_factory(
-    boost::lambda::bind(boost::lambda::new_ptr<C_FlattenObject<I> >(),
-      boost::lambda::_1, &image_ctx, image_ctx.get_data_io_context(),
-      boost::lambda::_2));
-  AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
+      boost::lambda::bind(
+          boost::lambda::new_ptr<C_FlattenObject<I>>(), boost::lambda::_1,
+          &image_ctx, image_ctx.get_data_io_context(), boost::lambda::_2));
+  AsyncObjectThrottle<I>* throttle = new AsyncObjectThrottle<I>(
       this, image_ctx, context_factory, ctx, &m_prog_ctx, m_start_object_no,
       m_start_object_no + m_overlap_objects);
-  throttle->start_ops(
-    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
+  throttle->start_ops(image_ctx.config.template get_val<uint64_t>(
+      "rbd_concurrent_management_ops"));
 }
 
 template <typename I>
-void FlattenRequest<I>::handle_flatten_objects(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::handle_flatten_objects(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
 
   if (r == -ERESTART) {
@@ -124,11 +139,12 @@ void FlattenRequest<I>::handle_flatten_objects(int r) {
   crypto_flatten();
 }
 
-
 template <typename I>
-void FlattenRequest<I>::crypto_flatten() {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::crypto_flatten()
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
 
   auto encryption_format = image_ctx.encryption_format.get();
   if (encryption_format == nullptr) {
@@ -139,15 +155,16 @@ void FlattenRequest<I>::crypto_flatten() {
   ldout(cct, 5) << dendl;
 
   auto ctx = create_context_callback<
-          FlattenRequest<I>,
-          &FlattenRequest<I>::handle_crypto_flatten>(this);
+      FlattenRequest<I>, &FlattenRequest<I>::handle_crypto_flatten>(this);
   encryption_format->flatten(&image_ctx, ctx);
 }
 
 template <typename I>
-void FlattenRequest<I>::handle_crypto_flatten(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::handle_crypto_flatten(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -160,14 +177,17 @@ void FlattenRequest<I>::handle_crypto_flatten(int r) {
 }
 
 template <typename I>
-void FlattenRequest<I>::detach_child() {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::detach_child()
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
 
   // should have been canceled prior to releasing lock
   image_ctx.owner_lock.lock_shared();
-  ceph_assert(image_ctx.exclusive_lock == nullptr ||
-              image_ctx.exclusive_lock->is_lock_owner());
+  ceph_assert(
+      image_ctx.exclusive_lock == nullptr ||
+      image_ctx.exclusive_lock->is_lock_owner());
 
   // if there are no snaps, remove from the children object as well
   // (if snapshots remain, they have their own parent info, and the child
@@ -184,17 +204,18 @@ void FlattenRequest<I>::detach_child() {
 
   ldout(cct, 5) << dendl;
   auto ctx = create_context_callback<
-    FlattenRequest<I>,
-    &FlattenRequest<I>::handle_detach_child>(this);
+      FlattenRequest<I>, &FlattenRequest<I>::handle_detach_child>(this);
   auto req = image::DetachChildRequest<I>::create(image_ctx, ctx);
   req->send();
   image_ctx.owner_lock.unlock_shared();
 }
 
 template <typename I>
-void FlattenRequest<I>::handle_detach_child(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::handle_detach_child(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -207,15 +228,18 @@ void FlattenRequest<I>::handle_detach_child(int r) {
 }
 
 template <typename I>
-void FlattenRequest<I>::detach_parent() {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::detach_parent()
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << dendl;
 
   // should have been canceled prior to releasing lock
   image_ctx.owner_lock.lock_shared();
-  ceph_assert(image_ctx.exclusive_lock == nullptr ||
-              image_ctx.exclusive_lock->is_lock_owner());
+  ceph_assert(
+      image_ctx.exclusive_lock == nullptr ||
+      image_ctx.exclusive_lock->is_lock_owner());
 
   // stop early if the parent went away - it just means
   // another flatten finished first, so this one is useless.
@@ -231,17 +255,18 @@ void FlattenRequest<I>::detach_parent() {
 
   // remove parent from this (base) image
   auto ctx = create_context_callback<
-    FlattenRequest<I>,
-    &FlattenRequest<I>::handle_detach_parent>(this);
+      FlattenRequest<I>, &FlattenRequest<I>::handle_detach_parent>(this);
   auto req = image::DetachParentRequest<I>::create(image_ctx, ctx);
   req->send();
   image_ctx.owner_lock.unlock_shared();
 }
 
 template <typename I>
-void FlattenRequest<I>::handle_detach_parent(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+void
+FlattenRequest<I>::handle_detach_parent(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << "r=" << r << dendl;
 
   if (r < 0) {

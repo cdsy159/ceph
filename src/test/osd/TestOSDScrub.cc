@@ -20,59 +20,78 @@
  *
  */
 
-#include <stdio.h>
-#include <signal.h>
 #include <gtest/gtest.h>
-#include "common/async/context_pool.h"
-#include "osd/OSD.h"
-#include "os/ObjectStore.h"
-#include "mon/MonClient.h"
-#include "common/ceph_argparse.h"
-#include "msg/Messenger.h"
+#include <signal.h>
+#include <stdio.h>
 
-class TestOSDScrub: public OSD {
+#include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
+#include "mon/MonClient.h"
+#include "msg/Messenger.h"
+#include "os/ObjectStore.h"
+#include "osd/OSD.h"
+
+class TestOSDScrub : public OSD {
 
 public:
-  TestOSDScrub(CephContext *cct_,
+  TestOSDScrub(
+      CephContext* cct_,
       std::unique_ptr<ObjectStore> store_,
       int id,
-      Messenger *internal,
-      Messenger *external,
-      Messenger *hb_front_client,
-      Messenger *hb_back_client,
-      Messenger *hb_front_server,
-      Messenger *hb_back_server,
-      Messenger *osdc_messenger,
-      MonClient *mc, const std::string &dev, const std::string &jdev,
+      Messenger* internal,
+      Messenger* external,
+      Messenger* hb_front_client,
+      Messenger* hb_back_client,
+      Messenger* hb_front_server,
+      Messenger* hb_back_server,
+      Messenger* osdc_messenger,
+      MonClient* mc,
+      const std::string& dev,
+      const std::string& jdev,
       ceph::async::io_context_pool& ictx) :
-      OSD(cct_, std::move(store_), id, internal, external,
-	  hb_front_client, hb_back_client,
-	  hb_front_server, hb_back_server,
-	  osdc_messenger, mc, dev, jdev, ictx)
-  {
-  }
+    OSD(cct_,
+        std::move(store_),
+        id,
+        internal,
+        external,
+        hb_front_client,
+        hb_back_client,
+        hb_front_server,
+        hb_back_server,
+        osdc_messenger,
+        mc,
+        dev,
+        jdev,
+        ictx)
+  {}
 
-  bool scrub_time_permit(utime_t now) {
+  bool
+  scrub_time_permit(utime_t now)
+  {
     return service.get_scrub_services().scrub_time_permit(now);
   }
 };
 
-TEST(TestOSDScrub, scrub_time_permit) {
+TEST(TestOSDScrub, scrub_time_permit)
+{
   ceph::async::io_context_pool icp(1);
-  std::unique_ptr<ObjectStore> store = ObjectStore::create(g_ceph_context,
-             g_conf()->osd_objectstore,
-             g_conf()->osd_data,
-             g_conf()->osd_journal);
-  std::string cluster_msgr_type = g_conf()->ms_cluster_type.empty() ? g_conf().get_val<std::string>("ms_type") : g_conf()->ms_cluster_type;
-  Messenger *ms = Messenger::create(g_ceph_context, cluster_msgr_type,
-				    entity_name_t::OSD(0), "make_checker",
-				    getpid());
+  std::unique_ptr<ObjectStore> store = ObjectStore::create(
+      g_ceph_context, g_conf()->osd_objectstore, g_conf()->osd_data,
+      g_conf()->osd_journal);
+  std::string cluster_msgr_type = g_conf()->ms_cluster_type.empty()
+                                      ? g_conf().get_val<std::string>("ms_type")
+                                      : g_conf()->ms_cluster_type;
+  Messenger* ms = Messenger::create(
+      g_ceph_context, cluster_msgr_type, entity_name_t::OSD(0), "make_checker",
+      getpid());
   ms->set_cluster_protocol(CEPH_OSD_PROTOCOL);
   ms->set_default_policy(Messenger::Policy::stateless_server(0));
   ms->bind(g_conf()->public_addr);
   MonClient mc(g_ceph_context, icp);
   mc.build_initial_monmap();
-  TestOSDScrub* osd = new TestOSDScrub(g_ceph_context, std::move(store), 0, ms, ms, ms, ms, ms, ms, ms, &mc, "", "", icp);
+  TestOSDScrub* osd = new TestOSDScrub(
+      g_ceph_context, std::move(store), 0, ms, ms, ms, ms, ms, ms, ms, &mc, "",
+      "", icp);
 
   // These are now invalid
   int err = g_ceph_context->_conf.set_val("osd_scrub_begin_hour", "24");

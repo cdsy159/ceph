@@ -19,7 +19,9 @@ struct rgw_meta_sync_info {
   std::string period; //< period id of current metadata log
   epoch_t realm_epoch = 0; //< realm epoch of period
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(state, bl);
     encode(num_shards, bl);
@@ -28,7 +30,9 @@ struct rgw_meta_sync_info {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(state, bl);
     decode(num_shards, bl);
@@ -39,11 +43,13 @@ struct rgw_meta_sync_info {
     DECODE_FINISH(bl);
   }
 
-  void decode_json(JSONObj *obj);
-  void dump(Formatter *f) const;
+  void decode_json(JSONObj* obj);
+  void dump(Formatter* f) const;
   static std::list<rgw_meta_sync_info> generate_test_instances();
 
-  rgw_meta_sync_info() : state((int)StateInit), num_shards(0) {}
+  rgw_meta_sync_info() :
+    state((int)StateInit), num_shards(0)
+  {}
 };
 WRITE_CLASS_ENCODER(rgw_meta_sync_info)
 
@@ -52,6 +58,7 @@ struct rgw_meta_sync_marker {
     FullSync = 0,
     IncrementalSync = 1,
   };
+
   uint16_t state;
   std::string marker;
   std::string next_step_marker;
@@ -60,9 +67,13 @@ struct rgw_meta_sync_marker {
   real_time timestamp;
   epoch_t realm_epoch{0}; //< realm_epoch of period marker
 
-  rgw_meta_sync_marker() : state(FullSync), total_entries(0), pos(0) {}
+  rgw_meta_sync_marker() :
+    state(FullSync), total_entries(0), pos(0)
+  {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(state, bl);
     encode(marker, bl);
@@ -74,7 +85,9 @@ struct rgw_meta_sync_marker {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(state, bl);
     decode(marker, bl);
@@ -88,8 +101,8 @@ struct rgw_meta_sync_marker {
     DECODE_FINISH(bl);
   }
 
-  void decode_json(JSONObj *obj);
-  void dump(Formatter *f) const;
+  void decode_json(JSONObj* obj);
+  void dump(Formatter* f) const;
   static std::list<rgw_meta_sync_marker> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(rgw_meta_sync_marker)
@@ -100,22 +113,26 @@ struct rgw_meta_sync_status {
 
   rgw_meta_sync_status() {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(sync_info, bl);
     encode(sync_markers, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
-     DECODE_START(1, bl);
-     decode(sync_info, bl);
-     decode(sync_markers, bl);
-     DECODE_FINISH(bl);
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
+    DECODE_START(1, bl);
+    decode(sync_info, bl);
+    decode(sync_markers, bl);
+    DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<rgw_meta_sync_status> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(rgw_meta_sync_status)

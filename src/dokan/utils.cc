@@ -12,7 +12,8 @@
 
 #include "utils.h"
 
-void to_filetime(time_t t, LPFILETIME pft)
+void
+to_filetime(time_t t, LPFILETIME pft)
 {
   // Note that LONGLONG is a 64-bit value
   LONGLONG ll = (t * 10000000LL) + 116444736000000000LL;
@@ -20,10 +21,11 @@ void to_filetime(time_t t, LPFILETIME pft)
   pft->dwHighDateTime = ll >> 32;
 }
 
-void to_unix_time(FILETIME ft, time_t *t)
+void
+to_unix_time(FILETIME ft, time_t* t)
 {
   ULARGE_INTEGER ui;
-  ui.LowPart  = ft.dwLowDateTime;
+  ui.LowPart = ft.dwLowDateTime;
   ui.HighPart = ft.dwHighDateTime;
 
   *t = (LONGLONG)(ui.QuadPart / 10000000ULL - 11644473600ULL);

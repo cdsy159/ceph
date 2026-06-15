@@ -10,16 +10,17 @@
  *
  */
 
-#include "include/compat.h"
 #include "common/ceph_context.h"
+#include "include/compat.h"
 
 class ServiceBase {
 
 public:
-  ServiceBase(CephContext *cct_);
-  virtual ~ServiceBase() {};
+  ServiceBase(CephContext* cct_);
+  virtual ~ServiceBase(){};
 
-  static int initialize(ServiceBase *service);
+  static int initialize(ServiceBase* service);
+
 protected:
   static void run();
   static void control_handler(DWORD request);
@@ -36,7 +37,7 @@ protected:
   /* Invoked when the system is shutting down. */
   virtual int shutdown_hook() = 0;
 
-  CephContext *cct;
+  CephContext* cct;
 
 private:
   /* A handle used when reporting the current status. */
@@ -45,5 +46,5 @@ private:
   SERVICE_STATUS status;
 
   /* singleton service instance */
-  static ServiceBase *s_service;
+  static ServiceBase* s_service;
 };

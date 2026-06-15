@@ -20,13 +20,15 @@
 namespace neorados {
 namespace detail {
 
-RADOS::RADOS(boost::asio::io_context& ioctx,
-	     boost::intrusive_ptr<CephContext> cct)
-  : Dispatcher(cct.get()),
-    ioctx(ioctx),
-    cct(cct),
-    monclient(cct.get(), ioctx),
-    mgrclient(cct.get(), nullptr, &monclient.monmap) {
+RADOS::RADOS(
+    boost::asio::io_context& ioctx,
+    boost::intrusive_ptr<CephContext> cct) :
+  Dispatcher(cct.get()),
+  ioctx(ioctx),
+  cct(cct),
+  monclient(cct.get(), ioctx),
+  mgrclient(cct.get(), nullptr, &monclient.monmap)
+{
   auto err = monclient.build_initial_monmap();
   if (err < 0)
     throw std::system_error(ceph::to_error_code(err));
@@ -39,9 +41,10 @@ RADOS::RADOS(boost::asio::io_context& ioctx,
   // old servers. This is necessary because otherwise we won't know
   // how to decompose the reply data into its constituent pieces.
   messenger->set_default_policy(
-    Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
+      Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
 
-  objecter = std::make_unique<Objecter>(cct.get(), messenger.get(), &monclient, ioctx);
+  objecter =
+      std::make_unique<Objecter>(cct.get(), messenger.get(), &monclient, ioctx);
 
   objecter->set_balanced_budget();
   monclient.set_messenger(messenger.get());
@@ -50,20 +53,23 @@ RADOS::RADOS(boost::asio::io_context& ioctx,
   messenger->add_dispatcher_head(&mgrclient);
   messenger->add_dispatcher_tail(objecter.get());
   messenger->start();
-  monclient.set_want_keys(CEPH_ENTITY_TYPE_MON | CEPH_ENTITY_TYPE_OSD | CEPH_ENTITY_TYPE_MGR);
+  monclient.set_want_keys(
+      CEPH_ENTITY_TYPE_MON | CEPH_ENTITY_TYPE_OSD | CEPH_ENTITY_TYPE_MGR);
   err = monclient.init();
   if (err) {
     throw boost::system::system_error(ceph::to_error_code(err));
   }
-  err = monclient.authenticate(std::chrono::duration<double>(cct->_conf.get_val<std::chrono::seconds>("client_mount_timeout")).count());
+  err = monclient.authenticate(
+      std::chrono::duration<double>(
+          cct->_conf.get_val<std::chrono::seconds>("client_mount_timeout"))
+          .count());
   if (err) {
     throw boost::system::system_error(ceph::to_error_code(err));
   }
   messenger->set_myname(entity_name_t::CLIENT(monclient.get_global_id()));
   // Detect older cluster, put mgrclient into compatible mode
-  mgrclient.set_mgr_optional(
-      !get_required_monitor_features().contains_all(
-        ceph::features::mon::FEATURE_LUMINOUS));
+  mgrclient.set_mgr_optional(!get_required_monitor_features().contains_all(
+      ceph::features::mon::FEATURE_LUMINOUS));
 
   // MgrClient needs this (it doesn't have MonClient reference itself)
   monclient.sub_want("mgrmap", 0, 0);
@@ -79,11 +85,10 @@ RADOS::RADOS(boost::asio::io_context& ioctx,
   instance_id = monclient.get_global_id();
 }
 
-RADOS::~RADOS() {
-  shutdown();
-}
+RADOS::~RADOS() { shutdown(); }
 
-bool RADOS::ms_dispatch(Message *m)
+bool
+RADOS::ms_dispatch(Message* m)
 {
   switch (m->get_type()) {
   // OSD
@@ -94,16 +99,29 @@ bool RADOS::ms_dispatch(Message *m)
   return false;
 }
 
-void RADOS::ms_handle_connect(Connection *con) {}
-bool RADOS::ms_handle_reset(Connection *con) {
-  return false;
-}
-void RADOS::ms_handle_remote_reset(Connection *con) {}
-bool RADOS::ms_handle_refused(Connection *con) {
+void
+RADOS::ms_handle_connect(Connection* con)
+{}
+
+bool
+RADOS::ms_handle_reset(Connection* con)
+{
   return false;
 }
 
-void RADOS::shutdown() {
+void
+RADOS::ms_handle_remote_reset(Connection* con)
+{}
+
+bool
+RADOS::ms_handle_refused(Connection* con)
+{
+  return false;
+}
+
+void
+RADOS::shutdown()
+{
   if (objecter && objecter->initialized) {
     objecter->shutdown();
   }

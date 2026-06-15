@@ -3,8 +3,10 @@
 
 #pragma once
 
-#include <cstdint>
 #include <seastar/core/future.hh>
+
+#include <cstdint>
+
 #include "common/ceph_time.h"
 #include "crimson/common/gated.h"
 #include "crimson/net/Dispatcher.h"
@@ -13,27 +15,28 @@
 class MOSDPing;
 
 namespace crimson::osd {
-  class ShardServices;
+class ShardServices;
 }
 
 namespace crimson::mon {
-  class Client;
+class Client;
 }
 
-template<typename Message> using Ref = boost::intrusive_ptr<Message>;
+template <typename Message>
+using Ref = boost::intrusive_ptr<Message>;
 
 class Heartbeat : public crimson::net::Dispatcher {
 public:
   using osd_id_t = int;
 
-  Heartbeat(osd_id_t whoami,
-	    crimson::osd::ShardServices& service,
-	    crimson::mon::Client& monc,
-	    crimson::net::Messenger &front_msgr,
-	    crimson::net::Messenger &back_msgr);
+  Heartbeat(
+      osd_id_t whoami,
+      crimson::osd::ShardServices& service,
+      crimson::mon::Client& monc,
+      crimson::net::Messenger& front_msgr,
+      crimson::net::Messenger& back_msgr);
 
-  seastar::future<> start(entity_addrvec_t front,
-			  entity_addrvec_t back);
+  seastar::future<> start(entity_addrvec_t front, entity_addrvec_t back);
   seastar::future<> stop();
 
   using osds_t = std::vector<osd_id_t>;
@@ -45,24 +48,36 @@ public:
   const entity_addrvec_t& get_front_addrs() const;
   const entity_addrvec_t& get_back_addrs() const;
 
-  crimson::net::Messenger &get_front_msgr() const;
-  crimson::net::Messenger &get_back_msgr() const;
+  crimson::net::Messenger& get_front_msgr() const;
+  crimson::net::Messenger& get_back_msgr() const;
 
   // Dispatcher methods
   std::optional<seastar::future<>> ms_dispatch(
-      crimson::net::ConnectionRef conn, MessageRef m) override;
-  void ms_handle_reset(crimson::net::ConnectionRef conn, bool is_replace) override;
-  void ms_handle_connect(crimson::net::ConnectionRef conn, seastar::shard_id) override;
-  void ms_handle_accept(crimson::net::ConnectionRef conn, seastar::shard_id, bool is_replace) override;
+      crimson::net::ConnectionRef conn,
+      MessageRef m) override;
+  void ms_handle_reset(
+      crimson::net::ConnectionRef conn,
+      bool is_replace) override;
+  void ms_handle_connect(
+      crimson::net::ConnectionRef conn,
+      seastar::shard_id) override;
+  void ms_handle_accept(
+      crimson::net::ConnectionRef conn,
+      seastar::shard_id,
+      bool is_replace) override;
 
   void print(std::ostream&) const;
+
 private:
-  seastar::future<> handle_osd_ping(crimson::net::ConnectionRef conn,
-				    Ref<MOSDPing> m);
-  seastar::future<> handle_ping(crimson::net::ConnectionRef conn,
-				Ref<MOSDPing> m);
-  seastar::future<> handle_reply(crimson::net::ConnectionRef conn,
-				 Ref<MOSDPing> m);
+  seastar::future<> handle_osd_ping(
+      crimson::net::ConnectionRef conn,
+      Ref<MOSDPing> m);
+  seastar::future<> handle_ping(
+      crimson::net::ConnectionRef conn,
+      Ref<MOSDPing> m);
+  seastar::future<> handle_reply(
+      crimson::net::ConnectionRef conn,
+      Ref<MOSDPing> m);
   seastar::future<> handle_you_died();
 
   /// remove down OSDs
@@ -71,16 +86,19 @@ private:
   /// add enough reporters for fast failure detection
   void add_reporter_peers(int whoami);
 
-  seastar::future<> start_messenger(crimson::net::Messenger& msgr,
-				    const entity_addrvec_t& addrs);
-  seastar::future<> maybe_share_osdmap(crimson::net::ConnectionRef,
-                                       Ref<MOSDPing> m);
+  seastar::future<> start_messenger(
+      crimson::net::Messenger& msgr,
+      const entity_addrvec_t& addrs);
+  seastar::future<> maybe_share_osdmap(
+      crimson::net::ConnectionRef,
+      Ref<MOSDPing> m);
+
 private:
   const osd_id_t whoami;
   crimson::osd::ShardServices& service;
   crimson::mon::Client& monc;
-  crimson::net::Messenger &front_msgr;
-  crimson::net::Messenger &back_msgr;
+  crimson::net::Messenger& front_msgr;
+  crimson::net::Messenger& back_msgr;
 
   seastar::timer<seastar::lowres_clock> timer;
   // use real_clock so it can be converted to utime_t
@@ -107,15 +125,19 @@ private:
   crimson::common::Gated gate;
 
   class FailingPeers {
-   public:
-    FailingPeers(Heartbeat& heartbeat) : heartbeat(heartbeat) {}
-    bool add_pending(osd_id_t peer,
-                     clock::time_point failed_since,
-                     clock::time_point now,
-                     std::vector<seastar::future<>>& futures);
+  public:
+    FailingPeers(Heartbeat& heartbeat) :
+      heartbeat(heartbeat)
+    {}
+
+    bool add_pending(
+        osd_id_t peer,
+        clock::time_point failed_since,
+        clock::time_point now,
+        std::vector<seastar::future<>>& futures);
     seastar::future<> cancel_one(osd_id_t peer);
 
-   private:
+  private:
     seastar::future<> send_still_alive(osd_id_t, const entity_addrvec_t&);
 
     Heartbeat& heartbeat;
@@ -124,11 +146,14 @@ private:
       clock::time_point failed_since;
       entity_addrvec_t addrs;
     };
+
     std::map<osd_id_t, failure_info_t> failure_pending;
   } failing_peers;
 };
 
-inline std::ostream& operator<<(std::ostream& out, const Heartbeat& hb) {
+inline std::ostream&
+operator<<(std::ostream& out, const Heartbeat& hb)
+{
   hb.print(out);
   return out;
 }
@@ -138,46 +163,64 @@ inline std::ostream& operator<<(std::ostream& out, const Heartbeat& hb) {
  * and hb_back are connected, or connection is lost.
  */
 class Heartbeat::ConnectionListener {
- public:
-  ConnectionListener(size_t connections) : connections{connections} {}
+public:
+  ConnectionListener(size_t connections) :
+    connections{connections}
+  {}
 
-  void increase_connected() {
+  void
+  increase_connected()
+  {
     assert(connected < connections);
     ++connected;
     if (connected == connections) {
       on_connected();
     }
   }
-  void decrease_connected() {
+
+  void
+  decrease_connected()
+  {
     assert(connected > 0);
     if (connected == connections) {
       on_disconnected();
     }
     --connected;
   }
-  enum class type_t { front, back };
+  enum class type_t {
+    front,
+    back
+  };
   virtual entity_addr_t get_peer_addr(type_t) = 0;
 
- protected:
+protected:
   virtual void on_connected() = 0;
   virtual void on_disconnected() = 0;
 
- private:
+private:
   const size_t connections;
   size_t connected = 0;
 };
 
 class Heartbeat::Connection {
- public:
+public:
   using type_t = ConnectionListener::type_t;
-  Connection(osd_id_t peer, bool is_winner_side, type_t type,
-             crimson::net::Messenger& msgr,
-             ConnectionListener& listener)
-    : peer{peer}, type{type},
-      msgr{msgr}, listener{listener},
-      is_winner_side{is_winner_side} {
+
+  Connection(
+      osd_id_t peer,
+      bool is_winner_side,
+      type_t type,
+      crimson::net::Messenger& msgr,
+      ConnectionListener& listener) :
+    peer{peer},
+    type{type},
+    msgr{msgr},
+    listener{listener},
+    is_winner_side{is_winner_side}
+  {
     connect();
   }
+
   Connection(const Connection&) = delete;
   Connection(Connection&&) = delete;
   Connection& operator=(const Connection&) = delete;
@@ -186,17 +229,21 @@ class Heartbeat::Connection {
   ~Connection();
 
   bool matches(crimson::net::ConnectionRef _conn) const;
-  void connected() {
+
+  void
+  connected()
+  {
     set_connected();
   }
+
   bool accepted(crimson::net::ConnectionRef, bool is_replace);
-  void reset(bool is_replace=false);
+  void reset(bool is_replace = false);
   seastar::future<> send(MessageURef msg);
   void validate();
   // retry connection if still pending
   void retry();
 
- private:
+private:
   void set_connected();
   void set_unconnected();
   void connect();
@@ -206,7 +253,7 @@ class Heartbeat::Connection {
   crimson::net::Messenger& msgr;
   ConnectionListener& listener;
 
-/*
+  /*
  * Resolve the following racing when both me and peer are trying to connect
  * each other symmetrically, under SocketPolicy::lossy_client:
  *
@@ -239,7 +286,9 @@ class Heartbeat::Connection {
   crimson::net::ConnectionRef conn;
   bool is_connected = false;
 
-  friend std::ostream& operator<<(std::ostream& os, const Connection& c) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const Connection& c)
+  {
     if (c.type == type_t::front) {
       return os << "con_front(osd." << c.peer << ")";
     } else {
@@ -267,21 +316,47 @@ class Heartbeat::Connection {
  * hb_back close ----(network)---> hb_back reset
  */
 class Heartbeat::Session {
- public:
-  Session(osd_id_t peer) : peer{peer} {}
+public:
+  Session(osd_id_t peer) :
+    peer{peer}
+  {}
 
-  void set_epoch_added(epoch_t epoch_) { epoch = epoch_; }
-  epoch_t get_epoch_added() const { return epoch; }
+  void
+  set_epoch_added(epoch_t epoch_)
+  {
+    epoch = epoch_;
+  }
 
-  void set_projected_epoch(epoch_t epoch_) { projected_epoch = epoch_; }
-  epoch_t get_projected_epoch() const { return projected_epoch; }
+  epoch_t
+  get_epoch_added() const
+  {
+    return epoch;
+  }
 
-  bool is_started() const { return connected; }
-  bool pinged() const {
+  void
+  set_projected_epoch(epoch_t epoch_)
+  {
+    projected_epoch = epoch_;
+  }
+
+  epoch_t
+  get_projected_epoch() const
+  {
+    return projected_epoch;
+  }
+
+  bool
+  is_started() const
+  {
+    return connected;
+  }
+
+  bool
+  pinged() const
+  {
     if (clock::is_zero(first_tx)) {
       // i can never receive a pong without sending any ping message first.
-      assert(clock::is_zero(last_rx_front) &&
-             clock::is_zero(last_rx_back));
+      assert(clock::is_zero(last_rx_front) && clock::is_zero(last_rx_back));
       return false;
     } else {
       return true;
@@ -293,14 +368,17 @@ class Heartbeat::Session {
     UNHEALTHY,
     HEALTHY,
   };
-  health_state do_health_screen(clock::time_point now) const {
+
+  health_state
+  do_health_screen(clock::time_point now) const
+  {
     if (!pinged()) {
       // we are not healty nor unhealty because we haven't sent anything yet
       return health_state::UNKNOWN;
-    } else if (!ping_history.empty() && ping_history.begin()->second.deadline < now) {
+    } else if (
+        !ping_history.empty() && ping_history.begin()->second.deadline < now) {
       return health_state::UNHEALTHY;
-    } else if (!clock::is_zero(last_rx_front) &&
-               !clock::is_zero(last_rx_back)) {
+    } else if (!clock::is_zero(last_rx_front) && !clock::is_zero(last_rx_back)) {
       // only declare to be healthy until we have received the first
       // replies from both front/back connections
       return health_state::HEALTHY;
@@ -311,29 +389,37 @@ class Heartbeat::Session {
 
   clock::time_point failed_since(clock::time_point now) const;
 
-  void set_tx(clock::time_point now) {
+  void
+  set_tx(clock::time_point now)
+  {
     if (!pinged()) {
       first_tx = now;
     }
     last_tx = now;
   }
 
-  void on_connected() {
+  void
+  on_connected()
+  {
     assert(!connected);
     connected = true;
     ping_history.clear();
   }
 
-  void on_ping(const utime_t& sent_stamp,
-               const clock::time_point& deadline) {
+  void
+  on_ping(const utime_t& sent_stamp, const clock::time_point& deadline)
+  {
     assert(connected);
     [[maybe_unused]] auto [reply, added] =
-      ping_history.emplace(sent_stamp, reply_t{deadline, 2});
+        ping_history.emplace(sent_stamp, reply_t{deadline, 2});
   }
 
-  bool on_pong(const utime_t& ping_stamp,
-               Connection::type_t type,
-               clock::time_point now) {
+  bool
+  on_pong(
+      const utime_t& ping_stamp,
+      Connection::type_t type,
+      clock::time_point now)
+  {
     assert(connected);
     auto ping = ping_history.find(ping_stamp);
     if (ping == ping_history.end()) {
@@ -355,7 +441,9 @@ class Heartbeat::Session {
     return true;
   }
 
-  void on_disconnected() {
+  void
+  on_disconnected()
+  {
     assert(connected);
     connected = false;
     if (!ping_history.empty()) {
@@ -372,7 +460,7 @@ class Heartbeat::Session {
   // maintain an entry in ping_history for unhealthy check
   void set_inactive_history(clock::time_point);
 
- private:
+private:
   const osd_id_t peer;
   bool connected = false;
   // time we sent our first ping request
@@ -393,12 +481,13 @@ class Heartbeat::Session {
     // one sent over front conn, another sent over back conn
     uint8_t unacknowledged = 0;
   };
+
   // history of inflight pings, arranging by timestamp we sent
   std::map<utime_t, reply_t> ping_history;
 };
 
 class Heartbeat::Peer final : private Heartbeat::ConnectionListener {
- public:
+public:
   Peer(Heartbeat&, osd_id_t);
   ~Peer();
   Peer(Peer&&) = delete;
@@ -407,19 +496,42 @@ class Heartbeat::Peer final : private Heartbeat::ConnectionListener {
   Peer& operator=(const Peer&) = delete;
 
   // set/get the epoch at which the peer was added
-  void set_epoch_added(epoch_t epoch) { session.set_epoch_added(epoch); }
-  epoch_t get_epoch_added() const { return session.get_epoch_added(); }
+  void
+  set_epoch_added(epoch_t epoch)
+  {
+    session.set_epoch_added(epoch);
+  }
 
-  void set_projected_epoch(epoch_t epoch) { session.set_projected_epoch(epoch); }
-  epoch_t get_projected_epoch() const { return session.get_projected_epoch(); }
+  epoch_t
+  get_epoch_added() const
+  {
+    return session.get_epoch_added();
+  }
+
+  void
+  set_projected_epoch(epoch_t epoch)
+  {
+    session.set_projected_epoch(epoch);
+  }
+
+  epoch_t
+  get_projected_epoch() const
+  {
+    return session.get_projected_epoch();
+  }
 
   // if failure, return time_point since last active
   // else, return clock::zero()
-  clock::time_point failed_since(clock::time_point now) const {
+  clock::time_point
+  failed_since(clock::time_point now) const
+  {
     return session.failed_since(now);
   }
+
   void send_heartbeat(
-      clock::time_point, ceph::signedspan, std::vector<seastar::future<>>&);
+      clock::time_point,
+      ceph::signedspan,
+      std::vector<seastar::future<>>&);
   seastar::future<> handle_reply(crimson::net::ConnectionRef, Ref<MOSDPing>);
 
   void handle_reset(crimson::net::ConnectionRef conn, bool is_replace);
@@ -428,15 +540,19 @@ class Heartbeat::Peer final : private Heartbeat::ConnectionListener {
 
   void handle_accept(crimson::net::ConnectionRef conn, bool is_replace);
 
- private:
+private:
   entity_addr_t get_peer_addr(type_t type) override;
   void on_connected() override;
   void on_disconnected() override;
   void do_send_heartbeat(
-      clock::time_point, ceph::signedspan, std::vector<seastar::future<>>*);
+      clock::time_point,
+      ceph::signedspan,
+      std::vector<seastar::future<>>*);
 
   template <typename Func>
-  void for_each_conn(Func&& f) {
+  void
+  for_each_conn(Func&& f)
+  {
     f(con_front);
     f(con_back);
   }
@@ -449,13 +565,20 @@ class Heartbeat::Peer final : private Heartbeat::ConnectionListener {
   Connection con_front;
   Connection con_back;
 
-  friend std::ostream& operator<<(std::ostream& os, const Peer& p) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const Peer& p)
+  {
     return os << "peer(osd." << p.peer << ")";
   }
 };
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<Heartbeat> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<Heartbeat::Connection> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<Heartbeat::Peer> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<Heartbeat> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<Heartbeat::Connection> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<Heartbeat::Peer> : fmt::ostream_formatter {};
 #endif

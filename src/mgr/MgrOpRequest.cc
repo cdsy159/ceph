@@ -1,11 +1,14 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 
 #include "MgrOpRequest.h"
+
 #include <iostream>
 #include <vector>
+
 #include "common/debug.h"
-#include "common/config.h"
+
 #include "common/Formatter.h"
+#include "common/config.h"
 #include "include/ceph_assert.h"
 #include "msg/Message.h"
 
@@ -26,13 +29,14 @@ using std::stringstream;
 
 using ceph::Formatter;
 
-MgrOpRequest::MgrOpRequest(MessageRef req, OpTracker* tracker)
-    : TrackedOp(tracker, req->get_recv_stamp()),
-      request(req) {
+MgrOpRequest::MgrOpRequest(MessageRef req, OpTracker* tracker) :
+  TrackedOp(tracker, req->get_recv_stamp()), request(req)
+{
   req_src_inst = req->get_source_inst();
 }
 
-void MgrOpRequest::_dump(Formatter *f) const
+void
+MgrOpRequest::_dump(Formatter* f) const
 {
   MessageRef m = request;
   f->dump_string("flag_point", state_string());
@@ -70,40 +74,48 @@ void MgrOpRequest::_dump(Formatter *f) const
   }
 }
 
-void MgrOpRequest::_dump_op_descriptor(ostream& stream) const
+void
+MgrOpRequest::_dump_op_descriptor(ostream& stream) const
 {
   get_req()->print(stream);
 }
 
-void MgrOpRequest::_unregistered() {
+void
+MgrOpRequest::_unregistered()
+{
   request->clear_data();
   request->clear_payload();
   request->release_message_throttle();
   request->set_connection(nullptr);
 }
 
-void MgrOpRequest::mark_flag_point(uint8_t flag, const char *s) {
+void
+MgrOpRequest::mark_flag_point(uint8_t flag, const char* s)
+{
   [[maybe_unused]] uint8_t old_flags = hit_flag_points;
   mark_event(s);
   last_event_detail = s;
   hit_flag_points |= flag;
   latest_flag_point = flag;
 
-  tracepoint(mgroprequest, mark_flag_point,
-             flag, s, old_flags, hit_flag_points);
+  tracepoint(mgroprequest, mark_flag_point, flag, s, old_flags, hit_flag_points);
 }
 
-void MgrOpRequest::mark_flag_point_string(uint8_t flag, const string& s) {
+void
+MgrOpRequest::mark_flag_point_string(uint8_t flag, const string& s)
+{
   [[maybe_unused]] uint8_t old_flags = hit_flag_points;
   mark_event(s);
   hit_flag_points |= flag;
   latest_flag_point = flag;
 
-  tracepoint(mgroprequest, mark_flag_point,
-             flag, s.c_str(), old_flags, hit_flag_points);
+  tracepoint(
+      mgroprequest, mark_flag_point, flag, s.c_str(), old_flags,
+      hit_flag_points);
 }
 
-bool MgrOpRequest::filter_out(const set<string>& filters)
+bool
+MgrOpRequest::filter_out(const set<string>& filters)
 {
   set<entity_addr_t> addrs;
   for (const auto& filter : filters) {

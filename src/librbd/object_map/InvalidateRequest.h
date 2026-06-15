@@ -18,14 +18,21 @@ namespace object_map {
 template <typename ImageCtxT = ImageCtx>
 class InvalidateRequest : public AsyncRequest<ImageCtxT> {
 public:
-  static InvalidateRequest* create(ImageCtxT &image_ctx, uint64_t snap_id,
-                                   bool force, Context *on_finish);
+  static InvalidateRequest* create(
+      ImageCtxT& image_ctx,
+      uint64_t snap_id,
+      bool force,
+      Context* on_finish);
 
-  InvalidateRequest(ImageCtxT &image_ctx, uint64_t snap_id, bool force,
-                    Context *on_finish)
-    : AsyncRequest<ImageCtxT>(image_ctx, on_finish),
-      m_snap_id(snap_id), m_force(force) {
-  }
+  InvalidateRequest(
+      ImageCtxT& image_ctx,
+      uint64_t snap_id,
+      bool force,
+      Context* on_finish) :
+    AsyncRequest<ImageCtxT>(image_ctx, on_finish),
+    m_snap_id(snap_id),
+    m_force(force)
+  {}
 
   void send() override;
 

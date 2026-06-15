@@ -24,13 +24,12 @@ private:
   static constexpr int COMPAT_VERSION = 1;
 
 public:
-
   std::string daemon_name;
-  std::string service_name;  // optional; otherwise infer from entity type
+  std::string service_name; // optional; otherwise infer from entity type
 
   bool service_daemon = false;
-  std::map<std::string,std::string> daemon_metadata;
-  std::map<std::string,std::string> daemon_status;
+  std::map<std::string, std::string> daemon_metadata;
+  std::map<std::string, std::string> daemon_status;
 
   // encode map<string,map<int32_t,string>> of current config
   ceph::buffer::list config_bl;
@@ -38,7 +37,8 @@ public:
   // encode map<string,string> of compiled-in defaults
   ceph::buffer::list config_defaults_bl;
 
-  void decode_payload() override
+  void
+  decode_payload() override
   {
     using ceph::decode;
     auto p = payload.cbegin();
@@ -47,8 +47,8 @@ public:
       decode(service_name, p);
       decode(service_daemon, p);
       if (service_daemon) {
-	decode(daemon_metadata, p);
-	decode(daemon_status, p);
+        decode(daemon_metadata, p);
+        decode(daemon_status, p);
       }
     }
     if (header.version >= 3) {
@@ -57,7 +57,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(daemon_name, payload);
     encode(service_name, payload);
@@ -70,8 +72,15 @@ public:
     encode(config_defaults_bl, payload);
   }
 
-  std::string_view get_type_name() const override { return "mgropen"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mgropen";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << get_type_name() << "(";
     if (service_name.length()) {
       out << service_name;
@@ -86,16 +95,16 @@ public:
   }
 
 private:
-  MMgrOpen()
-    : Message{MSG_MGR_OPEN, HEAD_VERSION, COMPAT_VERSION}
+  MMgrOpen() :
+    Message{MSG_MGR_OPEN, HEAD_VERSION, COMPAT_VERSION}
   {}
-  using RefCountedObject::put;
+
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 
 #endif
-

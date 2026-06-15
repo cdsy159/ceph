@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <fmt/format.h>
+
 #include <bitset>
 #include <chrono>
 #include <cstdint>
@@ -17,25 +19,22 @@
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/variant.hpp>
 
-#include <fmt/format.h>
-
 #include "common/ceph_time.h"
 #include "common/iso_8601.h"
-
-#include "rapidjson/error/error.h"
 #include "rapidjson/error/en.h"
+#include "rapidjson/error/error.h"
 
 #include "rgw_acl.h"
+#include "rgw_arn.h"
 #include "rgw_basic_types.h"
 #include "rgw_iam_policy_keywords.h"
 #include "rgw_string.h"
-#include "rgw_arn.h"
 
 namespace rgw {
 namespace auth {
 class Identity;
 }
-}
+} // namespace rgw
 
 namespace rgw {
 namespace IAM {
@@ -221,31 +220,40 @@ using Action_t = std::bitset<allCount>;
 using NotAction_t = Action_t;
 
 template <size_t N>
-constexpr std::bitset<N> make_bitmask(size_t s) {
+constexpr std::bitset<N>
+make_bitmask(size_t s)
+{
   // unfortunately none of the shift/logic operators of std::bitset have a constexpr variation
-  return s < 64 ? std::bitset<N> ((1ULL << s) - 1) :
-    std::bitset<N>((1ULL << 63) - 1) | make_bitmask<N> (s - 63) << 63;
+  return s < 64
+             ? std::bitset<N>((1ULL << s) - 1)
+             : std::bitset<N>((1ULL << 63) - 1) | make_bitmask<N>(s - 63) << 63;
 }
 
 template <size_t N>
-constexpr std::bitset<N> set_cont_bits(size_t start, size_t end)
+constexpr std::bitset<N>
+set_cont_bits(size_t start, size_t end)
 {
   return (make_bitmask<N>(end - start)) << start;
 }
 
 static const Action_t None(0);
-static const Action_t s3AllValue = set_cont_bits<allCount>(0,s3All);
-static const Action_t s3objectlambdaAllValue = set_cont_bits<allCount>(s3All+1,s3objectlambdaAll);
-static const Action_t iamAllValue = set_cont_bits<allCount>(s3objectlambdaAll+1,iamAll);
-static const Action_t stsAllValue = set_cont_bits<allCount>(iamAll+1,stsAll);
-static const Action_t snsAllValue = set_cont_bits<allCount>(stsAll+1, snsAll);
-static const Action_t organizationsAllValue = set_cont_bits<allCount>(snsAll+1,organizationsAll);
-static const Action_t allValue = set_cont_bits<allCount>(0,allCount);
+static const Action_t s3AllValue = set_cont_bits<allCount>(0, s3All);
+static const Action_t s3objectlambdaAllValue =
+    set_cont_bits<allCount>(s3All + 1, s3objectlambdaAll);
+static const Action_t iamAllValue =
+    set_cont_bits<allCount>(s3objectlambdaAll + 1, iamAll);
+static const Action_t stsAllValue = set_cont_bits<allCount>(iamAll + 1, stsAll);
+static const Action_t snsAllValue = set_cont_bits<allCount>(stsAll + 1, snsAll);
+static const Action_t organizationsAllValue =
+    set_cont_bits<allCount>(snsAll + 1, organizationsAll);
+static const Action_t allValue = set_cont_bits<allCount>(0, allCount);
 
 namespace {
 // Please update the table in doc/radosgw/s3/authentication.rst if you
 // modify this function.
-inline int op_to_perm(std::uint64_t op) {
+inline int
+op_to_perm(std::uint64_t op)
+{
   switch (op) {
   case s3GetObject:
   case s3GetObjectTorrent:
@@ -335,7 +343,7 @@ inline int op_to_perm(std::uint64_t op) {
   }
   return RGW_PERM_INVALID;
 }
-}
+} // namespace
 
 const char* action_bit_string(uint64_t action);
 
@@ -348,6 +356,7 @@ enum class PolicyPrincipal {
 using Environment = std::unordered_multimap<std::string, std::string>;
 
 using Address = std::bitset<128>;
+
 struct MaskedIP {
   bool v6;
   Address addr;
@@ -358,11 +367,13 @@ struct MaskedIP {
   unsigned int prefix;
 };
 
-std::ostream& operator <<(std::ostream& m, const MaskedIP& ip);
+std::ostream& operator<<(std::ostream& m, const MaskedIP& ip);
 
-inline bool operator ==(const MaskedIP& l, const MaskedIP& r) {
-  auto shift = std::max((l.v6 ? 128 : 32) - ((int) l.prefix),
-			(r.v6 ? 128 : 32) - ((int) r.prefix));
+inline bool
+operator==(const MaskedIP& l, const MaskedIP& r)
+{
+  auto shift = std::max(
+      (l.v6 ? 128 : 32) - ((int)l.prefix), (r.v6 ? 128 : 32) - ((int)r.prefix));
   ceph_assert(shift >= 0);
   return (l.addr >> shift) == (r.addr >> shift);
 }
@@ -383,18 +394,22 @@ struct Condition {
   std::vector<std::string> vals;
 
   Condition() = default;
-  Condition(TokenID op, const char* s, std::size_t len, bool ifexists)
-    : op(op), key(s, len), ifexists(ifexists) {}
+
+  Condition(TokenID op, const char* s, std::size_t len, bool ifexists) :
+    op(op), key(s, len), ifexists(ifexists)
+  {}
 
   bool eval(const Environment& e) const;
 
-  static boost::optional<double> as_number(const std::string& s) {
+  static boost::optional<double>
+  as_number(const std::string& s)
+  {
     std::size_t p = 0;
 
     try {
       double d = std::stod(s, &p);
       if (p < s.length()) {
-	return boost::none;
+        return boost::none;
       }
 
       return d;
@@ -403,17 +418,18 @@ struct Condition {
     }
   }
 
-  static boost::optional<ceph::real_time> as_date(const std::string& s) {
+  static boost::optional<ceph::real_time>
+  as_date(const std::string& s)
+  {
     std::size_t p = 0;
 
     try {
       double d = std::stod(s, &p);
       if (p == s.length()) {
-	return ceph::real_time(
-	  std::chrono::seconds(static_cast<uint64_t>(d)) +
-	  std::chrono::nanoseconds(
-	    static_cast<uint64_t>((d - static_cast<uint64_t>(d))
-				  * 1000000000)));
+        return ceph::real_time(
+            std::chrono::seconds(static_cast<uint64_t>(d)) +
+            std::chrono::nanoseconds(static_cast<uint64_t>(
+                (d - static_cast<uint64_t>(d)) * 1000000000)));
       }
 
       return from_iso_8601(std::string_view(s), false);
@@ -422,7 +438,9 @@ struct Condition {
     }
   }
 
-  static boost::optional<bool> as_bool(const std::string& s) {
+  static boost::optional<bool>
+  as_bool(const std::string& s)
+  {
     std::size_t p = 0;
 
     if (s.empty() || boost::iequals(s, "false")) {
@@ -432,7 +450,7 @@ struct Condition {
     try {
       double d = std::stod(s, &p);
       if (p == s.length()) {
-	return !((d == +0.0) || (d == -0.0) || std::isnan(d));
+        return !((d == +0.0) || (d == -0.0) || std::isnan(d));
       }
     } catch (const std::logic_error& e) {
       // Fallthrough
@@ -441,13 +459,15 @@ struct Condition {
     return true;
   }
 
-  static boost::optional<ceph::bufferlist> as_binary(const std::string& s) {
+  static boost::optional<ceph::bufferlist>
+  as_binary(const std::string& s)
+  {
     // In a just world
     ceph::bufferlist base64;
     // I could populate a bufferlist
     base64.push_back(buffer::create_static(
-		       s.length(),
-		       const_cast<char*>(s.data()))); // Yuck
+        s.length(),
+        const_cast<char*>(s.data()))); // Yuck
     // From a base64 encoded std::string.
     ceph::bufferlist bin;
 
@@ -461,62 +481,78 @@ struct Condition {
 
   static boost::optional<MaskedIP> as_network(const std::string& s);
 
-
   struct ci_equal_to {
-    bool operator ()(const std::string& s1,
-		     const std::string& s2) const {
+    bool
+    operator()(const std::string& s1, const std::string& s2) const
+    {
       return boost::iequals(s1, s2);
     }
   };
 
   struct string_like {
-    bool operator ()(const std::string& input,
-                     const std::string& pattern) const {
+    bool
+    operator()(const std::string& input, const std::string& pattern) const
+    {
       return match_wildcards(pattern, input, 0);
     }
   };
 
   struct ci_starts_with {
-    bool operator()(const std::string& s1,
-		    const std::string& s2) const {
+    bool
+    operator()(const std::string& s1, const std::string& s2) const
+    {
       return boost::istarts_with(s1, s2);
     }
   };
 
-  using unordered_multimap_it_pair = std::pair <std::unordered_multimap<std::string,std::string>::const_iterator, std::unordered_multimap<std::string,std::string>::const_iterator>;
+  using unordered_multimap_it_pair = std::pair<
+      std::unordered_multimap<std::string, std::string>::const_iterator,
+      std::unordered_multimap<std::string, std::string>::const_iterator>;
 
-  template<typename F>
-  static bool multimap_all(F&& f, const unordered_multimap_it_pair& it,
-                           const std::vector<std::string>& v) {
+  template <typename F>
+  static bool
+  multimap_all(
+      F&& f,
+      const unordered_multimap_it_pair& it,
+      const std::vector<std::string>& v)
+  {
     for (auto itr = it.first; itr != it.second; itr++) {
       bool matched = false;
       for (const auto& d : v) {
         if (f(itr->second, d)) {
-	        matched = true;
+          matched = true;
+        }
       }
-     }
-     if (!matched)
-      return false;
+      if (!matched)
+        return false;
     }
     return true;
   }
 
-  template<typename F>
-  static bool multimap_any(F&& f, const unordered_multimap_it_pair& it,
-                           const std::vector<std::string>& v) {
+  template <typename F>
+  static bool
+  multimap_any(
+      F&& f,
+      const unordered_multimap_it_pair& it,
+      const std::vector<std::string>& v)
+  {
     for (auto itr = it.first; itr != it.second; itr++) {
       for (const auto& d : v) {
         if (f(itr->second, d)) {
-	        return true;
+          return true;
+        }
       }
-     }
     }
     return false;
   }
 
-  template<typename F>
-  static bool multimap_none(F&& f, const unordered_multimap_it_pair& it,
-                            const std::vector<std::string>& v) {
+  template <typename F>
+  static bool
+  multimap_none(
+      F&& f,
+      const unordered_multimap_it_pair& it,
+      const std::vector<std::string>& v)
+  {
     for (auto itr = it.first; itr != it.second; itr++) {
       for (const auto& d : v) {
         if (f(itr->second, d)) {
@@ -527,9 +563,10 @@ struct Condition {
     return true;
   }
 
-  template<typename F, typename X>
-  static bool typed_any(F&& f, X&& x, const std::string& c,
-                        const std::vector<std::string>& v) {
+  template <typename F, typename X>
+  static bool
+  typed_any(F&& f, X&& x, const std::string& c, const std::vector<std::string>& v)
+  {
     auto xc = std::forward<X>(x)(c);
     if (!xc) {
       return false;
@@ -548,9 +585,14 @@ struct Condition {
     return false;
   }
 
-  template<typename F, typename X>
-  static bool typed_none(F&& f, X&& x, const std::string& c,
-                         const std::vector<std::string>& v) {
+  template <typename F, typename X>
+  static bool
+  typed_none(
+      F&& f,
+      X&& x,
+      const std::string& c,
+      const std::vector<std::string>& v)
+  {
     auto xc = std::forward<X>(x)(c);
     if (!xc) {
       return false;
@@ -570,12 +612,16 @@ struct Condition {
   }
 
   template <typename F>
-  bool has_key_p(const std::string& _key, F p) const {
+  bool
+  has_key_p(const std::string& _key, F p) const
+  {
     return p(key, _key);
   }
 
   template <typename F>
-  bool has_val_p(const std::string& _val, F p) const {
+  bool
+  has_val_p(const std::string& _val, F p) const
+  {
     for (auto val : vals) {
       if (p(val, _val))
         return true;
@@ -584,7 +630,7 @@ struct Condition {
   }
 };
 
-std::ostream& operator <<(std::ostream& m, const Condition& c);
+std::ostream& operator<<(std::ostream& m, const Condition& c);
 
 struct Statement {
   boost::optional<std::string> sid = boost::none;
@@ -604,32 +650,42 @@ struct Statement {
 
   std::vector<Condition> conditions;
 
-  Effect eval(const Environment& e,
-	      boost::optional<const rgw::auth::Identity&> ida,
-	      std::uint64_t action, boost::optional<const ARN&> resource, boost::optional<PolicyPrincipal&> princ_type=boost::none) const;
+  Effect eval(
+      const Environment& e,
+      boost::optional<const rgw::auth::Identity&> ida,
+      std::uint64_t action,
+      boost::optional<const ARN&> resource,
+      boost::optional<PolicyPrincipal&> princ_type = boost::none) const;
 
-  Effect eval_principal(const Environment& e,
-		       boost::optional<const rgw::auth::Identity&> ida, boost::optional<PolicyPrincipal&> princ_type=boost::none) const;
+  Effect eval_principal(
+      const Environment& e,
+      boost::optional<const rgw::auth::Identity&> ida,
+      boost::optional<PolicyPrincipal&> princ_type = boost::none) const;
 
   Effect eval_conditions(const Environment& e) const;
 };
 
-std::ostream& operator <<(std::ostream& m, const Statement& s);
+std::ostream& operator<<(std::ostream& m, const Statement& s);
 
 struct PolicyParseException : public std::exception {
   rapidjson::ParseResult pr;
   std::string msg;
 
-  explicit PolicyParseException(const rapidjson::ParseResult pr,
-				const std::string& annotation)
-    : pr(pr),
-      msg(fmt::format("At character offset {}, {}",
-		      pr.Offset(),
-		      (pr.Code() == rapidjson::kParseErrorTermination ?
-		       annotation :
-		       rapidjson::GetParseError_En(pr.Code())))) {}
+  explicit PolicyParseException(
+      const rapidjson::ParseResult pr,
+      const std::string& annotation) :
+    pr(pr),
+    msg(fmt::format(
+        "At character offset {}, {}",
+        pr.Offset(),
+        (pr.Code() == rapidjson::kParseErrorTermination
+             ? annotation
+             : rapidjson::GetParseError_En(pr.Code()))))
+  {}
 
-  const char* what() const noexcept override {
+  const char*
+  what() const noexcept override
+  {
     return msg.c_str();
   }
 };
@@ -646,55 +702,74 @@ struct Policy {
   // when executing operations that *set* a bucket policy, but should
   // be false when reading a stored bucket policy so as not to break
   // backwards configuration.
-  Policy(CephContext* cct, const std::string* tenant,
-	 std::string text,
-	 bool reject_invalid_principals);
+  Policy(
+      CephContext* cct,
+      const std::string* tenant,
+      std::string text,
+      bool reject_invalid_principals);
 
-  Effect eval(const Environment& e,
-	      boost::optional<const rgw::auth::Identity&> ida,
-	      std::uint64_t action, boost::optional<const ARN&> resource, boost::optional<PolicyPrincipal&> princ_type=boost::none) const;
+  Effect eval(
+      const Environment& e,
+      boost::optional<const rgw::auth::Identity&> ida,
+      std::uint64_t action,
+      boost::optional<const ARN&> resource,
+      boost::optional<PolicyPrincipal&> princ_type = boost::none) const;
 
-  Effect eval_principal(const Environment& e,
-	      boost::optional<const rgw::auth::Identity&> ida, boost::optional<PolicyPrincipal&> princ_type=boost::none) const;
+  Effect eval_principal(
+      const Environment& e,
+      boost::optional<const rgw::auth::Identity&> ida,
+      boost::optional<PolicyPrincipal&> princ_type = boost::none) const;
 
   Effect eval_conditions(const Environment& e) const;
 
   template <typename F>
-  bool has_conditional(const std::string& conditional, F p) const {
-    for (const auto&s: statements){
-      if (std::any_of(s.conditions.begin(), s.conditions.end(),
-		      [&](const Condition& c) { return c.has_key_p(conditional, p);}))
-	return true;
+  bool
+  has_conditional(const std::string& conditional, F p) const
+  {
+    for (const auto& s : statements) {
+      if (std::any_of(
+              s.conditions.begin(), s.conditions.end(),
+              [&](const Condition& c) { return c.has_key_p(conditional, p); }))
+        return true;
     }
     return false;
   }
 
   template <typename F>
-  bool has_conditional_value(const std::string& conditional, F p) const {
-    for (const auto&s: statements){
-      if (std::any_of(s.conditions.begin(), s.conditions.end(),
-		      [&](const Condition& c) { return c.has_val_p(conditional, p);}))
-	    return true;
+  bool
+  has_conditional_value(const std::string& conditional, F p) const
+  {
+    for (const auto& s : statements) {
+      if (std::any_of(
+              s.conditions.begin(), s.conditions.end(),
+              [&](const Condition& c) { return c.has_val_p(conditional, p); }))
+        return true;
     }
     return false;
   }
 
-  bool has_conditional(const std::string& c) const {
+  bool
+  has_conditional(const std::string& c) const
+  {
     return has_conditional(c, Condition::ci_equal_to());
   }
 
-  bool has_partial_conditional(const std::string& c) const {
+  bool
+  has_partial_conditional(const std::string& c) const
+  {
     return has_conditional(c, Condition::ci_starts_with());
   }
 
   // Example: ${s3:ResourceTag}
-  bool has_partial_conditional_value(const std::string& c) const {
+  bool
+  has_partial_conditional_value(const std::string& c) const
+  {
     return has_conditional_value(c, Condition::ci_starts_with());
   }
 };
 
-std::ostream& operator <<(std::ostream& m, const Policy& p);
+std::ostream& operator<<(std::ostream& m, const Policy& p);
 bool is_public(const Policy& p);
 
-}
-}
+} // namespace IAM
+} // namespace rgw

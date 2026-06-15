@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -28,12 +28,14 @@ public:
   boost::container::flat_map<std::string, pool_stat_t> pool_stats;
   bool per_pool = false;
 
-  MGetPoolStatsReply() : PaxosServiceMessage{MSG_GETPOOLSTATSREPLY, 0,
-					     HEAD_VERSION, COMPAT_VERSION} {}
+  MGetPoolStatsReply() :
+    PaxosServiceMessage{MSG_GETPOOLSTATSREPLY, 0, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MGetPoolStatsReply(uuid_d& f, ceph_tid_t t, version_t v) :
-    PaxosServiceMessage{MSG_GETPOOLSTATSREPLY, v,
-			HEAD_VERSION, COMPAT_VERSION},
-    fsid(f) {
+    PaxosServiceMessage{MSG_GETPOOLSTATSREPLY, v, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f)
+  {
     set_tid(t);
   }
 
@@ -41,22 +43,34 @@ private:
   ~MGetPoolStatsReply() final {}
 
 public:
-  std::string_view get_type_name() const override { return "getpoolstats"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "getpoolstats";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "getpoolstatsreply(" << get_tid();
     if (per_pool)
       out << " per_pool";
-    out << " v" << version <<  ")";
+    out << " v" << version << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
     encode(pool_stats, payload, features);
     encode(per_pool, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -68,8 +82,9 @@ public:
       per_pool = false;
     }
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

@@ -18,14 +18,15 @@ namespace mirror {
 template <typename ImageCtxT = librbd::ImageCtx>
 class PromoteRequest {
 public:
-  static PromoteRequest *create(ImageCtxT &image_ctx, bool force,
-                                Context *on_finish) {
+  static PromoteRequest*
+  create(ImageCtxT& image_ctx, bool force, Context* on_finish)
+  {
     return new PromoteRequest(image_ctx, force, on_finish);
   }
 
-  PromoteRequest(ImageCtxT &image_ctx, bool force, Context *on_finish)
-    : m_image_ctx(image_ctx), m_force(force), m_on_finish(on_finish) {
-  }
+  PromoteRequest(ImageCtxT& image_ctx, bool force, Context* on_finish) :
+    m_image_ctx(image_ctx), m_force(force), m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -50,9 +51,9 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT &m_image_ctx;
+  ImageCtxT& m_image_ctx;
   bool m_force;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   cls::rbd::MirrorImage m_mirror_image;
   PromotionState m_promotion_state = PROMOTION_STATE_PRIMARY;
@@ -65,7 +66,6 @@ private:
   void handle_promote(int r);
 
   void finish(int r);
-
 };
 
 } // namespace mirror

@@ -8,17 +8,18 @@
  *  FIO client and server jobs for details.
  */
 
-#include "global/global_init.h"
-#include "msg/Messenger.h"
-#include "messages/MOSDOp.h"
-#include "messages/MOSDOpReply.h"
-#include "common/perf_counters.h"
-#include "auth/DummyAuth.h"
-#include "ring_buffer.h"
-
 #include <fio.h>
 #include <flist.h>
 #include <optgroup.h>
+
+#include "auth/DummyAuth.h"
+#include "common/perf_counters.h"
+#include "global/global_init.h"
+#include "messages/MOSDOp.h"
+#include "messages/MOSDOpReply.h"
+#include "msg/Messenger.h"
+
+#include "ring_buffer.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_
@@ -32,60 +33,63 @@ enum ceph_msgr_type {
   CEPH_MSGR_TYPE_RDMA,
 };
 
-const char *ceph_msgr_types[] = { "undef", "async+posix",
-				  "async+dpdk", "async+rdma" };
+const char* ceph_msgr_types[] = {
+    "undef", "async+posix", "async+dpdk", "async+rdma"};
 
 struct ceph_msgr_options {
-  struct thread_data *td__;
+  struct thread_data* td__;
   unsigned int is_receiver;
   unsigned int is_single;
   unsigned int port;
-  const char *hostname;
-  const char *conffile;
+  const char* hostname;
+  const char* conffile;
   enum ceph_msgr_type ms_type;
 };
 
 class FioDispatcher;
 
 struct ceph_msgr_data {
-  ceph_msgr_data(struct ceph_msgr_options *o_, unsigned iodepth) :
-    o(o_) {
+  ceph_msgr_data(struct ceph_msgr_options* o_, unsigned iodepth) :
+    o(o_)
+  {
     INIT_FLIST_HEAD(&io_inflight_list);
     INIT_FLIST_HEAD(&io_pending_list);
     ring_buffer_init(&io_completed_q, iodepth);
     pthread_spin_init(&spin, PTHREAD_PROCESS_PRIVATE);
   }
 
-  struct ceph_msgr_options *o;
-  Messenger *msgr = NULL;
-  FioDispatcher *disp = NULL;
+  struct ceph_msgr_options* o;
+  Messenger* msgr = NULL;
+  FioDispatcher* disp = NULL;
   pthread_spinlock_t spin;
   struct ring_buffer io_completed_q;
   struct flist_head io_inflight_list;
   struct flist_head io_pending_list;
   unsigned int io_inflight_nr = 0;
-  unsigned int io_pending_nr  = 0;
+  unsigned int io_pending_nr = 0;
 };
 
 struct ceph_msgr_io {
   struct flist_head list;
-  struct ceph_msgr_data *data;
-  struct io_u *io_u;
-  MOSDOp *req_msg; /** Cached request, valid only for sender */
+  struct ceph_msgr_data* data;
+  struct io_u* io_u;
+  MOSDOp* req_msg; /** Cached request, valid only for sender */
 };
 
 struct ceph_msgr_reply_io {
   struct flist_head list;
-  MOSDOpReply *rep;
+  MOSDOpReply* rep;
 };
 
-static void *str_to_ptr(const std::string &str)
+static void*
+str_to_ptr(const std::string& str)
 {
   // str is assumed to be a valid ptr string
   return reinterpret_cast<void*>(ceph::parse<uintptr_t>(str, 16).value());
 }
 
-static std::string ptr_to_str(void *ptr)
+static std::string
+ptr_to_str(void* ptr)
 {
   char buf[32];
 
@@ -98,9 +102,10 @@ static std::string ptr_to_str(void *ptr)
  * global context refcounter, sigh.
  */
 static std::atomic<int> ctx_ref(1);
-static DummyAuthClientServer *g_dummy_auth;
+static DummyAuthClientServer* g_dummy_auth;
 
-static void create_or_get_ceph_context(struct ceph_msgr_options *o)
+static void
+create_or_get_ceph_context(struct ceph_msgr_options* o)
 {
   if (g_ceph_context) {
     g_ceph_context->get();
@@ -112,11 +117,11 @@ static void create_or_get_ceph_context(struct ceph_msgr_options *o)
   vector<const char*> args;
 
   if (o->conffile)
-    args = { "--conf", o->conffile };
+    args = {"--conf", o->conffile};
 
-  cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-		    CODE_ENVIRONMENT_UTILITY,
-		    CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   /* Will use g_ceph_context instead */
   cct.detach();
 
@@ -126,7 +131,8 @@ static void create_or_get_ceph_context(struct ceph_msgr_options *o)
   g_dummy_auth->auth_registry.refresh_config();
 }
 
-static void put_ceph_context(void)
+static void
+put_ceph_context(void)
 {
   if (--ctx_ref == 0) {
     ostringstream ostr;
@@ -134,23 +140,24 @@ static void put_ceph_context(void)
 
     f = Formatter::create("json-pretty");
     g_ceph_context->get_perfcounters_collection()->dump_formatted(
-	f, false, select_labeled_t::unlabeled);
+        f, false, select_labeled_t::unlabeled);
     ostr << ">>>>>>>>>>>>> PERFCOUNTERS BEGIN <<<<<<<<<<<<" << std::endl;
     f->flush(ostr);
     ostr << ">>>>>>>>>>>>>  PERFCOUNTERS END  <<<<<<<<<<<<" << std::endl;
 
     delete f;
     delete g_dummy_auth;
-    dout(0) <<  ostr.str() << dendl;
+    dout(0) << ostr.str() << dendl;
   }
 
   g_ceph_context->put();
 }
 
-static void ceph_msgr_sender_on_reply(const object_t &oid)
+static void
+ceph_msgr_sender_on_reply(const object_t& oid)
 {
-  struct ceph_msgr_data *data;
-  struct ceph_msgr_io *io;
+  struct ceph_msgr_data* data;
+  struct ceph_msgr_io* io;
 
   /*
    * Here we abuse object and use it as a raw pointer. Since this is
@@ -161,47 +168,47 @@ static void ceph_msgr_sender_on_reply(const object_t &oid)
 
   io = (decltype(io))str_to_ptr(oid.name);
   data = io->data;
-  ring_buffer_enqueue(&data->io_completed_q, (void *)io);
+  ring_buffer_enqueue(&data->io_completed_q, (void*)io);
 }
 
-
 class ReplyCompletion : public Message::CompletionHook {
-  struct ceph_msgr_io *m_io;
+  struct ceph_msgr_io* m_io;
 
 public:
-  ReplyCompletion(MOSDOpReply *rep, struct ceph_msgr_io *io) :
-    Message::CompletionHook(rep),
-    m_io(io) {
-  }
-  void finish(int err) override {
-    struct ceph_msgr_data *data = m_io->data;
+  ReplyCompletion(MOSDOpReply* rep, struct ceph_msgr_io* io) :
+    Message::CompletionHook(rep), m_io(io)
+  {}
 
-    ring_buffer_enqueue(&data->io_completed_q, (void *)m_io);
+  void
+  finish(int err) override
+  {
+    struct ceph_msgr_data* data = m_io->data;
+
+    ring_buffer_enqueue(&data->io_completed_q, (void*)m_io);
   }
 };
 
-static void ceph_msgr_receiver_on_request(struct ceph_msgr_data *data,
-					  MOSDOp *req)
+static void
+ceph_msgr_receiver_on_request(struct ceph_msgr_data* data, MOSDOp* req)
 {
-  MOSDOpReply *rep;
+  MOSDOpReply* rep;
 
   rep = new MOSDOpReply(req, 0, 0, 0, false);
   rep->set_connection(req->get_connection());
 
   pthread_spin_lock(&data->spin);
   if (data->io_inflight_nr) {
-    struct ceph_msgr_io *io;
+    struct ceph_msgr_io* io;
 
     data->io_inflight_nr--;
-    io = flist_first_entry(&data->io_inflight_list,
-			   struct ceph_msgr_io, list);
+    io = flist_first_entry(&data->io_inflight_list, struct ceph_msgr_io, list);
     flist_del(&io->list);
     pthread_spin_unlock(&data->spin);
 
     rep->set_completion_hook(new ReplyCompletion(rep, io));
     rep->get_connection()->send_message(rep);
   } else {
-    struct ceph_msgr_reply_io *rep_io;
+    struct ceph_msgr_reply_io* rep_io;
 
     rep_io = (decltype(rep_io))malloc(sizeof(*rep_io));
     rep_io->rep = rep;
@@ -213,17 +220,22 @@ static void ceph_msgr_receiver_on_request(struct ceph_msgr_data *data,
 }
 
 class FioDispatcher : public Dispatcher {
-  struct ceph_msgr_data *m_data;
+  struct ceph_msgr_data* m_data;
 
 public:
-  FioDispatcher(struct ceph_msgr_data *data):
-    Dispatcher(g_ceph_context),
-    m_data(data) {
-  }
-  bool ms_can_fast_dispatch_any() const override {
+  FioDispatcher(struct ceph_msgr_data* data) :
+    Dispatcher(g_ceph_context), m_data(data)
+  {}
+
+  bool
+  ms_can_fast_dispatch_any() const override
+  {
     return true;
   }
-  bool ms_can_fast_dispatch(const Message *m) const override {
+
+  bool
+  ms_can_fast_dispatch(const Message* m) const override
+  {
     switch (m->get_type()) {
     case CEPH_MSG_OSD_OP:
       return m_data->o->is_receiver;
@@ -233,16 +245,26 @@ public:
       return false;
     }
   }
-  void ms_handle_fast_connect(Connection *con) override {
-  }
-  void ms_handle_fast_accept(Connection *con) override {
-  }
-  bool ms_dispatch(Message *m) override {
+
+  void
+  ms_handle_fast_connect(Connection* con) override
+  {}
+
+  void
+  ms_handle_fast_accept(Connection* con) override
+  {}
+
+  bool
+  ms_dispatch(Message* m) override
+  {
     return true;
   }
-  void ms_fast_dispatch(Message *m) override {
+
+  void
+  ms_fast_dispatch(Message* m) override
+  {
     if (m_data->o->is_receiver) {
-      MOSDOp *req;
+      MOSDOp* req;
 
       /*
        * Server side, handle request.
@@ -253,7 +275,7 @@ public:
 
       ceph_msgr_receiver_on_request(m_data, req);
     } else {
-      MOSDOpReply *rep;
+      MOSDOpReply* rep;
 
       /*
        * Client side, get reply, extract objid and mark
@@ -265,20 +287,32 @@ public:
     }
     m->put();
   }
-  bool ms_handle_reset(Connection *con) override {
+
+  bool
+  ms_handle_reset(Connection* con) override
+  {
     return true;
   }
-  void ms_handle_remote_reset(Connection *con) override {
-  }
-  bool ms_handle_refused(Connection *con) override {
+
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
+
+  bool
+  ms_handle_refused(Connection* con) override
+  {
     return false;
   }
-  bool ms_handle_fast_authentication(Connection *con) override {
+
+  bool
+  ms_handle_fast_authentication(Connection* con) override
+  {
     return true;
   }
 };
 
-static entity_addr_t hostname_to_addr(struct ceph_msgr_options *o)
+static entity_addr_t
+hostname_to_addr(struct ceph_msgr_options* o)
 {
   entity_addr_t addr;
 
@@ -289,21 +323,22 @@ static entity_addr_t hostname_to_addr(struct ceph_msgr_options *o)
   return addr;
 }
 
-static Messenger *create_messenger(struct ceph_msgr_options *o)
+static Messenger*
+create_messenger(struct ceph_msgr_options* o)
 {
-  entity_name_t ename = o->is_receiver ?
-    entity_name_t::OSD(0) : entity_name_t::CLIENT(0);
-  std::string lname = o->is_receiver ?
-    "receiver" : "sender";
+  entity_name_t ename = o->is_receiver ? entity_name_t::OSD(0)
+                                       : entity_name_t::CLIENT(0);
+  std::string lname = o->is_receiver ? "receiver" : "sender";
 
-  std::string ms_type = o->ms_type != CEPH_MSGR_TYPE_UNDEF ?
-    ceph_msgr_types[o->ms_type] :
-    g_ceph_context->_conf.get_val<std::string>("ms_type");
+  std::string ms_type =
+      o->ms_type != CEPH_MSGR_TYPE_UNDEF
+          ? ceph_msgr_types[o->ms_type]
+          : g_ceph_context->_conf.get_val<std::string>("ms_type");
 
   /* o->td__>pid doesn't set value, so use getpid() instead*/
   auto nonce = o->is_receiver ? 0 : (getpid() + o->td__->thread_number);
-  Messenger *msgr = Messenger::create(g_ceph_context, ms_type.c_str(),
-				      ename, lname, nonce);
+  Messenger* msgr =
+      Messenger::create(g_ceph_context, ms_type.c_str(), ename, lname, nonce);
   if (o->is_receiver) {
     msgr->set_default_policy(Messenger::Policy::stateless_server(0));
     msgr->bind(hostname_to_addr(o));
@@ -318,15 +353,16 @@ static Messenger *create_messenger(struct ceph_msgr_options *o)
   return msgr;
 }
 
-static Messenger *single_msgr;
+static Messenger* single_msgr;
 static std::atomic<int> single_msgr_ref;
-static vector<FioDispatcher *> single_msgr_disps;
+static vector<FioDispatcher*> single_msgr_disps;
 
-static void init_messenger(struct ceph_msgr_data *data)
+static void
+init_messenger(struct ceph_msgr_data* data)
 {
-  struct ceph_msgr_options *o = data->o;
-  FioDispatcher *disp;
-  Messenger *msgr;
+  struct ceph_msgr_options* o = data->o;
+  FioDispatcher* disp;
+  Messenger* msgr;
 
   disp = new FioDispatcher(data);
   if (o->is_single) {
@@ -354,16 +390,18 @@ static void init_messenger(struct ceph_msgr_data *data)
   data->msgr = msgr;
 }
 
-static void free_messenger(struct ceph_msgr_data *data)
+static void
+free_messenger(struct ceph_msgr_data* data)
 {
   data->msgr->shutdown();
   data->msgr->wait();
   delete data->msgr;
 }
 
-static void put_messenger(struct ceph_msgr_data *data)
+static void
+put_messenger(struct ceph_msgr_data* data)
 {
-  struct ceph_msgr_options *o = data->o;
+  struct ceph_msgr_options* o = data->o;
 
   if (o->is_single) {
     if (--single_msgr_ref == 0) {
@@ -373,7 +411,7 @@ static void put_messenger(struct ceph_msgr_data *data)
        * free dispatchers after actual messenger destruction.
        */
       for (auto disp : single_msgr_disps)
-	delete disp;
+        delete disp;
       single_msgr = NULL;
     }
   } else {
@@ -384,11 +422,12 @@ static void put_messenger(struct ceph_msgr_data *data)
   data->msgr = NULL;
 }
 
-static int fio_ceph_msgr_setup(struct thread_data *td)
+static int
+fio_ceph_msgr_setup(struct thread_data* td)
 {
-  struct ceph_msgr_options *o = (decltype(o))td->eo;
+  struct ceph_msgr_options* o = (decltype(o))td->eo;
   o->td__ = td;
-  ceph_msgr_data *data;
+  ceph_msgr_data* data;
 
   /* We have to manage global resources so we use threads */
   td->o.use_thread = 1;
@@ -398,15 +437,16 @@ static int fio_ceph_msgr_setup(struct thread_data *td)
   if (!td->io_ops_data) {
     data = new ceph_msgr_data(o, td->o.iodepth);
     init_messenger(data);
-    td->io_ops_data = (void *)data;
+    td->io_ops_data = (void*)data;
   }
 
   return 0;
 }
 
-static void fio_ceph_msgr_cleanup(struct thread_data *td)
+static void
+fio_ceph_msgr_cleanup(struct thread_data* td)
 {
-  struct ceph_msgr_data *data;
+  struct ceph_msgr_data* data;
   unsigned nr;
 
   data = (decltype(data))td->io_ops_data;
@@ -414,14 +454,15 @@ static void fio_ceph_msgr_cleanup(struct thread_data *td)
 
   nr = ring_buffer_used_size(&data->io_completed_q);
   if (nr)
-    fprintf(stderr, "fio: io_completed_nr==%d, but should be zero\n",
-	    nr);
+    fprintf(stderr, "fio: io_completed_nr==%d, but should be zero\n", nr);
   if (data->io_inflight_nr)
-    fprintf(stderr, "fio: io_inflight_nr==%d, but should be zero\n",
-	    data->io_inflight_nr);
+    fprintf(
+        stderr, "fio: io_inflight_nr==%d, but should be zero\n",
+        data->io_inflight_nr);
   if (data->io_pending_nr)
-    fprintf(stderr, "fio: io_pending_nr==%d, but should be zero\n",
-	    data->io_pending_nr);
+    fprintf(
+        stderr, "fio: io_pending_nr==%d, but should be zero\n",
+        data->io_pending_nr);
   if (!flist_empty(&data->io_inflight_list))
     fprintf(stderr, "fio: io_inflight_list is not empty\n");
   if (!flist_empty(&data->io_pending_list))
@@ -432,11 +473,12 @@ static void fio_ceph_msgr_cleanup(struct thread_data *td)
   put_ceph_context();
 }
 
-static int fio_ceph_msgr_io_u_init(struct thread_data *td, struct io_u *io_u)
+static int
+fio_ceph_msgr_io_u_init(struct thread_data* td, struct io_u* io_u)
 {
-  struct ceph_msgr_options *o = (decltype(o))td->eo;
-  struct ceph_msgr_io *io;
-  MOSDOp *req_msg = NULL;
+  struct ceph_msgr_options* o = (decltype(o))td->eo;
+  struct ceph_msgr_io* io;
+  MOSDOp* req_msg = NULL;
 
   io = (decltype(io))malloc(sizeof(*io));
   io->io_u = io_u;
@@ -446,28 +488,29 @@ static int fio_ceph_msgr_io_u_init(struct thread_data *td, struct io_u *io_u)
     object_t oid(ptr_to_str(io));
     pg_t pgid;
     object_locator_t oloc;
-    hobject_t hobj(oid, oloc.key, CEPH_NOSNAP, pgid.ps(),
-		   pgid.pool(), oloc.nspace);
+    hobject_t hobj(
+        oid, oloc.key, CEPH_NOSNAP, pgid.ps(), pgid.pool(), oloc.nspace);
     spg_t spgid(pgid);
     entity_inst_t dest(entity_name_t::OSD(0), hostname_to_addr(o));
 
-    Messenger *msgr = io->data->msgr;
-    ConnectionRef con = msgr->connect_to(dest.name.type(),
-					 entity_addrvec_t(dest.addr));
+    Messenger* msgr = io->data->msgr;
+    ConnectionRef con =
+        msgr->connect_to(dest.name.type(), entity_addrvec_t(dest.addr));
 
     req_msg = new MOSDOp(0, 0, hobj, spgid, 0, 0, 0);
     req_msg->set_connection(con);
   }
 
   io->req_msg = req_msg;
-  io_u->engine_data = (void *)io;
+  io_u->engine_data = (void*)io;
 
   return 0;
 }
 
-static void fio_ceph_msgr_io_u_free(struct thread_data *td, struct io_u *io_u)
+static void
+fio_ceph_msgr_io_u_free(struct thread_data* td, struct io_u* io_u)
 {
-  struct ceph_msgr_io *io;
+  struct ceph_msgr_io* io;
 
   io = (decltype(io))io_u->engine_data;
   if (io) {
@@ -478,14 +521,14 @@ static void fio_ceph_msgr_io_u_free(struct thread_data *td, struct io_u *io_u)
   }
 }
 
-static enum fio_q_status ceph_msgr_sender_queue(struct thread_data *td,
-						struct io_u *io_u)
+static enum fio_q_status
+ceph_msgr_sender_queue(struct thread_data* td, struct io_u* io_u)
 {
-  struct ceph_msgr_data *data;
-  struct ceph_msgr_io *io;
+  struct ceph_msgr_data* data;
+  struct ceph_msgr_io* io;
 
-  bufferlist buflist = bufferlist::static_from_mem(
-    (char *)io_u->buf, io_u->buflen);
+  bufferlist buflist =
+      bufferlist::static_from_mem((char*)io_u->buf, io_u->buflen);
 
   io = (decltype(io))io_u->engine_data;
   data = (decltype(data))td->io_ops_data;
@@ -502,10 +545,14 @@ static enum fio_q_status ceph_msgr_sender_queue(struct thread_data *td,
   return FIO_Q_QUEUED;
 }
 
-static int fio_ceph_msgr_getevents(struct thread_data *td, unsigned int min,
-				   unsigned int max, const struct timespec *ts)
+static int
+fio_ceph_msgr_getevents(
+    struct thread_data* td,
+    unsigned int min,
+    unsigned int max,
+    const struct timespec* ts)
 {
-  struct ceph_msgr_data *data;
+  struct ceph_msgr_data* data;
   unsigned int nr;
 
   data = (decltype(data))td->io_ops_data;
@@ -525,7 +572,7 @@ static int fio_ceph_msgr_getevents(struct thread_data *td, unsigned int min,
   assert(min && !ts);
 
   while ((nr = ring_buffer_used_size(&data->io_completed_q)) < min &&
-	 !td->terminate) {
+         !td->terminate) {
     /* Poll, no disk IO, so we expect response immediately. */
     usleep(10);
   }
@@ -533,10 +580,11 @@ static int fio_ceph_msgr_getevents(struct thread_data *td, unsigned int min,
   return min(nr, max);
 }
 
-static struct io_u *fio_ceph_msgr_event(struct thread_data *td, int event)
+static struct io_u*
+fio_ceph_msgr_event(struct thread_data* td, int event)
 {
-  struct ceph_msgr_data *data;
-  struct ceph_msgr_io *io;
+  struct ceph_msgr_data* data;
+  struct ceph_msgr_io* io;
 
   data = (decltype(data))td->io_ops_data;
   io = (decltype(io))ring_buffer_dequeue(&data->io_completed_q);
@@ -544,23 +592,22 @@ static struct io_u *fio_ceph_msgr_event(struct thread_data *td, int event)
   return io->io_u;
 }
 
-static enum fio_q_status ceph_msgr_receiver_queue(struct thread_data *td,
-						  struct io_u *io_u)
+static enum fio_q_status
+ceph_msgr_receiver_queue(struct thread_data* td, struct io_u* io_u)
 {
-  struct ceph_msgr_data *data;
-  struct ceph_msgr_io *io;
+  struct ceph_msgr_data* data;
+  struct ceph_msgr_io* io;
 
   io = (decltype(io))io_u->engine_data;
   data = io->data;
   pthread_spin_lock(&data->spin);
   if (data->io_pending_nr) {
-    struct ceph_msgr_reply_io *rep_io;
-    MOSDOpReply *rep;
+    struct ceph_msgr_reply_io* rep_io;
+    MOSDOpReply* rep;
 
     data->io_pending_nr--;
-    rep_io = flist_first_entry(&data->io_pending_list,
-			       struct ceph_msgr_reply_io,
-			       list);
+    rep_io = flist_first_entry(
+        &data->io_pending_list, struct ceph_msgr_reply_io, list);
     flist_del(&rep_io->list);
     rep = rep_io->rep;
     pthread_spin_unlock(&data->spin);
@@ -577,10 +624,10 @@ static enum fio_q_status ceph_msgr_receiver_queue(struct thread_data *td,
   return FIO_Q_QUEUED;
 }
 
-static enum fio_q_status fio_ceph_msgr_queue(struct thread_data *td,
-					     struct io_u *io_u)
+static enum fio_q_status
+fio_ceph_msgr_queue(struct thread_data* td, struct io_u* io_u)
 {
-  struct ceph_msgr_options *o = (decltype(o))td->eo;
+  struct ceph_msgr_options* o = (decltype(o))td->eo;
 
   if (o->is_receiver)
     return ceph_msgr_receiver_queue(td, io_u);
@@ -588,18 +635,21 @@ static enum fio_q_status fio_ceph_msgr_queue(struct thread_data *td,
     return ceph_msgr_sender_queue(td, io_u);
 }
 
-static int fio_ceph_msgr_open_file(struct thread_data *td, struct fio_file *f)
+static int
+fio_ceph_msgr_open_file(struct thread_data* td, struct fio_file* f)
 {
   return 0;
 }
 
-static int fio_ceph_msgr_close_file(struct thread_data *, struct fio_file *)
+static int
+fio_ceph_msgr_close_file(struct thread_data*, struct fio_file*)
 {
   return 0;
 }
 
 template <class Func>
-fio_option make_option(Func&& func)
+fio_option
+make_option(Func&& func)
 {
   auto o = fio_option{};
   o.category = FIO_OPT_C_ENGINE;
@@ -607,95 +657,99 @@ fio_option make_option(Func&& func)
   return o;
 }
 
-static std::vector<fio_option> options {
-  make_option([] (fio_option& o) {
-    o.name  = "receiver";
-    o.lname = "CEPH messenger is receiver";
-    o.type  = FIO_OPT_BOOL;
-    o.off1  = offsetof(struct ceph_msgr_options, is_receiver);
-    o.help  = "CEPH messenger is sender or receiver";
-    o.def   = "0";
-  }),
-  make_option([] (fio_option& o) {
-    o.name  = "single_instance";
-    o.lname = "Single instance of CEPH messenger ";
-    o.type  = FIO_OPT_BOOL;
-    o.off1  = offsetof(struct ceph_msgr_options, is_single);
-    o.help  = "CEPH messenger is a created once for all threads";
-    o.def   = "0";
-  }),
-  make_option([] (fio_option& o) {
-    o.name  = "hostname";
-    o.lname = "CEPH messenger hostname";
-    o.type  = FIO_OPT_STR_STORE;
-    o.off1  = offsetof(struct ceph_msgr_options, hostname);
-    o.help  = "Hostname for CEPH messenger engine";
-  }),
-  make_option([] (fio_option& o) {
-    o.name   = "port";
-    o.lname  = "CEPH messenger engine port";
-    o.type   = FIO_OPT_INT;
-    o.off1   = offsetof(struct ceph_msgr_options, port);
-    o.maxval = 65535;
-    o.minval = 1;
-    o.help   = "Port to use for CEPH messenger";
-  }),
-  make_option([] (fio_option& o) {
-    o.name  = "ms_type";
-    o.lname = "CEPH messenger transport type: async+posix, async+dpdk, async+rdma";
-    o.type  = FIO_OPT_STR;
-    o.off1  = offsetof(struct ceph_msgr_options, ms_type);
-    o.help  = "Transport type for CEPH messenger, see 'ms async transport type' corresponding CEPH documentation page";
-    o.def   = "undef";
+static std::vector<fio_option> options{
+    make_option([](fio_option& o) {
+      o.name = "receiver";
+      o.lname = "CEPH messenger is receiver";
+      o.type = FIO_OPT_BOOL;
+      o.off1 = offsetof(struct ceph_msgr_options, is_receiver);
+      o.help = "CEPH messenger is sender or receiver";
+      o.def = "0";
+    }),
+    make_option([](fio_option& o) {
+      o.name = "single_instance";
+      o.lname = "Single instance of CEPH messenger ";
+      o.type = FIO_OPT_BOOL;
+      o.off1 = offsetof(struct ceph_msgr_options, is_single);
+      o.help = "CEPH messenger is a created once for all threads";
+      o.def = "0";
+    }),
+    make_option([](fio_option& o) {
+      o.name = "hostname";
+      o.lname = "CEPH messenger hostname";
+      o.type = FIO_OPT_STR_STORE;
+      o.off1 = offsetof(struct ceph_msgr_options, hostname);
+      o.help = "Hostname for CEPH messenger engine";
+    }),
+    make_option([](fio_option& o) {
+      o.name = "port";
+      o.lname = "CEPH messenger engine port";
+      o.type = FIO_OPT_INT;
+      o.off1 = offsetof(struct ceph_msgr_options, port);
+      o.maxval = 65535;
+      o.minval = 1;
+      o.help = "Port to use for CEPH messenger";
+    }),
+    make_option([](fio_option& o) {
+      o.name = "ms_type";
+      o.lname =
+          "CEPH messenger transport type: async+posix, async+dpdk, async+rdma";
+      o.type = FIO_OPT_STR;
+      o.off1 = offsetof(struct ceph_msgr_options, ms_type);
+      o.help =
+          "Transport type for CEPH messenger, see 'ms async transport type' "
+          "corresponding CEPH documentation page";
+      o.def = "undef";
 
-    o.posval[0].ival = "undef";
-    o.posval[0].oval = CEPH_MSGR_TYPE_UNDEF;
+      o.posval[0].ival = "undef";
+      o.posval[0].oval = CEPH_MSGR_TYPE_UNDEF;
 
-    o.posval[1].ival = "async+posix";
-    o.posval[1].oval = CEPH_MSGR_TYPE_POSIX;
-    o.posval[1].help = "POSIX API";
+      o.posval[1].ival = "async+posix";
+      o.posval[1].oval = CEPH_MSGR_TYPE_POSIX;
+      o.posval[1].help = "POSIX API";
 
-    o.posval[2].ival = "async+dpdk";
-    o.posval[2].oval = CEPH_MSGR_TYPE_DPDK;
-    o.posval[2].help = "DPDK";
+      o.posval[2].ival = "async+dpdk";
+      o.posval[2].oval = CEPH_MSGR_TYPE_DPDK;
+      o.posval[2].help = "DPDK";
 
-    o.posval[3].ival = "async+rdma";
-    o.posval[3].oval = CEPH_MSGR_TYPE_RDMA;
-    o.posval[3].help = "RDMA";
-  }),
-  make_option([] (fio_option& o) {
-    o.name  = "ceph_conf_file";
-    o.lname = "CEPH configuration file";
-    o.type  = FIO_OPT_STR_STORE;
-    o.off1  = offsetof(struct ceph_msgr_options, conffile);
-    o.help  = "Path to CEPH configuration file";
-  }),
-  {} /* Last NULL */
+      o.posval[3].ival = "async+rdma";
+      o.posval[3].oval = CEPH_MSGR_TYPE_RDMA;
+      o.posval[3].help = "RDMA";
+    }),
+    make_option([](fio_option& o) {
+      o.name = "ceph_conf_file";
+      o.lname = "CEPH configuration file";
+      o.type = FIO_OPT_STR_STORE;
+      o.off1 = offsetof(struct ceph_msgr_options, conffile);
+      o.help = "Path to CEPH configuration file";
+    }),
+    {} /* Last NULL */
 };
 
 static struct ioengine_ops ioengine;
 
 extern "C" {
 
-void get_ioengine(struct ioengine_ops** ioengine_ptr)
+void
+get_ioengine(struct ioengine_ops** ioengine_ptr)
 {
   /*
    * Main ioengine structure
    */
-  ioengine.name	= "ceph-msgr";
-  ioengine.version	= FIO_IOOPS_VERSION;
-  ioengine.flags	= FIO_DISKLESSIO | FIO_UNIDIR | FIO_PIPEIO;
-  ioengine.setup	= fio_ceph_msgr_setup;
-  ioengine.queue	= fio_ceph_msgr_queue;
-  ioengine.getevents	= fio_ceph_msgr_getevents;
-  ioengine.event	= fio_ceph_msgr_event;
-  ioengine.cleanup	= fio_ceph_msgr_cleanup;
-  ioengine.open_file	= fio_ceph_msgr_open_file;
-  ioengine.close_file	= fio_ceph_msgr_close_file;
-  ioengine.io_u_init	= fio_ceph_msgr_io_u_init;
-  ioengine.io_u_free	= fio_ceph_msgr_io_u_free;
+  ioengine.name = "ceph-msgr";
+  ioengine.version = FIO_IOOPS_VERSION;
+  ioengine.flags = FIO_DISKLESSIO | FIO_UNIDIR | FIO_PIPEIO;
+  ioengine.setup = fio_ceph_msgr_setup;
+  ioengine.queue = fio_ceph_msgr_queue;
+  ioengine.getevents = fio_ceph_msgr_getevents;
+  ioengine.event = fio_ceph_msgr_event;
+  ioengine.cleanup = fio_ceph_msgr_cleanup;
+  ioengine.open_file = fio_ceph_msgr_open_file;
+  ioengine.close_file = fio_ceph_msgr_close_file;
+  ioengine.io_u_init = fio_ceph_msgr_io_u_init;
+  ioengine.io_u_free = fio_ceph_msgr_io_u_free;
   ioengine.option_struct_size = sizeof(struct ceph_msgr_options);
-  ioengine.options	= options.data();
+  ioengine.options = options.data();
 
   *ioengine_ptr = &ioengine;
 }

@@ -2,10 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "journal/ObjectPlayer.h"
-#include "journal/Utils.h"
+
+#include <limits>
+
 #include "common/Timer.h"
 #include "include/rados.h" // for CEPH_OSD_OP_FLAG_FADVISE_DONTNEED
-#include <limits>
+#include "journal/Utils.h"
 
 #define dout_subsys ceph_subsys_journaler
 #undef dout_prefix
@@ -15,8 +17,13 @@ namespace journal {
 
 namespace {
 
-bool advance_to_last_pad_byte(uint32_t off, bufferlist::const_iterator *iter,
-                              uint32_t *pad_len, bool *partial_entry) {
+bool
+advance_to_last_pad_byte(
+    uint32_t off,
+    bufferlist::const_iterator* iter,
+    uint32_t* pad_len,
+    bool* partial_entry)
+{
   const uint32_t MAX_PAD = 8;
   auto pad_bytes = MAX_PAD - off % MAX_PAD;
   auto next = *iter;
@@ -43,22 +50,28 @@ bool advance_to_last_pad_byte(uint32_t off, bufferlist::const_iterator *iter,
 
 } // anonymous namespace
 
-ObjectPlayer::ObjectPlayer(librados::IoCtx &ioctx,
-                           const std::string& object_oid_prefix,
-                           uint64_t object_num, SafeTimer &timer,
-                           ceph::mutex &timer_lock, uint8_t order,
-                           uint64_t max_fetch_bytes)
-  : m_object_num(object_num),
-    m_oid(utils::get_object_name(object_oid_prefix, m_object_num)),
-    m_timer(timer), m_timer_lock(timer_lock), m_order(order),
-    m_max_fetch_bytes(max_fetch_bytes > 0 ? max_fetch_bytes : 2 << order),
-    m_lock(ceph::make_mutex(utils::unique_lock_name("ObjectPlayer::m_lock", this)))
+ObjectPlayer::ObjectPlayer(
+    librados::IoCtx& ioctx,
+    const std::string& object_oid_prefix,
+    uint64_t object_num,
+    SafeTimer& timer,
+    ceph::mutex& timer_lock,
+    uint8_t order,
+    uint64_t max_fetch_bytes) :
+  m_object_num(object_num),
+  m_oid(utils::get_object_name(object_oid_prefix, m_object_num)),
+  m_timer(timer),
+  m_timer_lock(timer_lock),
+  m_order(order),
+  m_max_fetch_bytes(max_fetch_bytes > 0 ? max_fetch_bytes : 2 << order),
+  m_lock(ceph::make_mutex(utils::unique_lock_name("ObjectPlayer::m_lock", this)))
 {
   m_ioctx.dup(ioctx);
   m_cct = reinterpret_cast<CephContext*>(m_ioctx.cct());
 }
 
-ObjectPlayer::~ObjectPlayer() {
+ObjectPlayer::~ObjectPlayer()
+{
   {
     std::lock_guard timer_locker{m_timer_lock};
     std::lock_guard locker{m_lock};
@@ -67,26 +80,30 @@ ObjectPlayer::~ObjectPlayer() {
   }
 }
 
-void ObjectPlayer::fetch(Context *on_finish) {
+void
+ObjectPlayer::fetch(Context* on_finish)
+{
   ldout(m_cct, 10) << __func__ << ": " << m_oid << dendl;
 
   std::lock_guard locker{m_lock};
   ceph_assert(!m_fetch_in_progress);
   m_fetch_in_progress = true;
 
-  C_Fetch *context = new C_Fetch(this, on_finish);
+  C_Fetch* context = new C_Fetch(this, on_finish);
   librados::ObjectReadOperation op;
   op.read(m_read_off, m_max_fetch_bytes, &context->read_bl, NULL);
   op.set_op_flags2(CEPH_OSD_OP_FLAG_FADVISE_DONTNEED);
 
-  auto rados_completion =
-    librados::Rados::aio_create_completion(context, utils::rados_ctx_callback);
+  auto rados_completion = librados::Rados::aio_create_completion(
+      context, utils::rados_ctx_callback);
   int r = m_ioctx.aio_operate(m_oid, rados_completion, &op, 0, NULL);
   ceph_assert(r == 0);
   rados_completion->release();
 }
 
-void ObjectPlayer::watch(Context *on_fetch, double interval) {
+void
+ObjectPlayer::watch(Context* on_fetch, double interval)
+{
   ldout(m_cct, 20) << __func__ << ": " << m_oid << " watch" << dendl;
 
   std::lock_guard timer_locker{m_timer_lock};
@@ -98,9 +115,11 @@ void ObjectPlayer::watch(Context *on_fetch, double interval) {
   schedule_watch();
 }
 
-void ObjectPlayer::unwatch() {
+void
+ObjectPlayer::unwatch()
+{
   ldout(m_cct, 20) << __func__ << ": " << m_oid << " unwatch" << dendl;
-  Context *watch_ctx = nullptr;
+  Context* watch_ctx = nullptr;
   {
     std::lock_guard timer_locker{m_timer_lock};
     ceph_assert(!m_unwatched);
@@ -118,25 +137,30 @@ void ObjectPlayer::unwatch() {
   }
 }
 
-void ObjectPlayer::front(Entry *entry) const {
+void
+ObjectPlayer::front(Entry* entry) const
+{
   std::lock_guard locker{m_lock};
   ceph_assert(!m_entries.empty());
   *entry = m_entries.front();
 }
 
-void ObjectPlayer::pop_front() {
+void
+ObjectPlayer::pop_front()
+{
   std::lock_guard locker{m_lock};
   ceph_assert(!m_entries.empty());
 
-  auto &entry = m_entries.front();
+  auto& entry = m_entries.front();
   m_entry_keys.erase({entry.get_tag_tid(), entry.get_entry_tid()});
   m_entries.pop_front();
 }
 
-int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
-                                        bool *refetch) {
-  ldout(m_cct, 10) << __func__ << ": " << m_oid << ", r=" << r << ", len="
-                   << bl.length() << dendl;
+int
+ObjectPlayer::handle_fetch_complete(int r, const bufferlist& bl, bool* refetch)
+{
+  ldout(m_cct, 10) << __func__ << ": " << m_oid << ", r=" << r
+                   << ", len=" << bl.length() << dendl;
 
   *refetch = false;
   if (r == -ENOENT) {
@@ -179,8 +203,8 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
         break;
       }
 
-      if (!advance_to_last_pad_byte(m_read_bl_off + iter.get_off(), &iter,
-                                    &pad_len, &partial_entry)) {
+      if (!advance_to_last_pad_byte(
+              m_read_bl_off + iter.get_off(), &iter, &pad_len, &partial_entry)) {
         invalid_start_off = m_read_bl_off + bl_off;
         invalid = true;
         if (partial_entry) {
@@ -188,8 +212,8 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
             lderr(m_cct) << ": partial pad at offset " << invalid_start_off
                          << dendl;
           } else {
-            ldout(m_cct, 20) << ": partial pad detected, will re-fetch"
-                             << dendl;
+            ldout(m_cct, 20)
+                << ": partial pad detected, will re-fetch" << dendl;
           }
         } else {
           lderr(m_cct) << ": detected corrupt journal entry at offset "
@@ -209,17 +233,17 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
     if (invalid) {
       // new corrupt region detected
       uint32_t invalid_end_off = m_read_bl_off + bl_off;
-      lderr(m_cct) << ": corruption range [" << invalid_start_off
-                   << ", " << invalid_end_off << ")" << dendl;
-      m_invalid_ranges.insert(invalid_start_off,
-                              invalid_end_off - invalid_start_off);
+      lderr(m_cct) << ": corruption range [" << invalid_start_off << ", "
+                   << invalid_end_off << ")" << dendl;
+      m_invalid_ranges.insert(
+          invalid_start_off, invalid_end_off - invalid_start_off);
       invalid = false;
 
       m_read_bl_off = invalid_end_off;
     }
 
-    EntryKey entry_key(std::make_pair(entry.get_tag_tid(),
-                                      entry.get_entry_tid()));
+    EntryKey entry_key(
+        std::make_pair(entry.get_tag_tid(), entry.get_entry_tid()));
     if (m_entry_keys.find(entry_key) == m_entry_keys.end()) {
       m_entry_keys[entry_key] = m_entries.insert(m_entries.end(), entry);
     } else {
@@ -229,8 +253,8 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
 
     // prune decoded / corrupted journal entries from front of bl
     bufferlist sub_bl;
-    sub_bl.substr_of(m_read_bl, iter.get_off(),
-                     m_read_bl.length() - iter.get_off());
+    sub_bl.substr_of(
+        m_read_bl, iter.get_off(), m_read_bl.length() - iter.get_off());
     sub_bl.swap(m_read_bl);
     iter = bufferlist::iterator(&m_read_bl, 0);
 
@@ -242,11 +266,11 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
   if (invalid) {
     uint32_t invalid_end_off = m_read_bl_off + m_read_bl.length();
     if (!partial_entry) {
-      lderr(m_cct) << ": corruption range [" << invalid_start_off
-                   << ", " << invalid_end_off << ")" << dendl;
+      lderr(m_cct) << ": corruption range [" << invalid_start_off << ", "
+                   << invalid_end_off << ")" << dendl;
     }
-    m_invalid_ranges.insert(invalid_start_off,
-                            invalid_end_off - invalid_start_off);
+    m_invalid_ranges.insert(
+        invalid_start_off, invalid_end_off - invalid_start_off);
   }
 
   if (!m_invalid_ranges.empty() && !partial_entry) {
@@ -259,7 +283,9 @@ int ObjectPlayer::handle_fetch_complete(int r, const bufferlist &bl,
   return 0;
 }
 
-void ObjectPlayer::clear_invalid_range(uint32_t off, uint32_t len) {
+void
+ObjectPlayer::clear_invalid_range(uint32_t off, uint32_t len)
+{
   // possibly remove previously partial record region
   InvalidRanges decode_range;
   decode_range.insert(off, len);
@@ -272,7 +298,9 @@ void ObjectPlayer::clear_invalid_range(uint32_t off, uint32_t len) {
   }
 }
 
-void ObjectPlayer::schedule_watch() {
+void
+ObjectPlayer::schedule_watch()
+{
   ceph_assert(ceph_mutex_is_locked(m_timer_lock));
   if (m_watch_ctx == NULL) {
     return;
@@ -281,13 +309,12 @@ void ObjectPlayer::schedule_watch() {
   ldout(m_cct, 20) << __func__ << ": " << m_oid << " scheduling watch" << dendl;
   ceph_assert(m_watch_task == nullptr);
   m_watch_task = m_timer.add_event_after(
-    m_watch_interval,
-    new LambdaContext([this](int) {
-	handle_watch_task();
-      }));
+      m_watch_interval, new LambdaContext([this](int) { handle_watch_task(); }));
 }
 
-bool ObjectPlayer::cancel_watch() {
+bool
+ObjectPlayer::cancel_watch()
+{
   ceph_assert(ceph_mutex_is_locked(m_timer_lock));
   ldout(m_cct, 20) << __func__ << ": " << m_oid << " cancelling watch" << dendl;
   if (m_watch_task != nullptr) {
@@ -300,7 +327,9 @@ bool ObjectPlayer::cancel_watch() {
   return false;
 }
 
-void ObjectPlayer::handle_watch_task() {
+void
+ObjectPlayer::handle_watch_task()
+{
   ceph_assert(ceph_mutex_is_locked(m_timer_lock));
 
   ldout(m_cct, 10) << __func__ << ": " << m_oid << " polling" << dendl;
@@ -311,11 +340,13 @@ void ObjectPlayer::handle_watch_task() {
   fetch(new C_WatchFetch(this));
 }
 
-void ObjectPlayer::handle_watch_fetched(int r) {
+void
+ObjectPlayer::handle_watch_fetched(int r)
+{
   ldout(m_cct, 10) << __func__ << ": " << m_oid << " poll complete, r=" << r
                    << dendl;
 
-  Context *watch_ctx = nullptr;
+  Context* watch_ctx = nullptr;
   {
     std::lock_guard timer_locker{m_timer_lock};
     std::swap(watch_ctx, m_watch_ctx);
@@ -331,7 +362,9 @@ void ObjectPlayer::handle_watch_fetched(int r) {
   }
 }
 
-void ObjectPlayer::C_Fetch::finish(int r) {
+void
+ObjectPlayer::C_Fetch::finish(int r)
+{
   bool refetch = false;
   r = object_player->handle_fetch_complete(r, read_bl, &refetch);
 
@@ -349,7 +382,9 @@ void ObjectPlayer::C_Fetch::finish(int r) {
   on_finish->complete(r);
 }
 
-void ObjectPlayer::C_WatchFetch::finish(int r) {
+void
+ObjectPlayer::C_WatchFetch::finish(int r)
+{
   object_player->handle_watch_fetched(r);
 }
 

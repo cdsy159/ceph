@@ -4,10 +4,11 @@
 #ifndef CEPH_LIBRBD_PLUGIN_REGISTRY_H
 #define CEPH_LIBRBD_PLUGIN_REGISTRY_H
 
-#include "librbd/plugin/Types.h"
+#include <list>
 #include <memory>
 #include <string>
-#include <list>
+
+#include "librbd/plugin/Types.h"
 
 struct Context;
 
@@ -19,7 +20,10 @@ namespace cache {
 class ImageWritebackInterface;
 }
 
-namespace plugin { template <typename> struct Api; }
+namespace plugin {
+template <typename>
+struct Api;
+}
 
 template <typename ImageCtxT>
 class PluginRegistry {
@@ -41,7 +45,6 @@ private:
   std::string m_plugins;
 
   plugin::PluginHookPoints m_plugin_hook_points;
-
 };
 
 } // namespace librbd

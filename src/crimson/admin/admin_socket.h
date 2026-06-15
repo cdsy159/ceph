@@ -8,10 +8,6 @@
 
   Note: assumed to be running on a single core.
 */
-#include <map>
-#include <string>
-#include <string_view>
-
 #include <seastar/core/future.hh>
 #include <seastar/core/gate.hh>
 #include <seastar/core/iostream.hh>
@@ -19,9 +15,13 @@
 #include <seastar/core/shared_ptr.hh>
 #include <seastar/net/api.hh>
 
+#include <map>
+#include <string>
+#include <string_view>
+
 #include "common/cmdparse.h"
-#include "include/buffer.h"
 #include "crimson/net/Fwd.h"
+#include "include/buffer.h"
 
 class MCommand;
 
@@ -50,12 +50,14 @@ struct tell_result_t {
  * An abstract class to be inherited by implementations of asock hooks
  */
 class AdminSocketHook {
- public:
-  AdminSocketHook(std::string_view prefix,
-		  std::string_view desc,
-		  std::string_view help) :
+public:
+  AdminSocketHook(
+      std::string_view prefix,
+      std::string_view desc,
+      std::string_view help) :
     prefix{prefix}, desc{desc}, help{help}
   {}
+
   /**
    * handle command defined by cmdmap
    *
@@ -69,17 +71,20 @@ class AdminSocketHook {
    *       failures. in that case, a brief reason of the failure should
    *       noted in \c err in the returned value
    */
-  virtual seastar::future<tell_result_t> call(const cmdmap_t& cmdmap,
-					      std::string_view format,
-					      ceph::bufferlist&& input) const = 0;
+  virtual seastar::future<tell_result_t> call(
+      const cmdmap_t& cmdmap,
+      std::string_view format,
+      ceph::bufferlist&& input) const = 0;
+
   virtual ~AdminSocketHook() {}
+
   const std::string_view prefix;
   const std::string_view desc;
   const std::string_view help;
 };
 
 class AdminSocket : public seastar::enable_lw_shared_from_this<AdminSocket> {
- public:
+public:
   AdminSocket() = default;
   ~AdminSocket() = default;
 
@@ -123,8 +128,9 @@ class AdminSocket : public seastar::enable_lw_shared_from_this<AdminSocket> {
    * \param conn connection over which the incoming command message is received
    * \param m message carrying the command vector and optional input buffer
    */
-  seastar::future<> handle_command(crimson::net::ConnectionRef conn,
-				   boost::intrusive_ptr<MCommand> m);
+  seastar::future<> handle_command(
+      crimson::net::ConnectionRef conn,
+      boost::intrusive_ptr<MCommand> m);
 
 private:
   /**
@@ -136,18 +142,23 @@ private:
     std::string format;
     const AdminSocketHook& hook;
   };
+
   // and the shorthand:
-  seastar::future<> handle_client(seastar::input_stream<char>& inp,
-                                  seastar::output_stream<char>& out);
+  seastar::future<> handle_client(
+      seastar::input_stream<char>& inp,
+      seastar::output_stream<char>& out);
 
-  seastar::future<> execute_line(std::string cmdline,
-                                 seastar::output_stream<char>& out);
+  seastar::future<> execute_line(
+      std::string cmdline,
+      seastar::output_stream<char>& out);
 
-  seastar::future<> finalize_response(seastar::output_stream<char>& out,
-                                      ceph::bufferlist&& msgs);
+  seastar::future<> finalize_response(
+      seastar::output_stream<char>& out,
+      ceph::bufferlist&& msgs);
 
-  seastar::future<tell_result_t> execute_command(const std::vector<std::string>& cmd,
-						 ceph::bufferlist&& buf);
+  seastar::future<tell_result_t> execute_command(
+      const std::vector<std::string>& cmd,
+      ceph::bufferlist&& buf);
 
   std::optional<seastar::future<>> task;
   std::optional<seastar::server_socket> server_sock;
@@ -167,8 +178,8 @@ private:
    * \retval on success, a \c parsed_command_t is returned, tell_result_t with
    *         detailed error messages is returned otherwise
    */
-  std::variant<parsed_command_t, tell_result_t>
-  parse_cmd(const std::vector<std::string>& cmd);
+  std::variant<parsed_command_t, tell_result_t> parse_cmd(
+      const std::vector<std::string>& cmd);
 
   using hooks_t = std::map<std::string_view, std::unique_ptr<AdminSocketHook>>;
   hooks_t hooks;
@@ -177,12 +188,17 @@ public:
   /**
    * iterator support
    */
-  hooks_t::const_iterator begin() const {
+  hooks_t::const_iterator
+  begin() const
+  {
     return hooks.cbegin();
   }
-  hooks_t::const_iterator end() const {
+
+  hooks_t::const_iterator
+  end() const
+  {
     return hooks.cend();
   }
 };
 
-}  // namespace crimson::admin
+} // namespace crimson::admin

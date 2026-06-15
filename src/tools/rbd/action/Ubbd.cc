@@ -1,16 +1,18 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/errno.h"
-#include "common/Formatter.h"
-#include "common/TextTable.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
+#include <sys/stat.h>
+
+#include <iostream>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/scope_exit.hpp>
-#include <iostream>
-#include <sys/stat.h>
+
+#include "common/Formatter.h"
+#include "common/TextTable.h"
+#include "common/errno.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 #if defined(WITH_RBD_UBBD)
 #include <libubbd.h>
@@ -23,11 +25,14 @@ namespace ubbd {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-int execute_list(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(WITH_RBD_UBBD)
   ubbdd_mgmt_rsp list_rsp;
-  ubbd_list_options list_opts = { .type = UBBD_DEV_TYPE_RBD };
+  ubbd_list_options list_opts = {.type = UBBD_DEV_TYPE_RBD};
 
   int r = ubbd_list(&list_opts, &list_rsp);
   if (r < 0) {
@@ -55,10 +60,10 @@ int execute_list(const po::variables_map &vm,
   }
 
   for (int i = 0; i < list_rsp.list.dev_num; i++) {
-    ubbd_info_options info_opts = { .ubbdid = list_rsp.list.dev_list[i] };
+    ubbd_info_options info_opts = {.ubbdid = list_rsp.list.dev_list[i]};
     ubbdd_mgmt_rsp info_rsp;
-    ubbdd_mgmt_rsp_dev_info *mgmt_dev_info = &info_rsp.dev_info;
-    ubbd_dev_info *dev_info = &mgmt_dev_info->dev_info;
+    ubbdd_mgmt_rsp_dev_info* mgmt_dev_info = &info_rsp.dev_info;
+    ubbd_dev_info* dev_info = &mgmt_dev_info->dev_info;
 
     r = ubbd_device_info(&info_opts, &info_rsp);
     if (r < 0) {
@@ -74,11 +79,13 @@ int execute_list(const po::variables_map &vm,
       f->dump_string("namespace", dev_info->generic_dev.info.rbd.ns);
       f->dump_string("image", dev_info->generic_dev.info.rbd.image);
       f->dump_string("snap", dev_info->generic_dev.info.rbd.snap);
-      f->dump_string("device", "/dev/ubbd" + std::to_string(mgmt_dev_info->devid));
+      f->dump_string(
+          "device", "/dev/ubbd" + std::to_string(mgmt_dev_info->devid));
       f->close_section();
     } else {
       tbl << mgmt_dev_info->devid << dev_info->generic_dev.info.rbd.pool
-          << dev_info->generic_dev.info.rbd.ns << dev_info->generic_dev.info.rbd.image
+          << dev_info->generic_dev.info.rbd.ns
+          << dev_info->generic_dev.info.rbd.image
           << dev_info->generic_dev.info.rbd.snap
           << "/dev/ubbd" + std::to_string(mgmt_dev_info->devid)
           << TextTable::endrow;
@@ -99,8 +106,11 @@ int execute_list(const po::variables_map &vm,
 #endif
 }
 
-int execute_map(const po::variables_map &vm,
-                const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_map(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(WITH_RBD_UBBD)
   size_t arg_index = 0;
   std::string pool_name;
@@ -108,12 +118,12 @@ int execute_map(const po::variables_map &vm,
   std::string image_name;
   std::string snap_name;
   ubbdd_mgmt_rsp rsp;
-  ubbd_map_options opts = { 0 };
+  ubbd_map_options opts = {0};
 
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &nspace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_PERMITTED,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &nspace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_PERMITTED,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -134,7 +144,7 @@ int execute_map(const po::variables_map &vm,
   }
   if (vm.count("quiesce-hook")) {
     opts.generic_dev.opts.rbd.quiesce_hook =
-      vm["quiesce-hook"].as<std::string>().c_str();
+        vm["quiesce-hook"].as<std::string>().c_str();
   }
 
   r = ubbd_map(&opts, &rsp);
@@ -153,18 +163,18 @@ int execute_map(const po::variables_map &vm,
 }
 
 #if defined(WITH_RBD_UBBD)
-static int parse_unmap_options(const std::string &options_string,
-                               ubbd_unmap_options *unmap_opts)
+static int
+parse_unmap_options(
+    const std::string& options_string,
+    ubbd_unmap_options* unmap_opts)
 {
-  char *options = strdup(options_string.c_str());
-  BOOST_SCOPE_EXIT(options) {
-    free(options);
-  } BOOST_SCOPE_EXIT_END;
+  char* options = strdup(options_string.c_str());
+  BOOST_SCOPE_EXIT(options) { free(options); }
+  BOOST_SCOPE_EXIT_END;
 
-  for (char *this_char = strtok(options, ", ");
-       this_char != NULL;
+  for (char* this_char = strtok(options, ", "); this_char != NULL;
        this_char = strtok(NULL, ",")) {
-    char *value_char;
+    char* value_char;
 
     if ((value_char = strchr(this_char, '=')) != NULL)
       *value_char++ = '\0';
@@ -182,22 +192,27 @@ static int parse_unmap_options(const std::string &options_string,
 }
 #endif
 
-int execute_unmap(const po::variables_map &vm,
-                  const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_unmap(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(WITH_RBD_UBBD)
   std::string device_name = utils::get_positional_argument(vm, 0);
   ubbdd_mgmt_rsp rsp;
-  ubbd_unmap_options opts = { 0 };
+  ubbd_unmap_options opts = {0};
   struct stat sb;
   int r;
 
   if (!boost::starts_with(device_name, "/dev/ubbd")) {
-    std::cerr << "rbd: ubbd unmap requires device path (/dev/ubbdX)" << std::endl;
+    std::cerr << "rbd: ubbd unmap requires device path (/dev/ubbdX)"
+              << std::endl;
     return -EINVAL;
   }
 
   if (stat(device_name.c_str(), &sb) < 0 || !S_ISBLK(sb.st_mode)) {
-    std::cerr << "rbd: '" << device_name << "' is not a block device" << std::endl;
+    std::cerr << "rbd: '" << device_name << "' is not a block device"
+              << std::endl;
     return -EINVAL;
   }
 
@@ -205,7 +220,7 @@ int execute_unmap(const po::variables_map &vm,
   opts.ubbdid = stoi(device_name);
 
   if (vm.count("options")) {
-    for (auto &options : vm["options"].as<std::vector<std::string>>()) {
+    for (auto& options : vm["options"].as<std::vector<std::string>>()) {
       r = parse_unmap_options(options, &opts);
       if (r < 0) {
         std::cerr << "rbd: couldn't parse ubbd unmap options" << std::endl;
@@ -227,8 +242,11 @@ int execute_unmap(const po::variables_map &vm,
 #endif
 }
 
-int execute_attach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_attach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(WITH_RBD_UBBD)
   std::cerr << "rbd: ubbd does not support attach" << std::endl;
 #else
@@ -237,8 +255,11 @@ int execute_attach(const po::variables_map &vm,
   return -EOPNOTSUPP;
 }
 
-int execute_detach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_detach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(WITH_RBD_UBBD)
   std::cerr << "rbd: ubbd does not support detach" << std::endl;
 #else

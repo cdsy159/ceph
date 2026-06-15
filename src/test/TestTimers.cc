@@ -1,10 +1,10 @@
+#include <iostream>
+
+#include "common/Timer.h"
 #include "common/ceph_argparse.h"
 #include "common/ceph_mutex.h"
-#include "common/Timer.h"
 #include "global/global_init.h"
 #include "include/Context.h"
-
-#include <iostream>
 
 /*
  * TestTimers
@@ -17,59 +17,53 @@ using namespace std;
 
 class TestContext;
 
-namespace
-{
-  int test_array[MAX_TEST_CONTEXTS];
-  int array_idx;
-  TestContext* test_contexts[MAX_TEST_CONTEXTS];
+namespace {
+int test_array[MAX_TEST_CONTEXTS];
+int array_idx;
+TestContext* test_contexts[MAX_TEST_CONTEXTS];
 
-  ceph::mutex array_lock = ceph::make_mutex("test_timers_mutex");
-}
+ceph::mutex array_lock = ceph::make_mutex("test_timers_mutex");
+} // namespace
 
-class TestContext : public Context
-{
+class TestContext : public Context {
 public:
-  explicit TestContext(int num_)
-    : num(num_)
-  {
-  }
+  explicit TestContext(int num_) :
+    num(num_)
+  {}
 
-  void finish(int r) override
+  void
+  finish(int r) override
   {
     std::lock_guard locker{array_lock};
     cout << "TestContext " << num << std::endl;
     test_array[array_idx++] = num;
   }
 
-  ~TestContext() override
-  {
-  }
+  ~TestContext() override {}
 
 protected:
   int num;
 };
 
-class StrictOrderTestContext : public TestContext
-{
+class StrictOrderTestContext : public TestContext {
 public:
-  explicit StrictOrderTestContext (int num_)
-    : TestContext(num_)
-  {
-  }
+  explicit StrictOrderTestContext(int num_) :
+    TestContext(num_)
+  {}
 
-  void finish(int r) override
+  void
+  finish(int r) override
   {
     std::lock_guard locker{array_lock};
     cout << "StrictOrderTestContext " << num << std::endl;
     test_array[num] = num;
   }
 
-  ~StrictOrderTestContext() override
-  {
-  }
+  ~StrictOrderTestContext() override {}
 };
 
-static void print_status(const char *str, int ret)
+static void
+print_status(const char* str, int ret)
 {
   cout << str << ": ";
   cout << ((ret == 0) ? "SUCCESS" : "FAILURE");
@@ -77,7 +71,8 @@ static void print_status(const char *str, int ret)
 }
 
 template <typename T>
-static int basic_timer_test(T &timer, ceph::mutex *lock)
+static int
+basic_timer_test(T& timer, ceph::mutex* lock)
 {
   int ret = 0;
   memset(&test_array, 0, sizeof(test_array));
@@ -110,15 +105,16 @@ static int basic_timer_test(T &timer, ceph::mutex *lock)
   for (int i = 0; i < MAX_TEST_CONTEXTS; ++i) {
     if (test_array[i] != i) {
       ret = 1;
-      cout << "error: expected test_array[" << i << "] = " << i
-	   << "; got " << test_array[i] << " instead." << std::endl;
+      cout << "error: expected test_array[" << i << "] = " << i << "; got "
+           << test_array[i] << " instead." << std::endl;
     }
   }
 
   return ret;
 }
 
-static int test_out_of_order_insertion(SafeTimer &timer, ceph::mutex *lock)
+static int
+test_out_of_order_insertion(SafeTimer& timer, ceph::mutex* lock)
 {
   int ret = 0;
   memset(&test_array, 0, sizeof(test_array));
@@ -143,7 +139,7 @@ static int test_out_of_order_insertion(SafeTimer &timer, ceph::mutex *lock)
   }
 
   int secs = 0;
-  for (; secs < 100 ; ++secs) {
+  for (; secs < 100; ++secs) {
     sleep(1);
     array_lock.lock();
     int a = test_array[1];
@@ -154,15 +150,15 @@ static int test_out_of_order_insertion(SafeTimer &timer, ceph::mutex *lock)
 
   if (secs == 100) {
     ret = 1;
-    cout << "error: expected test_array[" << 1 << "] = " << 1
-	 << "; got " << test_array[1] << " instead." << std::endl;
+    cout << "error: expected test_array[" << 1 << "] = " << 1 << "; got "
+         << test_array[1] << " instead." << std::endl;
   }
 
   return ret;
 }
 
-static int safe_timer_cancel_all_test(SafeTimer &safe_timer,
-                                      ceph::mutex& safe_timer_lock)
+static int
+safe_timer_cancel_all_test(SafeTimer& safe_timer, ceph::mutex& safe_timer_lock)
 {
   cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -191,16 +187,16 @@ static int safe_timer_cancel_all_test(SafeTimer &safe_timer,
   for (int i = 0; i < array_idx; ++i) {
     if (test_array[i] != i) {
       ret = 1;
-      cout << "error: expected test_array[" << i << "] = " << i
-	   << "; got " << test_array[i] << " instead." << std::endl;
+      cout << "error: expected test_array[" << i << "] = " << i << "; got "
+           << test_array[i] << " instead." << std::endl;
     }
   }
 
   return ret;
 }
 
-static int safe_timer_cancellation_test(SafeTimer &safe_timer,
-                                        ceph::mutex& safe_timer_lock)
+static int
+safe_timer_cancellation_test(SafeTimer& safe_timer, ceph::mutex& safe_timer_lock)
 {
   cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -236,69 +232,61 @@ static int safe_timer_cancellation_test(SafeTimer &safe_timer,
   for (int i = 1; i < array_idx; i += 2) {
     if (test_array[i] != i) {
       ret = 1;
-      cout << "error: expected test_array[" << i << "] = " << i
-	   << "; got " << test_array[i] << " instead." << std::endl;
+      cout << "error: expected test_array[" << i << "] = " << i << "; got "
+           << test_array[i] << " instead." << std::endl;
     }
   }
 
   return ret;
 }
 
-class TestLoopContext : public Context
-{
+class TestLoopContext : public Context {
 public:
-  explicit TestLoopContext(SafeTimer &_t,
-                           ceph::mono_clock::time_point _deadline,
-                           double _interval,
-                           bool& _test_finished)
-    : t(_t)
-    , deadline(_deadline)
-    , interval(_interval)
-    , test_finished(_test_finished)
-  {
-  }
+  explicit TestLoopContext(
+      SafeTimer& _t,
+      ceph::mono_clock::time_point _deadline,
+      double _interval,
+      bool& _test_finished) :
+    t(_t),
+    deadline(_deadline),
+    interval(_interval),
+    test_finished(_test_finished)
+  {}
 
-  ~TestLoopContext() override
-  {
-  }
+  ~TestLoopContext() override {}
 
-  void finish(int r) override
+  void
+  finish(int r) override
   {
     if (ceph::mono_clock::now() > deadline) {
       test_finished = true;
     } else {
       // We have to create a new context.
-      TestLoopContext* new_ctx = new TestLoopContext(
-        t,
-        deadline,
-        interval,
-        test_finished);
+      TestLoopContext* new_ctx =
+          new TestLoopContext(t, deadline, interval, test_finished);
       t.add_event_after(ceph::make_timespan(interval), new_ctx);
     }
   }
 
 protected:
-  SafeTimer &t;
+  SafeTimer& t;
   ceph::mono_clock::time_point deadline;
   double interval;
   bool& test_finished;
 };
 
-static int safe_timer_loop_test(SafeTimer &safe_timer,
-                                ceph::mutex& safe_timer_lock) {
+static int
+safe_timer_loop_test(SafeTimer& safe_timer, ceph::mutex& safe_timer_lock)
+{
   // TODO: consider using gtest.
   cout << __PRETTY_FUNCTION__ << std::endl;
 
   bool test_finished = false;
   int test_duration = 10;
   double tick_interval = 0.00004;
-  auto deadline = ceph::mono_clock::now() +
-                  std::chrono::seconds(test_duration);
-  TestLoopContext* ctx = new TestLoopContext(
-    safe_timer,
-    deadline,
-    tick_interval,
-    test_finished);
+  auto deadline = ceph::mono_clock::now() + std::chrono::seconds(test_duration);
+  TestLoopContext* ctx =
+      new TestLoopContext(safe_timer, deadline, tick_interval, test_finished);
 
   safe_timer.add_event_after(ceph::make_timespan(tick_interval), ctx);
 
@@ -312,13 +300,14 @@ static int safe_timer_loop_test(SafeTimer &safe_timer,
   return 0;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   int ret;
@@ -326,7 +315,7 @@ int main(int argc, const char **argv)
   SafeTimer safe_timer(g_ceph_context, safe_timer_lock);
   safe_timer.init();
 
-  ret = basic_timer_test <SafeTimer>(safe_timer, &safe_timer_lock);
+  ret = basic_timer_test<SafeTimer>(safe_timer, &safe_timer_lock);
   if (ret)
     goto done;
 

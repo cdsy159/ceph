@@ -4,18 +4,21 @@
 #ifndef CEPH_LIBRBD_MIGRATION_QCOW_FORMAT_H
 #define CEPH_LIBRBD_MIGRATION_QCOW_FORMAT_H
 
-#include "include/int_types.h"
-#include "librbd/Types.h"
-#include "librbd/migration/FormatInterface.h"
-#include "librbd/migration/QCOW.h"
-#include "acconfig.h"
-#include "json_spirit/json_spirit.h"
+#include <deque>
+#include <memory>
+#include <vector>
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
-#include <deque>
-#include <vector>
-#include <memory>
+
+#include "include/int_types.h"
+#include "json_spirit/json_spirit.h"
+#include "librbd/Types.h"
+#include "librbd/migration/FormatInterface.h"
+#include "librbd/migration/QCOW.h"
+
+#include "acconfig.h"
 
 struct Context;
 
@@ -26,14 +29,18 @@ struct ImageCtx;
 
 namespace migration {
 
-template <typename> struct SourceSpecBuilder;
+template <typename>
+struct SourceSpecBuilder;
 struct StreamInterface;
 
 namespace qcow_format {
 
 struct LookupTable {
   LookupTable() {}
-  LookupTable(uint32_t size) : size(size) {}
+
+  LookupTable(uint32_t size) :
+    size(size)
+  {}
 
   bufferlist bl;
   uint64_t* cluster_offsets = nullptr;
@@ -49,14 +56,19 @@ struct LookupTable {
 template <typename ImageCtxT>
 class QCOWFormat : public FormatInterface {
 public:
-  static QCOWFormat* create(
-      ImageCtxT* image_ctx, const json_spirit::mObject& json_object,
-      const SourceSpecBuilder<ImageCtxT>* source_spec_builder) {
+  static QCOWFormat*
+  create(
+      ImageCtxT* image_ctx,
+      const json_spirit::mObject& json_object,
+      const SourceSpecBuilder<ImageCtxT>* source_spec_builder)
+  {
     return new QCOWFormat(image_ctx, json_object, source_spec_builder);
   }
 
-  QCOWFormat(ImageCtxT* image_ctx, const json_spirit::mObject& json_object,
-             const SourceSpecBuilder<ImageCtxT>* source_spec_builder);
+  QCOWFormat(
+      ImageCtxT* image_ctx,
+      const json_spirit::mObject& json_object,
+      const SourceSpecBuilder<ImageCtxT>* source_spec_builder);
   QCOWFormat(const QCOWFormat&) = delete;
   QCOWFormat& operator=(const QCOWFormat&) = delete;
 
@@ -64,18 +76,25 @@ public:
   void close(Context* on_finish) override;
 
   void get_snapshots(SnapInfos* snap_infos, Context* on_finish) override;
-  void get_image_size(uint64_t snap_id, uint64_t* size,
-                      Context* on_finish) override;
+  void get_image_size(uint64_t snap_id, uint64_t* size, Context* on_finish)
+      override;
 
-  void read(io::AioCompletion* aio_comp, uint64_t snap_id,
-            io::Extents&& image_extents, io::ReadResult&& read_result,
-            int op_flags, int read_flags,
-            const ZTracer::Trace &parent_trace) override;
+  void read(
+      io::AioCompletion* aio_comp,
+      uint64_t snap_id,
+      io::Extents&& image_extents,
+      io::ReadResult&& read_result,
+      int op_flags,
+      int read_flags,
+      const ZTracer::Trace& parent_trace) override;
 
-  void list_snaps(io::Extents&& image_extents, io::SnapIds&& snap_ids,
-                  int list_snaps_flags, io::SnapshotDelta* snapshot_delta,
-                  const ZTracer::Trace &parent_trace,
-                  Context* on_finish) override;
+  void list_snaps(
+      io::Extents&& image_extents,
+      io::SnapIds&& snap_ids,
+      int list_snaps_flags,
+      io::SnapshotDelta* snapshot_delta,
+      const ZTracer::Trace& parent_trace,
+      Context* on_finish) override;
 
 private:
   /**
@@ -199,9 +218,12 @@ private:
 
   void read_backing_file(Context* on_finish);
 
-  void handle_list_snaps(int r, io::Extents&& image_extents,
-                         io::SnapIds&& snap_ids,
-                         io::SnapshotDelta* snapshot_delta, Context* on_finish);
+  void handle_list_snaps(
+      int r,
+      io::Extents&& image_extents,
+      io::SnapIds&& snap_ids,
+      io::SnapshotDelta* snapshot_delta,
+      Context* on_finish);
 };
 
 } // namespace migration

@@ -4,8 +4,9 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_UNPROTECT_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_UNPROTECT_REQUEST_H
 
-#include "librbd/operation/Request.h"
 #include <string>
+
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -49,22 +50,28 @@ public:
     STATE_UNPROTECT_SNAP_ROLLBACK
   };
 
-  SnapshotUnprotectRequest(ImageCtxT &image_ctx, Context *on_finish,
-		           const cls::rbd::SnapshotNamespace &snap_namespace,
-			   const std::string &snap_name);
+  SnapshotUnprotectRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const cls::rbd::SnapshotNamespace& snap_namespace,
+      const std::string& snap_name);
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
 
-  int filter_return_code(int r) const override {
+  int
+  filter_return_code(int r) const override
+  {
     if (m_ret_val < 0) {
       return m_ret_val;
     }
     return 0;
   }
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::SnapUnprotectEvent(op_tid, m_snap_namespace, m_snap_name);
   }
 
@@ -89,6 +96,7 @@ private:
 } // namespace operation
 } // namespace librbd
 
-extern template class librbd::operation::SnapshotUnprotectRequest<librbd::ImageCtx>;
+extern template class librbd::operation::SnapshotUnprotectRequest<
+    librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_OPERATION_SNAPSHOT_UNPROTECT_REQUEST_H

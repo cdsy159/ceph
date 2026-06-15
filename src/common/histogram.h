@@ -15,11 +15,12 @@
 #define CEPH_HISTOGRAM_H
 
 #include <list>
+
 #include "include/encoding.h"
 #include "include/intarith.h"
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 /**
@@ -36,39 +37,56 @@ struct pow2_hist_t { //
 
 private:
   /// expand to at least another's size
-  void _expand_to(unsigned s) {
+  void
+  _expand_to(unsigned s)
+  {
     if (s > h.size())
       h.resize(s, 0);
   }
+
   /// drop useless trailing 0's
-  void _contract() {
+  void
+  _contract()
+  {
     unsigned p = h.size();
-    while (p > 0 && h[p-1] == 0)
+    while (p > 0 && h[p - 1] == 0)
       --p;
     h.resize(p);
   }
 
 public:
-  void clear() {
+  void
+  clear()
+  {
     h.clear();
   }
-  bool empty() const {
+
+  bool
+  empty() const
+  {
     return h.empty();
   }
-  void set_bin(int bin, int32_t count) {
+
+  void
+  set_bin(int bin, int32_t count)
+  {
     _expand_to(bin + 1);
     h[bin] = count;
     _contract();
   }
 
-  void add(int32_t v) {
+  void
+  add(int32_t v)
+  {
     int bin = cbits(v);
     _expand_to(bin + 1);
     h[bin]++;
     _contract();
   }
 
-  bool operator==(const pow2_hist_t &r) const {
+  bool
+  operator==(const pow2_hist_t& r) const
+  {
     return h == r.h;
   }
 
@@ -80,16 +98,18 @@ public:
   /// @param v [in] value (non-negative)
   /// @param lower [out] pointer to lower-bound (0..1000000)
   /// @param upper [out] pointer to the upper bound (0..1000000)
-  int get_position_micro(int32_t v, uint64_t *lower, uint64_t *upper) {
+  int
+  get_position_micro(int32_t v, uint64_t* lower, uint64_t* upper)
+  {
     if (v < 0)
       return -1;
     unsigned bin = cbits(v);
     uint64_t lower_sum = 0, upper_sum = 0, total = 0;
-    for (unsigned i=0; i<h.size(); ++i) {
+    for (unsigned i = 0; i < h.size(); ++i) {
       if (i <= bin)
-	upper_sum += h[i];
+        upper_sum += h[i];
       if (i < bin)
-	lower_sum += h[i];
+        lower_sum += h[i];
       total += h[i];
     }
     if (total > 0) {
@@ -99,29 +119,36 @@ public:
     return 0;
   }
 
-  void add(const pow2_hist_t& o) {
+  void
+  add(const pow2_hist_t& o)
+  {
     _expand_to(o.h.size());
     for (unsigned p = 0; p < o.h.size(); ++p)
       h[p] += o.h[p];
     _contract();
   }
-  void sub(const pow2_hist_t& o) {
+
+  void
+  sub(const pow2_hist_t& o)
+  {
     _expand_to(o.h.size());
     for (unsigned p = 0; p < o.h.size(); ++p)
       h[p] -= o.h[p];
     _contract();
   }
 
-  int32_t upper_bound() const {
+  int32_t
+  upper_bound() const
+  {
     return 1 << h.size();
   }
 
   /// decay histogram by N bits (default 1, for a halflife)
   void decay(int bits = 1);
 
-  void dump(ceph::Formatter *f) const;
-  void encode(ceph::buffer::list &bl) const;
-  void decode(ceph::buffer::list::const_iterator &bl);
+  void dump(ceph::Formatter* f) const;
+  void encode(ceph::buffer::list& bl) const;
+  void decode(ceph::buffer::list::const_iterator& bl);
   static std::list<pow2_hist_t> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(pow2_hist_t)

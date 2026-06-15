@@ -13,8 +13,10 @@
  *
  */
 
-#include <thread>
 #include "include/mempool.h"
+
+#include <thread>
+
 #include "include/demangle.h"
 
 // default to debug_mode off
@@ -27,12 +29,15 @@ namespace mempool {
 static size_t num_shard_bits;
 static size_t num_shards;
 
-std::unique_ptr<shard_t[]> shards = std::make_unique<shard_t[]>(get_num_shards());
-}
+std::unique_ptr<shard_t[]> shards =
+    std::make_unique<shard_t[]>(get_num_shards());
+} // namespace mempool
 
-size_t mempool::get_num_shards(void) {
+size_t
+mempool::get_num_shards(void)
+{
   static std::once_flag once;
-  std::call_once(once,[&]() {
+  std::call_once(once, [&]() {
     unsigned int threads = std::thread::hardware_concurrency();
     if (threads == 0) {
       threads = DEFAULT_SHARDS;
@@ -41,7 +46,7 @@ size_t mempool::get_num_shards(void) {
     threads--;
     while (threads != 0) {
       num_shard_bits++;
-      threads>>=1;
+      threads >>= 1;
     }
     num_shards = 1 << num_shard_bits;
   });
@@ -51,7 +56,9 @@ size_t mempool::get_num_shards(void) {
 // There are 2 implementations of pick_a_shard_int, SCHED GETCPU is
 // the preferred implementaion, ROUND ROBIN is used if sched_getcpu() is not
 // available.
-int mempool::pick_a_shard_int(void) {
+int
+mempool::pick_a_shard_int(void)
+{
 #if defined(MEMPOOL_SCHED_GETCPU)
   // SCHED_GETCPU: Shards are assigned to CPU cores. Threads use sched_getcpu()
   // to query the core before every access to the shard. Other than the (very
@@ -70,14 +77,15 @@ int mempool::pick_a_shard_int(void) {
 
   if (thread_shard_index == MAX_SHARDS) {
     // Thread has not been assigned to a shard yet
-    std::lock_guard<std::mutex> lck (thread_shard_mtx);
+    std::lock_guard<std::mutex> lck(thread_shard_mtx);
     thread_shard_index = thread_shard_next++ & ((1 << num_shard_bits) - 1);
   }
   return thread_shard_index;
 #endif
 }
 
-mempool::pool_t& mempool::get_pool(mempool::pool_index_t ix)
+mempool::pool_t&
+mempool::get_pool(mempool::pool_index_t ix)
 {
   // We rely on this array being initialized before any invocation of
   // this function, even if it is called by ctors in other compilation
@@ -87,23 +95,24 @@ mempool::pool_t& mempool::get_pool(mempool::pool_index_t ix)
   return table[ix];
 }
 
-const char *mempool::get_pool_name(mempool::pool_index_t ix) {
+const char*
+mempool::get_pool_name(mempool::pool_index_t ix)
+{
 #define P(x) #x,
-  static const char *names[num_pools] = {
-    DEFINE_MEMORY_POOLS_HELPER(P)
-  };
+  static const char* names[num_pools] = {DEFINE_MEMORY_POOLS_HELPER(P)};
 #undef P
   return names[ix];
 }
 
-void mempool::dump(ceph::Formatter *f)
+void
+mempool::dump(ceph::Formatter* f)
 {
   stats_t total;
-  f->open_object_section("mempool"); // we need (dummy?) topmost section for 
-				     // JSON Formatter to print pool names. It omits them otherwise.
+  f->open_object_section("mempool"); // we need (dummy?) topmost section for
+      // JSON Formatter to print pool names. It omits them otherwise.
   f->open_object_section("by_pool");
   for (size_t i = 0; i < num_pools; ++i) {
-    const pool_t &pool = mempool::get_pool((pool_index_t)i);
+    const pool_t& pool = mempool::get_pool((pool_index_t)i);
     f->open_object_section(get_pool_name((pool_index_t)i));
     pool.dump(f, &total);
     f->close_section();
@@ -113,7 +122,8 @@ void mempool::dump(ceph::Formatter *f)
   f->close_section();
 }
 
-void mempool::set_debug_mode(bool d)
+void
+mempool::set_debug_mode(bool d)
 {
   debug_mode = d;
 }
@@ -121,7 +131,8 @@ void mempool::set_debug_mode(bool d)
 // --------------------------------------------------------------
 // pool_t
 
-size_t mempool::pool_t::allocated_bytes() const
+size_t
+mempool::pool_t::allocated_bytes() const
 {
   ssize_t result = 0;
   for (size_t i = 0; i < get_num_shards(); ++i) {
@@ -131,10 +142,11 @@ size_t mempool::pool_t::allocated_bytes() const
     // we raced with some unbalanced allocations/deallocations
     result = 0;
   }
-  return (size_t) result;
+  return (size_t)result;
 }
 
-size_t mempool::pool_t::allocated_items() const
+size_t
+mempool::pool_t::allocated_items() const
 {
   ssize_t result = 0;
   for (size_t i = 0; i < get_num_shards(); ++i) {
@@ -144,10 +156,11 @@ size_t mempool::pool_t::allocated_items() const
     // we raced with some unbalanced allocations/deallocations
     result = 0;
   }
-  return (size_t) result;
+  return (size_t)result;
 }
 
-void mempool::pool_t::adjust_count(ssize_t items, ssize_t bytes)
+void
+mempool::pool_t::adjust_count(ssize_t items, ssize_t bytes)
 {
   const auto shid = pick_a_shard_int();
   auto& shard = shards[shid].pool[pool_index];
@@ -155,9 +168,10 @@ void mempool::pool_t::adjust_count(ssize_t items, ssize_t bytes)
   shard.bytes += bytes;
 }
 
-void mempool::pool_t::get_stats(
-  stats_t *total,
-  std::map<std::string, stats_t> *by_type) const
+void
+mempool::pool_t::get_stats(
+    stats_t* total,
+    std::map<std::string, stats_t>* by_type) const
 {
   for (size_t i = 0; i < get_num_shards(); ++i) {
     total->items += shards[i].pool[pool_index].items;
@@ -165,12 +179,12 @@ void mempool::pool_t::get_stats(
   }
   if (debug_mode) {
     std::lock_guard shard_lock(lock);
-    for (auto &p : type_map) {
+    for (auto& p : type_map) {
       std::string n = ceph_demangle(p.second.type_name);
-      stats_t &s = (*by_type)[n];
+      stats_t& s = (*by_type)[n];
       s.bytes = 0;
       s.items = 0;
-      for (size_t i = 0 ; i < get_num_shards(); ++i) {
+      for (size_t i = 0; i < get_num_shards(); ++i) {
         s.bytes += p.second.shards[i].items * p.second.item_size;
         s.items += p.second.shards[i].items;
       }
@@ -178,7 +192,8 @@ void mempool::pool_t::get_stats(
   }
 }
 
-void mempool::pool_t::dump(ceph::Formatter *f, stats_t *ptotal) const
+void
+mempool::pool_t::dump(ceph::Formatter* f, stats_t* ptotal) const
 {
   stats_t total;
   std::map<std::string, stats_t> by_type;
@@ -189,7 +204,7 @@ void mempool::pool_t::dump(ceph::Formatter *f, stats_t *ptotal) const
   total.dump(f);
   if (!by_type.empty()) {
     f->open_object_section("by_type");
-    for (auto &i : by_type) {
+    for (auto& i : by_type) {
       f->open_object_section(i.first.c_str());
       i.second.dump(f);
       f->close_section();

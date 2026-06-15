@@ -13,10 +13,11 @@
  *
  */
 
-#include "rgw_reshard.h"
+#include <gtest/gtest.h>
+
 #include <boost/asio/spawn.hpp>
 
-#include <gtest/gtest.h>
+#include "rgw_reshard.h"
 
 using namespace std::chrono_literals;
 using Clock = RGWReshardWait::Clock;
@@ -61,8 +62,11 @@ TEST(ReshardWait, stop_block)
   short_waiter.stop();
 }
 
-void rethrow(std::exception_ptr eptr) {
-  if (eptr) std::rethrow_exception(eptr);
+void
+rethrow(std::exception_ptr eptr)
+{
+  if (eptr)
+    std::rethrow_exception(eptr);
 }
 
 TEST(ReshardWait, wait_yield)
@@ -72,9 +76,12 @@ TEST(ReshardWait, wait_yield)
   RGWReshardWait waiter(wait_duration);
 
   boost::asio::io_context context;
-  boost::asio::spawn(context, [&] (boost::asio::yield_context yield) {
-      EXPECT_EQ(0, waiter.wait(&dpp, yield));
-    }, rethrow);
+  boost::asio::spawn(
+      context,
+      [&](boost::asio::yield_context yield) {
+        EXPECT_EQ(0, waiter.wait(&dpp, yield));
+      },
+      rethrow);
 
   const auto start = Clock::now();
   EXPECT_EQ(1u, context.poll()); // spawn
@@ -98,10 +105,12 @@ TEST(ReshardWait, stop_yield)
   RGWReshardWait short_waiter(short_duration);
 
   boost::asio::io_context context;
-  boost::asio::spawn(context,
-    [&] (boost::asio::yield_context yield) {
-      EXPECT_EQ(-ECANCELED, long_waiter.wait(&dpp, yield));
-    }, rethrow);
+  boost::asio::spawn(
+      context,
+      [&](boost::asio::yield_context yield) {
+        EXPECT_EQ(-ECANCELED, long_waiter.wait(&dpp, yield));
+      },
+      rethrow);
 
   const auto start = Clock::now();
   EXPECT_EQ(1u, context.poll()); // spawn
@@ -143,9 +152,9 @@ TEST(ReshardWait, stop_multiple)
   // spawn 4 coroutines
   boost::asio::io_context context;
   {
-    auto async_waiter = [&] (boost::asio::yield_context yield) {
-        EXPECT_EQ(-ECANCELED, long_waiter.wait(&dpp, yield));
-      };
+    auto async_waiter = [&](boost::asio::yield_context yield) {
+      EXPECT_EQ(-ECANCELED, long_waiter.wait(&dpp, yield));
+    };
     boost::asio::spawn(context, async_waiter, rethrow);
     boost::asio::spawn(context, async_waiter, rethrow);
     boost::asio::spawn(context, async_waiter, rethrow);

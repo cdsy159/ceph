@@ -15,21 +15,24 @@
 
 #include "users.h"
 
-#include "include/rados/librados.hpp"
+#include "cls/user/cls_user_client.h"
 #include "common/ceph_json.h"
 #include "common/dout.h"
-#include "cls/user/cls_user_client.h"
+#include "include/rados/librados.hpp"
+
 #include "rgw_common.h"
 #include "rgw_sal.h"
 
 namespace rgwrados::users {
 
-int add(const DoutPrefixProvider* dpp,
-        optional_yield y,
-        librados::Rados& rados,
-        const rgw_raw_obj& obj,
-        const RGWUserInfo& user,
-        bool exclusive, uint32_t limit)
+int
+add(const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const RGWUserInfo& user,
+    bool exclusive,
+    uint32_t limit)
 {
   resource_metadata meta;
   meta.user_id = user.user_id.id;
@@ -50,12 +53,13 @@ int add(const DoutPrefixProvider* dpp,
   return ref.operate(dpp, std::move(op), y);
 }
 
-int get(const DoutPrefixProvider* dpp,
-        optional_yield y,
-        librados::Rados& rados,
-        const rgw_raw_obj& obj,
-        std::string_view name,
-        std::string& user_id)
+int
+get(const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view name,
+    std::string& user_id)
 {
   cls_user_account_resource resource;
 
@@ -88,11 +92,13 @@ int get(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int remove(const DoutPrefixProvider* dpp,
-           optional_yield y,
-           librados::Rados& rados,
-           const rgw_raw_obj& obj,
-           std::string_view name)
+int
+remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view name)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);
@@ -105,15 +111,17 @@ int remove(const DoutPrefixProvider* dpp,
   return ref.operate(dpp, std::move(op), y);
 }
 
-int list(const DoutPrefixProvider* dpp,
-         optional_yield y,
-         librados::Rados& rados,
-         const rgw_raw_obj& obj,
-         std::string_view marker,
-         std::string_view path_prefix,
-         uint32_t max_items,
-         std::vector<std::string>& ids,
-         std::string& next_marker)
+int
+list(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view marker,
+    std::string_view path_prefix,
+    uint32_t max_items,
+    std::vector<std::string>& ids,
+    std::string& next_marker)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);
@@ -125,8 +133,9 @@ int list(const DoutPrefixProvider* dpp,
   std::vector<cls_user_account_resource> entries;
   bool truncated = false;
   int ret = 0;
-  ::cls_user_account_resource_list(op, marker, path_prefix, max_items,
-                                   entries, &truncated, &next_marker, &ret);
+  ::cls_user_account_resource_list(
+      op, marker, path_prefix, max_items, entries, &truncated, &next_marker,
+      &ret);
 
   r = ref.operate(dpp, std::move(op), nullptr, y);
   if (r == -ENOENT) {
@@ -157,17 +166,19 @@ int list(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
-void resource_metadata::dump(ceph::Formatter* f) const
+void
+resource_metadata::dump(ceph::Formatter* f) const
 {
   encode_json("user_id", user_id, f);
 }
 
-std::list<resource_metadata> resource_metadata::generate_test_instances()
+std::list<resource_metadata>
+resource_metadata::generate_test_instances()
 {
   std::list<resource_metadata> o;
   o.emplace_back();
-  resource_metadata m;;
+  resource_metadata m;
+  ;
   m.user_id = "uid";
   o.push_back(std::move(m));
   return o;

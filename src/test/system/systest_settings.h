@@ -19,12 +19,12 @@
 #include <string>
 
 /* Singleton with settings grabbed from environment variables */
-class SysTestSettings
-{
+class SysTestSettings {
 public:
   static SysTestSettings& inst();
   bool use_threads() const;
-  std::string get_log_name(const std::string &suffix) const;
+  std::string get_log_name(const std::string& suffix) const;
+
 private:
   static SysTestSettings* m_inst;
   SysTestSettings();

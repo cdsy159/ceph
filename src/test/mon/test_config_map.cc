@@ -1,16 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "mon/ConfigMap.h"
-
 #include <iostream>
 #include <memory>
 #include <string>
-#include "crush/CrushWrapper.h"
+
 #include "common/ceph_context.h"
+#include "crush/CrushWrapper.h"
 #include "global/global_context.h"
 #include "gtest/gtest.h"
-
+#include "mon/ConfigMap.h"
 
 TEST(ConfigMap, parse_key)
 {
@@ -56,89 +55,74 @@ TEST(ConfigMap, parse_key)
 TEST(ConfigMap, add_option)
 {
   ConfigMap cm;
-  boost::intrusive_ptr<CephContext> cct{new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
+  boost::intrusive_ptr<CephContext> cct{
+      new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
   int r;
 
   r = cm.add_option(
-    cct.get(), "foo", "global", "fooval",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+      cct.get(), "foo", "global", "fooval",
+      [&](const std::string& name) { return nullptr; });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.global.options.size());
 
   r = cm.add_option(
-    cct.get(), "foo", "mon", "fooval",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+      cct.get(), "foo", "mon", "fooval",
+      [&](const std::string& name) { return nullptr; });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.by_type.size());
   ASSERT_EQ(1, cm.by_type["mon"].options.size());
-  
+
   r = cm.add_option(
-    cct.get(), "foo", "mon.a", "fooval",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+      cct.get(), "foo", "mon.a", "fooval",
+      [&](const std::string& name) { return nullptr; });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.by_id.size());
   ASSERT_EQ(1, cm.by_id["mon.a"].options.size());
 }
 
-
 TEST(ConfigMap, result_sections)
 {
   ConfigMap cm;
-  boost::intrusive_ptr<CephContext> cct{new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
+  boost::intrusive_ptr<CephContext> cct{
+      new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
   auto crush = std::make_unique<CrushWrapper>();
   crush->finalize();
 
   int r;
 
   r = cm.add_option(
-    cct.get(), "foo", "global", "g",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+      cct.get(), "foo", "global", "g",
+      [&](const std::string& name) { return nullptr; });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.global.options.size());
 
-  r = cm.add_option(
-    cct.get(), "foo", "mon", "m",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+  r = cm.add_option(cct.get(), "foo", "mon", "m", [&](const std::string& name) {
+    return nullptr;
+  });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.by_type.size());
   ASSERT_EQ(1, cm.by_type["mon"].options.size());
 
   r = cm.add_option(
-    cct.get(), "foo", "mon.a", "a",
-    [&](const std::string& name) {
-      return nullptr;
-    });
+      cct.get(), "foo", "mon.a", "a",
+      [&](const std::string& name) { return nullptr; });
   ASSERT_EQ(0, r);
   ASSERT_EQ(1, cm.by_id.size());
   ASSERT_EQ(1, cm.by_id["mon.a"].options.size());
 
   EntityName n;
   n.set(CEPH_ENTITY_TYPE_MON, "a");
-  auto c = cm.generate_entity_map(
-    n, {}, crush.get(), "none", nullptr);
+  auto c = cm.generate_entity_map(n, {}, crush.get(), "none", nullptr);
   ASSERT_EQ(1, c.size());
   ASSERT_EQ("a", c["foo"]);
 
   n.set(CEPH_ENTITY_TYPE_MON, "b");
-  c = cm.generate_entity_map(
-    n, {}, crush.get(), "none", nullptr);
+  c = cm.generate_entity_map(n, {}, crush.get(), "none", nullptr);
   ASSERT_EQ(1, c.size());
   ASSERT_EQ("m", c["foo"]);
 
   n.set(CEPH_ENTITY_TYPE_MDS, "c");
-  c = cm.generate_entity_map(
-    n, {}, crush.get(), "none", nullptr);
+  c = cm.generate_entity_map(n, {}, crush.get(), "none", nullptr);
   ASSERT_EQ(1, c.size());
   ASSERT_EQ("g", c["foo"]);
 }
-

@@ -14,21 +14,29 @@
  */
 
 #include "rgw_rest_account.h"
+
 #include "rgw_account.h"
 #include "rgw_process_env.h"
 
 class RGWOp_Account_Create : public RGWRESTOp {
 public:
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("accounts", RGW_CAP_WRITE);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "create_account"; }
+  const char*
+  name() const override
+  {
+    return "create_account";
+  }
 };
 
-void RGWOp_Account_Create::execute(optional_yield y)
+void
+RGWOp_Account_Create::execute(optional_yield y)
 {
   rgw::account::AdminOpState op_state;
   RESTArgs::get_string(s, "id", "", &op_state.account_id);
@@ -59,7 +67,8 @@ void RGWOp_Account_Create::execute(optional_yield y)
 
   int32_t max_access_keys = 0;
   bool has_max_access_keys = false;
-  RESTArgs::get_int32(s, "max-access-keys", 0, &max_access_keys, &has_max_access_keys);
+  RESTArgs::get_int32(
+      s, "max-access-keys", 0, &max_access_keys, &has_max_access_keys);
   if (has_max_access_keys) {
     op_state.max_access_keys = max_access_keys;
   }
@@ -74,10 +83,12 @@ void RGWOp_Account_Create::execute(optional_yield y)
   if (!driver->is_meta_master()) {
     bufferlist data;
     JSONParser parser;
-    op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->user->get_id(),
-                                           &data, &parser, s->info, s->err, y);
+    op_ret = rgw_forward_request_to_master(
+        this, *s->penv.site, s->user->get_id(), &data, &parser, s->info, s->err,
+        y);
     if (op_ret < 0) {
-      ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret << dendl;
+      ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret
+                         << dendl;
       return;
     }
 
@@ -85,15 +96,16 @@ void RGWOp_Account_Create::execute(optional_yield y)
     std::string meta_master_id;
     JSONDecoder::decode_json("id", meta_master_id, &parser);
     if (meta_master_id.empty()) {
-      ldpp_dout(this, 4) << "forward_request_to_master returned empty account id" << dendl;
+      ldpp_dout(this, 4)
+          << "forward_request_to_master returned empty account id" << dendl;
       op_ret = -EINVAL;
       return;
     }
     op_state.account_id = meta_master_id;
   }
 
-  op_ret = rgw::account::create(this, driver, op_state,
-                                s->err.message, flusher, y);
+  op_ret =
+      rgw::account::create(this, driver, op_state, s->err.message, flusher, y);
   if (op_ret < 0) {
     if (op_ret == -EEXIST) {
       op_ret = -ERR_ACCOUNT_EXISTS;
@@ -103,22 +115,31 @@ void RGWOp_Account_Create::execute(optional_yield y)
 
 class RGWOp_Account_Modify : public RGWRESTOp {
 public:
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("accounts", RGW_CAP_WRITE);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "modify_account"; }
+  const char*
+  name() const override
+  {
+    return "modify_account";
+  }
 };
 
-void RGWOp_Account_Modify::execute(optional_yield y)
+void
+RGWOp_Account_Modify::execute(optional_yield y)
 {
   bufferlist data;
-  op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->user->get_id(),
-                                         &data, nullptr, s->info, s->err, y);
+  op_ret = rgw_forward_request_to_master(
+      this, *s->penv.site, s->user->get_id(), &data, nullptr, s->info, s->err,
+      y);
   if (op_ret < 0) {
-    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret << dendl;
+    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret
+                       << dendl;
     return;
   }
 
@@ -151,7 +172,8 @@ void RGWOp_Account_Modify::execute(optional_yield y)
 
   int32_t max_access_keys = 0;
   bool has_max_access_keys = false;
-  RESTArgs::get_int32(s, "max-access-keys", 0, &max_access_keys, &has_max_access_keys);
+  RESTArgs::get_int32(
+      s, "max-access-keys", 0, &max_access_keys, &has_max_access_keys);
   if (has_max_access_keys) {
     op_state.max_access_keys = max_access_keys;
   }
@@ -163,51 +185,66 @@ void RGWOp_Account_Modify::execute(optional_yield y)
     op_state.max_buckets = max_buckets;
   }
 
-  op_ret = rgw::account::modify(this, driver, op_state,
-                                s->err.message, flusher, y);
+  op_ret =
+      rgw::account::modify(this, driver, op_state, s->err.message, flusher, y);
 }
-
 
 class RGWOp_Account_Get : public RGWRESTOp {
 public:
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("accounts", RGW_CAP_READ);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "get_account"; }
+  const char*
+  name() const override
+  {
+    return "get_account";
+  }
 };
 
-void RGWOp_Account_Get::execute(optional_yield y)
+void
+RGWOp_Account_Get::execute(optional_yield y)
 {
   rgw::account::AdminOpState op_state;
   RESTArgs::get_string(s, "id", "", &op_state.account_id);
   RESTArgs::get_string(s, "tenant", "", &op_state.tenant);
   RESTArgs::get_string(s, "name", "", &op_state.account_name);
 
-  op_ret = rgw::account::info(this, driver, op_state,
-                              s->err.message, flusher, y);
+  op_ret =
+      rgw::account::info(this, driver, op_state, s->err.message, flusher, y);
 }
 
 class RGWOp_Account_Delete : public RGWRESTOp {
 public:
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("accounts", RGW_CAP_WRITE);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "delete_account"; }
+  const char*
+  name() const override
+  {
+    return "delete_account";
+  }
 };
 
-void RGWOp_Account_Delete::execute(optional_yield y)
+void
+RGWOp_Account_Delete::execute(optional_yield y)
 {
   bufferlist data;
-  op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->user->get_id(),
-                                         &data, nullptr, s->info, s->err, y);
+  op_ret = rgw_forward_request_to_master(
+      this, *s->penv.site, s->user->get_id(), &data, nullptr, s->info, s->err,
+      y);
   if (op_ret < 0) {
-    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret << dendl;
+    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret
+                       << dendl;
     return;
   }
 
@@ -216,19 +253,25 @@ void RGWOp_Account_Delete::execute(optional_yield y)
   RESTArgs::get_string(s, "tenant", "", &op_state.tenant);
   RESTArgs::get_string(s, "name", "", &op_state.account_name);
 
-  op_ret = rgw::account::remove(this, driver, op_state,
-                                s->err.message, flusher, y);
+  op_ret =
+      rgw::account::remove(this, driver, op_state, s->err.message, flusher, y);
 }
 
 class RGWOp_Account_Quota_Set : public RGWRESTOp {
 public:
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("accounts", RGW_CAP_WRITE);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "set_account_quota_info"; }
+  const char*
+  name() const override
+  {
+    return "set_account_quota_info";
+  }
 };
 
 /**
@@ -252,13 +295,16 @@ public:
  * 
  */
 
-void RGWOp_Account_Quota_Set::execute(optional_yield y)
+void
+RGWOp_Account_Quota_Set::execute(optional_yield y)
 {
   bufferlist data;
-  op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->user->get_id(),
-                                         &data, nullptr, s->info, s->err, y);
+  op_ret = rgw_forward_request_to_master(
+      this, *s->penv.site, s->user->get_id(), &data, nullptr, s->info, s->err,
+      y);
   if (op_ret < 0) {
-    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret << dendl;
+    ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret
+                       << dendl;
     return;
   }
 
@@ -266,9 +312,11 @@ void RGWOp_Account_Quota_Set::execute(optional_yield y)
   bool has_account_id = false;
   RESTArgs::get_string(s, "id", "", &op_state.account_id, &has_account_id);
   bool has_quota_scope = false;
-  RESTArgs::get_string(s, "quota-type", "", &op_state.quota_scope, &has_quota_scope);
+  RESTArgs::get_string(
+      s, "quota-type", "", &op_state.quota_scope, &has_quota_scope);
 
-  if (!has_account_id || !has_quota_scope || (op_state.quota_scope != "account" && op_state.quota_scope != "bucket")) {
+  if (!has_account_id || !has_quota_scope ||
+      (op_state.quota_scope != "account" && op_state.quota_scope != "bucket")) {
     op_ret = -EINVAL;
     return;
   }
@@ -282,7 +330,8 @@ void RGWOp_Account_Quota_Set::execute(optional_yield y)
 
   int32_t quota_max_objects = 0;
   bool has_quota_max_objects = false;
-  RESTArgs::get_int32(s, "max-objects", 0, &quota_max_objects, &has_quota_max_objects);
+  RESTArgs::get_int32(
+      s, "max-objects", 0, &quota_max_objects, &has_quota_max_objects);
   if (has_quota_max_objects) {
     op_state.quota_max_objects = quota_max_objects;
   }
@@ -294,28 +343,32 @@ void RGWOp_Account_Quota_Set::execute(optional_yield y)
     op_state.quota_enabled = quota_enabled;
   }
 
-  op_ret = rgw::account::modify(this, driver, op_state,
-                                s->err.message, flusher, y);
+  op_ret =
+      rgw::account::modify(this, driver, op_state, s->err.message, flusher, y);
 }
 
-RGWOp* RGWHandler_Account::op_post()
+RGWOp*
+RGWHandler_Account::op_post()
 {
   return new RGWOp_Account_Create;
 }
 
-RGWOp* RGWHandler_Account::op_put()
+RGWOp*
+RGWHandler_Account::op_put()
 {
   if (s->info.args.sub_resource_exists("quota"))
     return new RGWOp_Account_Quota_Set;
   return new RGWOp_Account_Modify;
 }
 
-RGWOp* RGWHandler_Account::op_get()
+RGWOp*
+RGWHandler_Account::op_get()
 {
   return new RGWOp_Account_Get;
 }
 
-RGWOp* RGWHandler_Account::op_delete()
+RGWOp*
+RGWHandler_Account::op_delete()
 {
   return new RGWOp_Account_Delete;
 }

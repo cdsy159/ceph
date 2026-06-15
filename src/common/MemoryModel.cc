@@ -1,8 +1,8 @@
+#include "MemoryModel.h"
+
 #include "debug.h"
 
 #include "include/compat.h"
-
-#include "MemoryModel.h"
 #if defined(__linux__)
 #include <malloc.h>
 #endif
@@ -17,10 +17,9 @@
 using namespace std;
 using mem_snap_t = MemoryModel::mem_snap_t;
 
-inline bool MemoryModel::cmp_against(
-    const std::string &ln,
-    std::string_view param,
-    long &v) const
+inline bool
+MemoryModel::cmp_against(const std::string& ln, std::string_view param, long& v)
+    const
 {
   if (ln.size() < (param.size() + 10)) {
     return false;
@@ -38,8 +37,8 @@ inline bool MemoryModel::cmp_against(
   return false;
 }
 
-
-tl::expected<int64_t, std::string> MemoryModel::get_mapped_heap()
+tl::expected<int64_t, std::string>
+MemoryModel::get_mapped_heap()
 {
   if (!proc_maps.is_open()) {
     return tl::unexpected("unable to open proc/maps");
@@ -89,10 +88,10 @@ tl::expected<int64_t, std::string> MemoryModel::get_mapped_heap()
       continue;
     }
 
-    std::string_view final_token{the_rest.begin() + sizeof("00000000 00:00 0") - 1,
-                                 the_rest.end()};
-    if (final_token.size() < 3 ||
-        final_token.ends_with("[heap]") || final_token.ends_with("[stack]")) {
+    std::string_view final_token{
+        the_rest.begin() + sizeof("00000000 00:00 0") - 1, the_rest.end()};
+    if (final_token.size() < 3 || final_token.ends_with("[heap]") ||
+        final_token.ends_with("[stack]")) {
       // calculate and sum the size of the heap segment
       uint64_t as{0ull};
       from_chars(start, dash, as, 16);
@@ -107,8 +106,8 @@ tl::expected<int64_t, std::string> MemoryModel::get_mapped_heap()
   return heap;
 }
 
-
-tl::expected<mem_snap_t, std::string> MemoryModel::full_sample()
+tl::expected<mem_snap_t, std::string>
+MemoryModel::full_sample()
 {
   if (!proc_status.is_open()) {
     return tl::unexpected("unable to open proc/status");
@@ -126,10 +125,10 @@ tl::expected<mem_snap_t, std::string> MemoryModel::full_sample()
     getline(proc_status, ln);
 
     if (cmp_against(ln, "VmSize:", s.size) ||
-	cmp_against(ln, "VmRSS:", s.rss) || cmp_against(ln, "VmHWM:", s.hwm) ||
-	cmp_against(ln, "VmLib:", s.lib) ||
-	cmp_against(ln, "VmPeak:", s.peak) ||
-	cmp_against(ln, "VmData:", s.data)) {
+        cmp_against(ln, "VmRSS:", s.rss) || cmp_against(ln, "VmHWM:", s.hwm) ||
+        cmp_against(ln, "VmLib:", s.lib) ||
+        cmp_against(ln, "VmPeak:", s.peak) ||
+        cmp_against(ln, "VmData:", s.data)) {
       yet_to_find--;
     }
   }

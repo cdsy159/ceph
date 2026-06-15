@@ -4,7 +4,6 @@
 #include "replicated_request_reply.h"
 
 #include "common/Formatter.h"
-
 #include "crimson/osd/pg.h"
 #include "crimson/osd/replicated_backend.h"
 
@@ -13,20 +12,19 @@ SET_SUBSYS(osd);
 namespace crimson::osd {
 
 ReplicatedRequestReply::ReplicatedRequestReply(
-  crimson::net::ConnectionRef&& conn,
-  Ref<MOSDRepOpReply> &&req)
-  : RemoteOperation{std::move(conn)},
-    req{std::move(req)}
+    crimson::net::ConnectionRef&& conn,
+    Ref<MOSDRepOpReply>&& req) :
+  RemoteOperation{std::move(conn)}, req{std::move(req)}
 {}
 
-void ReplicatedRequestReply::print(std::ostream& os) const
+void
+ReplicatedRequestReply::print(std::ostream& os) const
 {
-  os << "ReplicatedRequestReply("
-     << " req=" << *req
-     << ")";
+  os << "ReplicatedRequestReply(" << " req=" << *req << ")";
 }
 
-void ReplicatedRequestReply::dump_detail(Formatter *f) const
+void
+ReplicatedRequestReply::dump_detail(Formatter* f) const
 {
   f->open_object_section("ReplicatedRequestReply");
   f->dump_stream("pgid") << req->get_spg();
@@ -35,8 +33,8 @@ void ReplicatedRequestReply::dump_detail(Formatter *f) const
   f->close_section();
 }
 
-seastar::future<> ReplicatedRequestReply::with_pg(
-  ShardServices &shard_services, Ref<PG> pgref)
+seastar::future<>
+ReplicatedRequestReply::with_pg(ShardServices& shard_services, Ref<PG> pgref)
 {
   LOG_PREFIX(ReplicatedRequestReply::with_pg);
   DEBUGDPP("{}", *pgref, *this);
@@ -45,4 +43,4 @@ seastar::future<> ReplicatedRequestReply::with_pg(
   return seastar::now();
 }
 
-}
+} // namespace crimson::osd

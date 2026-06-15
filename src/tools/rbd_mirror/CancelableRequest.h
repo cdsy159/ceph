@@ -12,17 +12,23 @@ namespace mirror {
 
 class CancelableRequest : public RefCountedObject {
 public:
-  CancelableRequest(const std::string& name, CephContext *cct,
-                    Context *on_finish)
-    : RefCountedObject(cct), m_name(name), m_cct(cct),
-      m_on_finish(on_finish) {
-  }
+  CancelableRequest(
+      const std::string& name,
+      CephContext* cct,
+      Context* on_finish) :
+    RefCountedObject(cct), m_name(name), m_cct(cct), m_on_finish(on_finish)
+  {}
 
   virtual void send() = 0;
-  virtual void cancel() {}
+
+  virtual void
+  cancel()
+  {}
 
 protected:
-  virtual void finish(int r) {
+  virtual void
+  finish(int r)
+  {
     if (m_cct) {
       lsubdout(m_cct, rbd_mirror, 20) << m_name << "::finish: r=" << r << dendl;
     }
@@ -34,8 +40,8 @@ protected:
 
 private:
   const std::string m_name;
-  CephContext *m_cct;
-  Context *m_on_finish;
+  CephContext* m_cct;
+  Context* m_on_finish;
 };
 
 } // namespace mirror

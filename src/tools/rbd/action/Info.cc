@@ -1,18 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-#include "include/rbd_types.h" // for RBD_GROUP_INVALID_POOL
-#include "include/stringify.h"
-#include "include/types.h" // for byte_u_t
-#include "common/errno.h"
-#include "common/Formatter.h"
 #include <iostream>
+
 #include <boost/program_options.hpp>
 
 #include "common/Clock.h"
+#include "common/Formatter.h"
+#include "common/errno.h"
+#include "include/rbd_types.h" // for RBD_GROUP_INVALID_POOL
+#include "include/stringify.h"
+#include "include/types.h" // for byte_u_t
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 namespace rbd {
 namespace action {
@@ -21,9 +22,12 @@ namespace info {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static void format_bitmask(Formatter *f, const std::string &name,
-                           const std::map<uint64_t, std::string>& mapping,
-                           uint64_t bitmask)
+static void
+format_bitmask(
+    Formatter* f,
+    const std::string& name,
+    const std::map<uint64_t, std::string>& mapping,
+    uint64_t bitmask)
 {
   int count = 0;
   std::string group_name(name + "s");
@@ -54,39 +58,50 @@ static void format_bitmask(Formatter *f, const std::string &name,
   }
 }
 
-static void format_features(Formatter *f, uint64_t features)
+static void
+format_features(Formatter* f, uint64_t features)
 {
   format_bitmask(f, "feature", at::ImageFeatures::FEATURE_MAPPING, features);
 }
 
-static void format_op_features(Formatter *f, uint64_t op_features)
+static void
+format_op_features(Formatter* f, uint64_t op_features)
 {
   static std::map<uint64_t, std::string> mapping = {
-    {RBD_OPERATION_FEATURE_CLONE_PARENT, RBD_OPERATION_FEATURE_NAME_CLONE_PARENT},
-    {RBD_OPERATION_FEATURE_CLONE_CHILD, RBD_OPERATION_FEATURE_NAME_CLONE_CHILD},
-    {RBD_OPERATION_FEATURE_GROUP, RBD_OPERATION_FEATURE_NAME_GROUP},
-    {RBD_OPERATION_FEATURE_SNAP_TRASH, RBD_OPERATION_FEATURE_NAME_SNAP_TRASH}};
+      {RBD_OPERATION_FEATURE_CLONE_PARENT,
+       RBD_OPERATION_FEATURE_NAME_CLONE_PARENT},
+      {RBD_OPERATION_FEATURE_CLONE_CHILD,
+       RBD_OPERATION_FEATURE_NAME_CLONE_CHILD},
+      {RBD_OPERATION_FEATURE_GROUP, RBD_OPERATION_FEATURE_NAME_GROUP},
+      {RBD_OPERATION_FEATURE_SNAP_TRASH, RBD_OPERATION_FEATURE_NAME_SNAP_TRASH}};
   format_bitmask(f, "op_feature", mapping, op_features);
 }
 
-static void format_flags(Formatter *f, uint64_t flags)
+static void
+format_flags(Formatter* f, uint64_t flags)
 {
   std::map<uint64_t, std::string> mapping = {
-    {RBD_FLAG_OBJECT_MAP_INVALID, "object map invalid"},
-    {RBD_FLAG_FAST_DIFF_INVALID, "fast diff invalid"}};
+      {RBD_FLAG_OBJECT_MAP_INVALID, "object map invalid"},
+      {RBD_FLAG_FAST_DIFF_INVALID, "fast diff invalid"}};
   format_bitmask(f, "flag", mapping, flags);
 }
 
-void format_timestamp(struct timespec timestamp, std::string &timestamp_str) {
-  if(timestamp.tv_sec != 0) {
+void
+format_timestamp(struct timespec timestamp, std::string& timestamp_str)
+{
+  if (timestamp.tv_sec != 0) {
     time_t ts = timestamp.tv_sec;
     timestamp_str = ctime(&ts);
     timestamp_str = timestamp_str.substr(0, timestamp_str.length() - 1);
   }
 }
 
-static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
-                        const std::string &snapname, Formatter *f)
+static int
+do_show_info(
+    librados::IoCtx& io_ctx,
+    librbd::Image& image,
+    const std::string& snapname,
+    Formatter* f)
 {
   librbd::image_info_t info;
   uint8_t old_format;
@@ -239,24 +254,19 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
     f->dump_int("format", (old_format ? 1 : 2));
   } else {
     std::cout << "rbd image '" << imgname << "':\n"
-              << "\tsize " << byte_u_t(info.size) << " in "
-              << info.num_objs << " objects"
-              << std::endl
-              << "\torder " << info.order
-              << " (" << byte_u_t(info.obj_size) << " objects)"
-              << std::endl
-              << "\tsnapshot_count: " << snaps.size()
-              << std::endl;
+              << "\tsize " << byte_u_t(info.size) << " in " << info.num_objs
+              << " objects" << std::endl
+              << "\torder " << info.order << " (" << byte_u_t(info.obj_size)
+              << " objects)" << std::endl
+              << "\tsnapshot_count: " << snaps.size() << std::endl;
     if (!imgid.empty()) {
       std::cout << "\tid: " << imgid << std::endl;
     }
     if (!data_pool.empty()) {
       std::cout << "\tdata_pool: " << data_pool << std::endl;
     }
-    std::cout << "\tblock_name_prefix: " << prefix
-              << std::endl
-              << "\tformat: " << (old_format ? "1" : "2")
-	      << std::endl;
+    std::cout << "\tblock_name_prefix: " << prefix << std::endl
+              << "\tformat: " << (old_format ? "1" : "2") << std::endl;
   }
 
   if (!old_format) {
@@ -269,8 +279,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
     if (f) {
       f->dump_string("group", group_string);
     } else {
-      std::cout << "\tgroup: " << group_string
-		<< std::endl;
+      std::cout << "\tgroup: " << group_string << std::endl;
     }
   }
 
@@ -278,8 +287,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
     if (f) {
       f->dump_string("create_timestamp", create_timestamp_str);
     } else {
-      std::cout << "\tcreate_timestamp: " << create_timestamp_str
-                << std::endl;
+      std::cout << "\tcreate_timestamp: " << create_timestamp_str << std::endl;
     }
   }
 
@@ -287,8 +295,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
     if (f) {
       f->dump_string("access_timestamp", access_timestamp_str);
     } else {
-      std::cout << "\taccess_timestamp: " << access_timestamp_str
-                << std::endl;
+      std::cout << "\taccess_timestamp: " << access_timestamp_str << std::endl;
     }
   }
 
@@ -296,8 +303,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
     if (f) {
       f->dump_string("modify_timestamp", modify_timestamp_str);
     } else {
-      std::cout << "\tmodify_timestamp: " << modify_timestamp_str
-                << std::endl;
+      std::cout << "\tmodify_timestamp: " << modify_timestamp_str << std::endl;
     }
   }
 
@@ -339,8 +345,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
       if (!parent_image_spec.pool_namespace.empty()) {
         std::cout << parent_image_spec.pool_namespace << "/";
       }
-      std::cout << parent_image_spec.image_name << "@"
-                << parent_snap_spec.name;
+      std::cout << parent_image_spec.image_name << "@" << parent_snap_spec.name;
       if (parent_image_spec.trash) {
         std::cout << " (trash " << parent_image_spec.image_id << ")";
       }
@@ -373,10 +378,8 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
       mirror_image.state != RBD_MIRROR_IMAGE_DISABLED) {
     if (f) {
       f->open_object_section("mirroring");
-      f->dump_string("mode",
-          utils::mirror_image_mode(mirror_mode));
-      f->dump_string("state",
-          utils::mirror_image_state(mirror_image.state));
+      f->dump_string("mode", utils::mirror_image_mode(mirror_mode));
+      f->dump_string("state", utils::mirror_image_state(mirror_image.state));
       if (mirror_image.state != RBD_MIRROR_IMAGE_DISABLED) {
         f->dump_string("global_id", mirror_image.global_id);
         f->dump_bool("primary", mirror_image.primary);
@@ -391,7 +394,7 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
                   << "\tmirroring global id: " << mirror_image.global_id
                   << std::endl
                   << "\tmirroring primary: "
-                  << (mirror_image.primary ? "true" : "false") <<std::endl;
+                  << (mirror_image.primary ? "true" : "false") << std::endl;
       }
     }
   }
@@ -404,16 +407,22 @@ static int do_show_info(librados::IoCtx &io_ctx, librbd::Image& image,
   return 0;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
-  at::add_image_or_snap_spec_options(positional, options,
-                                     at::ARGUMENT_MODIFIER_NONE);
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  at::add_image_or_snap_spec_options(
+      positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_image_id_option(options);
   at::add_format_options(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
@@ -426,9 +435,9 @@ int execute(const po::variables_map &vm,
   }
 
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, image_id.empty(),
-    utils::SNAPSHOT_PRESENCE_PERMITTED, utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, image_id.empty(),
+      utils::SNAPSHOT_PRESENCE_PERMITTED, utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -448,9 +457,9 @@ int execute(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name,
-                                 image_id, snap_name, true, &rados, &io_ctx,
-                                 &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, image_id, snap_name, true, &rados,
+      &io_ctx, &image);
   if (r < 0) {
     return r;
   }
@@ -464,8 +473,12 @@ int execute(const po::variables_map &vm,
 }
 
 Shell::Action action(
-  {"info"}, {}, "Show information about image size, striping, etc.", "",
-  &get_arguments, &execute);
+    {"info"},
+    {},
+    "Show information about image size, striping, etc.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace info
 } // namespace action

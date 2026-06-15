@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,22 +16,24 @@
 #ifndef CEPH_FRAG_H
 #define CEPH_FRAG_H
 
-#include <boost/container/small_vector.hpp>
+#include <stdint.h>
 
 #include <iosfwd>
 #include <list>
 #include <set>
 
-#include <stdint.h>
+#include <boost/container/small_vector.hpp>
+
+#include "include/ceph_assert.h"
+#include "include/encoding.h"
 
 #include "buffer.h"
+#include "ceph_frag.h"
 #include "compact_map.h"
 
-#include "ceph_frag.h"
-#include "include/encoding.h"
-#include "include/ceph_assert.h"
-
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
 /*
  * 
@@ -83,25 +85,57 @@ class frag_t {
    * encoding is dictated by frag_* functions in ceph_fs.h.  use those
    * helpers _exclusively_.
    */
+
 public:
   using _frag_t = uint32_t;
-  
+
   frag_t() = default;
-  frag_t(unsigned v, unsigned b) : _enc(ceph_frag_make(b, v)) { }
-  frag_t(_frag_t e) : _enc(e) { }
+
+  frag_t(unsigned v, unsigned b) :
+    _enc(ceph_frag_make(b, v))
+  {}
+
+  frag_t(_frag_t e) :
+    _enc(e)
+  {}
 
   // constructors
-  void from_unsigned(unsigned e) { _enc = e; }
-  
+  void
+  from_unsigned(unsigned e)
+  {
+    _enc = e;
+  }
+
   // accessors
-  unsigned value() const { return ceph_frag_value(_enc); }
-  unsigned bits() const { return ceph_frag_bits(_enc); }
-  unsigned mask() const { return ceph_frag_mask(_enc); }
-  unsigned mask_shift() const { return ceph_frag_mask_shift(_enc); }
+  unsigned
+  value() const
+  {
+    return ceph_frag_value(_enc);
+  }
+
+  unsigned
+  bits() const
+  {
+    return ceph_frag_bits(_enc);
+  }
+
+  unsigned
+  mask() const
+  {
+    return ceph_frag_mask(_enc);
+  }
+
+  unsigned
+  mask_shift() const
+  {
+    return ceph_frag_mask_shift(_enc);
+  }
 
   operator _frag_t() const { return _enc; }
 
-  bool is_frag_valid() const {
+  bool
+  is_frag_valid() const
+  {
     if (bits() > 24) {
       /* bits must be in range [0,24] */
       return false;
@@ -114,63 +148,120 @@ public:
   }
 
   // tests
-  bool contains(unsigned v) const { return ceph_frag_contains_value(_enc, v); }
-  bool contains(frag_t sub) const { return ceph_frag_contains_frag(_enc, sub._enc); }
-  bool is_root() const { return bits() == 0; }
-  frag_t parent() const {
+  bool
+  contains(unsigned v) const
+  {
+    return ceph_frag_contains_value(_enc, v);
+  }
+
+  bool
+  contains(frag_t sub) const
+  {
+    return ceph_frag_contains_frag(_enc, sub._enc);
+  }
+
+  bool
+  is_root() const
+  {
+    return bits() == 0;
+  }
+
+  frag_t
+  parent() const
+  {
     ceph_assert(bits() > 0);
     return frag_t(ceph_frag_parent(_enc));
   }
 
   // splitting
-  frag_t make_child(int i, int nb) const {
-    ceph_assert(i < (1<<nb));
+  frag_t
+  make_child(int i, int nb) const
+  {
+    ceph_assert(i < (1 << nb));
     return frag_t(ceph_frag_make_child(_enc, nb, i));
   }
-  template<typename T>
-  void split(int nb, T& fragments) const {
+
+  template <typename T>
+  void
+  split(int nb, T& fragments) const
+  {
     ceph_assert(nb > 0);
     unsigned nway = 1 << nb;
-    for (unsigned i=0; i<nway; i++) 
+    for (unsigned i = 0; i < nway; i++)
       fragments.push_back(make_child(i, nb));
   }
 
   // binary splitting
-  frag_t left_child() const { return frag_t(ceph_frag_left_child(_enc)); }
-  frag_t right_child() const { return frag_t(ceph_frag_right_child(_enc)); }
+  frag_t
+  left_child() const
+  {
+    return frag_t(ceph_frag_left_child(_enc));
+  }
 
-  bool is_left() const { return ceph_frag_is_left_child(_enc); }
-  bool is_right() const { return ceph_frag_is_right_child(_enc); }
-  frag_t get_sibling() const {
+  frag_t
+  right_child() const
+  {
+    return frag_t(ceph_frag_right_child(_enc));
+  }
+
+  bool
+  is_left() const
+  {
+    return ceph_frag_is_left_child(_enc);
+  }
+
+  bool
+  is_right() const
+  {
+    return ceph_frag_is_right_child(_enc);
+  }
+
+  frag_t
+  get_sibling() const
+  {
     ceph_assert(!is_root());
     return frag_t(ceph_frag_sibling(_enc));
   }
 
   // sequencing
-  bool is_leftmost() const { return ceph_frag_is_leftmost(_enc); }
-  bool is_rightmost() const { return ceph_frag_is_rightmost(_enc); }
-  frag_t next() const {
+  bool
+  is_leftmost() const
+  {
+    return ceph_frag_is_leftmost(_enc);
+  }
+
+  bool
+  is_rightmost() const
+  {
+    return ceph_frag_is_rightmost(_enc);
+  }
+
+  frag_t
+  next() const
+  {
     ceph_assert(!is_rightmost());
     return frag_t(ceph_frag_next(_enc));
   }
 
   // parse
-  bool parse(const char *s);
+  bool parse(const char* s);
 
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& p);
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
 
-  static std::list<frag_t> generate_test_instances() ;
+  static std::list<frag_t> generate_test_instances();
 
-  bool operator<(const frag_t& b) const
+  bool
+  operator<(const frag_t& b) const
   {
     if (value() != b.value())
       return value() < b.value();
     else
       return bits() < b.bits();
   }
+
 private:
   _frag_t _enc = 0;
 };
@@ -187,34 +278,46 @@ class fragtree_t {
   // pairs <f, b>:
   //  frag_t f is split by b bits.
   //  if child frag_t does not appear, it is not split.
+
 public:
-  compact_map<frag_t,int32_t> _splits;
+  compact_map<frag_t, int32_t> _splits;
 
 public:
   // -------------
   // basics
-  void swap(fragtree_t& other) {
+  void
+  swap(fragtree_t& other)
+  {
     _splits.swap(other._splits);
   }
-  void clear() {
+
+  void
+  clear()
+  {
     _splits.clear();
   }
 
   // -------------
   // accessors
-  bool empty() const { 
+  bool
+  empty() const
+  {
     return _splits.empty();
   }
-  int get_split(const frag_t hb) const {
-    compact_map<frag_t,int32_t>::const_iterator p = _splits.find(hb);
+
+  int
+  get_split(const frag_t hb) const
+  {
+    compact_map<frag_t, int32_t>::const_iterator p = _splits.find(hb);
     if (p == _splits.end())
       return 0;
     else
       return p->second;
   }
 
-  
-  bool is_leaf(frag_t x) const {
+  bool
+  is_leaf(frag_t x) const
+  {
     frag_vec_t s;
     get_leaves_under(x, s);
     //generic_dout(10) << "is_leaf(" << x << ") -> " << ls << dendl;
@@ -224,26 +327,30 @@ public:
   /**
    * get_leaves -- list all leaves
    */
-  template<typename T>
-  void get_leaves(T& c) const {
+  template <typename T>
+  void
+  get_leaves(T& c) const
+  {
     return get_leaves_under_split(frag_t(), c);
   }
 
   /**
    * get_leaves_under_split -- list all leaves under a known split point (or root)
    */
-  template<typename T>
-  void get_leaves_under_split(frag_t under, T& c) const {
+  template <typename T>
+  void
+  get_leaves_under_split(frag_t under, T& c) const
+  {
     frag_vec_t s;
     s.push_back(under);
     while (!s.empty()) {
       frag_t t = s.back();
       s.pop_back();
       int nb = get_split(t);
-      if (nb) 
-	t.split(nb, s);   // queue up children
+      if (nb)
+        t.split(nb, s); // queue up children
       else
-	c.push_back(t);  // not spit, it's a leaf.
+        c.push_back(t); // not spit, it's a leaf.
     }
   }
 
@@ -252,10 +359,14 @@ public:
    *  - may be @a x itself, if @a x is a split
    *  - may be root (frag_t())
    */
-  frag_t get_branch(frag_t x) const {
+  frag_t
+  get_branch(frag_t x) const
+  {
     while (1) {
-      if (x == frag_t()) return x;  // root
-      if (get_split(x)) return x;   // found it!
+      if (x == frag_t())
+        return x; // root
+      if (get_split(x))
+        return x; // found it!
       x = x.parent();
     }
   }
@@ -265,26 +376,32 @@ public:
    *  - may be root (frag_t())
    *  - may NOT be @a x, even if @a x is a split.
    */
-  frag_t get_branch_above(frag_t x) const {
+  frag_t
+  get_branch_above(frag_t x) const
+  {
     while (1) {
-      if (x == frag_t()) return x;  // root
+      if (x == frag_t())
+        return x; // root
       x = x.parent();
-      if (get_split(x)) return x;   // found it!
+      if (get_split(x))
+        return x; // found it!
     }
   }
-
 
   /**
    * get_branch_or_leaf -- get branch or leaf point parent for frag @a x
    *  - may be @a x itself, if @a x is a split or leaf
    *  - may be root (frag_t())
    */
-  frag_t get_branch_or_leaf(frag_t x) const {
+  frag_t
+  get_branch_or_leaf(frag_t x) const
+  {
     frag_t branch = get_branch(x);
     int nb = get_split(branch);
-    if (nb > 0 &&                                  // if branch is a split, and
-	branch.bits() + nb <= x.bits())            // one of the children is or contains x 
-      return frag_t(x.value(), branch.bits()+nb);  // then return that child (it's a leaf)
+    if (nb > 0 && // if branch is a split, and
+        branch.bits() + nb <= x.bits()) // one of the children is or contains x
+      return frag_t(
+          x.value(), branch.bits() + nb); // then return that child (it's a leaf)
     else
       return branch;
   }
@@ -292,42 +409,48 @@ public:
   /**
    * get_leaves_under(x, ls) -- search for any leaves fully contained by x
    */
-  template<typename T>
-  void get_leaves_under(frag_t x, T& c) const {
+  template <typename T>
+  void
+  get_leaves_under(frag_t x, T& c) const
+  {
     frag_vec_t s;
     s.push_back(get_branch_or_leaf(x));
     while (!s.empty()) {
       frag_t t = s.back();
       s.pop_back();
-      if (t.bits() >= x.bits() &&    // if t is more specific than x, and
-	  !x.contains(t))            // x does not contain t,
-	continue;         // then skip
+      if (t.bits() >= x.bits() && // if t is more specific than x, and
+          !x.contains(t)) // x does not contain t,
+        continue; // then skip
       int nb = get_split(t);
-      if (nb) 
-	t.split(nb, s);   // queue up children
+      if (nb)
+        t.split(nb, s); // queue up children
       else if (x.contains(t))
-	c.push_back(t);  // not spit, it's a leaf.
+        c.push_back(t); // not spit, it's a leaf.
     }
   }
 
   /**
    * contains(fg) -- does fragtree contain the specific frag @a x
    */
-  bool contains(frag_t x) const {
+  bool
+  contains(frag_t x) const
+  {
     frag_vec_t s;
     s.push_back(get_branch(x));
     while (!s.empty()) {
       frag_t t = s.back();
       s.pop_back();
-      if (t.bits() >= x.bits() &&  // if t is more specific than x, and
-	  !x.contains(t))          // x does not contain t,
-	continue;         // then skip 
+      if (t.bits() >= x.bits() && // if t is more specific than x, and
+          !x.contains(t)) // x does not contain t,
+        continue; // then skip
       int nb = get_split(t);
       if (nb) {
-	if (t == x) return false;  // it's split.
-	t.split(nb, s);   // queue up children
+        if (t == x)
+          return false; // it's split.
+        t.split(nb, s); // queue up children
       } else {
-	if (t == x) return true;   // it's there.
+        if (t == x)
+          return true; // it's there.
       }
     }
     return false;
@@ -336,40 +459,47 @@ public:
   /** 
    * operator[] -- map a (hash?) value to a frag
    */
-  frag_t operator[](unsigned v) const {
+  frag_t
+  operator[](unsigned v) const
+  {
     frag_t t;
     while (1) {
       ceph_assert(t.contains(v));
       int nb = get_split(t);
 
       // is this a leaf?
-      if (nb == 0) return t;  // done.
-      
+      if (nb == 0)
+        return t; // done.
+
       // pick appropriate child fragment.
       unsigned nway = 1 << nb;
       unsigned i;
-      for (i=0; i<nway; i++) {
-	frag_t n = t.make_child(i, nb);
-	if (n.contains(v)) {
-	  t = n;
-	  break;
-	}
+      for (i = 0; i < nway; i++) {
+        frag_t n = t.make_child(i, nb);
+        if (n.contains(v)) {
+          t = n;
+          break;
+        }
       }
       ceph_assert(i < nway);
     }
   }
 
-
   // ---------------
   // modifiers
-  void split(frag_t x, int b, bool simplify=true) {
+  void
+  split(frag_t x, int b, bool simplify = true)
+  {
     ceph_assert(is_leaf(x));
     _splits[x] = b;
-    
+
     if (simplify)
       try_assimilate_children(get_branch_above(x));
   }
-  void merge(frag_t x, int b, bool simplify=true) {
+
+  void
+  merge(frag_t x, int b, bool simplify = true)
+  {
     ceph_assert(!is_leaf(x));
     ceph_assert(_splits[x] == b);
     _splits.erase(x);
@@ -382,16 +512,21 @@ public:
    * if all of a given split's children are identically split,
    * then the children can be assimilated.
    */
-  void try_assimilate_children(frag_t x) {
+  void
+  try_assimilate_children(frag_t x)
+  {
     int nb = get_split(x);
-    if (!nb) return;
+    if (!nb)
+      return;
     frag_vec_t children;
     x.split(nb, children);
     int childbits = 0;
     for (auto& frag : children) {
       int cb = get_split(frag);
-      if (!cb) return;  // nope.
-      if (childbits && cb != childbits) return;  // not the same
+      if (!cb)
+        return; // nope.
+      if (childbits && cb != childbits)
+        return; // not the same
       childbits = cb;
     }
     // all children are split with childbits!
@@ -400,7 +535,7 @@ public:
     _splits[x] += childbits;
   }
 
-  bool force_to_leaf(CephContext *cct, frag_t x);
+  bool force_to_leaf(CephContext* cct, frag_t x);
 
   // encoding
   void encode(ceph::buffer::list& bl) const;
@@ -410,16 +545,21 @@ public:
 
   void print(std::ostream& out);
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
 
   static std::list<fragtree_t> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(fragtree_t)
 
-inline bool operator==(const fragtree_t& l, const fragtree_t& r) {
+inline bool
+operator==(const fragtree_t& l, const fragtree_t& r)
+{
   return l._splits == r._splits;
 }
-inline bool operator!=(const fragtree_t& l, const fragtree_t& r) {
+
+inline bool
+operator!=(const fragtree_t& l, const fragtree_t& r)
+{
   return l._splits != r._splits;
 }
 
@@ -432,28 +572,57 @@ class fragset_t {
   std::set<frag_t> _set;
 
 public:
-  const std::set<frag_t> &get() const { return _set; }
-  std::set<frag_t>::const_iterator begin() const { return _set.begin(); }
-  std::set<frag_t>::const_iterator end() const { return _set.end(); }
+  const std::set<frag_t>&
+  get() const
+  {
+    return _set;
+  }
 
-  bool empty() const { return _set.empty(); }
+  std::set<frag_t>::const_iterator
+  begin() const
+  {
+    return _set.begin();
+  }
 
-  bool contains(frag_t f) const {
+  std::set<frag_t>::const_iterator
+  end() const
+  {
+    return _set.end();
+  }
+
+  bool
+  empty() const
+  {
+    return _set.empty();
+  }
+
+  bool
+  contains(frag_t f) const
+  {
     while (1) {
-      if (_set.count(f)) return true;
-      if (f.bits() == 0) return false;
+      if (_set.count(f))
+        return true;
+      if (f.bits() == 0)
+        return false;
       f = f.parent();
     }
   }
 
-  void clear() {
+  void
+  clear()
+  {
     _set.clear();
   }
 
-  void insert_raw(frag_t f){
+  void
+  insert_raw(frag_t f)
+  {
     _set.insert(f);
   }
-  void insert(frag_t f) {
+
+  void
+  insert(frag_t f)
+  {
     _set.insert(f);
     simplify();
   }

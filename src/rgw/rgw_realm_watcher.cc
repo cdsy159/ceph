@@ -3,11 +3,10 @@
 
 #include "rgw_realm_watcher.h"
 
-RGWRealmWatcher::~RGWRealmWatcher()
-{
-}
+RGWRealmWatcher::~RGWRealmWatcher() {}
 
-void RGWRealmWatcher::add_watcher(RGWRealmNotify type, Watcher& watcher)
+void
+RGWRealmWatcher::add_watcher(RGWRealmNotify type, Watcher& watcher)
 {
   watchers.emplace(type, watcher);
 }

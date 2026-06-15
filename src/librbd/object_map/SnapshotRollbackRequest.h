@@ -44,10 +44,12 @@ public:
     STATE_WRITE_MAP
   };
 
-  SnapshotRollbackRequest(ImageCtx &image_ctx, uint64_t snap_id,
-                          Context *on_finish)
-    : Request(image_ctx, CEPH_NOSNAP, on_finish),
-      m_snap_id(snap_id), m_ret_val(0) {
+  SnapshotRollbackRequest(
+      ImageCtx& image_ctx,
+      uint64_t snap_id,
+      Context* on_finish) :
+    Request(image_ctx, CEPH_NOSNAP, on_finish), m_snap_id(snap_id), m_ret_val(0)
+  {
     ceph_assert(snap_id != CEPH_NOSNAP);
   }
 
@@ -66,7 +68,6 @@ private:
   void send_read_map();
   void send_invalidate_map();
   void send_write_map();
-
 };
 
 } // namespace object_map

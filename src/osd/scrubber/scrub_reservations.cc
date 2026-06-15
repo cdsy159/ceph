@@ -5,8 +5,9 @@
 
 #include <span>
 
-#include "common/ceph_time.h"
 #include "common/debug.h"
+
+#include "common/ceph_time.h"
 #include "osd/OSD.h"
 #include "osd/PG.h"
 #include "osd/osd_types_fmt.h"
@@ -21,8 +22,10 @@ using namespace std::chrono_literals;
 #define dout_subsys ceph_subsys_osd
 #undef dout_prefix
 #define dout_prefix _prefix_fn(_dout, this, __func__)
+
 template <class T>
-static std::ostream& _prefix_fn(std::ostream* _dout, T* t, std::string fn = "")
+static std::ostream&
+_prefix_fn(std::ostream* _dout, T* t, std::string fn = "")
 {
   return t->gen_prefix(*_dout, fn);
 }
@@ -32,13 +35,13 @@ namespace Scrub {
 ReplicaReservations::ReplicaReservations(
     ScrubMachineListener& scrbr,
     reservation_nonce_t& nonce,
-    const ScrubCounterSet& pc)
-    : m_scrubber{scrbr}
-    , m_pg{m_scrubber.get_pg()}
-    , m_pgid{m_scrubber.get_spgid().pgid}
-    , m_osds{m_pg->get_pg_osd(ScrubberPasskey())}
-    , m_last_request_sent_nonce{nonce}
-    , m_perf_indices{pc}
+    const ScrubCounterSet& pc) :
+  m_scrubber{scrbr},
+  m_pg{m_scrubber.get_pg()},
+  m_pgid{m_scrubber.get_spgid().pgid},
+  m_osds{m_pg->get_pg_osd(ScrubberPasskey())},
+  m_last_request_sent_nonce{nonce},
+  m_perf_indices{pc}
 {
   // the acting set is sorted by pg_shard_t. The reservations are to be issued
   // in this order, so that the OSDs will receive the requests in a consistent
@@ -50,7 +53,7 @@ ReplicaReservations::ReplicaReservations(
   std::copy_if(
       acting.cbegin(), acting.cend(), std::back_inserter(m_sorted_secondaries),
       [whoami = m_pg->pg_whoami](const pg_shard_t& shard) {
-	return shard != whoami;
+        return shard != whoami;
       });
   m_osds->logger->set(
       m_perf_indices.rsv_secondaries_num, m_sorted_secondaries.size());
@@ -68,7 +71,8 @@ ReplicaReservations::ReplicaReservations(
   }
 }
 
-void ReplicaReservations::release_all()
+void
+ReplicaReservations::release_all()
 {
   std::span<const pg_shard_t> replicas{
       m_sorted_secondaries.cbegin(), m_next_to_request};
@@ -78,8 +82,8 @@ void ReplicaReservations::release_all()
   // send 'release' messages to all replicas we have managed to reserve
   for (const auto& peer : replicas) {
     auto m = make_message<MOSDScrubReserve>(
-	spg_t{m_pgid, peer.shard}, epoch, MOSDScrubReserve::RELEASE,
-	m_pg->pg_whoami, 0);
+        spg_t{m_pgid, peer.shard}, epoch, MOSDScrubReserve::RELEASE,
+        m_pg->pg_whoami, 0);
     m_pg->send_cluster_message(peer.osd, m, epoch, false);
   }
 
@@ -87,14 +91,16 @@ void ReplicaReservations::release_all()
   m_next_to_request = m_sorted_secondaries.cbegin();
 }
 
-void ReplicaReservations::discard_remote_reservations()
+void
+ReplicaReservations::discard_remote_reservations()
 {
   dout(10) << "reset w/o issuing messages" << dendl;
   m_sorted_secondaries.clear();
   m_next_to_request = m_sorted_secondaries.cbegin();
 }
 
-void ReplicaReservations::log_success_and_duration()
+void
+ReplicaReservations::log_success_and_duration()
 {
   ceph_assert(m_process_started_at.has_value());
   auto logged_duration = ScrubClock::now() - m_process_started_at.value();
@@ -106,7 +112,8 @@ void ReplicaReservations::log_success_and_duration()
   m_process_started_at.reset();
 }
 
-void ReplicaReservations::log_failure_and_duration(int failure_cause_counter)
+void
+ReplicaReservations::log_failure_and_duration(int failure_cause_counter)
 {
   if (!m_process_started_at.has_value()) {
     // outcome (success/failure) already logged
@@ -125,19 +132,22 @@ ReplicaReservations::~ReplicaReservations()
   log_failure_and_duration(m_perf_indices.rsv_aborted_cnt);
 }
 
-bool ReplicaReservations::is_reservation_response_relevant(
+bool
+ReplicaReservations::is_reservation_response_relevant(
     reservation_nonce_t msg_nonce) const
 {
   return (msg_nonce == 0) || (msg_nonce == m_last_request_sent_nonce);
 }
 
-bool ReplicaReservations::is_msg_source_correct(pg_shard_t from) const
+bool
+ReplicaReservations::is_msg_source_correct(pg_shard_t from) const
 {
   const auto exp_source = get_last_sent();
   return exp_source && from == *exp_source;
 }
 
-bool ReplicaReservations::handle_reserve_grant(
+bool
+ReplicaReservations::handle_reserve_grant(
     const MOSDScrubReserve& msg,
     pg_shard_t from)
 {
@@ -145,11 +155,11 @@ bool ReplicaReservations::handle_reserve_grant(
     // this is a stale response to a previous request (e.g. one that
     // timed-out). See m_last_request_sent_nonce for details.
     dout(1) << fmt::format(
-		   "stale reservation response from {} with nonce {} vs. "
-		   "expected {} (e:{})",
-		   from, msg.reservation_nonce, m_last_request_sent_nonce,
-		   msg.map_epoch)
-	    << dendl;
+                   "stale reservation response from {} with nonce {} vs. "
+                   "expected {} (e:{})",
+                   from, msg.reservation_nonce, m_last_request_sent_nonce,
+                   msg.map_epoch)
+            << dendl;
     return false;
   }
 
@@ -160,10 +170,10 @@ bool ReplicaReservations::handle_reserve_grant(
   // are legacy messages, for which the nonce was not verified).
   if (!is_msg_source_correct(from)) {
     const auto error_text = fmt::format(
-	"unexpected reservation grant from {} vs. the expected {} (e:{} "
-	"message nonce:{})",
-	from, get_last_sent().value_or(pg_shard_t{}), msg.map_epoch,
-	msg.reservation_nonce);
+        "unexpected reservation grant from {} vs. the expected {} (e:{} "
+        "message nonce:{})",
+        from, get_last_sent().value_or(pg_shard_t{}), msg.map_epoch,
+        msg.reservation_nonce);
     dout(1) << error_text << dendl;
     if (msg.reservation_nonce != 0) {
       m_osds->clog->error() << error_text;
@@ -174,21 +184,22 @@ bool ReplicaReservations::handle_reserve_grant(
 
   auto elapsed = ScrubClock::now() - m_last_request_sent_at;
   dout(10) << fmt::format(
-		  "(e:{} nonce:{}) granted by {} ({} of {}) in {}ms",
-		  msg.map_epoch, msg.reservation_nonce, from,
-		  active_requests_cnt(), m_sorted_secondaries.size(),
-		  duration_cast<milliseconds>(elapsed).count())
-	   << dendl;
+                  "(e:{} nonce:{}) granted by {} ({} of {}) in {}ms",
+                  msg.map_epoch, msg.reservation_nonce, from,
+                  active_requests_cnt(), m_sorted_secondaries.size(),
+                  duration_cast<milliseconds>(elapsed).count())
+           << dendl;
   return send_next_reservation_or_complete();
 }
 
-bool ReplicaReservations::send_next_reservation_or_complete()
+bool
+ReplicaReservations::send_next_reservation_or_complete()
 {
   if (m_next_to_request == m_sorted_secondaries.cend()) {
     // granted by all replicas
     dout(10) << "remote reservation complete" << dendl;
     log_success_and_duration();
-    return true;  // done
+    return true; // done
   }
 
   // send the next reservation request
@@ -197,38 +208,39 @@ bool ReplicaReservations::send_next_reservation_or_complete()
   m_last_request_sent_nonce++;
 
   auto m = make_message<MOSDScrubReserve>(
-      spg_t{m_pgid, peer.shard}, epoch, MOSDScrubReserve::REQUEST, m_pg->pg_whoami,
-      m_last_request_sent_nonce);
+      spg_t{m_pgid, peer.shard}, epoch, MOSDScrubReserve::REQUEST,
+      m_pg->pg_whoami, m_last_request_sent_nonce);
   m_pg->send_cluster_message(peer.osd, m, epoch, false);
   m_last_request_sent_at = ScrubClock::now();
   dout(10) << fmt::format(
-		  "reserving {} (the {} of {} replicas) e:{} nonce:{}",
-		  *m_next_to_request, active_requests_cnt() + 1,
-		  m_sorted_secondaries.size(), epoch, m_last_request_sent_nonce)
-	   << dendl;
+                  "reserving {} (the {} of {} replicas) e:{} nonce:{}",
+                  *m_next_to_request, active_requests_cnt() + 1,
+                  m_sorted_secondaries.size(), epoch, m_last_request_sent_nonce)
+           << dendl;
   m_next_to_request++;
   return false;
 }
 
-bool ReplicaReservations::handle_reserve_rejection(
+bool
+ReplicaReservations::handle_reserve_rejection(
     const MOSDScrubReserve& msg,
     pg_shard_t from)
 {
   // a convenient log message for the reservation process conclusion
   // (matches the one in send_next_reservation_or_complete())
   dout(10) << fmt::format(
-		  "remote reservation failure. Rejected by {} ({})", from, msg)
-	   << dendl;
+                  "remote reservation failure. Rejected by {} ({})", from, msg)
+           << dendl;
 
   if (!is_reservation_response_relevant(msg.reservation_nonce)) {
     // this is a stale response to a previous request (e.g. one that
     // timed-out). See m_last_request_sent_nonce for details.
     dout(10) << fmt::format(
-		    "stale reservation response from {} with reservation_nonce "
-		    "{} vs. expected {} (e:{})",
-		    from, msg.reservation_nonce, m_last_request_sent_nonce,
-		    msg.map_epoch)
-	     << dendl;
+                    "stale reservation response from {} with reservation_nonce "
+                    "{} vs. expected {} (e:{})",
+                    from, msg.reservation_nonce, m_last_request_sent_nonce,
+                    msg.map_epoch)
+             << dendl;
     return false;
   }
 
@@ -243,18 +255,19 @@ bool ReplicaReservations::handle_reserve_rejection(
   // we should treat it as though the *correct* peer has rejected the request,
   // but remember to release that peer, too.
   if (is_msg_source_correct(from)) {
-    m_next_to_request--;  // no need to release this one
+    m_next_to_request--; // no need to release this one
   } else {
     m_osds->clog->warn() << fmt::format(
-	"unexpected reservation denial from {} vs the expected {} (e:{} "
-	"message reservation_nonce:{})",
-	from, get_last_sent().value_or(pg_shard_t{}), msg.map_epoch,
-	msg.reservation_nonce);
+        "unexpected reservation denial from {} vs the expected {} (e:{} "
+        "message reservation_nonce:{})",
+        from, get_last_sent().value_or(pg_shard_t{}), msg.map_epoch,
+        msg.reservation_nonce);
   }
   return true;
 }
 
-std::optional<pg_shard_t> ReplicaReservations::get_last_sent() const
+std::optional<pg_shard_t>
+ReplicaReservations::get_last_sent() const
 {
   if (m_next_to_request == m_sorted_secondaries.cbegin()) {
     return std::nullopt;
@@ -262,17 +275,17 @@ std::optional<pg_shard_t> ReplicaReservations::get_last_sent() const
   return *(m_next_to_request - 1);
 }
 
-size_t ReplicaReservations::active_requests_cnt() const
+size_t
+ReplicaReservations::active_requests_cnt() const
 {
   return m_next_to_request - m_sorted_secondaries.cbegin();
 }
 
-std::ostream& ReplicaReservations::gen_prefix(
-    std::ostream& out,
-    std::string fn) const
+std::ostream&
+ReplicaReservations::gen_prefix(std::ostream& out, std::string fn) const
 {
   return m_pg->gen_prefix(out)
-	 << fmt::format("scrubber::ReplicaReservations:{}: ", fn);
+         << fmt::format("scrubber::ReplicaReservations:{}: ", fn);
 }
 
 } // namespace Scrub

@@ -11,41 +11,53 @@ class MMDSPing final : public MMDSOp {
 private:
   static constexpr int HEAD_VERSION = 1;
   static constexpr int COMPAT_VERSION = 1;
+
 public:
   version_t seq;
 
 protected:
-  MMDSPing() : MMDSOp(MSG_MDS_PING, HEAD_VERSION, COMPAT_VERSION) {
-  }
-  MMDSPing(version_t seq)
-    : MMDSOp(MSG_MDS_PING, HEAD_VERSION, COMPAT_VERSION), seq(seq) {
-  }
+  MMDSPing() :
+    MMDSOp(MSG_MDS_PING, HEAD_VERSION, COMPAT_VERSION)
+  {}
+
+  MMDSPing(version_t seq) :
+    MMDSOp(MSG_MDS_PING, HEAD_VERSION, COMPAT_VERSION), seq(seq)
+  {}
+
   ~MMDSPing() final {}
 
 public:
-  std::string_view get_type_name() const override {
+  std::string_view
+  get_type_name() const override
+  {
     return "mdsping";
   }
 
-  void print(std::ostream &out) const override {
+  void
+  print(std::ostream& out) const override
+  {
     out << "mdsping";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(seq, payload);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto iter = payload.cbegin();
     decode(seq, iter);
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

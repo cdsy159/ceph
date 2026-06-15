@@ -15,18 +15,13 @@
 #include <utility>
 
 #include <boost/asio/use_awaitable.hpp>
-
 #include <boost/system/errc.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
-#include "include/buffer.h"
-
 #include "common/ceph_context.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/neorados/RADOS.hpp"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace buffer = ceph::buffer;
@@ -39,115 +34,108 @@ using neorados::WriteOp;
 
 static constexpr auto oid = "oid"sv;
 
-CORO_TEST_F(NeoRadosMisc, Version, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, Version, NeoRadosTest)
+{
   [[maybe_unused]] auto [major, minor, point] = neorados::RADOS::version();
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, WaitOSDMap, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, WaitOSDMap, NeoRadosTest)
+{
   co_await rados().wait_for_latest_osd_map(asio::use_awaitable);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, LongName, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, LongName, NeoRadosTest)
+{
   const auto maxlen = rados().cct()->_conf->osd_max_object_name_len;
   const auto bl = to_buffer_list("content"sv);
-  co_await execute(std::string(maxlen / 2, 'a'),
-                   WriteOp{}.write_full(bl));
-  co_await execute(std::string(maxlen - 1, 'a'),
-                   WriteOp{}.write_full(bl));
-  co_await execute(std::string(maxlen, 'a'),
-                   WriteOp{}.write_full(bl));
+  co_await execute(std::string(maxlen / 2, 'a'), WriteOp{}.write_full(bl));
+  co_await execute(std::string(maxlen - 1, 'a'), WriteOp{}.write_full(bl));
+  co_await execute(std::string(maxlen, 'a'), WriteOp{}.write_full(bl));
 
-  co_await expect_error_code(execute(std::string(maxlen + 1, 'a'),
-                                     WriteOp{}.write_full(bl)),
-                             sys::errc::filename_too_long);
-  co_await expect_error_code(execute(std::string(maxlen * 2, 'a'),
-                                     WriteOp{}.write_full(bl)),
-                             sys::errc::filename_too_long);
+  co_await expect_error_code(
+      execute(std::string(maxlen + 1, 'a'), WriteOp{}.write_full(bl)),
+      sys::errc::filename_too_long);
+  co_await expect_error_code(
+      execute(std::string(maxlen * 2, 'a'), WriteOp{}.write_full(bl)),
+      sys::errc::filename_too_long);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, LongLocator, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, LongLocator, NeoRadosTest)
+{
   SKIP_IF_CRIMSON();
   const auto maxlen = rados().cct()->_conf->osd_max_object_name_len;
   const auto bl = to_buffer_list("content"sv);
   {
     auto p = pool();
     p.set_key(std::string(maxlen / 2, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_key(std::string(maxlen - 1, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_key(std::string(maxlen, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_key(std::string(maxlen + 1, 'a'));
-    co_await expect_error_code(execute(oid,
-				       WriteOp{}.write_full(bl), p),
-			       sys::errc::filename_too_long);
+    co_await expect_error_code(
+        execute(oid, WriteOp{}.write_full(bl), p), sys::errc::filename_too_long);
   }
   {
     auto p = pool();
     p.set_key(std::string(maxlen * 2, 'a'));
-    co_await expect_error_code(execute(oid,
-				       WriteOp{}.write_full(bl), p),
-			       sys::errc::filename_too_long);
+    co_await expect_error_code(
+        execute(oid, WriteOp{}.write_full(bl), p), sys::errc::filename_too_long);
   }
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, LongNamespace, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, LongNamespace, NeoRadosTest)
+{
   const auto maxlen = rados().cct()->_conf->osd_max_object_namespace_len;
   const auto bl = to_buffer_list("content"sv);
   {
     auto p = pool();
     p.set_ns(std::string(maxlen / 2, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_ns(std::string(maxlen - 1, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_ns(std::string(maxlen, 'a'));
-    co_await execute(oid,
-                     WriteOp{}.write_full(bl), p);
+    co_await execute(oid, WriteOp{}.write_full(bl), p);
   }
   {
     auto p = pool();
     p.set_ns(std::string(maxlen + 1, 'a'));
-    co_await expect_error_code(execute(oid,
-				       WriteOp{}.write_full(bl), p),
-			       sys::errc::filename_too_long);
+    co_await expect_error_code(
+        execute(oid, WriteOp{}.write_full(bl), p), sys::errc::filename_too_long);
   }
   {
     auto p = pool();
     p.set_ns(std::string(maxlen * 2, 'a'));
-    co_await expect_error_code(execute(oid,
-				       WriteOp{}.write_full(bl), p),
-			       sys::errc::filename_too_long);
+    co_await expect_error_code(
+        execute(oid, WriteOp{}.write_full(bl), p), sys::errc::filename_too_long);
   }
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, LongAttrName, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, LongAttrName, NeoRadosTest)
+{
   const auto maxlen = rados().cct()->_conf->osd_max_attr_name_len;
   const auto bl = to_buffer_list("content"sv);
 
@@ -156,19 +144,19 @@ CORO_TEST_F(NeoRadosMisc, LongAttrName, NeoRadosTest) {
   co_await execute(oid, WriteOp{}.setxattr(std::string(maxlen, 'a'), bl));
 
   co_await expect_error_code(
-    execute(oid, WriteOp{}.setxattr(std::string(maxlen + 1, 'a'), bl)),
-    sys::errc::filename_too_long);
+      execute(oid, WriteOp{}.setxattr(std::string(maxlen + 1, 'a'), bl)),
+      sys::errc::filename_too_long);
   co_await expect_error_code(
-    execute(oid, WriteOp{}.setxattr(std::string(maxlen * 2, 'a'), bl)),
-    sys::errc::filename_too_long);
+      execute(oid, WriteOp{}.setxattr(std::string(maxlen * 2, 'a'), bl)),
+      sys::errc::filename_too_long);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, Exec, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, Exec, NeoRadosTest)
+{
   buffer::list out;
   co_await execute(oid, WriteOp{}.create(true));
-  co_await execute(oid,
-		   ReadOp{}.exec("rbd"sv, "get_all_features"sv, {}, &out));
+  co_await execute(oid, ReadOp{}.exec("rbd"sv, "get_all_features"sv, {}, &out));
   auto features = from_buffer_list<std::uint64_t>(out);
   // make sure *some* features are specified; don't care which ones
   EXPECT_NE(0, features);
@@ -176,15 +164,16 @@ CORO_TEST_F(NeoRadosMisc, Exec, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, Operate1, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, Operate1, NeoRadosTest)
+{
   static constexpr auto key1 = "key1"sv;
   const auto val1 = to_buffer_list("val1\0"sv);
   {
     WriteOp op;
     op.write(0, {})
-      .setxattr(key1, val1)
-      // Should not affect xattr
-      .clear_omap();
+        .setxattr(key1, val1)
+        // Should not affect xattr
+        .clear_omap();
     co_await execute(oid, std::move(op));
   }
 
@@ -198,24 +187,23 @@ CORO_TEST_F(NeoRadosMisc, Operate1, NeoRadosTest) {
   // Comparisons differing in NUL termination.
   const auto notval1 = to_buffer_list("val1"sv);
   co_await expect_error_code(
-    execute(oid, WriteOp{}
-	    .cmpxattr(key1, neorados::cmp_op::eq, notval1)
-	    .rmxattr(key1)),
-    sys::errc::operation_canceled);
+      execute(
+          oid,
+          WriteOp{}.cmpxattr(key1, neorados::cmp_op::eq, notval1).rmxattr(key1)),
+      sys::errc::operation_canceled);
   co_await expect_error_code(
-    execute(oid, WriteOp{}.cmpxattr(key1, neorados::cmp_op::eq, notval1)),
-    sys::errc::operation_canceled);
+      execute(oid, WriteOp{}.cmpxattr(key1, neorados::cmp_op::eq, notval1)),
+      sys::errc::operation_canceled);
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, Operate2, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, Operate2, NeoRadosTest)
+{
   static constexpr auto key1 = "key1"sv;
   const auto val1 = to_buffer_list("val1\0"sv);
   WriteOp op;
-  op.write(0, to_buffer_list("abcdefg"sv))
-    .setxattr(key1, val1)
-    .truncate(0);
+  op.write(0, to_buffer_list("abcdefg"sv)).setxattr(key1, val1).truncate(0);
   co_await execute(oid, std::move(op));
   std::uint64_t size;
   co_await execute(oid, ReadOp{}.stat(&size, nullptr));
@@ -223,27 +211,33 @@ CORO_TEST_F(NeoRadosMisc, Operate2, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, BigObject, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, BigObject, NeoRadosTest)
+{
   const auto data = to_buffer_list("abcdefg"sv);
   co_await execute(oid, WriteOp{}.write(0, data));
 
-  co_await expect_error_code(execute(oid, WriteOp{}.truncate(500000000000ull)),
-			     sys::errc::file_too_large);
-  co_await expect_error_code(execute(oid, WriteOp{}.zero(500000000000ull, 1)),
-			     sys::errc::file_too_large);
-  co_await expect_error_code(execute(oid, WriteOp{}.zero(1, 500000000000ull)),
-			     sys::errc::file_too_large);
-  co_await expect_error_code(execute(oid, WriteOp{}.zero(500000000000ull,
-							 500000000000ull)),
-			     sys::errc::file_too_large);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.truncate(500000000000ull)),
+      sys::errc::file_too_large);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.zero(500000000000ull, 1)),
+      sys::errc::file_too_large);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.zero(1, 500000000000ull)),
+      sys::errc::file_too_large);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.zero(500000000000ull, 500000000000ull)),
+      sys::errc::file_too_large);
 #ifdef __LP64__
-  co_await expect_error_code(execute(oid, WriteOp{}.write(500000000000ull, data)),
-			     sys::errc::file_too_large);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.write(500000000000ull, data)),
+      sys::errc::file_too_large);
 #endif // __LP64__
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, BigAttr, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, BigAttr, NeoRadosTest)
+{
   const auto maxlen = rados().cct()->_conf->osd_max_attr_size;
   if (maxlen > 0) {
     buffer::list attrval;
@@ -252,9 +246,9 @@ CORO_TEST_F(NeoRadosMisc, BigAttr, NeoRadosTest) {
 
     attrval.clear();
     attrval.append(buffer::create(maxlen + 1));
-    co_await expect_error_code(execute(oid, WriteOp()
-				       .setxattr("one"sv, attrval)),
-			       sys::errc::file_too_large);
+    co_await expect_error_code(
+        execute(oid, WriteOp().setxattr("one"sv, attrval)),
+        sys::errc::file_too_large);
   } else {
     SUCCEED() << "osd_max_attr_size == 0, skipping test." << std::endl;
   }
@@ -262,7 +256,8 @@ CORO_TEST_F(NeoRadosMisc, BigAttr, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosMisc, WriteSame, NeoRadosTest) {
+CORO_TEST_F(NeoRadosMisc, WriteSame, NeoRadosTest)
+{
   SKIP_IF_CRIMSON(); // See: https://tracker.ceph.com/issues/64040
   static constexpr auto patlen = 128u;
   static constexpr auto samelen = patlen * 4;
@@ -279,9 +274,9 @@ CORO_TEST_F(NeoRadosMisc, WriteSame, NeoRadosTest) {
   EXPECT_EQ(refbl, resbl);
 
   // Write length must be a multiple of the pattern length
-  co_await expect_error_code(execute(oid, WriteOp{}
-				     .writesame(0, samelen - 1, patbl)),
-			     sys::errc::invalid_argument);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.writesame(0, samelen - 1, patbl)),
+      sys::errc::invalid_argument);
 
   // Write length is the same as pattern length (same as write)
   co_await execute(oid, WriteOp{}.truncate(0));

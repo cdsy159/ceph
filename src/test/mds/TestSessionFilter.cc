@@ -15,10 +15,9 @@
 
 #include <iostream>
 
+#include "gtest/gtest.h"
 #include "include/stringify.h"
 #include "mds/SessionMap.h"
-
-#include "gtest/gtest.h"
 
 typedef std::vector<std::string> args_eg;
 typedef std::vector<args_eg> args_eg_set;
@@ -26,16 +25,15 @@ typedef std::vector<args_eg> args_eg_set;
 TEST(MDSSessionFilter, ParseGood)
 {
   args_eg_set examples = {
-    {"id=34"},
-    {"auth_name=foxtrot"},
-    {"state=reconnecting"},
-    {"reconnecting=true"},
-    {"client_metadata.root=/foo/bar"},
-    {},
-    {"id=123"},
-    {"id=34", "client_metadata.root=/foo/bar", "auth_name=foxtrot",
-      "state=reconnecting", "reconnecting=true"}
-  };
+      {"id=34"},
+      {"auth_name=foxtrot"},
+      {"state=reconnecting"},
+      {"reconnecting=true"},
+      {"client_metadata.root=/foo/bar"},
+      {},
+      {"id=123"},
+      {"id=34", "client_metadata.root=/foo/bar", "auth_name=foxtrot",
+       "state=reconnecting", "reconnecting=true"}};
 
   for (auto ex : examples) {
     SessionFilter f;
@@ -51,13 +49,12 @@ TEST(MDSSessionFilter, ParseGood)
 TEST(MDSSessionFilter, ParseBad)
 {
   args_eg_set examples = {
-    {"rhubarb"},
-    {"id="},
-    {"id=custard"},
-    {"=custard"},
-    {"reconnecting=MAYBE"},
-    {"reconnecting=2"}
-  };
+      {"rhubarb"},
+      {"id="},
+      {"id=custard"},
+      {"=custard"},
+      {"reconnecting=MAYBE"},
+      {"reconnecting=2"}};
 
   for (auto ex : examples) {
     SessionFilter f;
@@ -75,13 +72,15 @@ TEST(MDSSessionFilter, IdEquality)
   SessionFilter filter;
   std::stringstream ss;
   filter.parse({"id=123"}, &ss);
-  auto a = ceph::make_ref<Session>(nullptr);;
-  auto b = ceph::make_ref<Session>(nullptr);;
+  auto a = ceph::make_ref<Session>(nullptr);
+  ;
+  auto b = ceph::make_ref<Session>(nullptr);
+  ;
   a->info.inst.name.parse("client.123");
   b->info.inst.name.parse("client.456");
 
-  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool {return false;}));
-  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool {return false;}));
+  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool { return false; }));
+  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool { return false; }));
 }
 
 TEST(MDSSessionFilter, StateEquality)
@@ -94,8 +93,8 @@ TEST(MDSSessionFilter, StateEquality)
   auto b = ceph::make_ref<Session>(nullptr);
   b->set_state(Session::STATE_OPENING);
 
-  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool {return false;}));
-  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool {return false;}));
+  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool { return false; }));
+  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool { return false; }));
 }
 
 TEST(MDSSessionFilter, AuthEquality)
@@ -108,8 +107,8 @@ TEST(MDSSessionFilter, AuthEquality)
   auto b = ceph::make_ref<Session>(nullptr);
   b->info.auth_name.set_id("custard");
 
-  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool {return false;}));
-  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool {return false;}));
+  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool { return false; }));
+  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool { return false; }));
 }
 
 TEST(MDSSessionFilter, MetadataEquality)
@@ -126,8 +125,8 @@ TEST(MDSSessionFilter, MetadataEquality)
   meta.kv_map = {{"root", "/custard"}};
   b->set_client_metadata(meta);
 
-  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool {return false;}));
-  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool {return false;}));
+  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool { return false; }));
+  ASSERT_FALSE(filter.match(*b, [](client_t c) -> bool { return false; }));
 }
 
 TEST(MDSSessionFilter, ReconnectingEquality)
@@ -138,6 +137,6 @@ TEST(MDSSessionFilter, ReconnectingEquality)
   ASSERT_EQ(r, 0);
   auto a = ceph::make_ref<Session>(nullptr);
 
-  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool {return true;}));
-  ASSERT_FALSE(filter.match(*a, [](client_t c) -> bool {return false;}));
+  ASSERT_TRUE(filter.match(*a, [](client_t c) -> bool { return true; }));
+  ASSERT_FALSE(filter.match(*a, [](client_t c) -> bool { return false; }));
 }

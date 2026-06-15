@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,26 +19,28 @@
 #include <AvailabilityMacros.h>
 #endif
 
+#include <arpa/inet.h>
 #include <fcntl.h>
-#include <sys/socket.h>
 #include <pthread.h>
 #include <stdint.h>
-#include <arpa/inet.h>
-#include "include/Context.h"
-#include "common/ceph_mutex.h"
-#include "common/Cond.h"
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "msg/async/Event.h"
+#include <sys/socket.h>
 
 #include <atomic>
+
+#include "common/Cond.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
+#include "global/global_init.h"
+#include "include/Context.h"
+#include "msg/async/Event.h"
 
 // We use epoll, kqueue, evport, select in descending order by performance.
 #if defined(__linux__)
 #define HAVE_EPOLL 1
 #endif
 
-#if (defined(__APPLE__) && defined(MAC_OS_X_VERSION_10_6)) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined (__NetBSD__)
+#if (defined(__APPLE__) && defined(MAC_OS_X_VERSION_10_6)) || \
+    defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 #define HAVE_KQUEUE 1
 #endif
 
@@ -55,18 +57,23 @@
 #ifdef HAVE_KQUEUE
 #include "msg/async/EventKqueue.h"
 #endif
-#include "msg/async/EventSelect.h"
-
 #include <gtest/gtest.h>
+
+#include "msg/async/EventSelect.h"
 
 using namespace std;
 
 class EventDriverTest : public ::testing::TestWithParam<const char*> {
- public:
-  EventDriver *driver;
+public:
+  EventDriver* driver;
 
-  EventDriverTest(): driver(0) {}
-  void SetUp() override {
+  EventDriverTest() :
+    driver(0)
+  {}
+
+  void
+  SetUp() override
+  {
     cerr << __func__ << " start set up " << GetParam() << std::endl;
 #ifdef HAVE_EPOLL
     if (strcmp(GetParam(), "epoll"))
@@ -80,19 +87,23 @@ class EventDriverTest : public ::testing::TestWithParam<const char*> {
       driver = new SelectDriver(g_ceph_context);
     driver->init(NULL, 100);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     delete driver;
   }
 };
 
-int set_nonblock(int sd)
+int
+set_nonblock(int sd)
 {
   int flags;
 
   /* Set the socket nonblocking.
    * Note that fcntl(2) for F_GETFL and F_SETFL can't be
    * interrupted by a signal. */
-  if ((flags = fcntl(sd, F_GETFL)) < 0 ) {
+  if ((flags = fcntl(sd, F_GETFL)) < 0) {
     return -1;
   }
   if (fcntl(sd, F_SETFL, flags | O_NONBLOCK) < 0) {
@@ -101,8 +112,8 @@ int set_nonblock(int sd)
   return 0;
 }
 
-
-TEST_P(EventDriverTest, PipeTest) {
+TEST_P(EventDriverTest, PipeTest)
+{
   int fds[2];
   vector<FiredFileEvent> fired_events;
   int r;
@@ -140,7 +151,8 @@ TEST_P(EventDriverTest, PipeTest) {
   ASSERT_EQ(r, 0);
 }
 
-void* echoclient(void *arg)
+void*
+echoclient(void* arg)
 {
   intptr_t port = (intptr_t)arg;
   struct sockaddr_in sa;
@@ -156,7 +168,7 @@ void* echoclient(void *arg)
     r = connect(connect_sd, (struct sockaddr*)&sa, sizeof(sa));
     ceph_assert(r == 0);
     int t = 0;
-  
+
     do {
       char c[] = "banner";
       r = write(connect_sd, c, sizeof(c));
@@ -172,7 +184,8 @@ void* echoclient(void *arg)
   return 0;
 }
 
-TEST_P(EventDriverTest, NetworkSocketTest) {
+TEST_P(EventDriverTest, NetworkSocketTest)
+{
   int listen_sd = ::socket(AF_INET, SOCK_STREAM, 0);
   ASSERT_TRUE(listen_sd > 0);
   int on = 1;
@@ -183,12 +196,12 @@ TEST_P(EventDriverTest, NetworkSocketTest) {
   struct sockaddr_in sa;
   long port = 0;
   for (port = 38788; port < 40000; port++) {
-    memset(&sa,0,sizeof(sa));
+    memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
     sa.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    r = ::bind(listen_sd, (struct sockaddr *)&sa, sizeof(sa));
+    r = ::bind(listen_sd, (struct sockaddr*)&sa, sizeof(sa));
     if (r == 0) {
       break;
     }
@@ -243,8 +256,8 @@ TEST_P(EventDriverTest, NetworkSocketTest) {
     ASSERT_EQ(fired_events[0].mask, EVENT_WRITABLE);
     r = write(client_sd, data, strlen(data));
     ASSERT_EQ((int)strlen(data), r);
-    driver->del_event(client_sd, EVENT_READABLE|EVENT_WRITABLE,
-                      EVENT_WRITABLE);
+    driver->del_event(
+        client_sd, EVENT_READABLE | EVENT_WRITABLE, EVENT_WRITABLE);
   } while (1);
 
   ::close(client_sd);
@@ -253,11 +266,14 @@ TEST_P(EventDriverTest, NetworkSocketTest) {
 
 class FakeEvent : public EventCallback {
 
- public:
-  void do_request(uint64_t fd_or_id) override {}
+public:
+  void
+  do_request(uint64_t fd_or_id) override
+  {}
 };
 
-TEST(EventCenterTest, FileEventExpansion) {
+TEST(EventCenterTest, FileEventExpansion)
+{
   vector<int> sds;
   EventCenter center(g_ceph_context);
   center.init(100, 0, "posix");
@@ -273,21 +289,29 @@ TEST(EventCenterTest, FileEventExpansion) {
     center.delete_file_event(*it, EVENT_READABLE);
 }
 
-
 class Worker : public Thread {
-  CephContext *cct;
+  CephContext* cct;
   bool done;
 
- public:
+public:
   EventCenter center;
-  explicit Worker(CephContext *c, int idx): cct(c), done(false), center(c) {
+
+  explicit Worker(CephContext* c, int idx) :
+    cct(c), done(false), center(c)
+  {
     center.init(100, idx, "posix");
   }
-  void stop() {
-    done = true; 
+
+  void
+  stop()
+  {
+    done = true;
     center.wakeup();
   }
-  void* entry() override {
+
+  void*
+  entry() override
+  {
     center.set_owner();
     while (!done)
       center.process_events(1000000);
@@ -295,34 +319,43 @@ class Worker : public Thread {
   }
 };
 
-class CountEvent: public EventCallback {
-  std::atomic<unsigned> *count;
-  ceph::mutex *lock;
-  ceph::condition_variable *cond;
+class CountEvent : public EventCallback {
+  std::atomic<unsigned>* count;
+  ceph::mutex* lock;
+  ceph::condition_variable* cond;
 
- public:
-  CountEvent(std::atomic<unsigned> *atomic,
-             ceph::mutex *l, ceph::condition_variable *c)
-    : count(atomic), lock(l), cond(c) {}
-  void do_request(uint64_t id) override {
+public:
+  CountEvent(
+      std::atomic<unsigned>* atomic,
+      ceph::mutex* l,
+      ceph::condition_variable* c) :
+    count(atomic), lock(l), cond(c)
+  {}
+
+  void
+  do_request(uint64_t id) override
+  {
     std::scoped_lock l{*lock};
     (*count)--;
     cond->notify_all();
   }
 };
 
-TEST(EventCenterTest, DispatchTest) {
+TEST(EventCenterTest, DispatchTest)
+{
   Worker worker1(g_ceph_context, 1), worker2(g_ceph_context, 2);
-  std::atomic<unsigned> count = { 0 };
+  std::atomic<unsigned> count = {0};
   ceph::mutex lock = ceph::make_mutex("DispatchTest::lock");
   ceph::condition_variable cond;
   worker1.create("worker_1");
   worker2.create("worker_2");
   for (int i = 0; i < 10000; ++i) {
     count++;
-    worker1.center.dispatch_event_external(EventCallbackRef(new CountEvent(&count, &lock, &cond)));
+    worker1.center.dispatch_event_external(
+        EventCallbackRef(new CountEvent(&count, &lock, &cond)));
     count++;
-    worker2.center.dispatch_event_external(EventCallbackRef(new CountEvent(&count, &lock, &cond)));
+    worker2.center.dispatch_event_external(
+        EventCallbackRef(new CountEvent(&count, &lock, &cond)));
     std::unique_lock l{lock};
     cond.wait(l, [&] { return count == 0; });
   }
@@ -333,18 +366,16 @@ TEST(EventCenterTest, DispatchTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-  AsyncMessenger,
-  EventDriverTest,
-  ::testing::Values(
+    AsyncMessenger,
+    EventDriverTest,
+    ::testing::Values(
 #ifdef HAVE_EPOLL
-    "epoll",
+        "epoll",
 #endif
 #ifdef HAVE_KQUEUE
-    "kqueue",
+        "kqueue",
 #endif
-    "select"
-  )
-);
+        "select"));
 
 /*
  * Local Variables:

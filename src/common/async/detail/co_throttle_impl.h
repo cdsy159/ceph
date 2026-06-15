@@ -17,12 +17,14 @@
 
 #include <memory>
 #include <optional>
+
 #include <boost/asio/append.hpp>
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/execution/executor.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
+
 #include "common/async/cancel_on_error.h"
 #include "common/async/co_waiter.h"
 #include "common/async/service.h"
@@ -35,21 +37,29 @@ namespace ceph::async::detail {
 // This is required for per-op cancellation because the cancellation_signals
 // must outlive their coroutine frames.
 template <boost::asio::execution::executor Executor>
-class co_throttle_impl :
-    public boost::intrusive_ref_counter<co_throttle_impl<Executor>,
-        boost::thread_unsafe_counter>,
-    public service_list_base_hook
-{
- public:
+class co_throttle_impl : public boost::intrusive_ref_counter<
+                             co_throttle_impl<Executor>,
+                             boost::thread_unsafe_counter>,
+                         public service_list_base_hook {
+public:
   using executor_type = Executor;
-  executor_type get_executor() const { return ex; }
 
-  co_throttle_impl(const executor_type& ex, size_t limit,
-                   cancel_on_error on_error)
-    : svc(boost::asio::use_service<service<co_throttle_impl>>(
-            boost::asio::query(ex, boost::asio::execution::context))),
-      ex(ex), limit(limit), on_error(on_error),
-      children(new child[limit])
+  executor_type
+  get_executor() const
+  {
+    return ex;
+  }
+
+  co_throttle_impl(
+      const executor_type& ex,
+      size_t limit,
+      cancel_on_error on_error) :
+    svc(boost::asio::use_service<service<co_throttle_impl>>(
+        boost::asio::query(ex, boost::asio::execution::context))),
+    ex(ex),
+    limit(limit),
+    on_error(on_error),
+    children(new child[limit])
   {
     // register for service_shutdown() notifications
     svc.add(*this);
@@ -59,13 +69,11 @@ class co_throttle_impl :
       free.push_back(children[i]);
     }
   }
-  ~co_throttle_impl()
-  {
-    svc.remove(*this);
-  }
 
-  auto spawn(boost::asio::awaitable<void, executor_type> cr,
-             size_t smaller_limit)
+  ~co_throttle_impl() { svc.remove(*this); }
+
+  auto
+  spawn(boost::asio::awaitable<void, executor_type> cr, size_t smaller_limit)
       -> boost::asio::awaitable<void, executor_type>
   {
     if (unreported_exception && on_error != cancel_on_error::none) {
@@ -92,17 +100,18 @@ class co_throttle_impl :
     c.signal.emplace();
     c.canceled = false;
 
-    boost::asio::co_spawn(get_executor(), std::move(cr),
-        boost::asio::bind_cancellation_slot(c.signal->slot(),
-            child_completion{this, c}));
+    boost::asio::co_spawn(
+        get_executor(), std::move(cr),
+        boost::asio::bind_cancellation_slot(
+            c.signal->slot(), child_completion{this, c}));
 
     if (unreported_exception) {
       std::rethrow_exception(std::exchange(unreported_exception, nullptr));
     }
   }
 
-  auto wait()
-      -> boost::asio::awaitable<void, executor_type>
+  auto
+  wait() -> boost::asio::awaitable<void, executor_type>
   {
     if (count > 0) {
       co_await wait_for(0);
@@ -112,7 +121,8 @@ class co_throttle_impl :
     }
   }
 
-  void cancel()
+  void
+  cancel()
   {
     while (!outstanding.empty()) {
       child& c = outstanding.front();
@@ -123,12 +133,13 @@ class co_throttle_impl :
     }
   }
 
-  void service_shutdown()
+  void
+  service_shutdown()
   {
     waiter.shutdown();
   }
 
- private:
+private:
   service<co_throttle_impl>& svc;
   executor_type ex;
   const size_t limit;
@@ -145,24 +156,26 @@ class co_throttle_impl :
     std::optional<boost::asio::cancellation_signal> signal;
     bool canceled = false;
   };
+
   std::unique_ptr<child[]> children;
 
-  using child_list = boost::intrusive::list<child,
-        boost::intrusive::constant_time_size<false>>;
+  using child_list =
+      boost::intrusive::list<child, boost::intrusive::constant_time_size<false>>;
   child_list outstanding;
   child_list free;
 
   co_waiter<void, executor_type> waiter;
 
   // return an awaitable that completes once count <= target_count
-  auto wait_for(size_t target_count)
-      -> boost::asio::awaitable<void, executor_type>
+  auto
+  wait_for(size_t target_count) -> boost::asio::awaitable<void, executor_type>
   {
     wait_for_count = target_count;
     return waiter.get();
   }
 
-  void on_complete(child& c, std::exception_ptr eptr)
+  void
+  on_complete(child& c, std::exception_ptr eptr)
   {
     --count;
 
@@ -188,8 +201,8 @@ class co_throttle_impl :
         // on_complete(), so move the entries into a separate list first
         child_list to_cancel;
         if (on_error == cancel_on_error::after) {
-          to_cancel.splice(to_cancel.end(), outstanding,
-                           next, outstanding.end());
+          to_cancel.splice(
+              to_cancel.end(), outstanding, next, outstanding.end());
         } else if (on_error == cancel_on_error::all) {
           to_cancel = std::move(outstanding);
         }
@@ -214,7 +227,9 @@ class co_throttle_impl :
     boost::intrusive_ptr<co_throttle_impl> impl;
     child& c;
 
-    void operator()(std::exception_ptr eptr) {
+    void
+    operator()(std::exception_ptr eptr)
+    {
       impl->on_complete(c, eptr);
     }
   };

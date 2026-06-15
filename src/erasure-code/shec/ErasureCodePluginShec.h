@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,17 +19,19 @@
 #ifndef CEPH_ERASURE_CODE_PLUGIN_SHEC_H
 #define CEPH_ERASURE_CODE_PLUGIN_SHEC_H
 
-#include "ErasureCodeShecTableCache.h"
 #include "erasure-code/ErasureCodePlugin.h"
+
+#include "ErasureCodeShecTableCache.h"
 
 class ErasureCodePluginShec : public ceph::ErasureCodePlugin {
 public:
   ErasureCodeShecTableCache tcache;
 
-  int factory(const std::string &directory,
-	      ceph::ErasureCodeProfile &profile,
-	      ceph::ErasureCodeInterfaceRef *erasure_code,
-	      std::ostream *ss) override;
+  int factory(
+      const std::string& directory,
+      ceph::ErasureCodeProfile& profile,
+      ceph::ErasureCodeInterfaceRef* erasure_code,
+      std::ostream* ss) override;
 };
 
 #endif

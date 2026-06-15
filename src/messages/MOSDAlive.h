@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,7 +14,6 @@
  */
 
 
-
 #ifndef CEPH_MOSDALIVE_H
 #define CEPH_MOSDALIVE_H
 
@@ -24,30 +23,49 @@ class MOSDAlive final : public PaxosServiceMessage {
 public:
   epoch_t want = 0;
 
-  MOSDAlive(epoch_t h, epoch_t w) : PaxosServiceMessage{MSG_OSD_ALIVE, h}, want(w) {}
-  MOSDAlive() : MOSDAlive{0, 0} {}
+  MOSDAlive(epoch_t h, epoch_t w) :
+    PaxosServiceMessage{MSG_OSD_ALIVE, h}, want(w)
+  {}
+
+  MOSDAlive() :
+    MOSDAlive{0, 0}
+  {}
+
 private:
   ~MOSDAlive() final {}
 
 public:
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     paxos_encode();
     using ceph::encode;
     encode(want, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     paxos_decode(p);
     using ceph::decode;
     decode(want, p);
   }
 
-  std::string_view get_type_name() const override { return "osd_alive"; }
-  void print(std::ostream &out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "osd_alive";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "osd_alive(want up_thru " << want << " have " << version << ")";
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

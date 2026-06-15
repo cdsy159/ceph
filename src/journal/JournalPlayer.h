@@ -4,18 +4,20 @@
 #ifndef CEPH_JOURNAL_JOURNAL_PLAYER_H
 #define CEPH_JOURNAL_JOURNAL_PLAYER_H
 
-#include "include/int_types.h"
-#include "include/Context.h"
-#include "include/rados/librados.hpp"
+#include <map>
+
+#include <boost/none.hpp>
+#include <boost/optional.hpp>
+
+#include "cls/journal/cls_journal_types.h"
 #include "common/AsyncOpTracker.h"
 #include "common/Timer.h"
+#include "include/Context.h"
+#include "include/int_types.h"
+#include "include/rados/librados.hpp"
 #include "journal/JournalMetadata.h"
 #include "journal/ObjectPlayer.h"
 #include "journal/Types.h"
-#include "cls/journal/cls_journal_types.h"
-#include <boost/none.hpp>
-#include <boost/optional.hpp>
-#include <map>
 
 namespace journal {
 
@@ -29,17 +31,19 @@ public:
   typedef cls::journal::ObjectPositions ObjectPositions;
   typedef cls::journal::ObjectSetPosition ObjectSetPosition;
 
-  JournalPlayer(librados::IoCtx &ioctx, std::string_view object_oid_prefix,
-                ceph::ref_t<JournalMetadata> journal_metadata,
-                ReplayHandler* replay_handler,
-                CacheManagerHandler *cache_manager_handler);
+  JournalPlayer(
+      librados::IoCtx& ioctx,
+      std::string_view object_oid_prefix,
+      ceph::ref_t<JournalMetadata> journal_metadata,
+      ReplayHandler* replay_handler,
+      CacheManagerHandler* cache_manager_handler);
   ~JournalPlayer();
 
   void prefetch();
   void prefetch_and_watch(double interval);
-  void shut_down(Context *on_finish);
+  void shut_down(Context* on_finish);
 
-  bool try_pop_front(Entry *entry, uint64_t *commit_tid);
+  bool try_pop_front(Entry* entry, uint64_t* commit_tid);
 
 private:
   typedef std::set<uint8_t> PrefetchSplayOffsets;
@@ -62,52 +66,63 @@ private:
   };
 
   struct C_Fetch : public Context {
-    JournalPlayer *player;
+    JournalPlayer* player;
     uint64_t object_num;
-    C_Fetch(JournalPlayer *p, uint64_t o) : player(p), object_num(o) {
+
+    C_Fetch(JournalPlayer* p, uint64_t o) :
+      player(p), object_num(o)
+    {
       player->m_async_op_tracker.start_op();
     }
-    ~C_Fetch() override {
-      player->m_async_op_tracker.finish_op();
-    }
-    void finish(int r) override {
+
+    ~C_Fetch() override { player->m_async_op_tracker.finish_op(); }
+
+    void
+    finish(int r) override
+    {
       player->handle_fetched(object_num, r);
     }
   };
 
   struct C_Watch : public Context {
-    JournalPlayer *player;
+    JournalPlayer* player;
     uint64_t object_num;
-    C_Watch(JournalPlayer *player, uint64_t object_num)
-      : player(player), object_num(object_num) {
+
+    C_Watch(JournalPlayer* player, uint64_t object_num) :
+      player(player), object_num(object_num)
+    {
       player->m_async_op_tracker.start_op();
     }
-    ~C_Watch() override {
-      player->m_async_op_tracker.finish_op();
-    }
 
-    void finish(int r) override {
+    ~C_Watch() override { player->m_async_op_tracker.finish_op(); }
+
+    void
+    finish(int r) override
+    {
       player->handle_watch(object_num, r);
     }
   };
 
   struct CacheRebalanceHandler : public journal::CacheRebalanceHandler {
-    JournalPlayer *player;
+    JournalPlayer* player;
 
-    CacheRebalanceHandler(JournalPlayer *player) : player(player) {
-    }
+    CacheRebalanceHandler(JournalPlayer* player) :
+      player(player)
+    {}
 
-    void handle_cache_rebalanced(uint64_t new_cache_bytes) override {
+    void
+    handle_cache_rebalanced(uint64_t new_cache_bytes) override
+    {
       player->handle_cache_rebalanced(new_cache_bytes);
     }
   };
 
   librados::IoCtx m_ioctx;
-  CephContext *m_cct = nullptr;
+  CephContext* m_cct = nullptr;
   std::string m_object_oid_prefix;
   ceph::ref_t<JournalMetadata> m_journal_metadata;
   ReplayHandler* m_replay_handler;
-  CacheManagerHandler *m_cache_manager_handler;
+  CacheManagerHandler* m_cache_manager_handler;
 
   std::string m_cache_name;
   CacheRebalanceHandler m_cache_rebalance_handler;
@@ -150,14 +165,15 @@ private:
 
   ceph::ref_t<ObjectPlayer> get_object_player() const;
   ceph::ref_t<ObjectPlayer> get_object_player(uint64_t object_number) const;
-  bool remove_empty_object_player(const ceph::ref_t<ObjectPlayer> &object_player);
+  bool remove_empty_object_player(
+      const ceph::ref_t<ObjectPlayer>& object_player);
 
   void process_state(uint64_t object_number, int r);
   int process_prefetch(uint64_t object_number);
   int process_playback(uint64_t object_number);
 
   void fetch(uint64_t object_num);
-  void fetch(const ceph::ref_t<ObjectPlayer> &object_player);
+  void fetch(const ceph::ref_t<ObjectPlayer>& object_player);
   void handle_fetched(uint64_t object_num, int r);
   void refetch(bool immediate);
 

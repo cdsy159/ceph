@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_acl_swift.h"
+
 #include <string.h>
 
 #include <optional>
@@ -10,33 +12,34 @@
 
 #include "common/ceph_json.h"
 #include "common/split.h"
-#include "rgw_common.h"
 #include "driver/rados/rgw_user.h"
-#include "rgw_acl_swift.h"
+
+#include "rgw_common.h"
 #include "rgw_sal.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 
-#define SWIFT_PERM_READ  RGW_PERM_READ_OBJS
+#define SWIFT_PERM_READ RGW_PERM_READ_OBJS
 #define SWIFT_PERM_WRITE RGW_PERM_WRITE_OBJS
 /* FIXME: do we really need separate RW? */
-#define SWIFT_PERM_RWRT  (SWIFT_PERM_READ | SWIFT_PERM_WRITE)
+#define SWIFT_PERM_RWRT (SWIFT_PERM_READ | SWIFT_PERM_WRITE)
 #define SWIFT_PERM_ADMIN RGW_PERM_FULL_CONTROL
 
 #define SWIFT_GROUP_ALL_USERS ".r:*"
 
 using namespace std;
 
-static bool is_referrer(const std::string& designator)
+static bool
+is_referrer(const std::string& designator)
 {
-  return designator.compare(".r") == 0 ||
-         designator.compare(".ref") == 0 ||
+  return designator.compare(".r") == 0 || designator.compare(".ref") == 0 ||
          designator.compare(".referer") == 0 ||
          designator.compare(".referrer") == 0;
 }
 
-static bool uid_is_public(const string& uid)
+static bool
+uid_is_public(const string& uid)
 {
   if (uid[0] != '.' || uid[1] != 'r')
     return false;
@@ -54,8 +57,8 @@ static bool uid_is_public(const string& uid)
   return is_referrer(sub);
 }
 
-static std::optional<ACLGrant> referrer_to_grant(std::string url_spec,
-                                                 const uint32_t perm)
+static std::optional<ACLGrant>
+referrer_to_grant(std::string url_spec, const uint32_t perm)
 {
   /* This function takes url_spec as non-ref std::string because of the trim
    * operation that is essential to preserve compliance with Swift. It can't
@@ -95,10 +98,12 @@ static std::optional<ACLGrant> referrer_to_grant(std::string url_spec,
   }
 }
 
-static ACLGrant user_to_grant(const DoutPrefixProvider *dpp,
-                              rgw::sal::Driver* driver,
-                              const std::string& uid,
-                              const uint32_t perm)
+static ACLGrant
+user_to_grant(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    const std::string& uid,
+    const uint32_t perm)
 {
   ACLGrant grant;
 
@@ -116,11 +121,12 @@ static ACLGrant user_to_grant(const DoutPrefixProvider *dpp,
 
 // parse a container acl grant in 'V1' format
 // https://docs.openstack.org/swift/latest/overview_acl.html#container-acls
-static auto parse_grant(const DoutPrefixProvider* dpp,
-                        rgw::sal::Driver* driver,
-                        const std::string& uid,
-                        const uint32_t perm)
-  -> std::optional<ACLGrant>
+static auto
+parse_grant(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    const std::string& uid,
+    const uint32_t perm) -> std::optional<ACLGrant>
 {
   ldpp_dout(dpp, 20) << "trying to add grant for ACL uid=" << uid << dendl;
 
@@ -140,7 +146,7 @@ static auto parse_grant(const DoutPrefixProvider* dpp,
   boost::algorithm::trim(designator);
   boost::algorithm::trim(designatee);
 
-  if (! boost::algorithm::starts_with(designator, ".")) {
+  if (!boost::algorithm::starts_with(designator, ".")) {
     return user_to_grant(dpp, driver, uid, perm);
   }
   if ((perm & SWIFT_PERM_WRITE) == 0 && is_referrer(designator)) {
@@ -151,16 +157,19 @@ static auto parse_grant(const DoutPrefixProvider* dpp,
   return std::nullopt;
 }
 
-static void add_grants(const DoutPrefixProvider* dpp,
-                       rgw::sal::Driver* driver,
-                       const std::vector<std::string>& uids,
-                       uint32_t perm, RGWAccessControlList& acl)
+static void
+add_grants(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    const std::vector<std::string>& uids,
+    uint32_t perm,
+    RGWAccessControlList& acl)
 {
   for (const auto& uid : uids) {
     ACLGrant grant;
     if (uid_is_public(uid)) {
       grant.set_group(ACL_GROUP_ALL_USERS, perm);
-    } else  {
+    } else {
       grant = user_to_grant(dpp, driver, uid, perm);
     }
     acl.add_grant(grant);
@@ -169,13 +178,15 @@ static void add_grants(const DoutPrefixProvider* dpp,
 
 namespace rgw::swift {
 
-int create_container_policy(const DoutPrefixProvider *dpp,
-                            rgw::sal::Driver* driver,
-                            const ACLOwner& owner,
-                            const char* read_list,
-                            const char* write_list,
-                            uint32_t& rw_mask,
-                            RGWAccessControlPolicy& policy)
+int
+create_container_policy(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    const ACLOwner& owner,
+    const char* read_list,
+    const char* write_list,
+    uint32_t& rw_mask,
+    RGWAccessControlPolicy& policy)
 {
   policy.create_default(owner.id, owner.display_name);
   auto& acl = policy.get_acl();
@@ -184,8 +195,8 @@ int create_container_policy(const DoutPrefixProvider *dpp,
     for (std::string_view uid : ceph::split(read_list, " ,")) {
       auto grant = parse_grant(dpp, driver, std::string{uid}, SWIFT_PERM_READ);
       if (!grant) {
-        ldpp_dout(dpp, 4) << "ERROR: failed to parse read acl grant "
-            << uid << dendl;
+        ldpp_dout(dpp, 4) << "ERROR: failed to parse read acl grant " << uid
+                          << dendl;
         return -EINVAL;
       }
       acl.add_grant(*grant);
@@ -196,8 +207,8 @@ int create_container_policy(const DoutPrefixProvider *dpp,
     for (std::string_view uid : ceph::split(write_list, " ,")) {
       auto grant = parse_grant(dpp, driver, std::string{uid}, SWIFT_PERM_WRITE);
       if (!grant) {
-        ldpp_dout(dpp, 4) << "ERROR: failed to parse write acl grant "
-            << uid << dendl;
+        ldpp_dout(dpp, 4) << "ERROR: failed to parse write acl grant " << uid
+                          << dendl;
         return -EINVAL;
       }
       acl.add_grant(*grant);
@@ -207,18 +218,21 @@ int create_container_policy(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-void merge_policy(uint32_t rw_mask, const RGWAccessControlPolicy& src,
-                  RGWAccessControlPolicy& dest)
+void
+merge_policy(
+    uint32_t rw_mask,
+    const RGWAccessControlPolicy& src,
+    RGWAccessControlPolicy& dest)
 {
   /* rw_mask&SWIFT_PERM_READ => setting read acl,
    * rw_mask&SWIFT_PERM_WRITE => setting write acl
    * when bit is cleared, copy matching elements from old.
    */
-  if (rw_mask == (SWIFT_PERM_READ|SWIFT_PERM_WRITE)) {
+  if (rw_mask == (SWIFT_PERM_READ | SWIFT_PERM_WRITE)) {
     return;
   }
-  rw_mask ^= (SWIFT_PERM_READ|SWIFT_PERM_WRITE);
-  for (const auto &iter: src.get_acl().get_grant_map()) {
+  rw_mask ^= (SWIFT_PERM_READ | SWIFT_PERM_WRITE);
+  for (const auto& iter : src.get_acl().get_grant_map()) {
     const ACLGrant& grant = iter.second;
     uint32_t perm = grant.get_permission().get_permissions();
     if (const auto* referer = grant.get_referer(); referer) {
@@ -236,8 +250,11 @@ void merge_policy(uint32_t rw_mask, const RGWAccessControlPolicy& src,
   }
 }
 
-void format_container_acls(const RGWAccessControlPolicy& policy,
-                           std::string& read, std::string& write)
+void
+format_container_acls(
+    const RGWAccessControlPolicy& policy,
+    std::string& read,
+    std::string& write)
 {
   for (const auto& [k, grant] : policy.get_acl().get_grant_map()) {
     const uint32_t perm = grant.get_permission().get_permissions();
@@ -276,11 +293,13 @@ void format_container_acls(const RGWAccessControlPolicy& policy,
   }
 }
 
-int create_account_policy(const DoutPrefixProvider* dpp,
-                          rgw::sal::Driver* driver,
-                          const ACLOwner& owner,
-                          const std::string& acl_str,
-                          RGWAccessControlPolicy& policy)
+int
+create_account_policy(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    const ACLOwner& owner,
+    const std::string& acl_str,
+    RGWAccessControlPolicy& policy)
 {
   policy.create_default(owner.id, owner.display_name);
   auto& acl = policy.get_acl();
@@ -321,8 +340,9 @@ int create_account_policy(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-auto format_account_acl(const RGWAccessControlPolicy& policy)
-  -> std::optional<std::string>
+auto
+format_account_acl(
+    const RGWAccessControlPolicy& policy) -> std::optional<std::string>
 {
   const ACLOwner& owner = policy.get_owner();
 

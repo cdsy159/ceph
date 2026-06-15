@@ -2,12 +2,15 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "crimson/os/seastore/lba_manager.h"
+
 #include "crimson/os/seastore/lba/btree_lba_manager.h"
 
 namespace crimson::os::seastore {
 
-LBAManagerRef lba::create_lba_manager(Cache &cache, store_index_t store_index) {
+LBAManagerRef
+lba::create_lba_manager(Cache& cache, store_index_t store_index)
+{
   return LBAManagerRef(new lba::BtreeLBAManager(cache, store_index));
 }
 
-}
+} // namespace crimson::os::seastore

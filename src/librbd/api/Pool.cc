@@ -2,13 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/api/Pool.h"
-#include "include/rados/librados.hpp"
-#include "common/dout.h"
-#include "common/errno.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/Cond.h"
 #include "common/Throttle.h"
-#include "cls/rbd/cls_rbd_client.h"
-#include "osd/osd_types.h"
+#include "common/dout.h"
+#include "common/errno.h"
+#include "include/rados/librados.hpp"
 #include "librbd/AsioEngine.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
@@ -16,6 +16,7 @@
 #include "librbd/api/Image.h"
 #include "librbd/api/Trash.h"
 #include "librbd/image/ValidatePoolRequest.h"
+#include "osd/osd_types.h"
 
 #define dout_subsys ceph_subsys_rbd
 
@@ -25,31 +26,43 @@ namespace api {
 namespace {
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::api::Pool::ImageStatRequest: " \
-                           << __func__ << " " << this << ": " \
-                           << "(id=" << m_image_id << "): "
+#define dout_prefix                                                            \
+  *_dout << "librbd::api::Pool::ImageStatRequest: " << __func__ << " " << this \
+         << ": " << "(id=" << m_image_id << "): "
 
 template <typename I>
 class ImageStatRequest {
 public:
-  ImageStatRequest(librados::IoCtx& io_ctx, SimpleThrottle& throttle,
-                   const std::string& image_id, bool scan_snaps,
-                   std::atomic<uint64_t>* bytes,
-                   std::atomic<uint64_t>* max_bytes,
-                   std::atomic<uint64_t>* snaps)
-    : m_cct(reinterpret_cast<CephContext*>(io_ctx.cct())),
-      m_io_ctx(io_ctx), m_throttle(throttle), m_image_id(image_id),
-      m_scan_snaps(scan_snaps), m_bytes(bytes), m_max_bytes(max_bytes),
-      m_snaps(snaps) {
+  ImageStatRequest(
+      librados::IoCtx& io_ctx,
+      SimpleThrottle& throttle,
+      const std::string& image_id,
+      bool scan_snaps,
+      std::atomic<uint64_t>* bytes,
+      std::atomic<uint64_t>* max_bytes,
+      std::atomic<uint64_t>* snaps) :
+    m_cct(reinterpret_cast<CephContext*>(io_ctx.cct())),
+    m_io_ctx(io_ctx),
+    m_throttle(throttle),
+    m_image_id(image_id),
+    m_scan_snaps(scan_snaps),
+    m_bytes(bytes),
+    m_max_bytes(max_bytes),
+    m_snaps(snaps)
+  {
     m_throttle.start_op();
   }
 
-  void send() {
+  void
+  send()
+  {
     get_head();
   }
 
 protected:
-  void finish(int r) {
+  void
+  finish(int r)
+  {
     (*m_max_bytes) += m_max_size;
     m_throttle.end_op(r);
 
@@ -70,7 +83,9 @@ private:
   uint64_t m_max_size = 0;
   ::SnapContext m_snapc;
 
-  void get_head() {
+  void
+  get_head()
+  {
     ldout(m_cct, 15) << dendl;
 
     librados::ObjectReadOperation op;
@@ -81,14 +96,16 @@ private:
 
     m_out_bl.clear();
     auto aio_comp = util::create_rados_callback<
-      ImageStatRequest<I>, &ImageStatRequest<I>::handle_get_head>(this);
-    int r = m_io_ctx.aio_operate(util::header_name(m_image_id), aio_comp, &op,
-                                 &m_out_bl);
+        ImageStatRequest<I>, &ImageStatRequest<I>::handle_get_head>(this);
+    int r = m_io_ctx.aio_operate(
+        util::header_name(m_image_id), aio_comp, &op, &m_out_bl);
     ceph_assert(r == 0);
     aio_comp->release();
   }
 
-  void handle_get_head(int r) {
+  void
+  handle_get_head(int r)
+  {
     ldout(m_cct, 15) << "r=" << r << dendl;
 
     auto it = m_out_bl.cbegin();
@@ -124,7 +141,9 @@ private:
     get_snaps();
   }
 
-  void get_snaps() {
+  void
+  get_snaps()
+  {
     if (!m_scan_snaps || m_snapc.snaps.empty()) {
       finish(0);
       return;
@@ -138,14 +157,16 @@ private:
 
     m_out_bl.clear();
     auto aio_comp = util::create_rados_callback<
-      ImageStatRequest<I>, &ImageStatRequest<I>::handle_get_snaps>(this);
-    int r = m_io_ctx.aio_operate(util::header_name(m_image_id), aio_comp, &op,
-                                 &m_out_bl);
+        ImageStatRequest<I>, &ImageStatRequest<I>::handle_get_snaps>(this);
+    int r = m_io_ctx.aio_operate(
+        util::header_name(m_image_id), aio_comp, &op, &m_out_bl);
     ceph_assert(r == 0);
     aio_comp->release();
   }
 
-  void handle_get_snaps(int r) {
+  void
+  handle_get_snaps(int r)
+  {
     ldout(m_cct, 15) << "r=" << r << dendl;
 
     auto it = m_out_bl.cbegin();
@@ -171,13 +192,15 @@ private:
       finish(0);
     }
   }
-
 };
 
 template <typename I>
-void get_pool_stat_option_value(typename Pool<I>::StatOptions* stat_options,
-                                rbd_pool_stat_option_t option,
-                                uint64_t** value) {
+void
+get_pool_stat_option_value(
+    typename Pool<I>::StatOptions* stat_options,
+    rbd_pool_stat_option_t option,
+    uint64_t** value)
+{
   auto it = stat_options->find(option);
   if (it == stat_options->end()) {
     *value = nullptr;
@@ -187,16 +210,22 @@ void get_pool_stat_option_value(typename Pool<I>::StatOptions* stat_options,
 }
 
 template <typename I>
-int get_pool_stats(librados::IoCtx& io_ctx, const ConfigProxy& config,
-              const std::vector<std::string>& image_ids, uint64_t* image_count,
-              uint64_t* provisioned_bytes, uint64_t* max_provisioned_bytes,
-              uint64_t* snapshot_count) {
+int
+get_pool_stats(
+    librados::IoCtx& io_ctx,
+    const ConfigProxy& config,
+    const std::vector<std::string>& image_ids,
+    uint64_t* image_count,
+    uint64_t* provisioned_bytes,
+    uint64_t* max_provisioned_bytes,
+    uint64_t* snapshot_count)
+{
 
-  bool scan_snaps = ((max_provisioned_bytes != nullptr) ||
-                     (snapshot_count != nullptr));
+  bool scan_snaps =
+      ((max_provisioned_bytes != nullptr) || (snapshot_count != nullptr));
 
   SimpleThrottle throttle(
-    config.template get_val<uint64_t>("rbd_concurrent_management_ops"), true);
+      config.template get_val<uint64_t>("rbd_concurrent_management_ops"), true);
   std::atomic<uint64_t> bytes{0};
   std::atomic<uint64_t> max_bytes{0};
   std::atomic<uint64_t> snaps{0};
@@ -205,8 +234,8 @@ int get_pool_stats(librados::IoCtx& io_ctx, const ConfigProxy& config,
       break;
     }
 
-    auto req = new ImageStatRequest<I>(io_ctx, throttle, image_id,
-                                       scan_snaps, &bytes, &max_bytes, &snaps);
+    auto req = new ImageStatRequest<I>(
+        io_ctx, throttle, image_id, scan_snaps, &bytes, &max_bytes, &snaps);
     req->send();
   }
 
@@ -237,7 +266,9 @@ int get_pool_stats(librados::IoCtx& io_ctx, const ConfigProxy& config,
 #define dout_prefix *_dout << "librbd::api::Pool: " << __func__ << ": "
 
 template <typename I>
-int Pool<I>::init(librados::IoCtx& io_ctx, bool force) {
+int
+Pool<I>::init(librados::IoCtx& io_ctx, bool force)
+{
   auto cct = reinterpret_cast<CephContext*>(io_ctx.cct());
   ldout(cct, 10) << dendl;
 
@@ -268,9 +299,12 @@ int Pool<I>::init(librados::IoCtx& io_ctx, bool force) {
 }
 
 template <typename I>
-int Pool<I>::add_stat_option(StatOptions* stat_options,
-                             rbd_pool_stat_option_t option,
-                             uint64_t* value) {
+int
+Pool<I>::add_stat_option(
+    StatOptions* stat_options,
+    rbd_pool_stat_option_t option,
+    uint64_t* value)
+{
   switch (option) {
   case RBD_POOL_STAT_OPTION_IMAGES:
   case RBD_POOL_STAT_OPTION_IMAGE_PROVISIONED_BYTES:
@@ -289,7 +323,9 @@ int Pool<I>::add_stat_option(StatOptions* stat_options,
 }
 
 template <typename I>
-int Pool<I>::get_stats(librados::IoCtx& io_ctx, StatOptions* stat_options) {
+int
+Pool<I>::get_stats(librados::IoCtx& io_ctx, StatOptions* stat_options)
+{
   auto cct = reinterpret_cast<CephContext*>(io_ctx.cct());
   ldout(cct, 10) << dendl;
 
@@ -308,15 +344,15 @@ int Pool<I>::get_stats(librados::IoCtx& io_ctx, StatOptions* stat_options) {
   }
 
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_IMAGES, &image_count);
+      stat_options, RBD_POOL_STAT_OPTION_IMAGES, &image_count);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_IMAGE_PROVISIONED_BYTES,
-    &provisioned_bytes);
+      stat_options, RBD_POOL_STAT_OPTION_IMAGE_PROVISIONED_BYTES,
+      &provisioned_bytes);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_IMAGE_MAX_PROVISIONED_BYTES,
-    &max_provisioned_bytes);
+      stat_options, RBD_POOL_STAT_OPTION_IMAGE_MAX_PROVISIONED_BYTES,
+      &max_provisioned_bytes);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_IMAGE_SNAPSHOTS, &snapshot_count);
+      stat_options, RBD_POOL_STAT_OPTION_IMAGE_SNAPSHOTS, &snapshot_count);
   if (image_count != nullptr || provisioned_bytes != nullptr ||
       max_provisioned_bytes != nullptr || snapshot_count != nullptr) {
     typename Image<I>::ImageNameToIds images;
@@ -336,24 +372,24 @@ int Pool<I>::get_stats(librados::IoCtx& io_ctx, StatOptions* stat_options) {
       }
     }
 
-    r = get_pool_stats<I>(io_ctx, config, image_ids, image_count,
-                          provisioned_bytes, max_provisioned_bytes,
-                          snapshot_count);
+    r = get_pool_stats<I>(
+        io_ctx, config, image_ids, image_count, provisioned_bytes,
+        max_provisioned_bytes, snapshot_count);
     if (r < 0) {
       return r;
     }
   }
 
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_TRASH_IMAGES, &image_count);
+      stat_options, RBD_POOL_STAT_OPTION_TRASH_IMAGES, &image_count);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_TRASH_PROVISIONED_BYTES,
-    &provisioned_bytes);
+      stat_options, RBD_POOL_STAT_OPTION_TRASH_PROVISIONED_BYTES,
+      &provisioned_bytes);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_TRASH_MAX_PROVISIONED_BYTES,
-    &max_provisioned_bytes);
+      stat_options, RBD_POOL_STAT_OPTION_TRASH_MAX_PROVISIONED_BYTES,
+      &max_provisioned_bytes);
   get_pool_stat_option_value<I>(
-    stat_options, RBD_POOL_STAT_OPTION_TRASH_SNAPSHOTS, &snapshot_count);
+      stat_options, RBD_POOL_STAT_OPTION_TRASH_SNAPSHOTS, &snapshot_count);
   if (image_count != nullptr || provisioned_bytes != nullptr ||
       max_provisioned_bytes != nullptr || snapshot_count != nullptr) {
 
@@ -366,9 +402,9 @@ int Pool<I>::get_stats(librados::IoCtx& io_ctx, StatOptions* stat_options) {
       image_ids.push_back(std::move(it.id));
     }
 
-    r = get_pool_stats<I>(io_ctx, config, image_ids, image_count,
-                          provisioned_bytes, max_provisioned_bytes,
-                          snapshot_count);
+    r = get_pool_stats<I>(
+        io_ctx, config, image_ids, image_count, provisioned_bytes,
+        max_provisioned_bytes, snapshot_count);
     if (r < 0) {
       return r;
     }

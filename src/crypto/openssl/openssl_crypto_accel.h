@@ -15,29 +15,52 @@
 #ifndef OPENSSL_CRYPTO_ACCEL_H
 #define OPENSSL_CRYPTO_ACCEL_H
 
-#include "crypto/crypto_accel.h"
 #include "common/async/yield_context.h"
+#include "crypto/crypto_accel.h"
 
 class OpenSSLCryptoAccel : public CryptoAccel {
- public:
+public:
   OpenSSLCryptoAccel() {}
+
   virtual ~OpenSSLCryptoAccel() {}
 
-  bool cbc_encrypt(unsigned char* out, const unsigned char* in, size_t size,
-                   const unsigned char (&iv)[AES_256_IVSIZE],
-                   const unsigned char (&key)[AES_256_KEYSIZE],
-                   optional_yield y) override;
-  bool cbc_decrypt(unsigned char* out, const unsigned char* in, size_t size,
-                   const unsigned char (&iv)[AES_256_IVSIZE],
-                   const unsigned char (&key)[AES_256_KEYSIZE],
-                   optional_yield y) override;
-  bool cbc_encrypt_batch(unsigned char* out, const unsigned char* in, size_t size,
-                   const unsigned char iv[][AES_256_IVSIZE],
-                   const unsigned char (&key)[AES_256_KEYSIZE],
-                   optional_yield y) override { return false; }
-  bool cbc_decrypt_batch(unsigned char* out, const unsigned char* in, size_t size,
-                   const unsigned char iv[][AES_256_IVSIZE],
-                   const unsigned char (&key)[AES_256_KEYSIZE],
-                   optional_yield y) override { return false; }
+  bool cbc_encrypt(
+      unsigned char* out,
+      const unsigned char* in,
+      size_t size,
+      const unsigned char (&iv)[AES_256_IVSIZE],
+      const unsigned char (&key)[AES_256_KEYSIZE],
+      optional_yield y) override;
+  bool cbc_decrypt(
+      unsigned char* out,
+      const unsigned char* in,
+      size_t size,
+      const unsigned char (&iv)[AES_256_IVSIZE],
+      const unsigned char (&key)[AES_256_KEYSIZE],
+      optional_yield y) override;
+
+  bool
+  cbc_encrypt_batch(
+      unsigned char* out,
+      const unsigned char* in,
+      size_t size,
+      const unsigned char iv[][AES_256_IVSIZE],
+      const unsigned char (&key)[AES_256_KEYSIZE],
+      optional_yield y) override
+  {
+    return false;
+  }
+
+  bool
+  cbc_decrypt_batch(
+      unsigned char* out,
+      const unsigned char* in,
+      size_t size,
+      const unsigned char iv[][AES_256_IVSIZE],
+      const unsigned char (&key)[AES_256_KEYSIZE],
+      optional_yield y) override
+  {
+    return false;
+  }
 };
 #endif

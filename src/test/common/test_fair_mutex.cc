@@ -1,10 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 
+#include <gtest/gtest.h>
+
 #include <array>
+#include <future>
 #include <mutex>
 #include <numeric>
-#include <future>
-#include <gtest/gtest.h>
+
 #include "common/fair_mutex.h"
 
 TEST(FairMutex, simple)
@@ -43,9 +45,7 @@ TEST(FairMutex, fair)
       // score!
       scoreboard[team]++;
       // fair?
-      unsigned total = std::accumulate(scoreboard.begin(),
-                                       scoreboard.end(),
-                                       0);
+      unsigned total = std::accumulate(scoreboard.begin(), scoreboard.end(), 0);
       for (unsigned score : scoreboard) {
         if (std::cmp_less(total, NR_ROUNDS)) {
           // not quite statistically significant. to reduce the false positive,

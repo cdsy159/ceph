@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "crimson/os/seastore/cached_extent.h"
 #include "crimson/os/seastore/btree/btree_types.h"
+#include "crimson/os/seastore/cached_extent.h"
 #include "crimson/os/seastore/lba/lba_btree_node.h"
 #include "crimson/os/seastore/logical_child_node.h"
 
@@ -25,35 +25,38 @@ class BtreeLBAManager;
 class LBAMapping {
   using LBACursorRef = lba::LBACursorRef;
   using LBACursor = lba::LBACursor;
-  LBAMapping(LBACursorRef direct, LBACursorRef indirect)
-    : direct_cursor(std::move(direct)),
-      indirect_cursor(std::move(indirect))
+
+  LBAMapping(LBACursorRef direct, LBACursorRef indirect) :
+    direct_cursor(std::move(direct)), indirect_cursor(std::move(indirect))
   {
     assert(!is_linked_direct() || !direct_cursor->is_indirect());
     assert(!indirect_cursor || indirect_cursor->is_indirect());
     // if the mapping is indirect, it mustn't be at the end
     if (is_indirect() && is_linked_direct()) {
-      assert(!direct_cursor->is_end()
-	    && direct_cursor->get_laddr() != L_ADDR_NULL);
+      assert(
+          !direct_cursor->is_end() && direct_cursor->get_laddr() != L_ADDR_NULL);
     }
   }
 
 public:
-  static LBAMapping create_indirect(
-    LBACursorRef direct, LBACursorRef indirect) {
+  static LBAMapping
+  create_indirect(LBACursorRef direct, LBACursorRef indirect)
+  {
     return LBAMapping(std::move(direct), std::move(indirect));
   }
 
-  static LBAMapping create_direct(LBACursorRef direct) {
+  static LBAMapping
+  create_direct(LBACursorRef direct)
+  {
     assert(!direct->is_indirect());
     return LBAMapping(std::move(direct), nullptr);
   }
 
   LBAMapping() = delete;
-  LBAMapping(const LBAMapping &) = default;
-  LBAMapping(LBAMapping &&) = default;
-  LBAMapping &operator=(const LBAMapping &) = default;
-  LBAMapping &operator=(LBAMapping &&) = default;
+  LBAMapping(const LBAMapping&) = default;
+  LBAMapping(LBAMapping&&) = default;
+  LBAMapping& operator=(const LBAMapping&) = default;
+  LBAMapping& operator=(LBAMapping&&) = default;
   ~LBAMapping() = default;
 
   // whether the removal of this mapping would cause
@@ -61,36 +64,48 @@ public:
   //
   // Note that this should only be called on complete
   // indirect mappings
-  bool would_cascade_remove() const {
+  bool
+  would_cascade_remove() const
+  {
     assert(is_indirect());
     assert(is_complete_indirect());
     return direct_cursor->get_refcount() == 1;
   }
 
   // whether the mapping corresponds to a pending extent
-  bool is_pending() const {
+  bool
+  is_pending() const
+  {
     return !is_indirect() && !is_data_stable();
   }
 
   // whether the mapping corresponds to an initial pending extent
   bool is_initial_pending() const;
 
-  bool is_linked_direct() const {
+  bool
+  is_linked_direct() const
+  {
     return (bool)direct_cursor;
   }
 
-  bool is_end() const {
+  bool
+  is_end() const
+  {
     // if the mapping is at the end, it can't be indirect and
     // the physical cursor must be L_ADDR_NULL
     return !is_indirect() && direct_cursor->is_end();
   }
 
-  bool is_indirect() const {
+  bool
+  is_indirect() const
+  {
     assert(!is_null());
     return (bool)indirect_cursor;
   }
 
-  bool is_viewable() const {
+  bool
+  is_viewable() const
+  {
     assert(!is_null());
     if (is_complete_indirect()) {
       return indirect_cursor->is_viewable() && direct_cursor->is_viewable();
@@ -105,7 +120,10 @@ public:
   // undefined although it won't crash
   bool is_stable() const;
   bool is_data_stable() const;
-  bool is_clone() const {
+
+  bool
+  is_clone() const
+  {
     assert(!is_null());
     if (is_indirect()) {
       return false;
@@ -114,15 +132,23 @@ public:
     assert(!direct_cursor->is_end());
     return direct_cursor->get_refcount() > 1;
   }
-  bool is_zero_reserved() const {
+
+  bool
+  is_zero_reserved() const
+  {
     return !is_indirect() && get_val().is_zero();
   }
+
   // true if the mapping corresponds to real data
-  bool is_real() const {
+  bool
+  is_real() const
+  {
     return !is_indirect() && !get_val().is_zero();
   }
 
-  extent_len_t get_length() const {
+  extent_len_t
+  get_length() const
+  {
     assert(!is_null());
     if (is_indirect()) {
       assert(!indirect_cursor->is_end());
@@ -132,13 +158,17 @@ public:
     return direct_cursor->get_length();
   }
 
-  checksum_t get_checksum() const {
+  checksum_t
+  get_checksum() const
+  {
     assert(is_linked_direct());
     assert(!direct_cursor->is_end());
     return direct_cursor->get_checksum();
   }
 
-  laddr_t get_key() const {
+  laddr_t
+  get_key() const
+  {
     assert(!is_null());
     if (is_indirect()) {
       return indirect_cursor->get_laddr();
@@ -146,39 +176,53 @@ public:
     return direct_cursor->get_laddr();
   }
 
-  laddr_t get_end() const {
+  laddr_t
+  get_end() const
+  {
     return (get_key() + get_length()).checked_to_laddr();
   }
 
-   // An lba pin may be indirect, see comments in lba/btree_lba_manager.h
-  laddr_t get_intermediate_key() const {
+  // An lba pin may be indirect, see comments in lba/btree_lba_manager.h
+  laddr_t
+  get_intermediate_key() const
+  {
     assert(is_indirect());
     assert(!indirect_cursor->is_end());
     return indirect_cursor->get_intermediate_key();
   }
-  laddr_t get_intermediate_base() const {
+
+  laddr_t
+  get_intermediate_base() const
+  {
     assert(is_linked_direct());
     return direct_cursor->get_laddr();
   }
-  extent_len_t get_intermediate_length() const {
+
+  extent_len_t
+  get_intermediate_length() const
+  {
     assert(is_linked_direct());
     assert(!direct_cursor->is_end());
     return direct_cursor->get_length();
   }
+
   // The start offset of the indirect cursor related to direct cursor
-  extent_len_t get_intermediate_offset() const {
+  extent_len_t
+  get_intermediate_offset() const
+  {
     assert(is_indirect());
     assert(get_intermediate_base() <= get_intermediate_key());
-    assert(get_intermediate_key() + get_length() <=
-	   get_intermediate_base() + get_intermediate_length());
-    return get_intermediate_base().get_byte_distance<
-      extent_len_t>(get_intermediate_key());
+    assert(
+        get_intermediate_key() + get_length() <=
+        get_intermediate_base() + get_intermediate_length());
+    return get_intermediate_base().get_byte_distance<extent_len_t>(
+        get_intermediate_key());
   }
 
-  get_child_ret_t<lba::LBALeafNode, LogicalChildNode>
-  get_logical_extent(Transaction &t) const;
+  get_child_ret_t<lba::LBALeafNode, LogicalChildNode> get_logical_extent(
+      Transaction& t) const;
 
-  LogicalChildNodeRef peek_logical_extent(Transaction &t) const;
+  LogicalChildNodeRef peek_logical_extent(Transaction& t) const;
 
   // [[deprecated]]
   //TODO: should be changed to return future<> once all calls
@@ -203,38 +247,50 @@ private:
   friend class ::tm_multi_device_test_t;
   friend class ::tm_multi_tier_device_test_t;
   friend class ::tm_random_block_device_test_t;
-  friend std::ostream &operator<<(std::ostream&, const LBAMapping&);
+  friend std::ostream& operator<<(std::ostream&, const LBAMapping&);
 
-  paddr_t get_val() const {
+  paddr_t
+  get_val() const
+  {
     assert(is_linked_direct());
     assert(!direct_cursor->is_end());
     return direct_cursor->get_paddr();
   }
 
-  LBACursor& get_effective_cursor() {
+  LBACursor&
+  get_effective_cursor()
+  {
     if (is_indirect()) {
       return *indirect_cursor;
     }
     return *direct_cursor;
   }
 
-  LBACursorRef get_effective_cursor_ref() {
+  LBACursorRef
+  get_effective_cursor_ref()
+  {
     if (is_indirect()) {
       return indirect_cursor;
     }
     return direct_cursor;
   }
 
-  bool is_null() const {
+  bool
+  is_null() const
+  {
     return !direct_cursor && !indirect_cursor;
   }
 
-  bool is_complete_indirect() const {
+  bool
+  is_complete_indirect() const
+  {
     assert(!is_null());
     return (bool)indirect_cursor && (bool)direct_cursor;
   }
 
-  bool is_complete() const {
+  bool
+  is_complete() const
+  {
     return !is_indirect() || is_complete_indirect();
   }
 
@@ -273,14 +329,19 @@ private:
   LBACursorRef indirect_cursor;
 };
 
-std::ostream &operator<<(std::ostream &out, const LBAMapping &rhs);
+std::ostream& operator<<(std::ostream& out, const LBAMapping& rhs);
 using lba_mapping_list_t = std::list<LBAMapping>;
 
-std::ostream &operator<<(std::ostream &out, const lba_mapping_list_t &rhs);
+std::ostream& operator<<(std::ostream& out, const lba_mapping_list_t& rhs);
 
 } // namespace crimson::os::seastore
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::os::seastore::LBAMapping> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<crimson::os::seastore::lba_mapping_list_t> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::LBAMapping>
+  : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<crimson::os::seastore::lba_mapping_list_t>
+  : fmt::ostream_formatter {};
 #endif

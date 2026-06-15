@@ -13,11 +13,13 @@
  *
  */
 
-#include "os/ObjectStore.h"
 #include <gtest/gtest.h>
+
+#include <boost/tuple/tuple.hpp>
+
 #include "common/Clock.h"
 #include "include/utime.h"
-#include <boost/tuple/tuple.hpp>
+#include "os/ObjectStore.h"
 
 using namespace std;
 
@@ -80,7 +82,8 @@ TEST(Transaction, Swap)
   ASSERT_FALSE(b.empty());
 }
 
-ObjectStore::Transaction generate_transaction()
+ObjectStore::Transaction
+generate_transaction()
 {
   auto a = ObjectStore::Transaction{};
   a.nop();
@@ -119,14 +122,12 @@ TEST(Transaction, MoveRangesDelSrcObj)
   auto t = ObjectStore::Transaction{};
   t.nop();
 
-  coll_t c(spg_t(pg_t(1,2), shard_id_t::NO_SHARD));
+  coll_t c(spg_t(pg_t(1, 2), shard_id_t::NO_SHARD));
 
   ghobject_t o1(hobject_t("obj", "", 123, 456, -1, ""));
   ghobject_t o2(hobject_t("obj2", "", 123, 456, -1, ""));
   vector<std::pair<uint64_t, uint64_t>> move_info = {
-    make_pair(1, 5),
-    make_pair(10, 5)
-  };
+      make_pair(1, 5), make_pair(10, 5)};
 
   t.touch(c, o1);
   bufferlist bl;
@@ -176,7 +177,8 @@ TEST(Transaction, GetNumBytes)
   ASSERT_TRUE(a.get_encoded_bytes() == a.get_encoded_bytes_test());
 }
 
-void bench_num_bytes(bool legacy)
+void
+bench_num_bytes(bool legacy)
 {
   const int max = 2500000;
   auto a = generate_transaction();
@@ -200,25 +202,19 @@ void bench_num_bytes(bool legacy)
 
   utime_t end = ceph_clock_now();
   cout << max << " encodes in " << (end - start) << std::endl;
-
 }
 
-TEST(Transaction, GetNumBytesBenchLegacy)
-{
-   bench_num_bytes(true);
-}
+TEST(Transaction, GetNumBytesBenchLegacy) { bench_num_bytes(true); }
 
-TEST(Transaction, GetNumBytesBenchCurrent)
-{
-   bench_num_bytes(false);
-}
+TEST(Transaction, GetNumBytesBenchCurrent) { bench_num_bytes(false); }
 
 /**
  * create_pattern
  *
  * Fill bufferlist generating data from a seed value
  */
-void create_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
+void
+create_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
 {
   ASSERT_TRUE(length % sizeof(int) == 0);
   for (unsigned int i = 0; i < length / sizeof(int); i++) {
@@ -232,7 +228,8 @@ void create_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
  *
  * Validate bufferlist contents matches seed value
  */
-void check_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
+void
+check_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
 {
   ceph::buffer::list::const_iterator p;
   ASSERT_TRUE(length % sizeof(int) == 0);
@@ -244,7 +241,9 @@ void check_pattern(bufferlist& bl, unsigned int seed, unsigned int length)
     seed = (seed << 1) ^ seed;
   }
 }
-void check_pattern(bufferptr& bptr, unsigned int seed, unsigned int length)
+
+void
+check_pattern(bufferptr& bptr, unsigned int seed, unsigned int length)
 {
   bufferlist bl;
   bl.append(bptr);
@@ -256,10 +255,14 @@ void check_pattern(bufferptr& bptr, unsigned int seed, unsigned int length)
  *
  * Construct/validate an instance of every type of Op in an ObjectStore:Transaction
  */
-void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool append)
+void
+create_check_transaction1(
+    ObjectStore::Transaction& t_in,
+    bool create,
+    bool append)
 {
-  coll_t c1 = coll_t(spg_t(pg_t(0,111), shard_id_t::NO_SHARD));
-  coll_t c2 = coll_t(spg_t(pg_t(0,111), shard_id_t::NO_SHARD));
+  coll_t c1 = coll_t(spg_t(pg_t(0, 111), shard_id_t::NO_SHARD));
+  coll_t c2 = coll_t(spg_t(pg_t(0, 111), shard_id_t::NO_SHARD));
   ghobject_t o1 = ghobject_t(hobject_t(sobject_t("testobject1", CEPH_NOSNAP)));
   ghobject_t o2 = ghobject_t(hobject_t(sobject_t("testobject2", CEPH_NOSNAP)));
   bufferlist bl1;
@@ -274,10 +277,10 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
   create_pattern(bl2, bl2_seed, bl2_len);
 
   ObjectStore::Transaction::iterator i = t_in.begin();
-  ObjectStore::Transaction::Op *op = nullptr;
+  ObjectStore::Transaction::Op* op = nullptr;
 
   bool done = false;
-  for (int pos = 0; !done ; ++pos) {
+  for (int pos = 0; !done; ++pos) {
     ObjectStore::Transaction t_append;
     ObjectStore::Transaction& t = append ? t_append : t_in;
     if (!create) {
@@ -290,7 +293,7 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // NOP
       if (create) {
         t.nop();
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_NOP);
       }
       break;
@@ -298,35 +301,35 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // CREATE
       if (create) {
         t.create(c1, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_CREATE);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
       }
       break;
     case 2:
       // TOUCH
       if (create) {
         t.touch(c2, o2);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_TOUCH);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
       }
       break;
     case 3:
       // WRITE
       if (create) {
         t.write(c1, o1, 0, bl1_len, bl1);
-      }else{
+      } else {
         bufferlist bl;
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_WRITE);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         ASSERT_TRUE(op->off == 0);
         ASSERT_TRUE(op->len == 1024);
         i.decode_bl(bl);
-	ASSERT_TRUE(bl.length() == op->len);
+        ASSERT_TRUE(bl.length() == op->len);
         check_pattern(bl, bl1_seed, bl1_len);
       }
       break;
@@ -334,10 +337,10 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // ZERO
       if (create) {
         t.zero(c2, o2, 1111, 2222);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_ZERO);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         ASSERT_TRUE(op->off == 1111);
         ASSERT_TRUE(op->len == 2222);
       }
@@ -346,10 +349,10 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // TRUNCATE
       if (create) {
         t.truncate(c1, o1, 3333);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_TRUNCATE);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         ASSERT_TRUE(op->off = 3333);
       }
       break;
@@ -357,97 +360,97 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // REMOVE
       if (create) {
         t.remove(c2, o2);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_REMOVE);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
       }
       break;
     case 7:
       // SETATTR (1)
       if (create) {
         t.setattr(c1, o1, "attr1", bl2);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SETATTR);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         string name = i.decode_string();
         bufferlist bl;
         i.decode_bl(bl);
         ASSERT_TRUE(name == "attr1");
-	check_pattern(bl, bl2_seed, bl2_len);
+        check_pattern(bl, bl2_seed, bl2_len);
       }
       break;
     case 8:
       // SETATTR (2)
       if (create) {
         t.setattr(c2, o2, std::string("attr2"), bl2);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SETATTR);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         string name = i.decode_string();
         bufferlist bl;
         i.decode_bl(bl);
         ASSERT_TRUE(name == "attr2");
-	check_pattern(bl, bl2_seed, bl2_len);
+        check_pattern(bl, bl2_seed, bl2_len);
       }
       break;
     case 9:
       // SETATTRS (1)
       if (create) {
-        map<string,bufferptr,less<>> m;
+        map<string, bufferptr, less<>> m;
         m["a"] = buffer::copy("this", 4);
         m["b"] = buffer::copy("that", 4);
         t.setattrs(c1, o1, m);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SETATTRS);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         map<string, bufferptr> aset;
         i.decode_attrset(aset);
-	ASSERT_TRUE(aset.size()==2);
-	auto a = aset.find("a");
-	ASSERT_TRUE(a != aset.end());
-	ASSERT_TRUE(!a->second.cmp(buffer::copy("this",4)));
-	auto b = aset.find("b");
-	ASSERT_TRUE(b != aset.end());
-	ASSERT_TRUE(!b->second.cmp(buffer::copy("that",4)));
+        ASSERT_TRUE(aset.size() == 2);
+        auto a = aset.find("a");
+        ASSERT_TRUE(a != aset.end());
+        ASSERT_TRUE(!a->second.cmp(buffer::copy("this", 4)));
+        auto b = aset.find("b");
+        ASSERT_TRUE(b != aset.end());
+        ASSERT_TRUE(!b->second.cmp(buffer::copy("that", 4)));
       }
       break;
     case 10:
       // SETATTRS (2)
       if (create) {
-        map<string,bufferlist,less<>> m;
+        map<string, bufferlist, less<>> m;
         bufferlist bflip, bflop;
-        bflip.append(buffer::copy("flip",4));
-        bflop.append(buffer::copy("flop",4));
+        bflip.append(buffer::copy("flip", 4));
+        bflop.append(buffer::copy("flop", 4));
         m["a"] = bflip;
         m["b"] = bflop;
         t.setattrs(c2, o2, m);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SETATTRS);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         map<string, bufferptr> aset;
         i.decode_attrset(aset);
-	ASSERT_TRUE(aset.size()==2);
-	auto a = aset.find("a");
-	ASSERT_TRUE(a != aset.end());
-	ASSERT_TRUE(!a->second.cmp(buffer::copy("flip",4)));
-	auto b = aset.find("b");
-	ASSERT_TRUE(b != aset.end());
-	ASSERT_TRUE(!b->second.cmp(buffer::copy("flop",4)));
+        ASSERT_TRUE(aset.size() == 2);
+        auto a = aset.find("a");
+        ASSERT_TRUE(a != aset.end());
+        ASSERT_TRUE(!a->second.cmp(buffer::copy("flip", 4)));
+        auto b = aset.find("b");
+        ASSERT_TRUE(b != aset.end());
+        ASSERT_TRUE(!b->second.cmp(buffer::copy("flop", 4)));
       }
       break;
     case 11:
       // RMATTR (1)
       if (create) {
         t.rmattr(c1, o1, "attr3");
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_RMATTR);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         string name = i.decode_string();
         ASSERT_TRUE(name == "attr3");
       }
@@ -456,10 +459,10 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // RMATTR (2)
       if (create) {
         t.rmattr(c2, o2, std::string("attr4"));
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_RMATTR);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         string name = i.decode_string();
         ASSERT_TRUE(name == "attr4");
       }
@@ -468,32 +471,32 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // RMATTRS
       if (create) {
         t.rmattrs(c1, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_RMATTRS);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
       }
       break;
     case 14:
       // CLONE
       if (create) {
         t.clone(c2, o2, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_CLONE);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
       }
       break;
     case 15:
       // CLONERANGE2
       if (create) {
         t.clone_range(c1, o2, o1, 4444, 5555, 6666);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_CLONERANGE2);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
         ASSERT_TRUE(op->off == 4444);
         ASSERT_TRUE(op->len == 5555);
         ASSERT_TRUE(op->dest_off == 6666);
@@ -503,7 +506,7 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // MKCOLL
       if (create) {
         t.create_collection(c2, 7777);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_MKCOLL);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
         ASSERT_TRUE(op->split_bits == 7777);
@@ -513,20 +516,20 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // COLL_HINT
       if (create) {
         t.collection_hint(c1, 8888, bl2);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_COLL_HINT);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
         ASSERT_TRUE(op->hint == 8888);
         bufferlist bl;
         i.decode_bl(bl);
-	check_pattern(bl, bl2_seed, bl2_len);
+        check_pattern(bl, bl2_seed, bl2_len);
       }
       break;
     case 18:
       // RMCOLL
       if (create) {
         t.remove_collection(c1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_RMCOLL);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
       }
@@ -535,85 +538,85 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // COLL_MOVE_RENAME
       if (create) {
         t.collection_move_rename(c2, o2, c1, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_COLL_MOVE_RENAME);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         ASSERT_TRUE(c1 == i.get_cid(op->dest_cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
       }
       break;
     case 20:
       // TRY_RENAME
       if (create) {
         t.try_rename(c2, o2, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_TRY_RENAME);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->dest_oid));
       }
       break;
     case 21:
       // OMAP_CLEAR
       if (create) {
         t.omap_clear(c1, o1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_CLEAR);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
       }
       break;
     case 22:
       // OMAP_SETKEYS (1)
       if (create) {
-        map<string,bufferlist> m;
+        map<string, bufferlist> m;
         bufferlist bthis, bthat;
-        bthis.append(buffer::copy("this",4));
-        bthat.append(buffer::copy("that",4));
+        bthis.append(buffer::copy("this", 4));
+        bthat.append(buffer::copy("that", 4));
         m["a"] = bthis;
         m["b"] = bthat;
         t.omap_setkeys(c2, o2, m);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_SETKEYS);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	map<string,bufferlist> aset;
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        map<string, bufferlist> aset;
         i.decode_attrset(aset);
-	ASSERT_TRUE(aset.size()==2);
-	auto a = aset.find("a");
-	ASSERT_TRUE(a != aset.end());
-	ASSERT_TRUE(a->second.contents_equal("this",4));
-	auto b = aset.find("b");
-	ASSERT_TRUE(b != aset.end());
-	ASSERT_TRUE(b->second.contents_equal("that",4));
+        ASSERT_TRUE(aset.size() == 2);
+        auto a = aset.find("a");
+        ASSERT_TRUE(a != aset.end());
+        ASSERT_TRUE(a->second.contents_equal("this", 4));
+        auto b = aset.find("b");
+        ASSERT_TRUE(b != aset.end());
+        ASSERT_TRUE(b->second.contents_equal("that", 4));
       }
       break;
     case 23:
       // OMAP_SETKEYS (2)
       if (create) {
-        map<string,bufferlist> m;
+        map<string, bufferlist> m;
         bufferlist bthis, bthat;
-        bthis.append(buffer::copy("this",4));
-        bthat.append(buffer::copy("that",4));
+        bthis.append(buffer::copy("this", 4));
+        bthat.append(buffer::copy("that", 4));
         m["a"] = bthis;
         m["b"] = bthat;
         bufferlist bkeys;
-        encode(m,bkeys);
+        encode(m, bkeys);
         t.omap_setkeys(c1, o1, bkeys);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_SETKEYS);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
-	map<string,bufferlist> aset;
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        map<string, bufferlist> aset;
         i.decode_attrset(aset);
-	ASSERT_TRUE(aset.size()==2);
-	auto a = aset.find("a");
-	ASSERT_TRUE(a != aset.end());
-	ASSERT_TRUE(a->second.contents_equal("this",4));
-	auto b = aset.find("b");
-	ASSERT_TRUE(b != aset.end());
-	ASSERT_TRUE(b->second.contents_equal("that",4));
+        ASSERT_TRUE(aset.size() == 2);
+        auto a = aset.find("a");
+        ASSERT_TRUE(a != aset.end());
+        ASSERT_TRUE(a->second.contents_equal("this", 4));
+        auto b = aset.find("b");
+        ASSERT_TRUE(b != aset.end());
+        ASSERT_TRUE(b->second.contents_equal("that", 4));
       }
       break;
     case 24:
@@ -622,36 +625,36 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
         std::set<std::string> keys;
         keys.insert(std::string("attr7"));
         t.omap_rmkeys(c2, o2, keys);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_RMKEYS);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	bufferlist keys_bl;
-	i.decode_keyset_bl(&keys_bl);
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        bufferlist keys_bl;
+        i.decode_keyset_bl(&keys_bl);
         std::set<std::string> keys;
-	decode(keys,keys_bl);
-	ASSERT_TRUE(keys.size() == 1);
-	for(auto& str: keys) {
-	  ASSERT_TRUE(str == "attr7");
-	}
+        decode(keys, keys_bl);
+        ASSERT_TRUE(keys.size() == 1);
+        for (auto& str : keys) {
+          ASSERT_TRUE(str == "attr7");
+        }
       }
       break;
     case 25:
       // OMAP_RMKEYS (2)
       if (create) {
         t.omap_rmkey(c1, o1, std::string("attr8"));
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_RMKEYS);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
-	bufferlist keys_bl;
-	i.decode_keyset_bl(&keys_bl);
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        bufferlist keys_bl;
+        i.decode_keyset_bl(&keys_bl);
         std::set<std::string> keys;
-	decode(keys,keys_bl);
-	ASSERT_TRUE(keys.size() == 1);
-	for(auto& str: keys) {
-	  ASSERT_TRUE(str == "attr8");
-	}
+        decode(keys, keys_bl);
+        ASSERT_TRUE(keys.size() == 1);
+        for (auto& str : keys) {
+          ASSERT_TRUE(str == "attr8");
+        }
       }
       break;
     case 26:
@@ -660,30 +663,30 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
         std::set<std::string> keys;
         keys.insert(std::string("attr9"));
         bufferlist bkeys;
-        encode(keys,bkeys);
+        encode(keys, bkeys);
         t.omap_rmkeys(c2, o2, bkeys);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_RMKEYS);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
-	bufferlist keys_bl;
-	i.decode_keyset_bl(&keys_bl);
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        bufferlist keys_bl;
+        i.decode_keyset_bl(&keys_bl);
         std::set<std::string> keys;
-	decode(keys,keys_bl);
-	ASSERT_TRUE(keys.size() == 1);
-	for(auto& str: keys) {
-	  ASSERT_TRUE(str == "attr9");
-	}
+        decode(keys, keys_bl);
+        ASSERT_TRUE(keys.size() == 1);
+        for (auto& str : keys) {
+          ASSERT_TRUE(str == "attr9");
+        }
       }
       break;
     case 27:
       // OMAP_RMKEYRANGE (1)
       if (create) {
         t.omap_rmkeyrange(c1, o1, std::string("attr1"), std::string("attr2"));
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_RMKEYRANGE);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         string first, last;
         first = i.decode_string();
         last = i.decode_string();
@@ -695,13 +698,13 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // OMAP_RMKEYRANGE (2)
       if (create) {
         bufferlist brange;
-        encode(std::string("attr3"),brange);
-        encode(std::string("attr4"),brange);
+        encode(std::string("attr3"), brange);
+        encode(std::string("attr4"), brange);
         t.omap_rmkeyrange(c2, o2, brange);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_RMKEYRANGE);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
-	ASSERT_TRUE(o2 == i.get_oid(op->oid));
+        ASSERT_TRUE(o2 == i.get_oid(op->oid));
         string first, last;
         first = i.decode_string();
         last = i.decode_string();
@@ -713,17 +716,17 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // OMAP_SETHEADER
       if (create) {
         t.omap_setheader(c1, o1, bl1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_OMAP_SETHEADER);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
       }
       break;
     case 30:
       // SPLIT_COLLECTION
       if (create) {
         t.split_collection(c2, 9999, 1000, c1);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SPLIT_COLLECTION2);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
         ASSERT_TRUE(c1 == i.get_cid(op->dest_cid));
@@ -735,7 +738,7 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // MERGE_COLLECTION
       if (create) {
         t.merge_collection(c2, c1, 1100);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_MERGE_COLLECTION);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
         ASSERT_TRUE(c1 == i.get_cid(op->dest_cid));
@@ -746,7 +749,7 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // SET_BITS
       if (create) {
         t.collection_set_bits(c2, 1200);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_COLL_SET_BITS);
         ASSERT_TRUE(c2 == i.get_cid(op->cid));
         ASSERT_TRUE(op->split_bits == 1200);
@@ -756,10 +759,10 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
       // SET_ALLOCHINT
       if (create) {
         t.set_alloc_hint(c1, o1, 1300, 1400, 1500);
-      }else{
+      } else {
         ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_SETALLOCHINT);
         ASSERT_TRUE(c1 == i.get_cid(op->cid));
-	ASSERT_TRUE(o1 == i.get_oid(op->oid));
+        ASSERT_TRUE(o1 == i.get_oid(op->oid));
         ASSERT_TRUE(op->expected_object_size == 1300);
         ASSERT_TRUE(op->expected_write_size == 1400);
         ASSERT_TRUE(op->hint == 1500);
@@ -777,17 +780,20 @@ void create_check_transaction1(ObjectStore::Transaction& t_in, bool create, bool
   }
 }
 
-void create_transaction1(ObjectStore::Transaction& t)
+void
+create_transaction1(ObjectStore::Transaction& t)
 {
   create_check_transaction1(t, true, false);
 }
 
-void create_transaction1_using_append(ObjectStore::Transaction& t)
+void
+create_transaction1_using_append(ObjectStore::Transaction& t)
 {
   create_check_transaction1(t, true, true);
 }
 
-void check_content_transaction1(ObjectStore::Transaction& t)
+void
+check_content_transaction1(ObjectStore::Transaction& t)
 {
   create_check_transaction1(t, false, false);
 }
@@ -827,7 +833,8 @@ TEST(Transaction, EncodeDecode)
  * Construct/validate write Ops with different lengths and alignements
  * in an ObejctStore::Transaction
  */
-void create_check_transaction2(ObjectStore::Transaction& t,bool create)
+void
+create_check_transaction2(ObjectStore::Transaction& t, bool create)
 {
   coll_t c = coll_t();
   ghobject_t o1 = ghobject_t(hobject_t(sobject_t("testobject", CEPH_NOSNAP)));
@@ -839,32 +846,33 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
 
   // Less than 1 page
   const unsigned int blshort_seed = 4567;
-  const unsigned int blshort_len = CEPH_PAGE_SIZE/4;
+  const unsigned int blshort_len = CEPH_PAGE_SIZE / 4;
   // 1 page
   const unsigned int blpage_seed = 7654;
   const unsigned int blpage_len = CEPH_PAGE_SIZE;
   // Whole number of pages
   const unsigned int blfewpages_seed = 1357;
-  const unsigned int blfewpages_len = CEPH_PAGE_SIZE*3;
+  const unsigned int blfewpages_len = CEPH_PAGE_SIZE * 3;
   // 1.5 pages
   const unsigned int bllong_seed = 9876;
-  const unsigned int bllong_len = (CEPH_PAGE_SIZE*3)/2;
+  const unsigned int bllong_len = (CEPH_PAGE_SIZE * 3) / 2;
 
-  create_pattern(blshort,blshort_seed,blshort_len);
-  create_pattern(blpage,blpage_seed,blpage_len);
-  create_pattern(blfewpages,blfewpages_seed,blfewpages_len);
-  create_pattern(bllong,bllong_seed,bllong_len);
+  create_pattern(blshort, blshort_seed, blshort_len);
+  create_pattern(blpage, blpage_seed, blpage_len);
+  create_pattern(blfewpages, blfewpages_seed, blfewpages_len);
+  create_pattern(bllong, bllong_seed, bllong_len);
 
   ObjectStore::Transaction::iterator i = t.begin();
-  ObjectStore::Transaction::Op *op = nullptr;
+  ObjectStore::Transaction::Op* op = nullptr;
 
   bool done = false;
-  for (int pos = 0; !done ; ++pos) {
+  for (int pos = 0; !done; ++pos) {
     bufferlist bl;
     if (!create) {
       ASSERT_TRUE(i.have_op());
       op = i.decode_op();
-      cout << " Checking pos " << pos << " off " << op->off << " len " << op->len << std::endl;
+      cout << " Checking pos " << pos << " off " << op->off << " len "
+           << op->len << std::endl;
       ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_WRITE);
       i.decode_bl(bl);
       ASSERT_TRUE(bl.length() == op->len);
@@ -874,7 +882,7 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
       // Short buffer, PAGE aligned offset
       if (create) {
         t.write(c, o1, 0, blshort_len, blshort);
-      }else{
+      } else {
         ASSERT_TRUE(op->off == 0);
         ASSERT_TRUE(op->len == blshort_len);
         check_pattern(bl, blshort_seed, blshort_len);
@@ -883,9 +891,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 1:
       // Short buffer, straddle PAGE offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE-10, blshort_len, blshort);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE-10);
+        t.write(c, o1, CEPH_PAGE_SIZE - 10, blshort_len, blshort);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE - 10);
         ASSERT_TRUE(op->len == blshort_len);
         check_pattern(bl, blshort_seed, blshort_len);
       }
@@ -893,9 +901,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 2:
       // Short buffer, end of buffer PAGE aligned
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE-blshort_len, blshort_len, blshort);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE-blshort_len);
+        t.write(c, o1, CEPH_PAGE_SIZE - blshort_len, blshort_len, blshort);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE - blshort_len);
         ASSERT_TRUE(op->len == blshort_len);
         check_pattern(bl, blshort_seed, blshort_len);
       }
@@ -903,9 +911,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 3:
       // Page buffer, PAGE aligned offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE*3, blpage_len, blpage);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE*3);
+        t.write(c, o1, CEPH_PAGE_SIZE * 3, blpage_len, blpage);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE * 3);
         ASSERT_TRUE(op->len == blpage_len);
         check_pattern(bl, blpage_seed, blpage_len);
       }
@@ -913,9 +921,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 4:
       // Page buffer, misaligned offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE-10, blpage_len, blpage);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE-10);
+        t.write(c, o1, CEPH_PAGE_SIZE - 10, blpage_len, blpage);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE - 10);
         ASSERT_TRUE(op->len == blpage_len);
         check_pattern(bl, blpage_seed, blpage_len);
       }
@@ -923,9 +931,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 5:
       // Multiple page buffer, PAGE aligned offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE*7, blfewpages_len, blfewpages);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE*7);
+        t.write(c, o1, CEPH_PAGE_SIZE * 7, blfewpages_len, blfewpages);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE * 7);
         ASSERT_TRUE(op->len == blfewpages_len);
         check_pattern(bl, blfewpages_seed, blfewpages_len);
       }
@@ -933,9 +941,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 6:
       // Multiple page buffer, misaligned offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE-10, blfewpages_len, blfewpages);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE-10);
+        t.write(c, o1, CEPH_PAGE_SIZE - 10, blfewpages_len, blfewpages);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE - 10);
         ASSERT_TRUE(op->len == blfewpages_len);
         check_pattern(bl, blfewpages_seed, blfewpages_len);
       }
@@ -944,7 +952,7 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
       // Long buffer, PAGE aligned offset
       if (create) {
         t.write(c, o1, 0, bllong_len, bllong);
-      }else{
+      } else {
         ASSERT_TRUE(op->off == 0);
         ASSERT_TRUE(op->len == bllong_len);
         check_pattern(bl, bllong_seed, bllong_len);
@@ -953,9 +961,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 8:
       // Long buffer, misaligned offset
       if (create) {
-        t.write(c, o1, CEPH_PAGE_SIZE-10, bllong_len, bllong);
-      }else{
-        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE-10);
+        t.write(c, o1, CEPH_PAGE_SIZE - 10, bllong_len, bllong);
+      } else {
+        ASSERT_TRUE(op->off == CEPH_PAGE_SIZE - 10);
         ASSERT_TRUE(op->len == bllong_len);
         check_pattern(bl, bllong_seed, bllong_len);
       }
@@ -963,9 +971,9 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
     case 9:
       // Long buffer, end of buffer PAGE aligned
       if (create) {
-        t.write(c, o1, 100*CEPH_PAGE_SIZE-bllong_len, bllong_len, bllong);
-      }else{
-        ASSERT_TRUE(op->off == 100*CEPH_PAGE_SIZE-bllong_len);
+        t.write(c, o1, 100 * CEPH_PAGE_SIZE - bllong_len, bllong_len, bllong);
+      } else {
+        ASSERT_TRUE(op->off == 100 * CEPH_PAGE_SIZE - bllong_len);
         ASSERT_TRUE(op->len == bllong_len);
         check_pattern(bl, bllong_seed, bllong_len);
       }
@@ -979,12 +987,14 @@ void create_check_transaction2(ObjectStore::Transaction& t,bool create)
   }
 }
 
-void create_transaction2(ObjectStore::Transaction& t)
+void
+create_transaction2(ObjectStore::Transaction& t)
 {
   create_check_transaction2(t, true);
 }
 
-void check_content_transaction2(ObjectStore::Transaction& t)
+void
+check_content_transaction2(ObjectStore::Transaction& t)
 {
   create_check_transaction2(t, false);
 }
@@ -994,7 +1004,8 @@ void check_content_transaction2(ObjectStore::Transaction& t)
  *
  * Validate alignment of write Op data buffers in an ObjectStore::Transaction
  */
-void check_alignment_transaction2(ObjectStore::Transaction& t)
+void
+check_alignment_transaction2(ObjectStore::Transaction& t)
 {
   ObjectStore::Transaction::iterator i = t.begin();
   unsigned int longest_aligned = 0;
@@ -1002,54 +1013,56 @@ void check_alignment_transaction2(ObjectStore::Transaction& t)
   unsigned int quantity_aligned = 0;
   unsigned int quantity_misaligned = 0;
   while (i.have_op()) {
-    ObjectStore::Transaction::Op *op = i.decode_op();
+    ObjectStore::Transaction::Op* op = i.decode_op();
     ASSERT_TRUE(op->op == ObjectStore::Transaction::OP_WRITE);
     bufferlist bl;
     i.decode_bl(bl);
     auto off = op->off;
     auto len = bl.length();
     for (const auto& bptr : bl.buffers()) {
-      cout << " Checking off " << off << " len " << bptr.length() << " ptr " << (void*)bptr.c_str() << std::endl;
+      cout << " Checking off " << off << " len " << bptr.length() << " ptr "
+           << (void*)bptr.c_str() << std::endl;
       if (off % CEPH_PAGE_SIZE) {
-        unsigned int align = (0-off) & ~CEPH_PAGE_MASK;
-        if (bptr.length() >= CEPH_PAGE_SIZE+align) {
-	  cout << "  Should have been split" << std::endl;
-	  if (longest_misaligned < bptr.length()-align) {
-	    longest_misaligned = bptr.length()-align;
-	  }
-	  ASSERT_TRUE(false);
-	}else{
-	  cout << "  OK - Sub PAGE misaligned offset" << std::endl;
-	}
-	quantity_misaligned += bptr.length();
-      }else{
-	if (bptr.length() >= CEPH_PAGE_SIZE) {
-	  if (!bptr.is_aligned(CEPH_PAGE_SIZE)) {
-	    cout << "  Should have been aligned" << std::endl;
+        unsigned int align = (0 - off) & ~CEPH_PAGE_MASK;
+        if (bptr.length() >= CEPH_PAGE_SIZE + align) {
+          cout << "  Should have been split" << std::endl;
+          if (longest_misaligned < bptr.length() - align) {
+            longest_misaligned = bptr.length() - align;
+          }
+          ASSERT_TRUE(false);
+        } else {
+          cout << "  OK - Sub PAGE misaligned offset" << std::endl;
+        }
+        quantity_misaligned += bptr.length();
+      } else {
+        if (bptr.length() >= CEPH_PAGE_SIZE) {
+          if (!bptr.is_aligned(CEPH_PAGE_SIZE)) {
+            cout << "  Should have been aligned" << std::endl;
             if (longest_misaligned < bptr.length()) {
               longest_misaligned = bptr.length();
-	    }
+            }
             quantity_misaligned += bptr.length();
             ASSERT_TRUE(false);
-	  }else{
-	    cout << "  Good alignment" << std::endl;
+          } else {
+            cout << "  Good alignment" << std::endl;
             if (longest_aligned < bptr.length()) {
               longest_aligned = bptr.length();
-	    }
+            }
             quantity_aligned += bptr.length();
-	  }
-	}else{
-	  cout << "  OK - Sub PAGE aligned offset" << std::endl;
+          }
+        } else {
+          cout << "  OK - Sub PAGE aligned offset" << std::endl;
           quantity_misaligned += bptr.length();
-	}
+        }
       }
       off = off + bptr.length();
       len = len - bptr.length();
     }
   }
-  ASSERT_TRUE(longest_aligned>=longest_misaligned);
+  ASSERT_TRUE(longest_aligned >= longest_misaligned);
   cout << " Longest segment is aligned" << std::endl;
-  cout << " Bytes aligned "<< quantity_aligned << " Bytes misaligned " << quantity_misaligned << std::endl;
+  cout << " Bytes aligned " << quantity_aligned << " Bytes misaligned "
+       << quantity_misaligned << std::endl;
 }
 
 TEST(Transaction, WriteBufferAlignment)
@@ -1084,7 +1097,8 @@ TEST(Transaction, WriteBufferAlignment)
   check_content_transaction2(decode2);
 
   ceph::buffer::list alignedbuf;
-  ceph::bufferptr ptr(ceph::buffer::create_aligned(encoded2d.length(), CEPH_PAGE_SIZE));
+  ceph::bufferptr ptr(
+      ceph::buffer::create_aligned(encoded2d.length(), CEPH_PAGE_SIZE));
 
   alignedbuf.push_back(ptr);
   encoded2d.begin().copy(encoded2d.length(), ptr.c_str());
@@ -1100,29 +1114,30 @@ TEST(Transaction, WriteBufferAlignment)
  *
  * Construct/validate an ObjectStore:Transaction for appends
  */
-void create_check_transaction3(ObjectStore::Transaction& t, bool create, bool part1)
+void
+create_check_transaction3(ObjectStore::Transaction& t, bool create, bool part1)
 {
-  coll_t c1 = coll_t(spg_t(pg_t(0,111), shard_id_t::NO_SHARD));
+  coll_t c1 = coll_t(spg_t(pg_t(0, 111), shard_id_t::NO_SHARD));
   ghobject_t o1 = ghobject_t(hobject_t(sobject_t("testobject1", CEPH_NOSNAP)));
   bufferlist bllong;
 
   // 1.5 pages
   const unsigned int bllong_seed = 9876;
-  const unsigned int bllong_len = (CEPH_PAGE_SIZE*3)/2;
-  create_pattern(bllong,bllong_seed,bllong_len);
+  const unsigned int bllong_len = (CEPH_PAGE_SIZE * 3) / 2;
+  create_pattern(bllong, bllong_seed, bllong_len);
 
   if (create) {
     if (part1) {
       //Part 1
       t.create(c1, o1);
-    }else{
+    } else {
       //Part 2
       t.zero(c1, o1, 1111, 2222);
       t.write(c1, o1, 0, bllong_len, bllong);
     }
-  }else{
+  } else {
     ObjectStore::Transaction::iterator i = t.begin();
-    ObjectStore::Transaction::Op *op;
+    ObjectStore::Transaction::Op* op;
 
     //Part 1
     ASSERT_TRUE(i.have_op());
@@ -1152,22 +1167,28 @@ void create_check_transaction3(ObjectStore::Transaction& t, bool create, bool pa
   }
 }
 
-void create_transaction3_part1(ObjectStore::Transaction& t)
+void
+create_transaction3_part1(ObjectStore::Transaction& t)
 {
   create_check_transaction3(t, true, true);
 }
 
-void create_transaction3_part2(ObjectStore::Transaction& t)
+void
+create_transaction3_part2(ObjectStore::Transaction& t)
 {
   create_check_transaction3(t, true, false);
 }
 
-void check_content_transaction3(ObjectStore::Transaction& t)
+void
+check_content_transaction3(ObjectStore::Transaction& t)
 {
   create_check_transaction3(t, false, false);
 }
 
-void transaction_to_old_format(ObjectStore::Transaction& source,ObjectStore::Transaction& dest)
+void
+transaction_to_old_format(
+    ObjectStore::Transaction& source,
+    ObjectStore::Transaction& dest)
 {
   bufferlist encoded;
   ceph::buffer::list::const_iterator p;
@@ -1176,7 +1197,10 @@ void transaction_to_old_format(ObjectStore::Transaction& source,ObjectStore::Tra
   decode(dest, p);
 }
 
-void transaction_to_new_format(ObjectStore::Transaction& source,ObjectStore::Transaction& dest)
+void
+transaction_to_new_format(
+    ObjectStore::Transaction& source,
+    ObjectStore::Transaction& dest)
 {
   bufferlist encodedp;
   bufferlist encodedd;
@@ -1202,12 +1226,13 @@ TEST(Transaction, AppendSimple) //FormatDualDual
 TEST(Transaction, AppendFormatDualNew)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t2_new;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_new_format(t2_dual,t2_new);
+  transaction_to_new_format(t2_dual, t2_new);
   t1_dual.append(t2_new);
   check_content_transaction3(t1_dual);
 }
@@ -1215,12 +1240,13 @@ TEST(Transaction, AppendFormatDualNew)
 TEST(Transaction, AppendFormatDualOld)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t2_old;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_old_format(t2_dual,t2_old);
+  transaction_to_old_format(t2_dual, t2_old);
   t1_dual.append(t2_old);
   check_content_transaction3(t1_dual);
 }
@@ -1228,12 +1254,13 @@ TEST(Transaction, AppendFormatDualOld)
 TEST(Transaction, AppendFormatNewDual)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t1_new;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_new_format(t1_dual,t1_new);
+  transaction_to_new_format(t1_dual, t1_new);
   t1_new.append(t2_dual);
   check_content_transaction3(t1_new);
 }
@@ -1241,14 +1268,15 @@ TEST(Transaction, AppendFormatNewDual)
 TEST(Transaction, AppendFormatNewNew)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t1_new;
   ObjectStore::Transaction t2_new;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_new_format(t1_dual,t1_new);
-  transaction_to_new_format(t2_dual,t2_new);
+  transaction_to_new_format(t1_dual, t1_new);
+  transaction_to_new_format(t2_dual, t2_new);
   t1_new.append(t2_new);
   check_content_transaction3(t1_new);
 }
@@ -1256,12 +1284,13 @@ TEST(Transaction, AppendFormatNewNew)
 TEST(Transaction, AppendFormatOldDual)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t1_old;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_old_format(t1_dual,t1_old);
+  transaction_to_old_format(t1_dual, t1_old);
   t1_old.append(t2_dual);
   check_content_transaction3(t1_old);
 }
@@ -1269,14 +1298,15 @@ TEST(Transaction, AppendFormatOldDual)
 TEST(Transaction, AppendFormatOldOld)
 {
   ObjectStore::Transaction t1_dual;
-  ObjectStore::Transaction t2_dual;;
+  ObjectStore::Transaction t2_dual;
+  ;
   ObjectStore::Transaction t1_old;
   ObjectStore::Transaction t2_old;
 
   create_transaction3_part1(t1_dual);
   create_transaction3_part2(t2_dual);
-  transaction_to_old_format(t1_dual,t1_old);
-  transaction_to_old_format(t2_dual,t2_old);
+  transaction_to_old_format(t1_dual, t1_old);
+  transaction_to_old_format(t2_dual, t2_old);
   t1_old.append(t2_old);
   check_content_transaction3(t1_old);
 }

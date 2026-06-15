@@ -16,34 +16,58 @@
 #pragma once
 
 #include <memory>
-#include "common/ceph_mutex.h"
+
 #include "common/async/completion.h"
 #include "common/async/yield_context.h"
+#include "common/ceph_mutex.h"
+
 #include "rgw_aio.h"
 
 namespace rgw {
 
 class Throttle {
- protected:
+protected:
   const uint64_t window;
   uint64_t pending_size = 0;
 
   AioResultList pending;
   AioResultList completed;
 
-  bool is_available() const { return pending_size <= window; }
-  bool has_completion() const { return !completed.empty(); }
-  bool is_drained() const { return pending.empty(); }
+  bool
+  is_available() const
+  {
+    return pending_size <= window;
+  }
 
-  enum class Wait { None, Available, Completion, Drained };
+  bool
+  has_completion() const
+  {
+    return !completed.empty();
+  }
+
+  bool
+  is_drained() const
+  {
+    return pending.empty();
+  }
+
+  enum class Wait {
+    None,
+    Available,
+    Completion,
+    Drained
+  };
   Wait waiter = Wait::None;
 
   bool waiter_ready() const;
 
- public:
-  Throttle(uint64_t window) : window(window) {}
+public:
+  Throttle(uint64_t window) :
+    window(window)
+  {}
 
-  virtual ~Throttle() {
+  virtual ~Throttle()
+  {
     // must drain before destructing
     ceph_assert(pending.empty());
     ceph_assert(completed.empty());
@@ -57,16 +81,19 @@ class BlockingAioThrottle final : public Aio, private Throttle {
   ceph::condition_variable cond;
 
   struct Pending : AioResultEntry {
-    BlockingAioThrottle *parent = nullptr;
+    BlockingAioThrottle* parent = nullptr;
     uint64_t cost = 0;
   };
- public:
-  BlockingAioThrottle(uint64_t window) : Throttle(window) {}
 
-  virtual ~BlockingAioThrottle() override {};
+public:
+  BlockingAioThrottle(uint64_t window) :
+    Throttle(window)
+  {}
 
-  AioResultList get(rgw_raw_obj obj, OpFunc&& f,
-                    uint64_t cost, uint64_t id) override final;
+  virtual ~BlockingAioThrottle() override{};
+
+  AioResultList get(rgw_raw_obj obj, OpFunc&& f, uint64_t cost, uint64_t id)
+      override final;
 
   void put(AioResult& r) override final;
 
@@ -90,17 +117,19 @@ class YieldingAioThrottle final : public Aio, private Throttle {
   template <typename CompletionToken>
   auto async_wait(CompletionToken&& token);
 
-  struct Pending : AioResultEntry { uint64_t cost = 0; };
+  struct Pending : AioResultEntry {
+    uint64_t cost = 0;
+  };
 
- public:
-  YieldingAioThrottle(uint64_t window, boost::asio::yield_context yield)
-    : Throttle(window), yield(yield)
+public:
+  YieldingAioThrottle(uint64_t window, boost::asio::yield_context yield) :
+    Throttle(window), yield(yield)
   {}
 
-  virtual ~YieldingAioThrottle() override {};
+  virtual ~YieldingAioThrottle() override{};
 
-  AioResultList get(rgw_raw_obj obj, OpFunc&& f,
-                    uint64_t cost, uint64_t id) override final;
+  AioResultList get(rgw_raw_obj obj, OpFunc&& f, uint64_t cost, uint64_t id)
+      override final;
 
   void put(AioResult& r) override final;
 
@@ -112,12 +141,13 @@ class YieldingAioThrottle final : public Aio, private Throttle {
 };
 
 // return a smart pointer to Aio
-inline auto make_throttle(uint64_t window_size, optional_yield y)
+inline auto
+make_throttle(uint64_t window_size, optional_yield y)
 {
   std::unique_ptr<Aio> aio;
   if (y) {
-    aio = std::make_unique<YieldingAioThrottle>(window_size,
-                                                y.get_yield_context());
+    aio = std::make_unique<YieldingAioThrottle>(
+        window_size, y.get_yield_context());
   } else {
     aio = std::make_unique<BlockingAioThrottle>(window_size);
   }

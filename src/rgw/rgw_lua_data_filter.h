@@ -11,9 +11,9 @@ class RGWObjFilter {
   const rgw::lua::LuaCodeType script;
 
 public:
-  RGWObjFilter(req_state* s,
-      const rgw::lua::LuaCodeType& script) :
-    s(s), script(script) {}
+  RGWObjFilter(req_state* s, const rgw::lua::LuaCodeType& script) :
+    s(s), script(script)
+  {}
 
   int execute(bufferlist& bl, off_t offset, const char* op_name) const;
 };
@@ -22,26 +22,27 @@ class RGWGetObjFilter : public RGWGetObj_Filter {
   const RGWObjFilter filter;
 
 public:
-  RGWGetObjFilter(req_state* s,
+  RGWGetObjFilter(
+      req_state* s,
       const rgw::lua::LuaCodeType& script,
-      RGWGetObj_Filter* next) : RGWGetObj_Filter(next), filter(s, script) 
+      RGWGetObj_Filter* next) :
+    RGWGetObj_Filter(next), filter(s, script)
   {}
 
   ~RGWGetObjFilter() override = default;
 
-  int handle_data(bufferlist& bl,
-                  off_t bl_ofs,
-                  off_t bl_len) override;
-
+  int handle_data(bufferlist& bl, off_t bl_ofs, off_t bl_len) override;
 };
 
 class RGWPutObjFilter : public rgw::putobj::Pipe {
   const RGWObjFilter filter;
 
 public:
-  RGWPutObjFilter(req_state* s,
+  RGWPutObjFilter(
+      req_state* s,
       const rgw::lua::LuaCodeType& script,
-      rgw::sal::DataProcessor* next) : rgw::putobj::Pipe(next), filter(s, script) 
+      rgw::sal::DataProcessor* next) :
+    rgw::putobj::Pipe(next), filter(s, script)
   {}
 
   ~RGWPutObjFilter() override = default;
@@ -49,4 +50,3 @@ public:
   int process(bufferlist&& data, uint64_t logical_offset) override;
 };
 } // namespace rgw::lua
-

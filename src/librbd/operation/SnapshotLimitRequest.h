@@ -4,9 +4,10 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_LIMIT_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_LIMIT_REQUEST_H
 
-#include "librbd/operation/Request.h"
 #include <iosfwd>
 #include <string>
+
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -19,14 +20,15 @@ namespace operation {
 template <typename ImageCtxT = ImageCtx>
 class SnapshotLimitRequest : public Request<ImageCtxT> {
 public:
-  SnapshotLimitRequest(ImageCtxT &image_ctx, Context *on_finish,
-		       uint64_t limit);
+  SnapshotLimitRequest(ImageCtxT& image_ctx, Context* on_finish, uint64_t limit);
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::SnapLimitEvent(op_tid, m_snap_limit);
   }
 

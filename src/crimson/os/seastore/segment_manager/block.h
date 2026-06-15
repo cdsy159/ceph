@@ -3,23 +3,20 @@
 
 #pragma once
 
-#include <boost/intrusive_ptr.hpp>
-#include <boost/smart_ptr/intrusive_ref_counter.hpp>
-
 #include <seastar/core/file.hh>
 #include <seastar/core/future.hh>
 #include <seastar/core/reactor.hh>
 
-#include "crimson/common/layout.h"
+#include <boost/intrusive_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
+#include "crimson/common/layout.h"
 #include "crimson/os/seastore/segment_manager.h"
 
 namespace crimson::os::seastore::segment_manager::block {
 
-using write_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error>;
-using read_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error>;
+using write_ertr = crimson::errorator<crimson::ct_error::input_output_error>;
+using read_ertr = crimson::errorator<crimson::ct_error::input_output_error>;
 
 /**
  * SegmentStateTracker
@@ -36,65 +33,84 @@ class SegmentStateTracker {
   const L layout;
 
 public:
-  static size_t get_raw_size(size_t segments, size_t block_size) {
+  static size_t
+  get_raw_size(size_t segments, size_t block_size)
+  {
     return p2roundup(segments, block_size);
   }
 
-  SegmentStateTracker(size_t segments, size_t block_size)
-    : bptr(ceph::buffer::create_page_aligned(
-	     get_raw_size(segments, block_size))),
-      layout(bptr.length())
+  SegmentStateTracker(size_t segments, size_t block_size) :
+    bptr(ceph::buffer::create_page_aligned(get_raw_size(segments, block_size))),
+    layout(bptr.length())
   {
     ::memset(
-      bptr.c_str(),
-      static_cast<char>(segment_state_t::EMPTY),
-      bptr.length());
+        bptr.c_str(), static_cast<char>(segment_state_t::EMPTY), bptr.length());
   }
 
-  size_t get_size() const {
+  size_t
+  get_size() const
+  {
     return bptr.length();
   }
 
-  size_t get_capacity() const {
+  size_t
+  get_capacity() const
+  {
     return bptr.length();
   }
 
-  segment_state_t get(device_segment_id_t offset) const {
+  segment_state_t
+  get(device_segment_id_t offset) const
+  {
     assert(offset < get_capacity());
     return static_cast<segment_state_t>(
-      layout.template Pointer<0>(
-	bptr.c_str())[offset]);
+        layout.template Pointer<0>(bptr.c_str())[offset]);
   }
 
-  void set(device_segment_id_t offset, segment_state_t state) {
+  void
+  set(device_segment_id_t offset, segment_state_t state)
+  {
     assert(offset < get_capacity());
     layout.template Pointer<0>(bptr.c_str())[offset] =
-      static_cast<uint8_t>(state);
+        static_cast<uint8_t>(state);
   }
 
   write_ertr::future<> write_out(
-    device_id_t device_id,
-    seastar::file &device,
-    uint64_t offset);
+      device_id_t device_id,
+      seastar::file& device,
+      uint64_t offset);
 
   read_ertr::future<> read_in(
-    device_id_t device_id,
-    seastar::file &device,
-    uint64_t offset);
+      device_id_t device_id,
+      seastar::file& device,
+      uint64_t offset);
 };
 
 class BlockSegmentManager;
+
 class BlockSegment final : public Segment {
   friend class BlockSegmentManager;
-  BlockSegmentManager &manager;
+  BlockSegmentManager& manager;
   const segment_id_t id;
   segment_off_t write_pointer = 0;
-public:
-  BlockSegment(BlockSegmentManager &manager, segment_id_t id);
 
-  segment_id_t get_segment_id() const override { return id; }
+public:
+  BlockSegment(BlockSegmentManager& manager, segment_id_t id);
+
+  segment_id_t
+  get_segment_id() const override
+  {
+    return id;
+  }
+
   segment_off_t get_write_capacity() const override;
-  segment_off_t get_write_ptr() const override { return write_pointer; }
+
+  segment_off_t
+  get_write_ptr() const override
+  {
+    return write_pointer;
+  }
+
   close_ertr::future<> close() override;
   write_ertr::future<> write(segment_off_t offset, ceph::bufferlist bl) override;
   write_ertr::future<> advance_wp(segment_off_t offset) override;
@@ -110,7 +126,8 @@ public:
  * state analagous to that of the segments of a zns device.
  */
 class BlockSegmentManager final : public SegmentManager {
-// interfaces used by Device
+  // interfaces used by Device
+
 public:
   seastar::future<> start(uint32_t shard_nums) override;
 
@@ -121,16 +138,17 @@ public:
   mount_ret mount() override;
 
   mkfs_ret mkfs(device_config_t) override;
-// interfaces used by each shard device
+  // interfaces used by each shard device
+
 public:
   close_ertr::future<> close();
 
   BlockSegmentManager(
-    const std::string &path,
-    device_type_t dtype,
-    store_index_t store_index = 0)
-  : device_path(path),
-    store_index(store_index) {
+      const std::string& path,
+      device_type_t dtype,
+      store_index_t store_index = 0) :
+    device_path(path), store_index(store_index)
+  {
     ceph_assert(get_device_type() == device_type_t::NONE);
     superblock.config.spec.dtype = dtype;
   }
@@ -141,43 +159,59 @@ public:
 
   release_ertr::future<> release(segment_id_t id) override;
 
-  read_ertr::future<> read(
-    paddr_t addr,
-    size_t len,
-    ceph::bufferptr &out) override;
+  read_ertr::future<> read(paddr_t addr, size_t len, ceph::bufferptr& out)
+      override;
 
-  read_ertr::future<> readv(
-    paddr_t addr, std::vector<bufferptr> vecs) override;
+  read_ertr::future<> readv(paddr_t addr, std::vector<bufferptr> vecs) override;
 
   read_ertr::future<uint32_t> get_shard_nums() override;
 
-  device_type_t get_device_type() const override {
+  device_type_t
+  get_device_type() const override
+  {
     return superblock.config.spec.dtype;
   }
-  size_t get_available_size() const override {
+
+  size_t
+  get_available_size() const override
+  {
     return shard_info.size;
   }
-  extent_len_t get_block_size() const {
+
+  extent_len_t
+  get_block_size() const
+  {
     return superblock.block_size;
   }
-  segment_off_t get_segment_size() const {
+
+  segment_off_t
+  get_segment_size() const
+  {
     return superblock.segment_size;
   }
 
-  device_id_t get_device_id() const override {
+  device_id_t
+  get_device_id() const override
+  {
     assert(device_id <= DEVICE_ID_MAX_VALID);
     return device_id;
   }
-  secondary_device_set_t& get_secondary_devices() override {
+
+  secondary_device_set_t&
+  get_secondary_devices() override
+  {
     return superblock.config.secondary_devices;
   }
+
   // public so tests can bypass segment interface when simpler
   Segment::write_ertr::future<> segment_write(
-    paddr_t addr,
-    ceph::bufferlist bl,
-    bool ignore_check=false);
+      paddr_t addr,
+      ceph::bufferlist bl,
+      bool ignore_check = false);
 
-  magic_t get_magic() const override {
+  magic_t
+  get_magic() const override
+  {
     return superblock.config.spec.magic;
   }
 
@@ -189,7 +223,9 @@ private:
     uint64_t num = 0;
     uint64_t bytes = 0;
 
-    void increment(uint64_t read_bytes) {
+    void
+    increment(uint64_t read_bytes)
+    {
       ++num;
       bytes += read_bytes;
     }
@@ -204,7 +240,9 @@ private:
     uint64_t closed_segments_unused_bytes;
     uint64_t released_segments;
 
-    void reset() {
+    void
+    reset()
+    {
       data_read = {};
       data_write = {};
       metadata_write = {};
@@ -224,31 +262,39 @@ private:
   block_sm_superblock_t superblock;
   seastar::file device;
 
-  void set_device_id(device_id_t id) {
+  void
+  set_device_id(device_id_t id)
+  {
     assert(id <= DEVICE_ID_MAX_VALID);
-    assert(device_id == DEVICE_ID_NULL ||
-           device_id == id);
+    assert(device_id == DEVICE_ID_NULL || device_id == id);
     device_id = id;
   }
+
   device_id_t device_id = DEVICE_ID_NULL;
 
-  size_t get_offset(paddr_t addr) {
+  size_t
+  get_offset(paddr_t addr)
+  {
     auto& seg_addr = addr.as_seg_paddr();
     return shard_info.first_segment_offset +
-      (seg_addr.get_segment_id().device_segment_id() * superblock.segment_size) +
-      seg_addr.get_segment_off();
+           (seg_addr.get_segment_id().device_segment_id() *
+            superblock.segment_size) +
+           seg_addr.get_segment_off();
   }
 
-  const seastore_meta_t &get_meta() const {
+  const seastore_meta_t&
+  get_meta() const
+  {
     return superblock.config.meta;
   }
 
   std::vector<segment_state_t> segment_state;
 
-  char *buffer = nullptr;
+  char* buffer = nullptr;
 
   Segment::close_ertr::future<> segment_close(
-      segment_id_t id, segment_off_t write_pointer);
+      segment_id_t id,
+      segment_off_t write_pointer);
 
 private:
   // shard 0 mkfs
@@ -261,26 +307,26 @@ private:
   uint32_t device_shard_nums = 0;
   store_index_t store_index = 0;
   bool store_active = true;
-  class MultiShardDevices {
-    public:
-      std::vector<std::unique_ptr<BlockSegmentManager>> mshard_devices;
 
-    public:
-    MultiShardDevices(size_t count,
-                      const std::string path,
-                      device_type_t dtype)
-    : mshard_devices() {
+  class MultiShardDevices {
+  public:
+    std::vector<std::unique_ptr<BlockSegmentManager>> mshard_devices;
+
+  public:
+    MultiShardDevices(size_t count, const std::string path, device_type_t dtype) :
+      mshard_devices()
+    {
       mshard_devices.reserve(count);
       for (size_t store_index = 0; store_index < count; ++store_index) {
-        mshard_devices.emplace_back(std::make_unique<BlockSegmentManager>(
-          path, dtype, store_index));
+        mshard_devices.emplace_back(
+            std::make_unique<BlockSegmentManager>(path, dtype, store_index));
       }
     }
-    ~MultiShardDevices() {
-     mshard_devices.clear();
-    }
+
+    ~MultiShardDevices() { mshard_devices.clear(); }
   };
+
   seastar::sharded<MultiShardDevices> shard_devices;
 };
 
-}
+} // namespace crimson::os::seastore::segment_manager::block

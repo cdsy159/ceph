@@ -7,17 +7,18 @@
 #include <map>
 #include <vector>
 
-#include "AuthAuthorizeHandler.h"
-#include "AuthMethodList.h"
 #include "common/ceph_mutex.h"
 #include "common/config_obs.h"
 #include "include/common_fwd.h" // for CephContext
 
+#include "AuthAuthorizeHandler.h"
+#include "AuthMethodList.h"
+
 class AuthRegistry : public md_config_obs_t {
-  CephContext *cct;
+  CephContext* cct;
   mutable ceph::mutex lock = ceph::make_mutex("AuthRegistry::lock");
 
-  std::map<int,AuthAuthorizeHandler*> authorize_handlers;
+  std::map<int, AuthAuthorizeHandler*> authorize_handlers;
 
   bool _no_keyring_disabled_cephx = false;
 
@@ -34,48 +35,60 @@ class AuthRegistry : public md_config_obs_t {
   std::vector<uint32_t> service_modes;
   std::vector<uint32_t> client_modes;
 
-  void _parse_method_list(const std::string& str, std::vector<uint32_t> *v);
-  void _parse_mode_list(const std::string& str, std::vector<uint32_t> *v);
+  void _parse_method_list(const std::string& str, std::vector<uint32_t>* v);
+  void _parse_mode_list(const std::string& str, std::vector<uint32_t>* v);
   void _refresh_config();
 
 public:
-  AuthRegistry(CephContext *cct);
+  AuthRegistry(CephContext* cct);
   ~AuthRegistry();
 
-  void refresh_config() {
+  void
+  refresh_config()
+  {
     std::scoped_lock l(lock);
     _refresh_config();
   }
 
-  void get_supported_methods(int peer_type,
-			     std::vector<uint32_t> *methods,
-			     std::vector<uint32_t> *modes=nullptr) const;
+  void get_supported_methods(
+      int peer_type,
+      std::vector<uint32_t>* methods,
+      std::vector<uint32_t>* modes = nullptr) const;
   bool is_supported_method(int peer_type, int method) const;
   bool any_supported_methods(int peer_type) const;
 
-  void get_supported_modes(int peer_type,
-			   uint32_t auth_method,
-			   std::vector<uint32_t> *modes) const;
+  void get_supported_modes(
+      int peer_type,
+      uint32_t auth_method,
+      std::vector<uint32_t>* modes) const;
 
-  uint32_t pick_mode(int peer_type,
-		     uint32_t auth_method,
-		     const std::vector<uint32_t>& preferred_modes);
+  uint32_t pick_mode(
+      int peer_type,
+      uint32_t auth_method,
+      const std::vector<uint32_t>& preferred_modes);
 
-  static bool is_secure_method(uint32_t method) {
+  static bool
+  is_secure_method(uint32_t method)
+  {
     return (method == CEPH_AUTH_CEPHX);
   }
 
-  static bool is_secure_mode(uint32_t mode) {
+  static bool
+  is_secure_mode(uint32_t mode)
+  {
     return (mode == CEPH_CON_MODE_SECURE);
   }
 
-  AuthAuthorizeHandler *get_handler(int peer_type, int method);
+  AuthAuthorizeHandler* get_handler(int peer_type, int method);
 
   std::vector<std::string> get_tracked_keys() const noexcept override;
-  void handle_conf_change(const ConfigProxy& conf,
-                          const std::set<std::string>& changed) override;
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override;
 
-  bool no_keyring_disabled_cephx() {
+  bool
+  no_keyring_disabled_cephx()
+  {
     std::scoped_lock l(lock);
     return _no_keyring_disabled_cephx;
   }

@@ -8,12 +8,12 @@
 
 #include "crimson/os/seastore/async_cleaner.h"
 #include "crimson/os/seastore/cached_extent.h"
-#include "crimson/os/seastore/journal/segment_allocator.h"
 #include "crimson/os/seastore/journal/record_submitter.h"
-#include "crimson/os/seastore/transaction.h"
+#include "crimson/os/seastore/journal/segment_allocator.h"
 #include "crimson/os/seastore/random_block_manager.h"
 #include "crimson/os/seastore/random_block_manager/block_rb_manager.h"
 #include "crimson/os/seastore/randomblock_manager_group.h"
+#include "crimson/os/seastore/transaction.h"
 
 class transaction_manager_test_t;
 
@@ -35,8 +35,7 @@ public:
 
   virtual writer_stats_t get_stats() const = 0;
 
-  using open_ertr = base_ertr::extend<
-    crimson::ct_error::enospc>;
+  using open_ertr = base_ertr::extend<crimson::ct_error::enospc>;
   virtual open_ertr::future<> open() = 0;
 
   virtual paddr_t alloc_paddr(extent_len_t length) = 0;
@@ -46,19 +45,21 @@ public:
   using alloc_write_ertr = base_ertr;
   using alloc_write_iertr = trans_iertr<alloc_write_ertr>;
   virtual alloc_write_iertr::future<> alloc_write_ool_extents(
-    Transaction &t,
-    std::list<CachedExtentRef> &extents) = 0;
+      Transaction& t,
+      std::list<CachedExtentRef>& extents) = 0;
 
   using close_ertr = base_ertr;
   virtual close_ertr::future<> close() = 0;
 
-  virtual bool can_inplace_rewrite(Transaction& t,
-    CachedExtentRef extent) = 0;
+  virtual bool can_inplace_rewrite(Transaction& t, CachedExtentRef extent) = 0;
 
 #ifdef UNIT_TESTS_BUILT
-  virtual void prefill_fragmented_devices() {}
+  virtual void
+  prefill_fragmented_devices()
+  {}
 #endif
 };
+
 using ExtentOolWriterRef = std::unique_ptr<ExtentOolWriter>;
 
 /**
@@ -69,59 +70,71 @@ using ExtentOolWriterRef = std::unique_ptr<ExtentOolWriter>;
  */
 class SegmentedOolWriter : public ExtentOolWriter {
 public:
-  SegmentedOolWriter(store_index_t store_index,
-                     data_category_t category,
-                     rewrite_gen_t gen,
-                     SegmentProvider &sp,
-                     SegmentSeqAllocator &ssa);
+  SegmentedOolWriter(
+      store_index_t store_index,
+      data_category_t category,
+      rewrite_gen_t gen,
+      SegmentProvider& sp,
+      SegmentSeqAllocator& ssa);
 
-  backend_type_t get_type() const final {
+  backend_type_t
+  get_type() const final
+  {
     return backend_type_t::SEGMENTED;
   }
 
-  writer_stats_t get_stats() const final {
+  writer_stats_t
+  get_stats() const final
+  {
     return record_submitter.get_stats();
   }
 
-  open_ertr::future<> open() final {
+  open_ertr::future<>
+  open() final
+  {
     return record_submitter.open(store_index, false).discard_result();
   }
 
   alloc_write_iertr::future<> alloc_write_ool_extents(
-    Transaction &t,
-    std::list<CachedExtentRef> &extents) final;
+      Transaction& t,
+      std::list<CachedExtentRef>& extents) final;
 
-  close_ertr::future<> close() final {
-    return write_guard.close().then([this] {
-      return record_submitter.close();
-    }).safe_then([this] {
-      write_guard = seastar::gate();
-    });
+  close_ertr::future<>
+  close() final
+  {
+    return write_guard.close()
+        .then([this] { return record_submitter.close(); })
+        .safe_then([this] { write_guard = seastar::gate(); });
   }
 
-  paddr_t alloc_paddr(extent_len_t length) final {
+  paddr_t
+  alloc_paddr(extent_len_t length) final
+  {
     return make_delayed_temp_paddr(0);
   }
 
-  std::list<alloc_paddr_result> alloc_paddrs(extent_len_t length) final {
+  std::list<alloc_paddr_result>
+  alloc_paddrs(extent_len_t length) final
+  {
     return {alloc_paddr_result{make_delayed_temp_paddr(0), length}};
   }
 
-  bool can_inplace_rewrite(Transaction& t,
-    CachedExtentRef extent) final {
+  bool
+  can_inplace_rewrite(Transaction& t, CachedExtentRef extent) final
+  {
     return false;
   }
 
 private:
   alloc_write_iertr::future<> do_write(
-    Transaction& t,
-    std::list<CachedExtentRef> &extent);
+      Transaction& t,
+      std::list<CachedExtentRef>& extent);
 
   alloc_write_ertr::future<> write_record(
-    Transaction& t,
-    record_t&& record,
-    std::list<LogicalCachedExtentRef> &&extents,
-    bool with_atomic_roll_segment=false);
+      Transaction& t,
+      record_t&& record,
+      std::list<LogicalCachedExtentRef>&& extents,
+      bool with_atomic_roll_segment = false);
 
   store_index_t store_index;
   journal::SegmentAllocator segment_allocator;
@@ -129,17 +142,21 @@ private:
   seastar::gate write_guard;
 };
 
-
 class RandomBlockOolWriter : public ExtentOolWriter {
 public:
   RandomBlockOolWriter(RBMCleaner* rb_cleaner) :
-    rb_cleaner(rb_cleaner) {}
+    rb_cleaner(rb_cleaner)
+  {}
 
-  backend_type_t get_type() const final {
+  backend_type_t
+  get_type() const final
+  {
     return backend_type_t::RANDOM_BLOCK;
   }
 
-  writer_stats_t get_stats() const final {
+  writer_stats_t
+  get_stats() const final
+  {
     writer_stats_t ret = w_stats;
     ret.minus(last_w_stats);
     last_w_stats = w_stats;
@@ -147,51 +164,64 @@ public:
   }
 
   using open_ertr = ExtentOolWriter::open_ertr;
-  open_ertr::future<> open() final {
+
+  open_ertr::future<>
+  open() final
+  {
     w_stats = {};
     last_w_stats = {};
     return open_ertr::now();
   }
 
   alloc_write_iertr::future<> alloc_write_ool_extents(
-    Transaction &t,
-    std::list<CachedExtentRef> &extents) final;
+      Transaction& t,
+      std::list<CachedExtentRef>& extents) final;
 
-  close_ertr::future<> close() final {
+  close_ertr::future<>
+  close() final
+  {
     return write_guard.close().then([this] {
       write_guard = seastar::gate();
       return close_ertr::now();
     });
   }
 
-  paddr_t alloc_paddr(extent_len_t length) final {
+  paddr_t
+  alloc_paddr(extent_len_t length) final
+  {
     assert(rb_cleaner);
     return rb_cleaner->alloc_paddr(length);
   }
 
-  std::list<alloc_paddr_result> alloc_paddrs(extent_len_t length) final {
+  std::list<alloc_paddr_result>
+  alloc_paddrs(extent_len_t length) final
+  {
     assert(rb_cleaner);
     return rb_cleaner->alloc_paddrs(length);
   }
 
-  bool can_inplace_rewrite(Transaction& t,
-    CachedExtentRef extent) final {
+  bool
+  can_inplace_rewrite(Transaction& t, CachedExtentRef extent) final
+  {
     if (!extent->is_stable_dirty()) {
       return false;
     }
     assert(t.get_src() == transaction_type_t::TRIM_DIRTY);
-    ceph_assert_always(is_root_type(extent->get_type()) ||
-	extent->get_paddr().is_absolute());
+    ceph_assert_always(
+        is_root_type(extent->get_type()) || extent->get_paddr().is_absolute());
     return crimson::os::seastore::can_inplace_rewrite(extent->get_type());
   }
 
 #ifdef UNIT_TESTS_BUILT
-  void prefill_fragmented_devices() final {
+  void
+  prefill_fragmented_devices() final
+  {
     LOG_PREFIX(RandomBlockOolWriter::prefill_fragmented_devices);
     SUBDEBUG(seastore_epm, "");
     return rb_cleaner->prefill_fragmented_devices();
   }
 #endif
+
 private:
   struct write_info_t {
     paddr_t offset;
@@ -199,20 +229,23 @@ private:
     RandomBlockManager* rbm;
     std::list<ceph::bufferptr> mergeable_bps;
 
-    extent_len_t get_mergeable_length() const {
+    extent_len_t
+    get_mergeable_length() const
+    {
       if (mergeable_bps.size() == 0) {
-	return bp.length();
+        return bp.length();
       }
       extent_len_t len = 0;
-      for (auto &p : mergeable_bps) {
-	len += p.length();
+      for (auto& p : mergeable_bps) {
+        len += p.length();
       }
       return len;
     }
   };
+
   alloc_write_iertr::future<> do_write(
-    Transaction& t,
-    std::list<CachedExtentRef> &extent);
+      Transaction& t,
+      std::list<CachedExtentRef>& extent);
 
   RBMCleaner* rb_cleaner;
   seastar::gate write_guard;
@@ -232,9 +265,10 @@ struct reserve_cleaner_result_t {
   bool reserve_main_success = true;
   bool reserve_cold_success = true;
 
-  bool is_successful() const {
-    return reserve_main_success &&
-      reserve_cold_success;
+  bool
+  is_successful() const
+  {
+    return reserve_main_success && reserve_cold_success;
   }
 };
 
@@ -248,12 +282,14 @@ struct io_usage_t {
   // produced by Cache::prepare_record.
   std::size_t inline_usage = 0;
   cleaner_usage_t cleaner_usage;
-  friend std::ostream &operator<<(std::ostream &out, const io_usage_t &usage) {
-    return out << "io_usage_t("
-               << "inline_usage=0x" << std::hex << usage.inline_usage
-               << ", main_cleaner_usage=0x" << usage.cleaner_usage.main_usage
-               << ", cold_cleaner_usage=0x" << usage.cleaner_usage.cold_ool_usage << std::dec
-               << ")";
+
+  friend std::ostream&
+  operator<<(std::ostream& out, const io_usage_t& usage)
+  {
+    return out << "io_usage_t(" << "inline_usage=0x" << std::hex
+               << usage.inline_usage << ", main_cleaner_usage=0x"
+               << usage.cleaner_usage.main_usage << ", cold_cleaner_usage=0x"
+               << usage.cleaner_usage.cold_ool_usage << std::dec << ")";
   }
 };
 
@@ -261,91 +297,113 @@ struct reserve_io_result_t {
   bool reserve_inline_success = true;
   reserve_cleaner_result_t cleaner_result;
 
-  bool is_successful() const {
-    return reserve_inline_success &&
-      cleaner_result.is_successful();
+  bool
+  is_successful() const
+  {
+    return reserve_inline_success && cleaner_result.is_successful();
   }
 };
 
 class ExtentPlacementManager {
 public:
   ExtentPlacementManager(
-    rewrite_gen_t hot_tier_generations,
-    rewrite_gen_t cold_tier_generations,
-    store_index_t store_index)
-    : hot_tier_generations(hot_tier_generations),
-      cold_tier_generations(cold_tier_generations),
-      dynamic_max_rewrite_generation(cold_tier_generations),
-      store_index(store_index),
-      ool_segment_seq_allocator(
-          std::make_unique<SegmentSeqAllocator>(segment_type_t::OOL)),
-      max_data_allocation_size(crimson::common::get_conf<Option::size_t>(
-	  "seastore_max_data_allocation_size"))
+      rewrite_gen_t hot_tier_generations,
+      rewrite_gen_t cold_tier_generations,
+      store_index_t store_index) :
+    hot_tier_generations(hot_tier_generations),
+    cold_tier_generations(cold_tier_generations),
+    dynamic_max_rewrite_generation(cold_tier_generations),
+    store_index(store_index),
+    ool_segment_seq_allocator(
+        std::make_unique<SegmentSeqAllocator>(segment_type_t::OOL)),
+    max_data_allocation_size(crimson::common::get_conf<Option::size_t>(
+        "seastore_max_data_allocation_size"))
   {
     LOG_PREFIX(ExtentPlacementManager::ExtentPlacementManager);
     devices_by_id.resize(DEVICE_ID_MAX, nullptr);
-    SUBINFO(seastore_epm, "cold_tier_generations={}, hot_tier_generations={}",
-      cold_tier_generations, hot_tier_generations);
+    SUBINFO(
+        seastore_epm, "cold_tier_generations={}, hot_tier_generations={}",
+        cold_tier_generations, hot_tier_generations);
   }
 
-  void init(JournalTrimmerImplRef &&, AsyncCleanerRef &&, AsyncCleanerRef &&);
+  void init(JournalTrimmerImplRef&&, AsyncCleanerRef&&, AsyncCleanerRef&&);
 
-  SegmentSeqAllocator &get_ool_segment_seq_allocator() const {
+  SegmentSeqAllocator&
+  get_ool_segment_seq_allocator() const
+  {
     return *ool_segment_seq_allocator;
   }
 
-  void set_primary_device(Device *device);
+  void set_primary_device(Device* device);
 
-  void set_extent_callback(ExtentCallbackInterface *cb) {
+  void
+  set_extent_callback(ExtentCallbackInterface* cb)
+  {
     background_process.set_extent_callback(cb);
   }
 
-  bool can_inplace_rewrite(Transaction& t, CachedExtentRef extent) {
-    auto writer = get_writer(placement_hint_t::REWRITE,
-      get_extent_category(extent->get_type()),
-      OOL_GENERATION);
+  bool
+  can_inplace_rewrite(Transaction& t, CachedExtentRef extent)
+  {
+    auto writer = get_writer(
+        placement_hint_t::REWRITE, get_extent_category(extent->get_type()),
+        OOL_GENERATION);
     return writer->can_inplace_rewrite(t, extent);
   }
 
-  backend_type_t get_backend_type() const {
+  backend_type_t
+  get_backend_type() const
+  {
     return background_process.get_backend_type();
   }
 
-  extent_len_t get_block_size() const {
+  extent_len_t
+  get_block_size() const
+  {
     assert(primary_device != nullptr);
     // assume all the devices have the same block size
     return primary_device->get_block_size();
   }
 
-  Device& get_primary_device() {
+  Device&
+  get_primary_device()
+  {
     assert(primary_device != nullptr);
     return *primary_device;
   }
 
-  store_statfs_t get_stat() const {
+  store_statfs_t
+  get_stat() const
+  {
     return background_process.get_stat();
   }
 
   device_stats_t get_device_stats(
-    const writer_stats_t &journal_stats,
-    bool report_detail,
-    double seconds) const;
+      const writer_stats_t& journal_stats,
+      bool report_detail,
+      double seconds) const;
 
-  using mount_ertr = crimson::errorator<
-      crimson::ct_error::input_output_error>;
+  using mount_ertr = crimson::errorator<crimson::ct_error::input_output_error>;
   using mount_ret = mount_ertr::future<>;
-  mount_ret mount() {
+
+  mount_ret
+  mount()
+  {
     return background_process.mount(store_index);
   }
 
   using open_ertr = ExtentOolWriter::open_ertr;
   open_ertr::future<> open_for_write();
 
-  void start_scan_space() {
+  void
+  start_scan_space()
+  {
     return background_process.start_scan_space();
   }
 
-  void start_background() {
+  void
+  start_background()
+  {
     return background_process.start_background();
   }
 
@@ -354,18 +412,20 @@ public:
     bufferptr bp;
     rewrite_gen_t gen;
   };
-  std::optional<alloc_result_t> alloc_new_non_data_extent(
-    Transaction& t,
-    extent_types_t type,
-    extent_len_t length,
-    placement_hint_t hint,
+  std::optional<alloc_result_t>
+  alloc_new_non_data_extent(
+      Transaction& t,
+      extent_types_t type,
+      extent_len_t length,
+      placement_hint_t hint,
 #ifdef UNIT_TESTS_BUILT
-    rewrite_gen_t gen,
-    std::optional<paddr_t> external_paddr = std::nullopt
+      rewrite_gen_t gen,
+      std::optional<paddr_t> external_paddr = std::nullopt
 #else
-    rewrite_gen_t gen
+      rewrite_gen_t gen
 #endif
-  ) {
+  )
+  {
     assert(hint < placement_hint_t::NUM_HINTS);
     assert(is_target_rewrite_generation(gen, dynamic_max_rewrite_generation));
     assert(gen == INIT_GENERATION || hint == placement_hint_t::REWRITE);
@@ -400,18 +460,20 @@ public:
     return alloc_result_t{addr, std::move(bp), gen};
   }
 
-  std::list<alloc_result_t> alloc_new_data_extents(
-    Transaction& t,
-    extent_types_t type,
-    extent_len_t length,
-    placement_hint_t hint,
+  std::list<alloc_result_t>
+  alloc_new_data_extents(
+      Transaction& t,
+      extent_types_t type,
+      extent_len_t length,
+      placement_hint_t hint,
 #ifdef UNIT_TESTS_BUILT
-    rewrite_gen_t gen,
-    std::optional<paddr_t> external_paddr = std::nullopt
+      rewrite_gen_t gen,
+      std::optional<paddr_t> external_paddr = std::nullopt
 #else
-    rewrite_gen_t gen
+      rewrite_gen_t gen
 #endif
-  ) {
+  )
+  {
     LOG_PREFIX(ExtentPlacementManager::alloc_new_data_extents);
     assert(hint < placement_hint_t::NUM_HINTS);
     assert(is_target_rewrite_generation(gen, dynamic_max_rewrite_generation));
@@ -435,7 +497,7 @@ public:
 #endif
       assert(category == data_category_t::DATA);
       auto addrs = get_writer(hint, category, gen)->alloc_paddrs(length);
-      for (auto &ext : addrs) {
+      for (auto& ext : addrs) {
         auto left = ext.len;
         while (left > 0) {
           auto len = left;
@@ -443,13 +505,13 @@ public:
             len = std::min(max_data_allocation_size, len);
           }
           auto bp = create_extent_ptr_zero(len);
-          auto start = ext.start.is_delayed()
-                        ? ext.start
-                        : ext.start + (ext.len - left);
+          auto start = ext.start.is_delayed() ? ext.start
+                                              : ext.start + (ext.len - left);
           allocs.emplace_back(alloc_result_t{start, std::move(bp), gen});
-          SUBDEBUGT(seastore_epm,
-                    "allocated {} 0x{:x}B extent at {}, hint={}, gen={}",
-                    t, type, len, start, hint, gen);
+          SUBDEBUGT(
+              seastore_epm,
+              "allocated {} 0x{:x}B extent at {}, hint={}, gen={}", t, type,
+              len, start, hint, gen);
           left -= len;
         }
       }
@@ -458,19 +520,25 @@ public:
   }
 
 #ifdef UNIT_TESTS_BUILT
-  void prefill_fragmented_devices() {
+  void
+  prefill_fragmented_devices()
+  {
     LOG_PREFIX(ExtentPlacementManager::prefill_fragmented_devices);
     SUBDEBUG(seastore_epm, "");
-    for (auto &writer : writer_refs) {
+    for (auto& writer : writer_refs) {
       writer->prefill_fragmented_devices();
     }
   }
 
-  void set_max_extent_size(extent_len_t len) {
+  void
+  set_max_extent_size(extent_len_t len)
+  {
     max_data_allocation_size = len;
   }
 
-  extent_len_t get_max_extent_size() const {
+  extent_len_t
+  get_max_extent_size() const
+  {
     return max_data_allocation_size;
   }
 #endif
@@ -484,7 +552,8 @@ public:
    * usage is used to reserve projected space
    */
   using extents_by_writer_t =
-    std::map<ExtentOolWriter*, std::list<CachedExtentRef>>;
+      std::map<ExtentOolWriter*, std::list<CachedExtentRef>>;
+
   struct dispatch_result_t {
     extents_by_writer_t alloc_map;
     std::list<CachedExtentRef> delayed_extents;
@@ -505,8 +574,8 @@ public:
    */
   using alloc_paddr_iertr = ExtentOolWriter::alloc_write_iertr;
   alloc_paddr_iertr::future<> write_delayed_ool_extents(
-    Transaction& t,
-    extents_by_writer_t& alloc_map);
+      Transaction& t,
+      extents_by_writer_t& alloc_map);
 
   /**
    * write_preallocated_ool_extents
@@ -515,10 +584,12 @@ public:
    * See Transaction::pre_alloc_list
    */
   alloc_paddr_iertr::future<> write_preallocated_ool_extents(
-    Transaction &t,
-    std::list<CachedExtentRef> &extents);
+      Transaction& t,
+      std::list<CachedExtentRef>& extents);
 
-  seastar::future<> stop_background() {
+  seastar::future<>
+  stop_background()
+  {
     return background_process.stop_background();
   }
 
@@ -526,75 +597,95 @@ public:
   close_ertr::future<> close();
 
   using read_ertr = Device::read_ertr;
-  read_ertr::future<> read(
-    paddr_t addr,
-    size_t len,
-    ceph::bufferptr &out
-  ) {
+
+  read_ertr::future<>
+  read(paddr_t addr, size_t len, ceph::bufferptr& out)
+  {
     assert(devices_by_id[addr.get_device_id()] != nullptr);
     return devices_by_id[addr.get_device_id()]->read(addr, len, out);
   }
 
-  read_ertr::future<> readv(
-    paddr_t addr,
-    std::vector<bufferptr> ptrs) {
+  read_ertr::future<>
+  readv(paddr_t addr, std::vector<bufferptr> ptrs)
+  {
     assert(devices_by_id[addr.get_device_id()] != nullptr);
     return devices_by_id[addr.get_device_id()]->readv(addr, std::move(ptrs));
   }
 
-  void mark_space_used(paddr_t addr, extent_len_t len) {
+  void
+  mark_space_used(paddr_t addr, extent_len_t len)
+  {
     background_process.mark_space_used(addr, len);
   }
 
-  void mark_space_free(paddr_t addr, extent_len_t len) {
+  void
+  mark_space_free(paddr_t addr, extent_len_t len)
+  {
     background_process.mark_space_free(addr, len);
   }
 
-  void commit_space_used(paddr_t addr, extent_len_t len) {
+  void
+  commit_space_used(paddr_t addr, extent_len_t len)
+  {
     return background_process.commit_space_used(addr, len);
   }
 
-  seastar::future<> reserve_projected_usage(io_usage_t usage) {
+  seastar::future<>
+  reserve_projected_usage(io_usage_t usage)
+  {
     return background_process.reserve_projected_usage(usage);
   }
 
-  void release_projected_usage(const io_usage_t &usage) {
+  void
+  release_projected_usage(const io_usage_t& usage)
+  {
     background_process.release_projected_usage(usage);
   }
 
-  backend_type_t get_main_backend_type() const {
+  backend_type_t
+  get_main_backend_type() const
+  {
     if (!background_process.is_no_background()) {
       return background_process.get_main_backend_type();
-    } 
+    }
     // for test
     assert(primary_device);
     return primary_device->get_backend_type();
   }
 
-
-  bool is_pure_rbm() const {
+  bool
+  is_pure_rbm() const
+  {
     return get_main_backend_type() == backend_type_t::RANDOM_BLOCK &&
-      // as of now, cold tier can only be segmented.
-      !background_process.has_cold_tier();
+           // as of now, cold tier can only be segmented.
+           !background_process.has_cold_tier();
   }
 
   // Testing interfaces
 
-  void test_init_no_background(Device *test_device) {
+  void
+  test_init_no_background(Device* test_device)
+  {
     assert(test_device->get_backend_type() == backend_type_t::SEGMENTED);
     add_device(test_device);
     set_primary_device(test_device);
   }
 
-  bool check_usage() {
+  bool
+  check_usage()
+  {
     return background_process.check_usage();
   }
 
-  seastar::future<> run_background_work_until_halt() {
+  seastar::future<>
+  run_background_work_until_halt()
+  {
     return background_process.run_until_halt();
   }
 
-  bool get_checksum_needed(paddr_t addr) {
+  bool
+  get_checksum_needed(paddr_t addr)
+  {
     // checksum offloading only for blocks physically stored in the device
 #ifdef UNIT_TESTS_BUILT
     if (addr.is_fake()) {
@@ -606,16 +697,19 @@ public:
   }
 
 private:
-  rewrite_gen_t adjust_generation(
+  rewrite_gen_t
+  adjust_generation(
       data_category_t category,
       extent_types_t type,
       placement_hint_t hint,
-      rewrite_gen_t gen) {
+      rewrite_gen_t gen)
+  {
     assert(is_real_type(type));
     if (is_root_type(type)) {
       gen = INLINE_GENERATION;
-    } else if (get_main_backend_type() == backend_type_t::SEGMENTED &&
-               is_lba_backref_node(type)) {
+    } else if (
+        get_main_backend_type() == backend_type_t::SEGMENTED &&
+        is_lba_backref_node(type)) {
       gen = INLINE_GENERATION;
     } else if (hint == placement_hint_t::COLD) {
       assert(gen == INIT_GENERATION);
@@ -633,8 +727,7 @@ private:
           gen = INLINE_GENERATION;
         } else {
           // with RBM, all extents must be OOL
-          assert(get_main_backend_type() ==
-                 backend_type_t::RANDOM_BLOCK);
+          assert(get_main_backend_type() == backend_type_t::RANDOM_BLOCK);
           gen = OOL_GENERATION;
         }
       } else {
@@ -652,7 +745,9 @@ private:
     return gen;
   }
 
-  void add_device(Device *device) {
+  void
+  add_device(Device* device)
+  {
     auto device_id = device->get_device_id();
     ceph_assert(devices_by_id[device_id] == nullptr);
     devices_by_id[device_id] = device;
@@ -665,22 +760,25 @@ private:
    * Specify the extent inline or ool
    * return true indicates inline otherwise ool
    */
-  bool dispatch_delayed_extent(CachedExtentRef& extent) {
+  bool
+  dispatch_delayed_extent(CachedExtentRef& extent)
+  {
     // TODO: all delayed extents are ool currently
     boost::ignore_unused(extent);
     return false;
   }
 
-  ExtentOolWriter* get_writer(placement_hint_t hint,
-                              data_category_t category,
-                              rewrite_gen_t gen) {
+  ExtentOolWriter*
+  get_writer(placement_hint_t hint, data_category_t category, rewrite_gen_t gen)
+  {
     assert(hint < placement_hint_t::NUM_HINTS);
     // TODO: might worth considering the hint
     return get_writer(category, gen);
   }
 
-  ExtentOolWriter* get_writer(data_category_t category,
-                              rewrite_gen_t gen) {
+  ExtentOolWriter*
+  get_writer(data_category_t category, rewrite_gen_t gen)
+  {
     assert(is_rewrite_generation(gen, dynamic_max_rewrite_generation));
     assert(gen != INLINE_GENERATION);
     assert(gen <= dynamic_max_rewrite_generation);
@@ -695,8 +793,9 @@ private:
     return ret;
   }
 
-  const ExtentOolWriter* get_writer(data_category_t category,
-                                    rewrite_gen_t gen) const {
+  const ExtentOolWriter*
+  get_writer(data_category_t category, rewrite_gen_t gen) const
+  {
     assert(is_rewrite_generation(gen, dynamic_max_rewrite_generation));
     assert(gen != INLINE_GENERATION);
     assert(gen <= dynamic_max_rewrite_generation);
@@ -722,10 +821,13 @@ private:
   public:
     BackgroundProcess() = default;
 
-    void init(JournalTrimmerImplRef &&_trimmer,
-              AsyncCleanerRef &&_cleaner,
-              AsyncCleanerRef &&_cold_cleaner,
-              rewrite_gen_t hot_tier_generations) {
+    void
+    init(
+        JournalTrimmerImplRef&& _trimmer,
+        AsyncCleanerRef&& _cleaner,
+        AsyncCleanerRef&& _cold_cleaner,
+        rewrite_gen_t hot_tier_generations)
+    {
       trimmer = std::move(_trimmer);
       trimmer->set_background_callback(this);
       main_cleaner = std::move(_cleaner);
@@ -743,30 +845,38 @@ private:
         }
 
         eviction_state.init(
-          crimson::common::get_conf<double>(
-            "seastore_multiple_tiers_stop_evict_ratio"),
-          crimson::common::get_conf<double>(
-            "seastore_multiple_tiers_default_evict_ratio"),
-          crimson::common::get_conf<double>(
-            "seastore_multiple_tiers_fast_evict_ratio"),
-          hot_tier_generations);
+            crimson::common::get_conf<double>(
+                "seastore_multiple_tiers_stop_evict_ratio"),
+            crimson::common::get_conf<double>(
+                "seastore_multiple_tiers_default_evict_ratio"),
+            crimson::common::get_conf<double>(
+                "seastore_multiple_tiers_fast_evict_ratio"),
+            hot_tier_generations);
       }
     }
 
-    backend_type_t get_backend_type() const {
+    backend_type_t
+    get_backend_type() const
+    {
       return trimmer->get_backend_type();
     }
 
-    const segments_info_t* get_segments_info() const {
+    const segments_info_t*
+    get_segments_info() const
+    {
       assert(main_cleaner);
       return main_cleaner->get_segments_info();
     }
 
-    bool has_cold_tier() const {
+    bool
+    has_cold_tier() const
+    {
       return cold_cleaner.get() != nullptr;
     }
 
-    void set_extent_callback(ExtentCallbackInterface *cb) {
+    void
+    set_extent_callback(ExtentCallbackInterface* cb)
+    {
       trimmer->set_extent_callback(cb);
       main_cleaner->set_extent_callback(cb);
       if (has_cold_tier()) {
@@ -774,7 +884,9 @@ private:
       }
     }
 
-    store_statfs_t get_stat() const {
+    store_statfs_t
+    get_stat() const
+    {
       auto stat = main_cleaner->get_stat();
       if (has_cold_tier()) {
         stat.add(cold_cleaner->get_stat());
@@ -784,17 +896,20 @@ private:
 
     ExtentPlacementManager::mount_ret mount(store_index_t store_index);
 
-    void start_scan_space() {
+    void
+    start_scan_space()
+    {
       ceph_assert(state == state_t::MOUNT);
       state = state_t::SCAN_SPACE;
       ceph_assert(main_cleaner->check_usage_is_empty());
-      ceph_assert(!has_cold_tier() ||
-                  cold_cleaner->check_usage_is_empty());
+      ceph_assert(!has_cold_tier() || cold_cleaner->check_usage_is_empty());
     }
 
     void start_background();
 
-    void mark_space_used(paddr_t addr, extent_len_t len) {
+    void
+    mark_space_used(paddr_t addr, extent_len_t len)
+    {
       if (state < state_t::SCAN_SPACE) {
         return;
       }
@@ -811,7 +926,9 @@ private:
       }
     }
 
-    void mark_space_free(paddr_t addr, extent_len_t len) {
+    void
+    mark_space_free(paddr_t addr, extent_len_t len)
+    {
       if (state < state_t::SCAN_SPACE) {
         return;
       }
@@ -828,7 +945,9 @@ private:
       }
     }
 
-    void commit_space_used(paddr_t addr, extent_len_t len) {
+    void
+    commit_space_used(paddr_t addr, extent_len_t len)
+    {
       if (state < state_t::SCAN_SPACE) {
         return;
       }
@@ -845,7 +964,9 @@ private:
       }
     }
 
-    rewrite_gen_t adjust_generation(rewrite_gen_t gen) {
+    rewrite_gen_t
+    adjust_generation(rewrite_gen_t gen)
+    {
       if (has_cold_tier()) {
         return eviction_state.adjust_generation_with_eviction(gen);
       } else {
@@ -855,40 +976,54 @@ private:
 
     seastar::future<> reserve_projected_usage(io_usage_t usage);
 
-    void release_projected_usage(const io_usage_t &usage) {
+    void
+    release_projected_usage(const io_usage_t& usage)
+    {
       if (is_ready()) {
         trimmer->release_inline_usage(usage.inline_usage);
         main_cleaner->release_projected_usage(usage.cleaner_usage.main_usage);
         if (has_cold_tier()) {
-          cold_cleaner->release_projected_usage(usage.cleaner_usage.cold_ool_usage);
+          cold_cleaner->release_projected_usage(
+              usage.cleaner_usage.cold_ool_usage);
         }
       }
     }
 
     seastar::future<> stop_background();
-    backend_type_t get_main_backend_type() const {
+
+    backend_type_t
+    get_main_backend_type() const
+    {
       return get_backend_type();
     }
 
     // Testing interfaces
 
-    bool check_usage() {
+    bool
+    check_usage()
+    {
       return main_cleaner->check_usage(has_cold_tier()) &&
-        (!has_cold_tier() || cold_cleaner->check_usage(true));
+             (!has_cold_tier() || cold_cleaner->check_usage(true));
     }
 
     seastar::future<> run_until_halt();
-    
-    bool is_no_background() const {
+
+    bool
+    is_no_background() const
+    {
       return !trimmer || !main_cleaner;
     }
 
   protected:
-    state_t get_state() const final {
+    state_t
+    get_state() const final
+    {
       return state;
     }
 
-    void maybe_wake_background() final {
+    void
+    maybe_wake_background() final
+    {
       if (!is_running()) {
         return;
       }
@@ -904,15 +1039,19 @@ private:
     bool try_reserve_cold(std::size_t usage);
     void abort_cold_usage(std::size_t usage, bool success);
 
-    reserve_cleaner_result_t try_reserve_cleaner(const cleaner_usage_t &usage);
-    void abort_cleaner_usage(const cleaner_usage_t &usage,
-                             const reserve_cleaner_result_t &result);
+    reserve_cleaner_result_t try_reserve_cleaner(const cleaner_usage_t& usage);
+    void abort_cleaner_usage(
+        const cleaner_usage_t& usage,
+        const reserve_cleaner_result_t& result);
 
-    reserve_io_result_t try_reserve_io(const io_usage_t &usage);
-    void abort_io_usage(const io_usage_t &usage,
-                        const reserve_io_result_t &result);
+    reserve_io_result_t try_reserve_io(const io_usage_t& usage);
+    void abort_io_usage(
+        const io_usage_t& usage,
+        const reserve_io_result_t& result);
 
-    bool is_running() const {
+    bool
+    is_running() const
+    {
       if (state == state_t::RUNNING) {
         assert(process_join);
         return true;
@@ -922,54 +1061,64 @@ private:
       }
     }
 
-    void log_state(const char *caller) const;
+    void log_state(const char* caller) const;
 
     seastar::future<> run();
 
-    void do_wake_background() {
+    void
+    do_wake_background()
+    {
       if (blocking_background) {
-	blocking_background->set_value();
-	blocking_background = std::nullopt;
+        blocking_background->set_value();
+        blocking_background = std::nullopt;
       }
     }
 
     // background_should_run() should be atomic with do_background_cycle()
     // to make sure the condition is consistent.
-    bool background_should_run() {
+    bool
+    background_should_run()
+    {
       assert(is_ready());
       maybe_update_eviction_mode();
-      return main_cleaner_should_run()
-        || cold_cleaner_should_run()
-        || trimmer->should_trim();
+      return main_cleaner_should_run() || cold_cleaner_should_run() ||
+             trimmer->should_trim();
     }
 
-    bool main_cleaner_should_fast_evict() const {
-      return has_cold_tier() &&
-         main_cleaner->can_clean_space() &&
-         eviction_state.is_fast_mode();
+    bool
+    main_cleaner_should_fast_evict() const
+    {
+      return has_cold_tier() && main_cleaner->can_clean_space() &&
+             eviction_state.is_fast_mode();
     }
 
-    bool main_cleaner_should_run() const {
+    bool
+    main_cleaner_should_run() const
+    {
       assert(is_ready());
       return main_cleaner->should_clean_space() ||
-        main_cleaner_should_fast_evict();
+             main_cleaner_should_fast_evict();
     }
 
-    bool cold_cleaner_should_run() const {
+    bool
+    cold_cleaner_should_run() const
+    {
       assert(is_ready());
-      return has_cold_tier() &&
-        cold_cleaner->should_clean_space();
+      return has_cold_tier() && cold_cleaner->should_clean_space();
     }
 
-    bool should_block_io() const {
+    bool
+    should_block_io() const
+    {
       assert(is_ready());
       return trimmer->should_block_io_on_trim() ||
              main_cleaner->should_block_io_on_clean() ||
-             (has_cold_tier() &&
-              cold_cleaner->should_block_io_on_clean());
+             (has_cold_tier() && cold_cleaner->should_block_io_on_clean());
     }
 
-    void maybe_update_eviction_mode() {
+    void
+    maybe_update_eviction_mode()
+    {
       if (has_cold_tier()) {
         auto main_alive_ratio = main_cleaner->get_stat().get_used_raw_ratio();
         eviction_state.maybe_update_eviction_mode(main_alive_ratio);
@@ -978,14 +1127,14 @@ private:
 
     struct eviction_state_t {
       enum class eviction_mode_t {
-        STOP,     // generation greater than or equal to MIN_COLD_GENERATION
-                  // will be set to MIN_COLD_GENERATION - 1, which means
-                  // no extents will be evicted.
-        DEFAULT,  // generation incremented with each rewrite. Extents will
-                  // be evicted when generation reaches MIN_COLD_GENERATION.
-        FAST,     // map all generations located in
-                  // [MIN_REWRITE_GENERATION, MIN_COLD_GENERATIOIN) to
-                  // MIN_COLD_GENERATION.
+        STOP, // generation greater than or equal to MIN_COLD_GENERATION
+            // will be set to MIN_COLD_GENERATION - 1, which means
+            // no extents will be evicted.
+        DEFAULT, // generation incremented with each rewrite. Extents will
+            // be evicted when generation reaches MIN_COLD_GENERATION.
+        FAST, // map all generations located in
+            // [MIN_REWRITE_GENERATION, MIN_COLD_GENERATIOIN) to
+            // MIN_COLD_GENERATION.
       };
 
       eviction_mode_t eviction_mode;
@@ -994,10 +1143,13 @@ private:
       double fast_evict_ratio;
       rewrite_gen_t hot_tier_generations;
 
-      void init(double stop_ratio,
-                double default_ratio,
-                double fast_ratio,
-                rewrite_gen_t hot_tier_generations) {
+      void
+      init(
+          double stop_ratio,
+          double default_ratio,
+          double fast_ratio,
+          rewrite_gen_t hot_tier_generations)
+      {
         ceph_assert(0 <= stop_ratio);
         ceph_assert(stop_ratio < default_ratio);
         ceph_assert(default_ratio < fast_ratio);
@@ -1009,21 +1161,29 @@ private:
         this->hot_tier_generations = hot_tier_generations;
       }
 
-      bool is_stop_mode() const {
+      bool
+      is_stop_mode() const
+      {
         return eviction_mode == eviction_mode_t::STOP;
       }
 
-      bool is_default_mode() const {
+      bool
+      is_default_mode() const
+      {
         return eviction_mode == eviction_mode_t::DEFAULT;
       }
 
-      bool is_fast_mode() const {
+      bool
+      is_fast_mode() const
+      {
         return eviction_mode == eviction_mode_t::FAST;
       }
 
-      rewrite_gen_t adjust_generation_with_eviction(rewrite_gen_t gen) {
+      rewrite_gen_t
+      adjust_generation_with_eviction(rewrite_gen_t gen)
+      {
         rewrite_gen_t ret = gen;
-        switch(eviction_mode) {
+        switch (eviction_mode) {
         case eviction_mode_t::STOP:
           if (gen == hot_tier_generations) {
             ret = hot_tier_generations - 1;
@@ -1071,7 +1231,9 @@ private:
       //          -> (B && X) => normal transition
       //          -> (C && X) => (C && Y) => normal transition
       //          -> (D && X) => (D && Z) => normal transition
-      void maybe_update_eviction_mode(double main_alive_ratio) {
+      void
+      maybe_update_eviction_mode(double main_alive_ratio)
+      {
         if (main_alive_ratio <= stop_evict_ratio) {
           eviction_mode = eviction_mode_t::STOP;
         } else if (main_alive_ratio <= default_evict_ratio) {
@@ -1104,6 +1266,7 @@ private:
       uint64_t io_blocked_sum = 0;
       uint64_t io_blocked_time = 0;
     } stats;
+
     seastar::metrics::metric_group metrics;
 
     JournalTrimmerImplRef trimmer;
@@ -1150,8 +1313,10 @@ private:
 
 using ExtentPlacementManagerRef = std::unique_ptr<ExtentPlacementManager>;
 
-}
+} // namespace crimson::os::seastore
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::os::seastore::io_usage_t> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::io_usage_t>
+  : fmt::ostream_formatter {};
 #endif

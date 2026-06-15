@@ -13,43 +13,49 @@
  */
 
 #include "mon/PGMap.h"
-#include "gtest/gtest.h"
 
 #include "common/TextTable.h"
+#include "gtest/gtest.h"
 #include "include/stringify.h"
 
 using namespace std;
 
 namespace {
-  class CheckTextTable : public TextTable {
-  public:
-    explicit CheckTextTable(bool verbose) {
-      for (int i = 0; i < 5; i++) {
+class CheckTextTable : public TextTable {
+public:
+  explicit CheckTextTable(bool verbose)
+  {
+    for (int i = 0; i < 5; i++) {
+      define_column("", TextTable::LEFT, TextTable::LEFT);
+    }
+    if (verbose) {
+      for (int i = 0; i < 9; i++) {
         define_column("", TextTable::LEFT, TextTable::LEFT);
       }
-      if (verbose) {
-        for (int i = 0; i < 9; i++) {
-          define_column("", TextTable::LEFT, TextTable::LEFT);
-        }
-      }
     }
-    const string& get(unsigned r, unsigned c) const {
-      ceph_assert(r < row.size());
-      ceph_assert(c < row[r].size());
-      return row[r][c];
-    }
-  };
-
-  // copied from PGMap.cc
-  string percentify(float a) {
-    stringstream ss;
-    if (a < 0.01)
-      ss << "0";
-    else
-      ss << std::fixed << std::setprecision(2) << a;
-    return ss.str();
   }
+
+  const string&
+  get(unsigned r, unsigned c) const
+  {
+    ceph_assert(r < row.size());
+    ceph_assert(c < row[r].size());
+    return row[r][c];
+  }
+};
+
+// copied from PGMap.cc
+string
+percentify(float a)
+{
+  stringstream ss;
+  if (a < 0.01)
+    ss << "0";
+  else
+    ss << std::fixed << std::setprecision(2) << a;
+  return ss.str();
 }
+} // namespace
 
 // dump_object_stat_sum() is called by "ceph df" command
 // with table, without formatter, verbose = true, not empty, avail > 0
@@ -66,9 +72,9 @@ TEST(pgmap, dump_object_stat_sum_0)
   sum.num_rd = 100;
   sum.num_rd_kb = 123;
   sum.num_wr = 101;
-  sum.num_wr_kb = 321;    
+  sum.num_wr_kb = 321;
   pool_stat.num_store_stats = 3;
-  store_statfs_t &statfs = pool_stat.store_stats;
+  store_statfs_t& statfs = pool_stat.store_stats;
   statfs.data_stored = 40 * 1024 * 1024;
   statfs.allocated = 41 * 1024 * 1024 * 2;
   statfs.data_compressed_allocated = 4334;
@@ -83,27 +89,34 @@ TEST(pgmap, dump_object_stat_sum_0)
   pool.size = 2;
   pool.type = pg_pool_t::TYPE_REPLICATED;
   pool.tier_of = 0;
-  PGMap::dump_object_stat_sum(tbl, nullptr, pool_stat, avail,
-			      pool.get_size(), verbose, true, true, &pool);
+  PGMap::dump_object_stat_sum(
+      tbl, nullptr, pool_stat, avail, pool.get_size(), verbose, true, true,
+      &pool);
 
-  float used_percent = (float)statfs.allocated /
-    (statfs.allocated + avail) * 100;
+  float used_percent = (float)statfs.allocated / (statfs.allocated + avail) *
+                       100;
 
   unsigned col = 0;
-  ASSERT_EQ(stringify(byte_u_t(statfs.data_stored/pool.get_size())), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(statfs.data_stored/pool.get_size())), tbl.get(0, col++));
+  ASSERT_EQ(
+      stringify(byte_u_t(statfs.data_stored / pool.get_size())),
+      tbl.get(0, col++));
+  ASSERT_EQ(
+      stringify(byte_u_t(statfs.data_stored / pool.get_size())),
+      tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(sum.num_objects)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(statfs.allocated)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(statfs.allocated)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(percentify(used_percent), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(avail/pool.get_size())), tbl.get(0, col++));
+  ASSERT_EQ(stringify(byte_u_t(avail / pool.get_size())), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(pool.quota_max_objects)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(pool.quota_max_bytes)), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(sum.num_objects_dirty)), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(statfs.data_compressed_allocated)), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(statfs.data_compressed_original)), tbl.get(0, col++));
+  ASSERT_EQ(
+      stringify(byte_u_t(statfs.data_compressed_allocated)), tbl.get(0, col++));
+  ASSERT_EQ(
+      stringify(byte_u_t(statfs.data_compressed_original)), tbl.get(0, col++));
 }
 
 // with table, without formatter, verbose = true, empty, avail > 0
@@ -122,8 +135,9 @@ TEST(pgmap, dump_object_stat_sum_1)
   pool.size = 2;
   pool.type = pg_pool_t::TYPE_REPLICATED;
   pool.tier_of = 0;
-  PGMap::dump_object_stat_sum(tbl, nullptr, pool_stat, avail,
-			      pool.get_size(), verbose, true, true, &pool);
+  PGMap::dump_object_stat_sum(
+      tbl, nullptr, pool_stat, avail, pool.get_size(), verbose, true, true,
+      &pool);
   unsigned col = 0;
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
@@ -133,7 +147,7 @@ TEST(pgmap, dump_object_stat_sum_1)
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(percentify(0), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(avail/pool.size)), tbl.get(0, col++));
+  ASSERT_EQ(stringify(byte_u_t(avail / pool.size)), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(pool.quota_max_objects)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(pool.quota_max_bytes)), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(0)), tbl.get(0, col++));
@@ -157,12 +171,13 @@ TEST(pgmap, dump_object_stat_sum_2)
   pool.size = 2;
   pool.type = pg_pool_t::TYPE_REPLICATED;
 
-  PGMap::dump_object_stat_sum(tbl, nullptr, pool_stat, avail,
-			      pool.get_size(), verbose, true, true, &pool);  
+  PGMap::dump_object_stat_sum(
+      tbl, nullptr, pool_stat, avail, pool.get_size(), verbose, true, true,
+      &pool);
   unsigned col = 0;
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(stringify(si_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(stringify(byte_u_t(0)), tbl.get(0, col++));
   ASSERT_EQ(percentify(0), tbl.get(0, col++));
-  ASSERT_EQ(stringify(byte_u_t(avail/pool.size)), tbl.get(0, col++));
+  ASSERT_EQ(stringify(byte_u_t(avail / pool.size)), tbl.get(0, col++));
 }

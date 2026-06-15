@@ -2,24 +2,28 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "common/AsyncOpTracker.h"
+
 #include "include/Context.h"
 
-AsyncOpTracker::AsyncOpTracker()
-{
-}
+AsyncOpTracker::AsyncOpTracker() {}
 
-AsyncOpTracker::~AsyncOpTracker() {
+AsyncOpTracker::~AsyncOpTracker()
+{
   std::lock_guard locker(m_lock);
   ceph_assert(m_pending_ops == 0);
 }
 
-void AsyncOpTracker::start_op() {
+void
+AsyncOpTracker::start_op()
+{
   std::lock_guard locker(m_lock);
   ++m_pending_ops;
 }
 
-void AsyncOpTracker::finish_op() {
-  Context *on_finish = nullptr;
+void
+AsyncOpTracker::finish_op()
+{
+  Context* on_finish = nullptr;
   {
     std::lock_guard locker(m_lock);
     ceph_assert(m_pending_ops > 0);
@@ -33,7 +37,9 @@ void AsyncOpTracker::finish_op() {
   }
 }
 
-void AsyncOpTracker::wait_for_ops(Context *on_finish) {
+void
+AsyncOpTracker::wait_for_ops(Context* on_finish)
+{
   {
     std::lock_guard locker(m_lock);
     ceph_assert(m_on_finish == nullptr);
@@ -45,8 +51,9 @@ void AsyncOpTracker::wait_for_ops(Context *on_finish) {
   on_finish->complete(0);
 }
 
-bool AsyncOpTracker::empty() {
+bool
+AsyncOpTracker::empty()
+{
   std::lock_guard locker(m_lock);
   return (m_pending_ops == 0);
 }
-

@@ -17,9 +17,12 @@
 
 #include <cstdint>
 #include <string>
+
 #include <boost/intrusive_ptr.hpp>
-#include "include/rados/librados_fwd.hpp"
+
 #include "common/ceph_time.h"
+#include "include/rados/librados_fwd.hpp"
+
 #include "rgw_sal_fwd.h"
 
 class DoutPrefixProvider;
@@ -34,63 +37,71 @@ struct RGWStorageStats;
 namespace rgwrados::buckets {
 
 /// Add the given bucket to the list.
-int add(const DoutPrefixProvider* dpp,
-        optional_yield y,
-        librados::Rados& rados,
-        const rgw_raw_obj& obj,
-        const rgw_bucket& bucket,
-        ceph::real_time creation_time);
+int add(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const rgw_bucket& bucket,
+    ceph::real_time creation_time);
 
 /// Remove the given bucket from the list.
-int remove(const DoutPrefixProvider* dpp,
-           optional_yield y,
-           librados::Rados& rados,
-           const rgw_raw_obj& obj,
-           const rgw_bucket& bucket);
+int remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const rgw_bucket& bucket);
 
 /// Return a paginated list of buckets.
-int list(const DoutPrefixProvider* dpp,
-         optional_yield y,
-         librados::Rados& rados,
-         const rgw_raw_obj& obj,
-         const std::string& tenant,
-         const std::string& marker,
-         const std::string& end_marker,
-         uint64_t max,
-         rgw::sal::BucketList& buckets);
+int list(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const std::string& tenant,
+    const std::string& marker,
+    const std::string& end_marker,
+    uint64_t max,
+    rgw::sal::BucketList& buckets);
 
 /// Update usage stats for the given bucket.
-int write_stats(const DoutPrefixProvider* dpp,
-                optional_yield y,
-                librados::Rados& rados,
-                const rgw_raw_obj& obj,
-                const RGWBucketEnt& bucket);
+int write_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const RGWBucketEnt& bucket);
 
 /// Read the total usage stats of all buckets.
-int read_stats(const DoutPrefixProvider* dpp,
-               optional_yield y,
-               librados::Rados& rados,
-               const rgw_raw_obj& obj,
-               RGWStorageStats& stats,
-               ceph::real_time* last_synced,
-               ceph::real_time* last_updated);
+int read_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    RGWStorageStats& stats,
+    ceph::real_time* last_synced,
+    ceph::real_time* last_updated);
 
 /// Read the total usage stats of all buckets asynchronously.
-int read_stats_async(const DoutPrefixProvider* dpp,
-                     librados::Rados& rados,
-                     const rgw_raw_obj& obj,
-                     boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb);
+int read_stats_async(
+    const DoutPrefixProvider* dpp,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb);
 
 /// Recalculate the sum of bucket usage.
-int reset_stats(const DoutPrefixProvider* dpp,
-                optional_yield y,
-                librados::Rados& rados,
-                const rgw_raw_obj& obj);
+int reset_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj);
 
 /// Update the last_synced timestamp.
-int complete_flush_stats(const DoutPrefixProvider* dpp,
-                         optional_yield y,
-                         librados::Rados& rados,
-                         const rgw_raw_obj& obj);
+int complete_flush_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj);
 
 } // namespace rgwrados::buckets

@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "common/async/yield_context.h"
 #include "common/ceph_crypto.h"
 #include "common/dout.h"
-#include "common/async/yield_context.h"
 
 #include "rgw_putobj.h"
 #include "rgw_sal_fwd.h"
@@ -32,10 +32,11 @@ void bencode(std::string_view key, std::string_view value, bufferlist& bl);
 
 
 // read the bencoded torrent file from the given object
-int rgw_read_torrent_file(const DoutPrefixProvider* dpp,
-                          rgw::sal::Object* object,
-                          ceph::bufferlist &bl,
-                          optional_yield y);
+int rgw_read_torrent_file(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Object* object,
+    ceph::bufferlist& bl,
+    optional_yield y);
 
 // PutObj filter that builds a torrent file during upload
 class RGWPutObj_Torrent : public rgw::putobj::Pipe {
@@ -47,9 +48,11 @@ class RGWPutObj_Torrent : public rgw::putobj::Pipe {
   uint32_t piece_count = 0;
   ceph::crypto::SHA1 digest;
 
- public:
-  RGWPutObj_Torrent(rgw::sal::DataProcessor* next,
-                    size_t max_len, size_t piece_len);
+public:
+  RGWPutObj_Torrent(
+      rgw::sal::DataProcessor* next,
+      size_t max_len,
+      size_t piece_len);
 
   int process(bufferlist&& data, uint64_t logical_offset) override;
 

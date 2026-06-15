@@ -11,14 +11,16 @@
  *
  */
 
-#include "common/async/spawn_group.h"
+#include <gtest/gtest.h>
 
 #include <optional>
+
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
-#include <gtest/gtest.h>
+
 #include "common/async/co_waiter.h"
+#include "common/async/spawn_group.h"
 
 namespace ceph::async {
 
@@ -32,13 +34,15 @@ template <typename T>
 using awaitable = asio::awaitable<T, executor_type>;
 
 template <typename T>
-auto capture(std::optional<T>& opt)
+auto
+capture(std::optional<T>& opt)
 {
-  return [&opt] (T value) { opt = std::move(value); };
+  return [&opt](T value) { opt = std::move(value); };
 }
 
 template <typename T>
-auto capture(asio::cancellation_signal& signal, std::optional<T>& opt)
+auto
+capture(asio::cancellation_signal& signal, std::optional<T>& opt)
 {
   return asio::bind_cancellation_slot(signal.slot(), capture(opt));
 }
@@ -49,7 +53,7 @@ TEST(spawn_group, spawn_limit)
   auto ex = ctx.get_executor();
   auto group = spawn_group{ex, 1};
 
-  auto cr = [] () -> awaitable<void> { co_return; };
+  auto cr = []() -> awaitable<void> { co_return; };
 
   asio::co_spawn(ex, cr(), group);
   EXPECT_THROW(asio::co_spawn(ex, cr(), group), std::length_error);
@@ -114,7 +118,7 @@ TEST(spawn_group, spawn_wait_shutdown)
   auto ex = ctx.get_executor();
 
   co_waiter<void, executor_type> waiter;
-  auto cr = [ex, &waiter] () -> awaitable<void> {
+  auto cr = [ex, &waiter]() -> awaitable<void> {
     auto group = spawn_group{ex, 1};
     asio::co_spawn(ex, waiter.get(), group);
     co_await group.wait();
@@ -135,7 +139,7 @@ TEST(spawn_group, spawn_wait_cancel)
   auto ex = ctx.get_executor();
 
   co_waiter<void, executor_type> waiter;
-  auto cr = [ex, &waiter] () -> awaitable<void> {
+  auto cr = [ex, &waiter]() -> awaitable<void> {
     auto group = spawn_group{ex, 1};
     asio::co_spawn(ex, waiter.get(), group);
     co_await group.wait();

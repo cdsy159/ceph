@@ -13,13 +13,13 @@
  */
 
 
-#ifndef  __NVMEOFGWMONITORGROUPCLIENT_H__
-#define  __NVMEOFGWMONITORGROUPCLIENT_H__
+#ifndef __NVMEOFGWMONITORGROUPCLIENT_H__
+#define __NVMEOFGWMONITORGROUPCLIENT_H__
+#include <grpcpp/grpcpp.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
-
-#include <grpcpp/grpcpp.h>
 
 #include "monitor.grpc.pb.h"
 
@@ -28,13 +28,14 @@ using grpc::ClientContext;
 using grpc::Status;
 
 class NVMeofGwMonitorGroupClient {
- public:
-  NVMeofGwMonitorGroupClient(std::shared_ptr<Channel> channel)
-      : stub_(MonitorGroup::NewStub(channel)) {}
+public:
+  NVMeofGwMonitorGroupClient(std::shared_ptr<Channel> channel) :
+    stub_(MonitorGroup::NewStub(channel))
+  {}
 
   bool set_group_id(const uint32_t& id);
 
- private:
+private:
   std::unique_ptr<MonitorGroup::Stub> stub_;
 };
 #endif

@@ -28,19 +28,21 @@ namespace image_map {
 extern const std::string UNMAPPED_INSTANCE_ID;
 
 struct Listener {
-  virtual ~Listener() {
-  }
+  virtual ~Listener() {}
 
-  virtual void acquire_image(const std::string &global_image_id,
-                             const std::string &instance_id,
-                             Context* on_finish) = 0;
-  virtual void release_image(const std::string &global_image_id,
-                             const std::string &instance_id,
-                             Context* on_finish) = 0;
-  virtual void remove_image(const std::string &mirror_uuid,
-                            const std::string &global_image_id,
-                            const std::string &instance_id,
-                            Context* on_finish) = 0;
+  virtual void acquire_image(
+      const std::string& global_image_id,
+      const std::string& instance_id,
+      Context* on_finish) = 0;
+  virtual void release_image(
+      const std::string& global_image_id,
+      const std::string& instance_id,
+      Context* on_finish) = 0;
+  virtual void remove_image(
+      const std::string& mirror_uuid,
+      const std::string& global_image_id,
+      const std::string& instance_id,
+      Context* on_finish) = 0;
 };
 
 struct LookupInfo {
@@ -67,46 +69,51 @@ enum PolicyMetaType : uint32_t {
 struct PolicyMetaNone {
   static const PolicyMetaType TYPE = POLICY_META_TYPE_NONE;
 
-  PolicyMetaNone() {
-  }
+  PolicyMetaNone() {}
 
-  void encode(bufferlist& bl) const {
-  }
+  void
+  encode(bufferlist& bl) const
+  {}
 
-  void decode(__u8 version, bufferlist::const_iterator& it) {
-  }
+  void
+  decode(__u8 version, bufferlist::const_iterator& it)
+  {}
 
-  void dump(Formatter *f) const {
-  }
+  void
+  dump(Formatter* f) const
+  {}
 };
 
 struct PolicyMetaUnknown {
   static const PolicyMetaType TYPE = static_cast<PolicyMetaType>(-1);
 
-  PolicyMetaUnknown() {
-  }
+  PolicyMetaUnknown() {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ceph_abort();
   }
 
-  void decode(__u8 version, bufferlist::const_iterator& it) {
-  }
+  void
+  decode(__u8 version, bufferlist::const_iterator& it)
+  {}
 
-  void dump(Formatter *f) const {
-  }
+  void
+  dump(Formatter* f) const
+  {}
 };
 
-typedef std::variant<PolicyMetaNone,
-		     PolicyMetaUnknown> PolicyMeta;
+typedef std::variant<PolicyMetaNone, PolicyMetaUnknown> PolicyMeta;
 
 struct PolicyData {
-  PolicyData()
-    : policy_meta(PolicyMetaUnknown()) {
-  }
-  PolicyData(const PolicyMeta &policy_meta)
-    : policy_meta(policy_meta) {
-  }
+  PolicyData() :
+    policy_meta(PolicyMetaUnknown())
+  {}
+
+  PolicyData(const PolicyMeta& policy_meta) :
+    policy_meta(policy_meta)
+  {}
 
   PolicyMeta policy_meta;
 
@@ -114,14 +121,14 @@ struct PolicyData {
 
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& it);
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 
   static std::list<PolicyData> generate_test_instances();
 };
 
 WRITE_CLASS_ENCODER(PolicyData);
 
-std::ostream &operator<<(std::ostream &os, const ActionType &action_type);
+std::ostream& operator<<(std::ostream& os, const ActionType& action_type);
 
 } // namespace image_map
 } // namespace mirror

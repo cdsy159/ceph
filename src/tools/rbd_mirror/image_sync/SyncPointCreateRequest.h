@@ -4,14 +4,27 @@
 #ifndef RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_CREATE_REQUEST_H
 #define RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_CREATE_REQUEST_H
 
-#include "librbd/internal.h"
-#include "Types.h"
 #include <string>
 
+#include "librbd/internal.h"
+
+#include "Types.h"
+
 class Context;
-namespace journal { class Journaler; }
-namespace librbd { class ImageCtx; }
-namespace librbd { namespace journal { struct MirrorPeerClientMeta; } }
+
+namespace journal {
+class Journaler;
+}
+
+namespace librbd {
+class ImageCtx;
+}
+
+namespace librbd {
+namespace journal {
+struct MirrorPeerClientMeta;
+}
+} // namespace librbd
 
 namespace rbd {
 namespace mirror {
@@ -20,20 +33,22 @@ namespace image_sync {
 template <typename ImageCtxT = librbd::ImageCtx>
 class SyncPointCreateRequest {
 public:
-  static SyncPointCreateRequest* create(
-      ImageCtxT *remote_image_ctx,
-      const std::string &local_mirror_uuid,
+  static SyncPointCreateRequest*
+  create(
+      ImageCtxT* remote_image_ctx,
+      const std::string& local_mirror_uuid,
       SyncPointHandler* sync_point_handler,
-      Context *on_finish) {
-    return new SyncPointCreateRequest(remote_image_ctx, local_mirror_uuid,
-                                      sync_point_handler, on_finish);
+      Context* on_finish)
+  {
+    return new SyncPointCreateRequest(
+        remote_image_ctx, local_mirror_uuid, sync_point_handler, on_finish);
   }
 
   SyncPointCreateRequest(
-      ImageCtxT *remote_image_ctx,
-      const std::string &local_mirror_uuid,
+      ImageCtxT* remote_image_ctx,
+      const std::string& local_mirror_uuid,
       SyncPointHandler* sync_point_handler,
-      Context *on_finish);
+      Context* on_finish);
 
   void send();
 
@@ -61,10 +76,10 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_remote_image_ctx;
+  ImageCtxT* m_remote_image_ctx;
   std::string m_local_mirror_uuid;
   SyncPointHandler* m_sync_point_handler;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   SyncPoints m_sync_points_copy;
   librbd::NoOpProgressContext m_prog_ctx;
@@ -88,6 +103,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_sync::SyncPointCreateRequest<librbd::ImageCtx>;
+extern template class rbd::mirror::image_sync::SyncPointCreateRequest<
+    librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_CREATE_REQUEST_H

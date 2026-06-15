@@ -1,8 +1,9 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // Tests for the C API coverage of atomic read operations
 
-#include <cstring> // For memcpy
 #include <errno.h>
+
+#include <cstring> // For memcpy
 #include <string>
 
 #include "include/buffer.h"
@@ -14,21 +15,31 @@
 #include "test/librados/TestCase.h"
 #include "test/librados/test.h"
 
-const char *data = "testdata";
-const char *obj = "testobj";
+const char* data = "testdata";
+const char* obj = "testobj";
 const size_t len = strlen(data);
 
 class CReadOpsTest : public RadosTest {
 protected:
-  void write_object() {
+  void
+  write_object()
+  {
     // Create an object and write to it
     ASSERT_EQ(0, rados_write(ioctx, obj, data, len, 0));
   }
-  void remove_object() {
+
+  void
+  remove_object()
+  {
     ASSERT_EQ(0, rados_remove(ioctx, obj));
   }
-  int cmp_xattr(const char *xattr, const char *value, size_t value_len,
-		uint8_t cmp_op)
+
+  int
+  cmp_xattr(
+      const char* xattr,
+      const char* value,
+      size_t value_len,
+      uint8_t cmp_op)
   {
     rados_read_op_t op = rados_create_read_op();
     rados_read_op_cmpxattr(op, xattr, cmp_op, value, value_len);
@@ -37,25 +48,27 @@ protected:
     return r;
   }
 
-  void fetch_and_verify_omap_vals(char const* const* keys,
-				  char const* const* vals,
-				  const size_t *lens,
-				  size_t len)
+  void
+  fetch_and_verify_omap_vals(
+      char const* const* keys,
+      char const* const* vals,
+      const size_t* lens,
+      size_t len)
   {
     rados_omap_iter_t iter_vals, iter_keys, iter_vals_by_key;
     int r_vals, r_keys, r_vals_by_key;
     rados_read_op_t op = rados_create_read_op();
     rados_read_op_omap_get_vals2(op, NULL, NULL, 100, &iter_vals, NULL, &r_vals);
     rados_read_op_omap_get_keys2(op, NULL, 100, &iter_keys, NULL, &r_keys);
-    rados_read_op_omap_get_vals_by_keys(op, keys, len,
-					&iter_vals_by_key, &r_vals_by_key);
+    rados_read_op_omap_get_vals_by_keys(
+        op, keys, len, &iter_vals_by_key, &r_vals_by_key);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     rados_release_read_op(op);
     ASSERT_EQ(0, r_vals);
     ASSERT_EQ(0, r_keys);
     ASSERT_EQ(0, r_vals_by_key);
 
-    const char *zeros[len];
+    const char* zeros[len];
     size_t zero_lens[len];
     memset(zeros, 0, sizeof(zeros));
     memset(zero_lens, 0, sizeof(zero_lens));
@@ -64,25 +77,27 @@ protected:
     compare_omap_vals(keys, vals, lens, len, iter_vals_by_key);
   }
 
-  void compare_omap_vals(char const* const* keys,
-			 char const* const* vals,
-			 const size_t *lens,
-			 size_t len,
-			 rados_omap_iter_t iter)
+  void
+  compare_omap_vals(
+      char const* const* keys,
+      char const* const* vals,
+      const size_t* lens,
+      size_t len,
+      rados_omap_iter_t iter)
   {
     size_t i = 0;
-    char *key = NULL;
-    char *val = NULL;
+    char* key = NULL;
+    char* val = NULL;
     size_t val_len = 0;
     ASSERT_EQ(len, rados_omap_iter_size(iter));
     while (i < len) {
       ASSERT_EQ(0, rados_omap_get_next(iter, &key, &val, &val_len));
       if (val_len == 0 && key == NULL && val == NULL)
-	break;
+        break;
       if (key)
-	EXPECT_EQ(std::string(keys[i]), std::string(key));
+        EXPECT_EQ(std::string(keys[i]), std::string(key));
       else
-	EXPECT_EQ(keys[i], key);
+        EXPECT_EQ(keys[i], key);
       ASSERT_EQ(0, memcmp(vals[i], val, val_len));
       ASSERT_EQ(lens[i], val_len);
       ++i;
@@ -96,17 +111,19 @@ protected:
   }
 
   // these two used to test omap funcs that accept length for both keys and vals
-  void fetch_and_verify_omap_vals2(char const* const* keys,
-                                  char const* const* vals,
-                                  const size_t *keylens,
-                                  const size_t *vallens,
-                                  size_t len)
+  void
+  fetch_and_verify_omap_vals2(
+      char const* const* keys,
+      char const* const* vals,
+      const size_t* keylens,
+      const size_t* vallens,
+      size_t len)
   {
     rados_omap_iter_t iter_vals_by_key;
     int r_vals_by_key;
     rados_read_op_t op = rados_create_read_op();
-    rados_read_op_omap_get_vals_by_keys2(op, keys, len, keylens,
-                                        &iter_vals_by_key, &r_vals_by_key);
+    rados_read_op_omap_get_vals_by_keys2(
+        op, keys, len, keylens, &iter_vals_by_key, &r_vals_by_key);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     rados_release_read_op(op);
     ASSERT_EQ(0, r_vals_by_key);
@@ -114,16 +131,18 @@ protected:
     compare_omap_vals2(keys, vals, keylens, vallens, len, iter_vals_by_key);
   }
 
-  void compare_omap_vals2(char const* const* keys,
-                         char const* const* vals,
-                         const size_t *keylens,
-                         const size_t *vallens,
-                         size_t len,
-                         rados_omap_iter_t iter)
+  void
+  compare_omap_vals2(
+      char const* const* keys,
+      char const* const* vals,
+      const size_t* keylens,
+      const size_t* vallens,
+      size_t len,
+      rados_omap_iter_t iter)
   {
     size_t i = 0;
-    char *key = NULL;
-    char *val = NULL;
+    char* key = NULL;
+    char* val = NULL;
     size_t key_len = 0;
     size_t val_len = 0;
     ASSERT_EQ(len, rados_omap_iter_size(iter));
@@ -149,21 +168,24 @@ protected:
     rados_omap_get_end(iter);
   }
 
-  void compare_xattrs(char const* const* keys,
-		      char const* const* vals,
-		      const size_t *lens,
-		      size_t len,
-		      rados_xattrs_iter_t iter)
+  void
+  compare_xattrs(
+      char const* const* keys,
+      char const* const* vals,
+      const size_t* lens,
+      size_t len,
+      rados_xattrs_iter_t iter)
   {
     size_t i = 0;
-    char *key = NULL;
-    char *val = NULL;
+    char* key = NULL;
+    char* val = NULL;
     size_t val_len = 0;
     while (i < len) {
-      ASSERT_EQ(0, rados_getxattrs_next(iter, (const char**) &key,
-					(const char**) &val, &val_len));
+      ASSERT_EQ(
+          0, rados_getxattrs_next(
+                 iter, (const char**)&key, (const char**)&val, &val_len));
       if (key == NULL)
-	break;
+        break;
       EXPECT_EQ(std::string(keys[i]), std::string(key));
       if (val != NULL) {
         EXPECT_EQ(0, memcmp(vals[i], val, val_len));
@@ -172,8 +194,9 @@ protected:
       ++i;
     }
     ASSERT_EQ(i, len);
-    ASSERT_EQ(0, rados_getxattrs_next(iter, (const char**)&key,
-				      (const char**)&val, &val_len));
+    ASSERT_EQ(
+        0, rados_getxattrs_next(
+               iter, (const char**)&key, (const char**)&val, &val_len));
     ASSERT_EQ((char*)NULL, key);
     ASSERT_EQ((char*)NULL, val);
     ASSERT_EQ(0u, val_len);
@@ -181,21 +204,22 @@ protected:
   }
 };
 
-TEST_F(CReadOpsTest, NewDelete) {
+TEST_F(CReadOpsTest, NewDelete)
+{
   rados_read_op_t op = rados_create_read_op();
   ASSERT_TRUE(op);
   rados_release_read_op(op);
 }
 
-TEST_F(CReadOpsTest, SetOpFlags) {
+TEST_F(CReadOpsTest, SetOpFlags)
+{
   write_object();
 
   rados_read_op_t op = rados_create_read_op();
   size_t bytes_read = 0;
-  char *out = NULL;
+  char* out = NULL;
   int rval = 0;
-  rados_read_op_exec(op, "rbd", "get_id", NULL, 0, &out,
-		     &bytes_read, &rval);
+  rados_read_op_exec(op, "rbd", "get_id", NULL, 0, &out, &bytes_read, &rval);
   rados_read_op_set_flags(op, LIBRADOS_OP_FLAG_FAILOK);
   EXPECT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
   EXPECT_EQ(-EIO, rval);
@@ -206,7 +230,8 @@ TEST_F(CReadOpsTest, SetOpFlags) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, AssertExists) {
+TEST_F(CReadOpsTest, AssertExists)
+{
   rados_read_op_t op = rados_create_read_op();
   rados_read_op_assert_exists(op);
 
@@ -234,7 +259,8 @@ TEST_F(CReadOpsTest, AssertExists) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, AssertVersion) {
+TEST_F(CReadOpsTest, AssertVersion)
+{
   write_object();
   // Write to the object a second time to guarantee that its
   // version number is greater than 0
@@ -242,12 +268,12 @@ TEST_F(CReadOpsTest, AssertVersion) {
   uint64_t v = rados_get_last_version(ioctx);
 
   rados_read_op_t op = rados_create_read_op();
-  rados_read_op_assert_version(op, v+1);
+  rados_read_op_assert_version(op, v + 1);
   ASSERT_EQ(-EOVERFLOW, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
 
   op = rados_create_read_op();
-  rados_read_op_assert_version(op, v-1);
+  rados_read_op_assert_version(op, v - 1);
   ASSERT_EQ(-ERANGE, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
 
@@ -259,39 +285,52 @@ TEST_F(CReadOpsTest, AssertVersion) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, CmpXattr) {
+TEST_F(CReadOpsTest, CmpXattr)
+{
   write_object();
 
   char buf[len];
   memset(buf, 0xcc, sizeof(buf));
 
-  const char *xattr = "test";
+  const char* xattr = "test";
   rados_setxattr(ioctx, obj, xattr, buf, sizeof(buf));
 
   // equal value
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_EQ));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_NE));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_GT));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_NE));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_GT));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_GTE));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LT));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LT));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LTE));
 
   // < value
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_EQ));
+  EXPECT_EQ(
+      -ECANCELED,
+      cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_EQ));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_NE));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_GT));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_GTE));
+  EXPECT_EQ(
+      -ECANCELED,
+      cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_GT));
+  EXPECT_EQ(
+      -ECANCELED,
+      cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_GTE));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_LT));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf) - 1, LIBRADOS_CMPXATTR_OP_LTE));
 
   // > value
   memset(buf, 0xcd, sizeof(buf));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_EQ));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_EQ));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_NE));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_GT));
   EXPECT_EQ(1, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_GTE));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LT));
-  EXPECT_EQ(-ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LTE));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LT));
+  EXPECT_EQ(
+      -ECANCELED, cmp_xattr(xattr, buf, sizeof(buf), LIBRADOS_CMPXATTR_OP_LTE));
 
   // check that null bytes are compared correctly
   rados_setxattr(ioctx, obj, xattr, "\0\0", 2);
@@ -314,7 +353,8 @@ TEST_F(CReadOpsTest, CmpXattr) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, Read) {
+TEST_F(CReadOpsTest, Read)
+{
   write_object();
 
   char buf[len];
@@ -376,15 +416,17 @@ TEST_F(CReadOpsTest, Read) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, Checksum) {
+TEST_F(CReadOpsTest, Checksum)
+{
   write_object();
 
   {
     rados_read_op_t op = rados_create_read_op();
     ceph_le64 init_value(-1);
-    rados_read_op_checksum(op, LIBRADOS_CHECKSUM_TYPE_XXHASH64,
-			   reinterpret_cast<char *>(&init_value),
-			   sizeof(init_value), 0, len, 0, NULL, 0, NULL);
+    rados_read_op_checksum(
+        op, LIBRADOS_CHECKSUM_TYPE_XXHASH64,
+        reinterpret_cast<char*>(&init_value), sizeof(init_value), 0, len, 0,
+        NULL, 0, NULL);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     rados_release_read_op(op);
   }
@@ -393,15 +435,14 @@ TEST_F(CReadOpsTest, Checksum) {
     ceph_le32 init_value(-1);
     ceph_le32 crc[2];
     rados_read_op_t op = rados_create_read_op();
-    rados_read_op_checksum(op, LIBRADOS_CHECKSUM_TYPE_CRC32C,
-			   reinterpret_cast<char *>(&init_value),
-			   sizeof(init_value), 0, len, 0,
-			   reinterpret_cast<char *>(&crc), sizeof(crc),
-			   nullptr);
+    rados_read_op_checksum(
+        op, LIBRADOS_CHECKSUM_TYPE_CRC32C, reinterpret_cast<char*>(&init_value),
+        sizeof(init_value), 0, len, 0, reinterpret_cast<char*>(&crc),
+        sizeof(crc), nullptr);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     ASSERT_EQ(1U, crc[0]);
     uint32_t expected_crc = ceph_crc32c(
-      -1, reinterpret_cast<const uint8_t*>(data), static_cast<uint32_t>(len));
+        -1, reinterpret_cast<const uint8_t*>(data), static_cast<uint32_t>(len));
     ASSERT_EQ(expected_crc, crc[1]);
     rados_release_read_op(op);
   }
@@ -410,9 +451,10 @@ TEST_F(CReadOpsTest, Checksum) {
     ceph_le32 init_value(-1);
     int rval;
     rados_read_op_t op = rados_create_read_op();
-    rados_read_op_checksum(op, LIBRADOS_CHECKSUM_TYPE_XXHASH32,
-                           reinterpret_cast<char *>(&init_value),
-			   sizeof(init_value), 0, len, 0, nullptr, 0, &rval);
+    rados_read_op_checksum(
+        op, LIBRADOS_CHECKSUM_TYPE_XXHASH32,
+        reinterpret_cast<char*>(&init_value), sizeof(init_value), 0, len, 0,
+        nullptr, 0, &rval);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     ASSERT_EQ(0, rval);
     rados_release_read_op(op);
@@ -423,17 +465,17 @@ TEST_F(CReadOpsTest, Checksum) {
     ceph_le32 crc[3];
     int rval;
     rados_read_op_t op = rados_create_read_op();
-    rados_read_op_checksum(op, LIBRADOS_CHECKSUM_TYPE_CRC32C,
-                           reinterpret_cast<char *>(&init_value),
-			   sizeof(init_value), 0, len, 4,
-			   reinterpret_cast<char *>(&crc), sizeof(crc), &rval);
+    rados_read_op_checksum(
+        op, LIBRADOS_CHECKSUM_TYPE_CRC32C, reinterpret_cast<char*>(&init_value),
+        sizeof(init_value), 0, len, 4, reinterpret_cast<char*>(&crc),
+        sizeof(crc), &rval);
     ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
     ASSERT_EQ(2U, crc[0]);
     uint32_t expected_crc[2];
-    expected_crc[0] = ceph_crc32c(
-      -1, reinterpret_cast<const uint8_t*>(data), 4U);
-    expected_crc[1] = ceph_crc32c(
-      -1, reinterpret_cast<const uint8_t*>(data + 4), 4U);
+    expected_crc[0] =
+        ceph_crc32c(-1, reinterpret_cast<const uint8_t*>(data), 4U);
+    expected_crc[1] =
+        ceph_crc32c(-1, reinterpret_cast<const uint8_t*>(data + 4), 4U);
     ASSERT_EQ(expected_crc[0], crc[1]);
     ASSERT_EQ(expected_crc[1], crc[2]);
     ASSERT_EQ(0, rval);
@@ -443,7 +485,8 @@ TEST_F(CReadOpsTest, Checksum) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, RWOrderedRead) {
+TEST_F(CReadOpsTest, RWOrderedRead)
+{
   write_object();
 
   char buf[len];
@@ -452,8 +495,9 @@ TEST_F(CReadOpsTest, RWOrderedRead) {
   int rval;
   rados_read_op_read(op, 0, len, buf, &bytes_read, &rval);
   rados_read_op_set_flags(op, LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
-  ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj,
-				     LIBRADOS_OPERATION_ORDER_READS_WRITES));
+  ASSERT_EQ(
+      0, rados_read_op_operate(
+             op, ioctx, obj, LIBRADOS_OPERATION_ORDER_READS_WRITES));
   ASSERT_EQ(len, bytes_read);
   ASSERT_EQ(0, rval);
   ASSERT_EQ(0, memcmp(data, buf, len));
@@ -462,7 +506,8 @@ TEST_F(CReadOpsTest, RWOrderedRead) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, ShortRead) {
+TEST_F(CReadOpsTest, ShortRead)
+{
   write_object();
 
   char buf[len * 2];
@@ -511,17 +556,18 @@ TEST_F(CReadOpsTest, ShortRead) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, Exec) {
+TEST_F(CReadOpsTest, Exec)
+{
   // create object so we don't get -ENOENT
   write_object();
 
   rados_read_op_t op = rados_create_read_op();
   ASSERT_TRUE(op);
   size_t bytes_read = 0;
-  char *out = NULL;
+  char* out = NULL;
   int rval = 0;
-  rados_read_op_exec(op, "rbd", "get_all_features", NULL, 0, &out,
-		     &bytes_read, &rval);
+  rados_read_op_exec(
+      op, "rbd", "get_all_features", NULL, 0, &out, &bytes_read, &rval);
   ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
   EXPECT_EQ(0, rval);
@@ -539,7 +585,8 @@ TEST_F(CReadOpsTest, Exec) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, ExecUserBuf) {
+TEST_F(CReadOpsTest, ExecUserBuf)
+{
   // create object so we don't get -ENOENT
   write_object();
 
@@ -548,8 +595,9 @@ TEST_F(CReadOpsTest, ExecUserBuf) {
   uint64_t features;
   char out[sizeof(features)];
   int rval = 0;
-  rados_read_op_exec_user_buf(op, "rbd", "get_all_features", NULL, 0, out,
-			      sizeof(out), &bytes_read, &rval);
+  rados_read_op_exec_user_buf(
+      op, "rbd", "get_all_features", NULL, 0, out, sizeof(out), &bytes_read,
+      &rval);
   ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
   EXPECT_EQ(0, rval);
@@ -558,8 +606,9 @@ TEST_F(CReadOpsTest, ExecUserBuf) {
   // buffer too short
   bytes_read = 1024;
   op = rados_create_read_op();
-  rados_read_op_exec_user_buf(op, "rbd", "get_all_features", NULL, 0, out,
-			      sizeof(features) - 1, &bytes_read, &rval);
+  rados_read_op_exec_user_buf(
+      op, "rbd", "get_all_features", NULL, 0, out, sizeof(features) - 1,
+      &bytes_read, &rval);
   ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
   EXPECT_EQ(0u, bytes_read);
@@ -567,15 +616,17 @@ TEST_F(CReadOpsTest, ExecUserBuf) {
 
   // input buffer and no rval or bytes_read
   op = rados_create_read_op();
-  rados_read_op_exec_user_buf(op, "rbd", "get_all_features", out, sizeof(out),
-			      out, sizeof(out), NULL, NULL);
+  rados_read_op_exec_user_buf(
+      op, "rbd", "get_all_features", out, sizeof(out), out, sizeof(out), NULL,
+      NULL);
   ASSERT_EQ(0, rados_read_op_operate(op, ioctx, obj, 0));
   rados_release_read_op(op);
 
   remove_object();
 }
 
-TEST_F(CReadOpsTest, Stat) {
+TEST_F(CReadOpsTest, Stat)
+{
   rados_read_op_t op = rados_create_read_op();
   uint64_t size = 1;
   int rval = 0;
@@ -613,7 +664,8 @@ TEST_F(CReadOpsTest, Stat) {
   rados_release_read_op(op);
 }
 
-TEST_F(CReadOpsTest, Stat2) {
+TEST_F(CReadOpsTest, Stat2)
+{
   rados_read_op_t op = rados_create_read_op();
   uint64_t size = 1;
   int rval = 0;
@@ -654,15 +706,10 @@ TEST_F(CReadOpsTest, Stat2) {
   rados_release_read_op(op);
 }
 
-TEST_F(CReadOpsTest, Omap) {
-  char *keys[] = {(char*)"bar",
-		  (char*)"foo",
-		  (char*)"test1",
-		  (char*)"test2"};
-  char *vals[] = {(char*)"",
-		  (char*)"\0",
-		  (char*)"abc",
-		  (char*)"va\0lue"};
+TEST_F(CReadOpsTest, Omap)
+{
+  char* keys[] = {(char*)"bar", (char*)"foo", (char*)"test1", (char*)"test2"};
+  char* vals[] = {(char*)"", (char*)"\0", (char*)"abc", (char*)"va\0lue"};
   size_t lens[] = {0, 1, 3, 6};
 
   // check for -ENOENT before the object exists and when it exists
@@ -705,8 +752,8 @@ TEST_F(CReadOpsTest, Omap) {
   rop = rados_create_read_op();
   int rvals[4];
   for (int i = 0; i < 4; ++i)
-    rados_read_op_omap_cmp(rop, keys[i], LIBRADOS_CMPXATTR_OP_EQ,
-			   vals[i], lens[i], &rvals[i]);
+    rados_read_op_omap_cmp(
+        rop, keys[i], LIBRADOS_CMPXATTR_OP_EQ, vals[i], lens[i], &rvals[i]);
   EXPECT_EQ(0, rados_read_op_operate(rop, ioctx, obj, 0));
   rados_release_read_op(rop);
   for (int i = 0; i < 4; ++i)
@@ -714,8 +761,8 @@ TEST_F(CReadOpsTest, Omap) {
 
   // try to remove keys with a guard that should fail
   op = rados_create_write_op();
-  rados_write_op_omap_cmp(op, keys[2], LIBRADOS_CMPXATTR_OP_LT,
-			  vals[2], lens[2], &r_vals);
+  rados_write_op_omap_cmp(
+      op, keys[2], LIBRADOS_CMPXATTR_OP_LT, vals[2], lens[2], &r_vals);
   rados_write_op_omap_rm_keys(op, keys, 2);
   EXPECT_EQ(-ECANCELED, rados_write_op_operate(op, ioctx, obj, NULL, 0));
   rados_release_write_op(op);
@@ -725,10 +772,10 @@ TEST_F(CReadOpsTest, Omap) {
 
   // verifying the keys are still there, and then remove them
   op = rados_create_write_op();
-  rados_write_op_omap_cmp(op, keys[0], LIBRADOS_CMPXATTR_OP_EQ,
-			  vals[0], lens[0], NULL);
-  rados_write_op_omap_cmp(op, keys[1], LIBRADOS_CMPXATTR_OP_EQ,
-			  vals[1], lens[1], NULL);
+  rados_write_op_omap_cmp(
+      op, keys[0], LIBRADOS_CMPXATTR_OP_EQ, vals[0], lens[0], NULL);
+  rados_write_op_omap_cmp(
+      op, keys[1], LIBRADOS_CMPXATTR_OP_EQ, vals[1], lens[1], NULL);
   rados_write_op_omap_rm_keys(op, keys, 2);
   EXPECT_EQ(0, rados_write_op_operate(op, ioctx, obj, NULL, 0));
   rados_release_write_op(op);
@@ -746,13 +793,10 @@ TEST_F(CReadOpsTest, Omap) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, OmapNuls) {
-  char *keys[] = {(char*)"1\0bar",
-                      (char*)"2baar\0",
-                      (char*)"3baa\0rr"};
-  char *vals[] = {(char*)"_\0var",
-                      (char*)"_vaar\0",
-                      (char*)"__vaa\0rr"};
+TEST_F(CReadOpsTest, OmapNuls)
+{
+  char* keys[] = {(char*)"1\0bar", (char*)"2baar\0", (char*)"3baa\0rr"};
+  char* vals[] = {(char*)"_\0var", (char*)"_vaar\0", (char*)"__vaa\0rr"};
   size_t nklens[] = {5, 6, 7};
   size_t nvlens[] = {5, 6, 8};
   const int paircount = 3;
@@ -782,8 +826,9 @@ TEST_F(CReadOpsTest, OmapNuls) {
   rop = rados_create_read_op();
   int rvals[4];
   for (int i = 0; i < paircount; ++i)
-    rados_read_op_omap_cmp2(rop, keys[i], LIBRADOS_CMPXATTR_OP_EQ,
-                           vals[i], nklens[i], nvlens[i], &rvals[i]);
+    rados_read_op_omap_cmp2(
+        rop, keys[i], LIBRADOS_CMPXATTR_OP_EQ, vals[i], nklens[i], nvlens[i],
+        &rvals[i]);
   EXPECT_EQ(0, rados_read_op_operate(rop, ioctx, obj, 0));
   rados_release_read_op(rop);
   for (int i = 0; i < paircount; ++i)
@@ -792,18 +837,19 @@ TEST_F(CReadOpsTest, OmapNuls) {
   // try to remove keys with a guard that should fail
   int r_vals = -1;
   op = rados_create_write_op();
-  rados_write_op_omap_cmp2(op, keys[2], LIBRADOS_CMPXATTR_OP_LT,
-                          vals[2], nklens[2], nvlens[2], &r_vals);
+  rados_write_op_omap_cmp2(
+      op, keys[2], LIBRADOS_CMPXATTR_OP_LT, vals[2], nklens[2], nvlens[2],
+      &r_vals);
   rados_write_op_omap_rm_keys(op, keys, 2);
   EXPECT_EQ(-ECANCELED, rados_write_op_operate(op, ioctx, obj, NULL, 0));
   rados_release_write_op(op);
 
   // verifying the keys are still there, and then remove them
   op = rados_create_write_op();
-  rados_write_op_omap_cmp2(op, keys[0], LIBRADOS_CMPXATTR_OP_EQ,
-                          vals[0], nklens[0], nvlens[0], NULL);
-  rados_write_op_omap_cmp2(op, keys[1], LIBRADOS_CMPXATTR_OP_EQ,
-                          vals[1], nklens[1], nvlens[1], NULL);
+  rados_write_op_omap_cmp2(
+      op, keys[0], LIBRADOS_CMPXATTR_OP_EQ, vals[0], nklens[0], nvlens[0], NULL);
+  rados_write_op_omap_cmp2(
+      op, keys[1], LIBRADOS_CMPXATTR_OP_EQ, vals[1], nklens[1], nvlens[1], NULL);
   rados_write_op_omap_rm_keys2(op, keys, nklens, 2);
   EXPECT_EQ(0, rados_write_op_operate(op, ioctx, obj, NULL, 0));
   rados_release_write_op(op);
@@ -820,17 +866,13 @@ TEST_F(CReadOpsTest, OmapNuls) {
 
   remove_object();
 }
-TEST_F(CReadOpsTest, GetXattrs) {
+
+TEST_F(CReadOpsTest, GetXattrs)
+{
   write_object();
 
-  char *keys[] = {(char*)"bar",
-		  (char*)"foo",
-		  (char*)"test1",
-		  (char*)"test2"};
-  char *vals[] = {(char*)"",
-		  (char*)"\0",
-		  (char*)"abc",
-		  (char*)"va\0lue"};
+  char* keys[] = {(char*)"bar", (char*)"foo", (char*)"test1", (char*)"test2"};
+  char* vals[] = {(char*)"", (char*)"\0", (char*)"abc", (char*)"va\0lue"};
   size_t lens[] = {0, 1, 3, 6};
 
   int rval = 1;
@@ -856,7 +898,8 @@ TEST_F(CReadOpsTest, GetXattrs) {
   remove_object();
 }
 
-TEST_F(CReadOpsTest, CmpExt) {
+TEST_F(CReadOpsTest, CmpExt)
+{
   char buf[len];
   size_t bytes_read = 0;
   int cmpext_val = 0;

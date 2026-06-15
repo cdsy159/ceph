@@ -1,16 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/perf_counters.h"
-#include "include/rados/librados.hpp"
-#include "global/global_context.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
 #include <iostream>
 #include <string>
 
-PerfCounters *g_journal_perf_counters = nullptr;
-PerfCounters *g_snapshot_perf_counters = nullptr;
+#include "common/perf_counters.h"
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "include/rados/librados.hpp"
+#include "test/librados/test_cxx.h"
+
+PerfCounters* g_journal_perf_counters = nullptr;
+PerfCounters* g_snapshot_perf_counters = nullptr;
 
 extern void register_test_cluster_watcher();
 extern void register_test_image_policy();
@@ -22,7 +23,8 @@ extern void register_test_pool_watcher();
 extern void register_test_rbd_mirror();
 extern void register_test_rbd_mirror_image_deleter();
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   register_test_cluster_watcher();
   register_test_image_policy();
@@ -38,7 +40,7 @@ int main(int argc, char **argv)
 
   librados::Rados rados;
   std::string result = connect_cluster_pp(rados);
-  if (result != "" ) {
+  if (result != "") {
     std::cerr << result << std::endl;
     return 1;
   }

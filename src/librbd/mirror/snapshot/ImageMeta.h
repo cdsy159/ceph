@@ -4,8 +4,9 @@
 #ifndef CEPH_LIBRBD_MIRROR_SNAPSHOT_IMAGE_META_H
 #define CEPH_LIBRBD_MIRROR_SNAPSHOT_IMAGE_META_H
 
-#include "include/rados/librados.hpp"
 #include <string>
+
+#include "include/rados/librados.hpp"
 
 struct Context;
 
@@ -19,8 +20,9 @@ namespace snapshot {
 template <typename ImageCtxT>
 class ImageMeta {
 public:
-  static ImageMeta* create(ImageCtxT* image_ctx,
-                           const std::string& mirror_uuid) {
+  static ImageMeta*
+  create(ImageCtxT* image_ctx, const std::string& mirror_uuid)
+  {
     return new ImageMeta(image_ctx, mirror_uuid);
   }
 
@@ -66,7 +68,6 @@ private:
 
   void notify_update(Context* on_finish);
   void handle_notify_update(Context* on_finish, int r);
-
 };
 
 } // namespace snapshot

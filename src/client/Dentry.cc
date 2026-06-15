@@ -1,17 +1,18 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "include/utime.h"
-
 #include "Dentry.h"
-#include "Dir.h"
-#include "Inode.h"
 
 #include "common/Formatter.h"
 #include "common/strescape.h"
+#include "include/types.h"
+#include "include/utime.h"
 
-void Dentry::dump(Formatter *f) const
+#include "Dir.h"
+#include "Inode.h"
+
+void
+Dentry::dump(Formatter* f) const
 {
   f->dump_string("name", name);
   f->dump_stream("dir") << dir->parent_inode->ino;
@@ -28,7 +29,8 @@ void Dentry::dump(Formatter *f) const
   f->dump_int("cap_shared_gen", cap_shared_gen);
 }
 
-void Dentry::print(std::ostream& os) const
+void
+Dentry::print(std::ostream& os) const
 {
   os << dir->parent_inode->vino();
   os << "[";
@@ -49,12 +51,14 @@ void Dentry::print(std::ostream& os) const
   os << "]";
 }
 
-void intrusive_ptr_add_ref(Dentry* dn)
+void
+intrusive_ptr_add_ref(Dentry* dn)
 {
   dn->get();
 }
 
-void intrusive_ptr_release(Dentry* dn)
+void
+intrusive_ptr_release(Dentry* dn)
 {
   dn->put();
 }

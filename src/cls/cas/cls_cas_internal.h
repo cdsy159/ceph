@@ -7,12 +7,11 @@
 
 #include "boost/variant.hpp"
 
-#include "include/stringify.h"
 #include "common/Formatter.h"
 #include "common/hobject.h"
+#include "include/stringify.h"
 
 #define CHUNK_REFCOUNT_ATTR "chunk_refs"
-
 
 // public type
 
@@ -24,62 +23,87 @@ struct chunk_refs_t {
     TYPE_BY_POOL = 4,
     TYPE_COUNT = 5,
   };
-  static const char *type_name(int t) {
+
+  static const char*
+  type_name(int t)
+  {
     switch (t) {
-    case TYPE_BY_OBJECT: return "by_object";
-    case TYPE_BY_HASH: return "by_hash";
-    case TYPE_BY_POOL: return "by_pool";
-    case TYPE_COUNT: return "count";
-    default: return "???";
+    case TYPE_BY_OBJECT:
+      return "by_object";
+    case TYPE_BY_HASH:
+      return "by_hash";
+    case TYPE_BY_POOL:
+      return "by_pool";
+    case TYPE_COUNT:
+      return "count";
+    default:
+      return "???";
     }
   }
 
   struct refs_t {
     virtual ~refs_t() {}
+
     virtual uint8_t get_type() const = 0;
     virtual bool empty() const = 0;
     virtual uint64_t count() const = 0;
     virtual void get(const hobject_t& o) = 0;
     virtual bool put(const hobject_t& o) = 0;
-    virtual void dump(Formatter *f) const = 0;
-    virtual std::string describe_encoding() const {
+    virtual void dump(Formatter* f) const = 0;
+
+    virtual std::string
+    describe_encoding() const
+    {
       return type_name(get_type());
     }
   };
 
   std::unique_ptr<refs_t> r;
 
-  chunk_refs_t() {
-    clear();
-  }
+  chunk_refs_t() { clear(); }
+
   chunk_refs_t(const chunk_refs_t& other);
 
   chunk_refs_t& operator=(const chunk_refs_t&);
 
   void clear();
 
-  int get_type() const {
+  int
+  get_type() const
+  {
     return r->get_type();
   }
-  std::string describe_encoding() const {
+
+  std::string
+  describe_encoding() const
+  {
     return r->describe_encoding();
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return r->empty();
   }
-  uint64_t count() const {
+
+  uint64_t
+  count() const
+  {
     return r->count();
   }
 
-  void get(const hobject_t& o) {
+  void
+  get(const hobject_t& o)
+  {
     r->get(o);
   }
-  bool put(const hobject_t& o) {
+
+  bool
+  put(const hobject_t& o)
+  {
     bool ret = r->put(o);
-    if (r->get_type() != TYPE_BY_OBJECT &&
-	r->count() == 0) {
-      clear();      // reset to full resolution, yay
+    if (r->get_type() != TYPE_BY_OBJECT && r->count() == 0) {
+      clear(); // reset to full resolution, yay
     }
     return ret;
   }
@@ -90,10 +114,15 @@ struct chunk_refs_t {
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& p);
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     r->dump(f);
   }
-  static std::list<chunk_refs_t> generate_test_instances() {
+
+  static std::list<chunk_refs_t>
+  generate_test_instances()
+  {
     std::list<chunk_refs_t> ls;
     ls.emplace_back();
     return ls;
@@ -101,26 +130,39 @@ struct chunk_refs_t {
 };
 WRITE_CLASS_ENCODER(chunk_refs_t)
 
-
 // encoding specific types
 // these are internal and should generally not be used directly
 
 struct chunk_refs_by_object_t : public chunk_refs_t::refs_t {
   std::multiset<hobject_t> by_object;
 
-  uint8_t get_type() const {
+  uint8_t
+  get_type() const
+  {
     return chunk_refs_t::TYPE_BY_OBJECT;
   }
-  bool empty() const override {
+
+  bool
+  empty() const override
+  {
     return by_object.empty();
   }
-  uint64_t count() const override {
+
+  uint64_t
+  count() const override
+  {
     return by_object.size();
   }
-  void get(const hobject_t& o) override {
+
+  void
+  get(const hobject_t& o) override
+  {
     by_object.insert(o);
   }
-  bool put(const hobject_t& o) override {
+
+  bool
+  put(const hobject_t& o) override
+  {
     auto p = by_object.find(o);
     if (p == by_object.end()) {
       return false;
@@ -128,17 +170,26 @@ struct chunk_refs_by_object_t : public chunk_refs_t::refs_t {
     by_object.erase(p);
     return true;
   }
-  void encode(bufferlist& bl) const {
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(by_object, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(by_object, p);
     DECODE_FINISH(p);
   }
-  void dump(Formatter *f) const override {
+
+  void
+  dump(Formatter* f) const override
+  {
     f->dump_string("type", "by_object");
     f->dump_unsigned("count", by_object.size());
     f->open_array_section("refs");
@@ -147,7 +198,10 @@ struct chunk_refs_by_object_t : public chunk_refs_t::refs_t {
     }
     f->close_section();
   }
-  static std::list<chunk_refs_by_object_t> generate_test_instances() {
+
+  static std::list<chunk_refs_by_object_t>
+  generate_test_instances()
+  {
     std::list<chunk_refs_by_object_t> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -160,35 +214,43 @@ WRITE_CLASS_ENCODER(chunk_refs_by_object_t)
 
 struct chunk_refs_by_hash_t : public chunk_refs_t::refs_t {
   uint64_t total = 0;
-  uint32_t hash_bits = 32;          ///< how many bits of mask to encode
-  std::map<std::pair<int64_t,uint32_t>,uint64_t> by_hash;
+  uint32_t hash_bits = 32; ///< how many bits of mask to encode
+  std::map<std::pair<int64_t, uint32_t>, uint64_t> by_hash;
 
   chunk_refs_by_hash_t() {}
-  chunk_refs_by_hash_t(const chunk_refs_by_object_t *o) {
+
+  chunk_refs_by_hash_t(const chunk_refs_by_object_t* o)
+  {
     total = o->count();
     for (auto& i : o->by_object) {
       by_hash[std::make_pair(i.pool, i.get_hash())]++;
     }
   }
 
-  std::string describe_encoding() const {
+  std::string
+  describe_encoding() const
+  {
     using namespace std::literals;
     return "by_hash("s + stringify(hash_bits) + " bits)";
   }
 
-  uint32_t mask() {
+  uint32_t
+  mask()
+  {
     // with the hobject_t reverse-bitwise sort, the least significant
     // hash values are actually the most significant, so preserve them
     // as we lose resolution.
     return 0xffffffff >> (32 - hash_bits);
   }
 
-  bool shrink() {
+  bool
+  shrink()
+  {
     if (hash_bits <= 1) {
       return false;
     }
     hash_bits--;
-    std::map<std::pair<int64_t,uint32_t>,uint64_t> old;
+    std::map<std::pair<int64_t, uint32_t>, uint64_t> old;
     old.swap(by_hash);
     auto m = mask();
     for (auto& i : old) {
@@ -197,20 +259,34 @@ struct chunk_refs_by_hash_t : public chunk_refs_t::refs_t {
     return true;
   }
 
-  uint8_t get_type() const {
+  uint8_t
+  get_type() const
+  {
     return chunk_refs_t::TYPE_BY_HASH;
   }
-  bool empty() const override {
+
+  bool
+  empty() const override
+  {
     return by_hash.empty();
   }
-  uint64_t count() const override {
+
+  uint64_t
+  count() const override
+  {
     return total;
   }
-  void get(const hobject_t& o) override {
+
+  void
+  get(const hobject_t& o) override
+  {
     by_hash[std::make_pair(o.pool, o.get_hash() & mask())]++;
     ++total;
   }
-  bool put(const hobject_t& o) override {
+
+  bool
+  put(const hobject_t& o) override
+  {
     auto p = by_hash.find(std::make_pair(o.pool, o.get_hash() & mask()));
     if (p == by_hash.end()) {
       return false;
@@ -221,11 +297,17 @@ struct chunk_refs_by_hash_t : public chunk_refs_t::refs_t {
     --total;
     return true;
   }
+
   DENC_HELPERS
-  void bound_encode(size_t& p) const {
+  void
+  bound_encode(size_t& p) const
+  {
     p += 6 + sizeof(uint64_t) + by_hash.size() * (10 + 10);
   }
-  void encode(::ceph::buffer::list::contiguous_appender& p) const {
+
+  void
+  encode(::ceph::buffer::list::contiguous_appender& p) const
+  {
     DENC_START(1, 1, p);
     denc_varint(total, p);
     denc_varint(hash_bits, p);
@@ -239,7 +321,10 @@ struct chunk_refs_by_hash_t : public chunk_refs_t::refs_t {
     }
     DENC_FINISH(p);
   }
-  void decode(::ceph::buffer::ptr::const_iterator& p) {
+
+  void
+  decode(::ceph::buffer::ptr::const_iterator& p)
+  {
     DENC_START(1, 1, p);
     denc_varint(total, p);
     denc_varint(hash_bits, p);
@@ -257,7 +342,10 @@ struct chunk_refs_by_hash_t : public chunk_refs_t::refs_t {
     }
     DENC_FINISH(p);
   }
-  void dump(Formatter *f) const override {
+
+  void
+  dump(Formatter* f) const override
+  {
     f->dump_string("type", "by_hash");
     f->dump_unsigned("count", total);
     f->dump_unsigned("hash_bits", hash_bits);
@@ -276,30 +364,46 @@ WRITE_CLASS_DENC(chunk_refs_by_hash_t)
 
 struct chunk_refs_by_pool_t : public chunk_refs_t::refs_t {
   uint64_t total = 0;
-  std::map<int64_t,uint64_t> by_pool;
+  std::map<int64_t, uint64_t> by_pool;
 
   chunk_refs_by_pool_t() {}
-  chunk_refs_by_pool_t(const chunk_refs_by_hash_t *o) {
+
+  chunk_refs_by_pool_t(const chunk_refs_by_hash_t* o)
+  {
     total = o->count();
     for (auto& i : o->by_hash) {
       by_pool[i.first.first] += i.second;
     }
   }
 
-  uint8_t get_type() const {
+  uint8_t
+  get_type() const
+  {
     return chunk_refs_t::TYPE_BY_POOL;
   }
-  bool empty() const override {
+
+  bool
+  empty() const override
+  {
     return by_pool.empty();
   }
-  uint64_t count() const override {
+
+  uint64_t
+  count() const override
+  {
     return total;
   }
-  void get(const hobject_t& o) override {
+
+  void
+  get(const hobject_t& o) override
+  {
     ++by_pool[o.pool];
     ++total;
   }
-  bool put(const hobject_t& o) override {
+
+  bool
+  put(const hobject_t& o) override
+  {
     auto p = by_pool.find(o.pool);
     if (p == by_pool.end()) {
       return false;
@@ -311,11 +415,17 @@ struct chunk_refs_by_pool_t : public chunk_refs_t::refs_t {
     --total;
     return true;
   }
-  void bound_encode(size_t& p) const {
+
+  void
+  bound_encode(size_t& p) const
+  {
     p += 6 + sizeof(uint64_t) + by_pool.size() * (9 + 9);
   }
+
   DENC_HELPERS
-  void encode(::ceph::buffer::list::contiguous_appender& p) const {
+  void
+  encode(::ceph::buffer::list::contiguous_appender& p) const
+  {
     DENC_START(1, 1, p);
     denc_varint(total, p);
     denc_varint(by_pool.size(), p);
@@ -325,7 +435,10 @@ struct chunk_refs_by_pool_t : public chunk_refs_t::refs_t {
     }
     DENC_FINISH(p);
   }
-  void decode(::ceph::buffer::ptr::const_iterator& p) {
+
+  void
+  decode(::ceph::buffer::ptr::const_iterator& p)
+  {
     DENC_START(1, 1, p);
     denc_varint(total, p);
     uint64_t n;
@@ -339,7 +452,10 @@ struct chunk_refs_by_pool_t : public chunk_refs_t::refs_t {
     }
     DENC_FINISH(p);
   }
-  void dump(Formatter *f) const override {
+
+  void
+  dump(Formatter* f) const override
+  {
     f->dump_string("type", "by_pool");
     f->dump_unsigned("count", total);
     f->open_array_section("pools");
@@ -354,49 +470,73 @@ struct chunk_refs_by_pool_t : public chunk_refs_t::refs_t {
 };
 WRITE_CLASS_DENC(chunk_refs_by_pool_t)
 
-
 struct chunk_refs_count_t : public chunk_refs_t::refs_t {
   uint64_t total = 0;
 
   chunk_refs_count_t() {}
-  chunk_refs_count_t(const refs_t *old) {
-    total = old->count();
-  }
 
-  uint8_t get_type() const {
+  chunk_refs_count_t(const refs_t* old) { total = old->count(); }
+
+  uint8_t
+  get_type() const
+  {
     return chunk_refs_t::TYPE_COUNT;
   }
-  bool empty() const override {
+
+  bool
+  empty() const override
+  {
     return total == 0;
   }
-  uint64_t count() const override {
+
+  uint64_t
+  count() const override
+  {
     return total;
   }
-  void get(const hobject_t& o) override {
+
+  void
+  get(const hobject_t& o) override
+  {
     ++total;
   }
-  bool put(const hobject_t& o) override {
+
+  bool
+  put(const hobject_t& o) override
+  {
     if (!total) {
       return false;
     }
     --total;
     return true;
   }
-  void encode(bufferlist& bl) const {
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(total, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(total, p);
     DECODE_FINISH(p);
   }
-  void dump(Formatter *f) const override {
+
+  void
+  dump(Formatter* f) const override
+  {
     f->dump_string("type", "count");
     f->dump_unsigned("count", total);
   }
-  static std::list<chunk_refs_count_t> generate_test_instances() {
+
+  static std::list<chunk_refs_count_t>
+  generate_test_instances()
+  {
     std::list<chunk_refs_count_t> o;
     o.emplace_back();
     o.emplace_back();
@@ -405,4 +545,3 @@ struct chunk_refs_count_t : public chunk_refs_t::refs_t {
   }
 };
 WRITE_CLASS_ENCODER(chunk_refs_count_t)
-

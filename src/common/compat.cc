@@ -15,21 +15,24 @@
  */
 
 #include "include/compat.h"
-#include "include/sock_compat.h"
-#include "common/safe_io.h"
-
-#include <cstdio>
-#include <sstream>
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#include <cstdio>
+#include <sstream>
+
+#include "common/safe_io.h"
+#include "include/sock_compat.h"
+
 #include "acconfig.h"
 #ifdef HAVE_MEMSET_S
-# define __STDC_WANT_LIB_EXT1__ 1
+#define __STDC_WANT_LIB_EXT1__ 1
 #endif
 #include <string.h>
+
 #include <thread>
 #ifndef _WIN32
 #include <sys/mount.h>
@@ -41,7 +44,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#if defined(__linux__) 
+#if defined(__linux__)
 #include <sys/vfs.h>
 #endif
 
@@ -54,11 +57,13 @@
 // In which case it is allocated manually, and still that is not a real guarantee
 // that a full buffer is allocated on disk, since it could be compressed.
 // To prevent this the written buffer needs to be loaded with random data.
-int manual_fallocate(int fd, off_t offset, off_t len) {
+int
+manual_fallocate(int fd, off_t offset, off_t len)
+{
   int r = lseek(fd, offset, SEEK_SET);
   if (r == -1)
     return errno;
-  char data[1024*128];
+  char data[1024 * 128];
   // TODO: compressing filesystems would require random data
   // FIPS zeroization audit 20191115: this memset is not security related.
   memset(data, 0x42, sizeof(data));
@@ -74,17 +79,21 @@ int manual_fallocate(int fd, off_t offset, off_t len) {
   return 0;
 }
 
-int on_zfs(int basedir_fd) {
-  #ifndef _WIN32
+int
+on_zfs(int basedir_fd)
+{
+#ifndef _WIN32
   struct statfs basefs;
   (void)fstatfs(basedir_fd, &basefs);
   return (basefs.f_type == FS_ZFS_TYPE);
-  #else
+#else
   return 0;
-  #endif
+#endif
 }
 
-int ceph_posix_fallocate(int fd, off_t offset, off_t len) {
+int
+ceph_posix_fallocate(int fd, off_t offset, off_t len)
+{
   // Return 0 if oke, otherwise errno > 0
 
 #ifdef HAVE_POSIX_FALLOCATE
@@ -108,9 +117,10 @@ int ceph_posix_fallocate(int fd, off_t offset, off_t len) {
 #else
   return manual_fallocate(fd, offset, len);
 #endif
-} 
+}
 
-int pipe_cloexec(int pipefd[2], int flags)
+int
+pipe_cloexec(int pipefd[2], int flags)
 {
 #if defined(HAVE_PIPE2)
   return pipe2(pipefd, O_CLOEXEC | flags);
@@ -118,9 +128,9 @@ int pipe_cloexec(int pipefd[2], int flags)
   if (pipe(pipefd) == -1)
     return -1;
 
-#  ifdef _WIN32
+#ifdef _WIN32
   return 0;
-#  else
+#else
   /*
    * The old-fashioned, race-condition prone way that we have to fall
    * back on if pipe2 does not exist.
@@ -140,23 +150,23 @@ fail:
   VOID_TEMP_FAILURE_RETRY(close(pipefd[0]));
   VOID_TEMP_FAILURE_RETRY(close(pipefd[1]));
   return (errno = save_errno, -1);
-#  endif
+#endif
 #endif
 }
 
-
-int socket_cloexec(int domain, int type, int protocol)
+int
+socket_cloexec(int domain, int type, int protocol)
 {
 #ifdef SOCK_CLOEXEC
-  return socket(domain, type|SOCK_CLOEXEC, protocol);
+  return socket(domain, type | SOCK_CLOEXEC, protocol);
 #else
   int fd = socket(domain, type, protocol);
   if (fd == -1)
     return -1;
 
-#  ifdef _WIN32
+#ifdef _WIN32
   return fd;
-#  else
+#else
   if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0)
     goto fail;
   return fd;
@@ -164,14 +174,15 @@ fail:
   int save_errno = errno;
   VOID_TEMP_FAILURE_RETRY(close(fd));
   return (errno = save_errno, -1);
-#  endif
+#endif
 #endif
 }
 
-int socketpair_cloexec(int domain, int type, int protocol, int sv[2])
+int
+socketpair_cloexec(int domain, int type, int protocol, int sv[2])
 {
 #ifdef SOCK_CLOEXEC
-  return socketpair(domain, type|SOCK_CLOEXEC, protocol, sv);
+  return socketpair(domain, type | SOCK_CLOEXEC, protocol, sv);
 #elif _WIN32
   /* TODO */
   return -ENOTSUP;
@@ -180,13 +191,13 @@ int socketpair_cloexec(int domain, int type, int protocol, int sv[2])
   if (rc == -1)
     return -1;
 
-  #ifndef _WIN32
+#ifndef _WIN32
   if (fcntl(sv[0], F_SETFD, FD_CLOEXEC) < 0)
     goto fail;
 
   if (fcntl(sv[1], F_SETFD, FD_CLOEXEC) < 0)
     goto fail;
-  #endif
+#endif
 
   return 0;
 fail:
@@ -197,7 +208,8 @@ fail:
 #endif
 }
 
-int accept_cloexec(int sockfd, struct sockaddr* addr, socklen_t* addrlen)
+int
+accept_cloexec(int sockfd, struct sockaddr* addr, socklen_t* addrlen)
 {
 #ifdef HAVE_ACCEPT4
   return accept4(sockfd, addr, addrlen, SOCK_CLOEXEC);
@@ -206,9 +218,9 @@ int accept_cloexec(int sockfd, struct sockaddr* addr, socklen_t* addrlen)
   if (fd == -1)
     return -1;
 
-#  ifdef _WIN32
+#ifdef _WIN32
   return fd;
-#  else
+#else
   if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0)
     goto fail;
 
@@ -217,19 +229,20 @@ fail:
   int save_errno = errno;
   VOID_TEMP_FAILURE_RETRY(close(fd));
   return (errno = save_errno, -1);
-#  endif
+#endif
 #endif
 }
 
 #if defined(__FreeBSD__)
-int sched_setaffinity(pid_t pid, size_t cpusetsize,
-                      cpu_set_t *mask)
+int
+sched_setaffinity(pid_t pid, size_t cpusetsize, cpu_set_t* mask)
 {
   return 0;
 }
 #endif
 
-char *ceph_strerror_r(int errnum, char *buf, size_t buflen)
+char*
+ceph_strerror_r(int errnum, char* buf, size_t buflen)
 {
 #ifdef _WIN32
   strerror_s(buf, buflen, errnum);
@@ -244,42 +257,54 @@ char *ceph_strerror_r(int errnum, char *buf, size_t buflen)
 #endif
 }
 
-int ceph_memzero_s(void *dest, size_t destsz, size_t count) {
+int
+ceph_memzero_s(void* dest, size_t destsz, size_t count)
+{
 #ifdef HAVE_MEMSET_S
-    return memset_s(dest, destsz, 0, count);
+  return memset_s(dest, destsz, 0, count);
 #elif defined(_WIN32)
-    SecureZeroMemory(dest, count);
+  SecureZeroMemory(dest, count);
 #else
-    explicit_bzero(dest, count);
+  explicit_bzero(dest, count);
 #endif
-    return 0;
+  return 0;
 }
 
 #ifdef _WIN32
 
-#include <iomanip>
 #include <ctime>
+#include <iomanip>
 
 // chown is not available on Windows. Plus, changing file owners is not
 // a common practice on Windows.
-int chown(const char *path, uid_t owner, gid_t group) {
+int
+chown(const char* path, uid_t owner, gid_t group)
+{
   return 0;
 }
 
-int fchown(int fd, uid_t owner, gid_t group) {
+int
+fchown(int fd, uid_t owner, gid_t group)
+{
   return 0;
 }
 
-int lchown(const char *path, uid_t owner, gid_t group) {
+int
+lchown(const char* path, uid_t owner, gid_t group)
+{
   return 0;
 }
 
-int posix_memalign(void **memptr, size_t alignment, size_t size) {
+int
+posix_memalign(void** memptr, size_t alignment, size_t size)
+{
   *memptr = _aligned_malloc(size, alignment);
   return *memptr ? 0 : errno;
 }
 
-char *strptime(const char *s, const char *format, struct tm *tm) {
+char*
+strptime(const char* s, const char* format, struct tm* tm)
+{
   std::istringstream input(s);
   input.imbue(std::locale(setlocale(LC_ALL, nullptr)));
   input >> std::get_time(tm, format);
@@ -289,26 +314,34 @@ char *strptime(const char *s, const char *format, struct tm *tm) {
   return (char*)(s + input.tellg());
 }
 
-int pipe(int pipefd[2]) {
+int
+pipe(int pipefd[2])
+{
   // We'll use the same pipe size as Linux (64kb).
   return _pipe(pipefd, 0x10000, O_NOINHERIT);
 }
 
 // lrand48 is not available on Windows. We'll generate a pseudo-random
 // value in the 0 - 2^31 range by calling rand twice.
-long int lrand48(void) {
+long int
+lrand48(void)
+{
   long int val;
-  val = (long int) rand();
+  val = (long int)rand();
   val <<= 16;
-  val += (long int) rand();
+  val += (long int)rand();
   return val;
 }
 
-int random() {
+int
+random()
+{
   return rand();
 }
 
-int fsync(int fd) {
+int
+fsync(int fd)
+{
   HANDLE handle = (HANDLE*)_get_osfhandle(fd);
   if (handle == INVALID_HANDLE_VALUE)
     return -1;
@@ -317,14 +350,16 @@ int fsync(int fd) {
   return 0;
 }
 
-ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
+ssize_t
+pwrite(int fd, const void* buf, size_t count, off_t offset)
+{
   DWORD bytes_written = 0;
 
   HANDLE handle = (HANDLE*)_get_osfhandle(fd);
   if (handle == INVALID_HANDLE_VALUE)
     return -1;
 
-  OVERLAPPED overlapped = { 0 };
+  OVERLAPPED overlapped = {0};
   ULARGE_INTEGER offsetUnion;
   offsetUnion.QuadPart = offset;
 
@@ -339,14 +374,16 @@ ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
   return bytes_written;
 }
 
-ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
+ssize_t
+pread(int fd, void* buf, size_t count, off_t offset)
+{
   DWORD bytes_read = 0;
 
   HANDLE handle = (HANDLE*)_get_osfhandle(fd);
   if (handle == INVALID_HANDLE_VALUE)
     return -1;
 
-  OVERLAPPED overlapped = { 0 };
+  OVERLAPPED overlapped = {0};
   ULARGE_INTEGER offsetUnion;
   offsetUnion.QuadPart = offset;
 
@@ -361,7 +398,9 @@ ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
   return bytes_read;
 }
 
-ssize_t preadv(int fd, const struct iovec *iov, int iov_cnt) {
+ssize_t
+preadv(int fd, const struct iovec* iov, int iov_cnt)
+{
   ssize_t read = 0;
 
   for (int i = 0; i < iov_cnt; i++) {
@@ -376,7 +415,9 @@ ssize_t preadv(int fd, const struct iovec *iov, int iov_cnt) {
   return read;
 }
 
-ssize_t writev(int fd, const struct iovec *iov, int iov_cnt) {
+ssize_t
+writev(int fd, const struct iovec* iov, int iov_cnt)
+{
   ssize_t written = 0;
 
   for (int i = 0; i < iov_cnt; i++) {
@@ -391,13 +432,17 @@ ssize_t writev(int fd, const struct iovec *iov, int iov_cnt) {
   return written;
 }
 
-int &alloc_tls() {
+int&
+alloc_tls()
+{
   static __thread int tlsvar;
   tlsvar++;
   return tlsvar;
 }
 
-void apply_tls_workaround() {
+void
+apply_tls_workaround()
+{
   // Workaround for the following Mingw bugs:
   // https://sourceforge.net/p/mingw-w64/bugs/727/
   // https://sourceforge.net/p/mingw-w64/bugs/527/
@@ -411,14 +456,15 @@ void apply_tls_workaround() {
   pthread_key_delete(key);
 }
 
-CEPH_CONSTRUCTOR(ceph_windows_init) {
+CEPH_CONSTRUCTOR(ceph_windows_init)
+{
   // This will run at startup time before invoking main().
   WSADATA wsaData;
   int error;
 
-  #ifdef __MINGW32__
+#ifdef __MINGW32__
   apply_tls_workaround();
-  #endif
+#endif
 
   error = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (error != 0) {
@@ -427,12 +473,14 @@ CEPH_CONSTRUCTOR(ceph_windows_init) {
   }
 }
 
-int _win_socketpair(int socks[2])
+int
+_win_socketpair(int socks[2])
 {
   union {
-     struct sockaddr_in inaddr;
-     struct sockaddr addr;
+    struct sockaddr_in inaddr;
+    struct sockaddr addr;
   } a;
+
   SOCKET listener;
   int e;
   socklen_t addrlen = sizeof(a.inaddr);
@@ -454,11 +502,12 @@ int _win_socketpair(int socks[2])
   a.inaddr.sin_port = 0;
 
   socks[0] = socks[1] = -1;
-  SOCKET s[2] = { INVALID_SOCKET, INVALID_SOCKET };
+  SOCKET s[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
   do {
-    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR,
-           (char*) &reuse, (socklen_t) sizeof(reuse)) == -1)
+    if (setsockopt(
+            listener, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse,
+            (socklen_t)sizeof(reuse)) == -1)
       break;
     if (bind(listener, &a.addr, sizeof(a.inaddr)) == SOCKET_ERROR)
       break;
@@ -509,67 +558,81 @@ int _win_socketpair(int socks[2])
   return -1;
 }
 
-int win_socketpair(int socks[2]) {
+int
+win_socketpair(int socks[2])
+{
   int r = 0;
   for (int i = 0; i < 15; i++) {
     r = _win_socketpair(socks);
     if (r && WSAGetLastError() == WSAEADDRINUSE) {
       sleep(2);
       continue;
-    }
-    else {
+    } else {
       break;
     }
   }
   return r;
 }
 
-unsigned get_page_size() {
+unsigned
+get_page_size()
+{
   SYSTEM_INFO system_info;
   GetSystemInfo(&system_info);
   return system_info.dwPageSize;
 }
 
-int setenv(const char *name, const char *value, int overwrite) {
+int
+setenv(const char* name, const char* value, int overwrite)
+{
   if (!overwrite && getenv(name)) {
     return 0;
   }
   return _putenv_s(name, value);
 }
 
-ssize_t get_self_exe_path(char* path, int buff_length) {
+ssize_t
+get_self_exe_path(char* path, int buff_length)
+{
   return GetModuleFileName(NULL, path, buff_length - 1);
 }
 
-int geteuid()
+int
+geteuid()
 {
   return 0;
 }
 
-int getegid()
+int
+getegid()
 {
   return 0;
 }
 
-int getuid()
+int
+getuid()
 {
   return 0;
 }
 
-int getgid()
+int
+getgid()
 {
   return 0;
 }
 
 #else
 
-unsigned get_page_size() {
+unsigned
+get_page_size()
+{
   return sysconf(_SC_PAGESIZE);
 }
 
-ssize_t get_self_exe_path(char* path, int buff_length) {
-  return readlink("/proc/self/exe", path,
-                  sizeof(buff_length) - 1);
+ssize_t
+get_self_exe_path(char* path, int buff_length)
+{
+  return readlink("/proc/self/exe", path, sizeof(buff_length) - 1);
 }
 
 #endif /* _WIN32 */
@@ -577,7 +640,8 @@ ssize_t get_self_exe_path(char* path, int buff_length) {
 
 static thread_local char cached_thread_name[256]{};
 
-int ceph_pthread_setname(char const* name)
+int
+ceph_pthread_setname(char const* name)
 {
   strncpy(cached_thread_name, name, sizeof cached_thread_name - 1);
 #if defined(_WIN32) && defined(__clang__) && \
@@ -587,25 +651,26 @@ int ceph_pthread_setname(char const* name)
   // it to Windows API functions.
   return 0;
 #elif defined(HAVE_PTHREAD_SETNAME_NP)
-  #if defined(__APPLE__)
-      return pthread_setname_np(name);
-  #else
-      return pthread_setname_np(pthread_self(), name);
-  #endif
+#if defined(__APPLE__)
+  return pthread_setname_np(name);
+#else
+  return pthread_setname_np(pthread_self(), name);
+#endif
 #elif defined(HAVE_PTHREAD_SET_NAME_NP)
-  pthread_set_name_np(pthread_self(), name);          \
+  pthread_set_name_np(pthread_self(), name);
   return 0;
 #else
   return 0;
 #endif
 }
 
-int ceph_pthread_getname(char* name, size_t len)
+int
+ceph_pthread_getname(char* name, size_t len)
 {
   if (cached_thread_name[0]) {
     if (len > 0) {
       strncpy(name, cached_thread_name, len);
-      name[len-1] = 0;
+      name[len - 1] = 0;
     }
     return 0;
   } else {
@@ -616,14 +681,16 @@ int ceph_pthread_getname(char* name, size_t len)
     }
     return 0;
 #elif defined(HAVE_PTHREAD_GETNAME_NP) || defined(HAVE_PTHREAD_GET_NAME_NP)
-#  if defined(HAVE_PTHREAD_GETNAME_NP)
-    int rc = pthread_getname_np(pthread_self(), cached_thread_name, sizeof cached_thread_name);
-#  else
-    int rc = pthread_get_name_np(pthread_self(), cached_thread_name, sizeof cached_thread_name);
-#  endif
+#if defined(HAVE_PTHREAD_GETNAME_NP)
+    int rc = pthread_getname_np(
+        pthread_self(), cached_thread_name, sizeof cached_thread_name);
+#else
+    int rc = pthread_get_name_np(
+        pthread_self(), cached_thread_name, sizeof cached_thread_name);
+#endif
     if (rc == 0) {
       strncpy(name, cached_thread_name, len);
-      name[len-1] = 0;
+      name[len - 1] = 0;
       return 0;
     } else {
       return rc;

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,10 +19,10 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+
 #include "include/common_fwd.h"
 #include "include/compat.h"
 #include "include/expected.hpp"
-
 
 class MemoryModel {
 public:
@@ -35,14 +35,30 @@ public:
     long lib{0};
     long heap{0};
 
-    long get_total() const { return size; }
-    long get_rss() const { return rss; }
-    long get_heap() const { return heap; }
+    long
+    get_total() const
+    {
+      return size;
+    }
+
+    long
+    get_rss() const
+    {
+      return rss;
+    }
+
+    long
+    get_heap() const
+    {
+      return heap;
+    }
   };
 
 private:
-  static inline constexpr const char* proc_stat_fn = PROCPREFIX "/proc/self/status";
-  static inline constexpr const char* proc_maps_fn = PROCPREFIX "/proc/self/maps";
+  static inline constexpr const char* proc_stat_fn = PROCPREFIX
+      "/proc/self/status";
+  static inline constexpr const char* proc_maps_fn = PROCPREFIX
+      "/proc/self/maps";
 
   std::ifstream proc_status{proc_stat_fn};
   std::ifstream proc_maps{proc_maps_fn};

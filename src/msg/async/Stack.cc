@@ -16,9 +16,11 @@
  */
 
 #include "Stack.h"
-#include "include/compat.h"
+
 #include "common/Cond.h"
 #include "common/errno.h"
+#include "include/compat.h"
+
 #include "PosixStack.h"
 #ifdef HAVE_RDMA
 #include "rdma/RDMAStack.h"
@@ -34,34 +36,36 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "stack "
 
-std::function<void ()> NetworkStack::add_thread(Worker* w)
+std::function<void()>
+NetworkStack::add_thread(Worker* w)
 {
   return [this, w]() {
-      rename_thread(w->id);
-      const unsigned EventMaxWaitUs = 30000000;
-      w->center.set_owner();
-      ldout(cct, 10) << __func__ << " starting" << dendl;
-      w->initialize();
-      w->init_done();
-      while (!w->done) {
-        ldout(cct, 30) << __func__ << " calling event process" << dendl;
+    rename_thread(w->id);
+    const unsigned EventMaxWaitUs = 30000000;
+    w->center.set_owner();
+    ldout(cct, 10) << __func__ << " starting" << dendl;
+    w->initialize();
+    w->init_done();
+    while (!w->done) {
+      ldout(cct, 30) << __func__ << " calling event process" << dendl;
 
-        ceph::timespan dur;
-        int r = w->center.process_events(EventMaxWaitUs, &dur);
-        if (r < 0) {
-          ldout(cct, 20) << __func__ << " process events failed: "
-                         << cpp_strerror(errno) << dendl;
-          // TODO do something?
-        }
-        w->perf_logger->tinc(l_msgr_running_total_time, dur);
+      ceph::timespan dur;
+      int r = w->center.process_events(EventMaxWaitUs, &dur);
+      if (r < 0) {
+        ldout(cct, 20) << __func__
+                       << " process events failed: " << cpp_strerror(errno)
+                       << dendl;
+        // TODO do something?
       }
-      w->reset();
-      w->destroy();
+      w->perf_logger->tinc(l_msgr_running_total_time, dur);
+    }
+    w->reset();
+    w->destroy();
   };
 }
 
-std::shared_ptr<NetworkStack> NetworkStack::create(CephContext *c,
-						   const std::string &t)
+std::shared_ptr<NetworkStack>
+NetworkStack::create(CephContext* c, const std::string& t)
 {
   std::shared_ptr<NetworkStack> stack = nullptr;
 
@@ -79,24 +83,25 @@ std::shared_ptr<NetworkStack> NetworkStack::create(CephContext *c,
 #endif
 
   if (stack == nullptr) {
-    lderr(c) << __func__ << " ms_async_transport_type " << t <<
-    " is not supported! " << dendl;
+    lderr(c) << __func__ << " ms_async_transport_type " << t
+             << " is not supported! " << dendl;
     ceph_abort();
     return nullptr;
   }
-  
+
   unsigned num_workers = c->_conf->ms_async_op_threads;
   ceph_assert(num_workers > 0);
   if (num_workers >= EventCenter::MAX_EVENTCENTER) {
-    ldout(c, 0) << __func__ << " max thread limit is "
-                  << EventCenter::MAX_EVENTCENTER << ", switching to this now. "
-                  << "Higher thread values are unnecessary and currently unsupported."
-                  << dendl;
+    ldout(c, 0)
+        << __func__ << " max thread limit is " << EventCenter::MAX_EVENTCENTER
+        << ", switching to this now. "
+        << "Higher thread values are unnecessary and currently unsupported."
+        << dendl;
     num_workers = EventCenter::MAX_EVENTCENTER;
   }
   const int InitEventNumber = 5000;
   for (unsigned worker_id = 0; worker_id < num_workers; ++worker_id) {
-    Worker *w = stack->create_worker(c, worker_id);
+    Worker* w = stack->create_worker(c, worker_id);
     int ret = w->center.init(InitEventNumber, worker_id, t);
     if (ret)
       throw std::system_error(-ret, std::generic_category());
@@ -106,16 +111,17 @@ std::shared_ptr<NetworkStack> NetworkStack::create(CephContext *c,
   return stack;
 }
 
-NetworkStack::NetworkStack(CephContext *c)
-  : cct(c)
+NetworkStack::NetworkStack(CephContext* c) :
+  cct(c)
 {}
 
-void NetworkStack::start()
+void
+NetworkStack::start()
 {
   std::unique_lock<decltype(pool_spin)> lk(pool_spin);
 
   if (started) {
-    return ;
+    return;
   }
 
   for (Worker* worker : workers) {
@@ -131,11 +137,12 @@ void NetworkStack::start()
   }
 }
 
-Worker* NetworkStack::get_worker()
+Worker*
+NetworkStack::get_worker()
 {
   ldout(cct, 30) << __func__ << dendl;
 
-   // start with some reasonably large number
+  // start with some reasonably large number
   unsigned min_load = std::numeric_limits<int>::max();
   Worker* current_best = nullptr;
 
@@ -157,7 +164,8 @@ Worker* NetworkStack::get_worker()
   return current_best;
 }
 
-void NetworkStack::stop()
+void
+NetworkStack::stop()
 {
   std::lock_guard lk(pool_spin);
   unsigned i = 0;
@@ -174,21 +182,30 @@ class C_drain : public EventCallback {
   ceph::condition_variable drain_cond;
   unsigned drain_count;
 
- public:
-  explicit C_drain(size_t c)
-      : drain_count(c) {}
-  void do_request(uint64_t id) override {
+public:
+  explicit C_drain(size_t c) :
+    drain_count(c)
+  {}
+
+  void
+  do_request(uint64_t id) override
+  {
     std::lock_guard l{drain_lock};
     drain_count--;
-    if (drain_count == 0) drain_cond.notify_all();
+    if (drain_count == 0)
+      drain_cond.notify_all();
   }
-  void wait() {
+
+  void
+  wait()
+  {
     std::unique_lock l{drain_lock};
     drain_cond.wait(l, [this] { return drain_count == 0; });
   }
 };
 
-void NetworkStack::drain()
+void
+NetworkStack::drain()
 {
   ldout(cct, 30) << __func__ << " started." << dendl;
   pthread_t cur = pthread_self();

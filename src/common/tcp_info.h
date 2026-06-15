@@ -28,4 +28,4 @@ bool tcp_info(int fd, struct tcp_info& info);
 /// names as keys. Returns true on success.
 bool dump_tcp_info(int fd, Formatter* f);
 
-}  // namespace ceph
+} // namespace ceph

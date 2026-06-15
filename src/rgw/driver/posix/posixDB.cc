@@ -2,37 +2,46 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "posixDB.h"
+
 #include "log/Log.h"
 
 using namespace std;
 
-namespace rgw { namespace store {
+namespace rgw {
+namespace store {
 
-int POSIXUserDB::ProcessOp(const DoutPrefixProvider *dpp, string_view Op, DBOpParams *params) {
+int
+POSIXUserDB::ProcessOp(
+    const DoutPrefixProvider* dpp,
+    string_view Op,
+    DBOpParams* params)
+{
   int ret = -1;
   shared_ptr<class DBOp> db_op;
 
   db_op = getDBOp(dpp, Op, params);
 
   if (!db_op) {
-    ldpp_dout(dpp, 0)<<"No db_op found for Op("<<Op<<")" << dendl;
+    ldpp_dout(dpp, 0) << "No db_op found for Op(" << Op << ")" << dendl;
     return ret;
   }
   ret = db_op->Execute(dpp, params);
 
   if (ret) {
-    ldpp_dout(dpp, 0)<<"In Process op Execute failed for fop(" << Op << ")" << dendl;
+    ldpp_dout(dpp, 0) << "In Process op Execute failed for fop(" << Op << ")"
+                      << dendl;
   } else {
-    ldpp_dout(dpp, 20)<<"Successfully processed fop(" << Op << ")" << dendl;
+    ldpp_dout(dpp, 20) << "Successfully processed fop(" << Op << ")" << dendl;
   }
 
   return ret;
 }
 
-int POSIXUserDB::Initialize(string logfile, int loglevel)
+int
+POSIXUserDB::Initialize(string logfile, int loglevel)
 {
   int ret = -1;
-  const DoutPrefixProvider *dpp = get_def_dpp();
+  const DoutPrefixProvider* dpp = get_def_dpp();
 
   if (!cct) {
     cout << "Failed to Initialize. No ceph Context \n";
@@ -50,26 +59,28 @@ int POSIXUserDB::Initialize(string logfile, int loglevel)
   db = openDB(dpp);
 
   if (!db) {
-    ldpp_dout(dpp, 0) <<"Failed to open database " << dendl;
+    ldpp_dout(dpp, 0) << "Failed to open database " << dendl;
     return ret;
   }
 
   ret = InitializeDBOps(dpp);
 
   if (ret) {
-    ldpp_dout(dpp, 0) <<"InitializePOSIXUserDBOps failed " << dendl;
+    ldpp_dout(dpp, 0) << "InitializePOSIXUserDBOps failed " << dendl;
     closeDB(dpp);
     db = NULL;
     return ret;
   }
 
-  ldpp_dout(dpp, 0) << "POSIXUserDB successfully initialized - name:" \
-    << db_name << "" << dendl;
+  ldpp_dout(dpp, 0) << "POSIXUserDB successfully initialized - name:" << db_name
+                    << "" << dendl;
 
   // Create default user that corresponds to vstart user (TODO: Temporary fix)
   dbops = SQLiteDB::dbops;
   DBOpParams params = {};
-  RGWAccessKey key("0555b35654ad1656d804", "h7GhxuBLTrlhVUyxSPUKUV8r/2EI4ngqJxD7iBdBYLhwluN30JaT3Q==");
+  RGWAccessKey key(
+      "0555b35654ad1656d804",
+      "h7GhxuBLTrlhVUyxSPUKUV8r/2EI4ngqJxD7iBdBYLhwluN30JaT3Q==");
 
   params.user_table = user_table;
   params.bucket_table = bucket_table;
@@ -89,24 +100,25 @@ int POSIXUserDB::Initialize(string logfile, int loglevel)
     ret = db_op->Execute(dpp, &params);
 
     if (ret) {
-      ldpp_dout(dpp, 0)<<"Op Execute failed for fop(InsertUser)" << dendl;
+      ldpp_dout(dpp, 0) << "Op Execute failed for fop(InsertUser)" << dendl;
     } else {
-      ldpp_dout(dpp, 20)<<"Successfully processed fop(InsertUser)" << dendl;
+      ldpp_dout(dpp, 20) << "Successfully processed fop(InsertUser)" << dendl;
     }
-  } 
+  }
 
   return ret;
 }
 
-int POSIXUserDB::Destroy(const DoutPrefixProvider *dpp)
+int
+POSIXUserDB::Destroy(const DoutPrefixProvider* dpp)
 {
   DB::Destroy(dpp);
 
-  ldpp_dout(dpp, 20)<<"POSIXUserDB successfully destroyed - name:" \
-    <<db_name << dendl;
+  ldpp_dout(dpp, 20) << "POSIXUserDB successfully destroyed - name:" << db_name
+                     << dendl;
 
   return 0;
 }
 
-} } // namespace rgw::store
-
+} // namespace store
+} // namespace rgw

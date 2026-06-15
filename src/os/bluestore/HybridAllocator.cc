@@ -5,7 +5,7 @@
 
 #define dout_context (T::get_context())
 #define dout_subsys ceph_subsys_bluestore
-#undef  dout_prefix
+#undef dout_prefix
 #define dout_prefix *_dout << (std::string(this->get_type()) + "::").c_str()
 
 /*
@@ -13,7 +13,8 @@
  *
  *
  */
-const char* HybridAvlAllocator::get_type() const
+const char*
+HybridAvlAllocator::get_type() const
 {
   return "hybrid";
 }
@@ -23,24 +24,24 @@ const char* HybridAvlAllocator::get_type() const
  *
  *
  */
-const char* HybridBtree2Allocator::get_type() const
+const char*
+HybridBtree2Allocator::get_type() const
 {
   return "hybrid_btree2";
 }
 
-int64_t HybridBtree2Allocator::allocate(
-  uint64_t want,
-  uint64_t unit,
-  uint64_t max_alloc_size,
-  int64_t  hint, // unused and likely unneeded for btree2 allocator
-  PExtentVector* extents)
+int64_t
+HybridBtree2Allocator::allocate(
+    uint64_t want,
+    uint64_t unit,
+    uint64_t max_alloc_size,
+    int64_t hint, // unused and likely unneeded for btree2 allocator
+    PExtentVector* extents)
 {
-  ldout(get_context(), 10) << __func__ << std::hex
-    << " want 0x" << want
-    << " unit 0x" << unit
-    << " max_alloc_size 0x" << max_alloc_size
-    << " hint 0x" << hint
-    << std::dec << dendl;
+  ldout(get_context(), 10) << __func__ << std::hex << " want 0x" << want
+                           << " unit 0x" << unit << " max_alloc_size 0x"
+                           << max_alloc_size << " hint 0x" << hint << std::dec
+                           << dendl;
   ceph_assert(std::has_single_bit(unit));
   ceph_assert(want % unit == 0);
 
@@ -49,10 +50,12 @@ int64_t HybridBtree2Allocator::allocate(
     extents->emplace_back(cached_chunk_offs, want);
     return want;
   }
-  return HybridAllocatorBase<Btree2Allocator>::allocate(want,
-    unit, max_alloc_size, hint, extents);
+  return HybridAllocatorBase<Btree2Allocator>::allocate(
+      want, unit, max_alloc_size, hint, extents);
 }
-void HybridBtree2Allocator::release(const release_set_t& release_set)
+
+void
+HybridBtree2Allocator::release(const release_set_t& release_set)
 {
   if (!has_cache() || release_set.num_intervals() >= pextent_array_size) {
     HybridAllocatorBase<Btree2Allocator>::release(release_set);
@@ -63,7 +66,8 @@ void HybridBtree2Allocator::release(const release_set_t& release_set)
   auto p = release_set.begin();
   while (p != release_set.end()) {
     if (!try_put_cache(p.get_start(), p.get_len())) {
-      to_release[count++] = &*p;// bluestore_pextent_t(p.get_start(), p.get_len());
+      to_release[count++] =
+          &*p; // bluestore_pextent_t(p.get_start(), p.get_len());
     }
     ++p;
   }

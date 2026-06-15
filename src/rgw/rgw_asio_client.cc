@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_asio_client.h"
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/write.hpp>
 
-#include "rgw_asio_client.h"
 #include "rgw_perf_counters.h"
 
 #define dout_context g_ceph_context
@@ -12,21 +13,24 @@
 
 using namespace rgw::asio;
 
-ClientIO::ClientIO(parser_type& parser, bool is_ssl,
-                   const endpoint_type& local_endpoint,
-                   const endpoint_type& remote_endpoint)
-  : parser(parser), is_ssl(is_ssl),
-    local_endpoint(local_endpoint),
-    remote_endpoint(remote_endpoint),
-    txbuf(*this),
-    keepalive(parser.keep_alive()),
-    expect100continue(parser.get()[beast::http::field::expect] == "100-continue")
-{
-}
+ClientIO::ClientIO(
+    parser_type& parser,
+    bool is_ssl,
+    const endpoint_type& local_endpoint,
+    const endpoint_type& remote_endpoint) :
+  parser(parser),
+  is_ssl(is_ssl),
+  local_endpoint(local_endpoint),
+  remote_endpoint(remote_endpoint),
+  txbuf(*this),
+  keepalive(parser.keep_alive()),
+  expect100continue(parser.get()[beast::http::field::expect] == "100-continue")
+{}
 
 ClientIO::~ClientIO() = default;
 
-int ClientIO::init_env(CephContext *cct)
+int
+ClientIO::init_env(CephContext* cct)
 {
   env.init(cct);
 
@@ -96,19 +100,22 @@ int ClientIO::init_env(CephContext *cct)
   return 0;
 }
 
-size_t ClientIO::complete_request()
+size_t
+ClientIO::complete_request()
 {
   perfcounter->inc(l_rgw_qlen, -1);
   perfcounter->inc(l_rgw_qactive, -1);
   return 0;
 }
 
-void ClientIO::flush()
+void
+ClientIO::flush()
 {
   txbuf.pubsync();
 }
 
-size_t ClientIO::send_status(int status, const char* status_name)
+size_t
+ClientIO::send_status(int status, const char* status_name)
 {
   if (expect100continue && !sent100continue) {
     // a client expecting 100-continue is not required to wait for the
@@ -124,36 +131,40 @@ size_t ClientIO::send_status(int status, const char* status_name)
   static constexpr size_t STATUS_BUF_SIZE = 128;
 
   char statusbuf[STATUS_BUF_SIZE];
-  const auto statuslen = snprintf(statusbuf, sizeof(statusbuf),
-                                  "HTTP/1.1 %d %s\r\n", status, status_name);
+  const auto statuslen = snprintf(
+      statusbuf, sizeof(statusbuf), "HTTP/1.1 %d %s\r\n", status, status_name);
 
   return txbuf.sputn(statusbuf, statuslen);
 }
 
-size_t ClientIO::send_100_continue()
+size_t
+ClientIO::send_100_continue()
 {
   const char HTTP_100_CONTINUE[] = "HTTP/1.1 100 CONTINUE\r\n\r\n";
-  const size_t sent = txbuf.sputn(HTTP_100_CONTINUE,
-                                  sizeof(HTTP_100_CONTINUE) - 1);
+  const size_t sent =
+      txbuf.sputn(HTTP_100_CONTINUE, sizeof(HTTP_100_CONTINUE) - 1);
   flush();
   sent100continue = true;
   return sent;
 }
 
 static constexpr size_t TIME_BUF_SIZE = 128;
-static size_t dump_date_header(char (&timestr)[TIME_BUF_SIZE])
+
+static size_t
+dump_date_header(char (&timestr)[TIME_BUF_SIZE])
 {
   const time_t gtime = time(nullptr);
   struct tm result;
-  struct tm const * const tmp = gmtime_r(&gtime, &result);
+  struct tm const* const tmp = gmtime_r(&gtime, &result);
   if (tmp == nullptr) {
     return 0;
   }
-  return strftime(timestr, sizeof(timestr),
-                  "Date: %a, %d %b %Y %H:%M:%S %Z\r\n", tmp);
+  return strftime(
+      timestr, sizeof(timestr), "Date: %a, %d %b %Y %H:%M:%S %Z\r\n", tmp);
 }
 
-size_t ClientIO::complete_header()
+size_t
+ClientIO::complete_header()
 {
   size_t sent = 0;
 
@@ -177,8 +188,8 @@ size_t ClientIO::complete_header()
   return sent;
 }
 
-size_t ClientIO::send_header(const std::string_view& name,
-                             const std::string_view& value)
+size_t
+ClientIO::send_header(const std::string_view& name, const std::string_view& value)
 {
   static constexpr char HEADER_SEP[] = ": ";
   static constexpr char HEADER_END[] = "\r\n";
@@ -193,13 +204,14 @@ size_t ClientIO::send_header(const std::string_view& name,
   return sent;
 }
 
-size_t ClientIO::send_content_length(uint64_t len)
+size_t
+ClientIO::send_content_length(uint64_t len)
 {
   static constexpr size_t CONLEN_BUF_SIZE = 128;
 
   char sizebuf[CONLEN_BUF_SIZE];
-  const auto sizelen = snprintf(sizebuf, sizeof(sizebuf),
-                                "Content-Length: %" PRIu64 "\r\n", len);
+  const auto sizelen = snprintf(
+      sizebuf, sizeof(sizebuf), "Content-Length: %" PRIu64 "\r\n", len);
 
   return txbuf.sputn(sizebuf, sizelen);
 }

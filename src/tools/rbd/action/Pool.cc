@@ -1,15 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/Formatter.h"
+#include "common/errno.h"
+#include "include/stringify.h"
+#include "include/types.h" // for struct byte_u_t
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "include/stringify.h"
-#include "include/types.h" // for struct byte_u_t
-#include "common/errno.h"
-#include "common/Formatter.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -18,20 +20,26 @@ namespace pool {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-void get_arguments_init(po::options_description *positional,
-                        po::options_description *options) {
+void
+get_arguments_init(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
-  options->add_options()
-      ("force", po::bool_switch(),
-       "force initialize pool for RBD use if registered by another application");
+  options->add_options()(
+      "force", po::bool_switch(),
+      "force initialize pool for RBD use if registered by another application");
 }
 
-int execute_init(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_init(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -58,19 +66,25 @@ int execute_init(const po::variables_map &vm,
   return 0;
 }
 
-void get_arguments_stats(po::options_description *positional,
-                         po::options_description *options) {
+void
+get_arguments_stats(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
   at::add_format_options(options);
 }
 
-int execute_stats(const po::variables_map &vm,
-                  const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_stats(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -98,12 +112,13 @@ int execute_stats(const po::variables_map &vm,
 
   librbd::PoolStats pool_stats;
   pool_stats.add(RBD_POOL_STAT_OPTION_IMAGES, &image_count);
-  pool_stats.add(RBD_POOL_STAT_OPTION_IMAGE_MAX_PROVISIONED_BYTES,
-                 &provisioned_bytes);
+  pool_stats.add(
+      RBD_POOL_STAT_OPTION_IMAGE_MAX_PROVISIONED_BYTES, &provisioned_bytes);
   pool_stats.add(RBD_POOL_STAT_OPTION_IMAGE_SNAPSHOTS, &snap_count);
   pool_stats.add(RBD_POOL_STAT_OPTION_TRASH_IMAGES, &trash_count);
-  pool_stats.add(RBD_POOL_STAT_OPTION_TRASH_MAX_PROVISIONED_BYTES,
-                 &trash_provisioned_bytes);
+  pool_stats.add(
+      RBD_POOL_STAT_OPTION_TRASH_MAX_PROVISIONED_BYTES,
+      &trash_provisioned_bytes);
   pool_stats.add(RBD_POOL_STAT_OPTION_TRASH_SNAPSHOTS, &trash_snap_count);
 
   r = rbd.pool_stats_get(io_ctx, &pool_stats);
@@ -151,12 +166,19 @@ int execute_stats(const po::variables_map &vm,
 }
 
 Shell::Action init_action(
-  {"pool", "init"}, {}, "Initialize pool for use by RBD.", "",
-  &get_arguments_init, &execute_init);
+    {"pool", "init"},
+    {},
+    "Initialize pool for use by RBD.",
+    "",
+    &get_arguments_init,
+    &execute_init);
 Shell::Action stat_action(
-  {"pool", "stats"}, {}, "Display pool statistics.",
-  "Note: legacy v1 images are not included in stats",
-  &get_arguments_stats, &execute_stats);
+    {"pool", "stats"},
+    {},
+    "Display pool statistics.",
+    "Note: legacy v1 images are not included in stats",
+    &get_arguments_stats,
+    &execute_stats);
 
 } // namespace pool
 } // namespace action

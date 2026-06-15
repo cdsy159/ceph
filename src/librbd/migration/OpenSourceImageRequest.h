@@ -4,11 +4,12 @@
 #ifndef CEPH_LIBRBD_MIGRATION_OPEN_SOURCE_IMAGE_REQUEST_H
 #define CEPH_LIBRBD_MIGRATION_OPEN_SOURCE_IMAGE_REQUEST_H
 
-#include "include/rados/librados_fwd.hpp"
-#include "librbd/Types.h"
-#include "json_spirit/json_spirit.h"
 #include <map>
 #include <memory>
+
+#include "include/rados/librados_fwd.hpp"
+#include "json_spirit/json_spirit.h"
+#include "librbd/Types.h"
 
 struct Context;
 
@@ -23,25 +24,29 @@ struct FormatInterface;
 template <typename ImageCtxT>
 class OpenSourceImageRequest {
 public:
-  static OpenSourceImageRequest* create(librados::IoCtx& dst_io_ctx,
-                                        ImageCtxT* destination_image_ctx,
-                                        uint64_t src_snap_id,
-                                        const MigrationInfo &migration_info,
-                                        ImageCtxT** src_image_ctx,
-                                        librados::Rados** src_rados,
-                                        Context* on_finish) {
-    return new OpenSourceImageRequest(dst_io_ctx, destination_image_ctx,
-                                      src_snap_id, migration_info,
-                                      src_image_ctx, src_rados, on_finish);
+  static OpenSourceImageRequest*
+  create(
+      librados::IoCtx& dst_io_ctx,
+      ImageCtxT* destination_image_ctx,
+      uint64_t src_snap_id,
+      const MigrationInfo& migration_info,
+      ImageCtxT** src_image_ctx,
+      librados::Rados** src_rados,
+      Context* on_finish)
+  {
+    return new OpenSourceImageRequest(
+        dst_io_ctx, destination_image_ctx, src_snap_id, migration_info,
+        src_image_ctx, src_rados, on_finish);
   }
 
-  OpenSourceImageRequest(librados::IoCtx& dst_io_ctx,
-                         ImageCtxT* destination_image_ctx,
-                         uint64_t src_snap_id,
-                         const MigrationInfo &migration_info,
-                         ImageCtxT** src_image_ctx,
-                         librados::Rados** src_rados,
-                         Context* on_finish);
+  OpenSourceImageRequest(
+      librados::IoCtx& dst_io_ctx,
+      ImageCtxT* destination_image_ctx,
+      uint64_t src_snap_id,
+      const MigrationInfo& migration_info,
+      ImageCtxT** src_image_ctx,
+      librados::Rados** src_rados,
+      Context* on_finish);
 
   void send();
 
@@ -89,8 +94,9 @@ private:
   uint64_t m_image_size = 0;
   SnapInfos m_snap_infos;
 
-  void open_native(const json_spirit::mObject& source_spec_object,
-                   bool import_only);
+  void open_native(
+      const json_spirit::mObject& source_spec_object,
+      bool import_only);
   void handle_open_native(int r);
 
   void open_format(const json_spirit::mObject& source_spec_object);
@@ -107,7 +113,6 @@ private:
   void register_image_dispatch();
 
   void finish(int r);
-
 };
 
 } // namespace migration

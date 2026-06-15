@@ -98,7 +98,7 @@ class ReplicaReservations {
   /// discarded once the success or failure are recorded
   std::optional<ScrubTimePoint> m_process_started_at;
 
- public:
+public:
   ReplicaReservations(
       ScrubMachineListener& scrubber,
       reservation_nonce_t& nonce,
@@ -160,7 +160,7 @@ class ReplicaReservations {
   /// The number of requests that have been sent (and not rejected) so far.
   size_t active_requests_cnt() const;
 
- private:
+private:
   /// send 'release' messages to all replicas we have managed to reserve
   void release_all();
 

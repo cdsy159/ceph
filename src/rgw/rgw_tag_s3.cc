@@ -1,22 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_tag_s3.h"
+
+#include <iostream>
 #include <map>
 #include <string>
-#include <iostream>
 
 #include "include/types.h"
 
-#include "rgw_tag_s3.h"
-
 using namespace std;
 
-void RGWObjTagEntry_S3::decode_xml(XMLObj *obj) {
+void
+RGWObjTagEntry_S3::decode_xml(XMLObj* obj)
+{
   RGWXMLDecoder::decode_xml("Key", key, obj, true);
   RGWXMLDecoder::decode_xml("Value", val, obj, true);
 }
 
-void RGWObjTagEntry_S3::dump_xml(Formatter *f) const {
+void
+RGWObjTagEntry_S3::dump_xml(Formatter* f) const
+{
   encode_xml("Key", key, f);
   encode_xml("Value", val, f);
 
@@ -29,7 +33,9 @@ void RGWObjTagEntry_S3::dump_xml(Formatter *f) const {
   }
 }
 
-void RGWObjTagSet_S3::decode_xml(XMLObj *obj) {
+void
+RGWObjTagSet_S3::decode_xml(XMLObj* obj)
+{
   vector<RGWObjTagEntry_S3> entries;
 
   bool mandatory{false};
@@ -38,13 +44,15 @@ void RGWObjTagSet_S3::decode_xml(XMLObj *obj) {
   for (auto& entry : entries) {
     const std::string& key = entry.get_key();
     const std::string& val = entry.get_val();
-    add_tag(key,val);
+    add_tag(key, val);
   }
 }
 
-int RGWObjTagSet_S3::rebuild(RGWObjTags& dest) {
+int
+RGWObjTagSet_S3::rebuild(RGWObjTags& dest)
+{
   int ret;
-  for (const auto &it : tag_map){
+  for (const auto& it : tag_map) {
     ret = dest.check_and_add_tag(it.first, it.second);
     if (ret < 0)
       return ret;
@@ -52,15 +60,18 @@ int RGWObjTagSet_S3::rebuild(RGWObjTags& dest) {
   return 0;
 }
 
-void RGWObjTagging_S3::decode_xml(XMLObj *obj) {
+void
+RGWObjTagging_S3::decode_xml(XMLObj* obj)
+{
   RGWXMLDecoder::decode_xml("TagSet", tagset, obj, true);
 }
 
-void RGWObjTagSet_S3::dump_xml(Formatter *f) const {
-  for (const auto& tag : tag_map){
+void
+RGWObjTagSet_S3::dump_xml(Formatter* f) const
+{
+  for (const auto& tag : tag_map) {
     Formatter::ObjectSection os(*f, "Tag");
     encode_xml("Key", tag.first, f);
     encode_xml("Value", tag.second, f);
   }
 }
-

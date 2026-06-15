@@ -16,24 +16,30 @@
 #define CRYPTO_PLUGIN_H
 
 // -----------------------------------------------------------------------------
+#include <boost/asio/io_context.hpp>
+
 #include "common/PluginRegistry.h"
+#include "crypto/crypto_accel.h"
+
 #include "ostream"
 
-#include "crypto/crypto_accel.h"
-#include <boost/asio/io_context.hpp>
 // -----------------------------------------------------------------------------
 
 class CryptoPlugin : public ceph::Plugin {
 
 public:
   CryptoAccelRef cryptoaccel;
-  explicit CryptoPlugin(CephContext* cct) : Plugin(cct)
+
+  explicit CryptoPlugin(CephContext* cct) :
+    Plugin(cct)
   {}
-  ~CryptoPlugin()
-  {}
-  virtual int factory(CryptoAccelRef *cs,
-                      std::ostream *ss,
-                      const size_t chunk_size,
-                      const size_t max_requests) = 0;
+
+  ~CryptoPlugin() {}
+
+  virtual int factory(
+      CryptoAccelRef* cs,
+      std::ostream* ss,
+      const size_t chunk_size,
+      const size_t max_requests) = 0;
 };
 #endif

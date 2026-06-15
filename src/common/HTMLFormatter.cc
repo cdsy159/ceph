@@ -16,25 +16,27 @@
 #define LARGE_SIZE 1024
 
 #include "HTMLFormatter.h"
-#include "Formatter.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h> // for strdup
+
 #include <string>
-#include <string.h>     // for strdup
+#include <utility> // for std::cmp_greater_equal
+
 #include <boost/container/small_vector.hpp>
-#include <utility>  // for std::cmp_greater_equal
 
 #include "common/escape.h"
+
+#include "Formatter.h"
 
 // -----------------------
 namespace ceph {
 
-HTMLFormatter::HTMLFormatter(bool pretty)
-: XMLFormatter(pretty), m_status(0), m_status_name(NULL)
-{
-}
+HTMLFormatter::HTMLFormatter(bool pretty) :
+  XMLFormatter(pretty), m_status(0), m_status_name(NULL)
+{}
 
 HTMLFormatter::~HTMLFormatter()
 {
@@ -44,7 +46,8 @@ HTMLFormatter::~HTMLFormatter()
   }
 }
 
-void HTMLFormatter::reset()
+void
+HTMLFormatter::reset()
 {
   XMLFormatter::reset();
   m_header_done = false;
@@ -55,7 +58,8 @@ void HTMLFormatter::reset()
   }
 }
 
-void HTMLFormatter::set_status(int status, const char* status_name)
+void
+HTMLFormatter::set_status(int status, const char* status_name)
 {
   m_status = status;
   if (status_name) {
@@ -66,7 +70,9 @@ void HTMLFormatter::set_status(int status, const char* status_name)
   }
 };
 
-void HTMLFormatter::output_header() {
+void
+HTMLFormatter::output_header()
+{
   if (!m_header_done) {
     m_header_done = true;
     char buf[16];
@@ -91,7 +97,8 @@ void HTMLFormatter::output_header() {
 }
 
 template <typename T>
-void HTMLFormatter::dump_template(std::string_view name, T arg)
+void
+HTMLFormatter::dump_template(std::string_view name, T arg)
 {
   print_spaces();
   m_ss << "<li>" << name << ": " << arg << "</li>";
@@ -99,27 +106,35 @@ void HTMLFormatter::dump_template(std::string_view name, T arg)
     m_ss << "\n";
 }
 
-void HTMLFormatter::dump_unsigned(std::string_view name, uint64_t u)
+void
+HTMLFormatter::dump_unsigned(std::string_view name, uint64_t u)
 {
   dump_template(name, u);
 }
 
-void HTMLFormatter::dump_int(std::string_view name, int64_t u)
+void
+HTMLFormatter::dump_int(std::string_view name, int64_t u)
 {
   dump_template(name, u);
 }
 
-void HTMLFormatter::dump_float(std::string_view name, double d)
+void
+HTMLFormatter::dump_float(std::string_view name, double d)
 {
   dump_template(name, d);
 }
 
-void HTMLFormatter::dump_string(std::string_view name, std::string_view s)
+void
+HTMLFormatter::dump_string(std::string_view name, std::string_view s)
 {
   dump_template(name, xml_stream_escaper(s));
 }
 
-void HTMLFormatter::dump_string_with_attrs(std::string_view name, std::string_view s, const FormatterAttrs& attrs)
+void
+HTMLFormatter::dump_string_with_attrs(
+    std::string_view name,
+    std::string_view s,
+    const FormatterAttrs& attrs)
 {
   std::string e(name);
   std::string attrs_str;
@@ -130,7 +145,8 @@ void HTMLFormatter::dump_string_with_attrs(std::string_view name, std::string_vi
     m_ss << "\n";
 }
 
-std::ostream& HTMLFormatter::dump_stream(std::string_view name)
+std::ostream&
+HTMLFormatter::dump_stream(std::string_view name)
 {
   print_spaces();
   m_pending_string_name = "li";
@@ -138,7 +154,13 @@ std::ostream& HTMLFormatter::dump_stream(std::string_view name)
   return m_pending_string;
 }
 
-void HTMLFormatter::dump_format_va(std::string_view name, const char *ns, bool quoted, const char *fmt, va_list ap)
+void
+HTMLFormatter::dump_format_va(
+    std::string_view name,
+    const char* ns,
+    bool quoted,
+    const char* fmt,
+    va_list ap)
 {
   auto buf = boost::container::small_vector<char, LARGE_SIZE>{
       LARGE_SIZE, boost::container::default_init};
@@ -148,7 +170,7 @@ void HTMLFormatter::dump_format_va(std::string_view name, const char *ns, bool q
   size_t len = vsnprintf(buf.data(), buf.size(), fmt, ap);
   va_end(ap_copy);
 
-  if(std::cmp_greater_equal(len, buf.size())){
+  if (std::cmp_greater_equal(len, buf.size())) {
     buf.resize(len + 1, boost::container::default_init);
     vsnprintf(buf.data(), buf.size(), fmt, ap_copy);
   }
@@ -157,10 +179,10 @@ void HTMLFormatter::dump_format_va(std::string_view name, const char *ns, bool q
   print_spaces();
   if (ns) {
     m_ss << "<li xmlns=\"" << ns << "\">" << e << ": "
-	 << xml_stream_escaper(std::string_view(buf.data(), len)) << "</li>";
+         << xml_stream_escaper(std::string_view(buf.data(), len)) << "</li>";
   } else {
     m_ss << "<li>" << e << ": "
-	 << xml_stream_escaper(std::string_view(buf.data(), len)) << "</li>";
+         << xml_stream_escaper(std::string_view(buf.data(), len)) << "</li>";
   }
 
   if (m_pretty)

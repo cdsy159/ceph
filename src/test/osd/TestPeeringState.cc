@@ -17,7 +17,7 @@
  *
  */
 
- /* This is a test harness for testing PeeringState (with PGLog
+/* This is a test harness for testing PeeringState (with PGLog
   * and MissingLoc) and the peering process. Because the main
   * purpose of peering is to reconcile the state of a PG across
   * the cluster the test harness simulates multiple OSDs each with
@@ -29,16 +29,18 @@
   * PrimaryLogPG to allow this to be tested.
   */
 
-#include <memory>
 #include <gtest/gtest.h>
-#include "test/osd/MockConnection.h"
-#include "test/osd/MockECRecPred.h"
-#include "test/osd/MockECReadPred.h"
-#include "test/osd/MockPeeringListener.h"
+
+#include <memory>
+
 #include "global/global_init.h"
 #include "messages/MOSDPeeringOp.h"
 #include "msg/Connection.h"
 #include "os/ObjectStore.h"
+#include "test/osd/MockConnection.h"
+#include "test/osd/MockECReadPred.h"
+#include "test/osd/MockECRecPred.h"
+#include "test/osd/MockPeeringListener.h"
 
 // dout using global context and OSD subsystem
 // main sets OSD subsystem debug level
@@ -47,11 +49,15 @@
 
 using namespace std;
 
-IsPGRecoverablePredicate *get_is_recoverable_predicate() {
+IsPGRecoverablePredicate*
+get_is_recoverable_predicate()
+{
   return new MockECRecPred();
 }
 
-IsPGReadablePredicate *get_is_readable_predicate() {
+IsPGReadablePredicate*
+get_is_readable_predicate()
+{
   return new MockECReadPred();
 }
 
@@ -69,54 +75,68 @@ protected:
   osd_reqid_t reqid;
 
   // Per OSD state
-  std::map<int,unique_ptr<PeeringState>> osd_peeringstate;
-  std::map<int,unique_ptr<PeeringCtx>> osd_peeringctx;
-  std::map<int,unique_ptr<MockPeeringListener>> listeners;
+  std::map<int, unique_ptr<PeeringState>> osd_peeringstate;
+  std::map<int, unique_ptr<PeeringCtx>> osd_peeringctx;
+  std::map<int, unique_ptr<MockPeeringListener>> listeners;
 
   // Dpp helper
   // Generate log output that includes the OSD and shard (because tests
   // simulate multiple OSDs) and the PeeringState
   class DppHelper : public NoDoutPrefix {
-    public:
-    PeeringStateTest *t;
+  public:
+    PeeringStateTest* t;
     int osd;
     int shard;
-    DppHelper(CephContext *cct, unsigned subsys, PeeringStateTest *t, int osd, int shard)
-    : NoDoutPrefix(cct, subsys), t(t), osd(osd), shard(shard) {}
 
-    std::ostream& gen_prefix(std::ostream& out) const override
+    DppHelper(
+        CephContext* cct,
+        unsigned subsys,
+        PeeringStateTest* t,
+        int osd,
+        int shard) :
+      NoDoutPrefix(cct, subsys), t(t), osd(osd), shard(shard)
+    {}
+
+    std::ostream&
+    gen_prefix(std::ostream& out) const override
     {
       out << "osd " << osd << "(" << shard << "): ";
       if (t->osd_peeringstate.contains(osd)) {
-        PeeringState *ps = t->osd_peeringstate[osd].get();
+        PeeringState* ps = t->osd_peeringstate[osd].get();
         out << *ps << " ";
       }
       return out;
     }
   };
-  std::map<int,unique_ptr<DppHelper>> dpp;
 
-  DoutPrefixProvider *get_dpp(int osd)
+  std::map<int, unique_ptr<DppHelper>> dpp;
+
+  DoutPrefixProvider*
+  get_dpp(int osd)
   {
     return dpp[osd].get();
   }
 
-  PeeringState *get_ps(int osd)
+  PeeringState*
+  get_ps(int osd)
   {
     return osd_peeringstate[osd].get();
   }
 
-  bool has_ps(int osd)
+  bool
+  has_ps(int osd)
   {
     return osd_peeringstate.contains(osd);
   }
 
-  PeeringCtx *get_ctx(int osd)
+  PeeringCtx*
+  get_ctx(int osd)
   {
     return osd_peeringctx[osd].get();
   }
 
-  MockPeeringListener *get_listener(int osd)
+  MockPeeringListener*
+  get_listener(int osd)
   {
     return listeners[osd].get();
   }
@@ -126,7 +146,8 @@ protected:
   // ============================================================================
 
   // Helper to create OSDMap
-  std::shared_ptr<OSDMap> setup_osdmap(int num_osds)
+  std::shared_ptr<OSDMap>
+  setup_osdmap(int num_osds)
   {
     dout(0) << "setup_osdmap" << dendl;
     auto osdmap = std::make_shared<OSDMap>();
@@ -157,10 +178,11 @@ protected:
   }
 
   // Helper to update OSDMap and the epoch number in each listener
-  void apply_incremental(OSDMap::Incremental inc)
+  void
+  apply_incremental(OSDMap::Incremental inc)
   {
     osdmap->apply_incremental(inc);
-    for (const auto &[osd, l] : listeners) {
+    for (const auto& [osd, l] : listeners) {
       l->current_epoch = osdmap->get_epoch();
     }
   }
@@ -168,13 +190,14 @@ protected:
   // Helper to create new OSDMap epoch and process up_thru and pg_temp updates
   // if_required - if set to true only generates a new epoch if up_thru or pg_temp change required
   // returns true if a new epoch was created
-  bool new_epoch(bool if_required = false)
+  bool
+  new_epoch(bool if_required = false)
   {
     bool did_work = false;
     epoch_t e = osdmap->get_epoch();
     OSDMap::Incremental pending_inc(e + 1);
     pending_inc.fsid = osdmap->get_fsid();
-    for (auto osd: up_acting) {
+    for (auto osd : up_acting) {
       if (has_ps(osd)) {
         if (get_ps(osd)->get_need_up_thru()) {
           dout(0) << "new_epoch updating up_thru for osd " << osd << dendl;
@@ -183,9 +206,10 @@ protected:
         }
       }
       if (osd == acting_primary && get_listener(osd)) {
-        MockPeeringListener *listener = get_listener(osd);
+        MockPeeringListener* listener = get_listener(osd);
         if (listener->pg_temp_wanted) {
-          dout(0) << "new_epoch updating acting set to " << listener->next_acting << dendl;
+          dout(0) << "new_epoch updating acting set to "
+                  << listener->next_acting << dendl;
           acting = listener->next_acting;
           if (acting.empty()) {
             acting = up;
@@ -211,7 +235,8 @@ protected:
   // even if they are the same.
 
   // Helper to configure up set and acting set
-  void setup_up_acting()
+  void
+  setup_up_acting()
   {
     // Simple configuration - up set = acting set = {0, 1, 2, ... }
     up.clear();
@@ -227,7 +252,8 @@ protected:
   }
 
   // Helper to create an EC Pool
-  void create_ec_pool(int k = 2, int m = 2, bool fast_ec = true)
+  void
+  create_ec_pool(int k = 2, int m = 2, bool fast_ec = true)
   {
     pool_size = k + m;
     OSDMap::Incremental new_pool_inc(osdmap->get_epoch() + 1);
@@ -242,25 +268,21 @@ protected:
     p->set_pgp_num(1);
     p->type = pg_pool_t::TYPE_ERASURE;
     int r = osdmap->crush->add_simple_rule(
-        "erasure", "default", "osd", "",
-        "indep", pg_pool_t::TYPE_ERASURE,
+        "erasure", "default", "osd", "", "indep", pg_pool_t::TYPE_ERASURE,
         &cerr);
     p->crush_rule = r;
     p->set_flag(pg_pool_t::FLAG_HASHPSPOOL);
     // Warning - name not unique
     new_pool_inc.new_pool_names[pool_id] = "pool";
-    std::map<std::string, std::string> erasure_code_profile =
-      {{"plugin", "isa"},
-       {"technique", "reed_sol_van"},
-       {"k", fmt::format("{}", k)},
-       {"m", fmt::format("{}", m)},
-       {"stripe_unit", "16384"}};
+    std::map<std::string, std::string> erasure_code_profile = {
+        {"plugin", "isa"},
+        {"technique", "reed_sol_van"},
+        {"k", fmt::format("{}", k)},
+        {"m", fmt::format("{}", m)},
+        {"stripe_unit", "16384"}};
     // Warning - profile not unique
-    osdmap->set_erasure_code_profile(
-        "default",
-        erasure_code_profile);
-    p->erasure_code_profile =
-        "default";
+    osdmap->set_erasure_code_profile("default", erasure_code_profile);
+    p->erasure_code_profile = "default";
     p->set_flag(pg_pool_t::FLAG_EC_OVERWRITES);
     if (fast_ec) {
       p->nonprimary_shards.clear();
@@ -274,7 +296,8 @@ protected:
   }
 
   // Helper to create a Replica Pool
-  void create_rep_pool(int n = 3)
+  void
+  create_rep_pool(int n = 3)
   {
     // Create a replica pool
     pool_size = n;
@@ -299,16 +322,17 @@ protected:
 
 #if POOL_MIGRATION
   // Create a 2nd pool as an EC pool and set up migration from the old pool
-  void migrate_to_ec_pool(int k = 2, int m = 2, bool fast_ec = true)
+  void
+  migrate_to_ec_pool(int k = 2, int m = 2, bool fast_ec = true)
   {
     uint64_t old_pool_id = pool_id;
     int old_pool_size = pool_size;
     create_ec_pool(k, m, fast_ec);
     OSDMap::Incremental pending_inc(osdmap->get_epoch() + 1);
-    const pg_pool_t *sp = osdmap->get_pg_pool(old_pool_id);
-    pg_pool_t *spi = pending_inc.get_new_pool(old_pool_id, sp);
-    const pg_pool_t *tp = osdmap->get_pg_pool(pool_id);
-    pg_pool_t *tpi = pending_inc.get_new_pool(pool_id, tp);
+    const pg_pool_t* sp = osdmap->get_pg_pool(old_pool_id);
+    pg_pool_t* spi = pending_inc.get_new_pool(old_pool_id, sp);
+    const pg_pool_t* tp = osdmap->get_pg_pool(pool_id);
+    pg_pool_t* tpi = pending_inc.get_new_pool(pool_id, tp);
     spi->migration_src.reset();
     spi->migration_target = pool_id;
     tpi->migration_src = old_pool_id;
@@ -324,7 +348,8 @@ protected:
 #endif
 
   // Helper to swap an OSD in the up and acting set
-  void modify_up_acting(int offset, int osd)
+  void
+  modify_up_acting(int offset, int osd)
   {
     up[offset] = osd;
     acting[offset] = osd;
@@ -333,13 +358,16 @@ protected:
   }
 
   // Helper - take OSD down by removing it from up/acting set
-  void osd_down(int offset, int osd) {
+  void
+  osd_down(int offset, int osd)
+  {
     dout(0) << "= osd." << osd << "(" << offset << ") set down+out =" << dendl;
     ceph_assert(up[offset] == osd);
     up[offset] = pg_pool_t::pg_CRUSH_ITEM_NONE;
     ceph_assert(acting[offset] == osd);
     acting[offset] = pg_pool_t::pg_CRUSH_ITEM_NONE;
-    up_acting.erase(remove(up_acting.begin(), up_acting.end(), osd), up_acting.end());
+    up_acting.erase(
+        remove(up_acting.begin(), up_acting.end(), osd), up_acting.end());
     // Mark the OSD down+out in the OSDMap
     OSDMap::Incremental pending_inc(osdmap->get_epoch() + 1);
     pending_inc.pending_osd_state_set(osd, CEPH_OSD_UP); // XORed
@@ -348,7 +376,9 @@ protected:
   }
 
   // Helper - bring OSD up by adding it to up/acting set
-  void osd_up(int offset, int osd) {
+  void
+  osd_up(int offset, int osd)
+  {
     dout(0) << "= osd." << osd << "(" << offset << ") set up+in =" << dendl;
     ceph_assert(up[offset] == pg_pool_t::pg_CRUSH_ITEM_NONE);
     up[offset] = osd;
@@ -374,23 +404,25 @@ protected:
   // messages are queued in message_map in PeeringCtx
   // toosd - if specified only send messages to the specified OSD
   // num_messages - if specified only send up to the specified number of messages
-  bool dispatch_peering_messages( int fromosd, int toosd = -1, int num_messages = -1 )
+  bool
+  dispatch_peering_messages(int fromosd, int toosd = -1, int num_messages = -1)
   {
-    PeeringCtx *ctx = get_ctx(fromosd);
+    PeeringCtx* ctx = get_ctx(fromosd);
     bool did_work = false;
     for (auto& [osd, ls] : ctx->message_map) {
       if (!osdmap->is_up(osd)) {
         dout(0) << __func__ << " skipping down osd." << osd << dendl;
         continue;
       }
-      if ( toosd >= 0 && osd != toosd) {
+      if (toosd >= 0 && osd != toosd) {
         continue;
       }
       for (auto it = ls.begin(); it != ls.end();) {
         MessageRef m = *it;
         it = ls.erase(it);
-        MOSDPeeringOp *pm = static_cast<MOSDPeeringOp*>(m.get());
-        dout(0) << __func__ << " sending from osd." << fromosd << " to osd." << osd << " " << *pm << dendl;
+        MOSDPeeringOp* pm = static_cast<MOSDPeeringOp*>(m.get());
+        dout(0) << __func__ << " sending from osd." << fromosd << " to osd."
+                << osd << " " << *pm << dendl;
         ceph_msg_header h = pm->get_header();
         h.src.num = fromosd;
         pm->set_header(h);
@@ -400,7 +432,8 @@ protected:
         ConnectionRef c = ceph::make_ref<MockConnection>();
         pm->set_connection(c);
 #endif
-        get_ps(osd)->handle_event(PGPeeringEventRef(pm->get_event()), get_ctx(osd));
+        get_ps(osd)->handle_event(
+            PGPeeringEventRef(pm->get_event()), get_ctx(osd));
         // MessageRef m goes out of scope here, automatically releasing the reference
         did_work = true;
         if (num_messages > 0 && --num_messages == 0) {
@@ -412,13 +445,14 @@ protected:
   }
 
   // Dispatch peering messages to all OSDs until all queues empty
-  bool dispatch_all_peering_messages()
+  bool
+  dispatch_all_peering_messages()
   {
     bool rc = false;
     bool did_work;
     do {
       did_work = false;
-      for (auto osd: up_acting) {
+      for (auto osd : up_acting) {
         did_work |= dispatch_peering_messages(osd);
       }
       rc |= did_work;
@@ -430,7 +464,8 @@ protected:
   // messages are sent by send_cluster_message and are queued by MockPeeringListener
   // toosd - if specified only send messages to the specified OSD
   // num_messages - if specified only send up to the specified number of messages
-  bool dispatch_cluster_messages( int fromosd, int toosd = -1, int num_messages = -1 )
+  bool
+  dispatch_cluster_messages(int fromosd, int toosd = -1, int num_messages = -1)
   {
     bool did_work = false;
     for (auto& [osd, ls] : get_listener(fromosd)->messages) {
@@ -438,7 +473,7 @@ protected:
         dout(0) << __func__ << " skipping down osd." << osd << dendl;
         continue;
       }
-      if ( toosd >= 0 && osd != toosd) {
+      if (toosd >= 0 && osd != toosd) {
         continue;
       }
       for (auto it = ls.begin(); it != ls.end();) {
@@ -454,8 +489,9 @@ protected:
         // Future enhancement: If testing non-peering cluster messages becomes necessary,
         // add type checking and appropriate handling for Message-derived (non-MOSDPeeringOp) types.
         dout(0) << __func__ << " message type = " << m->get_type() << dendl;
-        MOSDPeeringOp *pm = static_cast<MOSDPeeringOp*>(m.get());
-        dout(0) << __func__ << " sending from osd." << fromosd << " to osd." << osd << " " << *pm << dendl;
+        MOSDPeeringOp* pm = static_cast<MOSDPeeringOp*>(m.get());
+        dout(0) << __func__ << " sending from osd." << fromosd << " to osd."
+                << osd << " " << *pm << dendl;
         ceph_msg_header h = pm->get_header();
         h.src.num = fromosd;
         pm->set_header(h);
@@ -465,7 +501,8 @@ protected:
         ConnectionRef c = ceph::make_ref<MockConnection>();
         pm->set_connection(c);
 #endif
-        get_ps(osd)->handle_event(PGPeeringEventRef(pm->get_event()), get_ctx(osd));
+        get_ps(osd)->handle_event(
+            PGPeeringEventRef(pm->get_event()), get_ctx(osd));
         // MessageRef m goes out of scope here, automatically releasing the reference
         did_work = true;
         if (num_messages > 0 && --num_messages == 0) {
@@ -477,13 +514,14 @@ protected:
   }
 
   // Dispatch cluster messages to all OSDs until all queues empty
-  bool dispatch_all_cluster_messages()
+  bool
+  dispatch_all_cluster_messages()
   {
     bool rc = false;
     bool did_work;
     do {
       did_work = false;
-      for (auto osd: up_acting) {
+      for (auto osd : up_acting) {
         did_work |= dispatch_cluster_messages(osd);
       }
       rc |= did_work;
@@ -496,15 +534,17 @@ protected:
   // of PrimaryLogPg and PG
   // stalled - true if dispatching stalled events (see inject_event_stall)
   // num_events - if specified only send up to the specified number of events
-  bool dispatch_events( int fromosd, bool stalled = false, int num_events = -1 )
+  bool
+  dispatch_events(int fromosd, bool stalled = false, int num_events = -1)
   {
     bool did_work = false;
-    auto &ls = stalled ? get_listener(fromosd)->stalled_events :
-                         get_listener(fromosd)->events;
+    auto& ls = stalled ? get_listener(fromosd)->stalled_events
+                       : get_listener(fromosd)->events;
     for (auto it = ls.begin(); it != ls.end();) {
       auto evt = *it;
       it = ls.erase(it);
-      dout(0) << __func__ << " event to osd." << fromosd << " " << evt->get_desc() << dendl;
+      dout(0) << __func__ << " event to osd." << fromosd << " "
+              << evt->get_desc() << dendl;
       get_ps(fromosd)->handle_event(evt, get_ctx(fromosd));
       did_work = true;
       if (num_events > 0 && --num_events == 0) {
@@ -516,13 +556,14 @@ protected:
 
   // Dispatch events to all OSDs until all queues empty
   // stalled - true if dispatching stalled events (see inject_event_stall)
-  bool dispatch_all_events(bool stalled = false)
+  bool
+  dispatch_all_events(bool stalled = false)
   {
     bool rc = false;
     bool did_work;
     do {
       did_work = false;
-      for (auto osd: up_acting) {
+      for (auto osd : up_acting) {
         did_work |= dispatch_events(osd, stalled);
       }
       rc |= did_work;
@@ -531,7 +572,8 @@ protected:
   }
 
   // Dispatch all types of queued work repeatedly until queues are empty
-  bool dispatch_all()
+  bool
+  dispatch_all()
   {
     bool rc = false;
     bool did_work;
@@ -549,29 +591,27 @@ protected:
   // ============================================================================
 
   // Helper to create a single PeeringState instance
-  PeeringState *create_peering_state(int osd, int shard)
+  PeeringState*
+  create_peering_state(int osd, int shard)
   {
-    dout(0) << "= create_peering_state osd." << osd << "(" << shard <<") =" << dendl;
+    dout(0) << "= create_peering_state osd." << osd << "(" << shard
+            << ") =" << dendl;
     const pg_pool_t pi = *osdmap->get_pg_pool(pool_id);
-    pg_shard_t pg_whoami(osd, pi.is_erasure() ? shard_id_t(shard) : shard_id_t::NO_SHARD);
+    pg_shard_t pg_whoami(
+        osd, pi.is_erasure() ? shard_id_t(shard) : shard_id_t::NO_SHARD);
     PGPool pool(osdmap, pool_id, pi, osdmap->get_pool_name(pool_id));
-    dpp[osd] = make_unique<DppHelper>(g_ceph_context, dout_subsys, this, osd, shard);
+    dpp[osd] =
+        make_unique<DppHelper>(g_ceph_context, dout_subsys, this, osd, shard);
     spg_t spgid = spg_t(pg_t(0, pool_id), pg_whoami.shard);
-    listeners[osd] = make_unique<MockPeeringListener>(osdmap, pool_id, get_dpp(osd), pg_whoami);
+    listeners[osd] = make_unique<MockPeeringListener>(
+        osdmap, pool_id, get_dpp(osd), pg_whoami);
     get_listener(osd)->current_epoch = osdmap->get_epoch();
     unique_ptr<PeeringState> ps = make_unique<PeeringState>(
-      g_ceph_context,
-      pg_whoami,
-      spgid,
-      pool,
-      osdmap,
-      PG_FEATURE_CLASSIC_ALL,
-      get_dpp(osd),
-      get_listener(osd));
+        g_ceph_context, pg_whoami, spgid, pool, osdmap, PG_FEATURE_CLASSIC_ALL,
+        get_dpp(osd), get_listener(osd));
     listeners[osd]->ps = ps.get();
     ps->set_backend_predicates(
-      get_is_readable_predicate(),
-      get_is_recoverable_predicate());
+        get_is_readable_predicate(), get_is_recoverable_predicate());
     osd_peeringstate[osd] = std::move(ps);
     osd_peeringctx[osd] = make_unique<PeeringCtx>();
     return get_ps(osd);
@@ -582,10 +622,11 @@ protected:
   // ============================================================================
 
   // Helper - create peering state for all osds
-  void test_create_peering_state(int toosd = -1, int shard = -1)
+  void
+  test_create_peering_state(int toosd = -1, int shard = -1)
   {
     dout(0) << "= test_create_peering_state =" << dendl;
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
@@ -594,7 +635,8 @@ protected:
   }
 
   // Helper - init for all osds
-  void test_init(int toosd = -1, bool dne = false)
+  void
+  test_init(int toosd = -1, bool dne = false)
   {
     dout(0) << "= test_init =" << dendl;
     pg_history_t history;
@@ -607,28 +649,23 @@ protected:
     PastIntervals past_intervals;
     ObjectStore::Transaction t;
 
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
       get_ps(osd)->init(
-        (osd == acting_primary) ? 0 /* role: primary */ : 1 /* role: replica */,
-        up,
-        up_primary,
-        acting,
-        acting_primary,
-        history,
-        past_intervals,
-        t);
+          (osd == acting_primary) ? 0 /* role: primary */ : 1 /* role: replica */,
+          up, up_primary, acting, acting_primary, history, past_intervals, t);
     }
   }
 
   // Helper - init from disk for all osds
-  void test_init_from_disk(int toosd = -1)
+  void
+  test_init_from_disk(int toosd = -1)
   {
     dout(0) << "= test_init_from_disk =" << dendl;
 
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
@@ -638,46 +675,48 @@ protected:
       PastIntervals past_intervals;
 
       get_ps(osd)->init_from_disk_state(
-        std::move(info),
-        std::move(past_intervals),
-        [](PGLog &log) { return 0; });
+          std::move(info), std::move(past_intervals),
+          [](PGLog& log) { return 0; });
     }
   }
 
   // Helper - initialize event for all osds
-  void test_event_initialize(int toosd = -1)
+  void
+  test_event_initialize(int toosd = -1)
   {
     dout(0) << "= test_event_initialize =" << dendl;
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
       auto evt = std::make_shared<PGPeeringEvent>(
-        osdmap->get_epoch(),
-        osdmap->get_epoch(),
-        PeeringState::Initialize());
+          osdmap->get_epoch(), osdmap->get_epoch(), PeeringState::Initialize());
 
       get_ps(osd)->handle_event(evt, get_ctx(osd));
     }
   }
 
   // Helper - advance map for all osds
-  void test_event_advance_map(int toosd = -1)
+  void
+  test_event_advance_map(int toosd = -1)
   {
     dout(0) << "= test_event_advance_map =" << dendl;
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
-      get_ps(osd)->advance_map(osdmap, osdmap, up, up_primary, acting, acting_primary, *(get_ctx(osd)));
+      get_ps(osd)->advance_map(
+          osdmap, osdmap, up, up_primary, acting, acting_primary,
+          *(get_ctx(osd)));
     }
   }
 
   // Helper - activate map event for all osds
-  void test_event_activate_map(int toosd = -1)
+  void
+  test_event_activate_map(int toosd = -1)
   {
     dout(0) << "= test_event_activate_map =" << dendl;
-    for (auto osd : up_acting ) {
+    for (auto osd : up_acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
@@ -686,13 +725,16 @@ protected:
   }
 
   // Helper - construct a shard_id_set from a vector of integers
-  shard_id_set ss(vector<int> v) {
+  shard_id_set
+  ss(vector<int> v)
+  {
     shard_id_set s;
     for (auto e : v) {
       s.insert(shard_id_t(e));
     }
     return s;
   }
+
   const shard_id_set ss_all;
 
   // Helper - construct a pg_log_entry and call append_log for specified osds
@@ -702,11 +744,12 @@ protected:
   // update_only - if true then only update the log, do not complete it
   // do_trim - if true then trim earlier log entries (usefull for testing backfill)
   // returns eversion of the new log entry
-  eversion_t test_append_log_entry(
-    shard_id_set written = shard_id_set(),
-    shard_id_set osds = shard_id_set(),
-    bool update_only = false,
-    bool do_trim = false)
+  eversion_t
+  test_append_log_entry(
+      shard_id_set written = shard_id_set(),
+      shard_id_set osds = shard_id_set(),
+      bool update_only = false,
+      bool do_trim = false)
   {
     if (osds.empty()) {
       int shard = 0;
@@ -717,11 +760,13 @@ protected:
         shard++;
       }
     }
-    dout(0) << "= test_append_log_entry written=" << written << " osds=" << osds << " =" << dendl;
+    dout(0) << "= test_append_log_entry written=" << written << " osds=" << osds
+            << " =" << dendl;
     if (get_listener(acting_primary)->first_write_in_interval) {
       // Fix for issue 73891
       if (!written.empty()) {
-        dout(0) << "First write in new interval is promoted to a full write" << dendl;
+        dout(0) << "First write in new interval is promoted to a full write"
+                << dendl;
         written.clear();
         get_listener(acting_primary)->first_write_in_interval = false;
       }
@@ -741,7 +786,8 @@ protected:
       pv.version = 0;
     }
     uv = v.version;
-    pg_log_entry_t entry(pg_log_entry_t::MODIFY, soid, v, pv, uv, reqid, utime_t(), 0);
+    pg_log_entry_t entry(
+        pg_log_entry_t::MODIFY, soid, v, pv, uv, reqid, utime_t(), 0);
     entry.written_shards = written;
 
     for (auto osd : osds) {
@@ -758,49 +804,52 @@ protected:
         trim = pv;
       }
       get_ps(int(osd))->append_log(
-        std::move(entries),
-        trim, // trim_to
-        trim, // roll_forward_to
-        trim, // pg_committed_to
-        t,
-        true,
-        false);
+          std::move(entries),
+          trim, // trim_to
+          trim, // roll_forward_to
+          trim, // pg_committed_to
+          t, true, false);
       if (!update_only) {
         std::vector<pg_log_entry_t> empty;
         get_ps(int(osd))->append_log(
-          std::move(empty),
-          trim, // trim_to
-          v, // roll_forward_to
-          v, // pg_committed_to
-          t,
-          true,
-          false);
+            std::move(empty),
+            trim, // trim_to
+            v, // roll_forward_to
+            v, // pg_committed_to
+            t, true, false);
       }
     }
     return v;
   }
 
   // Helper - call begin_peer_recover
-  void test_begin_peer_recover(int osd, int shard)
+  void
+  test_begin_peer_recover(int osd, int shard)
   {
-    dout(0) << "= test_begin_peer_recover " << osd << "(" << shard << ") =" << dendl;
+    dout(0) << "= test_begin_peer_recover " << osd << "(" << shard
+            << ") =" << dendl;
     object_t oid("foo");
     hobject_t soid(oid, oid.name, 0, 1234, pool_id, "");
-    get_ps(acting_primary)->begin_peer_recover(pg_shard_t(osd, shard_id_t(shard)), soid);
+    get_ps(acting_primary)
+        ->begin_peer_recover(pg_shard_t(osd, shard_id_t(shard)), soid);
   }
 
   // Helper - call on_peer_recover
-  void test_on_peer_recover(int osd, int shard, eversion_t v)
+  void
+  test_on_peer_recover(int osd, int shard, eversion_t v)
   {
-    dout(0) << "= test_on_peer_recover " << osd << "(" << shard << ")" << v << " =" << dendl;
+    dout(0) << "= test_on_peer_recover " << osd << "(" << shard << ")" << v
+            << " =" << dendl;
     object_t oid("foo");
     hobject_t soid(oid, oid.name, 0, 1234, pool_id, "");
     ObjectStore::Transaction t;
-    get_ps(acting_primary)->on_peer_recover(pg_shard_t(osd, shard_id_t(shard)), soid, v);
+    get_ps(acting_primary)
+        ->on_peer_recover(pg_shard_t(osd, shard_id_t(shard)), soid, v);
   }
 
   // Helper - call recover got to indicate an object has been recovered
-  void test_recover_got(int osd, eversion_t v)
+  void
+  test_recover_got(int osd, eversion_t v)
   {
     dout(0) << "= test_recover_got " << osd << " " << v << " =" << dendl;
     object_t oid("foo");
@@ -810,7 +859,8 @@ protected:
   }
 
   // Helper - call object_recovered
-  void test_object_recovered()
+  void
+  test_object_recovered()
   {
     dout(0) << "= test_object_recovered =" << dendl;
     object_t oid("foo");
@@ -819,21 +869,29 @@ protected:
     get_ps(acting_primary)->object_recovered(soid, stat_diff);
   }
 
-  void test_prepare_backfill_for_missing(int osd, int shard, eversion_t version)
+  void
+  test_prepare_backfill_for_missing(int osd, int shard, eversion_t version)
   {
-    dout(0) << "= test_prepare_backfill_for_missing " << osd << " " << shard << " " << version << " =" << dendl;
+    dout(0) << "= test_prepare_backfill_for_missing " << osd << " " << shard
+            << " " << version << " =" << dendl;
     object_t oid("foo");
     hobject_t soid(oid, oid.name, 0, 1234, pool_id, "");
-    get_ps(acting_primary)->prepare_backfill_for_missing(soid, version, {pg_shard_t(osd,shard_id_t(shard))});
+    get_ps(acting_primary)
+        ->prepare_backfill_for_missing(
+            soid, version, {pg_shard_t(osd, shard_id_t(shard))});
   }
 
-  void test_update_peer_last_backfill(int osd, int shard, hobject_t last_backfill)
+  void
+  test_update_peer_last_backfill(int osd, int shard, hobject_t last_backfill)
   {
     dout(0) << "= test_update_peer_last_backfill =" << dendl;
-    get_ps(acting_primary)->update_peer_last_backfill(pg_shard_t(osd, shard_id_t(shard)), last_backfill);
+    get_ps(acting_primary)
+        ->update_peer_last_backfill(
+            pg_shard_t(osd, shard_id_t(shard)), last_backfill);
   }
 
-  void test_update_backfill_progress(int osd, hobject_t last_backfill)
+  void
+  test_update_backfill_progress(int osd, hobject_t last_backfill)
   {
     dout(0) << "= test_update_backfill_progress =" << dendl;
     pg_stat_t stats;
@@ -842,64 +900,64 @@ protected:
   }
 
   // Helper - all replicas recovered
-  void test_event_all_replicas_recovered()
+  void
+  test_event_all_replicas_recovered()
   {
     dout(0) << "= test_event_all_replicas_recovered =" << dendl;
     auto evt = std::make_shared<PGPeeringEvent>(
-      osdmap->get_epoch(),
-      osdmap->get_epoch(),
-      PeeringState::AllReplicasRecovered());
+        osdmap->get_epoch(), osdmap->get_epoch(),
+        PeeringState::AllReplicasRecovered());
 
     get_ps(acting_primary)->handle_event(evt, get_ctx(acting_primary));
   }
 
   // Helper - recovery done
-  void test_event_recovery_done(int osd)
+  void
+  test_event_recovery_done(int osd)
   {
     dout(0) << "= test_event_recovery_done =" << dendl;
     auto evt = std::make_shared<PGPeeringEvent>(
-      osdmap->get_epoch(),
-      osdmap->get_epoch(),
-      RecoveryDone());
+        osdmap->get_epoch(), osdmap->get_epoch(), RecoveryDone());
 
     get_ps(osd)->handle_event(evt, get_ctx(osd));
   }
 
   // Helper - backfilled
-  void test_event_backfilled()
+  void
+  test_event_backfilled()
   {
     dout(0) << "= test_event_backfilled =" << dendl;
     auto evt = std::make_shared<PGPeeringEvent>(
-      osdmap->get_epoch(),
-      osdmap->get_epoch(),
-      PeeringState::Backfilled());
+        osdmap->get_epoch(), osdmap->get_epoch(), PeeringState::Backfilled());
 
     get_ps(acting_primary)->handle_event(evt, get_ctx(acting_primary));
   }
 
 #if POOL_MIGRATION
-// Helper - migration done
-  void test_event_migration_done()
+  // Helper - migration done
+  void
+  test_event_migration_done()
   {
     dout(0) << "= test_event_migration_done =" << dendl;
     auto evt = std::make_shared<PGPeeringEvent>(
-      osdmap->get_epoch(),
-      osdmap->get_epoch(),
-      PeeringState::PoolMigrationDone());
+        osdmap->get_epoch(), osdmap->get_epoch(),
+        PeeringState::PoolMigrationDone());
 
     get_ps(acting_primary)->handle_event(evt, get_ctx(acting_primary));
   }
 #endif
 
   // Helper - run peering cycle with new epochs if required for upthru or pgtemp
-  void test_peering()
+  void
+  test_peering()
   {
     // Full peering cycle
     while (true) {
       test_event_advance_map();
       test_event_activate_map();
       dispatch_all();
-      bool did_work = new_epoch(false); // New epoch if required for upthru or pgtemp
+      bool did_work =
+          new_epoch(false); // New epoch if required for upthru or pgtemp
       if (!did_work) {
         break;
       }
@@ -911,7 +969,8 @@ protected:
   // ============================================================================
 
   // Helper - verify primary OSD is in active+clean state
-  void verify_primary_active_clean(int osd)
+  void
+  verify_primary_active_clean(int osd)
   {
     dout(0) << "Verifying primary osd " << osd << " is active+clean" << dendl;
     auto ps = get_ps(osd);
@@ -926,9 +985,11 @@ protected:
   }
 
   // Helper - verify primary OSD is in active+recovering state
-  void verify_primary_active_recovering(int osd)
+  void
+  verify_primary_active_recovering(int osd)
   {
-    dout(0) << "Verifying primary osd " << osd << " is active+recovering" << dendl;
+    dout(0) << "Verifying primary osd " << osd << " is active+recovering"
+            << dendl;
     auto ps = get_ps(osd);
     EXPECT_TRUE(get_listener(osd)->activate_complete_called);
     EXPECT_FALSE(ps->is_clean());
@@ -940,9 +1001,11 @@ protected:
   }
 
   // Helper - verify primary OSD is in active+backfilling state
-  void verify_primary_active_backfilling(int osd)
+  void
+  verify_primary_active_backfilling(int osd)
   {
-    dout(0) << "Verifying primary osd " << osd << " is active+backfilling" << dendl;
+    dout(0) << "Verifying primary osd " << osd << " is active+backfilling"
+            << dendl;
     auto ps = get_ps(osd);
     EXPECT_TRUE(get_listener(osd)->activate_complete_called);
     EXPECT_FALSE(ps->is_clean());
@@ -954,9 +1017,11 @@ protected:
   }
 
   // Helper - verify primary OSD is in active+migrating state
-  void verify_primary_active_migrating(int osd)
+  void
+  verify_primary_active_migrating(int osd)
   {
-    dout(0) << "Verifying primary osd " << osd << " is active+migrating" << dendl;
+    dout(0) << "Verifying primary osd " << osd << " is active+migrating"
+            << dendl;
     auto ps = get_ps(osd);
     EXPECT_TRUE(get_listener(osd)->activate_complete_called);
     EXPECT_FALSE(ps->is_clean());
@@ -968,14 +1033,16 @@ protected:
   }
 
   // Helper - verify replica OSD is activated
-  void verify_replica_activated(int osd)
+  void
+  verify_replica_activated(int osd)
   {
     dout(0) << "Verifying replica osd " << osd << " is activated" << dendl;
     EXPECT_TRUE(get_listener(osd)->activate_committed_called);
   }
 
   // Helper - verify OSD is active and peered
-  void verify_active_and_peered(int osd)
+  void
+  verify_active_and_peered(int osd)
   {
     auto ps = get_ps(osd);
     EXPECT_TRUE(ps->is_active());
@@ -983,10 +1050,13 @@ protected:
   }
 
   // Helper - verify log state for an OSD
-  void verify_log_state(int osd, const eversion_t& expected_update,
-                        const eversion_t& expected_complete,
-                        const eversion_t& expected_head,
-                        const eversion_t& expected_tail)
+  void
+  verify_log_state(
+      int osd,
+      const eversion_t& expected_update,
+      const eversion_t& expected_complete,
+      const eversion_t& expected_head,
+      const eversion_t& expected_tail)
   {
     auto ps = get_ps(osd);
     EXPECT_EQ(ps->get_info().last_update, expected_update);
@@ -999,11 +1069,12 @@ protected:
   // identical - if identical is true, all logs should be identical
   //            if identical is false, all logs should be equivalent
   //            with differences only because of partial writes
-  void verify_logs(bool identical = false)
+  void
+  verify_logs(bool identical = false)
   {
     auto logp = get_ps(acting_primary)->get_pg_log();
     int shard = 0;
-    for (auto osd: acting) {
+    for (auto osd : acting) {
       if (osd == acting_primary || osd == pg_pool_t::pg_CRUSH_ITEM_NONE) {
         ++shard;
         continue;
@@ -1018,7 +1089,8 @@ protected:
       auto i = log.get_log().log.begin();
       auto e = log.get_log().log.end();
       while (pi != pe && i != e) {
-        if (pi->version < i->version && !pi->is_written_shard(shard_id_t(shard))) {
+        if (pi->version < i->version &&
+            !pi->is_written_shard(shard_id_t(shard))) {
           // Primary may have partial write log entries that this
           // shard does not have because it was not written to
           ++pi;
@@ -1044,7 +1116,8 @@ protected:
   }
 
   // Helper - verify that there are no missing or unfound objects
-  void verify_no_missing_or_unfound(int osd, int shard, bool check_missing_loc = true)
+  void
+  verify_no_missing_or_unfound(int osd, int shard, bool check_missing_loc = true)
   {
     auto ps = get_ps(osd);
     EXPECT_FALSE(ps->have_missing());
@@ -1061,7 +1134,8 @@ protected:
   }
 
   // Helper - verify that there are missing objects but not unfound objects
-  void verify_missing(int osd, int shard)
+  void
+  verify_missing(int osd, int shard)
   {
     auto ps = get_ps(osd);
     EXPECT_TRUE(ps->have_missing());
@@ -1070,17 +1144,19 @@ protected:
     if (osd != up_primary) {
       pg_shard_t pg_whoami = get_listener(osd)->pg_whoami;
       auto pps = get_ps(up_primary);
-      EXPECT_EQ(pps->get_peer_missing(pg_whoami).num_missing(),
-                ps->get_num_missing());
+      EXPECT_EQ(
+          pps->get_peer_missing(pg_whoami).num_missing(), ps->get_num_missing());
     }
   }
 
   // Helper - verify all OSDs in active+clean state with log checks
-  void verify_all_active_clean(const eversion_t& expected_update = eversion_t(),
-                                const eversion_t& expected_tail = eversion_t())
+  void
+  verify_all_active_clean(
+      const eversion_t& expected_update = eversion_t(),
+      const eversion_t& expected_tail = eversion_t())
   {
     int shard = 0;
-    for (auto osd: up) {
+    for (auto osd : up) {
       dout(0) << "Verifying state of osd " << osd << dendl;
       if (osd == up_primary) {
         verify_primary_active_clean(osd);
@@ -1089,20 +1165,24 @@ protected:
       }
       verify_no_missing_or_unfound(osd, shard);
       verify_active_and_peered(osd);
-      verify_log_state(osd, expected_update, expected_update, expected_update, expected_tail);
+      verify_log_state(
+          osd, expected_update, expected_update, expected_update, expected_tail);
       ++shard;
     }
     verify_logs();
   }
 
   // Helper - verify all OSDs in active+recovering state with log checks
-  void verify_all_active_recovering(const eversion_t& expected_update,
-                                     const eversion_t& expected_complete,
-                                     const eversion_t& expected_complete_recovering,
-                                     int recovering_osd,
-                                     const eversion_t& expected_tail = eversion_t()) {
+  void
+  verify_all_active_recovering(
+      const eversion_t& expected_update,
+      const eversion_t& expected_complete,
+      const eversion_t& expected_complete_recovering,
+      int recovering_osd,
+      const eversion_t& expected_tail = eversion_t())
+  {
     int shard = 0;
-    for (auto osd: up) {
+    for (auto osd : up) {
       dout(0) << "Verifying state of osd " << osd << dendl;
       if (osd == up_primary) {
         verify_primary_active_recovering(osd);
@@ -1116,22 +1196,23 @@ protected:
       }
       verify_active_and_peered(osd);
       verify_log_state(
-        osd,
-        expected_update,
-        (osd == recovering_osd) ? expected_complete_recovering : expected_complete,
-        expected_update,
-        expected_tail);
+          osd, expected_update,
+          (osd == recovering_osd) ? expected_complete_recovering
+                                  : expected_complete,
+          expected_update, expected_tail);
       ++shard;
     }
     verify_logs();
   }
 
   // Helper - verify all OSDs in active+backfilling state with log checks
-  void verify_all_active_backfilling(const eversion_t& expected_update,
-                                      const eversion_t& expected_tail = eversion_t())
+  void
+  verify_all_active_backfilling(
+      const eversion_t& expected_update,
+      const eversion_t& expected_tail = eversion_t())
   {
     int shard = 0;
-    for (auto osd: up) {
+    for (auto osd : up) {
       dout(0) << "Verifying state of osd " << osd << dendl;
       if (osd == up_primary) {
         verify_primary_active_backfilling(osd);
@@ -1140,7 +1221,8 @@ protected:
       }
       verify_no_missing_or_unfound(osd, shard);
       verify_active_and_peered(osd);
-      verify_log_state(osd, expected_update, expected_update, expected_update, expected_tail);
+      verify_log_state(
+          osd, expected_update, expected_update, expected_update, expected_tail);
       ++shard;
     }
     verify_logs();
@@ -1148,11 +1230,13 @@ protected:
 
 #if POOL_MIGRATION
   // Helper - verify all OSDs in active+migrating state with log checks
-  void verify_all_active_migrating(const eversion_t& expected_update = eversion_t(),
-                                const eversion_t& expected_tail = eversion_t())
+  void
+  verify_all_active_migrating(
+      const eversion_t& expected_update = eversion_t(),
+      const eversion_t& expected_tail = eversion_t())
   {
     int shard = 0;
-    for (auto osd: up) {
+    for (auto osd : up) {
       dout(0) << "Verifying state of osd " << osd << dendl;
       if (osd == up_primary) {
         verify_primary_active_migrating(osd);
@@ -1161,7 +1245,8 @@ protected:
       }
       verify_no_missing_or_unfound(osd, shard);
       verify_active_and_peered(osd);
-      verify_log_state(osd, expected_update, expected_update, expected_update, expected_tail);
+      verify_log_state(
+          osd, expected_update, expected_update, expected_update, expected_tail);
       ++shard;
     }
     verify_logs();
@@ -1169,9 +1254,13 @@ protected:
 #endif
 
   // Helper - verify PWLC state
-  void verify_pwlc(epoch_t e,  std::map<shard_id_t,std::pair<eversion_t, eversion_t>> pwlc, int toosd = -1)
+  void
+  verify_pwlc(
+      epoch_t e,
+      std::map<shard_id_t, std::pair<eversion_t, eversion_t>> pwlc,
+      int toosd = -1)
   {
-    for (auto osd: acting) {
+    for (auto osd : acting) {
       if (toosd != -1 && toosd != osd) {
         continue;
       }
@@ -1188,7 +1277,8 @@ protected:
   // ============================================================================
 
   // GTest SetUp function - called before each test
-  void SetUp() override
+  void
+  SetUp() override
   {
     g_ceph_context->_log->set_max_new(0);
     dout(0) << "SetUp" << dendl;
@@ -1200,7 +1290,8 @@ protected:
   }
 
   // GTest TearDown function - called after each test
-  void TearDown() override
+  void
+  TearDown() override
   {
     osd_peeringstate.clear();
     // Clear any undispatched messages in PeeringCtx to prevent leaks
@@ -1223,7 +1314,8 @@ protected:
 // Test Stubs - Basic Initialization
 // ============================================================================
 
-TEST_F(PeeringStateTest, Construction) {
+TEST_F(PeeringStateTest, Construction)
+{
   dout(0) << "== Construction ==" << dendl;
   // Test basic construction of PeeringState
   test_create_peering_state(acting[0]);
@@ -1231,7 +1323,8 @@ TEST_F(PeeringStateTest, Construction) {
   ASSERT_NE(get_ps(acting[0]), nullptr);
 }
 
-TEST_F(PeeringStateTest, InitFresh) {
+TEST_F(PeeringStateTest, InitFresh)
+{
   dout(0) << "== InitFresh ==" << dendl;
   // Test initialization of a fresh PG
   test_create_peering_state(acting[0]);
@@ -1242,21 +1335,24 @@ TEST_F(PeeringStateTest, InitFresh) {
   EXPECT_TRUE(get_listener(acting[0])->new_interval_called);
 }
 
-TEST_F(PeeringStateTest, InitFromDisk) {
+TEST_F(PeeringStateTest, InitFromDisk)
+{
   dout(0) << "== InitFromDisk ==" << dendl;
   // Test initialization from disk state
   test_create_peering_state(acting[0]);
   test_init_from_disk(acting[0]);
   // Verify
-  EXPECT_EQ(get_ps(acting[0])->get_info().pgid,
-            spg_t(pg_t(0, pool_id), shard_id_t(0)));
+  EXPECT_EQ(
+      get_ps(acting[0])->get_info().pgid,
+      spg_t(pg_t(0, pool_id), shard_id_t(0)));
 }
 
 // ============================================================================
 // Test Stubs - State Machine Events
 // ============================================================================
 
-TEST_F(PeeringStateTest, HandleInitialize) {
+TEST_F(PeeringStateTest, HandleInitialize)
+{
   dout(0) << "== HandleInitialize ==" << dendl;
   // Test handling Initialize event
   test_create_peering_state(acting[0]);
@@ -1266,8 +1362,8 @@ TEST_F(PeeringStateTest, HandleInitialize) {
   EXPECT_TRUE(get_listener(acting[0])->new_interval_called);
 }
 
-
-TEST_F(PeeringStateTest, HandleAdvMap) {
+TEST_F(PeeringStateTest, HandleAdvMap)
+{
   dout(0) << "== HandleAdvMap ==" << dendl;
   // Test handling ActMap event
   test_create_peering_state(acting[0]);
@@ -1276,7 +1372,8 @@ TEST_F(PeeringStateTest, HandleAdvMap) {
   test_event_advance_map(acting[0]);
 }
 
-TEST_F(PeeringStateTest, HandleActMap) {
+TEST_F(PeeringStateTest, HandleActMap)
+{
   dout(0) << "== HandleActMap ==" << dendl;
   // Test handling ActMap event
   test_create_peering_state(acting[0]);
@@ -1290,7 +1387,8 @@ TEST_F(PeeringStateTest, HandleActMap) {
 // Test Stubs - Peering Operations
 // ============================================================================
 
-TEST_F(PeeringStateTest, ChooseActing) {
+TEST_F(PeeringStateTest, ChooseActing)
+{
   // Test choosing acting set
   test_create_peering_state(acting[0]);
   test_init(acting[0]);
@@ -1304,7 +1402,8 @@ TEST_F(PeeringStateTest, ChooseActing) {
 // Test Stubs - Log Operations
 // ============================================================================
 
-TEST_F(PeeringStateTest, PGLogAccess) {
+TEST_F(PeeringStateTest, PGLogAccess)
+{
   // Test accessing PG log
   auto ps = create_peering_state(0, 0);
 
@@ -1312,7 +1411,8 @@ TEST_F(PeeringStateTest, PGLogAccess) {
   EXPECT_EQ(log.get_head(), eversion_t());
 }
 
-TEST_F(PeeringStateTest, AppendLog) {
+TEST_F(PeeringStateTest, AppendLog)
+{
   // Test appending to PG log
   auto ps = create_peering_state(0, 0);
 
@@ -1326,16 +1426,12 @@ TEST_F(PeeringStateTest, AppendLog) {
   entries.push_back(entry);
 
   ps->append_log(
-    std::move(entries),
-    eversion_t(),
-    eversion_t(),
-    eversion_t(),
-    t,
-    false,
-    false);
+      std::move(entries), eversion_t(), eversion_t(), eversion_t(), t, false,
+      false);
 }
 
-TEST_F(PeeringStateTest, TrimLog) {
+TEST_F(PeeringStateTest, TrimLog)
+{
   // Test log trimming
   auto ps = create_peering_state(0, 0);
 
@@ -1350,7 +1446,8 @@ TEST_F(PeeringStateTest, TrimLog) {
 // Test Stubs - Missing Objects
 // ============================================================================
 
-TEST_F(PeeringStateTest, MissingLocTracking) {
+TEST_F(PeeringStateTest, MissingLocTracking)
+{
   // Test missing location tracking
   auto ps = create_peering_state(0, 0);
 
@@ -1358,7 +1455,8 @@ TEST_F(PeeringStateTest, MissingLocTracking) {
   EXPECT_FALSE(missing_loc.have_unfound());
 }
 
-TEST_F(PeeringStateTest, RecoverGot) {
+TEST_F(PeeringStateTest, RecoverGot)
+{
   // Test marking object as recovered
   auto ps = create_peering_state(0, 0);
 
@@ -1373,7 +1471,8 @@ TEST_F(PeeringStateTest, RecoverGot) {
 // Test Stubs - State Queries
 // ============================================================================
 
-TEST_F(PeeringStateTest, StateQueries) {
+TEST_F(PeeringStateTest, StateQueries)
+{
   // Test various state query methods
   auto ps = create_peering_state(0, 0);
 
@@ -1384,7 +1483,8 @@ TEST_F(PeeringStateTest, StateQueries) {
   EXPECT_FALSE(ps->is_backfilling());
 }
 
-TEST_F(PeeringStateTest, RoleQueries) {
+TEST_F(PeeringStateTest, RoleQueries)
+{
   // Test role query methods
   auto ps = create_peering_state(0, 0);
 
@@ -1401,7 +1501,8 @@ TEST_F(PeeringStateTest, RoleQueries) {
   EXPECT_EQ(ps->get_role(), 0);
 }
 
-TEST_F(PeeringStateTest, ActingSetQueries) {
+TEST_F(PeeringStateTest, ActingSetQueries)
+{
   // Test acting set queries
   auto ps = create_peering_state(0, 0);
 
@@ -1422,7 +1523,8 @@ TEST_F(PeeringStateTest, ActingSetQueries) {
 // Test Stubs - OSDMap Operations
 // ============================================================================
 
-TEST_F(PeeringStateTest, OSDMapAccess) {
+TEST_F(PeeringStateTest, OSDMapAccess)
+{
   // Test OSDMap access
   auto ps = create_peering_state(0, 0);
 
@@ -1431,7 +1533,8 @@ TEST_F(PeeringStateTest, OSDMapAccess) {
   EXPECT_GT(map->get_epoch(), 0u);
 }
 
-TEST_F(PeeringStateTest, PoolInfo) {
+TEST_F(PeeringStateTest, PoolInfo)
+{
   // Test pool information access
   auto ps = create_peering_state(0, 0);
 
@@ -1443,7 +1546,8 @@ TEST_F(PeeringStateTest, PoolInfo) {
 // Test Stubs - Feature Tracking
 // ============================================================================
 
-TEST_F(PeeringStateTest, FeatureTracking) {
+TEST_F(PeeringStateTest, FeatureTracking)
+{
   // Test feature vector tracking
   auto ps = create_peering_state(0, 0);
 
@@ -1458,7 +1562,8 @@ TEST_F(PeeringStateTest, FeatureTracking) {
 // Test Stubs - Statistics
 // ============================================================================
 
-TEST_F(PeeringStateTest, Statistics) {
+TEST_F(PeeringStateTest, Statistics)
+{
   // Test statistics access
   auto ps = create_peering_state(0, 0);
 
@@ -1466,15 +1571,15 @@ TEST_F(PeeringStateTest, Statistics) {
   EXPECT_EQ(info.stats.stats.sum.num_objects, 0u);
 }
 
-TEST_F(PeeringStateTest, UpdateStats) {
+TEST_F(PeeringStateTest, UpdateStats)
+{
   // Test statistics updates
   auto ps = create_peering_state(0, 0);
 
-  ps->update_stats(
-    [](pg_history_t &history, pg_stat_t &stats) {
-      stats.stats.sum.num_objects = 10;
-      return true;
-    });
+  ps->update_stats([](pg_history_t& history, pg_stat_t& stats) {
+    stats.stats.sum.num_objects = 10;
+    return true;
+  });
 
   EXPECT_EQ(ps->get_info().stats.stats.sum.num_objects, 10u);
 }
@@ -1483,7 +1588,8 @@ TEST_F(PeeringStateTest, UpdateStats) {
 // Test Stubs - Deletion
 // ============================================================================
 
-TEST_F(PeeringStateTest, DeletionState) {
+TEST_F(PeeringStateTest, DeletionState)
+{
   // Test deletion state
   auto ps = create_peering_state(0, 0);
 
@@ -1495,7 +1601,8 @@ TEST_F(PeeringStateTest, DeletionState) {
 // Test Stubs - Flush Operations
 // ============================================================================
 
-TEST_F(PeeringStateTest, FlushOperations) {
+TEST_F(PeeringStateTest, FlushOperations)
+{
   // Test flush tracking
   auto ps = create_peering_state(0, 0);
 
@@ -1509,7 +1616,8 @@ TEST_F(PeeringStateTest, FlushOperations) {
 // Test Stubs - History and Past Intervals
 // ============================================================================
 
-TEST_F(PeeringStateTest, HistoryUpdate) {
+TEST_F(PeeringStateTest, HistoryUpdate)
+{
   // Test history updates
   test_create_peering_state(acting[0]);
 
@@ -1520,7 +1628,8 @@ TEST_F(PeeringStateTest, HistoryUpdate) {
   get_ps(acting[0])->update_history(new_history);
 }
 
-TEST_F(PeeringStateTest, PastIntervals) {
+TEST_F(PeeringStateTest, PastIntervals)
+{
   // Test past intervals access
   auto ps = create_peering_state(0, 0);
 
@@ -1533,7 +1642,8 @@ TEST_F(PeeringStateTest, PastIntervals) {
 // ============================================================================
 
 // Multi-OSD test of peering for a new (empty PG) all the way to active+clean
-TEST_F(PeeringStateTest, SimplePeeringToActiveClean) {
+TEST_F(PeeringStateTest, SimplePeeringToActiveClean)
+{
   dout(0) << "== SimplePeeringToActiveClean ==" << dendl;
   // Full peering cycle
   test_create_peering_state();
@@ -1551,7 +1661,8 @@ TEST_F(PeeringStateTest, SimplePeeringToActiveClean) {
 }
 
 // Multi-OSD test of peering for PG with 1 full write log entry all the way to active+clean
-TEST_F(PeeringStateTest, FullWritePeeringToActiveClean) {
+TEST_F(PeeringStateTest, FullWritePeeringToActiveClean)
+{
   dout(0) << "== FullWritePeeringToActiveClean ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1572,7 +1683,8 @@ TEST_F(PeeringStateTest, FullWritePeeringToActiveClean) {
 }
 
 // Multi-OSD test of peering for PG with 2 log entries that are incomplete all the way to active+clean
-TEST_F(PeeringStateTest, IncompleteWritePeeringToActiveClean) {
+TEST_F(PeeringStateTest, IncompleteWritePeeringToActiveClean)
+{
   dout(0) << "== IncompleteWritePeeringToActiveClean ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1597,7 +1709,8 @@ TEST_F(PeeringStateTest, IncompleteWritePeeringToActiveClean) {
 
 // Multi-OSD test of a replica pool peering for PG with 2 log entries that are incomplete
 // all the way to active+recovering. Unlike EC pools the log entries get rolled forward
-TEST_F(PeeringStateTest, RepIncompleteWritePeeringToActiveRecovering) {
+TEST_F(PeeringStateTest, RepIncompleteWritePeeringToActiveRecovering)
+{
   dout(0) << "== RepIncompleteWritePeeringToActiveRecovering ==" << dendl;
   // Init
   create_rep_pool();
@@ -1606,7 +1719,7 @@ TEST_F(PeeringStateTest, RepIncompleteWritePeeringToActiveRecovering) {
   test_event_initialize();
   // Append 2 log entries to shard 0,1
   eversion_t previous = test_append_log_entry(ss_all, ss({0, 1}));
-  eversion_t expected = test_append_log_entry(ss_all, ss({0 ,1}));
+  eversion_t expected = test_append_log_entry(ss_all, ss({0, 1}));
   // Full peering cycle
   test_event_advance_map();
   dispatch_all();
@@ -1622,7 +1735,8 @@ TEST_F(PeeringStateTest, RepIncompleteWritePeeringToActiveRecovering) {
 }
 
 // Multi-OSD test of peering for PG with 1 partial write log entry all the way to active+clean
-TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean) {
+TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean)
+{
   dout(0) << "== PartialWritePeeringToActiveClean ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1632,7 +1746,7 @@ TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean) {
   eversion_t expected = test_append_log_entry(ss({0, 2, 3}), ss({0, 2, 3}));
   // Verify that shard 1 has no PWLC and shards 0,2,3 have PWLC saying shard 1 missed writes 0'0-2'1
   {
-    std::map<shard_id_t,std::pair<eversion_t, eversion_t>> expected_pwlc;
+    std::map<shard_id_t, std::pair<eversion_t, eversion_t>> expected_pwlc;
     verify_pwlc(epoch_t(), expected_pwlc, acting[1]);
     expected_pwlc[shard_id_t(1)] = std::pair(eversion_t(), expected);
     epoch_t expected_pwlc_epoch = osdmap->get_epoch();
@@ -1641,7 +1755,9 @@ TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean) {
     verify_pwlc(expected_pwlc_epoch, expected_pwlc, acting[3]);
   }
   for (int osd : acting) {
-    dout(0) << osd << " PWLC=" << get_ps(osd)->get_info().partial_writes_last_complete << dendl;
+    dout(0) << osd
+            << " PWLC=" << get_ps(osd)->get_info().partial_writes_last_complete
+            << dendl;
   }
   // Full peering cycle
   test_event_advance_map();
@@ -1655,7 +1771,7 @@ TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean) {
   verify_all_active_clean(expected, eversion_t());
   // Verify all shards have PWLC saying shard 1 missed writes 0'0-2'1
   {
-    std::map<shard_id_t,std::pair<eversion_t, eversion_t>> expected_pwlc;
+    std::map<shard_id_t, std::pair<eversion_t, eversion_t>> expected_pwlc;
     expected_pwlc[shard_id_t(1)] = std::pair(eversion_t(), expected);
     epoch_t expected_pwlc_epoch = osdmap->get_epoch();
     verify_pwlc(expected_pwlc_epoch, expected_pwlc);
@@ -1663,17 +1779,19 @@ TEST_F(PeeringStateTest, PartialWritePeeringToActiveClean) {
 }
 
 // Multi-OSD test of peering for PG with 1 partial write (not complete) log entry all the way to active+clean
-TEST_F(PeeringStateTest, PartialWriteNotCompletePeeringToActiveClean) {
+TEST_F(PeeringStateTest, PartialWriteNotCompletePeeringToActiveClean)
+{
   dout(0) << "== PartialWritePeeringToActiveClean ==" << dendl;
   // Init
   test_create_peering_state();
   test_init();
   test_event_initialize();
   // Append 1 log entry to a partial set of shards but do not advance last_complete
-  eversion_t expected = test_append_log_entry(ss({0, 2, 3}), ss({0, 2, 3}), true);
+  eversion_t expected =
+      test_append_log_entry(ss({0, 2, 3}), ss({0, 2, 3}), true);
   // Verify no shards have PWLC as the write has not been completed
   {
-    std::map<shard_id_t,std::pair<eversion_t, eversion_t>> expected_pwlc;
+    std::map<shard_id_t, std::pair<eversion_t, eversion_t>> expected_pwlc;
     verify_pwlc(epoch_t(0), expected_pwlc);
   }
   // Full peering cycle - the definitive shard will be OSD 1 that didn't see the partial write
@@ -1690,7 +1808,7 @@ TEST_F(PeeringStateTest, PartialWriteNotCompletePeeringToActiveClean) {
   verify_all_active_clean(expected, eversion_t());
   // Verify all shards have PWLC saying shard 1 missed writes 0'0-2'1
   {
-    std::map<shard_id_t,std::pair<eversion_t, eversion_t>> expected_pwlc;
+    std::map<shard_id_t, std::pair<eversion_t, eversion_t>> expected_pwlc;
     expected_pwlc[shard_id_t(1)] = std::pair(eversion_t(), expected);
     epoch_t expected_pwlc_epoch = osdmap->get_epoch();
     verify_pwlc(expected_pwlc_epoch, expected_pwlc);
@@ -1699,7 +1817,8 @@ TEST_F(PeeringStateTest, PartialWriteNotCompletePeeringToActiveClean) {
 
 // Multi-OSD test of peering for PG with 3 full write log entries all the way to active+clean
 // then change acting set and run async recovery, recover the object and all the way to active+clean
-TEST_F(PeeringStateTest, AsyncRecovery) {
+TEST_F(PeeringStateTest, AsyncRecovery)
+{
   dout(0) << "== AsyncRecovery ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1737,7 +1856,8 @@ TEST_F(PeeringStateTest, AsyncRecovery) {
 
 // Multi-OSD test of peering for PG with 1 full write log entry all the way to active+clean
 // then change acting set and run sync recovery, recover the object and all the way to active+clean
-TEST_F(PeeringStateTest, SyncRecovery) {
+TEST_F(PeeringStateTest, SyncRecovery)
+{
   dout(0) << "== SyncRecovery ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1771,7 +1891,8 @@ TEST_F(PeeringStateTest, SyncRecovery) {
 
 // Multi-OSD test of peering for PG with 3 full write log entries all the way to active+clean
 // then change acting set and run backfill, recover the object and all the way to active+clean
-TEST_F(PeeringStateTest, Backfill) {
+TEST_F(PeeringStateTest, Backfill)
+{
   dout(0) << "== Backfill ==" << dendl;
   // Init
   test_create_peering_state();
@@ -1781,7 +1902,8 @@ TEST_F(PeeringStateTest, Backfill) {
   // backfill occurs later on
   test_append_log_entry();
   eversion_t expected_tail = test_append_log_entry();
-  eversion_t expected = test_append_log_entry(shard_id_set(), shard_id_set(), false, true);
+  eversion_t expected =
+      test_append_log_entry(shard_id_set(), shard_id_set(), false, true);
   // Full peering cycle
   test_peering();
   // Verify that we got to active+clean and that log entries were kept
@@ -1802,7 +1924,8 @@ TEST_F(PeeringStateTest, Backfill) {
   test_recover_got(9, expected);
   test_object_recovered();
   test_update_peer_last_backfill(9, 1, hobject_t::get_max());
-  test_update_backfill_progress(9, hobject_t::get_max()); // MOSDPGBackfill::OP_BACKFILL_PROGRESS
+  test_update_backfill_progress(
+      9, hobject_t::get_max()); // MOSDPGBackfill::OP_BACKFILL_PROGRESS
   // Signal backfill has completed
   test_event_recovery_done(9); // MOSDPGBackfill::OP_BACKFILL_FINISH
   test_event_backfilled();
@@ -1815,7 +1938,8 @@ TEST_F(PeeringStateTest, Backfill) {
 
 #if POOL_MIGRATION
 // Multi-OSD test of peering with pool migration all the way to active+clean
-TEST_F(PeeringStateTest, PoolMigration) {
+TEST_F(PeeringStateTest, PoolMigration)
+{
   dout(0) << "== PoolMigration ==" << dendl;
   // Configure pool migration to an EC pool
   migrate_to_ec_pool();
@@ -1837,7 +1961,8 @@ TEST_F(PeeringStateTest, PoolMigration) {
 
 #if POOL_MIGRATION
 // Multi-OSD test of peering with pool migration too full
-TEST_F(PeeringStateTest, PoolMigrationTooFull) {
+TEST_F(PeeringStateTest, PoolMigrationTooFull)
+{
   dout(0) << "== PoolMigration ==" << dendl;
   // Configure pool migration to an EC pool
   migrate_to_ec_pool();
@@ -1852,27 +1977,45 @@ TEST_F(PeeringStateTest, PoolMigrationTooFull) {
   // Verify that pool migration is stalled with too full
   EXPECT_EQ(get_listener(acting[0])->events_scheduled, 1);
   EXPECT_TRUE(get_ps(acting[0])->state_test(PG_STATE_MIGRATION_TOOFULL));
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/NotMigrating");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/NotMigrating");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
 
   // Fail reservation on OSD 2 as well
   get_listener(acting[2])->inject_fail_reserve_recovery_space = true;
-  dispatch_all_events(true); // run stalled schedule_after event to retry migration
+  dispatch_all_events(
+      true); // run stalled schedule_after event to retry migration
   dispatch_all();
   // Verify that pool migration is stalled with too full
   EXPECT_EQ(get_listener(acting[0])->events_scheduled, 2);
   EXPECT_TRUE(get_ps(acting[0])->state_test(PG_STATE_MIGRATION_TOOFULL));
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/NotMigrating");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/NotMigrating");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
 
   // Clear injects
   get_listener(acting[1])->inject_fail_reserve_recovery_space = false;
   get_listener(acting[2])->inject_fail_reserve_recovery_space = false;
-  dispatch_all_events(true);  // run stalled schedule_after event to retry migration
+  dispatch_all_events(
+      true); // run stalled schedule_after event to retry migration
   dispatch_all();
   // Verify pool migration started
   verify_all_active_migrating(eversion_t(), eversion_t());
@@ -1886,7 +2029,8 @@ TEST_F(PeeringStateTest, PoolMigrationTooFull) {
 
 #if POOL_MIGRATION
 // Multi-OSD test of peering with pool migration reservtion preempt
-TEST_F(PeeringStateTest, PoolMigrationPrempt) {
+TEST_F(PeeringStateTest, PoolMigrationPrempt)
+{
   dout(0) << "== PoolMigration ==" << dendl;
   // Configure pool migration to an EC pool
   migrate_to_ec_pool();
@@ -1905,19 +2049,37 @@ TEST_F(PeeringStateTest, PoolMigrationPrempt) {
   EXPECT_EQ(get_listener(acting[2])->remote_recovery_reservations_requested, 1);
   EXPECT_EQ(get_listener(acting[3])->remote_recovery_reservations_requested, 1);
   EXPECT_EQ(get_listener(acting[0])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[1])->stalled_events.size(), 1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[1])->stalled_events.size(),
+      1); // captured preempt event
   EXPECT_EQ(get_listener(acting[2])->stalled_events.size(), 0);
   EXPECT_EQ(get_listener(acting[3])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
   dout(0) << "= PoolMigration prempt reservation osd 1 =" << dendl;
   dispatch_all_events(true); // preempt reservation on OSD 1
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
   // Keep preempt reservation event on OSD 2 as well
   get_listener(acting[2])->inject_keep_preempt = true;
   dispatch_all();
@@ -1927,19 +2089,39 @@ TEST_F(PeeringStateTest, PoolMigrationPrempt) {
   EXPECT_EQ(get_listener(acting[2])->remote_recovery_reservations_requested, 2);
   EXPECT_EQ(get_listener(acting[3])->remote_recovery_reservations_requested, 2);
   EXPECT_EQ(get_listener(acting[0])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[1])->stalled_events.size(), 1); // captured preempt event
-  EXPECT_EQ(get_listener(acting[2])->stalled_events.size(), 1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[1])->stalled_events.size(),
+      1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[2])->stalled_events.size(),
+      1); // captured preempt event
   EXPECT_EQ(get_listener(acting[3])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
   dout(0) << "= PoolMigration prempt reservation osd 1 and 2 =" << dendl;
   dispatch_all_events(true); // preempt reservation on OSD 1 and 2
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
   // Keep preempt reservation event on OSD 0 (primary) as well
   get_listener(acting[0])->inject_keep_preempt = true;
   dispatch_all();
@@ -1948,25 +2130,47 @@ TEST_F(PeeringStateTest, PoolMigrationPrempt) {
   EXPECT_EQ(get_listener(acting[1])->remote_recovery_reservations_requested, 3);
   EXPECT_EQ(get_listener(acting[2])->remote_recovery_reservations_requested, 3);
   EXPECT_EQ(get_listener(acting[3])->remote_recovery_reservations_requested, 3);
-  EXPECT_EQ(get_listener(acting[0])->stalled_events.size(), 1); // captured preempt event
-  EXPECT_EQ(get_listener(acting[1])->stalled_events.size(), 1); // captured preempt event
-  EXPECT_EQ(get_listener(acting[2])->stalled_events.size(), 1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[0])->stalled_events.size(),
+      1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[1])->stalled_events.size(),
+      1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[2])->stalled_events.size(),
+      1); // captured preempt event
   EXPECT_EQ(get_listener(acting[3])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
   dout(0) << "= PoolMigration prempt reservation osd 0, 1 and 2 =" << dendl;
   // 0 Sends RELEASE first, then 1,2 send REVOKE
-  dispatch_events(acting[0], true , 1);
-  dispatch_events(acting[1], true , 1);
-  dispatch_events(acting[2], true , 1);
+  dispatch_events(acting[0], true, 1);
+  dispatch_events(acting[1], true, 1);
+  dispatch_events(acting[2], true, 1);
   dispatch_all();
-  dispatch_events(acting[0], true , 1);
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/WaitLocalPoolMigrationReserved");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepNotRecovering");
+  dispatch_events(acting[0], true, 1);
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/WaitLocalPoolMigrationReserved");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepNotRecovering");
   dispatch_all();
   // Verify pool migration started
   verify_all_active_migrating(eversion_t(), eversion_t());
@@ -1974,15 +2178,30 @@ TEST_F(PeeringStateTest, PoolMigrationPrempt) {
   EXPECT_EQ(get_listener(acting[1])->remote_recovery_reservations_requested, 4);
   EXPECT_EQ(get_listener(acting[2])->remote_recovery_reservations_requested, 4);
   EXPECT_EQ(get_listener(acting[3])->remote_recovery_reservations_requested, 4);
-  EXPECT_EQ(get_listener(acting[0])->stalled_events.size(), 1); // captured preempt event
-  EXPECT_EQ(get_listener(acting[1])->stalled_events.size(), 1); // captured preempt event
-  EXPECT_EQ(get_listener(acting[2])->stalled_events.size(), 1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[0])->stalled_events.size(),
+      1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[1])->stalled_events.size(),
+      1); // captured preempt event
+  EXPECT_EQ(
+      get_listener(acting[2])->stalled_events.size(),
+      1); // captured preempt event
   EXPECT_EQ(get_listener(acting[3])->stalled_events.size(), 0);
-  EXPECT_EQ(get_listener(acting[0])->last_state_entered, "Started/Primary/Active/MigratingSource");
-  EXPECT_EQ(get_listener(acting[1])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[2])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  EXPECT_EQ(get_listener(acting[3])->last_state_entered, "Started/ReplicaActive/RepRecovering");
-  dout(0) << "= PoolMigration prempt reservation osd 0, 1 and 2 race hazard =" << dendl;
+  EXPECT_EQ(
+      get_listener(acting[0])->last_state_entered,
+      "Started/Primary/Active/MigratingSource");
+  EXPECT_EQ(
+      get_listener(acting[1])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[2])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  EXPECT_EQ(
+      get_listener(acting[3])->last_state_entered,
+      "Started/ReplicaActive/RepRecovering");
+  dout(0) << "= PoolMigration prempt reservation osd 0, 1 and 2 race hazard ="
+          << dendl;
   // 1,2 send REVOKE first, then 0 sends RELEASE
   get_listener(acting[0])->inject_keep_preempt = false;
   get_listener(acting[1])->inject_keep_preempt = false;
@@ -2010,7 +2229,8 @@ TEST_F(PeeringStateTest, PoolMigrationPrempt) {
 // ============================================================================
 
 // Multi-OSD test of peering for fix for https://tracker.ceph.com/issues/71493
-TEST_F(PeeringStateTest, Issue71493) {
+TEST_F(PeeringStateTest, Issue71493)
+{
   // Scenario: Backfill gets stopped by a remote reservastion being preempted
   // but this races with MOSDPGBackfill::OP_BACKFILL_FINISH event. The
   // probelmatic sequence is:
@@ -2033,7 +2253,8 @@ TEST_F(PeeringStateTest, Issue71493) {
   // backfill occurs later on
   test_append_log_entry();
   eversion_t expected_tail = test_append_log_entry();
-  eversion_t expected = test_append_log_entry(shard_id_set(), shard_id_set(), false, true);
+  eversion_t expected =
+      test_append_log_entry(shard_id_set(), shard_id_set(), false, true);
   // Full peering cycle
   test_peering();
   // Verify that we got to active+clean and that log entries were kept
@@ -2056,7 +2277,8 @@ TEST_F(PeeringStateTest, Issue71493) {
   test_recover_got(9, expected);
   test_object_recovered();
   test_update_peer_last_backfill(9, 1, hobject_t::get_max());
-  test_update_backfill_progress(9, hobject_t::get_max()); // MOSDPGBackfill::OP_BACKFILL_PROGRESS
+  test_update_backfill_progress(
+      9, hobject_t::get_max()); // MOSDPGBackfill::OP_BACKFILL_PROGRESS
   dout(0) << "= revoking remote reservation =" << dendl;
   // Preempt remote reservation ahead of MOSDPGBackfill::OP_BACKFILL_FINISH
   dispatch_all_events(true);
@@ -2079,7 +2301,8 @@ TEST_F(PeeringStateTest, Issue71493) {
 }
 
 // Multi-OSD test of peering for fix for https://tracker.ceph.com/issues/73891
-TEST_F(PeeringStateTest, Issue73891) {
+TEST_F(PeeringStateTest, Issue73891)
+{
   // Scenario: 3+2 EC pool [0,1,2,3,4]
   // Partial write A to OSDs 0,3,4 completes
   // Partial write B to OSDs 0,1,3,4 only updates 0, 1 before interuption
@@ -2089,7 +2312,7 @@ TEST_F(PeeringStateTest, Issue73891) {
   //   Without fix OSD 3 doesn't roll back write B
   dout(0) << "== Issue73891 ==" << dendl;
   // Init
-  create_ec_pool(3,2);
+  create_ec_pool(3, 2);
   test_create_peering_state();
   test_init();
   test_event_initialize();
@@ -2109,7 +2332,8 @@ TEST_F(PeeringStateTest, Issue73891) {
 }
 
 // Multi-OSD test of peering for fix for https://tracker.ceph.com/issues/74218
-TEST_F(PeeringStateTest, Issue74218) {
+TEST_F(PeeringStateTest, Issue74218)
+{
   // Scenario:
   // Partial write to OSDs 0,2,3 that has not been completed
   // OSD 2 down, peering runs and rolls-forward the partial write
@@ -2126,10 +2350,11 @@ TEST_F(PeeringStateTest, Issue74218) {
   test_init();
   test_event_initialize();
   // Partial write to OSDs 0,2,3 but do not advance last_complete
-  eversion_t expected1 = test_append_log_entry(ss({0, 2, 3}), ss({0, 2, 3}), true);
+  eversion_t expected1 =
+      test_append_log_entry(ss({0, 2, 3}), ss({0, 2, 3}), true);
   // Verify no shards have PWLC as the write has not been completed
   {
-    std::map<shard_id_t,std::pair<eversion_t, eversion_t>> expected_pwlc;
+    std::map<shard_id_t, std::pair<eversion_t, eversion_t>> expected_pwlc;
     verify_pwlc(epoch_t(0), expected_pwlc);
   }
   // OSD 2 down, run peering
@@ -2183,22 +2408,21 @@ TEST_F(PeeringStateTest, Issue74218) {
 // Main
 // ============================================================================
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   std::map<std::string, std::string> defaults = {
-    // our map is flat, so just try and split across OSDs, not hosts or whatever
-    {"osd_crush_chooseleaf_type", "0"},
-    // debug level 20 for OSD so we get full logs
-    {"debug_osd", "20"},
-    // reduce async recovery cost to 2 to make it easier to test async recovery
-    {"osd_async_recovery_min_cost","2"},
+      // our map is flat, so just try and split across OSDs, not hosts or whatever
+      {"osd_crush_chooseleaf_type", "0"},
+      // debug level 20 for OSD so we get full logs
+      {"debug_osd", "20"},
+      // reduce async recovery cost to 2 to make it easier to test async recovery
+      {"osd_async_recovery_min_cost", "2"},
   };
   std::vector<const char*> args(argv, argv + argc);
-  auto cct = global_init(&defaults,
-                         args,
-                         CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY,
-                         CINIT_FLAG_NO_MON_CONFIG);
+  auto cct = global_init(
+      &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_MON_CONFIG);
   common_init_finish(g_ceph_context);
 
   ::testing::InitGoogleTest(&argc, argv);

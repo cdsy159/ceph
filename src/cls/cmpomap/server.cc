@@ -13,29 +13,39 @@
  */
 
 #include "objclass/objclass.h"
+
 #include "ops.h"
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(cmpomap)
 
 using namespace cls::cmpomap;
 
 // returns negative error codes or 0/1 for failed/successful comparisons
 template <typename T>
-static int compare_values(Op op, const T& lhs, const T& rhs)
+static int
+compare_values(Op op, const T& lhs, const T& rhs)
 {
   switch (op) {
-  case Op::EQ:  return (lhs == rhs);
-  case Op::NE:  return (lhs != rhs);
-  case Op::GT:  return (lhs > rhs);
-  case Op::GTE: return (lhs >= rhs);
-  case Op::LT:  return (lhs < rhs);
-  case Op::LTE: return (lhs <= rhs);
-  default:      return -EINVAL;
+  case Op::EQ:
+    return (lhs == rhs);
+  case Op::NE:
+    return (lhs != rhs);
+  case Op::GT:
+    return (lhs > rhs);
+  case Op::GTE:
+    return (lhs >= rhs);
+  case Op::LT:
+    return (lhs < rhs);
+  case Op::LTE:
+    return (lhs <= rhs);
+  default:
+    return -EINVAL;
   }
 }
 
-static int compare_values_u64(Op op, uint64_t lhs, const bufferlist& value)
+static int
+compare_values_u64(Op op, uint64_t lhs, const bufferlist& value)
 {
   // empty values compare as 0 for backward compat
   uint64_t rhs = 0;
@@ -53,8 +63,8 @@ static int compare_values_u64(Op op, uint64_t lhs, const bufferlist& value)
   return compare_values(op, lhs, rhs);
 }
 
-static int compare_value(Mode mode, Op op, const bufferlist& input,
-                         const bufferlist& value)
+static int
+compare_value(Mode mode, Op op, const bufferlist& input, const bufferlist& value)
 {
   switch (mode) {
   case Mode::String:
@@ -76,7 +86,8 @@ static int compare_value(Mode mode, Op op, const bufferlist& input,
   }
 }
 
-static int cmp_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cmp_vals(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   cmp_vals_op op;
   try {
@@ -107,16 +118,18 @@ static int cmp_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     if (v != values.end() && v->first == key) {
       value = std::move(v->second);
       ++v;
-      CLS_LOG(20, "cmp_vals() comparing key=%s mode=%d op=%d",
-              key.c_str(), (int)op.mode, (int)op.comparison);
+      CLS_LOG(
+          20, "cmp_vals() comparing key=%s mode=%d op=%d", key.c_str(),
+          (int)op.mode, (int)op.comparison);
     } else if (!op.default_value) {
       CLS_LOG(20, "cmp_vals() missing key=%s", key.c_str());
       return -ECANCELED;
     } else {
       // use optional default for missing keys
       value = *op.default_value;
-      CLS_LOG(20, "cmp_vals() comparing missing key=%s mode=%d op=%d",
-              key.c_str(), (int)op.mode, (int)op.comparison);
+      CLS_LOG(
+          20, "cmp_vals() comparing missing key=%s mode=%d op=%d", key.c_str(),
+          (int)op.mode, (int)op.comparison);
     }
 
     r = compare_value(op.mode, op.comparison, input, value);
@@ -134,7 +147,8 @@ static int cmp_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return 0;
 }
 
-static int cmp_set_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cmp_set_vals(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   cmp_set_vals_op op;
   try {
@@ -166,16 +180,18 @@ static int cmp_set_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *o
     if (v != values.end() && v->first == key) {
       value = std::move(v->second);
       k = v++;
-      CLS_LOG(20, "cmp_set_vals() comparing key=%s mode=%d op=%d",
-              key.c_str(), (int)op.mode, (int)op.comparison);
+      CLS_LOG(
+          20, "cmp_set_vals() comparing key=%s mode=%d op=%d", key.c_str(),
+          (int)op.mode, (int)op.comparison);
     } else if (!op.default_value) {
       CLS_LOG(20, "cmp_set_vals() missing key=%s", key.c_str());
       continue;
     } else {
       // use optional default for missing keys
       value = *op.default_value;
-      CLS_LOG(20, "cmp_set_vals() comparing missing key=%s mode=%d op=%d",
-              key.c_str(), (int)op.mode, (int)op.comparison);
+      CLS_LOG(
+          20, "cmp_set_vals() comparing missing key=%s mode=%d op=%d",
+          key.c_str(), (int)op.mode, (int)op.comparison);
     }
 
     r = compare_value(op.mode, op.comparison, input, value);
@@ -183,8 +199,8 @@ static int cmp_set_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *o
       r = 0; // treat EIO as a failed comparison
     }
     if (r < 0) {
-      CLS_LOG(10, "cmp_set_vals() failed to compare key=%s r=%d",
-              key.c_str(), r);
+      CLS_LOG(
+          10, "cmp_set_vals() failed to compare key=%s r=%d", key.c_str(), r);
       return r;
     }
     if (r == 0) {
@@ -218,7 +234,8 @@ static int cmp_set_vals(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   return cls_cxx_map_set_vals(hctx, &values);
 }
 
-static int cmp_rm_keys(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cmp_rm_keys(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   cmp_rm_keys_op op;
   try {
@@ -249,8 +266,9 @@ static int cmp_rm_keys(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       CLS_LOG(20, "cmp_rm_keys() missing key=%s", key.c_str());
       continue;
     }
-    CLS_LOG(20, "cmp_rm_keys() comparing key=%s mode=%d op=%d",
-            key.c_str(), (int)op.mode, (int)op.comparison);
+    CLS_LOG(
+        20, "cmp_rm_keys() comparing key=%s mode=%d op=%d", key.c_str(),
+        (int)op.mode, (int)op.comparison);
 
     const bufferlist& value = v->second;
     ++v;
@@ -260,8 +278,7 @@ static int cmp_rm_keys(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       r = 0; // treat EIO as a failed comparison
     }
     if (r < 0) {
-      CLS_LOG(10, "cmp_rm_keys() failed to compare key=%s r=%d",
-              key.c_str(), r);
+      CLS_LOG(10, "cmp_rm_keys() failed to compare key=%s r=%d", key.c_str(), r);
       return r;
     }
     if (r == 0) {
@@ -272,8 +289,9 @@ static int cmp_rm_keys(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       CLS_LOG(20, "cmp_rm_keys() removing key=%s", key.c_str());
       r = cls_cxx_map_remove_key(hctx, key);
       if (r < 0) {
-        CLS_LOG(1, "ERROR: cmp_rm_keys() failed to remove key=%s r=%d",
-                key.c_str(), r);
+        CLS_LOG(
+            1, "ERROR: cmp_rm_keys() failed to remove key=%s r=%d", key.c_str(),
+            r);
         return r;
       }
     }
@@ -293,10 +311,12 @@ CLS_INIT(cmpomap)
 
   cls_register("cmpomap", &h_class);
 
-  cls_register_cxx_method(h_class, "cmp_vals", CLS_METHOD_RD,
-                          cmp_vals, &h_cmp_vals);
-  cls_register_cxx_method(h_class, "cmp_set_vals", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cmp_set_vals, &h_cmp_set_vals);
-  cls_register_cxx_method(h_class, "cmp_rm_keys", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cmp_rm_keys, &h_cmp_rm_keys);
+  cls_register_cxx_method(
+      h_class, "cmp_vals", CLS_METHOD_RD, cmp_vals, &h_cmp_vals);
+  cls_register_cxx_method(
+      h_class, "cmp_set_vals", CLS_METHOD_RD | CLS_METHOD_WR, cmp_set_vals,
+      &h_cmp_set_vals);
+  cls_register_cxx_method(
+      h_class, "cmp_rm_keys", CLS_METHOD_RD | CLS_METHOD_WR, cmp_rm_keys,
+      &h_cmp_rm_keys);
 }

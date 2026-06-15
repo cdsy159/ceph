@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,23 +14,24 @@
  */
 
 #include "StrayManager.h"
-#include "BatchOp.h"
-#include "MDSRank.h"
-#include "Mutation.h"
 
 #include "common/debug.h"
-#include "common/perf_counters.h"
 
-#include "mds/MDSRank.h"
+#include "common/perf_counters.h"
+#include "events/EUpdate.h"
+#include "mds/CDentry.h"
+#include "mds/CDir.h"
 #include "mds/MDCache.h"
 #include "mds/MDLog.h"
-#include "mds/CDir.h"
-#include "mds/CDentry.h"
+#include "mds/MDSRank.h"
 #include "mds/PurgeQueue.h"
 #include "mds/ScrubStack.h"
 #include "mds/SnapRealm.h"
-#include "events/EUpdate.h"
 #include "messages/MClientRequest.h"
+
+#include "BatchOp.h"
+#include "MDSRank.h"
+#include "Mutation.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
@@ -39,75 +40,99 @@
 
 using namespace std;
 
-static ostream& _prefix(std::ostream *_dout, MDSRank *mds) {
+static ostream&
+_prefix(std::ostream* _dout, MDSRank* mds)
+{
   return *_dout << "mds." << mds->get_nodeid() << ".cache.strays ";
 }
 
 class StrayManagerIOContext : public virtual MDSIOContextBase {
 protected:
-  StrayManager *sm;
-  MDSRank *get_mds() override
+  StrayManager* sm;
+
+  MDSRank*
+  get_mds() override
   {
     return sm->mds;
   }
+
 public:
-  explicit StrayManagerIOContext(StrayManager *sm_) : sm(sm_) {}
+  explicit StrayManagerIOContext(StrayManager* sm_) :
+    sm(sm_)
+  {}
 };
 
 class StrayManagerLogContext : public virtual MDSLogContextBase {
 protected:
-  StrayManager *sm;
-  MDSRank *get_mds() override
+  StrayManager* sm;
+
+  MDSRank*
+  get_mds() override
   {
     return sm->mds;
   }
+
 public:
-  explicit StrayManagerLogContext(StrayManager *sm_) : sm(sm_) {}
+  explicit StrayManagerLogContext(StrayManager* sm_) :
+    sm(sm_)
+  {}
 };
 
 class StrayManagerContext : public virtual MDSContext {
 protected:
-  StrayManager *sm;
-  MDSRank *get_mds() override
+  StrayManager* sm;
+
+  MDSRank*
+  get_mds() override
   {
     return sm->mds;
   }
-public:
-  explicit StrayManagerContext(StrayManager *sm_) : sm(sm_) {}
-};
 
+public:
+  explicit StrayManagerContext(StrayManager* sm_) :
+    sm(sm_)
+  {}
+};
 
 /**
  * Context wrapper for _purge_stray_purged completion
  */
 class C_IO_PurgeStrayPurged : public StrayManagerIOContext {
-  CDentry *dn;
+  CDentry* dn;
   bool only_head;
+
 public:
-  C_IO_PurgeStrayPurged(StrayManager *sm_, CDentry *d, bool oh) : 
-    StrayManagerIOContext(sm_), dn(d), only_head(oh) { }
-  void finish(int r) override {
+  C_IO_PurgeStrayPurged(StrayManager* sm_, CDentry* d, bool oh) :
+    StrayManagerIOContext(sm_), dn(d), only_head(oh)
+  {}
+
+  void
+  finish(int r) override
+  {
     ceph_assert(r == 0 || r == -ENOENT);
     sm->_purge_stray_purged(dn, only_head);
   }
-  void print(ostream& out) const override {
-    CInode *in = dn->get_projected_linkage()->get_inode();
+
+  void
+  print(ostream& out) const override
+  {
+    CInode* in = dn->get_projected_linkage()->get_inode();
     out << "purge_stray(" << in->ino() << ")";
   }
 };
 
-
-void StrayManager::purge(CDentry *dn)
+void
+StrayManager::purge(CDentry* dn)
 {
-  CDentry::linkage_t *dnl = dn->get_projected_linkage();
-  CInode *in = dnl->get_inode();
+  CDentry::linkage_t* dnl = dn->get_projected_linkage();
+  CInode* in = dnl->get_inode();
   dout(10) << __func__ << " " << *dn << " " << *in << dendl;
   ceph_assert(!dn->is_replicated());
 
   // CHEAT.  there's no real need to journal our intent to purge, since
   // that is implicit in the dentry's presence and non-use in the stray
   // dir.  on recovery, we'll need to re-eval all strays anyway.
-  
+
   SnapContext nullsnapc;
 
   PurgeItem item;
@@ -119,8 +144,8 @@ void StrayManager::purge(CDentry *dn)
   } else {
     item.action = PurgeItem::PURGE_FILE;
 
-    const SnapContext *snapc;
-    SnapRealm *realm = in->find_snaprealm();
+    const SnapContext* snapc;
+    SnapRealm* realm = in->find_snaprealm();
     if (realm) {
       dout(10) << " realm " << *realm << dendl;
       snapc = &realm->get_snap_context();
@@ -144,44 +169,53 @@ void StrayManager::purge(CDentry *dn)
     item.size = to;
     item.layout = pi->layout;
     item.old_pools.reserve(pi->old_pools.size());
-    for (const auto &p : pi->old_pools) {
+    for (const auto& p : pi->old_pools) {
       if (p != pi->layout.pool_id)
-	item.old_pools.push_back(p);
+        item.old_pools.push_back(p);
     }
     item.snapc = *snapc;
   }
 
-  purge_queue.push(item, new C_IO_PurgeStrayPurged(
-        this, dn, false));
+  purge_queue.push(item, new C_IO_PurgeStrayPurged(this, dn, false));
 }
 
 class C_PurgeStrayLogged : public StrayManagerLogContext {
-  CDentry *dn;
+  CDentry* dn;
   version_t pdv;
   MutationRef mut;
+
 public:
-  C_PurgeStrayLogged(StrayManager *sm_, CDentry *d, version_t v, MutationRef& m) :
-    StrayManagerLogContext(sm_), dn(d), pdv(v), mut(m) { }
-  void finish(int r) override {
+  C_PurgeStrayLogged(StrayManager* sm_, CDentry* d, version_t v, MutationRef& m) :
+    StrayManagerLogContext(sm_), dn(d), pdv(v), mut(m)
+  {}
+
+  void
+  finish(int r) override
+  {
     sm->_purge_stray_logged(dn, pdv, mut);
   }
 };
 
 class C_TruncateStrayLogged : public StrayManagerLogContext {
-  CDentry *dn;
+  CDentry* dn;
   MutationRef mut;
+
 public:
-  C_TruncateStrayLogged(StrayManager *sm, CDentry *d, MutationRef& m) :
-    StrayManagerLogContext(sm), dn(d), mut(m) {}
-  void finish(int r) override {
+  C_TruncateStrayLogged(StrayManager* sm, CDentry* d, MutationRef& m) :
+    StrayManagerLogContext(sm), dn(d), mut(m)
+  {}
+
+  void
+  finish(int r) override
+  {
     sm->_truncate_stray_logged(dn, mut);
   }
 };
 
-void StrayManager::_purge_stray_purged(
-    CDentry *dn, bool only_head)
+void
+StrayManager::_purge_stray_purged(CDentry* dn, bool only_head)
 {
-  CInode *in = dn->get_projected_linkage()->get_inode();
+  CInode* in = dn->get_projected_linkage()->get_inode();
   dout(10) << "_purge_stray_purged " << *dn << " " << *in << dendl;
 
   logger->inc(l_mdc_strays_enqueued);
@@ -192,7 +226,7 @@ void StrayManager::_purge_stray_purged(
     /* This was a ::truncate */
     MutationRef mut(new MutationImpl());
     mut->ls = mds->mdlog->get_current_segment();
-    
+
     auto pi = in->project_inode(mut);
     pi.inode->size = 0;
     pi.inode->max_size_ever = 0;
@@ -203,11 +237,11 @@ void StrayManager::_purge_stray_purged(
     pi.inode->client_ranges.clear();
     in->clear_clientwriteable();
 
-    CDir *dir = dn->get_dir();
+    CDir* dir = dn->get_dir();
     auto pf = dir->project_fnode(mut);
     pf->version = dir->pre_dirty();
 
-    EUpdate *le = new EUpdate(mds->mdlog, "purge_stray truncate");
+    EUpdate* le = new EUpdate(mds->mdlog, "purge_stray truncate");
 
     le->metablob.add_dir_context(dir);
     auto& dl = le->metablob.add_dir(dn->dir, true);
@@ -216,12 +250,11 @@ void StrayManager::_purge_stray_purged(
     mds->mdlog->submit_entry(le, new C_TruncateStrayLogged(this, dn, mut));
   } else {
     if (in->get_num_ref() != (int)in->is_dirty() ||
-        dn->get_num_ref() !=
-	  (int)dn->is_dirty() +
-	  !!dn->state_test(CDentry::STATE_FRAGMENTING) +
-	  !!in->get_num_ref() + 1 /* PIN_PURGING */) {
+        dn->get_num_ref() != (int)dn->is_dirty() +
+                                 !!dn->state_test(CDentry::STATE_FRAGMENTING) +
+                                 !!in->get_num_ref() + 1 /* PIN_PURGING */) {
       // Nobody should be taking new references to an inode when it
-      // is being purged (aside from it were 
+      // is being purged (aside from it were
 
       derr << "Rogue reference after purge to " << *dn << dendl;
       ceph_abort_msg("rogue reference to purging inode");
@@ -234,10 +267,10 @@ void StrayManager::_purge_stray_purged(
     version_t pdv = dn->pre_dirty();
     dn->push_projected_linkage(); // NULL
 
-    EUpdate *le = new EUpdate(mds->mdlog, "purge_stray");
+    EUpdate* le = new EUpdate(mds->mdlog, "purge_stray");
 
     // update dirfrag fragstat, rstat
-    CDir *dir = dn->get_dir();
+    CDir* dir = dn->get_dir();
     auto pf = dir->project_fnode(mut);
     pf->version = dir->pre_dirty();
     if (in->is_dir())
@@ -255,10 +288,11 @@ void StrayManager::_purge_stray_purged(
   }
 }
 
-void StrayManager::_purge_stray_logged(CDentry *dn, version_t pdv, MutationRef& mut)
+void
+StrayManager::_purge_stray_logged(CDentry* dn, version_t pdv, MutationRef& mut)
 {
-  CInode *in = dn->get_linkage()->get_inode();
-  CDir *dir = dn->get_dir();
+  CInode* in = dn->get_linkage()->get_inode();
+  CDir* dir = dn->get_dir();
   dout(10) << "_purge_stray_logged " << *dn << " " << *in << dendl;
 
   ceph_assert(!in->state_test(CInode::STATE_RECOVERING));
@@ -298,15 +332,16 @@ void StrayManager::_purge_stray_logged(CDentry *dn, version_t pdv, MutationRef& 
     mds->mdcache->shutdown_export_stray_finish(ino);
 }
 
-void StrayManager::enqueue(CDentry *dn, bool trunc)
+void
+StrayManager::enqueue(CDentry* dn, bool trunc)
 {
-  CDentry::linkage_t *dnl = dn->get_projected_linkage();
+  CDentry::linkage_t* dnl = dn->get_projected_linkage();
   ceph_assert(dnl);
-  CInode *in = dnl->get_inode();
+  CInode* in = dnl->get_inode();
   ceph_assert(in);
 
   //remove inode from scrub stack if it is being purged
-  if(mds->scrubstack->remove_inode_if_stacked(in)) {
+  if (mds->scrubstack->remove_inode_if_stacked(in)) {
     dout(20) << "removed " << *in << " from the scrub stack" << dendl;
   }
 
@@ -336,26 +371,31 @@ void StrayManager::enqueue(CDentry *dn, bool trunc)
   // Resources are available, acquire them and execute the purge
   _enqueue(dn, trunc);
 
-  dout(10) << __func__ << ": purging this dentry immediately: "
-    << *dn << dendl;
+  dout(10) << __func__ << ": purging this dentry immediately: " << *dn << dendl;
 }
 
 class C_RetryEnqueue : public StrayManagerContext {
-  CDentry *dn;
+  CDentry* dn;
   bool trunc;
-  public:
-    C_RetryEnqueue(StrayManager *sm_, CDentry *dn_, bool t) :
-      StrayManagerContext(sm_), dn(dn_), trunc(t) { }
-    void finish(int r) override {
-      sm->_enqueue(dn, trunc);
-    }
+
+public:
+  C_RetryEnqueue(StrayManager* sm_, CDentry* dn_, bool t) :
+    StrayManagerContext(sm_), dn(dn_), trunc(t)
+  {}
+
+  void
+  finish(int r) override
+  {
+    sm->_enqueue(dn, trunc);
+  }
 };
 
-void StrayManager::_enqueue(CDentry *dn, bool trunc)
+void
+StrayManager::_enqueue(CDentry* dn, bool trunc)
 {
   ceph_assert(started);
 
-  CDir *dir = dn->get_dir();
+  CDir* dir = dn->get_dir();
   if (!dir->can_auth_pin()) {
     dout(10) << " can't auth_pin (freezing?) " << *dir << ", waiting" << dendl;
     dir->add_waiter(CDir::WAIT_UNFREEZE, new C_RetryEnqueue(this, dn, trunc));
@@ -370,7 +410,8 @@ void StrayManager::_enqueue(CDentry *dn, bool trunc)
   }
 }
 
-void StrayManager::queue_delayed(CDentry *dn)
+void
+StrayManager::queue_delayed(CDentry* dn)
 {
   if (!started)
     return;
@@ -385,13 +426,14 @@ void StrayManager::queue_delayed(CDentry *dn)
   }
 }
 
-void StrayManager::advance_delayed()
+void
+StrayManager::advance_delayed()
 {
   if (!started)
     return;
 
   while (!delayed_eval_stray.empty()) {
-    CDentry *dn = delayed_eval_stray.front();
+    CDentry* dn = delayed_eval_stray.front();
     dn->item_stray.remove_myself();
     num_strays_delayed--;
 
@@ -407,49 +449,65 @@ void StrayManager::advance_delayed()
   logger->set(l_mdc_num_strays_delayed, num_strays_delayed);
 }
 
-void StrayManager::set_num_strays(uint64_t num)
+void
+StrayManager::set_num_strays(uint64_t num)
 {
   ceph_assert(!started);
   num_strays = num;
   logger->set(l_mdc_num_strays, num_strays);
 }
 
-void StrayManager::notify_stray_created()
+void
+StrayManager::notify_stray_created()
 {
   num_strays++;
   logger->set(l_mdc_num_strays, num_strays);
   logger->inc(l_mdc_strays_created);
 }
 
-void StrayManager::notify_stray_removed()
+void
+StrayManager::notify_stray_removed()
 {
   num_strays--;
   logger->set(l_mdc_num_strays, num_strays);
 }
 
 struct C_EvalStray : public StrayManagerContext {
-  CDentry *dn;
-  C_EvalStray(StrayManager *sm_, CDentry *d) : StrayManagerContext(sm_), dn(d) {}
-  void finish(int r) override {
+  CDentry* dn;
+
+  C_EvalStray(StrayManager* sm_, CDentry* d) :
+    StrayManagerContext(sm_), dn(d)
+  {}
+
+  void
+  finish(int r) override
+  {
     sm->eval_stray(dn);
   }
 };
 
 struct C_MDC_EvalStray : public StrayManagerContext {
-  CDentry *dn;
-  C_MDC_EvalStray(StrayManager *sm_, CDentry *d) : StrayManagerContext(sm_), dn(d) {}
-  void finish(int r) override {
+  CDentry* dn;
+
+  C_MDC_EvalStray(StrayManager* sm_, CDentry* d) :
+    StrayManagerContext(sm_), dn(d)
+  {}
+
+  void
+  finish(int r) override
+  {
     sm->eval_stray(dn);
   }
 };
 
-bool StrayManager::_eval_stray(CDentry *dn)
+bool
+StrayManager::_eval_stray(CDentry* dn)
 {
   dout(10) << "eval_stray " << *dn << dendl;
-  CDentry::linkage_t *dnl = dn->get_projected_linkage();
+  CDentry::linkage_t* dnl = dn->get_projected_linkage();
   ceph_assert(dnl->is_primary());
   dout(10) << " inode is " << *dnl->get_inode() << dendl;
-  CInode *in = dnl->get_inode();
+  CInode* in = dnl->get_inode();
   ceph_assert(in);
   ceph_assert(!in->state_test(CInode::STATE_REJOINUNDEF));
 
@@ -485,26 +543,26 @@ bool StrayManager::_eval_stray(CDentry *dn)
     }
     if (in->is_dir()) {
       if (in->snaprealm && in->snaprealm->has_past_parent_snaps()) {
-	dout(20) << "  directory has past parents "
-		 << in->snaprealm << dendl;
-	if (in->state_test(CInode::STATE_MISSINGOBJS)) {
-	  mds->clog->error() << "previous attempt at committing dirfrag of ino "
-			     << in->ino() << " has failed, missing object";
-	  mds->handle_write_error(-ENOENT);
-	}
-	return false;  // not until some snaps are deleted.
+        dout(20) << "  directory has past parents " << in->snaprealm << dendl;
+        if (in->state_test(CInode::STATE_MISSINGOBJS)) {
+          mds->clog->error() << "previous attempt at committing dirfrag of ino "
+                             << in->ino() << " has failed, missing object";
+          mds->handle_write_error(-ENOENT);
+        }
+        return false; // not until some snaps are deleted.
       }
 
       mds->mdcache->clear_dirty_bits_for_stray(in);
 
       if (!in->remote_parents.empty()) {
-	// unlink any stale remote snap dentry.
-	for (auto it = in->remote_parents.begin(); it != in->remote_parents.end(); ) {
-	  CDentry *remote_dn = *it;
-	  ++it;
-	  ceph_assert(remote_dn->last != CEPH_NOSNAP);
-	  remote_dn->unlink_remote(remote_dn->get_linkage());
-	}
+        // unlink any stale remote snap dentry.
+        for (auto it = in->remote_parents.begin();
+             it != in->remote_parents.end();) {
+          CDentry* remote_dn = *it;
+          ++it;
+          ceph_assert(remote_dn->last != CEPH_NOSNAP);
+          remote_dn->unlink_remote(remote_dn->get_linkage());
+        }
       }
     }
     if (dn->is_replicated()) {
@@ -513,12 +571,12 @@ bool StrayManager::_eval_stray(CDentry *dn)
     }
     if (dn->is_any_leases() || in->is_any_caps()) {
       dout(20) << " caps | leases" << dendl;
-      return false;  // wait
+      return false; // wait
     }
     if (in->state_test(CInode::STATE_NEEDSRECOVER) ||
-	in->state_test(CInode::STATE_RECOVERING)) {
+        in->state_test(CInode::STATE_RECOVERING)) {
       dout(20) << " pending recovery" << dendl;
-      return false;  // don't mess with file size probing
+      return false; // don't mess with file size probing
     }
     if (in->get_num_ref() > (int)in->is_dirty() + (int)in->is_dirty_parent()) {
       dout(20) << " too many inode refs" << dendl;
@@ -530,19 +588,18 @@ bool StrayManager::_eval_stray(CDentry *dn)
     }
     // don't purge multiversion inode with snap data
     if (in->snaprealm && in->snaprealm->has_past_parent_snaps() &&
-	in->is_any_old_inodes()) {
+        in->is_any_old_inodes()) {
       // A file with snapshots: we will truncate the HEAD revision
       // but leave the metadata intact.
       ceph_assert(!in->is_dir());
-      dout(20) << " file has past parents "
-        << in->snaprealm << dendl;
+      dout(20) << " file has past parents " << in->snaprealm << dendl;
       if (in->is_file() && in->get_projected_inode()->size > 0) {
-	enqueue(dn, true); // truncate head objects    
+        enqueue(dn, true); // truncate head objects
       }
     } else {
       // A straightforward file, ready to be purged.  Enqueue it.
       if (in->is_dir()) {
-	in->close_dirfrags();
+        in->close_dirfrags();
       }
 
       enqueue(dn, false);
@@ -560,18 +617,20 @@ bool StrayManager::_eval_stray(CDentry *dn)
   }
 }
 
-void StrayManager::activate()
+void
+StrayManager::activate()
 {
   dout(10) << __func__ << dendl;
   started = true;
   purge_queue.activate();
 }
 
-bool StrayManager::eval_stray(CDentry *dn)
+bool
+StrayManager::eval_stray(CDentry* dn)
 {
   // avoid nested eval_stray
   if (dn->state_test(CDentry::STATE_EVALUATINGSTRAY))
-      return false;
+    return false;
 
   dn->state_set(CDentry::STATE_EVALUATINGSTRAY);
   bool ret = _eval_stray(dn);
@@ -579,13 +638,14 @@ bool StrayManager::eval_stray(CDentry *dn)
   return ret;
 }
 
-void StrayManager::eval_remote(CDentry *remote_dn)
+void
+StrayManager::eval_remote(CDentry* remote_dn)
 {
   dout(10) << __func__ << " " << *remote_dn << dendl;
 
-  CDentry::linkage_t *dnl = remote_dn->get_projected_linkage();
+  CDentry::linkage_t* dnl = remote_dn->get_projected_linkage();
   ceph_assert(dnl->is_remote());
-  CInode *in = dnl->get_inode();
+  CInode* in = dnl->get_inode();
 
   if (!in) {
     dout(20) << __func__ << ": no inode, cannot evaluate" << dendl;
@@ -598,7 +658,7 @@ void StrayManager::eval_remote(CDentry *remote_dn)
   }
 
   // refers to stray?
-  CDentry *primary_dn = in->get_projected_parent_dn();
+  CDentry* primary_dn = in->get_projected_parent_dn();
   ceph_assert(primary_dn != NULL);
   if (primary_dn->get_dir()->get_inode()->is_stray()) {
     _eval_stray_remote(primary_dn, remote_dn);
@@ -608,47 +668,54 @@ void StrayManager::eval_remote(CDentry *remote_dn)
 }
 
 class C_RetryEvalRemote : public StrayManagerContext {
-  CDentry *dn;
-  public:
-    C_RetryEvalRemote(StrayManager *sm_, CDentry *dn_) :
-      StrayManagerContext(sm_), dn(dn_) {
-      dn->get(CDentry::PIN_PTRWAITER);
-    }
-    void finish(int r) override {
-      if (dn->get_projected_linkage()->is_remote())
-	sm->eval_remote(dn);
-      dn->put(CDentry::PIN_PTRWAITER);
-    }
+  CDentry* dn;
+
+public:
+  C_RetryEvalRemote(StrayManager* sm_, CDentry* dn_) :
+    StrayManagerContext(sm_), dn(dn_)
+  {
+    dn->get(CDentry::PIN_PTRWAITER);
+  }
+
+  void
+  finish(int r) override
+  {
+    if (dn->get_projected_linkage()->is_remote())
+      sm->eval_remote(dn);
+    dn->put(CDentry::PIN_PTRWAITER);
+  }
 };
 
-void StrayManager::_eval_stray_remote(CDentry *stray_dn, CDentry *remote_dn)
+void
+StrayManager::_eval_stray_remote(CDentry* stray_dn, CDentry* remote_dn)
 {
   dout(20) << __func__ << " " << *stray_dn << dendl;
   ceph_assert(stray_dn != NULL);
   ceph_assert(stray_dn->get_dir()->get_inode()->is_stray());
-  CDentry::linkage_t *stray_dnl = stray_dn->get_projected_linkage();
+  CDentry::linkage_t* stray_dnl = stray_dn->get_projected_linkage();
   ceph_assert(stray_dnl->is_primary());
-  CInode *stray_in = stray_dnl->get_inode();
+  CInode* stray_in = stray_dnl->get_inode();
   ceph_assert(stray_in->get_inode()->nlink >= 1);
   ceph_assert(stray_in->last == CEPH_NOSNAP);
 
   /* If no remote_dn hinted, pick one arbitrarily */
   if (remote_dn == NULL) {
     if (!stray_in->remote_parents.empty()) {
-      for (const auto &dn : stray_in->remote_parents) {
-	if (dn->last == CEPH_NOSNAP && !dn->is_projected()) {
-	  if (dn->is_auth()) {
-	    remote_dn = dn;
-	    if (remote_dn->dir->can_auth_pin())
-	      break;
-	  } else if (!remote_dn) {
-	    remote_dn = dn;
-	  }
-	}
+      for (const auto& dn : stray_in->remote_parents) {
+        if (dn->last == CEPH_NOSNAP && !dn->is_projected()) {
+          if (dn->is_auth()) {
+            remote_dn = dn;
+            if (remote_dn->dir->can_auth_pin())
+              break;
+          } else if (!remote_dn) {
+            remote_dn = dn;
+          }
+        }
       }
     }
     if (!remote_dn) {
-      dout(20) << __func__ << ": not reintegrating (no remote parents in cache)" << dendl;
+      dout(20) << __func__ << ": not reintegrating (no remote parents in cache)"
+               << dendl;
       return;
     }
   }
@@ -657,10 +724,13 @@ void StrayManager::_eval_stray_remote(CDentry *stray_dn, CDentry *remote_dn)
   if (!remote_dn->is_projected()) {
     if (remote_dn->is_auth()) {
       if (remote_dn->dir->can_auth_pin()) {
-	reintegrate_stray(stray_dn, remote_dn);
+        reintegrate_stray(stray_dn, remote_dn);
       } else {
-	remote_dn->dir->add_waiter(CDir::WAIT_UNFREEZE, new C_RetryEvalRemote(this, remote_dn));
-	dout(20) << __func__ << ": not reintegrating (can't authpin remote parent)" << dendl;
+        remote_dn->dir->add_waiter(
+            CDir::WAIT_UNFREEZE, new C_RetryEvalRemote(this, remote_dn));
+        dout(20) << __func__
+                 << ": not reintegrating (can't authpin remote parent)"
+                 << dendl;
       }
 
     } else if (stray_dn->is_auth()) {
@@ -675,7 +745,8 @@ void StrayManager::_eval_stray_remote(CDentry *stray_dn, CDentry *remote_dn)
   }
 }
 
-void StrayManager::reintegrate_stray(CDentry *straydn, CDentry *rdn)
+void
+StrayManager::reintegrate_stray(CDentry* straydn, CDentry* rdn)
 {
   dout(10) << __func__ << " " << *straydn << " to " << *rdn << dendl;
 
@@ -698,13 +769,15 @@ void StrayManager::reintegrate_stray(CDentry *straydn, CDentry *rdn)
   req->set_filepath2(src);
   req->set_tid(tid);
 
-  auto ptr = std::make_unique<StrayEvalRequest>(CEPH_MDS_OP_RENAME, tid, straydn);
+  auto ptr =
+      std::make_unique<StrayEvalRequest>(CEPH_MDS_OP_RENAME, tid, straydn);
   mds->internal_client_requests.emplace(tid, std::move(ptr));
 
   mds->send_message_mds(req, rdn->authority().first);
 }
 
-void StrayManager::migrate_stray(CDentry *dn, mds_rank_t to)
+void
+StrayManager::migrate_stray(CDentry* dn, mds_rank_t to)
 {
   dout(10) << __func__ << " " << *dn << " to mds." << to << dendl;
 
@@ -736,25 +809,27 @@ void StrayManager::migrate_stray(CDentry *dn, mds_rank_t to)
   mds->send_message_mds(req, to);
 }
 
-StrayManager::StrayManager(MDSRank *mds, PurgeQueue &purge_queue_)
-  : delayed_eval_stray(member_offset(CDentry, item_stray)),
-    mds(mds), purge_queue(purge_queue_)
+StrayManager::StrayManager(MDSRank* mds, PurgeQueue& purge_queue_) :
+  delayed_eval_stray(member_offset(CDentry, item_stray)),
+  mds(mds),
+  purge_queue(purge_queue_)
 {
   ceph_assert(mds != NULL);
 }
 
-void StrayManager::truncate(CDentry *dn)
+void
+StrayManager::truncate(CDentry* dn)
 {
-  const CDentry::linkage_t *dnl = dn->get_projected_linkage();
-  const CInode *in = dnl->get_inode();
+  const CDentry::linkage_t* dnl = dn->get_projected_linkage();
+  const CInode* in = dnl->get_inode();
   ceph_assert(in);
   dout(10) << __func__ << ": " << *dn << " " << *in << dendl;
   ceph_assert(!dn->is_replicated());
 
-  const SnapRealm *realm = in->find_snaprealm();
+  const SnapRealm* realm = in->find_snaprealm();
   ceph_assert(realm);
   dout(10) << " realm " << *realm << dendl;
-  const SnapContext *snapc = &realm->get_snap_context();
+  const SnapContext* snapc = &realm->get_snap_context();
 
   uint64_t to = std::max(in->get_inode()->size, in->get_inode()->get_max_size());
   // when truncating a file, the filer does not delete stripe objects that are
@@ -772,13 +847,13 @@ void StrayManager::truncate(CDentry *dn)
   item.size = to;
   item.stamp = ceph_clock_now();
 
-  purge_queue.push(item, new C_IO_PurgeStrayPurged(
-        this, dn, true));
+  purge_queue.push(item, new C_IO_PurgeStrayPurged(this, dn, true));
 }
 
-void StrayManager::_truncate_stray_logged(CDentry *dn, MutationRef& mut)
+void
+StrayManager::_truncate_stray_logged(CDentry* dn, MutationRef& mut)
 {
-  CInode *in = dn->get_projected_linkage()->get_inode();
+  CInode* in = dn->get_projected_linkage()->get_inode();
 
   dout(10) << __func__ << ": " << *dn << " " << *in << dendl;
 
@@ -792,7 +867,6 @@ void StrayManager::_truncate_stray_logged(CDentry *dn, MutationRef& mut)
 
   eval_stray(dn);
 
-  if (!dn->state_test(CDentry::STATE_PURGING) &&  mds->is_stopping())
+  if (!dn->state_test(CDentry::STATE_PURGING) && mds->is_stopping())
     mds->mdcache->shutdown_export_stray_finish(in->ino());
 }
-

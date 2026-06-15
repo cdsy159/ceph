@@ -20,23 +20,24 @@
 #include <iostream> // for std::cout
 #include <numeric>
 
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "global/global_context.h"
-#include "gtest/gtest.h"
-
-#include "include/denc.h"
-
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/optional.hpp>
+
+#include "common/ceph_argparse.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "gtest/gtest.h"
+#include "include/denc.h"
 
 using namespace std;
 
 // test helpers
 
-template<typename T>
-void test_encode_decode(T v) {
+template <typename T>
+void
+test_encode_decode(T v)
+{
   bufferlist bl;
   encode(v, bl);
   auto p = bl.cbegin();
@@ -45,8 +46,10 @@ void test_encode_decode(T v) {
   ASSERT_EQ(v, out);
 }
 
-template<typename T>
-void test_denc(T v) {
+template <typename T>
+void
+test_denc(T v)
+{
   // estimate
   size_t s = 0;
   denc(v, s);
@@ -72,8 +75,10 @@ void test_denc(T v) {
   test_encode_decode(v);
 }
 
-template<typename T>
-void test_encode_decode_featured(T v) {
+template <typename T>
+void
+test_encode_decode_featured(T v)
+{
   bufferlist bl;
   encode(v, bl, 123);
   auto p = bl.cbegin();
@@ -82,8 +87,10 @@ void test_encode_decode_featured(T v) {
   ASSERT_EQ(v, out);
 }
 
-template<typename T>
-void test_denc_featured(T v) {
+template <typename T>
+void
+test_denc_featured(T v)
+{
   // estimate
   size_t s = 0;
   denc(v, s, 0);
@@ -109,14 +116,16 @@ void test_denc_featured(T v) {
   test_encode_decode_featured(v);
 }
 
-
 // hooks to count bound calls
 
 struct counts_t {
   int num_bound_encode = 0;
   int num_encode = 0;
   int num_decode = 0;
-  void reset() {
+
+  void
+  reset()
+  {
     num_bound_encode = 0;
     num_encode = 0;
     num_decode = 0;
@@ -124,15 +133,23 @@ struct counts_t {
 } counts;
 
 struct denc_counter_t {
-  void bound_encode(size_t& p) const {
+  void
+  bound_encode(size_t& p) const
+  {
     ++counts.num_bound_encode;
-    ++p;  // denc.h does not like 0-length objects
+    ++p; // denc.h does not like 0-length objects
   }
-  void encode(buffer::list::contiguous_appender& p) const {
+
+  void
+  encode(buffer::list::contiguous_appender& p) const
+  {
     p.append("a", 1);
     ++counts.num_encode;
   }
-  void decode(buffer::ptr::const_iterator &p) {
+
+  void
+  decode(buffer::ptr::const_iterator& p)
+  {
     p += 1;
     ++counts.num_decode;
   }
@@ -140,15 +157,23 @@ struct denc_counter_t {
 WRITE_CLASS_DENC(denc_counter_t)
 
 struct denc_counter_bounded_t {
-  void bound_encode(size_t& p) const {
+  void
+  bound_encode(size_t& p) const
+  {
     ++counts.num_bound_encode;
-    ++p;  // denc.h does not like 0-length objects
+    ++p; // denc.h does not like 0-length objects
   }
-  void encode(buffer::list::contiguous_appender& p) const {
+
+  void
+  encode(buffer::list::contiguous_appender& p) const
+  {
     p.append("a", 1);
     ++counts.num_encode;
   }
-  void decode(buffer::ptr::const_iterator &p) {
+
+  void
+  decode(buffer::ptr::const_iterator& p)
+  {
     p += 1;
     ++counts.num_decode;
   }
@@ -191,27 +216,45 @@ TEST(denc, string)
 
 struct legacy_t {
   int32_t a = 1;
-  void encode(bufferlist& bl) const {
+
+  void
+  encode(bufferlist& bl) const
+  {
     using ceph::encode;
     encode(a, bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     using ceph::decode;
     decode(a, p);
   }
+
   legacy_t() {}
-  explicit legacy_t(int32_t i) : a(i) {}
-  friend bool operator<(const legacy_t& l, const legacy_t& r) {
+
+  explicit legacy_t(int32_t i) :
+    a(i)
+  {}
+
+  friend bool
+  operator<(const legacy_t& l, const legacy_t& r)
+  {
     return l.a < r.a;
   }
-  friend bool operator==(const legacy_t& l, const legacy_t& r) {
+
+  friend bool
+  operator==(const legacy_t& l, const legacy_t& r)
+  {
     return l.a == r.a;
   }
 };
 WRITE_CLASS_ENCODER(legacy_t)
 
-template<template<class> class C>
-void test_common_veclist(const char* c) {
+template <template <class> class C>
+void
+test_common_veclist(const char* c)
+{
   {
     cout << c << "<std::string>" << std::endl;
     C<std::string> s;
@@ -242,7 +285,7 @@ void test_common_veclist(const char* c) {
 // parameters should have the default values. (Like first-class
 // functions, first-class templates do not bring their defaults.)
 
-template<typename T>
+template <typename T>
 using default_vector = std::vector<T>;
 
 TEST(denc, vector)
@@ -276,7 +319,7 @@ TEST(denc, vector)
   }
 }
 
-template<typename T>
+template <typename T>
 using default_list = std::list<T>;
 
 TEST(denc, list)
@@ -285,7 +328,7 @@ TEST(denc, list)
   {
     counts.reset();
     list<denc_counter_bounded_t> l, l2;
-    for (unsigned i=0; i<100; ++i) {
+    for (unsigned i = 0; i < 100; ++i) {
       l.emplace_back(denc_counter_bounded_t());
     }
     {
@@ -299,8 +342,10 @@ TEST(denc, list)
   }
 }
 
-template<template<class> class C>
-void test_setlike(const char* c) {
+template <template <class> class C>
+void
+test_setlike(const char* c)
+{
   {
     cout << c << "<std::string>" << std::endl;
     C<std::string> s;
@@ -326,34 +371,31 @@ void test_setlike(const char* c) {
   }
 }
 
-template<typename T>
+template <typename T>
 using default_set = std::set<T>;
 
-TEST(denc, set)
-{
-  test_setlike<default_set>("std::set");
-}
+TEST(denc, set) { test_setlike<default_set>("std::set"); }
 
-template<typename T>
-using default_flat_set= boost::container::flat_set<T>;
+template <typename T>
+using default_flat_set = boost::container::flat_set<T>;
 
-TEST(denc, flat_set)
-{
-  test_setlike<default_flat_set>("std::set");
-}
+TEST(denc, flat_set) { test_setlike<default_flat_set>("std::set"); }
 
 struct foo_t {
   int32_t a = 0;
   uint64_t b = 123;
 
-  DENC(foo_t, v, p) {
+  DENC(foo_t, v, p)
+  {
     DENC_START(1, 1, p);
     ::denc(v.a, p);
     ::denc(v.b, p);
     DENC_FINISH(p);
   }
 
-  friend bool operator==(const foo_t& l, const foo_t& r) {
+  friend bool
+  operator==(const foo_t& l, const foo_t& r)
+  {
     return l.a == r.a && l.b == r.b;
   }
 };
@@ -364,7 +406,8 @@ struct foo2_accept1_t {
   uint64_t b = 123;
   int32_t c = -1; // uninitialized for v1
 
-  DENC(foo2_accept1_t, v, p) {
+  DENC(foo2_accept1_t, v, p)
+  {
     DENC_START(2, 1, p);
     ::denc(v.a, p);
     ::denc(v.b, p);
@@ -381,7 +424,8 @@ struct foo2_only2_t {
   uint64_t b = 123;
   uint32_t c = 55;
 
-  DENC(foo2_only2_t, v, p) {
+  DENC(foo2_only2_t, v, p)
+  {
     DENC_START_COMPAT_2(2, 2, p);
     ::denc(v.a, p);
     ::denc(v.b, p);
@@ -395,12 +439,15 @@ struct bar_t {
   int32_t a = 0;
   uint64_t b = 123;
 
-  DENC_FEATURED(bar_t, v, p, f) {
+  DENC_FEATURED(bar_t, v, p, f)
+  {
     ::denc(v.a, p, f);
     ::denc(v.b, p, f);
   }
 
-  friend bool operator==(const bar_t& l, const bar_t& r) {
+  friend bool
+  operator==(const bar_t& l, const bar_t& r)
+  {
     return l.a == r.a && l.b == r.b;
   }
 };
@@ -421,11 +468,9 @@ TEST(denc, bar)
   test_denc_featured(a);
 }
 
-
-
 TEST(denc, pair)
 {
-  pair<int32_t,std::string> p;
+  pair<int32_t, std::string> p;
   bufferlist bl;
   {
     auto a = bl.get_contiguous_appender(1000);
@@ -433,12 +478,14 @@ TEST(denc, pair)
     encode(p, bl);
   }
 
-  pair<int32_t,legacy_t> lp;
+  pair<int32_t, legacy_t> lp;
   encode(lp, bl);
 }
 
-template<template<class, class> class C>
-void test_common_maplike(const char* c) {
+template <template <class, class> class C>
+void
+test_common_maplike(const char* c)
+{
   {
     cout << c << "<std::string, foo_t>" << std::endl;
     C<string, foo_t> s;
@@ -464,15 +511,12 @@ void test_common_maplike(const char* c) {
   }
 }
 
-template<typename U, typename V>
+template <typename U, typename V>
 using default_map = std::map<U, V>;
 
-TEST(denc, map)
-{
-  test_common_maplike<default_map>("std::map");
-}
+TEST(denc, map) { test_common_maplike<default_map>("std::map"); }
 
-template<typename U, typename V>
+template <typename U, typename V>
 using default_flat_map = boost::container::flat_map<U, V>;
 
 TEST(denc, flat_map)
@@ -480,7 +524,8 @@ TEST(denc, flat_map)
   test_common_maplike<default_flat_map>("boost::container::flat_map");
 }
 
-TEST(denc, bufferptr_shallow_and_deep) {
+TEST(denc, bufferptr_shallow_and_deep)
+{
   // shallow encode
   int32_t i = 1;
   bufferptr p1("foo", 3);
@@ -535,13 +580,13 @@ TEST(denc, array)
 {
   {
     cout << "std::array<std::string, 3>" << std::endl;
-    std::array<std::string, 3> s = { "foo", "bar", "baz" };
+    std::array<std::string, 3> s = {"foo", "bar", "baz"};
     counts.reset();
     test_denc(s);
   }
   {
     cout << "std::array<uint32_t, 3>" << std::endl;
-    std::array<uint32_t, 3> s = { 1UL, 2UL, 3UL };
+    std::array<uint32_t, 3> s = {1UL, 2UL, 3UL};
     test_denc(s);
   }
 }
@@ -562,7 +607,7 @@ TEST(denc, tuple)
   {
     cout << "std::tuple<std::string, std::set<uint32_t>>" << std::endl;
     std::tuple<std::string, std::set<uint32_t>> s(
-      "bar", std::set<uint32_t>{uint32_t(1), uint32_t(2), uint32_t(3)});
+        "bar", std::set<uint32_t>{uint32_t(1), uint32_t(2), uint32_t(3)});
     test_denc(s);
   }
 }
@@ -648,25 +693,36 @@ struct Legacy {
   static unsigned n_denc;
   static unsigned n_decode;
   uint8_t value = 0;
-  DENC(Legacy, v, p) {
+
+  DENC(Legacy, v, p)
+  {
     n_denc++;
     denc(v.value, p);
   }
-  void decode(buffer::list::const_iterator& p) {
+
+  void
+  decode(buffer::list::const_iterator& p)
+  {
     n_decode++;
     using ceph::decode;
     decode(value, p);
   }
-  static void reset() {
+
+  static void
+  reset()
+  {
     n_denc = n_decode = 0;
   }
+
   static bufferlist encode_n(unsigned n, const vector<unsigned>& segments);
 };
 WRITE_CLASS_DENC(Legacy)
 unsigned Legacy::n_denc = 0;
 unsigned Legacy::n_decode = 0;
 
-bufferlist Legacy::encode_n(unsigned n, const vector<unsigned>& segments) {
+bufferlist
+Legacy::encode_n(unsigned n, const vector<unsigned>& segments)
+{
   vector<Legacy> v;
   for (unsigned i = 0; i < n; i++) {
     v.push_back(Legacy());
@@ -690,8 +746,8 @@ bufferlist Legacy::encode_n(unsigned n, const vector<unsigned>& segments) {
 
 TEST(denc, no_copy_if_segmented_and_lengthy)
 {
-  static_assert(_denc::has_legacy_denc<Legacy>::value,
-                "Legacy do have legacy denc");
+  static_assert(
+      _denc::has_legacy_denc<Legacy>::value, "Legacy do have legacy denc");
   {
     // use denc() which shallow_copy() if the buffer is small
     constexpr unsigned N_COPIES = 42;
@@ -766,7 +822,8 @@ TEST(denc, no_copy_if_segmented_and_lengthy)
 TEST(denc, compat_allows)
 {
   foo_t v1;
-  v1.a = 5001; v1.b = 6002;
+  v1.a = 5001;
+  v1.b = 6002;
   size_t s = 0;
   denc(v1, s);
   bufferlist bl;
@@ -776,7 +833,9 @@ TEST(denc, compat_allows)
   }
 
   foo2_accept1_t v2;
-  v2.a = 111; v2.b = 111; v2.c = 111;
+  v2.a = 111;
+  v2.b = 111;
+  v2.c = 111;
   auto bpi = bl.front().begin();
   denc(v2, bpi);
   ASSERT_EQ(v1.a, v2.a);
@@ -787,7 +846,9 @@ TEST(denc, compat_allows)
 TEST(denc, compat_disallows)
 {
   foo2_only2_t v2;
-  v2.a = 5001; v2.b = 6002; v2.c = 7003;
+  v2.a = 5001;
+  v2.b = 6002;
+  v2.c = 7003;
   size_t s = 0;
   denc(v2, s);
   bufferlist bl;
@@ -797,7 +858,8 @@ TEST(denc, compat_disallows)
   }
 
   foo_t v1;
-  v1.a = 111; v1.b = 111;
+  v1.a = 111;
+  v1.b = 111;
   auto bpi = bl.front().begin();
-  ASSERT_ANY_THROW(denc(v1,bpi));
+  ASSERT_ANY_THROW(denc(v1, bpi));
 }

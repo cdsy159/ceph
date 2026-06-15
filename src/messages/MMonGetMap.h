@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,24 +16,35 @@
 #ifndef CEPH_MMONGETMAP_H
 #define CEPH_MMONGETMAP_H
 
-#include "msg/Message.h"
-
 #include "include/types.h"
+#include "msg/Message.h"
 
 class MMonGetMap final : public Message {
 public:
-  MMonGetMap() : Message{CEPH_MSG_MON_GET_MAP} { }
+  MMonGetMap() :
+    Message{CEPH_MSG_MON_GET_MAP}
+  {}
+
 private:
   ~MMonGetMap() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_getmap"; }
-  
-  void encode_payload(uint64_t features) override { }
-  void decode_payload() override { }
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_getmap";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {}
+
+  void
+  decode_payload() override
+  {}
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

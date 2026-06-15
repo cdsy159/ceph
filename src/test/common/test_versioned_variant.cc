@@ -13,24 +13,32 @@
  *
  */
 
-#include "common/versioned_variant.h"
+#include <gtest/gtest.h>
+
 #include <bitset>
 #include <string>
-#include <gtest/gtest.h>
+
+#include "common/versioned_variant.h"
 
 namespace {
 
 // type with custom encoding
 struct custom_type {
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(0, 0, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(0, bl);
     DECODE_FINISH(bl);
   }
 };
+
 WRITE_CLASS_ENCODER(custom_type);
 
 } // anonymous namespace
@@ -189,7 +197,6 @@ TEST(VersionedVariant, EncodeNew)
     EXPECT_THROW(versioned_variant::decode(out, p), buffer::malformed_input);
   }
 }
-
 
 TEST(ConvertedVariant, Custom)
 {

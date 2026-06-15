@@ -32,32 +32,37 @@ using std::ostream;
 
 #include <list>
 #include <vector>
-#include <boost/optional.hpp>
+
 #include <boost/fusion/include/adapt_struct.hpp>
+#include <boost/optional.hpp>
 
 #include "include/types.h"
 #include "osd/osd_op_util.h"
 
 
-static const __u8 OSD_CAP_R     = (1 << 1);      // read
-static const __u8 OSD_CAP_W     = (1 << 2);      // write
-static const __u8 OSD_CAP_CLS_R = (1 << 3);      // class read
-static const __u8 OSD_CAP_CLS_W = (1 << 4);      // class write
-static const __u8 OSD_CAP_X     = (OSD_CAP_CLS_R | OSD_CAP_CLS_W); // execute
-static const __u8 OSD_CAP_ANY   = 0xff;          // *
+static const __u8 OSD_CAP_R = (1 << 1); // read
+static const __u8 OSD_CAP_W = (1 << 2); // write
+static const __u8 OSD_CAP_CLS_R = (1 << 3); // class read
+static const __u8 OSD_CAP_CLS_W = (1 << 4); // class write
+static const __u8 OSD_CAP_X = (OSD_CAP_CLS_R | OSD_CAP_CLS_W); // execute
+static const __u8 OSD_CAP_ANY = 0xff; // *
 
 struct osd_rwxa_t {
   __u8 val;
 
   // cppcheck-suppress noExplicitConstructor
-  osd_rwxa_t(__u8 v = 0) : val(v) {}
-  osd_rwxa_t& operator=(__u8 v) {
+  osd_rwxa_t(__u8 v = 0) :
+    val(v)
+  {}
+
+  osd_rwxa_t&
+  operator=(__u8 v)
+  {
     val = v;
     return *this;
   }
-  operator __u8() const {
-    return val;
-  }
+
+  operator __u8() const { return val; }
 };
 
 ostream& operator<<(ostream& out, const osd_rwxa_t& p);
@@ -67,13 +72,23 @@ struct OSDCapSpec {
   std::string class_name;
   std::string method_name;
 
-  OSDCapSpec() : allow(0) {}
-  explicit OSDCapSpec(osd_rwxa_t v) : allow(v) {}
-  OSDCapSpec(std::string class_name, std::string method_name)
-    : allow(0), class_name(std::move(class_name)),
-      method_name(std::move(method_name)) {}
+  OSDCapSpec() :
+    allow(0)
+  {}
 
-  bool allow_all() const {
+  explicit OSDCapSpec(osd_rwxa_t v) :
+    allow(v)
+  {}
+
+  OSDCapSpec(std::string class_name, std::string method_name) :
+    allow(0),
+    class_name(std::move(class_name)),
+    method_name(std::move(method_name))
+  {}
+
+  bool
+  allow_all() const
+  {
     return allow == OSD_CAP_ANY;
   }
 };
@@ -84,12 +99,13 @@ struct OSDCapPoolNamespace {
   std::string pool_name;
   boost::optional<std::string> nspace = boost::none;
 
-  OSDCapPoolNamespace() {
-  }
-  OSDCapPoolNamespace(const std::string& pool_name,
-                      const boost::optional<std::string>& nspace = boost::none)
-    : pool_name(pool_name), nspace(nspace) {
-  }
+  OSDCapPoolNamespace() {}
+
+  OSDCapPoolNamespace(
+      const std::string& pool_name,
+      const boost::optional<std::string>& nspace = boost::none) :
+    pool_name(pool_name), nspace(nspace)
+  {}
 
   bool is_match(const std::string& pn, const std::string& ns) const;
   bool is_match_all() const;
@@ -98,48 +114,72 @@ struct OSDCapPoolNamespace {
 ostream& operator<<(ostream& out, const OSDCapPoolNamespace& pns);
 
 struct OSDCapPoolTag {
-  typedef std::map<std::string, std::map<std::string, std::string> > app_map_t;
+  typedef std::map<std::string, std::map<std::string, std::string>> app_map_t;
   std::string application;
   std::string key;
   std::string value;
 
-  OSDCapPoolTag () {}
-  OSDCapPoolTag(const std::string& application, const std::string& key,
-		const std::string& value) :
-    application(application), key(key), value(value) {}
+  OSDCapPoolTag() {}
+
+  OSDCapPoolTag(
+      const std::string& application,
+      const std::string& key,
+      const std::string& value) :
+    application(application), key(key), value(value)
+  {}
 
   bool is_match(const app_map_t& app_map) const;
   bool is_match_all() const;
 };
 // adapt for parsing with boost::spirit::qi in OSDCapParser
-BOOST_FUSION_ADAPT_STRUCT(OSDCapPoolTag,
-			  (std::string, application)
-			  (std::string, key)
-			  (std::string, value))
+BOOST_FUSION_ADAPT_STRUCT(
+    OSDCapPoolTag,
+    (std::string, application)(std::string, key)(std::string, value))
 
 ostream& operator<<(ostream& out, const OSDCapPoolTag& pt);
 
 struct OSDCapMatch {
-  typedef std::map<std::string, std::map<std::string, std::string> > app_map_t;
+  typedef std::map<std::string, std::map<std::string, std::string>> app_map_t;
   OSDCapPoolNamespace pool_namespace;
   OSDCapPoolTag pool_tag;
   std::string object_prefix;
 
   OSDCapMatch() {}
-  explicit OSDCapMatch(const OSDCapPoolTag& pt) : pool_tag(pt) {}
-  explicit OSDCapMatch(const OSDCapPoolNamespace& pns) : pool_namespace(pns) {}
-  OSDCapMatch(const OSDCapPoolNamespace& pns, const std::string& pre)
-    : pool_namespace(pns), object_prefix(pre) {}
-  OSDCapMatch(const std::string& pl, const std::string& pre)
-    : pool_namespace(pl), object_prefix(pre) {}
-  OSDCapMatch(const std::string& pl, const std::string& ns,
-              const std::string& pre)
-    : pool_namespace(pl, ns), object_prefix(pre) {}
-  OSDCapMatch(const std::string& dummy, const std::string& app,
-	      const std::string& key, const std::string& val)
-    : pool_tag(app, key, val) {}
-  OSDCapMatch(const std::string& ns, const OSDCapPoolTag& pt)
-    : pool_namespace("", ns), pool_tag(pt) {}
+
+  explicit OSDCapMatch(const OSDCapPoolTag& pt) :
+    pool_tag(pt)
+  {}
+
+  explicit OSDCapMatch(const OSDCapPoolNamespace& pns) :
+    pool_namespace(pns)
+  {}
+
+  OSDCapMatch(const OSDCapPoolNamespace& pns, const std::string& pre) :
+    pool_namespace(pns), object_prefix(pre)
+  {}
+
+  OSDCapMatch(const std::string& pl, const std::string& pre) :
+    pool_namespace(pl), object_prefix(pre)
+  {}
+
+  OSDCapMatch(
+      const std::string& pl,
+      const std::string& ns,
+      const std::string& pre) :
+    pool_namespace(pl, ns), object_prefix(pre)
+  {}
+
+  OSDCapMatch(
+      const std::string& dummy,
+      const std::string& app,
+      const std::string& key,
+      const std::string& val) :
+    pool_tag(app, key, val)
+  {}
+
+  OSDCapMatch(const std::string& ns, const OSDCapPoolTag& pt) :
+    pool_namespace("", ns), pool_tag(pt)
+  {}
 
   /**
    * check if given request parameters match our constraints
@@ -149,28 +189,32 @@ struct OSDCapMatch {
    * @param object object name
    * @return true if we match, false otherwise
    */
-  bool is_match(const std::string& pool_name, const std::string& nspace_name,
-                const app_map_t& app_map,
-		const std::string& object) const;
+  bool is_match(
+      const std::string& pool_name,
+      const std::string& nspace_name,
+      const app_map_t& app_map,
+      const std::string& object) const;
   bool is_match_all() const;
 };
 
 ostream& operator<<(ostream& out, const OSDCapMatch& m);
 
-
 struct OSDCapProfile {
   std::string name;
   OSDCapPoolNamespace pool_namespace;
 
-  OSDCapProfile() {
-  }
-  OSDCapProfile(const std::string& name,
-                const std::string& pool_name,
-                const boost::optional<std::string>& nspace = boost::none)
-    : name(name), pool_namespace(pool_name, nspace) {
-  }
+  OSDCapProfile() {}
 
-  inline bool is_valid() const {
+  OSDCapProfile(
+      const std::string& name,
+      const std::string& pool_name,
+      const boost::optional<std::string>& nspace = boost::none) :
+    name(name), pool_namespace(pool_name, nspace)
+  {}
+
+  inline bool
+  is_valid() const
+  {
     return !name.empty();
   }
 };
@@ -191,16 +235,23 @@ struct OSDCapGrant {
   std::list<OSDCapGrant> profile_grants;
 
   OSDCapGrant() {}
-  OSDCapGrant(const OSDCapMatch& m, const OSDCapSpec& s,
-	      boost::optional<std::string> n = {})
-    : match(m), spec(s) {
+
+  OSDCapGrant(
+      const OSDCapMatch& m,
+      const OSDCapSpec& s,
+      boost::optional<std::string> n = {}) :
+    match(m), spec(s)
+  {
     if (n) {
       set_network(*n);
     }
   }
-  explicit OSDCapGrant(const OSDCapProfile& profile,
-		       boost::optional<std::string> n = {})
-    : profile(profile) {
+
+  explicit OSDCapGrant(
+      const OSDCapProfile& profile,
+      boost::optional<std::string> n = {}) :
+    profile(profile)
+  {
     if (n) {
       set_network(*n);
     }
@@ -210,12 +261,16 @@ struct OSDCapGrant {
   void set_network(const std::string& n);
 
   bool allow_all() const;
-  bool is_capable(const std::string& pool_name, const std::string& ns,
-		  const OSDCapPoolTag::app_map_t& application_metadata,
-                  const std::string& object, bool op_may_read, bool op_may_write,
-                  const std::vector<OpInfo::ClassInfo>& classes,
-		  const entity_addr_t& addr,
-                  std::vector<bool>* class_allowed) const;
+  bool is_capable(
+      const std::string& pool_name,
+      const std::string& ns,
+      const OSDCapPoolTag::app_map_t& application_metadata,
+      const std::string& object,
+      bool op_may_read,
+      bool op_may_write,
+      const std::vector<OpInfo::ClassInfo>& classes,
+      const entity_addr_t& addr,
+      std::vector<bool>* class_allowed) const;
 
   void expand_profile();
   std::string to_string();
@@ -223,16 +278,18 @@ struct OSDCapGrant {
 
 ostream& operator<<(ostream& out, const OSDCapGrant& g);
 
-
 struct OSDCap {
   std::vector<OSDCapGrant> grants;
 
   OSDCap() {}
-  explicit OSDCap(std::vector<OSDCapGrant> g) : grants(std::move(g)) {}
+
+  explicit OSDCap(std::vector<OSDCapGrant> g) :
+    grants(std::move(g))
+  {}
 
   bool allow_all() const;
   void set_allow_all();
-  bool parse(const std::string& str, ostream *err=NULL);
+  bool parse(const std::string& str, ostream* err = NULL);
   bool merge(OSDCap newcap);
   std::string to_string();
 
@@ -251,14 +308,19 @@ struct OSDCap {
    * @param classes (class-name, rd, wr, allowed-flag) tuples
    * @return true if the operation is allowed, false otherwise
    */
-  bool is_capable(const std::string& pool_name, const std::string& ns,
-		  const OSDCapPoolTag::app_map_t& application_metadata,
-		  const std::string& object, bool op_may_read, bool op_may_write,
-		  const std::vector<OpInfo::ClassInfo>& classes,
-		  const entity_addr_t& addr) const;
+  bool is_capable(
+      const std::string& pool_name,
+      const std::string& ns,
+      const OSDCapPoolTag::app_map_t& application_metadata,
+      const std::string& object,
+      bool op_may_read,
+      bool op_may_write,
+      const std::vector<OpInfo::ClassInfo>& classes,
+      const entity_addr_t& addr) const;
 };
 
-inline std::ostream& operator<<(std::ostream& out, const OSDCap& cap) 
+inline std::ostream&
+operator<<(std::ostream& out, const OSDCap& cap)
 {
   return out << "osdcap" << cap.grants;
 }

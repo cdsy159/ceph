@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -27,13 +27,14 @@
 
 namespace ceph {
 
-  namespace extblkdev {
-    int preload(CephContext *cct);
-    int detect_device(CephContext *cct,
-			  const std::string &logdevname,
-			  ExtBlkDevInterfaceRef& ebd_impl);
-    int release_device(ExtBlkDevInterfaceRef& ebd_impl);
-  }
-}
+namespace extblkdev {
+int preload(CephContext* cct);
+int detect_device(
+    CephContext* cct,
+    const std::string& logdevname,
+    ExtBlkDevInterfaceRef& ebd_impl);
+int release_device(ExtBlkDevInterfaceRef& ebd_impl);
+} // namespace extblkdev
+} // namespace ceph
 
 #endif

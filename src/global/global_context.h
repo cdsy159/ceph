@@ -22,13 +22,13 @@
 #include "include/common_fwd.h"
 
 namespace TOPNSPC::global {
-extern CephContext *g_ceph_context;
+extern CephContext* g_ceph_context;
 ConfigProxy& g_conf();
 
-extern const char *g_assert_file;
+extern const char* g_assert_file;
 extern int g_assert_line;
-extern const char *g_assert_func;
-extern const char *g_assert_condition;
+extern const char* g_assert_func;
+extern const char* g_assert_condition;
 extern unsigned long long g_assert_thread;
 extern char g_assert_thread_name[4096];
 extern char g_assert_msg[8096];
@@ -38,18 +38,19 @@ extern bool g_eio;
 extern char g_eio_devname[1024];
 extern char g_eio_path[PATH_MAX];
 extern int g_eio_error;
-extern int g_eio_iotype;   // IOCB_CMD_* from libaio's aio_abh.io
+extern int g_eio_iotype; // IOCB_CMD_* from libaio's aio_abh.io
 extern unsigned long long g_eio_offset;
 extern unsigned long long g_eio_length;
 
 extern int note_io_error_event(
-  const char *devname,
-  const char *path,
-  int error,
-  int iotype,
-  unsigned long long offset,
-  unsigned long long length);
+    const char* devname,
+    const char* path,
+    int error,
+    int iotype,
+    unsigned long long offset,
+    unsigned long long length);
 
-}
+} // namespace TOPNSPC::global
+
 using namespace TOPNSPC::global;
 #endif

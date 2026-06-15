@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -40,31 +40,32 @@
 */
 
 
+#include "LogMonitor.h"
 
-#include <boost/algorithm/string/predicate.hpp>
+#include <syslog.h>
 
 #include <iterator>
 #include <sstream>
-#include <syslog.h>
 
-#include "LogMonitor.h"
-#include "Monitor.h"
-#include "MonitorDBStore.h"
-#include "MonMap.h"
+#include <boost/algorithm/string/predicate.hpp>
 
-#include "messages/MMonCommand.h"
-#include "messages/MLog.h"
-#include "messages/MLogAck.h"
-#include "msg/Messenger.h"
 #include "common/Graylog.h"
 #include "common/Journald.h"
 #include "common/errno.h"
 #include "common/strtol.h"
 #include "include/ceph_assert.h"
+#include "include/compat.h"
 #include "include/str_list.h"
 #include "include/str_map.h"
-#include "include/compat.h"
 #include "include/utime_fmt.h"
+#include "messages/MLog.h"
+#include "messages/MLogAck.h"
+#include "messages/MMonCommand.h"
+#include "msg/Messenger.h"
+
+#include "MonMap.h"
+#include "Monitor.h"
+#include "MonitorDBStore.h"
 
 #define dout_subsys ceph_subsys_mon
 
@@ -76,8 +77,8 @@ using std::cout;
 using std::dec;
 using std::hex;
 using std::list;
-using std::map;
 using std::make_pair;
+using std::map;
 using std::multimap;
 using std::ostream;
 using std::ostringstream;
@@ -87,8 +88,8 @@ using std::setfill;
 using std::string;
 using std::stringstream;
 using std::to_string;
-using std::vector;
 using std::unique_ptr;
+using std::vector;
 
 using ceph::bufferlist;
 using ceph::decode;
@@ -99,55 +100,54 @@ using ceph::mono_clock;
 using ceph::mono_time;
 using ceph::timespan_str;
 
-string LogMonitor::log_channel_info::get_log_file(const string &channel)
+string
+LogMonitor::log_channel_info::get_log_file(const string& channel)
 {
-  dout(25) << __func__ << " for channel '"
-	   << channel << "'" << dendl;
+  dout(25) << __func__ << " for channel '" << channel << "'" << dendl;
 
   if (expanded_log_file.count(channel) == 0) {
     string fname = expand_channel_meta(
-      get_str_map_key(log_file, channel, &CLOG_CONFIG_DEFAULT_KEY),
-      channel);
+        get_str_map_key(log_file, channel, &CLOG_CONFIG_DEFAULT_KEY), channel);
     expanded_log_file[channel] = fname;
 
-    dout(20) << __func__ << " for channel '"
-	     << channel << "' expanded to '"
-	     << fname << "'" << dendl;
+    dout(20) << __func__ << " for channel '" << channel << "' expanded to '"
+             << fname << "'" << dendl;
   }
   return expanded_log_file[channel];
 }
 
-
-void LogMonitor::log_channel_info::expand_channel_meta(map<string,string> &m)
+void
+LogMonitor::log_channel_info::expand_channel_meta(map<string, string>& m)
 {
   dout(20) << __func__ << " expand map: " << m << dendl;
-  for (map<string,string>::iterator p = m.begin(); p != m.end(); ++p) {
+  for (map<string, string>::iterator p = m.begin(); p != m.end(); ++p) {
     m[p->first] = expand_channel_meta(p->second, p->first);
   }
   dout(20) << __func__ << " expanded map: " << m << dendl;
 }
 
-string LogMonitor::log_channel_info::expand_channel_meta(
-    const string &input,
-    const string &change_to)
+string
+LogMonitor::log_channel_info::expand_channel_meta(
+    const string& input,
+    const string& change_to)
 {
   size_t pos = string::npos;
   string s(input);
   while ((pos = s.find(LOG_META_CHANNEL)) != string::npos) {
     string tmp = s.substr(0, pos) + change_to;
-    if (pos+LOG_META_CHANNEL.length() < s.length())
-      tmp += s.substr(pos+LOG_META_CHANNEL.length());
+    if (pos + LOG_META_CHANNEL.length() < s.length())
+      tmp += s.substr(pos + LOG_META_CHANNEL.length());
     s = tmp;
   }
-  dout(20) << __func__ << " from '" << input
-	   << "' to '" << s << "'" << dendl;
+  dout(20) << __func__ << " from '" << input << "' to '" << s << "'" << dendl;
 
   return s;
 }
 
-bool LogMonitor::log_channel_info::do_log_to_syslog(const string &channel) {
-  string v = get_str_map_key(log_to_syslog, channel,
-                             &CLOG_CONFIG_DEFAULT_KEY);
+bool
+LogMonitor::log_channel_info::do_log_to_syslog(const string& channel)
+{
+  string v = get_str_map_key(log_to_syslog, channel, &CLOG_CONFIG_DEFAULT_KEY);
   // We expect booleans, but they are in k/v pairs, kept
   // as strings, in 'log_to_syslog'. We must ensure
   // compatibility with existing boolean handling, and so
@@ -172,33 +172,32 @@ bool LogMonitor::log_channel_info::do_log_to_syslog(const string &channel) {
   return ret;
 }
 
-ceph::logging::Graylog::Ref LogMonitor::log_channel_info::get_graylog(
-    const string &channel)
+ceph::logging::Graylog::Ref
+LogMonitor::log_channel_info::get_graylog(const string& channel)
 {
-  dout(25) << __func__ << " for channel '"
-	   << channel << "'" << dendl;
+  dout(25) << __func__ << " for channel '" << channel << "'" << dendl;
 
   if (graylogs.count(channel) == 0) {
     auto graylog(std::make_shared<ceph::logging::Graylog>("mon"));
 
     graylog->set_fsid(g_conf().get_val<uuid_d>("fsid"));
     graylog->set_hostname(g_conf()->host);
-    graylog->set_destination(get_str_map_key(log_to_graylog_host, channel,
-					     &CLOG_CONFIG_DEFAULT_KEY),
-			     atoi(get_str_map_key(log_to_graylog_port, channel,
-						  &CLOG_CONFIG_DEFAULT_KEY).c_str()));
+    graylog->set_destination(
+        get_str_map_key(log_to_graylog_host, channel, &CLOG_CONFIG_DEFAULT_KEY),
+        atoi(get_str_map_key(
+                 log_to_graylog_port, channel, &CLOG_CONFIG_DEFAULT_KEY)
+                 .c_str()));
 
     graylogs[channel] = graylog;
-    dout(20) << __func__ << " for channel '"
-	     << channel << "' to graylog host '"
-	     << log_to_graylog_host[channel] << ":"
-	     << log_to_graylog_port[channel]
-	     << "'" << dendl;
+    dout(20) << __func__ << " for channel '" << channel << "' to graylog host '"
+             << log_to_graylog_host[channel] << ":"
+             << log_to_graylog_port[channel] << "'" << dendl;
   }
   return graylogs[channel];
 }
 
-ceph::logging::JournaldClusterLogger &LogMonitor::log_channel_info::get_journald()
+ceph::logging::JournaldClusterLogger&
+LogMonitor::log_channel_info::get_journald()
 {
   dout(25) << __func__ << dendl;
 
@@ -208,7 +207,8 @@ ceph::logging::JournaldClusterLogger &LogMonitor::log_channel_info::get_journald
   return *journald;
 }
 
-void LogMonitor::log_channel_info::clear()
+void
+LogMonitor::log_channel_info::clear()
 {
   log_to_syslog.clear();
   syslog_facility.clear();
@@ -229,13 +229,16 @@ LogMonitor::log_channel_info::~log_channel_info() = default;
 
 #undef dout_prefix
 #define dout_prefix _prefix(_dout, mon, get_last_committed())
-static ostream& _prefix(std::ostream *_dout, Monitor &mon, version_t v) {
-  return *_dout << "mon." << mon.name << "@" << mon.rank
-		<< "(" << mon.get_state_name()
-		<< ").log v" << v << " ";
+
+static ostream&
+_prefix(std::ostream* _dout, Monitor& mon, version_t v)
+{
+  return *_dout << "mon." << mon.name << "@" << mon.rank << "("
+                << mon.get_state_name() << ").log v" << v << " ";
 }
 
-ostream& operator<<(ostream &out, const LogMonitor &pm)
+ostream&
+operator<<(ostream& out, const LogMonitor& pm)
 {
   return out << "log";
 }
@@ -244,15 +247,17 @@ ostream& operator<<(ostream &out, const LogMonitor &pm)
  Tick function to update the map based on performance every N seconds
 */
 
-void LogMonitor::tick() 
+void
+LogMonitor::tick()
 {
-  if (!is_active()) return;
+  if (!is_active())
+    return;
 
   dout(10) << *this << dendl;
-
 }
 
-void LogMonitor::create_initial()
+void
+LogMonitor::create_initial()
 {
   dout(10) << "create_initial -- creating initial map" << dendl;
   LogEntry e;
@@ -266,15 +271,16 @@ void LogMonitor::create_initial()
   ss << "mkfs " << mon.monmap->get_fsid();
   e.msg = ss.str();
   e.seq = 0;
-  pending_log.insert(pair<utime_t,LogEntry>(e.stamp, e));
+  pending_log.insert(pair<utime_t, LogEntry>(e.stamp, e));
 }
 
-void LogMonitor::update_from_paxos(bool *need_bootstrap)
+void
+LogMonitor::update_from_paxos(bool* need_bootstrap)
 {
   dout(10) << __func__ << dendl;
   version_t version = get_last_committed();
-  dout(10) << __func__ << " version " << version
-           << " summary v " << summary.version << dendl;
+  dout(10) << __func__ << " version " << version << " summary v "
+           << summary.version << dendl;
 
   log_external_backlog();
 
@@ -297,7 +303,7 @@ void LogMonitor::update_from_paxos(bool *need_bootstrap)
   // walk through incrementals
   while (version > summary.version) {
     bufferlist bl;
-    int err = get_version(summary.version+1, bl);
+    int err = get_version(summary.version + 1, bl);
     ceph_assert(err == 0);
     ceph_assert(bl.length());
 
@@ -307,33 +313,33 @@ void LogMonitor::update_from_paxos(bool *need_bootstrap)
     if (struct_v == 1) {
       // legacy pre-quincy commits
       while (!p.end()) {
-	LogEntry le;
-	le.decode(p);
-	dout(7) << "update_from_paxos applying incremental log "
-		<< summary.version+1 <<  " " << le << dendl;
-	summary.add_legacy(le);
+        LogEntry le;
+        le.decode(p);
+        dout(7) << "update_from_paxos applying incremental log "
+                << summary.version + 1 << " " << le << dendl;
+        summary.add_legacy(le);
       }
     } else {
       uint32_t num;
       decode(num, p);
       while (num--) {
-	LogEntry le;
-	le.decode(p);
-	dout(7) << "update_from_paxos applying incremental log "
-		<< summary.version+1 <<  " " << le << dendl;
-	summary.recent_keys.insert(le.key());
-	summary.channel_info[le.channel].second++;
-	// we may have logged past the (persisted) summary in a prior quorum
-	if (version > external_log_to) {
-	  log_external(le);
-	}
+        LogEntry le;
+        le.decode(p);
+        dout(7) << "update_from_paxos applying incremental log "
+                << summary.version + 1 << " " << le << dendl;
+        summary.recent_keys.insert(le.key());
+        summary.channel_info[le.channel].second++;
+        // we may have logged past the (persisted) summary in a prior quorum
+        if (version > external_log_to) {
+          log_external(le);
+        }
       }
-      map<string,version_t> prune_channels_to;
+      map<string, version_t> prune_channels_to;
       decode(prune_channels_to, p);
       for (auto& [channel, prune_to] : prune_channels_to) {
-	dout(20) << __func__ << " channel " << channel
-		 << " pruned to " << prune_to << dendl;
-	summary.channel_info[channel].first = prune_to;
+        dout(20) << __func__ << " channel " << channel << " pruned to "
+                 << prune_to << dendl;
+        summary.channel_info[channel].first = prune_to;
       }
       // zero out pre-quincy fields (encode_pending needs this to reliably detect
       // upgrade)
@@ -351,7 +357,8 @@ void LogMonitor::update_from_paxos(bool *need_bootstrap)
   check_subs();
 }
 
-void LogMonitor::log_external(const LogEntry& le)
+void
+LogMonitor::log_external(const LogEntry& le)
 {
   string channel = le.channel;
   if (channel.empty()) { // keep retrocompatibility
@@ -359,7 +366,7 @@ void LogMonitor::log_external(const LogEntry& le)
   }
 
   string level = channels.get_log_level(channel);
-  if (int log_level = LogEntry::str_to_level(level);log_level > le.prio) {
+  if (int log_level = LogEntry::str_to_level(level); log_level > le.prio) {
     // Do not log LogEntry to any external entity if le.prio is
     // less than channel log level.
     return;
@@ -373,8 +380,8 @@ void LogMonitor::log_external(const LogEntry& le)
     string facility = channels.get_facility(channel);
     if (level.empty() || facility.empty()) {
       derr << __func__ << " unable to log to syslog -- level or facility"
-	   << " not defined (level: " << level << ", facility: "
-	   << facility << ")" << dendl;
+           << " not defined (level: " << level << ", facility: " << facility
+           << ")" << dendl;
     } else {
       le.log_to_syslog(level, facility);
     }
@@ -386,11 +393,11 @@ void LogMonitor::log_external(const LogEntry& le)
       graylog->log_log_entry(&le);
     }
     dout(7) << "graylog: " << channel << " " << graylog
-	    << " host:" << channels.log_to_graylog_host << dendl;
+            << " host:" << channels.log_to_graylog_host << dendl;
   }
 
   if (channels.do_log_to_journald(channel)) {
-    auto &journald = channels.get_journald();
+    auto& journald = channels.get_journald();
     journald.log_log_entry(le);
     dout(7) << "journald: " << channel << dendl;
   }
@@ -406,16 +413,17 @@ void LogMonitor::log_external(const LogEntry& le)
     if (p == channel_fds.end()) {
       string log_file = channels.get_log_file(channel);
       dout(20) << __func__ << " logging for channel '" << channel
-	       << "' to file '" << log_file << "'" << dendl;
+               << "' to file '" << log_file << "'" << dendl;
       if (!log_file.empty()) {
-	fd = ::open(log_file.c_str(), O_WRONLY|O_APPEND|O_CREAT|O_CLOEXEC, 0600);
-	if (fd < 0) {
-	  int err = -errno;
-	  dout(1) << "unable to write to '" << log_file << "' for channel '"
-		  << channel << "': " << cpp_strerror(err) << dendl;
-	} else {
-	  channel_fds[channel] = fd;
-	}
+        fd = ::open(
+            log_file.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0600);
+        if (fd < 0) {
+          int err = -errno;
+          dout(1) << "unable to write to '" << log_file << "' for channel '"
+                  << channel << "': " << cpp_strerror(err) << dendl;
+        } else {
+          channel_fds[channel] = fd;
+        }
       }
     } else {
       fd = p->second;
@@ -427,27 +435,31 @@ void LogMonitor::log_external(const LogEntry& le)
     if (fd >= 0) {
       int err = safe_write(fd, log_buffer.data(), log_buffer.size());
       if (err < 0) {
-	dout(1) << "error writing to '" << channels.get_log_file(channel)
-		<< "' for channel '" << channel
-		<< ": " << cpp_strerror(err) << dendl;
-	::close(fd);
-	channel_fds.erase(channel);
+        dout(1) << "error writing to '" << channels.get_log_file(channel)
+                << "' for channel '" << channel << ": " << cpp_strerror(err)
+                << dendl;
+        ::close(fd);
+        channel_fds.erase(channel);
       }
     }
 
     if (do_stderr) {
-      fmt::print(std::cerr, "{} {}", channel, std::string_view(log_buffer.data(), log_buffer.size()));
+      fmt::print(
+          std::cerr, "{} {}", channel,
+          std::string_view(log_buffer.data(), log_buffer.size()));
     }
 
     log_buffer.clear();
   }
 }
 
-void LogMonitor::log_external_close_fds()
+void
+LogMonitor::log_external_close_fds()
 {
   for (auto& [channel, fd] : channel_fds) {
     if (fd >= 0) {
-      dout(10) << __func__ << " closing " << channel << " (" << fd << ")" << dendl;
+      dout(10) << __func__ << " closing " << channel << " (" << fd << ")"
+               << dendl;
       ::close(fd);
     }
   }
@@ -455,42 +467,46 @@ void LogMonitor::log_external_close_fds()
 }
 
 /// catch external logs up to summary.version
-void LogMonitor::log_external_backlog()
+void
+LogMonitor::log_external_backlog()
 {
   if (!external_log_to) {
     std::string cur_str;
     int r = mon.store->read_meta("external_log_to", &cur_str);
     if (r == 0) {
       external_log_to = std::stoull(cur_str);
-      dout(10) << __func__ << " initialized external_log_to = " << external_log_to
-	       << " (recorded log_to position)" << dendl;
+      dout(10) << __func__
+               << " initialized external_log_to = " << external_log_to
+               << " (recorded log_to position)" << dendl;
     } else {
       // pre-quincy, we assumed that anything through summary.version was
       // logged externally.
       ceph_assert(r == -ENOENT);
       external_log_to = summary.version;
-      dout(10) << __func__ << " initialized external_log_to = " << external_log_to
-	       << " (summary v " << summary.version << ")" << dendl;
+      dout(10) << __func__
+               << " initialized external_log_to = " << external_log_to
+               << " (summary v " << summary.version << ")" << dendl;
     }
   }
   // we may have logged ahead of summary.version, but never ahead of paxos
   if (external_log_to > get_last_committed()) {
     derr << __func__ << " rewinding external_log_to from " << external_log_to
-	 << " -> " << get_last_committed() << " (sync_force? mon rebuild?)" << dendl;
+         << " -> " << get_last_committed() << " (sync_force? mon rebuild?)"
+         << dendl;
     external_log_to = get_last_committed();
   }
   if (external_log_to >= summary.version) {
     return;
   }
   if (auto first = get_first_committed(); external_log_to < first) {
-    derr << __func__ << " local logs at " << external_log_to
-	 << ", skipping to " << first << dendl;
+    derr << __func__ << " local logs at " << external_log_to << ", skipping to "
+         << first << dendl;
     external_log_to = first;
     // FIXME: write marker in each channel log file?
   }
   for (; external_log_to < summary.version; ++external_log_to) {
     bufferlist bl;
-    int err = get_version(external_log_to+1, bl);
+    int err = get_version(external_log_to + 1, bl);
     ceph_assert(err == 0);
     ceph_assert(bl.length());
     auto p = bl.cbegin();
@@ -509,17 +525,19 @@ void LogMonitor::log_external_backlog()
   mon.store->write_meta("external_log_to", stringify(external_log_to));
 }
 
-void LogMonitor::create_pending()
+void
+LogMonitor::create_pending()
 {
   pending_log.clear();
   pending_keys.clear();
   dout(10) << "create_pending v " << (get_last_committed() + 1) << dendl;
 }
 
-void LogMonitor::generate_logentry_key(
-  const std::string& channel,
-  version_t v,
-  std::string *out)
+void
+LogMonitor::generate_logentry_key(
+    const std::string& channel,
+    version_t v,
+    std::string* out)
 {
   out->append(channel);
   out->append("/");
@@ -528,7 +546,8 @@ void LogMonitor::generate_logentry_key(
   out->append(vs);
 }
 
-void LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
+void
+LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
 {
   version_t version = get_last_committed() + 1;
   bufferlist bl;
@@ -545,7 +564,7 @@ void LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
     put_last_committed(t, version);
     return;
   }
-  
+
   __u8 struct_v = 2;
   encode(struct_v, bl);
 
@@ -554,7 +573,7 @@ void LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
     // include past log entries
     for (auto& p : summary.tail_by_channel) {
       for (auto& q : p.second) {
-	pending_log.emplace(make_pair(q.second.stamp, q.second));
+        pending_log.emplace(make_pair(q.second.stamp, q.second));
       }
     }
   }
@@ -573,24 +592,24 @@ void LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
     std::string key;
     generate_logentry_key(p.second.channel, v, &key);
     t->put(get_service_name(), key, ebl);
-    
+
     bl.claim_append(ebl);
   }
 
   // prune log entries?
-  map<string,version_t> prune_channels_to;
+  map<string, version_t> prune_channels_to;
   for (auto& [channel, info] : summary.channel_info) {
     if (info.second - info.first > g_conf()->mon_log_max) {
       const version_t from = info.first;
       const version_t to = info.second - g_conf()->mon_log_max;
-      dout(10) << __func__ << " pruning channel " << channel
-	       << " " << from << " -> " << to << dendl;
+      dout(10) << __func__ << " pruning channel " << channel << " " << from
+               << " -> " << to << dendl;
       prune_channels_to[channel] = to;
       pending_channel_info[channel].first = to;
       for (version_t v = from; v < to; ++v) {
-	std::string key;
-	generate_logentry_key(channel, v, &key);
-	t->erase(get_service_name(), key);
+        std::string key;
+        generate_logentry_key(channel, v, &key);
+        t->erase(get_service_name(), key);
       }
     }
   }
@@ -601,7 +620,8 @@ void LogMonitor::encode_pending(MonitorDBStore::TransactionRef t)
   put_last_committed(t, version);
 }
 
-bool LogMonitor::should_stash_full()
+bool
+LogMonitor::should_stash_full()
 {
   if (mon.monmap->min_mon_release < ceph_release_t::quincy) {
     // commit a LogSummary on every commit
@@ -610,14 +630,12 @@ bool LogMonitor::should_stash_full()
 
   // store periodic summary
   auto period = std::min<uint64_t>(
-    g_conf()->mon_log_full_interval,
-    g_conf()->mon_max_log_epochs
-    );
+      g_conf()->mon_log_full_interval, g_conf()->mon_max_log_epochs);
   return (get_last_committed() - get_version_latest_full() > period);
 }
 
-
-void LogMonitor::encode_full(MonitorDBStore::TransactionRef t)
+void
+LogMonitor::encode_full(MonitorDBStore::TransactionRef t)
 {
   dout(10) << __func__ << " log v " << summary.version << dendl;
   ceph_assert(get_last_committed() == summary.version);
@@ -629,7 +647,8 @@ void LogMonitor::encode_full(MonitorDBStore::TransactionRef t)
   put_version_latest_full(t, summary.version);
 }
 
-version_t LogMonitor::get_trim_to() const
+version_t
+LogMonitor::get_trim_to() const
 {
   if (!mon.is_leader())
     return 0;
@@ -641,11 +660,13 @@ version_t LogMonitor::get_trim_to() const
   return 0;
 }
 
-bool LogMonitor::preprocess_query(MonOpRequestRef op)
+bool
+LogMonitor::preprocess_query(MonOpRequestRef op)
 {
   op->mark_logmon_event("preprocess_query");
   auto m = op->get_req<PaxosServiceMessage>();
-  dout(10) << "preprocess_query " << *m << " from " << m->get_orig_source_inst() << dendl;
+  dout(10) << "preprocess_query " << *m << " from " << m->get_orig_source_inst()
+           << dendl;
   switch (m->get_type()) {
   case MSG_MON_COMMAND:
     try {
@@ -665,11 +686,13 @@ bool LogMonitor::preprocess_query(MonOpRequestRef op)
   }
 }
 
-bool LogMonitor::prepare_update(MonOpRequestRef op)
+bool
+LogMonitor::prepare_update(MonOpRequestRef op)
 {
   op->mark_logmon_event("prepare_update");
   auto m = op->get_req<PaxosServiceMessage>();
-  dout(10) << "prepare_update " << *m << " from " << m->get_orig_source_inst() << dendl;
+  dout(10) << "prepare_update " << *m << " from " << m->get_orig_source_inst()
+           << dendl;
   switch (m->get_type()) {
   case MSG_MON_COMMAND:
     try {
@@ -687,25 +710,26 @@ bool LogMonitor::prepare_update(MonOpRequestRef op)
   }
 }
 
-bool LogMonitor::preprocess_log(MonOpRequestRef op)
+bool
+LogMonitor::preprocess_log(MonOpRequestRef op)
 {
   op->mark_logmon_event("preprocess_log");
   auto m = op->get_req<MLog>();
-  dout(10) << "preprocess_log " << *m << " from " << m->get_orig_source() << dendl;
+  dout(10) << "preprocess_log " << *m << " from " << m->get_orig_source()
+           << dendl;
   int num_new = 0;
 
-  MonSession *session = op->get_session();
+  MonSession* session = op->get_session();
   if (!session)
     goto done;
   if (!session->is_capable("log", MON_CAP_W)) {
-    dout(0) << "preprocess_log got MLog from entity with insufficient privileges "
-	    << session->caps << dendl;
+    dout(0)
+        << "preprocess_log got MLog from entity with insufficient privileges "
+        << session->caps << dendl;
     goto done;
   }
-  
-  for (auto p = m->entries.begin();
-       p != m->entries.end();
-       ++p) {
+
+  for (auto p = m->entries.begin(); p != m->entries.end(); ++p) {
     if (!summary.contains(p->key()))
       num_new++;
   }
@@ -714,16 +738,21 @@ bool LogMonitor::preprocess_log(MonOpRequestRef op)
     goto done;
   }
 
-  done:
-    mon.no_reply(op);
-    return (!num_new);
+done:
+  mon.no_reply(op);
+  return (!num_new);
 }
 
 struct LogMonitor::C_Log : public C_MonOp {
-  LogMonitor *logmon;
-  C_Log(LogMonitor *p, MonOpRequestRef o) :
-    C_MonOp(o), logmon(p) {}
-  void _finish(int r) override {
+  LogMonitor* logmon;
+
+  C_Log(LogMonitor* p, MonOpRequestRef o) :
+    C_MonOp(o), logmon(p)
+  {}
+
+  void
+  _finish(int r) override
+  {
     if (r == -ECANCELED) {
       return;
     }
@@ -731,40 +760,40 @@ struct LogMonitor::C_Log : public C_MonOp {
   }
 };
 
-bool LogMonitor::prepare_log(MonOpRequestRef op) 
+bool
+LogMonitor::prepare_log(MonOpRequestRef op)
 {
   op->mark_logmon_event("prepare_log");
   auto m = op->get_req<MLog>();
   dout(10) << "prepare_log " << *m << " from " << m->get_orig_source() << dendl;
 
   if (m->fsid != mon.monmap->fsid) {
-    dout(0) << "handle_log on fsid " << m->fsid << " != " << mon.monmap->fsid 
-	    << dendl;
+    dout(0) << "handle_log on fsid " << m->fsid << " != " << mon.monmap->fsid
+            << dendl;
     return false;
   }
 
-  for (auto p = m->entries.begin();
-       p != m->entries.end();
-       ++p) {
+  for (auto p = m->entries.begin(); p != m->entries.end(); ++p) {
     dout(10) << " logging " << *p << dendl;
-    if (!summary.contains(p->key()) &&
-	!pending_keys.count(p->key())) {
+    if (!summary.contains(p->key()) && !pending_keys.count(p->key())) {
       pending_keys.insert(p->key());
-      pending_log.insert(pair<utime_t,LogEntry>(p->stamp, *p));
+      pending_log.insert(pair<utime_t, LogEntry>(p->stamp, *p));
     }
   }
   wait_for_commit(op, new C_Log(this, op));
   return true;
 }
 
-void LogMonitor::_updated_log(MonOpRequestRef op)
+void
+LogMonitor::_updated_log(MonOpRequestRef op)
 {
   auto m = op->get_req<MLog>();
   dout(7) << "_updated_log for " << m->get_orig_source_inst() << dendl;
   mon.send_reply(op, new MLogAck(m->fsid, m->entries.rbegin()->seq));
 }
 
-bool LogMonitor::should_propose(double& delay)
+bool
+LogMonitor::should_propose(double& delay)
 {
   // commit now if we have a lot of pending events
   if (g_conf()->mon_max_log_entries_per_event > 0 &&
@@ -775,8 +804,8 @@ bool LogMonitor::should_propose(double& delay)
   return PaxosService::should_propose(delay);
 }
 
-
-bool LogMonitor::preprocess_command(MonOpRequestRef op)
+bool
+LogMonitor::preprocess_command(MonOpRequestRef op)
 {
   op->mark_logmon_event("preprocess_command");
   auto m = op->get_req<MMonCommand>();
@@ -790,7 +819,7 @@ bool LogMonitor::preprocess_command(MonOpRequestRef op)
     mon.reply_command(op, -EINVAL, rs, get_last_committed());
     return true;
   }
-  MonSession *session = op->get_session();
+  MonSession* session = op->get_session();
   if (!session) {
     mon.reply_command(op, -EACCES, "access denied", get_last_committed());
     return true;
@@ -829,166 +858,164 @@ bool LogMonitor::preprocess_command(MonOpRequestRef op)
 
     // We'll apply this twice, once while counting out lines
     // and once while outputting them.
-    auto match = [level](const LogEntry &entry) {
-      return entry.prio >= level;
-    };
+    auto match = [level](const LogEntry& entry) { return entry.prio >= level; };
 
     ostringstream ss;
     if (!summary.tail_by_channel.empty()) {
       // pre-quincy compat
       // Decrement operation that sets to container end when hitting rbegin
       if (channel == "*") {
-	list<LogEntry> full_tail;
-	summary.build_ordered_tail_legacy(&full_tail);
-	auto rp = full_tail.rbegin();
-	for (; num > 0 && rp != full_tail.rend(); ++rp) {
-	  if (match(*rp)) {
-	    num--;
-	  }
-	}
-	if (rp == full_tail.rend()) {
-	  --rp;
-	}
+        list<LogEntry> full_tail;
+        summary.build_ordered_tail_legacy(&full_tail);
+        auto rp = full_tail.rbegin();
+        for (; num > 0 && rp != full_tail.rend(); ++rp) {
+          if (match(*rp)) {
+            num--;
+          }
+        }
+        if (rp == full_tail.rend()) {
+          --rp;
+        }
 
-	// Decrement a reverse iterator such that going past rbegin()
-	// sets it to rend().  This is for writing a for() loop that
-	// goes up to (and including) rbegin()
-	auto dec = [&rp, &full_tail] () {
-		     if (rp == full_tail.rbegin()) {
-		       rp = full_tail.rend();
-		     } else {
-		       --rp;
-		     }
-		   };
+        // Decrement a reverse iterator such that going past rbegin()
+        // sets it to rend().  This is for writing a for() loop that
+        // goes up to (and including) rbegin()
+        auto dec = [&rp, &full_tail]() {
+          if (rp == full_tail.rbegin()) {
+            rp = full_tail.rend();
+          } else {
+            --rp;
+          }
+        };
 
-	// Move forward to the end of the container (decrement the reverse
-	// iterator).
-	for (; rp != full_tail.rend(); dec()) {
-	  if (!match(*rp)) {
-	    continue;
-	  }
-	  if (f) {
-	    f->dump_object("entry", *rp);
-	  } else {
-	    ss << *rp << "\n";
-	  }
-	}
+        // Move forward to the end of the container (decrement the reverse
+        // iterator).
+        for (; rp != full_tail.rend(); dec()) {
+          if (!match(*rp)) {
+            continue;
+          }
+          if (f) {
+            f->dump_object("entry", *rp);
+          } else {
+            ss << *rp << "\n";
+          }
+        }
       } else {
-	auto p = summary.tail_by_channel.find(channel);
-	if (p != summary.tail_by_channel.end()) {
-	  auto rp = p->second.rbegin();
-	  for (; num > 0 && rp != p->second.rend(); ++rp) {
-	    if (match(rp->second)) {
-	      num--;
-	    }
-	  }
-	  if (rp == p->second.rend()) {
-	    --rp;
-	  }
+        auto p = summary.tail_by_channel.find(channel);
+        if (p != summary.tail_by_channel.end()) {
+          auto rp = p->second.rbegin();
+          for (; num > 0 && rp != p->second.rend(); ++rp) {
+            if (match(rp->second)) {
+              num--;
+            }
+          }
+          if (rp == p->second.rend()) {
+            --rp;
+          }
 
-	  // Decrement a reverse iterator such that going past rbegin()
-	  // sets it to rend().  This is for writing a for() loop that
-	  // goes up to (and including) rbegin()
-	  auto dec = [&rp, &p] () {
-		       if (rp == p->second.rbegin()) {
-			 rp = p->second.rend();
-		       } else {
-			 --rp;
-		       }
-		     };
-	  
-	  // Move forward to the end of the container (decrement the reverse
-	  // iterator).
-	  for (; rp != p->second.rend(); dec()) {
-	    if (!match(rp->second)) {
-	      continue;
-	    }
-	    if (f) {
-	      f->dump_object("entry", rp->second);
-	    } else {
-	      ss << rp->second << "\n";
-	    }
-	  }
-	}
+          // Decrement a reverse iterator such that going past rbegin()
+          // sets it to rend().  This is for writing a for() loop that
+          // goes up to (and including) rbegin()
+          auto dec = [&rp, &p]() {
+            if (rp == p->second.rbegin()) {
+              rp = p->second.rend();
+            } else {
+              --rp;
+            }
+          };
+
+          // Move forward to the end of the container (decrement the reverse
+          // iterator).
+          for (; rp != p->second.rend(); dec()) {
+            if (!match(rp->second)) {
+              continue;
+            }
+            if (f) {
+              f->dump_object("entry", rp->second);
+            } else {
+              ss << rp->second << "\n";
+            }
+          }
+        }
       }
     } else {
       // quincy+
       if (channel == "*") {
-	// tail all channels; we need to mix by timestamp
-	multimap<utime_t,LogEntry> entries;  // merge+sort all channels by timestamp
-	for (auto& p : summary.channel_info) {
-	  version_t from = p.second.first;
-	  version_t to = p.second.second;
-	  version_t start;
-	  if (to > (version_t)num) {
-	    start = std::max(to - num, from);
-	  } else {
-	    start = from;
-	  }
-	  dout(10) << __func__ << " channel " << p.first
-		   << " from " << from << " to " << to << dendl;
-	  for (version_t v = start; v < to; ++v) {
-	    bufferlist ebl;
-	    string key;
-	    generate_logentry_key(p.first, v, &key);
-	    int r = mon.store->get(get_service_name(), key, ebl);
-	    if (r < 0) {
-	      derr << __func__ << " missing key " << key << dendl;
-	      continue;
-	    }
-	    LogEntry le;
-	    auto p = ebl.cbegin();
-	    decode(le, p);
-	    entries.insert(make_pair(le.stamp, le));
-	  }
-	}
-	while ((int)entries.size() > num) {
-	  entries.erase(entries.begin());
-	}
-	for (auto& p : entries) {
-	  if (!match(p.second)) {
-	    continue;
-	  }
-	  if (f) {
-	    f->dump_object("entry", p.second);
-	  } else {
-	    ss << p.second << "\n";
-	  }
-	}
+        // tail all channels; we need to mix by timestamp
+        multimap<utime_t, LogEntry> entries; // merge+sort all channels by timestamp
+        for (auto& p : summary.channel_info) {
+          version_t from = p.second.first;
+          version_t to = p.second.second;
+          version_t start;
+          if (to > (version_t)num) {
+            start = std::max(to - num, from);
+          } else {
+            start = from;
+          }
+          dout(10) << __func__ << " channel " << p.first << " from " << from
+                   << " to " << to << dendl;
+          for (version_t v = start; v < to; ++v) {
+            bufferlist ebl;
+            string key;
+            generate_logentry_key(p.first, v, &key);
+            int r = mon.store->get(get_service_name(), key, ebl);
+            if (r < 0) {
+              derr << __func__ << " missing key " << key << dendl;
+              continue;
+            }
+            LogEntry le;
+            auto p = ebl.cbegin();
+            decode(le, p);
+            entries.insert(make_pair(le.stamp, le));
+          }
+        }
+        while ((int)entries.size() > num) {
+          entries.erase(entries.begin());
+        }
+        for (auto& p : entries) {
+          if (!match(p.second)) {
+            continue;
+          }
+          if (f) {
+            f->dump_object("entry", p.second);
+          } else {
+            ss << p.second << "\n";
+          }
+        }
       } else {
-	// tail one channel
-	auto p = summary.channel_info.find(channel);
-	if (p != summary.channel_info.end()) {
-	  version_t from = p->second.first;
-	  version_t to = p->second.second;
-	  version_t start;
-	  if (to > (version_t)num) {
-	    start = std::max(to - num, from);
-	  } else {
-	    start = from;
-	  }
-	  dout(10) << __func__ << " from " << from << " to " << to << dendl;
-	  for (version_t v = start; v < to; ++v) {
-	    bufferlist ebl;
-	    string key;
-	    generate_logentry_key(channel, v, &key);
-	    int r = mon.store->get(get_service_name(), key, ebl);
-	    if (r < 0) {
-	      derr << __func__ << " missing key " << key << dendl;
-	      continue;
-	    }
-	    LogEntry le;
-	    auto p = ebl.cbegin();
-	    decode(le, p);
-	    if (match(le)) {
-	      if (f) {
-	        f->dump_object("entry", le);
-	      } else {
-	        ss << le << "\n";
-	      }
-	    }
-	  }
-	}
+        // tail one channel
+        auto p = summary.channel_info.find(channel);
+        if (p != summary.channel_info.end()) {
+          version_t from = p->second.first;
+          version_t to = p->second.second;
+          version_t start;
+          if (to > (version_t)num) {
+            start = std::max(to - num, from);
+          } else {
+            start = from;
+          }
+          dout(10) << __func__ << " from " << from << " to " << to << dendl;
+          for (version_t v = start; v < to; ++v) {
+            bufferlist ebl;
+            string key;
+            generate_logentry_key(channel, v, &key);
+            int r = mon.store->get(get_service_name(), key, ebl);
+            if (r < 0) {
+              derr << __func__ << " missing key " << key << dendl;
+              continue;
+            }
+            LogEntry le;
+            auto p = ebl.cbegin();
+            decode(le, p);
+            if (match(le)) {
+              if (f) {
+                f->dump_object("entry", le);
+              } else {
+                ss << le << "\n";
+              }
+            }
+          }
+        }
       }
     }
     if (f) {
@@ -1008,8 +1035,8 @@ bool LogMonitor::preprocess_command(MonOpRequestRef op)
   return true;
 }
 
-
-bool LogMonitor::prepare_command(MonOpRequestRef op)
+bool
+LogMonitor::prepare_command(MonOpRequestRef op)
 {
   op->mark_logmon_event("prepare_command");
   auto m = op->get_req<MMonCommand>();
@@ -1028,7 +1055,7 @@ bool LogMonitor::prepare_command(MonOpRequestRef op)
   string prefix;
   cmd_getval(cmdmap, "prefix", prefix);
 
-  MonSession *session = op->get_session();
+  MonSession* session = op->get_session();
   if (!session) {
     mon.reply_command(op, -EACCES, "access denied", get_last_committed());
     return true;
@@ -1048,9 +1075,10 @@ bool LogMonitor::prepare_command(MonOpRequestRef op)
     le.channel = CLOG_CHANNEL_DEFAULT;
     le.msg = str_join(logtext, " ");
     pending_keys.insert(le.key());
-    pending_log.insert(pair<utime_t,LogEntry>(le.stamp, le));
-    wait_for_commit(op, new Monitor::C_Command(
-          mon, op, 0, string(), get_last_committed() + 1));
+    pending_log.insert(pair<utime_t, LogEntry>(le.stamp, le));
+    wait_for_commit(
+        op,
+        new Monitor::C_Command(mon, op, 0, string(), get_last_committed() + 1));
     return true;
   }
 
@@ -1059,13 +1087,15 @@ bool LogMonitor::prepare_command(MonOpRequestRef op)
   return false;
 }
 
-void LogMonitor::dump_info(Formatter *f)
+void
+LogMonitor::dump_info(Formatter* f)
 {
   f->dump_unsigned("logm_first_committed", get_first_committed());
   f->dump_unsigned("logm_last_committed", get_last_committed());
 }
 
-int LogMonitor::sub_name_to_id(const string& n)
+int
+LogMonitor::sub_name_to_id(const string& n)
 {
   if (n.substr(0, 4) == "log-" && n.size() > 4) {
     return LogEntry::str_to_level(n.substr(4));
@@ -1074,22 +1104,25 @@ int LogMonitor::sub_name_to_id(const string& n)
   }
 }
 
-void LogMonitor::check_subs()
+void
+LogMonitor::check_subs()
 {
   dout(10) << __func__ << dendl;
-  for (map<string, xlist<Subscription*>*>::iterator i = mon.session_map.subs.begin();
-       i != mon.session_map.subs.end();
-       ++i) {
+  for (map<string, xlist<Subscription*>*>::iterator i =
+           mon.session_map.subs.begin();
+       i != mon.session_map.subs.end(); ++i) {
     for (xlist<Subscription*>::iterator j = i->second->begin(); !j.end(); ++j) {
       if (sub_name_to_id((*j)->type) >= 0)
-	check_sub(*j);
+        check_sub(*j);
     }
   }
 }
 
-void LogMonitor::check_sub(Subscription *s)
+void
+LogMonitor::check_sub(Subscription* s)
 {
-  dout(10) << __func__ << " client wants " << s->type << " ver " << s->next << dendl;
+  dout(10) << __func__ << " client wants " << s->type << " ver " << s->next
+           << dendl;
 
   int sub_level = sub_name_to_id(s->type);
   ceph_assert(sub_level >= 0);
@@ -1097,15 +1130,15 @@ void LogMonitor::check_sub(Subscription *s)
   version_t summary_version = summary.version;
   if (s->next > summary_version) {
     dout(10) << __func__ << " client " << s->session->name
-	    << " requested version (" << s->next << ") is greater than ours (" 
-	    << summary_version << "), which means we already sent him" 
-	    << " everything we have." << dendl;
+             << " requested version (" << s->next << ") is greater than ours ("
+             << summary_version << "), which means we already sent him"
+             << " everything we have." << dendl;
     return;
-  } 
- 
-  MLog *mlog = new MLog(mon.monmap->fsid);
+  }
 
-  if (s->next == 0) { 
+  MLog* mlog = new MLog(mon.monmap->fsid);
+
+  if (s->next == 0) {
     /* First timer, heh? */
     _create_sub_incremental(mlog, sub_level, get_last_committed());
   } else {
@@ -1113,10 +1146,10 @@ void LogMonitor::check_sub(Subscription *s)
     _create_sub_incremental(mlog, sub_level, s->next);
   }
 
-  dout(10) << __func__ << " sending message to " << s->session->name
-	  << " with " << mlog->entries.size() << " entries"
-	  << " (version " << mlog->version << ")" << dendl;
-  
+  dout(10) << __func__ << " sending message to " << s->session->name << " with "
+           << mlog->entries.size() << " entries" << " (version "
+           << mlog->version << ")" << dendl;
+
   if (!mlog->entries.empty()) {
     s->session->con->send_message(mlog);
   } else {
@@ -1125,7 +1158,7 @@ void LogMonitor::check_sub(Subscription *s)
   if (s->onetime)
     mon.session_map.remove_sub(s);
   else
-    s->next = summary_version+1;
+    s->next = summary_version + 1;
 }
 
 /**
@@ -1136,14 +1169,15 @@ void LogMonitor::check_sub(Subscription *s)
  * @param level	The max log level of the messages the client is interested in.
  * @param sv	The version the client is looking for.
  */
-void LogMonitor::_create_sub_incremental(MLog *mlog, int level, version_t sv)
+void
+LogMonitor::_create_sub_incremental(MLog* mlog, int level, version_t sv)
 {
-  dout(10) << __func__ << " level " << level << " ver " << sv 
-	  << " cur summary ver " << summary.version << dendl; 
+  dout(10) << __func__ << " level " << level << " ver " << sv
+           << " cur summary ver " << summary.version << dendl;
 
   if (sv < get_first_committed()) {
-    dout(10) << __func__ << " skipped from " << sv
-	     << " to first_committed " << get_first_committed() << dendl;
+    dout(10) << __func__ << " skipped from " << sv << " to first_committed "
+             << get_first_committed() << dendl;
     LogEntry le;
     le.stamp = ceph_clock_now();
     le.prio = CLOG_WARN;
@@ -1166,44 +1200,44 @@ void LogMonitor::_create_sub_incremental(MLog *mlog, int level, version_t sv)
     int32_t num = -2;
     if (v >= 2) {
       decode(num, p);
-      dout(20) << __func__ << " sv " << sv << " has " << num << " entries" << dendl;
+      dout(20) << __func__ << " sv " << sv << " has " << num << " entries"
+               << dendl;
     }
     while ((num == -2 && !p.end()) || (num >= 0 && num--)) {
       LogEntry le;
       le.decode(p);
       if (le.prio < level) {
-	dout(20) << __func__ << " requested " << level 
-		 << ", skipping " << le << dendl;
-	continue;
+        dout(20) << __func__ << " requested " << level << ", skipping " << le
+                 << dendl;
+        continue;
       }
       mlog->entries.push_back(le);
     }
     mlog->version = sv++;
   }
 
-  dout(10) << __func__ << " incremental message ready (" 
-	   << mlog->entries.size() << " entries)" << dendl;
+  dout(10) << __func__ << " incremental message ready (" << mlog->entries.size()
+           << " entries)" << dendl;
 }
 
-void LogMonitor::update_log_channels()
+void
+LogMonitor::update_log_channels()
 {
   ostringstream oss;
 
   channels.clear();
 
   int r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_syslog"),
-    oss, &channels.log_to_syslog,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_syslog"), oss,
+      &channels.log_to_syslog, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
     derr << __func__ << " error parsing 'mon_cluster_log_to_syslog'" << dendl;
     return;
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_syslog_facility"),
-    oss, &channels.syslog_facility,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_syslog_facility"), oss,
+      &channels.syslog_facility, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
     derr << __func__ << " error parsing 'mon_cluster_log_to_syslog_facility'"
          << dendl;
@@ -1211,38 +1245,32 @@ void LogMonitor::update_log_channels()
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_file"), oss,
-    &channels.log_file,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_file"), oss, &channels.log_file,
+      CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
     derr << __func__ << " error parsing 'mon_cluster_log_file'" << dendl;
     return;
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_level"), oss,
-    &channels.log_level,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_level"), oss,
+      &channels.log_level, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
-    derr << __func__ << " error parsing 'mon_cluster_log_level'"
-         << dendl;
+    derr << __func__ << " error parsing 'mon_cluster_log_level'" << dendl;
     return;
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_graylog"), oss,
-    &channels.log_to_graylog,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_graylog"), oss,
+      &channels.log_to_graylog, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
-    derr << __func__ << " error parsing 'mon_cluster_log_to_graylog'"
-         << dendl;
+    derr << __func__ << " error parsing 'mon_cluster_log_to_graylog'" << dendl;
     return;
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_graylog_host"), oss,
-    &channels.log_to_graylog_host,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_graylog_host"), oss,
+      &channels.log_to_graylog_host, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
     derr << __func__ << " error parsing 'mon_cluster_log_to_graylog_host'"
          << dendl;
@@ -1250,9 +1278,8 @@ void LogMonitor::update_log_channels()
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_graylog_port"), oss,
-    &channels.log_to_graylog_port,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_graylog_port"), oss,
+      &channels.log_to_graylog_port, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
     derr << __func__ << " error parsing 'mon_cluster_log_to_graylog_port'"
          << dendl;
@@ -1260,12 +1287,10 @@ void LogMonitor::update_log_channels()
   }
 
   r = get_conf_str_map_helper(
-    g_conf().get_val<string>("mon_cluster_log_to_journald"), oss,
-    &channels.log_to_journald,
-    CLOG_CONFIG_DEFAULT_KEY);
+      g_conf().get_val<string>("mon_cluster_log_to_journald"), oss,
+      &channels.log_to_journald, CLOG_CONFIG_DEFAULT_KEY);
   if (r < 0) {
-    derr << __func__ << " error parsing 'mon_cluster_log_to_journald'"
-         << dendl;
+    derr << __func__ << " error parsing 'mon_cluster_log_to_journald'" << dendl;
     return;
   }
 
@@ -1273,22 +1298,25 @@ void LogMonitor::update_log_channels()
   log_external_close_fds();
 }
 
-std::vector<std::string> LogMonitor::get_tracked_keys() const noexcept
+std::vector<std::string>
+LogMonitor::get_tracked_keys() const noexcept
 {
   return {
-    "mon_cluster_log_to_syslog"s,
-    "mon_cluster_log_to_syslog_facility"s,
-    "mon_cluster_log_file"s,
-    "mon_cluster_log_level"s,
-    "mon_cluster_log_to_graylog"s,
-    "mon_cluster_log_to_graylog_host"s,
-    "mon_cluster_log_to_graylog_port"s,
-    "mon_cluster_log_to_journald"s,
-    "mon_cluster_log_to_file"s
-  };}
+      "mon_cluster_log_to_syslog"s,
+      "mon_cluster_log_to_syslog_facility"s,
+      "mon_cluster_log_file"s,
+      "mon_cluster_log_level"s,
+      "mon_cluster_log_to_graylog"s,
+      "mon_cluster_log_to_graylog_host"s,
+      "mon_cluster_log_to_graylog_port"s,
+      "mon_cluster_log_to_journald"s,
+      "mon_cluster_log_to_file"s};
+}
 
-void LogMonitor::handle_conf_change(const ConfigProxy& conf,
-                                    const std::set<std::string> &changed)
+void
+LogMonitor::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   if (changed.count("mon_cluster_log_to_syslog") ||
       changed.count("mon_cluster_log_to_syslog_facility") ||

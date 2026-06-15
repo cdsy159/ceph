@@ -1,13 +1,13 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "librbd/cache/pwl/LogMap.cc"
 #include "test/librbd/test_fixture.h"
 #include "test/librbd/test_support.h"
 
-#include "librbd/cache/pwl/LogMap.cc"
-
-void register_test_write_log_map() {
-}
+void
+register_test_write_log_map()
+{}
 
 namespace librbd {
 namespace cache {
@@ -19,29 +19,50 @@ struct TestLogEntry {
   uint64_t image_offset_bytes;
   uint64_t write_bytes;
   uint32_t referring_map_entries = 0;
-  TestLogEntry(const uint64_t image_offset_bytes, const uint64_t write_bytes)
-    : image_offset_bytes(image_offset_bytes), write_bytes(write_bytes) {
-  }
-  uint64_t get_offset_bytes() {
+
+  TestLogEntry(const uint64_t image_offset_bytes, const uint64_t write_bytes) :
+    image_offset_bytes(image_offset_bytes), write_bytes(write_bytes)
+  {}
+
+  uint64_t
+  get_offset_bytes()
+  {
     return image_offset_bytes;
   }
-  uint64_t get_write_bytes() {
+
+  uint64_t
+  get_write_bytes()
+  {
     return write_bytes;
   }
-  BlockExtent block_extent() {
+
+  BlockExtent
+  block_extent()
+  {
     return BlockExtent(image_offset_bytes, image_offset_bytes + write_bytes);
   }
-  uint32_t get_map_ref() {
+
+  uint32_t
+  get_map_ref()
+  {
     return referring_map_entries;
   }
-  void inc_map_ref() {
+
+  void
+  inc_map_ref()
+  {
     referring_map_entries++;
   }
-  void dec_map_ref() {
+
+  void
+  dec_map_ref()
+  {
     referring_map_entries--;
   }
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const TestLogEntry &entry) {
+
+  friend std::ostream&
+  operator<<(std::ostream& os, const TestLogEntry& entry)
+  {
     os << "referring_map_entries=" << entry.referring_map_entries << ", "
        << "image_offset_bytes=" << entry.image_offset_bytes << ", "
        << "write_bytes=" << entry.write_bytes;
@@ -56,22 +77,25 @@ typedef LogMap<TestLogEntry> TestLogMap;
 
 class TestWriteLogMap : public TestFixture {
 public:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestFixture::SetUp();
     m_cct = reinterpret_cast<CephContext*>(m_ioctx.cct());
   }
 
-  CephContext *m_cct;
+  CephContext* m_cct;
 };
 
-TEST_F(TestWriteLogMap, Simple) {
+TEST_F(TestWriteLogMap, Simple)
+{
   TestLogEntries es;
   TestLogMapEntries lme;
-  TestLogMap  map(m_cct);
+  TestLogMap map(m_cct);
 
   /* LogEntry takes offset, length, in bytes */
   auto e1 = make_shared<TestLogEntry>(4, 8);
-  TestLogEntry *e1_ptr = e1.get();
+  TestLogEntry* e1_ptr = e1.get();
   ASSERT_EQ(4, e1_ptr->get_offset_bytes());
   ASSERT_EQ(8, e1_ptr->get_write_bytes());
   map.add_log_entry(e1);
@@ -94,7 +118,7 @@ TEST_F(TestWriteLogMap, Simple) {
   ASSERT_EQ(0, numfound);
 
   /* 4-11 will be e1 */
-  for (int i=4; i<12; i++) {
+  for (int i = 4; i < 12; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
@@ -103,14 +127,15 @@ TEST_F(TestWriteLogMap, Simple) {
 
   map.remove_log_entry(e1);
   /* Nothing should be found */
-  for (int i=4; i<12; i++) {
+  for (int i = 4; i < 12; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(0, numfound);
   }
 }
 
-TEST_F(TestWriteLogMap, OverlapFront) {
+TEST_F(TestWriteLogMap, OverlapFront)
+{
   TestLogMap map(m_cct);
 
   auto e0 = make_shared<TestLogEntry>(4, 8);
@@ -132,7 +157,7 @@ TEST_F(TestWriteLogMap, OverlapFront) {
   ASSERT_EQ(12, found0.front().block_extent.block_end);
 
   /* 0-7 will be e1 */
-  for (int i=0; i<8; i++) {
+  for (int i = 0; i < 8; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
@@ -140,7 +165,7 @@ TEST_F(TestWriteLogMap, OverlapFront) {
   }
 
   /* 8-11 will be e0 */
-  for (int i=8; i<12; i++) {
+  for (int i = 8; i < 12; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
@@ -148,7 +173,8 @@ TEST_F(TestWriteLogMap, OverlapFront) {
   }
 }
 
-TEST_F(TestWriteLogMap, OverlapBack) {
+TEST_F(TestWriteLogMap, OverlapBack)
+{
   TestLogMap map(m_cct);
 
   auto e0 = make_shared<TestLogEntry>(0, 8);
@@ -170,7 +196,7 @@ TEST_F(TestWriteLogMap, OverlapBack) {
   ASSERT_EQ(12, found0.front().block_extent.block_end);
 
   /* 0-3 will be e0 */
-  for (int i=0; i<4; i++) {
+  for (int i = 0; i < 4; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
@@ -178,7 +204,7 @@ TEST_F(TestWriteLogMap, OverlapBack) {
   }
 
   /* 4-11 will be e1 */
-  for (int i=4; i<12; i++) {
+  for (int i = 4; i < 12; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
@@ -188,23 +214,23 @@ TEST_F(TestWriteLogMap, OverlapBack) {
   map.remove_log_entry(e0);
 
   /* 0-3 will find nothing */
-  for (int i=0; i<4; i++) {
+  for (int i = 0; i < 4; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(0, numfound);
   }
 
   /* 4-11 will still be e1 */
-  for (int i=4; i<12; i++) {
+  for (int i = 4; i < 12; i++) {
     TestLogMapEntries found0 = map.find_map_entries(BlockExtent(i, i + 1));
     int numfound = found0.size();
     ASSERT_EQ(1, numfound);
     ASSERT_EQ(e1, found0.front().log_entry);
   }
-
 }
 
-TEST_F(TestWriteLogMap, OverlapMiddle) {
+TEST_F(TestWriteLogMap, OverlapMiddle)
+{
   TestLogMap map(m_cct);
 
   auto e0 = make_shared<TestLogEntry>(0, 1);
@@ -286,7 +312,8 @@ TEST_F(TestWriteLogMap, OverlapMiddle) {
   ASSERT_EQ(e2, found0.front().log_entry);
 }
 
-TEST_F(TestWriteLogMap, OverlapSplit) {
+TEST_F(TestWriteLogMap, OverlapSplit)
+{
   TestLogMap map(m_cct);
 
   auto e0 = make_shared<TestLogEntry>(0, 8);

@@ -13,22 +13,30 @@
  *
  */
 
-#include <boost/algorithm/string.hpp>
 #include "rgw_bucket_layout.h"
+
+#include <boost/algorithm/string.hpp>
+
 #include "include/utime.h"
 
 namespace rgw {
 
 // BucketIndexType
-std::string_view to_string(const BucketIndexType& t)
+std::string_view
+to_string(const BucketIndexType& t)
 {
   switch (t) {
-  case BucketIndexType::Normal: return "Normal";
-  case BucketIndexType::Indexless: return "Indexless";
-  default: return "Unknown";
+  case BucketIndexType::Normal:
+    return "Normal";
+  case BucketIndexType::Indexless:
+    return "Indexless";
+  default:
+    return "Unknown";
   }
 }
-bool parse(std::string_view str, BucketIndexType& t)
+
+bool
+parse(std::string_view str, BucketIndexType& t)
 {
   if (boost::iequals(str, "Normal")) {
     t = BucketIndexType::Normal;
@@ -40,11 +48,15 @@ bool parse(std::string_view str, BucketIndexType& t)
   }
   return false;
 }
-void encode_json_impl(const char *name, const BucketIndexType& t, ceph::Formatter *f)
+
+void
+encode_json_impl(const char* name, const BucketIndexType& t, ceph::Formatter* f)
 {
   encode_json(name, to_string(t), f);
 }
-void decode_json_obj(BucketIndexType& t, JSONObj *obj)
+
+void
+decode_json_obj(BucketIndexType& t, JSONObj* obj)
 {
   std::string str;
   decode_json_obj(str, obj);
@@ -52,14 +64,19 @@ void decode_json_obj(BucketIndexType& t, JSONObj *obj)
 }
 
 // BucketHashType
-std::string_view to_string(const BucketHashType& t)
+std::string_view
+to_string(const BucketHashType& t)
 {
   switch (t) {
-  case BucketHashType::Mod: return "Mod";
-  default: return "Unknown";
+  case BucketHashType::Mod:
+    return "Mod";
+  default:
+    return "Unknown";
   }
 }
-bool parse(std::string_view str, BucketHashType& t)
+
+bool
+parse(std::string_view str, BucketHashType& t)
 {
   if (boost::iequals(str, "Mod")) {
     t = BucketHashType::Mod;
@@ -67,11 +84,15 @@ bool parse(std::string_view str, BucketHashType& t)
   }
   return false;
 }
-void encode_json_impl(const char *name, const BucketHashType& t, ceph::Formatter *f)
+
+void
+encode_json_impl(const char* name, const BucketHashType& t, ceph::Formatter* f)
 {
   encode_json(name, to_string(t), f);
 }
-void decode_json_obj(BucketHashType& t, JSONObj *obj)
+
+void
+decode_json_obj(BucketHashType& t, JSONObj* obj)
 {
   std::string str;
   decode_json_obj(str, obj);
@@ -79,7 +100,8 @@ void decode_json_obj(BucketHashType& t, JSONObj *obj)
 }
 
 // bucket_index_normal_layout
-void encode(const bucket_index_normal_layout& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_index_normal_layout& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(2, 1, bl);
   encode(l.num_shards, bl);
@@ -87,7 +109,9 @@ void encode(const bucket_index_normal_layout& l, bufferlist& bl, uint64_t f)
   encode(l.min_num_shards, bl);
   ENCODE_FINISH(bl);
 }
-void decode(bucket_index_normal_layout& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_index_normal_layout& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(2, bl);
   decode(l.num_shards, bl);
@@ -97,7 +121,12 @@ void decode(bucket_index_normal_layout& l, bufferlist::const_iterator& bl)
   }
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_index_normal_layout& l, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const bucket_index_normal_layout& l,
+    ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("num_shards", l.num_shards, f);
@@ -105,7 +134,9 @@ void encode_json_impl(const char *name, const bucket_index_normal_layout& l, cep
   encode_json("min_num_shards", l.min_num_shards, f);
   f->close_section();
 }
-void decode_json_obj(bucket_index_normal_layout& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_index_normal_layout& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("num_shards", l.num_shards, obj);
   JSONDecoder::decode_json("hash_type", l.hash_type, obj);
@@ -115,7 +146,8 @@ void decode_json_obj(bucket_index_normal_layout& l, JSONObj *obj)
 }
 
 // bucket_index_layout
-void encode(const bucket_index_layout& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_index_layout& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(l.type, bl);
@@ -128,7 +160,9 @@ void encode(const bucket_index_layout& l, bufferlist& bl, uint64_t f)
   }
   ENCODE_FINISH(bl);
 }
-void decode(bucket_index_layout& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_index_layout& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(l.type, bl);
@@ -141,57 +175,80 @@ void decode(bucket_index_layout& l, bufferlist::const_iterator& bl)
   }
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_index_layout& l, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const bucket_index_layout& l,
+    ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("type", l.type, f);
   encode_json("normal", l.normal, f);
   f->close_section();
 }
-void decode_json_obj(bucket_index_layout& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_index_layout& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("type", l.type, obj);
   JSONDecoder::decode_json("normal", l.normal, obj);
 }
 
 // bucket_index_layout_generation
-void encode(const bucket_index_layout_generation& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_index_layout_generation& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(l.gen, bl);
   encode(l.layout, bl);
   ENCODE_FINISH(bl);
 }
-void decode(bucket_index_layout_generation& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_index_layout_generation& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(l.gen, bl);
   decode(l.layout, bl);
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_index_layout_generation& l, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const bucket_index_layout_generation& l,
+    ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("gen", l.gen, f);
   encode_json("layout", l.layout, f);
   f->close_section();
 }
-void decode_json_obj(bucket_index_layout_generation& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_index_layout_generation& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("gen", l.gen, obj);
   JSONDecoder::decode_json("layout", l.layout, obj);
 }
 
 // BucketLogType
-std::string_view to_string(const BucketLogType& t)
+std::string_view
+to_string(const BucketLogType& t)
 {
   switch (t) {
-  case BucketLogType::InIndex: return "InIndex";
-  case BucketLogType::Deleted: return "Deleted";
-  default: return "Unknown";
+  case BucketLogType::InIndex:
+    return "InIndex";
+  case BucketLogType::Deleted:
+    return "Deleted";
+  default:
+    return "Unknown";
   }
 }
-bool parse(std::string_view str, BucketLogType& t)
+
+bool
+parse(std::string_view str, BucketLogType& t)
 {
   if (boost::iequals(str, "InIndex")) {
     t = BucketLogType::InIndex;
@@ -203,11 +260,15 @@ bool parse(std::string_view str, BucketLogType& t)
   }
   return false;
 }
-void encode_json_impl(const char *name, const BucketLogType& t, ceph::Formatter *f)
+
+void
+encode_json_impl(const char* name, const BucketLogType& t, ceph::Formatter* f)
 {
   encode_json(name, to_string(t), f);
 }
-void decode_json_obj(BucketLogType& t, JSONObj *obj)
+
+void
+decode_json_obj(BucketLogType& t, JSONObj* obj)
 {
   std::string str;
   decode_json_obj(str, obj);
@@ -215,35 +276,46 @@ void decode_json_obj(BucketLogType& t, JSONObj *obj)
 }
 
 // bucket_index_log_layout
-void encode(const bucket_index_log_layout& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_index_log_layout& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(l.gen, bl);
   encode(l.layout, bl);
   ENCODE_FINISH(bl);
 }
-void decode(bucket_index_log_layout& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_index_log_layout& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(l.gen, bl);
   decode(l.layout, bl);
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_index_log_layout& l, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const bucket_index_log_layout& l,
+    ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("gen", l.gen, f);
   encode_json("layout", l.layout, f);
   f->close_section();
 }
-void decode_json_obj(bucket_index_log_layout& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_index_log_layout& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("gen", l.gen, obj);
   JSONDecoder::decode_json("layout", l.layout, obj);
 }
 
 // bucket_log_layout
-void encode(const bucket_log_layout& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_log_layout& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(l.type, bl);
@@ -256,7 +328,9 @@ void encode(const bucket_log_layout& l, bufferlist& bl, uint64_t f)
   }
   ENCODE_FINISH(bl);
 }
-void decode(bucket_log_layout& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_log_layout& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(l.type, bl);
@@ -269,7 +343,9 @@ void decode(bucket_log_layout& l, bufferlist::const_iterator& bl)
   }
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_log_layout& l, ceph::Formatter *f)
+
+void
+encode_json_impl(const char* name, const bucket_log_layout& l, ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("type", l.type, f);
@@ -278,7 +354,9 @@ void encode_json_impl(const char *name, const bucket_log_layout& l, ceph::Format
   }
   f->close_section();
 }
-void decode_json_obj(bucket_log_layout& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_log_layout& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("type", l.type, obj);
   if (l.type == BucketLogType::InIndex) {
@@ -287,44 +365,61 @@ void decode_json_obj(bucket_log_layout& l, JSONObj *obj)
 }
 
 // bucket_log_layout_generation
-void encode(const bucket_log_layout_generation& l, bufferlist& bl, uint64_t f)
+void
+encode(const bucket_log_layout_generation& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(l.gen, bl);
   encode(l.layout, bl);
   ENCODE_FINISH(bl);
 }
-void decode(bucket_log_layout_generation& l, bufferlist::const_iterator& bl)
+
+void
+decode(bucket_log_layout_generation& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(l.gen, bl);
   decode(l.layout, bl);
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const bucket_log_layout_generation& l, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const bucket_log_layout_generation& l,
+    ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("gen", l.gen, f);
   encode_json("layout", l.layout, f);
   f->close_section();
 }
-void decode_json_obj(bucket_log_layout_generation& l, JSONObj *obj)
+
+void
+decode_json_obj(bucket_log_layout_generation& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("gen", l.gen, obj);
   JSONDecoder::decode_json("layout", l.layout, obj);
 }
 
 // BucketReshardState
-std::string_view to_string(const BucketReshardState& s)
+std::string_view
+to_string(const BucketReshardState& s)
 {
   switch (s) {
-  case BucketReshardState::None: return "None";
-  case BucketReshardState::InLogrecord: return "InLogrecord";
-  case BucketReshardState::InProgress: return "InProgress";
-  default: return "Unknown";
+  case BucketReshardState::None:
+    return "None";
+  case BucketReshardState::InLogrecord:
+    return "InLogrecord";
+  case BucketReshardState::InProgress:
+    return "InProgress";
+  default:
+    return "Unknown";
   }
 }
-bool parse(std::string_view str, BucketReshardState& s)
+
+bool
+parse(std::string_view str, BucketReshardState& s)
 {
   if (boost::iequals(str, "None")) {
     s = BucketReshardState::None;
@@ -340,20 +435,27 @@ bool parse(std::string_view str, BucketReshardState& s)
   }
   return false;
 }
-void encode_json_impl(const char *name, const BucketReshardState& s, ceph::Formatter *f)
+
+void
+encode_json_impl(
+    const char* name,
+    const BucketReshardState& s,
+    ceph::Formatter* f)
 {
   encode_json(name, to_string(s), f);
 }
-void decode_json_obj(BucketReshardState& s, JSONObj *obj)
+
+void
+decode_json_obj(BucketReshardState& s, JSONObj* obj)
 {
   std::string str;
   decode_json_obj(str, obj);
   parse(str, s);
 }
 
-
 // BucketLayout
-void encode(const BucketLayout& l, bufferlist& bl, uint64_t f)
+void
+encode(const BucketLayout& l, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(3, 1, bl);
   encode(l.resharding, bl);
@@ -363,7 +465,9 @@ void encode(const BucketLayout& l, bufferlist& bl, uint64_t f)
   encode(l.judge_reshard_lock_time, bl);
   ENCODE_FINISH(bl);
 }
-void decode(BucketLayout& l, bufferlist::const_iterator& bl)
+
+void
+decode(BucketLayout& l, bufferlist::const_iterator& bl)
 {
   DECODE_START(3, bl);
   decode(l.resharding, bl);
@@ -383,7 +487,9 @@ void decode(BucketLayout& l, bufferlist::const_iterator& bl)
   }
   DECODE_FINISH(bl);
 }
-void encode_json_impl(const char *name, const BucketLayout& l, ceph::Formatter *f)
+
+void
+encode_json_impl(const char* name, const BucketLayout& l, ceph::Formatter* f)
 {
   f->open_object_section(name);
   encode_json("resharding", l.resharding, f);
@@ -400,7 +506,9 @@ void encode_json_impl(const char *name, const BucketLayout& l, ceph::Formatter *
   encode_json("judge_reshard_lock_time", jt, f);
   f->close_section();
 }
-void decode_json_obj(BucketLayout& l, JSONObj *obj)
+
+void
+decode_json_obj(BucketLayout& l, JSONObj* obj)
 {
   JSONDecoder::decode_json("resharding", l.resharding, obj);
   JSONDecoder::decode_json("current_index", l.current_index, obj);

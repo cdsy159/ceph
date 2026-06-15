@@ -2,67 +2,91 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include "rgw_torrent.h"
-#include <ctime>
+
 #include <fmt/format.h>
+
+#include <ctime>
+
 #include "common/split.h"
+
 #include "rgw_sal.h"
 
-#define ANNOUNCE           "announce"
-#define ANNOUNCE_LIST      "announce-list"
-#define COMMENT            "comment"
-#define CREATED_BY         "created by"
-#define CREATION_DATE      "creation date"
-#define ENCODING           "encoding"
-#define LENGTH             "length"
-#define NAME               "name"
-#define PIECE_LENGTH       "piece length"
-#define PIECES             "pieces"
-#define INFO_PIECES        "info"
+#define ANNOUNCE "announce"
+#define ANNOUNCE_LIST "announce-list"
+#define COMMENT "comment"
+#define CREATED_BY "created by"
+#define CREATION_DATE "creation date"
+#define ENCODING "encoding"
+#define LENGTH "length"
+#define NAME "name"
+#define PIECE_LENGTH "piece length"
+#define PIECES "pieces"
+#define INFO_PIECES "info"
 
 //control characters
-void bencode_dict(bufferlist& bl) { bl.append('d'); }
-void bencode_list(bufferlist& bl) { bl.append('l'); }
-void bencode_end(bufferlist& bl) { bl.append('e'); }
+void
+bencode_dict(bufferlist& bl)
+{
+  bl.append('d');
+}
+
+void
+bencode_list(bufferlist& bl)
+{
+  bl.append('l');
+}
+
+void
+bencode_end(bufferlist& bl)
+{
+  bl.append('e');
+}
 
 //key len
-void bencode_key(std::string_view key, bufferlist& bl)
+void
+bencode_key(std::string_view key, bufferlist& bl)
 {
   bl.append(fmt::format("{}:", key.size()));
   bl.append(key);
 }
 
 //single values
-void bencode(int value, bufferlist& bl)
+void
+bencode(int value, bufferlist& bl)
 {
   bl.append(fmt::format("i{}", value));
   bencode_end(bl);
 }
 
 //single values
-void bencode(std::string_view str, bufferlist& bl)
+void
+bencode(std::string_view str, bufferlist& bl)
 {
   bencode_key(str, bl);
 }
 
 //dictionary elements
-void bencode(std::string_view key, int value, bufferlist& bl)
+void
+bencode(std::string_view key, int value, bufferlist& bl)
 {
   bencode_key(key, bl);
   bencode(value, bl);
 }
 
 //dictionary elements
-void bencode(std::string_view key, std::string_view value, bufferlist& bl)
+void
+bencode(std::string_view key, std::string_view value, bufferlist& bl)
 {
   bencode_key(key, bl);
   bencode(value, bl);
 }
 
-
-int rgw_read_torrent_file(const DoutPrefixProvider* dpp,
-                          rgw::sal::Object* object,
-                          ceph::bufferlist &bl,
-                          optional_yield y)
+int
+rgw_read_torrent_file(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Object* object,
+    ceph::bufferlist& bl,
+    optional_yield y)
 {
   bufferlist infobl;
   int r = object->get_torrent_info(dpp, y, infobl);
@@ -109,14 +133,15 @@ int rgw_read_torrent_file(const DoutPrefixProvider* dpp,
   return 0;
 }
 
+RGWPutObj_Torrent::RGWPutObj_Torrent(
+    rgw::sal::DataProcessor* next,
+    size_t max_len,
+    size_t piece_len) :
+  Pipe(next), max_len(max_len), piece_len(piece_len)
+{}
 
-RGWPutObj_Torrent::RGWPutObj_Torrent(rgw::sal::DataProcessor* next,
-                                     size_t max_len, size_t piece_len)
-  : Pipe(next), max_len(max_len), piece_len(piece_len)
-{
-}
-
-int RGWPutObj_Torrent::process(bufferlist&& data, uint64_t logical_offset)
+int
+RGWPutObj_Torrent::process(bufferlist&& data, uint64_t logical_offset)
 {
   if (!data.length()) { // done
     if (piece_offset) { // hash the remainder
@@ -160,7 +185,8 @@ int RGWPutObj_Torrent::process(bufferlist&& data, uint64_t logical_offset)
   return Pipe::process(std::move(data), logical_offset);
 }
 
-bufferlist RGWPutObj_Torrent::bencode_torrent(std::string_view filename) const
+bufferlist
+RGWPutObj_Torrent::bencode_torrent(std::string_view filename) const
 {
   bufferlist bl;
   if (len >= max_len) {

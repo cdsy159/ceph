@@ -1,32 +1,34 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/MirrorDaemonServiceInfo.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-#include "include/buffer.h"
-#include "include/Context.h"
-#include "include/stringify.h"
-#include "include/rbd/librbd.hpp"
-#include "common/ceph_json.h"
-#include "common/config.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include "common/Formatter.h"
-#include "common/safe_io.h" // for safe_read()
-#include "common/TextTable.h"
-#include "common/Throttle.h"
-#include "global/global_context.h"
+#include <atomic>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <regex>
 #include <set>
-#include <boost/program_options.hpp>
-#include "include/ceph_assert.h"
 
-#include <atomic>
+#include "common/debug.h"
+
+#include <boost/program_options.hpp>
+
+#include "common/Formatter.h"
+#include "common/TextTable.h"
+#include "common/Throttle.h"
+#include "common/ceph_json.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "common/safe_io.h" // for safe_read()
+#include "global/global_context.h"
+#include "include/Context.h"
+#include "include/buffer.h"
+#include "include/ceph_assert.h"
+#include "include/rbd/librbd.hpp"
+#include "include/stringify.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/MirrorDaemonServiceInfo.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd
@@ -46,20 +48,23 @@ static const std::string REMOTE_NAMESPACE_NAME("remote-namespace");
 
 namespace {
 
-void add_site_name_optional(po::options_description *options) {
-  options->add_options()
-    (SITE_NAME.c_str(), po::value<std::string>(), "local site name");
+void
+add_site_name_optional(po::options_description* options)
+{
+  options->add_options()(
+      SITE_NAME.c_str(), po::value<std::string>(), "local site name");
 }
 
-int set_site_name(librados::Rados& rados, const std::string& site_name) {
+int
+set_site_name(librados::Rados& rados, const std::string& site_name)
+{
   librbd::RBD rbd;
   int r = rbd.mirror_site_name_set(rados, site_name);
   if (r == -EOPNOTSUPP) {
     std::cerr << "rbd: cluster does not support site names" << std::endl;
     return r;
   } else if (r < 0) {
-    std::cerr << "rbd: failed to set site name" << cpp_strerror(r)
-              << std::endl;
+    std::cerr << "rbd: failed to set site name" << cpp_strerror(r) << std::endl;
     return r;
   }
 
@@ -68,10 +73,15 @@ int set_site_name(librados::Rados& rados, const std::string& site_name) {
 
 struct MirrorPeerDirection {};
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              MirrorPeerDirection *target_type, int permit_tx) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    MirrorPeerDirection* target_type,
+    int permit_tx)
+{
   po::validators::check_first_occurrence(v);
-  const std::string &s = po::validators::get_single_string(values);
+  const std::string& s = po::validators::get_single_string(values);
 
   if (s == "rx-only") {
     v = boost::any(RBD_MIRROR_PEER_DIRECTION_RX);
@@ -84,20 +94,24 @@ void validate(boost::any& v, const std::vector<std::string>& values,
   }
 }
 
-void add_direction_optional(po::options_description *options) {
-  options->add_options()
-    ("direction", po::value<MirrorPeerDirection>(),
-     "mirroring direction (rx-only, rx-tx)\n"
-     "[default: rx-tx]");
+void
+add_direction_optional(po::options_description* options)
+{
+  options->add_options()(
+      "direction", po::value<MirrorPeerDirection>(),
+      "mirroring direction (rx-only, rx-tx)\n"
+      "[default: rx-tx]");
 }
 
-int validate_mirroring_enabled(librados::IoCtx& io_ctx) {
+int
+validate_mirroring_enabled(librados::IoCtx& io_ctx)
+{
   librbd::RBD rbd;
   rbd_mirror_mode_t mirror_mode;
   int r = rbd.mirror_mode_get(io_ctx, &mirror_mode);
   if (r < 0) {
-    std::cerr << "rbd: failed to retrieve mirror mode: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: failed to retrieve mirror mode: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
 
@@ -108,9 +122,12 @@ int validate_mirroring_enabled(librados::IoCtx& io_ctx) {
   return 0;
 }
 
-int validate_uuid(const std::string &uuid) {
-  std::regex pattern("^[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}$",
-                       std::regex::icase);
+int
+validate_uuid(const std::string& uuid)
+{
+  std::regex pattern(
+      "^[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}$",
+      std::regex::icase);
   std::smatch match;
   if (!std::regex_match(uuid, match, pattern)) {
     std::cerr << "rbd: invalid uuid '" << uuid << "'" << std::endl;
@@ -119,7 +136,9 @@ int validate_uuid(const std::string &uuid) {
   return 0;
 }
 
-int read_key_file(std::string path, std::string* key) {
+int
+read_key_file(std::string path, std::string* key)
+{
   std::ifstream key_file;
   key_file.open(path);
   if (key_file.fail()) {
@@ -137,13 +156,15 @@ int read_key_file(std::string path, std::string* key) {
   return 0;
 }
 
-void add_uuid_option(po::options_description *positional) {
-  positional->add_options()
-    ("uuid", po::value<std::string>(), "peer uuid");
+void
+add_uuid_option(po::options_description* positional)
+{
+  positional->add_options()("uuid", po::value<std::string>(), "peer uuid");
 }
 
-int get_uuid(const po::variables_map &vm, size_t arg_index,
-             std::string *uuid) {
+int
+get_uuid(const po::variables_map& vm, size_t arg_index, std::string* uuid)
+{
   *uuid = utils::get_positional_argument(vm, arg_index);
   if (uuid->empty()) {
     std::cerr << "rbd: must specify peer uuid" << std::endl;
@@ -152,11 +173,14 @@ int get_uuid(const po::variables_map &vm, size_t arg_index,
   return validate_uuid(*uuid);
 }
 
-int get_remote_cluster_spec(const po::variables_map &vm,
-                            const std::string &spec,
-                            std::string *remote_client_name,
-                            std::string *remote_cluster,
-                            std::map<std::string, std::string>* attributes) {
+int
+get_remote_cluster_spec(
+    const po::variables_map& vm,
+    const std::string& spec,
+    std::string* remote_client_name,
+    std::string* remote_cluster,
+    std::map<std::string, std::string>* attributes)
+{
   if (vm.count("remote-client-name")) {
     *remote_client_name = vm["remote-client-name"].as<std::string>();
   }
@@ -195,8 +219,12 @@ int get_remote_cluster_spec(const po::variables_map &vm,
   return 0;
 }
 
-int set_peer_config_key(librados::IoCtx& io_ctx, const std::string& peer_uuid,
-                        std::map<std::string, std::string>&& attributes) {
+int
+set_peer_config_key(
+    librados::IoCtx& io_ctx,
+    const std::string& peer_uuid,
+    std::map<std::string, std::string>&& attributes)
+{
   librbd::RBD rbd;
   int r = rbd.mirror_peer_site_set_attributes(io_ctx, peer_uuid, attributes);
   if (r == -EPERM) {
@@ -211,8 +239,12 @@ int set_peer_config_key(librados::IoCtx& io_ctx, const std::string& peer_uuid,
   return 0;
 }
 
-int get_peer_config_key(librados::IoCtx& io_ctx, const std::string& peer_uuid,
-                        std::map<std::string, std::string>* attributes) {
+int
+get_peer_config_key(
+    librados::IoCtx& io_ctx,
+    const std::string& peer_uuid,
+    std::map<std::string, std::string>* attributes)
+{
   librbd::RBD rbd;
   int r = rbd.mirror_peer_site_get_attributes(io_ctx, peer_uuid, attributes);
   if (r == -ENOENT) {
@@ -225,18 +257,21 @@ int get_peer_config_key(librados::IoCtx& io_ctx, const std::string& peer_uuid,
     std::cerr << "rbd: corrupt mirroring peer config" << std::endl;
     return r;
   } else if (r < 0) {
-    std::cerr << "rbd: error reading mirroring peer config: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: error reading mirroring peer config: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
 
   return 0;
 }
 
-int update_peer_config_key(librados::IoCtx& io_ctx,
-                           const std::string& peer_uuid,
-                           const std::string& key,
-                           const std::string& value) {
+int
+update_peer_config_key(
+    librados::IoCtx& io_ctx,
+    const std::string& peer_uuid,
+    const std::string& key,
+    const std::string& value)
+{
   std::map<std::string, std::string> attributes;
   int r = get_peer_config_key(io_ctx, peer_uuid, &attributes);
   if (r == -ENOENT) {
@@ -253,21 +288,24 @@ int update_peer_config_key(librados::IoCtx& io_ctx,
   return set_peer_config_key(io_ctx, peer_uuid, std::move(attributes));
 }
 
-int format_mirror_peers(librados::IoCtx& io_ctx,
-                        at::Format::Formatter formatter,
-                        const std::vector<librbd::mirror_peer_site_t> &peers,
-                        bool config_key) {
+int
+format_mirror_peers(
+    librados::IoCtx& io_ctx,
+    at::Format::Formatter formatter,
+    const std::vector<librbd::mirror_peer_site_t>& peers,
+    bool config_key)
+{
   if (formatter != nullptr) {
     formatter->open_array_section("peers");
   } else {
-    std::cout <<  "Peer Sites: ";
+    std::cout << "Peer Sites: ";
     if (peers.empty()) {
       std::cout << "none";
     }
     std::cout << std::endl;
   }
 
-  for (auto &peer : peers) {
+  for (auto& peer : peers) {
     std::map<std::string, std::string> attributes;
     if (config_key) {
       int r = get_peer_config_key(io_ctx, peer.uuid, &attributes);
@@ -334,13 +372,13 @@ int format_mirror_peers(librados::IoCtx& io_ctx,
 
 class ImageRequestBase {
 public:
-  void send() {
+  void
+  send()
+  {
     dout(20) << this << " " << __func__ << ": image_name=" << m_image_name
              << dendl;
 
-    auto ctx = new LambdaContext([this](int r) {
-        handle_finalize(r);
-      });
+    auto ctx = new LambdaContext([this](int r) { handle_finalize(r); });
 
     // will pause here until slots are available
     m_finalize_ctx = m_throttle.start_op(ctx);
@@ -349,32 +387,50 @@ public:
   }
 
 protected:
-  ImageRequestBase(librados::IoCtx &io_ctx, OrderedThrottle &throttle,
-                   const std::string &image_name)
-    : m_io_ctx(io_ctx), m_throttle(throttle), m_image_name(image_name) {
-  }
-  virtual ~ImageRequestBase() {
-  }
+  ImageRequestBase(
+      librados::IoCtx& io_ctx,
+      OrderedThrottle& throttle,
+      const std::string& image_name) :
+    m_io_ctx(io_ctx), m_throttle(throttle), m_image_name(image_name)
+  {}
 
-  virtual bool open_read_only() const {
+  virtual ~ImageRequestBase() {}
+
+  virtual bool
+  open_read_only() const
+  {
     return false;
   }
 
-  virtual bool skip_get_info() const {
+  virtual bool
+  skip_get_info() const
+  {
     return false;
-  }
-  virtual void get_info(librbd::Image &image, librbd::mirror_image_info_t *info,
-                        librbd::RBD::AioCompletion *aio_comp) {
-    image.aio_mirror_image_get_info(info, sizeof(librbd::mirror_image_info_t),
-                                    aio_comp);
   }
 
-  virtual bool skip_action(const librbd::mirror_image_info_t &info) const {
+  virtual void
+  get_info(
+      librbd::Image& image,
+      librbd::mirror_image_info_t* info,
+      librbd::RBD::AioCompletion* aio_comp)
+  {
+    image.aio_mirror_image_get_info(
+        info, sizeof(librbd::mirror_image_info_t), aio_comp);
+  }
+
+  virtual bool
+  skip_action(const librbd::mirror_image_info_t& info) const
+  {
     return false;
   }
-  virtual void execute_action(librbd::Image &image,
-                              librbd::RBD::AioCompletion *aio_comp) = 0;
-  virtual void handle_execute_action(int r) {
+
+  virtual void execute_action(
+      librbd::Image& image,
+      librbd::RBD::AioCompletion* aio_comp) = 0;
+
+  virtual void
+  handle_execute_action(int r)
+  {
     dout(20) << this << " " << __func__ << ": r=" << r << dendl;
 
     if (r < 0 && r != -ENOENT) {
@@ -386,8 +442,10 @@ protected:
     close_image();
   }
 
-  virtual void finalize_action() {
-  }
+  virtual void
+  finalize_action()
+  {}
+
   virtual std::string get_action_type() const = 0;
 
 private:
@@ -417,38 +475,42 @@ private:
    * @endverbatim
    */
 
-  librados::IoCtx &m_io_ctx;
-  OrderedThrottle &m_throttle;
+  librados::IoCtx& m_io_ctx;
+  OrderedThrottle& m_throttle;
   const std::string m_image_name;
 
   librbd::Image m_image;
-  Context *m_finalize_ctx = nullptr;
+  Context* m_finalize_ctx = nullptr;
 
   librbd::mirror_image_info_t m_mirror_image_info;
 
   int m_ret_val = 0;
 
-  void open_image() {
+  void
+  open_image()
+  {
     dout(20) << this << " " << __func__ << dendl;
 
     librbd::RBD rbd;
     auto aio_completion = utils::create_aio_completion<
-      ImageRequestBase, &ImageRequestBase::handle_open_image>(this);
+        ImageRequestBase, &ImageRequestBase::handle_open_image>(this);
     if (open_read_only()) {
-      rbd.aio_open_read_only(m_io_ctx, m_image, m_image_name.c_str(), nullptr,
-                             aio_completion);
+      rbd.aio_open_read_only(
+          m_io_ctx, m_image, m_image_name.c_str(), nullptr, aio_completion);
     } else {
-      rbd.aio_open(m_io_ctx, m_image, m_image_name.c_str(), nullptr,
-                   aio_completion);
+      rbd.aio_open(
+          m_io_ctx, m_image, m_image_name.c_str(), nullptr, aio_completion);
     }
   }
 
-  void handle_open_image(int r) {
+  void
+  handle_open_image(int r)
+  {
     dout(20) << this << " " << __func__ << ": r=" << r << dendl;
 
     if (r < 0) {
-      std::cerr << "rbd: failed to open image "
-                << m_image_name << ": " << cpp_strerror(r) << std::endl;
+      std::cerr << "rbd: failed to open image " << m_image_name << ": "
+                << cpp_strerror(r) << std::endl;
       m_finalize_ctx->complete(r);
       return;
     }
@@ -456,7 +518,9 @@ private:
     get_info();
   }
 
-  void get_info() {
+  void
+  get_info()
+  {
     if (skip_get_info()) {
       execute_action();
       return;
@@ -464,11 +528,13 @@ private:
     dout(20) << this << " " << __func__ << dendl;
 
     auto aio_completion = utils::create_aio_completion<
-      ImageRequestBase, &ImageRequestBase::handle_get_info>(this);
+        ImageRequestBase, &ImageRequestBase::handle_get_info>(this);
     get_info(m_image, &m_mirror_image_info, aio_completion);
   }
 
-  void handle_get_info(int r) {
+  void
+  handle_get_info(int r)
+  {
     dout(20) << this << " " << __func__ << ": r=" << r << dendl;
 
     if (r < 0) {
@@ -482,7 +548,9 @@ private:
     execute_action();
   }
 
-  void execute_action() {
+  void
+  execute_action()
+  {
     if (skip_action(m_mirror_image_info)) {
       close_image();
       return;
@@ -490,30 +558,36 @@ private:
     dout(20) << this << " " << __func__ << dendl;
 
     auto aio_completion = utils::create_aio_completion<
-      ImageRequestBase, &ImageRequestBase::handle_execute_action>(this);
+        ImageRequestBase, &ImageRequestBase::handle_execute_action>(this);
     execute_action(m_image, aio_completion);
   }
 
-  void close_image() {
+  void
+  close_image()
+  {
     dout(20) << this << " " << __func__ << dendl;
 
     auto aio_completion = utils::create_aio_completion<
-      ImageRequestBase, &ImageRequestBase::handle_close_image>(this);
+        ImageRequestBase, &ImageRequestBase::handle_close_image>(this);
     m_image.aio_close(aio_completion);
   }
 
-  void handle_close_image(int r) {
+  void
+  handle_close_image(int r)
+  {
     dout(20) << this << " " << __func__ << ": r=" << r << dendl;
 
     if (r < 0) {
-      std::cerr << "rbd: failed to close image "
-                << m_image_name << ": " << cpp_strerror(r) << std::endl;
+      std::cerr << "rbd: failed to close image " << m_image_name << ": "
+                << cpp_strerror(r) << std::endl;
     }
 
     m_finalize_ctx->complete(r);
   }
 
-  void handle_finalize(int r) {
+  void
+  handle_finalize(int r)
+  {
     dout(20) << this << " " << __func__ << ": r=" << r << dendl;
 
     if (r == 0 && m_ret_val < 0) {
@@ -525,148 +599,189 @@ private:
     m_throttle.end_op(r);
     delete this;
   }
-
 };
 
 class PromoteImageRequest : public ImageRequestBase {
 public:
-  PromoteImageRequest(librados::IoCtx &io_ctx, OrderedThrottle &throttle,
-                      const std::string &image_name, std::atomic<unsigned> *counter,
-                      bool force)
-    : ImageRequestBase(io_ctx, throttle, image_name), m_counter(counter),
-      m_force(force) {
-  }
+  PromoteImageRequest(
+      librados::IoCtx& io_ctx,
+      OrderedThrottle& throttle,
+      const std::string& image_name,
+      std::atomic<unsigned>* counter,
+      bool force) :
+    ImageRequestBase(io_ctx, throttle, image_name),
+    m_counter(counter),
+    m_force(force)
+  {}
 
 protected:
-  bool skip_action(const librbd::mirror_image_info_t &info) const override {
+  bool
+  skip_action(const librbd::mirror_image_info_t& info) const override
+  {
     return (info.state != RBD_MIRROR_IMAGE_ENABLED || info.primary);
   }
 
-  void execute_action(librbd::Image &image,
-                      librbd::RBD::AioCompletion *aio_comp) override {
+  void
+  execute_action(
+      librbd::Image& image,
+      librbd::RBD::AioCompletion* aio_comp) override
+  {
     image.aio_mirror_image_promote(m_force, aio_comp);
   }
 
-  void handle_execute_action(int r) override {
+  void
+  handle_execute_action(int r) override
+  {
     if (r >= 0) {
       (*m_counter)++;
     }
     ImageRequestBase::handle_execute_action(r);
   }
 
-  std::string get_action_type() const override {
+  std::string
+  get_action_type() const override
+  {
     return "promote";
   }
 
 private:
-  std::atomic<unsigned> *m_counter = nullptr;
+  std::atomic<unsigned>* m_counter = nullptr;
   bool m_force;
 };
 
 class DemoteImageRequest : public ImageRequestBase {
 public:
-  DemoteImageRequest(librados::IoCtx &io_ctx, OrderedThrottle &throttle,
-                     const std::string &image_name, std::atomic<unsigned> *counter)
-    : ImageRequestBase(io_ctx, throttle, image_name), m_counter(counter) {
-  }
+  DemoteImageRequest(
+      librados::IoCtx& io_ctx,
+      OrderedThrottle& throttle,
+      const std::string& image_name,
+      std::atomic<unsigned>* counter) :
+    ImageRequestBase(io_ctx, throttle, image_name), m_counter(counter)
+  {}
 
 protected:
-  bool skip_action(const librbd::mirror_image_info_t &info) const override {
+  bool
+  skip_action(const librbd::mirror_image_info_t& info) const override
+  {
     return (info.state != RBD_MIRROR_IMAGE_ENABLED || !info.primary);
   }
 
-  void execute_action(librbd::Image &image,
-                      librbd::RBD::AioCompletion *aio_comp) override {
+  void
+  execute_action(
+      librbd::Image& image,
+      librbd::RBD::AioCompletion* aio_comp) override
+  {
     image.aio_mirror_image_demote(aio_comp);
   }
-  void handle_execute_action(int r) override {
+
+  void
+  handle_execute_action(int r) override
+  {
     if (r >= 0) {
       (*m_counter)++;
     }
     ImageRequestBase::handle_execute_action(r);
   }
 
-  std::string get_action_type() const override {
+  std::string
+  get_action_type() const override
+  {
     return "demote";
   }
 
 private:
-  std::atomic<unsigned> *m_counter = nullptr;
+  std::atomic<unsigned>* m_counter = nullptr;
 };
 
 class StatusImageRequest : public ImageRequestBase {
 public:
   StatusImageRequest(
-      librados::IoCtx &io_ctx, OrderedThrottle &throttle,
-      const std::string &image_name,
-      const std::map<std::string, std::string> &instance_ids,
+      librados::IoCtx& io_ctx,
+      OrderedThrottle& throttle,
+      const std::string& image_name,
+      const std::map<std::string, std::string>& instance_ids,
       const std::vector<librbd::mirror_peer_site_t>& mirror_peers,
-      const std::map<std::string, std::string> &peer_mirror_uuids_to_name,
-      const MirrorDaemonServiceInfo &daemon_service_info,
-      at::Format::Formatter formatter, bool* saw_image)
-    : ImageRequestBase(io_ctx, throttle, image_name),
-      m_instance_ids(instance_ids), m_mirror_peers(mirror_peers),
-      m_peer_mirror_uuids_to_name(peer_mirror_uuids_to_name),
-      m_daemon_service_info(daemon_service_info), m_formatter(formatter),
-      m_saw_image(saw_image) {
-  }
+      const std::map<std::string, std::string>& peer_mirror_uuids_to_name,
+      const MirrorDaemonServiceInfo& daemon_service_info,
+      at::Format::Formatter formatter,
+      bool* saw_image) :
+    ImageRequestBase(io_ctx, throttle, image_name),
+    m_instance_ids(instance_ids),
+    m_mirror_peers(mirror_peers),
+    m_peer_mirror_uuids_to_name(peer_mirror_uuids_to_name),
+    m_daemon_service_info(daemon_service_info),
+    m_formatter(formatter),
+    m_saw_image(saw_image)
+  {}
 
 protected:
-  bool open_read_only() const override {
+  bool
+  open_read_only() const override
+  {
     return true;
   }
 
-  bool skip_get_info() const override {
+  bool
+  skip_get_info() const override
+  {
     return true;
   }
 
-  void execute_action(librbd::Image &image,
-                      librbd::RBD::AioCompletion *aio_comp) override {
+  void
+  execute_action(
+      librbd::Image& image,
+      librbd::RBD::AioCompletion* aio_comp) override
+  {
     image.get_id(&m_image_id);
     image.aio_mirror_image_get_global_status(
-      &m_mirror_image_global_status, sizeof(m_mirror_image_global_status),
-      aio_comp);
+        &m_mirror_image_global_status, sizeof(m_mirror_image_global_status),
+        aio_comp);
   }
 
-  void finalize_action() override {
+  void
+  finalize_action() override
+  {
     if (m_mirror_image_global_status.info.global_id.empty()) {
       return;
     }
 
     utils::populate_unknown_mirror_image_site_statuses(
-      m_mirror_peers, &m_mirror_image_global_status);
+        m_mirror_peers, &m_mirror_image_global_status);
 
     librbd::mirror_image_site_status_t local_status;
     int local_site_r = utils::get_local_mirror_image_status(
-      m_mirror_image_global_status, &local_status);
+        m_mirror_image_global_status, &local_status);
     m_mirror_image_global_status.site_statuses.erase(
-      std::remove_if(m_mirror_image_global_status.site_statuses.begin(),
-                     m_mirror_image_global_status.site_statuses.end(),
-                     [](auto& status) {
-          return (status.mirror_uuid ==
-                    RBD_MIRROR_IMAGE_STATUS_LOCAL_MIRROR_UUID);
-        }),
-      m_mirror_image_global_status.site_statuses.end());
+        std::remove_if(
+            m_mirror_image_global_status.site_statuses.begin(),
+            m_mirror_image_global_status.site_statuses.end(),
+            [](auto& status) {
+              return (
+                  status.mirror_uuid ==
+                  RBD_MIRROR_IMAGE_STATUS_LOCAL_MIRROR_UUID);
+            }),
+        m_mirror_image_global_status.site_statuses.end());
 
     std::string instance_id = (local_site_r >= 0 && local_status.up &&
-                               m_instance_ids.count(m_image_id)) ?
-        m_instance_ids.find(m_image_id)->second : "";
+                               m_instance_ids.count(m_image_id))
+                                  ? m_instance_ids.find(m_image_id)->second
+                                  : "";
 
     auto mirror_service = m_daemon_service_info.get_by_instance_id(instance_id);
     if (m_formatter != nullptr) {
       m_formatter->open_object_section("image");
       m_formatter->dump_string("name", m_mirror_image_global_status.name);
       m_formatter->dump_string(
-        "global_id", m_mirror_image_global_status.info.global_id);
+          "global_id", m_mirror_image_global_status.info.global_id);
       if (local_site_r >= 0) {
-        m_formatter->dump_string("state", utils::mirror_image_site_status_state(
-          local_status));
+        m_formatter->dump_string(
+            "state", utils::mirror_image_site_status_state(local_status));
         m_formatter->dump_string("description", local_status.description);
         if (mirror_service != nullptr) {
           mirror_service->dump_image(m_formatter);
         }
-        m_formatter->dump_string("last_update", utils::timestr(
-          local_status.last_update));
+        m_formatter->dump_string(
+            "last_update", utils::timestr(local_status.last_update));
       }
       if (!m_mirror_image_global_status.site_statuses.empty()) {
         m_formatter->open_array_section("peer_sites");
@@ -674,16 +789,17 @@ protected:
           m_formatter->open_object_section("peer_site");
 
           auto name_it = m_peer_mirror_uuids_to_name.find(status.mirror_uuid);
-          m_formatter->dump_string("site_name",
-            (name_it != m_peer_mirror_uuids_to_name.end() ?
-               name_it->second : ""));
+          m_formatter->dump_string(
+              "site_name",
+              (name_it != m_peer_mirror_uuids_to_name.end() ? name_it->second
+                                                            : ""));
           m_formatter->dump_string("mirror_uuid", status.mirror_uuid);
 
           m_formatter->dump_string(
-            "state", utils::mirror_image_site_status_state(status));
+              "state", utils::mirror_image_site_status_state(status));
           m_formatter->dump_string("description", status.description);
-          m_formatter->dump_string("last_update", utils::timestr(
-            status.last_update));
+          m_formatter->dump_string(
+              "last_update", utils::timestr(status.last_update));
           m_formatter->close_section(); // peer_site
         }
         m_formatter->close_section(); // peer_sites
@@ -693,18 +809,19 @@ protected:
       *m_saw_image = true;
       std::cout << std::endl
                 << m_mirror_image_global_status.name << ":" << std::endl
-  	        << "  global_id:   "
+                << "  global_id:   "
                 << m_mirror_image_global_status.info.global_id << std::endl;
       if (local_site_r >= 0) {
-        std::cout << "  state:       " << utils::mirror_image_site_status_state(
-                    local_status) << std::endl
+        std::cout << "  state:       "
+                  << utils::mirror_image_site_status_state(local_status)
+                  << std::endl
                   << "  description: " << local_status.description << std::endl;
         if (mirror_service != nullptr) {
-          std::cout << "  service:     " <<
-            mirror_service->get_image_description() << std::endl;
+          std::cout << "  service:     "
+                    << mirror_service->get_image_description() << std::endl;
         }
-        std::cout << "  last_update: " << utils::timestr(
-          local_status.last_update) << std::endl;
+        std::cout << "  last_update: "
+                  << utils::timestr(local_status.last_update) << std::endl;
       }
       if (!m_mirror_image_global_status.site_statuses.empty()) {
         std::cout << "  peer_sites:" << std::endl;
@@ -717,30 +834,33 @@ protected:
 
           auto name_it = m_peer_mirror_uuids_to_name.find(site.mirror_uuid);
           std::cout << "    name: "
-                    << (name_it != m_peer_mirror_uuids_to_name.end() ?
-                          name_it->second : site.mirror_uuid)
+                    << (name_it != m_peer_mirror_uuids_to_name.end()
+                            ? name_it->second
+                            : site.mirror_uuid)
                     << std::endl
-                    << "    state: " << utils::mirror_image_site_status_state(
-                      site) << std::endl
+                    << "    state: "
+                    << utils::mirror_image_site_status_state(site) << std::endl
                     << "    description: " << site.description << std::endl
-                    << "    last_update: " << utils::timestr(
-                      site.last_update) << std::endl;
+                    << "    last_update: " << utils::timestr(site.last_update)
+                    << std::endl;
         }
       }
     }
   }
 
-  std::string get_action_type() const override {
+  std::string
+  get_action_type() const override
+  {
     return "status";
   }
 
 private:
-  const std::map<std::string, std::string> &m_instance_ids;
-  const std::vector<librbd::mirror_peer_site_t> &m_mirror_peers;
-  const std::map<std::string, std::string> &m_peer_mirror_uuids_to_name;
-  const MirrorDaemonServiceInfo &m_daemon_service_info;
+  const std::map<std::string, std::string>& m_instance_ids;
+  const std::vector<librbd::mirror_peer_site_t>& m_mirror_peers;
+  const std::map<std::string, std::string>& m_peer_mirror_uuids_to_name;
+  const MirrorDaemonServiceInfo& m_daemon_service_info;
   at::Format::Formatter m_formatter;
-  bool *m_saw_image;
+  bool* m_saw_image;
   std::string m_image_id;
   librbd::mirror_image_global_status_t m_mirror_image_global_status;
 };
@@ -749,10 +869,15 @@ template <typename RequestT>
 class ImageRequestAllocator {
 public:
   template <class... Args>
-  RequestT *operator()(librados::IoCtx &io_ctx, OrderedThrottle &throttle,
-                       const std::string &image_name, Args&&... args) {
-    return new RequestT(io_ctx, throttle, image_name,
-                        std::forward<Args>(args)...);
+  RequestT*
+  operator()(
+      librados::IoCtx& io_ctx,
+      OrderedThrottle& throttle,
+      const std::string& image_name,
+      Args&&... args)
+  {
+    return new RequestT(
+        io_ctx, throttle, image_name, std::forward<Args>(args)...);
   }
 };
 
@@ -760,67 +885,74 @@ template <typename RequestT>
 class ImageRequestGenerator {
 public:
   template <class... Args>
-  ImageRequestGenerator(librados::IoCtx &io_ctx, Args&&... args)
-    : m_io_ctx(io_ctx),
-      m_factory(std::bind(ImageRequestAllocator<RequestT>(),
-                          std::ref(m_io_ctx), std::ref(m_throttle),
-                          std::placeholders::_1, std::forward<Args>(args)...)),
-      m_throttle(g_conf().get_val<uint64_t>("rbd_concurrent_management_ops"),
-                 true) {
-  }
+  ImageRequestGenerator(librados::IoCtx& io_ctx, Args&&... args) :
+    m_io_ctx(io_ctx),
+    m_factory(std::bind(
+        ImageRequestAllocator<RequestT>(),
+        std::ref(m_io_ctx),
+        std::ref(m_throttle),
+        std::placeholders::_1,
+        std::forward<Args>(args)...)),
+    m_throttle(g_conf().get_val<uint64_t>("rbd_concurrent_management_ops"), true)
+  {}
 
-  int execute() {
+  int
+  execute()
+  {
     // use the alphabetical list of image names for pool-level
     // mirror image operations
     librbd::RBD rbd;
     int r = rbd.list2(m_io_ctx, &m_images);
     if (r < 0 && r != -ENOENT) {
-      std::cerr << "rbd: failed to list images within pool: "
-                << cpp_strerror(r) << std::endl;
+      std::cerr << "rbd: failed to list images within pool: " << cpp_strerror(r)
+                << std::endl;
       return r;
     }
 
-    for (auto &image : m_images) {
+    for (auto& image : m_images) {
       auto request = m_factory(image.name);
       request->send();
     }
 
     return m_throttle.wait_for_ret();
   }
-private:
-  typedef std::function<RequestT*(const std::string&)>  Factory;
 
-  librados::IoCtx &m_io_ctx;
+private:
+  typedef std::function<RequestT*(const std::string&)> Factory;
+
+  librados::IoCtx& m_io_ctx;
   Factory m_factory;
 
   OrderedThrottle m_throttle;
 
   std::vector<librbd::image_spec_t> m_images;
-
 };
 
-int get_mirror_image_status(
-    librados::IoCtx& io_ctx, uint32_t* total_images,
+int
+get_mirror_image_status(
+    librados::IoCtx& io_ctx,
+    uint32_t* total_images,
     std::map<librbd::mirror_image_status_state_t, int>* mirror_image_states,
-    MirrorHealth* mirror_image_health) {
+    MirrorHealth* mirror_image_health)
+{
   librbd::RBD rbd;
   int r = rbd.mirror_image_status_summary(io_ctx, mirror_image_states);
   if (r < 0) {
     std::cerr << "rbd: failed to get status summary for mirrored images: "
-	      << cpp_strerror(r) << std::endl;
+              << cpp_strerror(r) << std::endl;
     return r;
   }
 
   *mirror_image_health = MIRROR_HEALTH_OK;
-  for (auto &it : *mirror_image_states) {
-    auto &state = it.first;
+  for (auto& it : *mirror_image_states) {
+    auto& state = it.first;
     if (*mirror_image_health < MIRROR_HEALTH_WARNING &&
-	(state != MIRROR_IMAGE_STATUS_STATE_REPLAYING &&
-	 state != MIRROR_IMAGE_STATUS_STATE_STOPPED)) {
+        (state != MIRROR_IMAGE_STATUS_STATE_REPLAYING &&
+         state != MIRROR_IMAGE_STATUS_STATE_STOPPED)) {
       *mirror_image_health = MIRROR_HEALTH_WARNING;
     }
     if (*mirror_image_health < MIRROR_HEALTH_ERROR &&
-	state == MIRROR_IMAGE_STATUS_STATE_ERROR) {
+        state == MIRROR_IMAGE_STATUS_STATE_ERROR) {
       *mirror_image_health = MIRROR_HEALTH_ERROR;
     }
     *total_images += it.second;
@@ -831,19 +963,24 @@ int get_mirror_image_status(
 
 } // anonymous namespace
 
-void get_peer_bootstrap_create_arguments(po::options_description *positional,
-                                         po::options_description *options) {
+void
+get_peer_bootstrap_create_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
   add_site_name_optional(options);
 }
 
-int execute_peer_bootstrap_create(
-    const po::variables_map &vm,
-    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_peer_bootstrap_create(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -883,26 +1020,31 @@ int execute_peer_bootstrap_create(
   return 0;
 }
 
-void get_peer_bootstrap_import_arguments(po::options_description *positional,
-                                         po::options_description *options) {
+void
+get_peer_bootstrap_import_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
   add_site_name_optional(options);
-  positional->add_options()
-    ("token-path", po::value<std::string>(),
-     "bootstrap token file (or '-' for stdin)");
-  options->add_options()
-    ("token-path", po::value<std::string>(),
-     "bootstrap token file (or '-' for stdin)");
+  positional->add_options()(
+      "token-path", po::value<std::string>(),
+      "bootstrap token file (or '-' for stdin)");
+  options->add_options()(
+      "token-path", po::value<std::string>(),
+      "bootstrap token file (or '-' for stdin)");
   add_direction_optional(options);
 }
 
-int execute_peer_bootstrap_import(
-    const po::variables_map &vm,
-    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_peer_bootstrap_import(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -920,14 +1062,14 @@ int execute_peer_bootstrap_import(
   }
 
   rbd_mirror_peer_direction_t mirror_peer_direction =
-    RBD_MIRROR_PEER_DIRECTION_RX_TX;
+      RBD_MIRROR_PEER_DIRECTION_RX_TX;
   if (vm.count("direction")) {
     mirror_peer_direction = vm["direction"].as<rbd_mirror_peer_direction_t>();
   }
 
   int fd = STDIN_FILENO;
   if (token_path != "-") {
-    fd = open(token_path.c_str(), O_RDONLY|O_BINARY);
+    fd = open(token_path.c_str(), O_RDONLY | O_BINARY);
     if (fd < 0) {
       r = -errno;
       std::cerr << "rbd: error opening " << token_path << ": "
@@ -977,27 +1119,34 @@ int execute_peer_bootstrap_import(
   return 0;
 }
 
-void get_peer_add_arguments(po::options_description *positional,
-                            po::options_description *options) {
+void
+get_peer_add_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
-  positional->add_options()
-    ("remote-cluster-spec", "remote cluster spec\n"
-     "(example: [<client name>@]<cluster name>)");
-  options->add_options()
-    ("remote-client-name", po::value<std::string>(), "remote client name")
-    ("remote-cluster", po::value<std::string>(), "remote cluster name")
-    ("remote-mon-host", po::value<std::string>(), "remote mon host(s)")
-    ("remote-key-file", po::value<std::string>(),
-     "path to file containing remote key");
+  positional->add_options()(
+      "remote-cluster-spec",
+      "remote cluster spec\n"
+      "(example: [<client name>@]<cluster name>)");
+  options->add_options()(
+      "remote-client-name", po::value<std::string>(), "remote client name")(
+      "remote-cluster", po::value<std::string>(), "remote cluster name")(
+      "remote-mon-host", po::value<std::string>(), "remote mon host(s)")(
+      "remote-key-file", po::value<std::string>(),
+      "path to file containing remote key");
   add_direction_optional(options);
 }
 
-int execute_peer_add(const po::variables_map &vm,
-                     const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_peer_add(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1006,8 +1155,8 @@ int execute_peer_add(const po::variables_map &vm,
   std::string remote_cluster;
   std::map<std::string, std::string> attributes;
   r = get_remote_cluster_spec(
-    vm, utils::get_positional_argument(vm, arg_index),
-    &remote_client_name, &remote_cluster, &attributes);
+      vm, utils::get_positional_argument(vm, arg_index), &remote_client_name,
+      &remote_cluster, &attributes);
   if (r < 0) {
     return r;
   }
@@ -1030,19 +1179,19 @@ int execute_peer_add(const po::variables_map &vm,
   std::vector<librbd::mirror_peer_site_t> mirror_peers;
   r = rbd.mirror_peer_site_list(io_ctx, &mirror_peers);
   if (r < 0) {
-    std::cerr << "rbd: failed to list mirror peers: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: failed to list mirror peers: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
 
   // ignore tx-only peers since the restriction is for rx
   mirror_peers.erase(
-    std::remove_if(
-      mirror_peers.begin(), mirror_peers.end(),
-      [](const librbd::mirror_peer_site_t& peer) {
-        return (peer.direction == RBD_MIRROR_PEER_DIRECTION_TX);
-      }),
-    mirror_peers.end());
+      std::remove_if(
+          mirror_peers.begin(), mirror_peers.end(),
+          [](const librbd::mirror_peer_site_t& peer) {
+            return (peer.direction == RBD_MIRROR_PEER_DIRECTION_TX);
+          }),
+      mirror_peers.end());
 
   if (!mirror_peers.empty()) {
     std::cerr << "rbd: multiple RX peers are not currently supported"
@@ -1051,20 +1200,20 @@ int execute_peer_add(const po::variables_map &vm,
   }
 
   rbd_mirror_peer_direction_t mirror_peer_direction =
-    RBD_MIRROR_PEER_DIRECTION_RX_TX;
+      RBD_MIRROR_PEER_DIRECTION_RX_TX;
   if (vm.count("direction")) {
     mirror_peer_direction = vm["direction"].as<rbd_mirror_peer_direction_t>();
   }
 
   std::string uuid;
   r = rbd.mirror_peer_site_add(
-    io_ctx, &uuid, mirror_peer_direction, remote_cluster, remote_client_name);
+      io_ctx, &uuid, mirror_peer_direction, remote_cluster, remote_client_name);
   if (r == -EEXIST) {
     std::cerr << "rbd: mirror peer already exists" << std::endl;
     return r;
   } else if (r < 0) {
-    std::cerr << "rbd: error adding mirror peer: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: error adding mirror peer: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
 
@@ -1079,18 +1228,24 @@ int execute_peer_add(const po::variables_map &vm,
   return 0;
 }
 
-void get_peer_remove_arguments(po::options_description *positional,
-                               po::options_description *options) {
+void
+get_peer_remove_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
   add_uuid_option(positional);
 }
 
-int execute_peer_remove(const po::variables_map &vm,
-                        const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_peer_remove(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1116,30 +1271,38 @@ int execute_peer_remove(const po::variables_map &vm,
   librbd::RBD rbd;
   r = rbd.mirror_peer_site_remove(io_ctx, uuid);
   if (r < 0) {
-    std::cerr << "rbd: error removing mirror peer: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: error removing mirror peer: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
   return 0;
 }
 
-void get_peer_set_arguments(po::options_description *positional,
-                            po::options_description *options) {
+void
+get_peer_set_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
   add_uuid_option(positional);
-  positional->add_options()
-    ("key", "peer parameter\n"
-            "(direction, site-name, client, mon-host, key-file)")
-    ("value", "new value for specified key\n"
-              "(rx-only, tx-only, or rx-tx for direction)");
+  positional->add_options()(
+      "key",
+      "peer parameter\n"
+      "(direction, site-name, client, mon-host, key-file)")(
+      "value",
+      "new value for specified key\n"
+      "(rx-only, tx-only, or rx-tx for direction)");
 }
 
-int execute_peer_set(const po::variables_map &vm,
-                     const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_peer_set(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1150,8 +1313,8 @@ int execute_peer_set(const po::variables_map &vm,
     return r;
   }
 
-  std::set<std::string> valid_keys{{"direction", "site-name", "cluster",
-                                    "client", "mon-host", "key-file"}};
+  std::set<std::string> valid_keys{
+      {"direction", "site-name", "cluster", "client", "mon-host", "key-file"}};
   std::string key = utils::get_positional_argument(vm, arg_index++);
   if (valid_keys.find(key) == valid_keys.end()) {
     std::cerr << "rbd: must specify ";
@@ -1161,7 +1324,7 @@ int execute_peer_set(const po::variables_map &vm,
         std::cerr << ", ";
       }
     }
-    std::cerr <<  " key." << std::endl;
+    std::cerr << " key." << std::endl;
     return -EINVAL;
   }
 
@@ -1192,8 +1355,8 @@ int execute_peer_set(const po::variables_map &vm,
 
   librbd::RBD rbd;
   if (key == "client") {
-    r = rbd.mirror_peer_site_set_client_name(io_ctx, uuid.c_str(),
-                                             value.c_str());
+    r = rbd.mirror_peer_site_set_client_name(
+        io_ctx, uuid.c_str(), value.c_str());
   } else if (key == "site-name" || key == "cluster") {
     r = rbd.mirror_peer_site_set_name(io_ctx, uuid.c_str(), value.c_str());
   } else if (key == "direction") {
@@ -1206,29 +1369,30 @@ int execute_peer_set(const po::variables_map &vm,
       return -EINVAL;
     }
 
-    auto peer_direction = boost::any_cast<rbd_mirror_peer_direction_t>(
-      direction);
+    auto peer_direction =
+        boost::any_cast<rbd_mirror_peer_direction_t>(direction);
     if (peer_direction != RBD_MIRROR_PEER_DIRECTION_TX) {
       // TODO: temporary restriction to prevent adding multiple peers
       // until rbd-mirror daemon can properly handle the scenario
       std::vector<librbd::mirror_peer_site_t> mirror_peers;
       r = rbd.mirror_peer_site_list(io_ctx, &mirror_peers);
       if (r < 0) {
-        std::cerr << "rbd: failed to list mirror peers: "
-                  << cpp_strerror(r) << std::endl;
+        std::cerr << "rbd: failed to list mirror peers: " << cpp_strerror(r)
+                  << std::endl;
         return r;
       }
 
       // ignore peer to be updated and tx-only peers since the restriction is
       // for rx
       mirror_peers.erase(
-        std::remove_if(
-          mirror_peers.begin(), mirror_peers.end(),
-          [uuid](const librbd::mirror_peer_site_t& peer) {
-            return (peer.uuid == uuid ||
+          std::remove_if(
+              mirror_peers.begin(), mirror_peers.end(),
+              [uuid](const librbd::mirror_peer_site_t& peer) {
+                return (
+                    peer.uuid == uuid ||
                     peer.direction == RBD_MIRROR_PEER_DIRECTION_TX);
-          }),
-        mirror_peers.end());
+              }),
+          mirror_peers.end());
 
       if (!mirror_peers.empty()) {
         std::cerr << "rbd: multiple RX peers are not currently supported"
@@ -1242,9 +1406,8 @@ int execute_peer_set(const po::variables_map &vm,
     r = update_peer_config_key(io_ctx, uuid, key, value);
   }
 
-  if (r  == -ENOENT) {
-    std::cerr << "rbd: mirror peer " << uuid << " does not exist"
-              << std::endl;
+  if (r == -ENOENT) {
+    std::cerr << "rbd: mirror peer " << uuid << " does not exist" << std::endl;
   }
 
   if (r < 0) {
@@ -1253,32 +1416,41 @@ int execute_peer_set(const po::variables_map &vm,
   return 0;
 }
 
-void get_disable_arguments(po::options_description *positional,
-                           po::options_description *options) {
+void
+get_disable_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
 }
 
-void get_enable_arguments(po::options_description *positional,
-                          po::options_description *options) {
+void
+get_enable_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
-  positional->add_options()
-    ("mode", "mirror mode [image, pool or init-only]");
+  positional->add_options()("mode", "mirror mode [image, pool or init-only]");
   add_site_name_optional(options);
 
-  options->add_options()
-    (REMOTE_NAMESPACE_NAME.c_str(), po::value<std::string>(),
-     "remote namespace name");
+  options->add_options()(
+      REMOTE_NAMESPACE_NAME.c_str(), po::value<std::string>(),
+      "remote namespace name");
 }
 
-int execute_enable_disable(librados::IoCtx& io_ctx,
-                           rbd_mirror_mode_t next_mirror_mode,
-                           const std::string &mode, bool ignore_no_update) {
+int
+execute_enable_disable(
+    librados::IoCtx& io_ctx,
+    rbd_mirror_mode_t next_mirror_mode,
+    const std::string& mode,
+    bool ignore_no_update)
+{
   librbd::RBD rbd;
   rbd_mirror_mode_t current_mirror_mode;
   int r = rbd.mirror_mode_get(io_ctx, &current_mirror_mode);
   if (r < 0) {
-    std::cerr << "rbd: failed to retrieve mirror mode: "
-              << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: failed to retrieve mirror mode: " << cpp_strerror(r)
+              << std::endl;
     return r;
   }
 
@@ -1287,17 +1459,19 @@ int execute_enable_disable(librados::IoCtx& io_ctx,
       if (mode == "disabled") {
         std::cout << "rbd: mirroring is already " << mode << std::endl;
       } else {
-        std::cout << "rbd: mirroring is already configured for "
-                  << mode << " mode" << std::endl;
+        std::cout << "rbd: mirroring is already configured for " << mode
+                  << " mode" << std::endl;
       }
     }
     return 0;
-  } else if (next_mirror_mode == RBD_MIRROR_MODE_IMAGE &&
-             current_mirror_mode == RBD_MIRROR_MODE_POOL) {
+  } else if (
+      next_mirror_mode == RBD_MIRROR_MODE_IMAGE &&
+      current_mirror_mode == RBD_MIRROR_MODE_POOL) {
     std::cout << "note: changing mirroring mode from pool to image"
               << std::endl;
-  } else if (next_mirror_mode == RBD_MIRROR_MODE_POOL &&
-             current_mirror_mode == RBD_MIRROR_MODE_IMAGE) {
+  } else if (
+      next_mirror_mode == RBD_MIRROR_MODE_POOL &&
+      current_mirror_mode == RBD_MIRROR_MODE_IMAGE) {
     std::cout << "note: changing mirroring mode from image to pool"
               << std::endl;
   }
@@ -1309,13 +1483,16 @@ int execute_enable_disable(librados::IoCtx& io_ctx,
   return 0;
 }
 
-int execute_disable(const po::variables_map &vm,
-                    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_disable(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1328,18 +1505,21 @@ int execute_disable(const po::variables_map &vm,
     return r;
   }
 
-  return execute_enable_disable(io_ctx, RBD_MIRROR_MODE_DISABLED, "disabled",
-                                false);
+  return execute_enable_disable(
+      io_ctx, RBD_MIRROR_MODE_DISABLED, "disabled", false);
 }
 
-int execute_enable(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_enable(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   std::string remote_namespace;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1383,7 +1563,7 @@ int execute_enable(const po::variables_map &vm,
     r = rbd.mirror_remote_namespace_get(io_ctx, &original_remote_namespace);
     if (r < 0) {
       std::cerr << "rbd: failed to get the current remote namespace: "
-	        << cpp_strerror(r) << std::endl;
+                << cpp_strerror(r) << std::endl;
       return r;
     }
 
@@ -1392,7 +1572,7 @@ int execute_enable(const po::variables_map &vm,
       if (r < 0) {
         std::cerr << "rbd: failed to set the remote namespace: "
                   << cpp_strerror(r) << std::endl;
-	return r;
+        return r;
       }
     }
   }
@@ -1412,23 +1592,29 @@ int execute_enable(const po::variables_map &vm,
   return execute_enable_disable(io_ctx, mirror_mode, mode, updated);
 }
 
-void get_info_arguments(po::options_description *positional,
-                        po::options_description *options) {
+void
+get_info_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
   at::add_format_options(options);
-  options->add_options()
-    (ALL_NAME.c_str(), po::bool_switch(), "list all attributes");
+  options->add_options()(
+      ALL_NAME.c_str(), po::bool_switch(), "list all attributes");
 }
 
-int execute_info(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_info(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   std::string remote_namespace;
   std::string mirror_uuid;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1509,7 +1695,7 @@ int execute_info(const po::variables_map &vm,
       if (formatter != nullptr) {
         formatter->dump_string("site_name", site_name);
       } else {
-	std::cout << "Site Name: " << site_name << std::endl;
+        std::cout << "Site Name: " << site_name << std::endl;
       }
     }
     if (formatter != nullptr) {
@@ -1518,13 +1704,13 @@ int execute_info(const po::variables_map &vm,
     } else {
       std::cout << "Mirror UUID: " << mirror_uuid << std::endl;
       std::cout << "Remote Namespace: " << remote_namespace << std::endl
-		<< std::endl;
+                << std::endl;
     }
     if (namespace_name.empty()) {
-      r = format_mirror_peers(io_ctx, formatter, mirror_peers,
-                              vm[ALL_NAME].as<bool>());
+      r = format_mirror_peers(
+          io_ctx, formatter, mirror_peers, vm[ALL_NAME].as<bool>());
       if (r < 0) {
-	return r;
+        return r;
       }
     }
   }
@@ -1535,20 +1721,26 @@ int execute_info(const po::variables_map &vm,
   return 0;
 }
 
-void get_status_arguments(po::options_description *positional,
-			  po::options_description *options) {
+void
+get_status_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
   at::add_format_options(options);
   at::add_verbose_option(options);
 }
 
-int execute_status(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_status(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, false, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, false, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1578,8 +1770,8 @@ int execute_status(const po::variables_map &vm,
   uint32_t total_images = 0;
   std::map<librbd::mirror_image_status_state_t, int> mirror_image_states;
   MirrorHealth mirror_image_health = MIRROR_HEALTH_UNKNOWN;
-  r = get_mirror_image_status(io_ctx, &total_images, &mirror_image_states,
-                              &mirror_image_health);
+  r = get_mirror_image_status(
+      io_ctx, &total_images, &mirror_image_states, &mirror_image_health);
   if (r < 0) {
     return r;
   }
@@ -1599,7 +1791,7 @@ int execute_status(const po::variables_map &vm,
     formatter->dump_stream("daemon_health") << mirror_daemon_health;
     formatter->dump_stream("image_health") << mirror_image_health;
     formatter->open_object_section("states");
-    for (auto &it : mirror_image_states) {
+    for (auto& it : mirror_image_states) {
       std::string state_name = utils::mirror_image_status_state(it.first);
       formatter->dump_int(state_name.c_str(), it.second);
     }
@@ -1610,9 +1802,9 @@ int execute_status(const po::variables_map &vm,
     std::cout << "daemon health: " << mirror_daemon_health << std::endl;
     std::cout << "image health: " << mirror_image_health << std::endl;
     std::cout << "images: " << total_images << " total" << std::endl;
-    for (auto &it : mirror_image_states) {
+    for (auto& it : mirror_image_states) {
       std::cout << "    " << it.second << " "
-		<< utils::mirror_image_status_state(it.first) << std::endl;
+                << utils::mirror_image_status_state(it.first) << std::endl;
     }
   }
 
@@ -1645,8 +1837,7 @@ int execute_status(const po::variables_map &vm,
       std::cout << std::endl << "DAEMONS";
       for (auto& mirror_service : mirror_services) {
         std::cout << std::endl
-                  << "service " << mirror_service.service_id << ":"
-                  << std::endl
+                  << "service " << mirror_service.service_id << ":" << std::endl
                   << "  instance_id: " << mirror_service.instance_id
                   << std::endl
                   << "  client_id: " << mirror_service.client_id << std::endl
@@ -1669,8 +1860,8 @@ int execute_status(const po::variables_map &vm,
     utils::get_mirror_peer_sites(io_ctx, &mirror_peers);
 
     std::map<std::string, std::string> peer_mirror_uuids_to_name;
-    utils::get_mirror_peer_mirror_uuids_to_names(mirror_peers,
-                                                 &peer_mirror_uuids_to_name);
+    utils::get_mirror_peer_mirror_uuids_to_names(
+        mirror_peers, &peer_mirror_uuids_to_name);
 
     if (formatter != nullptr) {
       formatter->open_array_section("images");
@@ -1704,8 +1895,8 @@ int execute_status(const po::variables_map &vm,
 
     bool saw_image = false;
     ImageRequestGenerator<StatusImageRequest> generator(
-      io_ctx, instance_ids, mirror_peers, peer_mirror_uuids_to_name,
-      daemon_service_info, formatter, &saw_image);
+        io_ctx, instance_ids, mirror_peers, peer_mirror_uuids_to_name,
+        daemon_service_info, formatter, &saw_image);
     ret = generator.execute();
 
     if (formatter != nullptr) {
@@ -1725,21 +1916,27 @@ int execute_status(const po::variables_map &vm,
   return ret;
 }
 
-void get_promote_arguments(po::options_description *positional,
-			   po::options_description *options) {
-  options->add_options()
-    ("force", po::bool_switch(),
-     "promote even if not cleanly demoted by remote cluster");
+void
+get_promote_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  options->add_options()(
+      "force", po::bool_switch(),
+      "promote even if not cleanly demoted by remote cluster");
   at::add_pool_options(positional, options, true);
 }
 
-int execute_promote(const po::variables_map &vm,
-                    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_promote(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1758,27 +1955,33 @@ int execute_promote(const po::variables_map &vm,
 
   utils::disable_cache();
 
-  std::atomic<unsigned> counter = { 0 };
-  ImageRequestGenerator<PromoteImageRequest> generator(io_ctx, &counter,
-                                                       vm["force"].as<bool>());
+  std::atomic<unsigned> counter = {0};
+  ImageRequestGenerator<PromoteImageRequest> generator(
+      io_ctx, &counter, vm["force"].as<bool>());
   r = generator.execute();
 
   std::cout << "Promoted " << counter.load() << " mirrored images" << std::endl;
   return r;
 }
 
-void get_demote_arguments(po::options_description *positional,
-			   po::options_description *options) {
+void
+get_demote_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
 }
 
-int execute_demote(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_demote(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -1797,7 +2000,7 @@ int execute_demote(const po::variables_map &vm,
 
   utils::disable_cache();
 
-  std::atomic<unsigned> counter { 0 };
+  std::atomic<unsigned> counter{0};
   ImageRequestGenerator<DemoteImageRequest> generator(io_ctx, &counter);
   r = generator.execute();
 
@@ -1806,51 +2009,84 @@ int execute_demote(const po::variables_map &vm,
 }
 
 Shell::Action action_bootstrap_create(
-  {"mirror", "pool", "peer", "bootstrap", "create"}, {},
-  "Create a peer bootstrap token to import in a remote cluster", "",
-  &get_peer_bootstrap_create_arguments, &execute_peer_bootstrap_create);
+    {"mirror", "pool", "peer", "bootstrap", "create"},
+    {},
+    "Create a peer bootstrap token to import in a remote cluster",
+    "",
+    &get_peer_bootstrap_create_arguments,
+    &execute_peer_bootstrap_create);
 Shell::Action action_bootstrap_import(
-  {"mirror", "pool", "peer", "bootstrap", "import"}, {},
-  "Import a peer bootstrap token created from a remote cluster", "",
-  &get_peer_bootstrap_import_arguments, &execute_peer_bootstrap_import);
+    {"mirror", "pool", "peer", "bootstrap", "import"},
+    {},
+    "Import a peer bootstrap token created from a remote cluster",
+    "",
+    &get_peer_bootstrap_import_arguments,
+    &execute_peer_bootstrap_import);
 
 Shell::Action action_add(
-  {"mirror", "pool", "peer", "add"}, {},
-  "Add a mirroring peer to a pool.", "",
-  &get_peer_add_arguments, &execute_peer_add);
+    {"mirror", "pool", "peer", "add"},
+    {},
+    "Add a mirroring peer to a pool.",
+    "",
+    &get_peer_add_arguments,
+    &execute_peer_add);
 Shell::Action action_remove(
-  {"mirror", "pool", "peer", "remove"}, {},
-  "Remove a mirroring peer from a pool.", "",
-  &get_peer_remove_arguments, &execute_peer_remove);
+    {"mirror", "pool", "peer", "remove"},
+    {},
+    "Remove a mirroring peer from a pool.",
+    "",
+    &get_peer_remove_arguments,
+    &execute_peer_remove);
 Shell::Action action_set(
-  {"mirror", "pool", "peer", "set"}, {},
-  "Update mirroring peer settings.", "",
-  &get_peer_set_arguments, &execute_peer_set);
+    {"mirror", "pool", "peer", "set"},
+    {},
+    "Update mirroring peer settings.",
+    "",
+    &get_peer_set_arguments,
+    &execute_peer_set);
 
 Shell::Action action_disable(
-  {"mirror", "pool", "disable"}, {},
-  "Disable RBD mirroring in a pool or namespace.", "",
-  &get_disable_arguments, &execute_disable);
+    {"mirror", "pool", "disable"},
+    {},
+    "Disable RBD mirroring in a pool or namespace.",
+    "",
+    &get_disable_arguments,
+    &execute_disable);
 Shell::Action action_enable(
-  {"mirror", "pool", "enable"}, {},
-  "Enable RBD mirroring in a pool or namespace.", "",
-  &get_enable_arguments, &execute_enable);
+    {"mirror", "pool", "enable"},
+    {},
+    "Enable RBD mirroring in a pool or namespace.",
+    "",
+    &get_enable_arguments,
+    &execute_enable);
 Shell::Action action_info(
-  {"mirror", "pool", "info"}, {},
-  "Show mirroring configuration for a pool or namespace.", {},
-  &get_info_arguments, &execute_info);
+    {"mirror", "pool", "info"},
+    {},
+    "Show mirroring configuration for a pool or namespace.",
+    {},
+    &get_info_arguments,
+    &execute_info);
 Shell::Action action_status(
-  {"mirror", "pool", "status"}, {},
-  "Show status for all mirrored images in a pool or namespace.", {},
-  &get_status_arguments, &execute_status);
+    {"mirror", "pool", "status"},
+    {},
+    "Show status for all mirrored images in a pool or namespace.",
+    {},
+    &get_status_arguments,
+    &execute_status);
 Shell::Action action_promote(
-  {"mirror", "pool", "promote"}, {},
-  "Promote all non-primary images in a pool or namespace.", {},
-  &get_promote_arguments, &execute_promote);
+    {"mirror", "pool", "promote"},
+    {},
+    "Promote all non-primary images in a pool or namespace.",
+    {},
+    &get_promote_arguments,
+    &execute_promote);
 Shell::Action action_demote(
-  {"mirror", "pool", "demote"}, {},
-  "Demote all primary images in a pool or namespace.", {},
-  &get_demote_arguments, &execute_demote);
+    {"mirror", "pool", "demote"},
+    {},
+    "Demote all primary images in a pool or namespace.",
+    {},
+    &get_demote_arguments,
+    &execute_demote);
 
 } // namespace mirror_pool
 } // namespace action

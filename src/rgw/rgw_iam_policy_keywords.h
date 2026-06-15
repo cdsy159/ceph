@@ -7,7 +7,13 @@ namespace rgw {
 namespace IAM {
 
 enum class TokenKind {
-  pseudo, top, statement, cond_op, cond_key, version_key, effect_key,
+  pseudo,
+  top,
+  statement,
+  cond_op,
+  cond_key,
+  version_key,
+  effect_key,
   princ_type
 };
 
@@ -16,29 +22,53 @@ enum class TokenID {
   Top,
 
   /// Top-level tokens
-  Version, Id, Statement,
+  Version,
+  Id,
+  Statement,
 
   /// Statement level tokens
-  Sid, Effect, Principal, NotPrincipal, Action, NotAction,
-  Resource, NotResource, Condition,
+  Sid,
+  Effect,
+  Principal,
+  NotPrincipal,
+  Action,
+  NotAction,
+  Resource,
+  NotResource,
+  Condition,
 
   /// Condition Operators!
   /// Any of these, except Null, can have an IfExists variant.
 
   // String!
-  StringEquals, StringNotEquals, StringEqualsIgnoreCase,
-  StringNotEqualsIgnoreCase, StringLike, StringNotLike,
-  ForAllValuesStringEquals, ForAnyValueStringEquals,
-  ForAllValuesStringLike, ForAnyValueStringLike,
-  ForAllValuesStringEqualsIgnoreCase, ForAnyValueStringEqualsIgnoreCase,
+  StringEquals,
+  StringNotEquals,
+  StringEqualsIgnoreCase,
+  StringNotEqualsIgnoreCase,
+  StringLike,
+  StringNotLike,
+  ForAllValuesStringEquals,
+  ForAnyValueStringEquals,
+  ForAllValuesStringLike,
+  ForAnyValueStringLike,
+  ForAllValuesStringEqualsIgnoreCase,
+  ForAnyValueStringEqualsIgnoreCase,
 
   // Numeric!
-  NumericEquals, NumericNotEquals, NumericLessThan, NumericLessThanEquals,
-  NumericGreaterThan, NumericGreaterThanEquals,
+  NumericEquals,
+  NumericNotEquals,
+  NumericLessThan,
+  NumericLessThanEquals,
+  NumericGreaterThan,
+  NumericGreaterThanEquals,
 
   // Date!
-  DateEquals, DateNotEquals, DateLessThan, DateLessThanEquals,
-  DateGreaterThan, DateGreaterThanEquals,
+  DateEquals,
+  DateNotEquals,
+  DateLessThan,
+  DateLessThanEquals,
+  DateGreaterThan,
+  DateGreaterThanEquals,
 
   // Bool!
   Bool,
@@ -47,10 +77,14 @@ enum class TokenID {
   BinaryEquals,
 
   // IP Address!
-  IpAddress, NotIpAddress,
+  IpAddress,
+  NotIpAddress,
 
   // Amazon Resource Names! (Does S3 need this?)
-  ArnEquals, ArnNotEquals, ArnLike, ArnNotLike,
+  ArnEquals,
+  ArnNotEquals,
+  ArnLike,
+  ArnNotLike,
 
   // Null!
   Null,
@@ -137,5 +171,5 @@ enum class Type {
   arn,
   null
 };
-}
-}
+} // namespace IAM
+} // namespace rgw

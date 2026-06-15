@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
 #include "common/numa.h"
+#include "gtest/gtest.h"
 
-TEST(cpu_set, parse_list) {
+TEST(cpu_set, parse_list)
+{
   cpu_set_t cpu_set;
   size_t size;
 
@@ -33,7 +34,8 @@ TEST(cpu_set, parse_list) {
   }
 }
 
-TEST(cpu_set, to_str_list) {
+TEST(cpu_set, to_str_list)
+{
   cpu_set_t cpu_set;
   CPU_ZERO(&cpu_set);
   CPU_SET(0, &cpu_set);
@@ -57,7 +59,7 @@ TEST(cpu_set, round_trip_list)
     CPU_ZERO(&cpu_set);
     for (unsigned i = 0; i < 32; ++i) {
       if (rand() % 1) {
-	CPU_SET(i, &cpu_set);
+        CPU_SET(i, &cpu_set);
       }
     }
     std::string v = cpu_set_to_str_list(size, &cpu_set);
@@ -69,4 +71,3 @@ TEST(cpu_set, round_trip_list)
     }
   }
 }
-

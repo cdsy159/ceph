@@ -2,34 +2,44 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "journal/ObjectRecorder.h"
-#include "journal/Future.h"
-#include "journal/Utils.h"
-#include "include/ceph_assert.h"
-#include "include/types.h" // for operator<<(std::set)
+
+#include "cls/journal/cls_journal_client.h"
 #include "common/Clock.h" // for ceph_clock_now()
 #include "common/Timer.h"
 #include "common/errno.h"
-#include "cls/journal/cls_journal_client.h"
+#include "include/ceph_assert.h"
+#include "include/types.h" // for operator<<(std::set)
+#include "journal/Future.h"
+#include "journal/Utils.h"
 
 #define dout_subsys ceph_subsys_journaler
 #undef dout_prefix
-#define dout_prefix *_dout << "ObjectRecorder: " << this << " " \
-                           << __func__ << " (" << m_oid << "): "
+#define dout_prefix                                                        \
+  *_dout << "ObjectRecorder: " << this << " " << __func__ << " (" << m_oid \
+         << "): "
 
 using namespace cls::journal;
 using std::shared_ptr;
 
 namespace journal {
 
-ObjectRecorder::ObjectRecorder(librados::IoCtx &ioctx, std::string_view oid,
-                               uint64_t object_number, ceph::mutex* lock,
-                               ContextWQ *work_queue, Handler *handler,
-                               uint8_t order, int32_t max_in_flight_appends)
-  : m_oid(oid), m_object_number(object_number),
-    m_op_work_queue(work_queue), m_handler(handler),
-    m_order(order), m_soft_max_size(1 << m_order),
-    m_max_in_flight_appends(max_in_flight_appends),
-    m_lock(lock)
+ObjectRecorder::ObjectRecorder(
+    librados::IoCtx& ioctx,
+    std::string_view oid,
+    uint64_t object_number,
+    ceph::mutex* lock,
+    ContextWQ* work_queue,
+    Handler* handler,
+    uint8_t order,
+    int32_t max_in_flight_appends) :
+  m_oid(oid),
+  m_object_number(object_number),
+  m_op_work_queue(work_queue),
+  m_handler(handler),
+  m_order(order),
+  m_soft_max_size(1 << m_order),
+  m_max_in_flight_appends(max_in_flight_appends),
+  m_lock(lock)
 {
   m_ioctx.dup(ioctx);
   m_cct = reinterpret_cast<CephContext*>(m_ioctx.cct());
@@ -39,24 +49,28 @@ ObjectRecorder::ObjectRecorder(librados::IoCtx &ioctx, std::string_view oid,
   int8_t require_osd_release = 0;
   int r = rados.get_min_compatible_osd(&require_osd_release);
   if (r < 0) {
-    ldout(m_cct, 0) << "failed to retrieve min OSD release: "
-                    << cpp_strerror(r) << dendl;
+    ldout(m_cct, 0) << "failed to retrieve min OSD release: " << cpp_strerror(r)
+                    << dendl;
   }
   m_compat_mode = require_osd_release < CEPH_RELEASE_OCTOPUS;
 
   ldout(m_cct, 20) << dendl;
 }
 
-ObjectRecorder::~ObjectRecorder() {
+ObjectRecorder::~ObjectRecorder()
+{
   ldout(m_cct, 20) << dendl;
   ceph_assert(m_pending_buffers.empty());
   ceph_assert(m_in_flight_tids.empty());
   ceph_assert(m_in_flight_appends.empty());
 }
 
-void ObjectRecorder::set_append_batch_options(int flush_interval,
-                                              uint64_t flush_bytes,
-                                              double flush_age) {
+void
+ObjectRecorder::set_append_batch_options(
+    int flush_interval,
+    uint64_t flush_bytes,
+    double flush_age)
+{
   ldout(m_cct, 5) << "flush_interval=" << flush_interval << ", "
                   << "flush_bytes=" << flush_bytes << ", "
                   << "flush_age=" << flush_age << dendl;
@@ -67,7 +81,9 @@ void ObjectRecorder::set_append_batch_options(int flush_interval,
   m_flush_age = flush_age;
 }
 
-bool ObjectRecorder::append(AppendBuffers &&append_buffers) {
+bool
+ObjectRecorder::append(AppendBuffers&& append_buffers)
+{
   ldout(m_cct, 20) << "count=" << append_buffers.size() << dendl;
 
   ceph_assert(ceph_mutex_is_locked(*m_lock));
@@ -89,7 +105,9 @@ bool ObjectRecorder::append(AppendBuffers &&append_buffers) {
   return send_appends(!!last_flushed_future, last_flushed_future);
 }
 
-void ObjectRecorder::flush(Context *on_safe) {
+void
+ObjectRecorder::flush(Context* on_safe)
+{
   ldout(m_cct, 20) << dendl;
 
   Future future;
@@ -107,7 +125,7 @@ void ObjectRecorder::flush(Context *on_safe) {
     if (!m_pending_buffers.empty()) {
       future = Future(m_pending_buffers.rbegin()->first);
     } else if (!m_in_flight_appends.empty()) {
-      AppendBuffers &append_buffers = m_in_flight_appends.rbegin()->second;
+      AppendBuffers& append_buffers = m_in_flight_appends.rbegin()->second;
       ceph_assert(!append_buffers.empty());
       future = Future(append_buffers.rbegin()->first);
     }
@@ -115,16 +133,17 @@ void ObjectRecorder::flush(Context *on_safe) {
 
   if (future.is_valid()) {
     // cannot be invoked while the same lock context
-    m_op_work_queue->queue(new LambdaContext(
-      [future, on_safe] (int r) mutable {
-        future.flush(on_safe);
-      }));
+    m_op_work_queue->queue(new LambdaContext([future, on_safe](int r) mutable {
+      future.flush(on_safe);
+    }));
   } else {
     on_safe->complete(0);
   }
 }
 
-void ObjectRecorder::flush(const ceph::ref_t<FutureImpl>& future) {
+void
+ObjectRecorder::flush(const ceph::ref_t<FutureImpl>& future)
+{
   ldout(m_cct, 20) << "flushing " << *future << dendl;
 
   std::unique_lock locker{*m_lock};
@@ -145,7 +164,9 @@ void ObjectRecorder::flush(const ceph::ref_t<FutureImpl>& future) {
   }
 }
 
-void ObjectRecorder::claim_append_buffers(AppendBuffers *append_buffers) {
+void
+ObjectRecorder::claim_append_buffers(AppendBuffers* append_buffers)
+{
   ldout(m_cct, 20) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(*m_lock));
@@ -157,11 +178,14 @@ void ObjectRecorder::claim_append_buffers(AppendBuffers *append_buffers) {
     ldout(m_cct, 20) << "detached " << *append_buffer.first << dendl;
     append_buffer.first->detach();
   }
-  append_buffers->splice(append_buffers->end(), m_pending_buffers,
-                         m_pending_buffers.begin(), m_pending_buffers.end());
+  append_buffers->splice(
+      append_buffers->end(), m_pending_buffers, m_pending_buffers.begin(),
+      m_pending_buffers.end());
 }
 
-bool ObjectRecorder::close() {
+bool
+ObjectRecorder::close()
+{
   ceph_assert(ceph_mutex_is_locked(*m_lock));
 
   ldout(m_cct, 20) << dendl;
@@ -179,7 +203,9 @@ bool ObjectRecorder::close() {
   return true;
 }
 
-void ObjectRecorder::handle_append_flushed(uint64_t tid, int r) {
+void
+ObjectRecorder::handle_append_flushed(uint64_t tid, int r)
+{
   ldout(m_cct, 20) << "tid=" << tid << ", r=" << r << dendl;
 
   std::unique_lock locker{*m_lock};
@@ -195,8 +221,8 @@ void ObjectRecorder::handle_append_flushed(uint64_t tid, int r) {
   bool notify_overflowed = false;
   AppendBuffers append_buffers;
   if (r == -EOVERFLOW) {
-    ldout(m_cct, 10) << "append overflowed: "
-                     << "idle=" << m_in_flight_tids.empty() << ", "
+    ldout(m_cct, 10) << "append overflowed: " << "idle="
+                     << m_in_flight_tids.empty() << ", "
                      << "previous_overflow=" << m_overflowed << dendl;
     if (m_in_flight_tids.empty()) {
       append_overflowed();
@@ -243,7 +269,9 @@ void ObjectRecorder::handle_append_flushed(uint64_t tid, int r) {
   notify_handler_unlock(locker, notify_overflowed);
 }
 
-void ObjectRecorder::append_overflowed() {
+void
+ObjectRecorder::append_overflowed()
+{
   ldout(m_cct, 10) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(*m_lock));
@@ -255,18 +283,19 @@ void ObjectRecorder::append_overflowed() {
   AppendBuffers restart_append_buffers;
   for (InFlightAppends::iterator it = in_flight_appends.begin();
        it != in_flight_appends.end(); ++it) {
-    restart_append_buffers.insert(restart_append_buffers.end(),
-                                  it->second.begin(), it->second.end());
+    restart_append_buffers.insert(
+        restart_append_buffers.end(), it->second.begin(), it->second.end());
   }
 
-  restart_append_buffers.splice(restart_append_buffers.end(),
-                                m_pending_buffers,
-                                m_pending_buffers.begin(),
-                                m_pending_buffers.end());
+  restart_append_buffers.splice(
+      restart_append_buffers.end(), m_pending_buffers,
+      m_pending_buffers.begin(), m_pending_buffers.end());
   restart_append_buffers.swap(m_pending_buffers);
 }
 
-bool ObjectRecorder::send_appends(bool force, ceph::ref_t<FutureImpl> flush_future) {
+bool
+ObjectRecorder::send_appends(bool force, ceph::ref_t<FutureImpl> flush_future)
+{
   ldout(m_cct, 20) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(*m_lock));
@@ -318,15 +347,17 @@ bool ObjectRecorder::send_appends(bool force, ceph::ref_t<FutureImpl> flush_futu
   size_t append_bytes = 0;
   AppendBuffers append_buffers;
   bufferlist append_bl;
-  for (auto it = m_pending_buffers.begin(); it != m_pending_buffers.end(); ) {
+  for (auto it = m_pending_buffers.begin(); it != m_pending_buffers.end();) {
     auto& future = it->first;
     auto& bl = it->second;
     auto size = m_object_bytes + m_in_flight_bytes + append_bytes + bl.length();
     if (size == m_soft_max_size) {
-      ldout(m_cct, 10) << "object at capacity (" << size << ") " << *future << dendl;
+      ldout(m_cct, 10) << "object at capacity (" << size << ") " << *future
+                       << dendl;
       m_overflowed = true;
     } else if (size > m_soft_max_size) {
-      ldout(m_cct, 10) << "object beyond capacity (" << size << ") " << *future << dendl;
+      ldout(m_cct, 10) << "object beyond capacity (" << size << ") " << *future
+                       << dendl;
       m_overflowed = true;
       break;
     }
@@ -368,7 +399,7 @@ bool ObjectRecorder::send_appends(bool force, ceph::ref_t<FutureImpl> flush_futu
     }
 
     auto rados_completion = librados::Rados::aio_create_completion(
-      new C_AppendFlush(this, append_tid), utils::rados_ctx_callback);
+        new C_AppendFlush(this, append_tid), utils::rados_ctx_callback);
     int r = m_ioctx.aio_operate(m_oid, rados_completion, &op);
     ceph_assert(r == 0);
     rados_completion->release();
@@ -381,7 +412,9 @@ bool ObjectRecorder::send_appends(bool force, ceph::ref_t<FutureImpl> flush_futu
   return m_overflowed;
 }
 
-void ObjectRecorder::wake_up_flushes() {
+void
+ObjectRecorder::wake_up_flushes()
+{
   ceph_assert(ceph_mutex_is_locked(*m_lock));
   --m_in_flight_callbacks;
   if (m_in_flight_callbacks == 0) {
@@ -389,8 +422,11 @@ void ObjectRecorder::wake_up_flushes() {
   }
 }
 
-void ObjectRecorder::notify_handler_unlock(
-    std::unique_lock<ceph::mutex>& locker, bool notify_overflowed) {
+void
+ObjectRecorder::notify_handler_unlock(
+    std::unique_lock<ceph::mutex>& locker,
+    bool notify_overflowed)
+{
   ceph_assert(ceph_mutex_is_locked(*m_lock));
   ceph_assert(m_in_flight_callbacks > 0);
 

@@ -4,18 +4,21 @@
 #ifndef CEPH_LIBRBD_JOURNAL_RESET_REQUEST_H
 #define CEPH_LIBRBD_JOURNAL_RESET_REQUEST_H
 
-#include "include/int_types.h"
+#include <string>
+
+#include "common/Timer.h"
 #include "include/buffer.h"
+#include "include/int_types.h"
 #include "include/rados/librados.hpp"
 #include "include/rbd/librbd.hpp"
 #include "librbd/journal/TypeTraits.h"
-#include "common/Timer.h"
-#include <string>
 
 class Context;
 class ContextWQ;
 
-namespace journal { class Journaler; }
+namespace journal {
+class Journaler;
+}
 
 namespace librbd {
 
@@ -23,26 +26,37 @@ class ImageCtx;
 
 namespace journal {
 
-template<typename ImageCtxT = ImageCtx>
+template <typename ImageCtxT = ImageCtx>
 class ResetRequest {
 public:
-  static ResetRequest *create(librados::IoCtx &io_ctx,
-                              const std::string &image_id,
-                              const std::string &client_id,
-                              const std::string &mirror_uuid,
-                              ContextWQ *op_work_queue, Context *on_finish) {
-    return new ResetRequest(io_ctx, image_id, client_id, mirror_uuid,
-                            op_work_queue, on_finish);
+  static ResetRequest*
+  create(
+      librados::IoCtx& io_ctx,
+      const std::string& image_id,
+      const std::string& client_id,
+      const std::string& mirror_uuid,
+      ContextWQ* op_work_queue,
+      Context* on_finish)
+  {
+    return new ResetRequest(
+        io_ctx, image_id, client_id, mirror_uuid, op_work_queue, on_finish);
   }
 
-  ResetRequest(librados::IoCtx &io_ctx, const std::string &image_id,
-               const std::string &client_id, const std::string &mirror_uuid,
-               ContextWQ *op_work_queue, Context *on_finish)
-    : m_io_ctx(io_ctx), m_image_id(image_id), m_client_id(client_id),
-      m_mirror_uuid(mirror_uuid), m_op_work_queue(op_work_queue),
-      m_on_finish(on_finish),
-      m_cct(reinterpret_cast<CephContext *>(m_io_ctx.cct())) {
-  }
+  ResetRequest(
+      librados::IoCtx& io_ctx,
+      const std::string& image_id,
+      const std::string& client_id,
+      const std::string& mirror_uuid,
+      ContextWQ* op_work_queue,
+      Context* on_finish) :
+    m_io_ctx(io_ctx),
+    m_image_id(image_id),
+    m_client_id(client_id),
+    m_mirror_uuid(mirror_uuid),
+    m_op_work_queue(op_work_queue),
+    m_on_finish(on_finish),
+    m_cct(reinterpret_cast<CephContext*>(m_io_ctx.cct()))
+  {}
 
   void send();
 
@@ -71,15 +85,15 @@ private:
    */
   typedef typename TypeTraits<ImageCtxT>::Journaler Journaler;
 
-  librados::IoCtx &m_io_ctx;
+  librados::IoCtx& m_io_ctx;
   std::string m_image_id;
   std::string m_client_id;
   std::string m_mirror_uuid;
-  ContextWQ *m_op_work_queue;
-  Context *m_on_finish;
+  ContextWQ* m_op_work_queue;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
-  Journaler *m_journaler = nullptr;
+  CephContext* m_cct;
+  Journaler* m_journaler = nullptr;
   int m_ret_val = 0;
 
   uint8_t m_order = 0;
@@ -99,7 +113,6 @@ private:
   void handle_create_journal(int r);
 
   void finish(int r);
-
 };
 
 } // namespace journal

@@ -23,49 +23,70 @@ public:
   version_t round = 0;
 
 protected:
-  MMonQuorumService(int type, int head)
-    : Message{type, head, 1}
+  MMonQuorumService(int type, int head) :
+    Message{type, head, 1}
   {}
+
   ~MMonQuorumService() override {}
 
 public:
-  void set_epoch(epoch_t e) {
+  void
+  set_epoch(epoch_t e)
+  {
     epoch = e;
   }
 
-  void set_round(version_t r) {
+  void
+  set_round(version_t r)
+  {
     round = r;
   }
 
-  epoch_t get_epoch() const {
+  epoch_t
+  get_epoch() const
+  {
     return epoch;
   }
 
-  version_t get_round() const {
+  version_t
+  get_round() const
+  {
     return round;
   }
 
-  void service_encode() {
+  void
+  service_encode()
+  {
     using ceph::encode;
     encode(epoch, payload);
     encode(round, payload);
   }
 
-  void service_decode(ceph::buffer::list::const_iterator &p) {
+  void
+  service_decode(ceph::buffer::list::const_iterator& p)
+  {
     using ceph::decode;
     decode(epoch, p);
     decode(round, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     ceph_abort_msg("MMonQuorumService message must always be a base class");
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     ceph_abort_msg("MMonQuorumService message must always be a base class");
   }
 
-  std::string_view get_type_name() const override { return "quorum_service"; }
+  std::string_view
+  get_type_name() const override
+  {
+    return "quorum_service";
+  }
 };
 
 #endif /* CEPH_MMON_QUORUM_SERVICE_H */

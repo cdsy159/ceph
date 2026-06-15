@@ -4,10 +4,10 @@
 #ifndef CEPH_TEST_RADOS_TESTCASE_H
 #define CEPH_TEST_RADOS_TESTCASE_H
 
-#include "include/rados/librados.h"
-#include "gtest/gtest.h"
-
 #include <string>
+
+#include "gtest/gtest.h"
+#include "include/rados/librados.h"
 
 /**
  * These test cases create a temporary pool that lives as long as the
@@ -20,8 +20,12 @@
  */
 class RadosTestNS : public ::testing::Test {
 public:
-  RadosTestNS(bool c=false) : cleanup(c) {}
+  RadosTestNS(bool c = false) :
+    cleanup(c)
+  {}
+
   ~RadosTestNS() override {}
+
 protected:
   static void SetUpTestCase();
   static void TearDownTestCase();
@@ -37,13 +41,19 @@ protected:
 };
 
 struct RadosTestNSCleanup : public RadosTestNS {
-  RadosTestNSCleanup() : RadosTestNS(true) {}
+  RadosTestNSCleanup() :
+    RadosTestNS(true)
+  {}
 };
 
 class RadosTestECNS : public RadosTestNS {
 public:
-  RadosTestECNS(bool c=false) : cleanup(c) {}
+  RadosTestECNS(bool c = false) :
+    cleanup(c)
+  {}
+
   ~RadosTestECNS() override {}
+
 protected:
   static void SetUpTestCase();
   static void TearDownTestCase();
@@ -52,14 +62,16 @@ protected:
 
   void SetUp() override;
   void TearDown() override;
-  rados_t cluster = nullptr; 
+  rados_t cluster = nullptr;
   rados_ioctx_t ioctx = nullptr;
   uint64_t alignment = 0;
   bool cleanup;
 };
 
 struct RadosTestECNSCleanup : public RadosTestECNS {
-  RadosTestECNSCleanup() : RadosTestECNS(true) {}
+  RadosTestECNSCleanup() :
+    RadosTestECNS(true)
+  {}
 };
 
 /**
@@ -72,8 +84,12 @@ struct RadosTestECNSCleanup : public RadosTestECNS {
  */
 class RadosTest : public ::testing::Test {
 public:
-  RadosTest(bool c=false) : cleanup(c) {}
+  RadosTest(bool c = false) :
+    cleanup(c)
+  {}
+
   ~RadosTest() override {}
+
 protected:
   static void SetUpTestCase();
   static void TearDownTestCase();
@@ -92,8 +108,12 @@ protected:
 
 class RadosTestEC : public RadosTest {
 public:
-  RadosTestEC(bool c=false) : cleanup(c) {}
+  RadosTestEC(bool c = false) :
+    cleanup(c)
+  {}
+
   ~RadosTestEC() override {}
+
 protected:
   static void SetUpTestCase();
   static void TearDownTestCase();
@@ -115,9 +135,10 @@ protected:
  * manually create a pool, start some long-runing tasks and
  * then the related pool is suddenly gone.
  */
-class RadosTestNP: public ::testing::Test {
+class RadosTestNP : public ::testing::Test {
 public:
   RadosTestNP() {}
+
   ~RadosTestNP() override {}
 };
 

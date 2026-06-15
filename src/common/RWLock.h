@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,25 +14,25 @@
  */
 
 
-
 #ifndef CEPH_RWLock_Posix__H
 #define CEPH_RWLock_Posix__H
 
 #include <pthread.h>
-#include <string>
-#include "include/ceph_assert.h"
-#include "acconfig.h"
-#include "lockdep.h"
-#include "common/valgrind.h"
 
 #include <atomic>
+#include <string>
 
-class RWLock final
-{
+#include "common/valgrind.h"
+#include "include/ceph_assert.h"
+
+#include "acconfig.h"
+#include "lockdep.h"
+
+class RWLock final {
   mutable pthread_rwlock_t L;
   std::string name;
   mutable int id;
-  mutable std::atomic<unsigned> nrlock = { 0 }, nwlock = { 0 };
+  mutable std::atomic<unsigned> nrlock = {0}, nwlock = {0};
   bool track, lockdep;
 
   std::string unique_name(const char* name) const;
@@ -41,9 +41,13 @@ public:
   RWLock(const RWLock& other) = delete;
   const RWLock& operator=(const RWLock& other) = delete;
 
-  RWLock(const std::string &n, bool track_lock=true, bool ld=true, bool prioritize_write=false)
-    : name(n), id(-1), track(track_lock),
-      lockdep(ld) {
+  RWLock(
+      const std::string& n,
+      bool track_lock = true,
+      bool ld = true,
+      bool prioritize_write = false) :
+    name(n), id(-1), track(track_lock), lockdep(ld)
+  {
 #if defined(HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP)
     if (prioritize_write) {
       pthread_rwlockattr_t attr;
@@ -51,12 +55,12 @@ public:
       // PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP
       //   Setting the lock kind to this avoids writer starvation as long as
       //   long as any read locking is not done in a recursive fashion.
-      pthread_rwlockattr_setkind_np(&attr,
-          PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+      pthread_rwlockattr_setkind_np(
+          &attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
       pthread_rwlock_init(&L, &attr);
       pthread_rwlockattr_destroy(&attr);
-    } else 
-#endif 
+    } else
+#endif
     // Next block is in {} to possibly connect to the above if when code is used.
     {
       pthread_rwlock_init(&L, NULL);
@@ -64,19 +68,26 @@ public:
     ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "RWLock lockdep id");
     ANNOTATE_BENIGN_RACE_SIZED(&nrlock, sizeof(nrlock), "RWlock nrlock");
     ANNOTATE_BENIGN_RACE_SIZED(&nwlock, sizeof(nwlock), "RWlock nwlock");
-    if (lockdep && g_lockdep) id = lockdep_register(name.c_str());
+    if (lockdep && g_lockdep)
+      id = lockdep_register(name.c_str());
   }
 
-  bool is_locked() const {
+  bool
+  is_locked() const
+  {
     ceph_assert(track);
     return (nrlock > 0) || (nwlock > 0);
   }
 
-  bool is_wlocked() const {
+  bool
+  is_wlocked() const
+  {
     ceph_assert(track);
     return (nwlock > 0);
   }
-  ~RWLock() {
+
+  ~RWLock()
+  {
     // The following check is racy but we are about to destroy
     // the object and we assume that there are no other users.
     if (track)
@@ -87,7 +98,9 @@ public:
     }
   }
 
-  void unlock(bool lockdep=true) const {
+  void
+  unlock(bool lockdep = true) const
+  {
     if (track) {
       if (nwlock > 0) {
         nwlock--;
@@ -103,34 +116,54 @@ public:
   }
 
   // read
-  void get_read() const {
-    if (lockdep && g_lockdep) id = lockdep_will_lock(name.c_str(), id);
+  void
+  get_read() const
+  {
+    if (lockdep && g_lockdep)
+      id = lockdep_will_lock(name.c_str(), id);
     int r = pthread_rwlock_rdlock(&L);
     ceph_assert(r == 0);
-    if (lockdep && g_lockdep) id = lockdep_locked(name.c_str(), id);
+    if (lockdep && g_lockdep)
+      id = lockdep_locked(name.c_str(), id);
     if (track)
       nrlock++;
   }
-  bool try_get_read() const {
+
+  bool
+  try_get_read() const
+  {
     if (pthread_rwlock_tryrdlock(&L) == 0) {
       if (track)
-         nrlock++;
-      if (lockdep && g_lockdep) id = lockdep_locked(name.c_str(), id);
+        nrlock++;
+      if (lockdep && g_lockdep)
+        id = lockdep_locked(name.c_str(), id);
       return true;
     }
     return false;
   }
-  void put_read() const {
+
+  void
+  put_read() const
+  {
     unlock();
   }
-  void lock_shared() {
+
+  void
+  lock_shared()
+  {
     get_read();
   }
-  void unlock_shared() {
+
+  void
+  unlock_shared()
+  {
     put_read();
   }
+
   // write
-  void get_write(bool lockdep=true) {
+  void
+  get_write(bool lockdep = true)
+  {
     if (lockdep && this->lockdep && g_lockdep)
       id = lockdep_will_lock(name.c_str(), id);
     int r = pthread_rwlock_wrlock(&L);
@@ -139,25 +172,36 @@ public:
       id = lockdep_locked(name.c_str(), id);
     if (track)
       nwlock++;
-
   }
-  bool try_get_write(bool lockdep=true) {
+
+  bool
+  try_get_write(bool lockdep = true)
+  {
     if (pthread_rwlock_trywrlock(&L) == 0) {
       if (lockdep && this->lockdep && g_lockdep)
-	id = lockdep_locked(name.c_str(), id);
+        id = lockdep_locked(name.c_str(), id);
       if (track)
-         nwlock++;
+        nwlock++;
       return true;
     }
     return false;
   }
-  void put_write() {
+
+  void
+  put_write()
+  {
     unlock();
   }
-  void lock() {
+
+  void
+  lock()
+  {
     get_write();
   }
-  void get(bool for_write) {
+
+  void
+  get(bool for_write)
+  {
     if (for_write) {
       get_write();
     } else {
@@ -167,21 +211,28 @@ public:
 
 public:
   class RLocker {
-    const RWLock &m_lock;
+    const RWLock& m_lock;
 
     bool locked;
 
   public:
-   explicit  RLocker(const RWLock& lock) : m_lock(lock) {
+    explicit RLocker(const RWLock& lock) :
+      m_lock(lock)
+    {
       m_lock.get_read();
       locked = true;
     }
-    void unlock() {
+
+    void
+    unlock()
+    {
       ceph_assert(locked);
       m_lock.unlock();
       locked = false;
     }
-    ~RLocker() {
+
+    ~RLocker()
+    {
       if (locked) {
         m_lock.unlock();
       }
@@ -189,21 +240,28 @@ public:
   };
 
   class WLocker {
-    RWLock &m_lock;
+    RWLock& m_lock;
 
     bool locked;
 
   public:
-    explicit WLocker(RWLock& lock) : m_lock(lock) {
+    explicit WLocker(RWLock& lock) :
+      m_lock(lock)
+    {
       m_lock.get_write();
       locked = true;
     }
-    void unlock() {
+
+    void
+    unlock()
+    {
       ceph_assert(locked);
       m_lock.unlock();
       locked = false;
     }
-    ~WLocker() {
+
+    ~WLocker()
+    {
       if (locked) {
         m_lock.unlock();
       }
@@ -224,49 +282,75 @@ public:
     LockState state;
 
   public:
-    explicit Context(RWLock& l) : lock(l), state(Untaken) {}
-    Context(RWLock& l, LockState s) : lock(l), state(s) {}
+    explicit Context(RWLock& l) :
+      lock(l), state(Untaken)
+    {}
 
-    void get_write() {
+    Context(RWLock& l, LockState s) :
+      lock(l), state(s)
+    {}
+
+    void
+    get_write()
+    {
       ceph_assert(state == Untaken);
 
       lock.get_write();
       state = TakenForWrite;
     }
 
-    void get_read() {
+    void
+    get_read()
+    {
       ceph_assert(state == Untaken);
 
       lock.get_read();
       state = TakenForRead;
     }
 
-    void unlock() {
+    void
+    unlock()
+    {
       ceph_assert(state != Untaken);
       lock.unlock();
       state = Untaken;
     }
 
-    void promote() {
+    void
+    promote()
+    {
       ceph_assert(state == TakenForRead);
       unlock();
       get_write();
     }
 
-    LockState get_state() { return state; }
-    void set_state(LockState s) {
+    LockState
+    get_state()
+    {
+      return state;
+    }
+
+    void
+    set_state(LockState s)
+    {
       state = s;
     }
 
-    bool is_locked() {
+    bool
+    is_locked()
+    {
       return (state != Untaken);
     }
 
-    bool is_rlocked() {
+    bool
+    is_rlocked()
+    {
       return (state == TakenForRead);
     }
 
-    bool is_wlocked() {
+    bool
+    is_wlocked()
+    {
       return (state == TakenForWrite);
     }
   };

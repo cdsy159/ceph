@@ -1,6 +1,8 @@
 #include "librados_util.h"
 
-uint8_t get_checksum_op_type(rados_checksum_type_t type) {
+uint8_t
+get_checksum_op_type(rados_checksum_type_t type)
+{
   switch (type) {
   case LIBRADOS_CHECKSUM_TYPE_XXHASH32:
     return CEPH_OSD_CHECKSUM_OP_TYPE_XXHASH32;
@@ -13,7 +15,8 @@ uint8_t get_checksum_op_type(rados_checksum_type_t type) {
   }
 }
 
-int get_op_flags(int flags)
+int
+get_op_flags(int flags)
 {
   int rados_flags = 0;
   if (flags & LIBRADOS_OP_FLAG_EXCL)
@@ -33,7 +36,8 @@ int get_op_flags(int flags)
   return rados_flags;
 }
 
-int translate_flags(int flags)
+int
+translate_flags(int flags)
 {
   int op_flags = 0;
   if (flags & librados::OPERATION_BALANCE_READS)

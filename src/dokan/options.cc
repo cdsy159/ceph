@@ -9,19 +9,19 @@
 */
 #include <regex>
 
-#include "include/compat.h"
+#include "common/ceph_argparse.h"
+#include "common/config.h"
+#include "common/win32/wstring.h"
+#include "global/global_init.h"
 #include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
 
 #include "ceph_dokan.h"
 #include "utils.h"
 
-#include "common/ceph_argparse.h"
-#include "common/config.h"
-#include "common/win32/wstring.h"
-
-#include "global/global_init.h"
-
-void print_usage() {
+void
+print_usage()
+{
   const char* usage_str = R"(
 Usage: ceph-dokan.exe -l <mountpoint>
                       map -l <mountpoint>    Map a CephFS filesystem
@@ -63,11 +63,12 @@ Common Options:
   generic_client_usage();
 }
 
-
-int parse_args(
-  std::vector<const char*>& args,
-  std::ostream *err_msg,
-  Command *command, Config *cfg)
+int
+parse_args(
+    std::vector<const char*>& args,
+    std::ostream* err_msg,
+    Command* command,
+    Config* cfg)
 {
   if (args.empty()) {
     std::cout << "ceph-dokan: -h or --help for usage" << std::endl;
@@ -77,7 +78,7 @@ int parse_args(
   std::string conf_file_list;
   std::string cluster;
   CephInitParameters iparams = ceph_argparse_early_args(
-    args, CEPH_ENTITY_TYPE_CLIENT, &cluster, &conf_file_list);
+      args, CEPH_ENTITY_TYPE_CLIENT, &cluster, &conf_file_list);
 
   ConfigProxy config{false};
   config->name = iparams.name;
@@ -101,40 +102,42 @@ int parse_args(
 
   int thread_count;
 
-  for (i = args.begin(); i != args.end(); ) {
+  for (i = args.begin(); i != args.end();) {
     if (ceph_argparse_flag(args, i, "-h", "--help", (char*)NULL)) {
       *command = Command::Help;
       return 0;
     } else if (ceph_argparse_flag(args, i, "-v", "--version", (char*)NULL)) {
       *command = Command::Version;
-    } else if (ceph_argparse_witharg(args, i, &mountpoint,
-                                     "--mountpoint", "-l", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &mountpoint, "--mountpoint", "-l", (char*)NULL)) {
       cfg->mountpoint = to_wstring(mountpoint);
-    } else if (ceph_argparse_witharg(args, i, &cfg->root_path,
-                                     "--root-path", "-x", (char *)NULL)) {
-    } else if (ceph_argparse_flag(args, i, "--debug", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &cfg->root_path, "--root-path", "-x", (char*)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--debug", (char*)NULL)) {
       cfg->debug = true;
-    } else if (ceph_argparse_flag(args, i, "--dokan-stderr", (char *)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--dokan-stderr", (char*)NULL)) {
       cfg->dokan_stderr = true;
-    } else if (ceph_argparse_flag(args, i, "--read-only", (char *)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--read-only", (char*)NULL)) {
       cfg->readonly = true;
-    } else if (ceph_argparse_flag(args, i, "--removable", (char *)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--removable", (char*)NULL)) {
       cfg->removable = true;
-    } else if (ceph_argparse_flag(args, i, "--win-mount-mgr", "-o", (char *)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--win-mount-mgr", "-o", (char*)NULL)) {
       cfg->use_win_mount_mgr = true;
-    } else if (ceph_argparse_witharg(args, i, &win_vol_name,
-                                     "--win-vol-name", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &win_vol_name, "--win-vol-name", (char*)NULL)) {
       cfg->win_vol_name = to_wstring(win_vol_name);
-    } else if (ceph_argparse_witharg(args, i, &win_vol_serial,
-                                     "--win-vol-serial", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &win_vol_serial, "--win-vol-serial", (char*)NULL)) {
       try {
         cfg->win_vol_serial = std::stoul(win_vol_serial);
       } catch (std::logic_error&) {
-        *err_msg << "ceph-dokan: invalid volume serial number: " << win_vol_serial;
+        *err_msg << "ceph-dokan: invalid volume serial number: "
+                 << win_vol_serial;
         return -EINVAL;
       }
-    } else if (ceph_argparse_witharg(args, i, &max_path_len,
-                                     "--max-path-len", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &max_path_len, "--max-path-len", (char*)NULL)) {
       unsigned long max_path_length = 0;
       try {
         max_path_length = std::stoul(max_path_len);
@@ -144,8 +147,8 @@ int parse_args(
       }
 
       if (max_path_length > 32767) {
-        *err_msg << "ceph-dokan: maximum path length should not "
-                 << "exceed " << 32767;
+        *err_msg << "ceph-dokan: maximum path length should not " << "exceed "
+                 << 32767;
         return -EINVAL;
       }
 
@@ -156,7 +159,8 @@ int parse_args(
       }
 
       cfg->max_path_len = max_path_length;
-    } else if (ceph_argparse_witharg(args, i, &file_mode, "--file-mode", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &file_mode, "--file-mode", (char*)NULL)) {
       mode_t mode;
       try {
         mode = std::stol(file_mode, nullptr, 8);
@@ -165,13 +169,14 @@ int parse_args(
         return -EINVAL;
       }
 
-      if (!std::regex_match(file_mode, std::regex("^[0-7]{3}$"))
-          || mode < 01 || mode > 0777) {
+      if (!std::regex_match(file_mode, std::regex("^[0-7]{3}$")) || mode < 01 ||
+          mode > 0777) {
         *err_msg << "ceph-dokan: invalid file access mode: " << file_mode;
         return -EINVAL;
       }
       cfg->file_mode = mode;
-    } else if (ceph_argparse_witharg(args, i, &dir_mode, "--dir-mode", (char *)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &dir_mode, "--dir-mode", (char*)NULL)) {
       mode_t mode;
       try {
         mode = std::stol(dir_mode, nullptr, 8);
@@ -179,20 +184,24 @@ int parse_args(
         *err_msg << "ceph-dokan: invalid directory access mode: " << dir_mode;
         return -EINVAL;
       }
-      if (!std::regex_match(dir_mode, std::regex("^[0-7]{3}$"))
-          || mode < 01 || mode > 0777) {
+      if (!std::regex_match(dir_mode, std::regex("^[0-7]{3}$")) || mode < 01 ||
+          mode > 0777) {
         *err_msg << "ceph-dokan: invalid directory access mode: " << dir_mode;
         return -EINVAL;
       }
       cfg->dir_mode = mode;
-    } else if (ceph_argparse_flag(args, i, "--current-session-only", (char *)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--current-session-only", (char*)NULL)) {
       cfg->current_session_only = true;
-    } else if (ceph_argparse_witharg(args, i, &thread_count,
-                                     err, "--thread-count", "-t", (char *)NULL)) {
-      std::cerr << "ceph-dokan: the thread count parameter is not supported by Dokany v2 "
+    } else if (ceph_argparse_witharg(
+                   args, i, &thread_count, err, "--thread-count", "-t",
+                   (char*)NULL)) {
+      std::cerr << "ceph-dokan: the thread count parameter is not supported by "
+                   "Dokany v2 "
                 << "and has been deprecated." << std::endl;
-    } else if (ceph_argparse_witharg(args, i, (int*)&cfg->operation_timeout,
-                                     err, "--operation-timeout", (char *)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, (int*)&cfg->operation_timeout, err,
+                   "--operation-timeout", (char*)NULL)) {
       if (!err.str().empty()) {
         *err_msg << "ceph-dokan: " << err.str();
         return -EINVAL;
@@ -201,9 +210,9 @@ int parse_args(
         *err_msg << "ceph-dokan: Invalid argument for operation-timeout";
         return -EINVAL;
       }
-    } else if (ceph_argparse_flag(args, i, "--case-insensitive", (char *)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--case-insensitive", (char*)NULL)) {
       cfg->case_sensitive = false;
-    } else if (ceph_argparse_flag(args, i, "--force-lowercase", (char *)NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--force-lowercase", (char*)NULL)) {
       cfg->convert_to_uppercase = false;
     } else {
       ++i;
@@ -227,7 +236,7 @@ int parse_args(
     } else if (strcmp(*args.begin(), "unmap") == 0) {
       cmd = Command::Unmap;
     } else {
-      *err_msg << "ceph-dokan: unknown command: " <<  *args.begin();
+      *err_msg << "ceph-dokan: unknown command: " << *args.begin();
       return -EINVAL;
     }
     args.erase(args.begin());
@@ -238,15 +247,15 @@ int parse_args(
   }
 
   switch (cmd) {
-    case Command::Map:
-    case Command::Unmap:
-      if (cfg->mountpoint.empty()) {
-        *err_msg << "ceph-dokan: missing mountpoint.";
-        return -EINVAL;
-      }
-      break;
-    default:
-      break;
+  case Command::Map:
+  case Command::Unmap:
+    if (cfg->mountpoint.empty()) {
+      *err_msg << "ceph-dokan: missing mountpoint.";
+      return -EINVAL;
+    }
+    break;
+  default:
+    break;
   }
 
   if (args.begin() != args.end()) {
@@ -258,7 +267,9 @@ int parse_args(
   return 0;
 }
 
-int set_dokan_options(Config *cfg, PDOKAN_OPTIONS dokan_options) {
+int
+set_dokan_options(Config* cfg, PDOKAN_OPTIONS dokan_options)
+{
   ZeroMemory(dokan_options, sizeof(DOKAN_OPTIONS));
   dokan_options->Version = DOKAN_VERSION;
   dokan_options->MountPoint = cfg->mountpoint.c_str();

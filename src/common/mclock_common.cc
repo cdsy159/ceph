@@ -13,10 +13,11 @@
  *
  */
 
-#include <memory>
-#include <functional>
-
 #include "mclock_common.h"
+
+#include <functional>
+#include <memory>
+
 #include "debug.h"
 
 #ifdef WITH_CRIMSON
@@ -32,7 +33,8 @@
 
 namespace dmc = crimson::dmclock;
 
-std::ostream &operator<<(std::ostream &lhs, const SchedulerClass &c)
+std::ostream&
+operator<<(std::ostream& lhs, const SchedulerClass& c)
 {
   lhs << static_cast<size_t>(c);
   switch (c) {
@@ -53,18 +55,19 @@ std::ostream &operator<<(std::ostream &lhs, const SchedulerClass &c)
   }
 }
 
-std::ostream& operator<<(std::ostream& out,
-                         const client_profile_id_t& client_profile) {
-    out << " client_id: " << client_profile.client_id
-        << " profile_id: " << client_profile.profile_id;
-    return out;
+std::ostream&
+operator<<(std::ostream& out, const client_profile_id_t& client_profile)
+{
+  out << " client_id: " << client_profile.client_id
+      << " profile_id: " << client_profile.profile_id;
+  return out;
 }
 
-std::ostream& operator<<(std::ostream& out,
-                         const scheduler_id_t& sched_id) {
-    out << "{ class_id: " << sched_id.class_id
-        << sched_id.client_profile_id;
-    return out << " }";
+std::ostream&
+operator<<(std::ostream& out, const scheduler_id_t& sched_id)
+{
+  out << "{ class_id: " << sched_id.class_id << sched_id.client_profile_id;
+  return out << " }";
 }
 
 /* ClientRegistry holds the dmclock::ClientInfo configuration parameters
@@ -81,8 +84,10 @@ std::ostream& operator<<(std::ostream& out,
  * for the osd_mclock_scheduler_client_* parameters prior to calling
  * update_from_config -- see set_config_defaults_from_profile().
  */
-void ClientRegistry::update_from_profile(const profile_t &current_profile,
-					 const double capacity_per_shard)
+void
+ClientRegistry::update_from_profile(
+    const profile_t& current_profile,
+    const double capacity_per_shard)
 {
 
   auto get_res = [&](double res) {
@@ -102,25 +107,25 @@ void ClientRegistry::update_from_profile(const profile_t &current_profile,
   };
 
   default_external_client_info.update(
-    get_res(current_profile.client.reservation),
-    current_profile.client.weight,
-    get_lim(current_profile.client.limit));
+      get_res(current_profile.client.reservation),
+      current_profile.client.weight, get_lim(current_profile.client.limit));
 
-  internal_client_infos[
-    static_cast<size_t>(SchedulerClass::background_recovery)].update(
-      get_res(current_profile.background_recovery.reservation),
-      current_profile.background_recovery.weight,
-      get_lim(current_profile.background_recovery.limit));
+  internal_client_infos[static_cast<size_t>(SchedulerClass::background_recovery)]
+      .update(
+          get_res(current_profile.background_recovery.reservation),
+          current_profile.background_recovery.weight,
+          get_lim(current_profile.background_recovery.limit));
 
-  internal_client_infos[
-    static_cast<size_t>(SchedulerClass::background_best_effort)].update(
-      get_res(current_profile.background_best_effort.reservation),
-      current_profile.background_best_effort.weight,
-      get_lim(current_profile.background_best_effort.limit));
+  internal_client_infos[static_cast<size_t>(
+                            SchedulerClass::background_best_effort)]
+      .update(
+          get_res(current_profile.background_best_effort.reservation),
+          current_profile.background_best_effort.weight,
+          get_lim(current_profile.background_best_effort.limit));
 }
 
-const dmc::ClientInfo *ClientRegistry::get_external_client(
-  const client_profile_id_t &client) const
+const dmc::ClientInfo*
+ClientRegistry::get_external_client(const client_profile_id_t& client) const
 {
   auto ret = external_client_infos.find(client);
   if (ret == external_client_infos.end())
@@ -129,8 +134,9 @@ const dmc::ClientInfo *ClientRegistry::get_external_client(
     return &(ret->second);
 }
 
-const dmc::ClientInfo *ClientRegistry::get_info(
-  const scheduler_id_t &id) const {
+const dmc::ClientInfo*
+ClientRegistry::get_info(const scheduler_id_t& id) const
+{
   switch (id.class_id) {
   case SchedulerClass::immediate:
     ceph_assert(0 == "Cannot schedule immediate");
@@ -143,17 +149,15 @@ const dmc::ClientInfo *ClientRegistry::get_info(
   }
 }
 
-static std::ostream &operator<<(
-  std::ostream &lhs, const profile_t::client_config_t &rhs)
+static std::ostream&
+operator<<(std::ostream& lhs, const profile_t::client_config_t& rhs)
 {
-  return lhs << "{res: " << rhs.reservation
-             << ", wgt: " << rhs.weight
-             << ", lim: " << rhs.limit
-             << "}";
+  return lhs << "{res: " << rhs.reservation << ", wgt: " << rhs.weight
+             << ", lim: " << rhs.limit << "}";
 }
 
-
-static std::ostream &operator<<(std::ostream &lhs, const profile_t &rhs)
+static std::ostream&
+operator<<(std::ostream& lhs, const profile_t& rhs)
 {
   return lhs << "[client: " << rhs.client
              << ", background_recovery: " << rhs.background_recovery
@@ -161,7 +165,8 @@ static std::ostream &operator<<(std::ostream &lhs, const profile_t &rhs)
              << "]";
 }
 
-void MclockConfig::set_from_config()
+void
+MclockConfig::set_from_config()
 {
   uint64_t osd_bandwidth_capacity;
   double osd_iop_capacity;
@@ -169,31 +174,29 @@ void MclockConfig::set_from_config()
   std::tie(osd_bandwidth_capacity, osd_iop_capacity) = [&] {
     if (is_rotational) {
       return std::make_tuple(
-        cct->_conf.get_val<Option::size_t>(
-          "osd_mclock_max_sequential_bandwidth_hdd"),
-        cct->_conf.get_val<double>("osd_mclock_max_capacity_iops_hdd"));
+          cct->_conf.get_val<Option::size_t>(
+              "osd_mclock_max_sequential_bandwidth_hdd"),
+          cct->_conf.get_val<double>("osd_mclock_max_capacity_iops_hdd"));
     } else {
       return std::make_tuple(
-        cct->_conf.get_val<Option::size_t>(
-          "osd_mclock_max_sequential_bandwidth_ssd"),
-        cct->_conf.get_val<double>("osd_mclock_max_capacity_iops_ssd"));
+          cct->_conf.get_val<Option::size_t>(
+              "osd_mclock_max_sequential_bandwidth_ssd"),
+          cct->_conf.get_val<double>("osd_mclock_max_capacity_iops_ssd"));
     }
   }();
 
   osd_bandwidth_capacity = std::max<uint64_t>(1, osd_bandwidth_capacity);
   osd_iop_capacity = std::max<double>(1.0, osd_iop_capacity);
 
-  osd_bandwidth_cost_per_io =
-    static_cast<double>(osd_bandwidth_capacity) / osd_iop_capacity;
+  osd_bandwidth_cost_per_io = static_cast<double>(osd_bandwidth_capacity) /
+                              osd_iop_capacity;
   osd_bandwidth_capacity_per_shard =
-    static_cast<double>(osd_bandwidth_capacity) /
-    static_cast<double>(num_shards);
-  dout(1) << __func__ << ": osd_bandwidth_cost_per_io: "
-          << std::fixed << std::setprecision(2)
-          << osd_bandwidth_cost_per_io << " bytes/io"
+      static_cast<double>(osd_bandwidth_capacity) /
+      static_cast<double>(num_shards);
+  dout(1) << __func__ << ": osd_bandwidth_cost_per_io: " << std::fixed
+          << std::setprecision(2) << osd_bandwidth_cost_per_io << " bytes/io"
           << ", osd_bandwidth_capacity_per_shard "
-          << osd_bandwidth_capacity_per_shard << " bytes/second"
-          << dendl;
+          << osd_bandwidth_capacity_per_shard << " bytes/second" << dendl;
 
   auto mclock_profile = cct->_conf.get_val<std::string>("osd_mclock_profile");
   if (mclock_profile == "high_client_ops") {
@@ -201,32 +204,28 @@ void MclockConfig::set_from_config()
     dout(10) << "Setting high_client_ops profile " << current_profile << dendl;
   } else if (mclock_profile == "high_recovery_ops") {
     current_profile = HIGH_RECOVERY_OPS;
-    dout(10) << "Setting high_recovery_ops profile " << current_profile << dendl;
+    dout(10) << "Setting high_recovery_ops profile " << current_profile
+             << dendl;
   } else if (mclock_profile == "balanced") {
     current_profile = BALANCED;
     dout(10) << "Setting balanced profile " << current_profile << dendl;
   } else if (mclock_profile == "custom") {
     current_profile = {
-      {
-	cct->_conf.get_val<double>("osd_mclock_scheduler_client_res"),
-	cct->_conf.get_val<uint64_t>("osd_mclock_scheduler_client_wgt"),
-	cct->_conf.get_val<double>("osd_mclock_scheduler_client_lim")
-      }, {
-	cct->_conf.get_val<double>(
-	  "osd_mclock_scheduler_background_recovery_res"),
-	cct->_conf.get_val<uint64_t>(
-	  "osd_mclock_scheduler_background_recovery_wgt"),
-	cct->_conf.get_val<double>(
-	  "osd_mclock_scheduler_background_recovery_lim")
-      }, {
-	cct->_conf.get_val<double>(
-	  "osd_mclock_scheduler_background_best_effort_res"),
-	cct->_conf.get_val<uint64_t>(
-	  "osd_mclock_scheduler_background_best_effort_wgt"),
-	cct->_conf.get_val<double>(
-	  "osd_mclock_scheduler_background_best_effort_lim")
-      }
-    };
+        {cct->_conf.get_val<double>("osd_mclock_scheduler_client_res"),
+         cct->_conf.get_val<uint64_t>("osd_mclock_scheduler_client_wgt"),
+         cct->_conf.get_val<double>("osd_mclock_scheduler_client_lim")},
+        {cct->_conf.get_val<double>(
+             "osd_mclock_scheduler_background_recovery_res"),
+         cct->_conf.get_val<uint64_t>(
+             "osd_mclock_scheduler_background_recovery_wgt"),
+         cct->_conf.get_val<double>(
+             "osd_mclock_scheduler_background_recovery_lim")},
+        {cct->_conf.get_val<double>(
+             "osd_mclock_scheduler_background_best_effort_res"),
+         cct->_conf.get_val<uint64_t>(
+             "osd_mclock_scheduler_background_best_effort_wgt"),
+         cct->_conf.get_val<double>(
+             "osd_mclock_scheduler_background_best_effort_lim")}};
     dout(10) << "Setting custom profile " << current_profile << dendl;
   } else {
     derr << "Invalid mclock profile: " << mclock_profile << dendl;
@@ -234,24 +233,31 @@ void MclockConfig::set_from_config()
     return;
   }
   client_registry.update_from_profile(
-    current_profile, osd_bandwidth_capacity_per_shard);
+      current_profile, osd_bandwidth_capacity_per_shard);
 }
 
-void MclockConfig::init_logger()
+void
+MclockConfig::init_logger()
 {
-  PerfCountersBuilder m(cct, "mclock-shard-queue-" + std::to_string(shard_id),
-                        l_mclock_first, l_mclock_last);
+  PerfCountersBuilder m(
+      cct, "mclock-shard-queue-" + std::to_string(shard_id), l_mclock_first,
+      l_mclock_last);
 
-  m.add_u64_counter(l_mclock_immediate_queue_len, "mclock_immediate_queue_len",
-                    "high_priority op count in mclock queue");
-  m.add_u64_counter(l_mclock_client_queue_len, "mclock_client_queue_len",
-                    "client type op count in mclock queue");
-  m.add_u64_counter(l_mclock_recovery_queue_len, "mclock_recovery_queue_len",
-                    "background_recovery type op count in mclock queue");
-  m.add_u64_counter(l_mclock_best_effort_queue_len, "mclock_best_effort_queue_len",
-                    "background_best_effort type op count in mclock queue");
-  m.add_u64_counter(l_mclock_all_type_queue_len, "mclock_all_type_queue_len",
-                    "all type op count in mclock queue");
+  m.add_u64_counter(
+      l_mclock_immediate_queue_len, "mclock_immediate_queue_len",
+      "high_priority op count in mclock queue");
+  m.add_u64_counter(
+      l_mclock_client_queue_len, "mclock_client_queue_len",
+      "client type op count in mclock queue");
+  m.add_u64_counter(
+      l_mclock_recovery_queue_len, "mclock_recovery_queue_len",
+      "background_recovery type op count in mclock queue");
+  m.add_u64_counter(
+      l_mclock_best_effort_queue_len, "mclock_best_effort_queue_len",
+      "background_best_effort type op count in mclock queue");
+  m.add_u64_counter(
+      l_mclock_all_type_queue_len, "mclock_all_type_queue_len",
+      "all type op count in mclock queue");
 
   logger = m.create_perf_counters();
   cct->get_perfcounters_collection()->add(logger);
@@ -263,7 +269,8 @@ void MclockConfig::init_logger()
   logger->set(l_mclock_all_type_queue_len, 0);
 }
 
-void MclockConfig::get_mclock_counter(scheduler_id_t id)
+void
+MclockConfig::get_mclock_counter(scheduler_id_t id)
 {
   if (!logger) {
     return;
@@ -285,14 +292,15 @@ void MclockConfig::get_mclock_counter(scheduler_id_t id)
   case SchedulerClass::background_best_effort:
     logger->inc(l_mclock_best_effort_queue_len);
     break;
-   default:
+  default:
     derr << __func__ << " unknown class_id=" << id.class_id
          << " unknown id=" << id << dendl;
     break;
   }
 }
 
-void MclockConfig::put_mclock_counter(scheduler_id_t id)
+void
+MclockConfig::put_mclock_counter(scheduler_id_t id)
 {
   if (!logger) {
     return;
@@ -314,25 +322,29 @@ void MclockConfig::put_mclock_counter(scheduler_id_t id)
   case SchedulerClass::background_best_effort:
     logger->dec(l_mclock_best_effort_queue_len);
     break;
-   default:
+  default:
     derr << __func__ << " unknown class_id=" << id.class_id
          << " unknown id=" << id << dendl;
     break;
   }
 }
 
-double MclockConfig::get_cost_per_io() const {
-    return osd_bandwidth_cost_per_io;
-}
-
-double MclockConfig::get_capacity_per_shard() const {
-    return  osd_bandwidth_capacity_per_shard;
-}
-
-uint32_t MclockConfig::calc_scaled_cost(int item_cost)
+double
+MclockConfig::get_cost_per_io() const
 {
-  auto cost = static_cast<uint32_t>(
-    std::max<int>(
+  return osd_bandwidth_cost_per_io;
+}
+
+double
+MclockConfig::get_capacity_per_shard() const
+{
+  return osd_bandwidth_capacity_per_shard;
+}
+
+uint32_t
+MclockConfig::calc_scaled_cost(int item_cost)
+{
+  auto cost = static_cast<uint32_t>(std::max<int>(
       1, // ensure cost is non-zero and positive
       item_cost));
   auto cost_per_io = static_cast<uint32_t>(osd_bandwidth_cost_per_io);
@@ -340,10 +352,12 @@ uint32_t MclockConfig::calc_scaled_cost(int item_cost)
   return std::max<uint32_t>(cost, cost_per_io);
 }
 
-void MclockConfig::handle_conf_change(const ConfigProxy& conf,
-				      const std::set<std::string> &changed)
+void
+MclockConfig::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
-  for (auto &key : get_tracked_keys()) {
+  for (auto& key : get_tracked_keys()) {
     if (changed.count(key)) {
       set_from_config();
       return;

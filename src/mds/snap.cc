@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,17 +14,20 @@
  */
 
 #include "snap.h"
-#include "common/Formatter.h"
 
 #include <ostream>
 #include <sstream>
 
+#include "common/Formatter.h"
+
 using namespace std;
+
 /*
  * SnapInfo
  */
 
-void SnapInfo::encode(bufferlist& bl) const
+void
+SnapInfo::encode(bufferlist& bl) const
 {
   ENCODE_START(4, 2, bl);
   encode(snapid, bl);
@@ -36,7 +39,8 @@ void SnapInfo::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void SnapInfo::decode(bufferlist::const_iterator& bl)
+void
+SnapInfo::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(4, 2, 2, bl);
   decode(snapid, bl);
@@ -52,20 +56,22 @@ void SnapInfo::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void SnapInfo::dump(Formatter *f) const
+void
+SnapInfo::dump(Formatter* f) const
 {
   f->dump_unsigned("snapid", snapid);
   f->dump_unsigned("ino", ino);
   f->dump_stream("stamp") << stamp;
   f->dump_string("name", name);
   f->open_object_section("metadata");
-  for (auto &[key, value] : metadata) {
+  for (auto& [key, value] : metadata) {
     f->dump_string(key, value);
   }
   f->close_section();
 }
 
-std::list<SnapInfo> SnapInfo::generate_test_instances()
+std::list<SnapInfo>
+SnapInfo::generate_test_instances()
 {
   std::list<SnapInfo> ls;
   ls.emplace_back();
@@ -78,18 +84,17 @@ std::list<SnapInfo> SnapInfo::generate_test_instances()
   return ls;
 }
 
-ostream& operator<<(ostream& out, const SnapInfo &sn)
+ostream&
+operator<<(ostream& out, const SnapInfo& sn)
 {
-  return out << "snap(" << sn.snapid
-	     << " " << sn.ino
-	     << " '" << sn.name
-	     << "' " << sn.stamp << ")";
+  return out << "snap(" << sn.snapid << " " << sn.ino << " '" << sn.name << "' "
+             << sn.stamp << ")";
 }
 
-std::string_view SnapInfo::get_long_name() const
+std::string_view
+SnapInfo::get_long_name() const
 {
-  if (long_name.empty() ||
-      long_name.compare(1, name.size(), name) ||
+  if (long_name.empty() || long_name.compare(1, name.size(), name) ||
       long_name.find_last_of("_") != name.size() + 1) {
     std::ostringstream oss;
     oss << "_" << name << "_" << (unsigned long long)ino;
@@ -102,7 +107,8 @@ std::string_view SnapInfo::get_long_name() const
  * snaplink_t
  */
 
-void snaplink_t::encode(bufferlist& bl) const
+void
+snaplink_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(ino, bl);
@@ -110,7 +116,8 @@ void snaplink_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void snaplink_t::decode(bufferlist::const_iterator& bl)
+void
+snaplink_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(ino, bl);
@@ -118,13 +125,15 @@ void snaplink_t::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void snaplink_t::dump(Formatter *f) const
+void
+snaplink_t::dump(Formatter* f) const
 {
   f->dump_unsigned("ino", ino);
   f->dump_unsigned("first", first);
 }
 
-std::list<snaplink_t> snaplink_t::generate_test_instances()
+std::list<snaplink_t>
+snaplink_t::generate_test_instances()
 {
   std::list<snaplink_t> ls;
   ls.emplace_back();
@@ -134,7 +143,8 @@ std::list<snaplink_t> snaplink_t::generate_test_instances()
   return ls;
 }
 
-ostream& operator<<(ostream& out, const snaplink_t &l)
+ostream&
+operator<<(ostream& out, const snaplink_t& l)
 {
   return out << l.ino << "@" << l.first;
 }
@@ -143,7 +153,8 @@ ostream& operator<<(ostream& out, const snaplink_t &l)
  * sr_t
  */
 
-void sr_t::encode(bufferlist& bl) const
+void
+sr_t::encode(bufferlist& bl) const
 {
   ENCODE_START(8, 4, bl);
   encode(seq, bl);
@@ -160,12 +171,15 @@ void sr_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void sr_t::decode(bufferlist::const_iterator& p)
+void
+sr_t::decode(bufferlist::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(6, 4, 4, p);
   if (struct_v == 2) {
     __u8 struct_v;
-    decode(struct_v, p);  // yes, really: extra byte for v2 encoding only, see 6ee52e7d.
+    decode(
+        struct_v,
+        p); // yes, really: extra byte for v2 encoding only, see 6ee52e7d.
   }
   decode(seq, p);
   decode(created, p);
@@ -198,7 +212,8 @@ void sr_t::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void sr_t::dump(Formatter *f) const
+void
+sr_t::dump(Formatter* f) const
 {
   f->dump_unsigned("seq", seq);
   f->dump_unsigned("created", created);
@@ -210,7 +225,8 @@ void sr_t::dump(Formatter *f) const
   f->dump_unsigned("current_parent_since", current_parent_since);
 
   f->open_array_section("snaps");
-  for (map<snapid_t,SnapInfo>::const_iterator p = snaps.begin(); p != snaps.end(); ++p) {
+  for (map<snapid_t, SnapInfo>::const_iterator p = snaps.begin();
+       p != snaps.end(); ++p) {
     f->open_object_section("snapinfo");
     f->dump_unsigned("last", p->first);
     p->second.dump(f);
@@ -219,7 +235,8 @@ void sr_t::dump(Formatter *f) const
   f->close_section();
 
   f->open_array_section("past_parents");
-  for (map<snapid_t,snaplink_t>::const_iterator p = past_parents.begin(); p != past_parents.end(); ++p) {
+  for (map<snapid_t, snaplink_t>::const_iterator p = past_parents.begin();
+       p != past_parents.end(); ++p) {
     f->open_object_section("past_parent");
     f->dump_unsigned("last", p->first);
     p->second.dump(f);
@@ -236,7 +253,8 @@ void sr_t::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<sr_t> sr_t::generate_test_instances()
+std::list<sr_t>
+sr_t::generate_test_instances()
 {
   std::list<sr_t> ls;
   ls.emplace_back();
@@ -260,11 +278,10 @@ std::list<sr_t> sr_t::generate_test_instances()
   return ls;
 }
 
-void sr_t::print(std::ostream& out) const {
-  out << "sr_t(seq=" << seq
-      << " created=" << created
+void
+sr_t::print(std::ostream& out) const
+{
+  out << "sr_t(seq=" << seq << " created=" << created
       << " last_created=" << last_created
-      << " last_destroyed=" << last_destroyed
-      << " flags=" << flags << ")";
+      << " last_destroyed=" << last_destroyed << " flags=" << flags << ")";
 }
-

@@ -2,32 +2,42 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "test/librados_test_stub/TestMemIoCtxImpl.h"
-#include "test/librados_test_stub/TestMemRadosClient.h"
-#include "common/Clock.h"
-#include "include/err.h"
-#include "include/types.h" // for operator<<(std::vector)
-#include <functional>
-#include <shared_mutex> // for std::shared_lock
-#include <boost/algorithm/string/predicate.hpp>
+
 #include <errno.h>
 #include <include/compat.h>
 
+#include <functional>
+#include <shared_mutex> // for std::shared_lock
+
+#include <boost/algorithm/string/predicate.hpp>
+
+#include "common/Clock.h"
+#include "include/err.h"
+#include "include/types.h" // for operator<<(std::vector)
+#include "test/librados_test_stub/TestMemRadosClient.h"
+
 #define dout_subsys ceph_subsys_rados
 #undef dout_prefix
-#define dout_prefix *_dout << "TestMemIoCtxImpl: " << this << " " << __func__ \
-                           << ": " << oid << " "
+#define dout_prefix                                                        \
+  *_dout << "TestMemIoCtxImpl: " << this << " " << __func__ << ": " << oid \
+         << " "
 
-static void to_vector(const interval_set<uint64_t> &set,
-                      std::vector<std::pair<uint64_t, uint64_t> > *vec) {
+static void
+to_vector(
+    const interval_set<uint64_t>& set,
+    std::vector<std::pair<uint64_t, uint64_t>>* vec)
+{
   vec->clear();
-  for (interval_set<uint64_t>::const_iterator it = set.begin();
-      it != set.end(); ++it) {
+  for (interval_set<uint64_t>::const_iterator it = set.begin(); it != set.end();
+       ++it) {
     vec->push_back(*it);
   }
 }
 
 // see PrimaryLogPG::finish_extent_cmp()
-static int cmpext_compare(const bufferlist &bl, const bufferlist &read_bl) {
+static int
+cmpext_compare(const bufferlist& bl, const bufferlist& read_bl)
+{
   for (uint64_t idx = 0; idx < bl.length(); ++idx) {
     char read_byte = (idx < read_bl.length() ? read_bl[idx] : 0);
     if (bl[idx] != read_byte) {
@@ -39,40 +49,50 @@ static int cmpext_compare(const bufferlist &bl, const bufferlist &read_bl) {
 
 namespace librados {
 
-TestMemIoCtxImpl::TestMemIoCtxImpl() {
-}
+TestMemIoCtxImpl::TestMemIoCtxImpl() {}
 
-TestMemIoCtxImpl::TestMemIoCtxImpl(const TestMemIoCtxImpl& rhs)
-    : TestIoCtxImpl(rhs), m_client(rhs.m_client), m_pool(rhs.m_pool) {
+TestMemIoCtxImpl::TestMemIoCtxImpl(const TestMemIoCtxImpl& rhs) :
+  TestIoCtxImpl(rhs), m_client(rhs.m_client), m_pool(rhs.m_pool)
+{
   m_pool->get();
 }
 
-TestMemIoCtxImpl::TestMemIoCtxImpl(TestMemRadosClient *client, int64_t pool_id,
-                                   const std::string& pool_name,
-                                   TestMemCluster::Pool *pool)
-    : TestIoCtxImpl(client, pool_id, pool_name), m_client(client),
-      m_pool(pool) {
+TestMemIoCtxImpl::TestMemIoCtxImpl(
+    TestMemRadosClient* client,
+    int64_t pool_id,
+    const std::string& pool_name,
+    TestMemCluster::Pool* pool) :
+  TestIoCtxImpl(client, pool_id, pool_name), m_client(client), m_pool(pool)
+{
   m_pool->get();
 }
 
-TestMemIoCtxImpl::~TestMemIoCtxImpl() {
-  m_pool->put();
-}
+TestMemIoCtxImpl::~TestMemIoCtxImpl() { m_pool->put(); }
 
-TestIoCtxImpl *TestMemIoCtxImpl::clone() {
+TestIoCtxImpl*
+TestMemIoCtxImpl::clone()
+{
   return new TestMemIoCtxImpl(*this);
 }
 
-int TestMemIoCtxImpl::aio_remove(const std::string& oid, AioCompletionImpl *c, int flags) {
-  m_client->add_aio_operation(oid, true,
-                              std::bind(&TestMemIoCtxImpl::remove, this, oid,
-					get_snap_context()),
-                              c);
+int
+TestMemIoCtxImpl::aio_remove(
+    const std::string& oid,
+    AioCompletionImpl* c,
+    int flags)
+{
+  m_client->add_aio_operation(
+      oid, true,
+      std::bind(&TestMemIoCtxImpl::remove, this, oid, get_snap_context()), c);
   return 0;
 }
 
-int TestMemIoCtxImpl::append(const std::string& oid, const bufferlist &bl,
-                             const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::append(
+    const std::string& oid,
+    const bufferlist& bl,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -95,7 +115,9 @@ int TestMemIoCtxImpl::append(const std::string& oid, const bufferlist &bl,
   return 0;
 }
 
-int TestMemIoCtxImpl::assert_exists(const std::string &oid, uint64_t snap_id) {
+int
+TestMemIoCtxImpl::assert_exists(const std::string& oid, uint64_t snap_id)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -108,7 +130,9 @@ int TestMemIoCtxImpl::assert_exists(const std::string &oid, uint64_t snap_id) {
   return 0;
 }
 
-int TestMemIoCtxImpl::assert_version(const std::string &oid, uint64_t ver) {
+int
+TestMemIoCtxImpl::assert_version(const std::string& oid, uint64_t ver)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -128,8 +152,12 @@ int TestMemIoCtxImpl::assert_version(const std::string &oid, uint64_t ver) {
   return 0;
 }
 
-int TestMemIoCtxImpl::create(const std::string& oid, bool exclusive,
-                             const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::create(
+    const std::string& oid,
+    bool exclusive,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -151,7 +179,9 @@ int TestMemIoCtxImpl::create(const std::string& oid, bool exclusive,
   return 0;
 }
 
-int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) {
+int
+TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t* out_snaps)
+{
   auto cct = m_client->cct();
   ldout(cct, 20) << dendl;
 
@@ -163,17 +193,17 @@ int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) 
   out_snaps->clones.clear();
 
   std::shared_lock l{m_pool->file_lock};
-  TestMemCluster::Files::iterator it = m_pool->files.find(
-    {get_namespace(), oid});
+  TestMemCluster::Files::iterator it =
+      m_pool->files.find({get_namespace(), oid});
   if (it == m_pool->files.end()) {
     return -ENOENT;
   }
 
   bool include_head = false;
-  TestMemCluster::FileSnapshots &file_snaps = it->second;
+  TestMemCluster::FileSnapshots& file_snaps = it->second;
   for (TestMemCluster::FileSnapshots::iterator s_it = file_snaps.begin();
        s_it != file_snaps.end(); ++s_it) {
-    TestMemCluster::File &file = *s_it->get();
+    TestMemCluster::File& file = *s_it->get();
 
     if (file_snaps.size() > 1) {
       out_snaps->seq = file.snap_id;
@@ -190,7 +220,7 @@ int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) 
       }
 
       // update the overlap with the next version's overlap metadata
-      TestMemCluster::File &next_file = *next_it->get();
+      TestMemCluster::File& next_file = *next_it->get();
       interval_set<uint64_t> overlap;
       if (next_file.exists) {
         overlap = next_file.snap_overlap;
@@ -206,10 +236,9 @@ int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) 
   }
 
   if ((file_snaps.size() == 1 && file_snaps.back()->data.length() > 0) ||
-      include_head)
-  {
+      include_head) {
     // Include the SNAP_HEAD
-    TestMemCluster::File &file = *file_snaps.back();
+    TestMemCluster::File& file = *file_snaps.back();
     if (file.exists) {
       std::shared_lock l2{file.lock};
       if (out_snaps->seq == 0 && !include_head) {
@@ -222,15 +251,12 @@ int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) 
     }
   }
 
-  ldout(cct, 20) << "seq=" << out_snaps->seq << ", "
-                 << "clones=[";
+  ldout(cct, 20) << "seq=" << out_snaps->seq << ", " << "clones=[";
   bool first_clone = true;
   for (auto& clone : out_snaps->clones) {
-    *_dout << "{"
-           << "cloneid=" << clone.cloneid << ", "
-           << "snaps=" << clone.snaps << ", "
-           << "overlap=" << clone.overlap << ", "
-           << "size=" << clone.size << "}";
+    *_dout << "{" << "cloneid=" << clone.cloneid << ", "
+           << "snaps=" << clone.snaps << ", " << "overlap=" << clone.overlap
+           << ", " << "size=" << clone.size << "}";
     if (!first_clone) {
       *_dout << ", ";
     } else {
@@ -239,15 +265,17 @@ int TestMemIoCtxImpl::list_snaps(const std::string& oid, snap_set_t *out_snaps) 
   }
   *_dout << "]" << dendl;
   return 0;
-
 }
 
-int TestMemIoCtxImpl::omap_get_vals2(const std::string& oid,
-                                    const std::string& start_after,
-                                    const std::string &filter_prefix,
-                                    uint64_t max_return,
-                                    std::map<std::string, bufferlist> *out_vals,
-                                    bool *pmore) {
+int
+TestMemIoCtxImpl::omap_get_vals2(
+    const std::string& oid,
+    const std::string& start_after,
+    const std::string& filter_prefix,
+    uint64_t max_return,
+    std::map<std::string, bufferlist>* out_vals,
+    bool* pmore)
+{
   if (out_vals == NULL) {
     return -EINVAL;
   } else if (m_client->is_blocklisted()) {
@@ -266,8 +294,8 @@ int TestMemIoCtxImpl::omap_get_vals2(const std::string& oid,
   out_vals->clear();
 
   std::shared_lock l{file->lock};
-  TestMemCluster::FileOMaps::iterator o_it = m_pool->file_omaps.find(
-    {get_namespace(), oid});
+  TestMemCluster::FileOMaps::iterator o_it =
+      m_pool->file_omaps.find({get_namespace(), oid});
   if (o_it == m_pool->file_omaps.end()) {
     if (pmore) {
       *pmore = false;
@@ -275,7 +303,7 @@ int TestMemIoCtxImpl::omap_get_vals2(const std::string& oid,
     return 0;
   }
 
-  TestMemCluster::OMap &omap = o_it->second;
+  TestMemCluster::OMap& omap = o_it->second;
   TestMemCluster::OMap::iterator it = omap.begin();
   if (!start_after.empty()) {
     it = omap.upper_bound(start_after);
@@ -295,16 +323,23 @@ int TestMemIoCtxImpl::omap_get_vals2(const std::string& oid,
   return 0;
 }
 
-int TestMemIoCtxImpl::omap_get_vals(const std::string& oid,
-                                    const std::string& start_after,
-                                    const std::string &filter_prefix,
-                                    uint64_t max_return,
-                                    std::map<std::string, bufferlist> *out_vals) {
-  return omap_get_vals2(oid, start_after, filter_prefix, max_return, out_vals, nullptr);
+int
+TestMemIoCtxImpl::omap_get_vals(
+    const std::string& oid,
+    const std::string& start_after,
+    const std::string& filter_prefix,
+    uint64_t max_return,
+    std::map<std::string, bufferlist>* out_vals)
+{
+  return omap_get_vals2(
+      oid, start_after, filter_prefix, max_return, out_vals, nullptr);
 }
 
-int TestMemIoCtxImpl::omap_rm_keys(const std::string& oid,
-                                   const std::set<std::string>& keys) {
+int
+TestMemIoCtxImpl::omap_rm_keys(
+    const std::string& oid,
+    const std::set<std::string>& keys)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -321,15 +356,18 @@ int TestMemIoCtxImpl::omap_rm_keys(const std::string& oid,
   }
 
   std::unique_lock l{file->lock};
-  for (std::set<std::string>::iterator it = keys.begin();
-       it != keys.end(); ++it) {
+  for (std::set<std::string>::iterator it = keys.begin(); it != keys.end();
+       ++it) {
     m_pool->file_omaps[{get_namespace(), oid}].erase(*it);
   }
   return 0;
 }
 
-int TestMemIoCtxImpl::omap_set(const std::string& oid,
-                               const std::map<std::string, bufferlist> &map) {
+int
+TestMemIoCtxImpl::omap_set(
+    const std::string& oid,
+    const std::map<std::string, bufferlist>& map)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -347,7 +385,7 @@ int TestMemIoCtxImpl::omap_set(const std::string& oid,
 
   std::unique_lock l{file->lock};
   for (std::map<std::string, bufferlist>::const_iterator it = map.begin();
-      it != map.end(); ++it) {
+       it != map.end(); ++it) {
     bufferlist bl;
     bl.append(it->second);
     m_pool->file_omaps[{get_namespace(), oid}][it->first] = bl;
@@ -356,9 +394,15 @@ int TestMemIoCtxImpl::omap_set(const std::string& oid,
   return 0;
 }
 
-int TestMemIoCtxImpl::read(const std::string& oid, size_t len, uint64_t off,
-                           bufferlist *bl, uint64_t snap_id,
-                           uint64_t* objver) {
+int
+TestMemIoCtxImpl::read(
+    const std::string& oid,
+    size_t len,
+    uint64_t off,
+    bufferlist* bl,
+    uint64_t snap_id,
+    uint64_t* objver)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -388,7 +432,9 @@ int TestMemIoCtxImpl::read(const std::string& oid, size_t len, uint64_t off,
   return len;
 }
 
-int TestMemIoCtxImpl::remove(const std::string& oid, const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::remove(const std::string& oid, const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -431,7 +477,9 @@ int TestMemIoCtxImpl::remove(const std::string& oid, const SnapContext &snapc) {
   return 0;
 }
 
-int TestMemIoCtxImpl::selfmanaged_snap_create(uint64_t *snapid) {
+int
+TestMemIoCtxImpl::selfmanaged_snap_create(uint64_t* snapid)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -442,14 +490,15 @@ int TestMemIoCtxImpl::selfmanaged_snap_create(uint64_t *snapid) {
   return 0;
 }
 
-int TestMemIoCtxImpl::selfmanaged_snap_remove(uint64_t snapid) {
+int
+TestMemIoCtxImpl::selfmanaged_snap_remove(uint64_t snapid)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
 
   std::unique_lock l{m_pool->file_lock};
-  TestMemCluster::SnapSeqs::iterator it =
-    m_pool->snap_seqs.find(snapid);
+  TestMemCluster::SnapSeqs::iterator it = m_pool->snap_seqs.find(snapid);
   if (it == m_pool->snap_seqs.end()) {
     return -ENOENT;
   }
@@ -459,8 +508,11 @@ int TestMemIoCtxImpl::selfmanaged_snap_remove(uint64_t snapid) {
   return 0;
 }
 
-int TestMemIoCtxImpl::selfmanaged_snap_rollback(const std::string& oid,
-                                                uint64_t snapid) {
+int
+TestMemIoCtxImpl::selfmanaged_snap_rollback(
+    const std::string& oid,
+    uint64_t snapid)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -468,18 +520,18 @@ int TestMemIoCtxImpl::selfmanaged_snap_rollback(const std::string& oid,
   std::unique_lock l{m_pool->file_lock};
 
   TestMemCluster::SharedFile file;
-  TestMemCluster::Files::iterator f_it = m_pool->files.find(
-    {get_namespace(), oid});
+  TestMemCluster::Files::iterator f_it =
+      m_pool->files.find({get_namespace(), oid});
   if (f_it == m_pool->files.end()) {
     return 0;
   }
 
-  TestMemCluster::FileSnapshots &snaps = f_it->second;
+  TestMemCluster::FileSnapshots& snaps = f_it->second;
   file = snaps.back();
 
   size_t versions = 0;
   for (TestMemCluster::FileSnapshots::reverse_iterator it = snaps.rbegin();
-      it != snaps.rend(); ++it) {
+       it != snaps.rend(); ++it) {
     TestMemCluster::SharedFile file = *it;
     if (file->snap_id < snapid) {
       if (versions == 0) {
@@ -491,13 +543,13 @@ int TestMemIoCtxImpl::selfmanaged_snap_rollback(const std::string& oid,
           snaps.erase(it.base());
         } else {
           // overwrite contents of current HEAD
-          file = TestMemCluster::SharedFile (new TestMemCluster::File(**it));
+          file = TestMemCluster::SharedFile(new TestMemCluster::File(**it));
           file->snap_id = CEPH_NOSNAP;
           *it = file;
         }
       } else {
         // create new head version
-        file = TestMemCluster::SharedFile (new TestMemCluster::File(**it));
+        file = TestMemCluster::SharedFile(new TestMemCluster::File(**it));
         file->snap_id = m_pool->snap_id;
         snaps.push_back(file);
       }
@@ -508,11 +560,14 @@ int TestMemIoCtxImpl::selfmanaged_snap_rollback(const std::string& oid,
   return 0;
 }
 
-int TestMemIoCtxImpl::set_alloc_hint(const std::string& oid,
-                                     uint64_t expected_object_size,
-                                     uint64_t expected_write_size,
-                                     uint32_t flags,
-                                     const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::set_alloc_hint(
+    const std::string& oid,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size,
+    uint32_t flags,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -527,10 +582,15 @@ int TestMemIoCtxImpl::set_alloc_hint(const std::string& oid,
   return 0;
 }
 
-int TestMemIoCtxImpl::sparse_read(const std::string& oid, uint64_t off,
-                                  uint64_t len,
-                                  std::map<uint64_t,uint64_t> *m,
-                                  bufferlist *data_bl, uint64_t snap_id) {
+int
+TestMemIoCtxImpl::sparse_read(
+    const std::string& oid,
+    uint64_t off,
+    uint64_t len,
+    std::map<uint64_t, uint64_t>* m,
+    bufferlist* data_bl,
+    uint64_t snap_id)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -562,8 +622,9 @@ int TestMemIoCtxImpl::sparse_read(const std::string& oid, uint64_t off,
   return len > 0 ? 1 : 0;
 }
 
-int TestMemIoCtxImpl::stat(const std::string& oid, uint64_t *psize,
-                           time_t *pmtime) {
+int
+TestMemIoCtxImpl::stat(const std::string& oid, uint64_t* psize, time_t* pmtime)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -587,8 +648,12 @@ int TestMemIoCtxImpl::stat(const std::string& oid, uint64_t *psize,
   return 0;
 }
 
-int TestMemIoCtxImpl::truncate(const std::string& oid, uint64_t size,
-                               const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::truncate(
+    const std::string& oid,
+    uint64_t size,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -628,8 +693,14 @@ int TestMemIoCtxImpl::truncate(const std::string& oid, uint64_t size,
   return 0;
 }
 
-int TestMemIoCtxImpl::write(const std::string& oid, bufferlist& bl, size_t len,
-                            uint64_t off, const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::write(
+    const std::string& oid,
+    bufferlist& bl,
+    size_t len,
+    uint64_t off,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -659,8 +730,12 @@ int TestMemIoCtxImpl::write(const std::string& oid, bufferlist& bl, size_t len,
   return 0;
 }
 
-int TestMemIoCtxImpl::write_full(const std::string& oid, bufferlist& bl,
-                                 const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::write_full(
+    const std::string& oid,
+    bufferlist& bl,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -693,9 +768,14 @@ int TestMemIoCtxImpl::write_full(const std::string& oid, bufferlist& bl,
   return 0;
 }
 
-int TestMemIoCtxImpl::writesame(const std::string& oid, bufferlist& bl,
-                                size_t len, uint64_t off,
-                                const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::writesame(
+    const std::string& oid,
+    bufferlist& bl,
+    size_t len,
+    uint64_t off,
+    const SnapContext& snapc)
+{
   if (get_snap_read() != CEPH_NOSNAP) {
     return -EROFS;
   } else if (m_client->is_blocklisted()) {
@@ -729,8 +809,13 @@ int TestMemIoCtxImpl::writesame(const std::string& oid, bufferlist& bl,
   return 0;
 }
 
-int TestMemIoCtxImpl::cmpext(const std::string& oid, uint64_t off,
-                             bufferlist& cmp_bl, uint64_t snap_id) {
+int
+TestMemIoCtxImpl::cmpext(
+    const std::string& oid,
+    uint64_t off,
+    bufferlist& cmp_bl,
+    uint64_t snap_id)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -757,16 +842,19 @@ int TestMemIoCtxImpl::cmpext(const std::string& oid, uint64_t off,
   return cmpext_compare(cmp_bl, read_bl);
 }
 
-int TestMemIoCtxImpl::xattr_get(const std::string& oid,
-                                std::map<std::string, bufferlist>* attrset) {
+int
+TestMemIoCtxImpl::xattr_get(
+    const std::string& oid,
+    std::map<std::string, bufferlist>* attrset)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
 
   TestMemCluster::SharedFile file;
   std::shared_lock l{m_pool->file_lock};
-  TestMemCluster::FileXAttrs::iterator it = m_pool->file_xattrs.find(
-    {get_namespace(), oid});
+  TestMemCluster::FileXAttrs::iterator it =
+      m_pool->file_xattrs.find({get_namespace(), oid});
   if (it == m_pool->file_xattrs.end()) {
     return -ENODATA;
   }
@@ -774,8 +862,12 @@ int TestMemIoCtxImpl::xattr_get(const std::string& oid,
   return 0;
 }
 
-int TestMemIoCtxImpl::xattr_set(const std::string& oid, const std::string &name,
-                                bufferlist& bl) {
+int
+TestMemIoCtxImpl::xattr_set(
+    const std::string& oid,
+    const std::string& name,
+    bufferlist& bl)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -785,8 +877,13 @@ int TestMemIoCtxImpl::xattr_set(const std::string& oid, const std::string &name,
   return 0;
 }
 
-int TestMemIoCtxImpl::zero(const std::string& oid, uint64_t off, uint64_t len,
-                           const SnapContext &snapc) {
+int
+TestMemIoCtxImpl::zero(
+    const std::string& oid,
+    uint64_t off,
+    uint64_t len,
+    const SnapContext& snapc)
+{
   if (m_client->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -820,7 +917,9 @@ int TestMemIoCtxImpl::zero(const std::string& oid, uint64_t off, uint64_t len,
   return write(oid, bl, len, off, snapc);
 }
 
-void TestMemIoCtxImpl::append_clone(bufferlist& src, bufferlist* dest) {
+void
+TestMemIoCtxImpl::append_clone(bufferlist& src, bufferlist* dest)
+{
   // deep-copy the src to ensure our memory-based mock RADOS data cannot
   // be modified by callers
   if (src.length() > 0) {
@@ -831,7 +930,9 @@ void TestMemIoCtxImpl::append_clone(bufferlist& src, bufferlist* dest) {
   }
 }
 
-size_t TestMemIoCtxImpl::clip_io(size_t off, size_t len, size_t bl_len) {
+size_t
+TestMemIoCtxImpl::clip_io(size_t off, size_t len, size_t bl_len)
+{
   if (off >= bl_len) {
     len = 0;
   } else if (off + len > bl_len) {
@@ -840,7 +941,9 @@ size_t TestMemIoCtxImpl::clip_io(size_t off, size_t len, size_t bl_len) {
   return len;
 }
 
-void TestMemIoCtxImpl::ensure_minimum_length(size_t len, bufferlist *bl) {
+void
+TestMemIoCtxImpl::ensure_minimum_length(size_t len, bufferlist* bl)
+{
   if (len > bl->length()) {
     bufferptr ptr(buffer::create(len - bl->length()));
     ptr.zero();
@@ -848,16 +951,21 @@ void TestMemIoCtxImpl::ensure_minimum_length(size_t len, bufferlist *bl) {
   }
 }
 
-TestMemCluster::SharedFile TestMemIoCtxImpl::get_file(
-    const std::string &oid, bool write, uint64_t snap_id,
-    const SnapContext &snapc) {
-  ceph_assert(ceph_mutex_is_locked(m_pool->file_lock) ||
-	      ceph_mutex_is_wlocked(m_pool->file_lock));
+TestMemCluster::SharedFile
+TestMemIoCtxImpl::get_file(
+    const std::string& oid,
+    bool write,
+    uint64_t snap_id,
+    const SnapContext& snapc)
+{
+  ceph_assert(
+      ceph_mutex_is_locked(m_pool->file_lock) ||
+      ceph_mutex_is_wlocked(m_pool->file_lock));
   ceph_assert(!write || ceph_mutex_is_wlocked(m_pool->file_lock));
 
   TestMemCluster::SharedFile file;
-  TestMemCluster::Files::iterator it = m_pool->files.find(
-    {get_namespace(), oid});
+  TestMemCluster::Files::iterator it =
+      m_pool->files.find({get_namespace(), oid});
   if (it != m_pool->files.end()) {
     file = it->second.back();
   } else if (!write) {
@@ -872,16 +980,15 @@ TestMemCluster::SharedFile TestMemIoCtxImpl::get_file(
     } else {
       if (!snapc.snaps.empty() && file->snap_id < snapc.seq) {
         for (std::vector<snapid_t>::const_reverse_iterator seq_it =
-            snapc.snaps.rbegin();
-            seq_it != snapc.snaps.rend(); ++seq_it) {
+                 snapc.snaps.rbegin();
+             seq_it != snapc.snaps.rend(); ++seq_it) {
           if (*seq_it > file->snap_id && *seq_it <= snapc.seq) {
             file->snaps.push_back(*seq_it);
           }
         }
 
         bufferlist prev_data = file->data;
-        file = TestMemCluster::SharedFile(
-          new TestMemCluster::File(*file));
+        file = TestMemCluster::SharedFile(new TestMemCluster::File(*file));
         file->data.clear();
         append_clone(prev_data, &file->data);
         if (prev_data.length() > 0) {
@@ -909,9 +1016,9 @@ TestMemCluster::SharedFile TestMemIoCtxImpl::get_file(
     return file;
   }
 
-  TestMemCluster::FileSnapshots &snaps = it->second;
+  TestMemCluster::FileSnapshots& snaps = it->second;
   for (TestMemCluster::FileSnapshots::reverse_iterator it = snaps.rbegin();
-      it != snaps.rend(); ++it) {
+       it != snaps.rend(); ++it) {
     TestMemCluster::SharedFile file = *it;
     if (file->snap_id < snap_id) {
       if (!file->exists) {

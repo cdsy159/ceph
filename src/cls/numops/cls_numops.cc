@@ -22,25 +22,28 @@
  *
  */
 
-#include "objclass/objclass.h"
 #include <errno.h>
-#include <iomanip>
-#include <string>
-#include <sstream>
-#include <cstdio>
 #include <include/compat.h>
+
+#include <cstdio>
+#include <iomanip>
+#include <sstream>
+#include <string>
+
+#include "objclass/objclass.h"
 
 #define DECIMAL_PRECISION 10
 
 using ceph::bufferlist;
-using std::string;
 using ceph::decode;
 using ceph::encode;
+using std::string;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(numops)
 
-static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+add(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   string key, diff_str;
 
@@ -48,12 +51,12 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   try {
     decode(key, iter);
     decode(diff_str, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_LOG(20, "add: invalid decode of input");
     return -EINVAL;
   }
 
-  char *end_ptr = 0;
+  char* end_ptr = 0;
   double difference = strtod(diff_str.c_str(), &end_ptr);
 
   if (end_ptr && *end_ptr != '\0') {
@@ -95,7 +98,8 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return cls_cxx_map_set_val(hctx, key, &new_value);
 }
 
-static int mul(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+mul(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   string key, diff_str;
 
@@ -103,12 +107,12 @@ static int mul(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   try {
     decode(key, iter);
     decode(diff_str, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_LOG(20, "mul: invalid decode of input");
     return -EINVAL;
   }
 
-  char *end_ptr = 0;
+  char* end_ptr = 0;
   double difference = strtod(diff_str.c_str(), &end_ptr);
 
   if (end_ptr && *end_ptr != '\0') {
@@ -160,11 +164,9 @@ CLS_INIT(numops)
 
   cls_register("numops", &h_class);
 
-  cls_register_cxx_method(h_class, "add",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          add, &h_add);
+  cls_register_cxx_method(
+      h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR, add, &h_add);
 
-  cls_register_cxx_method(h_class, "mul",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          mul, &h_mul);
+  cls_register_cxx_method(
+      h_class, "mul", CLS_METHOD_RD | CLS_METHOD_WR, mul, &h_mul);
 }

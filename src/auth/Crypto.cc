@@ -11,28 +11,29 @@
  * 
  */
 
-#include <array>
-#include <sstream>
-#include <limits>
-#include <fcntl.h>
-
-#include <openssl/aes.h>
-
 #include "Crypto.h"
 
-#include "include/ceph_assert.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <openssl/aes.h>
+
+#include <array>
+#include <limits>
+#include <sstream>
+
+#include "common/debug.h"
+
 #include "common/Clock.h"
+#include "common/Formatter.h"
 #include "common/armor.h"
 #include "common/ceph_context.h"
 #include "common/ceph_crypto.h"
 #include "common/hex.h"
 #include "common/safe_io.h"
+#include "include/ceph_assert.h"
 #include "include/ceph_fs.h"
 #include "include/compat.h"
 #include "include/intarith.h" // for p2align()
-#include "common/Formatter.h"
-#include "common/debug.h"
-#include <errno.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -54,7 +55,8 @@ using ceph::Formatter;
 
 #include <unistd.h>
 
-static bool getentropy_works()
+static bool
+getentropy_works()
 {
   char buf;
   auto ret = TEMP_FAILURE_RETRY(::getentropy(&buf, sizeof(buf)));
@@ -67,7 +69,8 @@ static bool getentropy_works()
   }
 }
 
-CryptoRandom::CryptoRandom() : fd(getentropy_works() ? -1 : open_urandom())
+CryptoRandom::CryptoRandom() :
+  fd(getentropy_works() ? -1 : open_urandom())
 {}
 
 CryptoRandom::~CryptoRandom()
@@ -77,7 +80,8 @@ CryptoRandom::~CryptoRandom()
   }
 }
 
-void CryptoRandom::get_bytes(char *buf, int len)
+void
+CryptoRandom::get_bytes(char* buf, int len)
 {
   ssize_t ret = 0;
   if (unlikely(fd >= 0)) {
@@ -96,16 +100,17 @@ void CryptoRandom::get_bytes(char *buf, int len)
 
 #include <bcrypt.h>
 
-CryptoRandom::CryptoRandom() : fd(0) {}
+CryptoRandom::CryptoRandom() :
+  fd(0)
+{}
+
 CryptoRandom::~CryptoRandom() = default;
 
-void CryptoRandom::get_bytes(char *buf, int len)
+void
+CryptoRandom::get_bytes(char* buf, int len)
 {
-  auto ret = BCryptGenRandom (
-    NULL,
-    (unsigned char*)buf,
-    len,
-    BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+  auto ret = BCryptGenRandom(
+      NULL, (unsigned char*)buf, len, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
   if (ret != 0) {
     throw std::system_error(ret, std::system_category());
   }
@@ -113,20 +118,18 @@ void CryptoRandom::get_bytes(char *buf, int len)
 
 #else // !HAVE_GETENTROPY && !_WIN32
 // open /dev/urandom once on construction and reuse the fd for all reads
-CryptoRandom::CryptoRandom()
-  : fd{open_urandom()}
+CryptoRandom::CryptoRandom() :
+  fd{open_urandom()}
 {
   if (fd < 0) {
     throw std::system_error(errno, std::system_category());
   }
 }
 
-CryptoRandom::~CryptoRandom()
-{
-  VOID_TEMP_FAILURE_RETRY(::close(fd));
-}
+CryptoRandom::~CryptoRandom() { VOID_TEMP_FAILURE_RETRY(::close(fd)); }
 
-void CryptoRandom::get_bytes(char *buf, int len)
+void
+CryptoRandom::get_bytes(char* buf, int len)
 {
   auto ret = safe_read_exact(fd, buf, len);
   if (ret < 0) {
@@ -136,9 +139,10 @@ void CryptoRandom::get_bytes(char *buf, int len)
 
 #endif
 
-int CryptoRandom::open_urandom()
+int
+CryptoRandom::open_urandom()
 {
-  int fd = TEMP_FAILURE_RETRY(::open("/dev/urandom", O_CLOEXEC|O_RDONLY));
+  int fd = TEMP_FAILURE_RETRY(::open("/dev/urandom", O_CLOEXEC | O_RDONLY));
   if (fd < 0) {
     throw std::system_error(errno, std::system_category());
   }
@@ -149,9 +153,10 @@ int CryptoRandom::open_urandom()
 // fallback implementation of the bufferlist-free
 // interface.
 
-std::size_t CryptoKeyHandler::encrypt(
-  const CryptoKeyHandler::in_slice_t& in,
-  const CryptoKeyHandler::out_slice_t& out) const
+std::size_t
+CryptoKeyHandler::encrypt(
+    const CryptoKeyHandler::in_slice_t& in,
+    const CryptoKeyHandler::out_slice_t& out) const
 {
   ceph::bufferptr inptr(reinterpret_cast<const char*>(in.buf), in.length);
   ceph::bufferlist plaintext;
@@ -166,16 +171,17 @@ std::size_t CryptoKeyHandler::encrypt(
 
   // we need to specify the template parameter explicitly as ::length()
   // returns unsigned int, not size_t.
-  const auto todo_len = \
-    std::min<std::size_t>(ciphertext.length(), out.max_length);
+  const auto todo_len =
+      std::min<std::size_t>(ciphertext.length(), out.max_length);
   memcpy(out.buf, ciphertext.c_str(), todo_len);
 
   return todo_len;
 }
 
-std::size_t CryptoKeyHandler::decrypt(
-  const CryptoKeyHandler::in_slice_t& in,
-  const CryptoKeyHandler::out_slice_t& out) const
+std::size_t
+CryptoKeyHandler::decrypt(
+    const CryptoKeyHandler::in_slice_t& in,
+    const CryptoKeyHandler::out_slice_t& out) const
 {
   ceph::bufferptr inptr(reinterpret_cast<const char*>(in.buf), in.length);
   ceph::bufferlist ciphertext;
@@ -190,20 +196,21 @@ std::size_t CryptoKeyHandler::decrypt(
 
   // we need to specify the template parameter explicitly as ::length()
   // returns unsigned int, not size_t.
-  const auto todo_len = \
-    std::min<std::size_t>(plaintext.length(), out.max_length);
+  const auto todo_len =
+      std::min<std::size_t>(plaintext.length(), out.max_length);
   memcpy(out.buf, plaintext.c_str(), todo_len);
 
   return todo_len;
 }
 
-sha256_digest_t CryptoKeyHandler::hmac_sha256(
-  const ceph::bufferlist& in) const
+sha256_digest_t
+CryptoKeyHandler::hmac_sha256(const ceph::bufferlist& in) const
 {
-  TOPNSPC::crypto::HMACSHA256 hmac((const unsigned char*)secret.c_str(), secret.length());
+  TOPNSPC::crypto::HMACSHA256 hmac(
+      (const unsigned char*)secret.c_str(), secret.length());
 
   for (const auto& bptr : in.buffers()) {
-    hmac.Update((const unsigned char *)bptr.c_str(), bptr.length());
+    hmac.Update((const unsigned char*)bptr.c_str(), bptr.length());
   }
   sha256_digest_t ret;
   hmac.Final(ret.v);
@@ -215,20 +222,23 @@ sha256_digest_t CryptoKeyHandler::hmac_sha256(
 
 class CryptoNoneKeyHandler : public CryptoKeyHandler {
 public:
-  CryptoNoneKeyHandler()
-    : CryptoKeyHandler(CryptoKeyHandler::BLOCK_SIZE_0B()) {
-  }
+  CryptoNoneKeyHandler() :
+    CryptoKeyHandler(CryptoKeyHandler::BLOCK_SIZE_0B())
+  {}
 
-  using CryptoKeyHandler::encrypt;
   using CryptoKeyHandler::decrypt;
+  using CryptoKeyHandler::encrypt;
 
-  int encrypt(const bufferlist& in,
-	       bufferlist& out, std::string *error) const override {
+  int
+  encrypt(const bufferlist& in, bufferlist& out, std::string* error) const override
+  {
     out = in;
     return 0;
   }
-  int decrypt(const bufferlist& in,
-	      bufferlist& out, std::string *error) const override {
+
+  int
+  decrypt(const bufferlist& in, bufferlist& out, std::string* error) const override
+  {
     out = in;
     return 0;
   }
@@ -236,36 +246,55 @@ public:
 
 class CryptoNone : public CryptoHandler {
 public:
-  CryptoNone() { }
+  CryptoNone() {}
+
   ~CryptoNone() override {}
-  int get_type() const override {
+
+  int
+  get_type() const override
+  {
     return CEPH_CRYPTO_NONE;
   }
-  int create(CryptoRandom *random, bufferptr& secret) override {
+
+  int
+  create(CryptoRandom* random, bufferptr& secret) override
+  {
     return 0;
   }
-  int validate_secret(const bufferptr& secret) override {
+
+  int
+  validate_secret(const bufferptr& secret) override
+  {
     return 0;
   }
-  CryptoKeyHandler *get_key_handler(const bufferptr& secret, string& error) override {
+
+  CryptoKeyHandler*
+  get_key_handler(const bufferptr& secret, string& error) override
+  {
     return new CryptoNoneKeyHandler;
   }
 };
-
 
 // ---------------------------------------------------
 
 
 class CryptoAES : public CryptoHandler {
 public:
-  CryptoAES() { }
+  CryptoAES() {}
+
   ~CryptoAES() override {}
-  int get_type() const override {
+
+  int
+  get_type() const override
+  {
     return CEPH_CRYPTO_AES;
   }
-  int create(CryptoRandom *random, bufferptr& secret) override;
+
+  int create(CryptoRandom* random, bufferptr& secret) override;
   int validate_secret(const bufferptr& secret) override;
-  CryptoKeyHandler *get_key_handler(const bufferptr& secret, string& error) override;
+  CryptoKeyHandler* get_key_handler(
+      const bufferptr& secret,
+      string& error) override;
 };
 
 // when we say AES, we mean AES-128
@@ -277,24 +306,24 @@ class CryptoAESKeyHandler : public CryptoKeyHandler {
   AES_KEY dec_key;
 
 public:
-  CryptoAESKeyHandler()
-    : CryptoKeyHandler(CryptoKeyHandler::BLOCK_SIZE_16B()) {
-  }
+  CryptoAESKeyHandler() :
+    CryptoKeyHandler(CryptoKeyHandler::BLOCK_SIZE_16B())
+  {}
 
-  int init(const bufferptr& s, ostringstream& err) {
+  int
+  init(const bufferptr& s, ostringstream& err)
+  {
     secret = s;
 
-    const int enc_key_ret = \
-      AES_set_encrypt_key((const unsigned char*)secret.c_str(),
-			  AES_KEY_LEN * CHAR_BIT, &enc_key);
+    const int enc_key_ret = AES_set_encrypt_key(
+        (const unsigned char*)secret.c_str(), AES_KEY_LEN * CHAR_BIT, &enc_key);
     if (enc_key_ret != 0) {
       err << "cannot set OpenSSL encrypt key for AES: " << enc_key_ret;
       return -1;
     }
 
-    const int dec_key_ret = \
-      AES_set_decrypt_key((const unsigned char*)secret.c_str(),
-			  AES_KEY_LEN * CHAR_BIT, &dec_key);
+    const int dec_key_ret = AES_set_decrypt_key(
+        (const unsigned char*)secret.c_str(), AES_KEY_LEN * CHAR_BIT, &dec_key);
     if (dec_key_ret != 0) {
       err << "cannot set OpenSSL decrypt key for AES: " << dec_key_ret;
       return -1;
@@ -303,9 +332,12 @@ public:
     return 0;
   }
 
-  int encrypt(const ceph::bufferlist& in,
-	      ceph::bufferlist& out,
-              std::string* /* unused */) const override {
+  int
+  encrypt(
+      const ceph::bufferlist& in,
+      ceph::bufferlist& out,
+      std::string* /* unused */) const override
+  {
     // we need to take into account the PKCS#7 padding. There *always* will
     // be at least one byte of padding. This stays even to input aligned to
     // AES_BLOCK_LEN. Otherwise we would face ambiguities during decryption.
@@ -313,7 +345,7 @@ public:
     //   16 + p2align(10, 16) -> 16
     //   16 + p2align(16, 16) -> 32 including 16 bytes for padding.
     ceph::bufferptr out_tmp{static_cast<unsigned>(
-      AES_BLOCK_LEN + p2align<std::size_t>(in.length(), AES_BLOCK_LEN))};
+        AES_BLOCK_LEN + p2align<std::size_t>(in.length(), AES_BLOCK_LEN))};
 
     // let's pad the data
     std::uint8_t pad_len = out_tmp.length() - in.length();
@@ -338,16 +370,20 @@ public:
     // shows the cost is quite high. Endianness might be an issue.
     // However, as they would affect Cephx, any fallout should pop up
     // rather early, hopefully.
-    AES_cbc_encrypt(in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
-		    out_tmp.length(), &enc_key, iv, AES_ENCRYPT);
+    AES_cbc_encrypt(
+        in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
+        out_tmp.length(), &enc_key, iv, AES_ENCRYPT);
 
     out.append(out_tmp);
     return 0;
   }
 
-  int decrypt(const ceph::bufferlist& in,
-	      ceph::bufferlist& out,
-	      std::string* /* unused */) const override {
+  int
+  decrypt(
+      const ceph::bufferlist& in,
+      ceph::bufferlist& out,
+      std::string* /* unused */) const override
+  {
     // PKCS#7 padding enlarges even empty plain-text to take 16 bytes.
     if (in.length() < AES_BLOCK_LEN || in.length() % AES_BLOCK_LEN) {
       return -1;
@@ -363,22 +399,24 @@ public:
     memcpy(iv, CEPH_AES_IV, AES_BLOCK_LEN);
 
     ceph::bufferptr out_tmp{in.length()};
-    AES_cbc_encrypt(in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
-		    in.length(), &dec_key, iv, AES_DECRYPT);
+    AES_cbc_encrypt(
+        in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()), in.length(),
+        &dec_key, iv, AES_DECRYPT);
 
     // BE CAREFUL: we cannot expose any single bit of information about
     // the cause of failure. Otherwise we'll face padding oracle attack.
     // See: https://en.wikipedia.org/wiki/Padding_oracle_attack.
-    const auto pad_len = \
-      std::min<std::uint8_t>(out_tmp[in.length() - 1], AES_BLOCK_LEN);
+    const auto pad_len =
+        std::min<std::uint8_t>(out_tmp[in.length() - 1], AES_BLOCK_LEN);
     out_tmp.set_length(in.length() - pad_len);
     out.append(std::move(out_tmp));
 
     return 0;
   }
 
-  std::size_t encrypt(const in_slice_t& in,
-		      const out_slice_t& out) const override {
+  std::size_t
+  encrypt(const in_slice_t& in, const out_slice_t& out) const override
+  {
     if (out.buf == nullptr) {
       // 16 + p2align(10, 16) -> 16
       // 16 + p2align(16, 16) -> 32
@@ -405,21 +443,23 @@ public:
     std::array<unsigned char, AES_BLOCK_LEN> iv;
     memcpy(iv.data(), CEPH_AES_IV, AES_BLOCK_LEN);
 
-    const std::size_t main_encrypt_size = \
-      std::min(in.length - tail_len, out.max_length);
-    AES_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(),
-		    AES_ENCRYPT);
+    const std::size_t main_encrypt_size =
+        std::min(in.length - tail_len, out.max_length);
+    AES_cbc_encrypt(
+        in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
 
-    const std::size_t tail_encrypt_size = \
-      std::min(AES_BLOCK_LEN, out.max_length - main_encrypt_size);
-    AES_cbc_encrypt(last_block.data(), out.buf + main_encrypt_size,
-		    tail_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
+    const std::size_t tail_encrypt_size =
+        std::min(AES_BLOCK_LEN, out.max_length - main_encrypt_size);
+    AES_cbc_encrypt(
+        last_block.data(), out.buf + main_encrypt_size, tail_encrypt_size,
+        &enc_key, iv.data(), AES_ENCRYPT);
 
     return main_encrypt_size + tail_encrypt_size;
   }
 
-  std::size_t decrypt(const in_slice_t& in,
-		      const out_slice_t& out) const override {
+  std::size_t
+  decrypt(const in_slice_t& in, const out_slice_t& out) const override
+  {
     if (in.length % AES_BLOCK_LEN != 0 || in.length < AES_BLOCK_LEN) {
       throw std::runtime_error("input not aligned to AES_BLOCK_LEN");
     } else if (out.buf == nullptr) {
@@ -435,22 +475,22 @@ public:
     std::array<unsigned char, AES_BLOCK_LEN> iv;
     memcpy(iv.data(), CEPH_AES_IV, AES_BLOCK_LEN);
 
-    AES_cbc_encrypt(in.buf, out.buf, in.length, &dec_key, iv.data(),
-		    AES_DECRYPT);
+    AES_cbc_encrypt(
+        in.buf, out.buf, in.length, &dec_key, iv.data(), AES_DECRYPT);
 
     // NOTE: we aren't handling partial decrypt. PKCS#7 padding must be
     // at the end. If it's malformed, don't say a word to avoid risk of
     // having an oracle. All we need to ensure is valid buffer boundary.
-    const auto pad_len = \
-      std::min<std::uint8_t>(out.buf[in.length - 1], AES_BLOCK_LEN);
+    const auto pad_len =
+        std::min<std::uint8_t>(out.buf[in.length - 1], AES_BLOCK_LEN);
     return in.length - pad_len;
   }
 };
 
-
 // ------------------------------------------------------------
 
-int CryptoAES::create(CryptoRandom *random, bufferptr& secret)
+int
+CryptoAES::create(CryptoRandom* random, bufferptr& secret)
 {
   bufferptr buf(AES_KEY_LEN);
   random->get_bytes(buf.c_str(), buf.length());
@@ -458,7 +498,8 @@ int CryptoAES::create(CryptoRandom *random, bufferptr& secret)
   return 0;
 }
 
-int CryptoAES::validate_secret(const bufferptr& secret)
+int
+CryptoAES::validate_secret(const bufferptr& secret)
 {
   if (secret.length() < AES_KEY_LEN) {
     return -EINVAL;
@@ -467,10 +508,10 @@ int CryptoAES::validate_secret(const bufferptr& secret)
   return 0;
 }
 
-CryptoKeyHandler *CryptoAES::get_key_handler(const bufferptr& secret,
-					     string& error)
+CryptoKeyHandler*
+CryptoAES::get_key_handler(const bufferptr& secret, string& error)
 {
-  CryptoAESKeyHandler *ckh = new CryptoAESKeyHandler;
+  CryptoAESKeyHandler* ckh = new CryptoAESKeyHandler;
   ostringstream oss;
   if (ckh->init(secret, oss) < 0) {
     error = oss.str();
@@ -480,16 +521,14 @@ CryptoKeyHandler *CryptoAES::get_key_handler(const bufferptr& secret,
   return ckh;
 }
 
-
-
-
 // --
 
 
 // ---------------------------------------------------
 
 
-void CryptoKey::encode(bufferlist& bl) const
+void
+CryptoKey::encode(bufferlist& bl) const
 {
   using ceph::encode;
   encode(type, bl);
@@ -499,7 +538,8 @@ void CryptoKey::encode(bufferlist& bl) const
   bl.append(secret);
 }
 
-void CryptoKey::decode(bufferlist::const_iterator& bl)
+void
+CryptoKey::decode(bufferlist::const_iterator& bl)
 {
   using ceph::decode;
   decode(type, bl);
@@ -512,26 +552,29 @@ void CryptoKey::decode(bufferlist::const_iterator& bl)
     throw ceph::buffer::malformed_input("malformed secret");
 }
 
-void CryptoKey::dump(Formatter *f) const
+void
+CryptoKey::dump(Formatter* f) const
 {
   f->dump_int("type", type);
   f->dump_stream("created") << created;
   f->dump_int("secret.length", secret.length());
 }
 
-std::list<CryptoKey> CryptoKey::generate_test_instances()
+std::list<CryptoKey>
+CryptoKey::generate_test_instances()
 {
   std::list<CryptoKey> ls;
   ls.emplace_back();
   ls.emplace_back();
   ls.back().type = CEPH_CRYPTO_AES;
   ls.back().set_secret(
-    CEPH_CRYPTO_AES, bufferptr("1234567890123456", 16), utime_t(123, 456));
+      CEPH_CRYPTO_AES, bufferptr("1234567890123456", 16), utime_t(123, 456));
   ls.back().created = utime_t(123, 456);
   return ls;
 }
 
-int CryptoKey::set_secret(int type, const bufferptr& s, utime_t c)
+int
+CryptoKey::set_secret(int type, const bufferptr& s, utime_t c)
 {
   int r = _set_secret(type, s);
   if (r < 0)
@@ -540,7 +583,8 @@ int CryptoKey::set_secret(int type, const bufferptr& s, utime_t c)
   return 0;
 }
 
-int CryptoKey::_set_secret(int t, const bufferptr& s)
+int
+CryptoKey::_set_secret(int t, const bufferptr& s)
 {
   if (s.length() == 0) {
     secret = s;
@@ -548,7 +592,7 @@ int CryptoKey::_set_secret(int t, const bufferptr& s)
     return 0;
   }
 
-  CryptoHandler *ch = CryptoHandler::create(t);
+  CryptoHandler* ch = CryptoHandler::create(t);
   if (ch) {
     int ret = ch->validate_secret(s);
     if (ret < 0) {
@@ -562,19 +606,21 @@ int CryptoKey::_set_secret(int t, const bufferptr& s)
       return -EIO;
     }
   } else {
-      return -EOPNOTSUPP;
+    return -EOPNOTSUPP;
   }
   type = t;
   secret = s;
   return 0;
 }
 
-int CryptoKey::create(CephContext *cct, int t)
+int
+CryptoKey::create(CephContext* cct, int t)
 {
-  CryptoHandler *ch = CryptoHandler::create(t);
+  CryptoHandler* ch = CryptoHandler::create(t);
   if (!ch) {
     if (cct)
-      lderr(cct) << "ERROR: cct->get_crypto_handler(type=" << t << ") returned NULL" << dendl;
+      lderr(cct) << "ERROR: cct->get_crypto_handler(type=" << t
+                 << ") returned NULL" << dendl;
     return -EOPNOTSUPP;
   }
   bufferptr s;
@@ -590,12 +636,14 @@ int CryptoKey::create(CephContext *cct, int t)
   return r;
 }
 
-void CryptoKey::print(std::ostream &out) const
+void
+CryptoKey::print(std::ostream& out) const
 {
   out << encode_base64();
 }
 
-void CryptoKey::to_str(std::string& s) const
+void
+CryptoKey::to_str(std::string& s) const
 {
   int len = secret.length() * 4;
   char buf[len];
@@ -603,7 +651,8 @@ void CryptoKey::to_str(std::string& s) const
   s = buf;
 }
 
-void CryptoKey::encode_formatted(string label, Formatter *f, bufferlist &bl)
+void
+CryptoKey::encode_formatted(string label, Formatter* f, bufferlist& bl)
 {
   f->open_object_section(label.c_str());
   f->dump_string("key", encode_base64());
@@ -611,15 +660,16 @@ void CryptoKey::encode_formatted(string label, Formatter *f, bufferlist &bl)
   f->flush(bl);
 }
 
-void CryptoKey::encode_plaintext(bufferlist &bl)
+void
+CryptoKey::encode_plaintext(bufferlist& bl)
 {
   bl.append(encode_base64());
 }
 
-
 // ------------------
 
-CryptoHandler *CryptoHandler::create(int type)
+CryptoHandler*
+CryptoHandler::create(int type)
 {
   switch (type) {
   case CEPH_CRYPTO_NONE:

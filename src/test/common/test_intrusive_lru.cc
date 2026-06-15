@@ -2,36 +2,48 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <stdio.h>
-#include "gtest/gtest.h"
+
 #include "common/intrusive_lru.h"
+#include "gtest/gtest.h"
 
 template <typename TestLRUItem>
 struct item_to_unsigned {
   using type = unsigned;
-  const type &operator()(const TestLRUItem &item) {
+
+  const type&
+  operator()(const TestLRUItem& item)
+  {
     return item.key;
   }
 };
 
-
 static int LIVE_TEST_LRU_ITEMS = 0;
-struct TestLRUItem : public ceph::common::intrusive_lru_base<
-  ceph::common::intrusive_lru_config<
-    unsigned, TestLRUItem, item_to_unsigned<TestLRUItem>>> {
+
+struct TestLRUItem
+  : public ceph::common::intrusive_lru_base<ceph::common::intrusive_lru_config<
+        unsigned,
+        TestLRUItem,
+        item_to_unsigned<TestLRUItem>>> {
   unsigned key = 0;
   int value = 0;
   bool invalidated = false;
 
-  TestLRUItem(unsigned key) : key(key) {
+  TestLRUItem(unsigned key) :
+    key(key)
+  {
     ++LIVE_TEST_LRU_ITEMS;
   }
+
   ~TestLRUItem() { --LIVE_TEST_LRU_ITEMS; }
 };
+
 using TestLRUItemRef = boost::intrusive_ptr<TestLRUItem>;
 
 class LRUTest : public TestLRUItem::lru_t {
 public:
-  auto add(unsigned int key, int value) {
+  auto
+  add(unsigned int key, int value)
+  {
     auto [ref, key_existed] = get_or_create(key);
     if (!key_existed) {
       ref->value = value;
@@ -40,7 +52,8 @@ public:
   }
 };
 
-TEST(LRU, add_immediate_evict) {
+TEST(LRU, add_immediate_evict)
+{
   LRUTest cache;
   unsigned int key = 1;
   int value1 = 2;
@@ -58,7 +71,8 @@ TEST(LRU, add_immediate_evict) {
   }
 }
 
-TEST(LRU, lookup_lru_size) {
+TEST(LRU, lookup_lru_size)
+{
   LRUTest cache;
   int key = 1;
   int value = 1;
@@ -84,7 +98,8 @@ TEST(LRU, lookup_lru_size) {
   }
 }
 
-TEST(LRU, eviction) {
+TEST(LRU, eviction)
+{
   const unsigned SIZE = 3;
   LRUTest cache;
   cache.set_target_size(SIZE);
@@ -99,8 +114,8 @@ TEST(LRU, eviction) {
     ASSERT_TRUE(ref && existed);
   }
 
-  for (unsigned i = SIZE; i < (2*SIZE) - 1; ++i) {
-    auto [ref, existed]  = cache.add(i, i);
+  for (unsigned i = SIZE; i < (2 * SIZE) - 1; ++i) {
+    auto [ref, existed] = cache.add(i, i);
     ASSERT_TRUE(ref && !existed);
   }
 
@@ -115,7 +130,8 @@ TEST(LRU, eviction) {
   }
 }
 
-TEST(LRU, eviction_live_ref) {
+TEST(LRU, eviction_live_ref)
+{
   const unsigned SIZE = 3;
   LRUTest cache;
   cache.set_target_size(SIZE);
@@ -138,8 +154,8 @@ TEST(LRU, eviction_live_ref) {
     ASSERT_TRUE(ref && existed);
   }
 
-  for (unsigned i = SIZE; i < (2*SIZE) - 1; ++i) {
-    auto [ref, existed]  = cache.add(i, i);
+  for (unsigned i = SIZE; i < (2 * SIZE) - 1; ++i) {
+    auto [ref, existed] = cache.add(i, i);
     ASSERT_TRUE(ref && !existed);
   }
 
@@ -154,7 +170,8 @@ TEST(LRU, eviction_live_ref) {
   }
 }
 
-TEST(LRU, clear_range) {
+TEST(LRU, clear_range)
+{
   LRUTest cache;
   const unsigned SIZE = 10;
   cache.set_target_size(SIZE);
@@ -177,7 +194,7 @@ TEST(LRU, clear_range) {
   auto [live_ref2, existed2] = cache.add(5, 4);
   ASSERT_FALSE(existed2);
 
-  cache.clear_range(0, 4, [](auto&){});
+  cache.clear_range(0, 4, [](auto&) {});
 
   // Should not exist
   {
@@ -204,7 +221,7 @@ TEST(LRU, clear_range) {
   }
   ASSERT_FALSE(live_ref2->is_invalidated());
   // Test clear_range with right bound past last entry
-  cache.clear_range(3, 8, [](auto&){});
+  cache.clear_range(3, 8, [](auto&) {});
   ASSERT_TRUE(live_ref2->is_invalidated());
   {
     auto [ref, existed] = cache.add(4, 4);
@@ -220,11 +237,12 @@ TEST(LRU, clear_range) {
   }
 }
 
-TEST(LRU, clear) {
+TEST(LRU, clear)
+{
   LRUTest cache;
   const unsigned SIZE = 10;
   cache.set_target_size(SIZE);
-  
+
   std::vector<TestLRUItemRef> refs;
   for (unsigned i = 0; i < 100; ++i) {
     auto [ref, existed] = cache.add(i, i);
@@ -239,10 +257,10 @@ TEST(LRU, clear) {
     ASSERT_TRUE(existed);
   }
 
-  cache.clear([](auto &i) { i.invalidated = true; });
+  cache.clear([](auto& i) { i.invalidated = true; });
   ASSERT_EQ(refs.size(), LIVE_TEST_LRU_ITEMS);
 
-  for (auto &i: refs) {
+  for (auto& i : refs) {
     ASSERT_TRUE(i->invalidated);
   }
 

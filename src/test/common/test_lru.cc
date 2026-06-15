@@ -20,23 +20,33 @@
 
 #include "include/lru.h"
 
-
 class Item : public LRUObject {
 public:
   int id;
-  Item() : id(0) {}
-  explicit Item(int i) : id(i) {}
-  void set(int i) {id = i;}
+
+  Item() :
+    id(0)
+  {}
+
+  explicit Item(int i) :
+    id(i)
+  {}
+
+  void
+  set(int i)
+  {
+    id = i;
+  }
 };
 
-
-TEST(lru, InsertTop) {
+TEST(lru, InsertTop)
+{
   LRU lru;
   static const int n = 100;
   Item items[n];
 
   lru.lru_set_midpoint(.5); // 50% of elements.
-  for (int i=0; i<n; i++) {
+  for (int i = 0; i < n; i++) {
     items[i].set(i);
     lru.lru_insert_top(&items[i]);
   }
@@ -47,13 +57,14 @@ TEST(lru, InsertTop) {
   ASSERT_EQ(0, (static_cast<Item*>(lru.lru_expire()))->id);
 }
 
-TEST(lru, InsertMid) {
+TEST(lru, InsertMid)
+{
   LRU lru;
   static const int n = 102;
   Item items[n];
 
   lru.lru_set_midpoint(.7); // 70% of elements.
-  for (int i=0; i<n; i++) {
+  for (int i = 0; i < n; i++) {
     items[i].set(i);
     lru.lru_insert_mid(&items[i]);
   }
@@ -64,13 +75,14 @@ TEST(lru, InsertMid) {
   ASSERT_EQ(0, (static_cast<Item*>(lru.lru_expire()))->id);
 }
 
-TEST(lru, InsertBot) {
+TEST(lru, InsertBot)
+{
   LRU lru;
   static const int n = 100;
   Item items[n];
 
   lru.lru_set_midpoint(.7); // 70% of elements.
-  for (int i=0; i<n; i++) {
+  for (int i = 0; i < n; i++) {
     items[i].set(i);
     lru.lru_insert_bot(&items[i]);
   }
@@ -81,13 +93,14 @@ TEST(lru, InsertBot) {
   ASSERT_EQ(99, (static_cast<Item*>(lru.lru_expire()))->id);
 }
 
-TEST(lru, Adjust) {
+TEST(lru, Adjust)
+{
   LRU lru;
   static const int n = 100;
   Item items[n];
 
   lru.lru_set_midpoint(.6); // 60% of elements.
-  for (int i=0; i<n; i++) {
+  for (int i = 0; i < n; i++) {
     items[i].set(i);
     lru.lru_insert_top(&items[i]);
     if (i % 5 == 0)
@@ -116,7 +129,8 @@ TEST(lru, Adjust) {
   ASSERT_EQ(95U, lru.lru_get_size());
 }
 
-TEST(lru, Pinning) {
+TEST(lru, Pinning)
+{
   LRU lru;
 
   Item ob0(0), ob1(1);
@@ -146,7 +160,6 @@ TEST(lru, Pinning) {
   ob0.lru_pin();
   ASSERT_EQ(1, (static_cast<Item*>(lru.lru_expire()))->id);
 }
-
 
 /*
  * Local Variables:

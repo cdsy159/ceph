@@ -14,14 +14,18 @@ struct timeout_handler {
   // to keep the stream alive
   boost::intrusive_ptr<Stream> stream;
 
-  explicit timeout_handler(boost::intrusive_ptr<Stream> stream) noexcept
-      : stream(std::move(stream)) {}
+  explicit timeout_handler(boost::intrusive_ptr<Stream> stream) noexcept :
+    stream(std::move(stream))
+  {}
 
-  void operator()(boost::system::error_code ec) {
+  void
+  operator()(boost::system::error_code ec)
+  {
     if (!ec) { // wait was not canceled
       boost::system::error_code ec_ignored;
       stream->get_socket().cancel();
-      stream->get_socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec_ignored);
+      stream->get_socket().shutdown(
+          boost::asio::ip::tcp::socket::shutdown_both, ec_ignored);
     }
   }
 };
@@ -29,35 +33,43 @@ struct timeout_handler {
 // a timeout timer for stream operations
 template <typename Clock, typename Executor, typename Stream>
 class basic_timeout_timer {
- public:
+public:
   using clock_type = Clock;
   using duration = typename clock_type::duration;
   using executor_type = Executor;
 
-  explicit basic_timeout_timer(const executor_type& ex, duration dur,
-                               boost::intrusive_ptr<Stream> stream)
-      : timer(ex), dur(dur), stream(std::move(stream))
+  explicit basic_timeout_timer(
+      const executor_type& ex,
+      duration dur,
+      boost::intrusive_ptr<Stream> stream) :
+    timer(ex), dur(dur), stream(std::move(stream))
   {}
 
   basic_timeout_timer(const basic_timeout_timer&) = delete;
   basic_timeout_timer& operator=(const basic_timeout_timer&) = delete;
 
-  void start() {
+  void
+  start()
+  {
     if (dur.count() > 0) {
       timer.expires_after(dur);
       timer.async_wait(timeout_handler{stream});
     }
   }
 
-  void cancel() {
+  void
+  cancel()
+  {
     if (dur.count() > 0) {
       timer.cancel();
     }
   }
 
- private:
-  using Timer = boost::asio::basic_waitable_timer<clock_type,
-        boost::asio::wait_traits<clock_type>, executor_type>;
+private:
+  using Timer = boost::asio::basic_waitable_timer<
+      clock_type,
+      boost::asio::wait_traits<clock_type>,
+      executor_type>;
   Timer timer;
   duration dur;
   boost::intrusive_ptr<Stream> stream;

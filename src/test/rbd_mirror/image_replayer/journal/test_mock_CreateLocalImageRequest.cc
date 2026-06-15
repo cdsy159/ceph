@@ -1,27 +1,28 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/rbd_mirror/test_mock_fixture.h"
-#include "librbd/journal/Types.h"
+#include <boost/intrusive_ptr.hpp>
+
 #include "librbd/journal/TypeTraits.h"
-#include "tools/rbd_mirror/Threads.h"
-#include "tools/rbd_mirror/image_replayer/CreateImageRequest.h"
-#include "tools/rbd_mirror/image_replayer/journal/CreateLocalImageRequest.h"
-#include "tools/rbd_mirror/image_replayer/journal/StateBuilder.h"
+#include "librbd/journal/Types.h"
 #include "test/journal/mock/MockJournaler.h"
 #include "test/librbd/mock/MockImageCtx.h"
 #include "test/rbd_mirror/mock/MockContextWQ.h"
 #include "test/rbd_mirror/mock/MockSafeTimer.h"
-#include <boost/intrusive_ptr.hpp>
+#include "test/rbd_mirror/test_mock_fixture.h"
+#include "tools/rbd_mirror/Threads.h"
+#include "tools/rbd_mirror/image_replayer/CreateImageRequest.h"
+#include "tools/rbd_mirror/image_replayer/journal/CreateLocalImageRequest.h"
+#include "tools/rbd_mirror/image_replayer/journal/StateBuilder.h"
 
 namespace librbd {
 
 namespace {
 
 struct MockTestImageCtx : public librbd::MockImageCtx {
-  explicit MockTestImageCtx(librbd::ImageCtx &image_ctx)
-    : librbd::MockImageCtx(image_ctx) {
-  }
+  explicit MockTestImageCtx(librbd::ImageCtx& image_ctx) :
+    librbd::MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -40,7 +41,9 @@ namespace util {
 static std::string s_image_id;
 
 template <>
-std::string generate_image_id<MockTestImageCtx>(librados::IoCtx&) {
+std::string
+generate_image_id<MockTestImageCtx>(librados::IoCtx&)
+{
   ceph_assert(!s_image_id.empty());
   return s_image_id;
 }
@@ -52,50 +55,52 @@ namespace rbd {
 namespace mirror {
 
 template <>
-struct Threads<librbd::MockTestImageCtx> {
-};
+struct Threads<librbd::MockTestImageCtx> {};
 
 namespace image_replayer {
 
-template<>
+template <>
 struct CreateImageRequest<librbd::MockTestImageCtx> {
   static CreateImageRequest* s_instance;
-  Context *on_finish = nullptr;
+  Context* on_finish = nullptr;
 
-  static CreateImageRequest* create(Threads<librbd::MockTestImageCtx>* threads,
-                                    librados::IoCtx &local_io_ctx,
-                                    const std::string &global_image_id,
-                                    const std::string &remote_mirror_uuid,
-                                    const std::string &local_image_name,
-				    const std::string &local_image_id,
-                                    librbd::MockTestImageCtx *remote_image_ctx,
-                                    PoolMetaCache* pool_meta_cache,
-                                    cls::rbd::MirrorImageMode mirror_image_mode,
-                                    Context *on_finish) {
+  static CreateImageRequest*
+  create(
+      Threads<librbd::MockTestImageCtx>* threads,
+      librados::IoCtx& local_io_ctx,
+      const std::string& global_image_id,
+      const std::string& remote_mirror_uuid,
+      const std::string& local_image_name,
+      const std::string& local_image_id,
+      librbd::MockTestImageCtx* remote_image_ctx,
+      PoolMetaCache* pool_meta_cache,
+      cls::rbd::MirrorImageMode mirror_image_mode,
+      Context* on_finish)
+  {
     ceph_assert(s_instance != nullptr);
     s_instance->on_finish = on_finish;
     s_instance->construct(local_image_id);
     return s_instance;
   }
 
-  CreateImageRequest() {
+  CreateImageRequest()
+  {
     ceph_assert(s_instance == nullptr);
     s_instance = this;
   }
-  ~CreateImageRequest() {
-    s_instance = nullptr;
-  }
+
+  ~CreateImageRequest() { s_instance = nullptr; }
 
   MOCK_METHOD1(construct, void(const std::string&));
   MOCK_METHOD0(send, void());
 };
 
 CreateImageRequest<librbd::MockTestImageCtx>*
-  CreateImageRequest<librbd::MockTestImageCtx>::s_instance = nullptr;
+    CreateImageRequest<librbd::MockTestImageCtx>::s_instance = nullptr;
 
 namespace journal {
 
-template<>
+template <>
 struct StateBuilder<librbd::MockTestImageCtx> {
   std::string local_image_id;
 
@@ -122,14 +127,18 @@ namespace mirror {
 namespace image_replayer {
 namespace journal {
 
-class TestMockImageReplayerJournalCreateLocalImageRequest : public TestMockFixture {
+class TestMockImageReplayerJournalCreateLocalImageRequest
+  : public TestMockFixture {
 public:
-  typedef CreateLocalImageRequest<librbd::MockTestImageCtx> MockCreateLocalImageRequest;
+  typedef CreateLocalImageRequest<librbd::MockTestImageCtx>
+      MockCreateLocalImageRequest;
   typedef Threads<librbd::MockTestImageCtx> MockThreads;
   typedef CreateImageRequest<librbd::MockTestImageCtx> MockCreateImageRequest;
   typedef StateBuilder<librbd::MockTestImageCtx> MockStateBuilder;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
 
     librbd::RBD rbd;
@@ -138,68 +147,85 @@ public:
     m_mock_remote_image_ctx = new librbd::MockTestImageCtx(*m_remote_image_ctx);
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     delete m_mock_remote_image_ctx;
     TestMockFixture::TearDown();
   }
 
-  void expect_journaler_register_client(
+  void
+  expect_journaler_register_client(
       ::journal::MockJournaler& mock_journaler,
-      const librbd::journal::ClientData& client_data, int r) {
+      const librbd::journal::ClientData& client_data,
+      int r)
+  {
     bufferlist bl;
     encode(client_data, bl);
 
     EXPECT_CALL(mock_journaler, register_client(ContentsEqual(bl), _))
-      .WillOnce(WithArg<1>(Invoke([this, r](Context *on_finish) {
-                                    m_threads->work_queue->queue(on_finish, r);
-                                  })));
+        .WillOnce(WithArg<1>(Invoke([this, r](Context* on_finish) {
+          m_threads->work_queue->queue(on_finish, r);
+        })));
   }
 
-  void expect_journaler_unregister_client(
-      ::journal::MockJournaler& mock_journaler, int r) {
-    EXPECT_CALL(mock_journaler, unregister_client(_))
-      .WillOnce(Invoke([this, r](Context *on_finish) {
-                  m_threads->work_queue->queue(on_finish, r);
-                }));
-  }
-
-  void expect_journaler_update_client(
+  void
+  expect_journaler_unregister_client(
       ::journal::MockJournaler& mock_journaler,
-      const librbd::journal::ClientData& client_data, int r) {
+      int r)
+  {
+    EXPECT_CALL(mock_journaler, unregister_client(_))
+        .WillOnce(Invoke([this, r](Context* on_finish) {
+          m_threads->work_queue->queue(on_finish, r);
+        }));
+  }
+
+  void
+  expect_journaler_update_client(
+      ::journal::MockJournaler& mock_journaler,
+      const librbd::journal::ClientData& client_data,
+      int r)
+  {
     bufferlist bl;
     encode(client_data, bl);
 
     EXPECT_CALL(mock_journaler, update_client(ContentsEqual(bl), _))
-      .WillOnce(WithArg<1>(Invoke([this, r](Context *on_finish) {
-                                    m_threads->work_queue->queue(on_finish, r);
-                                  })));
+        .WillOnce(WithArg<1>(Invoke([this, r](Context* on_finish) {
+          m_threads->work_queue->queue(on_finish, r);
+        })));
   }
 
-  void expect_create_image(MockCreateImageRequest& mock_create_image_request,
-                           const std::string& image_id, int r) {
+  void
+  expect_create_image(
+      MockCreateImageRequest& mock_create_image_request,
+      const std::string& image_id,
+      int r)
+  {
     EXPECT_CALL(mock_create_image_request, construct(image_id));
     EXPECT_CALL(mock_create_image_request, send())
-      .WillOnce(Invoke([this, &mock_create_image_request, r]() {
+        .WillOnce(Invoke([this, &mock_create_image_request, r]() {
           m_threads->work_queue->queue(mock_create_image_request.on_finish, r);
         }));
   }
 
-  MockCreateLocalImageRequest* create_request(
+  MockCreateLocalImageRequest*
+  create_request(
       MockThreads& mock_threads,
       MockStateBuilder& mock_state_builder,
       const std::string& global_image_id,
-      Context* on_finish) {
+      Context* on_finish)
+  {
     return new MockCreateLocalImageRequest(
-      &mock_threads, m_local_io_ctx, m_mock_remote_image_ctx,
-      global_image_id, nullptr, nullptr, &mock_state_builder,
-      on_finish);
+        &mock_threads, m_local_io_ctx, m_mock_remote_image_ctx, global_image_id,
+        nullptr, nullptr, &mock_state_builder, on_finish);
   }
 
-  librbd::ImageCtx *m_remote_image_ctx;
-  librbd::MockTestImageCtx *m_mock_remote_image_ctx = nullptr;
+  librbd::ImageCtx* m_remote_image_ctx;
+  librbd::MockTestImageCtx* m_mock_remote_image_ctx = nullptr;
 };
 
-TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, Success) {
+TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, Success)
+{
   InSequence seq;
 
   // re-register the client
@@ -221,18 +247,20 @@ TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, Success) {
   C_SaferCond ctx;
   MockThreads mock_threads;
   MockStateBuilder mock_state_builder;
-  auto request = create_request(
-    mock_threads, mock_state_builder, "global image id", &ctx);
+  auto request =
+      create_request(mock_threads, mock_state_builder, "global image id", &ctx);
   request->send();
   ASSERT_EQ(0, ctx.wait());
 
   ASSERT_EQ("local image id", mock_state_builder.local_image_id);
   ASSERT_EQ("local image id", mock_state_builder.remote_client_meta.image_id);
-  ASSERT_EQ(librbd::journal::MIRROR_PEER_STATE_SYNCING,
-            mock_state_builder.remote_client_meta.state);
+  ASSERT_EQ(
+      librbd::journal::MIRROR_PEER_STATE_SYNCING,
+      mock_state_builder.remote_client_meta.state);
 }
 
-TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, UnregisterError) {
+TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, UnregisterError)
+{
   InSequence seq;
 
   // re-register the client
@@ -242,13 +270,14 @@ TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, UnregisterError) {
   C_SaferCond ctx;
   MockThreads mock_threads;
   MockStateBuilder mock_state_builder;
-  auto request = create_request(
-    mock_threads, mock_state_builder, "global image id", &ctx);
+  auto request =
+      create_request(mock_threads, mock_state_builder, "global image id", &ctx);
   request->send();
   ASSERT_EQ(-EINVAL, ctx.wait());
 }
 
-TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, RegisterError) {
+TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, RegisterError)
+{
   InSequence seq;
 
   // re-register the client
@@ -266,13 +295,14 @@ TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, RegisterError) {
   C_SaferCond ctx;
   MockThreads mock_threads;
   MockStateBuilder mock_state_builder;
-  auto request = create_request(
-    mock_threads, mock_state_builder, "global image id", &ctx);
+  auto request =
+      create_request(mock_threads, mock_state_builder, "global image id", &ctx);
   request->send();
   ASSERT_EQ(-EINVAL, ctx.wait());
 }
 
-TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageError) {
+TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageError)
+{
   InSequence seq;
 
   // re-register the client
@@ -294,13 +324,14 @@ TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageError) {
   C_SaferCond ctx;
   MockThreads mock_threads;
   MockStateBuilder mock_state_builder;
-  auto request = create_request(
-    mock_threads, mock_state_builder, "global image id", &ctx);
+  auto request =
+      create_request(mock_threads, mock_state_builder, "global image id", &ctx);
   request->send();
   ASSERT_EQ(-EINVAL, ctx.wait());
 }
 
-TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageDuplicate) {
+TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageDuplicate)
+{
   InSequence seq;
 
   // re-register the client
@@ -329,8 +360,8 @@ TEST_F(TestMockImageReplayerJournalCreateLocalImageRequest, CreateImageDuplicate
   C_SaferCond ctx;
   MockThreads mock_threads;
   MockStateBuilder mock_state_builder;
-  auto request = create_request(
-    mock_threads, mock_state_builder, "global image id", &ctx);
+  auto request =
+      create_request(mock_threads, mock_state_builder, "global image id", &ctx);
   request->send();
   ASSERT_EQ(0, ctx.wait());
 }

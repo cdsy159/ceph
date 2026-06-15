@@ -17,20 +17,22 @@ namespace crypto {
 template <typename I>
 class ShutDownCryptoRequest {
 public:
-    static ShutDownCryptoRequest* create(I* image_ctx, Context* on_finish) {
-      return new ShutDownCryptoRequest(image_ctx, on_finish);
-    }
+  static ShutDownCryptoRequest*
+  create(I* image_ctx, Context* on_finish)
+  {
+    return new ShutDownCryptoRequest(image_ctx, on_finish);
+  }
 
-    ShutDownCryptoRequest(I* image_ctx, Context* on_finish);
+  ShutDownCryptoRequest(I* image_ctx, Context* on_finish);
 
-    void send();
-    void shut_down_object_dispatch();
-    void handle_shut_down_object_dispatch(int r);
-    void finish(int r);
+  void send();
+  void shut_down_object_dispatch();
+  void handle_shut_down_object_dispatch(int r);
+  void finish(int r);
 
 private:
-    I* m_image_ctx;
-    Context* m_on_finish;
+  I* m_image_ctx;
+  Context* m_on_finish;
 };
 
 } // namespace crypto

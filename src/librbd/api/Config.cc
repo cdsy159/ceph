@@ -2,15 +2,18 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/api/Config.h"
+
+#include <algorithm>
+
+#include <boost/algorithm/string/predicate.hpp>
+
+#include "common/Cond.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "common/Cond.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/api/PoolMetadata.h"
 #include "librbd/image/GetMetadataRequest.h"
-#include <algorithm>
-#include <boost/algorithm/string/predicate.hpp>
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -23,9 +26,10 @@ namespace {
 
 const uint32_t MAX_KEYS = 64;
 
-typedef std::map<std::string_view, std::pair<std::string, config_source_t>> Parent;
+typedef std::map<std::string_view, std::pair<std::string, config_source_t>>
+    Parent;
 
-static std::set<std::string_view> EXCLUDE_OPTIONS {
+static std::set<std::string_view> EXCLUDE_OPTIONS{
     "rbd_auto_exclusive_lock_until_manual_request",
     "rbd_default_format",
     "rbd_default_pool",
@@ -36,29 +40,23 @@ static std::set<std::string_view> EXCLUDE_OPTIONS {
     "rbd_validate_names",
     "rbd_validate_pool",
     "rbd_mirror_pool_replayers_refresh_interval",
-    "rbd_config_pool_override_update_timestamp"
-  };
-static std::set<std::string_view> EXCLUDE_IMAGE_OPTIONS {
-    "rbd_default_clone_format",
-    "rbd_default_data_pool",
-    "rbd_default_features",
-    "rbd_default_format",
-    "rbd_default_order",
-    "rbd_default_stripe_count",
-    "rbd_default_stripe_unit",
-    "rbd_journal_order",
-    "rbd_journal_pool",
-    "rbd_journal_splay_width"
-  };
+    "rbd_config_pool_override_update_timestamp"};
+static std::set<std::string_view> EXCLUDE_IMAGE_OPTIONS{
+    "rbd_default_clone_format", "rbd_default_data_pool",
+    "rbd_default_features",     "rbd_default_format",
+    "rbd_default_order",        "rbd_default_stripe_count",
+    "rbd_default_stripe_unit",  "rbd_journal_order",
+    "rbd_journal_pool",         "rbd_journal_splay_width"};
 
 struct Options : Parent {
   librados::IoCtx m_io_ctx;
 
-  Options(librados::IoCtx& io_ctx, bool image_apply_only_options) {
+  Options(librados::IoCtx& io_ctx, bool image_apply_only_options)
+  {
     m_io_ctx.dup(io_ctx);
     m_io_ctx.set_namespace("");
 
-    CephContext *cct = reinterpret_cast<CephContext *>(m_io_ctx.cct());
+    CephContext* cct = reinterpret_cast<CephContext*>(m_io_ctx.cct());
 
     const std::string rbd_key_prefix("rbd_");
     const std::string rbd_mirror_key_prefix("rbd_mirror_");
@@ -68,11 +66,13 @@ struct Options : Parent {
         continue;
       } else if (EXCLUDE_OPTIONS.count(pair.first) != 0) {
         continue;
-      } else if (image_apply_only_options &&
-                 EXCLUDE_IMAGE_OPTIONS.count(pair.first) != 0) {
+      } else if (
+          image_apply_only_options &&
+          EXCLUDE_IMAGE_OPTIONS.count(pair.first) != 0) {
         continue;
-      } else if (image_apply_only_options &&
-                 boost::starts_with(pair.first, rbd_mirror_key_prefix)) {
+      } else if (
+          image_apply_only_options &&
+          boost::starts_with(pair.first, rbd_mirror_key_prefix)) {
         continue;
       }
 
@@ -80,10 +80,12 @@ struct Options : Parent {
     }
   }
 
-  int init() {
-    CephContext *cct = (CephContext *)m_io_ctx.cct();
+  int
+  init()
+  {
+    CephContext* cct = (CephContext*)m_io_ctx.cct();
 
-    for (auto& [k,v] : *this) {
+    for (auto& [k, v] : *this) {
       int r = cct->_conf.get_val(k, &v.first);
       ceph_assert(r == 0);
       v.second = RBD_CONFIG_SOURCE_CONFIG;
@@ -95,8 +97,8 @@ struct Options : Parent {
     while (more_results) {
       std::map<std::string, bufferlist> pairs;
 
-      int r = librbd::api::PoolMetadata<>::list(m_io_ctx, last_key, MAX_KEYS,
-                                                &pairs);
+      int r = librbd::api::PoolMetadata<>::list(
+          m_io_ctx, last_key, MAX_KEYS, &pairs);
       if (r < 0) {
         return r;
       }
@@ -116,8 +118,8 @@ struct Options : Parent {
         }
         auto it = find(key);
         if (it != end()) {
-          it->second = {{kv.second.c_str(), kv.second.length()},
-                        RBD_CONFIG_SOURCE_POOL};
+          it->second = {
+              {kv.second.c_str(), kv.second.length()}, RBD_CONFIG_SOURCE_POOL};
         }
       }
     }
@@ -128,16 +130,18 @@ struct Options : Parent {
 } // anonymous namespace
 
 template <typename I>
-bool Config<I>::is_option_name(librados::IoCtx& io_ctx,
-                               const std::string &name) {
+bool
+Config<I>::is_option_name(librados::IoCtx& io_ctx, const std::string& name)
+{
   Options opts(io_ctx, false);
 
   return (opts.find(name) != opts.end());
 }
 
 template <typename I>
-int Config<I>::list(librados::IoCtx& io_ctx,
-                    std::vector<config_option_t> *options) {
+int
+Config<I>::list(librados::IoCtx& io_ctx, std::vector<config_option_t>* options)
+{
   Options opts(io_ctx, false);
 
   int r = opts.init();
@@ -145,7 +149,7 @@ int Config<I>::list(librados::IoCtx& io_ctx,
     return r;
   }
 
-  for (auto& [k,v] : opts) {
+  for (auto& [k, v] : opts) {
     options->push_back({std::string{k}, v.first, v.second});
   }
 
@@ -153,15 +157,19 @@ int Config<I>::list(librados::IoCtx& io_ctx,
 }
 
 template <typename I>
-bool Config<I>::is_option_name(I *image_ctx, const std::string &name) {
+bool
+Config<I>::is_option_name(I* image_ctx, const std::string& name)
+{
   Options opts(image_ctx->md_ctx, true);
 
   return (opts.find(name) != opts.end());
 }
 
 template <typename I>
-int Config<I>::list(I *image_ctx, std::vector<config_option_t> *options) {
-  CephContext *cct = image_ctx->cct;
+int
+Config<I>::list(I* image_ctx, std::vector<config_option_t>* options)
+{
+  CephContext* cct = image_ctx->cct;
   Options opts(image_ctx->md_ctx, true);
 
   int r = opts.init();
@@ -172,15 +180,14 @@ int Config<I>::list(I *image_ctx, std::vector<config_option_t> *options) {
   std::map<std::string, bufferlist> pairs;
   C_SaferCond ctx;
   auto req = image::GetMetadataRequest<I>::create(
-    image_ctx->md_ctx, image_ctx->header_oid, true,
-    ImageCtx::METADATA_CONF_PREFIX, ImageCtx::METADATA_CONF_PREFIX, 0U, &pairs,
-    &ctx);
+      image_ctx->md_ctx, image_ctx->header_oid, true,
+      ImageCtx::METADATA_CONF_PREFIX, ImageCtx::METADATA_CONF_PREFIX, 0U,
+      &pairs, &ctx);
   req->send();
 
   r = ctx.wait();
   if (r < 0) {
-    lderr(cct) << "failed reading image metadata: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed reading image metadata: " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -191,12 +198,12 @@ int Config<I>::list(I *image_ctx, std::vector<config_option_t> *options) {
     }
     auto it = opts.find(key);
     if (it != opts.end()) {
-      it->second = {{kv.second.c_str(), kv.second.length()},
-                    RBD_CONFIG_SOURCE_IMAGE};
+      it->second = {
+          {kv.second.c_str(), kv.second.length()}, RBD_CONFIG_SOURCE_IMAGE};
     }
   }
 
-  for (auto& [k,v] : opts) {
+  for (auto& [k, v] : opts) {
     options->push_back({std::string{k}, v.first, v.second});
   }
 
@@ -204,9 +211,10 @@ int Config<I>::list(I *image_ctx, std::vector<config_option_t> *options) {
 }
 
 template <typename I>
-void Config<I>::apply_pool_overrides(librados::IoCtx& io_ctx,
-                                     ConfigProxy* config) {
-  CephContext *cct = reinterpret_cast<CephContext *>(io_ctx.cct());
+void
+Config<I>::apply_pool_overrides(librados::IoCtx& io_ctx, ConfigProxy* config)
+{
+  CephContext* cct = reinterpret_cast<CephContext*>(io_ctx.cct());
 
   Options opts(io_ctx, false);
   int r = opts.init();
@@ -216,12 +224,12 @@ void Config<I>::apply_pool_overrides(librados::IoCtx& io_ctx,
     return;
   }
 
-  for (auto& [k,v] : opts) {
+  for (auto& [k, v] : opts) {
     if (v.second == RBD_CONFIG_SOURCE_POOL) {
       r = config->set_val(k, v.first);
       if (r < 0) {
-        lderr(cct) << "failed to override pool config " << k << "="
-                   << v.first << ": " << cpp_strerror(r) << dendl;
+        lderr(cct) << "failed to override pool config " << k << "=" << v.first
+                   << ": " << cpp_strerror(r) << dendl;
       }
     }
   }

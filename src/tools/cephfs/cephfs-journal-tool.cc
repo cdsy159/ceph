@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,16 +13,16 @@
  */
 
 
-#include "include/types.h"
-#include "common/config.h"
 #include "common/ceph_argparse.h"
+#include "common/config.h"
 #include "common/errno.h"
 #include "global/global_init.h"
+#include "include/types.h"
 
 #include "JournalTool.h"
 
-
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -34,8 +34,8 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			     CODE_ENVIRONMENT_UTILITY, 0);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   common_init_finish(g_ceph_context);
 
   JournalTool jt;
@@ -43,8 +43,8 @@ int main(int argc, const char **argv)
   // Connect to mon cluster, download MDS map etc
   int rc = jt.init();
   if (rc != 0) {
-      std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
-      return rc;
+    std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
+    return rc;
   }
 
   // Finally, execute the user's commands
@@ -55,4 +55,3 @@ int main(int argc, const char **argv)
 
   return rc;
 }
-

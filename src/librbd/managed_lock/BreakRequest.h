@@ -4,14 +4,16 @@
 #ifndef CEPH_LIBRBD_MANAGED_LOCK_BREAK_REQUEST_H
 #define CEPH_LIBRBD_MANAGED_LOCK_BREAK_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/buffer_fwd.h"
-#include "include/rados/librados_fwd.hpp"
-#include "msg/msg_types.h"
 #include <list>
 #include <string>
+
 #include <boost/optional.hpp>
+
+#include "include/buffer_fwd.h"
+#include "include/int_types.h"
+#include "include/rados/librados_fwd.hpp"
 #include "librbd/managed_lock/Types.h"
+#include "msg/msg_types.h"
 
 class Context;
 class ContextWQ;
@@ -21,23 +23,33 @@ namespace librbd {
 
 class AsioEngine;
 class ImageCtx;
-template <typename> class Journal;
-namespace asio { struct ContextWQ; }
+template <typename>
+class Journal;
+
+namespace asio {
+struct ContextWQ;
+}
 
 namespace managed_lock {
 
 template <typename ImageCtxT = ImageCtx>
 class BreakRequest {
 public:
-  static BreakRequest* create(librados::IoCtx& ioctx,
-                              AsioEngine& asio_engine,
-                              const std::string& oid, const Locker &locker,
-                              bool exclusive, bool blocklist_locker,
-                              uint32_t blocklist_expire_seconds,
-                              bool force_break_lock, Context *on_finish) {
-    return new BreakRequest(ioctx, asio_engine, oid, locker, exclusive,
-                            blocklist_locker, blocklist_expire_seconds,
-                            force_break_lock, on_finish);
+  static BreakRequest*
+  create(
+      librados::IoCtx& ioctx,
+      AsioEngine& asio_engine,
+      const std::string& oid,
+      const Locker& locker,
+      bool exclusive,
+      bool blocklist_locker,
+      uint32_t blocklist_expire_seconds,
+      bool force_break_lock,
+      Context* on_finish)
+  {
+    return new BreakRequest(
+        ioctx, asio_engine, oid, locker, exclusive, blocklist_locker,
+        blocklist_expire_seconds, force_break_lock, on_finish);
   }
 
   void send();
@@ -69,8 +81,8 @@ private:
    * @endvertbatim
    */
 
-  librados::IoCtx &m_ioctx;
-  CephContext *m_cct;
+  librados::IoCtx& m_ioctx;
+  CephContext* m_cct;
   AsioEngine& m_asio_engine;
   std::string m_oid;
   Locker m_locker;
@@ -78,7 +90,7 @@ private:
   bool m_blocklist_locker;
   uint32_t m_blocklist_expire_seconds;
   bool m_force_break_lock;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   bufferlist m_out_bl;
 
@@ -87,11 +99,16 @@ private:
 
   Locker m_refreshed_locker;
 
-  BreakRequest(librados::IoCtx& ioctx, AsioEngine& asio_engine,
-               const std::string& oid, const Locker &locker,
-               bool exclusive, bool blocklist_locker,
-               uint32_t blocklist_expire_seconds, bool force_break_lock,
-               Context *on_finish);
+  BreakRequest(
+      librados::IoCtx& ioctx,
+      AsioEngine& asio_engine,
+      const std::string& oid,
+      const Locker& locker,
+      bool exclusive,
+      bool blocklist_locker,
+      uint32_t blocklist_expire_seconds,
+      bool force_break_lock,
+      Context* on_finish);
 
   void send_get_watchers();
   void handle_get_watchers(int r);
@@ -109,7 +126,6 @@ private:
   void handle_break_lock(int r);
 
   void finish(int r);
-
 };
 
 } // namespace managed_lock

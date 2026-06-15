@@ -1,59 +1,65 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
+#include <sys/time.h>
 
-#include "mds/mdstypes.h"
-#include "include/err.h"
-#include "include/buffer.h"
-#include "include/rbd_types.h"
-#include "include/rados.h"
-#include "include/rados/librados.h"
-#include "include/rados/librados.hpp"
-#include "include/scope_guard.h"
-#include "include/stringify.h"
 #include "common/Checksummer.h"
 #include "common/Clock.h" // for ceph_clock_now()
 #include "common/config_proxy.h" // for class ConfigProxy
 #include "global/global_context.h"
-#include "test/librados/test.h"
-#include "test/librados/TestCase.h"
 #include "gtest/gtest.h"
-#include <sys/time.h>
+#include "include/buffer.h"
+#include "include/err.h"
+#include "include/rados.h"
+#include "include/rados/librados.h"
+#include "include/rados/librados.hpp"
+#include "include/rbd_types.h"
+#include "include/scope_guard.h"
+#include "include/stringify.h"
+#include "mds/mdstypes.h"
+#include "test/librados/TestCase.h"
+#include "test/librados/test.h"
 #ifndef _WIN32
 #include <sys/resource.h>
 #endif
 
 #include <errno.h>
+
 #include <map>
+#include <regex>
 #include <sstream>
 #include <string>
-#include <regex>
 
 using namespace std;
 using namespace librados;
 
 typedef RadosTest LibRadosMisc;
 
-TEST(LibRadosMiscVersion, Version) {
+TEST(LibRadosMiscVersion, Version)
+{
   int major, minor, extra;
   rados_version(&major, &minor, &extra);
 }
 
-static void test_rados_log_cb(void *arg,
-                              const char *line,
-                              const char *who,
-                              uint64_t sec, uint64_t nsec,
-                              uint64_t seq, const char *level,
-                              const char *msg)
+static void
+test_rados_log_cb(
+    void* arg,
+    const char* line,
+    const char* who,
+    uint64_t sec,
+    uint64_t nsec,
+    uint64_t seq,
+    const char* level,
+    const char* msg)
 {
-    std::cerr << "monitor log callback invoked" << std::endl;
+  std::cerr << "monitor log callback invoked" << std::endl;
 }
 
-TEST(LibRadosMiscConnectFailure, ConnectFailure) {
+TEST(LibRadosMiscConnectFailure, ConnectFailure)
+{
   rados_t cluster;
 
-  char *id = getenv("CEPH_CLIENT_ID");
+  char* id = getenv("CEPH_CLIENT_ID");
   if (id)
     std::cerr << "Client id is: " << id << std::endl;
 
@@ -61,8 +67,8 @@ TEST(LibRadosMiscConnectFailure, ConnectFailure) {
   ASSERT_EQ(0, rados_conf_read_file(cluster, NULL));
   ASSERT_EQ(0, rados_conf_parse_env(cluster, NULL));
 
-  ASSERT_EQ(-ENOTCONN, rados_monitor_log(cluster, "error",
-                                         test_rados_log_cb, NULL));
+  ASSERT_EQ(
+      -ENOTCONN, rados_monitor_log(cluster, "error", test_rados_log_cb, NULL));
 
   ASSERT_EQ(0, rados_connect(cluster));
   rados_shutdown(cluster);
@@ -72,13 +78,15 @@ TEST(LibRadosMiscConnectFailure, ConnectFailure) {
   rados_shutdown(cluster);
 }
 
-TEST(LibRadosMiscConnectFailure, ConnectTimeout) {
+TEST(LibRadosMiscConnectFailure, ConnectTimeout)
+{
   rados_t cluster;
 
   ASSERT_EQ(0, rados_create(&cluster, NULL));
   ASSERT_EQ(0, rados_conf_set(cluster, "mon_host", "255.0.1.2:3456"));
-  ASSERT_EQ(0, rados_conf_set(cluster, "key",
-                              "AQAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAA=="));
+  ASSERT_EQ(
+      0, rados_conf_set(
+             cluster, "key", "AQAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAA=="));
   ASSERT_EQ(0, rados_conf_set(cluster, "client_mount_timeout", "5s"));
 
   utime_t start = ceph_clock_now();
@@ -92,10 +100,11 @@ TEST(LibRadosMiscConnectFailure, ConnectTimeout) {
   rados_shutdown(cluster);
 }
 
-TEST(LibRadosMiscPool, PoolCreationRace) {
+TEST(LibRadosMiscPool, PoolCreationRace)
+{
   rados_t cluster_a, cluster_b;
 
-  char *id = getenv("CEPH_CLIENT_ID");
+  char* id = getenv("CEPH_CLIENT_ID");
   if (id)
     std::cerr << "Client id is: " << id << std::endl;
 
@@ -103,8 +112,9 @@ TEST(LibRadosMiscPool, PoolCreationRace) {
   ASSERT_EQ(0, rados_conf_read_file(cluster_a, NULL));
   // kludge: i want to --log-file foo and only get cluster b
   //ASSERT_EQ(0, rados_conf_parse_env(cluster_a, NULL));
-  ASSERT_EQ(0, rados_conf_set(cluster_a,
-			      "objecter_debug_inject_relock_delay", "true"));
+  ASSERT_EQ(
+      0,
+      rados_conf_set(cluster_a, "objecter_debug_inject_relock_delay", "true"));
   ASSERT_EQ(0, rados_connect(cluster_a));
 
   ASSERT_EQ(0, rados_create(&cluster_b, NULL));
@@ -158,20 +168,22 @@ TEST(LibRadosMiscPool, PoolCreationRace) {
   rados_shutdown(cluster_a);
 }
 
-TEST_F(LibRadosMisc, ClusterFSID) {
+TEST_F(LibRadosMisc, ClusterFSID)
+{
   char fsid[37];
   ASSERT_EQ(-ERANGE, rados_cluster_fsid(cluster, fsid, sizeof(fsid) - 1));
-  ASSERT_EQ(sizeof(fsid) - 1,
-            (size_t)rados_cluster_fsid(cluster, fsid, sizeof(fsid)));
+  ASSERT_EQ(
+      sizeof(fsid) - 1, (size_t)rados_cluster_fsid(cluster, fsid, sizeof(fsid)));
 }
 
-TEST_F(LibRadosMisc, Exec) {
+TEST_F(LibRadosMisc, Exec)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
   char buf2[512];
-  int res = rados_exec(ioctx, "foo", "rbd", "get_all_features",
-			  NULL, 0, buf2, sizeof(buf2));
+  int res = rados_exec(
+      ioctx, "foo", "rbd", "get_all_features", NULL, 0, buf2, sizeof(buf2));
   ASSERT_GT(res, 0);
   bufferlist bl;
   bl.append(buf2, res);
@@ -182,10 +194,11 @@ TEST_F(LibRadosMisc, Exec) {
   ASSERT_NE(all_features, (unsigned)0);
 }
 
-TEST_F(LibRadosMisc, WriteSame) {
+TEST_F(LibRadosMisc, WriteSame)
+{
   char buf[128];
   char full[128 * 4];
-  char *cmp;
+  char* cmp;
 
   /* zero the full range before using writesame */
   memset(full, 0, sizeof(full));
@@ -203,37 +216,42 @@ TEST_F(LibRadosMisc, WriteSame) {
   }
 
   /* write_len not a multiple of data_len should throw error */
-  ASSERT_EQ(-EINVAL, rados_writesame(ioctx, "ws", buf, sizeof(buf),
-				     (sizeof(buf) * 4) - 1, 0));
-  ASSERT_EQ(-EINVAL,
-	    rados_writesame(ioctx, "ws", buf, sizeof(buf), sizeof(buf) / 2, 0));
-  ASSERT_EQ(-EINVAL,
-	    rados_writesame(ioctx, "ws", buf, 0, sizeof(buf), 0));
+  ASSERT_EQ(
+      -EINVAL,
+      rados_writesame(ioctx, "ws", buf, sizeof(buf), (sizeof(buf) * 4) - 1, 0));
+  ASSERT_EQ(
+      -EINVAL,
+      rados_writesame(ioctx, "ws", buf, sizeof(buf), sizeof(buf) / 2, 0));
+  ASSERT_EQ(-EINVAL, rados_writesame(ioctx, "ws", buf, 0, sizeof(buf), 0));
   /* write_len = data_len, i.e. same as rados_write() */
   ASSERT_EQ(0, rados_writesame(ioctx, "ws", buf, sizeof(buf), sizeof(buf), 0));
 }
 
-TEST_F(LibRadosMisc, CmpExt) {
+TEST_F(LibRadosMisc, CmpExt)
+{
   bufferlist cmp_bl, bad_cmp_bl, write_bl;
   char stored_str[] = "1234567891";
   char mismatch_str[] = "1234577777";
 
-  ASSERT_EQ(0,
-	    rados_write(ioctx, "cmpextpp", stored_str, sizeof(stored_str), 0));
+  ASSERT_EQ(
+      0, rados_write(ioctx, "cmpextpp", stored_str, sizeof(stored_str), 0));
 
-  ASSERT_EQ(0,
-	    rados_cmpext(ioctx, "cmpextpp", stored_str, sizeof(stored_str), 0));
+  ASSERT_EQ(
+      0, rados_cmpext(ioctx, "cmpextpp", stored_str, sizeof(stored_str), 0));
 
-  ASSERT_EQ(-MAX_ERRNO - 5,
-	    rados_cmpext(ioctx, "cmpextpp", mismatch_str, sizeof(mismatch_str), 0));
+  ASSERT_EQ(
+      -MAX_ERRNO - 5,
+      rados_cmpext(ioctx, "cmpextpp", mismatch_str, sizeof(mismatch_str), 0));
 }
 
-TEST_F(LibRadosMisc, Applications) {
-  const char *cmd[] = {"{\"prefix\":\"osd dump\"}", nullptr};
+TEST_F(LibRadosMisc, Applications)
+{
+  const char* cmd[] = {"{\"prefix\":\"osd dump\"}", nullptr};
   char *buf, *st;
   size_t buflen, stlen;
-  ASSERT_EQ(0, rados_mon_command(cluster, (const char **)cmd, 1, "", 0, &buf,
-                                 &buflen, &st, &stlen));
+  ASSERT_EQ(
+      0, rados_mon_command(
+             cluster, (const char**)cmd, 1, "", 0, &buf, &buflen, &st, &stlen));
   ASSERT_LT(0u, buflen);
   string result(buf);
   rados_buffer_free(buf);
@@ -268,51 +286,58 @@ TEST_F(LibRadosMisc, Applications) {
 
   key_len = sizeof(keys);
   val_len = sizeof(vals);
-  ASSERT_EQ(-ENOENT, rados_application_metadata_list(ioctx, "dne", keys,
-                                                     &key_len, vals, &val_len));
-  ASSERT_EQ(0, rados_application_metadata_list(ioctx, "app1", keys, &key_len,
-                                               vals, &val_len));
+  ASSERT_EQ(
+      -ENOENT, rados_application_metadata_list(
+                   ioctx, "dne", keys, &key_len, vals, &val_len));
+  ASSERT_EQ(
+      0, rados_application_metadata_list(
+             ioctx, "app1", keys, &key_len, vals, &val_len));
   ASSERT_EQ(0U, key_len);
   ASSERT_EQ(0U, val_len);
 
-  ASSERT_EQ(-ENOENT, rados_application_metadata_set(ioctx, "dne", "key",
-                                                    "value"));
+  ASSERT_EQ(
+      -ENOENT, rados_application_metadata_set(ioctx, "dne", "key", "value"));
   ASSERT_EQ(0, rados_application_metadata_set(ioctx, "app1", "key1", "value1"));
   ASSERT_EQ(0, rados_application_metadata_set(ioctx, "app1", "key2", "value2"));
 
-  ASSERT_EQ(-ERANGE, rados_application_metadata_list(ioctx, "app1", keys,
-                                                     &key_len, vals, &val_len));
+  ASSERT_EQ(
+      -ERANGE, rados_application_metadata_list(
+                   ioctx, "app1", keys, &key_len, vals, &val_len));
   ASSERT_EQ(10U, key_len);
   ASSERT_EQ(14U, val_len);
-  ASSERT_EQ(0, rados_application_metadata_list(ioctx, "app1", keys, &key_len,
-                                               vals, &val_len));
+  ASSERT_EQ(
+      0, rados_application_metadata_list(
+             ioctx, "app1", keys, &key_len, vals, &val_len));
   ASSERT_EQ(10U, key_len);
   ASSERT_EQ(14U, val_len);
   ASSERT_EQ(0, memcmp("key1\0key2\0", keys, key_len));
   ASSERT_EQ(0, memcmp("value1\0value2\0", vals, val_len));
 
   ASSERT_EQ(0, rados_application_metadata_remove(ioctx, "app1", "key1"));
-  ASSERT_EQ(0, rados_application_metadata_list(ioctx, "app1", keys, &key_len,
-                                               vals, &val_len));
+  ASSERT_EQ(
+      0, rados_application_metadata_list(
+             ioctx, "app1", keys, &key_len, vals, &val_len));
   ASSERT_EQ(5U, key_len);
   ASSERT_EQ(7U, val_len);
   ASSERT_EQ(0, memcmp("key2\0", keys, key_len));
   ASSERT_EQ(0, memcmp("value2\0", vals, val_len));
 }
 
-TEST_F(LibRadosMisc, MinCompatOSD) {
+TEST_F(LibRadosMisc, MinCompatOSD)
+{
   int8_t require_osd_release;
   ASSERT_EQ(0, rados_get_min_compatible_osd(cluster, &require_osd_release));
   ASSERT_LE(-1, require_osd_release);
   ASSERT_GT(CEPH_RELEASE_MAX, require_osd_release);
 }
 
-TEST_F(LibRadosMisc, MinCompatClient) {
+TEST_F(LibRadosMisc, MinCompatClient)
+{
   int8_t min_compat_client;
   int8_t require_min_compat_client;
-  ASSERT_EQ(0, rados_get_min_compatible_client(cluster,
-                                               &min_compat_client,
-                                               &require_min_compat_client));
+  ASSERT_EQ(
+      0, rados_get_min_compatible_client(
+             cluster, &min_compat_client, &require_min_compat_client));
   ASSERT_LE(-1, min_compat_client);
   ASSERT_GT(CEPH_RELEASE_MAX, min_compat_client);
 
@@ -320,7 +345,8 @@ TEST_F(LibRadosMisc, MinCompatClient) {
   ASSERT_GT(CEPH_RELEASE_MAX, require_min_compat_client);
 }
 
-static void shutdown_racer_func()
+static void
+shutdown_racer_func()
 {
   const int niter = 32;
   rados_t rad;

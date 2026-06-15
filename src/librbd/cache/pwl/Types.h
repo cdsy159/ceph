@@ -11,9 +11,10 @@
 #endif
 
 #include <vector>
+
+#include "include/utime.h"
 #include "librbd/BlockGuard.h"
 #include "librbd/io/Types.h"
-#include "include/utime.h"
 
 namespace ceph {
 class Formatter;
@@ -25,34 +26,34 @@ enum {
   l_librbd_pwl_first = 26500,
 
   // All read requests
-  l_librbd_pwl_rd_req,           // read requests
-  l_librbd_pwl_rd_bytes,         // bytes read
-  l_librbd_pwl_rd_latency,       // average req completion latency
+  l_librbd_pwl_rd_req, // read requests
+  l_librbd_pwl_rd_bytes, // bytes read
+  l_librbd_pwl_rd_latency, // average req completion latency
 
   // Read requests completed from RWL (no misses)
-  l_librbd_pwl_rd_hit_req,       // read requests
-  l_librbd_pwl_rd_hit_bytes,     // bytes read
-  l_librbd_pwl_rd_hit_latency,   // average req completion latency
+  l_librbd_pwl_rd_hit_req, // read requests
+  l_librbd_pwl_rd_hit_bytes, // bytes read
+  l_librbd_pwl_rd_hit_latency, // average req completion latency
 
   // Reed requests with hit and miss extents
-  l_librbd_pwl_rd_part_hit_req,  // read ops
+  l_librbd_pwl_rd_part_hit_req, // read ops
 
   // Per SyncPoint's LogEntry number and write bytes distribution
   l_librbd_pwl_syncpoint_hist,
 
   // All write requests
-  l_librbd_pwl_wr_req,             // write requests
-  l_librbd_pwl_wr_bytes,           // bytes written
-  l_librbd_pwl_wr_req_def,         // write requests deferred for resources
-  l_librbd_pwl_wr_req_def_lanes,   // write requests deferred for lanes
-  l_librbd_pwl_wr_req_def_log,     // write requests deferred for log entries
-  l_librbd_pwl_wr_req_def_buf,     // write requests deferred for buffer space
-  l_librbd_pwl_wr_req_overlap,     // write requests detained for overlap
-  l_librbd_pwl_wr_req_queued,      // write requests queued for prior barrier
+  l_librbd_pwl_wr_req, // write requests
+  l_librbd_pwl_wr_bytes, // bytes written
+  l_librbd_pwl_wr_req_def, // write requests deferred for resources
+  l_librbd_pwl_wr_req_def_lanes, // write requests deferred for lanes
+  l_librbd_pwl_wr_req_def_log, // write requests deferred for log entries
+  l_librbd_pwl_wr_req_def_buf, // write requests deferred for buffer space
+  l_librbd_pwl_wr_req_overlap, // write requests detained for overlap
+  l_librbd_pwl_wr_req_queued, // write requests queued for prior barrier
 
   // Write log operations (1 .. n per request that appends to the log)
-  l_librbd_pwl_log_ops,            // log append ops
-  l_librbd_pwl_log_op_bytes,       // average bytes written per log op
+  l_librbd_pwl_log_ops, // log append ops
+  l_librbd_pwl_log_op_bytes, // average bytes written per log op
 
   /*
 
@@ -91,23 +92,23 @@ enum {
   */
 
   /* Request times */
-  l_librbd_pwl_req_arr_to_all_t,   // arrival to allocation elapsed time - same as time deferred in block guard
-  l_librbd_pwl_req_arr_to_dis_t,   // arrival to dispatch elapsed time
-  l_librbd_pwl_req_all_to_dis_t,   // Time spent allocating or waiting to allocate resources
-  l_librbd_pwl_wr_latency,         // average req (persist) completion latency
-  l_librbd_pwl_wr_latency_hist,    // Histogram of write req (persist) completion latency vs. bytes written
-  l_librbd_pwl_wr_caller_latency,  // average req completion (to caller) latency
+  l_librbd_pwl_req_arr_to_all_t, // arrival to allocation elapsed time - same as time deferred in block guard
+  l_librbd_pwl_req_arr_to_dis_t, // arrival to dispatch elapsed time
+  l_librbd_pwl_req_all_to_dis_t, // Time spent allocating or waiting to allocate resources
+  l_librbd_pwl_wr_latency, // average req (persist) completion latency
+  l_librbd_pwl_wr_latency_hist, // Histogram of write req (persist) completion latency vs. bytes written
+  l_librbd_pwl_wr_caller_latency, // average req completion (to caller) latency
 
   /* Request times for requests that never waited for space*/
-  l_librbd_pwl_nowait_req_arr_to_all_t,   // arrival to allocation elapsed time - same as time deferred in block guard
-  l_librbd_pwl_nowait_req_arr_to_dis_t,   // arrival to dispatch elapsed time
-  l_librbd_pwl_nowait_req_all_to_dis_t,   // Time spent allocating or waiting to allocate resources
-  l_librbd_pwl_nowait_wr_latency,         // average req (persist) completion latency
-  l_librbd_pwl_nowait_wr_latency_hist,    // Histogram of write req (persist) completion latency vs. bytes written
-  l_librbd_pwl_nowait_wr_caller_latency,  // average req completion (to caller) latency
+  l_librbd_pwl_nowait_req_arr_to_all_t, // arrival to allocation elapsed time - same as time deferred in block guard
+  l_librbd_pwl_nowait_req_arr_to_dis_t, // arrival to dispatch elapsed time
+  l_librbd_pwl_nowait_req_all_to_dis_t, // Time spent allocating or waiting to allocate resources
+  l_librbd_pwl_nowait_wr_latency, // average req (persist) completion latency
+  l_librbd_pwl_nowait_wr_latency_hist, // Histogram of write req (persist) completion latency vs. bytes written
+  l_librbd_pwl_nowait_wr_caller_latency, // average req completion (to caller) latency
 
   /* Log operation times */
-  l_librbd_pwl_log_op_alloc_t,      // elapsed time of pmemobj_reserve()
+  l_librbd_pwl_log_op_alloc_t, // elapsed time of pmemobj_reserve()
   l_librbd_pwl_log_op_alloc_t_hist, // Histogram of elapsed time of pmemobj_reserve()
 
   l_librbd_pwl_log_op_dis_to_buf_t, // dispatch to buffer persist elapsed time
@@ -116,8 +117,8 @@ enum {
   l_librbd_pwl_log_op_dis_to_cmp_t_hist, // Histogram of dispatch to persist completion elapsed time
 
   l_librbd_pwl_log_op_buf_to_app_t, // data buf persist + append wait time
-  l_librbd_pwl_log_op_buf_to_bufc_t,// data buf persist / replicate elapsed time
-  l_librbd_pwl_log_op_buf_to_bufc_t_hist,// data buf persist time vs bytes histogram
+  l_librbd_pwl_log_op_buf_to_bufc_t, // data buf persist / replicate elapsed time
+  l_librbd_pwl_log_op_buf_to_bufc_t_hist, // data buf persist time vs bytes histogram
   l_librbd_pwl_log_op_app_to_cmp_t, // log entry append + completion wait time
   l_librbd_pwl_log_op_app_to_appc_t, // log entry append / replicate elapsed time
   l_librbd_pwl_log_op_app_to_appc_t_hist, // log entry append time (vs. op bytes) histogram
@@ -152,13 +153,18 @@ enum {
 };
 
 enum {
-  WRITE_LOG_CACHE_ENTRY_VALID = 1U << 0,      /* if 0, this entry is free */
-  WRITE_LOG_CACHE_ENTRY_SYNC_POINT = 1U << 1, /* No data. No write sequence number.
+  WRITE_LOG_CACHE_ENTRY_VALID = 1U << 0, /* if 0, this entry is free */
+  WRITE_LOG_CACHE_ENTRY_SYNC_POINT = 1U
+                                     << 1, /* No data. No write sequence number.
                                                  Marks sync point for this sync gen number */
-  WRITE_LOG_CACHE_ENTRY_SEQUENCED = 1U << 2,  /* write sequence number is valid */
-  WRITE_LOG_CACHE_ENTRY_HAS_DATA = 1U << 3,   /* write_data field is valid (else ignore) */
-  WRITE_LOG_CACHE_ENTRY_DISCARD = 1U << 4,    /* has_data will be 0 if this is a discard */
-  WRITE_LOG_CACHE_ENTRY_WRITESAME = 1U << 5,  /* ws_datalen indicates length of data at write_bytes */
+  WRITE_LOG_CACHE_ENTRY_SEQUENCED = 1U
+                                    << 2, /* write sequence number is valid */
+  WRITE_LOG_CACHE_ENTRY_HAS_DATA =
+      1U << 3, /* write_data field is valid (else ignore) */
+  WRITE_LOG_CACHE_ENTRY_DISCARD =
+      1U << 4, /* has_data will be 0 if this is a discard */
+  WRITE_LOG_CACHE_ENTRY_WRITESAME =
+      1U << 5, /* ws_datalen indicates length of data at write_bytes */
 };
 
 namespace librbd {
@@ -183,7 +189,7 @@ const unsigned long int MAX_ALLOC_PER_TRANSACTION = 8;
 const unsigned long int MAX_FREE_PER_TRANSACTION = 1;
 const unsigned int MAX_CONCURRENT_WRITES = (1024 * 1024);
 
-const uint64_t DEFAULT_POOL_SIZE = 1u<<30;
+const uint64_t DEFAULT_POOL_SIZE = 1u << 30;
 const uint64_t MIN_POOL_SIZE = DEFAULT_POOL_SIZE;
 const uint64_t POOL_SIZE_ALIGN = 1 << 20;
 constexpr double USABLE_SIZE = (7.0 / 10);
@@ -206,6 +212,7 @@ const uint64_t DATA_RING_BUFFER_OFFSET = 8192;
 class DeferredContexts {
 private:
   std::vector<Context*> contexts;
+
 public:
   ~DeferredContexts();
   void add(Context* ctx);
@@ -225,93 +232,141 @@ struct WriteLogCacheEntry {
   uint64_t write_sequence_number = 0;
   uint64_t image_offset_bytes;
   uint64_t write_bytes;
-  #ifdef WITH_RBD_RWL
+#ifdef WITH_RBD_RWL
   TOID(uint8_t) write_data;
-  #endif
-  #ifdef WITH_RBD_SSD_CACHE
+#endif
+#ifdef WITH_RBD_SSD_CACHE
   uint64_t write_data_pos = 0; /* SSD data offset */
-  #endif
+#endif
   uint8_t flags = 0;
-  uint32_t ws_datalen = 0;  /* Length of data buffer (writesame only) */
+  uint32_t ws_datalen = 0; /* Length of data buffer (writesame only) */
   uint32_t entry_index = 0; /* For debug consistency check. Can be removed if
                              * we need the space */
-  WriteLogCacheEntry(uint64_t image_offset_bytes=0, uint64_t write_bytes=0)
-      : image_offset_bytes(image_offset_bytes), write_bytes(write_bytes) {}
+
+  WriteLogCacheEntry(uint64_t image_offset_bytes = 0, uint64_t write_bytes = 0) :
+    image_offset_bytes(image_offset_bytes), write_bytes(write_bytes)
+  {}
+
   BlockExtent block_extent();
   uint64_t get_offset_bytes();
   uint64_t get_write_bytes();
-  bool is_entry_valid() const {
+
+  bool
+  is_entry_valid() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_VALID;
   }
-  bool is_sync_point() const {
+
+  bool
+  is_sync_point() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_SYNC_POINT;
   }
-  bool is_sequenced() const {
+
+  bool
+  is_sequenced() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_SEQUENCED;
   }
-  bool has_data() const {
+
+  bool
+  has_data() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_HAS_DATA;
   }
-  bool is_discard() const {
+
+  bool
+  is_discard() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_DISCARD;
   }
-  bool is_writesame() const {
+
+  bool
+  is_writesame() const
+  {
     return flags & WRITE_LOG_CACHE_ENTRY_WRITESAME;
   }
-  bool is_write() const {
+
+  bool
+  is_write() const
+  {
     /* Log entry is a basic write */
     return !is_sync_point() && !is_discard() && !is_writesame();
   }
-  bool is_writer() const {
+
+  bool
+  is_writer() const
+  {
     /* Log entry is any type that writes data */
     return is_write() || is_discard() || is_writesame();
   }
-  void set_entry_valid(bool flag) {
+
+  void
+  set_entry_valid(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_VALID;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_VALID;
     }
   }
-  void set_sync_point(bool flag) {
+
+  void
+  set_sync_point(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_SYNC_POINT;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_SYNC_POINT;
     }
   }
-  void set_sequenced(bool flag) {
+
+  void
+  set_sequenced(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_SEQUENCED;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_SEQUENCED;
     }
   }
-  void set_has_data(bool flag) {
+
+  void
+  set_has_data(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_HAS_DATA;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_HAS_DATA;
     }
   }
-  void set_discard(bool flag) {
+
+  void
+  set_discard(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_DISCARD;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_DISCARD;
     }
   }
-  void set_writesame(bool flag) {
+
+  void
+  set_writesame(bool flag)
+  {
     if (flag) {
       flags |= WRITE_LOG_CACHE_ENTRY_WRITESAME;
     } else {
       flags &= ~WRITE_LOG_CACHE_ENTRY_WRITESAME;
     }
   }
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const WriteLogCacheEntry &entry);
-  #ifdef WITH_RBD_SSD_CACHE
-  DENC(WriteLogCacheEntry, v, p) {
+
+  friend std::ostream& operator<<(
+      std::ostream& os,
+      const WriteLogCacheEntry& entry);
+#ifdef WITH_RBD_SSD_CACHE
+  DENC(WriteLogCacheEntry, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.sync_gen_number, p);
     denc(v.write_sequence_number, p);
@@ -323,36 +378,40 @@ struct WriteLogCacheEntry {
     denc(v.entry_index, p);
     DENC_FINISH(p);
   }
-  #endif
-  void dump(ceph::Formatter *f) const;
+#endif
+  void dump(ceph::Formatter* f) const;
   static std::list<WriteLogCacheEntry> generate_test_instances();
 };
 
 struct WriteLogPoolRoot {
-  #ifdef WITH_RBD_RWL
+#ifdef WITH_RBD_RWL
   union {
     struct {
       uint8_t layout_version;
     };
+
     uint64_t _u64;
   } header;
-  TOID(struct WriteLogCacheEntry) log_entries;   /* contiguous array of log entries */
-  #endif
-  #ifdef WITH_RBD_SSD_CACHE
+
+  TOID(struct WriteLogCacheEntry)
+  log_entries; /* contiguous array of log entries */
+#endif
+#ifdef WITH_RBD_SSD_CACHE
   uint64_t layout_version = 0;
-  uint64_t cur_sync_gen = 0;    /* TODO: remove it when changing disk format */
-  #endif
+  uint64_t cur_sync_gen = 0; /* TODO: remove it when changing disk format */
+#endif
   uint64_t pool_size;
-  uint64_t flushed_sync_gen;    /* All writing entries with this or a lower
+  uint64_t flushed_sync_gen; /* All writing entries with this or a lower
                                  * sync gen number are flushed. */
   uint32_t block_size;
   uint32_t num_log_entries;
-  uint64_t first_free_entry;    /* The free entry following the latest valid
+  uint64_t first_free_entry; /* The free entry following the latest valid
                                  * entry, which is going to be written */
-  uint64_t first_valid_entry;   /* The oldest valid entry to be retired */
+  uint64_t first_valid_entry; /* The oldest valid entry to be retired */
 
-  #ifdef WITH_RBD_SSD_CACHE
-  DENC(WriteLogPoolRoot, v, p) {
+#ifdef WITH_RBD_SSD_CACHE
+  DENC(WriteLogPoolRoot, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.layout_version, p);
     denc(v.cur_sync_gen, p);
@@ -364,25 +423,28 @@ struct WriteLogPoolRoot {
     denc(v.first_valid_entry, p);
     DENC_FINISH(p);
   }
-  #endif
+#endif
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<WriteLogPoolRoot> generate_test_instances();
 };
 
 struct WriteBufferAllocation {
   unsigned int allocation_size = 0;
-  #ifdef WITH_RBD_RWL
+#ifdef WITH_RBD_RWL
   pobj_action buffer_alloc_action;
   TOID(uint8_t) buffer_oid = OID_NULL;
-  #endif
+#endif
   bool allocated = false;
   utime_t allocation_lat;
 };
 
-static inline io::Extent image_extent(const BlockExtent& block_extent) {
-  return io::Extent(block_extent.block_start,
-                    block_extent.block_end - block_extent.block_start);
+static inline io::Extent
+image_extent(const BlockExtent& block_extent)
+{
+  return io::Extent(
+      block_extent.block_start,
+      block_extent.block_end - block_extent.block_start);
 }
 
 template <typename ExtentsType>
@@ -391,18 +453,26 @@ public:
   uint64_t total_bytes;
   uint64_t first_image_byte;
   uint64_t last_image_byte;
-  explicit ExtentsSummary(const ExtentsType &extents);
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const ExtentsSummary &s) {
+  explicit ExtentsSummary(const ExtentsType& extents);
+
+  friend std::ostream&
+  operator<<(std::ostream& os, const ExtentsSummary& s)
+  {
     os << "total_bytes=" << s.total_bytes
        << ", first_image_byte=" << s.first_image_byte
        << ", last_image_byte=" << s.last_image_byte;
     return os;
   }
-  BlockExtent block_extent() {
+
+  BlockExtent
+  block_extent()
+  {
     return BlockExtent(first_image_byte, last_image_byte);
   }
-  io::Extent image_extent() {
+
+  io::Extent
+  image_extent()
+  {
     return librbd::cache::pwl::image_extent(block_extent());
   }
 };
@@ -411,7 +481,7 @@ io::Extent whole_volume_extent();
 
 BlockExtent block_extent(const io::Extent& image_extent);
 
-Context * override_ctx(int r, Context *ctx);
+Context* override_ctx(int r, Context* ctx);
 
 class ImageExtentBuf : public io::Extent {
 public:
@@ -419,20 +489,35 @@ public:
   bool need_to_truncate;
   int truncate_offset;
   bool writesame;
+
   ImageExtentBuf() {}
-  ImageExtentBuf(io::Extent extent,
-                 bool need_to_truncate = false, uint64_t truncate_offset = 0,
-                 bool writesame = false)
-    : io::Extent(extent), need_to_truncate(need_to_truncate),
-      truncate_offset(truncate_offset), writesame(writesame) {}
-  ImageExtentBuf(io::Extent extent, bufferlist bl,
-                 bool need_to_truncate = false, uint64_t truncate_offset = 0,
-                 bool writesame = false)
-    : io::Extent(extent), m_bl(bl), need_to_truncate(need_to_truncate),
-      truncate_offset(truncate_offset), writesame(writesame) {}
+
+  ImageExtentBuf(
+      io::Extent extent,
+      bool need_to_truncate = false,
+      uint64_t truncate_offset = 0,
+      bool writesame = false) :
+    io::Extent(extent),
+    need_to_truncate(need_to_truncate),
+    truncate_offset(truncate_offset),
+    writesame(writesame)
+  {}
+
+  ImageExtentBuf(
+      io::Extent extent,
+      bufferlist bl,
+      bool need_to_truncate = false,
+      uint64_t truncate_offset = 0,
+      bool writesame = false) :
+    io::Extent(extent),
+    m_bl(bl),
+    need_to_truncate(need_to_truncate),
+    truncate_offset(truncate_offset),
+    writesame(writesame)
+  {}
 };
 
-std::string unique_lock_name(const std::string &name, void *address);
+std::string unique_lock_name(const std::string& name, void* address);
 
 } // namespace pwl
 } // namespace cache

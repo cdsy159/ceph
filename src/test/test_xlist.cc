@@ -1,23 +1,20 @@
 #include <algorithm>
 #include <iterator>
 #include <vector>
-#include "include/xlist.h"
 
 #include "gtest/gtest.h"
-
+#include "include/xlist.h"
 
 struct Item {
   xlist<Item*>::item xitem;
   int val;
 
   explicit Item(int v) :
-    xitem(this),
-    val(v)
+    xitem(this), val(v)
   {}
 };
 
-class XlistTest : public testing::Test
-{
+class XlistTest : public testing::Test {
 protected:
   typedef xlist<Item*> ItemList;
   typedef std::vector<Item*> Items;
@@ -26,13 +23,18 @@ protected:
   // for filling up an ItemList
   Refs refs;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     for (int i = 0; i < 13; i++) {
       items.push_back(new Item(i));
       refs.push_back(&items.back()->xitem);
     }
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     for (Items::iterator i = items.begin(); i != items.end(); ++i) {
       delete *i;
     }
@@ -40,7 +42,8 @@ protected:
   }
 };
 
-TEST_F(XlistTest, capability) {
+TEST_F(XlistTest, capability)
+{
   ItemList list;
   ASSERT_TRUE(list.empty());
   ASSERT_EQ(0u, list.size());
@@ -53,7 +56,8 @@ TEST_F(XlistTest, capability) {
   ASSERT_EQ(0u, list.size());
 }
 
-TEST_F(XlistTest, traverse) {
+TEST_F(XlistTest, traverse)
+{
   ItemList list;
   std::copy(refs.begin(), refs.end(), std::back_inserter(list));
 
@@ -72,7 +76,8 @@ TEST_F(XlistTest, traverse) {
   list.clear();
 }
 
-TEST_F(XlistTest, move_around) {
+TEST_F(XlistTest, move_around)
+{
   Item item1(42), item2(17);
   ItemList list;
 
@@ -98,7 +103,8 @@ TEST_F(XlistTest, move_around) {
   list.clear();
 }
 
-TEST_F(XlistTest, item_queries) {
+TEST_F(XlistTest, item_queries)
+{
   Item item(42);
   ItemList list;
   list.push_back(&item.xitem);

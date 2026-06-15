@@ -10,9 +10,9 @@
 
 /* Commands for manipulating delegation state */
 #ifndef CEPH_DELEGATION_NONE
-# define CEPH_DELEGATION_NONE	0
-# define CEPH_DELEGATION_RD	1
-# define CEPH_DELEGATION_WR	2
+#define CEPH_DELEGATION_NONE 0
+#define CEPH_DELEGATION_RD 1
+#define CEPH_DELEGATION_WR 2
 #endif
 
 /* Converts CEPH_DELEGATION_* to cap mask */
@@ -24,35 +24,54 @@ int ceph_deleg_caps_for_type(unsigned type);
  */
 class Delegation {
 public:
-  Delegation(Fh *_fh, unsigned _type, ceph_deleg_cb_t _cb, void *_priv);
+  Delegation(Fh* _fh, unsigned _type, ceph_deleg_cb_t _cb, void* _priv);
   ~Delegation();
-  Fh *get_fh() { return fh; }
-  unsigned get_type() { return type; }
-  bool is_recalled() { return !recall_time.is_zero(); }
-  bool is_write_delegated() {
+
+  Fh*
+  get_fh()
+  {
+    return fh;
+  }
+
+  unsigned
+  get_type()
+  {
+    return type;
+  }
+
+  bool
+  is_recalled()
+  {
+    return !recall_time.is_zero();
+  }
+
+  bool
+  is_write_delegated()
+  {
     return type == CEPH_DELEGATION_WR;
   }
 
-  void reinit(unsigned _type, ceph_deleg_cb_t _recall_cb, void *_priv);
+  void reinit(unsigned _type, ceph_deleg_cb_t _recall_cb, void* _priv);
   void recall(bool skip_read);
+
 private:
   // Filehandle against which it was acquired
-  Fh				*fh;
+  Fh* fh;
 
   // opaque token that will be passed to the callback
-  void				*priv;
+  void* priv;
 
   // CEPH_DELEGATION_* type
-  unsigned			type;
+  unsigned type;
 
   // callback into application to recall delegation
-  ceph_deleg_cb_t		recall_cb;
+  ceph_deleg_cb_t recall_cb;
 
   // time of first recall
-  utime_t			recall_time;
+  utime_t recall_time;
 
   // timer for unreturned delegations
-  Context			*timeout_event;
+  Context* timeout_event;
 
   void arm_timeout();
   void disarm_timeout();

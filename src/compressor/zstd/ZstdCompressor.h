@@ -17,18 +17,24 @@
 #define CEPH_ZSTDCOMPRESSOR_H
 
 #define ZSTD_STATIC_LINKING_ONLY
-#include "zstd/lib/zstd.h"
-
+#include "compressor/Compressor.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
-#include "compressor/Compressor.h"
+#include "zstd/lib/zstd.h"
 
 class ZstdCompressor : public Compressor {
- public:
-  ZstdCompressor(CephContext *cct) : Compressor(COMP_ALG_ZSTD, "zstd"), cct(cct) {}
+public:
+  ZstdCompressor(CephContext* cct) :
+    Compressor(COMP_ALG_ZSTD, "zstd"), cct(cct)
+  {}
 
-  int compress(const ceph::buffer::list &src, ceph::buffer::list &dst, std::optional<int32_t> &compressor_message) override {
-    ZSTD_CCtx *s = ZSTD_createCCtx();
+  int
+  compress(
+      const ceph::buffer::list& src,
+      ceph::buffer::list& dst,
+      std::optional<int32_t>& compressor_message) override
+  {
+    ZSTD_CCtx* s = ZSTD_createCCtx();
     if (!s) {
       return -ENOMEM;
     }
@@ -37,7 +43,8 @@ class ZstdCompressor : public Compressor {
       ZSTD_freeCCtx(s);
       return -EINVAL;
     }
-    res = ZSTD_CCtx_setParameter(s, ZSTD_c_compressionLevel, cct->_conf->compressor_zstd_level);
+    res = ZSTD_CCtx_setParameter(
+        s, ZSTD_c_compressionLevel, cct->_conf->compressor_zstd_level);
     if (ZSTD_isError(res)) {
       ZSTD_freeCCtx(s);
       return -EINVAL;
@@ -63,7 +70,7 @@ class ZstdCompressor : public Compressor {
       inbuf.pos = 0;
       inbuf.size = p.get_ptr_and_advance(left, (const char**)&inbuf.src);
       left -= inbuf.size;
-      ZSTD_EndDirective const zed = (left==0) ? ZSTD_e_end : ZSTD_e_continue;
+      ZSTD_EndDirective const zed = (left == 0) ? ZSTD_e_end : ZSTD_e_continue;
       size_t r = ZSTD_compressStream2(s, &outbuf, &inbuf, zed);
       if (ZSTD_isError(r)) {
         ZSTD_freeCCtx(s);
@@ -80,15 +87,23 @@ class ZstdCompressor : public Compressor {
     return 0;
   }
 
-  int decompress(const ceph::buffer::list &src, ceph::buffer::list &dst, std::optional<int32_t> compressor_message) override {
+  int
+  decompress(
+      const ceph::buffer::list& src,
+      ceph::buffer::list& dst,
+      std::optional<int32_t> compressor_message) override
+  {
     auto i = std::cbegin(src);
     return decompress(i, src.length(), dst, compressor_message);
   }
 
-  int decompress(ceph::buffer::list::const_iterator &p,
-		 size_t compressed_len,
-		 ceph::buffer::list &dst,
-		 std::optional<int32_t> compressor_message) override {
+  int
+  decompress(
+      ceph::buffer::list::const_iterator& p,
+      size_t compressed_len,
+      ceph::buffer::list& dst,
+      std::optional<int32_t> compressor_message) override
+  {
     if (compressed_len < 4) {
       return -1;
     }
@@ -101,16 +116,16 @@ class ZstdCompressor : public Compressor {
     outbuf.dst = dstptr.c_str();
     outbuf.size = dstptr.length();
     outbuf.pos = 0;
-    ZSTD_DStream *s = ZSTD_createDStream();
+    ZSTD_DStream* s = ZSTD_createDStream();
     ZSTD_initDStream(s);
     while (compressed_len > 0) {
       if (p.end()) {
-	return -1;
+        return -1;
       }
       ZSTD_inBuffer_s inbuf;
       inbuf.pos = 0;
-      inbuf.size = p.get_ptr_and_advance(compressed_len,
-					 (const char**)&inbuf.src);
+      inbuf.size =
+          p.get_ptr_and_advance(compressed_len, (const char**)&inbuf.src);
       ZSTD_decompressStream(s, &outbuf, &inbuf);
       compressed_len -= inbuf.size;
     }
@@ -119,8 +134,9 @@ class ZstdCompressor : public Compressor {
     dst.append(dstptr, 0, outbuf.pos);
     return 0;
   }
- private:
-  CephContext *const cct;
+
+private:
+  CephContext* const cct;
 };
 
 #endif

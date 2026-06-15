@@ -21,21 +21,21 @@
 #include <string>
 #include <vector>
 
+#include "cls/fifo/cls_fifo_types.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
 #include "include/types.h"
 
-#include "cls/fifo/cls_fifo_types.h"
-
 namespace rados::cls::fifo::op {
-struct create_meta
-{
+struct create_meta {
   std::string id;
   std::optional<objv> version;
+
   struct {
     std::string name;
     std::string ns;
   } pool;
+
   std::optional<std::string> oid_prefix;
 
   std::uint64_t max_part_size{0};
@@ -43,7 +43,9 @@ struct create_meta
 
   bool exclusive{false};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(id, bl);
     encode(version, bl);
@@ -55,7 +57,10 @@ struct create_meta
     encode(exclusive, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(id, bl);
     decode(version, bl);
@@ -67,7 +72,10 @@ struct create_meta
     decode(exclusive, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("id", id);
     f->dump_object("version", version.value_or(objv()));
     f->dump_string("pool_name", pool.name);
@@ -77,7 +85,10 @@ struct create_meta
     f->dump_unsigned("max_entry_size", max_entry_size);
     f->dump_bool("exclusive", exclusive);
   }
-  static std::list<create_meta> generate_test_instances() {
+
+  static std::list<create_meta>
+  generate_test_instances()
+  {
     std::list<create_meta> o;
     o.emplace_back();
     o.emplace_back();
@@ -97,24 +108,34 @@ struct create_meta
 };
 WRITE_CLASS_ENCODER(create_meta)
 
-struct get_meta
-{
+struct get_meta {
   std::optional<objv> version;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(version, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(version, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_object("version", version.value_or(objv()));
   }
-  static std::list<get_meta> generate_test_instances() {
+
+  static std::list<get_meta>
+  generate_test_instances()
+  {
     std::list<get_meta> o;
     o.emplace_back();
     o.emplace_back();
@@ -127,33 +148,43 @@ struct get_meta
 };
 WRITE_CLASS_ENCODER(get_meta)
 
-struct get_meta_reply
-{
+struct get_meta_reply {
   fifo::info info;
   std::uint32_t part_header_size{0};
   /* per entry extra data that is stored */
   std::uint32_t part_entry_overhead{0};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(info, bl);
     encode(part_header_size, bl);
     encode(part_entry_overhead, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(info, bl);
     decode(part_header_size, bl);
     decode(part_entry_overhead, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_object("info", info);
     f->dump_unsigned("part_header_size", part_header_size);
     f->dump_unsigned("part_entry_overhead", part_entry_overhead);
   }
-  static std::list<get_meta_reply> generate_test_instances() {
+
+  static std::list<get_meta_reply>
+  generate_test_instances()
+  {
     std::list<get_meta_reply> o;
     o.emplace_back();
     o.emplace_back();
@@ -165,8 +196,7 @@ struct get_meta_reply
 };
 WRITE_CLASS_ENCODER(get_meta_reply)
 
-struct update_meta
-{
+struct update_meta {
   objv version;
 
   std::optional<std::uint64_t> tail_part_num;
@@ -176,7 +206,9 @@ struct update_meta
   std::vector<journal_entry> journal_entries_add;
   std::vector<journal_entry> journal_entries_rm;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(version, bl);
     encode(tail_part_num, bl);
@@ -187,7 +219,10 @@ struct update_meta
     encode(journal_entries_rm, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(version, bl);
     decode(tail_part_num, bl);
@@ -201,18 +236,22 @@ struct update_meta
 };
 WRITE_CLASS_ENCODER(update_meta)
 
-struct init_part
-{
+struct init_part {
   data_params params;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::string tag;
     encode(tag, bl);
     encode(params, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::string tag;
     decode(tag, bl);
@@ -222,12 +261,13 @@ struct init_part
 };
 WRITE_CLASS_ENCODER(init_part)
 
-struct push_part
-{
+struct push_part {
   std::deque<ceph::buffer::list> data_bufs;
   std::uint64_t total_len{0};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::string tag;
     encode(tag, bl);
@@ -235,7 +275,10 @@ struct push_part
     encode(total_len, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::string tag;
     decode(tag, bl);
@@ -246,12 +289,13 @@ struct push_part
 };
 WRITE_CLASS_ENCODER(push_part)
 
-struct trim_part
-{
+struct trim_part {
   std::uint64_t ofs{0};
   bool exclusive = false;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::optional<std::string> tag;
     encode(tag, bl);
@@ -259,7 +303,10 @@ struct trim_part
     encode(exclusive, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::optional<std::string> tag;
     decode(tag, bl);
@@ -270,12 +317,13 @@ struct trim_part
 };
 WRITE_CLASS_ENCODER(trim_part)
 
-struct list_part
-{
+struct list_part {
   std::uint64_t ofs{0};
   int max_entries{100};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::optional<std::string> tag;
     encode(tag, bl);
@@ -283,7 +331,10 @@ struct list_part
     encode(max_entries, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::optional<std::string> tag;
     decode(tag, bl);
@@ -295,14 +346,15 @@ struct list_part
 WRITE_CLASS_ENCODER(list_part)
 inline constexpr int MAX_LIST_ENTRIES = 512;
 
-struct list_part_reply
-{
+struct list_part_reply {
   std::vector<part_list_entry> entries;
   bool more{false};
   bool full_part{false}; /* whether part is full or still can be written to.
                             A non full part is by definition head part */
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     std::string tag;
     encode(tag, bl);
@@ -311,7 +363,10 @@ struct list_part_reply
     encode(full_part, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     std::string tag;
     decode(tag, bl);
@@ -323,29 +378,37 @@ struct list_part_reply
 };
 WRITE_CLASS_ENCODER(list_part_reply)
 
-struct get_part_info
-{
-  void encode(ceph::buffer::list &bl) const {
+struct get_part_info {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator &bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     DECODE_FINISH(bl);
   }
 };
 WRITE_CLASS_ENCODER(get_part_info)
 
-struct get_part_info_reply
-{
+struct get_part_info_reply {
   part_header header;
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(header, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator &bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(header, bl);
     DECODE_FINISH(bl);

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -25,7 +25,8 @@
 
 const shard_id_t shard_id_t::NO_SHARD(-1);
 
-std::ostream& operator<<(std::ostream& lhs, const shard_id_t& rhs)
+std::ostream&
+operator<<(std::ostream& lhs, const shard_id_t& rhs)
 {
   return lhs << (unsigned)(uint8_t)rhs.id;
 }

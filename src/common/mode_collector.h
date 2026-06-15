@@ -42,10 +42,10 @@ struct ModeFinder {
 
   /// a 'non-templated' version of mode_status_t, to simplify usage.
   enum class mode_status_t {
-    no_mode_value,     ///< No clear victory for any value
-    mode_value,        ///< we have a winner, but it appears in less than half
-                       ///< of the samples
-    authorative_value  ///< more than half of the samples are of the same value
+    no_mode_value, ///< No clear victory for any value
+    mode_value, ///< we have a winner, but it appears in less than half
+        ///< of the samples
+    authorative_value ///< more than half of the samples are of the same value
   };
 };
 
@@ -54,9 +54,9 @@ struct ModeFinder {
 // of the unrdered map).
 
 template <
-    typename ObjIdT,  ///< how to identify the object that reported a value
-    typename K,       ///< the type of the value being collected
-    typename HshT = std::identity,  ///< the hash function for K
+    typename ObjIdT, ///< how to identify the object that reported a value
+    typename K, ///< the type of the value being collected
+    typename HshT = std::identity, ///< the hash function for K
     int MAX_ELEM = 12>
   requires(
       std::invocable<HshT, K> &&
@@ -64,7 +64,7 @@ template <
 class ModeCollector : public ModeFinder {
   struct node_type_t {
     size_t m_count{0};
-    ObjIdT m_id;  ///< Stores the object ID associated with this value
+    ObjIdT m_id; ///< Stores the object ID associated with this value
   };
 
   // estimated (upper limit) memory footprint of the unordered_map
@@ -76,28 +76,24 @@ class ModeCollector : public ModeFinder {
   static constexpr size_t NODE_STORAGE =
       MAX_ELEM * (sizeof(K) + sizeof(node_type_t) + NODE_OVERHEAD);
   // PMR allocator overhead (alignment, bookkeeping)
-  static constexpr size_t PMR_OVERHEAD_PER_ALLOC = 16;  // typical
+  static constexpr size_t PMR_OVERHEAD_PER_ALLOC = 16; // typical
   // bucket array + nodes
   static constexpr size_t TOTAL_OVERHEAD = PMR_OVERHEAD_PER_ALLOC * 2;
-  static constexpr size_t ESTIMATED_MEMORY_FOOTPRINT =
-      BUCKET_ARRAY_SIZE + NODE_STORAGE + TOTAL_OVERHEAD;
+  static constexpr size_t ESTIMATED_MEMORY_FOOTPRINT = BUCKET_ARRAY_SIZE +
+                                                       NODE_STORAGE +
+                                                       TOTAL_OVERHEAD;
   // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   std::array<std::byte, ESTIMATED_MEMORY_FOOTPRINT> m_buffer;
   std::pmr::monotonic_buffer_resource m_mbr{m_buffer.data(), m_buffer.size()};
 
   /// Map to store the occurrence count of each value
-  std::pmr::unordered_map<
-      K,
-      node_type_t,
-      HshT,
-      std::equal_to<K> >
-      m_frequency_map;
+  std::pmr::unordered_map<K, node_type_t, HshT, std::equal_to<K>> m_frequency_map;
 
   /// Actual count of elements added
   size_t m_actual_count{0};
 
- public:
+public:
   using mode_status_t = ModeFinder::mode_status_t;
 
   struct results_t {
@@ -113,13 +109,15 @@ class ModeCollector : public ModeFinder {
     auto operator<=>(const results_t& rhs) const = default;
   };
 
-  explicit ModeCollector() : m_frequency_map(&m_mbr)
+  explicit ModeCollector() :
+    m_frequency_map(&m_mbr)
   {
     m_frequency_map.reserve(MAX_ELEM);
   }
 
   /// Add a value to the collector
-  void insert(const ObjIdT& obj, const K& value) noexcept
+  void
+  insert(const ObjIdT& obj, const K& value) noexcept
   {
     auto& node = m_frequency_map[value];
     node.m_count++;
@@ -129,19 +127,20 @@ class ModeCollector : public ModeFinder {
     m_actual_count++;
   }
 
-
   /**
    * Find the mode of the collected values
    *
    * Note: we are losing ~4% performance due to find_mode() not being noexcept.
    */
-  results_t find_mode()
+  results_t
+  find_mode()
   {
     assert(!m_frequency_map.empty());
 
-    auto max_elem = std::ranges::max_element(
-        m_frequency_map, {},
-        [](const auto& pair) { return pair.second.m_count; });
+    auto max_elem =
+        std::ranges::max_element(m_frequency_map, {}, [](const auto& pair) {
+          return pair.second.m_count;
+        });
 
     // Check for clear victory
     if (max_elem->second.m_count > m_actual_count / 2) {
@@ -153,11 +152,12 @@ class ModeCollector : public ModeFinder {
     // Check for possible ties
     const auto max_elem_cnt = max_elem->second.m_count;
 
-    max_elem->second.m_count = 0;  // Reset the count of the max element
-    const auto second_best_elem = std::ranges::max_element(
-        m_frequency_map, {},
-        [](const auto& pair) { return pair.second.m_count; });
-    max_elem->second.m_count = max_elem_cnt;  // Restore the count
+    max_elem->second.m_count = 0; // Reset the count of the max element
+    const auto second_best_elem =
+        std::ranges::max_element(m_frequency_map, {}, [](const auto& pair) {
+          return pair.second.m_count;
+        });
+    max_elem->second.m_count = max_elem_cnt; // Restore the count
 
     if (second_best_elem->second.m_count == max_elem_cnt) {
       return {

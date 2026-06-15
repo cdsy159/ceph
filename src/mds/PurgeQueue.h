@@ -16,12 +16,6 @@
 #ifndef PURGE_QUEUE_H_
 #define PURGE_QUEUE_H_
 
-#include "common/Finisher.h"
-#include "common/snap_types.h" // for class SnapContext
-#include "include/cephfs/types.h" // for mds_rank_t
-#include "osdc/Journaler.h"
-#include "include/frag.h"
-
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -30,7 +24,15 @@
 #include <string_view>
 #include <vector>
 
-namespace ceph { class Formatter; }
+#include "common/Finisher.h"
+#include "common/snap_types.h" // for class SnapContext
+#include "include/cephfs/types.h" // for mds_rank_t
+#include "include/frag.h"
+#include "osdc/Journaler.h"
+
+namespace ceph {
+class Formatter;
+}
 class MDSMap;
 
 /**
@@ -39,8 +41,7 @@ class MDSMap;
  * and layout: all other un-needed inode metadata (times, permissions, etc)
  * has been discarded.
  */
-class PurgeItem
-{
+class PurgeItem {
 public:
   enum Action : uint8_t {
     NONE = 0,
@@ -51,14 +52,16 @@ public:
 
   PurgeItem() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(bufferlist::const_iterator &p);
+  void encode(bufferlist& bl) const;
+  void decode(bufferlist::const_iterator& p);
 
-  static Action str_to_type(std::string_view str) {
+  static Action
+  str_to_type(std::string_view str)
+  {
     return PurgeItem::actions.at(std::string(str));
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<PurgeItem> generate_test_instances();
 
   std::string_view get_type_str() const;
@@ -75,6 +78,7 @@ public:
   std::vector<int64_t> old_pools;
   SnapContext snapc;
   fragtree_t fragtree;
+
 private:
   static const std::map<std::string, PurgeItem::Action> actions;
 };
@@ -102,12 +106,18 @@ public:
     PURGE_OP_ZERO
   };
 
-  PurgeItemCommitOp(PurgeItem _item, PurgeType _type, int _flags)
-    : item(_item), type(_type), flags(_flags) {}
+  PurgeItemCommitOp(PurgeItem _item, PurgeType _type, int _flags) :
+    item(_item), type(_type), flags(_flags)
+  {}
 
-  PurgeItemCommitOp(PurgeItem _item, PurgeType _type, int _flags,
-                    object_t _oid, object_locator_t _oloc)
-    : item(_item), type(_type), flags(_flags), oid(_oid), oloc(_oloc) {}
+  PurgeItemCommitOp(
+      PurgeItem _item,
+      PurgeType _type,
+      int _flags,
+      object_t _oid,
+      object_locator_t _oloc) :
+    item(_item), type(_type), flags(_flags), oid(_oid), oloc(_oloc)
+  {}
 
   PurgeItem item;
   PurgeType type;
@@ -124,15 +134,14 @@ public:
  * independent of all the metadata structures and do not need to
  * take mds_lock for anything.
  */
-class PurgeQueue
-{
+class PurgeQueue {
 public:
   PurgeQueue(
-      CephContext *cct_,
+      CephContext* cct_,
       mds_rank_t rank_,
       const int64_t metadata_pool_,
-      Objecter *objecter_,
-      Context *on_error);
+      Objecter* objecter_,
+      Context* on_error);
   ~PurgeQueue();
 
   void init();
@@ -142,18 +151,21 @@ public:
   void create_logger();
 
   // Write an empty queue, use this during MDS rank creation
-  void create(Context *completion);
+  void create(Context* completion);
 
   // Read the Journaler header for an existing queue and start consuming
-  void open(Context *completion);
+  void open(Context* completion);
 
-  void wait_for_recovery(Context *c);
+  void wait_for_recovery(Context* c);
 
   // Submit one entry to the work queue.  Call back when it is persisted
   // to the queue (there is no callback for when it is executed)
-  void push(const PurgeItem &pi, Context *completion);
+  void push(const PurgeItem& pi, Context* completion);
 
-  void _commit_ops(int r, const std::vector<PurgeItemCommitOp>& ops_vec, uint64_t expire_to);
+  void _commit_ops(
+      int r,
+      const std::vector<PurgeItemCommitOp>& ops_vec,
+      uint64_t expire_to);
 
   // If the on-disk queue is empty and we are not currently processing
   // anything.
@@ -171,16 +183,18 @@ public:
    * @returns true if drain is complete
    */
   bool drain(
-    uint64_t *progress,
-    uint64_t *progress_total,
-    size_t *in_flight_count);
+      uint64_t* progress,
+      uint64_t* progress_total,
+      size_t* in_flight_count);
 
-  void update_op_limit(const MDSMap &mds_map);
+  void update_op_limit(const MDSMap& mds_map);
 
-  void handle_conf_change(const std::set<std::string>& changed, const MDSMap& mds_map);
+  void handle_conf_change(
+      const std::set<std::string>& changed,
+      const MDSMap& mds_map);
 
 private:
-  uint32_t _calculate_ops(const PurgeItem &item) const;
+  uint32_t _calculate_ops(const PurgeItem& item) const;
 
   bool _can_consume();
 
@@ -193,12 +207,12 @@ private:
    */
   bool _consume();
 
-  void _execute_item(const PurgeItem &item, uint64_t expire_to);
+  void _execute_item(const PurgeItem& item, uint64_t expire_to);
   void _execute_item_complete(uint64_t expire_to);
 
   void _go_readonly(int r);
 
-  CephContext *cct;
+  CephContext* cct;
   const mds_rank_t rank;
   ceph::mutex lock = ceph::make_mutex("PurgeQueue");
   bool readonly = false;
@@ -210,12 +224,12 @@ private:
   Finisher finisher;
   SafeTimer timer;
   Filer filer;
-  Objecter *objecter;
+  Objecter* objecter;
   std::unique_ptr<PerfCounters> logger;
 
   Journaler journaler;
 
-  Context *on_error;
+  Context* on_error;
 
   // Map of Journaler offset to PurgeItem
   std::map<uint64_t, PurgeItem> in_flight;
@@ -236,7 +250,7 @@ private:
   bool draining = false;
 
   // Do we currently have a flush timer event waiting?
-  Context *delayed_flush = nullptr;
+  Context* delayed_flush = nullptr;
 
   bool recovered = false;
   std::vector<Context*> waiting_for_recovery;

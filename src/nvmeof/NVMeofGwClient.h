@@ -13,13 +13,13 @@
  */
 
 
-#ifndef  __NVMEOFGWCLIENT_H__
-#define  __NVMEOFGWCLIENT_H__
+#ifndef __NVMEOFGWCLIENT_H__
+#define __NVMEOFGWCLIENT_H__
+#include <grpcpp/grpcpp.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
-
-#include <grpcpp/grpcpp.h>
 
 #include "gateway.grpc.pb.h"
 
@@ -28,14 +28,15 @@ using grpc::ClientContext;
 using grpc::Status;
 
 class NVMeofGwClient {
- public:
-  NVMeofGwClient(std::shared_ptr<Channel> channel)
-      : stub_(Gateway::NewStub(channel)) {}
+public:
+  NVMeofGwClient(std::shared_ptr<Channel> channel) :
+    stub_(Gateway::NewStub(channel))
+  {}
 
   bool get_subsystems(subsystems_info& reply);
   bool set_ana_state(const ana_info& info);
 
- private:
+private:
   std::unique_ptr<Gateway::Stub> stub_;
 };
 #endif

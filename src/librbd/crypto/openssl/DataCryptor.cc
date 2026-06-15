@@ -2,8 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/crypto/openssl/DataCryptor.h"
+
 #include <openssl/err.h>
 #include <string.h>
+
 #include "include/ceph_assert.h"
 #include "include/compat.h"
 
@@ -11,11 +13,15 @@ namespace librbd {
 namespace crypto {
 namespace openssl {
 
-int DataCryptor::init(const char* cipher_name, const unsigned char* key,
-                      uint16_t key_length) {
+int
+DataCryptor::init(
+    const char* cipher_name,
+    const unsigned char* key,
+    uint16_t key_length)
+{
   if (m_key != nullptr) {
     ceph_memzero_s(m_key, m_key_size, m_key_size);
-    delete [] m_key;
+    delete[] m_key;
     m_key = nullptr;
     m_key_size = 0;
   }
@@ -51,42 +57,53 @@ int DataCryptor::init(const char* cipher_name, const unsigned char* key,
   return 0;
 }
 
-DataCryptor::~DataCryptor() {
+DataCryptor::~DataCryptor()
+{
   if (m_key != nullptr) {
     ceph_memzero_s(m_key, m_key_size, m_key_size);
-    delete [] m_key;
+    delete[] m_key;
     m_key = nullptr;
   }
 }
 
-uint32_t DataCryptor::get_block_size() const {
+uint32_t
+DataCryptor::get_block_size() const
+{
   return EVP_CIPHER_block_size(m_cipher);
 }
 
-uint32_t DataCryptor::get_iv_size() const {
+uint32_t
+DataCryptor::get_iv_size() const
+{
   return m_iv_size;
 }
 
-const unsigned char* DataCryptor::get_key() const {
+const unsigned char*
+DataCryptor::get_key() const
+{
   return m_key;
 }
 
-int DataCryptor::get_key_length() const {
+int
+DataCryptor::get_key_length() const
+{
   return EVP_CIPHER_key_length(m_cipher);
 }
 
-EVP_CIPHER_CTX* DataCryptor::get_context(CipherMode mode) {
+EVP_CIPHER_CTX*
+DataCryptor::get_context(CipherMode mode)
+{
   int enc;
-  switch(mode) {
-    case CIPHER_MODE_ENC:
-      enc = 1;
-      break;
-    case CIPHER_MODE_DEC:
-      enc = 0;
-      break;
-    default:
-      lderr(m_cct) << "Invalid CipherMode:" << mode << dendl;
-      return nullptr;
+  switch (mode) {
+  case CIPHER_MODE_ENC:
+    enc = 1;
+    break;
+  case CIPHER_MODE_DEC:
+    enc = 0;
+    break;
+  default:
+    lderr(m_cct) << "Invalid CipherMode:" << mode << dendl;
+    return nullptr;
   }
 
   auto ctx = EVP_CIPHER_CTX_new();
@@ -105,17 +122,23 @@ EVP_CIPHER_CTX* DataCryptor::get_context(CipherMode mode) {
   return ctx;
 }
 
-void DataCryptor::return_context(EVP_CIPHER_CTX* ctx, CipherMode mode) {
+void
+DataCryptor::return_context(EVP_CIPHER_CTX* ctx, CipherMode mode)
+{
   if (ctx != nullptr) {
     EVP_CIPHER_CTX_free(ctx);
   }
 }
 
-int DataCryptor::init_context(EVP_CIPHER_CTX* ctx, const unsigned char* iv,
-                              uint32_t iv_length) const {
+int
+DataCryptor::init_context(
+    EVP_CIPHER_CTX* ctx,
+    const unsigned char* iv,
+    uint32_t iv_length) const
+{
   if (iv_length != m_iv_size) {
-    lderr(m_cct) << "cipher expects IV of " << m_iv_size << " bytes. got: "
-                 << iv_length << dendl;
+    lderr(m_cct) << "cipher expects IV of " << m_iv_size
+                 << " bytes. got: " << iv_length << dendl;
     return -EINVAL;
   }
   if (1 != EVP_CipherInit_ex(ctx, nullptr, nullptr, nullptr, iv, -1)) {
@@ -126,8 +149,13 @@ int DataCryptor::init_context(EVP_CIPHER_CTX* ctx, const unsigned char* iv,
   return 0;
 }
 
-int DataCryptor::update_context(EVP_CIPHER_CTX* ctx, const unsigned char* in,
-                                unsigned char* out, uint32_t len) const {
+int
+DataCryptor::update_context(
+    EVP_CIPHER_CTX* ctx,
+    const unsigned char* in,
+    unsigned char* out,
+    uint32_t len) const
+{
   int out_length;
   if (1 != EVP_CipherUpdate(ctx, out, &out_length, in, len)) {
     lderr(m_cct) << "EVP_CipherUpdate failed. len=" << len << dendl;
@@ -137,7 +165,9 @@ int DataCryptor::update_context(EVP_CIPHER_CTX* ctx, const unsigned char* in,
   return out_length;
 }
 
-void DataCryptor::log_errors() const {
+void
+DataCryptor::log_errors() const
+{
   while (true) {
     auto error = ERR_get_error();
     if (error == 0) {

@@ -12,22 +12,29 @@ struct ImageCtx;
 
 namespace journal {
 
-template<typename ImageCtxT = ImageCtx>
+template <typename ImageCtxT = ImageCtx>
 class StandardPolicy : public Policy {
 public:
-  StandardPolicy(ImageCtxT *image_ctx) : m_image_ctx(image_ctx) {
+  StandardPolicy(ImageCtxT* image_ctx) :
+    m_image_ctx(image_ctx)
+  {}
+
+  bool
+  append_disabled() const override
+  {
+    return false;
   }
 
-  bool append_disabled() const override {
+  bool
+  journal_disabled() const override
+  {
     return false;
   }
-  bool journal_disabled() const override {
-    return false;
-  }
-  void allocate_tag_on_lock(Context *on_finish) override;
+
+  void allocate_tag_on_lock(Context* on_finish) override;
 
 private:
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
 };
 
 } // namespace journal

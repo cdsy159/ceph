@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,10 +21,11 @@
  * fuse.h is included.
  */
 #ifndef FUSE_USE_VERSION
-#define FUSE_USE_VERSION	312
+#define FUSE_USE_VERSION 312
 #endif
 
 #include <fuse.h>
+
 #include "acconfig.h"
 
 /*
@@ -35,18 +36,24 @@
  */
 #ifdef FUSE_VERSION
 #undef FUSE_VERSION
-#define FUSE_VERSION FUSE_MAKE_VERSION(CEPH_FUSE_MAJOR_VERSION, CEPH_FUSE_MINOR_VERSION)
+#define FUSE_VERSION \
+  FUSE_MAKE_VERSION(CEPH_FUSE_MAJOR_VERSION, CEPH_FUSE_MINOR_VERSION)
 #endif
 
-static inline int filler_compat(fuse_fill_dir_t filler,
-                                void *buf, const char *name,
-                                const struct stat *stbuf,
-                                off_t off)
+static inline int
+filler_compat(
+    fuse_fill_dir_t filler,
+    void* buf,
+    const char* name,
+    const struct stat* stbuf,
+    off_t off)
 {
-  return filler(buf, name, stbuf, off
+  return filler(
+      buf, name, stbuf, off
 #if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 0)
-                , static_cast<enum fuse_fill_dir_flags>(0)
+      ,
+      static_cast<enum fuse_fill_dir_flags>(0)
 #endif
-        );
+  );
 }
 #endif /* CEPH_FUSE_H */

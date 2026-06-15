@@ -1,13 +1,14 @@
 #pragma once
 
-#include "Model.h"
+#include <random>
+#include <string>
+#include <vector>
+
 #include "include/buffer.h"
 #include "include/interval_set.h"
 #include "include/random.h"
 
-#include <string>
-#include <vector>
-#include <random>
+#include "Model.h"
 
 /* Overview
  *
@@ -25,7 +26,7 @@ namespace io_exerciser {
 /* Model of an object to track its data contents */
 
 class ObjectModel : public Model {
- private:
+private:
   bool primary_created;
   bool secondary_created;
   std::vector<int> primary_contents;
@@ -44,9 +45,13 @@ class ObjectModel : public Model {
   interval_set<uint64_t> reads;
   interval_set<uint64_t> writes;
 
- public:
-  ObjectModel(const std::string& primary_oid, const std::string& secondary_oid,
-              uint64_t block_size, int seed, bool delete_objects = true);
+public:
+  ObjectModel(
+      const std::string& primary_oid,
+      const std::string& secondary_oid,
+      uint64_t block_size,
+      int seed,
+      bool delete_objects = true);
 
   int get_seed(uint64_t offset) const;
   std::vector<int> get_seed_offsets(int seed) const;
@@ -59,5 +64,5 @@ class ObjectModel : public Model {
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
 };
-}  // namespace io_exerciser
-}  // namespace ceph
+} // namespace io_exerciser
+} // namespace ceph

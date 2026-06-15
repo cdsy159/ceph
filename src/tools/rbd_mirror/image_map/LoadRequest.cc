@@ -1,21 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/debug.h"
-#include "common/errno.h"
+#include "LoadRequest.h"
 
-#include "librbd/Utils.h"
-#include "include/rbd_types.h"
+#include "common/debug.h"
+
 #include "cls/rbd/cls_rbd_client.h"
+#include "common/errno.h"
+#include "include/rbd_types.h"
+#include "librbd/Utils.h"
 
 #include "UpdateRequest.h"
-#include "LoadRequest.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_map::LoadRequest: "   \
-                           << this << " " << __func__
+#define dout_prefix \
+  *_dout << "rbd::mirror::image_map::LoadRequest: " << this << " " << __func__
 
 namespace rbd {
 namespace mirror {
@@ -23,34 +24,39 @@ namespace image_map {
 
 static const uint32_t MAX_RETURN = 1024;
 
-using librbd::util::create_rados_callback;
 using librbd::util::create_context_callback;
+using librbd::util::create_rados_callback;
 
-template<typename I>
-LoadRequest<I>::LoadRequest(librados::IoCtx &ioctx,
-                            std::map<std::string, cls::rbd::MirrorImageMap> *image_mapping,
-                            Context *on_finish)
-  : m_ioctx(ioctx),
-    m_image_mapping(image_mapping),
-    m_on_finish(on_finish) {
-}
+template <typename I>
+LoadRequest<I>::LoadRequest(
+    librados::IoCtx& ioctx,
+    std::map<std::string, cls::rbd::MirrorImageMap>* image_mapping,
+    Context* on_finish) :
+  m_ioctx(ioctx), m_image_mapping(image_mapping), m_on_finish(on_finish)
+{}
 
-template<typename I>
-void LoadRequest<I>::send() {
+template <typename I>
+void
+LoadRequest<I>::send()
+{
   dout(20) << dendl;
 
   image_map_list();
 }
 
-template<typename I>
-void LoadRequest<I>::image_map_list() {
+template <typename I>
+void
+LoadRequest<I>::image_map_list()
+{
   dout(20) << dendl;
 
   librados::ObjectReadOperation op;
-  librbd::cls_client::mirror_image_map_list_start(&op, m_start_after, MAX_RETURN);
+  librbd::cls_client::mirror_image_map_list_start(
+      &op, m_start_after, MAX_RETURN);
 
-  librados::AioCompletion *aio_comp = create_rados_callback<
-    LoadRequest, &LoadRequest::handle_image_map_list>(this);
+  librados::AioCompletion* aio_comp =
+      create_rados_callback<LoadRequest, &LoadRequest::handle_image_map_list>(
+          this);
 
   m_out_bl.clear();
   int r = m_ioctx.aio_operate(RBD_MIRROR_LEADER, aio_comp, &op, &m_out_bl);
@@ -58,8 +64,10 @@ void LoadRequest<I>::image_map_list() {
   aio_comp->release();
 }
 
-template<typename I>
-void LoadRequest<I>::handle_image_map_list(int r) {
+template <typename I>
+void
+LoadRequest<I>::handle_image_map_list(int r)
+{
   dout(20) << ": r=" << r << dendl;
 
   std::map<std::string, cls::rbd::MirrorImageMap> image_mapping;
@@ -85,24 +93,27 @@ void LoadRequest<I>::handle_image_map_list(int r) {
   mirror_image_list();
 }
 
-template<typename I>
-void LoadRequest<I>::mirror_image_list() {
+template <typename I>
+void
+LoadRequest<I>::mirror_image_list()
+{
   dout(20) << dendl;
 
   librados::ObjectReadOperation op;
   librbd::cls_client::mirror_image_list_start(&op, m_start_after, MAX_RETURN);
 
   m_out_bl.clear();
-  librados::AioCompletion *aio_comp = create_rados_callback<
-    LoadRequest<I>,
-    &LoadRequest<I>::handle_mirror_image_list>(this);
+  librados::AioCompletion* aio_comp = create_rados_callback<
+      LoadRequest<I>, &LoadRequest<I>::handle_mirror_image_list>(this);
   int r = m_ioctx.aio_operate(RBD_MIRRORING, aio_comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
-template<typename I>
-void LoadRequest<I>::handle_mirror_image_list(int r) {
+template <typename I>
+void
+LoadRequest<I>::handle_mirror_image_list(int r)
+{
   dout(20) << ": r=" << r << dendl;
 
   std::map<std::string, std::string> ids;
@@ -117,7 +128,7 @@ void LoadRequest<I>::handle_mirror_image_list(int r) {
     return;
   }
 
-  for (auto &id : ids) {
+  for (auto& id : ids) {
     m_global_image_ids.emplace(id.second);
   }
 
@@ -130,8 +141,10 @@ void LoadRequest<I>::handle_mirror_image_list(int r) {
   cleanup_image_map();
 }
 
-template<typename I>
-void LoadRequest<I>::cleanup_image_map() {
+template <typename I>
+void
+LoadRequest<I>::cleanup_image_map()
+{
   dout(20) << dendl;
 
   std::set<std::string> map_removals;
@@ -151,16 +164,17 @@ void LoadRequest<I>::cleanup_image_map() {
     return;
   }
 
-  auto ctx = create_context_callback<
-     LoadRequest<I>,
-     &LoadRequest<I>::finish>(this);
-  image_map::UpdateRequest<I> *req = image_map::UpdateRequest<I>::create(
-    m_ioctx, {}, std::move(map_removals), ctx);
+  auto ctx =
+      create_context_callback<LoadRequest<I>, &LoadRequest<I>::finish>(this);
+  image_map::UpdateRequest<I>* req = image_map::UpdateRequest<I>::create(
+      m_ioctx, {}, std::move(map_removals), ctx);
   req->send();
 }
 
-template<typename I>
-void LoadRequest<I>::finish(int r) {
+template <typename I>
+void
+LoadRequest<I>::finish(int r)
+{
   dout(20) << ": r=" << r << dendl;
 
   m_on_finish->complete(r);

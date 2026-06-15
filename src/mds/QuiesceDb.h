@@ -14,15 +14,15 @@
 #include <algorithm> // for std::max()
 #include <functional>
 #include <iomanip>
+#include <optional>
+#include <ranges>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <optional>
-#include <ranges>
 
-#include "mds/mdstypes.h"
 #include "common/ceph_time.h"
 #include "include/cephfs/types.h" // for mds_gid_t
+#include "mds/mdstypes.h"
 
 class Context;
 
@@ -32,23 +32,27 @@ class Context;
 // The order of states represents the natural lifecycle
 // of a set and its members, this is specifically important
 // for the active states.
-enum QuiesceState: uint8_t {
+enum QuiesceState : uint8_t {
   QS__INVALID,
 
   // these states are considered "active"
-  QS_QUIESCING, QS__ACTIVE = QS_QUIESCING,
+  QS_QUIESCING,
+  QS__ACTIVE = QS_QUIESCING,
   QS_QUIESCED,
   QS_RELEASING,
 
   // the below states are all terminal, or "inactive"
-  QS_RELEASED, QS__TERMINAL = QS_RELEASED,
+  QS_RELEASED,
+  QS__TERMINAL = QS_RELEASED,
   // the below states are all about types of failure
-  QS_EXPIRED, QS__FAILURE = QS_EXPIRED,
+  QS_EXPIRED,
+  QS__FAILURE = QS_EXPIRED,
 
   QS_FAILED,
 
   // the below states aren't allowed for roots, only for sets
-  QS_CANCELED, QS__SET_ONLY = QS_CANCELED,
+  QS_CANCELED,
+  QS__SET_ONLY = QS_CANCELED,
   QS_TIMEDOUT,
 
   QS__MAX,
@@ -82,7 +86,9 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceState& qs)
   }
 };
 
-inline const char * quiesce_state_name(QuiesceState state) {
+inline const char*
+quiesce_state_name(QuiesceState state)
+{
   switch (state) {
   case QS__INVALID:
     return "<invalid>";
@@ -114,7 +120,7 @@ inline const char * quiesce_state_name(QuiesceState state) {
 // This is sufficient because we only care to honor the timeouts that are relative
 // to the other recorded database events.
 // This approach also relieves us from storing or transfering absolute time stamps:
-// every client can deduce the lower boundary of event's absolute time given the 
+// every client can deduce the lower boundary of event's absolute time given the
 // message roundrip timing - if they bother enough. Otherwise, they can just subtract
 // the received database age from now() and get their own absolute time reference.
 
@@ -126,20 +132,24 @@ using QuiesceRoot = std::string;
 using QuiesceSetVersion = uint64_t;
 
 namespace QuiesceInterface {
-  using PeerId = mds_gid_t;
+using PeerId = mds_gid_t;
 }
 
 struct QuiesceDbVersion {
   epoch_t epoch = 0;
   QuiesceSetVersion set_version = 0;
   auto operator<=>(QuiesceDbVersion const& other) const = default;
-  QuiesceDbVersion& operator+(unsigned int delta) {
+
+  QuiesceDbVersion&
+  operator+(unsigned int delta)
+  {
     set_version += delta;
     return *this;
   }
 };
 
-inline auto operator==(int const& set_version, QuiesceDbVersion const& db_version)
+inline auto
+operator==(int const& set_version, QuiesceDbVersion const& db_version)
 {
   return db_version.set_version == (QuiesceSetVersion)set_version;
 }
@@ -153,23 +163,25 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceDbVersion& dbv)
 
 struct QuiesceTimeIntervalSec {
   const QuiesceTimeInterval interval;
-  QuiesceTimeIntervalSec(const QuiesceTimeInterval &interval) : interval(interval) {}
+
+  QuiesceTimeIntervalSec(const QuiesceTimeInterval& interval) :
+    interval(interval)
+  {}
 };
 
 template <class CharT, class Traits>
 static std::basic_ostream<CharT, Traits>&
-operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceTimeIntervalSec& sec)
+operator<<(
+    std::basic_ostream<CharT, Traits>& os,
+    const QuiesceTimeIntervalSec& sec)
 {
   using std::chrono::duration_cast;
   using dd = std::chrono::duration<double>;
   const auto precision = os.precision();
   const auto flags = os.flags();
 
-  os
-    << std::fixed
-    << std::setprecision(1)
-    << duration_cast<dd>(sec.interval).count()
-    << std::setprecision(precision);
+  os << std::fixed << std::setprecision(1)
+     << duration_cast<dd>(sec.interval).count() << std::setprecision(precision);
 
   os.flags(flags);
   return os;
@@ -179,11 +191,11 @@ struct RecordedQuiesceState {
   QuiesceState state;
   QuiesceTimeInterval at_age;
 
-  operator QuiesceState() {
-    return state;
-  }
+  operator QuiesceState() { return state; }
 
-  bool update(const QuiesceState &state, const QuiesceTimeInterval &at_age) {
+  bool
+  update(const QuiesceState& state, const QuiesceTimeInterval& at_age)
+  {
     if (state != this->state) {
       this->state = state;
       this->at_age = at_age;
@@ -192,17 +204,25 @@ struct RecordedQuiesceState {
     return false;
   }
 
-  RecordedQuiesceState(QuiesceState state, QuiesceTimeInterval at_age) : state(state), at_age(at_age) {}
-  RecordedQuiesceState() : RecordedQuiesceState (QS__INVALID, QuiesceTimeInterval::zero()) {}
+  RecordedQuiesceState(QuiesceState state, QuiesceTimeInterval at_age) :
+    state(state), at_age(at_age)
+  {}
+
+  RecordedQuiesceState() :
+    RecordedQuiesceState(QS__INVALID, QuiesceTimeInterval::zero())
+  {}
+
   RecordedQuiesceState(RecordedQuiesceState const&) = default;
-  RecordedQuiesceState(RecordedQuiesceState &&) = default;
+  RecordedQuiesceState(RecordedQuiesceState&&) = default;
   RecordedQuiesceState& operator=(RecordedQuiesceState const&) = default;
-  RecordedQuiesceState& operator=(RecordedQuiesceState &&) = default;
+  RecordedQuiesceState& operator=(RecordedQuiesceState&&) = default;
 };
 
 template <class CharT, class Traits>
 static std::basic_ostream<CharT, Traits>&
-operator<<(std::basic_ostream<CharT, Traits>& os, const RecordedQuiesceState& rstate)
+operator<<(
+    std::basic_ostream<CharT, Traits>& os,
+    const RecordedQuiesceState& rstate)
 {
   return os << rstate.state;
 }
@@ -218,25 +238,34 @@ struct QuiesceSet {
   struct MemberInfo {
     RecordedQuiesceState rstate;
     bool excluded = false;
-    MemberInfo(QuiesceState state, QuiesceTimeInterval at_age)
-        : rstate(state, at_age)
-        , excluded(false)
-    {
-    }
-    MemberInfo(QuiesceTimeInterval at_age)
-        : MemberInfo(QS_QUIESCING, at_age)
-    {
-    }
+
+    MemberInfo(QuiesceState state, QuiesceTimeInterval at_age) :
+      rstate(state, at_age), excluded(false)
+    {}
+
+    MemberInfo(QuiesceTimeInterval at_age) :
+      MemberInfo(QS_QUIESCING, at_age)
+    {}
+
     MemberInfo() = default;
     MemberInfo(MemberInfo const& o) = default;
-    MemberInfo(MemberInfo &&) = default;
+    MemberInfo(MemberInfo&&) = default;
     MemberInfo& operator=(MemberInfo const& o) = default;
-    MemberInfo& operator=(MemberInfo &&) = default;
+    MemberInfo& operator=(MemberInfo&&) = default;
 
-    bool is_quiescing() const { return rstate.state < QS_QUIESCED; }
-    bool is_failed() const { return rstate.state >= QS__FAILURE; }
+    bool
+    is_quiescing() const
+    {
+      return rstate.state < QS_QUIESCED;
+    }
+
+    bool
+    is_failed() const
+    {
+      return rstate.state >= QS__FAILURE;
+    }
   };
-  
+
   /// @brief  The db version when this set got modified last
   QuiesceSetVersion version = 0;
   /// @brief  The last recorded state change of this set
@@ -257,7 +286,8 @@ struct QuiesceSet {
   ///        that confirms quiesced state of the member to be treated as RELEASED.
   /// @param member_state the reported state of the member
   /// @return the effective member state
-  QuiesceState get_effective_member_state(QuiesceState reported_state) const
+  QuiesceState
+  get_effective_member_state(QuiesceState reported_state) const
   {
     if (is_releasing()) {
       if (reported_state >= QS_QUIESCED && reported_state <= QS_RELEASED) {
@@ -271,12 +301,13 @@ struct QuiesceSet {
     return std::max(reported_state, rstate.state);
   }
 
-  /// @brief The requested state of a member is what we send to the agents for 
+  /// @brief The requested state of a member is what we send to the agents for
   ///        executing the quiesce protocol. This state is deliberately reduced
   ///        to provoke clients to ack back and thus confirm their current state
   /// @param set_state the state of the set this member is from
   /// @return the effective member state
-  QuiesceState get_requested_member_state() const
+  QuiesceState
+  get_requested_member_state() const
   {
     if (rstate.state >= QS__TERMINAL) {
       return rstate.state;
@@ -291,29 +322,50 @@ struct QuiesceSet {
     return QS_RELEASING;
   }
 
-  bool is_active() const {
-    return
-      rstate.state > QS__INVALID
-      && rstate.state < QS__TERMINAL;
+  bool
+  is_active() const
+  {
+    return rstate.state > QS__INVALID && rstate.state < QS__TERMINAL;
   }
 
   QuiesceState next_state(QuiesceState min_member_state) const;
 
-  bool is_quiescing() const { return rstate.state < QS_QUIESCED; }
-  bool is_quiesced() const { return rstate.state == QS_QUIESCED; }
-  bool is_releasing() const { return rstate.state == QS_RELEASING; }
-  bool is_released() const { return rstate.state == QS_RELEASED; }
+  bool
+  is_quiescing() const
+  {
+    return rstate.state < QS_QUIESCED;
+  }
+
+  bool
+  is_quiesced() const
+  {
+    return rstate.state == QS_QUIESCED;
+  }
+
+  bool
+  is_releasing() const
+  {
+    return rstate.state == QS_RELEASING;
+  }
+
+  bool
+  is_released() const
+  {
+    return rstate.state == QS_RELEASED;
+  }
 
   QuiesceSet() = default;
-  QuiesceSet(QuiesceSet const &) = default;
-  QuiesceSet(QuiesceSet &&) = default;
-  QuiesceSet& operator=(QuiesceSet const &) = default;
-  QuiesceSet& operator=(QuiesceSet &&) = default;
+  QuiesceSet(QuiesceSet const&) = default;
+  QuiesceSet(QuiesceSet&&) = default;
+  QuiesceSet& operator=(QuiesceSet const&) = default;
+  QuiesceSet& operator=(QuiesceSet&&) = default;
 };
 
 template <class CharT, class Traits>
 static std::basic_ostream<CharT, Traits>&
-operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceSet::MemberInfo& member)
+operator<<(
+    std::basic_ostream<CharT, Traits>& os,
+    const QuiesceSet::MemberInfo& member)
 {
   return os << (member.excluded ? "(excluded)" : "") << member.rstate;
 }
@@ -324,7 +376,7 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceSet& set)
 {
   size_t active = 0, inactive = 0;
 
-  for (auto && [_, m]: set.members) {
+  for (auto&& [_, m] : set.members) {
     if (m.excluded) {
       ++inactive;
     } else {
@@ -332,8 +384,10 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceSet& set)
     }
   }
 
-  return os << "q-set[" << set.rstate << " v:" << set.version << ", m:" << active << "/" << inactive
-    << ", t:" << QuiesceTimeIntervalSec(set.timeout) << ", e:" << QuiesceTimeIntervalSec(set.expiration) << "]";
+  return os << "q-set[" << set.rstate << " v:" << set.version
+            << ", m:" << active << "/" << inactive
+            << ", t:" << QuiesceTimeIntervalSec(set.timeout)
+            << ", e:" << QuiesceTimeIntervalSec(set.expiration) << "]";
 }
 
 /// @brief QuiesceDbRequest is the only client interface to the database.
@@ -344,14 +398,14 @@ struct QuiesceDbRequest {
   ///        to know the operation. Each name in the enum has two verbs: first
   ///        verb is for the case when `roots` is not empty, and the second is
   ///        for when `roots` is empty
-  enum RootsOp: uint8_t {
+  enum RootsOp : uint8_t {
     INCLUDE_OR_QUERY,
     EXCLUDE_OR_CANCEL,
     RESET_OR_RELEASE,
     __INVALID
   };
 
-  enum Flags: uint8_t {
+  enum Flags : uint8_t {
     NONE = 0,
     VERBOSE = 1,
     EXCLUSIVE = 2,
@@ -363,13 +417,23 @@ struct QuiesceDbRequest {
         RootsOp roots_op;
         Flags flags;
       };
+
       uint64_t raw;
     };
-    Control() : raw(0) {}
-    Control(RootsOp op) : raw(0) {
+
+    Control() :
+      raw(0)
+    {}
+
+    Control(RootsOp op) :
+      raw(0)
+    {
       roots_op = op;
     }
-    bool operator==(const Control& other) const {
+
+    bool
+    operator==(const Control& other) const
+    {
       return other.raw == raw;
     }
   };
@@ -404,12 +468,12 @@ struct QuiesceDbRequest {
   ///                     this set's quiesce expiration timer is reset.
   ///         EINTR     - the set had a change in members or in state
   ///         ECANCELED - the set was canceled
-  ///         ETIMEDOUT - at least one of the set members failed to quiesce 
+  ///         ETIMEDOUT - at least one of the set members failed to quiesce
   ///                     within the configured quiesce timeout.
   ///                     OR the set is RELEASING and it couldn't reach RELEASED before it expired
   ///                     NB: the quiesce timeout is measured for every member separately
   ///                     from the moment that member is included.
-  ///         EINPROGRESS - the time limit configured for this await call has elapsed 
+  ///         EINPROGRESS - the time limit configured for this await call has elapsed
   ///                     before the set changed state.
   std::optional<QuiesceTimeInterval> await;
   using Roots = std::unordered_set<QuiesceRoot>;
@@ -419,34 +483,97 @@ struct QuiesceDbRequest {
 
   bool operator==(const QuiesceDbRequest&) const = default;
 
-  bool is_valid() const {
-    return control.roots_op < __INVALID && (
-        // Everything goes if a set id is provided
-        set_id
-        // or it's a new set creation, in which case the request should be including roots
-        || includes_roots()
-        // Otherwise, the allowed wildcard operations are: query and cancel all.
-        // Also, one can't await a wildcard
-        || ((is_cancel_all() || is_query()) && !await && !timeout && !expiration && !if_version)
-    );
+  bool
+  is_valid() const
+  {
+    return control.roots_op < __INVALID &&
+           (
+               // Everything goes if a set id is provided
+               set_id
+               // or it's a new set creation, in which case the request should be including roots
+               || includes_roots()
+               // Otherwise, the allowed wildcard operations are: query and cancel all.
+               // Also, one can't await a wildcard
+               || ((is_cancel_all() || is_query()) && !await && !timeout &&
+                   !expiration && !if_version));
   }
 
-  bool is_mutating() const { return (control.roots_op != INCLUDE_OR_QUERY) || !roots.empty() || timeout || expiration; }
-  bool is_cancel_all() const { return !set_id && is_cancel(); }
-  bool excludes_roots() const { return is_exclude() || is_reset(); }
-  bool includes_roots() const { return is_include() || is_reset(); }
+  bool
+  is_mutating() const
+  {
+    return (control.roots_op != INCLUDE_OR_QUERY) || !roots.empty() ||
+           timeout || expiration;
+  }
 
-  bool is_include() const { return control.roots_op == INCLUDE_OR_QUERY && !roots.empty(); }
-  bool is_query() const { return control.roots_op == INCLUDE_OR_QUERY && roots.empty(); }
-  bool is_exclude() const { return control.roots_op == EXCLUDE_OR_CANCEL && !roots.empty(); }
-  bool is_release() const { return control.roots_op == RESET_OR_RELEASE && roots.empty(); }
-  bool is_reset() const { return control.roots_op == RESET_OR_RELEASE && !roots.empty(); }
-  bool is_cancel() const { return control.roots_op == EXCLUDE_OR_CANCEL && roots.empty(); }
+  bool
+  is_cancel_all() const
+  {
+    return !set_id && is_cancel();
+  }
 
-  bool is_verbose() const { return control.flags & Flags::VERBOSE; }
-  bool is_exclusive() const { return control.flags & Flags::EXCLUSIVE; }
+  bool
+  excludes_roots() const
+  {
+    return is_exclude() || is_reset();
+  }
 
-  bool should_exclude(QuiesceRoot root) const {
+  bool
+  includes_roots() const
+  {
+    return is_include() || is_reset();
+  }
+
+  bool
+  is_include() const
+  {
+    return control.roots_op == INCLUDE_OR_QUERY && !roots.empty();
+  }
+
+  bool
+  is_query() const
+  {
+    return control.roots_op == INCLUDE_OR_QUERY && roots.empty();
+  }
+
+  bool
+  is_exclude() const
+  {
+    return control.roots_op == EXCLUDE_OR_CANCEL && !roots.empty();
+  }
+
+  bool
+  is_release() const
+  {
+    return control.roots_op == RESET_OR_RELEASE && roots.empty();
+  }
+
+  bool
+  is_reset() const
+  {
+    return control.roots_op == RESET_OR_RELEASE && !roots.empty();
+  }
+
+  bool
+  is_cancel() const
+  {
+    return control.roots_op == EXCLUDE_OR_CANCEL && roots.empty();
+  }
+
+  bool
+  is_verbose() const
+  {
+    return control.flags & Flags::VERBOSE;
+  }
+
+  bool
+  is_exclusive() const
+  {
+    return control.flags & Flags::EXCLUSIVE;
+  }
+
+  bool
+  should_exclude(QuiesceRoot root) const
+  {
     switch (control.roots_op) {
     case INCLUDE_OR_QUERY:
       return false;
@@ -454,11 +581,14 @@ struct QuiesceDbRequest {
       return roots.empty() || roots.contains(root);
     case RESET_OR_RELEASE:
       return !roots.empty() && !roots.contains(root);
-    default: ceph_abort("unknown roots_op"); return false;
+    default:
+      ceph_abort("unknown roots_op");
+      return false;
     }
   }
 
-  void reset(std::invocable<QuiesceDbRequest&> auto const &config)
+  void
+  reset(std::invocable<QuiesceDbRequest&> auto const& config)
   {
     set_id.reset();
     if_version.reset();
@@ -470,61 +600,73 @@ struct QuiesceDbRequest {
 
     config(*this);
   }
-  void clear() {
-    reset([](auto&r){});
+
+  void
+  clear()
+  {
+    reset([](auto& r) {});
   }
 
-  template<typename R = Roots>
-  requires requires ( R&& roots) {
-    Roots(std::forward<R>(roots));
-  }
-  void set_roots(RootsOp op, R&& roots) {
+  template <typename R = Roots>
+    requires requires(R&& roots) { Roots(std::forward<R>(roots)); }
+  void
+  set_roots(RootsOp op, R&& roots)
+  {
     control.roots_op = op;
     this->roots = Roots(std::forward<R>(roots));
   }
 
   template <std::ranges::range R>
-  void set_roots(RootsOp op, const R& roots_range)
+  void
+  set_roots(RootsOp op, const R& roots_range)
   {
     control.roots_op = op;
     this->roots = Roots(roots_range.begin(), roots_range.end());
   }
 
   template <typename R = Roots>
-  void include_roots(R&& roots)
+  void
+  include_roots(R&& roots)
   {
     set_roots(INCLUDE_OR_QUERY, std::forward<R>(roots));
   }
 
   template <typename R = Roots>
-  void exclude_roots(R&& roots)
+  void
+  exclude_roots(R&& roots)
   {
     set_roots(EXCLUDE_OR_CANCEL, std::forward<R>(roots));
   }
 
-  void release() {
+  void
+  release()
+  {
     set_roots(RESET_OR_RELEASE, {});
   }
 
   template <typename R = Roots>
-  void reset_roots(R&& roots)
+  void
+  reset_roots(R&& roots)
   {
     set_roots(RESET_OR_RELEASE, std::forward<R>(roots));
   }
 
-  void cancel()
+  void
+  cancel()
   {
     set_roots(EXCLUDE_OR_CANCEL, {});
   }
 
   template <typename S = std::string>
-  void query(S&& set_id) {
-    reset([set_id](auto &r){
-      r.set_id = std::forward<S>(set_id);
-    });
+  void
+  query(S&& set_id)
+  {
+    reset([set_id](auto& r) { r.set_id = std::forward<S>(set_id); });
   }
 
-  const char * op_string() const {
+  const char*
+  op_string() const
+  {
     switch (control.roots_op) {
     case INCLUDE_OR_QUERY:
       return roots.empty() ? "query" : "include";
@@ -537,11 +679,13 @@ struct QuiesceDbRequest {
     }
   }
 
-
   QuiesceDbRequest() {}
-  QuiesceDbRequest(const QuiesceDbRequest &) = default;
-  QuiesceDbRequest(QuiesceDbRequest &&) = default;
-  QuiesceDbRequest(std::invocable<QuiesceDbRequest&> auto const &config) {
+
+  QuiesceDbRequest(const QuiesceDbRequest&) = default;
+  QuiesceDbRequest(QuiesceDbRequest&&) = default;
+
+  QuiesceDbRequest(std::invocable<QuiesceDbRequest&> auto const& config)
+  {
     reset(config);
   }
 };
@@ -579,18 +723,23 @@ struct QuiesceDbListing {
   QuiesceTimeInterval db_age = QuiesceTimeInterval::zero();
   std::unordered_map<QuiesceSetId, QuiesceSet> sets;
 
-  void clear() {
+  void
+  clear()
+  {
     db_version = {0, 0};
     db_age = QuiesceTimeInterval::zero();
     sets.clear();
   }
 
-  QuiesceDbListing(epoch_t epoch) : db_version {epoch, 0} {}
+  QuiesceDbListing(epoch_t epoch) :
+    db_version{epoch, 0}
+  {}
+
   QuiesceDbListing() = default;
   QuiesceDbListing(QuiesceDbListing const&) = default;
-  QuiesceDbListing(QuiesceDbListing &&) = default;
+  QuiesceDbListing(QuiesceDbListing&&) = default;
   QuiesceDbListing& operator=(QuiesceDbListing const&) = default;
-  QuiesceDbListing& operator=(QuiesceDbListing &&) = default;
+  QuiesceDbListing& operator=(QuiesceDbListing&&) = default;
 };
 
 template <class CharT, class Traits>
@@ -607,7 +756,8 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceDbListing& dbl)
     }
   }
 
-  return os << "q-db[v:" << dbl.db_version << " sets:" << active << "/" << inactive << "]";
+  return os << "q-db[v:" << dbl.db_version << " sets:" << active << "/"
+            << inactive << "]";
 }
 
 struct QuiesceDbPeerListing {
@@ -628,42 +778,71 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceDbPeerListing& db
 ///         actual roots states which are different from what the DB version encodes
 struct QuiesceMap {
   QuiesceDbVersion db_version;
+
   struct RootInfo {
     QuiesceState state;
     QuiesceTimeInterval ttl = QuiesceTimeInterval::zero();
-    bool is_valid() const { return state > QS__INVALID && state < QS__SET_ONLY; }
-    RootInfo() : RootInfo(QS__INVALID) {}
-    RootInfo(QuiesceState state) : RootInfo(state,QuiesceTimeInterval::zero()) {}
-    RootInfo(QuiesceState state, QuiesceTimeInterval ttl)
-        : state(state)
-        , ttl(ttl)
+
+    bool
+    is_valid() const
     {
+      return state > QS__INVALID && state < QS__SET_ONLY;
     }
-    inline bool operator==(const RootInfo& other) const {
+
+    RootInfo() :
+      RootInfo(QS__INVALID)
+    {}
+
+    RootInfo(QuiesceState state) :
+      RootInfo(state, QuiesceTimeInterval::zero())
+    {}
+
+    RootInfo(QuiesceState state, QuiesceTimeInterval ttl) :
+      state(state), ttl(ttl)
+    {}
+
+    inline bool
+    operator==(const RootInfo& other) const
+    {
       return state == other.state && ttl == other.ttl;
     }
 
     RootInfo(RootInfo const&) = default;
-    RootInfo(RootInfo &&) = default;
+    RootInfo(RootInfo&&) = default;
     RootInfo& operator=(RootInfo const&) = default;
-    RootInfo& operator=(RootInfo &&) = default;
+    RootInfo& operator=(RootInfo&&) = default;
   };
+
   using Roots = std::unordered_map<QuiesceRoot, RootInfo>;
   Roots roots;
-  void clear() {
+
+  void
+  clear()
+  {
     db_version = {0, 0};
     roots.clear();
   }
 
-  QuiesceMap() : db_version({0, 0}), roots() { }
-  QuiesceMap(QuiesceDbVersion db_version) : db_version(db_version), roots() { }
-  QuiesceMap(QuiesceDbVersion db_version, Roots &&roots) : db_version(db_version), roots(roots) { }
-  QuiesceMap(QuiesceDbVersion db_version, Roots const& roots) : db_version(db_version), roots(roots) { }
+  QuiesceMap() :
+    db_version({0, 0}), roots()
+  {}
+
+  QuiesceMap(QuiesceDbVersion db_version) :
+    db_version(db_version), roots()
+  {}
+
+  QuiesceMap(QuiesceDbVersion db_version, Roots&& roots) :
+    db_version(db_version), roots(roots)
+  {}
+
+  QuiesceMap(QuiesceDbVersion db_version, Roots const& roots) :
+    db_version(db_version), roots(roots)
+  {}
 
   QuiesceMap(QuiesceMap const&) = default;
-  QuiesceMap(QuiesceMap &&) = default;
+  QuiesceMap(QuiesceMap&&) = default;
   QuiesceMap& operator=(QuiesceMap const&) = default;
-  QuiesceMap& operator=(QuiesceMap &&) = default;
+  QuiesceMap& operator=(QuiesceMap&&) = default;
 };
 
 template <class CharT, class Traits>
@@ -681,7 +860,8 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceMap& map)
     }
   }
 
-  return os << "q-map[v:" << map.db_version << " roots:" << active << "/" << inactive << "]";
+  return os << "q-map[v:" << map.db_version << " roots:" << active << "/"
+            << inactive << "]";
 }
 
 struct QuiesceDbPeerAck {
@@ -690,10 +870,12 @@ struct QuiesceDbPeerAck {
 
   QuiesceDbPeerAck() = default;
   QuiesceDbPeerAck(QuiesceDbPeerAck const&) = default;
-  QuiesceDbPeerAck(QuiesceDbPeerAck &&) = default;
-  QuiesceDbPeerAck(QuiesceInterface::PeerId origin, std::convertible_to<QuiesceMap> auto&& diff_map)
-      : origin(origin)
-      , diff_map(std::forward<QuiesceMap>(diff_map))
+  QuiesceDbPeerAck(QuiesceDbPeerAck&&) = default;
+
+  QuiesceDbPeerAck(
+      QuiesceInterface::PeerId origin,
+      std::convertible_to<QuiesceMap> auto&& diff_map) :
+    origin(origin), diff_map(std::forward<QuiesceMap>(diff_map))
   {}
 
   QuiesceDbPeerAck& operator=(QuiesceDbPeerAck const&) = default;
@@ -707,7 +889,8 @@ operator<<(std::basic_ostream<CharT, Traits>& os, const QuiesceDbPeerAck& ack)
   return os << "ack " << ack.diff_map << " from " << ack.origin;
 }
 
-inline QuiesceTimeInterval interval_saturate_add(QuiesceTimeInterval lhs, QuiesceTimeInterval rhs)
+inline QuiesceTimeInterval
+interval_saturate_add(QuiesceTimeInterval lhs, QuiesceTimeInterval rhs)
 {
   // assuming an unsigned time interval.
   // TODO: make this function generic and also saturate add signed values
@@ -725,31 +908,35 @@ inline QuiesceTimeInterval interval_saturate_add(QuiesceTimeInterval lhs, Quiesc
   return result;
 };
 
-inline QuiesceTimePoint interval_saturate_add_now(QuiesceTimeInterval interval) {
-  return QuiesceTimePoint(interval_saturate_add(QuiesceClock::now().time_since_epoch(), interval));
+inline QuiesceTimePoint
+interval_saturate_add_now(QuiesceTimeInterval interval)
+{
+  return QuiesceTimePoint(
+      interval_saturate_add(QuiesceClock::now().time_since_epoch(), interval));
 };
 
 namespace QuiesceInterface {
-  /// @brief  A callback from the manager to the agent with an up-to-date root list
-  ///         The map is mutable and will be used as synchronous agent ack if the return value is true
-  using AgentNotify = std::function<bool(QuiesceMap&)>;
-  /// @brief  Used to send asyncrhonous acks from agents about changes to the root states
-  ///         The transport layer should include sufficient information to know the sender of the ack
-  using AgentAck = std::function<int(QuiesceMap&&)>;
-  /// @brief  Used by the leader to replicate the DB changes to its peers
-  using DbPeerUpdate = std::function<int(PeerId, QuiesceDbListing&&)>;
+/// @brief  A callback from the manager to the agent with an up-to-date root list
+///         The map is mutable and will be used as synchronous agent ack if the return value is true
+using AgentNotify = std::function<bool(QuiesceMap&)>;
+/// @brief  Used to send asyncrhonous acks from agents about changes to the root states
+///         The transport layer should include sufficient information to know the sender of the ack
+using AgentAck = std::function<int(QuiesceMap&&)>;
+/// @brief  Used by the leader to replicate the DB changes to its peers
+using DbPeerUpdate = std::function<int(PeerId, QuiesceDbListing&&)>;
 
-  using RequestHandle = metareqid_t;
-  /// @brief  Used by the agent to initiate an ongoing quiesce request for the given quiesce root
-  ///         The context will be completed when the quiescing is achieved by this rank. The IO pause
-  ///         should continue until the request is canceled.
-  ///         Repeated requests for the same root should succeed, returning a _new_ request id;
-  ///         the old context should be completed with an error EINTR, and the old request id should be invalidated.
-  ///         If the root has already reached quiescence by the time the repeated request is submitted
-  ///         then the new context should be immediately (syncrhonously) completed with success and then discarded.
-  ///         Syncrhonous errors should be reported by completing the supplied context, and the return value
-  ///         should be std::nullopt in such cases
-  using RequestSubmit = std::function<std::optional<RequestHandle>(QuiesceRoot, Context*)>;
-  /// @brief  Cancels the quiesce request. May be called at any time after the request got submitted
-  using RequestCancel = std::function<int(const RequestHandle&)>;
-};
+using RequestHandle = metareqid_t;
+/// @brief  Used by the agent to initiate an ongoing quiesce request for the given quiesce root
+///         The context will be completed when the quiescing is achieved by this rank. The IO pause
+///         should continue until the request is canceled.
+///         Repeated requests for the same root should succeed, returning a _new_ request id;
+///         the old context should be completed with an error EINTR, and the old request id should be invalidated.
+///         If the root has already reached quiescence by the time the repeated request is submitted
+///         then the new context should be immediately (syncrhonously) completed with success and then discarded.
+///         Syncrhonous errors should be reported by completing the supplied context, and the return value
+///         should be std::nullopt in such cases
+using RequestSubmit =
+    std::function<std::optional<RequestHandle>(QuiesceRoot, Context*)>;
+/// @brief  Cancels the quiesce request. May be called at any time after the request got submitted
+using RequestCancel = std::function<int(const RequestHandle&)>;
+}; // namespace QuiesceInterface

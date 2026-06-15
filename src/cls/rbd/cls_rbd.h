@@ -4,11 +4,11 @@
 #ifndef __CEPH_CLS_RBD_H
 #define __CEPH_CLS_RBD_H
 
-#include "include/types.h"
+#include "cls/rbd/cls_rbd_types.h"
+#include "common/Formatter.h"
 #include "include/buffer_fwd.h"
 #include "include/rbd_types.h"
-#include "common/Formatter.h"
-#include "cls/rbd/cls_rbd_types.h"
+#include "include/types.h"
 
 /// information about our parent image, if any
 struct cls_rbd_parent {
@@ -18,31 +18,41 @@ struct cls_rbd_parent {
   snapid_t snap_id = CEPH_NOSNAP;
   std::optional<uint64_t> head_overlap = std::nullopt;
 
-  cls_rbd_parent() {
-  }
-  cls_rbd_parent(const cls::rbd::ParentImageSpec& parent_image_spec,
-                 const std::optional<uint64_t>& head_overlap)
-    : pool_id(parent_image_spec.pool_id),
-      pool_namespace(parent_image_spec.pool_namespace),
-      image_id(parent_image_spec.image_id), snap_id(parent_image_spec.snap_id),
-      head_overlap(head_overlap) {
-  }
+  cls_rbd_parent() {}
 
-  inline bool exists() const {
+  cls_rbd_parent(
+      const cls::rbd::ParentImageSpec& parent_image_spec,
+      const std::optional<uint64_t>& head_overlap) :
+    pool_id(parent_image_spec.pool_id),
+    pool_namespace(parent_image_spec.pool_namespace),
+    image_id(parent_image_spec.image_id),
+    snap_id(parent_image_spec.snap_id),
+    head_overlap(head_overlap)
+  {}
+
+  inline bool
+  exists() const
+  {
     return (pool_id >= 0 && !image_id.empty() && snap_id != CEPH_NOSNAP);
   }
 
-  inline bool operator==(const cls_rbd_parent& rhs) const {
-    return (pool_id == rhs.pool_id &&
-            pool_namespace == rhs.pool_namespace &&
-            image_id == rhs.image_id &&
-            snap_id == rhs.snap_id);
+  inline bool
+  operator==(const cls_rbd_parent& rhs) const
+  {
+    return (
+        pool_id == rhs.pool_id && pool_namespace == rhs.pool_namespace &&
+        image_id == rhs.image_id && snap_id == rhs.snap_id);
   }
-  inline bool operator!=(const cls_rbd_parent& rhs) const {
+
+  inline bool
+  operator!=(const cls_rbd_parent& rhs) const
+  {
     return !(*this == rhs);
   }
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     // NOTE: remove support for version 1 after Nautilus EOLed
     uint8_t version = 1;
     if ((features & CEPH_FEATURE_SERVER_NAUTILUS) != 0ULL) {
@@ -65,7 +75,9 @@ struct cls_rbd_parent {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(pool_id, bl);
     if (struct_v >= 2) {
@@ -83,7 +95,9 @@ struct cls_rbd_parent {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_int("pool_id", pool_id);
     f->dump_string("pool_namespace", pool_namespace);
     f->dump_string("image_id", image_id);
@@ -93,7 +107,9 @@ struct cls_rbd_parent {
     }
   }
 
-  static std::list<cls_rbd_parent> generate_test_instances() {
+  static std::list<cls_rbd_parent>
+  generate_test_instances()
+  {
     std::list<cls_rbd_parent> o;
     o.emplace_back();
     o.push_back(cls_rbd_parent{{1, "", "image id", 234}, {}});
@@ -113,30 +129,45 @@ struct cls_rbd_snap {
   uint64_t flags = 0;
   utime_t timestamp;
   cls::rbd::SnapshotNamespace snapshot_namespace = {
-    cls::rbd::UserSnapshotNamespace{}};
+      cls::rbd::UserSnapshotNamespace{}};
   uint32_t child_count = 0;
   std::optional<uint64_t> parent_overlap = std::nullopt;
 
-  cls_rbd_snap() {
-  }
-  cls_rbd_snap(snapid_t id, const std::string& name, uint64_t image_size,
-               uint8_t protection_status, const cls_rbd_parent& parent,
-               uint64_t flags, utime_t timestamp,
-               const cls::rbd::SnapshotNamespace& snapshot_namespace,
-               uint32_t child_count,
-               const std::optional<uint64_t>& parent_overlap)
-    : id(id), name(name), image_size(image_size),
-      protection_status(protection_status), parent(parent), flags(flags),
-      timestamp(timestamp), snapshot_namespace(snapshot_namespace),
-      child_count(child_count), parent_overlap(parent_overlap) {
+  cls_rbd_snap() {}
+
+  cls_rbd_snap(
+      snapid_t id,
+      const std::string& name,
+      uint64_t image_size,
+      uint8_t protection_status,
+      const cls_rbd_parent& parent,
+      uint64_t flags,
+      utime_t timestamp,
+      const cls::rbd::SnapshotNamespace& snapshot_namespace,
+      uint32_t child_count,
+      const std::optional<uint64_t>& parent_overlap) :
+    id(id),
+    name(name),
+    image_size(image_size),
+    protection_status(protection_status),
+    parent(parent),
+    flags(flags),
+    timestamp(timestamp),
+    snapshot_namespace(snapshot_namespace),
+    child_count(child_count),
+    parent_overlap(parent_overlap)
+  {}
+
+  bool
+  migrate_parent_format(uint64_t features) const
+  {
+    return (
+        ((features & CEPH_FEATURE_SERVER_NAUTILUS) != 0) && (parent.exists()));
   }
 
-  bool migrate_parent_format(uint64_t features) const {
-    return (((features & CEPH_FEATURE_SERVER_NAUTILUS) != 0) &&
-            (parent.exists()));
-  }
-
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     // NOTE: remove support for versions < 8 after Nautilus EOLed
     uint8_t min_version = 1;
     if ((features & CEPH_FEATURE_SERVER_NAUTILUS) != 0ULL) {
@@ -162,7 +193,9 @@ struct cls_rbd_snap {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& p) {
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(8, p);
     decode(id, p);
     decode(name, p);
@@ -195,7 +228,9 @@ struct cls_rbd_snap {
     DECODE_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("id", id);
     f->dump_string("name", name);
     f->dump_unsigned("image_size", image_size);
@@ -227,21 +262,47 @@ struct cls_rbd_snap {
     }
   }
 
-  static std::list<cls_rbd_snap> generate_test_instances() {
+  static std::list<cls_rbd_snap>
+  generate_test_instances()
+  {
     std::list<cls_rbd_snap> o;
     o.emplace_back();
     // the parent field is ignored in v8 and up, so let's avoid setting it.
     // otherwise check-generated.sh would fail due to the disprepancies between
     // the original dump and re-encoded dump
-    o.push_back(cls_rbd_snap{1, "snap", 123456,
-                             RBD_PROTECTION_STATUS_PROTECTED, {}, 31, {},
-                             cls::rbd::UserSnapshotNamespace{}, 543, {}});
-    o.push_back(cls_rbd_snap{1, "snap", 123456,
-                             RBD_PROTECTION_STATUS_PROTECTED, {}, 31, {},
-                             cls::rbd::UserSnapshotNamespace{}, 543, {0}});
-    o.push_back(cls_rbd_snap{1, "snap", 123456,
-                             RBD_PROTECTION_STATUS_PROTECTED, {}, 31, {},
-                             cls::rbd::UserSnapshotNamespace{}, 543, {123}});
+    o.push_back(cls_rbd_snap{
+        1,
+        "snap",
+        123456,
+        RBD_PROTECTION_STATUS_PROTECTED,
+        {},
+        31,
+        {},
+        cls::rbd::UserSnapshotNamespace{},
+        543,
+        {}});
+    o.push_back(cls_rbd_snap{
+        1,
+        "snap",
+        123456,
+        RBD_PROTECTION_STATUS_PROTECTED,
+        {},
+        31,
+        {},
+        cls::rbd::UserSnapshotNamespace{},
+        543,
+        {0}});
+    o.push_back(cls_rbd_snap{
+        1,
+        "snap",
+        123456,
+        RBD_PROTECTION_STATUS_PROTECTED,
+        {},
+        31,
+        {},
+        cls::rbd::UserSnapshotNamespace{},
+        543,
+        {123}});
     return o;
   }
 };

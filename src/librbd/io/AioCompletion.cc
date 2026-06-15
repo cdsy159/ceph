@@ -2,20 +2,21 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/io/AioCompletion.h"
+
 #include <errno.h>
+
+#include <boost/asio/dispatch.hpp>
+#include <boost/asio/post.hpp>
 
 #include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "common/perf_counters.h"
-
 #include "librbd/AsioEngine.h"
 #include "librbd/ImageCtx.h"
-#include "librbd/internal.h"
 #include "librbd/Journal.h"
 #include "librbd/Types.h"
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/post.hpp>
+#include "librbd/internal.h"
 
 #ifdef WITH_LTTNG
 #include "tracing/librbd.h"
@@ -25,22 +26,26 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::io::AioCompletion: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::io::AioCompletion: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace io {
 
-int AioCompletion::wait_for_complete() {
+int
+AioCompletion::wait_for_complete()
+{
   tracepoint(librbd, aio_wait_for_complete_enter, this);
   completed.wait(false, std::memory_order_acquire);
   tracepoint(librbd, aio_wait_for_complete_exit, 0);
   return 0;
 }
 
-void AioCompletion::finalize() {
+void
+AioCompletion::finalize()
+{
   ceph_assert(ictx != nullptr);
-  CephContext *cct = ictx->cct;
+  CephContext* cct = ictx->cct;
 
   // finalize any pending error results since we won't be
   // atomically incrementing rval anymore
@@ -56,7 +61,9 @@ void AioCompletion::finalize() {
   }
 }
 
-void AioCompletion::complete() {
+void
+AioCompletion::complete()
+{
   ceph_assert(ictx != nullptr);
 
   ssize_t r = rval;
@@ -64,7 +71,7 @@ void AioCompletion::complete() {
     ictx = nullptr;
     external_callback = false;
   } else {
-    CephContext *cct = ictx->cct;
+    CephContext* cct = ictx->cct;
 
     tracepoint(librbd, aio_complete_enter, this, r);
     if (ictx->perfcounter != nullptr) {
@@ -74,17 +81,23 @@ void AioCompletion::complete() {
       case AIO_TYPE_OPEN:
         break;
       case AIO_TYPE_READ:
-        ictx->perfcounter->tinc(l_librbd_rd_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_rd_latency, elapsed);
+        break;
       case AIO_TYPE_WRITE:
-        ictx->perfcounter->tinc(l_librbd_wr_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_wr_latency, elapsed);
+        break;
       case AIO_TYPE_DISCARD:
-        ictx->perfcounter->tinc(l_librbd_discard_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_discard_latency, elapsed);
+        break;
       case AIO_TYPE_FLUSH:
-        ictx->perfcounter->tinc(l_librbd_flush_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_flush_latency, elapsed);
+        break;
       case AIO_TYPE_WRITESAME:
-        ictx->perfcounter->tinc(l_librbd_ws_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_ws_latency, elapsed);
+        break;
       case AIO_TYPE_COMPARE_AND_WRITE:
-        ictx->perfcounter->tinc(l_librbd_cmp_latency, elapsed); break;
+        ictx->perfcounter->tinc(l_librbd_cmp_latency, elapsed);
+        break;
       default:
         lderr(cct) << "completed invalid aio_type: " << aio_type << dendl;
         break;
@@ -106,7 +119,9 @@ void AioCompletion::complete() {
   tracepoint(librbd, aio_complete_exit);
 }
 
-void AioCompletion::init_time(ImageCtx *i, aio_type_t t) {
+void
+AioCompletion::init_time(ImageCtx* i, aio_type_t t)
+{
   if (ictx == nullptr) {
     ictx = i;
     aio_type = t;
@@ -114,7 +129,9 @@ void AioCompletion::init_time(ImageCtx *i, aio_type_t t) {
   }
 }
 
-void AioCompletion::start_op() {
+void
+AioCompletion::start_op()
+{
   ceph_assert(ictx != nullptr);
 
   if (aio_type == AIO_TYPE_OPEN || aio_type == AIO_TYPE_CLOSE) {
@@ -126,7 +143,9 @@ void AioCompletion::start_op() {
   async_op.start_op(*ictx);
 }
 
-void AioCompletion::queue_complete() {
+void
+AioCompletion::queue_complete()
+{
   uint32_t zero = 0;
   pending_count.compare_exchange_strong(zero, 1);
   ceph_assert(zero == 0);
@@ -135,11 +154,13 @@ void AioCompletion::queue_complete() {
 
   // ensure completion fires in clean lock context
   boost::asio::post(ictx->asio_engine->get_api_strand(), [this]() {
-      complete_request(0);
-    });
+    complete_request(0);
+  });
 }
 
-void AioCompletion::block(CephContext* cct) {
+void
+AioCompletion::block(CephContext* cct)
+{
   ldout(cct, 20) << dendl;
   ceph_assert(!was_armed);
 
@@ -147,7 +168,9 @@ void AioCompletion::block(CephContext* cct) {
   ++pending_count;
 }
 
-void AioCompletion::unblock(CephContext* cct) {
+void
+AioCompletion::unblock(CephContext* cct)
+{
   ldout(cct, 20) << dendl;
   ceph_assert(was_armed);
 
@@ -160,7 +183,8 @@ void AioCompletion::unblock(CephContext* cct) {
   put();
 }
 
-void AioCompletion::fail(int r)
+void
+AioCompletion::fail(int r)
 {
   ceph_assert(ictx != nullptr);
   ceph_assert(r < 0);
@@ -170,7 +194,7 @@ void AioCompletion::fail(int r)
     // executing from a safe context and the ImageCtx has been destructed
     queue_required = false;
   } else {
-    CephContext *cct = ictx->cct;
+    CephContext* cct = ictx->cct;
     lderr(cct) << cpp_strerror(r) << dendl;
   }
 
@@ -189,9 +213,11 @@ void AioCompletion::fail(int r)
   }
 }
 
-void AioCompletion::set_request_count(uint32_t count) {
+void
+AioCompletion::set_request_count(uint32_t count)
+{
   ceph_assert(ictx != nullptr);
-  CephContext *cct = ictx->cct;
+  CephContext* cct = ictx->cct;
 
   ceph_assert(!was_armed);
   was_armed = true;
@@ -203,10 +229,11 @@ void AioCompletion::set_request_count(uint32_t count) {
   }
 }
 
-void AioCompletion::complete_request(ssize_t r)
+void
+AioCompletion::complete_request(ssize_t r)
 {
   ceph_assert(ictx != nullptr);
-  CephContext *cct = ictx->cct;
+  CephContext* cct = ictx->cct;
 
   if (r > 0) {
     rval += r;
@@ -221,8 +248,8 @@ void AioCompletion::complete_request(ssize_t r)
   ceph_assert(previous_pending_count > 0);
   auto pending_count = previous_pending_count - 1;
 
-  ldout(cct, 20) << "cb=" << complete_cb << ", "
-                 << "pending=" << pending_count << dendl;
+  ldout(cct, 20) << "cb=" << complete_cb << ", " << "pending=" << pending_count
+                 << dendl;
   if (pending_count == 0) {
     finalize();
     complete();
@@ -230,33 +257,41 @@ void AioCompletion::complete_request(ssize_t r)
   put();
 }
 
-bool AioCompletion::is_complete() {
+bool
+AioCompletion::is_complete()
+{
   tracepoint(librbd, aio_is_complete_enter, this);
   bool done = completed.load(std::memory_order_acquire);
   tracepoint(librbd, aio_is_complete_exit, done);
   return done;
 }
 
-ssize_t AioCompletion::get_return_value() {
+ssize_t
+AioCompletion::get_return_value()
+{
   tracepoint(librbd, aio_get_return_value_enter, this);
   ssize_t r = rval;
   tracepoint(librbd, aio_get_return_value_exit, r);
   return r;
 }
 
-void AioCompletion::complete_external_callback() {
+void
+AioCompletion::complete_external_callback()
+{
   get();
 
   // ensure librbd external users never experience concurrent callbacks
   // from multiple librbd-internal threads.
   boost::asio::dispatch(ictx->asio_engine->get_api_strand(), [this]() {
-      complete_cb(rbd_comp, complete_arg);
-      mark_complete_and_notify();
-      put();
-    });
+    complete_cb(rbd_comp, complete_arg);
+    mark_complete_and_notify();
+    put();
+  });
 }
 
-void AioCompletion::mark_complete_and_notify() {
+void
+AioCompletion::mark_complete_and_notify()
+{
   completed.store(true, std::memory_order_release);
 
   if (ictx != nullptr && event_notify && ictx->event_socket.is_valid()) {

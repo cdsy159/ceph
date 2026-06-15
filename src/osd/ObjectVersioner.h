@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,13 +17,13 @@
 #define CEPH_OSD_OBJECTVERSIONER_H
 
 class ObjectVersioner {
- public:
+public:
   pobject_t oid;
 
   void get_versions(list<version_t>& ls);
-  version_t head();      // newest
+  version_t head(); // newest
   version_t committed(); // last committed
-  version_t tail();      // oldest
+  version_t tail(); // oldest
 
   /* 
    * prepare a new version, starting wit "raw" transaction t.

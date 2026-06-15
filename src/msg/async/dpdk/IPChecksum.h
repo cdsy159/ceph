@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 /*
  * This file is open source software, licensed to you under the terms
  * of the Apache License, Version 2.0 (the "License").  See the NOTICE file
@@ -23,9 +23,10 @@
 #ifndef CEPH_MSG_CHECKSUM_H_
 #define CEPH_MSG_CHECKSUM_H_
 
-#include <cstdint>
-#include <cstddef>
 #include <arpa/inet.h>
+
+#include <cstddef>
+#include <cstdint>
 
 #include "Packet.h"
 
@@ -36,7 +37,10 @@ struct checksummer {
   bool odd = false;
   void sum(const char* data, size_t len);
   void sum(const Packet& p);
-  void sum(uint8_t data) {
+
+  void
+  sum(uint8_t data)
+  {
     if (!odd) {
       csum += data << 8;
     } else {
@@ -44,7 +48,10 @@ struct checksummer {
     }
     odd = !odd;
   }
-  void sum(uint16_t data) {
+
+  void
+  sum(uint16_t data)
+  {
     if (odd) {
       sum(uint8_t(data >> 8));
       sum(uint8_t(data));
@@ -52,7 +59,10 @@ struct checksummer {
       csum += data;
     }
   }
-  void sum(uint32_t data) {
+
+  void
+  sum(uint32_t data)
+  {
     if (odd) {
       sum(uint16_t(data));
       sum(uint16_t(data >> 16));
@@ -60,12 +70,19 @@ struct checksummer {
       csum += data;
     }
   }
-  void sum_many() {}
+
+  void
+  sum_many()
+  {}
+
   template <typename T0, typename... T>
-  void sum_many(T0 data, T... rest) {
+  void
+  sum_many(T0 data, T... rest)
+  {
     sum(data);
     sum_many(rest...);
   }
+
   uint16_t get() const;
 };
 

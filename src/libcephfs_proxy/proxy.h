@@ -2,11 +2,11 @@
 #ifndef __LIBCEPHFSD_PROXY_H__
 #define __LIBCEPHFSD_PROXY_H__
 
-#include <string.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
 
 #define LIBCEPHFSD_MAJOR 0
 
@@ -20,27 +20,27 @@
 #define PROXY_SOCKET "/run/libcephfsd.sock"
 #define PROXY_SOCKET_ENV "LIBCEPHFSD_SOCKET"
 
-#define field_size(_type, _field) sizeof(((_type *)0)->_field)
+#define field_size(_type, _field) sizeof(((_type*)0)->_field)
 
-#define offset_of(_type, _field) ((uintptr_t) & ((_type *)0)->_field)
+#define offset_of(_type, _field) ((uintptr_t) & ((_type*)0)->_field)
 
 #define container_of(_ptr, _type, _field) \
-	((_type *)((uintptr_t)(_ptr) - offset_of(_type, _field)))
+  ((_type*)((uintptr_t)(_ptr) - offset_of(_type, _field)))
 
 enum {
-	/* Support for asynchronous I/O operations, like
+  /* Support for asynchronous I/O operations, like
 	 * ceph_ll_nonblocking_readv_writev and ceph_ll_nonblocking_fsync */
-	PROXY_FEAT_ASYNC_IO = 0x00000001,
+  PROXY_FEAT_ASYNC_IO = 0x00000001,
 
-	/* Support for embedding the user credentials inside the request itself
+  /* Support for embedding the user credentials inside the request itself
 	 * instead of using ceph_userperm_new/ceph_userperm_destroy */
-	PROXY_FEAT_EMBEDDED_PERMS = 0x00000002,
+  PROXY_FEAT_EMBEDDED_PERMS = 0x00000002,
 
-	/* Mask of all features requiring the asynchronous callback handling. */
-	PROXY_FEAT_ASYNC_CBK = 0x00000001,
+  /* Mask of all features requiring the asynchronous callback handling. */
+  PROXY_FEAT_ASYNC_CBK = 0x00000001,
 
-	/* Mask of all supported/known features. */
-	PROXY_FEAT_ALL = 0x00000003
+  /* Mask of all supported/known features. */
+  PROXY_FEAT_ALL = 0x00000003
 };
 
 struct _list;
@@ -76,30 +76,29 @@ typedef struct _proxy_link_negotiate proxy_link_negotiate_t;
 struct _proxy_async;
 typedef struct _proxy_async proxy_async_t;
 
-typedef int32_t (*proxy_output_write_t)(proxy_output_t *);
-typedef int32_t (*proxy_output_full_t)(proxy_output_t *);
+typedef int32_t (*proxy_output_write_t)(proxy_output_t*);
+typedef int32_t (*proxy_output_full_t)(proxy_output_t*);
 
-typedef void (*proxy_log_callback_t)(proxy_log_handler_t *, int32_t, int32_t,
-				     const char *);
+typedef void (
+    *proxy_log_callback_t)(proxy_log_handler_t*, int32_t, int32_t, const char*);
 
-typedef void (*proxy_worker_start_t)(proxy_worker_t *);
-typedef void (*proxy_worker_destroy_t)(proxy_worker_t *);
+typedef void (*proxy_worker_start_t)(proxy_worker_t*);
+typedef void (*proxy_worker_destroy_t)(proxy_worker_t*);
 
-typedef int32_t (*proxy_manager_start_t)(proxy_manager_t *);
+typedef int32_t (*proxy_manager_start_t)(proxy_manager_t*);
 
-typedef int32_t (*proxy_link_start_t)(proxy_link_t *, proxy_settings_t *,
-				      int32_t);
-typedef bool (*proxy_link_stop_t)(proxy_link_t *);
+typedef int32_t (*proxy_link_start_t)(proxy_link_t*, proxy_settings_t*, int32_t);
+typedef bool (*proxy_link_stop_t)(proxy_link_t*);
 
 struct _list {
-	list_t *next;
-	list_t *prev;
+  list_t* next;
+  list_t* prev;
 };
 
 struct _proxy_settings {
-	const char *socket_path;
-	const char *work_dir;
-	bool disable_copy;
+  const char* socket_path;
+  const char* work_dir;
+  bool disable_copy;
 };
 
 #endif

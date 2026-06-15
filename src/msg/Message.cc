@@ -1,240 +1,206 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "Message.h"
 
 #ifdef ENCODE_DUMP
-# include <typeinfo>
-# include <cxxabi.h>
+#include <cxxabi.h>
+
+#include <typeinfo>
 #endif
 
 #include <iostream>
 
-#include "include/types.h"
-
 #include "global/global_context.h"
-
-#include "messages/MPGStats.h"
-
-#include "messages/MGenericMessage.h"
-
-#include "messages/MPGStatsAck.h"
-
-#include "messages/MStatfs.h"
-#include "messages/MStatfsReply.h"
-
-#include "messages/MGetPoolStats.h"
-#include "messages/MGetPoolStatsReply.h"
-
-
-#include "messages/MPoolOp.h"
-#include "messages/MPoolOpReply.h"
-
-#include "messages/PaxosServiceMessage.h"
-#include "messages/MMonCommand.h"
-#include "messages/MMonCommandAck.h"
-#include "messages/MMonPaxos.h"
-#include "messages/MConfig.h"
-#include "messages/MGetConfig.h"
-#include "messages/MKVData.h"
-
-#include "messages/MMonProbe.h"
-#include "messages/MMonJoin.h"
-#include "messages/MMonElection.h"
-#include "messages/MMonSync.h"
-#include "messages/MMonPing.h"
-#include "messages/MMonScrub.h"
-
-#include "messages/MLog.h"
-#include "messages/MLogAck.h"
-
-#include "messages/MPing.h"
-
+#include "include/types.h"
+#include "messages/MAuth.h"
+#include "messages/MAuthReply.h"
+#include "messages/MBackfillReserve.h"
+#include "messages/MClientCapRelease.h"
+#include "messages/MClientCaps.h"
+#include "messages/MClientLease.h"
+#include "messages/MClientMetrics.h"
+#include "messages/MClientQuota.h"
+#include "messages/MClientReclaim.h"
+#include "messages/MClientReclaimReply.h"
+#include "messages/MClientReconnect.h"
+#include "messages/MClientReply.h"
+#include "messages/MClientRequest.h"
+#include "messages/MClientRequestForward.h"
+#include "messages/MClientSession.h"
+#include "messages/MClientSnap.h"
 #include "messages/MCommand.h"
 #include "messages/MCommandReply.h"
-#include "messages/MBackfillReserve.h"
-#include "messages/MRecoveryReserve.h"
-
-#include "messages/MRoute.h"
+#include "messages/MConfig.h"
+#include "messages/MDentryLink.h"
+#include "messages/MDentryUnlink.h"
+#include "messages/MDirUpdate.h"
+#include "messages/MDiscover.h"
+#include "messages/MDiscoverReply.h"
+#include "messages/MExportCaps.h"
+#include "messages/MExportCapsAck.h"
+#include "messages/MExportDir.h"
+#include "messages/MExportDirAck.h"
+#include "messages/MExportDirCancel.h"
+#include "messages/MExportDirDiscover.h"
+#include "messages/MExportDirDiscoverAck.h"
+#include "messages/MExportDirFinish.h"
+#include "messages/MExportDirNotify.h"
+#include "messages/MExportDirNotifyAck.h"
+#include "messages/MExportDirPrep.h"
+#include "messages/MExportDirPrepAck.h"
+#include "messages/MFSMap.h"
+#include "messages/MFSMapUser.h"
 #include "messages/MForward.h"
-
-#include "messages/MOSDBoot.h"
-#include "messages/MOSDAlive.h"
-#include "messages/MOSDBeacon.h"
-#include "messages/MOSDPGTemp.h"
-#include "messages/MOSDFailure.h"
-#include "messages/MOSDMarkMeDown.h"
-#include "messages/MOSDMarkMeDead.h"
-#include "messages/MOSDFull.h"
-#include "messages/MOSDPing.h"
-#include "messages/MOSDOp.h"
-#include "messages/MOSDOpReply.h"
-#include "messages/MOSDRepOp.h"
-#include "messages/MOSDRepOpReply.h"
-#include "messages/MOSDMap.h"
+#include "messages/MGatherCaps.h"
+#include "messages/MGenericMessage.h"
+#include "messages/MGetConfig.h"
+#include "messages/MGetPoolStats.h"
+#include "messages/MGetPoolStatsReply.h"
+#include "messages/MHeartbeat.h"
+#include "messages/MKVData.h"
+#include "messages/MLog.h"
+#include "messages/MLogAck.h"
+#include "messages/MMDSBeacon.h"
+#include "messages/MMDSCacheRejoin.h"
+#include "messages/MMDSFindIno.h"
+#include "messages/MMDSFindInoReply.h"
+#include "messages/MMDSFragmentNotify.h"
+#include "messages/MMDSFragmentNotifyAck.h"
+#include "messages/MMDSLoadTargets.h"
+#include "messages/MMDSMap.h"
+#include "messages/MMDSMetrics.h"
+#include "messages/MMDSOpenIno.h"
+#include "messages/MMDSOpenInoReply.h"
+#include "messages/MMDSPeerRequest.h"
+#include "messages/MMDSPing.h"
+#include "messages/MMDSQuiesceDbAck.h"
+#include "messages/MMDSQuiesceDbListing.h"
+#include "messages/MMDSResolve.h"
+#include "messages/MMDSResolveAck.h"
+#include "messages/MMDSScrub.h"
+#include "messages/MMDSScrubStats.h"
+#include "messages/MMDSSnapUpdate.h"
+#include "messages/MMDSTableRequest.h"
+#include "messages/MMonCommand.h"
+#include "messages/MMonCommandAck.h"
+#include "messages/MMonElection.h"
+#include "messages/MMonGetMap.h"
 #include "messages/MMonGetOSDMap.h"
 #include "messages/MMonGetPurgedSnaps.h"
 #include "messages/MMonGetPurgedSnapsReply.h"
-
+#include "messages/MMonGetVersion.h"
+#include "messages/MMonGetVersionReply.h"
+#include "messages/MMonGlobalID.h"
+#include "messages/MMonHealth.h"
+#include "messages/MMonHealthChecks.h"
+#include "messages/MMonJoin.h"
+#include "messages/MMonMap.h"
+#include "messages/MMonPaxos.h"
+#include "messages/MMonPing.h"
+#include "messages/MMonProbe.h"
+#include "messages/MMonScrub.h"
+#include "messages/MMonSubscribe.h"
+#include "messages/MMonSubscribeAck.h"
+#include "messages/MMonSync.h"
+#include "messages/MMonUsedPendingKeys.h"
+#include "messages/MOSDAlive.h"
+#include "messages/MOSDBackoff.h"
+#include "messages/MOSDBeacon.h"
+#include "messages/MOSDBoot.h"
+#include "messages/MOSDFailure.h"
+#include "messages/MOSDForceRecovery.h"
+#include "messages/MOSDFull.h"
+#include "messages/MOSDMap.h"
+#include "messages/MOSDMarkMeDead.h"
+#include "messages/MOSDMarkMeDown.h"
+#include "messages/MOSDOp.h"
+#include "messages/MOSDOpReply.h"
+#include "messages/MOSDPGBackfill.h"
+#include "messages/MOSDPGBackfillRemove.h"
+#include "messages/MOSDPGCreate2.h"
 #include "messages/MOSDPGCreated.h"
+#include "messages/MOSDPGInfo.h"
+#include "messages/MOSDPGInfo2.h"
+#include "messages/MOSDPGLease.h"
+#include "messages/MOSDPGLeaseAck.h"
+#include "messages/MOSDPGLog.h"
 #include "messages/MOSDPGNotify.h"
 #include "messages/MOSDPGNotify2.h"
 #include "messages/MOSDPGQuery.h"
 #include "messages/MOSDPGQuery2.h"
-#include "messages/MOSDPGLog.h"
-#include "messages/MOSDPGRemove.h"
-#include "messages/MOSDPGInfo.h"
-#include "messages/MOSDPGInfo2.h"
-#include "messages/MOSDPGCreate2.h"
-#include "messages/MOSDPGTrim.h"
-#include "messages/MOSDPGLease.h"
-#include "messages/MOSDPGLeaseAck.h"
-#include "messages/MOSDScrub2.h"
-#include "messages/MOSDScrubReserve.h"
-#include "messages/MOSDRepScrub.h"
-#include "messages/MOSDRepScrubMap.h"
-#include "messages/MOSDForceRecovery.h"
-#include "messages/MOSDPGScan.h"
-#include "messages/MOSDPGBackfill.h"
-#include "messages/MOSDBackoff.h"
-#include "messages/MOSDPGBackfillRemove.h"
+#include "messages/MOSDPGReadyToMerge.h"
 #include "messages/MOSDPGRecoveryDelete.h"
 #include "messages/MOSDPGRecoveryDeleteReply.h"
-#include "messages/MOSDPGReadyToMerge.h"
-
+#include "messages/MOSDPGRemove.h"
+#include "messages/MOSDPGScan.h"
+#include "messages/MOSDPGTemp.h"
+#include "messages/MOSDPGTrim.h"
+#include "messages/MOSDPing.h"
+#include "messages/MOSDRepOp.h"
+#include "messages/MOSDRepOpReply.h"
+#include "messages/MOSDRepScrub.h"
+#include "messages/MOSDRepScrubMap.h"
+#include "messages/MOSDScrub2.h"
+#include "messages/MOSDScrubReserve.h"
+#include "messages/MPGStats.h"
+#include "messages/MPGStatsAck.h"
+#include "messages/MPing.h"
+#include "messages/MPoolOp.h"
+#include "messages/MPoolOpReply.h"
+#include "messages/MRecoveryReserve.h"
 #include "messages/MRemoveSnaps.h"
-
-#include "messages/MMonMap.h"
-#include "messages/MMonGetMap.h"
-#include "messages/MMonGetVersion.h"
-#include "messages/MMonGetVersionReply.h"
-#include "messages/MMonHealth.h"
-#include "messages/MMonHealthChecks.h"
-#include "messages/MAuth.h"
-#include "messages/MAuthReply.h"
-#include "messages/MMonSubscribe.h"
-#include "messages/MMonSubscribeAck.h"
-#include "messages/MMonGlobalID.h"
-#include "messages/MMonUsedPendingKeys.h"
-#include "messages/MClientSession.h"
-#include "messages/MClientReconnect.h"
-#include "messages/MClientRequest.h"
-#include "messages/MClientRequestForward.h"
-#include "messages/MClientReply.h"
-#include "messages/MClientReclaim.h"
-#include "messages/MClientReclaimReply.h"
-#include "messages/MClientCaps.h"
-#include "messages/MClientCapRelease.h"
-#include "messages/MClientLease.h"
-#include "messages/MClientSnap.h"
-#include "messages/MClientQuota.h"
-#include "messages/MClientMetrics.h"
-
-#include "messages/MMDSPeerRequest.h"
-#include "messages/MMDSQuiesceDbListing.h"
-#include "messages/MMDSQuiesceDbAck.h"
-
-#include "messages/MMDSMap.h"
-#include "messages/MFSMap.h"
-#include "messages/MFSMapUser.h"
-#include "messages/MMDSBeacon.h"
-#include "messages/MMDSLoadTargets.h"
-#include "messages/MMDSResolve.h"
-#include "messages/MMDSResolveAck.h"
-#include "messages/MMDSCacheRejoin.h"
-#include "messages/MMDSFindIno.h"
-#include "messages/MMDSFindInoReply.h"
-#include "messages/MMDSOpenIno.h"
-#include "messages/MMDSOpenInoReply.h"
-#include "messages/MMDSSnapUpdate.h"
-#include "messages/MMDSScrub.h"
-#include "messages/MMDSScrubStats.h"
-
-#include "messages/MDirUpdate.h"
-#include "messages/MDiscover.h"
-#include "messages/MDiscoverReply.h"
-
-#include "messages/MMDSFragmentNotify.h"
-#include "messages/MMDSFragmentNotifyAck.h"
-
-#include "messages/MExportDirDiscover.h"
-#include "messages/MExportDirDiscoverAck.h"
-#include "messages/MExportDirCancel.h"
-#include "messages/MExportDirPrep.h"
-#include "messages/MExportDirPrepAck.h"
-#include "messages/MExportDir.h"
-#include "messages/MExportDirAck.h"
-#include "messages/MExportDirNotify.h"
-#include "messages/MExportDirNotifyAck.h"
-#include "messages/MExportDirFinish.h"
-
-#include "messages/MExportCaps.h"
-#include "messages/MExportCapsAck.h"
-#include "messages/MGatherCaps.h"
-
-
-#include "messages/MDentryUnlink.h"
-#include "messages/MDentryLink.h"
-
-#include "messages/MHeartbeat.h"
-
-#include "messages/MMDSTableRequest.h"
-#include "messages/MMDSMetrics.h"
-#include "messages/MMDSPing.h"
+#include "messages/MRoute.h"
+#include "messages/MStatfs.h"
+#include "messages/MStatfsReply.h"
+#include "messages/PaxosServiceMessage.h"
 
 //#include "messages/MInodeUpdate.h"
-#include "messages/MCacheExpire.h"
-#include "messages/MInodeFileCaps.h"
-
-#include "messages/MMgrBeacon.h"
-#include "messages/MMgrMap.h"
-#include "messages/MMgrDigest.h"
-#include "messages/MMgrReport.h"
-#include "messages/MMgrOpen.h"
-#include "messages/MMgrUpdate.h"
-#include "messages/MMgrClose.h"
-#include "messages/MMgrConfigure.h"
-#include "messages/MMonMgrReport.h"
-#include "messages/MMgrCommand.h"
-#include "messages/MMgrCommandReply.h"
-#include "messages/MServiceMap.h"
-
-#include "messages/MLock.h"
-
-#include "messages/MWatchNotify.h"
-#include "messages/MTimeCheck.h"
-#include "messages/MTimeCheck2.h"
+#include "common/debug.h"
 
 #include "common/ceph_context.h"
 #include "common/config.h"
-#include "common/debug.h"
-
-#include "messages/MOSDPGPush.h"
-#include "messages/MOSDPGPushReply.h"
-#include "messages/MOSDPGPull.h"
-
-#include "messages/MOSDECSubOpWrite.h"
-#include "messages/MOSDECSubOpWriteReply.h"
-#include "messages/MOSDECSubOpRead.h"
-#include "messages/MOSDECSubOpReadReply.h"
-
-#include "messages/MOSDPGUpdateLogMissing.h"
-#include "messages/MOSDPGUpdateLogMissingReply.h"
-
-#include "messages/MOSDPGPCT.h"
-
+#include "messages/MCacheExpire.h"
+#include "messages/MInodeFileCaps.h"
+#include "messages/MLock.h"
+#include "messages/MMgrBeacon.h"
+#include "messages/MMgrClose.h"
+#include "messages/MMgrCommand.h"
+#include "messages/MMgrCommandReply.h"
+#include "messages/MMgrConfigure.h"
+#include "messages/MMgrDigest.h"
+#include "messages/MMgrMap.h"
+#include "messages/MMgrOpen.h"
+#include "messages/MMgrReport.h"
+#include "messages/MMgrUpdate.h"
+#include "messages/MMonMgrReport.h"
 #include "messages/MNVMeofGwBeacon.h"
 #include "messages/MNVMeofGwMap.h"
+#include "messages/MOSDECSubOpRead.h"
+#include "messages/MOSDECSubOpReadReply.h"
+#include "messages/MOSDECSubOpWrite.h"
+#include "messages/MOSDECSubOpWriteReply.h"
+#include "messages/MOSDPGPCT.h"
+#include "messages/MOSDPGPull.h"
+#include "messages/MOSDPGPush.h"
+#include "messages/MOSDPGPushReply.h"
+#include "messages/MOSDPGUpdateLogMissing.h"
+#include "messages/MOSDPGUpdateLogMissingReply.h"
+#include "messages/MServiceMap.h"
+#include "messages/MTimeCheck.h"
+#include "messages/MTimeCheck2.h"
+#include "messages/MWatchNotify.h"
 
 #ifdef WITH_BLKIN
 #include "Messenger.h"
 #endif
 
-#define DEBUGLVL  10    // debug level of output
+#define DEBUGLVL 10 // debug level of output
 
 #define dout_subsys ceph_subsys_ms
 
-void Message::encode(uint64_t features, int crcflags, bool skip_header_crc)
+void
+Message::encode(uint64_t features, int crcflags, bool skip_header_crc)
 {
   // encode and copy out of *m
   if (empty_payload()) {
@@ -292,13 +258,15 @@ void Message::encode(uint64_t features, int crcflags, bool skip_header_crc)
     if (bits <= 2) {
       char fn[200];
       int status;
-      snprintf(fn, sizeof(fn), ENCODE_STRINGIFY(ENCODE_DUMP) "/%s__%d.%x",
-	       abi::__cxa_demangle(typeid(*this).name(), 0, 0, &status),
-	       getpid(), i++);
-      int fd = ::open(fn, O_WRONLY|O_TRUNC|O_CREAT|O_CLOEXEC|O_BINARY, 0644);
+      snprintf(
+          fn, sizeof(fn), ENCODE_STRINGIFY(ENCODE_DUMP) "/%s__%d.%x",
+          abi::__cxa_demangle(typeid(*this).name(), 0, 0, &status), getpid(),
+          i++);
+      int fd =
+          ::open(fn, O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_BINARY, 0644);
       if (fd >= 0) {
-	bl.write_fd(fd);
-	::close(fd);
+        bl.write_fd(fd);
+        ::close(fd);
       }
     }
 #endif
@@ -307,21 +275,24 @@ void Message::encode(uint64_t features, int crcflags, bool skip_header_crc)
   }
 }
 
-void Message::dump(ceph::Formatter *f) const
+void
+Message::dump(ceph::Formatter* f) const
 {
   std::stringstream ss;
   print(ss);
   f->dump_string("summary", ss.str());
 }
 
-Message *decode_message(CephContext *cct,
-                        int crcflags,
-                        ceph_msg_header& header,
-                        ceph_msg_footer& footer,
-                        ceph::bufferlist& front,
-                        ceph::bufferlist& middle,
-                        ceph::bufferlist& data,
-                        Message::ConnectionRef conn)
+Message*
+decode_message(
+    CephContext* cct,
+    int crcflags,
+    ceph_msg_header& header,
+    ceph_msg_footer& footer,
+    ceph::bufferlist& front,
+    ceph::bufferlist& middle,
+    ceph::bufferlist& data,
+    Message::ConnectionRef conn)
 {
 #ifdef WITH_CRIMSON
   // In crimson, conn is independently maintained outside Message.
@@ -334,27 +305,29 @@ Message *decode_message(CephContext *cct,
 
     if (front_crc != footer.front_crc) {
       if (cct) {
-	ldout(cct, 0) << "bad crc in front " << front_crc << " != exp " << footer.front_crc
+        ldout(cct, 0) << "bad crc in front " << front_crc << " != exp "
+                      << footer.front_crc
 #ifndef WITH_CRIMSON
-	              << " from " << conn->get_peer_addr()
+                      << " from " << conn->get_peer_addr()
 #endif
-	              << dendl;
-	ldout(cct, 20) << " ";
-	front.hexdump(*_dout);
-	*_dout << dendl;
+                      << dendl;
+        ldout(cct, 20) << " ";
+        front.hexdump(*_dout);
+        *_dout << dendl;
       }
       return 0;
     }
     if (middle_crc != footer.middle_crc) {
       if (cct) {
-	ldout(cct, 0) << "bad crc in middle " << middle_crc << " != exp " << footer.middle_crc
+        ldout(cct, 0) << "bad crc in middle " << middle_crc << " != exp "
+                      << footer.middle_crc
 #ifndef WITH_CRIMSON
-	              << " from " << conn->get_peer_addr()
+                      << " from " << conn->get_peer_addr()
 #endif
-	              << dendl;
-	ldout(cct, 20) << " ";
-	middle.hexdump(*_dout);
-	*_dout << dendl;
+                      << dendl;
+        ldout(cct, 20) << " ";
+        middle.hexdump(*_dout);
+        *_dout << dendl;
       }
       return 0;
     }
@@ -363,17 +336,18 @@ Message *decode_message(CephContext *cct,
     if ((footer.flags & CEPH_MSG_FOOTER_NOCRC) == 0) {
       __u32 data_crc = data.crc32c(0);
       if (data_crc != footer.data_crc) {
-	if (cct) {
-	  ldout(cct, 0) << "bad crc in data " << data_crc << " != exp " << footer.data_crc
+        if (cct) {
+          ldout(cct, 0) << "bad crc in data " << data_crc << " != exp "
+                        << footer.data_crc
 #ifndef WITH_CRIMSON
-	                << " from " << conn->get_peer_addr()
+                        << " from " << conn->get_peer_addr()
 #endif
-	                << dendl;
-	  ldout(cct, 20) << " ";
-	  data.hexdump(*_dout);
-	  *_dout << dendl;
-	}
-	return 0;
+                        << dendl;
+          ldout(cct, 20) << " ";
+          data.hexdump(*_dout);
+          *_dout << dendl;
+        }
+        return 0;
       }
     }
   }
@@ -482,7 +456,7 @@ Message *decode_message(CephContext *cct,
   case MSG_FORWARD:
     m = make_message<MForward>();
     break;
-    
+
   case CEPH_MSG_MON_MAP:
     m = make_message<MMonMap>();
     break;
@@ -659,7 +633,7 @@ Message *decode_message(CephContext *cct,
   case MSG_OSD_EC_READ_REPLY:
     m = make_message<MOSDECSubOpReadReply>();
     break;
-   // auth
+    // auth
   case CEPH_MSG_AUTH:
     m = make_message<MAuth>();
     break;
@@ -669,10 +643,10 @@ Message *decode_message(CephContext *cct,
 
   case MSG_MON_GLOBAL_ID:
     m = make_message<MMonGlobalID>();
-    break; 
+    break;
   case MSG_MON_USED_PENDING_KEYS:
     m = make_message<MMonUsedPendingKeys>();
-    break; 
+    break;
 
     // clients
   case CEPH_MSG_MON_SUBSCRIBE:
@@ -749,8 +723,8 @@ Message *decode_message(CephContext *cct,
     break;
   case MSG_MDS_CACHEREJOIN:
     m = make_message<MMDSCacheRejoin>();
-	break;
-  
+    break;
+
   case MSG_MDS_DIRUPDATE:
     m = make_message<MDirUpdate>();
     break;
@@ -870,7 +844,7 @@ Message *decode_message(CephContext *cct,
     m = make_message<MMDSQuiesceDbAck>();
     break;
 
-	/*  case MSG_MDS_INODEUPDATE:
+    /*  case MSG_MDS_INODEUPDATE:
     m = make_message<MInodeUpdate>();
     break;
 	*/
@@ -897,7 +871,7 @@ Message *decode_message(CephContext *cct,
 
   case MSG_MNVMEOF_GW_BEACON:
     m = make_message<MNVMeofGwBeacon>();
-  break;
+    break;
 
   case MSG_MON_MGR_REPORT:
     m = make_message<MMonMgrReport>();
@@ -969,9 +943,10 @@ Message *decode_message(CephContext *cct,
 
   default:
     if (cct) {
-      ldout(cct, 0) << "can't decode unknown message type " << type << " MSG_AUTH=" << CEPH_MSG_AUTH << dendl;
+      ldout(cct, 0) << "can't decode unknown message type " << type
+                    << " MSG_AUTH=" << CEPH_MSG_AUTH << dendl;
       if (cct->_conf->ms_die_on_bad_msg)
-	ceph_abort();
+        ceph_abort();
     }
     return 0;
   }
@@ -984,12 +959,12 @@ Message *decode_message(CephContext *cct,
   if (m->get_header().version &&
       m->get_header().version < header.compat_version) {
     if (cct) {
-      ldout(cct, 0) << "will not decode message of type " << type
-		    << " version " << header.version
-		    << " because compat_version " << header.compat_version
-		    << " > supported version " << m->get_header().version << dendl;
+      ldout(cct, 0) << "will not decode message of type " << type << " version "
+                    << header.version << " because compat_version "
+                    << header.compat_version << " > supported version "
+                    << m->get_header().version << dendl;
       if (cct->_conf->ms_die_on_bad_msg)
-	ceph_abort();
+        ceph_abort();
     }
     return 0;
   }
@@ -1003,18 +978,18 @@ Message *decode_message(CephContext *cct,
 
   try {
     m->decode_payload();
-  }
-  catch (const ceph::buffer::error &e) {
+  } catch (const ceph::buffer::error& e) {
     if (cct) {
-      lderr(cct) << "failed to decode message of type " << type
-		 << " v" << header.version
-		 << ": " << e.what() << dendl;
-      ldout(cct, ceph::dout::need_dynamic(
-	cct->_conf->ms_dump_corrupt_message_level)) << "dump: \n";
+      lderr(cct) << "failed to decode message of type " << type << " v"
+                 << header.version << ": " << e.what() << dendl;
+      ldout(
+          cct,
+          ceph::dout::need_dynamic(cct->_conf->ms_dump_corrupt_message_level))
+          << "dump: \n";
       m->get_payload().hexdump(*_dout);
       *_dout << dendl;
       if (cct->_conf->ms_die_on_bad_msg)
-	ceph_abort();
+        ceph_abort();
     }
     return 0;
   }
@@ -1023,18 +998,20 @@ Message *decode_message(CephContext *cct,
   return m.detach();
 }
 
-void Message::encode_trace(ceph::bufferlist &bl, uint64_t features) const
+void
+Message::encode_trace(ceph::bufferlist& bl, uint64_t features) const
 {
   using ceph::encode;
   auto p = trace.get_info();
-  static const blkin_trace_info empty = { 0, 0, 0 };
+  static const blkin_trace_info empty = {0, 0, 0};
   if (!p) {
     p = &empty;
   }
   encode(*p, bl);
 }
 
-void Message::decode_trace(ceph::bufferlist::const_iterator &p, bool create)
+void
+Message::decode_trace(ceph::bufferlist::const_iterator& p, bool create)
 {
   blkin_trace_info info = {};
   decode(info, p);
@@ -1048,8 +1025,9 @@ void Message::decode_trace(ceph::bufferlist::const_iterator &p, bool create)
   if (info.trace_id) {
     trace.init(get_type_name().data(), endpoint, &info, true);
     trace.event("decoded trace");
-  } else if (create || (msgr->get_myname().is_osd() &&
-                        msgr->cct->_conf->osd_blkin_trace_all)) {
+  } else if (
+      create ||
+      (msgr->get_myname().is_osd() && msgr->cct->_conf->osd_blkin_trace_all)) {
     // create a trace even if we didn't get one on the wire
     trace.init(get_type_name().data(), endpoint);
     trace.event("created trace");
@@ -1060,12 +1038,14 @@ void Message::decode_trace(ceph::bufferlist::const_iterator &p, bool create)
 #endif
 }
 
-void Message::encode_otel_trace(ceph::bufferlist &bl, uint64_t features) const
+void
+Message::encode_otel_trace(ceph::bufferlist& bl, uint64_t features) const
 {
   tracing::encode(otel_trace, bl);
 }
 
-void Message::decode_otel_trace(ceph::bufferlist::const_iterator &p, bool create)
+void
+Message::decode_otel_trace(ceph::bufferlist::const_iterator& p, bool create)
 {
   tracing::decode(otel_trace, p);
 }
@@ -1076,7 +1056,8 @@ void Message::decode_otel_trace(ceph::bufferlist::const_iterator &p, bool create
 // problems, we currently always encode and decode using the old footer format that doesn't
 // allow for message authentication.  Eventually we should fix that.  PLR
 
-void encode_message(Message *msg, uint64_t features, ceph::bufferlist& payload)
+void
+encode_message(Message* msg, uint64_t features, ceph::bufferlist& payload)
 {
   ceph_msg_footer_old old_footer;
   msg->encode(features, MSG_CRC_ALL);
@@ -1084,10 +1065,10 @@ void encode_message(Message *msg, uint64_t features, ceph::bufferlist& payload)
 
   // Here's where we switch to the old footer format.  PLR
   ceph_msg_footer footer = msg->get_footer();
-  old_footer.front_crc = footer.front_crc;   
-  old_footer.middle_crc = footer.middle_crc;   
-  old_footer.data_crc = footer.data_crc;   
-  old_footer.flags = footer.flags;   
+  old_footer.front_crc = footer.front_crc;
+  old_footer.middle_crc = footer.middle_crc;
+  old_footer.data_crc = footer.data_crc;
+  old_footer.flags = footer.flags;
   encode(old_footer, payload);
 
   using ceph::encode;
@@ -1101,7 +1082,11 @@ void encode_message(Message *msg, uint64_t features, ceph::bufferlist& payload)
 // We've slipped in a 0 signature at this point, so any signature checking after this will
 // fail.  PLR
 
-Message *decode_message(CephContext *cct, int crcflags, ceph::bufferlist::const_iterator& p)
+Message*
+decode_message(
+    CephContext* cct,
+    int crcflags,
+    ceph::bufferlist::const_iterator& p)
 {
   ceph_msg_header h;
   ceph_msg_footer_old fo;

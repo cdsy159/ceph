@@ -2,36 +2,40 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "compression_onwire.h"
-#include "compression_meta.h"
+
 #include "common/dout.h"
+
+#include "compression_meta.h"
 
 #define dout_subsys ceph_subsys_ms
 
 namespace ceph::compression::onwire {
 
-rxtx_t rxtx_t::create_handler_pair(
+rxtx_t
+rxtx_t::create_handler_pair(
     CephContext* ctx,
     const CompConnectionMeta& comp_meta,
     std::uint64_t compress_min_size)
 {
   if (comp_meta.is_compress()) {
-     CompressorRef compressor = Compressor::create(ctx, comp_meta.get_method());
+    CompressorRef compressor = Compressor::create(ctx, comp_meta.get_method());
     if (compressor) {
-      return {std::make_unique<RxHandler>(ctx, compressor),
-	      std::make_unique<TxHandler>(ctx, compressor,
-					  comp_meta.get_mode(),
-					  compress_min_size)};
+      return {
+          std::make_unique<RxHandler>(ctx, compressor),
+          std::make_unique<TxHandler>(
+              ctx, compressor, comp_meta.get_mode(), compress_min_size)};
     }
   }
   return {};
 }
 
-std::optional<ceph::bufferlist> TxHandler::compress(const ceph::bufferlist &input)
+std::optional<ceph::bufferlist>
+TxHandler::compress(const ceph::bufferlist& input)
 {
   if (m_init_onwire_size < m_min_size) {
-    ldout(m_cct, 20) << __func__ 
-		     << " discovered frame that is smaller than threshold, aborting compression"
-		     << dendl;
+    ldout(m_cct, 20)
+        << __func__ << " discovered frame that is smaller than threshold, aborting compression"
+        << dendl;
     return {};
   }
 
@@ -39,9 +43,10 @@ std::optional<ceph::bufferlist> TxHandler::compress(const ceph::bufferlist &inpu
 
   ceph::bufferlist out;
   if (input.length() == 0) {
-    ldout(m_cct, 20) << __func__ 
-		     << " discovered an empty segment, skipping compression without aborting"
-		     << dendl;
+    ldout(m_cct, 20)
+        << __func__
+        << " discovered an empty segment, skipping compression without aborting"
+        << dendl;
     out.clear();
     return out;
   }
@@ -57,13 +62,14 @@ std::optional<ceph::bufferlist> TxHandler::compress(const ceph::bufferlist &inpu
   }
 }
 
-std::optional<ceph::bufferlist> RxHandler::decompress(const ceph::bufferlist &input)
+std::optional<ceph::bufferlist>
+RxHandler::decompress(const ceph::bufferlist& input)
 {
   ceph::bufferlist out;
   if (input.length() == 0) {
-    ldout(m_cct, 20) << __func__
-		     << " discovered an empty segment, skipping decompression without aborting"
-		     << dendl;
+    ldout(m_cct, 20)
+        << __func__ << " discovered an empty segment, skipping decompression without aborting"
+        << dendl;
     out.clear();
     return out;
   }
@@ -78,16 +84,21 @@ std::optional<ceph::bufferlist> RxHandler::decompress(const ceph::bufferlist &in
   }
 }
 
-void TxHandler::done()
+void
+TxHandler::done()
 {
   ldout(m_cct, 25) << __func__ << " compression ratio=" << get_ratio() << dendl;
 }
 
-std::string_view RxHandler::compressor_name() const {
+std::string_view
+RxHandler::compressor_name() const
+{
   return m_compressor->get_type_name();
 }
 
-std::string_view TxHandler::compressor_name() const {
+std::string_view
+TxHandler::compressor_name() const
+{
   return m_compressor->get_type_name();
 }
 

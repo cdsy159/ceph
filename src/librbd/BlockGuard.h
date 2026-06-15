@@ -4,19 +4,21 @@
 #ifndef CEPH_LIBRBD_IO_BLOCK_GUARD_H
 #define CEPH_LIBRBD_IO_BLOCK_GUARD_H
 
-#include "include/int_types.h"
-#include "common/dout.h"
-#include "common/ceph_mutex.h"
-#include <boost/intrusive/list.hpp>
-#include <boost/intrusive/set.hpp>
 #include <deque>
 #include <list>
+
+#include <boost/intrusive/list.hpp>
+#include <boost/intrusive/set.hpp>
+
+#include "common/ceph_mutex.h"
+#include "common/dout.h"
 #include "include/ceph_assert.h"
+#include "include/int_types.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::BlockGuard: " << this << " " \
-                           <<  __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::BlockGuard: " << this << " " << __func__ << ": "
 
 namespace librbd {
 
@@ -25,21 +27,22 @@ struct BlockExtent {
   uint64_t block_start = 0;
   uint64_t block_end = 0;
 
-  BlockExtent() {
-  }
-  BlockExtent(uint64_t block_start, uint64_t block_end)
-    : block_start(block_start), block_end(block_end) {
-  }
+  BlockExtent() {}
 
-  friend std::ostream& operator<< (std::ostream& os, const BlockExtent& block_extent) {
+  BlockExtent(uint64_t block_start, uint64_t block_end) :
+    block_start(block_start), block_end(block_end)
+  {}
+
+  friend std::ostream&
+  operator<<(std::ostream& os, const BlockExtent& block_extent)
+  {
     os << "[block_start=" << block_extent.block_start
        << ", block_end=" << block_extent.block_end << "]";
     return os;
   }
 };
 
-struct BlockGuardCell {
-};
+struct BlockGuardCell {};
 
 /**
  * Helper class to restrict and order concurrent IO to the same block. The
@@ -54,12 +57,12 @@ private:
 public:
   typedef std::list<BlockOperation> BlockOperations;
 
-  BlockGuard(CephContext *cct)
-    : m_cct(cct) {
-  }
+  BlockGuard(CephContext* cct) :
+    m_cct(cct)
+  {}
 
   BlockGuard(const BlockGuard&) = delete;
-  BlockGuard &operator=(const BlockGuard&) = delete;
+  BlockGuard& operator=(const BlockGuard&) = delete;
 
   /**
    * Detain future IO for a range of blocks. the guard will keep
@@ -68,22 +71,25 @@ public:
    *         >0 if the IO is blocked,
    *         <0 upon error
    */
-  int detain(const BlockExtent &block_extent, BlockOperation *block_operation,
-             BlockGuardCell **cell) {
+  int
+  detain(
+      const BlockExtent& block_extent,
+      BlockOperation* block_operation,
+      BlockGuardCell** cell)
+  {
     std::lock_guard locker{m_lock};
     ldout(m_cct, 20) << block_extent
-                     << ", free_slots="
-                     << m_free_detained_block_extents.size()
+                     << ", free_slots=" << m_free_detained_block_extents.size()
                      << dendl;
 
-    DetainedBlockExtent *detained_block_extent;
+    DetainedBlockExtent* detained_block_extent;
     auto it = m_detained_block_extents.find(block_extent);
     if (it != m_detained_block_extents.end()) {
       // request against an already detained block
       detained_block_extent = &(*it);
       if (block_operation != nullptr) {
         detained_block_extent->block_operations.emplace_back(
-          std::move(*block_operation));
+            std::move(*block_operation));
       }
 
       // alert the caller that the IO was detained
@@ -110,16 +116,15 @@ public:
   /**
    * Release any detained IO operations from the provided cell.
    */
-  void release(BlockGuardCell *cell, BlockOperations *block_operations) {
+  void
+  release(BlockGuardCell* cell, BlockOperations* block_operations)
+  {
     std::lock_guard locker{m_lock};
 
     ceph_assert(cell != nullptr);
-    auto &detained_block_extent = reinterpret_cast<DetainedBlockExtent &>(
-      *cell);
-    ldout(m_cct, 20) << detained_block_extent.block_extent
-                     << ", pending_ops="
-                     << detained_block_extent.block_operations.size()
-                     << dendl;
+    auto& detained_block_extent = reinterpret_cast<DetainedBlockExtent&>(*cell);
+    ldout(m_cct, 20) << detained_block_extent.block_extent << ", pending_ops="
+                     << detained_block_extent.block_operations.size() << dendl;
 
     *block_operations = std::move(detained_block_extent.block_operations);
     m_detained_block_extents.erase(detained_block_extent.block_extent);
@@ -135,14 +140,18 @@ private:
 
   struct DetainedBlockExtentKey {
     typedef BlockExtent type;
-    const BlockExtent &operator()(const DetainedBlockExtent &value) {
+
+    const BlockExtent&
+    operator()(const DetainedBlockExtent& value)
+    {
       return value.block_extent;
     }
   };
 
   struct DetainedBlockExtentCompare {
-    bool operator()(const BlockExtent &lhs,
-                    const BlockExtent &rhs) const {
+    bool
+    operator()(const BlockExtent& lhs, const BlockExtent& rhs) const
+    {
       // check for range overlap (lhs < rhs)
       if (lhs.block_end <= rhs.block_start) {
         return true;
@@ -154,18 +163,17 @@ private:
   typedef std::deque<DetainedBlockExtent> DetainedBlockExtentsPool;
   typedef boost::intrusive::list<DetainedBlockExtent> DetainedBlockExtents;
   typedef boost::intrusive::set<
-    DetainedBlockExtent,
-    boost::intrusive::compare<DetainedBlockExtentCompare>,
-    boost::intrusive::key_of_value<DetainedBlockExtentKey> >
+      DetainedBlockExtent,
+      boost::intrusive::compare<DetainedBlockExtentCompare>,
+      boost::intrusive::key_of_value<DetainedBlockExtentKey>>
       BlockExtentToDetainedBlockExtents;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
 
   ceph::mutex m_lock = ceph::make_mutex("librbd::BlockGuard::m_lock");
   DetainedBlockExtentsPool m_detained_block_extent_pool;
   DetainedBlockExtents m_free_detained_block_extents;
   BlockExtentToDetainedBlockExtents m_detained_block_extents;
-
 };
 
 } // namespace librbd

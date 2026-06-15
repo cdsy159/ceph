@@ -3,13 +3,14 @@
 
 #include "arch/probe.h"
 
-#include "arch/intel.h"
 #include "arch/arm.h"
+#include "arch/intel.h"
 #include "arch/ppc.h"
-#include "arch/s390x.h"
 #include "arch/riscv.h"
+#include "arch/s390x.h"
 
-int ceph_arch_probe(void)
+int
+ceph_arch_probe(void)
 {
   if (ceph_arch_probed)
     return 1;

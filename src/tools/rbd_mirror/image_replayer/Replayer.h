@@ -22,8 +22,9 @@ struct Replayer {
 
   virtual void flush(Context* on_finish) = 0;
 
-  virtual bool get_replay_status(std::string* description,
-                                 Context* on_finish) = 0;
+  virtual bool get_replay_status(
+      std::string* description,
+      Context* on_finish) = 0;
 
   virtual bool is_replaying() const = 0;
   virtual bool is_resync_requested() const = 0;

@@ -3,24 +3,27 @@
 
 //
 #include "avlallocator.h"
+
 #include "crimson/os/seastore/logging.h"
 
 SET_SUBSYS(seastore_device);
 
 namespace crimson::os::seastore {
 
-void AvlAllocator::mark_extent_used(rbm_abs_addr addr, size_t size) 
+void
+AvlAllocator::mark_extent_used(rbm_abs_addr addr, size_t size)
 {
   LOG_PREFIX(AvlAllocator::mark_extent_used);
   DEBUG("addr: {}, size: {}, avail: {}", addr, size, available_size);
   _remove_from_tree(addr, size);
 }
 
-void AvlAllocator::init(rbm_abs_addr addr, size_t size, size_t b_size) 
+void
+AvlAllocator::init(rbm_abs_addr addr, size_t size, size_t b_size)
 {
   LOG_PREFIX(AvlAllocator::init);
   DEBUG("addr: {}, size: {}", addr, size);
-  auto r = new extent_range_t{ addr, addr + size };
+  auto r = new extent_range_t{addr, addr + size};
   extent_tree.insert(*r);
   extent_size_tree.insert(*r);
   available_size = size;
@@ -29,7 +32,8 @@ void AvlAllocator::init(rbm_abs_addr addr, size_t size, size_t b_size)
   base_addr = addr;
 }
 
-void AvlAllocator::_remove_from_tree(rbm_abs_addr start, rbm_abs_addr size)
+void
+AvlAllocator::_remove_from_tree(rbm_abs_addr start, rbm_abs_addr size)
 {
   LOG_PREFIX(AvlAllocator::_remove_from_tree);
   rbm_abs_addr end = start + size;
@@ -73,24 +77,24 @@ void AvlAllocator::_remove_from_tree(rbm_abs_addr start, rbm_abs_addr size)
   }
 }
 
-rbm_abs_addr AvlAllocator::find_block(size_t size)
+rbm_abs_addr
+AvlAllocator::find_block(size_t size)
 {
   const auto comp = extent_size_tree.key_comp();
   auto iter = extent_size_tree.lower_bound(
-    extent_range_t{base_addr, base_addr + size}, comp);
+      extent_range_t{base_addr, base_addr + size}, comp);
   for (; iter != extent_size_tree.end(); ++iter) {
     assert(is_aligned(iter->start, block_size));
     rbm_abs_addr off = iter->start;
     if (off + size <= iter->end) {
       return off;
-    } 
+    }
   }
   return get_end();
 }
 
-extent_len_t AvlAllocator::find_block(
-  size_t size,
-  rbm_abs_addr &start)
+extent_len_t
+AvlAllocator::find_block(size_t size, rbm_abs_addr& start)
 {
   uint64_t max_size = 0;
   auto p = extent_size_tree.rbegin();
@@ -106,7 +110,7 @@ extent_len_t AvlAllocator::find_block(
 
   const auto comp = extent_size_tree.key_comp();
   auto iter = extent_size_tree.lower_bound(
-    extent_range_t{base_addr, base_addr + size}, comp);
+      extent_range_t{base_addr, base_addr + size}, comp);
   ceph_assert(iter != extent_size_tree.end());
   ceph_assert(is_aligned(iter->start, block_size));
   ceph_assert(size <= iter->length());
@@ -114,8 +118,8 @@ extent_len_t AvlAllocator::find_block(
   return size;
 }
 
-
-void AvlAllocator::_add_to_tree(rbm_abs_addr start, rbm_abs_addr size)
+void
+AvlAllocator::_add_to_tree(rbm_abs_addr start, rbm_abs_addr size)
 {
   LOG_PREFIX(AvlAllocator::_add_to_tree);
   ceph_assert(size != 0);
@@ -123,15 +127,16 @@ void AvlAllocator::_add_to_tree(rbm_abs_addr start, rbm_abs_addr size)
 
   rbm_abs_addr end = start + size;
 
-  auto rs_after = extent_tree.upper_bound(extent_range_t{start, end},
-					 extent_tree.key_comp());
+  auto rs_after = extent_tree.upper_bound(
+      extent_range_t{start, end}, extent_tree.key_comp());
 
   auto rs_before = extent_tree.end();
   if (rs_after != extent_tree.begin()) {
     rs_before = std::prev(rs_after);
   }
 
-  bool merge_before = (rs_before != extent_tree.end() && rs_before->end == start);
+  bool merge_before =
+      (rs_before != extent_tree.end() && rs_before->end == start);
   bool merge_after = (rs_after != extent_tree.end() && rs_after->start == end);
 
   if (merge_before && merge_after) {
@@ -156,8 +161,8 @@ void AvlAllocator::_add_to_tree(rbm_abs_addr start, rbm_abs_addr size)
   }
 }
 
-std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extent(
-  size_t size)
+std::optional<interval_set<rbm_abs_addr>>
+AvlAllocator::alloc_extent(size_t size)
 {
   LOG_PREFIX(AvlAllocator::alloc_extent);
   if (available_size < size) {
@@ -172,19 +177,20 @@ std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extent(
 
   interval_set<rbm_abs_addr> result;
 
-  auto try_to_alloc_block = [this, &result, FNAME] (uint64_t alloc_size) -> uint64_t
-  {
+  auto try_to_alloc_block = [this, &result,
+                             FNAME](uint64_t alloc_size) -> uint64_t {
     rbm_abs_addr start = find_block(alloc_size);
     if (start != get_end()) {
       _remove_from_tree(start, alloc_size);
-      DEBUG("allocate addr: {}, allocate size: {}, available size: {}",
-	start, alloc_size, available_size);
+      DEBUG(
+          "allocate addr: {}, allocate size: {}, available size: {}", start,
+          alloc_size, available_size);
       result.insert(start, alloc_size);
       return alloc_size;
     }
     return 0;
   };
-  
+
   rbm_abs_addr ret = try_to_alloc_block(size);
   if (ret == 0) {
     return std::nullopt;
@@ -202,8 +208,8 @@ std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extent(
   return result;
 }
 
-std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extents(
-  size_t size)
+std::optional<interval_set<rbm_abs_addr>>
+AvlAllocator::alloc_extents(size_t size)
 {
   LOG_PREFIX(AvlAllocator::alloc_extents);
   if (available_size < size) {
@@ -217,21 +223,21 @@ std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extents(
 
   interval_set<rbm_abs_addr> result;
 
-  auto try_to_alloc_block = [this, &result, FNAME] (uint64_t alloc_size)
-  {
+  auto try_to_alloc_block = [this, &result, FNAME](uint64_t alloc_size) {
     while (alloc_size) {
       rbm_abs_addr start = 0;
       extent_len_t len = find_block(std::min(max_alloc_size, alloc_size), start);
       ceph_assert(len);
       _remove_from_tree(start, len);
-      DEBUG("allocate addr: {}, allocate size: {}, available size: {}",
-	start, len, available_size);
+      DEBUG(
+          "allocate addr: {}, allocate size: {}, available size: {}", start,
+          len, available_size);
       result.insert(start, len);
       alloc_size -= len;
     }
     return 0;
   };
-  
+
   try_to_alloc_block(size);
 
   assert(!result.empty());
@@ -245,7 +251,8 @@ std::optional<interval_set<rbm_abs_addr>> AvlAllocator::alloc_extents(
   return result;
 }
 
-void AvlAllocator::free_extent(rbm_abs_addr addr, size_t size)
+void
+AvlAllocator::free_extent(rbm_abs_addr addr, size_t size)
 {
   assert(total_size);
   assert(total_size > available_size);
@@ -255,7 +262,8 @@ void AvlAllocator::free_extent(rbm_abs_addr addr, size_t size)
   }
 }
 
-bool AvlAllocator::is_free_extent(rbm_abs_addr start, size_t size)
+bool
+AvlAllocator::is_free_extent(rbm_abs_addr start, size_t size)
 {
   rbm_abs_addr end = start + size;
   ceph_assert(size != 0);
@@ -269,4 +277,4 @@ bool AvlAllocator::is_free_extent(rbm_abs_addr start, size_t size)
   }
   return false;
 }
-}
+} // namespace crimson::os::seastore

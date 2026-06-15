@@ -2,13 +2,14 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/object_map/RemoveRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
+#include "include/ceph_assert.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
-#include "include/ceph_assert.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -20,18 +21,22 @@ namespace object_map {
 using util::create_rados_callback;
 
 template <typename I>
-RemoveRequest<I>::RemoveRequest(I *image_ctx, Context *on_finish)
-  : m_image_ctx(image_ctx), m_on_finish(on_finish) {
-}
+RemoveRequest<I>::RemoveRequest(I* image_ctx, Context* on_finish) :
+  m_image_ctx(image_ctx), m_on_finish(on_finish)
+{}
 
 template <typename I>
-void RemoveRequest<I>::send() {
+void
+RemoveRequest<I>::send()
+{
   send_remove_object_map();
 }
 
 template <typename I>
-void RemoveRequest<I>::send_remove_object_map() {
-  CephContext *cct = m_image_ctx->cct;
+void
+RemoveRequest<I>::send_remove_object_map()
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 20) << __func__ << dendl;
 
   std::unique_lock image_locker{m_image_ctx->image_lock};
@@ -48,8 +53,8 @@ void RemoveRequest<I>::send_remove_object_map() {
     m_ref_counter++;
     std::string oid(ObjectMap<>::object_map_name(m_image_ctx->id, snap_id));
     using klass = RemoveRequest<I>;
-    librados::AioCompletion *comp =
-      create_rados_callback<klass, &klass::handle_remove_object_map>(this);
+    librados::AioCompletion* comp =
+        create_rados_callback<klass, &klass::handle_remove_object_map>(this);
 
     int r = m_image_ctx->md_ctx.aio_remove(oid, comp);
     ceph_assert(r == 0);
@@ -58,8 +63,10 @@ void RemoveRequest<I>::send_remove_object_map() {
 }
 
 template <typename I>
-Context *RemoveRequest<I>::handle_remove_object_map(int *result) {
-  CephContext *cct = m_image_ctx->cct;
+Context*
+RemoveRequest<I>::handle_remove_object_map(int* result)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 20) << __func__ << ": r=" << *result << dendl;
 
   {
@@ -69,7 +76,7 @@ Context *RemoveRequest<I>::handle_remove_object_map(int *result) {
 
     if (*result < 0 && *result != -ENOENT) {
       lderr(cct) << "failed to remove object map: " << cpp_strerror(*result)
-		 << dendl;
+                 << dendl;
       m_error_result = *result;
     }
     if (m_ref_counter > 0) {

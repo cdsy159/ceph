@@ -1,10 +1,13 @@
-#include "driver/rados/rgw_sal_rados.h"
 #include "rgw_lua_background.h"
+
+#include <lua.hpp>
+
+#include "driver/rados/rgw_sal_rados.h"
+#include "include/ceph_assert.h"
+
 #include "rgw_lua.h"
 #include "rgw_lua_utils.h"
 #include "rgw_perf_counters.h"
-#include "include/ceph_assert.h"
-#include <lua.hpp>
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -13,9 +16,13 @@ namespace rgw::lua {
 const char* RGWTable::INCREMENT = "increment";
 const char* RGWTable::DECREMENT = "decrement";
 
-int RGWTable::increment_by(lua_State* L) {
-  const auto map = reinterpret_cast<BackgroundMap*>(lua_touserdata(L, lua_upvalueindex(FIRST_UPVAL)));
-  auto& mtx = *reinterpret_cast<std::mutex*>(lua_touserdata(L, lua_upvalueindex(SECOND_UPVAL)));
+int
+RGWTable::increment_by(lua_State* L)
+{
+  const auto map = reinterpret_cast<BackgroundMap*>(
+      lua_touserdata(L, lua_upvalueindex(FIRST_UPVAL)));
+  auto& mtx = *reinterpret_cast<std::mutex*>(
+      lua_touserdata(L, lua_upvalueindex(SECOND_UPVAL)));
   auto decrement = lua_toboolean(L, lua_upvalueindex(THIRD_UPVAL));
 
   const auto args = lua_gettop(L);
@@ -26,9 +33,9 @@ int RGWTable::increment_by(lua_State* L) {
   BackgroundMapValue inc_by = default_inc;
   if (args == 2) {
     if (lua_isinteger(L, 2)) {
-      inc_by = lua_tointeger(L, 2)*default_inc;
-    } else if (lua_isnumber(L, 2)){
-      inc_by = lua_tonumber(L, 2)*static_cast<double>(default_inc);
+      inc_by = lua_tointeger(L, 2) * default_inc;
+    } else if (lua_isnumber(L, 2)) {
+      inc_by = lua_tonumber(L, 2) * static_cast<double>(default_inc);
     } else {
       return luaL_error(L, "can increment only by numeric values");
     }
@@ -39,14 +46,23 @@ int RGWTable::increment_by(lua_State* L) {
   const auto it = map->find(std::string(index));
   if (it != map->end()) {
     auto& value = it->second;
-    if (std::holds_alternative<double>(value) && std::holds_alternative<double>(inc_by)) {
+    if (std::holds_alternative<double>(value) &&
+        std::holds_alternative<double>(inc_by)) {
       value = std::get<double>(value) + std::get<double>(inc_by);
-    } else if (std::holds_alternative<long long int>(value) && std::holds_alternative<long long int>(inc_by)) {
+    } else if (
+        std::holds_alternative<long long int>(value) &&
+        std::holds_alternative<long long int>(inc_by)) {
       value = std::get<long long int>(value) + std::get<long long int>(inc_by);
-    } else if (std::holds_alternative<double>(value) && std::holds_alternative<long long int>(inc_by)) {
-      value = std::get<double>(value) + static_cast<double>(std::get<long long int>(inc_by));
-    } else if (std::holds_alternative<long long int>(value) && std::holds_alternative<double>(inc_by)) {
-      value = static_cast<double>(std::get<long long int>(value)) + std::get<double>(inc_by);
+    } else if (
+        std::holds_alternative<double>(value) &&
+        std::holds_alternative<long long int>(inc_by)) {
+      value = std::get<double>(value) +
+              static_cast<double>(std::get<long long int>(inc_by));
+    } else if (
+        std::holds_alternative<long long int>(value) &&
+        std::holds_alternative<double>(inc_by)) {
+      value = static_cast<double>(std::get<long long int>(value)) +
+              std::get<double>(inc_by);
     } else {
       mtx.unlock();
       return luaL_error(L, "can increment only numeric values");
@@ -56,25 +72,28 @@ int RGWTable::increment_by(lua_State* L) {
   return 0;
 }
 
-static int bytecode_writer (lua_State *L, const void* p, size_t sz, void* ud) {
+static int
+bytecode_writer(lua_State* L, const void* p, size_t sz, void* ud)
+{
   std::vector<char>* buffer = static_cast<std::vector<char>*>(ud);
   const char* bytes = static_cast<const char*>(p);
   buffer->insert(buffer->end(), bytes, bytes + sz);
   return 0;
 }
 
-
 Background::Background(
     CephContext* _cct,
     rgw::sal::LuaManager* _lua_manager,
     int _execute_interval) :
-    execute_interval(_execute_interval)
-    , dp(_cct, dout_subsys, "lua background: ")
-    , lua_manager(_lua_manager)
-    , cct(_cct)
+  execute_interval(_execute_interval),
+  dp(_cct, dout_subsys, "lua background: "),
+  lua_manager(_lua_manager),
+  cct(_cct)
 {}
 
-void Background::shutdown(){
+void
+Background::shutdown()
+{
   stopped = true;
   cond.notify_all();
   if (runner.joinable()) {
@@ -84,7 +103,9 @@ void Background::shutdown(){
   stopped = false;
 }
 
-void Background::start() {
+void
+Background::start()
+{
   if (started) {
     // start the thread only once
     return;
@@ -93,7 +114,9 @@ void Background::start() {
   runner = std::thread(&Background::run, this);
 }
 
-void Background::pause() {
+void
+Background::pause()
+{
   {
     std::unique_lock cond_lock(pause_mutex);
     paused = true;
@@ -101,21 +124,29 @@ void Background::pause() {
   cond.notify_all();
 }
 
-void Background::resume(rgw::sal::Driver*) {
+void
+Background::resume(rgw::sal::Driver*)
+{
   paused = false;
   cond.notify_all();
 }
 
-int Background::read_script() {
+int
+Background::read_script()
+{
   std::unique_lock cond_lock(pause_mutex);
   if (paused) {
     return -EAGAIN;
   }
   std::string tenant;
-  return rgw::lua::read_script(&dp, lua_manager, tenant, null_yield, rgw::lua::context::background, rgw_script);
+  return rgw::lua::read_script(
+      &dp, lua_manager, tenant, null_yield, rgw::lua::context::background,
+      rgw_script);
 }
 
-std::unique_ptr<lua_state_guard> Background::initialize_lguard_state() {
+std::unique_ptr<lua_state_guard>
+Background::initialize_lguard_state()
+{
   auto lguard = std::make_unique<lua_state_guard>(
       cct->_conf->rgw_lua_max_memory_per_state,
       cct->_conf->rgw_lua_max_runtime_per_state, &dp);
@@ -141,7 +172,9 @@ std::unique_ptr<lua_state_guard> Background::initialize_lguard_state() {
 
 const BackgroundMapValue Background::empty_table_value;
 
-const BackgroundMapValue& Background::get_table_value(const std::string& key) const {
+const BackgroundMapValue&
+Background::get_table_value(const std::string& key) const
+{
   std::unique_lock cond_lock(table_mutex);
   const auto it = rgw_map.find(key);
   if (it == rgw_map.end()) {
@@ -153,7 +186,9 @@ const BackgroundMapValue& Background::get_table_value(const std::string& key) co
 //(1) Loads the script from the object if not paused
 //(2) Executes the script
 //(3) Sleep (configurable)
-void Background::run() {
+void
+Background::run()
+{
   ceph_pthread_setname("lua_background");
   const DoutPrefixProvider* const dpp = &dp;
 
@@ -161,7 +196,7 @@ void Background::run() {
     if (paused) {
       ldpp_dout(dpp, 10) << "Lua background thread paused" << dendl;
       std::unique_lock cond_lock(cond_mutex);
-      cond.wait(cond_lock, [this]{return !paused || stopped;}); 
+      cond.wait(cond_lock, [this] { return !paused || stopped; });
       if (stopped) {
         ldpp_dout(dpp, 10) << "Lua background thread stopped" << dendl;
         return;
@@ -176,7 +211,8 @@ void Background::run() {
     if (rc == -ENOENT || rc == -EAGAIN) {
       // either no script or paused, nothing to do
     } else if (rc < 0) {
-      ldpp_dout(dpp, 1) << "WARNING: failed to read background script. error " << rc << dendl;
+      ldpp_dout(dpp, 1) << "WARNING: failed to read background script. error "
+                        << rc << dendl;
     } else {
       auto failed = false;
       auto L = lguard->get();
@@ -192,42 +228,54 @@ void Background::run() {
         failed = true;
       }
       if (perfcounter) {
-        perfcounter->inc((failed ? l_rgw_lua_script_fail : l_rgw_lua_script_ok), 1);
+        perfcounter->inc(
+            (failed ? l_rgw_lua_script_fail : l_rgw_lua_script_ok), 1);
       }
     }
     process_scripts();
     std::unique_lock cond_lock(cond_mutex);
-    cond.wait_for(cond_lock, std::chrono::seconds(execute_interval), [this]{return stopped;}); 
+    cond.wait_for(cond_lock, std::chrono::seconds(execute_interval), [this] {
+      return stopped;
+    });
   }
   ldpp_dout(dpp, 10) << "Lua background thread stopped" << dendl;
 }
 
-void Background::create_background_metatable(lua_State* L) {
+void
+Background::create_background_metatable(lua_State* L)
+{
   static const char* background_table_name = "RGW";
-  create_metatable<RGWTable>(L, "", background_table_name, true, &rgw_map, &table_mutex);
+  create_metatable<RGWTable>(
+      L, "", background_table_name, true, &rgw_map, &table_mutex);
   lua_getglobal(L, background_table_name);
   ceph_assert(lua_istable(L, -1));
 }
 
-void Background::set_manager(rgw::sal::LuaManager* _lua_manager) {
+void
+Background::set_manager(rgw::sal::LuaManager* _lua_manager)
+{
   lua_manager = _lua_manager;
 }
 
-void Background::process_script_add(std::string script_oid) {
+void
+Background::process_script_add(std::string script_oid)
+{
   auto script_ptr = make_unique<std::string>(std::move(script_oid));
   if (processing_q.push(script_ptr.get())) {
     script_ptr.release();
   }
 }
 
-void Background::process_scripts() {
+void
+Background::process_scripts()
+{
   std::set<std::string> removed;
   std::set<std::string> updated_scripts;
 
   const auto count = processing_q.consume_all([&](std::string* s) {
-             std::unique_ptr<std::string> sptr(s);
-             updated_scripts.insert(*sptr);
-          });
+    std::unique_ptr<std::string> sptr(s);
+    updated_scripts.insert(*sptr);
+  });
 
   if (updated_scripts.empty()) {
     return;
@@ -239,7 +287,7 @@ void Background::process_scripts() {
     return;
   }
   std::string script;
-  for (const auto& key: updated_scripts) {
+  for (const auto& key : updated_scripts) {
     int r = lua_manager->get_script(&dp, null_yield, key, script);
     if (r < 0 && r != -ENOENT) {
       ldpp_dout(&dp, 10) << "ERROR: Failed to get script : " << key
@@ -266,7 +314,7 @@ void Background::process_scripts() {
           std::unique_lock<std::shared_mutex> lock(updating_mutex);
           lua_bytecode_cache.insert_or_assign(key, std::move(buffer));
         }
-        lua_pop(L, 1); 
+        lua_pop(L, 1);
         removed.insert(key);
       } else {
         const std::string err(lua_tostring(L, -1));
@@ -278,25 +326,29 @@ void Background::process_scripts() {
                         << ", error : " << e.what() << dendl;
     }
   }
-  
+
   //updating = false;
-  for (const auto& key: removed) {
+  for (const auto& key : removed) {
     updated_scripts.erase(key);
   }
 }
 
-int Background::get_script_bytecode(std::string script, std::vector<char>& lua_bytecode) {
+int
+Background::get_script_bytecode(
+    std::string script,
+    std::vector<char>& lua_bytecode)
+{
   lua_bytecode.clear();
   std::shared_lock<std::shared_mutex> lock(updating_mutex);
   auto itr = lua_bytecode_cache.find(script);
-  if(itr != lua_bytecode_cache.end()) {
+  if (itr != lua_bytecode_cache.end()) {
     lua_bytecode = *((itr->second).get());
     return 0;
   }
 
-  ldpp_dout(&dp, 20) << "INFO: lua script bytecode not found : " << script << dendl;
+  ldpp_dout(&dp, 20) << "INFO: lua script bytecode not found : " << script
+                     << dendl;
   return -ENOENT;
 }
 
 } //namespace rgw::lua
-

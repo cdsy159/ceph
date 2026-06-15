@@ -1,15 +1,19 @@
 #include <errno.h>
+
 #include <vector>
-#include "crimson_utils.h"
+
 #include "gtest/gtest.h"
 #include "include/rados/librados.h"
 #include "test/librados/test.h"
 
+#include "crimson_utils.h"
+
 #define POOL_LIST_BUF_SZ 32768
 
-TEST(LibRadosPools, PoolList) {
+TEST(LibRadosPools, PoolList)
+{
   char pool_list_buf[POOL_LIST_BUF_SZ];
-  char *buf = pool_list_buf;
+  char* buf = pool_list_buf;
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
@@ -34,15 +38,16 @@ TEST(LibRadosPools, PoolList) {
   buf = pool_list_buf;
   memset(buf, 0, POOL_LIST_BUF_SZ);
   ASSERT_LT(rados_pool_list(cluster, buf, firstlen), POOL_LIST_BUF_SZ);
-  ASSERT_NE(0, buf[0]);  // include at least one pool name
-  ASSERT_EQ(0, buf[firstlen]);  // but don't touch the stopping point
+  ASSERT_NE(0, buf[0]); // include at least one pool name
+  ASSERT_EQ(0, buf[firstlen]); // but don't touch the stopping point
 
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-int64_t rados_pool_lookup(rados_t cluster, const char *pool_name);
+int64_t rados_pool_lookup(rados_t cluster, const char* pool_name);
 
-TEST(LibRadosPools, PoolLookup) {
+TEST(LibRadosPools, PoolLookup)
+{
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
@@ -50,7 +55,8 @@ TEST(LibRadosPools, PoolLookup) {
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-TEST(LibRadosPools, PoolLookup2) {
+TEST(LibRadosPools, PoolLookup2)
+{
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
@@ -64,7 +70,8 @@ TEST(LibRadosPools, PoolLookup2) {
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-TEST(LibRadosPools, PoolLookupOtherInstance) {
+TEST(LibRadosPools, PoolLookupOtherInstance)
+{
   rados_t cluster1;
   ASSERT_EQ("", connect_cluster(&cluster1));
 
@@ -80,7 +87,8 @@ TEST(LibRadosPools, PoolLookupOtherInstance) {
   rados_shutdown(cluster1);
 }
 
-TEST(LibRadosPools, PoolReverseLookupOtherInstance) {
+TEST(LibRadosPools, PoolReverseLookupOtherInstance)
+{
   rados_t cluster1;
   ASSERT_EQ("", connect_cluster(&cluster1));
 
@@ -98,7 +106,8 @@ TEST(LibRadosPools, PoolReverseLookupOtherInstance) {
   rados_shutdown(cluster1);
 }
 
-TEST(LibRadosPools, PoolDelete) {
+TEST(LibRadosPools, PoolDelete)
+{
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
@@ -108,7 +117,8 @@ TEST(LibRadosPools, PoolDelete) {
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-TEST(LibRadosPools, PoolCreateDelete) {
+TEST(LibRadosPools, PoolCreateDelete)
+{
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
@@ -122,20 +132,22 @@ TEST(LibRadosPools, PoolCreateDelete) {
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-TEST(LibRadosPools, PoolCreateWithCrushRule) {
+TEST(LibRadosPools, PoolCreateWithCrushRule)
+{
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool(pool_name, &cluster));
 
   std::string pool2_name = get_temp_pool_name();
-  ASSERT_EQ(0, rados_pool_create_with_crush_rule(cluster,
-			    pool2_name.c_str(), 0));
+  ASSERT_EQ(
+      0, rados_pool_create_with_crush_rule(cluster, pool2_name.c_str(), 0));
   ASSERT_EQ(0, rados_pool_delete(cluster, pool2_name.c_str()));
 
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
 
-TEST(LibRadosPools, PoolGetBaseTier) {
+TEST(LibRadosPools, PoolGetBaseTier)
+{
   SKIP_IF_CRIMSON();
   rados_t cluster;
   std::string pool_name = get_temp_pool_name();
@@ -155,16 +167,21 @@ TEST(LibRadosPools, PoolGetBaseTier) {
   EXPECT_EQ(pool_id, base_tier);
 
   std::string cmdstr = "{\"prefix\": \"osd tier add\", \"pool\": \"" +
-     pool_name + "\", \"tierpool\":\"" + tier_pool_name + "\", \"force_nonempty\":\"\"}";
-  char *cmd[1];
-  cmd[0] = (char *)cmdstr.c_str();
-  ASSERT_EQ(0, rados_mon_command(cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+                       pool_name + "\", \"tierpool\":\"" + tier_pool_name +
+                       "\", \"force_nonempty\":\"\"}";
+  char* cmd[1];
+  cmd[0] = (char*)cmdstr.c_str();
+  ASSERT_EQ(
+      0,
+      rados_mon_command(cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
   cmdstr = "{\"prefix\": \"osd tier cache-mode\", \"pool\": \"" +
-     tier_pool_name + "\", \"mode\":\"readonly\"," +
-    " \"yes_i_really_mean_it\": true}";
-  cmd[0] = (char *)cmdstr.c_str();
-  ASSERT_EQ(0, rados_mon_command(cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+           tier_pool_name + "\", \"mode\":\"readonly\"," +
+           " \"yes_i_really_mean_it\": true}";
+  cmd[0] = (char*)cmdstr.c_str();
+  ASSERT_EQ(
+      0,
+      rados_mon_command(cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
   EXPECT_EQ(0, rados_wait_for_latest_osdmap(cluster));
 
@@ -175,12 +192,16 @@ TEST(LibRadosPools, PoolGetBaseTier) {
   EXPECT_EQ(pool_id, base_tier);
 
   int64_t nonexistent_pool_id = (int64_t)((-1ULL) >> 1);
-  EXPECT_EQ(-ENOENT, rados_pool_get_base_tier(cluster, nonexistent_pool_id, &base_tier));
+  EXPECT_EQ(
+      -ENOENT,
+      rados_pool_get_base_tier(cluster, nonexistent_pool_id, &base_tier));
 
-  cmdstr = "{\"prefix\": \"osd tier remove\", \"pool\": \"" +
-     pool_name + "\", \"tierpool\":\"" + tier_pool_name + "\"}";
-  cmd[0] = (char *)cmdstr.c_str();
-  ASSERT_EQ(0, rados_mon_command(cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+  cmdstr = "{\"prefix\": \"osd tier remove\", \"pool\": \"" + pool_name +
+           "\", \"tierpool\":\"" + tier_pool_name + "\"}";
+  cmd[0] = (char*)cmdstr.c_str();
+  ASSERT_EQ(
+      0,
+      rados_mon_command(cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
   ASSERT_EQ(0, rados_pool_delete(cluster, tier_pool_name.c_str()));
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }

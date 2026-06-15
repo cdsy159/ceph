@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "cls/rbd/cls_rbd_types.h"
 #include "test/rbd_mirror/test_fixture.h"
-#include "include/stringify.h"
+
+#include "cls/rbd/cls_rbd_types.h"
 #include "include/rbd/librbd.hpp"
+#include "include/stringify.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/Operations.h"
@@ -21,10 +22,11 @@ std::shared_ptr<librados::Rados> TestFixture::_rados;
 uint64_t TestFixture::_image_number = 0;
 std::string TestFixture::_data_pool;
 
-TestFixture::TestFixture() {
-}
+TestFixture::TestFixture() {}
 
-void TestFixture::SetUpTestCase() {
+void
+TestFixture::SetUpTestCase()
+{
   _rados = std::shared_ptr<librados::Rados>(new librados::Rados());
   ASSERT_EQ("", connect_cluster_pp(*_rados.get()));
   ASSERT_EQ(0, _rados->conf_set("rbd_cache", "false"));
@@ -49,7 +51,9 @@ void TestFixture::SetUpTestCase() {
   }
 }
 
-void TestFixture::TearDownTestCase() {
+void
+TestFixture::TearDownTestCase()
+{
   if (!_data_pool.empty()) {
     ASSERT_EQ(0, _rados->pool_delete(_data_pool.c_str()));
   }
@@ -59,7 +63,9 @@ void TestFixture::TearDownTestCase() {
   _rados->shutdown();
 }
 
-void TestFixture::SetUp() {
+void
+TestFixture::SetUp()
+{
   static bool seeded = false;
   if (!seeded) {
     seeded = true;
@@ -75,7 +81,9 @@ void TestFixture::SetUp() {
   m_threads = new rbd::mirror::Threads<>(_rados);
 }
 
-void TestFixture::TearDown() {
+void
+TestFixture::TearDown()
+{
   for (auto image_ctx : m_image_ctxs) {
     image_ctx->state->close();
   }
@@ -86,26 +94,38 @@ void TestFixture::TearDown() {
   delete m_threads;
 }
 
-int TestFixture::create_image(librbd::RBD &rbd, librados::IoCtx &ioctx,
-                              const std::string &name, uint64_t size) {
+int
+TestFixture::create_image(
+    librbd::RBD& rbd,
+    librados::IoCtx& ioctx,
+    const std::string& name,
+    uint64_t size)
+{
   int order = 18;
   return rbd.create2(ioctx, name.c_str(), size, RBD_FEATURES_ALL, &order);
 }
 
-int TestFixture::open_image(librados::IoCtx &io_ctx,
-                            const std::string &image_name,
-                            librbd::ImageCtx **image_ctx) {
-  *image_ctx = new librbd::ImageCtx(image_name.c_str(), "", nullptr, io_ctx,
-                                    false);
+int
+TestFixture::open_image(
+    librados::IoCtx& io_ctx,
+    const std::string& image_name,
+    librbd::ImageCtx** image_ctx)
+{
+  *image_ctx =
+      new librbd::ImageCtx(image_name.c_str(), "", nullptr, io_ctx, false);
   m_image_ctxs.insert(*image_ctx);
   return (*image_ctx)->state->open(0);
 }
 
-int TestFixture::create_snap(librbd::ImageCtx *image_ctx, const char* snap_name,
-                             librados::snap_t *snap_id) {
+int
+TestFixture::create_snap(
+    librbd::ImageCtx* image_ctx,
+    const char* snap_name,
+    librados::snap_t* snap_id)
+{
   librbd::NoOpProgressContext prog_ctx;
-  int r = image_ctx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
-					     snap_name, 0, prog_ctx);
+  int r = image_ctx->operations->snap_create(
+      cls::rbd::UserSnapshotNamespace(), snap_name, 0, prog_ctx);
   if (r < 0) {
     return r;
   }
@@ -115,24 +135,28 @@ int TestFixture::create_snap(librbd::ImageCtx *image_ctx, const char* snap_name,
     return r;
   }
 
-  if (image_ctx->snap_ids.count({cls::rbd::UserSnapshotNamespace(),
-				 snap_name}) == 0) {
+  if (image_ctx->snap_ids.count(
+          {cls::rbd::UserSnapshotNamespace(), snap_name}) == 0) {
     return -ENOENT;
   }
 
   if (snap_id != nullptr) {
-    *snap_id = image_ctx->snap_ids[{cls::rbd::UserSnapshotNamespace(),
-				    snap_name}];
+    *snap_id =
+        image_ctx->snap_ids[{cls::rbd::UserSnapshotNamespace(), snap_name}];
   }
   return 0;
 }
 
-std::string TestFixture::get_temp_image_name() {
+std::string
+TestFixture::get_temp_image_name()
+{
   ++_image_number;
   return "image" + stringify(_image_number);
 }
 
-int TestFixture::create_image_data_pool(std::string &data_pool) {
+int
+TestFixture::create_image_data_pool(std::string& data_pool)
+{
   std::string pool;
   int r = _rados->conf_get("rbd_default_data_pool", pool);
   if (r != 0) {

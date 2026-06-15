@@ -14,12 +14,11 @@
  * 
  */
 
+#include "common/Formatter.h"
+
 #include "rgw_common.h"
 #include "rgw_xml.h"
-
-#include "common/Formatter.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
-

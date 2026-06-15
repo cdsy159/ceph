@@ -2,12 +2,14 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/image_deleter/TrashMoveRequest.h"
-#include "include/rbd_types.h"
+
+#include "common/debug.h"
+
 #include "cls/rbd/cls_rbd_client.h"
 #include "common/Clock.h" // for ceph_clock_now()
-#include "common/debug.h"
-#include "common/errno.h"
 #include "common/WorkQueue.h"
+#include "common/errno.h"
+#include "include/rbd_types.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -16,16 +18,18 @@
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
 #include "librbd/journal/ResetRequest.h"
-#include "librbd/mirror/ImageRemoveRequest.h"
 #include "librbd/mirror/GetInfoRequest.h"
+#include "librbd/mirror/ImageRemoveRequest.h"
 #include "librbd/trash/MoveRequest.h"
 #include "tools/rbd_mirror/image_deleter/Types.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_deleter::TrashMoveRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                         \
+  *_dout << "rbd::mirror::image_deleter::TrashMoveRequest: " << this << " " \
+         << __func__ << ": "
+
 namespace rbd {
 namespace mirror {
 namespace image_deleter {
@@ -34,20 +38,24 @@ using librbd::util::create_context_callback;
 using librbd::util::create_rados_callback;
 
 template <typename I>
-void TrashMoveRequest<I>::send() {
+void
+TrashMoveRequest<I>::send()
+{
   get_mirror_image_id();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::get_mirror_image_id() {
+void
+TrashMoveRequest<I>::get_mirror_image_id()
+{
   dout(10) << dendl;
 
   librados::ObjectReadOperation op;
   librbd::cls_client::mirror_image_get_image_id_start(&op, m_global_image_id);
 
   auto aio_comp = create_rados_callback<
-    TrashMoveRequest<I>,
-    &TrashMoveRequest<I>::handle_get_mirror_image_id>(this);
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_get_mirror_image_id>(
+      this);
   m_out_bl.clear();
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, aio_comp, &op, &m_out_bl);
   ceph_assert(r == 0);
@@ -55,13 +63,15 @@ void TrashMoveRequest<I>::get_mirror_image_id() {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_get_mirror_image_id(int r) {
+void
+TrashMoveRequest<I>::handle_get_mirror_image_id(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == 0) {
     auto bl_it = m_out_bl.cbegin();
-    r = librbd::cls_client::mirror_image_get_image_id_finish(&bl_it,
-                                                             &m_image_id);
+    r = librbd::cls_client::mirror_image_get_image_id_finish(
+        &bl_it, &m_image_id);
   }
   if (r == -ENOENT) {
     dout(10) << "image " << m_global_image_id << " is not mirrored" << dendl;
@@ -78,19 +88,23 @@ void TrashMoveRequest<I>::handle_get_mirror_image_id(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::get_mirror_info() {
+void
+TrashMoveRequest<I>::get_mirror_info()
+{
   dout(10) << dendl;
 
   auto ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_get_mirror_info>(this);
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_get_mirror_info>(this);
   auto req = librbd::mirror::GetInfoRequest<I>::create(
-    m_io_ctx, m_op_work_queue, m_image_id, &m_mirror_image, &m_promotion_state,
-    &m_primary_mirror_uuid, ctx);
+      m_io_ctx, m_op_work_queue, m_image_id, &m_mirror_image,
+      &m_promotion_state, &m_primary_mirror_uuid, ctx);
   req->send();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_get_mirror_info(int r) {
+void
+TrashMoveRequest<I>::handle_get_mirror_info(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -108,8 +122,8 @@ void TrashMoveRequest<I>::handle_get_mirror_info(int r) {
     dout(10) << "image " << m_global_image_id << " is local primary" << dendl;
     finish(-EPERM);
     return;
-  } else if (m_promotion_state == librbd::mirror::PROMOTION_STATE_ORPHAN &&
-             !m_resync) {
+  } else if (
+      m_promotion_state == librbd::mirror::PROMOTION_STATE_ORPHAN && !m_resync) {
     dout(10) << "image " << m_global_image_id << " is orphaned" << dendl;
     finish(-EPERM);
     return;
@@ -119,7 +133,9 @@ void TrashMoveRequest<I>::handle_get_mirror_info(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::disable_mirror_image() {
+void
+TrashMoveRequest<I>::disable_mirror_image()
+{
   dout(10) << dendl;
 
   m_mirror_image.state = cls::rbd::MIRROR_IMAGE_STATE_DISABLING;
@@ -128,15 +144,17 @@ void TrashMoveRequest<I>::disable_mirror_image() {
   librbd::cls_client::mirror_image_set(&op, m_image_id, m_mirror_image);
 
   auto aio_comp = create_rados_callback<
-    TrashMoveRequest<I>,
-    &TrashMoveRequest<I>::handle_disable_mirror_image>(this);
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_disable_mirror_image>(
+      this);
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, aio_comp, &op);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_disable_mirror_image(int r) {
+void
+TrashMoveRequest<I>::handle_disable_mirror_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -145,13 +163,13 @@ void TrashMoveRequest<I>::handle_disable_mirror_image(int r) {
     return;
   } else if (r == -EEXIST || r == -EINVAL) {
     derr << "cannot disable mirroring for image " << m_global_image_id
-         << ": global_image_id has changed/reused: "
-         << cpp_strerror(r) << dendl;
+         << ": global_image_id has changed/reused: " << cpp_strerror(r)
+         << dendl;
     finish(r);
     return;
   } else if (r < 0) {
-    derr << "cannot disable mirroring for image " << m_global_image_id
-         << ": " << cpp_strerror(r) << dendl;
+    derr << "cannot disable mirroring for image " << m_global_image_id << ": "
+         << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
@@ -160,7 +178,9 @@ void TrashMoveRequest<I>::handle_disable_mirror_image(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::open_image() {
+void
+TrashMoveRequest<I>::open_image()
+{
   dout(10) << dendl;
 
   m_image_ctx = I::create("", m_image_id, nullptr, m_io_ctx, false);
@@ -174,17 +194,20 @@ void TrashMoveRequest<I>::open_image() {
     m_image_ctx->set_journal_policy(new JournalPolicy());
   }
 
-  Context *ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_open_image>(this);
+  Context* ctx = create_context_callback<
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_open_image>(this);
   m_image_ctx->state->open(librbd::OPEN_FLAG_SKIP_OPEN_PARENT, ctx);
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_open_image(int r) {
+void
+TrashMoveRequest<I>::handle_open_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
-    dout(5) << "mirror image does not exist, removing orphaned metadata" << dendl;
+    dout(5) << "mirror image does not exist, removing orphaned metadata"
+            << dendl;
     m_image_ctx = nullptr;
     remove_mirror_image();
     return;
@@ -208,7 +231,9 @@ void TrashMoveRequest<I>::handle_open_image(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::reset_journal() {
+void
+TrashMoveRequest<I>::reset_journal()
+{
   if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_SNAPSHOT) {
     // snapshot-based mirroring doesn't require journal feature
     acquire_lock();
@@ -220,19 +245,21 @@ void TrashMoveRequest<I>::reset_journal() {
   // TODO use Journal thread pool for journal ops until converted to ASIO
   ContextWQ* context_wq;
   librbd::Journal<>::get_work_queue(
-    reinterpret_cast<CephContext*>(m_io_ctx.cct()), &context_wq);
+      reinterpret_cast<CephContext*>(m_io_ctx.cct()), &context_wq);
 
   // ensure that if the image is recovered any peers will split-brain
   auto ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_reset_journal>(this);
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_reset_journal>(this);
   auto req = librbd::journal::ResetRequest<I>::create(
-    m_io_ctx, m_image_id, librbd::Journal<>::IMAGE_CLIENT_ID,
-    librbd::Journal<>::LOCAL_MIRROR_UUID, context_wq, ctx);
+      m_io_ctx, m_image_id, librbd::Journal<>::IMAGE_CLIENT_ID,
+      librbd::Journal<>::LOCAL_MIRROR_UUID, context_wq, ctx);
   req->send();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_reset_journal(int r) {
+void
+TrashMoveRequest<I>::handle_reset_journal(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -246,7 +273,9 @@ void TrashMoveRequest<I>::handle_reset_journal(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::acquire_lock() {
+void
+TrashMoveRequest<I>::acquire_lock()
+{
   m_image_ctx->owner_lock.lock_shared();
   if (m_image_ctx->exclusive_lock == nullptr) {
     m_image_ctx->owner_lock.unlock_shared();
@@ -264,15 +293,17 @@ void TrashMoveRequest<I>::acquire_lock() {
 
   dout(10) << dendl;
 
-  Context *ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_acquire_lock>(this);
+  Context* ctx = create_context_callback<
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_acquire_lock>(this);
   m_image_ctx->exclusive_lock->block_requests(0);
   m_image_ctx->exclusive_lock->acquire_lock(ctx);
   m_image_ctx->owner_lock.unlock_shared();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_acquire_lock(int r) {
+void
+TrashMoveRequest<I>::handle_acquire_lock(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -286,27 +317,31 @@ void TrashMoveRequest<I>::handle_acquire_lock(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::trash_move() {
+void
+TrashMoveRequest<I>::trash_move()
+{
   dout(10) << dendl;
 
   utime_t delete_time{ceph_clock_now()};
   utime_t deferment_end_time{delete_time};
-  deferment_end_time +=
-    m_image_ctx->config.template get_val<uint64_t>("rbd_mirroring_delete_delay");
+  deferment_end_time += m_image_ctx->config.template get_val<uint64_t>(
+      "rbd_mirroring_delete_delay");
 
   m_trash_image_spec = {
-    cls::rbd::TRASH_IMAGE_SOURCE_MIRRORING, m_image_ctx->name, delete_time,
-    deferment_end_time};
+      cls::rbd::TRASH_IMAGE_SOURCE_MIRRORING, m_image_ctx->name, delete_time,
+      deferment_end_time};
 
-  Context *ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_trash_move>(this);
+  Context* ctx = create_context_callback<
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_trash_move>(this);
   auto req = librbd::trash::MoveRequest<I>::create(
-    m_io_ctx, m_image_id, m_trash_image_spec, ctx);
+      m_io_ctx, m_image_id, m_trash_image_spec, ctx);
   req->send();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_trash_move(int r) {
+void
+TrashMoveRequest<I>::handle_trash_move(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -321,19 +356,23 @@ void TrashMoveRequest<I>::handle_trash_move(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::remove_mirror_image() {
+void
+TrashMoveRequest<I>::remove_mirror_image()
+{
   dout(10) << dendl;
 
   auto ctx = create_context_callback<
-    TrashMoveRequest<I>,
-    &TrashMoveRequest<I>::handle_remove_mirror_image>(this);
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_remove_mirror_image>(
+      this);
   auto req = librbd::mirror::ImageRemoveRequest<I>::create(
-    m_io_ctx, m_global_image_id, m_image_id, ctx);
+      m_io_ctx, m_global_image_id, m_image_id, ctx);
   req->send();
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_remove_mirror_image(int r) {
+void
+TrashMoveRequest<I>::handle_remove_mirror_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -348,20 +387,24 @@ void TrashMoveRequest<I>::handle_remove_mirror_image(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::close_image() {
+void
+TrashMoveRequest<I>::close_image()
+{
   dout(10) << dendl;
 
   if (m_image_ctx == nullptr) {
     handle_close_image(0);
     return;
   }
-  Context *ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_close_image>(this);
+  Context* ctx = create_context_callback<
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_close_image>(this);
   m_image_ctx->state->close(ctx);
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_close_image(int r) {
+void
+TrashMoveRequest<I>::handle_close_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   m_image_ctx = nullptr;
@@ -380,17 +423,21 @@ void TrashMoveRequest<I>::handle_close_image(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::notify_trash_add() {
+void
+TrashMoveRequest<I>::notify_trash_add()
+{
   dout(10) << dendl;
 
-  Context *ctx = create_context_callback<
-    TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_notify_trash_add>(this);
-  librbd::TrashWatcher<I>::notify_image_added(m_io_ctx, m_image_id,
-                                              m_trash_image_spec, ctx);
+  Context* ctx = create_context_callback<
+      TrashMoveRequest<I>, &TrashMoveRequest<I>::handle_notify_trash_add>(this);
+  librbd::TrashWatcher<I>::notify_image_added(
+      m_io_ctx, m_image_id, m_trash_image_spec, ctx);
 }
 
 template <typename I>
-void TrashMoveRequest<I>::handle_notify_trash_add(int r) {
+void
+TrashMoveRequest<I>::handle_notify_trash_add(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -401,7 +448,9 @@ void TrashMoveRequest<I>::handle_notify_trash_add(int r) {
 }
 
 template <typename I>
-void TrashMoveRequest<I>::finish(int r) {
+void
+TrashMoveRequest<I>::finish(int r)
+{
   if (m_ret_val < 0) {
     r = m_ret_val;
   }
@@ -417,4 +466,3 @@ void TrashMoveRequest<I>::finish(int r) {
 } // namespace rbd
 
 template class rbd::mirror::image_deleter::TrashMoveRequest<librbd::ImageCtx>;
-

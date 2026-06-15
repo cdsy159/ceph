@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,25 +13,28 @@
  *
  */
 
-#include "common/Formatter.h"
-
 #include "cls/lock/cls_lock_types.h"
+
+#include "common/Formatter.h"
 
 using namespace rados::cls::lock;
 
-static void generate_lock_id(locker_id_t& i, int n, const std::string& cookie)
+static void
+generate_lock_id(locker_id_t& i, int n, const std::string& cookie)
 {
   i.locker = entity_name_t::CLIENT(n);
   i.cookie = cookie;
 }
 
-void locker_id_t::dump(ceph::Formatter *f) const
+void
+locker_id_t::dump(ceph::Formatter* f) const
 {
   f->dump_stream("locker") << locker;
   f->dump_string("cookie", cookie);
 }
 
-std::list<locker_id_t> locker_id_t::generate_test_instances()
+std::list<locker_id_t>
+locker_id_t::generate_test_instances()
 {
   std::list<locker_id_t> o;
   locker_id_t i;
@@ -41,14 +44,16 @@ std::list<locker_id_t> locker_id_t::generate_test_instances()
   return o;
 }
 
-void locker_info_t::dump(ceph::Formatter *f) const
+void
+locker_info_t::dump(ceph::Formatter* f) const
 {
   f->dump_stream("expiration") << expiration;
   f->dump_string("addr", addr.get_legacy_str());
   f->dump_string("description", description);
 }
 
-static void generate_test_addr(entity_addr_t& a, int nonce, int port)
+static void
+generate_test_addr(entity_addr_t& a, int nonce, int port)
 {
   a.set_type(entity_addr_t::TYPE_LEGACY);
   a.set_nonce(nonce);
@@ -60,7 +65,8 @@ static void generate_test_addr(entity_addr_t& a, int nonce, int port)
   a.set_port(port);
 }
 
-std::list<locker_info_t> locker_info_t::generate_test_instances()
+std::list<locker_info_t>
+locker_info_t::generate_test_instances()
 {
   std::list<locker_info_t> o;
   locker_info_t i;
@@ -72,12 +78,13 @@ std::list<locker_info_t> locker_info_t::generate_test_instances()
   return o;
 }
 
-void lock_info_t::dump(ceph::Formatter *f) const
+void
+lock_info_t::dump(ceph::Formatter* f) const
 {
   f->dump_int("lock_type", static_cast<int>(lock_type));
   f->dump_string("tag", tag);
   f->open_array_section("lockers");
-  for (auto &i : lockers) {
+  for (auto& i : lockers) {
     f->open_object_section("locker");
     f->dump_object("id", i.first);
     f->dump_object("info", i.second);
@@ -86,7 +93,8 @@ void lock_info_t::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<lock_info_t> lock_info_t::generate_test_instances()
+std::list<lock_info_t>
+lock_info_t::generate_test_instances()
 {
   std::list<lock_info_t> o;
   lock_info_t i;

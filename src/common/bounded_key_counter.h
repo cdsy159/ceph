@@ -58,56 +58,71 @@ class BoundedKeyCounter {
   typename view_type::iterator sorted_position;
 
   /// invalidate view of sorted entries
-  void invalidate_sorted()
+  void
+  invalidate_sorted()
   {
     sorted_position = sorted.begin();
     sorted.clear();
   }
 
   /// value_type comparison function for sorting in descending order
-  static bool value_greater(const value_type *lhs, const value_type *rhs)
+  static bool
+  value_greater(const value_type* lhs, const value_type* rhs)
   {
     return lhs->second > rhs->second;
   }
 
   /// map iterator that adapts value_type to value_type*
   struct const_pointer_iterator : public map_type::const_iterator {
-    const_pointer_iterator(typename map_type::const_iterator i)
-      : map_type::const_iterator(i) {}
+    const_pointer_iterator(typename map_type::const_iterator i) :
+      map_type::const_iterator(i)
+    {}
 
     using value_type = typename map_type::const_iterator::value_type*;
     using reference = const typename map_type::const_iterator::value_type*;
 
-    reference operator*() const {
+    reference
+    operator*() const
+    {
       return &map_type::const_iterator::operator*();
     }
   };
 
- protected:
+protected:
   /// return the number of sorted entries. marked protected for unit testing
-  size_t get_num_sorted() const
+  size_t
+  get_num_sorted() const
   {
     using const_iterator = typename view_type::const_iterator;
     return std::distance<const_iterator>(sorted.begin(), sorted_position);
   }
 
- public:
-  BoundedKeyCounter(size_t bound)
-    : bound(bound)
+public:
+  BoundedKeyCounter(size_t bound) :
+    bound(bound)
   {
     sorted.reserve(bound);
     sorted_position = sorted.begin();
   }
 
   /// return the number of keys stored
-  size_t size() const noexcept { return counters.size(); }
+  size_t
+  size() const noexcept
+  {
+    return counters.size();
+  }
 
   /// return the maximum number of keys
-  size_t capacity() const noexcept { return bound; }
+  size_t
+  capacity() const noexcept
+  {
+    return bound;
+  }
 
   /// increment a counter for the given key and return its value. if the key was
   /// not present, insert it. if the map is full, return 0
-  Count insert(const Key& key, Count n = 1)
+  Count
+  insert(const Key& key, Count n = 1)
   {
     typename map_type::iterator i;
 
@@ -130,14 +145,15 @@ class BoundedKeyCounter {
 
     // update sorted position if necessary. use a binary search for the last
     // element in the sorted range that's greater than this counter
-    sorted_position = std::lower_bound(sorted.begin(), sorted_position,
-                                       &*i, &value_greater);
+    sorted_position =
+        std::lower_bound(sorted.begin(), sorted_position, &*i, &value_greater);
 
     return i->second;
   }
 
   /// remove the given key from the map of counters
-  void erase(const Key& key)
+  void
+  erase(const Key& key)
   {
     auto i = counters.find(key);
     if (i == counters.end()) {
@@ -152,12 +168,14 @@ class BoundedKeyCounter {
   /// query the highest N key-value pairs sorted by counter value, passing each
   /// in order to the given callback with arguments (Key, Count)
   template <typename Callback>
-  void get_highest(size_t count, Callback&& cb)
+  void
+  get_highest(size_t count, Callback&& cb)
   {
     if (sorted.empty()) {
       // initialize the vector with pointers to all key-value pairs
-      sorted.assign(const_pointer_iterator{counters.cbegin()},
-                    const_pointer_iterator{counters.cend()});
+      sorted.assign(
+          const_pointer_iterator{counters.cbegin()},
+          const_pointer_iterator{counters.cend()});
       // entire range is unsorted
       ceph_assert(sorted_position == sorted.begin());
     }
@@ -168,8 +186,8 @@ class BoundedKeyCounter {
       sorted_position = sorted.begin() + std::min(count, sorted.size());
 
       // sort all entries in descending order up to the given position
-      std::partial_sort(sorted.begin(), sorted_position, sorted.end(),
-                        &value_greater);
+      std::partial_sort(
+          sorted.begin(), sorted_position, sorted.end(), &value_greater);
     }
 
     // return the requested range via callback
@@ -182,7 +200,8 @@ class BoundedKeyCounter {
   }
 
   /// remove all keys and counters and invalidate the sorted range
-  void clear()
+  void
+  clear()
   {
     invalidate_sorted();
     counters.clear();

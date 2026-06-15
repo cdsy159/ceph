@@ -22,7 +22,7 @@ namespace librados {
 struct ObjectOperationImpl {
   ::ObjectOperation o;
   ceph::real_time rt;
-  ceph::real_time *prt = nullptr;
+  ceph::real_time* prt = nullptr;
 };
 
 } // namespace librados

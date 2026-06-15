@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,32 +17,65 @@
 #define CEPH_BITMAPPER_H
 
 class bitmapper {
-  char *_data;
+  char* _data;
   int _len;
 
- public:
-  bitmapper() : _data(0), _len(0) { }
-  bitmapper(char *data, int len) : _data(data), _len(len) { }
+public:
+  bitmapper() :
+    _data(0), _len(0)
+  {}
 
-  void set_data(char *data, int len) { _data = data; _len = len; }
+  bitmapper(char* data, int len) :
+    _data(data), _len(len)
+  {}
 
-  int bytes() const { return _len; }
-  int bits() const { return _len * 8; }
+  void
+  set_data(char* data, int len)
+  {
+    _data = data;
+    _len = len;
+  }
 
-  bool operator[](int b) const {
+  int
+  bytes() const
+  {
+    return _len;
+  }
+
+  int
+  bits() const
+  {
+    return _len * 8;
+  }
+
+  bool
+  operator[](int b) const
+  {
     return get(b);
   }
-  bool get(int b) const {
-    return _data[b >> 3] & (1 << (b&7));
+
+  bool
+  get(int b) const
+  {
+    return _data[b >> 3] & (1 << (b & 7));
   }
-  void set(int b) {
-    _data[b >> 3] |= 1 << (b&7);
+
+  void
+  set(int b)
+  {
+    _data[b >> 3] |= 1 << (b & 7);
   }
-  void clear(int b) {
-    _data[b >> 3] &= ~(1 << (b&7));
+
+  void
+  clear(int b)
+  {
+    _data[b >> 3] &= ~(1 << (b & 7));
   }
-  void toggle(int b) {
-    _data[b >> 3] ^= 1 << (b&7);
+
+  void
+  toggle(int b)
+  {
+    _data[b >> 3] ^= 1 << (b & 7);
   }
 };
 

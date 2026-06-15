@@ -19,10 +19,13 @@
 
 #include <cerrno>
 #ifdef __has_include
-#  if __has_include(<format>)
-#    include <format>
-#  endif
+#if __has_include(<format>)
+#include <format>
 #endif
+#endif
+#include <fmt/format.h>
+#include <netdb.h>
+
 #include <functional>
 #include <new>
 #include <optional>
@@ -36,10 +39,6 @@
 #include <boost/system/error_condition.hpp>
 #include <boost/system/generic_category.hpp>
 #include <boost/system/system_error.hpp>
-
-#include <fmt/format.h>
-
-#include <netdb.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
@@ -63,31 +62,36 @@ enum class errc {
   exists, // Already exists
   limit_exceeded, // Attempting to use too much of something
   auth, // May not be an auth failure. It could be that the
-	// preconditions to attempt auth failed.
+      // preconditions to attempt auth failed.
   conflict, // Conflict or precondition failure
 };
-}
+} // namespace ceph
 
 namespace boost::system {
-template<>
+template <>
 struct is_error_condition_enum<::ceph::errc> {
   static const bool value = true;
 };
-template<>
+
+template <>
 struct is_error_code_enum<::ceph::errc> {
   static const bool value = false;
 };
-}
+} // namespace boost::system
 
 namespace ceph {
 //  explicit conversion:
-inline boost::system::error_code make_error_code(errc e) noexcept {
-  return { static_cast<int>(e), ceph_category() };
+inline boost::system::error_code
+make_error_code(errc e) noexcept
+{
+  return {static_cast<int>(e), ceph_category()};
 }
 
 // implicit conversion:
-inline boost::system::error_condition make_error_condition(errc e) noexcept {
-  return { static_cast<int>(e), ceph_category() };
+inline boost::system::error_condition
+make_error_condition(errc e) noexcept
+{
+  return {static_cast<int>(e), ceph_category()};
 }
 
 [[nodiscard]] boost::system::error_code to_error_code(int ret) noexcept;
@@ -96,7 +100,8 @@ inline boost::system::error_condition make_error_condition(errc e) noexcept {
 #pragma clang diagnostic pop
 
 [[nodiscard]]
-inline int from_exception(std::exception_ptr eptr, std::string* what = nullptr)
+inline int
+from_exception(std::exception_ptr eptr, std::string* what = nullptr)
 {
   if (!eptr) [[likely]] {
     return 0;
@@ -157,12 +162,12 @@ inline int from_exception(std::exception_ptr eptr, std::string* what = nullptr)
       return -EINVAL;
     }
 #ifdef __has_include
-#  if __has_include(<format>)
+#if __has_include(<format>)
   } catch (const std::format_error& e) {
     if (what)
       *what = e.what();
     return -EINVAL;
-#  endif
+#endif
 #endif
   } catch (const fmt::format_error& e) {
     if (what)
@@ -207,7 +212,7 @@ inline int from_exception(std::exception_ptr eptr, std::string* what = nullptr)
   }
   return -EIO;
 }
-}
+} // namespace ceph
 
 // Moved here from buffer.h so librados doesn't gain a dependency on
 // Boost.System
@@ -215,36 +220,41 @@ inline int from_exception(std::exception_ptr eptr, std::string* what = nullptr)
 namespace ceph::buffer {
 inline namespace v15_2_0 {
 const boost::system::error_category& buffer_category() noexcept;
-enum class errc { bad_alloc = 1,
-		  end_of_buffer,
-		  malformed_input };
-}
-}
+enum class errc {
+  bad_alloc = 1,
+  end_of_buffer,
+  malformed_input
+};
+} // namespace v15_2_0
+} // namespace ceph::buffer
 
 namespace boost::system {
-template<>
+template <>
 struct is_error_code_enum<::ceph::buffer::errc> {
   static const bool value = true;
 };
 
-template<>
+template <>
 struct is_error_condition_enum<::ceph::buffer::errc> {
   static const bool value = false;
 };
-}
+} // namespace boost::system
 
 namespace ceph::buffer {
 inline namespace v15_2_0 {
 
 // implicit conversion:
-inline boost::system::error_code make_error_code(errc e) noexcept {
-  return { static_cast<int>(e), buffer_category() };
+inline boost::system::error_code
+make_error_code(errc e) noexcept
+{
+  return {static_cast<int>(e), buffer_category()};
 }
 
 // explicit conversion:
 inline boost::system::error_condition
-make_error_condition(errc e) noexcept {
-  return { static_cast<int>(e), buffer_category() };
+make_error_condition(errc e) noexcept
+{
+  return {static_cast<int>(e), buffer_category()};
 }
 
 struct error : boost::system::system_error {
@@ -252,32 +262,61 @@ struct error : boost::system::system_error {
 };
 
 struct bad_alloc : public error {
-  bad_alloc() : error(errc::bad_alloc) {}
-  bad_alloc(const char* what_arg) : error(errc::bad_alloc, what_arg) {}
-  bad_alloc(const std::string& what_arg) : error(errc::bad_alloc, what_arg) {}
+  bad_alloc() :
+    error(errc::bad_alloc)
+  {}
+
+  bad_alloc(const char* what_arg) :
+    error(errc::bad_alloc, what_arg)
+  {}
+
+  bad_alloc(const std::string& what_arg) :
+    error(errc::bad_alloc, what_arg)
+  {}
 };
+
 struct end_of_buffer : public error {
-  end_of_buffer() : error(errc::end_of_buffer) {}
-  end_of_buffer(const char* what_arg) : error(errc::end_of_buffer, what_arg) {}
-  end_of_buffer(const std::string& what_arg)
-    : error(errc::end_of_buffer, what_arg) {}
+  end_of_buffer() :
+    error(errc::end_of_buffer)
+  {}
+
+  end_of_buffer(const char* what_arg) :
+    error(errc::end_of_buffer, what_arg)
+  {}
+
+  end_of_buffer(const std::string& what_arg) :
+    error(errc::end_of_buffer, what_arg)
+  {}
 };
 
 struct malformed_input : public error {
-  malformed_input() : error(errc::malformed_input) {}
-  malformed_input(const char* what_arg)
-    : error(errc::malformed_input, what_arg) {}
-  malformed_input(const std::string& what_arg)
-    : error(errc::malformed_input, what_arg) {}
+  malformed_input() :
+    error(errc::malformed_input)
+  {}
+
+  malformed_input(const char* what_arg) :
+    error(errc::malformed_input, what_arg)
+  {}
+
+  malformed_input(const std::string& what_arg) :
+    error(errc::malformed_input, what_arg)
+  {}
 };
+
 struct error_code : public error {
-  error_code(int r) : error(-r, boost::system::generic_category()) {}
-  error_code(int r, const char* what_arg)
-    : error(-r, boost::system::generic_category(), what_arg) {}
-  error_code(int r, const std::string& what_arg)
-    : error(-r, boost::system::generic_category(), what_arg) {}
+  error_code(int r) :
+    error(-r, boost::system::generic_category())
+  {}
+
+  error_code(int r, const char* what_arg) :
+    error(-r, boost::system::generic_category(), what_arg)
+  {}
+
+  error_code(int r, const std::string& what_arg) :
+    error(-r, boost::system::generic_category(), what_arg)
+  {}
 };
-}
-}
+} // namespace v15_2_0
+} // namespace ceph::buffer
 
 #endif // COMMON_CEPH_ERROR_CODE

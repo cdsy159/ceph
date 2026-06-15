@@ -2,11 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/api/PoolMetadata.h"
+
 #include "cls/rbd/cls_rbd_client.h"
 #include "common/Clock.h" // for ceph_clock_now()
+#include "common/Cond.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "common/Cond.h"
 #include "librbd/Utils.h"
 #include "librbd/api/Config.h"
 #include "librbd/image/GetMetadataRequest.h"
@@ -20,17 +21,20 @@ namespace api {
 
 namespace {
 
-void update_pool_timestamp(librados::IoCtx& io_ctx) {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+void
+update_pool_timestamp(librados::IoCtx& io_ctx)
+{
+  CephContext* cct = (CephContext*)io_ctx.cct();
 
   auto now = ceph_clock_now();
-  std::string cmd =
-    R"({)"
-      R"("prefix": "config set", )"
-      R"("who": "global", )"
-      R"("name": "rbd_config_pool_override_update_timestamp", )"
-      R"("value": ")" + stringify(now.sec()) + R"(")"
-    R"(})";
+  std::string cmd = R"({)"
+                    R"("prefix": "config set", )"
+                    R"("who": "global", )"
+                    R"("name": "rbd_config_pool_override_update_timestamp", )"
+                    R"("value": ")" +
+                    stringify(now.sec()) +
+                    R"(")"
+                    R"(})";
 
   librados::Rados rados(io_ctx);
   std::string ss;
@@ -44,9 +48,13 @@ void update_pool_timestamp(librados::IoCtx& io_ctx) {
 } // anonymous namespace
 
 template <typename I>
-int PoolMetadata<I>::get(librados::IoCtx& io_ctx,
-                     const std::string &key, std::string *value) {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+int
+PoolMetadata<I>::get(
+    librados::IoCtx& io_ctx,
+    const std::string& key,
+    std::string* value)
+{
+  CephContext* cct = (CephContext*)io_ctx.cct();
 
   int r = cls_client::metadata_get(&io_ctx, RBD_INFO, key, value);
   if (r < 0 && r != -ENOENT) {
@@ -58,9 +66,13 @@ int PoolMetadata<I>::get(librados::IoCtx& io_ctx,
 }
 
 template <typename I>
-int PoolMetadata<I>::set(librados::IoCtx& io_ctx, const std::string &key,
-                         const std::string &value) {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+int
+PoolMetadata<I>::set(
+    librados::IoCtx& io_ctx,
+    const std::string& key,
+    const std::string& value)
+{
+  CephContext* cct = (CephContext*)io_ctx.cct();
 
   bool need_update_pool_timestamp = false;
 
@@ -99,8 +111,10 @@ int PoolMetadata<I>::set(librados::IoCtx& io_ctx, const std::string &key,
 }
 
 template <typename I>
-int PoolMetadata<I>::remove(librados::IoCtx& io_ctx, const std::string &key) {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+int
+PoolMetadata<I>::remove(librados::IoCtx& io_ctx, const std::string& key)
+{
+  CephContext* cct = (CephContext*)io_ctx.cct();
 
   std::string value;
   int r = cls_client::metadata_get(&io_ctx, RBD_INFO, key, &value);
@@ -130,21 +144,24 @@ int PoolMetadata<I>::remove(librados::IoCtx& io_ctx, const std::string &key) {
 }
 
 template <typename I>
-int PoolMetadata<I>::list(librados::IoCtx& io_ctx, const std::string &start,
-                          uint64_t max,
-                          std::map<std::string, ceph::bufferlist> *pairs) {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+int
+PoolMetadata<I>::list(
+    librados::IoCtx& io_ctx,
+    const std::string& start,
+    uint64_t max,
+    std::map<std::string, ceph::bufferlist>* pairs)
+{
+  CephContext* cct = (CephContext*)io_ctx.cct();
 
   pairs->clear();
   C_SaferCond ctx;
   auto req = image::GetMetadataRequest<I>::create(
-    io_ctx, RBD_INFO, false, "", start, max, pairs, &ctx);
+      io_ctx, RBD_INFO, false, "", start, max, pairs, &ctx);
   req->send();
 
   int r = ctx.wait();
   if (r < 0) {
-    lderr(cct) << "failed listing metadata: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed listing metadata: " << cpp_strerror(r) << dendl;
     return r;
   }
   return 0;

@@ -3,12 +3,12 @@
 
 #pragma once
 
+#include <numeric> // for std::accumulate()
+#include <optional>
+
 #include <boost/intrusive/set.hpp>
 
 #include "include/utime.h"
-
-#include <numeric> // for std::accumulate()
-#include <optional>
 
 /**
  * not_before_queue_t
@@ -40,13 +40,13 @@
  * is passed, ordering is determined by priority as defined by the operator<
  * definition.
  */
-template <typename V, typename T=utime_t>
+template <typename V, typename T = utime_t>
 class not_before_queue_t {
 
   enum class status_t {
-    INVALID,  // Not queued, only possible during construction and destruction
-    INELIGIBLE,	 // Queued in ineligible_queue
-    ELIGIBLE	 // Queued in eligible_queue
+    INVALID, // Not queued, only possible during construction and destruction
+    INELIGIBLE, // Queued in ineligible_queue
+    ELIGIBLE // Queued in eligible_queue
   };
 
   /**
@@ -67,16 +67,17 @@ class not_before_queue_t {
     const V v;
 
     template <typename... Args>
-    container_t(Args&&... args) : v(std::forward<Args>(args)...) {}
-    ~container_t() {
-      assert(status == status_t::INVALID);
-    }
+    container_t(Args&&... args) :
+      v(std::forward<Args>(args)...)
+    {}
+
+    ~container_t() { assert(status == status_t::INVALID); }
   };
 
   using queue_hook_option_t = boost::intrusive::member_hook<
-    container_t,
-    typename container_t::queue_hook_t,
-    &container_t::queue_hook>;
+      container_t,
+      typename container_t::queue_hook_t,
+      &container_t::queue_hook>;
 
   /**
    * ineligible_queue
@@ -87,14 +88,17 @@ class not_before_queue_t {
    * - Uses same hook as and is mutually exclusive with eligible_queue.
    */
   struct compare_by_nb_t {
-    bool operator()(const container_t &lhs, const container_t &rhs) const {
+    bool
+    operator()(const container_t& lhs, const container_t& rhs) const
+    {
       return project_not_before(lhs.v) < project_not_before(rhs.v);
     }
   };
+
   using ineligible_queue_t = boost::intrusive::multiset<
-    container_t,
-    queue_hook_option_t,
-    boost::intrusive::compare<compare_by_nb_t>>;
+      container_t,
+      queue_hook_option_t,
+      boost::intrusive::compare<compare_by_nb_t>>;
   ineligible_queue_t ineligible_queue;
 
   /**
@@ -106,14 +110,17 @@ class not_before_queue_t {
    * - Uses same hook as and is mutually exclusive with ineligible_queue.
    */
   struct compare_by_user_order_t {
-    bool operator()(const container_t &lhs, const container_t &rhs) const {
+    bool
+    operator()(const container_t& lhs, const container_t& rhs) const
+    {
       return lhs.v < rhs.v;
     }
   };
+
   using eligible_queue_t = boost::intrusive::multiset<
-    container_t,
-    queue_hook_option_t,
-    boost::intrusive::compare<compare_by_user_order_t>>;
+      container_t,
+      queue_hook_option_t,
+      boost::intrusive::compare<compare_by_user_order_t>>;
   eligible_queue_t eligible_queue;
 
   /**
@@ -125,43 +132,58 @@ class not_before_queue_t {
    * - Owns every contained item.
    */
   struct compare_by_removal_class_t {
-    bool operator()(const container_t &lhs, const container_t &rhs) const {
+    bool
+    operator()(const container_t& lhs, const container_t& rhs) const
+    {
       return project_removal_class(lhs.v) < project_removal_class(rhs.v);
     }
 
     template <typename U>
-    bool operator()(const U &lhs, const container_t &rhs) const {
+    bool
+    operator()(const U& lhs, const container_t& rhs) const
+    {
       if constexpr (std::is_integral_v<U>) {
-	return std::cmp_less(lhs, project_removal_class(rhs.v));
+        return std::cmp_less(lhs, project_removal_class(rhs.v));
       } else {
-	return lhs < project_removal_class(rhs.v);
+        return lhs < project_removal_class(rhs.v);
       }
     }
 
     template <typename U>
-    bool operator()(const container_t &lhs, const U &rhs) const {
+    bool
+    operator()(const container_t& lhs, const U& rhs) const
+    {
       if constexpr (std::is_integral_v<U>) {
-	return std::cmp_less(project_removal_class(lhs.v), rhs);
+        return std::cmp_less(project_removal_class(lhs.v), rhs);
       } else {
-	return project_removal_class(lhs.v) < rhs;
+        return project_removal_class(lhs.v) < rhs;
       }
     }
   };
+
   struct removal_registry_disposer_t {
-    void operator()(container_t *p) { delete p; }
+    void
+    operator()(container_t* p)
+    {
+      delete p;
+    }
   };
+
   using removal_registry_t = boost::intrusive::multiset<
-    container_t,
-    boost::intrusive::compare<compare_by_removal_class_t>>;
+      container_t,
+      boost::intrusive::compare<compare_by_removal_class_t>>;
   removal_registry_t removal_registry;
 
   /// current time, see advance_time
   T current_time;
+
 public:
   /// Enqueue item constructed constructible from args...
   template <typename... Args>
-  void enqueue(Args&&... args) {
-    auto *item = new container_t(std::forward<Args>(args)...);
+  void
+  enqueue(Args&&... args)
+  {
+    auto* item = new container_t(std::forward<Args>(args)...);
     removal_registry.insert(*item);
 
     if (project_not_before(item->v) > current_time) {
@@ -174,7 +196,9 @@ public:
   }
 
   /// Dequeue next item, return std::nullopt there are no eligible items
-  std::optional<V> dequeue() {
+  std::optional<V>
+  dequeue()
+  {
     if (eligible_queue.empty()) {
       return std::nullopt;
     }
@@ -182,23 +206,24 @@ public:
     auto iter = eligible_queue.begin();
     assert(iter->status == status_t::ELIGIBLE);
 
-    eligible_queue.erase(
-      typename eligible_queue_t::const_iterator(iter));
+    eligible_queue.erase(typename eligible_queue_t::const_iterator(iter));
     iter->status = status_t::INVALID;
 
     std::optional<V> ret(iter->v);
     removal_registry.erase_and_dispose(
-      removal_registry_t::s_iterator_to(std::as_const(*iter)),
-      removal_registry_disposer_t{});
+        removal_registry_t::s_iterator_to(std::as_const(*iter)),
+        removal_registry_disposer_t{});
     return ret;
   }
 
   /// Dequeue 1st eligible item that satisfies pred, std::nullopt if none
   template <typename PRED>
-  std::optional<V> dequeue_by_pred(const PRED& pred) {
+  std::optional<V>
+  dequeue_by_pred(const PRED& pred)
+  {
     auto iter = std::find_if(
-	eligible_queue.begin(), eligible_queue.end(),
-	[&pred](const auto &i) { return pred(i.v); });
+        eligible_queue.begin(), eligible_queue.end(),
+        [&pred](const auto& i) { return pred(i.v); });
 
     if (iter == eligible_queue.end()) {
       return std::nullopt;
@@ -210,8 +235,8 @@ public:
 
     std::optional<V> ret(iter->v);
     removal_registry.erase_and_dispose(
-	removal_registry_t::s_iterator_to(std::as_const(*iter)),
-	removal_registry_disposer_t{});
+        removal_registry_t::s_iterator_to(std::as_const(*iter)),
+        removal_registry_disposer_t{});
     return ret;
   }
 
@@ -229,22 +254,24 @@ public:
    * \retval: true if the cutoff was advanced. False if we
    *          had to ignore the update.
    */
-  bool advance_time(T next_time) {
+  bool
+  advance_time(T next_time)
+  {
     if (next_time < current_time) {
       return false;
     }
     current_time = next_time;
     while (true) {
       if (ineligible_queue.empty()) {
-	break;
+        break;
       }
 
       auto iter = ineligible_queue.begin();
-      auto &item = *iter;
+      auto& item = *iter;
       assert(item.status == status_t::INELIGIBLE);
 
       if (project_not_before(item.v) > current_time) {
-	break;
+        break;
       }
 
       item.status = status_t::ELIGIBLE;
@@ -260,24 +287,26 @@ public:
    * Remove all items such that project_removal_class(item) == k
    */
   template <typename K>
-  void remove_by_class(const K &k) {
-    for (auto iter = removal_registry.lower_bound(
-	   k, compare_by_removal_class_t{});
-	 iter != removal_registry.upper_bound(
-	   k, compare_by_removal_class_t{}); ) {
+  void
+  remove_by_class(const K& k)
+  {
+    for (auto iter =
+             removal_registry.lower_bound(k, compare_by_removal_class_t{});
+         iter !=
+         removal_registry.upper_bound(k, compare_by_removal_class_t{});) {
       if (iter->status == status_t::INELIGIBLE) {
-	ineligible_queue.erase(
-	  ineligible_queue_t::s_iterator_to(std::as_const(*iter)));
+        ineligible_queue.erase(
+            ineligible_queue_t::s_iterator_to(std::as_const(*iter)));
       } else if (iter->status == status_t::ELIGIBLE) {
-	eligible_queue.erase(
-	  eligible_queue_t::s_iterator_to(std::as_const(*iter)));
+        eligible_queue.erase(
+            eligible_queue_t::s_iterator_to(std::as_const(*iter)));
       } else {
-	assert(0 == "impossible status");
+        assert(0 == "impossible status");
       }
       iter->status = status_t::INVALID;
       removal_registry.erase_and_dispose(
-	typename removal_registry_t::const_iterator(iter++),
-	removal_registry_disposer_t{});
+          typename removal_registry_t::const_iterator(iter++),
+          removal_registry_disposer_t{});
     }
   }
 
@@ -290,37 +319,39 @@ public:
    * Returns the number of items removed
    */
   template <typename K, typename PRED>
-  int remove_if_by_class(
+  int
+  remove_if_by_class(
       const K& k,
       PRED&& pred,
-      std::optional<int> max_removed = std::nullopt) {
+      std::optional<int> max_removed = std::nullopt)
+  {
     int removed = 0;
     for (auto iter =
-	     removal_registry.lower_bound(k, compare_by_removal_class_t{});
-	 iter !=
-	 removal_registry.upper_bound(k, compare_by_removal_class_t{});) {
+             removal_registry.lower_bound(k, compare_by_removal_class_t{});
+         iter !=
+         removal_registry.upper_bound(k, compare_by_removal_class_t{});) {
 
       if (!pred(iter->v)) {
-	++iter;
-	continue;
+        ++iter;
+        continue;
       }
 
       if (iter->status == not_before_queue_t::status_t::INELIGIBLE) {
-	ineligible_queue.erase(
-	    ineligible_queue_t::s_iterator_to(std::as_const(*iter)));
+        ineligible_queue.erase(
+            ineligible_queue_t::s_iterator_to(std::as_const(*iter)));
       } else if (iter->status == not_before_queue_t::status_t::ELIGIBLE) {
-	eligible_queue.erase(
-	    eligible_queue_t::s_iterator_to(std::as_const(*iter)));
+        eligible_queue.erase(
+            eligible_queue_t::s_iterator_to(std::as_const(*iter)));
       } else {
-	assert(0 == "impossible status");
+        assert(0 == "impossible status");
       }
       iter->status = not_before_queue_t::status_t::INVALID;
       removal_registry.erase_and_dispose(
-	typename removal_registry_t::const_iterator(iter++),
-	removal_registry_disposer_t{});
+          typename removal_registry_t::const_iterator(iter++),
+          removal_registry_disposer_t{});
       removed++;
       if (max_removed && removed >= *max_removed) {
-	break;
+        break;
       }
     }
     return removed;
@@ -335,18 +366,20 @@ public:
    * f(acc, v, eligible_for_dequeue);
    */
   template <class ACC, typename BOP>
-  ACC accumulate(BOP&& op) const {
+  ACC
+  accumulate(BOP&& op) const
+  {
     ACC acc;
     acc = std::accumulate(
-	eligible_queue.begin(), eligible_queue.end(), std::move(acc),
-	[op](ACC&& acc, const auto& i) {
-	  return op(std::move(acc), i.v, true);
-	});
+        eligible_queue.begin(), eligible_queue.end(), std::move(acc),
+        [op](ACC&& acc, const auto& i) {
+          return op(std::move(acc), i.v, true);
+        });
     acc = std::accumulate(
-	ineligible_queue.begin(), ineligible_queue.end(), std::move(acc),
-	[op](ACC&& acc, const auto& i) {
-	  return op(std::move(acc), i.v, false);
-	});
+        ineligible_queue.begin(), ineligible_queue.end(), std::move(acc),
+        [op](ACC&& acc, const auto& i) {
+          return op(std::move(acc), i.v, false);
+        });
     return acc;
   }
 
@@ -357,7 +390,9 @@ public:
    * f(val, eligible_for_dequeue);
    */
   template <typename F>
-  void for_each(F&& f) const {
+  void
+  for_each(F&& f) const
+  {
     for (auto&& i : eligible_queue) {
       std::invoke(f, i.v, true);
     }
@@ -367,24 +402,32 @@ public:
   }
 
   template <typename F>
-  void for_each_n(F&& f, int up_to) const {
+  void
+  for_each_n(F&& f, int up_to) const
+  {
     for (auto&& i : eligible_queue) {
       if (up_to-- <= 0) {
-	return;
+        return;
       }
       std::invoke(f, i.v, true);
     }
     for (auto&& i : ineligible_queue) {
       if (up_to-- <= 0) {
-	return;
+        return;
       }
       std::invoke(f, i.v, false);
     }
   }
 
-  int total_count() const {
+  int
+  total_count() const
+  {
     return ineligible_queue.size() + eligible_queue.size();
   }
 
-  int eligible_count() const { return eligible_queue.size(); }
+  int
+  eligible_count() const
+  {
+    return eligible_queue.size();
+  }
 };

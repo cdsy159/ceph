@@ -19,29 +19,26 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "rbd-wnbd: "
 
-std::shared_ptr<librados::Rados> RadosClientCache::init_client(
-  std::string& entity_name, std::string& cluster_name)
+std::shared_ptr<librados::Rados>
+RadosClientCache::init_client(std::string& entity_name, std::string& cluster_name)
 {
   auto rados = std::make_shared<librados::Rados>();
 
   int r = rados->init2(entity_name.c_str(), cluster_name.c_str(), 0);
   if (r < 0) {
-    derr << "couldn't initialize rados: " << cpp_strerror(r)
-         << dendl;
+    derr << "couldn't initialize rados: " << cpp_strerror(r) << dendl;
     return std::shared_ptr<librados::Rados>();
   }
 
   r = rados->conf_read_file(nullptr);
   if (r < 0) {
-    derr << "couldn't read conf file: " << cpp_strerror(r)
-         << dendl;
+    derr << "couldn't read conf file: " << cpp_strerror(r) << dendl;
     return std::shared_ptr<librados::Rados>();
   }
 
   r = rados->connect();
   if (r < 0) {
-    derr << "couldn't establish rados connection: "
-         << cpp_strerror(r) << dendl;
+    derr << "couldn't establish rados connection: " << cpp_strerror(r) << dendl;
     return std::shared_ptr<librados::Rados>();
   } else {
     dout(1) << "successfully initialized rados connection" << dendl;
@@ -50,8 +47,8 @@ std::shared_ptr<librados::Rados> RadosClientCache::init_client(
   return rados;
 }
 
-std::shared_ptr<librados::Rados> RadosClientCache::get_client(
-  std::string& entity_name, std::string& cluster_name)
+std::shared_ptr<librados::Rados>
+RadosClientCache::get_client(std::string& entity_name, std::string& cluster_name)
 {
   std::unique_lock l{cache_lock};
 
@@ -64,8 +61,8 @@ std::shared_ptr<librados::Rados> RadosClientCache::get_client(
       dout(1) << "reusing cached rados client: " << key << dendl;
       return cached_client;
     } else {
-      dout(5) << "cleaning up expired rados ref: "
-              << cached_client_weak->first << dendl;
+      dout(5) << "cleaning up expired rados ref: " << cached_client_weak->first
+              << dendl;
       cache.erase(cached_client_weak);
     }
   }
@@ -76,13 +73,13 @@ std::shared_ptr<librados::Rados> RadosClientCache::get_client(
   return client;
 }
 
-void RadosClientCache::remove_expired()
+void
+RadosClientCache::remove_expired()
 {
   auto i = cache.begin();
   while (i != cache.end()) {
     if (i->second.expired()) {
-      dout(5) << "removing expired rados ref: "
-              << i->first << dendl;
+      dout(5) << "removing expired rados ref: " << i->first << dendl;
       i = cache.erase(i);
       continue;
     }

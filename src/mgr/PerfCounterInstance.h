@@ -23,26 +23,25 @@
 
 // An instance of a performance counter type, within
 // a particular daemon.
-class PerfCounterInstance
-{
-  class DataPoint
-  {
-    public:
+class PerfCounterInstance {
+  class DataPoint {
+  public:
     utime_t t;
     uint64_t v;
-    DataPoint(utime_t t_, uint64_t v_)
-      : t(t_), v(v_)
+
+    DataPoint(utime_t t_, uint64_t v_) :
+      t(t_), v(v_)
     {}
   };
 
-  class AvgDataPoint
-  {
-    public:
+  class AvgDataPoint {
+  public:
     utime_t t;
     uint64_t s;
     uint64_t c;
-    AvgDataPoint(utime_t t_, uint64_t s_, uint64_t c_)
-      : t(t_), s(s_), c(c_)
+
+    AvgDataPoint(utime_t t_, uint64_t s_, uint64_t c_) :
+      t(t_), s(s_), c(c_)
     {}
   };
 
@@ -51,25 +50,33 @@ class PerfCounterInstance
 
   uint64_t get_current() const;
 
-  public:
-  const boost::circular_buffer<DataPoint> & get_data() const
+public:
+  const boost::circular_buffer<DataPoint>&
+  get_data() const
   {
     return buffer;
   }
-  const DataPoint& get_latest_data() const
+
+  const DataPoint&
+  get_latest_data() const
   {
     return buffer.back();
   }
-  const boost::circular_buffer<AvgDataPoint> & get_data_avg() const
+
+  const boost::circular_buffer<AvgDataPoint>&
+  get_data_avg() const
   {
     return avg_buffer;
   }
-  const AvgDataPoint& get_latest_data_avg() const
+
+  const AvgDataPoint&
+  get_latest_data_avg() const
   {
     return avg_buffer.back();
   }
-  void push(utime_t t, uint64_t const &v);
-  void push_avg(utime_t t, uint64_t const &s, uint64_t const &c);
+
+  void push(utime_t t, uint64_t const& v);
+  void push_avg(utime_t t, uint64_t const& s, uint64_t const& c);
 
   PerfCounterInstance(enum perfcounter_type_d type)
   {

@@ -4,10 +4,11 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_CREATE_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_CREATE_REQUEST_H
 
+#include <string>
+
 #include "cls/rbd/cls_rbd_types.h"
 #include "librbd/Types.h"
 #include "librbd/operation/Request.h"
-#include <string>
 
 class Context;
 
@@ -68,20 +69,33 @@ public:
    * to abort, the error path is followed to record the result in the journal
    * (if enabled) and bubble the originating error code back to the client.
    */
-  SnapshotCreateRequest(ImageCtxT &image_ctx, Context *on_finish,
-                        const cls::rbd::SnapshotNamespace &snap_namespace,
-                        const std::string &snap_name, uint64_t journal_op_tid,
-                        uint64_t flags, ProgressContext &prog_ctx);
+  SnapshotCreateRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const cls::rbd::SnapshotNamespace& snap_namespace,
+      const std::string& snap_name,
+      uint64_t journal_op_tid,
+      uint64_t flags,
+      ProgressContext& prog_ctx);
 
 protected:
   void send_op() override;
-  bool should_complete(int r) override {
+
+  bool
+  should_complete(int r) override
+  {
     return true;
   }
-  bool can_affect_io() const override {
+
+  bool
+  can_affect_io() const override
+  {
     return true;
   }
-  journal::Event create_event(uint64_t op_tid) const override {
+
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::SnapCreateEvent(op_tid, m_snap_namespace, m_snap_name);
   }
 
@@ -91,7 +105,7 @@ private:
   bool m_skip_object_map;
   bool m_skip_notify_quiesce;
   bool m_ignore_notify_quiesce_error;
-  ProgressContext &m_prog_ctx;
+  ProgressContext& m_prog_ctx;
 
   uint64_t m_request_id = 0;
   int m_ret_val = 0;
@@ -102,38 +116,40 @@ private:
   ParentImageInfo m_parent_info;
 
   void send_notify_quiesce();
-  Context *handle_notify_quiesce(int *result);
+  Context* handle_notify_quiesce(int* result);
 
   void send_suspend_requests();
-  Context *handle_suspend_requests(int *result);
+  Context* handle_suspend_requests(int* result);
 
   void send_suspend_aio();
-  Context *handle_suspend_aio(int *result);
+  Context* handle_suspend_aio(int* result);
 
   void send_append_op_event();
-  Context *handle_append_op_event(int *result);
+  Context* handle_append_op_event(int* result);
 
   void send_allocate_snap_id();
-  Context *handle_allocate_snap_id(int *result);
+  Context* handle_allocate_snap_id(int* result);
 
   void send_create_snap();
-  Context *handle_create_snap(int *result);
+  Context* handle_create_snap(int* result);
 
-  Context *send_create_object_map();
-  Context *handle_create_object_map(int *result);
+  Context* send_create_object_map();
+  Context* handle_create_object_map(int* result);
 
-  Context *send_create_image_state();
-  Context *handle_create_image_state(int *result);
+  Context* send_create_image_state();
+  Context* handle_create_image_state(int* result);
 
   void send_release_snap_id();
-  Context *handle_release_snap_id(int *result);
+  Context* handle_release_snap_id(int* result);
 
-  Context *send_notify_unquiesce();
-  Context *handle_notify_unquiesce(int *result);
+  Context* send_notify_unquiesce();
+  Context* handle_notify_unquiesce(int* result);
 
   void update_snap_context();
 
-  void save_result(int *result) {
+  void
+  save_result(int* result)
+  {
     if (m_ret_val == 0 && *result < 0) {
       m_ret_val = *result;
     }

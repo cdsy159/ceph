@@ -14,22 +14,28 @@
  */
 
 #include "uuid.h"
-#include "random.h"
-#include "common/Formatter.h"
+
+#include <random>
 
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include <random>
+#include "common/Formatter.h"
 
-void uuid_d::generate_random() {
+#include "random.h"
+
+void
+uuid_d::generate_random()
+{
   random_device_t rng;
   boost::uuids::basic_random_generator gen(rng);
   uuid = gen();
 }
 
-bool uuid_d::parse(const char *s) {
+bool
+uuid_d::parse(const char* s)
+{
   try {
     boost::uuids::string_generator gen;
     uuid = gen(s);
@@ -39,20 +45,26 @@ bool uuid_d::parse(const char *s) {
   }
 }
 
-void uuid_d::print(char *s) const {
+void
+uuid_d::print(char* s) const
+{
   memcpy(s, boost::uuids::to_string(uuid).c_str(), 37);
 }
 
-std::string uuid_d::to_string() const {
+std::string
+uuid_d::to_string() const
+{
   return boost::uuids::to_string(uuid);
 }
 
-void uuid_d::dump(ceph::Formatter *f) const
+void
+uuid_d::dump(ceph::Formatter* f) const
 {
   f->dump_stream("uuid") << to_string();
 }
 
-std::list<uuid_d> uuid_d::generate_test_instances()
+std::list<uuid_d>
+uuid_d::generate_test_instances()
 {
   std::list<uuid_d> o;
   // these are sourced from examples at

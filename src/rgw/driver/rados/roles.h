@@ -17,63 +17,76 @@
 
 #include <list>
 #include <string>
-#include "include/rados/librados_fwd.hpp"
+
 #include "include/encoding.h"
+#include "include/rados/librados_fwd.hpp"
+
 #include "rgw_sal_fwd.h"
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 class DoutPrefixProvider;
 class optional_yield;
 struct rgw_raw_obj;
 struct RGWRoleInfo;
 
-
 namespace rgwrados::roles {
 
 /// Add the given role to the list.
-int add(const DoutPrefixProvider* dpp,
-        optional_yield y,
-        librados::Rados& rados,
-        const rgw_raw_obj& obj,
-        const RGWRoleInfo& role,
-        bool exclusive, uint32_t limit);
+int add(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const RGWRoleInfo& role,
+    bool exclusive,
+    uint32_t limit);
 
 /// Look up a role's id by name in the list.
-int get(const DoutPrefixProvider* dpp,
-        optional_yield y,
-        librados::Rados& rados,
-        const rgw_raw_obj& obj,
-        std::string_view name,
-        std::string& role_id);
+int get(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view name,
+    std::string& role_id);
 
 /// Remove the given role from the list.
-int remove(const DoutPrefixProvider* dpp,
-           optional_yield y,
-           librados::Rados& rados,
-           const rgw_raw_obj& obj,
-           std::string_view name);
+int remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view name);
 
 /// Return a paginated listing of role ids.
-int list(const DoutPrefixProvider* dpp,
-         optional_yield y,
-         librados::Rados& rados,
-         const rgw_raw_obj& obj,
-         std::string_view marker,
-         std::string_view path_prefix,
-         uint32_t max_items,
-         std::vector<std::string>& ids,
-         std::string& next_marker);
+int list(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    std::string_view marker,
+    std::string_view path_prefix,
+    uint32_t max_items,
+    std::vector<std::string>& ids,
+    std::string& next_marker);
 
 // role-specific metadata for cls_user_account_resource
 struct resource_metadata {
   std::string role_id;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(role_id, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(role_id, bl);
     DECODE_FINISH(bl);
@@ -82,6 +95,7 @@ struct resource_metadata {
   void dump(ceph::Formatter* f) const;
   static std::list<resource_metadata> generate_test_instances();
 };
+
 WRITE_CLASS_ENCODER(resource_metadata);
 
 } // namespace rgwrados::roles

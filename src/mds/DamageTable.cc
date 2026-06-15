@@ -14,14 +14,15 @@
  */
 
 #include "DamageTable.h"
-#include "BatchOp.h"
 
 #include "common/debug.h"
+
 #include "common/errno.h" // for cpp_strerror()
 #include "include/random.h"
-
 #include "mds/CDir.h"
 #include "mds/CInode.h"
+
+#include "BatchOp.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
@@ -33,22 +34,23 @@ namespace {
  * Record damage to a particular dirfrag, implicitly affecting
  * any dentries within it.
  */
-class DirFragDamage : public DamageEntry
-{
-  public:
+class DirFragDamage : public DamageEntry {
+public:
   inodeno_t ino;
   frag_t frag;
 
-  DirFragDamage(inodeno_t ino_, frag_t frag_)
-    : ino(ino_), frag(frag_)
+  DirFragDamage(inodeno_t ino_, frag_t frag_) :
+    ino(ino_), frag(frag_)
   {}
 
-  damage_entry_type_t get_type() const override
+  damage_entry_type_t
+  get_type() const override
   {
     return DAMAGE_ENTRY_DIRFRAG;
   }
 
-  void dump(Formatter *f) const override
+  void
+  dump(Formatter* f) const override
   {
     f->open_object_section("dir_frag_damage");
     f->dump_string("damage_type", "dir_frag");
@@ -60,13 +62,11 @@ class DirFragDamage : public DamageEntry
   }
 };
 
-
 /**
  * Record damage to a particular dname within a particular dirfrag
  */
-class DentryDamage : public DamageEntry
-{
-  public:
+class DentryDamage : public DamageEntry {
+public:
   inodeno_t ino;
   frag_t frag;
   std::string dname;
@@ -76,16 +76,18 @@ class DentryDamage : public DamageEntry
       inodeno_t ino_,
       frag_t frag_,
       std::string_view dname_,
-      snapid_t snap_id_)
-    : ino(ino_), frag(frag_), dname(dname_), snap_id(snap_id_)
+      snapid_t snap_id_) :
+    ino(ino_), frag(frag_), dname(dname_), snap_id(snap_id_)
   {}
 
-  damage_entry_type_t get_type() const override
+  damage_entry_type_t
+  get_type() const override
   {
     return DAMAGE_ENTRY_DENTRY;
   }
 
-  void dump(Formatter *f) const override
+  void
+  dump(Formatter* f) const override
   {
     f->open_object_section("dentry_damage");
     f->dump_string("damage_type", "dentry");
@@ -99,25 +101,25 @@ class DentryDamage : public DamageEntry
   }
 };
 
-
 /**
  * Record damage to our ability to look up an ino by number
  */
-class BacktraceDamage : public DamageEntry
-{
-  public:
+class BacktraceDamage : public DamageEntry {
+public:
   inodeno_t ino;
 
-  BacktraceDamage(inodeno_t ino_)
-    : ino(ino_)
+  BacktraceDamage(inodeno_t ino_) :
+    ino(ino_)
   {}
 
-  damage_entry_type_t get_type() const override
+  damage_entry_type_t
+  get_type() const override
   {
     return DAMAGE_ENTRY_BACKTRACE;
   }
 
-  void dump(Formatter *f) const override
+  void
+  dump(Formatter* f) const override
   {
     f->open_object_section("backtrace_damage");
     f->dump_string("damage_type", "backtrace");
@@ -131,25 +133,29 @@ class BacktraceDamage : public DamageEntry
 /**
  * Record about Uninline failures during scrub
  */
-class UninlineDamage : public DamageEntry
-{
-  public:
+class UninlineDamage : public DamageEntry {
+public:
   inodeno_t ino;
   mds_rank_t rank;
   int32_t failure_errno;
   std::string scrub_tag;
 
   UninlineDamage(
-    inodeno_t ino_, mds_rank_t rank_, int32_t errno_, std::string_view scrub_tag_)
-    : ino(ino_), rank(rank_), failure_errno(errno_), scrub_tag(scrub_tag_)
+      inodeno_t ino_,
+      mds_rank_t rank_,
+      int32_t errno_,
+      std::string_view scrub_tag_) :
+    ino(ino_), rank(rank_), failure_errno(errno_), scrub_tag(scrub_tag_)
   {}
 
-  damage_entry_type_t get_type() const override
+  damage_entry_type_t
+  get_type() const override
   {
     return DAMAGE_ENTRY_UNINLINE_FILE;
   }
 
-  void dump(Formatter *f) const override
+  void
+  dump(Formatter* f) const override
   {
     f->open_object_section("uninline_damage");
     f->dump_string("damage_type", "uninline");
@@ -162,7 +168,7 @@ class UninlineDamage : public DamageEntry
     f->close_section();
   }
 };
-}
+} // namespace
 
 DamageEntry::DamageEntry()
 {
@@ -170,20 +176,20 @@ DamageEntry::DamageEntry()
   reported_at = ceph_clock_now();
 }
 
-DamageEntry::~DamageEntry()
-{}
+DamageEntry::~DamageEntry() {}
 
-bool DamageTable::notify_dentry(
-    inodeno_t ino, frag_t frag,
-    snapid_t snap_id, std::string_view dname, std::string_view path)
+bool
+DamageTable::notify_dentry(
+    inodeno_t ino,
+    frag_t frag,
+    snapid_t snap_id,
+    std::string_view dname,
+    std::string_view path)
 {
   // Special cases: damage to these dirfrags is considered fatal to
   // the MDS rank that owns them.
-  if (
-      (MDS_INO_IS_MDSDIR(ino) && MDS_INO_MDSDIR_OWNER(ino) == rank)
-      ||
-      (MDS_INO_IS_STRAY(ino) && MDS_INO_STRAY_OWNER(ino) == rank)
-     ) {
+  if ((MDS_INO_IS_MDSDIR(ino) && MDS_INO_MDSDIR_OWNER(ino) == rank) ||
+      (MDS_INO_IS_STRAY(ino) && MDS_INO_STRAY_OWNER(ino) == rank)) {
     derr << "Damage to dentries in fragment " << frag << " of ino " << ino
          << " is fatal because it is a system directory for this rank" << dendl;
     return true;
@@ -197,7 +203,8 @@ bool DamageTable::notify_dentry(
   }
 
   auto& df_dentries = dentries[DirFragIdent(ino, frag)];
-  if (auto [it, inserted] = df_dentries.try_emplace(DentryIdent(dname, snap_id)); inserted) {
+  if (auto [it, inserted] = df_dentries.try_emplace(DentryIdent(dname, snap_id));
+      inserted) {
     auto entry = std::make_shared<DentryDamage>(ino, frag, dname, snap_id);
     entry->path = path;
     it->second = entry;
@@ -207,13 +214,13 @@ bool DamageTable::notify_dentry(
   return false;
 }
 
-bool DamageTable::notify_dirfrag(inodeno_t ino, frag_t frag,
-                                 std::string_view path)
+bool
+DamageTable::notify_dirfrag(inodeno_t ino, frag_t frag, std::string_view path)
 {
   // Special cases: damage to these dirfrags is considered fatal to
   // the MDS rank that owns them.
-  if ((MDS_INO_IS_STRAY(ino) && MDS_INO_STRAY_OWNER(ino) == rank)
-      || (ino == CEPH_INO_ROOT)) {
+  if ((MDS_INO_IS_STRAY(ino) && MDS_INO_STRAY_OWNER(ino) == rank) ||
+      (ino == CEPH_INO_ROOT)) {
     derr << "Damage to fragment " << frag << " of ino " << ino
          << " is fatal because it is a system directory for this rank" << dendl;
     return true;
@@ -226,7 +233,8 @@ bool DamageTable::notify_dirfrag(inodeno_t ino, frag_t frag,
     return true;
   }
 
-  if (auto [it, inserted] = dirfrags.try_emplace(DirFragIdent(ino, frag)); inserted) {
+  if (auto [it, inserted] = dirfrags.try_emplace(DirFragIdent(ino, frag));
+      inserted) {
     DamageEntryRef entry = std::make_shared<DirFragDamage>(ino, frag);
     entry->path = path;
     it->second = entry;
@@ -236,7 +244,8 @@ bool DamageTable::notify_dirfrag(inodeno_t ino, frag_t frag,
   return false;
 }
 
-bool DamageTable::notify_remote_damaged(inodeno_t ino, std::string_view path)
+bool
+DamageTable::notify_remote_damaged(inodeno_t ino, std::string_view path)
 {
   if (oversized()) {
     derr << "Damage to remote " << path << " of ino " << ino
@@ -255,39 +264,41 @@ bool DamageTable::notify_remote_damaged(inodeno_t ino, std::string_view path)
   return false;
 }
 
-void DamageTable::remove_dentry_damage_entry(CDir *dir)
+void
+DamageTable::remove_dentry_damage_entry(CDir* dir)
 {
-  if (dentries.count(
-        DirFragIdent(dir->inode->ino(), dir->frag)
-        ) > 0){
-          const auto frag_dentries =
-            dentries.at(DirFragIdent(dir->inode->ino(), dir->frag));
-          for(const auto &i : frag_dentries) {
-            erase(i.second->id);
-          }
-        }
+  if (dentries.count(DirFragIdent(dir->inode->ino(), dir->frag)) > 0) {
+    const auto frag_dentries =
+        dentries.at(DirFragIdent(dir->inode->ino(), dir->frag));
+    for (const auto& i : frag_dentries) {
+      erase(i.second->id);
+    }
+  }
 }
 
-void DamageTable::remove_dirfrag_damage_entry(CDir *dir)
+void
+DamageTable::remove_dirfrag_damage_entry(CDir* dir)
 {
-  if (is_dirfrag_damaged(dir)){
+  if (is_dirfrag_damaged(dir)) {
     erase(dirfrags.find(DirFragIdent(dir->inode->ino(), dir->frag))->second->id);
   }
 }
 
-void DamageTable::remove_backtrace_damage_entry(inodeno_t ino)
-{  
-  if (is_remote_damaged(ino)){
+void
+DamageTable::remove_backtrace_damage_entry(inodeno_t ino)
+{
+  if (is_remote_damaged(ino)) {
     erase(remotes.find(ino)->second->id);
-  }  
+  }
 }
 
-bool DamageTable::notify_uninline_failed(
-  inodeno_t ino,
-  mds_rank_t rank,
-  int32_t failure_errno,
-  std::string_view scrub_tag,
-  std::string_view path)
+bool
+DamageTable::notify_uninline_failed(
+    inodeno_t ino,
+    mds_rank_t rank,
+    int32_t failure_errno,
+    std::string_view scrub_tag,
+    std::string_view path)
 {
   if (oversized()) {
     derr << "Uninline failure for " << path << " of ino " << ino
@@ -306,52 +317,54 @@ bool DamageTable::notify_uninline_failed(
   return false;
 }
 
-bool DamageTable::oversized() const
+bool
+DamageTable::oversized() const
 {
   return by_id.size() > (size_t)(g_conf()->mds_damage_table_max_entries);
 }
 
-bool DamageTable::is_dentry_damaged(
-        const CDir *dir_frag,
-        std::string_view dname,
-        const snapid_t snap_id) const
+bool
+DamageTable::is_dentry_damaged(
+    const CDir* dir_frag,
+    std::string_view dname,
+    const snapid_t snap_id) const
 {
-  if (dentries.count(
-        DirFragIdent(dir_frag->inode->ino(), dir_frag->frag)
-        ) == 0) {
+  if (dentries.count(DirFragIdent(dir_frag->inode->ino(), dir_frag->frag)) ==
+      0) {
     return false;
   }
 
-  const std::map<DentryIdent, DamageEntryRef> &frag_dentries =
-    dentries.at(DirFragIdent(dir_frag->inode->ino(), dir_frag->frag));
+  const std::map<DentryIdent, DamageEntryRef>& frag_dentries =
+      dentries.at(DirFragIdent(dir_frag->inode->ino(), dir_frag->frag));
 
   return frag_dentries.count(DentryIdent(dname, snap_id)) > 0;
 }
 
-bool DamageTable::is_dirfrag_damaged(
-    const CDir *dir_frag) const
+bool
+DamageTable::is_dirfrag_damaged(const CDir* dir_frag) const
 {
-  return dirfrags.count(
-      DirFragIdent(dir_frag->inode->ino(), dir_frag->frag)) > 0;
+  return dirfrags.count(DirFragIdent(dir_frag->inode->ino(), dir_frag->frag)) >
+         0;
 }
 
-bool DamageTable::is_remote_damaged(
-    const inodeno_t ino) const
+bool
+DamageTable::is_remote_damaged(const inodeno_t ino) const
 {
   return remotes.count(ino) > 0;
 }
 
-void DamageTable::dump(Formatter *f) const
+void
+DamageTable::dump(Formatter* f) const
 {
   f->open_array_section("damage_table");
-  for (const auto &i : by_id)
-  {
+  for (const auto& i : by_id) {
     i.second->dump(f);
   }
   f->close_section();
 }
 
-void DamageTable::erase(damage_entry_id_t damage_id)
+void
+DamageTable::erase(damage_entry_id_t damage_id)
 {
   auto by_id_entry = by_id.find(damage_id);
   if (by_id_entry == by_id.end()) {
@@ -359,7 +372,7 @@ void DamageTable::erase(damage_entry_id_t damage_id)
   }
 
   DamageEntryRef entry = by_id_entry->second;
-  ceph_assert(entry->id == damage_id);  // Sanity
+  ceph_assert(entry->id == damage_id); // Sanity
 
   const auto type = entry->get_type();
   if (type == DAMAGE_ENTRY_DIRFRAG) {
@@ -381,4 +394,3 @@ void DamageTable::erase(damage_entry_id_t damage_id)
 
   by_id.erase(by_id_entry);
 }
-

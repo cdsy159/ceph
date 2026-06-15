@@ -1,41 +1,45 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
-
 #include "common/ceph_argparse.h"
 #include "common/ceph_context.h"
 #include "common/ceph_mutex.h"
 #include "common/common_init.h"
 #include "common/lockdep.h"
-#include "include/util.h"
+#include "gtest/gtest.h"
 #include "include/coredumpctl.h"
+#include "include/util.h"
 #include "log/Log.h"
 
-class lockdep : public ::testing::Test
-{
+class lockdep : public ::testing::Test {
 protected:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
 #ifndef CEPH_DEBUG_MUTEX
-    GTEST_SKIP() << "WARNING: CEPH_DEBUG_MUTEX is not defined, lockdep will not work";
+    GTEST_SKIP()
+        << "WARNING: CEPH_DEBUG_MUTEX is not defined, lockdep will not work";
 #endif
     CephInitParameters params(CEPH_ENTITY_TYPE_CLIENT);
-    cct = common_preinit(params, CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+    cct = common_preinit(
+        params, CODE_ENVIRONMENT_UTILITY, CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
     cct->_conf->cluster = "ceph";
     cct->_conf.set_val("lockdep", "true");
     cct->_conf.apply_changes(nullptr);
     ASSERT_TRUE(g_lockdep);
   }
-  void TearDown() final
+
+  void
+  TearDown() final
   {
     if (cct) {
       cct->put();
       cct = nullptr;
     }
   }
+
 protected:
-  CephContext *cct = nullptr;
+  CephContext* cct = nullptr;
 };
 
 TEST_F(lockdep, abba)

@@ -11,52 +11,55 @@
 * License version 2.1, as published by the Free Software
 * Foundation. See file COPYING.
 */
+#include <fstream>
 #include <map>
 #include <set>
 #include <string>
-#include <fstream>
 
 #include "common/ceph_argparse.h"
 #include "common/config.h"
 #include "common/errno.h"
 #include "common/strtol.h"
 #include "common/url_escape.h"
-#include "include/types.h" // for struct byte_u_t
-
 #include "global/global_context.h"
 #include "global/global_init.h"
+#include "include/types.h" // for struct byte_u_t
 
 #include "kvstore_tool.h"
 
 using namespace std;
 
-void usage(const char *pname)
+void
+usage(const char* pname)
 {
-  std::cout << "Usage: " << pname << " <rocksdb|bluestore-kv> <store path> command [args...]\n"
-    << "\n"
-    << "Commands:\n"
-    << "  list [prefix]\n"
-    << "  list-crc [prefix]\n"
-    << "  dump [prefix]\n"
-    << "  exists <prefix> [key]\n"
-    << "  get <prefix> <key> [out <file>]\n"
-    << "  crc <prefix> <key>\n"
-    << "  get-size [<prefix> <key>]\n"
-    << "  set <prefix> <key> [ver <N>|in <file>]\n"
-    << "  rm <prefix> <key>\n"
-    << "  rm-prefix <prefix>\n"
-    << "  store-copy <path> [num-keys-per-tx] [rocksdb|...] \n"
-    << "  store-crc <path>\n"
-    << "  compact\n"
-    << "  compact-prefix <prefix>\n"
-    << "  compact-range <prefix> <start> <end>\n"
-    << "  destructive-repair  (use only as last resort! may corrupt healthy data)\n"
-    << "  stats\n"
-    << "  histogram [prefix]\n"
-    << std::endl;
+  std::cout << "Usage: " << pname
+            << " <rocksdb|bluestore-kv> <store path> command [args...]\n"
+            << "\n"
+            << "Commands:\n"
+            << "  list [prefix]\n"
+            << "  list-crc [prefix]\n"
+            << "  dump [prefix]\n"
+            << "  exists <prefix> [key]\n"
+            << "  get <prefix> <key> [out <file>]\n"
+            << "  crc <prefix> <key>\n"
+            << "  get-size [<prefix> <key>]\n"
+            << "  set <prefix> <key> [ver <N>|in <file>]\n"
+            << "  rm <prefix> <key>\n"
+            << "  rm-prefix <prefix>\n"
+            << "  store-copy <path> [num-keys-per-tx] [rocksdb|...] \n"
+            << "  store-crc <path>\n"
+            << "  compact\n"
+            << "  compact-prefix <prefix>\n"
+            << "  compact-range <prefix> <start> <end>\n"
+            << "  destructive-repair  (use only as last resort! may corrupt "
+               "healthy data)\n"
+            << "  stats\n"
+            << "  histogram [prefix]\n"
+            << std::endl;
 }
 
-int main(int argc, const char *argv[])
+int
+main(int argc, const char* argv[])
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -68,19 +71,16 @@ int main(int argc, const char *argv[])
     exit(0);
   }
 
-  map<string,string> defaults = {
-    { "debug_rocksdb", "2" }
-  };
+  map<string, string> defaults = {{"debug_rocksdb", "2"}};
 
   auto cct = global_init(
-    &defaults, args,
-    CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
-    CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+      &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   ceph_assert((int)args.size() < argc);
-  for(size_t i=0; i<args.size(); i++)
-    argv[i+1] = args[i];
+  for (size_t i = 0; i < args.size(); i++)
+    argv[i + 1] = args[i];
   argc = args.size() + 1;
 
   if (args.size() < 3) {
@@ -92,25 +92,17 @@ int main(int argc, const char *argv[])
   string path(args[1]);
   string cmd(args[2]);
 
-  if (type != "rocksdb" &&
-      type != "bluestore-kv")  {
+  if (type != "rocksdb" && type != "bluestore-kv") {
 
     std::cerr << "Unrecognized type: " << args[0] << std::endl;
     usage(argv[0]);
     return 1;
   }
 
-  bool read_only =
-    cmd == "list" ||
-    cmd == "list-crc" ||
-    cmd == "dump" ||
-    cmd == "exists" ||
-    cmd == "get" ||
-    cmd == "crc" ||
-    cmd == "get-size" ||
-    cmd == "store-crc" ||
-    cmd == "stats" ||
-    cmd == "histogram";
+  bool read_only = cmd == "list" || cmd == "list-crc" || cmd == "dump" ||
+                   cmd == "exists" || cmd == "get" || cmd == "crc" ||
+                   cmd == "get-size" || cmd == "store-crc" || cmd == "stats" ||
+                   cmd == "histogram";
   bool to_repair = (cmd == "destructive-repair");
   bool need_stats = (cmd == "stats");
   StoreTool st(type, path, read_only, to_repair, need_stats);
@@ -119,10 +111,10 @@ int main(int argc, const char *argv[])
     int ret = st.destructive_repair();
     if (!ret) {
       std::cout << "destructive-repair completed without reporting an error"
-		<< std::endl;
+                << std::endl;
     } else {
       std::cout << "destructive-repair failed with " << cpp_strerror(ret)
-		<< std::endl;
+                << std::endl;
     }
     return ret;
   } else if (cmd == "list" || cmd == "list-crc") {
@@ -151,8 +143,7 @@ int main(int argc, const char *argv[])
 
     bool ret = st.exists(prefix, key);
     std::cout << "(" << url_escape(prefix) << ", " << url_escape(key) << ") "
-      << (ret ? "exists" : "does not exist")
-      << std::endl;
+              << (ret ? "exists" : "does not exist") << std::endl;
     return (ret ? 0 : 1);
 
   } else if (cmd == "get") {
@@ -175,8 +166,7 @@ int main(int argc, const char *argv[])
     if (argc >= 7) {
       string subcmd(argv[6]);
       if (subcmd != "out") {
-        std::cerr << "unrecognized subcmd '" << subcmd << "'"
-                  << std::endl;
+        std::cerr << "unrecognized subcmd '" << subcmd << "'" << std::endl;
         return 1;
       }
       if (argc < 8) {
@@ -192,8 +182,8 @@ int main(int argc, const char *argv[])
 
       int err = bl.write_file(argv[7], 0644);
       if (err < 0) {
-        std::cerr << "error writing value to '" << out << "': "
-                  << cpp_strerror(err) << std::endl;
+        std::cerr << "error writing value to '" << out
+                  << "': " << cpp_strerror(err) << std::endl;
         return 1;
       }
     } else {
@@ -254,7 +244,7 @@ int main(int argc, const char *argv[])
     bufferlist val;
     string errstr;
     if (subcmd == "ver") {
-      version_t v = (version_t) strict_strtoll(argv[7], 10, &errstr);
+      version_t v = (version_t)strict_strtoll(argv[7], 10, &errstr);
       if (!errstr.empty()) {
         std::cerr << "error reading version: " << errstr << std::endl;
         return 1;
@@ -274,8 +264,8 @@ int main(int argc, const char *argv[])
 
     bool ret = st.set(prefix, key, val);
     if (!ret) {
-      std::cerr << "error setting ("
-                << url_escape(prefix) << "," << url_escape(key) << ")" << std::endl;
+      std::cerr << "error setting (" << url_escape(prefix) << ","
+                << url_escape(key) << ")" << std::endl;
       return 1;
     }
   } else if (cmd == "rm") {
@@ -288,9 +278,8 @@ int main(int argc, const char *argv[])
 
     bool ret = st.rm(prefix, key);
     if (!ret) {
-      std::cerr << "error removing ("
-                << url_escape(prefix) << "," << url_escape(key) << ")"
-		<< std::endl;
+      std::cerr << "error removing (" << url_escape(prefix) << ","
+                << url_escape(key) << ")" << std::endl;
       return 1;
     }
   } else if (cmd == "rm-prefix") {
@@ -302,9 +291,8 @@ int main(int argc, const char *argv[])
 
     bool ret = st.rm_prefix(prefix);
     if (!ret) {
-      std::cerr << "error removing prefix ("
-                << url_escape(prefix) << ")"
-		<< std::endl;
+      std::cerr << "error removing prefix (" << url_escape(prefix) << ")"
+                << std::endl;
       return 1;
     }
   } else if (cmd == "store-copy") {
@@ -325,7 +313,8 @@ int main(int argc, const char *argv[])
       other_store_type = argv[6];
     }
 
-    int ret = st.copy_store_to(argv[1], argv[4], num_keys_per_tx, other_store_type);
+    int ret =
+        st.copy_store_to(argv[1], argv[4], num_keys_per_tx, other_store_type);
     if (ret < 0) {
       std::cerr << "error copying store to path '" << argv[4]
                 << "': " << cpp_strerror(ret) << std::endl;

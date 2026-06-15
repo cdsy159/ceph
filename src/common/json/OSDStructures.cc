@@ -5,7 +5,9 @@
 
 using namespace ceph::messaging::osd;
 
-void OSDMapRequest::dump(Formatter* f) const {
+void
+OSDMapRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd map", f);
   encode_json("pool", pool, f);
   encode_json("object", object, f);
@@ -13,14 +15,18 @@ void OSDMapRequest::dump(Formatter* f) const {
   encode_json("format", format, f);
 }
 
-void OSDMapRequest::decode_json(JSONObj* obj) {
+void
+OSDMapRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("object", object, obj);
   JSONDecoder::decode_json("nspace", nspace, obj);
   JSONDecoder::decode_json("format", format, obj);
 }
 
-void OSDMapReply::dump(Formatter* f) const {
+void
+OSDMapReply::dump(Formatter* f) const
+{
   encode_json("epoch", epoch, f);
   encode_json("pool", pool, f);
   encode_json("pool_id", pool_id, f);
@@ -33,7 +39,9 @@ void OSDMapReply::dump(Formatter* f) const {
   encode_json("acting_primary", acting_primary, f);
 }
 
-void OSDMapReply::decode_json(JSONObj* obj) {
+void
+OSDMapReply::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("epoch", epoch, obj);
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("pool_id", pool_id, obj);
@@ -46,20 +54,26 @@ void OSDMapReply::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("acting_primary", acting_primary, obj);
 }
 
-void OSDPoolGetRequest::dump(Formatter* f) const {
+void
+OSDPoolGetRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd pool get", f);
   encode_json("pool", pool, f);
   encode_json("var", var, f);
   encode_json("format", format, f);
 }
 
-void OSDPoolGetRequest::decode_json(JSONObj* obj) {
+void
+OSDPoolGetRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("var", var, obj);
   JSONDecoder::decode_json("format", format, obj);
 }
 
-void OSDPoolGetReply::dump(Formatter* f) const {
+void
+OSDPoolGetReply::dump(Formatter* f) const
+{
   encode_json("size", size, f);
   encode_json("min_size", min_size, f);
   encode_json("pg_num", pg_num, f);
@@ -76,7 +90,9 @@ void OSDPoolGetReply::dump(Formatter* f) const {
   encode_json("allow_ec_optimizations", allow_ec_optimizations, f);
 }
 
-void OSDPoolGetReply::decode_json(JSONObj* obj) {
+void
+OSDPoolGetReply::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("size", size, obj);
   JSONDecoder::decode_json("min_size", min_size, obj);
   JSONDecoder::decode_json("pg_num", pg_num, obj);
@@ -90,10 +106,13 @@ void OSDPoolGetReply::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("nodeep-scrub", nodeep_scrub, obj);
   JSONDecoder::decode_json("erasure_code_profile", erasure_code_profile, obj);
   JSONDecoder::decode_json("fast_read", fast_read, obj);
-  JSONDecoder::decode_json("allow_ec_optimizations", allow_ec_optimizations, obj);
+  JSONDecoder::decode_json(
+      "allow_ec_optimizations", allow_ec_optimizations, obj);
 }
 
-void OSDPoolSetRequest::dump(Formatter* f) const {
+void
+OSDPoolSetRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd pool set", f);
   encode_json("pool", pool, f);
   encode_json("var", var, f);
@@ -101,30 +120,37 @@ void OSDPoolSetRequest::dump(Formatter* f) const {
   encode_json("yes_i_really_mean_it", yes_i_really_mean_it, f);
 }
 
-void OSDPoolSetRequest::decode_json(JSONObj* obj) {
+void
+OSDPoolSetRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("var", var, obj);
   JSONDecoder::decode_json("val", val, obj);
   JSONDecoder::decode_json("yes_i_really_mean_it", yes_i_really_mean_it, obj);
 }
 
-void OSDECProfileGetRequest::dump(Formatter* f) const {
+void
+OSDECProfileGetRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd erasure-code-profile get", f);
   encode_json("name", name, f);
   encode_json("format", format, f);
 }
 
-void OSDECProfileGetRequest::decode_json(JSONObj* obj) {
+void
+OSDECProfileGetRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("name", name, obj);
   JSONDecoder::decode_json("format", format, obj);
 }
 
-void OSDECProfileGetReply::dump(Formatter* f) const {
+void
+OSDECProfileGetReply::dump(Formatter* f) const
+{
   encode_json("crush-device-class", crush_device_class, f);
   encode_json("crush-failure-domain", crush_failure_domain, f);
   encode_json("crush-num-failure-domains", crush_num_failure_domains, f);
-  encode_json("crush-osds-per-failure-domain", crush_osds_per_failure_domain,
-              f);
+  encode_json("crush-osds-per-failure-domain", crush_osds_per_failure_domain, f);
   encode_json("crush-root", crush_root, f);
   encode_json("plugin", plugin, f);
   encode_json("k", k, f);
@@ -139,13 +165,15 @@ void OSDECProfileGetReply::dump(Formatter* f) const {
   encode_json("jerasure-per-chunk-alignment", jerasure_per_chunk_alignment, f);
 }
 
-void OSDECProfileGetReply::decode_json(JSONObj* obj) {
+void
+OSDECProfileGetReply::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("crush-device-class", crush_device_class, obj);
   JSONDecoder::decode_json("crush-failure-domain", crush_failure_domain, obj);
-  JSONDecoder::decode_json("crush-num-failure-domains",
-                           crush_num_failure_domains, obj);
-  JSONDecoder::decode_json("crush-osds-per-failure-domain",
-                           crush_osds_per_failure_domain, obj);
+  JSONDecoder::decode_json(
+      "crush-num-failure-domains", crush_num_failure_domains, obj);
+  JSONDecoder::decode_json(
+      "crush-osds-per-failure-domain", crush_osds_per_failure_domain, obj);
   JSONDecoder::decode_json("crush-root", crush_root, obj);
   JSONDecoder::decode_json("plugin", plugin, obj);
   JSONDecoder::decode_json("k", k, obj);
@@ -157,24 +185,30 @@ void OSDECProfileGetReply::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("technique", technique, obj);
   JSONDecoder::decode_json("layers", layers, obj);
   JSONDecoder::decode_json("mapping", mapping, obj);
-  JSONDecoder::decode_json("jerasure-per-chunk-alignment",
-                           jerasure_per_chunk_alignment, obj);
+  JSONDecoder::decode_json(
+      "jerasure-per-chunk-alignment", jerasure_per_chunk_alignment, obj);
 }
 
-void OSDECProfileSetRequest::dump(Formatter* f) const {
+void
+OSDECProfileSetRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd erasure-code-profile set", f);
   encode_json("name", name, f);
   encode_json("profile", profile, f);
   encode_json("force", force, f);
 }
 
-void OSDECProfileSetRequest::decode_json(JSONObj* obj) {
+void
+OSDECProfileSetRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("name", name, obj);
   JSONDecoder::decode_json("profile", profile, obj);
   JSONDecoder::decode_json("force", force, obj);
 }
 
-void OSDECPoolCreateRequest::dump(Formatter* f) const {
+void
+OSDECPoolCreateRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd pool create", f);
   encode_json("pool", pool, f);
   encode_json("pool_type", pool_type, f);
@@ -183,7 +217,9 @@ void OSDECPoolCreateRequest::dump(Formatter* f) const {
   encode_json("erasure_code_profile", erasure_code_profile, f);
 }
 
-void OSDECPoolCreateRequest::decode_json(JSONObj* obj) {
+void
+OSDECPoolCreateRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("pool_type", pool_type, obj);
   JSONDecoder::decode_json("pg_num", pg_num, obj);
@@ -191,40 +227,54 @@ void OSDECPoolCreateRequest::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("erasure_code_profile", erasure_code_profile, obj);
 }
 
-void OSDSetRequest::dump(Formatter* f) const {
+void
+OSDSetRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd set", f);
   encode_json("key", key, f);
   encode_json("yes_i_really_mean_it", yes_i_really_mean_it, f);
 }
 
-void OSDSetRequest::decode_json(JSONObj* obj) {
+void
+OSDSetRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("key", key, obj);
   JSONDecoder::decode_json("yes_i_really_mean_it", yes_i_really_mean_it, obj);
 }
 
-void InjectECParityRead::dump(Formatter* f) const {
+void
+InjectECParityRead::dump(Formatter* f) const
+{
   encode_json("prefix", "injectparityread", f);
   encode_json("pool", pool, f);
   encode_json("objname", objname, f);
 }
 
-void InjectECParityRead::decode_json(JSONObj* obj) {
+void
+InjectECParityRead::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("objname", objname, obj);
 }
 
-void InjectECClearParityRead::dump(Formatter* f) const {
+void
+InjectECClearParityRead::dump(Formatter* f) const
+{
   encode_json("prefix", "injectclearparityread", f);
   encode_json("pool", pool, f);
   encode_json("objname", objname, f);
 }
 
-void InjectECClearParityRead::decode_json(JSONObj* obj) {
+void
+InjectECClearParityRead::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("objname", objname, obj);
 }
 
-void OSDEnableApplicationRequest::dump(Formatter* f) const {
+void
+OSDEnableApplicationRequest::dump(Formatter* f) const
+{
   encode_json("prefix", "osd pool application enable", f);
   encode_json("pool", pool, f);
   encode_json("app", app, f);
@@ -233,7 +283,9 @@ void OSDEnableApplicationRequest::dump(Formatter* f) const {
   encode_json("value", value, f);
 }
 
-void OSDEnableApplicationRequest::decode_json(JSONObj* obj) {
+void
+OSDEnableApplicationRequest::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("pool", pool, obj);
   JSONDecoder::decode_json("app", app, obj);
   JSONDecoder::decode_json("yes_i_really_mean_it", yes_i_really_mean_it, obj);

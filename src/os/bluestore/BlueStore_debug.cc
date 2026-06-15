@@ -14,53 +14,55 @@
  */
 #include <cstdint>
 #include <ostream>
+
 #include "BlueStore.h"
 
 static const std::string transition_table[26] = {
-"bcdfghjklmnprstuvxyz", //a
-"aeiloruy",//b
-"aeiloruvy",//c
-"aeilmnoruvy",//d
-"bcdfghjklmnprstvxz",//e
+    "bcdfghjklmnprstuvxyz", //a
+    "aeiloruy", //b
+    "aeiloruvy", //c
+    "aeilmnoruvy", //d
+    "bcdfghjklmnprstvxz", //e
 
-"ailou",//f
-"aeilnoru",//g
-"aeiloru",//h
-"dfghklmnpqrstvwx",//i
-"aeiou",//j
+    "ailou", //f
+    "aeilnoru", //g
+    "aeiloru", //h
+    "dfghklmnpqrstvwx", //i
+    "aeiou", //j
 
-"aeiloru",//k
-"aeimnou",//l
-"aeinotuy",//m
-"aeiou",//n
-"bcdfghjklmnpqrstvwxz",//o
-"aehiloruy",//p
+    "aeiloru", //k
+    "aeimnou", //l
+    "aeinotuy", //m
+    "aeiou", //n
+    "bcdfghjklmnpqrstvwxz", //o
+    "aehiloruy", //p
 
-"aeiloru",//q
-"adefiklmnotuvy",//r
-"aehiklmnopqrtuvwy",//s
-"acefhiklmnorsuvwy",//t
-"bcdfghklmnpqrsvwxyz",//u
+    "aeiloru", //q
+    "adefiklmnotuvy", //r
+    "aehiklmnopqrtuvwy", //s
+    "acefhiklmnorsuvwy", //t
+    "bcdfghklmnpqrsvwxyz", //u
 
-"acdeiklmorsu",//v
-"aehilnorstu",//w
-"aeilnorstuy",//x
-"aehinorsuxz",//y
-"aeiouy" //z
+    "acdeiklmorsu", //v
+    "aehilnorstu", //w
+    "aeilnorstuy", //x
+    "aehinorsuxz", //y
+    "aeiouy" //z
 };
 
-std::string int_to_fancy_name(uint64_t x)
+std::string
+int_to_fancy_name(uint64_t x)
 {
   std::string result;
   uint8_t c = x % 26;
   x = x / 26;
-  result.push_back(c+'a');
+  result.push_back(c + 'a');
   while (x > 0) {
     uint8_t range = transition_table[c].length();
     uint8_t p = x % range;
     c = transition_table[c][p] - 'a';
     x = x / range;
-    result.push_back(c+'a');
+    result.push_back(c + 'a');
   }
   return result;
 }
@@ -68,9 +70,15 @@ std::string int_to_fancy_name(uint64_t x)
 // Use special printing for multiplies of 1024; print K suffix
 struct maybe_K {
   uint32_t x;
-  maybe_K(uint32_t x) : x(x) {}
+
+  maybe_K(uint32_t x) :
+    x(x)
+  {}
 };
-std::ostream &operator<<(std::ostream &out, const maybe_K &k) {
+
+std::ostream&
+operator<<(std::ostream& out, const maybe_K& k)
+{
   if (((k.x & 0x3ff) == 0) && (k.x != 0)) {
     if (k.x != 0x400)
       out << (k.x / 0x400);
@@ -80,10 +88,13 @@ std::ostream &operator<<(std::ostream &out, const maybe_K &k) {
   }
   return out;
 }
+
 // cheap, not very reliable but portable detector where heap starts
 static std::unique_ptr<char> heap_begin(new char);
 std::ostream& operator<<(std::ostream& out, const BlueStore::Buffer& b);
-std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
+
+std::ostream&
+operator<<(std::ostream& out, const BlueStore::Blob::printer& p)
 {
   using P = BlueStore::printer;
   out << "Blob(";
@@ -105,7 +116,8 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
     const PExtentVector& ev = bblob.get_extents();
     uint64_t bits = 0;
     for (auto i : ev) {
-      if (i.is_valid()) bits |= i.offset;
+      if (i.is_valid())
+        bits |= i.offset;
       bits |= i.length;
     }
     uint32_t zeros = 0; //zeros to apply to all values
@@ -132,8 +144,8 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
     }
   }
   //always print lengths, if not printing use tracker
-  if ((!(p.mode & (P::USE | P::SUSE)) || bblob.is_compressed())
-    && !(p.mode & P::JUSTID)) {
+  if ((!(p.mode & (P::USE | P::SUSE)) || bblob.is_compressed()) &&
+      !(p.mode & P::JUSTID)) {
     // Need to print blob logical length, no tracker printing
     // + there is no real tracker for compressed blobs
     if (bblob.is_compressed()) {
@@ -149,7 +161,8 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
   if (p.mode & P::SUSE) {
     auto& tracker = p.blob.get_blob_use_tracker();
     if (bblob.is_compressed()) {
-      out << " [" << std::hex << tracker.get_referenced_bytes() << std::dec << "]";
+      out << " [" << std::hex << tracker.get_referenced_bytes() << std::dec
+          << "]";
     } else {
       const uint32_t* au_array = tracker.get_au_array();
       uint16_t zeros = 0;
@@ -157,13 +170,18 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
       uint16_t num_au = tracker.get_num_au();
       uint32_t au_size = tracker.au_size;
       uint32_t def = std::numeric_limits<uint32_t>::max();
-      out << " track=" << tracker.get_num_au() << "*" << maybe_K(tracker.au_size);
+      out << " track=" << tracker.get_num_au() << "*"
+          << maybe_K(tracker.au_size);
       for (size_t i = 0; i < num_au; i++) {
-        if (au_array[i] == 0) ++zeros;
-        if (au_array[i] == au_size) ++full;
+        if (au_array[i] == 0)
+          ++zeros;
+        if (au_array[i] == au_size)
+          ++full;
       }
-      if (zeros >= num_au - 3 && num_au > 6) def = 0;
-      if (full >= num_au - 3 && num_au > 6) def = au_size;
+      if (zeros >= num_au - 3 && num_au > 6)
+        def = 0;
+      if (full >= num_au - 3 && num_au > 6)
+        def = au_size;
       if (def != std::numeric_limits<uint32_t>::max()) {
         out << " {" << maybe_K(def) << "}[";
         for (size_t i = 0; i < num_au; i++) {
@@ -181,7 +199,8 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
       } else {
         out << " [";
         for (size_t i = 0; i < num_au; i++) {
-          if (i != 0) out << ",";
+          if (i != 0)
+            out << ",";
           out << maybe_K(au_array[i]);
         }
         out << "]";
@@ -204,35 +223,34 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Blob::printer &p)
   if (!(p.mode & P::JUSTID) && p.blob.is_spanning()) {
     out << " spanning.id=" << p.blob.id;
   }
-  if (!(p.mode & P::JUSTID) &&
-    p.blob.shared_blob &&
-    (p.blob.shared_blob->get_sbid() != 0)) {
+  if (!(p.mode & P::JUSTID) && p.blob.shared_blob &&
+      (p.blob.shared_blob->get_sbid() != 0)) {
     out << " " << *p.blob.shared_blob;
   }
   out << ")";
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const BlueStore::Extent::printer &p)
+std::ostream&
+operator<<(std::ostream& out, const BlueStore::Extent::printer& p)
 {
   out << std::hex << "0x" << p.ext.logical_offset << "~" << p.ext.length
-    << ": 0x" << p.ext.blob_offset << "~" << p.ext.length << std::dec
-	<< " " << p.ext.blob->print(p.mode);
+      << ": 0x" << p.ext.blob_offset << "~" << p.ext.length << std::dec << " "
+      << p.ext.blob->print(p.mode);
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const BlueStore::Onode::printer &p)
+std::ostream&
+operator<<(std::ostream& out, const BlueStore::Onode::printer& p)
 {
   using P = BlueStore::printer;
   const BlueStore::Onode& o = p.onode;
   uint16_t mode = p.mode;
-  out << &o << " " << o.oid
-      << " nid " << o.onode.nid
-      << " size 0x" << std::hex << o.onode.size
-      << " (" << std::dec << o.onode.size << ")"
+  out << &o << " " << o.oid << " nid " << o.onode.nid << " size 0x" << std::hex
+      << o.onode.size << " (" << std::dec << o.onode.size << ")"
       << " expected_object_size " << o.onode.expected_object_size
-      << " expected_write_size " << o.onode.expected_write_size
-      << " in " << o.onode.extent_map_shards.size() << " shards";
+      << " expected_write_size " << o.onode.expected_write_size << " in "
+      << o.onode.extent_map_shards.size() << " shards";
   if (o.onode.extent_map_shards.size() > 0) {
     out << ":" << std::hex;
     for (auto& s : o.onode.extent_map_shards) {
@@ -240,8 +258,7 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Onode::printer &p)
     }
     out << std::dec;
   }
-  out << ", " << o.extent_map.spanning_blob_map.size()
-      << " spanning blobs";
+  out << ", " << o.extent_map.spanning_blob_map.size() << " spanning blobs";
   const BlueStore::ExtentMap& map = o.extent_map;
   std::set<BlueStore::Blob*> visited;
   // to make printing extents in-sync with blobs
@@ -266,9 +283,10 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Onode::printer &p)
       out << " bufs(";
       bool space = false;
       for (auto& i : o.bc.buffer_map) {
-        if (space) out << " ";
+        if (space)
+          out << " ";
         out << "0x" << std::hex << i.offset << "~" << i.length << std::dec
-          << BlueStore::Buffer::get_state_name_short(i.state);
+            << BlueStore::Buffer::get_state_name_short(i.state);
         if (i.flags) {
           out << "," << BlueStore::Buffer::get_flag_name(i.flags);
         }
@@ -277,9 +295,9 @@ std::ostream& operator<<(std::ostream& out, const BlueStore::Onode::printer &p)
       out << ")";
     } else {
       for (auto& i : o.bc.buffer_map) {
-        out << std::endl << "  0x" << std::hex << i.offset
-          << "~" << i.length << std::dec
-          << " " << i;
+        out << std::endl
+            << "  0x" << std::hex << i.offset << "~" << i.length << std::dec
+            << " " << i;
       }
     }
   }

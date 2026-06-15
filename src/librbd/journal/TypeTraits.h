@@ -10,7 +10,7 @@ namespace journal {
 class Future;
 class Journaler;
 class ReplayEntry;
-}
+} // namespace journal
 
 namespace librbd {
 namespace journal {

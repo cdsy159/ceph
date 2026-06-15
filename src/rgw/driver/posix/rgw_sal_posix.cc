@@ -14,19 +14,23 @@
  */
 
 #include "rgw_sal_posix.h"
+
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <unistd.h>
-#include "rgw_multi.h"
-#include "include/scope_guard.h"
+
 #include "common/Clock.h" // for ceph_clock_now()
 #include "common/errno.h"
+#include "include/scope_guard.h"
+
+#include "rgw_multi.h"
 
 #define dout_subsys ceph_subsys_rgw
 #define dout_context g_ceph_context
 
-namespace rgw { namespace sal {
+namespace rgw {
+namespace sal {
 
 const int64_t READ_SIZE = 128 * 1024;
 const std::string ATTR_PREFIX = "user.X-RGW-";
@@ -45,32 +49,39 @@ struct POSIXOwner {
   POSIXOwner() {}
 
   POSIXOwner(const rgw_user& _u, const std::string& _n) :
-    user(_u),
-    display_name(_n)
-    {}
+    user(_u), display_name(_n)
+  {}
 
-  void encode(bufferlist &bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(user, bl);
     encode(display_name, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator &bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(user, bl);
     decode(display_name, bl);
     DECODE_FINISH(bl);
   }
-  friend inline std::ostream &operator<<(std::ostream &out,
-                                         const POSIXOwner &o) {
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const POSIXOwner& o)
+  {
     out << o.user << ":" << o.display_name;
     return out;
   }
 };
+
 WRITE_CLASS_ENCODER(POSIXOwner);
 
-std::string get_key_fname(rgw_obj_key& key, bool use_version)
+std::string
+get_key_fname(rgw_obj_key& key, bool use_version)
 {
   std::string oid;
   if (use_version) {
@@ -88,9 +99,13 @@ std::string get_key_fname(rgw_obj_key& key, bool use_version)
   return fname;
 }
 
-static inline std::string gen_rand_instance_name()
+static inline std::string
+gen_rand_instance_name()
 {
-  enum { OBJ_INSTANCE_LEN = 32 };
+  enum {
+    OBJ_INSTANCE_LEN = 32
+  };
+
   char buf[OBJ_INSTANCE_LEN + 1];
 
 #if 0
@@ -104,7 +119,8 @@ static inline std::string gen_rand_instance_name()
   return buf;
 }
 
-static inline std::string bucket_fname(std::string name, std::optional<std::string>& ns)
+static inline std::string
+bucket_fname(std::string name, std::optional<std::string>& ns)
 {
   std::string bname;
 
@@ -116,7 +132,8 @@ static inline std::string bucket_fname(std::string name, std::optional<std::stri
   return bname;
 }
 
-static inline bool get_attr(Attrs& attrs, const char* name, bufferlist& bl)
+static inline bool
+get_attr(Attrs& attrs, const char* name, bufferlist& bl)
 {
   auto iter = attrs.find(name);
   if (iter == attrs.end()) {
@@ -128,7 +145,9 @@ static inline bool get_attr(Attrs& attrs, const char* name, bufferlist& bl)
 }
 
 template <typename F>
-static bool decode_attr(Attrs &attrs, const char *name, F &f) {
+static bool
+decode_attr(Attrs& attrs, const char* name, F& f)
+{
   bufferlist bl;
   if (!get_attr(attrs, name, bl)) {
     return false;
@@ -136,14 +155,15 @@ static bool decode_attr(Attrs &attrs, const char *name, F &f) {
   try {
     auto bufit = bl.cbegin();
     decode(f, bufit);
-  } catch (buffer::error &err) {
+  } catch (buffer::error& err) {
     return false;
   }
 
   return true;
 }
 
-static inline rgw_obj_key decode_obj_key(const char* fname)
+static inline rgw_obj_key
+decode_obj_key(const char* fname)
 {
   std::string dname, oname, ns;
   dname = url_decode(fname);
@@ -152,12 +172,14 @@ static inline rgw_obj_key decode_obj_key(const char* fname)
   return key;
 }
 
-static inline rgw_obj_key decode_obj_key(const std::string& fname)
+static inline rgw_obj_key
+decode_obj_key(const std::string& fname)
 {
   return decode_obj_key(fname.c_str());
 }
 
-int decode_owner(Attrs& attrs, POSIXOwner& owner)
+int
+decode_owner(Attrs& attrs, POSIXOwner& owner)
 {
   bufferlist bl;
   if (!decode_attr(attrs, RGW_POSIX_ATTR_OWNER, owner)) {
@@ -167,19 +189,29 @@ int decode_owner(Attrs& attrs, POSIXOwner& owner)
   return 0;
 }
 
-static inline ceph::real_time from_statx_timestamp(const struct statx_timestamp& xts)
+static inline ceph::real_time
+from_statx_timestamp(const struct statx_timestamp& xts)
 {
-  struct timespec ts{xts.tv_sec, xts.tv_nsec};
+  struct timespec ts {
+    xts.tv_sec, xts.tv_nsec
+  };
+
   return ceph::real_clock::from_timespec(ts);
 }
 
-static inline int copy_dir_fd(int old_fd)
+static inline int
+copy_dir_fd(int old_fd)
 {
   return openat(old_fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
 }
 
-static int get_x_attrs(optional_yield y, const DoutPrefixProvider* dpp, int fd,
-		       Attrs& attrs, const std::string& display)
+static int
+get_x_attrs(
+    optional_yield y,
+    const DoutPrefixProvider* dpp,
+    int fd,
+    Attrs& attrs,
+    const std::string& display)
 {
   char namebuf[64 * 1024]; // Max list size supported on linux
   ssize_t buflen;
@@ -188,12 +220,12 @@ static int get_x_attrs(optional_yield y, const DoutPrefixProvider* dpp, int fd,
   buflen = flistxattr(fd, namebuf, sizeof(namebuf));
   if (buflen < 0) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not list attributes for " << display << ": "
-      << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not list attributes for " << display
+                      << ": " << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
-  char *keyptr = namebuf;
+  char* keyptr = namebuf;
   while (buflen > 0) {
     std::string value;
     ssize_t vallen, keylen;
@@ -216,7 +248,9 @@ static int get_x_attrs(optional_yield y, const DoutPrefixProvider* dpp, int fd,
     vallen = fgetxattr(fd, keyptr, nullptr, 0);
     if (vallen < 0) {
       ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not get attribute " << keyptr << " for " << display << ": " << cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not get attribute " << keyptr
+                        << " for " << display << ": " << cpp_strerror(ret)
+                        << dendl;
       return -ret;
     } else if (vallen == 0) {
       /* No attribute value for this name */
@@ -231,13 +265,16 @@ static int get_x_attrs(optional_yield y, const DoutPrefixProvider* dpp, int fd,
     vallen = fgetxattr(fd, keyptr, vp, vallen);
     if (vallen < 0) {
       ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not get attribute " << keyptr << " for " << display << ": " << cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not get attribute " << keyptr
+                        << " for " << display << ": " << cpp_strerror(ret)
+                        << dendl;
       return -ret;
     }
 
     bufferlist bl;
     bl.append(vp, vallen);
-    attrs.emplace(std::move(key), std::move(bl)); /* key and bl are r-value refs */
+    attrs.emplace(
+        std::move(key), std::move(bl)); /* key and bl are r-value refs */
 
     buflen -= keylen;
     keyptr += keylen;
@@ -246,9 +283,14 @@ static int get_x_attrs(optional_yield y, const DoutPrefixProvider* dpp, int fd,
   return 0;
 }
 
-static int write_x_attr(const DoutPrefixProvider* dpp, optional_yield y, int fd,
-			const std::string& key, bufferlist& value,
-			const std::string& display)
+static int
+write_x_attr(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    int fd,
+    const std::string& key,
+    bufferlist& value,
+    const std::string& display)
 {
   int ret;
   std::string attrname;
@@ -258,16 +300,22 @@ static int write_x_attr(const DoutPrefixProvider* dpp, optional_yield y, int fd,
   ret = fsetxattr(fd, attrname.c_str(), value.c_str(), value.length(), 0);
   if (ret < 0) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not write attribute " << attrname << " for " << display << ": " << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not write attribute " << attrname
+                      << " for " << display << ": " << cpp_strerror(ret)
+                      << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-static int remove_x_attr(const DoutPrefixProvider *dpp, optional_yield y,
-                         int fd, const std::string &key,
-                         const std::string &display)
+static int
+remove_x_attr(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    int fd,
+    const std::string& key,
+    const std::string& display)
 {
   int ret;
   std::string attrname{ATTR_PREFIX + key};
@@ -275,20 +323,26 @@ static int remove_x_attr(const DoutPrefixProvider *dpp, optional_yield y,
   ret = fremovexattr(fd, attrname.c_str());
   if (ret < 0) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not remove attribute " << attrname << " for " << display << ": " << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not remove attribute " << attrname
+                      << " for " << display << ": " << cpp_strerror(ret)
+                      << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-static int delete_directory(int parent_fd, const char* dname, bool delete_children,
-		     const DoutPrefixProvider* dpp)
+static int
+delete_directory(
+    int parent_fd,
+    const char* dname,
+    bool delete_children,
+    const DoutPrefixProvider* dpp)
 {
   int ret;
   int dir_fd = -1;
-  DIR *dir;
-  struct dirent *entry;
+  DIR* dir;
+  struct dirent* entry;
 
   dir_fd = openat(parent_fd, dname, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
   if (dir_fd < 0) {
@@ -358,7 +412,7 @@ static int delete_directory(int parent_fd, const char* dname, bool delete_childr
     ret = errno;
     if (errno != ENOENT) {
       ldpp_dout(dpp, 0) << "ERROR: could not remove bucket " << dname << ": "
-	<< cpp_strerror(ret) << dendl;
+                        << cpp_strerror(ret) << dendl;
       return -ret;
     }
   }
@@ -366,7 +420,8 @@ static int delete_directory(int parent_fd, const char* dname, bool delete_childr
   return 0;
 }
 
-int FSEnt::stat(const DoutPrefixProvider* dpp, bool force)
+int
+FSEnt::stat(const DoutPrefixProvider* dpp, bool force)
 {
   if (force) {
     stat_done = false;
@@ -376,12 +431,12 @@ int FSEnt::stat(const DoutPrefixProvider* dpp, bool force)
     return 0;
   }
 
-  int ret = statx(parent->get_fd(), fname.c_str(), AT_SYMLINK_NOFOLLOW,
-		  STATX_ALL, &stx);
+  int ret = statx(
+      parent->get_fd(), fname.c_str(), AT_SYMLINK_NOFOLLOW, STATX_ALL, &stx);
   if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not stat " << get_name() << ": "
-                  << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     exist = false;
     return -ret;
   }
@@ -391,7 +446,12 @@ int FSEnt::stat(const DoutPrefixProvider* dpp, bool force)
   return 0;
 }
 
-int FSEnt::write_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs, Attrs* extra_attrs)
+int
+FSEnt::write_attrs(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Attrs& attrs,
+    Attrs* extra_attrs)
 {
   int ret = open(dpp);
   if (ret < 0) {
@@ -405,7 +465,7 @@ int FSEnt::write_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& a
   attrs[RGW_POSIX_ATTR_OBJECT_TYPE] = type_bl;
 
   if (extra_attrs) {
-    for (auto &it : *extra_attrs) {
+    for (auto& it : *extra_attrs) {
       ret = write_x_attr(dpp, y, fd, it.first, it.second, get_name());
       if (ret < 0) {
         return ret;
@@ -423,7 +483,8 @@ int FSEnt::write_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& a
   return 0;
 }
 
-int FSEnt::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs)
+int
+FSEnt::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs)
 {
   int ret = open(dpp);
   if (ret < 0) {
@@ -433,7 +494,11 @@ int FSEnt::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& at
   return get_x_attrs(y, dpp, get_fd(), attrs, get_name());
 }
 
-int FSEnt::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_cache_cb_t& cb)
+int
+FSEnt::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
   rgw_bucket_dir_entry bde{};
 
@@ -446,21 +511,21 @@ int FSEnt::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_cach
   bde.ver.epoch = 1;
 
   switch (parent->get_type().type) {
-    case ObjectType::VERSIONED:
-      bde.flags = rgw_bucket_dir_entry::FLAG_VER;
-      bde.exists = true;
-      if (!key.have_instance()) {
-	  bde.flags |= rgw_bucket_dir_entry::FLAG_CURRENT;
-      }
-      break;
-    case ObjectType::MULTIPART:
-    case ObjectType::DIRECTORY:
-      bde.exists = true;
-      break;
-    case ObjectType::UNKNOWN:
-    case ObjectType::FILE:
-    case ObjectType::SYMLINK:
-      return -EINVAL;
+  case ObjectType::VERSIONED:
+    bde.flags = rgw_bucket_dir_entry::FLAG_VER;
+    bde.exists = true;
+    if (!key.have_instance()) {
+      bde.flags |= rgw_bucket_dir_entry::FLAG_CURRENT;
+    }
+    break;
+  case ObjectType::MULTIPART:
+  case ObjectType::DIRECTORY:
+    bde.exists = true;
+    break;
+  case ObjectType::UNKNOWN:
+  case ObjectType::FILE:
+  case ObjectType::SYMLINK:
+    return -EINVAL;
   }
 
   Attrs attrs;
@@ -495,11 +560,12 @@ int FSEnt::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_cach
   return cb(dpp, bde);
 }
 
-int File::create(const DoutPrefixProvider *dpp, bool* existed, bool temp_file)
+int
+File::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
 {
   int flags, ret;
   std::string path;
-  if(temp_file) {
+  if (temp_file) {
     flags = O_TMPFILE | O_RDWR;
     path = ".";
   } else {
@@ -516,14 +582,15 @@ int File::create(const DoutPrefixProvider *dpp, bool* existed, bool temp_file)
     ldpp_dout(dpp, 0) << "ERROR: could not open object " << get_name() << ": "
                       << cpp_strerror(ret) << dendl;
     return -ret;
-    }
+  }
 
   fd = ret;
 
   return 0;
 }
 
-int File::open(const DoutPrefixProvider* dpp)
+int
+File::open(const DoutPrefixProvider* dpp)
 {
   if (fd >= 0) {
     return 0;
@@ -535,26 +602,27 @@ int File::open(const DoutPrefixProvider* dpp)
     ldpp_dout(dpp, 0) << "ERROR: could not open object " << get_name() << ": "
                       << cpp_strerror(ret) << dendl;
     return -ret;
-    }
+  }
 
   fd = ret;
 
   return 0;
 }
 
-int File::close()
+int
+File::close()
 {
   if (fd < 0) {
     return 0;
   }
 
   int ret = ::fsync(fd);
-  if(ret < 0) {
+  if (ret < 0) {
     return ret;
   }
 
   ret = ::close(fd);
-  if(ret < 0) {
+  if (ret < 0) {
     return ret;
   }
   fd = -1;
@@ -562,8 +630,8 @@ int File::close()
   return 0;
 }
 
-
-int File::stat(const DoutPrefixProvider* dpp, bool force)
+int
+File::stat(const DoutPrefixProvider* dpp, bool force)
 {
   int ret = FSEnt::stat(dpp, force);
   if (ret < 0) {
@@ -579,17 +647,21 @@ int File::stat(const DoutPrefixProvider* dpp, bool force)
   return 0;
 }
 
-int File::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
-		       optional_yield y)
+int
+File::write(
+    int64_t ofs,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   int64_t left = bl.length();
   char* curp = bl.c_str();
   ssize_t ret;
 
-  ret = fchmod(fd, S_IRUSR|S_IWUSR);
-  if(ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not change permissions on object " << get_name() << ": "
-                  << cpp_strerror(ret) << dendl;
+  ret = fchmod(fd, S_IRUSR | S_IWUSR);
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "ERROR: could not change permissions on object "
+                      << get_name() << ": " << cpp_strerror(ret) << dendl;
     return ret;
   }
 
@@ -598,7 +670,7 @@ int File::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
   if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not seek object " << get_name() << " to "
-      << ofs << " :" << cpp_strerror(ret) << dendl;
+                      << ofs << " :" << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
@@ -606,8 +678,8 @@ int File::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
     ret = ::write(fd, curp, left);
     if (ret < 0) {
       ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not write object " << get_name() << ": "
-	<< cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not write object " << get_name()
+                        << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     }
 
@@ -618,8 +690,13 @@ int File::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int File::read(int64_t ofs, int64_t left, bufferlist& bl,
-		      const DoutPrefixProvider* dpp, optional_yield y)
+int
+File::read(
+    int64_t ofs,
+    int64_t left,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   int64_t len = std::min(left, READ_SIZE);
   ssize_t ret;
@@ -630,24 +707,28 @@ int File::read(int64_t ofs, int64_t left, bufferlist& bl,
     ldpp_dout(dpp, 0) << "ERROR: could not seek object " << get_name() << " to "
                       << ofs << " :" << cpp_strerror(ret) << dendl;
     return -ret;
-    }
+  }
 
-    char read_buf[READ_SIZE];
-    ret = ::read(fd, read_buf, len);
-    if (ret < 0) {
-      ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not read object " << get_name() << ": "
-	<< cpp_strerror(ret) << dendl;
-      return -ret;
-    }
+  char read_buf[READ_SIZE];
+  ret = ::read(fd, read_buf, len);
+  if (ret < 0) {
+    ret = errno;
+    ldpp_dout(dpp, 0) << "ERROR: could not read object " << get_name() << ": "
+                      << cpp_strerror(ret) << dendl;
+    return -ret;
+  }
 
-    bl.append(read_buf, ret);
+  bl.append(read_buf, ret);
 
-    return ret;
+  return ret;
 }
 
-int File::copy(const DoutPrefixProvider *dpp, optional_yield y,
-                      Directory* dst_dir, const std::string& dst_name)
+int
+File::copy(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Directory* dst_dir,
+    const std::string& dst_name)
 {
   off64_t scount = 0, dcount = 0;
 
@@ -691,8 +772,8 @@ int File::copy(const DoutPrefixProvider *dpp, optional_yield y,
   }
   ret = dest->open(dpp);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not open dest file "
-                      << dest->get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not open dest file " << dest->get_name()
+                      << dendl;
     return ret;
   }
 
@@ -707,7 +788,11 @@ int File::copy(const DoutPrefixProvider *dpp, optional_yield y,
   return 0;
 }
 
-int File::remove(const DoutPrefixProvider* dpp, optional_yield y, bool delete_children)
+int
+File::remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool delete_children)
 {
   if (!exists()) {
     return 0;
@@ -726,7 +811,11 @@ int File::remove(const DoutPrefixProvider* dpp, optional_yield y, bool delete_ch
   return 0;
 }
 
-int File::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y, std::string temp_fname)
+int
+File::link_temp_file(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string temp_fname)
 {
   if (fd < 0) {
     return 0;
@@ -734,28 +823,33 @@ int File::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y, std::s
 
   char temp_file_path[PATH_MAX];
   // Only works on Linux - Non-portable
-  snprintf(temp_file_path, PATH_MAX,  "/proc/self/fd/%d", fd);
+  snprintf(temp_file_path, PATH_MAX, "/proc/self/fd/%d", fd);
 
-  int ret = linkat(AT_FDCWD, temp_file_path, parent->get_fd(), temp_fname.c_str(), AT_SYMLINK_FOLLOW);
-  if(ret < 0) {
+  int ret = linkat(
+      AT_FDCWD, temp_file_path, parent->get_fd(), temp_fname.c_str(),
+      AT_SYMLINK_FOLLOW);
+  if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: linkat for temp file could not finish: "
-	<< cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
-  ret = renameat(parent->get_fd(), temp_fname.c_str(), parent->get_fd(), get_name().c_str());
-  if(ret < 0) {
+  ret = renameat(
+      parent->get_fd(), temp_fname.c_str(), parent->get_fd(),
+      get_name().c_str());
+  if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: renameat for object could not finish: "
-	<< cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-bool Directory::file_exists(std::string& name)
+bool
+Directory::file_exists(std::string& name)
 {
   struct statx nstx;
   int ret = statx(fd, name.c_str(), AT_SYMLINK_NOFOLLOW, STATX_ALL, &nstx);
@@ -763,10 +857,12 @@ bool Directory::file_exists(std::string& name)
   return (ret >= 0);
 }
 
-int Directory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
+int
+Directory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
 {
   if (temp_file) {
-    ldpp_dout(dpp, 0) << "ERROR: cannot create directory with temp_file " << get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: cannot create directory with temp_file "
+                      << get_name() << dendl;
     return -EINVAL;
   }
 
@@ -775,8 +871,8 @@ int Directory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_fi
     ret = errno;
     if (ret != EEXIST) {
       if (dpp)
-	ldpp_dout(dpp, 0) << "ERROR: could not create bucket " << get_name() << ": "
-	  << cpp_strerror(ret) << dendl;
+        ldpp_dout(dpp, 0) << "ERROR: could not create bucket " << get_name()
+                          << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     } else if (existed != nullptr) {
       *existed = true;
@@ -786,7 +882,8 @@ int Directory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_fi
   return 0;
 }
 
-int Directory::open(const DoutPrefixProvider* dpp)
+int
+Directory::open(const DoutPrefixProvider* dpp)
 {
   if (fd >= 0) {
     return 0;
@@ -800,7 +897,7 @@ int Directory::open(const DoutPrefixProvider* dpp)
   if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not open dir " << get_name() << ": "
-                  << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
@@ -809,7 +906,8 @@ int Directory::open(const DoutPrefixProvider* dpp)
   return 0;
 }
 
-int Directory::close()
+int
+Directory::close()
 {
   if (fd < 0) {
     return 0;
@@ -821,7 +919,8 @@ int Directory::close()
   return 0;
 }
 
-int Directory::stat(const DoutPrefixProvider* dpp, bool force)
+int
+Directory::stat(const DoutPrefixProvider* dpp, bool force)
 {
   int ret = FSEnt::stat(dpp, force);
   if (ret < 0) {
@@ -830,38 +929,56 @@ int Directory::stat(const DoutPrefixProvider* dpp, bool force)
 
   if (!S_ISDIR(stx.stx_mode)) {
     /* Not a directory */
-    ldpp_dout(dpp, 0) << "ERROR: " << get_name() << " is not a directory" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: " << get_name() << " is not a directory"
+                      << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int Directory::remove(const DoutPrefixProvider* dpp, optional_yield y, bool delete_children)
+int
+Directory::remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool delete_children)
 {
   return delete_directory(parent->get_fd(), fname.c_str(), delete_children, dpp);
 }
 
-int Directory::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
-		     optional_yield y)
+int
+Directory::write(
+    int64_t ofs,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return -EINVAL;
 }
 
-int Directory::read(int64_t ofs, int64_t left, bufferlist &bl,
-                    const DoutPrefixProvider *dpp, optional_yield y)
+int
+Directory::read(
+    int64_t ofs,
+    int64_t left,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return -EINVAL;
 }
 
-int Directory::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y,
-                              std::string temp_fname)
+int
+Directory::link_temp_file(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string temp_fname)
 {
   return -EINVAL;
 }
 
 template <typename F>
-int Directory::for_each(const DoutPrefixProvider* dpp, const F& func)
+int
+Directory::for_each(const DoutPrefixProvider* dpp, const F& func)
 {
   DIR* dir;
   struct dirent* entry;
@@ -875,8 +992,8 @@ int Directory::for_each(const DoutPrefixProvider* dpp, const F& func)
   dir = fdopendir(fd);
   if (dir == NULL) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not open dir " << get_name() << " for listing: "
-      << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not open dir " << get_name()
+                      << " for listing: " << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
@@ -910,7 +1027,12 @@ int Directory::for_each(const DoutPrefixProvider* dpp, const F& func)
   return ret;
 }
 
-int Directory::rename(const DoutPrefixProvider* dpp, optional_yield y, Directory* dst_dir, std::string dst_name)
+int
+Directory::rename(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Directory* dst_dir,
+    std::string dst_name)
 {
   int flags = 0;
   int ret;
@@ -921,11 +1043,12 @@ int Directory::rename(const DoutPrefixProvider* dpp, optional_yield y, Directory
     flags = RENAME_EXCHANGE;
   }
   // swap
-  ret = renameat2(parent_fd, src_name.c_str(), dst_dir->get_fd(), dst_name.c_str(), flags);
-  if(ret < 0) {
+  ret = renameat2(
+      parent_fd, src_name.c_str(), dst_dir->get_fd(), dst_name.c_str(), flags);
+  if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: renameat2 for shadow object could not finish: "
-	<< cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
@@ -936,15 +1059,14 @@ int Directory::rename(const DoutPrefixProvider* dpp, optional_yield y, Directory
 
   // Delete old one (could be file or directory)
   struct statx stx;
-  ret = statx(parent_fd, src_name.c_str(), AT_SYMLINK_NOFOLLOW,
-		  STATX_ALL, &stx);
+  ret = statx(parent_fd, src_name.c_str(), AT_SYMLINK_NOFOLLOW, STATX_ALL, &stx);
   if (ret < 0) {
     ret = errno;
     if (ret == ENOENT) {
       return 0;
     }
     ldpp_dout(dpp, 0) << "ERROR: could not stat object " << get_name() << ": "
-                  << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
@@ -963,8 +1085,12 @@ int Directory::rename(const DoutPrefixProvider* dpp, optional_yield y, Directory
   return 0;
 }
 
-int Directory::copy(const DoutPrefixProvider *dpp, optional_yield y,
-                      Directory* dst_dir, const std::string& dst_name)
+int
+Directory::copy(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Directory* dst_dir,
+    const std::string& dst_name)
 {
   int ret;
 
@@ -989,19 +1115,22 @@ int Directory::copy(const DoutPrefixProvider *dpp, optional_yield y,
 
   ret = dest->create(dpp);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not create dest " << dest->get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not create dest " << dest->get_name()
+                      << dendl;
     return ret;
   }
 
   Attrs attrs;
   ret = read_attrs(dpp, y, attrs);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not read attrs from " << get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not read attrs from " << get_name()
+                      << dendl;
     return ret;
   }
   ret = dest->write_attrs(dpp, y, attrs, nullptr);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not write attrs to " << dest->get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not write attrs to " << dest->get_name()
+                      << dendl;
     return ret;
   }
 
@@ -1022,24 +1151,29 @@ int Directory::copy(const DoutPrefixProvider *dpp, optional_yield y,
   return ret;
 }
 
-int Directory::get_ent(const DoutPrefixProvider *dpp, optional_yield y, const std::string &name, const std::string& instance, std::unique_ptr<FSEnt>& ent)
+int
+Directory::get_ent(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& name,
+    const std::string& instance,
+    std::unique_ptr<FSEnt>& ent)
 {
   struct statx nstx;
   std::unique_ptr<FSEnt> nent;
 
   int ret = open(dpp);
   if (ret < 0) {
-      ldpp_dout(dpp, 0) << "ERROR: could not open directory " << name << dendl;
-      return ret;
+    ldpp_dout(dpp, 0) << "ERROR: could not open directory " << name << dendl;
+    return ret;
   }
 
-  ret = statx(get_fd(), name.c_str(),
-                  AT_SYMLINK_NOFOLLOW, STATX_ALL, &nstx);
+  ret = statx(get_fd(), name.c_str(), AT_SYMLINK_NOFOLLOW, STATX_ALL, &nstx);
   if (ret < 0) {
-      ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not stat object " << name << " in dir "
-                        << get_name() << " : " << cpp_strerror(ret) << dendl;
-      return -ret;
+    ret = errno;
+    ldpp_dout(dpp, 0) << "ERROR: could not stat object " << name << " in dir "
+                      << get_name() << " : " << cpp_strerror(ret) << dendl;
+    return -ret;
   }
   if (S_ISREG(nstx.stx_mode)) {
     nent = std::make_unique<File>(name, this, nstx, ctx);
@@ -1058,7 +1192,8 @@ int Directory::get_ent(const DoutPrefixProvider *dpp, optional_yield y, const st
     ::close(tmpfd);
     switch (type.type) {
     case ObjectType::VERSIONED:
-      nent = std::make_unique<VersionedDirectory>(name, this, instance, nstx, ctx);
+      nent =
+          std::make_unique<VersionedDirectory>(name, this, instance, nstx, ctx);
       break;
     case ObjectType::MULTIPART:
       nent = std::make_unique<MPDirectory>(name, this, nstx, ctx);
@@ -1080,10 +1215,13 @@ int Directory::get_ent(const DoutPrefixProvider *dpp, optional_yield y, const st
   return 0;
 }
 
-int Directory::fill_cache(const DoutPrefixProvider *dpp, optional_yield y,
-                          fill_cache_cb_t &cb)
+int
+Directory::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
-  int ret = for_each(dpp, [this, &cb, &dpp, &y](const char *name) {
+  int ret = for_each(dpp, [this, &cb, &dpp, &y](const char* name) {
     std::unique_ptr<FSEnt> ent;
 
     if (name[0] == '.') {
@@ -1104,22 +1242,25 @@ int Directory::fill_cache(const DoutPrefixProvider *dpp, optional_yield y,
   });
 
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not list directory " << get_name() << ": "
-      << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not list directory " << get_name()
+                      << ": " << cpp_strerror(ret) << dendl;
     return ret;
   }
 
   return 0;
 }
 
-int Symlink::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
+int
+Symlink::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
 {
   if (temp_file) {
-    ldpp_dout(dpp, 0) << "ERROR: cannot create symlink with temp_file " << get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: cannot create symlink with temp_file "
+                      << get_name() << dendl;
     return -EINVAL;
   }
 
-  int ret = symlinkat(target->get_name().c_str(), parent->get_fd(), fname.c_str());
+  int ret =
+      symlinkat(target->get_name().c_str(), parent->get_fd(), fname.c_str());
   if (ret < 0) {
     ret = errno;
     if (ret == EEXIST && existed != nullptr) {
@@ -1133,16 +1274,23 @@ int Symlink::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file
   return 0;
 }
 
-int Symlink::fill_target(const DoutPrefixProvider *dpp, Directory* parent, std::string sname, std::string tname, std::unique_ptr<FSEnt>& ent, CephContext* _ctx)
+int
+Symlink::fill_target(
+    const DoutPrefixProvider* dpp,
+    Directory* parent,
+    std::string sname,
+    std::string tname,
+    std::unique_ptr<FSEnt>& ent,
+    CephContext* _ctx)
 {
   int ret;
 
   if (!tname.empty()) {
-      ret = parent->get_ent(dpp, null_yield, tname, std::string(), ent);
-      if (ret < 0) {
-	ent = std::make_unique<File>(tname, parent, _ctx);
-      }
-      return 0;
+    ret = parent->get_ent(dpp, null_yield, tname, std::string(), ent);
+    if (ret < 0) {
+      ent = std::make_unique<File>(tname, parent, _ctx);
+    }
+    return 0;
   }
 
   char link[PATH_MAX];
@@ -1159,7 +1307,8 @@ int Symlink::fill_target(const DoutPrefixProvider *dpp, Directory* parent, std::
   return 0;
 }
 
-int Symlink::stat(const DoutPrefixProvider* dpp, bool force)
+int
+Symlink::stat(const DoutPrefixProvider* dpp, bool force)
 {
   int ret = FSEnt::stat(dpp, force);
   if (ret < 0) {
@@ -1168,7 +1317,8 @@ int Symlink::stat(const DoutPrefixProvider* dpp, bool force)
 
   if (!S_ISLNK(stx.stx_mode)) {
     /* Not a symlink */
-    ldpp_dout(dpp, 0) << "ERROR: " << get_name() << " is not a symlink" << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: " << get_name() << " is not a symlink"
+                      << dendl;
     return -EINVAL;
   }
 
@@ -1182,7 +1332,11 @@ int Symlink::stat(const DoutPrefixProvider* dpp, bool force)
   return fill_target(dpp, parent, get_name(), std::string(), target, ctx);
 }
 
-int Symlink::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_cache_cb_t& cb)
+int
+Symlink::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
   rgw_bucket_dir_entry bde{};
   int ret;
@@ -1230,7 +1384,8 @@ int Symlink::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_ca
   return cb(dpp, bde);
 }
 
-int Symlink::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs)
+int
+Symlink::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs)
 {
   if (target)
     return target->read_attrs(dpp, y, attrs);
@@ -1238,8 +1393,12 @@ int Symlink::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& 
   return FSEnt::read_attrs(dpp, y, attrs);
 }
 
-int Symlink::copy(const DoutPrefixProvider *dpp, optional_yield y,
-                      Directory* dst_dir, const std::string& dst_name)
+int
+Symlink::copy(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Directory* dst_dir,
+    const std::string& dst_name)
 {
   int ret = stat(dpp);
   if (ret < 0) {
@@ -1257,13 +1416,15 @@ int Symlink::copy(const DoutPrefixProvider *dpp, optional_yield y,
   return 0;
 }
 
-int MPDirectory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
+int
+MPDirectory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
 {
   std::string path;
 
-  if(temp_file) {
-    tmpname = path = "._tmpname_" +
-           std::to_string(ceph::util::generate_random_number<uint64_t>());
+  if (temp_file) {
+    tmpname = path =
+        "._tmpname_" +
+        std::to_string(ceph::util::generate_random_number<uint64_t>());
   } else {
     path = get_name();
   }
@@ -1273,8 +1434,8 @@ int MPDirectory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_
     ret = errno;
     if (ret != EEXIST) {
       if (dpp)
-	ldpp_dout(dpp, 0) << "ERROR: could not create bucket " << get_name() << ": "
-	  << cpp_strerror(ret) << dendl;
+        ldpp_dout(dpp, 0) << "ERROR: could not create bucket " << get_name()
+                          << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     } else if (existed != nullptr) {
       *existed = true;
@@ -1284,8 +1445,13 @@ int MPDirectory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_
   return 0;
 }
 
-int MPDirectory::read(int64_t ofs, int64_t left, bufferlist &bl,
-                    const DoutPrefixProvider *dpp, optional_yield y)
+int
+MPDirectory::read(
+    int64_t ofs,
+    int64_t left,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   std::string pname;
   for (auto part : parts) {
@@ -1313,8 +1479,11 @@ int MPDirectory::read(int64_t ofs, int64_t left, bufferlist &bl,
   return cur_read_part->read(ofs, left, bl, dpp, y);
 }
 
-int MPDirectory::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y,
-                                std::string temp_fname)
+int
+MPDirectory::link_temp_file(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string temp_fname)
 {
   if (tmpname.empty()) {
     return 0;
@@ -1328,12 +1497,17 @@ int MPDirectory::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y,
   return rename(dpp, y, parent, savename);
 }
 
-int MPDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, bool delete_children)
+int
+MPDirectory::remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool delete_children)
 {
   return Directory::remove(dpp, y, /*delete_children=*/true);
 }
 
-int MPDirectory::stat(const DoutPrefixProvider* dpp, bool force)
+int
+MPDirectory::stat(const DoutPrefixProvider* dpp, bool force)
 {
   int ret = Directory::stat(dpp, force);
   if (ret < 0) {
@@ -1341,7 +1515,7 @@ int MPDirectory::stat(const DoutPrefixProvider* dpp, bool force)
   }
 
   uint64_t total_size{0};
-  for_each(dpp, [this, &total_size, &dpp](const char *name) {
+  for_each(dpp, [this, &total_size, &dpp](const char* name) {
     int ret;
     struct statx stx;
     std::string sname = name;
@@ -1374,8 +1548,8 @@ int MPDirectory::stat(const DoutPrefixProvider* dpp, bool force)
   return 0;
 }
 
-
-std::unique_ptr<File> MPDirectory::get_part_file(int partnum)
+std::unique_ptr<File>
+MPDirectory::get_part_file(int partnum)
 {
   std::string partname = MP_OBJ_PART_PFX + fmt::format("{:0>5}", partnum);
   rgw_obj_key part_key(partname);
@@ -1383,8 +1557,11 @@ std::unique_ptr<File> MPDirectory::get_part_file(int partnum)
   return std::make_unique<File>(partname, this, ctx);
 }
 
-int MPDirectory::fill_cache(const DoutPrefixProvider *dpp, optional_yield y,
-                          fill_cache_cb_t &cb)
+int
+MPDirectory::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
   int ret = FSEnt::fill_cache(dpp, y, cb);
   if (ret < 0)
@@ -1393,7 +1570,8 @@ int MPDirectory::fill_cache(const DoutPrefixProvider *dpp, optional_yield y,
   return Directory::fill_cache(dpp, y, cb);
 }
 
-int VersionedDirectory::open(const DoutPrefixProvider* dpp)
+int
+VersionedDirectory::open(const DoutPrefixProvider* dpp)
 {
   if (fd > 0) {
     return 0;
@@ -1406,7 +1584,9 @@ int VersionedDirectory::open(const DoutPrefixProvider* dpp)
   if (!instance_id.empty()) {
     rgw_obj_key key = decode_obj_key(get_name());
     key.instance = instance_id;
-    get_ent(dpp, null_yield, get_key_fname(key, /*use_version=*/true), std::string(), cur_version);
+    get_ent(
+        dpp, null_yield, get_key_fname(key, /*use_version=*/true),
+        std::string(), cur_version);
   }
 
   if (!cur_version) {
@@ -1417,23 +1597,27 @@ int VersionedDirectory::open(const DoutPrefixProvider* dpp)
   return cur_version->open(dpp);
 }
 
-int VersionedDirectory::create(const DoutPrefixProvider* dpp, bool* existed, bool temp_file)
+int
+VersionedDirectory::create(
+    const DoutPrefixProvider* dpp,
+    bool* existed,
+    bool temp_file)
 {
   int ret = mkdirat(parent->get_fd(), fname.c_str(), S_IRWXU);
   if (ret < 0) {
     ret = errno;
     if (ret != EEXIST) {
       if (dpp)
-	ldpp_dout(dpp, 0) << "ERROR: could not create versioned directory " << get_name() << ": "
-	  << cpp_strerror(ret) << dendl;
+        ldpp_dout(dpp, 0) << "ERROR: could not create versioned directory "
+                          << get_name() << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     }
   }
 
   ret = open(dpp);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not open versioned directory " << get_name()
-                      << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not open versioned directory "
+                      << get_name() << dendl;
     return ret;
   }
 
@@ -1441,8 +1625,8 @@ int VersionedDirectory::create(const DoutPrefixProvider* dpp, bool* existed, boo
   Attrs attrs;
   ret = write_attrs(dpp, null_yield, attrs, nullptr);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not write attrs for versioned directory " << get_name()
-                      << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not write attrs for versioned directory "
+                      << get_name() << dendl;
     return ret;
   }
 
@@ -1450,8 +1634,8 @@ int VersionedDirectory::create(const DoutPrefixProvider* dpp, bool* existed, boo
     /* Want to create an actual versioned object */
     rgw_obj_key key = decode_obj_key(get_name());
     key.instance = instance_id;
-    std::unique_ptr<FSEnt> file = 
-        std::make_unique<File>(get_key_fname(key, /*use_version=*/true), this, ctx);
+    std::unique_ptr<FSEnt> file = std::make_unique<File>(
+        get_key_fname(key, /*use_version=*/true), this, ctx);
     ret = add_file(dpp, std::move(file), existed, temp_file);
     if (ret < 0) {
       return ret;
@@ -1461,17 +1645,23 @@ int VersionedDirectory::create(const DoutPrefixProvider* dpp, bool* existed, boo
   return 0;
 }
 
-std::string VersionedDirectory::get_new_instance()
+std::string
+VersionedDirectory::get_new_instance()
 {
   return gen_rand_instance_name();
 }
 
-int VersionedDirectory::add_file(const DoutPrefixProvider* dpp, std::unique_ptr<FSEnt>&& file, bool* existed, bool temp_file)
+int
+VersionedDirectory::add_file(
+    const DoutPrefixProvider* dpp,
+    std::unique_ptr<FSEnt>&& file,
+    bool* existed,
+    bool temp_file)
 {
   int ret = open(dpp);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not open versioned directory " << get_name()
-                      << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not open versioned directory "
+                      << get_name() << dendl;
     return ret;
   }
 
@@ -1488,7 +1678,10 @@ int VersionedDirectory::add_file(const DoutPrefixProvider* dpp, std::unique_ptr<
   return 0;
 }
 
-int VersionedDirectory::set_cur_version_ent(const DoutPrefixProvider* dpp, FSEnt* file)
+int
+VersionedDirectory::set_cur_version_ent(
+    const DoutPrefixProvider* dpp,
+    FSEnt* file)
 {
   /* Delete current version symlink */
   std::unique_ptr<FSEnt> del;
@@ -1515,7 +1708,8 @@ int VersionedDirectory::set_cur_version_ent(const DoutPrefixProvider* dpp, FSEnt
   return 0;
 }
 
-int VersionedDirectory::stat(const DoutPrefixProvider* dpp, bool force)
+int
+VersionedDirectory::stat(const DoutPrefixProvider* dpp, bool force)
 {
   int ret = Directory::stat(dpp, force);
   if (ret < 0) {
@@ -1566,7 +1760,11 @@ int VersionedDirectory::stat(const DoutPrefixProvider* dpp, bool force)
   return 0;
 }
 
-int VersionedDirectory::read_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs)
+int
+VersionedDirectory::read_attrs(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Attrs& attrs)
 {
   if (!cur_version)
     return FSEnt::read_attrs(dpp, y, attrs);
@@ -1585,7 +1783,12 @@ int VersionedDirectory::read_attrs(const DoutPrefixProvider* dpp, optional_yield
   return 0;
 }
 
-int VersionedDirectory::write_attrs(const DoutPrefixProvider* dpp, optional_yield y, Attrs& attrs, Attrs* extra_attrs)
+int
+VersionedDirectory::write_attrs(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Attrs& attrs,
+    Attrs* extra_attrs)
 {
   if (cur_version) {
     int ret = cur_version->write_attrs(dpp, y, attrs, extra_attrs);
@@ -1596,24 +1799,36 @@ int VersionedDirectory::write_attrs(const DoutPrefixProvider* dpp, optional_yiel
   return FSEnt::write_attrs(dpp, y, attrs, extra_attrs);
 }
 
-int VersionedDirectory::write(int64_t ofs, bufferlist &bl,
-                              const DoutPrefixProvider *dpp, optional_yield y)
+int
+VersionedDirectory::write(
+    int64_t ofs,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   if (!cur_version)
     return 0;
   return cur_version->write(ofs, bl, dpp, y);
 }
 
-int VersionedDirectory::read(int64_t ofs, int64_t left, bufferlist &bl,
-                    const DoutPrefixProvider *dpp, optional_yield y)
+int
+VersionedDirectory::read(
+    int64_t ofs,
+    int64_t left,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   if (!cur_version)
     return 0;
   return cur_version->read(ofs, left, bl, dpp, y);
 }
 
-int VersionedDirectory::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y,
-                              std::string temp_fname)
+int
+VersionedDirectory::link_temp_file(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string temp_fname)
 {
   if (!cur_version)
     return -EINVAL;
@@ -1624,8 +1839,12 @@ int VersionedDirectory::link_temp_file(const DoutPrefixProvider *dpp, optional_y
   return set_cur_version_ent(dpp, cur_version.get());
 }
 
-int VersionedDirectory::copy(const DoutPrefixProvider *dpp, optional_yield y,
-                      Directory* dst_dir, const std::string& dst_name)
+int
+VersionedDirectory::copy(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Directory* dst_dir,
+    const std::string& dst_name)
 {
   int ret;
   rgw_obj_key dest_key = decode_obj_key(dst_name);
@@ -1652,54 +1871,63 @@ int VersionedDirectory::copy(const DoutPrefixProvider *dpp, optional_yield y,
 
   ret = dest->create(dpp);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not create dest " << dest->get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not create dest " << dest->get_name()
+                      << dendl;
     return ret;
   }
 
   Attrs attrs;
   ret = read_attrs(dpp, y, attrs);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not read attrs from " << get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not read attrs from " << get_name()
+                      << dendl;
     return ret;
   }
   ret = dest->write_attrs(dpp, y, attrs, nullptr);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not write attrs to " << dest->get_name() << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not write attrs to " << dest->get_name()
+                      << dendl;
     return ret;
   }
 
   std::string tgtname;
-  ret = for_each(dpp, [this, &dest, &dest_key, &tgtname, &dpp, &y](const char* name) {
-    std::unique_ptr<FSEnt> sobj;
+  ret = for_each(
+      dpp, [this, &dest, &dest_key, &tgtname, &dpp, &y](const char* name) {
+        std::unique_ptr<FSEnt> sobj;
 
-    if (name[0] == '.') {
-      /* Skip dotfiles */
-      return 0;
-    }
-    rgw_obj_key key = decode_obj_key(name);
-    if (!dest_key.instance.empty() && dest_key.instance != key.instance) {
-      /* Were asked to copy a single version, and this is not it */
-      return 0;
-    }
+        if (name[0] == '.') {
+          /* Skip dotfiles */
+          return 0;
+        }
+        rgw_obj_key key = decode_obj_key(name);
+        if (!dest_key.instance.empty() && dest_key.instance != key.instance) {
+          /* Were asked to copy a single version, and this is not it */
+          return 0;
+        }
 
-    int r = this->get_ent(dpp, y, name, std::string(), sobj);
-    if (r < 0)
-      return r;
-    key.name = dest_key.name;
-    tgtname = get_key_fname(key, /*use_version=*/true);
-    return sobj->copy(dpp, y, dest.get(), tgtname);
-  });
+        int r = this->get_ent(dpp, y, name, std::string(), sobj);
+        if (r < 0)
+          return r;
+        key.name = dest_key.name;
+        tgtname = get_key_fname(key, /*use_version=*/true);
+        return sobj->copy(dpp, y, dest.get(), tgtname);
+      });
 
   if (!dest_key.instance.empty()) {
     /* We didn't copy the symlink, make a new one */
-    std::unique_ptr<Symlink> sl = std::make_unique<Symlink>(basename, dest.get(), tgtname, ctx);
+    std::unique_ptr<Symlink> sl =
+        std::make_unique<Symlink>(basename, dest.get(), tgtname, ctx);
     ret = sl->create(dpp, /*existed=*/nullptr, /*temp_file=*/false);
   }
 
   return ret;
 }
 
-int VersionedDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, bool delete_children)
+int
+VersionedDirectory::remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool delete_children)
 {
   std::string tgtname;
   bool newlink = false;
@@ -1710,9 +1938,7 @@ int VersionedDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, 
 
   if (instance_id.empty()) {
     /* Check if directory is empty */
-    ret = for_each(dpp, [](const char *n) {
-      return -ENOENT;
-    });
+    ret = for_each(dpp, [](const char* n) { return -ENOENT; });
 
     if (ret == 0) {
       /* We're empty, nuke us */
@@ -1750,9 +1976,9 @@ int VersionedDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, 
       ret = sl->stat(dpp);
       if (ret == 0) {
         if (name != sl->get_target()->get_name()) {
-	  /* Symlink didn't match, don't change anything */
-	  return 0;
-	}
+          /* Symlink didn't match, don't change anything */
+          return 0;
+        }
       }
       /* FALLTHROUGH */
     } else {
@@ -1769,7 +1995,7 @@ int VersionedDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, 
     }
     newlink = true;
     /* Create new current version symlink */
-    ret = for_each(dpp, [&tgtname](const char *n) {
+    ret = for_each(dpp, [&tgtname](const char* n) {
       if (n[0] == '.') {
         /* Skip dotfiles */
         return 0;
@@ -1795,10 +2021,13 @@ int VersionedDirectory::remove(const DoutPrefixProvider* dpp, optional_yield y, 
   return 0;
 }
 
-int VersionedDirectory::fill_cache(const DoutPrefixProvider *dpp, optional_yield y,
-                          fill_cache_cb_t &cb)
+int
+VersionedDirectory::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
-  int ret = for_each(dpp, [this, &cb, &dpp, &y](const char *name) {
+  int ret = for_each(dpp, [this, &cb, &dpp, &y](const char* name) {
     std::unique_ptr<FSEnt> ent;
 
     if (name[0] == '.') {
@@ -1819,15 +2048,16 @@ int VersionedDirectory::fill_cache(const DoutPrefixProvider *dpp, optional_yield
   });
 
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: could not list directory " << get_name() << ": "
-      << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not list directory " << get_name()
+                      << ": " << cpp_strerror(ret) << dendl;
     return ret;
   }
 
   return 0;
 }
 
-std::string VersionedDirectory::get_cur_version()
+std::string
+VersionedDirectory::get_cur_version()
 {
   if (!cur_version)
     return "";
@@ -1837,12 +2067,15 @@ std::string VersionedDirectory::get_cur_version()
   return key.instance;
 }
 
-int VersionedDirectory::remove_symlink(const DoutPrefixProvider *dpp, optional_yield y, std::string match)
+int
+VersionedDirectory::remove_symlink(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string match)
 {
   int ret;
 
-  std::unique_ptr<Symlink> sl =
-      std::make_unique<Symlink>(get_name(), this, ctx);
+  std::unique_ptr<Symlink> sl = std::make_unique<Symlink>(get_name(), this, ctx);
   ret = sl->stat(dpp);
   if (ret < 0) {
     /* Doesn't exist, nothing to do */
@@ -1864,102 +2097,159 @@ int VersionedDirectory::remove_symlink(const DoutPrefixProvider *dpp, optional_y
   return 0;
 }
 
-bool POSIXZoneGroup::placement_target_exists(std::string& target) const {
+bool
+POSIXZoneGroup::placement_target_exists(std::string& target) const
+{
   return !!group->placement_targets.count(target);
 }
 
-void POSIXZoneGroup::get_placement_target_names(std::set<std::string>& names) const {
+void
+POSIXZoneGroup::get_placement_target_names(std::set<std::string>& names) const
+{
   for (const auto& target : group->placement_targets) {
     names.emplace(target.second.name);
   }
 }
 
-ZoneGroup& POSIXZone::get_zonegroup() {
+ZoneGroup&
+POSIXZone::get_zonegroup()
+{
   return *zonegroup;
 }
 
-const RGWZoneParams& POSIXZone::get_rgw_params() {
+const RGWZoneParams&
+POSIXZone::get_rgw_params()
+{
   return *zone_params;
 }
 
-const std::string& POSIXZone::get_id() {
+const std::string&
+POSIXZone::get_id()
+{
   return zone_params->get_id();
 }
 
-const std::string& POSIXZone::get_name() const {
+const std::string&
+POSIXZone::get_name() const
+{
   return zone_params->get_name();
 }
 
-bool POSIXZone::is_writeable() {
+bool
+POSIXZone::is_writeable()
+{
   return true;
 }
 
-bool POSIXZone::get_redirect_endpoint(std::string* endpoint) {
+bool
+POSIXZone::get_redirect_endpoint(std::string* endpoint)
+{
   return false;
 }
 
-const std::string& POSIXZone::get_current_period_id() {
+const std::string&
+POSIXZone::get_current_period_id()
+{
   return current_period->get_id();
 }
 
-const RGWAccessKey& POSIXZone::get_system_key() {
+const RGWAccessKey&
+POSIXZone::get_system_key()
+{
   return zone_params->system_key;
 }
 
-const std::string& POSIXZone::get_realm_name() {
+const std::string&
+POSIXZone::get_realm_name()
+{
   return realm->get_name();
 }
 
-const std::string& POSIXZone::get_realm_id() {
+const std::string&
+POSIXZone::get_realm_id()
+{
   return realm->get_id();
 }
 
-RGWBucketSyncPolicyHandlerRef POSIXZone::get_sync_policy_handler() {
+RGWBucketSyncPolicyHandlerRef
+POSIXZone::get_sync_policy_handler()
+{
   return nullptr;
 }
 
-int POSIXLuaManager::get_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key, std::string& script)
+int
+POSIXLuaManager::get_script(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& key,
+    std::string& script)
 {
   return -ENOENT;
 }
 
-std::tuple<rgw::lua::LuaCodeType, int> POSIXLuaManager::get_script_or_bytecode(const DoutPrefixProvider* dpp, optional_yield y,
-                                                                               const std::string& key)
+std::tuple<rgw::lua::LuaCodeType, int>
+POSIXLuaManager::get_script_or_bytecode(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& key)
 {
   return std::make_tuple("", -ENOENT);
 }
 
-int POSIXLuaManager::put_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key, const std::string& script)
+int
+POSIXLuaManager::put_script(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& key,
+    const std::string& script)
 {
   return -ENOENT;
 }
 
-int POSIXLuaManager::del_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key)
+int
+POSIXLuaManager::del_script(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& key)
 {
   return -ENOENT;
 }
 
-int POSIXLuaManager::add_package(const DoutPrefixProvider* dpp, optional_yield y, const std::string& package_name)
+int
+POSIXLuaManager::add_package(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& package_name)
 {
   return -ENOENT;
 }
 
-int POSIXLuaManager::remove_package(const DoutPrefixProvider* dpp, optional_yield y, const std::string& package_name)
+int
+POSIXLuaManager::remove_package(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& package_name)
 {
   return -ENOENT;
 }
 
-int POSIXLuaManager::list_packages(const DoutPrefixProvider* dpp, optional_yield y, rgw::lua::packages_t& packages)
+int
+POSIXLuaManager::list_packages(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::lua::packages_t& packages)
 {
   return -ENOENT;
 }
 
-int POSIXLuaManager::reload_packages(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXLuaManager::reload_packages(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return -ENOENT;
 }
 
-int POSIXDriver::initialize(CephContext *cct, const DoutPrefixProvider *dpp)
+int
+POSIXDriver::initialize(CephContext* cct, const DoutPrefixProvider* dpp)
 {
   int ret = -1;
   base_path = g_conf().get_val<std::string>("rgw_posix_base_path");
@@ -1967,10 +2257,8 @@ int POSIXDriver::initialize(CephContext *cct, const DoutPrefixProvider *dpp)
   ldpp_dout(dpp, 20) << "Initializing POSIX driver: " << base_path << dendl;
 
   /* ordered listing cache */
-  bucket_cache.reset(
-    new BucketCache(
-      this, base_path,
-      g_conf().get_val<std::string>("rgw_posix_database_root"),
+  bucket_cache.reset(new BucketCache(
+      this, base_path, g_conf().get_val<std::string>("rgw_posix_database_root"),
       g_conf().get_val<int64_t>("rgw_posix_cache_max_buckets"),
       g_conf().get_val<int64_t>("rgw_posix_cache_lanes"),
       g_conf().get_val<int64_t>("rgw_posix_cache_partitions"),
@@ -1981,14 +2269,14 @@ int POSIXDriver::initialize(CephContext *cct, const DoutPrefixProvider *dpp)
   if (ret < 0) {
     if (ret == -ENOTDIR) {
       ldpp_dout(dpp, 0) << " ERROR: base path (" << base_path
-	<< "): was not a directory." << dendl;
+                        << "): was not a directory." << dendl;
       return ret;
     } else if (ret == -ENOENT) {
       ret = root_dir->create(dpp);
       if (ret < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not create base path ("
-	  << base_path << "): " << cpp_strerror(-ret) << dendl;
-	return ret;
+        ldpp_dout(dpp, 0) << " ERROR: could not create base path (" << base_path
+                          << "): " << cpp_strerror(-ret) << dendl;
+        return ret;
       }
     }
   }
@@ -1998,19 +2286,25 @@ int POSIXDriver::initialize(CephContext *cct, const DoutPrefixProvider *dpp)
   return 0;
 }
 
-std::unique_ptr<User> POSIXDriver::get_user(const rgw_user &u)
+std::unique_ptr<User>
+POSIXDriver::get_user(const rgw_user& u)
 {
   return std::make_unique<POSIXUser>(this, u);
 }
 
-int POSIXDriver::get_user_by_access_key(const DoutPrefixProvider* dpp, const std::string& key, optional_yield y, std::unique_ptr<User>* user)
+int
+POSIXDriver::get_user_by_access_key(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    optional_yield y,
+    std::unique_ptr<User>* user)
 {
   RGWUserInfo uinfo;
   rgw::sal::Attrs attrs;
   RGWObjVersionTracker objv_tracker;
 
-  int ret = userDB->get_user(dpp, std::string("access_key"), key, uinfo, &attrs,
-      &objv_tracker);
+  int ret = userDB->get_user(
+      dpp, std::string("access_key"), key, uinfo, &attrs, &objv_tracker);
 
   if (ret < 0)
     return ret;
@@ -2026,15 +2320,20 @@ int POSIXDriver::get_user_by_access_key(const DoutPrefixProvider* dpp, const std
   return 0;
 }
 
-int POSIXDriver::get_user_by_email(const DoutPrefixProvider* dpp, const std::string& email, optional_yield y, std::unique_ptr<User>* user)
+int
+POSIXDriver::get_user_by_email(
+    const DoutPrefixProvider* dpp,
+    const std::string& email,
+    optional_yield y,
+    std::unique_ptr<User>* user)
 {
 
   RGWUserInfo uinfo;
   rgw::sal::Attrs attrs;
   RGWObjVersionTracker objv_tracker;
 
-  int ret = userDB->get_user(dpp, std::string("email"), email, uinfo, &attrs,
-      &objv_tracker);
+  int ret = userDB->get_user(
+      dpp, std::string("email"), email, uinfo, &attrs, &objv_tracker);
 
   if (ret < 0)
     return ret;
@@ -2050,20 +2349,27 @@ int POSIXDriver::get_user_by_email(const DoutPrefixProvider* dpp, const std::str
   return 0;
 }
 
-int POSIXDriver::get_user_by_swift(const DoutPrefixProvider* dpp, const std::string& user_str, optional_yield y, std::unique_ptr<User>* user)
+int
+POSIXDriver::get_user_by_swift(
+    const DoutPrefixProvider* dpp,
+    const std::string& user_str,
+    optional_yield y,
+    std::unique_ptr<User>* user)
 {
   /* Swift keys and subusers are not supported by DBStore for now */
   return -ENOTSUP;
 }
 
-int POSIXDriver::load_owner_by_email(const DoutPrefixProvider* dpp,
-				    optional_yield y,
-				    std::string_view email,
-				    rgw_owner& owner)
+int
+POSIXDriver::load_owner_by_email(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view email,
+    rgw_owner& owner)
 {
   RGWUserInfo uinfo;
-  int ret = get_user_db()->get_user(dpp, "email", std::string{email},
-				   uinfo, nullptr, nullptr);
+  int ret = get_user_db()->get_user(
+      dpp, "email", std::string{email}, uinfo, nullptr, nullptr);
   if (ret < 0) {
     return ret;
   }
@@ -2071,36 +2377,45 @@ int POSIXDriver::load_owner_by_email(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-std::unique_ptr<Object> POSIXDriver::get_object(const rgw_obj_key& k)
+std::unique_ptr<Object>
+POSIXDriver::get_object(const rgw_obj_key& k)
 {
   return std::make_unique<POSIXObject>(this, k);
 }
 
-int POSIXDriver::load_bucket(const DoutPrefixProvider* dpp, const rgw_bucket& b, std::unique_ptr<Bucket>* bucket, optional_yield y)
+int
+POSIXDriver::load_bucket(
+    const DoutPrefixProvider* dpp,
+    const rgw_bucket& b,
+    std::unique_ptr<Bucket>* bucket,
+    optional_yield y)
 {
   *bucket = std::make_unique<POSIXBucket>(this, root_dir.get(), b);
   return (*bucket)->load_bucket(dpp, y);
 }
 
-std::unique_ptr<Bucket> POSIXDriver::get_bucket(const RGWBucketInfo& i)
+std::unique_ptr<Bucket>
+POSIXDriver::get_bucket(const RGWBucketInfo& i)
 {
   /* Don't need to fetch the bucket info, use the provided one */
   return std::make_unique<POSIXBucket>(this, root_dir.get(), i);
 }
 
-std::string POSIXDriver::zone_unique_trans_id(const uint64_t unique_num)
+std::string
+POSIXDriver::zone_unique_trans_id(const uint64_t unique_num)
 {
   char buf[41]; /* 2 + 21 + 1 + 16 (timestamp can consume up to 16) + 1 */
   time_t timestamp = time(NULL);
 
-  snprintf(buf, sizeof(buf), "tx%021llx-%010llx",
-           (unsigned long long)unique_num,
-           (unsigned long long)timestamp);
+  snprintf(
+      buf, sizeof(buf), "tx%021llx-%010llx", (unsigned long long)unique_num,
+      (unsigned long long)timestamp);
 
   return std::string(buf);
 }
 
-int POSIXDriver::get_zonegroup(const std::string& id, std::unique_ptr<ZoneGroup>* zg)
+int
+POSIXDriver::get_zonegroup(const std::string& id, std::unique_ptr<ZoneGroup>* zg)
 {
   /* XXX: for now only one zonegroup supported */
   std::unique_ptr<RGWZoneGroup> rzg =
@@ -2115,56 +2430,72 @@ int POSIXDriver::get_zonegroup(const std::string& id, std::unique_ptr<ZoneGroup>
   return 0;
 }
 
-int POSIXDriver::list_all_zones(const DoutPrefixProvider* dpp,
-			    std::list<std::string>& zone_ids)
+int
+POSIXDriver::list_all_zones(
+    const DoutPrefixProvider* dpp,
+    std::list<std::string>& zone_ids)
 {
   zone_ids.push_back(zone.get_id());
   return 0;
 }
 
-int POSIXDriver::cluster_stat(RGWClusterStat& stats)
+int
+POSIXDriver::cluster_stat(RGWClusterStat& stats)
 {
   return 0;
 }
 
-std::unique_ptr<Writer> POSIXDriver::get_append_writer(const DoutPrefixProvider *dpp,
-				  optional_yield y,
-				  rgw::sal::Object* _head_obj,
-				  const ACLOwner& owner,
-				  const rgw_placement_rule *ptail_placement_rule,
-				  const std::string& unique_tag,
-				  uint64_t position,
-				  uint64_t *cur_accounted_size)
+std::unique_ptr<Writer>
+POSIXDriver::get_append_writer(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const ACLOwner& owner,
+    const rgw_placement_rule* ptail_placement_rule,
+    const std::string& unique_tag,
+    uint64_t position,
+    uint64_t* cur_accounted_size)
 {
   return nullptr;
 }
 
-std::unique_ptr<Writer> POSIXDriver::get_atomic_writer(const DoutPrefixProvider *dpp,
-				  optional_yield y,
-				  rgw::sal::Object* _head_obj,
-				  const ACLOwner& owner,
-				  const rgw_placement_rule *ptail_placement_rule,
-				  uint64_t olh_epoch,
-				  const std::string& unique_tag)
+std::unique_ptr<Writer>
+POSIXDriver::get_atomic_writer(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const ACLOwner& owner,
+    const rgw_placement_rule* ptail_placement_rule,
+    uint64_t olh_epoch,
+    const std::string& unique_tag)
 {
 
-  return std::make_unique<POSIXAtomicWriter>(dpp, y, _head_obj, this, owner, ptail_placement_rule, olh_epoch, unique_tag);
+  return std::make_unique<POSIXAtomicWriter>(
+      dpp, y, _head_obj, this, owner, ptail_placement_rule, olh_epoch,
+      unique_tag);
 }
 
-const std::string& POSIXDriver::get_compression_type(const rgw_placement_rule& rule) {
+const std::string&
+POSIXDriver::get_compression_type(const rgw_placement_rule& rule)
+{
   return zone.get_rgw_params().get_compression_type(rule);
 }
 
-std::unique_ptr<Notification> POSIXDriver::get_notification(rgw::sal::Object* obj,
-			      rgw::sal::Object* src_obj, struct req_state* s,
-			      rgw::notify::EventType event_type, optional_yield y,
-			      const std::string* object_name)
+std::unique_ptr<Notification>
+POSIXDriver::get_notification(
+    rgw::sal::Object* obj,
+    rgw::sal::Object* src_obj,
+    struct req_state* s,
+    rgw::notify::EventType event_type,
+    optional_yield y,
+    const std::string* object_name)
 {
   rgw::notify::EventTypeList event_types = {event_type};
   return std::make_unique<POSIXNotification>(obj, src_obj, event_types);
 }
 
-std::unique_ptr<Notification> POSIXDriver::get_notification(
+std::unique_ptr<Notification>
+POSIXDriver::get_notification(
     const DoutPrefixProvider* dpp,
     rgw::sal::Object* obj,
     rgw::sal::Object* src_obj,
@@ -2173,15 +2504,23 @@ std::unique_ptr<Notification> POSIXDriver::get_notification(
     std::string& _user_id,
     std::string& _user_tenant,
     std::string& _req_id,
-    optional_yield y) {
+    optional_yield y)
+{
   return std::make_unique<POSIXNotification>(obj, src_obj, event_types);
 }
 
 // TODO: marker and other params
-int POSIXDriver::list_buckets(const DoutPrefixProvider* dpp, const rgw_owner& owner,
-			     const std::string& tenant, const std::string& marker,
-			     const std::string& end_marker, uint64_t max,
-			     bool need_stats, BucketList &result, optional_yield y)
+int
+POSIXDriver::list_buckets(
+    const DoutPrefixProvider* dpp,
+    const rgw_owner& owner,
+    const std::string& tenant,
+    const std::string& marker,
+    const std::string& end_marker,
+    uint64_t max,
+    bool need_stats,
+    BucketList& result,
+    optional_yield y)
 {
   DIR* dir;
   struct dirent* entry;
@@ -2196,7 +2535,7 @@ int POSIXDriver::list_buckets(const DoutPrefixProvider* dpp, const rgw_owner& ow
   if (dfd == -1) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not open root to list buckets: "
-      << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -errno;
   }
 
@@ -2204,28 +2543,26 @@ int POSIXDriver::list_buckets(const DoutPrefixProvider* dpp, const rgw_owner& ow
   if (dir == NULL) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not open root to list buckets: "
-      << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     ::close(dfd);
     return -ret;
   }
 
-  auto cleanup_guard = make_scope_guard(
-    [&dir]
-      {
-	closedir(dir);
-	// dfd is also closed
-      }
-    );
+  auto cleanup_guard = make_scope_guard([&dir] {
+    closedir(dir);
+    // dfd is also closed
+  });
 
   errno = 0;
   while ((entry = readdir(dir)) != NULL) {
     struct statx stx;
 
-    ret = statx(get_root_fd(), entry->d_name, AT_SYMLINK_NOFOLLOW, STATX_ALL, &stx);
+    ret = statx(
+        get_root_fd(), entry->d_name, AT_SYMLINK_NOFOLLOW, STATX_ALL, &stx);
     if (ret < 0) {
       ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not stat object " << entry->d_name << ": "
-	<< cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not stat object " << entry->d_name
+                        << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     }
 
@@ -2252,16 +2589,18 @@ int POSIXDriver::list_buckets(const DoutPrefixProvider* dpp, const rgw_owner& ow
   ret = errno;
   if (ret != 0) {
     ldpp_dout(dpp, 0) << "ERROR: could not list buckets for " << owner << ": "
-      << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-int POSIXBucket::create(const DoutPrefixProvider* dpp,
-			const CreateParams& params,
-			optional_yield y)
+int
+POSIXBucket::create(
+    const DoutPrefixProvider* dpp,
+    const CreateParams& params,
+    optional_yield y)
 {
   info.owner = params.owner;
 
@@ -2301,194 +2640,236 @@ int POSIXBucket::create(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int POSIXUser::read_attrs(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXUser::read_attrs(const DoutPrefixProvider* dpp, optional_yield y)
 {
-  return driver->get_user_db()->get_user(dpp, std::string("user_id"), this->get_id().id, this->get_info(), &(this->get_attrs()),
-        &(this->get_version_tracker()));
+  return driver->get_user_db()->get_user(
+      dpp, std::string("user_id"), this->get_id().id, this->get_info(),
+      &(this->get_attrs()), &(this->get_version_tracker()));
 }
 
-int POSIXUser::merge_and_store_attrs(const DoutPrefixProvider* dpp,
-				      Attrs& new_attrs, optional_yield y)
+int
+POSIXUser::merge_and_store_attrs(
+    const DoutPrefixProvider* dpp,
+    Attrs& new_attrs,
+    optional_yield y)
 {
   auto attrs = this->get_attrs();
-  for(auto& it : new_attrs) {
-	attrs[it.first] = it.second;
+  for (auto& it : new_attrs) {
+    attrs[it.first] = it.second;
   }
 
   return store_user(dpp, y, false);
 }
 
-int POSIXUser::load_user(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXUser::load_user(const DoutPrefixProvider* dpp, optional_yield y)
 {
-  return driver->get_user_db()->get_user(dpp, std::string("user_id"), this->get_id().id, this->get_info(), &(this->get_attrs()),
-           &(this->get_version_tracker()));
+  return driver->get_user_db()->get_user(
+      dpp, std::string("user_id"), this->get_id().id, this->get_info(),
+      &(this->get_attrs()), &(this->get_version_tracker()));
 }
 
-int POSIXUser::store_user(const DoutPrefixProvider* dpp, optional_yield y, bool exclusive, RGWUserInfo* old_info)
+int
+POSIXUser::store_user(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    RGWUserInfo* old_info)
 {
-  return driver->get_user_db()->store_user(dpp, this->get_info(), exclusive, &(this->get_attrs()), &(this->get_version_tracker()), old_info);
+  return driver->get_user_db()->store_user(
+      dpp, this->get_info(), exclusive, &(this->get_attrs()),
+      &(this->get_version_tracker()), old_info);
 }
 
-int POSIXUser::remove_user(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXUser::remove_user(const DoutPrefixProvider* dpp, optional_yield y)
 {
-  return driver->get_user_db()->remove_user(dpp, this->get_info(), &(this->get_version_tracker()));
+  return driver->get_user_db()->remove_user(
+      dpp, this->get_info(), &(this->get_version_tracker()));
 }
 
-int POSIXUser::verify_mfa(const std::string& mfa_str, bool* verified, const DoutPrefixProvider *dpp, optional_yield y)
+int
+POSIXUser::verify_mfa(
+    const std::string& mfa_str,
+    bool* verified,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   *verified = false;
   return 0;
 }
 
-std::unique_ptr<Object> POSIXBucket::get_object(const rgw_obj_key& k)
+std::unique_ptr<Object>
+POSIXBucket::get_object(const rgw_obj_key& k)
 {
   return std::make_unique<POSIXObject>(driver, k, this);
 }
 
-int POSIXObject::fill_cache(const DoutPrefixProvider *dpp, optional_yield y, fill_cache_cb_t& cb)
+int
+POSIXObject::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
   return ent->fill_cache(dpp, y, cb);
 }
 
-int POSIXDriver::mint_listing_entry(const std::string &bname,
-                                    rgw_bucket_dir_entry &bde) {
-    std::unique_ptr<Bucket> b;
-    std::unique_ptr<Object> obj;
-    POSIXObject *pobj;
-    int ret;
+int
+POSIXDriver::mint_listing_entry(
+    const std::string& bname,
+    rgw_bucket_dir_entry& bde)
+{
+  std::unique_ptr<Bucket> b;
+  std::unique_ptr<Object> obj;
+  POSIXObject* pobj;
+  int ret;
 
-    ret = load_bucket(nullptr, rgw_bucket(std::string(), bname),
-                      &b, null_yield);
-    if (ret < 0)
-      return ret;
-
-    obj = b->get_object(decode_obj_key(bde.key.name));
-    pobj = static_cast<POSIXObject *>(obj.get());
-
-    if (!pobj->check_exists(nullptr)) {
-      ret = errno;
-      return -ret;
-    }
-
-    ret = pobj->get_obj_attrs(null_yield, nullptr);
-    if (ret < 0)
-      return ret;
-
-    ret = pobj->fill_cache(nullptr, null_yield,
-        [&bde](const DoutPrefixProvider *dpp, rgw_bucket_dir_entry &nbde) -> int {
-	  bde = nbde;
-	  return 0;
-        });
-
+  ret = load_bucket(nullptr, rgw_bucket(std::string(), bname), &b, null_yield);
+  if (ret < 0)
     return ret;
+
+  obj = b->get_object(decode_obj_key(bde.key.name));
+  pobj = static_cast<POSIXObject*>(obj.get());
+
+  if (!pobj->check_exists(nullptr)) {
+    ret = errno;
+    return -ret;
+  }
+
+  ret = pobj->get_obj_attrs(null_yield, nullptr);
+  if (ret < 0)
+    return ret;
+
+  ret = pobj->fill_cache(
+      nullptr, null_yield,
+      [&bde](const DoutPrefixProvider* dpp, rgw_bucket_dir_entry& nbde) -> int {
+        bde = nbde;
+        return 0;
+      });
+
+  return ret;
 }
 
-std::unique_ptr<LuaManager> POSIXDriver::get_lua_manager(const std::string& luarocks_path)
+std::unique_ptr<LuaManager>
+POSIXDriver::get_lua_manager(const std::string& luarocks_path)
 {
   return std::make_unique<POSIXLuaManager>(this);
 }
 
-std::unique_ptr<RGWRole> POSIXDriver::get_role(std::string name,
+std::unique_ptr<RGWRole>
+POSIXDriver::get_role(
+    std::string name,
     std::string tenant,
     rgw_account_id account_id,
     std::string path,
     std::string trust_policy,
     std::string description,
     std::string max_session_duration_str,
-    std::multimap<std::string,std::string> tags)
+    std::multimap<std::string, std::string> tags)
 {
   RGWRole* p = nullptr;
   return std::unique_ptr<RGWRole>(p);
 }
 
-std::unique_ptr<RGWRole> POSIXDriver::get_role(std::string id)
+std::unique_ptr<RGWRole>
+POSIXDriver::get_role(std::string id)
 {
   RGWRole* p = nullptr;
   return std::unique_ptr<RGWRole>(p);
 }
 
-std::unique_ptr<RGWRole> POSIXDriver::get_role(const RGWRoleInfo& info)
+std::unique_ptr<RGWRole>
+POSIXDriver::get_role(const RGWRoleInfo& info)
 {
   RGWRole* p = nullptr;
   return std::unique_ptr<RGWRole>(p);
 }
 
-int POSIXBucket::fill_cache(const DoutPrefixProvider* dpp, optional_yield y,
-			  fill_cache_cb_t& cb)
+int
+POSIXBucket::fill_cache(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    fill_cache_cb_t& cb)
 {
-return dir->fill_cache(dpp, y, cb);
+  return dir->fill_cache(dpp, y, cb);
 }
 
-int POSIXBucket::list(const DoutPrefixProvider* dpp, ListParams& params,
-		    int max, ListResults& results, optional_yield y)
+int
+POSIXBucket::list(
+    const DoutPrefixProvider* dpp,
+    ListParams& params,
+    int max,
+    ListResults& results,
+    optional_yield y)
 {
-int count{0};
-bool in_prefix{false};
-// Names in the cache are in OID format
-rgw_obj_key marker_key(params.marker);
-params.marker = marker_key.get_oid();
-{
-  rgw_obj_key key(params.prefix);
-  params.prefix = key.name;
-}
-if (max <= 0) {
+  int count{0};
+  bool in_prefix{false};
+  // Names in the cache are in OID format
+  rgw_obj_key marker_key(params.marker);
+  params.marker = marker_key.get_oid();
+  {
+    rgw_obj_key key(params.prefix);
+    params.prefix = key.name;
+  }
+  if (max <= 0) {
     return 0;
   }
 
   //params.list_versions
   int ret = driver->get_bucket_cache()->list_bucket(
-    dpp, y, this, params.marker.name, [&](const rgw_bucket_dir_entry& bde) -> bool
-      {
-	std::string ns;
-	// bde.key can be encoded with the namespace.  Decode it here
-	rgw_obj_key bde_key{bde.key};
-	if (!params.list_versions && !bde.is_visible()) {
-	  return true;
-	}
-	if (params.list_versions && versioned() && bde_key.instance.empty()) {
-	  return true;
-	}
+      dpp, y, this, params.marker.name,
+      [&](const rgw_bucket_dir_entry& bde) -> bool {
+        std::string ns;
+        // bde.key can be encoded with the namespace.  Decode it here
+        rgw_obj_key bde_key{bde.key};
+        if (!params.list_versions && !bde.is_visible()) {
+          return true;
+        }
+        if (params.list_versions && versioned() && bde_key.instance.empty()) {
+          return true;
+        }
         if (bde_key.ns != params.ns) {
           // Namespace must match
           return true;
         }
         if (!marker_key.empty() && marker_key == bde_key.name) {
-	  // Skip marker
-	  return true;
-	}
-	if (!params.prefix.empty()) {
-	  // We have a prefix, only match
+          // Skip marker
+          return true;
+        }
+        if (!params.prefix.empty()) {
+          // We have a prefix, only match
           if (!bde_key.name.starts_with(params.prefix)) {
             // Prefix doesn't match; skip
-	    if (in_prefix) {
+            if (in_prefix) {
               return false;
             }
             return true;
           }
-	  // Prefix matches
-	  if (params.delim.empty()) {
-	    // No delimiter, add matches
+          // Prefix matches
+          if (params.delim.empty()) {
+            // No delimiter, add matches
             results.next_marker.set(bde.key);
             results.objs.push_back(bde);
-	    count++;
-	    if (count >= max) {
+            count++;
+            if (count >= max) {
               results.is_truncated = true;
-	      return false;
-	    }
-	    return true;
+              return false;
+            }
+            return true;
           }
           auto delim_pos = bde_key.name.find(params.delim, params.prefix.size());
           if (delim_pos == std::string_view::npos) {
-	    // Straight prefix match
+            // Straight prefix match
             results.next_marker.set(bde.key);
             results.objs.push_back(bde);
-	    count++;
-	    if (count >= max) {
+            count++;
+            if (count >= max) {
               results.is_truncated = true;
-	      return false;
-	    }
-	    return true;
-	  }
+              return false;
+            }
+            return true;
+          }
           results.next_marker =
               bde_key.name.substr(0, delim_pos + params.delim.length());
           if (!results.common_prefixes.contains(results.next_marker.name)) {
@@ -2500,25 +2881,25 @@ if (max <= 0) {
                 results.is_truncated = true;
                 // Time to stop
                 return false;
-	      }
+              }
             }
           }
           in_prefix = true;
           return true;
         }
         if (!params.delim.empty()) {
-	  // Delimiter, but no prefix
-	  auto delim_pos = bde_key.name.find(params.delim) ;
+          // Delimiter, but no prefix
+          auto delim_pos = bde_key.name.find(params.delim);
           if (delim_pos == std::string_view::npos) {
-	    // Delimiter doesn't match, insert
+            // Delimiter doesn't match, insert
             results.next_marker.set(bde.key);
             results.objs.push_back(bde);
-	    count++;
-	    if (count >= max) {
+            count++;
+            if (count >= max) {
               results.is_truncated = true;
-	      return false;
-	    }
-	    return true;
+              return false;
+            }
+            return true;
           }
           std::string prefix_key =
               bde_key.name.substr(0, delim_pos + params.delim.length());
@@ -2526,23 +2907,23 @@ if (max <= 0) {
             // Skip marker
             return true;
           }
-	  std::string decoded_key;
-	  rgw_obj_key::parse_index_key(prefix_key, &decoded_key, &ns);
+          std::string decoded_key;
+          rgw_obj_key::parse_index_key(prefix_key, &decoded_key, &ns);
           if (!results.common_prefixes.contains(decoded_key)) {
-	    if (in_prefix) {
-	      // New prefix, check the count
-	      count++;
+            if (in_prefix) {
+              // New prefix, check the count
+              count++;
               if (count >= max) {
                 results.is_truncated = true;
                 return false;
               }
             }
-	    in_prefix = true;
+            in_prefix = true;
             results.common_prefixes[decoded_key] = true;
-	    // Fallthrough
+            // Fallthrough
           }
-	  results.next_marker.name = decoded_key;
-	  return true;
+          results.next_marker.name = decoded_key;
+          return true;
         }
 
         results.next_marker.set(bde.key);
@@ -2553,11 +2934,11 @@ if (max <= 0) {
           return false;
         }
         return true;
-    });
+      });
 
   if (ret < 0) {
     ldpp_dout(dpp, 0) << "ERROR: could not list bucket " << get_name() << ": "
-      << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     results.objs.clear();
     return ret;
   }
@@ -2565,19 +2946,24 @@ if (max <= 0) {
   return 0;
 }
 
-int POSIXBucket::merge_and_store_attrs(const DoutPrefixProvider* dpp,
-					Attrs& new_attrs, optional_yield y)
+int
+POSIXBucket::merge_and_store_attrs(
+    const DoutPrefixProvider* dpp,
+    Attrs& new_attrs,
+    optional_yield y)
 {
   for (auto& it : new_attrs) {
-	  attrs[it.first] = it.second;
+    attrs[it.first] = it.second;
   }
 
   return write_attrs(dpp, y);
 }
 
-int POSIXBucket::remove(const DoutPrefixProvider* dpp,
-			bool delete_children,
-			optional_yield y)
+int
+POSIXBucket::remove(
+    const DoutPrefixProvider* dpp,
+    bool delete_children,
+    optional_yield y)
 {
   int ret = dir->remove(dpp, y, delete_children);
   if (ret < 0) {
@@ -2589,15 +2975,18 @@ int POSIXBucket::remove(const DoutPrefixProvider* dpp,
   return ret;
 }
 
-int POSIXBucket::remove_bypass_gc(int concurrent_max,
-				  bool keep_index_consistent,
-				  optional_yield y,
-				  const DoutPrefixProvider *dpp)
+int
+POSIXBucket::remove_bypass_gc(
+    int concurrent_max,
+    bool keep_index_consistent,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   return remove(dpp, true, y);
 }
 
-int POSIXBucket::load_bucket(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXBucket::load_bucket(const DoutPrefixProvider* dpp, optional_yield y)
 {
   int ret;
 
@@ -2611,7 +3000,8 @@ int POSIXBucket::load_bucket(const DoutPrefixProvider* dpp, optional_yield y)
   }
 
   mtime = ceph::real_clock::from_time_t(dir->get_stx().stx_mtime.tv_sec);
-  info.creation_time = ceph::real_clock::from_time_t(dir->get_stx().stx_btime.tv_sec);
+  info.creation_time =
+      ceph::real_clock::from_time_t(dir->get_stx().stx_btime.tv_sec);
 
   ret = dir->open(dpp);
   if (ret < 0) {
@@ -2623,7 +3013,8 @@ int POSIXBucket::load_bucket(const DoutPrefixProvider* dpp, optional_yield y)
     return ret;
   }
 
-  RGWBucketInfo bak_info = info;;
+  RGWBucketInfo bak_info = info;
+  ;
   ret = decode_attr(attrs, RGW_POSIX_ATTR_BUCKET_INFO, info);
   if (ret < 0) {
     // TODO dang: fake info up (UID to owner conversion?)
@@ -2636,9 +3027,11 @@ int POSIXBucket::load_bucket(const DoutPrefixProvider* dpp, optional_yield y)
   return 0;
 }
 
-int POSIXBucket::set_acl(const DoutPrefixProvider* dpp,
-			 RGWAccessControlPolicy& acl,
-			 optional_yield y)
+int
+POSIXBucket::set_acl(
+    const DoutPrefixProvider* dpp,
+    RGWAccessControlPolicy& acl,
+    optional_yield y)
 {
   bufferlist aclbl;
 
@@ -2651,16 +3044,22 @@ int POSIXBucket::set_acl(const DoutPrefixProvider* dpp,
   return write_attrs(dpp, y);
 }
 
-int POSIXBucket::read_stats(const DoutPrefixProvider *dpp, optional_yield y,
-			    const bucket_index_layout_generation& idx_layout,
-			    int shard_id, std::string* bucket_ver, std::string* master_ver,
-			    std::map<RGWObjCategory, RGWStorageStats>& stats,
-			    std::string* max_marker, bool* syncstopped)
+int
+POSIXBucket::read_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const bucket_index_layout_generation& idx_layout,
+    int shard_id,
+    std::string* bucket_ver,
+    std::string* master_ver,
+    std::map<RGWObjCategory, RGWStorageStats>& stats,
+    std::string* max_marker,
+    bool* syncstopped)
 {
   auto& main = stats[RGWObjCategory::Main];
 
   // TODO: bucket stats shouldn't have to list all objects
-  return dir->for_each(dpp, [this, dpp, y, &main] (const char* name) {
+  return dir->for_each(dpp, [this, dpp, y, &main](const char* name) {
     if (name[0] == '.') {
       /* Skip dotfiles */
       return 0;
@@ -2670,8 +3069,8 @@ int POSIXBucket::read_stats(const DoutPrefixProvider *dpp, optional_yield y,
     int ret = dir->get_ent(dpp, y, name, std::string(), dent);
     if (ret < 0) {
       ret = errno;
-      ldpp_dout(dpp, 0) << "ERROR: could not get ent for object " << name << ": "
-	<< cpp_strerror(ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not get ent for object " << name
+                        << ": " << cpp_strerror(ret) << dendl;
       return -ret;
     }
 
@@ -2679,7 +3078,7 @@ int POSIXBucket::read_stats(const DoutPrefixProvider *dpp, optional_yield y,
     if (ret < 0) {
       ret = errno;
       ldpp_dout(dpp, 0) << "ERROR: could not stat object " << name << ": "
-	<< cpp_strerror(ret) << dendl;
+                        << cpp_strerror(ret) << dendl;
       return -ret;
     }
 
@@ -2697,52 +3096,71 @@ int POSIXBucket::read_stats(const DoutPrefixProvider *dpp, optional_yield y,
   return 0;
 }
 
-int POSIXBucket::read_stats_async(const DoutPrefixProvider *dpp,
-				  const bucket_index_layout_generation& idx_layout,
-				  int shard_id, boost::intrusive_ptr<ReadStatsCB> ctx)
+int
+POSIXBucket::read_stats_async(
+    const DoutPrefixProvider* dpp,
+    const bucket_index_layout_generation& idx_layout,
+    int shard_id,
+    boost::intrusive_ptr<ReadStatsCB> ctx)
 {
   return 0;
 }
 
-int POSIXBucket::sync_owner_stats(const DoutPrefixProvider *dpp, optional_yield y,
-                                  RGWBucketEnt* ent)
+int
+POSIXBucket::sync_owner_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWBucketEnt* ent)
 {
   return 0;
 }
 
-int POSIXBucket::check_bucket_shards(const DoutPrefixProvider* dpp,
-                                     uint64_t num_objs, optional_yield y)
+int
+POSIXBucket::check_bucket_shards(
+    const DoutPrefixProvider* dpp,
+    uint64_t num_objs,
+    optional_yield y)
 {
   return 0;
 }
 
-int POSIXBucket::chown(const DoutPrefixProvider* dpp,
-                       const rgw_owner& new_owner,
-                       const std::string& new_owner_name,
-                       optional_yield y) {
+int
+POSIXBucket::chown(
+    const DoutPrefixProvider* dpp,
+    const rgw_owner& new_owner,
+    const std::string& new_owner_name,
+    optional_yield y)
+{
   /* TODO map user to UID/GID, and change it */
   return 0;
 }
 
-int POSIXBucket::put_info(const DoutPrefixProvider* dpp, bool exclusive, ceph::real_time _mtime, optional_yield y)
+int
+POSIXBucket::put_info(
+    const DoutPrefixProvider* dpp,
+    bool exclusive,
+    ceph::real_time _mtime,
+    optional_yield y)
 {
   mtime = _mtime;
 
   struct timespec ts[2];
   ts[0].tv_nsec = UTIME_OMIT;
   ts[1] = ceph::real_clock::to_timespec(mtime);
-  int ret = utimensat(dir->get_parent()->get_fd(), get_fname().c_str(), ts, AT_SYMLINK_NOFOLLOW);
+  int ret = utimensat(
+      dir->get_parent()->get_fd(), get_fname().c_str(), ts, AT_SYMLINK_NOFOLLOW);
   if (ret < 0) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not set mtime on bucket " << get_name() << ": "
-      << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not set mtime on bucket " << get_name()
+                      << ": " << cpp_strerror(ret) << dendl;
     return -ret;
   }
 
   return write_attrs(dpp, y);
 }
 
-int POSIXBucket::write_attrs(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXBucket::write_attrs(const DoutPrefixProvider* dpp, optional_yield y)
 {
   int ret = dir->open(dpp);
   if (ret < 0) {
@@ -2758,25 +3176,36 @@ int POSIXBucket::write_attrs(const DoutPrefixProvider* dpp, optional_yield y)
   return dir->write_attrs(dpp, y, attrs, &extra_attrs);
 }
 
-int POSIXBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return dir->for_each(dpp, [](const char* name) {
     /* for_each filters out "." and "..", so reaching here is not empty */
     std::string_view check_name = name;
-    if (!check_name.starts_with(".multipart")) { // incomplete uploads can be deleted
+    if (!check_name.starts_with(
+            ".multipart")) { // incomplete uploads can be deleted
       return -ENOTEMPTY;
     }
     return 0;
   });
 }
 
-int POSIXBucket::check_quota(const DoutPrefixProvider *dpp, RGWQuota& quota, uint64_t obj_size,
-				optional_yield y, bool check_size_only)
+int
+POSIXBucket::check_quota(
+    const DoutPrefixProvider* dpp,
+    RGWQuota& quota,
+    uint64_t obj_size,
+    optional_yield y,
+    bool check_size_only)
 {
-    return 0;
+  return 0;
 }
 
-int POSIXBucket::try_refresh_info(const DoutPrefixProvider* dpp, ceph::real_time* pmtime, optional_yield y)
+int
+POSIXBucket::try_refresh_info(
+    const DoutPrefixProvider* dpp,
+    ceph::real_time* pmtime,
+    optional_yield y)
 {
   *pmtime = mtime;
 
@@ -2788,108 +3217,146 @@ int POSIXBucket::try_refresh_info(const DoutPrefixProvider* dpp, ceph::real_time
   return dir->read_attrs(dpp, y, attrs);
 }
 
-int POSIXBucket::read_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch,
-			    uint64_t end_epoch, uint32_t max_entries,
-			    bool* is_truncated, RGWUsageIter& usage_iter,
-			    std::map<rgw_user_bucket, rgw_usage_log_entry>& usage)
+int
+POSIXBucket::read_usage(
+    const DoutPrefixProvider* dpp,
+    uint64_t start_epoch,
+    uint64_t end_epoch,
+    uint32_t max_entries,
+    bool* is_truncated,
+    RGWUsageIter& usage_iter,
+    std::map<rgw_user_bucket, rgw_usage_log_entry>& usage)
 {
   return 0;
 }
 
-int POSIXBucket::trim_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch, optional_yield y)
+int
+POSIXBucket::trim_usage(
+    const DoutPrefixProvider* dpp,
+    uint64_t start_epoch,
+    uint64_t end_epoch,
+    optional_yield y)
 {
   return 0;
 }
 
-int POSIXBucket::remove_objs_from_index(const DoutPrefixProvider *dpp, std::list<rgw_obj_index_key>& objs_to_unlink)
+int
+POSIXBucket::remove_objs_from_index(
+    const DoutPrefixProvider* dpp,
+    std::list<rgw_obj_index_key>& objs_to_unlink)
 {
   return 0;
 }
 
-int POSIXBucket::check_index(const DoutPrefixProvider *dpp, optional_yield y,
-                             std::map<RGWObjCategory, RGWStorageStats>& existing_stats,
-                             std::map<RGWObjCategory, RGWStorageStats>& calculated_stats)
+int
+POSIXBucket::check_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::map<RGWObjCategory, RGWStorageStats>& existing_stats,
+    std::map<RGWObjCategory, RGWStorageStats>& calculated_stats)
 {
   return 0;
 }
 
-int POSIXBucket::rebuild_index(const DoutPrefixProvider *dpp, optional_yield y)
+int
+POSIXBucket::rebuild_index(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return 0;
 }
 
-int POSIXBucket::set_tag_timeout(const DoutPrefixProvider *dpp, optional_yield y, uint64_t timeout)
+int
+POSIXBucket::set_tag_timeout(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    uint64_t timeout)
 {
   return 0;
 }
 
-int POSIXBucket::purge_instance(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXBucket::purge_instance(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return 0;
 }
 
-std::unique_ptr<MultipartUpload> POSIXBucket::get_multipart_upload(
-				  const std::string& oid,
-				  std::optional<std::string> upload_id,
-				  ACLOwner owner, ceph::real_time mtime)
+std::unique_ptr<MultipartUpload>
+POSIXBucket::get_multipart_upload(
+    const std::string& oid,
+    std::optional<std::string> upload_id,
+    ACLOwner owner,
+    ceph::real_time mtime)
 {
-  return std::make_unique<POSIXMultipartUpload>(driver, this, oid, upload_id, owner, mtime);
+  return std::make_unique<POSIXMultipartUpload>(
+      driver, this, oid, upload_id, owner, mtime);
 }
 
-int POSIXBucket::list_multiparts(const DoutPrefixProvider *dpp,
-				  const std::string& prefix,
-				  std::string& marker,
-				  const std::string& delim,
-				  const int& max_uploads,
-				  std::vector<std::unique_ptr<MultipartUpload>>& uploads,
-				  std::map<std::string, bool> *common_prefixes,
-				  bool *is_truncated, optional_yield y)
+int
+POSIXBucket::list_multiparts(
+    const DoutPrefixProvider* dpp,
+    const std::string& prefix,
+    std::string& marker,
+    const std::string& delim,
+    const int& max_uploads,
+    std::vector<std::unique_ptr<MultipartUpload>>& uploads,
+    std::map<std::string, bool>* common_prefixes,
+    bool* is_truncated,
+    optional_yield y)
 {
   int count = 0;
   int ret;
 
-  ret = dir->for_each(dpp, [this, dpp, y, &count, &max_uploads, &is_truncated, &uploads] (const char* name) {
-    std::string_view d_name = name;
-    static std::string mp_pre{"." + mp_ns + "_"};
-    if (!d_name.starts_with(mp_pre)) {
-      /* Skip non-uploads */
-      return 0;
-    }
+  ret = dir->for_each(
+      dpp, [this, dpp, y, &count, &max_uploads, &is_truncated,
+            &uploads](const char* name) {
+        std::string_view d_name = name;
+        static std::string mp_pre{"." + mp_ns + "_"};
+        if (!d_name.starts_with(mp_pre)) {
+          /* Skip non-uploads */
+          return 0;
+        }
 
-    if (count >= max_uploads) {
-      if (is_truncated) {
-	*is_truncated = true;
-      }
+        if (count >= max_uploads) {
+          if (is_truncated) {
+            *is_truncated = true;
+          }
 
-      return -EAGAIN;
-    }
+          return -EAGAIN;
+        }
 
-    d_name.remove_prefix(mp_pre.size());
+        d_name.remove_prefix(mp_pre.size());
 
-    ACLOwner owner;
-    std::unique_ptr<MultipartUpload> upload =
-        std::make_unique<POSIXMultipartUpload>(
-            driver, this, std::string(d_name), std::nullopt, owner,
-            real_clock::now());
-    rgw_placement_rule* rule{nullptr};
-    int ret = upload->get_info(dpp, y, &rule, nullptr);
-    if (ret < 0)
-      return 0;
-    uploads.emplace(uploads.end(), std::move(upload));
-    count++;
+        ACLOwner owner;
+        std::unique_ptr<MultipartUpload> upload =
+            std::make_unique<POSIXMultipartUpload>(
+                driver, this, std::string(d_name), std::nullopt, owner,
+                real_clock::now());
+        rgw_placement_rule* rule{nullptr};
+        int ret = upload->get_info(dpp, y, &rule, nullptr);
+        if (ret < 0)
+          return 0;
+        uploads.emplace(uploads.end(), std::move(upload));
+        count++;
 
-    return 0;
-  });
+        return 0;
+      });
 
   return ret;
 }
 
-int POSIXBucket::abort_multiparts(const DoutPrefixProvider* dpp, CephContext* cct, optional_yield y)
+int
+POSIXBucket::abort_multiparts(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    optional_yield y)
 {
   return 0;
 }
 
-int POSIXBucket::create(const DoutPrefixProvider* dpp, optional_yield y, bool* existed)
+int
+POSIXBucket::create(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool* existed)
 {
   int ret = dir->create(dpp, existed);
   if (ret < 0) {
@@ -2899,12 +3366,17 @@ int POSIXBucket::create(const DoutPrefixProvider* dpp, optional_yield y, bool* e
   return write_attrs(dpp, y);
 }
 
-std::string POSIXBucket::get_fname()
+std::string
+POSIXBucket::get_fname()
 {
   return bucket_fname(get_name(), ns);
 }
 
-int POSIXBucket::rename(const DoutPrefixProvider* dpp, optional_yield y, Object* target_obj)
+int
+POSIXBucket::rename(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Object* target_obj)
 {
   int ret;
   Directory* dst_dir = dir->get_parent();
@@ -2914,37 +3386,41 @@ int POSIXBucket::rename(const DoutPrefixProvider* dpp, optional_yield y, Object*
 
   if (!target_obj->get_instance().empty()) {
     /* This is a versioned object.  Need to handle versioneddirectory */
-    POSIXObject *to = static_cast<POSIXObject *>(target_obj);
+    POSIXObject* to = static_cast<POSIXObject*>(target_obj);
     ret = to->open(dpp, true, false);
     if (ret < 0) {
-      ldpp_dout(dpp, 0) << "ERROR: could not open target obj " << to->get_name() << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not open target obj " << to->get_name()
+                        << dendl;
       return ret;
     }
-    dst_dir = static_cast<Directory *>(to->get_fsent());
+    dst_dir = static_cast<Directory*>(to->get_fsent());
   }
 
   return dir->rename(dpp, y, dst_dir, get_fname());
 }
 
-int POSIXObject::delete_object(const DoutPrefixProvider* dpp,
-				optional_yield y,
-				uint32_t flags,
-                                std::list<rgw_obj_index_key>* remove_objs,
-				RGWObjVersionTracker* objv)
+int
+POSIXObject::delete_object(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    uint32_t flags,
+    std::list<rgw_obj_index_key>* remove_objs,
+    RGWObjVersionTracker* objv)
 {
-  POSIXBucket *b = static_cast<POSIXBucket*>(get_bucket());
+  POSIXBucket* b = static_cast<POSIXBucket*>(get_bucket());
   if (!b) {
-      ldpp_dout(dpp, 0) << "ERROR: could not get bucket for " << get_name() << dendl;
-      return -EINVAL;
+    ldpp_dout(dpp, 0) << "ERROR: could not get bucket for " << get_name()
+                      << dendl;
+    return -EINVAL;
   }
 
   int ret = stat(dpp);
   if (ret < 0) {
-      if (ret == -ENOENT) {
-	// Nothing to do
-	return 0;
-      }
-      return ret;
+    if (ret == -ENOENT) {
+      // Nothing to do
+      return 0;
+    }
+    return ret;
   }
 
   ret = ent->remove(dpp, y, /*delete_children=*/false);
@@ -2961,40 +3437,42 @@ int POSIXObject::delete_object(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int POSIXObject::copy_object(const ACLOwner& owner,
-                              const rgw_user& remote_user,
-                              req_info* info,
-                              const rgw_zone_id& source_zone,
-                              rgw::sal::Object* dest_object,
-                              rgw::sal::Bucket* dest_bucket,
-                              rgw::sal::Bucket* src_bucket,
-                              const rgw_placement_rule& dest_placement,
-                              ceph::real_time* src_mtime,
-                              ceph::real_time* mtime,
-                              const ceph::real_time* mod_ptr,
-                              const ceph::real_time* unmod_ptr,
-                              bool high_precision_time,
-                              const char* if_match,
-                              const char* if_nomatch,
-                              AttrsMod attrs_mod,
-                              bool copy_if_newer,
-                              Attrs& attrs,
-                              RGWObjCategory category,
-                              uint64_t olh_epoch,
-                              boost::optional<ceph::real_time> delete_at,
-                              std::string* version_id,
-                              std::string* tag,
-                              std::string* etag,
-                              void (*progress_cb)(off_t, void *),
-                              void* progress_data,
-                              rgw::sal::DataProcessorFactory* dp_factory,
-                              const DoutPrefixProvider* dpp,
-                              optional_yield y)
+int
+POSIXObject::copy_object(
+    const ACLOwner& owner,
+    const rgw_user& remote_user,
+    req_info* info,
+    const rgw_zone_id& source_zone,
+    rgw::sal::Object* dest_object,
+    rgw::sal::Bucket* dest_bucket,
+    rgw::sal::Bucket* src_bucket,
+    const rgw_placement_rule& dest_placement,
+    ceph::real_time* src_mtime,
+    ceph::real_time* mtime,
+    const ceph::real_time* mod_ptr,
+    const ceph::real_time* unmod_ptr,
+    bool high_precision_time,
+    const char* if_match,
+    const char* if_nomatch,
+    AttrsMod attrs_mod,
+    bool copy_if_newer,
+    Attrs& attrs,
+    RGWObjCategory category,
+    uint64_t olh_epoch,
+    boost::optional<ceph::real_time> delete_at,
+    std::string* version_id,
+    std::string* tag,
+    std::string* etag,
+    void (*progress_cb)(off_t, void*),
+    void* progress_data,
+    rgw::sal::DataProcessorFactory* dp_factory,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   int ret;
-  POSIXBucket *db = static_cast<POSIXBucket*>(dest_bucket);
-  POSIXBucket *sb = static_cast<POSIXBucket*>(src_bucket);
-  POSIXObject *dobj = static_cast<POSIXObject*>(dest_object);
+  POSIXBucket* db = static_cast<POSIXBucket*>(dest_bucket);
+  POSIXBucket* sb = static_cast<POSIXBucket*>(src_bucket);
+  POSIXObject* dobj = static_cast<POSIXObject*>(dest_object);
 
   if (!db || !sb) {
     ldpp_dout(dpp, 0) << "ERROR: could not get bucket to copy " << get_name()
@@ -3021,9 +3499,9 @@ int POSIXObject::copy_object(const ACLOwner& owner,
     /* An actual copy, copy the data */
     ret = copy(dpp, y, sb, db, dobj);
     if (ret < 0) {
-        ldpp_dout(dpp, 0) << "ERROR: failed to copy object " << get_key()
-                          << dendl;
-        return ret;
+      ldpp_dout(dpp, 0) << "ERROR: failed to copy object " << get_key()
+                        << dendl;
+      return ret;
     }
   }
   dobj->make_ent(ent->get_type());
@@ -3053,7 +3531,7 @@ int POSIXObject::copy_object(const ACLOwner& owner,
       attrs[RGW_ATTR_ETAG] = src_attrs[RGW_ATTR_ETAG];
     }
     if (!attrs[RGW_ATTR_TAIL_TAG].length() &&
-	rgw::sal::get_attr(src_attrs, RGW_ATTR_TAIL_TAG, tt)) {
+        rgw::sal::get_attr(src_attrs, RGW_ATTR_TAIL_TAG, tt)) {
       attrs[RGW_ATTR_TAIL_TAG] = tt;
     }
     break;
@@ -3061,7 +3539,7 @@ int POSIXObject::copy_object(const ACLOwner& owner,
   case ATTRSMOD_MERGE:
     for (auto it = src_attrs.begin(); it != src_attrs.end(); ++it) {
       if (attrs.find(it->first) == attrs.end()) {
-	attrs[it->first] = it->second;
+        attrs[it->first] = it->second;
       }
     }
     break;
@@ -3091,21 +3569,34 @@ int POSIXObject::copy_object(const ACLOwner& owner,
   return dobj->set_obj_attrs(dpp, &attrs, nullptr, y, rgw::sal::FLAG_LOG_OP);
 }
 
-int POSIXObject::list_parts(const DoutPrefixProvider* dpp, CephContext* cct,
-			    int max_parts, int marker, int* next_marker,
-			    bool* truncated, list_parts_each_t&& each_func,
-			    optional_yield y)
+int
+POSIXObject::list_parts(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    int max_parts,
+    int marker,
+    int* next_marker,
+    bool* truncated,
+    list_parts_each_t&& each_func,
+    optional_yield y)
 {
   return -EOPNOTSUPP;
 }
 
-bool POSIXObject::is_sync_completed(const DoutPrefixProvider* dpp, optional_yield y,
-                                    const ceph::real_time& obj_mtime)
+bool
+POSIXObject::is_sync_completed(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const ceph::real_time& obj_mtime)
 {
   return false;
 }
 
-int POSIXObject::load_obj_state(const DoutPrefixProvider* dpp, optional_yield y, bool follow_olh)
+int
+POSIXObject::load_obj_state(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool follow_olh)
 {
   int ret = stat(dpp);
   if (ret < 0) {
@@ -3115,14 +3606,19 @@ int POSIXObject::load_obj_state(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-int POSIXObject::set_obj_attrs(const DoutPrefixProvider* dpp, Attrs* setattrs,
-                            Attrs* delattrs, optional_yield y, uint32_t flags)
+int
+POSIXObject::set_obj_attrs(
+    const DoutPrefixProvider* dpp,
+    Attrs* setattrs,
+    Attrs* delattrs,
+    optional_yield y,
+    uint32_t flags)
 {
   if (delattrs) {
     for (auto& it : *delattrs) {
       if (it.first == RGW_POSIX_ATTR_OBJECT_TYPE) {
-	// Don't delete type
-	continue;
+        // Don't delete type
+        continue;
       }
       state.attrset.erase(it.first);
     }
@@ -3130,8 +3626,8 @@ int POSIXObject::set_obj_attrs(const DoutPrefixProvider* dpp, Attrs* setattrs,
   if (setattrs) {
     for (auto& it : *setattrs) {
       if (it.first == RGW_POSIX_ATTR_OBJECT_TYPE) {
-	// Don't overwrite type
-	continue;
+        // Don't overwrite type
+        continue;
       }
       state.attrset[it.first] = it.second;
     }
@@ -3141,7 +3637,8 @@ int POSIXObject::set_obj_attrs(const DoutPrefixProvider* dpp, Attrs* setattrs,
   return 0;
 }
 
-int POSIXObject::get_obj_attrs(optional_yield y, const DoutPrefixProvider* dpp)
+int
+POSIXObject::get_obj_attrs(optional_yield y, const DoutPrefixProvider* dpp)
 {
   //int fd;
 
@@ -3159,15 +3656,23 @@ int POSIXObject::get_obj_attrs(optional_yield y, const DoutPrefixProvider* dpp)
   return ret;
 }
 
-int POSIXObject::modify_obj_attrs(const char* attr_name, bufferlist& attr_val,
-                               optional_yield y, const DoutPrefixProvider* dpp, uint32_t flags)
+int
+POSIXObject::modify_obj_attrs(
+    const char* attr_name,
+    bufferlist& attr_val,
+    optional_yield y,
+    const DoutPrefixProvider* dpp,
+    uint32_t flags)
 {
   state.attrset[attr_name] = attr_val;
   return write_attrs(dpp, y);
 }
 
-int POSIXObject::delete_obj_attrs(const DoutPrefixProvider* dpp, const char* attr_name,
-                               optional_yield y)
+int
+POSIXObject::delete_obj_attrs(
+    const DoutPrefixProvider* dpp,
+    const char* attr_name,
+    optional_yield y)
 {
   state.attrset.erase(attr_name);
 
@@ -3179,14 +3684,17 @@ int POSIXObject::delete_obj_attrs(const DoutPrefixProvider* dpp, const char* att
   ret = remove_x_attr(dpp, y, ent->get_fd(), attr_name, get_name());
   if (ret < 0) {
     ret = errno;
-    ldpp_dout(dpp, 0) << "ERROR: could not remover attribute " << attr_name << " for " << get_name() << ": " << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: could not remover attribute " << attr_name
+                      << " for " << get_name() << ": " << cpp_strerror(ret)
+                      << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-bool POSIXObject::is_expired()
+bool
+POSIXObject::is_expired()
 {
   utime_t delete_at;
   if (!decode_attr(state.attrset, RGW_ATTR_DELETE_AT, delete_at)) {
@@ -3203,24 +3711,34 @@ bool POSIXObject::is_expired()
   return false;
 }
 
-void POSIXObject::gen_rand_obj_instance_name()
+void
+POSIXObject::gen_rand_obj_instance_name()
 {
   state.obj.key.set_instance(gen_rand_instance_name());
 }
 
-std::unique_ptr<MPSerializer> POSIXObject::get_serializer(const DoutPrefixProvider *dpp, optional_yield y, const std::string& lock_name)
+std::unique_ptr<MPSerializer>
+POSIXObject::get_serializer(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& lock_name)
 {
   return std::make_unique<MPPOSIXSerializer>(dpp, driver, this, lock_name);
 }
 
-int MPPOSIXSerializer::try_lock(const DoutPrefixProvider *dpp, ceph::timespan dur, optional_yield y)
+int
+MPPOSIXSerializer::try_lock(
+    const DoutPrefixProvider* dpp,
+    ceph::timespan dur,
+    optional_yield y)
 {
   if (!obj->check_exists(dpp)) {
     return -ENOENT;
   }
 
   POSIXBucket* b = static_cast<POSIXBucket*>(obj->get_bucket());
-  if (b->get_dir()->get_type() == ObjectType::MULTIPART && b->get_dir_fd(dpp) > 0) {
+  if (b->get_dir()->get_type() == ObjectType::MULTIPART &&
+      b->get_dir_fd(dpp) > 0) {
     locked = true;
     return 0;
   }
@@ -3228,116 +3746,155 @@ int MPPOSIXSerializer::try_lock(const DoutPrefixProvider *dpp, ceph::timespan du
   return -ENOENT;
 }
 
-int MPPOSIXSerializer::unlock(const DoutPrefixProvider *dpp, optional_yield y)
+int
+MPPOSIXSerializer::unlock(const DoutPrefixProvider* dpp, optional_yield y)
 {
   clear_locked();
   return 0;
 }
 
-int POSIXObject::transition(Bucket* bucket,
-			    const rgw_placement_rule& placement_rule,
-			    const real_time& mtime,
-			    uint64_t olh_epoch,
-			    const DoutPrefixProvider* dpp,
-			    optional_yield y,
-                            uint32_t flags)
+int
+POSIXObject::transition(
+    Bucket* bucket,
+    const rgw_placement_rule& placement_rule,
+    const real_time& mtime,
+    uint64_t olh_epoch,
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    uint32_t flags)
 {
   return -ERR_NOT_IMPLEMENTED;
 }
 
-int POSIXObject::transition_to_cloud(Bucket* bucket,
-			   rgw::sal::PlacementTier* tier,
-			   rgw_bucket_dir_entry& o,
-			   std::set<std::string>& cloud_targets,
-			   CephContext* cct,
-			   bool update_object,
-			   const DoutPrefixProvider* dpp,
-			   optional_yield y)
+int
+POSIXObject::transition_to_cloud(
+    Bucket* bucket,
+    rgw::sal::PlacementTier* tier,
+    rgw_bucket_dir_entry& o,
+    std::set<std::string>& cloud_targets,
+    CephContext* cct,
+    bool update_object,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return -ERR_NOT_IMPLEMENTED;
 }
 
-int POSIXObject::restore_obj_from_cloud(Bucket* bucket,
-          rgw::sal::PlacementTier* tier,
-	  CephContext* cct,
-          std::optional<uint64_t> days,
-          bool& in_progress,
-	  uint64_t& size,
-          const DoutPrefixProvider* dpp, 
-          optional_yield y)
+int
+POSIXObject::restore_obj_from_cloud(
+    Bucket* bucket,
+    rgw::sal::PlacementTier* tier,
+    CephContext* cct,
+    std::optional<uint64_t> days,
+    bool& in_progress,
+    uint64_t& size,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return -ERR_NOT_IMPLEMENTED;
 }
 
-bool POSIXObject::placement_rules_match(rgw_placement_rule& r1, rgw_placement_rule& r2)
+bool
+POSIXObject::placement_rules_match(rgw_placement_rule& r1, rgw_placement_rule& r2)
 {
   return (r1 == r2);
 }
 
-int POSIXObject::dump_obj_layout(const DoutPrefixProvider *dpp, optional_yield y, Formatter* f)
-{
-    return 0;
-}
-
-int POSIXObject::swift_versioning_restore(const ACLOwner& owner, const rgw_user& remote_user, bool& restored,
-				       const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::dump_obj_layout(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    Formatter* f)
 {
   return 0;
 }
 
-int POSIXObject::swift_versioning_copy(const ACLOwner& owner, const rgw_user& remote_user,
-				    const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::swift_versioning_restore(
+    const ACLOwner& owner,
+    const rgw_user& remote_user,
+    bool& restored,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return 0;
 }
 
-int POSIXObject::omap_get_vals_by_keys(const DoutPrefixProvider *dpp, const std::string& oid,
-					  const std::set<std::string>& keys,
-					  Attrs* vals)
+int
+POSIXObject::swift_versioning_copy(
+    const ACLOwner& owner,
+    const rgw_user& remote_user,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
+{
+  return 0;
+}
+
+int
+POSIXObject::omap_get_vals_by_keys(
+    const DoutPrefixProvider* dpp,
+    const std::string& oid,
+    const std::set<std::string>& keys,
+    Attrs* vals)
 {
   /* TODO Figure out omap */
   return 0;
 }
 
-int POSIXObject::omap_set_val_by_key(const DoutPrefixProvider *dpp, const std::string& key, bufferlist& val,
-					bool must_exist, optional_yield y)
+int
+POSIXObject::omap_set_val_by_key(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    bufferlist& val,
+    bool must_exist,
+    optional_yield y)
 {
   /* TODO Figure out omap */
   return 0;
 }
 
-int POSIXObject::chown(User& new_user, const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::chown(
+    User& new_user,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
-  POSIXBucket *b = static_cast<POSIXBucket*>(get_bucket());
+  POSIXBucket* b = static_cast<POSIXBucket*>(get_bucket());
   if (!b) {
-      ldpp_dout(dpp, 0) << "ERROR: could not get bucket for " << get_name() << dendl;
-      return -EINVAL;
+    ldpp_dout(dpp, 0) << "ERROR: could not get bucket for " << get_name()
+                      << dendl;
+    return -EINVAL;
   }
   /* TODO Get UID from user */
   int uid = 0;
   int gid = 0;
 
-  int ret = fchownat(b->get_dir_fd(dpp), get_fname(/*use_version=*/true).c_str(), uid, gid, AT_SYMLINK_NOFOLLOW);
+  int ret = fchownat(
+      b->get_dir_fd(dpp), get_fname(/*use_version=*/true).c_str(), uid, gid,
+      AT_SYMLINK_NOFOLLOW);
   if (ret < 0) {
     ret = errno;
     ldpp_dout(dpp, 0) << "ERROR: could not remove object " << get_name() << ": "
-      << cpp_strerror(ret) << dendl;
+                      << cpp_strerror(ret) << dendl;
     return -ret;
-    }
+  }
 
   return 0;
 }
 
-int POSIXObject::get_cur_version(const DoutPrefixProvider* dpp, rgw_obj_key& key)
+int
+POSIXObject::get_cur_version(const DoutPrefixProvider* dpp, rgw_obj_key& key)
 {
   return 0;
 }
 
-int POSIXObject::set_cur_version(const DoutPrefixProvider *dpp)
+int
+POSIXObject::set_cur_version(const DoutPrefixProvider* dpp)
 {
   VersionedDirectory* vdir = static_cast<VersionedDirectory*>(ent.get());
   std::unique_ptr<FSEnt> child;
-  int ret = vdir->get_ent(dpp, null_yield, get_fname(true), std::string(), child);
+  int ret =
+      vdir->get_ent(dpp, null_yield, get_fname(true), std::string(), child);
   if (ret < 0)
     return ret;
 
@@ -3345,13 +3902,15 @@ int POSIXObject::set_cur_version(const DoutPrefixProvider *dpp)
   return ret;
 }
 
-int POSIXObject::stat(const DoutPrefixProvider* dpp)
+int
+POSIXObject::stat(const DoutPrefixProvider* dpp)
 {
   int ret;
 
   if (!ent) {
-    ret = static_cast<POSIXBucket *>(bucket)->get_dir()->get_ent(
-        dpp, null_yield, get_fname(/*use_version=*/false), state.obj.key.instance, ent);
+    ret = static_cast<POSIXBucket*>(bucket)->get_dir()->get_ent(
+        dpp, null_yield, get_fname(/*use_version=*/false),
+        state.obj.key.instance, ent);
     if (ret < 0) {
       state.exists = false;
       return ret;
@@ -3379,46 +3938,57 @@ int POSIXObject::stat(const DoutPrefixProvider* dpp)
   return 0;
 }
 
-int POSIXObject::make_ent(ObjectType type)
+int
+POSIXObject::make_ent(ObjectType type)
 {
   if (ent)
     return 0;
 
   switch (type.type) {
-    case ObjectType::UNKNOWN:
-      return -EINVAL;
-    case ObjectType::FILE:
-      ent = std::make_unique<File>(
-          get_fname(/*use_version=*/true), static_cast<POSIXBucket *>(bucket)->get_dir(), driver->ctx());
-      break;
-    case ObjectType::DIRECTORY:
-      ent = std::make_unique<Directory>(
-          get_fname(/*use_version=*/true), static_cast<POSIXBucket *>(bucket)->get_dir(), driver->ctx());
-      break;
-    case ObjectType::SYMLINK:
-      ent = std::make_unique<Symlink>(
-          get_fname(/*use_version=*/true), static_cast<POSIXBucket *>(bucket)->get_dir(), driver->ctx());
-      break;
-    case ObjectType::MULTIPART:
-      ent = std::make_unique<MPDirectory>(
-          get_fname(/*use_version=*/true), static_cast<POSIXBucket *>(bucket)->get_dir(), driver->ctx());
-      break;
-    case ObjectType::VERSIONED:
-      ent = std::make_unique<VersionedDirectory>(
-          get_fname(/*use_version=*/false), static_cast<POSIXBucket *>(bucket)->get_dir(), get_instance(), driver->ctx());
-      break;
+  case ObjectType::UNKNOWN:
+    return -EINVAL;
+  case ObjectType::FILE:
+    ent = std::make_unique<File>(
+        get_fname(/*use_version=*/true),
+        static_cast<POSIXBucket*>(bucket)->get_dir(), driver->ctx());
+    break;
+  case ObjectType::DIRECTORY:
+    ent = std::make_unique<Directory>(
+        get_fname(/*use_version=*/true),
+        static_cast<POSIXBucket*>(bucket)->get_dir(), driver->ctx());
+    break;
+  case ObjectType::SYMLINK:
+    ent = std::make_unique<Symlink>(
+        get_fname(/*use_version=*/true),
+        static_cast<POSIXBucket*>(bucket)->get_dir(), driver->ctx());
+    break;
+  case ObjectType::MULTIPART:
+    ent = std::make_unique<MPDirectory>(
+        get_fname(/*use_version=*/true),
+        static_cast<POSIXBucket*>(bucket)->get_dir(), driver->ctx());
+    break;
+  case ObjectType::VERSIONED:
+    ent = std::make_unique<VersionedDirectory>(
+        get_fname(/*use_version=*/false),
+        static_cast<POSIXBucket*>(bucket)->get_dir(), get_instance(),
+        driver->ctx());
+    break;
   }
 
   return 0;
 }
 
-int POSIXObject::get_owner(const DoutPrefixProvider *dpp, optional_yield y, std::unique_ptr<User> *owner)
+int
+POSIXObject::get_owner(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::unique_ptr<User>* owner)
 {
   POSIXOwner o;
   int ret = decode_owner(get_attrs(), o);
   if (ret < 0) {
     ldpp_dout(dpp, 0) << "ERROR: " << __func__
-        << ": No " RGW_POSIX_ATTR_OWNER " attr" << dendl;
+                      << ": No " RGW_POSIX_ATTR_OWNER " attr" << dendl;
     return ret;
   }
 
@@ -3427,17 +3997,20 @@ int POSIXObject::get_owner(const DoutPrefixProvider *dpp, optional_yield y, std:
   return 0;
 }
 
-std::unique_ptr<Object::ReadOp> POSIXObject::get_read_op()
+std::unique_ptr<Object::ReadOp>
+POSIXObject::get_read_op()
 {
   return std::make_unique<POSIXReadOp>(this);
 }
 
-std::unique_ptr<Object::DeleteOp> POSIXObject::get_delete_op()
+std::unique_ptr<Object::DeleteOp>
+POSIXObject::get_delete_op()
 {
   return std::make_unique<POSIXDeleteOp>(this);
 }
 
-int POSIXObject::open(const DoutPrefixProvider* dpp, bool create, bool temp_file)
+int
+POSIXObject::open(const DoutPrefixProvider* dpp, bool create, bool temp_file)
 {
   int ret{0};
 
@@ -3445,7 +4018,7 @@ int POSIXObject::open(const DoutPrefixProvider* dpp, bool create, bool temp_file
     ret = stat(dpp);
     if (ret < 0) {
       if (!create) {
-	return ret;
+        return ret;
       }
       if (versioned()) {
         ret = make_ent(ObjectType::VERSIONED);
@@ -3461,7 +4034,8 @@ int POSIXObject::open(const DoutPrefixProvider* dpp, bool create, bool temp_file
   if (create) {
     ret = ent->create(dpp, nullptr, temp_file);
     if (ret < 0) {
-      ldpp_dout(dpp, 0) << "ERROR: could not create " << ent->get_name() << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: could not create " << ent->get_name()
+                        << dendl;
       return ret;
     }
   }
@@ -3469,30 +4043,32 @@ int POSIXObject::open(const DoutPrefixProvider* dpp, bool create, bool temp_file
   return ent->open(dpp);
 }
 
-int POSIXObject::link_temp_file(const DoutPrefixProvider *dpp, optional_yield y)
+int
+POSIXObject::link_temp_file(const DoutPrefixProvider* dpp, optional_yield y)
 {
   std::string temp_fname = gen_temp_fname();
   int ret = ent->link_temp_file(dpp, y, temp_fname);
   if (ret < 0)
     return ret;
- 
-  POSIXBucket *b = static_cast<POSIXBucket *>(get_bucket());
+
+  POSIXBucket* b = static_cast<POSIXBucket*>(get_bucket());
   if (!b) {
     ldpp_dout(dpp, 0) << "ERROR: could not get bucket for " << get_name()
-		      << dendl;
+                      << dendl;
     return -EINVAL;
   }
 
-  fill_cache( nullptr, null_yield,
-      [&](const DoutPrefixProvider *dpp, rgw_bucket_dir_entry &bde) -> int {
-	driver->get_bucket_cache()->add_entry(dpp, b->get_name(), bde);
-	return 0;
+  fill_cache(
+      nullptr, null_yield,
+      [&](const DoutPrefixProvider* dpp, rgw_bucket_dir_entry& bde) -> int {
+        driver->get_bucket_cache()->add_entry(dpp, b->get_name(), bde);
+        return 0;
       });
   return 0;
 }
 
-
-int POSIXObject::close()
+int
+POSIXObject::close()
 {
   if (ent)
     return ent->close();
@@ -3500,26 +4076,37 @@ int POSIXObject::close()
   return 0;
 }
 
-int POSIXObject::read(int64_t ofs, int64_t left, bufferlist& bl,
-		      const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::read(
+    int64_t ofs,
+    int64_t left,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   if (!ent)
     return -ENOENT;
   return ent->read(ofs, left, bl, dpp, y);
 }
 
-int POSIXObject::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dpp,
-		       optional_yield y)
+int
+POSIXObject::write(
+    int64_t ofs,
+    bufferlist& bl,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   return ent->write(ofs, bl, dpp, y);
 }
 
-int POSIXObject::write_attrs(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::write_attrs(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return ent->write_attrs(dpp, y, state.attrset, nullptr);
 }
 
-int POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider* dpp)
+int
+POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider* dpp)
 {
   int ret = source->stat(dpp);
   if (ret < 0)
@@ -3534,8 +4121,10 @@ int POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider
     /* Sideloaded file.  Generate necessary attributes. Only done once. */
     int ret = source->generate_attrs(dpp, y);
     if (ret < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not generate attrs for " << source->get_name() << " error: " << cpp_strerror(ret) << dendl;
-	return ret;
+      ldpp_dout(dpp, 0) << " ERROR: could not generate attrs for "
+                        << source->get_name() << " error: " << cpp_strerror(ret)
+                        << dendl;
+      return ret;
     }
   }
 
@@ -3572,14 +4161,16 @@ int POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider
 
   if (params.mod_ptr || params.unmod_ptr) {
     if (params.mod_ptr && !params.if_nomatch) {
-      ldpp_dout(dpp, 10) << "If-Modified-Since: " << *params.mod_ptr << " Last-Modified: " << source->get_mtime() << dendl;
+      ldpp_dout(dpp, 10) << "If-Modified-Since: " << *params.mod_ptr
+                         << " Last-Modified: " << source->get_mtime() << dendl;
       if (!(*params.mod_ptr < source->get_mtime())) {
         return -ERR_NOT_MODIFIED;
       }
     }
 
     if (params.unmod_ptr && !params.if_match) {
-      ldpp_dout(dpp, 10) << "If-Modified-Since: " << *params.unmod_ptr << " Last-Modified: " << source->get_mtime() << dendl;
+      ldpp_dout(dpp, 10) << "If-Modified-Since: " << *params.unmod_ptr
+                         << " Last-Modified: " << source->get_mtime() << dendl;
       if (*params.unmod_ptr < source->get_mtime()) {
         return -ERR_PRECONDITION_FAILED;
       }
@@ -3588,16 +4179,20 @@ int POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider
 
   if (params.if_match) {
     std::string if_match_str = rgw_string_unquote(params.if_match);
-    ldpp_dout(dpp, 10) << "If-Match: " << if_match_str << " ETAG: " << etag_bl.c_str() << dendl;
+    ldpp_dout(dpp, 10) << "If-Match: " << if_match_str
+                       << " ETAG: " << etag_bl.c_str() << dendl;
 
-    if (if_match_str.compare(0, etag_bl.length(), etag_bl.c_str(), etag_bl.length()) != 0) {
+    if (if_match_str.compare(
+            0, etag_bl.length(), etag_bl.c_str(), etag_bl.length()) != 0) {
       return -ERR_PRECONDITION_FAILED;
     }
   }
   if (params.if_nomatch) {
     std::string if_nomatch_str = rgw_string_unquote(params.if_nomatch);
-    ldpp_dout(dpp, 10) << "If-No-Match: " << if_nomatch_str << " ETAG: " << etag_bl.c_str() << dendl;
-    if (if_nomatch_str.compare(0, etag_bl.length(), etag_bl.c_str(), etag_bl.length()) == 0) {
+    ldpp_dout(dpp, 10) << "If-No-Match: " << if_nomatch_str
+                       << " ETAG: " << etag_bl.c_str() << dendl;
+    if (if_nomatch_str.compare(
+            0, etag_bl.length(), etag_bl.c_str(), etag_bl.length()) == 0) {
       return -ERR_NOT_MODIFIED;
     }
   }
@@ -3609,13 +4204,19 @@ int POSIXObject::POSIXReadOp::prepare(optional_yield y, const DoutPrefixProvider
   return 0;
 }
 
-int POSIXObject::POSIXReadOp::read(int64_t ofs, int64_t end, bufferlist& bl,
-				     optional_yield y, const DoutPrefixProvider* dpp)
+int
+POSIXObject::POSIXReadOp::read(
+    int64_t ofs,
+    int64_t end,
+    bufferlist& bl,
+    optional_yield y,
+    const DoutPrefixProvider* dpp)
 {
   return source->read(ofs, end + 1, bl, dpp, y);
 }
 
-int POSIXObject::generate_attrs(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::generate_attrs(const DoutPrefixProvider* dpp, optional_yield y)
 {
   int ret;
 
@@ -3623,12 +4224,14 @@ int POSIXObject::generate_attrs(const DoutPrefixProvider* dpp, optional_yield y)
   return ret;
 }
 
-int POSIXObject::generate_mp_etag(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::generate_mp_etag(const DoutPrefixProvider* dpp, optional_yield y)
 {
   return 0;
 }
 
-int POSIXObject::generate_etag(const DoutPrefixProvider* dpp, optional_yield y)
+int
+POSIXObject::generate_etag(const DoutPrefixProvider* dpp, optional_yield y)
 {
   int64_t left = get_size();
   int64_t cur_ofs = 0;
@@ -3644,14 +4247,15 @@ int POSIXObject::generate_etag(const DoutPrefixProvider* dpp, optional_yield y)
     bufferlist bl;
     int len = read(cur_ofs, left, bl, dpp, y);
     if (len < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not read " << get_name() <<
-	  " ofs: " << cur_ofs << " error: " << cpp_strerror(len) << dendl;
-	return len;
+      ldpp_dout(dpp, 0) << " ERROR: could not read " << get_name()
+                        << " ofs: " << cur_ofs
+                        << " error: " << cpp_strerror(len) << dendl;
+      return len;
     } else if (len == 0) {
       /* Done */
       break;
     }
-    hash.Update((const unsigned char *)bl.c_str(), bl.length());
+    hash.Update((const unsigned char*)bl.c_str(), bl.length());
 
     left -= len;
     cur_ofs += len;
@@ -3664,15 +4268,21 @@ int POSIXObject::generate_etag(const DoutPrefixProvider* dpp, optional_yield y)
   return write_attrs(dpp, y);
 }
 
-const std::string POSIXObject::get_fname(bool use_version)
+const std::string
+POSIXObject::get_fname(bool use_version)
 {
   return get_key_fname(state.obj.key, use_version);
 }
 
-std::string POSIXObject::gen_temp_fname()
+std::string
+POSIXObject::gen_temp_fname()
 {
   std::string temp_fname;
-  enum { RAND_SUFFIX_SIZE = 8 };
+
+  enum {
+    RAND_SUFFIX_SIZE = 8
+  };
+
   char buf[RAND_SUFFIX_SIZE + 1];
 
   gen_rand_alphanumeric_no_underscore(driver->ctx(), buf, RAND_SUFFIX_SIZE);
@@ -3682,8 +4292,13 @@ std::string POSIXObject::gen_temp_fname()
   return temp_fname;
 }
 
-int POSIXObject::POSIXReadOp::iterate(const DoutPrefixProvider* dpp, int64_t ofs,
-					int64_t end, RGWGetDataCB* cb, optional_yield y)
+int
+POSIXObject::POSIXReadOp::iterate(
+    const DoutPrefixProvider* dpp,
+    int64_t ofs,
+    int64_t end,
+    RGWGetDataCB* cb,
+    optional_yield y)
 {
   int64_t left;
   int64_t cur_ofs = ofs;
@@ -3697,9 +4312,10 @@ int POSIXObject::POSIXReadOp::iterate(const DoutPrefixProvider* dpp, int64_t ofs
     bufferlist bl;
     int len = source->read(cur_ofs, left, bl, dpp, y);
     if (len < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not read " << source->get_name() <<
-	  " ofs: " << cur_ofs << " error: " << cpp_strerror(len) << dendl;
-	return len;
+      ldpp_dout(dpp, 0) << " ERROR: could not read " << source->get_name()
+                        << " ofs: " << cur_ofs
+                        << " error: " << cpp_strerror(len) << dendl;
+      return len;
     } else if (len == 0) {
       /* Done */
       break;
@@ -3708,8 +4324,9 @@ int POSIXObject::POSIXReadOp::iterate(const DoutPrefixProvider* dpp, int64_t ofs
     /* Read some */
     int ret = cb->handle_data(bl, 0, len);
     if (ret < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: callback failed on " << source->get_name() << ": " << ret << dendl;
-	return ret;
+      ldpp_dout(dpp, 0) << " ERROR: callback failed on " << source->get_name()
+                        << ": " << ret << dendl;
+      return ret;
     }
 
     left -= len;
@@ -3720,7 +4337,12 @@ int POSIXObject::POSIXReadOp::iterate(const DoutPrefixProvider* dpp, int64_t ofs
   return 0;
 }
 
-int POSIXObject::POSIXReadOp::get_attr(const DoutPrefixProvider* dpp, const char* name, bufferlist& dest, optional_yield y)
+int
+POSIXObject::POSIXReadOp::get_attr(
+    const DoutPrefixProvider* dpp,
+    const char* name,
+    bufferlist& dest,
+    optional_yield y)
 {
   if (!source->check_exists(dpp)) {
     return -ENOENT;
@@ -3735,23 +4357,36 @@ int POSIXObject::POSIXReadOp::get_attr(const DoutPrefixProvider* dpp, const char
   return 0;
 }
 
-int POSIXObject::POSIXDeleteOp::delete_obj(const DoutPrefixProvider* dpp,
-					   optional_yield y, uint32_t flags)
+int
+POSIXObject::POSIXDeleteOp::delete_obj(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    uint32_t flags)
 {
   return source->delete_object(dpp, y, flags, nullptr, nullptr);
 }
 
-int POSIXObject::copy(const DoutPrefixProvider *dpp, optional_yield y,
-                      POSIXBucket *sb, POSIXBucket *db, POSIXObject *dobj)
+int
+POSIXObject::copy(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    POSIXBucket* sb,
+    POSIXBucket* db,
+    POSIXObject* dobj)
 {
   rgw_obj_key dst_key = dobj->get_key();
   if (!get_key().instance.empty())
     dst_key.instance = get_key().instance;
 
-  return ent->copy(dpp, y, db->get_dir(), get_key_fname(dst_key, /*use_version=*/true));
+  return ent->copy(
+      dpp, y, db->get_dir(), get_key_fname(dst_key, /*use_version=*/true));
 }
 
-void POSIXMPObj::init_gen(POSIXDriver* driver, const std::string& _oid, ACLOwner& _owner)
+void
+POSIXMPObj::init_gen(
+    POSIXDriver* driver,
+    const std::string& _oid,
+    ACLOwner& _owner)
 {
   char buf[33];
   std::string new_id = MULTIPART_UPLOAD_ID_PREFIX; /* v2 upload id */
@@ -3762,15 +4397,20 @@ void POSIXMPObj::init_gen(POSIXDriver* driver, const std::string& _oid, ACLOwner
   init(_oid, new_id, _owner);
 }
 
-int POSIXMultipartPart::load(const DoutPrefixProvider* dpp, optional_yield y,
-			     POSIXDriver* driver, rgw_obj_key& key)
+int
+POSIXMultipartPart::load(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    POSIXDriver* driver,
+    rgw_obj_key& key)
 {
   if (part_file) {
     /* Already loaded */
     return 0;
   }
 
-  part_file = std::make_unique<File>(get_key_fname(key, false), upload->get_shadow()->get_dir(), driver->ctx());
+  part_file = std::make_unique<File>(
+      get_key_fname(key, false), upload->get_shadow()->get_dir(), driver->ctx());
 
   // Stat the part_file object to get things like size
   int ret = part_file->stat(dpp, y);
@@ -3786,23 +4426,27 @@ int POSIXMultipartPart::load(const DoutPrefixProvider* dpp, optional_yield y,
 
   ret = decode_attr(attrs, RGW_POSIX_ATTR_MPUPLOAD, info);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: " << __func__ << ": failed to decode part info: " << key << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: " << __func__
+                      << ": failed to decode part info: " << key << dendl;
     return ret;
   }
 
   return 0;
 }
 
-int POSIXMultipartUpload::load(const DoutPrefixProvider *dpp, bool create)
+int
+POSIXMultipartUpload::load(const DoutPrefixProvider* dpp, bool create)
 {
   int ret = 0;
   if (!shadow) {
     POSIXBucket* pb = static_cast<POSIXBucket*>(bucket);
     std::optional<std::string> ns{mp_ns};
 
-    std::unique_ptr<Directory> mpdir = std::make_unique<MPDirectory>(bucket_fname(get_meta(), ns), pb->get_dir(), driver->ctx());
+    std::unique_ptr<Directory> mpdir = std::make_unique<MPDirectory>(
+        bucket_fname(get_meta(), ns), pb->get_dir(), driver->ctx());
 
-    shadow = std::make_unique<POSIXBucket>(driver, std::move(mpdir), rgw_bucket(std::string(), get_meta()), mp_ns);
+    shadow = std::make_unique<POSIXBucket>(
+        driver, std::move(mpdir), rgw_bucket(std::string(), get_meta()), mp_ns);
 
     ret = shadow->load_bucket(dpp, null_yield);
     if (ret == -ENOENT && create) {
@@ -3813,7 +4457,8 @@ int POSIXMultipartUpload::load(const DoutPrefixProvider *dpp, bool create)
   return ret;
 }
 
-std::unique_ptr<rgw::sal::Object> POSIXMultipartUpload::get_meta_obj()
+std::unique_ptr<rgw::sal::Object>
+POSIXMultipartUpload::get_meta_obj()
 {
   load(nullptr);
   if (!shadow) {
@@ -3825,9 +4470,13 @@ std::unique_ptr<rgw::sal::Object> POSIXMultipartUpload::get_meta_obj()
   return shadow->get_object(rgw_obj_key(get_meta(), std::string()));
 }
 
-int POSIXMultipartUpload::init(const DoutPrefixProvider *dpp, optional_yield y,
-				ACLOwner& owner, rgw_placement_rule& dest_placement,
-				rgw::sal::Attrs& attrs)
+int
+POSIXMultipartUpload::init(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    ACLOwner& owner,
+    rgw_placement_rule& dest_placement,
+    rgw::sal::Attrs& attrs)
 {
   int ret;
 
@@ -3835,7 +4484,7 @@ int POSIXMultipartUpload::init(const DoutPrefixProvider *dpp, optional_yield y,
   ret = load(dpp, true);
   if (ret < 0) {
     ldpp_dout(dpp, 0) << " ERROR: could not get shadow dir for mp upload "
-      << get_key() << dendl;
+                      << get_key() << dendl;
     return ret;
   }
 
@@ -3861,10 +4510,16 @@ int POSIXMultipartUpload::init(const DoutPrefixProvider *dpp, optional_yield y,
   return meta_obj->set_obj_attrs(dpp, &attrs, nullptr, y, rgw::sal::FLAG_LOG_OP);
 }
 
-int POSIXMultipartUpload::list_parts(const DoutPrefixProvider *dpp, CephContext *cct,
-				      int num_parts, int marker,
-				      int *next_marker, bool *truncated, optional_yield y,
-				      bool assume_unsorted)
+int
+POSIXMultipartUpload::list_parts(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    int num_parts,
+    int marker,
+    int* next_marker,
+    bool* truncated,
+    optional_yield y,
+    bool assume_unsorted)
 {
   int ret;
   int last_num = 0;
@@ -3887,7 +4542,8 @@ int POSIXMultipartUpload::list_parts(const DoutPrefixProvider *dpp, CephContext 
     return ret;
   }
   for (rgw_bucket_dir_entry& ent : results.objs) {
-    std::unique_ptr<MultipartPart> part = std::make_unique<POSIXMultipartPart>(this);
+    std::unique_ptr<MultipartPart> part =
+        std::make_unique<POSIXMultipartPart>(this);
     POSIXMultipartPart* ppart = static_cast<POSIXMultipartPart*>(part.get());
 
     rgw_obj_key key(ent.key);
@@ -3912,7 +4568,11 @@ int POSIXMultipartUpload::list_parts(const DoutPrefixProvider *dpp, CephContext 
   return 0;
 }
 
-int POSIXMultipartUpload::abort(const DoutPrefixProvider *dpp, CephContext *cct, optional_yield y)
+int
+POSIXMultipartUpload::abort(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    optional_yield y)
 {
   int ret;
 
@@ -3928,18 +4588,24 @@ int POSIXMultipartUpload::abort(const DoutPrefixProvider *dpp, CephContext *cct,
   return 0;
 }
 
-int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
-				    optional_yield y, CephContext* cct,
-				    std::map<int, std::string>& part_etags,
-				    std::list<rgw_obj_index_key>& remove_objs,
-				    uint64_t& accounted_size, bool& compressed,
-				    RGWCompressionInfo& cs_info, off_t& ofs,
-				    std::string& tag, ACLOwner& owner,
-				    uint64_t olh_epoch,
-				    rgw::sal::Object* target_obj,
-				    prefix_map_t& processed_prefixes,
-            const char *if_match,
-            const char *if_nomatch)
+int
+POSIXMultipartUpload::complete(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    CephContext* cct,
+    std::map<int, std::string>& part_etags,
+    std::list<rgw_obj_index_key>& remove_objs,
+    uint64_t& accounted_size,
+    bool& compressed,
+    RGWCompressionInfo& cs_info,
+    off_t& ofs,
+    std::string& tag,
+    ACLOwner& owner,
+    uint64_t olh_epoch,
+    rgw::sal::Object* target_obj,
+    prefix_map_t& processed_prefixes,
+    const char* if_match,
+    const char* if_nomatch)
 {
   char final_etag[CEPH_CRYPTO_MD5_DIGESTSIZE];
   char final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + 16];
@@ -3972,13 +4638,16 @@ int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
     total_parts += parts.size();
     if (!truncated && total_parts != (int)part_etags.size()) {
       ldpp_dout(dpp, 0) << "NOTICE: total parts mismatch: have: " << total_parts
-		       << " expected: " << part_etags.size() << dendl;
+                        << " expected: " << part_etags.size() << dendl;
       ret = -ERR_INVALID_PART;
       return ret;
     }
 
-    for (auto obj_iter = parts.begin(); etags_iter != part_etags.end() && obj_iter != parts.end(); ++etags_iter, ++obj_iter, ++handled_parts) {
-      POSIXMultipartPart* part = static_cast<rgw::sal::POSIXMultipartPart*>(obj_iter->second.get());
+    for (auto obj_iter = parts.begin();
+         etags_iter != part_etags.end() && obj_iter != parts.end();
+         ++etags_iter, ++obj_iter, ++handled_parts) {
+      POSIXMultipartPart* part =
+          static_cast<rgw::sal::POSIXMultipartPart*>(obj_iter->second.get());
       uint64_t part_size = part->get_size();
       if (handled_parts < (int)part_etags.size() - 1 &&
           part_size < min_part_size) {
@@ -3989,22 +4658,22 @@ int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
       char petag[CEPH_CRYPTO_MD5_DIGESTSIZE];
       if (etags_iter->first != (int)obj_iter->first) {
         ldpp_dout(dpp, 0) << "NOTICE: parts num mismatch: next requested: "
-			 << etags_iter->first << " next uploaded: "
-			 << obj_iter->first << dendl;
+                          << etags_iter->first
+                          << " next uploaded: " << obj_iter->first << dendl;
         ret = -ERR_INVALID_PART;
         return ret;
       }
       std::string part_etag = rgw_string_unquote(etags_iter->second);
       if (part_etag.compare(part->get_etag()) != 0) {
-        ldpp_dout(dpp, 0) << "NOTICE: etag mismatch: part: " << etags_iter->first
-			 << " etag: " << etags_iter->second << dendl;
+        ldpp_dout(dpp, 0) << "NOTICE: etag mismatch: part: "
+                          << etags_iter->first
+                          << " etag: " << etags_iter->second << dendl;
         ret = -ERR_INVALID_PART;
         return ret;
       }
 
-      hex_to_buf(part->get_etag().c_str(), petag,
-		CEPH_CRYPTO_MD5_DIGESTSIZE);
-      hash.Update((const unsigned char *)petag, sizeof(petag));
+      hex_to_buf(part->get_etag().c_str(), petag, CEPH_CRYPTO_MD5_DIGESTSIZE);
+      hash.Update((const unsigned char*)petag, sizeof(petag));
 
       // Compression is not supported yet
 #if 0
@@ -4045,12 +4714,13 @@ int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
       accounted_size += part->get_size();
     }
   } while (truncated);
-  hash.Final((unsigned char *)final_etag);
+  hash.Final((unsigned char*)final_etag);
 
-  buf_to_hex((unsigned char *)final_etag, sizeof(final_etag), final_etag_str);
-  snprintf(&final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2],
-	   sizeof(final_etag_str) - CEPH_CRYPTO_MD5_DIGESTSIZE * 2,
-           "-%lld", (long long)part_etags.size());
+  buf_to_hex((unsigned char*)final_etag, sizeof(final_etag), final_etag_str);
+  snprintf(
+      &final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2],
+      sizeof(final_etag_str) - CEPH_CRYPTO_MD5_DIGESTSIZE * 2, "-%lld",
+      (long long)part_etags.size());
   etag = final_etag_str;
 
   etag_bl.append(etag);
@@ -4072,13 +4742,14 @@ int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
   // Rename to target_obj
   ret = shadow->rename(dpp, y, target_obj);
   if (ret < 0) {
-    ldpp_dout(dpp, 0) << "ERROR: failed to rename to final name " << target_obj->get_name()
-		      << ": " << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "ERROR: failed to rename to final name "
+                      << target_obj->get_name() << ": " << cpp_strerror(ret)
+                      << dendl;
     return ret;
   }
 
-  POSIXObject *to = static_cast<POSIXObject*>(target_obj);
-  POSIXBucket *sb = static_cast<POSIXBucket*>(target_obj->get_bucket());
+  POSIXObject* to = static_cast<POSIXObject*>(target_obj);
+  POSIXBucket* sb = static_cast<POSIXBucket*>(target_obj->get_bucket());
   if (sb->versioned()) {
     ret = to->set_cur_version(dpp);
     if (ret < 0) {
@@ -4088,8 +4759,11 @@ int POSIXMultipartUpload::complete(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int POSIXMultipartUpload::cleanup_orphaned_parts(const DoutPrefixProvider *dpp,
-    CephContext *cct, optional_yield y,
+int
+POSIXMultipartUpload::cleanup_orphaned_parts(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    optional_yield y,
     const rgw_obj& obj,
     std::list<rgw_obj_index_key>& remove_objs,
     prefix_map_t& processed_prefixes)
@@ -4097,8 +4771,12 @@ int POSIXMultipartUpload::cleanup_orphaned_parts(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-int POSIXMultipartUpload::get_info(const DoutPrefixProvider *dpp, optional_yield y,
-				   rgw_placement_rule** rule, rgw::sal::Attrs* attrs)
+int
+POSIXMultipartUpload::get_info(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw_placement_rule** rule,
+    rgw::sal::Attrs* attrs)
 {
   std::unique_ptr<rgw::sal::Object> meta_obj;
   int ret;
@@ -4108,20 +4786,20 @@ int POSIXMultipartUpload::get_info(const DoutPrefixProvider *dpp, optional_yield
   }
 
   if (attrs) {
-      meta_obj = get_meta_obj();
-      int ret = meta_obj->get_obj_attrs(y, dpp);
-      if (ret < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not get meta object for mp upload "
-	  << get_key() << dendl;
-	return ret;
-      }
-      *attrs = meta_obj->get_attrs();
+    meta_obj = get_meta_obj();
+    int ret = meta_obj->get_obj_attrs(y, dpp);
+    if (ret < 0) {
+      ldpp_dout(dpp, 0) << " ERROR: could not get meta object for mp upload "
+                        << get_key() << dendl;
+      return ret;
+    }
+    *attrs = meta_obj->get_attrs();
   }
 
   if (rule) {
     if (mp_obj.upload_info.dest_placement.name.empty()) {
       if (!meta_obj) {
-	meta_obj = get_meta_obj();
+        meta_obj = get_meta_obj();
       }
       ret = meta_obj->get_obj_attrs(y, dpp);
       if (ret < 0) {
@@ -4131,9 +4809,10 @@ int POSIXMultipartUpload::get_info(const DoutPrefixProvider *dpp, optional_yield
       }
       ret = decode_attr(meta_obj->get_attrs(), RGW_POSIX_ATTR_MPUPLOAD, mp_obj);
       if (ret < 0) {
-	ldpp_dout(dpp, 0) << " ERROR: could not get meta object attrs for mp upload "
-	  << get_key() << dendl;
-	return ret;
+        ldpp_dout(dpp, 0)
+            << " ERROR: could not get meta object attrs for mp upload "
+            << get_key() << dendl;
+        return ret;
       }
     }
     *rule = &mp_obj.upload_info.dest_placement;
@@ -4142,7 +4821,8 @@ int POSIXMultipartUpload::get_info(const DoutPrefixProvider *dpp, optional_yield
   return 0;
 }
 
-std::string POSIXMultipartUpload::get_fname()
+std::string
+POSIXMultipartUpload::get_fname()
 {
   std::string name;
 
@@ -4151,26 +4831,28 @@ std::string POSIXMultipartUpload::get_fname()
   return name;
 }
 
-std::unique_ptr<Writer> POSIXMultipartUpload::get_writer(
-				  const DoutPrefixProvider *dpp,
-				  optional_yield y,
-				  rgw::sal::Object* _head_obj,
-				  const ACLOwner& owner,
-				  const rgw_placement_rule *ptail_placement_rule,
-				  uint64_t part_num,
-				  const std::string& part_num_str)
+std::unique_ptr<Writer>
+POSIXMultipartUpload::get_writer(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const ACLOwner& owner,
+    const rgw_placement_rule* ptail_placement_rule,
+    uint64_t part_num,
+    const std::string& part_num_str)
 {
   std::string fname = MP_OBJ_PART_PFX + fmt::format("{:0>5}", part_num);
   rgw_obj_key part_key(fname);
 
   load(dpp);
 
-  return std::make_unique<POSIXMultipartWriter>(dpp, y, shadow.get(), part_key,
-                                                driver, owner,
-                                                ptail_placement_rule, part_num);
+  return std::make_unique<POSIXMultipartWriter>(
+      dpp, y, shadow.get(), part_key, driver, owner, ptail_placement_rule,
+      part_num);
 }
 
-int POSIXMultipartWriter::prepare(optional_yield y)
+int
+POSIXMultipartWriter::prepare(optional_yield y)
 {
   int ret = part_file->create(dpp, /*existed=*/nullptr, /*tempfile=*/false);
   if (ret < 0) {
@@ -4180,23 +4862,28 @@ int POSIXMultipartWriter::prepare(optional_yield y)
   return part_file->open(dpp);
 }
 
-int POSIXMultipartWriter::process(bufferlist&& data, uint64_t offset)
+int
+POSIXMultipartWriter::process(bufferlist&& data, uint64_t offset)
 {
   return part_file->write(offset, data, dpp, null_yield);
 }
 
-int POSIXMultipartWriter::complete(
-		       size_t accounted_size,
-		       const std::string& etag,
-                       ceph::real_time *mtime, ceph::real_time set_mtime,
-                       std::map<std::string, bufferlist>& attrs,
-		       const std::optional<rgw::cksum::Cksum>& cksum,
-                       ceph::real_time delete_at,
-                       const char *if_match, const char *if_nomatch,
-                       const std::string *user_data,
-                       rgw_zone_set *zones_trace, bool *canceled,
-                       const req_context& rctx,
-                       uint32_t flags)
+int
+POSIXMultipartWriter::complete(
+    size_t accounted_size,
+    const std::string& etag,
+    ceph::real_time* mtime,
+    ceph::real_time set_mtime,
+    std::map<std::string, bufferlist>& attrs,
+    const std::optional<rgw::cksum::Cksum>& cksum,
+    ceph::real_time delete_at,
+    const char* if_match,
+    const char* if_nomatch,
+    const std::string* user_data,
+    rgw_zone_set* zones_trace,
+    bool* canceled,
+    const req_context& rctx,
+    uint32_t flags)
 {
   int ret;
   POSIXUploadPartInfo info;
@@ -4234,7 +4921,8 @@ int POSIXMultipartWriter::complete(
 
   ret = part_file->write_attrs(rctx.dpp, rctx.y, attrs, /*extra_attrs=*/nullptr);
   if (ret < 0) {
-    ldpp_dout(rctx.dpp, 20) << "ERROR: failed writing attrs for " << part_file->get_name() << dendl;
+    ldpp_dout(rctx.dpp, 20)
+        << "ERROR: failed writing attrs for " << part_file->get_name() << dendl;
     return ret;
   }
 
@@ -4247,7 +4935,8 @@ int POSIXMultipartWriter::complete(
   return 0;
 }
 
-int POSIXAtomicWriter::prepare(optional_yield y)
+int
+POSIXAtomicWriter::prepare(optional_yield y)
 {
   int ret;
 
@@ -4264,21 +4953,28 @@ int POSIXAtomicWriter::prepare(optional_yield y)
   return obj->open(dpp, true, true);
 }
 
-int POSIXAtomicWriter::process(bufferlist&& data, uint64_t offset)
+int
+POSIXAtomicWriter::process(bufferlist&& data, uint64_t offset)
 {
   return obj->write(offset, data, dpp, null_yield);
 }
 
-int POSIXAtomicWriter::complete(size_t accounted_size, const std::string& etag,
-                       ceph::real_time *mtime, ceph::real_time set_mtime,
-                       std::map<std::string, bufferlist>& attrs,
-		       const std::optional<rgw::cksum::Cksum>& cksum,
-                       ceph::real_time delete_at,
-                       const char *if_match, const char *if_nomatch,
-                       const std::string *user_data,
-                       rgw_zone_set *zones_trace, bool *canceled,
-                       const req_context& rctx,
-                       uint32_t flags)
+int
+POSIXAtomicWriter::complete(
+    size_t accounted_size,
+    const std::string& etag,
+    ceph::real_time* mtime,
+    ceph::real_time set_mtime,
+    std::map<std::string, bufferlist>& attrs,
+    const std::optional<rgw::cksum::Cksum>& cksum,
+    ceph::real_time delete_at,
+    const char* if_match,
+    const char* if_nomatch,
+    const std::string* user_data,
+    rgw_zone_set* zones_trace,
+    bool* canceled,
+    const req_context& rctx,
+    uint32_t flags)
 {
   int ret;
 
@@ -4286,7 +4982,7 @@ int POSIXAtomicWriter::complete(size_t accounted_size, const std::string& etag,
     if (strcmp(if_match, "*") == 0) {
       // test the object is existing
       if (!obj->check_exists(dpp)) {
-	return -ERR_PRECONDITION_FAILED;
+        return -ERR_PRECONDITION_FAILED;
       }
     } else {
       bufferlist bl;
@@ -4302,7 +4998,7 @@ int POSIXAtomicWriter::complete(size_t accounted_size, const std::string& etag,
     if (strcmp(if_nomatch, "*") == 0) {
       // test the object is not existing
       if (obj->check_exists(dpp)) {
-	return -ERR_PRECONDITION_FAILED;
+        return -ERR_PRECONDITION_FAILED;
       }
     } else {
       bufferlist bl;
@@ -4328,44 +5024,51 @@ int POSIXAtomicWriter::complete(size_t accounted_size, const std::string& etag,
   obj->set_attrs(attrs);
   ret = obj->write_attrs(rctx.dpp, rctx.y);
   if (ret < 0) {
-    ldpp_dout(rctx.dpp, 20) << "ERROR: POSIXAtomicWriter failed writing attrs for "
-                       << obj->get_name() << dendl;
+    ldpp_dout(rctx.dpp, 20)
+        << "ERROR: POSIXAtomicWriter failed writing attrs for "
+        << obj->get_name() << dendl;
     return ret;
   }
 
   ret = obj->link_temp_file(rctx.dpp, rctx.y);
   if (ret < 0) {
-    ldpp_dout(dpp, 20) << "ERROR: POSIXAtomicWriter failed writing temp file" << dendl;
+    ldpp_dout(dpp, 20) << "ERROR: POSIXAtomicWriter failed writing temp file"
+                       << dendl;
     return ret;
   }
 
   ret = obj->open(dpp);
   if (ret < 0) {
-    ldpp_dout(rctx.dpp, 20) << "ERROR: POSIXAtomicWriter failed opening file" << dendl;
+    ldpp_dout(rctx.dpp, 20)
+        << "ERROR: POSIXAtomicWriter failed opening file" << dendl;
     return ret;
   }
 
   ret = obj->stat(dpp);
   if (ret < 0) {
-    ldpp_dout(rctx.dpp, 20) << "ERROR: POSIXAtomicWriter failed closing file" << dendl;
+    ldpp_dout(rctx.dpp, 20)
+        << "ERROR: POSIXAtomicWriter failed closing file" << dendl;
     return ret;
   }
 
   return 0;
 }
 
-} } // namespace rgw::sal
+} // namespace sal
+} // namespace rgw
 
 extern "C" {
 
-rgw::sal::Driver* newPOSIXDriver(CephContext *cct)
+rgw::sal::Driver*
+newPOSIXDriver(CephContext* cct)
 {
   rgw::sal::POSIXDriver* driver = new rgw::sal::POSIXDriver(cct);
 
   int ret = -1;
   const static std::string tenant = "default_ns";
   if ((ret = driver->get_user_db()->Initialize("", -1)) < 0) {
-    ldout(cct, 0) << "User DB initialization failed for tenant("<<tenant<<")" << dendl;
+    ldout(cct, 0) << "User DB initialization failed for tenant(" << tenant
+                  << ")" << dendl;
     return nullptr;
   }
 
@@ -4373,5 +5076,4 @@ rgw::sal::Driver* newPOSIXDriver(CephContext *cct)
 
   return driver;
 }
-
 }

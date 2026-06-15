@@ -4,15 +4,16 @@
 #ifndef CEPH_LIBRBD_IO_READ_RESULT_H
 #define CEPH_LIBRBD_IO_READ_RESULT_H
 
-#include "include/common_fwd.h"
-#include "include/int_types.h"
-#include "include/buffer_fwd.h"
-#include "include/Context.h"
-#include "librbd/io/Types.h"
-#include "osdc/Striper.h"
 #include <sys/uio.h>
+
 #include <variant>
 
+#include "include/Context.h"
+#include "include/buffer_fwd.h"
+#include "include/common_fwd.h"
+#include "include/int_types.h"
+#include "librbd/io/Types.h"
+#include "osdc/Striper.h"
 
 namespace librbd {
 
@@ -21,117 +22,118 @@ struct ImageCtx;
 namespace io {
 
 struct AioCompletion;
-template <typename> struct ObjectReadRequest;
+template <typename>
+struct ObjectReadRequest;
 
 class ReadResult {
 public:
   struct C_ImageReadRequest : public Context {
-    AioCompletion *aio_completion;
+    AioCompletion* aio_completion;
     uint64_t buffer_offset = 0;
     Extents image_extents;
     bufferlist bl;
     bool ignore_enoent = false;
 
-    C_ImageReadRequest(AioCompletion *aio_completion,
-                       uint64_t buffer_offset,
-                       const Extents& image_extents);
+    C_ImageReadRequest(
+        AioCompletion* aio_completion,
+        uint64_t buffer_offset,
+        const Extents& image_extents);
 
     void finish(int r) override;
   };
 
   struct C_ObjectReadRequest : public Context {
-    AioCompletion *aio_completion;
+    AioCompletion* aio_completion;
     ReadExtents extents;
 
-    C_ObjectReadRequest(AioCompletion *aio_completion, ReadExtents&& extents);
+    C_ObjectReadRequest(AioCompletion* aio_completion, ReadExtents&& extents);
 
     void finish(int r) override;
   };
 
   struct C_ObjectReadMergedExtents : public Context {
-      CephContext* cct;
-      ReadExtents* extents;
-      Context *on_finish;
-      bufferlist bl;
+    CephContext* cct;
+    ReadExtents* extents;
+    Context* on_finish;
+    bufferlist bl;
 
-      C_ObjectReadMergedExtents(CephContext* cct, ReadExtents* extents,
-                                Context* on_finish);
+    C_ObjectReadMergedExtents(
+        CephContext* cct,
+        ReadExtents* extents,
+        Context* on_finish);
 
-      void finish(int r) override;
+    void finish(int r) override;
   };
 
   ReadResult() = default;
-  ReadResult(char *buf, size_t buf_len);
-  ReadResult(const struct iovec *iov, int iov_count);
-  ReadResult(ceph::bufferlist *bl);
+  ReadResult(char* buf, size_t buf_len);
+  ReadResult(const struct iovec* iov, int iov_count);
+  ReadResult(ceph::bufferlist* bl);
   ReadResult(Extents* extent_map, ceph::bufferlist* bl);
   ReadResult(ReadExtents* read_extents);
 
   void set_image_extents(const Extents& image_extents);
 
-  void assemble_result(CephContext *cct);
+  void assemble_result(CephContext* cct);
 
 private:
   struct Linear {
-    char *buf;
+    char* buf;
     size_t buf_len;
 
-    Linear(char *buf, size_t buf_len) : buf(buf), buf_len(buf_len) {
-    }
+    Linear(char* buf, size_t buf_len) :
+      buf(buf), buf_len(buf_len)
+    {}
   };
 
   struct Vector {
-    const struct iovec *iov;
+    const struct iovec* iov;
     int iov_count;
 
-    Vector(const struct iovec *iov, int iov_count)
-      : iov(iov), iov_count(iov_count) {
-    }
+    Vector(const struct iovec* iov, int iov_count) :
+      iov(iov), iov_count(iov_count)
+    {}
   };
 
   struct Bufferlist {
-    ceph::bufferlist *bl;
+    ceph::bufferlist* bl;
 
-    Bufferlist(ceph::bufferlist *bl) : bl(bl) {
-    }
+    Bufferlist(ceph::bufferlist* bl) :
+      bl(bl)
+    {}
   };
 
   struct SparseBufferlist {
-    Extents *extent_map;
-    ceph::bufferlist *bl;
+    Extents* extent_map;
+    ceph::bufferlist* bl;
 
     Extents image_extents;
 
-    SparseBufferlist(Extents* extent_map, ceph::bufferlist* bl)
-      : extent_map(extent_map), bl(bl) {
-    }
+    SparseBufferlist(Extents* extent_map, ceph::bufferlist* bl) :
+      extent_map(extent_map), bl(bl)
+    {}
   };
 
   struct ChildObject {
     ReadExtents* read_extents;
     uint64_t overlap_bytes = 0;
 
-    ChildObject(ReadExtents* read_extents)
-      : read_extents(read_extents) {
-    }
+    ChildObject(ReadExtents* read_extents) :
+      read_extents(read_extents)
+    {}
   };
 
-  typedef std::variant<std::monostate,
-		       Linear,
-		       Vector,
-		       Bufferlist,
-		       SparseBufferlist,
-		       ChildObject> Buffer;
+  typedef std::
+      variant<std::monostate, Linear, Vector, Bufferlist, SparseBufferlist, ChildObject>
+          Buffer;
   struct SetImageExtentsVisitor;
   struct AssembleResultVisitor;
 
   Buffer m_buffer;
   Striper::StripedReadResult m_destriper;
-
 };
 
 } // namespace io
 } // namespace librbd
 
 #endif // CEPH_LIBRBD_IO_READ_RESULT_H
-

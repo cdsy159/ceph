@@ -16,13 +16,13 @@
 #ifndef SCRUBSTACK_H_
 #define SCRUBSTACK_H_
 
-#include "CInode.h"
-#include "ScrubHeader.h"
-
-#include "common/LogClient.h"
 #include "common/Cond.h"
+#include "common/LogClient.h"
 #include "common/ceph_time.h"
 #include "include/elist.h"
+
+#include "CInode.h"
+#include "ScrubHeader.h"
 
 class MDCache;
 class MMDSScrub;
@@ -32,25 +32,30 @@ class CDir;
 
 class ScrubStack {
 public:
-  ScrubStack(MDCache *mdc, LogChannelRef &clog, Finisher *finisher_) :
+  ScrubStack(MDCache* mdc, LogChannelRef& clog, Finisher* finisher_) :
     mdcache(mdc),
     clog(clog),
     finisher(finisher_),
     scrub_stack(member_offset(MDSCacheObject, item_scrub)),
-    scrub_waiting(member_offset(MDSCacheObject, item_scrub)) {
-      _mds_scrub_stats_review_period = g_conf().get_val<uint64_t>("mds_scrub_stats_review_period");
-    }
-  ~ScrubStack() {
+    scrub_waiting(member_offset(MDSCacheObject, item_scrub))
+  {
+    _mds_scrub_stats_review_period =
+        g_conf().get_val<uint64_t>("mds_scrub_stats_review_period");
+  }
+
+  ~ScrubStack()
+  {
     ceph_assert(scrub_stack.empty());
     ceph_assert(!scrubs_in_progress);
   }
+
   /**
    * Put the inode at either the top or bottom of the stack, with the
    * given scrub params, and kick off more scrubbing.
    * @param in The inode to scrub
    * @param header The ScrubHeader propagated from wherever this scrub
    */
-  int enqueue(CInode *in, ScrubHeaderRef& header, bool top);
+  int enqueue(CInode* in, ScrubHeaderRef& header, bool top);
   /**
    * Abort an ongoing scrub operation. The abort operation could be
    * delayed if there are in-progress scrub operations on going. The
@@ -60,7 +65,7 @@ public:
    * inodes completed with -ECANCELED).
    * @param on_finish Context callback to invoke after abort
    */
-  void scrub_abort(Context *on_finish);
+  void scrub_abort(Context* on_finish);
 
   /**
    * Pause scrub operations. Similar to abort, pause is delayed if
@@ -70,7 +75,7 @@ public:
    * queued until scrub is resumed.
    * @param on_finish Context callback to invoke after pause
    */
-  void scrub_pause(Context *on_finish);
+  void scrub_pause(Context* on_finish);
 
   /**
    * Resume a paused scrub. Unlike abort or pause, this is instantaneous.
@@ -84,7 +89,7 @@ public:
    * Get the current scrub status as human readable string. Some basic
    * information is returned such as number of inodes pending abort/pause.
    */
-  void scrub_status(Formatter *f);
+  void scrub_status(Formatter* f);
 
   /**
    * Get a high level scrub status summary such as current scrub state
@@ -92,19 +97,25 @@ public:
    */
   std::string_view scrub_summary();
 
-  static bool is_idle(std::string_view state_str) {
+  static bool
+  is_idle(std::string_view state_str)
+  {
     return state_str == "idle";
   }
 
-  bool is_scrubbing() const { return !scrub_stack.empty(); }
+  bool
+  is_scrubbing() const
+  {
+    return !scrub_stack.empty();
+  }
 
   void advance_scrub_status();
 
   void handle_mds_failure(mds_rank_t mds);
 
-  void dispatch(const cref_t<Message> &m);
+  void dispatch(const cref_t<Message>& m);
 
-  bool remove_inode_if_stacked(CInode *in);
+  bool remove_inode_if_stacked(CInode* in);
 
   void move_uninline_failures_to_damage_table();
 
@@ -114,15 +125,14 @@ public:
   void handle_conf_change(const std::set<std::string>& changed);
 
 
-  MDCache *mdcache;
+  MDCache* mdcache;
 
 protected:
-
   // reference to global cluster log client
-  LogChannelRef &clog;
+  LogChannelRef& clog;
 
   /// A finisher needed so that we don't re-enter kick_off_scrubs
-  Finisher *finisher;
+  Finisher* finisher;
 
   /// The stack of inodes we want to scrub
   elist<MDSCacheObject*> scrub_stack;
@@ -135,6 +145,7 @@ protected:
     std::string tag;
     std::set<mds_rank_t> gather_set;
   };
+
   std::map<CInode*, scrub_remote_t> remote_scrubs;
 
   unsigned scrub_epoch = 2;
@@ -151,19 +162,26 @@ protected:
     uint64_t uninline_failed = 0;
     uint64_t uninline_skipped = 0;
   };
+
   struct scrub_stat_t {
     unsigned epoch_acked = 0;
     std::set<std::string> scrubbing_tags;
     bool aborting = false;
-    std::unordered_map<std::string, std::unordered_map<int, std::vector<_inodeno_t>>> uninline_failed_meta_info;
+    std::unordered_map<
+        std::string,
+        std::unordered_map<int, std::vector<_inodeno_t>>>
+        uninline_failed_meta_info;
     std::unordered_map<_inodeno_t, std::string> paths;
-    std::unordered_map<std::string, scrub_counters_t> counters; // map(scrub_tag -> counters)
+    std::unordered_map<std::string, scrub_counters_t>
+        counters; // map(scrub_tag -> counters)
   };
+
   std::vector<scrub_stat_t> mds_scrub_stats;
 
   std::map<std::string, ScrubHeaderRef> scrubbing_map;
 
   friend class C_RetryScrub;
+
 private:
   // scrub abort is _not_ a state, rather it's an operation that's
   // performed after in-progress scrubs are finished.
@@ -173,18 +191,19 @@ private:
     STATE_PAUSING,
     STATE_PAUSED,
   };
-  friend std::ostream &operator<<(std::ostream &os, const State &state);
+
+  friend std::ostream& operator<<(std::ostream& os, const State& state);
 
   friend class C_InodeValidated;
   friend class C_IO_DataUninlined;
   friend class C_MDC_DataUninlinedSubmitted;
   friend class MDCache;
 
-  int _enqueue(MDSCacheObject *obj, ScrubHeaderRef& header, bool top);
+  int _enqueue(MDSCacheObject* obj, ScrubHeaderRef& header, bool top);
   /**
    * Remove the inode/dirfrag from the stack.
    */
-  inline void dequeue(MDSCacheObject *obj);
+  inline void dequeue(MDSCacheObject* obj);
 
   /**
    * Kick off as many scrubs as are appropriate, based on the current
@@ -196,28 +215,28 @@ private:
    * Move the inode/dirfrag that can't be scrubbed immediately
    * from scrub queue to waiting list.
    */
-  void add_to_waiting(MDSCacheObject *obj);
+  void add_to_waiting(MDSCacheObject* obj);
   /**
    * Move the inode/dirfrag back to scrub queue.
    */
-  void remove_from_waiting(MDSCacheObject *obj, bool kick=true);
+  void remove_from_waiting(MDSCacheObject* obj, bool kick = true);
   /**
    * Validate authority of the inode. If current mds is not auth of the inode,
    * forword scrub to auth mds.
    */
-  bool validate_inode_auth(CInode *in);
+  bool validate_inode_auth(CInode* in);
 
   /**
    * Scrub a file inode.
    * @param in The inode to scrub
    */
-  void scrub_file_inode(CInode *in);
+  void scrub_file_inode(CInode* in);
 
   /**
    * Scrub a file inode.
    * @param dn The remote dentry to identify
    */
-  void identify_remote_link_damage(CDentry *dn);
+  void identify_remote_link_damage(CDentry* dn);
 
   /**
    * Callback from completion of CInode::validate_disk_state
@@ -225,8 +244,10 @@ private:
    * @param r The return status from validate_disk_state
    * @param result Populated results from validate_disk_state
    */
-  void _validate_inode_done(CInode *in, int r,
-			    const CInode::validated_data &result);
+  void _validate_inode_done(
+      CInode* in,
+      int r,
+      const CInode::validated_data& result);
 
   /**
    * Scrub a directory inode. It queues child dirfrags, then does
@@ -236,7 +257,7 @@ private:
    * @param added_children set to true if we pushed some of our children
    * @param done set to true if we started to do final scrub
    */
-  void scrub_dir_inode(CInode *in, bool *added_children, bool *done);
+  void scrub_dir_inode(CInode* in, bool* added_children, bool* done);
   /**
    * Scrub a dirfrag. It queues child dentries, then does final
    * scrub of the dirfrag.
@@ -245,13 +266,13 @@ private:
    * @param added_children set to true if we pushed some of our children
    * @param done set to true if we started to do final scrub
    */
-  void scrub_dirfrag(CDir *dir, bool *added_children, bool *done);
+  void scrub_dirfrag(CDir* dir, bool* added_children, bool* done);
   /**
    * Scrub a directory-representing dentry.
    *
    * @param in The directory inode we're doing final scrub on.
    */
-  void scrub_dir_inode_final(CInode *in);
+  void scrub_dir_inode_final(CInode* in);
   /**
    * Set scrub state
    * @param next_state State to move the scrub to.
@@ -284,7 +305,9 @@ private:
    * Return path for a given inode.
    * @param in inode to make path entry.
    */
-  std::string scrub_inode_path(CInode *in) {
+  std::string
+  scrub_inode_path(CInode* in)
+  {
     std::string path;
     in->make_path_string(path, true);
     return (path.empty() ? "/" : path.c_str());
@@ -295,18 +318,18 @@ private:
    * to cluster log.
    * @param in inode for which scrub has been queued or finished.
    */
-  void clog_scrub_summary(CInode *in=nullptr);
+  void clog_scrub_summary(CInode* in = nullptr);
 
-  void handle_scrub(const cref_t<MMDSScrub> &m);
-  void handle_scrub_stats(const cref_t<MMDSScrubStats> &m);
-  void uninline_data(CInode *in, Context *fin);
+  void handle_scrub(const cref_t<MMDSScrub>& m);
+  void handle_scrub_stats(const cref_t<MMDSScrubStats>& m);
+  void uninline_data(CInode* in, Context* fin);
 
   State state = STATE_IDLE;
   bool clear_stack = false;
 
   // list of pending context completions for asynchronous scrub
   // control operations.
-  std::vector<Context *> control_ctxs;
+  std::vector<Context*> control_ctxs;
 
   uint64_t _mds_scrub_stats_review_period = 1; // 1 day
 };

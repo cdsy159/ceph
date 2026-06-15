@@ -14,22 +14,24 @@
 *
 */
 
-#include "cross_process_sem.h"
-#include "include/rados/librados.h"
-#include "st_rados_create_pool.h"
-#include "systest_runnable.h"
-#include "systest_settings.h"
-
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <sstream>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
 #include <time.h>
+
+#include <sstream>
+#include <string>
 #include <vector>
+
+#include "include/rados/librados.h"
+
+#include "cross_process_sem.h"
+#include "st_rados_create_pool.h"
+#include "systest_runnable.h"
+#include "systest_settings.h"
 
 using std::ostringstream;
 using std::string;
@@ -46,25 +48,24 @@ using std::vector;
  *
  * DO NOT EXPECT      * hangs, crashes
  */
-class StRadosOpenPool : public SysTestRunnable
-{
+class StRadosOpenPool : public SysTestRunnable {
 public:
-  StRadosOpenPool(int argc, const char **argv,
-                  CrossProcessSem *pool_setup_sem,
-                  CrossProcessSem *open_pool_sem,
-                  const std::string& pool_name)
-    : SysTestRunnable(argc, argv),
-      m_pool_setup_sem(pool_setup_sem),
-      m_open_pool_sem(open_pool_sem),
-      m_pool_name(pool_name)
-  {
-  }
+  StRadosOpenPool(
+      int argc,
+      const char** argv,
+      CrossProcessSem* pool_setup_sem,
+      CrossProcessSem* open_pool_sem,
+      const std::string& pool_name) :
+    SysTestRunnable(argc, argv),
+    m_pool_setup_sem(pool_setup_sem),
+    m_open_pool_sem(open_pool_sem),
+    m_pool_name(pool_name)
+  {}
 
-  ~StRadosOpenPool() override
-  {
-  }
+  ~StRadosOpenPool() override {}
 
-  int run() override
+  int
+  run() override
   {
     rados_t cl;
     RETURN1_IF_NONZERO(rados_create(&cl, NULL));
@@ -92,27 +93,28 @@ public:
   }
 
 private:
-  CrossProcessSem *m_pool_setup_sem;
-  CrossProcessSem *m_open_pool_sem;
+  CrossProcessSem* m_pool_setup_sem;
+  CrossProcessSem* m_open_pool_sem;
   std::string m_pool_name;
 };
 
-const char *get_id_str()
+const char*
+get_id_str()
 {
   return "main";
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   const std::string pool = get_temp_pool_name(argv[0]);
-  // first test: create a pool, shut down the client, access that 
+  // first test: create a pool, shut down the client, access that
   // pool in a different process.
-  CrossProcessSem *pool_setup_sem = NULL;
+  CrossProcessSem* pool_setup_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &pool_setup_sem));
-  StRadosCreatePool r1(argc, argv, NULL, pool_setup_sem, NULL,
-					   pool, 50, ".obj");
+  StRadosCreatePool r1(argc, argv, NULL, pool_setup_sem, NULL, pool, 50, ".obj");
   StRadosOpenPool r2(argc, argv, pool_setup_sem, NULL, pool);
-  vector < SysTestRunnable* > vec;
+  vector<SysTestRunnable*> vec;
   vec.push_back(&r1);
   vec.push_back(&r2);
   std::string error = SysTestRunnable::run_until_finished(vec);
@@ -121,16 +123,16 @@ int main(int argc, const char **argv)
     return EXIT_FAILURE;
   }
 
-  // second test: create a pool, access that 
+  // second test: create a pool, access that
   // pool in a different process, THEN shut down the first client.
-  CrossProcessSem *pool_setup_sem2 = NULL;
+  CrossProcessSem* pool_setup_sem2 = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &pool_setup_sem2));
-  CrossProcessSem *open_pool_sem2 = NULL;
+  CrossProcessSem* open_pool_sem2 = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &open_pool_sem2));
-  StRadosCreatePool r3(argc, argv, NULL, pool_setup_sem2, open_pool_sem2,
-					   pool, 50, ".obj");
+  StRadosCreatePool r3(
+      argc, argv, NULL, pool_setup_sem2, open_pool_sem2, pool, 50, ".obj");
   StRadosOpenPool r4(argc, argv, pool_setup_sem2, open_pool_sem2, pool);
-  vector < SysTestRunnable* > vec2;
+  vector<SysTestRunnable*> vec2;
   vec2.push_back(&r3);
   vec2.push_back(&r4);
   error = SysTestRunnable::run_until_finished(vec2);
@@ -139,6 +141,6 @@ int main(int argc, const char **argv)
     return EXIT_FAILURE;
   }
 
-  printf("******* SUCCESS **********\n"); 
+  printf("******* SUCCESS **********\n");
   return EXIT_SUCCESS;
 }

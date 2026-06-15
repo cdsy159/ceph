@@ -13,46 +13,57 @@
 #include "librbd/Watcher.h"
 #include "librbd/managed_lock/Types.h"
 #include "librbd/watcher/Types.h"
-#include "Instances.h"
 #include "tools/rbd_mirror/instances/Types.h"
 #include "tools/rbd_mirror/leader_watcher/Types.h"
 
+#include "Instances.h"
+
 namespace librbd {
 class ImageCtx;
-namespace asio { struct ContextWQ; }
+
+namespace asio {
+struct ContextWQ;
+}
 } // namespace librbd
 
 namespace rbd {
 namespace mirror {
 
-template <typename> struct Threads;
+template <typename>
+struct Threads;
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class LeaderWatcher : protected librbd::Watcher {
   using librbd::Watcher::unregister_watch; // Silence overloaded virtual warning
+
 public:
-  static LeaderWatcher* create(Threads<ImageCtxT> *threads,
-                               librados::IoCtx &io_ctx,
-                               leader_watcher::Listener *listener) {
+  static LeaderWatcher*
+  create(
+      Threads<ImageCtxT>* threads,
+      librados::IoCtx& io_ctx,
+      leader_watcher::Listener* listener)
+  {
     return new LeaderWatcher(threads, io_ctx, listener);
   }
 
-  LeaderWatcher(Threads<ImageCtxT> *threads, librados::IoCtx &io_ctx,
-                leader_watcher::Listener *listener);
+  LeaderWatcher(
+      Threads<ImageCtxT>* threads,
+      librados::IoCtx& io_ctx,
+      leader_watcher::Listener* listener);
   ~LeaderWatcher() override;
 
   int init();
   void shut_down();
 
-  void init(Context *on_finish);
-  void shut_down(Context *on_finish);
+  void init(Context* on_finish);
+  void shut_down(Context* on_finish);
 
   bool is_blocklisted() const;
   bool is_leader() const;
   bool is_releasing_leader() const;
-  bool get_leader_instance_id(std::string *instance_id) const;
+  bool get_leader_instance_id(std::string* instance_id) const;
   void release_leader();
-  void list_instances(std::vector<std::string> *instance_ids);
+  void list_instances(std::vector<std::string>* instance_ids);
 
   std::string get_instance_id();
 
@@ -102,15 +113,19 @@ private:
   struct InstancesListener : public instances::Listener {
     LeaderWatcher* leader_watcher;
 
-    InstancesListener(LeaderWatcher* leader_watcher)
-      : leader_watcher(leader_watcher) {
-    }
+    InstancesListener(LeaderWatcher* leader_watcher) :
+      leader_watcher(leader_watcher)
+    {}
 
-    void handle_added(const InstanceIds& instance_ids) override {
+    void
+    handle_added(const InstanceIds& instance_ids) override
+    {
       leader_watcher->m_listener->handle_instances_added(instance_ids);
     }
 
-    void handle_removed(const InstanceIds& instance_ids) override {
+    void
+    handle_removed(const InstanceIds& instance_ids) override
+    {
       leader_watcher->m_listener->handle_instances_removed(instance_ids);
     }
   };
@@ -119,70 +134,93 @@ private:
   public:
     typedef librbd::ManagedLock<ImageCtxT> Parent;
 
-    LeaderLock(librados::IoCtx& ioctx, librbd::AsioEngine& asio_engine,
-               const std::string& oid, LeaderWatcher *watcher,
-               bool blocklist_on_break_lock,
-               uint32_t blocklist_expire_seconds)
-      : Parent(ioctx, asio_engine, oid, watcher,
-               librbd::managed_lock::EXCLUSIVE, blocklist_on_break_lock,
-               blocklist_expire_seconds),
-        watcher(watcher) {
-    }
+    LeaderLock(
+        librados::IoCtx& ioctx,
+        librbd::AsioEngine& asio_engine,
+        const std::string& oid,
+        LeaderWatcher* watcher,
+        bool blocklist_on_break_lock,
+        uint32_t blocklist_expire_seconds) :
+      Parent(
+          ioctx,
+          asio_engine,
+          oid,
+          watcher,
+          librbd::managed_lock::EXCLUSIVE,
+          blocklist_on_break_lock,
+          blocklist_expire_seconds),
+      watcher(watcher)
+    {}
 
-    bool is_leader() const {
+    bool
+    is_leader() const
+    {
       std::lock_guard locker{Parent::m_lock};
       return Parent::is_state_post_acquiring() || Parent::is_state_locked();
     }
 
-    bool is_releasing_leader() const {
+    bool
+    is_releasing_leader() const
+    {
       std::lock_guard locker{Parent::m_lock};
       return Parent::is_state_pre_releasing();
     }
 
   protected:
-    void post_acquire_lock_handler(int r, Context *on_finish) {
+    void
+    post_acquire_lock_handler(int r, Context* on_finish)
+    {
       if (r == 0) {
         // lock is owned at this point
-	std::lock_guard locker{Parent::m_lock};
+        std::lock_guard locker{Parent::m_lock};
         Parent::set_state_post_acquiring();
       }
       watcher->handle_post_acquire_leader_lock(r, on_finish);
     }
-    void pre_release_lock_handler(bool shutting_down,
-                                  Context *on_finish) {
+
+    void
+    pre_release_lock_handler(bool shutting_down, Context* on_finish)
+    {
       watcher->handle_pre_release_leader_lock(on_finish);
     }
-    void post_release_lock_handler(bool shutting_down, int r,
-                                   Context *on_finish) {
+
+    void
+    post_release_lock_handler(bool shutting_down, int r, Context* on_finish)
+    {
       watcher->handle_post_release_leader_lock(r, on_finish);
     }
+
   private:
-    LeaderWatcher *watcher;
+    LeaderWatcher* watcher;
   };
 
   struct HandlePayloadVisitor : public boost::static_visitor<void> {
-    LeaderWatcher *leader_watcher;
-    Context *on_notify_ack;
+    LeaderWatcher* leader_watcher;
+    Context* on_notify_ack;
 
-    HandlePayloadVisitor(LeaderWatcher *leader_watcher, Context *on_notify_ack)
-      : leader_watcher(leader_watcher), on_notify_ack(on_notify_ack) {
-    }
+    HandlePayloadVisitor(LeaderWatcher* leader_watcher, Context* on_notify_ack) :
+      leader_watcher(leader_watcher), on_notify_ack(on_notify_ack)
+    {}
 
     template <typename Payload>
-    inline void operator()(const Payload &payload) const {
+    inline void
+    operator()(const Payload& payload) const
+    {
       leader_watcher->handle_payload(payload, on_notify_ack);
     }
   };
 
   struct C_GetLocker : public Context {
-    LeaderWatcher *leader_watcher;
+    LeaderWatcher* leader_watcher;
     librbd::managed_lock::Locker locker;
 
-    C_GetLocker(LeaderWatcher *leader_watcher)
-      : leader_watcher(leader_watcher) {
-    }
+    C_GetLocker(LeaderWatcher* leader_watcher) :
+      leader_watcher(leader_watcher)
+    {}
 
-    void finish(int r) override {
+    void
+    finish(int r) override
+    {
       leader_watcher->handle_get_locker(r, locker);
     }
   };
@@ -190,51 +228,56 @@ private:
   typedef void (LeaderWatcher<ImageCtxT>::*TimerCallback)();
 
   struct C_TimerGate : public Context {
-    LeaderWatcher *leader_watcher;
+    LeaderWatcher* leader_watcher;
 
     bool leader = false;
     TimerCallback timer_callback = nullptr;
 
-    C_TimerGate(LeaderWatcher *leader_watcher)
-      : leader_watcher(leader_watcher) {
-    }
+    C_TimerGate(LeaderWatcher* leader_watcher) :
+      leader_watcher(leader_watcher)
+    {}
 
-    void finish(int r) override {
+    void
+    finish(int r) override
+    {
       leader_watcher->m_timer_gate = nullptr;
       leader_watcher->execute_timer_task(leader, timer_callback);
     }
   };
 
-  Threads<ImageCtxT> *m_threads;
-  leader_watcher::Listener *m_listener;
+  Threads<ImageCtxT>* m_threads;
+  leader_watcher::Listener* m_listener;
 
   InstancesListener m_instances_listener;
   mutable ceph::mutex m_lock;
   uint64_t m_notifier_id;
   std::string m_instance_id;
-  LeaderLock *m_leader_lock;
-  Context *m_on_finish = nullptr;
-  Context *m_on_shut_down_finish = nullptr;
+  LeaderLock* m_leader_lock;
+  Context* m_on_finish = nullptr;
+  Context* m_on_shut_down_finish = nullptr;
   uint64_t m_acquire_attempts = 0;
   int m_ret_val = 0;
-  Instances<ImageCtxT> *m_instances = nullptr;
+  Instances<ImageCtxT>* m_instances = nullptr;
   librbd::managed_lock::Locker m_locker;
 
   bool m_blocklisted = false;
 
   AsyncOpTracker m_timer_op_tracker;
-  Context *m_timer_task = nullptr;
-  C_TimerGate *m_timer_gate = nullptr;
+  Context* m_timer_task = nullptr;
+  C_TimerGate* m_timer_gate = nullptr;
 
   librbd::watcher::NotifyResponse m_heartbeat_response;
 
-  bool is_leader(ceph::mutex &m_lock) const;
-  bool is_releasing_leader(ceph::mutex &m_lock) const;
+  bool is_leader(ceph::mutex& m_lock) const;
+  bool is_releasing_leader(ceph::mutex& m_lock) const;
 
   void cancel_timer_task();
-  void schedule_timer_task(const std::string &name,
-                           int delay_factor, bool leader,
-                           TimerCallback callback, bool shutting_down);
+  void schedule_timer_task(
+      const std::string& name,
+      int delay_factor,
+      bool leader,
+      TimerCallback callback,
+      bool shutting_down);
   void execute_timer_task(bool leader, TimerCallback timer_callback);
 
   void create_leader_object();
@@ -284,27 +327,34 @@ private:
   void notify_heartbeat();
   void handle_notify_heartbeat(int r);
 
-  void handle_post_acquire_leader_lock(int r, Context *on_finish);
-  void handle_pre_release_leader_lock(Context *on_finish);
-  void handle_post_release_leader_lock(int r, Context *on_finish);
+  void handle_post_acquire_leader_lock(int r, Context* on_finish);
+  void handle_pre_release_leader_lock(Context* on_finish);
+  void handle_post_release_leader_lock(int r, Context* on_finish);
 
-  void handle_notify(uint64_t notify_id, uint64_t handle,
-                     uint64_t notifier_id, bufferlist &bl) override;
+  void handle_notify(
+      uint64_t notify_id,
+      uint64_t handle,
+      uint64_t notifier_id,
+      bufferlist& bl) override;
 
   void handle_rewatch_complete(int r) override;
 
-  void handle_heartbeat(Context *on_ack);
-  void handle_lock_acquired(Context *on_ack);
-  void handle_lock_released(Context *on_ack);
+  void handle_heartbeat(Context* on_ack);
+  void handle_lock_acquired(Context* on_ack);
+  void handle_lock_released(Context* on_ack);
 
-  void handle_payload(const leader_watcher::HeartbeatPayload &payload,
-                      Context *on_notify_ack);
-  void handle_payload(const leader_watcher::LockAcquiredPayload &payload,
-                      Context *on_notify_ack);
-  void handle_payload(const leader_watcher::LockReleasedPayload &payload,
-                      Context *on_notify_ack);
-  void handle_payload(const leader_watcher::UnknownPayload &payload,
-                      Context *on_notify_ack);
+  void handle_payload(
+      const leader_watcher::HeartbeatPayload& payload,
+      Context* on_notify_ack);
+  void handle_payload(
+      const leader_watcher::LockAcquiredPayload& payload,
+      Context* on_notify_ack);
+  void handle_payload(
+      const leader_watcher::LockReleasedPayload& payload,
+      Context* on_notify_ack);
+  void handle_payload(
+      const leader_watcher::UnknownPayload& payload,
+      Context* on_notify_ack);
 };
 
 } // namespace mirror

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -25,19 +25,19 @@
 #include <string>
 #include <unordered_map>
 
+#include "common/DecayCounter.h"
+#include "common/ceph_time.h" // for ceph::coarse_mono_{clock,time}
+#include "include/Context.h"
 #include "include/ceph_assert.h"
 #include "include/cephfs/types.h" // for mds_rank_t
-#include "include/Context.h"
-#include "include/xlist.h"
 #include "include/elist.h"
 #include "include/interval_set.h"
-#include "mdstypes.h" // for metareqid_t, session_info_t
+#include "include/xlist.h"
 #include "mds/MDSAuthCaps.h"
-#include "common/ceph_time.h" // for ceph::coarse_mono_{clock,time}
-#include "common/DecayCounter.h"
+#include "msg/Message.h"
 
 #include "Mutation.h" // for struct MDRequestImpl
-#include "msg/Message.h"
+#include "mdstypes.h" // for metareqid_t, session_info_t
 
 struct MDRequestImpl;
 class MDSContext;
@@ -69,6 +69,7 @@ class CInode;
 
 class Session : public RefCountedObject {
   // -- state etc --
+
 public:
   /*
                     
@@ -89,14 +90,15 @@ public:
 
   enum {
     STATE_CLOSED = 0,
-    STATE_OPENING = 1,   // journaling open
+    STATE_OPENING = 1, // journaling open
     STATE_OPEN = 2,
-    STATE_CLOSING = 3,   // journaling close
+    STATE_CLOSING = 3, // journaling close
     STATE_STALE = 4,
     STATE_KILLING = 5
   };
 
   Session() = delete;
+
   Session(ConnectionRef con) :
     item_session_list(this),
     requests(member_offset(MDRequestImpl, item_session_request)),
@@ -104,45 +106,67 @@ public:
     release_caps(g_conf().get_val<double>("mds_recall_warning_decay_rate")),
     recall_caps_throttle(g_conf().get_val<double>("mds_recall_max_decay_rate")),
     recall_caps_throttle2o(0.5),
-    session_cache_liveness(g_conf().get_val<double>("mds_session_cache_liveness_decay_rate")),
-    cap_acquisition(g_conf().get_val<double>("mds_session_cap_acquisition_decay_rate")),
+    session_cache_liveness(
+        g_conf().get_val<double>("mds_session_cache_liveness_decay_rate")),
+    cap_acquisition(
+        g_conf().get_val<double>("mds_session_cap_acquisition_decay_rate")),
     birth_time(clock::now())
   {
     set_connection(std::move(con));
   }
-  ~Session() override {
+
+  ~Session() override
+  {
     ceph_assert(!item_session_list.is_on_list());
     preopen_out_queue.clear();
   }
 
-  static std::string_view get_state_name(int s) {
+  static std::string_view
+  get_state_name(int s)
+  {
     switch (s) {
-    case STATE_CLOSED: return "closed";
-    case STATE_OPENING: return "opening";
-    case STATE_OPEN: return "open";
-    case STATE_CLOSING: return "closing";
-    case STATE_STALE: return "stale";
-    case STATE_KILLING: return "killing";
-    default: return "???";
+    case STATE_CLOSED:
+      return "closed";
+    case STATE_OPENING:
+      return "opening";
+    case STATE_OPEN:
+      return "open";
+    case STATE_CLOSING:
+      return "closing";
+    case STATE_STALE:
+      return "stale";
+    case STATE_KILLING:
+      return "killing";
+    default:
+      return "???";
     }
   }
 
-  void dump(ceph::Formatter *f, bool cap_dump=false) const;
-  void push_pv(version_t pv)
+  void dump(ceph::Formatter* f, bool cap_dump = false) const;
+
+  void
+  push_pv(version_t pv)
   {
     ceph_assert(projected.empty() || projected.back() != pv);
     projected.push_back(pv);
   }
 
-  void pop_pv(version_t v)
+  void
+  pop_pv(version_t v)
   {
     ceph_assert(!projected.empty());
     ceph_assert(projected.front() == v);
     projected.pop_front();
   }
 
-  int get_state() const { return state; }
-  void set_state(int new_state)
+  int
+  get_state() const
+  {
+    return state;
+  }
+
+  void
+  set_state(int new_state)
   {
     if (state != new_state) {
       state = new_state;
@@ -150,51 +174,81 @@ public:
     }
   }
 
-  void set_reconnecting(bool s) { reconnecting = s; }
+  void
+  set_reconnecting(bool s)
+  {
+    reconnecting = s;
+  }
 
-  void decode(ceph::buffer::list::const_iterator &p);
-  template<typename T>
-  void set_client_metadata(T&& meta)
+  void decode(ceph::buffer::list::const_iterator& p);
+
+  template <typename T>
+  void
+  set_client_metadata(T&& meta)
   {
     info.client_metadata = std::forward<T>(meta);
     _update_human_name();
   }
 
-  const std::string& get_human_name() const {return human_name;}
+  const std::string&
+  get_human_name() const
+  {
+    return human_name;
+  }
 
   size_t get_request_count() const;
 
   void notify_cap_release(size_t n_caps);
   uint64_t notify_recall_sent(size_t new_limit);
-  auto get_recall_caps_throttle() const {
+
+  auto
+  get_recall_caps_throttle() const
+  {
     return recall_caps_throttle.get();
   }
-  auto get_recall_caps_throttle2o() const {
+
+  auto
+  get_recall_caps_throttle2o() const
+  {
     return recall_caps_throttle2o.get();
   }
-  auto get_recall_caps() const {
+
+  auto
+  get_recall_caps() const
+  {
     return recall_caps.get();
   }
-  auto get_release_caps() const {
+
+  auto
+  get_release_caps() const
+  {
     return release_caps.get();
   }
-  auto get_session_cache_liveness() const {
+
+  auto
+  get_session_cache_liveness() const
+  {
     return session_cache_liveness.get();
   }
-  auto get_cap_acquisition() const {
+
+  auto
+  get_cap_acquisition() const
+  {
     return cap_acquisition.get();
   }
 
-  inodeno_t take_ino(inodeno_t ino = 0) {
+  inodeno_t
+  take_ino(inodeno_t ino = 0)
+  {
     if (ino) {
       if (!info.prealloc_inos.contains(ino))
         return 0;
       if (delegated_inos.contains(ino)) {
-	delegated_inos.erase(ino);
+        delegated_inos.erase(ino);
       } else if (free_prealloc_inos.contains(ino)) {
-	free_prealloc_inos.erase(ino);
+        free_prealloc_inos.erase(ino);
       } else {
-	ceph_assert(0);
+        ceph_assert(0);
       }
     } else if (!free_prealloc_inos.empty()) {
       ino = free_prealloc_inos.range_start();
@@ -203,122 +257,223 @@ public:
     return ino;
   }
 
-  void delegate_inos(int want, interval_set<inodeno_t>& inos) {
+  void
+  delegate_inos(int want, interval_set<inodeno_t>& inos)
+  {
     want -= (int)delegated_inos.size();
     if (want <= 0)
       return;
 
-    for (auto it = free_prealloc_inos.begin(); it != free_prealloc_inos.end(); ) {
+    for (auto it = free_prealloc_inos.begin(); it != free_prealloc_inos.end();) {
       if (want < (int)it.get_len()) {
-	inos.insert(it.get_start(), (inodeno_t)want);
-	delegated_inos.insert(it.get_start(), (inodeno_t)want);
-	free_prealloc_inos.erase(it.get_start(), (inodeno_t)want);
-	break;
+        inos.insert(it.get_start(), (inodeno_t)want);
+        delegated_inos.insert(it.get_start(), (inodeno_t)want);
+        free_prealloc_inos.erase(it.get_start(), (inodeno_t)want);
+        break;
       }
       want -= (int)it.get_len();
       inos.insert(it.get_start(), it.get_len());
       delegated_inos.insert(it.get_start(), it.get_len());
       free_prealloc_inos.erase(it++);
       if (want <= 0)
-	break;
+        break;
     }
   }
 
   // sans any delegated ones
-  int get_num_prealloc_inos() const {
+  int
+  get_num_prealloc_inos() const
+  {
     return free_prealloc_inos.size();
   }
 
-  int get_num_projected_prealloc_inos() const {
+  int
+  get_num_projected_prealloc_inos() const
+  {
     return get_num_prealloc_inos() + pending_prealloc_inos.size();
   }
 
-  client_t get_client() const {
+  client_t
+  get_client() const
+  {
     return info.get_client();
   }
 
-  std::string_view get_state_name() const { return get_state_name(state); }
-  uint64_t get_state_seq() const { return state_seq; }
-  bool is_closed() const { return state == STATE_CLOSED; }
-  bool is_opening() const { return state == STATE_OPENING; }
-  bool is_open() const { return state == STATE_OPEN; }
-  bool is_closing() const { return state == STATE_CLOSING; }
-  bool is_stale() const { return state == STATE_STALE; }
-  bool is_killing() const { return state == STATE_KILLING; }
+  std::string_view
+  get_state_name() const
+  {
+    return get_state_name(state);
+  }
 
-  void inc_importing() {
+  uint64_t
+  get_state_seq() const
+  {
+    return state_seq;
+  }
+
+  bool
+  is_closed() const
+  {
+    return state == STATE_CLOSED;
+  }
+
+  bool
+  is_opening() const
+  {
+    return state == STATE_OPENING;
+  }
+
+  bool
+  is_open() const
+  {
+    return state == STATE_OPEN;
+  }
+
+  bool
+  is_closing() const
+  {
+    return state == STATE_CLOSING;
+  }
+
+  bool
+  is_stale() const
+  {
+    return state == STATE_STALE;
+  }
+
+  bool
+  is_killing() const
+  {
+    return state == STATE_KILLING;
+  }
+
+  void
+  inc_importing()
+  {
     ++importing_count;
   }
-  void dec_importing() {
+
+  void
+  dec_importing()
+  {
     ceph_assert(importing_count > 0);
     --importing_count;
   }
-  bool is_importing() const { return importing_count > 0; }
 
-  void set_load_avg_decay_rate(double rate) {
+  bool
+  is_importing() const
+  {
+    return importing_count > 0;
+  }
+
+  void
+  set_load_avg_decay_rate(double rate)
+  {
     ceph_assert(is_open() || is_stale());
     load_avg = DecayCounter(rate);
   }
-  uint64_t get_load_avg() const {
+
+  uint64_t
+  get_load_avg() const
+  {
     return (uint64_t)load_avg.get();
   }
-  void hit_session() {
+
+  void
+  hit_session()
+  {
     load_avg.adjust();
   }
 
-  double get_session_uptime() const {
+  double
+  get_session_uptime() const
+  {
     std::chrono::duration<double> uptime = clock::now() - birth_time;
     return uptime.count();
   }
 
-  time get_birth_time() const {
+  time
+  get_birth_time() const
+  {
     return birth_time;
   }
 
-  void inc_cap_gen() { ++cap_gen; }
-  uint32_t get_cap_gen() const { return cap_gen; }
+  void
+  inc_cap_gen()
+  {
+    ++cap_gen;
+  }
 
-  version_t inc_push_seq() { return ++cap_push_seq; }
-  version_t get_push_seq() const { return cap_push_seq; }
+  uint32_t
+  get_cap_gen() const
+  {
+    return cap_gen;
+  }
 
-  version_t wait_for_flush(MDSContext* c) {
+  version_t
+  inc_push_seq()
+  {
+    return ++cap_push_seq;
+  }
+
+  version_t
+  get_push_seq() const
+  {
+    return cap_push_seq;
+  }
+
+  version_t
+  wait_for_flush(MDSContext* c)
+  {
     waitfor_flush[get_push_seq()].push_back(c);
     return get_push_seq();
   }
-  void finish_flush(version_t seq, std::vector<MDSContext*>& ls) {
+
+  void
+  finish_flush(version_t seq, std::vector<MDSContext*>& ls)
+  {
     while (!waitfor_flush.empty()) {
       auto it = waitfor_flush.begin();
       if (it->first > seq)
-	break;
+        break;
       auto& v = it->second;
       ls.insert(ls.end(), v.begin(), v.end());
       waitfor_flush.erase(it);
     }
   }
 
-  void touch_readdir_cap(uint32_t count) {
+  void
+  touch_readdir_cap(uint32_t count)
+  {
     cap_acquisition.hit(count);
   }
 
-  void touch_cap(Capability *cap);
-  void touch_cap_bottom(Capability *cap);
+  void touch_cap(Capability* cap);
+  void touch_cap_bottom(Capability* cap);
 
-  void touch_lease(ClientLease *r);
+  void touch_lease(ClientLease* r);
 
-  bool is_any_flush_waiter() {
+  bool
+  is_any_flush_waiter()
+  {
     return !waitfor_flush.empty();
   }
 
-  void add_completed_request(ceph_tid_t t, inodeno_t created) {
+  void
+  add_completed_request(ceph_tid_t t, inodeno_t created)
+  {
     info.completed_requests[t] = created;
     completed_requests_dirty = true;
   }
-  bool trim_completed_requests(ceph_tid_t mintid) {
+
+  bool
+  trim_completed_requests(ceph_tid_t mintid)
+  {
     // trim
     bool erased_any = false;
     last_trim_completed_requests_tid = mintid;
-    while (!info.completed_requests.empty() && 
-	   (mintid == 0 || info.completed_requests.begin()->first < mintid)) {
+    while (!info.completed_requests.empty() &&
+           (mintid == 0 || info.completed_requests.begin()->first < mintid)) {
       info.completed_requests.erase(info.completed_requests.begin());
       erased_any = true;
     }
@@ -328,7 +483,10 @@ public:
     }
     return erased_any;
   }
-  bool have_completed_request(ceph_tid_t tid, inodeno_t *pcreated) const {
+
+  bool
+  have_completed_request(ceph_tid_t tid, inodeno_t* pcreated) const
+  {
     auto p = info.completed_requests.find(tid);
     if (p == info.completed_requests.end())
       return false;
@@ -337,14 +495,19 @@ public:
     return true;
   }
 
-  void add_completed_flush(ceph_tid_t tid) {
+  void
+  add_completed_flush(ceph_tid_t tid)
+  {
     info.completed_flushes.insert(tid);
   }
-  bool trim_completed_flushes(ceph_tid_t mintid) {
+
+  bool
+  trim_completed_flushes(ceph_tid_t mintid)
+  {
     bool erased_any = false;
     last_trim_completed_flushes_tid = mintid;
     while (!info.completed_flushes.empty() &&
-	(mintid == 0 || *info.completed_flushes.begin() < mintid)) {
+           (mintid == 0 || *info.completed_flushes.begin() < mintid)) {
       info.completed_flushes.erase(info.completed_flushes.begin());
       erased_any = true;
     }
@@ -353,59 +516,117 @@ public:
     }
     return erased_any;
   }
-  bool have_completed_flush(ceph_tid_t tid) const {
+
+  bool
+  have_completed_flush(ceph_tid_t tid) const
+  {
     return info.completed_flushes.count(tid);
   }
 
-  uint64_t get_num_caps() const {
+  uint64_t
+  get_num_caps() const
+  {
     return caps.size();
   }
 
-  unsigned get_num_completed_flushes() const { return info.completed_flushes.size(); }
-  unsigned get_num_trim_flushes_warnings() const {
+  unsigned
+  get_num_completed_flushes() const
+  {
+    return info.completed_flushes.size();
+  }
+
+  unsigned
+  get_num_trim_flushes_warnings() const
+  {
     return num_trim_flushes_warnings;
   }
-  void inc_num_trim_flushes_warnings() { ++num_trim_flushes_warnings; }
-  void reset_num_trim_flushes_warnings() { num_trim_flushes_warnings = 0; }
 
-  unsigned get_num_completed_requests() const { return info.completed_requests.size(); }
-  unsigned get_num_trim_requests_warnings() const {
+  void
+  inc_num_trim_flushes_warnings()
+  {
+    ++num_trim_flushes_warnings;
+  }
+
+  void
+  reset_num_trim_flushes_warnings()
+  {
+    num_trim_flushes_warnings = 0;
+  }
+
+  unsigned
+  get_num_completed_requests() const
+  {
+    return info.completed_requests.size();
+  }
+
+  unsigned
+  get_num_trim_requests_warnings() const
+  {
     return num_trim_requests_warnings;
   }
-  void inc_num_trim_requests_warnings() { ++num_trim_requests_warnings; }
-  void reset_num_trim_requests_warnings() { num_trim_requests_warnings = 0; }
 
-  bool has_dirty_completed_requests() const
+  void
+  inc_num_trim_requests_warnings()
+  {
+    ++num_trim_requests_warnings;
+  }
+
+  void
+  reset_num_trim_requests_warnings()
+  {
+    num_trim_requests_warnings = 0;
+  }
+
+  bool
+  has_dirty_completed_requests() const
   {
     return completed_requests_dirty;
   }
 
-  void clear_dirty_completed_requests()
+  void
+  clear_dirty_completed_requests()
   {
     completed_requests_dirty = false;
   }
 
-  int check_access(std::string_view fs_name, CInode *in, unsigned mask, int caller_uid, int caller_gid,
-		   const std::vector<uint64_t> *gid_list, int new_uid, int new_gid);
+  int check_access(
+      std::string_view fs_name,
+      CInode* in,
+      unsigned mask,
+      int caller_uid,
+      int caller_gid,
+      const std::vector<uint64_t>* gid_list,
+      int new_uid,
+      int new_gid);
 
-  bool fs_name_capable(std::string_view fs_name, unsigned mask) const {
+  bool
+  fs_name_capable(std::string_view fs_name, unsigned mask) const
+  {
     return auth_caps.fs_name_capable(fs_name, mask);
   }
 
-  void set_connection(ConnectionRef con) {
+  void
+  set_connection(ConnectionRef con)
+  {
     connection = std::move(con);
     auto& c = connection;
     if (c) {
       info.auth_name = c->get_peer_entity_name();
       info.inst.addr = c->get_peer_socket_addr();
-      info.inst.name = entity_name_t(c->get_peer_type(), c->get_peer_global_id());
+      info.inst.name =
+          entity_name_t(c->get_peer_type(), c->get_peer_global_id());
     }
   }
-  const ConnectionRef& get_connection() const {
+
+  const ConnectionRef&
+  get_connection() const
+  {
     return connection;
   }
 
-  void clear() {
+  void
+  clear()
+  {
     pending_prealloc_inos.clear();
     free_prealloc_inos.clear();
     delegated_inos.clear();
@@ -415,8 +636,8 @@ public:
     last_cap_renew = clock::zero();
   }
 
-  Session *reclaiming_from = nullptr;
-  session_info_t info;                         ///< durable bits
+  Session* reclaiming_from = nullptr;
+  session_info_t info; ///< durable bits
   MDSAuthCaps auth_caps;
 
   // True if the session is opened by the client.
@@ -425,19 +646,21 @@ public:
 
   xlist<Session*>::item item_session_list;
 
-  std::list<ceph::ref_t<Message>> preopen_out_queue;  ///< messages for client, queued before they connect
+  std::list<ceph::ref_t<Message>>
+      preopen_out_queue; ///< messages for client, queued before they connect
 
   /* This is mutable to allow get_request_count to be const. elist does not
    * support const iterators yet.
    */
   mutable elist<MDRequestImpl*> requests;
 
-  interval_set<inodeno_t> pending_prealloc_inos; // journaling prealloc, will be added to prealloc_inos
+  interval_set<inodeno_t>
+      pending_prealloc_inos; // journaling prealloc, will be added to prealloc_inos
   interval_set<inodeno_t> free_prealloc_inos; //
   interval_set<inodeno_t> delegated_inos; // hand these out to client
 
-  xlist<Capability*> caps;     // inodes with caps; front=most recently used
-  xlist<ClientLease*> leases;  // metadata leases to clients
+  xlist<Capability*> caps; // inodes with caps; front=most recently used
+  xlist<ClientLease*> leases; // metadata leases to clients
   time last_cap_renew = clock::zero();
   time last_seen = clock::zero();
 
@@ -469,7 +692,7 @@ private:
 
   // Ephemeral state for tracking progress of capability recalls
   // caps being recalled recently by this session; used for Beacon warnings
-  DecayCounter recall_caps;  // caps that have been released
+  DecayCounter recall_caps; // caps that have been released
   DecayCounter release_caps;
   // throttle on caps recalled
   DecayCounter recall_caps_throttle;
@@ -492,8 +715,9 @@ private:
 
   // -- caps --
   uint32_t cap_gen = 0;
-  version_t cap_push_seq = 0;        // cap push seq #
-  std::map<version_t, std::vector<MDSContext*> > waitfor_flush; // flush session messages
+  version_t cap_push_seq = 0; // cap push seq #
+  std::map<version_t, std::vector<MDSContext*>>
+      waitfor_flush; // flush session messages
 
   // Has completed_requests been modified since the last time we
   // wrote this session out?
@@ -506,16 +730,19 @@ private:
   ceph_tid_t last_trim_completed_flushes_tid = 0;
 };
 
-class SessionFilter
-{
+class SessionFilter {
 public:
-  SessionFilter() : reconnecting(false, false) {}
+  SessionFilter() :
+    reconnecting(false, false)
+  {}
 
   bool match(
-      const Session &session,
+      const Session& session,
       std::function<bool(client_t)> is_reconnecting) const;
-  int parse(const std::vector<std::string> &args, std::ostream *ss);
-  void set_reconnecting(bool v)
+  int parse(const std::vector<std::string>& args, std::ostream* ss);
+
+  void
+  set_reconnecting(bool v)
   {
     reconnecting.first = true;
     reconnecting.second = v;
@@ -525,6 +752,7 @@ public:
   std::string auth_name;
   std::string state;
   int64_t id = 0;
+
 protected:
   // First is whether to filter, second is filter value
   std::pair<bool, bool> reconnecting;
@@ -545,18 +773,27 @@ public:
   using clock = Session::clock;
   using time = Session::time;
 
-  SessionMapStore(): total_load_avg(decay_rate) {}
-  virtual ~SessionMapStore() {};
+  SessionMapStore() :
+    total_load_avg(decay_rate)
+  {}
 
-  version_t get_version() const {return version;}
+  virtual ~SessionMapStore(){};
 
-  virtual void encode_header(ceph::buffer::list *header_bl);
-  virtual void decode_header(ceph::buffer::list &header_bl);
-  virtual void decode_values(std::map<std::string, ceph::buffer::list> &session_vals);
+  version_t
+  get_version() const
+  {
+    return version;
+  }
+
+  virtual void encode_header(ceph::buffer::list* header_bl);
+  virtual void decode_header(ceph::buffer::list& header_bl);
+  virtual void decode_values(
+      std::map<std::string, ceph::buffer::list>& session_vals);
   virtual void decode_legacy(ceph::buffer::list::const_iterator& blp);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
 
-  void set_rank(mds_rank_t r)
+  void
+  set_rank(mds_rank_t r)
   {
     rank = r;
   }
@@ -564,7 +801,9 @@ public:
   Session* get_or_add_session(const entity_inst_t& i);
 
   static std::list<SessionMapStore> generate_test_instances();
-  void reset_state()
+
+  void
+  reset_state()
   {
     session_map.clear();
   }
@@ -574,81 +813,108 @@ public:
 protected:
   version_t version = 0;
   std::unordered_map<entity_name_t, Session*> session_map;
-  PerfCounters *logger =nullptr;
+  PerfCounters* logger = nullptr;
 
   // total request load avg
-  double decay_rate = g_conf().get_val<double>("mds_request_load_average_decay_rate");
+  double decay_rate =
+      g_conf().get_val<double>("mds_request_load_average_decay_rate");
   DecayCounter total_load_avg;
 };
 
 class SessionMap : public SessionMapStore {
 public:
   SessionMap() = delete;
-  explicit SessionMap(MDSRank *m);
+  explicit SessionMap(MDSRank* m);
 
   ~SessionMap() override;
 
-  uint64_t set_state(Session *session, int state);
+  uint64_t set_state(Session* session, int state);
   void update_average_session_age();
 
   void register_perfcounters();
 
-  void set_version(const version_t v)
+  void
+  set_version(const version_t v)
   {
     version = projected = v;
   }
 
-  void set_projected(const version_t v)
+  void
+  set_projected(const version_t v)
   {
     projected = v;
   }
 
-  version_t get_projected() const
+  version_t
+  get_projected() const
   {
     return projected;
   }
 
-  version_t get_committed() const
+  version_t
+  get_committed() const
   {
     return committed;
   }
 
-  version_t get_committing() const
+  version_t
+  get_committing() const
   {
     return committing;
   }
 
   // sessions
   void decode_legacy(ceph::buffer::list::const_iterator& blp) override;
-  bool empty() const { return session_map.empty(); }
-  const auto& get_sessions() const {
+
+  bool
+  empty() const
+  {
+    return session_map.empty();
+  }
+
+  const auto&
+  get_sessions() const
+  {
     return session_map;
   }
 
-  bool is_any_state(int state) const {
+  bool
+  is_any_state(int state) const
+  {
     auto it = by_state.find(state);
     if (it == by_state.end() || it->second->empty())
       return false;
     return true;
   }
 
-  bool have_unclosed_sessions() const {
-    return
-      is_any_state(Session::STATE_OPENING) ||
-      is_any_state(Session::STATE_OPEN) ||
-      is_any_state(Session::STATE_CLOSING) ||
-      is_any_state(Session::STATE_STALE) ||
-      is_any_state(Session::STATE_KILLING);
+  bool
+  have_unclosed_sessions() const
+  {
+    return is_any_state(Session::STATE_OPENING) ||
+           is_any_state(Session::STATE_OPEN) ||
+           is_any_state(Session::STATE_CLOSING) ||
+           is_any_state(Session::STATE_STALE) ||
+           is_any_state(Session::STATE_KILLING);
   }
-  bool have_session(entity_name_t w) const {
+
+  bool
+  have_session(entity_name_t w) const
+  {
     return session_map.count(w);
   }
-  Session* get_session(entity_name_t w) {
+
+  Session*
+  get_session(entity_name_t w)
+  {
     auto session_map_entry = session_map.find(w);
-    return (session_map_entry != session_map.end() ?
-	    session_map_entry-> second : nullptr);
+    return (
+        session_map_entry != session_map.end() ? session_map_entry->second
+                                               : nullptr);
   }
-  const Session* get_session(entity_name_t w) const {
+
+  const Session*
+  get_session(entity_name_t w) const
+  {
     auto p = session_map.find(w);
     if (p == session_map.end()) {
       return NULL;
@@ -657,21 +923,31 @@ public:
     }
   }
 
-  void add_session(Session *s);
-  void remove_session(Session *s);
-  void touch_session(Session *session);
+  void add_session(Session* s);
+  void remove_session(Session* s);
+  void touch_session(Session* session);
 
-  void add_to_broken_root_squash_clients(Session* s) {
+  void
+  add_to_broken_root_squash_clients(Session* s)
+  {
     broken_root_squash_clients.insert(s);
   }
-  uint64_t num_broken_root_squash_clients() const {
+
+  uint64_t
+  num_broken_root_squash_clients() const
+  {
     return broken_root_squash_clients.size();
   }
-  auto const& get_broken_root_squash_clients() const {
+
+  auto const&
+  get_broken_root_squash_clients() const
+  {
     return broken_root_squash_clients;
   }
 
-  Session *get_oldest_session(int state) {
+  Session*
+  get_oldest_session(int state)
+  {
     auto by_state_entry = by_state.find(state);
     if (by_state_entry == by_state.end() || by_state_entry->second->empty())
       return 0;
@@ -680,36 +956,50 @@ public:
 
   void dump();
 
-  template<typename F>
-  void get_client_sessions(F&& f) const {
+  template <typename F>
+  void
+  get_client_sessions(F&& f) const
+  {
     for (const auto& p : session_map) {
       auto& session = p.second;
       if (session->info.inst.name.is_client())
-	f(session);
+        f(session);
     }
   }
-  template<typename C>
-  void get_client_session_set(C& c) const {
-    auto f = [&c](auto& s) {
-      c.insert(s);
-    };
+
+  template <typename C>
+  void
+  get_client_session_set(C& c) const
+  {
+    auto f = [&c](auto& s) { c.insert(s); };
     get_client_sessions(f);
   }
 
   // helpers
-  entity_inst_t& get_inst(entity_name_t w) {
+  entity_inst_t&
+  get_inst(entity_name_t w)
+  {
     ceph_assert(session_map.count(w));
     return session_map[w]->info.inst;
   }
-  version_t get_push_seq(client_t client) {
+
+  version_t
+  get_push_seq(client_t client)
+  {
     return get_session(entity_name_t::CLIENT(client.v))->get_push_seq();
   }
-  bool have_completed_request(metareqid_t rid) {
-    Session *session = get_session(rid.name);
+
+  bool
+  have_completed_request(metareqid_t rid)
+  {
+    Session* session = get_session(rid.name);
     return session && session->have_completed_request(rid.tid, NULL);
   }
-  void trim_completed_requests(entity_name_t c, ceph_tid_t tid) {
-    Session *session = get_session(c);
+
+  void
+  trim_completed_requests(entity_name_t c, ceph_tid_t tid)
+  {
+    Session* session = get_session(c);
     ceph_assert(session);
     session->trim_completed_requests(tid);
   }
@@ -719,20 +1009,20 @@ public:
 
   object_t get_object_name() const;
 
-  void load(MDSContext *onload);
+  void load(MDSContext* onload);
   void _load_finish(
       int operation_r,
       int header_r,
       int values_r,
       bool first,
-      ceph::buffer::list &header_bl,
-      std::map<std::string, ceph::buffer::list> &session_vals,
+      ceph::buffer::list& header_bl,
+      std::map<std::string, ceph::buffer::list>& session_vals,
       bool more_session_vals);
 
   void load_legacy();
-  void _load_legacy_finish(int r, ceph::buffer::list &bl);
+  void _load_legacy_finish(int r, ceph::buffer::list& bl);
 
-  void save(MDSContext *onsave, version_t needv=0);
+  void save(MDSContext* onsave, version_t needv = 0);
   void _save_finish(version_t v);
 
   /**
@@ -743,7 +1033,7 @@ public:
    * to the backing store.  Must have called
    * mark_projected previously for this session.
    */
-  void mark_dirty(Session *session, bool may_save=true);
+  void mark_dirty(Session* session, bool may_save = true);
 
   /**
    * Advance the projected version, and mark this
@@ -755,14 +1045,14 @@ public:
    * for sessions in the same global order as calls
    * to mark_projected.
    */
-  version_t mark_projected(Session *session);
+  version_t mark_projected(Session* session);
 
   /**
    * During replay, advance versions to account
    * for a session modification, and mark the
    * session dirty.
    */
-  void replay_dirty_session(Session *session);
+  void replay_dirty_session(Session* session);
 
   /**
    * During replay, if a session no longer present
@@ -775,9 +1065,10 @@ public:
    * During replay, open sessions, advance versions and
    * mark these sessions as dirty.
    */
-  void replay_open_sessions(version_t event_cmapv,
-			    std::map<client_t,entity_inst_t>& client_map,
-			    std::map<client_t,client_metadata_t>& client_metadata_map);
+  void replay_open_sessions(
+      version_t event_cmapv,
+      std::map<client_t, entity_inst_t>& client_map,
+      std::map<client_t, client_metadata_t>& client_metadata_map);
 
   /**
    * For these session IDs, if a session exists with this ID, and it has
@@ -785,14 +1076,15 @@ public:
    * (ahead of usual project/dirty versioned writes
    *  of the map).
    */
-  void save_if_dirty(const std::set<entity_name_t> &tgt_sessions,
-                     MDSGatherBuilder *gather_bld);
+  void save_if_dirty(
+      const std::set<entity_name_t>& tgt_sessions,
+      MDSGatherBuilder* gather_bld);
 
-  void hit_session(Session *session);
-  void handle_conf_change(const std::set <std::string> &changed);
+  void hit_session(Session* session);
+  void handle_conf_change(const std::set<std::string>& changed);
 
-  MDSRank *mds;
-  std::map<int,xlist<Session*>*> by_state;
+  MDSRank* mds;
+  std::map<int, xlist<Session*>*> by_state;
   std::map<version_t, std::vector<MDSContext*>> commit_waiters;
 
   // -- loading, saving --
@@ -800,7 +1092,7 @@ public:
   std::vector<MDSContext*> waiting_for_load;
 
 protected:
-  void _mark_dirty(Session *session, bool may_save);
+  void _mark_dirty(Session* session, bool may_save);
 
   version_t projected = 0, committing = 0, committed = 0;
   std::set<entity_name_t> dirty_sessions;
@@ -808,11 +1100,15 @@ protected:
   bool loaded_legacy = false;
 
 private:
-  uint64_t get_session_count_in_state(int state) {
+  uint64_t
+  get_session_count_in_state(int state)
+  {
     return !is_any_state(state) ? 0 : by_state[state]->size();
   }
 
-  void update_average_birth_time(const Session &s, bool added=true) {
+  void
+  update_average_birth_time(const Session& s, bool added = true)
+  {
     uint32_t sessions = session_map.size();
     time birth_time = s.get_birth_time();
 
@@ -823,12 +1119,12 @@ private:
 
     if (added) {
       avg_birth_time = clock::time_point(
-        ((avg_birth_time - clock::zero()) / sessions) * (sessions - 1) +
-        (birth_time - clock::zero()) / sessions);
+          ((avg_birth_time - clock::zero()) / sessions) * (sessions - 1) +
+          (birth_time - clock::zero()) / sessions);
     } else {
       avg_birth_time = clock::time_point(
-        ((avg_birth_time - clock::zero()) / (sessions - 1)) * sessions -
-        (birth_time - clock::zero()) / (sessions - 1));
+          ((avg_birth_time - clock::zero()) / (sessions - 1)) * sessions -
+          (birth_time - clock::zero()) / (sessions - 1));
     }
   }
 
@@ -836,11 +1132,14 @@ private:
 
   size_t mds_session_metadata_threshold;
 
-  bool validate_and_encode_session(MDSRank *mds, Session *session, bufferlist& bl);
+  bool validate_and_encode_session(
+      MDSRank* mds,
+      Session* session,
+      bufferlist& bl);
   void apply_blocklist(const std::set<entity_name_t>& victims);
 
   std::set<Session*> broken_root_squash_clients;
 };
 
-std::ostream& operator<<(std::ostream &out, const Session &s);
+std::ostream& operator<<(std::ostream& out, const Session& s);
 #endif

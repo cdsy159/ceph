@@ -2,12 +2,15 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "gtest/gtest.h"
+
 #include "rgw_tag.h"
 
 using namespace std;
 
 // Helper: binary-encode an RGWObjTags into a bufferlist (the normal path)
-static bufferlist encode_tags(const RGWObjTags& tags) {
+static bufferlist
+encode_tags(const RGWObjTags& tags)
+{
   bufferlist bl;
   tags.encode(bl);
   return bl;
@@ -16,7 +19,9 @@ static bufferlist encode_tags(const RGWObjTags& tags) {
 // Helper: store a raw plain-text string into a bufferlist the way
 // rgw_get_request_metadata() does: bl.append(str.c_str(), str.size() + 1)
 // (includes trailing null byte)
-static bufferlist plain_text_bl(const string& s) {
+static bufferlist
+plain_text_bl(const string& s)
+{
   bufferlist bl;
   bl.append(s.c_str(), s.size() + 1);
   return bl;
@@ -172,7 +177,7 @@ TEST(RGWObjTagsDecode, TagKeyTooLongThrowsOriginalException)
 {
   // Create plain-text tag with key longer than max_tag_key_size (128)
   // set_from_string() will return -ERR_INVALID_TAG
-  string long_key(200, 'k');  // 200 chars, exceeds 128 limit
+  string long_key(200, 'k'); // 200 chars, exceeds 128 limit
   string tag_string = long_key + "=value";
   bufferlist bl = plain_text_bl(tag_string);
 
@@ -197,7 +202,7 @@ TEST(RGWObjTagsDecode, EmptyAfterNullStrippingThrowsOriginalException)
   // Buffer containing only null bytes: fails binary decode, then after
   // stripping trailing nulls we have empty raw string -> throws original exception
   bufferlist bl;
-  bl.append("\0\0\0", 3);  // just null bytes
+  bl.append("\0\0\0", 3); // just null bytes
 
   RGWObjTags dst;
   auto iter = bl.cbegin();

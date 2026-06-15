@@ -40,25 +40,28 @@ namespace ceph::async {
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<
-	   void(std::invoke_result_t<F>)> CompletionToken,
-	 typename ...IOE>
-auto async_dispatch(boost::asio::execution::executor auto executor,
-		    F&& f, CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void(std::invoke_result_t<F>)> CompletionToken,
+    typename... IOE>
+auto
+async_dispatch(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
 {
   namespace asio = boost::asio;
   return asio::async_compose<CompletionToken, void(std::invoke_result_t<F>)>(
-      [executor, f = std::move(f)](auto &self) mutable {
-	auto ex = executor;
-	asio::dispatch(ex, [f = std::move(f),
-			    self = std::move(self)]() mutable {
-	  auto r = std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [r = std::move(r),
-			       self = std::move(self)]() mutable {
-	    self.complete(std::move(r));
-	  });
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::dispatch(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          auto r = std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(
+              ex2, [r = std::move(r), self = std::move(self)]() mutable {
+                self.complete(std::move(r));
+              });
         });
       },
       token, executor, std::forward<IOE>(ioe)...);
@@ -76,27 +79,31 @@ auto async_dispatch(boost::asio::execution::executor auto executor,
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<void()> CompletionToken,
-	 typename ...IOE>
-auto async_dispatch(boost::asio::execution::executor auto executor,
-		    F&& f, CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void()> CompletionToken,
+    typename... IOE>
+auto
+async_dispatch(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
   requires std::is_void_v<std::invoke_result_t<F>>
 {
   namespace asio = boost::asio;
-  return asio::async_compose<
-    CompletionToken, void()>(
-      [executor, f = std::move(f)] (auto& self) mutable {
-	auto ex = executor;
-	asio::dispatch(ex, [f = std::move(f),
-			    self = std::move(self)]() mutable {
-	  std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [self = std::move(self)]() mutable {
-	    self.complete();
-	  });
-	});
-      }, token, executor, std::forward<IOE>(ioe)...);
+  return asio::async_compose<CompletionToken, void()>(
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::dispatch(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(ex2, [self = std::move(self)]() mutable {
+            self.complete();
+          });
+        });
+      },
+      token, executor, std::forward<IOE>(ioe)...);
 }
 
 /// \brief Post a function on another executor and wait for it to
@@ -111,28 +118,31 @@ auto async_dispatch(boost::asio::execution::executor auto executor,
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<
-	   void(std::invoke_result_t<F>)> CompletionToken,
-	 typename ...IOE>
-auto async_post(boost::asio::execution::executor auto executor,
-		F&& f, CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void(std::invoke_result_t<F>)> CompletionToken,
+    typename... IOE>
+auto
+async_post(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
 {
   namespace asio = boost::asio;
-  return asio::async_compose<
-    CompletionToken,
-    void(std::invoke_result_t<F>)>(
-      [executor, f = std::move(f)] (auto& self) mutable {
-	auto ex = executor;
-	asio::post(ex, [f = std::move(f), self = std::move(self)]() mutable {
-	  auto r = std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [self = std::move(self),
-			       r = std::move(r)]() mutable {
-	    self.complete(std::move(r));
-	  });
-	});
-      }, token, executor, std::forward<IOE>(ioe)...);
+  return asio::async_compose<CompletionToken, void(std::invoke_result_t<F>)>(
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::post(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          auto r = std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(
+              ex2, [self = std::move(self), r = std::move(r)]() mutable {
+                self.complete(std::move(r));
+              });
+        });
+      },
+      token, executor, std::forward<IOE>(ioe)...);
 }
 
 /// \brief Post a function on another executor and wait for it to
@@ -147,26 +157,31 @@ auto async_post(boost::asio::execution::executor auto executor,
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<void()> CompletionToken,
-	 typename ...IOE>
-auto async_post(boost::asio::execution::executor auto executor,
-		F&& f, CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void()> CompletionToken,
+    typename... IOE>
+auto
+async_post(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
   requires std::is_void_v<std::invoke_result_t<F>>
 {
   namespace asio = boost::asio;
-  return asio::async_compose<
-    CompletionToken, void()>(
-      [executor, f = std::move(f)] (auto& self) mutable {
-	auto ex = executor;
-	asio::post(ex, [f = std::move(f), self = std::move(self)]() mutable {
-	  std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [self = std::move(self)]() mutable {
-	    self.complete();
-	  });
-	});
-      }, token, executor, std::forward<IOE>(ioe)...);
+  return asio::async_compose<CompletionToken, void()>(
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::post(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(ex2, [self = std::move(self)]() mutable {
+            self.complete();
+          });
+        });
+      },
+      token, executor, std::forward<IOE>(ioe)...);
 }
 
 /// \brief Defer a function on another executor and wait for it to
@@ -181,28 +196,31 @@ auto async_post(boost::asio::execution::executor auto executor,
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<
-	   void(std::invoke_result_t<F>)> CompletionToken,
-	 typename ...IOE>
-auto async_defer(boost::asio::execution::executor auto executor,
-		 F&& f, CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void(std::invoke_result_t<F>)> CompletionToken,
+    typename... IOE>
+auto
+async_defer(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
 {
   namespace asio = boost::asio;
-  return asio::async_compose<
-    CompletionToken,
-    void(std::invoke_result_t<F>)>(
-      [executor, f = std::move(f)] (auto& self) mutable {
-	auto ex = executor;
-	asio::defer(ex, [f = std::move(f), self = std::move(self)]() mutable {
-	  auto r = std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [r = std::move(r),
-			       self = std::move(self)]() mutable {
-	    self.complete(std::move(r));
-	  });
-	});
-      }, token, executor, std::forward<IOE>(ioe)...);
+  return asio::async_compose<CompletionToken, void(std::invoke_result_t<F>)>(
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::defer(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          auto r = std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(
+              ex2, [r = std::move(r), self = std::move(self)]() mutable {
+                self.complete(std::move(r));
+              });
+        });
+      },
+      token, executor, std::forward<IOE>(ioe)...);
 }
 
 /// \brief Defer a function on another executor and wait for it to
@@ -217,25 +235,30 @@ auto async_defer(boost::asio::execution::executor auto executor,
 ///
 /// \return The return value of `f` in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<std::invocable<> F,
-	 boost::asio::completion_token_for<void()> CompletionToken,
-	 typename ...IOE>
-auto async_defer(boost::asio::execution::executor auto executor, F&& f,
-		 CompletionToken&& token, IOE&& ...ioe)
+template <
+    std::invocable<> F,
+    boost::asio::completion_token_for<void()> CompletionToken,
+    typename... IOE>
+auto
+async_defer(
+    boost::asio::execution::executor auto executor,
+    F&& f,
+    CompletionToken&& token,
+    IOE&&... ioe)
   requires std::is_void_v<std::invoke_result_t<F>>
 {
   namespace asio = boost::asio;
-  return asio::async_compose<
-    CompletionToken, void()>(
-      [executor, f = std::move(f)] (auto& self) mutable {
-	auto ex = executor;
-	asio::defer(ex, [f = std::move(f), self = std::move(self)]() mutable {
-	  std::invoke(f);
-	  auto ex2 = self.get_executor();
-	  asio::dispatch(ex2, [self = std::move(self)]() mutable {
-	    self.complete();
-	  });
-	});
-      }, token, executor, std::forward<IOE>(ioe)...);
+  return asio::async_compose<CompletionToken, void()>(
+      [executor, f = std::move(f)](auto& self) mutable {
+        auto ex = executor;
+        asio::defer(ex, [f = std::move(f), self = std::move(self)]() mutable {
+          std::invoke(f);
+          auto ex2 = self.get_executor();
+          asio::dispatch(ex2, [self = std::move(self)]() mutable {
+            self.complete();
+          });
+        });
+      },
+      token, executor, std::forward<IOE>(ioe)...);
 }
-}
+} // namespace ceph::async

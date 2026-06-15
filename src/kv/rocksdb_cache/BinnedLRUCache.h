@@ -10,15 +10,17 @@
 #ifndef ROCKSDB_BINNED_LRU_CACHE
 #define ROCKSDB_BINNED_LRU_CACHE
 
-#include <string>
 #include <mutex>
+#include <string>
+
 #include <boost/circular_buffer.hpp>
 
-#include "ShardedCache.h"
+#include "common/admin_socket.h"
+#include "common/ceph_context.h"
 #include "common/dout.h"
 #include "include/ceph_assert.h"
-#include "common/ceph_context.h"
-#include "common/admin_socket.h"
+
+#include "ShardedCache.h"
 
 namespace rocksdb_cache {
 
@@ -49,7 +51,7 @@ namespace rocksdb_cache {
 // RUCache::Release (to move into state 2) or BinnedLRUCacheShard::Erase (for state 3)
 
 std::shared_ptr<rocksdb::Cache> NewBinnedLRUCache(
-    CephContext *c,
+    CephContext* c,
     const std::string& name,
     size_t capacity,
     int num_shard_bits = -1,
@@ -63,10 +65,10 @@ struct BinnedLRUHandle {
   BinnedLRUHandle* next_hash;
   BinnedLRUHandle* next;
   BinnedLRUHandle* prev;
-  size_t charge;  // TODO(opt): Only allow uint32_t?
+  size_t charge; // TODO(opt): Only allow uint32_t?
   size_t key_length;
-  uint32_t refs;     // a number of refs to this entry
-                     // cache itself is counted as 1
+  uint32_t refs; // a number of refs to this entry
+      // cache itself is counted as 1
 
   // Include the following flags:
   //   in_cache:    whether this entry is referenced by the hash table.
@@ -74,11 +76,13 @@ struct BinnedLRUHandle {
   //   in_high_pri_pool: whether this entry is in high-pri pool.
   char flags;
 
-  uint32_t hash;     // Hash of key(); used for fast sharding and comparisons
+  uint32_t hash; // Hash of key(); used for fast sharding and comparisons
 
-  char* key_data = nullptr;  // Beginning of key
+  char* key_data = nullptr; // Beginning of key
 
-  rocksdb::Slice key() const {
+  rocksdb::Slice
+  key() const
+  {
     // For cheaper lookups, we allow a temporary Handle object
     // to store a pointer to a key in "value".
     if (next == this) {
@@ -88,12 +92,33 @@ struct BinnedLRUHandle {
     }
   }
 
-  bool InCache() { return flags & 1; }
-  bool IsHighPri() { return flags & 2; }
-  bool InHighPriPool() { return flags & 4; }
-  bool HasHit() { return flags & 8; }
+  bool
+  InCache()
+  {
+    return flags & 1;
+  }
 
-  void SetInCache(bool in_cache) {
+  bool
+  IsHighPri()
+  {
+    return flags & 2;
+  }
+
+  bool
+  InHighPriPool()
+  {
+    return flags & 4;
+  }
+
+  bool
+  HasHit()
+  {
+    return flags & 8;
+  }
+
+  void
+  SetInCache(bool in_cache)
+  {
     if (in_cache) {
       flags |= 1;
     } else {
@@ -101,7 +126,9 @@ struct BinnedLRUHandle {
     }
   }
 
-  void SetPriority(rocksdb::Cache::Priority priority) {
+  void
+  SetPriority(rocksdb::Cache::Priority priority)
+  {
     if (priority == rocksdb::Cache::Priority::HIGH) {
       flags |= 2;
     } else {
@@ -109,7 +136,9 @@ struct BinnedLRUHandle {
     }
   }
 
-  void SetInHighPriPool(bool in_high_pri_pool) {
+  void
+  SetInHighPriPool(bool in_high_pri_pool)
+  {
     if (in_high_pri_pool) {
       flags |= 4;
     } else {
@@ -117,9 +146,15 @@ struct BinnedLRUHandle {
     }
   }
 
-  void SetHit() { flags |= 8; }
+  void
+  SetHit()
+  {
+    flags |= 8;
+  }
 
-  void Free() {
+  void
+  Free()
+  {
     ceph_assert((refs == 1 && InCache()) || (refs == 0 && !InCache()));
     if (deleter) {
       (*deleter)(key(), value);
@@ -135,7 +170,7 @@ struct BinnedLRUHandle {
 // we have tested.  E.g., readrandom speeds up by ~5% over the g++
 // 4.4.3's builtin hashtable.
 class BinnedLRUHandleTable {
- public:
+public:
   BinnedLRUHandleTable();
   ~BinnedLRUHandleTable();
 
@@ -144,7 +179,9 @@ class BinnedLRUHandleTable {
   BinnedLRUHandle* Remove(const rocksdb::Slice& key, uint32_t hash);
 
   template <typename T>
-  void ApplyToAllCacheEntries(T func) {
+  void
+  ApplyToAllCacheEntries(T func)
+  {
     for (uint32_t i = 0; i < length_; i++) {
       BinnedLRUHandle* h = list_[i];
       while (h != nullptr) {
@@ -156,7 +193,7 @@ class BinnedLRUHandleTable {
     }
   }
 
- private:
+private:
   // Return a pointer to slot that points to a cache entry that
   // matches key/hash.  If there is no such cache entry, return a
   // pointer to the trailing slot in the corresponding linked list.
@@ -173,48 +210,51 @@ class BinnedLRUHandleTable {
 
 enum stat_e : int {
   l_capacity = 0, // capacity assigned to the shard
-  l_usage,        // current usage of the shard
-  l_pinned,       // size in elements currently referenced
-  l_elems,        // count of separate items in shard
-  l_inserts,      // increased when element inserted into the cache
-  l_lookups,      // increased when trying to find element in shard
-  l_hits,         // increased when lookup successful
-  l_misses,       // calculated from lookups - hits
+  l_usage, // current usage of the shard
+  l_pinned, // size in elements currently referenced
+  l_elems, // count of separate items in shard
+  l_inserts, // increased when element inserted into the cache
+  l_lookups, // increased when trying to find element in shard
+  l_hits, // increased when lookup successful
+  l_misses, // calculated from lookups - hits
   stat_cnt
 };
 
 struct ShardStats {
   uint64_t val[stat_cnt] = {0};
-  uint64_t& operator[](int idx) {
+
+  uint64_t&
+  operator[](int idx)
+  {
     return val[idx];
   }
 
   static constexpr char const* stat_name[stat_cnt] = {
-    "capacity",
-    "usage",
-    "pinned",
-    "elems",
-    "inserts",
-    "lookups",
-    "hits",
-    "misses",
+      "capacity", "usage",   "pinned", "elems",
+      "inserts",  "lookups", "hits",   "misses",
   };
   static constexpr char const* stat_descr[stat_cnt] = {
-    "capacity assigned",
-    "current usage",
-    "currently pinned size (in use)",
-    "number of elems in shard",
-    "inserts into shard",
-    "lookups for an element",
-    "lookup successful",
-    "lookup failure",
+      "capacity assigned",
+      "current usage",
+      "currently pinned size (in use)",
+      "number of elems in shard",
+      "inserts into shard",
+      "lookups for an element",
+      "lookup successful",
+      "lookup failure",
   };
-  void add(const ShardStats& other) {
+
+  void
+  add(const ShardStats& other)
+  {
     for (int j = 0; j < stat_cnt; j++) {
       val[j] += other.val[j];
     }
   }
-  void sub(const ShardStats& other) {
+
+  void
+  sub(const ShardStats& other)
+  {
     for (int j = 0; j < stat_cnt; j++) {
       val[j] -= other.val[j];
     }
@@ -223,9 +263,12 @@ struct ShardStats {
 
 // A single shard of sharded cache.
 class alignas(CACHE_LINE_SIZE) BinnedLRUCacheShard : public CacheShard {
- public:
-  BinnedLRUCacheShard(CephContext *c, size_t capacity, bool strict_capacity_limit,
-                double high_pri_pool_ratio);
+public:
+  BinnedLRUCacheShard(
+      CephContext* c,
+      size_t capacity,
+      bool strict_capacity_limit,
+      double high_pri_pool_ratio);
   virtual ~BinnedLRUCacheShard();
 
   // Separate from constructor so caller can easily make an array of BinnedLRUCache
@@ -240,15 +283,21 @@ class alignas(CACHE_LINE_SIZE) BinnedLRUCacheShard : public CacheShard {
   void SetHighPriPoolRatio(double high_pri_pool_ratio);
 
   // Like Cache methods, but with an extra "hash" parameter.
-  virtual rocksdb::Status Insert(const rocksdb::Slice& key, uint32_t hash, void* value,
-                        size_t charge,
-                        DeleterFn deleter,
-                        rocksdb::Cache::Handle** handle,
-                        rocksdb::Cache::Priority priority) override;
-  virtual rocksdb::Cache::Handle* Lookup(const rocksdb::Slice& key, uint32_t hash) override;
+  virtual rocksdb::Status Insert(
+      const rocksdb::Slice& key,
+      uint32_t hash,
+      void* value,
+      size_t charge,
+      DeleterFn deleter,
+      rocksdb::Cache::Handle** handle,
+      rocksdb::Cache::Priority priority) override;
+  virtual rocksdb::Cache::Handle* Lookup(
+      const rocksdb::Slice& key,
+      uint32_t hash) override;
   virtual bool Ref(rocksdb::Cache::Handle* handle) override;
-  virtual bool Release(rocksdb::Cache::Handle* handle,
-                       bool force_erase = false) override;
+  virtual bool Release(
+      rocksdb::Cache::Handle* handle,
+      bool force_erase = false) override;
   virtual void Erase(const rocksdb::Slice& key, uint32_t hash) override;
 
   // Although in some platforms the update of size_t is atomic, to make sure
@@ -259,11 +308,10 @@ class alignas(CACHE_LINE_SIZE) BinnedLRUCacheShard : public CacheShard {
   virtual size_t GetPinnedUsage() const override;
 
   virtual void ApplyToAllCacheEntries(
-    const std::function<void(const rocksdb::Slice& key,
-                             void* value,
-                             size_t charge,
-                             DeleterFn)>& callback,
-    bool thread_safe) override;
+      const std::function<
+          void(const rocksdb::Slice& key, void* value, size_t charge, DeleterFn)>&
+          callback,
+      bool thread_safe) override;
 
   virtual void EraseUnRefEntries() override;
 
@@ -299,8 +347,8 @@ class alignas(CACHE_LINE_SIZE) BinnedLRUCacheShard : public CacheShard {
   void ClearStats();
   void print_bins(std::stringstream& out) const;
 
- private:
-  CephContext *cct;
+private:
+  CephContext* cct;
   void LRU_Remove(BinnedLRUHandle* e);
   void LRU_Insert(BinnedLRUHandle* e);
 
@@ -375,11 +423,22 @@ class alignas(CACHE_LINE_SIZE) BinnedLRUCacheShard : public CacheShard {
 };
 
 class BinnedLRUCache : public ShardedCache {
- public:
-  BinnedLRUCache(CephContext *c, const std::string& name, size_t capacity, int num_shard_bits,
-      bool strict_capacity_limit, double high_pri_pool_ratio);
+public:
+  BinnedLRUCache(
+      CephContext* c,
+      const std::string& name,
+      size_t capacity,
+      int num_shard_bits,
+      bool strict_capacity_limit,
+      double high_pri_pool_ratio);
   virtual ~BinnedLRUCache();
-  virtual const char* Name() const override { return "BinnedLRUCache"; }
+
+  virtual const char*
+  Name() const override
+  {
+    return "BinnedLRUCache";
+  }
+
   virtual CacheShard* GetShard(int shard) override;
   virtual const CacheShard* GetShard(int shard) const override;
   virtual void* Value(Handle* handle) override;
@@ -400,26 +459,34 @@ class BinnedLRUCache : public ShardedCache {
 
   // PriorityCache
   virtual int64_t request_cache_bytes(
-      PriorityCache::Priority pri, uint64_t total_cache) const;
+      PriorityCache::Priority pri,
+      uint64_t total_cache) const;
   virtual int64_t commit_cache_size(uint64_t total_cache);
-  virtual int64_t get_committed_size() const {
+
+  virtual int64_t
+  get_committed_size() const
+  {
     return GetCapacity();
   }
+
   virtual void shift_bins();
   uint64_t sum_bins(uint32_t start, uint32_t end) const;
   uint32_t get_bin_count() const;
   void set_bin_count(uint32_t count);
 
-  virtual std::string get_cache_name() const {
+  virtual std::string
+  get_cache_name() const
+  {
     return "RocksDB Binned LRU Cache";
   }
 
- private:
+private:
   void SetupPerfCounters();
   void UpdatePerfCounters();
   void printshard(int shard_no, std::stringstream& out);
- private:
-  CephContext *cct;
+
+private:
+  CephContext* cct;
   std::string name;
   BinnedLRUCacheShard* shards_;
   int num_shards_ = 0;
@@ -430,6 +497,6 @@ class BinnedLRUCache : public ShardedCache {
   AdminSocketHook* asok_hook = nullptr;
 };
 
-}  // namespace rocksdb_cache
+} // namespace rocksdb_cache
 
 #endif // ROCKSDB_BINNED_LRU_CACHE

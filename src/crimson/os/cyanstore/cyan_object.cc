@@ -1,20 +1,25 @@
 #include "cyan_object.h"
+
 #include "include/encoding.h"
 
 namespace crimson::os {
 
-size_t Object::get_size() const {
+size_t
+Object::get_size() const
+{
   return data.length();
 }
 
-ceph::bufferlist Object::read(uint64_t offset, uint64_t len)
+ceph::bufferlist
+Object::read(uint64_t offset, uint64_t len)
 {
   bufferlist ret;
   ret.substr_of(data, offset, len);
   return ret;
 }
 
-int Object::write(uint64_t offset, const bufferlist &src)
+int
+Object::write(uint64_t offset, const bufferlist& src)
 {
   unsigned len = src.length();
   // before
@@ -41,8 +46,8 @@ int Object::write(uint64_t offset, const bufferlist &src)
   return 0;
 }
 
-int Object::clone(Object *src, uint64_t srcoff, uint64_t len,
-                  uint64_t dstoff)
+int
+Object::clone(Object* src, uint64_t srcoff, uint64_t len, uint64_t dstoff)
 {
   bufferlist bl;
   if (srcoff == dstoff && len == src->get_size()) {
@@ -51,10 +56,10 @@ int Object::clone(Object *src, uint64_t srcoff, uint64_t len,
   }
   bl.substr_of(src->data, srcoff, len);
   return write(dstoff, bl);
-
 }
 
-int Object::truncate(uint64_t size)
+int
+Object::truncate(uint64_t size)
 {
   if (get_size() > size) {
     bufferlist bl;
@@ -68,7 +73,9 @@ int Object::truncate(uint64_t size)
   return 0;
 }
 
-void Object::encode(bufferlist& bl) const {
+void
+Object::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(data, bl);
   encode(xattr, bl);
@@ -77,7 +84,9 @@ void Object::encode(bufferlist& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void Object::decode(bufferlist::const_iterator& p) {
+void
+Object::decode(bufferlist::const_iterator& p)
+{
   DECODE_START(1, p);
   decode(data, p);
   decode(xattr, p);
@@ -86,4 +95,4 @@ void Object::decode(bufferlist::const_iterator& p) {
   DECODE_FINISH(p);
 }
 
-}
+} // namespace crimson::os

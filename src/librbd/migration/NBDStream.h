@@ -4,11 +4,13 @@
 #ifndef CEPH_LIBRBD_MIGRATION_NBD_STREAM_H
 #define CEPH_LIBRBD_MIGRATION_NBD_STREAM_H
 
-#include "include/int_types.h"
-#include "librbd/migration/StreamInterface.h"
 #include <json_spirit/json_spirit.h>
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
+
+#include "include/int_types.h"
+#include "librbd/migration/StreamInterface.h"
 
 struct Context;
 
@@ -19,13 +21,15 @@ struct ImageCtx;
 
 namespace migration {
 
-template <typename> class NBDClient;
+template <typename>
+class NBDClient;
 
 template <typename ImageCtxT>
 class NBDStream : public StreamInterface {
 public:
-  static NBDStream* create(ImageCtxT* image_ctx,
-                           const json_spirit::mObject& json_object) {
+  static NBDStream*
+  create(ImageCtxT* image_ctx, const json_spirit::mObject& json_object)
+  {
     return new NBDStream(image_ctx, json_object);
   }
 
@@ -40,12 +44,13 @@ public:
 
   void get_size(uint64_t* size, Context* on_finish) override;
 
-  void read(io::Extents&& byte_extents, bufferlist* data,
-            Context* on_finish) override;
+  void read(io::Extents&& byte_extents, bufferlist* data, Context* on_finish)
+      override;
 
-  void list_sparse_extents(io::Extents&& byte_extents,
-                           io::SparseExtents* sparse_extents,
-                           Context* on_finish) override;
+  void list_sparse_extents(
+      io::Extents&& byte_extents,
+      io::SparseExtents* sparse_extents,
+      Context* on_finish) override;
 
 private:
   CephContext* m_cct;

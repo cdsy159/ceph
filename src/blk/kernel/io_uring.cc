@@ -5,9 +5,11 @@
 
 #if defined(HAVE_LIBURING)
 
-#include "liburing.h"
 #include <sys/epoll.h>
+
 #include <map>
+
+#include "liburing.h"
 
 using std::list;
 using std::make_unique;
@@ -20,16 +22,17 @@ struct ioring_data {
   std::map<int, int> fixed_fds_map;
 };
 
-static int ioring_get_cqe(struct ioring_data *d, unsigned int max,
-			  struct aio_t **paio)
+static int
+ioring_get_cqe(struct ioring_data* d, unsigned int max, struct aio_t** paio)
 {
-  struct io_uring *ring = &d->io_uring;
-  struct io_uring_cqe *cqe;
+  struct io_uring* ring = &d->io_uring;
+  struct io_uring_cqe* cqe;
 
   unsigned nr = 0;
   unsigned head;
-  io_uring_for_each_cqe(ring, head, cqe) {
-    struct aio_t *io = (struct aio_t *)(uintptr_t) io_uring_cqe_get_data(cqe);
+  io_uring_for_each_cqe(ring, head, cqe)
+  {
+    struct aio_t* io = (struct aio_t*)(uintptr_t)io_uring_cqe_get_data(cqe);
     io->rval = cqe->res;
 
     paio[nr++] = io;
@@ -42,7 +45,8 @@ static int ioring_get_cqe(struct ioring_data *d, unsigned int max,
   return nr;
 }
 
-static int find_fixed_fd(struct ioring_data *d, int real_fd)
+static int
+find_fixed_fd(struct ioring_data* d, int real_fd)
 {
   auto it = d->fixed_fds_map.find(real_fd);
   if (it == d->fixed_fds_map.end())
@@ -51,19 +55,17 @@ static int find_fixed_fd(struct ioring_data *d, int real_fd)
   return it->second;
 }
 
-static void init_sqe(struct ioring_data *d, struct io_uring_sqe *sqe,
-		     struct aio_t *io)
+static void
+init_sqe(struct ioring_data* d, struct io_uring_sqe* sqe, struct aio_t* io)
 {
   int fixed_fd = find_fixed_fd(d, io->fd);
 
   ceph_assert(fixed_fd != -1);
 
   if (io->iocb.aio_lio_opcode == IO_CMD_PWRITEV)
-    io_uring_prep_writev(sqe, fixed_fd, &io->iov[0],
-			 io->iov.size(), io->offset);
+    io_uring_prep_writev(sqe, fixed_fd, &io->iov[0], io->iov.size(), io->offset);
   else if (io->iocb.aio_lio_opcode == IO_CMD_PREADV)
-    io_uring_prep_readv(sqe, fixed_fd, &io->iov[0],
-			io->iov.size(), io->offset);
+    io_uring_prep_readv(sqe, fixed_fd, &io->iov[0], io->iov.size(), io->offset);
   else
     ceph_assert(0);
 
@@ -71,16 +73,20 @@ static void init_sqe(struct ioring_data *d, struct io_uring_sqe *sqe,
   io_uring_sqe_set_flags(sqe, IOSQE_FIXED_FILE);
 }
 
-static int ioring_queue(struct ioring_data *d, void *priv,
-			list<aio_t>::iterator beg, list<aio_t>::iterator end)
+static int
+ioring_queue(
+    struct ioring_data* d,
+    void* priv,
+    list<aio_t>::iterator beg,
+    list<aio_t>::iterator end)
 {
-  struct io_uring *ring = &d->io_uring;
-  struct aio_t *io = nullptr;
+  struct io_uring* ring = &d->io_uring;
+  struct aio_t* io = nullptr;
 
   ceph_assert(beg != end);
 
   do {
-    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+    struct io_uring_sqe* sqe = io_uring_get_sqe(ring);
     if (!sqe)
       break;
 
@@ -98,8 +104,8 @@ static int ioring_queue(struct ioring_data *d, void *priv,
   return io_uring_submit(ring);
 }
 
-static void build_fixed_fds_map(struct ioring_data *d,
-				std::vector<int> &fds)
+static void
+build_fixed_fds_map(struct ioring_data* d, std::vector<int>& fds)
 {
   int fixed_fd = 0;
   for (int real_fd : fds) {
@@ -112,14 +118,12 @@ ioring_queue_t::ioring_queue_t(unsigned iodepth_, bool hipri_, bool sq_thread_) 
   iodepth(iodepth_),
   hipri(hipri_),
   sq_thread(sq_thread_)
-{
-}
+{}
 
-ioring_queue_t::~ioring_queue_t()
-{
-}
+ioring_queue_t::~ioring_queue_t() {}
 
-int ioring_queue_t::init(std::vector<int> &fds)
+int
+ioring_queue_t::init(std::vector<int>& fds)
 {
   unsigned flags = 0;
 
@@ -135,8 +139,7 @@ int ioring_queue_t::init(std::vector<int> &fds)
   if (ret < 0)
     return ret;
 
-  ret = io_uring_register_files(&d->io_uring,
-			  &fds[0], fds.size());
+  ret = io_uring_register_files(&d->io_uring, &fds[0], fds.size());
   if (ret < 0) {
     ret = -errno;
     goto close_ring_fd;
@@ -170,7 +173,8 @@ close_ring_fd:
   return ret;
 }
 
-void ioring_queue_t::shutdown()
+void
+ioring_queue_t::shutdown()
 {
   d->fixed_fds_map.clear();
   close(d->epoll_fd);
@@ -179,9 +183,14 @@ void ioring_queue_t::shutdown()
   io_uring_queue_exit(&d->io_uring);
 }
 
-int ioring_queue_t::submit_batch(aio_iter beg, aio_iter end,
-                                 void *priv,
-                                 int *retries, int submit_retries, int initial_delay_us)
+int
+ioring_queue_t::submit_batch(
+    aio_iter beg,
+    aio_iter end,
+    void* priv,
+    int* retries,
+    int submit_retries,
+    int initial_delay_us)
 {
   (void)retries;
 
@@ -192,7 +201,8 @@ int ioring_queue_t::submit_batch(aio_iter beg, aio_iter end,
   return rc;
 }
 
-int ioring_queue_t::get_next_completed(int timeout_ms, aio_t **paio, int max)
+int
+ioring_queue_t::get_next_completed(int timeout_ms, aio_t** paio, int max)
 {
 get_cqe:
   pthread_mutex_lock(&d->cq_mutex);
@@ -212,7 +222,8 @@ get_cqe:
   return events;
 }
 
-bool ioring_queue_t::supported()
+bool
+ioring_queue_t::supported()
 {
   struct io_uring ring;
   int ret = io_uring_queue_init(16, &ring, 0);
@@ -232,34 +243,40 @@ ioring_queue_t::ioring_queue_t(unsigned iodepth_, bool hipri_, bool sq_thread_)
   ceph_assert(0);
 }
 
-ioring_queue_t::~ioring_queue_t()
+ioring_queue_t::~ioring_queue_t() { ceph_assert(0); }
+
+int
+ioring_queue_t::init(std::vector<int>& fds)
 {
   ceph_assert(0);
 }
 
-int ioring_queue_t::init(std::vector<int> &fds)
+void
+ioring_queue_t::shutdown()
 {
   ceph_assert(0);
 }
 
-void ioring_queue_t::shutdown()
+int
+ioring_queue_t::submit_batch(
+    aio_iter beg,
+    aio_iter end,
+    void* priv,
+    int* retries,
+    int submit_retries,
+    int initial_delay_us)
 {
   ceph_assert(0);
 }
 
-int ioring_queue_t::submit_batch(aio_iter beg, aio_iter end,
-                                 void *priv,
-                                 int *retries, int submit_retries, int initial_delay_us)
+int
+ioring_queue_t::get_next_completed(int timeout_ms, aio_t** paio, int max)
 {
   ceph_assert(0);
 }
 
-int ioring_queue_t::get_next_completed(int timeout_ms, aio_t **paio, int max)
-{
-  ceph_assert(0);
-}
-
-bool ioring_queue_t::supported()
+bool
+ioring_queue_t::supported()
 {
   return false;
 }

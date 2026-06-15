@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,9 +16,8 @@
 #ifndef CEPH_MMONGETVERSION_H
 #define CEPH_MMONGETVERSION_H
 
-#include "msg/Message.h"
-
 #include "include/types.h"
+#include "msg/Message.h"
 
 /*
  * This message is sent to the monitors to verify that the client's
@@ -28,23 +27,33 @@
  */
 class MMonGetVersion final : public Message {
 public:
-  MMonGetVersion() : Message{CEPH_MSG_MON_GET_VERSION} {}
+  MMonGetVersion() :
+    Message{CEPH_MSG_MON_GET_VERSION}
+  {}
 
-  std::string_view get_type_name() const override {
+  std::string_view
+  get_type_name() const override
+  {
     return "mon_get_version";
   }
 
-  void print(std::ostream& o) const override {
+  void
+  print(std::ostream& o) const override
+  {
     o << "mon_get_version(what=" << what << " handle=" << handle << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(handle, payload);
     encode(what, payload);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     using ceph::decode;
     decode(handle, p);

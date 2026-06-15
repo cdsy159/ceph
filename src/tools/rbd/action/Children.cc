@@ -1,13 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/Formatter.h"
+#include "common/errno.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/errno.h"
-#include "common/Formatter.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -16,8 +18,13 @@ namespace children {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-int do_list_children(librados::IoCtx &io_ctx, librbd::Image &image,
-                     bool all_flag, bool descendants_flag, Formatter *f)
+int
+do_list_children(
+    librados::IoCtx& io_ctx,
+    librbd::Image& image,
+    bool all_flag,
+    bool descendants_flag,
+    Formatter* f)
 {
   std::vector<librbd::linked_image_spec_t> children;
   librbd::RBD rbd;
@@ -66,7 +73,7 @@ int do_list_children(librados::IoCtx &io_ctx, librbd::Image &image,
         std::cout << child.image_name;
         if (trash) {
           std::cout << " (trash " << child.image_id << ")";
-	}
+        }
       }
       std::cout << std::endl;
     }
@@ -80,21 +87,27 @@ int do_list_children(librados::IoCtx &io_ctx, librbd::Image &image,
   return 0;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
-  at::add_image_or_snap_spec_options(positional, options,
-                                     at::ARGUMENT_MODIFIER_NONE);
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  at::add_image_or_snap_spec_options(
+      positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_image_id_option(options);
   at::add_snap_id_option(options, at::ARGUMENT_MODIFIER_NONE);
-  options->add_options()
-    ("all,a", po::bool_switch(), "list all children (include trash)");
-  options->add_options()
-    ("descendants", po::bool_switch(), "include all descendants");
+  options->add_options()(
+      "all,a", po::bool_switch(), "list all children (include trash)");
+  options->add_options()(
+      "descendants", po::bool_switch(), "include all descendants");
   at::add_format_options(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   uint64_t snap_id = LIBRADOS_SNAP_HEAD;
   if (vm.count(at::SNAPSHOT_ID)) {
     snap_id = vm[at::SNAPSHOT_ID].as<uint64_t>();
@@ -112,9 +125,9 @@ int execute(const po::variables_map &vm,
   }
 
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, image_id.empty(),
-    utils::SNAPSHOT_PRESENCE_PERMITTED, utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, image_id.empty(),
+      utils::SNAPSHOT_PRESENCE_PERMITTED, utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -140,8 +153,9 @@ int execute(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name,
-				 image_id, "", true, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, image_id, "", true, &rados,
+      &io_ctx, &image);
   if (r < 0) {
     return r;
   }
@@ -160,8 +174,9 @@ int execute(const po::variables_map &vm,
     return r;
   }
 
-  r = do_list_children(io_ctx, image, vm["all"].as<bool>(),
-                       vm["descendants"].as<bool>(), formatter.get());
+  r = do_list_children(
+      io_ctx, image, vm["all"].as<bool>(), vm["descendants"].as<bool>(),
+      formatter.get());
   if (r < 0) {
     std::cerr << "rbd: listing children failed: " << cpp_strerror(r)
               << std::endl;
@@ -172,8 +187,12 @@ int execute(const po::variables_map &vm,
 
 Shell::SwitchArguments switched_arguments({"all", "a", "descendants"});
 Shell::Action action(
-  {"children"}, {}, "Display children of an image or its snapshot.", "",
-  &get_arguments, &execute);
+    {"children"},
+    {},
+    "Display children of an image or its snapshot.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace children
 } // namespace action

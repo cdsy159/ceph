@@ -2,7 +2,11 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/image_deleter/SnapshotPurgeRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/debug.h"
+
 #include "common/errno.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
@@ -12,13 +16,12 @@
 #include "librbd/journal/Policy.h"
 #include "tools/rbd_mirror/image_deleter/Types.h"
 
-#include <shared_mutex> // for std::shared_lock
-
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_deleter::SnapshotPurgeRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                      \
+  *_dout << "rbd::mirror::image_deleter::SnapshotPurgeRequest: " << this \
+         << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -27,12 +30,16 @@ namespace image_deleter {
 using librbd::util::create_context_callback;
 
 template <typename I>
-void SnapshotPurgeRequest<I>::send() {
+void
+SnapshotPurgeRequest<I>::send()
+{
   open_image();
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::open_image() {
+void
+SnapshotPurgeRequest<I>::open_image()
+{
   dout(10) << dendl;
   m_image_ctx = I::create("", m_image_id, nullptr, m_io_ctx, false);
 
@@ -44,14 +51,16 @@ void SnapshotPurgeRequest<I>::open_image() {
     m_image_ctx->set_journal_policy(new JournalPolicy());
   }
 
-  Context *ctx = create_context_callback<
-    SnapshotPurgeRequest<I>, &SnapshotPurgeRequest<I>::handle_open_image>(
+  Context* ctx = create_context_callback<
+      SnapshotPurgeRequest<I>, &SnapshotPurgeRequest<I>::handle_open_image>(
       this);
   m_image_ctx->state->open(librbd::OPEN_FLAG_SKIP_OPEN_PARENT, ctx);
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::handle_open_image(int r) {
+void
+SnapshotPurgeRequest<I>::handle_open_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -67,7 +76,9 @@ void SnapshotPurgeRequest<I>::handle_open_image(int r) {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::acquire_lock() {
+void
+SnapshotPurgeRequest<I>::acquire_lock()
+{
   dout(10) << dendl;
 
   m_image_ctx->owner_lock.lock_shared();
@@ -78,14 +89,17 @@ void SnapshotPurgeRequest<I>::acquire_lock() {
     return;
   }
 
-  m_image_ctx->exclusive_lock->acquire_lock(create_context_callback<
-    SnapshotPurgeRequest<I>, &SnapshotPurgeRequest<I>::handle_acquire_lock>(
-      this));
+  m_image_ctx->exclusive_lock->acquire_lock(
+      create_context_callback<
+          SnapshotPurgeRequest<I>, &SnapshotPurgeRequest<I>::handle_acquire_lock>(
+          this));
   m_image_ctx->owner_lock.unlock_shared();
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::handle_acquire_lock(int r) {
+void
+SnapshotPurgeRequest<I>::handle_acquire_lock(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -99,7 +113,9 @@ void SnapshotPurgeRequest<I>::handle_acquire_lock(int r) {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::start_snap_unprotect() {
+void
+SnapshotPurgeRequest<I>::start_snap_unprotect()
+{
   dout(10) << dendl;
 
   {
@@ -110,7 +126,9 @@ void SnapshotPurgeRequest<I>::start_snap_unprotect() {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::snap_unprotect() {
+void
+SnapshotPurgeRequest<I>::snap_unprotect()
+{
   if (m_snaps.empty()) {
     close_image();
     return;
@@ -169,16 +187,18 @@ void SnapshotPurgeRequest<I>::snap_unprotect() {
   }
 
   auto ctx = new LambdaContext([this, finish_op_ctx](int r) {
-      handle_snap_unprotect(r);
-      finish_op_ctx->complete(0);
-    });
+    handle_snap_unprotect(r);
+    finish_op_ctx->complete(0);
+  });
   std::shared_lock owner_locker{m_image_ctx->owner_lock};
   m_image_ctx->operations->execute_snap_unprotect(
-    m_snap_namespace, m_snap_name.c_str(), ctx);
+      m_snap_namespace, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::handle_snap_unprotect(int r) {
+void
+SnapshotPurgeRequest<I>::handle_snap_unprotect(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -EBUSY) {
@@ -199,8 +219,7 @@ void SnapshotPurgeRequest<I>::handle_snap_unprotect(int r) {
     librados::snap_t snap_id = m_snaps.back();
     auto snap_info_it = m_image_ctx->snap_info.find(snap_id);
     if (snap_info_it != m_image_ctx->snap_info.end()) {
-      snap_info_it->second.protection_status =
-        RBD_PROTECTION_STATUS_UNPROTECTED;
+      snap_info_it->second.protection_status = RBD_PROTECTION_STATUS_UNPROTECTED;
     }
   }
 
@@ -208,7 +227,9 @@ void SnapshotPurgeRequest<I>::handle_snap_unprotect(int r) {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::snap_remove() {
+void
+SnapshotPurgeRequest<I>::snap_remove()
+{
   librados::snap_t snap_id = m_snaps.back();
   dout(10) << "snap_id=" << snap_id << ", "
            << "snap_namespace=" << m_snap_namespace << ", "
@@ -224,16 +245,18 @@ void SnapshotPurgeRequest<I>::snap_remove() {
   }
 
   auto ctx = new LambdaContext([this, finish_op_ctx](int r) {
-      handle_snap_remove(r);
-      finish_op_ctx->complete(0);
-    });
+    handle_snap_remove(r);
+    finish_op_ctx->complete(0);
+  });
   std::shared_lock owner_locker{m_image_ctx->owner_lock};
   m_image_ctx->operations->execute_snap_remove(
-    m_snap_namespace, m_snap_name.c_str(), ctx);
+      m_snap_namespace, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::handle_snap_remove(int r) {
+void
+SnapshotPurgeRequest<I>::handle_snap_remove(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -EBUSY) {
@@ -253,16 +276,21 @@ void SnapshotPurgeRequest<I>::handle_snap_remove(int r) {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::close_image() {
+void
+SnapshotPurgeRequest<I>::close_image()
+{
   dout(10) << dendl;
 
-  m_image_ctx->state->close(create_context_callback<
-    SnapshotPurgeRequest<I>,
-    &SnapshotPurgeRequest<I>::handle_close_image>(this));
+  m_image_ctx->state->close(
+      create_context_callback<
+          SnapshotPurgeRequest<I>, &SnapshotPurgeRequest<I>::handle_close_image>(
+          this));
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::handle_close_image(int r) {
+void
+SnapshotPurgeRequest<I>::handle_close_image(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   m_image_ctx = nullptr;
@@ -276,7 +304,9 @@ void SnapshotPurgeRequest<I>::handle_close_image(int r) {
 }
 
 template <typename I>
-void SnapshotPurgeRequest<I>::finish(int r) {
+void
+SnapshotPurgeRequest<I>::finish(int r)
+{
   if (m_ret_val < 0) {
     r = m_ret_val;
   }
@@ -286,7 +316,9 @@ void SnapshotPurgeRequest<I>::finish(int r) {
 }
 
 template <typename I>
-Context *SnapshotPurgeRequest<I>::start_lock_op(int* r) {
+Context*
+SnapshotPurgeRequest<I>::start_lock_op(int* r)
+{
   std::shared_lock owner_locker{m_image_ctx->owner_lock};
   if (m_image_ctx->exclusive_lock == nullptr) {
     return new LambdaContext([](int r) {});

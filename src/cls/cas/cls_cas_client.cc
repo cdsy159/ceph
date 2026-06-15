@@ -1,9 +1,10 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "cls/cas/cls_cas_client.h"
+
 #include <errno.h>
 
-#include "cls/cas/cls_cas_client.h"
 #include "cls/cas/cls_cas_ops.h"
 #include "include/rados/librados.hpp"
 
@@ -14,11 +15,12 @@ using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-void cls_cas_chunk_create_or_get_ref(
-  librados::ObjectWriteOperation& op,
-  const hobject_t& soid,
-  const bufferlist& data,
-  bool verify)
+void
+cls_cas_chunk_create_or_get_ref(
+    librados::ObjectWriteOperation& op,
+    const hobject_t& soid,
+    const bufferlist& data,
+    bool verify)
 {
   bufferlist in;
   cls_cas_chunk_create_or_get_ref_op call;
@@ -31,9 +33,8 @@ void cls_cas_chunk_create_or_get_ref(
   op.exec("cas", "chunk_create_or_get_ref", in);
 }
 
-void cls_cas_chunk_get_ref(
-  librados::ObjectWriteOperation& op,
-  const hobject_t& soid)
+void
+cls_cas_chunk_get_ref(librados::ObjectWriteOperation& op, const hobject_t& soid)
 {
   bufferlist in;
   cls_cas_chunk_get_ref_op call;
@@ -42,9 +43,8 @@ void cls_cas_chunk_get_ref(
   op.exec("cas", "chunk_get_ref", in);
 }
 
-void cls_cas_chunk_put_ref(
-  librados::ObjectWriteOperation& op,
-  const hobject_t& soid)
+void
+cls_cas_chunk_put_ref(librados::ObjectWriteOperation& op, const hobject_t& soid)
 {
   bufferlist in;
   cls_cas_chunk_put_ref_op call;
@@ -53,10 +53,11 @@ void cls_cas_chunk_put_ref(
   op.exec("cas", "chunk_put_ref", in);
 }
 
-int cls_cas_references_chunk(
-  librados::IoCtx& io_ctx,
-  const string& oid,
-  const string& chunk_oid)
+int
+cls_cas_references_chunk(
+    librados::IoCtx& io_ctx,
+    const string& oid,
+    const string& chunk_oid)
 {
   bufferlist in, out;
   encode(chunk_oid, in);

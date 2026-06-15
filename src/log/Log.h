@@ -4,7 +4,7 @@
 #ifndef __CEPH_LOG_LOG_H
 #define __CEPH_LOG_LOG_H
 
-#include <boost/circular_buffer.hpp>
+#include <unistd.h>
 
 #include <condition_variable>
 #include <map>
@@ -14,13 +14,12 @@
 #include <string>
 #include <string_view>
 
+#include <boost/circular_buffer.hpp>
+
 #include "common/Thread.h"
 #include "common/ceph_time.h"
 #include "common/likely.h"
-
 #include "log/Entry.h"
-
-#include <unistd.h>
 
 struct uuid_d;
 
@@ -31,12 +30,11 @@ class Graylog;
 class JournaldLogger;
 class SubsystemMap;
 
-class Log : private Thread
-{
+class Log : private Thread {
 public:
   using Thread::is_started;
 
-  Log(const SubsystemMap *s);
+  Log(const SubsystemMap* s);
   ~Log() override;
 
   void set_flush_on_exit();
@@ -58,8 +56,7 @@ public:
   void set_stderr_level(int log, int crash);
   void set_graylog_level(int log, int crash);
 
-  void start_graylog(const std::string& host,
-		     const uuid_d& fsid);
+  void start_graylog(const std::string& host, const uuid_d& fsid);
   void stop_graylog();
 
   void set_journald_level(int log, int crash);
@@ -67,7 +64,11 @@ public:
   void start_journald_logger();
   void stop_journald_logger();
 
-  std::shared_ptr<Graylog> graylog() { return m_graylog; }
+  std::shared_ptr<Graylog>
+  graylog()
+  {
+    return m_graylog;
+  }
 
   void submit_entry(Entry&& e);
 
@@ -91,15 +92,16 @@ private:
   using mono_clock = ceph::coarse_mono_clock;
   using mono_time = ceph::coarse_mono_time;
 
-  using RecentThreadNames = std::map<pthread_t, std::pair<mono_time, boost::circular_buffer<std::string> > >;
+  using RecentThreadNames = std::
+      map<pthread_t, std::pair<mono_time, boost::circular_buffer<std::string>>>;
 
   static const std::size_t DEFAULT_MAX_NEW = 100;
   static const std::size_t DEFAULT_MAX_RECENT = 10000;
   static constexpr std::size_t DEFAULT_MAX_THREAD_NAMES = 4;
 
-  Log **m_indirect_this;
+  Log** m_indirect_this;
 
-  const SubsystemMap *m_subs;
+  const SubsystemMap* m_subs;
 
   std::mutex m_queue_mutex;
   std::mutex m_flush_mutex;
@@ -110,9 +112,11 @@ private:
   pthread_t m_flush_mutex_holder;
 
   RecentThreadNames m_recent_thread_names; // protected by m_flush_mutex
-  EntryVector m_new;    ///< new entries
-  EntryRing m_recent; ///< recent (less new) entries we've already written at low detail
-  EntryVector m_flush; ///< entries to be flushed (here to optimize heap allocations)
+  EntryVector m_new; ///< new entries
+  EntryRing
+      m_recent; ///< recent (less new) entries we've already written at low detail
+  EntryVector
+      m_flush; ///< entries to be flushed (here to optimize heap allocations)
 
   std::string m_log_file;
   int m_fd = -1;
@@ -121,7 +125,7 @@ private:
 
   int m_fd_stderr = STDERR_FILENO;
 
-  int m_fd_last_error = 0;  ///< last error we say writing to fd (if any)
+  int m_fd_last_error = 0; ///< last error we say writing to fd (if any)
 
   int m_syslog_log = -2, m_syslog_crash = -2;
   int m_stderr_log = -1, m_stderr_crash = -1;
@@ -142,19 +146,16 @@ private:
 
   bool m_inject_segv = false;
 
-  void *entry() override;
+  void* entry() override;
 
   void _log_safe_write(std::string_view sv);
   void _flush_logbuf();
   void _log_message(std::string_view s, bool crash);
   void _configure_stderr();
   void _log_stderr(std::string_view strv);
-
-
-
 };
 
-}
-}
+} // namespace logging
+} // namespace ceph
 
 #endif

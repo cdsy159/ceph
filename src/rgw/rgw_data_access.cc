@@ -1,51 +1,62 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include <optional>
 #include "rgw_data_access.h"
+
+#include <optional>
+
+#include "common/BackTrace.h"
+
 #include "rgw_acl_s3.h"
 #include "rgw_aio_throttle.h"
-#include "rgw_compression.h"
 #include "rgw_cksum.h"
-#include "common/BackTrace.h"
+#include "rgw_compression.h"
 
 #define dout_subsys ceph_subsys_rgw
 
-template<class H, size_t S>
-class RGWEtag
-{
+template <class H, size_t S>
+class RGWEtag {
   H hash;
 
 public:
-  RGWEtag() {
+  RGWEtag()
+  {
     if constexpr (std::is_same_v<H, MD5>) {
       // Allow use of MD5 digest in FIPS mode for non-cryptographic purposes
       hash.SetFlags(EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
     }
   }
 
-  void update(const char *buf, size_t len) {
-    hash.Update((const unsigned char *)buf, len);
+  void
+  update(const char* buf, size_t len)
+  {
+    hash.Update((const unsigned char*)buf, len);
   }
 
-  void update(bufferlist& bl) {
+  void
+  update(bufferlist& bl)
+  {
     if (bl.length() > 0) {
       update(bl.c_str(), bl.length());
     }
   }
 
-  void update(const std::string& s) {
+  void
+  update(const std::string& s)
+  {
     if (!s.empty()) {
       update(s.c_str(), s.size());
     }
   }
-  void finish(std::string *etag) {
+
+  void
+  finish(std::string* etag)
+  {
     char etag_buf[S];
     char etag_buf_str[S * 2 + 16];
 
-    hash.Final((unsigned char *)etag_buf);
-    buf_to_hex((const unsigned char *)etag_buf, S,
-	       etag_buf_str);
+    hash.Final((unsigned char*)etag_buf);
+    buf_to_hex((const unsigned char*)etag_buf, S, etag_buf_str);
 
     *etag = etag_buf_str;
   }
@@ -53,11 +64,12 @@ public:
 
 using RGWMD5Etag = RGWEtag<MD5, CEPH_CRYPTO_MD5_DIGESTSIZE>;
 
-RGWDataAccess::RGWDataAccess(rgw::sal::Driver* _driver) : driver(_driver)
-{
-}
+RGWDataAccess::RGWDataAccess(rgw::sal::Driver* _driver) :
+  driver(_driver)
+{}
 
-int RGWDataAccess::Bucket::finish_init()
+int
+RGWDataAccess::Bucket::finish_init()
 {
   auto iter = attrs.find(RGW_ATTR_ACL);
   if (iter == attrs.end()) {
@@ -74,7 +86,8 @@ int RGWDataAccess::Bucket::finish_init()
   return 0;
 }
 
-int RGWDataAccess::Bucket::init(const DoutPrefixProvider *dpp, optional_yield y)
+int
+RGWDataAccess::Bucket::init(const DoutPrefixProvider* dpp, optional_yield y)
 {
   std::unique_ptr<rgw::sal::Bucket> bucket;
   int ret = sd->driver->load_bucket(dpp, rgw_bucket(tenant, name), &bucket, y);
@@ -89,8 +102,10 @@ int RGWDataAccess::Bucket::init(const DoutPrefixProvider *dpp, optional_yield y)
   return finish_init();
 }
 
-int RGWDataAccess::Bucket::init(const RGWBucketInfo& _bucket_info,
-				const std::map<std::string, bufferlist>& _attrs)
+int
+RGWDataAccess::Bucket::init(
+    const RGWBucketInfo& _bucket_info,
+    const std::map<std::string, bufferlist>& _attrs)
 {
   bucket_info = _bucket_info;
   attrs = _attrs;
@@ -98,26 +113,30 @@ int RGWDataAccess::Bucket::init(const RGWBucketInfo& _bucket_info,
   return finish_init();
 }
 
-int RGWDataAccess::Bucket::get_object(const rgw_obj_key& key,
-				      ObjectRef *obj) {
+int
+RGWDataAccess::Bucket::get_object(const rgw_obj_key& key, ObjectRef* obj)
+{
   obj->reset(new Object(sd, shared_from_this(), key));
   return 0;
 }
 
-int RGWDataAccess::Object::put(bufferlist& data,
-			       std::map<std::string, bufferlist>& attrs,
-                               const DoutPrefixProvider *dpp,
-                               optional_yield y)
+int
+RGWDataAccess::Object::put(
+    bufferlist& data,
+    std::map<std::string, bufferlist>& attrs,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   rgw::sal::Driver* driver = sd->driver;
-  CephContext *cct = driver->ctx();
+  CephContext* cct = driver->ctx();
 
   std::string tag;
   append_rand_alpha(cct, tag, tag, 32);
 
   RGWBucketInfo& bucket_info = bucket->bucket_info;
 
-  rgw::BlockingAioThrottle aio(driver->ctx()->_conf->rgw_put_obj_min_window_size);
+  rgw::BlockingAioThrottle aio(
+      driver->ctx()->_conf->rgw_put_obj_min_window_size);
 
   std::unique_ptr<rgw::sal::Bucket> b = driver->get_bucket(bucket_info);
   std::unique_ptr<rgw::sal::Object> obj = b->get_object(key);
@@ -132,26 +151,26 @@ int RGWDataAccess::Object::put(bufferlist& data,
     obj->gen_rand_obj_instance_name();
   }
 
-  processor = driver->get_atomic_writer(dpp, y, obj.get(), owner,
-				       nullptr, olh_epoch, req_id);
+  processor = driver->get_atomic_writer(
+      dpp, y, obj.get(), owner, nullptr, olh_epoch, req_id);
 
   int ret = processor->prepare(y);
   if (ret < 0) {
     return ret;
   }
 
-  rgw::sal::DataProcessor *filter = processor.get();
+  rgw::sal::DataProcessor* filter = processor.get();
 
   CompressorRef plugin;
   boost::optional<RGWPutObj_Compress> compressor;
 
   const auto& compression_type =
-    driver->get_compression_type(bucket_info.placement_rule);
+      driver->get_compression_type(bucket_info.placement_rule);
   if (compression_type != "none") {
     plugin = Compressor::create(driver->ctx(), compression_type);
     if (!plugin) {
       ldpp_dout(dpp, 1) << "Cannot load plugin for compression type "
-        << compression_type << dendl;
+                        << compression_type << dendl;
     } else {
       compressor.emplace(driver->ctx(), plugin, filter);
       filter = &*compressor;
@@ -164,7 +183,8 @@ int RGWDataAccess::Object::put(bufferlist& data,
   RGWMD5Etag etag_calc;
 
   do {
-    size_t read_len = std::min(data.length(), (unsigned int)cct->_conf->rgw_max_chunk_size);
+    size_t read_len =
+        std::min(data.length(), (unsigned int)cct->_conf->rgw_max_chunk_size);
 
     bufferlist bl;
 
@@ -210,24 +230,20 @@ int RGWDataAccess::Object::put(bufferlist& data,
   }
   attrs[RGW_ATTR_ACL] = *aclbl;
 
-  std::string *puser_data = nullptr;
+  std::string* puser_data = nullptr;
   if (user_data) {
     puser_data = &(*user_data);
   }
 
   const req_context rctx{dpp, y, nullptr};
-  return processor->complete(obj_size, etag,
-			     &mtime, mtime, attrs,
-			     rgw::cksum::no_cksum,
-			     delete_at,
-			     nullptr, nullptr,
-			     puser_data,
-			     nullptr, nullptr,
-			     rctx, rgw::sal::FLAG_LOG_OP);
+  return processor->complete(
+      obj_size, etag, &mtime, mtime, attrs, rgw::cksum::no_cksum, delete_at,
+      nullptr, nullptr, puser_data, nullptr, nullptr, rctx,
+      rgw::sal::FLAG_LOG_OP);
 }
 
-void RGWDataAccess::Object::set_policy(const RGWAccessControlPolicy& policy)
+void
+RGWDataAccess::Object::set_policy(const RGWAccessControlPolicy& policy)
 {
   policy.encode(aclbl.emplace());
 }
-

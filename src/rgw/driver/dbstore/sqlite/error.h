@@ -15,8 +15,9 @@
 
 #pragma once
 
-#include <system_error>
 #include <sqlite3.h>
+
+#include <system_error>
 
 namespace rgw::dbstore::sqlite {
 
@@ -24,17 +25,32 @@ namespace rgw::dbstore::sqlite {
 //   https://www.sqlite.org/rescode.html
 const std::error_category& error_category();
 
-
 // sqlite exception type that carries the extended error code and message
 class error : public std::runtime_error {
   std::error_code ec;
- public:
-  error(const char* errmsg, std::error_code ec)
-      : runtime_error(errmsg), ec(ec) {}
-  error(sqlite3* db, std::error_code ec) : error(::sqlite3_errmsg(db), ec) {}
-  error(sqlite3* db, int result) : error(db, {result, error_category()}) {}
-  error(sqlite3* db) : error(db, ::sqlite3_extended_errcode(db)) {}
-  std::error_code code() const { return ec; }
+
+public:
+  error(const char* errmsg, std::error_code ec) :
+    runtime_error(errmsg), ec(ec)
+  {}
+
+  error(sqlite3* db, std::error_code ec) :
+    error(::sqlite3_errmsg(db), ec)
+  {}
+
+  error(sqlite3* db, int result) :
+    error(db, {result, error_category()})
+  {}
+
+  error(sqlite3* db) :
+    error(db, ::sqlite3_extended_errcode(db))
+  {}
+
+  std::error_code
+  code() const
+  {
+    return ec;
+  }
 };
 
 
@@ -60,12 +76,14 @@ enum class errc {
   // ..add conditions as needed
 };
 
-inline std::error_code make_error_code(errc e)
+inline std::error_code
+make_error_code(errc e)
 {
   return {static_cast<int>(e), error_category()};
 }
 
-inline std::error_condition make_error_condition(errc e)
+inline std::error_condition
+make_error_condition(errc e)
 {
   return {static_cast<int>(e), error_category()};
 }
@@ -75,7 +93,8 @@ inline std::error_condition make_error_condition(errc e)
 namespace std {
 
 // enable implicit conversions from sqlite::errc to std::error_condition
-template<> struct is_error_condition_enum<
-    rgw::dbstore::sqlite::errc> : public true_type {};
+template <>
+struct is_error_condition_enum<rgw::dbstore::sqlite::errc> : public true_type {
+};
 
 } // namespace std

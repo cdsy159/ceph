@@ -14,18 +14,23 @@
  */
 
 #include <vector>
+
+#include "rbd_replay_debug.hpp"
+
 #include <boost/thread.hpp>
+
 #include "common/ceph_argparse.h"
 #include "global/global_init.h"
-#include "Replayer.hpp"
-#include "rbd_replay_debug.hpp"
+
 #include "ImageNameMap.hpp"
+#include "Replayer.hpp"
 
 using namespace std;
 using namespace rbd_replay;
 
-
-static const char* get_remainder(const char *string, const char *prefix) {
+static const char*
+get_remainder(const char* string, const char* prefix)
+{
   while (*prefix) {
     if (*prefix++ != *string++) {
       return NULL;
@@ -34,28 +39,54 @@ static const char* get_remainder(const char *string, const char *prefix) {
   return string;
 }
 
-static void usage(const char* program) {
-  cout << "Usage: " << program << " --conf=<config_file> <replay_file>" << std::endl;
+static void
+usage(const char* program)
+{
+  cout << "Usage: " << program << " --conf=<config_file> <replay_file>"
+       << std::endl;
   cout << "Options:" << std::endl;
-  cout << "  -p, --pool-name <pool>          Name of the pool to use.  Default: rbd" << std::endl;
-  cout << "  --latency-multiplier <float>    Multiplies inter-request latencies.  Default: 1" << std::endl;
-  cout << "  --read-only                     Only perform non-destructive operations." << std::endl;
-  cout << "  --map-image <rule>              Add a rule to map image names in the trace to" << std::endl;
-  cout << "                                  image names in the replay cluster." << std::endl;
+  cout << "  -p, --pool-name <pool>          Name of the pool to use.  "
+          "Default: rbd"
+       << std::endl;
+  cout << "  --latency-multiplier <float>    Multiplies inter-request "
+          "latencies.  Default: 1"
+       << std::endl;
+  cout << "  --read-only                     Only perform non-destructive "
+          "operations."
+       << std::endl;
+  cout << "  --map-image <rule>              Add a rule to map image names in "
+          "the trace to"
+       << std::endl;
+  cout << "                                  image names in the replay cluster."
+       << std::endl;
   cout << "  --dump-perf-counters            *Experimental*" << std::endl;
-  cout << "                                  Dump performance counters to standard out before" << std::endl;
-  cout << "                                  an image is closed. Performance counters may be dumped" << std::endl;
-  cout << "                                  multiple times if multiple images are closed, or if" << std::endl;
-  cout << "                                  the same image is opened and closed multiple times." << std::endl;
-  cout << "                                  Performance counters and their meaning may change between" << std::endl;
+  cout << "                                  Dump performance counters to "
+          "standard out before"
+       << std::endl;
+  cout << "                                  an image is closed. Performance "
+          "counters may be dumped"
+       << std::endl;
+  cout << "                                  multiple times if multiple images "
+          "are closed, or if"
+       << std::endl;
+  cout << "                                  the same image is opened and "
+          "closed multiple times."
+       << std::endl;
+  cout << "                                  Performance counters and their "
+          "meaning may change between"
+       << std::endl;
   cout << "                                  versions." << std::endl;
   cout << std::endl;
   cout << "Image mapping rules:" << std::endl;
-  cout << "A rule of image1@snap1=image2@snap2 would map snap1 of image1 to snap2 of" << std::endl;
+  cout << "A rule of image1@snap1=image2@snap2 would map snap1 of image1 to "
+          "snap2 of"
+       << std::endl;
   cout << "image2." << std::endl;
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char** argv)
+{
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
     cerr << argv[0] << ": -h or --help for usage" << std::endl;
@@ -65,8 +96,8 @@ int main(int argc, const char **argv) {
     usage(argv[0]);
     exit(0);
   }
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY, 0);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
 
   std::vector<const char*>::iterator i;
   string pool_name;
@@ -76,26 +107,28 @@ int main(int argc, const char **argv) {
   std::string val;
   std::ostringstream err;
   bool dump_perf_counters = false;
-  for (i = args.begin(); i != args.end(); ) {
+  for (i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    } else if (ceph_argparse_witharg(args, i, &val, "-p", "--pool", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-p", "--pool", (char*)NULL)) {
       pool_name = val;
-    } else if (ceph_argparse_witharg(args, i, &latency_multiplier, err, "--latency-multiplier",
-				     (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &latency_multiplier, err, "--latency-multiplier",
+                   (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << err.str() << std::endl;
-	return 1;
+        cerr << err.str() << std::endl;
+        return 1;
       }
     } else if (ceph_argparse_flag(args, i, "--read-only", (char*)NULL)) {
       readonly = true;
     } else if (ceph_argparse_witharg(args, i, &val, "--map-image", (char*)NULL)) {
       ImageNameMap::Mapping mapping;
       if (image_name_map.parse_mapping(val, &mapping)) {
-	image_name_map.add_mapping(mapping);
+        image_name_map.add_mapping(mapping);
       } else {
-	cerr << "Unable to parse mapping string: '" << val << "'" << std::endl;
-	return 1;
+        cerr << "Unable to parse mapping string: '" << val << "'" << std::endl;
+        return 1;
       }
     } else if (ceph_argparse_flag(args, i, "--dump-perf-counters", (char*)NULL)) {
       dump_perf_counters = true;

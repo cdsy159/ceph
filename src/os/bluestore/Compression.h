@@ -23,8 +23,9 @@
 
 class BlueStore::Estimator {
 public:
-  Estimator(BlueStore* bluestore)
-  :bluestore(bluestore) {}
+  Estimator(BlueStore* bluestore) :
+    bluestore(bluestore)
+  {}
 
   // Each estimator run needs specific WriteContext
   void set_wctx(const WriteContext* wctx);
@@ -45,29 +46,30 @@ public:
 
   void mark_recompress(const BlueStore::Extent* e);
   void mark_main(uint32_t location, uint32_t length);
+
   struct region_t {
     uint32_t offset; // offset of region
     uint32_t length; // size of region
   };
+
   void get_regions(std::vector<region_t>& regions);
 
-  int32_t split_and_compress(
-    ceph::buffer::list& data_bl,
-    Writer::blob_vec& bd);
+  int32_t split_and_compress(ceph::buffer::list& data_bl, Writer::blob_vec& bd);
 
   void finish();
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
+
 private:
   BlueStore* bluestore;
   double expected_compression_factor = 0.5;
   double expected_recompression_error = 1.1;
   double expected_pad_expansion = 1.1;
   const WriteContext* wctx = nullptr;
-  uint32_t new_size = 0;              // fresh data to write
-  uint32_t uncompressed_size = 0;     // data that was not compressed
-  uint32_t compressed_size = 0;       // estimated size of compressed data
-  uint32_t compressed_area = 0;       // area that is compressed
-  uint32_t compressed_occupied = 0;   // disk size that will be freed
+  uint32_t new_size = 0; // fresh data to write
+  uint32_t uncompressed_size = 0; // data that was not compressed
+  uint32_t compressed_size = 0; // estimated size of compressed data
+  uint32_t compressed_area = 0; // area that is compressed
+  uint32_t compressed_occupied = 0; // disk size that will be freed
   uint32_t total_uncompressed_size = 0;
   uint32_t total_compressed_size = 0;
   uint32_t total_compressed_occupied = 0;
@@ -81,18 +83,21 @@ private:
   void cleanup();
 };
 
-
 class BlueStore::Scanner {
   BlueStore* bluestore;
+
 public:
-  Scanner(BlueStore* bluestore)
-  :bluestore(bluestore) {}
+  Scanner(BlueStore* bluestore) :
+    bluestore(bluestore)
+  {}
 
   void write_lookaround(
-    BlueStore::Onode* onode,
-    uint32_t offset, uint32_t length,
-    uint32_t left_limit, uint32_t right_limit,
-    Estimator* estimator);
+      BlueStore::Onode* onode,
+      uint32_t offset,
+      uint32_t length,
+      uint32_t left_limit,
+      uint32_t right_limit,
+      Estimator* estimator);
   class Scan;
 };
 #endif

@@ -1,18 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "acconfig.h"
 #include "options.h"
+
 #include "common/Formatter.h"
 #include "common/options/build_options.h"
 #include "common/strtol.h" // for strict_si_cast()
 
+#include "acconfig.h"
+
 // Helpers for validators
-#include "include/stringify.h"
-#include "include/common_fwd.h"
+#include <regex>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
-#include <regex>
+
+#include "include/common_fwd.h"
+#include "include/stringify.h"
 
 // Definitions for enums
 #include "common/perf_counters.h"
@@ -30,42 +34,70 @@ using ceph::parse_timespan;
 namespace {
 class printer {
   ostream& out;
+
 public:
-  explicit printer(ostream& os)
-    : out(os) {}
-  template<typename T>
-  void operator()(const T& v) const {
+  explicit printer(ostream& os) :
+    out(os)
+  {}
+
+  template <typename T>
+  void
+  operator()(const T& v) const
+  {
     out << v;
   }
-  void operator()(std::monostate) const {
+
+  void
+  operator()(std::monostate) const
+  {
     return;
   }
-  void operator()(bool v) const {
+
+  void
+  operator()(bool v) const
+  {
     out << (v ? "true" : "false");
   }
-  void operator()(double v) const {
+
+  void
+  operator()(double v) const
+  {
     out << std::fixed << v << std::defaultfloat;
   }
-  void operator()(const Option::size_t& v) const {
+
+  void
+  operator()(const Option::size_t& v) const
+  {
     out << v.value;
   }
-  void operator()(const std::chrono::seconds v) const {
+
+  void
+  operator()(const std::chrono::seconds v) const
+  {
     out << v.count();
   }
-  void operator()(const std::chrono::milliseconds v) const {
+
+  void
+  operator()(const std::chrono::milliseconds v) const
+  {
     out << v.count();
   }
 };
-}
+} // namespace
 
-ostream& operator<<(ostream& os, const Option::value_t& v) {
+ostream&
+operator<<(ostream& os, const Option::value_t& v)
+{
   printer p{os};
   std::visit(p, v);
   return os;
 }
 
-void Option::dump_value(const char *field_name,
-    const Option::value_t &v, Formatter *f) const
+void
+Option::dump_value(
+    const char* field_name,
+    const Option::value_t& v,
+    Formatter* f) const
 {
   if (v == value_t{}) {
     // This should be nil but Formatter doesn't allow it.
@@ -74,21 +106,28 @@ void Option::dump_value(const char *field_name,
   }
   switch (type) {
   case TYPE_INT:
-    f->dump_int(field_name, std::get<int64_t>(v)); break;
+    f->dump_int(field_name, std::get<int64_t>(v));
+    break;
   case TYPE_UINT:
-    f->dump_unsigned(field_name, std::get<uint64_t>(v)); break;
+    f->dump_unsigned(field_name, std::get<uint64_t>(v));
+    break;
   case TYPE_STR:
-    f->dump_string(field_name, std::get<std::string>(v)); break;
+    f->dump_string(field_name, std::get<std::string>(v));
+    break;
   case TYPE_FLOAT:
-    f->dump_float(field_name, std::get<double>(v)); break;
+    f->dump_float(field_name, std::get<double>(v));
+    break;
   case TYPE_BOOL:
-    f->dump_bool(field_name, std::get<bool>(v)); break;
+    f->dump_bool(field_name, std::get<bool>(v));
+    break;
   default:
-    f->dump_stream(field_name) << v; break;
+    f->dump_stream(field_name) << v;
+    break;
   }
 }
 
-int Option::pre_validate(std::string *new_value, std::string *err) const
+int
+Option::pre_validate(std::string* new_value, std::string* err) const
 {
   if (validator) {
     return validator(new_value, err);
@@ -97,7 +136,8 @@ int Option::pre_validate(std::string *new_value, std::string *err) const
   }
 }
 
-int Option::validate(const Option::value_t &new_value, std::string *err) const
+int
+Option::validate(const Option::value_t& new_value, std::string* err) const
 {
   // Generic validation: min
   if (min != value_t{}) {
@@ -121,14 +161,16 @@ int Option::validate(const Option::value_t &new_value, std::string *err) const
 
   // Generic validation: enum
   if (!enum_allowed.empty() && type == Option::TYPE_STR) {
-    auto found = std::find(enum_allowed.begin(), enum_allowed.end(),
-                           std::get<std::string>(new_value));
+    auto found = std::find(
+        enum_allowed.begin(), enum_allowed.end(),
+        std::get<std::string>(new_value));
     if (found == enum_allowed.end()) {
       std::ostringstream oss;
-      oss << "'" << new_value << "' is not one of the permitted "
-                 "values: " << joinify(enum_allowed.begin(),
-                                       enum_allowed.end(),
-                                       std::string(", "));
+      oss << "'" << new_value
+          << "' is not one of the permitted "
+             "values: "
+          << joinify(
+                 enum_allowed.begin(), enum_allowed.end(), std::string(", "));
       *err = oss.str();
       return -EINVAL;
     }
@@ -137,11 +179,12 @@ int Option::validate(const Option::value_t &new_value, std::string *err) const
   return 0;
 }
 
-int Option::parse_value(
-  const std::string& raw_val,
-  value_t *out,
-  std::string *error_message,
-  std::string *normalized_value) const
+int
+Option::parse_value(
+    const std::string& raw_val,
+    value_t* out,
+    std::string* error_message,
+    std::string* normalized_value) const
 {
   std::string val = raw_val;
 
@@ -180,13 +223,13 @@ int Option::parse_value(
     }
   } else if (type == Option::TYPE_ADDR) {
     entity_addr_t addr;
-    if (!addr.parse(val)){
+    if (!addr.parse(val)) {
       return -EINVAL;
     }
     *out = addr;
   } else if (type == Option::TYPE_ADDRVEC) {
     entity_addrvec_t addr;
-    if (!addr.parse(val.c_str())){
+    if (!addr.parse(val.c_str())) {
       return -EINVAL;
     }
     *out = addr;
@@ -231,7 +274,8 @@ int Option::parse_value(
   return 0;
 }
 
-void Option::dump(Formatter *f) const
+void
+Option::dump(Formatter* f) const
 {
   f->dump_string("name", name);
 
@@ -265,7 +309,7 @@ void Option::dump(Formatter *f) const
 
   if (type == TYPE_STR) {
     f->open_array_section("enum_values");
-    for (const auto &ea : enum_allowed) {
+    for (const auto& ea : enum_allowed) {
       f->dump_string("enum_value", ea);
     }
     f->close_section();
@@ -295,12 +339,14 @@ void Option::dump(Formatter *f) const
   f->close_section();
 }
 
-std::string Option::to_str(const Option::value_t& v)
+std::string
+Option::to_str(const Option::value_t& v)
 {
   return stringify(v);
 }
 
-void Option::print(ostream *out) const
+void
+Option::print(ostream* out) const
 {
   *out << name << " - " << desc << "\n";
   *out << "  (" << type_to_str(type) << ", " << level_to_str(level) << ")\n";
@@ -319,7 +365,7 @@ void Option::print(ostream *out) const
   }
   if (min != value_t{}) {
     *out << "  Minimum: " << stringify(min) << "\n"
-	 << "  Maximum: " << stringify(max) << "\n";
+         << "  Maximum: " << stringify(max) << "\n";
   }
   *out << "  Can update at runtime: "
        << (can_update_at_runtime() ? "true" : "false") << "\n";

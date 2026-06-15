@@ -5,16 +5,17 @@
 
 #include <fmt/format.h>
 
-#include "common/Formatter.h"
-
 #include <sstream>
+
+#include "common/Formatter.h"
 
 using ceph::bufferlist;
 using ceph::Formatter;
 
 // Daemon
 
-void ServiceMap::Daemon::encode(bufferlist& bl, uint64_t features) const
+void
+ServiceMap::Daemon::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(2, 1, bl);
   encode(gid, bl);
@@ -26,7 +27,8 @@ void ServiceMap::Daemon::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void ServiceMap::Daemon::decode(bufferlist::const_iterator& p)
+void
+ServiceMap::Daemon::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(2, p);
   decode(gid, p);
@@ -40,7 +42,8 @@ void ServiceMap::Daemon::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void ServiceMap::Daemon::dump(Formatter *f) const
+void
+ServiceMap::Daemon::dump(Formatter* f) const
 {
   f->dump_unsigned("start_epoch", start_epoch);
   f->dump_stream("start_stamp") << start_stamp;
@@ -58,7 +61,8 @@ void ServiceMap::Daemon::dump(Formatter *f) const
   f->close_section();
 }
 
-auto ServiceMap::Daemon::generate_test_instances() -> std::list<Daemon>
+auto
+ServiceMap::Daemon::generate_test_instances() -> std::list<Daemon>
 {
   std::list<Daemon> ls;
   ls.emplace_back();
@@ -71,7 +75,8 @@ auto ServiceMap::Daemon::generate_test_instances() -> std::list<Daemon>
 
 // Service
 
-std::string ServiceMap::Service::get_summary() const
+std::string
+ServiceMap::Service::get_summary() const
 {
   if (!summary.empty()) {
     return summary;
@@ -99,14 +104,15 @@ std::string ServiceMap::Service::get_summary() const
   for (auto& d : daemons) {
     ++num;
     if (auto p = d.second.metadata.find("daemon_type");
-	p != d.second.metadata.end()) {
+        p != d.second.metadata.end()) {
       type = p->second;
     }
-    for (auto k : {std::make_pair("zone", "zone_id"),
-		   std::make_pair("host", "hostname")}) {
+    for (auto k :
+         {std::make_pair("zone", "zone_id"),
+          std::make_pair("host", "hostname")}) {
       auto p = d.second.metadata.find(k.second);
       if (p != d.second.metadata.end()) {
-	groupings[k.first].insert(p->second);
+        groupings[k.first].insert(p->second);
       }
     }
   }
@@ -117,9 +123,10 @@ std::string ServiceMap::Service::get_summary() const
     ss << " (";
     for (auto i = groupings.begin(); i != groupings.end(); ++i) {
       if (i != groupings.begin()) {
-	ss << ", ";
+        ss << ", ";
       }
-      ss << i->second.size() << " " << i->first << (i->second.size() ? "s" : "");
+      ss << i->second.size() << " " << i->first
+         << (i->second.size() ? "s" : "");
     }
     ss << ")";
   }
@@ -127,14 +134,16 @@ std::string ServiceMap::Service::get_summary() const
   return ss.str();
 }
 
-bool ServiceMap::Service::has_running_tasks() const
+bool
+ServiceMap::Service::has_running_tasks() const
 {
   return std::any_of(daemons.begin(), daemons.end(), [](auto& daemon) {
     return !daemon.second.task_status.empty();
   });
 }
 
-std::string ServiceMap::Service::get_task_summary(const std::string_view task_prefix) const
+std::string
+ServiceMap::Service::get_task_summary(const std::string_view task_prefix) const
 {
   // contruct a map similar to:
   //     {"service1 status" -> {"service1.0" -> "running"}}
@@ -143,12 +152,12 @@ std::string ServiceMap::Service::get_task_summary(const std::string_view task_pr
   std::map<std::string, std::map<std::string, std::string>> by_task;
   for (const auto& [service_id, daemon] : daemons) {
     for (const auto& [task_name, status] : daemon.task_status) {
-      by_task[task_name].emplace(fmt::format("{}.{}", task_prefix, service_id),
-				 status);
+      by_task[task_name].emplace(
+          fmt::format("{}.{}", task_prefix, service_id), status);
     }
   }
   std::stringstream ss;
-  for (const auto &[task_name, status_by_service] : by_task) {
+  for (const auto& [task_name, status_by_service] : by_task) {
     ss << "\n    " << task_name << ":";
     for (auto& [service, status] : status_by_service) {
       ss << "\n        " << service << ": " << status;
@@ -157,8 +166,10 @@ std::string ServiceMap::Service::get_task_summary(const std::string_view task_pr
   return ss.str();
 }
 
-void ServiceMap::Service::count_metadata(const std::string& field,
-					std::map<std::string,int> *out) const
+void
+ServiceMap::Service::count_metadata(
+    const std::string& field,
+    std::map<std::string, int>* out) const
 {
   for (auto& p : daemons) {
     auto q = p.second.metadata.find(field);
@@ -170,7 +181,8 @@ void ServiceMap::Service::count_metadata(const std::string& field,
   }
 }
 
-void ServiceMap::Service::encode(bufferlist& bl, uint64_t features) const
+void
+ServiceMap::Service::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(1, 1, bl);
   encode(daemons, bl, features);
@@ -178,7 +190,8 @@ void ServiceMap::Service::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void ServiceMap::Service::decode(bufferlist::const_iterator& p)
+void
+ServiceMap::Service::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(daemons, p);
@@ -186,7 +199,8 @@ void ServiceMap::Service::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void ServiceMap::Service::dump(Formatter *f) const
+void
+ServiceMap::Service::dump(Formatter* f) const
 {
   f->open_object_section("daemons");
   f->dump_string("summary", summary);
@@ -196,7 +210,8 @@ void ServiceMap::Service::dump(Formatter *f) const
   f->close_section();
 }
 
-auto ServiceMap::Service::generate_test_instances() -> std::list<Service>
+auto
+ServiceMap::Service::generate_test_instances() -> std::list<Service>
 {
   std::list<Service> ls;
   ls.emplace_back();
@@ -208,7 +223,8 @@ auto ServiceMap::Service::generate_test_instances() -> std::list<Service>
 
 // ServiceMap
 
-void ServiceMap::encode(bufferlist& bl, uint64_t features) const
+void
+ServiceMap::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(1, 1, bl);
   encode(epoch, bl);
@@ -217,7 +233,8 @@ void ServiceMap::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void ServiceMap::decode(bufferlist::const_iterator& p)
+void
+ServiceMap::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(epoch, p);
@@ -226,7 +243,8 @@ void ServiceMap::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void ServiceMap::dump(Formatter *f) const
+void
+ServiceMap::dump(Formatter* f) const
 {
   f->dump_unsigned("epoch", epoch);
   f->dump_stream("modified") << modified;
@@ -237,7 +255,8 @@ void ServiceMap::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<ServiceMap> ServiceMap::generate_test_instances()
+std::list<ServiceMap>
+ServiceMap::generate_test_instances()
 {
   std::list<ServiceMap> ls;
   ls.emplace_back();

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,43 +16,54 @@
 #ifndef CEPH_EEXPORT_H
 #define CEPH_EEXPORT_H
 
+#include "../LogEvent.h"
+#include "../MDSRank.h"
 #include "common/config.h"
 #include "include/types.h"
 
-#include "../MDSRank.h"
-
 #include "EMetaBlob.h"
-#include "../LogEvent.h"
 
 class EExport : public LogEvent {
 public:
   EMetaBlob metablob; // exported dir
+
 protected:
-  dirfrag_t      base;
+  dirfrag_t base;
   std::set<dirfrag_t> bounds;
   mds_rank_t target;
-  
+
 public:
   EExport() :
-    LogEvent(EVENT_EXPORT), target(MDS_RANK_NONE) { }
-  EExport(MDLog *mdlog, CDir *dir, mds_rank_t t) :
-    LogEvent(EVENT_EXPORT),
-    base(dir->dirfrag()), target(t) { }
-  
-  std::set<dirfrag_t> &get_bounds() { return bounds; }
-  
-  void print(std::ostream& out) const override {
+    LogEvent(EVENT_EXPORT), target(MDS_RANK_NONE)
+  {}
+
+  EExport(MDLog* mdlog, CDir* dir, mds_rank_t t) :
+    LogEvent(EVENT_EXPORT), base(dir->dirfrag()), target(t)
+  {}
+
+  std::set<dirfrag_t>&
+  get_bounds()
+  {
+    return bounds;
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "EExport " << base << " to mds." << target << " " << metablob;
   }
 
-  EMetaBlob *get_metablob() override { return &metablob; }
+  EMetaBlob*
+  get_metablob() override
+  {
+    return &metablob;
+  }
 
   void encode(bufferlist& bl, uint64_t features) const override;
-  void decode(bufferlist::const_iterator &bl) override;
-  void dump(Formatter *f) const override;
+  void decode(bufferlist::const_iterator& bl) override;
+  void dump(Formatter* f) const override;
   static std::list<EExport> generate_test_instances();
-  void replay(MDSRank *mds) override;
-
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(EExport)
 

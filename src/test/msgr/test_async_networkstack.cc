@@ -15,21 +15,23 @@
  *
  */
 
+#include <gtest/gtest.h>
+
 #include <algorithm>
 #include <atomic>
 #include <iostream>
 #include <list>
 #include <random>
-#include <string>
 #include <set>
+#include <string>
 #include <vector>
-#include <gtest/gtest.h>
 
-#include "acconfig.h"
 #include "common/config_obs.h"
 #include "include/Context.h"
 #include "msg/async/Event.h"
 #include "msg/async/Stack.h"
+
+#include "acconfig.h"
 
 using namespace std;
 using namespace std::literals;
@@ -38,74 +40,114 @@ class NoopConfigObserver : public md_config_obs_t {
   std::vector<std::string> options;
 
 public:
-  NoopConfigObserver(std::vector<std::string> l) : options(l) {}
+  NoopConfigObserver(std::vector<std::string> l) :
+    options(l)
+  {}
+
   ~NoopConfigObserver() = default;
-  std::vector<std::string> get_tracked_keys() const noexcept override {
+
+  std::vector<std::string>
+  get_tracked_keys() const noexcept override
+  {
     return options;
   }
-  void handle_conf_change(const ConfigProxy& conf,
-			  const std::set <std::string> &changed) override {
-  }
+
+  void
+  handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override
+  {}
 };
 
 class NetworkWorkerTest : public ::testing::TestWithParam<const char*> {
- public:
+public:
   std::shared_ptr<NetworkStack> stack;
   string addr, port_addr;
 
-  NoopConfigObserver fake_obs = {{"ms_type",
-				 "ms_dpdk_coremask",
-				 "ms_dpdk_host_ipv4_addr",
-				 "ms_dpdk_gateway_ipv4_addr",
-				 "ms_dpdk_netmask_ipv4_addr"}};
+  NoopConfigObserver fake_obs = {
+      {"ms_type", "ms_dpdk_coremask", "ms_dpdk_host_ipv4_addr",
+       "ms_dpdk_gateway_ipv4_addr", "ms_dpdk_netmask_ipv4_addr"}};
 
   NetworkWorkerTest() {}
-  void SetUp() override {
+
+  void
+  SetUp() override
+  {
     cerr << __func__ << " start set up " << GetParam() << std::endl;
     if (strncmp(GetParam(), "dpdk", 4)) {
       g_ceph_context->_conf.set_val("ms_type", "async+posix");
       addr = "127.0.0.1:15000";
       port_addr = "127.0.0.1:15001";
     } else {
-      g_ceph_context->_conf.set_val_or_die("ms_dpdk_debug_allow_loopback", "true");
+      g_ceph_context->_conf.set_val_or_die(
+          "ms_dpdk_debug_allow_loopback", "true");
       g_ceph_context->_conf.set_val_or_die("ms_async_op_threads", "2");
-      string ipv4_addr = g_ceph_context->_conf.get_val<std::string>("ms_dpdk_host_ipv4_addr");
+      string ipv4_addr =
+          g_ceph_context->_conf.get_val<std::string>("ms_dpdk_host_ipv4_addr");
       addr = ipv4_addr + std::string(":15000");
       port_addr = ipv4_addr + std::string(":15001");
     }
     stack = NetworkStack::create(g_ceph_context, GetParam());
     stack->start();
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     stack->stop();
   }
-  string get_addr() const {
+
+  string
+  get_addr() const
+  {
     return addr;
   }
-  string get_ip_different_port() const {
+
+  string
+  get_ip_different_port() const
+  {
     return port_addr;
   }
-  string get_different_ip() const {
+
+  string
+  get_different_ip() const
+  {
     return "10.0.123.100:4323";
   }
-  EventCenter *get_center(unsigned i) {
+
+  EventCenter*
+  get_center(unsigned i)
+  {
     return &stack->get_worker(i)->center;
   }
-  Worker *get_worker(unsigned i) {
+
+  Worker*
+  get_worker(unsigned i)
+  {
     return stack->get_worker(i);
   }
-  template<typename func>
+
+  template <typename func>
   class C_dispatch : public EventCallback {
-    Worker *worker;
+    Worker* worker;
     func f;
     std::atomic_bool done;
-   public:
-    C_dispatch(Worker *w, func &&_f): worker(w), f(std::move(_f)), done(false) {}
-    void do_request(uint64_t id) override {
+
+  public:
+    C_dispatch(Worker* w, func&& _f) :
+      worker(w), f(std::move(_f)), done(false)
+    {}
+
+    void
+    do_request(uint64_t id) override
+    {
       f(worker);
       done = true;
     }
-    void wait() {
+
+    void
+    wait()
+    {
       int us = 1000 * 1000 * 1000;
       while (!done) {
         ASSERT_TRUE(us > 0);
@@ -114,17 +156,20 @@ class NetworkWorkerTest : public ::testing::TestWithParam<const char*> {
       }
     }
   };
-  template<typename func>
-  void exec_events(func &&f) {
+
+  template <typename func>
+  void
+  exec_events(func&& f)
+  {
     std::vector<C_dispatch<func>*> dis;
     for (unsigned i = 0; i < stack->get_num_worker(); ++i) {
-      Worker *w = stack->get_worker(i);
-      C_dispatch<func> *e = new C_dispatch<func>(w, std::move(f));
+      Worker* w = stack->get_worker(i);
+      C_dispatch<func>* e = new C_dispatch<func>(w, std::move(f));
       stack->get_worker(i)->center.dispatch_event_external(e);
       dis.push_back(e);
     }
 
-    for (auto &&e : dis) {
+    for (auto&& e : dis) {
       e->wait();
       delete e;
     }
@@ -132,43 +177,55 @@ class NetworkWorkerTest : public ::testing::TestWithParam<const char*> {
 };
 
 class C_poll : public EventCallback {
-  EventCenter *center;
+  EventCenter* center;
   std::atomic<bool> woken;
   static const int sleepus = 500;
 
- public:
-  explicit C_poll(EventCenter *c): center(c), woken(false) {}
-  void do_request(uint64_t r) override {
+public:
+  explicit C_poll(EventCenter* c) :
+    center(c), woken(false)
+  {}
+
+  void
+  do_request(uint64_t r) override
+  {
     woken = true;
   }
-  bool poll(int milliseconds) {
+
+  bool
+  poll(int milliseconds)
+  {
     auto start = ceph::coarse_real_clock::now();
     while (!woken) {
       center->process_events(sleepus);
       usleep(sleepus);
       auto r = std::chrono::duration_cast<std::chrono::milliseconds>(
-              ceph::coarse_real_clock::now() - start);
+          ceph::coarse_real_clock::now() - start);
       if (r >= std::chrono::milliseconds(milliseconds))
         break;
     }
     return woken;
   }
-  void reset() {
+
+  void
+  reset()
+  {
     woken = false;
   }
 };
 
-TEST_P(NetworkWorkerTest, SimpleTest) {
+TEST_P(NetworkWorkerTest, SimpleTest)
+{
   entity_addr_t bind_addr;
   ASSERT_TRUE(bind_addr.parse(get_addr().c_str()));
   std::atomic_bool accepted(false);
-  std::atomic_bool *accepted_p = &accepted;
+  std::atomic_bool* accepted_p = &accepted;
 
-  exec_events([this, accepted_p, bind_addr](Worker *worker) mutable {
+  exec_events([this, accepted_p, bind_addr](Worker* worker) mutable {
     entity_addr_t cli_addr;
     SocketOptions options;
     ServerSocket bind_socket;
-    EventCenter *center = &worker->center;
+    EventCenter* center = &worker->center;
     ssize_t r = 0;
     if (stack->support_local_listen_table() || worker->id == 0)
       r = worker->listen(bind_addr, 0, options, &bind_socket);
@@ -210,7 +267,7 @@ TEST_P(NetworkWorkerTest, SimpleTest) {
       center->delete_file_event(cli_socket.fd(), EVENT_READABLE);
     }
 
-    const char *message = "this is a new message";
+    const char* message = "this is a new message";
     int len = strlen(message);
     bufferlist bl;
     bl.append(message, len);
@@ -252,7 +309,7 @@ TEST_P(NetworkWorkerTest, SimpleTest) {
       r = srv_socket.read(buf, sizeof(buf));
       if (r == -EAGAIN) {
         cb.reset();
-        ASSERT_TRUE(cb.poll(1000*500));
+        ASSERT_TRUE(cb.poll(1000 * 500));
         r = srv_socket.read(buf, sizeof(buf));
       }
       ASSERT_EQ(0, r);
@@ -262,12 +319,13 @@ TEST_P(NetworkWorkerTest, SimpleTest) {
   });
 }
 
-TEST_P(NetworkWorkerTest, ConnectFailedTest) {
+TEST_P(NetworkWorkerTest, ConnectFailedTest)
+{
   entity_addr_t bind_addr;
   ASSERT_TRUE(bind_addr.parse(get_addr().c_str()));
 
-  exec_events([this, bind_addr](Worker *worker) mutable {
-    EventCenter *center = &worker->center;
+  exec_events([this, bind_addr](Worker* worker) mutable {
+    EventCenter* center = &worker->center;
     entity_addr_t cli_addr;
     SocketOptions options;
     ServerSocket bind_socket;
@@ -308,8 +366,9 @@ TEST_P(NetworkWorkerTest, ConnectFailedTest) {
   });
 }
 
-TEST_P(NetworkWorkerTest, ListenTest) {
-  Worker *worker = get_worker(0);
+TEST_P(NetworkWorkerTest, ListenTest)
+{
+  Worker* worker = get_worker(0);
   entity_addr_t bind_addr;
   ASSERT_TRUE(bind_addr.parse(get_addr().c_str()));
   SocketOptions options;
@@ -321,16 +380,17 @@ TEST_P(NetworkWorkerTest, ListenTest) {
   ASSERT_EQ(-EADDRINUSE, r);
 }
 
-TEST_P(NetworkWorkerTest, AcceptAndCloseTest) {
+TEST_P(NetworkWorkerTest, AcceptAndCloseTest)
+{
   entity_addr_t bind_addr;
   ASSERT_TRUE(bind_addr.parse(get_addr().c_str()));
   std::atomic_bool accepted(false);
-  std::atomic_bool *accepted_p = &accepted;
+  std::atomic_bool* accepted_p = &accepted;
   std::atomic_int unbind_count(stack->get_num_worker());
-  std::atomic_int *count_p = &unbind_count;
-  exec_events([this, bind_addr, accepted_p, count_p](Worker *worker) mutable {
+  std::atomic_int* count_p = &unbind_count;
+  exec_events([this, bind_addr, accepted_p, count_p](Worker* worker) mutable {
     SocketOptions options;
-    EventCenter *center = &worker->center;
+    EventCenter* center = &worker->center;
     entity_addr_t cli_addr;
     int r = 0;
     {
@@ -427,18 +487,20 @@ TEST_P(NetworkWorkerTest, AcceptAndCloseTest) {
   });
 }
 
-TEST_P(NetworkWorkerTest, ComplexTest) {
+TEST_P(NetworkWorkerTest, ComplexTest)
+{
   entity_addr_t bind_addr;
   std::atomic_bool listen_done(false);
-  std::atomic_bool *listen_p = &listen_done;
+  std::atomic_bool* listen_p = &listen_done;
   std::atomic_bool accepted(false);
-  std::atomic_bool *accepted_p = &accepted;
+  std::atomic_bool* accepted_p = &accepted;
   std::atomic_bool done(false);
-  std::atomic_bool *done_p = &done;
+  std::atomic_bool* done_p = &done;
   ASSERT_TRUE(bind_addr.parse(get_addr().c_str()));
-  exec_events([this, bind_addr, listen_p, accepted_p, done_p](Worker *worker) mutable {
+  exec_events([this, bind_addr, listen_p, accepted_p,
+               done_p](Worker* worker) mutable {
     entity_addr_t cli_addr;
-    EventCenter *center = &worker->center;
+    EventCenter* center = &worker->center;
     SocketOptions options;
     ServerSocket bind_socket;
     int r = 0;
@@ -453,8 +515,8 @@ TEST_P(NetworkWorkerTest, ComplexTest) {
         usleep(50);
         r = worker->connect(bind_addr, options, &cli_socket);
         ASSERT_EQ(0, r);
-	if (stack->support_local_listen_table())
-	  break;
+        if (stack->support_local_listen_table())
+          break;
       }
     }
 
@@ -543,7 +605,9 @@ TEST_P(NetworkWorkerTest, ComplexTest) {
         }
         if (len == 0) {
           for (size_t i = 0; i < read_string.size(); i += message_size)
-            ASSERT_EQ(0, memcmp(read_string.c_str()+i, message.c_str(), message_size));
+            ASSERT_EQ(
+                0,
+                memcmp(read_string.c_str() + i, message.c_str(), message_size));
           *done_p = true;
         }
       }
@@ -569,14 +633,17 @@ TEST_P(NetworkWorkerTest, ComplexTest) {
 class StressFactory {
   struct Client;
   struct Server;
+
   struct ThreadData {
-    Worker *worker;
+    Worker* worker;
     std::set<Client*> clients;
     std::set<Server*> servers;
-    ~ThreadData() {
-      for (auto && i : clients)
+
+    ~ThreadData()
+    {
+      for (auto&& i : clients)
         delete i;
-      for (auto && i : servers)
+      for (auto&& i : servers)
         delete i;
     }
   };
@@ -587,74 +654,89 @@ class StressFactory {
     std::random_device rd;
     std::default_random_engine rng;
 
-    explicit RandomString(size_t s): slen(s), rng(rd()) {}
-    void prepare(size_t n) {
+    explicit RandomString(size_t s) :
+      slen(s), rng(rd())
+    {}
+
+    void
+    prepare(size_t n)
+    {
       static const char alphabet[] =
           "abcdefghijklmnopqrstuvwxyz"
           "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
           "0123456789";
 
       std::uniform_int_distribution<> dist(
-              0, sizeof(alphabet) / sizeof(*alphabet) - 2);
+          0, sizeof(alphabet) / sizeof(*alphabet) - 2);
 
       strs.reserve(n);
-      std::generate_n(
-        std::back_inserter(strs), strs.capacity(), [&] {
-          std::string str;
-          str.reserve(slen);
-          std::generate_n(std::back_inserter(str), slen, [&]() {
-            return alphabet[dist(rng)];
-          });
-         return str;
-        }
-      );
+      std::generate_n(std::back_inserter(strs), strs.capacity(), [&] {
+        std::string str;
+        str.reserve(slen);
+        std::generate_n(std::back_inserter(str), slen, [&]() {
+          return alphabet[dist(rng)];
+        });
+        return str;
+      });
     }
-    std::string &get_random_string() {
-      std::uniform_int_distribution<> dist(
-              0, strs.size() - 1);
+
+    std::string&
+    get_random_string()
+    {
+      std::uniform_int_distribution<> dist(0, strs.size() - 1);
       return strs[dist(rng)];
     }
   };
+
   struct Message {
     size_t idx;
     size_t len;
     std::string content;
 
-    explicit Message(RandomString &rs, size_t i, size_t l): idx(i) {
+    explicit Message(RandomString& rs, size_t i, size_t l) :
+      idx(i)
+    {
       size_t slen = rs.slen;
       len = std::max(slen, l);
 
       std::vector<std::string> strs;
       strs.reserve(len / slen);
-      std::generate_n(
-        std::back_inserter(strs), strs.capacity(), [&] {
-          return rs.get_random_string();
-        }
-      );
+      std::generate_n(std::back_inserter(strs), strs.capacity(), [&] {
+        return rs.get_random_string();
+      });
       len = slen * strs.size();
       content.reserve(len);
-      for (auto &&s : strs)
+      for (auto&& s : strs)
         content.append(s);
     }
-    bool verify(const char *b, size_t len = 0) const {
+
+    bool
+    verify(const char* b, size_t len = 0) const
+    {
       return content.compare(0, len, b, 0, len) == 0;
     }
   };
 
   template <typename T>
   class C_delete : public EventCallback {
-    T *ctxt;
-   public:
-    explicit C_delete(T *c): ctxt(c) {}
-    void do_request(uint64_t id) override {
+    T* ctxt;
+
+  public:
+    explicit C_delete(T* c) :
+      ctxt(c)
+    {}
+
+    void
+    do_request(uint64_t id) override
+    {
       delete ctxt;
       delete this;
     }
   };
 
   class Client {
-    StressFactory *factory;
-    EventCenter *center;
+    StressFactory* factory;
+    EventCenter* center;
     ConnectedSocket socket;
     std::deque<StressFactory::Message*> acking;
     std::deque<StressFactory::Message*> writings;
@@ -668,32 +750,52 @@ class StressFactory {
     StressFactory::Message homeless_message;
 
     class Client_read_handle : public EventCallback {
-      Client *c;
-     public:
-      explicit Client_read_handle(Client *_c): c(_c) {}
-      void do_request(uint64_t id) override {
+      Client* c;
+
+    public:
+      explicit Client_read_handle(Client* _c) :
+        c(_c)
+      {}
+
+      void
+      do_request(uint64_t id) override
+      {
         c->do_read_request();
       }
     } read_ctxt;
 
     class Client_write_handle : public EventCallback {
-      Client *c;
-     public:
-      explicit Client_write_handle(Client *_c): c(_c) {}
-      void do_request(uint64_t id) override {
+      Client* c;
+
+    public:
+      explicit Client_write_handle(Client* _c) :
+        c(_c)
+      {}
+
+      void
+      do_request(uint64_t id) override
+      {
         c->do_write_request();
       }
     } write_ctxt;
 
-   public:
-    Client(StressFactory *f, EventCenter *cen, ConnectedSocket s, size_t c)
-        : factory(f), center(cen), socket(std::move(s)), left(c), homeless_message(factory->rs, -1, 1024),
-          read_ctxt(this), write_ctxt(this) {
-      center->create_file_event(
-              socket.fd(), EVENT_READABLE, &read_ctxt);
+  public:
+    Client(StressFactory* f, EventCenter* cen, ConnectedSocket s, size_t c) :
+      factory(f),
+      center(cen),
+      socket(std::move(s)),
+      left(c),
+      homeless_message(factory->rs, -1, 1024),
+      read_ctxt(this),
+      write_ctxt(this)
+    {
+      center->create_file_event(socket.fd(), EVENT_READABLE, &read_ctxt);
       center->dispatch_event_external(&read_ctxt);
     }
-    void close() {
+
+    void
+    close()
+    {
       ASSERT_FALSE(write_enabled);
       dead = true;
       socket.shutdown();
@@ -701,33 +803,36 @@ class StressFactory {
       center->dispatch_event_external(new C_delete<Client>(this));
     }
 
-    void do_read_request() {
+    void
+    do_read_request()
+    {
       if (dead)
-        return ;
+        return;
       ASSERT_TRUE(socket.is_connected() >= 0);
       if (!socket.is_connected())
-        return ;
+        return;
       ASSERT_TRUE(!acking.empty() || first);
       if (first) {
         first = false;
         center->dispatch_event_external(&write_ctxt);
         if (acking.empty())
-          return ;
+          return;
       }
-      StressFactory::Message *m = acking.front();
+      StressFactory::Message* m = acking.front();
       int r = 0;
       if (buffer.empty())
         buffer.resize(m->len);
       bool must_no = false;
       while (true) {
-        r = socket.read((char*)buffer.data() + read_offset,
-                        m->len - read_offset);
+        r = socket.read(
+            (char*)buffer.data() + read_offset, m->len - read_offset);
         ASSERT_TRUE(r == -EAGAIN || r > 0);
         if (r == -EAGAIN)
           break;
         read_offset += r;
 
-        std::cerr << " client " << this << " receive " << m->idx << " len " << r << " content: "  << std::endl;
+        std::cerr << " client " << this << " receive " << m->idx << " len " << r
+                  << " content: " << std::endl;
         ASSERT_FALSE(must_no);
         if ((m->len - read_offset) == 0) {
           ASSERT_TRUE(m->verify(buffer.data(), 0));
@@ -746,20 +851,23 @@ class StressFactory {
       }
       if (acking.empty()) {
         center->dispatch_event_external(&write_ctxt);
-        return ;
+        return;
       }
     }
 
-    void do_write_request() {
+    void
+    do_write_request()
+    {
       if (dead)
-        return ;
+        return;
       ASSERT_TRUE(socket.is_connected() > 0);
 
-      while (left > 0 && factory->queue_depth > writings.size() + acking.size()) {
-        StressFactory::Message *m = new StressFactory::Message(
-                factory->rs, ++index,
-                factory->rd() % factory->max_message_length);
-        std::cerr << " client " << this << " generate message " << m->idx << " length " << m->len << std::endl;
+      while (left > 0 &&
+             factory->queue_depth > writings.size() + acking.size()) {
+        StressFactory::Message* m = new StressFactory::Message(
+            factory->rs, ++index, factory->rd() % factory->max_message_length);
+        std::cerr << " client " << this << " generate message " << m->idx
+                  << " length " << m->len << std::endl;
         ASSERT_EQ(m->len, m->content.size());
         writings.push_back(m);
         --left;
@@ -767,13 +875,15 @@ class StressFactory {
       }
 
       while (!writings.empty()) {
-        StressFactory::Message *m = writings.front();
+        StressFactory::Message* m = writings.front();
         bufferlist bl;
-        bl.append(m->content.data() + write_offset, m->content.size() - write_offset);
+        bl.append(
+            m->content.data() + write_offset, m->content.size() - write_offset);
         ssize_t r = socket.send(bl, false);
         if (r == 0)
           break;
-        std::cerr << " client " << this << " send " << m->idx << " len " << r << " content: " << std::endl;
+        std::cerr << " client " << this << " send " << m->idx << " len " << r
+                  << " content: " << std::endl;
         ASSERT_TRUE(r >= 0);
         write_offset += r;
         if (write_offset == m->content.size()) {
@@ -786,59 +896,85 @@ class StressFactory {
         center->delete_file_event(socket.fd(), EVENT_WRITABLE);
         write_enabled = false;
       } else if (!writings.empty() && !write_enabled) {
-        ASSERT_EQ(0, center->create_file_event(
-                  socket.fd(), EVENT_WRITABLE, &write_ctxt));
+        ASSERT_EQ(
+            0,
+            center->create_file_event(socket.fd(), EVENT_WRITABLE, &write_ctxt));
         write_enabled = true;
       }
     }
 
-    bool finish() const {
+    bool
+    finish() const
+    {
       return left == 0 && acking.empty() && writings.empty();
     }
   };
   friend class Client;
 
   class Server {
-    StressFactory *factory;
-    EventCenter *center;
+    StressFactory* factory;
+    EventCenter* center;
     ConnectedSocket socket;
     std::deque<std::string> buffers;
     bool write_enabled = false;
     bool dead = false;
 
     class Server_read_handle : public EventCallback {
-      Server *s;
-     public:
-      explicit Server_read_handle(Server *_s): s(_s) {}
-      void do_request(uint64_t id) override {
+      Server* s;
+
+    public:
+      explicit Server_read_handle(Server* _s) :
+        s(_s)
+      {}
+
+      void
+      do_request(uint64_t id) override
+      {
         s->do_read_request();
       }
     } read_ctxt;
 
     class Server_write_handle : public EventCallback {
-      Server *s;
-     public:
-      explicit Server_write_handle(Server *_s): s(_s) {}
-      void do_request(uint64_t id) override {
+      Server* s;
+
+    public:
+      explicit Server_write_handle(Server* _s) :
+        s(_s)
+      {}
+
+      void
+      do_request(uint64_t id) override
+      {
         s->do_write_request();
       }
     } write_ctxt;
 
-   public:
-    Server(StressFactory *f, EventCenter *c, ConnectedSocket s):
-        factory(f), center(c), socket(std::move(s)), read_ctxt(this), write_ctxt(this) {
+  public:
+    Server(StressFactory* f, EventCenter* c, ConnectedSocket s) :
+      factory(f),
+      center(c),
+      socket(std::move(s)),
+      read_ctxt(this),
+      write_ctxt(this)
+    {
       center->create_file_event(socket.fd(), EVENT_READABLE, &read_ctxt);
       center->dispatch_event_external(&read_ctxt);
     }
-    void close() {
+
+    void
+    close()
+    {
       ASSERT_FALSE(write_enabled);
       socket.shutdown();
       center->delete_file_event(socket.fd(), EVENT_READABLE);
       center->dispatch_event_external(new C_delete<Server>(this));
     }
-    void do_read_request() {
+
+    void
+    do_read_request()
+    {
       if (dead)
-        return ;
+        return;
       int r = 0;
       while (true) {
         char buf[4096];
@@ -848,19 +984,22 @@ class StressFactory {
         if (r == 0) {
           ASSERT_TRUE(buffers.empty());
           dead = true;
-          return ;
+          return;
         } else if (r == -EAGAIN)
           break;
         buffers.emplace_back(buf, 0, r);
-        std::cerr << " server " << this << " receive " << r << " content: " << std::endl;
+        std::cerr << " server " << this << " receive " << r
+                  << " content: " << std::endl;
       }
       if (!buffers.empty() && !write_enabled)
         center->dispatch_event_external(&write_ctxt);
     }
 
-    void do_write_request() {
+    void
+    do_write_request()
+    {
       if (dead)
-        return ;
+        return;
 
       while (!buffers.empty()) {
         bufferlist bl;
@@ -877,12 +1016,12 @@ class StressFactory {
         ASSERT_TRUE(r >= 0);
         while (r > 0) {
           ASSERT_TRUE(!buffers.empty());
-          string &buffer = buffers.front();
+          string& buffer = buffers.front();
           if (r >= (int)buffer.size()) {
             r -= (int)buffer.size();
             buffers.pop_front();
           } else {
-           std::cerr << " server " << this << " sent " << r << std::endl;
+            std::cerr << " server " << this << " sent " << r << std::endl;
             buffer = buffer.substr(r, buffer.size());
             break;
           }
@@ -894,28 +1033,35 @@ class StressFactory {
           write_enabled = false;
         }
       } else if (!write_enabled) {
-        ASSERT_EQ(0, center->create_file_event(
-                  socket.fd(), EVENT_WRITABLE, &write_ctxt));
+        ASSERT_EQ(
+            0,
+            center->create_file_event(socket.fd(), EVENT_WRITABLE, &write_ctxt));
         write_enabled = true;
       }
     }
 
-    bool finish() {
-     return dead;
+    bool
+    finish()
+    {
+      return dead;
     }
   };
   friend class Server;
 
   class C_accept : public EventCallback {
-    StressFactory *factory;
+    StressFactory* factory;
     ServerSocket bind_socket;
-    ThreadData *t_data;
-    Worker *worker;
+    ThreadData* t_data;
+    Worker* worker;
 
-   public:
-    C_accept(StressFactory *f, ServerSocket s, ThreadData *data, Worker *w)
-        : factory(f), bind_socket(std::move(s)), t_data(data), worker(w) {}
-    void do_request(uint64_t id) override {
+  public:
+    C_accept(StressFactory* f, ServerSocket s, ThreadData* data, Worker* w) :
+      factory(f), bind_socket(std::move(s)), t_data(data), worker(w)
+    {}
+
+    void
+    do_request(uint64_t id) override
+    {
       while (true) {
         entity_addr_t cli_addr;
         ConnectedSocket srv_socket;
@@ -926,14 +1072,15 @@ class StressFactory {
         }
         ASSERT_EQ(0, r);
         ASSERT_TRUE(srv_socket.fd() > 0);
-        Server *cb = new Server(factory, &t_data->worker->center, std::move(srv_socket));
+        Server* cb =
+            new Server(factory, &t_data->worker->center, std::move(srv_socket));
         t_data->servers.insert(cb);
       }
     }
   };
   friend class C_accept;
 
- public:
+public:
   static const size_t min_client_send_messages = 100;
   static const size_t max_client_send_messages = 1000;
   std::shared_ptr<NetworkStack> stack;
@@ -945,44 +1092,63 @@ class StressFactory {
   std::atomic_bool already_bind = {false};
   SocketOptions options;
 
-  explicit StressFactory(const std::shared_ptr<NetworkStack> &s, const string &addr,
-                         size_t cli, size_t qd, size_t mc, size_t l)
-      : stack(s), rs(128), client_num(cli), queue_depth(qd),
-        max_message_length(l), message_count(mc), message_left(mc) {
+  explicit StressFactory(
+      const std::shared_ptr<NetworkStack>& s,
+      const string& addr,
+      size_t cli,
+      size_t qd,
+      size_t mc,
+      size_t l) :
+    stack(s),
+    rs(128),
+    client_num(cli),
+    queue_depth(qd),
+    max_message_length(l),
+    message_count(mc),
+    message_left(mc)
+  {
     bind_addr.parse(addr.c_str());
     rs.prepare(100);
   }
-  ~StressFactory() {
-  }
 
-  void add_client(ThreadData *t_data) {
+  ~StressFactory() {}
+
+  void
+  add_client(ThreadData* t_data)
+  {
     static ceph::mutex lock = ceph::make_mutex("add_client_lock");
     std::lock_guard l{lock};
     ConnectedSocket sock;
     int r = t_data->worker->connect(bind_addr, options, &sock);
     std::default_random_engine rng(rd());
     std::uniform_int_distribution<> dist(
-            min_client_send_messages, max_client_send_messages);
+        min_client_send_messages, max_client_send_messages);
     ASSERT_EQ(0, r);
     int c = dist(rng);
     if (c > message_count.load())
       c = message_count.load();
-    Client *cb = new Client(this, &t_data->worker->center, std::move(sock), c);
+    Client* cb = new Client(this, &t_data->worker->center, std::move(sock), c);
     t_data->clients.insert(cb);
     message_count -= c;
   }
 
-  void drop_client(ThreadData *t_data, Client *c) {
+  void
+  drop_client(ThreadData* t_data, Client* c)
+  {
     c->close();
     ASSERT_EQ(1U, t_data->clients.erase(c));
   }
 
-  void drop_server(ThreadData *t_data, Server *s) {
+  void
+  drop_server(ThreadData* t_data, Server* s)
+  {
     s->close();
     ASSERT_EQ(1U, t_data->servers.erase(s));
   }
 
-  void start(Worker *worker) {
+  void
+  start(Worker* worker)
+  {
     int r = 0;
     ThreadData t_data;
     t_data.worker = worker;
@@ -994,26 +1160,30 @@ class StressFactory {
     }
     while (!already_bind)
       usleep(50);
-    C_accept *accept_handler = nullptr;
+    C_accept* accept_handler = nullptr;
     int bind_fd = 0;
     if (bind_socket) {
       bind_fd = bind_socket.fd();
-      accept_handler = new C_accept(this, std::move(bind_socket), &t_data, worker);
-      ASSERT_EQ(0, worker->center.create_file_event(
-                  bind_fd, EVENT_READABLE, accept_handler));
+      accept_handler =
+          new C_accept(this, std::move(bind_socket), &t_data, worker);
+      ASSERT_EQ(
+          0, worker->center.create_file_event(
+                 bind_fd, EVENT_READABLE, accept_handler));
     }
 
     int echo_throttle = message_count;
-    while (message_count > 0 || !t_data.clients.empty() || !t_data.servers.empty()) {
-      if (message_count > 0  && t_data.clients.size() < client_num && t_data.servers.size() < client_num)
+    while (message_count > 0 || !t_data.clients.empty() ||
+           !t_data.servers.empty()) {
+      if (message_count > 0 && t_data.clients.size() < client_num &&
+          t_data.servers.size() < client_num)
         add_client(&t_data);
-      for (auto &&c : t_data.clients) {
+      for (auto&& c : t_data.clients) {
         if (c->finish()) {
           drop_client(&t_data, c);
           break;
         }
       }
-      for (auto &&s : t_data.servers) {
+      for (auto&& s : t_data.servers) {
         if (s->finish()) {
           drop_server(&t_data, s);
           break;
@@ -1022,8 +1192,9 @@ class StressFactory {
 
       worker->center.process_events(1);
       if (echo_throttle > message_left) {
-        std::cerr << " clients " << t_data.clients.size() << " servers " << t_data.servers.size()
-                  << " message count " << message_left << std::endl;
+        std::cerr << " clients " << t_data.clients.size() << " servers "
+                  << t_data.servers.size() << " message count " << message_left
+                  << std::endl;
         echo_throttle -= 100;
       }
     }
@@ -1033,26 +1204,22 @@ class StressFactory {
   }
 };
 
-TEST_P(NetworkWorkerTest, StressTest) {
+TEST_P(NetworkWorkerTest, StressTest)
+{
   StressFactory factory(stack, get_addr(), 16, 16, 10000, 1024);
-  StressFactory *f = &factory;
-  exec_events([f](Worker *worker) mutable {
-    f->start(worker);
-  });
+  StressFactory* f = &factory;
+  exec_events([f](Worker* worker) mutable { f->start(worker); });
   ASSERT_EQ(0, factory.message_left);
 }
 
-
 INSTANTIATE_TEST_SUITE_P(
-  NetworkStack,
-  NetworkWorkerTest,
-  ::testing::Values(
+    NetworkStack,
+    NetworkWorkerTest,
+    ::testing::Values(
 #ifdef HAVE_DPDK
-    "dpdk",
+        "dpdk",
 #endif
-    "posix"
-  )
-);
+        "posix"));
 
 /*
  * Local Variables:

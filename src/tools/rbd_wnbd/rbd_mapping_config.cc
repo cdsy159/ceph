@@ -14,6 +14,7 @@
 #include "rbd_mapping_config.h"
 
 #include "common/debug.h"
+
 #include "common/dout.h"
 #include "common/win32/registry.h"
 
@@ -22,7 +23,8 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "rbd-wnbd: "
 
-int construct_devpath_if_missing(Config* cfg)
+int
+construct_devpath_if_missing(Config* cfg)
 {
   // Windows doesn't allow us to request specific disk paths when mapping an
   // image. This will just be used by rbd-wnbd and wnbd as an identifier.
@@ -52,23 +54,23 @@ int construct_devpath_if_missing(Config* cfg)
   return 0;
 }
 
-int save_config_to_registry(Config* cfg)
+int
+save_config_to_registry(Config* cfg)
 {
-  std::string strKey{ SERVICE_REG_KEY };
+  std::string strKey{SERVICE_REG_KEY};
   strKey.append("\\");
   strKey.append(cfg->devpath);
-  auto reg_key = RegistryKey(
-    g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str(), true);
+  auto reg_key =
+      RegistryKey(g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str(), true);
   if (!reg_key.hKey) {
-      return -EINVAL;
+    return -EINVAL;
   }
 
   int ret_val = 0;
   // Registry writes are immediately available to other processes.
   // Still, we'll do a flush to ensure that the mapping can be
   // recreated after a system crash.
-  if (reg_key.set("pid", getpid()) ||
-      reg_key.set("devpath", cfg->devpath) ||
+  if (reg_key.set("pid", getpid()) || reg_key.set("devpath", cfg->devpath) ||
       reg_key.set("poolname", cfg->poolname) ||
       reg_key.set("nsname", cfg->nsname) ||
       reg_key.set("imgname", cfg->imgname) ||
@@ -83,22 +85,23 @@ int save_config_to_registry(Config* cfg)
   return ret_val;
 }
 
-int remove_config_from_registry(Config* cfg)
+int
+remove_config_from_registry(Config* cfg)
 {
-  std::string strKey{ SERVICE_REG_KEY };
+  std::string strKey{SERVICE_REG_KEY};
   strKey.append("\\");
   strKey.append(cfg->devpath);
-  return RegistryKey::remove(
-    g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str());
+  return RegistryKey::remove(g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str());
 }
 
-int load_mapping_config_from_registry(std::string devpath, Config* cfg)
+int
+load_mapping_config_from_registry(std::string devpath, Config* cfg)
 {
-  std::string strKey{ SERVICE_REG_KEY };
+  std::string strKey{SERVICE_REG_KEY};
   strKey.append("\\");
   strKey.append(devpath);
-  auto reg_key = RegistryKey(
-    g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str(), false);
+  auto reg_key =
+      RegistryKey(g_ceph_context, HKEY_LOCAL_MACHINE, strKey.c_str(), false);
   if (!reg_key.hKey) {
     if (reg_key.missingKey)
       return -ENOENT;

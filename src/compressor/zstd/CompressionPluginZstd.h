@@ -16,23 +16,25 @@
 #define CEPH_COMPRESSION_PLUGIN_ZSTD_H
 
 // -----------------------------------------------------------------------------
-#include "ceph_ver.h"
 #include "compressor/CompressionPlugin.h"
+
 #include "ZstdCompressor.h"
+#include "ceph_ver.h"
+
 // -----------------------------------------------------------------------------
 
 class CompressionPluginZstd : public ceph::CompressionPlugin {
 
 public:
-
-  explicit CompressionPluginZstd(CephContext* cct) : CompressionPlugin(cct)
+  explicit CompressionPluginZstd(CephContext* cct) :
+    CompressionPlugin(cct)
   {}
 
-  int factory(CompressorRef *cs,
-                      std::ostream *ss) override
+  int
+  factory(CompressorRef* cs, std::ostream* ss) override
   {
     if (compressor == 0) {
-      ZstdCompressor *interface = new ZstdCompressor(cct);
+      ZstdCompressor* interface = new ZstdCompressor(cct);
       compressor = CompressorRef(interface);
     }
     *cs = compressor;

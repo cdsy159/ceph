@@ -15,28 +15,30 @@ struct Handler {
 
   virtual void handle_read(uint64_t bytes_read) = 0;
 
-  virtual int update_progress(uint64_t object_number,
-                              uint64_t object_count) = 0;
+  virtual int update_progress(uint64_t object_number, uint64_t object_count) = 0;
 };
 
 struct NoOpHandler : public Handler {
-  void handle_read(uint64_t bytes_read) override {
-  }
+  void
+  handle_read(uint64_t bytes_read) override
+  {}
 
-  int update_progress(uint64_t object_number,
-                      uint64_t object_count) override {
+  int
+  update_progress(uint64_t object_number, uint64_t object_count) override
+  {
     return 0;
   }
 };
 
 class ProgressHandler : public NoOpHandler {
 public:
-  ProgressHandler(ProgressContext* progress_ctx)
-    : m_progress_ctx(progress_ctx) {
-  }
+  ProgressHandler(ProgressContext* progress_ctx) :
+    m_progress_ctx(progress_ctx)
+  {}
 
-  int update_progress(uint64_t object_number,
-                      uint64_t object_count) override {
+  int
+  update_progress(uint64_t object_number, uint64_t object_count) override
+  {
     return m_progress_ctx->update_progress(object_number, object_count);
   }
 

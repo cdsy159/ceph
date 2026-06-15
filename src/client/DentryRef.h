@@ -18,7 +18,7 @@
 
 #include <boost/intrusive_ptr.hpp>
 class Dentry;
-void intrusive_ptr_add_ref(Dentry *in);
-void intrusive_ptr_release(Dentry *in);
+void intrusive_ptr_add_ref(Dentry* in);
+void intrusive_ptr_release(Dentry* in);
 typedef boost::intrusive_ptr<Dentry> DentryRef;
 #endif

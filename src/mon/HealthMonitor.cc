@@ -13,29 +13,27 @@
  *
  */
 
-#include <stdlib.h>
-#include <limits.h>
-#include <sstream>
-#include <regex>
-#include <time.h>
-#include <iterator>
-
-#include "include/ceph_assert.h"
-#include "include/common_fwd.h"
-#include "include/stringify.h"
-
-#include "mon/Monitor.h"
-#include "mon/MonMap.h"
 #include "mon/HealthMonitor.h"
-#include "mon/OSDMonitor.h"
-#include "osd/OSDMap.h"
 
+#include <limits.h>
+#include <stdlib.h>
+#include <time.h>
 
-#include "messages/MMonCommand.h"
-#include "messages/MMonHealthChecks.h"
+#include <iterator>
+#include <regex>
+#include <sstream>
 
 #include "common/Formatter.h"
 #include "common/prime.h"
+#include "include/ceph_assert.h"
+#include "include/common_fwd.h"
+#include "include/stringify.h"
+#include "messages/MMonCommand.h"
+#include "messages/MMonHealthChecks.h"
+#include "mon/MonMap.h"
+#include "mon/Monitor.h"
+#include "mon/OSDMonitor.h"
+#include "osd/OSDMap.h"
 
 #define dout_subsys ceph_subsys_mon
 #undef dout_prefix
@@ -48,8 +46,8 @@ using std::cout;
 using std::dec;
 using std::hex;
 using std::list;
-using std::map;
 using std::make_pair;
+using std::map;
 using std::ostream;
 using std::ostringstream;
 using std::pair;
@@ -58,8 +56,8 @@ using std::setfill;
 using std::string;
 using std::stringstream;
 using std::to_string;
-using std::vector;
 using std::unique_ptr;
+using std::vector;
 
 using ceph::bufferlist;
 using ceph::decode;
@@ -70,27 +68,32 @@ using ceph::mono_clock;
 using ceph::mono_time;
 using ceph::parse_timespan;
 using ceph::timespan_str;
-static ostream& _prefix(std::ostream *_dout, const Monitor &mon,
-                        const HealthMonitor *hmon) {
-  return *_dout << "mon." << mon.name << "@" << mon.rank
-		<< "(" << mon.get_state_name() << ").health ";
+
+static ostream&
+_prefix(std::ostream* _dout, const Monitor& mon, const HealthMonitor* hmon)
+{
+  return *_dout << "mon." << mon.name << "@" << mon.rank << "("
+                << mon.get_state_name() << ").health ";
 }
 
-HealthMonitor::HealthMonitor(Monitor &m, Paxos &p, const string& service_name)
-  : PaxosService(m, p, service_name) {
-}
+HealthMonitor::HealthMonitor(Monitor& m, Paxos& p, const string& service_name) :
+  PaxosService(m, p, service_name)
+{}
 
-void HealthMonitor::init()
+void
+HealthMonitor::init()
 {
   dout(10) << __func__ << dendl;
 }
 
-void HealthMonitor::create_initial()
+void
+HealthMonitor::create_initial()
 {
   dout(10) << __func__ << dendl;
 }
 
-void HealthMonitor::update_from_paxos(bool *need_bootstrap)
+void
+HealthMonitor::update_from_paxos(bool* need_bootstrap)
 {
   version = get_last_committed();
   dout(10) << __func__ << dendl;
@@ -140,13 +143,15 @@ void HealthMonitor::update_from_paxos(bool *need_bootstrap)
   *_dout << dendl;
 }
 
-void HealthMonitor::create_pending()
+void
+HealthMonitor::create_pending()
 {
   dout(10) << " " << version << dendl;
   pending_mutes = mutes;
 }
 
-void HealthMonitor::encode_pending(MonitorDBStore::TransactionRef t)
+void
+HealthMonitor::encode_pending(MonitorDBStore::TransactionRef t)
 {
   ++version;
   dout(10) << " " << version << dendl;
@@ -167,36 +172,33 @@ void HealthMonitor::encode_pending(MonitorDBStore::TransactionRef t)
   health_check_map_t pending_health;
 
   // combine per-mon details carefully...
-  map<string,set<string>> names; // code -> <mon names>
+  map<string, set<string>> names; // code -> <mon names>
   for (auto p : quorum_checks) {
     for (auto q : p.second.checks) {
       names[q.first].insert(mon.monmap->get_name(p.first));
     }
     pending_health.merge(p.second);
   }
-  for (auto &p : pending_health.checks) {
+  for (auto& p : pending_health.checks) {
     p.second.summary = std::regex_replace(
-      p.second.summary,
-      std::regex("%hasorhave%"),
-      names[p.first].size() > 1 ? "have" : "has");
+        p.second.summary, std::regex("%hasorhave%"),
+        names[p.first].size() > 1 ? "have" : "has");
     p.second.summary = std::regex_replace(
-      p.second.summary,
-      std::regex("%names%"), stringify(names[p.first]));
+        p.second.summary, std::regex("%names%"), stringify(names[p.first]));
     p.second.summary = std::regex_replace(
-      p.second.summary,
-      std::regex("%plurals%"),
-      names[p.first].size() > 1 ? "s" : "");
+        p.second.summary, std::regex("%plurals%"),
+        names[p.first].size() > 1 ? "s" : "");
     p.second.summary = std::regex_replace(
-      p.second.summary,
-      std::regex("%isorare%"),
-      names[p.first].size() > 1 ? "are" : "is");
+        p.second.summary, std::regex("%isorare%"),
+        names[p.first].size() > 1 ? "are" : "is");
   }
 
   pending_health.merge(leader_checks);
   encode_health(pending_health, t);
 }
 
-version_t HealthMonitor::get_trim_to() const
+version_t
+HealthMonitor::get_trim_to() const
 {
   // we don't actually need *any* old states, but keep a few.
   if (version > 5) {
@@ -205,7 +207,8 @@ version_t HealthMonitor::get_trim_to() const
   return 0;
 }
 
-bool HealthMonitor::preprocess_query(MonOpRequestRef op)
+bool
+HealthMonitor::preprocess_query(MonOpRequestRef op)
 {
   auto m = op->get_req<PaxosServiceMessage>();
   switch (m->get_type()) {
@@ -220,11 +223,12 @@ bool HealthMonitor::preprocess_query(MonOpRequestRef op)
   }
 }
 
-bool HealthMonitor::prepare_update(MonOpRequestRef op)
+bool
+HealthMonitor::prepare_update(MonOpRequestRef op)
 {
-  Message *m = op->get_req();
-  dout(7) << "prepare_update " << *m
-	  << " from " << m->get_orig_source_inst() << dendl;
+  Message* m = op->get_req();
+  dout(7) << "prepare_update " << *m << " from " << m->get_orig_source_inst()
+          << dendl;
   switch (m->get_type()) {
   case MSG_MON_HEALTH_CHECKS:
     return prepare_health_checks(op);
@@ -235,7 +239,8 @@ bool HealthMonitor::prepare_update(MonOpRequestRef op)
   }
 }
 
-bool HealthMonitor::preprocess_command(MonOpRequestRef op)
+bool
+HealthMonitor::preprocess_command(MonOpRequestRef op)
 {
   auto m = op->get_req<MMonCommand>();
   std::stringstream ss;
@@ -248,10 +253,9 @@ bool HealthMonitor::preprocess_command(MonOpRequestRef op)
     return true;
   }
 
-  MonSession *session = op->get_session();
+  MonSession* session = op->get_session();
   if (!session) {
-    mon.reply_command(op, -EACCES, "access denied", rdata,
-		       get_last_committed());
+    mon.reply_command(op, -EACCES, "access denied", rdata, get_last_committed());
     return true;
   }
   // more sanity checks
@@ -267,7 +271,8 @@ bool HealthMonitor::preprocess_command(MonOpRequestRef op)
   return false;
 }
 
-bool HealthMonitor::prepare_command(MonOpRequestRef op)
+bool
+HealthMonitor::prepare_command(MonOpRequestRef op)
 {
   auto m = op->get_req<MMonCommand>();
 
@@ -281,7 +286,7 @@ bool HealthMonitor::prepare_command(MonOpRequestRef op)
     return true;
   }
 
-  MonSession *session = op->get_session();
+  MonSession* session = op->get_session();
   if (!session) {
     mon.reply_command(op, -EACCES, "access denied", rdata, get_last_committed());
     return true;
@@ -298,8 +303,7 @@ bool HealthMonitor::prepare_command(MonOpRequestRef op)
   if (prefix == "health mute") {
     string code;
     bool sticky = false;
-    if (!cmd_getval(cmdmap, "code", code) ||
-	code == "") {
+    if (!cmd_getval(cmdmap, "code", code) || code == "") {
       r = -EINVAL;
       ss << "must specify an alert code to mute";
       goto out;
@@ -319,7 +323,7 @@ bool HealthMonitor::prepare_command(MonOpRequestRef op)
         r = -EINVAL;
         goto out;
       }
-      
+
       ttl = ceph_clock_now();
       ttl += std::chrono::duration<double>(secs).count();
     }
@@ -330,9 +334,9 @@ bool HealthMonitor::prepare_command(MonOpRequestRef op)
     if (!sticky) {
       auto p = all.checks.find(code);
       if (p == all.checks.end()) {
-	r = -ENOENT;
-	ss << "health alert " << code << " is not currently raised";
-	goto out;
+        r = -ENOENT;
+        ss << "health alert " << code << " is not currently raised";
+        goto out;
       }
       count = p->second.count;
       summary = p->second.summary;
@@ -363,8 +367,8 @@ out:
 
   if (r >= 0) {
     // success.. delay reply
-    wait_for_commit(op, new Monitor::C_Command(mon, op, r, rs,
-					      get_last_committed() + 1));
+    wait_for_commit(
+        op, new Monitor::C_Command(mon, op, r, rs, get_last_committed() + 1));
     return true;
   } else {
     // reply immediately
@@ -373,7 +377,8 @@ out:
   }
 }
 
-bool HealthMonitor::prepare_health_checks(MonOpRequestRef op)
+bool
+HealthMonitor::prepare_health_checks(MonOpRequestRef op)
 {
   auto m = op->get_req<MMonHealthChecks>();
   // no need to check if it's changed, the peon has done so
@@ -381,7 +386,8 @@ bool HealthMonitor::prepare_health_checks(MonOpRequestRef op)
   return true;
 }
 
-void HealthMonitor::tick()
+void
+HealthMonitor::tick()
 {
   if (!is_active()) {
     return;
@@ -405,7 +411,8 @@ void HealthMonitor::tick()
   }
 }
 
-bool HealthMonitor::check_mutes()
+bool
+HealthMonitor::check_mutes()
 {
   bool changed = false;
   auto now = ceph_clock_now();
@@ -413,10 +420,9 @@ bool HealthMonitor::check_mutes()
   gather_all_health_checks(&all);
   auto p = pending_mutes.begin();
   while (p != pending_mutes.end()) {
-    if (p->second.ttl != utime_t() &&
-	p->second.ttl <= now) {
+    if (p->second.ttl != utime_t() && p->second.ttl <= now) {
       mon.clog->info() << "Health alert mute " << p->first
-			<< " cleared (passed TTL " << p->second.ttl << ")";
+                       << " cleared (passed TTL " << p->second.ttl << ")";
       p = pending_mutes.erase(p);
       changed = true;
       continue;
@@ -424,39 +430,39 @@ bool HealthMonitor::check_mutes()
     if (!p->second.sticky) {
       auto q = all.checks.find(p->first);
       if (q == all.checks.end()) {
-	mon.clog->info() << "Health alert mute " << p->first
-			  << " cleared (health alert cleared)";
-	p = pending_mutes.erase(p);
-	changed = true;
-	continue;
+        mon.clog->info() << "Health alert mute " << p->first
+                         << " cleared (health alert cleared)";
+        p = pending_mutes.erase(p);
+        changed = true;
+        continue;
       }
       if (p->second.count) {
-	// count-based mute
-	if (q->second.count > p->second.count) {
-	  mon.clog->info() << "Health alert mute " << p->first
-			    << " cleared (count increased from " << p->second.count
-			    << " to " << q->second.count << ")";
-	  p = pending_mutes.erase(p);
-	  changed = true;
-	  continue;
-	}
-	if (q->second.count < p->second.count) {
-	  // rachet down the mute
-	  dout(10) << __func__ << " mute " << p->first << " count "
-		   << p->second.count << " -> " << q->second.count
-		   << dendl;
-	  p->second.count = q->second.count;
-	  changed = true;
-	}
+        // count-based mute
+        if (q->second.count > p->second.count) {
+          mon.clog->info() << "Health alert mute " << p->first
+                           << " cleared (count increased from "
+                           << p->second.count << " to " << q->second.count
+                           << ")";
+          p = pending_mutes.erase(p);
+          changed = true;
+          continue;
+        }
+        if (q->second.count < p->second.count) {
+          // rachet down the mute
+          dout(10) << __func__ << " mute " << p->first << " count "
+                   << p->second.count << " -> " << q->second.count << dendl;
+          p->second.count = q->second.count;
+          changed = true;
+        }
       } else {
-	// summary-based mute
-	if (p->second.summary != q->second.summary) {
-	  mon.clog->info() << "Health alert mute " << p->first
-			    << " cleared (summary changed)";
-	  p = pending_mutes.erase(p);
-	  changed = true;
-	  continue;
-	}
+        // summary-based mute
+        if (p->second.summary != q->second.summary) {
+          mon.clog->info() << "Health alert mute " << p->first
+                           << " cleared (summary changed)";
+          p = pending_mutes.erase(p);
+          changed = true;
+          continue;
+        }
       }
     }
     ++p;
@@ -464,19 +470,21 @@ bool HealthMonitor::check_mutes()
   return changed;
 }
 
-void HealthMonitor::gather_all_health_checks(health_check_map_t *all)
+void
+HealthMonitor::gather_all_health_checks(health_check_map_t* all)
 {
   for (auto& svc : mon.paxos_service) {
     all->merge(svc->get_health_checks());
   }
 }
 
-health_status_t HealthMonitor::get_health_status(
-  bool want_detail,
-  Formatter *f,
-  std::string *plain,
-  const char *sep1,
-  const char *sep2)
+health_status_t
+HealthMonitor::get_health_status(
+    bool want_detail,
+    Formatter* f,
+    std::string* plain,
+    const char* sep1,
+    const char* sep2)
 {
   health_check_map_t all;
   gather_all_health_checks(&all);
@@ -484,7 +492,7 @@ health_status_t HealthMonitor::get_health_status(
   for (auto& p : all.checks) {
     if (!mutes.count(p.first)) {
       if (r > p.second.severity) {
-	r = p.second.severity;
+        r = p.second.severity;
       }
     }
   }
@@ -511,10 +519,10 @@ health_status_t HealthMonitor::get_health_status(
     string summary;
     for (auto& p : all.checks) {
       if (!mutes.count(p.first)) {
-	if (!summary.empty()) {
-	  summary += sep2;
-	}
-	summary += p.second.summary;
+        if (!summary.empty()) {
+          summary += sep2;
+        }
+        summary += p.second.summary;
       }
     }
     *plain = stringify(r);
@@ -524,23 +532,23 @@ health_status_t HealthMonitor::get_health_status(
     }
     if (!mutes.empty()) {
       if (summary.size()) {
-	*plain += sep2;
+        *plain += sep2;
       } else {
-	*plain += sep1;
+        *plain += sep1;
       }
       *plain += "(muted:";
       for (auto& p : mutes) {
-	*plain += " ";
-	*plain += p.first;
-	if (p.second.ttl) {
-	  if (p.second.ttl > now) {
-	    auto left = p.second.ttl;
-	    left -= now;
-	    *plain += "("s + utimespan_str(left) + ")";
-	  } else {
-	    *plain += "(0s)";
-	  }
-	}
+        *plain += " ";
+        *plain += p.first;
+        if (p.second.ttl) {
+          if (p.second.ttl > now) {
+            auto left = p.second.ttl;
+            left -= now;
+            *plain += "("s + utimespan_str(left) + ")";
+          } else {
+            *plain += "(0s)";
+          }
+        }
       }
       *plain += ")";
     }
@@ -548,38 +556,39 @@ health_status_t HealthMonitor::get_health_status(
     // detail
     if (want_detail) {
       for (auto& p : all.checks) {
-	auto q = mutes.find(p.first);
-	if (q != mutes.end()) {
-	  *plain += "(MUTED";
-	  if (q->second.ttl != utime_t()) {
-	    if (q->second.ttl > now) {
-	      auto left = q->second.ttl;
-	      left -= now;
-	      *plain += " ttl ";
-	      *plain += utimespan_str(left);
-	    } else {
-	      *plain += "0s";
-	    }
-	  }
-	  if (q->second.sticky) {
-	    *plain += ", STICKY";
-	  }
-	  *plain += ") ";
-	}
-	*plain += "["s + short_health_string(p.second.severity) + "] " +
-	  p.first + ": " + p.second.summary + "\n";
-	for (auto& d : p.second.detail) {
-	  *plain += "    ";
-	  *plain += d;
-	  *plain += "\n";
-	}
+        auto q = mutes.find(p.first);
+        if (q != mutes.end()) {
+          *plain += "(MUTED";
+          if (q->second.ttl != utime_t()) {
+            if (q->second.ttl > now) {
+              auto left = q->second.ttl;
+              left -= now;
+              *plain += " ttl ";
+              *plain += utimespan_str(left);
+            } else {
+              *plain += "0s";
+            }
+          }
+          if (q->second.sticky) {
+            *plain += ", STICKY";
+          }
+          *plain += ") ";
+        }
+        *plain += "["s + short_health_string(p.second.severity) + "] " +
+                  p.first + ": " + p.second.summary + "\n";
+        for (auto& d : p.second.detail) {
+          *plain += "    ";
+          *plain += d;
+          *plain += "\n";
+        }
       }
     }
   }
   return r;
 }
 
-bool HealthMonitor::check_member_health()
+bool
+HealthMonitor::check_member_health()
 {
   dout(20) << __func__ << dendl;
   bool changed = false;
@@ -588,7 +597,7 @@ bool HealthMonitor::check_member_health()
   // snapshot of usage
   DataStats stats;
   get_fs_stats(stats.fs_stats, g_conf()->mon_data.c_str());
-  map<string,uint64_t> extra;
+  map<string, uint64_t> extra;
   uint64_t store_size = mon.store->get_estimated_size(extra);
   ceph_assert(store_size > 0);
   stats.store_stats.bytes_total = store_size;
@@ -597,9 +606,9 @@ bool HealthMonitor::check_member_health()
   stats.store_stats.bytes_misc = extra["misc"];
   stats.last_update = ceph_clock_now();
   dout(10) << __func__ << " avail " << stats.fs_stats.avail_percent << "%"
-	   << " total " << byte_u_t(stats.fs_stats.byte_total)
-	   << ", used " << byte_u_t(stats.fs_stats.byte_used)
-	   << ", avail " << byte_u_t(stats.fs_stats.byte_avail) << dendl;
+           << " total " << byte_u_t(stats.fs_stats.byte_total) << ", used "
+           << byte_u_t(stats.fs_stats.byte_used) << ", avail "
+           << byte_u_t(stats.fs_stats.byte_avail) << dendl;
 
   // MON_DISK_{LOW,CRIT,BIG}
   health_check_map_t next;
@@ -608,14 +617,14 @@ bool HealthMonitor::check_member_health()
     ss << "mon%plurals% %names% %isorare% very low on available space";
     auto& d = next.add("MON_DISK_CRIT", HEALTH_ERR, ss.str(), 1);
     ss2 << "mon." << mon.name << " has " << stats.fs_stats.avail_percent
-	<< "% avail";
+        << "% avail";
     d.detail.push_back(ss2.str());
   } else if (stats.fs_stats.avail_percent <= g_conf()->mon_data_avail_warn) {
     stringstream ss, ss2;
     ss << "mon%plurals% %names% %isorare% low on available space";
     auto& d = next.add("MON_DISK_LOW", HEALTH_WARN, ss.str(), 1);
     ss2 << "mon." << mon.name << " has " << stats.fs_stats.avail_percent
-	<< "% avail";
+        << "% avail";
     d.detail.push_back(ss2.str());
   }
   if (stats.store_stats.bytes_total >= g_conf()->mon_data_size_warn) {
@@ -623,9 +632,8 @@ bool HealthMonitor::check_member_health()
     ss << "mon%plurals% %names% %isorare% using a lot of disk space";
     auto& d = next.add("MON_DISK_BIG", HEALTH_WARN, ss.str(), 1);
     ss2 << "mon." << mon.name << " is "
-	<< byte_u_t(stats.store_stats.bytes_total)
-	<< " >= mon_data_size_warn ("
-	<< byte_u_t(g_conf()->mon_data_size_warn) << ")";
+        << byte_u_t(stats.store_stats.bytes_total) << " >= mon_data_size_warn ("
+        << byte_u_t(g_conf()->mon_data_size_warn) << ")";
     d.detail.push_back(ss2.str());
   }
 
@@ -646,7 +654,8 @@ bool HealthMonitor::check_member_health()
     if (g_conf()->mon_warn_on_osd_down_out_interval_zero &&
         g_conf()->mon_osd_down_out_interval == 0) {
       ostringstream ss, ds;
-      ss << "mon%plurals% %names% %hasorhave% mon_osd_down_out_interval set to 0";
+      ss << "mon%plurals% %names% %hasorhave% mon_osd_down_out_interval set to "
+            "0";
       auto& d = next.add("OSD_NO_DOWN_OUT_INTERVAL", HEALTH_WARN, ss.str(), 1);
       ds << "mon." << mon.name << " has mon_osd_down_out_interval set to 0";
       d.detail.push_back(ds.str());
@@ -660,34 +669,37 @@ bool HealthMonitor::check_member_health()
     std::lock_guard l(mon.session_map_lock);
     list<std::string> detail;
     for (auto p = mon.session_map.sessions.begin();
-	 p != mon.session_map.sessions.end();
-	 ++p) {
+         p != mon.session_map.sessions.end(); ++p) {
       if ((*p)->global_id_status == global_id_status_t::RECLAIM_INSECURE) {
-	ostringstream ds;
-	ds << (*p)->entity_name << " at " << (*p)->addrs
-	   << " is using insecure global_id reclaim";
-	detail.push_back(ds.str());
-	if (detail.size() >= max) {
-	  detail.push_back("...");
-	  break;
-	}
+        ostringstream ds;
+        ds << (*p)->entity_name << " at " << (*p)->addrs
+           << " is using insecure global_id reclaim";
+        detail.push_back(ds.str());
+        if (detail.size() >= max) {
+          detail.push_back("...");
+          break;
+        }
       }
     }
     if (!detail.empty()) {
       ostringstream ss;
       ss << "client%plurals% %isorare% using insecure global_id reclaim";
-      auto& d = next.add("AUTH_INSECURE_GLOBAL_ID_RECLAIM", HEALTH_WARN, ss.str(),
-			 detail.size());
+      auto& d = next.add(
+          "AUTH_INSECURE_GLOBAL_ID_RECLAIM", HEALTH_WARN, ss.str(),
+          detail.size());
       d.detail.swap(detail);
     }
   }
   // AUTH_INSECURE_GLOBAL_ID_RECLAIM_ALLOWED
-  if (g_conf().get_val<bool>("mon_warn_on_insecure_global_id_reclaim_allowed") &&
+  if (g_conf().get_val<bool>(
+          "mon_warn_on_insecure_global_id_reclaim_allowed") &&
       g_conf().get_val<bool>("auth_allow_insecure_global_id_reclaim")) {
     ostringstream ss, ds;
     ss << "mon%plurals% %isorare% allowing insecure global_id reclaim";
-    auto& d = next.add("AUTH_INSECURE_GLOBAL_ID_RECLAIM_ALLOWED", HEALTH_WARN, ss.str(), 1);
-    ds << "mon." << mon.name << " has auth_allow_insecure_global_id_reclaim set to true";
+    auto& d = next.add(
+        "AUTH_INSECURE_GLOBAL_ID_RECLAIM_ALLOWED", HEALTH_WARN, ss.str(), 1);
+    ds << "mon." << mon.name
+       << " has auth_allow_insecure_global_id_reclaim set to true";
     d.detail.push_back(ds.str());
   }
 
@@ -714,7 +726,8 @@ bool HealthMonitor::check_member_health()
   return changed;
 }
 
-bool HealthMonitor::check_leader_health()
+bool
+HealthMonitor::check_leader_health()
 {
   dout(20) << __func__ << dendl;
   bool changed = false;
@@ -725,17 +738,17 @@ bool HealthMonitor::check_leader_health()
     auto p = quorum_checks.begin();
     while (p != quorum_checks.end()) {
       if (qset.count(p->first) == 0) {
-	p = quorum_checks.erase(p);
-	changed = true;
+        p = quorum_checks.erase(p);
+        changed = true;
       } else {
-	++p;
+        ++p;
       }
     }
   }
 
   health_check_map_t next;
 
- // DAEMON_OLD_VERSION
+  // DAEMON_OLD_VERSION
   if (g_conf().get_val<bool>("mon_warn_on_older_version")) {
     check_for_older_version(&next);
   }
@@ -768,7 +781,8 @@ bool HealthMonitor::check_leader_health()
   return changed;
 }
 
-void HealthMonitor::check_for_colocated_monitors(health_check_map_t *checks)
+void
+HealthMonitor::check_for_colocated_monitors(health_check_map_t* checks)
 {
   std::unordered_map<std::string, std::vector<std::string>> unique_addrs;
   for (auto& [mon_id, mon_info] : mon.monmap->mon_info) {
@@ -778,68 +792,74 @@ void HealthMonitor::check_for_colocated_monitors(health_check_map_t *checks)
 
   bool has_colocated_mon = false;
   ostringstream ss, ds;
-  for (const auto& [ip, mon_ids]: unique_addrs) {
+  for (const auto& [ip, mon_ids] : unique_addrs) {
     unsigned size = mon_ids.size();
     if (size > 1) {
       has_colocated_mon = true;
-      fmt::print(ss, "{} monitors ({}) share the same ip = {}\n",
-                 size, fmt::join(mon_ids, ","), ip);
-      for (const auto& name: mon_ids) {
+      fmt::print(
+          ss, "{} monitors ({}) share the same ip = {}\n", size,
+          fmt::join(mon_ids, ","), ip);
+      for (const auto& name : mon_ids) {
         ds << "mon." << name << " is on the same node as another monitor\n";
       }
     }
   }
-  
+
   if (has_colocated_mon) {
     auto& d = checks->add("MON_COLOCATED", HEALTH_WARN, ss.str(), 1);
     d.detail.push_back(ds.str());
   }
 }
 
-void HealthMonitor::check_for_older_version(health_check_map_t *checks)
+void
+HealthMonitor::check_for_older_version(health_check_map_t* checks)
 {
   static ceph::coarse_mono_time old_version_first_time =
-    ceph::coarse_mono_clock::zero();
+      ceph::coarse_mono_clock::zero();
 
   auto now = ceph::coarse_mono_clock::now();
   if (ceph::coarse_mono_clock::is_zero(old_version_first_time)) {
     old_version_first_time = now;
   }
-  const auto warn_delay = g_conf().get_val<std::chrono::seconds>("mon_warn_older_version_delay");
+  const auto warn_delay =
+      g_conf().get_val<std::chrono::seconds>("mon_warn_older_version_delay");
   if (now - old_version_first_time > warn_delay) {
-    std::map<string, std::list<string> > all_versions;
+    std::map<string, std::list<string>> all_versions;
     mon.get_all_versions(all_versions);
     if (all_versions.size() > 1) {
       dout(20) << __func__ << " all_versions=" << all_versions << dendl;
       // The last entry has the largest version
       dout(20) << __func__ << " highest version daemon count "
-	       << all_versions.rbegin()->second.size() << dendl;
+               << all_versions.rbegin()->second.size() << dendl;
       // Erase last element (the highest version running)
       all_versions.erase(all_versions.rbegin()->first);
       ceph_assert(all_versions.size() > 0);
       ostringstream ss;
       unsigned daemon_count = 0;
       for (auto& g : all_versions) {
-	daemon_count += g.second.size();
+        daemon_count += g.second.size();
       }
       int ver_count = all_versions.size();
       ceph_assert(!(daemon_count == 1 && ver_count != 1));
       ss << "There " << (daemon_count == 1 ? "is a daemon" : "are daemons")
-	 << " running " << (ver_count > 1 ? "multiple old versions" : "an older version")  << " of ceph";
+         << " running "
+         << (ver_count > 1 ? "multiple old versions" : "an older version")
+         << " of ceph";
       health_status_t status;
       if (ver_count > 1)
-	status = HEALTH_ERR;
+        status = HEALTH_ERR;
       else
-	status = HEALTH_WARN;
-      auto& d = checks->add("DAEMON_OLD_VERSION", status, ss.str(), all_versions.size());
+        status = HEALTH_WARN;
+      auto& d = checks->add(
+          "DAEMON_OLD_VERSION", status, ss.str(), all_versions.size());
       for (auto& g : all_versions) {
-	ostringstream ds;
-	for (auto& i : g.second) { // Daemon list
-	  ds << i << " ";
-	}
-	ds << (g.second.size() == 1 ? "is" : "are")
-	   << " running an older version of ceph: " << g.first;
-	d.detail.push_back(ds.str());
+        ostringstream ds;
+        for (auto& i : g.second) { // Daemon list
+          ds << i << " ";
+        }
+        ds << (g.second.size() == 1 ? "is" : "are")
+           << " running an older version of ceph: " << g.first;
+        d.detail.push_back(ds.str());
       }
     } else {
       old_version_first_time = ceph::coarse_mono_clock::zero();
@@ -847,46 +867,54 @@ void HealthMonitor::check_for_older_version(health_check_map_t *checks)
   }
 }
 
-void HealthMonitor::check_for_mon_down(health_check_map_t *checks, std::set<std::string> &mon_downs)
+void
+HealthMonitor::check_for_mon_down(
+    health_check_map_t* checks,
+    std::set<std::string>& mon_downs)
 {
   int max = mon.monmap->size();
   int actual = mon.get_quorum().size();
-  const auto mon_down_mkfs_grace = g_conf().get_val<std::chrono::seconds>("mon_down_mkfs_grace");
-  const auto mon_down_uptime_grace = g_conf().get_val<std::chrono::seconds>("mon_down_uptime_grace");
-  const auto mon_down_added_grace = g_conf().get_val<std::chrono::seconds>("mon_down_added_grace");
+  const auto mon_down_mkfs_grace =
+      g_conf().get_val<std::chrono::seconds>("mon_down_mkfs_grace");
+  const auto mon_down_uptime_grace =
+      g_conf().get_val<std::chrono::seconds>("mon_down_uptime_grace");
+  const auto mon_down_added_grace =
+      g_conf().get_val<std::chrono::seconds>("mon_down_added_grace");
 
   const auto rcnow = ceph::real_clock::now();
   const auto created = mon.monmap->created.to_real_time();
   const auto mcnow = ceph::coarse_mono_clock::now();
   const auto starttime = mon.get_starttime();
 
-  if (actual < max && ((rcnow - created) > mon_down_mkfs_grace) && ((mcnow - starttime) > mon_down_uptime_grace)) {
+  if (actual < max && ((rcnow - created) > mon_down_mkfs_grace) &&
+      ((mcnow - starttime) > mon_down_uptime_grace)) {
     auto q = mon.get_quorum();
     std::list<std::string> details;
-    for (int i=0; i<max; i++) {
+    for (int i = 0; i < max; i++) {
       if (q.count(i) == 0) {
         ostringstream ss;
         std::string mon_name = mon.monmap->get_name(i);
         auto const& info = mon.monmap->get(mon_name);
         if ((rcnow - info.time_added) > mon_down_added_grace) {
           mon_downs.insert(mon_name);
-	  ss << "mon." << mon_name << " (rank " << i
-	     << ") addr " << mon.monmap->get_addrs(i)
-	     << " is down (out of quorum)";
-	  details.push_back(ss.str());
+          ss << "mon." << mon_name << " (rank " << i << ") addr "
+             << mon.monmap->get_addrs(i) << " is down (out of quorum)";
+          details.push_back(ss.str());
         }
       }
     }
     if (details.size()) {
       ostringstream ss;
-      ss << (max-actual) << "/" << max << " mons down, quorum " << mon.get_quorum_names();
+      ss << (max - actual) << "/" << max << " mons down, quorum "
+         << mon.get_quorum_names();
       auto& d = checks->add("MON_DOWN", HEALTH_WARN, ss.str(), max - actual);
       d.detail = std::move(details);
     }
   }
 }
 
-void HealthMonitor::check_for_clock_skew(health_check_map_t *checks)
+void
+HealthMonitor::check_for_clock_skew(health_check_map_t* checks)
 {
   if (!mon.timecheck_skews.empty()) {
     list<string> warns;
@@ -898,56 +926,59 @@ void HealthMonitor::check_for_clock_skew(health_check_map_t *checks)
       ostringstream tcss;
       health_status_t tcstatus = mon.timecheck_status(tcss, skew, latency);
       if (tcstatus != HEALTH_OK) {
-	warns.push_back(name);
-	ostringstream tmp_ss;
-	tmp_ss << "mon." << name << " " << tcss.str()
-	       << " (latency " << latency << "s)";
-	details.push_back(tmp_ss.str());
+        warns.push_back(name);
+        ostringstream tmp_ss;
+        tmp_ss << "mon." << name << " " << tcss.str() << " (latency " << latency
+               << "s)";
+        details.push_back(tmp_ss.str());
       }
     }
     if (!warns.empty()) {
       ostringstream ss;
       ss << "clock skew detected on";
       while (!warns.empty()) {
-	ss << " mon." << warns.front();
-	warns.pop_front();
-	if (!warns.empty())
-	  ss << ",";
+        ss << " mon." << warns.front();
+        warns.pop_front();
+        if (!warns.empty())
+          ss << ",";
       }
-      auto& d = checks->add("MON_CLOCK_SKEW", HEALTH_WARN, ss.str(), details.size());
+      auto& d =
+          checks->add("MON_CLOCK_SKEW", HEALTH_WARN, ss.str(), details.size());
       d.detail.swap(details);
     }
   }
 }
 
-void HealthMonitor::check_if_msgr2_enabled(health_check_map_t *checks)
+void
+HealthMonitor::check_if_msgr2_enabled(health_check_map_t* checks)
 {
   if (g_conf().get_val<bool>("ms_bind_msgr2") &&
       mon.monmap->get_required_features().contains_all(
-	ceph::features::mon::FEATURE_NAUTILUS)) {
+          ceph::features::mon::FEATURE_NAUTILUS)) {
     list<string> details;
     for (auto& i : mon.monmap->mon_info) {
       if (!i.second.public_addrs.has_msgr2()) {
-	ostringstream ds;
-	ds << "mon." << i.first << " is not bound to a msgr2 port, only "
-	   << i.second.public_addrs;
-	details.push_back(ds.str());
+        ostringstream ds;
+        ds << "mon." << i.first << " is not bound to a msgr2 port, only "
+           << i.second.public_addrs;
+        details.push_back(ds.str());
       }
     }
     if (!details.empty()) {
       ostringstream ss;
       ss << details.size() << " monitors have not enabled msgr2";
-      auto &d = checks->add("MON_MSGR2_NOT_ENABLED", HEALTH_WARN, ss.str(),
-			    details.size());
+      auto& d = checks->add(
+          "MON_MSGR2_NOT_ENABLED", HEALTH_WARN, ss.str(), details.size());
       d.detail.swap(details);
     }
   }
 }
 
-void HealthMonitor::check_mon_crush_loc_stretch_mode(health_check_map_t *checks)
+void
+HealthMonitor::check_mon_crush_loc_stretch_mode(health_check_map_t* checks)
 {
   // Check if the CRUSH location exists for all MONs
-  if (!mon.monmap->stretch_mode_enabled){
+  if (!mon.monmap->stretch_mode_enabled) {
     return;
   }
   list<string> details;
@@ -956,7 +987,7 @@ void HealthMonitor::check_mon_crush_loc_stretch_mode(health_check_map_t *checks)
     if (i.second.name == mon.monmap->tiebreaker_mon) {
       continue;
     }
-    for (auto& pair : i.second.crush_loc){
+    for (auto& pair : i.second.crush_loc) {
       if (!mon.osdmon()->osdmap.crush->name_exists(pair.second)) {
         ostringstream ds;
         ds << "CRUSH location " << pair.second << " does not exist";
@@ -968,13 +999,17 @@ void HealthMonitor::check_mon_crush_loc_stretch_mode(health_check_map_t *checks)
   if (!details.empty()) {
     ostringstream ss;
     ss << details.size() << " monitor(s) have nonexistent CRUSH location";
-    auto &d = checks->add("NONEXISTENT_MON_CRUSH_LOC_STRETCH_MODE", HEALTH_WARN, ss.str(),
-                details.size());
+    auto& d = checks->add(
+        "NONEXISTENT_MON_CRUSH_LOC_STRETCH_MODE", HEALTH_WARN, ss.str(),
+        details.size());
     d.detail.swap(details);
   }
 }
 
-void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::string> &mons_down)
+void
+HealthMonitor::check_netsplit(
+    health_check_map_t* checks,
+    std::set<std::string>& mons_down)
 {
   /**
   * Check for netsplits between monitors and report them in a topology-aware manner
@@ -1005,9 +1040,10 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(10) << "Insufficient monitors for netsplit detection" << dendl;
     return;
   }
-  
+
   if (mon.monmap->strategy != MonMap::CONNECTIVITY) {
-    dout(10) << "Monitor strategy is not CONNECTIVITY, skipping netsplit check" << dendl;
+    dout(10) << "Monitor strategy is not CONNECTIVITY, skipping netsplit check"
+             << dendl;
     return;
   }
 
@@ -1017,15 +1053,16 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
   }
   // Get netsplit pairs early to avoid unnecessary work if no netsplits exist.
   // O(m^2)
-  std::set<std::pair<unsigned, unsigned>> nsp_pairs = mon.elector.get_netsplit_peer_tracker(mons_down_ranks);
+  std::set<std::pair<unsigned, unsigned>> nsp_pairs =
+      mon.elector.get_netsplit_peer_tracker(mons_down_ranks);
   if (nsp_pairs.empty()) {
     pending_mon_netsplits.clear();
     pending_location_netsplits.clear();
     current_mon_netsplits.clear();
     current_location_netsplits.clear();
     dout(30) << "No netsplit pairs found, clearing"
-      << " pending_mon_netsplits, pending_location_netsplits"
-      << " current_mon_netsplits, current_location_netsplits" << dendl;
+             << " pending_mon_netsplits, pending_location_netsplits"
+             << " current_mon_netsplits, current_location_netsplits" << dendl;
     return;
   }
   // Pre-populate mon_loc_map & location_to_mons for each monitor, discarding monitors that are down,
@@ -1038,58 +1075,63 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
   // Time Complexity: O(m)
   // Space Complexity: O(m)
   std::map<std::string, std::set<std::string>> location_to_mons;
-  std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> mon_loc_map;
-  for (auto &mon_info : mon.monmap->mon_info) {
-      // Create a vector of pairs
-      std::vector<std::pair<std::string, std::string>> sorted_crush_loc_vec;
-      for (const auto& item : mon_info.second.crush_loc) {
-        sorted_crush_loc_vec.push_back(item);
-      }
-      // Sort the vector by type id
-      std::sort(sorted_crush_loc_vec.begin(), sorted_crush_loc_vec.end(),
-          [this](const std::pair<std::string, std::string> &a,
-                const std::pair<std::string, std::string> &b) {
-            auto a_type_id = mon.osdmon()->osdmap.crush->get_validated_type_id(a.first);
-            auto b_type_id = mon.osdmon()->osdmap.crush->get_validated_type_id(b.first);
-            // Handle missing type IDs gracefully
-            // If 'a' is invalid, it should come AFTER valid entries
-            if (!a_type_id.has_value()) {
-              dout(0) << "ERROR: Monitor CRUSH location type '" << a.first 
-                      << "' not found in CRUSH map" << dendl;
-              return false;
-            }
-            // If 'b' is invalid, it should come AFTER valid entries
-            if (!b_type_id.has_value()) {
-              dout(0) << "ERROR: Monitor CRUSH location type '" << b.first 
-                      << "' not found in CRUSH map" << dendl;
-              return true;
-            }
-            // Both have valid type IDs, sort by ID (higher IDs first)
-            return *a_type_id > *b_type_id;
-          });
-      // Store in mon_loc_map
-      const std::string& mon_name = mon_info.second.name;
-      mon_loc_map[mon_name] = sorted_crush_loc_vec;
-      // Group monitors by location of their highest CRUSH bucket-type
-      // Discard monitors that are down or have no location
-      if (!sorted_crush_loc_vec.empty()) {
-        if (!mons_down.count(mon_name)) {
-          auto& highest_loc = sorted_crush_loc_vec.front();
-          location_to_mons[highest_loc.second].insert(mon_name);
-        } else {
-          dout(30) << "mon: " << mon_name << " is down" << dendl;
-        }
+  std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>>
+      mon_loc_map;
+  for (auto& mon_info : mon.monmap->mon_info) {
+    // Create a vector of pairs
+    std::vector<std::pair<std::string, std::string>> sorted_crush_loc_vec;
+    for (const auto& item : mon_info.second.crush_loc) {
+      sorted_crush_loc_vec.push_back(item);
+    }
+    // Sort the vector by type id
+    std::sort(
+        sorted_crush_loc_vec.begin(), sorted_crush_loc_vec.end(),
+        [this](
+            const std::pair<std::string, std::string>& a,
+            const std::pair<std::string, std::string>& b) {
+          auto a_type_id =
+              mon.osdmon()->osdmap.crush->get_validated_type_id(a.first);
+          auto b_type_id =
+              mon.osdmon()->osdmap.crush->get_validated_type_id(b.first);
+          // Handle missing type IDs gracefully
+          // If 'a' is invalid, it should come AFTER valid entries
+          if (!a_type_id.has_value()) {
+            dout(0) << "ERROR: Monitor CRUSH location type '" << a.first
+                    << "' not found in CRUSH map" << dendl;
+            return false;
+          }
+          // If 'b' is invalid, it should come AFTER valid entries
+          if (!b_type_id.has_value()) {
+            dout(0) << "ERROR: Monitor CRUSH location type '" << b.first
+                    << "' not found in CRUSH map" << dendl;
+            return true;
+          }
+          // Both have valid type IDs, sort by ID (higher IDs first)
+          return *a_type_id > *b_type_id;
+        });
+    // Store in mon_loc_map
+    const std::string& mon_name = mon_info.second.name;
+    mon_loc_map[mon_name] = sorted_crush_loc_vec;
+    // Group monitors by location of their highest CRUSH bucket-type
+    // Discard monitors that are down or have no location
+    if (!sorted_crush_loc_vec.empty()) {
+      if (!mons_down.count(mon_name)) {
+        auto& highest_loc = sorted_crush_loc_vec.front();
+        location_to_mons[highest_loc.second].insert(mon_name);
       } else {
-        dout(30) << "mon: " << mon_name << " has no location" << dendl;
+        dout(30) << "mon: " << mon_name << " is down" << dendl;
       }
+    } else {
+      dout(30) << "mon: " << mon_name << " has no location" << dendl;
+    }
   }
 
-  // retrieve the netsplit pairs and check for the highest common CRUSH 
+  // retrieve the netsplit pairs and check for the highest common CRUSH
   // bucket-type between the two monitors in the pair.
   auto mon_loc_map_end = mon_loc_map.end();
   std::map<std::pair<std::string, std::string>, int> location_disconnects;
   std::set<std::pair<std::string, std::string>> mon_disconnects;
-  for (auto &rank_pair : nsp_pairs) {
+  for (auto& rank_pair : nsp_pairs) {
     std::string first_mon = mon.monmap->get_name(rank_pair.first);
     std::string second_mon = mon.monmap->get_name(rank_pair.second);
     if (first_mon.empty()) {
@@ -1106,12 +1148,14 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     // if the connection scores that nsp_pairs is built from is correct.
     if (mons_down.count(first_mon)) {
       dout(10) << "mon: " << first_mon
-        << " is down; something is wrong with connection scores" << dendl;
+               << " is down; something is wrong with connection scores"
+               << dendl;
       continue;
     }
     if (mons_down.count(second_mon)) {
       dout(10) << "mon: " << second_mon
-        << " is down; something is wrong with connection scores" << dendl;
+               << " is down; something is wrong with connection scores"
+               << dendl;
       continue;
     }
     // Skip if either monitor is not found in mon_loc_map
@@ -1129,22 +1173,27 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     }
     // If either monitor has no location, add to the individual-level netsplit report
     if (first_mon_loc_it->second.empty() || second_mon_loc_it->second.empty()) {
-      if (first_mon > second_mon) std::swap(first_mon, second_mon);
+      if (first_mon > second_mon)
+        std::swap(first_mon, second_mon);
       mon_disconnects.insert({first_mon, second_mon});
       continue;
     }
     // Get the highest CRUSH bucket-type location for each monitor
     std::string first_mon_highest_loc = first_mon_loc_it->second.front().second;
-    std::string second_mon_highest_loc = second_mon_loc_it->second.front().second;
+    std::string second_mon_highest_loc =
+        second_mon_loc_it->second.front().second;
     // If the monitors are in the same location, add to the individual-level netsplit report
     if (first_mon_highest_loc == second_mon_highest_loc) {
-      if (first_mon > second_mon) std::swap(first_mon, second_mon);
+      if (first_mon > second_mon)
+        std::swap(first_mon, second_mon);
       mon_disconnects.insert({first_mon, second_mon});
       continue;
     }
     // Else add to the location-level netsplit report
-    if (first_mon_highest_loc > second_mon_highest_loc) std::swap(first_mon_highest_loc, second_mon_highest_loc);
-    if (first_mon > second_mon) std::swap(first_mon, second_mon);
+    if (first_mon_highest_loc > second_mon_highest_loc)
+      std::swap(first_mon_highest_loc, second_mon_highest_loc);
+    if (first_mon > second_mon)
+      std::swap(first_mon, second_mon);
     // Count the disconnects between the two monitors and locations
     location_disconnects[{first_mon_highest_loc, second_mon_highest_loc}]++;
     mon_disconnects.insert({first_mon, second_mon});
@@ -1155,12 +1204,13 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
   // Check for location-level netsplits and remove individual-level netsplits
   for (auto& kv : location_disconnects) {
     auto& loc_pair = kv.first; // {dc1,dc2}
-    int disconnect_count = kv.second; // Number of disconnects between dc1 and dc2
+    int disconnect_count =
+        kv.second; // Number of disconnects between dc1 and dc2
 
     // The expected number of disconnects between two locations
     // is the product of the number of monitors in each location
     int expected_disconnects = location_to_mons[loc_pair.first].size() *
-                                location_to_mons[loc_pair.second].size();
+                               location_to_mons[loc_pair.second].size();
 
     // Report location-level netsplits
     if (disconnect_count == expected_disconnects) {
@@ -1173,16 +1223,16 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
         }
       }
     }
-
   }
   // Report individual-level netsplits
   for (auto& mon_pair : mon_disconnects) {
     detected_mon_netsplits.insert(mon_pair);
   }
-  
+
   // update/add/erase to pending_mon_netsplits and pending_location_netsplits
   auto now = ceph::coarse_mono_clock::now();
-  auto mon_netsplit_grace_period = g_conf().get_val<std::chrono::seconds>("mon_netsplit_grace_period");
+  auto mon_netsplit_grace_period =
+      g_conf().get_val<std::chrono::seconds>("mon_netsplit_grace_period");
   auto pending_location_netsplits_end = pending_location_netsplits.end();
   auto pending_mon_netsplits_end = pending_mon_netsplits.end();
   list<string> details;
@@ -1196,12 +1246,13 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
         // Add MON_NETSPLIT detail, erase the netsplit
         // from pending_location_netsplits and move to current_location_netsplits
         dout(20) << "Netsplit detected between " << loc_it->first.first
-            << " and " << loc_it->first.second
-            << ", elapsed time: " << elapsed
-            << " > mon_netsplit_grace_period: " << mon_netsplit_grace_period << dendl;
+                 << " and " << loc_it->first.second
+                 << ", elapsed time: " << elapsed
+                 << " > mon_netsplit_grace_period: "
+                 << mon_netsplit_grace_period << dendl;
         ostringstream ds;
-        ds << "Netsplit detected between " << loc_it->first.first
-           << " and " << loc_it->first.second;
+        ds << "Netsplit detected between " << loc_it->first.first << " and "
+           << loc_it->first.second;
         details.push_back(ds.str());
         pending_location_netsplits.erase(loc_it);
         current_location_netsplits[nsp] = now;
@@ -1209,17 +1260,17 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     } else if (current_location_netsplits.count(nsp)) {
       // Can't find in pending_location_netsplits, but found in current_location_netsplits
       // This means the netsplit is still ongoing, so we continue reporting it
-      dout(20) << "Ongoing netsplit between " << nsp.first
-          << " and " << nsp.second << " duration: "
-          << (now - current_location_netsplits[nsp]) << dendl;
+      dout(20) << "Ongoing netsplit between " << nsp.first << " and "
+               << nsp.second
+               << " duration: " << (now - current_location_netsplits[nsp])
+               << dendl;
       ostringstream ds;
-      ds << "Netsplit detected between " << nsp.first
-        << " and " << nsp.second;
+      ds << "Netsplit detected between " << nsp.first << " and " << nsp.second;
       details.push_back(ds.str());
     } else {
       // First time seeing the location-level netsplit
-      dout(20) << "First time seeing netsplit between " << nsp.first
-          << " and " << nsp.second << dendl;
+      dout(20) << "First time seeing netsplit between " << nsp.first << " and "
+               << nsp.second << dendl;
       // Add to pending_location_netsplits
       pending_location_netsplits[nsp] = now;
     }
@@ -1234,12 +1285,13 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
         // Add MON_NETSPLIT detail, erase the netsplit
         // from pending_mon_netsplits and move to current_mon_netsplits
         dout(20) << "Netsplit detected between mon." << mon_it->first.first
-            << " and mon." << mon_it->first.second
-            << ", elapsed time: " << elapsed
-            << " >  mon_netsplit_grace_period: " << mon_netsplit_grace_period << dendl;
+                 << " and mon." << mon_it->first.second
+                 << ", elapsed time: " << elapsed
+                 << " >  mon_netsplit_grace_period: "
+                 << mon_netsplit_grace_period << dendl;
         ostringstream ds;
         ds << "Netsplit detected between mon." << mon_it->first.first
-          << " and mon." << mon_it->first.second;
+           << " and mon." << mon_it->first.second;
         details.push_back(ds.str());
         pending_mon_netsplits.erase(mon_it);
         current_mon_netsplits[mon_pair] = now;
@@ -1249,10 +1301,11 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
       // This means the netsplit is still ongoing, so we continue reporting it
       dout(20) << "Ongoing netsplit between mon." << mon_pair.first
                << " and mon." << mon_pair.second
-               << " duration: " << (now - current_mon_netsplits[mon_pair]) << dendl;
+               << " duration: " << (now - current_mon_netsplits[mon_pair])
+               << dendl;
       ostringstream ds;
-      ds << "Netsplit detected between mon." << mon_pair.first
-         << " and mon." << mon_pair.second;
+      ds << "Netsplit detected between mon." << mon_pair.first << " and mon."
+         << mon_pair.second;
       details.push_back(ds.str());
     } else {
       // First time seeing the monitor-level netsplit
@@ -1265,7 +1318,8 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
   // Report health check if any details
   if (!details.empty()) {
     ostringstream ss;
-    ss << details.size() << " network partition" << (details.size() > 1 ? "s" : "") << " detected";
+    ss << details.size() << " network partition"
+       << (details.size() > 1 ? "s" : "") << " detected";
     auto& d = checks->add("MON_NETSPLIT", HEALTH_WARN, ss.str(), details.size());
     d.detail.swap(details);
   }
@@ -1274,7 +1328,8 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "mon_disconnects: {";
     bool first = true;
     for (const auto& mon_pair : mon_disconnects) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       first = false;
       *_dout << "(" << mon_pair.first << ", " << mon_pair.second << ")";
     }
@@ -1283,22 +1338,25 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "location_disconnects: {";
     bool first = true;
     for (const auto& loc_pair : location_disconnects) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       first = false;
-      *_dout << "(" << loc_pair.first.first << ", " << loc_pair.first.second << "): "
-             << loc_pair.second;
+      *_dout << "(" << loc_pair.first.first << ", " << loc_pair.first.second
+             << "): " << loc_pair.second;
     }
     *_dout << "}" << dendl;
 
     dout(30) << "mon_loc_map: { ";
     bool outer_first = true;
     for (const auto& mon_pair : mon_loc_map) {
-      if (!outer_first) *_dout << ", ";
+      if (!outer_first)
+        *_dout << ", ";
       outer_first = false;
       *_dout << mon_pair.first << ": {";
       bool inner_first = true;
       for (const auto& loc_pair : mon_pair.second) {
-        if (!inner_first) *_dout << ", ";
+        if (!inner_first)
+          *_dout << ", ";
         inner_first = false;
         *_dout << loc_pair.first << ": " << loc_pair.second;
       }
@@ -1310,12 +1368,14 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "location_to_mons: {";
     bool outer_first = true;
     for (const auto& loc_pair : location_to_mons) {
-      if (!outer_first) *_dout << ", ";
+      if (!outer_first)
+        *_dout << ", ";
       outer_first = false;
       *_dout << loc_pair.first << ": {";
       bool inner_first = true;
       for (const auto& monitor : loc_pair.second) {
-        if (!inner_first) *_dout << ", ";
+        if (!inner_first)
+          *_dout << ", ";
         inner_first = false;
         *_dout << monitor;
       }
@@ -1326,7 +1386,8 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "detected_location_netsplits: {";
     bool first = true;
     for (const auto& netsplit : detected_location_netsplits) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       *_dout << "(" << netsplit.first << ", " << netsplit.second << ")";
       first = false;
     }
@@ -1335,16 +1396,18 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "detected_mon_netsplits: {";
     bool first = true;
     for (const auto& netsplit : detected_mon_netsplits) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       *_dout << "(" << netsplit.first << ", " << netsplit.second << ")";
       first = false;
     }
     *_dout << "}" << dendl;
-  
+
     dout(30) << "pending_location_netsplits: {";
     bool first = true;
     for (const auto& netsplit : pending_location_netsplits) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       *_dout << "(" << netsplit.first.first << ", " << netsplit.first.second
              << "): " << netsplit.second;
       first = false;
@@ -1354,7 +1417,8 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
     dout(30) << "pending_mon_netsplits: {";
     bool first = true;
     for (const auto& netsplit : pending_mon_netsplits) {
-      if (!first) *_dout << ", ";
+      if (!first)
+        *_dout << ", ";
       *_dout << "(" << netsplit.first.first << ", " << netsplit.first.second
              << "): " << netsplit.second;
       first = false;
@@ -1363,21 +1427,24 @@ void HealthMonitor::check_netsplit(health_check_map_t *checks, std::set<std::str
   }
 }
 
-void HealthMonitor::check_erasure_code_profiles(health_check_map_t *checks)
+void
+HealthMonitor::check_erasure_code_profiles(health_check_map_t* checks)
 {
   list<string> details;
-  
-  //This is a loop that will go through all the erasure code profiles 
-  for (auto& erasure_code_profile : mon.osdmon()->osdmap.get_erasure_code_profiles()) {
-    dout(20) << "check_erasure_code_profiles " << "checking " << erasure_code_profile << dendl;
 
-    //This will look at the erasure code profiles technique is blaum_roth 
+  //This is a loop that will go through all the erasure code profiles
+  for (auto& erasure_code_profile :
+       mon.osdmon()->osdmap.get_erasure_code_profiles()) {
+    dout(20) << "check_erasure_code_profiles " << "checking "
+             << erasure_code_profile << dendl;
+
+    //This will look at the erasure code profiles technique is blaum_roth
     //and will check that the w key exists
     auto technique = erasure_code_profile.second.find("technique");
     if (technique != erasure_code_profile.second.end()) {
-      if (erasure_code_profile.second.at("technique") == "blaum_roth" && 
-      erasure_code_profile.second.count("w") == 1) {
-        //Read the w value from the profile and convert it to an int 
+      if (erasure_code_profile.second.at("technique") == "blaum_roth" &&
+          erasure_code_profile.second.count("w") == 1) {
+        //Read the w value from the profile and convert it to an int
         int w = std::stoi(erasure_code_profile.second.at("w"));
         if ((w <= 2) || (w >= 256)) {
           ostringstream ds;
@@ -1386,8 +1453,9 @@ void HealthMonitor::check_erasure_code_profiles(health_check_map_t *checks)
         }
         if (!is_prime(w + 1)) {
           ostringstream ds;
-          ds << "w+1="<< w+1 << " for the EC profile " << erasure_code_profile.first 
-            << " is not prime and could lead to data corruption";
+          ds << "w+1=" << w + 1 << " for the EC profile "
+             << erasure_code_profile.first
+             << " is not prime and could lead to data corruption";
           details.push_back(ds.str());
         }
       }
@@ -1396,8 +1464,9 @@ void HealthMonitor::check_erasure_code_profiles(health_check_map_t *checks)
   if (!details.empty()) {
     ostringstream ss;
     ss << "1 or more EC profiles have a w value such that w+1 is not prime."
-      << " This can result in data corruption";
-    auto &d = checks->add("BLAUM_ROTH_W_IS_NOT_PRIME", HEALTH_WARN, ss.str(), details.size());
+       << " This can result in data corruption";
+    auto& d = checks->add(
+        "BLAUM_ROTH_W_IS_NOT_PRIME", HEALTH_WARN, ss.str(), details.size());
     d.detail.swap(details);
   }
 }

@@ -4,8 +4,8 @@
 #ifndef CEPH_CLS_QUEUE_OPS_H
 #define CEPH_CLS_QUEUE_OPS_H
 
-#include "common/ceph_json.h"
 #include "cls/queue/cls_queue_types.h"
+#include "common/ceph_json.h"
 
 struct cls_queue_init_op {
   uint64_t queue_size{0};
@@ -14,7 +14,9 @@ struct cls_queue_init_op {
 
   cls_queue_init_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(queue_size, bl);
     encode(max_urgent_data_size, bl);
@@ -22,7 +24,9 @@ struct cls_queue_init_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(queue_size, bl);
     decode(max_urgent_data_size, bl);
@@ -30,13 +34,17 @@ struct cls_queue_init_op {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("queue_size", queue_size);
     f->dump_unsigned("max_urgent_data_size", max_urgent_data_size);
     f->dump_unsigned("urgent_data_len", bl_urgent_data.length());
   }
 
-  static std::list<cls_queue_init_op> generate_test_instances() {
+  static std::list<cls_queue_init_op>
+  generate_test_instances()
+  {
     std::list<cls_queue_init_op> o;
     o.emplace_back();
     o.emplace_back();
@@ -53,23 +61,31 @@ struct cls_queue_enqueue_op {
 
   cls_queue_enqueue_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(bl_data_vec, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(bl_data_vec, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("data_vec_len", bl_data_vec.size());
   }
 
-  static std::list<cls_queue_enqueue_op> generate_test_instances() {
+  static std::list<cls_queue_enqueue_op>
+  generate_test_instances()
+  {
     std::list<cls_queue_enqueue_op> o;
     o.emplace_back();
     o.emplace_back();
@@ -87,7 +103,9 @@ struct cls_queue_list_op {
 
   cls_queue_list_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(max, bl);
     encode(start_marker, bl);
@@ -95,7 +113,9 @@ struct cls_queue_list_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(max, bl);
     decode(start_marker, bl);
@@ -105,12 +125,16 @@ struct cls_queue_list_op {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("max", max);
     f->dump_string("start_marker", start_marker);
   }
 
-  static std::list<cls_queue_list_op> generate_test_instances() {
+  static std::list<cls_queue_list_op>
+  generate_test_instances()
+  {
     std::list<cls_queue_list_op> o;
     o.emplace_back();
     o.emplace_back();
@@ -128,7 +152,9 @@ struct cls_queue_list_ret {
 
   cls_queue_list_ret() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(is_truncated, bl);
     encode(next_marker, bl);
@@ -136,7 +162,9 @@ struct cls_queue_list_ret {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(is_truncated, bl);
     decode(next_marker, bl);
@@ -144,13 +172,17 @@ struct cls_queue_list_ret {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_bool("is_truncated", is_truncated);
     f->dump_string("next_marker", next_marker);
     encode_json("entries", entries, f);
   }
 
-  static std::list<cls_queue_list_ret> generate_test_instances() {
+  static std::list<cls_queue_list_ret>
+  generate_test_instances()
+  {
     std::list<cls_queue_list_ret> o;
     o.emplace_back();
     o.back().is_truncated = true;
@@ -169,22 +201,31 @@ struct cls_queue_remove_op {
 
   cls_queue_remove_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(end_marker, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(end_marker, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("end_marker", end_marker);
   }
-  static std::list<cls_queue_remove_op> generate_test_instances() {
+
+  static std::list<cls_queue_remove_op>
+  generate_test_instances()
+  {
     std::list<cls_queue_remove_op> o;
     o.emplace_back();
     o.emplace_back();
@@ -199,22 +240,31 @@ struct cls_queue_get_capacity_ret {
 
   cls_queue_get_capacity_ret() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(queue_capacity, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(queue_capacity, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("queue_capacity", queue_capacity);
   }
-  static std::list<cls_queue_get_capacity_ret> generate_test_instances() {
+
+  static std::list<cls_queue_get_capacity_ret>
+  generate_test_instances()
+  {
     std::list<cls_queue_get_capacity_ret> o;
     o.emplace_back();
     o.back().queue_capacity = 123;
@@ -229,14 +279,18 @@ struct cls_queue_get_stats_ret {
 
   cls_queue_get_stats_ret() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(queue_size, bl);
     encode(queue_entries, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(queue_size, bl);
     decode(queue_entries, bl);

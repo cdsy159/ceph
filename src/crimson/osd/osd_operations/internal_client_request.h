@@ -24,7 +24,9 @@ protected:
   virtual PG::do_osd_ops_params_t get_do_osd_ops_params() const = 0;
   virtual std::vector<OSDOp> create_osd_ops() = 0;
 
-  const PG& get_pg() const {
+  const PG&
+  get_pg() const
+  {
     return *pg;
   }
 
@@ -32,17 +34,17 @@ private:
   friend OperationT<InternalClientRequest>;
 
   static constexpr OperationTypeCode type =
-    OperationTypeCode::internal_client_request;
+      OperationTypeCode::internal_client_request;
 
-  void print(std::ostream &) const final;
-  void dump_detail(Formatter *f) const final;
+  void print(std::ostream&) const final;
+  void dump_detail(Formatter* f) const final;
 
   CommonPGPipeline& client_pp();
 
   InternalClientRequest::interruptible_future<> with_interruption();
   InternalClientRequest::interruptible_future<> do_process(
-    crimson::osd::ObjectContextRef obc,
-    std::vector<OSDOp> &osd_ops);
+      crimson::osd::ObjectContextRef obc,
+      std::vector<OSDOp>& osd_ops);
 
   Ref<PG> pg;
   epoch_t start_epoch;
@@ -51,18 +53,24 @@ private:
   PipelineHandle handle;
 
 public:
-  PipelineHandle& get_handle() { return handle; }
+  PipelineHandle&
+  get_handle()
+  {
+    return handle;
+  }
 
   std::tuple<
-    StartEvent,
-    CommonOBCPipeline::Process::BlockingEvent,
-    CommonOBCPipeline::WaitRepop::BlockingEvent,
-    CompletionEvent
-  > tracking_events;
+      StartEvent,
+      CommonOBCPipeline::Process::BlockingEvent,
+      CommonOBCPipeline::WaitRepop::BlockingEvent,
+      CompletionEvent>
+      tracking_events;
 };
 
 } // namespace crimson::osd
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::osd::InternalClientRequest> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::osd::InternalClientRequest>
+  : fmt::ostream_formatter {};
 #endif

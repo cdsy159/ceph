@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,12 +15,12 @@
 
 #ifndef CEPH_REFCOUNTEDOBJ_H
 #define CEPH_REFCOUNTEDOBJ_H
- 
+
+#include <atomic>
+
 #include "common/ceph_mutex.h"
 #include "common/ref.h"
 #include "include/common_fwd.h"
-
-#include <atomic>
 
 /* This class provides mechanisms to make a sub-class work with
  * boost::intrusive_ptr (aka ceph::ref_t).
@@ -44,31 +44,48 @@
 namespace TOPNSPC::common {
 class RefCountedObject {
 public:
-  void set_cct(CephContext *c) {
+  void
+  set_cct(CephContext* c)
+  {
     cct = c;
   }
 
-  uint64_t get_nref() const {
+  uint64_t
+  get_nref() const
+  {
     return nref;
   }
 
-  const RefCountedObject *get() const {
+  const RefCountedObject*
+  get() const
+  {
     _get();
     return this;
   }
-  RefCountedObject *get() {
+
+  RefCountedObject*
+  get()
+  {
     _get();
     return this;
   }
+
   void put() const;
 
 protected:
   RefCountedObject() = default;
-  RefCountedObject(const RefCountedObject& o) : cct(o.cct) {}
+
+  RefCountedObject(const RefCountedObject& o) :
+    cct(o.cct)
+  {}
+
   RefCountedObject& operator=(const RefCountedObject& o) = delete;
   RefCountedObject(RefCountedObject&&) = delete;
   RefCountedObject& operator=(RefCountedObject&&) = delete;
-  RefCountedObject(CephContext* c) : cct(c) {}
+
+  RefCountedObject(CephContext* c) :
+    cct(c)
+  {}
 
   virtual ~RefCountedObject();
 
@@ -76,17 +93,21 @@ private:
   void _get() const;
 
   mutable std::atomic<uint64_t> nref{1};
-  CephContext *cct{nullptr};
+  CephContext* cct{nullptr};
 };
 
 class RefCountedObjectSafe : public RefCountedObject {
 public:
-  RefCountedObject *get() = delete;
-  const RefCountedObject *get() const = delete;
+  RefCountedObject* get() = delete;
+  const RefCountedObject* get() const = delete;
   void put() const = delete;
+
 protected:
-template<typename... Args>
-  RefCountedObjectSafe(Args&&... args) : RefCountedObject(std::forward<Args>(args)...) {}
+  template <typename... Args>
+  RefCountedObjectSafe(Args&&... args) :
+    RefCountedObject(std::forward<Args>(args)...)
+  {}
+
   virtual ~RefCountedObjectSafe() override {}
 };
 
@@ -101,7 +122,9 @@ struct RefCountedCond : public RefCountedObject {
   RefCountedCond() = default;
   ~RefCountedCond() = default;
 
-  int wait() {
+  int
+  wait()
+  {
     std::unique_lock l(lock);
     while (!complete) {
       cond.wait(l);
@@ -109,14 +132,18 @@ struct RefCountedCond : public RefCountedObject {
     return rval;
   }
 
-  void done(int r) {
+  void
+  done(int r)
+  {
     std::lock_guard l(lock);
     rval = r;
     complete = true;
     cond.notify_all();
   }
 
-  void done() {
+  void
+  done()
+  {
     done(0);
   }
 
@@ -139,24 +166,25 @@ private:
  *    
  */
 struct RefCountedWaitObject {
-  std::atomic<uint64_t> nref = { 1 };
-  RefCountedCond *c;
+  std::atomic<uint64_t> nref = {1};
+  RefCountedCond* c;
 
-  RefCountedWaitObject() {
-    c = new RefCountedCond;
-  }
-  virtual ~RefCountedWaitObject() {
-    c->put();
-  }
+  RefCountedWaitObject() { c = new RefCountedCond; }
 
-  RefCountedWaitObject *get() {
+  virtual ~RefCountedWaitObject() { c->put(); }
+
+  RefCountedWaitObject*
+  get()
+  {
     nref++;
     return this;
   }
 
-  bool put() {
+  bool
+  put()
+  {
     bool ret = false;
-    RefCountedCond *cond = c;
+    RefCountedCond* cond = c;
     cond->get();
     if (--nref == 0) {
       cond->done();
@@ -167,8 +195,10 @@ struct RefCountedWaitObject {
     return ret;
   }
 
-  void put_wait() {
-    RefCountedCond *cond = c;
+  void
+  put_wait()
+  {
+    RefCountedCond* cond = c;
 
     cond->get();
     if (--nref == 0) {
@@ -181,29 +211,41 @@ struct RefCountedWaitObject {
   }
 };
 
-static inline void intrusive_ptr_add_ref(RefCountedWaitObject *p) {
+static inline void
+intrusive_ptr_add_ref(RefCountedWaitObject* p)
+{
   p->get();
 }
-static inline void intrusive_ptr_release(RefCountedWaitObject *p) {
+
+static inline void
+intrusive_ptr_release(RefCountedWaitObject* p)
+{
   p->put();
 }
 #endif // ifndef WITH_CRIMSON
 
-static inline void intrusive_ptr_add_ref(const RefCountedObject *p) {
+static inline void
+intrusive_ptr_add_ref(const RefCountedObject* p)
+{
   p->get();
 }
-static inline void intrusive_ptr_release(const RefCountedObject *p) {
+
+static inline void
+intrusive_ptr_release(const RefCountedObject* p)
+{
   p->put();
 }
-struct UniquePtrDeleter
-{
-  void operator()(RefCountedObject *p) const
+
+struct UniquePtrDeleter {
+  void
+  operator()(RefCountedObject* p) const
   {
     // Don't expect a call to `get()` in the ctor as we manually set nref to 1
     p->put();
   }
 };
 } // namespace TOPNSPC::common
+
 using RefCountedPtr = ceph::ref_t<TOPNSPC::common::RefCountedObject>;
 
 #endif

@@ -3,14 +3,15 @@
 
 #pragma once
 
-#include "include/common_fwd.h"
-#include "rgw_common.h"
 #include "common/perf_counters_cache.h"
 #include "common/perf_counters_key.h"
+#include "include/common_fwd.h"
 
-extern PerfCounters *perfcounter;
-extern int rgw_perf_start(CephContext *cct);
-extern void rgw_perf_stop(CephContext *cct);
+#include "rgw_common.h"
+
+extern PerfCounters* perfcounter;
+extern int rgw_perf_start(CephContext* cct);
+extern void rgw_perf_stop(CephContext* cct);
 
 enum {
   l_rgw_first = 15000,
@@ -103,13 +104,13 @@ struct CountersContainer {
   std::shared_ptr<PerfCounters> bucket_counters;
 };
 
-CountersContainer get(req_state *s);
+CountersContainer get(req_state* s);
 
-void inc(const CountersContainer &counters, int idx, uint64_t v);
+void inc(const CountersContainer& counters, int idx, uint64_t v);
 
-void tinc(const CountersContainer &counters, int idx, utime_t);
+void tinc(const CountersContainer& counters, int idx, utime_t);
 
-void tinc(const CountersContainer &counters, int idx, ceph::timespan amt);
+void tinc(const CountersContainer& counters, int idx, ceph::timespan amt);
 
 } // namespace rgw::op_counters
 
@@ -117,15 +118,14 @@ namespace rgw::persistent_topic_counters {
 
 class CountersManager {
   std::unique_ptr<PerfCounters> topic_counters;
-  CephContext *cct;
+  CephContext* cct;
 
 public:
-  CountersManager(const std::string& name, CephContext *cct);
+  CountersManager(const std::string& name, CephContext* cct);
 
   void set(int idx, uint64_t v);
 
   ~CountersManager();
-
 };
 
 } // namespace rgw::persistent_topic_counters

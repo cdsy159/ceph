@@ -8,24 +8,33 @@
  *
 */
 
-#include "ceph_dokan.h"
-#include "utils.h"
 #include "dbg.h"
 
 #include "common/debug.h"
+
 #include "common/dout.h"
+
+#include "ceph_dokan.h"
+#include "utils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_client
 #undef dout_prefix
 #define dout_prefix *_dout << "ceph-dokan: "
 
-#define check_flag(stream, val, flag) if (val & flag) { stream << "[" #flag "]"; }
-#define check_flag_eq(stream, val, flag) if (val == flag) { stream << "[" #flag "]"; }
+#define check_flag(stream, val, flag) \
+  if (val & flag) {                   \
+    stream << "[" #flag "]";          \
+  }
+#define check_flag_eq(stream, val, flag) \
+  if (val == flag) {                     \
+    stream << "[" #flag "]";             \
+  }
 
 using namespace std;
 
-void print_credentials(ostringstream& Stream, PDOKAN_FILE_INFO DokanFileInfo)
+void
+print_credentials(ostringstream& Stream, PDOKAN_FILE_INFO DokanFileInfo)
 {
   UCHAR buffer[1024];
   DWORD returnLength;
@@ -43,8 +52,8 @@ void print_credentials(ostringstream& Stream, PDOKAN_FILE_INFO DokanFileInfo)
     return;
   }
 
-  if (!GetTokenInformation(handle, TokenUser, buffer,
-                           sizeof(buffer), &returnLength)) {
+  if (!GetTokenInformation(
+          handle, TokenUser, buffer, sizeof(buffer), &returnLength)) {
     err = GetLastError();
     derr << "GetTokenInformation failed. Error: " << err << dendl;
     CloseHandle(handle);
@@ -54,24 +63,27 @@ void print_credentials(ostringstream& Stream, PDOKAN_FILE_INFO DokanFileInfo)
   CloseHandle(handle);
 
   PTOKEN_USER tokenUser = (PTOKEN_USER)buffer;
-  if (!LookupAccountSidA(NULL, tokenUser->User.Sid, accountName,
-      &accountLength, domainName, &domainLength, &snu)) {
+  if (!LookupAccountSidA(
+          NULL, tokenUser->User.Sid, accountName, &accountLength, domainName,
+          &domainLength, &snu)) {
     err = GetLastError();
     derr << "LookupAccountSid failed. Error: " << err << dendl;
     return;
   }
 
-  Stream << "\n\tAccountName: " << accountName << ", DomainName: " << domainName;
+  Stream << "\n\tAccountName: " << accountName
+         << ", DomainName: " << domainName;
 }
 
-void print_open_params(
-  LPCSTR FilePath,
-  ACCESS_MASK AccessMode,
-  DWORD FlagsAndAttributes,
-  ULONG ShareMode,
-  DWORD CreationDisposition,
-  ULONG CreateOptions,
-  PDOKAN_FILE_INFO DokanFileInfo)
+void
+print_open_params(
+    LPCSTR FilePath,
+    ACCESS_MASK AccessMode,
+    DWORD FlagsAndAttributes,
+    ULONG ShareMode,
+    DWORD CreationDisposition,
+    ULONG CreateOptions,
+    PDOKAN_FILE_INFO DokanFileInfo)
 {
   ostringstream o;
   o << "CreateFile: " << FilePath << ". ";

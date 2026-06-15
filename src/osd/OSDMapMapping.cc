@@ -2,21 +2,23 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "OSDMapMapping.h"
+
 #include "OSDMap.h"
 
 #define dout_subsys ceph_subsys_mon
 
 #include "common/debug.h"
+
 #include "crush/crush.h" // for CRUSH_ITEM_NONE
 
 using std::vector;
 
-MEMPOOL_DEFINE_OBJECT_FACTORY(OSDMapMapping, osdmapmapping,
-			      osdmap_mapping);
+MEMPOOL_DEFINE_OBJECT_FACTORY(OSDMapMapping, osdmapmapping, osdmap_mapping);
 
 // ensure that we have a PoolMappings for each pool and that
 // the dimensions (pg_num and size) match up.
-void OSDMapMapping::_init_mappings(const OSDMap& osdmap)
+void
+OSDMapMapping::_init_mappings(const OSDMap& osdmap)
 {
   num_pgs = 0;
   auto q = pools.begin();
@@ -28,24 +30,26 @@ void OSDMapMapping::_init_mappings(const OSDMap& osdmap)
     }
     if (q != pools.end() && q->first == p.first) {
       if (q->second.pg_num != p.second.get_pg_num() ||
-	  q->second.size != p.second.get_size()) {
-	// pg_num changed
-	q = pools.erase(q);
+          q->second.size != p.second.get_size()) {
+        // pg_num changed
+        q = pools.erase(q);
       } else {
-	// keep it
-	++q;
-	continue;
+        // keep it
+        ++q;
+        continue;
       }
     }
-    pools.emplace(p.first, PoolMapping(p.second.get_size(),
-				       p.second.get_pg_num(),
-				       p.second.is_erasure()));
+    pools.emplace(
+        p.first,
+        PoolMapping(
+            p.second.get_size(), p.second.get_pg_num(), p.second.is_erasure()));
   }
   pools.erase(q, pools.end());
   ceph_assert(pools.size() == osdmap.get_pools().size());
 }
 
-void OSDMapMapping::update(const OSDMap& osdmap)
+void
+OSDMapMapping::update(const OSDMap& osdmap)
 {
   _start(osdmap);
   for (auto& p : osdmap.get_pools()) {
@@ -55,12 +59,14 @@ void OSDMapMapping::update(const OSDMap& osdmap)
   //_dump();  // for debugging
 }
 
-void OSDMapMapping::update(const OSDMap& osdmap, pg_t pgid)
+void
+OSDMapMapping::update(const OSDMap& osdmap, pg_t pgid)
 {
   _update_range(osdmap, pgid.pool(), pgid.ps(), pgid.ps() + 1);
 }
 
-void OSDMapMapping::_build_rmap(const OSDMap& osdmap)
+void
+OSDMapMapping::_build_rmap(const OSDMap& osdmap)
 {
   acting_rmap.resize(osdmap.get_max_osd());
   //up_rmap.resize(osdmap.get_max_osd());
@@ -74,11 +80,11 @@ void OSDMapMapping::_build_rmap(const OSDMap& osdmap)
     pg_t pgid(0, p.first);
     for (unsigned ps = 0; ps < p.second.pg_num; ++ps) {
       pgid.set_ps(ps);
-      int32_t *row = &p.second.table[p.second.row_size() * ps];
+      int32_t* row = &p.second.table[p.second.row_size() * ps];
       for (int i = 0; i < row[2]; ++i) {
-	if (row[4 + i] != CRUSH_ITEM_NONE) {
-	  acting_rmap[row[4 + i]].push_back(pgid);
-	}
+        if (row[4 + i] != CRUSH_ITEM_NONE) {
+          acting_rmap[row[4 + i]].push_back(pgid);
+        }
       }
       //for (int i = 0; i < row[3]; ++i) {
       //up_rmap[row[4 + p.second.size + i]].push_back(pgid);
@@ -87,29 +93,32 @@ void OSDMapMapping::_build_rmap(const OSDMap& osdmap)
   }
 }
 
-void OSDMapMapping::_finish(const OSDMap& osdmap)
+void
+OSDMapMapping::_finish(const OSDMap& osdmap)
 {
   _build_rmap(osdmap);
   epoch = osdmap.get_epoch();
 }
 
-void OSDMapMapping::_dump()
+void
+OSDMapMapping::_dump()
 {
   for (auto& p : pools) {
     std::cout << "pool " << p.first << std::endl;
     for (unsigned i = 0; i < p.second.table.size(); ++i) {
       std::cout << " " << p.second.table[i];
       if (i % p.second.row_size() == p.second.row_size() - 1)
-	std::cout << std::endl;
+        std::cout << std::endl;
     }
   }
 }
 
-void OSDMapMapping::_update_range(
-  const OSDMap& osdmap,
-  int64_t pool,
-  unsigned pg_begin,
-  unsigned pg_end)
+void
+OSDMapMapping::_update_range(
+    const OSDMap& osdmap,
+    int64_t pool,
+    unsigned pg_begin,
+    unsigned pg_end)
 {
   auto i = pools.find(pool);
   ceph_assert(i != pools.end());
@@ -119,24 +128,24 @@ void OSDMapMapping::_update_range(
     std::vector<int> up, acting;
     int up_primary, acting_primary;
     osdmap.pg_to_up_acting_osds(
-      pg_t(ps, pool),
-      &up, &up_primary, &acting, &acting_primary);
-    i->second.set(ps, std::move(up), up_primary,
-		  std::move(acting), acting_primary);
+        pg_t(ps, pool), &up, &up_primary, &acting, &acting_primary);
+    i->second.set(
+        ps, std::move(up), up_primary, std::move(acting), acting_primary);
   }
 }
 
 // ---------------------------
 
-void ParallelPGMapper::Job::finish_one()
+void
+ParallelPGMapper::Job::finish_one()
 {
-  Context *fin = nullptr;
+  Context* fin = nullptr;
   {
     std::lock_guard l(lock);
     if (--shards == 0) {
       if (!aborted) {
-	finish = ceph_clock_now();
-	complete();
+        finish = ceph_clock_now();
+        complete();
       }
       cond.notify_all();
       fin = onfinish;
@@ -148,11 +157,11 @@ void ParallelPGMapper::Job::finish_one()
   }
 }
 
-void ParallelPGMapper::WQ::_process(Item *i, ThreadPool::TPHandle &h)
+void
+ParallelPGMapper::WQ::_process(Item* i, ThreadPool::TPHandle& h)
 {
-  ldout(m->cct, 20) << __func__ << " " << i->job << " pool " << i->pool
-                    << " [" << i->begin << "," << i->end << ")"
-                    << " pgs " << i->pgs
+  ldout(m->cct, 20) << __func__ << " " << i->job << " pool " << i->pool << " ["
+                    << i->begin << "," << i->end << ")" << " pgs " << i->pgs
                     << dendl;
   if (!i->pgs.empty())
     i->job->process(i->pgs);
@@ -161,10 +170,11 @@ void ParallelPGMapper::WQ::_process(Item *i, ThreadPool::TPHandle &h)
   i->job->finish_one();
 }
 
-void ParallelPGMapper::queue(
-  Job *job,
-  unsigned pgs_per_item,
-  const vector<pg_t>& input_pgs)
+void
+ParallelPGMapper::queue(
+    Job* job,
+    unsigned pgs_per_item,
+    const vector<pg_t>& input_pgs)
 {
   bool any = false;
   if (!input_pgs.empty()) {
@@ -199,7 +209,7 @@ void ParallelPGMapper::queue(
       job->start_one();
       wq.queue(new Item(job, p.first, ps, ps_end));
       ldout(cct, 20) << __func__ << " " << job << " " << p.first << " [" << ps
-		     << "," << ps_end << ")" << dendl;
+                     << "," << ps_end << ")" << dendl;
       any = true;
     }
   }

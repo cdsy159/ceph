@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
 
 #include <boost/intrusive/set.hpp>
 
@@ -76,13 +76,20 @@ public:
      * May only be validly invoked while lock associated with
      * callback_t instance is held.
      */
-    bool is_scheduled() const { return incarnation % 2 == 1; }
+    bool
+    is_scheduled() const
+    {
+      return incarnation % 2 == 1;
+    }
+
     virtual ~callback_t() = default;
 
     /// Order callback_t by schedule_point
-    auto operator<=>(const callback_t &rhs) const {
+    auto
+    operator<=>(const callback_t& rhs) const
+    {
       return std::make_pair(schedule_point, this) <=>
-	std::make_pair(rhs.schedule_point, &rhs);
+             std::make_pair(rhs.schedule_point, &rhs);
     }
   };
 
@@ -101,27 +108,31 @@ private:
   std::thread t;
 
   /// peek front of queue, null if empty
-  callback_t *peek() {
+  callback_t*
+  peek()
+  {
     return events.empty() ? nullptr : &*(events.begin());
   }
 
   /// entry point for t
-  void _run() {
+  void
+  _run()
+  {
     std::unique_lock l(lock);
     while (true) {
       if (stopping) {
-	return;
+        return;
       }
-    
+
       auto next = peek();
       if (!next) {
-	cv.wait(l);
-	continue;
+        cv.wait(l);
+        continue;
       }
 
       if (next->schedule_point > clock_t::now()) {
-	cv.wait_until(l, next->schedule_point);
-	continue;
+        cv.wait_until(l, next->schedule_point);
+        continue;
       }
 
       // we release the reference below
@@ -135,7 +146,7 @@ private:
       auto incarnation = next->incarnation;
       l.unlock();
       {
-	/* Note that intrusive_timer::cancel may observe that
+        /* Note that intrusive_timer::cancel may observe that
 	 * callback_t::is_scheduled() returns true while
 	 * callback_t::is_linked() is false since we drop
 	 * intrusive_timer::lock between removing next from the
@@ -144,14 +155,14 @@ private:
 	 * increments incarnation logically canceling the callback
 	 * but leaves the reference for us to drop.
 	 */
-	std::unique_lock m(*next);
-	if (next->incarnation == incarnation) {
-	  /* As above, cancel() and schedule_after() hold both locks so this
+        std::unique_lock m(*next);
+        if (next->incarnation == incarnation) {
+          /* As above, cancel() and schedule_after() hold both locks so this
 	   * mutation and read are safe. */
-	  ++next->incarnation;
-	  next->invoke();
-	}
-	/* else, next was canceled between l.unlock() and next->lock().
+          ++next->incarnation;
+          next->invoke();
+        }
+        /* else, next was canceled between l.unlock() and next->lock().
 	 * Note that if incarnation does not match, we do nothing to next
 	 * other than drop our reference -- it might well have been
 	 * rescheduled already! */
@@ -162,7 +173,9 @@ private:
   }
 
 public:
-  intrusive_timer() : t([this] { _run(); }) {}
+  intrusive_timer() :
+    t([this] { _run(); })
+  {}
 
   /**
    * schedule_after
@@ -175,7 +188,9 @@ public:
    * @param after [in] period after which to schedule cb
    */
   template <typename T>
-  void schedule_after(callback_t &cb, T after) {
+  void
+  schedule_after(callback_t& cb, T after)
+  {
     ceph_assert(!cb.is_scheduled());
     std::unique_lock l(lock);
     ceph_assert(!cb.is_linked());
@@ -197,7 +212,9 @@ public:
    *
    * @param cb [in] callback to cancel
    */
-  void cancel(callback_t &cb) {
+  void
+  cancel(callback_t& cb)
+  {
     ceph_assert(cb.is_scheduled());
     std::unique_lock l(lock);
     ++cb.incarnation;
@@ -209,7 +226,9 @@ public:
   }
 
   /// Stop intrusive_timer
-  void stop() {
+  void
+  stop()
+  {
     {
       std::unique_lock l(lock);
       stopping = true;
@@ -219,4 +238,4 @@ public:
   }
 };
 
-}
+} // namespace ceph::common

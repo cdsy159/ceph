@@ -2,12 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/managed_lock/BreakRequest.h"
+
+#include "cls/lock/cls_lock_client.h"
+#include "cls/lock/cls_lock_types.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "include/neorados/RADOS.hpp"
 #include "include/stringify.h"
-#include "cls/lock/cls_lock_client.h"
-#include "cls/lock/cls_lock_types.h"
 #include "librbd/AsioEngine.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
@@ -17,8 +18,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::managed_lock::BreakRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                           \
+  *_dout << "librbd::managed_lock::BreakRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace managed_lock {
@@ -27,34 +29,47 @@ using util::create_context_callback;
 using util::create_rados_callback;
 
 template <typename I>
-BreakRequest<I>::BreakRequest(librados::IoCtx& ioctx,
-                              AsioEngine& asio_engine,
-                              const std::string& oid, const Locker &locker,
-                              bool exclusive, bool blocklist_locker,
-                              uint32_t blocklist_expire_seconds,
-                              bool force_break_lock, Context *on_finish)
-  : m_ioctx(ioctx), m_cct(reinterpret_cast<CephContext *>(m_ioctx.cct())),
-    m_asio_engine(asio_engine), m_oid(oid), m_locker(locker),
-    m_exclusive(exclusive), m_blocklist_locker(blocklist_locker),
-    m_blocklist_expire_seconds(blocklist_expire_seconds),
-    m_force_break_lock(force_break_lock), m_on_finish(on_finish) {
-}
+BreakRequest<I>::BreakRequest(
+    librados::IoCtx& ioctx,
+    AsioEngine& asio_engine,
+    const std::string& oid,
+    const Locker& locker,
+    bool exclusive,
+    bool blocklist_locker,
+    uint32_t blocklist_expire_seconds,
+    bool force_break_lock,
+    Context* on_finish) :
+  m_ioctx(ioctx),
+  m_cct(reinterpret_cast<CephContext*>(m_ioctx.cct())),
+  m_asio_engine(asio_engine),
+  m_oid(oid),
+  m_locker(locker),
+  m_exclusive(exclusive),
+  m_blocklist_locker(blocklist_locker),
+  m_blocklist_expire_seconds(blocklist_expire_seconds),
+  m_force_break_lock(force_break_lock),
+  m_on_finish(on_finish)
+{}
 
 template <typename I>
-void BreakRequest<I>::send() {
+void
+BreakRequest<I>::send()
+{
   send_get_watchers();
 }
 
 template <typename I>
-void BreakRequest<I>::send_get_watchers() {
+void
+BreakRequest<I>::send_get_watchers()
+{
   ldout(m_cct, 10) << dendl;
 
   librados::ObjectReadOperation op;
   op.list_watchers(&m_watchers, &m_watchers_ret_val);
 
   using klass = BreakRequest<I>;
-  librados::AioCompletion *rados_completion =
-    create_rados_callback<klass, &klass::handle_get_watchers>(this);
+  librados::AioCompletion* rados_completion =
+      create_rados_callback<klass, &klass::handle_get_watchers>(this);
   m_out_bl.clear();
   int r = m_ioctx.aio_operate(m_oid, rados_completion, &op, &m_out_bl);
   ceph_assert(r == 0);
@@ -62,27 +77,27 @@ void BreakRequest<I>::send_get_watchers() {
 }
 
 template <typename I>
-void BreakRequest<I>::handle_get_watchers(int r) {
+void
+BreakRequest<I>::handle_get_watchers(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r == 0) {
     r = m_watchers_ret_val;
   }
   if (r < 0) {
-    lderr(m_cct) << "failed to retrieve watchers: " << cpp_strerror(r)
-                 << dendl;
+    lderr(m_cct) << "failed to retrieve watchers: " << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
 
   bool found_alive_locker = false;
-  for (auto &watcher : m_watchers) {
-    ldout(m_cct, 20) << "watcher=["
-                     << "addr=" << watcher.addr << ", "
+  for (auto& watcher : m_watchers) {
+    ldout(m_cct, 20) << "watcher=[" << "addr=" << watcher.addr << ", "
                      << "entity=client." << watcher.watcher_id << "]" << dendl;
 
-    if ((strncmp(m_locker.address.c_str(),
-                 watcher.addr, sizeof(watcher.addr)) == 0) &&
+    if ((strncmp(m_locker.address.c_str(), watcher.addr, sizeof(watcher.addr)) ==
+         0) &&
         (m_locker.handle == watcher.cookie)) {
       ldout(m_cct, 10) << "lock owner is still alive" << dendl;
       found_alive_locker = true;
@@ -98,19 +113,22 @@ void BreakRequest<I>::handle_get_watchers(int r) {
 }
 
 template <typename I>
-void BreakRequest<I>::send_get_locker() {
+void
+BreakRequest<I>::send_get_locker()
+{
   ldout(m_cct, 10) << dendl;
 
   using klass = BreakRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_get_locker>(
-    this);
-  auto req = GetLockerRequest<I>::create(m_ioctx, m_oid, m_exclusive,
-                                         &m_refreshed_locker, ctx);
+  Context* ctx = create_context_callback<klass, &klass::handle_get_locker>(this);
+  auto req = GetLockerRequest<I>::create(
+      m_ioctx, m_oid, m_exclusive, &m_refreshed_locker, ctx);
   req->send();
 }
 
 template <typename I>
-void BreakRequest<I>::handle_get_locker(int r) {
+void
+BreakRequest<I>::handle_get_locker(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -135,7 +153,9 @@ void BreakRequest<I>::handle_get_locker(int r) {
 }
 
 template <typename I>
-void BreakRequest<I>::send_blocklist() {
+void
+BreakRequest<I>::send_blocklist()
+{
   if (!m_blocklist_locker) {
     send_break_lock();
     return;
@@ -164,13 +184,16 @@ void BreakRequest<I>::send_blocklist() {
     expire = std::chrono::seconds(m_blocklist_expire_seconds);
   }
   m_asio_engine.get_rados_api().blocklist_add(
-    m_locker.address, expire,
-    librbd::asio::util::get_callback_adapter(
-      [this](int r) { handle_blocklist(r); }));
+      m_locker.address, expire,
+      librbd::asio::util::get_callback_adapter([this](int r) {
+        handle_blocklist(r);
+      }));
 }
 
 template <typename I>
-void BreakRequest<I>::handle_blocklist(int r) {
+void
+BreakRequest<I>::handle_blocklist(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -184,16 +207,21 @@ void BreakRequest<I>::handle_blocklist(int r) {
 }
 
 template <typename I>
-void BreakRequest<I>::wait_for_osd_map() {
+void
+BreakRequest<I>::wait_for_osd_map()
+{
   ldout(m_cct, 10) << dendl;
 
   m_asio_engine.get_rados_api().wait_for_latest_osd_map(
-    librbd::asio::util::get_callback_adapter(
-      [this](int r) { handle_wait_for_osd_map(r); }));
+      librbd::asio::util::get_callback_adapter([this](int r) {
+        handle_wait_for_osd_map(r);
+      }));
 }
 
 template <typename I>
-void BreakRequest<I>::handle_wait_for_osd_map(int r) {
+void
+BreakRequest<I>::handle_wait_for_osd_map(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -207,23 +235,27 @@ void BreakRequest<I>::handle_wait_for_osd_map(int r) {
 }
 
 template <typename I>
-void BreakRequest<I>::send_break_lock() {
+void
+BreakRequest<I>::send_break_lock()
+{
   ldout(m_cct, 10) << dendl;
 
   librados::ObjectWriteOperation op;
-  rados::cls::lock::break_lock(&op, RBD_LOCK_NAME, m_locker.cookie,
-                               m_locker.entity);
+  rados::cls::lock::break_lock(
+      &op, RBD_LOCK_NAME, m_locker.cookie, m_locker.entity);
 
   using klass = BreakRequest<I>;
-  librados::AioCompletion *rados_completion =
-    create_rados_callback<klass, &klass::handle_break_lock>(this);
+  librados::AioCompletion* rados_completion =
+      create_rados_callback<klass, &klass::handle_break_lock>(this);
   int r = m_ioctx.aio_operate(m_oid, rados_completion, &op);
   ceph_assert(r == 0);
   rados_completion->release();
 }
 
 template <typename I>
-void BreakRequest<I>::handle_break_lock(int r) {
+void
+BreakRequest<I>::handle_break_lock(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -236,7 +268,9 @@ void BreakRequest<I>::handle_break_lock(int r) {
 }
 
 template <typename I>
-void BreakRequest<I>::finish(int r) {
+void
+BreakRequest<I>::finish(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

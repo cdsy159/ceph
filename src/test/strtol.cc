@@ -13,46 +13,46 @@
  *
  */
 
-#include <cmath>
-#include <string>
-#include <map>
-
 #include "common/strtol.h"
+
+#include <cmath>
+#include <map>
+#include <string>
 
 #include "gtest/gtest.h"
 
-static void test_strict_strtoll(const char *str, long long expected, int base)
+static void
+test_strict_strtoll(const char* str, long long expected, int base)
 {
   std::string err;
   long long val = strict_strtoll(str, base, &err);
   if (!err.empty()) {
     ASSERT_EQ(err, "");
-  }
-  else {
+  } else {
     ASSERT_EQ(val, expected);
   }
 }
 
-static void test_strict_strtol(const char *str, long expected)
+static void
+test_strict_strtol(const char* str, long expected)
 {
   std::string err;
   long val = strict_strtol(str, 10, &err);
   if (!err.empty()) {
     ASSERT_EQ(err, "");
-  }
-  else {
+  } else {
     ASSERT_EQ(val, expected);
   }
 }
 
-static void test_strict_strtod(const char *str, double expected)
+static void
+test_strict_strtod(const char* str, double expected)
 {
   std::string err;
   double val = strict_strtod(str, &err);
   if (!err.empty()) {
     ASSERT_EQ(err, "");
-  }
-  else {
+  } else {
     // when comparing floats, use a margin of error
     if ((expected - 0.001 > val) || (expected + 0.001 < val)) {
       ASSERT_EQ(val, expected);
@@ -60,14 +60,14 @@ static void test_strict_strtod(const char *str, double expected)
   }
 }
 
-static void test_strict_strtof(const char *str, float expected)
+static void
+test_strict_strtof(const char* str, float expected)
 {
   std::string err;
   float val = strict_strtof(str, &err);
   if (!err.empty()) {
     ASSERT_EQ(err, "");
-  }
-  else {
+  } else {
     // when comparing floats, use a margin of error
     if ((expected - 0.001 > val) || (expected + 0.001 < val)) {
       ASSERT_EQ(val, expected);
@@ -75,7 +75,8 @@ static void test_strict_strtof(const char *str, float expected)
   }
 }
 
-TEST(StrToL, Simple1) {
+TEST(StrToL, Simple1)
+{
   test_strict_strtoll("123", 123, 10);
   test_strict_strtoll("0", 0, 10);
   test_strict_strtoll("-123", -123, 10);
@@ -100,35 +101,40 @@ TEST(StrToL, Simple1) {
   test_strict_strtod("0", 0.0);
 }
 
-static void test_strict_strtoll_err(const char *str)
+static void
+test_strict_strtoll_err(const char* str)
 {
   std::string err;
   strict_strtoll(str, 10, &err);
   ASSERT_NE(err, "");
 }
 
-static void test_strict_strtol_err(const char *str)
+static void
+test_strict_strtol_err(const char* str)
 {
   std::string err;
   strict_strtol(str, 10, &err);
   ASSERT_NE(err, "");
 }
 
-static void test_strict_strtod_err(const char *str)
+static void
+test_strict_strtod_err(const char* str)
 {
   std::string err;
   strict_strtod(str, &err);
   ASSERT_NE(err, "");
 }
 
-static void test_strict_strtof_err(const char *str)
+static void
+test_strict_strtof_err(const char* str)
 {
   std::string err;
   strict_strtof(str, &err);
   ASSERT_NE(err, "");
 }
 
-TEST(StrToL, Error1) {
+TEST(StrToL, Error1)
+{
   test_strict_strtoll_err("604462909807314587353088"); // overflow
   test_strict_strtoll_err("aw shucks"); // invalid
   test_strict_strtoll_err("343245 aw shucks"); // invalid chars at end
@@ -144,20 +150,20 @@ TEST(StrToL, Error1) {
   test_strict_strtof_err("0.05.0");
 }
 
-
-static void test_strict_iecstrtoll(const char *str)
+static void
+test_strict_iecstrtoll(const char* str)
 {
   std::string err;
   strict_iecstrtoll(str, &err);
   ASSERT_EQ(err, "");
 }
 
-static void test_strict_iecstrtoll_units(const std::string& foo,
-                                      std::string u, const int m)
+static void
+test_strict_iecstrtoll_units(const std::string& foo, std::string u, const int m)
 {
   std::string s(foo);
   s.append(u);
-  const char *str = s.c_str();
+  const char* str = s.c_str();
   std::string err;
   uint64_t r = strict_iecstrtoll(str, &err);
   ASSERT_EQ(err, "");
@@ -170,8 +176,9 @@ static void test_strict_iecstrtoll_units(const std::string& foo,
   ASSERT_EQ(tmp, (long long)r);
 }
 
-TEST(IECStrToLL, WithUnits) {
-  std::map<std::string,int> units;
+TEST(IECStrToLL, WithUnits)
+{
+  std::map<std::string, int> units;
   units["B"] = 0;
   units["K"] = 10;
   units["M"] = 20;
@@ -198,8 +205,8 @@ TEST(IECStrToLL, WithUnits) {
   units["PiB"] = 50;
   units["EiB"] = 60;
 
-  for (std::map<std::string,int>::iterator p = units.begin();
-       p != units.end(); ++p) {
+  for (std::map<std::string, int>::iterator p = units.begin(); p != units.end();
+       ++p) {
     // the upper bound of uint64_t is 2^64 = 4E
     test_strict_iecstrtoll_units("4", p->first, p->second);
     test_strict_iecstrtoll_units("1", p->first, p->second);
@@ -207,20 +214,23 @@ TEST(IECStrToLL, WithUnits) {
   }
 }
 
-TEST(IECStrToLL, WithoutUnits) {
+TEST(IECStrToLL, WithoutUnits)
+{
   test_strict_iecstrtoll("1024");
   test_strict_iecstrtoll("1152921504606846976");
   test_strict_iecstrtoll("0");
 }
 
-static void test_strict_iecstrtoll_err(const char *str)
+static void
+test_strict_iecstrtoll_err(const char* str)
 {
   std::string err;
   strict_iecstrtoll(str, &err);
   ASSERT_NE(err, "");
 }
 
-TEST(IECStrToLL, Error) {
+TEST(IECStrToLL, Error)
+{
   test_strict_iecstrtoll_err("1024F");
   test_strict_iecstrtoll_err("QDDSA");
   test_strict_iecstrtoll_err("1b");
@@ -253,7 +263,8 @@ TEST(IECStrToLL, Error) {
 
 // since strict_iecstrtoll is an alias of strict_iec_cast<uint64_t>(), quite a few
 // of cases are covered by existing test cases of strict_iecstrtoll already.
-TEST(StrictIECCast, Error) {
+TEST(StrictIECCast, Error)
+{
   {
     std::string err;
     // the SI prefix is way too large for `int`.
@@ -302,20 +313,23 @@ TEST(StrictIECCast, Error) {
   }
 }
 
-
-static void test_strict_sistrtoll(const char *str)
+static void
+test_strict_sistrtoll(const char* str)
 {
   std::string err;
   strict_si_cast<uint64_t>(str, &err);
   ASSERT_EQ(err, "");
 }
 
-static void test_strict_sistrtoll_units(const std::string& foo,
-                                      std::string u, const long long m)
+static void
+test_strict_sistrtoll_units(
+    const std::string& foo,
+    std::string u,
+    const long long m)
 {
   std::string s(foo);
   s.append(u);
-  const char *str = s.c_str();
+  const char* str = s.c_str();
   std::string err;
   uint64_t r = strict_si_cast<uint64_t>(str, &err);
   ASSERT_EQ(err, "");
@@ -324,12 +338,13 @@ static void test_strict_sistrtoll_units(const std::string& foo,
   std::string err2;
   long long tmp = strict_strtoll(str, 10, &err2);
   ASSERT_EQ(err2, "");
-  tmp = (tmp *  m);
+  tmp = (tmp * m);
   ASSERT_EQ(tmp, (long long)r);
 }
 
-TEST(SIStrToLL, WithUnits) {
-  std::map<std::string,long long> units;
+TEST(SIStrToLL, WithUnits)
+{
+  std::map<std::string, long long> units;
   units["K"] = pow(10, 3);
   units["M"] = pow(10, 6);
   units["G"] = pow(10, 9);
@@ -337,7 +352,7 @@ TEST(SIStrToLL, WithUnits) {
   units["P"] = pow(10, 15);
   units["E"] = pow(10, 18);
 
-  for (std::map<std::string,long long>::iterator p = units.begin();
+  for (std::map<std::string, long long>::iterator p = units.begin();
        p != units.end(); ++p) {
     // the upper bound of uint64_t is 2^64 = 4E
     test_strict_sistrtoll_units("4", p->first, p->second);
@@ -346,20 +361,23 @@ TEST(SIStrToLL, WithUnits) {
   }
 }
 
-TEST(SIStrToLL, WithoutUnits) {
+TEST(SIStrToLL, WithoutUnits)
+{
   test_strict_sistrtoll("1024");
   test_strict_sistrtoll("1152921504606846976");
   test_strict_sistrtoll("0");
 }
 
-static void test_strict_sistrtoll_err(const char *str)
+static void
+test_strict_sistrtoll_err(const char* str)
 {
   std::string err;
   strict_si_cast<uint64_t>(str, &err);
   ASSERT_NE(err, "");
 }
 
-TEST(SIStrToLL, Error) {
+TEST(SIStrToLL, Error)
+{
   test_strict_sistrtoll_err("1024F");
   test_strict_sistrtoll_err("QDDSA");
   test_strict_sistrtoll_err("1b");
@@ -393,7 +411,8 @@ TEST(SIStrToLL, Error) {
 
 // since strict_sistrtoll is an alias of strict_si_cast<uint64_t>(), quite a few
 // of cases are covered by existing test cases of strict_sistrtoll already.
-TEST(StrictSICast, Error) {
+TEST(StrictSICast, Error)
+{
   {
     std::string err;
     // the SI prefix is way too large for `int`.
@@ -427,13 +446,14 @@ TEST(StrictSICast, Error) {
   }
 }
 
-
-using ceph::parse;
 using ceph::consume;
+using ceph::parse;
 using namespace std::literals;
 
-template<typename T>
-inline void test_parse() {
+template <typename T>
+inline void
+test_parse()
+{
   auto r = parse<T>("23"sv);
   ASSERT_TRUE(r);
   EXPECT_EQ(*r, 23);
@@ -456,92 +476,52 @@ inline void test_parse() {
   EXPECT_FALSE(r);
 }
 
-TEST(Parse, Char) {
-  test_parse<char>();
-}
+TEST(Parse, Char) { test_parse<char>(); }
 
-TEST(Parse, UChar) {
-  test_parse<unsigned char>();
-}
+TEST(Parse, UChar) { test_parse<unsigned char>(); }
 
-TEST(Parse, SChar) {
-  test_parse<signed char>();
-}
+TEST(Parse, SChar) { test_parse<signed char>(); }
 
-TEST(Parse, UInt8) {
-  test_parse<std::uint8_t>();
-}
+TEST(Parse, UInt8) { test_parse<std::uint8_t>(); }
 
-TEST(Parse, Int8) {
-  test_parse<std::int8_t>();
-}
+TEST(Parse, Int8) { test_parse<std::int8_t>(); }
 
-TEST(Parse, UInt16) {
-  test_parse<std::uint16_t>();
-}
+TEST(Parse, UInt16) { test_parse<std::uint16_t>(); }
 
-TEST(Parse, Int16) {
-  test_parse<std::int16_t>();
-}
+TEST(Parse, Int16) { test_parse<std::int16_t>(); }
 
-TEST(Parse, UInt32) {
-  test_parse<std::uint32_t>();
-}
+TEST(Parse, UInt32) { test_parse<std::uint32_t>(); }
 
-TEST(Parse, Int32) {
-  test_parse<std::int32_t>();
-}
+TEST(Parse, Int32) { test_parse<std::int32_t>(); }
 
-TEST(Parse, UInt64) {
-  test_parse<std::uint64_t>();
-}
+TEST(Parse, UInt64) { test_parse<std::uint64_t>(); }
 
-TEST(Parse, Int64) {
-  test_parse<std::int64_t>();
-}
+TEST(Parse, Int64) { test_parse<std::int64_t>(); }
 
-TEST(Parse, UIntMax) {
-  test_parse<std::uintmax_t>();
-}
+TEST(Parse, UIntMax) { test_parse<std::uintmax_t>(); }
 
-TEST(Parse, IntMax) {
-  test_parse<std::intmax_t>();
-}
+TEST(Parse, IntMax) { test_parse<std::intmax_t>(); }
 
-TEST(Parse, UIntPtr) {
-  test_parse<std::uintptr_t>();
-}
+TEST(Parse, UIntPtr) { test_parse<std::uintptr_t>(); }
 
-TEST(Parse, IntPtr) {
-  test_parse<std::intptr_t>();
-}
+TEST(Parse, IntPtr) { test_parse<std::intptr_t>(); }
 
-TEST(Parse, UShort) {
-  test_parse<unsigned short>();
-}
+TEST(Parse, UShort) { test_parse<unsigned short>(); }
 
-TEST(Parse, Short) {
-  test_parse<short>();
-}
+TEST(Parse, Short) { test_parse<short>(); }
 
-TEST(Parse, ULong) {
-  test_parse<unsigned long>();
-}
+TEST(Parse, ULong) { test_parse<unsigned long>(); }
 
-TEST(Parse, Long) {
-  test_parse<long>();
-}
+TEST(Parse, Long) { test_parse<long>(); }
 
-TEST(Parse, ULongLong) {
-  test_parse<unsigned long long>();
-}
+TEST(Parse, ULongLong) { test_parse<unsigned long long>(); }
 
-TEST(Parse, LongLong) {
-  test_parse<long long>();
-}
+TEST(Parse, LongLong) { test_parse<long long>(); }
 
-template<typename T>
-inline void test_consume() {
+template <typename T>
+inline void
+test_consume()
+{
   auto pos = "23"sv;
   auto spacepos = "    23"sv;
   auto neg = "-5"sv;
@@ -584,91 +564,47 @@ inline void test_consume() {
   EXPECT_EQ(v, w);
 }
 
-TEST(Consume, Char) {
-  test_consume<char>();
-}
+TEST(Consume, Char) { test_consume<char>(); }
 
-TEST(Consume, UChar) {
-  test_consume<unsigned char>();
-}
+TEST(Consume, UChar) { test_consume<unsigned char>(); }
 
-TEST(Consume, SChar) {
-  test_consume<signed char>();
-}
+TEST(Consume, SChar) { test_consume<signed char>(); }
 
-TEST(Consume, UInt8) {
-  test_consume<std::uint8_t>();
-}
+TEST(Consume, UInt8) { test_consume<std::uint8_t>(); }
 
-TEST(Consume, Int8) {
-  test_consume<std::int8_t>();
-}
+TEST(Consume, Int8) { test_consume<std::int8_t>(); }
 
-TEST(Consume, UInt16) {
-  test_consume<std::uint16_t>();
-}
+TEST(Consume, UInt16) { test_consume<std::uint16_t>(); }
 
-TEST(Consume, Int16) {
-  test_consume<std::int16_t>();
-}
+TEST(Consume, Int16) { test_consume<std::int16_t>(); }
 
-TEST(Consume, UInt32) {
-  test_consume<std::uint32_t>();
-}
+TEST(Consume, UInt32) { test_consume<std::uint32_t>(); }
 
-TEST(Consume, Int32) {
-  test_consume<std::int32_t>();
-}
+TEST(Consume, Int32) { test_consume<std::int32_t>(); }
 
-TEST(Consume, UInt64) {
-  test_consume<std::uint64_t>();
-}
+TEST(Consume, UInt64) { test_consume<std::uint64_t>(); }
 
-TEST(Consume, Int64) {
-  test_consume<std::int64_t>();
-}
+TEST(Consume, Int64) { test_consume<std::int64_t>(); }
 
-TEST(Consume, UIntMax) {
-  test_consume<std::uintmax_t>();
-}
+TEST(Consume, UIntMax) { test_consume<std::uintmax_t>(); }
 
-TEST(Consume, IntMax) {
-  test_consume<std::intmax_t>();
-}
+TEST(Consume, IntMax) { test_consume<std::intmax_t>(); }
 
-TEST(Consume, UIntPtr) {
-  test_consume<std::uintptr_t>();
-}
+TEST(Consume, UIntPtr) { test_consume<std::uintptr_t>(); }
 
-TEST(Consume, IntPtr) {
-  test_consume<std::intptr_t>();
-}
+TEST(Consume, IntPtr) { test_consume<std::intptr_t>(); }
 
-TEST(Consume, UShort) {
-  test_consume<unsigned short>();
-}
+TEST(Consume, UShort) { test_consume<unsigned short>(); }
 
-TEST(Consume, Short) {
-  test_consume<short>();
-}
+TEST(Consume, Short) { test_consume<short>(); }
 
-TEST(Consume, ULong) {
-  test_consume<unsigned long>();
-}
+TEST(Consume, ULong) { test_consume<unsigned long>(); }
 
-TEST(Consume, Long) {
-  test_consume<long>();
-}
+TEST(Consume, Long) { test_consume<long>(); }
 
-TEST(Consume, ULongLong) {
-  test_consume<unsigned long long>();
-}
+TEST(Consume, ULongLong) { test_consume<unsigned long long>(); }
 
-TEST(Consume, LongLong) {
-  test_consume<long long>();
-}
-
-
+TEST(Consume, LongLong) { test_consume<long long>(); }
 
 /*
  * Local Variables:

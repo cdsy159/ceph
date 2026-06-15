@@ -16,8 +16,9 @@
 #ifndef TEXT_TABLE_H_
 #define TEXT_TABLE_H_
 
-#include <vector>
 #include <sstream>
+#include <vector>
+
 #include "include/ceph_assert.h"
 
 /**
@@ -36,7 +37,11 @@
 class TextTable {
 
 public:
-  enum Align {LEFT = 1, CENTER, RIGHT};
+  enum Align {
+    LEFT = 1,
+    CENTER,
+    RIGHT
+  };
 
 private:
   struct TextTableColumn {
@@ -46,21 +51,27 @@ private:
     Align col_align;
 
     TextTableColumn() {}
-    TextTableColumn(const std::string &h, int w, Align ha, Align ca) :
-		    heading(h), width(w), hd_align(ha), col_align(ca) { }
+
+    TextTableColumn(const std::string& h, int w, Align ha, Align ca) :
+      heading(h), width(w), hd_align(ha), col_align(ca)
+    {}
+
     ~TextTableColumn() {}
   };
 
-  std::vector<TextTableColumn> col;	// column definitions
-  unsigned int curcol, currow;		// col, row being inserted into
-  unsigned int indent;			// indent width when rendering
+  std::vector<TextTableColumn> col; // column definitions
+  unsigned int curcol, currow; // col, row being inserted into
+  unsigned int indent; // indent width when rendering
   std::string column_separation = {"  "};
 
 protected:
-  std::vector<std::vector<std::string> > row;	// row data array
+  std::vector<std::vector<std::string>> row; // row data array
 
 public:
-  TextTable(): curcol(0), currow(0), indent(0) {}
+  TextTable() :
+    curcol(0), currow(0), indent(0)
+  {}
+
   ~TextTable() {}
 
   /**
@@ -74,22 +85,27 @@ public:
    * TextTable::LEFT, TextTable::CENTER, or TextTable::RIGHT
    *
    */
-  void define_column(const std::string& heading, Align hd_align,
-		     Align col_align);
+  void define_column(const std::string& heading, Align hd_align, Align col_align);
 
   /**
    * Set indent for table.  Only affects table output.
    *
    * @param i Number of spaces to indent
    */
-  void set_indent(int i) { indent = i; }
+  void
+  set_indent(int i)
+  {
+    indent = i;
+  }
 
   /**
    * Set column separation
    *
    * @param s String to separate columns
    */
-  void set_column_separation(const std::string& s) {
+  void
+  set_column_separation(const std::string& s)
+  {
     column_separation = s;
   }
 
@@ -105,7 +121,9 @@ public:
    * @return TextTable& for chaining.
    */
 
-  template<typename T> TextTable& operator<<(const T& item)
+  template <typename T>
+  TextTable&
+  operator<<(const T& item)
   {
     if (row.size() < currow + 1)
       row.resize(currow + 1);
@@ -145,13 +163,15 @@ public:
    */
 
   struct endrow_t {};
+
   static constexpr endrow_t endrow{};
 
   /**
    * Implements TextTable::endrow
    */
 
-  TextTable &operator<<(endrow_t)
+  TextTable&
+  operator<<(endrow_t)
   {
     curcol = 0;
     currow++;
@@ -162,7 +182,7 @@ public:
    * Render table to ostream (i.e. cout << table)
    */
 
-  friend std::ostream &operator<<(std::ostream &out, const TextTable &t);
+  friend std::ostream& operator<<(std::ostream& out, const TextTable& t);
 
   /**
    * clear: Reset everything in a TextTable except column defs
@@ -173,4 +193,3 @@ public:
 };
 
 #endif
-

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,8 +16,8 @@
 #ifndef CEPH_MOSDPGTRIM_H
 #define CEPH_MOSDPGTRIM_H
 
-#include "msg/Message.h"
 #include "messages/MOSDPeeringOp.h"
+#include "msg/Message.h"
 #include "osd/PGPeeringEvent.h"
 
 class MOSDPGTrim final : public MOSDPeeringOp {
@@ -30,44 +30,77 @@ public:
   spg_t pgid;
   eversion_t trim_to;
 
-  epoch_t get_epoch() const { return epoch; }
-  spg_t get_spg() const {
-    return pgid;
-  }
-  epoch_t get_map_epoch() const {
+  epoch_t
+  get_epoch() const
+  {
     return epoch;
-  }
-  epoch_t get_min_epoch() const {
-    return epoch;
-  }
-  PGPeeringEvent *get_event() override {
-    return new PGPeeringEvent(
-      epoch,
-      epoch,
-      MTrim(epoch, get_source().num(), pgid.shard, trim_to));
   }
 
-  MOSDPGTrim() : MOSDPeeringOp{MSG_OSD_PG_TRIM, HEAD_VERSION, COMPAT_VERSION} {}
+  spg_t
+  get_spg() const
+  {
+    return pgid;
+  }
+
+  epoch_t
+  get_map_epoch() const
+  {
+    return epoch;
+  }
+
+  epoch_t
+  get_min_epoch() const
+  {
+    return epoch;
+  }
+
+  PGPeeringEvent*
+  get_event() override
+  {
+    return new PGPeeringEvent(
+        epoch, epoch, MTrim(epoch, get_source().num(), pgid.shard, trim_to));
+  }
+
+  MOSDPGTrim() :
+    MOSDPeeringOp{MSG_OSD_PG_TRIM, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MOSDPGTrim(version_t mv, spg_t p, eversion_t tt) :
     MOSDPeeringOp{MSG_OSD_PG_TRIM, HEAD_VERSION, COMPAT_VERSION},
-    epoch(mv), pgid(p), trim_to(tt) { }
+    epoch(mv),
+    pgid(p),
+    trim_to(tt)
+  {}
+
 private:
   ~MOSDPGTrim() final {}
 
 public:
-  std::string_view get_type_name() const override { return "pg_trim"; }
-  void inner_print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "pg_trim";
+  }
+
+  void
+  inner_print(std::ostream& out) const override
+  {
     out << trim_to;
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(epoch, payload);
     encode(pgid.pgid, payload);
     encode(trim_to, payload);
     encode(pgid.shard, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(epoch, p);
@@ -75,8 +108,9 @@ public:
     decode(trim_to, p);
     decode(pgid.shard, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

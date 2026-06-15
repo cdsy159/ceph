@@ -16,8 +16,8 @@
 #ifndef CEPH_MSG_DIRECTMESSENGER_H
 #define CEPH_MSG_DIRECTMESSENGER_H
 
-#include "msg/SimplePolicyMessenger.h"
 #include "common/Semaphore.h"
+#include "msg/SimplePolicyMessenger.h"
 
 
 class DispatchStrategy;
@@ -32,7 +32,7 @@ class DispatchStrategy;
  * for normal messengers with ms_type.
  */
 class DirectMessenger : public SimplePolicyMessenger {
- private:
+private:
   /// strategy for local dispatch
   std::unique_ptr<DispatchStrategy> dispatchers;
   /// peer instance for comparison in get_connection()
@@ -44,14 +44,17 @@ class DirectMessenger : public SimplePolicyMessenger {
   /// semaphore for signalling wait() from shutdown()
   Semaphore sem;
 
- public:
-  DirectMessenger(CephContext *cct, entity_name_t name,
-                  string mname, uint64_t nonce,
-                  DispatchStrategy *dispatchers);
+public:
+  DirectMessenger(
+      CephContext* cct,
+      entity_name_t name,
+      string mname,
+      uint64_t nonce,
+      DispatchStrategy* dispatchers);
   ~DirectMessenger();
 
   /// attach to a peer messenger. must be called before start()
-  int set_direct_peer(DirectMessenger *peer);
+  int set_direct_peer(DirectMessenger* peer);
 
 
   // Messenger interface
@@ -79,7 +82,7 @@ class DirectMessenger : public SimplePolicyMessenger {
   ConnectionRef get_loopback_connection() override;
 
   /// dispatches a message to the peer instance if connected
-  int send_message(Message *m, const entity_inst_t& dst) override;
+  int send_message(Message* m, const entity_inst_t& dst) override;
 
   /// mark down the connection for the given address
   void mark_down(const entity_addr_t& a) override;
@@ -87,13 +90,30 @@ class DirectMessenger : public SimplePolicyMessenger {
   /// mark down all connections
   void mark_down_all() override;
 
-
   // unimplemented Messenger interface
-  void set_addr_unknowns(const entity_addr_t &addr) override {}
-  void set_addr(const entity_addr_t &addr) override {}
-  int get_dispatch_queue_len() override { return 0; }
-  double get_dispatch_queue_max_age(utime_t now) override { return 0; }
-  void set_cluster_protocol(int p) override {}
+  void
+  set_addr_unknowns(const entity_addr_t& addr) override
+  {}
+
+  void
+  set_addr(const entity_addr_t& addr) override
+  {}
+
+  int
+  get_dispatch_queue_len() override
+  {
+    return 0;
+  }
+
+  double
+  get_dispatch_queue_max_age(utime_t now) override
+  {
+    return 0;
+  }
+
+  void
+  set_cluster_protocol(int p) override
+  {}
 };
 
 #endif

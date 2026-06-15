@@ -1,27 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include <array>
+#include "rgw_swift_auth.h"
+
 #include <algorithm>
+#include <array>
 #include <string_view>
 
-#include <boost/container/static_vector.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/container/static_vector.hpp>
 
-#include "rgw_swift_auth.h"
-#include "rgw_rest.h"
-
-#include "common/ceph_crypto.h"
 #include "common/Clock.h"
-
+#include "common/ceph_crypto.h"
 #include "include/random.h"
+#include "include/str_list.h"
 #include "include/timegm.h"
 
 #include "rgw_client_io.h"
 #include "rgw_http_client.h"
+#include "rgw_rest.h"
 #include "rgw_sal_rados.h"
-#include "include/str_list.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
@@ -31,13 +30,15 @@
 using namespace std;
 using namespace ceph::crypto;
 
-
 namespace rgw {
 namespace auth {
 namespace swift {
 
 /* TempURL: applier */
-void TempURLApplier::modify_request_state(const DoutPrefixProvider* dpp, req_state* s) const       /* in/out */
+void
+TempURLApplier::modify_request_state(
+    const DoutPrefixProvider* dpp,
+    req_state* s) const /* in/out */
 {
   bool inline_exists = false;
   const std::string& filename = s->info.args.get("filename");
@@ -56,27 +57,32 @@ void TempURLApplier::modify_request_state(const DoutPrefixProvider* dpp, req_sta
   }
 
   ldpp_dout(dpp, 20) << "finished applying changes to req_state for TempURL: "
-                    << " content_disp override " << s->content_disp.override
-                    << " content_disp fallback " << s->content_disp.fallback
-                    << dendl;
-
+                     << " content_disp override " << s->content_disp.override
+                     << " content_disp fallback " << s->content_disp.fallback
+                     << dendl;
 }
 
-void TempURLApplier::write_ops_log_entry(rgw_log_entry& entry) const
+void
+TempURLApplier::write_ops_log_entry(rgw_log_entry& entry) const
 {
   LocalApplier::write_ops_log_entry(entry);
   entry.temp_url = true;
 }
 
 /* TempURL: engine */
-bool TempURLEngine::is_applicable(const req_state* const s) const noexcept
+bool
+TempURLEngine::is_applicable(const req_state* const s) const noexcept
 {
   return s->info.args.exists("temp_url_sig") ||
          s->info.args.exists("temp_url_expires");
 }
 
-void TempURLEngine::get_owner_info(const DoutPrefixProvider* dpp, const req_state* const s,
-                                   RGWUserInfo& owner_info, optional_yield y) const
+void
+TempURLEngine::get_owner_info(
+    const DoutPrefixProvider* dpp,
+    const req_state* const s,
+    RGWUserInfo& owner_info,
+    optional_yield y) const
 {
   /* We cannot use req_state::bucket_name because it isn't available
    * now. It will be initialized in RGWHandler_REST_SWIFT::postauth_init(). */
@@ -101,15 +107,15 @@ void TempURLEngine::get_owner_info(const DoutPrefixProvider* dpp, const req_stat
       rgw_user tenanted_uid(uid.id, uid.id);
       user = driver->get_user(tenanted_uid);
       if (user->load_user(dpp, s->yield) >= 0) {
-	/* Succeeded */
-	found = true;
+        /* Succeeded */
+        found = true;
       }
     }
 
     if (!found) {
       user = driver->get_user(uid);
       if (user->load_user(dpp, s->yield) < 0) {
-	throw -EPERM;
+        throw -EPERM;
       }
     }
 
@@ -130,8 +136,8 @@ void TempURLEngine::get_owner_info(const DoutPrefixProvider* dpp, const req_stat
     throw -EPERM;
   }
 
-  ldpp_dout(dpp, 20) << "temp url user (bucket owner): " << bucket->get_info().owner
-                 << dendl;
+  ldpp_dout(dpp, 20) << "temp url user (bucket owner): "
+                     << bucket->get_info().owner << dendl;
 
   std::unique_ptr<rgw::sal::User> user;
   user = driver->get_user(*uid);
@@ -142,7 +148,8 @@ void TempURLEngine::get_owner_info(const DoutPrefixProvider* dpp, const req_stat
   owner_info = user->get_info();
 }
 
-std::string TempURLEngine::convert_from_iso8601(std::string expires) const
+std::string
+TempURLEngine::convert_from_iso8601(std::string expires) const
 {
   /* Swift's TempURL allows clients to send the expiration as ISO8601-
    * compatible strings. Though, only plain UNIX timestamp are taken
@@ -155,38 +162,41 @@ std::string TempURLEngine::convert_from_iso8601(std::string expires) const
   }
 }
 
-bool TempURLEngine::is_expired(const std::string& expires) const
+bool
+TempURLEngine::is_expired(const std::string& expires) const
 {
   string err;
   const utime_t now = ceph_clock_now();
-  const uint64_t expiration = (uint64_t)strict_strtoll(expires.c_str(),
-                                                       10, &err);
+  const uint64_t expiration =
+      (uint64_t)strict_strtoll(expires.c_str(), 10, &err);
   if (!err.empty()) {
     dout(5) << "failed to parse temp_url_expires: " << err << dendl;
     return true;
   }
 
   if (expiration <= (uint64_t)now.sec()) {
-    dout(5) << "temp url expired: " << expiration << " <= " << now.sec() << dendl;
+    dout(5) << "temp url expired: " << expiration << " <= " << now.sec()
+            << dendl;
     return true;
   }
 
   return false;
 }
 
-bool TempURLEngine::is_disallowed_header_present(const req_info& info) const
+bool
+TempURLEngine::is_disallowed_header_present(const req_info& info) const
 {
   static const auto headers = {
-    "HTTP_X_OBJECT_MANIFEST",
+      "HTTP_X_OBJECT_MANIFEST",
   };
 
-  return std::any_of(std::begin(headers), std::end(headers),
-                     [&info](const char* header) {
-                       return info.env->exists(header);
-                     });
+  return std::any_of(
+      std::begin(headers), std::end(headers),
+      [&info](const char* header) { return info.env->exists(header); });
 }
 
-std::string extract_swift_subuser(const std::string& swift_user_name)
+std::string
+extract_swift_subuser(const std::string& swift_user_name)
 {
   size_t pos = swift_user_name.find(':');
   if (std::string::npos == pos) {
@@ -197,85 +207,119 @@ std::string extract_swift_subuser(const std::string& swift_user_name)
 }
 
 template <class HASHFLAVOR, SignatureFlavor SIGNATUREFLAVOR>
-class TempURLSignatureT : public rgw::auth::swift::FormatSignature<HASHFLAVOR,SIGNATUREFLAVOR> {
+class TempURLSignatureT
+  : public rgw::auth::swift::FormatSignature<HASHFLAVOR, SIGNATUREFLAVOR> {
   using UCHARPTR = const unsigned char*;
   using base_t = SignatureHelperT<HASHFLAVOR>;
-  using format_signature_t = rgw::auth::swift::FormatSignature<HASHFLAVOR,SIGNATUREFLAVOR>;
-public:
-  const char* calc(const std::string& key,
-                   const std::string_view& method,
-                   const std::string_view& path,
-                   const std::string& expires) {
-    HASHFLAVOR hmac((UCHARPTR) key.data(), key.size());
+  using format_signature_t =
+      rgw::auth::swift::FormatSignature<HASHFLAVOR, SIGNATUREFLAVOR>;
 
-    hmac.Update((UCHARPTR) method.data(), method.size());
+public:
+  const char*
+  calc(
+      const std::string& key,
+      const std::string_view& method,
+      const std::string_view& path,
+      const std::string& expires)
+  {
+    HASHFLAVOR hmac((UCHARPTR)key.data(), key.size());
+
+    hmac.Update((UCHARPTR)method.data(), method.size());
     hmac.Update((UCHARPTR) "\n", 1);
-    hmac.Update((UCHARPTR) expires.c_str(), expires.size());
+    hmac.Update((UCHARPTR)expires.c_str(), expires.size());
     hmac.Update((UCHARPTR) "\n", 1);
-    hmac.Update((UCHARPTR) path.data(), path.size());
+    hmac.Update((UCHARPTR)path.data(), path.size());
     hmac.Final(base_t::dest);
 
-    return  format_signature_t::result();
+    return format_signature_t::result();
   }
 }; /* TempURLSignatureT */
+
 class TempURLEngine::SignatureHelper {
 public:
-  SignatureHelper() {};
-  virtual ~SignatureHelper() {};
-  virtual const char* calc(const std::string& key,
-    const std::string_view& method,
-    const std::string_view& path,
-    const std::string& expires) {
+  SignatureHelper(){};
+  virtual ~SignatureHelper(){};
+
+  virtual const char*
+  calc(
+      const std::string& key,
+      const std::string_view& method,
+      const std::string_view& path,
+      const std::string& expires)
+  {
     return nullptr;
   }
-  virtual bool is_equal_to(const std::string& rhs) {
+
+  virtual bool
+  is_equal_to(const std::string& rhs)
+  {
     return false;
   };
+
   static std::unique_ptr<SignatureHelper> get_sig_helper(std::string_view x);
 };
+
 class TempURLSignature {
   friend TempURLEngine;
   using BadSignatureHelper = TempURLEngine::SignatureHelper;
-  template<typename HASHFLAVOR, SignatureFlavor SIGNATUREFLAVOR>
-  class SignatureHelper_x : public TempURLEngine::SignatureHelper
-  {
+
+  template <typename HASHFLAVOR, SignatureFlavor SIGNATUREFLAVOR>
+  class SignatureHelper_x : public TempURLEngine::SignatureHelper {
     friend TempURLEngine;
-    TempURLSignatureT<HASHFLAVOR,SIGNATUREFLAVOR> d;
+    TempURLSignatureT<HASHFLAVOR, SIGNATUREFLAVOR> d;
+
   public:
-    SignatureHelper_x() {};
-    ~SignatureHelper_x() { };
-    virtual const char* calc(const std::string& key,
-      const std::string_view& method,
-      const std::string_view& path,
-      const std::string& expires) {
-      return d.calc(key,method,path,expires);
+    SignatureHelper_x(){};
+    ~SignatureHelper_x(){};
+
+    virtual const char*
+    calc(
+        const std::string& key,
+        const std::string_view& method,
+        const std::string_view& path,
+        const std::string& expires)
+    {
+      return d.calc(key, method, path, expires);
     }
-    virtual bool is_equal_to(const std::string& rhs) {
+
+    virtual bool
+    is_equal_to(const std::string& rhs)
+    {
       return d.is_equal_to(rhs);
     };
   };
 };
 
-std::unique_ptr<TempURLEngine::SignatureHelper> TempURLEngine::SignatureHelper::get_sig_helper(std::string_view x) {
+std::unique_ptr<TempURLEngine::SignatureHelper>
+TempURLEngine::SignatureHelper::get_sig_helper(std::string_view x)
+{
   size_t pos = x.find(':');
   if (pos == x.npos || pos <= 0) {
-    switch(x.length()) {
-    case CEPH_CRYPTO_HMACSHA1_DIGESTSIZE*2:
-      return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA1,rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
-    case CEPH_CRYPTO_HMACSHA256_DIGESTSIZE*2:
-      return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA256,rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
-    case CEPH_CRYPTO_HMACSHA512_DIGESTSIZE*2:
-      return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA512,rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
+    switch (x.length()) {
+    case CEPH_CRYPTO_HMACSHA1_DIGESTSIZE * 2:
+      return std::make_unique<TempURLSignature::SignatureHelper_x<
+          ceph::crypto::HMACSHA1, rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
+    case CEPH_CRYPTO_HMACSHA256_DIGESTSIZE * 2:
+      return std::make_unique<TempURLSignature::SignatureHelper_x<
+          ceph::crypto::HMACSHA256, rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
+    case CEPH_CRYPTO_HMACSHA512_DIGESTSIZE * 2:
+      return std::make_unique<TempURLSignature::SignatureHelper_x<
+          ceph::crypto::HMACSHA512, rgw::auth::swift::SignatureFlavor::BARE_HEX>>();
     }
     return std::make_unique<TempURLSignature::BadSignatureHelper>();
   }
-  std::string_view type { x.substr(0,pos) };
+  std::string_view type{x.substr(0, pos)};
   if (type == "sha1") {
-    return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA1,rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
+    return std::make_unique<TempURLSignature::SignatureHelper_x<
+        ceph::crypto::HMACSHA1, rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
   } else if (type == "sha256") {
-    return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA256,rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
+    return std::make_unique<TempURLSignature::SignatureHelper_x<
+        ceph::crypto::HMACSHA256,
+        rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
   } else if (type == "sha512") {
-    return std::make_unique<TempURLSignature::SignatureHelper_x<ceph::crypto::HMACSHA512,rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
+    return std::make_unique<TempURLSignature::SignatureHelper_x<
+        ceph::crypto::HMACSHA512,
+        rgw::auth::swift::SignatureFlavor::NAMED_BASE64>>();
   }
   return std::make_unique<TempURLSignature::BadSignatureHelper>();
 };
@@ -290,37 +334,44 @@ class TempURLEngine::PrefixableSignatureHelper {
   std::unique_ptr<SignatureHelper> base_sig_helper;
 
 public:
-  PrefixableSignatureHelper(const std::string_view sig,
-	                    const std::string& _decoded_uri,
-	                    const std::string& object_name,
-                            const boost::optional<const std::string&> prefix)
-    : decoded_uri(_decoded_uri),
-      object_name(object_name),
-      prefix(prefix),
-      base_sig_helper(TempURLEngine::SignatureHelper::get_sig_helper(sig)) {
+  PrefixableSignatureHelper(
+      const std::string_view sig,
+      const std::string& _decoded_uri,
+      const std::string& object_name,
+      const boost::optional<const std::string&> prefix) :
+    decoded_uri(_decoded_uri),
+    object_name(object_name),
+    prefix(prefix),
+    base_sig_helper(TempURLEngine::SignatureHelper::get_sig_helper(sig))
+  {
     /* Transform: v1/acct/cont/obj - > v1/acct/cont/
      *
      * NOTE(rzarzynski): we really want to substr() on std::string_view,
      * not std::string. Otherwise we would end with no_obj_uri referencing
      * a temporary. */
-    no_obj_uri = \
-      decoded_uri.substr(0, decoded_uri.length() - object_name.length());
+    no_obj_uri =
+        decoded_uri.substr(0, decoded_uri.length() - object_name.length());
   };
 
-  const char* calc(const std::string& key,
-                   const std::string_view& method,
-                   const std::string_view& path,
-                   const std::string& expires) {
+  const char*
+  calc(
+      const std::string& key,
+      const std::string_view& method,
+      const std::string_view& path,
+      const std::string& expires)
+  {
     if (!prefix) {
       return base_sig_helper->calc(key, method, path, expires);
     } else {
-      const auto prefixed_path = \
-        string_cat_reserve("prefix:", no_obj_uri, *prefix);
+      const auto prefixed_path =
+          string_cat_reserve("prefix:", no_obj_uri, *prefix);
       return base_sig_helper->calc(key, method, prefixed_path, expires);
     }
   }
 
-  bool is_equal_to(const std::string& rhs) const {
+  bool
+  is_equal_to(const std::string& rhs) const
+  {
     bool is_auth_ok = base_sig_helper->is_equal_to(rhs);
 
     if (prefix && is_auth_ok) {
@@ -333,9 +384,12 @@ public:
 }; /* TempURLEngine::PrefixableSignatureHelper */
 
 TempURLEngine::result_t
-TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* const s, optional_yield y) const
+TempURLEngine::authenticate(
+    const DoutPrefixProvider* dpp,
+    const req_state* const s,
+    optional_yield y) const
 {
-  if (! is_applicable(s)) {
+  if (!is_applicable(s)) {
     return result_t::deny();
   }
 
@@ -343,8 +397,8 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
    * never returns nullptr. If the requested parameter is absent, we will
    * get the empty string. */
   const std::string& temp_url_sig = s->info.args.get("temp_url_sig");
-  const std::string& temp_url_expires = \
-    convert_from_iso8601(s->info.args.get("temp_url_expires"));
+  const std::string& temp_url_expires =
+      convert_from_iso8601(s->info.args.get("temp_url_expires"));
 
   if (temp_url_sig.empty() || temp_url_expires.empty()) {
     return result_t::deny();
@@ -353,8 +407,8 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
   /* Though, for prefixed tempurls we need to differentiate between empty
    * prefix and lack of prefix. Empty prefix means allowance for whole
    * container. */
-  const boost::optional<const std::string&> temp_url_prefix = \
-    s->info.args.get_optional("temp_url_prefix");
+  const boost::optional<const std::string&> temp_url_prefix =
+      s->info.args.get_optional("temp_url_prefix");
 
   RGWUserInfo owner_info;
   try {
@@ -365,7 +419,8 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
   }
 
   if (owner_info.temp_url_keys.empty()) {
-    ldpp_dout(dpp, 5) << "user does not have temp url key set, aborting" << dendl;
+    ldpp_dout(dpp, 5) << "user does not have temp url key set, aborting"
+                      << dendl;
     return result_t::reject();
   }
 
@@ -387,9 +442,7 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
   const size_t pos = g_conf()->rgw_swift_url_prefix.find_last_not_of('/') + 1;
   const std::string_view ref_uri = s->decoded_uri;
   const std::array<std::string_view, 2> allowed_paths = {
-    ref_uri,
-    ref_uri.substr(pos + 1)
-  };
+      ref_uri, ref_uri.substr(pos + 1)};
 
   /* Account owner calculates the signature also against a HTTP method. */
   boost::container::static_vector<std::string_view, 3> allowed_methods;
@@ -407,12 +460,8 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
   }
 
   /* Need to try each combination of keys, allowed path and methods. */
-  PrefixableSignatureHelper sig_helper {
-    temp_url_sig,
-    s->decoded_uri,
-    s->object->get_name(),
-    temp_url_prefix
-  };
+  PrefixableSignatureHelper sig_helper{
+      temp_url_sig, s->decoded_uri, s->object->get_name(), temp_url_prefix};
 
   for (const auto& kv : owner_info.temp_url_keys) {
     const int temp_url_key_num = kv.first;
@@ -424,19 +473,18 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
 
     for (const auto& path : allowed_paths) {
       for (const auto& method : allowed_methods) {
-        const char* const local_sig = sig_helper.calc(temp_url_key, method,
-                                                      path, temp_url_expires);
+        const char* const local_sig =
+            sig_helper.calc(temp_url_key, method, path, temp_url_expires);
 
         ldpp_dout(dpp, 20) << "temp url signature [" << temp_url_key_num
-                          << "] (calculated): " << local_sig
-                          << dendl;
+                           << "] (calculated): " << local_sig << dendl;
 
         if (sig_helper.is_equal_to(temp_url_sig)) {
           auto apl = apl_factory->create_apl_turl(cct, s, owner_info);
           return result_t::grant(std::move(apl));
         } else {
-          ldpp_dout(dpp,  5) << "temp url signature mismatch: " << local_sig
-                            << " != " << temp_url_sig  << dendl;
+          ldpp_dout(dpp, 5) << "temp url signature mismatch: " << local_sig
+                            << " != " << temp_url_sig << dendl;
         }
       }
     }
@@ -445,9 +493,9 @@ TempURLEngine::authenticate(const DoutPrefixProvider* dpp, const req_state* cons
   return result_t::reject();
 }
 
-
 /* External token */
-bool ExternalTokenEngine::is_applicable(const std::string& token) const noexcept
+bool
+ExternalTokenEngine::is_applicable(const std::string& token) const noexcept
 {
   if (token.empty()) {
     return false;
@@ -459,11 +507,13 @@ bool ExternalTokenEngine::is_applicable(const std::string& token) const noexcept
 }
 
 ExternalTokenEngine::result_t
-ExternalTokenEngine::authenticate(const DoutPrefixProvider* dpp,
-                                  const std::string& token,
-                                  const req_state* const s, optional_yield y) const
+ExternalTokenEngine::authenticate(
+    const DoutPrefixProvider* dpp,
+    const std::string& token,
+    const req_state* const s,
+    optional_yield y) const
 {
-  if (! is_applicable(token)) {
+  if (!is_applicable(token)) {
     return result_t::deny();
   }
 
@@ -476,7 +526,8 @@ ExternalTokenEngine::authenticate(const DoutPrefixProvider* dpp,
   char url_buf[auth_url.size() + 1 + token.length() + 1];
   sprintf(url_buf, "%s/%s", auth_url.c_str(), token.c_str());
 
-  RGWHTTPHeadersCollector validator(cct, "GET", url_buf, { "X-Auth-Groups", "X-Auth-Ttl" });
+  RGWHTTPHeadersCollector validator(
+      cct, "GET", url_buf, {"X-Auth-Groups", "X-Auth-Ttl"});
 
   ldpp_dout(dpp, 10) << "rgw_swift_validate_token url=" << url_buf << dendl;
 
@@ -488,8 +539,7 @@ ExternalTokenEngine::authenticate(const DoutPrefixProvider* dpp,
   std::string swift_user;
   try {
     std::vector<std::string> swift_groups;
-    get_str_vec(validator.get_header_value("X-Auth-Groups"),
-                ",", swift_groups);
+    get_str_vec(validator.get_header_value("X-Auth-Groups"), ",", swift_groups);
 
     if (0 == swift_groups.size()) {
       return result_t::deny(-EPERM);
@@ -516,24 +566,26 @@ ExternalTokenEngine::authenticate(const DoutPrefixProvider* dpp,
 
   std::optional<RGWAccountInfo> account;
   std::vector<IAM::Policy> policies;
-  ret = load_account_and_policies(dpp, y, driver, user->get_info(),
-                                  user->get_attrs(), account, policies);
+  ret = load_account_and_policies(
+      dpp, y, driver, user->get_info(), user->get_attrs(), account, policies);
   if (ret < 0) {
     return result_t::deny(-EPERM);
   }
 
   auto apl = apl_factory->create_apl_local(
-      cct, s, std::move(user), std::move(account),
-      std::move(policies), extract_swift_subuser(swift_user),
-      std::nullopt, LocalApplier::NO_ACCESS_KEY, false /* is_impersonating */);
+      cct, s, std::move(user), std::move(account), std::move(policies),
+      extract_swift_subuser(swift_user), std::nullopt,
+      LocalApplier::NO_ACCESS_KEY, false /* is_impersonating */);
   return result_t::grant(std::move(apl));
 }
 
-static int build_token(const string& swift_user,
-                       const string& key,
-                       const uint64_t nonce,
-                       const utime_t& expiration,
-                       bufferlist& bl)
+static int
+build_token(
+    const string& swift_user,
+    const string& key,
+    const uint64_t nonce,
+    const utime_t& expiration,
+    bufferlist& bl)
 {
   using ceph::encode;
   encode(swift_user, bl);
@@ -543,14 +595,14 @@ static int build_token(const string& swift_user,
   bufferptr p(CEPH_CRYPTO_HMACSHA1_DIGESTSIZE);
 
   char buf[bl.length() * 2 + 1];
-  buf_to_hex((const unsigned char *)bl.c_str(), bl.length(), buf);
+  buf_to_hex((const unsigned char*)bl.c_str(), bl.length(), buf);
   dout(20) << "build_token token=" << buf << dendl;
 
   char k[CEPH_CRYPTO_HMACSHA1_DIGESTSIZE];
   // FIPS zeroization audit 20191116: this memset is not intended to
   // wipe out a secret after use.
   memset(k, 0, sizeof(k));
-  const char *s = key.c_str();
+  const char* s = key.c_str();
   for (int i = 0; i < (int)key.length(); i++, s++) {
     k[i % CEPH_CRYPTO_HMACSHA1_DIGESTSIZE] |= *s;
   }
@@ -560,11 +612,10 @@ static int build_token(const string& swift_user,
   bl.append(p);
 
   return 0;
-
 }
 
-static int encode_token(CephContext *cct, string& swift_user, string& key,
-			bufferlist& bl)
+static int
+encode_token(CephContext* cct, string& swift_user, string& key, bufferlist& bl)
 {
   const auto nonce = ceph::util::generate_random_number<uint64_t>();
 
@@ -574,9 +625,9 @@ static int encode_token(CephContext *cct, string& swift_user, string& key,
   return build_token(swift_user, key, nonce, expiration, bl);
 }
 
-
 /* AUTH_rgwtk (signed token): engine */
-bool SignedTokenEngine::is_applicable(const std::string& token) const noexcept
+bool
+SignedTokenEngine::is_applicable(const std::string& token) const noexcept
 {
   if (token.empty()) {
     return false;
@@ -586,11 +637,12 @@ bool SignedTokenEngine::is_applicable(const std::string& token) const noexcept
 }
 
 SignedTokenEngine::result_t
-SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
-                                const std::string& token,
-                                const req_state* const s) const
+SignedTokenEngine::authenticate(
+    const DoutPrefixProvider* dpp,
+    const std::string& token,
+    const req_state* const s) const
 {
-  if (! is_applicable(token)) {
+  if (!is_applicable(token)) {
     return result_t::deny(-EPERM);
   }
 
@@ -600,11 +652,11 @@ SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
 
   if (etoken_len & 1) {
     ldpp_dout(dpp, 0) << "NOTICE: failed to verify token: odd token length="
-	          << etoken_len << dendl;
+                      << etoken_len << dendl;
     throw -EINVAL;
   }
 
-  ceph::bufferptr p(etoken_len/2);
+  ceph::bufferptr p(etoken_len / 2);
   int ret = hex_to_buf(etoken.c_str(), p.c_str(), etoken_len);
   if (ret < 0) {
     throw ret;
@@ -632,8 +684,7 @@ SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
   const utime_t now = ceph_clock_now();
   if (expiration < now) {
     ldpp_dout(dpp, 0) << "NOTICE: old timed out token was used now=" << now
-	          << " token.expiration=" << expiration
-                  << dendl;
+                      << " token.expiration=" << expiration << dendl;
     return result_t::deny(-EPERM);
   }
 
@@ -645,8 +696,9 @@ SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
 
   std::optional<RGWAccountInfo> account;
   std::vector<IAM::Policy> policies;
-  ret = load_account_and_policies(dpp, s->yield, driver, user->get_info(),
-                                  user->get_attrs(), account, policies);
+  ret = load_account_and_policies(
+      dpp, s->yield, driver, user->get_info(), user->get_attrs(), account,
+      policies);
   if (ret < 0) {
     return result_t::deny(-EPERM);
   }
@@ -668,27 +720,27 @@ SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
 
   if (local_tok_bl.length() != tok_bl.length()) {
     ldpp_dout(dpp, 0) << "NOTICE: tokens length mismatch:"
-                  << " tok_bl.length()=" << tok_bl.length()
-	          << " local_tok_bl.length()=" << local_tok_bl.length()
-                  << dendl;
+                      << " tok_bl.length()=" << tok_bl.length()
+                      << " local_tok_bl.length()=" << local_tok_bl.length()
+                      << dendl;
     return result_t::deny(-EPERM);
   }
 
-  if (memcmp(local_tok_bl.c_str(), tok_bl.c_str(),
-             local_tok_bl.length()) != 0) {
+  if (memcmp(local_tok_bl.c_str(), tok_bl.c_str(), local_tok_bl.length()) != 0) {
     char buf[local_tok_bl.length() * 2 + 1];
 
-    buf_to_hex(reinterpret_cast<const unsigned char *>(local_tok_bl.c_str()),
-               local_tok_bl.length(), buf);
+    buf_to_hex(
+        reinterpret_cast<const unsigned char*>(local_tok_bl.c_str()),
+        local_tok_bl.length(), buf);
 
     ldpp_dout(dpp, 0) << "NOTICE: tokens mismatch tok=" << buf << dendl;
     return result_t::deny(-EPERM);
   }
 
   auto apl = apl_factory->create_apl_local(
-      cct, s, std::move(user), std::move(account),
-      std::move(policies), extract_swift_subuser(swift_user),
-      std::nullopt, LocalApplier::NO_ACCESS_KEY, false /* is_impersonating */);
+      cct, s, std::move(user), std::move(account), std::move(policies),
+      extract_swift_subuser(swift_user), std::nullopt,
+      LocalApplier::NO_ACCESS_KEY, false /* is_impersonating */);
   return result_t::grant(std::move(apl));
 }
 
@@ -696,20 +748,20 @@ SignedTokenEngine::authenticate(const DoutPrefixProvider* dpp,
 } /* namespace auth */
 } /* namespace rgw */
 
-
-void RGW_SWIFT_Auth_Get::execute(optional_yield y)
+void
+RGW_SWIFT_Auth_Get::execute(optional_yield y)
 {
   int ret = -EPERM;
 
-  const char *key = s->info.env->get("HTTP_X_AUTH_KEY");
-  const char *user_name = s->info.env->get("HTTP_X_AUTH_USER");
+  const char* key = s->info.env->get("HTTP_X_AUTH_KEY");
+  const char* user_name = s->info.env->get("HTTP_X_AUTH_USER");
 
   s->prot_flags |= RGW_REST_SWIFT;
 
   string user_str;
   std::unique_ptr<rgw::sal::User> user;
   bufferlist bl;
-  RGWAccessKey *swift_key;
+  RGWAccessKey* swift_key;
   map<string, RGWAccessKey>::iterator siter;
 
   string swift_url = g_conf()->rgw_swift_url;
@@ -735,7 +787,7 @@ void RGW_SWIFT_Auth_Get::execute(optional_yield y)
   if (swift_url.size() == 0) {
     bool add_port = false;
     auto server_port = s->info.env->get_optional("SERVER_PORT_SECURE");
-    const char *protocol;
+    const char* protocol;
     if (server_port) {
       add_port = (*server_port != "443");
       protocol = "https";
@@ -746,9 +798,11 @@ void RGW_SWIFT_Auth_Get::execute(optional_yield y)
       }
       protocol = "http";
     }
-    const char *host = s->info.env->get("HTTP_HOST");
+    const char* host = s->info.env->get("HTTP_HOST");
     if (!host) {
-      dout(0) << "NOTICE: server is misconfigured, missing rgw_swift_url_prefix or rgw_swift_url, HTTP_HOST is not set" << dendl;
+      dout(0) << "NOTICE: server is misconfigured, missing "
+                 "rgw_swift_url_prefix or rgw_swift_url, HTTP_HOST is not set"
+              << dendl;
       ret = -EINVAL;
       goto done;
     }
@@ -793,8 +847,8 @@ void RGW_SWIFT_Auth_Get::execute(optional_yield y)
     tenant_path.append(user->get_id().to_str());
   }
 
-  dump_header(s, "X-Storage-Url", swift_url + swift_prefix + "/v1" +
-              tenant_path);
+  dump_header(
+      s, "X-Storage-Url", swift_url + swift_prefix + "/v1" + tenant_path);
 
   using rgw::auth::swift::encode_token;
   if ((ret = encode_token(s->cct, swift_key->id, swift_key->key, bl)) < 0)
@@ -805,8 +859,8 @@ void RGW_SWIFT_Auth_Get::execute(optional_yield y)
     char token_val[PREFIX_LEN + bl.length() * 2 + 1];
 
     snprintf(token_val, PREFIX_LEN + 1, "AUTH_rgwtk");
-    buf_to_hex((const unsigned char *)bl.c_str(), bl.length(),
-	       token_val + PREFIX_LEN);
+    buf_to_hex(
+        (const unsigned char*)bl.c_str(), bl.length(), token_val + PREFIX_LEN);
 
     dump_header(s, "X-Storage-Token", token_val);
     dump_header(s, "X-Auth-Token", token_val);
@@ -820,8 +874,11 @@ done:
   end_header(s);
 }
 
-int RGWHandler_SWIFT_Auth::init(rgw::sal::Driver* driver, req_state *state,
-				rgw::io::BasicClient *cio)
+int
+RGWHandler_SWIFT_Auth::init(
+    rgw::sal::Driver* driver,
+    req_state* state,
+    rgw::io::BasicClient* cio)
 {
   state->dialect = "swift-auth";
   state->formatter = new JSONFormatter;
@@ -830,12 +887,14 @@ int RGWHandler_SWIFT_Auth::init(rgw::sal::Driver* driver, req_state *state,
   return RGWHandler::init(driver, state, cio);
 }
 
-int RGWHandler_SWIFT_Auth::authorize(const DoutPrefixProvider *dpp, optional_yield)
+int
+RGWHandler_SWIFT_Auth::authorize(const DoutPrefixProvider* dpp, optional_yield)
 {
   return 0;
 }
 
-RGWOp *RGWHandler_SWIFT_Auth::op_get()
+RGWOp*
+RGWHandler_SWIFT_Auth::op_get()
 {
   return new RGW_SWIFT_Auth_Get;
 }

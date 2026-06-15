@@ -4,12 +4,12 @@
 #ifndef CEPH_LIBRBD_IMAGE_REMOVE_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_REMOVE_REQUEST_H
 
+#include <list>
+
+#include "common/Timer.h"
 #include "include/rados/librados.hpp"
 #include "librbd/ImageCtx.h"
 #include "librbd/image/TypeTraits.h"
-#include "common/Timer.h"
-
-#include <list>
 
 class Context;
 
@@ -19,32 +19,43 @@ class ProgressContext;
 
 namespace image {
 
-template<typename ImageCtxT = ImageCtx>
+template <typename ImageCtxT = ImageCtx>
 class RemoveRequest {
 private:
   // mock unit testing support
   typedef ::librbd::image::TypeTraits<ImageCtxT> TypeTraits;
   typedef typename TypeTraits::ContextWQ ContextWQ;
+
 public:
-  static RemoveRequest *create(librados::IoCtx &ioctx,
-                               const std::string &image_name,
-                               const std::string &image_id,
-                               bool force, bool from_trash_remove,
-                               ProgressContext &prog_ctx,
-                               ContextWQ *op_work_queue,
-                               Context *on_finish) {
-    return new RemoveRequest(ioctx, image_name, image_id, force,
-                             from_trash_remove, prog_ctx, op_work_queue,
-                             on_finish);
+  static RemoveRequest*
+  create(
+      librados::IoCtx& ioctx,
+      const std::string& image_name,
+      const std::string& image_id,
+      bool force,
+      bool from_trash_remove,
+      ProgressContext& prog_ctx,
+      ContextWQ* op_work_queue,
+      Context* on_finish)
+  {
+    return new RemoveRequest(
+        ioctx, image_name, image_id, force, from_trash_remove, prog_ctx,
+        op_work_queue, on_finish);
   }
 
-  static RemoveRequest *create(librados::IoCtx &ioctx, ImageCtxT *image_ctx,
-                               bool force, bool from_trash_remove,
-                               ProgressContext &prog_ctx,
-                               ContextWQ *op_work_queue,
-                               Context *on_finish) {
-    return new RemoveRequest(ioctx, image_ctx, force, from_trash_remove,
-                             prog_ctx, op_work_queue, on_finish);
+  static RemoveRequest*
+  create(
+      librados::IoCtx& ioctx,
+      ImageCtxT* image_ctx,
+      bool force,
+      bool from_trash_remove,
+      ProgressContext& prog_ctx,
+      ContextWQ* op_work_queue,
+      Context* on_finish)
+  {
+    return new RemoveRequest(
+        ioctx, image_ctx, force, from_trash_remove, prog_ctx, op_work_queue,
+        on_finish);
   }
 
   void send();
@@ -100,26 +111,36 @@ private:
    * @endverbatim
    */
 
-  RemoveRequest(librados::IoCtx &ioctx, const std::string &image_name,
-                const std::string &image_id, bool force, bool from_trash_remove,
-                ProgressContext &prog_ctx, ContextWQ *op_work_queue,
-                Context *on_finish);
+  RemoveRequest(
+      librados::IoCtx& ioctx,
+      const std::string& image_name,
+      const std::string& image_id,
+      bool force,
+      bool from_trash_remove,
+      ProgressContext& prog_ctx,
+      ContextWQ* op_work_queue,
+      Context* on_finish);
 
-  RemoveRequest(librados::IoCtx &ioctx, ImageCtxT *image_ctx, bool force,
-                bool from_trash_remove, ProgressContext &prog_ctx,
-                ContextWQ *op_work_queue, Context *on_finish);
+  RemoveRequest(
+      librados::IoCtx& ioctx,
+      ImageCtxT* image_ctx,
+      bool force,
+      bool from_trash_remove,
+      ProgressContext& prog_ctx,
+      ContextWQ* op_work_queue,
+      Context* on_finish);
 
-  librados::IoCtx &m_ioctx;
+  librados::IoCtx& m_ioctx;
   std::string m_image_name;
   std::string m_image_id;
-  ImageCtxT *m_image_ctx = nullptr;
+  ImageCtxT* m_image_ctx = nullptr;
   bool m_force;
   bool m_from_trash_remove;
-  ProgressContext &m_prog_ctx;
-  ContextWQ *m_op_work_queue;
-  Context *m_on_finish;
+  ProgressContext& m_prog_ctx;
+  ContextWQ* m_op_work_queue;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
   std::string m_header_oid;
   bool m_old_format = false;
   bool m_unknown_format = true;

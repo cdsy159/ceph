@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,18 +18,20 @@
 
 #include <string_view>
 
-#include "common/admin_finisher.h" // for asok_finisher
 #include "common/LogClient.h"
-#include "common/fair_mutex.h"
 #include "common/Timer.h"
+#include "common/admin_finisher.h" // for asok_finisher
+#include "common/fair_mutex.h"
 #include "mgr/MgrClient.h"
 #include "msg/Dispatcher.h"
 
 #include "Beacon.h"
 
-#define CEPH_MDS_PROTOCOL    36 /* cluster internal */
+#define CEPH_MDS_PROTOCOL 36 /* cluster internal */
 
-namespace boost::asio { class io_context; }
+namespace boost::asio {
+class io_context;
+}
 class Context;
 class MDSAuthCaps;
 class MDSMap;
@@ -40,18 +42,26 @@ class MCommand;
 class MMDSMap;
 
 class MDSDaemon : public Dispatcher {
- public:
-  MDSDaemon(std::string_view n, Messenger *m, MonClient *mc,
-	    boost::asio::io_context& ioctx);
+public:
+  MDSDaemon(
+      std::string_view n,
+      Messenger* m,
+      MonClient* mc,
+      boost::asio::io_context& ioctx);
 
   ~MDSDaemon() override;
 
-  mono_time get_starttime() const {
+  mono_time
+  get_starttime() const
+  {
     return starttime;
   }
-  std::chrono::duration<double> get_uptime() const {
+
+  std::chrono::duration<double>
+  get_uptime() const
+  {
     mono_time now = mono_clock::now();
-    return std::chrono::duration<double>(now-starttime);
+    return std::chrono::duration<double>(now - starttime);
   }
 
   // handle a signal (e.g., SIGTERM)
@@ -78,10 +88,10 @@ class MDSDaemon : public Dispatcher {
   std::string gss_ktfile_client{};
 
   int orig_argc;
-  const char **orig_argv;
+  const char** orig_argv;
 
 
- protected:
+protected:
   // admin socket handling
   friend class MDSSocketHook;
 
@@ -95,13 +105,13 @@ class MDSDaemon : public Dispatcher {
   void clean_up_admin_socket();
   void check_ops_in_flight(); // send off any slow ops to monitor
   void asok_command(
-    std::string_view command,
-    const cmdmap_t& cmdmap,
-    Formatter *f,
-    const bufferlist &inbl,
-    asok_finisher on_finish);
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      Formatter* f,
+      const bufferlist& inbl,
+      asok_finisher on_finish);
 
-  void dump_status(Formatter *f);
+  void dump_status(Formatter* f);
 
   /**
    * Terminate this daemon process.
@@ -119,37 +129,37 @@ class MDSDaemon : public Dispatcher {
 
   void tick();
 
-  bool handle_core_message(const cref_t<Message> &m);
-  
-  void handle_command(const cref_t<MCommand> &m);
-  void handle_mds_map(const cref_t<MMDSMap> &m);
+  bool handle_core_message(const cref_t<Message>& m);
+
+  void handle_command(const cref_t<MCommand>& m);
+  void handle_mds_map(const cref_t<MMDSMap>& m);
 
   Beacon beacon;
 
   std::string name;
 
-  Messenger    *messenger;
-  MonClient    *monc;
+  Messenger* messenger;
+  MonClient* monc;
   boost::asio::io_context& ioctx;
-  MgrClient     mgrc;
+  MgrClient mgrc;
   std::unique_ptr<MDSMap> mdsmap;
-  LogClient    log_client;
+  LogClient log_client;
   LogChannelRef clog;
 
-  MDSRankDispatcher *mds_rank = nullptr;
+  MDSRankDispatcher* mds_rank = nullptr;
 
   // tick and other timer fun
-  Context *tick_event = nullptr;
-  class MDSSocketHook *asok_hook = nullptr;
+  Context* tick_event = nullptr;
+  class MDSSocketHook* asok_hook = nullptr;
 
- private:
-  Dispatcher::dispatch_result_t ms_dispatch2(const ref_t<Message> &m) override;
-  bool ms_handle_fast_authentication(Connection *con) override;
-  void ms_handle_accept(Connection *con) override;
-  void ms_handle_connect(Connection *con) override;
-  bool ms_handle_reset(Connection *con) override;
-  void ms_handle_remote_reset(Connection *con) override;
-  bool ms_handle_refused(Connection *con) override;
+private:
+  Dispatcher::dispatch_result_t ms_dispatch2(const ref_t<Message>& m) override;
+  bool ms_handle_fast_authentication(Connection* con) override;
+  void ms_handle_accept(Connection* con) override;
+  void ms_handle_connect(Connection* con) override;
+  bool ms_handle_reset(Connection* con) override;
+  void ms_handle_remote_reset(Connection* con) override;
+  bool ms_handle_refused(Connection* con) override;
 
   bool parse_caps(const AuthCapsInfo&, MDSAuthCaps&);
 

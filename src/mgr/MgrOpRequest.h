@@ -16,11 +16,12 @@
 #ifndef OPREQUEST_H_
 #define OPREQUEST_H_
 
+#include "common/TrackedOp.h"
+#include "common/tracer.h"
 #include "msg/Message.h"
 #include "msg/MessageRef.h"
 #include "msg/msg_types.h"
-#include "common/TrackedOp.h"
-#include "common/tracer.h"
+
 /**
  * The MgrOpRequest takes in a MessageRef and takes over a single reference
  * to it, which it puts() when destroyed.
@@ -29,7 +30,7 @@ struct MgrOpRequest : public TrackedOp {
   friend class OpTracker;
 
 public:
-  void _dump(ceph::Formatter *f) const override;
+  void _dump(ceph::Formatter* f) const override;
 
 private:
   MessageRef request; /// the logical request we are tracking
@@ -38,13 +39,13 @@ private:
   uint8_t latest_flag_point;
   std::string last_event_detail;
 
-  static const uint8_t flag_started =              1 << 0;
-  static const uint8_t flag_queued_for_module =    1 << 1;
-  static const uint8_t flag_reached_module =       1 << 2;
-  static const uint8_t flag_start_mon_command =    1 << 3;
-  static const uint8_t flag_finish_mon_command =   1 << 4;
+  static const uint8_t flag_started = 1 << 0;
+  static const uint8_t flag_queued_for_module = 1 << 1;
+  static const uint8_t flag_reached_module = 1 << 2;
+  static const uint8_t flag_start_mon_command = 1 << 3;
+  static const uint8_t flag_finish_mon_command = 1 << 4;
 
-  MgrOpRequest(MessageRef req, OpTracker *tracker);
+  MgrOpRequest(MessageRef req, OpTracker* tracker);
 
 protected:
   void _dump_op_descriptor(std::ostream& stream) const override;
@@ -52,80 +53,121 @@ protected:
   bool filter_out(const std::set<std::string>& filters) override;
 
 public:
-  ~MgrOpRequest() override {
+  ~MgrOpRequest() override {}
+
+  template <class T>
+  const T*
+  get_req() const
+  {
+    return static_cast<const T*>(request);
   }
 
-  template<class T>
-  const T* get_req() const { return static_cast<const T*>(request); }
+  const MessageRef
+  get_req() const
+  {
+    return request;
+  }
 
-  const MessageRef get_req() const { return request; }
-  MessageRef get_nonconst_req() { return request; }
+  MessageRef
+  get_nonconst_req()
+  {
+    return request;
+  }
 
-  entity_name_t get_source() {
+  entity_name_t
+  get_source()
+  {
     if (request) {
       return request->get_source();
     } else {
       return {};
     }
   }
-  uint8_t state_flag() const {
+
+  uint8_t
+  state_flag() const
+  {
     return latest_flag_point;
   }
 
-  std::string _get_state_string() const override {
-    switch(latest_flag_point) {
-    case flag_started: return "started";
-    case flag_queued_for_module: return "queued for module";
-    case flag_reached_module: return last_event_detail;
-    case flag_start_mon_command: return "start mon command";
-    case flag_finish_mon_command: return "mon command finished";
-    default: break;
+  std::string
+  _get_state_string() const override
+  {
+    switch (latest_flag_point) {
+    case flag_started:
+      return "started";
+    case flag_queued_for_module:
+      return "queued for module";
+    case flag_reached_module:
+      return last_event_detail;
+    case flag_start_mon_command:
+      return "start mon command";
+    case flag_finish_mon_command:
+      return "mon command finished";
+    default:
+      break;
     }
     return "no flag points reached";
   }
 
-  static std::string get_state_string(uint8_t flag) {
+  static std::string
+  get_state_string(uint8_t flag)
+  {
     std::string flag_point;
-    switch(flag) {
-      case flag_started:
-        flag_point = "started";
-        break;
-      case flag_queued_for_module:
-        flag_point = "queued for module";
-        break;
-      case flag_reached_module:
-        flag_point = "reached module";
-        break;
-      case flag_start_mon_command:
-        flag_point = "start mon command";
-        break;
-      case flag_finish_mon_command:
-        flag_point = "mon command finished";
-        break;
+    switch (flag) {
+    case flag_started:
+      flag_point = "started";
+      break;
+    case flag_queued_for_module:
+      flag_point = "queued for module";
+      break;
+    case flag_reached_module:
+      flag_point = "reached module";
+      break;
+    case flag_start_mon_command:
+      flag_point = "start mon command";
+      break;
+    case flag_finish_mon_command:
+      flag_point = "mon command finished";
+      break;
     }
     return flag_point;
   }
 
-  void mark_started() {
+  void
+  mark_started()
+  {
     mark_flag_point(flag_started, "started");
   }
-  void mark_queued_for_module() {
+
+  void
+  mark_queued_for_module()
+  {
     mark_flag_point(flag_queued_for_module, "queued_for_module");
   }
-  void mark_reached(const char *s) {
+
+  void
+  mark_reached(const char* s)
+  {
     mark_flag_point(flag_reached_module, s);
   }
-  void mark_start_mon_command() {
+
+  void
+  mark_start_mon_command()
+  {
     mark_flag_point(flag_start_mon_command, "start_mon_command");
   }
-  void mark_finish_mon_command() {
+
+  void
+  mark_finish_mon_command()
+  {
     mark_flag_point(flag_start_mon_command, "mon_command_finished");
   }
 
   typedef boost::intrusive_ptr<MgrOpRequest> Ref;
 
 private:
-  void mark_flag_point(uint8_t flag, const char *s);
+  void mark_flag_point(uint8_t flag, const char* s);
   void mark_flag_point_string(uint8_t flag, const std::string& s);
 };
 

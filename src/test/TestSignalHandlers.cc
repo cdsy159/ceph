@@ -18,28 +18,32 @@
  *
  * Test the Ceph signal handlers
  */
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "common/errno.h"
-#include "common/debug.h"
-#include "common/config.h"
-
 #include <errno.h>
+
 #include <iostream>
 #include <sstream>
 #include <string>
+
+#include "common/debug.h"
+
+#include "common/ceph_argparse.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "global/global_init.h"
 
 #define dout_context g_ceph_context
 
 using namespace std;
 
 // avoid compiler warning about dereferencing NULL pointer
-static int* get_null()
+static int*
+get_null()
 {
   return 0;
 }
 
-static void simple_segv_test()
+static void
+simple_segv_test()
 {
   generic_dout(-1) << "triggering SIGSEGV..." << dendl;
   // cppcheck-suppress nullPointer
@@ -55,7 +59,8 @@ static void simple_segv_test()
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winfinite-recursion"
 
-static void infinite_recursion_test_impl()
+static void
+infinite_recursion_test_impl()
 {
   infinite_recursion_test_impl();
 }
@@ -63,13 +68,15 @@ static void infinite_recursion_test_impl()
 #pragma GCC diagnostic pop
 #pragma clang diagnostic pop
 
-static void infinite_recursion_test()
+static void
+infinite_recursion_test()
 {
   generic_dout(0) << "triggering SIGSEGV with infinite recursion..." << dendl;
   infinite_recursion_test_impl();
 }
 
-static void usage()
+static void
+usage()
 {
   cout << "usage: TestSignalHandlers [test]" << std::endl;
   cout << "--simple_segv: run simple_segv test" << std::endl;
@@ -79,7 +86,8 @@ static void usage()
 
 typedef void (*test_fn_t)(void);
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -91,13 +99,13 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   test_fn_t fn = NULL;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
     } else if (ceph_argparse_flag(args, i, "--infinite_recursion", (char*)NULL)) {

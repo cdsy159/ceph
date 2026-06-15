@@ -2,19 +2,21 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/migration/NativeFormat.h"
+
+#include "boost/lexical_cast.hpp"
+
 #include "common/ceph_argparse.h"
 #include "common/common_init.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "include/scope_guard.h"
-#include "librbd/ImageCtx.h"
 #include "json_spirit/json_spirit.h"
-#include "boost/lexical_cast.hpp"
+#include "librbd/ImageCtx.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::NativeFormat: " << __func__ \
-                           << ": "
+#define dout_prefix \
+  *_dout << "librbd::migration::NativeFormat: " << __func__ << ": "
 
 namespace librbd {
 namespace migration {
@@ -35,9 +37,13 @@ const std::string SNAP_ID_KEY{"snap_id"};
 } // anonymous namespace
 
 template <typename I>
-std::string NativeFormat<I>::build_source_spec(
-    int64_t pool_id, const std::string& pool_namespace,
-    const std::string& image_name, const std::string& image_id) {
+std::string
+NativeFormat<I>::build_source_spec(
+    int64_t pool_id,
+    const std::string& pool_namespace,
+    const std::string& image_name,
+    const std::string& image_id)
+{
   json_spirit::mObject source_spec;
   source_spec[TYPE_KEY] = "native";
   source_spec[POOL_ID_KEY] = pool_id;
@@ -50,8 +56,9 @@ std::string NativeFormat<I>::build_source_spec(
 }
 
 template <typename I>
-bool NativeFormat<I>::is_source_spec(
-    const json_spirit::mObject& source_spec_object) {
+bool
+NativeFormat<I>::is_source_spec(const json_spirit::mObject& source_spec_object)
+{
   auto it = source_spec_object.find(TYPE_KEY);
   return it != source_spec_object.end() &&
          it->second.type() == json_spirit::str_type &&
@@ -59,11 +66,15 @@ bool NativeFormat<I>::is_source_spec(
 }
 
 template <typename I>
-int NativeFormat<I>::create_image_ctx(
+int
+NativeFormat<I>::create_image_ctx(
     librados::IoCtx& dst_io_ctx,
     const json_spirit::mObject& source_spec_object,
-    bool import_only, uint64_t src_snap_id, I** src_image_ctx,
-    librados::Rados** src_rados) {
+    bool import_only,
+    uint64_t src_snap_id,
+    I** src_image_ctx,
+    librados::Rados** src_rados)
+{
   auto cct = reinterpret_cast<CephContext*>(dst_io_ctx.cct());
   std::string cluster_name;
   std::string client_name;
@@ -233,8 +244,7 @@ int NativeFormat<I>::create_image_ctx(
 
     // pass CEPH_CONF_FILE_DEFAULT instead of nullptr to prevent
     // CEPH_CONF environment variable from being picked up
-    r = remote_cct->_conf.parse_config_files(CEPH_CONF_FILE_DEFAULT, nullptr,
-                                             0);
+    r = remote_cct->_conf.parse_config_files(CEPH_CONF_FILE_DEFAULT, nullptr, 0);
     if (r < 0) {
       remote_cct->_conf.complain_about_parse_error(cct);
       lderr(cct) << "failed to read ceph conf for remote cluster: "
@@ -273,11 +283,10 @@ int NativeFormat<I>::create_image_ctx(
   src_io_ctx.set_namespace(pool_namespace);
 
   if (!snap_name.empty() && snap_id == CEPH_NOSNAP) {
-    *src_image_ctx = I::create(image_name, image_id, snap_name.c_str(),
-                               src_io_ctx, true);
+    *src_image_ctx =
+        I::create(image_name, image_id, snap_name.c_str(), src_io_ctx, true);
   } else {
-    *src_image_ctx = I::create(image_name, image_id, snap_id, src_io_ctx,
-                               true);
+    *src_image_ctx = I::create(image_name, image_id, snap_id, src_io_ctx, true);
   }
 
   if (!cluster_name.empty()) {

@@ -2,11 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "journal/Entry.h"
-#include "include/encoding.h"
-#include "include/stringify.h"
-#include "common/Formatter.h"
 
 #include <sstream>
+
+#include "common/Formatter.h"
+#include "include/encoding.h"
+#include "include/stringify.h"
 
 #define dout_subsys ceph_subsys_journaler
 #undef dout_prefix
@@ -21,11 +22,15 @@ const uint32_t REMAINDER_FIXED_SIZE = 8; /// data size, crc
 
 } // anonymous namespace
 
-uint32_t Entry::get_fixed_size() {
+uint32_t
+Entry::get_fixed_size()
+{
   return HEADER_FIXED_SIZE + REMAINDER_FIXED_SIZE;
 }
 
-void Entry::encode(bufferlist &bl) const {
+void
+Entry::encode(bufferlist& bl) const
+{
   using ceph::encode;
   bufferlist data_bl;
   encode(preamble, data_bl);
@@ -41,14 +46,16 @@ void Entry::encode(bufferlist &bl) const {
   ceph_assert(get_fixed_size() + m_data.length() + bl_offset == bl.length());
 }
 
-void Entry::decode(bufferlist::const_iterator &iter) {
+void
+Entry::decode(bufferlist::const_iterator& iter)
+{
   using ceph::decode;
   uint32_t start_offset = iter.get_off();
   uint64_t bl_preamble;
   decode(bl_preamble, iter);
   if (bl_preamble != preamble) {
-    throw buffer::malformed_input("incorrect preamble: " +
-                                  stringify(bl_preamble));
+    throw buffer::malformed_input(
+        "incorrect preamble: " + stringify(bl_preamble));
   }
 
   uint8_t version;
@@ -69,12 +76,14 @@ void Entry::decode(bufferlist::const_iterator &iter) {
   data_bl.substr_of(iter.get_bl(), start_offset, end_offset - start_offset);
   uint32_t actual_crc = data_bl.crc32c(0);
   if (crc != actual_crc) {
-    throw buffer::malformed_input("crc mismatch: " + stringify(crc) +
-                                  " != " + stringify(actual_crc));
+    throw buffer::malformed_input(
+        "crc mismatch: " + stringify(crc) + " != " + stringify(actual_crc));
   }
 }
 
-void Entry::dump(Formatter *f) const {
+void
+Entry::dump(Formatter* f) const
+{
   f->dump_unsigned("tag_tid", m_tag_tid);
   f->dump_unsigned("entry_tid", m_entry_tid);
 
@@ -83,7 +92,9 @@ void Entry::dump(Formatter *f) const {
   f->dump_string("data", data.str());
 }
 
-bool Entry::is_readable(bufferlist::const_iterator iter, uint32_t *bytes_needed) {
+bool
+Entry::is_readable(bufferlist::const_iterator iter, uint32_t* bytes_needed)
+{
   using ceph::decode;
   uint32_t start_off = iter.get_off();
   if (iter.get_remaining() < HEADER_FIXED_SIZE) {
@@ -136,7 +147,9 @@ bool Entry::is_readable(bufferlist::const_iterator iter, uint32_t *bytes_needed)
   return true;
 }
 
-std::list<Entry> Entry::generate_test_instances() {
+std::list<Entry>
+Entry::generate_test_instances()
+{
   std::list<Entry> o;
 
   o.push_back(Entry(1, 123, bufferlist()));
@@ -148,13 +161,18 @@ std::list<Entry> Entry::generate_test_instances() {
   return o;
 }
 
-bool Entry::operator==(const Entry& rhs) const {
-  return (m_tag_tid == rhs.m_tag_tid && m_entry_tid == rhs.m_entry_tid &&
-          const_cast<bufferlist&>(m_data).contents_equal(
-            const_cast<bufferlist&>(rhs.m_data)));
+bool
+Entry::operator==(const Entry& rhs) const
+{
+  return (
+      m_tag_tid == rhs.m_tag_tid && m_entry_tid == rhs.m_entry_tid &&
+      const_cast<bufferlist&>(m_data).contents_equal(
+          const_cast<bufferlist&>(rhs.m_data)));
 }
 
-std::ostream &operator<<(std::ostream &os, const Entry &entry) {
+std::ostream&
+operator<<(std::ostream& os, const Entry& entry)
+{
   os << "Entry[tag_tid=" << entry.get_tag_tid() << ", "
      << "entry_tid=" << entry.get_entry_tid() << ", "
      << "data size=" << entry.get_data().length() << "]";

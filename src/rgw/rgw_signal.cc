@@ -14,11 +14,13 @@
  */
 
 #include "rgw_signal.h"
-#include "global/signal_handler.h"
-#include "common/safe_io.h"
+
 #include "common/errno.h"
-#include "rgw_main.h"
+#include "common/safe_io.h"
+#include "global/signal_handler.h"
+
 #include "rgw_log.h"
+#include "rgw_main.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -33,28 +35,34 @@ static int signal_fd[2] = {0, 0};
 namespace rgw {
 namespace signal {
 
-void sig_handler_noop(int signum) {
+void
+sig_handler_noop(int signum)
+{
   /* NOP */
 } /* sig_handler_noop */
 
-void sighup_handler(int signum) {
-    if (rgw::AppMain::ops_log_file != nullptr) {
-        rgw::AppMain::ops_log_file->reopen();
-    }
-    g_ceph_context->reopen_logs();
+void
+sighup_handler(int signum)
+{
+  if (rgw::AppMain::ops_log_file != nullptr) {
+    rgw::AppMain::ops_log_file->reopen();
+  }
+  g_ceph_context->reopen_logs();
 } /* sighup_handler */
 
-void signal_shutdown()
+void
+signal_shutdown()
 {
   int val = 0;
-  int ret = write(signal_fd[0], (char *)&val, sizeof(val));
+  int ret = write(signal_fd[0], (char*)&val, sizeof(val));
   if (ret < 0) {
     derr << "ERROR: " << __func__ << ": write() returned "
          << cpp_strerror(errno) << dendl;
   }
 } /* signal_shutdown */
 
-void wait_shutdown()
+void
+wait_shutdown()
 {
   int val;
   int r = safe_read_exact(signal_fd[1], &val, sizeof(val));
@@ -63,18 +71,21 @@ void wait_shutdown()
   }
 } /* wait_shutdown */
 
-int signal_fd_init()
+int
+signal_fd_init()
 {
   return socketpair(AF_UNIX, SOCK_STREAM, 0, signal_fd);
 } /* signal_fd_init */
 
-void signal_fd_finalize()
+void
+signal_fd_finalize()
 {
   close(signal_fd[0]);
   close(signal_fd[1]);
 } /* signal_fd_finalize */
 
-void handle_sigterm(int signum)
+void
+handle_sigterm(int signum)
 {
   dout(1) << __func__ << dendl;
 
@@ -92,4 +103,5 @@ void handle_sigterm(int signum)
   }
 } /* handle_sigterm */
 
-}} /* namespace rgw::signal */
+} // namespace signal
+} // namespace rgw

@@ -2,16 +2,17 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/journal/Types.h"
+
+#include "common/Formatter.h"
 #include "include/ceph_assert.h"
 #include "include/stringify.h"
 #include "include/types.h"
-#include "common/Formatter.h"
 
 namespace librbd {
 namespace journal {
 
-using ceph::encode;
 using ceph::decode;
+using ceph::encode;
 
 namespace {
 
@@ -19,59 +20,74 @@ template <typename E>
 class GetTypeVisitor {
 public:
   template <typename T>
-  inline E operator()(const T&) const {
+  inline E
+  operator()(const T&) const
+  {
     return T::TYPE;
   }
 };
 
 class EncodeVisitor {
 public:
-  explicit EncodeVisitor(bufferlist &bl) : m_bl(bl) {
-  }
+  explicit EncodeVisitor(bufferlist& bl) :
+    m_bl(bl)
+  {}
 
   template <typename T>
-  inline void operator()(const T& t) const {
+  inline void
+  operator()(const T& t) const
+  {
     encode(static_cast<uint32_t>(T::TYPE), m_bl);
     t.encode(m_bl);
   }
+
 private:
-  bufferlist &m_bl;
+  bufferlist& m_bl;
 };
 
 class DecodeVisitor {
 public:
-  DecodeVisitor(__u8 version, bufferlist::const_iterator &iter)
-    : m_version(version), m_iter(iter) {
-  }
+  DecodeVisitor(__u8 version, bufferlist::const_iterator& iter) :
+    m_version(version), m_iter(iter)
+  {}
 
   template <typename T>
-  inline void operator()(T& t) const {
+  inline void
+  operator()(T& t) const
+  {
     t.decode(m_version, m_iter);
   }
+
 private:
   __u8 m_version;
-  bufferlist::const_iterator &m_iter;
+  bufferlist::const_iterator& m_iter;
 };
 
 class DumpVisitor {
 public:
-  explicit DumpVisitor(Formatter *formatter, const std::string &key)
-    : m_formatter(formatter), m_key(key) {}
+  explicit DumpVisitor(Formatter* formatter, const std::string& key) :
+    m_formatter(formatter), m_key(key)
+  {}
 
   template <typename T>
-  inline void operator()(const T& t) const {
+  inline void
+  operator()(const T& t) const
+  {
     auto type = T::TYPE;
     m_formatter->dump_string(m_key.c_str(), stringify(type));
     t.dump(m_formatter);
   }
+
 private:
-  ceph::Formatter *m_formatter;
+  ceph::Formatter* m_formatter;
   std::string m_key;
 };
 
 } // anonymous namespace
 
-void AioDiscardEvent::encode(bufferlist& bl) const {
+void
+AioDiscardEvent::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(offset, bl);
   encode(length, bl);
@@ -80,7 +96,9 @@ void AioDiscardEvent::encode(bufferlist& bl) const {
   encode(discard_granularity_bytes, bl);
 }
 
-void AioDiscardEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+AioDiscardEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(offset, it);
   decode(length, it);
@@ -103,59 +121,79 @@ void AioDiscardEvent::decode(__u8 version, bufferlist::const_iterator& it) {
   }
 }
 
-void AioDiscardEvent::dump(Formatter *f) const {
+void
+AioDiscardEvent::dump(Formatter* f) const
+{
   f->dump_unsigned("offset", offset);
   f->dump_unsigned("length", length);
   f->dump_unsigned("discard_granularity_bytes", discard_granularity_bytes);
 }
 
-uint32_t AioWriteEvent::get_fixed_size() {
+uint32_t
+AioWriteEvent::get_fixed_size()
+{
   return EventEntry::get_fixed_size() + 16 /* offset, length */;
 }
 
-void AioWriteEvent::encode(bufferlist& bl) const {
+void
+AioWriteEvent::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(offset, bl);
   encode(length, bl);
   encode(data, bl);
 }
 
-void AioWriteEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+AioWriteEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(offset, it);
   decode(length, it);
   decode(data, it);
 }
 
-void AioWriteEvent::dump(Formatter *f) const {
+void
+AioWriteEvent::dump(Formatter* f) const
+{
   f->dump_unsigned("offset", offset);
   f->dump_unsigned("length", length);
 }
 
-void AioWriteSameEvent::encode(bufferlist& bl) const {
+void
+AioWriteSameEvent::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(offset, bl);
   encode(length, bl);
   encode(data, bl);
 }
 
-void AioWriteSameEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+AioWriteSameEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(offset, it);
   decode(length, it);
   decode(data, it);
 }
 
-void AioWriteSameEvent::dump(Formatter *f) const {
+void
+AioWriteSameEvent::dump(Formatter* f) const
+{
   f->dump_unsigned("offset", offset);
   f->dump_unsigned("length", length);
 }
 
-uint32_t AioCompareAndWriteEvent::get_fixed_size() {
+uint32_t
+AioCompareAndWriteEvent::get_fixed_size()
+{
   return EventEntry::get_fixed_size() + 32 /* offset, length */;
 }
 
-void AioCompareAndWriteEvent::encode(bufferlist& bl) const {
+void
+AioCompareAndWriteEvent::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(offset, bl);
   encode(length, bl);
@@ -163,7 +201,9 @@ void AioCompareAndWriteEvent::encode(bufferlist& bl) const {
   encode(write_data, bl);
 }
 
-void AioCompareAndWriteEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+AioCompareAndWriteEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(offset, it);
   decode(length, it);
@@ -171,62 +211,83 @@ void AioCompareAndWriteEvent::decode(__u8 version, bufferlist::const_iterator& i
   decode(write_data, it);
 }
 
-void AioCompareAndWriteEvent::dump(Formatter *f) const {
+void
+AioCompareAndWriteEvent::dump(Formatter* f) const
+{
   f->dump_unsigned("offset", offset);
   f->dump_unsigned("length", length);
 }
 
-void AioFlushEvent::encode(bufferlist& bl) const {
-}
+void
+AioFlushEvent::encode(bufferlist& bl) const
+{}
 
-void AioFlushEvent::decode(__u8 version, bufferlist::const_iterator& it) {
-}
+void
+AioFlushEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void AioFlushEvent::dump(Formatter *f) const {
-}
+void
+AioFlushEvent::dump(Formatter* f) const
+{}
 
-void OpEventBase::encode(bufferlist& bl) const {
+void
+OpEventBase::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(op_tid, bl);
 }
 
-void OpEventBase::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+OpEventBase::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(op_tid, it);
 }
 
-void OpEventBase::dump(Formatter *f) const {
+void
+OpEventBase::dump(Formatter* f) const
+{
   f->dump_unsigned("op_tid", op_tid);
 }
 
-void OpFinishEvent::encode(bufferlist& bl) const {
+void
+OpFinishEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(op_tid, bl);
   encode(r, bl);
 }
 
-void OpFinishEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+OpFinishEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(op_tid, it);
   decode(r, it);
 }
 
-void OpFinishEvent::dump(Formatter *f) const {
+void
+OpFinishEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_unsigned("op_tid", op_tid);
   f->dump_int("result", r);
 }
 
-void SnapEventBase::encode(bufferlist& bl) const {
+void
+SnapEventBase::encode(bufferlist& bl) const
+{
   using ceph::encode;
   OpEventBase::encode(bl);
   encode(snap_name, bl);
   encode(snap_namespace, bl);
 }
 
-void SnapEventBase::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+SnapEventBase::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   OpEventBase::decode(version, it);
   using ceph::decode;
@@ -236,17 +297,23 @@ void SnapEventBase::decode(__u8 version, bufferlist::const_iterator& it) {
   }
 }
 
-void SnapEventBase::dump(Formatter *f) const {
+void
+SnapEventBase::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_string("snap_name", snap_name);
   snap_namespace.dump(f);
 }
 
-void SnapCreateEvent::encode(bufferlist &bl) const {
+void
+SnapCreateEvent::encode(bufferlist& bl) const
+{
   SnapEventBase::encode(bl);
 }
 
-void SnapCreateEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+SnapCreateEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   SnapEventBase::decode(version, it);
   if (version == 3) {
@@ -254,28 +321,38 @@ void SnapCreateEvent::decode(__u8 version, bufferlist::const_iterator& it) {
   }
 }
 
-void SnapCreateEvent::dump(Formatter *f) const {
+void
+SnapCreateEvent::dump(Formatter* f) const
+{
   SnapEventBase::dump(f);
 }
 
-void SnapLimitEvent::encode(bufferlist &bl) const {
+void
+SnapLimitEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(limit, bl);
 }
 
-void SnapLimitEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+SnapLimitEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(limit, it);
 }
 
-void SnapLimitEvent::dump(Formatter *f) const {
+void
+SnapLimitEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_unsigned("limit", limit);
 }
 
-void SnapRenameEvent::encode(bufferlist& bl) const {
+void
+SnapRenameEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(dst_snap_name, bl);
@@ -283,7 +360,9 @@ void SnapRenameEvent::encode(bufferlist& bl) const {
   encode(src_snap_name, bl);
 }
 
-void SnapRenameEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+SnapRenameEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   OpEventBase::decode(version, it);
   decode(dst_snap_name, it);
@@ -293,135 +372,180 @@ void SnapRenameEvent::decode(__u8 version, bufferlist::const_iterator& it) {
   }
 }
 
-void SnapRenameEvent::dump(Formatter *f) const {
+void
+SnapRenameEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_unsigned("src_snap_id", snap_id);
   f->dump_string("src_snap_name", src_snap_name);
   f->dump_string("dest_snap_name", dst_snap_name);
 }
 
-void RenameEvent::encode(bufferlist& bl) const {
+void
+RenameEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(image_name, bl);
 }
 
-void RenameEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+RenameEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(image_name, it);
 }
 
-void RenameEvent::dump(Formatter *f) const {
+void
+RenameEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_string("image_name", image_name);
 }
 
-void ResizeEvent::encode(bufferlist& bl) const {
+void
+ResizeEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(size, bl);
 }
 
-void ResizeEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+ResizeEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(size, it);
 }
 
-void ResizeEvent::dump(Formatter *f) const {
+void
+ResizeEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_unsigned("size", size);
 }
 
-void DemotePromoteEvent::encode(bufferlist& bl) const {
-}
+void
+DemotePromoteEvent::encode(bufferlist& bl) const
+{}
 
-void DemotePromoteEvent::decode(__u8 version, bufferlist::const_iterator& it) {
-}
+void
+DemotePromoteEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void DemotePromoteEvent::dump(Formatter *f) const {
-}
+void
+DemotePromoteEvent::dump(Formatter* f) const
+{}
 
-void UpdateFeaturesEvent::encode(bufferlist& bl) const {
+void
+UpdateFeaturesEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(features, bl);
   encode(enabled, bl);
 }
 
-void UpdateFeaturesEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+UpdateFeaturesEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(features, it);
   decode(enabled, it);
 }
 
-void UpdateFeaturesEvent::dump(Formatter *f) const {
+void
+UpdateFeaturesEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_unsigned("features", features);
   f->dump_bool("enabled", enabled);
 }
 
-void MetadataSetEvent::encode(bufferlist& bl) const {
+void
+MetadataSetEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(key, bl);
   encode(value, bl);
 }
 
-void MetadataSetEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+MetadataSetEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(key, it);
   decode(value, it);
 }
 
-void MetadataSetEvent::dump(Formatter *f) const {
+void
+MetadataSetEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_string("key", key);
   f->dump_string("value", value);
 }
 
-void MetadataRemoveEvent::encode(bufferlist& bl) const {
+void
+MetadataRemoveEvent::encode(bufferlist& bl) const
+{
   OpEventBase::encode(bl);
   using ceph::encode;
   encode(key, bl);
 }
 
-void MetadataRemoveEvent::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+MetadataRemoveEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{
   OpEventBase::decode(version, it);
   using ceph::decode;
   decode(key, it);
 }
 
-void MetadataRemoveEvent::dump(Formatter *f) const {
+void
+MetadataRemoveEvent::dump(Formatter* f) const
+{
   OpEventBase::dump(f);
   f->dump_string("key", key);
 }
 
-void UnknownEvent::encode(bufferlist& bl) const {
+void
+UnknownEvent::encode(bufferlist& bl) const
+{
   ceph_abort();
 }
 
-void UnknownEvent::decode(__u8 version, bufferlist::const_iterator& it) {
-}
+void
+UnknownEvent::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void UnknownEvent::dump(Formatter *f) const {
-}
+void
+UnknownEvent::dump(Formatter* f) const
+{}
 
-EventType EventEntry::get_event_type() const {
+EventType
+EventEntry::get_event_type() const
+{
   return std::visit(GetTypeVisitor<EventType>(), event);
 }
 
-void EventEntry::encode(bufferlist& bl) const {
+void
+EventEntry::encode(bufferlist& bl) const
+{
   ENCODE_START(5, 1, bl);
   std::visit(EncodeVisitor(bl), event);
   ENCODE_FINISH(bl);
   encode_metadata(bl);
 }
 
-void EventEntry::decode(bufferlist::const_iterator& it) {
+void
+EventEntry::decode(bufferlist::const_iterator& it)
+{
   DECODE_START(5, it);
 
   uint32_t event_type;
@@ -501,24 +625,32 @@ void EventEntry::decode(bufferlist::const_iterator& it) {
   }
 }
 
-void EventEntry::dump(Formatter *f) const {
+void
+EventEntry::dump(Formatter* f) const
+{
   std::visit(DumpVisitor(f, "event_type"), event);
   f->dump_stream("timestamp") << timestamp;
 }
 
-void EventEntry::encode_metadata(bufferlist& bl) const {
+void
+EventEntry::encode_metadata(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(timestamp, bl);
   ENCODE_FINISH(bl);
 }
 
-void EventEntry::decode_metadata(bufferlist::const_iterator& it) {
+void
+EventEntry::decode_metadata(bufferlist::const_iterator& it)
+{
   DECODE_START(1, it);
   decode(timestamp, it);
   DECODE_FINISH(it);
 }
 
-std::list<EventEntry> EventEntry::generate_test_instances() {
+std::list<EventEntry>
+EventEntry::generate_test_instances()
+{
   std::list<EventEntry> o;
 
   o.push_back(EventEntry(AioDiscardEvent()));
@@ -534,23 +666,33 @@ std::list<EventEntry> EventEntry::generate_test_instances() {
   o.push_back(EventEntry(OpFinishEvent(123, -1), utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapCreateEvent(), utime_t(1, 1)));
-  o.push_back(EventEntry(SnapCreateEvent(234, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapCreateEvent(234, cls::rbd::UserSnapshotNamespace(), "snap"),
+      utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapRemoveEvent()));
-  o.push_back(EventEntry(SnapRemoveEvent(345, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapRemoveEvent(345, cls::rbd::UserSnapshotNamespace(), "snap"),
+      utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapRenameEvent()));
-  o.push_back(EventEntry(SnapRenameEvent(456, 1, "src snap", "dest snap"),
-                             utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapRenameEvent(456, 1, "src snap", "dest snap"), utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapProtectEvent()));
-  o.push_back(EventEntry(SnapProtectEvent(567, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapProtectEvent(567, cls::rbd::UserSnapshotNamespace(), "snap"),
+      utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapUnprotectEvent()));
-  o.push_back(EventEntry(SnapUnprotectEvent(678, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapUnprotectEvent(678, cls::rbd::UserSnapshotNamespace(), "snap"),
+      utime_t(1, 1)));
 
   o.push_back(EventEntry(SnapRollbackEvent()));
-  o.push_back(EventEntry(SnapRollbackEvent(789, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(EventEntry(
+      SnapRollbackEvent(789, cls::rbd::UserSnapshotNamespace(), "snap"),
+      utime_t(1, 1)));
 
   o.push_back(EventEntry(RenameEvent()));
   o.push_back(EventEntry(RenameEvent(890, "image name"), utime_t(1, 1)));
@@ -576,24 +718,32 @@ std::list<EventEntry> EventEntry::generate_test_instances() {
 
 // Journal Client
 
-void ImageClientMeta::encode(bufferlist& bl) const {
+void
+ImageClientMeta::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(tag_class, bl);
   encode(resync_requested, bl);
 }
 
-void ImageClientMeta::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+ImageClientMeta::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(tag_class, it);
   decode(resync_requested, it);
 }
 
-void ImageClientMeta::dump(Formatter *f) const {
+void
+ImageClientMeta::dump(Formatter* f) const
+{
   f->dump_unsigned("tag_class", tag_class);
   f->dump_bool("resync_requested", resync_requested);
 }
 
-void MirrorPeerSyncPoint::encode(bufferlist& bl) const {
+void
+MirrorPeerSyncPoint::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(snap_name, bl);
   encode(from_snap_name, bl);
@@ -601,7 +751,9 @@ void MirrorPeerSyncPoint::encode(bufferlist& bl) const {
   encode(snap_namespace, bl);
 }
 
-void MirrorPeerSyncPoint::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+MirrorPeerSyncPoint::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(snap_name, it);
   decode(from_snap_name, it);
@@ -611,7 +763,9 @@ void MirrorPeerSyncPoint::decode(__u8 version, bufferlist::const_iterator& it) {
   }
 }
 
-void MirrorPeerSyncPoint::dump(Formatter *f) const {
+void
+MirrorPeerSyncPoint::dump(Formatter* f) const
+{
   f->dump_string("snap_name", snap_name);
   f->dump_string("from_snap_name", from_snap_name);
   if (object_number) {
@@ -620,19 +774,23 @@ void MirrorPeerSyncPoint::dump(Formatter *f) const {
   snap_namespace.dump(f);
 }
 
-void MirrorPeerClientMeta::encode(bufferlist& bl) const {
+void
+MirrorPeerClientMeta::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(image_id, bl);
   encode(static_cast<uint32_t>(state), bl);
   encode(sync_object_count, bl);
   encode(static_cast<uint32_t>(sync_points.size()), bl);
-  for (auto &sync_point : sync_points) {
+  for (auto& sync_point : sync_points) {
     sync_point.encode(bl);
   }
   encode(snap_seqs, bl);
 }
 
-void MirrorPeerClientMeta::decode(__u8 version, bufferlist::const_iterator& it) {
+void
+MirrorPeerClientMeta::decode(__u8 version, bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(image_id, it);
 
@@ -645,26 +803,28 @@ void MirrorPeerClientMeta::decode(__u8 version, bufferlist::const_iterator& it) 
   uint32_t sync_point_count;
   decode(sync_point_count, it);
   sync_points.resize(sync_point_count);
-  for (auto &sync_point : sync_points) {
+  for (auto& sync_point : sync_points) {
     sync_point.decode(version, it);
   }
 
   decode(snap_seqs, it);
 }
 
-void MirrorPeerClientMeta::dump(Formatter *f) const {
+void
+MirrorPeerClientMeta::dump(Formatter* f) const
+{
   f->dump_string("image_id", image_id);
   f->dump_stream("state") << state;
   f->dump_unsigned("sync_object_count", sync_object_count);
   f->open_array_section("sync_points");
-  for (auto &sync_point : sync_points) {
+  for (auto& sync_point : sync_points) {
     f->open_object_section("sync_point");
     sync_point.dump(f);
     f->close_section();
   }
   f->close_section();
   f->open_array_section("snap_seqs");
-  for (auto &pair : snap_seqs) {
+  for (auto& pair : snap_seqs) {
     f->open_object_section("snap_seq");
     f->dump_unsigned("local_snap_seq", pair.first);
     f->dump_unsigned("peer_snap_seq", pair.second);
@@ -673,36 +833,49 @@ void MirrorPeerClientMeta::dump(Formatter *f) const {
   f->close_section();
 }
 
-void CliClientMeta::encode(bufferlist& bl) const {
-}
+void
+CliClientMeta::encode(bufferlist& bl) const
+{}
 
-void CliClientMeta::decode(__u8 version, bufferlist::const_iterator& it) {
-}
+void
+CliClientMeta::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void CliClientMeta::dump(Formatter *f) const {
-}
+void
+CliClientMeta::dump(Formatter* f) const
+{}
 
-void UnknownClientMeta::encode(bufferlist& bl) const {
+void
+UnknownClientMeta::encode(bufferlist& bl) const
+{
   ceph_abort();
 }
 
-void UnknownClientMeta::decode(__u8 version, bufferlist::const_iterator& it) {
-}
+void
+UnknownClientMeta::decode(__u8 version, bufferlist::const_iterator& it)
+{}
 
-void UnknownClientMeta::dump(Formatter *f) const {
-}
+void
+UnknownClientMeta::dump(Formatter* f) const
+{}
 
-ClientMetaType ClientData::get_client_meta_type() const {
+ClientMetaType
+ClientData::get_client_meta_type() const
+{
   return std::visit(GetTypeVisitor<ClientMetaType>(), client_meta);
 }
 
-void ClientData::encode(bufferlist& bl) const {
+void
+ClientData::encode(bufferlist& bl) const
+{
   ENCODE_START(2, 1, bl);
   std::visit(EncodeVisitor(bl), client_meta);
   ENCODE_FINISH(bl);
 }
 
-void ClientData::decode(bufferlist::const_iterator& it) {
+void
+ClientData::decode(bufferlist::const_iterator& it)
+{
   DECODE_START(1, it);
 
   uint32_t client_meta_type;
@@ -728,25 +901,30 @@ void ClientData::decode(bufferlist::const_iterator& it) {
   DECODE_FINISH(it);
 }
 
-void ClientData::dump(Formatter *f) const {
+void
+ClientData::dump(Formatter* f) const
+{
   std::visit(DumpVisitor(f, "client_meta_type"), client_meta);
 }
 
-std::list<ClientData> ClientData::generate_test_instances() {
+std::list<ClientData>
+ClientData::generate_test_instances()
+{
   std::list<ClientData> o;
   o.push_back(ClientData(ImageClientMeta()));
   o.push_back(ClientData(ImageClientMeta(123)));
   o.push_back(ClientData(MirrorPeerClientMeta()));
-  o.push_back(ClientData(MirrorPeerClientMeta("image_id",
-					      {{{}, "snap 2", "snap 1", 123}},
-					      {{1, 2}, {3, 4}})));
+  o.push_back(ClientData(MirrorPeerClientMeta(
+      "image_id", {{{}, "snap 2", "snap 1", 123}}, {{1, 2}, {3, 4}})));
   o.push_back(ClientData(CliClientMeta()));
   return o;
 }
 
 // Journal Tag
 
-void TagPredecessor::encode(bufferlist& bl) const {
+void
+TagPredecessor::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(mirror_uuid, bl);
   encode(commit_valid, bl);
@@ -754,7 +932,9 @@ void TagPredecessor::encode(bufferlist& bl) const {
   encode(entry_tid, bl);
 }
 
-void TagPredecessor::decode(bufferlist::const_iterator& it) {
+void
+TagPredecessor::decode(bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(mirror_uuid, it);
   decode(commit_valid, it);
@@ -762,33 +942,43 @@ void TagPredecessor::decode(bufferlist::const_iterator& it) {
   decode(entry_tid, it);
 }
 
-void TagPredecessor::dump(Formatter *f) const {
+void
+TagPredecessor::dump(Formatter* f) const
+{
   f->dump_string("mirror_uuid", mirror_uuid);
   f->dump_string("commit_valid", commit_valid ? "true" : "false");
   f->dump_unsigned("tag_tid", tag_tid);
   f->dump_unsigned("entry_tid", entry_tid);
 }
 
-void TagData::encode(bufferlist& bl) const {
+void
+TagData::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(mirror_uuid, bl);
   predecessor.encode(bl);
 }
 
-void TagData::decode(bufferlist::const_iterator& it) {
+void
+TagData::decode(bufferlist::const_iterator& it)
+{
   using ceph::decode;
   decode(mirror_uuid, it);
   predecessor.decode(it);
 }
 
-void TagData::dump(Formatter *f) const {
+void
+TagData::dump(Formatter* f) const
+{
   f->dump_string("mirror_uuid", mirror_uuid);
   f->open_object_section("predecessor");
   predecessor.dump(f);
   f->close_section();
 }
 
-std::list<TagData> TagData::generate_test_instances() {
+std::list<TagData>
+TagData::generate_test_instances()
+{
   std::list<TagData> o;
   o.push_back(TagData());
   o.push_back(TagData("mirror-uuid"));
@@ -796,7 +986,9 @@ std::list<TagData> TagData::generate_test_instances() {
   return o;
 }
 
-std::ostream &operator<<(std::ostream &out, const EventType &type) {
+std::ostream&
+operator<<(std::ostream& out, const EventType& type)
+{
   using namespace librbd::journal;
 
   switch (type) {
@@ -867,7 +1059,9 @@ std::ostream &operator<<(std::ostream &out, const EventType &type) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const ClientMetaType &type) {
+std::ostream&
+operator<<(std::ostream& out, const ClientMetaType& type)
+{
   using namespace librbd::journal;
 
   switch (type) {
@@ -887,12 +1081,16 @@ std::ostream &operator<<(std::ostream &out, const ClientMetaType &type) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const ImageClientMeta &meta) {
+std::ostream&
+operator<<(std::ostream& out, const ImageClientMeta& meta)
+{
   out << "[tag_class=" << meta.tag_class << "]";
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const MirrorPeerSyncPoint &sync) {
+std::ostream&
+operator<<(std::ostream& out, const MirrorPeerSyncPoint& sync)
+{
   out << "[snap_name=" << sync.snap_name << ", "
       << "from_snap_name=" << sync.from_snap_name;
   if (sync.object_number) {
@@ -902,7 +1100,9 @@ std::ostream &operator<<(std::ostream &out, const MirrorPeerSyncPoint &sync) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const MirrorPeerState &state) {
+std::ostream&
+operator<<(std::ostream& out, const MirrorPeerState& state)
+{
   switch (state) {
   case MIRROR_PEER_STATE_SYNCING:
     out << "Syncing";
@@ -917,21 +1117,21 @@ std::ostream &operator<<(std::ostream &out, const MirrorPeerState &state) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const MirrorPeerClientMeta &meta) {
-  out << "[image_id=" << meta.image_id << ", "
-      << "state=" << meta.state << ", "
+std::ostream&
+operator<<(std::ostream& out, const MirrorPeerClientMeta& meta)
+{
+  out << "[image_id=" << meta.image_id << ", " << "state=" << meta.state << ", "
       << "sync_object_count=" << meta.sync_object_count << ", "
       << "sync_points=[";
   std::string delimiter;
-  for (auto &sync_point : meta.sync_points) {
+  for (auto& sync_point : meta.sync_points) {
     out << delimiter << "[" << sync_point << "]";
     delimiter = ", ";
   }
   out << "], snap_seqs=[";
   delimiter = "";
-  for (auto &pair : meta.snap_seqs) {
-    out << delimiter << "["
-        << "local_snap_seq=" << pair.first << ", "
+  for (auto& pair : meta.snap_seqs) {
+    out << delimiter << "[" << "local_snap_seq=" << pair.first << ", "
         << "peer_snap_seq" << pair.second << "]";
     delimiter = ", ";
   }
@@ -939,26 +1139,25 @@ std::ostream &operator<<(std::ostream &out, const MirrorPeerClientMeta &meta) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const TagPredecessor &predecessor) {
-  out << "["
-      << "mirror_uuid=" << predecessor.mirror_uuid;
+std::ostream&
+operator<<(std::ostream& out, const TagPredecessor& predecessor)
+{
+  out << "[" << "mirror_uuid=" << predecessor.mirror_uuid;
   if (predecessor.commit_valid) {
-    out << ", "
-        << "tag_tid=" << predecessor.tag_tid << ", "
+    out << ", " << "tag_tid=" << predecessor.tag_tid << ", "
         << "entry_tid=" << predecessor.entry_tid;
   }
   out << "]";
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const TagData &tag_data) {
-  out << "["
-      << "mirror_uuid=" << tag_data.mirror_uuid << ", "
-      << "predecessor=" << tag_data.predecessor
-      << "]";
+std::ostream&
+operator<<(std::ostream& out, const TagData& tag_data)
+{
+  out << "[" << "mirror_uuid=" << tag_data.mirror_uuid << ", "
+      << "predecessor=" << tag_data.predecessor << "]";
   return out;
 }
 
 } // namespace journal
 } // namespace librbd
-

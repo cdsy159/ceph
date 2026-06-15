@@ -13,20 +13,21 @@
  *
  */
 #include "common/ConfUtils.h"
-#include "common/config_proxy.h"
-#include "common/errno.h"
-#include "gtest/gtest.h"
-#include "include/buffer.h"
 
 #include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <filesystem>
 #include <iostream>
 #include <sstream>
 
-#include <stdlib.h>
-#include <stdint.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include "common/config_proxy.h"
+#include "common/errno.h"
+#include "gtest/gtest.h"
+#include "include/buffer.h"
 
 namespace fs = std::filesystem;
 
@@ -39,14 +40,15 @@ using std::ostringstream;
 
 static size_t config_idx = 0;
 static size_t unlink_idx = 0;
-static char *to_unlink[MAX_FILES_TO_DELETE];
+static char* to_unlink[MAX_FILES_TO_DELETE];
 
-static std::string get_temp_dir()
+static std::string
+get_temp_dir()
 {
   static std::string temp_dir;
 
   if (temp_dir.empty()) {
-    const char *tmpdir = getenv("TMPDIR");
+    const char* tmpdir = getenv("TMPDIR");
     if (!tmpdir)
       tmpdir = "/tmp";
     srand(time(NULL));
@@ -67,7 +69,8 @@ static std::string get_temp_dir()
   return temp_dir;
 }
 
-static void unlink_all(void)
+static void
+unlink_all(void)
 {
   for (size_t i = 0; i < unlink_idx; ++i) {
     unlink(to_unlink[i]);
@@ -78,13 +81,14 @@ static void unlink_all(void)
   rmdir(get_temp_dir().c_str());
 }
 
-static int create_tempfile(const std::string &fname, const char *text)
+static int
+create_tempfile(const std::string& fname, const char* text)
 {
-  FILE *fp = fopen(fname.c_str(), "w");
+  FILE* fp = fopen(fname.c_str(), "w");
   if (!fp) {
     int err = errno;
     cerr << "Failed to write file '" << fname << "' to temp directory '"
-	 << get_temp_dir() << "'. " << cpp_strerror(err) << std::endl;
+         << get_temp_dir() << "'. " << cpp_strerror(err) << std::endl;
     return err;
   }
   std::shared_ptr<FILE> fpp(fp, fclose);
@@ -99,14 +103,15 @@ static int create_tempfile(const std::string &fname, const char *text)
   size_t res = fwrite(text, 1, strlen_text, fp);
   if (res != strlen_text) {
     int err = errno;
-    cerr << "fwrite error while writing to " << fname 
-	 << ": " << cpp_strerror(err) << std::endl;
+    cerr << "fwrite error while writing to " << fname << ": "
+         << cpp_strerror(err) << std::endl;
     return err;
   }
   return 0;
 }
 
-static std::string next_tempfile(const char *text)
+static std::string
+next_tempfile(const char* text)
 {
   ostringstream oss;
   std::string temp_dir(get_temp_dir());
@@ -119,15 +124,16 @@ static std::string next_tempfile(const char *text)
   return oss.str();
 }
 
-const char * const trivial_conf_1 = "";
+const char* const trivial_conf_1 = "";
 
-const char * const trivial_conf_2 = "log dir = foobar";
+const char* const trivial_conf_2 = "log dir = foobar";
 
-const char * const trivial_conf_3 = "log dir = barfoo\n";
+const char* const trivial_conf_3 = "log dir = barfoo\n";
 
-const char * const trivial_conf_4 = "log dir = \"barbaz\"\n";
+const char* const trivial_conf_4 = "log dir = \"barbaz\"\n";
 
-const char * const simple_conf_1 = "\
+const char* const simple_conf_1 =
+    "\
 ; here's a comment\n\
 [global]\n\
         keyring = .my_ceph_keyring\n\
@@ -138,7 +144,8 @@ const char * const simple_conf_1 = "\
 	log sym history = 100\n\
         profiling logger = true\n\
 	profiling logger dir = wowsers\n\
-	chdir = ""\n\
+	chdir = "
+    "\n\
 	pid file = out/$name.pid\n\
 \n\
         mds debug frag = true\n\
@@ -156,7 +163,8 @@ const char * const simple_conf_1 = "\
 ";
 
 // we can add whitespace at odd locations and it will get stripped out.
-const char * const simple_conf_2 = "\
+const char* const simple_conf_2 =
+    "\
 [mds.a]\n\
 	log dir = special_mds_a\n\
 [mds]\n\
@@ -165,7 +173,8 @@ const char * const simple_conf_2 = "\
 	log per instance = true\n\
         profiling logger = true\n\
 	profiling                 logger dir = log\n\
-	chdir = ""\n\
+	chdir = "
+    "\n\
         pid file\t=\tfoo2\n\
 [osd0]\n\
         keyring   =       osd_keyring          ; osd's keyring\n\
@@ -182,7 +191,8 @@ const char * const simple_conf_2 = "\
 ";
 
 // test line-combining
-const char * const conf3 = "\
+const char* const conf3 =
+    "\
 [global]\n\
 	log file = /quite/a/long/path\\\n\
 /for/a/log/file\n\
@@ -192,7 +202,8 @@ const char * const conf3 = "\
 [mon] #nothing here \n\
 ";
 
-const char * const escaping_conf_1 = "\
+const char* const escaping_conf_1 =
+    "\
 [global]\n\
 	log file = the \"scare quotes\"\n\
 	pid file = a \\\n\
@@ -201,7 +212,8 @@ pid file\n\
 	keyring = \"nested \\\"quotes\\\"\"\n\
 ";
 
-const char * const escaping_conf_2 = "\
+const char* const escaping_conf_2 =
+    "\
 [apple \\]\\[]\n\
 	log file = floppy disk\n\
 [mon]\n\
@@ -209,7 +221,8 @@ const char * const escaping_conf_2 = "\
 ";
 
 // illegal because it contains an invalid utf8 sequence.
-const char illegal_conf1[] = "\
+const char illegal_conf1[] =
+    "\
 [global]\n\
 	log file = foo\n\
 	pid file = invalid-utf-\xe2\x28\xa1\n\
@@ -218,7 +231,8 @@ const char illegal_conf1[] = "\
 ";
 
 // illegal because it contains a malformed section header.
-const char illegal_conf2[] = "\
+const char illegal_conf2[] =
+    "\
 [global\n\
 	log file = foo\n\
 [osd0]\n\
@@ -226,7 +240,8 @@ const char illegal_conf2[] = "\
 ";
 
 // illegal because it contains a line that doesn't parse
-const char illegal_conf3[] = "\
+const char illegal_conf3[] =
+    "\
 [global]\n\
         who_what_where\n\
 [osd0]\n\
@@ -234,14 +249,16 @@ const char illegal_conf3[] = "\
 ";
 
 // illegal because it has unterminated quotes
-const char illegal_conf4[] = "\
+const char illegal_conf4[] =
+    "\
 [global]\n\
         keyring = \"unterminated quoted string\n\
 [osd0]\n\
         keyring = osd_keyring          ; osd's keyring\n\
 ";
 
-const char override_config_1[] = "\
+const char override_config_1[] =
+    "\
 [global]\n\
         log file =           global_log\n\
 [mds]\n\
@@ -252,13 +269,15 @@ const char override_config_1[] = "\
         log file =           osd0_log\n\
 ";
 
-const char dup_key_config_1[] = "\
+const char dup_key_config_1[] =
+    "\
 [mds.a]\n\
         log_file = 1\n\
         log_file = 3\n\
 ";
 
-TEST(ConfUtils, ParseFiles0) {
+TEST(ConfUtils, ParseFiles0)
+{
   std::string val;
 
   {
@@ -296,7 +315,8 @@ TEST(ConfUtils, ParseFiles0) {
   }
 }
 
-TEST(ConfUtils, ParseFiles1) {
+TEST(ConfUtils, ParseFiles1)
+{
   std::ostringstream err;
   std::string simple_conf_1_f(next_tempfile(simple_conf_1));
   ConfFile cf1;
@@ -321,7 +341,8 @@ TEST(ConfUtils, ParseFiles1) {
   ASSERT_EQ(err.tellp(), 0U);
 }
 
-TEST(ConfUtils, ReadFiles1) {
+TEST(ConfUtils, ReadFiles1)
+{
   std::ostringstream err;
   std::string simple_conf_1_f(next_tempfile(simple_conf_1));
   ConfFile cf1;
@@ -353,7 +374,8 @@ TEST(ConfUtils, ReadFiles1) {
   ASSERT_EQ(cf2.read("nonesuch", "keyring", val), -ENOENT);
 }
 
-TEST(ConfUtils, ReadFiles2) {
+TEST(ConfUtils, ReadFiles2)
+{
   std::ostringstream err;
   std::string conf3_f(next_tempfile(conf3));
   ConfFile cf1;
@@ -366,7 +388,8 @@ TEST(ConfUtils, ReadFiles2) {
   ASSERT_EQ(val, "spork");
 }
 
-TEST(ConfUtils, IllegalFiles) {
+TEST(ConfUtils, IllegalFiles)
+{
   {
     std::ostringstream err;
     ConfFile cf1;
@@ -398,7 +421,8 @@ TEST(ConfUtils, IllegalFiles) {
   }
 }
 
-TEST(ConfUtils, EscapingFiles) {
+TEST(ConfUtils, EscapingFiles)
+{
   std::ostringstream err;
   std::string escaping_conf_1_f(next_tempfile(escaping_conf_1));
   ConfFile cf1;
@@ -424,7 +448,8 @@ TEST(ConfUtils, EscapingFiles) {
   ASSERT_EQ(val, "backslash\\");
 }
 
-TEST(ConfUtils, Overrides) {
+TEST(ConfUtils, Overrides)
+{
   ConfigProxy conf{false};
   std::ostringstream warn;
   std::string override_conf_1_f(next_tempfile(override_config_1));
@@ -445,7 +470,8 @@ TEST(ConfUtils, Overrides) {
   ASSERT_EQ(conf->log_file, "osd0_log");
 }
 
-TEST(ConfUtils, DupKey) {
+TEST(ConfUtils, DupKey)
+{
   ConfigProxy conf{false};
   std::ostringstream warn;
   std::string dup_key_config_f(next_tempfile(dup_key_config_1));
@@ -455,5 +481,3 @@ TEST(ConfUtils, DupKey) {
   ASSERT_FALSE(conf.has_parse_error());
   ASSERT_EQ(conf->log_file, string("3"));
 }
-
-

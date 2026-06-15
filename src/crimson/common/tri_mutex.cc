@@ -6,34 +6,41 @@
 #include <seastar/util/later.hh>
 
 SET_SUBSYS(osd);
+
 //TODO: SET_SUBSYS(crimson_tri_mutex);
 
-seastar::future<> read_lock::lock()
+seastar::future<>
+read_lock::lock()
 {
   return static_cast<tri_mutex*>(this)->lock_for_read();
 }
 
-void read_lock::unlock()
+void
+read_lock::unlock()
 {
   static_cast<tri_mutex*>(this)->unlock_for_read();
 }
 
-seastar::future<> write_lock::lock()
+seastar::future<>
+write_lock::lock()
 {
   return static_cast<tri_mutex*>(this)->lock_for_write();
 }
 
-void write_lock::unlock()
+void
+write_lock::unlock()
 {
   static_cast<tri_mutex*>(this)->unlock_for_write();
 }
 
-seastar::future<> excl_lock::lock()
+seastar::future<>
+excl_lock::lock()
 {
   return static_cast<tri_mutex*>(this)->lock_for_excl();
 }
 
-void excl_lock::unlock()
+void
+excl_lock::unlock()
 {
   static_cast<tri_mutex*>(this)->unlock_for_excl();
 }
@@ -45,7 +52,8 @@ tri_mutex::~tri_mutex()
   assert(!is_acquired());
 }
 
-seastar::future<> tri_mutex::lock_for_read()
+seastar::future<>
+tri_mutex::lock_for_read()
 {
   LOG_PREFIX(tri_mutex::lock_for_read());
   DEBUGDPP("", *this);
@@ -58,7 +66,8 @@ seastar::future<> tri_mutex::lock_for_read()
   return waiters.back().pr.get_future();
 }
 
-bool tri_mutex::try_lock_for_read() noexcept
+bool
+tri_mutex::try_lock_for_read() noexcept
 {
   LOG_PREFIX(tri_mutex::try_lock_for_read());
   DEBUGDPP("", *this);
@@ -69,7 +78,8 @@ bool tri_mutex::try_lock_for_read() noexcept
   return false;
 }
 
-void tri_mutex::unlock_for_read()
+void
+tri_mutex::unlock_for_read()
 {
   LOG_PREFIX(tri_mutex::unlock_for_read());
   DEBUGDPP("", *this);
@@ -80,7 +90,8 @@ void tri_mutex::unlock_for_read()
   }
 }
 
-void tri_mutex::demote_to_read()
+void
+tri_mutex::demote_to_read()
 {
   LOG_PREFIX(tri_mutex::demote_to_read());
   DEBUGDPP("", *this);
@@ -91,7 +102,8 @@ void tri_mutex::demote_to_read()
   wake(type_t::read);
 }
 
-seastar::future<> tri_mutex::lock_for_write()
+seastar::future<>
+tri_mutex::lock_for_write()
 {
   LOG_PREFIX(tri_mutex::lock_for_write());
   DEBUGDPP("", *this);
@@ -104,7 +116,8 @@ seastar::future<> tri_mutex::lock_for_write()
   return waiters.back().pr.get_future();
 }
 
-bool tri_mutex::try_lock_for_write() noexcept
+bool
+tri_mutex::try_lock_for_write() noexcept
 {
   LOG_PREFIX(tri_mutex::try_lock_for_write());
   DEBUGDPP("", *this);
@@ -115,7 +128,8 @@ bool tri_mutex::try_lock_for_write() noexcept
   return false;
 }
 
-void tri_mutex::unlock_for_write()
+void
+tri_mutex::unlock_for_write()
 {
   LOG_PREFIX(tri_mutex::unlock_for_write());
   DEBUGDPP("", *this);
@@ -126,7 +140,8 @@ void tri_mutex::unlock_for_write()
   }
 }
 
-void tri_mutex::demote_to_write()
+void
+tri_mutex::demote_to_write()
 {
   LOG_PREFIX(tri_mutex::demote_to_write());
   DEBUGDPP("", *this);
@@ -138,7 +153,8 @@ void tri_mutex::demote_to_write()
 }
 
 // for exclusive users
-seastar::future<> tri_mutex::lock_for_excl()
+seastar::future<>
+tri_mutex::lock_for_excl()
 {
   LOG_PREFIX(tri_mutex::lock_for_excl());
   DEBUGDPP("", *this);
@@ -151,7 +167,8 @@ seastar::future<> tri_mutex::lock_for_excl()
   return waiters.back().pr.get_future();
 }
 
-bool tri_mutex::try_lock_for_excl() noexcept
+bool
+tri_mutex::try_lock_for_excl() noexcept
 {
   LOG_PREFIX(tri_mutex::try_lock_for_excl());
   DEBUGDPP("", *this);
@@ -163,7 +180,8 @@ bool tri_mutex::try_lock_for_excl() noexcept
   }
 }
 
-void tri_mutex::unlock_for_excl()
+void
+tri_mutex::unlock_for_excl()
 {
   LOG_PREFIX(tri_mutex::unlock_for_excl());
   DEBUGDPP("", *this);
@@ -173,7 +191,8 @@ void tri_mutex::unlock_for_excl()
   wake(type_t::none);
 }
 
-bool tri_mutex::is_acquired() const
+bool
+tri_mutex::is_acquired() const
 {
   LOG_PREFIX(tri_mutex::is_acquired());
   DEBUGDPP("", *this);
@@ -188,7 +207,8 @@ bool tri_mutex::is_acquired() const
   }
 }
 
-void tri_mutex::wake(type_t type_to_wake)
+void
+tri_mutex::wake(type_t type_to_wake)
 {
   LOG_PREFIX(tri_mutex::wake());
   DEBUGDPP("", *this);
@@ -197,7 +217,8 @@ void tri_mutex::wake(type_t type_to_wake)
     auto& waiter = waiters.front();
     if (type_to_wake == type_t::exclusive) {
       break;
-    } if (type_to_wake == type_t::none) {
+    }
+    if (type_to_wake == type_t::none) {
       type_to_wake = waiter.type;
     } else if (type_to_wake != waiter.type) {
       // to be woken in the next batch

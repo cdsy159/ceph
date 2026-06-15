@@ -14,23 +14,22 @@
  */
 
 #include "rbd_loc.hpp"
+
 #include "include/ceph_assert.h"
 
 
 using namespace std;
 using namespace rbd_replay;
 
+rbd_loc::rbd_loc() {}
 
-rbd_loc::rbd_loc() {
-}
+rbd_loc::rbd_loc(const string& pool, const string& image, const string& snap) :
+  pool(pool), image(image), snap(snap)
+{}
 
-rbd_loc::rbd_loc(const string &pool, const string &image, const string &snap)
-  : pool(pool),
-    image(image),
-    snap(snap) {
-}
-
-bool rbd_loc::parse(string name_string) {
+bool
+rbd_loc::parse(string name_string)
+{
   int field = 0;
   string fields[3];
   bool read_slash = false;
@@ -40,7 +39,7 @@ bool rbd_loc::parse(string name_string) {
     switch (c) {
     case '/':
       if (read_slash || read_at) {
-	return false;
+        return false;
       }
       ceph_assert(field == 0);
       field++;
@@ -48,7 +47,7 @@ bool rbd_loc::parse(string name_string) {
       break;
     case '@':
       if (read_at) {
-	return false;
+        return false;
       }
       ceph_assert(field < 2);
       field++;
@@ -56,7 +55,7 @@ bool rbd_loc::parse(string name_string) {
       break;
     case '\\':
       if (i == n - 1) {
-	return false;
+        return false;
       }
       fields[field].push_back(name_string[++i]);
       break;
@@ -81,8 +80,9 @@ bool rbd_loc::parse(string name_string) {
   return true;
 }
 
-
-static void write(const string &in, string *out) {
+static void
+write(const string& in, string* out)
+{
   for (size_t i = 0, n = in.length(); i < n; i++) {
     char c = in[i];
     if (c == '@' || c == '/' || c == '\\') {
@@ -92,7 +92,9 @@ static void write(const string &in, string *out) {
   }
 }
 
-string rbd_loc::str() const {
+string
+rbd_loc::str() const
+{
   string out;
   if (!pool.empty()) {
     write(pool, &out);
@@ -106,7 +108,9 @@ string rbd_loc::str() const {
   return out;
 }
 
-int rbd_loc::compare(const rbd_loc& rhs) const {
+int
+rbd_loc::compare(const rbd_loc& rhs) const
+{
   int c = pool.compare(rhs.pool);
   if (c) {
     return c;
@@ -122,10 +126,14 @@ int rbd_loc::compare(const rbd_loc& rhs) const {
   return 0;
 }
 
-bool rbd_loc::operator==(const rbd_loc& rhs) const {
+bool
+rbd_loc::operator==(const rbd_loc& rhs) const
+{
   return compare(rhs) == 0;
 }
 
-bool rbd_loc::operator<(const rbd_loc& rhs) const {
+bool
+rbd_loc::operator<(const rbd_loc& rhs) const
+{
   return compare(rhs) < 0;
 }

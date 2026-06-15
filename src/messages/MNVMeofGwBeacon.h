@@ -18,82 +18,140 @@
 
 #include <cstddef>
 #include <vector>
+
+#include "include/types.h"
 #include "messages/PaxosServiceMessage.h"
 #include "mon/MonCommand.h"
-#include "mon/NVMeofGwMap.h"
-#include "include/types.h"
 #include "mon/NVMeofGwBeaconConstants.h"
+#include "mon/NVMeofGwMap.h"
 
 class MNVMeofGwBeacon final : public PaxosServiceMessage {
 
 protected:
-    std::string       gw_id;
-    std::string       gw_pool;
-    std::string       gw_group;
-    BeaconSubsystems  subsystems;                           // gateway susbsystem and their state machine states
-    gw_availability_t availability;                         // in absence of  beacon  heartbeat messages it becomes inavailable
-    epoch_t           last_osd_epoch;
-    epoch_t           last_gwmap_epoch;
-    uint64_t          sequence = 0;                         // sequence number for each beacon message
-    uint64_t          affected_features = 0;
+  std::string gw_id;
+  std::string gw_pool;
+  std::string gw_group;
+  BeaconSubsystems subsystems; // gateway susbsystem and their state machine states
+  gw_availability_t
+      availability; // in absence of  beacon  heartbeat messages it becomes inavailable
+  epoch_t last_osd_epoch;
+  epoch_t last_gwmap_epoch;
+  uint64_t sequence = 0; // sequence number for each beacon message
+  uint64_t affected_features = 0;
 
 public:
-  MNVMeofGwBeacon()
-    : PaxosServiceMessage{MSG_MNVMEOF_GW_BEACON, 0, BEACON_VERSION_ENHANCED,
-	  BEACON_VERSION_ENHANCED}, sequence(0)
+  MNVMeofGwBeacon() :
+    PaxosServiceMessage{
+        MSG_MNVMEOF_GW_BEACON, 0, BEACON_VERSION_ENHANCED,
+        BEACON_VERSION_ENHANCED},
+    sequence(0)
   {
     set_priority(CEPH_MSG_PRIO_HIGH);
   }
 
-  MNVMeofGwBeacon(const std::string &gw_id_,
-        const std::string& gw_pool_,
-        const std::string& gw_group_,
-        const BeaconSubsystems& subsystems_,
-        const gw_availability_t& availability_,
-        const epoch_t& last_osd_epoch_,
-        const epoch_t& last_gwmap_epoch_,
-        uint64_t sequence_ = 0,  // default sequence for backward compatibility
-        uint64_t features = 0)
-    : PaxosServiceMessage{MSG_MNVMEOF_GW_BEACON,
-            0,
-            features ? BEACON_VERSION_ENHANCED : BEACON_VERSION_LEGACY,
-            features ? BEACON_VERSION_ENHANCED : BEACON_VERSION_LEGACY},
-      gw_id(gw_id_), gw_pool(gw_pool_), gw_group(gw_group_), subsystems(subsystems_),
-      availability(availability_), last_osd_epoch(last_osd_epoch_),
-      last_gwmap_epoch(last_gwmap_epoch_), sequence(sequence_)
+  MNVMeofGwBeacon(
+      const std::string& gw_id_,
+      const std::string& gw_pool_,
+      const std::string& gw_group_,
+      const BeaconSubsystems& subsystems_,
+      const gw_availability_t& availability_,
+      const epoch_t& last_osd_epoch_,
+      const epoch_t& last_gwmap_epoch_,
+      uint64_t sequence_ = 0, // default sequence for backward compatibility
+      uint64_t features = 0) :
+    PaxosServiceMessage{
+        MSG_MNVMEOF_GW_BEACON, 0,
+        features ? BEACON_VERSION_ENHANCED : BEACON_VERSION_LEGACY,
+        features ? BEACON_VERSION_ENHANCED : BEACON_VERSION_LEGACY},
+    gw_id(gw_id_),
+    gw_pool(gw_pool_),
+    gw_group(gw_group_),
+    subsystems(subsystems_),
+    availability(availability_),
+    last_osd_epoch(last_osd_epoch_),
+    last_gwmap_epoch(last_gwmap_epoch_),
+    sequence(sequence_)
   {
     set_priority(CEPH_MSG_PRIO_HIGH);
   }
 
-  const std::string& get_gw_id() const { return gw_id; }
-  const std::string& get_gw_pool() const { return gw_pool; }
-  const std::string& get_gw_group() const { return gw_group; }
-  NvmeAnaNonceMap get_nonce_map() const {
+  const std::string&
+  get_gw_id() const
+  {
+    return gw_id;
+  }
+
+  const std::string&
+  get_gw_pool() const
+  {
+    return gw_pool;
+  }
+
+  const std::string&
+  get_gw_group() const
+  {
+    return gw_group;
+  }
+
+  NvmeAnaNonceMap
+  get_nonce_map() const
+  {
     NvmeAnaNonceMap nonce_map;
-    for (const auto& sub: subsystems) {
-      for (const auto& ns: sub.namespaces) {
-        auto& nonce_vec = nonce_map[ns.anagrpid-1];//Converting   ana groups to offsets
-        if (std::find(nonce_vec.begin(), nonce_vec.end(), ns.nonce) == nonce_vec.end())
+    for (const auto& sub : subsystems) {
+      for (const auto& ns : sub.namespaces) {
+        auto& nonce_vec =
+            nonce_map[ns.anagrpid - 1]; //Converting   ana groups to offsets
+        if (std::find(nonce_vec.begin(), nonce_vec.end(), ns.nonce) ==
+            nonce_vec.end())
           nonce_vec.push_back(ns.nonce);
       }
     }
     return nonce_map;
   }
 
-  const gw_availability_t& get_availability()   const   { return availability; }
-  const epoch_t&           get_last_osd_epoch() const   { return last_osd_epoch; }
-  const epoch_t&           get_last_gwmap_epoch() const { return last_gwmap_epoch; }
-  const BeaconSubsystems&  get_subsystems()     const   { return subsystems; };
-  uint64_t get_sequence() const { return sequence; }
+  const gw_availability_t&
+  get_availability() const
+  {
+    return availability;
+  }
+
+  const epoch_t&
+  get_last_osd_epoch() const
+  {
+    return last_osd_epoch;
+  }
+
+  const epoch_t&
+  get_last_gwmap_epoch() const
+  {
+    return last_gwmap_epoch;
+  }
+
+  const BeaconSubsystems&
+  get_subsystems() const
+  {
+    return subsystems;
+  };
+
+  uint64_t
+  get_sequence() const
+  {
+    return sequence;
+  }
 
 private:
   ~MNVMeofGwBeacon() final {}
 
 public:
+  std::string_view
+  get_type_name() const override
+  {
+    return "nvmeofgwbeacon";
+  }
 
-  std::string_view get_type_name() const override { return "nvmeofgwbeacon"; }
-
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(gw_id, payload);
@@ -110,10 +168,12 @@ public:
     }
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
-    
+
     paxos_decode(p);
     decode(gw_id, p);
     decode(gw_pool, p);
@@ -129,12 +189,12 @@ public:
       decode(sequence, p);
       decode_beacon_change_descriptors(subsystems, p);
     } else {
-      sequence = 0;  // Legacy beacons don't have sequence field
+      sequence = 0; // Legacy beacons don't have sequence field
     }
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -139,52 +139,52 @@
     be known to the implementer. For instance, it may be more
     expensive to retrieve two chunks with cost 1 + 9 = 10 than two
     chunks with cost 6 + 6 = 12. 
- */ 
+ */
 
 #include <map>
-#include <set>
-#include <vector>
-#include <ostream>
 #include <memory>
+#include <ostream>
+#include <set>
 #include <string>
+#include <vector>
+
 #include "include/buffer_fwd.h"
 #include "osd/osd_types.h"
 
-#define IGNORE_DEPRECATED \
-  _Pragma("GCC diagnostic push") \
-  _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\" ") \
-  _Pragma("clang diagnostic push") \
-  _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"")
+#define IGNORE_DEPRECATED                                              \
+  _Pragma("GCC diagnostic push")                                       \
+      _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\" ") \
+          _Pragma("clang diagnostic push") _Pragma(                    \
+              "clang diagnostic ignored \"-Wdeprecated-declarations\"")
 
-#define END_IGNORE_DEPRECATED \
-  _Pragma("clang pop") \
-  _Pragma("GCC pop")
+#define END_IGNORE_DEPRECATED _Pragma("clang pop") _Pragma("GCC pop")
 
 
 class CrushWrapper;
 
 namespace ceph {
 
-  typedef std::map<std::string,std::string> ErasureCodeProfile;
+typedef std::map<std::string, std::string> ErasureCodeProfile;
 
-  inline std::ostream& operator<<(std::ostream& out, const ErasureCodeProfile& profile) {
-    out << "{";
-    for (ErasureCodeProfile::const_iterator it = profile.begin();
-	 it != profile.end();
-	 ++it) {
-      if (it != profile.begin()) out << ",";
-      out << it->first << "=" << it->second;
-    }
-    out << "}";
-    return out;
+inline std::ostream&
+operator<<(std::ostream& out, const ErasureCodeProfile& profile)
+{
+  out << "{";
+  for (ErasureCodeProfile::const_iterator it = profile.begin();
+       it != profile.end(); ++it) {
+    if (it != profile.begin())
+      out << ",";
+    out << it->first << "=" << it->second;
   }
+  out << "}";
+  return out;
+}
 
+class ErasureCodeInterface {
+public:
+  virtual ~ErasureCodeInterface() {}
 
-  class ErasureCodeInterface {
-  public:
-    virtual ~ErasureCodeInterface() {}
-
-    /**
+  /**
      * Initialize the instance according to the content of
      * **profile**. The **ss** stream is set with debug messages or
      * error messages, the content of which depend on the
@@ -198,17 +198,17 @@ namespace ceph {
      * @param [out] ss contains informative messages when an error occurs
      * @return 0 on success or a negative errno on error.
      */
-    virtual int init(ErasureCodeProfile &profile, std::ostream *ss) = 0;
+  virtual int init(ErasureCodeProfile& profile, std::ostream* ss) = 0;
 
-    /**
+  /**
      * Return the profile that was used to initialize the instance
      * with the **init** method.
      *
      * @return the profile in use by the instance
      */
-    virtual const ErasureCodeProfile &get_profile() const = 0;
+  virtual const ErasureCodeProfile& get_profile() const = 0;
 
-    /**
+  /**
      * Create a new rule in **crush** under the name **name**,
      * unless it already exists.
      *
@@ -222,11 +222,12 @@ namespace ceph {
      * @param [out] ss contains informative messages when an error occurs
      * @return a rule on success or a negative errno on error.
      */
-    virtual int create_rule(const std::string &name,
-			    CrushWrapper &crush,
-			    std::ostream *ss) const = 0;
+  virtual int create_rule(
+      const std::string& name,
+      CrushWrapper& crush,
+      std::ostream* ss) const = 0;
 
-    /**
+  /**
      * Return the number of chunks created by a call to the **encode**
      * method.
      *
@@ -237,9 +238,9 @@ namespace ceph {
      *
      * @return the number of chunks created by encode()
      */
-    virtual unsigned int get_chunk_count() const = 0;
+  virtual unsigned int get_chunk_count() const = 0;
 
-    /**
+  /**
      * Return the number of data chunks created by a call to the
      * **encode** method. The data chunks contain the buffer provided
      * to **encode**, verbatim, with padding at the end of the last
@@ -247,9 +248,9 @@ namespace ceph {
      *
      * @return the number of data chunks created by encode()
      */
-    virtual unsigned int get_data_chunk_count() const = 0;
+  virtual unsigned int get_data_chunk_count() const = 0;
 
-    /**
+  /**
      * Return the number of coding chunks created by a call to the
      * **encode** method. The coding chunks are used to recover from
      * the loss of one or more chunks. If there is one coding chunk,
@@ -259,9 +260,9 @@ namespace ceph {
      *
      * @return the number of coding chunks created by encode()
      */
-    virtual unsigned int get_coding_chunk_count() const = 0;
+  virtual unsigned int get_coding_chunk_count() const = 0;
 
-    /**
+  /**
      * Return the number of sub chunks chunks created by a call to the
      * **encode** method. Each chunk can be viewed as union of sub-chunks
      * For the case of array codes, the sub-chunk count > 1, where as the
@@ -269,9 +270,9 @@ namespace ceph {
      *
      * @return the number of sub-chunks per chunk created by encode()
      */
-    virtual int get_sub_chunk_count() = 0;
+  virtual int get_sub_chunk_count() = 0;
 
-    /**
+  /**
      * Return the size (in bytes) of a single chunk created by a call
      * to the **decode** method. The returned size multiplied by
      * **get_chunk_count()** is greater or equal to **stripe_width**.
@@ -288,9 +289,9 @@ namespace ceph {
      * @param [in] stripe_width the number of bytes of the object to **encode()**
      * @return the size (in bytes) of a single chunk created by **encode()**
      */
-    virtual unsigned int get_chunk_size(unsigned int stripe_width) const = 0;
+  virtual unsigned int get_chunk_size(unsigned int stripe_width) const = 0;
 
-    /**
+  /**
      * Compute the smallest subset of **available** chunks that needs
      * to be retrieved in order to successfully decode
      * **want_to_read** chunks.
@@ -307,18 +308,21 @@ namespace ceph {
      *              subchunk index offsets, count.
      * @return **0** on success or a negative errno on error.
      */
-    virtual int minimum_to_decode(const shard_id_set &want_to_read,
-                          const shard_id_set &available,
-                          shard_id_set &minimum_set,
-                          mini_flat_map<shard_id_t, std::vector<std::pair<int, int>>> *minimum_sub_chunks) = 0;
+  virtual int minimum_to_decode(
+      const shard_id_set& want_to_read,
+      const shard_id_set& available,
+      shard_id_set& minimum_set,
+      mini_flat_map<shard_id_t, std::vector<std::pair<int, int>>>*
+          minimum_sub_chunks) = 0;
 
-    // Interface for legacy EC.
-    [[deprecated]]
-    virtual int minimum_to_decode(const std::set<int> &want_to_read,
-                                  const std::set<int> &available,
-                                  std::map<int, std::vector<std::pair<int, int>>> *minimum) = 0;
+  // Interface for legacy EC.
+  [[deprecated]]
+  virtual int minimum_to_decode(
+      const std::set<int>& want_to_read,
+      const std::set<int>& available,
+      std::map<int, std::vector<std::pair<int, int>>>* minimum) = 0;
 
-    /**
+  /**
      * Compute the smallest subset of **available** chunks that needs
      * to be retrieved in order to successfully decode
      * **want_to_read** chunks. If there are more than one possible
@@ -342,25 +346,27 @@ namespace ceph {
      * @param [out] minimum chunk indexes to retrieve 
      * @return **0** on success or a negative errno on error.
      */
-    virtual int minimum_to_decode_with_cost(const shard_id_set &want_to_read,
-                                            const shard_id_map<int> &available,
-                                            shard_id_set *minimum) = 0;
+  virtual int minimum_to_decode_with_cost(
+      const shard_id_set& want_to_read,
+      const shard_id_map<int>& available,
+      shard_id_set* minimum) = 0;
 
-    [[deprecated]]
-    virtual int minimum_to_decode_with_cost(const std::set<int> &want_to_read,
-                                            const std::map<int, int> &available,
-                                            std::set<int> *minimum) = 0;
+  [[deprecated]]
+  virtual int minimum_to_decode_with_cost(
+      const std::set<int>& want_to_read,
+      const std::map<int, int>& available,
+      std::set<int>* minimum) = 0;
 
-    /**
+  /**
      * Return the minimum number of bytes that the plugin and technique
      * support for partial writes. This is the minimum size of update
      * to coding chunks that the particular technique supports.
      *
      * @return minimum number of bytes.
      */
-    virtual size_t get_minimum_granularity() = 0;
+  virtual size_t get_minimum_granularity() = 0;
 
-    /**
+  /**
      * Note: The encode function is used for the older EC code path
      * that is used when EC optimizations are turned off. EC optimizations
      * are turned off for new pools by default.
@@ -399,19 +405,22 @@ namespace ceph {
      * @param [out] encoded map chunk indexes to chunk data
      * @return **0** on success or a negative errno on error.
      */
-    virtual int encode(const shard_id_set &want_to_encode,
-                       const bufferlist &in,
-                       shard_id_map<bufferlist> *encoded) = 0;
-    [[deprecated]]
-     virtual int encode(const std::set<int> &want_to_encode,
-                        const bufferlist &in,
-                        std::map<int, bufferlist> *encoded) = 0;
+  virtual int encode(
+      const shard_id_set& want_to_encode,
+      const bufferlist& in,
+      shard_id_map<bufferlist>* encoded) = 0;
+  [[deprecated]]
+  virtual int encode(
+      const std::set<int>& want_to_encode,
+      const bufferlist& in,
+      std::map<int, bufferlist>* encoded) = 0;
 
-    [[deprecated]]
-    virtual int encode_chunks(const std::set<int> &want_to_encode,
-                              std::map<int, bufferlist> *encoded) = 0;
+  [[deprecated]]
+  virtual int encode_chunks(
+      const std::set<int>& want_to_encode,
+      std::map<int, bufferlist>* encoded) = 0;
 
-    /**
+  /**
      * Note: The encode_chunks function is used by the older EC code path
      * that is used when EC optimizations are turned off. It is also used
      * when EC optimizations are turned on.
@@ -445,10 +454,11 @@ namespace ceph {
      * @param [out] out map of empty buffers for parity to be written to
      * @return **0** on success or a negative errno on error.
      */
-    virtual int encode_chunks(const shard_id_map<bufferptr> &in,
-                              shard_id_map<bufferptr> &out) = 0;
+  virtual int encode_chunks(
+      const shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) = 0;
 
-    /**
+  /**
      * Calculate the delta between the old_data and new_data buffers using xor,
      * (or plugin-specific implementation) and returns the result in the
      * delta_maybe_in_place buffer.
@@ -467,11 +477,12 @@ namespace ceph {
      *                       old_data and new_data. This can optionally be a
      *                       pointer to old_data.
      */
-    virtual void encode_delta(const bufferptr &old_data,
-                              const bufferptr &new_data,
-                              bufferptr *delta_maybe_in_place) = 0;
+  virtual void encode_delta(
+      const bufferptr& old_data,
+      const bufferptr& new_data,
+      bufferptr* delta_maybe_in_place) = 0;
 
-    /**
+  /**
      * Applies one or more deltas to one or more coding
      * chunks.
      *
@@ -495,10 +506,11 @@ namespace ceph {
      * @param [in] new_data second buffer to xor
      * @param [out] delta buffer containing the delta of old_data and new_data
      */
-    virtual void apply_delta(const shard_id_map<bufferptr> &in,
-                             shard_id_map<bufferptr> &out) = 0;
+  virtual void apply_delta(
+      const shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) = 0;
 
-    /**
+  /**
      * N.B This function is not used when EC optimizations are
      * turned on for the pool.
      *
@@ -535,15 +547,19 @@ namespace ceph {
      * @param [in] chunk_size chunk size
      * @return **0** on success or a negative errno on error.
      */
-    virtual int decode(const shard_id_set &want_to_read,
-                       const shard_id_map<bufferlist> &chunks,
-                       shard_id_map<bufferlist> *decoded, int chunk_size) = 0;
-    [[deprecated]]
-    virtual int decode(const std::set<int> &want_to_read,
-                       const std::map<int, bufferlist> &chunks,
-                       std::map<int, bufferlist> *decoded, int chunk_size) = 0;
+  virtual int decode(
+      const shard_id_set& want_to_read,
+      const shard_id_map<bufferlist>& chunks,
+      shard_id_map<bufferlist>* decoded,
+      int chunk_size) = 0;
+  [[deprecated]]
+  virtual int decode(
+      const std::set<int>& want_to_read,
+      const std::map<int, bufferlist>& chunks,
+      std::map<int, bufferlist>* decoded,
+      int chunk_size) = 0;
 
-    /**
+  /**
      * Decode the **in** map and store at least **want_to_read**
      * shards in the **out** map.
      *
@@ -567,16 +583,18 @@ namespace ceph {
      * @param [out] out map of shard indexes that nede to be decoded to empty buffers
      * @return **0** on success or a negative errno on error.
      */
-    virtual int decode_chunks(const shard_id_set &want_to_read,
-                              shard_id_map<bufferptr> &in,
-                              shard_id_map<bufferptr> &out) = 0;
+  virtual int decode_chunks(
+      const shard_id_set& want_to_read,
+      shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) = 0;
 
-    [[deprecated]]
-    virtual int decode_chunks(const std::set<int> &want_to_read,
-                              const std::map<int, bufferlist> &chunks,
-                              std::map<int, bufferlist> *decoded) = 0;
+  [[deprecated]]
+  virtual int decode_chunks(
+      const std::set<int>& want_to_read,
+      const std::map<int, bufferlist>& chunks,
+      std::map<int, bufferlist>* decoded) = 0;
 
-    /**
+  /**
      * Return the ordered list of chunks or an empty vector
      * if no remapping is necessary.
      *
@@ -609,9 +627,9 @@ namespace ceph {
      *
      * @return vector<int> list of indices of chunks to be remapped
      */
-    virtual const std::vector<shard_id_t> &get_chunk_mapping() const = 0;
+  virtual const std::vector<shard_id_t>& get_chunk_mapping() const = 0;
 
-    /**
+  /**
      * Decode the first **get_data_chunk_count()** **chunks** and
      * concatenate them into **decoded**.
      *
@@ -625,114 +643,133 @@ namespace ceph {
      * 			    will be concatenated into `decoded` in index order
      * @return **0** on success or a negative errno on error.
      */
-    [[deprecated]]
-    virtual int decode_concat(const std::set<int>& want_to_read,
-			      const std::map<int, bufferlist> &chunks,
-			      bufferlist *decoded) = 0;
-    [[deprecated]]
-    virtual int decode_concat(const std::map<int, bufferlist> &chunks,
-			      bufferlist *decoded) = 0;
+  [[deprecated]]
+  virtual int decode_concat(
+      const std::set<int>& want_to_read,
+      const std::map<int, bufferlist>& chunks,
+      bufferlist* decoded) = 0;
+  [[deprecated]]
+  virtual int decode_concat(
+      const std::map<int, bufferlist>& chunks,
+      bufferlist* decoded) = 0;
 
-  	using plugin_flags = uint64_t;
+  using plugin_flags = uint64_t;
 
-    /**
+  /**
      * Return a set of flags indicating which EC optimizations are supported
      * by the plugin.
      *
      * @return logical OR of the supported performance optimizations
      */
-    virtual plugin_flags get_supported_optimizations() const = 0;
-    enum {
-      /* Partial read optimization assumes that the erasure code is systematic
+  virtual plugin_flags get_supported_optimizations() const = 0;
+
+  enum {
+    /* Partial read optimization assumes that the erasure code is systematic
        * and that concatenating the data chunks in the order returned by
        * get_chunk_mapping will create the data encoded for a stripe. The
        * optimization permits small reads to read data directly from the data
        * chunks without calling decode.
        */
-      FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION = 1<<0,
-      /* Partial write optimization assumes that a write to less than one
+    FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION = 1 << 0,
+    /* Partial write optimization assumes that a write to less than one
        * chunk only needs to read this fragment from each data chunk in the
        * stripe and can then use encode to create the corresponding coding
        * fragments.
        */
-      FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION = 1<<1,
-      /* Zero input zero output optimization means the erasure code has the
+    FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION = 1 << 1,
+    /* Zero input zero output optimization means the erasure code has the
        * property that if all the data chunks are zero then the coding parity
        * chunks will also be zero.
        */
-      FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION = 1<<2,
-      /* Zero padding optimization permits the encode and decode methods to
+    FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION = 1 << 2,
+    /* Zero padding optimization permits the encode and decode methods to
        * be called with buffers that are zero length. The plugin treats
        * this as a chunk of all zeros.
        */
-      FLAG_EC_PLUGIN_ZERO_PADDING_OPTIMIZATION = 1<<3,
-      /* Parity delta write optimization means the encode_delta and
+    FLAG_EC_PLUGIN_ZERO_PADDING_OPTIMIZATION = 1 << 3,
+    /* Parity delta write optimization means the encode_delta and
        * apply_delta methods are supported which allows small updates
        * to a stripe to be applied using a read-modify-write of a
        * data chunk and the coding parity chunks.
        */
-      FLAG_EC_PLUGIN_PARITY_DELTA_OPTIMIZATION = 1<<4,
-      /* This plugin requires sub-chunks (at the time of writing this was only
+    FLAG_EC_PLUGIN_PARITY_DELTA_OPTIMIZATION = 1 << 4,
+    /* This plugin requires sub-chunks (at the time of writing this was only
        * clay). Other plugins will not process the overhead of stub sub-chunks.
        */
-      FLAG_EC_PLUGIN_REQUIRE_SUB_CHUNKS = 1<<5,
-      /* Optimized EC is supported only if this flag is set. All other flags
+    FLAG_EC_PLUGIN_REQUIRE_SUB_CHUNKS = 1 << 5,
+    /* Optimized EC is supported only if this flag is set. All other flags
        * are irrelevant if this flag is false.
        */
-      FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED = 1<<6,
-      /* This plugin supports the ability to encode CRCs of data shards to get
+    FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED = 1 << 6,
+    /* This plugin supports the ability to encode CRCs of data shards to get
        * the CRC of a parity shard. This flag also represents the inverse,
        * to decode a parity CRC to get the CRC of a data shard.
        */
-      FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT = 1<<7,
-      /* This plugin supports the ability for the client to read directly from
+    FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT = 1 << 7,
+    /* This plugin supports the ability for the client to read directly from
        * the OSD containing a shard. This currently requires that raw shard ==
        * shard and that the data shards are simply striped.
        */
-      FLAG_EC_PLUGIN_DIRECT_READS = 1<<8,
-    };
-    static const char *get_optimization_flag_name(const plugin_flags flag) {
-      switch (flag) {
-      case FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION: return "partialread";
-      case FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION: return "partialwrite";
-      case FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION: return "zeroinout";
-      case FLAG_EC_PLUGIN_ZERO_PADDING_OPTIMIZATION: return "zeropadding";
-      case FLAG_EC_PLUGIN_PARITY_DELTA_OPTIMIZATION: return "paritydelta";
-      case FLAG_EC_PLUGIN_REQUIRE_SUB_CHUNKS: return "requiresubchunks";
-      case FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED: return "optimizedsupport";
-      case FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT:
-        return "crcencodedecode";
-      case FLAG_EC_PLUGIN_DIRECT_READS:
-        return "directreads";
-      default: return "???";
-      }
-    }
-    static std::string get_optimization_flags_string(plugin_flags flags) {
-      std::string s;
-      for (unsigned n=0; flags && n<64; ++n) {
-      	if (flags & (1ull << n)) {
-			if (s.length())
-				s += ",";
-			s += get_optimization_flag_name(1ull << n);
-			flags -= flags & (1ull << n);
-		}
-      }
-      return s;
-    }
+    FLAG_EC_PLUGIN_DIRECT_READS = 1 << 8,
+  };
 
-    /**
+  static const char*
+  get_optimization_flag_name(const plugin_flags flag)
+  {
+    switch (flag) {
+    case FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION:
+      return "partialread";
+    case FLAG_EC_PLUGIN_PARTIAL_WRITE_OPTIMIZATION:
+      return "partialwrite";
+    case FLAG_EC_PLUGIN_ZERO_INPUT_ZERO_OUTPUT_OPTIMIZATION:
+      return "zeroinout";
+    case FLAG_EC_PLUGIN_ZERO_PADDING_OPTIMIZATION:
+      return "zeropadding";
+    case FLAG_EC_PLUGIN_PARITY_DELTA_OPTIMIZATION:
+      return "paritydelta";
+    case FLAG_EC_PLUGIN_REQUIRE_SUB_CHUNKS:
+      return "requiresubchunks";
+    case FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED:
+      return "optimizedsupport";
+    case FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT:
+      return "crcencodedecode";
+    case FLAG_EC_PLUGIN_DIRECT_READS:
+      return "directreads";
+    default:
+      return "???";
+    }
+  }
+
+  static std::string
+  get_optimization_flags_string(plugin_flags flags)
+  {
+    std::string s;
+    for (unsigned n = 0; flags && n < 64; ++n) {
+      if (flags & (1ull << n)) {
+        if (s.length())
+          s += ",";
+        s += get_optimization_flag_name(1ull << n);
+        flags -= flags & (1ull << n);
+      }
+    }
+    return s;
+  }
+
+  /**
      * Return a string describing which EC optimizations are supported
      * by the plugin.
      *
      * @return string of optimizations supported by the plugin
      */
-    virtual std::string get_optimizations_flags_string() const {
-      return get_optimization_flags_string(get_supported_optimizations());
-    }
-  };
+  virtual std::string
+  get_optimizations_flags_string() const
+  {
+    return get_optimization_flags_string(get_supported_optimizations());
+  }
+};
 
-  typedef std::shared_ptr<ErasureCodeInterface> ErasureCodeInterfaceRef;
+typedef std::shared_ptr<ErasureCodeInterface> ErasureCodeInterfaceRef;
 
-}
+} // namespace ceph
 
 #endif

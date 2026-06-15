@@ -5,20 +5,20 @@
 
 #include "common/dout.h"
 #include "common/errno.h"
-#include "librbd/Utils.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/Utils.h"
 #include "librbd/crypto/EncryptionFormat.h"
 #include "librbd/crypto/Types.h"
 #include "librbd/crypto/Utils.h"
 #include "librbd/io/AioCompletion.h"
-#include "librbd/io/ImageDispatcherInterface.h"
 #include "librbd/io/ImageDispatchSpec.h"
+#include "librbd/io/ImageDispatcherInterface.h"
 #include "librbd/io/Types.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::crypto::LoadRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::crypto::LoadRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace crypto {
@@ -27,24 +27,28 @@ using librbd::util::create_context_callback;
 
 template <typename I>
 LoadRequest<I>::LoadRequest(
-        I* image_ctx, std::vector<EncryptionFormat>&& formats,
-        Context* on_finish) : m_image_ctx(image_ctx),
-                              m_on_finish(on_finish),
-                              m_format_idx(0),
-                              m_is_current_format_assumed(false),
-                              m_formats(std::move(formats)) {
-}
+    I* image_ctx,
+    std::vector<EncryptionFormat>&& formats,
+    Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_on_finish(on_finish),
+  m_format_idx(0),
+  m_is_current_format_assumed(false),
+  m_formats(std::move(formats))
+{}
 
 template <typename I>
-void LoadRequest<I>::send() {
+void
+LoadRequest<I>::send()
+{
   if (m_formats.empty()) {
     lderr(m_image_ctx->cct) << "no encryption formats were specified" << dendl;
     finish(-EINVAL);
     return;
   }
 
-  ldout(m_image_ctx->cct, 20) << "got " << m_formats.size() << " formats"
-                              << dendl;
+  ldout(m_image_ctx->cct, 20)
+      << "got " << m_formats.size() << " formats" << dendl;
 
   if (m_image_ctx->encryption_format.get() != nullptr) {
     lderr(m_image_ctx->cct) << "encryption already loaded" << dendl;
@@ -68,19 +72,24 @@ void LoadRequest<I>::send() {
 }
 
 template <typename I>
-void LoadRequest<I>::flush() {
-  auto ctx = create_context_callback<
-          LoadRequest<I>, &LoadRequest<I>::handle_flush>(this);
+void
+LoadRequest<I>::flush()
+{
+  auto ctx =
+      create_context_callback<LoadRequest<I>, &LoadRequest<I>::handle_flush>(
+          this);
   auto aio_comp = io::AioCompletion::create_and_start(
-    ctx, librbd::util::get_image_ctx(m_image_ctx), io::AIO_TYPE_FLUSH);
+      ctx, librbd::util::get_image_ctx(m_image_ctx), io::AIO_TYPE_FLUSH);
   auto req = io::ImageDispatchSpec::create_flush(
-    *m_image_ctx, io::IMAGE_DISPATCH_LAYER_INTERNAL_START, aio_comp,
-    io::FLUSH_SOURCE_INTERNAL, {});
+      *m_image_ctx, io::IMAGE_DISPATCH_LAYER_INTERNAL_START, aio_comp,
+      io::FLUSH_SOURCE_INTERNAL, {});
   req->send();
 }
 
 template <typename I>
-void LoadRequest<I>::handle_flush(int r) {
+void
+LoadRequest<I>::handle_flush(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -93,18 +102,23 @@ void LoadRequest<I>::handle_flush(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::load() {
+void
+LoadRequest<I>::load()
+{
   ldout(m_image_ctx->cct, 20) << "format_idx=" << m_format_idx << dendl;
 
   m_detected_format_name = "";
-  auto ctx = create_context_callback<
-          LoadRequest<I>, &LoadRequest<I>::handle_load>(this);
-  m_formats[m_format_idx]->load(m_current_image_ctx, &m_detected_format_name,
-                                ctx);
+  auto ctx =
+      create_context_callback<LoadRequest<I>, &LoadRequest<I>::handle_load>(
+          this);
+  m_formats[m_format_idx]->load(
+      m_current_image_ctx, &m_detected_format_name, ctx);
 }
 
 template <typename I>
-void LoadRequest<I>::handle_load(int r) {
+void
+LoadRequest<I>::handle_load(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -124,10 +138,10 @@ void LoadRequest<I>::handle_load(int r) {
     return;
   }
 
-  ldout(m_image_ctx->cct, 5) << "loaded format " << m_detected_format_name
-                             << (m_is_current_format_assumed ? " (assumed)" : "")
-                             << " for image " << m_current_image_ctx->name
-                             << dendl;
+  ldout(m_image_ctx->cct, 5)
+      << "loaded format " << m_detected_format_name
+      << (m_is_current_format_assumed ? " (assumed)" : "") << " for image "
+      << m_current_image_ctx->name << dendl;
 
   m_format_idx++;
   if (!m_current_image_ctx->migration_info.empty()) {
@@ -136,8 +150,8 @@ void LoadRequest<I>::handle_load(int r) {
     // trash when migration is prepared
     ceph_assert(m_current_image_ctx->parent != nullptr);
     ldout(m_image_ctx->cct, 20) << "under migration, cloning format" << dendl;
-    m_formats.insert(m_formats.begin() + m_format_idx,
-                     m_formats[m_format_idx - 1]->clone());
+    m_formats.insert(
+        m_formats.begin() + m_format_idx, m_formats[m_format_idx - 1]->clone());
   }
 
   m_current_image_ctx = m_current_image_ctx->parent;
@@ -153,10 +167,9 @@ void LoadRequest<I>::handle_load(int r) {
     load();
   } else {
     if (m_formats.size() != m_format_idx) {
-      lderr(m_image_ctx->cct) << "got " << m_formats.size()
-                              << " encryption specs to load, "
-                              << "but image has " << m_format_idx - 1
-                              << " ancestors" << dendl;
+      lderr(m_image_ctx->cct)
+          << "got " << m_formats.size() << " encryption specs to load, "
+          << "but image has " << m_format_idx - 1 << " ancestors" << dendl;
       finish(-EINVAL);
       return;
     }
@@ -166,14 +179,18 @@ void LoadRequest<I>::handle_load(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::invalidate_cache() {
+void
+LoadRequest<I>::invalidate_cache()
+{
   auto ctx = create_context_callback<
-          LoadRequest<I>, &LoadRequest<I>::handle_invalidate_cache>(this);
+      LoadRequest<I>, &LoadRequest<I>::handle_invalidate_cache>(this);
   m_image_ctx->io_image_dispatcher->invalidate_cache(ctx);
 }
 
 template <typename I>
-void LoadRequest<I>::handle_invalidate_cache(int r) {
+void
+LoadRequest<I>::handle_invalidate_cache(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -184,7 +201,9 @@ void LoadRequest<I>::handle_invalidate_cache(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::finish(int r) {
+void
+LoadRequest<I>::finish(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (r == 0) {

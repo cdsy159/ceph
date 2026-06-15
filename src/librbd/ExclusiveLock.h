@@ -5,59 +5,64 @@
 #define CEPH_LIBRBD_EXCLUSIVE_LOCK_H
 
 #include "common/AsyncOpTracker.h"
+#include "common/RefCountedObj.h"
 #include "librbd/ManagedLock.h"
 #include "librbd/exclusive_lock/Policy.h"
 #include "librbd/io/Types.h"
-#include "common/RefCountedObj.h"
 
 struct Context;
 
 namespace librbd {
 
-namespace exclusive_lock { template <typename> struct ImageDispatch; }
+namespace exclusive_lock {
+template <typename>
+struct ImageDispatch;
+}
 
 template <typename ImageCtxT = ImageCtx>
-class ExclusiveLock : public RefCountedObject,
-                      public ManagedLock<ImageCtxT> {
+class ExclusiveLock : public RefCountedObject, public ManagedLock<ImageCtxT> {
 public:
-  static ExclusiveLock *create(ImageCtxT &image_ctx) {
+  static ExclusiveLock*
+  create(ImageCtxT& image_ctx)
+  {
     return new ExclusiveLock<ImageCtxT>(image_ctx);
   }
 
-  ExclusiveLock(ImageCtxT &image_ctx);
+  ExclusiveLock(ImageCtxT& image_ctx);
 
   bool accept_request(exclusive_lock::OperationRequestType request_type) const;
-  bool accept_request(exclusive_lock::OperationRequestType request_type,
-                      int *ret_val) const;
+  bool accept_request(
+      exclusive_lock::OperationRequestType request_type,
+      int* ret_val) const;
   bool accept_ops() const;
 
-  void set_require_lock(bool init_shutdown, io::Direction direction,
-                        Context* on_finish);
+  void set_require_lock(
+      bool init_shutdown,
+      io::Direction direction,
+      Context* on_finish);
   void unset_require_lock(io::Direction direction);
 
   void block_requests(int r);
   void unblock_requests();
 
-  void init(uint64_t features, Context *on_init);
-  void shut_down(Context *on_shutdown);
+  void init(uint64_t features, Context* on_init);
+  void shut_down(Context* on_shutdown);
 
   void handle_peer_notification(int r);
 
   int get_unlocked_op_error() const;
-  Context *start_op(int* ret_val);
+  Context* start_op(int* ret_val);
 
 protected:
-  void shutdown_handler(int r, Context *on_finish) override;
-  void pre_acquire_lock_handler(Context *on_finish) override;
-  void post_acquire_lock_handler(int r, Context *on_finish) override;
-  void pre_release_lock_handler(bool shutting_down,
-                                Context *on_finish) override;
-  void post_release_lock_handler(bool shutting_down, int r,
-                                 Context *on_finish) override;
-  void post_reacquire_lock_handler(int r, Context *on_finish) override;
+  void shutdown_handler(int r, Context* on_finish) override;
+  void pre_acquire_lock_handler(Context* on_finish) override;
+  void post_acquire_lock_handler(int r, Context* on_finish) override;
+  void pre_release_lock_handler(bool shutting_down, Context* on_finish) override;
+  void post_release_lock_handler(bool shutting_down, int r, Context* on_finish)
+      override;
+  void post_reacquire_lock_handler(int r, Context* on_finish) override;
 
 private:
-
   /**
    * @verbatim
    *
@@ -98,7 +103,7 @@ private:
 
   ImageCtxT& m_image_ctx;
   exclusive_lock::ImageDispatch<ImageCtxT>* m_image_dispatch = nullptr;
-  Context *m_pre_post_callback = nullptr;
+  Context* m_pre_post_callback = nullptr;
 
   AsyncOpTracker m_async_op_tracker;
 
@@ -107,7 +112,7 @@ private:
 
   int m_acquire_lock_peer_ret_val = 0;
 
-  bool accept_ops(const ceph::mutex &lock) const;
+  bool accept_ops(const ceph::mutex& lock) const;
 
   void handle_post_acquiring_lock(int r);
   void handle_post_acquired_lock(int r);

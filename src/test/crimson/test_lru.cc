@@ -22,12 +22,15 @@
  */
 
 #include <stdio.h>
-#include "gtest/gtest.h"
+
 #include "crimson/common/shared_lru.h"
+#include "gtest/gtest.h"
 
 class LRUTest : public SharedLRU<unsigned int, int> {
 public:
-  auto add(unsigned int key, int value, bool* existed = nullptr) {
+  auto
+  add(unsigned int key, int value, bool* existed = nullptr)
+  {
     auto pv = new int{value};
     auto ptr = insert(key, std::unique_ptr<int>{pv});
     if (existed) {
@@ -37,7 +40,8 @@ public:
   }
 };
 
-TEST(LRU, add) {
+TEST(LRU, add)
+{
   LRUTest cache;
   unsigned int key = 1;
   int value1 = 2;
@@ -56,7 +60,8 @@ TEST(LRU, add) {
   }
 }
 
-TEST(LRU, empty) {
+TEST(LRU, empty)
+{
   LRUTest cache;
   unsigned int key = 1;
   bool existed = false;
@@ -74,7 +79,8 @@ TEST(LRU, empty) {
   ASSERT_TRUE(cache.empty());
 }
 
-TEST(LRU, lookup) {
+TEST(LRU, lookup)
+{
   LRUTest cache;
   unsigned int key = 1;
   {
@@ -88,7 +94,8 @@ TEST(LRU, lookup) {
   ASSERT_TRUE(cache.find(key).get());
 }
 
-TEST(LRU, lookup_or_create) {
+TEST(LRU, lookup_or_create)
+{
   LRUTest cache;
   {
     int value = 2;
@@ -106,7 +113,8 @@ TEST(LRU, lookup_or_create) {
   ASSERT_TRUE(cache.find(2).get());
 }
 
-TEST(LRU, lower_bound) {
+TEST(LRU, lower_bound)
+{
   LRUTest cache;
 
   {
@@ -120,7 +128,8 @@ TEST(LRU, lower_bound) {
   }
 }
 
-TEST(LRU, get_next) {
+TEST(LRU, get_next)
+{
 
   {
     LRUTest cache;
@@ -143,7 +152,8 @@ TEST(LRU, get_next) {
   }
 }
 
-TEST(LRU, clear) {
+TEST(LRU, clear)
+{
   LRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -159,7 +169,8 @@ TEST(LRU, clear) {
   ASSERT_TRUE(cache.empty());
 }
 
-TEST(LRU, eviction) {
+TEST(LRU, eviction)
+{
   LRUTest cache{5};
   bool existed;
   // add a bunch of elements, some of them will be evicted
@@ -176,7 +187,8 @@ TEST(LRU, eviction) {
   }
 }
 
-TEST(LRU, track_weak) {
+TEST(LRU, track_weak)
+{
   constexpr int SIZE = 5;
   LRUTest cache{SIZE};
 
@@ -198,11 +210,11 @@ TEST(LRU, track_weak) {
   // [0..SIZE) are evicted when adding [SIZE..2*SIZE)
   // [SIZE..SIZE * 2) were still in the cache before accessing 0,
   // but SIZE got evicted when accessing 0
-  ASSERT_FALSE(cache.find(SIZE-1));
+  ASSERT_FALSE(cache.find(SIZE - 1));
   ASSERT_FALSE(cache.find(SIZE));
-  ASSERT_TRUE(cache.find(SIZE+1));
-  ASSERT_TRUE(cache.find(SIZE+1).get());
-  ASSERT_EQ((int)SIZE+1, *cache.find(SIZE+1));
+  ASSERT_TRUE(cache.find(SIZE + 1));
+  ASSERT_TRUE(cache.find(SIZE + 1).get());
+  ASSERT_EQ((int)SIZE + 1, *cache.find(SIZE + 1));
 
   ptr.reset();
   // 0 is still reachable, as it is now put back into LRU cache

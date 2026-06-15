@@ -1,28 +1,29 @@
-#include "auth/Crypto.h"
-
 #include <iostream> // for std::cout
 
+#include "common/debug.h"
+
+#include "auth/Crypto.h"
 #include "common/Clock.h"
 #include "common/config.h"
-#include "common/debug.h"
 #include "include/ceph_fs.h" // for CEPH_CRYPTO_AES
 
 #define dout_subsys ceph_subsys_auth
 
-#define AES_KEY_LEN	16
+#define AES_KEY_LEN 16
 
 #define dout_context g_ceph_context
 
 using namespace std;
 
-int main(int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
   char aes_key[AES_KEY_LEN];
   memset(aes_key, 0x77, sizeof(aes_key));
   bufferptr keybuf(aes_key, sizeof(aes_key));
   CryptoKey key(CEPH_CRYPTO_AES, ceph_clock_now(), keybuf);
 
-  const char *msg="hello! this is a message\n";
+  const char* msg = "hello! this is a message\n";
   char pad[16];
   memset(pad, 0, 16);
   bufferptr ptr(msg, strlen(msg));
@@ -38,10 +39,10 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  const char *enc_buf = enc_out.c_str();
-  for (unsigned i=0; i<enc_out.length(); i++) {
+  const char* enc_buf = enc_out.c_str();
+  for (unsigned i = 0; i < enc_out.length(); i++) {
     std::cout << hex << (int)(unsigned char)enc_buf[i] << dec << " ";
-    if (i && !(i%16))
+    if (i && !(i % 16))
       std::cout << std::endl;
   }
 
@@ -60,4 +61,3 @@ int main(int argc, char *argv[])
 
   return 0;
 }
-

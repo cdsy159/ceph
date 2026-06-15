@@ -2,43 +2,47 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "test/librados_test_stub/TestClassHandler.h"
-#include "test/librados_test_stub/TestIoCtxImpl.h"
-#include <boost/algorithm/string/predicate.hpp>
+
 #include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "common/debug.h"
+
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "include/ceph_assert.h"
 #include "include/dlfcn_compat.h"
+#include "test/librados_test_stub/TestIoCtxImpl.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rados
 
 namespace librados {
 
-TestClassHandler::TestClassHandler() {
-}
+TestClassHandler::TestClassHandler() {}
 
-TestClassHandler::~TestClassHandler() {
+TestClassHandler::~TestClassHandler()
+{
   for (ClassHandles::iterator it = m_class_handles.begin();
-      it != m_class_handles.end(); ++it) {
+       it != m_class_handles.end(); ++it) {
     dlclose(*it);
   }
 }
 
-void TestClassHandler::open_class(const std::string& name,
-                                  const std::string& path) {
-  void *handle = dlopen(path.c_str(), RTLD_NOW);
+void
+TestClassHandler::open_class(const std::string& name, const std::string& path)
+{
+  void* handle = dlopen(path.c_str(), RTLD_NOW);
   if (handle == NULL) {
-    std::cerr << "Failed to load class: " << name << " (" << path << "): "
-              << dlerror() << std::endl;
+    std::cerr << "Failed to load class: " << name << " (" << path
+              << "): " << dlerror() << std::endl;
     return;
   }
 
   // initialize
-  void (*cls_init)() = reinterpret_cast<void (*)()>(
-    dlsym(handle, "__cls_init"));
+  void (*cls_init)() = reinterpret_cast<void (*)()>(dlsym(handle, "__cls_init"));
 
   if (!cls_init) {
     std::cerr << "Error locating initializer: " << dlerror() << std::endl;
@@ -53,18 +57,21 @@ void TestClassHandler::open_class(const std::string& name,
   dlclose(handle);
 }
 
-void TestClassHandler::open_all_classes() {
+void
+TestClassHandler::open_all_classes()
+{
   ceph_assert(m_class_handles.empty());
 
   const char* env = getenv("CEPH_LIB");
   std::string CEPH_LIB(env ? env : "lib");
-  DIR *dir = ::opendir(CEPH_LIB.c_str());
+  DIR* dir = ::opendir(CEPH_LIB.c_str());
   if (dir == NULL) {
-    ceph_abort();;
+    ceph_abort();
+    ;
   }
 
   std::set<std::string> names;
-  struct dirent *pde = nullptr;
+  struct dirent* pde = nullptr;
   while ((pde = ::readdir(dir))) {
     std::string name(pde->d_name);
     if (!boost::algorithm::starts_with(name, "libcls_") ||
@@ -81,7 +88,9 @@ void TestClassHandler::open_all_classes() {
   closedir(dir);
 }
 
-int TestClassHandler::create(const std::string &name, cls_handle_t *handle) {
+int
+TestClassHandler::create(const std::string& name, cls_handle_t* handle)
+{
   if (m_classes.find(name) != m_classes.end()) {
     std::cerr << "Class " << name << " already exists" << std::endl;
     return -EEXIST;
@@ -93,11 +102,14 @@ int TestClassHandler::create(const std::string &name, cls_handle_t *handle) {
   return 0;
 }
 
-int TestClassHandler::create_method(cls_handle_t hclass,
-                                    const char *name,
-                                    cls_method_cxx_call_t class_call,
-                                    cls_method_handle_t *handle) {
-  Class *cls = reinterpret_cast<Class*>(hclass);
+int
+TestClassHandler::create_method(
+    cls_handle_t hclass,
+    const char* name,
+    cls_method_cxx_call_t class_call,
+    cls_method_handle_t* handle)
+{
+  Class* cls = reinterpret_cast<Class*>(hclass);
   if (cls->methods.find(name) != cls->methods.end()) {
     std::cerr << "Class method " << hclass << ":" << name << " already exists"
               << std::endl;
@@ -110,8 +122,9 @@ int TestClassHandler::create_method(cls_handle_t hclass,
   return 0;
 }
 
-cls_method_cxx_call_t TestClassHandler::get_method(const std::string &cls,
-                                                   const std::string &method) {
+cls_method_cxx_call_t
+TestClassHandler::get_method(const std::string& cls, const std::string& method)
+{
   Classes::iterator c_it = m_classes.find(cls);
   if (c_it == m_classes.end()) {
     std::cerr << "Failed to located class " << cls << std::endl;
@@ -128,9 +141,13 @@ cls_method_cxx_call_t TestClassHandler::get_method(const std::string &cls,
   return m_it->second->class_call;
 }
 
-TestClassHandler::SharedMethodContext TestClassHandler::get_method_context(
-    TestIoCtxImpl *io_ctx_impl, const std::string &oid, uint64_t snap_id,
-    const SnapContext &snapc) {
+TestClassHandler::SharedMethodContext
+TestClassHandler::get_method_context(
+    TestIoCtxImpl* io_ctx_impl,
+    const std::string& oid,
+    uint64_t snap_id,
+    const SnapContext& snapc)
+{
   SharedMethodContext ctx(new MethodContext());
 
   // clone to ioctx to provide a firewall for gmock expectations
@@ -141,11 +158,13 @@ TestClassHandler::SharedMethodContext TestClassHandler::get_method_context(
   return ctx;
 }
 
-int TestClassHandler::create_filter(cls_handle_t hclass,
-				    const std::string& name,
-				    cls_cxx_filter_factory_t fn)
+int
+TestClassHandler::create_filter(
+    cls_handle_t hclass,
+    const std::string& name,
+    cls_cxx_filter_factory_t fn)
 {
-  Class *cls = reinterpret_cast<Class*>(hclass);
+  Class* cls = reinterpret_cast<Class*>(hclass);
   if (cls->filters.find(name) != cls->filters.end()) {
     return -EEXIST;
   }
@@ -153,8 +172,6 @@ int TestClassHandler::create_filter(cls_handle_t hclass,
   return 0;
 }
 
-TestClassHandler::MethodContext::~MethodContext() {
-  io_ctx_impl->put();
-}
+TestClassHandler::MethodContext::~MethodContext() { io_ctx_impl->put(); }
 
 } // namespace librados

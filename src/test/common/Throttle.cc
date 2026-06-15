@@ -20,8 +20,10 @@
  *
  */
 
-#include <stdio.h>
+#include "common/Throttle.h"
+
 #include <signal.h>
+#include <stdio.h>
 
 #include <chrono>
 #include <iostream> // for std::cout
@@ -30,26 +32,27 @@
 #include <random>
 #include <thread>
 
-#include "gtest/gtest.h"
 #include "common/Thread.h"
-#include "common/Throttle.h"
 #include "common/ceph_argparse.h"
+#include "gtest/gtest.h"
 
 using namespace std;
 
 class ThrottleTest : public ::testing::Test {
 protected:
-
   class Thread_get : public Thread {
   public:
-    Throttle &throttle;
+    Throttle& throttle;
     int64_t count;
     bool waited = false;
 
     Thread_get(Throttle& _throttle, int64_t _count) :
-      throttle(_throttle), count(_count) {}
+      throttle(_throttle), count(_count)
+    {}
 
-    void *entry() override {
+    void*
+    entry() override
+    {
       usleep(5);
       waited = throttle.get(count);
       throttle.put(count);
@@ -58,21 +61,24 @@ protected:
   };
 };
 
-TEST_F(ThrottleTest, Throttle) {
+TEST_F(ThrottleTest, Throttle)
+{
   int64_t throttle_max = 10;
   Throttle throttle(g_ceph_context, "throttle", throttle_max);
   ASSERT_EQ(throttle.get_max(), throttle_max);
   ASSERT_EQ(throttle.get_current(), 0);
 }
 
-TEST_F(ThrottleTest, take) {
+TEST_F(ThrottleTest, take)
+{
   int64_t throttle_max = 10;
   Throttle throttle(g_ceph_context, "throttle", throttle_max);
   ASSERT_EQ(throttle.take(throttle_max), throttle_max);
   ASSERT_EQ(throttle.take(throttle_max), throttle_max * 2);
 }
 
-TEST_F(ThrottleTest, get) {
+TEST_F(ThrottleTest, get)
+{
   int64_t throttle_max = 10;
   Throttle throttle(g_ceph_context, "throttle");
 
@@ -113,7 +119,7 @@ TEST_F(ThrottleTest, get) {
 
     if (!(waited = t.waited))
       delay *= 2;
-  } while(!waited);
+  } while (!waited);
 
   delay = 1;
   do {
@@ -137,11 +143,11 @@ TEST_F(ThrottleTest, get) {
 
     if (!(waited = t.waited && u.waited))
       delay *= 2;
-  } while(!waited);
-
+  } while (!waited);
 }
 
-TEST_F(ThrottleTest, get_or_fail) {
+TEST_F(ThrottleTest, get_or_fail)
+{
   {
     Throttle throttle(g_ceph_context, "throttle");
 
@@ -167,7 +173,8 @@ TEST_F(ThrottleTest, get_or_fail) {
   }
 }
 
-TEST_F(ThrottleTest, wait) {
+TEST_F(ThrottleTest, wait)
+{
   int64_t throttle_max = 10;
   Throttle throttle(g_ceph_context, "throttle");
 
@@ -211,19 +218,20 @@ TEST_F(ThrottleTest, wait) {
       throttle.put(throttle_max / 2);
       throttle.wait(throttle_max);
     }
-  } while(!waited);
+  } while (!waited);
 }
 
-std::pair<double, std::chrono::duration<double> > test_backoff(
-  double low_threshhold,
-  double high_threshhold,
-  double expected_throughput,
-  double high_multiple,
-  double max_multiple,
-  uint64_t max,
-  double put_delay_per_count,
-  unsigned getters,
-  unsigned putters)
+std::pair<double, std::chrono::duration<double>>
+test_backoff(
+    double low_threshhold,
+    double high_threshhold,
+    double expected_throughput,
+    double high_multiple,
+    double max_multiple,
+    uint64_t max,
+    double put_delay_per_count,
+    unsigned getters,
+    unsigned putters)
 {
   std::mutex l;
   std::condition_variable c;
@@ -240,13 +248,8 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
 
   BackoffThrottle throttle(g_ceph_context, "backoff_throttle_test", 5);
   bool valid = throttle.set_params(
-    low_threshhold,
-    high_threshhold,
-    expected_throughput,
-    high_multiple,
-    max_multiple,
-    max,
-    0);
+      low_threshhold, high_threshhold, expected_throughput, high_multiple,
+      max_multiple, max, 0);
   ceph_assert(valid);
 
   auto getter = [&]() {
@@ -274,8 +277,8 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
     std::unique_lock<std::mutex> g(l);
     while (!stop_putters || !in_queue.empty()) {
       if (in_queue.empty()) {
-	c.wait(g);
-	continue;
+        c.wait(g);
+        continue;
       }
 
       uint64_t c = in_queue.front();
@@ -287,7 +290,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
 
       g.unlock();
       std::this_thread::sleep_for(
-	c * std::chrono::duration<double>(put_delay_per_count*putters));
+          c * std::chrono::duration<double>(put_delay_per_count * putters));
       g.lock();
 
       total -= c;
@@ -296,10 +299,12 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
   };
 
   vector<std::thread> gts(getters);
-  for (auto &&i: gts) i = std::thread(getter);
+  for (auto&& i : gts)
+    i = std::thread(getter);
 
   vector<std::thread> pts(putters);
-  for (auto &&i: pts) i = std::thread(putter);
+  for (auto&& i : pts)
+    i = std::thread(putter);
 
   std::this_thread::sleep_for(std::chrono::duration<double>(5));
   {
@@ -307,7 +312,8 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
     stop_getters = true;
     c.notify_all();
   }
-  for (auto &&i: gts) i.join();
+  for (auto&& i : gts)
+    i.join();
   gts.clear();
 
   {
@@ -315,26 +321,18 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
     stop_putters = true;
     c.notify_all();
   }
-  for (auto &&i: pts) i.join();
+  for (auto&& i : pts)
+    i.join();
   pts.clear();
 
   return make_pair(
-    ((double)total_observed_total)/((double)total_observations),
-    wait_time / waits);
+      ((double)total_observed_total) / ((double)total_observations),
+      wait_time / waits);
 }
 
 TEST(BackoffThrottle, undersaturated)
 {
-  auto results = test_backoff(
-    0.4,
-    0.6,
-    1000,
-    2,
-    10,
-    100,
-    0.0001,
-    3,
-    6);
+  auto results = test_backoff(0.4, 0.6, 1000, 2, 10, 100, 0.0001, 3, 6);
   ASSERT_LT(results.first, 45);
   ASSERT_GT(results.first, 35);
   ASSERT_LT(results.second.count(), 0.0002);
@@ -343,16 +341,7 @@ TEST(BackoffThrottle, undersaturated)
 
 TEST(BackoffThrottle, balanced)
 {
-  auto results = test_backoff(
-    0.4,
-    0.6,
-    1000,
-    2,
-    10,
-    100,
-    0.001,
-    7,
-    2);
+  auto results = test_backoff(0.4, 0.6, 1000, 2, 10, 100, 0.001, 7, 2);
   ASSERT_LT(results.first, 60);
   ASSERT_GT(results.first, 40);
   ASSERT_LT(results.second.count(), 0.002);
@@ -361,16 +350,7 @@ TEST(BackoffThrottle, balanced)
 
 TEST(BackoffThrottle, oversaturated)
 {
-  auto results = test_backoff(
-    0.4,
-    0.6,
-    10000000,
-    2,
-    10,
-    100,
-    0.001,
-    1,
-    3);
+  auto results = test_backoff(0.4, 0.6, 10000000, 2, 10, 100, 0.001, 1, 3);
   ASSERT_LT(results.first, 101);
   ASSERT_GT(results.first, 85);
   ASSERT_LT(results.second.count(), 0.002);

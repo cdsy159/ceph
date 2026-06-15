@@ -6,16 +6,21 @@
 #include <deque>
 #include <mutex>
 #include <system_error>
+
 #include <boost/intrusive/avl_set.hpp>
-#include "include/ceph_assert.h"
-#include "include/types.h"
+
 #include "common/async/yield_context.h"
 #include "common/dout.h"
+#include "include/ceph_assert.h"
+#include "include/types.h"
 
 namespace bi = boost::intrusive;
 
 class RGWPeriod;
-namespace rgw::sal { class ConfigStore; }
+
+namespace rgw::sal {
+class ConfigStore;
+}
 
 /**
  * RGWPeriodHistory tracks the relative history of all inserted periods,
@@ -23,7 +28,7 @@ namespace rgw::sal { class ConfigStore; }
  * Cursor object for traversing through the connected history.
  */
 class RGWPeriodHistory final {
- private:
+private:
   /// an ordered history of consecutive periods
   class History;
 
@@ -34,21 +39,27 @@ class RGWPeriodHistory final {
   class Impl;
   std::unique_ptr<Impl> impl;
 
- public:
+public:
   /**
    * Puller is a synchronous interface for pulling periods from the master
    * zone. The abstraction exists mainly to support unit testing.
    */
   class Puller {
-   public:
+  public:
     virtual ~Puller() = default;
 
-    virtual int pull(const DoutPrefixProvider *dpp, const std::string& period_id, RGWPeriod& period,
-		     optional_yield y, rgw::sal::ConfigStore* cfgstore) = 0;
+    virtual int pull(
+        const DoutPrefixProvider* dpp,
+        const std::string& period_id,
+        RGWPeriod& period,
+        optional_yield y,
+        rgw::sal::ConfigStore* cfgstore) = 0;
   };
 
-  RGWPeriodHistory(CephContext* cct, Puller* puller,
-                   const RGWPeriod& current_period);
+  RGWPeriodHistory(
+      CephContext* cct,
+      Puller* puller,
+      const RGWPeriod& current_period);
   ~RGWPeriodHistory();
 
   /**
@@ -60,33 +71,55 @@ class RGWPeriodHistory final {
    * their operator bool() will return false.
    */
   class Cursor final {
-   public:
+  public:
     Cursor() = default;
-    explicit Cursor(int error) : error(error) {}
 
-    int get_error() const { return error; }
+    explicit Cursor(int error) :
+      error(error)
+    {}
+
+    int
+    get_error() const
+    {
+      return error;
+    }
 
     /// return false for a default-constructed or error Cursor
     operator bool() const { return history != nullptr; }
 
-    epoch_t get_epoch() const { return epoch; }
+    epoch_t
+    get_epoch() const
+    {
+      return epoch;
+    }
+
     const RGWPeriod& get_period() const;
 
     bool has_prev() const;
     bool has_next() const;
 
-    void prev() { epoch--; }
-    void next() { epoch++; }
+    void
+    prev()
+    {
+      epoch--;
+    }
+
+    void
+    next()
+    {
+      epoch++;
+    }
 
     friend bool operator==(const Cursor& lhs, const Cursor& rhs);
     friend bool operator!=(const Cursor& lhs, const Cursor& rhs);
 
-   private:
+  private:
     // private constructors for RGWPeriodHistory
     friend class RGWPeriodHistory::Impl;
 
-    Cursor(const History* history, std::mutex* mutex, epoch_t epoch)
-      : history(history), mutex(mutex), epoch(epoch) {}
+    Cursor(const History* history, std::mutex* mutex, epoch_t epoch) :
+      history(history), mutex(mutex), epoch(epoch)
+    {}
 
     int error{0};
     const History* history{nullptr};
@@ -101,7 +134,11 @@ class RGWPeriodHistory final {
   /// current_period and the given period, reading predecessor periods or
   /// fetching them from the master as necessary. returns a cursor at the
   /// given period that can be used to traverse the current_history
-  Cursor attach(const DoutPrefixProvider *dpp, RGWPeriod&& period, optional_yield y, rgw::sal::ConfigStore* cfgstore);
+  Cursor attach(
+      const DoutPrefixProvider* dpp,
+      RGWPeriod&& period,
+      optional_yield y,
+      rgw::sal::ConfigStore* cfgstore);
 
   /// insert the given period into an existing history, or create a new
   /// unconnected history. similar to attach(), but it doesn't try to fetch

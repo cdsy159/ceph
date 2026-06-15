@@ -17,47 +17,52 @@
 #ifndef SCOPED_LOCAL_REF_H_included
 #define SCOPED_LOCAL_REF_H_included
 
-#include "jni.h"
-
 #include <stddef.h>
 
+#include "jni.h"
+
 // A smart pointer that deletes a JNI local reference when it goes out of scope.
-template<typename T>
+template <typename T>
 class ScopedLocalRef {
 public:
-    ScopedLocalRef(JNIEnv* env, T localRef) : mEnv(env), mLocalRef(localRef) {
-    }
+  ScopedLocalRef(JNIEnv* env, T localRef) :
+    mEnv(env), mLocalRef(localRef)
+  {}
 
-    ~ScopedLocalRef() {
-        reset();
-    }
+  ~ScopedLocalRef() { reset(); }
 
-    void reset(T ptr = NULL) {
-        if (ptr != mLocalRef) {
-            if (mLocalRef != NULL) {
-                mEnv->DeleteLocalRef(mLocalRef);
-            }
-            mLocalRef = ptr;
-        }
+  void
+  reset(T ptr = NULL)
+  {
+    if (ptr != mLocalRef) {
+      if (mLocalRef != NULL) {
+        mEnv->DeleteLocalRef(mLocalRef);
+      }
+      mLocalRef = ptr;
     }
+  }
 
-    T release() __attribute__((warn_unused_result)) {
-        T localRef = mLocalRef;
-        mLocalRef = NULL;
-        return localRef;
-    }
+  T
+  release() __attribute__((warn_unused_result))
+  {
+    T localRef = mLocalRef;
+    mLocalRef = NULL;
+    return localRef;
+  }
 
-    T get() const {
-        return mLocalRef;
-    }
+  T
+  get() const
+  {
+    return mLocalRef;
+  }
 
 private:
-    JNIEnv* mEnv;
-    T mLocalRef;
+  JNIEnv* mEnv;
+  T mLocalRef;
 
-    // Disallow copy and assignment.
-    ScopedLocalRef(const ScopedLocalRef&);
-    void operator=(const ScopedLocalRef&);
+  // Disallow copy and assignment.
+  ScopedLocalRef(const ScopedLocalRef&);
+  void operator=(const ScopedLocalRef&);
 };
 
-#endif  // SCOPED_LOCAL_REF_H_included
+#endif // SCOPED_LOCAL_REF_H_included

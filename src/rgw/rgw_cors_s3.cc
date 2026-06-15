@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 /*
@@ -13,24 +13,26 @@
  *
  */
 
-#include <string.h>
+#include "rgw_cors_s3.h"
+
 #include <limits.h>
+#include <string.h>
 
 #include <iostream>
 #include <map>
 
 #include "common/XMLFormatter.h"
-#include "include/types.h"
-
-#include "rgw_cors_s3.h"
 #include "driver/rados/rgw_user.h"
+#include "include/types.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-void RGWCORSRule_S3::to_xml(XMLFormatter& f) {
+void
+RGWCORSRule_S3::to_xml(XMLFormatter& f)
+{
 
   f.open_object_section("CORSRule");
   /*ID if present*/
@@ -51,15 +53,14 @@ void RGWCORSRule_S3::to_xml(XMLFormatter& f) {
   if (allowed_methods & RGW_CORS_COPY)
     f.dump_string("AllowedMethod", "COPY");
   /*AllowedOrigins*/
-  for(set<string>::iterator it = allowed_origins.begin(); 
-      it != allowed_origins.end(); 
-      ++it) {
+  for (set<string>::iterator it = allowed_origins.begin();
+       it != allowed_origins.end(); ++it) {
     string host = *it;
     f.dump_string("AllowedOrigin", host);
   }
   /*AllowedHeader*/
-  for(set<string>::iterator it = allowed_hdrs.begin(); 
-      it != allowed_hdrs.end(); ++it) {
+  for (set<string>::iterator it = allowed_hdrs.begin();
+       it != allowed_hdrs.end(); ++it) {
     f.dump_string("AllowedHeader", *it);
   }
   /*MaxAgeSeconds*/
@@ -67,22 +68,25 @@ void RGWCORSRule_S3::to_xml(XMLFormatter& f) {
     f.dump_unsigned("MaxAgeSeconds", max_age);
   }
   /*ExposeHeader*/
-  for(list<string>::iterator it = exposable_hdrs.begin(); 
-      it != exposable_hdrs.end(); ++it) {
+  for (list<string>::iterator it = exposable_hdrs.begin();
+       it != exposable_hdrs.end(); ++it) {
     f.dump_string("ExposeHeader", *it);
   }
   f.close_section();
 }
 
-bool RGWCORSRule_S3::xml_end(const char *el) {
+bool
+RGWCORSRule_S3::xml_end(const char* el)
+{
   XMLObjIter iter = find("AllowedMethod");
-  XMLObj *obj;
+  XMLObj* obj;
   /*Check all the allowedmethods*/
   obj = iter.get_next();
   if (obj) {
-    for( ; obj; obj = iter.get_next()) {
-      const char *s = obj->get_data().c_str();
-      ldpp_dout(dpp, 10) << "RGWCORSRule::xml_end, el : " << el << ", data : " << s << dendl;
+    for (; obj; obj = iter.get_next()) {
+      const char* s = obj->get_data().c_str();
+      ldpp_dout(dpp, 10) << "RGWCORSRule::xml_end, el : " << el
+                         << ", data : " << s << dendl;
       if (strcasecmp(s, "GET") == 0) {
         allowed_methods |= RGW_CORS_GET;
       } else if (strcasecmp(s, "POST") == 0) {
@@ -99,25 +103,27 @@ bool RGWCORSRule_S3::xml_end(const char *el) {
         return false;
       }
     }
-  } 
+  }
   /*Check the id's len, it should be less than 255*/
-  XMLObj *xml_id = find_first("ID");
+  XMLObj* xml_id = find_first("ID");
   if (xml_id != NULL) {
     string data = xml_id->get_data();
     if (data.length() > 255) {
-      ldpp_dout(dpp, 0) << "RGWCORSRule has id of length greater than 255" << dendl;
+      ldpp_dout(dpp, 0) << "RGWCORSRule has id of length greater than 255"
+                        << dendl;
       return false;
     }
-    ldpp_dout(dpp, 10) << "RGWCORRule id : " << data << dendl;  
+    ldpp_dout(dpp, 10) << "RGWCORRule id : " << data << dendl;
     id = data;
   }
   /*Check if there is atleast one AllowedOrigin*/
   iter = find("AllowedOrigin");
   if (!(obj = iter.get_next())) {
-    ldpp_dout(dpp, 0) << "RGWCORSRule does not have even one AllowedOrigin" << dendl;
+    ldpp_dout(dpp, 0) << "RGWCORSRule does not have even one AllowedOrigin"
+                      << dendl;
     return false;
   }
-  for( ; obj; obj = iter.get_next()) {
+  for (; obj; obj = iter.get_next()) {
     ldpp_dout(dpp, 10) << "RGWCORSRule - origin : " << obj->get_data() << dendl;
     /*Just take the hostname*/
     string host = obj->get_data();
@@ -128,16 +134,17 @@ bool RGWCORSRule_S3::xml_end(const char *el) {
   /*Check of max_age*/
   iter = find("MaxAgeSeconds");
   if ((obj = iter.get_next())) {
-    char *end = NULL;
+    char* end = NULL;
 
     unsigned long long ull = strtoull(obj->get_data().c_str(), &end, 10);
     if (*end != '\0') {
-      ldpp_dout(dpp, 0) << "RGWCORSRule's MaxAgeSeconds " << obj->get_data() << " is an invalid integer" << dendl;
+      ldpp_dout(dpp, 0) << "RGWCORSRule's MaxAgeSeconds " << obj->get_data()
+                        << " is an invalid integer" << dendl;
       return false;
     }
     if (ull >= 0x100000000ull) {
       max_age = CORS_MAX_AGE_INVALID;
-    } else  {
+    } else {
       max_age = (uint32_t)ull;
     }
     ldpp_dout(dpp, 10) << "RGWCORSRule : max_age : " << max_age << dendl;
@@ -145,86 +152,100 @@ bool RGWCORSRule_S3::xml_end(const char *el) {
   /*Check and update ExposeHeader*/
   iter = find("ExposeHeader");
   if ((obj = iter.get_next())) {
-    for(; obj; obj = iter.get_next()) {
-      ldpp_dout(dpp, 10) << "RGWCORSRule - exp_hdr : " << obj->get_data() << dendl;
+    for (; obj; obj = iter.get_next()) {
+      ldpp_dout(dpp, 10) << "RGWCORSRule - exp_hdr : " << obj->get_data()
+                         << dendl;
       exposable_hdrs.push_back(obj->get_data());
     }
   }
   /*Check and update AllowedHeader*/
   iter = find("AllowedHeader");
   if ((obj = iter.get_next())) {
-    for(; obj; obj = iter.get_next()) {
-      ldpp_dout(dpp, 10) << "RGWCORSRule - allowed_hdr : " << obj->get_data() << dendl;
+    for (; obj; obj = iter.get_next()) {
+      ldpp_dout(dpp, 10) << "RGWCORSRule - allowed_hdr : " << obj->get_data()
+                         << dendl;
       string s = obj->get_data();
       if (validate_name_string(s) != 0)
-         return false;
+        return false;
       allowed_hdrs.insert(allowed_hdrs.end(), s);
     }
   }
   return true;
 }
 
-void RGWCORSConfiguration_S3::to_xml(ostream& out) {
+void
+RGWCORSConfiguration_S3::to_xml(ostream& out)
+{
   XMLFormatter f;
   f.open_object_section_in_ns("CORSConfiguration", XMLNS_AWS_S3);
-  for(list<RGWCORSRule>::iterator it = rules.begin();
-      it != rules.end(); ++it) {
-    (static_cast<RGWCORSRule_S3 &>(*it)).to_xml(f);
+  for (list<RGWCORSRule>::iterator it = rules.begin(); it != rules.end(); ++it) {
+    (static_cast<RGWCORSRule_S3&>(*it)).to_xml(f);
   }
   f.close_section();
   f.flush(out);
 }
 
-bool RGWCORSConfiguration_S3::xml_end(const char *el) {
+bool
+RGWCORSConfiguration_S3::xml_end(const char* el)
+{
   XMLObjIter iter = find("CORSRule");
-  RGWCORSRule_S3 *obj;
-  if (!(obj = static_cast<RGWCORSRule_S3 *>(iter.get_next()))) {
-    ldpp_dout(dpp, 0) << "CORSConfiguration should have atleast one CORSRule" << dendl;
+  RGWCORSRule_S3* obj;
+  if (!(obj = static_cast<RGWCORSRule_S3*>(iter.get_next()))) {
+    ldpp_dout(dpp, 0) << "CORSConfiguration should have atleast one CORSRule"
+                      << dendl;
     return false;
   }
-  for(; obj; obj = static_cast<RGWCORSRule_S3 *>(iter.get_next())) {
+  for (; obj; obj = static_cast<RGWCORSRule_S3*>(iter.get_next())) {
     rules.push_back(*obj);
   }
   return true;
 }
 
 class CORSRuleID_S3 : public XMLObj {
-  public:
-    CORSRuleID_S3() {}
-    ~CORSRuleID_S3() override {}
+public:
+  CORSRuleID_S3() {}
+
+  ~CORSRuleID_S3() override {}
 };
 
 class CORSRuleAllowedOrigin_S3 : public XMLObj {
-  public:
-    CORSRuleAllowedOrigin_S3() {}
-    ~CORSRuleAllowedOrigin_S3() override {}
+public:
+  CORSRuleAllowedOrigin_S3() {}
+
+  ~CORSRuleAllowedOrigin_S3() override {}
 };
 
 class CORSRuleAllowedMethod_S3 : public XMLObj {
-  public:
-    CORSRuleAllowedMethod_S3() {}
-    ~CORSRuleAllowedMethod_S3() override {}
+public:
+  CORSRuleAllowedMethod_S3() {}
+
+  ~CORSRuleAllowedMethod_S3() override {}
 };
 
 class CORSRuleAllowedHeader_S3 : public XMLObj {
-  public:
-    CORSRuleAllowedHeader_S3() {}
-    ~CORSRuleAllowedHeader_S3() override {}
+public:
+  CORSRuleAllowedHeader_S3() {}
+
+  ~CORSRuleAllowedHeader_S3() override {}
 };
 
 class CORSRuleMaxAgeSeconds_S3 : public XMLObj {
-  public:
-    CORSRuleMaxAgeSeconds_S3() {}
-    ~CORSRuleMaxAgeSeconds_S3() override {}
+public:
+  CORSRuleMaxAgeSeconds_S3() {}
+
+  ~CORSRuleMaxAgeSeconds_S3() override {}
 };
 
 class CORSRuleExposeHeader_S3 : public XMLObj {
-  public:
-    CORSRuleExposeHeader_S3() {}
-    ~CORSRuleExposeHeader_S3() override {}
+public:
+  CORSRuleExposeHeader_S3() {}
+
+  ~CORSRuleExposeHeader_S3() override {}
 };
 
-XMLObj *RGWCORSXMLParser_S3::alloc_obj(const char *el) {
+XMLObj*
+RGWCORSXMLParser_S3::alloc_obj(const char* el)
+{
   if (strcmp(el, "CORSConfiguration") == 0) {
     return new RGWCORSConfiguration_S3(dpp);
   } else if (strcmp(el, "CORSRule") == 0) {
@@ -239,9 +260,8 @@ XMLObj *RGWCORSXMLParser_S3::alloc_obj(const char *el) {
     return new CORSRuleAllowedHeader_S3;
   } else if (strcmp(el, "MaxAgeSeconds") == 0) {
     return new CORSRuleMaxAgeSeconds_S3;
-  } else if (strcmp(el, "ExposeHeader")  == 0) {
+  } else if (strcmp(el, "ExposeHeader") == 0) {
     return new CORSRuleExposeHeader_S3;
   }
   return NULL;
 }
-

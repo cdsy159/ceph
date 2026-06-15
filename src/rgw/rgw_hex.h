@@ -15,24 +15,25 @@
 
 #pragma once
 
-#include <array>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
-static inline void buf_to_hex(const unsigned char* const buf,
-                              const size_t len,
-                              char* const str)
+#include <array>
+
+static inline void
+buf_to_hex(const unsigned char* const buf, const size_t len, char* const str)
 {
   str[0] = '\0';
   for (size_t i = 0; i < len; i++) {
-    ::sprintf(&str[i*2], "%02x", static_cast<int>(buf[i]));
+    ::sprintf(&str[i * 2], "%02x", static_cast<int>(buf[i]));
   }
 }
 
-template<size_t N> static inline std::array<char, N * 2 + 1>
+template <size_t N>
+static inline std::array<char, N * 2 + 1>
 buf_to_hex(const std::array<unsigned char, N>& buf)
 {
   static_assert(N > 0, "The input array must be at least one element long");
@@ -42,7 +43,8 @@ buf_to_hex(const std::array<unsigned char, N>& buf)
   return hex_dest;
 }
 
-static inline int hexdigit(char c)
+static inline int
+hexdigit(char c)
 {
   if (c >= '0' && c <= '9')
     return (c - '0');
@@ -52,10 +54,11 @@ static inline int hexdigit(char c)
   return -EINVAL;
 }
 
-static inline int hex_to_buf(const char *hex, char *buf, int len)
+static inline int
+hex_to_buf(const char* hex, char* buf, int len)
 {
   int i = 0;
-  const char *p = hex;
+  const char* p = hex;
   while (*p) {
     if (i >= len)
       return -EINVAL;

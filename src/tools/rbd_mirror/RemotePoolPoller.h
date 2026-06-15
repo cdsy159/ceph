@@ -4,17 +4,22 @@
 #ifndef CEPH_RBD_MIRROR_REMOTE_POOL_POLLER_H
 #define CEPH_RBD_MIRROR_REMOTE_POOL_POLLER_H
 
-#include "include/rados/librados.hpp"
-#include "tools/rbd_mirror/Types.h"
 #include <string>
 
+#include "include/rados/librados.hpp"
+#include "tools/rbd_mirror/Types.h"
+
 struct Context;
-namespace librbd { struct ImageCtx; }
+
+namespace librbd {
+struct ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
 
-template <typename> struct Threads;
+template <typename>
+struct Threads;
 
 namespace remote_pool_poller {
 
@@ -29,14 +34,16 @@ struct Listener {
 template <typename ImageCtxT>
 class RemotePoolPoller {
 public:
-  static RemotePoolPoller* create(
+  static RemotePoolPoller*
+  create(
       Threads<ImageCtxT>* threads,
       librados::IoCtx& remote_io_ctx,
       const std::string& site_name,
       const std::string& local_mirror_uuid,
-      remote_pool_poller::Listener& listener) {
-    return new RemotePoolPoller(threads, remote_io_ctx, site_name,
-                                local_mirror_uuid, listener);
+      remote_pool_poller::Listener& listener)
+  {
+    return new RemotePoolPoller(
+        threads, remote_io_ctx, site_name, local_mirror_uuid, listener);
   }
 
   RemotePoolPoller(
@@ -44,13 +51,14 @@ public:
       librados::IoCtx& remote_io_ctx,
       const std::string& site_name,
       const std::string& local_mirror_uuid,
-      remote_pool_poller::Listener& listener)
-    : m_threads(threads),
-      m_remote_io_ctx(remote_io_ctx),
-      m_site_name(site_name),
-      m_local_mirror_uuid(local_mirror_uuid),
-      m_listener(listener) {
-  }
+      remote_pool_poller::Listener& listener) :
+    m_threads(threads),
+    m_remote_io_ctx(remote_io_ctx),
+    m_site_name(site_name),
+    m_local_mirror_uuid(local_mirror_uuid),
+    m_listener(listener)
+  {}
+
   ~RemotePoolPoller();
 
   void init(Context* on_finish);
@@ -122,7 +130,6 @@ private:
 
   void schedule_task(int r);
   void handle_task();
-
 };
 
 } // namespace mirror

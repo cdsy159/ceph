@@ -4,13 +4,13 @@
 #ifndef CEPH_JOURNAL_ENTRY_H
 #define CEPH_JOURNAL_ENTRY_H
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/encoding.h"
-
 #include <iosfwd>
 #include <list>
 #include <string>
+
+#include "include/buffer.h"
+#include "include/encoding.h"
+#include "include/int_types.h"
 
 namespace ceph {
 class Formatter;
@@ -20,31 +20,43 @@ namespace journal {
 
 class Entry {
 public:
-  Entry() : m_tag_tid(0), m_entry_tid() {}
-  Entry(uint64_t tag_tid, uint64_t entry_tid, const bufferlist &data)
-    : m_tag_tid(tag_tid), m_entry_tid(entry_tid), m_data(data)
-  {
-  }
+  Entry() :
+    m_tag_tid(0), m_entry_tid()
+  {}
+
+  Entry(uint64_t tag_tid, uint64_t entry_tid, const bufferlist& data) :
+    m_tag_tid(tag_tid), m_entry_tid(entry_tid), m_data(data)
+  {}
 
   static uint32_t get_fixed_size();
 
-  inline uint64_t get_tag_tid() const {
+  inline uint64_t
+  get_tag_tid() const
+  {
     return m_tag_tid;
   }
-  inline uint64_t get_entry_tid() const {
+
+  inline uint64_t
+  get_entry_tid() const
+  {
     return m_entry_tid;
   }
-  inline const bufferlist &get_data() const {
+
+  inline const bufferlist&
+  get_data() const
+  {
     return m_data;
   }
 
-  void encode(bufferlist &bl) const;
-  void decode(bufferlist::const_iterator &iter);
-  void dump(ceph::Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(bufferlist::const_iterator& iter);
+  void dump(ceph::Formatter* f) const;
 
   bool operator==(const Entry& rhs) const;
 
-  static bool is_readable(bufferlist::const_iterator iter, uint32_t *bytes_needed);
+  static bool is_readable(
+      bufferlist::const_iterator iter,
+      uint32_t* bytes_needed);
   static std::list<Entry> generate_test_instances();
 
 private:
@@ -55,7 +67,7 @@ private:
   bufferlist m_data;
 };
 
-std::ostream &operator<<(std::ostream &os, const Entry &entry);
+std::ostream& operator<<(std::ostream& os, const Entry& entry);
 WRITE_CLASS_ENCODER(journal::Entry)
 
 } // namespace journal

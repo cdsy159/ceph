@@ -18,16 +18,16 @@
 
 #include <filesystem>
 #include <iostream> // for std::cout
-#include <string>
 #include <map>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace fs = std::filesystem;
 
 using socket_results = std::map<std::string, std::string>;
 using test_functions =
-    std::vector<std::pair<std::string, bool (*)(std::string &)>>;
+    std::vector<std::pair<std::string, bool (*)(std::string&)>>;
 
 class AdminSocketClient;
 
@@ -35,32 +35,41 @@ class AdminSocketOutput {
 public:
   AdminSocketOutput() {}
 
-  void add_target(const std::string &target);
-  void add_command(const std::string &target, const std::string &command);
-  void add_test(const std::string &target, const std::string &command,
-                bool (*test)(std::string &));
-  void postpone(const std::string &target, const std::string &command);
+  void add_target(const std::string& target);
+  void add_command(const std::string& target, const std::string& command);
+  void add_test(
+      const std::string& target,
+      const std::string& command,
+      bool (*test)(std::string&));
+  void postpone(const std::string& target, const std::string& command);
 
   void exec();
 
-  void mod_for_vstart(const std::string& dir) {
+  void
+  mod_for_vstart(const std::string& dir)
+  {
     socketdir = dir;
     prefix = "";
   }
 
 private:
-  bool init_directories() const {
+  bool
+  init_directories() const
+  {
     std::cout << "Checking " << socketdir << std::endl;
     return exists(socketdir) && is_directory(socketdir);
   }
 
   bool init_sockets();
   bool gather_socket_output();
-  std::string get_result(const std::string &target, const std::string &command) const;
+  std::string get_result(
+      const std::string& target,
+      const std::string& command) const;
 
-  std::pair<std::string, std::string>
-  run_command(AdminSocketClient &client, const std::string &raw_command,
-              bool send_untouched = false);
+  std::pair<std::string, std::string> run_command(
+      AdminSocketClient& client,
+      const std::string& raw_command,
+      bool send_untouched = false);
 
   bool run_tests() const;
 

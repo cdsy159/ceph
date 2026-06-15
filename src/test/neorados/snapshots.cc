@@ -17,18 +17,14 @@
 #include <utility>
 #include <vector>
 
-#include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/awaitable.hpp>
-
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/system/errc.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
-#include "osd/error_code.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "osd/error_code.h"
+#include "test/neorados/common_tests.h"
 
 using std::uint64_t;
 
@@ -40,61 +36,69 @@ using namespace std::literals;
 using neorados::ReadOp;
 using neorados::WriteOp;
 
-inline asio::awaitable<void> new_selfmanaged_snap(neorados::RADOS& rados,
-						  std::vector<uint64_t>& snaps,
-						  neorados::IOContext& ioc) {
+inline asio::awaitable<void>
+new_selfmanaged_snap(
+    neorados::RADOS& rados,
+    std::vector<uint64_t>& snaps,
+    neorados::IOContext& ioc)
+{
   snaps.push_back(co_await rados.allocate_selfmanaged_snap(
-		    ioc.get_pool(), asio::use_awaitable));
+      ioc.get_pool(), asio::use_awaitable));
   std::reverse(snaps.begin(), snaps.end());
   ioc.set_write_snap_context({{snaps[0], snaps}});
   std::reverse(snaps.begin(), snaps.end());
   co_return;
 }
 
-inline asio::awaitable<void> rm_selfmanaged_snaps(neorados::RADOS& rados,
-						  std::vector<uint64_t>& snaps,
-						  neorados::IOContext& ioc) {
+inline asio::awaitable<void>
+rm_selfmanaged_snaps(
+    neorados::RADOS& rados,
+    std::vector<uint64_t>& snaps,
+    neorados::IOContext& ioc)
+{
   std::reverse(snaps.begin(), snaps.end());
   for (auto snapid : snaps) {
-    co_await rados.delete_selfmanaged_snap(ioc.get_pool(), snapid,
-					   asio::use_awaitable);
+    co_await rados.delete_selfmanaged_snap(
+        ioc.get_pool(), snapid, asio::use_awaitable);
   }
   snaps.clear();
 }
 
 static constexpr auto oid = "oid"sv;
 
-CORO_TEST_F(NeoRadosSnapshots, SnapList, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSnapshots, SnapList, NeoRadosTest)
+{
   static const auto snap1 = "snap1"s;
   co_await create_obj(oid);
   EXPECT_FALSE(rados().get_self_managed_snaps_mode(pool()));
-  co_await rados().create_pool_snap(pool(), snap1,
-                                    asio::use_awaitable);
+  co_await rados().create_pool_snap(pool(), snap1, asio::use_awaitable);
   EXPECT_FALSE(rados().get_self_managed_snaps_mode(pool()));
 
   auto snaps = rados().list_snaps(pool());
   EXPECT_EQ(1u, snaps.size());
   auto rid = rados().lookup_snap(pool(), snap1);
   EXPECT_EQ(rid, snaps[0]);
-  co_await rados().delete_pool_snap(pool().get_pool(), snap1, asio::use_awaitable);
+  co_await rados().delete_pool_snap(
+      pool().get_pool(), snap1, asio::use_awaitable);
   EXPECT_FALSE(rados().get_self_managed_snaps_mode(pool()));
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSnapshots, SnapRemove, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSnapshots, SnapRemove, NeoRadosTest)
+{
   static const auto snap1 = "snap1"s;
   co_await create_obj(oid);
-  co_await rados().create_pool_snap(pool(), snap1,
-                                    asio::use_awaitable);
+  co_await rados().create_pool_snap(pool(), snap1, asio::use_awaitable);
   rados().lookup_snap(pool(), snap1);
-  co_await rados().delete_pool_snap(pool().get_pool(), snap1, asio::use_awaitable);
-  EXPECT_THROW(rados().lookup_snap(pool(), snap1);,
-	       sys::system_error);
+  co_await rados().delete_pool_snap(
+      pool().get_pool(), snap1, asio::use_awaitable);
+  EXPECT_THROW(rados().lookup_snap(pool(), snap1);, sys::system_error);
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSnapshots, Rollback, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSnapshots, Rollback, NeoRadosTest)
+{
   static const auto snap1 = "snap1"s;
   const auto bl1 = filled_buffer_list(0xcc, 128);
   const auto bl2 = filled_buffer_list(0xdd, 128);
@@ -114,7 +118,8 @@ CORO_TEST_F(NeoRadosSnapshots, Rollback, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSnapshots, SnapGetName, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSnapshots, SnapGetName, NeoRadosTest)
+{
   static const auto snapfoo = "snapfoo"s;
   static const auto snapbar = "snapbar"s;
   co_await create_obj(oid);
@@ -122,11 +127,13 @@ CORO_TEST_F(NeoRadosSnapshots, SnapGetName, NeoRadosTest) {
   auto rid = rados().lookup_snap(pool(), snapfoo);
   EXPECT_EQ(snapfoo, rados().get_snap_name(pool(), rid));
   rados().get_snap_timestamp(pool(), rid);
-  co_await rados().delete_pool_snap(pool().get_pool(), snapfoo, asio::use_awaitable);
+  co_await rados().delete_pool_snap(
+      pool().get_pool(), snapfoo, asio::use_awaitable);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSnapshots, SnapCreateRemove, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSnapshots, SnapCreateRemove, NeoRadosTest)
+{
   // reproduces http://tracker.ceph.com/issues/10262
   static const auto snapfoo = "snapfoo"s;
   static const auto snapbar = "snapbar"s;
@@ -140,14 +147,15 @@ CORO_TEST_F(NeoRadosSnapshots, SnapCreateRemove, NeoRadosTest) {
   op.create(false);
   op.remove();
   co_await execute(oid, std::move(op));
-  co_await rados().delete_pool_snap(pool().get_pool(), snapfoo,
-				    asio::use_awaitable);
-  co_await rados().delete_pool_snap(pool().get_pool(), snapbar,
-				    asio::use_awaitable);
+  co_await rados().delete_pool_snap(
+      pool().get_pool(), snapfoo, asio::use_awaitable);
+  co_await rados().delete_pool_snap(
+      pool().get_pool(), snapbar, asio::use_awaitable);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, Snap, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, Snap, NeoRadosTest)
+{
   std::vector<uint64_t> my_snaps;
   EXPECT_FALSE(rados().get_self_managed_snaps_mode(pool()));
   auto ioc = pool();
@@ -166,8 +174,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Snap, NeoRadosTest) {
   auto resbl = co_await read(oid, ioc);
   EXPECT_EQ(bl1, resbl);
 
-  co_await rados().delete_selfmanaged_snap(ioc.get_pool(), my_snaps.back(),
-					   asio::use_awaitable);
+  co_await rados().delete_selfmanaged_snap(
+      ioc.get_pool(), my_snaps.back(), asio::use_awaitable);
   my_snaps.pop_back();
   ioc.set_read_snap(neorados::snap_head);
   EXPECT_TRUE(rados().get_self_managed_snaps_mode(pool()));
@@ -175,7 +183,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Snap, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, Rollback, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, Rollback, NeoRadosTest)
+{
   SKIP_IF_CRIMSON();
   static constexpr auto len = 128u;
   std::vector<uint64_t> my_snaps;
@@ -206,8 +215,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Rollback, NeoRadosTest) {
   co_await execute(oid, WriteOp{}.write(len * 3, bl1), ioc);
 
 
-  co_await expect_error_code(execute(oid, ReadOp{}.list_snaps(&ss), ioc),
-			     sys::errc::invalid_argument);
+  co_await expect_error_code(
+      execute(oid, ReadOp{}.list_snaps(&ss), ioc), sys::errc::invalid_argument);
   co_await execute(oid, ReadOp{}.list_snaps(&ss), readioc);
   EXPECT_EQ(2u, ss.clones.size());
   EXPECT_EQ(my_snaps[1], ss.clones[0].cloneid);
@@ -245,7 +254,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Rollback, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, SnapOverlap, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, SnapOverlap, NeoRadosTest)
+{
   // WIP https://tracker.ceph.com/issues/58263
   SKIP_IF_CRIMSON();
   static constexpr auto len = 128u;
@@ -351,7 +361,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, SnapOverlap, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, Bug11677, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, Bug11677, NeoRadosTest)
+{
   std::vector<uint64_t> my_snaps;
   auto ioc = pool();
 
@@ -368,8 +379,7 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Bug11677, NeoRadosTest) {
   co_await new_selfmanaged_snap(rados(), my_snaps, ioc);
 
   WriteOp op;
-  op.assert_exists()
-    .remove();
+  op.assert_exists().remove();
   co_await execute(oid, std::move(op), ioc);
 
   co_await rm_selfmanaged_snaps(rados(), my_snaps, ioc);
@@ -377,7 +387,8 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, Bug11677, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, OrderSnap, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, OrderSnap, NeoRadosTest)
+{
   static constexpr auto len = 128u;
   std::vector<uint64_t> my_snaps;
   auto ioc = pool();
@@ -394,16 +405,17 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, OrderSnap, NeoRadosTest) {
   ioc.set_write_snap_context({{my_snaps[0], my_snaps}});
   std::reverse(my_snaps.begin(), my_snaps.end());
 
-  co_await expect_error_code(execute(oid, WriteOp()
-				     .write(0, bl).ordersnap(), ioc),
-			     osd_errc::old_snapc);
+  co_await expect_error_code(
+      execute(oid, WriteOp().write(0, bl).ordersnap(), ioc),
+      osd_errc::old_snapc);
 
   co_await execute(oid, WriteOp{}.write(0, bl), ioc);
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosSelfManagedSnaps, ReusePurgedSnap, NeoRadosTest) {
+CORO_TEST_F(NeoRadosSelfManagedSnaps, ReusePurgedSnap, NeoRadosTest)
+{
   static constexpr auto len = 128u;
   std::vector<uint64_t> my_snaps;
   auto ioc = pool();
@@ -414,18 +426,17 @@ CORO_TEST_F(NeoRadosSelfManagedSnaps, ReusePurgedSnap, NeoRadosTest) {
   co_await execute(oid, WriteOp{}.write(0, bl), ioc);
 
   co_await new_selfmanaged_snap(rados(), my_snaps, ioc);
-  std::cout << "Deleting snap " << my_snaps.back() << " in pool "
-	    << pool_name() << "." << std::endl;
-  co_await rados().delete_selfmanaged_snap(ioc.get_pool(), my_snaps.back(),
-					   asio::use_awaitable);
+  std::cout << "Deleting snap " << my_snaps.back() << " in pool " << pool_name()
+            << "." << std::endl;
+  co_await rados().delete_selfmanaged_snap(
+      ioc.get_pool(), my_snaps.back(), asio::use_awaitable);
   std::cout << "Waiting for snaps to purge." << std::endl;
   co_await wait_for(15s);
   std::reverse(my_snaps.begin(), my_snaps.end());
   ioc.set_write_snap_context({{my_snaps[0], my_snaps}});
   std::reverse(my_snaps.begin(), my_snaps.end());
 
-  co_await execute(oid, WriteOp()
-		   .write(0, filled_buffer_list(0xdd, len)));
+  co_await execute(oid, WriteOp().write(0, filled_buffer_list(0xdd, len)));
 
 
   co_return;

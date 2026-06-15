@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,13 +16,15 @@
 #ifndef CEPH_DECAYCOUNTER_H
 #define CEPH_DECAYCOUNTER_H
 
-#include "include/buffer.h"
-#include "common/ceph_time.h"
-
 #include <cmath>
 #include <list>
 
-namespace ceph { class Formatter; }
+#include "common/ceph_time.h"
+#include "include/buffer.h"
+
+namespace ceph {
+class Formatter;
+}
 
 /**
  *
@@ -38,19 +40,28 @@ public:
   friend class DecayCounter;
 
   DecayRate() {}
+
   // cppcheck-suppress noExplicitConstructor
   DecayRate(double hl) { set_halflife(hl); }
-  DecayRate(const DecayRate &dr) : k(dr.k) {}
 
-  void set_halflife(double hl) {
+  DecayRate(const DecayRate& dr) :
+    k(dr.k)
+  {}
+
+  void
+  set_halflife(double hl)
+  {
     k = log(.5) / hl;
   }
-  double get_halflife() const {
+
+  double
+  get_halflife() const
+  {
     return log(.5) / k;
   }
 
 private:
-  double k = 0;             // k = ln(.5)/half_life
+  double k = 0; // k = ln(.5)/half_life
 };
 
 class DecayCounter {
@@ -58,44 +69,62 @@ public:
   using time = ceph::coarse_mono_time;
   using clock = ceph::coarse_mono_clock;
 
-  DecayCounter() : DecayCounter(DecayRate()) {}
-  explicit DecayCounter(const DecayRate &rate) : last_decay(clock::now()), rate(rate) {}
+  DecayCounter() :
+    DecayCounter(DecayRate())
+  {}
+
+  explicit DecayCounter(const DecayRate& rate) :
+    last_decay(clock::now()), rate(rate)
+  {}
 
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& p);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<DecayCounter> generate_test_instances();
 
   /**
    * reading
    */
 
-  double get() const {
+  double
+  get() const
+  {
     decay();
     return val;
   }
 
-  double get_last() const {
+  double
+  get_last() const
+  {
     return val;
   }
-  
-  time get_last_decay() const {
-    return last_decay; 
+
+  time
+  get_last_decay() const
+  {
+    return last_decay;
   }
 
   /**
    * adjusting
    */
 
-  double hit(double v = 1.0) {
+  double
+  hit(double v = 1.0)
+  {
     decay(v);
     return val;
   }
-  void adjust(double v = 1.0) {
+
+  void
+  adjust(double v = 1.0)
+  {
     decay(v);
   }
 
-  void scale(double f) {
+  void
+  scale(double f)
+  {
     val *= f;
   }
 
@@ -103,25 +132,37 @@ public:
    * decay etc.
    */
 
-  void reset() {
+  void
+  reset()
+  {
     last_decay = clock::now();
     val = 0;
   }
 
 protected:
   void decay(double delta) const;
-  void decay() const {decay(0.0);}
+
+  void
+  decay() const
+  {
+    decay(0.0);
+  }
 
 private:
-  mutable double val = 0.0;           // value
-  mutable time last_decay = clock::zero();   // time of last decay
+  mutable double val = 0.0; // value
+  mutable time last_decay = clock::zero(); // time of last decay
   DecayRate rate;
 };
 
-inline void encode(const DecayCounter &c, ceph::buffer::list &bl) {
+inline void
+encode(const DecayCounter& c, ceph::buffer::list& bl)
+{
   c.encode(bl);
 }
-inline void decode(DecayCounter &c, ceph::buffer::list::const_iterator &p) {
+
+inline void
+decode(DecayCounter& c, ceph::buffer::list::const_iterator& p)
+{
   c.decode(p);
 }
 

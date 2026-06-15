@@ -1,25 +1,29 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <ostream>
+#include "BackTrace.h"
+
 #include <cxxabi.h>
 #include <string.h>
 
-#include "BackTrace.h"
-#include "common/version.h"
+#include <ostream>
+
 #include "common/Formatter.h"
+#include "common/version.h"
 
 namespace ceph {
 
-void ClibBackTrace::print(std::ostream& out) const
+void
+ClibBackTrace::print(std::ostream& out) const
 {
   out << " " << pretty_version_to_str() << std::endl;
   for (size_t i = skip; i < size; i++) {
-    out << " " << (i-skip+1) << ": " << demangle(strings[i]) << std::endl;
+    out << " " << (i - skip + 1) << ": " << demangle(strings[i]) << std::endl;
   }
 }
 
-void ClibBackTrace::dump(Formatter *f) const
+void
+ClibBackTrace::dump(Formatter* f) const
 {
   f->open_array_section("backtrace");
   for (size_t i = skip; i < size; i++) {
@@ -29,7 +33,8 @@ void ClibBackTrace::dump(Formatter *f) const
   f->close_section();
 }
 
-std::string ClibBackTrace::demangle(const char* name)
+std::string
+ClibBackTrace::demangle(const char* name)
 {
   // find the parentheses and address offset surrounding the mangled name
 #ifdef __FreeBSD__
@@ -39,7 +44,7 @@ std::string ClibBackTrace::demangle(const char* name)
 #endif
   const char* begin = nullptr;
   const char* end = nullptr;
-  for (const char *j = name; *j; ++j) {
+  for (const char* j = name; *j; ++j) {
     if (*j == OPEN) {
       begin = j + 1;
     } else if (*j == '+') {
@@ -52,7 +57,8 @@ std::string ClibBackTrace::demangle(const char* name)
     // only demangle a C++ mangled name
     if (mangled.compare(0, 2, "_Z") == 0) {
       // let __cxa_demangle do the malloc
-      char* demangled = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+      char* demangled =
+          abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
       if (!status) {
         std::string full_name{OPEN};
         full_name += demangled;
@@ -71,7 +77,8 @@ std::string ClibBackTrace::demangle(const char* name)
   }
 }
 
-void PyBackTrace::dump(Formatter *f) const
+void
+PyBackTrace::dump(Formatter* f) const
 {
   f->open_array_section("backtrace");
   for (auto& i : strings) {
@@ -80,11 +87,12 @@ void PyBackTrace::dump(Formatter *f) const
   f->close_section();
 }
 
-void PyBackTrace::print(std::ostream& out) const
+void
+PyBackTrace::print(std::ostream& out) const
 {
   for (auto& i : strings) {
     out << i << std::endl;
   }
 }
 
-}
+} // namespace ceph

@@ -1,22 +1,23 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "iso_8601.h"
+
 #include <iomanip>
 #include <sstream>
 
-#include "iso_8601.h"
-#include "include/timegm.h"
 #include "include/ceph_assert.h"
+#include "include/timegm.h"
 
 namespace ceph {
+using std::setw;
+using std::size_t;
+using std::string;
+using std::stringstream;
+using std::uint16_t;
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
 using std::chrono::seconds;
-using std::setw;
-using std::size_t;
-using std::stringstream;
-using std::string;
-using std::uint16_t;
 
 using boost::none;
 using boost::optional;
@@ -29,27 +30,32 @@ using sriter = string_view::const_iterator;
 
 namespace {
 // This assumes a contiguous block of numbers in the correct order.
-uint16_t digit(char c) {
+uint16_t
+digit(char c)
+{
   if (!(c >= '0' && c <= '9')) {
     throw std::invalid_argument("Not a digit.");
   }
   return static_cast<uint16_t>(c - '0');
 }
 
-optional<real_time> calculate(const tm& t, uint32_t n = 0) {
+optional<real_time>
+calculate(const tm& t, uint32_t n = 0)
+{
   ceph_assert(n < 1000000000);
   time_t tt = internal_timegm(&t);
   if (tt == static_cast<time_t>(-1)) {
     return none;
   }
 
-  return boost::make_optional<real_time>(real_clock::from_time_t(tt)
-                                         + nanoseconds(n));
+  return boost::make_optional<real_time>(
+      real_clock::from_time_t(tt) + nanoseconds(n));
 }
-}
+} // namespace
 
-optional<real_time> from_iso_8601(const string_view s,
-				  const bool ws_terminates) {
+optional<real_time>
+from_iso_8601(const string_view s, const bool ws_terminates)
+{
   auto end = s.cend();
   auto read_digit = [end](sriter& c) mutable {
     if (c == end) {
@@ -72,9 +78,9 @@ optional<real_time> from_iso_8601(const string_view s,
     return (c == end || (ws_terminates && std::isspace(*c)));
   };
   auto time_end = [end, ws_terminates](sriter& c) {
-    return (c != end && *c == 'Z' &&
-	    ((c + 1) == end ||
-	     (ws_terminates && std::isspace(*(c + 1)))));
+    return (
+        c != end && *c == 'Z' &&
+        ((c + 1) == end || (ws_terminates && std::isspace(*(c + 1)))));
   };
   auto consume_delimiter = [end](sriter& c, char q) {
     if (c == end || *c != q) {
@@ -84,22 +90,23 @@ optional<real_time> from_iso_8601(const string_view s,
     }
   };
 
-  tm t = { 0, // tm_sec
-	   0, // tm_min
-	   0, // tm_hour
-	   1, // tm_mday
-	   0, // tm_mon
-	   70, // tm_year
-	   0, // tm_wday
-	   0, // tm_yday
-	   0, // tm_isdst
+  tm t = {
+      0, // tm_sec
+      0, // tm_min
+      0, // tm_hour
+      1, // tm_mday
+      0, // tm_mon
+      70, // tm_year
+      0, // tm_wday
+      0, // tm_yday
+      0, // tm_isdst
   };
   try {
     auto c = s.cbegin();
     {
       auto y = read_digits(c, 4);
       if (y < 1970) {
-	return none;
+        return none;
       }
       t.tm_year = y - 1900;
     }
@@ -141,7 +148,7 @@ optional<real_time> from_iso_8601(const string_view s,
       n += d * multiplier;
       multiplier /= 10;
       if (time_end(c)) {
-	return calculate(t, n);
+        return calculate(t, n);
       }
     }
   } catch (std::invalid_argument& e) {
@@ -150,17 +157,19 @@ optional<real_time> from_iso_8601(const string_view s,
   return none;
 }
 
-string to_iso_8601(const real_time t,
-		   const iso_8601_format f,
-                   std::string_view date_separator,
-                   std::string_view time_separator) noexcept {
-  ceph_assert(f >= iso_8601_format::Y &&
-	      f <= iso_8601_format::YMDhmsn);
+string
+to_iso_8601(
+    const real_time t,
+    const iso_8601_format f,
+    std::string_view date_separator,
+    std::string_view time_separator) noexcept
+{
+  ceph_assert(f >= iso_8601_format::Y && f <= iso_8601_format::YMDhmsn);
   stringstream out(std::ios_base::out);
 
   auto sec = real_clock::to_time_t(t);
-  auto nsec = duration_cast<nanoseconds>(t.time_since_epoch() %
-					 seconds(1)).count();
+  auto nsec =
+      duration_cast<nanoseconds>(t.time_since_epoch() % seconds(1)).count();
 
   struct tm bt;
   gmtime_r(&sec, &bt);
@@ -202,4 +211,4 @@ string to_iso_8601(const real_time t,
   return out.str();
 }
 
-}
+} // namespace ceph

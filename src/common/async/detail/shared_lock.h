@@ -22,35 +22,44 @@ namespace std {
 
 template <typename Executor>
 class unique_lock<ceph::async::SharedMutex<Executor>> {
- public:
+public:
   using mutex_type = boost::intrusive_ptr<ceph::async::detail::SharedMutexImpl>;
 
   unique_lock() = default;
-  explicit unique_lock(ceph::async::SharedMutex<Executor>& m)
-    : impl(m.impl), locked(true)
+
+  explicit unique_lock(ceph::async::SharedMutex<Executor>& m) :
+    impl(m.impl), locked(true)
   {
     impl->lock();
   }
-  unique_lock(ceph::async::SharedMutex<Executor>& m, defer_lock_t t) noexcept
-    : impl(m.impl)
+
+  unique_lock(ceph::async::SharedMutex<Executor>& m, defer_lock_t t) noexcept :
+    impl(m.impl)
   {}
-  unique_lock(ceph::async::SharedMutex<Executor>& m, try_to_lock_t t)
-    : impl(m.impl), locked(impl->try_lock())
+
+  unique_lock(ceph::async::SharedMutex<Executor>& m, try_to_lock_t t) :
+    impl(m.impl), locked(impl->try_lock())
   {}
-  unique_lock(ceph::async::SharedMutex<Executor>& m, adopt_lock_t t) noexcept
-    : impl(m.impl), locked(true)
+
+  unique_lock(ceph::async::SharedMutex<Executor>& m, adopt_lock_t t) noexcept :
+    impl(m.impl), locked(true)
   {}
-  ~unique_lock() {
+
+  ~unique_lock()
+  {
     if (impl && locked)
       impl->unlock();
   }
 
-  unique_lock(unique_lock&& other) noexcept
-    : impl(std::move(other.impl)),
-      locked(other.locked) {
+  unique_lock(unique_lock&& other) noexcept :
+    impl(std::move(other.impl)), locked(other.locked)
+  {
     other.locked = false;
   }
-  unique_lock& operator=(unique_lock&& other) noexcept {
+
+  unique_lock&
+  operator=(unique_lock&& other) noexcept
+  {
     if (impl && locked) {
       impl->unlock();
     }
@@ -59,23 +68,44 @@ class unique_lock<ceph::async::SharedMutex<Executor>> {
     other.locked = false;
     return *this;
   }
-  void swap(unique_lock& other) noexcept {
+
+  void
+  swap(unique_lock& other) noexcept
+  {
     using std::swap;
     swap(impl, other.impl);
     swap(locked, other.locked);
   }
 
-  mutex_type mutex() const noexcept { return impl; }
-  bool owns_lock() const noexcept { return impl && locked; }
-  explicit operator bool() const noexcept { return impl && locked; }
+  mutex_type
+  mutex() const noexcept
+  {
+    return impl;
+  }
 
-  mutex_type release() {
+  bool
+  owns_lock() const noexcept
+  {
+    return impl && locked;
+  }
+
+  explicit
+  operator bool() const noexcept
+  {
+    return impl && locked;
+  }
+
+  mutex_type
+  release()
+  {
     auto result = std::move(impl);
     locked = false;
     return result;
   }
 
-  void lock() {
+  void
+  lock()
+  {
     if (!impl)
       throw system_error(make_error_code(errc::operation_not_permitted));
     if (locked)
@@ -83,56 +113,71 @@ class unique_lock<ceph::async::SharedMutex<Executor>> {
     impl->lock();
     locked = true;
   }
-  bool try_lock() {
+
+  bool
+  try_lock()
+  {
     if (!impl)
       throw system_error(make_error_code(errc::operation_not_permitted));
     if (locked)
       throw system_error(make_error_code(errc::resource_deadlock_would_occur));
     return locked = impl->try_lock();
   }
-  void unlock() {
+
+  void
+  unlock()
+  {
     if (!impl || !locked)
       throw system_error(make_error_code(errc::operation_not_permitted));
     impl->unlock();
     locked = false;
   }
- private:
+
+private:
   mutex_type impl;
   bool locked{false};
 };
 
 template <typename Executor>
 class shared_lock<ceph::async::SharedMutex<Executor>> {
- public:
+public:
   using mutex_type = boost::intrusive_ptr<ceph::async::detail::SharedMutexImpl>;
 
   shared_lock() = default;
-  explicit shared_lock(ceph::async::SharedMutex<Executor>& m)
-    : impl(m.impl), locked(true)
+
+  explicit shared_lock(ceph::async::SharedMutex<Executor>& m) :
+    impl(m.impl), locked(true)
   {
     impl->lock_shared();
   }
-  shared_lock(ceph::async::SharedMutex<Executor>& m, defer_lock_t t) noexcept
-    : impl(m.impl)
-  {}
-  shared_lock(ceph::async::SharedMutex<Executor>& m, try_to_lock_t t)
-    : impl(m.impl), locked(impl->try_lock_shared())
-  {}
-  shared_lock(ceph::async::SharedMutex<Executor>& m, adopt_lock_t t) noexcept
-    : impl(m.impl), locked(true)
+
+  shared_lock(ceph::async::SharedMutex<Executor>& m, defer_lock_t t) noexcept :
+    impl(m.impl)
   {}
 
-  ~shared_lock() {
+  shared_lock(ceph::async::SharedMutex<Executor>& m, try_to_lock_t t) :
+    impl(m.impl), locked(impl->try_lock_shared())
+  {}
+
+  shared_lock(ceph::async::SharedMutex<Executor>& m, adopt_lock_t t) noexcept :
+    impl(m.impl), locked(true)
+  {}
+
+  ~shared_lock()
+  {
     if (impl && locked)
       impl->unlock_shared();
   }
 
-  shared_lock(shared_lock&& other) noexcept
-    : impl(std::move(other.impl)),
-      locked(other.locked) {
+  shared_lock(shared_lock&& other) noexcept :
+    impl(std::move(other.impl)), locked(other.locked)
+  {
     other.locked = false;
   }
-  shared_lock& operator=(shared_lock&& other) noexcept {
+
+  shared_lock&
+  operator=(shared_lock&& other) noexcept
+  {
     if (impl && locked) {
       impl->unlock_shared();
     }
@@ -141,23 +186,44 @@ class shared_lock<ceph::async::SharedMutex<Executor>> {
     other.locked = false;
     return *this;
   }
-  void swap(shared_lock& other) noexcept {
+
+  void
+  swap(shared_lock& other) noexcept
+  {
     using std::swap;
     swap(impl, other.impl);
     swap(locked, other.locked);
   }
 
-  mutex_type mutex() const noexcept { return impl; }
-  bool owns_lock() const noexcept { return impl && locked; }
-  explicit operator bool() const noexcept { return impl && locked; }
+  mutex_type
+  mutex() const noexcept
+  {
+    return impl;
+  }
 
-  mutex_type release() {
+  bool
+  owns_lock() const noexcept
+  {
+    return impl && locked;
+  }
+
+  explicit
+  operator bool() const noexcept
+  {
+    return impl && locked;
+  }
+
+  mutex_type
+  release()
+  {
     auto result = std::move(impl);
     locked = false;
     return result;
   }
 
-  void lock() {
+  void
+  lock()
+  {
     if (!impl)
       throw system_error(make_error_code(errc::operation_not_permitted));
     if (locked)
@@ -165,20 +231,27 @@ class shared_lock<ceph::async::SharedMutex<Executor>> {
     impl->lock_shared();
     locked = true;
   }
-  bool try_lock() {
+
+  bool
+  try_lock()
+  {
     if (!impl)
       throw system_error(make_error_code(errc::operation_not_permitted));
     if (locked)
       throw system_error(make_error_code(errc::resource_deadlock_would_occur));
     return locked = impl->try_lock_shared();
   }
-  void unlock() {
+
+  void
+  unlock()
+  {
     if (!impl || !locked)
       throw system_error(make_error_code(errc::operation_not_permitted));
     impl->unlock_shared();
     locked = false;
   }
- private:
+
+private:
   mutex_type impl;
   bool locked{false};
 };

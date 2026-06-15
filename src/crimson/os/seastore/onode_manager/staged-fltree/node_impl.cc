@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "node_impl.h"
+
 #include "node_layout.h"
 
 namespace crimson::os::seastore::onode {
@@ -13,7 +14,11 @@ last_split_info_t last_split = {};
 // XXX: branchless allocation
 eagain_ifuture<InternalNodeImpl::fresh_impl_t>
 InternalNodeImpl::allocate(
-    context_t c, laddr_t hint, field_type_t type, bool is_level_tail, level_t level)
+    context_t c,
+    laddr_t hint,
+    field_type_t type,
+    bool is_level_tail,
+    level_t level)
 {
   if (type == field_type_t::N0) {
     return InternalNode0::allocate(c, hint, is_level_tail, level);
@@ -30,7 +35,10 @@ InternalNodeImpl::allocate(
 
 eagain_ifuture<LeafNodeImpl::fresh_impl_t>
 LeafNodeImpl::allocate(
-    context_t c, laddr_t hint, field_type_t type, bool is_level_tail)
+    context_t c,
+    laddr_t hint,
+    field_type_t type,
+    bool is_level_tail)
 {
   if (type == field_type_t::N0) {
     return LeafNode0::allocate(c, hint, is_level_tail, 0);
@@ -45,8 +53,8 @@ LeafNodeImpl::allocate(
   }
 }
 
-InternalNodeImplURef InternalNodeImpl::load(
-    NodeExtentRef extent, field_type_t type)
+InternalNodeImplURef
+InternalNodeImpl::load(NodeExtentRef extent, field_type_t type)
 {
   if (type == field_type_t::N0) {
     return InternalNode0::load(extent);
@@ -61,8 +69,8 @@ InternalNodeImplURef InternalNodeImpl::load(
   }
 }
 
-LeafNodeImplURef LeafNodeImpl::load(
-    NodeExtentRef extent, field_type_t type)
+LeafNodeImplURef
+LeafNodeImpl::load(NodeExtentRef extent, field_type_t type)
 {
   if (type == field_type_t::N0) {
     return LeafNode0::load(extent);
@@ -77,4 +85,4 @@ LeafNodeImplURef LeafNodeImpl::load(
   }
 }
 
-}
+} // namespace crimson::os::seastore::onode

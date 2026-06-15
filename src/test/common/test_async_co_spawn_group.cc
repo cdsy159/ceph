@@ -11,10 +11,11 @@
  *
  */
 
-#include "common/async/co_spawn_group.h"
+#include <gtest/gtest.h>
 
 #include <latch>
 #include <optional>
+
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/bind_executor.hpp>
@@ -22,7 +23,8 @@
 #include <boost/asio/defer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/thread_pool.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/co_spawn_group.h"
 #include "common/async/co_waiter.h"
 
 namespace ceph::async {
@@ -34,13 +36,15 @@ using boost::system::error_code;
 using executor_type = asio::any_io_executor;
 
 template <typename T>
-auto capture(std::optional<T>& opt)
+auto
+capture(std::optional<T>& opt)
 {
-  return [&opt] (T value) { opt = std::move(value); };
+  return [&opt](T value) { opt = std::move(value); };
 }
 
 template <typename T>
-auto capture(asio::cancellation_signal& signal, std::optional<T>& opt)
+auto
+capture(asio::cancellation_signal& signal, std::optional<T>& opt)
 {
   return asio::bind_cancellation_slot(signal.slot(), capture(opt));
 }
@@ -51,7 +55,7 @@ TEST(co_spawn_group, spawn_limit)
   executor_type ex = ctx.get_executor();
   auto group = co_spawn_group{ex, 1};
 
-  auto cr = [] () -> asio::awaitable<void> { co_return; };
+  auto cr = []() -> asio::awaitable<void> { co_return; };
 
   group.spawn(cr());
   EXPECT_THROW(group.spawn(cr()), std::length_error);
@@ -116,7 +120,7 @@ TEST(co_spawn_group, spawn_wait_shutdown)
   executor_type ex = ctx.get_executor();
 
   co_waiter<void, executor_type> waiter;
-  auto cr = [ex, &waiter] () -> asio::awaitable<void> {
+  auto cr = [ex, &waiter]() -> asio::awaitable<void> {
     auto group = co_spawn_group{ex, 1};
     group.spawn(waiter.get());
     co_await group.wait();
@@ -137,7 +141,7 @@ TEST(co_spawn_group, spawn_wait_cancel)
   executor_type ex = ctx.get_executor();
 
   co_waiter<void, executor_type> waiter;
-  auto cr = [ex, &waiter] () -> asio::awaitable<void> {
+  auto cr = [ex, &waiter]() -> asio::awaitable<void> {
     auto group = co_spawn_group{ex, 1};
     group.spawn(waiter.get());
     co_await group.wait();
@@ -479,7 +483,7 @@ TEST(co_spawn_group, cross_thread_cancel)
 
   std::latch waiting{1};
 
-  auto cr = [ex, &waiting] () -> asio::awaitable<void> {
+  auto cr = [ex, &waiting]() -> asio::awaitable<void> {
     auto group = co_spawn_group{ex, 1};
     co_waiter<void, executor_type> waiter;
     group.spawn(waiter.get());

@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/io/Types.h"
+
 #include <iostream>
 
 namespace librbd {
@@ -9,7 +10,9 @@ namespace io {
 
 const WriteReadSnapIds INITIAL_WRITE_READ_SNAP_IDS{0, 0};
 
-std::ostream& operator<<(std::ostream& os, SparseExtentState state) {
+std::ostream&
+operator<<(std::ostream& os, SparseExtentState state)
+{
   switch (state) {
   case SPARSE_EXTENT_STATE_DNE:
     os << "dne";
@@ -27,14 +30,16 @@ std::ostream& operator<<(std::ostream& os, SparseExtentState state) {
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const SparseExtent& se) {
-  os << "["
-     << "state=" << se.state << ", "
-     << "length=" << se.length << "]";
+std::ostream&
+operator<<(std::ostream& os, const SparseExtent& se)
+{
+  os << "[" << "state=" << se.state << ", " << "length=" << se.length << "]";
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, ImageArea area) {
+std::ostream&
+operator<<(std::ostream& os, ImageArea area)
+{
   switch (area) {
   case ImageArea::DATA:
     return os << "data";

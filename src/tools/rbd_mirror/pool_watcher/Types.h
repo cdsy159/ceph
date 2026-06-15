@@ -4,20 +4,21 @@
 #ifndef CEPH_RBD_MIRROR_POOL_WATCHER_TYPES_H
 #define CEPH_RBD_MIRROR_POOL_WATCHER_TYPES_H
 
-#include "tools/rbd_mirror/Types.h"
 #include <string>
+
+#include "tools/rbd_mirror/Types.h"
 
 namespace rbd {
 namespace mirror {
 namespace pool_watcher {
 
 struct Listener {
-  virtual ~Listener() {
-  }
+  virtual ~Listener() {}
 
-  virtual void handle_update(const std::string &mirror_uuid,
-                             ImageIds &&added_image_ids,
-                             ImageIds &&removed_image_ids) = 0;
+  virtual void handle_update(
+      const std::string& mirror_uuid,
+      ImageIds&& added_image_ids,
+      ImageIds&& removed_image_ids) = 0;
 };
 
 } // namespace pool_watcher

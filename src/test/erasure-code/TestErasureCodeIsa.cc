@@ -18,12 +18,12 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include "common/config.h"
 #include "crush/CrushWrapper.h"
-#include "include/stringify.h"
 #include "erasure-code/isa/ErasureCodeIsa.h"
 #include "global/global_context.h"
-#include "common/config.h"
 #include "gtest/gtest.h"
+#include "include/stringify.h"
 
 using namespace std;
 
@@ -31,23 +31,32 @@ ErasureCodeIsaTableCache tcache;
 
 class IsaErasureCodeTest : public ::testing::Test {
 public:
-  void compare_chunks(bufferlist &in, shard_id_map<bufferlist> &encoded);
-  void encode_decode(unsigned object_size); 
+  void compare_chunks(bufferlist& in, shard_id_map<bufferlist>& encoded);
+  void encode_decode(unsigned object_size);
 };
 
-void IsaErasureCodeTest::compare_chunks(bufferlist &in, shard_id_map<bufferlist> &encoded)
+void
+IsaErasureCodeTest::compare_chunks(
+    bufferlist& in,
+    shard_id_map<bufferlist>& encoded)
 {
   unsigned object_size = in.length();
   unsigned chunk_size = encoded[shard_id_t(0)].length();
   for (unsigned i = 0; i < encoded.size(); i++) {
     if (i * chunk_size >= object_size)
       break;
-    int chunk_length = object_size > (i + 1) * chunk_size ? chunk_size : object_size - i * chunk_size;
-    EXPECT_EQ(0, memcmp(encoded[shard_id_t(i)].c_str(), in.c_str() + i * chunk_size, chunk_length));
+    int chunk_length = object_size > (i + 1) * chunk_size
+                           ? chunk_size
+                           : object_size - i * chunk_size;
+    EXPECT_EQ(
+        0, memcmp(
+               encoded[shard_id_t(i)].c_str(), in.c_str() + i * chunk_size,
+               chunk_length));
   }
 }
 
-void IsaErasureCodeTest::encode_decode(unsigned object_size)
+void
+IsaErasureCodeTest::encode_decode(unsigned object_size)
 {
   ErasureCodeIsaDefault Isa(tcache, "reed_sol_van");
 
@@ -62,9 +71,9 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
   in.append(payload.c_str(), payload.length());
   int want_to_encode[] = {0, 1, 2, 3};
   shard_id_map<bufferlist> encoded(Isa.get_chunk_count());
-  EXPECT_EQ(0, Isa.encode(shard_id_set(want_to_encode, want_to_encode + 4),
-                          in,
-                          &encoded));
+  EXPECT_EQ(
+      0, Isa.encode(
+             shard_id_set(want_to_encode, want_to_encode + 4), in, &encoded));
   EXPECT_EQ(4u, encoded.size());
   unsigned chunk_size = encoded[shard_id_t(0)].length();
   EXPECT_EQ(chunk_size, Isa.get_chunk_size(object_size));
@@ -74,9 +83,10 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
   {
     int want_to_decode[] = {0, 1};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 2),
-			     encoded,
-			     &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 2), encoded,
+               &decoded));
     EXPECT_EQ(2u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(0)].length());
     compare_chunks(in, decoded);
@@ -92,13 +102,15 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
     EXPECT_EQ(3u, degraded.size());
     int want_to_decode[] = {1};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 1),
-			     degraded,
-			     &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 1), degraded,
+               &decoded));
     // always decode all, regardless of want_to_decode
     EXPECT_EQ(4u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(1)].length());
-    EXPECT_EQ(0, memcmp(decoded[shard_id_t(1)].c_str(), enc1.c_str(), chunk_size));
+    EXPECT_EQ(
+        0, memcmp(decoded[shard_id_t(1)].c_str(), enc1.c_str(), chunk_size));
   }
 
   // non-xor coding chunk is missing
@@ -111,13 +123,15 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
     EXPECT_EQ(3u, degraded.size());
     int want_to_decode[] = {3};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 1),
-                            degraded,
-                            &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 1), degraded,
+               &decoded));
     // always decode all, regardless of want_to_decode
     EXPECT_EQ(4u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(3)].length());
-    EXPECT_EQ(0, memcmp(decoded[shard_id_t(3)].c_str(), enc3.c_str(), chunk_size));
+    EXPECT_EQ(
+        0, memcmp(decoded[shard_id_t(3)].c_str(), enc3.c_str(), chunk_size));
   }
 
   // xor coding chunk is missing
@@ -130,13 +144,15 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
     EXPECT_EQ(3u, degraded.size());
     int want_to_decode[] = {2};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 1),
-			     degraded,
-			     &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 1), degraded,
+               &decoded));
     // always decode all, regardless of want_to_decode
     EXPECT_EQ(4u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(2)].length());
-    EXPECT_EQ(0, memcmp(decoded[shard_id_t(2)].c_str(), enc2.c_str(), chunk_size));
+    EXPECT_EQ(
+        0, memcmp(decoded[shard_id_t(2)].c_str(), enc2.c_str(), chunk_size));
   }
 
   // one data and one coding chunk is missing
@@ -150,13 +166,15 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
     EXPECT_EQ(2u, degraded.size());
     int want_to_decode[] = {1, 3};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 2),
-			     degraded,
-			     &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 2), degraded,
+               &decoded));
     // always decode all, regardless of want_to_decode
     EXPECT_EQ(4u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(1)].length());
-    EXPECT_EQ(0, memcmp(decoded[shard_id_t(3)].c_str(), enc3.c_str(), chunk_size));
+    EXPECT_EQ(
+        0, memcmp(decoded[shard_id_t(3)].c_str(), enc3.c_str(), chunk_size));
   }
 
   // two data chunks are missing
@@ -167,15 +185,15 @@ void IsaErasureCodeTest::encode_decode(unsigned object_size)
     EXPECT_EQ(2u, degraded.size());
     int want_to_decode[] = {0, 1};
     shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
-    EXPECT_EQ(0, Isa._decode(shard_id_set(want_to_decode, want_to_decode + 2),
-			     degraded,
-			     &decoded));
+    EXPECT_EQ(
+        0, Isa._decode(
+               shard_id_set(want_to_decode, want_to_decode + 2), degraded,
+               &decoded));
     // always decode all, regardless of want_to_decode
     EXPECT_EQ(4u, decoded.size());
     EXPECT_EQ(chunk_size, decoded[shard_id_t(0)].length());
     compare_chunks(in, decoded);
   }
-
 }
 
 TEST_F(IsaErasureCodeTest, encode_decode)
@@ -204,9 +222,8 @@ TEST_F(IsaErasureCodeTest, minimum_to_decode)
     shard_id_set available_chunks;
     shard_id_set minimum;
 
-    EXPECT_EQ(0, Isa._minimum_to_decode(want_to_read,
-					available_chunks,
-					&minimum));
+    EXPECT_EQ(
+        0, Isa._minimum_to_decode(want_to_read, available_chunks, &minimum));
     EXPECT_TRUE(minimum.empty());
   }
   //
@@ -219,9 +236,8 @@ TEST_F(IsaErasureCodeTest, minimum_to_decode)
 
     want_to_read.insert(shard_id_t(0));
 
-    EXPECT_EQ(-EIO, Isa._minimum_to_decode(want_to_read,
-					   available_chunks,
-					   &minimum));
+    EXPECT_EQ(
+        -EIO, Isa._minimum_to_decode(want_to_read, available_chunks, &minimum));
   }
   //
   // Reading a subset of the available chunks is always possible.
@@ -234,9 +250,8 @@ TEST_F(IsaErasureCodeTest, minimum_to_decode)
     want_to_read.insert(shard_id_t(0));
     available_chunks.insert(shard_id_t(0));
 
-    EXPECT_EQ(0, Isa._minimum_to_decode(want_to_read,
-					available_chunks,
-					&minimum));
+    EXPECT_EQ(
+        0, Isa._minimum_to_decode(want_to_read, available_chunks, &minimum));
     EXPECT_EQ(want_to_read, minimum);
   }
   //
@@ -252,9 +267,8 @@ TEST_F(IsaErasureCodeTest, minimum_to_decode)
     want_to_read.insert(shard_id_t(1));
     available_chunks.insert(shard_id_t(0));
 
-    EXPECT_EQ(-EIO, Isa._minimum_to_decode(want_to_read,
-					   available_chunks,
-					   &minimum));
+    EXPECT_EQ(
+        -EIO, Isa._minimum_to_decode(want_to_read, available_chunks, &minimum));
   }
   //
   // When chunks are not available, the minimum can be made of any
@@ -276,9 +290,8 @@ TEST_F(IsaErasureCodeTest, minimum_to_decode)
     available_chunks.insert(shard_id_t(2));
     available_chunks.insert(shard_id_t(3));
 
-    EXPECT_EQ(0, Isa._minimum_to_decode(want_to_read,
-					available_chunks,
-					&minimum));
+    EXPECT_EQ(
+        0, Isa._minimum_to_decode(want_to_read, available_chunks, &minimum));
     EXPECT_EQ(2u, minimum.size());
     EXPECT_EQ(0u, minimum.count(shard_id_t(3)));
   }
@@ -295,8 +308,12 @@ TEST_F(IsaErasureCodeTest, chunk_size)
     const int k = 2;
 
     ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT, Isa.get_chunk_size(1));
-    ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT, Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k - 1));
-    ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT * 2, Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k + 1));
+    ASSERT_EQ(
+        EC_ISA_ADDRESS_ALIGNMENT,
+        Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k - 1));
+    ASSERT_EQ(
+        EC_ISA_ADDRESS_ALIGNMENT * 2,
+        Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k + 1));
   }
   {
     ErasureCodeIsaDefault Isa(tcache, "reed_sol_van");
@@ -307,8 +324,12 @@ TEST_F(IsaErasureCodeTest, chunk_size)
     const int k = 3;
 
     ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT, Isa.get_chunk_size(1));
-    ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT, Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k - 1));
-    ASSERT_EQ(EC_ISA_ADDRESS_ALIGNMENT * 2, Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k + 1));
+    ASSERT_EQ(
+        EC_ISA_ADDRESS_ALIGNMENT,
+        Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k - 1));
+    ASSERT_EQ(
+        EC_ISA_ADDRESS_ALIGNMENT * 2,
+        Isa.get_chunk_size(EC_ISA_ADDRESS_ALIGNMENT * k + 1));
     unsigned object_size = EC_ISA_ADDRESS_ALIGNMENT * k * 1024 + 1;
     ASSERT_NE(0u, object_size % k);
     ASSERT_NE(0u, object_size % EC_ISA_ADDRESS_ALIGNMENT);
@@ -334,15 +355,15 @@ TEST_F(IsaErasureCodeTest, encode)
     //
     bufferlist in;
     shard_id_map<bufferlist> encoded(Isa.get_chunk_count());
-    int want_to_encode[] = { 0, 1, 2, 3 };
+    int want_to_encode[] = {0, 1, 2, 3};
     int trail_length = 1;
     in.append(string(aligned_object_size + trail_length, 'X'));
-    EXPECT_EQ(0, Isa.encode(shard_id_set(want_to_encode, want_to_encode+4),
-				 in,
-				 &encoded));
+    EXPECT_EQ(
+        0, Isa.encode(
+               shard_id_set(want_to_encode, want_to_encode + 4), in, &encoded));
     EXPECT_EQ(4u, encoded.size());
-    char *last_chunk = encoded[shard_id_t(1)].c_str();
-    int length =encoded[shard_id_t(1)].length();
+    char* last_chunk = encoded[shard_id_t(1)].c_str();
+    int length = encoded[shard_id_t(1)].length();
     EXPECT_EQ('X', last_chunk[0]);
     EXPECT_EQ('\0', last_chunk[length - trail_length]);
   }
@@ -379,17 +400,20 @@ TEST_F(IsaErasureCodeTest, sanity_check_k)
 }
 
 bool
-DecodeAndVerify(ErasureCodeIsaDefault& Isa, shard_id_map<bufferlist> &degraded, shard_id_set want_to_decode, buffer::ptr* enc, int length)
+DecodeAndVerify(
+    ErasureCodeIsaDefault& Isa,
+    shard_id_map<bufferlist>& degraded,
+    shard_id_set want_to_decode,
+    buffer::ptr* enc,
+    int length)
 {
   shard_id_map<bufferlist> decoded(Isa.get_chunk_count());
   bool ok;
 
   // decode as requested
-  ok = Isa._decode(want_to_decode,
-		   degraded,
-		   &decoded);
+  ok = Isa._decode(want_to_decode, degraded, &decoded);
 
-  for (int i = 0; i < (int) decoded.size(); i++) {
+  for (int i = 0; i < (int)decoded.size(); i++) {
     // compare all the buffers with their original
     ok |= memcmp(decoded[shard_id_t(i)].c_str(), enc[i].c_str(), length);
   }
@@ -415,32 +439,32 @@ TEST_F(IsaErasureCodeTest, isa_vandermonde_exhaustive)
   bufferptr in_ptr(buffer::create_page_aligned(LARGE_ENOUGH));
   in_ptr.zero();
   in_ptr.set_length(0);
-  const char *payload =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const char* payload =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   in_ptr.append(payload, strlen(payload));
   bufferlist in;
   in.push_back(in_ptr);
@@ -453,16 +477,17 @@ TEST_F(IsaErasureCodeTest, isa_vandermonde_exhaustive)
   }
 
 
-  EXPECT_EQ(0, Isa.encode(want_to_encode,
-                          in,
-                          &encoded));
+  EXPECT_EQ(0, Isa.encode(want_to_encode, in, &encoded));
 
-  EXPECT_EQ((unsigned) (k + m), encoded.size());
+  EXPECT_EQ((unsigned)(k + m), encoded.size());
 
   unsigned length = encoded[shard_id_t(0)].length();
 
   for (int i = 0; i < k; i++) {
-    EXPECT_EQ(0, memcmp(encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
+    EXPECT_EQ(
+        0,
+        memcmp(
+            encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
   }
 
   buffer::ptr enc[k + m];
@@ -520,7 +545,9 @@ TEST_F(IsaErasureCodeTest, isa_vandermonde_exhaustive)
     want_to_decode.erase(shard_id_t(l1));
   }
   EXPECT_EQ(2516, cnt_cf);
-  EXPECT_EQ(2506, tcache.getDecodingTableCacheSize()); // 3 entries from (2,2) test and 2503 from (12,4)
+  EXPECT_EQ(
+      2506,
+      tcache.getDecodingTableCacheSize()); // 3 entries from (2,2) test and 2503 from (12,4)
 }
 
 TEST_F(IsaErasureCodeTest, isa_cauchy_exhaustive)
@@ -542,32 +569,32 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_exhaustive)
   bufferptr in_ptr(buffer::create_page_aligned(LARGE_ENOUGH));
   in_ptr.zero();
   in_ptr.set_length(0);
-  const char *payload =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const char* payload =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   in_ptr.append(payload, strlen(payload));
   bufferlist in;
   in.push_back(in_ptr);
@@ -580,16 +607,17 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_exhaustive)
   }
 
 
-  EXPECT_EQ(0, Isa.encode(want_to_encode,
-                          in,
-                          &encoded));
+  EXPECT_EQ(0, Isa.encode(want_to_encode, in, &encoded));
 
-  EXPECT_EQ((unsigned) (k + m), encoded.size());
+  EXPECT_EQ((unsigned)(k + m), encoded.size());
 
   unsigned length = encoded[shard_id_t(0)].length();
 
   for (int i = 0; i < k; i++) {
-    EXPECT_EQ(0, memcmp(encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
+    EXPECT_EQ(
+        0,
+        memcmp(
+            encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
   }
 
   buffer::ptr enc[k + m];
@@ -647,7 +675,8 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_exhaustive)
     want_to_decode.erase(shard_id_t(l1));
   }
   EXPECT_EQ(2516, cnt_cf);
-  EXPECT_EQ(2516, tcache.getDecodingTableCacheSize(ErasureCodeIsaDefault::kCauchy));
+  EXPECT_EQ(
+      2516, tcache.getDecodingTableCacheSize(ErasureCodeIsaDefault::kCauchy));
 }
 
 TEST_F(IsaErasureCodeTest, isa_cauchy_cache_trash)
@@ -669,32 +698,32 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_cache_trash)
   bufferptr in_ptr(buffer::create_page_aligned(LARGE_ENOUGH));
   in_ptr.zero();
   in_ptr.set_length(0);
-  const char *payload =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const char* payload =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   in_ptr.append(payload, strlen(payload));
   bufferlist in;
   in.push_back(in_ptr);
@@ -707,16 +736,17 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_cache_trash)
   }
 
 
-  EXPECT_EQ(0, Isa.encode(want_to_encode,
-                          in,
-                          &encoded));
+  EXPECT_EQ(0, Isa.encode(want_to_encode, in, &encoded));
 
-  EXPECT_EQ((unsigned) (k + m), encoded.size());
+  EXPECT_EQ((unsigned)(k + m), encoded.size());
 
   unsigned length = encoded[shard_id_t(0)].length();
 
   for (int i = 0; i < k; i++) {
-    EXPECT_EQ(0, memcmp(encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
+    EXPECT_EQ(
+        0,
+        memcmp(
+            encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
   }
 
   buffer::ptr enc[k + m];
@@ -774,13 +804,14 @@ TEST_F(IsaErasureCodeTest, isa_cauchy_cache_trash)
     want_to_decode.erase(shard_id_t(l1));
   }
   EXPECT_EQ(6195, cnt_cf);
-  EXPECT_EQ(2516, tcache.getDecodingTableCacheSize(ErasureCodeIsaDefault::kCauchy));
+  EXPECT_EQ(
+      2516, tcache.getDecodingTableCacheSize(ErasureCodeIsaDefault::kCauchy));
 }
 
 TEST_F(IsaErasureCodeTest, isa_xor_codec)
 {
   // Test all possible failure scenarios and reconstruction cases for
-  // a (4,1) RAID-5 like configuration 
+  // a (4,1) RAID-5 like configuration
 
   ErasureCodeIsaDefault Isa(tcache, "reed_sol_van");
   ErasureCodeProfile profile;
@@ -795,32 +826,32 @@ TEST_F(IsaErasureCodeTest, isa_xor_codec)
   bufferptr in_ptr(buffer::create_page_aligned(LARGE_ENOUGH));
   in_ptr.zero();
   in_ptr.set_length(0);
-  const char *payload =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const char* payload =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   in_ptr.append(payload, strlen(payload));
   bufferlist in;
   in.push_back(in_ptr);
@@ -833,16 +864,17 @@ TEST_F(IsaErasureCodeTest, isa_xor_codec)
   }
 
 
-  EXPECT_EQ(0, Isa.encode(want_to_encode,
-                          in,
-                          &encoded));
+  EXPECT_EQ(0, Isa.encode(want_to_encode, in, &encoded));
 
-  EXPECT_EQ((unsigned) (k + m), encoded.size());
+  EXPECT_EQ((unsigned)(k + m), encoded.size());
 
   unsigned length = encoded[shard_id_t(0)].length();
 
   for (int i = 0; i < k; i++) {
-    EXPECT_EQ(0, memcmp(encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
+    EXPECT_EQ(
+        0,
+        memcmp(
+            encoded[shard_id_t(i)].c_str(), in.c_str() + (i * length), length));
   }
 
   buffer::ptr enc[k + m];
@@ -887,20 +919,22 @@ TEST_F(IsaErasureCodeTest, create_rule)
   c->set_type_name(osd_type, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		root_type, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, root_type, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "default";
 
   int num_host = 4;
   int num_osd = 5;
   int osd = 0;
-  for (int h=0; h<num_host; ++h) {
+  for (int h = 0; h < num_host; ++h) {
     loc["host"] = string("host-") + stringify(h);
-    for (int o=0; o<num_osd; ++o, ++osd) {
-      c->insert_item(g_ceph_context, osd, 1.0, string("osd.") + stringify(osd), loc);
+    for (int o = 0; o < num_osd; ++o, ++osd) {
+      c->insert_item(
+          g_ceph_context, osd, 1.0, string("osd.") + stringify(osd), loc);
     }
   }
 
@@ -927,7 +961,7 @@ TEST_F(IsaErasureCodeTest, create_rule)
     int x = 0;
     c->do_rule(rule, x, out, isa.get_chunk_count(), weight, 0);
     ASSERT_EQ(out.size(), isa.get_chunk_count());
-    for (unsigned i=0; i<out.size(); ++i)
+    for (unsigned i = 0; i < out.size(); ++i)
       ASSERT_NE(CRUSH_ITEM_NONE, out[i]);
   }
   {

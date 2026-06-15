@@ -17,6 +17,7 @@
 
 #include <exception>
 #include <optional>
+
 #include <boost/asio/append.hpp>
 #include <boost/asio/associated_cancellation_slot.hpp>
 #include <boost/asio/async_result.hpp>
@@ -28,7 +29,7 @@ namespace ceph::async {
 /// Captures a yield_context handler for deferred completion or cancellation.
 template <typename Ret>
 class yield_waiter {
- public:
+public:
   /// Function signature for the completion handler.
   using Signature = void(boost::system::error_code, Ret);
 
@@ -44,20 +45,23 @@ class yield_waiter {
   /// Suspends the given yield_context until the captured handler is invoked
   /// via complete() or cancel().
   template <typename CompletionToken>
-  auto async_wait(CompletionToken&& token)
+  auto
+  async_wait(CompletionToken&& token)
   {
     return boost::asio::async_initiate<CompletionToken, Signature>(
-        [this] (handler_type h) {
+        [this](handler_type h) {
           auto slot = get_associated_cancellation_slot(h);
           if (slot.is_connected()) {
             slot.template emplace<op_cancellation>(this);
           }
           state.emplace(std::move(h));
-        }, token);
+        },
+        token);
   }
 
   /// Schedule the completion handler with the given arguments.
-  void complete(boost::system::error_code ec, Ret value)
+  void
+  complete(boost::system::error_code ec, Ret value)
   {
     auto s = std::move(*state);
     state.reset();
@@ -66,32 +70,39 @@ class yield_waiter {
   }
 
   /// Destroy the completion handler.
-  void shutdown()
+  void
+  shutdown()
   {
     state.reset();
   }
 
- private:
-  using handler_type = typename boost::asio::async_result<
-      boost::asio::yield_context, Signature>::handler_type;
-  using work_guard = boost::asio::executor_work_guard<
-      boost::asio::any_io_executor>;
+private:
+  using handler_type = typename boost::asio::
+      async_result<boost::asio::yield_context, Signature>::handler_type;
+  using work_guard =
+      boost::asio::executor_work_guard<boost::asio::any_io_executor>;
 
   struct handler_state {
     handler_type handler;
     work_guard work;
 
-    explicit handler_state(handler_type&& h)
-      : handler(std::move(h)),
-        work(make_work_guard(handler))
+    explicit handler_state(handler_type&& h) :
+      handler(std::move(h)), work(make_work_guard(handler))
     {}
   };
+
   std::optional<handler_state> state;
 
   struct op_cancellation {
     yield_waiter* self;
-    op_cancellation(yield_waiter* self) : self(self) {}
-    void operator()(boost::asio::cancellation_type type) {
+
+    op_cancellation(yield_waiter* self) :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type type)
+    {
       if (type != boost::asio::cancellation_type::none) {
         self->cancel();
       }
@@ -99,7 +110,8 @@ class yield_waiter {
   };
 
   // Cancel the coroutine with an operation_aborted error.
-  void cancel()
+  void
+  cancel()
   {
     if (state) {
       complete(make_error_code(boost::asio::error::operation_aborted), Ret{});
@@ -110,7 +122,7 @@ class yield_waiter {
 // specialization for Ret=void
 template <>
 class yield_waiter<void> {
- public:
+public:
   /// Function signature for the completion handler.
   using Signature = void(boost::system::error_code);
 
@@ -126,20 +138,23 @@ class yield_waiter<void> {
   /// Suspends the given yield_context until the captured handler is invoked
   /// via complete() or cancel().
   template <typename CompletionToken>
-  auto async_wait(CompletionToken&& token)
+  auto
+  async_wait(CompletionToken&& token)
   {
     return boost::asio::async_initiate<CompletionToken, Signature>(
-        [this] (handler_type h) {
+        [this](handler_type h) {
           auto slot = get_associated_cancellation_slot(h);
           if (slot.is_connected()) {
             slot.template emplace<op_cancellation>(this);
           }
           state.emplace(std::move(h));
-        }, token);
+        },
+        token);
   }
 
   /// Schedule the completion handler with the given arguments.
-  void complete(boost::system::error_code ec)
+  void
+  complete(boost::system::error_code ec)
   {
     auto s = std::move(*state);
     state.reset();
@@ -147,32 +162,39 @@ class yield_waiter<void> {
   }
 
   /// Destroy the completion handler.
-  void shutdown()
+  void
+  shutdown()
   {
     state.reset();
   }
 
- private:
-  using handler_type = typename boost::asio::async_result<
-      boost::asio::yield_context, Signature>::handler_type;
-  using work_guard = boost::asio::executor_work_guard<
-      boost::asio::any_io_executor>;
+private:
+  using handler_type = typename boost::asio::
+      async_result<boost::asio::yield_context, Signature>::handler_type;
+  using work_guard =
+      boost::asio::executor_work_guard<boost::asio::any_io_executor>;
 
   struct handler_state {
     handler_type handler;
     work_guard work;
 
-    explicit handler_state(handler_type&& h)
-      : handler(std::move(h)),
-        work(make_work_guard(handler))
+    explicit handler_state(handler_type&& h) :
+      handler(std::move(h)), work(make_work_guard(handler))
     {}
   };
+
   std::optional<handler_state> state;
 
   struct op_cancellation {
     yield_waiter* self;
-    op_cancellation(yield_waiter* self) : self(self) {}
-    void operator()(boost::asio::cancellation_type type) {
+
+    op_cancellation(yield_waiter* self) :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type type)
+    {
       if (type != boost::asio::cancellation_type::none) {
         self->cancel();
       }
@@ -180,7 +202,8 @@ class yield_waiter<void> {
   };
 
   // Cancel the coroutine with an operation_aborted error.
-  void cancel()
+  void
+  cancel()
   {
     if (state) {
       complete(make_error_code(boost::asio::error::operation_aborted));

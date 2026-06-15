@@ -15,15 +15,16 @@
 
 #pragma once
 
-#include "common/async/completion.h"
-
 #include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/io_context.hpp>
+
+#include "common/async/completion.h"
+
 #include "rgw_dmclock_scheduler.h"
 #include "rgw_dmclock_scheduler_ctx.h"
 
 namespace rgw::dmclock {
-  namespace async = ceph::async;
+namespace async = ceph::async;
 
 /*
  * A dmclock request scheduling service for use with boost::asio.
@@ -32,17 +33,22 @@ namespace rgw::dmclock {
  * on a boost::asio executor.
  */
 class AsyncScheduler : public md_config_obs_t, public Scheduler {
- public:
-  template <typename ...Args> // args forwarded to PullPriorityQueue ctor
-  AsyncScheduler(CephContext *cct, boost::asio::io_context& context,
-            GetClientCounters&& counters, md_config_obs_t *observer,
-            Args&& ...args);
+public:
+  template <typename... Args> // args forwarded to PullPriorityQueue ctor
+  AsyncScheduler(
+      CephContext* cct,
+      boost::asio::io_context& context,
+      GetClientCounters&& counters,
+      md_config_obs_t* observer,
+      Args&&... args);
   ~AsyncScheduler();
 
   using executor_type = boost::asio::io_context::executor_type;
 
   /// return the default executor for async_request() callbacks
-  executor_type get_executor() noexcept {
+  executor_type
+  get_executor() noexcept
+  {
     return timer.get_executor();
   }
 
@@ -51,8 +57,12 @@ class AsyncScheduler : public md_config_obs_t, public Scheduler {
   /// is ready or canceled. on success, this grants a throttle unit that must
   /// be returned with a call to request_complete()
   template <typename CompletionToken>
-  auto async_request(const client_id& client, const ReqParams& params,
-                     const Time& time, Cost cost, CompletionToken&& token);
+  auto async_request(
+      const client_id& client,
+      const ReqParams& params,
+      const Time& time,
+      Cost cost,
+      CompletionToken&& token);
 
   /// returns a throttle unit granted by async_request()
   void request_complete() override;
@@ -66,16 +76,21 @@ class AsyncScheduler : public md_config_obs_t, public Scheduler {
   void cancel(const client_id& client);
 
   std::vector<std::string> get_tracked_keys() const noexcept override;
-  void handle_conf_change(const ConfigProxy& conf,
-                          const std::set<std::string>& changed) override;
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override;
 
- private:
-  int schedule_request_impl(const client_id& client, const ReqParams& params,
-                            const Time& time, const Cost& cost,
-                            optional_yield yield_ctx) override;
+private:
+  int schedule_request_impl(
+      const client_id& client,
+      const ReqParams& params,
+      const Time& time,
+      const Cost& cost,
+      optional_yield yield_ctx) override;
 
   static constexpr bool IsDelayed = false;
-  using Queue = crimson::dmclock::PullPriorityQueue<client_id, Request, IsDelayed>;
+  using Queue =
+      crimson::dmclock::PullPriorityQueue<client_id, Request, IsDelayed>;
   using RequestRef = typename Queue::RequestRef;
   Queue queue; //< dmclock priority queue
 
@@ -83,12 +98,12 @@ class AsyncScheduler : public md_config_obs_t, public Scheduler {
   using Completion = async::Completion<Signature, async::AsBase<Request>>;
 
   using Clock = ceph::coarse_real_clock;
-  using Timer = boost::asio::basic_waitable_timer<Clock,
-        boost::asio::wait_traits<Clock>, executor_type>;
+  using Timer = boost::asio::
+      basic_waitable_timer<Clock, boost::asio::wait_traits<Clock>, executor_type>;
   Timer timer; //< timer for the next scheduled request
 
-  CephContext *const cct;
-  md_config_obs_t *const observer; //< observer to update ClientInfoFunc
+  CephContext* const cct;
+  md_config_obs_t* const observer; //< observer to update ClientInfoFunc
   GetClientCounters counters; //< provides per-client perf counters
 
   /// max request throttle
@@ -102,15 +117,19 @@ class AsyncScheduler : public md_config_obs_t, public Scheduler {
   void process(const Time& now);
 };
 
-
-template <typename ...Args>
-AsyncScheduler::AsyncScheduler(CephContext *cct, boost::asio::io_context& context,
-                               GetClientCounters&& counters,
-                               md_config_obs_t *observer, Args&& ...args)
-  : queue(std::forward<Args>(args)...),
-    timer(context), cct(cct), observer(observer),
-    counters(std::move(counters)),
-    max_requests(cct->_conf.get_val<int64_t>("rgw_max_concurrent_requests"))
+template <typename... Args>
+AsyncScheduler::AsyncScheduler(
+    CephContext* cct,
+    boost::asio::io_context& context,
+    GetClientCounters&& counters,
+    md_config_obs_t* observer,
+    Args&&... args) :
+  queue(std::forward<Args>(args)...),
+  timer(context),
+  cct(cct),
+  observer(observer),
+  counters(std::move(counters)),
+  max_requests(cct->_conf.get_val<int64_t>("rgw_max_concurrent_requests"))
 {
   if (max_requests <= 0) {
     max_requests = std::numeric_limits<int64_t>::max();
@@ -121,17 +140,21 @@ AsyncScheduler::AsyncScheduler(CephContext *cct, boost::asio::io_context& contex
 }
 
 template <typename CompletionToken>
-auto AsyncScheduler::async_request(const client_id& client,
-                              const ReqParams& params,
-                              const Time& time, Cost cost,
-                              CompletionToken&& token)
+auto
+AsyncScheduler::async_request(
+    const client_id& client,
+    const ReqParams& params,
+    const Time& time,
+    Cost cost,
+    CompletionToken&& token)
 {
   return boost::asio::async_initiate<CompletionToken, Signature>(
-      [this] (auto handler, auto ex, const client_id& client,
-              const ReqParams& params, const Time& time, Cost cost) {
+      [this](
+          auto handler, auto ex, const client_id& client,
+          const ReqParams& params, const Time& time, Cost cost) {
         // allocate the Request and add it to the queue
-        auto completion = Completion::create(ex, std::move(handler),
-                                             Request{client, time, cost});
+        auto completion = Completion::create(
+            ex, std::move(handler), Request{client, time, cost});
         // cast to unique_ptr<Request>
         auto req = RequestRef{std::move(completion)};
         int r = queue.add_request(std::move(req), client, params, time, cost);
@@ -147,19 +170,20 @@ auto AsyncScheduler::async_request(const client_id& client,
           boost::system::error_code ec(r, boost::system::system_category());
           // cast back to Completion
           auto completion = static_cast<Completion*>(req.release());
-          async::post(std::unique_ptr<Completion>{completion},
-                      ec, PhaseType::priority);
+          async::post(
+              std::unique_ptr<Completion>{completion}, ec, PhaseType::priority);
           if (auto c = counters(client)) {
             c->inc(queue_counters::l_limit);
             c->inc(queue_counters::l_limit_cost, cost);
           }
         }
-      }, token, get_executor(), client, params, time, cost);
+      },
+      token, get_executor(), client, params, time, cost);
 }
 
 class SimpleThrottler : public md_config_obs_t, public dmclock::Scheduler {
 public:
-  SimpleThrottler(CephContext *cct) :
+  SimpleThrottler(CephContext* cct) :
     max_requests(cct->_conf.get_val<int64_t>("rgw_max_concurrent_requests")),
     counters(cct, "simple-throttler")
   {
@@ -169,32 +193,42 @@ public:
     cct->_conf.add_observer(this);
   }
 
-  std::vector<std::string> get_tracked_keys() const noexcept override {
+  std::vector<std::string>
+  get_tracked_keys() const noexcept override
+  {
     return {std::string{"rgw_max_concurrent_requests"}};
   }
 
-  void handle_conf_change(const ConfigProxy& conf,
-                          const std::set<std::string>& changed) override
+  void
+  handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override
   {
     if (changed.count("rgw_max_concurrent_requests")) {
       auto new_max = conf.get_val<int64_t>("rgw_max_concurrent_requests");
-      max_requests = new_max > 0 ? new_max : std::numeric_limits<int64_t>::max();
+      max_requests = new_max > 0 ? new_max
+                                 : std::numeric_limits<int64_t>::max();
     }
   }
 
-  void request_complete() override {
+  void
+  request_complete() override
+  {
     --outstanding_requests;
-    if (auto c = counters();
-        c != nullptr) {
+    if (auto c = counters(); c != nullptr) {
       c->inc(throttle_counters::l_outstanding, -1);
     }
-
   }
 
 private:
-  int schedule_request_impl(const client_id&, const ReqParams&,
-                            const Time&, const Cost&,
-                            optional_yield) override {
+  int
+  schedule_request_impl(
+      const client_id&,
+      const ReqParams&,
+      const Time&,
+      const Cost&,
+      optional_yield) override
+  {
     auto c = counters();
     if (c != nullptr) {
       c->inc(throttle_counters::l_outstanding);
@@ -206,7 +240,7 @@ private:
       return -EAGAIN;
     }
 
-    return 0 ;
+    return 0;
   }
 
   std::atomic<int64_t> max_requests;

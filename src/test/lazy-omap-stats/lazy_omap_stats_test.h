@@ -17,8 +17,9 @@
 #define CEPH_LAZY_OMAP_STATS_TEST_H
 
 #include <map>
-#include <boost/regex.hpp>
 #include <string>
+
+#include <boost/regex.hpp>
 
 #include "include/compat.h"
 #include "include/rados/librados.hpp"
@@ -28,8 +29,7 @@ struct index_t {
   unsigned key_index = 0;
 };
 
-class LazyOmapStatsTest
-{
+class LazyOmapStatsTest {
   librados::IoCtx io_ctx;
   librados::Rados rados;
   std::map<std::string, librados::bufferlist> payload;
@@ -61,12 +61,19 @@ class LazyOmapStatsTest
   void scrub();
   const int find_matches(std::string& output, boost::regex& reg) const;
   void check_one();
-  const int find_index(std::string& haystack, boost::regex& needle,
-                       std::string label) const;
-  const unsigned tally_column(const unsigned omap_bytes_index,
-                          const std::string& table, bool header) const;
-  void check_column(const int index, const std::string& table,
-                    const std::string& type, bool header = true) const;
+  const int find_index(
+      std::string& haystack,
+      boost::regex& needle,
+      std::string label) const;
+  const unsigned tally_column(
+      const unsigned omap_bytes_index,
+      const std::string& table,
+      bool header) const;
+  void check_column(
+      const int index,
+      const std::string& table,
+      const std::string& type,
+      bool header = true) const;
   index_t get_indexes(boost::regex& reg, std::string& output) const;
   void check_pg_dump();
   void check_pg_dump_summary();
@@ -77,17 +84,22 @@ class LazyOmapStatsTest
       std::string&& command = R"({"prefix": "pg dump"})",
       const bool silent = false,
       const CommandTarget target = CommandTarget::TARGET_MGR);
-  const std::string get_output(
+
+  const std::string
+  get_output(
       const std::string& command,
       const bool silent = false,
-      const CommandTarget target = CommandTarget::TARGET_MGR) {
-    return get_output(std::string(command), silent, target);  // delegate to rvalue version
+      const CommandTarget target = CommandTarget::TARGET_MGR)
+  {
+    return get_output(
+        std::string(command), silent, target); // delegate to rvalue version
   }
+
   void get_pool_id(const std::string& pool);
   std::map<std::string, std::string> get_scrub_stamps();
   void wait_for_active_clean();
 
- public:
+public:
   LazyOmapStatsTest() = default;
   const int run(const int argc, const char** argv);
 };

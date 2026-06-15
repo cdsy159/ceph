@@ -4,6 +4,7 @@
 #pragma once
 
 #include <unistd.h>
+
 #include <chrono>
 #include <map>
 #include <string>
@@ -12,36 +13,40 @@
 #include "include/buffer_fwd.h"
 
 // helpers shared by librados tests
-std::string get_temp_pool_name(const std::string &prefix = "test-rados-api-");
-void assert_eq_sparse(ceph::bufferlist& expected,
-                      const std::map<uint64_t, uint64_t>& extents,
-                      ceph::bufferlist& actual);
-class TestAlarm
-{
+std::string get_temp_pool_name(const std::string& prefix = "test-rados-api-");
+void assert_eq_sparse(
+    ceph::bufferlist& expected,
+    const std::map<uint64_t, uint64_t>& extents,
+    ceph::bufferlist& actual);
+
+class TestAlarm {
 public:
-  #ifndef _WIN32
-  TestAlarm() {
-    alarm(2400);
-  }
-  ~TestAlarm() {
-    alarm(0);
-  }
-  #else
+#ifndef _WIN32
+  TestAlarm() { alarm(2400); }
+
+  ~TestAlarm() { alarm(0); }
+#else
   // TODO: add a timeout mechanism for Windows as well, possibly by using
   // CreateTimerQueueTimer.
-  TestAlarm() {
-  }
-  ~TestAlarm() {
-  }
-  #endif
+  TestAlarm() {}
+
+  ~TestAlarm() {}
+#endif
 };
 
-template<class Rep, class Period, typename Func, typename... Args,
-         typename Return = std::invoke_result_t<Func, Args...>>
-Return wait_until(const std::chrono::duration<Rep, Period>& rel_time,
-                const std::chrono::duration<Rep, Period>& step,
-                const Return& expected,
-                Func&& func, Args&&... args)
+template <
+    class Rep,
+    class Period,
+    typename Func,
+    typename... Args,
+    typename Return = std::invoke_result_t<Func, Args...>>
+Return
+wait_until(
+    const std::chrono::duration<Rep, Period>& rel_time,
+    const std::chrono::duration<Rep, Period>& step,
+    const Return& expected,
+    Func&& func,
+    Args&&... args)
 {
   std::this_thread::sleep_for(rel_time - step);
   for (auto& s : {step, step}) {

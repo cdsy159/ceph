@@ -13,9 +13,9 @@
 
 #pragma once
 
-#include <string>
-
 #include <wnbd.h>
+
+#include <string>
 
 #define SERVICE_REG_KEY "SYSTEM\\CurrentControlSet\\Services\\rbd-wnbd"
 

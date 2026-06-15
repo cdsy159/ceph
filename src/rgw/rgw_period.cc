@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "rgw_sal.h"
 #include "common/errno.h"
-#include "rgw_sal_config.h"
+
 #include "rgw_meta_sync_status.h"
+#include "rgw_sal.h"
+#include "rgw_sal_config.h"
 #include "rgw_zone.h"
 #ifdef WITH_RADOSGW_RADOS
 #include "driver/rados/rgw_sync.h"
@@ -18,8 +19,8 @@ std::string period_info_oid_prefix = "periods.";
 
 #define FIRST_EPOCH 1
 
-int RGWPeriod::get_zonegroup(RGWZoneGroup& zonegroup,
-                             const string& zonegroup_id) const
+int
+RGWPeriod::get_zonegroup(RGWZoneGroup& zonegroup, const string& zonegroup_id) const
 {
   map<string, RGWZoneGroup>::const_iterator iter;
   if (!zonegroup_id.empty()) {
@@ -35,7 +36,11 @@ int RGWPeriod::get_zonegroup(RGWZoneGroup& zonegroup,
   return -ENOENT;
 }
 
-static int read_sync_status(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, rgw_meta_sync_status *sync_status)
+static int
+read_sync_status(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    rgw_meta_sync_status* sync_status)
 {
   int r = -ENOTSUP;
 #ifdef WITH_RADOSGW_RADOS
@@ -52,11 +57,13 @@ static int read_sync_status(const DoutPrefixProvider *dpp, rgw::sal::Driver* dri
   return r;
 }
 
-int RGWPeriod::update_sync_status(const DoutPrefixProvider *dpp,
-                                  rgw::sal::Driver* driver, /* for now */
-                                  const RGWPeriod &current_period,
-                                  std::ostream& error_stream,
-                                  bool force_if_stale)
+int
+RGWPeriod::update_sync_status(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver, /* for now */
+    const RGWPeriod& current_period,
+    std::ostream& error_stream,
+    bool force_if_stale)
 {
   rgw_meta_sync_status status;
   int r = read_sync_status(dpp, driver, &status);
@@ -74,14 +81,18 @@ int RGWPeriod::update_sync_status(const DoutPrefixProvider *dpp,
     ceph_assert(current_epoch > status.sync_info.realm_epoch);
     const int behind = current_epoch - status.sync_info.realm_epoch;
     if (!force_if_stale && current_epoch > 1) {
-      error_stream << "ERROR: This zone is " << behind << " period(s) behind "
-          "the current master zone in metadata sync. If this zone is promoted "
-          "to master, any metadata changes during that time are likely to "
-          "be lost.\n"
-          "Waiting for this zone to catch up on metadata sync (see "
-          "'radosgw-admin sync status') is recommended.\n"
-          "To promote this zone to master anyway, add the flag "
-          "--yes-i-really-mean-it." << std::endl;
+      error_stream
+          << "ERROR: This zone is " << behind
+          << " period(s) behind "
+             "the current master zone in metadata sync. If this zone is "
+             "promoted "
+             "to master, any metadata changes during that time are likely to "
+             "be lost.\n"
+             "Waiting for this zone to catch up on metadata sync (see "
+             "'radosgw-admin sync status') is recommended.\n"
+             "To promote this zone to master anyway, add the flag "
+             "--yes-i-really-mean-it."
+          << std::endl;
       return -EINVAL;
     }
     // empty sync status markers - other zones will skip this period during
@@ -103,7 +114,8 @@ int RGWPeriod::update_sync_status(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-std::list<RGWPeriod> RGWPeriod::generate_test_instances()
+std::list<RGWPeriod>
+RGWPeriod::generate_test_instances()
 {
   std::list<RGWPeriod> o;
   o.emplace_back();
@@ -111,15 +123,18 @@ std::list<RGWPeriod> RGWPeriod::generate_test_instances()
   return o;
 }
 
-const string& RGWPeriod::get_info_oid_prefix() const
+const string&
+RGWPeriod::get_info_oid_prefix() const
 {
   return period_info_oid_prefix;
 }
 
-bool RGWPeriod::find_zone(const DoutPrefixProvider *dpp,
-                          const rgw_zone_id& zid,
-                          RGWZoneGroup *pzonegroup,
-                          optional_yield y) const
+bool
+RGWPeriod::find_zone(
+    const DoutPrefixProvider* dpp,
+    const rgw_zone_id& zid,
+    RGWZoneGroup* pzonegroup,
+    optional_yield y) const
 {
   RGWZoneGroup zg;
   RGWZone zone;
@@ -132,7 +147,8 @@ bool RGWPeriod::find_zone(const DoutPrefixProvider *dpp,
   return found;
 }
 
-rgw_pool RGWPeriod::get_pool(CephContext *cct) const
+rgw_pool
+RGWPeriod::get_pool(CephContext* cct) const
 {
   if (cct->_conf->rgw_period_root_pool.empty()) {
     return rgw_pool(RGW_DEFAULT_PERIOD_ROOT_POOL);
@@ -140,10 +156,11 @@ rgw_pool RGWPeriod::get_pool(CephContext *cct) const
   return rgw_pool(cct->_conf->rgw_period_root_pool);
 }
 
-void RGWPeriod::dump(Formatter *f) const
+void
+RGWPeriod::dump(Formatter* f) const
 {
   encode_json("id", id, f);
-  encode_json("epoch", epoch , f);
+  encode_json("epoch", epoch, f);
   encode_json("predecessor_uuid", predecessor_uuid, f);
   encode_json("sync_status", sync_status, f);
   encode_json("period_map", period_map, f);
@@ -154,7 +171,8 @@ void RGWPeriod::dump(Formatter *f) const
   encode_json("realm_epoch", realm_epoch, f);
 }
 
-void RGWPeriod::decode_json(JSONObj *obj)
+void
+RGWPeriod::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("epoch", epoch, obj);
@@ -167,4 +185,3 @@ void RGWPeriod::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("realm_id", realm_id, obj);
   JSONDecoder::decode_json("realm_epoch", realm_epoch, obj);
 }
-

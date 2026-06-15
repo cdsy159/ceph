@@ -11,13 +11,15 @@
  * Foundation.  See file COPYING.
  */
 
-#ifndef  __NVMEOFGWUTILS_H__
-#define  __NVMEOFGWUTILS_H__
-#include "mon/NVMeofGwTypes.h"
+#ifndef __NVMEOFGWUTILS_H__
+#define __NVMEOFGWUTILS_H__
 #include <list>
 
+#include "mon/NVMeofGwTypes.h"
+
 // utility for diffing nvmeof subsystems changes
-void determine_subsystem_changes(const BeaconSubsystems& old_subsystems,
-                                BeaconSubsystems& new_subsystems);
+void determine_subsystem_changes(
+    const BeaconSubsystems& old_subsystems,
+    BeaconSubsystems& new_subsystems);
 
 #endif

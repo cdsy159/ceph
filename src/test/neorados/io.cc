@@ -10,28 +10,23 @@
  *
  */
 
+#include <fmt/format.h>
+
 #include <array>
 #include <coroutine>
 #include <cstdint>
 #include <limits>
 #include <utility>
 
-#include <fmt/format.h>
-
 #include <boost/asio/use_awaitable.hpp>
-
 #include <boost/container/flat_map.hpp>
-
 #include <boost/system/errc.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
-#include "include/buffer.h"
-#include "include/stringify.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/buffer.h"
+#include "include/neorados/RADOS.hpp"
+#include "include/stringify.h"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace buffer = ceph::buffer;
@@ -45,20 +40,23 @@ using neorados::WriteOp;
 
 static constexpr auto oid = "oid"sv;
 
-CORO_TEST_F(NeoRadosIo, Limits, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, Limits, NeoRadosTest)
+{
   SKIP_IF_CRIMSON(); // See: https://tracker.ceph.com/issues/64040
   co_await expect_error_code(
-    execute(oid, WriteOp{}
-	    .write(std::numeric_limits<std::uint64_t>::max(), {})),
-    sys::errc::file_too_large);
+      execute(
+          oid, WriteOp{}.write(std::numeric_limits<std::uint64_t>::max(), {})),
+      sys::errc::file_too_large);
   co_await expect_error_code(
-    execute(oid, WriteOp{}
-	    .writesame(0, std::numeric_limits<std::uint64_t>::max(), {})),
-    sys::errc::invalid_argument);
+      execute(
+          oid,
+          WriteOp{}.writesame(0, std::numeric_limits<std::uint64_t>::max(), {})),
+      sys::errc::invalid_argument);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, SimpleWrite, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, SimpleWrite, NeoRadosTest)
+{
   static constexpr auto nspace = "nspace";
   auto pool2 = pool();
   const auto bl = filled_buffer_list(0xcc, 128);
@@ -81,39 +79,38 @@ CORO_TEST_F(NeoRadosIo, SimpleWrite, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, ReadOp, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, ReadOp, NeoRadosTest)
+{
   const auto refbl = filled_buffer_list(0xcc, 128);
 
   co_await execute(oid, WriteOp{}.write_full(refbl));
   {
     buffer::list op_bl;
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, refbl.length(), nullptr),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, refbl.length(), nullptr), &op_bl,
+        asio::use_awaitable);
     EXPECT_EQ(refbl, op_bl);
   }
   {
     buffer::list op_bl;
     // 0 means read the whole object data.
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, 0, nullptr),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, 0, nullptr), &op_bl, asio::use_awaitable);
     EXPECT_EQ(refbl, op_bl);
   }
   {
     buffer::list read_bl, op_bl;
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, refbl.length(), &read_bl),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, refbl.length(), &read_bl), &op_bl,
+        asio::use_awaitable);
     EXPECT_EQ(refbl, read_bl);
     EXPECT_EQ(refbl, op_bl);
   }
   {
     buffer::list read_bl, op_bl;
     // 0 means read the whole object data.
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, 0, &read_bl),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, 0, &read_bl), &op_bl, asio::use_awaitable);
     EXPECT_EQ(refbl, read_bl);
     EXPECT_EQ(refbl, op_bl);
   }
@@ -121,10 +118,9 @@ CORO_TEST_F(NeoRadosIo, ReadOp, NeoRadosTest) {
   {
     buffer::list read_bl, read_bl2, op_bl;
     // 0 means read the whole object data.
-    co_await rados().execute(oid, pool(), ReadOp{}
-			     .read(0, 0, &read_bl)
-			     .read(0, 0, &read_bl2),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp{}.read(0, 0, &read_bl).read(0, 0, &read_bl2),
+        &op_bl, asio::use_awaitable);
     EXPECT_EQ(refbl, read_bl);
     EXPECT_EQ(refbl, read_bl2);
     buffer::list bl2;
@@ -135,19 +131,20 @@ CORO_TEST_F(NeoRadosIo, ReadOp, NeoRadosTest) {
   {
     // Read into buffer with a cached crc
     auto op_bl = filled_buffer_list('z', refbl.length());
-    EXPECT_NE(refbl.crc32c(0), op_bl.crc32c(0));  // cache 'x' crc
+    EXPECT_NE(refbl.crc32c(0), op_bl.crc32c(0)); // cache 'x' crc
 
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, refbl.length(), nullptr),
-			     &op_bl, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, refbl.length(), nullptr), &op_bl,
+        asio::use_awaitable);
     EXPECT_EQ(refbl, op_bl);
-    EXPECT_EQ(refbl.crc32c(0), op_bl.crc32c(0));  // cache 'x' crc
+    EXPECT_EQ(refbl.crc32c(0), op_bl.crc32c(0)); // cache 'x' crc
   }
 
   co_return;
 }
 
-void expect_eq_sparse(
+void
+expect_eq_sparse(
     const buffer::list& expected,
     const std::vector<std::pair<std::uint64_t, std::uint64_t>>& extents,
     const buffer::list& actual)
@@ -173,15 +170,16 @@ void expect_eq_sparse(
   EXPECT_EQ(expected.length(), pos);
 }
 
-
-CORO_TEST_F(NeoRadosIo, SparseRead, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, SparseRead, NeoRadosTest)
+{
   {
     const auto refbl = filled_buffer_list(0xcc, 4'096);
     co_await execute(oid, WriteOp{}.write_full(refbl));
 
     std::vector<std::pair<std::uint64_t, std::uint64_t>> extents;
     buffer::list readbl;
-    co_await execute(oid, ReadOp{}.sparse_read(0, refbl.length(), &readbl, &extents));
+    co_await execute(
+        oid, ReadOp{}.sparse_read(0, refbl.length(), &readbl, &extents));
     expect_eq_sparse(refbl, extents, readbl);
     EXPECT_EQ(refbl, readbl);
   }
@@ -196,13 +194,14 @@ CORO_TEST_F(NeoRadosIo, SparseRead, NeoRadosTest) {
 
     std::vector<std::pair<std::uint64_t, std::uint64_t>> extents;
     buffer::list readbl;
-    co_await execute(oid, ReadOp{}
-		     .sparse_read(0, refbl.length(), &readbl, &extents));
+    co_await execute(
+        oid, ReadOp{}.sparse_read(0, refbl.length(), &readbl, &extents));
     expect_eq_sparse(refbl, extents, readbl);
   }
 }
 
-CORO_TEST_F(NeoRadosIo, RoundTrip, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, RoundTrip, NeoRadosTest)
+{
   const auto refbl = filled_buffer_list(0xcc, 128);
   co_await execute(oid, WriteOp{}.write_full(refbl));
   {
@@ -212,16 +211,15 @@ CORO_TEST_F(NeoRadosIo, RoundTrip, NeoRadosTest) {
   {
     buffer::list bl;
     ReadOp op;
-    op.read(0, 0, & bl)
-      .set_fadvise_nocache()
-      .set_fadvise_random();
+    op.read(0, 0, &bl).set_fadvise_nocache().set_fadvise_random();
     co_await execute(oid, std::move(op));
     EXPECT_EQ(refbl, bl);
   }
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, ReadIntoBuufferlist, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, ReadIntoBuufferlist, NeoRadosTest)
+{
   auto refbl = filled_buffer_list(0xcc, 128);
   co_await execute(oid, WriteOp{}.write_full(refbl));
   {
@@ -231,16 +229,17 @@ CORO_TEST_F(NeoRadosIo, ReadIntoBuufferlist, NeoRadosTest) {
     buf.fill(0xbb);
     buffer::list bl2;
     bl2.append(buffer::create_static(buf.size(), buf.data()));
-    co_await rados().execute(oid, pool(),
-			     ReadOp().read(0, refbl.length(), nullptr),
-			     &bl2, asio::use_awaitable);
+    co_await rados().execute(
+        oid, pool(), ReadOp().read(0, refbl.length(), nullptr), &bl2,
+        asio::use_awaitable);
     EXPECT_EQ(refbl, bl2);
     EXPECT_EQ(0, memcmp(refbl.c_str(), buf.data(), buf.size()));
   }
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, OverlappingWriteRoundTrip, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, OverlappingWriteRoundTrip, NeoRadosTest)
+{
   const auto buf1 = filled_buffer_list(0xcc, 128);
   const auto buf2 = filled_buffer_list(0xdd, 64);
   co_await execute(oid, WriteOp{}.write(0, buf1));
@@ -253,8 +252,8 @@ CORO_TEST_F(NeoRadosIo, OverlappingWriteRoundTrip, NeoRadosTest) {
   co_return;
 }
 
-
-CORO_TEST_F(NeoRadosIo, WriteFullRoundTrip, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, WriteFullRoundTrip, NeoRadosTest)
+{
   {
     const auto buf1 = filled_buffer_list(0xcc, 128);
     const auto buf2 = filled_buffer_list(0xdd, 64);
@@ -265,21 +264,22 @@ CORO_TEST_F(NeoRadosIo, WriteFullRoundTrip, NeoRadosTest) {
   }
   {
     const auto bl = to_buffer_list("ceph");
-    co_await execute(oid, WriteOp()
-		     .write_full(bl)
-		     .set_fadvise_nocache());
+    co_await execute(oid, WriteOp().write_full(bl).set_fadvise_nocache());
 
     buffer::list resbl;
-    co_await execute(oid, ReadOp()
-		     .read(0, 0, &resbl).balance_reads()
-		     .set_fadvise_dontneed()
-		     .set_fadvise_random());
+    co_await execute(
+        oid, ReadOp()
+                 .read(0, 0, &resbl)
+                 .balance_reads()
+                 .set_fadvise_dontneed()
+                 .set_fadvise_random());
     EXPECT_EQ(bl, resbl);
   }
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, AppendRoundTrip, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, AppendRoundTrip, NeoRadosTest)
+{
   const auto buf1 = filled_buffer_list(0xde, 64);
   const auto buf2 = filled_buffer_list(0xad, 64);
   co_await execute(oid, WriteOp{}.append(buf1));
@@ -291,7 +291,8 @@ CORO_TEST_F(NeoRadosIo, AppendRoundTrip, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, Trunc, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, Trunc, NeoRadosTest)
+{
   const auto buf = filled_buffer_list(0xaa, 128);
   co_await execute(oid, WriteOp{}.append(buf));
   co_await execute(oid, WriteOp{}.truncate(buf.length() / 2));
@@ -302,25 +303,27 @@ CORO_TEST_F(NeoRadosIo, Trunc, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, Remove, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, Remove, NeoRadosTest)
+{
   co_await execute(oid, WriteOp{}.create(true));
   co_await execute(oid, ReadOp{}.stat(nullptr, nullptr));
   co_await execute(oid, WriteOp{}.remove());
-  co_await expect_error_code(execute(oid, WriteOp{}.remove()),
-			     sys::errc::no_such_file_or_directory);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.remove()), sys::errc::no_such_file_or_directory);
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, XattrsRoundTrip, NeoRadosTest) {
+CORO_TEST_F(NeoRadosIo, XattrsRoundTrip, NeoRadosTest)
+{
   const auto obj_buf = filled_buffer_list(0xaa, 128);
   const auto attrkey = "attr1"sv;
   const auto attrval = to_buffer_list("foo bar baz");
   co_await execute(oid, WriteOp{}.append(obj_buf));
   buffer::list attrval_res;
 
-  co_await expect_error_code(execute(oid,
-				     ReadOp{}.get_xattr(attrkey, &attrval_res)),
-			     sys::errc::no_message_available);
+  co_await expect_error_code(
+      execute(oid, ReadOp{}.get_xattr(attrkey, &attrval_res)),
+      sys::errc::no_message_available);
   EXPECT_EQ(0, attrval_res.length());
 
   co_await execute(oid, WriteOp{}.setxattr(attrkey, attrval));
@@ -328,35 +331,37 @@ CORO_TEST_F(NeoRadosIo, XattrsRoundTrip, NeoRadosTest) {
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, RmXattr, NeoRadosTest) {
-  const auto objbl= filled_buffer_list(0xaa, 128);
+CORO_TEST_F(NeoRadosIo, RmXattr, NeoRadosTest)
+{
+  const auto objbl = filled_buffer_list(0xaa, 128);
   const auto attrkey = "attr1"sv;
   const auto attrval = to_buffer_list("foo bar baz");
 
   co_await execute(oid, WriteOp{}.append(objbl));
 
-  co_await expect_error_code(execute(oid,
-				     ReadOp{}.get_xattr(attrkey, nullptr)),
-			     sys::errc::no_message_available);
+  co_await expect_error_code(
+      execute(oid, ReadOp{}.get_xattr(attrkey, nullptr)),
+      sys::errc::no_message_available);
   co_await execute(oid, WriteOp{}.setxattr(attrkey, attrval));
   co_await execute(oid, ReadOp{}.get_xattr(attrkey, nullptr));
 
   co_await execute(oid, WriteOp{}.rmxattr(attrkey));
-  co_await expect_error_code(execute(oid,
-				     ReadOp{}.get_xattr(attrkey, nullptr)),
-			     sys::errc::no_message_available);
+  co_await expect_error_code(
+      execute(oid, ReadOp{}.get_xattr(attrkey, nullptr)),
+      sys::errc::no_message_available);
 
   // Test rmxattr of a removed object
   co_await execute(oid, WriteOp{}.remove());
-  co_await expect_error_code(execute(oid,
-				     WriteOp{}.rmxattr(attrkey)),
-			     sys::errc::no_such_file_or_directory);
+  co_await expect_error_code(
+      execute(oid, WriteOp{}.rmxattr(attrkey)),
+      sys::errc::no_such_file_or_directory);
 
   co_return;
 }
 
-CORO_TEST_F(NeoRadosIo, GetXattrs, NeoRadosTest) {
-  const auto objbl= filled_buffer_list(0xaa, 128);
+CORO_TEST_F(NeoRadosIo, GetXattrs, NeoRadosTest)
+{
+  const auto objbl = filled_buffer_list(0xaa, 128);
   const auto attrkey1 = "attr1"s;
   const auto attrval1 = to_buffer_list("foo bar baz");
   const auto attrkey2 = "attr2"s;
@@ -367,10 +372,11 @@ CORO_TEST_F(NeoRadosIo, GetXattrs, NeoRadosTest) {
   buffer::list attrval2;
   attrval2.append(attrbuf2.data(), attrbuf2.size());
 
-  co_await execute(oid, WriteOp{}
-		   .append(objbl)
-		   .setxattr(attrkey1, attrval1)
-		   .setxattr(attrkey2, attrval2));
+  co_await execute(
+      oid, WriteOp{}
+               .append(objbl)
+               .setxattr(attrkey1, attrval1)
+               .setxattr(attrkey2, attrval2));
 
   container::flat_map<std::string, buffer::list> attrset;
   co_await execute(oid, ReadOp{}.get_xattrs(&attrset));

@@ -1,26 +1,34 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/debug.h"
-#include "common/errno.h"
-#include "Driver.h"
 #include "Watcher.h"
+
+#include "common/debug.h"
+
+#include "common/errno.h"
+
+#include "Driver.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::ggate::Watcher: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::ggate::Watcher: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace ggate {
 
-Watcher::Watcher(Driver *drv, librados::IoCtx &ioctx, librbd::Image &image,
-                 size_t size)
-  : m_drv(drv), m_ioctx(ioctx), m_image(image), m_size(size) {
-}
+Watcher::Watcher(
+    Driver* drv,
+    librados::IoCtx& ioctx,
+    librbd::Image& image,
+    size_t size) :
+  m_drv(drv), m_ioctx(ioctx), m_image(image), m_size(size)
+{}
 
-void Watcher::handle_notify() {
+void
+Watcher::handle_notify()
+{
   dout(20) << dendl;
 
   librbd::image_info_t info;

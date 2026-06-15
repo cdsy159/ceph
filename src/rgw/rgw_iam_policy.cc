@@ -2,24 +2,22 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 
+#include "rgw_iam_policy.h"
+
+#include <arpa/inet.h>
+
 #include <cstring>
+#include <experimental/iterator>
 #include <iostream>
 #include <regex>
 #include <sstream>
 #include <stack>
 #include <utility>
 
-#include <arpa/inet.h>
-
-#include <experimental/iterator>
-
+#include "include/expected.hpp"
 #include "rapidjson/reader.h"
 
-#include "include/expected.hpp"
-
 #include "rgw_auth.h"
-#include "rgw_iam_policy.h"
-
 
 namespace {
 constexpr int dout_subsys = ceph_subsys_rgw;
@@ -28,10 +26,10 @@ constexpr int dout_subsys = ceph_subsys_rgw;
 using std::dec;
 using std::hex;
 using std::int64_t;
+using std::ostream;
 using std::size_t;
 using std::string;
 using std::stringstream;
-using std::ostream;
 using std::uint16_t;
 using std::uint64_t;
 
@@ -41,12 +39,12 @@ using std::regex_match;
 using std::smatch;
 
 using rapidjson::BaseReaderHandler;
-using rapidjson::UTF8;
-using rapidjson::SizeType;
-using rapidjson::Reader;
 using rapidjson::kParseCommentsFlag;
 using rapidjson::kParseNumbersAsStringsFlag;
+using rapidjson::Reader;
+using rapidjson::SizeType;
 using rapidjson::StringStream;
+using rapidjson::UTF8;
 
 using rgw::auth::Principal;
 
@@ -59,178 +57,178 @@ struct actpair {
   const uint64_t bit;
 };
 
-
-
-static const actpair actpairs[] =
-{{ "s3:AbortMultipartUpload", s3AbortMultipartUpload },
- { "s3:CreateBucket", s3CreateBucket },
- { "s3:DeleteBucketPolicy", s3DeleteBucketPolicy },
- { "s3:DeleteBucket", s3DeleteBucket },
- { "s3:DeleteBucketWebsite", s3DeleteBucketWebsite },
- { "s3:DeleteObject", s3DeleteObject },
- { "s3:DeleteObjectVersion", s3DeleteObjectVersion },
- { "s3:DeleteObjectTagging", s3DeleteObjectTagging },
- { "s3:DeleteObjectVersionTagging", s3DeleteObjectVersionTagging },
- { "s3:DeleteBucketPublicAccessBlock", s3DeleteBucketPublicAccessBlock},
- { "s3:DeletePublicAccessBlock", s3DeletePublicAccessBlock},
- { "s3:DeleteReplicationConfiguration", s3DeleteReplicationConfiguration },
- { "s3:GetAccelerateConfiguration", s3GetAccelerateConfiguration },
- { "s3:GetBucketAcl", s3GetBucketAcl },
- { "s3:GetBucketCORS", s3GetBucketCORS },
- { "s3:GetBucketEncryption", s3GetBucketEncryption },
- { "s3:GetBucketLocation", s3GetBucketLocation },
- { "s3:GetBucketLogging", s3GetBucketLogging },
- { "s3:GetBucketNotification", s3GetBucketNotification },
- { "s3:GetBucketOwnershipControls", s3GetBucketOwnershipControls },
- { "s3:GetBucketPolicy", s3GetBucketPolicy },
- { "s3:GetBucketPolicyStatus", s3GetBucketPolicyStatus },
- { "s3:GetBucketPublicAccessBlock", s3GetBucketPublicAccessBlock },
- { "s3:GetBucketRequestPayment", s3GetBucketRequestPayment },
- { "s3:GetBucketTagging", s3GetBucketTagging },
- { "s3:GetBucketVersioning", s3GetBucketVersioning },
- { "s3:GetBucketWebsite", s3GetBucketWebsite },
- { "s3:GetLifecycleConfiguration", s3GetLifecycleConfiguration },
- { "s3:GetBucketObjectLockConfiguration", s3GetBucketObjectLockConfiguration },
- { "s3:GetPublicAccessBlock", s3GetPublicAccessBlock },
- { "s3:GetObjectAcl", s3GetObjectAcl },
- { "s3:GetObject", s3GetObject },
- { "s3:GetObjectAttributes", s3GetObjectAttributes },
- { "s3:GetObjectVersionAttributes", s3GetObjectVersionAttributes },
- { "s3:GetObjectTorrent", s3GetObjectTorrent },
- { "s3:GetObjectVersionAcl", s3GetObjectVersionAcl },
- { "s3:GetObjectVersion", s3GetObjectVersion },
- { "s3:GetObjectVersionTorrent", s3GetObjectVersionTorrent },
- { "s3:GetObjectTagging", s3GetObjectTagging },
- { "s3:GetObjectVersionTagging", s3GetObjectVersionTagging},
- { "s3:GetObjectRetention", s3GetObjectRetention},
- { "s3:GetObjectLegalHold", s3GetObjectLegalHold},
- { "s3:GetReplicationConfiguration", s3GetReplicationConfiguration },
- { "s3:ListAllMyBuckets", s3ListAllMyBuckets },
- { "s3:ListBucketMultipartUploads", s3ListBucketMultipartUploads },
- { "s3:ListBucket", s3ListBucket },
- { "s3:ListBucketVersions", s3ListBucketVersions },
- { "s3:ListMultipartUploadParts", s3ListMultipartUploadParts },
- { "s3:PutAccelerateConfiguration", s3PutAccelerateConfiguration },
- { "s3:PutBucketAcl", s3PutBucketAcl },
- { "s3:PutBucketCORS", s3PutBucketCORS },
- { "s3:PutBucketEncryption", s3PutBucketEncryption },
- { "s3:PutBucketLogging", s3PutBucketLogging },
- { "s3:PostBucketLogging", s3PostBucketLogging },
- { "s3:PutBucketNotification", s3PutBucketNotification },
- { "s3:PutBucketOwnershipControls", s3PutBucketOwnershipControls },
- { "s3:PutBucketPolicy", s3PutBucketPolicy },
- { "s3:PutBucketRequestPayment", s3PutBucketRequestPayment },
- { "s3:PutBucketTagging", s3PutBucketTagging },
- { "s3:PutBucketVersioning", s3PutBucketVersioning },
- { "s3:PutBucketWebsite", s3PutBucketWebsite },
- { "s3:PutLifecycleConfiguration", s3PutLifecycleConfiguration },
- { "s3:PutBucketObjectLockConfiguration", s3PutBucketObjectLockConfiguration },
- { "s3:PutObjectAcl",  s3PutObjectAcl },
- { "s3:PutObject", s3PutObject },
- { "s3:PutObjectVersionAcl", s3PutObjectVersionAcl },
- { "s3:PutObjectTagging", s3PutObjectTagging },
- { "s3:PutObjectVersionTagging", s3PutObjectVersionTagging },
- { "s3:PutObjectRetention", s3PutObjectRetention },
- { "s3:PutObjectLegalHold", s3PutObjectLegalHold },
- { "s3:BypassGovernanceRetention", s3BypassGovernanceRetention },
- { "s3:PutBucketPublicAccessBlock", s3PutBucketPublicAccessBlock },
- { "s3:PutPublicAccessBlock", s3PutPublicAccessBlock },
- { "s3:PutReplicationConfiguration", s3PutReplicationConfiguration },
- { "s3:RestoreObject", s3RestoreObject },
- { "s3:DescribeJob", s3DescribeJob },
- { "s3:ReplicateDelete", s3ReplicateDelete },
- { "s3:ReplicateObject", s3ReplicateObject },
- { "s3:ReplicateTags", s3ReplicateTags },
- { "s3:GetObjectVersionForReplication", s3GetObjectVersionForReplication },
- { "s3-object-lambda:GetObject", s3objectlambdaGetObject },
- { "s3-object-lambda:ListBucket", s3objectlambdaListBucket },
- { "iam:PutUserPolicy", iamPutUserPolicy },
- { "iam:GetUserPolicy", iamGetUserPolicy },
- { "iam:DeleteUserPolicy", iamDeleteUserPolicy },
- { "iam:ListUserPolicies", iamListUserPolicies },
- { "iam:AttachUserPolicy", iamAttachUserPolicy },
- { "iam:DetachUserPolicy", iamDetachUserPolicy },
- { "iam:ListAttachedUserPolicies", iamListAttachedUserPolicies },
- { "iam:CreateRole", iamCreateRole},
- { "iam:DeleteRole", iamDeleteRole},
- { "iam:GetRole", iamGetRole},
- { "iam:ModifyRoleTrustPolicy", iamModifyRoleTrustPolicy},
- { "iam:ListRoles", iamListRoles},
- { "iam:PutRolePolicy", iamPutRolePolicy},
- { "iam:GetRolePolicy", iamGetRolePolicy},
- { "iam:ListRolePolicies", iamListRolePolicies},
- { "iam:DeleteRolePolicy", iamDeleteRolePolicy},
- { "iam:AttachRolePolicy", iamAttachRolePolicy },
- { "iam:DetachRolePolicy", iamDetachRolePolicy },
- { "iam:ListAttachedRolePolicies", iamListAttachedRolePolicies },
- { "iam:CreateOIDCProvider", iamCreateOIDCProvider},
- { "iam:DeleteOIDCProvider", iamDeleteOIDCProvider},
- { "iam:GetOIDCProvider", iamGetOIDCProvider},
- { "iam:ListOIDCProviders", iamListOIDCProviders},
- { "iam:AddClientIdToOIDCProvider", iamAddClientIdToOIDCProvider},
- { "iam:RemoveCientIdFromOIDCProvider", iamRemoveClientIdFromOIDCProvider},
- { "iam:UpdateOIDCProviderThumbprint", iamUpdateOIDCProviderThumbprint},
- { "iam:TagRole", iamTagRole},
- { "iam:ListRoleTags", iamListRoleTags},
- { "iam:UntagRole", iamUntagRole},
- { "iam:UpdateRole", iamUpdateRole},
- { "iam:CreateUser", iamCreateUser},
- { "iam:GetUser", iamGetUser},
- { "iam:UpdateUser", iamUpdateUser},
- { "iam:DeleteUser", iamDeleteUser},
- { "iam:ListUsers", iamListUsers},
- { "iam:CreateAccessKey", iamCreateAccessKey},
- { "iam:UpdateAccessKey", iamUpdateAccessKey},
- { "iam:DeleteAccessKey", iamDeleteAccessKey},
- { "iam:ListAccessKeys", iamListAccessKeys},
- { "iam:CreateGroup", iamCreateGroup},
- { "iam:GetGroup", iamGetGroup},
- { "iam:UpdateGroup", iamUpdateGroup},
- { "iam:DeleteGroup", iamDeleteGroup},
- { "iam:ListGroups", iamListGroups},
- { "iam:AddUserToGroup", iamAddUserToGroup},
- { "iam:RemoveUserFromGroup", iamRemoveUserFromGroup},
- { "iam:ListGroupsForUser", iamListGroupsForUser},
- { "iam:PutGroupPolicy", iamPutGroupPolicy },
- { "iam:GetGroupPolicy", iamGetGroupPolicy },
- { "iam:ListGroupPolicies", iamListGroupPolicies },
- { "iam:DeleteGroupPolicy", iamDeleteGroupPolicy },
- { "iam:AttachGroupPolicy", iamAttachGroupPolicy },
- { "iam:DetachGroupPolicy", iamDetachGroupPolicy },
- { "iam:ListAttachedGroupPolicies", iamListAttachedGroupPolicies },
- { "iam:GenerateCredentialReport", iamGenerateCredentialReport},
- { "iam:GenerateServiceLastAccessedDetails", iamGenerateServiceLastAccessedDetails},
- { "iam:SimulateCustomPolicy", iamSimulateCustomPolicy},
- { "iam:SimulatePrincipalPolicy", iamSimulatePrincipalPolicy},
- { "iam:GetAccountSummary", iamGetAccountSummary},
- { "sts:AssumeRole", stsAssumeRole},
- { "sts:AssumeRoleWithWebIdentity", stsAssumeRoleWithWebIdentity},
- { "sts:GetSessionToken", stsGetSessionToken},
- { "sts:TagSession", stsTagSession},
- { "sns:GetTopicAttributes", snsGetTopicAttributes},
- { "sns:DeleteTopic", snsDeleteTopic},
- { "sns:Publish", snsPublish},
- { "sns:SetTopicAttributes", snsSetTopicAttributes},
- { "sns:CreateTopic", snsCreateTopic},
- { "sns:ListTopics", snsListTopics},
- { "organizations:DescribeAccount", organizationsDescribeAccount},
- { "organizations:DescribeOrganization", organizationsDescribeOrganization},
- { "organizations:DescribeOrganizationalUnit", organizationsDescribeOrganizationalUnit},
- { "organizations:DescribePolicy", organizationsDescribePolicy},
- { "organizations:ListChildren", organizationsListChildren},
- { "organizations:ListParents", organizationsListParents},
- { "organizations:ListPoliciesForTarget", organizationsListPoliciesForTarget},
- { "organizations:ListRoots", organizationsListRoots},
- { "organizations:ListPolicies", organizationsListPolicies},
- { "organizations:ListTargetsForPolicy", organizationsListTargetsForPolicy},
+static const actpair actpairs[] = {
+    {"s3:AbortMultipartUpload", s3AbortMultipartUpload},
+    {"s3:CreateBucket", s3CreateBucket},
+    {"s3:DeleteBucketPolicy", s3DeleteBucketPolicy},
+    {"s3:DeleteBucket", s3DeleteBucket},
+    {"s3:DeleteBucketWebsite", s3DeleteBucketWebsite},
+    {"s3:DeleteObject", s3DeleteObject},
+    {"s3:DeleteObjectVersion", s3DeleteObjectVersion},
+    {"s3:DeleteObjectTagging", s3DeleteObjectTagging},
+    {"s3:DeleteObjectVersionTagging", s3DeleteObjectVersionTagging},
+    {"s3:DeleteBucketPublicAccessBlock", s3DeleteBucketPublicAccessBlock},
+    {"s3:DeletePublicAccessBlock", s3DeletePublicAccessBlock},
+    {"s3:DeleteReplicationConfiguration", s3DeleteReplicationConfiguration},
+    {"s3:GetAccelerateConfiguration", s3GetAccelerateConfiguration},
+    {"s3:GetBucketAcl", s3GetBucketAcl},
+    {"s3:GetBucketCORS", s3GetBucketCORS},
+    {"s3:GetBucketEncryption", s3GetBucketEncryption},
+    {"s3:GetBucketLocation", s3GetBucketLocation},
+    {"s3:GetBucketLogging", s3GetBucketLogging},
+    {"s3:GetBucketNotification", s3GetBucketNotification},
+    {"s3:GetBucketOwnershipControls", s3GetBucketOwnershipControls},
+    {"s3:GetBucketPolicy", s3GetBucketPolicy},
+    {"s3:GetBucketPolicyStatus", s3GetBucketPolicyStatus},
+    {"s3:GetBucketPublicAccessBlock", s3GetBucketPublicAccessBlock},
+    {"s3:GetBucketRequestPayment", s3GetBucketRequestPayment},
+    {"s3:GetBucketTagging", s3GetBucketTagging},
+    {"s3:GetBucketVersioning", s3GetBucketVersioning},
+    {"s3:GetBucketWebsite", s3GetBucketWebsite},
+    {"s3:GetLifecycleConfiguration", s3GetLifecycleConfiguration},
+    {"s3:GetBucketObjectLockConfiguration", s3GetBucketObjectLockConfiguration},
+    {"s3:GetPublicAccessBlock", s3GetPublicAccessBlock},
+    {"s3:GetObjectAcl", s3GetObjectAcl},
+    {"s3:GetObject", s3GetObject},
+    {"s3:GetObjectAttributes", s3GetObjectAttributes},
+    {"s3:GetObjectVersionAttributes", s3GetObjectVersionAttributes},
+    {"s3:GetObjectTorrent", s3GetObjectTorrent},
+    {"s3:GetObjectVersionAcl", s3GetObjectVersionAcl},
+    {"s3:GetObjectVersion", s3GetObjectVersion},
+    {"s3:GetObjectVersionTorrent", s3GetObjectVersionTorrent},
+    {"s3:GetObjectTagging", s3GetObjectTagging},
+    {"s3:GetObjectVersionTagging", s3GetObjectVersionTagging},
+    {"s3:GetObjectRetention", s3GetObjectRetention},
+    {"s3:GetObjectLegalHold", s3GetObjectLegalHold},
+    {"s3:GetReplicationConfiguration", s3GetReplicationConfiguration},
+    {"s3:ListAllMyBuckets", s3ListAllMyBuckets},
+    {"s3:ListBucketMultipartUploads", s3ListBucketMultipartUploads},
+    {"s3:ListBucket", s3ListBucket},
+    {"s3:ListBucketVersions", s3ListBucketVersions},
+    {"s3:ListMultipartUploadParts", s3ListMultipartUploadParts},
+    {"s3:PutAccelerateConfiguration", s3PutAccelerateConfiguration},
+    {"s3:PutBucketAcl", s3PutBucketAcl},
+    {"s3:PutBucketCORS", s3PutBucketCORS},
+    {"s3:PutBucketEncryption", s3PutBucketEncryption},
+    {"s3:PutBucketLogging", s3PutBucketLogging},
+    {"s3:PostBucketLogging", s3PostBucketLogging},
+    {"s3:PutBucketNotification", s3PutBucketNotification},
+    {"s3:PutBucketOwnershipControls", s3PutBucketOwnershipControls},
+    {"s3:PutBucketPolicy", s3PutBucketPolicy},
+    {"s3:PutBucketRequestPayment", s3PutBucketRequestPayment},
+    {"s3:PutBucketTagging", s3PutBucketTagging},
+    {"s3:PutBucketVersioning", s3PutBucketVersioning},
+    {"s3:PutBucketWebsite", s3PutBucketWebsite},
+    {"s3:PutLifecycleConfiguration", s3PutLifecycleConfiguration},
+    {"s3:PutBucketObjectLockConfiguration", s3PutBucketObjectLockConfiguration},
+    {"s3:PutObjectAcl", s3PutObjectAcl},
+    {"s3:PutObject", s3PutObject},
+    {"s3:PutObjectVersionAcl", s3PutObjectVersionAcl},
+    {"s3:PutObjectTagging", s3PutObjectTagging},
+    {"s3:PutObjectVersionTagging", s3PutObjectVersionTagging},
+    {"s3:PutObjectRetention", s3PutObjectRetention},
+    {"s3:PutObjectLegalHold", s3PutObjectLegalHold},
+    {"s3:BypassGovernanceRetention", s3BypassGovernanceRetention},
+    {"s3:PutBucketPublicAccessBlock", s3PutBucketPublicAccessBlock},
+    {"s3:PutPublicAccessBlock", s3PutPublicAccessBlock},
+    {"s3:PutReplicationConfiguration", s3PutReplicationConfiguration},
+    {"s3:RestoreObject", s3RestoreObject},
+    {"s3:DescribeJob", s3DescribeJob},
+    {"s3:ReplicateDelete", s3ReplicateDelete},
+    {"s3:ReplicateObject", s3ReplicateObject},
+    {"s3:ReplicateTags", s3ReplicateTags},
+    {"s3:GetObjectVersionForReplication", s3GetObjectVersionForReplication},
+    {"s3-object-lambda:GetObject", s3objectlambdaGetObject},
+    {"s3-object-lambda:ListBucket", s3objectlambdaListBucket},
+    {"iam:PutUserPolicy", iamPutUserPolicy},
+    {"iam:GetUserPolicy", iamGetUserPolicy},
+    {"iam:DeleteUserPolicy", iamDeleteUserPolicy},
+    {"iam:ListUserPolicies", iamListUserPolicies},
+    {"iam:AttachUserPolicy", iamAttachUserPolicy},
+    {"iam:DetachUserPolicy", iamDetachUserPolicy},
+    {"iam:ListAttachedUserPolicies", iamListAttachedUserPolicies},
+    {"iam:CreateRole", iamCreateRole},
+    {"iam:DeleteRole", iamDeleteRole},
+    {"iam:GetRole", iamGetRole},
+    {"iam:ModifyRoleTrustPolicy", iamModifyRoleTrustPolicy},
+    {"iam:ListRoles", iamListRoles},
+    {"iam:PutRolePolicy", iamPutRolePolicy},
+    {"iam:GetRolePolicy", iamGetRolePolicy},
+    {"iam:ListRolePolicies", iamListRolePolicies},
+    {"iam:DeleteRolePolicy", iamDeleteRolePolicy},
+    {"iam:AttachRolePolicy", iamAttachRolePolicy},
+    {"iam:DetachRolePolicy", iamDetachRolePolicy},
+    {"iam:ListAttachedRolePolicies", iamListAttachedRolePolicies},
+    {"iam:CreateOIDCProvider", iamCreateOIDCProvider},
+    {"iam:DeleteOIDCProvider", iamDeleteOIDCProvider},
+    {"iam:GetOIDCProvider", iamGetOIDCProvider},
+    {"iam:ListOIDCProviders", iamListOIDCProviders},
+    {"iam:AddClientIdToOIDCProvider", iamAddClientIdToOIDCProvider},
+    {"iam:RemoveCientIdFromOIDCProvider", iamRemoveClientIdFromOIDCProvider},
+    {"iam:UpdateOIDCProviderThumbprint", iamUpdateOIDCProviderThumbprint},
+    {"iam:TagRole", iamTagRole},
+    {"iam:ListRoleTags", iamListRoleTags},
+    {"iam:UntagRole", iamUntagRole},
+    {"iam:UpdateRole", iamUpdateRole},
+    {"iam:CreateUser", iamCreateUser},
+    {"iam:GetUser", iamGetUser},
+    {"iam:UpdateUser", iamUpdateUser},
+    {"iam:DeleteUser", iamDeleteUser},
+    {"iam:ListUsers", iamListUsers},
+    {"iam:CreateAccessKey", iamCreateAccessKey},
+    {"iam:UpdateAccessKey", iamUpdateAccessKey},
+    {"iam:DeleteAccessKey", iamDeleteAccessKey},
+    {"iam:ListAccessKeys", iamListAccessKeys},
+    {"iam:CreateGroup", iamCreateGroup},
+    {"iam:GetGroup", iamGetGroup},
+    {"iam:UpdateGroup", iamUpdateGroup},
+    {"iam:DeleteGroup", iamDeleteGroup},
+    {"iam:ListGroups", iamListGroups},
+    {"iam:AddUserToGroup", iamAddUserToGroup},
+    {"iam:RemoveUserFromGroup", iamRemoveUserFromGroup},
+    {"iam:ListGroupsForUser", iamListGroupsForUser},
+    {"iam:PutGroupPolicy", iamPutGroupPolicy},
+    {"iam:GetGroupPolicy", iamGetGroupPolicy},
+    {"iam:ListGroupPolicies", iamListGroupPolicies},
+    {"iam:DeleteGroupPolicy", iamDeleteGroupPolicy},
+    {"iam:AttachGroupPolicy", iamAttachGroupPolicy},
+    {"iam:DetachGroupPolicy", iamDetachGroupPolicy},
+    {"iam:ListAttachedGroupPolicies", iamListAttachedGroupPolicies},
+    {"iam:GenerateCredentialReport", iamGenerateCredentialReport},
+    {"iam:GenerateServiceLastAccessedDetails",
+     iamGenerateServiceLastAccessedDetails},
+    {"iam:SimulateCustomPolicy", iamSimulateCustomPolicy},
+    {"iam:SimulatePrincipalPolicy", iamSimulatePrincipalPolicy},
+    {"iam:GetAccountSummary", iamGetAccountSummary},
+    {"sts:AssumeRole", stsAssumeRole},
+    {"sts:AssumeRoleWithWebIdentity", stsAssumeRoleWithWebIdentity},
+    {"sts:GetSessionToken", stsGetSessionToken},
+    {"sts:TagSession", stsTagSession},
+    {"sns:GetTopicAttributes", snsGetTopicAttributes},
+    {"sns:DeleteTopic", snsDeleteTopic},
+    {"sns:Publish", snsPublish},
+    {"sns:SetTopicAttributes", snsSetTopicAttributes},
+    {"sns:CreateTopic", snsCreateTopic},
+    {"sns:ListTopics", snsListTopics},
+    {"organizations:DescribeAccount", organizationsDescribeAccount},
+    {"organizations:DescribeOrganization", organizationsDescribeOrganization},
+    {"organizations:DescribeOrganizationalUnit",
+     organizationsDescribeOrganizationalUnit},
+    {"organizations:DescribePolicy", organizationsDescribePolicy},
+    {"organizations:ListChildren", organizationsListChildren},
+    {"organizations:ListParents", organizationsListParents},
+    {"organizations:ListPoliciesForTarget", organizationsListPoliciesForTarget},
+    {"organizations:ListRoots", organizationsListRoots},
+    {"organizations:ListPolicies", organizationsListPolicies},
+    {"organizations:ListTargetsForPolicy", organizationsListTargetsForPolicy},
 };
 
 struct PolicyParser;
 
-const Keyword top[1]{{"<Top>", TokenKind::pseudo, TokenID::Top, 0, false,
-			false}};
-const Keyword cond_key[1]{{"<Condition Key>", TokenKind::cond_key,
-			     TokenID::CondKey, 0, true, false}};
+const Keyword top[1]{
+    {"<Top>", TokenKind::pseudo, TokenID::Top, 0, false, false}};
+const Keyword cond_key[1]{
+    {"<Condition Key>", TokenKind::cond_key, TokenID::CondKey, 0, true, false}};
 
 struct ParseState {
   PolicyParser* pp;
@@ -246,20 +244,22 @@ struct ParseState {
 
   boost::optional<Principal> parse_principal(string&& s, string* errmsg);
 
-  ParseState(PolicyParser* pp, const Keyword* w)
-    : pp(pp), w(w) {}
+  ParseState(PolicyParser* pp, const Keyword* w) :
+    pp(pp), w(w)
+  {}
 
   bool obj_start();
 
   bool obj_end();
 
-  bool array_start() {
+  bool
+  array_start()
+  {
     if (w->arrayable && !arraying) {
       arraying = true;
       return true;
     }
-    annotate(fmt::format("`{}` does not take array.",
-			 w->name));
+    annotate(fmt::format("`{}` does not take array.", w->name));
     return false;
   }
 
@@ -285,7 +285,9 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
 
   std::string annotation{"No error?"};
 
-  uint32_t dex(TokenID in) const {
+  uint32_t
+  dex(TokenID in) const
+  {
     switch (in) {
     case TokenID::Version:
       return 0x1;
@@ -323,73 +325,100 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
       ceph_abort();
     }
   }
-  bool test(TokenID in) {
+
+  bool
+  test(TokenID in)
+  {
     return seen & dex(in);
   }
-  void set(TokenID in) {
+
+  void
+  set(TokenID in)
+  {
     seen |= dex(in);
-    if (dex(in) & (dex(TokenID::Sid) | dex(TokenID::Effect) |
-		   dex(TokenID::Principal) | dex(TokenID::NotPrincipal) |
-		   dex(TokenID::Action) | dex(TokenID::NotAction) |
-		   dex(TokenID::Resource) | dex(TokenID::NotResource) |
-		   dex(TokenID::Condition) | dex(TokenID::AWS) |
-		   dex(TokenID::Federated) | dex(TokenID::Service) |
-		   dex(TokenID::CanonicalUser))) {
+    if (dex(in) &
+        (dex(TokenID::Sid) | dex(TokenID::Effect) | dex(TokenID::Principal) |
+         dex(TokenID::NotPrincipal) | dex(TokenID::Action) |
+         dex(TokenID::NotAction) | dex(TokenID::Resource) |
+         dex(TokenID::NotResource) | dex(TokenID::Condition) |
+         dex(TokenID::AWS) | dex(TokenID::Federated) | dex(TokenID::Service) |
+         dex(TokenID::CanonicalUser))) {
       v |= dex(in);
     }
   }
-  void set(std::initializer_list<TokenID> l) {
+
+  void
+  set(std::initializer_list<TokenID> l)
+  {
     for (auto in : l) {
       seen |= dex(in);
-      if (dex(in) & (dex(TokenID::Sid) | dex(TokenID::Effect) |
-		     dex(TokenID::Principal) | dex(TokenID::NotPrincipal) |
-		     dex(TokenID::Action) | dex(TokenID::NotAction) |
-		     dex(TokenID::Resource) | dex(TokenID::NotResource) |
-		     dex(TokenID::Condition) | dex(TokenID::AWS) |
-		     dex(TokenID::Federated) | dex(TokenID::Service) |
-		     dex(TokenID::CanonicalUser))) {
-	v |= dex(in);
+      if (dex(in) &
+          (dex(TokenID::Sid) | dex(TokenID::Effect) | dex(TokenID::Principal) |
+           dex(TokenID::NotPrincipal) | dex(TokenID::Action) |
+           dex(TokenID::NotAction) | dex(TokenID::Resource) |
+           dex(TokenID::NotResource) | dex(TokenID::Condition) |
+           dex(TokenID::AWS) | dex(TokenID::Federated) | dex(TokenID::Service) |
+           dex(TokenID::CanonicalUser))) {
+        v |= dex(in);
       }
     }
   }
-  void reset(TokenID in) {
+
+  void
+  reset(TokenID in)
+  {
     seen &= ~dex(in);
-    if (dex(in) & (dex(TokenID::Sid) | dex(TokenID::Effect) |
-		   dex(TokenID::Principal) | dex(TokenID::NotPrincipal) |
-		   dex(TokenID::Action) | dex(TokenID::NotAction) |
-		   dex(TokenID::Resource) | dex(TokenID::NotResource) |
-		   dex(TokenID::Condition) | dex(TokenID::AWS) |
-		   dex(TokenID::Federated) | dex(TokenID::Service) |
-		   dex(TokenID::CanonicalUser))) {
+    if (dex(in) &
+        (dex(TokenID::Sid) | dex(TokenID::Effect) | dex(TokenID::Principal) |
+         dex(TokenID::NotPrincipal) | dex(TokenID::Action) |
+         dex(TokenID::NotAction) | dex(TokenID::Resource) |
+         dex(TokenID::NotResource) | dex(TokenID::Condition) |
+         dex(TokenID::AWS) | dex(TokenID::Federated) | dex(TokenID::Service) |
+         dex(TokenID::CanonicalUser))) {
       v &= ~dex(in);
     }
   }
-  void reset(std::initializer_list<TokenID> l) {
+
+  void
+  reset(std::initializer_list<TokenID> l)
+  {
     for (auto in : l) {
       seen &= ~dex(in);
-      if (dex(in) & (dex(TokenID::Sid) | dex(TokenID::Effect) |
-		     dex(TokenID::Principal) | dex(TokenID::NotPrincipal) |
-		     dex(TokenID::Action) | dex(TokenID::NotAction) |
-		     dex(TokenID::Resource) | dex(TokenID::NotResource) |
-		     dex(TokenID::Condition) | dex(TokenID::AWS) |
-		     dex(TokenID::Federated) | dex(TokenID::Service) |
-		     dex(TokenID::CanonicalUser))) {
-	v &= ~dex(in);
+      if (dex(in) &
+          (dex(TokenID::Sid) | dex(TokenID::Effect) | dex(TokenID::Principal) |
+           dex(TokenID::NotPrincipal) | dex(TokenID::Action) |
+           dex(TokenID::NotAction) | dex(TokenID::Resource) |
+           dex(TokenID::NotResource) | dex(TokenID::Condition) |
+           dex(TokenID::AWS) | dex(TokenID::Federated) | dex(TokenID::Service) |
+           dex(TokenID::CanonicalUser))) {
+        v &= ~dex(in);
       }
     }
   }
-  void reset(uint32_t& v) {
+
+  void
+  reset(uint32_t& v)
+  {
     seen &= ~v;
     v = 0;
   }
 
-  PolicyParser(CephContext* cct, const string* tenant, Policy& policy,
-	       bool reject_invalid_principals)
-    : cct(cct), tenant(tenant), policy(policy),
-      reject_invalid_principals(reject_invalid_principals) {}
+  PolicyParser(
+      CephContext* cct,
+      const string* tenant,
+      Policy& policy,
+      bool reject_invalid_principals) :
+    cct(cct),
+    tenant(tenant),
+    policy(policy),
+    reject_invalid_principals(reject_invalid_principals)
+  {}
+
   PolicyParser(const PolicyParser& policy) = delete;
 
-  bool StartObject() {
+  bool
+  StartObject()
+  {
     if (s.empty()) {
       s.push_back({this, top});
       s.back().objecting = true;
@@ -398,14 +427,20 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
 
     return s.back().obj_start();
   }
-  bool EndObject(SizeType memberCount) {
+
+  bool
+  EndObject(SizeType memberCount)
+  {
     if (s.empty()) {
       annotation = "Attempt to end unopened object at top level.";
       return false;
     }
     return s.back().obj_end();
   }
-  bool Key(const char* str, SizeType length, bool copy) {
+
+  bool
+  Key(const char* str, SizeType length, bool copy)
+  {
     if (s.empty()) {
       annotation = "Key not allowed at top level.";
       return false;
@@ -413,14 +448,19 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
     return s.back().key(str, length);
   }
 
-  bool String(const char* str, SizeType length, bool copy) {
+  bool
+  String(const char* str, SizeType length, bool copy)
+  {
     if (s.empty()) {
       annotation = "String not allowed at top level.";
       return false;
     }
     return s.back().do_string(cct, str, length);
   }
-  bool RawNumber(const char* str, SizeType length, bool copy) {
+
+  bool
+  RawNumber(const char* str, SizeType length, bool copy)
+  {
     if (s.empty()) {
       annotation = "Number not allowed at top level.";
       return false;
@@ -428,7 +468,10 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
 
     return s.back().number(str, length);
   }
-  bool StartArray() {
+
+  bool
+  StartArray()
+  {
     if (s.empty()) {
       annotation = "Array not allowed at top level.";
       return false;
@@ -436,7 +479,10 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
 
     return s.back().array_start();
   }
-  bool EndArray(SizeType) {
+
+  bool
+  EndArray(SizeType)
+  {
     if (s.empty()) {
       return false;
     }
@@ -444,19 +490,24 @@ struct PolicyParser : public BaseReaderHandler<UTF8<>, PolicyParser> {
     return s.back().array_end();
   }
 
-  bool Default() {
+  bool
+  Default()
+  {
     return false;
   }
 };
 
-
 // I really despise this misfeature of C++.
 //
-void ParseState::annotate(std::string&& a) {
+void
+ParseState::annotate(std::string&& a)
+{
   pp->annotation = std::move(a);
 }
 
-bool ParseState::obj_end() {
+bool
+ParseState::obj_end()
+{
   if (objecting) {
     objecting = false;
     if (!arraying) {
@@ -467,19 +518,20 @@ bool ParseState::obj_end() {
     return true;
   }
   annotate(
-    fmt::format("Attempt to end unopened object on keyword `{}`.",
-		w->name));
+      fmt::format("Attempt to end unopened object on keyword `{}`.", w->name));
   return false;
 }
 
-bool ParseState::key(const char* s, size_t l) {
+bool
+ParseState::key(const char* s, size_t l)
+{
   auto token_len = l;
   bool ifexists = false;
   if (w->id == TokenID::Condition && w->kind == TokenKind::statement) {
     static constexpr char IfExists[] = "IfExists";
     if (boost::algorithm::ends_with(std::string_view{s, l}, IfExists)) {
       ifexists = true;
-      token_len -= sizeof(IfExists)-1;
+      token_len -= sizeof(IfExists) - 1;
     }
   }
   auto k = pp->tokens.lookup(s, token_len);
@@ -488,7 +540,7 @@ bool ParseState::key(const char* s, size_t l) {
     if (w->kind == TokenKind::cond_op) {
       auto id = w->id;
       auto& t = pp->policy.statements.back();
-      auto c_ife =  cond_ifexists;
+      auto c_ife = cond_ifexists;
       pp->s.emplace_back(pp, cond_key);
       t.conditions.emplace_back(id, s, l, c_ife);
       return true;
@@ -508,7 +560,7 @@ bool ParseState::key(const char* s, size_t l) {
 
        /// Principal
        ((w->id == TokenID::Principal || w->id == TokenID::NotPrincipal) &&
-	(k->kind == TokenKind::princ_type))) &&
+        (k->kind == TokenKind::princ_type))) &&
 
       // Check that it hasn't been encountered. Note that this
       // conjoins with the run of disjunctions above.
@@ -516,21 +568,21 @@ bool ParseState::key(const char* s, size_t l) {
     pp->set(k->id);
     pp->s.emplace_back(pp, k);
     return true;
-  } else if ((w->id == TokenID::Condition) &&
-	     (k->kind == TokenKind::cond_op)) {
+  } else if ((w->id == TokenID::Condition) && (k->kind == TokenKind::cond_op)) {
     pp->s.emplace_back(pp, k);
     pp->s.back().cond_ifexists = ifexists;
     return true;
   }
-  annotate(fmt::format("Token `{}` is not allowed in the context of `{}`.",
-		       k->name, w->name));
+  annotate(fmt::format(
+      "Token `{}` is not allowed in the context of `{}`.", k->name, w->name));
   return false;
 }
 
 // I should just rewrite a few helper functions to use iterators,
 // which will make all of this ever so much nicer.
-boost::optional<Principal> ParseState::parse_principal(string&& s,
-						       string* errmsg) {
+boost::optional<Principal>
+ParseState::parse_principal(string&& s, string* errmsg)
+{
   if ((w->id == TokenID::AWS) && (s == "*")) {
     // Wildcard!
     return Principal::wildcard();
@@ -543,63 +595,62 @@ boost::optional<Principal> ParseState::parse_principal(string&& s,
     // AWS and Federated ARNs
     if (auto a = ARN::parse(s)) {
       if (a->resource == "root") {
-	return Principal::account(std::move(a->account));
+        return Principal::account(std::move(a->account));
       }
 
       static const char rx_str[] = "([^/]*)/(.*)";
-      static const regex rx(rx_str, sizeof(rx_str) - 1,
-			    std::regex_constants::ECMAScript |
-			    std::regex_constants::optimize);
+      static const regex rx(
+          rx_str, sizeof(rx_str) - 1,
+          std::regex_constants::ECMAScript | std::regex_constants::optimize);
       smatch match;
       if (regex_match(a->resource, match, rx) && match.size() == 3) {
-	if (match[1] == "user") {
-	  return Principal::user(std::move(a->account),
-				 match[2]);
-	}
+        if (match[1] == "user") {
+          return Principal::user(std::move(a->account), match[2]);
+        }
 
-	if (match[1] == "role") {
-	  return Principal::role(std::move(a->account),
-				 match[2]);
-	}
+        if (match[1] == "role") {
+          return Principal::role(std::move(a->account), match[2]);
+        }
 
         if (match[1] == "oidc-provider") {
-                return Principal::oidc_provider(std::move(match[2]));
+          return Principal::oidc_provider(std::move(match[2]));
         }
-	if (match[1] == "assumed-role") {
-	  return Principal::assumed_role(std::move(a->account), match[2]);
-	}
+        if (match[1] == "assumed-role") {
+          return Principal::assumed_role(std::move(a->account), match[2]);
+        }
       }
-    } else if (std::none_of(s.begin(), s.end(),
-		       [](const char& c) {
-			 return (c == ':') || (c == '/');
-		       })) {
+    } else if (std::none_of(s.begin(), s.end(), [](const char& c) {
+                 return (c == ':') || (c == '/');
+               })) {
       // Since tenants are simply prefixes, there's no really good
       // way to see if one exists or not. So we return the thing and
       // let them try to match against it.
       return Principal::account(std::move(s));
     }
     if (errmsg)
-      *errmsg =
-	fmt::format(
-	  "`{}` is not a supported AWS or Federated ARN. Supported ARNs are "
-	  "forms like: "
-	  "`arn:aws:iam::tenant:root` or a bare tenant name for a tenant, "
-	  "`arn:aws:iam::tenant:role/role-name` for a role, "
-	  "`arn:aws:sts::tenant:assumed-role/role-name/role-session-name` "
-	  "for an assumed role, "
-	  "`arn:aws:iam::tenant:user/user-name` for a user, "
-	  "`arn:aws:iam::tenant:oidc-provider/idp-url` for OIDC.", s);
+      *errmsg = fmt::format(
+          "`{}` is not a supported AWS or Federated ARN. Supported ARNs are "
+          "forms like: "
+          "`arn:aws:iam::tenant:root` or a bare tenant name for a tenant, "
+          "`arn:aws:iam::tenant:role/role-name` for a role, "
+          "`arn:aws:sts::tenant:assumed-role/role-name/role-session-name` "
+          "for an assumed role, "
+          "`arn:aws:iam::tenant:user/user-name` for a user, "
+          "`arn:aws:iam::tenant:oidc-provider/idp-url` for OIDC.",
+          s);
   } else if (w->id == TokenID::Service) {
-      return Principal::service(std::move(s));
+    return Principal::service(std::move(s));
   }
 
   if (errmsg)
-    *errmsg = fmt::format("RGW does not support principals of type `{}`.",
-			  w->name);
+    *errmsg =
+        fmt::format("RGW does not support principals of type `{}`.", w->name);
   return boost::none;
 }
 
-bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
+bool
+ParseState::do_string(CephContext* cct, const char* s, size_t l)
+{
   assert(s);
 
   auto k = pp->tokens.lookup(s, l);
@@ -614,10 +665,10 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
     if (k && k->kind == TokenKind::version_key) {
       p.version = static_cast<Version>(k->specific);
     } else {
-      annotate(
-	fmt::format("`{}` is not a valid version. Valid versions are "
-		    "`2008-10-17` and `2012-10-17`.",
-		    std::string_view{s, l}));
+      annotate(fmt::format(
+          "`{}` is not a valid version. Valid versions are "
+          "`2008-10-17` and `2012-10-17`.",
+          std::string_view{s, l}));
 
       return false;
     }
@@ -632,26 +683,26 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
     if (k && k->kind == TokenKind::effect_key) {
       t->effect = static_cast<Effect>(k->specific);
     } else {
-      annotate(fmt::format("`{}` is not a valid effect.",
-			   std::string_view{s, l}));
+      annotate(
+          fmt::format("`{}` is not a valid effect.", std::string_view{s, l}));
       return false;
     }
   } else if (w->id == TokenID::Principal && *s == '*') {
     t->princ.emplace(Principal::wildcard());
   } else if (w->id == TokenID::NotPrincipal && *s == '*') {
     t->noprinc.emplace(Principal::wildcard());
-  } else if ((w->id == TokenID::Action) ||
-	     (w->id == TokenID::NotAction)) {
+  } else if ((w->id == TokenID::Action) || (w->id == TokenID::NotAction)) {
     is_action = true;
     if (*s == '*') {
       is_valid_action = true;
-      (w->id == TokenID::Action ?
-        t->action = allValue : t->notaction = allValue);
+      (w->id == TokenID::Action ? t->action = allValue
+                                : t->notaction = allValue);
     } else {
       for (auto& p : actpairs) {
         if (match_policy(string(s, l), p.name, MATCH_POLICY_ACTION)) {
           is_valid_action = true;
-          (w->id == TokenID::Action ? t->action[p.bit] = 1 : t->notaction[p.bit] = 1);
+          (w->id == TokenID::Action ? t->action[p.bit] = 1
+                                    : t->notaction[p.bit] = 1);
         }
         if ((t->action & s3AllValue) == s3AllValue) {
           t->action[s3All] = 1;
@@ -694,39 +745,40 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
   } else if (w->id == TokenID::Resource || w->id == TokenID::NotResource) {
     auto a = ARN::parse({s, l}, true);
     if (!a) {
-      annotate(
-	fmt::format("`{}` is not a valid ARN. Resource ARNs should have a "
-		    "format like `arn:aws:s3::tenant:resource' or "
-		    "`arn:aws:s3:::resource`.",
-		    std::string_view{s, l}));
+      annotate(fmt::format(
+          "`{}` is not a valid ARN. Resource ARNs should have a "
+          "format like `arn:aws:s3::tenant:resource' or "
+          "`arn:aws:s3:::resource`.",
+          std::string_view{s, l}));
       return false;
     }
     // You can't specify resources for someone ELSE'S account.
     if (a->account.empty() || pp->tenant == nullptr ||
-	a->account == *pp->tenant || a->account == "*") {
+        a->account == *pp->tenant || a->account == "*") {
       if (pp->tenant && (a->account.empty() || a->account == "*"))
-	a->account = *pp->tenant;
+        a->account = *pp->tenant;
       (w->id == TokenID::Resource ? t->resource : t->notresource)
-	.emplace(std::move(*a));
+          .emplace(std::move(*a));
     } else {
-      annotate(fmt::format("Policy owned by tenant `{}` cannot grant access to "
-			   "resource owned by tenant `{}`.",
-			   *pp->tenant, a->account));
+      annotate(fmt::format(
+          "Policy owned by tenant `{}` cannot grant access to "
+          "resource owned by tenant `{}`.",
+          *pp->tenant, a->account));
       return false;
     }
   } else if (w->kind == TokenKind::cond_key) {
     if (l > 0 && *s == '$') {
-      if (l >= 2 && *(s+1) == '{') {
-        if (l > 0 && *(s+l-1) == '}') {
+      if (l >= 2 && *(s + 1) == '{') {
+        if (l > 0 && *(s + l - 1) == '}') {
           t->conditions.back().isruntime = true;
         } else {
-	  annotate(fmt::format("Invalid interpolation `{}`.",
-			       std::string_view{s, l}));
+          annotate(fmt::format(
+              "Invalid interpolation `{}`.", std::string_view{s, l}));
           return false;
         }
       } else {
-	annotate(fmt::format("Invalid interpolation `{}`.",
-			     std::string_view{s, l}));
+        annotate(
+            fmt::format("Invalid interpolation `{}`.", std::string_view{s, l}));
         return false;
       }
     }
@@ -739,8 +791,9 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
       annotate(fmt::format("Principle isn't allowed at top level."));
       return false;
     }
-    auto& pri = pp->s[pp->s.size() - 2].w->id == TokenID::Principal ?
-      t->princ : t->noprinc;
+    auto& pri = pp->s[pp->s.size() - 2].w->id == TokenID::Principal
+                    ? t->princ
+                    : t->noprinc;
 
     string errmsg;
     if (auto o = parse_principal({s, l}, &errmsg)) {
@@ -749,13 +802,14 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
       annotate(std::move(errmsg));
       return false;
     } else {
-      ldout(cct, 0) << "Ignored principle `" << std::string_view{s, l} << "`: "
-		    << errmsg << dendl;
+      ldout(cct, 0) << "Ignored principle `" << std::string_view{s, l}
+                    << "`: " << errmsg << dendl;
     }
   } else {
     // Failure
-    annotate(fmt::format("`{}` is not valid in the context of `{}`.",
-			 std::string_view{s, l}, w->name));
+    annotate(fmt::format(
+        "`{}` is not valid in the context of `{}`.", std::string_view{s, l},
+        w->name));
     return false;
   }
 
@@ -764,8 +818,7 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
   }
 
   if (is_action && !is_valid_action) {
-    annotate(fmt::format("`{}` is not a valid action.",
-			 std::string_view{s, l}));
+    annotate(fmt::format("`{}` is not a valid action.", std::string_view{s, l}));
     return false;
   }
 
@@ -779,7 +832,9 @@ bool ParseState::do_string(CephContext* cct, const char* s, size_t l) {
   return true;
 }
 
-bool ParseState::number(const char* s, size_t l) {
+bool
+ParseState::number(const char* s, size_t l)
+{
   // Top level!
   if (w->kind == TokenKind::cond_key) {
     auto& t = pp->policy.statements.back();
@@ -797,11 +852,15 @@ bool ParseState::number(const char* s, size_t l) {
   return true;
 }
 
-void ParseState::reset() {
+void
+ParseState::reset()
+{
   pp->reset(pp->v);
 }
 
-bool ParseState::obj_start() {
+bool
+ParseState::obj_start()
+{
   if (w->objectable && !objecting) {
     objecting = true;
     if (w->id == TokenID::Statement) {
@@ -811,14 +870,14 @@ bool ParseState::obj_start() {
     return true;
   }
 
-  annotate(fmt::format("The {} keyword cannot introduce an object.",
-		       w->name));
+  annotate(fmt::format("The {} keyword cannot introduce an object.", w->name));
 
   return false;
 }
 
-
-bool ParseState::array_end() {
+bool
+ParseState::array_end()
+{
   if (arraying && !objecting) {
     pp->s.pop_back();
     return true;
@@ -828,17 +887,19 @@ bool ParseState::array_end() {
   return false;
 }
 
-ostream& operator <<(ostream& m, const MaskedIP& ip) {
+ostream&
+operator<<(ostream& m, const MaskedIP& ip)
+{
   // I have a theory about why std::bitset is the way it is.
   if (ip.v6) {
     for (int i = 7; i >= 0; --i) {
       uint16_t hextet = 0;
       for (int j = 15; j >= 0; --j) {
-	hextet |= (ip.addr[(i * 16) + j] << j);
+        hextet |= (ip.addr[(i * 16) + j] << j);
       }
-      m << hex << (unsigned int) hextet;
+      m << hex << (unsigned int)hextet;
       if (i != 0) {
-	m << ":";
+        m << ":";
       }
     }
   } else {
@@ -846,11 +907,11 @@ ostream& operator <<(ostream& m, const MaskedIP& ip) {
     for (int i = 3; i >= 0; --i) {
       uint8_t b = 0;
       for (int j = 7; j >= 0; --j) {
-	b |= (ip.addr[(i * 8) + j] << j);
+        b |= (ip.addr[(i * 8) + j] << j);
       }
-      m << (unsigned int) b;
+      m << (unsigned int)b;
       if (i != 0) {
-	m << ".";
+        m << ".";
       }
     }
   }
@@ -862,16 +923,19 @@ ostream& operator <<(ostream& m, const MaskedIP& ip) {
 // Case-sensitive matching of the ARN. Each of the six colon-delimited
 // components of the ARN is checked separately and each can include multi-
 // character match wildcards (*) or single-character match wildcards (?).
-static bool arn_like(const std::string& input, const std::string& pattern)
+static bool
+arn_like(const std::string& input, const std::string& pattern)
 {
-  constexpr auto delim = [] (char c) { return c == ':'; };
+  constexpr auto delim = [](char c) { return c == ':'; };
   if (std::count_if(input.begin(), input.end(), delim) != 5) {
     return false;
   }
   return match_policy(pattern, input, MATCH_POLICY_ARN);
 }
 
-bool Condition::eval(const Environment& env) const {
+bool
+Condition::eval(const Environment& env) const
+{
   std::vector<std::string> runtime_vals;
   auto i = env.find(key);
   if (op == TokenID::Null) {
@@ -891,7 +955,7 @@ bool Condition::eval(const Environment& env) const {
 
   if (isruntime) {
     string k = vals.back();
-    k.erase(0,2); //erase $, {
+    k.erase(0, 2); //erase $, {
     k.erase(k.length() - 1, 1); //erase }
     const auto& it = env.equal_range(k);
     for (auto itr = it.first; itr != it.second; itr++) {
@@ -906,42 +970,43 @@ bool Condition::eval(const Environment& env) const {
     // String!
   case TokenID::ForAnyValueStringEquals:
   case TokenID::StringEquals:
-    return multimap_any(std::equal_to<std::string>(), itr, isruntime? runtime_vals : vals);
+    return multimap_any(
+        std::equal_to<std::string>(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::StringNotEquals:
-    return multimap_none(std::equal_to<std::string>(),
-     itr, isruntime? runtime_vals : vals);
+    return multimap_none(
+        std::equal_to<std::string>(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::ForAnyValueStringEqualsIgnoreCase:
   case TokenID::StringEqualsIgnoreCase:
-    return multimap_any(ci_equal_to(), itr, isruntime? runtime_vals : vals);
+    return multimap_any(ci_equal_to(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::StringNotEqualsIgnoreCase:
-    return multimap_none(ci_equal_to(), itr, isruntime? runtime_vals : vals);
+    return multimap_none(ci_equal_to(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::ForAnyValueStringLike:
   case TokenID::StringLike:
-    return multimap_any(string_like(), itr, isruntime? runtime_vals : vals);
+    return multimap_any(string_like(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::StringNotLike:
-    return multimap_none(string_like(), itr, isruntime? runtime_vals : vals);
+    return multimap_none(string_like(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::ForAllValuesStringEquals:
-    return multimap_all(std::equal_to<std::string>(), itr, isruntime? runtime_vals : vals);
+    return multimap_all(
+        std::equal_to<std::string>(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::ForAllValuesStringLike:
-    return multimap_all(string_like(), itr, isruntime? runtime_vals : vals);
+    return multimap_all(string_like(), itr, isruntime ? runtime_vals : vals);
 
   case TokenID::ForAllValuesStringEqualsIgnoreCase:
-    return multimap_all(ci_equal_to(), itr, isruntime? runtime_vals : vals);
+    return multimap_all(ci_equal_to(), itr, isruntime ? runtime_vals : vals);
 
     // Numeric
   case TokenID::NumericEquals:
     return typed_any(std::equal_to<double>(), as_number, s, vals);
 
   case TokenID::NumericNotEquals:
-    return typed_none(std::equal_to<double>(),
-       as_number, s, vals);
+    return typed_none(std::equal_to<double>(), as_number, s, vals);
 
 
   case TokenID::NumericLessThan:
@@ -955,16 +1020,14 @@ bool Condition::eval(const Environment& env) const {
     return typed_any(std::greater<double>(), as_number, s, vals);
 
   case TokenID::NumericGreaterThanEquals:
-    return typed_any(std::greater_equal<double>(), as_number, s,
-       vals);
+    return typed_any(std::greater_equal<double>(), as_number, s, vals);
 
     // Date!
   case TokenID::DateEquals:
     return typed_any(std::equal_to<ceph::real_time>(), as_date, s, vals);
 
   case TokenID::DateNotEquals:
-    return typed_none(std::equal_to<ceph::real_time>(),
-       as_date, s, vals);
+    return typed_none(std::equal_to<ceph::real_time>(), as_date, s, vals);
   case TokenID::DateLessThan:
     return typed_any(std::less<ceph::real_time>(), as_date, s, vals);
 
@@ -976,8 +1039,7 @@ bool Condition::eval(const Environment& env) const {
     return typed_any(std::greater<ceph::real_time>(), as_date, s, vals);
 
   case TokenID::DateGreaterThanEquals:
-    return typed_any(std::greater_equal<ceph::real_time>(), as_date, s,
-		     vals);
+    return typed_any(std::greater_equal<ceph::real_time>(), as_date, s, vals);
 
     // Bool!
   case TokenID::Bool:
@@ -985,32 +1047,32 @@ bool Condition::eval(const Environment& env) const {
 
     // Binary!
   case TokenID::BinaryEquals:
-    return typed_any(std::equal_to<ceph::bufferlist>(), as_binary, s,
-		     vals);
+    return typed_any(std::equal_to<ceph::bufferlist>(), as_binary, s, vals);
 
     // IP Address!
   case TokenID::IpAddress:
     return typed_any(std::equal_to<MaskedIP>(), as_network, s, vals);
 
   case TokenID::NotIpAddress:
-    return typed_none(std::equal_to<MaskedIP>(),
-      as_network, s, vals);
+    return typed_none(std::equal_to<MaskedIP>(), as_network, s, vals);
 
     // Amazon Resource Names!
     // The ArnEquals and ArnLike condition operators behave identically.
   case TokenID::ArnEquals:
   case TokenID::ArnLike:
-    return multimap_any(arn_like, itr, isruntime? runtime_vals : vals);
+    return multimap_any(arn_like, itr, isruntime ? runtime_vals : vals);
   case TokenID::ArnNotEquals:
   case TokenID::ArnNotLike:
-    return multimap_none(arn_like, itr, isruntime? runtime_vals : vals);
+    return multimap_none(arn_like, itr, isruntime ? runtime_vals : vals);
 
   default:
     return false;
   }
 }
 
-boost::optional<MaskedIP> Condition::as_network(const string& s) {
+boost::optional<MaskedIP>
+Condition::as_network(const string& s)
+{
   MaskedIP m;
   if (s.empty()) {
     return boost::none;
@@ -1024,8 +1086,7 @@ boost::optional<MaskedIP> Condition::as_network(const string& s) {
   } else {
     char* end = 0;
     m.prefix = strtoul(s.data() + slash + 1, &end, 10);
-    if (*end != 0 || (m.v6 && m.prefix > 128) ||
-	(!m.v6 && m.prefix > 32)) {
+    if (*end != 0 || (m.v6 && m.prefix > 128) || (!m.v6 && m.prefix > 32)) {
       return boost::none;
     }
   }
@@ -1073,7 +1134,9 @@ boost::optional<MaskedIP> Condition::as_network(const string& s) {
 }
 
 namespace {
-const char* condop_string(const TokenID t) {
+const char*
+condop_string(const TokenID t)
+{
   switch (t) {
   case TokenID::StringEquals:
     return "StringEquals";
@@ -1162,8 +1225,10 @@ const char* condop_string(const TokenID t) {
   }
 }
 
-template<typename Iterator>
-ostream& print_array(ostream& m, Iterator begin, Iterator end) {
+template <typename Iterator>
+ostream&
+print_array(ostream& m, Iterator begin, Iterator end)
+{
   if (begin == end) {
     m << "[]";
   } else {
@@ -1174,17 +1239,21 @@ ostream& print_array(ostream& m, Iterator begin, Iterator end) {
   return m;
 }
 
-template<typename Iterator>
-ostream& print_dict(ostream& m, Iterator begin, Iterator end) {
+template <typename Iterator>
+ostream&
+print_dict(ostream& m, Iterator begin, Iterator end)
+{
   m << "{ ";
   std::copy(begin, end, std::experimental::make_ostream_joiner(m, ", "));
   m << " }";
   return m;
 }
 
-}
+} // namespace
 
-ostream& operator <<(ostream& m, const Condition& c) {
+ostream&
+operator<<(ostream& m, const Condition& c)
+{
   m << condop_string(c.op);
   if (c.ifexists) {
     m << "IfExists";
@@ -1194,9 +1263,14 @@ ostream& operator <<(ostream& m, const Condition& c) {
   return m << " }";
 }
 
-Effect Statement::eval(const Environment& e,
-		       boost::optional<const rgw::auth::Identity&> ida,
-		       uint64_t act, boost::optional<const ARN&> res, boost::optional<PolicyPrincipal&> princ_type) const {
+Effect
+Statement::eval(
+    const Environment& e,
+    boost::optional<const rgw::auth::Identity&> ida,
+    uint64_t act,
+    boost::optional<const ARN&> res,
+    boost::optional<PolicyPrincipal&> princ_type) const
+{
 
   if (eval_principal(e, ida, princ_type) == Effect::Deny) {
     return Effect::Pass;
@@ -1209,17 +1283,15 @@ Effect Statement::eval(const Environment& e,
     return Effect::Pass;
   }
   if (!resource.empty() && res) {
-    if (!std::any_of(resource.begin(), resource.end(),
-          [&res](const ARN& pattern) {
-            return pattern.match(*res);
-          })) {
+    if (!std::any_of(
+            resource.begin(), resource.end(),
+            [&res](const ARN& pattern) { return pattern.match(*res); })) {
       return Effect::Pass;
     }
   } else if (!notresource.empty() && res) {
-    if (std::any_of(notresource.begin(), notresource.end(),
-          [&res](const ARN& pattern) {
-            return pattern.match(*res);
-          })) {
+    if (std::any_of(
+            notresource.begin(), notresource.end(),
+            [&res](const ARN& pattern) { return pattern.match(*res); })) {
       return Effect::Pass;
     }
   }
@@ -1228,26 +1300,29 @@ Effect Statement::eval(const Environment& e,
     return Effect::Pass;
   }
 
-  if (std::all_of(conditions.begin(),
-		  conditions.end(),
-		  [&e](const Condition& c) { return c.eval(e);})) {
+  if (std::all_of(conditions.begin(), conditions.end(), [&e](const Condition& c) {
+        return c.eval(e);
+      })) {
     return effect;
   }
 
   return Effect::Pass;
 }
 
-static bool is_identity(const auth::Identity& ida,
-                        const flat_set<auth::Principal>& princ)
+static bool
+is_identity(const auth::Identity& ida, const flat_set<auth::Principal>& princ)
 {
-  return std::any_of(princ.begin(), princ.end(),
-      [&ida] (const auth::Principal& p) {
-        return ida.is_identity(p);
-      });
+  return std::any_of(
+      princ.begin(), princ.end(),
+      [&ida](const auth::Principal& p) { return ida.is_identity(p); });
 }
 
-Effect Statement::eval_principal(const Environment& e,
-		       boost::optional<const rgw::auth::Identity&> ida, boost::optional<PolicyPrincipal&> princ_type) const {
+Effect
+Statement::eval_principal(
+    const Environment& e,
+    boost::optional<const rgw::auth::Identity&> ida,
+    boost::optional<PolicyPrincipal&> princ_type) const
+{
   if (princ_type) {
     *princ_type = PolicyPrincipal::Other;
   }
@@ -1255,17 +1330,21 @@ Effect Statement::eval_principal(const Environment& e,
     if (princ.empty() && noprinc.empty()) {
       return Effect::Deny;
     }
-    if (ida->get_identity_type() != TYPE_ROLE && !princ.empty() && !is_identity(*ida, princ)) {
+    if (ida->get_identity_type() != TYPE_ROLE && !princ.empty() &&
+        !is_identity(*ida, princ)) {
       return Effect::Deny;
     }
     if (ida->get_identity_type() == TYPE_ROLE && !princ.empty()) {
       bool princ_matched = false;
-      for (auto p : princ) { // Check each principal to determine the type of the one that has matched
+      for (auto p :
+           princ) { // Check each principal to determine the type of the one that has matched
         if (ida->is_identity(p)) {
           if (p.is_assumed_role() || p.is_user()) {
-            if (princ_type) *princ_type = PolicyPrincipal::Session;
+            if (princ_type)
+              *princ_type = PolicyPrincipal::Session;
           } else {
-            if (princ_type) *princ_type = PolicyPrincipal::Role;
+            if (princ_type)
+              *princ_type = PolicyPrincipal::Role;
           }
           princ_matched = true;
         }
@@ -1280,16 +1359,20 @@ Effect Statement::eval_principal(const Environment& e,
   return Effect::Allow;
 }
 
-Effect Statement::eval_conditions(const Environment& e) const {
-  if (std::all_of(conditions.begin(),
-		  conditions.end(),
-		  [&e](const Condition& c) { return c.eval(e);})) {
+Effect
+Statement::eval_conditions(const Environment& e) const
+{
+  if (std::all_of(conditions.begin(), conditions.end(), [&e](const Condition& c) {
+        return c.eval(e);
+      })) {
     return Effect::Allow;
   }
   return Effect::Deny;
 }
 
-const char* action_bit_string(uint64_t action) {
+const char*
+action_bit_string(uint64_t action)
+{
   switch (action) {
   case s3GetObject:
     return "s3:GetObject";
@@ -1417,8 +1500,8 @@ const char* action_bit_string(uint64_t action) {
   case s3PutBucketLogging:
     return "s3:PutBucketLogging";
 
-    case s3PostBucketLogging:
-      return "s3:PostBucketLogging";
+  case s3PostBucketLogging:
+    return "s3:PostBucketLogging";
 
   case s3GetBucketTagging:
     return "s3:GetBucketTagging";
@@ -1757,7 +1840,9 @@ const char* action_bit_string(uint64_t action) {
 }
 
 namespace {
-ostream& print_actions(ostream& m, const Action_t a) {
+ostream&
+print_actions(ostream& m, const Action_t a)
+{
   bool begun = false;
   m << "[ ";
   for (auto i = 0U; i < allCount; ++i) {
@@ -1777,9 +1862,11 @@ ostream& print_actions(ostream& m, const Action_t a) {
   }
   return m;
 }
-}
+} // namespace
 
-ostream& operator <<(ostream& m, const Statement& s) {
+ostream&
+operator<<(ostream& m, const Statement& s)
+{
   m << "{ ";
   if (s.sid) {
     m << "Sid: " << *s.sid << ", ";
@@ -1795,10 +1882,8 @@ ostream& operator <<(ostream& m, const Statement& s) {
     m << ", ";
   }
 
-  m << "Effect: " <<
-    (s.effect == Effect::Allow ?
-     (const char*) "Allow" :
-     (const char*) "Deny");
+  m << "Effect: "
+    << (s.effect == Effect::Allow ? (const char*)"Allow" : (const char*)"Deny");
 
   if (s.action.any() || s.notaction.any() || !s.resource.empty() ||
       !s.notresource.empty() || !s.conditions.empty()) {
@@ -1809,8 +1894,8 @@ ostream& operator <<(ostream& m, const Statement& s) {
     m << "Action: ";
     print_actions(m, s.action);
 
-    if (s.notaction.any() || !s.resource.empty() ||
-	!s.notresource.empty() || !s.conditions.empty()) {
+    if (s.notaction.any() || !s.resource.empty() || !s.notresource.empty() ||
+        !s.conditions.empty()) {
       m << ", ";
     }
   }
@@ -1819,8 +1904,7 @@ ostream& operator <<(ostream& m, const Statement& s) {
     m << "NotAction: ";
     print_actions(m, s.notaction);
 
-    if (!s.resource.empty() || !s.notresource.empty() ||
-	!s.conditions.empty()) {
+    if (!s.resource.empty() || !s.notresource.empty() || !s.conditions.empty()) {
       m << ", ";
     }
   }
@@ -1851,23 +1935,30 @@ ostream& operator <<(ostream& m, const Statement& s) {
   return m << " }";
 }
 
-Policy::Policy(CephContext* cct, const string* tenant,
-	       std::string _text,
-	       bool reject_invalid_principals)
-  : text(std::move(_text)) {
+Policy::Policy(
+    CephContext* cct,
+    const string* tenant,
+    std::string _text,
+    bool reject_invalid_principals) :
+  text(std::move(_text))
+{
   StringStream ss(text.data());
   PolicyParser pp(cct, tenant, *this, reject_invalid_principals);
-  auto pr = Reader{}.Parse<kParseNumbersAsStringsFlag |
-			   kParseCommentsFlag>(ss, pp);
+  auto pr =
+      Reader{}.Parse<kParseNumbersAsStringsFlag | kParseCommentsFlag>(ss, pp);
   if (!pr) {
     throw PolicyParseException(pr, pp.annotation);
   }
 }
 
-Effect Policy::eval(const Environment& e,
-		    boost::optional<const rgw::auth::Identity&> ida,
-		    std::uint64_t action, boost::optional<const ARN&> resource,
-        boost::optional<PolicyPrincipal&> princ_type) const {
+Effect
+Policy::eval(
+    const Environment& e,
+    boost::optional<const rgw::auth::Identity&> ida,
+    std::uint64_t action,
+    boost::optional<const ARN&> resource,
+    boost::optional<PolicyPrincipal&> princ_type) const
+{
   auto allowed = false;
   for (auto& s : statements) {
     auto g = s.eval(e, ida, action, resource, princ_type);
@@ -1880,8 +1971,12 @@ Effect Policy::eval(const Environment& e,
   return allowed ? Effect::Allow : Effect::Pass;
 }
 
-Effect Policy::eval_principal(const Environment& e,
-		    boost::optional<const rgw::auth::Identity&> ida, boost::optional<PolicyPrincipal&> princ_type) const {
+Effect
+Policy::eval_principal(
+    const Environment& e,
+    boost::optional<const rgw::auth::Identity&> ida,
+    boost::optional<PolicyPrincipal&> princ_type) const
+{
   auto allowed = false;
   for (auto& s : statements) {
     auto g = s.eval_principal(e, ida, princ_type);
@@ -1894,7 +1989,9 @@ Effect Policy::eval_principal(const Environment& e,
   return allowed ? Effect::Allow : Effect::Deny;
 }
 
-Effect Policy::eval_conditions(const Environment& e) const {
+Effect
+Policy::eval_conditions(const Environment& e) const
+{
   auto allowed = false;
   for (auto& s : statements) {
     auto g = s.eval_conditions(e);
@@ -1907,7 +2004,9 @@ Effect Policy::eval_conditions(const Environment& e) const {
   return allowed ? Effect::Allow : Effect::Deny;
 }
 
-ostream& operator <<(ostream& m, const Policy& p) {
+ostream&
+operator<<(ostream& m, const Policy& p)
+{
   m << "{ Version: "
     << (p.version == Version::v2008_10_17 ? "2008-10-17" : "2012-10-17");
 
@@ -1931,14 +2030,14 @@ ostream& operator <<(ostream& m, const Policy& p) {
 }
 
 static const Environment iam_all_env = {
-					{"aws:SourceIp","1.1.1.1"},
-					{"aws:UserId","anonymous"},
-					{"s3:x-amz-server-side-encryption-aws-kms-key-id","secret"}
-};
+    {"aws:SourceIp", "1.1.1.1"},
+    {"aws:UserId", "anonymous"},
+    {"s3:x-amz-server-side-encryption-aws-kms-key-id", "secret"}};
 
-struct IsPublicStatement
-{
-  bool operator() (const Statement &s) const {
+struct IsPublicStatement {
+  bool
+  operator()(const Statement& s) const
+  {
     if (s.effect == Effect::Allow) {
       for (const auto& p : s.princ) {
         if (p.is_wildcard()) {
@@ -1950,10 +2049,11 @@ struct IsPublicStatement
   }
 };
 
-
-bool is_public(const Policy& p)
+bool
+is_public(const Policy& p)
 {
-  return std::any_of(p.statements.begin(), p.statements.end(), IsPublicStatement());
+  return std::any_of(
+      p.statements.begin(), p.statements.end(), IsPublicStatement());
 }
 
 } // namespace IAM

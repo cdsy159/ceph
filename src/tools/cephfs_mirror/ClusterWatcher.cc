@@ -1,15 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "ClusterWatcher.h"
+
 #include <mutex>
 #include <vector>
 
-#include "common/ceph_context.h"
 #include "common/debug.h"
+
+#include "common/ceph_context.h"
 #include "common/errno.h"
 #include "mon/MonClient.h"
 
-#include "ClusterWatcher.h"
 #include "ServiceDaemon.h"
 
 #define dout_context g_ceph_context
@@ -20,18 +22,22 @@
 namespace cephfs {
 namespace mirror {
 
-ClusterWatcher::ClusterWatcher(CephContext *cct, MonClient *monc, ServiceDaemon *service_daemon,
-                               Listener &listener)
-  : Dispatcher(cct),
-    m_monc(monc),
-    m_service_daemon(service_daemon),
-    m_listener(listener) {
-}
+ClusterWatcher::ClusterWatcher(
+    CephContext* cct,
+    MonClient* monc,
+    ServiceDaemon* service_daemon,
+    Listener& listener) :
+  Dispatcher(cct),
+  m_monc(monc),
+  m_service_daemon(service_daemon),
+  m_listener(listener)
+{}
 
-ClusterWatcher::~ClusterWatcher() {
-}
+ClusterWatcher::~ClusterWatcher() {}
 
-Dispatcher::dispatch_result_t ClusterWatcher::ms_dispatch2(const ref_t<Message> &m) {
+Dispatcher::dispatch_result_t
+ClusterWatcher::ms_dispatch2(const ref_t<Message>& m)
+{
   if (m->get_type() == CEPH_MSG_FS_MAP) {
     if (m->get_connection()->get_peer_type() == CEPH_ENTITY_TYPE_MON) {
       handle_fsmap(ref_cast<MFSMap>(m));
@@ -42,7 +48,9 @@ Dispatcher::dispatch_result_t ClusterWatcher::ms_dispatch2(const ref_t<Message> 
   return false;
 }
 
-int ClusterWatcher::init() {
+int
+ClusterWatcher::init()
+{
   dout(20) << dendl;
 
   bool sub = m_monc->sub_want("fsmap", 0, 0);
@@ -56,14 +64,18 @@ int ClusterWatcher::init() {
   return 0;
 }
 
-void ClusterWatcher::shutdown() {
+void
+ClusterWatcher::shutdown()
+{
   dout(20) << dendl;
   std::scoped_lock locker(m_lock);
   m_stopping = true;
   m_monc->sub_unwant("fsmap");
 }
 
-void ClusterWatcher::handle_fsmap(const cref_t<MFSMap> &m) {
+void
+ClusterWatcher::handle_fsmap(const cref_t<MFSMap>& m)
+{
   dout(20) << dendl;
 
   auto fsmap = m->get_fsmap();
@@ -103,7 +115,7 @@ void ClusterWatcher::handle_fsmap(const cref_t<MFSMap> &m) {
         }
       } else {
         auto [fspeersit, enabled] = m_filesystem_peers.emplace(fs, Peers{});
-        auto &peers = fspeersit->second;
+        auto& peers = fspeersit->second;
 
         if (enabled) {
           mirroring_enabled.emplace_back(fs);
@@ -112,14 +124,15 @@ void ClusterWatcher::handle_fsmap(const cref_t<MFSMap> &m) {
 
         // peers added
         Peers added;
-        std::set_difference(mirror_info.peers.begin(), mirror_info.peers.end(),
-                            peers.begin(), peers.end(), std::inserter(added, added.end()));
+        std::set_difference(
+            mirror_info.peers.begin(), mirror_info.peers.end(), peers.begin(),
+            peers.end(), std::inserter(added, added.end()));
 
         // peers removed
         Peers removed;
-        std::set_difference(peers.begin(), peers.end(),
-                            mirror_info.peers.begin(), mirror_info.peers.end(),
-                            std::inserter(removed, removed.end()));
+        std::set_difference(
+            peers.begin(), peers.end(), mirror_info.peers.begin(),
+            mirror_info.peers.end(), std::inserter(removed, removed.end()));
 
         // update set
         if (!added.empty()) {
@@ -128,7 +141,7 @@ void ClusterWatcher::handle_fsmap(const cref_t<MFSMap> &m) {
         }
         if (!removed.empty()) {
           peers_removed.emplace(fs, removed);
-          for (auto &p : removed) {
+          for (auto& p : removed) {
             peers.erase(p);
           }
         }
@@ -136,27 +149,29 @@ void ClusterWatcher::handle_fsmap(const cref_t<MFSMap> &m) {
     }
   }
 
-  dout(5) << ": mirroring enabled=" << mirroring_enabled << ", mirroring_disabled="
-          << mirroring_disabled << dendl;
-  for (auto &fs : mirroring_enabled) {
+  dout(5) << ": mirroring enabled=" << mirroring_enabled
+          << ", mirroring_disabled=" << mirroring_disabled << dendl;
+  for (auto& fs : mirroring_enabled) {
     m_service_daemon->add_filesystem(fs.fscid, fs.fs_name);
-    m_listener.handle_mirroring_enabled(FilesystemSpec(fs, fs_metadata_pools.at(fs)));
+    m_listener.handle_mirroring_enabled(
+        FilesystemSpec(fs, fs_metadata_pools.at(fs)));
   }
-  for (auto &fs : mirroring_disabled) {
+  for (auto& fs : mirroring_disabled) {
     m_service_daemon->remove_filesystem(fs.fscid);
     m_listener.handle_mirroring_disabled(fs);
   }
 
-  dout(5) << ": peers added=" << peers_added << ", peers removed=" << peers_removed << dendl;
+  dout(5) << ": peers added=" << peers_added
+          << ", peers removed=" << peers_removed << dendl;
 
-  for (auto &[fs, peers] : peers_added) {
-    for (auto &peer : peers) {
+  for (auto& [fs, peers] : peers_added) {
+    for (auto& peer : peers) {
       m_service_daemon->add_peer(fs.fscid, peer);
       m_listener.handle_peers_added(fs, peer);
     }
   }
-  for (auto &[fs, peers] : peers_removed) {
-    for (auto &peer : peers) {
+  for (auto& [fs, peers] : peers_removed) {
+    for (auto& peer : peers) {
       m_service_daemon->remove_peer(fs.fscid, peer);
       m_listener.handle_peers_removed(fs, peer);
     }

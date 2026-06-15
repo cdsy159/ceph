@@ -1,23 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/stringify.h"
+#include "InstanceReplayer.h"
+
+#include "common/debug.h"
+
 #include "common/Cond.h"
 #include "common/Timer.h"
-#include "common/debug.h"
 #include "common/errno.h"
+#include "include/stringify.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
+
 #include "ImageReplayer.h"
-#include "InstanceReplayer.h"
 #include "ServiceDaemon.h"
 #include "Threads.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::InstanceReplayer: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::InstanceReplayer: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -35,58 +38,70 @@ using librbd::util::create_context_callback;
 
 template <typename I>
 InstanceReplayer<I>::InstanceReplayer(
-    librados::IoCtx &local_io_ctx, const std::string &local_mirror_uuid,
-    Threads<I> *threads, ServiceDaemon<I>* service_daemon,
+    librados::IoCtx& local_io_ctx,
+    const std::string& local_mirror_uuid,
+    Threads<I>* threads,
+    ServiceDaemon<I>* service_daemon,
     MirrorStatusUpdater<I>* local_status_updater,
-    journal::CacheManagerHandler *cache_manager_handler,
-    PoolMetaCache* pool_meta_cache)
-  : m_local_io_ctx(local_io_ctx), m_local_mirror_uuid(local_mirror_uuid),
-    m_threads(threads), m_service_daemon(service_daemon),
-    m_local_status_updater(local_status_updater),
-    m_cache_manager_handler(cache_manager_handler),
-    m_pool_meta_cache(pool_meta_cache),
-    m_lock(ceph::make_mutex("rbd::mirror::InstanceReplayer " +
-        stringify(local_io_ctx.get_id()))) {
-}
+    journal::CacheManagerHandler* cache_manager_handler,
+    PoolMetaCache* pool_meta_cache) :
+  m_local_io_ctx(local_io_ctx),
+  m_local_mirror_uuid(local_mirror_uuid),
+  m_threads(threads),
+  m_service_daemon(service_daemon),
+  m_local_status_updater(local_status_updater),
+  m_cache_manager_handler(cache_manager_handler),
+  m_pool_meta_cache(pool_meta_cache),
+  m_lock(ceph::make_mutex(
+      "rbd::mirror::InstanceReplayer " + stringify(local_io_ctx.get_id())))
+{}
 
 template <typename I>
-InstanceReplayer<I>::~InstanceReplayer() {
+InstanceReplayer<I>::~InstanceReplayer()
+{
   ceph_assert(m_image_state_check_task == nullptr);
   ceph_assert(m_async_op_tracker.empty());
   ceph_assert(m_image_replayers.empty());
 }
 
 template <typename I>
-bool InstanceReplayer<I>::is_blocklisted() const {
+bool
+InstanceReplayer<I>::is_blocklisted() const
+{
   std::lock_guard locker{m_lock};
   return m_blocklisted;
 }
 
 template <typename I>
-int InstanceReplayer<I>::init() {
+int
+InstanceReplayer<I>::init()
+{
   C_SaferCond init_ctx;
   init(&init_ctx);
   return init_ctx.wait();
 }
 
 template <typename I>
-void InstanceReplayer<I>::init(Context *on_finish) {
+void
+InstanceReplayer<I>::init(Context* on_finish)
+{
   dout(10) << dendl;
 
-  Context *ctx = new LambdaContext(
-    [this, on_finish] (int r) {
-      {
-        std::lock_guard timer_locker{m_threads->timer_lock};
-        schedule_image_state_check_task();
-      }
-      on_finish->complete(0);
-    });
+  Context* ctx = new LambdaContext([this, on_finish](int r) {
+    {
+      std::lock_guard timer_locker{m_threads->timer_lock};
+      schedule_image_state_check_task();
+    }
+    on_finish->complete(0);
+  });
 
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void InstanceReplayer<I>::shut_down() {
+void
+InstanceReplayer<I>::shut_down()
+{
   C_SaferCond shut_down_ctx;
   shut_down(&shut_down_ctx);
   int r = shut_down_ctx.wait();
@@ -94,7 +109,9 @@ void InstanceReplayer<I>::shut_down() {
 }
 
 template <typename I>
-void InstanceReplayer<I>::shut_down(Context *on_finish) {
+void
+InstanceReplayer<I>::shut_down(Context* on_finish)
+{
   dout(10) << dendl;
 
   std::lock_guard locker{m_lock};
@@ -102,17 +119,18 @@ void InstanceReplayer<I>::shut_down(Context *on_finish) {
   ceph_assert(m_on_shut_down == nullptr);
   m_on_shut_down = on_finish;
 
-  Context *ctx = new LambdaContext(
-    [this] (int r) {
-      cancel_image_state_check_task();
-      wait_for_ops();
-    });
+  Context* ctx = new LambdaContext([this](int r) {
+    cancel_image_state_check_task();
+    wait_for_ops();
+  });
 
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void InstanceReplayer<I>::add_peer(const Peer<I>& peer) {
+void
+InstanceReplayer<I>::add_peer(const Peer<I>& peer)
+{
   dout(10) << "peer=" << peer << dendl;
 
   std::lock_guard locker{m_lock};
@@ -121,30 +139,34 @@ void InstanceReplayer<I>::add_peer(const Peer<I>& peer) {
 }
 
 template <typename I>
-void InstanceReplayer<I>::release_all(Context *on_finish) {
+void
+InstanceReplayer<I>::release_all(Context* on_finish)
+{
   dout(10) << dendl;
 
   std::lock_guard locker{m_lock};
 
-  C_Gather *gather_ctx = new C_Gather(g_ceph_context, on_finish);
+  C_Gather* gather_ctx = new C_Gather(g_ceph_context, on_finish);
   for (auto it = m_image_replayers.begin(); it != m_image_replayers.end();
        it = m_image_replayers.erase(it)) {
     auto image_replayer = it->second;
     auto ctx = gather_ctx->new_sub();
-    ctx = new LambdaContext(
-      [image_replayer, ctx] (int r) {
-        image_replayer->destroy();
-        ctx->complete(0);
-      });
+    ctx = new LambdaContext([image_replayer, ctx](int r) {
+      image_replayer->destroy();
+      ctx->complete(0);
+    });
     stop_image_replayer(image_replayer, ctx);
   }
   gather_ctx->activate();
 }
 
 template <typename I>
-void InstanceReplayer<I>::acquire_image(InstanceWatcher<I> *instance_watcher,
-                                        const std::string &global_image_id,
-                                        Context *on_finish) {
+void
+InstanceReplayer<I>::acquire_image(
+    InstanceWatcher<I>* instance_watcher,
+    const std::string& global_image_id,
+    Context* on_finish)
+{
   dout(10) << "global_image_id=" << global_image_id << dendl;
 
   std::lock_guard locker{m_lock};
@@ -154,15 +176,16 @@ void InstanceReplayer<I>::acquire_image(InstanceWatcher<I> *instance_watcher,
   auto it = m_image_replayers.find(global_image_id);
   if (it == m_image_replayers.end()) {
     auto image_replayer = ImageReplayer<I>::create(
-        m_local_io_ctx, m_local_mirror_uuid, global_image_id,
-        m_threads, instance_watcher, m_local_status_updater,
-        m_cache_manager_handler, m_pool_meta_cache);
+        m_local_io_ctx, m_local_mirror_uuid, global_image_id, m_threads,
+        instance_watcher, m_local_status_updater, m_cache_manager_handler,
+        m_pool_meta_cache);
 
     dout(10) << global_image_id << ": creating replayer " << image_replayer
              << dendl;
 
-    it = m_image_replayers.insert(std::make_pair(global_image_id,
-                                                 image_replayer)).first;
+    it = m_image_replayers
+             .insert(std::make_pair(global_image_id, image_replayer))
+             .first;
 
     // TODO only a single peer is currently supported
     ceph_assert(m_peers.size() == 1);
@@ -182,8 +205,11 @@ void InstanceReplayer<I>::acquire_image(InstanceWatcher<I> *instance_watcher,
 }
 
 template <typename I>
-void InstanceReplayer<I>::release_image(const std::string &global_image_id,
-                                        Context *on_finish) {
+void
+InstanceReplayer<I>::release_image(
+    const std::string& global_image_id,
+    Context* on_finish)
+{
   dout(10) << "global_image_id=" << global_image_id << dendl;
 
   std::lock_guard locker{m_lock};
@@ -199,18 +225,20 @@ void InstanceReplayer<I>::release_image(const std::string &global_image_id,
   auto image_replayer = it->second;
   m_image_replayers.erase(it);
 
-  on_finish = new LambdaContext(
-    [image_replayer, on_finish] (int r) {
-      image_replayer->destroy();
-      on_finish->complete(0);
-    });
+  on_finish = new LambdaContext([image_replayer, on_finish](int r) {
+    image_replayer->destroy();
+    on_finish->complete(0);
+  });
   stop_image_replayer(image_replayer, on_finish);
 }
 
 template <typename I>
-void InstanceReplayer<I>::remove_peer_image(const std::string &global_image_id,
-                                            const std::string &peer_mirror_uuid,
-                                            Context *on_finish) {
+void
+InstanceReplayer<I>::remove_peer_image(
+    const std::string& global_image_id,
+    const std::string& peer_mirror_uuid,
+    Context* on_finish)
+{
   dout(10) << "global_image_id=" << global_image_id << ", "
            << "peer_mirror_uuid=" << peer_mirror_uuid << dendl;
 
@@ -230,21 +258,24 @@ void InstanceReplayer<I>::remove_peer_image(const std::string &global_image_id,
 }
 
 template <typename I>
-void InstanceReplayer<I>::print_status(Formatter *f) {
+void
+InstanceReplayer<I>::print_status(Formatter* f)
+{
   dout(10) << dendl;
 
   std::lock_guard locker{m_lock};
 
   f->open_array_section("image_replayers");
-  for (auto &kv : m_image_replayers) {
-    auto &image_replayer = kv.second;
+  for (auto& kv : m_image_replayers) {
+    auto& image_replayer = kv.second;
     image_replayer->print_status(f);
   }
   f->close_section();
 }
 
 template <typename I>
-void InstanceReplayer<I>::start()
+void
+InstanceReplayer<I>::start()
 {
   dout(10) << dendl;
 
@@ -252,11 +283,11 @@ void InstanceReplayer<I>::start()
 
   m_manual_stop = false;
 
-  auto cct = static_cast<CephContext *>(m_local_io_ctx.cct());
-  auto gather_ctx = new C_Gather(
-    cct, new C_TrackedOp(m_async_op_tracker, nullptr));
-  for (auto &kv : m_image_replayers) {
-    auto &image_replayer = kv.second;
+  auto cct = static_cast<CephContext*>(m_local_io_ctx.cct());
+  auto gather_ctx =
+      new C_Gather(cct, new C_TrackedOp(m_async_op_tracker, nullptr));
+  for (auto& kv : m_image_replayers) {
+    auto& image_replayer = kv.second;
     image_replayer->start(gather_ctx->new_sub(), true);
   }
 
@@ -264,34 +295,35 @@ void InstanceReplayer<I>::start()
 }
 
 template <typename I>
-void InstanceReplayer<I>::stop()
+void
+InstanceReplayer<I>::stop()
 {
   stop(nullptr);
 }
 
 template <typename I>
-void InstanceReplayer<I>::stop(Context *on_finish)
+void
+InstanceReplayer<I>::stop(Context* on_finish)
 {
   dout(10) << dendl;
 
   if (on_finish == nullptr) {
     on_finish = new C_TrackedOp(m_async_op_tracker, on_finish);
   } else {
-    on_finish = new LambdaContext(
-      [this, on_finish] (int r) {
-        m_async_op_tracker.wait_for_ops(on_finish);
-      });
+    on_finish = new LambdaContext([this, on_finish](int r) {
+      m_async_op_tracker.wait_for_ops(on_finish);
+    });
   }
 
-  auto cct = static_cast<CephContext *>(m_local_io_ctx.cct());
+  auto cct = static_cast<CephContext*>(m_local_io_ctx.cct());
   auto gather_ctx = new C_Gather(cct, on_finish);
   {
     std::lock_guard locker{m_lock};
 
     m_manual_stop = true;
 
-    for (auto &kv : m_image_replayers) {
-      auto &image_replayer = kv.second;
+    for (auto& kv : m_image_replayers) {
+      auto& image_replayer = kv.second;
       image_replayer->stop(gather_ctx->new_sub(), true);
     }
   }
@@ -300,7 +332,8 @@ void InstanceReplayer<I>::stop(Context *on_finish)
 }
 
 template <typename I>
-void InstanceReplayer<I>::restart()
+void
+InstanceReplayer<I>::restart()
 {
   dout(10) << dendl;
 
@@ -308,28 +341,30 @@ void InstanceReplayer<I>::restart()
 
   m_manual_stop = false;
 
-  for (auto &kv : m_image_replayers) {
-    auto &image_replayer = kv.second;
+  for (auto& kv : m_image_replayers) {
+    auto& image_replayer = kv.second;
     image_replayer->restart(new C_TrackedOp(m_async_op_tracker, nullptr));
   }
 }
 
 template <typename I>
-void InstanceReplayer<I>::flush()
+void
+InstanceReplayer<I>::flush()
 {
   dout(10) << dendl;
 
   std::lock_guard locker{m_lock};
 
-  for (auto &kv : m_image_replayers) {
-    auto &image_replayer = kv.second;
+  for (auto& kv : m_image_replayers) {
+    auto& image_replayer = kv.second;
     image_replayer->flush();
   }
 }
 
 template <typename I>
-void InstanceReplayer<I>::start_image_replayer(
-    ImageReplayer<I> *image_replayer) {
+void
+InstanceReplayer<I>::start_image_replayer(ImageReplayer<I>* image_replayer)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   std::string global_image_id = image_replayer->get_global_image_id();
@@ -344,8 +379,8 @@ void InstanceReplayer<I>::start_image_replayer(
     return;
   } else if (image_replayer->is_finished()) {
     // TODO temporary until policy integrated
-    dout(5) << "removing image replayer for global_image_id="
-            << global_image_id << dendl;
+    dout(5) << "removing image replayer for global_image_id=" << global_image_id
+            << dendl;
     m_image_replayers.erase(image_replayer->get_global_image_id());
     image_replayer->destroy();
     return;
@@ -360,18 +395,21 @@ void InstanceReplayer<I>::start_image_replayer(
 }
 
 template <typename I>
-void InstanceReplayer<I>::queue_start_image_replayers() {
+void
+InstanceReplayer<I>::queue_start_image_replayers()
+{
   dout(10) << dendl;
 
-  Context *ctx = create_context_callback<
-    InstanceReplayer, &InstanceReplayer<I>::start_image_replayers>(this);
+  Context* ctx = create_context_callback<
+      InstanceReplayer, &InstanceReplayer<I>::start_image_replayers>(this);
   m_async_op_tracker.start_op();
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void InstanceReplayer<I>::start_image_replayers(
-    const std::unique_lock<ceph::mutex>&) {
+void
+InstanceReplayer<I>::start_image_replayers(const std::unique_lock<ceph::mutex>&)
+{
   if (m_on_shut_down != nullptr) {
     return;
   }
@@ -379,8 +417,7 @@ void InstanceReplayer<I>::start_image_replayers(
   uint64_t image_count = 0;
   uint64_t warning_count = 0;
   uint64_t error_count = 0;
-  for (auto it = m_image_replayers.begin();
-       it != m_image_replayers.end();) {
+  for (auto it = m_image_replayers.begin(); it != m_image_replayers.end();) {
     auto current_it(it);
     ++it;
 
@@ -396,18 +433,20 @@ void InstanceReplayer<I>::start_image_replayers(
   }
 
   m_service_daemon->add_or_update_namespace_attribute(
-    m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
-    SERVICE_DAEMON_ASSIGNED_COUNT_KEY, image_count);
+      m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
+      SERVICE_DAEMON_ASSIGNED_COUNT_KEY, image_count);
   m_service_daemon->add_or_update_namespace_attribute(
-    m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
-    SERVICE_DAEMON_WARNING_COUNT_KEY, warning_count);
+      m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
+      SERVICE_DAEMON_WARNING_COUNT_KEY, warning_count);
   m_service_daemon->add_or_update_namespace_attribute(
-    m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
-    SERVICE_DAEMON_ERROR_COUNT_KEY, error_count);
+      m_local_io_ctx.get_id(), m_local_io_ctx.get_namespace(),
+      SERVICE_DAEMON_ERROR_COUNT_KEY, error_count);
 }
 
 template <typename I>
-void InstanceReplayer<I>::start_image_replayers(int r) {
+void
+InstanceReplayer<I>::start_image_replayers(int r)
+{
   dout(10) << dendl;
   {
     std::unique_lock locker{m_lock};
@@ -417,11 +456,14 @@ void InstanceReplayer<I>::start_image_replayers(int r) {
 }
 
 template <typename I>
-void InstanceReplayer<I>::stop_image_replayer(ImageReplayer<I> *image_replayer,
-                                              Context *on_finish) {
-  dout(10) << image_replayer << " global_image_id="
-           << image_replayer->get_global_image_id() << ", on_finish="
-           << on_finish << dendl;
+void
+InstanceReplayer<I>::stop_image_replayer(
+    ImageReplayer<I>* image_replayer,
+    Context* on_finish)
+{
+  dout(10) << image_replayer
+           << " global_image_id=" << image_replayer->get_global_image_id()
+           << ", on_finish=" << on_finish << dendl;
 
   if (image_replayer->is_stopped()) {
     m_threads->work_queue->queue(on_finish, 0);
@@ -429,9 +471,9 @@ void InstanceReplayer<I>::stop_image_replayer(ImageReplayer<I> *image_replayer,
   }
 
   m_async_op_tracker.start_op();
-  Context *ctx = create_async_context_callback(
-    m_threads->work_queue, new LambdaContext(
-      [this, image_replayer, on_finish] (int r) {
+  Context* ctx = create_async_context_callback(
+      m_threads->work_queue,
+      new LambdaContext([this, image_replayer, on_finish](int r) {
         stop_image_replayer(image_replayer, on_finish);
         m_async_op_tracker.finish_op();
       }));
@@ -442,27 +484,30 @@ void InstanceReplayer<I>::stop_image_replayer(ImageReplayer<I> *image_replayer,
     int after = 1;
     dout(10) << "scheduling image replayer " << image_replayer << " stop after "
              << after << " sec (task " << ctx << ")" << dendl;
-    ctx = new LambdaContext(
-      [this, after, ctx] (int r) {
-        std::lock_guard timer_locker{m_threads->timer_lock};
-        m_threads->timer->add_event_after(after, ctx);
-      });
+    ctx = new LambdaContext([this, after, ctx](int r) {
+      std::lock_guard timer_locker{m_threads->timer_lock};
+      m_threads->timer->add_event_after(after, ctx);
+    });
     m_threads->work_queue->queue(ctx, 0);
   }
 }
 
 template <typename I>
-void InstanceReplayer<I>::wait_for_ops() {
+void
+InstanceReplayer<I>::wait_for_ops()
+{
   dout(10) << dendl;
 
-  Context *ctx = create_context_callback<
-    InstanceReplayer, &InstanceReplayer<I>::handle_wait_for_ops>(this);
+  Context* ctx = create_context_callback<
+      InstanceReplayer, &InstanceReplayer<I>::handle_wait_for_ops>(this);
 
   m_async_op_tracker.wait_for_ops(ctx);
 }
 
 template <typename I>
-void InstanceReplayer<I>::handle_wait_for_ops(int r) {
+void
+InstanceReplayer<I>::handle_wait_for_ops(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   ceph_assert(r == 0);
@@ -472,33 +517,39 @@ void InstanceReplayer<I>::handle_wait_for_ops(int r) {
 }
 
 template <typename I>
-void InstanceReplayer<I>::stop_image_replayers() {
+void
+InstanceReplayer<I>::stop_image_replayers()
+{
   dout(10) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
-  Context *ctx = create_async_context_callback(
-    m_threads->work_queue, create_context_callback<InstanceReplayer<I>,
-    &InstanceReplayer<I>::handle_stop_image_replayers>(this));
+  Context* ctx = create_async_context_callback(
+      m_threads->work_queue,
+      create_context_callback<
+          InstanceReplayer<I>, &InstanceReplayer<I>::handle_stop_image_replayers>(
+          this));
 
-  C_Gather *gather_ctx = new C_Gather(g_ceph_context, ctx);
-  for (auto &it : m_image_replayers) {
+  C_Gather* gather_ctx = new C_Gather(g_ceph_context, ctx);
+  for (auto& it : m_image_replayers) {
     stop_image_replayer(it.second, gather_ctx->new_sub());
   }
   gather_ctx->activate();
 }
 
 template <typename I>
-void InstanceReplayer<I>::handle_stop_image_replayers(int r) {
+void
+InstanceReplayer<I>::handle_stop_image_replayers(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   ceph_assert(r == 0);
 
-  Context *on_finish = nullptr;
+  Context* on_finish = nullptr;
   {
     std::lock_guard locker{m_lock};
 
-    for (auto &it : m_image_replayers) {
+    for (auto& it : m_image_replayers) {
       ceph_assert(it.second->is_stopped());
       it.second->destroy();
     }
@@ -511,7 +562,9 @@ void InstanceReplayer<I>::handle_stop_image_replayers(int r) {
 }
 
 template <typename I>
-void InstanceReplayer<I>::cancel_image_state_check_task() {
+void
+InstanceReplayer<I>::cancel_image_state_check_task()
+{
   std::lock_guard timer_locker{m_threads->timer_lock};
 
   if (m_image_state_check_task == nullptr) {
@@ -525,21 +578,22 @@ void InstanceReplayer<I>::cancel_image_state_check_task() {
 }
 
 template <typename I>
-void InstanceReplayer<I>::schedule_image_state_check_task() {
+void
+InstanceReplayer<I>::schedule_image_state_check_task()
+{
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
   ceph_assert(m_image_state_check_task == nullptr);
 
-  m_image_state_check_task = new LambdaContext(
-    [this](int r) {
-      ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
-      m_image_state_check_task = nullptr;
-      schedule_image_state_check_task();
-      queue_start_image_replayers();
-    });
+  m_image_state_check_task = new LambdaContext([this](int r) {
+    ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
+    m_image_state_check_task = nullptr;
+    schedule_image_state_check_task();
+    queue_start_image_replayers();
+  });
 
-  auto cct = static_cast<CephContext *>(m_local_io_ctx.cct());
-  int after = cct->_conf.get_val<uint64_t>(
-    "rbd_mirror_image_state_check_interval");
+  auto cct = static_cast<CephContext*>(m_local_io_ctx.cct());
+  int after =
+      cct->_conf.get_val<uint64_t>("rbd_mirror_image_state_check_interval");
 
   dout(10) << "scheduling image state check after " << after << " sec (task "
            << m_image_state_check_task << ")" << dendl;

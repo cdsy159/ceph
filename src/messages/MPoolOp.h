@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,7 +18,6 @@
 
 #include "messages/PaxosServiceMessage.h"
 
-
 class MPoolOp final : public PaxosServiceMessage {
 private:
   static constexpr int HEAD_VERSION = 4;
@@ -32,12 +31,25 @@ public:
   snapid_t snapid;
   __s16 crush_rule = 0;
 
-  MPoolOp()
-    : PaxosServiceMessage{CEPH_MSG_POOLOP, 0, HEAD_VERSION, COMPAT_VERSION} {}
-  MPoolOp(const uuid_d& f, ceph_tid_t t, int p, std::string& n, int o, version_t v)
-    : PaxosServiceMessage{CEPH_MSG_POOLOP, v, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f), pool(p), name(n), op(o),
-      snapid(0), crush_rule(0) {
+  MPoolOp() :
+    PaxosServiceMessage{CEPH_MSG_POOLOP, 0, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MPoolOp(
+      const uuid_d& f,
+      ceph_tid_t t,
+      int p,
+      std::string& n,
+      int o,
+      version_t v) :
+    PaxosServiceMessage{CEPH_MSG_POOLOP, v, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    pool(p),
+    name(n),
+    op(o),
+    snapid(0),
+    crush_rule(0)
+  {
     set_tid(t);
   }
 
@@ -45,15 +57,22 @@ private:
   ~MPoolOp() final {}
 
 public:
-  std::string_view get_type_name() const override { return "poolop"; }
-  void print(std::ostream& out) const override {
-    out << "pool_op(" << ceph_pool_op_name(op) << " pool " << pool
-	<< " tid " << get_tid()
-	<< " name " << name
-	<< " v" << version << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "poolop";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "pool_op(" << ceph_pool_op_name(op) << " pool " << pool << " tid "
+        << get_tid() << " name " << name << " v" << version << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
@@ -63,10 +82,13 @@ public:
     encode(snapid, payload);
     encode(name, payload);
     __u8 pad = 0;
-    encode(pad, payload);  /* for v3->v4 encoding change */
+    encode(pad, payload); /* for v3->v4 encoding change */
     encode(crush_rule, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -85,14 +107,15 @@ public:
       __u8 pad;
       decode(pad, p);
       if (header.version >= 4)
-	decode(crush_rule, p);
+        decode(crush_rule, p);
       else
-	crush_rule = pad;
+        crush_rule = pad;
     } else
       crush_rule = -1;
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

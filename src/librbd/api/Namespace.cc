@@ -1,11 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
-#include "librbd/api/Mirror.h"
 #include "librbd/api/Namespace.h"
+
+#include "cls/rbd/cls_rbd_client.h"
+#include "common/errno.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/api/Mirror.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -16,22 +17,18 @@ namespace api {
 
 namespace {
 
-const std::list<std::string> POOL_OBJECTS {
-  RBD_CHILDREN,
-  RBD_GROUP_DIRECTORY,
-  RBD_INFO,
-  RBD_MIRRORING,
-  RBD_TASK,
-  RBD_TRASH,
-  RBD_DIRECTORY
-};
+const std::list<std::string> POOL_OBJECTS{RBD_CHILDREN, RBD_GROUP_DIRECTORY,
+                                          RBD_INFO,     RBD_MIRRORING,
+                                          RBD_TASK,     RBD_TRASH,
+                                          RBD_DIRECTORY};
 
 } // anonymous namespace
 
 template <typename I>
-int Namespace<I>::create(librados::IoCtx& io_ctx, const std::string& name)
+int
+Namespace<I>::create(librados::IoCtx& io_ctx, const std::string& name)
 {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+  CephContext* cct = (CephContext*)io_ctx.cct();
   ldout(cct, 5) << "name=" << name << dendl;
 
   if (name.empty()) {
@@ -75,8 +72,8 @@ int Namespace<I>::create(librados::IoCtx& io_ctx, const std::string& name)
     goto remove_namespace;
   }
 
-  r = cls_client::dir_state_set(&ns_ctx, RBD_DIRECTORY,
-                                cls::rbd::DIRECTORY_STATE_READY);
+  r = cls_client::dir_state_set(
+      &ns_ctx, RBD_DIRECTORY, cls::rbd::DIRECTORY_STATE_READY);
   if (r < 0) {
     lderr(cct) << "failed to initialize image directory: " << cpp_strerror(r)
                << dendl;
@@ -96,8 +93,7 @@ remove_dir_and_trash:
 
   ret_val = ns_ctx.remove(RBD_TRASH);
   if (ret_val < 0) {
-    lderr(cct) << "failed to remove trash: " << cpp_strerror(ret_val)
-               << dendl;
+    lderr(cct) << "failed to remove trash: " << cpp_strerror(ret_val) << dendl;
   }
 
 remove_namespace:
@@ -111,9 +107,10 @@ remove_namespace:
 }
 
 template <typename I>
-int Namespace<I>::remove(librados::IoCtx& io_ctx, const std::string& name)
+int
+Namespace<I>::remove(librados::IoCtx& io_ctx, const std::string& name)
 {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+  CephContext* cct = (CephContext*)io_ctx.cct();
   ldout(cct, 5) << "name=" << name << dendl;
 
   if (name.empty()) {
@@ -132,7 +129,7 @@ int Namespace<I>::remove(librados::IoCtx& io_ctx, const std::string& name)
 
   librados::ObjectWriteOperation dir_op;
   librbd::cls_client::dir_state_set(
-    &dir_op, cls::rbd::DIRECTORY_STATE_ADD_DISABLED);
+      &dir_op, cls::rbd::DIRECTORY_STATE_ADD_DISABLED);
   dir_op.remove();
 
   int r = ns_ctx.operate(RBD_DIRECTORY, &dir_op);
@@ -157,16 +154,15 @@ int Namespace<I>::remove(librados::IoCtx& io_ctx, const std::string& name)
 
   r = Mirror<I>::mode_set(ns_ctx, RBD_MIRROR_MODE_DISABLED);
   if (r < 0) {
-    lderr(cct) << "failed to disable mirroring: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to disable mirroring: " << cpp_strerror(r) << dendl;
     return r;
   }
 
   for (auto& oid : POOL_OBJECTS) {
     r = ns_ctx.remove(oid);
     if (r < 0 && r != -ENOENT) {
-      lderr(cct) << "failed to remove object '" << oid << "': "
-                 << cpp_strerror(r) << dendl;
+      lderr(cct) << "failed to remove object '" << oid
+                 << "': " << cpp_strerror(r) << dendl;
       return r;
     }
   }
@@ -182,7 +178,7 @@ int Namespace<I>::remove(librados::IoCtx& io_ctx, const std::string& name)
 rollback:
 
   r = librbd::cls_client::dir_state_set(
-    &ns_ctx, RBD_DIRECTORY, cls::rbd::DIRECTORY_STATE_READY);
+      &ns_ctx, RBD_DIRECTORY, cls::rbd::DIRECTORY_STATE_READY);
   if (r < 0) {
     lderr(cct) << "failed to restore directory state: " << cpp_strerror(r)
                << dendl;
@@ -192,9 +188,10 @@ rollback:
 }
 
 template <typename I>
-int Namespace<I>::list(IoCtx& io_ctx, std::vector<std::string> *names)
+int
+Namespace<I>::list(IoCtx& io_ctx, std::vector<std::string>* names)
 {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+  CephContext* cct = (CephContext*)io_ctx.cct();
   ldout(cct, 5) << dendl;
 
   librados::IoCtx default_ns_ctx;
@@ -206,8 +203,8 @@ int Namespace<I>::list(IoCtx& io_ctx, std::vector<std::string> *names)
   std::string last_read = "";
   do {
     std::list<std::string> name_list;
-    r = cls_client::namespace_list(&default_ns_ctx, last_read, max_read,
-                                   &name_list);
+    r = cls_client::namespace_list(
+        &default_ns_ctx, last_read, max_read, &name_list);
     if (r == -ENOENT) {
       return 0;
     } else if (r < 0) {
@@ -226,9 +223,13 @@ int Namespace<I>::list(IoCtx& io_ctx, std::vector<std::string> *names)
 }
 
 template <typename I>
-int Namespace<I>::exists(librados::IoCtx& io_ctx, const std::string& name, bool *exists)
+int
+Namespace<I>::exists(
+    librados::IoCtx& io_ctx,
+    const std::string& name,
+    bool* exists)
 {
-  CephContext *cct = (CephContext *)io_ctx.cct();
+  CephContext* cct = (CephContext*)io_ctx.cct();
   ldout(cct, 5) << "name=" << name << dendl;
 
   *exists = false;
@@ -240,8 +241,8 @@ int Namespace<I>::exists(librados::IoCtx& io_ctx, const std::string& name, bool 
   ns_ctx.dup(io_ctx);
   ns_ctx.set_namespace(name);
 
-  int r = librbd::cls_client::dir_state_assert(&ns_ctx, RBD_DIRECTORY,
-                                               cls::rbd::DIRECTORY_STATE_READY);
+  int r = librbd::cls_client::dir_state_assert(
+      &ns_ctx, RBD_DIRECTORY, cls::rbd::DIRECTORY_STATE_READY);
   if (r == 0) {
     *exists = true;
   } else if (r != -ENOENT) {

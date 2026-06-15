@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/Threads.h"
+
 #include "common/Timer.h"
 #include "librbd/AsioEngine.h"
 #include "librbd/ImageCtx.h"
@@ -11,7 +12,8 @@ namespace rbd {
 namespace mirror {
 
 template <typename I>
-Threads<I>::Threads(std::shared_ptr<librados::Rados>& rados) {
+Threads<I>::Threads(std::shared_ptr<librados::Rados>& rados)
+{
   auto cct = static_cast<CephContext*>(rados->cct());
   asio_engine = new librbd::AsioEngine(rados);
   work_queue = asio_engine->get_work_queue();
@@ -21,7 +23,8 @@ Threads<I>::Threads(std::shared_ptr<librados::Rados>& rados) {
 }
 
 template <typename I>
-Threads<I>::~Threads() {
+Threads<I>::~Threads()
+{
   {
     std::lock_guard timer_locker{timer_lock};
     timer->shutdown();

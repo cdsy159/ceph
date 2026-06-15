@@ -4,12 +4,14 @@
 #ifndef CEPH_MGR_METRIC_TYPES_H
 #define CEPH_MGR_METRIC_TYPES_H
 
-#include <boost/variant/static_visitor.hpp>
 #include <variant>
-#include "include/denc.h"
+
+#include <boost/variant/static_visitor.hpp>
+
 #include "include/ceph_features.h"
-#include "mgr/OSDPerfMetricTypes.h"
+#include "include/denc.h"
 #include "mgr/MDSPerfMetricTypes.h"
+#include "mgr/OSDPerfMetricTypes.h"
 
 enum class MetricReportType {
   METRIC_REPORT_TYPE_OSD = 0,
@@ -17,22 +19,27 @@ enum class MetricReportType {
 };
 
 struct OSDMetricPayload {
-  static const MetricReportType METRIC_REPORT_TYPE = MetricReportType::METRIC_REPORT_TYPE_OSD;
+  static const MetricReportType METRIC_REPORT_TYPE =
+      MetricReportType::METRIC_REPORT_TYPE_OSD;
   std::map<OSDPerfMetricQuery, OSDPerfMetricReport> report;
 
-  OSDMetricPayload() {
-  }
-  OSDMetricPayload(const std::map<OSDPerfMetricQuery, OSDPerfMetricReport> &report)
-    : report(report) {
-  }
+  OSDMetricPayload() {}
 
-  DENC(OSDMetricPayload, v, p) {
+  OSDMetricPayload(
+      const std::map<OSDPerfMetricQuery, OSDPerfMetricReport>& report) :
+    report(report)
+  {}
+
+  DENC(OSDMetricPayload, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.report, p);
     DENC_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->open_array_section("report");
     for (auto& i : report) {
       f->open_object_section("query");
@@ -44,7 +51,10 @@ struct OSDMetricPayload {
     }
     f->close_section();
   }
-  static std::list<OSDMetricPayload> generate_test_instances() {
+
+  static std::list<OSDMetricPayload>
+  generate_test_instances()
+  {
     std::list<OSDMetricPayload> ls;
     ls.push_back(OSDMetricPayload());
     return ls;
@@ -52,24 +62,32 @@ struct OSDMetricPayload {
 };
 
 struct MDSMetricPayload {
-  static const MetricReportType METRIC_REPORT_TYPE = MetricReportType::METRIC_REPORT_TYPE_MDS;
+  static const MetricReportType METRIC_REPORT_TYPE =
+      MetricReportType::METRIC_REPORT_TYPE_MDS;
   MDSPerfMetricReport metric_report;
 
-  MDSMetricPayload() {
-  }
-  MDSMetricPayload(const MDSPerfMetricReport &metric_report)
-    : metric_report(metric_report) {
-  }
+  MDSMetricPayload() {}
 
-  DENC(MDSMetricPayload, v, p) {
+  MDSMetricPayload(const MDSPerfMetricReport& metric_report) :
+    metric_report(metric_report)
+  {}
+
+  DENC(MDSMetricPayload, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.metric_report, p);
     DENC_FINISH(p);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     metric_report.dump(f);
   }
-  static std::list<MDSMetricPayload> generate_test_instances() {
+
+  static std::list<MDSMetricPayload>
+  generate_test_instances()
+  {
     std::list<MDSMetricPayload> ls;
     ls.push_back(MDSMetricPayload());
     return ls;
@@ -77,15 +95,16 @@ struct MDSMetricPayload {
 };
 
 struct UnknownMetricPayload {
-  static const MetricReportType METRIC_REPORT_TYPE = static_cast<MetricReportType>(-1);
+  static const MetricReportType METRIC_REPORT_TYPE =
+      static_cast<MetricReportType>(-1);
 
-  UnknownMetricPayload() { }
+  UnknownMetricPayload() {}
 
-  DENC(UnknownMetricPayload, v, p) {
-    ceph_abort();
-  }
+  DENC(UnknownMetricPayload, v, p) { ceph_abort(); }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     ceph_abort();
   }
 };
@@ -94,61 +113,72 @@ WRITE_CLASS_DENC(OSDMetricPayload)
 WRITE_CLASS_DENC(MDSMetricPayload)
 WRITE_CLASS_DENC(UnknownMetricPayload)
 
-typedef std::variant<OSDMetricPayload,
-		     MDSMetricPayload,
-		     UnknownMetricPayload> MetricPayload;
+typedef std::variant<OSDMetricPayload, MDSMetricPayload, UnknownMetricPayload>
+    MetricPayload;
 
 class EncodeMetricPayloadVisitor : public boost::static_visitor<void> {
 public:
-  explicit EncodeMetricPayloadVisitor(ceph::buffer::list &bl) : m_bl(bl) {
-  }
+  explicit EncodeMetricPayloadVisitor(ceph::buffer::list& bl) :
+    m_bl(bl)
+  {}
 
   template <typename MetricPayload>
-  inline void operator()(const MetricPayload &payload) const {
+  inline void
+  operator()(const MetricPayload& payload) const
+  {
     using ceph::encode;
     encode(static_cast<uint32_t>(MetricPayload::METRIC_REPORT_TYPE), m_bl);
     encode(payload, m_bl);
   }
 
 private:
-  ceph::buffer::list &m_bl;
+  ceph::buffer::list& m_bl;
 };
 
 class DecodeMetricPayloadVisitor : public boost::static_visitor<void> {
 public:
-  DecodeMetricPayloadVisitor(ceph::buffer::list::const_iterator &iter) : m_iter(iter) {
-  }
+  DecodeMetricPayloadVisitor(ceph::buffer::list::const_iterator& iter) :
+    m_iter(iter)
+  {}
 
   template <typename MetricPayload>
-  inline void operator()(MetricPayload &payload) const {
+  inline void
+  operator()(MetricPayload& payload) const
+  {
     using ceph::decode;
     decode(payload, m_iter);
   }
 
 private:
-  ceph::buffer::list::const_iterator &m_iter;
+  ceph::buffer::list::const_iterator& m_iter;
 };
 
 struct MetricReportMessage {
   MetricPayload payload;
 
-  MetricReportMessage(const MetricPayload &payload = UnknownMetricPayload())
-    : payload(payload) {
-  }
+  MetricReportMessage(const MetricPayload& payload = UnknownMetricPayload()) :
+    payload(payload)
+  {}
 
-  bool should_encode(uint64_t features) const {
+  bool
+  should_encode(uint64_t features) const
+  {
     if (!HAVE_FEATURE(features, SERVER_PACIFIC) &&
-	std::get_if<MDSMetricPayload>(&payload)) {
+        std::get_if<MDSMetricPayload>(&payload)) {
       return false;
     }
     return true;
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     std::visit(EncodeMetricPayloadVisitor(bl), payload);
   }
 
-  void decode(ceph::buffer::list::const_iterator &iter) {
+  void
+  decode(ceph::buffer::list::const_iterator& iter)
+  {
     using ceph::decode;
 
     uint32_t metric_report_type;
@@ -164,24 +194,35 @@ struct MetricReportMessage {
     default:
       payload = UnknownMetricPayload();
       break;
+    }
+
+    std::visit(DecodeMetricPayloadVisitor(iter), payload);
   }
 
-  std::visit(DecodeMetricPayloadVisitor(iter), payload);
-  }
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->open_object_section("payload");
-    if (const OSDMetricPayload* osdPayload = std::get_if<OSDMetricPayload>(&payload)) {
+    if (const OSDMetricPayload* osdPayload =
+            std::get_if<OSDMetricPayload>(&payload)) {
       osdPayload->dump(f);
-    } else if (const MDSMetricPayload* mdsPayload = std::get_if<MDSMetricPayload>(&payload)) {
+    } else if (
+        const MDSMetricPayload* mdsPayload =
+            std::get_if<MDSMetricPayload>(&payload)) {
       mdsPayload->dump(f);
-    } else if (const UnknownMetricPayload* unknownPayload = std::get_if<UnknownMetricPayload>(&payload)) {
+    } else if (
+        const UnknownMetricPayload* unknownPayload =
+            std::get_if<UnknownMetricPayload>(&payload)) {
       unknownPayload->dump(f);
     } else {
       ceph_abort();
     }
     f->close_section();
   }
-  static std::list<MetricReportMessage> generate_test_instances() {
+
+  static std::list<MetricReportMessage>
+  generate_test_instances()
+  {
     std::list<MetricReportMessage> ls;
     ls.push_back(MetricReportMessage(OSDMetricPayload()));
     ls.push_back(MetricReportMessage(MDSMetricPayload()));
@@ -199,16 +240,19 @@ enum MetricConfigType : uint32_t {
 };
 
 struct OSDConfigPayload {
-  static const MetricConfigType METRIC_CONFIG_TYPE = MetricConfigType::METRIC_CONFIG_TYPE_OSD;
+  static const MetricConfigType METRIC_CONFIG_TYPE =
+      MetricConfigType::METRIC_CONFIG_TYPE_OSD;
   std::map<OSDPerfMetricQuery, OSDPerfMetricLimits> config;
 
-  OSDConfigPayload() {
-  }
-  OSDConfigPayload(const std::map<OSDPerfMetricQuery, OSDPerfMetricLimits> &config)
-    : config(config) {
-  }
+  OSDConfigPayload() {}
 
-  DENC(OSDConfigPayload, v, p) {
+  OSDConfigPayload(
+      const std::map<OSDPerfMetricQuery, OSDPerfMetricLimits>& config) :
+    config(config)
+  {}
+
+  DENC(OSDConfigPayload, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.config, p);
     DENC_FINISH(p);
@@ -216,22 +260,27 @@ struct OSDConfigPayload {
 };
 
 struct MDSConfigPayload {
-  static const MetricConfigType METRIC_CONFIG_TYPE = MetricConfigType::METRIC_CONFIG_TYPE_MDS;
+  static const MetricConfigType METRIC_CONFIG_TYPE =
+      MetricConfigType::METRIC_CONFIG_TYPE_MDS;
   std::map<MDSPerfMetricQuery, MDSPerfMetricLimits> config;
 
-  MDSConfigPayload() {
-  }
-  MDSConfigPayload(const std::map<MDSPerfMetricQuery, MDSPerfMetricLimits> &config)
-    : config(config) {
-  }
+  MDSConfigPayload() {}
 
-  DENC(MDSConfigPayload, v, p) {
+  MDSConfigPayload(
+      const std::map<MDSPerfMetricQuery, MDSPerfMetricLimits>& config) :
+    config(config)
+  {}
+
+  DENC(MDSConfigPayload, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.config, p);
     DENC_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->open_object_section("config");
     for (auto& i : config) {
       f->dump_object("query", i.first);
@@ -243,7 +292,10 @@ struct MDSConfigPayload {
     }
     f->close_section();
   }
-  static std::list<MDSConfigPayload> generate_test_instances() {
+
+  static std::list<MDSConfigPayload>
+  generate_test_instances()
+  {
     std::list<MDSConfigPayload> ls;
     ls.emplace_back();
     return ls;
@@ -251,74 +303,84 @@ struct MDSConfigPayload {
 };
 
 struct UnknownConfigPayload {
-  static const MetricConfigType METRIC_CONFIG_TYPE = static_cast<MetricConfigType>(-1);
+  static const MetricConfigType METRIC_CONFIG_TYPE =
+      static_cast<MetricConfigType>(-1);
 
-  UnknownConfigPayload() { }
+  UnknownConfigPayload() {}
 
-  DENC(UnknownConfigPayload, v, p) {
-    ceph_abort();
-  }
+  DENC(UnknownConfigPayload, v, p) { ceph_abort(); }
 };
 
 WRITE_CLASS_DENC(OSDConfigPayload)
 WRITE_CLASS_DENC(MDSConfigPayload)
 WRITE_CLASS_DENC(UnknownConfigPayload)
 
-typedef std::variant<OSDConfigPayload,
-		     MDSConfigPayload,
-		     UnknownConfigPayload> ConfigPayload;
+typedef std::variant<OSDConfigPayload, MDSConfigPayload, UnknownConfigPayload>
+    ConfigPayload;
 
 class EncodeConfigPayloadVisitor : public boost::static_visitor<void> {
 public:
-  explicit EncodeConfigPayloadVisitor(ceph::buffer::list &bl) : m_bl(bl) {
-  }
+  explicit EncodeConfigPayloadVisitor(ceph::buffer::list& bl) :
+    m_bl(bl)
+  {}
 
   template <typename ConfigPayload>
-  inline void operator()(const ConfigPayload &payload) const {
+  inline void
+  operator()(const ConfigPayload& payload) const
+  {
     using ceph::encode;
     encode(static_cast<uint32_t>(ConfigPayload::METRIC_CONFIG_TYPE), m_bl);
     encode(payload, m_bl);
   }
 
 private:
-  ceph::buffer::list &m_bl;
+  ceph::buffer::list& m_bl;
 };
 
 class DecodeConfigPayloadVisitor : public boost::static_visitor<void> {
 public:
-  DecodeConfigPayloadVisitor(ceph::buffer::list::const_iterator &iter) : m_iter(iter) {
-  }
+  DecodeConfigPayloadVisitor(ceph::buffer::list::const_iterator& iter) :
+    m_iter(iter)
+  {}
 
   template <typename ConfigPayload>
-  inline void operator()(ConfigPayload &payload) const {
+  inline void
+  operator()(ConfigPayload& payload) const
+  {
     using ceph::decode;
     decode(payload, m_iter);
   }
 
 private:
-  ceph::buffer::list::const_iterator &m_iter;
+  ceph::buffer::list::const_iterator& m_iter;
 };
 
 struct MetricConfigMessage {
   ConfigPayload payload;
 
-  MetricConfigMessage(const ConfigPayload &payload = UnknownConfigPayload())
-    : payload(payload) {
-  }
+  MetricConfigMessage(const ConfigPayload& payload = UnknownConfigPayload()) :
+    payload(payload)
+  {}
 
-  bool should_encode(uint64_t features) const {
+  bool
+  should_encode(uint64_t features) const
+  {
     if (!HAVE_FEATURE(features, SERVER_PACIFIC) &&
-	std::get_if<MDSConfigPayload>(&payload)) {
+        std::get_if<MDSConfigPayload>(&payload)) {
       return false;
     }
     return true;
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     std::visit(EncodeConfigPayloadVisitor(bl), payload);
   }
 
-  void decode(ceph::buffer::list::const_iterator &iter) {
+  void
+  decode(ceph::buffer::list::const_iterator& iter)
+  {
     using ceph::decode;
 
     uint32_t metric_config_type;
@@ -334,9 +396,9 @@ struct MetricConfigMessage {
     default:
       payload = UnknownConfigPayload();
       break;
-  }
+    }
 
-  std::visit(DecodeConfigPayloadVisitor(iter), payload);
+    std::visit(DecodeConfigPayloadVisitor(iter), payload);
   }
 };
 

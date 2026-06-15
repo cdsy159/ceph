@@ -1,10 +1,10 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/program_options.hpp>
 
-#include "global/global_init.h"
-#include "global/global_context.h"
-#include "librados/librados_asio.h"
 #include "common/ceph_argparse.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "librados/librados_asio.h"
 
 #include "ConsistencyChecker.h"
 
@@ -13,47 +13,49 @@
 namespace po = boost::program_options;
 using bufferlist = ceph::bufferlist;
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   env_to_vec(args);
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY, 0);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   common_init_finish(cct.get());
 
   librados::Rados rados;
   boost::asio::io_context asio;
   std::thread thread;
-  std::optional<boost::asio::executor_work_guard<
-                  boost::asio::io_context::executor_type>> guard;
+  std::optional<
+      boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
+      guard;
 
   po::options_description desc("ceph_ec_consistency_checker options");
 
-  desc.add_options()
-    ("help,h", "show help message")
-    ("pool,p", po::value<std::string>(), "pool name")
-    ("oid,i", po::value<std::string>(), "object io")
-    ("blocksize,b", po::value<int>(), "block size")
-    ("offset,o", po::value<int>(), "offset")
-    ("length,l", po::value<int>(), "length");
+  desc.add_options()("help,h", "show help message")(
+      "pool,p", po::value<std::string>(),
+      "pool name")("oid,i", po::value<std::string>(), "object io")(
+      "blocksize,b", po::value<int>(),
+      "block size")("offset,o", po::value<int>(), "offset")(
+      "length,l", po::value<int>(), "length");
 
   po::variables_map vm;
   std::vector<std::string> unrecognized_options;
   try {
-      auto parsed = po::command_line_parser(argc, argv)
-      .options(desc)
-      .allow_unregistered()
-      .run();
-      po::store(parsed, vm);
-      if (vm.count("help")) {
+    auto parsed = po::command_line_parser(argc, argv)
+                      .options(desc)
+                      .allow_unregistered()
+                      .run();
+    po::store(parsed, vm);
+    if (vm.count("help")) {
       std::cout << desc << std::endl;
       return 0;
-      }
-      po::notify(vm);
-      unrecognized_options = po::collect_unrecognized(parsed.options, po::include_positional);
-  } catch(const po::error& e) {
-      std::cerr << "error: " << e.what() << std::endl;
-      return 1;
+    }
+    po::notify(vm);
+    unrecognized_options =
+        po::collect_unrecognized(parsed.options, po::include_positional);
+  } catch (const po::error& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
   }
 
   auto pool = vm["pool"].as<std::string>();
@@ -69,7 +71,7 @@ int main(int argc, char **argv)
   ceph_assert(rc == 0);
 
   guard.emplace(boost::asio::make_work_guard(asio));
-  thread = make_named_thread("io_thread",[&asio] { asio.run(); });
+  thread = make_named_thread("io_thread", [&asio] { asio.run(); });
 
   try {
     auto checker = ceph::consistency::ConsistencyChecker(rados, asio, pool);

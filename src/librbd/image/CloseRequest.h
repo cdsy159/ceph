@@ -17,7 +17,9 @@ namespace image {
 template <typename ImageCtxT = ImageCtx>
 class CloseRequest {
 public:
-  static CloseRequest *create(ImageCtxT *image_ctx, Context *on_finish) {
+  static CloseRequest*
+  create(ImageCtxT* image_ctx, Context* on_finish)
+  {
     return new CloseRequest(image_ctx, on_finish);
   }
 
@@ -68,10 +70,10 @@ private:
    * @endverbatim
    */
 
-  CloseRequest(ImageCtxT *image_ctx, Context *on_finish);
+  CloseRequest(ImageCtxT* image_ctx, Context* on_finish);
 
-  ImageCtxT *m_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT* m_image_ctx;
+  Context* m_on_finish;
 
   int m_error_result;
 
@@ -112,7 +114,9 @@ private:
 
   void finish();
 
-  void save_result(int result) {
+  void
+  save_result(int result)
+  {
     if (m_error_result == 0 && result < 0) {
       m_error_result = result;
     }

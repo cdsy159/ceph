@@ -1,15 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "include/stringify.h"
+#include <sstream>
+
 #include "auth/Auth.h"
-#include "gtest/gtest.h"
+#include "auth/AuthRegistry.h"
 #include "common/ceph_context.h"
 #include "global/global_context.h"
-#include "auth/AuthRegistry.h"
-
-#include <sstream>
+#include "gtest/gtest.h"
+#include "include/stringify.h"
+#include "include/types.h"
 
 TEST(AuthRegistry, con_modes)
 {
@@ -17,14 +17,14 @@ TEST(AuthRegistry, con_modes)
   AuthRegistry reg(cct);
   std::vector<uint32_t> modes;
 
-  const std::vector<uint32_t> crc_secure = { CEPH_CON_MODE_CRC,
-					     CEPH_CON_MODE_SECURE };
-  const std::vector<uint32_t> secure_crc = { CEPH_CON_MODE_SECURE,
-					     CEPH_CON_MODE_CRC };
-  const std::vector<uint32_t> secure = { CEPH_CON_MODE_SECURE };
+  const std::vector<uint32_t> crc_secure = {
+      CEPH_CON_MODE_CRC, CEPH_CON_MODE_SECURE};
+  const std::vector<uint32_t> secure_crc = {
+      CEPH_CON_MODE_SECURE, CEPH_CON_MODE_CRC};
+  const std::vector<uint32_t> secure = {CEPH_CON_MODE_SECURE};
 
   cct->_conf.set_val(
-    "enable_experimental_unrecoverable_data_corrupting_features", "*");
+      "enable_experimental_unrecoverable_data_corrupting_features", "*");
 
   // baseline: everybody agrees
   cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);
@@ -40,9 +40,9 @@ TEST(AuthRegistry, con_modes)
   ASSERT_EQ(modes, crc_secure);
   reg.get_supported_modes(CEPH_ENTITY_TYPE_OSD, CEPH_AUTH_CEPHX, &modes);
   ASSERT_EQ(modes, crc_secure);
-  ASSERT_EQ((uint32_t)CEPH_CON_MODE_CRC, reg.pick_mode(CEPH_ENTITY_TYPE_OSD,
-						       CEPH_AUTH_CEPHX,
-						       crc_secure));
+  ASSERT_EQ(
+      (uint32_t)CEPH_CON_MODE_CRC,
+      reg.pick_mode(CEPH_ENTITY_TYPE_OSD, CEPH_AUTH_CEPHX, crc_secure));
 
   // what mons prefer secure, internal to mon cluster only
   cct->_conf.set_val("ms_mon_cluster_mode", "secure");
@@ -243,5 +243,5 @@ TEST(AuthRegistry, con_modes)
   ASSERT_EQ(modes, secure_crc);
 
   // back to normalish, for the benefit of the next test(s)
-  cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);  
+  cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);
 }

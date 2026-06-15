@@ -1,19 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
-#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
-#include "test/librados_test_stub/MockTestMemRadosClient.h"
+#include <list>
+
 #include "common/Cond.h"
 #include "common/ceph_mutex.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "librados/AioCompletionImpl.h"
 #include "librbd/Watcher.h"
 #include "librbd/watcher/RewatchRequest.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include <list>
+#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
+#include "test/librados_test_stub/MockTestMemRadosClient.h"
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 
@@ -22,14 +23,20 @@ namespace {
 struct MockWatcher : public Watcher {
   std::string oid;
 
-  MockWatcher(librados::IoCtx& ioctx, asio::ContextWQ *work_queue,
-              const std::string& oid)
-    : Watcher(ioctx, work_queue, oid) {
-  }
+  MockWatcher(
+      librados::IoCtx& ioctx,
+      asio::ContextWQ* work_queue,
+      const std::string& oid) :
+    Watcher(ioctx, work_queue, oid)
+  {}
 
-  virtual void handle_notify(uint64_t notify_id, uint64_t handle,
-                             uint64_t notifier_id, bufferlist &bl) {
-  }
+  virtual void
+  handle_notify(
+      uint64_t notify_id,
+      uint64_t handle,
+      uint64_t notifier_id,
+      bufferlist& bl)
+  {}
 };
 
 } // anonymous namespace
@@ -40,8 +47,8 @@ namespace librbd {
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::DoDefault;
-using ::testing::Invoke;
 using ::testing::InSequence;
+using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::WithArg;
@@ -49,9 +56,11 @@ using ::testing::WithArgs;
 
 class TestMockWatcher : public TestMockFixture {
 public:
-  TestMockWatcher() =  default;
+  TestMockWatcher() = default;
 
-  virtual void SetUp() {
+  virtual void
+  SetUp()
+  {
     TestMockFixture::SetUp();
 
     m_oid = get_temp_image_name();
@@ -60,64 +69,85 @@ public:
     ASSERT_EQ(0, m_ioctx.write_full(m_oid, bl));
   }
 
-  void expect_aio_watch(MockImageCtx &mock_image_ctx, int r,
-                        const std::function<void()> &action = std::function<void()>()) {
-    librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
-    librados::MockTestMemRadosClient *mock_rados_client(
-      mock_io_ctx.get_mock_rados_client());
+  void
+  expect_aio_watch(
+      MockImageCtx& mock_image_ctx,
+      int r,
+      const std::function<void()>& action = std::function<void()>())
+  {
+    librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
+    librados::MockTestMemRadosClient* mock_rados_client(
+        mock_io_ctx.get_mock_rados_client());
 
     EXPECT_CALL(mock_io_ctx, aio_watch(m_oid, _, _, _))
-      .WillOnce(DoAll(WithArgs<1, 2, 3>(Invoke([this, &mock_image_ctx, mock_rados_client, r, action](
-              librados::AioCompletionImpl *c, uint64_t *cookie,
-              librados::WatchCtx2 *watch_ctx) {
-          if (r == 0) {
-            *cookie = 234U;
-            m_watch_ctx = watch_ctx;
-          }
+        .WillOnce(DoAll(
+            WithArgs<1, 2, 3>(
+                Invoke([this, &mock_image_ctx, mock_rados_client, r, action](
+                           librados::AioCompletionImpl* c, uint64_t* cookie,
+                           librados::WatchCtx2* watch_ctx) {
+                  if (r == 0) {
+                    *cookie = 234U;
+                    m_watch_ctx = watch_ctx;
+                  }
 
-          c->get();
-          mock_image_ctx.image_ctx->op_work_queue->queue(new LambdaContext([mock_rados_client, action, c](int r) {
-              if (action) {
-                action();
-              }
+                  c->get();
+                  mock_image_ctx.image_ctx->op_work_queue->queue(
+                      new LambdaContext([mock_rados_client, action, c](int r) {
+                        if (action) {
+                          action();
+                        }
 
-              mock_rados_client->finish_aio_completion(c, r);
-            }), r);
-          notify_watch();
-        })), Return(0)));
+                        mock_rados_client->finish_aio_completion(c, r);
+                      }),
+                      r);
+                  notify_watch();
+                })),
+            Return(0)));
   }
 
-  void expect_aio_unwatch(MockImageCtx &mock_image_ctx, int r,
-                          const std::function<void()> &action = std::function<void()>()) {
-    librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
-    librados::MockTestMemRadosClient *mock_rados_client(
-      mock_io_ctx.get_mock_rados_client());
+  void
+  expect_aio_unwatch(
+      MockImageCtx& mock_image_ctx,
+      int r,
+      const std::function<void()>& action = std::function<void()>())
+  {
+    librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
+    librados::MockTestMemRadosClient* mock_rados_client(
+        mock_io_ctx.get_mock_rados_client());
 
     EXPECT_CALL(mock_io_ctx, aio_unwatch(_, _))
-      .WillOnce(DoAll(Invoke([this, &mock_image_ctx, mock_rados_client, r, action](
-              uint64_t handle, librados::AioCompletionImpl *c) {
-          c->get();
-          mock_image_ctx.image_ctx->op_work_queue->queue(new LambdaContext([mock_rados_client, action, c](int r) {
-              if (action) {
-                action();
-              }
+        .WillOnce(DoAll(
+            Invoke([this, &mock_image_ctx, mock_rados_client, r,
+                    action](uint64_t handle, librados::AioCompletionImpl* c) {
+              c->get();
+              mock_image_ctx.image_ctx->op_work_queue->queue(
+                  new LambdaContext([mock_rados_client, action, c](int r) {
+                    if (action) {
+                      action();
+                    }
 
-              mock_rados_client->finish_aio_completion(c, r);
-            }), r);
-          notify_watch();
-        }), Return(0)));
+                    mock_rados_client->finish_aio_completion(c, r);
+                  }),
+                  r);
+              notify_watch();
+            }),
+            Return(0)));
   }
 
   std::string m_oid;
-  librados::WatchCtx2 *m_watch_ctx = nullptr;
+  librados::WatchCtx2* m_watch_ctx = nullptr;
 
-  void notify_watch() {
+  void
+  notify_watch()
+  {
     std::lock_guard locker{m_lock};
     ++m_watch_count;
     m_cond.notify_all();
   }
 
-  bool wait_for_watch(MockImageCtx &mock_image_ctx, size_t count) {
+  bool
+  wait_for_watch(MockImageCtx& mock_image_ctx, size_t count)
+  {
     using namespace std::chrono_literals;
     std::unique_lock locker{m_lock};
     while (m_watch_count < count) {
@@ -134,8 +164,9 @@ public:
   size_t m_watch_count = 0;
 };
 
-TEST_F(TestMockWatcher, Success) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, Success)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -154,8 +185,9 @@ TEST_F(TestMockWatcher, Success) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, RegisterError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, RegisterError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -169,8 +201,9 @@ TEST_F(TestMockWatcher, RegisterError) {
   ASSERT_EQ(-EINVAL, register_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, UnregisterError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, UnregisterError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -189,8 +222,9 @@ TEST_F(TestMockWatcher, UnregisterError) {
   ASSERT_EQ(-EINVAL, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, Reregister) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, Reregister)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -219,8 +253,9 @@ TEST_F(TestMockWatcher, Reregister) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterUnwatchError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterUnwatchError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -249,8 +284,9 @@ TEST_F(TestMockWatcher, ReregisterUnwatchError) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterWatchError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterWatchError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -280,8 +316,9 @@ TEST_F(TestMockWatcher, ReregisterWatchError) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterWatchBlocklist) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterWatchBlocklist)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -311,8 +348,9 @@ TEST_F(TestMockWatcher, ReregisterWatchBlocklist) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterUnwatchPendingUnregister) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterUnwatchPendingUnregister)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -325,10 +363,10 @@ TEST_F(TestMockWatcher, ReregisterUnwatchPendingUnregister) {
 
   // inject an unregister
   C_SaferCond unregister_ctx;
-  expect_aio_unwatch(mock_image_ctx, -EBLOCKLISTED,
-                     [&mock_image_watcher, &unregister_ctx]() {
-      mock_image_watcher.unregister_watch(&unregister_ctx);
-    });
+  expect_aio_unwatch(
+      mock_image_ctx, -EBLOCKLISTED, [&mock_image_watcher, &unregister_ctx]() {
+        mock_image_watcher.unregister_watch(&unregister_ctx);
+      });
 
   C_SaferCond register_ctx;
   mock_image_watcher.register_watch(&register_ctx);
@@ -340,8 +378,9 @@ TEST_F(TestMockWatcher, ReregisterUnwatchPendingUnregister) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterWatchPendingUnregister) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterWatchPendingUnregister)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -355,10 +394,10 @@ TEST_F(TestMockWatcher, ReregisterWatchPendingUnregister) {
 
   // inject an unregister
   C_SaferCond unregister_ctx;
-  expect_aio_watch(mock_image_ctx, -ESHUTDOWN,
-                   [&mock_image_watcher, &unregister_ctx]() {
-      mock_image_watcher.unregister_watch(&unregister_ctx);
-    });
+  expect_aio_watch(
+      mock_image_ctx, -ESHUTDOWN, [&mock_image_watcher, &unregister_ctx]() {
+        mock_image_watcher.unregister_watch(&unregister_ctx);
+      });
 
   C_SaferCond register_ctx;
   mock_image_watcher.register_watch(&register_ctx);
@@ -370,8 +409,9 @@ TEST_F(TestMockWatcher, ReregisterWatchPendingUnregister) {
   ASSERT_EQ(0, unregister_ctx.wait());
 }
 
-TEST_F(TestMockWatcher, ReregisterPendingUnregister) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcher, ReregisterPendingUnregister)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -385,10 +425,9 @@ TEST_F(TestMockWatcher, ReregisterPendingUnregister) {
 
   // inject an unregister
   C_SaferCond unregister_ctx;
-  expect_aio_watch(mock_image_ctx, 0,
-                   [&mock_image_watcher, &unregister_ctx]() {
-      mock_image_watcher.unregister_watch(&unregister_ctx);
-    });
+  expect_aio_watch(mock_image_ctx, 0, [&mock_image_watcher, &unregister_ctx]() {
+    mock_image_watcher.unregister_watch(&unregister_ctx);
+  });
 
   expect_aio_unwatch(mock_image_ctx, 0);
 

@@ -13,4 +13,3 @@ struct req_context {
   optional_yield y;
   const jspan* span;
 };
-

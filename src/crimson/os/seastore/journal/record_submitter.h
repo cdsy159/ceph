@@ -3,28 +3,28 @@
 
 #pragma once
 
-#include <optional>
 #include <seastar/core/circular_buffer.hh>
 #include <seastar/core/metrics.hh>
 #include <seastar/core/shared_future.hh>
 
-#include "include/buffer.h"
+#include <optional>
 
 #include "crimson/common/errorator.h"
 #include "crimson/os/seastore/segment_manager_group.h"
 #include "crimson/os/seastore/segment_seq_allocator.h"
+#include "include/buffer.h"
 
 namespace crimson::os::seastore {
-  class SegmentProvider;
-  class JournalTrimmer;
-}
+class SegmentProvider;
+class JournalTrimmer;
+} // namespace crimson::os::seastore
 
 namespace crimson::os::seastore::journal {
 
 class JournalAllocator {
 public:
   virtual const std::string& get_name() const = 0;
-  
+
   virtual void update_modify_time(record_t& record) = 0;
 
   virtual extent_len_t get_block_size() const = 0;
@@ -32,7 +32,7 @@ public:
   using close_ertr = base_ertr;
   virtual close_ertr::future<> close() = 0;
 
-  virtual segment_nonce_t get_nonce() const  = 0;
+  virtual segment_nonce_t get_nonce() const = 0;
 
   virtual journal_seq_t get_written_to() const = 0;
 
@@ -40,7 +40,7 @@ public:
   virtual write_ertr::future<> write(ceph::bufferlist&& to_write) = 0;
 
   virtual bool can_write() const = 0;
-  
+
   using roll_ertr = base_ertr;
   virtual roll_ertr::future<> roll() = 0;
 
@@ -49,7 +49,6 @@ public:
   using open_ertr = base_ertr;
   using open_ret = open_ertr::future<journal_seq_t>;
   virtual open_ret open(bool is_mkfs) = 0;
-
 };
 
 /**
@@ -71,52 +70,73 @@ public:
   RecordBatch& operator=(RecordBatch&&) = delete;
   RecordBatch& operator=(const RecordBatch&) = delete;
 
-  bool is_empty() const {
+  bool
+  is_empty() const
+  {
     return state == state_t::EMPTY;
   }
 
-  bool is_pending() const {
+  bool
+  is_pending() const
+  {
     return state == state_t::PENDING;
   }
 
-  bool is_submitting() const {
+  bool
+  is_submitting() const
+  {
     return state == state_t::SUBMITTING;
   }
 
-  std::size_t get_index() const {
+  std::size_t
+  get_index() const
+  {
     return index;
   }
 
-  std::size_t get_num_records() const {
+  std::size_t
+  get_num_records() const
+  {
     return pending.get_size();
   }
 
-  std::size_t get_batch_capacity() const {
+  std::size_t
+  get_batch_capacity() const
+  {
     return batch_capacity;
   }
 
-  const record_group_size_t& get_submit_size() const {
+  const record_group_size_t&
+  get_submit_size() const
+  {
     assert(state != state_t::EMPTY);
     return pending.size;
   }
 
-  std::optional<journal_seq_t> get_write_base() const {
+  std::optional<journal_seq_t>
+  get_write_base() const
+  {
     return write_base;
   }
 
-  bool needs_flush() const {
+  bool
+  needs_flush() const
+  {
     assert(state != state_t::SUBMITTING);
     assert(pending.get_size() <= batch_capacity);
     if (state == state_t::EMPTY) {
       return false;
     } else {
       assert(state == state_t::PENDING);
-      return (pending.get_size() >= batch_capacity ||
-              pending.size.get_encoded_length() > batch_flush_size);
+      return (
+          pending.get_size() >= batch_capacity ||
+          pending.size.get_encoded_length() > batch_flush_size);
     }
   }
 
-  const record_group_t& get_record_group() const {
+  const record_group_t&
+  get_record_group() const
+  {
     return pending;
   }
 
@@ -124,19 +144,22 @@ public:
     record_group_size_t submit_size;
     bool is_full;
   };
-  evaluation_t evaluate_submit(
-      const record_size_t& rsize,
-      extent_len_t block_size) const {
+
+  evaluation_t
+  evaluate_submit(const record_size_t& rsize, extent_len_t block_size) const
+  {
     assert(!needs_flush());
-    auto submit_size = pending.size.get_encoded_length_after(
-        rsize, block_size);
+    auto submit_size = pending.size.get_encoded_length_after(rsize, block_size);
     bool is_full = submit_size.get_encoded_length() > batch_flush_size;
     return {submit_size, is_full};
   }
 
-  void initialize(std::size_t i,
-                  std::size_t _batch_capacity,
-                  std::size_t _batch_flush_size) {
+  void
+  initialize(
+      std::size_t i,
+      std::size_t _batch_capacity,
+      std::size_t _batch_flush_size)
+  {
     ceph_assert(_batch_capacity > 0);
     index = i;
     batch_capacity = _batch_capacity;
@@ -150,12 +173,14 @@ public:
   // write_base must be assigned when the state is empty
   using add_pending_ertr = JournalAllocator::write_ertr;
   using add_pending_fut = add_pending_ertr::future<record_locator_t>;
+
   struct add_pending_ret_t {
     // The supposed record base if no metadata,
     // only useful in case of ool.
     journal_seq_t record_base_regardless_md;
     add_pending_fut future;
   };
+
   add_pending_ret_t add_pending(
       const std::string& name,
       record_t&&,
@@ -167,6 +192,7 @@ public:
     journal_seq_t write_base;
     ceph::bufferlist bl;
   };
+
   encode_ret_t encode_batch(
       const journal_seq_t& committed_to,
       segment_nonce_t segment_nonce);
@@ -189,11 +215,10 @@ public:
       segment_nonce_t segment_nonce);
 
 private:
-  record_group_size_t get_encoded_length_after(
-      const record_t& record,
-      extent_len_t block_size) const {
-    return pending.size.get_encoded_length_after(
-        record.size, block_size);
+  record_group_size_t
+  get_encoded_length_after(const record_t& record, extent_len_t block_size) const
+  {
+    return pending.size.get_encoded_length_after(record.size, block_size);
   }
 
   state_t state = state_t::EMPTY;
@@ -212,8 +237,9 @@ private:
     extent_len_t write_length;
     extent_len_t mdlength;
   };
+
   using maybe_promise_result_t = std::optional<promise_result_t>;
-  std::optional<seastar::shared_promise<maybe_promise_result_t> > io_promise;
+  std::optional<seastar::shared_promise<maybe_promise_result_t>> io_promise;
 };
 
 /**
@@ -231,23 +257,28 @@ private:
 class RecordSubmitter {
   enum class state_t {
     IDLE = 0, // outstanding_io == 0
-    PENDING,  // outstanding_io <  io_depth_limit
-    FULL      // outstanding_io == io_depth_limit
+    PENDING, // outstanding_io <  io_depth_limit
+    FULL // outstanding_io == io_depth_limit
     // OVERFLOW: outstanding_io >  io_depth_limit is impossible
   };
 
 public:
-  RecordSubmitter(std::size_t io_depth,
-                  std::size_t batch_capacity,
-                  std::size_t batch_flush_size,
-                  double preferred_fullness,
-		  JournalAllocator&);
+  RecordSubmitter(
+      std::size_t io_depth,
+      std::size_t batch_capacity,
+      std::size_t batch_flush_size,
+      double preferred_fullness,
+      JournalAllocator&);
 
-  const std::string& get_name() const {
+  const std::string&
+  get_name() const
+  {
     return journal_allocator.get_name();
   }
 
-  journal_seq_t get_committed_to() const {
+  journal_seq_t
+  get_committed_to() const
+  {
     return committed_to;
   }
 
@@ -277,12 +308,13 @@ public:
 
   // when available, submit the record if possible
   using submit_ret = RecordBatch::add_pending_ret_t;
-  submit_ret submit(record_t&&, bool with_atomic_roll_segment=false);
+  submit_ret submit(record_t&&, bool with_atomic_roll_segment = false);
 
-  void update_committed_to(const journal_seq_t& new_committed_to) {
+  void
+  update_committed_to(const journal_seq_t& new_committed_to)
+  {
     assert(new_committed_to != JOURNAL_SEQ_NULL);
-    assert(committed_to == JOURNAL_SEQ_NULL ||
-           committed_to <= new_committed_to);
+    assert(committed_to == JOURNAL_SEQ_NULL || committed_to <= new_committed_to);
     committed_to = new_committed_to;
   }
 
@@ -297,7 +329,9 @@ public:
 private:
   void update_state();
 
-  void increment_io() {
+  void
+  increment_io()
+  {
     ++num_outstanding_io;
     stats.io_depth_stats.increment(num_outstanding_io);
     update_state();
@@ -305,7 +339,9 @@ private:
 
   void decrement_io_with_flush();
 
-  void pop_free_batch() {
+  void
+  pop_free_batch()
+  {
     assert(p_current_batch == nullptr);
     assert(!free_batch_ptrs.empty());
     p_current_batch = free_batch_ptrs.front();
@@ -336,11 +372,11 @@ private:
   seastar::circular_buffer<RecordBatch*> free_batch_ptrs;
 
   // blocked for rolling or lack of resource
-  std::optional<seastar::shared_promise<> > wait_available_promise;
+  std::optional<seastar::shared_promise<>> wait_available_promise;
   bool has_io_error = false;
   // when needs flush but io depth is full,
   // wait for decrement_io_with_flush()
-  std::optional<seastar::promise<> > wait_unfull_flush_promise;
+  std::optional<seastar::promise<>> wait_unfull_flush_promise;
 
   writer_stats_t stats;
   mutable writer_stats_t last_stats;
@@ -348,4 +384,4 @@ private:
   seastar::metrics::metric_group metrics;
 };
 
-}
+} // namespace crimson::os::seastore::journal

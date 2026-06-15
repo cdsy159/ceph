@@ -17,7 +17,9 @@
 
 #include <cstdint>
 #include <limits>
+
 #include <boost/intrusive_ptr.hpp>
+
 #include "common/async/cancel_on_error.h"
 #include "common/async/detail/co_throttle_impl.h"
 
@@ -59,22 +61,25 @@ class co_throttle {
   using impl_type = detail::co_throttle_impl<Executor>;
   boost::intrusive_ptr<impl_type> impl;
 
- public:
+public:
   using executor_type = Executor;
-  executor_type get_executor() const noexcept { return impl->get_executor(); }
+
+  executor_type
+  get_executor() const noexcept
+  {
+    return impl->get_executor();
+  }
 
   static constexpr size_t max_limit = std::numeric_limits<size_t>::max();
 
-  co_throttle(const executor_type& ex, size_t limit,
-              cancel_on_error on_error = cancel_on_error::none)
-    : impl(new impl_type(ex, limit, on_error))
-  {
-  }
+  co_throttle(
+      const executor_type& ex,
+      size_t limit,
+      cancel_on_error on_error = cancel_on_error::none) :
+    impl(new impl_type(ex, limit, on_error))
+  {}
 
-  ~co_throttle()
-  {
-    cancel();
-  }
+  ~co_throttle() { cancel(); }
 
   co_throttle(const co_throttle&) = delete;
   co_throttle& operator=(const co_throttle&) = delete;
@@ -89,8 +94,10 @@ class co_throttle {
   /// exception to rethrow, it will spawn \cr first only in the case of
   /// cancel_on_error::none. New coroutines can be spawned by later calls to
   /// spawn() regardless of cancel_on_error.
-  auto spawn(boost::asio::awaitable<void, executor_type> cr,
-             size_t smaller_limit = max_limit)
+  auto
+  spawn(
+      boost::asio::awaitable<void, executor_type> cr,
+      size_t smaller_limit = max_limit)
       -> boost::asio::awaitable<void, executor_type>
   {
     return impl->spawn(std::move(cr), smaller_limit);
@@ -98,14 +105,15 @@ class co_throttle {
 
   /// Wait for all associated coroutines to complete. If any of these coroutines
   /// exit with an exception, the first of those exceptions is rethrown.
-  auto wait()
-      -> boost::asio::awaitable<void, executor_type>
+  auto
+  wait() -> boost::asio::awaitable<void, executor_type>
   {
     return impl->wait();
   }
 
   /// Cancel all associated coroutines.
-  void cancel()
+  void
+  cancel()
   {
     impl->cancel();
   }

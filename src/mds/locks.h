@@ -3,7 +3,7 @@
 #include <stdbool.h>
 
 struct sm_state_t {
-  int next;         // 0 if stable
+  int next; // 0 if stable
   bool loner;
   int replica_state;
   char can_read;
@@ -20,25 +20,23 @@ struct sm_state_t {
 };
 
 struct sm_t {
-  const struct sm_state_t *states;
+  const struct sm_state_t* states;
   int allowed_ever_auth;
   int allowed_ever_replica;
   int careful;
   int can_remote_xlock;
 };
 
-#define ANY  1 // auth or replica
+#define ANY 1 // auth or replica
 #define AUTH 2 // auth only
-#define XCL  3 // auth or exclusive client
+#define XCL 3 // auth or exclusive client
 //#define FW   4 // fw to auth, if replica
-#define REQ  5 // req state change from auth, if replica
+#define REQ 5 // req state change from auth, if replica
 
 extern const struct sm_t sm_simplelock;
 extern const struct sm_t sm_filelock;
 extern const struct sm_t sm_scatterlock;
 extern const struct sm_t sm_locallock;
-
-
 
 // -- lock states --
 // sync <-> lock
@@ -46,25 +44,25 @@ enum {
   LOCK_UNDEF = 0,
 
   //                                    auth               rep
-  LOCK_SYNC,    // AR   R . RD L . / C .   R RD L . / C . 
-  LOCK_LOCK,    // AR   R . .. . X / . .   . .. . . / . .
+  LOCK_SYNC, // AR   R . RD L . / C .   R RD L . / C .
+  LOCK_LOCK, // AR   R . .. . X / . .   . .. . . / . .
 
-  LOCK_PREXLOCK,    // A    . . .. . . / . .   (lock)
-  LOCK_XLOCK,       // A    . . .. . . / . .   (lock)
-  LOCK_XLOCKDONE,   // A    r p rd l x / . .   (lock)  <-- by same client only!!
-  LOCK_XLOCKSNAP,   // also revoke Fb
+  LOCK_PREXLOCK, // A    . . .. . . / . .   (lock)
+  LOCK_XLOCK, // A    . . .. . . / . .   (lock)
+  LOCK_XLOCKDONE, // A    r p rd l x / . .   (lock)  <-- by same client only!!
+  LOCK_XLOCKSNAP, // also revoke Fb
   LOCK_LOCK_XLOCK,
 
-  LOCK_SYNC_LOCK,    // AR   R . .. . . / . .   R .. . . / . .
-  LOCK_LOCK_SYNC,    // A    R p rd l . / . .   (lock)  <-- lc by same client only
+  LOCK_SYNC_LOCK, // AR   R . .. . . / . .   R .. . . / . .
+  LOCK_LOCK_SYNC, // A    R p rd l . / . .   (lock)  <-- lc by same client only
 
-  LOCK_EXCL,         // A    . . .. . . / c x * (lock)
-  LOCK_EXCL_SYNC,    // A    . . .. . . / c . * (lock)
-  LOCK_EXCL_LOCK,    // A    . . .. . . / . .   (lock)
-  LOCK_SYNC_EXCL,    // Ar   R . .. . . / c . * (sync->lock)
-  LOCK_LOCK_EXCL,    // A    R . .. . . / . .   (lock)
+  LOCK_EXCL, // A    . . .. . . / c x * (lock)
+  LOCK_EXCL_SYNC, // A    . . .. . . / c . * (lock)
+  LOCK_EXCL_LOCK, // A    . . .. . . / . .   (lock)
+  LOCK_SYNC_EXCL, // Ar   R . .. . . / c . * (sync->lock)
+  LOCK_LOCK_EXCL, // A    R . .. . . / . .   (lock)
 
-  LOCK_REMOTEXLOCK,  // on NON-auth
+  LOCK_REMOTEXLOCK, // on NON-auth
 
   // * = loner mode
 
@@ -104,23 +102,23 @@ enum {
 // lock actions
 
 // for replicas
-#define LOCK_AC_SYNC        -1
-#define LOCK_AC_MIX         -2
-#define LOCK_AC_LOCK        -3
+#define LOCK_AC_SYNC -1
+#define LOCK_AC_MIX -2
+#define LOCK_AC_LOCK -3
 #define LOCK_AC_LOCKFLUSHED -4
 
 // for auth
-#define LOCK_AC_SYNCACK      1
-#define LOCK_AC_MIXACK     2
-#define LOCK_AC_LOCKACK      3
+#define LOCK_AC_SYNCACK 1
+#define LOCK_AC_MIXACK 2
+#define LOCK_AC_LOCKACK 3
 
-#define LOCK_AC_REQSCATTER   7
+#define LOCK_AC_REQSCATTER 7
 #define LOCK_AC_REQUNSCATTER 8
-#define LOCK_AC_NUDGE        9
-#define LOCK_AC_REQRDLOCK   10
+#define LOCK_AC_NUDGE 9
+#define LOCK_AC_REQRDLOCK 10
 
-#define LOCK_AC_FOR_REPLICA(a)  ((a) < 0)
-#define LOCK_AC_FOR_AUTH(a)     ((a) > 0)
+#define LOCK_AC_FOR_REPLICA(a) ((a) < 0)
+#define LOCK_AC_FOR_AUTH(a) ((a) > 0)
 
 
 #endif

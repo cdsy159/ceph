@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,18 +17,24 @@
 #ifndef CEPH_INOTABLE_H
 #define CEPH_INOTABLE_H
 
-#include "MDSTable.h"
 #include "include/fs_types.h" // for inodeno_t
 #include "include/interval_set.h"
+
+#include "MDSTable.h"
 
 class MDSRank;
 
 class InoTable : public MDSTable {
- public:
-  explicit InoTable(MDSRank *m) : MDSTable(m, "inotable", true) {}
-  InoTable() : MDSTable(NULL, "inotable", true) {}
+public:
+  explicit InoTable(MDSRank* m) :
+    MDSTable(m, "inotable", true)
+  {}
 
-  inodeno_t project_alloc_id(inodeno_t id=0);
+  InoTable() :
+    MDSTable(NULL, "inotable", true)
+  {}
+
+  inodeno_t project_alloc_id(inodeno_t id = 0);
   void apply_alloc_id(inodeno_t id);
 
   void project_alloc_ids(interval_set<inodeno_t>& inos, int want);
@@ -44,16 +50,22 @@ class InoTable : public MDSTable {
   bool repair(inodeno_t id);
   bool is_marked_free(inodeno_t id) const;
   bool intersects_free(
-      const interval_set<inodeno_t> &other,
-      interval_set<inodeno_t> *intersection);
+      const interval_set<inodeno_t>& other,
+      interval_set<inodeno_t>* intersection);
 
   void reset_state() override;
-  void encode_state(bufferlist& bl) const override {
+
+  void
+  encode_state(bufferlist& bl) const override
+  {
     ENCODE_START(2, 2, bl);
     encode(free, bl);
     ENCODE_FINISH(bl);
   }
-  void decode_state(bufferlist::const_iterator& bl) override {
+
+  void
+  decode_state(bufferlist::const_iterator& bl) override
+  {
     DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
     decode(free, bl);
     projected_free = free;
@@ -61,13 +73,19 @@ class InoTable : public MDSTable {
   }
 
   // To permit enc/decoding in isolation in dencoder
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     encode_state(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     decode_state(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<InoTable> generate_test_instances();
 
   void skip_inos(inodeno_t i);
@@ -78,7 +96,8 @@ class InoTable : public MDSTable {
    *
    * @returns true if the inode was previously marked as free
    */
-  bool force_consume(inodeno_t ino)
+  bool
+  force_consume(inodeno_t ino)
   {
     if (free.contains(ino)) {
       free.erase(ino);
@@ -97,8 +116,8 @@ class InoTable : public MDSTable {
    */
   bool force_consume_to(inodeno_t ino);
 
- private:
-  interval_set<inodeno_t> free;   // unused ids
+private:
+  interval_set<inodeno_t> free; // unused ids
   interval_set<inodeno_t> projected_free;
 };
 WRITE_CLASS_ENCODER(InoTable)

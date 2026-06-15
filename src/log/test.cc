@@ -1,18 +1,16 @@
 #include <gtest/gtest.h>
-
-#include "log/Log.h"
-#include "common/Clock.h"
-#include "include/coredumpctl.h"
-#include "SubsystemMap.h"
-
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include "global/global_context.h"
-#include "common/dout.h"
-
+#include <limits.h>
 #include <unistd.h>
 
-#include <limits.h>
+#include "common/Clock.h"
+#include "common/ceph_argparse.h"
+#include "common/dout.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "include/coredumpctl.h"
+#include "log/Log.h"
+
+#include "SubsystemMap.h"
 
 using namespace std;
 using namespace ceph::logging;
@@ -34,22 +32,22 @@ TEST(Log, Simple)
 
   Log log(&subs);
   log.start();
- 
+
   log.set_log_file("foo");
   log.reopen_log_file();
 
   log.set_stderr_level(5, -1);
 
 
-  for (int i=0; i<100; i++) {
+  for (int i = 0; i < 100; i++) {
     int sys = i % 4;
-    int l = 5 + (i%4);
+    int l = 5 + (i % 4);
     if (subs.should_gather(sys, l)) {
       MutableEntry e(l, sys);
       log.submit_entry(std::move(e));
     }
   }
-  
+
   log.flush();
 
   log.dump_recent();
@@ -98,7 +96,7 @@ TEST(Log, ManyNoGather)
   log.start();
   log.set_log_file("big");
   log.reopen_log_file();
-  for (int i=0; i<many; i++) {
+  for (int i = 0; i < many; i++) {
     int l = 10;
     if (subs.should_gather(1, l))
       log.submit_entry(MutableEntry(1, 0));
@@ -106,7 +104,6 @@ TEST(Log, ManyNoGather)
   log.flush();
   log.stop();
 }
-
 
 TEST(Log, ManyGatherLog)
 {
@@ -117,11 +114,12 @@ TEST(Log, ManyGatherLog)
   log.start();
   log.set_log_file("big");
   log.reopen_log_file();
-  for (int i=0; i<many; i++) {
+  for (int i = 0; i < many; i++) {
     int l = 10;
     if (subs.should_gather(1, l)) {
       MutableEntry e(l, 1);
-      e.get_ostream() << "this is a long string asdf asdf asdf asdf asdf asdf asd fasd fasdf ";
+      e.get_ostream() << "this is a long string asdf asdf asdf asdf asdf asdf "
+                         "asd fasd fasdf ";
       log.submit_entry(std::move(e));
     }
   }
@@ -138,7 +136,7 @@ TEST(Log, ManyGatherLogStackSpillover)
   log.start();
   log.set_log_file("big");
   log.reopen_log_file();
-  for (int i=0; i<many; i++) {
+  for (int i = 0; i < many; i++) {
     int l = 10;
     if (subs.should_gather(1, l)) {
       MutableEntry e(l, 1);
@@ -161,7 +159,7 @@ TEST(Log, ManyGather)
   log.start();
   log.set_log_file("big");
   log.reopen_log_file();
-  for (int i=0; i<many; i++) {
+  for (int i = 0; i < many; i++) {
     int l = 10;
     if (subs.should_gather(1, l))
       log.submit_entry(MutableEntry(l, 1));
@@ -170,7 +168,8 @@ TEST(Log, ManyGather)
   log.stop();
 }
 
-static void readpipe(int fd, int verify)
+static void
+readpipe(int fd, int verify)
 {
   while (1) {
     /* Use larger buffer on receiver as Linux will allow pipes buffers to
@@ -195,7 +194,8 @@ static void readpipe(int fd, int verify)
           _exit(3);
         }
       }
-    } else _exit(100);
+    } else
+      _exit(100);
     usleep(500);
   }
 }
@@ -224,7 +224,7 @@ TEST(Log, StderrPipeAtomic)
   log.set_stderr_fd(pfd[1]);
   log.set_stderr_level(1, 20);
   /* -128 for prefix space */
-  for (int i = 0; i < PIPE_BUF-128; i++) {
+  for (int i = 0; i < PIPE_BUF - 128; i++) {
     MutableEntry e(1, 1);
     auto& s = e.get_ostream();
     for (int j = 0; j < i; j++) {
@@ -269,7 +269,7 @@ TEST(Log, StderrPipeBig)
   log.set_stderr_fd(pfd[1]);
   log.set_stderr_level(1, 20);
   /* -128 for prefix space */
-  for (int i = 0; i < PIPE_BUF*2; i++) {
+  for (int i = 0; i < PIPE_BUF * 2; i++) {
     MutableEntry e(1, 1);
     auto& s = e.get_ostream();
     for (int j = 0; j < i; j++) {
@@ -289,7 +289,8 @@ TEST(Log, StderrPipeBig)
   ASSERT_EQ(WEXITSTATUS(status), 0);
 }
 
-void do_segv()
+void
+do_segv()
 {
   SubsystemMap subs;
   subs.set_log_level(1, 20);
@@ -303,17 +304,14 @@ void do_segv()
   MutableEntry e(10, 1);
   {
     PrCtl unset_dumpable;
-    log.submit_entry(std::move(e));  // this should segv
+    log.submit_entry(std::move(e)); // this should segv
   }
 
   log.flush();
   log.stop();
 }
 
-TEST(Log, InternalSegv)
-{
-  ASSERT_DEATH(do_segv(), ".*");
-}
+TEST(Log, InternalSegv) { ASSERT_DEATH(do_segv(), ".*"); }
 
 TEST(Log, LargeLog)
 {
@@ -406,35 +404,40 @@ TEST(Log, TimeFormat)
 
 #define dout_subsys ceph_subsys_context
 
-template <int depth, int x> struct do_log
-{
+template <int depth, int x>
+struct do_log {
   void log(CephContext* cct);
 };
 
-template <int x> struct do_log<12, x>
-{
+template <int x>
+struct do_log<12, x> {
   void log(CephContext* cct);
 };
 
-template<int depth, int x> void do_log<depth,x>::log(CephContext* cct)
+template <int depth, int x>
+void
+do_log<depth, x>::log(CephContext* cct)
 {
   ldout(cct, 20) << "Log depth=" << depth << " x=" << x << dendl;
   if (rand() % 2) {
-    do_log<depth+1, x*2> log;
+    do_log<depth + 1, x * 2> log;
     log.log(cct);
   } else {
-    do_log<depth+1, x*2+1> log;
+    do_log<depth + 1, x * 2 + 1> log;
     log.log(cct);
   }
 }
 
-std::string recursion(CephContext* cct)
+std::string
+recursion(CephContext* cct)
 {
   ldout(cct, 20) << "Preparing recursion string" << dendl;
   return "here-recursion";
 }
 
-template<int x> void do_log<12, x>::log(CephContext* cct)
+template <int x>
+void
+do_log<12, x>::log(CephContext* cct)
 {
   if ((rand() % 16) == 0) {
     ldout(cct, 20) << "End " << recursion(cct) << "x=" << x << dendl;
@@ -445,10 +448,10 @@ template<int x> void do_log<12, x>::log(CephContext* cct)
 
 TEST(Log, Speed_gather)
 {
-  do_log<0,0> start;
+  do_log<0, 0> start;
   g_ceph_context->_conf->subsys.set_gather_level(ceph_subsys_context, 30);
   g_ceph_context->_conf->subsys.set_log_level(ceph_subsys_context, 0);
-  for (int i=0; i<100000;i++) {
+  for (int i = 0; i < 100000; i++) {
     ldout(g_ceph_context, 20) << "Iteration " << i << dendl;
     start.log(g_ceph_context);
   }
@@ -456,10 +459,10 @@ TEST(Log, Speed_gather)
 
 TEST(Log, Speed_nogather)
 {
-  do_log<0,0> start;
+  do_log<0, 0> start;
   g_ceph_context->_conf->subsys.set_gather_level(ceph_subsys_context, 0);
   g_ceph_context->_conf->subsys.set_log_level(ceph_subsys_context, 0);
-  for (int i=0; i<100000;i++) {
+  for (int i = 0; i < 100000; i++) {
     ldout(g_ceph_context, 20) << "Iteration " << i << dendl;
     start.log(g_ceph_context);
   }
@@ -467,7 +470,7 @@ TEST(Log, Speed_nogather)
 
 TEST(Log, GarbleRecovery)
 {
-  static const char* test_file="log_for_moment";
+  static const char* test_file = "log_for_moment";
 
   Log* saved = g_ceph_context->_log;
   Log log(&g_ceph_context->_conf->subsys);
@@ -477,9 +480,10 @@ TEST(Log, GarbleRecovery)
   log.reopen_log_file();
   g_ceph_context->_log = &log;
 
-  std::string long_message(1000,'c');
+  std::string long_message(1000, 'c');
   ldout(g_ceph_context, 0) << long_message << dendl;
-  ldout(g_ceph_context, 0) << "Prologue" << (std::streambuf*)nullptr << long_message << dendl;
+  ldout(g_ceph_context, 0) << "Prologue" << (std::streambuf*)nullptr
+                           << long_message << dendl;
   ldout(g_ceph_context, 0) << "Epitaph" << long_message << dendl;
 
   g_ceph_context->_log = saved;
@@ -490,13 +494,14 @@ TEST(Log, GarbleRecovery)
   ASSERT_GT(file_status.st_size, 2000);
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   ::testing::InitGoogleTest(&argc, argv);

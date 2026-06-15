@@ -2,19 +2,19 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "MgrStatMonitor.h"
-#include "mon/OSDMonitor.h"
-#include "mon/MgrMonitor.h"
-#include "mon/Monitor.h"
-#include "mon/MonMap.h"
-#include "mon/PGMap.h"
+
+#include "include/ceph_assert.h" // re-clobber assert
 #include "messages/MGetPoolStats.h"
 #include "messages/MGetPoolStatsReply.h"
 #include "messages/MMonMgrReport.h"
+#include "messages/MServiceMap.h"
 #include "messages/MStatfs.h"
 #include "messages/MStatfsReply.h"
-#include "messages/MServiceMap.h"
-
-#include "include/ceph_assert.h"	// re-clobber assert
+#include "mon/MgrMonitor.h"
+#include "mon/MonMap.h"
+#include "mon/Monitor.h"
+#include "mon/OSDMonitor.h"
+#include "mon/PGMap.h"
 
 #define dout_subsys ceph_subsys_mon
 #undef dout_prefix
@@ -23,8 +23,8 @@
 using std::dec;
 using std::hex;
 using std::list;
-using std::map;
 using std::make_pair;
+using std::map;
 using std::ostream;
 using std::ostringstream;
 using std::pair;
@@ -45,70 +45,73 @@ using ceph::make_message;
 using ceph::mono_clock;
 using ceph::mono_time;
 
-static ostream& _prefix(std::ostream *_dout, Monitor &mon) {
-  return *_dout << "mon." << mon.name << "@" << mon.rank
-		<< "(" << mon.get_state_name()
-		<< ").mgrstat ";
-}
-
-MgrStatMonitor::MgrStatMonitor(Monitor &mn, Paxos &p, const string& service_name)
-  : PaxosService(mn, p, service_name)
+static ostream&
+_prefix(std::ostream* _dout, Monitor& mon)
 {
-    g_conf().add_observer(this);
+  return *_dout << "mon." << mon.name << "@" << mon.rank << "("
+                << mon.get_state_name() << ").mgrstat ";
 }
 
-MgrStatMonitor::~MgrStatMonitor() 
+MgrStatMonitor::MgrStatMonitor(Monitor& mn, Paxos& p, const string& service_name) :
+  PaxosService(mn, p, service_name)
 {
-  g_conf().remove_observer(this);
+  g_conf().add_observer(this);
 }
 
-std::vector<std::string> MgrStatMonitor::get_tracked_keys() const noexcept
+MgrStatMonitor::~MgrStatMonitor() { g_conf().remove_observer(this); }
+
+std::vector<std::string>
+MgrStatMonitor::get_tracked_keys() const noexcept
 {
   return {
-    "enable_availability_tracking",
-    "pool_availability_update_interval",
+      "enable_availability_tracking",
+      "pool_availability_update_interval",
   };
 }
 
-void MgrStatMonitor::handle_conf_change(
-  const ConfigProxy& conf,
-  const std::set<std::string>& changed)
+void
+MgrStatMonitor::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   if (changed.count("enable_availability_tracking")) {
     std::scoped_lock l(lock);
     bool oldval = enable_availability_tracking;
     bool newval = g_conf().get_val<bool>("enable_availability_tracking");
-    dout(10) << __func__ << " enable_availability_tracking config option is changed from " 
-             << oldval << " to " << newval
-             << dendl;
+    dout(10) << __func__
+             << " enable_availability_tracking config option is changed from "
+             << oldval << " to " << newval << dendl;
 
-    // if fetaure is toggled from off to on, 
+    // if fetaure is toggled from off to on,
     // reset last_uptime and last_downtime across all pools
     if (newval > oldval) {
-      utime_t now = ceph_clock_now(); 
+      utime_t now = ceph_clock_now();
       for (const auto& i : pending_pool_availability) {
         const auto& poolid = i.first;
         pending_pool_availability[poolid].last_downtime = now;
         pending_pool_availability[poolid].last_uptime = now;
       }
-      dout(20) << __func__ << " reset last_uptime and last_downtime to " 
-               << now << dendl;
+      dout(20) << __func__ << " reset last_uptime and last_downtime to " << now
+               << dendl;
     }
     enable_availability_tracking = newval;
   }
 
   if (changed.count("pool_availability_update_interval")) {
-      std::scoped_lock l(lock);
-      dout(10) << __func__ << " pool_availability_update_interval config changed from " 
-             << pool_availability_update_interval << " to " 
+    std::scoped_lock l(lock);
+    dout(10) << __func__
+             << " pool_availability_update_interval config changed from "
+             << pool_availability_update_interval << " to "
              << g_conf().get_val<double>("pool_availability_update_interval")
              << dendl;
-      
-      pool_availability_update_interval = g_conf().get_val<double>("pool_availability_update_interval"); 
+
+    pool_availability_update_interval =
+        g_conf().get_val<double>("pool_availability_update_interval");
   }
 }
 
-void MgrStatMonitor::create_initial()
+void
+MgrStatMonitor::create_initial()
 {
   dout(10) << __func__ << dendl;
   version = 0;
@@ -118,7 +121,8 @@ void MgrStatMonitor::create_initial()
   encode(service_map, pending_service_map_bl, CEPH_FEATURES_ALL);
 }
 
-void MgrStatMonitor::clear_pool_availability(int64_t poolid)
+void
+MgrStatMonitor::clear_pool_availability(int64_t poolid)
 {
   dout(20) << __func__ << dendl;
   std::scoped_lock l(lock);
@@ -127,29 +131,33 @@ void MgrStatMonitor::clear_pool_availability(int64_t poolid)
     pool_itr->second = PoolAvailability();
   } else {
     dout(1) << "failed to clear a non-existing pool: " << poolid << dendl;
-    return; 
+    return;
   };
-  dout(20) << __func__ << " cleared availability score for pool: " << poolid << dendl;
+  dout(20) << __func__ << " cleared availability score for pool: " << poolid
+           << dendl;
 }
 
-bool MgrStatMonitor::should_calc_pool_availability() 
-{
-  dout(20) << __func__ << dendl;
-  std::scoped_lock l(lock); 
-
-  utime_t now = ceph_clock_now();
-  if ((now  - pool_availability_last_updated) >= pool_availability_update_interval) {
-    return true; 
-  }
-  return false; 
-}
-
-void MgrStatMonitor::calc_pool_availability()
+bool
+MgrStatMonitor::should_calc_pool_availability()
 {
   dout(20) << __func__ << dendl;
   std::scoped_lock l(lock);
 
-  // if feature is disabled by user, do not update the uptime 
+  utime_t now = ceph_clock_now();
+  if ((now - pool_availability_last_updated) >=
+      pool_availability_update_interval) {
+    return true;
+  }
+  return false;
+}
+
+void
+MgrStatMonitor::calc_pool_availability()
+{
+  dout(20) << __func__ << dendl;
+  std::scoped_lock l(lock);
+
+  // if feature is disabled by user, do not update the uptime
   // and downtime, exit early
   if (!enable_availability_tracking) {
     dout(20) << __func__ << " tracking availability score is disabled" << dendl;
@@ -157,11 +165,11 @@ void MgrStatMonitor::calc_pool_availability()
   }
 
   // Add new pools from digest
-  for ([[maybe_unused]] const auto& [poolid, _] : digest.pool_pg_unavailable_map) {
+  for ([[maybe_unused]] const auto& [poolid, _] :
+       digest.pool_pg_unavailable_map) {
     if (!pool_availability.contains(poolid)) {
       pool_availability.emplace(poolid, PoolAvailability{});
-      dout(20) << fmt::format("{}: Adding pool: {}",
-                              __func__, poolid) << dendl;
+      dout(20) << fmt::format("{}: Adding pool: {}", __func__, poolid) << dendl;
     }
   }
 
@@ -173,13 +181,15 @@ void MgrStatMonitor::calc_pool_availability()
     const auto& poolid = kv.first;
 
     if (!digest.pool_pg_unavailable_map.contains(poolid)) {
-      dout(20) << fmt::format("{}: Deleting pool (not in digest): {}",
-                              __func__, poolid) << dendl;
+      dout(20) << fmt::format(
+                      "{}: Deleting pool (not in digest): {}", __func__, poolid)
+               << dendl;
       return true;
     }
     if (!mon.osdmon()->osdmap.have_pg_pool(poolid)) {
-      dout(20) << fmt::format("{}: Deleting pool (not in osdmap): {}",
-                              __func__, poolid) << dendl;
+      dout(20) << fmt::format(
+                      "{}: Deleting pool (not in osdmap): {}", __func__, poolid)
+               << dendl;
       return true;
     }
     return false;
@@ -195,41 +205,49 @@ void MgrStatMonitor::calc_pool_availability()
                                  it->second.empty();
 
     if (avail.is_avail) {
-      if (!currently_avail) {            // Available → Unavailable
-        dout(20) << fmt::format("{}: Pool {} status: Available to Unavailable",
-                              __func__, poolid) << dendl;
-        avail.is_avail        = false;
+      if (!currently_avail) { // Available → Unavailable
+        dout(20) << fmt::format(
+                        "{}: Pool {} status: Available to Unavailable",
+                        __func__, poolid)
+                 << dendl;
+        avail.is_avail = false;
         ++avail.num_failures;
-        avail.last_downtime   = now;
-        avail.uptime         += now - avail.last_uptime;
+        avail.last_downtime = now;
+        avail.uptime += now - avail.last_uptime;
       } else {
         // Available to Available
-        dout(20) << fmt::format("{}: Pool {} status: Available to Available",
-                              __func__, poolid) << dendl;
-        avail.uptime         += now - avail.last_uptime;
-        avail.last_uptime     = now;
+        dout(20) << fmt::format(
+                        "{}: Pool {} status: Available to Available", __func__,
+                        poolid)
+                 << dendl;
+        avail.uptime += now - avail.last_uptime;
+        avail.last_uptime = now;
       }
-    } else {                             // Unavailable
-      if (currently_avail) {             // Unavailable to Available
-        dout(20) << fmt::format("{}: Pool {} status: Unavailable to Available",
-                              __func__, poolid) << dendl;
-        avail.is_avail        = true;
-        avail.last_uptime     = now;
-        avail.uptime         += now - avail.last_downtime;
-      } else {                           // Unavailable to Unavailable
-        dout(20) << fmt::format("{}: Pool {} status: Unavailable to Unavailable",
-                              __func__, poolid) << dendl;
-        avail.downtime       += now - avail.last_downtime;
-        avail.last_downtime   = now;
+    } else { // Unavailable
+      if (currently_avail) { // Unavailable to Available
+        dout(20) << fmt::format(
+                        "{}: Pool {} status: Unavailable to Available",
+                        __func__, poolid)
+                 << dendl;
+        avail.is_avail = true;
+        avail.last_uptime = now;
+        avail.uptime += now - avail.last_downtime;
+      } else { // Unavailable to Unavailable
+        dout(20) << fmt::format(
+                        "{}: Pool {} status: Unavailable to Unavailable",
+                        __func__, poolid)
+                 << dendl;
+        avail.downtime += now - avail.last_downtime;
+        avail.last_downtime = now;
       }
     }
-
   }
   pending_pool_availability = pool_availability;
-  pool_availability_last_updated = now; 
+  pool_availability_last_updated = now;
 }
 
-void MgrStatMonitor::update_from_paxos(bool *need_bootstrap)
+void
+MgrStatMonitor::update_from_paxos(bool* need_bootstrap)
 {
   version = get_last_committed();
   dout(10) << " " << version << dendl;
@@ -243,20 +261,18 @@ void MgrStatMonitor::update_from_paxos(bool *need_bootstrap)
       decode(digest, p);
       decode(service_map, p);
       if (!p.end()) {
-	decode(progress_events, p);
+        decode(progress_events, p);
       }
       if (!p.end()) {
         decode(pool_availability, p);
       }
-      dout(10) << __func__ << " v" << version
-	       << " service_map e" << service_map.epoch
-	       << " " << progress_events.size() << " progress events"
-         << " " << pool_availability.size() << " pools availability tracked"
-	       << dendl;
-    }
-    catch (ceph::buffer::error& e) {
+      dout(10) << __func__ << " v" << version << " service_map e"
+               << service_map.epoch << " " << progress_events.size()
+               << " progress events" << " " << pool_availability.size()
+               << " pools availability tracked" << dendl;
+    } catch (ceph::buffer::error& e) {
       derr << "failed to decode mgrstat state; luminous dev version? "
-	   << e.what() << dendl;
+           << e.what() << dendl;
     }
   }
   check_subs();
@@ -266,19 +282,20 @@ void MgrStatMonitor::update_from_paxos(bool *need_bootstrap)
   // only calculate pool_availability within leader mon
   // and if configured interval has elapsed
   if (mon.is_leader() && should_calc_pool_availability()) {
-      calc_pool_availability();
+    calc_pool_availability();
   }
 }
 
-void MgrStatMonitor::update_logger()
+void
+MgrStatMonitor::update_logger()
 {
   dout(20) << __func__ << dendl;
 
   mon.cluster_logger->set(l_cluster_osd_bytes, digest.osd_sum.statfs.total);
-  mon.cluster_logger->set(l_cluster_osd_bytes_used,
-                           digest.osd_sum.statfs.get_used_raw());
-  mon.cluster_logger->set(l_cluster_osd_bytes_avail,
-                           digest.osd_sum.statfs.available);
+  mon.cluster_logger->set(
+      l_cluster_osd_bytes_used, digest.osd_sum.statfs.get_used_raw());
+  mon.cluster_logger->set(
+      l_cluster_osd_bytes_avail, digest.osd_sum.statfs.available);
 
   mon.cluster_logger->set(l_cluster_num_pool, digest.pg_pool_sum.size());
   uint64_t num_pg = 0;
@@ -289,12 +306,11 @@ void MgrStatMonitor::update_logger()
 
   unsigned active = 0, active_clean = 0, peering = 0;
   for (auto p = digest.num_pg_by_state.begin();
-       p != digest.num_pg_by_state.end();
-       ++p) {
+       p != digest.num_pg_by_state.end(); ++p) {
     if (p->first & PG_STATE_ACTIVE) {
       active += p->second;
       if (p->first & PG_STATE_CLEAN)
-	active_clean += p->second;
+        active_clean += p->second;
     }
     if (p->first & PG_STATE_PEERING)
       peering += p->second;
@@ -303,15 +319,22 @@ void MgrStatMonitor::update_logger()
   mon.cluster_logger->set(l_cluster_num_pg_active, active);
   mon.cluster_logger->set(l_cluster_num_pg_peering, peering);
 
-  mon.cluster_logger->set(l_cluster_num_object, digest.pg_sum.stats.sum.num_objects);
-  mon.cluster_logger->set(l_cluster_num_object_degraded, digest.pg_sum.stats.sum.num_objects_degraded);
-  mon.cluster_logger->set(l_cluster_num_object_misplaced, digest.pg_sum.stats.sum.num_objects_misplaced);
-  mon.cluster_logger->set(l_cluster_num_object_unfound, digest.pg_sum.stats.sum.num_objects_unfound);
-  mon.cluster_logger->set(l_cluster_num_bytes, digest.pg_sum.stats.sum.num_bytes);
-
+  mon.cluster_logger->set(
+      l_cluster_num_object, digest.pg_sum.stats.sum.num_objects);
+  mon.cluster_logger->set(
+      l_cluster_num_object_degraded,
+      digest.pg_sum.stats.sum.num_objects_degraded);
+  mon.cluster_logger->set(
+      l_cluster_num_object_misplaced,
+      digest.pg_sum.stats.sum.num_objects_misplaced);
+  mon.cluster_logger->set(
+      l_cluster_num_object_unfound, digest.pg_sum.stats.sum.num_objects_unfound);
+  mon.cluster_logger->set(
+      l_cluster_num_bytes, digest.pg_sum.stats.sum.num_bytes);
 }
 
-void MgrStatMonitor::create_pending()
+void
+MgrStatMonitor::create_pending()
 {
   dout(10) << " " << version << dendl;
   pending_digest = digest;
@@ -320,7 +343,8 @@ void MgrStatMonitor::create_pending()
   encode(service_map, pending_service_map_bl, mon.get_quorum_con_features());
 }
 
-void MgrStatMonitor::encode_pending(MonitorDBStore::TransactionRef t)
+void
+MgrStatMonitor::encode_pending(MonitorDBStore::TransactionRef t)
 {
   ++version;
   dout(10) << " " << version << dendl;
@@ -336,7 +360,8 @@ void MgrStatMonitor::encode_pending(MonitorDBStore::TransactionRef t)
   encode_health(pending_health_checks, t);
 }
 
-version_t MgrStatMonitor::get_trim_to() const
+version_t
+MgrStatMonitor::get_trim_to() const
 {
   // we don't actually need *any* old states, but keep a few.
   if (version > 5) {
@@ -345,16 +370,18 @@ version_t MgrStatMonitor::get_trim_to() const
   return 0;
 }
 
-void MgrStatMonitor::on_active()
+void
+MgrStatMonitor::on_active()
 {
   update_logger();
 }
 
-void MgrStatMonitor::tick()
-{
-}
+void
+MgrStatMonitor::tick()
+{}
 
-bool MgrStatMonitor::preprocess_query(MonOpRequestRef op)
+bool
+MgrStatMonitor::preprocess_query(MonOpRequestRef op)
 {
   auto m = op->get_req<PaxosServiceMessage>();
   switch (m->get_type()) {
@@ -371,7 +398,8 @@ bool MgrStatMonitor::preprocess_query(MonOpRequestRef op)
   }
 }
 
-bool MgrStatMonitor::prepare_update(MonOpRequestRef op)
+bool
+MgrStatMonitor::prepare_update(MonOpRequestRef op)
 {
   auto m = op->get_req<PaxosServiceMessage>();
   switch (m->get_type()) {
@@ -384,20 +412,20 @@ bool MgrStatMonitor::prepare_update(MonOpRequestRef op)
   }
 }
 
-bool MgrStatMonitor::preprocess_report(MonOpRequestRef op)
+bool
+MgrStatMonitor::preprocess_report(MonOpRequestRef op)
 {
   auto m = op->get_req<MMonMgrReport>();
   mon.no_reply(op);
-  if (m->gid &&
-      m->gid != mon.mgrmon()->get_map().get_active_gid()) {
-    dout(10) << "ignoring report from non-active mgr " << m->gid
-	     << dendl;
+  if (m->gid && m->gid != mon.mgrmon()->get_map().get_active_gid()) {
+    dout(10) << "ignoring report from non-active mgr " << m->gid << dendl;
     return true;
   }
   return false;
 }
 
-bool MgrStatMonitor::prepare_report(MonOpRequestRef op)
+bool
+MgrStatMonitor::prepare_report(MonOpRequestRef op)
 {
   auto m = op->get_req<MMonMgrReport>();
   bufferlist bl = m->get_data();
@@ -409,8 +437,8 @@ bool MgrStatMonitor::prepare_report(MonOpRequestRef op)
   }
   pending_progress_events.swap(m->progress_events);
   dout(10) << __func__ << " " << pending_digest << ", "
-	   << pending_health_checks.checks.size() << " health checks, "
-	   << progress_events.size() << " progress events" << dendl;
+           << pending_health_checks.checks.size() << " health checks, "
+           << progress_events.size() << " progress events" << dendl;
   dout(20) << "pending_digest:\n";
   JSONFormatter jf(true);
   jf.open_object_section("pending_digest");
@@ -447,7 +475,8 @@ bool MgrStatMonitor::prepare_report(MonOpRequestRef op)
   return true;
 }
 
-bool MgrStatMonitor::preprocess_getpoolstats(MonOpRequestRef op)
+bool
+MgrStatMonitor::preprocess_getpoolstats(MonOpRequestRef op)
 {
   op->mark_pgmon_event(__func__);
   auto m = op->get_req<MGetPoolStats>();
@@ -460,8 +489,8 @@ bool MgrStatMonitor::preprocess_getpoolstats(MonOpRequestRef op)
     return true;
   }
   if (m->fsid != mon.monmap->fsid) {
-    dout(0) << __func__ << " on fsid "
-	    << m->fsid << " != " << mon.monmap->fsid << dendl;
+    dout(0) << __func__ << " on fsid " << m->fsid << " != " << mon.monmap->fsid
+            << dendl;
     return true;
   }
   epoch_t ver = get_last_committed();
@@ -480,7 +509,8 @@ bool MgrStatMonitor::preprocess_getpoolstats(MonOpRequestRef op)
   return true;
 }
 
-bool MgrStatMonitor::preprocess_statfs(MonOpRequestRef op)
+bool
+MgrStatMonitor::preprocess_statfs(MonOpRequestRef op)
 {
   op->mark_pgmon_event(__func__);
   auto statfs = op->get_req<MStatfs>();
@@ -505,8 +535,8 @@ bool MgrStatMonitor::preprocess_statfs(MonOpRequestRef op)
     dout(1) << __func__ << " on removed pool " << *pool << dendl;
     return true;
   }
-  dout(10) << __func__ << " " << *statfs
-           << " from " << statfs->get_orig_source() << dendl;
+  dout(10) << __func__ << " " << *statfs << " from "
+           << statfs->get_orig_source() << dendl;
   epoch_t ver = get_last_committed();
   auto reply = new MStatfsReply(statfs->fsid, statfs->get_tid(), ver);
   reply->h.st = get_statfs(mon.osdmon()->osdmap, pool);
@@ -514,25 +544,26 @@ bool MgrStatMonitor::preprocess_statfs(MonOpRequestRef op)
   return true;
 }
 
-void MgrStatMonitor::check_sub(Subscription *sub)
+void
+MgrStatMonitor::check_sub(Subscription* sub)
 {
-  dout(10) << __func__
-	   << " next " << sub->next
-	   << " vs service_map.epoch " << service_map.epoch << dendl;
+  dout(10) << __func__ << " next " << sub->next << " vs service_map.epoch "
+           << service_map.epoch << dendl;
   if (sub->next <= service_map.epoch) {
     auto m = new MServiceMap(service_map);
     sub->session->con->send_message(m);
     if (sub->onetime) {
       mon.with_session_map([sub](MonSessionMap& session_map) {
-	  session_map.remove_sub(sub);
-	});
+        session_map.remove_sub(sub);
+      });
     } else {
       sub->next = service_map.epoch + 1;
     }
   }
 }
 
-void MgrStatMonitor::check_subs()
+void
+MgrStatMonitor::check_subs()
 {
   dout(10) << __func__ << dendl;
   if (!service_map.epoch) {

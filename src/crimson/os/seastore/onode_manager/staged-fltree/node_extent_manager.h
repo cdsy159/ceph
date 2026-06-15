@@ -6,11 +6,11 @@
 #include "crimson/common/type_helpers.h"
 #include "crimson/os/seastore/cached_extent.h"
 #include "crimson/os/seastore/transaction_manager.h"
+#include "stages/node_stage_layout.h"
 
 #include "fwd.h"
 #include "node_extent_mutable.h"
 #include "node_types.h"
-#include "stages/node_stage_layout.h"
 #include "super.h"
 
 /**
@@ -22,15 +22,24 @@
 namespace crimson::os::seastore::onode {
 
 class NodeExtent : public LogicalChildNode {
- public:
+public:
   virtual ~NodeExtent() = default;
-  const node_header_t& get_header() const {
+
+  const node_header_t&
+  get_header() const
+  {
     return *reinterpret_cast<const node_header_t*>(get_read());
   }
-  const char* get_read() const {
+
+  const char*
+  get_read() const
+  {
     return get_bptr().c_str();
   }
-  NodeExtentMutable get_mutable() {
+
+  NodeExtentMutable
+  get_mutable()
+  {
     assert(is_mutable());
     return do_get_mutable();
   }
@@ -38,15 +47,21 @@ class NodeExtent : public LogicalChildNode {
   virtual DeltaRecorder* get_recorder() const = 0;
   virtual NodeExtentRef mutate(context_t, DeltaRecorderURef&&) = 0;
 
- protected:
+protected:
   template <typename... T>
-  NodeExtent(T&&... t) : LogicalChildNode(std::forward<T>(t)...) {}
+  NodeExtent(T&&... t) :
+    LogicalChildNode(std::forward<T>(t)...)
+  {}
 
-  NodeExtentMutable do_get_mutable() {
+  NodeExtentMutable
+  do_get_mutable()
+  {
     return NodeExtentMutable(get_bptr().c_str(), get_length());
   }
 
-  std::ostream& print_detail_l(std::ostream& out) const final {
+  std::ostream&
+  print_detail_l(std::ostream& out) const final
+  {
     return out << ", fltree_header=" << get_header();
   }
 
@@ -60,44 +75,54 @@ class NodeExtent : public LogicalChildNode {
 };
 
 using crimson::os::seastore::TransactionManager;
+
 class NodeExtentManager {
- public:
+public:
   virtual ~NodeExtentManager() = default;
 
   virtual bool is_read_isolated() const = 0;
 
   using read_iertr = base_iertr::extend<
-    crimson::ct_error::invarg,
-    crimson::ct_error::enoent,
-    crimson::ct_error::erange>;
+      crimson::ct_error::invarg,
+      crimson::ct_error::enoent,
+      crimson::ct_error::erange>;
   virtual read_iertr::future<NodeExtentRef> read_extent(
-      Transaction&, laddr_t) = 0;
+      Transaction&,
+      laddr_t) = 0;
 
   using alloc_iertr = base_iertr;
   virtual alloc_iertr::future<NodeExtentRef> alloc_extent(
-      Transaction&, laddr_t hint, extent_len_t) = 0;
+      Transaction&,
+      laddr_t hint,
+      extent_len_t) = 0;
 
-  using retire_iertr = base_iertr::extend<
-    crimson::ct_error::enoent>;
-  virtual retire_iertr::future<> retire_extent(
-      Transaction&, NodeExtentRef) = 0;
+  using retire_iertr = base_iertr::extend<crimson::ct_error::enoent>;
+  virtual retire_iertr::future<> retire_extent(Transaction&, NodeExtentRef) = 0;
 
   using getsuper_iertr = base_iertr;
   virtual getsuper_iertr::future<Super::URef> get_super(
-      Transaction&, RootNodeTracker&) = 0;
+      Transaction&,
+      RootNodeTracker&) = 0;
 
   virtual std::ostream& print(std::ostream& os) const = 0;
 
   static NodeExtentManagerURef create_dummy(bool is_sync);
   static NodeExtentManagerURef create_seastore(
-      TransactionManager &tm, laddr_t min_laddr = L_ADDR_MIN, double p_eagain = 0.0);
+      TransactionManager& tm,
+      laddr_t min_laddr = L_ADDR_MIN,
+      double p_eagain = 0.0);
 };
-inline std::ostream& operator<<(std::ostream& os, const NodeExtentManager& nm) {
+
+inline std::ostream&
+operator<<(std::ostream& os, const NodeExtentManager& nm)
+{
   return nm.print(os);
 }
 
-}
+} // namespace crimson::os::seastore::onode
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::os::seastore::onode::NodeExtent> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::onode::NodeExtent>
+  : fmt::ostream_formatter {};
 #endif

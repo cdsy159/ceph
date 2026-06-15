@@ -2,12 +2,11 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "FreelistManager.h"
+
 #include "BitmapFreelistManager.h"
 
-FreelistManager *FreelistManager::create(
-  CephContext* cct,
-  std::string type,
-  std::string prefix)
+FreelistManager*
+FreelistManager::create(CephContext* cct, std::string type, std::string prefix)
 {
   // a bit of a hack... we hard-code the prefixes here.  we need to
   // put the freelistmanagers in different prefixes because the merge
@@ -19,7 +18,7 @@ FreelistManager *FreelistManager::create(
   }
   if (type == "null") {
     // use BitmapFreelistManager with the null option to stop allocations from going to RocksDB
-    auto *fm = new BitmapFreelistManager(cct, "B", "b");
+    auto* fm = new BitmapFreelistManager(cct, "B", "b");
     fm->set_null_manager();
     return fm;
   }
@@ -27,8 +26,8 @@ FreelistManager *FreelistManager::create(
   return NULL;
 }
 
-void FreelistManager::setup_merge_operators(KeyValueDB *db,
-					    const std::string& type)
+void
+FreelistManager::setup_merge_operators(KeyValueDB* db, const std::string& type)
 {
   BitmapFreelistManager::setup_merge_operator(db, "b");
 }

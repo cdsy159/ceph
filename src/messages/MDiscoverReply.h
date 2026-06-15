@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,12 +17,10 @@
 #ifndef CEPH_MDISCOVERREPLY_H
 #define CEPH_MDISCOVERREPLY_H
 
-#include "include/filepath.h"
-#include "messages/MMDSOp.h"
-
 #include <string>
 
-
+#include "include/filepath.h"
+#include "messages/MMDSOp.h"
 
 /**
  * MDiscoverReply - return new replicas (of inodes, dirs, dentries)
@@ -71,7 +69,7 @@ private:
 
   // info about original request
   inodeno_t base_ino;
-  frag_t base_dir_frag;  
+  frag_t base_dir_frag;
   bool wanted_base_dir = false;
   bool path_locked = false;
   snapid_t wanted_snapid;
@@ -79,40 +77,107 @@ private:
   // and the response
   bool flag_error_dn = false;
   bool flag_error_dir = false;
-  std::string error_dentry;   // dentry that was not found (to trigger waiters on asker)
+  std::string
+      error_dentry; // dentry that was not found (to trigger waiters on asker)
   bool unsolicited = false;
 
   mds_rank_t dir_auth_hint = 0;
 
- public:
+public:
   __u8 starts_with = 0;
   ceph::buffer::list trace;
 
-  enum { DIR, DENTRY, INODE };
+  enum {
+    DIR,
+    DENTRY,
+    INODE
+  };
 
   // accessors
-  inodeno_t get_base_ino() const { return base_ino; }
-  frag_t get_base_dir_frag() const { return base_dir_frag; }
-  bool get_wanted_base_dir() const { return wanted_base_dir; }
-  bool is_path_locked() const { return path_locked; }
-  snapid_t get_wanted_snapid() const { return wanted_snapid; }
+  inodeno_t
+  get_base_ino() const
+  {
+    return base_ino;
+  }
 
-  bool is_flag_error_dn() const { return flag_error_dn; }
-  bool is_flag_error_dir() const { return flag_error_dir; }
-  const std::string& get_error_dentry() const { return error_dentry; }
+  frag_t
+  get_base_dir_frag() const
+  {
+    return base_dir_frag;
+  }
 
-  int get_starts_with() const { return starts_with; }
+  bool
+  get_wanted_base_dir() const
+  {
+    return wanted_base_dir;
+  }
 
-  mds_rank_t get_dir_auth_hint() const { return dir_auth_hint; }
+  bool
+  is_path_locked() const
+  {
+    return path_locked;
+  }
 
-  bool is_unsolicited() const { return unsolicited; }
-  void mark_unsolicited() { unsolicited = true; }
+  snapid_t
+  get_wanted_snapid() const
+  {
+    return wanted_snapid;
+  }
 
-  void set_base_dir_frag(frag_t df) { base_dir_frag = df; }
+  bool
+  is_flag_error_dn() const
+  {
+    return flag_error_dn;
+  }
+
+  bool
+  is_flag_error_dir() const
+  {
+    return flag_error_dir;
+  }
+
+  const std::string&
+  get_error_dentry() const
+  {
+    return error_dentry;
+  }
+
+  int
+  get_starts_with() const
+  {
+    return starts_with;
+  }
+
+  mds_rank_t
+  get_dir_auth_hint() const
+  {
+    return dir_auth_hint;
+  }
+
+  bool
+  is_unsolicited() const
+  {
+    return unsolicited;
+  }
+
+  void
+  mark_unsolicited()
+  {
+    unsolicited = true;
+  }
+
+  void
+  set_base_dir_frag(frag_t df)
+  {
+    base_dir_frag = df;
+  }
 
 protected:
-  MDiscoverReply() : MMDSOp{MSG_MDS_DISCOVERREPLY, HEAD_VERSION, COMPAT_VERSION} { }
-  MDiscoverReply(const MDiscover &dis) :
+  MDiscoverReply() :
+    MMDSOp{MSG_MDS_DISCOVERREPLY, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MDiscoverReply(const MDiscover& dis) :
     MMDSOp{MSG_MDS_DISCOVERREPLY, HEAD_VERSION, COMPAT_VERSION},
     base_ino(dis.get_base_ino()),
     base_dir_frag(dis.get_base_dir_frag()),
@@ -127,6 +192,7 @@ protected:
   {
     header.tid = dis.get_tid();
   }
+
   MDiscoverReply(dirfrag_t df) :
     MMDSOp{MSG_MDS_DISCOVERREPLY, HEAD_VERSION, COMPAT_VERSION},
     base_ino(df.ino),
@@ -142,40 +208,60 @@ protected:
   {
     header.tid = 0;
   }
+
   ~MDiscoverReply() final {}
 
 public:
-  std::string_view get_type_name() const override { return "discover_reply"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "discover_reply";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "discover_reply(" << header.tid << " " << base_ino << ")";
   }
 
   // builders
-  bool is_empty() const {
-    return trace.length() == 0 &&
-      !flag_error_dn &&
-      !flag_error_dir &&
-      dir_auth_hint == CDIR_AUTH_UNKNOWN;
+  bool
+  is_empty() const
+  {
+    return trace.length() == 0 && !flag_error_dn && !flag_error_dir &&
+           dir_auth_hint == CDIR_AUTH_UNKNOWN;
   }
 
   //  void set_flag_forward() { flag_forward = true; }
-  void set_flag_error_dn(std::string_view dn) { 
+  void
+  set_flag_error_dn(std::string_view dn)
+  {
     flag_error_dn = true;
     error_dentry = dn;
   }
-  void set_flag_error_dir() {
+
+  void
+  set_flag_error_dir()
+  {
     flag_error_dir = true;
   }
-  void set_dir_auth_hint(int a) {
+
+  void
+  set_dir_auth_hint(int a)
+  {
     dir_auth_hint = a;
   }
-  void set_error_dentry(std::string_view dn) {
+
+  void
+  set_error_dentry(std::string_view dn)
+  {
     error_dentry = dn;
   }
 
-
   // ...
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(base_ino, p);
@@ -192,7 +278,10 @@ public:
     decode(starts_with, p);
     decode(trace, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(base_ino, payload);
     encode(base_dir_frag, payload);
@@ -208,10 +297,11 @@ public:
     encode(starts_with, payload);
     encode(trace, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

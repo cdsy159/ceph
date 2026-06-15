@@ -1,49 +1,51 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "cls/rbd/cls_rbd_client.h"
-#include "cls/rbd/cls_rbd_types.h"
-#include "test/librbd/test_fixture.h"
-#include "test/librbd/test_support.h"
-#include "librbd/api/Trash.h"
 #include <set>
 #include <vector>
 
-void register_test_trash() {
-}
+#include "cls/rbd/cls_rbd_client.h"
+#include "cls/rbd/cls_rbd_types.h"
+#include "librbd/api/Trash.h"
+#include "test/librbd/test_fixture.h"
+#include "test/librbd/test_support.h"
+
+void
+register_test_trash()
+{}
 
 namespace librbd {
 
-static bool operator==(const trash_image_info_t& lhs,
-                       const trash_image_info_t& rhs) {
-  return (lhs.id == rhs.id &&
-          lhs.name == rhs.name &&
-          lhs.source == rhs.source);
+static bool
+operator==(const trash_image_info_t& lhs, const trash_image_info_t& rhs)
+{
+  return (lhs.id == rhs.id && lhs.name == rhs.name && lhs.source == rhs.source);
 }
 
-static bool operator==(const image_spec_t& lhs,
-                       const image_spec_t& rhs) {
+static bool
+operator==(const image_spec_t& lhs, const image_spec_t& rhs)
+{
   return (lhs.id == rhs.id && lhs.name == rhs.name);
 }
 
 class TestTrash : public TestFixture {
 public:
-
   TestTrash() {}
 };
 
-TEST_F(TestTrash, UserRemovingSource) {
+TEST_F(TestTrash, UserRemovingSource)
+{
   REQUIRE_FORMAT_V2();
 
   auto compare_lambda = [](const trash_image_info_t& lhs,
                            const trash_image_info_t& rhs) {
-      if (lhs.id != rhs.id) {
-        return lhs.id < rhs.id;
-      } else if (lhs.name != rhs.name) {
-        return lhs.name < rhs.name;
-      }
-      return lhs.source < rhs.source;
-    };
+    if (lhs.id != rhs.id) {
+      return lhs.id < rhs.id;
+    } else if (lhs.name != rhs.name) {
+      return lhs.name < rhs.name;
+    }
+    return lhs.source < rhs.source;
+  };
   typedef std::set<trash_image_info_t, decltype(compare_lambda)> TrashEntries;
 
   librbd::RBD rbd;
@@ -62,10 +64,13 @@ TEST_F(TestTrash, UserRemovingSource) {
   ASSERT_EQ(0, image.get_id(&image_id2));
   ASSERT_EQ(0, image.close());
 
-  ASSERT_EQ(0, api::Trash<>::move(m_ioctx, RBD_TRASH_IMAGE_SOURCE_USER,
-                                  image_name1, image_id1, 0));
-  ASSERT_EQ(0, api::Trash<>::move(m_ioctx, RBD_TRASH_IMAGE_SOURCE_REMOVING,
-                                  image_name2, image_id2, 0));
+  ASSERT_EQ(
+      0, api::Trash<>::move(
+             m_ioctx, RBD_TRASH_IMAGE_SOURCE_USER, image_name1, image_id1, 0));
+  ASSERT_EQ(
+      0,
+      api::Trash<>::move(
+          m_ioctx, RBD_TRASH_IMAGE_SOURCE_REMOVING, image_name2, image_id2, 0));
 
   TrashEntries trash_entries{compare_lambda};
   TrashEntries expected_trash_entries{compare_lambda};
@@ -75,21 +80,21 @@ TEST_F(TestTrash, UserRemovingSource) {
   trash_entries.insert(entries.begin(), entries.end());
 
   expected_trash_entries = {
-    {.id = image_id1,
-     .name = image_name1,
-     .source = RBD_TRASH_IMAGE_SOURCE_USER},
+      {.id = image_id1,
+       .name = image_name1,
+       .source = RBD_TRASH_IMAGE_SOURCE_USER},
   };
   ASSERT_EQ(expected_trash_entries, trash_entries);
 
   std::vector<image_spec_t> expected_images = {
-    {.id = image_id2, .name = image_name2}
-  };
+      {.id = image_id2, .name = image_name2}};
   std::vector<image_spec_t> images;
   ASSERT_EQ(0, rbd.list2(m_ioctx, &images));
   ASSERT_EQ(expected_images, images);
 }
 
-TEST_F(TestTrash, RestoreMirroringSource) {
+TEST_F(TestTrash, RestoreMirroringSource)
+{
   REQUIRE_FORMAT_V2();
 
   librbd::RBD rbd;
@@ -99,10 +104,11 @@ TEST_F(TestTrash, RestoreMirroringSource) {
   ASSERT_EQ(0, image.get_id(&image_id));
   ASSERT_EQ(0, image.close());
 
-  ASSERT_EQ(0, api::Trash<>::move(m_ioctx, RBD_TRASH_IMAGE_SOURCE_MIRRORING,
-                                  m_image_name, 0));
-  ASSERT_EQ(0, rbd.trash_restore(m_ioctx, image_id.c_str(),
-                                 m_image_name.c_str()));
+  ASSERT_EQ(
+      0, api::Trash<>::move(
+             m_ioctx, RBD_TRASH_IMAGE_SOURCE_MIRRORING, m_image_name, 0));
+  ASSERT_EQ(
+      0, rbd.trash_restore(m_ioctx, image_id.c_str(), m_image_name.c_str()));
 }
 
 } // namespace librbd

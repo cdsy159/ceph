@@ -7,11 +7,11 @@
 
 #include <boost/asio.hpp>
 #include <boost/process/v1.hpp>
+#include <boost/process/v1/async_pipe.hpp>
 #include <boost/process/v1/child.hpp>
 #include <boost/process/v1/env.hpp>
 #include <boost/process/v1/environment.hpp>
 #include <boost/process/v1/io.hpp>
-#include <boost/process/v1/async_pipe.hpp>
 #include <boost/process/v1/pipe.hpp>
 #include <boost/process/v1/search_path.hpp>
 #include <boost/process/v1/start_dir.hpp>
@@ -29,8 +29,13 @@ namespace {
  * Get the width of the terminal console
  * @return Terminal width in columns, or 80 as default if not available
  */
-int get_terminal_width() {
-  struct winsize w{0,0,0,0};
+int
+get_terminal_width()
+{
+  struct winsize w {
+    0, 0, 0, 0
+  };
+
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
     return w.ws_col;
   }
@@ -44,7 +49,9 @@ int get_terminal_width() {
  * @param line The text to output (without trailing newline)
  * @param use_carriage_return If true, uses \r instead of \n for line ending
  */
-void write_console_line(const std::string& line, bool use_carriage_return = true) {
+void
+write_console_line(const std::string& line, bool use_carriage_return = true)
+{
   static bool is_tty = isatty(fileno(stdout));
 
   if (is_tty) {
@@ -78,9 +85,7 @@ ProgressTracker::ProgressTracker(std::string_view operation_name) :
   operation_name(operation_name)
 {}
 
-ProgressTracker::~ProgressTracker() {
-    display_final_summary();
-}
+ProgressTracker::~ProgressTracker() { display_final_summary(); }
 
 void
 ProgressTracker::start(uint64_t total)
@@ -118,7 +123,7 @@ ProgressTracker::display_progress() const
   }
   const time_point now = clock::now();
   if ((now - last_console_update) < console_refresh_interval) {
-      return;
+    return;
   }
   display_progress_internal();
   last_console_update = clock::now();
@@ -144,8 +149,8 @@ ProgressTracker::get_progress_status(const float progress) const
                               : "calculating";
 
     return fmt::format(
-        "{}/{} objects ({:.2f}%%), ETA: {}", current_processed,
-        current_total, progress, eta_str);
+        "{}/{} objects ({:.2f}%%), ETA: {}", current_processed, current_total,
+        progress, eta_str);
   } else {
     return fmt::format("{} objects", current_processed);
   }
@@ -180,8 +185,7 @@ ProgressTracker::update_ceph_progress_internal(
   }
   const auto ceph_path = bp::search_path("ceph");
   if (ceph_path.empty()) {
-      std::cerr << "Warning: \"ceph\" not found on PATH."
-                << std::endl;
+    std::cerr << "Warning: \"ceph\" not found on PATH." << std::endl;
     enable_progress_update = false;
     return;
   }
@@ -223,14 +227,14 @@ ProgressTracker::update_ceph_progress_internal(
         ceph_path, "mgr", "cli", "update_progress_event",
         get_ceph_progress_event(), operation_name + ": " + message,
         std::to_string(progress), "--add-to-ceph-s",
-        (bp::std_out & bp::std_err) > merged_pipe,
-        env,
-        io_context);
+        (bp::std_out & bp::std_err) > merged_pipe, env, io_context);
 
     // Asynchronously read all output
     std::string output;
-    std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
-    read_handler = [&](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+    std::function<void(const boost::system::error_code&, std::size_t)>
+        read_handler;
+    read_handler = [&](const boost::system::error_code& ec,
+                       std::size_t bytes_transferred) {
       if (!ec && bytes_transferred > 0) {
         std::string chunk(
             asio::buffers_begin(output_buffer.data()),
@@ -239,19 +243,21 @@ ProgressTracker::update_ceph_progress_internal(
         output_buffer.consume(bytes_transferred);
 
         // Continue reading
-        asio::async_read(merged_pipe, output_buffer,
-                        asio::transfer_at_least(1), read_handler);
+        asio::async_read(
+            merged_pipe, output_buffer, asio::transfer_at_least(1),
+            read_handler);
       } else if (ec == asio::error::eof) {
         // End of stream - normal completion
       } else if (ec) {
         // Other error
-        std::cerr << "Error reading ceph command output: " << ec.message() << std::endl;
+        std::cerr << "Error reading ceph command output: " << ec.message()
+                  << std::endl;
       }
     };
 
     // Start async read
-    asio::async_read(merged_pipe, output_buffer,
-                    asio::transfer_at_least(1), read_handler);
+    asio::async_read(
+        merged_pipe, output_buffer, asio::transfer_at_least(1), read_handler);
 
     // Run io_context to completion
     io_context.run();
@@ -273,12 +279,12 @@ ProgressTracker::update_ceph_progress_internal(
   } catch (bp::process_error& ec) {
     std::cerr << ec.what() << std::endl;
   } catch (std::exception& ex) {
-    std::cerr << "Exception in update_ceph_progress_internal: " << ex.what() << std::endl;
+    std::cerr << "Exception in update_ceph_progress_internal: " << ex.what()
+              << std::endl;
   }
 
   last_progress_update = clock::now();
 }
-
 
 void
 ProgressTracker::display_progress_internal() const
@@ -300,7 +306,10 @@ ProgressTracker::display_final_summary() const
   }
   std::lock_guard<std::mutex> lock(display_mutex);
   std::string completed_status = get_completed_status();
-  write_console_line(fmt::format("Completed {}! Processed {}", operation_name, completed_status), false);
+  write_console_line(
+      fmt::format(
+          "Completed {}! Processed {}", operation_name, completed_status),
+      false);
   update_ceph_progress_internal(completed_status, 100.0, true);
 }
 
@@ -352,6 +361,5 @@ ProgressTracker::get_eta_seconds(
     return std::chrono::seconds{0};
   }
 
-  return std::chrono::seconds(
-      static_cast<int64_t>(remaining / objects_per_sec));
+  return std::chrono::seconds(static_cast<int64_t>(remaining / objects_per_sec));
 }

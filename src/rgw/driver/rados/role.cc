@@ -19,6 +19,8 @@
 #include <variant>
 
 #include "common/errno.h"
+
+#include "account.h"
 #include "rgw_common.h"
 #include "rgw_metadata.h"
 #include "rgw_metadata_lister.h"
@@ -26,10 +28,8 @@
 #include "rgw_string.h"
 #include "rgw_tools.h"
 #include "rgw_zone.h"
-#include "svc_mdlog.h"
-
-#include "account.h"
 #include "roles.h"
+#include "svc_mdlog.h"
 
 namespace rgwrados::role {
 
@@ -45,26 +45,30 @@ constexpr std::string_view name_oid_prefix = "role_names.";
 // see rgwrados::roles::list() for account roles
 constexpr std::string_view path_oid_prefix = "role_paths.";
 
-
-static rgw_raw_obj get_id_obj(const RGWZoneParams& zone,
-                              std::string_view id)
+static rgw_raw_obj
+get_id_obj(const RGWZoneParams& zone, std::string_view id)
 {
   return {zone.roles_pool, string_cat_reserve(oid_prefix, id)};
 }
 
-static int read_info(const DoutPrefixProvider* dpp, optional_yield y,
-                     RGWSI_SysObj& sysobj, const rgw_raw_obj& obj,
-                     RGWRoleInfo& info, ceph::real_time* pmtime,
-                     RGWObjVersionTracker* pobjv,
-                     rgw_cache_entry_info* pcache_info)
+static int
+read_info(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const rgw_raw_obj& obj,
+    RGWRoleInfo& info,
+    ceph::real_time* pmtime,
+    RGWObjVersionTracker* pobjv,
+    rgw_cache_entry_info* pcache_info)
 {
   bufferlist bl;
   std::map<std::string, bufferlist> attrs;
   // "tagging" doesn't start with RGW_ATTR_PREFIX, don't filter it out
   constexpr bool raw_attrs = true;
-  int r = rgw_get_system_obj(&sysobj, obj.pool, obj.oid, bl, pobjv,
-                             pmtime, y, dpp, &attrs, pcache_info,
-                             boost::none, raw_attrs);
+  int r = rgw_get_system_obj(
+      &sysobj, obj.pool, obj.oid, bl, pobjv, pmtime, y, dpp, &attrs,
+      pcache_info, boost::none, raw_attrs);
   if (r < 0) {
     return r;
   }
@@ -90,20 +94,32 @@ static int read_info(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-int read_by_id(const DoutPrefixProvider* dpp, optional_yield y,
-               RGWSI_SysObj& sysobj, const RGWZoneParams& zone,
-               std::string_view role_id, RGWRoleInfo& info,
-               ceph::real_time* pmtime, RGWObjVersionTracker* pobjv,
-               rgw_cache_entry_info* pcache_info)
+int
+read_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    std::string_view role_id,
+    RGWRoleInfo& info,
+    ceph::real_time* pmtime,
+    RGWObjVersionTracker* pobjv,
+    rgw_cache_entry_info* pcache_info)
 {
   const rgw_raw_obj& obj = get_id_obj(zone, role_id);
   return read_info(dpp, y, sysobj, obj, info, pmtime, pobjv, pcache_info);
 }
 
-static int write_info(const DoutPrefixProvider* dpp, optional_yield y,
-                      RGWSI_SysObj& sysobj, const RGWZoneParams& zone,
-                      const RGWRoleInfo& info, RGWObjVersionTracker& objv,
-                      ceph::real_time mtime, bool exclusive)
+static int
+write_info(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    const RGWRoleInfo& info,
+    RGWObjVersionTracker& objv,
+    ceph::real_time mtime,
+    bool exclusive)
 {
   std::map<std::string, bufferlist> attrs;
   if (!info.tags.empty()) {
@@ -117,11 +133,11 @@ static int write_info(const DoutPrefixProvider* dpp, optional_yield y,
   encode(info, bl);
 
   const rgw_raw_obj& obj = get_id_obj(zone, info.id);
-  int r = rgw_put_system_obj(dpp, &sysobj, obj.pool, obj.oid,
-                             bl, exclusive, &objv, mtime, y, &attrs);
+  int r = rgw_put_system_obj(
+      dpp, &sysobj, obj.pool, obj.oid, bl, exclusive, &objv, mtime, y, &attrs);
   if (r < 0) {
     ldpp_dout(dpp, 1) << "ERROR: failed to write role obj " << obj
-        << " with: " << cpp_strerror(r) << dendl;
+                      << " with: " << cpp_strerror(r) << dendl;
     return r;
   }
   return 0;
@@ -132,10 +148,12 @@ struct IndexObj {
   RGWObjVersionTracker objv;
 };
 
-static rgw_raw_obj get_name_obj(const RGWZoneParams& zone,
-                                std::string_view tenant,
-                                const rgw_account_id& account,
-                                std::string_view name)
+static rgw_raw_obj
+get_name_obj(
+    const RGWZoneParams& zone,
+    std::string_view tenant,
+    const rgw_account_id& account,
+    std::string_view name)
 {
   if (account.empty()) {
     // use tenant as prefix
@@ -150,15 +168,20 @@ static rgw_raw_obj get_name_obj(const RGWZoneParams& zone,
     return {zone.roles_pool, std::move(oid)};
   }
 }
-static rgw_raw_obj get_name_obj(const RGWZoneParams& zone,
-                                const RGWRoleInfo& info)
+
+static rgw_raw_obj
+get_name_obj(const RGWZoneParams& zone, const RGWRoleInfo& info)
 {
   return get_name_obj(zone, info.tenant, info.account_id, info.name);
 }
 
-static int write_name(const DoutPrefixProvider* dpp, optional_yield y,
-                      RGWSI_SysObj& sysobj, const std::string& role_id,
-                      IndexObj& index)
+static int
+write_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const std::string& role_id,
+    IndexObj& index)
 {
   RGWNameToId nameToId;
   nameToId.obj_id = role_id;
@@ -166,20 +189,25 @@ static int write_name(const DoutPrefixProvider* dpp, optional_yield y,
   bufferlist bl;
   encode(nameToId, bl);
 
-  return rgw_put_system_obj(dpp, &sysobj, index.obj.pool, index.obj.oid, bl,
-                            true, &index.objv, ceph::real_time(), y);
+  return rgw_put_system_obj(
+      dpp, &sysobj, index.obj.pool, index.obj.oid, bl, true, &index.objv,
+      ceph::real_time(), y);
 }
 
-static int read_name(const DoutPrefixProvider* dpp, optional_yield y,
-                     RGWSI_SysObj& sysobj, IndexObj& name,
-                     RGWNameToId& name_to_id)
+static int
+read_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    IndexObj& name,
+    RGWNameToId& name_to_id)
 {
   bufferlist bl;
-  int r = rgw_get_system_obj(&sysobj, name.obj.pool, name.obj.oid,
-                             bl, &name.objv, nullptr, y, dpp);
+  int r = rgw_get_system_obj(
+      &sysobj, name.obj.pool, name.obj.oid, bl, &name.objv, nullptr, y, dpp);
   if (r < 0) {
     ldpp_dout(dpp, 4) << "failed to read role name object " << name.obj
-        << " with: " << cpp_strerror(r) << dendl;
+                      << " with: " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -187,29 +215,37 @@ static int read_name(const DoutPrefixProvider* dpp, optional_yield y,
     auto p = bl.cbegin();
     decode(name_to_id, p);
   } catch (const buffer::error& e) {
-    ldpp_dout(dpp, 4) << "failed to decode role name object: "
-        << e.what() << dendl;
+    ldpp_dout(dpp, 4) << "failed to decode role name object: " << e.what()
+                      << dendl;
     return -EIO;
   }
   return 0;
 }
 
-static int remove_index(const DoutPrefixProvider* dpp, optional_yield y,
-                        RGWSI_SysObj& sysobj, IndexObj& index)
+static int
+remove_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    IndexObj& index)
 {
-  int r = rgw_delete_system_obj(dpp, &sysobj, index.obj.pool,
-                                index.obj.oid, &index.objv, y);
+  int r = rgw_delete_system_obj(
+      dpp, &sysobj, index.obj.pool, index.obj.oid, &index.objv, y);
   if (r < 0) {
-    ldpp_dout(dpp, 20) << "WARNING: failed to remove "
-        << index.obj << " with " << cpp_strerror(r) << dendl;
+    ldpp_dout(dpp, 20) << "WARNING: failed to remove " << index.obj << " with "
+                       << cpp_strerror(r) << dendl;
   }
   return r;
 }
 
 using NameIndex = std::optional<IndexObj>;
 
-static int remove_index(const DoutPrefixProvider* dpp, optional_yield y,
-                        RGWSI_SysObj& sysobj, NameIndex& index)
+static int
+remove_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    NameIndex& index)
 {
   if (index) {
     return remove_index(dpp, y, sysobj, *index);
@@ -217,29 +253,37 @@ static int remove_index(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-
-static rgw_raw_obj get_tenant_path_obj(const RGWZoneParams& zone,
-                                       const RGWRoleInfo& info)
+static rgw_raw_obj
+get_tenant_path_obj(const RGWZoneParams& zone, const RGWRoleInfo& info)
 {
-  std::string oid = string_cat_reserve(info.tenant, path_oid_prefix,
-                                       info.path, oid_prefix, info.id);
+  std::string oid = string_cat_reserve(
+      info.tenant, path_oid_prefix, info.path, oid_prefix, info.id);
   return {zone.roles_pool, std::move(oid)};
 }
 
-static int write_tenant_path(const DoutPrefixProvider* dpp, optional_yield y,
-                             RGWSI_SysObj& sysobj, IndexObj& path)
+static int
+write_tenant_path(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    IndexObj& path)
 {
   bufferlist bl;
-  return rgw_put_system_obj(dpp, &sysobj, path.obj.pool, path.obj.oid, bl,
-                            true, &path.objv, ceph::real_time(), y);
+  return rgw_put_system_obj(
+      dpp, &sysobj, path.obj.pool, path.obj.oid, bl, true, &path.objv,
+      ceph::real_time(), y);
 }
 
-static int read_tenant_path(const DoutPrefixProvider* dpp, optional_yield y,
-                            RGWSI_SysObj& sysobj, IndexObj& path)
+static int
+read_tenant_path(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    IndexObj& path)
 {
   bufferlist bl;
-  return rgw_get_system_obj(&sysobj, path.obj.pool, path.obj.oid,
-                            bl, &path.objv, nullptr, y, dpp);
+  return rgw_get_system_obj(
+      &sysobj, path.obj.pool, path.obj.oid, bl, &path.objv, nullptr, y, dpp);
 }
 
 struct AccountIndex {
@@ -247,19 +291,27 @@ struct AccountIndex {
   std::string_view name;
 };
 
-static int remove_index(const DoutPrefixProvider* dpp,
-                        optional_yield y, librados::Rados& rados,
-                        const AccountIndex& index)
+static int
+remove_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const AccountIndex& index)
 {
   return roles::remove(dpp, y, rados, index.obj, index.name);
 }
 
 using PathIndex = std::variant<std::monostate, IndexObj, AccountIndex>;
 
-static int write_path(const DoutPrefixProvider* dpp, optional_yield y,
-                      librados::Rados& rados, RGWSI_SysObj& sysobj,
-                      const RGWZoneParams& zone, const RGWRoleInfo& info,
-                      PathIndex& index)
+static int
+write_path(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    const RGWRoleInfo& info,
+    PathIndex& index)
 {
   if (!info.account_id.empty()) {
     // add the new role to its account
@@ -271,8 +323,8 @@ static int write_path(const DoutPrefixProvider* dpp, optional_yield y,
     constexpr uint32_t no_limit = std::numeric_limits<uint32_t>::max();
     int r = roles::add(dpp, y, rados, path.obj, info, exclusive, no_limit);
     if (r < 0) {
-      ldpp_dout(dpp, 1) << "failed to add role to account "
-          << path.obj << " with: " << cpp_strerror(r) << dendl;
+      ldpp_dout(dpp, 1) << "failed to add role to account " << path.obj
+                        << " with: " << cpp_strerror(r) << dendl;
       return r;
     }
     index = std::move(path);
@@ -284,8 +336,8 @@ static int write_path(const DoutPrefixProvider* dpp, optional_yield y,
 
     int r = write_tenant_path(dpp, y, sysobj, path);
     if (r < 0) {
-      ldpp_dout(dpp, 1) << "failed to write role path obj "
-          << path.obj << " with: " << cpp_strerror(r) << dendl;
+      ldpp_dout(dpp, 1) << "failed to write role path obj " << path.obj
+                        << " with: " << cpp_strerror(r) << dendl;
       return r;
     }
     index = std::move(path);
@@ -293,26 +345,35 @@ static int write_path(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-static int remove_index(const DoutPrefixProvider* dpp,
-                        optional_yield y, librados::Rados& rados,
-                        RGWSI_SysObj& sysobj, PathIndex& index)
+static int
+remove_index(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    PathIndex& index)
 {
-  return std::visit(fu2::overload(
-          [&] (std::monostate&) { return 0; },
-          [&] (IndexObj& path) {
-            return remove_index(dpp, y, sysobj, path);
-          },
-          [&] (AccountIndex& path) {
-            return remove_index(dpp, y, rados, path);
-          }), index);
+  return std::visit(
+      fu2::overload(
+          [&](std::monostate&) { return 0; },
+          [&](IndexObj& path) { return remove_index(dpp, y, sysobj, path); },
+          [&](AccountIndex& path) { return remove_index(dpp, y, rados, path); }),
+      index);
 }
 
-int read_by_name(const DoutPrefixProvider* dpp, optional_yield y,
-                 RGWSI_SysObj& sysobj, const RGWZoneParams& zone,
-                 std::string_view tenant, const rgw_account_id& account,
-                 std::string_view name, RGWRoleInfo& info,
-                 ceph::real_time* pmtime, RGWObjVersionTracker* pobjv,
-                 rgw_cache_entry_info* pcache_info)
+int
+read_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    std::string_view tenant,
+    const rgw_account_id& account,
+    std::string_view name,
+    RGWRoleInfo& info,
+    ceph::real_time* pmtime,
+    RGWObjVersionTracker* pobjv,
+    rgw_cache_entry_info* pcache_info)
 {
   IndexObj n;
   n.obj = get_name_obj(zone, tenant, account, name);
@@ -323,15 +384,22 @@ int read_by_name(const DoutPrefixProvider* dpp, optional_yield y,
     return r;
   }
 
-  return read_by_id(dpp, y, sysobj, zone, name_to_id.obj_id,
-                    info, pmtime, pobjv, pcache_info);
+  return read_by_id(
+      dpp, y, sysobj, zone, name_to_id.obj_id, info, pmtime, pobjv, pcache_info);
 }
 
-int write(const DoutPrefixProvider* dpp, optional_yield y,
-          librados::Rados& rados, RGWSI_SysObj& sysobj, RGWSI_MDLog* mdlog,
-          const RGWZoneParams& zone, const RGWRoleInfo& info,
-          RGWObjVersionTracker& objv, ceph::real_time mtime,
-          bool exclusive)
+int
+write(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    RGWSI_MDLog* mdlog,
+    const RGWZoneParams& zone,
+    const RGWRoleInfo& info,
+    RGWObjVersionTracker& objv,
+    ceph::real_time mtime,
+    bool exclusive)
 {
   int r = 0;
 
@@ -348,14 +416,12 @@ int write(const DoutPrefixProvider* dpp, optional_yield y,
     }
   }
 
-  const bool same_name = old_info &&
-      old_info->tenant == info.tenant &&
-      old_info->account_id == info.account_id &&
-      old_info->name == info.name;
-  const bool same_path = old_info &&
-      old_info->tenant == info.tenant &&
-      old_info->account_id == info.account_id &&
-      old_info->path == info.path;
+  const bool same_name = old_info && old_info->tenant == info.tenant &&
+                         old_info->account_id == info.account_id &&
+                         old_info->name == info.name;
+  const bool same_path = old_info && old_info->tenant == info.tenant &&
+                         old_info->account_id == info.account_id &&
+                         old_info->path == info.path;
 
   NameIndex remove_name;
   PathIndex remove_path;
@@ -408,8 +474,8 @@ int write(const DoutPrefixProvider* dpp, optional_yield y,
 
     r = write_name(dpp, y, sysobj, info.id, name);
     if (r < 0) {
-      ldpp_dout(dpp, 1) << "failed to write name obj "
-          << name.obj << " with: " << cpp_strerror(r) << dendl;
+      ldpp_dout(dpp, 1) << "failed to write name obj " << name.obj
+                        << " with: " << cpp_strerror(r) << dendl;
       return r;
     }
     new_name = std::move(name);
@@ -446,26 +512,31 @@ int write(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-static int remove_by_id(const DoutPrefixProvider* dpp, optional_yield y,
-                        librados::Rados& rados, RGWSI_SysObj& sysobj,
-                        RGWSI_MDLog* mdlog, const RGWZoneParams& zone,
-                        std::string_view role_id)
+static int
+remove_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    RGWSI_MDLog* mdlog,
+    const RGWZoneParams& zone,
+    std::string_view role_id)
 {
   const rgw_raw_obj& obj = get_id_obj(zone, role_id);
 
   RGWRoleInfo info;
-  int r = read_info(dpp, y, sysobj, obj, info,
-                    nullptr, &info.objv_tracker, nullptr);
+  int r = read_info(
+      dpp, y, sysobj, obj, info, nullptr, &info.objv_tracker, nullptr);
   if (r < 0) {
     return r;
   }
 
   // delete role info
-  r = rgw_delete_system_obj(dpp, &sysobj, obj.pool, obj.oid,
-                            &info.objv_tracker, y);
+  r = rgw_delete_system_obj(
+      dpp, &sysobj, obj.pool, obj.oid, &info.objv_tracker, y);
   if (r < 0) {
-    ldpp_dout(dpp, 1) << "ERROR: failed to remove role "
-        << info.id << " with: " << cpp_strerror(r) << dendl;
+    ldpp_dout(dpp, 1) << "ERROR: failed to remove role " << info.id
+                      << " with: " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -495,10 +566,17 @@ static int remove_by_id(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-int remove(const DoutPrefixProvider* dpp, optional_yield y,
-           librados::Rados& rados, RGWSI_SysObj& sysobj, RGWSI_MDLog* mdlog,
-           const RGWZoneParams& zone, std::string_view tenant,
-           const rgw_account_id& account, std::string_view name)
+int
+remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    RGWSI_MDLog* mdlog,
+    const RGWZoneParams& zone,
+    std::string_view tenant,
+    const rgw_account_id& account,
+    std::string_view name)
 {
   IndexObj n;
   n.obj = get_name_obj(zone, tenant, account, name);
@@ -512,12 +590,18 @@ int remove(const DoutPrefixProvider* dpp, optional_yield y,
   return remove_by_id(dpp, y, rados, sysobj, mdlog, zone, name_to_id.obj_id);
 }
 
-
-int list_tenant(const DoutPrefixProvider* dpp, optional_yield y,
-                RGWSI_SysObj& sysobj, const RGWZoneParams& zone,
-                std::string_view tenant, const std::string& marker,
-                int max_items, std::string_view path_prefix,
-                std::vector<RGWRoleInfo>& roles, std::string& next_marker)
+int
+list_tenant(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWSI_SysObj& sysobj,
+    const RGWZoneParams& zone,
+    std::string_view tenant,
+    const std::string& marker,
+    int max_items,
+    std::string_view path_prefix,
+    std::vector<RGWRoleInfo>& roles,
+    std::string& next_marker)
 {
   // List all roles if path prefix is empty
   std::string prefix;
@@ -570,35 +654,39 @@ int list_tenant(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-
 class MetadataObject : public RGWMetadataObject {
   RGWRoleInfo info;
-public:
-  MetadataObject(const RGWRoleInfo& info, const obj_version& v, real_time m)
-    : RGWMetadataObject(v, m), info(info) {}
 
-  void dump(Formatter *f) const override {
+public:
+  MetadataObject(const RGWRoleInfo& info, const obj_version& v, real_time m) :
+    RGWMetadataObject(v, m), info(info)
+  {}
+
+  void
+  dump(Formatter* f) const override
+  {
     info.dump(f);
   }
 
-  RGWRoleInfo& get_role_info() {
+  RGWRoleInfo&
+  get_role_info()
+  {
     return info;
   }
 };
 
 class MetadataLister : public RGWMetadataLister {
- public:
+public:
   using RGWMetadataLister::RGWMetadataLister;
 
-  virtual void filter_transform(std::vector<std::string>& oids,
-                                std::list<std::string>& keys) {
+  virtual void
+  filter_transform(std::vector<std::string>& oids, std::list<std::string>& keys)
+  {
     // remove the oid prefix from keys
-    constexpr auto trim = [] (const std::string& oid) {
+    constexpr auto trim = [](const std::string& oid) {
       return oid.substr(oid_prefix.size());
     };
-    std::transform(oids.begin(), oids.end(),
-                   std::back_inserter(keys),
-                   trim);
+    std::transform(oids.begin(), oids.end(), std::back_inserter(keys), trim);
   }
 };
 
@@ -607,34 +695,48 @@ class MetadataHandler : public RGWMetadataHandler {
   RGWSI_SysObj& sysobj;
   RGWSI_MDLog& mdlog;
   const RGWZoneParams& zone;
- public:
-  MetadataHandler(librados::Rados& rados, RGWSI_SysObj& sysobj,
-                  RGWSI_MDLog& mdlog, const RGWZoneParams& zone)
-    : rados(rados), sysobj(sysobj), mdlog(mdlog), zone(zone) {}
 
-  std::string get_type() final { return "roles";  }
+public:
+  MetadataHandler(
+      librados::Rados& rados,
+      RGWSI_SysObj& sysobj,
+      RGWSI_MDLog& mdlog,
+      const RGWZoneParams& zone) :
+    rados(rados), sysobj(sysobj), mdlog(mdlog), zone(zone)
+  {}
 
-  RGWMetadataObject* get_meta_obj(JSONObj *jo,
-                                  const obj_version& objv,
-                                  const ceph::real_time& mtime) override
+  std::string
+  get_type() final
+  {
+    return "roles";
+  }
+
+  RGWMetadataObject*
+  get_meta_obj(
+      JSONObj* jo,
+      const obj_version& objv,
+      const ceph::real_time& mtime) override
   {
     RGWRoleInfo info;
 
     try {
       info.decode_json(jo);
-    } catch (JSONDecoder:: err& e) {
+    } catch (JSONDecoder::err& e) {
       return nullptr;
     }
 
     return new MetadataObject(info, objv, mtime);
   }
 
-  int get(std::string& entry, RGWMetadataObject** obj,
-          optional_yield y, const DoutPrefixProvider* dpp) override
+  int
+  get(std::string& entry,
+      RGWMetadataObject** obj,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) override
   {
     RGWRoleInfo info;
-    int ret = read_by_id(dpp, y, sysobj, zone, entry, info,
-                         &info.mtime, &info.objv_tracker);
+    int ret = read_by_id(
+        dpp, y, sysobj, zone, entry, info, &info.mtime, &info.objv_tracker);
     if (ret < 0) {
       return ret;
     }
@@ -643,38 +745,54 @@ class MetadataHandler : public RGWMetadataHandler {
     return 0;
   }
 
-  int put(std::string& entry, RGWMetadataObject* obj,
-          RGWObjVersionTracker& objv_tracker,
-          optional_yield y, const DoutPrefixProvider* dpp,
-          RGWMDLogSyncType type, bool from_remote_zone) override
+  int
+  put(std::string& entry,
+      RGWMetadataObject* obj,
+      RGWObjVersionTracker& objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      RGWMDLogSyncType type,
+      bool from_remote_zone) override
   {
     auto robj = static_cast<MetadataObject*>(obj);
     auto& info = robj->get_role_info();
     info.mtime = robj->get_mtime();
 
     constexpr bool exclusive = false;
-    int ret = write(dpp, y, rados, sysobj, &mdlog, zone, info,
-                    info.objv_tracker, info.mtime, exclusive);
+    int ret = write(
+        dpp, y, rados, sysobj, &mdlog, zone, info, info.objv_tracker,
+        info.mtime, exclusive);
     return ret < 0 ? ret : STATUS_APPLIED;
   }
 
-  int remove(std::string& entry, RGWObjVersionTracker& objv_tracker,
-             optional_yield y, const DoutPrefixProvider *dpp) override
+  int
+  remove(
+      std::string& entry,
+      RGWObjVersionTracker& objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) override
   {
     return remove_by_id(dpp, y, rados, sysobj, &mdlog, zone, entry);
   }
 
-  int mutate(const std::string& entry, const ceph::real_time& mtime,
-             RGWObjVersionTracker* objv_tracker, optional_yield y,
-             const DoutPrefixProvider* dpp, RGWMDLogStatus op_type,
-             std::function<int()> f) override
+  int
+  mutate(
+      const std::string& entry,
+      const ceph::real_time& mtime,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      RGWMDLogStatus op_type,
+      std::function<int()> f) override
   {
     return -ENOTSUP; // unused
   }
 
-  int list_keys_init(const DoutPrefixProvider* dpp,
-                     const std::string& marker,
-                     void** phandle) override
+  int
+  list_keys_init(
+      const DoutPrefixProvider* dpp,
+      const std::string& marker,
+      void** phandle) override
   {
     const auto& pool = zone.roles_pool;
     auto lister = std::make_unique<MetadataLister>(sysobj.get_pool(pool));
@@ -686,35 +804,40 @@ class MetadataHandler : public RGWMetadataHandler {
     return 0;
   }
 
-  int list_keys_next(const DoutPrefixProvider* dpp,
-                     void* handle, int max,
-                     std::list<std::string>& keys,
-                     bool* truncated) override
+  int
+  list_keys_next(
+      const DoutPrefixProvider* dpp,
+      void* handle,
+      int max,
+      std::list<std::string>& keys,
+      bool* truncated) override
   {
     auto lister = static_cast<RGWMetadataLister*>(handle);
     return lister->get_next(dpp, max, keys, truncated);
   }
 
-  void list_keys_complete(void *handle) override
+  void
+  list_keys_complete(void* handle) override
   {
     delete static_cast<RGWMetadataLister*>(handle);
   }
 
-  std::string get_marker(void *handle) override
+  std::string
+  get_marker(void* handle) override
   {
     auto lister = static_cast<RGWMetadataLister*>(handle);
     return lister->get_marker();
   }
 };
 
-
-auto create_metadata_handler(librados::Rados& rados,
-                             RGWSI_SysObj& sysobj,
-                             RGWSI_MDLog& mdlog,
-                             const RGWZoneParams& zone)
-    -> std::unique_ptr<RGWMetadataHandler>
+auto
+create_metadata_handler(
+    librados::Rados& rados,
+    RGWSI_SysObj& sysobj,
+    RGWSI_MDLog& mdlog,
+    const RGWZoneParams& zone) -> std::unique_ptr<RGWMetadataHandler>
 {
   return std::make_unique<MetadataHandler>(rados, sysobj, mdlog, zone);
 }
 
-} // rgwrados::role
+} // namespace rgwrados::role

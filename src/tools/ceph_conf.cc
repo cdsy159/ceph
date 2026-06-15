@@ -16,20 +16,21 @@
 #include <iomanip>
 #include <string>
 
+#include "common/Formatter.h"
 #include "common/ceph_argparse.h"
 #include "global/global_init.h"
 #include "log/Log.h"
 #include "mon/AuthMonitor.h"
-#include "common/Formatter.h"
 
+using std::cerr;
+using std::cout;
 using std::deque;
 using std::string;
 using std::unique_ptr;
-using std::cerr;
-using std::cout;
 using std::vector;
 
-static void usage(std::ostream& out)
+static void
+usage(std::ostream& out)
 {
   // TODO: add generic_usage once cerr/derr issues are resolved
   out << R"(Ceph configuration query tool
@@ -77,11 +78,13 @@ Return code will be 0 on success; error code otherwise.
 )";
 }
 
-static int list_sections(const std::string &prefix,
-			 const std::list<string>& filter_key,
-			 const std::map<string,string>& filter_key_value)
+static int
+list_sections(
+    const std::string& prefix,
+    const std::list<string>& filter_key,
+    const std::map<string, string>& filter_key_value)
 {
-  std::vector <std::string> sections;
+  std::vector<std::string> sections;
   int ret = g_conf().get_all_sections(sections);
   if (ret)
     return 2;
@@ -94,35 +97,38 @@ static int list_sections(const std::string &prefix,
     sec.push_back(*p);
 
     int r = 0;
-    for (std::list<string>::const_iterator q = filter_key.begin(); q != filter_key.end(); ++q) {
+    for (std::list<string>::const_iterator q = filter_key.begin();
+         q != filter_key.end(); ++q) {
       string v;
       r = g_conf().get_val_from_conf_file(sec, q->c_str(), v, false);
       if (r < 0)
-	break;
+        break;
     }
     if (r < 0)
       continue;
 
-    for (std::map<string,string>::const_iterator q = filter_key_value.begin();
-	 q != filter_key_value.end();
-	 ++q) {
+    for (std::map<string, string>::const_iterator q = filter_key_value.begin();
+         q != filter_key_value.end(); ++q) {
       string v;
       r = g_conf().get_val_from_conf_file(sec, q->first.c_str(), v, false);
       if (r < 0 || v != q->second) {
-	r = -1;
-	break;
+        r = -1;
+        break;
       }
     }
     if (r < 0)
       continue;
-    
+
     cout << *p << std::endl;
   }
   return 0;
 }
 
-static int lookup(const std::deque<std::string> &sections,
-		  const std::string &key, bool resolve_search)
+static int
+lookup(
+    const std::deque<std::string>& sections,
+    const std::string& key,
+    bool resolve_search)
 {
   std::vector<std::string> my_sections{sections.begin(), sections.end()};
   for (auto& section : g_conf().get_my_sections()) {
@@ -137,20 +143,19 @@ static int lookup(const std::deque<std::string> &sections,
       string result;
       ret = ceph_resolve_file_search(val, result);
       if (!ret)
-	puts(result.c_str());
-    }
-    else {
+        puts(result.c_str());
+    } else {
       puts(val.c_str());
     }
     return 0;
-  }
-  else {
+  } else {
     cerr << "error looking up '" << key << "': error " << ret << std::endl;
     return 2;
   }
 }
 
-static int dump_all(const string& format)
+static int
+dump_all(const string& format)
 {
   if (format == "" || format == "plain") {
     g_conf().show_config(std::cout);
@@ -170,7 +175,8 @@ static int dump_all(const string& format)
   }
 }
 
-static void maybe_override_pid(vector<const char*>& args)
+static void
+maybe_override_pid(vector<const char*>& args)
 {
   for (auto i = args.begin(); i != args.end(); ++i) {
     string val;
@@ -181,7 +187,8 @@ static void maybe_override_pid(vector<const char*>& args)
   }
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   deque<std::string> sections;
   bool resolve_search = false;
@@ -189,7 +196,7 @@ int main(int argc, const char **argv)
   std::string lookup_key;
   std::string section_list_prefix;
   std::list<string> filter_key;
-  std::map<string,string> filter_key_value;
+  std::map<string, string> filter_key_value;
   std::string dump_format;
 
   auto args = argv_to_vec(argc, argv);
@@ -198,11 +205,10 @@ int main(int argc, const char **argv)
   auto cct = [&args] {
     // override the PID before options are expanded
     maybe_override_pid(args);
-    std::map<std::string,std::string> defaults = {{"log_to_file", "false"}};
-    return global_init(&defaults, args, CEPH_ENTITY_TYPE_CLIENT,
-		       CODE_ENVIRONMENT_DAEMON,
-		       CINIT_FLAG_NO_DAEMON_ACTIONS |
-		       CINIT_FLAG_NO_MON_CONFIG);
+    std::map<std::string, std::string> defaults = {{"log_to_file", "false"}};
+    return global_init(
+        &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+        CINIT_FLAG_NO_DAEMON_ACTIONS | CINIT_FLAG_NO_MON_CONFIG);
   }();
 
   // do not common_init_finish(); do not start threads; do not do any of thing
@@ -211,35 +217,43 @@ int main(int argc, const char **argv)
   //common_init_finish(g_ceph_context);
 
   std::string val;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    } else if (ceph_argparse_witharg(args, i, &val, "-s", "--section", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "-s", "--section", (char*)NULL)) {
       sections.push_back(val);
-    } else if (ceph_argparse_flag(args, i, "-r", "--resolve_search", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "-r", "--resolve_search", (char*)NULL)) {
       resolve_search = true;
     } else if (ceph_argparse_flag(args, i, "-h", "--help", (char*)NULL)) {
       action = "help";
     } else if (ceph_argparse_witharg(args, i, &val, "--lookup", (char*)NULL)) {
       action = "lookup";
       lookup_key = val;
-    } else if (ceph_argparse_flag(args, i, "-L", "--list_all_sections", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "-L", "--list_all_sections", (char*)NULL)) {
       action = "list-sections";
       section_list_prefix = "";
-    } else if (ceph_argparse_witharg(args, i, &val, "-l", "--list_sections", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "-l", "--list_sections", (char*)NULL)) {
       action = "list-sections";
       section_list_prefix = val;
-    } else if (ceph_argparse_witharg(args, i, &val, "--filter_key", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--filter_key", (char*)NULL)) {
       filter_key.push_back(val);
-    } else if (ceph_argparse_witharg(args, i, &val, "--filter_key_value", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--filter_key_value", (char*)NULL)) {
       size_t pos = val.find_first_of('=');
       if (pos == string::npos) {
-	cerr << "expecting argument like 'key=value' for --filter-key-value (not '" << val << "')" << std::endl;
-	usage(cerr);
-	return EXIT_FAILURE;
-      } 
+        cerr << "expecting argument like 'key=value' for --filter-key-value "
+                "(not '"
+             << val << "')" << std::endl;
+        usage(cerr);
+        return EXIT_FAILURE;
+      }
       string key(val, 0, pos);
-      string value(val, pos+1);
+      string value(val, pos + 1);
       filter_key_value[key] = value;
     } else if (ceph_argparse_flag(args, i, "-D", "--dump_all", (char*)NULL)) {
       action = "dumpall";
@@ -247,17 +261,17 @@ int main(int argc, const char **argv)
       dump_format = val;
     } else {
       if (((action == "lookup") || (action == "")) && (lookup_key.empty())) {
-	action = "lookup";
-	lookup_key = *i++;
+        action = "lookup";
+        lookup_key = *i++;
       } else {
-	cerr << "unable to parse option: '" << *i << "'" << std::endl;
-	cerr << "args:";
-	for (auto arg : orig_args) {
-	  cerr << " " << std::quoted(arg);
-	}
-	cerr << std::endl;
-	usage(cerr);
-	return EXIT_FAILURE;
+        cerr << "unable to parse option: '" << *i << "'" << std::endl;
+        cerr << "args:";
+        for (auto arg : orig_args) {
+          cerr << " " << std::quoted(arg);
+        }
+        cerr << std::endl;
+        usage(cerr);
+        return EXIT_FAILURE;
       }
     }
   }
@@ -273,7 +287,8 @@ int main(int argc, const char **argv)
   } else if (action == "dumpall") {
     return dump_all(dump_format);
   } else {
-    cerr << "You must give an action, such as --lookup or --list-all-sections." << std::endl;
+    cerr << "You must give an action, such as --lookup or --list-all-sections."
+         << std::endl;
     cerr << "Pass --help for more help." << std::endl;
     return EXIT_FAILURE;
   }

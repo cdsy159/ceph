@@ -13,8 +13,9 @@
  *
  */
 
-#include "common/dout_fmt.h"
 #include <gtest/gtest.h>
+
+#include "common/dout_fmt.h"
 
 TEST(DoutFmt, SubDout)
 {

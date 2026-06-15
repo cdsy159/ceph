@@ -2,40 +2,48 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/asio/ContextWQ.h"
-#include "include/Context.h"
+
 #include "common/Cond.h"
 #include "common/dout.h"
+#include "include/Context.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::asio::ContextWQ: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::asio::ContextWQ: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace asio {
 
-ContextWQ::ContextWQ(CephContext* cct, boost::asio::io_context& io_context)
-  : m_cct(cct), m_io_context(io_context),
-    m_strand(std::make_unique<boost::asio::strand<executor_type>>(
+ContextWQ::ContextWQ(CephContext* cct, boost::asio::io_context& io_context) :
+  m_cct(cct),
+  m_io_context(io_context),
+  m_strand(std::make_unique<boost::asio::strand<executor_type>>(
       boost::asio::make_strand(io_context))),
-    m_queued_ops(0) {
+  m_queued_ops(0)
+{
   ldout(m_cct, 20) << dendl;
 }
 
-ContextWQ::~ContextWQ() {
+ContextWQ::~ContextWQ()
+{
   ldout(m_cct, 20) << dendl;
   drain();
   m_strand.reset();
 }
 
-void ContextWQ::drain() {
+void
+ContextWQ::drain()
+{
   ldout(m_cct, 20) << dendl;
   C_SaferCond ctx;
   drain_handler(&ctx);
   ctx.wait();
 }
 
-void ContextWQ::drain_handler(Context* ctx) {
+void
+ContextWQ::drain_handler(Context* ctx)
+{
   if (m_queued_ops == 0) {
     ctx->complete(0);
     return;

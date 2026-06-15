@@ -17,21 +17,23 @@
 
 #include <cstdint>
 #include <optional>
+
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
 #include "common/tracer.h"
+#include "include/function2.hpp"
+#include "include/random.h"
+
 #include "rgw_cksum.h"
-#include "rgw_sal_fwd.h"
 #include "rgw_lua.h"
 #include "rgw_notify_event_type.h"
 #include "rgw_req_context.h"
-#include "include/random.h"
-#include "include/function2.hpp"
+#include "rgw_sal_fwd.h"
 
 // FIXME: following subclass dependencies
-#include "driver/rados/rgw_user.h"
 #include "driver/rados/rgw_datalog_notify.h"
+#include "driver/rados/rgw_user.h"
 
 struct RGWBucketEnt;
 class RGWRESTMgr;
@@ -40,7 +42,8 @@ struct rgw_user_bucket;
 class RGWUsageBatch;
 class RGWCoroutinesManagerRegistry;
 class RGWBucketSyncPolicyHandler;
-using RGWBucketSyncPolicyHandlerRef = std::shared_ptr<RGWBucketSyncPolicyHandler>;
+using RGWBucketSyncPolicyHandlerRef =
+    std::shared_ptr<RGWBucketSyncPolicyHandler>;
 class RGWDataSyncStatusManager;
 class RGWSyncModuleInstance;
 typedef std::shared_ptr<RGWSyncModuleInstance> RGWSyncModuleInstanceRef;
@@ -53,27 +56,31 @@ struct RGWOIDCProviderInfo;
 struct RGWRoleInfo;
 class RGWGetObj_Filter;
 
-using RGWBucketListNameFilter = std::function<bool (const std::string&)>;
-
+using RGWBucketListNameFilter = std::function<bool(const std::string&)>;
 
 namespace rgw {
-  class Aio;
-  namespace IAM { struct Policy; }
+class Aio;
+
+namespace IAM {
+struct Policy;
 }
+} // namespace rgw
 
 namespace rgw::restore {
-  class Restore;
-  struct RestoreEntry;
-}
+class Restore;
+struct RestoreEntry;
+} // namespace rgw::restore
 
 namespace rgw::lua {
-  class Background;
+class Background;
 }
 
 class RGWGetDataCB {
 public:
   virtual int handle_data(bufferlist& bl, off_t bl_ofs, off_t bl_len) = 0;
+
   RGWGetDataCB() {}
+
   virtual ~RGWGetDataCB() {}
 };
 
@@ -81,7 +88,9 @@ struct RGWUsageIter {
   std::string read_iter;
   uint32_t index;
 
-  RGWUsageIter() : index(0) {}
+  RGWUsageIter() :
+    index(0)
+  {}
 };
 
 /**
@@ -143,7 +152,8 @@ struct RGWClusterStat {
  * @brief Base abstractions and API for SAL
  */
 
-namespace rgw { namespace sal {
+namespace rgw {
+namespace sal {
 
 /**
  * @addtogroup RGWSAL
@@ -157,9 +167,9 @@ class GCChain;
 class RGWRole;
 
 enum AttrsMod {
-  ATTRSMOD_NONE    = 0,
+  ATTRSMOD_NONE = 0,
   ATTRSMOD_REPLACE = 1,
-  ATTRSMOD_MERGE   = 2
+  ATTRSMOD_MERGE = 2
 };
 
 static constexpr uint32_t FLAG_LOG_OP = 0x0001;
@@ -171,7 +181,7 @@ static constexpr uint32_t FLAG_FORCE_OP = 0x0004;
 static constexpr uint32_t FLAG_SKIP_UPDATE_OLH = 0x0008;
 
 enum class RGWRestoreStatus : uint8_t {
-  None  = 0,
+  None = 0,
   RestoreAlreadyInProgress = 1,
   CloudRestored = 2,
   RestoreFailed = 3
@@ -192,7 +202,7 @@ std::string_view rgw_restore_type_dump(rgw::sal::RGWRestoreType type);
  * @brief A simple streaming data processing abstraction
  */
 class DataProcessor {
- public:
+public:
   virtual ~DataProcessor() {}
 
   /**
@@ -208,21 +218,26 @@ class DataProcessor {
  * @brief a data consumer that writes an object in a bucket
  */
 class ObjectProcessor : public DataProcessor {
- public:
+public:
   /** prepare to start processing object data */
   virtual int prepare(optional_yield y) = 0;
 
   /** complete the operation and make its result visible to clients */
-  virtual int complete(size_t accounted_size, const std::string& etag,
-                       ceph::real_time *mtime, ceph::real_time set_mtime,
-                       std::map<std::string, bufferlist>& attrs,
-		       const std::optional<rgw::cksum::Cksum>& cksum,
-                       ceph::real_time delete_at,
-                       const char *if_match, const char *if_nomatch,
-                       const std::string *user_data,
-                       rgw_zone_set *zones_trace, bool *canceled,
-                       const req_context& rctx,
-                       uint32_t flags) = 0;
+  virtual int complete(
+      size_t accounted_size,
+      const std::string& etag,
+      ceph::real_time* mtime,
+      ceph::real_time set_mtime,
+      std::map<std::string, bufferlist>& attrs,
+      const std::optional<rgw::cksum::Cksum>& cksum,
+      ceph::real_time delete_at,
+      const char* if_match,
+      const char* if_nomatch,
+      const std::string* user_data,
+      rgw_zone_set* zones_trace,
+      bool* canceled,
+      const req_context& rctx,
+      uint32_t flags) = 0;
 };
 
 /**
@@ -279,17 +294,23 @@ struct TopicList {
  * passed through the set_writer() method.
  */
 class DataProcessorFactory {
- public:
+public:
   DataProcessorFactory() {}
+
   virtual ~DataProcessorFactory() {}
 
-  virtual int set_writer(DataProcessor* writer,
-                         Attrs& attrs,
-                         const DoutPrefixProvider *dpp,
-                         optional_yield y) = 0;
+  virtual int set_writer(
+      DataProcessor* writer,
+      Attrs& attrs,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
   virtual RGWGetObj_Filter* get_filter() = 0;
   virtual bool need_copy_data() = 0;
-  virtual void finalize_attrs(Attrs& attrs) { /* default implementation does nothing */ }
+
+  virtual void
+  finalize_attrs(Attrs& attrs)
+  { /* default implementation does nothing */
+  }
 };
 
 /**
@@ -308,433 +329,571 @@ class DataProcessorFactory {
  * responsible for managing the LifeCycle activities for it's data.
  */
 class Driver {
-  public:
-    Driver() {}
-    virtual ~Driver() = default;
+public:
+  Driver() {}
 
-    /** Post-creation initialization of driver */
-    virtual int initialize(CephContext *cct, const DoutPrefixProvider *dpp) = 0;
-    /** Name of this driver provider (e.g., "rados") */
-    virtual const std::string get_name() const = 0;
-    /** Get cluster unique identifier */
-    virtual std::string get_cluster_id(const DoutPrefixProvider* dpp,  optional_yield y) = 0;
-    /** Get a User from a rgw_user.  Does not query driver for user info, so quick */
-    virtual std::unique_ptr<User> get_user(const rgw_user& u) = 0;
-    /** Lookup a User by access key.  Queries driver for user info. */
-    virtual int get_user_by_access_key(const DoutPrefixProvider* dpp, const std::string& key, optional_yield y, std::unique_ptr<User>* user) = 0;
-    /** Lookup a User by email address.  Queries driver for user info. */
-    virtual int get_user_by_email(const DoutPrefixProvider* dpp, const std::string& email, optional_yield y, std::unique_ptr<User>* user) = 0;
-    /** Lookup a User by swift username.  Queries driver for user info. */
-    virtual int get_user_by_swift(const DoutPrefixProvider* dpp, const std::string& user_str, optional_yield y, std::unique_ptr<User>* user) = 0;
+  virtual ~Driver() = default;
 
-    /** Lookup RGWAccountInfo by id */
-    virtual int load_account_by_id(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view id,
-                                   RGWAccountInfo& info,
-                                   Attrs& attrs,
-                                   RGWObjVersionTracker& objv) = 0;
-    /** Lookup RGWAccountInfo by name */
-    virtual int load_account_by_name(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     std::string_view tenant,
-                                     std::string_view name,
-                                     RGWAccountInfo& info,
-                                     Attrs& attrs,
-                                     RGWObjVersionTracker& objv) = 0;
-    /** Lookup RGWAccountInfo by email address */
-    virtual int load_account_by_email(const DoutPrefixProvider* dpp,
-                                      optional_yield y,
-                                      std::string_view email,
-                                      RGWAccountInfo& info,
-                                      Attrs& attrs,
-                                      RGWObjVersionTracker& objv) = 0;
-    /** Write or overwrite an account */
-    virtual int store_account(const DoutPrefixProvider* dpp,
-                              optional_yield y, bool exclusive,
-                              const RGWAccountInfo& info,
-                              const RGWAccountInfo* old_info,
-                              const Attrs& attrs,
-                              RGWObjVersionTracker& objv) = 0;
-    /** Delete an account */
-    virtual int delete_account(const DoutPrefixProvider* dpp,
-                               optional_yield y,
-                               const RGWAccountInfo& info,
-                               RGWObjVersionTracker& objv) = 0;
+  /** Post-creation initialization of driver */
+  virtual int initialize(CephContext* cct, const DoutPrefixProvider* dpp) = 0;
+  /** Name of this driver provider (e.g., "rados") */
+  virtual const std::string get_name() const = 0;
+  /** Get cluster unique identifier */
+  virtual std::string get_cluster_id(
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+  /** Get a User from a rgw_user.  Does not query driver for user info, so quick */
+  virtual std::unique_ptr<User> get_user(const rgw_user& u) = 0;
+  /** Lookup a User by access key.  Queries driver for user info. */
+  virtual int get_user_by_access_key(
+      const DoutPrefixProvider* dpp,
+      const std::string& key,
+      optional_yield y,
+      std::unique_ptr<User>* user) = 0;
+  /** Lookup a User by email address.  Queries driver for user info. */
+  virtual int get_user_by_email(
+      const DoutPrefixProvider* dpp,
+      const std::string& email,
+      optional_yield y,
+      std::unique_ptr<User>* user) = 0;
+  /** Lookup a User by swift username.  Queries driver for user info. */
+  virtual int get_user_by_swift(
+      const DoutPrefixProvider* dpp,
+      const std::string& user_str,
+      optional_yield y,
+      std::unique_ptr<User>* user) = 0;
 
-    /** Load cumulative bucket storage stats for the given owner */
-    virtual int load_stats(const DoutPrefixProvider* dpp,
-                           optional_yield y,
-                           const rgw_owner& owner,
-                           RGWStorageStats& stats,
-                           ceph::real_time& last_synced,
-                           ceph::real_time& last_updated) = 0;
-    /** Load owner storage stats asynchronously */
-    virtual int load_stats_async(const DoutPrefixProvider* dpp,
-                                 const rgw_owner& owner,
-                                 boost::intrusive_ptr<ReadStatsCB> cb) = 0;
-    /** Recalculate the sum of bucket stats */
-    virtual int reset_stats(const DoutPrefixProvider *dpp,
-                            optional_yield y,
-                            const rgw_owner& owner) = 0;
-    /** Finish syncing owner stats by updating last_synced timestamp */
-    virtual int complete_flush_stats(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     const rgw_owner& owner) = 0;
+  /** Lookup RGWAccountInfo by id */
+  virtual int load_account_by_id(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view id,
+      RGWAccountInfo& info,
+      Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Lookup RGWAccountInfo by name */
+  virtual int load_account_by_name(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view tenant,
+      std::string_view name,
+      RGWAccountInfo& info,
+      Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Lookup RGWAccountInfo by email address */
+  virtual int load_account_by_email(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view email,
+      RGWAccountInfo& info,
+      Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Write or overwrite an account */
+  virtual int store_account(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      bool exclusive,
+      const RGWAccountInfo& info,
+      const RGWAccountInfo* old_info,
+      const Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Delete an account */
+  virtual int delete_account(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWAccountInfo& info,
+      RGWObjVersionTracker& objv) = 0;
 
-    /** Look up the owner (user or account) for the given email address */
-    virtual int load_owner_by_email(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view email,
-                                    rgw_owner& owner) = 0;
+  /** Load cumulative bucket storage stats for the given owner */
+  virtual int load_stats(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_owner& owner,
+      RGWStorageStats& stats,
+      ceph::real_time& last_synced,
+      ceph::real_time& last_updated) = 0;
+  /** Load owner storage stats asynchronously */
+  virtual int load_stats_async(
+      const DoutPrefixProvider* dpp,
+      const rgw_owner& owner,
+      boost::intrusive_ptr<ReadStatsCB> cb) = 0;
+  /** Recalculate the sum of bucket stats */
+  virtual int reset_stats(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_owner& owner) = 0;
+  /** Finish syncing owner stats by updating last_synced timestamp */
+  virtual int complete_flush_stats(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_owner& owner) = 0;
 
-    /** Count the number of roles belonging to the given account. */
-    virtual int count_account_roles(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view account_id,
-                                    uint32_t& count) = 0;
-    /** Return a paginated listing of the account's roles. */
-    virtual int list_account_roles(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view account_id,
-                                   std::string_view path_prefix,
-                                   std::string_view marker,
-                                   uint32_t max_items,
-                                   RoleList& listing) = 0;
+  /** Look up the owner (user or account) for the given email address */
+  virtual int load_owner_by_email(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view email,
+      rgw_owner& owner) = 0;
 
-    /** Load an account's user by username. */
-    virtual int load_account_user_by_name(const DoutPrefixProvider* dpp,
-                                          optional_yield y,
-                                          std::string_view account_id,
-                                          std::string_view tenant,
-                                          std::string_view username,
-                                          std::unique_ptr<User>* user) = 0;
-    /** Count the number of users belonging to the given account. */
-    virtual int count_account_users(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view account_id,
-                                    uint32_t& count) = 0;
-    /** Return a paginated listing of the account's users. */
-    virtual int list_account_users(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view account_id,
-                                   std::string_view tenant,
-                                   std::string_view path_prefix,
-                                   std::string_view marker,
-                                   uint32_t max_items,
-                                   UserList& listing) = 0;
+  /** Count the number of roles belonging to the given account. */
+  virtual int count_account_roles(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      uint32_t& count) = 0;
+  /** Return a paginated listing of the account's roles. */
+  virtual int list_account_roles(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view path_prefix,
+      std::string_view marker,
+      uint32_t max_items,
+      RoleList& listing) = 0;
 
-    /// @group Group
-    ///@{
-    /** Load an account's group by id. */
-    virtual int load_group_by_id(const DoutPrefixProvider* dpp,
-                                 optional_yield y,
-                                 std::string_view id,
-                                 RGWGroupInfo& info, Attrs& attrs,
-                                 RGWObjVersionTracker& objv) = 0;
-    /** Load an account's group by name. */
-    virtual int load_group_by_name(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view account_id,
-                                   std::string_view name,
-                                   RGWGroupInfo& info, Attrs& attrs,
-                                   RGWObjVersionTracker& objv) = 0;
-    /** Write or overwrite a group. */
-    virtual int store_group(const DoutPrefixProvider* dpp, optional_yield y,
-                            const RGWGroupInfo& info, const Attrs& attrs,
-                            RGWObjVersionTracker& objv, bool exclusive,
-                            const RGWGroupInfo* old_info) = 0;
-    /** Remove a group. */
-    virtual int remove_group(const DoutPrefixProvider* dpp, optional_yield y,
-                             const RGWGroupInfo& info,
-                             RGWObjVersionTracker& objv) = 0;
-    /** Return a paginated listing of the group's users. */
-    virtual int list_group_users(const DoutPrefixProvider* dpp,
-                                 optional_yield y,
-                                 std::string_view tenant,
-                                 std::string_view id,
-                                 std::string_view marker,
-                                 uint32_t max_items,
-                                 UserList& listing) = 0;
-    /** Count the number of groups belonging to the given account. */
-    virtual int count_account_groups(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     std::string_view account_id,
-                                     uint32_t& count) = 0;
-    /** Return a paginated listing of the account's groups. */
-    virtual int list_account_groups(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view account_id,
-                                    std::string_view path_prefix,
-                                    std::string_view marker,
-                                    uint32_t max_items,
-                                    GroupList& listing) = 0;
-    ///@}
+  /** Load an account's user by username. */
+  virtual int load_account_user_by_name(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view tenant,
+      std::string_view username,
+      std::unique_ptr<User>* user) = 0;
+  /** Count the number of users belonging to the given account. */
+  virtual int count_account_users(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      uint32_t& count) = 0;
+  /** Return a paginated listing of the account's users. */
+  virtual int list_account_users(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view tenant,
+      std::string_view path_prefix,
+      std::string_view marker,
+      uint32_t max_items,
+      UserList& listing) = 0;
 
-    /** Get a basic Object.  This Object is not looked up, and is incomplete, since is
+  /// @group Group
+  ///@{
+  /** Load an account's group by id. */
+  virtual int load_group_by_id(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view id,
+      RGWGroupInfo& info,
+      Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Load an account's group by name. */
+  virtual int load_group_by_name(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view name,
+      RGWGroupInfo& info,
+      Attrs& attrs,
+      RGWObjVersionTracker& objv) = 0;
+  /** Write or overwrite a group. */
+  virtual int store_group(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWGroupInfo& info,
+      const Attrs& attrs,
+      RGWObjVersionTracker& objv,
+      bool exclusive,
+      const RGWGroupInfo* old_info) = 0;
+  /** Remove a group. */
+  virtual int remove_group(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWGroupInfo& info,
+      RGWObjVersionTracker& objv) = 0;
+  /** Return a paginated listing of the group's users. */
+  virtual int list_group_users(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view tenant,
+      std::string_view id,
+      std::string_view marker,
+      uint32_t max_items,
+      UserList& listing) = 0;
+  /** Count the number of groups belonging to the given account. */
+  virtual int count_account_groups(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      uint32_t& count) = 0;
+  /** Return a paginated listing of the account's groups. */
+  virtual int list_account_groups(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view path_prefix,
+      std::string_view marker,
+      uint32_t max_items,
+      GroupList& listing) = 0;
+  ///@}
+
+  /** Get a basic Object.  This Object is not looked up, and is incomplete, since is
      * does not have a bucket.  This should only be used when an Object is needed before
      * there is a Bucket, otherwise use the get_object() in the Bucket class. */
-    virtual std::unique_ptr<Object> get_object(const rgw_obj_key& k) = 0;
-    /** Get a Bucket by info.  Does not query the driver, just uses the give bucket info. */
-    virtual std::unique_ptr<Bucket> get_bucket(const RGWBucketInfo& i) = 0;
-    /** Load a Bucket by key.  Queries driver for bucket info.  On -ENOENT, the
+  virtual std::unique_ptr<Object> get_object(const rgw_obj_key& k) = 0;
+  /** Get a Bucket by info.  Does not query the driver, just uses the give bucket info. */
+  virtual std::unique_ptr<Bucket> get_bucket(const RGWBucketInfo& i) = 0;
+  /** Load a Bucket by key.  Queries driver for bucket info.  On -ENOENT, the
      * bucket must still be allocated to support bucket->create(). */
-    virtual int load_bucket(const DoutPrefixProvider* dpp, const rgw_bucket& b,
-                            std::unique_ptr<Bucket>* bucket, optional_yield y) = 0;
-    /** List the buckets of a given owner */
-    virtual int list_buckets(const DoutPrefixProvider* dpp,
-			     const rgw_owner& owner, const std::string& tenant,
-			     const std::string& marker, const std::string& end_marker,
-			     uint64_t max, bool need_stats, BucketList& buckets,
-			     optional_yield y) = 0;
-    /** For multisite, this driver is the zone's master */
-    virtual bool is_meta_master() = 0;
-    /** Get zone info for this driver */
-    virtual Zone* get_zone() = 0;
-    /** Get a unique ID specific to this zone. */
-    virtual std::string zone_unique_id(uint64_t unique_num) = 0;
-    /** Get a unique Swift transaction ID specific to this zone */
-    virtual std::string zone_unique_trans_id(const uint64_t unique_num) = 0;
-    /** Lookup a zonegroup by ID */
-    virtual int get_zonegroup(const std::string& id, std::unique_ptr<ZoneGroup>* zonegroup) = 0;
-    /** List all zones in all zone groups by ID */
-    virtual int list_all_zones(const DoutPrefixProvider* dpp, std::list<std::string>& zone_ids) = 0;
-    /** Get statistics about the cluster represented by this driver */
-    virtual int cluster_stat(RGWClusterStat& stats) = 0;
-    /** Get a @a Lifecycle object. Used to manage/run lifecycle transitions */
-    virtual std::unique_ptr<Lifecycle> get_lifecycle(void) = 0;
-    /** Get a @a Restore object. Used to manage/run restore objects */
-    virtual std::unique_ptr<Restore> get_restore(void) = 0;
-    /** Reset the temporarily restored objects which are expired */
-    virtual bool process_expired_objects(const DoutPrefixProvider *dpp, optional_yield y) = 0;
+  virtual int load_bucket(
+      const DoutPrefixProvider* dpp,
+      const rgw_bucket& b,
+      std::unique_ptr<Bucket>* bucket,
+      optional_yield y) = 0;
+  /** List the buckets of a given owner */
+  virtual int list_buckets(
+      const DoutPrefixProvider* dpp,
+      const rgw_owner& owner,
+      const std::string& tenant,
+      const std::string& marker,
+      const std::string& end_marker,
+      uint64_t max,
+      bool need_stats,
+      BucketList& buckets,
+      optional_yield y) = 0;
+  /** For multisite, this driver is the zone's master */
+  virtual bool is_meta_master() = 0;
+  /** Get zone info for this driver */
+  virtual Zone* get_zone() = 0;
+  /** Get a unique ID specific to this zone. */
+  virtual std::string zone_unique_id(uint64_t unique_num) = 0;
+  /** Get a unique Swift transaction ID specific to this zone */
+  virtual std::string zone_unique_trans_id(const uint64_t unique_num) = 0;
+  /** Lookup a zonegroup by ID */
+  virtual int get_zonegroup(
+      const std::string& id,
+      std::unique_ptr<ZoneGroup>* zonegroup) = 0;
+  /** List all zones in all zone groups by ID */
+  virtual int list_all_zones(
+      const DoutPrefixProvider* dpp,
+      std::list<std::string>& zone_ids) = 0;
+  /** Get statistics about the cluster represented by this driver */
+  virtual int cluster_stat(RGWClusterStat& stats) = 0;
+  /** Get a @a Lifecycle object. Used to manage/run lifecycle transitions */
+  virtual std::unique_ptr<Lifecycle> get_lifecycle(void) = 0;
+  /** Get a @a Restore object. Used to manage/run restore objects */
+  virtual std::unique_ptr<Restore> get_restore(void) = 0;
+  /** Reset the temporarily restored objects which are expired */
+  virtual bool process_expired_objects(
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
 
-     /** Get a @a Notification object.  Used to communicate with non-RGW daemons, such as
+  /** Get a @a Notification object.  Used to communicate with non-RGW daemons, such as
       * management/tracking software */
-    /** RGWOp variant */
-    virtual std::unique_ptr<Notification> get_notification(rgw::sal::Object* obj, rgw::sal::Object* src_obj, req_state* s,
-        rgw::notify::EventType event_type, optional_yield y, const std::string* object_name=nullptr) = 0;
-    /** No-req_state variant (e.g., rgwlc) */
-    virtual std::unique_ptr<Notification> get_notification(
-        const DoutPrefixProvider* dpp,
-        rgw::sal::Object* obj,
-        rgw::sal::Object* src_obj,
-        const rgw::notify::EventTypeList& event_types,
-        rgw::sal::Bucket* _bucket,
-        std::string& _user_id,
-        std::string& _user_tenant,
-        std::string& _req_id,
-        optional_yield y) = 0;
-    /** Read the topic config entry into @a data and (optionally) @a objv_tracker */
-    virtual int read_topics(const std::string& tenant, rgw_pubsub_topics& topics, RGWObjVersionTracker* objv_tracker,
-        optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** check if the v1 topics object exists */
-    virtual int stat_topics_v1(const std::string& tenant, optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** Write @a info and (optionally) @a objv_tracker into the config */
-    virtual int write_topics(const std::string& tenant, const rgw_pubsub_topics& topics, RGWObjVersionTracker* objv_tracker,
-        optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** Remove the topic config, optionally a specific version */
-    virtual int remove_topics(const std::string& tenant, RGWObjVersionTracker* objv_tracker,
-        optional_yield y,const DoutPrefixProvider *dpp) = 0;
-    /** Read the topic config entry into data and (optionally) objv_tracker */
-    virtual int read_topic_v2(const std::string& topic_name,
-                              const std::string& tenant,
-                              rgw_pubsub_topic& topic,
-                              RGWObjVersionTracker* objv_tracker,
-                              optional_yield y,
-                              const DoutPrefixProvider* dpp) = 0;
-    /** Write topic info and @a objv_tracker into the config */
-    virtual int write_topic_v2(const rgw_pubsub_topic& topic, bool exclusive,
-                               RGWObjVersionTracker& objv_tracker,
-                               optional_yield y,
-                               const DoutPrefixProvider* dpp) = 0;
-    /** Remove the topic config, optionally a specific version */
-    virtual int remove_topic_v2(const std::string& topic_name,
-                                const std::string& tenant,
-                                RGWObjVersionTracker& objv_tracker,
-                                optional_yield y,
-                                const DoutPrefixProvider* dpp) = 0;
-    /** Return a paginated listing of the account's topic names */
-    virtual int list_account_topics(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view account_id,
-                                    std::string_view marker,
-                                    uint32_t max_items,
-                                    TopicList& listing) = 0;
+  /** RGWOp variant */
+  virtual std::unique_ptr<Notification> get_notification(
+      rgw::sal::Object* obj,
+      rgw::sal::Object* src_obj,
+      req_state* s,
+      rgw::notify::EventType event_type,
+      optional_yield y,
+      const std::string* object_name = nullptr) = 0;
+  /** No-req_state variant (e.g., rgwlc) */
+  virtual std::unique_ptr<Notification> get_notification(
+      const DoutPrefixProvider* dpp,
+      rgw::sal::Object* obj,
+      rgw::sal::Object* src_obj,
+      const rgw::notify::EventTypeList& event_types,
+      rgw::sal::Bucket* _bucket,
+      std::string& _user_id,
+      std::string& _user_tenant,
+      std::string& _req_id,
+      optional_yield y) = 0;
+  /** Read the topic config entry into @a data and (optionally) @a objv_tracker */
+  virtual int read_topics(
+      const std::string& tenant,
+      rgw_pubsub_topics& topics,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** check if the v1 topics object exists */
+  virtual int stat_topics_v1(
+      const std::string& tenant,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Write @a info and (optionally) @a objv_tracker into the config */
+  virtual int write_topics(
+      const std::string& tenant,
+      const rgw_pubsub_topics& topics,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Remove the topic config, optionally a specific version */
+  virtual int remove_topics(
+      const std::string& tenant,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Read the topic config entry into data and (optionally) objv_tracker */
+  virtual int read_topic_v2(
+      const std::string& topic_name,
+      const std::string& tenant,
+      rgw_pubsub_topic& topic,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Write topic info and @a objv_tracker into the config */
+  virtual int write_topic_v2(
+      const rgw_pubsub_topic& topic,
+      bool exclusive,
+      RGWObjVersionTracker& objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Remove the topic config, optionally a specific version */
+  virtual int remove_topic_v2(
+      const std::string& topic_name,
+      const std::string& tenant,
+      RGWObjVersionTracker& objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Return a paginated listing of the account's topic names */
+  virtual int list_account_topics(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view account_id,
+      std::string_view marker,
+      uint32_t max_items,
+      TopicList& listing) = 0;
 
-    // TODO: backends should manage persistent topic queues internally on
-    // write_topic_v2()/remove_topic_v2()
-    virtual int add_persistent_topic(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     const std::string& topic_queue) = 0;
-    virtual int remove_persistent_topic(const DoutPrefixProvider* dpp,
-                                        optional_yield y,
-                                        const std::string& topic_queue) = 0;
+  // TODO: backends should manage persistent topic queues internally on
+  // write_topic_v2()/remove_topic_v2()
+  virtual int add_persistent_topic(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& topic_queue) = 0;
+  virtual int remove_persistent_topic(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& topic_queue) = 0;
 
-    /** Update the bucket-topic mapping in the store, if |add_mapping|=true then
+  /** Update the bucket-topic mapping in the store, if |add_mapping|=true then
      * adding the |bucket_key| |topic| mapping to store, else delete the
      * |bucket_key| |topic| mapping from the store.  The |bucket_key| is
      * in the format |tenant_name + "/" + bucket_name| if tenant is not empty
      * else |bucket_name|*/
-    virtual int update_bucket_topic_mapping(const rgw_pubsub_topic& topic,
-                                            const std::string& bucket_key,
-                                            bool add_mapping,
-                                            optional_yield y,
-                                            const DoutPrefixProvider* dpp) = 0;
-    /** Remove the |bucket_key| from bucket-topic mapping in the store, for all
+  virtual int update_bucket_topic_mapping(
+      const rgw_pubsub_topic& topic,
+      const std::string& bucket_key,
+      bool add_mapping,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Remove the |bucket_key| from bucket-topic mapping in the store, for all
     the topics under |bucket_topics|*/
-    virtual int remove_bucket_mapping_from_topics(
-        const rgw_pubsub_bucket_topics& bucket_topics,
-        const std::string& bucket_key,
-        optional_yield y,
-        const DoutPrefixProvider* dpp) = 0;
-    /** Get the bucket-topic mapping from the backend store. The |bucket_keys|
+  virtual int remove_bucket_mapping_from_topics(
+      const rgw_pubsub_bucket_topics& bucket_topics,
+      const std::string& bucket_key,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Get the bucket-topic mapping from the backend store. The |bucket_keys|
      * are in the format |tenant_name + "/" + bucket_name| if tenant is not
      * empty else |bucket_name|*/
-    virtual int get_bucket_topic_mapping(const rgw_pubsub_topic& topic,
-                                         std::set<std::string>& bucket_keys,
-                                         optional_yield y,
-                                         const DoutPrefixProvider* dpp) = 0;
-    /** Get access to the lifecycle management thread */
-    virtual RGWLC* get_rgwlc(void) = 0;
-    /** Get access to the tier restore management thread */
-    virtual rgw::restore::Restore* get_rgwrestore(void) = 0;   
-    /** Get access to the coroutine registry.  Used to create new coroutine managers */
-    virtual RGWCoroutinesManagerRegistry* get_cr_registry() = 0;
+  virtual int get_bucket_topic_mapping(
+      const rgw_pubsub_topic& topic,
+      std::set<std::string>& bucket_keys,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Get access to the lifecycle management thread */
+  virtual RGWLC* get_rgwlc(void) = 0;
+  /** Get access to the tier restore management thread */
+  virtual rgw::restore::Restore* get_rgwrestore(void) = 0;
+  /** Get access to the coroutine registry.  Used to create new coroutine managers */
+  virtual RGWCoroutinesManagerRegistry* get_cr_registry() = 0;
 
-    /** Log usage data to the driver.  Usage data is things like bytes sent/received and
+  /** Log usage data to the driver.  Usage data is things like bytes sent/received and
      * op count */
-    virtual int log_usage(const DoutPrefixProvider *dpp, std::map<rgw_user_bucket, RGWUsageBatch>& usage_info, optional_yield y) = 0;
-    /** Log OP data to the driver.  Data is opaque to SAL */
-    virtual int log_op(const DoutPrefixProvider *dpp, std::string& oid, bufferlist& bl) = 0;
-    /** Register this driver to the service map.  Somewhat Rados specific; may be removed*/
-    virtual int register_to_service_map(const DoutPrefixProvider *dpp, const std::string& daemon_type,
-					const std::map<std::string, std::string>& meta) = 0;
-    /** Get default quota info.  Used as fallback if a user or bucket has no quota set*/
-    virtual void get_quota(RGWQuota& quota) = 0;
-    /** Get global rate limit configuration*/
-    virtual void get_ratelimit(RGWRateLimitInfo& bucket_ratelimit, RGWRateLimitInfo& user_ratelimit, RGWRateLimitInfo& anon_ratelimit) = 0;
-    /** Enable or disable a set of bucket.  e.g. if a User is suspended */
-    virtual int set_buckets_enabled(const DoutPrefixProvider* dpp, std::vector<rgw_bucket>& buckets, bool enabled, optional_yield y) = 0;
-    /** Get a new request ID */
-    virtual uint64_t get_new_req_id() = 0;
-    /** Get a handler for bucket sync policy. */
-    virtual int get_sync_policy_handler(const DoutPrefixProvider* dpp,
-					std::optional<rgw_zone_id> zone,
-					std::optional<rgw_bucket> bucket,
-					RGWBucketSyncPolicyHandlerRef* phandler,
-					optional_yield y) = 0;
-    /** Get a status manager for bucket sync */
-    virtual RGWDataSyncStatusManager* get_data_sync_manager(const rgw_zone_id& source_zone) = 0;
-    /** Wake up sync threads for bucket metadata sync */
-    virtual void wakeup_meta_sync_shards(std::set<int>& shard_ids) = 0;
-    /** Wake up sync threads for bucket data sync */
-    virtual void wakeup_data_sync_shards(const DoutPrefixProvider *dpp, const rgw_zone_id& source_zone, boost::container::flat_map<int, boost::container::flat_set<rgw_data_notify_entry>>& shard_ids) = 0;
-    /** Clear all usage statistics globally */
-    virtual int clear_usage(const DoutPrefixProvider *dpp, optional_yield y) = 0;
-    /** Get usage statistics for all users and buckets */
-    virtual int read_all_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch,
-			       uint32_t max_entries, bool* is_truncated,
-			       RGWUsageIter& usage_iter,
-			       std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
-    /** Trim usage log for all users and buckets */
-    virtual int trim_all_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch, optional_yield y) = 0;
-    /** Get a configuration value for the given name */
-    virtual int get_config_key_val(std::string name, bufferlist* bl) = 0;
-    /** Start a metadata listing of the given section */
-    virtual int meta_list_keys_init(const DoutPrefixProvider *dpp, const std::string& section, const std::string& marker, void** phandle) = 0;
-    /** Get the next key from a metadata list */
-    virtual int meta_list_keys_next(const DoutPrefixProvider *dpp, void* handle, int max, std::list<std::string>& keys, bool* truncated) = 0;
-    /** Complete a metadata listing */
-    virtual void meta_list_keys_complete(void* handle) = 0;
-    /** Get the marker associated with the current metadata listing */
-    virtual std::string meta_get_marker(void* handle) = 0;
-    /** Remove a specific metadata key */
-    virtual int meta_remove(const DoutPrefixProvider* dpp, std::string& metadata_key, optional_yield y) = 0;
-    /** Get an instance of the Sync module for bucket sync */
-    virtual const RGWSyncModuleInstanceRef& get_sync_module() = 0;
-    /** Get the ID of the current host */
-    virtual std::string get_host_id() = 0;
-    /** Get a Lua script manager for running lua scripts and reloading packages */
-    virtual std::unique_ptr<LuaManager> get_lua_manager(const std::string& luarocks_path) = 0;
-    /** Get an IAM Role by name etc. */
-    virtual std::unique_ptr<RGWRole> get_role(std::string name,
-					      std::string tenant,
-					      rgw_account_id account_id,
-					      std::string path="",
-					      std::string trust_policy="",
-					      std::string description="",
-					      std::string max_session_duration_str="",
-                std::multimap<std::string,std::string> tags={}) = 0;
-    /** Get an IAM Role by ID */
-    virtual std::unique_ptr<RGWRole> get_role(std::string id) = 0;
-    virtual std::unique_ptr<RGWRole> get_role(const RGWRoleInfo& info) = 0;
-    /** Get all IAM Roles optionally filtered by path */
-    virtual int list_roles(const DoutPrefixProvider *dpp,
-			   optional_yield y,
-			   const std::string& tenant,
-			   const std::string& path_prefix,
-			   const std::string& marker,
-			   uint32_t max_items,
-			   RoleList& listing) = 0;
-    virtual int store_oidc_provider(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    const RGWOIDCProviderInfo& info,
-                                    bool exclusive) = 0;
-    virtual int load_oidc_provider(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view tenant,
-                                   std::string_view url,
-                                   RGWOIDCProviderInfo& info) = 0;
-    virtual int delete_oidc_provider(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     std::string_view tenant,
-                                     std::string_view url) = 0;
-    /** Get all Open ID Connector providers, optionally filtered by tenant  */
-    virtual int get_oidc_providers(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view tenant,
-                                   std::vector<RGWOIDCProviderInfo>& providers) = 0;
-    /** Get a Writer that appends to an object */
-    virtual std::unique_ptr<Writer> get_append_writer(const DoutPrefixProvider *dpp,
-				  optional_yield y,
-				  rgw::sal::Object* obj,
-				  const ACLOwner& owner,
-				  const rgw_placement_rule *ptail_placement_rule,
-				  const std::string& unique_tag,
-				  uint64_t position,
-				  uint64_t *cur_accounted_size) = 0;
-    /** Get a Writer that atomically writes an entire object */
-    virtual std::unique_ptr<Writer> get_atomic_writer(const DoutPrefixProvider *dpp,
-				  optional_yield y,
-				  rgw::sal::Object* obj,
-				  const ACLOwner& owner,
-				  const rgw_placement_rule *ptail_placement_rule,
-				  uint64_t olh_epoch,
-				  const std::string& unique_tag) = 0;
+  virtual int log_usage(
+      const DoutPrefixProvider* dpp,
+      std::map<rgw_user_bucket, RGWUsageBatch>& usage_info,
+      optional_yield y) = 0;
+  /** Log OP data to the driver.  Data is opaque to SAL */
+  virtual int log_op(
+      const DoutPrefixProvider* dpp,
+      std::string& oid,
+      bufferlist& bl) = 0;
+  /** Register this driver to the service map.  Somewhat Rados specific; may be removed*/
+  virtual int register_to_service_map(
+      const DoutPrefixProvider* dpp,
+      const std::string& daemon_type,
+      const std::map<std::string, std::string>& meta) = 0;
+  /** Get default quota info.  Used as fallback if a user or bucket has no quota set*/
+  virtual void get_quota(RGWQuota& quota) = 0;
+  /** Get global rate limit configuration*/
+  virtual void get_ratelimit(
+      RGWRateLimitInfo& bucket_ratelimit,
+      RGWRateLimitInfo& user_ratelimit,
+      RGWRateLimitInfo& anon_ratelimit) = 0;
+  /** Enable or disable a set of bucket.  e.g. if a User is suspended */
+  virtual int set_buckets_enabled(
+      const DoutPrefixProvider* dpp,
+      std::vector<rgw_bucket>& buckets,
+      bool enabled,
+      optional_yield y) = 0;
+  /** Get a new request ID */
+  virtual uint64_t get_new_req_id() = 0;
+  /** Get a handler for bucket sync policy. */
+  virtual int get_sync_policy_handler(
+      const DoutPrefixProvider* dpp,
+      std::optional<rgw_zone_id> zone,
+      std::optional<rgw_bucket> bucket,
+      RGWBucketSyncPolicyHandlerRef* phandler,
+      optional_yield y) = 0;
+  /** Get a status manager for bucket sync */
+  virtual RGWDataSyncStatusManager* get_data_sync_manager(
+      const rgw_zone_id& source_zone) = 0;
+  /** Wake up sync threads for bucket metadata sync */
+  virtual void wakeup_meta_sync_shards(std::set<int>& shard_ids) = 0;
+  /** Wake up sync threads for bucket data sync */
+  virtual void wakeup_data_sync_shards(
+      const DoutPrefixProvider* dpp,
+      const rgw_zone_id& source_zone,
+      boost::container::flat_map<
+          int,
+          boost::container::flat_set<rgw_data_notify_entry>>& shard_ids) = 0;
+  /** Clear all usage statistics globally */
+  virtual int clear_usage(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Get usage statistics for all users and buckets */
+  virtual int read_all_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      uint32_t max_entries,
+      bool* is_truncated,
+      RGWUsageIter& usage_iter,
+      std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
+  /** Trim usage log for all users and buckets */
+  virtual int trim_all_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      optional_yield y) = 0;
+  /** Get a configuration value for the given name */
+  virtual int get_config_key_val(std::string name, bufferlist* bl) = 0;
+  /** Start a metadata listing of the given section */
+  virtual int meta_list_keys_init(
+      const DoutPrefixProvider* dpp,
+      const std::string& section,
+      const std::string& marker,
+      void** phandle) = 0;
+  /** Get the next key from a metadata list */
+  virtual int meta_list_keys_next(
+      const DoutPrefixProvider* dpp,
+      void* handle,
+      int max,
+      std::list<std::string>& keys,
+      bool* truncated) = 0;
+  /** Complete a metadata listing */
+  virtual void meta_list_keys_complete(void* handle) = 0;
+  /** Get the marker associated with the current metadata listing */
+  virtual std::string meta_get_marker(void* handle) = 0;
+  /** Remove a specific metadata key */
+  virtual int meta_remove(
+      const DoutPrefixProvider* dpp,
+      std::string& metadata_key,
+      optional_yield y) = 0;
+  /** Get an instance of the Sync module for bucket sync */
+  virtual const RGWSyncModuleInstanceRef& get_sync_module() = 0;
+  /** Get the ID of the current host */
+  virtual std::string get_host_id() = 0;
+  /** Get a Lua script manager for running lua scripts and reloading packages */
+  virtual std::unique_ptr<LuaManager> get_lua_manager(
+      const std::string& luarocks_path) = 0;
+  /** Get an IAM Role by name etc. */
+  virtual std::unique_ptr<RGWRole> get_role(
+      std::string name,
+      std::string tenant,
+      rgw_account_id account_id,
+      std::string path = "",
+      std::string trust_policy = "",
+      std::string description = "",
+      std::string max_session_duration_str = "",
+      std::multimap<std::string, std::string> tags = {}) = 0;
+  /** Get an IAM Role by ID */
+  virtual std::unique_ptr<RGWRole> get_role(std::string id) = 0;
+  virtual std::unique_ptr<RGWRole> get_role(const RGWRoleInfo& info) = 0;
+  /** Get all IAM Roles optionally filtered by path */
+  virtual int list_roles(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& tenant,
+      const std::string& path_prefix,
+      const std::string& marker,
+      uint32_t max_items,
+      RoleList& listing) = 0;
+  virtual int store_oidc_provider(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWOIDCProviderInfo& info,
+      bool exclusive) = 0;
+  virtual int load_oidc_provider(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view tenant,
+      std::string_view url,
+      RGWOIDCProviderInfo& info) = 0;
+  virtual int delete_oidc_provider(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view tenant,
+      std::string_view url) = 0;
+  /** Get all Open ID Connector providers, optionally filtered by tenant  */
+  virtual int get_oidc_providers(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view tenant,
+      std::vector<RGWOIDCProviderInfo>& providers) = 0;
+  /** Get a Writer that appends to an object */
+  virtual std::unique_ptr<Writer> get_append_writer(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      rgw::sal::Object* obj,
+      const ACLOwner& owner,
+      const rgw_placement_rule* ptail_placement_rule,
+      const std::string& unique_tag,
+      uint64_t position,
+      uint64_t* cur_accounted_size) = 0;
+  /** Get a Writer that atomically writes an entire object */
+  virtual std::unique_ptr<Writer> get_atomic_writer(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      rgw::sal::Object* obj,
+      const ACLOwner& owner,
+      const rgw_placement_rule* ptail_placement_rule,
+      uint64_t olh_epoch,
+      const std::string& unique_tag) = 0;
 
-    /** Get the compression type of a placement rule */
-    virtual const std::string& get_compression_type(const rgw_placement_rule& rule) = 0;
-    /** Check to see if this placement rule is valid */
-    virtual bool valid_placement(const rgw_placement_rule& rule) = 0;
+  /** Get the compression type of a placement rule */
+  virtual const std::string& get_compression_type(
+      const rgw_placement_rule& rule) = 0;
+  /** Check to see if this placement rule is valid */
+  virtual bool valid_placement(const rgw_placement_rule& rule) = 0;
 
-    /** Shut down background tasks, to be called while Asio is running. */
-    virtual void shutdown(void) { };
+  /** Shut down background tasks, to be called while Asio is running. */
+  virtual void shutdown(void) {};
 
-    /** Clean up a driver for termination */
-    virtual void finalize(void) = 0;
+  /** Clean up a driver for termination */
+  virtual void finalize(void) = 0;
 
-    /** Get the Ceph context associated with this driver.  May be removed. */
-    virtual CephContext* ctx(void) = 0;
+  /** Get the Ceph context associated with this driver.  May be removed. */
+  virtual CephContext* ctx(void) = 0;
 
-    /** Register admin APIs unique to this driver */
-    virtual void register_admin_apis(RGWRESTMgr* mgr) = 0;
+  /** Register admin APIs unique to this driver */
+  virtual void register_admin_apis(RGWRESTMgr* mgr) = 0;
 }; // class Driver
-
 
 /// \brief Ref-counted callback object for User/Bucket read_stats_async().
 class ReadStatsCB : public boost::intrusive_ref_counter<ReadStatsCB> {
- public:
+public:
   virtual ~ReadStatsCB() {}
+
   virtual void handle_response(int r, const RGWStorageStats& stats) = 0;
 };
 
@@ -748,98 +907,138 @@ class ReadStatsCB : public boost::intrusive_ref_counter<ReadStatsCB> {
  * attributes, and statistics (including usage) about the User.
  */
 class User {
-  public:
-    User() {}
-    virtual ~User() = default;
+public:
+  User() {}
 
-    /** Clone a copy of this user.  Used when modification is necessary of the copy */
-    virtual std::unique_ptr<User> clone() = 0;
+  virtual ~User() = default;
 
-    /** Get the display name for this User */
-    virtual std::string& get_display_name() = 0;
-    /** Get the tenant name for this User */
-    virtual const std::string& get_tenant() = 0;
-    /** Set the tenant name for this User */
-    virtual void set_tenant(std::string& _t) = 0;
-    /** Get the namespace for this User */
-    virtual const std::string& get_ns() = 0;
-    /** Set the namespace for this User */
-    virtual void set_ns(std::string& _ns) = 0;
-    /** Clear the namespace for this User */
-    virtual void clear_ns() = 0;
-    /** Get the full ID for this User */
-    virtual const rgw_user& get_id() const = 0;
-    /** Get the type of this User */
-    virtual uint32_t get_type() const = 0;
-    /** Get the maximum number of buckets allowed for this User */
-    virtual int32_t get_max_buckets() const = 0;
-    /** Set the maximum number of buckets allowed for this User */
-    virtual void set_max_buckets(int32_t _max_buckets) = 0;
-    /** Set quota info */
-    virtual void set_info(RGWQuotaInfo& _quota) = 0;
-    /** Get the capabilities for this User */
-    virtual const RGWUserCaps& get_caps() const = 0;
-    /** Get the version tracker for this User */
-    virtual RGWObjVersionTracker& get_version_tracker() = 0;
-    /** Get the cached attributes for this User */
-    virtual Attrs& get_attrs() = 0;
-    /** Set the cached attributes fro this User */
-    virtual void set_attrs(Attrs& _attrs) = 0;
-    /** Check if a User is empty */
-    virtual bool empty() const = 0;
-    /** Check if a User pointer is empty */
-    static bool empty(const User* u) { return (!u || u->empty()); }
-    /** Check if a User unique_pointer is empty */
-    static bool empty(const std::unique_ptr<User>& u) { return (!u || u->empty()); }
-    /** Read the User attributes from the backing Store */
-    virtual int read_attrs(const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Set the attributes in attrs, leaving any other existing attrs set, and
+  /** Clone a copy of this user.  Used when modification is necessary of the copy */
+  virtual std::unique_ptr<User> clone() = 0;
+
+  /** Get the display name for this User */
+  virtual std::string& get_display_name() = 0;
+  /** Get the tenant name for this User */
+  virtual const std::string& get_tenant() = 0;
+  /** Set the tenant name for this User */
+  virtual void set_tenant(std::string& _t) = 0;
+  /** Get the namespace for this User */
+  virtual const std::string& get_ns() = 0;
+  /** Set the namespace for this User */
+  virtual void set_ns(std::string& _ns) = 0;
+  /** Clear the namespace for this User */
+  virtual void clear_ns() = 0;
+  /** Get the full ID for this User */
+  virtual const rgw_user& get_id() const = 0;
+  /** Get the type of this User */
+  virtual uint32_t get_type() const = 0;
+  /** Get the maximum number of buckets allowed for this User */
+  virtual int32_t get_max_buckets() const = 0;
+  /** Set the maximum number of buckets allowed for this User */
+  virtual void set_max_buckets(int32_t _max_buckets) = 0;
+  /** Set quota info */
+  virtual void set_info(RGWQuotaInfo& _quota) = 0;
+  /** Get the capabilities for this User */
+  virtual const RGWUserCaps& get_caps() const = 0;
+  /** Get the version tracker for this User */
+  virtual RGWObjVersionTracker& get_version_tracker() = 0;
+  /** Get the cached attributes for this User */
+  virtual Attrs& get_attrs() = 0;
+  /** Set the cached attributes fro this User */
+  virtual void set_attrs(Attrs& _attrs) = 0;
+  /** Check if a User is empty */
+  virtual bool empty() const = 0;
+
+  /** Check if a User pointer is empty */
+  static bool
+  empty(const User* u)
+  {
+    return (!u || u->empty());
+  }
+
+  /** Check if a User unique_pointer is empty */
+  static bool
+  empty(const std::unique_ptr<User>& u)
+  {
+    return (!u || u->empty());
+  }
+
+  /** Read the User attributes from the backing Store */
+  virtual int read_attrs(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Set the attributes in attrs, leaving any other existing attrs set, and
      * write them to the backing store; a merge operation */
-    virtual int merge_and_store_attrs(const DoutPrefixProvider* dpp, Attrs& new_attrs, optional_yield y) = 0;
-    /** Read detailed usage stats for this User from the backing store */
-    virtual int read_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch,
-			   uint64_t end_epoch, uint32_t max_entries,
-			   bool* is_truncated, RGWUsageIter& usage_iter,
-			   std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
-    /** Trim User usage stats to the given epoch range */
-    virtual int trim_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch, optional_yield y) = 0;
+  virtual int merge_and_store_attrs(
+      const DoutPrefixProvider* dpp,
+      Attrs& new_attrs,
+      optional_yield y) = 0;
+  /** Read detailed usage stats for this User from the backing store */
+  virtual int read_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      uint32_t max_entries,
+      bool* is_truncated,
+      RGWUsageIter& usage_iter,
+      std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
+  /** Trim User usage stats to the given epoch range */
+  virtual int trim_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      optional_yield y) = 0;
 
-    /** Load this User from the backing store.  requires ID to be set, fills all other fields. */
-    virtual int load_user(const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Store this User to the backing store */
-    virtual int store_user(const DoutPrefixProvider* dpp, optional_yield y, bool exclusive, RGWUserInfo* old_info = nullptr) = 0;
-    /** Remove this User from the backing store */
-    virtual int remove_user(const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Verify multi-factor authentication for this user */
-    virtual int verify_mfa(const std::string& mfa_str, bool* verified, const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Return a paginated listing of the user's groups. */
-    virtual int list_groups(const DoutPrefixProvider* dpp, optional_yield y,
-                            std::string_view marker, uint32_t max_items,
-                            GroupList& listing) = 0;
+  /** Load this User from the backing store.  requires ID to be set, fills all other fields. */
+  virtual int load_user(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Store this User to the backing store */
+  virtual int store_user(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      bool exclusive,
+      RGWUserInfo* old_info = nullptr) = 0;
+  /** Remove this User from the backing store */
+  virtual int remove_user(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Verify multi-factor authentication for this user */
+  virtual int verify_mfa(
+      const std::string& mfa_str,
+      bool* verified,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+  /** Return a paginated listing of the user's groups. */
+  virtual int list_groups(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::string_view marker,
+      uint32_t max_items,
+      GroupList& listing) = 0;
 
-    /* dang temporary; will be removed when User is complete */
-    virtual RGWUserInfo& get_info() = 0;
+  /* dang temporary; will be removed when User is complete */
+  virtual RGWUserInfo& get_info() = 0;
 
-    /** Print the User to @a out */
-    virtual void print(std::ostream& out) const = 0;
+  /** Print the User to @a out */
+  virtual void print(std::ostream& out) const = 0;
 
-    friend inline std::ostream& operator<<(std::ostream& out, const User& u) {
-      u.print(out);
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const User& u)
+  {
+    u.print(out);
+    return out;
+  }
 
-    friend inline std::ostream& operator<<(std::ostream& out, const User* u) {
-      if (!u)
-	out << "<NULL>";
-      else
-	u->print(out);
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const User* u)
+  {
+    if (!u)
+      out << "<NULL>";
+    else
+      u->print(out);
+    return out;
+  }
 
-    friend inline std::ostream& operator<<(std::ostream& out, const std::unique_ptr<User>& p) {
-      out << p.get();
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const std::unique_ptr<User>& p)
+  {
+    out << p.get();
+    return out;
+  }
 };
 
 /**
@@ -851,270 +1050,370 @@ class User {
  * can access the contents of the bucket, and in what ways.
  */
 class Bucket {
-  public:
-
-    /**
+public:
+  /**
      * @brief Parameters for a bucket list operation
      */
-    struct ListParams {
-      std::string prefix;
-      std::string delim;
-      rgw_obj_key marker;
-      rgw_obj_key end_marker;
-      std::string ns;
-      bool enforce_ns{true};
-      rgw::AccessListFilter access_list_filter{};
-      RGWBucketListNameFilter force_check_filter;
-      bool list_versions{false};
-      bool allow_unordered{false};
-      int shard_id{RGW_NO_SHARD};
+  struct ListParams {
+    std::string prefix;
+    std::string delim;
+    rgw_obj_key marker;
+    rgw_obj_key end_marker;
+    std::string ns;
+    bool enforce_ns{true};
+    rgw::AccessListFilter access_list_filter{};
+    RGWBucketListNameFilter force_check_filter;
+    bool list_versions{false};
+    bool allow_unordered{false};
+    int shard_id{RGW_NO_SHARD};
 
-      friend std::ostream& operator<<(std::ostream& out, const ListParams& p) {
-	out << "rgw::sal::Bucket::ListParams{ prefix=\"" << p.prefix <<
-	  "\", delim=\"" << p.delim <<
-	  "\", marker=\"" << p.marker <<
-	  "\", end_marker=\"" << p.end_marker <<
-	  "\", ns=\"" << p.ns <<
-	  "\", enforce_ns=" << p.enforce_ns <<
-	  ", list_versions=" << p.list_versions <<
-	  ", allow_unordered=" << p.allow_unordered <<
-	  ", shard_id=" << p.shard_id <<
-	  " }";
-	return out;
-      }
-    };
-    /**
+    friend std::ostream&
+    operator<<(std::ostream& out, const ListParams& p)
+    {
+      out << "rgw::sal::Bucket::ListParams{ prefix=\"" << p.prefix
+          << "\", delim=\"" << p.delim << "\", marker=\"" << p.marker
+          << "\", end_marker=\"" << p.end_marker << "\", ns=\"" << p.ns
+          << "\", enforce_ns=" << p.enforce_ns
+          << ", list_versions=" << p.list_versions
+          << ", allow_unordered=" << p.allow_unordered
+          << ", shard_id=" << p.shard_id << " }";
+      return out;
+    }
+  };
+
+  /**
      * @brief Results from a bucket list operation
      */
-    struct ListResults {
-      std::vector<rgw_bucket_dir_entry> objs;
-      std::map<std::string, bool> common_prefixes;
-      bool is_truncated{false};
-      rgw_obj_key next_marker;
-    };
+  struct ListResults {
+    std::vector<rgw_bucket_dir_entry> objs;
+    std::map<std::string, bool> common_prefixes;
+    bool is_truncated{false};
+    rgw_obj_key next_marker;
+  };
 
-    Bucket() = default;
-    virtual ~Bucket() = default;
+  Bucket() = default;
+  virtual ~Bucket() = default;
 
-    /** Get an @a Object belonging to this bucket */
-    virtual std::unique_ptr<Object> get_object(const rgw_obj_key& key) = 0;
-    /** List the contents of this bucket */
-    virtual int list(const DoutPrefixProvider* dpp, ListParams&, int, ListResults&, optional_yield y) = 0;
-    /** Get the cached attributes associated with this bucket */
-    virtual Attrs& get_attrs(void) = 0;
-    /** Set the cached attributes on this bucket */
-    virtual int set_attrs(Attrs a) = 0;
-    /** Remove this bucket from the backing store */
-    virtual int remove(const DoutPrefixProvider* dpp, bool delete_children, optional_yield y) = 0;
-    /** Remove this bucket, bypassing garbage collection.  May be removed */
-    virtual int remove_bypass_gc(int concurrent_max, bool
-				 keep_index_consistent,
-				 optional_yield y, const
-				 DoutPrefixProvider *dpp) = 0;
-    /** Get then ACL for this bucket */
-    virtual RGWAccessControlPolicy& get_acl(void) = 0;
-    /** Set the ACL for this bucket */
-    virtual int set_acl(const DoutPrefixProvider* dpp, RGWAccessControlPolicy& acl, optional_yield y) = 0;
+  /** Get an @a Object belonging to this bucket */
+  virtual std::unique_ptr<Object> get_object(const rgw_obj_key& key) = 0;
+  /** List the contents of this bucket */
+  virtual int list(
+      const DoutPrefixProvider* dpp,
+      ListParams&,
+      int,
+      ListResults&,
+      optional_yield y) = 0;
+  /** Get the cached attributes associated with this bucket */
+  virtual Attrs& get_attrs(void) = 0;
+  /** Set the cached attributes on this bucket */
+  virtual int set_attrs(Attrs a) = 0;
+  /** Remove this bucket from the backing store */
+  virtual int remove(
+      const DoutPrefixProvider* dpp,
+      bool delete_children,
+      optional_yield y) = 0;
+  /** Remove this bucket, bypassing garbage collection.  May be removed */
+  virtual int remove_bypass_gc(
+      int concurrent_max,
+      bool keep_index_consistent,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Get then ACL for this bucket */
+  virtual RGWAccessControlPolicy& get_acl(void) = 0;
+  /** Set the ACL for this bucket */
+  virtual int set_acl(
+      const DoutPrefixProvider* dpp,
+      RGWAccessControlPolicy& acl,
+      optional_yield y) = 0;
 
-    /// Input parameters for create().
-    struct CreateParams {
-      rgw_owner owner;
-      std::string zonegroup_id;
-      rgw_placement_rule placement_rule;
-      // zone placement is optional on buckets created for another zonegroup
-      const RGWZonePlacementInfo* zone_placement = nullptr;
-      RGWAccessControlPolicy policy;
-      Attrs attrs;
-      bool obj_lock_enabled = false;
-      std::string marker;
-      std::string bucket_id;
-      std::optional<std::string> swift_ver_location;
-      std::optional<RGWQuotaInfo> quota;
-      std::optional<ceph::real_time> creation_time;
-      std::optional<rgw::BucketIndexType> index_type;
-      std::optional<uint32_t> index_shards;
-    };
+  /// Input parameters for create().
+  struct CreateParams {
+    rgw_owner owner;
+    std::string zonegroup_id;
+    rgw_placement_rule placement_rule;
+    // zone placement is optional on buckets created for another zonegroup
+    const RGWZonePlacementInfo* zone_placement = nullptr;
+    RGWAccessControlPolicy policy;
+    Attrs attrs;
+    bool obj_lock_enabled = false;
+    std::string marker;
+    std::string bucket_id;
+    std::optional<std::string> swift_ver_location;
+    std::optional<RGWQuotaInfo> quota;
+    std::optional<ceph::real_time> creation_time;
+    std::optional<rgw::BucketIndexType> index_type;
+    std::optional<uint32_t> index_shards;
+  };
 
-    /// Create this bucket in the backing store.
-    virtual int create(const DoutPrefixProvider* dpp,
-                       const CreateParams& params,
-                       optional_yield y) = 0;
+  /// Create this bucket in the backing store.
+  virtual int create(
+      const DoutPrefixProvider* dpp,
+      const CreateParams& params,
+      optional_yield y) = 0;
 
-    /** Load this bucket from the backing store.  Requires the key to be set, fills other fields. */
-    virtual int load_bucket(const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Read the bucket stats from the backing Store, synchronous */
-    virtual int read_stats(const DoutPrefixProvider *dpp, optional_yield y,
-			   const bucket_index_layout_generation& idx_layout,
-			   int shard_id, std::string* bucket_ver, std::string* master_ver,
-			   std::map<RGWObjCategory, RGWStorageStats>& stats,
-			   std::string* max_marker = nullptr,
-			   bool* syncstopped = nullptr) = 0;
-    /** Read the bucket stats from the backing Store, asynchronous */
-    virtual int read_stats_async(const DoutPrefixProvider *dpp,
-				 const bucket_index_layout_generation& idx_layout,
-				 int shard_id, boost::intrusive_ptr<ReadStatsCB> cb) = 0;
-    /** Sync this bucket's stats to the owning user's stats in the backing store */
-    virtual int sync_owner_stats(const DoutPrefixProvider *dpp, optional_yield y,
-                                 RGWBucketEnt* optional_ent) = 0;
-    /** Check if this bucket needs resharding, and schedule it if it does */
-    virtual int check_bucket_shards(const DoutPrefixProvider* dpp,
-                                    uint64_t num_objs, optional_yield y) = 0;
-    /** Change the owner of this bucket in the backing store.  Current owner must be set.  Does not
+  /** Load this bucket from the backing store.  Requires the key to be set, fills other fields. */
+  virtual int load_bucket(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Read the bucket stats from the backing Store, synchronous */
+  virtual int read_stats(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const bucket_index_layout_generation& idx_layout,
+      int shard_id,
+      std::string* bucket_ver,
+      std::string* master_ver,
+      std::map<RGWObjCategory, RGWStorageStats>& stats,
+      std::string* max_marker = nullptr,
+      bool* syncstopped = nullptr) = 0;
+  /** Read the bucket stats from the backing Store, asynchronous */
+  virtual int read_stats_async(
+      const DoutPrefixProvider* dpp,
+      const bucket_index_layout_generation& idx_layout,
+      int shard_id,
+      boost::intrusive_ptr<ReadStatsCB> cb) = 0;
+  /** Sync this bucket's stats to the owning user's stats in the backing store */
+  virtual int sync_owner_stats(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      RGWBucketEnt* optional_ent) = 0;
+  /** Check if this bucket needs resharding, and schedule it if it does */
+  virtual int check_bucket_shards(
+      const DoutPrefixProvider* dpp,
+      uint64_t num_objs,
+      optional_yield y) = 0;
+  /** Change the owner of this bucket in the backing store.  Current owner must be set.  Does not
      * change ownership of the objects in the bucket. */
-    virtual int chown(const DoutPrefixProvider* dpp,
-                      const rgw_owner& new_owner,
-                      const std::string& new_owner_name,
-                      optional_yield y) = 0;
-    /** Store the cached bucket info into the backing store */
-    virtual int put_info(const DoutPrefixProvider* dpp, bool exclusive, ceph::real_time mtime, optional_yield y) = 0;
-    /** Get the owner of this bucket */
-    virtual const rgw_owner& get_owner() const = 0;
-    /** Check in the backing store if this bucket is empty */
-    virtual int check_empty(const DoutPrefixProvider* dpp, optional_yield y) = 0;
-    /** Check if the given size fits within the quota */
-    virtual int check_quota(const DoutPrefixProvider *dpp, RGWQuota& quota, uint64_t obj_size, optional_yield y, bool check_size_only = false) = 0;
-    /** Set the attributes in attrs, leaving any other existing attrs set, and
+  virtual int chown(
+      const DoutPrefixProvider* dpp,
+      const rgw_owner& new_owner,
+      const std::string& new_owner_name,
+      optional_yield y) = 0;
+  /** Store the cached bucket info into the backing store */
+  virtual int put_info(
+      const DoutPrefixProvider* dpp,
+      bool exclusive,
+      ceph::real_time mtime,
+      optional_yield y) = 0;
+  /** Get the owner of this bucket */
+  virtual const rgw_owner& get_owner() const = 0;
+  /** Check in the backing store if this bucket is empty */
+  virtual int check_empty(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Check if the given size fits within the quota */
+  virtual int check_quota(
+      const DoutPrefixProvider* dpp,
+      RGWQuota& quota,
+      uint64_t obj_size,
+      optional_yield y,
+      bool check_size_only = false) = 0;
+  /** Set the attributes in attrs, leaving any other existing attrs set, and
      * write them to the backing store; a merge operation */
-    virtual int merge_and_store_attrs(const DoutPrefixProvider* dpp, Attrs& new_attrs, optional_yield y) = 0;
-    /** Try to refresh the cached bucket info from the backing store.  Used in
+  virtual int merge_and_store_attrs(
+      const DoutPrefixProvider* dpp,
+      Attrs& new_attrs,
+      optional_yield y) = 0;
+  /** Try to refresh the cached bucket info from the backing store.  Used in
      * read-modify-update loop. */
-    virtual int try_refresh_info(const DoutPrefixProvider* dpp, ceph::real_time* pmtime, optional_yield y) = 0;
-    /** Read usage information about this bucket from the backing store */
-    virtual int read_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch, uint32_t max_entries,
-			   bool* is_truncated, RGWUsageIter& usage_iter,
-			   std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
-    /** Trim the usage information to the given epoch range */
-    virtual int trim_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch, optional_yield y) = 0;
-    /** Remove objects from the bucket index of this bucket.  May be removed from API */
-    virtual int remove_objs_from_index(const DoutPrefixProvider *dpp, std::list<rgw_obj_index_key>& objs_to_unlink) = 0;
-    /** Check the state of the bucket index, and get stats from it.  May be removed from API */
-    virtual int check_index(const DoutPrefixProvider *dpp, optional_yield y,
-                            std::map<RGWObjCategory, RGWStorageStats>& existing_stats,
-                            std::map<RGWObjCategory, RGWStorageStats>& calculated_stats) = 0;
-    /** Rebuild the bucket index.  May be removed from API */
-    virtual int rebuild_index(const DoutPrefixProvider *dpp, optional_yield y) = 0;
-    /** Set a timeout on the check_index() call.  May be removed from API */
-    virtual int set_tag_timeout(const DoutPrefixProvider *dpp, optional_yield y, uint64_t timeout) = 0;
-    /** Remove this specific bucket instance from the backing store.  May be removed from API */
-    virtual int purge_instance(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  virtual int try_refresh_info(
+      const DoutPrefixProvider* dpp,
+      ceph::real_time* pmtime,
+      optional_yield y) = 0;
+  /** Read usage information about this bucket from the backing store */
+  virtual int read_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      uint32_t max_entries,
+      bool* is_truncated,
+      RGWUsageIter& usage_iter,
+      std::map<rgw_user_bucket, rgw_usage_log_entry>& usage) = 0;
+  /** Trim the usage information to the given epoch range */
+  virtual int trim_usage(
+      const DoutPrefixProvider* dpp,
+      uint64_t start_epoch,
+      uint64_t end_epoch,
+      optional_yield y) = 0;
+  /** Remove objects from the bucket index of this bucket.  May be removed from API */
+  virtual int remove_objs_from_index(
+      const DoutPrefixProvider* dpp,
+      std::list<rgw_obj_index_key>& objs_to_unlink) = 0;
+  /** Check the state of the bucket index, and get stats from it.  May be removed from API */
+  virtual int check_index(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      std::map<RGWObjCategory, RGWStorageStats>& existing_stats,
+      std::map<RGWObjCategory, RGWStorageStats>& calculated_stats) = 0;
+  /** Rebuild the bucket index.  May be removed from API */
+  virtual int rebuild_index(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Set a timeout on the check_index() call.  May be removed from API */
+  virtual int set_tag_timeout(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      uint64_t timeout) = 0;
+  /** Remove this specific bucket instance from the backing store.  May be removed from API */
+  virtual int purge_instance(const DoutPrefixProvider* dpp, optional_yield y) = 0;
 
-    /** Check if this instantiation is empty */
-    virtual bool empty() const = 0;
-    /** Get the cached name of this bucket */
-    virtual const std::string& get_name() const = 0;
-    /** Get the cached tenant of this bucket */
-    virtual const std::string& get_tenant() const = 0;
-    /** Get the cached marker of this bucket */
-    virtual const std::string& get_marker() const = 0;
-    /** Get the cached ID of this bucket */
-    virtual const std::string& get_bucket_id() const = 0;
-    /** Get the cached placement rule of this bucket */
-    virtual rgw_placement_rule& get_placement_rule() = 0;
-    /** Get the cached creation time of this bucket */
-    virtual ceph::real_time& get_creation_time() = 0;
-    /** Get the cached modification time of this bucket */
-    virtual ceph::real_time& get_modification_time() = 0;
-    /** Get the cached version of this bucket */
-    virtual obj_version& get_version() = 0;
-    /** Set the cached version of this bucket */
-    virtual void set_version(obj_version &ver) = 0;
-    /** Check if this bucket is versioned */
-    virtual bool versioned() = 0;
-    /** Check if this bucket has versioning enabled */
-    virtual bool versioning_enabled() = 0;
+  /** Check if this instantiation is empty */
+  virtual bool empty() const = 0;
+  /** Get the cached name of this bucket */
+  virtual const std::string& get_name() const = 0;
+  /** Get the cached tenant of this bucket */
+  virtual const std::string& get_tenant() const = 0;
+  /** Get the cached marker of this bucket */
+  virtual const std::string& get_marker() const = 0;
+  /** Get the cached ID of this bucket */
+  virtual const std::string& get_bucket_id() const = 0;
+  /** Get the cached placement rule of this bucket */
+  virtual rgw_placement_rule& get_placement_rule() = 0;
+  /** Get the cached creation time of this bucket */
+  virtual ceph::real_time& get_creation_time() = 0;
+  /** Get the cached modification time of this bucket */
+  virtual ceph::real_time& get_modification_time() = 0;
+  /** Get the cached version of this bucket */
+  virtual obj_version& get_version() = 0;
+  /** Set the cached version of this bucket */
+  virtual void set_version(obj_version& ver) = 0;
+  /** Check if this bucket is versioned */
+  virtual bool versioned() = 0;
+  /** Check if this bucket has versioning enabled */
+  virtual bool versioning_enabled() = 0;
 
-    /** Check if a Bucket pointer is empty */
-    static bool empty(const Bucket* b) { return (!b || b->empty()); }
-    /** Check if a Bucket unique pointer is empty */
-    static bool empty(const std::unique_ptr<Bucket>& b) { return (!b || b->empty()); }
-    /** Clone a copy of this bucket.  Used when modification is necessary of the copy */
-    virtual std::unique_ptr<Bucket> clone() = 0;
+  /** Check if a Bucket pointer is empty */
+  static bool
+  empty(const Bucket* b)
+  {
+    return (!b || b->empty());
+  }
 
-    /** Create a multipart upload in this bucket */
-    virtual std::unique_ptr<MultipartUpload> get_multipart_upload(
-				const std::string& oid,
-				std::optional<std::string> upload_id=std::nullopt,
-				ACLOwner owner={}, ceph::real_time mtime=real_clock::now()) = 0;
-    /** List multipart uploads currently in this bucket */
-    virtual int list_multiparts(const DoutPrefixProvider *dpp,
-				const std::string& prefix,
-				std::string& marker,
-				const std::string& delim,
-				const int& max_uploads,
-				std::vector<std::unique_ptr<MultipartUpload>>& uploads,
-				std::map<std::string, bool> *common_prefixes,
-				bool *is_truncated, optional_yield y) = 0;
-    /** Abort multipart uploads in a bucket */
-    virtual int abort_multiparts(const DoutPrefixProvider* dpp,
-				 CephContext* cct, optional_yield y) = 0;
+  /** Check if a Bucket unique pointer is empty */
+  static bool
+  empty(const std::unique_ptr<Bucket>& b)
+  {
+    return (!b || b->empty());
+  }
 
-    /** Read the bucket notification config into @a notifications with and (optionally) @a objv_tracker */
-    virtual int read_topics(rgw_pubsub_bucket_topics& notifications, 
-        RGWObjVersionTracker* objv_tracker, optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** Write @a notifications with (optionally) @a objv_tracker into the bucket notification config */
-    virtual int write_topics(const rgw_pubsub_bucket_topics& notifications, RGWObjVersionTracker* objv_tracker,
-        optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** Remove the bucket notification config with (optionally) @a objv_tracker */
-    virtual int remove_topics(RGWObjVersionTracker* objv_tracker, 
-        optional_yield y, const DoutPrefixProvider *dpp) = 0;
+  /** Clone a copy of this bucket.  Used when modification is necessary of the copy */
+  virtual std::unique_ptr<Bucket> clone() = 0;
 
-    /** Read the name of the pending bucket logging object name */
-    virtual int get_logging_object_name(std::string& obj_name,
-        const std::string& prefix,
-        optional_yield y,
-        const DoutPrefixProvider *dpp,
-        RGWObjVersionTracker* objv_tracker) = 0;
-    /** Update the name of the pending bucket logging object name */
-    virtual int set_logging_object_name(const std::string& obj_name,
-        const std::string& prefix,
-        optional_yield y,
-        const DoutPrefixProvider *dpp,
-        bool new_obj,
-        RGWObjVersionTracker* objv_tracker) = 0;
-    /** Remove the object holding the name of the pending bucket logging object */
-    virtual int remove_logging_object_name(const std::string& prefix,
-        optional_yield y,
-        const DoutPrefixProvider *dpp,
-        RGWObjVersionTracker* objv_tracker) = 0;
-    /** Move the pending bucket logging object into the bucket
+  /** Create a multipart upload in this bucket */
+  virtual std::unique_ptr<MultipartUpload> get_multipart_upload(
+      const std::string& oid,
+      std::optional<std::string> upload_id = std::nullopt,
+      ACLOwner owner = {},
+      ceph::real_time mtime = real_clock::now()) = 0;
+  /** List multipart uploads currently in this bucket */
+  virtual int list_multiparts(
+      const DoutPrefixProvider* dpp,
+      const std::string& prefix,
+      std::string& marker,
+      const std::string& delim,
+      const int& max_uploads,
+      std::vector<std::unique_ptr<MultipartUpload>>& uploads,
+      std::map<std::string, bool>* common_prefixes,
+      bool* is_truncated,
+      optional_yield y) = 0;
+  /** Abort multipart uploads in a bucket */
+  virtual int abort_multiparts(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      optional_yield y) = 0;
+
+  /** Read the bucket notification config into @a notifications with and (optionally) @a objv_tracker */
+  virtual int read_topics(
+      rgw_pubsub_bucket_topics& notifications,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Write @a notifications with (optionally) @a objv_tracker into the bucket notification config */
+  virtual int write_topics(
+      const rgw_pubsub_bucket_topics& notifications,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Remove the bucket notification config with (optionally) @a objv_tracker */
+  virtual int remove_topics(
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+
+  /** Read the name of the pending bucket logging object name */
+  virtual int get_logging_object_name(
+      std::string& obj_name,
+      const std::string& prefix,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      RGWObjVersionTracker* objv_tracker) = 0;
+  /** Update the name of the pending bucket logging object name */
+  virtual int set_logging_object_name(
+      const std::string& obj_name,
+      const std::string& prefix,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      bool new_obj,
+      RGWObjVersionTracker* objv_tracker) = 0;
+  /** Remove the object holding the name of the pending bucket logging object */
+  virtual int remove_logging_object_name(
+      const std::string& prefix,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      RGWObjVersionTracker* objv_tracker) = 0;
+  /** Move the pending bucket logging object into the bucket
      if "last_committed" is not null, it will be set to the name of the last committed object
      if async is true, write the entry to the commit lists to be processed by the BucketLoggingManager
      * */
-    virtual int commit_logging_object(const std::string& obj_name, optional_yield y,
-	const DoutPrefixProvider *dpp, const std::string& prefix,
-	std::string* last_committed, bool async) = 0;
-    //** Remove the pending bucket logging object */
-    virtual int remove_logging_object(const std::string& obj_name, const std::string& prefix, optional_yield y, const DoutPrefixProvider *dpp) = 0;
-    /** Write a record to the pending bucket logging object */
-    virtual int write_logging_object(const std::string& obj_name, const std::string& record, const std::string& prefix, optional_yield y, const DoutPrefixProvider *dpp, bool async_completion) = 0;
+  virtual int commit_logging_object(
+      const std::string& obj_name,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      const std::string& prefix,
+      std::string* last_committed,
+      bool async) = 0;
+  //** Remove the pending bucket logging object */
+  virtual int remove_logging_object(
+      const std::string& obj_name,
+      const std::string& prefix,
+      optional_yield y,
+      const DoutPrefixProvider* dpp) = 0;
+  /** Write a record to the pending bucket logging object */
+  virtual int write_logging_object(
+      const std::string& obj_name,
+      const std::string& record,
+      const std::string& prefix,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      bool async_completion) = 0;
 
-    /* dang - This is temporary, until the API is completed */
-    virtual rgw_bucket& get_key() = 0;
-    virtual RGWBucketInfo& get_info() = 0;
+  /* dang - This is temporary, until the API is completed */
+  virtual rgw_bucket& get_key() = 0;
+  virtual RGWBucketInfo& get_info() = 0;
 
-    /** Print the User to @a out */
-    virtual void print(std::ostream& out) const = 0;
+  /** Print the User to @a out */
+  virtual void print(std::ostream& out) const = 0;
 
-    friend inline std::ostream& operator<<(std::ostream& out, const Bucket& b) {
-      b.print(out);
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Bucket& b)
+  {
+    b.print(out);
+    return out;
+  }
 
-    friend inline std::ostream& operator<<(std::ostream& out, const Bucket* b) {
-      if (!b)
-	out << "<NULL>";
-      else
-	b->print(out);
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Bucket* b)
+  {
+    if (!b)
+      out << "<NULL>";
+    else
+      b->print(out);
+    return out;
+  }
 
-    friend inline std::ostream& operator<<(std::ostream& out, const std::unique_ptr<Bucket>& p) {
-      out << p.get();
-      return out;
-    }
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const std::unique_ptr<Bucket>& p)
+  {
+    out << p.get();
+    return out;
+  }
 
-    virtual bool operator==(const Bucket& b) const = 0;
-    virtual bool operator!=(const Bucket& b) const = 0;
+  virtual bool operator==(const Bucket& b) const = 0;
+  virtual bool operator!=(const Bucket& b) const = 0;
 };
 
 /**
@@ -1128,352 +1427,447 @@ class Bucket {
  * is written to, it is replaced, and the old data is not accessible.
  */
 class Object {
-  public:
-
-    /**
+public:
+  /**
      * @brief Read operation on an Object
      *
      * This represents a Read operation on an Object.  Read operations are optionally
      * asynchronous, using the iterate() API.
      */
-    struct ReadOp {
-      struct Params {
-        const ceph::real_time* mod_ptr{nullptr};
-        const ceph::real_time* unmod_ptr{nullptr};
-        bool high_precision_time{false};
-        uint32_t mod_zone_id{0};
-        uint64_t mod_pg_ver{0};
-        const char* if_match{nullptr};
-        const char* if_nomatch{nullptr};
-        ceph::real_time* lastmod{nullptr};
-        rgw_obj* target_obj{nullptr}; // XXX dang remove?
+  struct ReadOp {
+    struct Params {
+      const ceph::real_time* mod_ptr{nullptr};
+      const ceph::real_time* unmod_ptr{nullptr};
+      bool high_precision_time{false};
+      uint32_t mod_zone_id{0};
+      uint64_t mod_pg_ver{0};
+      const char* if_match{nullptr};
+      const char* if_nomatch{nullptr};
+      ceph::real_time* lastmod{nullptr};
+      rgw_obj* target_obj{nullptr}; // XXX dang remove?
 
-        /// If non-null, read data/attributes from the given multipart part.
-        int* part_num{nullptr};
-        /// If the object is multipart, the total number of multipart
-        /// parts is assigned to this output parameter.
-        std::optional<int> parts_count;
-      } params;
+      /// If non-null, read data/attributes from the given multipart part.
+      int* part_num{nullptr};
+      /// If the object is multipart, the total number of multipart
+      /// parts is assigned to this output parameter.
+      std::optional<int> parts_count;
+    } params;
 
-      virtual ~ReadOp() = default;
+    virtual ~ReadOp() = default;
 
-      /** Prepare the Read op.  Must be called first */
-      virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp) = 0;
+    /** Prepare the Read op.  Must be called first */
+    virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp) = 0;
 
-      /** Synchronous read. Read from @a ofs to @a end (inclusive)
+    /** Synchronous read. Read from @a ofs to @a end (inclusive)
        * into @a bl. Length is `end - ofs + 1`. */
-      virtual int read(int64_t ofs, int64_t end, bufferlist& bl,
-		       optional_yield y, const DoutPrefixProvider* dpp) = 0;
+    virtual int read(
+        int64_t ofs,
+        int64_t end,
+        bufferlist& bl,
+        optional_yield y,
+        const DoutPrefixProvider* dpp) = 0;
 
-      /** Asynchronous read.  Read from @a ofs to @a end (inclusive)
+    /** Asynchronous read.  Read from @a ofs to @a end (inclusive)
        * calling @a cb on each read chunk. Length is `end - ofs +
        * 1`. */
-      virtual int iterate(const DoutPrefixProvider* dpp, int64_t ofs,
-			  int64_t end, RGWGetDataCB* cb, optional_yield y) = 0;
+    virtual int iterate(
+        const DoutPrefixProvider* dpp,
+        int64_t ofs,
+        int64_t end,
+        RGWGetDataCB* cb,
+        optional_yield y) = 0;
 
-      /** Get an attribute by name */
-      virtual int get_attr(const DoutPrefixProvider* dpp, const char* name, bufferlist& dest, optional_yield y) = 0;
-    };
+    /** Get an attribute by name */
+    virtual int get_attr(
+        const DoutPrefixProvider* dpp,
+        const char* name,
+        bufferlist& dest,
+        optional_yield y) = 0;
+  };
 
-    /**
+  /**
      * @brief Delete operation on an Object
      *
      * This deletes an Object from the backing store.
      */
-    struct DeleteOp {
-      struct Params {
-        rgw_owner bucket_owner; //< bucket owner for usage/quota accounting
-        ACLOwner obj_owner; //< acl owner for delete marker if necessary
-        int versioning_status{0};
-        bool null_verid{false};
-        uint64_t olh_epoch{0};
-	std::string marker_version_id;
-        uint32_t bilog_flags{0};
-        std::list<rgw_obj_index_key>* remove_objs{nullptr};
-        ceph::real_time expiration_time;
-        ceph::real_time unmod_since;
-        ceph::real_time last_mod_time_match;
-        ceph::real_time mtime;
-        std::optional<uint64_t> size_match;
-        const char *if_match{nullptr};
-        bool high_precision_time{false};
-        rgw_zone_set* zones_trace{nullptr};
-	bool abortmp{false};
-	uint64_t parts_accounted_size{0};
-        RGWObjVersionTracker* objv_tracker = nullptr;
-      } params;
+  struct DeleteOp {
+    struct Params {
+      rgw_owner bucket_owner; //< bucket owner for usage/quota accounting
+      ACLOwner obj_owner; //< acl owner for delete marker if necessary
+      int versioning_status{0};
+      bool null_verid{false};
+      uint64_t olh_epoch{0};
+      std::string marker_version_id;
+      uint32_t bilog_flags{0};
+      std::list<rgw_obj_index_key>* remove_objs{nullptr};
+      ceph::real_time expiration_time;
+      ceph::real_time unmod_since;
+      ceph::real_time last_mod_time_match;
+      ceph::real_time mtime;
+      std::optional<uint64_t> size_match;
+      const char* if_match{nullptr};
+      bool high_precision_time{false};
+      rgw_zone_set* zones_trace{nullptr};
+      bool abortmp{false};
+      uint64_t parts_accounted_size{0};
+      RGWObjVersionTracker* objv_tracker = nullptr;
+    } params;
 
-      struct Result {
-        bool delete_marker{false};
-	std::string version_id;
-      } result;
+    struct Result {
+      bool delete_marker{false};
+      std::string version_id;
+    } result;
 
-      virtual ~DeleteOp() = default;
+    virtual ~DeleteOp() = default;
 
-      /** Delete the object */
-      virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y, uint32_t flags) = 0;
-    };
+    /** Delete the object */
+    virtual int delete_obj(
+        const DoutPrefixProvider* dpp,
+        optional_yield y,
+        uint32_t flags) = 0;
+  };
 
-    Object() {}
-    virtual ~Object() = default;
+  Object() {}
 
-    /** Shortcut synchronous delete call for common deletes */
-    virtual int delete_object(const DoutPrefixProvider* dpp,
-			      optional_yield y,
-			      uint32_t flags,
-			      std::list<rgw_obj_index_key>* remove_objs,
-			      RGWObjVersionTracker* objv) = 0;
-    /** Copy an this object to another object. */
-    virtual int copy_object(const ACLOwner& owner, const rgw_user& remote_user,
-               req_info* info, const rgw_zone_id& source_zone,
-               rgw::sal::Object* dest_object, rgw::sal::Bucket* dest_bucket,
-               rgw::sal::Bucket* src_bucket,
-               const rgw_placement_rule& dest_placement,
-               ceph::real_time* src_mtime, ceph::real_time* mtime,
-               const ceph::real_time* mod_ptr, const ceph::real_time* unmod_ptr,
-               bool high_precision_time,
-               const char* if_match, const char* if_nomatch,
-               AttrsMod attrs_mod, bool copy_if_newer, Attrs& attrs,
-               RGWObjCategory category, uint64_t olh_epoch,
-	       boost::optional<ceph::real_time> delete_at,
-               std::string* version_id, std::string* tag, std::string* etag,
-               void (*progress_cb)(off_t, void *), void* progress_data,
-               DataProcessorFactory* dp_factory,
-               const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  virtual ~Object() = default;
 
-    /** return logging subsystem */
-    virtual unsigned get_subsys() { return ceph_subsys_rgw; };
-    /** Get the ACL for this object */
-    virtual RGWAccessControlPolicy& get_acl(void) = 0;
-    /** Set the ACL for this object */
-    virtual int set_acl(const RGWAccessControlPolicy& acl) = 0;
-    /** Mark further operations on this object as being atomic */
-    virtual void set_atomic(bool atomic) = 0;
-    /** Check if this object is atomic */
-    virtual bool is_atomic() = 0;
-    /** Pre-fetch data when reading */
-    virtual void set_prefetch_data() = 0;
-    /** Check if this object should prefetch */
-    virtual bool is_prefetch_data() = 0;
-    /** Mark data as compressed */
-    virtual void set_compressed() = 0;
-    /** Check if this object is compressed */
-    virtual bool is_compressed() = 0;
-    /** True if this object is a delete marker (newest version is deleted) */
-    virtual bool is_delete_marker() = 0;
-    /** Check if object is synced */
-    virtual bool is_sync_completed(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   const ceph::real_time& obj_mtime) = 0;
-    /** Invalidate cached info about this object, except atomic, prefetch, and
+  /** Shortcut synchronous delete call for common deletes */
+  virtual int delete_object(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      uint32_t flags,
+      std::list<rgw_obj_index_key>* remove_objs,
+      RGWObjVersionTracker* objv) = 0;
+  /** Copy an this object to another object. */
+  virtual int copy_object(
+      const ACLOwner& owner,
+      const rgw_user& remote_user,
+      req_info* info,
+      const rgw_zone_id& source_zone,
+      rgw::sal::Object* dest_object,
+      rgw::sal::Bucket* dest_bucket,
+      rgw::sal::Bucket* src_bucket,
+      const rgw_placement_rule& dest_placement,
+      ceph::real_time* src_mtime,
+      ceph::real_time* mtime,
+      const ceph::real_time* mod_ptr,
+      const ceph::real_time* unmod_ptr,
+      bool high_precision_time,
+      const char* if_match,
+      const char* if_nomatch,
+      AttrsMod attrs_mod,
+      bool copy_if_newer,
+      Attrs& attrs,
+      RGWObjCategory category,
+      uint64_t olh_epoch,
+      boost::optional<ceph::real_time> delete_at,
+      std::string* version_id,
+      std::string* tag,
+      std::string* etag,
+      void (*progress_cb)(off_t, void*),
+      void* progress_data,
+      DataProcessorFactory* dp_factory,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+
+  /** return logging subsystem */
+  virtual unsigned
+  get_subsys()
+  {
+    return ceph_subsys_rgw;
+  };
+
+  /** Get the ACL for this object */
+  virtual RGWAccessControlPolicy& get_acl(void) = 0;
+  /** Set the ACL for this object */
+  virtual int set_acl(const RGWAccessControlPolicy& acl) = 0;
+  /** Mark further operations on this object as being atomic */
+  virtual void set_atomic(bool atomic) = 0;
+  /** Check if this object is atomic */
+  virtual bool is_atomic() = 0;
+  /** Pre-fetch data when reading */
+  virtual void set_prefetch_data() = 0;
+  /** Check if this object should prefetch */
+  virtual bool is_prefetch_data() = 0;
+  /** Mark data as compressed */
+  virtual void set_compressed() = 0;
+  /** Check if this object is compressed */
+  virtual bool is_compressed() = 0;
+  /** True if this object is a delete marker (newest version is deleted) */
+  virtual bool is_delete_marker() = 0;
+  /** Check if object is synced */
+  virtual bool is_sync_completed(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const ceph::real_time& obj_mtime) = 0;
+  /** Invalidate cached info about this object, except atomic, prefetch, and
      * compressed */
-    virtual void invalidate() = 0;
+  virtual void invalidate() = 0;
 
-    /** Check to see if this object has an empty key.  This means it's uninitialized */
-    virtual bool empty() const = 0;
-    /** Get the name of this object */
-    virtual const std::string &get_name() const = 0;
+  /** Check to see if this object has an empty key.  This means it's uninitialized */
+  virtual bool empty() const = 0;
+  /** Get the name of this object */
+  virtual const std::string& get_name() const = 0;
 
-    /** Load the object state for this object. */
-    virtual int load_obj_state(const DoutPrefixProvider* dpp, optional_yield y, bool follow_olh = true) = 0;
-    /** Set attributes for this object from the backing store.  Attrs can be set or
+  /** Load the object state for this object. */
+  virtual int load_obj_state(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      bool follow_olh = true) = 0;
+  /** Set attributes for this object from the backing store.  Attrs can be set or
      * deleted.  @note the attribute APIs may be revisited in the future. */
-    virtual int set_obj_attrs(const DoutPrefixProvider* dpp, Attrs* setattrs, Attrs* delattrs, optional_yield y, uint32_t flags) = 0;
-    /** Get attributes for this object */
-    virtual int get_obj_attrs(optional_yield y, const DoutPrefixProvider* dpp) = 0;
-    /** Modify attributes for this object. */
-    virtual int modify_obj_attrs(const char* attr_name, bufferlist& attr_val, optional_yield y, const DoutPrefixProvider* dpp,
-                                 uint32_t flags = rgw::sal::FLAG_LOG_OP) = 0;
-    /** Delete attributes for this object */
-    virtual int delete_obj_attrs(const DoutPrefixProvider* dpp, const char* attr_name, optional_yield y) = 0;
-    /** Check to see if this object has expired */
-    virtual bool is_expired() = 0;
-    /** Create a randomized instance ID for this object */
-    virtual void gen_rand_obj_instance_name() = 0;
-    /** Get a multipart serializer for this object */
-    virtual std::unique_ptr<MPSerializer> get_serializer(const DoutPrefixProvider *dpp, optional_yield y,
-							 const std::string& lock_name) = 0;
-    /** Move the data of an object to new placement storage */
-    virtual int transition(Bucket* bucket,
-			   const rgw_placement_rule& placement_rule,
-			   const real_time& mtime,
-			   uint64_t olh_epoch,
-			   const DoutPrefixProvider* dpp,
-			   optional_yield y,
-                           uint32_t flags) = 0;
-    /** Move an object to the cloud */
-    virtual int transition_to_cloud(Bucket* bucket,
-			   rgw::sal::PlacementTier* tier,
-			   rgw_bucket_dir_entry& o,
-			   std::set<std::string>& cloud_targets,
-			   CephContext* cct,
-			   bool update_object,
-			   const DoutPrefixProvider* dpp,
-			   optional_yield y) = 0;
-    virtual int restore_obj_from_cloud(Bucket* bucket,
-			   rgw::sal::PlacementTier* tier,
-			   CephContext* cct,
-		           std::optional<uint64_t> days,
-   	 		   bool& in_progress,
-			   uint64_t& size,
-			   const DoutPrefixProvider* dpp,
-			   optional_yield y) = 0;
-    /** Check to see if two placement rules match */
-    virtual bool placement_rules_match(rgw_placement_rule& r1, rgw_placement_rule& r2) = 0;
-    /** Dump driver-specific object layout info in JSON */
-    virtual int dump_obj_layout(const DoutPrefixProvider *dpp, optional_yield y, Formatter* f) = 0;
+  virtual int set_obj_attrs(
+      const DoutPrefixProvider* dpp,
+      Attrs* setattrs,
+      Attrs* delattrs,
+      optional_yield y,
+      uint32_t flags) = 0;
+  /** Get attributes for this object */
+  virtual int get_obj_attrs(optional_yield y, const DoutPrefixProvider* dpp) = 0;
+  /** Modify attributes for this object. */
+  virtual int modify_obj_attrs(
+      const char* attr_name,
+      bufferlist& attr_val,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      uint32_t flags = rgw::sal::FLAG_LOG_OP) = 0;
+  /** Delete attributes for this object */
+  virtual int delete_obj_attrs(
+      const DoutPrefixProvider* dpp,
+      const char* attr_name,
+      optional_yield y) = 0;
+  /** Check to see if this object has expired */
+  virtual bool is_expired() = 0;
+  /** Create a randomized instance ID for this object */
+  virtual void gen_rand_obj_instance_name() = 0;
+  /** Get a multipart serializer for this object */
+  virtual std::unique_ptr<MPSerializer> get_serializer(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& lock_name) = 0;
+  /** Move the data of an object to new placement storage */
+  virtual int transition(
+      Bucket* bucket,
+      const rgw_placement_rule& placement_rule,
+      const real_time& mtime,
+      uint64_t olh_epoch,
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      uint32_t flags) = 0;
+  /** Move an object to the cloud */
+  virtual int transition_to_cloud(
+      Bucket* bucket,
+      rgw::sal::PlacementTier* tier,
+      rgw_bucket_dir_entry& o,
+      std::set<std::string>& cloud_targets,
+      CephContext* cct,
+      bool update_object,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+  virtual int restore_obj_from_cloud(
+      Bucket* bucket,
+      rgw::sal::PlacementTier* tier,
+      CephContext* cct,
+      std::optional<uint64_t> days,
+      bool& in_progress,
+      uint64_t& size,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+  /** Check to see if two placement rules match */
+  virtual bool placement_rules_match(
+      rgw_placement_rule& r1,
+      rgw_placement_rule& r2) = 0;
+  /** Dump driver-specific object layout info in JSON */
+  virtual int dump_obj_layout(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      Formatter* f) = 0;
 
   /* A transfer data type describing metadata specific to one part of a
    * completed multipart upload object, following the GetObjectAttributes
    * response syntax for Object::Parts here:
    * https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAttributes.html */
-    class Part
-    {
-    public:
-      int part_number;
-      uint32_t part_size;
-      rgw::cksum::Cksum cksum;
-    }; /* Part */
+  class Part {
+  public:
+    int part_number;
+    uint32_t part_size;
+    rgw::cksum::Cksum cksum;
+  }; /* Part */
 
-    /* callback function/object used by list_parts */
-    using list_parts_each_t =
-      const fu2::unique_function<int(const Part&) const>;
-  
-    /** If multipart, enumerate (a range [marker..marker+[min(max_parts, parts_count-1)] of) parts of the object */
-    virtual int list_parts(const DoutPrefixProvider* dpp, CephContext* cct,
-			   int max_parts, int marker, int* next_marker,
-			   bool* truncated, list_parts_each_t&& each_func,
-			   optional_yield y) = 0;
+  /* callback function/object used by list_parts */
+  using list_parts_each_t = const fu2::unique_function<int(const Part&) const>;
 
-    /** Get the cached attributes for this object */
-    virtual Attrs& get_attrs(void) = 0;
-    /** Get the (const) cached attributes for this object */
-    virtual const Attrs& get_attrs(void) const = 0;
-    /** Set the cached attributes for this object */
-    virtual int set_attrs(Attrs a) = 0;
-    /** Check to see if attributes are cached on this object */
-    virtual bool has_attrs(void) = 0;
-    /** Check to see if an attribute exists, and return it's value if it does */
-    virtual bool get_attr(const std::string& name, bufferlist &dest) = 0;
-    /** Get the cached modification time for this object */
-    virtual ceph::real_time get_mtime(void) const = 0;
-    /** Set the cached modification time for this object */
-    virtual void set_mtime(ceph::real_time&) = 0;
-    /** Get the cached size for this object */
-    virtual uint64_t get_size(void) const = 0;
-    /** Get the cached accounted size for this object */
-    virtual uint64_t get_accounted_size(void) const = 0;
-    /** Set the cached accounted size for this object */
-    virtual void set_accounted_size(uint64_t) = 0;
-    /** Get the cached epoch for this object */
-    virtual uint64_t get_epoch(void) const = 0;
-    /** Set the cached epoch for this object */
-    virtual void set_epoch(uint64_t) = 0;
-    /** Get the cached short zone id for this object */
-    virtual uint32_t get_short_zone_id(void) const = 0;
-    /** Set the cached short zone id for this object */
-    virtual void set_short_zone_id(uint32_t) = 0;
-    /** Get the bucket containing this object */
-    virtual Bucket* get_bucket(void) const = 0;
-    /** Set the bucket containing this object */
-    virtual void set_bucket(Bucket* b) = 0;
-    /** Get the sharding hash representation of this object */
-    virtual std::string get_hash_source(void) = 0;
-    /** Set the sharding hash representation of this object */
-    virtual void set_hash_source(std::string s) = 0;
-    /** Build an Object Identifier string for this object */
-    virtual std::string get_oid(void) const = 0;
-    /** True if this object is stored in the extra data pool */
-    virtual bool get_in_extra_data(void) = 0;
-    /** True if this object exists in the store */
-    virtual bool exists(void) = 0;
-    /** Set the in_extra_data field */
-    virtual void set_in_extra_data(bool i) = 0;
-    /** Helper to sanitize object size, offset, and end values */
-    int range_to_ofs(uint64_t obj_size, int64_t &ofs, int64_t &end);
-    /** Set the cached size of this object */
-    virtual void set_obj_size(uint64_t s) = 0;
-    /** Set the cached name of this object */
-    virtual void set_name(const std::string& n) = 0;
-    /** Set the cached key of this object */
-    virtual void set_key(const rgw_obj_key& k) = 0;
-    /** Get an rgw_obj representing this object */
-    virtual rgw_obj get_obj(void) const = 0;
+  /** If multipart, enumerate (a range [marker..marker+[min(max_parts, parts_count-1)] of) parts of the object */
+  virtual int list_parts(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      int max_parts,
+      int marker,
+      int* next_marker,
+      bool* truncated,
+      list_parts_each_t&& each_func,
+      optional_yield y) = 0;
 
-    /** Restore the previous swift version of this object */
-    virtual int swift_versioning_restore(const ACLOwner& owner,
-                                         const rgw_user& remote_user,
-                                         bool& restored,
-                                         const DoutPrefixProvider* dpp,
-                                         optional_yield y) = 0;
-    /** Copy the current version of a swift object to the configured destination bucket*/
-    virtual int swift_versioning_copy(const ACLOwner& owner,
-                                      const rgw_user& remote_user,
-				      const DoutPrefixProvider* dpp,
-				      optional_yield y) = 0;
+  /** Get the cached attributes for this object */
+  virtual Attrs& get_attrs(void) = 0;
+  /** Get the (const) cached attributes for this object */
+  virtual const Attrs& get_attrs(void) const = 0;
+  /** Set the cached attributes for this object */
+  virtual int set_attrs(Attrs a) = 0;
+  /** Check to see if attributes are cached on this object */
+  virtual bool has_attrs(void) = 0;
+  /** Check to see if an attribute exists, and return it's value if it does */
+  virtual bool get_attr(const std::string& name, bufferlist& dest) = 0;
+  /** Get the cached modification time for this object */
+  virtual ceph::real_time get_mtime(void) const = 0;
+  /** Set the cached modification time for this object */
+  virtual void set_mtime(ceph::real_time&) = 0;
+  /** Get the cached size for this object */
+  virtual uint64_t get_size(void) const = 0;
+  /** Get the cached accounted size for this object */
+  virtual uint64_t get_accounted_size(void) const = 0;
+  /** Set the cached accounted size for this object */
+  virtual void set_accounted_size(uint64_t) = 0;
+  /** Get the cached epoch for this object */
+  virtual uint64_t get_epoch(void) const = 0;
+  /** Set the cached epoch for this object */
+  virtual void set_epoch(uint64_t) = 0;
+  /** Get the cached short zone id for this object */
+  virtual uint32_t get_short_zone_id(void) const = 0;
+  /** Set the cached short zone id for this object */
+  virtual void set_short_zone_id(uint32_t) = 0;
+  /** Get the bucket containing this object */
+  virtual Bucket* get_bucket(void) const = 0;
+  /** Set the bucket containing this object */
+  virtual void set_bucket(Bucket* b) = 0;
+  /** Get the sharding hash representation of this object */
+  virtual std::string get_hash_source(void) = 0;
+  /** Set the sharding hash representation of this object */
+  virtual void set_hash_source(std::string s) = 0;
+  /** Build an Object Identifier string for this object */
+  virtual std::string get_oid(void) const = 0;
+  /** True if this object is stored in the extra data pool */
+  virtual bool get_in_extra_data(void) = 0;
+  /** True if this object exists in the store */
+  virtual bool exists(void) = 0;
+  /** Set the in_extra_data field */
+  virtual void set_in_extra_data(bool i) = 0;
+  /** Helper to sanitize object size, offset, and end values */
+  int range_to_ofs(uint64_t obj_size, int64_t& ofs, int64_t& end);
+  /** Set the cached size of this object */
+  virtual void set_obj_size(uint64_t s) = 0;
+  /** Set the cached name of this object */
+  virtual void set_name(const std::string& n) = 0;
+  /** Set the cached key of this object */
+  virtual void set_key(const rgw_obj_key& k) = 0;
+  /** Get an rgw_obj representing this object */
+  virtual rgw_obj get_obj(void) const = 0;
 
-    /** Get a new ReadOp for this object */
-    virtual std::unique_ptr<ReadOp> get_read_op() = 0;
-    /** Get a new DeleteOp for this object */
-    virtual std::unique_ptr<DeleteOp> get_delete_op() = 0;
+  /** Restore the previous swift version of this object */
+  virtual int swift_versioning_restore(
+      const ACLOwner& owner,
+      const rgw_user& remote_user,
+      bool& restored,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
+  /** Copy the current version of a swift object to the configured destination bucket*/
+  virtual int swift_versioning_copy(
+      const ACLOwner& owner,
+      const rgw_user& remote_user,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
 
-    /// Return stored torrent info or -ENOENT if there isn't any.
-    virtual int get_torrent_info(const DoutPrefixProvider* dpp,
-                                 optional_yield y, bufferlist& bl) = 0;
+  /** Get a new ReadOp for this object */
+  virtual std::unique_ptr<ReadOp> get_read_op() = 0;
+  /** Get a new DeleteOp for this object */
+  virtual std::unique_ptr<DeleteOp> get_delete_op() = 0;
 
-    /** Get the version tracker for this object */
-    virtual RGWObjVersionTracker& get_version_tracker() = 0;
+  /// Return stored torrent info or -ENOENT if there isn't any.
+  virtual int get_torrent_info(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      bufferlist& bl) = 0;
 
-    /** Get the OMAP values matching the given set of keys */
-    virtual int omap_get_vals_by_keys(const DoutPrefixProvider *dpp, const std::string& oid,
-			      const std::set<std::string>& keys,
-			      Attrs* vals) = 0;
-    /** Get a single OMAP value matching the given key */
-    virtual int omap_set_val_by_key(const DoutPrefixProvider *dpp, const std::string& key, bufferlist& val,
-				    bool must_exist, optional_yield y) = 0;
-    /** Change the ownership of this object */
-    virtual int chown(User& new_user, const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  /** Get the version tracker for this object */
+  virtual RGWObjVersionTracker& get_version_tracker() = 0;
 
-    /** Check to see if the given object pointer is uninitialized */
-    static bool empty(const Object* o) { return (!o || o->empty()); }
-    /** Check to see if the given object unique pointer is uninitialized */
-    static bool empty(const std::unique_ptr<Object>& o) { return (!o || o->empty()); }
-    /** Get a unique copy of this object */
-    virtual std::unique_ptr<Object> clone() = 0;
+  /** Get the OMAP values matching the given set of keys */
+  virtual int omap_get_vals_by_keys(
+      const DoutPrefixProvider* dpp,
+      const std::string& oid,
+      const std::set<std::string>& keys,
+      Attrs* vals) = 0;
+  /** Get a single OMAP value matching the given key */
+  virtual int omap_set_val_by_key(
+      const DoutPrefixProvider* dpp,
+      const std::string& key,
+      bufferlist& val,
+      bool must_exist,
+      optional_yield y) = 0;
+  /** Change the ownership of this object */
+  virtual int chown(
+      User& new_user,
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
 
-    virtual jspan_context& get_trace() = 0;
-    virtual void set_trace (jspan_context&& _trace_ctx) = 0;
+  /** Check to see if the given object pointer is uninitialized */
+  static bool
+  empty(const Object* o)
+  {
+    return (!o || o->empty());
+  }
 
-    /* dang - This is temporary, until the API is completed */
-    /** Get the key for this object */
-    virtual rgw_obj_key& get_key() = 0;
-    /** Set the instance for this object */
-    virtual void set_instance(const std::string &i) = 0;
-    /** Get the instance for this object */
-    virtual const std::string &get_instance() const = 0;
-    /** Check to see if this object has an instance set */
-    virtual bool have_instance(void) = 0;
-    /** Clear the instance on this object */
-    virtual void clear_instance() = 0;
+  /** Check to see if the given object unique pointer is uninitialized */
+  static bool
+  empty(const std::unique_ptr<Object>& o)
+  {
+    return (!o || o->empty());
+  }
 
-    /** Print the User to @a out */
-    virtual void print(std::ostream& out) const = 0;
+  /** Get a unique copy of this object */
+  virtual std::unique_ptr<Object> clone() = 0;
 
-    friend inline std::ostream& operator<<(std::ostream& out, const Object& o) {
-      o.print(out);
-      return out;
-    }
-    friend inline std::ostream& operator<<(std::ostream& out, const Object* o) {
-      if (!o)
-	out << "<NULL>";
-      else
-	o->print(out);
-      return out;
-    }
-    friend inline std::ostream& operator<<(std::ostream& out, const std::unique_ptr<Object>& p) {
-      out << p.get();
-      return out;
-    }
+  virtual jspan_context& get_trace() = 0;
+  virtual void set_trace(jspan_context&& _trace_ctx) = 0;
+
+  /* dang - This is temporary, until the API is completed */
+  /** Get the key for this object */
+  virtual rgw_obj_key& get_key() = 0;
+  /** Set the instance for this object */
+  virtual void set_instance(const std::string& i) = 0;
+  /** Get the instance for this object */
+  virtual const std::string& get_instance() const = 0;
+  /** Check to see if this object has an instance set */
+  virtual bool have_instance(void) = 0;
+  /** Clear the instance on this object */
+  virtual void clear_instance() = 0;
+
+  /** Print the User to @a out */
+  virtual void print(std::ostream& out) const = 0;
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Object& o)
+  {
+    o.print(out);
+    return out;
+  }
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Object* o)
+  {
+    if (!o)
+      out << "<NULL>";
+    else
+      o->print(out);
+    return out;
+  }
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const std::unique_ptr<Object>& p)
+  {
+    out << p.get();
+    return out;
+  }
 };
 
 /**
@@ -1507,7 +1901,8 @@ public:
  */
 class MultipartUpload {
 public:
-  using prefix_map_t = boost::container::flat_map<uint32_t, boost::container::flat_set<std::string>>;
+  using prefix_map_t = boost::container::
+      flat_map<uint32_t, boost::container::flat_set<std::string>>;
 
   //object lock
   std::optional<RGWObjectRetention> obj_retention = std::nullopt;
@@ -1542,62 +1937,94 @@ public:
   virtual std::unique_ptr<rgw::sal::Object> get_meta_obj() = 0;
 
   /** Initialize this upload */
-  virtual int init(const DoutPrefixProvider* dpp, optional_yield y, ACLOwner& owner, rgw_placement_rule& dest_placement, rgw::sal::Attrs& attrs) = 0;
+  virtual int init(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      ACLOwner& owner,
+      rgw_placement_rule& dest_placement,
+      rgw::sal::Attrs& attrs) = 0;
   /** List all the parts of this upload, filling the parts cache */
-  virtual int list_parts(const DoutPrefixProvider* dpp, CephContext* cct,
-			 int max_parts, int marker,
-			 int* next_marker, bool* truncated, optional_yield y,
-			 bool assume_unsorted = false) = 0;
+  virtual int list_parts(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      int max_parts,
+      int marker,
+      int* next_marker,
+      bool* truncated,
+      optional_yield y,
+      bool assume_unsorted = false) = 0;
   /** Abort this upload */
-  virtual int abort(const DoutPrefixProvider* dpp, CephContext* cct, optional_yield y) = 0;
+  virtual int abort(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      optional_yield y) = 0;
   /** Complete this upload, making it available as a normal object */
-  virtual int complete(const DoutPrefixProvider* dpp,
-		       optional_yield y, CephContext* cct,
-		       std::map<int, std::string>& part_etags,
-		       std::list<rgw_obj_index_key>& remove_objs,
-		       uint64_t& accounted_size, bool& compressed,
-		       RGWCompressionInfo& cs_info, off_t& ofs,
-		       std::string& tag, ACLOwner& owner,
-		       uint64_t olh_epoch,
-		       rgw::sal::Object* target_obj,
-           prefix_map_t& processed_prefixes,
-           const char *if_match = nullptr,
-           const char *if_nomatch = nullptr) = 0;
+  virtual int complete(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      CephContext* cct,
+      std::map<int, std::string>& part_etags,
+      std::list<rgw_obj_index_key>& remove_objs,
+      uint64_t& accounted_size,
+      bool& compressed,
+      RGWCompressionInfo& cs_info,
+      off_t& ofs,
+      std::string& tag,
+      ACLOwner& owner,
+      uint64_t olh_epoch,
+      rgw::sal::Object* target_obj,
+      prefix_map_t& processed_prefixes,
+      const char* if_match = nullptr,
+      const char* if_nomatch = nullptr) = 0;
   /** Cleanup orphaned parts caused by racing condition involving part upload retry */
-  virtual int cleanup_orphaned_parts(const DoutPrefixProvider *dpp,
-                                     CephContext *cct, optional_yield y,
-                                     const rgw_obj& obj,
-                                     std::list<rgw_obj_index_key>& remove_objs,
-                                     prefix_map_t& processed_prefixes) = 0;
+  virtual int cleanup_orphaned_parts(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      optional_yield y,
+      const rgw_obj& obj,
+      std::list<rgw_obj_index_key>& remove_objs,
+      prefix_map_t& processed_prefixes) = 0;
 
   /** Get placement and/or attribute info for this upload */
-  virtual int get_info(const DoutPrefixProvider *dpp, optional_yield y, rgw_placement_rule** rule, rgw::sal::Attrs* attrs = nullptr) = 0;
+  virtual int get_info(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      rgw_placement_rule** rule,
+      rgw::sal::Attrs* attrs = nullptr) = 0;
 
   /** Get a Writer to write to a part of this upload */
-  virtual std::unique_ptr<Writer> get_writer(const DoutPrefixProvider *dpp,
-			  optional_yield y,
-			  rgw::sal::Object* obj,
-			  const ACLOwner& owner,
-			  const rgw_placement_rule *ptail_placement_rule,
-			  uint64_t part_num,
-			  const std::string& part_num_str) = 0;
+  virtual std::unique_ptr<Writer> get_writer(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      rgw::sal::Object* obj,
+      const ACLOwner& owner,
+      const rgw_placement_rule* ptail_placement_rule,
+      uint64_t part_num,
+      const std::string& part_num_str) = 0;
 
   /** Print the Upload to @a out */
   virtual void print(std::ostream& out) const = 0;
 
-  friend inline std::ostream& operator<<(std::ostream& out, const MultipartUpload& u) {
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const MultipartUpload& u)
+  {
     u.print(out);
     return out;
   }
-  friend inline std::ostream& operator<<(std::ostream& out, const MultipartUpload* u) {
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const MultipartUpload* u)
+  {
     if (!u)
       out << "<NULL>";
     else
       u->print(out);
     return out;
   }
-  friend inline std::ostream& operator<<(std::ostream& out, const
-				    std::unique_ptr<MultipartUpload>& p) {
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const std::unique_ptr<MultipartUpload>& p)
+  {
     out << p.get();
     return out;
   }
@@ -1612,18 +2039,26 @@ public:
   virtual ~Serializer() = default;
 
   /** Try to take the lock for the given amount of time. */
-  virtual int try_lock(const DoutPrefixProvider *dpp, ceph::timespan dur, optional_yield y) = 0;
+  virtual int try_lock(
+      const DoutPrefixProvider* dpp,
+      ceph::timespan dur,
+      optional_yield y) = 0;
   /** Unlock the lock */
-  virtual int unlock(const DoutPrefixProvider *dpp, optional_yield y)  = 0;
+  virtual int unlock(const DoutPrefixProvider* dpp, optional_yield y) = 0;
 
   /** Print the Serializer to @a out */
   virtual void print(std::ostream& out) const = 0;
 
-  friend inline std::ostream& operator<<(std::ostream& out, const Serializer& s) {
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Serializer& s)
+  {
     s.print(out);
     return out;
   }
-  friend inline std::ostream& operator<<(std::ostream& out, const Serializer* s) {
+
+  friend inline std::ostream&
+  operator<<(std::ostream& out, const Serializer* s)
+  {
     if (!s)
       out << "<NULL>";
     else
@@ -1649,6 +2084,7 @@ public:
 class LCSerializer : public Serializer {
 public:
   LCSerializer() {}
+
   virtual ~LCSerializer() = default;
 };
 
@@ -1680,35 +2116,57 @@ public:
   virtual ~Lifecycle() = default;
 
   /** Get an entry matching the given marker */
-  virtual int get_entry(const DoutPrefixProvider* dpp, optional_yield y,
-                        const std::string& oid, const std::string& marker,
-                        LCEntry& entry) = 0;
+  virtual int get_entry(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const std::string& marker,
+      LCEntry& entry) = 0;
   /** Get the entry following the given marker */
-  virtual int get_next_entry(const DoutPrefixProvider* dpp, optional_yield y,
-                             const std::string& oid, const std::string& marker,
-                             LCEntry& entry) = 0;
+  virtual int get_next_entry(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const std::string& marker,
+      LCEntry& entry) = 0;
   /** Store a modified entry in then backing store */
-  virtual int set_entry(const DoutPrefixProvider* dpp, optional_yield y,
-                        const std::string& oid, const LCEntry& entry) = 0;
+  virtual int set_entry(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const LCEntry& entry) = 0;
   /** List all known entries */
-  virtual int list_entries(const DoutPrefixProvider* dpp, optional_yield y,
-                           const std::string& oid, const std::string& marker,
-			   uint32_t max_entries,
-			   std::vector<LCEntry>& entries) = 0;
+  virtual int list_entries(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const std::string& marker,
+      uint32_t max_entries,
+      std::vector<LCEntry>& entries) = 0;
   /** Remove an entry from the backing store */
-  virtual int rm_entry(const DoutPrefixProvider* dpp, optional_yield y,
-                       const std::string& oid, const LCEntry& entry) = 0;
+  virtual int rm_entry(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const LCEntry& entry) = 0;
   /** Get a head */
-  virtual int get_head(const DoutPrefixProvider* dpp, optional_yield y,
-                       const std::string& oid, LCHead& head) = 0;
+  virtual int get_head(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      LCHead& head) = 0;
   /** Store a modified head to the backing store */
-  virtual int put_head(const DoutPrefixProvider* dpp, optional_yield y,
-                       const std::string& oid, const LCHead& head) = 0;
+  virtual int put_head(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& oid,
+      const LCHead& head) = 0;
 
   /** Get a serializer for lifecycle */
-  virtual std::unique_ptr<LCSerializer> get_serializer(const std::string& lock_name,
-						       const std::string& oid,
-						       const std::string& cookie) = 0;
+  virtual std::unique_ptr<LCSerializer> get_serializer(
+      const std::string& lock_name,
+      const std::string& oid,
+      const std::string& cookie) = 0;
 };
 
 /** @brief Abstraction of a serializer for Restore
@@ -1716,6 +2174,7 @@ public:
 class RestoreSerializer : public Serializer {
 public:
   RestoreSerializer() {}
+
   virtual ~RestoreSerializer() = default;
 };
 
@@ -1732,29 +2191,42 @@ class Restore {
 public:
   Restore() = default;
   virtual ~Restore() = default;
-  virtual int initialize(const DoutPrefixProvider* dpp, optional_yield y,
-		  int n_objs, std::vector<std::string>& obj_names) = 0;  
+  virtual int initialize(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      int n_objs,
+      std::vector<std::string>& obj_names) = 0;
   /** Add list of restore entries */
-  virtual int add_entries(const DoutPrefixProvider* dpp, optional_yield y,
-	       int index, const std::vector<rgw::restore::RestoreEntry>& restore_entries) = 0;
+  virtual int add_entries(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      int index,
+      const std::vector<rgw::restore::RestoreEntry>& restore_entries) = 0;
   /** List all known entries given a marker */
-  virtual int list(const DoutPrefixProvider *dpp, optional_yield y,
-	       	   int index,
-	           const std::string& marker, std::string* out_marker,
-		   uint32_t max_entries, std::vector<rgw::restore::RestoreEntry>& entries,
-		   bool* truncated) = 0;
+  virtual int list(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      int index,
+      const std::string& marker,
+      std::string* out_marker,
+      uint32_t max_entries,
+      std::vector<rgw::restore::RestoreEntry>& entries,
+      bool* truncated) = 0;
 
   /** Trim restore entries upto the marker */
-  virtual int trim_entries(const DoutPrefixProvider *dpp, optional_yield y,
-		 	  int index, const std::string_view& marker) = 0;
+  virtual int trim_entries(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      int index,
+      const std::string_view& marker) = 0;
 
   /** Get a serializer for restore processing */
   virtual std::unique_ptr<RestoreSerializer> get_serializer(
-		  				const std::string& lock_name,
-						const std::string& oid,
-						const std::string& cookie) = 0;
+      const std::string& lock_name,
+      const std::string& oid,
+      const std::string& cookie) = 0;
 };
-  
+
 /**
  * @brief Abstraction for a Notification event
  *
@@ -1763,16 +2235,23 @@ public:
  */
 class Notification {
 protected:
-  public:
-    Notification() {}
 
-    virtual ~Notification() = default;
+public:
+  Notification() {}
 
-    /** Indicate the start of the event associated with this notification */
-    virtual int publish_reserve(const DoutPrefixProvider *dpp, RGWObjTags* obj_tags = nullptr) = 0;
-    /** Indicate the successful completion of the event associated with this notification */
-    virtual int publish_commit(const DoutPrefixProvider* dpp, uint64_t size,
-			       const ceph::real_time& mtime, const std::string& etag, const std::string& version) = 0;
+  virtual ~Notification() = default;
+
+  /** Indicate the start of the event associated with this notification */
+  virtual int publish_reserve(
+      const DoutPrefixProvider* dpp,
+      RGWObjTags* obj_tags = nullptr) = 0;
+  /** Indicate the successful completion of the event associated with this notification */
+  virtual int publish_commit(
+      const DoutPrefixProvider* dpp,
+      uint64_t size,
+      const ceph::real_time& mtime,
+      const std::string& etag,
+      const std::string& version) = 0;
 };
 
 /**
@@ -1785,6 +2264,7 @@ protected:
 class Writer : public ObjectProcessor {
 public:
   Writer() {}
+
   virtual ~Writer() = default;
 
   /** prepare to start processing object data */
@@ -1798,18 +2278,22 @@ public:
   virtual int process(bufferlist&& data, uint64_t offset) = 0;
 
   /** complete the operation and make its result visible to clients */
-  virtual int complete(size_t accounted_size, const std::string& etag,
-                       ceph::real_time *mtime, ceph::real_time set_mtime,
-                       std::map<std::string, bufferlist>& attrs,
-		       const std::optional<rgw::cksum::Cksum>& cksum,
-                       ceph::real_time delete_at,
-                       const char *if_match, const char *if_nomatch,
-                       const std::string *user_data,
-                       rgw_zone_set *zones_trace, bool *canceled,
-                       const req_context& rctx,
-                       uint32_t flags) = 0;
+  virtual int complete(
+      size_t accounted_size,
+      const std::string& etag,
+      ceph::real_time* mtime,
+      ceph::real_time set_mtime,
+      std::map<std::string, bufferlist>& attrs,
+      const std::optional<rgw::cksum::Cksum>& cksum,
+      ceph::real_time delete_at,
+      const char* if_match,
+      const char* if_nomatch,
+      const std::string* user_data,
+      rgw_zone_set* zones_trace,
+      bool* canceled,
+      const req_context& rctx,
+      uint32_t flags) = 0;
 };
-
 
 /**
  * @brief Abstraction of a placement tier
@@ -1858,7 +2342,8 @@ public:
   /** Get the API name of this zonegroup */
   virtual const std::string& get_api_name() const = 0;
   /** Get the list of placement target names for this zone */
-  virtual void get_placement_target_names(std::set<std::string>& names) const = 0;
+  virtual void get_placement_target_names(
+      std::set<std::string>& names) const = 0;
   /** Get the name of the default placement target for this zone */
   virtual const std::string& get_default_placement_name() const = 0;
   /** Get the list of hostnames from this zone */
@@ -1868,11 +2353,17 @@ public:
   /** Get the number of zones in this zonegroup */
   virtual int get_zone_count() const = 0;
   /** Get the placement tier associated with the rule */
-  virtual int get_placement_tier(const rgw_placement_rule& rule, std::unique_ptr<PlacementTier>* tier) = 0;
+  virtual int get_placement_tier(
+      const rgw_placement_rule& rule,
+      std::unique_ptr<PlacementTier>* tier) = 0;
   /** Get a zone by ID */
-  virtual int get_zone_by_id(const std::string& id, std::unique_ptr<Zone>* zone) = 0;
+  virtual int get_zone_by_id(
+      const std::string& id,
+      std::unique_ptr<Zone>* zone) = 0;
   /** Get a zone by Name */
-  virtual int get_zone_by_name(const std::string& name, std::unique_ptr<Zone>* zone) = 0;
+  virtual int get_zone_by_name(
+      const std::string& name,
+      std::unique_ptr<Zone>* zone) = 0;
   /** List zones in zone group by ID */
   virtual int list_zones(std::list<std::string>& zone_ids) = 0;
   /** Clone a copy of this zonegroup. */
@@ -1886,33 +2377,33 @@ public:
  * containing the RGW, or another zone.
  */
 class Zone {
-  public:
-    virtual ~Zone() = default;
+public:
+  virtual ~Zone() = default;
 
-    /** Clone a copy of this zone. */
-    virtual std::unique_ptr<Zone> clone() = 0;
-    /** Get info about the zonegroup containing this zone */
-    virtual ZoneGroup& get_zonegroup() = 0;
-    /** Get the ID of this zone */
-    virtual const std::string& get_id() = 0;
-    /** Get the name of this zone */
-    virtual const std::string& get_name() const = 0;
-    /** True if this zone is writable */
-    virtual bool is_writeable() = 0;
-    /** Get the URL for the endpoint for redirecting to this zone */
-    virtual bool get_redirect_endpoint(std::string* endpoint) = 0;
-    /** Get the current period ID for this zone */
-    virtual const std::string& get_current_period_id() = 0;
-    /** Get thes system access key for this zone */
-    virtual const RGWAccessKey& get_system_key() = 0;
-    /** Get the name of the realm containing this zone */
-    virtual const std::string& get_realm_name() = 0;
-    /** Get the ID of the realm containing this zone */
-    virtual const std::string& get_realm_id() = 0;
-    /** Get the tier type for the zone */
-    virtual const std::string_view get_tier_type() = 0;
-    /** Get a handler for zone sync policy. */
-    virtual RGWBucketSyncPolicyHandlerRef get_sync_policy_handler() = 0;
+  /** Clone a copy of this zone. */
+  virtual std::unique_ptr<Zone> clone() = 0;
+  /** Get info about the zonegroup containing this zone */
+  virtual ZoneGroup& get_zonegroup() = 0;
+  /** Get the ID of this zone */
+  virtual const std::string& get_id() = 0;
+  /** Get the name of this zone */
+  virtual const std::string& get_name() const = 0;
+  /** True if this zone is writable */
+  virtual bool is_writeable() = 0;
+  /** Get the URL for the endpoint for redirecting to this zone */
+  virtual bool get_redirect_endpoint(std::string* endpoint) = 0;
+  /** Get the current period ID for this zone */
+  virtual const std::string& get_current_period_id() = 0;
+  /** Get thes system access key for this zone */
+  virtual const RGWAccessKey& get_system_key() = 0;
+  /** Get the name of the realm containing this zone */
+  virtual const std::string& get_realm_name() = 0;
+  /** Get the ID of the realm containing this zone */
+  virtual const std::string& get_realm_id() = 0;
+  /** Get the tier type for the zone */
+  virtual const std::string_view get_tier_type() = 0;
+  /** Get a handler for zone sync policy. */
+  virtual RGWBucketSyncPolicyHandlerRef get_sync_policy_handler() = 0;
 };
 
 /**
@@ -1925,21 +2416,46 @@ public:
   virtual ~LuaManager() = default;
 
   /** Get a script named with the given key from the backing store */
-  virtual int get_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key, std::string& script) = 0;
+  virtual int get_script(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& key,
+      std::string& script) = 0;
   /** Get a copy of the lua bytecode if it exists, else the script named with the given key from the backing store */
-  virtual std::tuple<rgw::lua::LuaCodeType, int> get_script_or_bytecode(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key) = 0;
+  virtual std::tuple<rgw::lua::LuaCodeType, int> get_script_or_bytecode(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& key) = 0;
   /** Put a script named with the given key to the backing store */
-  virtual int put_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key, const std::string& script) = 0;
+  virtual int put_script(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& key,
+      const std::string& script) = 0;
   /** Delete a script named with the given key from the backing store */
-  virtual int del_script(const DoutPrefixProvider* dpp, optional_yield y, const std::string& key) = 0;
+  virtual int del_script(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& key) = 0;
   /** Add a lua package */
-  virtual int add_package(const DoutPrefixProvider* dpp, optional_yield y, const std::string& package_name) = 0;
+  virtual int add_package(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& package_name) = 0;
   /** Remove a lua package */
-  virtual int remove_package(const DoutPrefixProvider* dpp, optional_yield y, const std::string& package_name) = 0;
+  virtual int remove_package(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const std::string& package_name) = 0;
   /** List lua packages */
-  virtual int list_packages(const DoutPrefixProvider* dpp, optional_yield y, rgw::lua::packages_t& packages) = 0;
+  virtual int list_packages(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      rgw::lua::packages_t& packages) = 0;
   /** Reload lua packages */
-  virtual int reload_packages(const DoutPrefixProvider* dpp, optional_yield y) = 0;
+  virtual int reload_packages(
+      const DoutPrefixProvider* dpp,
+      optional_yield y) = 0;
   /** Get the path to the loarocks install location **/
   virtual const std::string& luarocks_path() const = 0;
   /** Set the path to the loarocks install location **/
@@ -1949,7 +2465,8 @@ public:
 };
 
 /** @} namespace rgw::sal in group RGWSAL */
-} } // namespace rgw::sal
+} // namespace sal
+} // namespace rgw
 
 /**
  * @brief A manager for Drivers
@@ -1969,76 +2486,82 @@ public:
   };
 
   DriverManager() {}
+
   /** Get a full driver by service name */
-  static rgw::sal::Driver* get_storage(const DoutPrefixProvider* dpp,
-				      CephContext* cct,
-				      const Config& cfg,
-				      boost::asio::io_context& io_context,
-				      const rgw::SiteConfig& site_config,
-				      bool use_gc_thread,
-				      bool use_lc_thread,
-				      bool use_restore_thread,
-				      bool quota_threads,
-				      bool run_sync_thread,
-				      bool run_reshard_thread,
-				      bool run_notification_thread,
-				      bool run_bucket_logging_thread,
-				      bool background_tasks,
-				      optional_yield y,
-              rgw::sal::ConfigStore* cfgstore,
-				      bool use_cache = true,
-				      bool use_gc = true,
-                                      bool admin = false) {
-    rgw::sal::Driver* driver = init_storage_provider(dpp, cct, cfg, io_context,
-						   site_config,
-						   use_gc_thread,
-						   use_lc_thread,
-						   use_restore_thread,
-						   quota_threads,
-						   run_sync_thread,
-						   run_reshard_thread,
-               run_notification_thread,
-				                   run_bucket_logging_thread,
-						   use_cache, use_gc,
-						   background_tasks, y, cfgstore, admin);
+  static rgw::sal::Driver*
+  get_storage(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const Config& cfg,
+      boost::asio::io_context& io_context,
+      const rgw::SiteConfig& site_config,
+      bool use_gc_thread,
+      bool use_lc_thread,
+      bool use_restore_thread,
+      bool quota_threads,
+      bool run_sync_thread,
+      bool run_reshard_thread,
+      bool run_notification_thread,
+      bool run_bucket_logging_thread,
+      bool background_tasks,
+      optional_yield y,
+      rgw::sal::ConfigStore* cfgstore,
+      bool use_cache = true,
+      bool use_gc = true,
+      bool admin = false)
+  {
+    rgw::sal::Driver* driver = init_storage_provider(
+        dpp, cct, cfg, io_context, site_config, use_gc_thread, use_lc_thread,
+        use_restore_thread, quota_threads, run_sync_thread, run_reshard_thread,
+        run_notification_thread, run_bucket_logging_thread, use_cache, use_gc,
+        background_tasks, y, cfgstore, admin);
     return driver;
   }
+
   /** Get a stripped down driver by service name */
-  static rgw::sal::Driver* get_raw_storage(const DoutPrefixProvider* dpp,
-					  CephContext* cct, const Config& cfg,
-					  boost::asio::io_context& io_context,
-					  const rgw::SiteConfig& site_config,
-            rgw::sal::ConfigStore* cfgstore) {
-    rgw::sal::Driver* driver = init_raw_storage_provider(dpp, cct, cfg,
-							 io_context,
-							 site_config,
-               cfgstore);
+  static rgw::sal::Driver*
+  get_raw_storage(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const Config& cfg,
+      boost::asio::io_context& io_context,
+      const rgw::SiteConfig& site_config,
+      rgw::sal::ConfigStore* cfgstore)
+  {
+    rgw::sal::Driver* driver = init_raw_storage_provider(
+        dpp, cct, cfg, io_context, site_config, cfgstore);
     return driver;
   }
+
   /** Initialize a new full Driver */
-  static rgw::sal::Driver* init_storage_provider(const DoutPrefixProvider* dpp,
-						CephContext* cct,
-						const Config& cfg,
-						boost::asio::io_context& io_context,
-						const rgw::SiteConfig& site_config,
-						bool use_gc_thread,
-						bool use_lc_thread,
-						bool use_restore_thread,
-						bool quota_threads,
-						bool run_sync_thread,
-						bool run_reshard_thread,
-                                                bool run_notification_thread,
-                                                bool run_bucket_logging_thread,
-						bool use_metadata_cache,
-						bool use_gc, bool background_tasks,
-						optional_yield y, rgw::sal::ConfigStore* cfgstore, bool admin);
+  static rgw::sal::Driver* init_storage_provider(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const Config& cfg,
+      boost::asio::io_context& io_context,
+      const rgw::SiteConfig& site_config,
+      bool use_gc_thread,
+      bool use_lc_thread,
+      bool use_restore_thread,
+      bool quota_threads,
+      bool run_sync_thread,
+      bool run_reshard_thread,
+      bool run_notification_thread,
+      bool run_bucket_logging_thread,
+      bool use_metadata_cache,
+      bool use_gc,
+      bool background_tasks,
+      optional_yield y,
+      rgw::sal::ConfigStore* cfgstore,
+      bool admin);
   /** Initialize a new raw Driver */
-  static rgw::sal::Driver* init_raw_storage_provider(const DoutPrefixProvider* dpp,
-						    CephContext* cct,
-						    const Config& cfg,
-						    boost::asio::io_context& io_context,
-						    const rgw::SiteConfig& site_config,
-                rgw::sal::ConfigStore* cfgstore);
+  static rgw::sal::Driver* init_raw_storage_provider(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const Config& cfg,
+      boost::asio::io_context& io_context,
+      const rgw::SiteConfig& site_config,
+      rgw::sal::ConfigStore* cfgstore);
   /** Close a Driver when it's no longer needed */
   static void close_storage(rgw::sal::Driver* driver);
 
@@ -2046,15 +2569,15 @@ public:
   static Config get_config(bool admin, CephContext* cct);
 
   /** Create a ConfigStore */
-  static auto create_config_store(const DoutPrefixProvider* dpp,
-                                  std::string_view type)
-      -> std::unique_ptr<rgw::sal::ConfigStore>;
-
+  static auto create_config_store(
+      const DoutPrefixProvider* dpp,
+      std::string_view type) -> std::unique_ptr<rgw::sal::ConfigStore>;
 };
 
 #ifdef WITH_RADOSGW_RADOS
-std::optional<neorados::RADOS>
-make_neorados(CephContext* cct, boost::asio::io_context& io_context);
+std::optional<neorados::RADOS> make_neorados(
+    CephContext* cct,
+    boost::asio::io_context& io_context);
 #endif
 
 /** @} */

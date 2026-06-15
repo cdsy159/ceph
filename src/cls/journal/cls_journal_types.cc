@@ -2,8 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "cls/journal/cls_journal_types.h"
-#include "include/stringify.h"
+
 #include "common/Formatter.h"
+#include "include/stringify.h"
 
 using ceph::bufferlist;
 using ceph::Formatter;
@@ -11,7 +12,9 @@ using ceph::Formatter;
 namespace cls {
 namespace journal {
 
-void ObjectPosition::encode(bufferlist& bl) const {
+void
+ObjectPosition::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(object_number, bl);
   encode(tag_tid, bl);
@@ -19,7 +22,9 @@ void ObjectPosition::encode(bufferlist& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void ObjectPosition::decode(bufferlist::const_iterator& iter) {
+void
+ObjectPosition::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(object_number, iter);
   decode(tag_tid, iter);
@@ -27,34 +32,44 @@ void ObjectPosition::decode(bufferlist::const_iterator& iter) {
   DECODE_FINISH(iter);
 }
 
-void ObjectPosition::dump(Formatter *f) const {
+void
+ObjectPosition::dump(Formatter* f) const
+{
   f->dump_unsigned("object_number", object_number);
   f->dump_unsigned("tag_tid", tag_tid);
   f->dump_unsigned("entry_tid", entry_tid);
 }
 
-std::list<ObjectPosition> ObjectPosition::generate_test_instances() {
+std::list<ObjectPosition>
+ObjectPosition::generate_test_instances()
+{
   std::list<ObjectPosition> o;
   o.emplace_back();
   o.push_back(ObjectPosition(1, 2, 3));
   return o;
 }
 
-void ObjectSetPosition::encode(bufferlist& bl) const {
+void
+ObjectSetPosition::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(object_positions, bl);
   ENCODE_FINISH(bl);
 }
 
-void ObjectSetPosition::decode(bufferlist::const_iterator& iter) {
+void
+ObjectSetPosition::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(object_positions, iter);
   DECODE_FINISH(iter);
 }
 
-void ObjectSetPosition::dump(Formatter *f) const {
+void
+ObjectSetPosition::dump(Formatter* f) const
+{
   f->open_array_section("object_positions");
-  for (auto &pos : object_positions) {
+  for (auto& pos : object_positions) {
     f->open_object_section("object_position");
     pos.dump(f);
     f->close_section();
@@ -62,14 +77,18 @@ void ObjectSetPosition::dump(Formatter *f) const {
   f->close_section();
 }
 
-std::list<ObjectSetPosition> ObjectSetPosition::generate_test_instances() {
+std::list<ObjectSetPosition>
+ObjectSetPosition::generate_test_instances()
+{
   std::list<ObjectSetPosition> o;
   o.emplace_back();
   o.push_back(ObjectSetPosition({{0, 1, 120}, {121, 2, 121}}));
   return o;
 }
 
-void Client::encode(bufferlist& bl) const {
+void
+Client::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(id, bl);
   encode(data, bl);
@@ -78,7 +97,9 @@ void Client::encode(bufferlist& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void Client::decode(bufferlist::const_iterator& iter) {
+void
+Client::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(id, iter);
   decode(data, iter);
@@ -90,7 +111,9 @@ void Client::decode(bufferlist::const_iterator& iter) {
   DECODE_FINISH(iter);
 }
 
-void Client::dump(Formatter *f) const {
+void
+Client::dump(Formatter* f) const
+{
   f->dump_string("id", id);
 
   std::stringstream data_ss;
@@ -104,7 +127,9 @@ void Client::dump(Formatter *f) const {
   f->dump_string("state", stringify(state));
 }
 
-std::list<Client> Client::generate_test_instances() {
+std::list<Client>
+Client::generate_test_instances()
+{
   std::list<Client> o;
   bufferlist data;
   data.append(std::string(128, '1'));
@@ -115,7 +140,9 @@ std::list<Client> Client::generate_test_instances() {
   return o;
 }
 
-void Tag::encode(bufferlist& bl) const {
+void
+Tag::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(tid, bl);
   encode(tag_class, bl);
@@ -123,7 +150,9 @@ void Tag::encode(bufferlist& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void Tag::decode(bufferlist::const_iterator& iter) {
+void
+Tag::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
   decode(tid, iter);
   decode(tag_class, iter);
@@ -131,7 +160,9 @@ void Tag::decode(bufferlist::const_iterator& iter) {
   DECODE_FINISH(iter);
 }
 
-void Tag::dump(Formatter *f) const {
+void
+Tag::dump(Formatter* f) const
+{
   f->dump_unsigned("tid", tid);
   f->dump_unsigned("tag_class", tag_class);
 
@@ -140,7 +171,9 @@ void Tag::dump(Formatter *f) const {
   f->dump_string("data", data_ss.str());
 }
 
-std::list<Tag> Tag::generate_test_instances() {
+std::list<Tag>
+Tag::generate_test_instances()
+{
   std::list<Tag> o;
   o.emplace_back();
 
@@ -150,7 +183,9 @@ std::list<Tag> Tag::generate_test_instances() {
   return o;
 }
 
-std::ostream &operator<<(std::ostream &os, const ClientState &state) {
+std::ostream&
+operator<<(std::ostream& os, const ClientState& state)
+{
   switch (state) {
   case CLIENT_STATE_CONNECTED:
     os << "connected";
@@ -165,20 +200,21 @@ std::ostream &operator<<(std::ostream &os, const ClientState &state) {
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os,
-                         const ObjectPosition &object_position) {
-  os << "["
-     << "object_number=" << object_position.object_number << ", "
+std::ostream&
+operator<<(std::ostream& os, const ObjectPosition& object_position)
+{
+  os << "[" << "object_number=" << object_position.object_number << ", "
      << "tag_tid=" << object_position.tag_tid << ", "
      << "entry_tid=" << object_position.entry_tid << "]";
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os,
-                         const ObjectSetPosition &object_set_position) {
+std::ostream&
+operator<<(std::ostream& os, const ObjectSetPosition& object_set_position)
+{
   os << "[positions=[";
   std::string delim;
-  for (auto &object_position : object_set_position.object_positions) {
+  for (auto& object_position : object_set_position.object_positions) {
     os << delim << object_position;
     delim = ", ";
   }
@@ -186,16 +222,19 @@ std::ostream &operator<<(std::ostream &os,
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, const Client &client) {
+std::ostream&
+operator<<(std::ostream& os, const Client& client)
+{
   os << "[id=" << client.id << ", "
      << "commit_position=" << client.commit_position << ", "
      << "state=" << client.state << "]";
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, const Tag &tag) {
-  os << "[tid=" << tag.tid << ", "
-     << "tag_class=" << tag.tag_class << ", "
+std::ostream&
+operator<<(std::ostream& os, const Tag& tag)
+{
+  os << "[tid=" << tag.tid << ", " << "tag_class=" << tag.tag_class << ", "
      << "data=";
   tag.data.hexdump(os);
   os << "]";

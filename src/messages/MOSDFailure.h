@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,59 +19,97 @@
 
 #include "messages/PaxosServiceMessage.h"
 
-
 class MOSDFailure final : public PaxosServiceMessage {
 private:
   static constexpr int HEAD_VERSION = 4;
   static constexpr int COMPAT_VERSION = 4;
 
- public:
+public:
   enum {
-    FLAG_ALIVE = 0,      // use this on its own to mark as "I'm still alive"
-    FLAG_FAILED = 1,     // if set, failure; if not, recovery
-    FLAG_IMMEDIATE = 2,  // known failure, not a timeout
+    FLAG_ALIVE = 0, // use this on its own to mark as "I'm still alive"
+    FLAG_FAILED = 1, // if set, failure; if not, recovery
+    FLAG_IMMEDIATE = 2, // known failure, not a timeout
   };
-  
+
   uuid_d fsid;
   int32_t target_osd;
   entity_addrvec_t target_addrs;
   __u8 flags = 0;
   epoch_t epoch = 0;
-  int32_t failed_for = 0;  // known to be failed since at least this long
+  int32_t failed_for = 0; // known to be failed since at least this long
 
-  MOSDFailure() : PaxosServiceMessage(MSG_OSD_FAILURE, 0, HEAD_VERSION) { }
-  MOSDFailure(const uuid_d &fs, int osd, const entity_addrvec_t& av,
-	      int duration, epoch_t e)
-    : PaxosServiceMessage(MSG_OSD_FAILURE, e, HEAD_VERSION, COMPAT_VERSION),
-      fsid(fs),
-      target_osd(osd),
-      target_addrs(av),
-      flags(FLAG_FAILED),
-      epoch(e), failed_for(duration) { }
-  MOSDFailure(const uuid_d &fs, int osd, const entity_addrvec_t& av,
-	      int duration,
-              epoch_t e, __u8 extra_flags)
-    : PaxosServiceMessage(MSG_OSD_FAILURE, e, HEAD_VERSION, COMPAT_VERSION),
-      fsid(fs),
-      target_osd(osd),
-      target_addrs(av),
-      flags(extra_flags),
-      epoch(e), failed_for(duration) { }
+  MOSDFailure() :
+    PaxosServiceMessage(MSG_OSD_FAILURE, 0, HEAD_VERSION)
+  {}
+
+  MOSDFailure(
+      const uuid_d& fs,
+      int osd,
+      const entity_addrvec_t& av,
+      int duration,
+      epoch_t e) :
+    PaxosServiceMessage(MSG_OSD_FAILURE, e, HEAD_VERSION, COMPAT_VERSION),
+    fsid(fs),
+    target_osd(osd),
+    target_addrs(av),
+    flags(FLAG_FAILED),
+    epoch(e),
+    failed_for(duration)
+  {}
+
+  MOSDFailure(
+      const uuid_d& fs,
+      int osd,
+      const entity_addrvec_t& av,
+      int duration,
+      epoch_t e,
+      __u8 extra_flags) :
+    PaxosServiceMessage(MSG_OSD_FAILURE, e, HEAD_VERSION, COMPAT_VERSION),
+    fsid(fs),
+    target_osd(osd),
+    target_addrs(av),
+    flags(extra_flags),
+    epoch(e),
+    failed_for(duration)
+  {}
+
 private:
   ~MOSDFailure() final {}
 
 public:
-  int get_target_osd() { return target_osd; }
-  const entity_addrvec_t& get_target_addrs() { return target_addrs; }
-  bool if_osd_failed() const { 
-    return flags & FLAG_FAILED; 
+  int
+  get_target_osd()
+  {
+    return target_osd;
   }
-  bool is_immediate() const { 
-    return flags & FLAG_IMMEDIATE; 
-  }
-  epoch_t get_epoch() const { return epoch; }
 
-  void decode_payload() override {
+  const entity_addrvec_t&
+  get_target_addrs()
+  {
+    return target_addrs;
+  }
+
+  bool
+  if_osd_failed() const
+  {
+    return flags & FLAG_FAILED;
+  }
+
+  bool
+  is_immediate() const
+  {
+    return flags & FLAG_IMMEDIATE;
+  }
+
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -84,7 +122,9 @@ public:
     decode(failed_for, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     assert(HAVE_FEATURE(features, SERVER_NAUTILUS));
@@ -98,17 +138,23 @@ public:
     encode(failed_for, payload);
   }
 
-  std::string_view get_type_name() const override { return "osd_failure"; }
-  void print(std::ostream& out) const override {
-    out << "osd_failure("
-	<< (if_osd_failed() ? "failed " : "recovered ")
-	<< (is_immediate() ? "immediate " : "timeout ")
-	<< "osd." << target_osd << " " << target_addrs
-	<< " for " << failed_for << "sec e" << epoch
-	<< " v" << version << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "osd_failure";
   }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "osd_failure(" << (if_osd_failed() ? "failed " : "recovered ")
+        << (is_immediate() ? "immediate " : "timeout ") << "osd." << target_osd
+        << " " << target_addrs << " for " << failed_for << "sec e" << epoch
+        << " v" << version << ")";
+  }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

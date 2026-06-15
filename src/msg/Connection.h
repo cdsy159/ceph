@@ -17,18 +17,20 @@
 #define CEPH_CONNECTION_H
 
 #include <stdlib.h>
+
 #include <ostream>
+
+#include "common/debug.h"
 
 #include "auth/Auth.h"
 #include "common/RefCountedObj.h"
-#include "common/config.h"
-#include "common/debug.h"
-#include "common/ref.h"
 #include "common/ceph_mutex.h"
-#include "include/ceph_assert.h" // Because intusive_ptr clobbers our assert...
-#include "include/buffer.h"
-#include "include/types.h"
+#include "common/config.h"
 #include "common/item_history.h"
+#include "common/ref.h"
+#include "include/buffer.h"
+#include "include/ceph_assert.h" // Because intusive_ptr clobbers our assert...
+#include "include/types.h"
 #include "msg/MessageRef.h"
 
 // ======================================================
@@ -43,45 +45,54 @@ class Interceptor;
 
 struct Connection : public RefCountedObjectSafe {
   mutable ceph::mutex lock = ceph::make_mutex("Connection::lock");
-  Messenger *msgr;
+  Messenger* msgr;
   RefCountedPtr priv;
   int peer_type = -1;
-  int64_t peer_id = -1;  // [msgr2 only] the 0 of osd.0, 4567 or client.4567
+  int64_t peer_id = -1; // [msgr2 only] the 0 of osd.0, 4567 or client.4567
   safe_item_history<entity_addrvec_t> peer_addrs;
   utime_t last_keepalive, last_keepalive_ack;
-  bool anon = false;  ///< anonymous outgoing connection
+  bool anon = false; ///< anonymous outgoing connection
+
 private:
   uint64_t features = 0;
+
 public:
   bool is_loopback = false;
   bool failed = false; // true if we are a lossy connection that has failed.
 
   int rx_buffers_version = 0;
-  std::map<ceph_tid_t,std::pair<ceph::buffer::list, int>> rx_buffers;
+  std::map<ceph_tid_t, std::pair<ceph::buffer::list, int>> rx_buffers;
 
   // authentication state
   // FIXME make these private after ms_handle_authorizer is removed
+
 public:
   AuthCapsInfo peer_caps_info;
   EntityName peer_name;
   uint64_t peer_global_id = 0;
 
 #ifdef UNIT_TESTS_BUILT
-  Interceptor *interceptor;
+  Interceptor* interceptor;
 #endif
 
 public:
-  void set_priv(const RefCountedPtr& o) {
+  void
+  set_priv(const RefCountedPtr& o)
+  {
     std::lock_guard l{lock};
     priv = o;
   }
 
-  RefCountedPtr get_priv() {
+  RefCountedPtr
+  get_priv()
+  {
     std::lock_guard l{lock};
     return priv;
   }
 
-  void clear_priv() {
+  void
+  clear_priv()
+  {
     std::lock_guard l{lock};
     priv.reset(nullptr);
   }
@@ -95,15 +106,21 @@ public:
    */
   virtual bool is_connected() = 0;
 
-  virtual bool is_msgr2() const {
+  virtual bool
+  is_msgr2() const
+  {
     return false;
   }
 
-  bool is_anon() const {
+  bool
+  is_anon() const
+  {
     return anon;
   }
 
-  Messenger *get_messenger() {
+  Messenger*
+  get_messenger()
+  {
     return msgr;
   }
 
@@ -118,11 +135,13 @@ public:
    *
    * @return 0 on success, or -errno on failure.
    */
-  virtual int send_message(Message *m) = 0;
+  virtual int send_message(Message* m) = 0;
 
-  virtual int send_message2(MessageRef m)
+  virtual int
+  send_message2(MessageRef m)
   {
-    return send_message(m.detach()); /* send_message(Message *m) consumes a reference */
+    return send_message(
+        m.detach()); /* send_message(Message *m) consumes a reference */
   }
 
   /**
@@ -159,56 +178,145 @@ public:
   virtual void mark_disposable() = 0;
 
   // WARNING / FIXME: this is not populated for loopback connections
-  AuthCapsInfo& get_peer_caps_info() {
+  AuthCapsInfo&
+  get_peer_caps_info()
+  {
     return peer_caps_info;
   }
-  const EntityName& get_peer_entity_name() {
+
+  const EntityName&
+  get_peer_entity_name()
+  {
     return peer_name;
   }
-  uint64_t get_peer_global_id() {
+
+  uint64_t
+  get_peer_global_id()
+  {
     return peer_global_id;
   }
 
-  int get_peer_type() const { return peer_type; }
-  void set_peer_type(int t) { peer_type = t; }
+  int
+  get_peer_type() const
+  {
+    return peer_type;
+  }
+
+  void
+  set_peer_type(int t)
+  {
+    peer_type = t;
+  }
 
   // peer_id is only defined for msgr2
-  int64_t get_peer_id() const { return peer_id; }
-  void set_peer_id(int64_t t) { peer_id = t; }
+  int64_t
+  get_peer_id() const
+  {
+    return peer_id;
+  }
 
-  bool peer_is_mon() const { return peer_type == CEPH_ENTITY_TYPE_MON; }
-  bool peer_is_mgr() const { return peer_type == CEPH_ENTITY_TYPE_MGR; }
-  bool peer_is_mds() const { return peer_type == CEPH_ENTITY_TYPE_MDS; }
-  bool peer_is_osd() const { return peer_type == CEPH_ENTITY_TYPE_OSD; }
-  bool peer_is_client() const { return peer_type == CEPH_ENTITY_TYPE_CLIENT; }
+  void
+  set_peer_id(int64_t t)
+  {
+    peer_id = t;
+  }
+
+  bool
+  peer_is_mon() const
+  {
+    return peer_type == CEPH_ENTITY_TYPE_MON;
+  }
+
+  bool
+  peer_is_mgr() const
+  {
+    return peer_type == CEPH_ENTITY_TYPE_MGR;
+  }
+
+  bool
+  peer_is_mds() const
+  {
+    return peer_type == CEPH_ENTITY_TYPE_MDS;
+  }
+
+  bool
+  peer_is_osd() const
+  {
+    return peer_type == CEPH_ENTITY_TYPE_OSD;
+  }
+
+  bool
+  peer_is_client() const
+  {
+    return peer_type == CEPH_ENTITY_TYPE_CLIENT;
+  }
 
   /// which of the peer's addrs is actually in use for this connection
   virtual entity_addr_t get_peer_socket_addr() const = 0;
 
-  entity_addr_t get_peer_addr() const {
+  entity_addr_t
+  get_peer_addr() const
+  {
     return peer_addrs->front();
   }
-  const entity_addrvec_t& get_peer_addrs() const {
+
+  const entity_addrvec_t&
+  get_peer_addrs() const
+  {
     return *peer_addrs;
   }
-  void set_peer_addr(const entity_addr_t& a) {
+
+  void
+  set_peer_addr(const entity_addr_t& a)
+  {
     peer_addrs = entity_addrvec_t(a);
   }
-  void set_peer_addrs(const entity_addrvec_t& av) { peer_addrs = av; }
 
-  uint64_t get_features() const { return features; }
-  bool has_feature(uint64_t f) const { return features & f; }
-  bool has_features(uint64_t f) const {
+  void
+  set_peer_addrs(const entity_addrvec_t& av)
+  {
+    peer_addrs = av;
+  }
+
+  uint64_t
+  get_features() const
+  {
+    return features;
+  }
+
+  bool
+  has_feature(uint64_t f) const
+  {
+    return features & f;
+  }
+
+  bool
+  has_features(uint64_t f) const
+  {
     return (features & f) == f;
   }
-  void set_features(uint64_t f) { features = f; }
-  void set_feature(uint64_t f) { features |= f; }
 
-  virtual int get_con_mode() const {
+  void
+  set_features(uint64_t f)
+  {
+    features = f;
+  }
+
+  void
+  set_feature(uint64_t f)
+  {
+    features |= f;
+  }
+
+  virtual int
+  get_con_mode() const
+  {
     return CEPH_CON_MODE_CRC;
   }
 
-  void post_rx_buffer(ceph_tid_t tid, ceph::buffer::list& bl) {
+  void
+  post_rx_buffer(ceph_tid_t tid, ceph::buffer::list& bl)
+  {
 #if 0
     std::lock_guard l{lock};
     ++rx_buffers_version;
@@ -216,38 +324,52 @@ public:
 #endif
   }
 
-  void revoke_rx_buffer(ceph_tid_t tid) {
+  void
+  revoke_rx_buffer(ceph_tid_t tid)
+  {
 #if 0
     std::lock_guard l{lock};
     rx_buffers.erase(tid);
 #endif
   }
 
-  utime_t get_last_keepalive() const {
+  utime_t
+  get_last_keepalive() const
+  {
     std::lock_guard l{lock};
     return last_keepalive;
   }
-  void set_last_keepalive(utime_t t) {
+
+  void
+  set_last_keepalive(utime_t t)
+  {
     std::lock_guard l{lock};
     last_keepalive = t;
   }
-  utime_t get_last_keepalive_ack() const {
+
+  utime_t
+  get_last_keepalive_ack() const
+  {
     std::lock_guard l{lock};
     return last_keepalive_ack;
   }
-  void set_last_keepalive_ack(utime_t t) {
+
+  void
+  set_last_keepalive_ack(utime_t t)
+  {
     std::lock_guard l{lock};
     last_keepalive_ack = t;
   }
+
   bool is_blackhole() const;
 
 protected:
-  Connection(CephContext *cct, Messenger *m)
-    : RefCountedObjectSafe(cct),
-      msgr(m)
+  Connection(CephContext* cct, Messenger* m) :
+    RefCountedObjectSafe(cct), msgr(m)
   {}
 
-  ~Connection() override {
+  ~Connection() override
+  {
     //generic_dout(0) << "~Connection " << this << dendl;
   }
 };

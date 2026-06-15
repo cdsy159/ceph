@@ -3,16 +3,18 @@
 
 #pragma once
 
-#include <tuple>
 #include <seastar/core/future.hh>
-#include "osd/osd_types.h"
+
+#include <tuple>
+
 #include "crimson/os/futurized_store.h"
+#include "osd/osd_types.h"
 
 /// PG related metadata
-class PGMeta
-{
+class PGMeta {
   crimson::os::BackendStore store;
   const spg_t pgid;
+
 public:
   PGMeta(crimson::os::BackendStore store, spg_t pgid);
   seastar::future<epoch_t> get_epoch();

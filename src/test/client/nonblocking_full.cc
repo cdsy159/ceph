@@ -13,36 +13,37 @@
  */
 
 #include <errno.h>
+#include <fmt/format.h>
+#include <sys/statvfs.h>
 
 #include <iostream>
 #include <string>
 
-#include <fmt/format.h>
-#include <sys/statvfs.h>
-
 #include "test/client/TestClient.h"
 
-TEST_F(TestClient, LlreadvLlwritevDataPoolFull) {
+TEST_F(TestClient, LlreadvLlwritevDataPoolFull)
+{
   /* Test perfoming async I/O after filling the fs and make sure it handles
   the write gracefully */
 
   Inode *root = nullptr, *file_a = nullptr;
-  Fh *fh_a = nullptr;
+  Fh* fh_a = nullptr;
   struct ceph_statx stx_a;
   root = client->get_root();
-  ASSERT_NE(root, (Inode *)NULL);
+  ASSERT_NE(root, (Inode*)NULL);
 
   int mypid = getpid();
   char fname_a[256];
   sprintf(fname_a, "test_llreadvllwritevdatapoolfullfile_a%u", mypid);
-  ASSERT_EQ(0, client->ll_createx(root, fname_a, 0666,
-                                  O_RDWR | O_CREAT | O_TRUNC,
-                                  &file_a, &fh_a, &stx_a, 0, 0, myperm));                                         
+  ASSERT_EQ(
+      0, client->ll_createx(
+             root, fname_a, 0666, O_RDWR | O_CREAT | O_TRUNC, &file_a, &fh_a,
+             &stx_a, 0, 0, myperm));
 
   int64_t rc = 0, bytes_written = 0;
 
   // this test case cannot handle multiple data pools
-  const std::vector<int64_t> &data_pools = client->mdsmap->get_data_pools();
+  const std::vector<int64_t>& data_pools = client->mdsmap->get_data_pools();
   ASSERT_EQ(data_pools.size(), 1);
 
   struct statvfs stbuf;
@@ -55,26 +56,29 @@ TEST_F(TestClient, LlreadvLlwritevDataPoolFull) {
   off_t offset = 0;
   // writing blocks of 1GiB
   const size_t BLOCK_SIZE = 1024 * 1024 * 1024;
-  client->ll_write_n_bytes(fh_a, size_t(data_pool_available_space / 2),
-                           BLOCK_SIZE, 4, &offset);
+  client->ll_write_n_bytes(
+      fh_a, size_t(data_pool_available_space / 2), BLOCK_SIZE, 4, &offset);
 
   // get a new file
   mypid = getpid();
   char fname_b[256];
-  Inode *file_b = nullptr;
-  Fh *fh_b = nullptr;
+  Inode* file_b = nullptr;
+  Fh* fh_b = nullptr;
   struct ceph_statx stx_b;
   sprintf(fname_b, "test_llreadvllwritevdatapoolfullfile_b%u", mypid);
-  ASSERT_EQ(0, client->ll_createx(root, fname_b, 0666,
-                                  O_RDWR | O_CREAT | O_TRUNC,
-                                  &file_b, &fh_b, &stx_b, 0, 0, myperm));                                         
+  ASSERT_EQ(
+      0, client->ll_createx(
+             root, fname_b, 0666, O_RDWR | O_CREAT | O_TRUNC, &file_b, &fh_b,
+             &stx_b, 0, 0, myperm));
 
-  client->ll_write_n_bytes(fh_b, size_t((data_pool_available_space * 1.1) / 2),
-                           BLOCK_SIZE, 4, &offset);
+  client->ll_write_n_bytes(
+      fh_b, size_t((data_pool_available_space * 1.1) / 2), BLOCK_SIZE, 4,
+      &offset);
 
   // if we're here then it means the write succeeded but the cluster is full
   // so let us get a new osdmap epoch
-  const epoch_t osd_epoch = objecter->with_osdmap(std::mem_fn(&OSDMap::get_epoch));
+  const epoch_t osd_epoch =
+      objecter->with_osdmap(std::mem_fn(&OSDMap::get_epoch));
 
   objecter->maybe_request_map();
 
@@ -82,8 +86,9 @@ TEST_F(TestClient, LlreadvLlwritevDataPoolFull) {
   ASSERT_TRUE(client->wait_for_osdmap_epoch_update(osd_epoch));
 
   // with the new osdmap epoch, the pools should return full flag
-  bool data_pool_full = client->wait_until_true([&]()
-                        { return client->is_data_pool_full(data_pools[0]); });
+  bool data_pool_full = client->wait_until_true([&]() {
+    return client->is_data_pool_full(data_pools[0]);
+  });
   ASSERT_TRUE(data_pool_full);
 
   // write here should fail since the cluster is full
@@ -94,15 +99,14 @@ TEST_F(TestClient, LlreadvLlwritevDataPoolFull) {
   memset(out_buf_1.get(), 0xFF, TINY_BLOCK_SIZE);
 
   struct iovec iov_out[2] = {
-    {out_buf_0.get(), TINY_BLOCK_SIZE},
-    {out_buf_1.get(), TINY_BLOCK_SIZE}
-  };
+      {out_buf_0.get(), TINY_BLOCK_SIZE}, {out_buf_1.get(), TINY_BLOCK_SIZE}};
 
   std::unique_ptr<C_SaferCond> writefinish = nullptr;
-  writefinish.reset(new C_SaferCond("test-nonblocking-writefinish-datapool-full"));
-  rc = client->ll_preadv_pwritev(fh_b, iov_out, 2,
-                                 size_t(data_pool_available_space / 2),
-                                 true, writefinish.get(), nullptr);
+  writefinish.reset(
+      new C_SaferCond("test-nonblocking-writefinish-datapool-full"));
+  rc = client->ll_preadv_pwritev(
+      fh_b, iov_out, 2, size_t(data_pool_available_space / 2), true,
+      writefinish.get(), nullptr);
   ASSERT_EQ(rc, 0);
   bytes_written = writefinish->wait();
   ASSERT_EQ(bytes_written, -ENOSPC);

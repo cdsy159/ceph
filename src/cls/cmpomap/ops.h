@@ -14,8 +14,9 @@
 
 #pragma once
 
-#include "types.h"
 #include "include/encoding.h"
+
+#include "types.h"
 
 namespace cls::cmpomap {
 
@@ -26,7 +27,8 @@ struct cmp_vals_op {
   std::optional<ceph::bufferlist> default_value;
 };
 
-inline void encode(const cmp_vals_op& o, ceph::bufferlist& bl, uint64_t f=0)
+inline void
+encode(const cmp_vals_op& o, ceph::bufferlist& bl, uint64_t f = 0)
 {
   ENCODE_START(1, 1, bl);
   encode(o.mode, bl);
@@ -36,7 +38,8 @@ inline void encode(const cmp_vals_op& o, ceph::bufferlist& bl, uint64_t f=0)
   ENCODE_FINISH(bl);
 }
 
-inline void decode(cmp_vals_op& o, ceph::bufferlist::const_iterator& bl)
+inline void
+decode(cmp_vals_op& o, ceph::bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(o.mode, bl);
@@ -53,7 +56,8 @@ struct cmp_set_vals_op {
   std::optional<ceph::bufferlist> default_value;
 };
 
-inline void encode(const cmp_set_vals_op& o, ceph::bufferlist& bl, uint64_t f=0)
+inline void
+encode(const cmp_set_vals_op& o, ceph::bufferlist& bl, uint64_t f = 0)
 {
   ENCODE_START(1, 1, bl);
   encode(o.mode, bl);
@@ -63,7 +67,8 @@ inline void encode(const cmp_set_vals_op& o, ceph::bufferlist& bl, uint64_t f=0)
   ENCODE_FINISH(bl);
 }
 
-inline void decode(cmp_set_vals_op& o, ceph::bufferlist::const_iterator& bl)
+inline void
+decode(cmp_set_vals_op& o, ceph::bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(o.mode, bl);
@@ -79,7 +84,8 @@ struct cmp_rm_keys_op {
   ComparisonMap values;
 };
 
-inline void encode(const cmp_rm_keys_op& o, ceph::bufferlist& bl, uint64_t f=0)
+inline void
+encode(const cmp_rm_keys_op& o, ceph::bufferlist& bl, uint64_t f = 0)
 {
   ENCODE_START(1, 1, bl);
   encode(o.mode, bl);
@@ -88,7 +94,8 @@ inline void encode(const cmp_rm_keys_op& o, ceph::bufferlist& bl, uint64_t f=0)
   ENCODE_FINISH(bl);
 }
 
-inline void decode(cmp_rm_keys_op& o, ceph::bufferlist::const_iterator& bl)
+inline void
+decode(cmp_rm_keys_op& o, ceph::bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(o.mode, bl);

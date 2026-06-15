@@ -21,45 +21,61 @@
 
 #include <fmt/format.h>
 
-#include "rgw_pool_types.h"
-#include "rgw_bucket_types.h"
-#include "rgw_user_types.h"
-
-#include "common/dout.h"
 #include "common/Formatter.h"
+#include "common/dout.h"
+
+#include "rgw_bucket_types.h"
+#include "rgw_pool_types.h"
+#include "rgw_user_types.h"
 
 struct rgw_obj_index_key { // cls_rgw_obj_key now aliases this type
   std::string name;
   std::string instance;
 
   rgw_obj_index_key() {}
-  rgw_obj_index_key(const std::string &_name) : name(_name) {}
-  rgw_obj_index_key(const std::string& n, const std::string& i) : name(n), instance(i) {}
 
-  std::string to_string() const {
+  rgw_obj_index_key(const std::string& _name) :
+    name(_name)
+  {}
+
+  rgw_obj_index_key(const std::string& n, const std::string& i) :
+    name(n), instance(i)
+  {}
+
+  std::string
+  to_string() const
+  {
     return fmt::format("{}({})", name, instance);
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return name.empty();
   }
 
-  void set(const std::string& _name) {
+  void
+  set(const std::string& _name)
+  {
     name = _name;
     instance.clear();
   }
 
-  bool operator==(const rgw_obj_index_key& k) const {
-    return (name.compare(k.name) == 0) &&
-           (instance.compare(k.instance) == 0);
+  bool
+  operator==(const rgw_obj_index_key& k) const
+  {
+    return (name.compare(k.name) == 0) && (instance.compare(k.instance) == 0);
   }
 
-  bool operator!=(const rgw_obj_index_key& k) const {
-    return (name.compare(k.name) != 0) ||
-           (instance.compare(k.instance) != 0);
+  bool
+  operator!=(const rgw_obj_index_key& k) const
+  {
+    return (name.compare(k.name) != 0) || (instance.compare(k.instance) != 0);
   }
 
-  bool operator<(const rgw_obj_index_key& k) const {
+  bool
+  operator<(const rgw_obj_index_key& k) const
+  {
     int r = name.compare(k.name);
     if (r == 0) {
       r = instance.compare(k.instance);
@@ -67,28 +83,42 @@ struct rgw_obj_index_key { // cls_rgw_obj_key now aliases this type
     return (r < 0);
   }
 
-  bool operator<=(const rgw_obj_index_key& k) const {
+  bool
+  operator<=(const rgw_obj_index_key& k) const
+  {
     return !(k < *this);
   }
 
-  void encode(ceph::buffer::list &bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(name, bl);
     encode(instance, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator &bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(name, bl);
     decode(instance, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("name", name);
     f->dump_string("instance", instance);
   }
-  void decode_json(JSONObj *obj);
-  static std::list<rgw_obj_index_key> generate_test_instances() {
+
+  void decode_json(JSONObj* obj);
+
+  static std::list<rgw_obj_index_key>
+  generate_test_instances()
+  {
     std::list<rgw_obj_index_key> ls;
     ls.emplace_back();
     ls.emplace_back();
@@ -97,12 +127,16 @@ struct rgw_obj_index_key { // cls_rgw_obj_key now aliases this type
     return ls;
   }
 
-  size_t estimate_encoded_size() const {
-    constexpr size_t start_overhead = sizeof(__u8) + sizeof(__u8) + sizeof(ceph_le32); // version and length prefix
-    constexpr size_t string_overhead = sizeof(__u32); // strings are encoded with 32-bit length prefix
-    return start_overhead +
-        string_overhead + name.size() +
-        string_overhead + instance.size();
+  size_t
+  estimate_encoded_size() const
+  {
+    constexpr size_t start_overhead =
+        sizeof(__u8) + sizeof(__u8) +
+        sizeof(ceph_le32); // version and length prefix
+    constexpr size_t string_overhead =
+        sizeof(__u32); // strings are encoded with 32-bit length prefix
+    return start_overhead + string_overhead + name.size() + string_overhead +
+           instance.size();
   }
 };
 WRITE_CLASS_ENCODER(rgw_obj_index_key)
@@ -115,16 +149,27 @@ struct rgw_obj_key {
   rgw_obj_key() {}
 
   // cppcheck-suppress noExplicitConstructor
-  rgw_obj_key(const std::string& n) : name(n) {}
-  rgw_obj_key(const std::string& n, const std::string& i) : name(n), instance(i) {}
-  rgw_obj_key(const std::string& n, const std::string& i, const std::string& _ns) : name(n), instance(i), ns(_ns) {}
+  rgw_obj_key(const std::string& n) :
+    name(n)
+  {}
 
-  rgw_obj_key(const rgw_obj_index_key& k) {
+  rgw_obj_key(const std::string& n, const std::string& i) :
+    name(n), instance(i)
+  {}
+
+  rgw_obj_key(const std::string& n, const std::string& i, const std::string& _ns) :
+    name(n), instance(i), ns(_ns)
+  {}
+
+  rgw_obj_key(const rgw_obj_index_key& k)
+  {
     parse_index_key(k.name, &name, &ns);
     instance = k.instance;
   }
 
-  static void parse_index_key(const std::string& key, std::string *name, std::string *ns) {
+  static void
+  parse_index_key(const std::string& key, std::string* name, std::string* ns)
+  {
     if (key[0] != '_') {
       *name = key;
       ns->clear();
@@ -144,28 +189,36 @@ struct rgw_obj_key {
     }
 
     *name = key.substr(pos + 1);
-    *ns = key.substr(1, pos -1);
+    *ns = key.substr(1, pos - 1);
   }
 
-  void set(const std::string& n) {
+  void
+  set(const std::string& n)
+  {
     name = n;
     instance.clear();
     ns.clear();
   }
 
-  void set(const std::string& n, const std::string& i) {
+  void
+  set(const std::string& n, const std::string& i)
+  {
     name = n;
     instance = i;
     ns.clear();
   }
 
-  void set(const std::string& n, const std::string& i, const std::string& _ns) {
+  void
+  set(const std::string& n, const std::string& i, const std::string& _ns)
+  {
     name = n;
     instance = i;
     ns = _ns;
   }
 
-  bool set(const rgw_obj_index_key& index_key) {
+  bool
+  set(const rgw_obj_index_key& index_key)
+  {
     if (!parse_raw_oid(index_key.name, this)) {
       return false;
     }
@@ -173,23 +226,33 @@ struct rgw_obj_key {
     return true;
   }
 
-  void set_instance(const std::string& i) {
+  void
+  set_instance(const std::string& i)
+  {
     instance = i;
   }
 
-  const std::string& get_instance() const {
+  const std::string&
+  get_instance() const
+  {
     return instance;
   }
 
-  void set_ns(const std::string& _ns) {
+  void
+  set_ns(const std::string& _ns)
+  {
     ns = _ns;
   }
 
-  const std::string& get_ns() const {
+  const std::string&
+  get_ns() const
+  {
     return ns;
   }
 
-  std::string get_index_key_name() const {
+  std::string
+  get_index_key_name() const
+  {
     if (ns.empty()) {
       if (name.size() < 1 || name[0] != '_') {
         return name;
@@ -202,12 +265,16 @@ struct rgw_obj_key {
     return std::string(buf) + name;
   };
 
-  void get_index_key(rgw_obj_index_key* key) const {
+  void
+  get_index_key(rgw_obj_index_key* key) const
+  {
     key->name = get_index_key_name();
     key->instance = instance;
   }
 
-  std::string get_loc() const {
+  std::string
+  get_loc() const
+  {
     /*
      * For backward compatibility. Older versions used to have object locator on all objects,
      * however, the name was the effective object locator. This had the same effect as not
@@ -221,23 +288,33 @@ struct rgw_obj_key {
     return {};
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return name.empty();
   }
 
-  bool have_null_instance() const {
+  bool
+  have_null_instance() const
+  {
     return instance == "null";
   }
 
-  bool have_instance() const {
+  bool
+  have_instance() const
+  {
     return !instance.empty();
   }
 
-  bool need_to_encode_instance() const {
+  bool
+  need_to_encode_instance() const
+  {
     return have_instance() && !have_null_instance();
   }
 
-  std::string get_oid() const {
+  std::string
+  get_oid() const
+  {
     if (ns.empty() && !need_to_encode_instance()) {
       if (name.size() < 1 || name[0] != '_') {
         return name;
@@ -255,12 +332,15 @@ struct rgw_obj_key {
     return oid;
   }
 
-  bool operator==(const rgw_obj_key& k) const {
-    return (name.compare(k.name) == 0) &&
-           (instance.compare(k.instance) == 0);
+  bool
+  operator==(const rgw_obj_key& k) const
+  {
+    return (name.compare(k.name) == 0) && (instance.compare(k.instance) == 0);
   }
 
-  bool operator<(const rgw_obj_key& k) const {
+  bool
+  operator<(const rgw_obj_key& k) const
+  {
     int r = name.compare(k.name);
     if (r == 0) {
       r = instance.compare(k.instance);
@@ -268,11 +348,15 @@ struct rgw_obj_key {
     return (r < 0);
   }
 
-  bool operator<=(const rgw_obj_key& k) const {
+  bool
+  operator<=(const rgw_obj_key& k) const
+  {
     return !(k < *this);
   }
 
-  static void parse_ns_field(std::string& ns, std::string& instance) {
+  static void
+  parse_ns_field(std::string& ns, std::string& instance)
+  {
     int pos = ns.find(':');
     if (pos >= 0) {
       instance = ns.substr(pos + 1);
@@ -284,7 +368,9 @@ struct rgw_obj_key {
 
   // takes an oid and parses out the namespace (ns), name, and
   // instance
-  static bool parse_raw_oid(const std::string& oid, rgw_obj_key *key) {
+  static bool
+  parse_raw_oid(const std::string& oid, rgw_obj_key* key)
+  {
     key->instance.clear();
     key->ns.clear();
     if (oid[0] != '_') {
@@ -319,7 +405,12 @@ struct rgw_obj_key {
    * and cuts down the name to the unmangled version. If it is not
    * part of the given namespace, it returns false.
    */
-  static bool oid_to_key_in_ns(const std::string& oid, rgw_obj_key *key, const std::string& ns) {
+  static bool
+  oid_to_key_in_ns(
+      const std::string& oid,
+      rgw_obj_key* key,
+      const std::string& ns)
+  {
     bool ret = parse_raw_oid(oid, key);
     if (!ret) {
       return ret;
@@ -336,7 +427,12 @@ struct rgw_obj_key {
    * It returns true after successfully doing so, or
    * false if it fails.
    */
-  static bool strip_namespace_from_name(std::string& name, std::string& ns, std::string& instance) {
+  static bool
+  strip_namespace_from_name(
+      std::string& name,
+      std::string& ns,
+      std::string& instance)
+  {
     ns.clear();
     instance.clear();
     if (name[0] != '_') {
@@ -358,21 +454,26 @@ struct rgw_obj_key {
       return false;
     }
 
-    ns = name.substr(1, pos-1);
-    name = name.substr(pos+1, std::string::npos);
+    ns = name.substr(1, pos - 1);
+    name = name.substr(pos + 1, std::string::npos);
 
     parse_ns_field(ns, instance);
     return true;
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(name, bl);
     encode(instance, bl);
     encode(ns, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(name, bl);
     decode(instance, bl);
@@ -381,15 +482,19 @@ struct rgw_obj_key {
     }
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(rgw_obj_key)
 
 #if FMT_VERSION >= 90000
-template<> struct fmt::formatter<rgw_obj_key> : fmt::formatter<std::string_view> {
+template <>
+struct fmt::formatter<rgw_obj_key> : fmt::formatter<std::string_view> {
   template <typename FormatContext>
-  auto format(const rgw_obj_key& key, FormatContext& ctx) const {
+  auto
+  format(const rgw_obj_key& key, FormatContext& ctx) const
+  {
     if (key.instance.empty()) {
       return formatter<std::string_view>::format(key.name, ctx);
     } else {
@@ -399,7 +504,9 @@ template<> struct fmt::formatter<rgw_obj_key> : fmt::formatter<std::string_view>
 };
 #endif
 
-inline std::ostream& operator<<(std::ostream& out, const rgw_obj_key &key) {
+inline std::ostream&
+operator<<(std::ostream& out, const rgw_obj_key& key)
+{
 #if FMT_VERSION >= 90000
   return out << fmt::format("{}", key);
 #else
@@ -417,23 +524,37 @@ struct rgw_raw_obj {
   std::string loc;
 
   rgw_raw_obj() {}
-  rgw_raw_obj(const rgw_pool& _pool, const std::string& _oid) {
-    init(_pool, _oid);
-  }
-  rgw_raw_obj(const rgw_pool& _pool, const std::string& _oid, const std::string& _loc) : loc(_loc) {
+
+  rgw_raw_obj(const rgw_pool& _pool, const std::string& _oid)
+  {
     init(_pool, _oid);
   }
 
-  void init(const rgw_pool& _pool, const std::string& _oid) {
+  rgw_raw_obj(
+      const rgw_pool& _pool,
+      const std::string& _oid,
+      const std::string& _loc) :
+    loc(_loc)
+  {
+    init(_pool, _oid);
+  }
+
+  void
+  init(const rgw_pool& _pool, const std::string& _oid)
+  {
     pool = _pool;
     oid = _oid;
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return oid.empty();
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(6, 6, bl);
     encode(pool, bl);
     encode(oid, bl);
@@ -443,7 +564,9 @@ struct rgw_raw_obj {
 
   void decode_from_rgw_obj(bufferlist::const_iterator& bl);
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     unsigned ofs = bl.get_off();
     DECODE_START(6, bl);
     if (struct_v < 6) {
@@ -461,7 +584,9 @@ struct rgw_raw_obj {
     DECODE_FINISH(bl);
   }
 
-  bool operator<(const rgw_raw_obj& o) const {
+  bool
+  operator<(const rgw_raw_obj& o) const
+  {
     int r = pool.compare(o.pool);
     if (r == 0) {
       r = oid.compare(o.oid);
@@ -472,21 +597,27 @@ struct rgw_raw_obj {
     return (r < 0);
   }
 
-  bool operator==(const rgw_raw_obj& o) const {
+  bool
+  operator==(const rgw_raw_obj& o) const
+  {
     return (pool == o.pool && oid == o.oid && loc == o.loc);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<rgw_raw_obj> generate_test_instances();
-  void decode_json(JSONObj *obj);
+  void decode_json(JSONObj* obj);
 
-  inline std::string to_str() const {
+  inline std::string
+  to_str() const
+  {
     return pool.to_str() + ":" + oid;
   }
 };
 WRITE_CLASS_ENCODER(rgw_raw_obj)
 
-inline std::ostream& operator<<(std::ostream& out, const rgw_raw_obj& o) {
+inline std::ostream&
+operator<<(std::ostream& out, const rgw_raw_obj& o)
+{
   out << o.pool << ":" << o.oid;
   return out;
 }
@@ -501,67 +632,104 @@ struct rgw_obj {
   std::string index_hash_source;
 
   rgw_obj() {}
-  rgw_obj(const rgw_bucket& b, const std::string& name) : bucket(b), key(name) {}
-  rgw_obj(const rgw_bucket& b, const rgw_obj_key& k) : bucket(b), key(k) {}
-  rgw_obj(const rgw_bucket& b, const rgw_obj_index_key& k) : bucket(b), key(k) {}
 
-  void init(const rgw_bucket& b, const rgw_obj_key& k) {
+  rgw_obj(const rgw_bucket& b, const std::string& name) :
+    bucket(b), key(name)
+  {}
+
+  rgw_obj(const rgw_bucket& b, const rgw_obj_key& k) :
+    bucket(b), key(k)
+  {}
+
+  rgw_obj(const rgw_bucket& b, const rgw_obj_index_key& k) :
+    bucket(b), key(k)
+  {}
+
+  void
+  init(const rgw_bucket& b, const rgw_obj_key& k)
+  {
     bucket = b;
     key = k;
   }
 
-  void init(const rgw_bucket& b, const std::string& name) {
+  void
+  init(const rgw_bucket& b, const std::string& name)
+  {
     bucket = b;
     key.set(name);
   }
 
-  void init(const rgw_bucket& b, const std::string& name, const std::string& i, const std::string& n) {
+  void
+  init(
+      const rgw_bucket& b,
+      const std::string& name,
+      const std::string& i,
+      const std::string& n)
+  {
     bucket = b;
     key.set(name, i, n);
   }
 
-  void init_ns(const rgw_bucket& b, const std::string& name, const std::string& n) {
+  void
+  init_ns(const rgw_bucket& b, const std::string& name, const std::string& n)
+  {
     bucket = b;
     key.name = name;
     key.instance.clear();
     key.ns = n;
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return key.empty();
   }
 
-  void set_key(const rgw_obj_key& k) {
+  void
+  set_key(const rgw_obj_key& k)
+  {
     key = k;
   }
 
-  std::string get_oid() const {
+  std::string
+  get_oid() const
+  {
     return key.get_oid();
   }
 
-  const std::string& get_hash_object() const {
+  const std::string&
+  get_hash_object() const
+  {
     return index_hash_source.empty() ? key.name : index_hash_source;
   }
 
-  void set_in_extra_data(bool val) {
+  void
+  set_in_extra_data(bool val)
+  {
     in_extra_data = val;
   }
 
-  bool is_in_extra_data() const {
+  bool
+  is_in_extra_data() const
+  {
     return in_extra_data;
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(6, 6, bl);
     encode(bucket, bl);
     encode(key.ns, bl);
     encode(key.name, bl);
     encode(key.instance, bl);
-//    encode(placement_id, bl);
+    //    encode(placement_id, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(6, 3, 3, bl);
     if (struct_v < 6) {
       std::string s;
@@ -593,21 +761,27 @@ struct rgw_obj {
       decode(key.ns, bl);
       decode(key.name, bl);
       decode(key.instance, bl);
-//      decode(placement_id, bl);
+      //      decode(placement_id, bl);
     }
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<rgw_obj> generate_test_instances();
 
-  bool operator==(const rgw_obj& o) const {
-    return (key == o.key) &&
-           (bucket == o.bucket);
+  bool
+  operator==(const rgw_obj& o) const
+  {
+    return (key == o.key) && (bucket == o.bucket);
   }
-  bool operator<(const rgw_obj& o) const {
+
+  bool
+  operator<(const rgw_obj& o) const
+  {
     int r = key.name.compare(o.key.name);
     if (r == 0) {
-      r = bucket.bucket_id.compare(o.bucket.bucket_id); /* not comparing bucket.name, if bucket_id is equal so will be bucket.name */
+      r = bucket.bucket_id.compare(
+          o.bucket.bucket_id); /* not comparing bucket.name, if bucket_id is equal so will be bucket.name */
       if (r == 0) {
         r = key.ns.compare(o.key.ns);
         if (r == 0) {
@@ -619,7 +793,9 @@ struct rgw_obj {
     return (r < 0);
   }
 
-  const rgw_pool& get_explicit_data_pool() {
+  const rgw_pool&
+  get_explicit_data_pool()
+  {
     if (!in_extra_data || bucket.explicit_placement.data_extra_pool.empty()) {
       return bucket.explicit_placement.data_pool;
     }

@@ -29,14 +29,17 @@ class spliterator {
   std::string_view part; // view of current part
 
   // return the next part after the given position
-  std::string_view next(size_type end) {
+  std::string_view
+  next(size_type end)
+  {
     pos = str.find_first_not_of(delims, end);
     if (pos == str.npos) {
       return {};
     }
     return str.substr(pos, str.find_first_of(delims, pos) - pos);
   }
- public:
+
+public:
   // types required by std::iterator_traits
   using difference_type = int;
   using value_type = std::string_view;
@@ -46,30 +49,49 @@ class spliterator {
 
   spliterator() = default;
 
-  spliterator(std::string_view str, std::string_view delims)
-    : str(str), delims(delims), pos(0), part(next(0))
+  spliterator(std::string_view str, std::string_view delims) :
+    str(str), delims(delims), pos(0), part(next(0))
   {}
 
-  spliterator& operator++() {
+  spliterator&
+  operator++()
+  {
     part = next(pos + part.size());
     return *this;
   }
-  spliterator operator++(int) {
+
+  spliterator
+  operator++(int)
+  {
     spliterator tmp = *this;
     part = next(pos + part.size());
     return tmp;
   }
 
-  reference operator*() const { return part; }
-  pointer operator->() const { return &part; }
-
-  friend bool operator==(const spliterator& lhs, const spliterator& rhs) {
-    return lhs.part.data() == rhs.part.data()
-        && lhs.part.size() == rhs.part.size();
+  reference
+  operator*() const
+  {
+    return part;
   }
-  friend bool operator!=(const spliterator& lhs, const spliterator& rhs) {
-    return lhs.part.data() != rhs.part.data()
-        || lhs.part.size() != rhs.part.size();
+
+  pointer
+  operator->() const
+  {
+    return &part;
+  }
+
+  friend bool
+  operator==(const spliterator& lhs, const spliterator& rhs)
+  {
+    return lhs.part.data() == rhs.part.data() &&
+           lhs.part.size() == rhs.part.size();
+  }
+
+  friend bool
+  operator!=(const spliterator& lhs, const spliterator& rhs)
+  {
+    return lhs.part.data() != rhs.part.data() ||
+           lhs.part.size() != rhs.part.size();
   }
 };
 
@@ -90,18 +112,38 @@ class spliterator {
 class split {
   std::string_view str; // full string
   std::string_view delims; // delimiters
- public:
-  split(std::string_view str, std::string_view delims = ";,= \t\n")
-    : str(str), delims(delims) {}
+
+public:
+  split(std::string_view str, std::string_view delims = ";,= \t\n") :
+    str(str), delims(delims)
+  {}
 
   using iterator = spliterator;
   using const_iterator = spliterator;
 
-  iterator begin() const { return {str, delims}; }
-  const_iterator cbegin() const { return {str, delims}; }
+  iterator
+  begin() const
+  {
+    return {str, delims};
+  }
 
-  iterator end() const { return {}; }
-  const_iterator cend() const { return {}; }
+  const_iterator
+  cbegin() const
+  {
+    return {str, delims};
+  }
+
+  iterator
+  end() const
+  {
+    return {};
+  }
+
+  const_iterator
+  cend() const
+  {
+    return {};
+  }
 };
 
 } // namespace ceph

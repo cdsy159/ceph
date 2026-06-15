@@ -18,63 +18,61 @@ using namespace std::literals;
 
 namespace rgw::dmclock {
 
-ClientConfig::ClientConfig(CephContext *cct)
-{
-  update(cct->_conf);
-}
+ClientConfig::ClientConfig(CephContext* cct) { update(cct->_conf); }
 
-ClientInfo* ClientConfig::operator()(client_id client)
+ClientInfo*
+ClientConfig::operator()(client_id client)
 {
   return &clients[static_cast<size_t>(client)];
 }
 
-std::vector<std::string> ClientConfig::get_tracked_keys() const noexcept
+std::vector<std::string>
+ClientConfig::get_tracked_keys() const noexcept
 {
-  return {
-    "rgw_dmclock_admin_res"s,
-    "rgw_dmclock_admin_wgt"s,
-    "rgw_dmclock_admin_lim"s,
-    "rgw_dmclock_auth_res"s,
-    "rgw_dmclock_auth_wgt"s,
-    "rgw_dmclock_auth_lim"s,
-    "rgw_dmclock_data_res"s,
-    "rgw_dmclock_data_wgt"s,
-    "rgw_dmclock_data_lim"s,
-    "rgw_dmclock_metadata_res"s,
-    "rgw_dmclock_metadata_wgt"s,
-    "rgw_dmclock_metadata_lim"s,
-    "rgw_max_concurrent_requests"s
-  };
+  return {"rgw_dmclock_admin_res"s,      "rgw_dmclock_admin_wgt"s,
+          "rgw_dmclock_admin_lim"s,      "rgw_dmclock_auth_res"s,
+          "rgw_dmclock_auth_wgt"s,       "rgw_dmclock_auth_lim"s,
+          "rgw_dmclock_data_res"s,       "rgw_dmclock_data_wgt"s,
+          "rgw_dmclock_data_lim"s,       "rgw_dmclock_metadata_res"s,
+          "rgw_dmclock_metadata_wgt"s,   "rgw_dmclock_metadata_lim"s,
+          "rgw_max_concurrent_requests"s};
 }
 
-void ClientConfig::update(const ConfigProxy& conf)
+void
+ClientConfig::update(const ConfigProxy& conf)
 {
   clients.clear();
   static_assert(0 == static_cast<int>(client_id::admin));
-  clients.emplace_back(conf.get_val<double>("rgw_dmclock_admin_res"),
-                       conf.get_val<double>("rgw_dmclock_admin_wgt"),
-                       conf.get_val<double>("rgw_dmclock_admin_lim"));
+  clients.emplace_back(
+      conf.get_val<double>("rgw_dmclock_admin_res"),
+      conf.get_val<double>("rgw_dmclock_admin_wgt"),
+      conf.get_val<double>("rgw_dmclock_admin_lim"));
   static_assert(1 == static_cast<int>(client_id::auth));
-  clients.emplace_back(conf.get_val<double>("rgw_dmclock_auth_res"),
-                       conf.get_val<double>("rgw_dmclock_auth_wgt"),
-                       conf.get_val<double>("rgw_dmclock_auth_lim"));
+  clients.emplace_back(
+      conf.get_val<double>("rgw_dmclock_auth_res"),
+      conf.get_val<double>("rgw_dmclock_auth_wgt"),
+      conf.get_val<double>("rgw_dmclock_auth_lim"));
   static_assert(2 == static_cast<int>(client_id::data));
-  clients.emplace_back(conf.get_val<double>("rgw_dmclock_data_res"),
-                       conf.get_val<double>("rgw_dmclock_data_wgt"),
-                       conf.get_val<double>("rgw_dmclock_data_lim"));
+  clients.emplace_back(
+      conf.get_val<double>("rgw_dmclock_data_res"),
+      conf.get_val<double>("rgw_dmclock_data_wgt"),
+      conf.get_val<double>("rgw_dmclock_data_lim"));
   static_assert(3 == static_cast<int>(client_id::metadata));
-  clients.emplace_back(conf.get_val<double>("rgw_dmclock_metadata_res"),
-                       conf.get_val<double>("rgw_dmclock_metadata_wgt"),
-                       conf.get_val<double>("rgw_dmclock_metadata_lim"));
+  clients.emplace_back(
+      conf.get_val<double>("rgw_dmclock_metadata_res"),
+      conf.get_val<double>("rgw_dmclock_metadata_wgt"),
+      conf.get_val<double>("rgw_dmclock_metadata_lim"));
 }
 
-void ClientConfig::handle_conf_change(const ConfigProxy& conf,
-                                      const std::set<std::string>& changed)
+void
+ClientConfig::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   update(conf);
 }
 
-ClientCounters::ClientCounters(CephContext *cct)
+ClientCounters::ClientCounters(CephContext* cct)
 {
   clients[static_cast<size_t>(client_id::admin)] =
       queue_counters::build(cct, "dmclock-admin");
@@ -88,14 +86,16 @@ ClientCounters::ClientCounters(CephContext *cct)
       throttle_counters::build(cct, "dmclock-scheduler");
 }
 
-void inc(ClientSums& sums, client_id client, Cost cost)
+void
+inc(ClientSums& sums, client_id client, Cost cost)
 {
   auto& sum = sums[static_cast<size_t>(client)];
   sum.count++;
   sum.cost += cost;
 }
 
-void on_cancel(PerfCounters *c, const ClientSum& sum)
+void
+on_cancel(PerfCounters* c, const ClientSum& sum)
 {
   if (sum.count) {
     c->dec(queue_counters::l_qlen, sum.count);
@@ -107,7 +107,8 @@ void on_cancel(PerfCounters *c, const ClientSum& sum)
   }
 }
 
-void on_process(PerfCounters* c, const ClientSum& rsum, const ClientSum& psum)
+void
+on_process(PerfCounters* c, const ClientSum& rsum, const ClientSum& psum)
 {
   if (rsum.count) {
     c->inc(queue_counters::l_res, rsum.count);
@@ -132,7 +133,8 @@ void on_process(PerfCounters* c, const ClientSum& rsum, const ClientSum& psum)
 
 namespace queue_counters {
 
-PerfCountersRef build(CephContext *cct, const std::string& name)
+PerfCountersRef
+build(CephContext* cct, const std::string& name)
 {
   if (!cct->_conf->throttler_perf_counter) {
     return {};
@@ -152,7 +154,7 @@ PerfCountersRef build(CephContext *cct, const std::string& name)
   b.add_time_avg(l_res_latency, "res latency", "Reservation latency");
   b.add_time_avg(l_prio_latency, "prio latency", "Priority latency");
 
-  auto logger = PerfCountersRef{ b.create_perf_counters(), cct };
+  auto logger = PerfCountersRef{b.create_perf_counters(), cct};
   cct->get_perfcounters_collection()->add(logger.get());
   return logger;
 }
@@ -161,7 +163,8 @@ PerfCountersRef build(CephContext *cct, const std::string& name)
 
 namespace throttle_counters {
 
-PerfCountersRef build(CephContext *cct, const std::string& name)
+PerfCountersRef
+build(CephContext* cct, const std::string& name)
 {
   if (!cct->_conf->throttler_perf_counter) {
     return {};
@@ -171,7 +174,7 @@ PerfCountersRef build(CephContext *cct, const std::string& name)
   b.add_u64(l_throttle, "throttle", "Requests throttled");
   b.add_u64(l_outstanding, "outstanding", "Outstanding Requests");
 
-  auto logger = PerfCountersRef{ b.create_perf_counters(), cct };
+  auto logger = PerfCountersRef{b.create_perf_counters(), cct};
   cct->get_perfcounters_collection()->add(logger.get());
   return logger;
 }

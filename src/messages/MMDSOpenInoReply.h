@@ -31,28 +31,51 @@ public:
   int32_t error;
 
 protected:
-  MMDSOpenInoReply() : MMDSOp{MSG_MDS_OPENINOREPLY, HEAD_VERSION, COMPAT_VERSION}, error(0) {}
-  MMDSOpenInoReply(ceph_tid_t t, inodeno_t i, mds_rank_t h=MDS_RANK_NONE, int e=0) :
-    MMDSOp{MSG_MDS_OPENINOREPLY, HEAD_VERSION, COMPAT_VERSION}, ino(i), hint(h), error(e) {
+  MMDSOpenInoReply() :
+    MMDSOp{MSG_MDS_OPENINOREPLY, HEAD_VERSION, COMPAT_VERSION}, error(0)
+  {}
+
+  MMDSOpenInoReply(
+      ceph_tid_t t,
+      inodeno_t i,
+      mds_rank_t h = MDS_RANK_NONE,
+      int e = 0) :
+    MMDSOp{MSG_MDS_OPENINOREPLY, HEAD_VERSION, COMPAT_VERSION},
+    ino(i),
+    hint(h),
+    error(e)
+  {
     header.tid = t;
   }
 
 
 public:
-  std::string_view get_type_name() const override { return "openinoreply"; }
-  void print(std::ostream &out) const override {
-    out << "openinoreply(" << header.tid << " "
-	<< ino << " " << hint << " " << ancestors << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "openinoreply";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "openinoreply(" << header.tid << " " << ino << " " << hint << " "
+        << ancestors << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(ino, payload);
     encode(ancestors, payload);
     encode(hint, payload);
     encode(error, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(ino, p);
@@ -60,10 +83,11 @@ public:
     decode(hint, p);
     decode(error, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

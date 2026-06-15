@@ -2,21 +2,24 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/SnapshotUnprotectRequest.h"
-#include "include/rados/librados.hpp"
-#include "include/stringify.h"
-#include "common/dout.h"
-#include "common/errno.h"
-#include "librbd/AsyncObjectThrottle.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/internal.h"
-#include "librbd/Types.h"
-#include "librbd/Utils.h"
+
 #include <list>
 #include <set>
 #include <shared_mutex> // for std::shared_lock
 #include <vector>
+
 #include <boost/lambda/bind.hpp>
 #include <boost/lambda/construct.hpp>
+
+#include "common/dout.h"
+#include "common/errno.h"
+#include "include/rados/librados.hpp"
+#include "include/stringify.h"
+#include "librbd/AsyncObjectThrottle.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/Types.h"
+#include "librbd/Utils.h"
+#include "librbd/internal.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -31,9 +34,12 @@ typedef std::pair<int64_t, std::string> Pool;
 typedef std::vector<Pool> Pools;
 
 template <typename I>
-std::ostream& operator<<(std::ostream& os,
-                         const typename SnapshotUnprotectRequest<I>::State& state) {
-  switch(state) {
+std::ostream&
+operator<<(
+    std::ostream& os,
+    const typename SnapshotUnprotectRequest<I>::State& state)
+{
+  switch (state) {
   case SnapshotUnprotectRequest<I>::STATE_UNPROTECT_SNAP_START:
     os << "UNPROTECT_SNAP_START";
     break;
@@ -56,18 +62,24 @@ std::ostream& operator<<(std::ostream& os,
 template <typename I>
 class C_ScanPoolChildren : public C_AsyncObjectThrottle<I> {
 public:
-  C_ScanPoolChildren(AsyncObjectThrottle<I> &throttle, I *image_ctx,
-                     const cls::rbd::ParentImageSpec &pspec, const Pools &pools,
-                     size_t pool_idx)
-    : C_AsyncObjectThrottle<I>(throttle, *image_ctx), m_pspec(pspec),
-      m_pool(pools[pool_idx]) {
-  }
+  C_ScanPoolChildren(
+      AsyncObjectThrottle<I>& throttle,
+      I* image_ctx,
+      const cls::rbd::ParentImageSpec& pspec,
+      const Pools& pools,
+      size_t pool_idx) :
+    C_AsyncObjectThrottle<I>(throttle, *image_ctx),
+    m_pspec(pspec),
+    m_pool(pools[pool_idx])
+  {}
 
-  int send() override {
-    I &image_ctx = this->m_image_ctx;
+  int
+  send() override
+  {
+    I& image_ctx = this->m_image_ctx;
     ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-    CephContext *cct = image_ctx.cct;
+    CephContext* cct = image_ctx.cct;
     ldout(cct, 10) << this << " scanning pool '" << m_pool.second << "'"
                    << dendl;
 
@@ -79,8 +91,8 @@ public:
                     << dendl;
       return 1;
     } else if (r < 0) {
-      lderr(cct) << "error retrieving base tier for pool '"
-                 << m_pool.second << "'" << dendl;
+      lderr(cct) << "error retrieving base tier for pool '" << m_pool.second
+                 << "'" << dendl;
       return r;
     }
     if (m_pool.first != base_tier) {
@@ -88,8 +100,8 @@ public:
       return 1;
     }
 
-    r = util::create_ioctx(image_ctx.md_ctx, "child image", m_pool.first, {},
-                           &m_pool_ioctx);
+    r = util::create_ioctx(
+        image_ctx.md_ctx, "child image", m_pool.first, {}, &m_pool_ioctx);
     if (r == -ENOENT) {
       return 1;
     } else if (r < 0) {
@@ -99,23 +111,25 @@ public:
     librados::ObjectReadOperation op;
     cls_client::get_children_start(&op, m_pspec);
 
-    librados::AioCompletion *rados_completion =
-      util::create_rados_callback(this);
-    r = m_pool_ioctx.aio_operate(RBD_CHILDREN, rados_completion, &op,
-                                 &m_children_bl);
+    librados::AioCompletion* rados_completion =
+        util::create_rados_callback(this);
+    r = m_pool_ioctx.aio_operate(
+        RBD_CHILDREN, rados_completion, &op, &m_children_bl);
     ceph_assert(r == 0);
     rados_completion->release();
     return 0;
   }
 
 protected:
-  void finish(int r) override {
-    I &image_ctx = this->m_image_ctx;
-    CephContext *cct = image_ctx.cct;
+  void
+  finish(int r) override
+  {
+    I& image_ctx = this->m_image_ctx;
+    CephContext* cct = image_ctx.cct;
 
     if (r == 0) {
       auto it = m_children_bl.cbegin();
-      r= cls_client::get_children_finish(&it, &m_children);
+      r = cls_client::get_children_finish(&it, &m_children);
     }
 
     ldout(cct, 10) << this << " retrieved children: r=" << r << dendl;
@@ -127,10 +141,10 @@ protected:
                  << dendl;
     } else {
       lderr(cct) << "cannot unprotect: at least " << m_children.size() << " "
-                 << "child(ren) [" << joinify(m_children.begin(),
-                                              m_children.end(),
-                                              std::string(",")) << "] "
-                 << "in pool '" << m_pool.second << "'" << dendl;
+                 << "child(ren) ["
+                 << joinify(
+                        m_children.begin(), m_children.end(), std::string(","))
+                 << "] " << "in pool '" << m_pool.second << "'" << dendl;
       r = -EBUSY;
     }
     C_AsyncObjectThrottle<I>::finish(r);
@@ -148,24 +162,32 @@ private:
 } // anonymous namespace
 
 template <typename I>
-SnapshotUnprotectRequest<I>::SnapshotUnprotectRequest(I &image_ctx,
-                                                      Context *on_finish,
-                                                      const cls::rbd::SnapshotNamespace &snap_namespace,
-						      const std::string &snap_name)
-  : Request<I>(image_ctx, on_finish), m_snap_namespace(snap_namespace),
-    m_snap_name(snap_name), m_state(STATE_UNPROTECT_SNAP_START),
-    m_ret_val(0), m_snap_id(CEPH_NOSNAP) {
-}
+SnapshotUnprotectRequest<I>::SnapshotUnprotectRequest(
+    I& image_ctx,
+    Context* on_finish,
+    const cls::rbd::SnapshotNamespace& snap_namespace,
+    const std::string& snap_name) :
+  Request<I>(image_ctx, on_finish),
+  m_snap_namespace(snap_namespace),
+  m_snap_name(snap_name),
+  m_state(STATE_UNPROTECT_SNAP_START),
+  m_ret_val(0),
+  m_snap_id(CEPH_NOSNAP)
+{}
 
 template <typename I>
-void SnapshotUnprotectRequest<I>::send_op() {
+void
+SnapshotUnprotectRequest<I>::send_op()
+{
   send_unprotect_snap_start();
 }
 
 template <typename I>
-bool SnapshotUnprotectRequest<I>::should_complete(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+bool
+SnapshotUnprotectRequest<I>::should_complete(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": state=" << m_state << ", "
                 << "r=" << r << dendl;
   if (r < 0) {
@@ -204,12 +226,14 @@ bool SnapshotUnprotectRequest<I>::should_complete(int r) {
 }
 
 template <typename I>
-bool SnapshotUnprotectRequest<I>::should_complete_error() {
-  I &image_ctx = this->m_image_ctx;
+bool
+SnapshotUnprotectRequest<I>::should_complete_error()
+{
+  I& image_ctx = this->m_image_ctx;
   std::shared_lock owner_locker{image_ctx.owner_lock};
-  CephContext *cct = image_ctx.cct;
-  lderr(cct) << this << " " << __func__ << ": "
-             << "ret_val=" << m_ret_val << dendl;
+  CephContext* cct = image_ctx.cct;
+  lderr(cct) << this << " " << __func__ << ": " << "ret_val=" << m_ret_val
+             << dendl;
 
   bool finished = true;
   if (m_state == STATE_SCAN_POOL_CHILDREN ||
@@ -221,11 +245,13 @@ bool SnapshotUnprotectRequest<I>::should_complete_error() {
 }
 
 template <typename I>
-void SnapshotUnprotectRequest<I>::send_unprotect_snap_start() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotUnprotectRequest<I>::send_unprotect_snap_start()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
 
   int r = verify_and_send_unprotect_snap_start();
@@ -236,11 +262,13 @@ void SnapshotUnprotectRequest<I>::send_unprotect_snap_start() {
 }
 
 template <typename I>
-void SnapshotUnprotectRequest<I>::send_scan_pool_children() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotUnprotectRequest<I>::send_scan_pool_children()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
   m_state = STATE_SCAN_POOL_CHILDREN;
 
@@ -253,67 +281,74 @@ void SnapshotUnprotectRequest<I>::send_scan_pool_children() {
   std::list<Pool> pool_list;
   rados.pool_list2(pool_list);
 
-  cls::rbd::ParentImageSpec pspec(image_ctx.md_ctx.get_id(),
-                                  image_ctx.md_ctx.get_namespace(),
-                                  image_ctx.id, m_snap_id);
+  cls::rbd::ParentImageSpec pspec(
+      image_ctx.md_ctx.get_id(), image_ctx.md_ctx.get_namespace(), image_ctx.id,
+      m_snap_id);
   Pools pools(pool_list.begin(), pool_list.end());
 
-  Context *ctx = this->create_callback_context();
+  Context* ctx = this->create_callback_context();
   typename AsyncObjectThrottle<I>::ContextFactory context_factory(
-    boost::lambda::bind(boost::lambda::new_ptr<C_ScanPoolChildren<I> >(),
-      boost::lambda::_1, &image_ctx, pspec, pools, boost::lambda::_2));
-  AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
-    nullptr, image_ctx, context_factory, ctx, NULL, 0, pools.size());
-  throttle->start_ops(
-    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
+      boost::lambda::bind(
+          boost::lambda::new_ptr<C_ScanPoolChildren<I>>(), boost::lambda::_1,
+          &image_ctx, pspec, pools, boost::lambda::_2));
+  AsyncObjectThrottle<I>* throttle = new AsyncObjectThrottle<I>(
+      nullptr, image_ctx, context_factory, ctx, NULL, 0, pools.size());
+  throttle->start_ops(image_ctx.config.template get_val<uint64_t>(
+      "rbd_concurrent_management_ops"));
 }
 
 template <typename I>
-void SnapshotUnprotectRequest<I>::send_unprotect_snap_finish() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotUnprotectRequest<I>::send_unprotect_snap_finish()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
 
   m_state = STATE_UNPROTECT_SNAP_FINISH;
 
   librados::ObjectWriteOperation op;
-  cls_client::set_protection_status(&op, m_snap_id,
-                                    RBD_PROTECTION_STATUS_UNPROTECTED);
+  cls_client::set_protection_status(
+      &op, m_snap_id, RBD_PROTECTION_STATUS_UNPROTECTED);
 
-  librados::AioCompletion *comp = this->create_callback_completion();
+  librados::AioCompletion* comp = this->create_callback_completion();
   int r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid, comp, &op);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void SnapshotUnprotectRequest<I>::send_unprotect_snap_rollback() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotUnprotectRequest<I>::send_unprotect_snap_rollback()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
 
   m_state = STATE_UNPROTECT_SNAP_ROLLBACK;
 
   librados::ObjectWriteOperation op;
-  cls_client::set_protection_status(&op, m_snap_id,
-                                    RBD_PROTECTION_STATUS_PROTECTED);
+  cls_client::set_protection_status(
+      &op, m_snap_id, RBD_PROTECTION_STATUS_PROTECTED);
 
-  librados::AioCompletion *comp = this->create_callback_completion();
+  librados::AioCompletion* comp = this->create_callback_completion();
   int r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid, comp, &op);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-int SnapshotUnprotectRequest<I>::verify_and_send_unprotect_snap_start() {
-  I &image_ctx = this->m_image_ctx;
+int
+SnapshotUnprotectRequest<I>::verify_and_send_unprotect_snap_start()
+{
+  I& image_ctx = this->m_image_ctx;
   std::shared_lock image_locker{image_ctx.image_lock};
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   if ((image_ctx.features & RBD_FEATURE_LAYERING) == 0) {
     lderr(cct) << "image must support layering" << dendl;
     return -ENOSYS;
@@ -336,10 +371,10 @@ int SnapshotUnprotectRequest<I>::verify_and_send_unprotect_snap_start() {
   }
 
   librados::ObjectWriteOperation op;
-  cls_client::set_protection_status(&op, m_snap_id,
-                                    RBD_PROTECTION_STATUS_UNPROTECTING);
+  cls_client::set_protection_status(
+      &op, m_snap_id, RBD_PROTECTION_STATUS_UNPROTECTING);
 
-  librados::AioCompletion *comp = this->create_callback_completion();
+  librados::AioCompletion* comp = this->create_callback_completion();
   r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid, comp, &op);
   ceph_assert(r == 0);
   comp->release();

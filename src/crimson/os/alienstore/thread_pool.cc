@@ -3,32 +3,35 @@
 
 #include "thread_pool.h"
 
-#include <chrono>
 #include <pthread.h>
 
+#include <chrono>
+
+#include "crimson/common/config_proxy.h"
 #include "include/ceph_assert.h"
 #include "include/intarith.h" // for round_up_to()
-#include "crimson/common/config_proxy.h"
 
 using crimson::common::local_conf;
 
 namespace crimson::os {
 
-ThreadPool::ThreadPool(size_t n_threads,
-                       size_t queue_sz,
-                       const std::optional<seastar::resource::cpuset>& cpus)
-  : n_threads(n_threads),
-    queue_size{round_up_to(queue_sz, seastar::smp::count)},
-    pending_queues(n_threads)
+ThreadPool::ThreadPool(
+    size_t n_threads,
+    size_t queue_sz,
+    const std::optional<seastar::resource::cpuset>& cpus) :
+  n_threads(n_threads),
+  queue_size{round_up_to(queue_sz, seastar::smp::count)},
+  pending_queues(n_threads)
 {
-  auto queue_max_wait = std::chrono::seconds(local_conf()->threadpool_empty_queue_max_wait);
+  auto queue_max_wait =
+      std::chrono::seconds(local_conf()->threadpool_empty_queue_max_wait);
   for (size_t i = 0; i < n_threads; i++) {
     threads.emplace_back([this, cpus, queue_max_wait, i] {
       if (cpus.has_value()) {
         pin(*cpus);
       }
       block_sighup();
-      (void) ceph_pthread_setname("alien-store-tp");
+      (void)ceph_pthread_setname("alien-store-tp");
       loop(queue_max_wait, i);
     });
   }
@@ -41,19 +44,21 @@ ThreadPool::~ThreadPool()
   }
 }
 
-void ThreadPool::pin(const seastar::resource::cpuset& cpus)
+void
+ThreadPool::pin(const seastar::resource::cpuset& cpus)
 {
   cpu_set_t cs;
   CPU_ZERO(&cs);
   for (auto cpu : cpus) {
     CPU_SET(cpu, &cs);
   }
-  [[maybe_unused]] auto r = pthread_setaffinity_np(pthread_self(),
-                                                   sizeof(cs), &cs);
+  [[maybe_unused]] auto r =
+      pthread_setaffinity_np(pthread_self(), sizeof(cs), &cs);
   ceph_assert(r == 0);
 }
 
-void ThreadPool::block_sighup()
+void
+ThreadPool::block_sighup()
 {
   sigset_t sigs;
   sigemptyset(&sigs);
@@ -66,7 +71,8 @@ void ThreadPool::block_sighup()
   pthread_sigmask(SIG_BLOCK, &sigs, nullptr);
 }
 
-void ThreadPool::loop(std::chrono::milliseconds queue_max_wait, size_t shard)
+void
+ThreadPool::loop(std::chrono::milliseconds queue_max_wait, size_t shard)
 {
   auto& pending = pending_queues[shard];
   for (;;) {
@@ -80,13 +86,15 @@ void ThreadPool::loop(std::chrono::milliseconds queue_max_wait, size_t shard)
   }
 }
 
-seastar::future<> ThreadPool::start()
+seastar::future<>
+ThreadPool::start()
 {
   auto slots_per_shard = queue_size / seastar::smp::count;
   return submit_queue.start(slots_per_shard);
 }
 
-seastar::future<> ThreadPool::stop()
+seastar::future<>
+ThreadPool::stop()
 {
   return submit_queue.stop().then([this] {
     stopping = true;

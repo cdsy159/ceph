@@ -4,14 +4,14 @@
 #ifndef __CEPH_LOG_GRAYLOG_H
 #define __CEPH_LOG_GRAYLOG_H
 
+#include <sstream>
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/udp.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
 
-#include "include/ceph_assert.h"  // boost clobbers this
-
-#include <sstream>
+#include "include/ceph_assert.h" // boost clobbers this
 
 struct uuid_d;
 class LogEntry;
@@ -29,24 +29,22 @@ class SubsystemMap;
 // GELF (http://www.graylog2.org/resources/gelf/specification) and send it
 // to a GELF UDP receiver
 
-class Graylog
-{
- public:
-
+class Graylog {
+public:
   /**
    * Create Graylog with SubsystemMap. log_entry will resolve the subsystem
    * id to string. Logging will not be ready until set_destination is called
    * @param s SubsystemMap
    * @param logger Value for key "_logger" in GELF
    */
-  Graylog(const SubsystemMap * const s, const std::string &logger);
+  Graylog(const SubsystemMap* const s, const std::string& logger);
 
   /**
    * Create Graylog without SubsystemMap. Logging will not be ready
    * until set_destination is called
    * @param logger Value for key "_logger" in GELF
    */
-  explicit Graylog(const std::string &logger);
+  explicit Graylog(const std::string& logger);
   virtual ~Graylog();
 
   void set_hostname(const std::string& host);
@@ -55,12 +53,12 @@ class Graylog
   void set_destination(const std::string& host, int port);
 
   void log_entry(const Entry& e);
-  void log_log_entry(LogEntry const * const e);
+  void log_log_entry(LogEntry const* const e);
 
   typedef std::shared_ptr<Graylog> Ref;
 
- private:
-  SubsystemMap const * const m_subs;
+private:
+  SubsystemMap const* const m_subs;
 
   bool m_log_dst_valid = false;
 
@@ -77,10 +75,9 @@ class Graylog
   std::stringstream m_ostream_compressed;
   boost::iostreams::filtering_ostream m_ostream;
   boost::iostreams::zlib_compressor m_compressor;
-
 };
 
-}
-}
+} // namespace logging
+} // namespace ceph
 
 #endif

@@ -14,26 +14,28 @@
  */
 
 
+#include "lazy_omap_stats_test.h"
+
 #include <algorithm>
-#include <boost/algorithm/string/trim.hpp>
-#include <boost/tokenizer.hpp>
-#include <boost/uuid/uuid.hpp>             // uuid class
-#include <boost/uuid/uuid_generators.hpp>  // generators
-#include <boost/uuid/uuid_io.hpp>          // streaming operators etc.
 #include <chrono>
 #include <iostream>
 #include <thread>
 #include <vector>
 
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/tokenizer.hpp>
+#include <boost/uuid/uuid.hpp> // uuid class
+#include <boost/uuid/uuid_generators.hpp> // generators
+#include <boost/uuid/uuid_io.hpp> // streaming operators etc.
+
 #include "common/ceph_json.h"
 #include "global/global_init.h"
 #include "include/compat.h"
 
-#include "lazy_omap_stats_test.h"
-
 using namespace std;
 
-void LazyOmapStatsTest::init(const int argc, const char** argv)
+void
+LazyOmapStatsTest::init(const int argc, const char** argv)
 {
   int ret = rados.init("admin");
   if (ret < 0) {
@@ -86,7 +88,8 @@ void LazyOmapStatsTest::init(const int argc, const char** argv)
     })";
   string output;
   ret = rados.mon_command(std::move(command), {}, nullptr, &output);
-  if (output.length()) cout << output << endl;
+  if (output.length())
+    cout << output << endl;
   if (ret < 0) {
     ret = -ret;
     cerr << "Failed to create pool! Error: " << ret << " " << strerror(ret)
@@ -105,13 +108,15 @@ void LazyOmapStatsTest::init(const int argc, const char** argv)
   get_pool_id(conf.pool_name);
 }
 
-void LazyOmapStatsTest::shutdown()
+void
+LazyOmapStatsTest::shutdown()
 {
   rados.pool_delete(conf.pool_name.c_str());
   rados.shutdown();
 }
 
-void LazyOmapStatsTest::write_omap(const string& object_name)
+void
+LazyOmapStatsTest::write_omap(const string& object_name)
 {
   librados::bufferlist bl;
   int ret = io_ctx.write_full(object_name, bl);
@@ -129,24 +134,26 @@ void LazyOmapStatsTest::write_omap(const string& object_name)
     exit(ret);
   }
   cout << "Wrote " << conf.keys << " omap keys of " << conf.payload_size
-       << " bytes to "
-       << "the " << object_name << " object" << endl;
+       << " bytes to " << "the " << object_name << " object" << endl;
 }
 
-const string LazyOmapStatsTest::get_name() const
+const string
+LazyOmapStatsTest::get_name() const
 {
   boost::uuids::uuid uuid = boost::uuids::random_generator()();
   return boost::uuids::to_string(uuid);
 }
 
-void LazyOmapStatsTest::write_many(uint how_many)
+void
+LazyOmapStatsTest::write_many(uint how_many)
 {
   for (uint i = 0; i < how_many; i++) {
     write_omap(get_name());
   }
 }
 
-void LazyOmapStatsTest::create_payload()
+void
+LazyOmapStatsTest::create_payload()
 {
   librados::bufferlist Lorem;
   Lorem.append(
@@ -170,7 +177,8 @@ void LazyOmapStatsTest::create_payload()
        << endl;
 }
 
-void LazyOmapStatsTest::scrub()
+void
+LazyOmapStatsTest::scrub()
 {
   cout << "Scrubbing" << endl;
 
@@ -182,7 +190,7 @@ void LazyOmapStatsTest::scrub()
   for (auto [pg, stamp] : before_scrub) {
     cout << "pg = " << pg << " stamp = " << stamp << endl;
     if (pg.rfind(target_pool, 0) == 0) {
-        target_pool_found = true;
+      target_pool_found = true;
     }
   }
   if (!target_pool_found) {
@@ -201,16 +209,16 @@ void LazyOmapStatsTest::scrub()
 
   cout << "Waiting for deep-scrub to complete..." << endl;
   while (sleep(1) == 0) {
-    cout << "Current scrub stamps:" <<  endl;
+    cout << "Current scrub stamps:" << endl;
     bool complete = true;
     map<string, string> current_stamps = get_scrub_stamps();
     for (auto [pg, stamp] : current_stamps) {
-        cout << "pg = " << pg << " stamp = " << stamp << endl;
-        if (stamp == before_scrub[pg]) {
-          // See if stamp for each pg has changed
-          // If not, we haven't completed the deep-scrub
-          complete = false;
-        }
+      cout << "pg = " << pg << " stamp = " << stamp << endl;
+      if (stamp == before_scrub[pg]) {
+        // See if stamp for each pg has changed
+        // If not, we haven't completed the deep-scrub
+        complete = false;
+      }
     }
     cout << endl;
     if (complete) {
@@ -220,9 +228,11 @@ void LazyOmapStatsTest::scrub()
   cout << "Scrubbing complete" << endl;
 }
 
-const int LazyOmapStatsTest::find_matches(string& output, boost::regex& reg) const
+const int
+LazyOmapStatsTest::find_matches(string& output, boost::regex& reg) const
 {
-  boost::sregex_iterator cur(output.begin(), output.end(), reg, boost::match_not_dot_newline);
+  boost::sregex_iterator cur(
+      output.begin(), output.end(), reg, boost::match_not_dot_newline);
   uint x = 0;
   for (auto end = boost::sregex_iterator(); cur != end; ++cur) {
     cout << (*cur)[1].str() << endl;
@@ -231,9 +241,11 @@ const int LazyOmapStatsTest::find_matches(string& output, boost::regex& reg) con
   return x;
 }
 
-const string LazyOmapStatsTest::get_output(std::string&& command,
-                                           const bool silent,
-                                           const CommandTarget target)
+const string
+LazyOmapStatsTest::get_output(
+    std::string&& command,
+    const bool silent,
+    const CommandTarget target)
 {
   librados::bufferlist outbl;
   string output;
@@ -255,11 +267,13 @@ const string LazyOmapStatsTest::get_output(std::string&& command,
   return string(outbl.c_str(), outbl.length());
 }
 
-void LazyOmapStatsTest::get_pool_id(const string& pool)
+void
+LazyOmapStatsTest::get_pool_id(const string& pool)
 {
   cout << R"(Querying pool id)" << endl;
 
-  string command = R"({"prefix": "osd pool ls", "detail": "detail", "format": "json"})";
+  string command =
+      R"({"prefix": "osd pool ls", "detail": "detail", "format": "json"})";
   librados::bufferlist inbl, outbl;
   auto output = get_output(std::move(command), false, CommandTarget::TARGET_MON);
   JSONParser parser;
@@ -275,13 +289,15 @@ void LazyOmapStatsTest::get_pool_id(const string& pool)
   }
   if (conf.pool_id.empty()) {
     cout << "Failed to find pool ID for pool " << conf.pool_name << "!" << endl;
-    exit(2);    // ENOENT
+    exit(2); // ENOENT
   } else {
     cout << "Found pool ID: " << conf.pool_id << endl;
   }
 }
 
-map<string, string> LazyOmapStatsTest::get_scrub_stamps() {
+map<string, string>
+LazyOmapStatsTest::get_scrub_stamps()
+{
   map<string, string> stamps;
   string command = R"({"prefix": "pg dump", "format": "json"})";
   auto output = get_output(std::move(command));
@@ -289,13 +305,15 @@ map<string, string> LazyOmapStatsTest::get_scrub_stamps() {
   parser.parse(output.c_str(), output.size());
   auto* obj = parser.find_obj("pg_map")->find_obj("pg_stats");
   for (auto pg = obj->find_first(); !pg.end(); ++pg) {
-    stamps.insert({(*pg)->find_obj("pgid")->get_data(),
-                  (*pg)->find_obj("last_deep_scrub_stamp")->get_data()});
+    stamps.insert(
+        {(*pg)->find_obj("pgid")->get_data(),
+         (*pg)->find_obj("last_deep_scrub_stamp")->get_data()});
   }
   return stamps;
 }
 
-void LazyOmapStatsTest::check_one()
+void
+LazyOmapStatsTest::check_one()
 {
   string full_output = get_output();
   cout << full_output << endl;
@@ -313,8 +331,8 @@ void LazyOmapStatsTest::check_one()
       to_string(conf.keys) +
       R"(\s.*))"
       "\n");
-//  reg = boost::regex( R"(([0-9,s].*\s)" +
-//      to_string(conf.keys) + R"(\s.*))");
+  //  reg = boost::regex( R"(([0-9,s].*\s)" +
+  //      to_string(conf.keys) + R"(\s.*))");
 
   cout << "Checking number of keys " << conf.keys << endl;
   cout << "Found the following lines" << endl;
@@ -330,8 +348,7 @@ void LazyOmapStatsTest::check_one()
       to_string(conf.payload_size * conf.keys) +
       R"(\s.*))"
       "\n");
-  cout << "Checking number of bytes "
-       << conf.payload_size * conf.keys << endl;
+  cout << "Checking number of bytes " << conf.payload_size * conf.keys << endl;
   cout << "Found the following lines" << endl;
   cout << "*************************" << endl;
   result = find_matches(truncated_output, reg);
@@ -342,14 +359,17 @@ void LazyOmapStatsTest::check_one()
   if (total != 6) {
     cout << "Error: Found " << total << " matches, expected 6! Exiting..."
          << endl;
-    exit(22);  // EINVAL
+    exit(22); // EINVAL
   }
   cout << "check_one successful. Found " << total << " matches as expected"
        << endl;
 }
 
-const int LazyOmapStatsTest::find_index(string& haystack, boost::regex& needle,
-                                        string label) const
+const int
+LazyOmapStatsTest::find_index(
+    string& haystack,
+    boost::regex& needle,
+    string label) const
 {
   boost::smatch match;
   boost::regex_search(haystack, match, needle, boost::match_not_dot_newline);
@@ -364,13 +384,15 @@ const int LazyOmapStatsTest::find_index(string& haystack, boost::regex& needle,
   }
 
   cerr << "find_index failed to find index for " << label << endl;
-  exit(2);    // ENOENT
-  return -1;  // Unreachable
+  exit(2); // ENOENT
+  return -1; // Unreachable
 }
 
-const uint LazyOmapStatsTest::tally_column(const uint omap_bytes_index,
-                                           const string& table,
-                                           bool header) const
+const uint
+LazyOmapStatsTest::tally_column(
+    const uint omap_bytes_index,
+    const string& table,
+    bool header) const
 {
   istringstream buffer(table);
   string line;
@@ -389,8 +411,12 @@ const uint LazyOmapStatsTest::tally_column(const uint omap_bytes_index,
   return total;
 }
 
-void LazyOmapStatsTest::check_column(const int index, const string& table,
-                                     const string& type, bool header) const
+void
+LazyOmapStatsTest::check_column(
+    const int index,
+    const string& table,
+    const string& type,
+    bool header) const
 {
   uint expected;
   string errormsg;
@@ -405,11 +431,12 @@ void LazyOmapStatsTest::check_column(const int index, const string& table,
   cout << "Got: " << sum << " Expected: " << expected << endl;
   if (sum != expected) {
     cout << errormsg << endl;
-    exit(22);  // EINVAL
+    exit(22); // EINVAL
   }
 }
 
-index_t LazyOmapStatsTest::get_indexes(boost::regex& reg, string& output) const
+index_t
+LazyOmapStatsTest::get_indexes(boost::regex& reg, string& output) const
 {
   index_t indexes;
   indexes.byte_index = find_index(output, reg, "OMAP_BYTES*");
@@ -418,7 +445,8 @@ index_t LazyOmapStatsTest::get_indexes(boost::regex& reg, string& output) const
   return indexes;
 }
 
-void LazyOmapStatsTest::check_pg_dump()
+void
+LazyOmapStatsTest::check_pg_dump()
 {
   cout << R"(Checking "pg dump" output)" << endl;
 
@@ -448,7 +476,8 @@ void LazyOmapStatsTest::check_pg_dump()
   cout << endl;
 }
 
-void LazyOmapStatsTest::check_pg_dump_summary()
+void
+LazyOmapStatsTest::check_pg_dump_summary()
 {
   cout << R"(Checking "pg dump summary" output)" << endl;
 
@@ -478,7 +507,8 @@ void LazyOmapStatsTest::check_pg_dump_summary()
   cout << endl;
 }
 
-void LazyOmapStatsTest::check_pg_dump_pgs()
+void
+LazyOmapStatsTest::check_pg_dump_pgs()
 {
   cout << R"(Checking "pg dump pgs" output)" << endl;
 
@@ -487,7 +517,7 @@ void LazyOmapStatsTest::check_pg_dump_pgs()
   cout << dump_output << endl;
 
   boost::regex reg(R"(^(PG_STAT\s.*))"
-            "\n");
+                   "\n");
   index_t indexes = get_indexes(reg, dump_output);
 
   reg = R"(^(PG_STAT[\s\S]*))"
@@ -504,7 +534,8 @@ void LazyOmapStatsTest::check_pg_dump_pgs()
   cout << endl;
 }
 
-void LazyOmapStatsTest::check_pg_dump_pools()
+void
+LazyOmapStatsTest::check_pg_dump_pools()
 {
   cout << R"(Checking "pg dump pools" output)" << endl;
 
@@ -513,7 +544,7 @@ void LazyOmapStatsTest::check_pg_dump_pools()
   cout << dump_output << endl;
 
   boost::regex reg(R"(^(POOLID\s.*))"
-            "\n");
+                   "\n");
   index_t indexes = get_indexes(reg, dump_output);
 
   reg =
@@ -534,7 +565,8 @@ void LazyOmapStatsTest::check_pg_dump_pools()
   cout << endl;
 }
 
-void LazyOmapStatsTest::check_pg_ls()
+void
+LazyOmapStatsTest::check_pg_ls()
 {
   cout << R"(Checking "pg ls" output)" << endl;
 
@@ -543,7 +575,7 @@ void LazyOmapStatsTest::check_pg_ls()
   cout << dump_output << endl;
 
   boost::regex reg(R"(^(PG\s.*))"
-            "\n");
+                   "\n");
   index_t indexes = get_indexes(reg, dump_output);
 
   reg = R"(^(PG[\s\S]*))"
@@ -560,7 +592,8 @@ void LazyOmapStatsTest::check_pg_ls()
   cout << endl;
 }
 
-void LazyOmapStatsTest::wait_for_active_clean()
+void
+LazyOmapStatsTest::wait_for_active_clean()
 {
   cout << "Waiting for active+clean" << endl;
 
@@ -586,7 +619,8 @@ void LazyOmapStatsTest::wait_for_active_clean()
     string line;
     num_not_clean = 0;
     while (std::getline(buffer, line)) {
-      if (line.compare(0, 1, "P") == 0) continue;
+      if (line.compare(0, 1, "P") == 0)
+        continue;
       boost::char_separator<char> sep{" "};
       boost::tokenizer<boost::char_separator<char>> tok(line, sep);
       vector<string> tokens(tok.begin(), tok.end());
@@ -599,7 +633,8 @@ void LazyOmapStatsTest::wait_for_active_clean()
   cout << endl;
 }
 
-const int LazyOmapStatsTest::run(const int argc, const char** argv)
+const int
+LazyOmapStatsTest::run(const int argc, const char** argv)
 {
   init(argc, argv);
   create_payload();
@@ -608,7 +643,7 @@ const int LazyOmapStatsTest::run(const int argc, const char** argv)
   scrub();
   check_one();
 
-  write_many(conf.how_many - 1);  // Since we already wrote one
+  write_many(conf.how_many - 1); // Since we already wrote one
   scrub();
   check_pg_dump();
   check_pg_dump_summary();

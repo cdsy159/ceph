@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,40 +14,37 @@
  */
 
 #include "LogEvent.h"
-#include "common/config.h"
+
 #include "common/debug.h"
+
+#include "common/config.h"
 
 #include "MDSRank.h"
 
 // events i know of
-#include "events/ESubtreeMap.h"
+#include "events/ECommitted.h"
 #include "events/EExport.h"
-#include "events/EImportStart.h"
-#include "events/EImportFinish.h"
 #include "events/EFragment.h"
-
+#include "events/EImportFinish.h"
+#include "events/EImportStart.h"
+#include "events/ELid.h"
+#include "events/ENoOp.h"
+#include "events/EOpen.h"
+#include "events/EPeerUpdate.h"
+#include "events/EPurged.h"
 #include "events/EResetJournal.h"
+#include "events/ESegment.h"
 #include "events/ESession.h"
 #include "events/ESessions.h"
-
-#include "events/EUpdate.h"
-#include "events/EPeerUpdate.h"
-#include "events/EOpen.h"
-#include "events/ECommitted.h"
-#include "events/EPurged.h"
-
+#include "events/ESubtreeMap.h"
 #include "events/ETableClient.h"
 #include "events/ETableServer.h"
-
-#include "events/ENoOp.h"
-
-#include "events/ESegment.h"
-#include "events/ELid.h"
+#include "events/EUpdate.h"
 
 #define dout_context g_ceph_context
 
-
-std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator p)
+std::unique_ptr<LogEvent>
+LogEvent::decode_event(bufferlist::const_iterator p)
 {
   // parse type, length
   EventType type;
@@ -61,9 +58,9 @@ std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator p)
       decode(type, p);
       event = decode_event(p, type);
       DECODE_FINISH(p);
-    }
-    catch (const buffer::error &e) {
-      generic_dout(0) << "failed to decode LogEvent (type maybe " << type << ")" << dendl;
+    } catch (const buffer::error& e) {
+      generic_dout(0) << "failed to decode LogEvent (type maybe " << type << ")"
+                      << dendl;
       return NULL;
     }
   } else { // we are using classic encoding
@@ -72,30 +69,50 @@ std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator p)
   return event;
 }
 
-
-std::string_view LogEvent::get_type_str() const
+std::string_view
+LogEvent::get_type_str() const
 {
-  switch(_type) {
-  case EVENT_SUBTREEMAP: return "SUBTREEMAP";
-  case EVENT_SUBTREEMAP_TEST: return "SUBTREEMAP_TEST";
-  case EVENT_EXPORT: return "EXPORT";
-  case EVENT_IMPORTSTART: return "IMPORTSTART";
-  case EVENT_IMPORTFINISH: return "IMPORTFINISH";
-  case EVENT_FRAGMENT: return "FRAGMENT";
-  case EVENT_RESETJOURNAL: return "RESETJOURNAL";
-  case EVENT_SESSION: return "SESSION";
-  case EVENT_SESSIONS_OLD: return "SESSIONS_OLD";
-  case EVENT_SESSIONS: return "SESSIONS";
-  case EVENT_UPDATE: return "UPDATE";
-  case EVENT_PEERUPDATE: return "PEERUPDATE";
-  case EVENT_OPEN: return "OPEN";
-  case EVENT_COMMITTED: return "COMMITTED";
-  case EVENT_PURGED: return "PURGED";
-  case EVENT_TABLECLIENT: return "TABLECLIENT";
-  case EVENT_TABLESERVER: return "TABLESERVER";
-  case EVENT_NOOP: return "NOOP";
-  case EVENT_SEGMENT: return "SEGMENT";
-  case EVENT_LID: return "LID";
+  switch (_type) {
+  case EVENT_SUBTREEMAP:
+    return "SUBTREEMAP";
+  case EVENT_SUBTREEMAP_TEST:
+    return "SUBTREEMAP_TEST";
+  case EVENT_EXPORT:
+    return "EXPORT";
+  case EVENT_IMPORTSTART:
+    return "IMPORTSTART";
+  case EVENT_IMPORTFINISH:
+    return "IMPORTFINISH";
+  case EVENT_FRAGMENT:
+    return "FRAGMENT";
+  case EVENT_RESETJOURNAL:
+    return "RESETJOURNAL";
+  case EVENT_SESSION:
+    return "SESSION";
+  case EVENT_SESSIONS_OLD:
+    return "SESSIONS_OLD";
+  case EVENT_SESSIONS:
+    return "SESSIONS";
+  case EVENT_UPDATE:
+    return "UPDATE";
+  case EVENT_PEERUPDATE:
+    return "PEERUPDATE";
+  case EVENT_OPEN:
+    return "OPEN";
+  case EVENT_COMMITTED:
+    return "COMMITTED";
+  case EVENT_PURGED:
+    return "PURGED";
+  case EVENT_TABLECLIENT:
+    return "TABLECLIENT";
+  case EVENT_TABLESERVER:
+    return "TABLESERVER";
+  case EVENT_NOOP:
+    return "NOOP";
+  case EVENT_SEGMENT:
+    return "SEGMENT";
+  case EVENT_LID:
+    return "LID";
 
   default:
     generic_dout(0) << "get_type_str: unknown type " << _type << dendl;
@@ -104,51 +121,52 @@ std::string_view LogEvent::get_type_str() const
 }
 
 const std::map<std::string, LogEvent::EventType> LogEvent::types = {
-  {"SUBTREEMAP", EVENT_SUBTREEMAP},
-  {"SUBTREEMAP_TEST", EVENT_SUBTREEMAP_TEST},
-  {"EXPORT", EVENT_EXPORT},
-  {"IMPORTSTART", EVENT_IMPORTSTART},
-  {"IMPORTFINISH", EVENT_IMPORTFINISH},
-  {"FRAGMENT", EVENT_FRAGMENT},
-  {"RESETJOURNAL", EVENT_RESETJOURNAL},
-  {"SESSION", EVENT_SESSION},
-  {"SESSIONS_OLD", EVENT_SESSIONS_OLD},
-  {"SESSIONS", EVENT_SESSIONS},
-  {"UPDATE", EVENT_UPDATE},
-  {"PEERUPDATE", EVENT_PEERUPDATE},
-  {"OPEN", EVENT_OPEN},
-  {"COMMITTED", EVENT_COMMITTED},
-  {"PURGED", EVENT_PURGED},
-  {"TABLECLIENT", EVENT_TABLECLIENT},
-  {"TABLESERVER", EVENT_TABLESERVER},
-  {"NOOP", EVENT_NOOP},
-  {"SEGMENT", EVENT_SEGMENT},
-  {"LID", EVENT_LID}
-};
+    {"SUBTREEMAP", EVENT_SUBTREEMAP},
+    {"SUBTREEMAP_TEST", EVENT_SUBTREEMAP_TEST},
+    {"EXPORT", EVENT_EXPORT},
+    {"IMPORTSTART", EVENT_IMPORTSTART},
+    {"IMPORTFINISH", EVENT_IMPORTFINISH},
+    {"FRAGMENT", EVENT_FRAGMENT},
+    {"RESETJOURNAL", EVENT_RESETJOURNAL},
+    {"SESSION", EVENT_SESSION},
+    {"SESSIONS_OLD", EVENT_SESSIONS_OLD},
+    {"SESSIONS", EVENT_SESSIONS},
+    {"UPDATE", EVENT_UPDATE},
+    {"PEERUPDATE", EVENT_PEERUPDATE},
+    {"OPEN", EVENT_OPEN},
+    {"COMMITTED", EVENT_COMMITTED},
+    {"PURGED", EVENT_PURGED},
+    {"TABLECLIENT", EVENT_TABLECLIENT},
+    {"TABLESERVER", EVENT_TABLESERVER},
+    {"NOOP", EVENT_NOOP},
+    {"SEGMENT", EVENT_SEGMENT},
+    {"LID", EVENT_LID}};
 
 /*
  * Resolve type string to type enum
  *
  * Return -1 if not found
  */
-LogEvent::EventType LogEvent::str_to_type(std::string_view str)
+LogEvent::EventType
+LogEvent::str_to_type(std::string_view str)
 {
   return LogEvent::types.at(std::string(str));
 }
 
-
-std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator& p, LogEvent::EventType type)
+std::unique_ptr<LogEvent>
+LogEvent::decode_event(bufferlist::const_iterator& p, LogEvent::EventType type)
 {
   const auto length = p.get_remaining();
-  generic_dout(15) << "decode_log_event type " << type << ", size " << length << dendl;
-  
+  generic_dout(15) << "decode_log_event type " << type << ", size " << length
+                   << dendl;
+
   // create event
   std::unique_ptr<LogEvent> le;
   switch (type) {
   case EVENT_SUBTREEMAP:
     le = std::make_unique<ESubtreeMap>();
     break;
-  case EVENT_SUBTREEMAP_TEST: 
+  case EVENT_SUBTREEMAP_TEST:
     le = std::make_unique<ESubtreeMap>();
     le->set_type(type);
     break;
@@ -170,13 +188,11 @@ std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator& p, 
   case EVENT_SESSION:
     le = std::make_unique<ESession>();
     break;
-  case EVENT_SESSIONS_OLD:
-    {
-      auto e = std::make_unique<ESessions>();
-      e->mark_old_encoding();
-      le = std::move(e);
-    }
-    break;
+  case EVENT_SESSIONS_OLD: {
+    auto e = std::make_unique<ESessions>();
+    e->mark_old_encoding();
+    le = std::move(e);
+  } break;
   case EVENT_SESSIONS:
     le = std::make_unique<ESessions>();
     break;
@@ -211,15 +227,15 @@ std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator& p, 
     le = std::make_unique<ELid>();
     break;
   default:
-    generic_dout(0) << "uh oh, unknown log event type " << type << " length " << length << dendl;
+    generic_dout(0) << "uh oh, unknown log event type " << type << " length "
+                    << length << dendl;
     return nullptr;
   }
 
   // decode
   try {
     le->decode(p);
-  }
-  catch (const buffer::error &e) {
+  } catch (const buffer::error& e) {
     generic_dout(0) << "failed to decode LogEvent type " << type << dendl;
     return nullptr;
   }
@@ -227,4 +243,3 @@ std::unique_ptr<LogEvent> LogEvent::decode_event(bufferlist::const_iterator& p, 
   ceph_assert(p.end());
   return le;
 }
-

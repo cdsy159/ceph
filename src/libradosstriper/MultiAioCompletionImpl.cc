@@ -13,11 +13,12 @@
  *
  */
 
-#include "common/dout.h"
-
 #include "libradosstriper/MultiAioCompletionImpl.h"
 
-void libradosstriper::MultiAioCompletionImpl::complete_request(ssize_t r)
+#include "common/dout.h"
+
+void
+libradosstriper::MultiAioCompletionImpl::complete_request(ssize_t r)
 {
   lock.lock();
   if (rval >= 0) {
@@ -34,7 +35,8 @@ void libradosstriper::MultiAioCompletionImpl::complete_request(ssize_t r)
   put_unlock();
 }
 
-void libradosstriper::MultiAioCompletionImpl::safe_request(ssize_t r)
+void
+libradosstriper::MultiAioCompletionImpl::safe_request(ssize_t r)
 {
   lock.lock();
   if (rval >= 0) {
@@ -49,7 +51,8 @@ void libradosstriper::MultiAioCompletionImpl::safe_request(ssize_t r)
   put_unlock();
 }
 
-void libradosstriper::MultiAioCompletionImpl::finish_adding_requests()
+void
+libradosstriper::MultiAioCompletionImpl::finish_adding_requests()
 {
   std::scoped_lock l{lock};
   ceph_assert(building);

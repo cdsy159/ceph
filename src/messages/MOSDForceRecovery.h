@@ -41,19 +41,36 @@ public:
   std::vector<spg_t> forced_pgs;
   uint8_t options = 0;
 
-  MOSDForceRecovery() : Message{MSG_OSD_FORCE_RECOVERY, HEAD_VERSION, COMPAT_VERSION} {}
+  MOSDForceRecovery() :
+    Message{MSG_OSD_FORCE_RECOVERY, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MOSDForceRecovery(const uuid_d& f, char opts) :
     Message{MSG_OSD_FORCE_RECOVERY, HEAD_VERSION, COMPAT_VERSION},
-    fsid(f), options(opts) {}
+    fsid(f),
+    options(opts)
+  {}
+
   MOSDForceRecovery(const uuid_d& f, std::vector<spg_t>& pgs, char opts) :
     Message{MSG_OSD_FORCE_RECOVERY, HEAD_VERSION, COMPAT_VERSION},
-    fsid(f), forced_pgs(pgs), options(opts) {}
+    fsid(f),
+    forced_pgs(pgs),
+    options(opts)
+  {}
+
 private:
   ~MOSDForceRecovery() final {}
 
 public:
-  std::string_view get_type_name() const { return "force_recovery"; }
-  void print(std::ostream& out) const {
+  std::string_view
+  get_type_name() const
+  {
+    return "force_recovery";
+  }
+
+  void
+  print(std::ostream& out) const
+  {
     out << "force_recovery(";
     if (forced_pgs.empty())
       out << "osd";
@@ -62,20 +79,22 @@ public:
     if (options & OFR_RECOVERY)
       out << " recovery";
     if (options & OFR_BACKFILL)
-       out << " backfill";
+      out << " backfill";
     if (options & OFR_CANCEL)
-       out << " cancel";
-     out << ")";
+      out << " cancel";
+    out << ")";
   }
 
-  void encode_payload(uint64_t features) {
+  void
+  encode_payload(uint64_t features)
+  {
     using ceph::encode;
     if (!HAVE_FEATURE(features, SERVER_MIMIC)) {
       header.version = 1;
       header.compat_version = 1;
       std::vector<pg_t> pgs;
       for (auto pgid : forced_pgs) {
-	pgs.push_back(pgid.pgid);
+        pgs.push_back(pgid.pgid);
       }
       encode(fsid, payload);
       encode(pgs, payload);
@@ -88,7 +107,10 @@ public:
     encode(forced_pgs, payload);
     encode(options, payload);
   }
-  void decode_payload() {
+
+  void
+  decode_payload()
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     if (header.version == 1) {
@@ -97,9 +119,9 @@ public:
       decode(pgs, p);
       decode(options, p);
       for (auto pg : pgs) {
-	// note: this only works with replicated pools.  if a pre-mimic mon
-	// tries to force a mimic+ osd on an ec pool it will not work.
-	forced_pgs.push_back(spg_t(pg));
+        // note: this only works with replicated pools.  if a pre-mimic mon
+        // tries to force a mimic+ osd on an ec pool it will not work.
+        forced_pgs.push_back(spg_t(pg));
       }
       return;
     }
@@ -107,8 +129,9 @@ public:
     decode(forced_pgs, p);
     decode(options, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

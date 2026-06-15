@@ -4,20 +4,25 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_DELETE_TRASH_WATCHER_H
 #define CEPH_RBD_MIRROR_IMAGE_DELETE_TRASH_WATCHER_H
 
-#include "include/rados/librados.hpp"
-#include "common/AsyncOpTracker.h"
-#include "common/ceph_mutex.h"
-#include "librbd/TrashWatcher.h"
 #include <set>
 #include <string>
 
+#include "common/AsyncOpTracker.h"
+#include "common/ceph_mutex.h"
+#include "include/rados/librados.hpp"
+#include "librbd/TrashWatcher.h"
+
 struct Context;
-namespace librbd { struct ImageCtx; }
+
+namespace librbd {
+struct ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
 
-template <typename> struct Threads;
+template <typename>
+struct Threads;
 
 namespace image_deleter {
 
@@ -26,25 +31,31 @@ struct TrashListener;
 template <typename ImageCtxT = librbd::ImageCtx>
 class TrashWatcher : public librbd::TrashWatcher<ImageCtxT> {
 public:
-  static TrashWatcher* create(librados::IoCtx &io_ctx,
-                              Threads<ImageCtxT> *threads,
-                              TrashListener& trash_listener) {
+  static TrashWatcher*
+  create(
+      librados::IoCtx& io_ctx,
+      Threads<ImageCtxT>* threads,
+      TrashListener& trash_listener)
+  {
     return new TrashWatcher(io_ctx, threads, trash_listener);
   }
 
-  TrashWatcher(librados::IoCtx &io_ctx, Threads<ImageCtxT> *threads,
-               TrashListener& trash_listener);
+  TrashWatcher(
+      librados::IoCtx& io_ctx,
+      Threads<ImageCtxT>* threads,
+      TrashListener& trash_listener);
   TrashWatcher(const TrashWatcher&) = delete;
   TrashWatcher& operator=(const TrashWatcher&) = delete;
 
-  void init(Context *on_finish);
-  void shut_down(Context *on_finish);
+  void init(Context* on_finish);
+  void shut_down(Context* on_finish);
 
 protected:
-  void handle_image_added(const std::string &image_id,
-                          const cls::rbd::TrashImageSpec& spec) override;
+  void handle_image_added(
+      const std::string& image_id,
+      const cls::rbd::TrashImageSpec& spec) override;
 
-  void handle_image_removed(const std::string &image_id) override;
+  void handle_image_removed(const std::string& image_id) override;
 
   void handle_rewatch_complete(int r) override;
 
@@ -91,7 +102,7 @@ private:
    */
 
   librados::IoCtx m_io_ctx;
-  Threads<ImageCtxT> *m_threads;
+  Threads<ImageCtxT>* m_threads;
   TrashListener& m_trash_listener;
 
   std::string m_last_image_id;
@@ -99,8 +110,8 @@ private:
 
   mutable ceph::mutex m_lock;
 
-  Context *m_on_init_finish = nullptr;
-  Context *m_timer_ctx = nullptr;
+  Context* m_on_init_finish = nullptr;
+  Context* m_timer_ctx = nullptr;
 
   AsyncOpTracker m_async_op_tracker;
   bool m_trash_list_in_progress = false;
@@ -125,9 +136,9 @@ private:
   void get_mirror_uuid();
   void handle_get_mirror_uuid(int r);
 
-  void add_image(const std::string& image_id,
-                 const cls::rbd::TrashImageSpec& spec);
-
+  void add_image(
+      const std::string& image_id,
+      const cls::rbd::TrashImageSpec& spec);
 };
 
 } // namespace image_deleter

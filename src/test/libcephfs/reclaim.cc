@@ -7,24 +7,25 @@
  * (c) 2017, Jeff Layton <jlayton@redhat.com>
  */
 
-#include "gtest/gtest.h"
-#include "include/compat.h"
-#include "include/cephfs/libcephfs.h"
-#include "include/fs_types.h"
-#include "include/stat.h"
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <sys/uio.h>
 #include <libgen.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
+
+#include "gtest/gtest.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
+#include "include/fs_types.h"
+#include "include/stat.h"
 
 #ifdef __linux__
-#include <sys/xattr.h>
 #include <limits.h>
+#include <sys/xattr.h>
 #endif
 
 #ifdef __FreeBSD__
@@ -32,16 +33,17 @@
 #endif
 
 
-#include <map>
-#include <vector>
-#include <thread>
 #include <atomic>
+#include <map>
+#include <thread>
+#include <vector>
 
-#define	CEPHFS_RECLAIM_TIMEOUT		60
+#define CEPHFS_RECLAIM_TIMEOUT 60
 
-static int dying_client(int argc, char **argv)
+static int
+dying_client(int argc, char** argv)
 {
-  struct ceph_mount_info *cmount;
+  struct ceph_mount_info* cmount;
 
   /* Caller must pass in the uuid */
   if (argc < 2)
@@ -73,21 +75,23 @@ static int dying_client(int argc, char **argv)
   if (ceph_ll_lookup_root(cmount, &root) != 0)
     return 1;
 
-  Fh *fh;
+  Fh* fh;
   struct ceph_statx stx;
-  UserPerm *perms = ceph_mount_perms(cmount);
+  UserPerm* perms = ceph_mount_perms(cmount);
 
-  if (ceph_ll_create(cmount, root, argv[1], 0666, O_RDWR|O_CREAT|O_EXCL,
-		      &file, &fh, &stx, 0, 0, perms) != 0)
+  if (ceph_ll_create(
+          cmount, root, argv[1], 0666, O_RDWR | O_CREAT | O_EXCL, &file, &fh,
+          &stx, 0, 0, perms) != 0)
     return 1;
 
   return 0;
 }
 
-TEST(LibCephFS, ReclaimReset) {
-  pid_t		pid;
-  char		uuid[256];
-  const char	*exe = "/proc/self/exe";
+TEST(LibCephFS, ReclaimReset)
+{
+  pid_t pid;
+  char uuid[256];
+  const char* exe = "/proc/self/exe";
 
   sprintf(uuid, "simplereclaim:%x", getpid());
 
@@ -107,7 +111,7 @@ TEST(LibCephFS, ReclaimReset) {
   ASSERT_EQ(WIFEXITED(ret), true);
   ASSERT_EQ(WEXITSTATUS(ret), 0);
 
-  struct ceph_mount_info *cmount;
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(ceph_create(&cmount, nullptr), 0);
   ASSERT_EQ(ceph_conf_read_file(cmount, nullptr), 0);
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, nullptr));
@@ -119,19 +123,20 @@ TEST(LibCephFS, ReclaimReset) {
 
   Inode *root, *file;
   ASSERT_EQ(ceph_ll_lookup_root(cmount, &root), 0);
-  UserPerm *perms = ceph_mount_perms(cmount);
+  UserPerm* perms = ceph_mount_perms(cmount);
   struct ceph_statx stx;
   ASSERT_EQ(ceph_ll_lookup(cmount, root, uuid, &file, &stx, 0, 0, perms), 0);
-  Fh *fh;
+  Fh* fh;
   ASSERT_EQ(ceph_ll_open(cmount, file, O_WRONLY, &fh, perms), 0);
 
   ceph_unmount(cmount);
   ceph_release(cmount);
 }
 
-static int update_root_mode()
+static int
+update_root_mode()
 {
-  struct ceph_mount_info *admin;
+  struct ceph_mount_info* admin;
   int r = ceph_create(&admin, nullptr);
   if (r < 0)
     return r;
@@ -147,7 +152,8 @@ out:
   return r;
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   int r = update_root_mode();
   if (r < 0)

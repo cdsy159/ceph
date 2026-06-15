@@ -1,28 +1,30 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <iostream>
 #include "Types.h"
-#include "common/ceph_context.h"
+
+#include <iostream>
+
 #include "common/Formatter.h"
+#include "common/ceph_context.h"
 #include "include/Context.h"
 #include "include/stringify.h"
 
 #define dout_subsys ceph_subsys_rbd_pwl
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::cache::pwl::Types: " << this << " " \
-                           <<  __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::cache::pwl::Types: " << this << " " << __func__ << ": "
 using ceph::Formatter;
 
 namespace librbd {
 namespace cache {
 namespace pwl {
 
-DeferredContexts::~DeferredContexts() {
-  finish_contexts(nullptr, contexts, 0);
-}
+DeferredContexts::~DeferredContexts() { finish_contexts(nullptr, contexts, 0); }
 
-void DeferredContexts::add(Context* ctx) {
+void
+DeferredContexts::add(Context* ctx)
+{
   contexts.push_back(ctx);
 }
 
@@ -36,26 +38,34 @@ void DeferredContexts::add(Context* ctx) {
  * convert between image and block extents here using a "block size"
  * of 1.
  */
-BlockExtent convert_to_block_extent(uint64_t offset_bytes, uint64_t length_bytes)
+BlockExtent
+convert_to_block_extent(uint64_t offset_bytes, uint64_t length_bytes)
 {
-  return BlockExtent(offset_bytes,
-                     offset_bytes + length_bytes);
+  return BlockExtent(offset_bytes, offset_bytes + length_bytes);
 }
 
-BlockExtent WriteLogCacheEntry::block_extent() {
+BlockExtent
+WriteLogCacheEntry::block_extent()
+{
   return convert_to_block_extent(image_offset_bytes, write_bytes);
 }
 
-uint64_t WriteLogCacheEntry::get_offset_bytes() {
+uint64_t
+WriteLogCacheEntry::get_offset_bytes()
+{
   return image_offset_bytes;
 }
 
-uint64_t WriteLogCacheEntry::get_write_bytes() {
+uint64_t
+WriteLogCacheEntry::get_write_bytes()
+{
   return write_bytes;
 }
 
 #ifdef WITH_RBD_SSD_CACHE
-void WriteLogCacheEntry::dump(Formatter *f) const {
+void
+WriteLogCacheEntry::dump(Formatter* f) const
+{
   f->dump_unsigned("sync_gen_number", sync_gen_number);
   f->dump_unsigned("write_sequence_number", write_sequence_number);
   f->dump_unsigned("image_offset_bytes", image_offset_bytes);
@@ -71,7 +81,9 @@ void WriteLogCacheEntry::dump(Formatter *f) const {
   f->dump_unsigned("entry_index", entry_index);
 }
 
-std::list<WriteLogCacheEntry> WriteLogCacheEntry::generate_test_instances() {
+std::list<WriteLogCacheEntry>
+WriteLogCacheEntry::generate_test_instances()
+{
   std::list<WriteLogCacheEntry> ls;
   ls.emplace_back();
   ls.emplace_back();
@@ -91,7 +103,9 @@ std::list<WriteLogCacheEntry> WriteLogCacheEntry::generate_test_instances() {
   return ls;
 }
 
-void WriteLogPoolRoot::dump(Formatter *f) const {
+void
+WriteLogPoolRoot::dump(Formatter* f) const
+{
   f->dump_unsigned("layout_version", layout_version);
   f->dump_unsigned("cur_sync_gen", cur_sync_gen);
   f->dump_unsigned("pool_size", pool_size);
@@ -102,7 +116,9 @@ void WriteLogPoolRoot::dump(Formatter *f) const {
   f->dump_unsigned("first_valid_entry", first_valid_entry);
 }
 
-std::list<WriteLogPoolRoot> WriteLogPoolRoot::generate_test_instances() {
+std::list<WriteLogPoolRoot>
+WriteLogPoolRoot::generate_test_instances()
+{
   std::list<WriteLogPoolRoot> ls;
   ls.emplace_back();
   ls.emplace_back();
@@ -118,13 +134,13 @@ std::list<WriteLogPoolRoot> WriteLogPoolRoot::generate_test_instances() {
 }
 #endif
 
-std::ostream& operator<<(std::ostream& os,
-                         const WriteLogCacheEntry &entry) {
+std::ostream&
+operator<<(std::ostream& os, const WriteLogCacheEntry& entry)
+{
   os << "entry_valid=" << entry.is_entry_valid()
      << ", sync_point=" << entry.is_sync_point()
      << ", sequenced=" << entry.is_sequenced()
-     << ", has_data=" << entry.has_data()
-     << ", discard=" << entry.is_discard()
+     << ", has_data=" << entry.has_data() << ", discard=" << entry.is_discard()
      << ", writesame=" << entry.is_writesame()
      << ", sync_gen_number=" << entry.sync_gen_number
      << ", write_sequence_number=" << entry.write_sequence_number
@@ -136,16 +152,17 @@ std::ostream& operator<<(std::ostream& os,
 }
 
 template <typename ExtentsType>
-ExtentsSummary<ExtentsType>::ExtentsSummary(const ExtentsType &extents)
-  : total_bytes(0), first_image_byte(0), last_image_byte(0)
+ExtentsSummary<ExtentsType>::ExtentsSummary(const ExtentsType& extents) :
+  total_bytes(0), first_image_byte(0), last_image_byte(0)
 {
-  if (extents.empty()) return;
+  if (extents.empty())
+    return;
   /* These extents refer to image offsets between first_image_byte
    * and last_image_byte, inclusive, but we don't guarantee here
    * that they address all of those bytes. There may be gaps. */
   first_image_byte = extents.front().first;
   last_image_byte = first_image_byte + extents.front().second;
-  for (auto &extent : extents) {
+  for (auto& extent : extents) {
     /* Ignore zero length extents */
     if (extent.second) {
       total_bytes += extent.second;
@@ -159,27 +176,32 @@ ExtentsSummary<ExtentsType>::ExtentsSummary(const ExtentsType &extents)
   }
 }
 
-io::Extent whole_volume_extent() {
+io::Extent
+whole_volume_extent()
+{
   return io::Extent({0, std::numeric_limits<uint64_t>::max()});
 }
 
-BlockExtent block_extent(const io::Extent& image_extent) {
+BlockExtent
+block_extent(const io::Extent& image_extent)
+{
   return convert_to_block_extent(image_extent.first, image_extent.second);
 }
 
-Context * override_ctx(int r, Context *ctx) {
+Context*
+override_ctx(int r, Context* ctx)
+{
   if (r < 0) {
     /* Override next_ctx status with this error */
-    return new LambdaContext(
-      [r, ctx](int _r) {
-        ctx->complete(r);
-      });
+    return new LambdaContext([r, ctx](int _r) { ctx->complete(r); });
   } else {
     return ctx;
   }
 }
 
-std::string unique_lock_name(const std::string &name, void *address) {
+std::string
+unique_lock_name(const std::string& name, void* address)
+{
   return name + " (" + stringify(address) + ")";
 }
 

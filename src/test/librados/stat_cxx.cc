@@ -1,9 +1,8 @@
 #include "gtest/gtest.h"
-
 #include "include/rados/librados.hpp"
-
 #include "test/librados/test_cxx.h"
 #include "test/librados/testcase_cxx.h"
+
 #include "crimson_utils.h"
 
 using namespace librados;
@@ -11,7 +10,8 @@ using namespace librados;
 typedef RadosTestPP LibRadosStatPP;
 typedef RadosTestECPP LibRadosStatECPP;
 
-TEST_F(LibRadosStatPP, StatPP) {
+TEST_F(LibRadosStatPP, StatPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -24,7 +24,8 @@ TEST_F(LibRadosStatPP, StatPP) {
   ASSERT_EQ(-ENOENT, ioctx.stat("nonexistent", &size, &mtime));
 }
 
-TEST_F(LibRadosStatPP, Stat2Mtime2PP) {
+TEST_F(LibRadosStatPP, Stat2Mtime2PP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -54,12 +55,14 @@ TEST_F(LibRadosStatPP, Stat2Mtime2PP) {
   ASSERT_EQ(-ENOENT, ioctx.stat2("nonexistent", &size, &ts2));
 }
 
-TEST_F(LibRadosStatPP, ClusterStatPP) {
+TEST_F(LibRadosStatPP, ClusterStatPP)
+{
   cluster_stat_t cstat;
   ASSERT_EQ(0, cluster.cluster_stat(cstat));
 }
 
-TEST_F(LibRadosStatPP, PoolStatPP) {
+TEST_F(LibRadosStatPP, PoolStatPP)
+{
   std::string n = ioctx.get_pool_name();
   ASSERT_EQ(n, pool_name);
   char buf[128];
@@ -68,11 +71,12 @@ TEST_F(LibRadosStatPP, PoolStatPP) {
   bl1.append(buf, sizeof(buf));
   ASSERT_EQ(0, ioctx.write("foo", bl1, sizeof(buf), 0));
   std::list<std::string> v;
-  std::map<std::string,stats_map> stats;
+  std::map<std::string, stats_map> stats;
   ASSERT_EQ(0, cluster.get_pool_stats(v, stats));
 }
 
-TEST_F(LibRadosStatECPP, StatPP) {
+TEST_F(LibRadosStatECPP, StatPP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -86,13 +90,15 @@ TEST_F(LibRadosStatECPP, StatPP) {
   ASSERT_EQ(-ENOENT, ioctx.stat("nonexistent", &size, &mtime));
 }
 
-TEST_F(LibRadosStatECPP, ClusterStatPP) {
+TEST_F(LibRadosStatECPP, ClusterStatPP)
+{
   SKIP_IF_CRIMSON();
   cluster_stat_t cstat;
   ASSERT_EQ(0, cluster.cluster_stat(cstat));
 }
 
-TEST_F(LibRadosStatECPP, PoolStatPP) {
+TEST_F(LibRadosStatECPP, PoolStatPP)
+{
   SKIP_IF_CRIMSON();
   std::string n = ioctx.get_pool_name();
   ASSERT_EQ(n, pool_name);
@@ -102,11 +108,12 @@ TEST_F(LibRadosStatECPP, PoolStatPP) {
   bl1.append(buf, sizeof(buf));
   ASSERT_EQ(0, ioctx.write("foo", bl1, sizeof(buf), 0));
   std::list<std::string> v;
-  std::map<std::string,stats_map> stats;
+  std::map<std::string, stats_map> stats;
   ASSERT_EQ(0, cluster.get_pool_stats(v, stats));
 }
 
-TEST_F(LibRadosStatPP, StatPPNS) {
+TEST_F(LibRadosStatPP, StatPPNS)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -136,7 +143,8 @@ TEST_F(LibRadosStatPP, StatPPNS) {
   ASSERT_EQ(-ENOENT, ioctx.stat("foo2", &size, &mtime));
 }
 
-TEST_F(LibRadosStatECPP, StatPPNS) {
+TEST_F(LibRadosStatECPP, StatPPNS)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));

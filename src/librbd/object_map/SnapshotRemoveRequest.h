@@ -4,10 +4,10 @@
 #ifndef CEPH_LIBRBD_OBJECT_MAP_SNAPSHOT_REMOVE_REQUEST_H
 #define CEPH_LIBRBD_OBJECT_MAP_SNAPSHOT_REMOVE_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/rados.h" // for CEPH_NOSNAP
 #include "common/bit_vector.hpp"
+#include "include/buffer.h"
+#include "include/int_types.h"
+#include "include/rados.h" // for CEPH_NOSNAP
 #include "librbd/AsyncRequest.h"
 
 namespace librbd {
@@ -41,24 +41,31 @@ public:
    * otherwise, the state machine proceeds to remove the object map.
    */
 
-  SnapshotRemoveRequest(ImageCtx &image_ctx, ceph::shared_mutex* object_map_lock,
-                        ceph::BitVector<2> *object_map, uint64_t snap_id,
-                        Context *on_finish)
-    : AsyncRequest(image_ctx, on_finish),
-      m_object_map_lock(object_map_lock), m_object_map(*object_map),
-      m_snap_id(snap_id), m_next_snap_id(CEPH_NOSNAP) {
-  }
+  SnapshotRemoveRequest(
+      ImageCtx& image_ctx,
+      ceph::shared_mutex* object_map_lock,
+      ceph::BitVector<2>* object_map,
+      uint64_t snap_id,
+      Context* on_finish) :
+    AsyncRequest(image_ctx, on_finish),
+    m_object_map_lock(object_map_lock),
+    m_object_map(*object_map),
+    m_snap_id(snap_id),
+    m_next_snap_id(CEPH_NOSNAP)
+  {}
 
   void send() override;
 
 protected:
-  bool should_complete(int r) override {
+  bool
+  should_complete(int r) override
+  {
     return true;
   }
 
 private:
   ceph::shared_mutex* m_object_map_lock;
-  ceph::BitVector<2> &m_object_map;
+  ceph::BitVector<2>& m_object_map;
   uint64_t m_snap_id;
   uint64_t m_next_snap_id;
 

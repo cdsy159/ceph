@@ -3,13 +3,14 @@
 
 #include <iostream> // for std::cout
 
-#include "include/types.h"
-#include "common/Thread.h"
 #include "common/debug.h"
+
 #include "common/Clock.h"
-#include "common/config.h"
+#include "common/Thread.h"
 #include "common/ceph_argparse.h"
+#include "common/config.h"
 #include "global/global_init.h"
+#include "include/types.h"
 #include "log/Log.h"
 
 #define dout_context g_ceph_context
@@ -19,29 +20,37 @@ using namespace std;
 struct T : public Thread {
   int num;
   set<int> myset;
-  map<int,string> mymap;
-  explicit T(int n) : num(n) {
+  map<int, string> mymap;
+
+  explicit T(int n) :
+    num(n)
+  {
     myset.insert(123);
     myset.insert(456);
     mymap[1] = "foo";
     mymap[10] = "bar";
   }
 
-  void *entry() override {
+  void*
+  entry() override
+  {
     while (num-- > 0)
-      generic_dout(0) << "this is a typical log line.  set "
-		      << myset << " and map " << mymap << dendl;
+      generic_dout(0) << "this is a typical log line.  set " << myset
+                      << " and map " << mymap << dendl;
     return 0;
   }
 };
 
-void usage(const char *name) {
+void
+usage(const char* name)
+{
   cout << name << " <threads> <lines>\n"
        << "\t threads: the number of threads for this test.\n"
        << "\t lines: the number of log entries per thread.\n";
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   if (argc < 3) {
     usage(argv[0]);
@@ -55,21 +64,21 @@ int main(int argc, const char **argv)
 
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_OSD,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_OSD, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
   utime_t start = ceph_clock_now();
 
   list<T*> ls;
-  for (int i=0; i<threads; i++) {
-    T *t = new T(num);
+  for (int i = 0; i < threads; i++) {
+    T* t = new T(num);
     t->create("t");
     ls.push_back(t);
   }
 
-  for (int i=0; i<threads; i++) {
-    T *t = ls.front();
+  for (int i = 0; i < threads; i++) {
+    T* t = ls.front();
     ls.pop_front();
     t->join();
     delete t;

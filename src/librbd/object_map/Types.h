@@ -10,9 +10,9 @@ namespace object_map {
 enum DiffState {
   // diff-iterate: hole with or without data captured in intermediate snapshot
   // deep-copy: hole without data captured in intermediate snapshot
-  DIFF_STATE_HOLE         = 0,
+  DIFF_STATE_HOLE = 0,
   // diff-iterate, deep-copy: unchanged data
-  DIFF_STATE_DATA         = 1,
+  DIFF_STATE_DATA = 1,
   // diff-iterate: new hole (data -> hole)
   // deep-copy: new hole (data -> hole) or hole with data captured in
   //            intermediate snapshot

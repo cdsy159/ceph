@@ -21,11 +21,11 @@
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
-#include <typeinfo>
 #include <type_traits>
+#include <typeinfo>
 
-#include <boost/smart_ptr/shared_ptr.hpp>
 #include <boost/smart_ptr/make_shared.hpp>
+#include <boost/smart_ptr/shared_ptr.hpp>
 
 namespace ceph {
 
@@ -70,9 +70,15 @@ inline constexpr std::size_t dynamic = ~0;
 // Moved out here so the type of `func_t` isn't dependent on the
 // enclosing class.
 //
-enum class op { type, destroy };
-template<typename T>
-inline void op_func(const op o, void* p) noexcept {
+enum class op {
+  type,
+  destroy
+};
+
+template <typename T>
+inline void
+op_func(const op o, void* p) noexcept
+{
   static const std::type_info& type = typeid(T);
   switch (o) {
   case op::type:
@@ -83,9 +89,10 @@ inline void op_func(const op o, void* p) noexcept {
     break;
   }
 }
+
 using func_t = void (*)(const op, void* p) noexcept;
 
-// The base class 
+// The base class
 // --------------
 //
 // The `storage_t` parameter gives the type of the value that manages
@@ -99,7 +106,7 @@ using func_t = void (*)(const op, void* p) noexcept;
 // to C++'s rules for nested types being *horrible*. Just downright
 // *horrible*.
 //
-template<typename D, typename storage_t>
+template <typename D, typename storage_t>
 class base {
   // Make definitions from our superclass visible
   // --------------------------------------------
@@ -109,29 +116,34 @@ class base {
   //
   static constexpr std::size_t capacity = D::capacity;
 
-  void* ptr() const noexcept {
+  void*
+  ptr() const noexcept
+  {
     static_assert(
-      noexcept(static_cast<const D*>(this)->ptr()) &&
-      std::is_same_v<decltype(static_cast<const D*>(this)->ptr()), void*>,
-      "‘void* ptr() const noexcept’ missing from superclass");
+        noexcept(static_cast<const D*>(this)->ptr()) &&
+            std::is_same_v<decltype(static_cast<const D*>(this)->ptr()), void*>,
+        "‘void* ptr() const noexcept’ missing from superclass");
     return static_cast<const D*>(this)->ptr();
   }
 
-  void* alloc_storage(const std::size_t z) {
+  void*
+  alloc_storage(const std::size_t z)
+  {
     static_assert(
-      std::is_same_v<decltype(static_cast<D*>(this)->alloc_storage(z)), void*>,
-      "‘void* alloc_storage(const size_t)’ missing from superclass.");
+        std::is_same_v<decltype(static_cast<D*>(this)->alloc_storage(z)), void*>,
+        "‘void* alloc_storage(const size_t)’ missing from superclass.");
     return static_cast<D*>(this)->alloc_storage(z);
   }
 
-  void free_storage() noexcept {
+  void
+  free_storage() noexcept
+  {
     static_assert(
-      noexcept(static_cast<D*>(this)->free_storage()) &&
-      std::is_void_v<decltype(static_cast<D*>(this)->free_storage())>,
-      "‘void free_storage() noexcept’ missing from superclass.");
+        noexcept(static_cast<D*>(this)->free_storage()) &&
+            std::is_void_v<decltype(static_cast<D*>(this)->free_storage())>,
+        "‘void free_storage() noexcept’ missing from superclass.");
     static_cast<D*>(this)->free_storage();
   }
-
 
   // Pile O' Templates
   // -----------------
@@ -139,14 +151,15 @@ class base {
   // These are just verbose and better typed once than twice. They're
   // used for SFINAE and declaring noexcept.
   //
-  template<class T>
+  template <class T>
   struct is_in_place_type_helper : std::false_type {};
-  template<class T>
+
+  template <class T>
   struct is_in_place_type_helper<std::in_place_type_t<T>> : std::true_type {};
 
-  template<class T>
+  template <class T>
   static constexpr bool is_in_place_type_v =
-    is_in_place_type_helper<std::decay_t<T>>::value;
+      is_in_place_type_helper<std::decay_t<T>>::value;
 
   // SFINAE condition for value initialized
   // constructors/assigners. This is analogous to the standard's
@@ -154,35 +167,35 @@ class base {
   // resolution if std::decay_t<T> is not the same type as the
   // any-type, nor a specialization of std::in_place_type_t
   //
-  template<typename T>
+  template <typename T>
   using value_condition_t = std::enable_if_t<
-    !std::is_same_v<std::decay_t<T>, D> &&
-    !is_in_place_type_v<std::decay_t<T>>>;
+      !std::is_same_v<std::decay_t<T>, D> &&
+      !is_in_place_type_v<std::decay_t<T>>>;
 
   // This `noexcept` condition for value construction lets
   // `immobile_any`'s value constructor/assigner be noexcept, so long
   // as the type's copy or move constructor cooperates.
   //
-  template<typename T>
+  template <typename T>
   static constexpr bool value_noexcept_v =
-    std::is_nothrow_constructible_v<std::decay_t<T>, T> && capacity != dynamic;
+      std::is_nothrow_constructible_v<std::decay_t<T>, T> &&
+      capacity != dynamic;
 
   // SFINAE condition for in-place constructors/assigners
   //
-  template<typename T, typename... Args>
-  using in_place_condition_t = std::enable_if_t<std::is_constructible_v<
-						  std::decay_t<T>, Args...>>;
+  template <typename T, typename... Args>
+  using in_place_condition_t =
+      std::enable_if_t<std::is_constructible_v<std::decay_t<T>, Args...>>;
 
   // Analogous to the above. Give noexcept to immobile_any::emplace
   // when possible.
   //
-  template<typename T, typename... Args>
+  template <typename T, typename... Args>
   static constexpr bool in_place_noexcept_v =
-    std::is_nothrow_constructible_v<std::decay_t<T>, Args...> &&
-    capacity != dynamic;
+      std::is_nothrow_constructible_v<std::decay_t<T>, Args...> &&
+      capacity != dynamic;
 
 private:
-
   // Functionality!
   // --------------
 
@@ -195,15 +208,18 @@ private:
   // Construct an object within ourselves. As you can see we give the
   // weak exception safety guarantee.
   //
-  template<typename T, typename ...Args>
-  std::decay_t<T>& construct(Args&& ...args) {
+  template <typename T, typename... Args>
+  std::decay_t<T>&
+  construct(Args&&... args)
+  {
     using Td = std::decay_t<T>;
-    static_assert(capacity == dynamic || sizeof(Td) <= capacity,
-		  "Supplied type is too large for this specialization.");
+    static_assert(
+        capacity == dynamic || sizeof(Td) <= capacity,
+        "Supplied type is too large for this specialization.");
     try {
       func = &op_func<Td>;
       return *new (reinterpret_cast<Td*>(alloc_storage(sizeof(Td))))
-	Td(std::forward<Args>(args)...);
+          Td(std::forward<Args>(args)...);
     } catch (...) {
       reset();
       throw;
@@ -211,7 +227,6 @@ private:
   }
 
 protected:
-
   // We hold the storage, even if the superclass class manipulates it,
   // so that its default initialization comes soon enough for us to
   // use it in our constructors.
@@ -219,21 +234,24 @@ protected:
   storage_t storage;
 
 public:
-
   base() noexcept = default;
-  ~base() noexcept {
-    reset();
-  }
+
+  ~base() noexcept { reset(); }
 
 protected:
   // Since some of our derived classes /can/ be copied or moved.
   //
-  base(const base& rhs) noexcept : func(rhs.func) {
+  base(const base& rhs) noexcept :
+    func(rhs.func)
+  {
     if constexpr (std::is_copy_assignable_v<storage_t>) {
       storage = rhs.storage;
     }
   }
-  base& operator =(const base& rhs) noexcept {
+
+  base&
+  operator=(const base& rhs) noexcept
+  {
     reset();
     func = rhs.func;
     if constexpr (std::is_copy_assignable_v<storage_t>) {
@@ -242,13 +260,18 @@ protected:
     return *this;
   }
 
-  base(base&& rhs) noexcept : func(std::move(rhs.func)) {
+  base(base&& rhs) noexcept :
+    func(std::move(rhs.func))
+  {
     if constexpr (std::is_move_assignable_v<storage_t>) {
       storage = std::move(rhs.storage);
     }
     rhs.func = nullptr;
   }
-  base& operator =(base&& rhs) noexcept {
+
+  base&
+  operator=(base&& rhs) noexcept
+  {
     reset();
     func = rhs.func;
     if constexpr (std::is_move_assignable_v<storage_t>) {
@@ -259,21 +282,21 @@ protected:
   }
 
 public:
-
   // Value construct/assign
   // ----------------------
   //
-  template<typename T,
-	   typename = value_condition_t<T>>
-  base(T&& t) noexcept(value_noexcept_v<T>) {
+  template <typename T, typename = value_condition_t<T>>
+  base(T&& t) noexcept(value_noexcept_v<T>)
+  {
     construct<T>(std::forward<T>(t));
   }
 
   // On exception, *this is set to empty.
   //
-  template<typename T,
-           typename = value_condition_t<T>>
-  base& operator =(T&& t) noexcept(value_noexcept_v<T>) {
+  template <typename T, typename = value_condition_t<T>>
+  base&
+  operator=(T&& t) noexcept(value_noexcept_v<T>)
+  {
     reset();
     construct<T>(std::forward<T>(t));
     return *this;
@@ -313,55 +336,54 @@ public:
   // At the moment, I'm maintaining compatibility with the standard
   // library except for copy/move semantics.
   //
-  template<typename T,
-           typename... Args,
-           typename = in_place_condition_t<T, Args...>>
-  base(std::in_place_type_t<T>,
-       Args&& ...args) noexcept(in_place_noexcept_v<T, Args...>) {
+  template <typename T, typename... Args, typename = in_place_condition_t<T, Args...>>
+  base(std::in_place_type_t<T>, Args&&... args) noexcept(
+      in_place_noexcept_v<T, Args...>)
+  {
     construct<T>(std::forward<Args>(args)...);
   }
 
   // On exception, *this is set to empty.
   //
-  template<typename T,
-           typename... Args,
-           typename = in_place_condition_t<T>>
-  std::decay_t<T>& emplace(Args&& ...args) noexcept(in_place_noexcept_v<
-						    T, Args...>) {
+  template <typename T, typename... Args, typename = in_place_condition_t<T>>
+  std::decay_t<T>&
+  emplace(Args&&... args) noexcept(in_place_noexcept_v<T, Args...>)
+  {
     reset();
     return construct<T>(std::forward<Args>(args)...);
   }
 
-  template<typename T,
-           typename U,
-           typename... Args,
-           typename = in_place_condition_t<T, std::initializer_list<U>,
-					   Args...>>
-  base(std::in_place_type_t<T>,
-       std::initializer_list<U> i,
-       Args&& ...args) noexcept(in_place_noexcept_v<T, std::initializer_list<U>,
-				Args...>) {
+  template <
+      typename T,
+      typename U,
+      typename... Args,
+      typename = in_place_condition_t<T, std::initializer_list<U>, Args...>>
+  base(std::in_place_type_t<T>, std::initializer_list<U> i, Args&&... args) noexcept(
+      in_place_noexcept_v<T, std::initializer_list<U>, Args...>)
+  {
     construct<T>(i, std::forward<Args>(args)...);
   }
 
   // On exception, *this is set to empty.
   //
-  template<typename T,
-           typename U,
-           typename... Args,
-           typename = in_place_condition_t<T, std::initializer_list<U>,
-					   Args...>>
-  std::decay_t<T>& emplace(std::initializer_list<U> i,
-                           Args&& ...args) noexcept(in_place_noexcept_v<T,
-						    std::initializer_list<U>,
-						    Args...>) {
+  template <
+      typename T,
+      typename U,
+      typename... Args,
+      typename = in_place_condition_t<T, std::initializer_list<U>, Args...>>
+  std::decay_t<T>&
+  emplace(std::initializer_list<U> i, Args&&... args) noexcept(
+      in_place_noexcept_v<T, std::initializer_list<U>, Args...>)
+  {
     reset();
-    return construct<T>(i,std::forward<Args>(args)...);
+    return construct<T>(i, std::forward<Args>(args)...);
   }
 
   // Empty ourselves, using the subclass to free any storage.
   //
-  void reset() noexcept {
+  void
+  reset() noexcept
+  {
     if (has_value()) {
       func(op::destroy, ptr());
       func = nullptr;
@@ -369,9 +391,12 @@ public:
     free_storage();
   }
 
-  template<typename U = storage_t,
-	   typename = std::enable_if<std::is_swappable_v<storage_t>>>
-  void swap(base& rhs) {
+  template <
+      typename U = storage_t,
+      typename = std::enable_if<std::is_swappable_v<storage_t>>>
+  void
+  swap(base& rhs)
+  {
     using std::swap;
     swap(func, rhs.func);
     swap(storage, rhs.storage);
@@ -380,13 +405,17 @@ public:
   // All other functions should use this function to test emptiness
   // rather than examining `func` directly.
   //
-  bool has_value() const noexcept {
+  bool
+  has_value() const noexcept
+  {
     return !!func;
   }
 
   // Returns the type of the value stored, if any.
   //
-  const std::type_info& type() const noexcept {
+  const std::type_info&
+  type() const noexcept
+  {
     if (has_value()) {
       const std::type_info* t;
       func(op::type, reinterpret_cast<void*>(&t));
@@ -396,7 +425,7 @@ public:
     }
   }
 
-  template<typename T, typename U, typename V>
+  template <typename T, typename U, typename V>
   friend inline void* cast_helper(const base<U, V>& b) noexcept;
 };
 
@@ -405,16 +434,17 @@ public:
 // Returns a void* to the contents if they exist and match the
 // requested type, otherwise `nullptr`.
 //
-template<typename T, typename U, typename V>
-inline void* cast_helper(const base<U, V>& b) noexcept {
-  if (b.func && ((&op_func<T> == b.func) ||
-		 (b.type() == typeid(T)))) {
+template <typename T, typename U, typename V>
+inline void*
+cast_helper(const base<U, V>& b) noexcept
+{
+  if (b.func && ((&op_func<T> == b.func) || (b.type() == typeid(T)))) {
     return b.ptr();
   } else {
     return nullptr;
   }
 }
-}
+} // namespace _any
 
 // `any_cast`
 // ==========
@@ -426,16 +456,20 @@ inline void* cast_helper(const base<U, V>& b) noexcept {
 
 // The pointer pair!
 //
-template<typename T, typename U, typename V>
-inline T* any_cast(_any::base<U, V>* a) noexcept {
+template <typename T, typename U, typename V>
+inline T*
+any_cast(_any::base<U, V>* a) noexcept
+{
   if (a) {
     return static_cast<T*>(_any::cast_helper<std::decay_t<T>>(*a));
   }
   return nullptr;
 }
 
-template<typename T, typename U, typename V>
-inline const T* any_cast(const _any::base<U, V>* a) noexcept {
+template <typename T, typename U, typename V>
+inline const T*
+any_cast(const _any::base<U, V>* a) noexcept
+{
   if (a) {
     return static_cast<T*>(_any::cast_helper<std::decay_t<T>>(*a));
   }
@@ -445,12 +479,14 @@ inline const T* any_cast(const _any::base<U, V>* a) noexcept {
 // While we disallow copying the immobile any itself, we can allow
 // anything with an extracted value that the type supports.
 //
-template<typename T, typename U, typename V>
-inline T any_cast(_any::base<U, V>& a) {
-  static_assert(std::is_reference_v<T> ||
-                std::is_copy_constructible_v<T>,
-                "The supplied type must be either a reference or "
-                "copy constructible.");
+template <typename T, typename U, typename V>
+inline T
+any_cast(_any::base<U, V>& a)
+{
+  static_assert(
+      std::is_reference_v<T> || std::is_copy_constructible_v<T>,
+      "The supplied type must be either a reference or "
+      "copy constructible.");
   auto p = any_cast<std::decay_t<T>>(&a);
   if (p) {
     return static_cast<T>(*p);
@@ -458,12 +494,14 @@ inline T any_cast(_any::base<U, V>& a) {
   throw std::bad_any_cast();
 }
 
-template<typename T, typename U, typename V>
-inline T any_cast(const _any::base<U, V>& a) {
-  static_assert(std::is_reference_v<T> ||
-                std::is_copy_constructible_v<T>,
-                "The supplied type must be either a reference or "
-                "copy constructible.");
+template <typename T, typename U, typename V>
+inline T
+any_cast(const _any::base<U, V>& a)
+{
+  static_assert(
+      std::is_reference_v<T> || std::is_copy_constructible_v<T>,
+      "The supplied type must be either a reference or "
+      "copy constructible.");
   auto p = any_cast<std::decay_t<T>>(&a);
   if (p) {
     return static_cast<T>(*p);
@@ -471,11 +509,13 @@ inline T any_cast(const _any::base<U, V>& a) {
   throw std::bad_any_cast();
 }
 
-template<typename T, typename U, typename V>
-inline std::enable_if_t<(std::is_move_constructible_v<T> ||
-			 std::is_copy_constructible_v<T>) &&
-			!std::is_rvalue_reference_v<T>, T>
-any_cast(_any::base<U, V>&& a) {
+template <typename T, typename U, typename V>
+inline std::enable_if_t<
+    (std::is_move_constructible_v<T> || std::is_copy_constructible_v<T>) &&
+        !std::is_rvalue_reference_v<T>,
+    T>
+any_cast(_any::base<U, V>&& a)
+{
   auto p = any_cast<std::decay_t<T>>(&a);
   if (p) {
     return std::move((*p));
@@ -483,9 +523,10 @@ any_cast(_any::base<U, V>&& a) {
   throw std::bad_any_cast();
 }
 
-template<typename T, typename U, typename V>
+template <typename T, typename U, typename V>
 inline std::enable_if_t<std::is_rvalue_reference_v<T>, T>
-any_cast(_any::base<U, V>&& a) {
+any_cast(_any::base<U, V>&& a)
+{
   auto p = any_cast<std::decay_t<T>>(&a);
   if (p) {
     return static_cast<T>(*p);
@@ -493,10 +534,10 @@ any_cast(_any::base<U, V>&& a) {
   throw std::bad_any_cast();
 }
 
- template<std::size_t S, std::size_t Alignment = std::bit_ceil(S)>
- struct alignas(Alignment) aligned_storage {
-   std::byte data[S];
- };
+template <std::size_t S, std::size_t Alignment = std::bit_ceil(S)>
+struct alignas(Alignment) aligned_storage {
+  std::byte data[S];
+};
 
 // `immobile_any`
 // ==============
@@ -514,7 +555,7 @@ any_cast(_any::base<U, V>&& a) {
 // store types with throwing destructors, but terminate will be
 // invoked when they throw.
 //
-template<std::size_t S>
+template <std::size_t S>
 class immobile_any : public _any::base<immobile_any<S>, aligned_storage<S>> {
   using base = _any::base<immobile_any<S>, aligned_storage<S>>;
   friend base;
@@ -528,39 +569,52 @@ class immobile_any : public _any::base<immobile_any<S>, aligned_storage<S>> {
   // pointer to it when asked.
   //
   static constexpr std::size_t capacity = S;
-  void* ptr() const noexcept {
+
+  void*
+  ptr() const noexcept
+  {
     return const_cast<void*>(static_cast<const void*>(&storage));
   }
-  void* alloc_storage(std::size_t) noexcept {
+
+  void*
+  alloc_storage(std::size_t) noexcept
+  {
     return ptr();
   }
-  void free_storage() noexcept {}
 
-  static_assert(capacity != _any::dynamic,
-		"That is not a valid size for an immobile_any.");
+  void
+  free_storage() noexcept
+  {}
+
+  static_assert(
+      capacity != _any::dynamic,
+      "That is not a valid size for an immobile_any.");
 
 public:
-
   immobile_any() noexcept = default;
 
   immobile_any(const immobile_any&) = delete;
-  immobile_any& operator =(const immobile_any&) = delete;
+  immobile_any& operator=(const immobile_any&) = delete;
   immobile_any(immobile_any&&) = delete;
-  immobile_any& operator =(immobile_any&&) = delete;
+  immobile_any& operator=(immobile_any&&) = delete;
 
   using base::base;
-  using base::operator =;
+  using base::operator=;
 
   void swap(immobile_any&) = delete;
 };
 
-template<typename T, std::size_t S, typename... Args>
-inline immobile_any<S> make_immobile_any(Args&& ...args) {
+template <typename T, std::size_t S, typename... Args>
+inline immobile_any<S>
+make_immobile_any(Args&&... args)
+{
   return immobile_any<S>(std::in_place_type<T>, std::forward<Args>(args)...);
 }
 
-template<typename T, std::size_t S, typename U, typename... Args>
-inline immobile_any<S> make_immobile_any(std::initializer_list<U> i, Args&& ...args) {
+template <typename T, std::size_t S, typename U, typename... Args>
+inline immobile_any<S>
+make_immobile_any(std::initializer_list<U> i, Args&&... args)
+{
   return immobile_any<S>(std::in_place_type<T>, i, std::forward<Args>(args)...);
 }
 
@@ -594,49 +648,61 @@ class unique_any : public _any::base<unique_any, std::unique_ptr<std::byte[]>> {
   // `std::unique_ptr`.
   //
   static constexpr std::size_t capacity = _any::dynamic;
-  void* ptr() const noexcept {
+
+  void*
+  ptr() const noexcept
+  {
     return static_cast<void*>(storage.get());
     return nullptr;
   }
 
-  void* alloc_storage(const std::size_t z) {
+  void*
+  alloc_storage(const std::size_t z)
+  {
     storage.reset(new std::byte[z]);
     return ptr();
   }
 
-  void free_storage() noexcept {
+  void
+  free_storage() noexcept
+  {
     storage.reset();
   }
 
 public:
-
   unique_any() noexcept = default;
   ~unique_any() noexcept = default;
 
   unique_any(const unique_any&) = delete;
-  unique_any& operator =(const unique_any&) = delete;
+  unique_any& operator=(const unique_any&) = delete;
 
   // We can rely on the behavior of `unique_ptr` and the base class to
   // give us a default move constructor that does the right thing.
   //
   unique_any(unique_any&& rhs) noexcept = default;
-  unique_any& operator =(unique_any&& rhs) = default;
+  unique_any& operator=(unique_any&& rhs) = default;
 
   using base::base;
-  using base::operator =;
+  using base::operator=;
 };
 
-inline void swap(unique_any& lhs, unique_any& rhs) noexcept {
+inline void
+swap(unique_any& lhs, unique_any& rhs) noexcept
+{
   lhs.swap(rhs);
 }
 
-template<typename T, typename... Args>
-inline unique_any make_unique_any(Args&& ...args) {
+template <typename T, typename... Args>
+inline unique_any
+make_unique_any(Args&&... args)
+{
   return unique_any(std::in_place_type<T>, std::forward<Args>(args)...);
 }
 
-template<typename T, typename U, typename... Args>
-inline unique_any make_unique_any(std::initializer_list<U> i, Args&& ...args) {
+template <typename T, typename U, typename... Args>
+inline unique_any
+make_unique_any(std::initializer_list<U> i, Args&&... args)
+{
   return unique_any(std::in_place_type<T>, i, std::forward<Args>(args)...);
 }
 
@@ -648,7 +714,8 @@ inline unique_any make_unique_any(std::initializer_list<U> i, Args&& ...args) {
 // This is both copyable *and* movable. In case you need that sort of
 // thing. It seemed a reasonable completion.
 //
-class shared_any : public _any::base<shared_any, boost::shared_ptr<std::byte[]>> {
+class shared_any
+  : public _any::base<shared_any, boost::shared_ptr<std::byte[]>> {
   using base = _any::base<shared_any, boost::shared_ptr<std::byte[]>>;
   friend base;
 
@@ -664,47 +731,59 @@ class shared_any : public _any::base<shared_any, boost::shared_ptr<std::byte[]>>
   // time on `memset`.)
   //
   static constexpr std::size_t capacity = _any::dynamic;
-  void* ptr() const noexcept {
+
+  void*
+  ptr() const noexcept
+  {
     return static_cast<void*>(storage.get());
   }
 
-  void* alloc_storage(std::size_t n) {
+  void*
+  alloc_storage(std::size_t n)
+  {
     storage = boost::make_shared_noinit<std::byte[]>(n);
     return ptr();
   }
 
-  void free_storage() noexcept {
+  void
+  free_storage() noexcept
+  {
     storage.reset();
   }
 
 public:
-
   shared_any() noexcept = default;
   ~shared_any() noexcept = default;
 
   shared_any(const shared_any& rhs) noexcept = default;
-  shared_any& operator =(const shared_any&) noexcept = default;
+  shared_any& operator=(const shared_any&) noexcept = default;
 
   shared_any(shared_any&& rhs) noexcept = default;
-  shared_any& operator =(shared_any&& rhs) noexcept = default;
+  shared_any& operator=(shared_any&& rhs) noexcept = default;
 
   using base::base;
-  using base::operator =;
+  using base::operator=;
 };
 
-inline void swap(shared_any& lhs, shared_any& rhs) noexcept {
+inline void
+swap(shared_any& lhs, shared_any& rhs) noexcept
+{
   lhs.swap(rhs);
 }
 
-template<typename T, typename... Args>
-inline shared_any make_shared_any(Args&& ...args) {
+template <typename T, typename... Args>
+inline shared_any
+make_shared_any(Args&&... args)
+{
   return shared_any(std::in_place_type<T>, std::forward<Args>(args)...);
 }
 
-template<typename T, typename U, typename... Args>
-inline shared_any make_shared_any(std::initializer_list<U> i, Args&& ...args) {
+template <typename T, typename U, typename... Args>
+inline shared_any
+make_shared_any(std::initializer_list<U> i, Args&&... args)
+{
   return shared_any(std::in_place_type<T>, i, std::forward<Args>(args)...);
 }
-}
+} // namespace ceph
 
 #endif // INCLUDE_STATIC_ANY

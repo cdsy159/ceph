@@ -18,8 +18,9 @@
 #define CEPH_COMMON_DETAIL_CONSTRUCT_SUSPENDED_H
 
 namespace ceph {
-  struct construct_suspended_t { };
-  inline constexpr construct_suspended_t construct_suspended { };
-}
+struct construct_suspended_t {};
+
+inline constexpr construct_suspended_t construct_suspended{};
+} // namespace ceph
 
 #endif // CEPH_COMMON_DETAIL_CONSTRUCT_SUSPENDED_H

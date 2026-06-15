@@ -4,8 +4,9 @@
 #ifndef CEPH_TEST_LIBRBD_MOCK_EXCLUSIVE_LOCK_POLICY_H
 #define CEPH_TEST_LIBRBD_MOCK_EXCLUSIVE_LOCK_POLICY_H
 
-#include "librbd/exclusive_lock/Policy.h"
 #include <gmock/gmock.h>
+
+#include "librbd/exclusive_lock/Policy.h"
 
 namespace librbd {
 namespace exclusive_lock {
@@ -18,6 +19,6 @@ struct MockPolicy : public Policy {
 };
 
 } // namespace exclusive_lock
-} // librbd
+} // namespace librbd
 
 #endif

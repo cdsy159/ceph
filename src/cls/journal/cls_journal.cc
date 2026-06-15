@@ -1,18 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/encoding.h"
-#include "include/intarith.h" // for round_up_to()
-#include "common/errno.h"
-#include "objclass/objclass.h"
-#include "cls/journal/cls_journal_types.h"
 #include <errno.h>
+
 #include <iomanip>
 #include <map>
-#include <string>
 #include <sstream>
+#include <string>
+
+#include "cls/journal/cls_journal_types.h"
+#include "common/errno.h"
+#include "include/buffer.h"
+#include "include/encoding.h"
+#include "include/int_types.h"
+#include "include/intarith.h" // for round_up_to()
+#include "objclass/objclass.h"
 
 CLS_VER(1, 0)
 CLS_NAME(journal)
@@ -27,31 +29,39 @@ namespace {
 
 static const uint64_t MAX_KEYS_READ = 64;
 
-static const std::string HEADER_KEY_ORDER          = "order";
-static const std::string HEADER_KEY_SPLAY_WIDTH    = "splay_width";
-static const std::string HEADER_KEY_POOL_ID        = "pool_id";
-static const std::string HEADER_KEY_MINIMUM_SET    = "minimum_set";
-static const std::string HEADER_KEY_ACTIVE_SET     = "active_set";
-static const std::string HEADER_KEY_NEXT_TAG_TID   = "next_tag_tid";
+static const std::string HEADER_KEY_ORDER = "order";
+static const std::string HEADER_KEY_SPLAY_WIDTH = "splay_width";
+static const std::string HEADER_KEY_POOL_ID = "pool_id";
+static const std::string HEADER_KEY_MINIMUM_SET = "minimum_set";
+static const std::string HEADER_KEY_ACTIVE_SET = "active_set";
+static const std::string HEADER_KEY_NEXT_TAG_TID = "next_tag_tid";
 static const std::string HEADER_KEY_NEXT_TAG_CLASS = "next_tag_class";
-static const std::string HEADER_KEY_CLIENT_PREFIX  = "client_";
-static const std::string HEADER_KEY_TAG_PREFIX     = "tag_";
+static const std::string HEADER_KEY_CLIENT_PREFIX = "client_";
+static const std::string HEADER_KEY_TAG_PREFIX = "tag_";
 
-std::string to_hex(uint64_t value) {
+std::string
+to_hex(uint64_t value)
+{
   std::ostringstream oss;
   oss << std::setw(16) << std::setfill('0') << std::hex << value;
   return oss.str();
 }
 
-std::string key_from_client_id(const std::string &client_id) {
+std::string
+key_from_client_id(const std::string& client_id)
+{
   return HEADER_KEY_CLIENT_PREFIX + client_id;
 }
 
-std::string key_from_tag_tid(uint64_t tag_tid) {
+std::string
+key_from_tag_tid(uint64_t tag_tid)
+{
   return HEADER_KEY_TAG_PREFIX + to_hex(tag_tid);
 }
 
-uint64_t tag_tid_from_key(const std::string &key) {
+uint64_t
+tag_tid_from_key(const std::string& key)
+{
   std::istringstream iss(key);
   uint64_t id;
   iss.ignore(HEADER_KEY_TAG_PREFIX.size()) >> std::hex >> id;
@@ -59,8 +69,13 @@ uint64_t tag_tid_from_key(const std::string &key) {
 }
 
 template <typename T>
-int read_key(cls_method_context_t hctx, const string &key, T *t,
-             bool ignore_enoent = false) {
+int
+read_key(
+    cls_method_context_t hctx,
+    const string& key,
+    T* t,
+    bool ignore_enoent = false)
+{
   bufferlist bl;
   int r = cls_cxx_map_get_val(hctx, key, &bl);
   if (r == -ENOENT) {
@@ -76,7 +91,7 @@ int read_key(cls_method_context_t hctx, const string &key, T *t,
   try {
     auto iter = bl.cbegin();
     decode(*t, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -84,7 +99,9 @@ int read_key(cls_method_context_t hctx, const string &key, T *t,
 }
 
 template <typename T>
-int write_key(cls_method_context_t hctx, const string &key, const T &t) {
+int
+write_key(cls_method_context_t hctx, const string& key, const T& t)
+{
   bufferlist bl;
   encode(t, bl);
 
@@ -96,16 +113,20 @@ int write_key(cls_method_context_t hctx, const string &key, const T &t) {
   return 0;
 }
 
-int remove_key(cls_method_context_t hctx, const string &key) {
+int
+remove_key(cls_method_context_t hctx, const string& key)
+{
   int r = cls_cxx_map_remove_key(hctx, key);
   if (r < 0 && r != -ENOENT) {
-      CLS_ERR("failed to remove key: %s", key.c_str());
-      return r;
+    CLS_ERR("failed to remove key: %s", key.c_str());
+    return r;
   }
   return 0;
 }
 
-int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
+int
+expire_tags(cls_method_context_t hctx, const std::string* skip_client_id)
+{
 
   std::string skip_client_key;
   if (skip_client_id != nullptr) {
@@ -117,15 +138,15 @@ int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
   bool more;
   do {
     std::map<std::string, bufferlist> vals;
-    int r = cls_cxx_map_get_vals(hctx, last_read, HEADER_KEY_CLIENT_PREFIX,
-                                 MAX_KEYS_READ, &vals, &more);
+    int r = cls_cxx_map_get_vals(
+        hctx, last_read, HEADER_KEY_CLIENT_PREFIX, MAX_KEYS_READ, &vals, &more);
     if (r < 0 && r != -ENOENT) {
-      CLS_ERR("failed to retrieve registered clients: %s",
-              cpp_strerror(r).c_str());
+      CLS_ERR(
+          "failed to retrieve registered clients: %s", cpp_strerror(r).c_str());
       return r;
     }
 
-    for (auto &val : vals) {
+    for (auto& val : vals) {
       // if we are removing a client, skip its commit positions
       if (val.first == skip_client_key) {
         continue;
@@ -135,9 +156,8 @@ int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
       auto iter = val.second.cbegin();
       try {
         decode(client, iter);
-      } catch (const ceph::buffer::error &err) {
-        CLS_ERR("error decoding registered client: %s",
-                val.first.c_str());
+      } catch (const ceph::buffer::error& err) {
+        CLS_ERR("error decoding registered client: %s", val.first.c_str());
         return -EIO;
       }
 
@@ -165,26 +185,30 @@ int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
 
   // compute the minimum in-use tag for each class
   std::map<uint64_t, uint64_t> minimum_tag_class_to_tids;
-  typedef enum { TAG_PASS_CALCULATE_MINIMUMS,
-                 TAG_PASS_SCRUB,
-                 TAG_PASS_DONE } TagPass;
+
+  typedef enum {
+    TAG_PASS_CALCULATE_MINIMUMS,
+    TAG_PASS_SCRUB,
+    TAG_PASS_DONE
+  } TagPass;
+
   int tag_pass = TAG_PASS_CALCULATE_MINIMUMS;
   last_read = HEADER_KEY_TAG_PREFIX;
   do {
     std::map<std::string, bufferlist> vals;
-    int r = cls_cxx_map_get_vals(hctx, last_read, HEADER_KEY_TAG_PREFIX,
-                             MAX_KEYS_READ, &vals, &more);
+    int r = cls_cxx_map_get_vals(
+        hctx, last_read, HEADER_KEY_TAG_PREFIX, MAX_KEYS_READ, &vals, &more);
     if (r < 0 && r != -ENOENT) {
       CLS_ERR("failed to retrieve tags: %s", cpp_strerror(r).c_str());
       return r;
     }
 
-    for (auto &val : vals) {
+    for (auto& val : vals) {
       cls::journal::Tag tag;
       auto iter = val.second.cbegin();
       try {
         decode(tag, iter);
-      } catch (const ceph::buffer::error &err) {
+      } catch (const ceph::buffer::error& err) {
         CLS_ERR("error decoding tag: %s", val.first.c_str());
         return -EIO;
       }
@@ -196,8 +220,9 @@ int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
 
       if (tag_pass == TAG_PASS_CALCULATE_MINIMUMS) {
         minimum_tag_class_to_tids[tag.tag_class] = tag.tid;
-      } else if (tag_pass == TAG_PASS_SCRUB &&
-                 tag.tid < minimum_tag_class_to_tids[tag.tag_class]) {
+      } else if (
+          tag_pass == TAG_PASS_SCRUB &&
+          tag.tid < minimum_tag_class_to_tids[tag.tag_class]) {
         r = remove_key(hctx, val.first);
         if (r < 0) {
           return r;
@@ -222,9 +247,13 @@ int expire_tags(cls_method_context_t hctx, const std::string *skip_client_id) {
   return 0;
 }
 
-int get_client_list_range(cls_method_context_t hctx,
-                          std::set<cls::journal::Client> *clients,
-                          std::string start_after, uint64_t max_return) {
+int
+get_client_list_range(
+    cls_method_context_t hctx,
+    std::set<cls::journal::Client>* clients,
+    std::string start_after,
+    uint64_t max_return)
+{
   std::string last_read;
   if (!start_after.empty()) {
     last_read = key_from_client_id(start_after);
@@ -232,8 +261,8 @@ int get_client_list_range(cls_method_context_t hctx,
 
   std::map<std::string, bufferlist> vals;
   bool more;
-  int r = cls_cxx_map_get_vals(hctx, last_read, HEADER_KEY_CLIENT_PREFIX,
-                               max_return, &vals, &more);
+  int r = cls_cxx_map_get_vals(
+      hctx, last_read, HEADER_KEY_CLIENT_PREFIX, max_return, &vals, &more);
   if (r < 0) {
     CLS_ERR("failed to retrieve omap values: %s", cpp_strerror(r).c_str());
     return r;
@@ -247,9 +276,8 @@ int get_client_list_range(cls_method_context_t hctx,
       cls::journal::Client client;
       decode(client, iter);
       clients->insert(client);
-    } catch (const ceph::buffer::error &err) {
-      CLS_ERR("could not decode client '%s': %s", it->first.c_str(),
-              err.what());
+    } catch (const ceph::buffer::error& err) {
+      CLS_ERR("could not decode client '%s': %s", it->first.c_str(), err.what());
       return -EIO;
     }
   }
@@ -257,8 +285,11 @@ int get_client_list_range(cls_method_context_t hctx,
   return 0;
 }
 
-int find_min_commit_position(cls_method_context_t hctx,
-                             cls::journal::ObjectSetPosition *minset) {
+int
+find_min_commit_position(
+    cls_method_context_t hctx,
+    cls::journal::ObjectSetPosition* minset)
+{
   int r;
   bool valid = false;
   std::string start_after = "";
@@ -267,30 +298,33 @@ int find_min_commit_position(cls_method_context_t hctx,
   while (true) {
     std::set<cls::journal::Client> batch;
 
-    r = get_client_list_range(hctx, &batch, start_after, cls::journal::JOURNAL_MAX_RETURN);
+    r = get_client_list_range(
+        hctx, &batch, start_after, cls::journal::JOURNAL_MAX_RETURN);
     if ((r < 0) || batch.empty()) {
       break;
     }
 
     start_after = batch.rbegin()->id;
     // update the (minimum) commit position from this batch of clients
-    for (const auto &client : batch) {
+    for (const auto& client : batch) {
       if (client.state == cls::journal::CLIENT_STATE_DISCONNECTED) {
         continue;
       }
-      const auto &object_set_position = client.commit_position;
+      const auto& object_set_position = client.commit_position;
       if (object_set_position.object_positions.empty()) {
-	*minset = cls::journal::ObjectSetPosition();
-	break;
+        *minset = cls::journal::ObjectSetPosition();
+        break;
       }
-      cls::journal::ObjectPosition first = object_set_position.object_positions.front();
+      cls::journal::ObjectPosition first =
+          object_set_position.object_positions.front();
 
       // least tag_tid (or least entry_tid for matching tag_tid)
-      if (!valid || (tag_tid > first.tag_tid) || ((tag_tid == first.tag_tid) && (entry_tid > first.entry_tid))) {
-	tag_tid = first.tag_tid;
-	entry_tid = first.entry_tid;
-	*minset = cls::journal::ObjectSetPosition(object_set_position);
-	valid = true;
+      if (!valid || (tag_tid > first.tag_tid) ||
+          ((tag_tid == first.tag_tid) && (entry_tid > first.entry_tid))) {
+        tag_tid = first.tag_tid;
+        entry_tid = first.entry_tid;
+        *minset = cls::journal::ObjectSetPosition(object_set_position);
+        valid = true;
       }
     }
 
@@ -313,7 +347,9 @@ int find_min_commit_position(cls_method_context_t hctx,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_create(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
+int
+journal_create(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint8_t order;
   uint8_t splay_width;
   int64_t pool_id;
@@ -322,7 +358,7 @@ int journal_create(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
     decode(order, iter);
     decode(splay_width, iter);
     decode(pool_id, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -383,8 +419,9 @@ int journal_create(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
  * order (uint8_t)
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_order(cls_method_context_t hctx, bufferlist *in,
-                      bufferlist *out) {
+int
+journal_get_order(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint8_t order;
   int r = read_key(hctx, HEADER_KEY_ORDER, &order);
   if (r < 0) {
@@ -403,8 +440,12 @@ int journal_get_order(cls_method_context_t hctx, bufferlist *in,
  * splay_width (uint8_t)
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_splay_width(cls_method_context_t hctx, bufferlist *in,
-                            bufferlist *out) {
+int
+journal_get_splay_width(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   uint8_t splay_width;
   int r = read_key(hctx, HEADER_KEY_SPLAY_WIDTH, &splay_width);
   if (r < 0) {
@@ -423,8 +464,9 @@ int journal_get_splay_width(cls_method_context_t hctx, bufferlist *in,
  * pool_id (int64_t)
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_pool_id(cls_method_context_t hctx, bufferlist *in,
-                            bufferlist *out) {
+int
+journal_get_pool_id(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   int64_t pool_id = 0;
   int r = read_key(hctx, HEADER_KEY_POOL_ID, &pool_id);
   if (r < 0) {
@@ -443,8 +485,12 @@ int journal_get_pool_id(cls_method_context_t hctx, bufferlist *in,
  * object set (uint64_t)
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_minimum_set(cls_method_context_t hctx, bufferlist *in,
-                            bufferlist *out) {
+int
+journal_get_minimum_set(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   uint64_t minimum_set;
   int r = read_key(hctx, HEADER_KEY_MINIMUM_SET, &minimum_set);
   if (r < 0) {
@@ -462,13 +508,17 @@ int journal_get_minimum_set(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_set_minimum_set(cls_method_context_t hctx, bufferlist *in,
-                            bufferlist *out) {
+int
+journal_set_minimum_set(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   uint64_t object_set;
   try {
     auto iter = in->cbegin();
     decode(object_set, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -480,8 +530,9 @@ int journal_set_minimum_set(cls_method_context_t hctx, bufferlist *in,
   }
 
   if (current_active_set < object_set) {
-    CLS_LOG(10, "active object set earlier than minimum: %" PRIu64
-            " < %" PRIu64, current_active_set, object_set);
+    CLS_LOG(
+        10, "active object set earlier than minimum: %" PRIu64 " < %" PRIu64,
+        current_active_set, object_set);
     return -EINVAL;
   }
 
@@ -494,8 +545,9 @@ int journal_set_minimum_set(cls_method_context_t hctx, bufferlist *in,
   if (object_set == current_minimum_set) {
     return 0;
   } else if (object_set < current_minimum_set) {
-    CLS_ERR("object number earlier than current object: %" PRIu64 " < %" PRIu64,
-            object_set, current_minimum_set);
+    CLS_ERR(
+        "object number earlier than current object: %" PRIu64 " < %" PRIu64,
+        object_set, current_minimum_set);
     return -ESTALE;
   }
 
@@ -514,8 +566,9 @@ int journal_set_minimum_set(cls_method_context_t hctx, bufferlist *in,
  * object set (uint64_t)
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_active_set(cls_method_context_t hctx, bufferlist *in,
-                           bufferlist *out) {
+int
+journal_get_active_set(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t active_set;
   int r = read_key(hctx, HEADER_KEY_ACTIVE_SET, &active_set);
   if (r < 0) {
@@ -533,13 +586,14 @@ int journal_get_active_set(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_set_active_set(cls_method_context_t hctx, bufferlist *in,
-                           bufferlist *out) {
+int
+journal_set_active_set(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t object_set;
   try {
     auto iter = in->cbegin();
     decode(object_set, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -551,8 +605,9 @@ int journal_set_active_set(cls_method_context_t hctx, bufferlist *in,
   }
 
   if (current_minimum_set > object_set) {
-    CLS_ERR("minimum object set later than active: %" PRIu64
-            " > %" PRIu64, current_minimum_set, object_set);
+    CLS_ERR(
+        "minimum object set later than active: %" PRIu64 " > %" PRIu64,
+        current_minimum_set, object_set);
     return -EINVAL;
   }
 
@@ -565,8 +620,9 @@ int journal_set_active_set(cls_method_context_t hctx, bufferlist *in,
   if (object_set == current_active_set) {
     return 0;
   } else if (object_set < current_active_set) {
-    CLS_ERR("object number earlier than current object: %" PRIu64 " < %" PRIu64,
-            object_set, current_active_set);
+    CLS_ERR(
+        "object number earlier than current object: %" PRIu64 " < %" PRIu64,
+        object_set, current_active_set);
     return -ESTALE;
   }
 
@@ -585,13 +641,14 @@ int journal_set_active_set(cls_method_context_t hctx, bufferlist *in,
  * cls::journal::Client
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_client(cls_method_context_t hctx, bufferlist *in,
-                       bufferlist *out) {
+int
+journal_get_client(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   std::string id;
   try {
     auto iter = in->cbegin();
     decode(id, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -615,15 +672,19 @@ int journal_get_client(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_register(cls_method_context_t hctx, bufferlist *in,
-                            bufferlist *out) {
+int
+journal_client_register(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   std::string id;
   bufferlist data;
   try {
     auto iter = in->cbegin();
     decode(id, iter);
     decode(data, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -665,15 +726,19 @@ int journal_client_register(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_update_data(cls_method_context_t hctx, bufferlist *in,
-                               bufferlist *out) {
+int
+journal_client_update_data(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   std::string id;
   bufferlist data;
   try {
     auto iter = in->cbegin();
     decode(id, iter);
     decode(data, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -701,8 +766,12 @@ int journal_client_update_data(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_update_state(cls_method_context_t hctx, bufferlist *in,
-                                bufferlist *out) {
+int
+journal_client_update_state(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   std::string id;
   cls::journal::ClientState state;
   bufferlist data;
@@ -712,7 +781,7 @@ int journal_client_update_state(cls_method_context_t hctx, bufferlist *in,
     uint8_t state_raw;
     decode(state_raw, iter);
     state = static_cast<cls::journal::ClientState>(state_raw);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -739,13 +808,17 @@ int journal_client_update_state(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_unregister(cls_method_context_t hctx, bufferlist *in,
-                              bufferlist *out) {
+int
+journal_client_unregister(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   std::string id;
   try {
     auto iter = in->cbegin();
     decode(id, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -780,15 +853,16 @@ int journal_client_unregister(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_commit(cls_method_context_t hctx, bufferlist *in,
-                          bufferlist *out) {
+int
+journal_client_commit(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   std::string id;
   cls::journal::ObjectSetPosition commit_position;
   try {
     auto iter = in->cbegin();
     decode(id, iter);
     decode(commit_position, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -831,15 +905,16 @@ int journal_client_commit(cls_method_context_t hctx, bufferlist *in,
  * clients (set<cls::journal::Client>) - collection of registered clients
  * @returns 0 on success, negative error code on failure
  */
-int journal_client_list(cls_method_context_t hctx, bufferlist *in,
-                        bufferlist *out) {
+int
+journal_client_list(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   std::string start_after;
   uint64_t max_return;
   try {
     auto iter = in->cbegin();
     decode(start_after, iter);
     decode(max_return, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -860,8 +935,12 @@ int journal_client_list(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_next_tag_tid(cls_method_context_t hctx, bufferlist *in,
-                             bufferlist *out) {
+int
+journal_get_next_tag_tid(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   uint64_t tag_tid;
   int r = read_key(hctx, HEADER_KEY_NEXT_TAG_TID, &tag_tid);
   if (r < 0) {
@@ -880,13 +959,14 @@ int journal_get_next_tag_tid(cls_method_context_t hctx, bufferlist *in,
  * cls::journal::Tag
  * @returns 0 on success, negative error code on failure
  */
-int journal_get_tag(cls_method_context_t hctx, bufferlist *in,
-                    bufferlist *out) {
+int
+journal_get_tag(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t tag_tid;
   try {
     auto iter = in->cbegin();
     decode(tag_tid, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -911,8 +991,9 @@ int journal_get_tag(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 on success, negative error code on failure
  */
-int journal_tag_create(cls_method_context_t hctx, bufferlist *in,
-                       bufferlist *out) {
+int
+journal_tag_create(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t tag_tid;
   uint64_t tag_class;
   bufferlist data;
@@ -921,7 +1002,7 @@ int journal_tag_create(cls_method_context_t hctx, bufferlist *in,
     decode(tag_tid, iter);
     decode(tag_class, iter);
     decode(data, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -1001,8 +1082,9 @@ int journal_tag_create(cls_method_context_t hctx, bufferlist *in,
  * std::set<cls::journal::Tag> - collection of tags
  * @returns 0 on success, negative error code on failure
  */
-int journal_tag_list(cls_method_context_t hctx, bufferlist *in,
-                     bufferlist *out) {
+int
+journal_tag_list(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t start_after_tag_tid;
   uint64_t max_return;
   std::string client_id;
@@ -1016,7 +1098,7 @@ int journal_tag_list(cls_method_context_t hctx, bufferlist *in,
     decode(max_return, iter);
     decode(client_id, iter);
     decode(tag_class, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -1036,28 +1118,34 @@ int journal_tag_list(cls_method_context_t hctx, bufferlist *in,
   // compute minimum tags in use per-class
   std::set<cls::journal::Tag> tags;
   std::map<uint64_t, uint64_t> minimum_tag_class_to_tids;
-  typedef enum { TAG_PASS_CALCULATE_MINIMUMS,
-                 TAG_PASS_LIST,
-                 TAG_PASS_DONE } TagPass;
-  int tag_pass = (minimum_tag_tid == std::numeric_limits<uint64_t>::max() ?
-    TAG_PASS_LIST : TAG_PASS_CALCULATE_MINIMUMS);
+
+  typedef enum {
+    TAG_PASS_CALCULATE_MINIMUMS,
+    TAG_PASS_LIST,
+    TAG_PASS_DONE
+  } TagPass;
+
+  int tag_pass =
+      (minimum_tag_tid == std::numeric_limits<uint64_t>::max()
+           ? TAG_PASS_LIST
+           : TAG_PASS_CALCULATE_MINIMUMS);
   std::string last_read = HEADER_KEY_TAG_PREFIX;
   do {
     std::map<std::string, bufferlist> vals;
     bool more;
-    r = cls_cxx_map_get_vals(hctx, last_read, HEADER_KEY_TAG_PREFIX,
-                             MAX_KEYS_READ, &vals, &more);
+    r = cls_cxx_map_get_vals(
+        hctx, last_read, HEADER_KEY_TAG_PREFIX, MAX_KEYS_READ, &vals, &more);
     if (r < 0 && r != -ENOENT) {
       CLS_ERR("failed to retrieve tags: %s", cpp_strerror(r).c_str());
       return r;
     }
 
-    for (auto &val : vals) {
+    for (auto& val : vals) {
       cls::journal::Tag tag;
       auto iter = val.second.cbegin();
       try {
         decode(tag, iter);
-      } catch (const ceph::buffer::error &err) {
+      } catch (const ceph::buffer::error& err) {
         CLS_ERR("error decoding tag: %s", val.first.c_str());
         return -EIO;
       }
@@ -1105,13 +1193,17 @@ int journal_tag_list(cls_method_context_t hctx, bufferlist *in,
  * Output:
  * @returns 0 if object size less than max, negative error code otherwise
  */
-int journal_object_guard_append(cls_method_context_t hctx, bufferlist *in,
-                                bufferlist *out) {
+int
+journal_object_guard_append(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   uint64_t soft_max_size;
   try {
     auto iter = in->cbegin();
     decode(soft_max_size, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -1127,8 +1219,8 @@ int journal_object_guard_append(cls_method_context_t hctx, bufferlist *in,
   }
 
   if (size >= soft_max_size) {
-    CLS_LOG(5, "journal object full: %" PRIu64 " >= %" PRIu64,
-            size, soft_max_size);
+    CLS_LOG(
+        5, "journal object full: %" PRIu64 " >= %" PRIu64, size, soft_max_size);
     return -EOVERFLOW;
   }
   return 0;
@@ -1143,15 +1235,16 @@ int journal_object_guard_append(cls_method_context_t hctx, bufferlist *in,
  * @returns 0 on success, negative error code on failure
  * @returns -EOVERFLOW if object size is equal or more than soft_max_size
  */
-int journal_object_append(cls_method_context_t hctx, bufferlist *in,
-                          bufferlist *out) {
+int
+journal_object_append(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   uint64_t soft_max_size;
   bufferlist data;
   try {
     auto iter = in->cbegin();
     decode(soft_max_size, iter);
     decode(data, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("failed to decode input parameters: %s", err.what());
     return -EINVAL;
   }
@@ -1164,14 +1257,14 @@ int journal_object_append(cls_method_context_t hctx, bufferlist *in,
   }
 
   if (size >= soft_max_size) {
-    CLS_LOG(5, "journal object full: %" PRIu64 " >= %" PRIu64,
-            size, soft_max_size);
+    CLS_LOG(
+        5, "journal object full: %" PRIu64 " >= %" PRIu64, size, soft_max_size);
     return -EOVERFLOW;
   }
 
   auto offset = size;
-  r = cls_cxx_write2(hctx, offset, data.length(), &data,
-                     CEPH_OSD_OP_FLAG_FADVISE_DONTNEED);
+  r = cls_cxx_write2(
+      hctx, offset, data.length(), &data, CEPH_OSD_OP_FLAG_FADVISE_DONTNEED);
   if (r < 0) {
     CLS_ERR("append: error when writing: %s", cpp_strerror(r).c_str());
     return r;
@@ -1238,79 +1331,69 @@ CLS_INIT(journal)
   cls_register("journal", &h_class);
 
   /// methods for journal.$journal_id objects
-  cls_register_cxx_method(h_class, "create",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_create, &h_journal_create);
-  cls_register_cxx_method(h_class, "get_order",
-                          CLS_METHOD_RD,
-                          journal_get_order, &h_journal_get_order);
-  cls_register_cxx_method(h_class, "get_splay_width",
-                          CLS_METHOD_RD,
-                          journal_get_splay_width, &h_journal_get_splay_width);
-  cls_register_cxx_method(h_class, "get_pool_id",
-                          CLS_METHOD_RD,
-                          journal_get_pool_id, &h_journal_get_pool_id);
-  cls_register_cxx_method(h_class, "get_minimum_set",
-                          CLS_METHOD_RD,
-                          journal_get_minimum_set,
-                          &h_journal_get_minimum_set);
-  cls_register_cxx_method(h_class, "set_minimum_set",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_set_minimum_set,
-                          &h_journal_set_minimum_set);
-  cls_register_cxx_method(h_class, "get_active_set",
-                          CLS_METHOD_RD,
-                          journal_get_active_set,
-                          &h_journal_get_active_set);
-  cls_register_cxx_method(h_class, "set_active_set",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_set_active_set,
-                          &h_journal_set_active_set);
+  cls_register_cxx_method(
+      h_class, "create", CLS_METHOD_RD | CLS_METHOD_WR, journal_create,
+      &h_journal_create);
+  cls_register_cxx_method(
+      h_class, "get_order", CLS_METHOD_RD, journal_get_order,
+      &h_journal_get_order);
+  cls_register_cxx_method(
+      h_class, "get_splay_width", CLS_METHOD_RD, journal_get_splay_width,
+      &h_journal_get_splay_width);
+  cls_register_cxx_method(
+      h_class, "get_pool_id", CLS_METHOD_RD, journal_get_pool_id,
+      &h_journal_get_pool_id);
+  cls_register_cxx_method(
+      h_class, "get_minimum_set", CLS_METHOD_RD, journal_get_minimum_set,
+      &h_journal_get_minimum_set);
+  cls_register_cxx_method(
+      h_class, "set_minimum_set", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_set_minimum_set, &h_journal_set_minimum_set);
+  cls_register_cxx_method(
+      h_class, "get_active_set", CLS_METHOD_RD, journal_get_active_set,
+      &h_journal_get_active_set);
+  cls_register_cxx_method(
+      h_class, "set_active_set", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_set_active_set, &h_journal_set_active_set);
 
-  cls_register_cxx_method(h_class, "get_client",
-                          CLS_METHOD_RD,
-                          journal_get_client, &h_journal_get_client);
-  cls_register_cxx_method(h_class, "client_register",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_client_register, &h_journal_client_register);
-  cls_register_cxx_method(h_class, "client_update_data",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_client_update_data,
-                          &h_journal_client_update_data);
-  cls_register_cxx_method(h_class, "client_update_state",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_client_update_state,
-                          &h_journal_client_update_state);
-  cls_register_cxx_method(h_class, "client_unregister",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_client_unregister,
-                          &h_journal_client_unregister);
-  cls_register_cxx_method(h_class, "client_commit",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_client_commit, &h_journal_client_commit);
-  cls_register_cxx_method(h_class, "client_list",
-                          CLS_METHOD_RD,
-                          journal_client_list, &h_journal_client_list);
+  cls_register_cxx_method(
+      h_class, "get_client", CLS_METHOD_RD, journal_get_client,
+      &h_journal_get_client);
+  cls_register_cxx_method(
+      h_class, "client_register", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_client_register, &h_journal_client_register);
+  cls_register_cxx_method(
+      h_class, "client_update_data", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_client_update_data, &h_journal_client_update_data);
+  cls_register_cxx_method(
+      h_class, "client_update_state", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_client_update_state, &h_journal_client_update_state);
+  cls_register_cxx_method(
+      h_class, "client_unregister", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_client_unregister, &h_journal_client_unregister);
+  cls_register_cxx_method(
+      h_class, "client_commit", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_client_commit, &h_journal_client_commit);
+  cls_register_cxx_method(
+      h_class, "client_list", CLS_METHOD_RD, journal_client_list,
+      &h_journal_client_list);
 
-  cls_register_cxx_method(h_class, "get_next_tag_tid",
-                          CLS_METHOD_RD,
-                          journal_get_next_tag_tid,
-                          &h_journal_get_next_tag_tid);
-  cls_register_cxx_method(h_class, "get_tag",
-                          CLS_METHOD_RD,
-                          journal_get_tag, &h_journal_get_tag);
-  cls_register_cxx_method(h_class, "tag_create",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_tag_create, &h_journal_tag_create);
-  cls_register_cxx_method(h_class, "tag_list",
-                          CLS_METHOD_RD,
-                          journal_tag_list, &h_journal_tag_list);
+  cls_register_cxx_method(
+      h_class, "get_next_tag_tid", CLS_METHOD_RD, journal_get_next_tag_tid,
+      &h_journal_get_next_tag_tid);
+  cls_register_cxx_method(
+      h_class, "get_tag", CLS_METHOD_RD, journal_get_tag, &h_journal_get_tag);
+  cls_register_cxx_method(
+      h_class, "tag_create", CLS_METHOD_RD | CLS_METHOD_WR, journal_tag_create,
+      &h_journal_tag_create);
+  cls_register_cxx_method(
+      h_class, "tag_list", CLS_METHOD_RD, journal_tag_list, &h_journal_tag_list);
 
   /// methods for journal_data.$journal_id.$object_id objects
-  cls_register_cxx_method(h_class, "guard_append",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_object_guard_append,
-                          &h_journal_object_guard_append);
-  cls_register_cxx_method(h_class, "append", CLS_METHOD_RD | CLS_METHOD_WR,
-                          journal_object_append, &h_journal_object_append);
+  cls_register_cxx_method(
+      h_class, "guard_append", CLS_METHOD_RD | CLS_METHOD_WR,
+      journal_object_guard_append, &h_journal_object_guard_append);
+  cls_register_cxx_method(
+      h_class, "append", CLS_METHOD_RD | CLS_METHOD_WR, journal_object_append,
+      &h_journal_object_append);
 }

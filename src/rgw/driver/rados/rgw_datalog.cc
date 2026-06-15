@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_datalog.h"
+
 #include <exception>
 #include <ranges>
 #include <shared_mutex> // for std::shared_lock
@@ -11,25 +13,20 @@
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
-
-#include <boost/container/flat_set.hpp>
 #include <boost/container/flat_map.hpp>
-
-#include <boost/system/system_error.hpp>
+#include <boost/container/flat_set.hpp>
 #include <boost/system/generic_category.hpp>
-
-#include "include/fs_types.h"
-#include "include/neorados/RADOS.hpp"
+#include <boost/system/system_error.hpp>
 
 #include "common/async/blocked_completion.h"
 #include "common/async/co_throttle.h"
 #include "common/async/librados_completion.h"
 #include "common/async/yield_context.h"
-
-#include "common/dout.h"
 #include "common/containers.h"
+#include "common/dout.h"
 #include "common/error_code.h"
-
+#include "include/fs_types.h"
+#include "include/neorados/RADOS.hpp"
 #include "neorados/cls/fifo.h"
 #include "neorados/cls/log.h"
 #include "neorados/cls/sem_set.h"
@@ -37,10 +34,9 @@
 #include "rgw_asio_thread.h"
 #include "rgw_bucket.h"
 #include "rgw_bucket_layout.h"
-#include "rgw_datalog.h"
 #include "rgw_log_backing.h"
-#include "rgw_tools.h"
 #include "rgw_sal_rados.h"
+#include "rgw_tools.h"
 
 static constexpr auto dout_subsys = ceph_subsys_rgw;
 
@@ -59,15 +55,16 @@ namespace buffer = ceph::buffer;
 
 using ceph::containers::tiny_vector;
 
-void rgw_data_change::dump(ceph::Formatter *f) const
+void
+rgw_data_change::dump(ceph::Formatter* f) const
 {
   std::string type;
   switch (entity_type) {
-    case ENTITY_TYPE_BUCKET:
-      type = "bucket";
-      break;
-    default:
-      type = "unknown";
+  case ENTITY_TYPE_BUCKET:
+    type = "bucket";
+    break;
+  default:
+    type = "unknown";
   }
   encode_json("entity_type", type, f);
   encode_json("key", key, f);
@@ -76,7 +73,9 @@ void rgw_data_change::dump(ceph::Formatter *f) const
   encode_json("gen", gen, f);
 }
 
-void rgw_data_change::decode_json(JSONObj *obj) {
+void
+rgw_data_change::decode_json(JSONObj* obj)
+{
   std::string s;
   JSONDecoder::decode_json("entity_type", s, obj);
   if (s == "bucket") {
@@ -91,7 +90,9 @@ void rgw_data_change::decode_json(JSONObj *obj) {
   JSONDecoder::decode_json("gen", gen, obj);
 }
 
-std::list<rgw_data_change> rgw_data_change::generate_test_instances() {
+std::list<rgw_data_change>
+rgw_data_change::generate_test_instances()
+{
   std::list<rgw_data_change> l;
   l.emplace_back();
   l.emplace_back();
@@ -102,7 +103,8 @@ std::list<rgw_data_change> rgw_data_change::generate_test_instances() {
   return l;
 }
 
-void rgw_data_change_log_entry::dump(Formatter *f) const
+void
+rgw_data_change_log_entry::dump(Formatter* f) const
 {
   encode_json("log_id", log_id, f);
   utime_t ut(log_timestamp);
@@ -110,7 +112,9 @@ void rgw_data_change_log_entry::dump(Formatter *f) const
   encode_json("entry", entry, f);
 }
 
-void rgw_data_change_log_entry::decode_json(JSONObj *obj) {
+void
+rgw_data_change_log_entry::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("log_id", log_id, obj);
   utime_t ut;
   JSONDecoder::decode_json("log_timestamp", ut, obj);
@@ -118,20 +122,25 @@ void rgw_data_change_log_entry::decode_json(JSONObj *obj) {
   JSONDecoder::decode_json("entry", entry, obj);
 }
 
-void rgw_data_notify_entry::dump(Formatter *f) const
+void
+rgw_data_notify_entry::dump(Formatter* f) const
 {
   encode_json("key", key, f);
   encode_json("gen", gen, f);
 }
 
-boost::intrusive_ptr<RGWDataChangesBE> DataLogBackends::head() {
+boost::intrusive_ptr<RGWDataChangesBE>
+DataLogBackends::head()
+{
   std::unique_lock l(m);
   auto i = end();
   --i;
   return i->second;
 }
 
-void rgw_data_notify_entry::decode_json(JSONObj *obj) {
+void
+rgw_data_notify_entry::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("key", key, obj);
   JSONDecoder::decode_json("gen", gen, obj);
 }
@@ -141,21 +150,29 @@ class RGWDataChangesOmap final : public RGWDataChangesBE {
   std::vector<std::string> oids;
 
 public:
-  RGWDataChangesOmap(neorados::RADOS r,
-		     neorados::IOContext loc,
-		     RGWDataChangesLog& datalog,
-		     uint64_t gen_id,
-		     int num_shards)
-    : RGWDataChangesBE(r, std::move(loc), datalog, gen_id) {
+  RGWDataChangesOmap(
+      neorados::RADOS r,
+      neorados::IOContext loc,
+      RGWDataChangesLog& datalog,
+      uint64_t gen_id,
+      int num_shards) :
+    RGWDataChangesBE(r, std::move(loc), datalog, gen_id)
+  {
     oids.reserve(num_shards);
     for (auto i = 0; i < num_shards; ++i) {
       oids.push_back(get_oid(i));
     }
   }
+
   ~RGWDataChangesOmap() override = default;
 
-  void prepare(ceph::real_time ut, const std::string& key,
-	       buffer::list&& entry, entries& out) override {
+  void
+  prepare(
+      ceph::real_time ut,
+      const std::string& key,
+      buffer::list&& entry,
+      entries& out) override
+  {
     if (!std::holds_alternative<centries>(out)) {
       ceph_assert(std::visit([](const auto& v) { return std::empty(v); }, out));
       out = centries();
@@ -164,113 +181,128 @@ public:
     cls::log::entry e{ut, {}, key, std::move(entry)};
     std::get<centries>(out).push_back(std::move(e));
   }
-  asio::awaitable<void> push(const DoutPrefixProvider *dpp, int index,
-			     entries&& items) override {
+
+  asio::awaitable<void>
+  push(const DoutPrefixProvider* dpp, int index, entries&& items) override
+  {
     co_await r.execute(
-      oids[index], loc,
-      neorados::WriteOp{}.exec(nlog::add(std::get<centries>(items))),
-      asio::use_awaitable);
+        oids[index], loc,
+        neorados::WriteOp{}.exec(nlog::add(std::get<centries>(items))),
+        asio::use_awaitable);
     co_return;
   }
-  void push(const DoutPrefixProvider *dpp, int index,
-	    ceph::real_time now, const std::string& key,
-	    buffer::list&& bl, asio::yield_context y) override {
-    r.execute(oids[index], loc,
-	      neorados::WriteOp{}.exec(nlog::add(now, {}, key, std::move(bl))),
-	      y);
+
+  void
+  push(
+      const DoutPrefixProvider* dpp,
+      int index,
+      ceph::real_time now,
+      const std::string& key,
+      buffer::list&& bl,
+      asio::yield_context y) override
+  {
+    r.execute(
+        oids[index], loc,
+        neorados::WriteOp{}.exec(nlog::add(now, {}, key, std::move(bl))), y);
     return;
   }
 
-  asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>,
-			     std::string>>
-  list(const DoutPrefixProvider* dpp, int shard,
-       std::span<rgw_data_change_log_entry> entries,
-       std::string marker) override {
+  asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>, std::string>>
+  list(
+      const DoutPrefixProvider* dpp,
+      int shard,
+      std::span<rgw_data_change_log_entry> entries,
+      std::string marker) override
+  {
     std::vector<cls::log::entry> entrystore{entries.size()};
 
     try {
-      auto [lentries, lmark] =
-	co_await nlog::list(r, oids[shard], loc, {}, {}, marker, entrystore,
-			    asio::use_awaitable);
+      auto [lentries, lmark] = co_await nlog::list(
+          r, oids[shard], loc, {}, {}, marker, entrystore, asio::use_awaitable);
 
       entries = entries.first(lentries.size());
-      std::ranges::transform(lentries, std::begin(entries),
-			     [](const auto& e) {
-			       rgw_data_change_log_entry entry;
-			       entry.log_id = e.id;
-			       entry.log_timestamp = e.timestamp;
-			       auto liter = e.data.cbegin();
-			       decode(entry.entry, liter);
-			       return entry;
-			     });
+      std::ranges::transform(lentries, std::begin(entries), [](const auto& e) {
+        rgw_data_change_log_entry entry;
+        entry.log_id = e.id;
+        entry.log_timestamp = e.timestamp;
+        auto liter = e.data.cbegin();
+        decode(entry.entry, liter);
+        return entry;
+      });
       co_return std::make_tuple(std::move(entries), lmark);
     } catch (const buffer::error& err) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-			 << ": failed to decode data changes log entry: "
-			 << err.what() << dendl;
+                         << ": failed to decode data changes log entry: "
+                         << err.what() << dendl;
       throw;
     } catch (const sys::system_error& e) {
       if (e.code() == sys::errc::no_such_file_or_directory) {
-	co_return std::make_tuple(entries.first(0), std::string{});
+        co_return std::make_tuple(entries.first(0), std::string{});
       } else {
-	ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-			   << ": failed to list " << oids[shard]
-			   << ": " << e.what() << dendl;
-	throw;
+        ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ": failed to list "
+                           << oids[shard] << ": " << e.what() << dendl;
+        throw;
       }
     }
   }
-  asio::awaitable<RGWDataChangesLogInfo> get_info(const DoutPrefixProvider *dpp,
-						  int index) override {
+
+  asio::awaitable<RGWDataChangesLogInfo>
+  get_info(const DoutPrefixProvider* dpp, int index) override
+  {
     try {
-      auto header = co_await nlog::info(r, oids[index], loc,
-					asio::use_awaitable);
-      co_return RGWDataChangesLogInfo{.marker = header.max_marker,
-				      .last_update = header.max_time};
+      auto header =
+          co_await nlog::info(r, oids[index], loc, asio::use_awaitable);
+      co_return RGWDataChangesLogInfo{
+          .marker = header.max_marker, .last_update = header.max_time};
     } catch (const sys::system_error& e) {
       if (e.code() == sys::errc::no_such_file_or_directory) {
-	co_return RGWDataChangesLogInfo{};
+        co_return RGWDataChangesLogInfo{};
       }
-      ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-			 << ": failed to get info from " << oids[index]
-			 << ": " << e.what() << dendl;
+      ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ": failed to get info from "
+                         << oids[index] << ": " << e.what() << dendl;
       throw;
     }
   }
-  asio::awaitable<void> trim(const DoutPrefixProvider *dpp, int index,
-			     std::string_view marker) override {
+
+  asio::awaitable<void>
+  trim(const DoutPrefixProvider* dpp, int index, std::string_view marker) override
+  {
     try {
-      co_await nlog::trim(r, oids[index], loc, {}, std::string{marker},
-			  asio::use_awaitable);
+      co_await nlog::trim(
+          r, oids[index], loc, {}, std::string{marker}, asio::use_awaitable);
       co_return;
     } catch (const sys::system_error& e) {
       if (e.code() == sys::errc::no_such_file_or_directory) {
-	co_return;
+        co_return;
       } else {
-	ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-			   << ": failed to get trim " << oids[index]
-			   << ": " << e.what() << dendl;
-	throw;
+        ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ": failed to get trim "
+                           << oids[index] << ": " << e.what() << dendl;
+        throw;
       }
     }
   }
-  std::string_view max_marker() const override {
+
+  std::string_view
+  max_marker() const override
+  {
     return "99999999";
   }
-  asio::awaitable<bool> is_empty(const DoutPrefixProvider* dpp) override {
+
+  asio::awaitable<bool>
+  is_empty(const DoutPrefixProvider* dpp) override
+  {
     std::vector<cls::log::entry> entrystore{1};
     for (auto oid = 0; oid < std::ssize(oids); ++oid) {
       try {
-	auto [entries, marker] =
-	  co_await nlog::list(r, oids[oid], loc, {}, {}, {}, entrystore,
-			      asio::use_awaitable);
-	if (!entries.empty()) {
-	  co_return false;
-	}
+        auto [entries, marker] = co_await nlog::list(
+            r, oids[oid], loc, {}, {}, {}, entrystore, asio::use_awaitable);
+        if (!entries.empty()) {
+          co_return false;
+        }
       } catch (const sys::system_error& e) {
-	if (e.code() == sys::errc::no_such_file_or_directory) {
-	  continue;
-	}
+        if (e.code() == sys::errc::no_such_file_or_directory) {
+          continue;
+        }
       }
     }
     co_return true;
@@ -282,230 +314,272 @@ class RGWDataChangesFIFO final : public RGWDataChangesBE {
   tiny_vector<LazyFIFO> fifos;
 
 public:
-  RGWDataChangesFIFO(neorados::RADOS r,
-		     neorados::IOContext loc,
-		     RGWDataChangesLog& datalog,
-		     uint64_t gen_id,
-		     int num_shards)
-    : RGWDataChangesBE(r, std::move(loc), datalog, gen_id),
-      fifos(num_shards, [&r, &loc, this](std::size_t i, auto emplacer) {
-	emplacer.emplace(r, get_oid(i), loc);
-      }) {}
+  RGWDataChangesFIFO(
+      neorados::RADOS r,
+      neorados::IOContext loc,
+      RGWDataChangesLog& datalog,
+      uint64_t gen_id,
+      int num_shards) :
+    RGWDataChangesBE(r, std::move(loc), datalog, gen_id),
+    fifos(num_shards, [&r, &loc, this](std::size_t i, auto emplacer) {
+      emplacer.emplace(r, get_oid(i), loc);
+    })
+  {}
+
   ~RGWDataChangesFIFO() override = default;
-  void prepare(ceph::real_time, const std::string&,
-	       buffer::list&& entry, entries& out) override {
+
+  void
+  prepare(
+      ceph::real_time,
+      const std::string&,
+      buffer::list&& entry,
+      entries& out) override
+  {
     if (!std::holds_alternative<centries>(out)) {
       ceph_assert(std::visit([](auto& v) { return std::empty(v); }, out));
       out = centries();
     }
     std::get<centries>(out).push_back(std::move(entry));
   }
-  asio::awaitable<void> push(const DoutPrefixProvider* dpp, int index,
-			     entries&& items) override {
+
+  asio::awaitable<void>
+  push(const DoutPrefixProvider* dpp, int index, entries&& items) override
+  {
     co_return co_await fifos[index].push(dpp, std::get<centries>(items));
   }
-  void push(const DoutPrefixProvider* dpp, int index,
-	    ceph::real_time, const std::string&,
-	    buffer::list&& bl, asio::yield_context y) override {
+
+  void
+  push(
+      const DoutPrefixProvider* dpp,
+      int index,
+      ceph::real_time,
+      const std::string&,
+      buffer::list&& bl,
+      asio::yield_context y) override
+  {
     fifos[index].push(dpp, std::move(bl), y);
   }
-  asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>,
-			     std::string>>
-  list(const DoutPrefixProvider* dpp, int shard,
-       std::span<rgw_data_change_log_entry> entries,
-       std::string marker) override {
+
+  asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>, std::string>>
+  list(
+      const DoutPrefixProvider* dpp,
+      int shard,
+      std::span<rgw_data_change_log_entry> entries,
+      std::string marker) override
+  {
     try {
       std::vector<fifo::entry> log_entries{entries.size()};
       auto [lentries, outmark] =
-	co_await fifos[shard].list(dpp, marker, log_entries);
+          co_await fifos[shard].list(dpp, marker, log_entries);
       entries = entries.first(lentries.size());
-      std::ranges::transform(lentries, entries.begin(),
-			     [](const auto& e) {
-			       rgw_data_change_log_entry entry ;
-			       entry.log_id = e.marker;
-			       entry.log_timestamp = e.mtime;
-			       auto liter = e.data.cbegin();
-			       decode(entry.entry, liter);
-			       return entry;
-			     });
-      co_return  std::make_tuple(std::move(entries),
-				 outmark ? std::move(*outmark) : std::string{});
+      std::ranges::transform(lentries, entries.begin(), [](const auto& e) {
+        rgw_data_change_log_entry entry;
+        entry.log_id = e.marker;
+        entry.log_timestamp = e.mtime;
+        auto liter = e.data.cbegin();
+        decode(entry.entry, liter);
+        return entry;
+      });
+      co_return std::make_tuple(
+          std::move(entries), outmark ? std::move(*outmark) : std::string{});
     } catch (const buffer::error& err) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-			 << ": failed to decode data changes log entry: "
-			 << err.what() << dendl;
+                         << ": failed to decode data changes log entry: "
+                         << err.what() << dendl;
       throw;
     }
   }
+
   asio::awaitable<RGWDataChangesLogInfo>
-  get_info(const DoutPrefixProvider *dpp, int index) override {
+  get_info(const DoutPrefixProvider* dpp, int index) override
+  {
     auto& fifo = fifos[index];
     auto [marker, last_update] = co_await fifo.last_entry_info(dpp);
-    co_return RGWDataChangesLogInfo{ .marker = marker,
-				     .last_update = last_update };
+    co_return RGWDataChangesLogInfo{
+        .marker = marker, .last_update = last_update};
   }
-  asio::awaitable<void> trim(const DoutPrefixProvider *dpp, int index,
-	   std::string_view marker) override {
+
+  asio::awaitable<void>
+  trim(const DoutPrefixProvider* dpp, int index, std::string_view marker) override
+  {
     co_await fifos[index].trim(dpp, std::string{marker}, false);
   }
-  std::string_view max_marker() const override {
+
+  std::string_view
+  max_marker() const override
+  {
     static const auto max_mark = fifo::FIFO::max_marker();
     return std::string_view(max_mark);
   }
-  asio::awaitable<bool> is_empty(const DoutPrefixProvider *dpp) override {
+
+  asio::awaitable<bool>
+  is_empty(const DoutPrefixProvider* dpp) override
+  {
     std::vector<fifo::entry> entrystore;
     for (auto shard = 0u; shard < fifos.size(); ++shard) {
-      auto [lentries, outmark] =
-	co_await fifos[shard].list(dpp, {}, entrystore);
+      auto [lentries, outmark] = co_await fifos[shard].list(dpp, {}, entrystore);
       if (!lentries.empty()) {
-	co_return false;
+        co_return false;
       }
     }
     co_return true;
   }
 };
 
-RGWDataChangesLog::RGWDataChangesLog(rgw::sal::RadosStore* driver)
-  : cct(driver->ctx()), rados(driver->get_neorados()),
-    executor(driver->get_io_context().get_executor()),
-    num_shards(cct->_conf->rgw_data_log_num_shards),
-    prefix(get_prefix()),
-    changes(cct->_conf->rgw_data_log_changes_size) {}
+RGWDataChangesLog::RGWDataChangesLog(rgw::sal::RadosStore* driver) :
+  cct(driver->ctx()),
+  rados(driver->get_neorados()),
+  executor(driver->get_io_context().get_executor()),
+  num_shards(cct->_conf->rgw_data_log_num_shards),
+  prefix(get_prefix()),
+  changes(cct->_conf->rgw_data_log_changes_size)
+{}
 
-RGWDataChangesLog::RGWDataChangesLog(CephContext *cct, bool log_data,
-                                     neorados::RADOS rados,
-                                     std::optional<int> num_shards,
-                                     std::optional<uint64_t> sem_max_keys)
-  : cct(cct), rados(rados), log_data(log_data), executor(rados.get_executor()), 
-      num_shards(num_shards ? *num_shards :
-		 cct->_conf->rgw_data_log_num_shards),
-      prefix(get_prefix()), changes(cct->_conf->rgw_data_log_changes_size),
-      sem_max_keys(sem_max_keys ? *sem_max_keys : ss::max_keys) {}
+RGWDataChangesLog::RGWDataChangesLog(
+    CephContext* cct,
+    bool log_data,
+    neorados::RADOS rados,
+    std::optional<int> num_shards,
+    std::optional<uint64_t> sem_max_keys) :
+  cct(cct),
+  rados(rados),
+  log_data(log_data),
+  executor(rados.get_executor()),
+  num_shards(num_shards ? *num_shards : cct->_conf->rgw_data_log_num_shards),
+  prefix(get_prefix()),
+  changes(cct->_conf->rgw_data_log_changes_size),
+  sem_max_keys(sem_max_keys ? *sem_max_keys : ss::max_keys)
+{}
 
-
-void DataLogBackends::handle_init(entries_t e) {
+void
+DataLogBackends::handle_init(entries_t e)
+{
   std::unique_lock l(m);
   for (const auto& [gen_id, gen] : e) {
     if (gen.pruned) {
-      lderr(datalog.cct)
-	<< __PRETTY_FUNCTION__ << ":" << __LINE__
-	<< ": ERROR: given empty generation: gen_id=" << gen_id << dendl;
+      lderr(datalog.cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                         << ": ERROR: given empty generation: gen_id=" << gen_id
+                         << dendl;
     }
     if (count(gen_id) != 0) {
-      lderr(datalog.cct)
-	<< __PRETTY_FUNCTION__ << ":" << __LINE__
-	<< ": ERROR: generation already exists: gen_id=" << gen_id << dendl;
+      lderr(datalog.cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                         << ": ERROR: generation already exists: gen_id="
+                         << gen_id << dendl;
     }
     try {
       switch (gen.type) {
       case log_type::omap:
-	emplace(gen_id,
-		boost::intrusive_ptr<RGWDataChangesBE>(
-		  new RGWDataChangesOmap(rados, loc, datalog, gen_id, shards)));
-	break;
+        emplace(
+            gen_id,
+            boost::intrusive_ptr<RGWDataChangesBE>(
+                new RGWDataChangesOmap(rados, loc, datalog, gen_id, shards)));
+        break;
       case log_type::fifo:
-	emplace(gen_id,
-		boost::intrusive_ptr<RGWDataChangesBE>(
-		  new RGWDataChangesFIFO(rados, loc, datalog, gen_id, shards)));
-	break;
+        emplace(
+            gen_id,
+            boost::intrusive_ptr<RGWDataChangesBE>(
+                new RGWDataChangesFIFO(rados, loc, datalog, gen_id, shards)));
+        break;
       default:
-	lderr(datalog.cct)
-	  << __PRETTY_FUNCTION__ << ":" << __LINE__
-	  << ": IMPOSSIBLE: invalid log type: gen_id=" << gen_id
-	  << ", type" << gen.type << dendl;
-	throw sys::system_error{EFAULT, sys::generic_category()};
+        lderr(datalog.cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                           << ": IMPOSSIBLE: invalid log type: gen_id="
+                           << gen_id << ", type" << gen.type << dendl;
+        throw sys::system_error{EFAULT, sys::generic_category()};
       }
     } catch (const sys::system_error& err) {
-      lderr(datalog.cct)
-	  << __PRETTY_FUNCTION__ << ":" << __LINE__
-	  << ": error setting up backend: gen_id=" << gen_id
-	  << ", err=" << err.what() << dendl;
+      lderr(datalog.cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                         << ": error setting up backend: gen_id=" << gen_id
+                         << ", err=" << err.what() << dendl;
       throw;
     }
   }
 }
 
-void DataLogBackends::handle_new_gens(entries_t e) {
+void
+DataLogBackends::handle_new_gens(entries_t e)
+{
   handle_init(std::move(e));
 }
 
-void DataLogBackends::handle_empty_to(uint64_t new_tail) {
+void
+DataLogBackends::handle_empty_to(uint64_t new_tail)
+{
   std::unique_lock l(m);
   auto i = cbegin();
   if (i->first < new_tail) {
     return;
   }
   if (new_tail >= (cend() - 1)->first) {
-    lderr(datalog.cct)
-      << __PRETTY_FUNCTION__ << ":" << __LINE__
-      << ": ERROR: attempt to trim head: new_tail=" << new_tail << dendl;
+    lderr(datalog.cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                       << ": ERROR: attempt to trim head: new_tail=" << new_tail
+                       << dendl;
     throw sys::system_error(EFAULT, sys::system_category());
   }
   erase(i, upper_bound(new_tail));
 }
 
-
-int RGWDataChangesLog::start(const DoutPrefixProvider *dpp,
-			     const RGWZone* zone,
-			     const RGWZoneParams& zoneparams,
-			     bool background_tasks) noexcept
+int
+RGWDataChangesLog::start(
+    const DoutPrefixProvider* dpp,
+    const RGWZone* zone,
+    const RGWZoneParams& zoneparams,
+    bool background_tasks) noexcept
 {
   log_data = zone->log_data;
   try {
     // Blocking in startup code, not ideal, but won't hurt anything.
-    asio::co_spawn(executor,
-		   start(dpp, zoneparams.log_pool,
-			 background_tasks, background_tasks,
-			 background_tasks),
-		   async::use_blocked);
+    asio::co_spawn(
+        executor,
+        start(
+            dpp, zoneparams.log_pool, background_tasks, background_tasks,
+            background_tasks),
+        async::use_blocked);
   } catch (const sys::system_error& e) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-		       << ": Failed to start datalog: " << e.what()
-		       << dendl;
+                       << ": Failed to start datalog: " << e.what() << dendl;
     return ceph::from_error_code(e.code());
   } catch (const std::exception& e) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-		       << ": Failed to start datalog: " << e.what()
-		       << dendl;
+                       << ": Failed to start datalog: " << e.what() << dendl;
     return ceph::from_exception(std::current_exception());
   }
   return 0;
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::start(const DoutPrefixProvider *dpp,
-			 const rgw_pool& log_pool,
-			 bool recovery,
-			 bool watch,
-			 bool renew)
+RGWDataChangesLog::start(
+    const DoutPrefixProvider* dpp,
+    const rgw_pool& log_pool,
+    bool recovery,
+    bool watch,
+    bool renew)
 {
   down_flag = false;
   ran_background = (recovery || watch || renew);
 
   auto defbacking = to_log_type(
-    cct->_conf.get_val<std::string>("rgw_default_data_log_backing"));
+      cct->_conf.get_val<std::string>("rgw_default_data_log_backing"));
   // Should be guaranteed by `set_enum_allowed`
   ceph_assert(defbacking);
   try {
-    loc = co_await rgw::init_iocontext(dpp, *rados, log_pool,
-				       rgw::create, asio::use_awaitable);
+    loc = co_await rgw::init_iocontext(
+        dpp, *rados, log_pool, rgw::create, asio::use_awaitable);
   } catch (const std::exception& e) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-		       << ": Failed to initialized ioctx: " << e.what()
-		       << ", pool=" << log_pool << dendl;
+                       << ": Failed to initialized ioctx: " << e.what()
+                       << ", pool=" << log_pool << dendl;
     throw;
   }
 
   try {
     bes = co_await logback_generations::init<DataLogBackends>(
-      dpp, *rados, metadata_log_oid(), loc,
-      [this](uint64_t gen_id, int shard) {
-	return get_oid(gen_id, shard);
-      }, num_shards, *defbacking, *this);
+        dpp, *rados, metadata_log_oid(), loc,
+        [this](uint64_t gen_id, int shard) { return get_oid(gen_id, shard); },
+        num_shards, *defbacking, *this);
   } catch (const std::exception& e) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-		       << ": Error initializing backends: " << e.what()
-		       << dendl;
+                       << ": Error initializing backends: " << e.what()
+                       << dendl;
     throw;
   }
 
@@ -515,53 +589,53 @@ RGWDataChangesLog::start(const DoutPrefixProvider *dpp,
 
   if (renew) {
     renew_future = asio::co_spawn(
-      renew_strand,
-      renew_run(),
-      asio::bind_cancellation_slot(renew_signal.slot(),
-				   asio::bind_executor(renew_strand,
-						       asio::use_future)));
+        renew_strand, renew_run(),
+        asio::bind_cancellation_slot(
+            renew_signal.slot(),
+            asio::bind_executor(renew_strand, asio::use_future)));
   }
   if (watch) {
     // Establish watch here so we won't be 'started up' until we're watching.
     const auto oid = get_sem_set_oid(0);
     auto established = co_await establish_watch(dpp, oid);
     if (!established) {
-      throw sys::system_error{ENOTCONN, sys::generic_category(),
-			      "Unable to establish recovery watch!"};
+      throw sys::system_error{
+          ENOTCONN, sys::generic_category(),
+          "Unable to establish recovery watch!"};
     }
     watch_future = asio::co_spawn(
-      watch_strand,
-      watch_loop(),
-      asio::bind_cancellation_slot(watch_signal.slot(),
-				   asio::bind_executor(watch_strand,
-						       asio::use_future)));
+        watch_strand, watch_loop(),
+        asio::bind_cancellation_slot(
+            watch_signal.slot(),
+            asio::bind_executor(watch_strand, asio::use_future)));
   }
   if (recovery) {
     // Recovery can run concurrent with normal operation, so we don't
     // have to block startup while we do all that I/O.
     recovery_future = asio::co_spawn(
-      recovery_strand,
-      recover(dpp),
-      asio::bind_cancellation_slot(recovery_signal.slot(),
-				   asio::bind_executor(recovery_strand,
-						       asio::use_future)));
+        recovery_strand, recover(dpp),
+        asio::bind_cancellation_slot(
+            recovery_signal.slot(),
+            asio::bind_executor(recovery_strand, asio::use_future)));
   }
   co_return;
 }
 
 asio::awaitable<bool>
-RGWDataChangesLog::establish_watch(const DoutPrefixProvider* dpp,
-				   std::string_view oid) {
+RGWDataChangesLog::establish_watch(
+    const DoutPrefixProvider* dpp,
+    std::string_view oid)
+{
   const auto queue_depth = num_shards * 128;
   try {
-    co_await rados->execute(oid, loc, neorados::WriteOp{}.create(false),
-			    asio::use_awaitable);
-    watchcookie = co_await rados->watch(oid, loc, asio::use_awaitable,
-					std::nullopt, queue_depth);
+    co_await rados->execute(
+        oid, loc, neorados::WriteOp{}.create(false), asio::use_awaitable);
+    watchcookie = co_await rados->watch(
+        oid, loc, asio::use_awaitable, std::nullopt, queue_depth);
   } catch (const std::exception& e) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__
-		       << ": Unable to start watch! Error: "
-		       << e.what() << dendl;
+                       << ": Unable to start watch! Error: " << e.what()
+                       << dendl;
     watchcookie = 0;
   }
 
@@ -579,53 +653,66 @@ struct recovery_check {
 
   recovery_check() = default;
 
-  recovery_check(uint64_t shard, std::vector<std::string> keys)
-    : shard(shard), keys(std::move(keys)) {}
+  recovery_check(uint64_t shard, std::vector<std::string> keys) :
+    shard(shard), keys(std::move(keys))
+  {}
 
-  void encode(buffer::list& bl) const {
+  void
+  encode(buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(shard, bl);
     encode(keys, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(buffer::list::const_iterator& bl) {
+  void
+  decode(buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(shard, bl);
     decode(keys, bl);
     DECODE_FINISH(bl);
   }
 };
-WRITE_CLASS_ENCODER(recovery_check);
 
+WRITE_CLASS_ENCODER(recovery_check);
 
 struct recovery_reply {
   std::vector<unsigned> reply_set;
 
   recovery_reply() = default;
 
-  recovery_reply(std::vector<unsigned> reply_set)
-    : reply_set(std::move(reply_set)) {}
+  recovery_reply(std::vector<unsigned> reply_set) :
+    reply_set(std::move(reply_set))
+  {}
 
-  void encode(buffer::list& bl) const {
+  void
+  encode(buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(reply_set, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(buffer::list::const_iterator& bl) {
+  void
+  decode(buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(reply_set, bl);
     DECODE_FINISH(bl);
   }
 };
+
 WRITE_CLASS_ENCODER(recovery_reply);
 
 asio::awaitable<void>
-RGWDataChangesLog::process_notification(const DoutPrefixProvider* dpp,
-					std::string_view oid) {
-  auto notification = co_await rados->next_notification(watchcookie,
-							asio::use_awaitable);
+RGWDataChangesLog::process_notification(
+    const DoutPrefixProvider* dpp,
+    std::string_view oid)
+{
+  auto notification =
+      co_await rados->next_notification(watchcookie, asio::use_awaitable);
   recovery_check rc;
   // Don't send a reply if we get a bogus notification, we don't
   // want recovery to delete semaphores improperly.
@@ -646,7 +733,7 @@ RGWDataChangesLog::process_notification(const DoutPrefixProvider* dpp,
     const auto& key = rc.keys[i];
     try {
       if (cur_cycle.contains(BucketGen{key})) {
-	++reply.reply_set[i];
+        ++reply.reply_set[i];
       }
     } catch (const std::exception&) {
       ldpp_dout(dpp, 2) << "Got invalid BucketGen key: " << key << dendl;
@@ -660,13 +747,14 @@ RGWDataChangesLog::process_notification(const DoutPrefixProvider* dpp,
   buffer::list replybl;
   encode(reply, replybl);
   try {
-    co_await rados->notify_ack(oid, loc, notification.notify_id, watchcookie,
-			       std::move(replybl), asio::use_awaitable);
+    co_await rados->notify_ack(
+        oid, loc, notification.notify_id, watchcookie, std::move(replybl),
+        asio::use_awaitable);
   } catch (const std::exception& e) {
     ldpp_dout(dpp, 10) << __PRETTY_FUNCTION__
-		       << ": Failed ack. Whatever server is in "
-		       << "recovery won't decrement semaphores: "
-		       << e.what() << dendl;
+                       << ": Failed ack. Whatever server is in "
+                       << "recovery won't decrement semaphores: " << e.what()
+                       << dendl;
   }
 }
 
@@ -682,49 +770,51 @@ RGWDataChangesLog::watch_loop()
       co_await process_notification(&dp, oid);
     } catch (const sys::system_error& e) {
       if (e.code() == neorados::errc::notification_overflow) {
-	ldpp_dout(&dp, 10) << __PRETTY_FUNCTION__
-			   << ": Notification overflow. Whatever server is in "
-			   << "recovery won't decrement semaphores." << dendl;
-	continue;
+        ldpp_dout(&dp, 10) << __PRETTY_FUNCTION__
+                           << ": Notification overflow. Whatever server is in "
+                           << "recovery won't decrement semaphores." << dendl;
+        continue;
       }
-      if (going_down() || e.code() == asio::error::operation_aborted){
-	need_rewatch = false;
-	break;
+      if (going_down() || e.code() == asio::error::operation_aborted) {
+        need_rewatch = false;
+        break;
       } else {
-	need_rewatch = true;
+        need_rewatch = true;
       }
     }
     if (need_rewatch) {
       try {
-	if (watchcookie) {
-	  auto wc = watchcookie;
-	  watchcookie = 0;
-	  co_await rados->unwatch(wc, loc, asio::use_awaitable);
-	}
+        if (watchcookie) {
+          auto wc = watchcookie;
+          watchcookie = 0;
+          co_await rados->unwatch(wc, loc, asio::use_awaitable);
+        }
       } catch (const std::exception& e) {
-	// Watch may not exist, don't care.
+        // Watch may not exist, don't care.
       }
       bool rewatched = false;
       ldpp_dout(&dp, 10) << __PRETTY_FUNCTION__
-			 << ": Trying to re-establish watch" << dendl;
+                         << ": Trying to re-establish watch" << dendl;
 
       rewatched = co_await establish_watch(&dp, oid);
       while (!rewatched) {
-	boost::asio::steady_timer t(co_await asio::this_coro::executor, 500ms);
-	co_await t.async_wait(asio::use_awaitable);
-	ldpp_dout(&dp, 10) << __PRETTY_FUNCTION__
-			   << ": Trying to re-establish watch" << dendl;
-	rewatched = co_await establish_watch(&dp, oid);
+        boost::asio::steady_timer t(co_await asio::this_coro::executor, 500ms);
+        co_await t.async_wait(asio::use_awaitable);
+        ldpp_dout(&dp, 10) << __PRETTY_FUNCTION__
+                           << ": Trying to re-establish watch" << dendl;
+        rewatched = co_await establish_watch(&dp, oid);
       }
     }
   }
 }
 
-int RGWDataChangesLog::choose_oid(const rgw_bucket_shard& bs) {
+int
+RGWDataChangesLog::choose_oid(const rgw_bucket_shard& bs)
+{
   const auto& name = bs.bucket.name;
   auto shard_shift = (bs.shard_id > 0 ? bs.shard_id : 0);
-  auto r = (ceph_str_hash_linux(name.data(), name.size()) +
-	    shard_shift) % num_shards;
+  auto r = (ceph_str_hash_linux(name.data(), name.size()) + shard_shift) %
+           num_shards;
   return static_cast<int>(r);
 }
 
@@ -737,8 +827,8 @@ RGWDataChangesLog::renew_entries(const DoutPrefixProvider* dpp)
 
   /* we can't keep the bucket name as part of the datalog entry, and
    * we need it later, so we keep two lists under the map */
-  bc::flat_map<int, std::pair<std::vector<BucketGen>,
-			      RGWDataChangesBE::entries>> m;
+  bc::flat_map<int, std::pair<std::vector<BucketGen>, RGWDataChangesBE::entries>>
+      m;
 
   std::unique_lock l(lock);
   decltype(cur_cycle) entries;
@@ -777,8 +867,9 @@ RGWDataChangesLog::renew_entries(const DoutPrefixProvider* dpp)
       co_await be->push(dpp, index, std::move(entries));
     } catch (const std::exception& e) {
       push_failed = true;
-      ldpp_dout(dpp, 5) << "RGWDataChangesLog::renew_entries(): Backend push failed "
-			<< "with exception: " << e.what() << dendl;
+      ldpp_dout(dpp, 5)
+          << "RGWDataChangesLog::renew_entries(): Backend push failed "
+          << "with exception: " << e.what() << dendl;
     }
 
     auto expiration = now;
@@ -802,12 +893,11 @@ RGWDataChangesLog::renew_entries(const DoutPrefixProvider* dpp)
       // until they're safely on the OSD to avoid the risk of
       // double-decrement from recovery.
       auto to_copy = std::min(sem_max_keys, keys.size());
-      std::copy_n(keys.begin(), to_copy,
-		  std::inserter(batch, batch.end()));
+      std::copy_n(keys.begin(), to_copy, std::inserter(batch, batch.end()));
       auto op = WriteOp{}.exec(ss::decrement(std::move(batch)));
       l.unlock();
-      co_await rados->execute(get_sem_set_oid(index), loc, std::move(op),
-			      asio::use_awaitable);
+      co_await rados->execute(
+          get_sem_set_oid(index), loc, std::move(op), asio::use_awaitable);
       l.lock();
       auto iter = keys.cbegin();
       std::advance(iter, to_copy);
@@ -817,9 +907,9 @@ RGWDataChangesLog::renew_entries(const DoutPrefixProvider* dpp)
   co_return;
 }
 
-auto RGWDataChangesLog::_get_change(const rgw_bucket_shard& bs,
-				    uint64_t gen)
-  -> ChangeStatusPtr
+auto
+RGWDataChangesLog::_get_change(const rgw_bucket_shard& bs, uint64_t gen)
+    -> ChangeStatusPtr
 {
   ChangeStatusPtr status;
   if (!changes.find({bs, gen}, status)) {
@@ -829,36 +919,43 @@ auto RGWDataChangesLog::_get_change(const rgw_bucket_shard& bs,
   return status;
 }
 
-bool RGWDataChangesLog::register_renew(BucketGen bg)
+bool
+RGWDataChangesLog::register_renew(BucketGen bg)
 {
   std::scoped_lock l{lock};
   return cur_cycle.insert(bg).second;
 }
 
-void RGWDataChangesLog::update_renewed(const rgw_bucket_shard& bs,
-				       uint64_t gen,
-				       real_time expiration)
+void
+RGWDataChangesLog::update_renewed(
+    const rgw_bucket_shard& bs,
+    uint64_t gen,
+    real_time expiration)
 {
   std::unique_lock l{lock};
   auto status = _get_change(bs, gen);
   l.unlock();
 
   ldout(cct, 20) << "RGWDataChangesLog::update_renewed() bucket_name="
-		 << bs.bucket.name << " shard_id=" << bs.shard_id
-		 << " expiration=" << expiration << dendl;
+                 << bs.bucket.name << " shard_id=" << bs.shard_id
+                 << " expiration=" << expiration << dendl;
 
   std::unique_lock sl(status->lock);
   status->cur_expiration = expiration;
 }
 
-int RGWDataChangesLog::get_log_shard_id(rgw_bucket& bucket, int shard_id) {
+int
+RGWDataChangesLog::get_log_shard_id(rgw_bucket& bucket, int shard_id)
+{
   rgw_bucket_shard bs(bucket, shard_id);
   return choose_oid(bs);
 }
 
-bool RGWDataChangesLog::filter_bucket(const DoutPrefixProvider *dpp,
-				      const rgw_bucket& bucket,
-				      asio::yield_context y) const
+bool
+RGWDataChangesLog::filter_bucket(
+    const DoutPrefixProvider* dpp,
+    const rgw_bucket& bucket,
+    asio::yield_context y) const
 {
   if (!bucket_filter) {
     return true;
@@ -867,35 +964,43 @@ bool RGWDataChangesLog::filter_bucket(const DoutPrefixProvider *dpp,
   return bucket_filter(bucket, y, dpp);
 }
 
-std::string RGWDataChangesLog::get_oid(uint64_t gen_id, int i) const {
-  return (gen_id > 0 ?
-	  fmt::format("{}@G{}.{}", prefix, gen_id, i) :
-	  fmt::format("{}.{}", prefix, i));
+std::string
+RGWDataChangesLog::get_oid(uint64_t gen_id, int i) const
+{
+  return (
+      gen_id > 0 ? fmt::format("{}@G{}.{}", prefix, gen_id, i)
+                 : fmt::format("{}.{}", prefix, i));
 }
 
-std::string RGWDataChangesLog::get_sem_set_oid(int i) const {
+std::string
+RGWDataChangesLog::get_sem_set_oid(int i) const
+{
   return fmt::format("_sem_set{}.{}", prefix, i);
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
-			     const RGWBucketInfo& bucket_info,
-			     const rgw::bucket_log_layout_generation& gen,
-			     int shard_id)
+RGWDataChangesLog::add_entry(
+    const DoutPrefixProvider* dpp,
+    const RGWBucketInfo& bucket_info,
+    const rgw::bucket_log_layout_generation& gen,
+    int shard_id)
 {
   co_await asio::spawn(
-    co_await asio::this_coro::executor,
-    [this, dpp, &bucket_info, &gen, shard_id](asio::yield_context y) {
-      return add_entry(dpp, bucket_info, gen, shard_id, y);
-    }, asio::use_awaitable);
+      co_await asio::this_coro::executor,
+      [this, dpp, &bucket_info, &gen, shard_id](asio::yield_context y) {
+        return add_entry(dpp, bucket_info, gen, shard_id, y);
+      },
+      asio::use_awaitable);
   co_return;
 }
 
-
-void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
-				  const RGWBucketInfo& bucket_info,
-				  const rgw::bucket_log_layout_generation& gen,
-				  int shard_id, asio::yield_context y)
+void
+RGWDataChangesLog::add_entry(
+    const DoutPrefixProvider* dpp,
+    const RGWBucketInfo& bucket_info,
+    const rgw::bucket_log_layout_generation& gen,
+    int shard_id,
+    asio::yield_context y)
 {
   if (!log_data || down_flag) {
     return;
@@ -917,10 +1022,10 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
   if (!(watchcookie && rados->check_watch(watchcookie))) {
     auto now = real_clock::now();
     ldpp_dout(dpp, 2) << "RGWDataChangesLog::add_entry(): "
-		      << "Bypassing window optimization and pushing directly: "
-		      << "bucket.name=" << bucket.name
-		      << " shard_id=" << shard_id << " now="
-		      << now << " cur_expiration=" << dendl;
+                      << "Bypassing window optimization and pushing directly: "
+                      << "bucket.name=" << bucket.name
+                      << " shard_id=" << shard_id << " now=" << now
+                      << " cur_expiration=" << dendl;
 
     buffer::list bl;
     rgw_data_change change;
@@ -947,9 +1052,10 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
 
   std::unique_lock sl(status->lock);
 
-  ldpp_dout(dpp, 20) << "RGWDataChangesLog::add_entry() bucket.name=" << bucket.name
-		     << " shard_id=" << shard_id << " now=" << now
-		     << " cur_expiration=" << status->cur_expiration << dendl;
+  ldpp_dout(dpp, 20) << "RGWDataChangesLog::add_entry() bucket.name="
+                     << bucket.name << " shard_id=" << shard_id
+                     << " now=" << now
+                     << " cur_expiration=" << status->cur_expiration << dendl;
 
 
   if (now < status->cur_expiration) {
@@ -960,8 +1066,9 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
     auto need_sem_set = register_renew(std::move(bg));
     if (need_sem_set) {
       using neorados::WriteOp;
-      rados->execute(get_sem_set_oid(index), loc,
-		     WriteOp{}.exec(ss::increment(std::move(key))), y);
+      rados->execute(
+          get_sem_set_oid(index), loc,
+          WriteOp{}.exec(ss::increment(std::move(key))), y);
     }
     return;
   }
@@ -991,7 +1098,9 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
   change.gen = gen.gen;
   encode(change, bl);
 
-  ldpp_dout(dpp, 20) << "RGWDataChangesLog::add_entry() sending update with now=" << now << " cur_expiration=" << expiration << dendl;
+  ldpp_dout(dpp, 20)
+      << "RGWDataChangesLog::add_entry() sending update with now=" << now
+      << " cur_expiration=" << expiration << dendl;
 
   auto be = bes->head();
   // Failure on push isn't fatal.
@@ -999,7 +1108,7 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
     be->push(dpp, index, now, change.key, std::move(bl), y);
   } catch (const std::exception& e) {
     ldpp_dout(dpp, 5) << "RGWDataChangesLog::add_entry(): Backend push failed "
-		      << "with exception: " << e.what() << dendl;
+                      << "with exception: " << e.what() << dendl;
   }
 
 
@@ -1017,21 +1126,25 @@ void RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
   return;
 }
 
-int RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
-				 const RGWBucketInfo& bucket_info,
-				 const rgw::bucket_log_layout_generation& gen,
-				 int shard_id, optional_yield y) noexcept
+int
+RGWDataChangesLog::add_entry(
+    const DoutPrefixProvider* dpp,
+    const RGWBucketInfo& bucket_info,
+    const rgw::bucket_log_layout_generation& gen,
+    int shard_id,
+    optional_yield y) noexcept
 {
   try {
     if (y) {
       add_entry(dpp, bucket_info, gen, shard_id, y.get_yield_context());
     } else {
       maybe_warn_about_blocking(dpp);
-      asio::spawn(rados->get_executor(),
-		  [this, dpp, &bucket_info, &gen,
-		   &shard_id](asio::yield_context y) {
-		    add_entry(dpp, bucket_info, gen, shard_id, y);
-		  }, async::use_blocked);
+      asio::spawn(
+          rados->get_executor(),
+          [this, dpp, &bucket_info, &gen, &shard_id](asio::yield_context y) {
+            add_entry(dpp, bucket_info, gen, shard_id, y);
+          },
+          async::use_blocked);
     }
   } catch (const std::exception&) {
     return ceph::from_exception(std::current_exception());
@@ -1039,17 +1152,19 @@ int RGWDataChangesLog::add_entry(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>,
-			   std::string>>
-DataLogBackends::list(const DoutPrefixProvider *dpp, int shard,
-		      std::span<rgw_data_change_log_entry> entries,
-		      std::string marker)
+asio::awaitable<std::tuple<std::span<rgw_data_change_log_entry>, std::string>>
+DataLogBackends::list(
+    const DoutPrefixProvider* dpp,
+    int shard,
+    std::span<rgw_data_change_log_entry> entries,
+    std::string marker)
 {
   assert(shard < shards);
-  const auto [start_id, // Starting generation
-	      start_cursor // Cursor to be used when listing the
-			   // starting generation
-    ] = cursorgen(marker);
+  const auto
+      [start_id, // Starting generation
+       start_cursor // Cursor to be used when listing the
+       // starting generation
+  ] = cursorgen(marker);
   auto gen_id = start_id; // Current generation being listed
   // Cursor with prepended generation, returned to caller
   std::string out_cursor;
@@ -1071,14 +1186,15 @@ DataLogBackends::list(const DoutPrefixProvider *dpp, int shard,
     // Since later generations continue listings from the
     // first, start them at the beginning.
     auto incursor = gen_id == start_id ? start_cursor : std::string{};
-    auto [raw_entries, raw_cursor]
-      = co_await be->list(dpp, shard, inspan, incursor);
-    out = std::transform(std::make_move_iterator(raw_entries.begin()),
-			 std::make_move_iterator(raw_entries.end()),
-			 out, [gen_id](rgw_data_change_log_entry e) {
-			   e.log_id = gencursor(gen_id, e.log_id);
-			   return e;
-			 });
+    auto [raw_entries, raw_cursor] =
+        co_await be->list(dpp, shard, inspan, incursor);
+    out = std::transform(
+        std::make_move_iterator(raw_entries.begin()),
+        std::make_move_iterator(raw_entries.end()), out,
+        [gen_id](rgw_data_change_log_entry e) {
+          e.log_id = gencursor(gen_id, e.log_id);
+          return e;
+        });
     if (!raw_cursor.empty()) {
       out_cursor = gencursor(gen_id, raw_cursor);
     } else {
@@ -1091,20 +1207,24 @@ DataLogBackends::list(const DoutPrefixProvider *dpp, int shard,
   co_return std::make_tuple(entries_out, std::move(out_cursor));
 }
 
-asio::awaitable<std::tuple<std::vector<rgw_data_change_log_entry>,
-			   std::string, bool>>
-RGWDataChangesLog::list_entries(const DoutPrefixProvider* dpp, int shard,
-				int max_entries, std::string marker)
+asio::awaitable<
+    std::tuple<std::vector<rgw_data_change_log_entry>, std::string, bool>>
+RGWDataChangesLog::list_entries(
+    const DoutPrefixProvider* dpp,
+    int shard,
+    int max_entries,
+    std::string marker)
 {
   if (shard >= num_shards) [[unlikely]] {
     throw sys::system_error{
-      EINVAL, sys::generic_category(),
-      fmt::format("{} is not a valid shard. Valid shards are integers in [0, {})",
-		  shard, num_shards)};
+        EINVAL, sys::generic_category(),
+        fmt::format(
+            "{} is not a valid shard. Valid shards are integers in [0, {})",
+            shard, num_shards)};
   }
   if (max_entries <= 0) {
-    co_return std::make_tuple(std::vector<rgw_data_change_log_entry>{},
-			      std::string{}, false);
+    co_return std::make_tuple(
+        std::vector<rgw_data_change_log_entry>{}, std::string{}, false);
   }
   std::vector<rgw_data_change_log_entry> entries(max_entries);
   entries.resize(max_entries);
@@ -1114,14 +1234,17 @@ RGWDataChangesLog::list_entries(const DoutPrefixProvider* dpp, int shard,
   co_return std::make_tuple(std::move(entries), std::move(outmark), truncated);
 }
 
-asio::awaitable<std::tuple<std::vector<rgw_data_change_log_entry>,
-			   RGWDataChangesLogMarker, bool>>
-RGWDataChangesLog::list_entries(const DoutPrefixProvider *dpp,
-				int max_entries, RGWDataChangesLogMarker marker)
+asio::awaitable<
+    std::tuple<std::vector<rgw_data_change_log_entry>, RGWDataChangesLogMarker, bool>>
+RGWDataChangesLog::list_entries(
+    const DoutPrefixProvider* dpp,
+    int max_entries,
+    RGWDataChangesLogMarker marker)
 {
   if (max_entries <= 0) {
-    co_return std::make_tuple(std::vector<rgw_data_change_log_entry>{},
-			      RGWDataChangesLogMarker{}, false);
+    co_return std::make_tuple(
+        std::vector<rgw_data_change_log_entry>{}, RGWDataChangesLogMarker{},
+        false);
   }
 
   std::vector<rgw_data_change_log_entry> entries(max_entries);
@@ -1130,8 +1253,8 @@ RGWDataChangesLog::list_entries(const DoutPrefixProvider *dpp,
   do {
     std::span<rgw_data_change_log_entry> outspan;
     std::string outmark;
-    std::tie(outspan, outmark) = co_await bes->list(dpp, marker.shard,
-						    remaining, marker.marker);
+    std::tie(outspan, outmark) =
+        co_await bes->list(dpp, marker.shard, remaining, marker.marker);
     remaining = remaining.last(remaining.size() - outspan.size());
     if (!outmark.empty()) {
       marker.marker = std::move(outmark);
@@ -1153,10 +1276,11 @@ asio::awaitable<RGWDataChangesLogInfo>
 RGWDataChangesLog::get_info(const DoutPrefixProvider* dpp, int shard_id)
 {
   if (shard_id >= num_shards) [[unlikely]] {
-    throw sys::system_error{-EINVAL, sys::generic_category(),
-      fmt::format(
-	"{} is not a valid shard. Valid shards are integers in [0, {})",
-	shard_id, num_shards)};
+    throw sys::system_error{
+        -EINVAL, sys::generic_category(),
+        fmt::format(
+            "{} is not a valid shard. Valid shards are integers in [0, {})",
+            shard_id, num_shards)};
   }
   auto be = bes->head();
   auto info = co_await be->get_info(dpp, shard_id);
@@ -1166,9 +1290,11 @@ RGWDataChangesLog::get_info(const DoutPrefixProvider* dpp, int shard_id)
   co_return info;
 }
 
-asio::awaitable<void> DataLogBackends::trim_entries(
-  const DoutPrefixProvider *dpp, int shard_id,
-  std::string_view marker)
+asio::awaitable<void>
+DataLogBackends::trim_entries(
+    const DoutPrefixProvider* dpp,
+    int shard_id,
+    std::string_view marker)
 {
   assert(shard_id < shards);
   auto [target_gen, cursor] = cursorgen(std::string{marker});
@@ -1194,32 +1320,36 @@ asio::awaitable<void> DataLogBackends::trim_entries(
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::trim_entries(const DoutPrefixProvider *dpp, int shard_id,
-				    std::string_view marker)
+RGWDataChangesLog::trim_entries(
+    const DoutPrefixProvider* dpp,
+    int shard_id,
+    std::string_view marker)
 {
   if (shard_id >= num_shards) [[unlikely]] {
-    throw sys::system_error{-EINVAL, sys::generic_category(),
-      fmt::format(
-	"{} is not a valid shard. Valid shards are integers in [0, {})",
-	shard_id, num_shards)};
+    throw sys::system_error{
+        -EINVAL, sys::generic_category(),
+        fmt::format(
+            "{} is not a valid shard. Valid shards are integers in [0, {})",
+            shard_id, num_shards)};
   }
   auto be = bes->head();
   co_return co_await bes->trim_entries(dpp, shard_id, marker);
 }
 
-void RGWDataChangesLog::trim_entries(const DoutPrefixProvider* dpp, int shard_id,
-				     std::string_view marker,
-				     librados::AioCompletion* c)
+void
+RGWDataChangesLog::trim_entries(
+    const DoutPrefixProvider* dpp,
+    int shard_id,
+    std::string_view marker,
+    librados::AioCompletion* c)
 {
-  asio::co_spawn(rados->get_executor(),
-		 trim_entries(dpp, shard_id, marker),
-		 c);
+  asio::co_spawn(rados->get_executor(), trim_entries(dpp, shard_id, marker), c);
 }
 
-
-asio::awaitable<void> DataLogBackends::trim_generations(
-  const DoutPrefixProvider *dpp,
-  std::optional<uint64_t>& through)
+asio::awaitable<void>
+DataLogBackends::trim_generations(
+    const DoutPrefixProvider* dpp,
+    std::optional<uint64_t>& through)
 {
   if (size() != 1) {
     std::vector<mapped_type> candidates;
@@ -1227,16 +1357,16 @@ asio::awaitable<void> DataLogBackends::trim_generations(
       std::scoped_lock l(m);
       auto e = cend() - 1;
       for (auto i = cbegin(); i < e; ++i) {
-	candidates.push_back(i->second);
+        candidates.push_back(i->second);
       }
     }
 
     std::optional<uint64_t> highest;
     for (auto& be : candidates) {
       if (co_await be->is_empty(dpp)) {
-	highest = be->gen_id;
+        highest = be->gen_id;
       } else {
-	break;
+        break;
       }
     }
 
@@ -1251,102 +1381,98 @@ asio::awaitable<void> DataLogBackends::trim_generations(
   co_return;
 }
 
-bool RGWDataChangesLog::going_down() const
+bool
+RGWDataChangesLog::going_down() const
 {
   return down_flag;
 }
 
 // Now, if we had an awaitable future…
-asio::awaitable<void> RGWDataChangesLog::async_shutdown()
+asio::awaitable<void>
+RGWDataChangesLog::async_shutdown()
 {
   DoutPrefix dp{cct, ceph_subsys_rgw, "Datalog Shutdown"};
   if (down_flag) {
     co_return;
   }
   down_flag = true;
-  if (!ran_background)  {
+  if (!ran_background) {
     co_return;
   }
   renew_stop();
   // Revisit this later
-  asio::dispatch(renew_strand,
-		 [this]() {
-		   renew_signal.emit(asio::cancellation_type::terminal);
-		 });
-  asio::dispatch(recovery_strand,
-		 [this]() {
-		   recovery_signal.emit(asio::cancellation_type::terminal);
-		 });
-  asio::dispatch(watch_strand,
-		 [this]() {
-		   watch_signal.emit(asio::cancellation_type::terminal);
-		 });
+  asio::dispatch(renew_strand, [this]() {
+    renew_signal.emit(asio::cancellation_type::terminal);
+  });
+  asio::dispatch(recovery_strand, [this]() {
+    recovery_signal.emit(asio::cancellation_type::terminal);
+  });
+  asio::dispatch(watch_strand, [this]() {
+    watch_signal.emit(asio::cancellation_type::terminal);
+  });
   if (watchcookie && rados->check_watch(watchcookie)) {
     auto wc = watchcookie;
     watchcookie = 0;
     try {
       co_await rados->unwatch(wc, loc, asio::use_awaitable);
     } catch (const std::exception& e) {
-      ldpp_dout(&dp, 2)
-	<< "RGWDataChangesLog::async_shutdown: unwatch failed: " << e.what()
-	<< dendl;
+      ldpp_dout(&dp, 2) << "RGWDataChangesLog::async_shutdown: unwatch failed: "
+                        << e.what() << dendl;
     }
   }
   co_return;
 }
 
-void RGWDataChangesLog::blocking_shutdown()
+void
+RGWDataChangesLog::blocking_shutdown()
 {
   DoutPrefix dp{cct, ceph_subsys_rgw, "Datalog Shutdown"};
   if (down_flag) {
     return;
   }
   down_flag = true;
-  if (ran_background)  {
+  if (ran_background) {
     renew_stop();
     // Revisit this later
-    asio::dispatch(renew_strand,
-		   [this]() {
-		     renew_signal.emit(asio::cancellation_type::terminal);
-		   });
+    asio::dispatch(renew_strand, [this]() {
+      renew_signal.emit(asio::cancellation_type::terminal);
+    });
     try {
       renew_future.wait();
     } catch (const std::future_error& e) {
       if (e.code() != std::future_errc::no_state) {
-	throw;
+        throw;
       }
     }
-    asio::dispatch(recovery_strand,
-		   [this]() {
-		     recovery_signal.emit(asio::cancellation_type::terminal);
-		   });
+    asio::dispatch(recovery_strand, [this]() {
+      recovery_signal.emit(asio::cancellation_type::terminal);
+    });
     try {
       recovery_future.wait();
     } catch (const std::future_error& e) {
       if (e.code() != std::future_errc::no_state) {
-	throw;
+        throw;
       }
     }
-    asio::dispatch(watch_strand,
-		   [this]() {
-		     watch_signal.emit(asio::cancellation_type::terminal);
-		   });
+    asio::dispatch(watch_strand, [this]() {
+      watch_signal.emit(asio::cancellation_type::terminal);
+    });
     try {
       watch_future.wait();
     } catch (const std::future_error& e) {
       if (e.code() != std::future_errc::no_state) {
-	throw;
+        throw;
       }
     }
     if (watchcookie && rados->check_watch(watchcookie)) {
       auto wc = watchcookie;
       watchcookie = 0;
       try {
-	rados->unwatch(wc, loc, async::use_blocked);
+        rados->unwatch(wc, loc, async::use_blocked);
       } catch (const std::exception& e) {
-	ldpp_dout(&dp, 2)
-	  << "RGWDataChangesLog::blocking_shutdown: unwatch failed: " << e.what()
-	  << dendl;
+        ldpp_dout(&dp, 2)
+            << "RGWDataChangesLog::blocking_shutdown: unwatch failed: "
+            << e.what() << dendl;
       }
     }
   }
@@ -1357,46 +1483,52 @@ void RGWDataChangesLog::blocking_shutdown()
   return;
 }
 
-RGWDataChangesLog::~RGWDataChangesLog() {
+RGWDataChangesLog::~RGWDataChangesLog()
+{
   if (log_data && !down_flag) {
     lderr(cct) << __PRETTY_FUNCTION__ << ":" << __LINE__
-	       << ": RGWDataChangesLog destructed without shutdown." << dendl;
+               << ": RGWDataChangesLog destructed without shutdown." << dendl;
   }
 }
 
-asio::awaitable<void> RGWDataChangesLog::renew_run() {
+asio::awaitable<void>
+RGWDataChangesLog::renew_run()
+{
   static constexpr auto runs_per_prune = 150;
   auto run = 0;
   renew_timer.emplace(co_await asio::this_coro::executor);
   std::string_view operation;
   const DoutPrefix dp(cct, dout_subsys, "rgw data changes log: ");
-  for (;;) try {
+  for (;;)
+    try {
       ldpp_dout(&dp, 2) << "RGWDataChangesLog::ChangesRenewThread: start"
-			<< dendl;
+                        << dendl;
       operation = "RGWDataChangesLog::renew_entries"sv;
       co_await renew_entries(&dp);
       operation = {};
       if (going_down())
-	break;
+        break;
 
       if (run == runs_per_prune) {
-	std::optional<uint64_t> through;
-	ldpp_dout(&dp, 2) << "RGWDataChangesLog::ChangesRenewThread: pruning old generations" << dendl;
-	operation = "trim_generations"sv;
-	co_await trim_generations(&dp, through);
-	operation = {};
-	if (through) {
-	  ldpp_dout(&dp, 2)
-	    << "RGWDataChangesLog::ChangesRenewThread: pruned generations "
-	    << "through " << *through << "." << dendl;
-	} else {
-	  ldpp_dout(&dp, 2)
-	    << "RGWDataChangesLog::ChangesRenewThread: nothing to prune."
-	    << dendl;
-	}
+        std::optional<uint64_t> through;
+        ldpp_dout(&dp, 2)
+            << "RGWDataChangesLog::ChangesRenewThread: pruning old generations"
+            << dendl;
+        operation = "trim_generations"sv;
+        co_await trim_generations(&dp, through);
+        operation = {};
+        if (through) {
+          ldpp_dout(&dp, 2)
+              << "RGWDataChangesLog::ChangesRenewThread: pruned generations "
+              << "through " << *through << "." << dendl;
+        } else {
+          ldpp_dout(&dp, 2)
+              << "RGWDataChangesLog::ChangesRenewThread: nothing to prune."
+              << dendl;
+        }
         run = 0;
       } else {
-	++run;
+        ++run;
       }
 
       int interval = cct->_conf->rgw_data_log_window * 3 / 4;
@@ -1404,20 +1536,20 @@ asio::awaitable<void> RGWDataChangesLog::renew_run() {
       co_await renew_timer->async_wait(asio::use_awaitable);
     } catch (sys::system_error& e) {
       if (e.code() == asio::error::operation_aborted) {
-	ldpp_dout(&dp, 10)
-	  << "RGWDataChangesLog::renew_entries canceled, going down" << dendl;
-	break;
+        ldpp_dout(&dp, 10)
+            << "RGWDataChangesLog::renew_entries canceled, going down" << dendl;
+        break;
       } else {
-	ldpp_dout(&dp, 0)
-	  << "renew_thread: ERROR: "
-	  << (operation.empty() ? operation : "<unknown"sv)
-	  << "threw exception: " << e.what() << dendl;
-	continue;
+        ldpp_dout(&dp, 0) << "renew_thread: ERROR: "
+                          << (operation.empty() ? operation : "<unknown"sv)
+                          << "threw exception: " << e.what() << dendl;
+        continue;
       }
     }
 }
 
-void RGWDataChangesLog::renew_stop()
+void
+RGWDataChangesLog::renew_stop()
 {
   std::lock_guard l{lock};
   if (renew_timer) {
@@ -1425,7 +1557,11 @@ void RGWDataChangesLog::renew_stop()
   }
 }
 
-void RGWDataChangesLog::mark_modified(int shard_id, const rgw_bucket_shard& bs, uint64_t gen)
+void
+RGWDataChangesLog::mark_modified(
+    int shard_id,
+    const rgw_bucket_shard& bs,
+    uint64_t gen)
 {
   assert(shard_id < num_shards);
   if (!cct->_conf->rgw_data_notify_interval_msec) {
@@ -1445,34 +1581,38 @@ void RGWDataChangesLog::mark_modified(int shard_id, const rgw_bucket_shard& bs, 
   modified_shards[shard_id].insert(rgw_data_notify_entry{key, gen});
 }
 
-std::string RGWDataChangesLog::max_marker() const {
-  return gencursor(std::numeric_limits<uint64_t>::max(),
-		   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+std::string
+RGWDataChangesLog::max_marker() const
+{
+  return gencursor(
+      std::numeric_limits<uint64_t>::max(),
+      "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::change_format(const DoutPrefixProvider *dpp, log_type type)
+RGWDataChangesLog::change_format(const DoutPrefixProvider* dpp, log_type type)
 {
   co_return co_await bes->new_backing(dpp, type);
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::trim_generations(const DoutPrefixProvider *dpp,
-				    std::optional<uint64_t>& through)
+RGWDataChangesLog::trim_generations(
+    const DoutPrefixProvider* dpp,
+    std::optional<uint64_t>& through)
 {
   co_return co_await bes->trim_generations(dpp, through);
 }
 
-asio::awaitable<std::pair<bc::flat_map<std::string, uint64_t>,
-			  std::string>>
-RGWDataChangesLog::read_sems(int index, std::string cursor) {
+asio::awaitable<std::pair<bc::flat_map<std::string, uint64_t>, std::string>>
+RGWDataChangesLog::read_sems(int index, std::string cursor)
+{
   bc::flat_map<std::string, uint64_t> out;
   try {
     co_await rados->execute(
-      get_sem_set_oid(index), loc,
-      neorados::ReadOp{}.exec(ss::list(sem_max_keys, std::move(cursor),
-				       &out, &cursor)),
-      nullptr, asio::use_awaitable);
+        get_sem_set_oid(index), loc,
+        neorados::ReadOp{}.exec(
+            ss::list(sem_max_keys, std::move(cursor), &out, &cursor)),
+        nullptr, asio::use_awaitable);
   } catch (const sys::system_error& e) {
     if (e.code() != sys::errc::no_such_file_or_directory) {
       throw;
@@ -1483,9 +1623,9 @@ RGWDataChangesLog::read_sems(int index, std::string cursor) {
 
 asio::awaitable<bool>
 RGWDataChangesLog::synthesize_entries(
-  const DoutPrefixProvider* dpp,
-  int index,
-  const bc::flat_map<std::string, uint64_t>& semcount)
+    const DoutPrefixProvider* dpp,
+    int index,
+    const bc::flat_map<std::string, uint64_t>& semcount)
 {
   const auto timestamp = real_clock::now();
   auto be = bes->head();
@@ -1505,26 +1645,28 @@ RGWDataChangesLog::synthesize_entries(
       be->prepare(timestamp, change.key, std::move(bl), batch);
     } catch (const sys::system_error& e) {
       push_failed = true;
-      ldpp_dout(dpp, -1) << "RGWDataChangesLog::synthesize_entries(): Unable to "
-			 << "parse Bucketgen key: " << key << "Got exception: "
-			 << e.what() << dendl;
+      ldpp_dout(dpp, -1)
+          << "RGWDataChangesLog::synthesize_entries(): Unable to "
+          << "parse Bucketgen key: " << key << "Got exception: " << e.what()
+          << dendl;
     }
   }
   try {
     co_await be->push(dpp, index, std::move(batch));
   } catch (const std::exception& e) {
     push_failed = true;
-    ldpp_dout(dpp, 5) << "RGWDataChangesLog::synthesize_entries(): Backend push "
-		      << " failed with exception: " << e.what() << dendl;
+    ldpp_dout(dpp, 5)
+        << "RGWDataChangesLog::synthesize_entries(): Backend push "
+        << " failed with exception: " << e.what() << dendl;
   }
   co_return !push_failed;
 }
 
 asio::awaitable<bool>
 RGWDataChangesLog::gather_working_sets(
-  const DoutPrefixProvider* dpp,
-  int shard,
-  bc::flat_map<std::string, uint64_t>& semcount)
+    const DoutPrefixProvider* dpp,
+    int shard,
+    bc::flat_map<std::string, uint64_t>& semcount)
 {
   buffer::list bl;
   recovery_check rc;
@@ -1538,8 +1680,9 @@ RGWDataChangesLog::gather_working_sets(
       get_sem_set_oid(0), loc, bl, 60s, asio::use_awaitable);
   // If we didn't get an answer from someone, don't decrement anything.
   if (!missed_set.empty()) {
-    ldpp_dout(dpp, 5) << "RGWDataChangesLog::gather_working_sets(): Missed responses: "
-		      << missed_set << dendl;
+    ldpp_dout(dpp, 5)
+        << "RGWDataChangesLog::gather_working_sets(): Missed responses: "
+        << missed_set << dendl;
     co_return false;
   }
   for (const auto& [source, reply] : reply_map) {
@@ -1547,15 +1690,15 @@ RGWDataChangesLog::gather_working_sets(
     try {
       decode(counts, reply);
     } catch (const std::exception& e) {
-      ldpp_dout(dpp, -1)
-	<< "RGWDataChangesLog::gather_working_sets(): Failed decoding reply from: "
-	<< source << dendl;
+      ldpp_dout(dpp, -1) << "RGWDataChangesLog::gather_working_sets(): Failed "
+                            "decoding reply from: "
+                         << source << dendl;
       co_return false;
     }
     if (rc.keys.size() != counts.reply_set.size()) {
-      ldpp_dout(dpp, -1)
-	<< "RGWDataChangesLog::gather_working_sets(): reply set does not match: "
-	<< source << dendl;
+      ldpp_dout(dpp, -1) << "RGWDataChangesLog::gather_working_sets(): reply "
+                            "set does not match: "
+                         << source << dendl;
       co_return false;
     }
     for (auto i = 0u; i < rc.keys.size(); ++i) {
@@ -1563,12 +1706,12 @@ RGWDataChangesLog::gather_working_sets(
       const auto& count = counts.reply_set[i];
       auto iter = semcount.find(key);
       if (iter == semcount.end()) {
-	continue;
+        continue;
       }
       if (iter->second <= count) {
-	semcount.erase(iter);
+        semcount.erase(iter);
       } else {
-	(iter->second) -= count;
+        (iter->second) -= count;
       }
     }
   }
@@ -1577,9 +1720,9 @@ RGWDataChangesLog::gather_working_sets(
 
 asio::awaitable<void>
 RGWDataChangesLog::decrement_sems(
-  int index,
-  ceph::mono_time fetch_time,
-  bc::flat_map<std::string, uint64_t>&& semcount)
+    int index,
+    ceph::mono_time fetch_time,
+    bc::flat_map<std::string, uint64_t>&& semcount)
 {
   namespace sem_set = neorados::cls::sem_set;
   while (!semcount.empty()) {
@@ -1591,9 +1734,9 @@ RGWDataChangesLog::decrement_sems(
     }
     auto grace = ((ceph::mono_clock::now() - fetch_time) * 4) / 3;
     co_await rados->execute(
-      get_sem_set_oid(index), loc, neorados::WriteOp{}.exec(
-	ss::decrement(std::move(batch), grace)),
-      asio::use_awaitable);
+        get_sem_set_oid(index), loc,
+        neorados::WriteOp{}.exec(ss::decrement(std::move(batch), grace)),
+        asio::use_awaitable);
   }
 }
 
@@ -1617,7 +1760,7 @@ RGWDataChangesLog::recover_shard(const DoutPrefixProvider* dpp, int index)
     if (!pushed) {
       // If pushing failed, don't decrement any semaphores
       ldpp_dout(dpp, 5) << "RGWDataChangesLog::recover_shard(): Pushing shard "
-			<< index << " failed, skipping decrement" << dendl;
+                        << index << " failed, skipping decrement" << dendl;
       continue;
     }
 
@@ -1628,8 +1771,8 @@ RGWDataChangesLog::recover_shard(const DoutPrefixProvider* dpp, int index)
     auto notified = co_await gather_working_sets(dpp, index, semcount);
     if (!notified) {
       ldpp_dout(dpp, 5) << "RGWDataChangesLog::recover_shard(): Gathering "
-			<< "working sets for shard " << index
-			<< "failed, skipping decrement" << dendl;
+                        << "working sets for shard " << index
+                        << "failed, skipping decrement" << dendl;
       continue;
     }
     co_await decrement_sems(index, fetch_time, std::move(semcount));
@@ -1637,20 +1780,20 @@ RGWDataChangesLog::recover_shard(const DoutPrefixProvider* dpp, int index)
   co_return;
 }
 
-asio::awaitable<void> RGWDataChangesLog::recover(
-  const DoutPrefixProvider* dpp)
+asio::awaitable<void>
+RGWDataChangesLog::recover(const DoutPrefixProvider* dpp)
 {
   co_await asio::co_spawn(
-    recovery_strand,
-    [this](const DoutPrefixProvider* dpp)-> asio::awaitable<void, strand_t> {
-      auto ex = recovery_strand;
-      auto group = async::spawn_group{ex, static_cast<size_t>(num_shards)};
-      for (auto i = 0; i < num_shards; ++i) {
-	boost::asio::co_spawn(ex, recover_shard(dpp, i), group);
-      }
-      co_await group.wait();
-    }(dpp),
-    asio::use_awaitable);
+      recovery_strand,
+      [this](const DoutPrefixProvider* dpp) -> asio::awaitable<void, strand_t> {
+        auto ex = recovery_strand;
+        auto group = async::spawn_group{ex, static_cast<size_t>(num_shards)};
+        for (auto i = 0; i < num_shards; ++i) {
+          boost::asio::co_spawn(ex, recover_shard(dpp, i), group);
+        }
+        co_await group.wait();
+      }(dpp),
+      asio::use_awaitable);
 
   std::unique_lock l(lock);
   last_recovery = ceph::mono_clock::now();
@@ -1658,11 +1801,12 @@ asio::awaitable<void> RGWDataChangesLog::recover(
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::admin_sem_list(std::optional<int> req_shard,
-				  std::uint64_t max_entries,
-				  std::string marker,
-				  std::ostream& m,
-				  ceph::Formatter& formatter)
+RGWDataChangesLog::admin_sem_list(
+    std::optional<int> req_shard,
+    std::uint64_t max_entries,
+    std::string marker,
+    std::ostream& m,
+    ceph::Formatter& formatter)
 {
   int shard = req_shard.value_or(0);
   std::string keptmark;
@@ -1673,9 +1817,9 @@ RGWDataChangesLog::admin_sem_list(std::optional<int> req_shard,
     auto index = choose_oid(bg.shard);
     if (req_shard && *req_shard != index) {
       throw sys::system_error{
-	EINVAL, sys::generic_category(),
-	fmt::format("Requested shard {} but marker is for shard {}",
-		    shard, index)};
+          EINVAL, sys::generic_category(),
+          fmt::format(
+              "Requested shard {} but marker is for shard {}", shard, index)};
     }
   }
   bc::flat_map<std::string, std::uint64_t> entries;
@@ -1691,30 +1835,29 @@ RGWDataChangesLog::admin_sem_list(std::optional<int> req_shard,
     entries.clear();
     try {
       if (begin_next) {
-	marker.clear();
-	begin_next = false;
+        marker.clear();
+        begin_next = false;
       }
-      co_await rados->execute(get_sem_set_oid(shard), loc,
-			      neorados::ReadOp{}.
-			      exec(ss::list(std::min(max_entries - count,
-						     sem_max_keys),
-					    marker,
-					    &entries, &marker)),
-	nullptr, asio::use_awaitable);
+      co_await rados->execute(
+          get_sem_set_oid(shard), loc,
+          neorados::ReadOp{}.exec(ss::list(
+              std::min(max_entries - count, sem_max_keys), marker, &entries,
+              &marker)),
+          nullptr, asio::use_awaitable);
       if (!marker.empty()) {
-	mkeep = marker;
+        mkeep = marker;
       }
     } catch (const sys::system_error& e) {
       if (e.code() == sys::errc::no_such_file_or_directory) {
-	if (!req_shard) {
-	  begin_next = true;
-	  ++shard;
-	  continue;
-	} else {
-	  break;
-	}
+        if (!req_shard) {
+          begin_next = true;
+          ++shard;
+          continue;
+        } else {
+          break;
+        }
       } else {
-	throw;
+        throw;
       }
     }
     for (auto i = entries.cbegin(); i != entries.cend(); ++i) {
@@ -1728,12 +1871,12 @@ RGWDataChangesLog::admin_sem_list(std::optional<int> req_shard,
     formatter.flush(m);
     if (marker.empty()) {
       if (!entries.empty()) {
-	mkeep = (entries.cend() - 1)->first;
+        mkeep = (entries.cend() - 1)->first;
       }
       if (!req_shard) {
-	++shard;
+        ++shard;
       } else {
-	break;
+        break;
       }
     }
   }
@@ -1748,25 +1891,26 @@ RGWDataChangesLog::admin_sem_list(std::optional<int> req_shard,
 }
 
 asio::awaitable<void>
-RGWDataChangesLog::admin_sem_reset(std::string_view marker,
-				   std::uint64_t count)
+RGWDataChangesLog::admin_sem_reset(std::string_view marker, std::uint64_t count)
 {
   // Exceptions here are caught by radosgw-admin
   BucketGen bg{marker};
   unsigned index = choose_oid(bg.shard);
   auto wop = neorados::WriteOp{}.exec(ss::reset(std::string(marker), count));
-  co_await rados->execute(get_sem_set_oid(index), loc,
-			  std::move(wop), asio::use_awaitable);
+  co_await rados->execute(
+      get_sem_set_oid(index), loc, std::move(wop), asio::use_awaitable);
 }
 
-void RGWDataChangesLogInfo::dump(Formatter *f) const
+void
+RGWDataChangesLogInfo::dump(Formatter* f) const
 {
   encode_json("marker", marker, f);
   utime_t ut(last_update);
   encode_json("last_update", ut, f);
 }
 
-void RGWDataChangesLogInfo::decode_json(JSONObj *obj)
+void
+RGWDataChangesLogInfo::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("marker", marker, obj);
   JSONDecoder::decode_json("last_update", last_update, obj);

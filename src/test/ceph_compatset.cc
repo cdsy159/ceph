@@ -13,27 +13,28 @@
  *
  */
 
+#include <ctype.h>
+#include <errno.h>
+#include <signal.h>
+#include <sys/stat.h>
+
 #include <fstream>
 #include <iostream>
-#include <errno.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <ctype.h>
-#include <boost/scoped_ptr.hpp>
 #include <string>
+#include <vector>
 
-#include "include/types.h"
-#include "include/compat.h"
-#include "include/coredumpctl.h"
-
-#include "include/CompatSet.h"
+#include <boost/scoped_ptr.hpp>
 
 #include "gtest/gtest.h"
-#include <vector>
+#include "include/CompatSet.h"
+#include "include/compat.h"
+#include "include/coredumpctl.h"
+#include "include/types.h"
 
 using namespace std;
 
-TEST(CephCompatSet, AllSet) {
+TEST(CephCompatSet, AllSet)
+{
   CompatSet::FeatureSet compat;
   CompatSet::FeatureSet ro;
   CompatSet::FeatureSet incompat;
@@ -47,13 +48,13 @@ TEST(CephCompatSet, AllSet) {
   for (int i = 1; i < 64; i++) {
     stringstream cname;
     cname << string("c") << i;
-    compat.insert(CompatSet::Feature(i,cname.str().c_str()));
+    compat.insert(CompatSet::Feature(i, cname.str().c_str()));
     stringstream roname;
     roname << string("r") << i;
-    ro.insert(CompatSet::Feature(i,roname.str().c_str()));
+    ro.insert(CompatSet::Feature(i, roname.str().c_str()));
     stringstream iname;
     iname << string("i") << i;
-    incompat.insert(CompatSet::Feature(i,iname.str().c_str()));
+    incompat.insert(CompatSet::Feature(i, iname.str().c_str()));
   }
   CompatSet tcs(compat, ro, incompat);
 
@@ -69,19 +70,21 @@ TEST(CephCompatSet, AllSet) {
     EXPECT_TRUE(tcs.compat.contains(i));
     stringstream cname;
     cname << string("c") << i;
-    EXPECT_TRUE(tcs.compat.contains(CompatSet::Feature(i,cname.str().c_str())));
+    EXPECT_TRUE(tcs.compat.contains(CompatSet::Feature(i, cname.str().c_str())));
     tcs.compat.remove(i);
 
     EXPECT_TRUE(tcs.ro_compat.contains(i));
     stringstream roname;
     roname << string("r") << i;
-    EXPECT_TRUE(tcs.ro_compat.contains(CompatSet::Feature(i,roname.str().c_str())));
+    EXPECT_TRUE(
+        tcs.ro_compat.contains(CompatSet::Feature(i, roname.str().c_str())));
     tcs.ro_compat.remove(i);
 
     EXPECT_TRUE(tcs.incompat.contains(i));
     stringstream iname;
     iname << string("i") << i;
-    EXPECT_TRUE(tcs.incompat.contains(CompatSet::Feature(i,iname.str().c_str())));
+    EXPECT_TRUE(
+        tcs.incompat.contains(CompatSet::Feature(i, iname.str().c_str())));
     tcs.incompat.remove(i);
   }
   //Due to a workaround for a bug bit 0 is always set even though it is
@@ -94,7 +97,8 @@ TEST(CephCompatSet, AllSet) {
   EXPECT_TRUE(tcs.incompat.names.empty());
 }
 
-TEST(CephCompatSet, other) {
+TEST(CephCompatSet, other)
+{
   CompatSet s1, s2, s1dup;
 
   s1.compat.insert(CompatSet::Feature(1, "c1"));
@@ -120,7 +124,7 @@ TEST(CephCompatSet, other) {
   EXPECT_EQ(s2.compare(s1), -1);
 
   CompatSet diff = s2.unsupported(s1);
-  EXPECT_EQ(diff.compat.mask, (uint64_t)1<<2 | 1);
+  EXPECT_EQ(diff.compat.mask, (uint64_t)1 << 2 | 1);
   EXPECT_EQ(diff.ro_compat.mask, (uint64_t)1);
   EXPECT_EQ(diff.incompat.mask, (uint64_t)1);
 
@@ -130,10 +134,11 @@ TEST(CephCompatSet, other) {
   diff = s1.unsupported(s3);
   EXPECT_EQ(diff.compat.mask, (uint64_t)1);
   EXPECT_EQ(diff.ro_compat.mask, (uint64_t)1);
-  EXPECT_EQ(diff.incompat.mask, (uint64_t)1<<4 | 1);
+  EXPECT_EQ(diff.incompat.mask, (uint64_t)1 << 4 | 1);
 }
 
-TEST(CephCompatSet, merge) {
+TEST(CephCompatSet, merge)
+{
   CompatSet s1, s2, s1dup, s2dup;
 
   s1.compat.insert(CompatSet::Feature(1, "c1"));
@@ -157,12 +162,16 @@ TEST(CephCompatSet, merge) {
   EXPECT_FALSE(s2.merge(s2dup));
 
   EXPECT_TRUE(s1.merge(s2));
-  EXPECT_EQ(s1.compat.mask, (uint64_t)1<<1 | (uint64_t)1<<2 | (uint64_t)1<<32 | 1);
-  EXPECT_EQ(s1.ro_compat.mask, (uint64_t)1<<1 | (uint64_t)1<<63 | 1);
-  EXPECT_EQ(s1.incompat.mask, (uint64_t)1<<1 | 1);
+  EXPECT_EQ(
+      s1.compat.mask,
+      (uint64_t)1 << 1 | (uint64_t)1 << 2 | (uint64_t)1 << 32 | 1);
+  EXPECT_EQ(s1.ro_compat.mask, (uint64_t)1 << 1 | (uint64_t)1 << 63 | 1);
+  EXPECT_EQ(s1.incompat.mask, (uint64_t)1 << 1 | 1);
 
   EXPECT_TRUE(s2.merge(s1dup));
-  EXPECT_EQ(s2.compat.mask, (uint64_t)1<<1 | (uint64_t)1<<2 | (uint64_t)1<<32 | 1);
-  EXPECT_EQ(s2.ro_compat.mask, (uint64_t)1<<1 | (uint64_t)1<<63 | 1);
-  EXPECT_EQ(s2.incompat.mask, (uint64_t)1<<1 | 1);
+  EXPECT_EQ(
+      s2.compat.mask,
+      (uint64_t)1 << 1 | (uint64_t)1 << 2 | (uint64_t)1 << 32 | 1);
+  EXPECT_EQ(s2.ro_compat.mask, (uint64_t)1 << 1 | (uint64_t)1 << 63 | 1);
+  EXPECT_EQ(s2.incompat.mask, (uint64_t)1 << 1 | 1);
 }

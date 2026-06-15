@@ -14,21 +14,21 @@
 #ifndef MGR_JSON_COMMAND_H_
 #define MGR_JSON_COMMAND_H_
 
-#include "MgrContext.h"
 #include "common/ceph_json.h"
 
-class JSONCommand : public Command
-{
+#include "MgrContext.h"
+
+class JSONCommand : public Command {
 public:
   json_spirit::mValue json_result;
 
-  void wait() override
+  void
+  wait() override
   {
     Command::wait();
 
     if (r == 0) {
-      bool read_ok = json_spirit::read(
-          outbl.to_str(), json_result);
+      bool read_ok = json_spirit::read(outbl.to_str(), json_result);
       if (!read_ok) {
         r = -EINVAL;
       }
@@ -37,4 +37,3 @@ public:
 };
 
 #endif
-

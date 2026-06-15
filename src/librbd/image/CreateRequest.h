@@ -4,46 +4,55 @@
 #ifndef CEPH_LIBRBD_IMAGE_CREATE_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_CREATE_REQUEST_H
 
+#include "cls/rbd/cls_rbd_types.h"
 #include "common/config_fwd.h"
-#include "include/int_types.h"
 #include "include/buffer.h"
+#include "include/int_types.h"
 #include "include/rados/librados.hpp"
 #include "include/rbd/librbd.hpp"
-#include "cls/rbd/cls_rbd_types.h"
 #include "librbd/ImageCtx.h"
 
 class Context;
 
 using librados::IoCtx;
 
-namespace journal { class Journaler; }
+namespace journal {
+class Journaler;
+}
 
 namespace librbd {
 
-namespace asio { struct ContextWQ; }
+namespace asio {
+struct ContextWQ;
+}
 
 namespace image {
 
 template <typename ImageCtxT = ImageCtx>
 class CreateRequest {
 public:
-  static CreateRequest *create(const ConfigProxy& config, IoCtx &ioctx,
-                               const std::string &image_name,
-                               const std::string &image_id, uint64_t size,
-                               const ImageOptions &image_options,
-                               uint32_t create_flags,
-                               cls::rbd::MirrorImageMode mirror_image_mode,
-                               const std::string &non_primary_global_image_id,
-                               const std::string &primary_mirror_uuid,
-                               asio::ContextWQ *op_work_queue,
-                               Context *on_finish) {
-    return new CreateRequest(config, ioctx, image_name, image_id, size,
-                             image_options, create_flags,
-                             mirror_image_mode, non_primary_global_image_id,
-                             primary_mirror_uuid, op_work_queue, on_finish);
+  static CreateRequest*
+  create(
+      const ConfigProxy& config,
+      IoCtx& ioctx,
+      const std::string& image_name,
+      const std::string& image_id,
+      uint64_t size,
+      const ImageOptions& image_options,
+      uint32_t create_flags,
+      cls::rbd::MirrorImageMode mirror_image_mode,
+      const std::string& non_primary_global_image_id,
+      const std::string& primary_mirror_uuid,
+      asio::ContextWQ* op_work_queue,
+      Context* on_finish)
+  {
+    return new CreateRequest(
+        config, ioctx, image_name, image_id, size, image_options, create_flags,
+        mirror_image_mode, non_primary_global_image_id, primary_mirror_uuid,
+        op_work_queue, on_finish);
   }
 
-  static int validate_order(CephContext *cct, uint8_t order);
+  static int validate_order(CephContext* cct, uint8_t order);
 
   void send();
 
@@ -90,15 +99,19 @@ private:
    * @endverbatim
    */
 
-  CreateRequest(const ConfigProxy& config, IoCtx &ioctx,
-                const std::string &image_name,
-                const std::string &image_id, uint64_t size,
-                const ImageOptions &image_options,
-                uint32_t create_flags,
-                cls::rbd::MirrorImageMode mirror_image_mode,
-                const std::string &non_primary_global_image_id,
-                const std::string &primary_mirror_uuid,
-                asio::ContextWQ *op_work_queue, Context *on_finish);
+  CreateRequest(
+      const ConfigProxy& config,
+      IoCtx& ioctx,
+      const std::string& image_name,
+      const std::string& image_id,
+      uint64_t size,
+      const ImageOptions& image_options,
+      uint32_t create_flags,
+      cls::rbd::MirrorImageMode mirror_image_mode,
+      const std::string& non_primary_global_image_id,
+      const std::string& primary_mirror_uuid,
+      asio::ContextWQ* op_work_queue,
+      Context* on_finish);
 
   const ConfigProxy& m_config;
   IoCtx m_io_ctx;
@@ -121,11 +134,11 @@ private:
   const std::string m_primary_mirror_uuid;
   bool m_negotiate_features = false;
 
-  asio::ContextWQ *m_op_work_queue;
-  Context *m_on_finish;
+  asio::ContextWQ* m_op_work_queue;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
-  int m_r_saved = 0;  // used to return actual error after cleanup
+  CephContext* m_cct;
+  int m_r_saved = 0; // used to return actual error after cleanup
   file_layout_t m_layout;
   std::string m_id_obj, m_header_obj, m_objmap_name;
 
@@ -180,7 +193,6 @@ private:
 
   void remove_from_dir();
   void handle_remove_from_dir(int r);
-
 };
 
 } //namespace image

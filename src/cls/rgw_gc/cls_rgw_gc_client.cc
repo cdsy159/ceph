@@ -1,14 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "cls/rgw_gc/cls_rgw_gc_client.h"
+
 #include <errno.h>
 
-#include "cls/rgw/cls_rgw_ops.h"
-#include "cls/rgw_gc/cls_rgw_gc_ops.h"
-#include "cls/queue/cls_queue_ops.h"
-#include "cls/rgw_gc/cls_rgw_gc_const.h"
 #include "cls/queue/cls_queue_const.h"
-#include "cls/rgw_gc/cls_rgw_gc_client.h"
+#include "cls/queue/cls_queue_ops.h"
+#include "cls/rgw/cls_rgw_ops.h"
+#include "cls/rgw_gc/cls_rgw_gc_const.h"
+#include "cls/rgw_gc/cls_rgw_gc_ops.h"
 
 using std::list;
 using std::string;
@@ -18,7 +19,11 @@ using ceph::encode;
 
 using namespace librados;
 
-void cls_rgw_gc_queue_init(ObjectWriteOperation& op, uint64_t size, uint64_t num_deferred_entries)
+void
+cls_rgw_gc_queue_init(
+    ObjectWriteOperation& op,
+    uint64_t size,
+    uint64_t num_deferred_entries)
 {
   bufferlist in;
   cls_rgw_gc_queue_init_op call;
@@ -28,7 +33,8 @@ void cls_rgw_gc_queue_init(ObjectWriteOperation& op, uint64_t size, uint64_t num
   op.exec(RGW_GC_CLASS, RGW_GC_QUEUE_INIT, in);
 }
 
-int cls_rgw_gc_queue_get_capacity(IoCtx& io_ctx, const string& oid, uint64_t& size)
+int
+cls_rgw_gc_queue_get_capacity(IoCtx& io_ctx, const string& oid, uint64_t& size)
 {
   bufferlist in, out;
   int r = io_ctx.exec(oid, QUEUE_CLASS, QUEUE_GET_CAPACITY, in, out);
@@ -48,7 +54,11 @@ int cls_rgw_gc_queue_get_capacity(IoCtx& io_ctx, const string& oid, uint64_t& si
   return 0;
 }
 
-void cls_rgw_gc_queue_enqueue(ObjectWriteOperation& op, uint32_t expiration_secs, const cls_rgw_gc_obj_info& info)
+void
+cls_rgw_gc_queue_enqueue(
+    ObjectWriteOperation& op,
+    uint32_t expiration_secs,
+    const cls_rgw_gc_obj_info& info)
 {
   bufferlist in;
   cls_rgw_gc_set_entry_op call;
@@ -58,8 +68,16 @@ void cls_rgw_gc_queue_enqueue(ObjectWriteOperation& op, uint32_t expiration_secs
   op.exec(RGW_GC_CLASS, RGW_GC_QUEUE_ENQUEUE, in);
 }
 
-int cls_rgw_gc_queue_list_entries(IoCtx& io_ctx, const string& oid, const string& marker, uint32_t max, bool expired_only,
-                                  list<cls_rgw_gc_obj_info>& entries, bool *truncated, string& next_marker)
+int
+cls_rgw_gc_queue_list_entries(
+    IoCtx& io_ctx,
+    const string& oid,
+    const string& marker,
+    uint32_t max,
+    bool expired_only,
+    list<cls_rgw_gc_obj_info>& entries,
+    bool* truncated,
+    string& next_marker)
 {
   bufferlist in, out;
   cls_rgw_gc_list_op op;
@@ -89,7 +107,8 @@ int cls_rgw_gc_queue_list_entries(IoCtx& io_ctx, const string& oid, const string
   return 0;
 }
 
-void cls_rgw_gc_queue_remove_entries(ObjectWriteOperation& op, uint32_t num_entries)
+void
+cls_rgw_gc_queue_remove_entries(ObjectWriteOperation& op, uint32_t num_entries)
 {
   bufferlist in, out;
   cls_rgw_gc_queue_remove_entries_op rem_op;
@@ -98,7 +117,11 @@ void cls_rgw_gc_queue_remove_entries(ObjectWriteOperation& op, uint32_t num_entr
   op.exec(RGW_GC_CLASS, RGW_GC_QUEUE_REMOVE_ENTRIES, in);
 }
 
-void cls_rgw_gc_queue_defer_entry(ObjectWriteOperation& op, uint32_t expiration_secs, const cls_rgw_gc_obj_info& info)
+void
+cls_rgw_gc_queue_defer_entry(
+    ObjectWriteOperation& op,
+    uint32_t expiration_secs,
+    const cls_rgw_gc_obj_info& info)
 {
   bufferlist in;
   cls_rgw_gc_queue_defer_entry_op defer_op;

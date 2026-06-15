@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,15 +15,17 @@
 
 #pragma once
 
-#include "include/encoding.h"
-#include "include/types.h"
-
 #include <iosfwd>
 #include <list>
 #include <map>
 #include <set>
 
-namespace ceph { class Formatter; }
+#include "include/encoding.h"
+#include "include/types.h"
+
+namespace ceph {
+class Formatter;
+}
 
 struct ConnectionReport {
   int rank = -1; // mon rank this state belongs to
@@ -31,7 +33,10 @@ struct ConnectionReport {
   std::map<int, double> history; // [0-1]; the connection reliability
   epoch_t epoch = 0; // the (local) election epoch the ConnectionReport came from
   uint64_t epoch_version = 0; // version of the ConnectionReport within the epoch
-  void encode(bufferlist& bl) const {
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(rank, bl);
     encode(current, bl);
@@ -40,7 +45,10 @@ struct ConnectionReport {
     encode(epoch_version, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(rank, bl);
     decode(current, bl);
@@ -49,16 +57,20 @@ struct ConnectionReport {
     decode(epoch_version, bl);
     DECODE_FINISH(bl);
   }
-  bool operator==(const ConnectionReport& o) const {
-    return o.rank == rank && o.current == current &&
-      o.history == history && o.epoch == epoch &&
-      o.epoch_version == epoch_version;
-  }
-  friend std::ostream& operator<<(std::ostream&o, const ConnectionReport& c);
 
-  void dump(ceph::Formatter *f) const;
+  bool
+  operator==(const ConnectionReport& o) const
+  {
+    return o.rank == rank && o.current == current && o.history == history &&
+           o.epoch == epoch && o.epoch_version == epoch_version;
+  }
+
+  friend std::ostream& operator<<(std::ostream& o, const ConnectionReport& c);
+
+  void dump(ceph::Formatter* f) const;
   static std::list<ConnectionReport> generate_test_instances();
 };
+
 WRITE_CLASS_ENCODER(ConnectionReport);
 
 struct DirectedGraph {
@@ -68,8 +80,12 @@ struct DirectedGraph {
   // all monitors have valid ranks.
   std::map<unsigned, std::set<unsigned>> outgoing_edges;
   std::map<unsigned, std::set<unsigned>> incoming_edges;
-  CephContext *cct;
-  DirectedGraph(CephContext *c) : cct(c) {}
+  CephContext* cct;
+
+  DirectedGraph(CephContext* c) :
+    cct(c)
+  {}
+
   void add_outgoing_edge(unsigned from, unsigned to);
   void add_incoming_edge(unsigned to, unsigned from);
   bool has_outgoing_edge(unsigned from, unsigned to) const;
@@ -77,7 +93,7 @@ struct DirectedGraph {
 };
 
 class RankProvider {
- public:
+public:
   /**
    * Get the rank of the running daemon.
    * It can be -1, meaning unknown/invalid, or it
@@ -91,11 +107,12 @@ class RankProvider {
    * Presently we do this every tenth update.
    */
   virtual void persist_connectivity_scores() = 0;
+
   virtual ~RankProvider() {}
 };
 
 class ConnectionTracker {
- public:
+public:
   /**
    * Receive a report from a peer and update our internal state
    * if the peer has newer data.
@@ -112,7 +129,7 @@ class ConnectionTracker {
    * If the new version is a multiple of ten, we also persist it.
    */
   void increase_version();
-  
+
   /**
    * Report a connection to a peer rank has been considered alive for
    * the given time duration. We assume the units_alive is <= the time
@@ -128,6 +145,7 @@ class ConnectionTracker {
    * the given time duration, analogous to that above.
    */
   void report_dead_connection(int peer_rank, double units_dead);
+
   /**
    * Set the half-life for dropping connection state
    * out of the ongoing score.
@@ -135,16 +153,21 @@ class ConnectionTracker {
    * new_score = old_score * ( 1 - units / (2d)) + (units/(2d))
    * where units is the units reported alive (for dead, you subtract them).
    */
-  void set_half_life(double d) {
+  void
+  set_half_life(double d)
+  {
     half_life = d;
   }
+
   /**
    * Get the total connection score of a rank across
    * all peers, and the count of how many electors think it's alive.
    * For this summation, if a rank reports a peer as down its score is zero.
    */
-  void get_total_connection_score(int peer_rank, double *rating,
-				  int *live_count) const;
+  void get_total_connection_score(
+      int peer_rank,
+      double* rating,
+      int* live_count) const;
   /**
   * Check if our ranks are clean and make
   * sure there are no extra peer_report lingering.
@@ -157,13 +180,14 @@ class ConnectionTracker {
    * due to network partitions.
    * This is a set of pairs (rank1, rank2) where rank1 < rank2.
    */
-  std::set<std::pair<unsigned, unsigned>> get_netsplit(std::set<unsigned> &mons_down);
+  std::set<std::pair<unsigned, unsigned>> get_netsplit(
+      std::set<unsigned>& mons_down);
   /**
    * Encode this ConnectionTracker. Useful both for storing on disk
    * and for sending off to peers for decoding and import
    * with receive_peer_report() above.
    */
-  void encode(bufferlist &bl) const;
+  void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& bl);
   /**
    * Get a bufferlist containing the ConnectionTracker.
@@ -171,55 +195,99 @@ class ConnectionTracker {
    * doesn't re-encode on every invocation.
    */
   const bufferlist& get_encoded_bl();
- private:
+
+private:
   epoch_t epoch;
   uint64_t version;
-  std::map<int,ConnectionReport> peer_reports;
+  std::map<int, ConnectionReport> peer_reports;
   ConnectionReport my_reports;
   double half_life;
-  RankProvider *owner;
+  RankProvider* owner;
   int rank;
   int persist_interval;
   bufferlist encoding;
-  CephContext *cct;
-  int get_my_rank() const { return rank; }
-  ConnectionReport *reports(int p);
-  const ConnectionReport *reports(int p) const;
+  CephContext* cct;
 
-  void clear_peer_reports() {
+  int
+  get_my_rank() const
+  {
+    return rank;
+  }
+
+  ConnectionReport* reports(int p);
+  const ConnectionReport* reports(int p) const;
+
+  void
+  clear_peer_reports()
+  {
     encoding.clear();
     peer_reports.clear();
     my_reports = ConnectionReport();
     my_reports.rank = rank;
   }
 
- public:
-  ConnectionTracker() : epoch(0), version(0), half_life(12*60*60),
-			owner(NULL), rank(-1), persist_interval(10) {
-  }
-  ConnectionTracker(RankProvider *o, int rank, double hl,
-		    int persist_i, CephContext *c) :
-    epoch(0), version(0),
-    half_life(hl), owner(o), rank(rank), persist_interval(persist_i), cct(c) {
+public:
+  ConnectionTracker() :
+    epoch(0),
+    version(0),
+    half_life(12 * 60 * 60),
+    owner(NULL),
+    rank(-1),
+    persist_interval(10)
+  {}
+
+  ConnectionTracker(
+      RankProvider* o,
+      int rank,
+      double hl,
+      int persist_i,
+      CephContext* c) :
+    epoch(0),
+    version(0),
+    half_life(hl),
+    owner(o),
+    rank(rank),
+    persist_interval(persist_i),
+    cct(c)
+  {
     my_reports.rank = rank;
   }
-  ConnectionTracker(const bufferlist& bl, CephContext *c) :
-    epoch(0), version(0),
-    half_life(0), owner(NULL), rank(-1), persist_interval(10), cct(c)
+
+  ConnectionTracker(const bufferlist& bl, CephContext* c) :
+    epoch(0),
+    version(0),
+    half_life(0),
+    owner(NULL),
+    rank(-1),
+    persist_interval(10),
+    cct(c)
   {
     auto bi = bl.cbegin();
     decode(bi);
   }
+
   ConnectionTracker(const ConnectionTracker& o) :
-    epoch(o.epoch), version(o.version),
-    half_life(o.half_life), owner(o.owner), rank(o.rank),
-    persist_interval(o.persist_interval), cct(o.cct)
+    epoch(o.epoch),
+    version(o.version),
+    half_life(o.half_life),
+    owner(o.owner),
+    rank(o.rank),
+    persist_interval(o.persist_interval),
+    cct(o.cct)
   {
     peer_reports = o.peer_reports;
     my_reports = o.my_reports;
   }
-  void notify_reset() { clear_peer_reports(); }
-  void set_rank(int new_rank) {
+
+  void
+  notify_reset()
+  {
+    clear_peer_reports();
+  }
+
+  void
+  set_rank(int new_rank)
+  {
     rank = new_rank;
     my_reports.rank = rank;
   }
@@ -227,9 +295,10 @@ class ConnectionTracker {
   void notify_rank_changed(int new_rank);
   void notify_rank_removed(int rank_removed, int new_rank);
   friend std::ostream& operator<<(std::ostream& o, const ConnectionTracker& c);
-  friend ConnectionReport *get_connection_reports(ConnectionTracker& ct);
-  friend std::map<int,ConnectionReport> *get_peer_reports(ConnectionTracker& ct);
-  void dump(ceph::Formatter *f) const;
+  friend ConnectionReport* get_connection_reports(ConnectionTracker& ct);
+  friend std::map<int, ConnectionReport>* get_peer_reports(
+      ConnectionTracker& ct);
+  void dump(ceph::Formatter* f) const;
   static std::list<ConnectionTracker> generate_test_instances();
 };
 

@@ -21,39 +21,44 @@
  *
  */
 
-#include <iostream>
+#include "crush/CrushWrapper.h"
+
 #include <gtest/gtest.h>
+
+#include <iostream>
 
 #include "common/ceph_argparse.h"
 #include "common/common_init.h"
-#include "include/stringify.h"
 #include "include/Context.h"
+#include "include/stringify.h"
 #include "osd/osd_types.h"
-
-#include "crush/CrushWrapper.h"
 
 using namespace std;
 
-class CrushWrapperTest : public ::testing::Test
-{
+class CrushWrapperTest : public ::testing::Test {
 public:
-  void SetUp() final
+  void
+  SetUp() final
   {
     CephInitParameters params(CEPH_ENTITY_TYPE_CLIENT);
-    cct = common_preinit(params, CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+    cct = common_preinit(
+        params, CODE_ENVIRONMENT_UTILITY, CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
     cct->_conf.set_val("debug_crush", "0");
   }
-  void TearDown() final
+
+  void
+  TearDown() final
   {
     cct->put();
     cct = nullptr;
   }
+
 protected:
-  CephContext *cct = nullptr;
+  CephContext* cct = nullptr;
 };
 
-TEST_F(CrushWrapperTest, get_immediate_parent) {
+TEST_F(CrushWrapperTest, get_immediate_parent)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 1;
@@ -62,23 +67,23 @@ TEST_F(CrushWrapperTest, get_immediate_parent) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   int item = 0;
 
-  pair <string,string> loc;
+  pair<string, string> loc;
   int ret;
   loc = c->get_immediate_parent(item, &ret);
   EXPECT_EQ(-ENOENT, ret);
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
 
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd.0", loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd.0", loc));
   }
 
   loc = c->get_immediate_parent(item, &ret);
@@ -87,7 +92,8 @@ TEST_F(CrushWrapperTest, get_immediate_parent) {
   EXPECT_EQ("default", loc.second);
 }
 
-TEST_F(CrushWrapperTest, move_bucket) {
+TEST_F(CrushWrapperTest, move_bucket)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -98,27 +104,30 @@ TEST_F(CrushWrapperTest, move_bucket) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int root0;
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-			     ROOT_TYPE, 0, NULL, NULL, &root0));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL,
+             NULL, &root0));
   EXPECT_EQ(0, c->set_item_name(root0, "root0"));
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "root0";
     loc["host"] = "host0";
 
     int item = 0;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd.0", loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd.0", loc));
   }
   int host0 = c->get_item_id("host0");
 
   int root1;
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-			     ROOT_TYPE, 0, NULL, NULL, &root1));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL,
+             NULL, &root1));
   EXPECT_EQ(0, c->set_item_name(root1, "root1"));
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "root1";
 
   // 0 is not a valid bucket number, must be negative
@@ -127,7 +136,7 @@ TEST_F(CrushWrapperTest, move_bucket) {
   EXPECT_EQ(-ENOENT, c->move_bucket(cct, -100, loc));
   // move host0 from root0 to root1
   {
-    pair <string,string> loc;
+    pair<string, string> loc;
     int ret;
     loc = c->get_immediate_parent(host0, &ret);
     EXPECT_EQ(0, ret);
@@ -136,7 +145,7 @@ TEST_F(CrushWrapperTest, move_bucket) {
   }
   EXPECT_EQ(0, c->move_bucket(cct, host0, loc));
   {
-    pair <string,string> loc;
+    pair<string, string> loc;
     int ret;
     loc = c->get_immediate_parent(host0, &ret);
     EXPECT_EQ(0, ret);
@@ -145,7 +154,8 @@ TEST_F(CrushWrapperTest, move_bucket) {
   }
 }
 
-TEST_F(CrushWrapperTest, swap_bucket) {
+TEST_F(CrushWrapperTest, swap_bucket)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -156,25 +166,31 @@ TEST_F(CrushWrapperTest, swap_bucket) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int root;
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1,
-			     ROOT_TYPE, 0, NULL, NULL, &root));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL,
+             NULL, &root));
   EXPECT_EQ(0, c->set_item_name(root, "root"));
 
   int a, b;
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1,
-			     HOST_TYPE, 0, NULL, NULL, &a));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL,
+             NULL, &a));
   EXPECT_EQ(0, c->set_item_name(a, "a"));
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1,
-			     HOST_TYPE, 0, NULL, NULL, &b));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL,
+             NULL, &b));
   EXPECT_EQ(0, c->set_item_name(b, "b"));
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "root";
     EXPECT_EQ(0, c->move_bucket(cct, a, loc));
   }
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "root";
     loc["host"] = "a";
     EXPECT_EQ(0, c->insert_item(cct, 0, 1.0, "osd.0", loc));
@@ -182,7 +198,7 @@ TEST_F(CrushWrapperTest, swap_bucket) {
     EXPECT_EQ(0, c->insert_item(cct, 2, 1.0, "osd.2", loc));
   }
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "b";
     EXPECT_EQ(0, c->insert_item(cct, 3, 1.0, "osd.3", loc));
   }
@@ -195,7 +211,7 @@ TEST_F(CrushWrapperTest, swap_bucket) {
   ASSERT_EQ(1, c->get_bucket_item(a, 1));
   ASSERT_EQ(2, c->get_bucket_item(a, 2));
   ASSERT_EQ(3, c->get_bucket_item(b, 0));
-	
+
   // check if it can swap parent with child
   ASSERT_EQ(-EINVAL, c->swap_bucket(cct, root, a));
 
@@ -211,7 +227,8 @@ TEST_F(CrushWrapperTest, swap_bucket) {
   ASSERT_EQ(3, c->get_bucket_item(a, 0));
 }
 
-TEST_F(CrushWrapperTest, rename_bucket_or_item) {
+TEST_F(CrushWrapperTest, rename_bucket_or_item)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -222,27 +239,27 @@ TEST_F(CrushWrapperTest, rename_bucket_or_item) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int root0;
-  EXPECT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-			     ROOT_TYPE, 0, NULL, NULL, &root0));
+  EXPECT_EQ(
+      0, c->add_bucket(
+             0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL,
+             NULL, &root0));
   EXPECT_EQ(0, c->set_item_name(root0, "root0"));
 
   int item = 0;
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "root0";
     loc["host"] = "host0";
 
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd.0", loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd.0", loc));
   }
   item++;
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "root0";
     loc["host"] = "host1";
 
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd.1", loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd.1", loc));
   }
 
   stringstream ss;
@@ -278,7 +295,8 @@ TEST_F(CrushWrapperTest, rename_bucket_or_item) {
   EXPECT_EQ(osd0id, c->get_item_id("osd0renamed"));
 }
 
-TEST_F(CrushWrapperTest, check_item_loc) {
+TEST_F(CrushWrapperTest, check_item_loc)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
   int item = 0;
   float expected_weight = 1.0;
@@ -286,7 +304,7 @@ TEST_F(CrushWrapperTest, check_item_loc) {
   // fail if loc is empty
   {
     float weight;
-    map<string,string> loc;
+    map<string, string> loc;
     EXPECT_FALSE(c->check_item_loc(cct, item, loc, &weight));
   }
 
@@ -298,21 +316,22 @@ TEST_F(CrushWrapperTest, check_item_loc) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   // fail because the item is not found at the specified location
   {
     float weight;
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     EXPECT_FALSE(c->check_item_loc(cct, item, loc, &weight));
   }
   // fail because the bucket name does not match an existing bucket
   {
     float weight;
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     const string HOST("host0");
     loc["host"] = HOST;
@@ -320,30 +339,30 @@ TEST_F(CrushWrapperTest, check_item_loc) {
   }
   const string OSD("osd.0");
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
-    EXPECT_EQ(0, c->insert_item(cct, item, expected_weight,
-				OSD, loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, expected_weight, OSD, loc));
   }
   // fail because osd.0 is not a bucket and must not be in loc, in
   // addition to being of the wrong type
   {
     float weight;
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "osd.0";
     EXPECT_FALSE(c->check_item_loc(cct, item, loc, &weight));
   }
   // succeed and retrieves the expected weight
   {
     float weight;
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
     EXPECT_EQ(expected_weight, weight);
   }
 }
 
-TEST_F(CrushWrapperTest, update_item) {
+TEST_F(CrushWrapperTest, update_item)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -354,36 +373,38 @@ TEST_F(CrushWrapperTest, update_item) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   const string HOST0("host0");
   int host0;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &host0);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &host0);
   c->set_item_name(host0, HOST0);
 
   const string HOST1("host1");
   int host1;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &host1);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &host1);
   c->set_item_name(host1, HOST1);
 
   int item = 0;
 
   // fail if invalid names anywhere in loc
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["rack"] = "\001";
-    EXPECT_EQ(-EINVAL, c->update_item(cct, item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EINVAL, c->update_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
   // fail if invalid item name
   {
-    map<string,string> loc;
-    EXPECT_EQ(-EINVAL, c->update_item(cct, item, 1.0,
-				      "\005", loc));
+    map<string, string> loc;
+    EXPECT_EQ(-EINVAL, c->update_item(cct, item, 1.0, "\005", loc));
   }
   const string OSD0("osd.0");
   const string OSD1("osd.1");
@@ -391,19 +412,17 @@ TEST_F(CrushWrapperTest, update_item) {
   float modified_weight = 2.0;
   float weight;
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "default";
   loc["host"] = HOST0;
   EXPECT_GE(0.0, c->get_item_weightf(host0));
-  EXPECT_EQ(0, c->insert_item(cct, item, original_weight,
-			      OSD0, loc));
+  EXPECT_EQ(0, c->insert_item(cct, item, original_weight, OSD0, loc));
 
   // updating nothing changes nothing
   EXPECT_EQ(OSD0, c->get_item_name(item));
   EXPECT_EQ(original_weight, c->get_item_weightf(item));
   EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
-  EXPECT_EQ(0, c->update_item(cct, item, original_weight,
-			      OSD0, loc));
+  EXPECT_EQ(0, c->update_item(cct, item, original_weight, OSD0, loc));
   EXPECT_EQ(OSD0, c->get_item_name(item));
   EXPECT_EQ(original_weight, c->get_item_weightf(item));
   EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
@@ -412,8 +431,7 @@ TEST_F(CrushWrapperTest, update_item) {
   EXPECT_EQ(OSD0, c->get_item_name(item));
   EXPECT_EQ(original_weight, c->get_item_weightf(item));
   EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
-  EXPECT_EQ(1, c->update_item(cct, item, modified_weight,
-			      OSD1, loc));
+  EXPECT_EQ(1, c->update_item(cct, item, modified_weight, OSD1, loc));
   EXPECT_EQ(OSD1, c->get_item_name(item));
   EXPECT_EQ(modified_weight, c->get_item_weightf(item));
   EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
@@ -421,7 +439,7 @@ TEST_F(CrushWrapperTest, update_item) {
   c->adjust_item_weightf(cct, item, original_weight);
 
   // update the name and weight of the item and change its location
-  map<string,string> other_loc;
+  map<string, string> other_loc;
   other_loc["root"] = "default";
   other_loc["host"] = HOST1;
 
@@ -429,15 +447,15 @@ TEST_F(CrushWrapperTest, update_item) {
   EXPECT_EQ(original_weight, c->get_item_weightf(item));
   EXPECT_TRUE(c->check_item_loc(cct, item, loc, &weight));
   EXPECT_FALSE(c->check_item_loc(cct, item, other_loc, &weight));
-  EXPECT_EQ(1, c->update_item(cct, item, modified_weight,
-			      OSD1, other_loc));
+  EXPECT_EQ(1, c->update_item(cct, item, modified_weight, OSD1, other_loc));
   EXPECT_EQ(OSD1, c->get_item_name(item));
   EXPECT_EQ(modified_weight, c->get_item_weightf(item));
   EXPECT_FALSE(c->check_item_loc(cct, item, loc, &weight));
   EXPECT_TRUE(c->check_item_loc(cct, item, other_loc, &weight));
 }
 
-TEST_F(CrushWrapperTest, adjust_item_weight) {
+TEST_F(CrushWrapperTest, adjust_item_weight)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -448,20 +466,23 @@ TEST_F(CrushWrapperTest, adjust_item_weight) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   const string HOST0("host0");
   int host0;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &host0);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &host0);
   c->set_item_name(host0, HOST0);
 
   const string FAKE("fake");
   int hostfake;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &hostfake);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &hostfake);
   c->set_item_name(hostfake, FAKE);
 
   int item = 0;
@@ -469,49 +490,43 @@ TEST_F(CrushWrapperTest, adjust_item_weight) {
   // construct crush map
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "host0";
     float host_weight = 2.0;
     int bucket_id = 0;
 
     item = 0;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     item = 1;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
 
     bucket_id = c->get_item_id("host0");
     EXPECT_EQ(true, c->bucket_exists(bucket_id));
     EXPECT_EQ(host_weight, c->get_bucket_weightf(bucket_id));
 
-    map<string,string> bloc;
+    map<string, string> bloc;
     bloc["root"] = "default";
-    EXPECT_EQ(0, c->insert_item(cct, host0, host_weight,
-				HOST0, bloc));
+    EXPECT_EQ(0, c->insert_item(cct, host0, host_weight, HOST0, bloc));
   }
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "fake";
     float host_weight = 2.0;
     int bucket_id = 0;
 
     item = 0;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     item = 1;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
 
     bucket_id = c->get_item_id("fake");
     EXPECT_EQ(true, c->bucket_exists(bucket_id));
     EXPECT_EQ(host_weight, c->get_bucket_weightf(bucket_id));
 
-    map<string,string> bloc;
+    map<string, string> bloc;
     bloc["root"] = "default";
-    EXPECT_EQ(0, c->insert_item(cct, hostfake, host_weight,
-				FAKE, bloc));
+    EXPECT_EQ(0, c->insert_item(cct, hostfake, host_weight, FAKE, bloc));
   }
 
   //
@@ -541,7 +556,7 @@ TEST_F(CrushWrapperTest, adjust_item_weight) {
 
   float original_weight = 1.0;
   float modified_weight = 2.0;
-  map<string,string> loc_one, loc_two;
+  map<string, string> loc_one, loc_two;
   loc_one["host"] = "host0";
   loc_two["host"] = "fake";
 
@@ -551,12 +566,14 @@ TEST_F(CrushWrapperTest, adjust_item_weight) {
   EXPECT_EQ(modified_weight, c->get_item_weightf_in_loc(item, loc_two));
 
   item = 1;
-  EXPECT_EQ(1, c->adjust_item_weightf_in_loc(cct, item, modified_weight, loc_two));
+  EXPECT_EQ(
+      1, c->adjust_item_weightf_in_loc(cct, item, modified_weight, loc_two));
   EXPECT_EQ(original_weight, c->get_item_weightf_in_loc(item, loc_one));
   EXPECT_EQ(modified_weight, c->get_item_weightf_in_loc(item, loc_two));
 }
 
-TEST_F(CrushWrapperTest, adjust_subtree_weight) {
+TEST_F(CrushWrapperTest, adjust_subtree_weight)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -567,20 +584,23 @@ TEST_F(CrushWrapperTest, adjust_subtree_weight) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   const string HOST0("host0");
   int host0;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &host0);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &host0);
   c->set_item_name(host0, HOST0);
 
   const string FAKE("fake");
   int hostfake;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		HOST_TYPE, 0, NULL, NULL, &hostfake);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+      &hostfake);
   c->set_item_name(hostfake, FAKE);
 
   int item = 0;
@@ -588,49 +608,43 @@ TEST_F(CrushWrapperTest, adjust_subtree_weight) {
   // construct crush map
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "host0";
     float host_weight = 2.0;
     int bucket_id = 0;
 
     item = 0;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     item = 1;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
 
     bucket_id = c->get_item_id("host0");
     EXPECT_EQ(true, c->bucket_exists(bucket_id));
     EXPECT_EQ(host_weight, c->get_bucket_weightf(bucket_id));
 
-    map<string,string> bloc;
+    map<string, string> bloc;
     bloc["root"] = "default";
-    EXPECT_EQ(0, c->insert_item(cct, host0, host_weight,
-				HOST0, bloc));
+    EXPECT_EQ(0, c->insert_item(cct, host0, host_weight, HOST0, bloc));
   }
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "fake";
     float host_weight = 2.0;
     int bucket_id = 0;
 
     item = 0;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     item = 1;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
 
     bucket_id = c->get_item_id("fake");
     EXPECT_EQ(true, c->bucket_exists(bucket_id));
     EXPECT_EQ(host_weight, c->get_bucket_weightf(bucket_id));
 
-    map<string,string> bloc;
+    map<string, string> bloc;
     bloc["root"] = "default";
-    EXPECT_EQ(0, c->insert_item(cct, hostfake, host_weight,
-				FAKE, bloc));
+    EXPECT_EQ(0, c->insert_item(cct, hostfake, host_weight, FAKE, bloc));
   }
 
   //cout << "--------before---------" << std::endl;
@@ -649,7 +663,8 @@ TEST_F(CrushWrapperTest, adjust_subtree_weight) {
   ASSERT_EQ(c->get_bucket_weight(rootno), 262144 + 131072);
 }
 
-TEST_F(CrushWrapperTest, insert_item) {
+TEST_F(CrushWrapperTest, insert_item)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -660,57 +675,57 @@ TEST_F(CrushWrapperTest, insert_item) {
   c->set_type_name(OSD_TYPE, "osd");
 
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, "default");
 
   int item = 0;
 
   // invalid names anywhere in loc trigger an error
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "\001";
-    EXPECT_EQ(-EINVAL, c->insert_item(cct, item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EINVAL, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
 
   // insert an item in an existing bucket
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
 
     item++;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     int another_item = item + 1;
-    EXPECT_EQ(-EEXIST, c->insert_item(cct, another_item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EEXIST,
+        c->insert_item(cct, another_item, 1.0, "osd." + stringify(item), loc));
   }
-  // implicit creation of a bucket 
+  // implicit creation of a bucket
   {
     string name = "NAME";
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     loc["host"] = name;
 
     item++;
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd." + stringify(item), loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
   // adding to an existing item name that is not associated with a bucket
   {
     string name = "ITEM_WITHOUT_BUCKET";
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     loc["host"] = name;
     item++;
     c->set_item_name(item, name);
 
     item++;
-    EXPECT_EQ(-EINVAL, c->insert_item(cct, item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EINVAL, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
-  // 
+  //
   //   When there is:
   //
   //   default --> host0 --> item
@@ -720,27 +735,28 @@ TEST_F(CrushWrapperTest, insert_item) {
   //
   //   default --> host0 --> item
   //           |
-  //           +-> item 
+  //           +-> item
   //
   {
     item++;
     {
-      map<string,string> loc;
+      map<string, string> loc;
       loc["root"] = "default";
       loc["host"] = "host0";
 
-      EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				  "osd." + stringify(item), loc));
+      EXPECT_EQ(
+          0, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     }
     {
-      map<string,string> loc;
+      map<string, string> loc;
       loc["root"] = "default";
 
-      EXPECT_EQ(-EINVAL, c->insert_item(cct, item, 1.0,
-					"osd." + stringify(item), loc));
+      EXPECT_EQ(
+          -EINVAL,
+          c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
     }
   }
-  // 
+  //
   //   When there is:
   //
   //   default --> host0
@@ -751,39 +767,39 @@ TEST_F(CrushWrapperTest, insert_item) {
   //   default --> host0 --> default
   //
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "host0";
 
-    EXPECT_EQ(-ELOOP, c->insert_item(cct, rootno, 1.0,
-				     "default", loc));
+    EXPECT_EQ(-ELOOP, c->insert_item(cct, rootno, 1.0, "default", loc));
   }
   // fail when mapping a bucket to the wrong type
   {
     // create an OSD bucket
     int osdno;
-    int r = c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-			  10, 0, NULL, NULL, &osdno);
+    int r = c->add_bucket(
+        0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, 10, 0, NULL, NULL, &osdno);
     ASSERT_EQ(0, r);
     c->set_item_name(osdno, "myosd");
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = "default";
     // wrongfully pretend the osd is of type host
     loc["host"] = "myosd";
 
     item++;
-    EXPECT_EQ(-EINVAL, c->insert_item(cct, item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EINVAL, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
-  // fail when no location 
+  // fail when no location
   {
-    map<string,string> loc;
+    map<string, string> loc;
     item++;
-    EXPECT_EQ(-EINVAL, c->insert_item(cct, item, 1.0,
-				      "osd." + stringify(item), loc));
+    EXPECT_EQ(
+        -EINVAL, c->insert_item(cct, item, 1.0, "osd." + stringify(item), loc));
   }
 }
 
-TEST_F(CrushWrapperTest, remove_item) {
+TEST_F(CrushWrapperTest, remove_item)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 2;
@@ -795,26 +811,27 @@ TEST_F(CrushWrapperTest, remove_item) {
 
   {
     int root;
-    ASSERT_EQ(0, c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-			       ROOT_TYPE, 0, NULL, NULL, &root));
+    ASSERT_EQ(
+        0, c->add_bucket(
+               0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL,
+               NULL, &root));
     c->set_item_name(root, "root0");
   }
 
   {
     int host;
-    c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		  HOST_TYPE, 0, NULL, NULL, &host);
+    c->add_bucket(
+        0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, HOST_TYPE, 0, NULL, NULL,
+        &host);
     c->set_item_name(host, "host0");
   }
 
   const int num_osd = 12;
   {
-    map<string, string> loc = {{"root", "root0"},
-			       {"host", "host0"}};
+    map<string, string> loc = {{"root", "root0"}, {"host", "host0"}};
     string name{"osd."};
     for (int item = 0; item < num_osd; item++) {
-      ASSERT_EQ(0, c->insert_item(cct, item, 1.0,
-				  name + to_string(item), loc));
+      ASSERT_EQ(0, c->insert_item(cct, item, 1.0, name + to_string(item), loc));
     }
   }
   const int item_to_remove = num_osd / 2;
@@ -825,7 +842,8 @@ TEST_F(CrushWrapperTest, remove_item) {
   EXPECT_FALSE(c->check_item_loc(cct, item_to_remove, loc, &weight));
 }
 
-TEST_F(CrushWrapperTest, item_bucket_names) {
+TEST_F(CrushWrapperTest, item_bucket_names)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
   int index = 123;
   string name = "NAME";
@@ -837,7 +855,8 @@ TEST_F(CrushWrapperTest, item_bucket_names) {
   EXPECT_EQ(name, c->get_item_name(index));
 }
 
-TEST_F(CrushWrapperTest, bucket_types) {
+TEST_F(CrushWrapperTest, bucket_types)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
   int index = 123;
   string name = "NAME";
@@ -847,30 +866,34 @@ TEST_F(CrushWrapperTest, bucket_types) {
   EXPECT_EQ(name, c->get_type_name(index));
 }
 
-TEST_F(CrushWrapperTest, is_valid_crush_name) {
-  EXPECT_TRUE(CrushWrapper::is_valid_crush_name("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012456789-_"));
+TEST_F(CrushWrapperTest, is_valid_crush_name)
+{
+  EXPECT_TRUE(CrushWrapper::is_valid_crush_name(
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012456789-_"));
   EXPECT_FALSE(CrushWrapper::is_valid_crush_name(""));
   EXPECT_FALSE(CrushWrapper::is_valid_crush_name("\001"));
 }
 
-TEST_F(CrushWrapperTest, is_valid_crush_loc) {
-  map<string,string> loc;
+TEST_F(CrushWrapperTest, is_valid_crush_loc)
+{
+  map<string, string> loc;
   EXPECT_TRUE(CrushWrapper::is_valid_crush_loc(cct, loc));
   loc["good"] = "better";
   EXPECT_TRUE(CrushWrapper::is_valid_crush_loc(cct, loc));
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["\005"] = "default";
     EXPECT_FALSE(CrushWrapper::is_valid_crush_loc(cct, loc));
   }
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["host"] = "\003";
     EXPECT_FALSE(CrushWrapper::is_valid_crush_loc(cct, loc));
   }
 }
 
-TEST_F(CrushWrapperTest, dump_rules) {
+TEST_F(CrushWrapperTest, dump_rules)
+{
   std::unique_ptr<CrushWrapper> c(new CrushWrapper);
 
   const int ROOT_TYPE = 1;
@@ -881,23 +904,23 @@ TEST_F(CrushWrapperTest, dump_rules) {
   string failure_domain_type("osd");
   string root_name("default");
   int rootno;
-  c->add_bucket(0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1,
-		ROOT_TYPE, 0, NULL, NULL, &rootno);
+  c->add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_RJENKINS1, ROOT_TYPE, 0, NULL, NULL,
+      &rootno);
   c->set_item_name(rootno, root_name);
 
   int item = 0;
 
-  pair <string,string> loc;
+  pair<string, string> loc;
   int ret;
   loc = c->get_immediate_parent(item, &ret);
   EXPECT_EQ(-ENOENT, ret);
 
   {
-    map<string,string> loc;
+    map<string, string> loc;
     loc["root"] = root_name;
 
-    EXPECT_EQ(0, c->insert_item(cct, item, 1.0,
-				"osd.0", loc));
+    EXPECT_EQ(0, c->insert_item(cct, item, 1.0, "osd.0", loc));
   }
 
   // no rule by default
@@ -912,8 +935,9 @@ TEST_F(CrushWrapperTest, dump_rules) {
   }
 
   string name("NAME");
-  int rule = c->add_simple_rule(name, root_name, failure_domain_type, "",
-				   "firstn", pg_pool_t::TYPE_ERASURE);
+  int rule = c->add_simple_rule(
+      name, root_name, failure_domain_type, "", "firstn",
+      pg_pool_t::TYPE_ERASURE);
   EXPECT_EQ(0, rule);
 
   {
@@ -921,7 +945,9 @@ TEST_F(CrushWrapperTest, dump_rules) {
     c->dump_rules(f.get());
     stringstream ss;
     f->flush(ss);
-    EXPECT_EQ((unsigned)0, ss.str().find("<rule><rule_id>0</rule_id><rule_name>NAME</rule_name>"));
+    EXPECT_EQ(
+        (unsigned)0,
+        ss.str().find("<rule><rule_id>0</rule_id><rule_name>NAME</rule_name>"));
   }
 
   {
@@ -929,27 +955,29 @@ TEST_F(CrushWrapperTest, dump_rules) {
     c->dump_rule(rule, f.get());
     stringstream ss;
     f->flush(ss);
-    EXPECT_EQ((unsigned)0, ss.str().find("<rule><rule_id>0</rule_id><rule_name>NAME</rule_name>"));
-    EXPECT_NE(string::npos,
-	      ss.str().find("<item_name>default</item_name></step>"));
+    EXPECT_EQ(
+        (unsigned)0,
+        ss.str().find("<rule><rule_id>0</rule_id><rule_name>NAME</rule_name>"));
+    EXPECT_NE(
+        string::npos, ss.str().find("<item_name>default</item_name></step>"));
   }
 
-  map<int,float> wm;
+  map<int, float> wm;
   c->get_rule_weight_osd_map(0, &wm);
   ASSERT_TRUE(wm.size() == 1);
   ASSERT_TRUE(wm[0] == 1.0);
 }
 
-TEST_F(CrushWrapperTest, distance) {
+TEST_F(CrushWrapperTest, distance)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "host");
   c.set_type_name(2, "rack");
   c.set_type_name(3, "root");
   int bno;
-  int r = c.add_bucket(0, CRUSH_BUCKET_STRAW,
-		       CRUSH_HASH_DEFAULT, 3, 0, NULL,
-		       NULL, &bno);
+  int r = c.add_bucket(
+      0, CRUSH_BUCKET_STRAW, CRUSH_HASH_DEFAULT, 3, 0, NULL, NULL, &bno);
   ASSERT_EQ(0, r);
   ASSERT_EQ(-1, bno);
   c.set_item_name(bno, "default");
@@ -958,7 +986,7 @@ TEST_F(CrushWrapperTest, distance) {
 
   //JSONFormatter jf(true);
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["host"] = "a1";
   loc["rack"] = "a";
   loc["root"] = "default";
@@ -982,20 +1010,20 @@ TEST_F(CrushWrapperTest, distance) {
   loc["root"] = "default";
   c.insert_item(cct, 3, 1, "osd.3", loc);
 
-  vector<pair<string,string> > ol;
+  vector<pair<string, string>> ol;
   c.get_full_location_ordered(3, ol);
   ASSERT_EQ(3u, ol.size());
-  ASSERT_EQ(make_pair(string("host"),string("b2")), ol[0]);
-  ASSERT_EQ(make_pair(string("rack"),string("b")), ol[1]);
-  ASSERT_EQ(make_pair(string("root"),string("default")), ol[2]);
+  ASSERT_EQ(make_pair(string("host"), string("b2")), ol[0]);
+  ASSERT_EQ(make_pair(string("rack"), string("b")), ol[1]);
+  ASSERT_EQ(make_pair(string("root"), string("default")), ol[2]);
 
   //c.dump(&jf);
   //jf.flush(cout);
 
-  multimap<string,string> p;
-  p.insert(make_pair("host","b2"));
-  p.insert(make_pair("rack","b"));
-  p.insert(make_pair("root","default"));
+  multimap<string, string> p;
+  p.insert(make_pair("host", "b2"));
+  p.insert(make_pair("rack", "b"));
+  p.insert(make_pair("root", "default"));
   ASSERT_EQ(3, c.get_common_ancestor_distance(cct, 0, p));
   ASSERT_EQ(3, c.get_common_ancestor_distance(cct, 1, p));
   ASSERT_EQ(2, c.get_common_ancestor_distance(cct, 2, p));
@@ -1004,12 +1032,13 @@ TEST_F(CrushWrapperTest, distance) {
 
   // make sure a "multipath" location will reflect a minimal
   // distance for both paths
-  p.insert(make_pair("host","b1"));
+  p.insert(make_pair("host", "b1"));
   ASSERT_EQ(1, c.get_common_ancestor_distance(cct, 2, p));
   ASSERT_EQ(1, c.get_common_ancestor_distance(cct, 3, p));
 }
 
-TEST_F(CrushWrapperTest, choose_args_compat) {
+TEST_F(CrushWrapperTest, choose_args_compat)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "host");
@@ -1018,7 +1047,7 @@ TEST_F(CrushWrapperTest, choose_args_compat) {
 
   int weight = 12;
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["host"] = "b1";
   loc["rack"] = "r11";
   loc["root"] = "default";
@@ -1031,8 +1060,9 @@ TEST_F(CrushWrapperTest, choose_args_compat) {
   item = 2;
   c.insert_item(cct, item, weight, "osd.2", loc);
 
-  ceph_assert(c.add_simple_rule("rule1", "r11", "host", "",
-			   "firstn", pg_pool_t::TYPE_ERASURE) >= 0);
+  ceph_assert(
+      c.add_simple_rule(
+          "rule1", "r11", "host", "", "firstn", pg_pool_t::TYPE_ERASURE) >= 0);
 
   int id = c.get_item_id("b1");
 
@@ -1044,27 +1074,28 @@ TEST_F(CrushWrapperTest, choose_args_compat) {
   ceph_assert(maxbuckets > 0);
   crush_choose_arg choose_args[maxbuckets];
   memset(choose_args, '\0', sizeof(crush_choose_arg) * maxbuckets);
-  choose_args[-1-id].ids_size = 0;
-  choose_args[-1-id].weight_set_positions = 1;
-  choose_args[-1-id].weight_set = &weight_set;
+  choose_args[-1 - id].ids_size = 0;
+  choose_args[-1 - id].weight_set_positions = 1;
+  choose_args[-1 - id].weight_set = &weight_set;
   crush_choose_arg_map arg_map;
   arg_map.size = c.get_max_buckets();
   arg_map.args = choose_args;
 
-  uint64_t features = CEPH_FEATURE_CRUSH_TUNABLES5|CEPH_FEATURE_INCARNATION_2;
+  uint64_t features = CEPH_FEATURE_CRUSH_TUNABLES5 | CEPH_FEATURE_INCARNATION_2;
   int64_t caid = CrushWrapper::DEFAULT_CHOOSE_ARGS;
 
   // if the client is capable, encode choose_args
   {
     c.choose_args[caid] = arg_map;
     bufferlist bl;
-    c.encode(bl, features|CEPH_FEATURE_CRUSH_CHOOSE_ARGS);
+    c.encode(bl, features | CEPH_FEATURE_CRUSH_CHOOSE_ARGS);
     auto i = bl.cbegin();
     CrushWrapper c_new;
     c_new.decode(i);
     ASSERT_EQ(1u, c_new.choose_args.size());
-    ASSERT_EQ(1u, c_new.choose_args[caid].args[-1-id].weight_set_positions);
-    ASSERT_EQ(weights, c_new.choose_args[caid].args[-1-id].weight_set[0].weights[0]);
+    ASSERT_EQ(1u, c_new.choose_args[caid].args[-1 - id].weight_set_positions);
+    ASSERT_EQ(
+        weights, c_new.choose_args[caid].args[-1 - id].weight_set[0].weights[0]);
     ASSERT_EQ(weight, c_new.get_bucket_item_weightf(id, 0));
   }
 
@@ -1082,7 +1113,8 @@ TEST_F(CrushWrapperTest, choose_args_compat) {
   }
 }
 
-TEST_F(CrushWrapperTest, remove_root) {
+TEST_F(CrushWrapperTest, remove_root)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "host");
@@ -1091,7 +1123,7 @@ TEST_F(CrushWrapperTest, remove_root) {
 
   int weight = 1;
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["host"] = "b1";
   loc["rack"] = "r11";
   loc["root"] = "default";
@@ -1103,8 +1135,9 @@ TEST_F(CrushWrapperTest, remove_root) {
   loc["root"] = "default";
   c.insert_item(cct, item, weight, "osd.2", loc);
 
-  ceph_assert(c.add_simple_rule("rule1", "r11", "host", "",
-			   "firstn", pg_pool_t::TYPE_ERASURE) >= 0);
+  ceph_assert(
+      c.add_simple_rule(
+          "rule1", "r11", "host", "", "firstn", pg_pool_t::TYPE_ERASURE) >= 0);
   ASSERT_TRUE(c.name_exists("default"));
   ASSERT_TRUE(c.name_exists("r11"));
   ASSERT_TRUE(c.name_exists("r12"));
@@ -1114,13 +1147,14 @@ TEST_F(CrushWrapperTest, remove_root) {
   ASSERT_FALSE(c.name_exists("r12"));
 }
 
-TEST_F(CrushWrapperTest, trim_roots_with_class) {
+TEST_F(CrushWrapperTest, trim_roots_with_class)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "root");
 
   int weight = 1;
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "default";
 
   int item = 1;
@@ -1132,11 +1166,13 @@ TEST_F(CrushWrapperTest, trim_roots_with_class) {
   int root_id = c.get_item_id("default");
   int clone_id;
   map<int32_t, map<int32_t, int32_t>> old_class_bucket;
-  map<int,map<int,vector<int>>> cmap_item_weight; // cargs -> bno -> weights
+  map<int, map<int, vector<int>>> cmap_item_weight; // cargs -> bno -> weights
   set<int32_t> used_ids;
 
-  ASSERT_EQ(c.device_class_clone(root_id, cl, old_class_bucket, used_ids,
-				 &clone_id, &cmap_item_weight), 0);
+  ASSERT_EQ(
+      c.device_class_clone(
+          root_id, cl, old_class_bucket, used_ids, &clone_id, &cmap_item_weight),
+      0);
 
   ASSERT_TRUE(c.name_exists("default"));
   ASSERT_TRUE(c.name_exists("default~ssd"));
@@ -1145,13 +1181,14 @@ TEST_F(CrushWrapperTest, trim_roots_with_class) {
   ASSERT_FALSE(c.name_exists("default~ssd"));
 }
 
-TEST_F(CrushWrapperTest, device_class_clone) {
+TEST_F(CrushWrapperTest, device_class_clone)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "host");
   c.set_type_name(2, "root");
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["host"] = "b1";
   loc["root"] = "default";
   int weight = 1;
@@ -1167,12 +1204,14 @@ TEST_F(CrushWrapperTest, device_class_clone) {
   c.reweight(cct);
 
   map<int32_t, map<int32_t, int32_t>> old_class_bucket;
-  map<int,map<int,vector<int>>> cmap_item_weight; // cargs -> bno -> weights
+  map<int, map<int, vector<int>>> cmap_item_weight; // cargs -> bno -> weights
   set<int32_t> used_ids;
   int root_id = c.get_item_id("default");
   int clone_id;
-  ASSERT_EQ(c.device_class_clone(root_id, cl, old_class_bucket, used_ids,
-				 &clone_id, &cmap_item_weight), 0);
+  ASSERT_EQ(
+      c.device_class_clone(
+          root_id, cl, old_class_bucket, used_ids, &clone_id, &cmap_item_weight),
+      0);
   ASSERT_TRUE(c.name_exists("default~ssd"));
   ASSERT_EQ(clone_id, c.get_item_id("default~ssd"));
   ASSERT_TRUE(c.subtree_contains(clone_id, item));
@@ -1182,23 +1221,33 @@ TEST_F(CrushWrapperTest, device_class_clone) {
   ASSERT_EQ(c.get_item_weightf(clone_id), 1);
   // cloning again does nothing and returns the existing one
   int other_clone_id;
-  ASSERT_EQ(c.device_class_clone(root_id, cl, old_class_bucket, used_ids,
-				 &other_clone_id, &cmap_item_weight), 0);
+  ASSERT_EQ(
+      c.device_class_clone(
+          root_id, cl, old_class_bucket, used_ids, &other_clone_id,
+          &cmap_item_weight),
+      0);
   ASSERT_EQ(clone_id, other_clone_id);
   // invalid arguments
-  ASSERT_EQ(c.device_class_clone(12345, cl, old_class_bucket, used_ids,
-				 &other_clone_id, &cmap_item_weight), -ECHILD);
-  ASSERT_EQ(c.device_class_clone(root_id, 12345, old_class_bucket, used_ids,
-				 &other_clone_id, &cmap_item_weight), -EBADF);
+  ASSERT_EQ(
+      c.device_class_clone(
+          12345, cl, old_class_bucket, used_ids, &other_clone_id,
+          &cmap_item_weight),
+      -ECHILD);
+  ASSERT_EQ(
+      c.device_class_clone(
+          root_id, 12345, old_class_bucket, used_ids, &other_clone_id,
+          &cmap_item_weight),
+      -EBADF);
 }
 
-TEST_F(CrushWrapperTest, split_id_class) {
+TEST_F(CrushWrapperTest, split_id_class)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "root");
 
   int weight = 1;
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "default";
 
   int item = 1;
@@ -1207,30 +1256,36 @@ TEST_F(CrushWrapperTest, split_id_class) {
   c.class_map[item] = class_id;
 
   map<int32_t, map<int32_t, int32_t>> old_class_bucket;
-  map<int,map<int,vector<int>>> cmap_item_weight; // cargs -> bno -> weights
+  map<int, map<int, vector<int>>> cmap_item_weight; // cargs -> bno -> weights
   set<int32_t> used_ids;
   int item_id = c.get_item_id("default");
   int clone_id;
-  ASSERT_EQ(c.device_class_clone(item_id, class_id, old_class_bucket, used_ids,
-				 &clone_id, &cmap_item_weight), 0);
+  ASSERT_EQ(
+      c.device_class_clone(
+          item_id, class_id, old_class_bucket, used_ids, &clone_id,
+          &cmap_item_weight),
+      0);
   int retrieved_item_id;
   int retrieved_class_id;
-  ASSERT_EQ(c.split_id_class(clone_id, &retrieved_item_id, &retrieved_class_id), 0);
+  ASSERT_EQ(
+      c.split_id_class(clone_id, &retrieved_item_id, &retrieved_class_id), 0);
   ASSERT_EQ(item_id, retrieved_item_id);
   ASSERT_EQ(class_id, retrieved_class_id);
 
-  ASSERT_EQ(c.split_id_class(item_id, &retrieved_item_id, &retrieved_class_id), 0);
+  ASSERT_EQ(
+      c.split_id_class(item_id, &retrieved_item_id, &retrieved_class_id), 0);
   ASSERT_EQ(item_id, retrieved_item_id);
   ASSERT_EQ(-1, retrieved_class_id);
 }
 
-TEST_F(CrushWrapperTest, populate_classes) {
+TEST_F(CrushWrapperTest, populate_classes)
+{
   CrushWrapper c;
   c.create();
   c.set_type_name(1, "root");
 
   int weight = 1;
-  map<string,string> loc;
+  map<string, string> loc;
   loc["root"] = "default";
 
   int item = 1;
@@ -1248,7 +1303,8 @@ TEST_F(CrushWrapperTest, populate_classes) {
   ASSERT_EQ(old_class_bucket, c.class_bucket);
 }
 
-TEST_F(CrushWrapperTest, remove_class_name) {
+TEST_F(CrushWrapperTest, remove_class_name)
+{
   CrushWrapper c;
   c.create();
 
@@ -1258,7 +1314,8 @@ TEST_F(CrushWrapperTest, remove_class_name) {
   ASSERT_EQ(-ENOENT, c.remove_class_name("ssd"));
 }
 
-TEST_F(CrushWrapperTest, try_remap_rule) {
+TEST_F(CrushWrapperTest, try_remap_rule)
+{
   // build a simple 2 level map
   CrushWrapper c;
   c.create();
@@ -1267,9 +1324,8 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
   c.set_type_name(2, "rack");
   c.set_type_name(3, "root");
   int bno;
-  int r = c.add_bucket(0, CRUSH_BUCKET_STRAW2,
-		       CRUSH_HASH_DEFAULT, 3, 0, NULL,
-		       NULL, &bno);
+  int r = c.add_bucket(
+      0, CRUSH_BUCKET_STRAW2, CRUSH_HASH_DEFAULT, 3, 0, NULL, NULL, &bno);
   ASSERT_EQ(0, r);
   ASSERT_EQ(-1, bno);
   c.set_item_name(bno, "default");
@@ -1278,7 +1334,7 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
 
   //JSONFormatter jf(true);
 
-  map<string,string> loc;
+  map<string, string> loc;
   loc["host"] = "foo";
   loc["rack"] = "a";
   loc["root"] = "default";
@@ -1333,25 +1389,22 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
   //jf.flush(cout);
 
   // take + emit
-  {
-  }
+  {}
 
   // take + choose device + emit
   {
     cout << "take + choose + emit" << std::endl;
     ostringstream err;
-    int rule = c.add_simple_rule("one", "default", "osd", "",
-				 "firstn", 0, &err);
+    int rule = c.add_simple_rule("one", "default", "osd", "", "firstn", 0, &err);
     ASSERT_EQ(rule, 0);
 
-    vector<int> orig = { 0, 3, 9 };
-    set<int> overfull = { 3 };
-    vector<int> underfull = { 0, 2, 5, 8, 11 };
+    vector<int> orig = {0, 3, 9};
+    set<int> overfull = {3};
+    vector<int> underfull = {0, 2, 5, 8, 11};
     vector<int> more_underfull = {};
     vector<int> out;
-    int r = c.try_remap_rule(cct, rule, 3,
-			      overfull, underfull, more_underfull,
-			      orig, &out);
+    int r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(3u, out.size());
@@ -1363,9 +1416,8 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
     underfull = {9, 0, 2, 5};
     orig = {1, 3, 9};
 
-    r = c.try_remap_rule(cct, rule, 3,
-			 overfull, underfull, more_underfull,
-			 orig, &out);
+    r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(3u, out.size());
@@ -1374,13 +1426,12 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
     ASSERT_EQ(9, out[2]);
     //
     // Check that more_underfull is used when underfull runs out
-    orig = { 0, 3, 9 };
-    overfull = { 3, 9 };
-    underfull = { 2 };
-    more_underfull = { 5, 8, 11 };
-    r = c.try_remap_rule(cct, rule, 3,
-			      overfull, underfull, more_underfull,
-			      orig, &out);
+    orig = {0, 3, 9};
+    overfull = {3, 9};
+    underfull = {2};
+    more_underfull = {5, 8, 11};
+    r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(3u, out.size());
@@ -1393,18 +1444,17 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
   {
     cout << "take + chooseleaf + emit" << std::endl;
     ostringstream err;
-    int rule = c.add_simple_rule("two", "default", "host", "",
-				 "firstn", 0, &err);
+    int rule =
+        c.add_simple_rule("two", "default", "host", "", "firstn", 0, &err);
     ASSERT_EQ(rule, 1);
 
-    vector<int> orig = { 0, 3, 9 };
-    set<int> overfull = { 3 };
-    vector<int> underfull = { 0, 2, 5, 8, 11 };
-    vector<int> more_underfull = { };
+    vector<int> orig = {0, 3, 9};
+    set<int> overfull = {3};
+    vector<int> underfull = {0, 2, 5, 8, 11};
+    vector<int> more_underfull = {};
     vector<int> out;
-    int r = c.try_remap_rule(cct, rule, 3,
-			      overfull, underfull, more_underfull,
-			      orig, &out);
+    int r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(3u, out.size());
@@ -1424,14 +1474,13 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
     c.set_rule_step_choose_indep(rule, 3, 1, 0);
     c.set_rule_step_emit(rule, 4);
 
-    vector<int> orig = { 0, 3, 16, 12 };
-    set<int> overfull = { 3, 12 };
-    vector<int> underfull = { 6, 7, 9, 3, 0, 1, 15, 16, 13, 2, 5, 8, 11 };
-    vector<int> more_underfull = { };
+    vector<int> orig = {0, 3, 16, 12};
+    set<int> overfull = {3, 12};
+    vector<int> underfull = {6, 7, 9, 3, 0, 1, 15, 16, 13, 2, 5, 8, 11};
+    vector<int> more_underfull = {};
     vector<int> out;
-    int r = c.try_remap_rule(cct, rule, 3,
-			      overfull, underfull, more_underfull,
-			      orig, &out);
+    int r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(4u, out.size());
@@ -1442,9 +1491,8 @@ TEST_F(CrushWrapperTest, try_remap_rule) {
 
     orig.pop_back();
     out.clear();
-    r = c.try_remap_rule(cct, rule, 3,
-			 overfull, underfull, more_underfull,
-			 orig, &out);
+    r = c.try_remap_rule(
+        cct, rule, 3, overfull, underfull, more_underfull, orig, &out);
     cout << orig << " -> r = " << (int)r << " out " << out << std::endl;
     ASSERT_EQ(r, 0);
     ASSERT_EQ(3u, out.size());

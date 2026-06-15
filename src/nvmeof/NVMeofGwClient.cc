@@ -14,7 +14,9 @@
 
 #include "NVMeofGwClient.h"
 
-bool NVMeofGwClient::get_subsystems(subsystems_info& reply) {
+bool
+NVMeofGwClient::get_subsystems(subsystems_info& reply)
+{
   get_subsystems_req request;
   ClientContext context;
 
@@ -23,7 +25,9 @@ bool NVMeofGwClient::get_subsystems(subsystems_info& reply) {
   return status.ok();
 }
 
-bool NVMeofGwClient::set_ana_state(const ana_info& info) {
+bool
+NVMeofGwClient::set_ana_state(const ana_info& info)
+{
   req_status reply;
   ClientContext context;
 

@@ -21,30 +21,43 @@ struct Request {
   ggate_drv_req_t req;
   bufferlist bl;
 
-  Request(ggate_drv_req_t req) : req(req) {
-  }
+  Request(ggate_drv_req_t req) :
+    req(req)
+  {}
 
-  uint64_t get_id() {
+  uint64_t
+  get_id()
+  {
     return ggate_drv_req_id(req);
   }
 
-  Command get_cmd() {
+  Command
+  get_cmd()
+  {
     return static_cast<Command>(ggate_drv_req_cmd(req));
   }
 
-  size_t get_length() {
+  size_t
+  get_length()
+  {
     return ggate_drv_req_length(req);
   }
 
-  uint64_t get_offset() {
+  uint64_t
+  get_offset()
+  {
     return ggate_drv_req_offset(req);
   }
 
-  uint64_t get_error() {
+  uint64_t
+  get_error()
+  {
     return ggate_drv_req_error(req);
   }
 
-  void set_error(int error) {
+  void
+  set_error(int error)
+  {
     ggate_drv_req_set_error(req, error);
   }
 };

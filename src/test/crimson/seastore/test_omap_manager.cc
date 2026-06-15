@@ -1,16 +1,13 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/crimson/gtest_seastar.h"
-
-#include "test/crimson/seastore/transaction_manager_test_state.h"
-
 #include "crimson/os/seastore/cache.h"
-#include "crimson/os/seastore/transaction_manager.h"
-#include "crimson/os/seastore/segment_manager.h"
 #include "crimson/os/seastore/omap_manager.h"
-
+#include "crimson/os/seastore/segment_manager.h"
+#include "crimson/os/seastore/transaction_manager.h"
+#include "test/crimson/gtest_seastar.h"
 #include "test/crimson/seastore/test_block.h"
+#include "test/crimson/seastore/transaction_manager_test_state.h"
 
 using namespace crimson;
 using namespace crimson::os;
@@ -18,14 +15,17 @@ using namespace crimson::os::seastore;
 using namespace std;
 
 namespace {
-  [[maybe_unused]] seastar::logger& logger() {
-    return crimson::get_logger(ceph_subsys_test);
-  }
+[[maybe_unused]] seastar::logger&
+logger()
+{
+  return crimson::get_logger(ceph_subsys_test);
 }
+} // namespace
 
 const int STR_LEN = 50;
 
-std::string rand_name(const int len)
+std::string
+rand_name(const int len)
 {
   std::string ret;
   ret.reserve(len);
@@ -35,7 +35,9 @@ std::string rand_name(const int len)
   return ret;
 }
 
-bufferlist rand_buffer(const int len) {
+bufferlist
+rand_buffer(const int len)
+{
   bufferptr ptr(len);
   for (auto i = ptr.c_str(); i < ptr.c_str() + len; ++i) {
     *i = (char)rand();
@@ -45,22 +47,24 @@ bufferlist rand_buffer(const int len) {
   return bl;
 }
 
-struct omap_manager_test_t :
-  public seastar_test_suite_t,
-  TMTestState {
+struct omap_manager_test_t : public seastar_test_suite_t, TMTestState {
 
   OMapManagerRef omap_manager;
 
   omap_manager_test_t() {}
 
-  seastar::future<> set_up_fut() final {
+  seastar::future<>
+  set_up_fut() final
+  {
     return tm_setup().then([this] {
       omap_manager = omap_manager::create_omap_manager(*tm);
       return seastar::now();
     });
   }
 
-  seastar::future<> tear_down_fut() final {
+  seastar::future<>
+  tear_down_fut() final
+  {
     return tm_teardown().then([this] {
       omap_manager.reset();
       return seastar::now();
@@ -70,46 +74,48 @@ struct omap_manager_test_t :
   using test_omap_t = std::map<std::string, ceph::bufferlist>;
   test_omap_t test_omap_mappings;
 
-  void set_key(
-    omap_root_t &omap_root,
-    Transaction &t,
-    const string &key,
-    const bufferlist &val) {
-    with_trans_intr(
-      t,
-      [&, this](auto &t) {
-	return omap_manager->omap_set_key(omap_root, t, key, val);
-      }).unsafe_get();
+  void
+  set_key(
+      omap_root_t& omap_root,
+      Transaction& t,
+      const string& key,
+      const bufferlist& val)
+  {
+    with_trans_intr(t, [&, this](auto& t) {
+      return omap_manager->omap_set_key(omap_root, t, key, val);
+    }).unsafe_get();
     test_omap_mappings[key] = val;
   }
 
-  void set_key(
-    omap_root_t &omap_root,
-    Transaction &t,
-    const string &key,
-    const string &val) {
+  void
+  set_key(
+      omap_root_t& omap_root,
+      Transaction& t,
+      const string& key,
+      const string& val)
+  {
     bufferlist bl;
     bl.append(val);
     set_key(omap_root, t, key, bl);
   }
 
-  std::string set_random_key(
-    omap_root_t &omap_root,
-    Transaction &t,
-    bool variable_length = false) {
+  std::string
+  set_random_key(
+      omap_root_t& omap_root,
+      Transaction& t,
+      bool variable_length = false)
+  {
     // Generates a random number in the range [4, 128].
     auto randu = []() -> int { return 4 + (std::rand() % 125); };
     auto key = rand_name(variable_length ? randu() : STR_LEN);
-    set_key(omap_root, t, key,
-	    rand_buffer(variable_length ? randu() : STR_LEN));
+    set_key(omap_root, t, key, rand_buffer(variable_length ? randu() : STR_LEN));
 
     return key;
   }
 
-  std::vector<std::string> set_random_keys(
-    omap_root_t &omap_root,
-    Transaction &t,
-    size_t count) {
+  std::vector<std::string>
+  set_random_keys(omap_root_t& omap_root, Transaction& t, size_t count)
+  {
     std::map<std::string, ceph::bufferlist> kvs;
     std::vector<std::string> keys;
     keys.reserve(count);
@@ -124,64 +130,55 @@ struct omap_manager_test_t :
       }
     }
 
-    with_trans_intr(
-      t,
-      [&, this](auto &t) {
-        return omap_manager->omap_set_keys(omap_root, t, std::move(kvs));
-      }).unsafe_get();
+    with_trans_intr(t, [&, this](auto& t) {
+      return omap_manager->omap_set_keys(omap_root, t, std::move(kvs));
+    }).unsafe_get();
 
     return keys;
   }
 
-  void get_value(
-    omap_root_t &omap_root,
-    Transaction &t,
-    const string &key) {
-    auto ret = with_trans_intr(
-      t,
-      [&, this](auto &t) {
-	return omap_manager->omap_get_value(omap_root, t, key);
-      }).unsafe_get();
+  void
+  get_value(omap_root_t& omap_root, Transaction& t, const string& key)
+  {
+    auto ret = with_trans_intr(t, [&, this](auto& t) {
+                 return omap_manager->omap_get_value(omap_root, t, key);
+               }).unsafe_get();
     auto iter = test_omap_mappings.find(key);
     if (iter == test_omap_mappings.end()) {
       EXPECT_FALSE(ret);
     } else {
       EXPECT_TRUE(ret);
       if (ret) {
-	EXPECT_TRUE(*ret == iter->second);
+        EXPECT_TRUE(*ret == iter->second);
       }
     }
   }
 
-  void rm_key(
-    omap_root_t &omap_root,
-    Transaction &t,
-    const string &key) {
-    with_trans_intr(
-      t,
-      [&, this](auto &t) {
-	return omap_manager->omap_rm_key(omap_root, t, key);
-      }).unsafe_get();
+  void
+  rm_key(omap_root_t& omap_root, Transaction& t, const string& key)
+  {
+    with_trans_intr(t, [&, this](auto& t) {
+      return omap_manager->omap_rm_key(omap_root, t, key);
+    }).unsafe_get();
     test_omap_mappings.erase(test_omap_mappings.find(key));
   }
 
-  std::vector<std::string> rm_key_range(
-    omap_root_t &omap_root,
-    Transaction &t,
-    const std::string &first,
-    const std::string &last) {
+  std::vector<std::string>
+  rm_key_range(
+      omap_root_t& omap_root,
+      Transaction& t,
+      const std::string& first,
+      const std::string& last)
+  {
     logger().debug("rm keys in range {} ~ {}", first, last);
 
-    with_trans_intr(
-      t,
-      [&, this](auto &t) {
-      return omap_manager->omap_rm_key_range(
-        omap_root, t, first, last);
+    with_trans_intr(t, [&, this](auto& t) {
+      return omap_manager->omap_rm_key_range(omap_root, t, first, last);
     }).unsafe_get();
 
     std::vector<std::string> keys;
     for (auto iter = test_omap_mappings.begin();
-      iter != test_omap_mappings.end(); ) {
+         iter != test_omap_mappings.end();) {
       if (iter->first >= first && iter->first < last) {
         keys.push_back(iter->first);
         iter = test_omap_mappings.erase(iter);
@@ -195,14 +192,16 @@ struct omap_manager_test_t :
     return keys;
   }
 
-  void list(
-    const omap_root_t &omap_root,
-    Transaction &t,
-    const std::optional<std::string> &first,
-    const std::optional<std::string> &last,
-    size_t max = 128,
-    bool first_inclusive = false,
-    bool last_inclusive = false) {
+  void
+  list(
+      const omap_root_t& omap_root,
+      Transaction& t,
+      const std::optional<std::string>& first,
+      const std::optional<std::string>& last,
+      size_t max = 128,
+      bool first_inclusive = false,
+      bool last_inclusive = false)
+  {
 
     if (first && last) {
       logger().debug("list on {} ~ {}", *first, *last);
@@ -214,36 +213,32 @@ struct omap_manager_test_t :
       logger().debug("list on start ~ end");
     }
 
-    auto config = OMapManager::omap_list_config_t()
-      .with_max(max)
-      .with_inclusive(first_inclusive, last_inclusive);
+    auto config = OMapManager::omap_list_config_t().with_max(max).with_inclusive(
+        first_inclusive, last_inclusive);
 
-    auto [complete, results] = with_trans_intr(
-      t,
-      [&, this](auto &t) {
-	return omap_manager->omap_list(omap_root, t, first, last, config);
-      }).unsafe_get();
+    auto [complete, results] =
+        with_trans_intr(t, [&, this](auto& t) {
+          return omap_manager->omap_list(omap_root, t, first, last, config);
+        }).unsafe_get();
 
     test_omap_t::iterator it, lit;
     if (first) {
-      it = config.first_inclusive ?
-	test_omap_mappings.lower_bound(*first) :
-	test_omap_mappings.upper_bound(*first);
+      it = config.first_inclusive ? test_omap_mappings.lower_bound(*first)
+                                  : test_omap_mappings.upper_bound(*first);
     } else {
       it = test_omap_mappings.begin();
     }
     if (last) {
-      lit = config.last_inclusive ?
-	test_omap_mappings.upper_bound(*last) :
-	test_omap_mappings.lower_bound(*last);
+      lit = config.last_inclusive ? test_omap_mappings.upper_bound(*last)
+                                  : test_omap_mappings.lower_bound(*last);
     } else {
       lit = test_omap_mappings.end();
     }
 
-    for (auto &&[k, v]: results) {
+    for (auto&& [k, v] : results) {
       EXPECT_NE(it, test_omap_mappings.end());
       if (it == test_omap_mappings.end()) {
-	return;
+        return;
       }
       EXPECT_EQ(k, it->first);
       EXPECT_EQ(v, it->second);
@@ -256,9 +251,11 @@ struct omap_manager_test_t :
     }
   }
 
-  ObjectStore::omap_iter_ret_t  check_iterate(std::string_view key,
-                                              std::string_view val,
-                                              ObjectStore::omap_iter_seek_t &start_from)
+  ObjectStore::omap_iter_ret_t
+  check_iterate(
+      std::string_view key,
+      std::string_view val,
+      ObjectStore::omap_iter_seek_t& start_from)
   {
     static uint32_t current_index = 0;
     static uint32_t last_index = 0;
@@ -292,13 +289,15 @@ struct omap_manager_test_t :
     } else {
       return ObjectStore::omap_iter_ret_t::NEXT;
     }
- }
+  }
 
-  void iterate(
-    const omap_root_t &omap_root,
-    Transaction &t,
-    ObjectStore::omap_iter_seek_t &start_from,
-    OMapManager::omap_iterate_cb_t callback) {
+  void
+  iterate(
+      const omap_root_t& omap_root,
+      Transaction& t,
+      ObjectStore::omap_iter_seek_t& start_from,
+      OMapManager::omap_iterate_cb_t callback)
+  {
 
     if (start_from.seek_type == ObjectStore::omap_iter_seek_t::LOWER_BOUND) {
       logger().debug("iterate lower bound on {}", start_from.seek_position);
@@ -306,85 +305,95 @@ struct omap_manager_test_t :
       logger().debug("iterate upper bound on {}", start_from.seek_position);
     }
 
-    auto ret = with_trans_intr(
-      t,
-      [&, this](auto &t) {
-        return omap_manager->omap_iterate(omap_root, t, start_from, callback);
-      }).unsafe_get();
+    auto ret =
+        with_trans_intr(t, [&, this](auto& t) {
+          return omap_manager->omap_iterate(omap_root, t, start_from, callback);
+        }).unsafe_get();
 
     EXPECT_EQ(ret, ObjectStore::omap_iter_ret_t::STOP);
   }
 
-  void clear(
-    omap_root_t &omap_root,
-    Transaction &t) {
-    with_trans_intr(
-      t,
-      [&, this](auto &t) {
-	return omap_manager->omap_clear(omap_root, t);
-      }).unsafe_get();
+  void
+  clear(omap_root_t& omap_root, Transaction& t)
+  {
+    with_trans_intr(t, [&, this](auto& t) {
+      return omap_manager->omap_clear(omap_root, t);
+    }).unsafe_get();
     EXPECT_EQ(omap_root.get_location(), L_ADDR_NULL);
   }
 
-  bool check_mappings_fastpath(omap_root_t &omap_root, Transaction &t) {
-    auto config = OMapManager::omap_list_config_t()
-      .without_max()
-      .with_inclusive(true, true);
+  bool
+  check_mappings_fastpath(omap_root_t& omap_root, Transaction& t)
+  {
+    auto config = OMapManager::omap_list_config_t().without_max().with_inclusive(
+        true, true);
 
     std::optional<std::string> null_key = std::nullopt;
-    auto [complete, omap_list] = with_trans_intr(t, [&, this](auto &t) {
-      return omap_manager->omap_list(
-        omap_root, t, null_key, null_key, config); /* from start to end */
-    }).unsafe_get();
+    auto [complete, omap_list] = with_trans_intr(t, [&, this](auto& t) {
+                                   return omap_manager->omap_list(
+                                       omap_root, t, null_key, null_key,
+                                       config); /* from start to end */
+                                 }).unsafe_get();
 
-    if (omap_list.size() != test_omap_mappings.size()) { return false; }
-    return std::equal(test_omap_mappings.begin(),
-                      test_omap_mappings.end(),
-                      omap_list.begin(),
-                      [](const auto &a, const auto &b) {
-                        return a.first == b.first && a.second == b.second;
-    });
+    if (omap_list.size() != test_omap_mappings.size()) {
+      return false;
+    }
+    return std::equal(
+        test_omap_mappings.begin(), test_omap_mappings.end(), omap_list.begin(),
+        [](const auto& a, const auto& b) {
+          return a.first == b.first && a.second == b.second;
+        });
   }
 
-  void check_mappings_slowpath(omap_root_t &omap_root, Transaction &t) {
-    for (const auto &i: test_omap_mappings){
+  void
+  check_mappings_slowpath(omap_root_t& omap_root, Transaction& t)
+  {
+    for (const auto& i : test_omap_mappings) {
       get_value(omap_root, t, i.first);
     }
   }
 
-  void check_mappings(omap_root_t &omap_root, Transaction &t) {
+  void
+  check_mappings(omap_root_t& omap_root, Transaction& t)
+  {
     if (!check_mappings_fastpath(omap_root, t)) {
       check_mappings_slowpath(omap_root, t);
     }
   }
 
-  void check_mappings(omap_root_t &omap_root) {
+  void
+  check_mappings(omap_root_t& omap_root)
+  {
     auto t = create_read_transaction();
     check_mappings(omap_root, *t);
   }
 
-  std::vector<std::string> get_mapped_keys() {
+  std::vector<std::string>
+  get_mapped_keys()
+  {
     std::vector<std::string> mkeys;
     mkeys.reserve(test_omap_mappings.size());
-    for (auto &k: test_omap_mappings) {
+    for (auto& k : test_omap_mappings) {
       mkeys.push_back(k.first);
     }
     return mkeys;
   }
 
-  void replay() {
+  void
+  replay()
+  {
     restart();
     omap_manager = omap_manager::create_omap_manager(*tm);
   }
 
-  auto initialize() {
+  auto
+  initialize()
+  {
     auto t = create_mutate_transaction();
-    omap_root_t omap_root = with_trans_intr(
-      *t,
-      [this](auto &t) {
-	return omap_manager->initialize_omap(t, L_ADDR_MIN,
-	  omap_type_t::OMAP);
-      }).unsafe_get();
+    omap_root_t omap_root = with_trans_intr(*t, [this](auto& t) {
+                              return omap_manager->initialize_omap(
+                                  t, L_ADDR_MIN, omap_type_t::OMAP);
+                            }).unsafe_get();
     submit_transaction(std::move(t));
     return omap_root;
   }
@@ -518,7 +527,8 @@ TEST_P(omap_manager_test_t, leafnode_split_merge_balancing)
     // eventually contracting the tree back to depth 1.
     logger().debug("== merges and balancing");
     while (omap_root.get_depth() > 1) {
-      auto it = std::next(test_omap_mappings.begin(), test_omap_mappings.size()/2);
+      auto it =
+          std::next(test_omap_mappings.begin(), test_omap_mappings.size() / 2);
       std::string first = it->first;
       std::string last = std::next(it, 64)->first;
 
@@ -571,7 +581,8 @@ TEST_P(omap_manager_test_t, innernode_split_merge_balancing)
     // eventually contracting the tree back to depth 2.
     logger().debug("== merges and balancing");
     while (omap_root.get_depth() > 2) {
-      auto it = std::next(test_omap_mappings.begin(), test_omap_mappings.size()/2);
+      auto it =
+          std::next(test_omap_mappings.begin(), test_omap_mappings.size() / 2);
       std::string first = it->first;
       std::string last = std::next(it, 64)->first;
 
@@ -605,8 +616,6 @@ TEST_P(omap_manager_test_t, clear)
   });
 }
 
-
-
 TEST_P(omap_manager_test_t, replay)
 {
   run_async([this] {
@@ -621,8 +630,9 @@ TEST_P(omap_manager_test_t, replay)
     // pressure with a controlled amount of churn.
     while (omap_root.get_depth() < 2) {
       auto t = create_mutate_transaction();
-      logger().debug("== begin split-churn cycle (num_keys = {})",
-	             test_omap_mappings.size());
+      logger().debug(
+          "== begin split-churn cycle (num_keys = {})",
+          test_omap_mappings.size());
 
       for (int i = 0; i < 128; i++) {
         set_random_key(omap_root, *t);
@@ -685,16 +695,16 @@ TEST_P(omap_manager_test_t, omap_iterate)
         auto t = create_mutate_transaction();
         logger().debug("opened transaction");
         for (unsigned j = 0; j < 64; ++j) {
-	  // Use large value size to accelerate tree growth.
+          // Use large value size to accelerate tree growth.
           auto key = rand_name(STR_LEN);
           set_key(omap_root, *t, key, rand_buffer(512));
           if (i == 3) {
             lower_key = key;
           }
-	  if (i == 5) {
-	    upper_key = key;
-	  }
-	}
+          if (i == 5) {
+            upper_key = key;
+          }
+        }
         submit_transaction(std::move(t));
       }
     };
@@ -711,10 +721,11 @@ TEST_P(omap_manager_test_t, omap_iterate)
       insert_batches(10);
     }
 
-    std::function<ObjectStore::omap_iter_ret_t(std::string_view, std::string_view)> callback =
-      [this, &start_from](std::string_view key, std::string_view val) {
-        return this->check_iterate(key, val, start_from);
-    };
+    std::function<ObjectStore::omap_iter_ret_t(std::string_view, std::string_view)>
+        callback =
+            [this, &start_from](std::string_view key, std::string_view val) {
+              return this->check_iterate(key, val, start_from);
+            };
     {
       start_from.seek_position = lower_key;
       start_from.seek_type = ObjectStore::omap_iter_seek_t::LOWER_BOUND;
@@ -773,8 +784,8 @@ TEST_P(omap_manager_test_t, list)
       auto i2 = generated_keys.size() / 3 * 2;
       first = generated_keys[i1];
       last = generated_keys[i2];
-      list(omap_root, *t, first, last, i2-i1, true, true);
-      list(omap_root, *t, first, last, i2-i1, false, false);
+      list(omap_root, *t, first, last, i2 - i1, true, true);
+      list(omap_root, *t, first, last, i2 - i1, false, false);
     };
 
     list_and_log(1, "list single leaf node");
@@ -902,14 +913,8 @@ TEST_P(omap_manager_test_t, monotonic_inc)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-  omap_manager_test,
-  omap_manager_test_t,
-  ::testing::Combine(
-    ::testing::Values (
-      "segmented",
-      "circularbounded"
-    ),
-    ::testing::Values(
-      integrity_check_t::FULL_CHECK)
-  )
-);
+    omap_manager_test,
+    omap_manager_test_t,
+    ::testing::Combine(
+        ::testing::Values("segmented", "circularbounded"),
+        ::testing::Values(integrity_check_t::FULL_CHECK)));

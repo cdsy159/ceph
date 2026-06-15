@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,13 +16,14 @@
 #ifndef CEPH_HEARTBEATMAP_H
 #define CEPH_HEARTBEATMAP_H
 
-#include <list>
-#include <atomic>
-#include <string>
 #include <pthread.h>
 
-#include "common/ceph_time.h"
+#include <atomic>
+#include <list>
+#include <string>
+
 #include "common/ceph_mutex.h"
+#include "common/ceph_time.h"
 #include "include/common_fwd.h"
 
 namespace ceph {
@@ -49,23 +50,24 @@ struct heartbeat_handle_d {
   ceph::timespan suicide_grace = ceph::timespan::zero();
   std::list<heartbeat_handle_d*>::iterator list_item;
 
-  explicit heartbeat_handle_d(std::string&& n)
-    : name(std::move(n))
-  { }
+  explicit heartbeat_handle_d(std::string&& n) :
+    name(std::move(n))
+  {}
 };
 
 class HeartbeatMap {
- public:
+public:
   // register/unregister
-  heartbeat_handle_d *add_worker(std::string&& name, pthread_t thread_id);
-  void remove_worker(const heartbeat_handle_d *h);
+  heartbeat_handle_d* add_worker(std::string&& name, pthread_t thread_id);
+  void remove_worker(const heartbeat_handle_d* h);
 
   // reset the timeout so that it expects another touch within grace amount of time
-  void reset_timeout(heartbeat_handle_d *h,
-		     ceph::timespan grace,
-		     ceph::timespan suicide_grace);
+  void reset_timeout(
+      heartbeat_handle_d* h,
+      ceph::timespan grace,
+      ceph::timespan suicide_grace);
   // clear the timeout so that it's not checked on
-  void clear_timeout(heartbeat_handle_d *h);
+  void clear_timeout(heartbeat_handle_d* h);
 
   // return false if any of the timeouts are currently expired.
   bool is_healthy();
@@ -79,22 +81,24 @@ class HeartbeatMap {
   // get the number of total workers
   int get_total_workers() const;
 
-  explicit HeartbeatMap(CephContext *cct);
+  explicit HeartbeatMap(CephContext* cct);
   ~HeartbeatMap();
 
- private:
+private:
   using clock = ceph::coarse_mono_clock;
-  CephContext *m_cct;
+  CephContext* m_cct;
   ceph::shared_mutex m_rwlock =
-    ceph::make_shared_mutex("HeartbeatMap::m_rwlock");
+      ceph::make_shared_mutex("HeartbeatMap::m_rwlock");
   clock::time_point m_inject_unhealthy_until;
   std::list<heartbeat_handle_d*> m_workers;
-  std::atomic<unsigned> m_unhealthy_workers = { 0 };
-  std::atomic<unsigned> m_total_workers = { 0 };
+  std::atomic<unsigned> m_unhealthy_workers = {0};
+  std::atomic<unsigned> m_total_workers = {0};
 
-  bool _check(const heartbeat_handle_d *h, const char *who,
-	      ceph::coarse_mono_time now);
+  bool _check(
+      const heartbeat_handle_d* h,
+      const char* who,
+      ceph::coarse_mono_time now);
 };
 
-}
+} // namespace ceph
 #endif

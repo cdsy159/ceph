@@ -4,9 +4,11 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_MAP_STATE_TRANSITION_H
 #define CEPH_RBD_MIRROR_IMAGE_MAP_STATE_TRANSITION_H
 
-#include "tools/rbd_mirror/image_map/Types.h"
-#include <boost/optional.hpp>
 #include <map>
+
+#include <boost/optional.hpp>
+
+#include "tools/rbd_mirror/image_map/Types.h"
 
 namespace rbd {
 namespace mirror {
@@ -40,18 +42,23 @@ public:
     // state machine complete
     boost::optional<State> finish_state;
 
-    Transition() {
-    }
-    Transition(ActionType action_type,
-               const boost::optional<PolicyAction>& start_policy_action,
-               const boost::optional<PolicyAction>& finish_policy_action,
-               const boost::optional<State>& finish_state)
-      : action_type(action_type), start_policy_action(start_policy_action),
-        finish_policy_action(finish_policy_action), finish_state(finish_state) {
-    }
+    Transition() {}
+
+    Transition(
+        ActionType action_type,
+        const boost::optional<PolicyAction>& start_policy_action,
+        const boost::optional<PolicyAction>& finish_policy_action,
+        const boost::optional<State>& finish_state) :
+      action_type(action_type),
+      start_policy_action(start_policy_action),
+      finish_policy_action(finish_policy_action),
+      finish_state(finish_state)
+    {}
   };
 
-  static bool is_idle(State state) {
+  static bool
+  is_idle(State state)
+  {
     return (state == STATE_UNASSOCIATED || state == STATE_ASSOCIATED);
   }
 
@@ -65,9 +72,10 @@ private:
   static const TransitionTable s_transition_table;
 };
 
-std::ostream &operator<<(std::ostream &os, const StateTransition::State &state);
-std::ostream &operator<<(std::ostream &os,
-                         const StateTransition::PolicyAction &policy_action);
+std::ostream& operator<<(std::ostream& os, const StateTransition::State& state);
+std::ostream& operator<<(
+    std::ostream& os,
+    const StateTransition::PolicyAction& policy_action);
 
 } // namespace image_map
 } // namespace mirror

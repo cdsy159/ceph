@@ -18,7 +18,7 @@ enum ImageCacheType {
   IMAGE_CACHE_TYPE_UNKNOWN
 };
 
-typedef std::list<Context *> Contexts;
+typedef std::list<Context*> Contexts;
 
 const std::string PERSISTENT_CACHE_STATE = ".rbd_persistent_cache_state";
 

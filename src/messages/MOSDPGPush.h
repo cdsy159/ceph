@@ -34,36 +34,52 @@ private:
   uint64_t cost = 0;
 
 public:
-  void compute_cost(CephContext *cct) {
+  void
+  compute_cost(CephContext* cct)
+  {
     cost = 0;
     for (auto i = pushes.begin(); i != pushes.end(); ++i) {
       cost += i->cost(cct);
     }
   }
 
-  int get_cost() const override {
+  int
+  get_cost() const override
+  {
     return cost;
   }
 
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  epoch_t
+  get_min_epoch() const override
+  {
     return min_epoch;
   }
-  spg_t get_spg() const override {
+
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
 
-  void set_cost(uint64_t c) {
+  void
+  set_cost(uint64_t c)
+  {
     cost = c;
   }
 
-  MOSDPGPush()
-    : MOSDFastDispatchOp{MSG_OSD_PG_PUSH, HEAD_VERSION, COMPAT_VERSION}
+  MOSDPGPush() :
+    MOSDFastDispatchOp{MSG_OSD_PG_PUSH, HEAD_VERSION, COMPAT_VERSION}
   {}
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(pgid.pgid, p);
@@ -84,7 +100,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(pgid.pgid, payload);
     encode(map_epoch, payload);
@@ -96,17 +114,22 @@ public:
     encode(is_repair, payload);
   }
 
-  std::string_view get_type_name() const override { return "MOSDPGPush"; }
+  std::string_view
+  get_type_name() const override
+  {
+    return "MOSDPGPush";
+  }
 
-  void print(std::ostream& out) const override {
-    out << "MOSDPGPush(" << pgid
-	<< " " << map_epoch << "/" << min_epoch
-	<< " " << pushes;
+  void
+  print(std::ostream& out) const override
+  {
+    out << "MOSDPGPush(" << pgid << " " << map_epoch << "/" << min_epoch << " "
+        << pushes;
     out << ")";
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

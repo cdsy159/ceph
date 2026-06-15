@@ -17,7 +17,8 @@
 
 namespace rgw::putobj {
 
-int ChunkProcessor::process(bufferlist&& data, uint64_t offset)
+int
+ChunkProcessor::process(bufferlist&& data, uint64_t offset)
 {
   ceph_assert(offset >= chunk.length());
   uint64_t position = offset - chunk.length();
@@ -48,8 +49,8 @@ int ChunkProcessor::process(bufferlist&& data, uint64_t offset)
   return 0;
 }
 
-
-int StripeProcessor::process(bufferlist&& data, uint64_t offset)
+int
+StripeProcessor::process(bufferlist&& data, uint64_t offset)
 {
   ceph_assert(offset >= bounds.first);
 

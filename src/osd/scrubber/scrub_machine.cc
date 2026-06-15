@@ -6,13 +6,14 @@
 #include <chrono>
 #include <typeinfo>
 
+#include "common/debug.h"
+
 #include <boost/core/demangle.hpp>
 
 #include "osd/OSD.h"
 #include "osd/OpRequest.h"
 
 #include "ScrubStore.h"
-#include "common/debug.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_osd
@@ -22,12 +23,12 @@
 using namespace std::chrono;
 using namespace std::chrono_literals;
 
-#define DECLARE_LOCALS                                           \
-  auto& machine = context<ScrubMachine>();			 \
-  std::ignore = machine;					 \
-  ScrubMachineListener* scrbr = machine.m_scrbr;		 \
-  std::ignore = scrbr;                                           \
-  auto pg_id = machine.m_pg_id;					 \
+#define DECLARE_LOCALS                           \
+  auto& machine = context<ScrubMachine>();       \
+  std::ignore = machine;                         \
+  ScrubMachineListener* scrbr = machine.m_scrbr; \
+  std::ignore = scrbr;                           \
+  auto pg_id = machine.m_pg_id;                  \
   std::ignore = pg_id;
 
 NamedSimply::NamedSimply(ScrubMachineListener* scrubber, const char* name)
@@ -39,34 +40,40 @@ namespace Scrub {
 
 // --------- trace/debug auxiliaries -------------------------------
 
-void on_event_creation(std::string_view nm)
+void
+on_event_creation(std::string_view nm)
 {
   dout(20) << " event: --vvvv---- " << nm << dendl;
 }
 
-void on_event_discard(std::string_view nm)
+void
+on_event_discard(std::string_view nm)
 {
   dout(20) << " event: --^^^^---- " << nm << dendl;
 }
 
-void ScrubMachine::assert_not_in_session() const
+void
+ScrubMachine::assert_not_in_session() const
 {
   ceph_assert(!state_cast<const Session*>());
 }
 
-bool ScrubMachine::is_reserving() const
+bool
+ScrubMachine::is_reserving() const
 {
   return state_cast<const ReservingReplicas*>();
 }
 
-bool ScrubMachine::is_primary_idle() const
+bool
+ScrubMachine::is_primary_idle() const
 {
   return state_cast<const PrimaryIdle*>();
 }
 
-bool ScrubMachine::is_accepting_updates() const
+bool
+ScrubMachine::is_accepting_updates() const
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   ceph_assert(scrbr->is_primary());
 
   return state_cast<const WaitLastUpdate*>();
@@ -77,17 +84,20 @@ bool ScrubMachine::is_accepting_updates() const
 #define dout_prefix _prefix(_dout, this->context<ScrubMachine>())
 
 template <class T>
-static ostream& _prefix(std::ostream* _dout, T& t)
+static ostream&
+_prefix(std::ostream* _dout, T& t)
 {
   return t.gen_prefix(*_dout);
 }
 
-std::ostream& ScrubMachine::gen_prefix(std::ostream& out) const
+std::ostream&
+ScrubMachine::gen_prefix(std::ostream& out) const
 {
   return m_scrbr->gen_prefix(out) << "FSM: ";
 }
 
-ceph::timespan ScrubMachine::get_time_scrubbing() const
+ceph::timespan
+ScrubMachine::get_time_scrubbing() const
 {
   if (!m_session_started_at) {
     dout(30) << fmt::format("{}: no session_start time", __func__) << dendl;
@@ -96,15 +106,14 @@ ceph::timespan ScrubMachine::get_time_scrubbing() const
 
   const auto dur = ScrubClock::now() - *m_session_started_at;
   dout(20) << fmt::format(
-		    "{}: session_started_at: {} duration:{}ms", __func__,
-		    *m_session_started_at,
-		    ceil<milliseconds>(dur).count())
-	     << dendl;
+                  "{}: session_started_at: {} duration:{}ms", __func__,
+                  *m_session_started_at, ceil<milliseconds>(dur).count())
+           << dendl;
   return dur;
 }
 
-std::optional<pg_scrubbing_status_t> ScrubMachine::get_reservation_status()
-    const
+std::optional<pg_scrubbing_status_t>
+ScrubMachine::get_reservation_status() const
 {
   const auto resv_state = state_cast<const ReservingReplicas*>();
   if (!resv_state) {
@@ -112,9 +121,9 @@ std::optional<pg_scrubbing_status_t> ScrubMachine::get_reservation_status()
   }
   const auto session = state_cast<const Session*>();
   dout(30) << fmt::format(
-		  "{}: we are reserving {:p}-{:p}", __func__, (void*)session,
-		  (void*)resv_state)
-	   << dendl;
+                  "{}: we are reserving {:p}-{:p}", __func__, (void*)session,
+                  (void*)resv_state)
+           << dendl;
   if (!session || !session->m_reservations) {
     dout(20) << fmt::format("{}: no reservations data", __func__) << dendl;
     return std::nullopt;
@@ -126,23 +135,20 @@ std::optional<pg_scrubbing_status_t> ScrubMachine::get_reservation_status()
 
 // ----------------------- NotActive -----------------------------------------
 
-NotActive::NotActive(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "NotActive")
+NotActive::NotActive(my_context ctx) :
+  my_base(ctx), NamedSimply(context<ScrubMachine>().m_scrbr, "NotActive")
 {
   dout(10) << "-- state -->> NotActive" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   scrbr->clear_queued_or_active();
 }
 
-
 // ----------------------- PrimaryActive --------------------------------
 
-PrimaryActive::PrimaryActive(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive")
+PrimaryActive::PrimaryActive(my_context ctx) :
+  my_base(ctx), NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive")
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "-- state -->> PrimaryActive" << dendl;
   // insert this PG into the OSD scrub queue. Calculate initial schedule
   scrbr->schedule_scrub_with_osd();
@@ -150,24 +156,24 @@ PrimaryActive::PrimaryActive(my_context ctx)
 
 PrimaryActive::~PrimaryActive()
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   // we may have set some PG state flags without reaching Session.
   // And we may be holding a 'local resource'.
   scrbr->clear_pgscrub_state();
   scrbr->rm_from_osd_scrubbing();
 }
 
-
 // ---------------- PrimaryActive/PrimaryIdle ---------------------------
 
-PrimaryIdle::PrimaryIdle(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive/PrimaryIdle")
+PrimaryIdle::PrimaryIdle(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive/PrimaryIdle")
 {
   dout(10) << "-- state -->> PrimaryActive/PrimaryIdle" << dendl;
 }
 
-sc::result PrimaryIdle::react(const StartScrub&)
+sc::result
+PrimaryIdle::react(const StartScrub&)
 {
   dout(10) << "PrimaryIdle::react(const StartScrub&)" << dendl;
   DECLARE_LOCALS;
@@ -175,7 +181,9 @@ sc::result PrimaryIdle::react(const StartScrub&)
   return transit<ReservingReplicas>();
 }
 
-void PrimaryIdle::clear_state(const FullReset&) {
+void
+PrimaryIdle::clear_state(const FullReset&)
+{
   dout(10) << "PrimaryIdle::react(const FullReset&): clearing state flags"
            << dendl;
   DECLARE_LOCALS;
@@ -184,12 +192,12 @@ void PrimaryIdle::clear_state(const FullReset&) {
 
 // ----------------------- Session -----------------------------------------
 
-Session::Session(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive/Session")
+Session::Session(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "PrimaryActive/Session")
 {
   dout(10) << "-- state -->> PrimaryActive/Session" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
 
   machine.m_session_started_at = ScrubClock::now();
 
@@ -201,7 +209,7 @@ Session::Session(my_context ctx)
 
 Session::~Session()
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   m_reservations.reset();
   machine.m_session_started_at.reset();
 
@@ -213,9 +221,10 @@ Session::~Session()
   scrbr->clear_pgscrub_state();
 }
 
-sc::result Session::react(const IntervalChanged&)
+sc::result
+Session::react(const IntervalChanged&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "Session::react(const IntervalChanged&)" << dendl;
 
   ceph_assert(m_reservations);
@@ -224,21 +233,23 @@ sc::result Session::react(const IntervalChanged&)
   return transit<NotActive>();
 }
 
-sc::result Session::react(const OperatorAbort&)
+sc::result
+Session::react(const OperatorAbort&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "Session::react(const OperatorAbort&)" << dendl;
   ceph_assert(m_reservations);
   m_abort_reason = delay_cause_t::operator_abort;
   return transit<PrimaryIdle>();
 }
 
-std::optional<pg_scrubbing_status_t> Session::get_reservation_status() const
+std::optional<pg_scrubbing_status_t>
+Session::get_reservation_status() const
 {
   if (!m_reservations) {
     return std::nullopt;
   }
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   const auto req = m_reservations->get_last_sent();
   pg_scrubbing_status_t s;
   s.m_osd_to_respond = req ? req->osd : 0;
@@ -248,16 +259,15 @@ std::optional<pg_scrubbing_status_t> Session::get_reservation_status() const
   return s;
 }
 
-
 // ----------------------- ReservingReplicas ---------------------------------
 
-ReservingReplicas::ReservingReplicas(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/ReservingReplicas")
+ReservingReplicas::ReservingReplicas(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/ReservingReplicas")
 {
   dout(10) << "-- state -->> ReservingReplicas" << dendl;
   auto& session = context<Session>();
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
 
   // initiate the reservation process
   session.m_reservations.emplace(
@@ -272,9 +282,10 @@ ReservingReplicas::ReservingReplicas(my_context ctx)
   }
 }
 
-sc::result ReservingReplicas::react(const ReplicaGrant& ev)
+sc::result
+ReservingReplicas::react(const ReplicaGrant& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReservingReplicas::react(const ReplicaGrant&)" << dendl;
   const auto& m = ev.m_op->get_req<MOSDScrubReserve>();
 
@@ -287,9 +298,10 @@ sc::result ReservingReplicas::react(const ReplicaGrant& ev)
   return discard_event();
 }
 
-sc::result ReservingReplicas::react(const ReplicaReject& ev)
+sc::result
+ReservingReplicas::react(const ReplicaReject& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   auto& session = context<Session>();
   dout(10) << "ReservingReplicas::react(const ReplicaReject&)" << dendl;
   ceph_assert(session.m_reservations);
@@ -315,15 +327,14 @@ sc::result ReservingReplicas::react(const ReplicaReject& ev)
   return transit<PrimaryIdle>();
 }
 
-
 // ----------------------- ActiveScrubbing -----------------------------------
 
-ActiveScrubbing::ActiveScrubbing(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/ActiveScrubbing")
+ActiveScrubbing::ActiveScrubbing(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/ActiveScrubbing")
 {
   dout(10) << "-- state -->> ActiveScrubbing" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   auto& session = context<Session>();
 
   session.m_osd_counters->inc(session.m_counters_idx->active_started_cnt);
@@ -338,7 +349,7 @@ ActiveScrubbing::ActiveScrubbing(my_context ctx)
  */
 ActiveScrubbing::~ActiveScrubbing()
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   auto& session = context<Session>();
   dout(15) << __func__ << dendl;
 
@@ -347,11 +358,11 @@ ActiveScrubbing::~ActiveScrubbing()
   if (machine.m_session_started_at) {
     // delay the next invocation of the scrubber on this target
     scrbr->on_mid_scrub_abort(
-	session.m_abort_reason.value_or(Scrub::delay_cause_t::aborted));
+        session.m_abort_reason.value_or(Scrub::delay_cause_t::aborted));
 
     auto logged_duration = ScrubClock::now() - *machine.m_session_started_at;
-    session.m_osd_counters->tinc(session.m_counters_idx->failed_elapsed,
-                                 logged_duration);
+    session.m_osd_counters->tinc(
+        session.m_counters_idx->failed_elapsed, logged_duration);
     session.m_osd_counters->inc(session.m_counters_idx->failed_cnt);
   }
 }
@@ -368,46 +379,44 @@ ActiveScrubbing::~ActiveScrubbing()
  * If that happens, all we can do is to issue a warning message to help
  * with the debugging.
  */
-RangeBlocked::RangeBlocked(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/RangeBlocked")
+RangeBlocked::RangeBlocked(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/RangeBlocked")
 {
   dout(10) << "-- state -->> Session/Act/RangeBlocked" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
 
   auto grace = scrbr->get_range_blocked_grace();
   if (grace == ceph::timespan{}) {
     // we will not be sending any alarms re the blocked object
     dout(10)
-      << __func__
-      << ": blocked-alarm disabled ('osd_blocked_scrub_grace_period' set to 0)"
-      << dendl;
+        << __func__ << ": blocked-alarm disabled ('osd_blocked_scrub_grace_period' set to 0)"
+        << dendl;
   } else {
     // Schedule an event to warn that the pg has been blocked for longer than
     // the timeout, see RangeBlockedAlarm handler below
-    dout(20) << fmt::format(": timeout:{}",
-			    std::chrono::duration_cast<seconds>(grace))
-	     << dendl;
+    dout(20) << fmt::format(
+                    ": timeout:{}", std::chrono::duration_cast<seconds>(grace))
+             << dendl;
 
-    m_timeout_token = machine.schedule_timer_event_after<RangeBlockedAlarm>(
-      grace);
+    m_timeout_token =
+        machine.schedule_timer_event_after<RangeBlockedAlarm>(grace);
   }
 }
 
-sc::result RangeBlocked::react(const RangeBlockedAlarm&)
+sc::result
+RangeBlocked::react(const RangeBlockedAlarm&)
 {
   DECLARE_LOCALS;
   char buf[50];
   std::time_t now_c = ScrubClock::to_time_t(entered_at);
   strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", std::localtime(&now_c));
-  dout(10)
-    << "PgScrubber: " << scrbr->get_spgid()
-    << " blocked on an object for too long (since " << buf << ")" << dendl;
+  dout(10) << "PgScrubber: " << scrbr->get_spgid()
+           << " blocked on an object for too long (since " << buf << ")"
+           << dendl;
   scrbr->get_clog()->warn()
-    << "osd." << scrbr->get_whoami()
-    << " PgScrubber: " << scrbr->get_spgid()
-    << " blocked on an object for too long (since " << buf
-    << ")";
+      << "osd." << scrbr->get_whoami() << " PgScrubber: " << scrbr->get_spgid()
+      << " blocked on an object for too long (since " << buf << ")";
 
   scrbr->set_scrub_blocked(utime_t{now_c, 0});
   context<Session>().m_perf_set->inc(scrbcnt_blocked);
@@ -419,35 +428,36 @@ sc::result RangeBlocked::react(const RangeBlockedAlarm&)
 /**
  *  Sleeping till timer reactivation - or just requeuing
  */
-PendingTimer::PendingTimer(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/PendingTimer")
+PendingTimer::PendingTimer(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/PendingTimer")
 {
   dout(10) << "-- state -->> Session/Act/PendingTimer" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
 
   auto sleep_time = scrbr->get_scrub_sleep_time();
   if (sleep_time.count()) {
     // the following log line is used by osd-scrub-test.sh
     dout(20) << __func__ << " scrub state is PendingTimer, sleeping" << dendl;
 
-    dout(20) << "PgScrubber: " << scrbr->get_spgid()
-	     << " sleeping for " << sleep_time << dendl;
-    m_sleep_timer = machine.schedule_timer_event_after<SleepComplete>(
-      sleep_time);
+    dout(20) << "PgScrubber: " << scrbr->get_spgid() << " sleeping for "
+             << sleep_time << dendl;
+    m_sleep_timer =
+        machine.schedule_timer_event_after<SleepComplete>(sleep_time);
   } else {
     scrbr->queue_for_scrub_resched(Scrub::scrub_prio_t::high_priority);
   }
 }
 
-sc::result PendingTimer::react(const SleepComplete&)
+sc::result
+PendingTimer::react(const SleepComplete&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "PendingTimer::react(const SleepComplete&)" << dendl;
 
   auto slept_for = ScrubClock::now() - entered_at;
-  dout(20) << "PgScrubber: " << scrbr->get_spgid()
-	   << " slept for " << slept_for << dendl;
+  dout(20) << "PgScrubber: " << scrbr->get_spgid() << " slept for " << slept_for
+           << dendl;
 
   scrbr->queue_for_scrub_resched(Scrub::scrub_prio_t::low_priority);
   return discard_event();
@@ -460,12 +470,12 @@ sc::result PendingTimer::react(const SleepComplete&)
  *  - preemption data was set
  *  - epoch start was updated
  */
-NewChunk::NewChunk(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/NewChunk")
+NewChunk::NewChunk(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/NewChunk")
 {
   dout(10) << "-- state -->> Session/Act/NewChunk" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
 
   scrbr->get_preemptor().adjust_parameters();
 
@@ -476,9 +486,10 @@ NewChunk::NewChunk(my_context ctx)
   scrbr->select_range_n_notify();
 }
 
-sc::result NewChunk::react(const SelectedChunkFree&)
+sc::result
+NewChunk::react(const SelectedChunkFree&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "NewChunk::react(const SelectedChunkFree&)" << dendl;
 
   scrbr->set_subset_last_update(scrbr->search_log_for_updates());
@@ -487,9 +498,9 @@ sc::result NewChunk::react(const SelectedChunkFree&)
 
 // ----------------------- WaitPushes -----------------------------------
 
-WaitPushes::WaitPushes(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitPushes")
+WaitPushes::WaitPushes(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitPushes")
 {
   dout(10) << " -- state -->> Session/Act/WaitPushes" << dendl;
   post_event(ActivePushesUpd{});
@@ -498,12 +509,13 @@ WaitPushes::WaitPushes(my_context ctx)
 /*
  * Triggered externally, by the entity that had an update re pushes
  */
-sc::result WaitPushes::react(const ActivePushesUpd&)
+sc::result
+WaitPushes::react(const ActivePushesUpd&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10)
-    << "WaitPushes::react(const ActivePushesUpd&) pending_active_pushes: "
-    << scrbr->pending_active_pushes() << dendl;
+      << "WaitPushes::react(const ActivePushesUpd&) pending_active_pushes: "
+      << scrbr->pending_active_pushes() << dendl;
 
   if (!scrbr->pending_active_pushes()) {
     // done waiting
@@ -515,9 +527,9 @@ sc::result WaitPushes::react(const ActivePushesUpd&)
 
 // ----------------------- WaitLastUpdate -----------------------------------
 
-WaitLastUpdate::WaitLastUpdate(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitLastUpdate")
+WaitLastUpdate::WaitLastUpdate(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitLastUpdate")
 {
   dout(10) << " -- state -->> Session/Act/WaitLastUpdate" << dendl;
   post_event(UpdatesApplied{});
@@ -532,9 +544,10 @@ WaitLastUpdate::WaitLastUpdate(my_context ctx)
  *  last_update_applied (the replica side, even on EC, is still safe
  *  since the actual transaction will already be readable by commit time.
  */
-void WaitLastUpdate::on_new_updates(const UpdatesApplied&)
+void
+WaitLastUpdate::on_new_updates(const UpdatesApplied&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "WaitLastUpdate::on_new_updates(const UpdatesApplied&)" << dendl;
 
   if (scrbr->has_pg_marked_new_updates()) {
@@ -548,9 +561,10 @@ void WaitLastUpdate::on_new_updates(const UpdatesApplied&)
 /*
  *  request maps from the replicas in the acting set
  */
-sc::result WaitLastUpdate::react(const InternalAllUpdates&)
+sc::result
+WaitLastUpdate::react(const InternalAllUpdates&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "WaitLastUpdate::react(const InternalAllUpdates&)" << dendl;
 
   scrbr->get_replicas_maps(scrbr->get_preemptor().is_preemptable());
@@ -559,12 +573,12 @@ sc::result WaitLastUpdate::react(const InternalAllUpdates&)
 
 // ----------------------- BuildMap -----------------------------------
 
-BuildMap::BuildMap(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/BuildMap")
+BuildMap::BuildMap(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/BuildMap")
 {
   dout(10) << " -- state -->> Session/Act/BuildMap" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   auto& session = context<Session>();
 
   // no need to check for an epoch change, as all possible flows that brought
@@ -595,9 +609,10 @@ BuildMap::BuildMap(my_context ctx)
   }
 }
 
-sc::result BuildMap::react(const IntLocalMapDone&)
+sc::result
+BuildMap::react(const IntLocalMapDone&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "BuildMap::react(const IntLocalMapDone&)" << dendl;
 
   scrbr->mark_local_map_ready();
@@ -606,18 +621,19 @@ sc::result BuildMap::react(const IntLocalMapDone&)
 
 // ----------------------- DrainReplMaps -----------------------------------
 
-DrainReplMaps::DrainReplMaps(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/DrainReplMaps")
+DrainReplMaps::DrainReplMaps(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/DrainReplMaps")
 {
   dout(10) << "-- state -->> Session/Act/DrainReplMaps" << dendl;
   // we may have got all maps already. Send the event that will make us check.
   post_event(GotReplicas{});
 }
 
-sc::result DrainReplMaps::react(const GotReplicas&)
+sc::result
+DrainReplMaps::react(const GotReplicas&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "DrainReplMaps::react(const GotReplicas&)" << dendl;
 
   if (scrbr->are_all_maps_available()) {
@@ -626,16 +642,16 @@ sc::result DrainReplMaps::react(const GotReplicas&)
   }
 
   dout(15) << "DrainReplMaps::react(const GotReplicas&): still draining "
-	      "incoming maps: "
-	   << scrbr->dump_awaited_maps() << dendl;
+              "incoming maps: "
+           << scrbr->dump_awaited_maps() << dendl;
   return discard_event();
 }
 
 // ----------------------- WaitReplicas -----------------------------------
 
-WaitReplicas::WaitReplicas(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitReplicas")
+WaitReplicas::WaitReplicas(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitReplicas")
 {
   dout(10) << "-- state -->> Session/Act/WaitReplicas" << dendl;
   post_event(GotReplicas{});
@@ -655,9 +671,10 @@ WaitReplicas::WaitReplicas(my_context ctx)
  * "classic" OSD, here too maps_compare_n_cleanup() is responsible for
  * signalling the completion of the processing.
  */
-sc::result WaitReplicas::react(const GotReplicas&)
+sc::result
+WaitReplicas::react(const GotReplicas&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "WaitReplicas::react(const GotReplicas&)" << dendl;
 
   if (!all_maps_already_called && scrbr->are_all_maps_available()) {
@@ -666,7 +683,7 @@ sc::result WaitReplicas::react(const GotReplicas&)
     all_maps_already_called = true;
 
     // were we preempted?
-    if (scrbr->get_preemptor().disable_and_test()) {  // a test&set
+    if (scrbr->get_preemptor().disable_and_test()) { // a test&set
 
 
       dout(10) << "WaitReplicas::react(const GotReplicas&) PREEMPTED!" << dendl;
@@ -681,11 +698,12 @@ sc::result WaitReplicas::react(const GotReplicas&)
   }
 }
 
-sc::result WaitReplicas::react(const DigestUpdate&)
+sc::result
+WaitReplicas::react(const DigestUpdate&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   auto warn_msg =
-    "WaitReplicas::react(const DigestUpdate&): Unexpected DigestUpdate event"s;
+      "WaitReplicas::react(const DigestUpdate&): Unexpected DigestUpdate event"s;
   dout(10) << warn_msg << dendl;
   scrbr->log_cluster_warning(warn_msg);
   return discard_event();
@@ -693,11 +711,11 @@ sc::result WaitReplicas::react(const DigestUpdate&)
 
 // ----------------------- WaitDigestUpdate -----------------------------------
 
-WaitDigestUpdate::WaitDigestUpdate(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitDigestUpdate")
+WaitDigestUpdate::WaitDigestUpdate(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "Session/Act/WaitDigestUpdate")
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "-- state -->> Session/Act/WaitDigestUpdate" << dendl;
 
   // perform an initial check: maybe we already
@@ -706,9 +724,10 @@ WaitDigestUpdate::WaitDigestUpdate(my_context ctx)
   post_event(DigestUpdate{});
 }
 
-sc::result WaitDigestUpdate::react(const DigestUpdate&)
+sc::result
+WaitDigestUpdate::react(const DigestUpdate&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "WaitDigestUpdate::react(const DigestUpdate&)" << dendl;
 
   // on_digest_updates() will either:
@@ -720,9 +739,10 @@ sc::result WaitDigestUpdate::react(const DigestUpdate&)
   return discard_event();
 }
 
-sc::result WaitDigestUpdate::react(const ScrubFinished&)
+sc::result
+WaitDigestUpdate::react(const ScrubFinished&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "WaitDigestUpdate::react(const ScrubFinished&)" << dendl;
   auto& session = context<Session>();
 
@@ -739,38 +759,32 @@ sc::result WaitDigestUpdate::react(const ScrubFinished&)
   return transit<PrimaryIdle>();
 }
 
-ScrubMachine::ScrubMachine(PG* pg, ScrubMachineListener* pg_scrub)
-    : m_pg_id{pg->pg_id}
-    , m_scrbr{pg_scrub}
+ScrubMachine::ScrubMachine(PG* pg, ScrubMachineListener* pg_scrub) :
+  m_pg_id{pg->pg_id}, m_scrbr{pg_scrub}
 {}
 
 ScrubMachine::~ScrubMachine() = default;
-
 
 // -------- for replicas -----------------------------------------------------
 
 // ----------------------- ReplicaActive --------------------------------
 
-ReplicaActive::ReplicaActive(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActive")
+ReplicaActive::ReplicaActive(my_context ctx) :
+  my_base(ctx), NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActive")
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "-- state -->> ReplicaActive" << dendl;
   m_pg = scrbr->get_pg();
   m_osds = m_pg->get_pg_osd(ScrubberPasskey());
 }
 
-ReplicaActive::~ReplicaActive()
-{
-  clear_remote_reservation(false);
-}
+ReplicaActive::~ReplicaActive() { clear_remote_reservation(false); }
 
-void ReplicaActive::exit()
+void
+ReplicaActive::exit()
 {
   dout(20) << "ReplicaActive::exit()" << dendl;
 }
-
 
 /*
  * Note: we are expected to be in the ReplicaIdle sub-state: the current
@@ -781,9 +795,10 @@ void ReplicaActive::exit()
  * would possibly treat 'reservation' & 'scrubbing' as (almost)
  * totally orthogonal.
  */
-sc::result ReplicaActive::react(const ReplicaReserveReq& ev)
+sc::result
+ReplicaActive::react(const ReplicaReserveReq& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReplicaActive::react(const ReplicaReserveReq&)" << dendl;
 
   if (m_reservation_status != reservation_status_t::unreserved) {
@@ -791,18 +806,17 @@ sc::result ReplicaActive::react(const ReplicaReserveReq& ev)
     // Clear the existing reservation - be it granted or pending.
     const auto& m = *(ev.m_op->get_req<MOSDScrubReserve>());
     dout(1) << fmt::format(
-		   "ReplicaActive::react(const ReplicaReserveReq&): unexpected "
-		   "request. Discarding existing "
-		   "reservation (was granted?:{}). Incoming request: {}",
-		   reservation_granted, m)
-	    << dendl;
+                   "ReplicaActive::react(const ReplicaReserveReq&): unexpected "
+                   "request. Discarding existing "
+                   "reservation (was granted?:{}). Incoming request: {}",
+                   reservation_granted, m)
+            << dendl;
     clear_remote_reservation(true);
   }
 
   handle_reservation_request(ev);
   return discard_event();
 }
-
 
 /*
  * Process:
@@ -814,9 +828,10 @@ sc::result ReplicaActive::react(const ReplicaReserveReq& ev)
  *   - send grant/reject to the requesting primary;
  *   - update 'reservation_granted'
  */
-void ReplicaActive::handle_reservation_request(const ReplicaReserveReq& ev)
+void
+ReplicaActive::handle_reservation_request(const ReplicaReserveReq& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   const auto& m = *(ev.m_op->get_req<MOSDScrubReserve>());
 
   // should we handle the request asynchronously, using the reserver?
@@ -824,21 +839,21 @@ void ReplicaActive::handle_reservation_request(const ReplicaReserveReq& ev)
       "osd_scrub_disable_reservation_queuing");
   const bool async_request = !async_disabled && m.wait_for_resources;
   dout(10) << fmt::format(
-		  "{}: Message:{}. async request?:{} disabled?:{} -> async? {}",
-		  __func__, m, m.wait_for_resources, async_disabled,
-		  async_request)
-	   << dendl;
+                  "{}: Message:{}. async request?:{} disabled?:{} -> async? {}",
+                  __func__, m, m.wait_for_resources, async_disabled,
+                  async_request)
+           << dendl;
 
   auto& reserver = m_osds->get_scrub_reserver();
 
   if (async_request) {
     // the request is to be handled asynchronously
     AsyncScrubResData request_details{
-	pg_id, ev.m_from, ev.m_op->sent_epoch, m.reservation_nonce};
+        pg_id, ev.m_from, ev.m_op->sent_epoch, m.reservation_nonce};
     dout(15) << fmt::format(
-		    "{}: async request: {} details:{}", __func__,
-		    ev, request_details)
-	     << dendl;
+                    "{}: async request: {} details:{}", __func__, ev,
+                    request_details)
+             << dendl;
 
     pending_reservation_nonce = m.reservation_nonce;
     const auto reservation_cb = new RtReservationCB(m_pg, request_details);
@@ -853,30 +868,30 @@ void ReplicaActive::handle_reservation_request(const ReplicaReserveReq& ev)
       dout(10) << fmt::format("{}: reserved? yes", __func__) << dendl;
       m_reservation_status = reservation_status_t::requested_or_granted;
       reply = new MOSDScrubReserve(
-	  spg_t(pg_id.pgid, m_pg->get_primary().shard), ev.m_op->sent_epoch,
-	  MOSDScrubReserve::GRANT, m_pg->pg_whoami, m.reservation_nonce);
+          spg_t(pg_id.pgid, m_pg->get_primary().shard), ev.m_op->sent_epoch,
+          MOSDScrubReserve::GRANT, m_pg->pg_whoami, m.reservation_nonce);
 
     } else {
       dout(10) << fmt::format("{}: reserved? no", __func__) << dendl;
       reply = new MOSDScrubReserve(
-	  spg_t(pg_id.pgid, m_pg->get_primary().shard), ev.m_op->sent_epoch,
-	  MOSDScrubReserve::REJECT, m_pg->pg_whoami, m.reservation_nonce);
+          spg_t(pg_id.pgid, m_pg->get_primary().shard), ev.m_op->sent_epoch,
+          MOSDScrubReserve::REJECT, m_pg->pg_whoami, m.reservation_nonce);
     }
 
     m_osds->send_message_osd_cluster(
-	reply, ev.m_op->get_req()->get_connection());
+        reply, ev.m_op->get_req()->get_connection());
   }
 }
 
-
-sc::result ReplicaActive::react(const ReserverGranted& ev)
+sc::result
+ReplicaActive::react(const ReserverGranted& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   const AsyncScrubResData& reservation = ev.value;
   dout(10)
       << fmt::format(
-	     "ReplicaActive::react(const ReserverGranted&). Reservation:{}",
-	     reservation)
+             "ReplicaActive::react(const ReserverGranted&). Reservation:{}",
+             reservation)
       << dendl;
 
   /**
@@ -889,15 +904,15 @@ sc::result ReplicaActive::react(const ReserverGranted& ev)
    */
   if (reservation.nonce != pending_reservation_nonce) {
     dout(5) << fmt::format(
-		   "ReplicaActive::react(const ReserverGranted&):  "
-		   "reservation_nonce mismatch: {} != {}",
-		   reservation.nonce, pending_reservation_nonce)
-	    << dendl;
+                   "ReplicaActive::react(const ReserverGranted&):  "
+                   "reservation_nonce mismatch: {} != {}",
+                   reservation.nonce, pending_reservation_nonce)
+            << dendl;
     return discard_event();
   }
 
   reservation_granted = true;
-  pending_reservation_nonce = 0;  // no longer pending
+  pending_reservation_nonce = 0; // no longer pending
 
   // notify the primary
   auto grant_msg = make_message<MOSDScrubReserve>(
@@ -908,15 +923,15 @@ sc::result ReplicaActive::react(const ReserverGranted& ev)
   return discard_event();
 }
 
-
-void ReplicaActive::clear_remote_reservation(bool warn_if_no_reservation)
+void
+ReplicaActive::clear_remote_reservation(bool warn_if_no_reservation)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << fmt::format(
-		  "ReplicaActive::clear_remote_reservation(): "
-		  "pending_reservation_nonce {}, reservation_granted {}",
-		  pending_reservation_nonce, reservation_granted)
-	   << dendl;
+                  "ReplicaActive::clear_remote_reservation(): "
+                  "pending_reservation_nonce {}, reservation_granted {}",
+                  pending_reservation_nonce, reservation_granted)
+           << dendl;
   if (reservation_granted || pending_reservation_nonce) {
     m_osds->get_scrub_reserver().cancel_reservation(pg_id);
     reservation_granted = false;
@@ -926,84 +941,81 @@ void ReplicaActive::clear_remote_reservation(bool warn_if_no_reservation)
 
   } else if (warn_if_no_reservation) {
     const auto msg =
-	"ReplicaActive::clear_remote_reservation(): "
-	"not reserved!";
+        "ReplicaActive::clear_remote_reservation(): "
+        "not reserved!";
     dout(5) << msg << dendl;
     scrbr->get_clog()->info() << msg;
   }
 }
 
-
-sc::result ReplicaActive::react(const ReplicaRelease& ev)
+sc::result
+ReplicaActive::react(const ReplicaRelease& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << fmt::format(
-		  "ReplicaActive::react(const ReplicaRelease&) from {}",
-		  ev.m_from)
-	   << dendl;
+                  "ReplicaActive::react(const ReplicaRelease&) from {}",
+                  ev.m_from)
+           << dendl;
   clear_remote_reservation(true);
   return discard_event();
 }
 
-
-void ReplicaActive::reset_ignored(const FullReset&)
+void
+ReplicaActive::reset_ignored(const FullReset&)
 {
   dout(10) << "ReplicaActive::react(const FullReset&): FullReset ignored"
-	   << dendl;
+           << dendl;
 }
-
 
 // ---------------- ReplicaActive/ReplicaIdle ---------------------------
 
-ReplicaIdle::ReplicaIdle(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActive/ReplicaIdle")
+ReplicaIdle::ReplicaIdle(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActive/ReplicaIdle")
 {
   dout(10) << "-- state -->> ReplicaActive/ReplicaIdle" << dendl;
 }
 
-
-sc::result ReplicaIdle::react(const StartReplica& ev)
+sc::result
+ReplicaIdle::react(const StartReplica& ev)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReplicaIdle::react(const StartReplica&)" << dendl;
 
   // if we are waiting for a reservation grant from the reserver (an
   // illegal scenario!), that reservation must be cleared.
   if (context<ReplicaActive>().pending_reservation_nonce) {
     scrbr->get_clog()->warn() << fmt::format(
-	"osd.{} pg[{}]: new chunk request while still waiting for "
-	"reservation",
-	scrbr->get_whoami(), scrbr->get_spgid());
+        "osd.{} pg[{}]: new chunk request while still waiting for "
+        "reservation",
+        scrbr->get_whoami(), scrbr->get_spgid());
     context<ReplicaActive>().clear_remote_reservation(true);
   }
   post_event(ReplicaPushesUpd{});
   return transit<ReplicaActiveOp>();
 }
 
-
 // ------------- ReplicaActive/ReplicaActiveOp --------------------------
 
-ReplicaActiveOp::ReplicaActiveOp(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActiveOp")
+ReplicaActiveOp::ReplicaActiveOp(my_context ctx) :
+  my_base(ctx), NamedSimply(context<ScrubMachine>().m_scrbr, "ReplicaActiveOp")
 {
   dout(10) << "-- state -->> ReplicaActive/ReplicaActiveOp" << dendl;
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   scrbr->on_replica_init();
 }
 
-
 ReplicaActiveOp::~ReplicaActiveOp()
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << __func__ << dendl;
   scrbr->replica_handling_done();
 }
 
-sc::result ReplicaActiveOp::react(const StartReplica&)
+sc::result
+ReplicaActiveOp::react(const StartReplica&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReplicaActiveOp::react(const StartReplica&)" << dendl;
 
   const auto msg = fmt::format(
@@ -1017,35 +1029,34 @@ sc::result ReplicaActiveOp::react(const StartReplica&)
   return transit<ReplicaActiveOp>();
 }
 
-
-sc::result ReplicaActiveOp::react(const ReplicaRelease& ev)
+sc::result
+ReplicaActiveOp::react(const ReplicaRelease& ev)
 {
   dout(10) << "ReplicaActiveOp::react(const ReplicaRelease&)" << dendl;
   return transit<ReplicaActive>();
 }
 
-
 // ------------- ReplicaActive/ReplicaWaitUpdates ------------------------
 
-ReplicaWaitUpdates::ReplicaWaitUpdates(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(
-	  context<ScrubMachine>().m_scrbr,
-	  "ReplicaActive/ReplicaActiveOp/ReplicaWaitUpdates")
+ReplicaWaitUpdates::ReplicaWaitUpdates(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(
+      context<ScrubMachine>().m_scrbr,
+      "ReplicaActive/ReplicaActiveOp/ReplicaWaitUpdates")
 {
   dout(10) << "-- state -->> ReplicaActive/ReplicaActiveOp/ReplicaWaitUpdates"
-	   << dendl;
+           << dendl;
 }
-
 
 /*
  * Triggered externally, by the entity that had an update re pushes
  */
-sc::result ReplicaWaitUpdates::react(const ReplicaPushesUpd&)
+sc::result
+ReplicaWaitUpdates::react(const ReplicaPushesUpd&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReplicaWaitUpdates::react(const ReplicaPushesUpd&): "
-	   << scrbr->pending_active_pushes() << dendl;
+           << scrbr->pending_active_pushes() << dendl;
 
   if (scrbr->pending_active_pushes() == 0) {
     // done waiting
@@ -1055,26 +1066,25 @@ sc::result ReplicaWaitUpdates::react(const ReplicaPushesUpd&)
   return discard_event();
 }
 
-
 // ----------------------- ReplicaBuildingMap -----------------------------------
 
-ReplicaBuildingMap::ReplicaBuildingMap(my_context ctx)
-    : my_base(ctx)
-    , NamedSimply(
-	  context<ScrubMachine>().m_scrbr,
-	  "ReplicaActive/ReplicaActiveOp/ReplicaBuildingMap")
+ReplicaBuildingMap::ReplicaBuildingMap(my_context ctx) :
+  my_base(ctx),
+  NamedSimply(
+      context<ScrubMachine>().m_scrbr,
+      "ReplicaActive/ReplicaActiveOp/ReplicaBuildingMap")
 {
   dout(10) << "-- state -->> ReplicaActive/ReplicaActiveOp/ReplicaBuildingMap"
-	   << dendl;
+           << dendl;
   post_event(SchedReplica{});
 }
 
-
-sc::result ReplicaBuildingMap::react(const SchedReplica&)
+sc::result
+ReplicaBuildingMap::react(const SchedReplica&)
 {
-  DECLARE_LOCALS;  // 'scrbr' & 'pg_id' aliases
+  DECLARE_LOCALS; // 'scrbr' & 'pg_id' aliases
   dout(10) << "ReplicaBuildingMap::react(const SchedReplica&). is_preemptable? "
-	   << scrbr->get_preemptor().is_preemptable() << dendl;
+           << scrbr->get_preemptor().is_preemptable() << dendl;
 
   if (scrbr->get_preemptor().was_preempted()) {
     dout(10) << "replica scrub job preempted" << dendl;
@@ -1094,8 +1104,8 @@ sc::result ReplicaBuildingMap::react(const SchedReplica&)
   // Note: build_replica_map_chunk() aborts the OSD on any backend retval
   // which is not -EINPROGRESS or 0 ('done').
   dout(10) << "ReplicaBuildingMap::react(const SchedReplica&): chunk done"
-	   << dendl;
+           << dendl;
   return transit<ReplicaIdle>();
 }
 
-}  // namespace Scrub
+} // namespace Scrub

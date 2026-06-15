@@ -2,11 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "gtest/gtest.h"
-
 #include "os/memstore/PageSet.h"
 
 template <typename T>
-bool is_aligned(T* ptr) {
+bool
+is_aligned(T* ptr)
+{
   const auto align_mask = alignof(T) - 1;
   return (reinterpret_cast<uintptr_t>(ptr) & align_mask) == 0;
 }

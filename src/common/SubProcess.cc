@@ -1,22 +1,27 @@
 #include "SubProcess.h"
 
 #if defined(__FreeBSD__) || defined(__APPLE__)
-#include <sys/types.h>
 #include <signal.h>
+#include <sys/types.h>
 #endif
 #ifdef __linux__
 #include <sys/syscall.h>
 #endif
-#include <stdarg.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <unistd.h>
+
 #include <iostream>
 
 #include "common/errno.h"
 #include "include/ceph_assert.h"
 #include "include/compat.h"
 
-SubProcess::SubProcess(const char *cmd_, std_fd_op stdin_op_, std_fd_op stdout_op_, std_fd_op stderr_op_) :
+SubProcess::SubProcess(
+    const char* cmd_,
+    std_fd_op stdin_op_,
+    std_fd_op stdout_op_,
+    std_fd_op stderr_op_) :
   cmd(cmd_),
   cmd_args(),
   stdin_op(stdin_op_),
@@ -26,22 +31,25 @@ SubProcess::SubProcess(const char *cmd_, std_fd_op stdin_op_, std_fd_op stdout_o
   stdout_pipe_in_fd(-1),
   stderr_pipe_in_fd(-1),
   pid(-1),
-  errstr() {
-}
+  errstr()
+{}
 
-SubProcess::~SubProcess() {
+SubProcess::~SubProcess()
+{
   ceph_assert(!is_spawned());
   ceph_assert(stdin_pipe_out_fd == -1);
   ceph_assert(stdout_pipe_in_fd == -1);
   ceph_assert(stderr_pipe_in_fd == -1);
 }
 
-void SubProcess::add_cmd_args(const char *arg, ...) {
+void
+SubProcess::add_cmd_args(const char* arg, ...)
+{
   ceph_assert(!is_spawned());
 
   va_list ap;
   va_start(ap, arg);
-  const char *p = arg;
+  const char* p = arg;
   do {
     add_cmd_arg(p);
     p = va_arg(ap, const char*);
@@ -49,34 +57,44 @@ void SubProcess::add_cmd_args(const char *arg, ...) {
   va_end(ap);
 }
 
-void SubProcess::add_cmd_arg(const char *arg) {
+void
+SubProcess::add_cmd_arg(const char* arg)
+{
   ceph_assert(!is_spawned());
 
   cmd_args.push_back(arg);
 }
 
-int SubProcess::get_stdin() const {
+int
+SubProcess::get_stdin() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stdin_op == PIPE);
 
   return stdin_pipe_out_fd;
 }
 
-int SubProcess::get_stdout() const {
+int
+SubProcess::get_stdout() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stdout_op == PIPE);
 
   return stdout_pipe_in_fd;
 }
 
-int SubProcess::get_stderr() const {
+int
+SubProcess::get_stderr() const
+{
   ceph_assert(is_spawned());
   ceph_assert(stderr_op == PIPE);
 
   return stderr_pipe_in_fd;
 }
 
-void SubProcess::close(int &fd) {
+void
+SubProcess::close(int& fd)
+{
   if (fd == -1)
     return;
 
@@ -84,64 +102,88 @@ void SubProcess::close(int &fd) {
   fd = -1;
 }
 
-void SubProcess::close_stdin() {
+void
+SubProcess::close_stdin()
+{
   ceph_assert(is_spawned());
   ceph_assert(stdin_op == PIPE);
 
   close(stdin_pipe_out_fd);
 }
 
-void SubProcess::close_stdout() {
+void
+SubProcess::close_stdout()
+{
   ceph_assert(is_spawned());
   ceph_assert(stdout_op == PIPE);
 
   close(stdout_pipe_in_fd);
 }
 
-void SubProcess::close_stderr() {
+void
+SubProcess::close_stderr()
+{
   ceph_assert(is_spawned());
   ceph_assert(stderr_op == PIPE);
 
   close(stderr_pipe_in_fd);
 }
 
-void SubProcess::kill(int signo) const {
+void
+SubProcess::kill(int signo) const
+{
   ceph_assert(is_spawned());
 
   int ret = ::kill(pid, signo);
   ceph_assert(ret == 0);
 }
 
-const std::string SubProcess::err() const {
+const std::string
+SubProcess::err() const
+{
   return errstr.str();
 }
 
 class fd_buf : public std::streambuf {
   int fd;
+
 public:
-  fd_buf (int fd) : fd(fd)
+  fd_buf(int fd) :
+    fd(fd)
   {}
+
 protected:
-  int_type overflow (int_type c) override {
-    if (c == EOF) return EOF;
+  int_type
+  overflow(int_type c) override
+  {
+    if (c == EOF)
+      return EOF;
     char buf = c;
-    if (write (fd, &buf, 1) != 1) {
+    if (write(fd, &buf, 1) != 1) {
       return EOF;
     }
     return c;
   }
-  std::streamsize xsputn (const char* s, std::streamsize count) override {
+
+  std::streamsize
+  xsputn(const char* s, std::streamsize count) override
+  {
     return write(fd, s, count);
   }
 };
 
-int SubProcess::spawn() {
+int
+SubProcess::spawn()
+{
   ceph_assert(!is_spawned());
   ceph_assert(stdin_pipe_out_fd == -1);
   ceph_assert(stdout_pipe_in_fd == -1);
   ceph_assert(stderr_pipe_in_fd == -1);
 
-  enum { IN = 0, OUT = 1 };
+  enum {
+    IN = 0,
+    OUT = 1
+  };
 
   int ipipe[2], opipe[2], epipe[2];
 
@@ -149,7 +191,7 @@ int SubProcess::spawn() {
 
   int ret = 0;
 
-  if ((stdin_op == PIPE  && pipe_cloexec(ipipe, 0) == -1) ||
+  if ((stdin_op == PIPE && pipe_cloexec(ipipe, 0) == -1) ||
       (stdout_op == PIPE && pipe_cloexec(opipe, 0) == -1) ||
       (stderr_op == PIPE && pipe_cloexec(epipe, 0) == -1)) {
     ret = -errno;
@@ -160,16 +202,19 @@ int SubProcess::spawn() {
   pid = fork();
 
   if (pid > 0) { // Parent
-    stdin_pipe_out_fd = ipipe[OUT]; close(ipipe[IN ]);
-    stdout_pipe_in_fd = opipe[IN ]; close(opipe[OUT]);
-    stderr_pipe_in_fd = epipe[IN ]; close(epipe[OUT]);
+    stdin_pipe_out_fd = ipipe[OUT];
+    close(ipipe[IN]);
+    stdout_pipe_in_fd = opipe[IN];
+    close(opipe[OUT]);
+    stderr_pipe_in_fd = epipe[IN];
+    close(epipe[OUT]);
     return 0;
   }
 
   if (pid == 0) { // Child
     close(ipipe[OUT]);
-    close(opipe[IN ]);
-    close(epipe[IN ]);
+    close(opipe[IN]);
+    close(epipe[IN]);
 
     if (ipipe[IN] >= 0) {
       if (ipipe[IN] == STDIN_FILENO) {
@@ -211,11 +256,11 @@ int SubProcess::spawn() {
 
     for (int fd = 0; fd <= maxfd; fd++) {
       if (fd == STDIN_FILENO && stdin_op != CLOSE)
-	continue;
+        continue;
       if (fd == STDOUT_FILENO && stdout_op != CLOSE)
-	continue;
+        continue;
       if (fd == STDERR_FILENO && stderr_op != CLOSE)
-	continue;
+        continue;
       ::close(fd);
     }
 
@@ -237,26 +282,29 @@ fail:
   return ret;
 }
 
-void SubProcess::exec() {
+void
+SubProcess::exec()
+{
   ceph_assert(is_child());
 
-  std::vector<const char *> args;
+  std::vector<const char*> args;
   args.push_back(cmd.c_str());
   for (std::vector<std::string>::iterator i = cmd_args.begin();
-       i != cmd_args.end();
-       i++) {
+       i != cmd_args.end(); i++) {
     args.push_back(i->c_str());
   }
   args.push_back(NULL);
 
-  int ret = execvp(cmd.c_str(), (char * const *)&args[0]);
+  int ret = execvp(cmd.c_str(), (char* const*)&args[0]);
   ceph_assert(ret == -1);
 
   std::cerr << cmd << ": exec failed: " << cpp_strerror(errno) << "\n";
   _exit(EXIT_FAILURE);
 }
 
-int SubProcess::join() {
+int
+SubProcess::join()
+{
   ceph_assert(is_spawned());
 
   close(stdin_pipe_out_fd);
@@ -283,21 +331,33 @@ int SubProcess::join() {
   return EXIT_FAILURE;
 }
 
-SubProcessTimed::SubProcessTimed(const char *cmd, std_fd_op stdin_op,
-				 std_fd_op stdout_op, std_fd_op stderr_op,
-				 int timeout_, int sigkill_) :
+SubProcessTimed::SubProcessTimed(
+    const char* cmd,
+    std_fd_op stdin_op,
+    std_fd_op stdout_op,
+    std_fd_op stderr_op,
+    int timeout_,
+    int sigkill_) :
   SubProcess(cmd, stdin_op, stdout_op, stderr_op),
   timeout(timeout_),
-  sigkill(sigkill_) {
-}
+  sigkill(sigkill_)
+{}
 
 static bool timedout = false; // only used after fork
-void timeout_sighandler(int sig) {
+
+void
+timeout_sighandler(int sig)
+{
   timedout = true;
 }
-static void dummy_sighandler(int sig) {}
 
-void SubProcessTimed::exec() {
+static void
+dummy_sighandler(int sig)
+{}
+
+void
+SubProcessTimed::exec()
+{
   ceph_assert(is_child());
 
   if (timeout <= 0) {
@@ -346,7 +406,8 @@ void SubProcessTimed::exec() {
   if (pid == 0) { // Child
     // Restore old sigmask.
     if (sigprocmask(SIG_SETMASK, &oldmask, NULL) == -1) {
-      std::cerr << cmd << ": sigprocmask failed: " << cpp_strerror(errno) << "\n";
+      std::cerr << cmd << ": sigprocmask failed: " << cpp_strerror(errno)
+                << "\n";
       goto fail_exit;
     }
     (void)setpgid(0, 0); // Become process group leader.
@@ -367,13 +428,13 @@ void SubProcessTimed::exec() {
     case SIGCHLD:
       int status;
       if (waitpid(pid, &status, WNOHANG) == -1) {
-	std::cerr << cmd << ": waitpid failed: " << cpp_strerror(errno) << "\n";
-	goto fail_exit;
+        std::cerr << cmd << ": waitpid failed: " << cpp_strerror(errno) << "\n";
+        goto fail_exit;
       }
       if (WIFEXITED(status))
-	_exit(WEXITSTATUS(status));
+        _exit(WEXITSTATUS(status));
       if (WIFSIGNALED(status))
-	_exit(128 + WTERMSIG(status));
+        _exit(128 + WTERMSIG(status));
       std::cerr << cmd << ": unknown status returned\n";
       goto fail_exit;
     case SIGINT:
@@ -381,15 +442,15 @@ void SubProcessTimed::exec() {
       // Pass SIGINT and SIGTERM, which are usually used to terminate
       // a process, to the child.
       if (::kill(pid, signo) == -1) {
-	std::cerr << cmd << ": kill failed: " << cpp_strerror(errno) << "\n";
-	goto fail_exit;
+        std::cerr << cmd << ": kill failed: " << cpp_strerror(errno) << "\n";
+        goto fail_exit;
       }
       continue;
     case SIGALRM:
       std::cerr << cmd << ": timed out (" << timeout << " sec)\n";
       if (::killpg(pid, sigkill) == -1) {
-	std::cerr << cmd << ": kill failed: " << cpp_strerror(errno) << "\n";
-	goto fail_exit;
+        std::cerr << cmd << ": kill failed: " << cpp_strerror(errno) << "\n";
+        goto fail_exit;
       }
       continue;
     default:

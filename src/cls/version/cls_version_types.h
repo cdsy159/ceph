@@ -16,73 +16,90 @@
 
 class JSONObj;
 
-
 struct obj_version {
   uint64_t ver = 0;
   std::string tag;
 
   obj_version() = default;
-  obj_version(uint64_t ver, std::string tag)
-    : ver(ver), tag(std::move(tag)) {}
 
-  void encode(ceph::buffer::list& bl) const {
+  obj_version(uint64_t ver, std::string tag) :
+    ver(ver), tag(std::move(tag))
+  {}
+
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(ver, bl);
     encode(tag, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(ver, bl);
     decode(tag, bl);
     DECODE_FINISH(bl);
   }
 
-  void inc() {
+  void
+  inc()
+  {
     ver++;
   }
 
-  void clear() {
+  void
+  clear()
+  {
     ver = 0;
     tag.clear();
   }
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     return tag.empty();
   }
 
-  bool compare(struct obj_version *v) const {
-    return (ver == v->ver &&
-            tag.compare(v->tag) == 0);
+  bool
+  compare(struct obj_version* v) const
+  {
+    return (ver == v->ver && tag.compare(v->tag) == 0);
   }
 
-  bool operator==(const struct obj_version& v) const {
-    return (ver == v.ver &&
-            tag.compare(v.tag) == 0);
+  bool
+  operator==(const struct obj_version& v) const
+  {
+    return (ver == v.ver && tag.compare(v.tag) == 0);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_int("ver", ver);
     f->dump_string("tag", tag);
   }
 
-  void decode_json(JSONObj *obj);
+  void decode_json(JSONObj* obj);
   static std::list<obj_version> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(obj_version)
 
-inline std::ostream& operator <<(std::ostream& m, const obj_version& v) {
+inline std::ostream&
+operator<<(std::ostream& m, const obj_version& v)
+{
   return m << v.tag << ":" << v.ver;
 }
 
 enum VersionCond {
-  VER_COND_NONE =      0,
-  VER_COND_EQ,  /* equal */
-  VER_COND_GT,  /* greater than */
-  VER_COND_GE,  /* greater or equal */
-  VER_COND_LT,  /* less than */
-  VER_COND_LE,  /* less or equal */
+  VER_COND_NONE = 0,
+  VER_COND_EQ, /* equal */
+  VER_COND_GT, /* greater than */
+  VER_COND_GE, /* greater or equal */
+  VER_COND_LT, /* less than */
+  VER_COND_LE, /* less or equal */
   VER_COND_TAG_EQ,
   VER_COND_TAG_NE,
 };
@@ -91,7 +108,9 @@ struct obj_version_cond {
   struct obj_version ver;
   VersionCond cond;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(ver, bl);
     uint32_t c = (uint32_t)cond;
@@ -99,7 +118,9 @@ struct obj_version_cond {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(ver, bl);
     uint32_t c;
@@ -108,12 +129,16 @@ struct obj_version_cond {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_object("ver", ver);
     f->dump_unsigned("cond", cond);
   }
 
-  static std::list<obj_version_cond> generate_test_instances() {
+  static std::list<obj_version_cond>
+  generate_test_instances()
+  {
     std::list<obj_version_cond> o;
     o.emplace_back();
     o.emplace_back();

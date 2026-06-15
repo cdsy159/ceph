@@ -12,17 +12,20 @@
  * Foundation.  See file COPYING.
  */
 
+#include "sync_fairness.h"
+
 #include <mutex>
 #include <random>
 #include <vector>
-#include <boost/container/flat_map.hpp>
-#include "include/encoding.h"
-#include "include/rados/librados.hpp"
-#include "rgw_sal_rados.h"
-#include "rgw_cr_rados.h"
-#include "sync_fairness.h"
 
 #include <boost/asio/yield.hpp>
+#include <boost/container/flat_map.hpp>
+
+#include "include/encoding.h"
+#include "include/rados/librados.hpp"
+
+#include "rgw_cr_rados.h"
+#include "rgw_sal_rados.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -37,44 +40,57 @@ using bidder_map = boost::container::flat_map<notifier_id, bid_vector>;
 struct BidRequest {
   bid_vector bids;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(bids, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(bids, p);
     DECODE_FINISH(p);
   }
 };
+
 WRITE_CLASS_ENCODER(BidRequest);
 
 struct BidResponse {
   bid_vector bids;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(bids, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START(1, p);
     decode(bids, p);
     DECODE_FINISH(p);
   }
 };
+
 WRITE_CLASS_ENCODER(BidResponse);
 
-
-static void encode_notify_request(const bid_vector& bids, bufferlist& bl)
+static void
+encode_notify_request(const bid_vector& bids, bufferlist& bl)
 {
   BidRequest request;
   request.bids = bids; // copy the vector
   encode(request, bl);
 }
 
-static int apply_notify_responses(const bufferlist& bl, bidder_map& bidders)
+static int
+apply_notify_responses(const bufferlist& bl, bidder_map& bidders)
 {
   bc::flat_map<std::pair<uint64_t, uint64_t>, bufferlist> replies;
   std::vector<std::pair<uint64_t, uint64_t>> timeouts;
@@ -107,15 +123,15 @@ static int apply_notify_responses(const bufferlist& bl, bidder_map& bidders)
   return 0;
 }
 
-
 // server interface to handle bid notifications from peers
 struct Server {
   virtual ~Server() = default;
 
-  virtual void on_peer_bid(uint64_t peer_id, bid_vector peer_bids,
-                           bid_vector& my_bids) = 0;
+  virtual void on_peer_bid(
+      uint64_t peer_id,
+      bid_vector peer_bids,
+      bid_vector& my_bids) = 0;
 };
-
 
 // rados watcher for sync fairness notifications
 class Watcher : public librados::WatchCtx2 {
@@ -126,17 +142,19 @@ class Watcher : public librados::WatchCtx2 {
   rgw_rados_ref ref;
   uint64_t handle = 0;
 
- public:
-  Watcher(const DoutPrefixProvider* dpp, sal::RadosStore* store,
-          const rgw_raw_obj& obj, Server* server)
-    : dpp(dpp), store(store), obj(obj), server(server)
+public:
+  Watcher(
+      const DoutPrefixProvider* dpp,
+      sal::RadosStore* store,
+      const rgw_raw_obj& obj,
+      Server* server) :
+    dpp(dpp), store(store), obj(obj), server(server)
   {}
-  ~Watcher()
-  {
-    stop();
-  }
 
-  int start()
+  ~Watcher() { stop(); }
+
+  int
+  start()
   {
     int r = store->getRados()->get_raw_obj_ref(dpp, obj, &ref);
     if (r < 0) {
@@ -153,8 +171,8 @@ class Watcher : public librados::WatchCtx2 {
       }
     }
     if (r < 0) {
-      ldpp_dout(dpp, -1) << "Failed to watch " << ref.obj
-          << " with " << cpp_strerror(-r) << dendl;
+      ldpp_dout(dpp, -1) << "Failed to watch " << ref.obj << " with "
+                         << cpp_strerror(-r) << dendl;
       ref.ioctx.close();
       return r;
     }
@@ -163,23 +181,25 @@ class Watcher : public librados::WatchCtx2 {
     return 0;
   }
 
-  int restart()
+  int
+  restart()
   {
     int r = ref.ioctx.unwatch2(handle);
     if (r < 0) {
-      ldpp_dout(dpp, -1) << "Failed to unwatch on " << ref.obj
-          << " with " << cpp_strerror(-r) << dendl;
+      ldpp_dout(dpp, -1) << "Failed to unwatch on " << ref.obj << " with "
+                         << cpp_strerror(-r) << dendl;
     }
     r = ref.ioctx.watch2(ref.obj.oid, &handle, this);
     if (r < 0) {
-      ldpp_dout(dpp, -1) << "Failed to restart watch on " << ref.obj
-          << " with " << cpp_strerror(-r) << dendl;
+      ldpp_dout(dpp, -1) << "Failed to restart watch on " << ref.obj << " with "
+                         << cpp_strerror(-r) << dendl;
       ref.ioctx.close();
     }
     return r;
   }
 
-  void stop()
+  void
+  stop()
   {
     if (handle) {
       ref.ioctx.unwatch2(handle);
@@ -188,8 +208,12 @@ class Watcher : public librados::WatchCtx2 {
   }
 
   // respond to bid notifications
-  void handle_notify(uint64_t notify_id, uint64_t cookie,
-                     uint64_t notifier_id, bufferlist& bl)
+  void
+  handle_notify(
+      uint64_t notify_id,
+      uint64_t cookie,
+      uint64_t notifier_id,
+      bufferlist& bl)
   {
     if (cookie != handle) {
       return;
@@ -200,7 +224,8 @@ class Watcher : public librados::WatchCtx2 {
       auto p = bl.cbegin();
       decode(request, p);
     } catch (const buffer::error& e) {
-      ldpp_dout(dpp, -1) << "Failed to decode notification: " << e.what() << dendl;
+      ldpp_dout(dpp, -1) << "Failed to decode notification: " << e.what()
+                         << dendl;
       return;
     }
 
@@ -214,13 +239,14 @@ class Watcher : public librados::WatchCtx2 {
   }
 
   // reestablish the watch if it gets disconnected
-  void handle_error(uint64_t cookie, int err)
+  void
+  handle_error(uint64_t cookie, int err)
   {
     if (cookie != handle) {
       return;
     }
-    ldpp_dout(dpp, 4) << "Disconnected watch on " << ref.obj
-        << " err=" << err << dendl;
+    ldpp_dout(dpp, 4) << "Disconnected watch on " << ref.obj << " err=" << err
+                      << dendl;
     restart();
   }
 }; // Watcher
@@ -235,17 +261,20 @@ class NotifyCR : public RGWCoroutine {
   rgw_raw_obj obj;
   bufferlist request;
   bufferlist response;
- public:
-  NotifyCR(rgw::sal::RadosStore* store, RadosBidManager* mgr,
-           const rgw_raw_obj& obj, const bid_vector& my_bids)
-      : RGWCoroutine(store->ctx()), store(store), mgr(mgr), obj(obj)
+
+public:
+  NotifyCR(
+      rgw::sal::RadosStore* store,
+      RadosBidManager* mgr,
+      const rgw_raw_obj& obj,
+      const bid_vector& my_bids) :
+    RGWCoroutine(store->ctx()), store(store), mgr(mgr), obj(obj)
   {
     encode_notify_request(my_bids, request);
   }
 
   int operate(const DoutPrefixProvider* dpp) override;
 };
-
 
 class RadosBidManager : public BidManager, public Server, public DoutPrefix {
   sal::RadosStore* store;
@@ -256,30 +285,35 @@ class RadosBidManager : public BidManager, public Server, public DoutPrefix {
   bid_vector my_bids;
   bidder_map all_bids;
 
- public:
-  RadosBidManager(sal::RadosStore* store, const rgw_raw_obj& watch_obj,
-                 std::size_t num_shards)
-    : DoutPrefix(store->ctx(), dout_subsys, "sync fairness: "),
-      store(store), obj(watch_obj), watcher(this, store, watch_obj, this)
+public:
+  RadosBidManager(
+      sal::RadosStore* store,
+      const rgw_raw_obj& watch_obj,
+      std::size_t num_shards) :
+    DoutPrefix(store->ctx(), dout_subsys, "sync fairness: "),
+    store(store),
+    obj(watch_obj),
+    watcher(this, store, watch_obj, this)
   {
     // fill my_bids with random values
     std::random_device rd;
     std::default_random_engine rng{rd()};
 
     my_bids.resize(num_shards);
-    for(bid_value i = 0; i < num_shards; ++i) {
+    for (bid_value i = 0; i < num_shards; ++i) {
       my_bids[i] = i;
     }
     std::shuffle(my_bids.begin(), my_bids.end(), rng);
   }
 
-  int start() override
+  int
+  start() override
   {
     return watcher.start();
   }
 
-  void on_peer_bid(uint64_t peer_id, bid_vector peer_bids,
-                   bid_vector& my_bids) override
+  void
+  on_peer_bid(uint64_t peer_id, bid_vector peer_bids, bid_vector& my_bids) override
   {
     ldpp_dout(this, 10) << "received bids from peer " << peer_id << dendl;
 
@@ -288,7 +322,8 @@ class RadosBidManager : public BidManager, public Server, public DoutPrefix {
     my_bids = this->my_bids;
   }
 
-  bool is_highest_bidder(std::size_t index) override
+  bool
+  is_highest_bidder(std::size_t index) override
   {
     auto lock = std::scoped_lock{mutex};
     const bid_value my_bid = my_bids.at(index); // may throw
@@ -302,13 +337,15 @@ class RadosBidManager : public BidManager, public Server, public DoutPrefix {
     return true;
   }
 
-  RGWCoroutine* notify_cr() override
+  RGWCoroutine*
+  notify_cr() override
   {
     auto lock = std::scoped_lock{mutex};
     return new NotifyCR(store, this, obj, my_bids);
   }
 
-  void notify_response(const bufferlist& bl)
+  void
+  notify_response(const bufferlist& bl)
   {
     ldpp_dout(this, 10) << "received notify response from peers" << dendl;
 
@@ -322,13 +359,13 @@ class RadosBidManager : public BidManager, public Server, public DoutPrefix {
   }
 };
 
-
-int NotifyCR::operate(const DoutPrefixProvider* dpp)
+int
+NotifyCR::operate(const DoutPrefixProvider* dpp)
 {
   static constexpr uint64_t timeout_ms = 15'000;
-  reenter(this) {
-    yield call(new RGWRadosNotifyCR(store, obj, request,
-                                    timeout_ms, &response));
+  reenter(this)
+  {
+    yield call(new RGWRadosNotifyCR(store, obj, request, timeout_ms, &response));
     if (retcode < 0) {
       return set_cr_error(retcode);
     }
@@ -338,11 +375,11 @@ int NotifyCR::operate(const DoutPrefixProvider* dpp)
   return 0;
 }
 
-
-auto create_rados_bid_manager(sal::RadosStore* store,
-                              const rgw_raw_obj& watch_obj,
-                              std::size_t num_shards)
-  -> std::unique_ptr<BidManager>
+auto
+create_rados_bid_manager(
+    sal::RadosStore* store,
+    const rgw_raw_obj& watch_obj,
+    std::size_t num_shards) -> std::unique_ptr<BidManager>
 {
   return std::make_unique<RadosBidManager>(store, watch_obj, num_shards);
 }

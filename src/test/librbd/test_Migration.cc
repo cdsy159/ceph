@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librados/test.h"
-#include "test/librbd/test_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librados/crimson_utils.h"
+#include <shared_mutex> // for std::shared_lock
+
+#include <boost/scope_exit.hpp>
+
+#include "common/Cond.h"
 #include "librbd/ImageState.h"
 #include "librbd/Operations.h"
 #include "librbd/api/Group.h"
@@ -18,35 +19,42 @@
 #include "librbd/image/AttachParentRequest.h"
 #include "librbd/internal.h"
 #include "librbd/io/ReadResult.h"
-#include "common/Cond.h"
-#include <boost/scope_exit.hpp>
+#include "test/librados/crimson_utils.h"
+#include "test/librados/test.h"
+#include "test/librbd/test_fixture.h"
+#include "test/librbd/test_support.h"
 
-#include <shared_mutex> // for std::shared_lock
-
-void register_test_migration() {
-}
+void
+register_test_migration()
+{}
 
 namespace librbd {
 
 struct TestMigration : public TestFixture {
-  static void SetUpTestCase() {
+  static void
+  SetUpTestCase()
+  {
     TestFixture::SetUpTestCase();
 
     _other_pool_name = get_temp_pool_name("test-librbd-");
     ASSERT_EQ(0, _rados.pool_create(_other_pool_name.c_str()));
   }
 
-  static void TearDownTestCase() {
+  static void
+  TearDownTestCase()
+  {
     ASSERT_EQ(0, _rados.pool_delete(_other_pool_name.c_str()));
 
     TestFixture::TearDownTestCase();
   }
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestFixture::SetUp();
 
-    ASSERT_EQ(0, _rados.ioctx_create(_other_pool_name.c_str(),
-                                     _other_pool_ioctx));
+    ASSERT_EQ(
+        0, _rados.ioctx_create(_other_pool_name.c_str(), _other_pool_ioctx));
 
     open_image(m_ioctx, m_image_name, &m_ictx);
     m_image_id = m_ictx->id;
@@ -59,7 +67,9 @@ struct TestMigration : public TestFixture {
     resize(20 * (1 << 22));
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     if (m_ref_ictx != nullptr) {
       close_image(m_ref_ictx);
     }
@@ -72,7 +82,9 @@ struct TestMigration : public TestFixture {
     TestFixture::TearDown();
   }
 
-  void compare(const std::string &description = "") {
+  void
+  compare(const std::string& description = "")
+  {
     std::vector<librbd::snap_info_t> src_snaps, dst_snaps;
 
     EXPECT_EQ(m_ref_ictx->size, m_ictx->size);
@@ -80,27 +92,31 @@ struct TestMigration : public TestFixture {
     EXPECT_EQ(0, librbd::api::Snapshot<>::list(m_ictx, dst_snaps));
     EXPECT_EQ(src_snaps.size(), dst_snaps.size());
     for (size_t i = 0; i <= src_snaps.size(); i++) {
-      const char *src_snap_name = nullptr;
-      const char *dst_snap_name = nullptr;
+      const char* src_snap_name = nullptr;
+      const char* dst_snap_name = nullptr;
       if (i < src_snaps.size()) {
         EXPECT_EQ(src_snaps[i].name, dst_snaps[i].name);
         src_snap_name = src_snaps[i].name.c_str();
         dst_snap_name = dst_snaps[i].name.c_str();
       }
-      EXPECT_EQ(0, librbd::api::Image<>::snap_set(
-                     m_ref_ictx, cls::rbd::UserSnapshotNamespace(),
-                     src_snap_name));
-      EXPECT_EQ(0, librbd::api::Image<>::snap_set(
-                     m_ictx, cls::rbd::UserSnapshotNamespace(),
-                     dst_snap_name));
+      EXPECT_EQ(
+          0, librbd::api::Image<>::snap_set(
+                 m_ref_ictx, cls::rbd::UserSnapshotNamespace(), src_snap_name));
+      EXPECT_EQ(
+          0, librbd::api::Image<>::snap_set(
+                 m_ictx, cls::rbd::UserSnapshotNamespace(), dst_snap_name));
       compare_snaps(
-        description + " snap: " + (src_snap_name ? src_snap_name : "null"),
-        m_ref_ictx, m_ictx);
+          description + " snap: " + (src_snap_name ? src_snap_name : "null"),
+          m_ref_ictx, m_ictx);
     }
   }
 
-  void compare_snaps(const std::string &description, librbd::ImageCtx *src_ictx,
-                     librbd::ImageCtx *dst_ictx) {
+  void
+  compare_snaps(
+      const std::string& description,
+      librbd::ImageCtx* src_ictx,
+      librbd::ImageCtx* dst_ictx)
+  {
     uint64_t src_size, dst_size;
     {
       std::shared_lock src_locker{src_ictx->image_lock};
@@ -116,9 +132,10 @@ struct TestMigration : public TestFixture {
     if (dst_ictx->test_features(RBD_FEATURE_LAYERING)) {
       bool flags_set;
       std::shared_lock dst_locker{dst_ictx->image_lock};
-      EXPECT_EQ(0, dst_ictx->test_flags(dst_ictx->snap_id,
-                                        RBD_FLAG_OBJECT_MAP_INVALID,
-                                        dst_ictx->image_lock, &flags_set));
+      EXPECT_EQ(
+          0, dst_ictx->test_flags(
+                 dst_ictx->snap_id, RBD_FLAG_OBJECT_MAP_INVALID,
+                 dst_ictx->image_lock, &flags_set));
       EXPECT_FALSE(flags_set);
     }
 
@@ -131,33 +148,42 @@ struct TestMigration : public TestFixture {
       bufferlist src_bl;
       src_bl.push_back(src_ptr);
       librbd::io::ReadResult src_result{&src_bl};
-      EXPECT_EQ(read_size, api::Io<>::read(
-                  *src_ictx, offset, read_size,
-                  librbd::io::ReadResult{src_result}, 0));
+      EXPECT_EQ(
+          read_size, api::Io<>::read(
+                         *src_ictx, offset, read_size,
+                         librbd::io::ReadResult{src_result}, 0));
 
       bufferptr dst_ptr(read_size);
       bufferlist dst_bl;
       dst_bl.push_back(dst_ptr);
       librbd::io::ReadResult dst_result{&dst_bl};
-      EXPECT_EQ(read_size, api::Io<>::read(
-                  *dst_ictx, offset, read_size,
-                  librbd::io::ReadResult{dst_result}, 0));
+      EXPECT_EQ(
+          read_size, api::Io<>::read(
+                         *dst_ictx, offset, read_size,
+                         librbd::io::ReadResult{dst_result}, 0));
 
       if (!src_bl.contents_equal(dst_bl)) {
-        std::cout << description
-                  << ", block " << offset << "~" << read_size << " differs"
-                  << std::endl;
-        std::cout << "src block: " << src_ictx->id << ": " << std::endl; src_bl.hexdump(std::cout);
-        std::cout << "dst block: " << dst_ictx->id << ": " << std::endl; dst_bl.hexdump(std::cout);
+        std::cout << description << ", block " << offset << "~" << read_size
+                  << " differs" << std::endl;
+        std::cout << "src block: " << src_ictx->id << ": " << std::endl;
+        src_bl.hexdump(std::cout);
+        std::cout << "dst block: " << dst_ictx->id << ": " << std::endl;
+        dst_bl.hexdump(std::cout);
       }
       EXPECT_TRUE(src_bl.contents_equal(dst_bl));
       offset += read_size;
     }
   }
 
-  void open_image(librados::IoCtx& io_ctx, const std::string &name,
-                  const std::string &id, bool read_only, int flags,
-                  librbd::ImageCtx **ictx) {
+  void
+  open_image(
+      librados::IoCtx& io_ctx,
+      const std::string& name,
+      const std::string& id,
+      bool read_only,
+      int flags,
+      librbd::ImageCtx** ictx)
+  {
     *ictx = new librbd::ImageCtx(name, id, nullptr, io_ctx, read_only);
     m_ictxs.insert(*ictx);
 
@@ -165,21 +191,29 @@ struct TestMigration : public TestFixture {
     (*ictx)->discard_granularity_bytes = 0;
   }
 
-  void open_image(librados::IoCtx& io_ctx, const std::string &name,
-                  librbd::ImageCtx **ictx) {
+  void
+  open_image(
+      librados::IoCtx& io_ctx,
+      const std::string& name,
+      librbd::ImageCtx** ictx)
+  {
     open_image(io_ctx, name, "", false, 0, ictx);
   }
 
-  void migration_prepare(librados::IoCtx& dst_io_ctx,
-                         const std::string &dst_name, int r = 0) {
+  void
+  migration_prepare(
+      librados::IoCtx& dst_io_ctx,
+      const std::string& dst_name,
+      int r = 0)
+  {
     std::cout << __func__ << std::endl;
 
     close_image(m_ictx);
     m_ictx = nullptr;
 
-    EXPECT_EQ(r, librbd::api::Migration<>::prepare(m_ioctx, m_image_name,
-                                                   dst_io_ctx, dst_name,
-                                                   m_opts));
+    EXPECT_EQ(
+        r, librbd::api::Migration<>::prepare(
+               m_ioctx, m_image_name, dst_io_ctx, dst_name, m_opts));
     if (r == 0) {
       open_image(dst_io_ctx, dst_name, &m_ictx);
     } else {
@@ -188,16 +222,18 @@ struct TestMigration : public TestFixture {
     compare("after prepare");
   }
 
-  void migration_execute(librados::IoCtx& io_ctx, const std::string &name,
-                         int r = 0) {
+  void
+  migration_execute(librados::IoCtx& io_ctx, const std::string& name, int r = 0)
+  {
     std::cout << __func__ << std::endl;
 
     librbd::NoOpProgressContext no_op;
     EXPECT_EQ(r, librbd::api::Migration<>::execute(io_ctx, name, no_op));
   }
 
-  void migration_abort(librados::IoCtx& io_ctx, const std::string &name,
-                       int r = 0) {
+  void
+  migration_abort(librados::IoCtx& io_ctx, const std::string& name, int r = 0)
+  {
     std::cout << __func__ << std::endl;
 
     std::string dst_name = m_ictx->name;
@@ -216,7 +252,9 @@ struct TestMigration : public TestFixture {
     compare("after abort");
   }
 
-  void migration_commit(librados::IoCtx& io_ctx, const std::string &name) {
+  void
+  migration_commit(librados::IoCtx& io_ctx, const std::string& name)
+  {
     std::cout << __func__ << std::endl;
 
     librbd::NoOpProgressContext no_op;
@@ -225,10 +263,12 @@ struct TestMigration : public TestFixture {
     compare("after commit");
   }
 
-  void migration_status(librbd::image_migration_state_t state) {
+  void
+  migration_status(librbd::image_migration_state_t state)
+  {
     librbd::image_migration_status_t status;
-    EXPECT_EQ(0, librbd::api::Migration<>::status(m_ioctx, m_image_name,
-                                                  &status));
+    EXPECT_EQ(
+        0, librbd::api::Migration<>::status(m_ioctx, m_image_name, &status));
     EXPECT_EQ(status.source_pool_id, m_ioctx.get_id());
     EXPECT_EQ(status.source_pool_namespace, m_ioctx.get_namespace());
     EXPECT_EQ(status.source_image_name, m_image_name);
@@ -240,7 +280,9 @@ struct TestMigration : public TestFixture {
     EXPECT_EQ(status.state, state);
   }
 
-  void migrate(librados::IoCtx& dst_io_ctx, const std::string &dst_name) {
+  void
+  migrate(librados::IoCtx& dst_io_ctx, const std::string& dst_name)
+  {
     migration_prepare(dst_io_ctx, dst_name);
     migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
     migration_execute(dst_io_ctx, dst_name);
@@ -248,34 +290,45 @@ struct TestMigration : public TestFixture {
     migration_commit(dst_io_ctx, dst_name);
   }
 
-  void write(uint64_t off, uint64_t len, char c) {
+  void
+  write(uint64_t off, uint64_t len, char c)
+  {
     std::cout << "write: " << c << " " << off << "~" << len << std::endl;
 
     bufferlist ref_bl;
     ref_bl.append(std::string(len, c));
-    ASSERT_EQ(static_cast<ssize_t>(len),
-              api::Io<>::write(*m_ref_ictx, off, len, std::move(ref_bl), 0));
+    ASSERT_EQ(
+        static_cast<ssize_t>(len),
+        api::Io<>::write(*m_ref_ictx, off, len, std::move(ref_bl), 0));
     bufferlist bl;
     bl.append(std::string(len, c));
-    ASSERT_EQ(static_cast<ssize_t>(len),
-              api::Io<>::write(*m_ictx, off, len, std::move(bl), 0));
+    ASSERT_EQ(
+        static_cast<ssize_t>(len),
+        api::Io<>::write(*m_ictx, off, len, std::move(bl), 0));
   }
 
-  void discard(uint64_t off, uint64_t len) {
+  void
+  discard(uint64_t off, uint64_t len)
+  {
     std::cout << "discard: " << off << "~" << len << std::endl;
 
-    ASSERT_EQ(static_cast<ssize_t>(len),
-              api::Io<>::discard(*m_ref_ictx, off, len, false));
-    ASSERT_EQ(static_cast<ssize_t>(len),
-              api::Io<>::discard(*m_ictx, off, len, false));
+    ASSERT_EQ(
+        static_cast<ssize_t>(len),
+        api::Io<>::discard(*m_ref_ictx, off, len, false));
+    ASSERT_EQ(
+        static_cast<ssize_t>(len), api::Io<>::discard(*m_ictx, off, len, false));
   }
 
-  void flush() {
+  void
+  flush()
+  {
     ASSERT_EQ(0, TestFixture::flush_writeback_cache(m_ref_ictx));
     ASSERT_EQ(0, TestFixture::flush_writeback_cache(m_ictx));
   }
 
-  void snap_create(const std::string &snap_name) {
+  void
+  snap_create(const std::string& snap_name)
+  {
     std::cout << "snap_create: " << snap_name << std::endl;
 
     flush();
@@ -284,14 +337,18 @@ struct TestMigration : public TestFixture {
     ASSERT_EQ(0, TestFixture::snap_create(*m_ictx, snap_name));
   }
 
-  void snap_protect(const std::string &snap_name) {
+  void
+  snap_protect(const std::string& snap_name)
+  {
     std::cout << "snap_protect: " << snap_name << std::endl;
 
     ASSERT_EQ(0, TestFixture::snap_protect(*m_ref_ictx, snap_name));
     ASSERT_EQ(0, TestFixture::snap_protect(*m_ictx, snap_name));
   }
 
-  void clone(const std::string &snap_name) {
+  void
+  clone(const std::string& snap_name)
+  {
     snap_protect(snap_name);
 
     int order = m_ref_ictx->order;
@@ -301,20 +358,19 @@ struct TestMigration : public TestFixture {
     std::string ref_clone_name = get_temp_image_name();
     std::string clone_name = get_temp_image_name();
 
-    std::cout << "clone " << m_ictx->name << " -> " << clone_name
-              << std::endl;
+    std::cout << "clone " << m_ictx->name << " -> " << clone_name << std::endl;
 
-    ASSERT_EQ(0, librbd::clone(m_ref_ictx->md_ctx, m_ref_ictx->name.c_str(),
-                               snap_name.c_str(), m_ref_ioctx,
-                               ref_clone_name.c_str(), features, &order,
-                               m_ref_ictx->stripe_unit,
-                               m_ref_ictx->stripe_count));
+    ASSERT_EQ(
+        0, librbd::clone(
+               m_ref_ictx->md_ctx, m_ref_ictx->name.c_str(), snap_name.c_str(),
+               m_ref_ioctx, ref_clone_name.c_str(), features, &order,
+               m_ref_ictx->stripe_unit, m_ref_ictx->stripe_count));
 
-    ASSERT_EQ(0, librbd::clone(m_ictx->md_ctx, m_ictx->name.c_str(),
-                               snap_name.c_str(), m_ioctx,
-                               clone_name.c_str(), features, &order,
-                               m_ictx->stripe_unit,
-                               m_ictx->stripe_count));
+    ASSERT_EQ(
+        0, librbd::clone(
+               m_ictx->md_ctx, m_ictx->name.c_str(), snap_name.c_str(), m_ioctx,
+               clone_name.c_str(), features, &order, m_ictx->stripe_unit,
+               m_ictx->stripe_count));
 
     close_image(m_ref_ictx);
     open_image(m_ref_ioctx, ref_clone_name, &m_ref_ictx);
@@ -325,7 +381,9 @@ struct TestMigration : public TestFixture {
     m_image_id = m_ictx->id;
   }
 
-  void resize(uint64_t size) {
+  void
+  resize(uint64_t size)
+  {
     std::cout << "resize: " << size << std::endl;
 
     librbd::NoOpProgressContext no_op;
@@ -333,24 +391,31 @@ struct TestMigration : public TestFixture {
     ASSERT_EQ(0, m_ictx->operations->resize(size, true, no_op));
   }
 
-  void test_children(bool have, std::string initial_image_name) {
+  void
+  test_children(bool have, std::string initial_image_name)
+  {
     std::vector<librbd::linked_image_spec_t> images;
-    librbd::ImageCtx *initial_ictx = nullptr;
+    librbd::ImageCtx* initial_ictx = nullptr;
     open_image(m_ioctx, initial_image_name, &initial_ictx);
-    EXPECT_EQ(0, librbd::api::Image<>::snap_set(
-                initial_ictx, cls::rbd::UserSnapshotNamespace(), "snap"));
+    EXPECT_EQ(
+        0, librbd::api::Image<>::snap_set(
+               initial_ictx, cls::rbd::UserSnapshotNamespace(), "snap"));
     ASSERT_EQ(0, librbd::api::Image<>::list_children(initial_ictx, &images));
     ASSERT_EQ(have, !images.empty());
   }
 
-  void test_no_snaps() {
+  void
+  test_no_snaps()
+  {
     uint64_t len = (1 << m_ictx->order) * 2 + 1;
     write(0 * len, len, '1');
     write(2 * len, len, '1');
     flush();
   }
 
-  void test_snaps() {
+  void
+  test_snaps()
+  {
     uint64_t len = (1 << m_ictx->order) * 2 + 1;
     write(0 * len, len, '1');
     snap_create("snap1");
@@ -379,7 +444,9 @@ struct TestMigration : public TestFixture {
     flush();
   }
 
-  void test_clone() {
+  void
+  test_clone()
+  {
     uint64_t len = (1 << m_ictx->order) * 2 + 1;
     write(0 * len, len, 'X');
     write(2 * len, len, 'X');
@@ -400,17 +467,21 @@ struct TestMigration : public TestFixture {
   }
 
   template <typename L>
-  void test_migrate_parent(uint32_t clone_format, L&& test) {
+  void
+  test_migrate_parent(uint32_t clone_format, L&& test)
+  {
     REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
     std::string prev_clone_format;
-    ASSERT_EQ(0, _rados.conf_get("rbd_default_clone_format",
-                                 prev_clone_format));
-    ASSERT_EQ(0, _rados.conf_set("rbd_default_clone_format",
-                                 stringify(clone_format).c_str()));
-    BOOST_SCOPE_EXIT_TPL(&prev_clone_format) {
+    ASSERT_EQ(0, _rados.conf_get("rbd_default_clone_format", prev_clone_format));
+    ASSERT_EQ(
+        0, _rados.conf_set(
+               "rbd_default_clone_format", stringify(clone_format).c_str()));
+    BOOST_SCOPE_EXIT_TPL(&prev_clone_format)
+    {
       _rados.conf_set("rbd_default_clone_format", prev_clone_format.c_str());
-    } BOOST_SCOPE_EXIT_END;
+    }
+    BOOST_SCOPE_EXIT_END;
 
     write(0, 10, 'A');
     snap_create("snap1");
@@ -421,11 +492,13 @@ struct TestMigration : public TestFixture {
     ASSERT_EQ(0, librbd::get_features(m_ictx, &features));
 
     std::string clone_name = get_temp_image_name();
-    ASSERT_EQ(0, librbd::clone(m_ictx->md_ctx, m_ictx->name.c_str(), "snap1",
-                               m_ioctx, clone_name.c_str(), features, &order,
-                               m_ictx->stripe_unit, m_ictx->stripe_count));
+    ASSERT_EQ(
+        0, librbd::clone(
+               m_ictx->md_ctx, m_ictx->name.c_str(), "snap1", m_ioctx,
+               clone_name.c_str(), features, &order, m_ictx->stripe_unit,
+               m_ictx->stripe_count));
 
-    librbd::ImageCtx *child_ictx;
+    librbd::ImageCtx* child_ictx;
     open_image(m_ioctx, clone_name, &child_ictx);
 
     test(child_ictx);
@@ -436,20 +509,22 @@ struct TestMigration : public TestFixture {
     bufferptr ptr(10);
     bl.push_back(ptr);
     librbd::io::ReadResult result{&bl};
-    ASSERT_EQ(10, api::Io<>::read(
-                *child_ictx, 0, 10, librbd::io::ReadResult{result}, 0));
+    ASSERT_EQ(
+        10,
+        api::Io<>::read(*child_ictx, 0, 10, librbd::io::ReadResult{result}, 0));
     bufferlist ref_bl;
     ref_bl.append(std::string(10, 'A'));
     ASSERT_TRUE(ref_bl.contents_equal(bl));
     close_image(child_ictx);
   }
 
-  void test_stress(const std::string &snap_name_prefix = "snap",
-                   char start_char = 'A') {
+  void
+  test_stress(const std::string& snap_name_prefix = "snap", char start_char = 'A')
+  {
     uint64_t initial_size = m_ictx->size;
 
     int nsnaps = 4;
-    const char *c = getenv("TEST_RBD_MIGRATION_STRESS_NSNAPS");
+    const char* c = getenv("TEST_RBD_MIGRATION_STRESS_NSNAPS");
     if (c != NULL) {
       std::stringstream ss(c);
       ASSERT_TRUE(ss >> nsnaps);
@@ -466,14 +541,16 @@ struct TestMigration : public TestFixture {
       for (int j = 0; j < nwrites; j++) {
         size_t len = rand() % ((1 << m_ictx->order) * 2);
         ASSERT_GT(m_ictx->size, len);
-        uint64_t off = std::min(static_cast<uint64_t>(rand() % m_ictx->size),
-                                static_cast<uint64_t>(m_ictx->size - len));
+        uint64_t off = std::min(
+            static_cast<uint64_t>(rand() % m_ictx->size),
+            static_cast<uint64_t>(m_ictx->size - len));
         write(off, len, start_char + i);
 
         len = rand() % ((1 << m_ictx->order) * 2);
         ASSERT_GT(m_ictx->size, len);
-        off = std::min(static_cast<uint64_t>(rand() % m_ictx->size),
-                       static_cast<uint64_t>(m_ictx->size - len));
+        off = std::min(
+            static_cast<uint64_t>(rand() % m_ictx->size),
+            static_cast<uint64_t>(m_ictx->size - len));
         discard(off, len);
       }
 
@@ -481,8 +558,7 @@ struct TestMigration : public TestFixture {
       snap_create(snap_name);
 
       if (m_ictx->test_features(RBD_FEATURE_LAYERING) &&
-          !m_ictx->test_features(RBD_FEATURE_MIGRATING) &&
-          rand() % 4) {
+          !m_ictx->test_features(RBD_FEATURE_MIGRATING) && rand() % 4) {
         clone(snap_name);
       }
 
@@ -496,25 +572,27 @@ struct TestMigration : public TestFixture {
     flush();
   }
 
-  void test_stress2(bool concurrent) {
+  void
+  test_stress2(bool concurrent)
+  {
     test_stress();
 
     migration_prepare(m_ioctx, m_image_name);
     migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
 
     std::thread user([this]() {
-        test_stress("user", 'a');
-        for (int i = 0; i < 5; i++) {
-          uint64_t off = (i + 1) * m_ictx->size / 10;
-          uint64_t len = m_ictx->size / 40;
-          write(off, len, '1' + i);
+      test_stress("user", 'a');
+      for (int i = 0; i < 5; i++) {
+        uint64_t off = (i + 1) * m_ictx->size / 10;
+        uint64_t len = m_ictx->size / 40;
+        write(off, len, '1' + i);
 
-          off += len / 4;
-          len /= 2;
-          discard(off, len);
-        }
-        flush();
-      });
+        off += len / 4;
+        len /= 2;
+        discard(off, len);
+      }
+      flush();
+    });
 
     if (concurrent) {
       librados::IoCtx io_ctx;
@@ -536,9 +614,9 @@ struct TestMigration : public TestFixture {
   static librados::IoCtx _other_pool_ioctx;
 
   std::string m_image_id;
-  librbd::ImageCtx *m_ictx = nullptr;
+  librbd::ImageCtx* m_ictx = nullptr;
   librados::IoCtx m_ref_ioctx;
-  librbd::ImageCtx *m_ref_ictx = nullptr;
+  librbd::ImageCtx* m_ref_ictx = nullptr;
   librbd::ImageOptions m_opts;
 };
 
@@ -586,8 +664,10 @@ TEST_F(TestMigration, OtherNamespace)
 
 TEST_F(TestMigration, DataPool)
 {
-  ASSERT_EQ(0, m_opts.set(RBD_IMAGE_OPTION_DATA_POOL,
-                          _other_pool_ioctx.get_pool_name().c_str()));
+  ASSERT_EQ(
+      0, m_opts.set(
+             RBD_IMAGE_OPTION_DATA_POOL,
+             _other_pool_ioctx.get_pool_name().c_str()));
 
   migrate(m_ioctx, m_image_name);
 
@@ -649,8 +729,9 @@ TEST_F(TestMigration, MirroringSamePool)
 
   ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(m_ioctx, RBD_MIRROR_MODE_IMAGE));
 
-  ASSERT_EQ(0, librbd::api::Mirror<>::image_enable(
-              m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
+  ASSERT_EQ(
+      0, librbd::api::Mirror<>::image_enable(
+             m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
   librbd::mirror_image_info_t info;
   ASSERT_EQ(0, librbd::api::Mirror<>::image_get_info(m_ictx, &info));
   ASSERT_EQ(RBD_MIRROR_IMAGE_ENABLED, info.state);
@@ -667,8 +748,9 @@ TEST_F(TestMigration, MirroringAbort)
 
   ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(m_ioctx, RBD_MIRROR_MODE_IMAGE));
 
-  ASSERT_EQ(0, librbd::api::Mirror<>::image_enable(
-              m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
+  ASSERT_EQ(
+      0, librbd::api::Mirror<>::image_enable(
+             m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
   librbd::mirror_image_info_t info;
   ASSERT_EQ(0, librbd::api::Mirror<>::image_get_info(m_ictx, &info));
   ASSERT_EQ(RBD_MIRROR_IMAGE_ENABLED, info.state);
@@ -690,8 +772,9 @@ TEST_F(TestMigration, MirroringOtherPoolDisabled)
 
   ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(m_ioctx, RBD_MIRROR_MODE_IMAGE));
 
-  ASSERT_EQ(0, librbd::api::Mirror<>::image_enable(
-              m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
+  ASSERT_EQ(
+      0, librbd::api::Mirror<>::image_enable(
+             m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
   librbd::mirror_image_info_t info;
   ASSERT_EQ(0, librbd::api::Mirror<>::image_get_info(m_ictx, &info));
   ASSERT_EQ(RBD_MIRROR_IMAGE_ENABLED, info.state);
@@ -707,11 +790,13 @@ TEST_F(TestMigration, MirroringOtherPoolEnabled)
   REQUIRE_FEATURE(RBD_FEATURE_JOURNALING);
 
   ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(m_ioctx, RBD_MIRROR_MODE_IMAGE));
-  ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(_other_pool_ioctx,
-                                               RBD_MIRROR_MODE_IMAGE));
+  ASSERT_EQ(
+      0,
+      librbd::api::Mirror<>::mode_set(_other_pool_ioctx, RBD_MIRROR_MODE_IMAGE));
 
-  ASSERT_EQ(0, librbd::api::Mirror<>::image_enable(
-              m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
+  ASSERT_EQ(
+      0, librbd::api::Mirror<>::image_enable(
+             m_ictx, RBD_MIRROR_IMAGE_MODE_JOURNAL, false));
   librbd::mirror_image_info_t info;
   ASSERT_EQ(0, librbd::api::Mirror<>::image_get_info(m_ictx, &info));
   ASSERT_EQ(RBD_MIRROR_IMAGE_ENABLED, info.state);
@@ -726,8 +811,9 @@ TEST_F(TestMigration, MirroringPool)
 {
   REQUIRE_FEATURE(RBD_FEATURE_JOURNALING);
 
-  ASSERT_EQ(0, librbd::api::Mirror<>::mode_set(_other_pool_ioctx,
-                                               RBD_MIRROR_MODE_POOL));
+  ASSERT_EQ(
+      0,
+      librbd::api::Mirror<>::mode_set(_other_pool_ioctx, RBD_MIRROR_MODE_POOL));
   librbd::mirror_image_info_t info;
   ASSERT_EQ(0, librbd::api::Mirror<>::image_get_info(m_ictx, &info));
   ASSERT_EQ(RBD_MIRROR_IMAGE_DISABLED, info.state);
@@ -743,8 +829,9 @@ TEST_F(TestMigration, Group)
   REQUIRE_FORMAT_V2();
 
   ASSERT_EQ(0, librbd::api::Group<>::create(m_ioctx, "123"));
-  ASSERT_EQ(0, librbd::api::Group<>::image_add(m_ioctx, "123", m_ioctx,
-                                               m_image_name.c_str()));
+  ASSERT_EQ(
+      0, librbd::api::Group<>::image_add(
+             m_ioctx, "123", m_ioctx, m_image_name.c_str()));
   librbd::group_info_t info;
   ASSERT_EQ(0, librbd::api::Group<>::image_get_group(m_ictx, &info));
 
@@ -755,8 +842,9 @@ TEST_F(TestMigration, Group)
   ASSERT_EQ(0, librbd::api::Group<>::image_get_group(m_ictx, &info));
   ASSERT_EQ(info.name, "123");
 
-  ASSERT_EQ(0, librbd::api::Group<>::image_remove(m_ioctx, "123", m_ioctx,
-                                                  name.c_str()));
+  ASSERT_EQ(
+      0,
+      librbd::api::Group<>::image_remove(m_ioctx, "123", m_ioctx, name.c_str()));
   ASSERT_EQ(0, librbd::api::Group<>::remove(m_ioctx, "123"));
 }
 
@@ -765,8 +853,9 @@ TEST_F(TestMigration, GroupAbort)
   REQUIRE_FORMAT_V2();
 
   ASSERT_EQ(0, librbd::api::Group<>::create(m_ioctx, "123"));
-  ASSERT_EQ(0, librbd::api::Group<>::image_add(m_ioctx, "123", m_ioctx,
-                                               m_image_name.c_str()));
+  ASSERT_EQ(
+      0, librbd::api::Group<>::image_add(
+             m_ioctx, "123", m_ioctx, m_image_name.c_str()));
   librbd::group_info_t info;
   ASSERT_EQ(0, librbd::api::Group<>::image_get_group(m_ictx, &info));
 
@@ -783,8 +872,9 @@ TEST_F(TestMigration, GroupAbort)
   ASSERT_EQ(0, librbd::api::Group<>::image_get_group(m_ictx, &info));
   ASSERT_EQ(info.name, "123");
 
-  ASSERT_EQ(0, librbd::api::Group<>::image_remove(m_ioctx, "123", m_ioctx,
-                                                  m_image_name.c_str()));
+  ASSERT_EQ(
+      0, librbd::api::Group<>::image_remove(
+             m_ioctx, "123", m_ioctx, m_image_name.c_str()));
   ASSERT_EQ(0, librbd::api::Group<>::remove(m_ioctx, "123"));
 }
 
@@ -806,8 +896,10 @@ TEST_F(TestMigration, NoSnapsDataPool)
 {
   test_no_snaps();
 
-  ASSERT_EQ(0, m_opts.set(RBD_IMAGE_OPTION_DATA_POOL,
-                          _other_pool_ioctx.get_pool_name().c_str()));
+  ASSERT_EQ(
+      0, m_opts.set(
+             RBD_IMAGE_OPTION_DATA_POOL,
+             _other_pool_ioctx.get_pool_name().c_str()));
   migrate(m_ioctx, m_image_name);
 
   EXPECT_EQ(_other_pool_ioctx.get_id(), m_ictx->data_ctx.get_id());
@@ -899,8 +991,10 @@ TEST_F(TestMigration, SnapsDataPool)
 {
   test_snaps();
 
-  ASSERT_EQ(0, m_opts.set(RBD_IMAGE_OPTION_DATA_POOL,
-                          _other_pool_ioctx.get_pool_name().c_str()));
+  ASSERT_EQ(
+      0, m_opts.set(
+             RBD_IMAGE_OPTION_DATA_POOL,
+             _other_pool_ioctx.get_pool_name().c_str()));
   migrate(m_ioctx, m_image_name);
 
   EXPECT_EQ(_other_pool_ioctx.get_id(), m_ictx->data_ctx.get_id());
@@ -986,14 +1080,16 @@ TEST_F(TestMigration, SnapsSnapAfterPrepare)
   migration_prepare(m_ioctx, m_image_name);
   migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
 
-  auto ictx = new librbd::ImageCtx(m_ictx->name.c_str(), "", "snap3", m_ioctx,
-                                   false);
+  auto ictx =
+      new librbd::ImageCtx(m_ictx->name.c_str(), "", "snap3", m_ioctx, false);
   ASSERT_EQ(0, ictx->state->open(0));
-  EXPECT_EQ(0, librbd::api::Image<>::snap_set(
-              m_ref_ictx, cls::rbd::UserSnapshotNamespace(), "snap3"));
+  EXPECT_EQ(
+      0, librbd::api::Image<>::snap_set(
+             m_ref_ictx, cls::rbd::UserSnapshotNamespace(), "snap3"));
   compare_snaps("opened after prepare snap3", m_ref_ictx, ictx);
-  EXPECT_EQ(0, librbd::api::Image<>::snap_set(
-              m_ref_ictx, cls::rbd::UserSnapshotNamespace(), nullptr));
+  EXPECT_EQ(
+      0, librbd::api::Image<>::snap_set(
+             m_ref_ictx, cls::rbd::UserSnapshotNamespace(), nullptr));
   EXPECT_EQ(0, ictx->state->close());
 
   snap_create("after_prepare_snap");
@@ -1030,7 +1126,8 @@ TEST_F(TestMigration, Clone)
   migrate(m_ioctx, m_image_name);
 }
 
-TEST_F(TestMigration, CloneParent) {
+TEST_F(TestMigration, CloneParent)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   snap_create("snap");
@@ -1050,15 +1147,14 @@ TEST_F(TestMigration, CloneParent) {
 
   librbd::linked_image_spec_t parent_image;
   librbd::snap_spec_t parent_snap;
-  ASSERT_EQ(0, librbd::api::Image<>::get_parent(m_ictx, &parent_image,
-                                                &parent_snap));
+  ASSERT_EQ(
+      0, librbd::api::Image<>::get_parent(m_ictx, &parent_image, &parent_snap));
   ASSERT_EQ(expected_parent_image.image_id, parent_image.image_id);
   ASSERT_EQ(expected_parent_image.image_name, parent_image.image_name);
   ASSERT_EQ(expected_parent_snap.id, parent_snap.id);
 
   migration_abort(m_ioctx, m_image_name);
 }
-
 
 TEST_F(TestMigration, CloneUpdateAfterPrepare)
 {
@@ -1145,16 +1241,18 @@ TEST_F(TestMigration, SnapTrimBeforePrepare)
   migration_commit(m_ioctx, m_image_name);
 }
 
-TEST_F(TestMigration, AbortInUseImage) {
+TEST_F(TestMigration, AbortInUseImage)
+{
   migration_prepare(m_ioctx, m_image_name);
   migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
 
   librbd::NoOpProgressContext no_op;
-  EXPECT_EQ(-EBUSY, librbd::api::Migration<>::abort(m_ioctx, m_ictx->name,
-                                                    no_op));
+  EXPECT_EQ(
+      -EBUSY, librbd::api::Migration<>::abort(m_ioctx, m_ictx->name, no_op));
 }
 
-TEST_F(TestMigration, AbortWithoutSnapshots) {
+TEST_F(TestMigration, AbortWithoutSnapshots)
+{
   test_no_snaps();
   migration_prepare(m_ioctx, m_image_name);
   migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
@@ -1162,7 +1260,8 @@ TEST_F(TestMigration, AbortWithoutSnapshots) {
   migration_abort(m_ioctx, m_image_name);
 }
 
-TEST_F(TestMigration, AbortWithSnapshots) {
+TEST_F(TestMigration, AbortWithSnapshots)
+{
   test_snaps();
   migration_prepare(m_ioctx, m_image_name);
   migration_status(RBD_IMAGE_MIGRATION_STATE_PREPARED);
@@ -1179,195 +1278,191 @@ TEST_F(TestMigration, AbortWithSnapshots) {
 TEST_F(TestMigration, CloneV1Parent)
 {
   const uint32_t CLONE_FORMAT = 1;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *) {
-           migrate(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx*) {
+    migrate(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV2Parent)
 {
   const uint32_t CLONE_FORMAT = 2;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *) {
-           migrate(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx*) {
+    migrate(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV1ParentAbort)
 {
   const uint32_t CLONE_FORMAT = 1;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *) {
-           migration_prepare(m_ioctx, m_image_name);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx*) {
+    migration_prepare(m_ioctx, m_image_name);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV2ParentAbort)
 {
   const uint32_t CLONE_FORMAT = 2;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *) {
-           migration_prepare(m_ioctx, m_image_name);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx*) {
+    migration_prepare(m_ioctx, m_image_name);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV1ParentAbortFixIncompleteChildReattach)
 {
   const uint32_t CLONE_FORMAT = 1;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           migration_prepare(m_ioctx, m_image_name);
-           // Attach the child to both source and destination
-           // to emulate a crash when re-attaching the child
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond;
-           auto req = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], nullptr, 0,
-               CLONE_FORMAT, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    migration_prepare(m_ioctx, m_image_name);
+    // Attach the child to both source and destination
+    // to emulate a crash when re-attaching the child
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond;
+    auto req = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], nullptr, 0, CLONE_FORMAT,
+        &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV1ParentAbortFixParentReattach)
 {
   const uint32_t CLONE_FORMAT = 1;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           migration_prepare(m_ioctx, m_image_name);
-           // Re-attach the child back to the source to emulate a crash
-           // after the parent reattach but before the child reattach
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond;
-           auto req = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], m_ictx,
-               m_ictx->snaps[0], CLONE_FORMAT, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    migration_prepare(m_ioctx, m_image_name);
+    // Re-attach the child back to the source to emulate a crash
+    // after the parent reattach but before the child reattach
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond;
+    auto req = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], m_ictx, m_ictx->snaps[0],
+        CLONE_FORMAT, &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV1ParentAbortRelinkNotNeeded)
 {
   const uint32_t CLONE_FORMAT = 1;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           auto parent_spec = child_ictx->parent_md.spec;
-           parent_spec.image_id = m_ictx->id;
-           parent_spec.snap_id = m_ictx->snaps[0];
-           auto parent_overlap = child_ictx->parent_md.overlap;
-           migration_prepare(m_ioctx, m_image_name);
-           // Relink the child back to emulate a crash
-           // before relinking the child
-           C_SaferCond cond;
-           auto req = librbd::image::AttachParentRequest<>::create(
-               *child_ictx, parent_spec, parent_overlap, true, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond1;
-           auto req1 = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], m_ictx,
-               m_ictx->snaps[0], CLONE_FORMAT, &cond1);
-           req1->send();
-           ASSERT_EQ(0, cond1.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    auto parent_spec = child_ictx->parent_md.spec;
+    parent_spec.image_id = m_ictx->id;
+    parent_spec.snap_id = m_ictx->snaps[0];
+    auto parent_overlap = child_ictx->parent_md.overlap;
+    migration_prepare(m_ioctx, m_image_name);
+    // Relink the child back to emulate a crash
+    // before relinking the child
+    C_SaferCond cond;
+    auto req = librbd::image::AttachParentRequest<>::create(
+        *child_ictx, parent_spec, parent_overlap, true, &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond1;
+    auto req1 = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], m_ictx, m_ictx->snaps[0],
+        CLONE_FORMAT, &cond1);
+    req1->send();
+    ASSERT_EQ(0, cond1.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV2ParentAbortFixIncompleteChildReattach)
 {
   const uint32_t CLONE_FORMAT = 2;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           migration_prepare(m_ioctx, m_image_name);
-           // Attach the child to both source and destination
-           // to emulate a crash when re-attaching the child
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond;
-           auto req = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], nullptr, 0,
-               CLONE_FORMAT, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    migration_prepare(m_ioctx, m_image_name);
+    // Attach the child to both source and destination
+    // to emulate a crash when re-attaching the child
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond;
+    auto req = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], nullptr, 0, CLONE_FORMAT,
+        &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV2ParentAbortFixParentReattach)
 {
   const uint32_t CLONE_FORMAT = 2;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           migration_prepare(m_ioctx, m_image_name);
-           // Re-attach the child back to the source to emulate a crash
-           // after the parent reattach but before the child reattach
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond;
-           auto req = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], m_ictx,
-               m_ictx->snaps[0], CLONE_FORMAT, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    migration_prepare(m_ioctx, m_image_name);
+    // Re-attach the child back to the source to emulate a crash
+    // after the parent reattach but before the child reattach
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond;
+    auto req = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], m_ictx, m_ictx->snaps[0],
+        CLONE_FORMAT, &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, CloneV2ParentAbortRelinkNotNeeded)
 {
   const uint32_t CLONE_FORMAT = 2;
-  test_migrate_parent(
-      CLONE_FORMAT, [this](librbd::ImageCtx *child_ictx) {
-           auto src_image_id = m_ictx->id;
-           auto parent_spec = child_ictx->parent_md.spec;
-           parent_spec.image_id = m_ictx->id;
-           parent_spec.snap_id = m_ictx->snaps[0];
-           auto parent_overlap = child_ictx->parent_md.overlap;
-           migration_prepare(m_ioctx, m_image_name);
-           // Relink the child back to emulate a crash
-           // before relinking the child
-           C_SaferCond cond;
-           auto req = librbd::image::AttachParentRequest<>::create(
-               *child_ictx, parent_spec, parent_overlap, true, &cond);
-           req->send();
-           ASSERT_EQ(0, cond.wait());
-           librbd::ImageCtx *src_ictx;
-           open_image(m_ioctx, "", src_image_id, false,
-                      librbd::OPEN_FLAG_IGNORE_MIGRATING, &src_ictx);
-           C_SaferCond cond1;
-           auto req1 = librbd::image::AttachChildRequest<>::create(
-               child_ictx, src_ictx, src_ictx->snaps[0], m_ictx,
-               m_ictx->snaps[0], CLONE_FORMAT, &cond1);
-           req1->send();
-           ASSERT_EQ(0, cond1.wait());
-           close_image(src_ictx);
-           migration_abort(m_ioctx, m_image_name);
-         });
+  test_migrate_parent(CLONE_FORMAT, [this](librbd::ImageCtx* child_ictx) {
+    auto src_image_id = m_ictx->id;
+    auto parent_spec = child_ictx->parent_md.spec;
+    parent_spec.image_id = m_ictx->id;
+    parent_spec.snap_id = m_ictx->snaps[0];
+    auto parent_overlap = child_ictx->parent_md.overlap;
+    migration_prepare(m_ioctx, m_image_name);
+    // Relink the child back to emulate a crash
+    // before relinking the child
+    C_SaferCond cond;
+    auto req = librbd::image::AttachParentRequest<>::create(
+        *child_ictx, parent_spec, parent_overlap, true, &cond);
+    req->send();
+    ASSERT_EQ(0, cond.wait());
+    librbd::ImageCtx* src_ictx;
+    open_image(
+        m_ioctx, "", src_image_id, false, librbd::OPEN_FLAG_IGNORE_MIGRATING,
+        &src_ictx);
+    C_SaferCond cond1;
+    auto req1 = librbd::image::AttachChildRequest<>::create(
+        child_ictx, src_ictx, src_ictx->snaps[0], m_ictx, m_ictx->snaps[0],
+        CLONE_FORMAT, &cond1);
+    req1->send();
+    ASSERT_EQ(0, cond1.wait());
+    close_image(src_ictx);
+    migration_abort(m_ioctx, m_image_name);
+  });
 }
 
 TEST_F(TestMigration, StressNoMigrate)
@@ -1384,14 +1479,8 @@ TEST_F(TestMigration, Stress)
   migrate(m_ioctx, m_image_name);
 }
 
-TEST_F(TestMigration, Stress2)
-{
-  test_stress2(false);
-}
+TEST_F(TestMigration, Stress2) { test_stress2(false); }
 
-TEST_F(TestMigration, StressLive)
-{
-  test_stress2(true);
-}
+TEST_F(TestMigration, StressLive) { test_stress2(true); }
 
 } // namespace librbd

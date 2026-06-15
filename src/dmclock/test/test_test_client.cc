@@ -14,15 +14,14 @@
 
 
 #include <atomic>
-#include <thread>
 #include <chrono>
 #include <iostream>
+#include <thread>
 
 #include "gtest/gtest.h"
 
-#include "sim_recs.h"
 #include "sim_client.h"
-
+#include "sim_recs.h"
 #include "test_dmclock.h"
 
 
@@ -34,10 +33,14 @@ namespace sim = crimson::qos_simulation;
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
 
-static TimePoint now() { return std::chrono::system_clock::now(); }
+static TimePoint
+now()
+{
+  return std::chrono::system_clock::now();
+}
 
-
-TEST(test_client, full_bore_timing) {
+TEST(test_client, full_bore_timing)
+{
   std::atomic_ulong count(0);
 
   ServerId server_id = 3;
@@ -48,22 +51,18 @@ TEST(test_client, full_bore_timing) {
   const sim::Cost request_cost = 1u;
 
   auto start = now();
-  client =
-    new test::DmcClient(ClientId(0),
-			[&] (const ServerId& server,
-			     const sim::TestRequest& req,
-			     const ClientId& client_id,
-			     const dmc::ReqParams& req_params) {
-			  ++count;
-			  client->receive_response(resp, client_id, resp_params, request_cost);
-			},
-			[&] (const uint64_t seed) -> ServerId& {
-			  return server_id;
-			},
-			test::dmc_client_accumulate_f,
-			1000, // ops to run
-			100, // iops goal
-			5); // outstanding ops allowed
+  client = new test::DmcClient(
+      ClientId(0),
+      [&](const ServerId& server, const sim::TestRequest& req,
+          const ClientId& client_id, const dmc::ReqParams& req_params) {
+        ++count;
+        client->receive_response(resp, client_id, resp_params, request_cost);
+      },
+      [&](const uint64_t seed) -> ServerId& { return server_id; },
+      test::dmc_client_accumulate_f,
+      1000, // ops to run
+      100, // iops goal
+      5); // outstanding ops allowed
   client->wait_until_done();
   auto end = now();
   EXPECT_EQ(1000u, count) << "didn't get right number of ops";
@@ -75,8 +74,8 @@ TEST(test_client, full_bore_timing) {
   delete client;
 }
 
-
-TEST(test_client, paused_timing) {
+TEST(test_client, paused_timing)
+{
   std::atomic_ulong count(0);
   std::atomic_ulong unresponded_count(0);
   std::atomic_bool auto_respond(false);
@@ -90,38 +89,34 @@ TEST(test_client, paused_timing) {
   test::DmcClient* client;
 
   auto start = now();
-  client =
-    new test::DmcClient(my_client_id,
-			[&] (const ServerId& server,
-			     const sim::TestRequest& req,
-			     const ClientId& client_id,
-			     const dmc::ReqParams& req_params) {
-			  ++count;
-			  if (auto_respond.load()) {
-			    client->receive_response(resp, client_id, resp_params, request_cost);
-			  } else {
-			    ++unresponded_count;
-			  }
-			},
-			[&] (const uint64_t seed) -> ServerId& {
-			  return server_id;
-			},
-			test::dmc_client_accumulate_f,
+  client = new test::DmcClient(
+      my_client_id,
+      [&](const ServerId& server, const sim::TestRequest& req,
+          const ClientId& client_id, const dmc::ReqParams& req_params) {
+        ++count;
+        if (auto_respond.load()) {
+          client->receive_response(resp, client_id, resp_params, request_cost);
+        } else {
+          ++unresponded_count;
+        }
+      },
+      [&](const uint64_t seed) -> ServerId& { return server_id; },
+      test::dmc_client_accumulate_f,
 
-			1000, // ops to run
-			100, // iops goal
-			50); // outstanding ops allowed
+      1000, // ops to run
+      100, // iops goal
+      50); // outstanding ops allowed
   std::thread t([&]() {
-      std::this_thread::sleep_for(std::chrono::seconds(5));
-      EXPECT_EQ(50u, unresponded_count.load()) <<
-	"should have 50 unresponded calls";
-      auto_respond = true;
-      // respond to those 50 calls
-      for(int i = 0; i < 50; ++i) {
-	client->receive_response(resp, my_client_id, resp_params, 1);
-	--unresponded_count;
-      }
-    });
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    EXPECT_EQ(50u, unresponded_count.load())
+        << "should have 50 unresponded calls";
+    auto_respond = true;
+    // respond to those 50 calls
+    for (int i = 0; i < 50; ++i) {
+      client->receive_response(resp, my_client_id, resp_params, 1);
+      --unresponded_count;
+    }
+  });
 
   client->wait_until_done();
   auto end = now();

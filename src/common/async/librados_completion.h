@@ -19,14 +19,11 @@
 #include <exception>
 
 #include <boost/asio/async_result.hpp>
-
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
-#include "include/rados/librados.hpp"
-
 #include "common/error_code.h"
-
+#include "include/rados/librados.hpp"
 #include "librados/AioCompletionImpl.h"
 
 // Allow librados::AioCompletion to be provided as a completion
@@ -48,10 +45,14 @@ namespace detail {
 struct librados_handler {
   lr::AioCompletionImpl* pc;
 
-  explicit librados_handler(lr::AioCompletion* c) : pc(c->pc) {
+  explicit librados_handler(lr::AioCompletion* c) :
+    pc(c->pc)
+  {
     pc->get();
   }
-  ~librados_handler() {
+
+  ~librados_handler()
+  {
     if (pc) {
       pc->put();
       pc = nullptr;
@@ -59,13 +60,17 @@ struct librados_handler {
   }
 
   librados_handler(const librados_handler&) = delete;
-  librados_handler& operator =(const librados_handler&) = delete;
-  librados_handler(librados_handler&& rhs) {
+  librados_handler& operator=(const librados_handler&) = delete;
+
+  librados_handler(librados_handler&& rhs)
+  {
     pc = rhs.pc;
     rhs.pc = nullptr;
   }
 
-  void operator()(int r) {
+  void
+  operator()(int r)
+  {
     pc->lock.lock();
     pc->rval = r;
     pc->complete = true;
@@ -89,15 +94,21 @@ struct librados_handler {
     pc = nullptr;
   }
 
-  void operator()(bs::error_code ec) {
+  void
+  operator()(bs::error_code ec)
+  {
     (*this)(ceph::from_error_code(ec));
   }
 
-  void operator ()() {
+  void
+  operator()()
+  {
     (*this)(bs::error_code{});
   }
 
-  void operator ()(std::exception_ptr e) {
+  void
+  operator()(std::exception_ptr e)
+  {
     std::string what;
     (*this)(ceph::from_exception(e, &what));
   }
@@ -105,52 +116,60 @@ struct librados_handler {
 } // namespace detail
 } // namespace ceph::async
 
-
 namespace boost::asio {
-template<typename ReturnType>
+template <typename ReturnType>
 class async_result<librados::AioCompletion*, ReturnType()> {
 public:
   using completion_handler_type = ceph::async::detail::librados_handler;
-  explicit async_result(completion_handler_type&) {};
+  explicit async_result(completion_handler_type&){};
   using return_type = void;
-  void get() {
+
+  void
+  get()
+  {
     return;
   }
 };
 
-template<typename ReturnType>
-class async_result<librados::AioCompletion*,
-		   ReturnType(boost::system::error_code)> {
+template <typename ReturnType>
+class async_result<librados::AioCompletion*, ReturnType(boost::system::error_code)> {
 public:
   using completion_handler_type = ceph::async::detail::librados_handler;
-  explicit async_result(completion_handler_type&) {};
+  explicit async_result(completion_handler_type&){};
   using return_type = void;
-  void get() {
+
+  void
+  get()
+  {
     return;
   }
 };
 
-template<typename ReturnType>
-class async_result<librados::AioCompletion*,
-		   ReturnType(std::exception_ptr)> {
+template <typename ReturnType>
+class async_result<librados::AioCompletion*, ReturnType(std::exception_ptr)> {
 public:
   using completion_handler_type = ceph::async::detail::librados_handler;
-  explicit async_result(completion_handler_type&) {};
+  explicit async_result(completion_handler_type&){};
   using return_type = void;
-  void get() {
+
+  void
+  get()
+  {
     return;
   }
 };
 
-template<typename ReturnType>
-class async_result<librados::AioCompletion*,
-		   ReturnType(int)> {
+template <typename ReturnType>
+class async_result<librados::AioCompletion*, ReturnType(int)> {
 public:
   using completion_handler_type = ceph::async::detail::librados_handler;
-  explicit async_result(completion_handler_type&) {};
+  explicit async_result(completion_handler_type&){};
   using return_type = void;
-  void get() {
+
+  void
+  get()
+  {
     return;
   }
 };
-}
+} // namespace boost::asio

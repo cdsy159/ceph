@@ -16,13 +16,14 @@
 #ifndef CEPH_LZ4COMPRESSOR_H
 #define CEPH_LZ4COMPRESSOR_H
 
-#include <optional>
 #include <lz4.h>
 
+#include <optional>
+
+#include "common/config.h"
 #include "compressor/Compressor.h"
 #include "include/buffer.h"
 #include "include/encoding.h"
-#include "common/config.h"
 
 class QatAccel;
 
@@ -32,21 +33,24 @@ class LZ4Compressor : public Compressor {
   static QatAccel qat_accel;
 #endif
 
- public:
+public:
   explicit LZ4Compressor(CephContext* cct);
 
-  int compress(const ceph::buffer::list &src,
-               ceph::buffer::list &dst,
-               std::optional<int32_t> &compressor_message) override;
+  int compress(
+      const ceph::buffer::list& src,
+      ceph::buffer::list& dst,
+      std::optional<int32_t>& compressor_message) override;
 
-  int decompress(const ceph::buffer::list &src,
-                 ceph::buffer::list &dst,
-                 std::optional<int32_t> compressor_message) override;
+  int decompress(
+      const ceph::buffer::list& src,
+      ceph::buffer::list& dst,
+      std::optional<int32_t> compressor_message) override;
 
-  int decompress(ceph::buffer::list::const_iterator &p,
-		 size_t compressed_len,
-		 ceph::buffer::list &dst,
-		 std::optional<int32_t> compressor_message) override;
+  int decompress(
+      ceph::buffer::list::const_iterator& p,
+      size_t compressed_len,
+      ceph::buffer::list& dst,
+      std::optional<int32_t> compressor_message) override;
 };
 
 #endif

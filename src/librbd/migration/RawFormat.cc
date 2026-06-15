@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/migration/RawFormat.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
@@ -18,36 +19,41 @@ namespace migration {
 
 namespace {
 
-static const std::string SNAPSHOTS_KEY {"snapshots"};
+static const std::string SNAPSHOTS_KEY{"snapshots"};
 
 
 } // anonymous namespace
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::RawFormat: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::migration::RawFormat: " << this << " " << __func__ << ": "
 
 template <typename I>
 RawFormat<I>::RawFormat(
-    I* image_ctx, const json_spirit::mObject& json_object,
-    const SourceSpecBuilder<I>* source_spec_builder)
-  : m_image_ctx(image_ctx), m_json_object(json_object),
-    m_source_spec_builder(source_spec_builder) {
-}
+    I* image_ctx,
+    const json_spirit::mObject& json_object,
+    const SourceSpecBuilder<I>* source_spec_builder) :
+  m_image_ctx(image_ctx),
+  m_json_object(json_object),
+  m_source_spec_builder(source_spec_builder)
+{}
 
 template <typename I>
-void RawFormat<I>::open(Context* on_finish) {
+void
+RawFormat<I>::open(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
   on_finish = new LambdaContext([this, on_finish](int r) {
-    handle_open(r, on_finish); });
+    handle_open(r, on_finish);
+  });
 
   // treat the base image as a HEAD-revision snapshot
   Snapshots snapshots;
-  int r = m_source_spec_builder->build_snapshot(m_json_object, CEPH_NOSNAP,
-                                                &snapshots[CEPH_NOSNAP]);
+  int r = m_source_spec_builder->build_snapshot(
+      m_json_object, CEPH_NOSNAP, &snapshots[CEPH_NOSNAP]);
   if (r < 0) {
     lderr(cct) << "failed to build HEAD revision handler: " << cpp_strerror(r)
                << dendl;
@@ -61,18 +67,18 @@ void RawFormat<I>::open(Context* on_finish) {
     for (auto& snapshot_val : snapshots_arr) {
       uint64_t index = snapshots.size();
       if (snapshot_val.type() != json_spirit::obj_type) {
-        lderr(cct) << "invalid snapshot " << index << " JSON: "
-                   << cpp_strerror(r) << dendl;
+        lderr(cct) << "invalid snapshot " << index
+                   << " JSON: " << cpp_strerror(r) << dendl;
         on_finish->complete(-EINVAL);
         return;
       }
 
       auto& snapshot_obj = snapshot_val.get_obj();
-      r = m_source_spec_builder->build_snapshot(snapshot_obj, index,
-                                                &snapshots[index]);
+      r = m_source_spec_builder->build_snapshot(
+          snapshot_obj, index, &snapshots[index]);
       if (r < 0) {
-        lderr(cct) << "failed to build snapshot " << index << " handler: "
-                   << cpp_strerror(r) << dendl;
+        lderr(cct) << "failed to build snapshot " << index
+                   << " handler: " << cpp_strerror(r) << dendl;
         on_finish->complete(r);
         return;
       }
@@ -95,13 +101,14 @@ void RawFormat<I>::open(Context* on_finish) {
 }
 
 template <typename I>
-void RawFormat<I>::handle_open(int r, Context* on_finish) {
+void
+RawFormat<I>::handle_open(int r, Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(cct) << "failed to open raw image: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to open raw image: " << cpp_strerror(r) << dendl;
 
     auto gather_ctx = new C_Gather(cct, on_finish);
     for (auto& [_, snapshot] : m_snapshots) {
@@ -119,7 +126,9 @@ void RawFormat<I>::handle_open(int r, Context* on_finish) {
 }
 
 template <typename I>
-void RawFormat<I>::close(Context* on_finish) {
+void
+RawFormat<I>::close(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -132,7 +141,9 @@ void RawFormat<I>::close(Context* on_finish) {
 }
 
 template <typename I>
-void RawFormat<I>::get_snapshots(SnapInfos* snap_infos, Context* on_finish) {
+void
+RawFormat<I>::get_snapshots(SnapInfos* snap_infos, Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -147,8 +158,9 @@ void RawFormat<I>::get_snapshots(SnapInfos* snap_infos, Context* on_finish) {
 }
 
 template <typename I>
-void RawFormat<I>::get_image_size(uint64_t snap_id, uint64_t* size,
-                                  Context* on_finish) {
+void
+RawFormat<I>::get_image_size(uint64_t snap_id, uint64_t* size, Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -163,10 +175,16 @@ void RawFormat<I>::get_image_size(uint64_t snap_id, uint64_t* size,
 }
 
 template <typename I>
-void RawFormat<I>::read(
-    io::AioCompletion* aio_comp, uint64_t snap_id, io::Extents&& image_extents,
-    io::ReadResult&& read_result, int op_flags, int read_flags,
-    const ZTracer::Trace &parent_trace) {
+void
+RawFormat<I>::read(
+    io::AioCompletion* aio_comp,
+    uint64_t snap_id,
+    io::Extents&& image_extents,
+    io::ReadResult&& read_result,
+    int op_flags,
+    int read_flags,
+    const ZTracer::Trace& parent_trace)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "snap_id=" << snap_id << ", "
                  << "image_extents=" << image_extents << dendl;
@@ -177,21 +195,25 @@ void RawFormat<I>::read(
     return;
   }
 
-  snapshot_it->second->read(aio_comp, std::move(image_extents),
-                            std::move(read_result), op_flags, read_flags,
-                            parent_trace);
+  snapshot_it->second->read(
+      aio_comp, std::move(image_extents), std::move(read_result), op_flags,
+      read_flags, parent_trace);
 }
 
 template <typename I>
-void RawFormat<I>::list_snaps(io::Extents&& image_extents,
-                              io::SnapIds&& snap_ids, int list_snaps_flags,
-                              io::SnapshotDelta* snapshot_delta,
-                              const ZTracer::Trace &parent_trace,
-                              Context* on_finish) {
+void
+RawFormat<I>::list_snaps(
+    io::Extents&& image_extents,
+    io::SnapIds&& snap_ids,
+    int list_snaps_flags,
+    io::SnapshotDelta* snapshot_delta,
+    const ZTracer::Trace& parent_trace,
+    Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "image_extents=" << image_extents << dendl;
 
-  on_finish = new LambdaContext([this, snap_ids=std::move(snap_ids),
+  on_finish = new LambdaContext([this, snap_ids = std::move(snap_ids),
                                  snapshot_delta, on_finish](int r) mutable {
     handle_list_snaps(r, std::move(snap_ids), snapshot_delta, on_finish);
   });
@@ -205,26 +227,32 @@ void RawFormat<I>::list_snaps(io::Extents&& image_extents,
     // zero out any space between the previous snapshot end and this
     // snapshot's end
     auto& snap_info = snapshot->get_snap_info();
-    util::zero_shrunk_snapshot(cct, image_extents, snap_id, snap_info.size,
-                               &previous_size, &sparse_extents);
+    util::zero_shrunk_snapshot(
+        cct, image_extents, snap_id, snap_info.size, &previous_size,
+        &sparse_extents);
 
     // build set of data/zeroed extents for the current snapshot
     auto snapshot_extents = image_extents;
     io::util::prune_extents(snapshot_extents, snap_info.size);
-    snapshot->list_snap(std::move(snapshot_extents), list_snaps_flags,
-                        &sparse_extents, parent_trace, gather_ctx->new_sub());
+    snapshot->list_snap(
+        std::move(snapshot_extents), list_snaps_flags, &sparse_extents,
+        parent_trace, gather_ctx->new_sub());
   }
 
   gather_ctx->activate();
 }
 
 template <typename I>
-void RawFormat<I>::handle_list_snaps(int r, io::SnapIds&& snap_ids,
-                                     io::SnapshotDelta* snapshot_delta,
-                                     Context* on_finish) {
+void
+RawFormat<I>::handle_list_snaps(
+    int r,
+    io::SnapIds&& snap_ids,
+    io::SnapshotDelta* snapshot_delta,
+    Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
-  ldout(cct, 20) << "r=" << r << ", "
-                 << "snapshot_delta=" << snapshot_delta << dendl;
+  ldout(cct, 20) << "r=" << r << ", " << "snapshot_delta=" << snapshot_delta
+                 << dendl;
 
   util::merge_snapshot_delta(snap_ids, snapshot_delta);
   on_finish->complete(r);

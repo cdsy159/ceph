@@ -4,13 +4,13 @@
 #ifndef CEPH_LIBRBD_GROUP_LIST_SNAPSHOTS_REQUEST_H
 #define CEPH_LIBRBD_GROUP_LIST_SNAPSHOTS_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/types.h"
-#include "include/rados/librados.hpp"
-#include "cls/rbd/cls_rbd_types.h"
-
 #include <string>
 #include <vector>
+
+#include "cls/rbd/cls_rbd_types.h"
+#include "include/int_types.h"
+#include "include/rados/librados.hpp"
+#include "include/types.h"
 
 class Context;
 
@@ -23,19 +23,27 @@ namespace group {
 template <typename ImageCtxT = librbd::ImageCtx>
 class ListSnapshotsRequest {
 public:
-  static ListSnapshotsRequest *create(
-      librados::IoCtx &group_io_ctx, const std::string &group_id,
-      bool try_to_sort, bool fail_if_not_sorted,
-      std::vector<cls::rbd::GroupSnapshot> *snaps, Context *on_finish) {
-    return new ListSnapshotsRequest(group_io_ctx, group_id, try_to_sort,
-                                    fail_if_not_sorted, snaps, on_finish);
+  static ListSnapshotsRequest*
+  create(
+      librados::IoCtx& group_io_ctx,
+      const std::string& group_id,
+      bool try_to_sort,
+      bool fail_if_not_sorted,
+      std::vector<cls::rbd::GroupSnapshot>* snaps,
+      Context* on_finish)
+  {
+    return new ListSnapshotsRequest(
+        group_io_ctx, group_id, try_to_sort, fail_if_not_sorted, snaps,
+        on_finish);
   }
 
-  ListSnapshotsRequest(librados::IoCtx &group_io_ctx,
-                       const std::string &group_id,
-                       bool try_to_sort, bool fail_if_not_sorted,
-                       std::vector<cls::rbd::GroupSnapshot> *snaps,
-                       Context *on_finish);
+  ListSnapshotsRequest(
+      librados::IoCtx& group_io_ctx,
+      const std::string& group_id,
+      bool try_to_sort,
+      bool fail_if_not_sorted,
+      std::vector<cls::rbd::GroupSnapshot>* snaps,
+      Context* on_finish);
 
   void send();
 
@@ -69,14 +77,14 @@ private:
    * @endverbatim
    */
 
-  librados::IoCtx &m_group_io_ctx;
+  librados::IoCtx& m_group_io_ctx;
   std::string m_group_id;
   bool m_try_to_sort;
   //Fail if m_try_to_sort is true and sorting fails. Ignored if m_try_to_sort is false.
   bool m_fail_if_not_sorted;
-  std::vector<cls::rbd::GroupSnapshot> *m_snaps;
+  std::vector<cls::rbd::GroupSnapshot>* m_snaps;
   std::map<std::string, uint64_t> m_snap_orders;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   cls::rbd::GroupSnapshot m_start_after;
   std::string m_start_after_order;

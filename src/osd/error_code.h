@@ -18,9 +18,8 @@
 
 #include <boost/system/error_code.hpp>
 
-#include "include/rados.h"
-
 #include "include/err.h"
+#include "include/rados.h"
 
 const boost::system::error_category& osd_category() noexcept;
 
@@ -29,29 +28,33 @@ const boost::system::error_category& osd_category() noexcept;
 // mostly forwards to POSIX.
 
 enum class osd_errc {
-  old_snapc = 85,  /* ORDERSNAP flag set; writer has old snapc*/
+  old_snapc = 85, /* ORDERSNAP flag set; writer has old snapc*/
   blocklisted = 108, /* blocklisted */
   cmpext_mismatch = MAX_ERRNO /* cmpext failed */
 };
 
 namespace boost::system {
-template<>
+template <>
 struct is_error_code_enum<::osd_errc> {
   static const bool value = true;
 };
 
-template<>
+template <>
 struct is_error_condition_enum<::osd_errc> {
   static const bool value = false;
 };
-}
+} // namespace boost::system
 
 //  implicit conversion:
-inline boost::system::error_code make_error_code(osd_errc e) noexcept {
-  return { static_cast<int>(e), osd_category() };
+inline boost::system::error_code
+make_error_code(osd_errc e) noexcept
+{
+  return {static_cast<int>(e), osd_category()};
 }
 
 // explicit conversion:
-inline boost::system::error_condition make_error_condition(osd_errc e) noexcept {
-  return { static_cast<int>(e), osd_category() };
+inline boost::system::error_condition
+make_error_condition(osd_errc e) noexcept
+{
+  return {static_cast<int>(e), osd_category()};
 }

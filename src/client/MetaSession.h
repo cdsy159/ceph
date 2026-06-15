@@ -59,10 +59,15 @@ struct MetaSession {
 
   ceph::ref_t<MClientCapRelease> release;
 
-  MetaSession(mds_rank_t mds_num, ConnectionRef con, const entity_addrvec_t& addrs)
-    : mds_num(mds_num), con(con), addrs(addrs) {
-  }
-  ~MetaSession() {
+  MetaSession(
+      mds_rank_t mds_num,
+      ConnectionRef con,
+      const entity_addrvec_t& addrs) :
+    mds_num(mds_num), con(con), addrs(addrs)
+  {}
+
+  ~MetaSession()
+  {
     ceph_assert(caps.empty());
     ceph_assert(dirty_list.empty());
     ceph_assert(flushing_caps.empty());
@@ -70,14 +75,22 @@ struct MetaSession {
     ceph_assert(unsafe_requests.empty());
   }
 
-  xlist<Inode*> &get_dirty_list() { return dirty_list; }
+  xlist<Inode*>&
+  get_dirty_list()
+  {
+    return dirty_list;
+  }
 
-  const char *get_state_name() const;
+  const char* get_state_name() const;
 
-  void dump(Formatter *f, bool cap_dump=false) const;
+  void dump(Formatter* f, bool cap_dump = false) const;
 
-  void enqueue_cap_release(inodeno_t ino, uint64_t cap_id, ceph_seq_t iseq,
-      ceph_seq_t mseq, epoch_t osd_barrier);
+  void enqueue_cap_release(
+      inodeno_t ino,
+      uint64_t cap_id,
+      ceph_seq_t iseq,
+      ceph_seq_t mseq,
+      epoch_t osd_barrier);
 };
 
 using MetaSessionRef = std::shared_ptr<MetaSession>;

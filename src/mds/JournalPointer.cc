@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,34 +19,37 @@
 #include <iomanip>
 #include <ostream>
 
-#include "mds/mdstypes.h"
-
 #include "common/debug.h"
-#include "common/errno.h"
+
 #include "common/Cond.h"
-#include "osdc/Objecter.h"
+#include "common/errno.h"
+#include "mds/mdstypes.h"
 #include "msg/Messenger.h"
+#include "osdc/Objecter.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_journaler
 #undef dout_prefix
-#define dout_prefix *_dout << objecter->messenger->get_myname() << ".journalpointer "
+#define dout_prefix \
+  *_dout << objecter->messenger->get_myname() << ".journalpointer "
 
-
-std::string JournalPointer::get_object_id() const
+std::string
+JournalPointer::get_object_id() const
 {
   inodeno_t const pointer_ino = MDS_INO_LOG_POINTER_OFFSET + node_id;
   char buf[32];
-  snprintf(buf, sizeof(buf), "%llx.%08llx", (long long unsigned)pointer_ino, (long long unsigned)0);
+  snprintf(
+      buf, sizeof(buf), "%llx.%08llx", (long long unsigned)pointer_ino,
+      (long long unsigned)0);
 
   return std::string(buf);
 }
 
-
 /**
  * Blocking read of JournalPointer for this MDS
  */
-int JournalPointer::load(Objecter *objecter)
+int
+JournalPointer::load(Objecter* objecter)
 {
   ceph_assert(objecter != NULL);
 
@@ -55,8 +58,9 @@ int JournalPointer::load(Objecter *objecter)
   dout(4) << "Reading journal pointer '" << object_id << "'" << dendl;
   bufferlist data;
   C_SaferCond waiter;
-  objecter->read_full(object_t(object_id), object_locator_t(pool_id),
-      CEPH_NOSNAP, &data, 0, &waiter);
+  objecter->read_full(
+      object_t(object_id), object_locator_t(pool_id), CEPH_NOSNAP, &data, 0,
+      &waiter);
   int r = waiter.wait();
 
   // Construct JournalPointer result, null or decoded data
@@ -64,22 +68,23 @@ int JournalPointer::load(Objecter *objecter)
     auto q = data.cbegin();
     try {
       decode(q);
-    } catch (const buffer::error &e) {
+    } catch (const buffer::error& e) {
       return -EINVAL;
     }
   } else {
-    dout(1) << "Journal pointer '" << object_id << "' read failed: " << cpp_strerror(r) << dendl;
+    dout(1) << "Journal pointer '" << object_id
+            << "' read failed: " << cpp_strerror(r) << dendl;
   }
   return r;
 }
-
 
 /**
  * Blocking write of JournalPointer for this MDS
  *
  * @return objecter write op status code
  */
-int JournalPointer::save(Objecter *objecter) const
+int
+JournalPointer::save(Objecter* objecter) const
 {
   ceph_assert(objecter != NULL);
   // It is not valid to persist a null pointer
@@ -91,36 +96,34 @@ int JournalPointer::save(Objecter *objecter) const
 
   // Write to RADOS and wait for durability
   std::string const object_id = get_object_id();
-  dout(4) << "Writing pointer object '" << object_id << "': 0x"
-    << std::hex << front << ":0x" << back << std::dec << dendl;
+  dout(4) << "Writing pointer object '" << object_id << "': 0x" << std::hex
+          << front << ":0x" << back << std::dec << dendl;
 
   C_SaferCond waiter;
-  objecter->write_full(object_t(object_id), object_locator_t(pool_id),
-		       SnapContext(), data,
-		       ceph::real_clock::now(), 0,
-		       &waiter);
+  objecter->write_full(
+      object_t(object_id), object_locator_t(pool_id), SnapContext(), data,
+      ceph::real_clock::now(), 0, &waiter);
   int write_result = waiter.wait();
   if (write_result < 0) {
-    derr << "Error writing pointer object '" << object_id << "': " << cpp_strerror(write_result) << dendl;
+    derr << "Error writing pointer object '" << object_id
+         << "': " << cpp_strerror(write_result) << dendl;
   }
   return write_result;
 }
-
 
 /**
  * Non-blocking variant of save() that assumes objecter lock already held by
  * caller
  */
-void JournalPointer::save(Objecter *objecter, Context *completion) const
+void
+JournalPointer::save(Objecter* objecter, Context* completion) const
 {
   ceph_assert(objecter != NULL);
 
   bufferlist data;
   encode(data);
 
-  objecter->write_full(object_t(get_object_id()), object_locator_t(pool_id),
-		       SnapContext(), data,
-		       ceph::real_clock::now(), 0,
-		       completion);
+  objecter->write_full(
+      object_t(get_object_id()), object_locator_t(pool_id), SnapContext(), data,
+      ceph::real_clock::now(), 0, completion);
 }
-

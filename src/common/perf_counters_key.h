@@ -26,8 +26,9 @@ using label_pair = std::pair<std::string_view, std::string_view>;
 ///       });
 /// \endcode
 template <std::size_t Count>
-std::string key_create(std::string_view counter_name,
-                       label_pair (&&labels)[Count]);
+std::string key_create(
+    std::string_view counter_name,
+    label_pair (&&labels)[Count]);
 
 /// \brief Construct a key for a perf counter without labels.
 /// \overload
@@ -38,16 +39,14 @@ std::string key_create(std::string_view counter_name);
 /// This returns a new string without modifying the input. The returned
 /// string has labels in sorted order and no duplicate keys.
 template <std::size_t Count>
-std::string key_insert(std::string_view key,
-                       label_pair (&&labels)[Count]);
+std::string key_insert(std::string_view key, label_pair (&&labels)[Count]);
 
 /// \brief Return the counter name for a given key.
 std::string_view key_name(std::string_view key);
 
-
 /// A forward iterator over label_pairs encoded in a key
 class label_iterator {
- public:
+public:
   using base_iterator = const char*;
   using difference_type = std::ptrdiff_t;
   using value_type = label_pair;
@@ -60,12 +59,21 @@ class label_iterator {
   label_iterator& operator++();
   label_iterator operator++(int);
 
-  reference operator*() const { return state->label; }
-  pointer operator->() const { return &state->label; }
+  reference
+  operator*() const
+  {
+    return state->label;
+  }
+
+  pointer
+  operator->() const
+  {
+    return &state->label;
+  }
 
   auto operator<=>(const label_iterator& rhs) const = default;
 
- private:
+private:
   struct iterator_state {
     base_iterator pos; // end of current label
     base_iterator end; // end of buffer
@@ -73,6 +81,7 @@ class label_iterator {
 
     auto operator<=>(const iterator_state& rhs) const = default;
   };
+
   // an empty state represents a past-the-end iterator
   std::optional<iterator_state> state;
 
@@ -87,17 +96,38 @@ class label_iterator {
 /// A sorted range of label_pairs
 class label_range {
   std::string_view buffer;
- public:
+
+public:
   using iterator = label_iterator;
   using const_iterator = label_iterator;
 
-  label_range(std::string_view buffer) : buffer(buffer) {}
+  label_range(std::string_view buffer) :
+    buffer(buffer)
+  {}
 
-  const_iterator begin() const { return {buffer.begin(), buffer.end()}; }
-  const_iterator cbegin() const { return {buffer.begin(), buffer.end()}; }
+  const_iterator
+  begin() const
+  {
+    return {buffer.begin(), buffer.end()};
+  }
 
-  const_iterator end() const { return {}; }
-  const_iterator cend() const { return {}; }
+  const_iterator
+  cbegin() const
+  {
+    return {buffer.begin(), buffer.end()};
+  }
+
+  const_iterator
+  end() const
+  {
+    return {};
+  }
+
+  const_iterator
+  cend() const
+  {
+    return {};
+  }
 };
 
 /// \brief Return the sorted range of label_pairs for a given key.
@@ -110,30 +140,34 @@ class label_range {
 /// \endcode
 label_range key_labels(std::string_view key);
 
-
 namespace detail {
 
-std::string create(std::string_view counter_name,
-                   label_pair* begin, label_pair* end);
+std::string create(
+    std::string_view counter_name,
+    label_pair* begin,
+    label_pair* end);
 
-std::string insert(const char* begin1, const char* end1,
-                   label_pair* begin2, label_pair* end2);
+std::string insert(
+    const char* begin1,
+    const char* end1,
+    label_pair* begin2,
+    label_pair* end2);
 
 } // namespace detail
 
 template <std::size_t Count>
-std::string key_create(std::string_view counter_name,
-                       label_pair (&&labels)[Count])
+std::string
+key_create(std::string_view counter_name, label_pair (&&labels)[Count])
 {
   return detail::create(counter_name, std::begin(labels), std::end(labels));
 }
 
 template <std::size_t Count>
-std::string key_insert(std::string_view key,
-                       label_pair (&&labels)[Count])
+std::string
+key_insert(std::string_view key, label_pair (&&labels)[Count])
 {
-  return detail::insert(key.begin(), key.end(),
-                        std::begin(labels), std::end(labels));
+  return detail::insert(
+      key.begin(), key.end(), std::begin(labels), std::end(labels));
 }
 
 } // namespace ceph::perf_counters

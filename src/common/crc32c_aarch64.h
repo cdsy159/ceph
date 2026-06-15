@@ -1,8 +1,9 @@
 #ifndef CEPH_COMMON_CRC32C_AARCH64_H
 #define CEPH_COMMON_CRC32C_AARCH64_H
 
-#include "acconfig.h"
 #include "arch/arm.h"
+
+#include "acconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,13 +11,17 @@ extern "C" {
 
 #ifdef HAVE_ARMV8_CRC
 
-extern uint32_t ceph_crc32c_aarch64(uint32_t crc, unsigned char const *buffer, unsigned len);
+extern uint32_t ceph_crc32c_aarch64(
+    uint32_t crc,
+    unsigned char const* buffer,
+    unsigned len);
 
 #else
 
-static inline uint32_t ceph_crc32c_aarch64(uint32_t crc, unsigned char const *buffer, unsigned len)
+static inline uint32_t
+ceph_crc32c_aarch64(uint32_t crc, unsigned char const* buffer, unsigned len)
 {
-	return 0;
+  return 0;
 }
 
 #endif

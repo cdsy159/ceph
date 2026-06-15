@@ -16,11 +16,11 @@
 #ifndef CEPH_COMMON_MUTEX_DEBUG_H
 #define CEPH_COMMON_MUTEX_DEBUG_H
 
+#include <pthread.h>
+
 #include <atomic>
 #include <system_error>
 #include <thread>
-
-#include <pthread.h>
 
 #include "include/ceph_assert.h"
 #include "include/common_fwd.h"
@@ -32,22 +32,24 @@
 namespace ceph {
 namespace mutex_debug_detail {
 
-class mutex_debugging_base
-{
+class mutex_debugging_base {
 protected:
   std::string group;
   int id = -1;
-  bool lockdep;   // track this mutex using lockdep_*
+  bool lockdep; // track this mutex using lockdep_*
   bool backtrace; // gather backtrace on lock acquisition
 
   std::atomic<int> nlock = 0;
   std::atomic<std::thread::id> locked_by = {};
 
-  bool _enable_lockdep() const {
+  bool
+  _enable_lockdep() const
+  {
     return lockdep && g_lockdep;
   }
+
   void _register();
-  void _will_lock(bool recursive=false); // about to lock
+  void _will_lock(bool recursive = false); // about to lock
   void _locked(); // just locked
   void _will_unlock(); // about to unlock
 
@@ -55,30 +57,35 @@ protected:
   ~mutex_debugging_base();
 
 public:
-  bool is_locked() const {
+  bool
+  is_locked() const
+  {
     return (nlock > 0);
   }
-  bool is_locked_by_me() const {
+
+  bool
+  is_locked_by_me() const
+  {
     if (nlock.load(std::memory_order_acquire) <= 0) {
       return false;
     }
-    return locked_by.load(std::memory_order_relaxed) == std::this_thread::get_id();
+    return locked_by.load(std::memory_order_relaxed) ==
+           std::this_thread::get_id();
   }
 
-  operator bool() const {
-    return is_locked_by_me();
-  }
+  operator bool() const { return is_locked_by_me(); }
 };
 
 // Since this is a /debugging/ mutex just define it in terms of the
 // pthread error check mutex.
-template<bool Recursive>
-class mutex_debug_impl : public mutex_debugging_base
-{
+template <bool Recursive>
+class mutex_debug_impl : public mutex_debugging_base {
 private:
   pthread_mutex_t m;
 
-  void _init() {
+  void
+  _init()
+  {
     pthread_mutexattr_t a;
     pthread_mutexattr_init(&a);
     int r;
@@ -91,7 +98,9 @@ private:
     ceph_assert(r == 0);
   }
 
-  bool enable_lockdep(bool no_lockdep) const {
+  bool
+  enable_lockdep(bool no_lockdep) const
+  {
     if (recursive) {
       return false;
     } else if (no_lockdep) {
@@ -104,42 +113,48 @@ private:
 public:
   static constexpr bool recursive = Recursive;
 
-  mutex_debug_impl(std::string group, bool ld = true, bool bt = false)
-    : mutex_debugging_base(group, ld, bt) {
+  mutex_debug_impl(std::string group, bool ld = true, bool bt = false) :
+    mutex_debugging_base(group, ld, bt)
+  {
     _init();
   }
 
   // Mutex is Destructible
-  ~mutex_debug_impl() {
+  ~mutex_debug_impl()
+  {
     int r = pthread_mutex_destroy(&m);
     ceph_assert(r == 0);
   }
 
   // Mutex concept is non-Copyable
   mutex_debug_impl(const mutex_debug_impl&) = delete;
-  mutex_debug_impl& operator =(const mutex_debug_impl&) = delete;
+  mutex_debug_impl& operator=(const mutex_debug_impl&) = delete;
 
   // Mutex concept is non-Movable
   mutex_debug_impl(mutex_debug_impl&&) = delete;
-  mutex_debug_impl& operator =(mutex_debug_impl&&) = delete;
+  mutex_debug_impl& operator=(mutex_debug_impl&&) = delete;
 
-  void lock_impl() {
+  void
+  lock_impl()
+  {
     int r = pthread_mutex_lock(&m);
     // Allowed error codes for Mutex concept
-    if (unlikely(r == EPERM ||
-		 r == EDEADLK ||
-		 r == EBUSY)) {
+    if (unlikely(r == EPERM || r == EDEADLK || r == EBUSY)) {
       throw std::system_error(r, std::generic_category());
     }
     ceph_assert(r == 0);
   }
 
-  void unlock_impl() noexcept {
+  void
+  unlock_impl() noexcept
+  {
     int r = pthread_mutex_unlock(&m);
     ceph_assert(r == 0);
   }
 
-  bool try_lock_impl() {
+  bool
+  try_lock_impl()
+  {
     int r = pthread_mutex_trylock(&m);
     switch (r) {
     case 0:
@@ -150,11 +165,16 @@ public:
       throw std::system_error(r, std::generic_category());
     }
   }
-  pthread_mutex_t* native_handle() {
+
+  pthread_mutex_t*
+  native_handle()
+  {
     return &m;
   }
 
-  void _post_lock() {
+  void
+  _post_lock()
+  {
     if (!recursive) {
       ceph_assert(nlock.load(std::memory_order_relaxed) == 0);
     }
@@ -162,25 +182,32 @@ public:
     nlock.fetch_add(1, std::memory_order_release);
   }
 
-  void _pre_unlock() {
+  void
+  _pre_unlock()
+  {
     const int current_nlock = nlock.load(std::memory_order_relaxed);
     if (recursive) {
       ceph_assert(current_nlock > 0);
     } else {
       ceph_assert(current_nlock == 1);
     }
-    ceph_assert(locked_by.load(std::memory_order_relaxed) == std::this_thread::get_id());
+    ceph_assert(
+        locked_by.load(std::memory_order_relaxed) == std::this_thread::get_id());
     if (current_nlock == 1)
       locked_by.store(std::thread::id(), std::memory_order_relaxed);
     nlock.fetch_sub(1, std::memory_order_release);
   }
 
-  bool try_lock(bool no_lockdep = false) {
+  bool
+  try_lock(bool no_lockdep = false)
+  {
     ceph_assert(recursive || !is_locked_by_me());
     return _try_lock(no_lockdep);
   }
 
-  void lock(bool no_lockdep = false) {
+  void
+  lock(bool no_lockdep = false)
+  {
     ceph_assert(recursive || !is_locked_by_me());
     if (enable_lockdep(no_lockdep))
       _will_lock(recursive);
@@ -194,7 +221,9 @@ public:
     _post_lock();
   }
 
-  void unlock(bool no_lockdep = false) {
+  void
+  unlock(bool no_lockdep = false)
+  {
     _pre_unlock();
     if (enable_lockdep(no_lockdep))
       _will_unlock();
@@ -202,11 +231,13 @@ public:
   }
 
 private:
-  bool _try_lock(bool no_lockdep) {
+  bool
+  _try_lock(bool no_lockdep)
+  {
     bool locked = try_lock_impl();
     if (locked) {
       if (enable_lockdep(no_lockdep))
-	_locked();
+        _locked();
       _post_lock();
     }
     return locked;
@@ -215,6 +246,7 @@ private:
 
 
 } // namespace mutex_debug_detail
+
 typedef mutex_debug_detail::mutex_debug_impl<false> mutex_debug;
 typedef mutex_debug_detail::mutex_debug_impl<true> mutex_recursive_debug;
 } // namespace ceph

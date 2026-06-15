@@ -13,23 +13,23 @@
  *
  */
 
-#include <sys/types.h>
-#include <string.h>
-#include <chrono>
-
 #include "include/rados/librgw.h"
 
-#include "include/str_list.h"
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+
+#include <chrono>
+#include <mutex>
+#include <string>
+#include <thread>
+
 #include "common/ceph_argparse.h"
 #include "common/ceph_context.h"
 #include "common/dout.h"
+#include "include/str_list.h"
 
 #include "rgw_lib.h"
-
-#include <errno.h>
-#include <thread>
-#include <string>
-#include <mutex>
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -43,7 +43,8 @@ static RGWLib rgwlib;
 
 extern "C" {
 
-int librgw_create(librgw_t* rgw, int argc, char **argv)
+int
+librgw_create(librgw_t* rgw, int argc, char** argv)
 {
   using namespace rgw;
 
@@ -51,19 +52,19 @@ int librgw_create(librgw_t* rgw, int argc, char **argv)
 
   g_rgwlib = &rgwlib;
 
-  if (! g_ceph_context) {
+  if (!g_ceph_context) {
     std::lock_guard<std::mutex> lg(librgw_mtx);
-    if (! g_ceph_context) {
+    if (!g_ceph_context) {
       std::vector<std::string> spl_args;
       // last non-0 argument will be split and consumed
       if (argc > 1) {
-	const std::string spl_arg{argv[(--argc)]};
-	get_str_vec(spl_arg, " \t", spl_args);
+        const std::string spl_arg{argv[(--argc)]};
+        get_str_vec(spl_arg, " \t", spl_args);
       }
       auto args = argv_to_vec(argc, argv);
       // append split args, if any
       for (const auto& elt : spl_args) {
-	args.push_back(elt.c_str());
+        args.push_back(elt.c_str());
       }
       rc = rgwlib.init(args);
     }
@@ -74,7 +75,8 @@ int librgw_create(librgw_t* rgw, int argc, char **argv)
   return rc;
 }
 
-void librgw_shutdown(librgw_t rgw)
+void
+librgw_shutdown(librgw_t rgw)
 {
   using namespace rgw;
 

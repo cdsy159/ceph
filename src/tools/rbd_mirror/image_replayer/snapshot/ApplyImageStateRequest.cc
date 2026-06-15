@@ -2,24 +2,27 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ApplyImageStateRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/debug.h"
-#include "common/errno.h"
+
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "cls/rbd/cls_rbd_client.h"
+#include "common/errno.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Operations.h"
 #include "librbd/Utils.h"
 #include "librbd/image/GetMetadataRequest.h"
 #include "tools/rbd_mirror/image_replayer/snapshot/Utils.h"
-#include <boost/algorithm/string/predicate.hpp>
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_replayer::snapshot::" \
-                           << "ApplyImageStateRequest: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix                                   \
+  *_dout << "rbd::mirror::image_replayer::snapshot::" \
+         << "ApplyImageStateRequest: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -36,13 +39,14 @@ ApplyImageStateRequest<I>::ApplyImageStateRequest(
     I* local_image_ctx,
     I* remote_image_ctx,
     librbd::mirror::snapshot::ImageState image_state,
-    Context* on_finish)
-  : m_local_mirror_uuid(local_mirror_uuid),
-    m_remote_mirror_uuid(remote_mirror_uuid),
-    m_local_image_ctx(local_image_ctx),
-    m_remote_image_ctx(remote_image_ctx),
-    m_image_state(image_state),
-    m_on_finish(on_finish) {
+    Context* on_finish) :
+  m_local_mirror_uuid(local_mirror_uuid),
+  m_remote_mirror_uuid(remote_mirror_uuid),
+  m_local_image_ctx(local_image_ctx),
+  m_remote_image_ctx(remote_image_ctx),
+  m_image_state(image_state),
+  m_on_finish(on_finish)
+{
   dout(15) << "image_state=" << m_image_state << dendl;
 
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
@@ -51,12 +55,16 @@ ApplyImageStateRequest<I>::ApplyImageStateRequest(
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::send() {
+void
+ApplyImageStateRequest<I>::send()
+{
   rename_image();
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::rename_image() {
+void
+ApplyImageStateRequest<I>::rename_image()
+{
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
   if (m_local_image_ctx->name == m_image_state.name) {
@@ -72,18 +80,20 @@ void ApplyImageStateRequest<I>::rename_image() {
            << "remote_image_name=" << m_image_state.name << dendl;
 
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_rename_image>(this);
+      ApplyImageStateRequest<I>, &ApplyImageStateRequest<I>::handle_rename_image>(
+      this);
   m_local_image_ctx->operations->execute_rename(m_image_state.name, ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_rename_image(int r) {
+void
+ApplyImageStateRequest<I>::handle_rename_image(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
-    derr << "failed to rename image to '" << m_image_state.name << "': "
-         << cpp_strerror(r) << dendl;
+    derr << "failed to rename image to '" << m_image_state.name
+         << "': " << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
@@ -92,12 +102,14 @@ void ApplyImageStateRequest<I>::handle_rename_image(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::update_features() {
+void
+ApplyImageStateRequest<I>::update_features()
+{
   uint64_t feature_updates = 0UL;
   bool enabled = false;
 
-  auto image_state_features =
-    m_image_state.features & ~RBD_FEATURES_IMPLICIT_ENABLE;
+  auto image_state_features = m_image_state.features &
+                              ~RBD_FEATURES_IMPLICIT_ENABLE;
   feature_updates = (m_features & ~image_state_features);
   if (feature_updates == 0UL) {
     feature_updates = (image_state_features & ~m_features);
@@ -122,14 +134,16 @@ void ApplyImageStateRequest<I>::update_features() {
 
   std::shared_lock owner_lock{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_update_features>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_update_features>(this);
   m_local_image_ctx->operations->execute_update_features(
-    feature_updates, enabled, ctx, 0U);
+      feature_updates, enabled, ctx, 0U);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_update_features(int r) {
+void
+ApplyImageStateRequest<I>::handle_update_features(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -142,20 +156,24 @@ void ApplyImageStateRequest<I>::handle_update_features(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::get_image_meta() {
+void
+ApplyImageStateRequest<I>::get_image_meta()
+{
   dout(15) << dendl;
 
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_get_image_meta>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_get_image_meta>(this);
   auto req = librbd::image::GetMetadataRequest<I>::create(
-    m_local_image_ctx->md_ctx, m_local_image_ctx->header_oid, true, "", "", 0U,
-    &m_metadata, ctx);
+      m_local_image_ctx->md_ctx, m_local_image_ctx->header_oid, true, "", "",
+      0U, &m_metadata, ctx);
   req->send();
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_get_image_meta(int r) {
+void
+ApplyImageStateRequest<I>::handle_get_image_meta(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -169,7 +187,9 @@ void ApplyImageStateRequest<I>::handle_get_image_meta(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::update_image_meta() {
+void
+ApplyImageStateRequest<I>::update_image_meta()
+{
   std::set<std::string> keys_to_remove;
   for (const auto& [key, value] : m_metadata) {
     if (m_image_state.metadata.count(key) == 0) {
@@ -203,16 +223,18 @@ void ApplyImageStateRequest<I>::update_image_meta() {
   }
 
   auto aio_comp = create_rados_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_update_image_meta>(this);
-  int r = m_local_image_ctx->md_ctx.aio_operate(m_local_image_ctx->header_oid, aio_comp,
-                                          &op);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_update_image_meta>(this);
+  int r = m_local_image_ctx->md_ctx.aio_operate(
+      m_local_image_ctx->header_oid, aio_comp, &op);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_update_image_meta(int r) {
+void
+ApplyImageStateRequest<I>::handle_update_image_meta(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -228,7 +250,9 @@ void ApplyImageStateRequest<I>::handle_update_image_meta(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::unprotect_snapshot() {
+void
+ApplyImageStateRequest<I>::unprotect_snapshot()
+{
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
 
   auto snap_it = m_local_image_ctx->snap_info.begin();
@@ -240,8 +264,8 @@ void ApplyImageStateRequest<I>::unprotect_snapshot() {
     auto snap_id = snap_it->first;
     const auto& snap_info = snap_it->second;
 
-    auto user_ns = std::get_if<cls::rbd::UserSnapshotNamespace>(
-      &snap_info.snap_namespace);
+    auto user_ns =
+        std::get_if<cls::rbd::UserSnapshotNamespace>(&snap_info.snap_namespace);
     if (user_ns == nullptr) {
       dout(20) << "snapshot " << snap_id << " is not a user snapshot" << dendl;
       continue;
@@ -293,14 +317,16 @@ void ApplyImageStateRequest<I>::unprotect_snapshot() {
 
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_unprotect_snapshot>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_unprotect_snapshot>(this);
   m_local_image_ctx->operations->execute_snap_unprotect(
-    cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
+      cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_unprotect_snapshot(int r) {
+void
+ApplyImageStateRequest<I>::handle_unprotect_snapshot(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -314,7 +340,9 @@ void ApplyImageStateRequest<I>::handle_unprotect_snapshot(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::remove_snapshot() {
+void
+ApplyImageStateRequest<I>::remove_snapshot()
+{
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
 
   auto snap_it = m_local_image_ctx->snap_info.begin();
@@ -326,8 +354,8 @@ void ApplyImageStateRequest<I>::remove_snapshot() {
     auto snap_id = snap_it->first;
     const auto& snap_info = snap_it->second;
 
-    auto user_ns = std::get_if<cls::rbd::UserSnapshotNamespace>(
-      &snap_info.snap_namespace);
+    auto user_ns =
+        std::get_if<cls::rbd::UserSnapshotNamespace>(&snap_info.snap_namespace);
     if (user_ns == nullptr) {
       dout(20) << "snapshot " << snap_id << " is not a user snapshot" << dendl;
       continue;
@@ -367,14 +395,16 @@ void ApplyImageStateRequest<I>::remove_snapshot() {
 
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_remove_snapshot>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_remove_snapshot>(this);
   m_local_image_ctx->operations->execute_snap_remove(
-    cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
+      cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_remove_snapshot(int r) {
+void
+ApplyImageStateRequest<I>::handle_remove_snapshot(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -388,7 +418,9 @@ void ApplyImageStateRequest<I>::handle_remove_snapshot(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::protect_snapshot() {
+void
+ApplyImageStateRequest<I>::protect_snapshot()
+{
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
 
   auto snap_it = m_local_image_ctx->snap_info.begin();
@@ -400,8 +432,8 @@ void ApplyImageStateRequest<I>::protect_snapshot() {
     auto snap_id = snap_it->first;
     const auto& snap_info = snap_it->second;
 
-    auto user_ns = std::get_if<cls::rbd::UserSnapshotNamespace>(
-      &snap_info.snap_namespace);
+    auto user_ns =
+        std::get_if<cls::rbd::UserSnapshotNamespace>(&snap_info.snap_namespace);
     if (user_ns == nullptr) {
       dout(20) << "snapshot " << snap_id << " is not a user snapshot" << dendl;
       continue;
@@ -453,14 +485,16 @@ void ApplyImageStateRequest<I>::protect_snapshot() {
 
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_protect_snapshot>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_protect_snapshot>(this);
   m_local_image_ctx->operations->execute_snap_protect(
-    cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
+      cls::rbd::UserSnapshotNamespace{}, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_protect_snapshot(int r) {
+void
+ApplyImageStateRequest<I>::handle_protect_snapshot(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -474,7 +508,9 @@ void ApplyImageStateRequest<I>::handle_protect_snapshot(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::rename_snapshot() {
+void
+ApplyImageStateRequest<I>::rename_snapshot()
+{
   std::shared_lock image_locker{m_local_image_ctx->image_lock};
 
   auto snap_it = m_local_image_ctx->snap_info.begin();
@@ -486,8 +522,8 @@ void ApplyImageStateRequest<I>::rename_snapshot() {
     auto snap_id = snap_it->first;
     const auto& snap_info = snap_it->second;
 
-    auto user_ns = std::get_if<cls::rbd::UserSnapshotNamespace>(
-      &snap_info.snap_namespace);
+    auto user_ns =
+        std::get_if<cls::rbd::UserSnapshotNamespace>(&snap_info.snap_namespace);
     if (user_ns == nullptr) {
       dout(20) << "snapshot " << snap_id << " is not a user snapshot" << dendl;
       continue;
@@ -511,8 +547,7 @@ void ApplyImageStateRequest<I>::rename_snapshot() {
     const auto& snap_state = snap_state_it->second;
     if (snap_info.name != snap_state.name) {
       dout(15) << "snapshot " << snap_id << " has been renamed from '"
-               << snap_info.name << "' to '" << snap_state.name << "'"
-               << dendl;
+               << snap_info.name << "' to '" << snap_state.name << "'" << dendl;
       m_snap_name = snap_state.name;
       break;
     }
@@ -535,14 +570,16 @@ void ApplyImageStateRequest<I>::rename_snapshot() {
 
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_rename_snapshot>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_rename_snapshot>(this);
   m_local_image_ctx->operations->execute_snap_rename(
-    m_prev_snap_id, m_snap_name.c_str(), ctx);
+      m_prev_snap_id, m_snap_name.c_str(), ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_rename_snapshot(int r) {
+void
+ApplyImageStateRequest<I>::handle_rename_snapshot(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -556,32 +593,37 @@ void ApplyImageStateRequest<I>::handle_rename_snapshot(int r) {
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::set_snapshot_limit() {
+void
+ApplyImageStateRequest<I>::set_snapshot_limit()
+{
   dout(15) << "snap_limit=" << m_image_state.snap_limit << dendl;
 
   // no need to even check the current limit -- just set it
   std::shared_lock owner_locker{m_local_image_ctx->owner_lock};
   auto ctx = create_context_callback<
-    ApplyImageStateRequest<I>,
-    &ApplyImageStateRequest<I>::handle_set_snapshot_limit>(this);
+      ApplyImageStateRequest<I>,
+      &ApplyImageStateRequest<I>::handle_set_snapshot_limit>(this);
   m_local_image_ctx->operations->execute_snap_set_limit(
-    m_image_state.snap_limit, ctx);
+      m_image_state.snap_limit, ctx);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::handle_set_snapshot_limit(int r) {
+void
+ApplyImageStateRequest<I>::handle_set_snapshot_limit(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   if (r < 0) {
-    derr << "failed to update snapshot limit: " << cpp_strerror(r)
-         << dendl;
+    derr << "failed to update snapshot limit: " << cpp_strerror(r) << dendl;
   }
 
   finish(r);
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::finish(int r) {
+void
+ApplyImageStateRequest<I>::finish(int r)
+{
   dout(15) << "r=" << r << dendl;
 
   m_on_finish->complete(r);
@@ -589,8 +631,9 @@ void ApplyImageStateRequest<I>::finish(int r) {
 }
 
 template <typename I>
-uint64_t ApplyImageStateRequest<I>::compute_remote_snap_id(
-    uint64_t local_snap_id) {
+uint64_t
+ApplyImageStateRequest<I>::compute_remote_snap_id(uint64_t local_snap_id)
+{
   ceph_assert(ceph_mutex_is_locked(m_local_image_ctx->image_lock));
   ceph_assert(ceph_mutex_is_locked(m_remote_image_ctx->image_lock));
 
@@ -598,8 +641,8 @@ uint64_t ApplyImageStateRequest<I>::compute_remote_snap_id(
   // snapshot. The non-primary mirror snapshot with the mappings will always
   // come at or after the snapshot we are searching against
   auto remote_snap_id = util::compute_remote_snap_id(
-    m_local_image_ctx->image_lock, m_local_image_ctx->snap_info,
-    local_snap_id, m_remote_mirror_uuid);
+      m_local_image_ctx->image_lock, m_local_image_ctx->snap_info,
+      local_snap_id, m_remote_mirror_uuid);
   if (remote_snap_id != CEPH_NOSNAP) {
     return remote_snap_id;
   }
@@ -611,7 +654,7 @@ uint64_t ApplyImageStateRequest<I>::compute_remote_snap_id(
        snap_it != m_remote_image_ctx->snap_info.end(); ++snap_it) {
     auto snap_id = snap_it->first;
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &snap_it->second.snap_namespace);
+        &snap_it->second.snap_namespace);
     if (mirror_ns == nullptr || !mirror_ns->is_non_primary()) {
       continue;
     }
@@ -621,9 +664,9 @@ uint64_t ApplyImageStateRequest<I>::compute_remote_snap_id(
                << dendl;
       continue;
     } else if (mirror_ns->primary_snap_id == local_snap_id) {
-        dout(15) << "local snapshot " << local_snap_id << " maps to "
-                 << "remote snapshot " << snap_id << dendl;
-        return snap_id;
+      dout(15) << "local snapshot " << local_snap_id << " maps to "
+               << "remote snapshot " << snap_id << dendl;
+      return snap_id;
     }
 
     const auto& snap_seqs = mirror_ns->snap_seqs;
@@ -640,7 +683,9 @@ uint64_t ApplyImageStateRequest<I>::compute_remote_snap_id(
 }
 
 template <typename I>
-void ApplyImageStateRequest<I>::compute_local_to_remote_snap_ids() {
+void
+ApplyImageStateRequest<I>::compute_local_to_remote_snap_ids()
+{
   ceph_assert(ceph_mutex_is_locked(m_local_image_ctx->image_lock));
   std::shared_lock remote_image_locker{m_remote_image_ctx->image_lock};
 
@@ -657,4 +702,5 @@ void ApplyImageStateRequest<I>::compute_local_to_remote_snap_ids() {
 } // namespace mirror
 } // namespace rbd
 
-template class rbd::mirror::image_replayer::snapshot::ApplyImageStateRequest<librbd::ImageCtx>;
+template class rbd::mirror::image_replayer::snapshot::ApplyImageStateRequest<
+    librbd::ImageCtx>;

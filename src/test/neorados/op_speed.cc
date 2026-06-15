@@ -18,7 +18,9 @@
 
 constexpr int to_create = 10'000'000;
 
-int main() {
+int
+main()
+{
   for (int i = 0; i < to_create; ++i) {
     neorados::ReadOp op;
     bufferlist bl;

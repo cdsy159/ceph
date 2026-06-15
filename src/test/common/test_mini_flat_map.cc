@@ -2,21 +2,29 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <gtest/gtest.h>
+
 #include "common/mini_flat_map.h"
 
 struct Value {
   int value;
 
-  explicit Value() : value(0) {
-  }
-  explicit Value(int value) : value(value) {
-  }
+  explicit Value() :
+    value(0)
+  {}
 
-  friend std::ostream &operator<<(std::ostream &out, const Value &rhs) {
+  explicit Value(int value) :
+    value(value)
+  {}
+
+  friend std::ostream&
+  operator<<(std::ostream& out, const Value& rhs)
+  {
     return out << rhs.value;
   }
 
-  bool operator==(const Value &other) const {
+  bool
+  operator==(const Value& other) const
+  {
     return value == other.value;
   }
 };
@@ -25,8 +33,11 @@ namespace fmt {
 template <>
 struct formatter<Value> : private formatter<int> {
   using formatter<int>::parse;
+
   template <typename FormatContext>
-  auto format(const Value& v, FormatContext& ctx) const {
+  auto
+  format(const Value& v, FormatContext& ctx) const
+  {
     return formatter<int>::format(v.value, ctx);
   }
 };
@@ -35,21 +46,32 @@ struct formatter<Value> : private formatter<int> {
 struct Key {
   int8_t k;
 
-  Key(int8_t k) : k(k) {
-  }
+  Key(int8_t k) :
+    k(k)
+  {}
 
-  explicit constexpr operator int8_t() const {
+  explicit constexpr
+  operator int8_t() const
+  {
     return k;
   }
-  Key &operator++() {
+
+  Key&
+  operator++()
+  {
     k++;
     return *this;
   }
 
-  friend std::ostream &operator<<(std::ostream &out, const Key &rhs) {
+  friend std::ostream&
+  operator<<(std::ostream& out, const Key& rhs)
+  {
     return out << static_cast<uint32_t>(rhs.k);
   }
-  friend bool operator==(const Key &lhs, const Key &rhs) {
+
+  friend bool
+  operator==(const Key& lhs, const Key& rhs)
+  {
     return lhs.k == rhs.k;
   }
 };
@@ -58,15 +80,18 @@ namespace fmt {
 template <>
 struct formatter<Key> : private formatter<int> {
   using formatter<int>::parse;
+
   template <typename FormatContext>
-  auto format(const Key& k, FormatContext& ctx) const {
+  auto
+  format(const Key& k, FormatContext& ctx) const
+  {
     return formatter<int>::format(k.k, ctx);
   }
 };
 } // namespace fmt
 
-
-TEST(mini_flat_map, copy_operator_and_element_access) {
+TEST(mini_flat_map, copy_operator_and_element_access)
+{
   mini_flat_map<Key, Value> m(4);
   m[0] = Value(1);
   ASSERT_EQ(1, m[0].value);
@@ -80,7 +105,8 @@ TEST(mini_flat_map, copy_operator_and_element_access) {
   ASSERT_TRUE(m.contains(0));
 }
 
-TEST(mini_flat_map, fmt_formatting) {
+TEST(mini_flat_map, fmt_formatting)
+{
   mini_flat_map<Key, Value> m(4);
   m[0] = Value(100);
   m[2] = Value(200);
@@ -93,7 +119,8 @@ TEST(mini_flat_map, fmt_formatting) {
   EXPECT_EQ("{0:100,2:200}", fmt::format("{}", m));
 }
 
-TEST(mini_flat_map, fmt_formatting_empty) {
+TEST(mini_flat_map, fmt_formatting_empty)
+{
   mini_flat_map<Key, Value> m(10);
   EXPECT_EQ("{}", m.fmt_print());
   // compare to operator<<
@@ -104,7 +131,8 @@ TEST(mini_flat_map, fmt_formatting_empty) {
   EXPECT_EQ(as_fmt, oss.str());
 }
 
-TEST(mini_flat_map, fmt_formatting_one) {
+TEST(mini_flat_map, fmt_formatting_one)
+{
   mini_flat_map<Key, Value> m(4);
   m[2] = Value(100);
   const auto using_fmt = fmt::format("{}", m);
@@ -115,7 +143,8 @@ TEST(mini_flat_map, fmt_formatting_one) {
   EXPECT_EQ(using_fmt, oss.str());
 }
 
-TEST(mini_flat_map, fmt_formatting_full) {
+TEST(mini_flat_map, fmt_formatting_full)
+{
   mini_flat_map<Key, Value> m(4);
   m[3] = Value(300);
   m[2] = Value(200);
@@ -129,7 +158,8 @@ TEST(mini_flat_map, fmt_formatting_full) {
   EXPECT_EQ(using_fmt, oss.str());
 }
 
-TEST(mini_flat_map, iterators) {
+TEST(mini_flat_map, iterators)
+{
   mini_flat_map<Key, Value> m(4);
   m[0] = Value(1);
   m[2] = Value(2);
@@ -137,7 +167,7 @@ TEST(mini_flat_map, iterators) {
   Key keys[] = {Key(0), Key(2)};
 
   int i = 0;
-  for (auto &&[k, v] : m) {
+  for (auto&& [k, v] : m) {
     ASSERT_EQ(keys[i], k);
     ASSERT_EQ(values[i], v);
     i++;
@@ -147,7 +177,7 @@ TEST(mini_flat_map, iterators) {
   const mini_flat_map<Key, Value> m2 = m;
   i = 0;
   // This loop tests const iterator.
-  for (auto &&[k, v] : m2) {
+  for (auto&& [k, v] : m2) {
     ASSERT_EQ(keys[i], k);
     ASSERT_EQ(values[i], v);
     i++;
@@ -155,7 +185,8 @@ TEST(mini_flat_map, iterators) {
   ASSERT_EQ(2, i);
 }
 
-TEST(mini_flat_map, capacity) {
+TEST(mini_flat_map, capacity)
+{
   mini_flat_map<Key, Value> m(4);
   ASSERT_FALSE(m.contains(Key(0)));
   Key k(1);
@@ -171,7 +202,8 @@ TEST(mini_flat_map, capacity) {
   ASSERT_EQ(4, m.max_size());
 }
 
-TEST(mini_flat_map, clear) {
+TEST(mini_flat_map, clear)
+{
   mini_flat_map<Key, Value> m(4);
   m[1] = Value(2);
   ASSERT_TRUE(m.contains(1));
@@ -179,9 +211,11 @@ TEST(mini_flat_map, clear) {
   ASSERT_FALSE(m.contains(1));
   ASSERT_TRUE(m.empty());
 }
+
 // No insert, insert_range, insert_or_assign, emplace_hint, try_emplace,
 
-TEST(mini_flat_map, emplace_erase) {
+TEST(mini_flat_map, emplace_erase)
+{
   mini_flat_map<Key, Value> m(4);
   m.emplace(1, 2);
   ASSERT_TRUE(m.contains(1));
@@ -200,9 +234,11 @@ TEST(mini_flat_map, emplace_erase) {
   ASSERT_EQ(m.cend(), cit);
   ASSERT_FALSE(m.contains(1));
 }
+
 // no erase(range)
 
-TEST(mini_flat_map, swap) {
+TEST(mini_flat_map, swap)
+{
   mini_flat_map<Key, Value> m(4);
   m[1] = Value(2);
   mini_flat_map<Key, Value> m2(4);
@@ -210,9 +246,11 @@ TEST(mini_flat_map, swap) {
   ASSERT_TRUE(m.empty());
   ASSERT_FALSE(m2.empty());
 }
+
 // No extract, merge
 
-TEST(mini_flat_map, lookup) {
+TEST(mini_flat_map, lookup)
+{
   mini_flat_map<Key, Value> m(4);
   ASSERT_EQ(0, m.count(Key(0)));
   ASSERT_EQ(0, m.count(Key(1)));
@@ -220,4 +258,5 @@ TEST(mini_flat_map, lookup) {
   ASSERT_EQ(0, m.count(Key(0)));
   ASSERT_EQ(1, m.count(Key(1)));
 }
+
 // NO equal_range, lower_bound, upper_bound

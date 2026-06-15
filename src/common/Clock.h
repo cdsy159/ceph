@@ -16,11 +16,12 @@
 #ifndef CEPH_CLOCK_H
 #define CEPH_CLOCK_H
 
-#include "include/utime.h"
-
 #include <time.h>
 
-static inline utime_t ceph_clock_now()
+#include "include/utime.h"
+
+static inline utime_t
+ceph_clock_now()
 {
 #if defined(__linux__)
   struct timespec tp;
@@ -34,7 +35,8 @@ static inline utime_t ceph_clock_now()
   return n;
 }
 
-static inline utime_t mono_clock_now()
+static inline utime_t
+mono_clock_now()
 {
 #if defined(__linux__)
   struct timespec tp;

@@ -1,10 +1,10 @@
-#include "common/config.h"
 #include "common/run_cmd.h"
-
-#include "gtest/gtest.h"
 
 #include <stdlib.h>
 #include <unistd.h>
+
+#include "common/config.h"
+#include "gtest/gtest.h"
 
 TEST(RunCommand, StringSimple)
 {

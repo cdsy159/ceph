@@ -8,45 +8,45 @@
  */
 
 #define SEED a0
-#define BUF  a1
-#define LEN  a2
+#define BUF a1
+#define LEN a2
 #define POLY a3
-#define MU   a4
-#define K1   t5
-#define K2   t6
-#define K3   t5
-#define K4   t6
-#define K5   t5
-#define K6   t6
+#define MU a4
+#define K1 t5
+#define K2 t6
+#define K3 t5
+#define K4 t6
+#define K5 t5
+#define K6 t6
 
 #define X3HIGH t0
-#define HIGH   t0
-#define X3LOW  t1
-#define LOW    t1
+#define HIGH t0
+#define X3LOW t1
+#define LOW t1
 
 #define X2HIGH t2
-#define X2LOW  a5
+#define X2LOW a5
 #define X1HIGH a6
-#define X1LOW  a7
+#define X1LOW a7
 #define X0HIGH t3
-#define X0LOW  t4
+#define X0LOW t4
 
 #define BUF3HIGH s4
-#define BUF3LOW  s5
+#define BUF3LOW s5
 #define BUF2HIGH s6
-#define BUF2LOW  s7
+#define BUF2LOW s7
 #define BUF1HIGH s8
-#define BUF1LOW  s9
+#define BUF1LOW s9
 #define BUF0HIGH s10
-#define BUF0LOW  s11
+#define BUF0LOW s11
 
-#define X3K1LOW  ra
+#define X3K1LOW ra
 #define X3K2HIGH gp
-#define X2K1LOW  tp
+#define X2K1LOW tp
 #define X2K2HIGH s0
-#define X1K1LOW  s1
+#define X1K1LOW s1
 #define X1K2HIGH a0
-#define X0K1LOW  s2
+#define X0K1LOW s2
 #define X0K2HIGH s3
 
 /* repeated fold-by-four followed by fold-by-one */

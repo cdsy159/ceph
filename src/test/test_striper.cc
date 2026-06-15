@@ -1,9 +1,8 @@
-#include "gtest/gtest.h"
-#include "global/global_context.h"
-
-#include "osdc/Striper.h"
-
 #include <iostream> // for std::cout
+
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "osdc/Striper.h"
 
 using namespace std;
 
@@ -35,7 +34,8 @@ TEST(Striper, EmptyPartialResult)
   l.stripe_count = 1;
 
   vector<ObjectExtent> ex;
-  Striper::file_to_extents(g_ceph_context, 1, &l, 725549056, 131072, 72554905600, ex);
+  Striper::file_to_extents(
+      g_ceph_context, 1, &l, 725549056, 131072, 72554905600, ex);
   cout << "ex " << ex << std::endl;
   ASSERT_EQ(2u, ex.size());
 
@@ -63,7 +63,7 @@ TEST(Striper, GetNumObj)
   l.object_size = 262144;
   l.stripe_unit = 4096;
   l.stripe_count = 3;
-  uint64_t size,numobjs;
+  uint64_t size, numobjs;
   size = 6999;
   numobjs = Striper::get_num_objects(l, size);
   ASSERT_EQ(2u, numobjs);
@@ -85,7 +85,7 @@ TEST(Striper, GetFileOffset)
 
   uint64_t object_no = 100;
   uint64_t object_off = 200000;
-  uint64_t file_offset = Striper::get_file_offset(
-          g_ceph_context, &l, object_no, object_off);
+  uint64_t file_offset =
+      Striper::get_file_offset(g_ceph_context, &l, object_no, object_off);
   ASSERT_EQ(26549568u, file_offset);
 }

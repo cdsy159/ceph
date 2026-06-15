@@ -1,4 +1,4 @@
-// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,10 +15,10 @@
 
 #include "JournalFilter.h"
 
-#include "common/ceph_argparse.h"
 #include "common/debug.h"
-#include "common/strtol.h" // for strict_strtoll()
 
+#include "common/ceph_argparse.h"
+#include "common/strtol.h" // for strict_strtoll()
 #include "mds/events/ESession.h"
 #include "mds/events/EUpdate.h"
 
@@ -29,7 +29,8 @@ using namespace std;
 
 const string JournalFilter::range_separator("..");
 
-bool JournalFilter::apply(uint64_t pos, PurgeItem &pi) const
+bool
+JournalFilter::apply(uint64_t pos, PurgeItem& pi) const
 {
   /* Filtering by journal offset range */
   if (pos < range_start || pos >= range_end) {
@@ -55,7 +56,8 @@ bool JournalFilter::apply(uint64_t pos, PurgeItem &pi) const
  * condition is not met, the event is excluded.  Try to do
  * the fastest checks first.
  */
-bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
+bool
+JournalFilter::apply(uint64_t pos, LogEvent& le) const
 {
   /* Filtering by journal offset range */
   if (pos < range_start || pos >= range_end) {
@@ -71,13 +73,13 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
 
   /* Filtering by client */
   if (client_name.num()) {
-    EMetaBlob const *metablob = le.get_metablob();
+    EMetaBlob const* metablob = le.get_metablob();
     if (metablob) {
       if (metablob->get_client_name() != client_name) {
         return false;
       }
     } else if (le.get_type() == EVENT_SESSION) {
-      ESession *es = reinterpret_cast<ESession*>(&le);
+      ESession* es = reinterpret_cast<ESession*>(&le);
       if (es->get_client_inst().name != client_name) {
         return false;
       }
@@ -88,12 +90,13 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
 
   /* Filtering by inode */
   if (inode) {
-    EMetaBlob const *metablob = le.get_metablob();
+    EMetaBlob const* metablob = le.get_metablob();
     if (metablob) {
       std::set<inodeno_t> inodes;
       metablob->get_inodes(inodes);
       bool match_any = false;
-      for (std::set<inodeno_t>::iterator i = inodes.begin(); i != inodes.end(); ++i) {
+      for (std::set<inodeno_t>::iterator i = inodes.begin(); i != inodes.end();
+           ++i) {
         if (*i == inode) {
           match_any = true;
           break;
@@ -109,15 +112,16 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
 
   /* Filtering by frag and dentry */
   if (!frag_dentry.empty() || frag.ino) {
-    EMetaBlob const *metablob = le.get_metablob();
+    EMetaBlob const* metablob = le.get_metablob();
     if (metablob) {
-      std::map<dirfrag_t, std::set<std::string> > dentries;
+      std::map<dirfrag_t, std::set<std::string>> dentries;
       metablob->get_dentries(dentries);
 
       if (frag.ino) {
         bool match_any = false;
-        for (std::map<dirfrag_t, std::set<std::string> >::iterator i = dentries.begin();
-            i != dentries.end(); ++i) {
+        for (std::map<dirfrag_t, std::set<std::string>>::iterator i =
+                 dentries.begin();
+             i != dentries.end(); ++i) {
           if (i->first == frag) {
             match_any = true;
             break;
@@ -130,11 +134,12 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
 
       if (!frag_dentry.empty()) {
         bool match_any = false;
-        for (std::map<dirfrag_t, std::set<std::string> >::iterator i = dentries.begin();
-            i != dentries.end() && !match_any; ++i) {
-          std::set<std::string> const &names = i->second;
+        for (std::map<dirfrag_t, std::set<std::string>>::iterator i =
+                 dentries.begin();
+             i != dentries.end() && !match_any; ++i) {
+          std::set<std::string> const& names = i->second;
           for (std::set<std::string>::iterator j = names.begin();
-              j != names.end() && !match_any; ++j) {
+               j != names.end() && !match_any; ++j) {
             if (*j == frag_dentry) {
               match_any = true;
             }
@@ -152,12 +157,13 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
 
   /* Filtering by file path */
   if (!path_expr.empty()) {
-    EMetaBlob const *metablob = le.get_metablob();
+    EMetaBlob const* metablob = le.get_metablob();
     if (metablob) {
       std::vector<std::string> paths;
       metablob->get_paths(paths);
       bool match_any = false;
-      for (std::vector<std::string>::iterator p = paths.begin(); p != paths.end(); ++p) {
+      for (std::vector<std::string>::iterator p = paths.begin();
+           p != paths.end(); ++p) {
         if ((*p).find(path_expr) != std::string::npos) {
           match_any = true;
           break;
@@ -174,48 +180,55 @@ bool JournalFilter::apply(uint64_t pos, LogEvent &le) const
   return true;
 }
 
-
-int JournalFilter::parse_args(
-  std::vector<const char*> &argv, 
-  std::vector<const char*>::iterator &arg)
+int
+JournalFilter::parse_args(
+    std::vector<const char*>& argv,
+    std::vector<const char*>::iterator& arg)
 {
-  while(arg != argv.end()) {
+  while (arg != argv.end()) {
     std::string arg_str;
     if (ceph_argparse_witharg(argv, arg, &arg_str, "--range", (char*)NULL)) {
       size_t sep_loc = arg_str.find(JournalFilter::range_separator);
-      if (sep_loc == std::string::npos || arg_str.size() <= JournalFilter::range_separator.size()) {
+      if (sep_loc == std::string::npos ||
+          arg_str.size() <= JournalFilter::range_separator.size()) {
         derr << "Invalid range '" << arg_str << "'" << dendl;
         return -EINVAL;
       }
 
       // We have a lower bound
       if (sep_loc > 0) {
-        std::string range_start_str = arg_str.substr(0, sep_loc); 
+        std::string range_start_str = arg_str.substr(0, sep_loc);
         std::string parse_err;
         range_start = strict_strtoll(range_start_str.c_str(), 0, &parse_err);
         if (!parse_err.empty()) {
-          derr << "Invalid lower bound '" << range_start_str << "': " << parse_err << dendl;
+          derr << "Invalid lower bound '" << range_start_str
+               << "': " << parse_err << dendl;
           return -EINVAL;
         }
       }
 
       if (sep_loc < arg_str.size() - JournalFilter::range_separator.size()) {
-        std::string range_end_str = arg_str.substr(sep_loc + range_separator.size()); 
+        std::string range_end_str =
+            arg_str.substr(sep_loc + range_separator.size());
         std::string parse_err;
         range_end = strict_strtoll(range_end_str.c_str(), 0, &parse_err);
         if (!parse_err.empty()) {
-          derr << "Invalid upper bound '" << range_end_str << "': " << parse_err << dendl;
+          derr << "Invalid upper bound '" << range_end_str << "': " << parse_err
+               << dendl;
           return -EINVAL;
         }
       }
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--path", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--path", (char*)NULL)) {
       if (!type.compare("purge_queue")) {
-	derr << "Invalid filter arguments: purge_queue doesn't take \"--path\"." << dendl;
-	return -EINVAL;
+        derr << "Invalid filter arguments: purge_queue doesn't take \"--path\"."
+             << dendl;
+        return -EINVAL;
       }
       dout(4) << "Filtering by path '" << arg_str << "'" << dendl;
       path_expr = arg_str;
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--inode", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--inode", (char*)NULL)) {
       dout(4) << "Filtering by inode '" << arg_str << "'" << dendl;
       std::string parse_err;
       inode = strict_strtoll(arg_str.c_str(), 0, &parse_err);
@@ -223,21 +236,24 @@ int JournalFilter::parse_args(
         derr << "Invalid inode '" << arg_str << "': " << parse_err << dendl;
         return -EINVAL;
       }
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--type", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--type", (char*)NULL)) {
       try {
-	if (!type.compare("mdlog")) {
-	  event_type = LogEvent::str_to_type(arg_str);
-	} else if (!type.compare("purge_queue")) {
-	  purge_action = PurgeItem::str_to_type(arg_str);
-	}
+        if (!type.compare("mdlog")) {
+          event_type = LogEvent::str_to_type(arg_str);
+        } else if (!type.compare("purge_queue")) {
+          purge_action = PurgeItem::str_to_type(arg_str);
+        }
       } catch (const std::out_of_range&) {
-	 derr << "Invalid event type '" << arg_str << "'" << dendl;
-	 return -EINVAL;
+        derr << "Invalid event type '" << arg_str << "'" << dendl;
+        return -EINVAL;
       }
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--frag", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--frag", (char*)NULL)) {
       if (!type.compare("purge_queue")) {
-	derr << "Invalid filter arguments: purge_queue doesn't take \"--frag\"." << dendl;
-	return -EINVAL;
+        derr << "Invalid filter arguments: purge_queue doesn't take \"--frag\"."
+             << dendl;
+        return -EINVAL;
       }
       std::string const frag_sep = ".";
       size_t sep_loc = arg_str.find(frag_sep);
@@ -266,17 +282,23 @@ int JournalFilter::parse_args(
 
       frag = dirfrag_t(frag_ino, frag_t(frag_enc));
       dout(4) << "dirfrag filter: '" << frag << "'" << dendl;
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--dname", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--dname", (char*)NULL)) {
       if (!type.compare("purge_queue")) {
-	derr << "Invalid filter arguments: purge_queue doesn't take \"--dname\"." << dendl;
-	return -EINVAL;
+        derr
+            << "Invalid filter arguments: purge_queue doesn't take \"--dname\"."
+            << dendl;
+        return -EINVAL;
       }
       frag_dentry = arg_str;
       dout(4) << "dentry filter: '" << frag_dentry << "'" << dendl;
-    } else if (ceph_argparse_witharg(argv, arg, &arg_str, "--client", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(argv, arg, &arg_str, "--client", (char*)NULL)) {
       if (!type.compare("purge_queue")) {
-	derr << "Invalid filter arguments: purge_queue doesn't take \"--client\"." << dendl;
-	return -EINVAL;
+        derr << "Invalid filter arguments: purge_queue doesn't take "
+                "\"--client\"."
+             << dendl;
+        return -EINVAL;
       }
 
       std::string parse_err;
@@ -302,14 +324,12 @@ int JournalFilter::parse_args(
  * Use this to discover if the user has requested a contiguous range
  * rather than any per-event filtering.
  */
-bool JournalFilter::get_range(uint64_t &start, uint64_t &end) const
+bool
+JournalFilter::get_range(uint64_t& start, uint64_t& end) const
 {
-  if (!path_expr.empty()
-      || inode != 0
-      || event_type != 0
-      || frag.ino != 0
-      || client_name.num() != 0
-      || (range_start == 0 && range_end == (uint64_t)(-1))) {
+  if (!path_expr.empty() || inode != 0 || event_type != 0 || frag.ino != 0 ||
+      client_name.num() != 0 ||
+      (range_start == 0 && range_end == (uint64_t)(-1))) {
     return false;
   } else {
     start = range_start;

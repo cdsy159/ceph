@@ -1,25 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "rgw_common.h"
-#include "rgw_rados.h"
-#include "rgw_zone.h"
-#include "rgw_log.h"
+#include "common/Formatter.h"
+
 #include "rgw_acl.h"
 #include "rgw_acl_s3.h"
-#include "rgw_cache.h"
-#include "rgw_meta_sync_status.h"
-#include "rgw_data_sync.h"
-#include "rgw_multi.h"
 #include "rgw_bucket_encryption.h"
-
-#include "common/Formatter.h"
+#include "rgw_cache.h"
+#include "rgw_common.h"
+#include "rgw_data_sync.h"
+#include "rgw_log.h"
+#include "rgw_meta_sync_status.h"
+#include "rgw_multi.h"
+#include "rgw_rados.h"
+#include "rgw_zone.h"
 
 using namespace std;
 
 static string shadow_ns = RGW_OBJ_NS_SHADOW;
 
-list<obj_version> obj_version::generate_test_instances()
+list<obj_version>
+obj_version::generate_test_instances()
 {
   list<obj_version> o;
 
@@ -32,7 +33,8 @@ list<obj_version> obj_version::generate_test_instances()
   return o;
 }
 
-std::list<RGWBucketEncryptionConfig> RGWBucketEncryptionConfig::generate_test_instances()
+std::list<RGWBucketEncryptionConfig>
+RGWBucketEncryptionConfig::generate_test_instances()
 {
   std::list<RGWBucketEncryptionConfig> o;
 

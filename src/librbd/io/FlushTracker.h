@@ -4,13 +4,14 @@
 #ifndef CEPH_LIBRBD_IO_FLUSH_TRACKER_H
 #define CEPH_LIBRBD_IO_FLUSH_TRACKER_H
 
-#include "include/int_types.h"
-#include "common/ceph_mutex.h"
 #include <atomic>
 #include <list>
 #include <map>
 #include <set>
 #include <unordered_map>
+
+#include "common/ceph_mutex.h"
+#include "include/int_types.h"
 
 struct Context;
 
@@ -50,7 +51,6 @@ private:
 
   Tids m_in_flight_flush_tids;
   FlushContexts m_flush_contexts;
-
 };
 
 } // namespace io

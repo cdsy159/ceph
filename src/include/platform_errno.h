@@ -22,12 +22,10 @@
 #if defined(__sun) || defined(_AIX) || defined(__APPLE__) || \
     defined(__FreeBSD__) || defined(_WIN32)
 extern "C" {
-__s32  ceph_to_hostos_errno(__s32 e);
-__s32  hostos_to_ceph_errno(__s32 e);
+__s32 ceph_to_hostos_errno(__s32 e);
+__s32 hostos_to_ceph_errno(__s32 e);
 }
 #else
-#define  ceph_to_hostos_errno(e) (e)
-#define  hostos_to_ceph_errno(e) (e)
+#define ceph_to_hostos_errno(e) (e)
+#define hostos_to_ceph_errno(e) (e)
 #endif
-
-

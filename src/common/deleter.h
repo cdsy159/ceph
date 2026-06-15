@@ -44,24 +44,39 @@
 ///
 /// A deleter performs its action from its destructor.
 class deleter final {
- public:
+public:
   /// \cond internal
   struct impl;
+
   struct raw_object_tag {};
+
   /// \endcond
- private:
+
+private:
   // if bit 0 set, point to object to be freed directly.
   impl* _impl = nullptr;
- public:
+
+public:
   /// Constructs an empty deleter that does nothing in its destructor.
   deleter() = default;
   deleter(const deleter&) = delete;
+
   /// Moves a deleter.
-  deleter(deleter&& x) noexcept : _impl(x._impl) { x._impl = nullptr; }
+  deleter(deleter&& x) noexcept :
+    _impl(x._impl)
+  {
+    x._impl = nullptr;
+  }
+
   /// \cond internal
-  explicit deleter(impl* i) : _impl(i) {}
-  deleter(raw_object_tag tag, void* object)
-          : _impl(from_raw_object(object)) {}
+  explicit deleter(impl* i) :
+    _impl(i)
+  {}
+
+  deleter(raw_object_tag tag, void* object) :
+    _impl(from_raw_object(object))
+  {}
+
   /// \endcond
   /// Destroys the deleter and carries out the encapsulated action.
   ~deleter();
@@ -73,33 +88,57 @@ class deleter final {
   ///
   /// \return a deleter with the same encapsulated action as this one.
   deleter share();
+
   /// Checks whether the deleter has an associated action.
-  explicit operator bool() const { return bool(_impl); }
+  explicit
+  operator bool() const
+  {
+    return bool(_impl);
+  }
+
   /// \cond internal
-  void reset(impl* i) {
+  void
+  reset(impl* i)
+  {
     this->~deleter();
     new (this) deleter(i);
   }
+
   /// \endcond
   /// Appends another deleter to this deleter.  When this deleter is
   /// destroyed, both encapsulated actions will be carried out.
   void append(deleter d);
- private:
-  static bool is_raw_object(impl* i) {
+
+private:
+  static bool
+  is_raw_object(impl* i)
+  {
     auto x = reinterpret_cast<uintptr_t>(i);
     return x & 1;
   }
-  bool is_raw_object() const {
+
+  bool
+  is_raw_object() const
+  {
     return is_raw_object(_impl);
   }
-  static void* to_raw_object(impl* i) {
+
+  static void*
+  to_raw_object(impl* i)
+  {
     auto x = reinterpret_cast<uintptr_t>(i);
     return reinterpret_cast<void*>(x & ~uintptr_t(1));
   }
-  void* to_raw_object() const {
+
+  void*
+  to_raw_object() const
+  {
     return to_raw_object(_impl);
   }
-  impl* from_raw_object(void* object) {
+
+  impl*
+  from_raw_object(void* object)
+  {
     auto x = reinterpret_cast<uintptr_t>(object);
     return reinterpret_cast<impl*>(x | 1);
   }
@@ -109,12 +148,18 @@ class deleter final {
 struct deleter::impl {
   std::atomic_uint refs;
   deleter next;
-  impl(deleter next) : refs(1), next(std::move(next)) {}
+
+  impl(deleter next) :
+    refs(1), next(std::move(next))
+  {}
+
   virtual ~impl() {}
 };
+
 /// \endcond
 
-inline deleter::~deleter() {
+inline deleter::~deleter()
+{
   if (is_raw_object()) {
     std::free(to_raw_object());
     return;
@@ -124,7 +169,9 @@ inline deleter::~deleter() {
   }
 }
 
-inline deleter& deleter::operator=(deleter&& x) {
+inline deleter&
+deleter::operator=(deleter&& x)
+{
   if (this != &x) {
     this->~deleter();
     new (this) deleter(std::move(x));
@@ -136,23 +183,30 @@ inline deleter& deleter::operator=(deleter&& x) {
 template <typename Deleter>
 struct lambda_deleter_impl final : deleter::impl {
   Deleter del;
-  lambda_deleter_impl(deleter next, Deleter&& del)
-          : impl(std::move(next)), del(std::move(del)) {}
+
+  lambda_deleter_impl(deleter next, Deleter&& del) :
+    impl(std::move(next)), del(std::move(del))
+  {}
+
   ~lambda_deleter_impl() override { del(); }
 };
 
 template <typename Object>
 struct object_deleter_impl final : deleter::impl {
   Object obj;
-  object_deleter_impl(deleter next, Object&& obj)
-          : impl(std::move(next)), obj(std::move(obj)) {}
+
+  object_deleter_impl(deleter next, Object&& obj) :
+    impl(std::move(next)), obj(std::move(obj))
+  {}
 };
 
 template <typename Object>
-inline
-object_deleter_impl<Object>* make_object_deleter_impl(deleter next, Object obj) {
+inline object_deleter_impl<Object>*
+make_object_deleter_impl(deleter next, Object obj)
+{
   return new object_deleter_impl<Object>(std::move(next), std::move(obj));
 }
+
 /// \endcond
 
 /// Makes a \ref deleter that encapsulates the action of
@@ -163,7 +217,9 @@ object_deleter_impl<Object>* make_object_deleter_impl(deleter next, Object obj) 
 /// \param o object whose destructor becomes part of the new deleter's encapsulated action
 /// \related deleter
 template <typename Object>
-deleter make_deleter(deleter next, Object o) {
+deleter
+make_deleter(deleter next, Object o)
+{
   return deleter(new lambda_deleter_impl<Object>(std::move(next), std::move(o)));
 }
 
@@ -173,19 +229,28 @@ deleter make_deleter(deleter next, Object o) {
 /// \param o object whose destructor becomes the new deleter's encapsulated action
 /// \related deleter
 template <typename Object>
-deleter make_deleter(Object o) {
+deleter
+make_deleter(Object o)
+{
   return make_deleter(deleter(), std::move(o));
 }
 
 /// \cond internal
 struct free_deleter_impl final : deleter::impl {
   void* obj;
-  free_deleter_impl(void* obj) : impl(deleter()), obj(obj) {}
+
+  free_deleter_impl(void* obj) :
+    impl(deleter()), obj(obj)
+  {}
+
   ~free_deleter_impl() override { std::free(obj); }
 };
+
 /// \endcond
 
-inline deleter deleter::share() {
+inline deleter
+deleter::share()
+{
   if (!_impl) {
     return deleter();
   }
@@ -199,7 +264,9 @@ inline deleter deleter::share() {
 // Appends 'd' to the chain of deleters. Avoids allocation if possible. For
 // performance reasons the current chain should be shorter and 'd' should be
 // longer.
-inline void deleter::append(deleter d) {
+inline void
+deleter::append(deleter d)
+{
   if (!d._impl) {
     return;
   }
@@ -207,12 +274,14 @@ inline void deleter::append(deleter d) {
   deleter* next_d = this;
   while (next_impl) {
     if (next_impl == d._impl)
-      return ;
+      return;
     if (is_raw_object(next_impl)) {
-      next_d->_impl = next_impl = new free_deleter_impl(to_raw_object(next_impl));
+      next_d->_impl = next_impl =
+          new free_deleter_impl(to_raw_object(next_impl));
     }
     if (next_impl->refs != 1) {
-      next_d->_impl = next_impl = make_object_deleter_impl(std::move(next_impl->next), deleter(next_impl));
+      next_d->_impl = next_impl = make_object_deleter_impl(
+          std::move(next_impl->next), deleter(next_impl));
     }
     next_d = &next_impl->next;
     next_impl = next_d->_impl;
@@ -225,7 +294,9 @@ inline void deleter::append(deleter d) {
 ///
 /// \param obj object to free.
 /// \related deleter
-inline deleter make_free_deleter(void* obj) {
+inline deleter
+make_free_deleter(void* obj)
+{
   if (!obj) {
     return deleter();
   }
@@ -238,21 +309,27 @@ inline deleter make_free_deleter(void* obj) {
 /// \param d deleter to invoke.
 /// \param obj object to free.
 /// \related deleter
-inline deleter make_free_deleter(deleter next, void* obj) {
-  return make_deleter(std::move(next), [obj] () mutable { std::free(obj); });
+inline deleter
+make_free_deleter(deleter next, void* obj)
+{
+  return make_deleter(std::move(next), [obj]() mutable { std::free(obj); });
 }
 
 /// \see make_deleter(Object)
 /// \related deleter
 template <typename T>
-inline deleter make_object_deleter(T&& obj) {
+inline deleter
+make_object_deleter(T&& obj)
+{
   return deleter{make_object_deleter_impl(deleter(), std::move(obj))};
 }
 
 /// \see make_deleter(deleter, Object)
 /// \related deleter
 template <typename T>
-inline deleter make_object_deleter(deleter d, T&& obj) {
+inline deleter
+make_object_deleter(deleter d, T&& obj)
+{
   return deleter{make_object_deleter_impl(std::move(d), std::move(obj))};
 }
 

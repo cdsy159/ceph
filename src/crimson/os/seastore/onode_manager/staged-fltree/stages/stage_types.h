@@ -15,14 +15,18 @@
 namespace crimson::os::seastore::onode {
 
 using match_stage_t = int8_t;
-constexpr match_stage_t STAGE_LEFT = 2;   // shard/pool/crush
+constexpr match_stage_t STAGE_LEFT = 2; // shard/pool/crush
 constexpr match_stage_t STAGE_STRING = 1; // nspace/oid
-constexpr match_stage_t STAGE_RIGHT = 0;  // snap/gen
+constexpr match_stage_t STAGE_RIGHT = 0; // snap/gen
 constexpr auto STAGE_TOP = STAGE_LEFT;
 constexpr auto STAGE_BOTTOM = STAGE_RIGHT;
-constexpr bool is_valid_stage(match_stage_t stage) {
+
+constexpr bool
+is_valid_stage(match_stage_t stage)
+{
   return std::clamp(stage, STAGE_BOTTOM, STAGE_TOP) == stage;
 }
+
 // TODO: replace by
 // using match_history_t = int8_t;
 //     left_m, str_m, right_m
@@ -36,7 +40,9 @@ constexpr bool is_valid_stage(match_stage_t stage) {
 
 struct MatchHistory {
   template <match_stage_t STAGE>
-  const std::optional<MatchKindCMP>& get() const {
+  const std::optional<MatchKindCMP>&
+  get() const
+  {
     static_assert(is_valid_stage(STAGE));
     if constexpr (STAGE == STAGE_RIGHT) {
       return right_match;
@@ -48,7 +54,8 @@ struct MatchHistory {
   }
 
   const std::optional<MatchKindCMP>&
-  get_by_stage(match_stage_t stage) const {
+  get_by_stage(match_stage_t stage) const
+  {
     assert(is_valid_stage(stage));
     if (stage == STAGE_RIGHT) {
       return right_match;
@@ -63,7 +70,9 @@ struct MatchHistory {
   const bool is_GT() const;
 
   template <match_stage_t STAGE>
-  void set(MatchKindCMP match) {
+  void
+  set(MatchKindCMP match)
+  {
     static_assert(is_valid_stage(STAGE));
     if constexpr (STAGE < STAGE_TOP) {
       assert(*get<STAGE + 1>() == MatchKindCMP::EQ);
@@ -72,7 +81,9 @@ struct MatchHistory {
     const_cast<std::optional<MatchKindCMP>&>(get<STAGE>()) = match;
   }
 
-  std::ostream& dump(std::ostream& os) const {
+  std::ostream&
+  dump(std::ostream& os) const
+  {
     os << "history(";
     dump_each(os, left_match) << ", ";
     dump_each(os, string_match) << ", ";
@@ -80,8 +91,9 @@ struct MatchHistory {
     return os;
   }
 
-  std::ostream& dump_each(
-      std::ostream& os, const std::optional<MatchKindCMP>& match) const {
+  std::ostream&
+  dump_each(std::ostream& os, const std::optional<MatchKindCMP>& match) const
+  {
     if (!match.has_value()) {
       return os << "--";
     } else if (*match == MatchKindCMP::LT) {
@@ -99,28 +111,39 @@ struct MatchHistory {
   std::optional<MatchKindCMP> string_match;
   std::optional<MatchKindCMP> right_match;
 };
-inline std::ostream& operator<<(std::ostream& os, const MatchHistory& pos) {
+
+inline std::ostream&
+operator<<(std::ostream& os, const MatchHistory& pos)
+{
   return pos.dump(os);
 }
 
 template <match_stage_t STAGE>
 struct _check_GT_t {
-  static bool eval(const MatchHistory* history) {
+  static bool
+  eval(const MatchHistory* history)
+  {
     return history->get<STAGE>() &&
            (*history->get<STAGE>() == MatchKindCMP::GT ||
             (*history->get<STAGE>() == MatchKindCMP::EQ &&
              _check_GT_t<STAGE - 1>::eval(history)));
   }
 };
+
 template <>
 struct _check_GT_t<STAGE_RIGHT> {
-  static bool eval(const MatchHistory* history) {
+  static bool
+  eval(const MatchHistory* history)
+  {
     return history->get<STAGE_RIGHT>() &&
            *history->get<STAGE_RIGHT>() == MatchKindCMP::GT;
   }
 };
+
 template <match_stage_t STAGE>
-const bool MatchHistory::is_GT() const {
+const bool
+MatchHistory::is_GT() const
+{
   static_assert(is_valid_stage(STAGE));
   if constexpr (STAGE < STAGE_TOP) {
     assert(get<STAGE + 1>() == MatchKindCMP::EQ);
@@ -133,7 +156,10 @@ struct staged_position_t {
   static_assert(is_valid_stage(STAGE));
   using me_t = staged_position_t<STAGE>;
   using nxt_t = staged_position_t<STAGE - 1>;
-  bool is_end() const {
+
+  bool
+  is_end() const
+  {
     if (index == INDEX_END) {
       return true;
     } else {
@@ -141,7 +167,10 @@ struct staged_position_t {
       return false;
     }
   }
-  index_t& index_by_stage(match_stage_t stage) {
+
+  index_t&
+  index_by_stage(match_stage_t stage)
+  {
     assert(stage <= STAGE);
     if (STAGE == stage) {
       return index;
@@ -152,7 +181,9 @@ struct staged_position_t {
 
   auto operator<=>(const me_t& o) const = default;
 
-  void assert_next_to(const me_t& prv) const {
+  void
+  assert_next_to(const me_t& prv) const
+  {
 #ifndef NDEBUG
     if (is_end()) {
       assert(!prv.is_end());
@@ -168,7 +199,9 @@ struct staged_position_t {
 #endif
   }
 
-  me_t& operator-=(const me_t& o) {
+  me_t&
+  operator-=(const me_t& o)
+  {
     assert(is_valid_index(o.index));
     assert(index >= o.index);
     if (index != INDEX_END) {
@@ -181,7 +214,9 @@ struct staged_position_t {
     return *this;
   }
 
-  me_t& operator+=(const me_t& o) {
+  me_t&
+  operator+=(const me_t& o)
+  {
     assert(is_valid_index(index));
     assert(is_valid_index(o.index));
     index += o.index;
@@ -189,27 +224,40 @@ struct staged_position_t {
     return *this;
   }
 
-  void encode(ceph::bufferlist& encoded) const {
+  void
+  encode(ceph::bufferlist& encoded) const
+  {
     ceph::encode(index, encoded);
     nxt.encode(encoded);
   }
 
-  static me_t decode(ceph::bufferlist::const_iterator& delta) {
+  static me_t
+  decode(ceph::bufferlist::const_iterator& delta)
+  {
     me_t ret;
     ceph::decode(ret.index, delta);
     ret.nxt = nxt_t::decode(delta);
     return ret;
   }
 
-  static me_t begin() { return {0u, nxt_t::begin()}; }
-  static me_t end() {
+  static me_t
+  begin()
+  {
+    return {0u, nxt_t::begin()};
+  }
+
+  static me_t
+  end()
+  {
     return {INDEX_END, nxt_t::end()};
   }
 
   index_t index;
   nxt_t nxt;
 
-  std::string fmt_print() const {
+  std::string
+  fmt_print() const
+  {
     if (index == INDEX_END) {
       return fmt::format("END, {}", nxt.fmt_print());
     }
@@ -224,7 +272,10 @@ struct staged_position_t {
 template <>
 struct staged_position_t<STAGE_BOTTOM> {
   using me_t = staged_position_t<STAGE_BOTTOM>;
-  bool is_end() const {
+
+  bool
+  is_end() const
+  {
     if (index == INDEX_END) {
       return true;
     } else {
@@ -232,14 +283,19 @@ struct staged_position_t<STAGE_BOTTOM> {
       return false;
     }
   }
-  index_t& index_by_stage(match_stage_t stage) {
+
+  index_t&
+  index_by_stage(match_stage_t stage)
+  {
     assert(stage == STAGE_BOTTOM);
     return index;
   }
 
   auto operator<=>(const me_t&) const = default;
 
-  me_t& operator-=(const me_t& o) {
+  me_t&
+  operator-=(const me_t& o)
+  {
     assert(is_valid_index(o.index));
     assert(index >= o.index);
     if (index != INDEX_END) {
@@ -249,14 +305,18 @@ struct staged_position_t<STAGE_BOTTOM> {
     return *this;
   }
 
-  me_t& operator+=(const me_t& o) {
+  me_t&
+  operator+=(const me_t& o)
+  {
     assert(is_valid_index(index));
     assert(is_valid_index(o.index));
     index += o.index;
     return *this;
   }
 
-  void assert_next_to(const me_t& prv) const {
+  void
+  assert_next_to(const me_t& prv) const
+  {
 #ifndef NDEBUG
     if (is_end()) {
       assert(!prv.is_end());
@@ -266,21 +326,37 @@ struct staged_position_t<STAGE_BOTTOM> {
 #endif
   }
 
-  void encode(ceph::bufferlist& encoded) const {
+  void
+  encode(ceph::bufferlist& encoded) const
+  {
     ceph::encode(index, encoded);
   }
 
-  static me_t decode(ceph::bufferlist::const_iterator& delta) {
+  static me_t
+  decode(ceph::bufferlist::const_iterator& delta)
+  {
     me_t ret;
     ceph::decode(ret.index, delta);
     return ret;
   }
 
-  static me_t begin() { return {0u}; }
-  static me_t end() { return {INDEX_END}; }
+  static me_t
+  begin()
+  {
+    return {0u};
+  }
+
+  static me_t
+  end()
+  {
+    return {INDEX_END};
+  }
 
   index_t index;
-  std::string fmt_print() const {
+
+  std::string
+  fmt_print() const
+  {
     if (index == INDEX_END) {
       return "END";
     }
@@ -295,7 +371,9 @@ struct staged_position_t<STAGE_BOTTOM> {
 using search_position_t = staged_position_t<STAGE_TOP>;
 
 template <match_stage_t STAGE>
-const staged_position_t<STAGE>& cast_down(const search_position_t& pos) {
+const staged_position_t<STAGE>&
+cast_down(const search_position_t& pos)
+{
   if constexpr (STAGE == STAGE_LEFT) {
     return pos;
   } else if constexpr (STAGE == STAGE_STRING) {
@@ -323,16 +401,21 @@ const staged_position_t<STAGE>& cast_down(const search_position_t& pos) {
 }
 
 template <match_stage_t STAGE>
-staged_position_t<STAGE>& cast_down(search_position_t& pos) {
+staged_position_t<STAGE>&
+cast_down(search_position_t& pos)
+{
   const search_position_t& _pos = pos;
   return const_cast<staged_position_t<STAGE>&>(cast_down<STAGE>(_pos));
 }
 
 template <match_stage_t STAGE>
-staged_position_t<STAGE>& cast_down_fill_0(search_position_t& pos) {
+staged_position_t<STAGE>&
+cast_down_fill_0(search_position_t& pos)
+{
   if constexpr (STAGE == STAGE_LEFT) {
     return pos;
-  } if constexpr (STAGE == STAGE_STRING) {
+  }
+  if constexpr (STAGE == STAGE_STRING) {
     pos.index = 0;
     return pos.nxt;
   } else if constexpr (STAGE == STAGE_RIGHT) {
@@ -344,10 +427,16 @@ staged_position_t<STAGE>& cast_down_fill_0(search_position_t& pos) {
   }
 }
 
-inline search_position_t&& normalize(search_position_t&& pos) { return std::move(pos); }
+inline search_position_t&&
+normalize(search_position_t&& pos)
+{
+  return std::move(pos);
+}
 
 template <match_stage_t STAGE, typename = std::enable_if_t<STAGE != STAGE_TOP>>
-search_position_t normalize(staged_position_t<STAGE>&& pos) {
+search_position_t
+normalize(staged_position_t<STAGE>&& pos)
+{
   if (pos.is_end()) {
     return search_position_t::end();
   }
@@ -370,35 +459,70 @@ struct container_range_t {
   extent_len_t node_size;
 };
 
-enum class ContainerType { ITERATIVE, INDEXABLE };
+enum class ContainerType {
+  ITERATIVE,
+  INDEXABLE
+};
 
 // the input type to construct the value during insert.
-template <node_type_t> struct value_input_type;
-template<> struct value_input_type<node_type_t::INTERNAL> { using type = laddr_t; };
-template<> struct value_input_type<node_type_t::LEAF> { using type = value_config_t; };
+template <node_type_t>
+struct value_input_type;
+
+template <>
+struct value_input_type<node_type_t::INTERNAL> {
+  using type = laddr_t;
+};
+
+template <>
+struct value_input_type<node_type_t::LEAF> {
+  using type = value_config_t;
+};
+
 template <node_type_t NODE_TYPE>
 using value_input_type_t = typename value_input_type<NODE_TYPE>::type;
 
-template <node_type_t> struct value_type;
-template<> struct value_type<node_type_t::INTERNAL> { using type = laddr_packed_t; };
-template<> struct value_type<node_type_t::LEAF> { using type = value_header_t; };
+template <node_type_t>
+struct value_type;
+
+template <>
+struct value_type<node_type_t::INTERNAL> {
+  using type = laddr_packed_t;
+};
+
+template <>
+struct value_type<node_type_t::LEAF> {
+  using type = value_header_t;
+};
+
 template <node_type_t NODE_TYPE>
 using value_type_t = typename value_type<NODE_TYPE>::type;
 
 template <node_type_t NODE_TYPE, match_stage_t STAGE>
 struct staged_result_t {
   using me_t = staged_result_t<NODE_TYPE, STAGE>;
-  bool is_end() const { return position.is_end(); }
 
-  static me_t end() {
+  bool
+  is_end() const
+  {
+    return position.is_end();
+  }
+
+  static me_t
+  end()
+  {
     return {staged_position_t<STAGE>::end(), nullptr, MSTAT_END};
   }
+
   template <typename T = me_t>
-  static std::enable_if_t<STAGE != STAGE_BOTTOM, T> from_nxt(
-      index_t index, const staged_result_t<NODE_TYPE, STAGE - 1>& nxt_stage_result) {
-    return {{index, nxt_stage_result.position},
-            nxt_stage_result.p_value,
-            nxt_stage_result.mstat};
+  static std::enable_if_t<STAGE != STAGE_BOTTOM, T>
+  from_nxt(
+      index_t index,
+      const staged_result_t<NODE_TYPE, STAGE - 1>& nxt_stage_result)
+  {
+    return {
+        {index, nxt_stage_result.position},
+        nxt_stage_result.p_value,
+        nxt_stage_result.mstat};
   }
 
   staged_position_t<STAGE> position;
@@ -410,13 +534,19 @@ template <node_type_t NODE_TYPE>
 using lookup_result_t = staged_result_t<NODE_TYPE, STAGE_TOP>;
 
 template <node_type_t NODE_TYPE>
-lookup_result_t<NODE_TYPE>&& normalize(
-    lookup_result_t<NODE_TYPE>&& result) { return std::move(result); }
+lookup_result_t<NODE_TYPE>&&
+normalize(lookup_result_t<NODE_TYPE>&& result)
+{
+  return std::move(result);
+}
 
-template <node_type_t NODE_TYPE, match_stage_t STAGE,
-          typename = std::enable_if_t<STAGE != STAGE_TOP>>
-lookup_result_t<NODE_TYPE> normalize(
-    staged_result_t<NODE_TYPE, STAGE>&& result) {
+template <
+    node_type_t NODE_TYPE,
+    match_stage_t STAGE,
+    typename = std::enable_if_t<STAGE != STAGE_TOP>>
+lookup_result_t<NODE_TYPE>
+normalize(staged_result_t<NODE_TYPE, STAGE>&& result)
+{
   // FIXME: assert result.mstat correct
   return {normalize(std::move(result.position)), result.p_value, result.mstat};
 }
@@ -435,26 +565,37 @@ struct node_stats_t {
 
 namespace std {
 template <crimson::os::seastore::onode::match_stage_t STAGE>
-std::ostream& operator<<(
+std::ostream&
+operator<<(
     std::ostream& os,
-    const crimson::os::seastore::onode::staged_position_t<STAGE>& pos) {
+    const crimson::os::seastore::onode::staged_position_t<STAGE>& pos)
+{
   return os << pos.fmt_print();
 }
 } // namespace std
 
-
 namespace fmt {
 template <crimson::os::seastore::onode::match_stage_t S>
 struct formatter<crimson::os::seastore::onode::staged_position_t<S>> {
-  constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(fmt::format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const crimson::os::seastore::onode::staged_position_t<S>& k,
-              FormatContext& ctx) const {
+  auto
+  format(
+      const crimson::os::seastore::onode::staged_position_t<S>& k,
+      FormatContext& ctx) const
+  {
     return fmt::format_to(ctx.out(), "{}", k.fmt_print());
   }
 };
 
 #if FMT_VERSION >= 90000
-template <> struct formatter<crimson::os::seastore::onode::MatchHistory> : ostream_formatter {};
+template <>
+struct formatter<crimson::os::seastore::onode::MatchHistory>
+  : ostream_formatter {};
 #endif
-}  // namespace fmt
+} // namespace fmt

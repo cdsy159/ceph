@@ -1,11 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <atomic>
 #include <cstdlib>
 #include <ctime>
+#include <iostream> // for std::cout
 #include <sstream>
 #include <string>
 #include <vector>
+
 #include <boost/scoped_ptr.hpp>
 
 #include "common/ceph_argparse.h"
@@ -14,23 +17,20 @@
 #include "common/config.h"
 #include "common/snap_types.h"
 #include "global/global_init.h"
-#include "include/buffer.h"
 #include "include/Context.h"
+#include "include/buffer.h"
 #include "include/stringify.h"
 #include "osdc/ObjectCacher.h"
 
 #include "FakeWriteback.h"
 #include "MemWriteback.h"
 
-#include <atomic>
-#include <iostream> // for std::cout
-
 using namespace std;
 
 // XXX: Only tests default namespace
 struct op_data {
-  op_data(const std::string &oid, uint64_t offset, uint64_t len, bool read)
-    : extent(oid, 0, offset, len, 0), is_read(read)
+  op_data(const std::string& oid, uint64_t offset, uint64_t len, bool read) :
+    extent(oid, 0, offset, len, 0), is_read(read)
   {
     extent.oloc.pool = 0;
     extent.buffer_extents.push_back(make_pair(0, len));
@@ -39,40 +39,48 @@ struct op_data {
   ObjectExtent extent;
   bool is_read;
   ceph::bufferlist result;
-  std::atomic<unsigned> done = { 0 };
+  std::atomic<unsigned> done = {0};
 };
 
 class C_Count : public Context {
-  op_data *m_op;
-  std::atomic<unsigned> *m_outstanding = nullptr;
+  op_data* m_op;
+  std::atomic<unsigned>* m_outstanding = nullptr;
+
 public:
-  C_Count(op_data *op, std::atomic<unsigned> *outstanding)
-    : m_op(op), m_outstanding(outstanding) {}
-  void finish(int r) override {
+  C_Count(op_data* op, std::atomic<unsigned>* outstanding) :
+    m_op(op), m_outstanding(outstanding)
+  {}
+
+  void
+  finish(int r) override
+  {
     m_op->done++;
     ceph_assert(*m_outstanding > 0);
     (*m_outstanding)--;
   }
 };
 
-int stress_test(uint64_t num_ops, uint64_t num_objs,
-		uint64_t max_obj_size, uint64_t delay_ns,
-		uint64_t max_op_len, float percent_reads)
+int
+stress_test(
+    uint64_t num_ops,
+    uint64_t num_objs,
+    uint64_t max_obj_size,
+    uint64_t delay_ns,
+    uint64_t max_op_len,
+    float percent_reads)
 {
   ceph::mutex lock = ceph::make_mutex("object_cacher_stress::object_cacher");
   FakeWriteback writeback(g_ceph_context, &lock, delay_ns);
 
-  ObjectCacher obc(g_ceph_context, "test", writeback, lock, NULL, NULL,
-		   g_conf()->client_oc_size,
-		   g_conf()->client_oc_max_objects,
-		   g_conf()->client_oc_max_dirty,
-		   g_conf()->client_oc_target_dirty,
-		   g_conf()->client_oc_max_dirty_age,
-		   true);
+  ObjectCacher obc(
+      g_ceph_context, "test", writeback, lock, NULL, NULL,
+      g_conf()->client_oc_size, g_conf()->client_oc_max_objects,
+      g_conf()->client_oc_max_dirty, g_conf()->client_oc_target_dirty,
+      g_conf()->client_oc_max_dirty_age, true);
   obc.start();
 
-  std::atomic<unsigned> outstanding_reads = { 0 };
-  vector<std::shared_ptr<op_data> > ops;
+  std::atomic<unsigned> outstanding_reads = {0};
+  vector<std::shared_ptr<op_data>> ops;
   ObjectCacher::ObjectSet object_set(NULL, 0, 0);
   SnapContext snapc;
   ceph::buffer::ptr bp(max_op_len);
@@ -83,12 +91,12 @@ int stress_test(uint64_t num_ops, uint64_t num_objs,
 
   // schedule ops
   std::cout << "Test configuration:\n\n"
-	    << setw(10) << "ops: " << num_ops << "\n"
-	    << setw(10) << "objects: " << num_objs << "\n"
-	    << setw(10) << "obj size: " << max_obj_size << "\n"
-	    << setw(10) << "delay: " << delay_ns << "\n"
-	    << setw(10) << "max op len: " << max_op_len << "\n"
-	    << setw(10) << "percent reads: " << percent_reads << "\n\n";
+            << setw(10) << "ops: " << num_ops << "\n"
+            << setw(10) << "objects: " << num_objs << "\n"
+            << setw(10) << "obj size: " << max_obj_size << "\n"
+            << setw(10) << "delay: " << delay_ns << "\n"
+            << setw(10) << "max op len: " << max_op_len << "\n"
+            << setw(10) << "percent reads: " << percent_reads << "\n\n";
 
   for (uint64_t i = 0; i < num_ops; ++i) {
     uint64_t offset = random() % max_obj_size;
@@ -99,25 +107,24 @@ int stress_test(uint64_t num_ops, uint64_t num_objs,
     bool is_read = random() < percent_reads * float(RAND_MAX);
     std::shared_ptr<op_data> op(new op_data(oid, offset, length, is_read));
     ops.push_back(op);
-    std::cout << "op " << i << " " << (is_read ? "read" : "write")
-	      << " " << op->extent << "\n";
+    std::cout << "op " << i << " " << (is_read ? "read" : "write") << " "
+              << op->extent << "\n";
     if (op->is_read) {
-      ObjectCacher::OSDRead *rd = obc.prepare_read(CEPH_NOSNAP, &op->result, 0);
+      ObjectCacher::OSDRead* rd = obc.prepare_read(CEPH_NOSNAP, &op->result, 0);
       rd->extents.push_back(op->extent);
       outstanding_reads++;
-      Context *completion = new C_Count(op.get(), &outstanding_reads);
+      Context* completion = new C_Count(op.get(), &outstanding_reads);
       lock.lock();
       int r = obc.readx(rd, &object_set, completion);
       lock.unlock();
       ceph_assert(r >= 0);
       if ((uint64_t)r == length)
-	completion->complete(r);
+        completion->complete(r);
       else
-	ceph_assert(r == 0);
+        ceph_assert(r == 0);
     } else {
-      ObjectCacher::OSDWrite *wr = obc.prepare_write(snapc, bl,
-						     ceph::real_clock::zero(), 0,
-						     ++journal_tid);
+      ObjectCacher::OSDWrite* wr = obc.prepare_write(
+          snapc, bl, ceph::real_clock::zero(), 0, ++journal_tid);
       wr->extents.push_back(op->extent);
       lock.lock();
       obc.writex(wr, &object_set, NULL);
@@ -134,7 +141,7 @@ int stress_test(uint64_t num_ops, uint64_t num_objs,
     while (done == 0) {
       done = ops[i]->done;
       if (!done) {
-	usleep(500);
+        usleep(500);
       }
     }
     if (done > 1) {
@@ -151,7 +158,7 @@ int stress_test(uint64_t num_ops, uint64_t num_objs,
   ceph::mutex mylock = ceph::make_mutex("librbd::ImageCtx::flush_cache");
   ceph::condition_variable cond;
   bool done;
-  Context *onfinish = new C_SafeCond(mylock, cond, &done, &r);
+  Context* onfinish = new C_SafeCond(mylock, cond, &done, &r);
   lock.lock();
   bool already_flushed = obc.flush_set(&object_set, onfinish);
   std::cout << "already flushed = " << already_flushed << std::endl;
@@ -176,19 +183,20 @@ int stress_test(uint64_t num_ops, uint64_t num_objs,
   return EXIT_SUCCESS;
 }
 
-int correctness_test(uint64_t delay_ns)
+int
+correctness_test(uint64_t delay_ns)
 {
   std::cerr << "starting correctness test" << std::endl;
   ceph::mutex lock = ceph::make_mutex("object_cacher_stress::object_cacher");
   MemWriteback writeback(g_ceph_context, &lock, delay_ns);
 
-  ObjectCacher obc(g_ceph_context, "test", writeback, lock, NULL, NULL,
-		   1<<21, // max cache size, 2MB
-		   1, // max objects, just one
-		   1<<18, // max dirty, 256KB
-		   1<<17, // target dirty, 128KB
-		   g_conf()->client_oc_max_dirty_age,
-		   true);
+  ObjectCacher obc(
+      g_ceph_context, "test", writeback, lock, NULL, NULL,
+      1 << 21, // max cache size, 2MB
+      1, // max objects, just one
+      1 << 18, // max dirty, 256KB
+      1 << 17, // target dirty, 128KB
+      g_conf()->client_oc_max_dirty_age, true);
   obc.start();
   std::cerr << "just start()ed ObjectCacher" << std::endl;
 
@@ -197,18 +205,17 @@ int correctness_test(uint64_t delay_ns)
   std::string oid("correctness_test_obj");
   ObjectCacher::ObjectSet object_set(NULL, 0, 0);
   ceph::bufferlist zeroes_bl;
-  zeroes_bl.append_zero(1<<20);
+  zeroes_bl.append_zero(1 << 20);
 
   // set up a 4MB all-zero object
   std::cerr << "writing 4x1MB object" << std::endl;
   std::map<int, C_SaferCond> create_finishers;
   for (int i = 0; i < 4; ++i) {
-    ObjectCacher::OSDWrite *wr = obc.prepare_write(snapc, zeroes_bl,
-						   ceph::real_clock::zero(), 0,
-						   ++journal_tid);
-    ObjectExtent extent(oid, 0, zeroes_bl.length()*i, zeroes_bl.length(), 0);
+    ObjectCacher::OSDWrite* wr = obc.prepare_write(
+        snapc, zeroes_bl, ceph::real_clock::zero(), 0, ++journal_tid);
+    ObjectExtent extent(oid, 0, zeroes_bl.length() * i, zeroes_bl.length(), 0);
     extent.oloc.pool = 0;
-    extent.buffer_extents.push_back(make_pair(0, 1<<20));
+    extent.buffer_extents.push_back(make_pair(0, 1 << 20));
     wr->extents.push_back(extent);
     lock.lock();
     obc.writex(wr, &object_set, &create_finishers[i]);
@@ -217,17 +224,16 @@ int correctness_test(uint64_t delay_ns)
 
   // write some 1-valued bits at 256-KB intervals for checking consistency
   std::cerr << "Writing some 0xff values" << std::endl;
-  ceph::buffer::ptr ones(1<<16);
+  ceph::buffer::ptr ones(1 << 16);
   memset(ones.c_str(), 0xff, ones.length());
   ceph::bufferlist ones_bl;
   ones_bl.append(ones);
-  for (int i = 1<<18; i < 1<<22; i+=1<<18) {
-    ObjectCacher::OSDWrite *wr = obc.prepare_write(snapc, ones_bl,
-						   ceph::real_clock::zero(), 0,
-						   ++journal_tid);
+  for (int i = 1 << 18; i < 1 << 22; i += 1 << 18) {
+    ObjectCacher::OSDWrite* wr = obc.prepare_write(
+        snapc, ones_bl, ceph::real_clock::zero(), 0, ++journal_tid);
     ObjectExtent extent(oid, 0, i, ones_bl.length(), 0);
     extent.oloc.pool = 0;
-    extent.buffer_extents.push_back(make_pair(0, 1<<16));
+    extent.buffer_extents.push_back(make_pair(0, 1 << 16));
     wr->extents.push_back(extent);
     lock.lock();
     obc.writex(wr, &object_set, &create_finishers[i]);
@@ -254,10 +260,11 @@ int correctness_test(uint64_t delay_ns)
   std::cout << "Reading back half of object (1<<21~1<<21)" << std::endl;
   bufferlist readbl;
   C_SaferCond backreadcond;
-  ObjectCacher::OSDRead *back_half_rd = obc.prepare_read(CEPH_NOSNAP, &readbl, 0);
-  ObjectExtent back_half_extent(oid, 0, 1<<21, 1<<21, 0);
+  ObjectCacher::OSDRead* back_half_rd =
+      obc.prepare_read(CEPH_NOSNAP, &readbl, 0);
+  ObjectExtent back_half_extent(oid, 0, 1 << 21, 1 << 21, 0);
   back_half_extent.oloc.pool = 0;
-  back_half_extent.buffer_extents.push_back(make_pair(0, 1<<21));
+  back_half_extent.buffer_extents.push_back(make_pair(0, 1 << 21));
   back_half_rd->extents.push_back(back_half_extent);
   lock.lock();
   int r = obc.readx(back_half_rd, &object_set, &backreadcond);
@@ -268,7 +275,7 @@ int correctness_test(uint64_t delay_ns)
     r = backreadcond.wait();
   }
 
-  ceph_assert(r == 1<<21);
+  ceph_assert(r == 1 << 21);
 
   /* Read the whole object in,
    * verify we have to wait for it to complete,
@@ -276,12 +283,12 @@ int correctness_test(uint64_t delay_ns)
    * and check consistency */
 
   readbl.clear();
-  std::cout<< "Reading whole object (0~1<<22)" << std::endl;
+  std::cout << "Reading whole object (0~1<<22)" << std::endl;
   C_SaferCond frontreadcond;
-  ObjectCacher::OSDRead *whole_rd = obc.prepare_read(CEPH_NOSNAP, &readbl, 0);
-  ObjectExtent whole_extent(oid, 0, 0, 1<<22, 0);
+  ObjectCacher::OSDRead* whole_rd = obc.prepare_read(CEPH_NOSNAP, &readbl, 0);
+  ObjectExtent whole_extent(oid, 0, 0, 1 << 22, 0);
   whole_extent.oloc.pool = 0;
-  whole_extent.buffer_extents.push_back(make_pair(0, 1<<22));
+  whole_extent.buffer_extents.push_back(make_pair(0, 1 << 22));
   whole_rd->extents.push_back(whole_extent);
   lock.lock();
   r = obc.readx(whole_rd, &object_set, &frontreadcond);
@@ -289,12 +296,11 @@ int correctness_test(uint64_t delay_ns)
   ceph_assert(r == 0);
   std::cout << "Data (correctly) not available without fetching" << std::endl;
 
-  ObjectCacher::OSDWrite *verify_wr = obc.prepare_write(snapc, ones_bl,
-							ceph::real_clock::zero(), 0,
-							++journal_tid);
-  ObjectExtent verify_extent(oid, 0, (1<<18)+(1<<16), ones_bl.length(), 0);
+  ObjectCacher::OSDWrite* verify_wr = obc.prepare_write(
+      snapc, ones_bl, ceph::real_clock::zero(), 0, ++journal_tid);
+  ObjectExtent verify_extent(oid, 0, (1 << 18) + (1 << 16), ones_bl.length(), 0);
   verify_extent.oloc.pool = 0;
-  verify_extent.buffer_extents.push_back(make_pair(0, 1<<16));
+  verify_extent.buffer_extents.push_back(make_pair(0, 1 << 16));
   verify_wr->extents.push_back(verify_extent);
   C_SaferCond verify_finisher;
   obc.writex(verify_wr, &object_set, &verify_finisher);
@@ -307,17 +313,19 @@ int correctness_test(uint64_t delay_ns)
 
   std::cout << "Validating data" << std::endl;
 
-  for (int i = 1<<18; i < 1<<22; i+=1<<18) {
+  for (int i = 1 << 18; i < 1 << 22; i += 1 << 18) {
     bufferlist ones_maybe;
     ones_maybe.substr_of(readbl, i, ones_bl.length());
-    ceph_assert(0 == memcmp(ones_maybe.c_str(), ones_bl.c_str(), ones_bl.length()));
+    ceph_assert(
+        0 == memcmp(ones_maybe.c_str(), ones_bl.c_str(), ones_bl.length()));
   }
   bufferlist ones_maybe;
-  ones_maybe.substr_of(readbl, (1<<18)+(1<<16), ones_bl.length());
-  ceph_assert(0 == memcmp(ones_maybe.c_str(), ones_bl.c_str(), ones_bl.length()));
+  ones_maybe.substr_of(readbl, (1 << 18) + (1 << 16), ones_bl.length());
+  ceph_assert(
+      0 == memcmp(ones_maybe.c_str(), ones_bl.c_str(), ones_bl.length()));
 
   std::cout << "validated that data is 0xff where it should be" << std::endl;
-  
+
   lock.lock();
   C_SaferCond flushcond2;
   done = obc.flush_all(&flushcond2);
@@ -334,7 +342,7 @@ int correctness_test(uint64_t delay_ns)
     vector<ObjectExtent> discard_extents;
     int i = 0;
     for (auto oi = object_set.objects.begin(); !oi.end(); ++oi) {
-      discard_extents.emplace_back(oid, i++, 0, 1<<22, 0);
+      discard_extents.emplace_back(oid, i++, 0, 1 << 22, 0);
     }
     obc.discard_set(&object_set, discard_extents);
     lock.unlock();
@@ -348,16 +356,17 @@ int correctness_test(uint64_t delay_ns)
   std::cout << "Testing ObjectCacher correctness complete" << std::endl;
   return EXIT_SUCCESS;
 
- fail:
+fail:
   return EXIT_FAILURE;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
   long long delay_ns = 0;
   long long num_ops = 1000;
@@ -371,40 +380,48 @@ int main(int argc, const char **argv)
   std::ostringstream err;
   std::vector<const char*>::iterator i;
   for (i = args.begin(); i != args.end();) {
-    if (ceph_argparse_witharg(args, i, &delay_ns, err, "--delay-ns", (char*)NULL)) {
+    if (ceph_argparse_witharg(
+            args, i, &delay_ns, err, "--delay-ns", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &num_ops, err, "--ops", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &num_ops, err, "--ops", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &num_objs, err, "--objects", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &num_objs, err, "--objects", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &obj_bytes, err, "--obj-size", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &obj_bytes, err, "--obj-size", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &max_len, err, "--max-op-size", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &max_len, err, "--max-op-size", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &percent_reads, err, "--percent-read", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &percent_reads, err, "--percent-read",
+                   (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
-    } else if (ceph_argparse_witharg(args, i, &seed, err, "--seed", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &seed, err, "--seed", (char*)NULL)) {
       if (!err.str().empty()) {
-	cerr << argv[0] << ": " << err.str() << std::endl;
-	return EXIT_FAILURE;
+        cerr << argv[0] << ": " << err.str() << std::endl;
+        return EXIT_FAILURE;
       }
     } else if (ceph_argparse_flag(args, i, "--stress-test", NULL)) {
       stress = true;
@@ -418,7 +435,8 @@ int main(int argc, const char **argv)
 
   if (stress) {
     srandom(seed);
-    return stress_test(num_ops, num_objs, obj_bytes, delay_ns, max_len, percent_reads);
+    return stress_test(
+        num_ops, num_objs, obj_bytes, delay_ns, max_len, percent_reads);
   }
   if (correctness) {
     return correctness_test(delay_ns);

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -28,18 +28,30 @@ public:
   ceph::buffer::list mon_status_json;
   ceph::buffer::list health_json;
 
-  std::string_view get_type_name() const override { return "mgrdigest"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mgrdigest";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << get_type_name();
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(mon_status_json, p);
     decode(health_json, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(mon_status_json, payload);
     encode(health_json, payload);
@@ -47,14 +59,16 @@ public:
 
 private:
   MMgrDigest() :
-    Message{MSG_MGR_DIGEST} {}
+    Message{MSG_MGR_DIGEST}
+  {}
+
   ~MMgrDigest() final {}
 
-  using RefCountedObject::put;
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

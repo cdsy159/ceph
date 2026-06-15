@@ -3,21 +3,28 @@
 
 #pragma once
 
-#include <vector>
 #include <string>
-
-#include "osd/OSDMap.h"
+#include <vector>
 
 #include "messages/MOSDOp.h"
+#include "osd/OSDMap.h"
 
 class OpInfo {
 public:
   struct ClassInfo {
-    ClassInfo(std::string&& class_name, std::string&& method_name,
-              bool read, bool write, bool allowed) :
-      class_name(std::move(class_name)), method_name(std::move(method_name)),
-      read(read), write(write), allowed(allowed)
+    ClassInfo(
+        std::string&& class_name,
+        std::string&& method_name,
+        bool read,
+        bool write,
+        bool allowed) :
+      class_name(std::move(class_name)),
+      method_name(std::move(method_name)),
+      read(read),
+      write(write),
+      allowed(allowed)
     {}
+
     const std::string class_name;
     const std::string method_name;
     const bool read, write, allowed;
@@ -29,23 +36,32 @@ private:
 
   void set_rmw_flags(int flags);
 
-  void add_class(std::string&& class_name, std::string&& method_name,
-                 bool read, bool write, bool allowed) {
-    classes.emplace_back(std::move(class_name), std::move(method_name),
-                          read, write, allowed);
+  void
+  add_class(
+      std::string&& class_name,
+      std::string&& method_name,
+      bool read,
+      bool write,
+      bool allowed)
+  {
+    classes.emplace_back(
+        std::move(class_name), std::move(method_name), read, write, allowed);
   }
 
 public:
-
-  void clear() {
+  void
+  clear()
+  {
     rmw_flags = 0;
   }
 
-  uint64_t get_flags() const {
+  uint64_t
+  get_flags() const
+  {
     return rmw_flags;
   }
 
-  bool check_rmw(int flag) const ;
+  bool check_rmw(int flag) const;
   bool may_read() const;
   bool may_read_data() const;
   bool may_write() const;
@@ -75,15 +91,15 @@ public:
   void set_read_data();
   void set_ec_direct_read();
 
+  int set_from_op(const MOSDOp* m, const OSDMap& osdmap);
   int set_from_op(
-    const MOSDOp *m,
-    const OSDMap &osdmap);
-  int set_from_op(
-    const std::vector<OSDOp> &ops,
-    const pg_t &pg,
-    const OSDMap &osdmap);
+      const std::vector<OSDOp>& ops,
+      const pg_t& pg,
+      const OSDMap& osdmap);
 
-  std::vector<ClassInfo> get_classes() const {
+  std::vector<ClassInfo>
+  get_classes() const
+  {
     return classes;
   }
 };

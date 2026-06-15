@@ -7,13 +7,12 @@
 #include <seastar/core/shared_mutex.hh>
 
 #include "common/ceph_context.h"
-#include "os/ObjectStore.h"
-#include "osd/osd_types.h"
-
 #include "crimson/common/gated.h"
 #include "crimson/os/alienstore/thread_pool.h"
 #include "crimson/os/futurized_collection.h"
 #include "crimson/os/futurized_store.h"
+#include "os/ObjectStore.h"
+#include "osd/osd_types.h"
 
 namespace ceph::os {
 class Transaction;
@@ -21,12 +20,13 @@ class Transaction;
 
 namespace crimson::os {
 using coll_core_t = FuturizedStore::coll_core_t;
-class AlienStore final : public FuturizedStore,
-                         public FuturizedStore::Shard {
+
+class AlienStore final : public FuturizedStore, public FuturizedStore::Shard {
 public:
-  AlienStore(const std::string& type,
-             const std::string& path,
-             const ConfigValues& values);
+  AlienStore(
+      const std::string& type,
+      const std::string& path,
+      const ConfigValues& values);
   ~AlienStore() override;
 
   seastar::future<uint32_t> start() override;
@@ -35,109 +35,122 @@ public:
   seastar::future<> umount() override;
 
   base_errorator::future<bool> exists(
-    CollectionRef c,
-    const ghobject_t& oid,
-    uint32_t op_flags = 0) override;
+      CollectionRef c,
+      const ghobject_t& oid,
+      uint32_t op_flags = 0) override;
   mkfs_ertr::future<> mkfs(uuid_d new_osd_fsid) override;
-  read_errorator::future<ceph::bufferlist> read(CollectionRef c,
-                                   const ghobject_t& oid,
-                                   uint64_t offset,
-                                   size_t len,
-                                   uint32_t op_flags = 0) override;
-  read_errorator::future<ceph::bufferlist> readv(CollectionRef c,
-						 const ghobject_t& oid,
-						 interval_set<uint64_t>& m,
-						 uint32_t op_flags = 0) override;
+  read_errorator::future<ceph::bufferlist> read(
+      CollectionRef c,
+      const ghobject_t& oid,
+      uint64_t offset,
+      size_t len,
+      uint32_t op_flags = 0) override;
+  read_errorator::future<ceph::bufferlist> readv(
+      CollectionRef c,
+      const ghobject_t& oid,
+      interval_set<uint64_t>& m,
+      uint32_t op_flags = 0) override;
 
   get_attr_errorator::future<ceph::bufferlist> get_attr(
-    CollectionRef c,
-    const ghobject_t& oid,
-    std::string_view name,
-    uint32_t op_flags = 0) const override;
+      CollectionRef c,
+      const ghobject_t& oid,
+      std::string_view name,
+      uint32_t op_flags = 0) const override;
   get_attrs_ertr::future<attrs_t> get_attrs(
-    CollectionRef c,
-    const ghobject_t& oid,
-    uint32_t op_flags = 0) override;
+      CollectionRef c,
+      const ghobject_t& oid,
+      uint32_t op_flags = 0) override;
 
   read_errorator::future<omap_values_t> omap_get_values(
-    CollectionRef c,
-    const ghobject_t& oid,
-    const omap_keys_t& keys,
-    uint32_t op_flags = 0) override;
+      CollectionRef c,
+      const ghobject_t& oid,
+      const omap_keys_t& keys,
+      uint32_t op_flags = 0) override;
 
   seastar::future<std::tuple<std::vector<ghobject_t>, ghobject_t>> list_objects(
-    CollectionRef c,
-    const ghobject_t& start,
-    const ghobject_t& end,
-    uint64_t limit,
-    uint32_t op_flags = 0) const override;
+      CollectionRef c,
+      const ghobject_t& start,
+      const ghobject_t& end,
+      uint64_t limit,
+      uint32_t op_flags = 0) const override;
 
   read_errorator::future<ObjectStore::omap_iter_ret_t> omap_iterate(
-    CollectionRef c,
-    const ghobject_t &oid,
-    ObjectStore::omap_iter_seek_t start_from,
-    omap_iterate_cb_t callback,
-    uint32_t op_flags = 0,
-    omap_iterate_conf_t on_conflict = nullptr) override;
+      CollectionRef c,
+      const ghobject_t& oid,
+      ObjectStore::omap_iter_seek_t start_from,
+      omap_iterate_cb_t callback,
+      uint32_t op_flags = 0,
+      omap_iterate_conf_t on_conflict = nullptr) override;
 
-  seastar::future<CollectionRef> create_new_collection(const coll_t& cid) override;
+  seastar::future<CollectionRef> create_new_collection(
+      const coll_t& cid) override;
   seastar::future<CollectionRef> open_collection(const coll_t& cid) override;
   seastar::future<std::vector<coll_core_t>> list_collections() override;
-  seastar::future<> set_collection_opts(CollectionRef c,
-                                        const pool_opts_t& opts) override;
+  seastar::future<> set_collection_opts(
+      CollectionRef c,
+      const pool_opts_t& opts) override;
 
   seastar::future<> do_transaction_no_callbacks(
-    CollectionRef c,
-    ceph::os::Transaction&& txn) override;
+      CollectionRef c,
+      ceph::os::Transaction&& txn) override;
 
   // error injection
   seastar::future<> inject_data_error(const ghobject_t& o) override;
   seastar::future<> inject_mdata_error(const ghobject_t& o) override;
 
-  seastar::future<> write_meta(const std::string& key,
-                  const std::string& value) override;
+  seastar::future<> write_meta(
+      const std::string& key,
+      const std::string& value) override;
   seastar::future<std::tuple<int, std::string>> read_meta(
-    const std::string& key) override;
+      const std::string& key) override;
   uuid_d get_fsid() const override;
   seastar::future<store_statfs_t> stat() const override;
   seastar::future<store_statfs_t> pool_statfs(int64_t pool_id) const override;
   unsigned get_max_attr_name_length() const override;
   seastar::future<struct stat> stat(
-    CollectionRef,
-    const ghobject_t&,
-    uint32_t op_flags = 0) override;
+      CollectionRef,
+      const ghobject_t&,
+      uint32_t op_flags = 0) override;
   seastar::future<std::string> get_default_device_class() final;
   get_attr_errorator::future<ceph::bufferlist> omap_get_header(
-    CollectionRef,
-    const ghobject_t&,
-    uint32_t) override;
+      CollectionRef,
+      const ghobject_t&,
+      uint32_t) override;
   read_errorator::future<std::map<uint64_t, uint64_t>> fiemap(
-    CollectionRef,
-    const ghobject_t&,
-    uint64_t off,
-    uint64_t len,
-    uint32_t op_flags) override;
+      CollectionRef,
+      const ghobject_t&,
+      uint64_t off,
+      uint64_t len,
+      uint32_t op_flags) override;
 
-  BackendStore get_backend_store(store_index_t store_index) override {
+  BackendStore
+  get_backend_store(store_index_t store_index) override
+  {
     return BackendStore(*this, GLOBAL_STORE, store_index);
   }
 
-  FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) override {
+  FuturizedStore::Shard&
+  get_sharded_store(store_index_t store_index = 0) override
+  {
     return *this;
   }
 
 private:
-
   template <class... Args>
-  auto do_with_op_gate(Args&&... args) const {
-    return op_gates.simple_dispatch("AlienStore::do_with_op_gate",
-      // perfect forwarding in lambda's closure isn't available in C++17
-      // using tuple as workaround; see: https://stackoverflow.com/a/49902823
-      [args = std::make_tuple(std::forward<Args>(args)...)] () mutable {
-      return std::apply([] (auto&&... args) {
-        return seastar::do_with(std::forward<decltype(args)>(args)...);
-      }, std::move(args));
-    });
+  auto
+  do_with_op_gate(Args&&... args) const
+  {
+    return op_gates.simple_dispatch(
+        "AlienStore::do_with_op_gate",
+        // perfect forwarding in lambda's closure isn't available in C++17
+        // using tuple as workaround; see: https://stackoverflow.com/a/49902823
+        [args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+          return std::apply(
+              [](auto&&... args) {
+                return seastar::do_with(std::forward<decltype(args)>(args)...);
+              },
+              std::move(args));
+        });
   }
 
   mutable std::unique_ptr<crimson::os::ThreadPool> tp;
@@ -173,4 +186,4 @@ private:
   std::unordered_map<coll_t, CollectionRef> coll_map;
   CollectionRef get_alien_coll_ref(ObjectStore::CollectionHandle c);
 };
-}
+} // namespace crimson::os

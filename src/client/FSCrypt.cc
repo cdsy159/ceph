@@ -12,23 +12,24 @@
  * Foundation.  See file COPYING.
  *
  */
-#include "common/errno.h"
-#include "common/safe_io.h"
-#include "common/config.h"
-#include "common/ceph_crypto.h"
-#include "common/debug.h"
-#include "include/ceph_assert.h"
-#include "auth/Crypto.h"
-
 #include "client/FSCrypt.h"
 
 #include <openssl/conf.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
 #include <openssl/core_names.h>
-
+#include <openssl/err.h>
+#include <openssl/evp.h>
 #include <string.h>
+
 #include <shared_mutex>
+
+#include "common/debug.h"
+
+#include "auth/Crypto.h"
+#include "common/ceph_crypto.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "common/safe_io.h"
+#include "include/ceph_assert.h"
 
 #define dout_subsys ceph_subsys_client
 
@@ -42,87 +43,92 @@ using ceph::crypto::HMACSHA512;
 #define CEPH_NOHASH_NAME_MAX (180 - CEPH_CRYPTO_SHA256_DIGESTSIZE)
 
 
-
 /* FIXME: Use boost or similar library to roll your own
  * FIXME: this was copy pasted from common/armor.c with slight modification
  * as needed to use alternative translation table. Code can and should be
  * combined, but need to make sure we do it in a way that doesn't hurt
  * compiler optimizations in the general case.
  * Also relaxed decoding to make it compatible with the kernel client */
-static const char pem_key[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,";
+static const char pem_key[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,";
 
-static int encode_bits(int c)
+static int
+encode_bits(int c)
 {
-	return pem_key[c];
+  return pem_key[c];
 }
 
-static int decode_bits(char c)
+static int
+decode_bits(char c)
 {
-	if (c >= 'A' && c <= 'Z')
-		return c - 'A';
-	if (c >= 'a' && c <= 'z')
-		return c - 'a' + 26;
-	if (c >= '0' && c <= '9')
-		return c - '0' + 52;
-	if (c == '+' || c == '-')
-		return 62;
-	if (c == ',' || c == '/' || c == '_')
-		return 63;
-	if (c == '=')
-		return 0; /* just non-negative, please */
-	return -EINVAL;	
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 26;
+  if (c >= '0' && c <= '9')
+    return c - '0' + 52;
+  if (c == '+' || c == '-')
+    return 62;
+  if (c == ',' || c == '/' || c == '_')
+    return 63;
+  if (c == '=')
+    return 0; /* just non-negative, please */
+  return -EINVAL;
 }
 
-static int set_str_val(char **pdst, const char *end, char c)
+static int
+set_str_val(char** pdst, const char* end, char c)
 {
-	if (*pdst < end) {
-		char *p = *pdst;
-		*p = c;
-		(*pdst)++;
-	} else
-		return -ERANGE;
+  if (*pdst < end) {
+    char* p = *pdst;
+    *p = c;
+    (*pdst)++;
+  } else
+    return -ERANGE;
 
-	return 0;
+  return 0;
 }
 
-static int b64_encode(char *dst, char * const dst_end, const char *src, const char *end)
+static int
+b64_encode(char* dst, char* const dst_end, const char* src, const char* end)
 {
 
-        char *orig_dst = dst;
+  char* orig_dst = dst;
 
-#define SET_DST(c) do { \
-	int __ret = set_str_val(&dst, dst_end, c); \
-	if (__ret < 0) \
-		return __ret; \
-} while (0);
+#define SET_DST(c)                             \
+  do {                                         \
+    int __ret = set_str_val(&dst, dst_end, c); \
+    if (__ret < 0)                             \
+      return __ret;                            \
+  } while (0);
 
-	while (src < end) {
-		unsigned char a;
+  while (src < end) {
+    unsigned char a;
 
-		a = *src++;
-		SET_DST(encode_bits(a >> 2));
-		if (src < end) {
-			unsigned char b;
-			b = *src++;
-			SET_DST(encode_bits(((a & 3) << 4) | (b >> 4)));
-			if (src < end) {
-				unsigned char c;
-				c = *src++;
-				SET_DST(encode_bits(((b & 15) << 2) |
-								(c >> 6)));
-				SET_DST(encode_bits(c & 63));
-			} else {
-				SET_DST(encode_bits((b & 15) << 2));
-			}
-		} else {
-			SET_DST(encode_bits(((a & 3) << 4)));
-		}
-	}
-	*dst = '\0';
-	return (dst - orig_dst);
+    a = *src++;
+    SET_DST(encode_bits(a >> 2));
+    if (src < end) {
+      unsigned char b;
+      b = *src++;
+      SET_DST(encode_bits(((a & 3) << 4) | (b >> 4)));
+      if (src < end) {
+        unsigned char c;
+        c = *src++;
+        SET_DST(encode_bits(((b & 15) << 2) | (c >> 6)));
+        SET_DST(encode_bits(c & 63));
+      } else {
+        SET_DST(encode_bits((b & 15) << 2));
+      }
+    } else {
+      SET_DST(encode_bits(((a & 3) << 4)));
+    }
+  }
+  *dst = '\0';
+  return (dst - orig_dst);
 }
 
-static char get_unarmor_src(const char *src, const char *end, int ofs)
+static char
+get_unarmor_src(const char* src, const char* end, int ofs)
 {
   if (src + ofs < end) {
     return src[ofs];
@@ -130,48 +136,54 @@ static char get_unarmor_src(const char *src, const char *end, int ofs)
   return '=';
 }
 
-int b64_decode(char *dst, char * const dst_end, const char *src, const char *end)
+int
+b64_decode(char* dst, char* const dst_end, const char* src, const char* end)
 {
-	int olen = 0;
+  int olen = 0;
 
-	while (src < end) {
-		int a, b, c, d;
+  while (src < end) {
+    int a, b, c, d;
 
-		if (src[0] == '\n') {
-			src++;
-			continue;
-		}
+    if (src[0] == '\n') {
+      src++;
+      continue;
+    }
 
-		a = decode_bits(get_unarmor_src(src, end, 0));
-		b = decode_bits(get_unarmor_src(src, end, 1));
-		c = decode_bits(get_unarmor_src(src, end, 2));
-		d = decode_bits(get_unarmor_src(src, end, 3));
-		if (a < 0 || b < 0 || c < 0 || d < 0) {
-			return -EINVAL;
-                }
+    a = decode_bits(get_unarmor_src(src, end, 0));
+    b = decode_bits(get_unarmor_src(src, end, 1));
+    c = decode_bits(get_unarmor_src(src, end, 2));
+    d = decode_bits(get_unarmor_src(src, end, 3));
+    if (a < 0 || b < 0 || c < 0 || d < 0) {
+      return -EINVAL;
+    }
 
-		SET_DST((a << 2) | (b >> 4));
-		if (get_unarmor_src(src, end, 2) == '=')
-			return olen + 1;
-		SET_DST(((b & 15) << 4) | (c >> 2));
-		if (get_unarmor_src(src, end, 3) == '=')
-			return olen + 2;
-		SET_DST(((c & 3) << 6) | d);
-		olen += 3;
-		src += 4;
-	}
-	return olen;
+    SET_DST((a << 2) | (b >> 4));
+    if (get_unarmor_src(src, end, 2) == '=')
+      return olen + 1;
+    SET_DST(((b & 15) << 4) | (c >> 2));
+    if (get_unarmor_src(src, end, 3) == '=')
+      return olen + 2;
+    SET_DST(((c & 3) << 6) | d);
+    olen += 3;
+    src += 4;
+  }
+  return olen;
 }
 
-static int calc_hmac_sha512(const char *key, int key_len,
-                             const char *msg, int msg_len,
-                             char *dest, int dest_len)
+static int
+calc_hmac_sha512(
+    const char* key,
+    int key_len,
+    const char* msg,
+    int msg_len,
+    char* dest,
+    int dest_len)
 {
   char hash_sha512[CEPH_CRYPTO_HMACSHA512_DIGESTSIZE];
 
-  HMACSHA512 hmac((const unsigned char *)key, key_len);
-  hmac.Update((const unsigned char *)msg, msg_len);
-  hmac.Final((unsigned char *)hash_sha512);
+  HMACSHA512 hmac((const unsigned char*)key, key_len);
+  hmac.Update((const unsigned char*)msg, msg_len);
+  hmac.Final((unsigned char*)hash_sha512);
 
   auto len = std::min(dest_len, CEPH_CRYPTO_HMACSHA512_DIGESTSIZE);
 
@@ -185,12 +197,18 @@ static int calc_hmac_sha512(const char *key, int key_len,
 //no salt is used since master key is pseudorandom
 //See kernel explaination for more:
 //https://github.com/torvalds/linux/blob/66701750d5565c574af42bef0b789ce0203e3071/fs/crypto/hkdf.c#L41-L43
-static char default_salt[SALT_LEN_DEFAULT] = { 0 };
+static char default_salt[SALT_LEN_DEFAULT] = {0};
 
-static int hkdf_extract(const char *_salt, int salt_len,
-                         const char *ikm, int ikm_len,
-                         char *dest, int dest_len) {
-  const char *salt = _salt;
+static int
+hkdf_extract(
+    const char* _salt,
+    int salt_len,
+    const char* ikm,
+    int ikm_len,
+    char* dest,
+    int dest_len)
+{
+  const char* salt = _salt;
   if (!_salt) {
     salt = default_salt;
     salt_len = SALT_LEN_DEFAULT;
@@ -199,23 +217,27 @@ static int hkdf_extract(const char *_salt, int salt_len,
   return calc_hmac_sha512(salt, salt_len, ikm, ikm_len, dest, dest_len);
 }
 
-static int hkdf_expand(const char *data, int data_len,
-                       const char *info, int info_len,
-                       char *dest, int dest_len)
+static int
+hkdf_expand(
+    const char* data,
+    int data_len,
+    const char* info,
+    int info_len,
+    char* dest,
+    int dest_len)
 {
   int total_len = 0;
 
   char info_buf[info_len + 16];
   memcpy(info_buf, info, info_len);
 
-  char *p = dest;
+  char* p = dest;
 
   for (char i = 1; total_len < dest_len; i++) {
-    *(char *)(info_buf + info_len) =  i;
+    *(char*)(info_buf + info_len) = i;
 
-    int r = calc_hmac_sha512(data, data_len,
-                         info_buf, info_len  + 1,
-                         p, dest_len - total_len);
+    int r = calc_hmac_sha512(
+        data, data_len, info_buf, info_len + 1, p, dest_len - total_len);
     if (r < 0) {
       return r;
     }
@@ -229,30 +251,33 @@ static int hkdf_expand(const char *data, int data_len,
   return total_len;
 }
 
-int fscrypt_fname_unarmor(const char *src, int src_len,
-                          char *result, int max_len)
+int
+fscrypt_fname_unarmor(const char* src, int src_len, char* result, int max_len)
 {
-  return b64_decode(result, result + max_len,
-                    src, src + src_len);
+  return b64_decode(result, result + max_len, src, src + src_len);
 }
 
-int fscrypt_fname_armor(const char *src, int src_len,
-                        char *result, int max_len)
+int
+fscrypt_fname_armor(const char* src, int src_len, char* result, int max_len)
 {
-  return b64_encode(result, result + max_len,
-                    src, src + src_len);
+  return b64_encode(result, result + max_len, src, src + src_len);
 }
 
-int fscrypt_calc_hkdf(char hkdf_context,
-                      const char *nonce, int nonce_len,
-                      const char *salt, int salt_len,
-                      const char *key, int key_len,
-                      char *dest, int dest_len)
+int
+fscrypt_calc_hkdf(
+    char hkdf_context,
+    const char* nonce,
+    int nonce_len,
+    const char* salt,
+    int salt_len,
+    const char* key,
+    int key_len,
+    char* dest,
+    int dest_len)
 {
   char extract_buf[CEPH_CRYPTO_HMACSHA512_DIGESTSIZE];
-  int r = hkdf_extract(salt, salt_len,
-                       key, key_len,
-                       extract_buf, sizeof(extract_buf));
+  int r = hkdf_extract(
+      salt, salt_len, key, key_len, extract_buf, sizeof(extract_buf));
   if (r < 0) {
     return r;
   }
@@ -274,14 +299,13 @@ int fscrypt_calc_hkdf(char hkdf_context,
     len += nonce_len;
   }
 
-  r =  hkdf_expand(extract_buf, extract_len,
-                   info_str, len,
-                   dest, dest_len);
+  r = hkdf_expand(extract_buf, extract_len, info_str, len, dest, dest_len);
 
   return r;
 }
 
-static std::string hex_str(const void *p, int len)
+static std::string
+hex_str(const void* p, int len)
 {
   bufferlist bl;
   bl.append_hole(len);
@@ -291,17 +315,20 @@ static std::string hex_str(const void *p, int len)
   return ss.str();
 }
 
-std::ostream& operator<<(std::ostream& out, const ceph_fscrypt_key_identifier& kid) {
+std::ostream&
+operator<<(std::ostream& out, const ceph_fscrypt_key_identifier& kid)
+{
   out << hex_str(kid.raw, sizeof(kid.raw));
   return out;
 }
 
-int FSCryptKey::init(const char *k, int klen) {
-  int r = fscrypt_calc_hkdf(HKDF_CONTEXT_KEY_IDENTIFIER,
-                            nullptr, 0, /* nonce */
-                            nullptr, 0, /* salt */
-                            (const char *)k, klen,
-                            identifier.raw, sizeof(identifier.raw));
+int
+FSCryptKey::init(const char* k, int klen)
+{
+  int r = fscrypt_calc_hkdf(
+      HKDF_CONTEXT_KEY_IDENTIFIER, nullptr, 0, /* nonce */
+      nullptr, 0, /* salt */
+      (const char*)k, klen, identifier.raw, sizeof(identifier.raw));
   if (r < 0) {
     return r;
   }
@@ -312,14 +339,18 @@ int FSCryptKey::init(const char *k, int klen) {
   return 0;
 }
 
-int FSCryptKey::calc_hkdf(char ctx_identifier,
-                          const char *nonce, int nonce_len,
-                          char *result, int result_len) {
-  int r = fscrypt_calc_hkdf(ctx_identifier,
-                            nonce, nonce_len, /* nonce */
-                            nullptr, 0, /* salt */
-                            (const char *)key.c_str(), key.length(),
-                            result, result_len);
+int
+FSCryptKey::calc_hkdf(
+    char ctx_identifier,
+    const char* nonce,
+    int nonce_len,
+    char* result,
+    int result_len)
+{
+  int r = fscrypt_calc_hkdf(
+      ctx_identifier, nonce, nonce_len, /* nonce */
+      nullptr, 0, /* salt */
+      (const char*)key.c_str(), key.length(), result, result_len);
   if (r < 0) {
     return r;
   }
@@ -327,7 +358,9 @@ int FSCryptKey::calc_hkdf(char ctx_identifier,
   return 0;
 }
 
-int ceph_fscrypt_key_identifier::init(const char *k, int klen) {
+int
+ceph_fscrypt_key_identifier::init(const char* k, int klen)
+{
   if (klen != sizeof(raw)) {
     return -EINVAL;
   }
@@ -336,19 +369,25 @@ int ceph_fscrypt_key_identifier::init(const char *k, int klen) {
   return 0;
 }
 
-int ceph_fscrypt_key_identifier::init(const struct fscrypt_key_specifier& k) {
+int
+ceph_fscrypt_key_identifier::init(const struct fscrypt_key_specifier& k)
+{
   if (k.type != FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER) {
     return -EINVAL;
   }
 
-  return init((const char *)k.u.identifier, sizeof(k.u.identifier));
+  return init((const char*)k.u.identifier, sizeof(k.u.identifier));
 }
 
-bool ceph_fscrypt_key_identifier::operator<(const struct ceph_fscrypt_key_identifier& r) const {
+bool
+ceph_fscrypt_key_identifier::operator<(
+    const struct ceph_fscrypt_key_identifier& r) const
+{
   return (memcmp(raw, r.raw, sizeof(raw)) < 0);
 }
 
-void FSCryptContext::generate_iv(uint64_t block_num, FSCryptIV& iv) const
+void
+FSCryptContext::generate_iv(uint64_t block_num, FSCryptIV& iv) const
 {
   memset(&iv, 0, sizeof(iv));
 
@@ -356,12 +395,14 @@ void FSCryptContext::generate_iv(uint64_t block_num, FSCryptIV& iv) const
   iv.u.block_num = block_num;
 }
 
-void FSCryptContext::generate_new_nonce()
+void
+FSCryptContext::generate_new_nonce()
 {
-  cct->random()->get_bytes((char *)nonce, sizeof(nonce));
+  cct->random()->get_bytes((char*)nonce, sizeof(nonce));
 }
 
-void FSCryptKeyHandler::reset(int64_t _epoch, FSCryptKeyRef k)
+void
+FSCryptKeyHandler::reset(int64_t _epoch, FSCryptKeyRef k)
 {
   std::unique_lock wl{lock};
 
@@ -371,26 +412,30 @@ void FSCryptKeyHandler::reset(int64_t _epoch, FSCryptKeyRef k)
   key = k;
 }
 
-int64_t FSCryptKeyHandler::get_epoch()
+int64_t
+FSCryptKeyHandler::get_epoch()
 {
   std::shared_lock rl{lock};
   return epoch;
 }
 
-FSCryptKeyRef& FSCryptKeyHandler::get_key()
+FSCryptKeyRef&
+FSCryptKeyHandler::get_key()
 {
   std::shared_lock rl{lock};
   return key;
 }
 
-FSCryptDecryptedInodesRef& FSCryptKeyHandler::get_di()
+FSCryptDecryptedInodesRef&
+FSCryptKeyHandler::get_di()
 {
   std::shared_lock rl{lock};
   return di;
 }
 
 //taken from fs/crypto/keyring.h
-bool FSCryptKeyStore::valid_key_spec(const struct fscrypt_key_specifier& k)
+bool
+FSCryptKeyStore::valid_key_spec(const struct fscrypt_key_specifier& k)
 {
   if (k.__reserved)
     return false;
@@ -398,20 +443,20 @@ bool FSCryptKeyStore::valid_key_spec(const struct fscrypt_key_specifier& k)
 }
 
 //taken from fs/crypto/fscrypt_private.h
-int FSCryptKeyStore::master_key_spec_len(const struct fscrypt_key_specifier& spec)
+int
+FSCryptKeyStore::master_key_spec_len(const struct fscrypt_key_specifier& spec)
 {
-        switch (spec.type) {
-        case FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR:
-                return FSCRYPT_KEY_DESCRIPTOR_SIZE;
-        case FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER:
-                return FSCRYPT_KEY_IDENTIFIER_SIZE;
-        }
-        return 0;
+  switch (spec.type) {
+  case FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR:
+    return FSCRYPT_KEY_DESCRIPTOR_SIZE;
+  case FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER:
+    return FSCRYPT_KEY_IDENTIFIER_SIZE;
+  }
+  return 0;
 }
 
-
-
-int FSCryptKeyStore::maybe_add_user(std::list<int>* users, int user)
+int
+FSCryptKeyStore::maybe_add_user(std::list<int>* users, int user)
 {
   ldout(cct, 10) << __FILE__ << ":" << __LINE__ << " user=" << user << dendl;
 
@@ -420,14 +465,18 @@ int FSCryptKeyStore::maybe_add_user(std::list<int>* users, int user)
     ldout(cct, 10) << "maybe_add_user user already added!" << dendl;
     return -EEXIST;
   }
-  
+
   ldout(cct, 10) << "maybe_add_user is not found!, adding" << dendl;
   users->push_back(user);
   ldout(cct, 10) << "maybe_add_user size is now=" << users->size() << dendl;
   return 0;
 }
 
-int FSCryptKeyStore::maybe_remove_user(struct fscrypt_remove_key_arg* arg, std::list<int>* users, int user)
+int
+FSCryptKeyStore::maybe_remove_user(
+    struct fscrypt_remove_key_arg* arg,
+    std::list<int>* users,
+    int user)
 {
   ldout(cct, 10) << __FILE__ << ":" << __LINE__ << " user=" << user << dendl;
   uint32_t status_flags = arg->removal_status_flags;
@@ -451,7 +500,12 @@ int FSCryptKeyStore::maybe_remove_user(struct fscrypt_remove_key_arg* arg, std::
   return 0;
 }
 
-int FSCryptKeyStore::create(const char *k, int klen, FSCryptKeyHandlerRef& key_handler, int user)
+int
+FSCryptKeyStore::create(
+    const char* k,
+    int klen,
+    FSCryptKeyHandlerRef& key_handler,
+    int user)
 {
   auto key = std::make_shared<FSCryptKey>();
 
@@ -485,14 +539,18 @@ int FSCryptKeyStore::create(const char *k, int klen, FSCryptKeyHandlerRef& key_h
     key_handler->present = true;
 
     auto di = new FSCryptDecryptedInodes();
-    key_handler->di = std::shared_ptr<FSCryptDecryptedInodes>((FSCryptDecryptedInodes *)di);
+    key_handler->di =
+        std::shared_ptr<FSCryptDecryptedInodes>((FSCryptDecryptedInodes*)di);
     m[id] = key_handler;
   }
 
   return 0;
 }
 
-int FSCryptKeyStore::_find(const struct ceph_fscrypt_key_identifier& id, FSCryptKeyHandlerRef& kh)
+int
+FSCryptKeyStore::_find(
+    const struct ceph_fscrypt_key_identifier& id,
+    FSCryptKeyHandlerRef& kh)
 {
   auto iter = m.find(id);
   if (iter == m.end()) {
@@ -504,14 +562,18 @@ int FSCryptKeyStore::_find(const struct ceph_fscrypt_key_identifier& id, FSCrypt
   return 0;
 }
 
-int FSCryptKeyStore::find(const struct ceph_fscrypt_key_identifier& id, FSCryptKeyHandlerRef& kh)
+int
+FSCryptKeyStore::find(
+    const struct ceph_fscrypt_key_identifier& id,
+    FSCryptKeyHandlerRef& kh)
 {
   std::shared_lock rl{lock};
 
   return _find(id, kh);
 }
 
-int FSCryptKeyStore::invalidate(struct fscrypt_remove_key_arg* arg, int user)
+int
+FSCryptKeyStore::invalidate(struct fscrypt_remove_key_arg* arg, int user)
 {
   std::unique_lock rl{lock};
 
@@ -549,23 +611,32 @@ out:
   return r;
 }
 
-FSCryptKeyValidator::FSCryptKeyValidator(CephContext *cct, FSCryptKeyHandlerRef& kh, int64_t e) : cct(cct), handler(kh), epoch(e) {
-}
+FSCryptKeyValidator::FSCryptKeyValidator(
+    CephContext* cct,
+    FSCryptKeyHandlerRef& kh,
+    int64_t e) :
+  cct(cct), handler(kh), epoch(e)
+{}
 
-bool FSCryptKeyValidator::is_valid() const {
+bool
+FSCryptKeyValidator::is_valid() const
+{
   return (handler->get_epoch() == epoch);
 }
 
-FSCryptDenc::FSCryptDenc(CephContext *_cct) : cct(_cct), cipher_ctx(EVP_CIPHER_CTX_new()) {}
+FSCryptDenc::FSCryptDenc(CephContext* _cct) :
+  cct(_cct), cipher_ctx(EVP_CIPHER_CTX_new())
+{}
 
-void FSCryptDenc::init_cipher(EVP_CIPHER *_cipher, std::vector<OSSL_PARAM> params)
+void
+FSCryptDenc::init_cipher(EVP_CIPHER* _cipher, std::vector<OSSL_PARAM> params)
 {
   cipher = _cipher;
   cipher_params = std::move(params);
 }
 
 struct fscrypt_cipher_opt {
-  const char *str;
+  const char* str;
   bool cts_mode{false};
   bool essiv{false};
   int key_size;
@@ -573,24 +644,23 @@ struct fscrypt_cipher_opt {
 };
 
 static std::map<int, fscrypt_cipher_opt> cipher_opt_map = {
-  {
-    FSCRYPT_MODE_AES_256_XTS, {
-      .str = "AES-256-XTS",
-      .key_size = 64,
-      .iv_size = 16,
-    }
-  },
-  {
-    FSCRYPT_MODE_AES_256_CTS, {
-      .str = "AES-256-CBC-CTS",
-      .cts_mode = true,
-      .key_size = 32,
-      .iv_size = 16,
-    }
-  },
+    {FSCRYPT_MODE_AES_256_XTS,
+     {
+         .str = "AES-256-XTS",
+         .key_size = 64,
+         .iv_size = 16,
+     }},
+    {FSCRYPT_MODE_AES_256_CTS,
+     {
+         .str = "AES-256-CBC-CTS",
+         .cts_mode = true,
+         .key_size = 32,
+         .iv_size = 16,
+     }},
 };
 
-bool FSCryptDenc::do_setup_cipher(int enc_mode)
+bool
+FSCryptDenc::do_setup_cipher(int enc_mode)
 {
   auto iter = cipher_opt_map.find(enc_mode);
   if (iter == cipher_opt_map.end()) {
@@ -599,11 +669,13 @@ bool FSCryptDenc::do_setup_cipher(int enc_mode)
 
   auto& opts = iter->second;
   if (opts.cts_mode) {
-    init_cipher(EVP_CIPHER_fetch(NULL, opts.str, NULL),
-                { OSSL_PARAM_construct_utf8_string(OSSL_CIPHER_PARAM_CTS_MODE, (char *)"CS3", 0),
-                OSSL_PARAM_construct_end()} );
+    init_cipher(
+        EVP_CIPHER_fetch(NULL, opts.str, NULL),
+        {OSSL_PARAM_construct_utf8_string(
+             OSSL_CIPHER_PARAM_CTS_MODE, (char*)"CS3", 0),
+         OSSL_PARAM_construct_end()});
   } else {
-    init_cipher(EVP_CIPHER_fetch(NULL, opts.str, NULL), {} );
+    init_cipher(EVP_CIPHER_fetch(NULL, opts.str, NULL), {});
   }
 
   key_size = opts.key_size;
@@ -612,18 +684,20 @@ bool FSCryptDenc::do_setup_cipher(int enc_mode)
   return true;
 }
 
-bool FSCryptFNameDenc::setup_cipher()
+bool
+FSCryptFNameDenc::setup_cipher()
 {
   return do_setup_cipher(ctx->filenames_encryption_mode);
 }
 
-bool FSCryptFDataDenc::setup_cipher()
+bool
+FSCryptFDataDenc::setup_cipher()
 {
   return do_setup_cipher(ctx->contents_encryption_mode);
 }
 
-bool FSCryptDenc::setup(const FSCryptContextRef& _ctx,
-                        FSCryptKeyRef& _master_key)
+bool
+FSCryptDenc::setup(const FSCryptContextRef& _ctx, FSCryptKeyRef& _master_key)
 {
   ctx = _ctx;
   master_key = _master_key;
@@ -631,14 +705,13 @@ bool FSCryptDenc::setup(const FSCryptContextRef& _ctx,
   return setup_cipher();
 }
 
-int FSCryptDenc::calc_key(char ctx_identifier,
-                          int key_size,
-                          uint64_t block_num)
+int
+FSCryptDenc::calc_key(char ctx_identifier, int key_size, uint64_t block_num)
 {
   key.resize(key_size);
-  int r = master_key->calc_hkdf(ctx_identifier,
-                                (const char *)ctx->nonce, sizeof(ctx->nonce),
-                                key.data(), key_size);
+  int r = master_key->calc_hkdf(
+      ctx_identifier, (const char*)ctx->nonce, sizeof(ctx->nonce), key.data(),
+      key_size);
   if (r < 0) {
     return r;
   }
@@ -647,20 +720,22 @@ int FSCryptDenc::calc_key(char ctx_identifier,
   return 0;
 }
 
-static void sha256(const char *buf, int len, char *hash)
-{   
+static void
+sha256(const char* buf, int len, char* hash)
+{
   ceph::crypto::ssl::SHA256 hasher;
-  hasher.Update((const unsigned char *)buf, len);
-  hasher.Final((unsigned char *)hash);
-}   
+  hasher.Update((const unsigned char*)buf, len);
+  hasher.Final((unsigned char*)hash);
+}
 
-int FSCryptDenc::decrypt(const char *in_data, int in_len,
-                         char *out_data, int out_len)
+int
+FSCryptDenc::decrypt(const char* in_data, int in_len, char* out_data, int out_len)
 {
   int total_len;
 
   if ((int)key.size() != key_size) {
-    ldout(cct, 0) << "ERROR: unexpected encryption key size: " << key.size() << " (expected: " << key_size << ")" << dendl;
+    ldout(cct, 0) << "ERROR: unexpected encryption key size: " << key.size()
+                  << " (expected: " << key_size << ")" << dendl;
     return -EINVAL;
   }
 
@@ -669,95 +744,106 @@ int FSCryptDenc::decrypt(const char *in_data, int in_len,
     return -ERANGE;
   }
 
-  if (!EVP_CipherInit_ex2(cipher_ctx, cipher, (const uint8_t *)key.data(), iv.raw,
-                          0, cipher_params.data())) {
+  if (!EVP_CipherInit_ex2(
+          cipher_ctx, cipher, (const uint8_t*)key.data(), iv.raw, 0,
+          cipher_params.data())) {
     ldout(cct, 0) << __FILE__ << ":" << __LINE__ << dendl;
     return -EINVAL;
   }
 
   int len;
 
-  if (EVP_DecryptUpdate(cipher_ctx, (uint8_t *)out_data, &len, (const uint8_t *)in_data, in_len) != 1) {
+  if (EVP_DecryptUpdate(
+          cipher_ctx, (uint8_t*)out_data, &len, (const uint8_t*)in_data,
+          in_len) != 1) {
     ldout(cct, 0) << __FILE__ << ":" << __LINE__ << dendl;
     return -EINVAL;
   }
 
   total_len = len;
 
-    int ret = EVP_DecryptFinal_ex(cipher_ctx, (uint8_t *)out_data + len, &len);
-    if (ret != 1) {
-      return -EINVAL;
-    }
+  int ret = EVP_DecryptFinal_ex(cipher_ctx, (uint8_t*)out_data + len, &len);
+  if (ret != 1) {
+    return -EINVAL;
+  }
 
-    total_len += len;
+  total_len += len;
 
-    return total_len;
+  return total_len;
 }
 
-int FSCryptDenc::encrypt(const char *in_data, int in_len,
-                         char *out_data, int out_len)
+int
+FSCryptDenc::encrypt(const char* in_data, int in_len, char* out_data, int out_len)
 {
-    int total_len;
+  int total_len;
 
-    if ((int)key.size() != key_size) {
-      ldout(cct, 0) << "ERROR: unexpected encryption key size: " << key.size() << " (expected: " << key_size << ")" << dendl;
-      return -EINVAL;
-    }
+  if ((int)key.size() != key_size) {
+    ldout(cct, 0) << "ERROR: unexpected encryption key size: " << key.size()
+                  << " (expected: " << key_size << ")" << dendl;
+    return -EINVAL;
+  }
 
-    if ((uint64_t)out_len < (fscrypt_align_ofs(in_len))) {
-      return -ERANGE;
-    }
+  if ((uint64_t)out_len < (fscrypt_align_ofs(in_len))) {
+    return -ERANGE;
+  }
 
-    if (!EVP_CipherInit_ex2(cipher_ctx, cipher, (const uint8_t *)key.data(), iv.raw,
-			    1, cipher_params.data())) {
-      return -EINVAL;
-    }
+  if (!EVP_CipherInit_ex2(
+          cipher_ctx, cipher, (const uint8_t*)key.data(), iv.raw, 1,
+          cipher_params.data())) {
+    return -EINVAL;
+  }
 
-    int len;
+  int len;
 
-    if (EVP_EncryptUpdate(cipher_ctx, (uint8_t *)out_data, &len, (const uint8_t *)in_data, in_len) != 1) {
-      return -EINVAL;
-    }
+  if (EVP_EncryptUpdate(
+          cipher_ctx, (uint8_t*)out_data, &len, (const uint8_t*)in_data,
+          in_len) != 1) {
+    return -EINVAL;
+  }
 
-    total_len = len;
+  total_len = len;
 
-    if (EVP_EncryptFinal_ex(cipher_ctx, (uint8_t *)out_data + len, &len) != 1) {
-      return -EINVAL;
-    }
+  if (EVP_EncryptFinal_ex(cipher_ctx, (uint8_t*)out_data + len, &len) != 1) {
+    return -EINVAL;
+  }
 
-    total_len += len;
+  total_len += len;
 
-    return total_len;
+  return total_len;
 }
 
-FSCryptDenc::~FSCryptDenc()
-{
-  EVP_CIPHER_CTX_free(cipher_ctx);
-}
+FSCryptDenc::~FSCryptDenc() { EVP_CIPHER_CTX_free(cipher_ctx); }
 
-int FSCryptFNameDenc::get_encrypted_name_length(const int& plain_size) const
+int
+FSCryptFNameDenc::get_encrypted_name_length(const int& plain_size) const
 {
-   int padding_size = ctx->get_filename_padding_bytes();
-   int padded_size = (plain_size + padding_size - 1) & ~ (padding_size - 1);
-   if (padded_size > NAME_MAX) {
+  int padding_size = ctx->get_filename_padding_bytes();
+  int padded_size = (plain_size + padding_size - 1) & ~(padding_size - 1);
+  if (padded_size > NAME_MAX) {
     padded_size = NAME_MAX;
   }
   return padded_size;
 }
 
-int FSCryptFNameDenc::get_encrypted_symlink_length(const int& plain_size) const
+int
+FSCryptFNameDenc::get_encrypted_symlink_length(const int& plain_size) const
 {
-   int padding_size = ctx->get_filename_padding_bytes();
-   int padded_size = (plain_size + padding_size - 1) & ~ (padding_size - 1);
-   if (padded_size > PATH_MAX) {
+  int padding_size = ctx->get_filename_padding_bytes();
+  int padded_size = (plain_size + padding_size - 1) & ~(padding_size - 1);
+  if (padded_size > PATH_MAX) {
     padded_size = PATH_MAX;
   }
   return padded_size;
 }
 
-int FSCryptFNameDenc::get_encrypted_fname(const std::string& plain, std::string *encrypted, std::string *alt_name, bool force_alt)
+int
+FSCryptFNameDenc::get_encrypted_fname(
+    const std::string& plain,
+    std::string* encrypted,
+    std::string* alt_name,
+    bool force_alt)
 {
-  if (plain == "." || plain == ".." ) {
+  if (plain == "." || plain == "..") {
     *encrypted = plain;
     return plain.length();
   }
@@ -769,11 +855,11 @@ int FSCryptFNameDenc::get_encrypted_fname(const std::string& plain, std::string 
   memset(orig + plain_size, 0, filename_padded_size - plain_size);
 
   char enc_name[NAME_MAX + 64]; /* some extra just in case */
-  int r = encrypt(orig, filename_padded_size,
-                  enc_name, sizeof(enc_name));
+  int r = encrypt(orig, filename_padded_size, enc_name, sizeof(enc_name));
 
   if (r < 0) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": failed to encrypt filename" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__
+                  << ": failed to encrypt filename" << dendl;
     return r;
   }
 
@@ -782,7 +868,7 @@ int FSCryptFNameDenc::get_encrypted_fname(const std::string& plain, std::string 
   if (enc_len > CEPH_NOHASH_NAME_MAX) {
     *alt_name = std::string(enc_name, enc_len);
     char hash[CEPH_CRYPTO_SHA256_DIGESTSIZE];
-    char *extra = enc_name + CEPH_NOHASH_NAME_MAX;
+    char* extra = enc_name + CEPH_NOHASH_NAME_MAX;
 
     /* hash the extra bytes and overwrite crypttext beyond that point with it */
     int extra_len = enc_len - CEPH_NOHASH_NAME_MAX;
@@ -806,16 +892,19 @@ int FSCryptFNameDenc::get_encrypted_fname(const std::string& plain, std::string 
   return len;
 }
 
-int FSCryptFNameDenc::get_decrypted_fname(const std::string& b64enc, const std::string& alt_name, std::string *decrypted)
+int
+FSCryptFNameDenc::get_decrypted_fname(
+    const std::string& b64enc,
+    const std::string& alt_name,
+    std::string* decrypted)
 {
   char enc[NAME_MAX];
   int len = alt_name.size();
 
-  const char *penc = (len == 0 ? enc : alt_name.c_str());
+  const char* penc = (len == 0 ? enc : alt_name.c_str());
 
   if (len == 0) {
-    len = fscrypt_fname_unarmor(b64enc.c_str(), b64enc.size(),
-                                enc, sizeof(enc));
+    len = fscrypt_fname_unarmor(b64enc.c_str(), b64enc.size(), enc, sizeof(enc));
   }
 
   char dec_fname[NAME_MAX + 64]; /* some extra just in case */
@@ -836,7 +925,10 @@ struct fscrypt_slink_data {
   char enc[PATH_MAX - 2];
 };
 
-int FSCryptFNameDenc::get_encrypted_symlink(const std::string& plain, std::string *encrypted)
+int
+FSCryptFNameDenc::get_encrypted_symlink(
+    const std::string& plain,
+    std::string* encrypted)
 {
   auto plain_size = plain.size();
   auto symlink_padded_size = get_encrypted_symlink_length(plain_size);
@@ -846,11 +938,12 @@ int FSCryptFNameDenc::get_encrypted_symlink(const std::string& plain, std::strin
   memset(orig + plain_size, 0, symlink_padded_size - plain_size);
 
   fscrypt_slink_data slink_data;
-  int r = encrypt(orig, symlink_padded_size,
-                  slink_data.enc, sizeof(slink_data.enc));
+  int r = encrypt(
+      orig, symlink_padded_size, slink_data.enc, sizeof(slink_data.enc));
 
   if (r < 0) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": failed to encrypt filename" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__
+                  << ": failed to encrypt filename" << dendl;
     return r;
   }
 
@@ -858,24 +951,32 @@ int FSCryptFNameDenc::get_encrypted_symlink(const std::string& plain, std::strin
 
   int b64_len = PATH_MAX * 2; // name.size() * 2;
   char b64_name[b64_len]; // large enough
-  int len = fscrypt_fname_armor((const char *)&slink_data, slink_data.len + sizeof(slink_data.len), b64_name, b64_len);
+  int len = fscrypt_fname_armor(
+      (const char*)&slink_data, slink_data.len + sizeof(slink_data.len),
+      b64_name, b64_len);
 
   *encrypted = std::string(b64_name, len);
 
   return len;
 }
 
-int FSCryptFNameDenc::get_decrypted_symlink(const std::string& b64enc, std::string *decrypted)
+int
+FSCryptFNameDenc::get_decrypted_symlink(
+    const std::string& b64enc,
+    std::string* decrypted)
 {
   fscrypt_slink_data slink_data;
 
-  int len = fscrypt_fname_unarmor(b64enc.c_str(), b64enc.size(),
-                                  (char *)&slink_data, sizeof(slink_data));
+  int len = fscrypt_fname_unarmor(
+      b64enc.c_str(), b64enc.size(), (char*)&slink_data, sizeof(slink_data));
 
   char dec_fname[PATH_MAX + 64]; /* some extra just in case */
 
   if (slink_data.len > len) { /* should never happen */
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ":" << __func__ << "(): ERROR: slink_data.len greater than decrypted buffer (slink_data.len=" << slink_data.len << ", len=" << len << ")" << dendl;
+    ldout(cct, 0)
+        << __FILE__ << ":" << __LINE__ << ":"
+        << __func__ << "(): ERROR: slink_data.len greater than decrypted buffer (slink_data.len="
+        << slink_data.len << ", len=" << len << ")" << dendl;
     return -EIO;
   }
 
@@ -891,7 +992,13 @@ int FSCryptFNameDenc::get_decrypted_symlink(const std::string& b64enc, std::stri
   return r;
 }
 
-int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const std::vector<Segment>& holes, bufferlist *bl)
+int
+FSCryptFDataDenc::decrypt_bl(
+    uint64_t off,
+    uint64_t len,
+    uint64_t pos,
+    const std::vector<Segment>& holes,
+    bufferlist* bl)
 {
   auto data_len = bl->length();
   if (data_len == 0)
@@ -929,7 +1036,7 @@ int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const
       uint64_t hend = hofs + hlen - 1;
 
       if (pos < hofs)
-	break;
+        break;
 
       if (hend < pos) {
         ++hiter;
@@ -946,8 +1053,8 @@ int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const
     }
 
     uint64_t needed_pos = (pos > off ? pos : off);
-    void *data_pos = bl->c_str() + needed_pos - start_block_off;
-    if (!has_hole && *(uint64_t *)data_pos == 0) {
+    void* data_pos = bl->c_str() + needed_pos - start_block_off;
+    if (!has_hole && *(uint64_t*)data_pos == 0) {
       has_hole = true;
     }
 
@@ -959,7 +1066,7 @@ int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const
 
     if (!has_hole) {
       int r = calc_fdata_key(cur_block);
-      if (r  < 0) {
+      if (r < 0) {
         break;
       }
 
@@ -968,8 +1075,7 @@ int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const
       chunk.append_hole(chunk_len);
 
       uint64_t bl_off = pos - start_block_off;
-      r = decrypt(bl->c_str() + bl_off, chunk_len,
-                  chunk.c_str(), chunk_len);
+      r = decrypt(bl->c_str() + bl_off, chunk_len, chunk.c_str(), chunk_len);
       if (r < 0) {
         return r;
       }
@@ -991,7 +1097,12 @@ int FSCryptFDataDenc::decrypt_bl(uint64_t off, uint64_t len, uint64_t pos, const
   return 0;
 }
 
-int FSCryptFDataDenc::encrypt_bl(uint64_t off, uint64_t len, bufferlist& bl, bufferlist *encbl)
+int
+FSCryptFDataDenc::encrypt_bl(
+    uint64_t off,
+    uint64_t len,
+    bufferlist& bl,
+    bufferlist* encbl)
 {
   if (off != fscrypt_block_start(off)) {
     return -EINVAL;
@@ -1022,15 +1133,14 @@ int FSCryptFDataDenc::encrypt_bl(uint64_t off, uint64_t len, bufferlist& bl, buf
     auto chunk_len = write_end_aligned - block_off;
 
     int r = calc_fdata_key(cur_block);
-    if (r  < 0) {
+    if (r < 0) {
       break;
     }
 
     bufferlist chunk;
     chunk.append_hole(chunk_len);
 
-    r = encrypt(bl.c_str() + pos - off, chunk_len,
-                chunk.c_str(), chunk_len);
+    r = encrypt(bl.c_str() + pos - off, chunk_len, chunk.c_str(), chunk_len);
     if (r < 0) {
       return r;
     }
@@ -1047,7 +1157,8 @@ int FSCryptFDataDenc::encrypt_bl(uint64_t off, uint64_t len, bufferlist& bl, buf
   return 0;
 }
 
-FSCryptContextRef FSCrypt::init_ctx(const std::vector<unsigned char>& fscrypt_auth)
+FSCryptContextRef
+FSCrypt::init_ctx(const std::vector<unsigned char>& fscrypt_auth)
 {
   if (fscrypt_auth.size() == 0) {
     return nullptr;
@@ -1056,16 +1167,21 @@ FSCryptContextRef FSCrypt::init_ctx(const std::vector<unsigned char>& fscrypt_au
   FSCryptContextRef ctx = std::make_shared<FSCryptContext>(cct);
 
   bufferlist bl;
-  bl.append((const char *)fscrypt_auth.data(), fscrypt_auth.size());
+  bl.append((const char*)fscrypt_auth.data(), fscrypt_auth.size());
 
   auto bliter = bl.cbegin();
   try {
     ctx->decode(bliter);
   } catch (buffer::error& err) {
     if (fscrypt_auth.size()) {
-      ldout(cct, 0) << __func__ << " " << " failed to decode fscrypt_auth:" << fscrypt_hex_str(fscrypt_auth.data(), fscrypt_auth.size()) << dendl;
+      ldout(cct, 0) << __func__ << " " << " failed to decode fscrypt_auth:"
+                    << fscrypt_hex_str(fscrypt_auth.data(), fscrypt_auth.size())
+                    << dendl;
     } else {
-      ldout(cct, 0) << __func__ << " " << " failed to decode fscrypt_auth: fscrypt_auth.size() == 0"  << dendl;
+      ldout(cct, 0)
+          << __func__ << " "
+          << " failed to decode fscrypt_auth: fscrypt_auth.size() == 0"
+          << dendl;
     }
     return nullptr;
   }
@@ -1073,8 +1189,11 @@ FSCryptContextRef FSCrypt::init_ctx(const std::vector<unsigned char>& fscrypt_au
   return ctx;
 }
 
-FSCryptDenc *FSCrypt::init_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv,
-                                  std::function<FSCryptDenc *()> gen_denc)
+FSCryptDenc*
+FSCrypt::init_denc(
+    const FSCryptContextRef& ctx,
+    FSCryptKeyValidatorRef* kv,
+    std::function<FSCryptDenc*()> gen_denc)
 {
   if (!ctx) {
     return nullptr;
@@ -1083,9 +1202,11 @@ FSCryptDenc *FSCrypt::init_denc(const FSCryptContextRef& ctx, FSCryptKeyValidato
   FSCryptKeyHandlerRef master_kh;
   int r = key_store.find(ctx->master_key_identifier, master_kh);
   if (r == 0) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": fscrypt_key handler found" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__
+                  << ": fscrypt_key handler found" << dendl;
   } else if (r == -ENOENT) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": fscrypt_key handler not found" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__
+                  << ": fscrypt_key handler not found" << dendl;
     return nullptr;
   } else {
     ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": error: r=" << r << dendl;
@@ -1093,40 +1214,47 @@ FSCryptDenc *FSCrypt::init_denc(const FSCryptContextRef& ctx, FSCryptKeyValidato
   }
 
   if (kv) {
-    *kv = make_shared<FSCryptKeyValidator>(cct, master_kh, master_kh->get_epoch());
+    *kv = make_shared<FSCryptKeyValidator>(
+        cct, master_kh, master_kh->get_epoch());
   }
 
   auto& master_key = master_kh->get_key();
 
   if (!master_key) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": fscrypt_key key is null" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": fscrypt_key key is null"
+                  << dendl;
     return nullptr;
   }
 
   auto fscrypt_denc = gen_denc();
 
   if (!fscrypt_denc->setup(ctx, master_key)) {
-    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ":" << __func__ << "(): ERROR: failed to setup denc" << dendl;
+    ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ":" << __func__
+                  << "(): ERROR: failed to setup denc" << dendl;
     return nullptr;
   }
 
   return fscrypt_denc;
 }
 
-FSCryptFNameDencRef FSCrypt::get_fname_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv, bool calc_key)
+FSCryptFNameDencRef
+FSCrypt::get_fname_denc(
+    const FSCryptContextRef& ctx,
+    FSCryptKeyValidatorRef* kv,
+    bool calc_key)
 {
-  auto pdenc = init_denc(ctx, kv,
-                         [&]() { return new FSCryptFNameDenc(cct); });
+  auto pdenc = init_denc(ctx, kv, [&]() { return new FSCryptFNameDenc(cct); });
   if (!pdenc) {
     return nullptr;
   }
 
-  auto denc = std::shared_ptr<FSCryptFNameDenc>((FSCryptFNameDenc *)pdenc);
+  auto denc = std::shared_ptr<FSCryptFNameDenc>((FSCryptFNameDenc*)pdenc);
 
   if (calc_key) {
     int r = denc->calc_fname_key();
     if (r < 0) {
-      ldout(cct, 0) << __FILE__ << ":" << __LINE__ << ": failed to init dencoder: r=" << r << dendl;
+      ldout(cct, 0) << __FILE__ << ":" << __LINE__
+                    << ": failed to init dencoder: r=" << r << dendl;
       return nullptr;
     }
   }
@@ -1134,25 +1262,27 @@ FSCryptFNameDencRef FSCrypt::get_fname_denc(const FSCryptContextRef& ctx, FSCryp
   return denc;
 }
 
-FSCryptFDataDencRef FSCrypt::get_fdata_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef *kv)
+FSCryptFDataDencRef
+FSCrypt::get_fdata_denc(const FSCryptContextRef& ctx, FSCryptKeyValidatorRef* kv)
 {
-  auto pdenc = init_denc(ctx, kv,
-                         [&]() { return new FSCryptFDataDenc(cct); });
+  auto pdenc = init_denc(ctx, kv, [&]() { return new FSCryptFDataDenc(cct); });
   if (!pdenc) {
     return nullptr;
   }
 
-  return std::shared_ptr<FSCryptFDataDenc>((FSCryptFDataDenc *)pdenc);
+  return std::shared_ptr<FSCryptFDataDenc>((FSCryptFDataDenc*)pdenc);
 }
 
-void FSCrypt::prepare_data_read(const FSCryptContextRef& ctx,
-                                FSCryptKeyValidatorRef *kv,
-                                uint64_t off,
-                                uint64_t len,
-                                uint64_t file_raw_size,
-                                uint64_t *read_start,
-                                uint64_t *read_len,
-                                FSCryptFDataDencRef *denc)
+void
+FSCrypt::prepare_data_read(
+    const FSCryptContextRef& ctx,
+    FSCryptKeyValidatorRef* kv,
+    uint64_t off,
+    uint64_t len,
+    uint64_t file_raw_size,
+    uint64_t* read_start,
+    uint64_t* read_len,
+    FSCryptFDataDencRef* denc)
 {
   *denc = get_fdata_denc(ctx, kv);
 

@@ -61,10 +61,10 @@
 #include <list>
 #include <map>
 
-#include "Filer.h"
-
 #include "common/Throttle.h"
 #include "include/common_fwd.h"
+
+#include "Filer.h"
 
 class Context;
 class Objecter;
@@ -75,10 +75,10 @@ typedef __u8 stream_format_t;
 
 // Legacy envelope is leading uint32_t size
 enum StreamFormat {
-    JOURNAL_FORMAT_LEGACY = 0,
-    JOURNAL_FORMAT_RESILIENT = 1,
-    // Insert new formats here, before COUNT
-    JOURNAL_FORMAT_COUNT
+  JOURNAL_FORMAT_LEGACY = 0,
+  JOURNAL_FORMAT_RESILIENT = 1,
+  // Insert new formats here, before COUNT
+  JOURNAL_FORMAT_COUNT
 };
 
 // Highest journal format version that we support
@@ -89,8 +89,8 @@ enum StreamFormat {
 
 // Resilient envelope is leading uint64_t sentinel, uint32_t size,
 // trailing uint64_t start_ptr
-#define JOURNAL_ENVELOPE_RESILIENT (sizeof(uint32_t) + sizeof(uint64_t) + \
-				    sizeof(uint64_t))
+#define JOURNAL_ENVELOPE_RESILIENT \
+  (sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint64_t))
 
 /**
  * Represents a collection of entries serialized in a byte stream.
@@ -100,24 +100,32 @@ enum StreamFormat {
  *  - a uint64_t (used by the next level up as a pointer to the start
  *    of the entry in the collection bytestream)
  */
-class JournalStream
-{
+class JournalStream {
   stream_format_t format;
 
-  public:
-  JournalStream(stream_format_t format_) : format(format_) {}
+public:
+  JournalStream(stream_format_t format_) :
+    format(format_)
+  {}
 
-  void set_format(stream_format_t format_) {format = format_;}
+  void
+  set_format(stream_format_t format_)
+  {
+    format = format_;
+  }
 
-  bool readable(bufferlist &bl, uint64_t *need) const;
-  size_t read(bufferlist &from, bufferlist *to, uint64_t *start_ptr);
-  size_t write(bufferlist &entry, bufferlist *to, uint64_t const &start_ptr);
-  size_t get_envelope_size() const {
-     if (format >= JOURNAL_FORMAT_RESILIENT) {
-       return JOURNAL_ENVELOPE_RESILIENT;
-     } else {
-       return JOURNAL_ENVELOPE_LEGACY;
-     }
+  bool readable(bufferlist& bl, uint64_t* need) const;
+  size_t read(bufferlist& from, bufferlist* to, uint64_t* start_ptr);
+  size_t write(bufferlist& entry, bufferlist* to, uint64_t const& start_ptr);
+
+  size_t
+  get_envelope_size() const
+  {
+    if (format >= JOURNAL_FORMAT_RESILIENT) {
+      return JOURNAL_ENVELOPE_RESILIENT;
+    } else {
+      return JOURNAL_ENVELOPE_LEGACY;
+    }
   }
 
   // A magic number for the start of journal entries, so that we can
@@ -125,39 +133,47 @@ class JournalStream
   static const uint64_t sentinel = 0x3141592653589793;
 };
 
-
 class Journaler {
 public:
   // this goes at the head of the log "file".
   class Header {
-    public:
+  public:
     uint64_t trimmed_pos;
     uint64_t expire_pos;
     uint64_t unused_field;
     uint64_t write_pos;
     std::string magic;
     file_layout_t layout; //< The mapping from byte stream offsets
-			     //  to RADOS objects
+        //  to RADOS objects
     stream_format_t stream_format; //< The encoding of LogEvents
-				   //  within the journal byte stream
+        //  within the journal byte stream
 
-    Header(const char *m="") :
-      trimmed_pos(0), expire_pos(0), unused_field(0), write_pos(0), magic(m),
-      stream_format(-1) {
-    }
+    Header(const char* m = "") :
+      trimmed_pos(0),
+      expire_pos(0),
+      unused_field(0),
+      write_pos(0),
+      magic(m),
+      stream_format(-1)
+    {}
 
-    void encode(bufferlist &bl) const {
+    void
+    encode(bufferlist& bl) const
+    {
       ENCODE_START(2, 2, bl);
       encode(magic, bl);
       encode(trimmed_pos, bl);
       encode(expire_pos, bl);
       encode(unused_field, bl);
       encode(write_pos, bl);
-      encode(layout, bl, 0);  // encode in legacy format
+      encode(layout, bl, 0); // encode in legacy format
       encode(stream_format, bl);
       ENCODE_FINISH(bl);
     }
-    void decode(bufferlist::const_iterator &bl) {
+
+    void
+    decode(bufferlist::const_iterator& bl)
+    {
       DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
       decode(magic, bl);
       decode(trimmed_pos, bl);
@@ -166,37 +182,40 @@ public:
       decode(write_pos, bl);
       decode(layout, bl);
       if (struct_v > 1) {
-	decode(stream_format, bl);
+        decode(stream_format, bl);
       } else {
-	stream_format = JOURNAL_FORMAT_LEGACY;
+        stream_format = JOURNAL_FORMAT_LEGACY;
       }
       DECODE_FINISH(bl);
     }
 
-    void dump(Formatter *f) const {
+    void
+    dump(Formatter* f) const
+    {
       f->open_object_section("journal_header");
       {
-	f->dump_string("magic", magic);
-	f->dump_unsigned("write_pos", write_pos);
-	f->dump_unsigned("expire_pos", expire_pos);
-	f->dump_unsigned("trimmed_pos", trimmed_pos);
-	f->dump_unsigned("stream_format", stream_format);
-	f->dump_object("layout", layout);
+        f->dump_string("magic", magic);
+        f->dump_unsigned("write_pos", write_pos);
+        f->dump_unsigned("expire_pos", expire_pos);
+        f->dump_unsigned("trimmed_pos", trimmed_pos);
+        f->dump_unsigned("stream_format", stream_format);
+        f->dump_object("layout", layout);
       }
       f->close_section(); // journal_header
     }
 
-    void print(std::ostream& os) const {
+    void
+    print(std::ostream& os) const
+    {
       os << std::hex
          << "Journaler::Header"
-            "(t=" << trimmed_pos
-         << " e=" << expire_pos
-         << " w=" << write_pos
-         << ")"
+            "(t="
+         << trimmed_pos << " e=" << expire_pos << " w=" << write_pos << ")"
          << std::dec;
     }
 
-    static std::list<Header> generate_test_instances()
+    static std::list<Header>
+    generate_test_instances()
     {
       std::list<Header> ls;
 
@@ -217,19 +236,21 @@ public:
   };
   WRITE_CLASS_ENCODER(Header)
 
-  uint32_t get_stream_format() const {
+  uint32_t
+  get_stream_format() const
+  {
     return stream_format;
   }
 
 private:
   // me
   Header last_committed;
-  CephContext *cct;
+  CephContext* cct;
   mutable ceph::mutex lock;
   const std::string name;
   typedef std::lock_guard<ceph::mutex> lock_guard;
   typedef std::unique_lock<ceph::mutex> unique_lock;
-  Finisher *finisher;
+  Finisher* finisher;
   Header last_written;
   inodeno_t ino;
   int64_t pg_pool;
@@ -238,19 +259,21 @@ private:
   uint32_t stream_format;
   JournalStream journal_stream;
 
-  const char *magic;
-  Objecter *objecter;
+  const char* magic;
+  Objecter* objecter;
   Filer filer;
 
-  PerfCounters *logger;
+  PerfCounters* logger;
   int logger_key_lat;
 
   class C_DelayFlush;
-  C_DelayFlush *delay_flush_event;
+  C_DelayFlush* delay_flush_event;
+
   /*
    * Do a flush as a result of a C_DelayFlush context.
    */
-  void _do_delayed_flush()
+  void
+  _do_delayed_flush()
   {
     ceph_assert(delay_flush_event != NULL);
     lock_guard l(lock);
@@ -270,27 +293,27 @@ private:
   int state;
   int error;
 
-  void _write_head(Context *oncommit=NULL);
-  void _wait_for_flush(Context *onsafe);
+  void _write_head(Context* oncommit = NULL);
+  void _wait_for_flush(Context* onsafe);
   void _trim();
 
   // header
   ceph::real_time last_wrote_head;
-  void _finish_write_head(int r, Header &wrote, C_OnFinisher *oncommit);
+  void _finish_write_head(int r, Header& wrote, C_OnFinisher* oncommit);
   class C_WriteHead;
   friend class C_WriteHead;
 
-  void _reread_head(Context *onfinish);
-  void _set_layout(file_layout_t const *l);
+  void _reread_head(Context* onfinish);
+  void _set_layout(file_layout_t const* l);
   std::list<Context*> waitfor_recover;
-  void _read_head(Context *on_finish, bufferlist *bl);
+  void _read_head(Context* on_finish, bufferlist* bl);
   void _finish_read_head(int r, bufferlist& bl);
-  void _finish_reread_head(int r, bufferlist& bl, Context *finish);
-  void _probe(Context *finish, uint64_t *end);
+  void _finish_reread_head(int r, bufferlist& bl, Context* finish);
+  void _probe(Context* finish, uint64_t* end);
   void _finish_probe_end(int r, uint64_t end);
-  void _reprobe(C_OnFinisher *onfinish);
-  void _finish_reprobe(int r, uint64_t end, C_OnFinisher *onfinish);
-  void _finish_reread_head_and_probe(int r, C_OnFinisher *onfinish);
+  void _reprobe(C_OnFinisher* onfinish);
+  void _finish_reprobe(int r, uint64_t end, C_OnFinisher* onfinish);
+  void _finish_reread_head_and_probe(int r, C_OnFinisher* onfinish);
   class C_ReadHead;
   friend class C_ReadHead;
   class C_ProbeEnd;
@@ -305,56 +328,56 @@ private:
   // writer
   uint64_t prezeroing_pos;
   uint64_t prezero_pos; ///< we zero journal space ahead of write_pos to
-			//   avoid problems with tail probing
+      //   avoid problems with tail probing
   uint64_t write_pos; ///< logical write position, where next entry
-		      //   will go
+      //   will go
   uint64_t flush_pos; ///< where we will flush. if
-		      ///  write_pos>flush_pos, we're buffering writes.
+      ///  write_pos>flush_pos, we're buffering writes.
   uint64_t safe_pos; ///< what has been committed safely to disk.
 
   uint64_t next_safe_pos; /// start position of the first entry that isn't
-			  /// being fully flushed. If we don't flush any
-			  // partial entry, it's equal to flush_pos.
+      /// being fully flushed. If we don't flush any
+      // partial entry, it's equal to flush_pos.
 
   bufferlist write_buf; ///< write buffer.  flush_pos +
-			///  write_buf.length() == write_pos.
+      ///  write_buf.length() == write_pos.
 
-  // protect write_buf from bufferlist _len overflow 
+  // protect write_buf from bufferlist _len overflow
   Throttle write_buf_throttle;
 
   uint64_t waiting_for_zero_pos;
-  interval_set<uint64_t> pending_zero;  // non-contig bits we've zeroed
+  interval_set<uint64_t> pending_zero; // non-contig bits we've zeroed
   std::list<Context*> waitfor_prezero;
 
   std::map<uint64_t, uint64_t> pending_safe; // flush_pos -> safe_pos
   // when safe through given offset
-  std::map<uint64_t, std::list<Context*> > waitfor_safe;
+  std::map<uint64_t, std::list<Context*>> waitfor_safe;
 
-  void _flush(C_OnFinisher *onsafe);
-  void _do_flush(unsigned amount=0);
+  void _flush(C_OnFinisher* onsafe);
+  void _do_flush(unsigned amount = 0);
   void _finish_flush(int r, uint64_t start, ceph::real_time stamp);
   class C_Flush;
   friend class C_Flush;
 
   // reader
-  uint64_t read_pos;      // logical read position, where next entry starts.
+  uint64_t read_pos; // logical read position, where next entry starts.
   uint64_t requested_pos; // what we've requested from OSD.
-  uint64_t received_pos;  // what we've received from OSD.
+  uint64_t received_pos; // what we've received from OSD.
   // read buffer.  unused_field + read_buf.length() == prefetch_pos.
   bufferlist read_buf;
 
-  std::map<uint64_t,bufferlist> prefetch_buf;
+  std::map<uint64_t, bufferlist> prefetch_buf;
 
-  uint64_t fetch_len;     // how much to read at a time
+  uint64_t fetch_len; // how much to read at a time
   uint64_t temp_fetch_len;
 
   // for wait_for_readable()
-  C_OnFinisher *on_readable;
-  C_OnFinisher *on_write_error;
+  C_OnFinisher* on_readable;
+  C_OnFinisher* on_write_error;
   bool called_write_error;
 
   // read completion callback
-  void _finish_read(int r, uint64_t offset, uint64_t length, bufferlist &bl);
+  void _finish_read(int r, uint64_t offset, uint64_t length, bufferlist& bl);
   void _finish_retry_read(int r);
   void _assimilate_prefetch();
   void _issue_read(uint64_t len); // read some more
@@ -365,9 +388,9 @@ private:
   friend class C_RetryRead;
 
   // trimmer
-  uint64_t expire_pos;    // what we're allowed to trim to
-  uint64_t trimming_pos;      // what we've requested to trim through
-  uint64_t trimmed_pos;   // what has been trimmed
+  uint64_t expire_pos; // what we're allowed to trim to
+  uint64_t trimming_pos; // what we've requested to trim through
+  uint64_t trimmed_pos; // what has been trimmed
 
   bool readable;
 
@@ -380,10 +403,11 @@ private:
   friend struct C_Journaler_Prezero;
 
   // only init_headers when following or first reading off-disk
-  void init_headers(Header& h) {
-    ceph_assert(readonly ||
-	   state == STATE_READHEAD ||
-	   state == STATE_REREADHEAD);
+  void
+  init_headers(Header& h)
+  {
+    ceph_assert(
+        readonly || state == STATE_READHEAD || state == STATE_REREADHEAD);
     last_written = last_committed = h;
   }
 
@@ -398,18 +422,25 @@ private:
 
   bool _have_next_entry();
 
-  void _finish_erase(int data_result, C_OnFinisher *completion);
+  void _finish_erase(int data_result, C_OnFinisher* completion);
   class C_EraseFinish;
   friend class C_EraseFinish;
 
-  C_OnFinisher *wrap_finisher(Context *c);
+  C_OnFinisher* wrap_finisher(Context* c);
 
   uint32_t write_iohint; // the fadvise flags for write op, see
-			 // CEPH_OSD_OP_FADIVSE_*
+      // CEPH_OSD_OP_FADIVSE_*
 
 public:
-  Journaler(const std::string &name_, inodeno_t ino_, int64_t pool,
-	    const char *mag, Objecter *obj, PerfCounters *l, int lkey, Finisher *f);
+  Journaler(
+      const std::string& name_,
+      inodeno_t ino_,
+      int64_t pool,
+      const char* mag,
+      Objecter* obj,
+      PerfCounters* l,
+      int lkey,
+      Finisher* f);
 
   /* reset
    *
@@ -417,7 +448,9 @@ public:
    * our sequence do not exist.. e.g. after a MKFS.  this is _not_ an
    * "erase" method.
    */
-  void reset() {
+  void
+  reset()
+  {
     lock_guard l(lock);
     ceph_assert(state == STATE_ACTIVE);
 
@@ -444,135 +477,199 @@ public:
 
   // Asynchronous operations
   // =======================
-  void erase(Context *completion);
-  void create(file_layout_t *layout, stream_format_t const sf);
-  void recover(Context *onfinish);
-  void reread_head(Context *onfinish);
-  void reread_head_and_probe(Context *onfinish);
-  void write_head(Context *onsave=0);
-  void wait_for_flush(Context *onsafe = 0);
-  void flush(Context *onsafe = 0);
-  void wait_for_readable(Context *onfinish);
-  void _wait_for_readable(Context *onfinish);
+  void erase(Context* completion);
+  void create(file_layout_t* layout, stream_format_t const sf);
+  void recover(Context* onfinish);
+  void reread_head(Context* onfinish);
+  void reread_head_and_probe(Context* onfinish);
+  void write_head(Context* onsave = 0);
+  void wait_for_flush(Context* onsafe = 0);
+  void flush(Context* onsafe = 0);
+  void wait_for_readable(Context* onfinish);
+  void _wait_for_readable(Context* onfinish);
   bool have_waiter() const;
-  void wait_for_prezero(Context *onfinish);
+  void wait_for_prezero(Context* onfinish);
 
   // Synchronous setters
   // ===================
-  void set_layout(file_layout_t const *l);
+  void set_layout(file_layout_t const* l);
   void set_readonly();
   void set_writeable();
-  void set_write_pos(uint64_t p) {
+
+  void
+  set_write_pos(uint64_t p)
+  {
     lock_guard l(lock);
-    prezeroing_pos = prezero_pos = write_pos = flush_pos = safe_pos = next_safe_pos = p;
+    prezeroing_pos = prezero_pos = write_pos = flush_pos = safe_pos =
+        next_safe_pos = p;
   }
-  void set_read_pos(uint64_t p) {
+
+  void
+  set_read_pos(uint64_t p)
+  {
     lock_guard l(lock);
     // we can't cope w/ in-progress read right now.
     ceph_assert(requested_pos == received_pos);
     read_pos = requested_pos = received_pos = p;
     read_buf.clear();
   }
+
   uint64_t append_entry(bufferlist& bl);
-  void set_expire_pos(uint64_t ep) {
-      lock_guard l(lock);
-      expire_pos = ep;
+
+  void
+  set_expire_pos(uint64_t ep)
+  {
+    lock_guard l(lock);
+    expire_pos = ep;
   }
-  void set_trimmed_pos(uint64_t p) {
-      lock_guard l(lock);
-      trimming_pos = trimmed_pos = p;
+
+  void
+  set_trimmed_pos(uint64_t p)
+  {
+    lock_guard l(lock);
+    trimming_pos = trimmed_pos = p;
   }
 
   bool _write_head_needed();
-  bool write_head_needed() {
+
+  bool
+  write_head_needed()
+  {
     lock_guard l(lock);
     return _write_head_needed();
   }
 
-
   void trim();
-  void trim_tail() {
+
+  void
+  trim_tail()
+  {
     lock_guard l(lock);
 
     ceph_assert(!readonly);
     _issue_prezero();
   }
 
-  void set_write_error_handler(Context *c);
+  void set_write_error_handler(Context* c);
 
-  void set_write_iohint(uint32_t iohint_flags) {
+  void
+  set_write_iohint(uint32_t iohint_flags)
+  {
     write_iohint = iohint_flags;
   }
+
   /**
    * Cause any ongoing waits to error out with -EAGAIN, set error
    * to -EAGAIN.
    */
   void shutdown();
-public:
 
+public:
   // Synchronous getters
   // ===================
 
-  Header get_last_committed() const {
+  Header
+  get_last_committed() const
+  {
     lock_guard l(lock);
     return last_committed;
   }
-  Header get_last_written() const {
+
+  Header
+  get_last_written() const
+  {
     lock_guard l(lock);
     return last_written;
   }
 
-  uint64_t get_layout_period() const {
+  uint64_t
+  get_layout_period() const
+  {
     lock_guard l(lock);
     return layout.get_period();
   }
-  file_layout_t get_layout() const {
+
+  file_layout_t
+  get_layout() const
+  {
     lock_guard l(lock);
     return layout;
   }
-  bool is_active() const {
+
+  bool
+  is_active() const
+  {
     lock_guard l(lock);
     return state == STATE_ACTIVE;
   }
-  bool is_stopping() const {
+
+  bool
+  is_stopping() const
+  {
     lock_guard l(lock);
     return state == STATE_STOPPING;
   }
-  int get_error() const {
+
+  int
+  get_error() const
+  {
     lock_guard l(lock);
     return error;
   }
-  bool is_readonly() const {
+
+  bool
+  is_readonly() const
+  {
     lock_guard l(lock);
     return readonly;
   }
+
   bool is_readable();
   bool _is_readable();
   bool try_read_entry(bufferlist& bl);
-  uint64_t get_write_pos() const {
+
+  uint64_t
+  get_write_pos() const
+  {
     lock_guard l(lock);
     return write_pos;
   }
-  uint64_t get_write_safe_pos() const {
+
+  uint64_t
+  get_write_safe_pos() const
+  {
     lock_guard l(lock);
     return safe_pos;
   }
-  uint64_t get_read_pos() const {
+
+  uint64_t
+  get_read_pos() const
+  {
     lock_guard l(lock);
     return read_pos;
   }
-  uint64_t get_expire_pos() const {
+
+  uint64_t
+  get_expire_pos() const
+  {
     lock_guard l(lock);
     return expire_pos;
   }
-  uint64_t get_trimmed_pos() const {
+
+  uint64_t
+  get_trimmed_pos() const
+  {
     lock_guard l(lock);
     return trimmed_pos;
   }
-  size_t get_journal_envelope_size() const { 
+
+  size_t
+  get_journal_envelope_size() const
+  {
     lock_guard l(lock);
-    return journal_stream.get_envelope_size(); 
+    return journal_stream.get_envelope_size();
   }
+
   void check_isreadable();
 };
 WRITE_CLASS_ENCODER(Journaler::Header)

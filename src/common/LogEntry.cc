@@ -2,16 +2,19 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 //
+#include "LogEntry.h"
+
 #include <syslog.h>
+
 #include <boost/algorithm/string/predicate.hpp>
 
-#include "LogEntry.h"
-#include "Formatter.h"
 #include "include/stringify.h"
 
+#include "Formatter.h"
+
 using std::list;
-using std::map;
 using std::make_pair;
+using std::map;
 using std::pair;
 using std::string;
 
@@ -23,26 +26,30 @@ using ceph::Formatter;
 // ----
 // LogEntryKey
 
-void LogEntryKey::dump(Formatter *f) const
+void
+LogEntryKey::dump(Formatter* f) const
 {
   f->dump_stream("rank") << rank;
   f->dump_stream("stamp") << stamp;
   f->dump_unsigned("seq", seq);
 }
 
-list<LogEntryKey> LogEntryKey::generate_test_instances()
+list<LogEntryKey>
+LogEntryKey::generate_test_instances()
 {
   list<LogEntryKey> o;
   o.emplace_back();
-  o.push_back(LogEntryKey(entity_name_t::CLIENT(1234), utime_t(1,2), 34));
+  o.push_back(LogEntryKey(entity_name_t::CLIENT(1234), utime_t(1, 2), 34));
   return o;
 }
 
-clog_type LogEntry::str_to_level(std::string const &str)
+clog_type
+LogEntry::str_to_level(std::string const& str)
 {
   std::string level_str = str;
-  std::transform(level_str.begin(), level_str.end(), level_str.begin(),
-      [](char c) {return std::tolower(c);});
+  std::transform(
+      level_str.begin(), level_str.end(), level_str.begin(),
+      [](char c) { return std::tolower(c); });
 
   if (level_str == "debug") {
     return CLOG_DEBUG;
@@ -61,62 +68,56 @@ clog_type LogEntry::str_to_level(std::string const &str)
 
 // ----
 
-int clog_type_to_syslog_level(clog_type t)
+int
+clog_type_to_syslog_level(clog_type t)
 {
   switch (t) {
-    case CLOG_DEBUG:
-      return LOG_DEBUG;
-    case CLOG_INFO:
-      return LOG_INFO;
-    case CLOG_WARN:
-      return LOG_WARNING;
-    case CLOG_ERROR:
-      return LOG_ERR;
-    case CLOG_SEC:
-      return LOG_CRIT;
-    default:
-      ceph_abort();
-      return 0;
+  case CLOG_DEBUG:
+    return LOG_DEBUG;
+  case CLOG_INFO:
+    return LOG_INFO;
+  case CLOG_WARN:
+    return LOG_WARNING;
+  case CLOG_ERROR:
+    return LOG_ERR;
+  case CLOG_SEC:
+    return LOG_CRIT;
+  default:
+    ceph_abort();
+    return 0;
   }
 }
 
-clog_type string_to_clog_type(const string& s)
+clog_type
+string_to_clog_type(const string& s)
 {
-  if (boost::iequals(s, "debug") ||
-      boost::iequals(s, "dbg"))
+  if (boost::iequals(s, "debug") || boost::iequals(s, "dbg"))
     return CLOG_DEBUG;
-  if (boost::iequals(s, "info") ||
-      boost::iequals(s, "inf"))
+  if (boost::iequals(s, "info") || boost::iequals(s, "inf"))
     return CLOG_INFO;
-  if (boost::iequals(s, "warning") ||
-      boost::iequals(s, "warn") ||
+  if (boost::iequals(s, "warning") || boost::iequals(s, "warn") ||
       boost::iequals(s, "wrn"))
     return CLOG_WARN;
-  if (boost::iequals(s, "error") ||
-      boost::iequals(s, "err"))
+  if (boost::iequals(s, "error") || boost::iequals(s, "err"))
     return CLOG_ERROR;
-  if (boost::iequals(s, "security") ||
-      boost::iequals(s, "sec"))
+  if (boost::iequals(s, "security") || boost::iequals(s, "sec"))
     return CLOG_SEC;
 
   return CLOG_UNKNOWN;
 }
 
-int string_to_syslog_level(string s)
+int
+string_to_syslog_level(string s)
 {
   if (boost::iequals(s, "debug"))
     return LOG_DEBUG;
-  if (boost::iequals(s, "info") ||
-      boost::iequals(s, "notice"))
+  if (boost::iequals(s, "info") || boost::iequals(s, "notice"))
     return LOG_INFO;
-  if (boost::iequals(s, "warning") ||
-      boost::iequals(s, "warn"))
+  if (boost::iequals(s, "warning") || boost::iequals(s, "warn"))
     return LOG_WARNING;
-  if (boost::iequals(s, "error") ||
-      boost::iequals(s, "err"))
+  if (boost::iequals(s, "error") || boost::iequals(s, "err"))
     return LOG_ERR;
-  if (boost::iequals(s, "crit") ||
-      boost::iequals(s, "critical") ||
+  if (boost::iequals(s, "crit") || boost::iequals(s, "critical") ||
       boost::iequals(s, "emerg"))
     return LOG_CRIT;
 
@@ -124,7 +125,8 @@ int string_to_syslog_level(string s)
   return LOG_DEBUG;
 }
 
-int string_to_syslog_facility(string s)
+int
+string_to_syslog_facility(string s)
 {
   if (boost::iequals(s, "auth"))
     return LOG_AUTH;
@@ -171,39 +173,40 @@ int string_to_syslog_facility(string s)
   return LOG_USER;
 }
 
-string clog_type_to_string(clog_type t)
+string
+clog_type_to_string(clog_type t)
 {
   switch (t) {
-    case CLOG_DEBUG:
-      return "debug";
-    case CLOG_INFO:
-      return "info";
-    case CLOG_WARN:
-      return "warn";
-    case CLOG_ERROR:
-      return "err";
-    case CLOG_SEC:
-      return "crit";
-    default:
-      ceph_abort();
+  case CLOG_DEBUG:
+    return "debug";
+  case CLOG_INFO:
+    return "info";
+  case CLOG_WARN:
+    return "warn";
+  case CLOG_ERROR:
+    return "err";
+  case CLOG_SEC:
+    return "crit";
+  default:
+    ceph_abort();
   }
 }
 
-void LogEntry::log_to_syslog(string level, string facility) const
+void
+LogEntry::log_to_syslog(string level, string facility) const
 {
   int min = string_to_syslog_level(level);
   int l = clog_type_to_syslog_level(prio);
   if (l <= min) {
     int f = string_to_syslog_facility(facility);
-    syslog(l | f, "%s %s %llu : %s",
-	   name.to_cstr(),
-	   stringify(rank).c_str(),
-	   (long long unsigned)seq,
-	   msg.c_str());
+    syslog(
+        l | f, "%s %s %llu : %s", name.to_cstr(), stringify(rank).c_str(),
+        (long long unsigned)seq, msg.c_str());
   }
 }
 
-void LogEntry::encode(bufferlist& bl, uint64_t features) const
+void
+LogEntry::encode(bufferlist& bl, uint64_t features) const
 {
   assert(HAVE_FEATURE(features, SERVER_NAUTILUS));
   ENCODE_START(5, 5, bl);
@@ -219,7 +222,8 @@ void LogEntry::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void LogEntry::decode(bufferlist::const_iterator& bl)
+void
+LogEntry::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(5, 2, 2, bl);
   if (struct_v < 5) {
@@ -260,7 +264,8 @@ void LogEntry::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void LogEntry::dump(Formatter *f) const
+void
+LogEntry::dump(Formatter* f) const
 {
   f->dump_stream("name") << name;
   f->dump_stream("rank") << rank;
@@ -272,35 +277,38 @@ void LogEntry::dump(Formatter *f) const
   f->dump_string("message", msg);
 }
 
-list<LogEntry> LogEntry::generate_test_instances()
+list<LogEntry>
+LogEntry::generate_test_instances()
 {
   list<LogEntry> o;
   o.emplace_back();
   return o;
 }
 
-
 // -----
 
-void LogSummary::build_ordered_tail_legacy(list<LogEntry> *tail) const
+void
+LogSummary::build_ordered_tail_legacy(list<LogEntry>* tail) const
 {
   tail->clear();
   // channel -> (begin, end)
-  map<string,pair<list<pair<uint64_t,LogEntry>>::const_iterator,
-		  list<pair<uint64_t,LogEntry>>::const_iterator>> pos;
+  map<string, pair<
+                  list<pair<uint64_t, LogEntry>>::const_iterator,
+                  list<pair<uint64_t, LogEntry>>::const_iterator>>
+      pos;
   for (auto& i : tail_by_channel) {
     pos.emplace(i.first, make_pair(i.second.begin(), i.second.end()));
   }
   while (true) {
     uint64_t min_seq = 0;
-    list<pair<uint64_t,LogEntry>>::const_iterator *minp = 0;
+    list<pair<uint64_t, LogEntry>>::const_iterator* minp = 0;
     for (auto& i : pos) {
       if (i.second.first == i.second.second) {
-	continue;
+        continue;
       }
       if (min_seq == 0 || i.second.first->first < min_seq) {
-	min_seq = i.second.first->first;
-	minp = &i.second.first;
+        min_seq = i.second.first->first;
+        minp = &i.second.first;
       }
     }
     if (min_seq == 0) {
@@ -311,7 +319,8 @@ void LogSummary::build_ordered_tail_legacy(list<LogEntry> *tail) const
   }
 }
 
-void LogSummary::encode(bufferlist& bl, uint64_t features) const
+void
+LogSummary::encode(bufferlist& bl, uint64_t features) const
 {
   assert(HAVE_FEATURE(features, SERVER_MIMIC));
   ENCODE_START(4, 3, bl);
@@ -323,7 +332,8 @@ void LogSummary::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void LogSummary::decode(bufferlist::const_iterator& bl)
+void
+LogSummary::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(4, 2, 2, bl);
   decode(version, bl);
@@ -342,7 +352,8 @@ void LogSummary::decode(bufferlist::const_iterator& bl)
   }
 }
 
-void LogSummary::dump(Formatter *f) const
+void
+LogSummary::dump(Formatter* f) const
 {
   f->dump_unsigned("version", version);
   f->open_object_section("tail_by_channel");
@@ -357,7 +368,8 @@ void LogSummary::dump(Formatter *f) const
   f->close_section();
 }
 
-list<LogSummary> LogSummary::generate_test_instances()
+list<LogSummary>
+LogSummary::generate_test_instances()
 {
   list<LogSummary> o;
   o.emplace_back();

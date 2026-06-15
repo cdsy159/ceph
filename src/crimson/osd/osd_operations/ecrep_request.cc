@@ -4,7 +4,6 @@
 #include "ecrep_request.h"
 
 #include "common/Formatter.h"
-
 #include "crimson/osd/ec_backend.h"
 #include "crimson/osd/osd.h"
 #include "crimson/osd/osd_connection_priv.h"
@@ -12,20 +11,23 @@
 #include "crimson/osd/pg.h"
 
 namespace {
-  seastar::logger& logger() {
-    return crimson::get_logger(ceph_subsys_osd);
-  }
+seastar::logger&
+logger()
+{
+  return crimson::get_logger(ceph_subsys_osd);
 }
+} // namespace
 
 namespace crimson::osd {
 
-void ECRepRequest::print(std::ostream& os) const
+void
+ECRepRequest::print(std::ostream& os) const
 {
-  os << "ECRepRequest("
-     << ")";
+  os << "ECRepRequest(" << ")";
 }
 
-void ECRepRequest::dump_detail(Formatter *f) const
+void
+ECRepRequest::dump_detail(Formatter* f) const
 {
 #if 0
   f->open_object_section("ECRepRequest");
@@ -37,55 +39,61 @@ void ECRepRequest::dump_detail(Formatter *f) const
 #endif
 }
 
-ConnectionPipeline &ECRepRequest::get_connection_pipeline()
+ConnectionPipeline&
+ECRepRequest::get_connection_pipeline()
 {
-  return get_osd_priv(&get_local_connection()
-         ).replicated_request_conn_pipeline;
+  return get_osd_priv(&get_local_connection()).replicated_request_conn_pipeline;
 }
 
-PerShardPipeline &ECRepRequest::get_pershard_pipeline(
-  ShardServices &shard_services)
+PerShardPipeline&
+ECRepRequest::get_pershard_pipeline(ShardServices& shard_services)
 {
   return shard_services.get_replicated_request_pipeline();
 }
 
 // from https://en.cppreference.com/w/cpp/utility/variant/visit
 // helper type for the visitor #4
-template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
 // explicit deduction guide (not needed as of C++20)
-template<class... Ts>
+template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
-seastar::future<> ECRepRequest::with_pg(
-  ShardServices &shard_services, Ref<PG> pg)
+seastar::future<>
+ECRepRequest::with_pg(ShardServices& shard_services, Ref<PG> pg)
 {
   logger().debug("{}: ECRepRequest::with_pg", *this);
 
   IRef ref = this;
   return interruptor::with_interruption(
-    [this, pg, ec_backend=dynamic_cast<ECBackend*>(&pg->get_backend())] {
-    assert(ec_backend);
-    return std::visit(overloaded{
-      [pg] (Ref<MOSDECSubOpWrite> concrete_req) {
-        return pg->handle_rep_write_op(std::move(concrete_req));
+      [this, pg, ec_backend = dynamic_cast<ECBackend*>(&pg->get_backend())] {
+        assert(ec_backend);
+        return std::visit(
+            overloaded{
+                [pg](Ref<MOSDECSubOpWrite> concrete_req) {
+                  return pg->handle_rep_write_op(std::move(concrete_req));
+                },
+                [pg](Ref<MOSDECSubOpWriteReply> concrete_req) {
+                  return pg->handle_rep_write_reply(std::move(concrete_req));
+                },
+                [pg](Ref<MOSDECSubOpRead> concrete_req) {
+                  return pg->handle_rep_read_op(std::move(concrete_req));
+                },
+                [ec_backend](Ref<MOSDECSubOpReadReply> concrete_req) {
+                  return ec_backend
+                      ->handle_rep_read_reply(std::move(concrete_req))
+                      .handle_error_interruptible(
+                          crimson::ct_error::assert_all{});
+                }},
+            req);
       },
-      [pg] (Ref<MOSDECSubOpWriteReply> concrete_req) {
-        return pg->handle_rep_write_reply(std::move(concrete_req));
+      [ref, this](std::exception_ptr) {
+        logger().debug("{}: ECRepRequest::exception handling", *this);
+        return seastar::now();
       },
-      [pg] (Ref<MOSDECSubOpRead> concrete_req) {
-        return pg->handle_rep_read_op(std::move(concrete_req));
-      },
-      [ec_backend] (Ref<MOSDECSubOpReadReply> concrete_req) {
-        return ec_backend->handle_rep_read_reply(
-	  std::move(concrete_req)
-	).handle_error_interruptible(crimson::ct_error::assert_all{});
-      }}, req);
-  }, [ref, this](std::exception_ptr) {
-    logger().debug("{}: ECRepRequest::exception handling", *this);
-    return seastar::now();
-  }, pg, pg->get_osdmap_epoch());
+      pg, pg->get_osdmap_epoch());
 }
 
-}
-
+} // namespace crimson::osd

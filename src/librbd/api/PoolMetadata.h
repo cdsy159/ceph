@@ -4,12 +4,12 @@
 #ifndef CEPH_LIBRBD_API_POOL_METADATA_H
 #define CEPH_LIBRBD_API_POOL_METADATA_H
 
-#include "include/buffer_fwd.h"
-#include "include/rados/librados_fwd.hpp"
-
 #include <cstdint>
 #include <map>
 #include <string>
+
+#include "include/buffer_fwd.h"
+#include "include/rados/librados_fwd.hpp"
 
 namespace librbd {
 
@@ -20,13 +20,20 @@ namespace api {
 template <typename ImageCtxT = librbd::ImageCtx>
 class PoolMetadata {
 public:
-  static int get(librados::IoCtx& io_ctx, const std::string &key,
-                 std::string *value);
-  static int set(librados::IoCtx& io_ctx, const std::string &key,
-                 const std::string &value);
-  static int remove(librados::IoCtx& io_ctx, const std::string &key);
-  static int list(librados::IoCtx& io_ctx, const std::string &start,
-                  uint64_t max, std::map<std::string, ceph::bufferlist> *pairs);
+  static int get(
+      librados::IoCtx& io_ctx,
+      const std::string& key,
+      std::string* value);
+  static int set(
+      librados::IoCtx& io_ctx,
+      const std::string& key,
+      const std::string& value);
+  static int remove(librados::IoCtx& io_ctx, const std::string& key);
+  static int list(
+      librados::IoCtx& io_ctx,
+      const std::string& start,
+      uint64_t max,
+      std::map<std::string, ceph::bufferlist>* pairs);
 };
 
 } // namespace api

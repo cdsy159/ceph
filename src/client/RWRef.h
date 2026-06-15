@@ -81,22 +81,24 @@
 #define CEPH_RWRef_Posix__H
 
 #include <string>
-#include "include/ceph_assert.h"
+
 #include "common/ceph_mutex.h"
+#include "include/ceph_assert.h"
 
 /* The status mechanism info */
-template<typename T>
+template <typename T>
 struct RWRefState {
-  public:
-    template <typename T1> friend class RWRef;
+public:
+  template <typename T1>
+  friend class RWRef;
 
-    /*
+  /*
      * This will be status mechanism. Currently you need to define
      * it by yourself.
      */
-    T state;
+  T state;
 
-    /*
+  /*
      * User defined method to check whether the "require" state
      * is in the proper range we need.
      *
@@ -107,52 +109,59 @@ struct RWRefState {
      * Then the check_reader_state() should return truth if the
      * state is already in mouting or mounted state.
      */
-    virtual int check_reader_state(T require) const = 0;
+  virtual int check_reader_state(T require) const = 0;
 
-    /*
+  /*
      * User defined method to check whether the "require" state
      * is in the proper range we need.
      *
      * This will usually be the state migration check.
      */
-    virtual int check_writer_state(T require) const = 0;
+  virtual int check_writer_state(T require) const = 0;
 
-    /*
+  /*
      * User defined method to check whether the "require"
      * state is valid or not.
      */
-    virtual bool is_valid_state(T require) const = 0;
+  virtual bool is_valid_state(T require) const = 0;
 
-    int64_t get_state() const {
-      std::scoped_lock l{lock};
-      return state;
-    }
+  int64_t
+  get_state() const
+  {
+    std::scoped_lock l{lock};
+    return state;
+  }
 
-    bool check_current_state(T require) const {
-      ceph_assert(is_valid_state(require));
+  bool
+  check_current_state(T require) const
+  {
+    ceph_assert(is_valid_state(require));
 
-      std::scoped_lock l{lock};
-      return state == require;
-    }
+    std::scoped_lock l{lock};
+    return state == require;
+  }
 
-    RWRefState(T init_state, const char *lockname, uint64_t _reader_cnt=0)
-      : state(init_state), lock(ceph::make_mutex(lockname)), reader_cnt(_reader_cnt) {}
-    virtual ~RWRefState() {}
+  RWRefState(T init_state, const char* lockname, uint64_t _reader_cnt = 0) :
+    state(init_state), lock(ceph::make_mutex(lockname)), reader_cnt(_reader_cnt)
+  {}
 
-  private:
-    mutable ceph::mutex lock;
-    ceph::condition_variable cond;
-    uint64_t reader_cnt = 0;
+  virtual ~RWRefState() {}
+
+private:
+  mutable ceph::mutex lock;
+  ceph::condition_variable cond;
+  uint64_t reader_cnt = 0;
 };
 
-template<typename T>
+template <typename T>
 class RWRef {
 public:
   RWRef(const RWRef& other) = delete;
   const RWRef& operator=(const RWRef& other) = delete;
 
-  RWRef(RWRefState<T> &s, T require, bool ir=true)
-    :S(s), is_reader(ir) {
+  RWRef(RWRefState<T>& s, T require, bool ir = true) :
+    S(s), is_reader(ir)
+  {
     ceph_assert(S.is_valid_state(require));
 
     std::scoped_lock l{S.lock};
@@ -184,14 +193,18 @@ public:
    * Whether the "require" state is in the proper range of
    * the states.
    */
-  bool is_state_satisfied() const {
+  bool
+  is_state_satisfied() const
+  {
     return satisfied;
   }
 
   /*
    * Update the state, and only the writer could do the update.
    */
-  void update_state(T new_state) {
+  void
+  update_state(T new_state)
+  {
     ceph_assert(!is_reader);
     ceph_assert(S.is_valid_state(new_state));
 
@@ -202,25 +215,28 @@ public:
   /*
    * For current state whether we are the first writer or not
    */
-  bool is_first_writer() const {
+  bool
+  is_first_writer() const
+  {
     return first_writer;
   }
 
   /*
    * Will wait for all the in-flight "readers" to finish
    */
-  void wait_readers_done() {
+  void
+  wait_readers_done()
+  {
     // Only writers can wait
     ceph_assert(!is_reader);
 
     std::unique_lock l{S.lock};
 
-    S.cond.wait(l, [this] {
-      return !S.reader_cnt;
-    });
+    S.cond.wait(l, [this] { return !S.reader_cnt; });
   }
 
-  ~RWRef() {
+  ~RWRef()
+  {
     std::scoped_lock l{S.lock};
     if (!is_reader)
       return;
@@ -236,7 +252,7 @@ public:
   }
 
 private:
-  RWRefState<T> &S;
+  RWRefState<T>& S;
   bool satisfied = false;
   bool first_writer = false;
   bool is_reader = true;

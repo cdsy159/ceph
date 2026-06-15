@@ -17,11 +17,14 @@
 #ifndef QUEUE_STRATEGY_H
 #define QUEUE_STRATEGY_H
 
-#include <vector>
 #include <memory>
+#include <vector>
+
 #include <boost/intrusive/list.hpp>
-#include "DispatchStrategy.h"
+
 #include "msg/Messenger.h"
+
+#include "DispatchStrategy.h"
 
 namespace bi = boost::intrusive;
 
@@ -35,18 +38,24 @@ class QueueStrategy : public DispatchStrategy {
   class QSThread : public Thread {
   public:
     bi::list_member_hook<> thread_q;
-    QueueStrategy *dq;
+    QueueStrategy* dq;
     ceph::condition_variable cond;
-    explicit QSThread(QueueStrategy *dq) : thread_q(), dq(dq) {}
-    void* entry() {
+
+    explicit QSThread(QueueStrategy* dq) :
+      thread_q(), dq(dq)
+    {}
+
+    void*
+    entry()
+    {
       dq->entry(this);
       return NULL;
     }
 
-    typedef bi::list< QSThread,
-		      bi::member_hook< QSThread,
-				       bi::list_member_hook<>,
-				       &QSThread::thread_q > > Queue;
+    typedef bi::list<
+        QSThread,
+        bi::member_hook<QSThread, bi::list_member_hook<>, &QSThread::thread_q>>
+        Queue;
   };
 
   std::vector<std::unique_ptr<QSThread>> threads; //< all threads
@@ -54,11 +63,12 @@ class QueueStrategy : public DispatchStrategy {
 
 public:
   explicit QueueStrategy(int n_threads);
-  void ds_dispatch(Message *m) override;
+  void ds_dispatch(Message* m) override;
   void shutdown() override;
   void start() override;
   void wait() override;
-  void entry(QSThread *thrd);
+  void entry(QSThread* thrd);
+
   virtual ~QueueStrategy() {}
 };
 #endif /* QUEUE_STRATEGY_H */

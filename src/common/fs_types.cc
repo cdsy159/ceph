@@ -2,22 +2,28 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "include/fs_types.h"
-#include "common/Formatter.h"
-#include "include/ceph_features.h"
-#include "common/ceph_json.h"
-#include "include/denc.h"
 
 #include <iostream>
 
-void inodeno_t::dump(ceph::Formatter *f) const {
+#include "common/Formatter.h"
+#include "common/ceph_json.h"
+#include "include/ceph_features.h"
+#include "include/denc.h"
+
+void
+inodeno_t::dump(ceph::Formatter* f) const
+{
   f->dump_unsigned("val", val);
 }
 
-std::ostream& operator<<(std::ostream& out, const inodeno_t& ino) {
+std::ostream&
+operator<<(std::ostream& out, const inodeno_t& ino)
+{
   return out << std::hex << "0x" << ino.val << std::dec;
 }
 
-void dump(const ceph_file_layout& l, ceph::Formatter *f)
+void
+dump(const ceph_file_layout& l, ceph::Formatter* f)
 {
   f->dump_unsigned("stripe_unit", l.fl_stripe_unit);
   f->dump_unsigned("stripe_count", l.fl_stripe_count);
@@ -30,7 +36,8 @@ void dump(const ceph_file_layout& l, ceph::Formatter *f)
     f->dump_unsigned("pg_pool", l.fl_pg_pool);
 }
 
-void dump(const ceph_dir_layout& l, ceph::Formatter *f)
+void
+dump(const ceph_dir_layout& l, ceph::Formatter* f)
 {
   f->dump_unsigned("dir_hash", l.dl_dir_hash);
   f->dump_unsigned("unused1", l.dl_unused1);
@@ -38,15 +45,15 @@ void dump(const ceph_dir_layout& l, ceph::Formatter *f)
   f->dump_unsigned("unused3", l.dl_unused3);
 }
 
-
 // file_layout_t
 
-bool file_layout_t::is_valid() const
+bool
+file_layout_t::is_valid() const
 {
   /* stripe unit, object size must be non-zero, 64k increment */
-  if (!stripe_unit || (stripe_unit & (CEPH_MIN_STRIPE_UNIT-1)))
+  if (!stripe_unit || (stripe_unit & (CEPH_MIN_STRIPE_UNIT - 1)))
     return false;
-  if (!object_size || (object_size & (CEPH_MIN_STRIPE_UNIT-1)))
+  if (!object_size || (object_size & (CEPH_MIN_STRIPE_UNIT - 1)))
     return false;
   /* object size must be a multiple of stripe unit */
   if (object_size < stripe_unit || object_size % stripe_unit)
@@ -57,7 +64,8 @@ bool file_layout_t::is_valid() const
   return true;
 }
 
-void file_layout_t::from_legacy(const ceph_file_layout& fl)
+void
+file_layout_t::from_legacy(const ceph_file_layout& fl)
 {
   stripe_unit = fl.fl_stripe_unit;
   stripe_count = fl.fl_stripe_count;
@@ -70,7 +78,8 @@ void file_layout_t::from_legacy(const ceph_file_layout& fl)
   pool_ns.clear();
 }
 
-void file_layout_t::to_legacy(ceph_file_layout *fl) const
+void
+file_layout_t::to_legacy(ceph_file_layout* fl) const
 {
   fl->fl_stripe_unit = stripe_unit;
   fl->fl_stripe_count = stripe_count;
@@ -85,29 +94,33 @@ void file_layout_t::to_legacy(ceph_file_layout *fl) const
     fl->fl_pg_pool = 0;
 }
 
-void file_layout_t::encode(ceph::buffer::list& bl, uint64_t features) const
+void
+file_layout_t::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   using ceph::encode;
   if ((features & CEPH_FEATURE_FS_FILE_LAYOUT_V2) == 0) {
     ceph_file_layout fl;
-    ceph_assert((stripe_unit & 0xff) == 0);  // first byte must be 0
+    ceph_assert((stripe_unit & 0xff) == 0); // first byte must be 0
     to_legacy(&fl);
     encode(fl, bl);
     return;
   }
 
   ENCODE_START(2, 2, bl);
-  encode(std::tuple{
-    stripe_unit,
-    stripe_count,
-    object_size,
-    pool_id,
-  }, bl, 0);
+  encode(
+      std::tuple{
+          stripe_unit,
+          stripe_count,
+          object_size,
+          pool_id,
+      },
+      bl, 0);
   encode(pool_ns, bl);
   ENCODE_FINISH(bl);
 }
 
-void file_layout_t::decode(ceph::buffer::list::const_iterator& p)
+void
+file_layout_t::decode(ceph::buffer::list::const_iterator& p)
 {
   using ceph::decode;
   if (*p == 0) {
@@ -125,7 +138,8 @@ void file_layout_t::decode(ceph::buffer::list::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void file_layout_t::dump(ceph::Formatter *f) const
+void
+file_layout_t::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("stripe_unit", stripe_unit);
   f->dump_unsigned("stripe_count", stripe_count);
@@ -134,16 +148,19 @@ void file_layout_t::dump(ceph::Formatter *f) const
   f->dump_string("pool_ns", pool_ns);
 }
 
-void file_layout_t::decode_json(JSONObj *obj){
+void
+file_layout_t::decode_json(JSONObj* obj)
+{
 
-    JSONDecoder::decode_json("stripe_unit", stripe_unit, obj, true);
-    JSONDecoder::decode_json("stripe_count", stripe_count, obj, true);
-    JSONDecoder::decode_json("object_size", object_size, obj, true);
-    JSONDecoder::decode_json("pool_id", pool_id, obj, true);
-    JSONDecoder::decode_json("pool_ns", pool_ns, obj, true);
+  JSONDecoder::decode_json("stripe_unit", stripe_unit, obj, true);
+  JSONDecoder::decode_json("stripe_count", stripe_count, obj, true);
+  JSONDecoder::decode_json("object_size", object_size, obj, true);
+  JSONDecoder::decode_json("pool_id", pool_id, obj, true);
+  JSONDecoder::decode_json("pool_ns", pool_ns, obj, true);
 }
 
-std::list<file_layout_t> file_layout_t::generate_test_instances()
+std::list<file_layout_t>
+file_layout_t::generate_test_instances()
 {
   std::list<file_layout_t> o;
   o.emplace_back();
@@ -156,7 +173,8 @@ std::list<file_layout_t> file_layout_t::generate_test_instances()
   return o;
 }
 
-std::ostream& operator<<(std::ostream& out, const file_layout_t &layout)
+std::ostream&
+operator<<(std::ostream& out, const file_layout_t& layout)
 {
   ceph::JSONFormatter f;
   layout.dump(&f);

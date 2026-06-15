@@ -4,8 +4,9 @@
 #ifndef COMMON_ZIPKIN_TRACE_H
 #define COMMON_ZIPKIN_TRACE_H
 
-#include "acconfig.h"
 #include "include/encoding.h"
+
+#include "acconfig.h"
 
 #ifdef WITH_BLKIN
 
@@ -17,63 +18,126 @@
 
 // match the "real" struct
 struct blkin_trace_info {
-    int64_t trace_id;
-    int64_t span_id;
-    int64_t parent_span_id;
+  int64_t trace_id;
+  int64_t span_id;
+  int64_t parent_span_id;
 };
 
-namespace ZTracer
+namespace ZTracer {
+static inline int
+ztrace_init()
 {
-static inline int ztrace_init() { return 0; }
+  return 0;
+}
 
 class Endpoint {
- public:
-  Endpoint(const char *name) {}
-  Endpoint(const char *ip, int port, const char *name) {}
+public:
+  Endpoint(const char* name) {}
 
-  void copy_ip(const std::string &newip) {}
-  void copy_name(const std::string &newname) {}
-  void copy_address_from(const Endpoint *endpoint) {}
-  void share_address_from(const Endpoint *endpoint) {}
-  void set_port(int p) {}
+  Endpoint(const char* ip, int port, const char* name) {}
+
+  void
+  copy_ip(const std::string& newip)
+  {}
+
+  void
+  copy_name(const std::string& newname)
+  {}
+
+  void
+  copy_address_from(const Endpoint* endpoint)
+  {}
+
+  void
+  share_address_from(const Endpoint* endpoint)
+  {}
+
+  void
+  set_port(int p)
+  {}
 };
 
 class Trace {
- public:
+public:
   Trace() {}
-  Trace(const char *name, const Endpoint *ep, const Trace *parent = NULL) {}
-  Trace(const char *name, const Endpoint *ep,
-        const blkin_trace_info *i, bool child=false) {}
 
-  bool valid() const { return false; }
+  Trace(const char* name, const Endpoint* ep, const Trace* parent = NULL) {}
+
+  Trace(
+      const char* name,
+      const Endpoint* ep,
+      const blkin_trace_info* i,
+      bool child = false)
+  {}
+
+  bool
+  valid() const
+  {
+    return false;
+  }
+
   operator bool() const { return false; }
 
-  int init(const char *name, const Endpoint *ep, const Trace *parent = NULL) {
+  int
+  init(const char* name, const Endpoint* ep, const Trace* parent = NULL)
+  {
     return 0;
   }
-  int init(const char *name, const Endpoint *ep,
-           const blkin_trace_info *i, bool child=false) {
+
+  int
+  init(
+      const char* name,
+      const Endpoint* ep,
+      const blkin_trace_info* i,
+      bool child = false)
+  {
     return 0;
   }
 
-  void copy_name(const std::string &newname) {}
+  void
+  copy_name(const std::string& newname)
+  {}
 
-  const blkin_trace_info* get_info() const { return NULL; }
-  void set_info(const blkin_trace_info *i) {}
+  const blkin_trace_info*
+  get_info() const
+  {
+    return NULL;
+  }
 
-  void keyval(const char *key, const char *val) const {}
-  void keyval(const char *key, int64_t val) const {}
-  void keyval(const char *key, const char *val, const Endpoint *ep) const {}
-  void keyval(const char *key, int64_t val, const Endpoint *ep) const {}
+  void
+  set_info(const blkin_trace_info* i)
+  {}
 
-  void event(const char *event) const {}
-  void event(const char *event, const Endpoint *ep) const {}
+  void
+  keyval(const char* key, const char* val) const
+  {}
+
+  void
+  keyval(const char* key, int64_t val) const
+  {}
+
+  void
+  keyval(const char* key, const char* val, const Endpoint* ep) const
+  {}
+
+  void
+  keyval(const char* key, int64_t val, const Endpoint* ep) const
+  {}
+
+  void
+  event(const char* event) const
+  {}
+
+  void
+  event(const char* event, const Endpoint* ep) const
+  {}
 };
-} // namespace ZTrace
+} // namespace ZTracer
 
 #endif // !WITH_BLKIN
 
-static inline void encode(const blkin_trace_info& b, ceph::buffer::list& bl)
+static inline void
+encode(const blkin_trace_info& b, ceph::buffer::list& bl)
 {
   using ceph::encode;
   encode(b.trace_id, bl);
@@ -81,14 +145,14 @@ static inline void encode(const blkin_trace_info& b, ceph::buffer::list& bl)
   encode(b.parent_span_id, bl);
 }
 
-static inline void decode(blkin_trace_info& b, ceph::buffer::list::const_iterator& p)
+static inline void
+decode(blkin_trace_info& b, ceph::buffer::list::const_iterator& p)
 {
   using ceph::decode;
   decode(b.trace_id, p);
   decode(b.span_id, p);
   decode(b.parent_span_id, p);
 }
-
 
 
 #endif // COMMON_ZIPKIN_TRACE_H

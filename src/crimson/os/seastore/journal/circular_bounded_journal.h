@@ -3,25 +3,24 @@
 
 #pragma once
 
-#include "crimson/common/log.h"
+#include <seastar/core/future.hh>
+
+#include <list>
 
 #include <boost/intrusive_ptr.hpp>
 
-#include <seastar/core/future.hh>
-
-#include "include/ceph_assert.h"
-#include "include/buffer.h"
-#include "include/denc.h"
-
-#include "crimson/osd/exceptions.h"
+#include "crimson/common/log.h"
 #include "crimson/os/seastore/journal.h"
-#include "include/uuid.h"
+#include "crimson/os/seastore/journal/circular_journal_space.h"
+#include "crimson/os/seastore/journal/record_submitter.h"
 #include "crimson/os/seastore/random_block_manager.h"
 #include "crimson/os/seastore/random_block_manager/rbm_device.h"
-#include <list>
-#include "crimson/os/seastore/journal/record_submitter.h"
-#include "crimson/os/seastore/journal/circular_journal_space.h"
 #include "crimson/os/seastore/record_scanner.h"
+#include "crimson/osd/exceptions.h"
+#include "include/buffer.h"
+#include "include/ceph_assert.h"
+#include "include/denc.h"
+#include "include/uuid.h"
 
 using namespace std::literals;
 
@@ -56,14 +55,21 @@ class CircularBoundedJournal : public Journal, RecordScanner {
 public:
   CircularBoundedJournal(
       store_index_t store_index,
-      JournalTrimmer &trimmer, RBMDevice* device, const std::string &path);
+      JournalTrimmer& trimmer,
+      RBMDevice* device,
+      const std::string& path);
+
   ~CircularBoundedJournal() {}
 
-  JournalTrimmer &get_trimmer() final {
+  JournalTrimmer&
+  get_trimmer() final
+  {
     return trimmer;
   }
 
-  writer_stats_t get_writer_stats() const final {
+  writer_stats_t
+  get_writer_stats() const final
+  {
     return record_submitter.get_stats();
   }
 
@@ -73,27 +79,30 @@ public:
 
   close_ertr::future<> close() final;
 
-  backend_type_t get_type() final {
+  backend_type_t
+  get_type() final
+  {
     return backend_type_t::RANDOM_BLOCK;
   }
 
   submit_record_ertr::future<> submit_record(
-    record_t &&record,
-    OrderingHandle &handle,
-    transaction_type_t t_src,
-    on_submission_func_t &&on_submission
-  ) final;
+      record_t&& record,
+      OrderingHandle& handle,
+      transaction_type_t t_src,
+      on_submission_func_t&& on_submission) final;
 
-  seastar::future<> flush(
-    OrderingHandle &handle
-  ) final {
+  seastar::future<>
+  flush(OrderingHandle& handle) final
+  {
     // TODO
     return seastar::now();
   }
 
-  replay_ret replay(delta_handler_t &&delta_handler) final;
+  replay_ret replay(delta_handler_t&& delta_handler) final;
 
-  rbm_abs_addr get_rbm_addr(journal_seq_t seq) const {
+  rbm_abs_addr
+  get_rbm_addr(journal_seq_t seq) const
+  {
     return convert_paddr_to_abs_addr(seq.offset);
   }
 
@@ -108,106 +117,139 @@ public:
    *
    */
 
-  seastar::future<> update_journal_tail(
-    journal_seq_t dirty,
-    journal_seq_t alloc) {
+  seastar::future<>
+  update_journal_tail(journal_seq_t dirty, journal_seq_t alloc)
+  {
     return cjs.update_journal_tail(dirty, alloc);
   }
-  journal_seq_t get_dirty_tail() const {
+
+  journal_seq_t
+  get_dirty_tail() const
+  {
     return cjs.get_dirty_tail();
   }
-  journal_seq_t get_alloc_tail() const {
+
+  journal_seq_t
+  get_alloc_tail() const
+  {
     return cjs.get_alloc_tail();
   }
 
-  void set_write_pipeline(WritePipeline *_write_pipeline) final {
+  void
+  set_write_pipeline(WritePipeline* _write_pipeline) final
+  {
     write_pipeline = _write_pipeline;
   }
 
-  device_id_t get_device_id() const {
+  device_id_t
+  get_device_id() const
+  {
     return cjs.get_device_id();
   }
-  extent_len_t get_block_size() const {
+
+  extent_len_t
+  get_block_size() const
+  {
     return cjs.get_block_size();
   }
 
-  rbm_abs_addr get_journal_end() const {
+  rbm_abs_addr
+  get_journal_end() const
+  {
     return cjs.get_journal_end();
   }
 
-  void set_written_to(journal_seq_t seq) {
+  void
+  set_written_to(journal_seq_t seq)
+  {
     cjs.set_written_to(seq);
   }
 
-  journal_seq_t get_written_to() {
+  journal_seq_t
+  get_written_to()
+  {
     return cjs.get_written_to();
   }
 
-  rbm_abs_addr get_records_start() const {
+  rbm_abs_addr
+  get_records_start() const
+  {
     return cjs.get_records_start();
   }
 
-  using cbj_delta_handler_t = std::function<
-  replay_ertr::future<bool>(
-    const record_locator_t&,
-    const delta_info_t&,
-    sea_time_point modify_time)>;
+  using cbj_delta_handler_t = std::function<replay_ertr::future<bool>(
+      const record_locator_t&,
+      const delta_info_t&,
+      sea_time_point modify_time)>;
 
   Journal::replay_ret scan_valid_record_delta(
-    cbj_delta_handler_t &&delta_handler,
-    journal_seq_t tail);
+      cbj_delta_handler_t&& delta_handler,
+      journal_seq_t tail);
 
-  void try_read_rolled_header(scan_valid_records_cursor &cursor) {
-    paddr_t addr = convert_abs_addr_to_paddr(
-      get_records_start(),
-      get_device_id());
+  void
+  try_read_rolled_header(scan_valid_records_cursor& cursor)
+  {
+    paddr_t addr =
+        convert_abs_addr_to_paddr(get_records_start(), get_device_id());
     cursor.seq.offset = addr;
     cursor.seq.segment_seq += 1;
   }
 
-  void initialize_cursor(scan_valid_records_cursor& cursor) final {
+  void
+  initialize_cursor(scan_valid_records_cursor& cursor) final
+  {
     cursor.block_size = get_block_size();
   };
 
   Journal::replay_ret replay_segment(
-    cbj_delta_handler_t &handler, scan_valid_records_cursor& cursor);
+      cbj_delta_handler_t& handler,
+      scan_valid_records_cursor& cursor);
 
   read_ret read(paddr_t start, size_t len) final;
 
-  bool is_record_segment_seq_invalid(scan_valid_records_cursor &cursor,
-    record_group_header_t &h) final;
+  bool is_record_segment_seq_invalid(
+      scan_valid_records_cursor& cursor,
+      record_group_header_t& h) final;
 
-  int64_t get_segment_end_offset(paddr_t addr) final {
+  int64_t
+  get_segment_end_offset(paddr_t addr) final
+  {
     return get_journal_end();
   }
 
-  bool is_checksum_needed() final {
+  bool
+  is_checksum_needed() final
+  {
     return cjs.is_checksum_needed();
   }
 
   // Test interfaces
-  
-  CircularJournalSpace& get_cjs() {
+
+  CircularJournalSpace&
+  get_cjs()
+  {
     return cjs;
   }
 
-  read_validate_record_metadata_ret test_read_validate_record_metadata(
-    scan_valid_records_cursor &cursor,
-    segment_nonce_t nonce)
+  read_validate_record_metadata_ret
+  test_read_validate_record_metadata(
+      scan_valid_records_cursor& cursor,
+      segment_nonce_t nonce)
   {
     return read_validate_record_metadata(cursor, nonce);
   }
 
-  void test_initialize_cursor(scan_valid_records_cursor &cursor)
+  void
+  test_initialize_cursor(scan_valid_records_cursor& cursor)
   {
     initialize_cursor(cursor);
   }
 
 private:
   store_index_t store_index;
-  JournalTrimmer &trimmer;
+  JournalTrimmer& trimmer;
   std::string path;
-  WritePipeline *write_pipeline = nullptr;
+  WritePipeline* write_pipeline = nullptr;
   /**
    * initialized
    *
@@ -218,10 +260,10 @@ private:
 
   // start address where the newest record will be written
   // should be in range [get_records_start(), get_journal_end())
-  // written_to.segment_seq is circulation seq to track 
+  // written_to.segment_seq is circulation seq to track
   // the sequence to written records
   CircularJournalSpace cjs;
-  RecordSubmitter record_submitter; 
+  RecordSubmitter record_submitter;
 
   struct {
     uint64_t submit_record_count = 0;
@@ -234,9 +276,9 @@ private:
     uint64_t submit_record_wait_count = 0;
     std::chrono::duration<double> submit_record_wait_latency_total = 0.0s;
   } stats;
+
   seastar::metrics::metric_group metrics;
   void register_metrics();
 };
 
-}
-
+} // namespace crimson::os::seastore::journal

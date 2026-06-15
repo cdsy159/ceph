@@ -38,9 +38,9 @@ class MFSMap;
 
 class Mgr : public AdminSocketHook {
 protected:
-  MonClient *monc;
-  Objecter  *objecter;
-  Messenger *client_messenger;
+  MonClient* monc;
+  Objecter* objecter;
+  Messenger* client_messenger;
 
   mutable ceph::mutex lock = ceph::make_mutex("Mgr::lock");
   Finisher finisher;
@@ -50,7 +50,7 @@ protected:
   bool digest_received;
   ceph::condition_variable digest_cond;
 
-  PyModuleRegistry *py_module_registry;
+  PyModuleRegistry* py_module_registry;
   DaemonStateIndex daemon_state;
   ClusterState cluster_state;
 
@@ -70,15 +70,26 @@ protected:
   ceph::coarse_mono_time initialization_start_time;
 
 public:
-  Mgr(MonClient *monc_, const MgrMap& mgrmap,
-      PyModuleRegistry *py_module_registry_,
-      Messenger *clientm_, Objecter *objecter_,
-      LogChannelRef clog_, LogChannelRef audit_clog_);
+  Mgr(MonClient* monc_,
+      const MgrMap& mgrmap,
+      PyModuleRegistry* py_module_registry_,
+      Messenger* clientm_,
+      Objecter* objecter_,
+      LogChannelRef clog_,
+      LogChannelRef audit_clog_);
   ~Mgr();
 
-  bool is_initialized() const {return initialized;}
+  bool
+  is_initialized() const
+  {
+    return initialized;
+  }
+
   bool exceeded_initialization_expiration();
-  entity_addrvec_t get_server_addrs() const {
+
+  entity_addrvec_t
+  get_server_addrs() const
+  {
     return server.get_myaddrs();
   }
 
@@ -93,28 +104,27 @@ public:
 
   Dispatcher::dispatch_result_t ms_dispatch2(const ceph::ref_t<Message>& m);
 
-  void background_init(Context *completion);
+  void background_init(Context* completion);
 
   std::map<std::string, std::string> get_services() const;
 
   int call(
-    std::string_view command,
-    const cmdmap_t& cmdmap,
-    const bufferlist& inbl,
-    Formatter *f,
-    std::ostream& errss,
-    ceph::buffer::list& out) override;
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist& inbl,
+      Formatter* f,
+      std::ostream& errss,
+      ceph::buffer::list& out) override;
 };
 
 /**
  * Context for completion of metadata mon commands: take
  * the result and stash it in DaemonStateIndex
  */
-class MetadataUpdate : public Context
-{
+class MetadataUpdate : public Context {
 
 private:
-  DaemonStateIndex &daemon_state;
+  DaemonStateIndex& daemon_state;
   DaemonKey key;
 
   std::map<std::string, std::string> defaults;
@@ -123,13 +133,14 @@ public:
   bufferlist outbl;
   std::string outs;
 
-  MetadataUpdate(DaemonStateIndex &daemon_state_, const DaemonKey &key_)
-    : daemon_state(daemon_state_), key(key_)
+  MetadataUpdate(DaemonStateIndex& daemon_state_, const DaemonKey& key_) :
+    daemon_state(daemon_state_), key(key_)
   {
-      daemon_state.notify_updating(key);
+    daemon_state.notify_updating(key);
   }
 
-  void set_default(const std::string &k, const std::string &v)
+  void
+  set_default(const std::string& k, const std::string& v)
   {
     defaults[k] = v;
   }

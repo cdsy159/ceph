@@ -19,25 +19,29 @@ namespace image {
 template <typename ImageCtxT = ImageCtx>
 class AttachChildRequest {
 public:
-  static AttachChildRequest* create(ImageCtxT *image_ctx,
-                                    ImageCtxT *parent_image_ctx,
-                                    const librados::snap_t &parent_snap_id,
-                                    ImageCtxT *old_parent_image_ctx,
-                                    const librados::snap_t &old_parent_snap_id,
-                                    uint32_t clone_format,
-                                    Context* on_finish) {
-      return new AttachChildRequest(image_ctx, parent_image_ctx, parent_snap_id,
-                                    old_parent_image_ctx, old_parent_snap_id,
-                                    clone_format, on_finish);
+  static AttachChildRequest*
+  create(
+      ImageCtxT* image_ctx,
+      ImageCtxT* parent_image_ctx,
+      const librados::snap_t& parent_snap_id,
+      ImageCtxT* old_parent_image_ctx,
+      const librados::snap_t& old_parent_snap_id,
+      uint32_t clone_format,
+      Context* on_finish)
+  {
+    return new AttachChildRequest(
+        image_ctx, parent_image_ctx, parent_snap_id, old_parent_image_ctx,
+        old_parent_snap_id, clone_format, on_finish);
   }
 
-  AttachChildRequest(ImageCtxT *image_ctx,
-                     ImageCtxT *parent_image_ctx,
-                     const librados::snap_t &parent_snap_id,
-                     ImageCtxT *old_parent_image_ctx,
-                     const librados::snap_t &old_parent_snap_id,
-                     uint32_t clone_format,
-                     Context* on_finish);
+  AttachChildRequest(
+      ImageCtxT* image_ctx,
+      ImageCtxT* parent_image_ctx,
+      const librados::snap_t& parent_snap_id,
+      ImageCtxT* old_parent_image_ctx,
+      const librados::snap_t& old_parent_snap_id,
+      uint32_t clone_format,
+      Context* on_finish);
 
   void send();
 
@@ -66,15 +70,15 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_image_ctx;
-  ImageCtxT *m_parent_image_ctx;
+  ImageCtxT* m_image_ctx;
+  ImageCtxT* m_parent_image_ctx;
   librados::snap_t m_parent_snap_id;
-  ImageCtxT *m_old_parent_image_ctx;
+  ImageCtxT* m_old_parent_image_ctx;
   librados::snap_t m_old_parent_snap_id;
   uint32_t m_clone_format;
   Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
 
   void v1_add_child();
   void handle_v1_add_child(int r);

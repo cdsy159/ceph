@@ -15,8 +15,10 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/execution/executor.hpp>
-#include "cancel_on_error.h"
+
 #include "detail/spawn_group.h"
+
+#include "cancel_on_error.h"
 
 namespace ceph::async {
 
@@ -58,20 +60,20 @@ class spawn_group {
   using impl_type = detail::spawn_group_impl<Executor>;
   boost::intrusive_ptr<impl_type> impl;
 
- public:
-  spawn_group(Executor ex, size_t limit,
-              cancel_on_error on_error = cancel_on_error::none)
-    : impl(new impl_type(ex, limit, on_error))
-  {
-  }
+public:
+  spawn_group(
+      Executor ex,
+      size_t limit,
+      cancel_on_error on_error = cancel_on_error::none) :
+    impl(new impl_type(ex, limit, on_error))
+  {}
 
-  ~spawn_group()
-  {
-    impl->cancel();
-  }
+  ~spawn_group() { impl->cancel(); }
 
   using executor_type = Executor;
-  executor_type get_executor() const
+
+  executor_type
+  get_executor() const
   {
     return impl->get_executor();
   }
@@ -82,7 +84,8 @@ class spawn_group {
   ///
   /// As a convenience, you can avoid calling this function by using the
   /// spawn_group itself as a CompletionToken for co_spawn().
-  auto completion()
+  auto
+  completion()
   {
     return impl->completion();
   }
@@ -93,13 +96,15 @@ class spawn_group {
   ///
   /// After wait() completes, whether by exception or co_return, the spawn
   /// group can be reused to spawn and await additional coroutines.
-  boost::asio::awaitable<void, executor_type> wait()
+  boost::asio::awaitable<void, executor_type>
+  wait()
   {
     return impl->wait();
   }
 
   /// Cancel all outstanding coroutines.
-  void cancel()
+  void
+  cancel()
   {
     impl->cancel();
   }
@@ -111,19 +116,24 @@ namespace boost::asio {
 
 // Allow spawn_group to be used as a CompletionToken.
 template <typename Executor, typename Signature>
-struct async_result<ceph::async::spawn_group<Executor>, Signature>
-{
+struct async_result<ceph::async::spawn_group<Executor>, Signature> {
   using completion_handler_type =
       ceph::async::detail::spawn_group_handler<Executor>;
+
   async_result(completion_handler_type&) {}
 
   using return_type = void;
-  return_type get() {}
+
+  return_type
+  get()
+  {}
 
   template <typename Initiation, typename... Args>
-  static return_type initiate(Initiation&& init,
-                              ceph::async::spawn_group<Executor>& group,
-                              Args&& ...args)
+  static return_type
+  initiate(
+      Initiation&& init,
+      ceph::async::spawn_group<Executor>& group,
+      Args&&... args)
   {
     return std::move(init)(group.completion(), std::forward<Args>(args)...);
   }

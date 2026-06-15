@@ -13,73 +13,79 @@
  */
 
 #include "cls/numops/cls_numops_client.h"
+
+#include <errno.h>
+
+#include <sstream>
+
 #include "include/encoding.h"
 #include "include/rados/librados.hpp"
 
-#include <errno.h>
-#include <sstream>
-
 namespace rados {
-  namespace cls {
-    namespace numops {
+namespace cls {
+namespace numops {
 
-      int add(librados::IoCtx *ioctx,
-              const std::string& oid,
-              const std::string& key,
-              double value_to_add)
-      {
-        bufferlist in;
-        encode(key, in);
+int
+add(librados::IoCtx* ioctx,
+    const std::string& oid,
+    const std::string& key,
+    double value_to_add)
+{
+  bufferlist in;
+  encode(key, in);
 
-        std::stringstream stream;
-        stream << value_to_add;
+  std::stringstream stream;
+  stream << value_to_add;
 
-        encode(stream.str(), in);
+  encode(stream.str(), in);
 
-        librados::ObjectWriteOperation op;
-        op.exec("numops", "add", in);
+  librados::ObjectWriteOperation op;
+  op.exec("numops", "add", in);
 
-        return ioctx->operate(oid, &op);
-      }
+  return ioctx->operate(oid, &op);
+}
 
-      int sub(librados::IoCtx *ioctx,
-              const std::string& oid,
-              const std::string& key,
-              double value_to_subtract)
-      {
-        return add(ioctx, oid, key, -value_to_subtract);
-      }
+int
+sub(librados::IoCtx* ioctx,
+    const std::string& oid,
+    const std::string& key,
+    double value_to_subtract)
+{
+  return add(ioctx, oid, key, -value_to_subtract);
+}
 
-      int mul(librados::IoCtx *ioctx,
-              const std::string& oid,
-              const std::string& key,
-              double value_to_multiply)
-      {
-        bufferlist in, out;
-        encode(key, in);
+int
+mul(librados::IoCtx* ioctx,
+    const std::string& oid,
+    const std::string& key,
+    double value_to_multiply)
+{
+  bufferlist in, out;
+  encode(key, in);
 
-        std::stringstream stream;
-        stream << value_to_multiply;
+  std::stringstream stream;
+  stream << value_to_multiply;
 
-        encode(stream.str(), in);
+  encode(stream.str(), in);
 
-        librados::ObjectWriteOperation op;
-        op.exec("numops", "mul", in);
+  librados::ObjectWriteOperation op;
+  op.exec("numops", "mul", in);
 
-        return ioctx->operate(oid, &op);
-      }
+  return ioctx->operate(oid, &op);
+}
 
-      int div(librados::IoCtx *ioctx,
-              const std::string& oid,
-              const std::string& key,
-              double value_to_divide)
-      {
-        if (value_to_divide == 0)
-          return -EINVAL;
+int
+div(librados::IoCtx* ioctx,
+    const std::string& oid,
+    const std::string& key,
+    double value_to_divide)
+{
+  if (value_to_divide == 0)
+    return -EINVAL;
 
-        return mul(ioctx, oid, key, 1 / value_to_divide);
-      }
+  return mul(ioctx, oid, key, 1 / value_to_divide);
+}
 
-    } // namespace numops
-  } // namespace cls
+} // namespace numops
+} // namespace cls
 } // namespace rados

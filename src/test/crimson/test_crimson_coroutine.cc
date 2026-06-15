@@ -1,17 +1,16 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <boost/iterator/counting_iterator.hpp>
 #include <numeric>
 
-#include "seastar/core/sleep.hh"
-#include "seastar/core/loop.hh"
+#include <boost/iterator/counting_iterator.hpp>
 
 #include "crimson/common/coroutine.h"
 #include "crimson/common/errorator.h"
 #include "crimson/common/interruptible_future.h"
 #include "crimson/common/log.h"
-
+#include "seastar/core/loop.hh"
+#include "seastar/core/sleep.hh"
 #include "test/crimson/gtest_seastar.h"
 
 using namespace std::chrono_literals;
@@ -21,80 +20,82 @@ struct coroutine_test_t : public seastar_test_suite_t {
     bool interrupted = false;
   } interruption_state;
 
-  class test_interruption : public std::exception
-  {};
+  class test_interruption : public std::exception {};
 
   class test_interrupt_cond {
-    interruption_state_t *int_state = nullptr;
+    interruption_state_t* int_state = nullptr;
+
   public:
     test_interrupt_cond() = delete;
-    test_interrupt_cond(interruption_state_t *int_state)
-      : int_state(int_state) {}
+
+    test_interrupt_cond(interruption_state_t* int_state) :
+      int_state(int_state)
+    {}
 
     template <typename T>
-    std::optional<T> may_interrupt() {
+    std::optional<T>
+    may_interrupt()
+    {
       ceph_assert(int_state);
       if (int_state->interrupted) {
-	return seastar::futurize<T>::make_exception_future(
-	  test_interruption()
-	);
+        return seastar::futurize<T>::make_exception_future(test_interruption());
       } else {
-	return std::nullopt;
+        return std::nullopt;
       }
     }
 
     template <typename T>
-    static constexpr bool is_interruption_v = std::is_same_v<
-      T, test_interruption>;
+    static constexpr bool is_interruption_v =
+        std::is_same_v<T, test_interruption>;
 
-    static bool is_interruption(std::exception_ptr& eptr) {
+    static bool
+    is_interruption(std::exception_ptr& eptr)
+    {
       if (*eptr.__cxa_exception_type() == typeid(test_interruption))
-	return true;
+        return true;
       return false;
     }
   };
+
   using interruptor = crimson::interruptible::interruptor<test_interrupt_cond>;
 
   using ertr = crimson::errorator<crimson::ct_error::invarg>;
-  using iertr = crimson::interruptible::interruptible_errorator<
-    test_interrupt_cond,
-    ertr>;
+  using iertr =
+      crimson::interruptible::interruptible_errorator<test_interrupt_cond, ertr>;
 
-  using ertr2 = ertr::extend<
-    crimson::ct_error::eagain>;
-  using iertr2 = crimson::interruptible::interruptible_errorator<
-    test_interrupt_cond,
-    ertr2>;
+  using ertr2 = ertr::extend<crimson::ct_error::eagain>;
+  using iertr2 =
+      crimson::interruptible::interruptible_errorator<test_interrupt_cond, ertr2>;
 
-  using ertr3 = ertr::extend<
-    crimson::ct_error::enoent>;
-  using iertr3 = crimson::interruptible::interruptible_errorator<
-    test_interrupt_cond,
-    ertr3>;
+  using ertr3 = ertr::extend<crimson::ct_error::enoent>;
+  using iertr3 =
+      crimson::interruptible::interruptible_errorator<test_interrupt_cond, ertr3>;
 
-  void interrupt() {
+  void
+  interrupt()
+  {
     interruption_state.interrupted = true;
   }
 
-  seastar::future<> set_up_fut() final {
+  seastar::future<>
+  set_up_fut() final
+  {
     interruption_state.interrupted = false;
     return seastar::now();
   }
 
-
   template <typename E, typename F>
-  auto cwi(E &&errf, F &&f) {
+  auto
+  cwi(E&& errf, F&& f)
+  {
     return interruptor::with_interruption(
-      scl(std::forward<F>(f)),
-      std::forward<E>(errf),
-      &interruption_state);
+        scl(std::forward<F>(f)), std::forward<E>(errf), &interruption_state);
   }
 };
 
 namespace crimson::interruptible {
-template
-thread_local interrupt_cond_t<coroutine_test_t::test_interrupt_cond>
-interrupt_cond<coroutine_test_t::test_interrupt_cond>;
+template thread_local interrupt_cond_t<coroutine_test_t::test_interrupt_cond>
+    interrupt_cond<coroutine_test_t::test_interrupt_cond>;
 }
 
 TEST_F(coroutine_test_t, test_coroutine)
@@ -110,20 +111,19 @@ TEST_F(coroutine_test_t, test_coroutine_loops)
 {
   run_scl([]() -> seastar::future<> {
     int CHECK = 0;
-    std::vector<int> v = {1,2,3};
-    co_await seastar::parallel_for_each(v,
-      [&CHECK] (auto i) -> seastar::future<> {
+    std::vector<int> v = {1, 2, 3};
+    co_await seastar::parallel_for_each(v, [&CHECK](auto i) -> seastar::future<> {
       CHECK++;
       co_return;
     });
     EXPECT_EQ(CHECK, v.size());
 
     co_await seastar::do_until(
-      [&CHECK] { return CHECK == 0; },
-      [&CHECK] () -> seastar::future<> {
-      CHECK--;
-      co_return;
-    });
+        [&CHECK] { return CHECK == 0; },
+        [&CHECK]() -> seastar::future<> {
+          CHECK--;
+          co_return;
+        });
     EXPECT_EQ(CHECK, 0);
   });
 }
@@ -150,17 +150,13 @@ TEST_F(coroutine_test_t, test_ertr_coroutine_error)
 {
   run_scl([this]() -> seastar::future<> {
     auto fut = scl([]() -> ertr::future<int> {
-      std::ignore = co_await ertr::future<int>(
-	crimson::ct_error::invarg::make()
-      );
+      std::ignore =
+          co_await ertr::future<int>(crimson::ct_error::invarg::make());
       EXPECT_EQ("above co_await should throw", nullptr);
       co_return 10;
     })();
     auto ret = co_await std::move(fut).handle_error(
-      [](const crimson::ct_error::invarg &e) {
-	return 20;
-      }
-    );
+        [](const crimson::ct_error::invarg& e) { return 20; });
     EXPECT_EQ(ret, 20);
   });
 }
@@ -170,7 +166,6 @@ TEST_F(coroutine_test_t, test_ertr_coroutine_error)
 TEST_F(coroutine_test_t, test_ertr_coroutine_error_2)
 {
   run_scl([this]() -> seastar::future<> {
-
     auto fut = scl([]() -> ertr::future<int> {
       co_await ertr::future<int>(crimson::ct_error::invarg::make());
       EXPECT_EQ("above co_await should throw", nullptr);
@@ -178,10 +173,7 @@ TEST_F(coroutine_test_t, test_ertr_coroutine_error_2)
     })();
 
     auto ret = co_await std::move(fut).handle_error(
-      [](const crimson::ct_error::invarg &e) {
-	return 20;
-      }
-    );
+        [](const crimson::ct_error::invarg& e) { return 20; });
     EXPECT_EQ(ret, 20);
   });
 }
@@ -189,7 +181,6 @@ TEST_F(coroutine_test_t, test_ertr_coroutine_error_2)
 TEST_F(coroutine_test_t, test_ertr_coroutine_pass_further)
 {
   run_scl([this]() -> seastar::future<> {
-
     // foo1 makes an error which throws
     auto fut = scl([]() -> ertr::future<int> {
       co_await ertr::future<int>(crimson::ct_error::invarg::make());
@@ -199,19 +190,14 @@ TEST_F(coroutine_test_t, test_ertr_coroutine_pass_further)
 
     // foo2 handles the error and passes it further
     auto fut2 = scl([fut = std::move(fut)]() mutable -> ertr::future<int> {
-      co_await std::move(fut).handle_error(
-        ertr::pass_further{}
-      );
+      co_await std::move(fut).handle_error(ertr::pass_further{});
       EXPECT_EQ("above co_await should throw", nullptr);
       co_return 10;
     })();
 
     // handle the passed further error from foo2
     auto ret = co_await std::move(fut2).handle_error(
-      [](const crimson::ct_error::invarg &e) {
-	return 20;
-      }
-    );
+        [](const crimson::ct_error::invarg& e) { return 20; });
 
     EXPECT_EQ(ret, 20);
   });
@@ -235,12 +221,12 @@ TEST_F(coroutine_test_t, interruptible_coroutine_basic)
 {
   run_scl([this]() -> seastar::future<> {
     seastar::promise<int> p;
-    auto ret = cwi(
-      [](auto) { return 2; },
-      [f=p.get_future()]() mutable -> interruptor::future<int> {
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	co_return x;
-      });
+    auto ret =
+        cwi([](auto) { return 2; },
+            [f = p.get_future()]() mutable -> interruptor::future<int> {
+              auto x = co_await interruptor::make_interruptible(std::move(f));
+              co_return x;
+            });
     p.set_value(0);
     auto awaited = co_await std::move(ret);
     EXPECT_EQ(awaited, 0);
@@ -251,12 +237,12 @@ TEST_F(coroutine_test_t, interruptible_coroutine_interrupted)
 {
   run_scl([this]() -> seastar::future<> {
     seastar::promise<int> p;
-    auto ret = cwi(
-      [](auto) { return 2; },
-      [f=p.get_future()]() mutable -> interruptor::future<int> {
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	co_return x;
-      });
+    auto ret =
+        cwi([](auto) { return 2; },
+            [f = p.get_future()]() mutable -> interruptor::future<int> {
+              auto x = co_await interruptor::make_interruptible(std::move(f));
+              co_return x;
+            });
     interrupt();
     p.set_value(0);
     auto awaited = co_await std::move(ret);
@@ -268,16 +254,16 @@ TEST_F(coroutine_test_t, interruptible_coroutine_interrupted_repeat)
 {
   run_scl([this]() -> seastar::future<> {
     int count = 0;
-    auto ret = cwi(
-      [](auto) { return 2; },
-      [&count]() mutable -> interruptor::future<int> {
-        while (true) {
-          count++;
-          co_await interruptor::make_interruptible(seastar::sleep(100ms));
-          continue;
-        }
-      });
-    auto backgroud = seastar::sleep(3s).then([this]{interrupt();});
+    auto ret =
+        cwi([](auto) { return 2; },
+            [&count]() mutable -> interruptor::future<int> {
+              while (true) {
+                count++;
+                co_await interruptor::make_interruptible(seastar::sleep(100ms));
+                continue;
+              }
+            });
+    auto backgroud = seastar::sleep(3s).then([this] { interrupt(); });
     auto awaited = co_await std::move(ret);
     EXPECT_EQ(awaited, 2);
     // Make sure that there were a few iterations prior to interrupting..
@@ -289,20 +275,20 @@ TEST_F(coroutine_test_t, dual_interruptible_coroutine)
 {
   run_scl([this]() -> seastar::future<> {
     seastar::promise<int> p, p2;
-    auto fut1 = cwi(
-      [](auto) { return 2; },
-      [&p, f=p2.get_future()]() mutable -> interruptor::future<int> {
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	p.set_value(1);
-	co_return x;
-      });
-    auto fut2 = cwi(
-      [](auto) { return 2; },
-      [&p2, f=p.get_future()]() mutable -> interruptor::future<int> {
-	p2.set_value(0);
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	co_return x;
-      });
+    auto fut1 =
+        cwi([](auto) { return 2; },
+            [&p, f = p2.get_future()]() mutable -> interruptor::future<int> {
+              auto x = co_await interruptor::make_interruptible(std::move(f));
+              p.set_value(1);
+              co_return x;
+            });
+    auto fut2 =
+        cwi([](auto) { return 2; },
+            [&p2, f = p.get_future()]() mutable -> interruptor::future<int> {
+              p2.set_value(0);
+              auto x = co_await interruptor::make_interruptible(std::move(f));
+              co_return x;
+            });
 
     auto ret1 = co_await std::move(fut1);
     auto ret2 = co_await std::move(fut2);
@@ -316,20 +302,20 @@ TEST_F(coroutine_test_t, dual_interruptible_coroutine_interrupted)
   run_scl([this]() -> seastar::future<> {
     seastar::promise<int> p, p2;
     auto fut1 = cwi(
-      [](auto) { return 2; },
-      [this, &p, f=p2.get_future()]() mutable -> interruptor::future<int> {
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	interrupt();
-	p.set_value(1);
-	co_return x;
-      });
-    auto fut2 = cwi(
-      [](auto) { return 2; },
-      [&p2, f=p.get_future()]() mutable -> interruptor::future<int> {
-	p2.set_value(0);
-	auto x = co_await interruptor::make_interruptible(std::move(f));
-	co_return x;
-      });
+        [](auto) { return 2; },
+        [this, &p, f = p2.get_future()]() mutable -> interruptor::future<int> {
+          auto x = co_await interruptor::make_interruptible(std::move(f));
+          interrupt();
+          p.set_value(1);
+          co_return x;
+        });
+    auto fut2 =
+        cwi([](auto) { return 2; },
+            [&p2, f = p.get_future()]() mutable -> interruptor::future<int> {
+              p2.set_value(0);
+              auto x = co_await interruptor::make_interruptible(std::move(f));
+              co_return x;
+            });
 
     auto ret1 = co_await std::move(fut1);
     auto ret2 = co_await std::move(fut2);
@@ -342,10 +328,7 @@ TEST_F(coroutine_test_t, test_iertr_coroutine_basic)
 {
   run_ertr_scl([this]() -> ertr2::future<> {
     auto ret = co_await cwi(
-      [](auto) { return 10; },
-      []() -> iertr::future<int> {
-	co_return 20;
-      });
+        [](auto) { return 10; }, []() -> iertr::future<int> { co_return 20; });
     EXPECT_EQ(ret, 20);
   });
 }
@@ -354,12 +337,10 @@ TEST_F(coroutine_test_t, test_iertr_coroutine_interruption_as_error)
 {
   run_ertr_scl([this]() -> ertr2::future<> {
     auto ret = co_await cwi(
-      [](auto) {
-	return ertr2::future<int>(crimson::ct_error::eagain::make());
-      },
-      []() -> iertr::future<int> {
-	co_return 20;
-      });
+        [](auto) {
+          return ertr2::future<int>(crimson::ct_error::eagain::make());
+        },
+        []() -> iertr::future<int> { co_return 20; });
     EXPECT_EQ(ret, 20);
   });
 }
@@ -369,21 +350,18 @@ TEST_F(coroutine_test_t, test_iertr_coroutine_interruption_as_error_interrupted)
   run_ertr_scl([this]() -> ertr::future<> {
     seastar::promise<> p;
     auto f = cwi(
-      [](auto) {
-	return ertr2::future<int>(crimson::ct_error::eagain::make());
-      },
-      [&p]() -> iertr::future<int> {
-        co_await iertr::make_interruptible(p.get_future());
-	co_return 20;
-      });
+        [](auto) {
+          return ertr2::future<int>(crimson::ct_error::eagain::make());
+        },
+        [&p]() -> iertr::future<int> {
+          co_await iertr::make_interruptible(p.get_future());
+          co_return 20;
+        });
     interrupt();
     p.set_value();
     auto ret = co_await f.handle_error(
-      crimson::ct_error::eagain::handle([](const auto &) {
-	return 30;
-      }),
-      crimson::ct_error::pass_further_all{}
-    );
+        crimson::ct_error::eagain::handle([](const auto&) { return 30; }),
+        crimson::ct_error::pass_further_all{});
     EXPECT_EQ(ret, 30);
   });
 }
@@ -422,4 +400,3 @@ TEST_F(coroutine_test_t, test_iertr_coroutine_interruption_should_not_compile2)
   });
 }
 #endif
-

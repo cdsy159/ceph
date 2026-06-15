@@ -4,12 +4,13 @@
 #ifndef CEPH_LIBRBD_DEEP_COPY_METADATA_COPY_REQUEST_H
 #define CEPH_LIBRBD_DEEP_COPY_METADATA_COPY_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/rados/librados.hpp"
-#include "librbd/ImageCtx.h"
 #include <map>
 #include <string>
+
+#include "include/buffer.h"
+#include "include/int_types.h"
+#include "include/rados/librados.hpp"
+#include "librbd/ImageCtx.h"
 
 class Context;
 
@@ -19,14 +20,16 @@ namespace deep_copy {
 template <typename ImageCtxT = librbd::ImageCtx>
 class MetadataCopyRequest {
 public:
-  static MetadataCopyRequest* create(ImageCtxT *src_image_ctx,
-                                     ImageCtxT *dst_image_ctx,
-                                     Context *on_finish) {
+  static MetadataCopyRequest*
+  create(ImageCtxT* src_image_ctx, ImageCtxT* dst_image_ctx, Context* on_finish)
+  {
     return new MetadataCopyRequest(src_image_ctx, dst_image_ctx, on_finish);
   }
 
-  MetadataCopyRequest(ImageCtxT *src_image_ctx, ImageCtxT *dst_image_ctx,
-                      Context *on_finish);
+  MetadataCopyRequest(
+      ImageCtxT* src_image_ctx,
+      ImageCtxT* dst_image_ctx,
+      Context* on_finish);
 
   void send();
 
@@ -49,11 +52,11 @@ private:
    */
   typedef std::map<std::string, bufferlist> Metadata;
 
-  ImageCtxT *m_src_image_ctx;
-  ImageCtxT *m_dst_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT* m_src_image_ctx;
+  ImageCtxT* m_dst_image_ctx;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
   bufferlist m_out_bl;
 
   std::map<std::string, bufferlist> m_metadata;
@@ -67,7 +70,6 @@ private:
   void handle_set_dst_metadata(int r);
 
   void finish(int r);
-
 };
 
 } // namespace deep_copy

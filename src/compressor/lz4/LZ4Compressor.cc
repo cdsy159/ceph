@@ -14,17 +14,18 @@
  */
 
 #include "LZ4Compressor.h"
+
 #include "common/ceph_context.h"
 #ifdef HAVE_QATZIP
-  #include "compressor/QatAccel.h"
+#include "compressor/QatAccel.h"
 #endif
 
 #ifdef HAVE_QATZIP
 QatAccel LZ4Compressor::qat_accel;
 #endif
 
-LZ4Compressor::LZ4Compressor(CephContext* cct)
-  : Compressor(COMP_ALG_LZ4, "lz4")
+LZ4Compressor::LZ4Compressor(CephContext* cct) :
+  Compressor(COMP_ALG_LZ4, "lz4")
 {
 #ifdef HAVE_QATZIP
   if (cct->_conf->qat_compressor_enabled && qat_accel.init("lz4"))
@@ -34,9 +35,11 @@ LZ4Compressor::LZ4Compressor(CephContext* cct)
 #endif
 }
 
-int LZ4Compressor::compress(const ceph::buffer::list &src,
-                            ceph::buffer::list &dst,
-                            std::optional<int32_t> &compressor_message)
+int
+LZ4Compressor::compress(
+    const ceph::buffer::list& src,
+    ceph::buffer::list& dst,
+    std::optional<int32_t>& compressor_message)
 {
   // older versions of liblz4 introduce bit errors when compressing
   // fragmented buffers.  this was fixed in lz4 commit
@@ -54,8 +57,8 @@ int LZ4Compressor::compress(const ceph::buffer::list &src,
   if (qat_enabled)
     return qat_accel.compress(src, dst, compressor_message);
 #endif
-  ceph::buffer::ptr outptr = ceph::buffer::create_small_page_aligned(
-    LZ4_compressBound(src.length()));
+  ceph::buffer::ptr outptr =
+      ceph::buffer::create_small_page_aligned(LZ4_compressBound(src.length()));
   LZ4_stream_t lz4_stream;
   LZ4_resetStream(&lz4_stream);
 
@@ -64,14 +67,14 @@ int LZ4Compressor::compress(const ceph::buffer::list &src,
   auto p = src.begin();
   size_t left = src.length();
   int pos = 0;
-  const char *data;
+  const char* data;
   unsigned num = src.get_num_buffers();
   encode((uint32_t)num, dst);
   while (left) {
     uint32_t origin_len = p.get_ptr_and_advance(left, &data);
     int compressed_len = LZ4_compress_fast_continue(
-      &lz4_stream, data, outptr.c_str()+pos, origin_len,
-      outptr.length()-pos, 1);
+        &lz4_stream, data, outptr.c_str() + pos, origin_len,
+        outptr.length() - pos, 1);
     if (compressed_len <= 0)
       return -1;
     pos += compressed_len;
@@ -85,9 +88,11 @@ int LZ4Compressor::compress(const ceph::buffer::list &src,
   return 0;
 }
 
-int LZ4Compressor::decompress(const ceph::buffer::list &src,
-                              ceph::buffer::list &dst,
-                              std::optional<int32_t> compressor_message)
+int
+LZ4Compressor::decompress(
+    const ceph::buffer::list& src,
+    ceph::buffer::list& dst,
+    std::optional<int32_t> compressor_message)
 {
 #ifdef HAVE_QATZIP
   if (qat_enabled)
@@ -97,10 +102,12 @@ int LZ4Compressor::decompress(const ceph::buffer::list &src,
   return decompress(i, src.length(), dst, compressor_message);
 }
 
-int LZ4Compressor::decompress(ceph::buffer::list::const_iterator &p,
-                              size_t compressed_len,
-                              ceph::buffer::list &dst,
-                              std::optional<int32_t> compressor_message)
+int
+LZ4Compressor::decompress(
+    ceph::buffer::list::const_iterator& p,
+    size_t compressed_len,
+    ceph::buffer::list& dst,
+    std::optional<int32_t> compressor_message)
 {
 #ifdef HAVE_QATZIP
   if (qat_enabled)
@@ -109,7 +116,7 @@ int LZ4Compressor::decompress(ceph::buffer::list::const_iterator &p,
   using ceph::decode;
   uint32_t count;
   decode(count, p);
-  std::vector<std::pair<uint32_t, uint32_t> > compressed_pairs(count);
+  std::vector<std::pair<uint32_t, uint32_t>> compressed_pairs(count);
   uint32_t total_origin = 0;
   for (auto& [dst_size, src_size] : compressed_pairs) {
     decode(dst_size, p);
@@ -128,10 +135,11 @@ int LZ4Compressor::decompress(ceph::buffer::list::const_iterator &p,
   // if the input isn't fragmented, c_str() costs almost nothing.
   // otherwise rectifying copy will be taken
   const char* c_in = indata.c_str();
-  char *c_out = dstptr.c_str();
+  char* c_out = dstptr.c_str();
   for (unsigned i = 0; i < count; ++i) {
     int r = LZ4_decompress_safe_continue(
-        &lz4_stream_decode, c_in, c_out, compressed_pairs[i].second, compressed_pairs[i].first);
+        &lz4_stream_decode, c_in, c_out, compressed_pairs[i].second,
+        compressed_pairs[i].first);
     if (r == (int)compressed_pairs[i].first) {
       c_in += compressed_pairs[i].second;
       c_out += compressed_pairs[i].first;

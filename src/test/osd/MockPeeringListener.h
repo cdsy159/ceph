@@ -14,19 +14,21 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
 #include <list>
 #include <map>
+#include <memory>
+#include <vector>
+
+#include "common/HeartbeatMap.h"
+#include "global/global_context.h"
+#include "os/ObjectStore.h"
 #include "osd/PeeringState.h"
 #include "osd/osd_perf_counters.h"
-#include "common/HeartbeatMap.h"
-#include "os/ObjectStore.h"
-#include "MockPGBackendListener.h"
-#include "MockPGBackend.h"
-#include "MockPGLogEntryHandler.h"
+
 #include "MockMessenger.h"
-#include "global/global_context.h"
+#include "MockPGBackend.h"
+#include "MockPGBackendListener.h"
+#include "MockPGLogEntryHandler.h"
 
 // Forward declarations
 class EventLoop;
@@ -38,9 +40,9 @@ class ECPeeringTestFixture;
 // Mock implementation of PeeringState::PeeringListener for testing.
 // inject_* variables can be used to create race hazards or test failure paths.
 class MockPeeringListener : public PeeringState::PeeringListener {
- public:
+public:
   pg_shard_t pg_whoami;
-  PeeringState *ps;
+  PeeringState* ps;
   std::unique_ptr<MockPGBackendListener> backend_listener;
   coll_t coll;
   ObjectStore::CollectionHandle ch;
@@ -51,21 +53,21 @@ class MockPeeringListener : public PeeringState::PeeringListener {
 
   // MockMessenger for routing cluster messages (optional - used by ECPeeringTestFixture)
   MockMessenger* messenger = nullptr;
-  
+
   // EventLoop for routing events (optional - used by ECPeeringTestFixture)
   class EventLoop* event_loop = nullptr;
-  
+
   // Fixture pointer for accessing peering state and context (optional - used by ECPeeringTestFixture)
   class ECPeeringTestFixture* fixture = nullptr;
 
 #ifdef WITH_CRIMSON
   // Per OSD state - kept for backward compatibility with TestPeeringState
   // When messenger is set, messages are routed through it instead
-  std::map<int,std::list<MessageURef>> messages;
+  std::map<int, std::list<MessageURef>> messages;
 #else
   // Per OSD state - kept for backward compatibility with TestPeeringState
   // When messenger is set, messages are routed through it instead
-  std::map<int,std::list<MessageRef>> messages;
+  std::map<int, std::list<MessageRef>> messages;
 #endif
   std::vector<HeartbeatStampsRef> hb_stamps;
   std::list<PGPeeringEventRef> events;
@@ -90,43 +92,50 @@ class MockPeeringListener : public PeeringState::PeeringListener {
 
   std::function<int(ObjectStore::Transaction&&)> queue_transaction_callback;
 
-  MockPeeringListener(OSDMapRef osdmap,
-                      int64_t pool_id,
-                      DoutPrefixProvider *dpp,
-                      pg_shard_t pg_whoami) : pg_whoami(pg_whoami) {
-    backend_listener = std::make_unique<MockPGBackendListener>(osdmap, pool_id, dpp, pg_whoami);
-    backend = std::make_unique<MockPGBackend>(g_ceph_context, backend_listener.get(), nullptr, coll, ch);
+  MockPeeringListener(
+      OSDMapRef osdmap,
+      int64_t pool_id,
+      DoutPrefixProvider* dpp,
+      pg_shard_t pg_whoami) :
+    pg_whoami(pg_whoami)
+  {
+    backend_listener = std::make_unique<MockPGBackendListener>(
+        osdmap, pool_id, dpp, pg_whoami);
+    backend = std::make_unique<MockPGBackend>(
+        g_ceph_context, backend_listener.get(), nullptr, coll, ch);
     recoverystate_perf = build_recoverystate_perf(g_ceph_context);
     g_ceph_context->get_perfcounters_collection()->add(recoverystate_perf);
     logger_perf = build_osd_logger(g_ceph_context);
     g_ceph_context->get_perfcounters_collection()->add(logger_perf);
   }
+
   /// Constructor for ECPeeringTestFixture: accepts a pre-created backend listener
   /// instead of creating one internally. This avoids the throw-away construction
   /// pattern where the internally-created listener would be immediately replaced.
-  MockPeeringListener(OSDMapRef osdmap,
-                      int64_t pool_id,
-                      DoutPrefixProvider *dpp,
-                      pg_shard_t pg_whoami,
-                      std::unique_ptr<MockPGBackendListener> bl,
-                      ObjectStore *object_store,
-                      coll_t coll_arg,
-                      ObjectStore::CollectionHandle ch_arg)
-    : pg_whoami(pg_whoami),
-      backend_listener(std::move(bl)),
-      coll(coll_arg),
-      ch(ch_arg)
+  MockPeeringListener(
+      OSDMapRef osdmap,
+      int64_t pool_id,
+      DoutPrefixProvider* dpp,
+      pg_shard_t pg_whoami,
+      std::unique_ptr<MockPGBackendListener> bl,
+      ObjectStore* object_store,
+      coll_t coll_arg,
+      ObjectStore::CollectionHandle ch_arg) :
+    pg_whoami(pg_whoami),
+    backend_listener(std::move(bl)),
+    coll(coll_arg),
+    ch(ch_arg)
   {
     backend = std::make_unique<MockPGBackend>(
-      g_ceph_context, backend_listener.get(), object_store, coll, ch);
+        g_ceph_context, backend_listener.get(), object_store, coll, ch);
     recoverystate_perf = build_recoverystate_perf(g_ceph_context);
     g_ceph_context->get_perfcounters_collection()->add(recoverystate_perf);
     logger_perf = build_osd_logger(g_ceph_context);
     g_ceph_context->get_perfcounters_collection()->add(logger_perf);
   }
 
-
-  ~MockPeeringListener() {
+  ~MockPeeringListener()
+  {
     if (recoverystate_perf) {
       g_ceph_context->get_perfcounters_collection()->remove(recoverystate_perf);
       delete recoverystate_perf;
@@ -139,22 +148,26 @@ class MockPeeringListener : public PeeringState::PeeringListener {
     }
   }
 
-  epoch_t get_osdmap_epoch() const override {
+  epoch_t
+  get_osdmap_epoch() const override
+  {
     return current_epoch;
   }
 
   // PeeringListener interface
-  void prepare_write(
-    pg_info_t &info,
-    pg_info_t &last_written_info,
-    PastIntervals &past_intervals,
-    PGLog &pglog,
-    bool dirty_info,
-    bool dirty_big_info,
-    bool need_write_epoch,
-    ObjectStore::Transaction &t) override {
+  void
+  prepare_write(
+      pg_info_t& info,
+      pg_info_t& last_written_info,
+      PastIntervals& past_intervals,
+      PGLog& pglog,
+      bool dirty_info,
+      bool dirty_big_info,
+      bool need_write_epoch,
+      ObjectStore::Transaction& t) override
+  {
     prepare_write_called = true;
-    
+
     // If a callback is set, queue the transaction
     if (queue_transaction_callback && !t.empty()) {
       ObjectStore::Transaction copy;
@@ -163,18 +176,28 @@ class MockPeeringListener : public PeeringState::PeeringListener {
     }
   }
 
-  void scrub_requested(scrub_level_t scrub_level, scrub_type_t scrub_type) override {
+  void
+  scrub_requested(scrub_level_t scrub_level, scrub_type_t scrub_type) override
+  {
     scrub_requested_called = true;
   }
 
-  uint64_t get_snap_trimq_size() const override {
+  uint64_t
+  get_snap_trimq_size() const override
+  {
     return snap_trimq_size;
   }
 
 #ifdef WITH_CRIMSON
-  void send_cluster_message(
-    int osd, MessageURef m, epoch_t epoch, bool share_map_update=false) override {
-    dout(0) << "send_cluster_message to " << osd << " " << m << " epoch " << epoch << dendl;
+  void
+  send_cluster_message(
+      int osd,
+      MessageURef m,
+      epoch_t epoch,
+      bool share_map_update = false) override
+  {
+    dout(0) << "send_cluster_message to " << osd << " " << m << " epoch "
+            << epoch << dendl;
     if (messenger) {
       // Use MockMessenger for EventLoop-based routing with epoch tracking
       messenger->send_message(pg_whoami.osd, osd, m.detach());
@@ -185,9 +208,15 @@ class MockPeeringListener : public PeeringState::PeeringListener {
     messages_sent++;
   }
 #else
-  void send_cluster_message(
-    int osd, MessageRef m, epoch_t epoch, bool share_map_update=false) override {
-    dout(0) << "send_cluster_message to " << osd << " " << m << " epoch " << epoch << dendl;
+  void
+  send_cluster_message(
+      int osd,
+      MessageRef m,
+      epoch_t epoch,
+      bool share_map_update = false) override
+  {
+    dout(0) << "send_cluster_message to " << osd << " " << m << " epoch "
+            << epoch << dendl;
     if (messenger) {
       // Use MockMessenger for EventLoop-based routing with epoch tracking
       messenger->send_message(pg_whoami.osd, osd, m.detach());
@@ -199,26 +228,39 @@ class MockPeeringListener : public PeeringState::PeeringListener {
   }
 #endif
 
-  void set_messenger(MockMessenger* m) {
+  void
+  set_messenger(MockMessenger* m)
+  {
     messenger = m;
   }
-  
-  void set_event_loop(EventLoop* el) {
+
+  void
+  set_event_loop(EventLoop* el)
+  {
     event_loop = el;
   }
-  
-  void set_fixture(ECPeeringTestFixture* f) {
+
+  void
+  set_fixture(ECPeeringTestFixture* f)
+  {
     fixture = f;
   }
 
-  void send_pg_created(pg_t pgid) override {
+  void
+  send_pg_created(pg_t pgid) override
+  {
     pg_created_sent = true;
   }
-  ceph::signedspan get_mnow() const override {
+
+  ceph::signedspan
+  get_mnow() const override
+  {
     return ceph::signedspan::zero();
   }
 
-  HeartbeatStampsRef get_hb_stamps(int peer) override {
+  HeartbeatStampsRef
+  get_hb_stamps(int peer) override
+  {
     if (peer >= (int)hb_stamps.size()) {
       hb_stamps.resize(peer + 1);
     }
@@ -228,203 +270,282 @@ class MockPeeringListener : public PeeringState::PeeringListener {
     return hb_stamps[peer];
   }
 
-  void schedule_renew_lease(epoch_t plr, ceph::timespan delay) override {
+  void
+  schedule_renew_lease(epoch_t plr, ceph::timespan delay) override
+  {
     renew_lease_scheduled = true;
   }
 
-  void queue_check_readable(epoch_t lpr, ceph::timespan delay) override {
+  void
+  queue_check_readable(epoch_t lpr, ceph::timespan delay) override
+  {
     check_readable_queued = true;
   }
 
-  void recheck_readable() override {
+  void
+  recheck_readable() override
+  {
     readable_rechecked = true;
   }
 
-  unsigned get_target_pg_log_entries() const override {
+  unsigned
+  get_target_pg_log_entries() const override
+  {
     return target_pg_log_entries;
   }
 
-
-  bool try_flush_or_schedule_async() override {
+  bool
+  try_flush_or_schedule_async() override
+  {
     return true;
   }
 
-  void start_flush_on_transaction(ObjectStore::Transaction &t) override {
+  void
+  start_flush_on_transaction(ObjectStore::Transaction& t) override
+  {
     flush_started = true;
   }
 
-  void on_flushed() override {
+  void
+  on_flushed() override
+  {
     flushed = true;
   }
 
-  void schedule_event_after(
-    PGPeeringEventRef event,
-    float delay) override {
+  void
+  schedule_event_after(PGPeeringEventRef event, float delay) override
+  {
     stalled_events.push_back(std::move(event));
     events_scheduled++;
   }
 
   void request_local_background_io_reservation(
-    unsigned priority,
-    PGPeeringEventURef on_grant,
-    PGPeeringEventURef on_preempt) override;
+      unsigned priority,
+      PGPeeringEventURef on_grant,
+      PGPeeringEventURef on_preempt) override;
 
-  void update_local_background_io_priority(
-    unsigned priority) override {
+  void
+  update_local_background_io_priority(unsigned priority) override
+  {
     io_priority_updated = true;
   }
 
-  void cancel_local_background_io_reservation() override {
+  void
+  cancel_local_background_io_reservation() override
+  {
     io_reservation_cancelled = true;
   }
 
   void request_remote_recovery_reservation(
-    unsigned priority,
-    PGPeeringEventURef on_grant,
-    PGPeeringEventURef on_preempt) override;
+      unsigned priority,
+      PGPeeringEventURef on_grant,
+      PGPeeringEventURef on_preempt) override;
 
-  void cancel_remote_recovery_reservation() override {
+  void
+  cancel_remote_recovery_reservation() override
+  {
     remote_recovery_reservation_cancelled = true;
   }
 
   void schedule_event_on_commit(
-    ObjectStore::Transaction &t,
-    PGPeeringEventRef on_commit) override;
+      ObjectStore::Transaction& t,
+      PGPeeringEventRef on_commit) override;
 
-  void update_heartbeat_peers(std::set<int> peers) override {
+  void
+  update_heartbeat_peers(std::set<int> peers) override
+  {
     heartbeat_peers_updated = true;
   }
 
-  void set_probe_targets(const std::set<pg_shard_t> &probe_set) override {
+  void
+  set_probe_targets(const std::set<pg_shard_t>& probe_set) override
+  {
     probe_targets_set = true;
   }
 
-  void clear_probe_targets() override {
+  void
+  clear_probe_targets() override
+  {
     probe_targets_cleared = true;
   }
 
-  void queue_want_pg_temp(const std::vector<int> &wanted) override {
+  void
+  queue_want_pg_temp(const std::vector<int>& wanted) override
+  {
     pg_temp_wanted = true;
     next_acting = wanted;
   }
 
-  void clear_want_pg_temp() override {
+  void
+  clear_want_pg_temp() override
+  {
     pg_temp_cleared = true;
   }
 
 #if POOL_MIGRATION
-  void send_pg_migrated_pool() override {
+  void
+  send_pg_migrated_pool() override
+  {
     pg_migrated_pool_sent = true;
   }
 #endif
 
-  void publish_stats_to_osd() override {
+  void
+  publish_stats_to_osd() override
+  {
     stats_published = true;
   }
 
-  void clear_publish_stats() override {
+  void
+  clear_publish_stats() override
+  {
     stats_cleared = true;
   }
 
-  void check_recovery_sources(const OSDMapRef& newmap) override {
+  void
+  check_recovery_sources(const OSDMapRef& newmap) override
+  {
     recovery_sources_checked = true;
   }
 
-  void check_blocklisted_watchers() override {
+  void
+  check_blocklisted_watchers() override
+  {
     blocklisted_watchers_checked = true;
   }
 
-  void clear_primary_state() override {
+  void
+  clear_primary_state() override
+  {
     primary_state_cleared = true;
   }
 
-  void on_active_exit() override {
+  void
+  on_active_exit() override
+  {
     active_exited = true;
   }
 
-  void on_active_actmap() override {
+  void
+  on_active_actmap() override
+  {
     active_actmap_called = true;
   }
 
-  void on_active_advmap(const OSDMapRef &osdmap) override {
+  void
+  on_active_advmap(const OSDMapRef& osdmap) override
+  {
     active_advmap_called = true;
   }
 
-  void on_backfill_reserved() override {
+  void
+  on_backfill_reserved() override
+  {
     backfill_reserved = true;
   }
 
-  void on_recovery_reserved() override {
+  void
+  on_recovery_reserved() override
+  {
     recovery_reserved = true;
   }
 
-  Context *on_clean() override {
+  Context*
+  on_clean() override
+  {
     clean_called = true;
     return nullptr;
   }
 
-  void on_activate(interval_set<snapid_t> snaps) override {
+  void
+  on_activate(interval_set<snapid_t> snaps) override
+  {
     activate_called = true;
   }
 
-  void on_change(ObjectStore::Transaction &t) override {
+  void
+  on_change(ObjectStore::Transaction& t) override
+  {
     first_write_in_interval = true;
     change_called = true;
   }
 
-  std::pair<ghobject_t, bool> do_delete_work(
-    ObjectStore::Transaction &t, ghobject_t _next) override {
+  std::pair<ghobject_t, bool>
+  do_delete_work(ObjectStore::Transaction& t, ghobject_t _next) override
+  {
     delete_work_done = true;
     return std::make_pair(ghobject_t(), true);
   }
 
-  void clear_ready_to_merge() override {
+  void
+  clear_ready_to_merge() override
+  {
     ready_to_merge_cleared = true;
   }
 
-  void set_not_ready_to_merge_target(pg_t pgid, pg_t src) override {
+  void
+  set_not_ready_to_merge_target(pg_t pgid, pg_t src) override
+  {
     not_ready_to_merge_target_set = true;
   }
 
-  void set_not_ready_to_merge_source(pg_t pgid) override {
+  void
+  set_not_ready_to_merge_source(pg_t pgid) override
+  {
     not_ready_to_merge_source_set = true;
   }
 
-  void set_ready_to_merge_target(eversion_t lu, epoch_t les, epoch_t lec) override {
+  void
+  set_ready_to_merge_target(eversion_t lu, epoch_t les, epoch_t lec) override
+  {
     ready_to_merge_target_set = true;
   }
 
-  void set_ready_to_merge_source(eversion_t lu) override {
+  void
+  set_ready_to_merge_source(eversion_t lu) override
+  {
     ready_to_merge_source_set = true;
   }
 
-  epoch_t cluster_osdmap_trim_lower_bound() override {
+  epoch_t
+  cluster_osdmap_trim_lower_bound() override
+  {
     return 1;
   }
 
-  void on_backfill_suspended() override {
+  void
+  on_backfill_suspended() override
+  {
     backfill_suspended = true;
   }
 
-  void on_recovery_cancelled() override {
+  void
+  on_recovery_cancelled() override
+  {
     recovery_cancelled = true;
   }
 
 #if POOL_MIGRATION
-  void on_pool_migration_reserved() override {
+  void
+  on_pool_migration_reserved() override
+  {
     pool_migration_reserved = true;
   }
 #endif
 
 #if POOL_MIGRATION
-  void on_pool_migration_suspended() override {
+  void
+  on_pool_migration_suspended() override
+  {
     pool_migration_suspended = true;
   }
 #endif
 
-  bool try_reserve_recovery_space(
-    int64_t primary_num_bytes,
-    int64_t local_num_bytes) override {
+  bool
+  try_reserve_recovery_space(
+      int64_t primary_num_bytes,
+      int64_t local_num_bytes) override
+  {
     recovery_space_reserved = true;
     if (inject_fail_reserve_recovery_space) {
       return false;
@@ -432,74 +553,107 @@ class MockPeeringListener : public PeeringState::PeeringListener {
     return true;
   }
 
-  void unreserve_recovery_space() override {
+  void
+  unreserve_recovery_space() override
+  {
     recovery_space_unreserved = true;
   }
 
-  PGLog::LogEntryHandlerRef get_log_handler(
-    ObjectStore::Transaction &t) override {
+  PGLog::LogEntryHandlerRef
+  get_log_handler(ObjectStore::Transaction& t) override
+  {
     return std::make_unique<MockPGLogEntryHandler>(backend.get(), &t);
   }
 
-  void rebuild_missing_set_with_deletes(PGLog &pglog) override {
+  void
+  rebuild_missing_set_with_deletes(PGLog& pglog) override
+  {
     missing_set_rebuilt = true;
   }
 
-  PerfCounters &get_peering_perf() override {
+  PerfCounters&
+  get_peering_perf() override
+  {
     return *recoverystate_perf;
   }
 
-  PerfCounters &get_perf_logger() override {
+  PerfCounters&
+  get_perf_logger() override
+  {
     return *logger_perf;
   }
 
-  void log_state_enter(const char *state) override {
+  void
+  log_state_enter(const char* state) override
+  {
     last_state_entered = std::string(state);
     state_entered = true;
   }
 
-  void log_state_exit(
-    const char *state_name, utime_t enter_time,
-    uint64_t events, utime_t event_dur) override {
+  void
+  log_state_exit(
+      const char* state_name,
+      utime_t enter_time,
+      uint64_t events,
+      utime_t event_dur) override
+  {
     last_state_exited = std::string(state_name);
     state_exited = true;
   }
 
-  void dump_recovery_info(ceph::Formatter *f) const override {
+  void
+  dump_recovery_info(ceph::Formatter* f) const override
+  {
     recovery_info_dumped = true;
   }
 
-  OstreamTemp get_clog_info() override {
+  OstreamTemp
+  get_clog_info() override
+  {
     return OstreamTemp(CLOG_INFO, nullptr);
   }
 
-  OstreamTemp get_clog_error() override {
+  OstreamTemp
+  get_clog_error() override
+  {
     return OstreamTemp(CLOG_ERROR, nullptr);
   }
 
-  OstreamTemp get_clog_debug() override {
+  OstreamTemp
+  get_clog_debug() override
+  {
     return OstreamTemp(CLOG_DEBUG, nullptr);
   }
 
   void on_activate_complete() override;
 
-  void on_activate_committed() override {
+  void
+  on_activate_committed() override
+  {
     activate_committed_called = true;
   }
 
-  void on_new_interval() override {
+  void
+  on_new_interval() override
+  {
     new_interval_called = true;
   }
 
-  void on_pool_change() override {
+  void
+  on_pool_change() override
+  {
     pool_changed = true;
   }
 
-  void on_role_change() override {
+  void
+  on_role_change() override
+  {
     role_changed = true;
   }
 
-  void on_removal(ObjectStore::Transaction &t) override {
+  void
+  on_removal(ObjectStore::Transaction& t) override
+  {
     removal_called = true;
   }
 
@@ -570,4 +724,3 @@ class MockPeeringListener : public PeeringState::PeeringListener {
   int events_on_commit_scheduled = 0;
   bool first_write_in_interval = false;
 };
-

@@ -4,19 +4,16 @@
 #ifndef __CEPH_LOG_ENTRY_H
 #define __CEPH_LOG_ENTRY_H
 
-#include "include/compat.h"
-
-#include "log/LogClock.h"
-
-#include "common/StackStringStream.h"
-#include "common/Thread.h"
-
-#include "boost/container/small_vector.hpp"
-
 #include <pthread.h>
 
 #include <string_view>
 
+#include "boost/container/small_vector.hpp"
+
+#include "common/StackStringStream.h"
+#include "common/Thread.h"
+#include "include/compat.h"
+#include "log/LogClock.h"
 
 namespace ceph {
 namespace logging {
@@ -27,18 +24,17 @@ public:
   using thread_name_t = std::array<char, 16>;
 
   Entry() = delete;
+
   Entry(short pr, short sub) :
-    m_stamp(clock().now()),
-    m_thread(pthread_self()),
-    m_prio(pr),
-    m_subsys(sub)
+    m_stamp(clock().now()), m_thread(pthread_self()), m_prio(pr), m_subsys(sub)
   {
     ceph_pthread_getname(m_thread_name.data(), m_thread_name.size());
   }
-  Entry(const Entry &) = default;
-  Entry& operator=(const Entry &) = default;
-  Entry(Entry &&e) = default;
-  Entry& operator=(Entry &&e) = default;
+
+  Entry(const Entry&) = default;
+  Entry& operator=(const Entry&) = default;
+  Entry(Entry&& e) = default;
+  Entry& operator=(Entry&& e) = default;
   virtual ~Entry() = default;
 
   virtual std::string_view strv() const = 0;
@@ -49,7 +45,9 @@ public:
   short m_prio, m_subsys;
   thread_name_t m_thread_name{};
 
-  static log_clock& clock() {
+  static log_clock&
+  clock()
+  {
     static log_clock clock;
     return clock;
   }
@@ -61,21 +59,32 @@ public:
 class MutableEntry : public Entry {
 public:
   MutableEntry() = delete;
-  MutableEntry(short pr, short sub) : Entry(pr, sub) {}
+
+  MutableEntry(short pr, short sub) :
+    Entry(pr, sub)
+  {}
+
   MutableEntry(const MutableEntry&) = delete;
   MutableEntry& operator=(const MutableEntry&) = delete;
   MutableEntry(MutableEntry&&) = delete;
   MutableEntry& operator=(MutableEntry&&) = delete;
   ~MutableEntry() override = default;
 
-  std::ostream& get_ostream() {
+  std::ostream&
+  get_ostream()
+  {
     return *cos;
   }
 
-  std::string_view strv() const override {
+  std::string_view
+  strv() const override
+  {
     return cos->strv();
   }
-  std::size_t size() const override {
+
+  std::size_t
+  size() const override
+  {
     return cos->strv().size();
   }
 
@@ -86,30 +95,48 @@ private:
 class ConcreteEntry : public Entry {
 public:
   ConcreteEntry() = delete;
-  ConcreteEntry(const Entry& e) : Entry(e) {
+
+  ConcreteEntry(const Entry& e) :
+    Entry(e)
+  {
     auto strv = e.strv();
     str.reserve(strv.size());
     str.insert(str.end(), strv.begin(), strv.end());
   }
-  ConcreteEntry& operator=(const Entry& e) {
+
+  ConcreteEntry&
+  operator=(const Entry& e)
+  {
     Entry::operator=(e);
     auto strv = e.strv();
     str.reserve(strv.size());
     str.assign(strv.begin(), strv.end());
     return *this;
   }
-  ConcreteEntry(ConcreteEntry&& e) noexcept : Entry(e), str(std::move(e.str)) {}
-  ConcreteEntry& operator=(ConcreteEntry&& e) {
+
+  ConcreteEntry(ConcreteEntry&& e) noexcept :
+    Entry(e), str(std::move(e.str))
+  {}
+
+  ConcreteEntry&
+  operator=(ConcreteEntry&& e)
+  {
     Entry::operator=(e);
     str = std::move(e.str);
     return *this;
   }
+
   ~ConcreteEntry() override = default;
 
-  std::string_view strv() const override {
+  std::string_view
+  strv() const override
+  {
     return std::string_view(str.data(), str.size());
   }
-  std::size_t size() const override {
+
+  std::size_t
+  size() const override
+  {
     return str.size();
   }
 
@@ -117,7 +144,7 @@ private:
   boost::container::small_vector<char, 1024> str;
 };
 
-}
-}
+} // namespace logging
+} // namespace ceph
 
 #endif

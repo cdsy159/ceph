@@ -1,17 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-
 #include "common/ceph_time.h"
-
-#include "objclass/objclass.h"
-
-#include "cls_log_types.h"
-#include "cls_log_ops.h"
-
 #include "global/global_context.h"
 #include "include/compat.h"
+#include "include/types.h"
+#include "objclass/objclass.h"
+
+#include "cls_log_ops.h"
+#include "cls_log_types.h"
 
 using std::map;
 using std::string;
@@ -19,13 +16,13 @@ using std::string;
 using ceph::bufferlist;
 using namespace std::literals;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(log)
 
 static string log_index_prefix = "1_";
 
-
-static int write_log_entry(cls_method_context_t hctx, string& index, cls::log::entry& entry)
+static int
+write_log_entry(cls_method_context_t hctx, string& index, cls::log::entry& entry)
 {
   bufferlist bl;
   encode(entry, bl);
@@ -37,7 +34,8 @@ static int write_log_entry(cls_method_context_t hctx, string& index, cls::log::e
   return 0;
 }
 
-static void get_index_time_prefix(ceph::real_time ts, string& index)
+static void
+get_index_time_prefix(ceph::real_time ts, string& index)
 {
   auto tv = ceph::real_clock::to_timeval(ts);
   char buf[32];
@@ -46,7 +44,8 @@ static void get_index_time_prefix(ceph::real_time ts, string& index)
   index = log_index_prefix + buf;
 }
 
-static int read_header(cls_method_context_t hctx, cls::log::header& header)
+static int
+read_header(cls_method_context_t hctx, cls::log::header& header)
 {
   bufferlist header_bl;
 
@@ -69,7 +68,8 @@ static int read_header(cls_method_context_t hctx, cls::log::header& header)
   return 0;
 }
 
-static int write_header(cls_method_context_t hctx, cls::log::header& header)
+static int
+write_header(cls_method_context_t hctx, cls::log::header& header)
 {
   bufferlist header_bl;
   encode(header, header_bl);
@@ -81,7 +81,8 @@ static int write_header(cls_method_context_t hctx, cls::log::header& header)
   return 0;
 }
 
-static void get_index(cls_method_context_t hctx, ceph::real_time ts, string& index)
+static void
+get_index(cls_method_context_t hctx, ceph::real_time ts, string& index)
 {
   get_index_time_prefix(ts, index);
 
@@ -92,7 +93,8 @@ static void get_index(cls_method_context_t hctx, ceph::real_time ts, string& ind
   index.append(unique_id);
 }
 
-static int cls_log_add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_log_add(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -146,7 +148,8 @@ static int cls_log_add(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
-static int cls_log_list(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_log_list(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -168,7 +171,8 @@ static int cls_log_list(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   } else {
     from_index = op.marker;
   }
-  bool use_time_boundary = (!ceph::real_clock::is_zero(op.from_time) && (op.to_time >= op.from_time));
+  bool use_time_boundary =
+      (!ceph::real_clock::is_zero(op.from_time) && (op.to_time >= op.from_time));
 
   if (use_time_boundary)
     get_index_time_prefix(op.to_time, to_index);
@@ -180,7 +184,8 @@ static int cls_log_list(cls_method_context_t hctx, bufferlist *in, bufferlist *o
 
   cls::log::ops::list_ret ret;
 
-  int rc = cls_cxx_map_get_vals(hctx, from_index, log_index_prefix, max_entries, &keys, &ret.truncated);
+  int rc = cls_cxx_map_get_vals(
+      hctx, from_index, log_index_prefix, max_entries, &keys, &ret.truncated);
   if (rc < 0)
     return rc;
 
@@ -204,7 +209,9 @@ static int cls_log_list(cls_method_context_t hctx, bufferlist *in, bufferlist *o
       decode(e, biter);
       entries.push_back(e);
     } catch (ceph::buffer::error& err) {
-      CLS_LOG(0, "ERROR: cls_log_list: could not decode entry, index=%s", index.c_str());
+      CLS_LOG(
+          0, "ERROR: cls_log_list: could not decode entry, index=%s",
+          index.c_str());
     }
   }
 
@@ -215,8 +222,8 @@ static int cls_log_list(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   return 0;
 }
 
-
-static int cls_log_trim(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_log_trim(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -265,11 +272,15 @@ static int cls_log_trim(cls_method_context_t hctx, bufferlist *in, bufferlist *o
 
   const std::string& first_key = *keys.begin();
   if (to_index < first_key) {
-    CLS_LOG(20, "listed key %s past to_index=%s", first_key.c_str(), to_index.c_str());
+    CLS_LOG(
+        20, "listed key %s past to_index=%s", first_key.c_str(),
+        to_index.c_str());
     return -ENODATA;
   }
 
-  CLS_LOG(20, "listed key %s, removing through %s", first_key.c_str(), to_index.c_str());
+  CLS_LOG(
+      20, "listed key %s, removing through %s", first_key.c_str(),
+      to_index.c_str());
 
   rc = cls_cxx_map_remove_range(hctx, first_key, to_index);
   if (rc < 0) {
@@ -280,7 +291,8 @@ static int cls_log_trim(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   return 0;
 }
 
-static int cls_log_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_log_info(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -316,11 +328,14 @@ CLS_INIT(log)
   cls_register("log", &h_class);
 
   /* log */
-  cls_register_cxx_method(h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR, cls_log_add, &h_log_add);
-  cls_register_cxx_method(h_class, "list", CLS_METHOD_RD, cls_log_list, &h_log_list);
-  cls_register_cxx_method(h_class, "trim", CLS_METHOD_RD | CLS_METHOD_WR, cls_log_trim, &h_log_trim);
-  cls_register_cxx_method(h_class, "info", CLS_METHOD_RD, cls_log_info, &h_log_info);
+  cls_register_cxx_method(
+      h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR, cls_log_add, &h_log_add);
+  cls_register_cxx_method(
+      h_class, "list", CLS_METHOD_RD, cls_log_list, &h_log_list);
+  cls_register_cxx_method(
+      h_class, "trim", CLS_METHOD_RD | CLS_METHOD_WR, cls_log_trim, &h_log_trim);
+  cls_register_cxx_method(
+      h_class, "info", CLS_METHOD_RD, cls_log_info, &h_log_info);
 
   return;
 }
-

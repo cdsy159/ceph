@@ -15,17 +15,18 @@
 
 #pragma once
 
-#include "common/dout.h"
-#include "ECUtil.h"
 #include "common/ceph_releases.h"
+#include "common/dout.h"
 #include "erasure-code/ErasureCodeInterface.h"
 #include "os/Transaction.h"
+
+#include "ECUtil.h"
 #include "OSDMap.h"
 #include "PGTransaction.h"
 
 namespace ECTransaction {
 class WritePlanObj {
- public:
+public:
   const hobject_t hoid;
   std::optional<ECUtil::shard_extent_set_t> to_read;
   ECUtil::shard_extent_set_t will_write;
@@ -35,26 +36,25 @@ class WritePlanObj {
   bool do_parity_delta_write = false;
 
   WritePlanObj(
-      const hobject_t &hoid,
-      const PGTransaction::ObjectOperation &op,
-      const ECUtil::stripe_info_t &sinfo,
+      const hobject_t& hoid,
+      const PGTransaction::ObjectOperation& op,
+      const ECUtil::stripe_info_t& sinfo,
       const shard_id_set readable_shards,
       const shard_id_set writable_shards,
       const bool object_in_cache,
       uint64_t orig_size,
-      const std::optional<object_info_t> &oi,
-      const std::optional<object_info_t> &soi,
+      const std::optional<object_info_t>& oi,
+      const std::optional<object_info_t>& soi,
       unsigned pdw_write_mode);
 
-  void print(std::ostream &os) const {
-    os << "{hoid: " << hoid
-       << " to_read: " << to_read
-       << " will_write: " << will_write
-       << " orig_size: " << orig_size
+  void
+  print(std::ostream& os) const
+  {
+    os << "{hoid: " << hoid << " to_read: " << to_read
+       << " will_write: " << will_write << " orig_size: " << orig_size
        << " projected_size: " << projected_size
        << " invalidates_cache: " << invalidates_cache
-       << " do_pdw: " << do_parity_delta_write
-       << "}";
+       << " do_pdw: " << do_parity_delta_write << "}";
   }
 };
 
@@ -62,10 +62,12 @@ struct WritePlan {
   bool want_read;
   std::list<WritePlanObj> plans;
 
-  void print(std::ostream &os) const {
+  void
+  print(std::ostream& os) const
+  {
     os << " plans: [";
     bool first = true;
-    for (auto && p : plans) {
+    for (auto&& p : plans) {
       if (first) {
         first = false;
       } else {
@@ -73,24 +75,24 @@ struct WritePlan {
       }
       os << "{" << p << "}";
     }
-   os << "]";
+    os << "]";
   }
 };
 
 class Generate {
-  PGTransaction &t;
-  const ErasureCodeInterfaceRef &ec_impl;
-  const pg_t &pgid;
-  const ECUtil::stripe_info_t &sinfo;
-  shard_id_map<ceph::os::Transaction> &transactions;
-  DoutPrefixProvider *dpp;
-  const OSDMapRef &osdmap;
-  pg_log_entry_t *entry;
-  const hobject_t &oid;
+  PGTransaction& t;
+  const ErasureCodeInterfaceRef& ec_impl;
+  const pg_t& pgid;
+  const ECUtil::stripe_info_t& sinfo;
+  shard_id_map<ceph::os::Transaction>& transactions;
+  DoutPrefixProvider* dpp;
+  const OSDMapRef& osdmap;
+  pg_log_entry_t* entry;
+  const hobject_t& oid;
   PGTransaction::ObjectOperation& op;
   ObjectContextRef obc;
   std::map<std::string, std::optional<bufferlist>> xattr_rollback;
-  const WritePlanObj &plan;
+  const WritePlanObj& plan;
   std::optional<ECUtil::shard_extent_map_t> read_sem;
   ECUtil::shard_extent_map_t to_write;
   std::vector<std::pair<uint64_t, uint64_t>> rollback_extents;
@@ -100,7 +102,7 @@ class Generate {
 
   void all_shards_written();
   void shard_written(const shard_id_t shard);
-  void shards_written(const shard_id_set &shards);
+  void shards_written(const shard_id_set& shards);
   void delete_first();
   void zero_truncate_to_delete();
   void process_init();
@@ -111,35 +113,37 @@ class Generate {
   void written_shards();
   void attr_updates();
 
- public:
-  Generate(PGTransaction &t,
-    ErasureCodeInterfaceRef &ec_impl, pg_t &pgid,
-    const ECUtil::stripe_info_t &sinfo,
-    const std::map<hobject_t, ECUtil::shard_extent_map_t> &partial_extents,
-    std::map<hobject_t, ECUtil::shard_extent_map_t> *written_map,
-    shard_id_map<ceph::os::Transaction> &transactions,
-    const OSDMapRef &osdmap,
-    const hobject_t &oid, PGTransaction::ObjectOperation &op,
-    WritePlanObj &plan,
-    DoutPrefixProvider *dpp,
-    pg_log_entry_t *entry,
-    bool &first_write_in_interval);
+public:
+  Generate(
+      PGTransaction& t,
+      ErasureCodeInterfaceRef& ec_impl,
+      pg_t& pgid,
+      const ECUtil::stripe_info_t& sinfo,
+      const std::map<hobject_t, ECUtil::shard_extent_map_t>& partial_extents,
+      std::map<hobject_t, ECUtil::shard_extent_map_t>* written_map,
+      shard_id_map<ceph::os::Transaction>& transactions,
+      const OSDMapRef& osdmap,
+      const hobject_t& oid,
+      PGTransaction::ObjectOperation& op,
+      WritePlanObj& plan,
+      DoutPrefixProvider* dpp,
+      pg_log_entry_t* entry,
+      bool& first_write_in_interval);
 };
 
 void generate_transactions(
-    PGTransaction *_t,
-    WritePlan &plan,
-    ceph::ErasureCodeInterfaceRef &ec_impl,
+    PGTransaction* _t,
+    WritePlan& plan,
+    ceph::ErasureCodeInterfaceRef& ec_impl,
     pg_t pgid,
-    const ECUtil::stripe_info_t &sinfo,
-    const std::map<hobject_t, ECUtil::shard_extent_map_t> &partial_extents,
-    std::vector<pg_log_entry_t> &entries,
-    std::map<hobject_t, ECUtil::shard_extent_map_t> *written_map,
-    shard_id_map<ceph::os::Transaction> *transactions,
-    std::set<hobject_t> *temp_added,
-    std::set<hobject_t> *temp_removed,
-    DoutPrefixProvider *dpp,
-    const OSDMapRef &osdmap,
-    bool &first_write_in_interval
-  );
-}
+    const ECUtil::stripe_info_t& sinfo,
+    const std::map<hobject_t, ECUtil::shard_extent_map_t>& partial_extents,
+    std::vector<pg_log_entry_t>& entries,
+    std::map<hobject_t, ECUtil::shard_extent_map_t>* written_map,
+    shard_id_map<ceph::os::Transaction>* transactions,
+    std::set<hobject_t>* temp_added,
+    std::set<hobject_t>* temp_removed,
+    DoutPrefixProvider* dpp,
+    const OSDMapRef& osdmap,
+    bool& first_write_in_interval);
+} // namespace ECTransaction

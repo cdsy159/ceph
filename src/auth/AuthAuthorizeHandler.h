@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,10 +16,11 @@
 #ifndef CEPH_AUTHAUTHORIZEHANDLER_H
 #define CEPH_AUTHAUTHORIZEHANDLER_H
 
-#include "Auth.h"
+#include "common/ceph_mutex.h"
 #include "include/common_fwd.h"
 #include "include/types.h"
-#include "common/ceph_mutex.h"
+
+#include "Auth.h"
 // Different classes of session crypto handling
 
 #define SESSION_CRYPTO_NONE 0
@@ -30,18 +31,19 @@ class KeyRing;
 
 struct AuthAuthorizeHandler {
   virtual ~AuthAuthorizeHandler() {}
+
   virtual bool verify_authorizer(
-    CephContext *cct,
-    const KeyStore& keys,
-    const ceph::buffer::list& authorizer_data,
-    size_t connection_secret_required_len,
-    ceph::buffer::list *authorizer_reply,
-    EntityName *entity_name,
-    uint64_t *global_id,
-    AuthCapsInfo *caps_info,
-    CryptoKey *session_key,
-    std::string *connection_secret,
-    std::unique_ptr<AuthAuthorizerChallenge> *challenge) = 0;
+      CephContext* cct,
+      const KeyStore& keys,
+      const ceph::buffer::list& authorizer_data,
+      size_t connection_secret_required_len,
+      ceph::buffer::list* authorizer_reply,
+      EntityName* entity_name,
+      uint64_t* global_id,
+      AuthCapsInfo* caps_info,
+      CryptoKey* session_key,
+      std::string* connection_secret,
+      std::unique_ptr<AuthAuthorizerChallenge>* challenge) = 0;
   virtual int authorizer_session_crypto() = 0;
 };
 

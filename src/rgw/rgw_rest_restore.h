@@ -19,25 +19,32 @@
 #include "rgw_rest_s3.h"
 
 class RGWHandler_Restore : public RGWHandler_Auth_S3 {
- protected:
-  RGWOp *op_get() override;
- public:
+protected:
+  RGWOp* op_get() override;
+
+public:
   using RGWHandler_Auth_S3::RGWHandler_Auth_S3;
   ~RGWHandler_Restore() override = default;
 
-  int read_permissions(RGWOp*, optional_yield y) override {
+  int
+  read_permissions(RGWOp*, optional_yield y) override
+  {
     return 0;
   }
 };
 
 class RGWRESTMgr_Restore : public RGWRESTMgr {
- public:
+public:
   RGWRESTMgr_Restore() = default;
   ~RGWRESTMgr_Restore() override = default;
 
-  RGWHandler_REST *get_handler(rgw::sal::Driver* driver, struct req_state*,
-                               const rgw::auth::StrategyRegistry& auth_registry,
-                               const std::string&) override {
+  RGWHandler_REST*
+  get_handler(
+      rgw::sal::Driver* driver,
+      struct req_state*,
+      const rgw::auth::StrategyRegistry& auth_registry,
+      const std::string&) override
+  {
     return new RGWHandler_Restore(auth_registry);
   }
 };

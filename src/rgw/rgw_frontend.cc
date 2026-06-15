@@ -1,12 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_frontend.h"
+
 #include <signal.h>
 
-#include "rgw_frontend.h"
-#include "include/str_list.h"
-
 #include "include/ceph_assert.h"
+#include "include/str_list.h"
 
 
 #define dout_context g_ceph_context
@@ -14,8 +14,10 @@
 
 using namespace std;
 
-int RGWFrontendConfig::parse_config(const string& config,
-				    std::multimap<string, string>& config_map)
+int
+RGWFrontendConfig::parse_config(
+    const string& config,
+    std::multimap<string, string>& config_map)
 {
   for (auto& entry : get_str_vec(config, " ")) {
     string key;
@@ -47,7 +49,8 @@ int RGWFrontendConfig::parse_config(const string& config,
   return 0;
 }
 
-void RGWFrontendConfig::set_default_config(RGWFrontendConfig& def_conf)
+void
+RGWFrontendConfig::set_default_config(RGWFrontendConfig& def_conf)
 {
   const auto& def_conf_map = def_conf.get_config_map();
 
@@ -58,30 +61,32 @@ void RGWFrontendConfig::set_default_config(RGWFrontendConfig& def_conf)
   }
 }
 
-std::optional<string> RGWFrontendConfig::get_val(const std::string& key)
+std::optional<string>
+RGWFrontendConfig::get_val(const std::string& key)
 {
- auto iter = config_map.find(key);
- if (iter == config_map.end()) {
-   return std::nullopt;
- }
+  auto iter = config_map.find(key);
+  if (iter == config_map.end()) {
+    return std::nullopt;
+  }
 
- return iter->second;
+  return iter->second;
 }
 
-bool RGWFrontendConfig::get_val(const string& key, const string& def_val,
-				string *out)
+bool
+RGWFrontendConfig::get_val(const string& key, const string& def_val, string* out)
 {
- auto iter = config_map.find(key);
- if (iter == config_map.end()) {
-   *out = def_val;
-   return false;
- }
+  auto iter = config_map.find(key);
+  if (iter == config_map.end()) {
+    *out = def_val;
+    return false;
+  }
 
- *out = iter->second;
- return true;
+  *out = iter->second;
+  return true;
 }
 
-bool RGWFrontendConfig::get_val(const string& key, int def_val, int *out)
+bool
+RGWFrontendConfig::get_val(const string& key, int def_val, int* out)
 {
   string str;
   bool found = get_val(key, "", &str);
@@ -98,7 +103,8 @@ bool RGWFrontendConfig::get_val(const string& key, int def_val, int *out)
   return 0;
 }
 
-void RGWProcessFrontend::stop()
+void
+RGWProcessFrontend::stop()
 {
   pprocess->close_fd();
   thread->kill(SIGUSR1);

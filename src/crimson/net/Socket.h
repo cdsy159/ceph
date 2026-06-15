@@ -7,9 +7,9 @@
 #include <seastar/core/reactor.hh>
 #include <seastar/core/sharded.hh>
 
+#include "crimson/common/log.h"
 #include "include/buffer.h"
 
-#include "crimson/common/log.h"
 #include "Errors.h"
 #include "Fwd.h"
 
@@ -33,29 +33,39 @@ public:
     acceptor,
     connector
   };
-  Socket(seastar::connected_socket &&, side_t, uint16_t e_port, construct_tag);
+  Socket(seastar::connected_socket&&, side_t, uint16_t e_port, construct_tag);
 
   ~Socket();
 
   Socket(Socket&& o) = delete;
 
-  seastar::shard_id get_shard_id() const {
+  seastar::shard_id
+  get_shard_id() const
+  {
     return sid;
   }
 
-  side_t get_side() const {
+  side_t
+  get_side() const
+  {
     return side;
   }
 
-  uint16_t get_ephemeral_port() const {
+  uint16_t
+  get_ephemeral_port() const
+  {
     return ephemeral_port;
   }
 
-  seastar::socket_address get_local_address() const {
+  seastar::socket_address
+  get_local_address() const
+  {
     return socket.local_address();
   }
 
-  bool is_shutdown() const {
+  bool
+  is_shutdown() const
+  {
     assert(seastar::this_shard_id() == sid);
     return socket_is_shutdown;
   }
@@ -63,9 +73,12 @@ public:
   // learn my ephemeral_port as connector.
   // unfortunately, there's no way to identify which port I'm using as
   // connector with current seastar interface.
-  void learn_ephemeral_port_as_connector(uint16_t port) {
-    assert(side == side_t::connector &&
-           (ephemeral_port == 0 || ephemeral_port == port));
+  void
+  learn_ephemeral_port_as_connector(uint16_t port)
+  {
+    assert(
+        side == side_t::connector &&
+        (ephemeral_port == 0 || ephemeral_port == port));
     ephemeral_port = port;
   }
 
@@ -86,28 +99,33 @@ public:
   /// Socket can only be closed once.
   seastar::future<> close();
 
-  static seastar::future<SocketRef>
-  connect(const entity_addr_t& peer_addr);
+  static seastar::future<SocketRef> connect(const entity_addr_t& peer_addr);
 
   /*
    * test interfaces
    */
 
   // shutdown for tests
-  void force_shutdown() {
+  void
+  force_shutdown()
+  {
     assert(seastar::this_shard_id() == sid);
     socket.shutdown_input();
     socket.shutdown_output();
   }
 
   // shutdown input_stream only, for tests
-  void force_shutdown_in() {
+  void
+  force_shutdown_in()
+  {
     assert(seastar::this_shard_id() == sid);
     socket.shutdown_input();
   }
 
   // shutdown output_stream only, for tests
-  void force_shutdown_out() {
+  void
+  force_shutdown_out()
+  {
     assert(seastar::this_shard_id() == sid);
     socket.shutdown_output();
   }
@@ -132,6 +150,7 @@ private:
   } r;
 
 #ifdef UNIT_TESTS_BUILT
+
 public:
   void set_trap(bp_type_t type, bp_action_t action, socket_blocker* blocker_);
 
@@ -149,12 +168,12 @@ private:
 };
 
 using listen_ertr = crimson::errorator<
-  crimson::ct_error::address_in_use, // The address is already bound
-  crimson::ct_error::address_not_available // https://techoverflow.net/2021/08/06/how-i-fixed-python-oserror-errno-99-cannot-assign-requested-address/
-  >;
+    crimson::ct_error::address_in_use, // The address is already bound
+    crimson::ct_error::address_not_available // https://techoverflow.net/2021/08/06/how-i-fixed-python-oserror-errno-99-cannot-assign-requested-address/
+    >;
 
 class ShardedServerSocket
-    : public seastar::peering_sharded_service<ShardedServerSocket> {
+  : public seastar::peering_sharded_service<ShardedServerSocket> {
   struct construct_tag {};
 
 public:
@@ -170,15 +189,17 @@ public:
   ShardedServerSocket& operator=(ShardedServerSocket&&) = delete;
   ShardedServerSocket& operator=(const ShardedServerSocket&) = delete;
 
-  bool is_fixed_shard_dispatching() const {
+  bool
+  is_fixed_shard_dispatching() const
+  {
     return dispatch_only_on_primary_sid;
   }
 
   listen_ertr::future<> listen(entity_addr_t addr);
 
   using accept_func_t =
-    std::function<seastar::future<>(SocketRef, entity_addr_t)>;
-  seastar::future<> accept(accept_func_t &&_fn_accept);
+      std::function<seastar::future<>(SocketRef, entity_addr_t)>;
+  seastar::future<> accept(accept_func_t&& _fn_accept);
 
   seastar::future<> shutdown_destroy();
 

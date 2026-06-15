@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,37 +21,55 @@
 
 class LocalLockC : public SimpleLock {
 public:
-  LocalLockC(MDSCacheObject *o, const LockType *t) :
-    SimpleLock(o, t) {
+  LocalLockC(MDSCacheObject* o, const LockType* t) :
+    SimpleLock(o, t)
+  {
     set_state(LOCK_LOCK); // always.
   }
 
-  bool is_locallock() const override {
+  bool
+  is_locallock() const override
+  {
     return true;
   }
 
-  bool can_xlock_local() const {
+  bool
+  can_xlock_local() const
+  {
     return !is_wrlocked() && !has_xlock_by();
   }
 
-  bool can_wrlock() const {
+  bool
+  can_wrlock() const
+  {
     return !is_xlocked() && !is_waiter_for(SimpleLock::WAIT_XLOCK);
   }
-  void get_wrlock(client_t client) {
+
+  void
+  get_wrlock(client_t client)
+  {
     ceph_assert(can_wrlock());
     SimpleLock::get_wrlock();
     last_wrlock_client = client;
   }
-  void put_wrlock() {
+
+  void
+  put_wrlock()
+  {
     SimpleLock::put_wrlock();
     if (get_num_wrlocks() == 0)
       last_wrlock_client = client_t();
   }
-  client_t get_last_wrlock_client() const {
+
+  client_t
+  get_last_wrlock_client() const
+  {
     return last_wrlock_client;
   }
 
-  void print(std::ostream& out) const override {
+  void
+  print(std::ostream& out) const override
+  {
     out << "(";
     _print(out);
     if (last_wrlock_client >= 0)

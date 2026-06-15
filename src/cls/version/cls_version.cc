@@ -3,29 +3,29 @@
 
 #include <errno.h>
 
-#include "objclass/objclass.h"
-
 #include "cls/version/cls_version_ops.h"
-
 #include "include/compat.h"
+#include "objclass/objclass.h"
 
 using std::list;
 
 using ceph::bufferlist;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(version)
 
 
 #define VERSION_ATTR "ceph.objclass.version"
 
-static int set_version(cls_method_context_t hctx, struct obj_version *objv)
+static int
+set_version(cls_method_context_t hctx, struct obj_version* objv)
 {
   bufferlist bl;
 
   encode(*objv, bl);
 
-  CLS_LOG(20, "cls_version: set_version %s:%d", objv->tag.c_str(), (int)objv->ver);
+  CLS_LOG(
+      20, "cls_version: set_version %s:%d", objv->tag.c_str(), (int)objv->ver);
 
   int ret = cls_cxx_setxattr(hctx, VERSION_ATTR, &bl);
   if (ret < 0)
@@ -34,7 +34,8 @@ static int set_version(cls_method_context_t hctx, struct obj_version *objv)
   return 0;
 }
 
-static int init_version(cls_method_context_t hctx, struct obj_version *objv)
+static int
+init_version(cls_method_context_t hctx, struct obj_version* objv)
 {
 #define TAG_LEN 24
   char buf[TAG_LEN + 1];
@@ -46,13 +47,15 @@ static int init_version(cls_method_context_t hctx, struct obj_version *objv)
   objv->ver = 1;
   objv->tag = buf;
 
-  CLS_LOG(20, "cls_version: init_version %s:%d", objv->tag.c_str(), (int)objv->ver);
+  CLS_LOG(
+      20, "cls_version: init_version %s:%d", objv->tag.c_str(), (int)objv->ver);
 
   return set_version(hctx, objv);
 }
 
 /* implicit create should be true only if called from a write operation (set, inc), never from a read operation (read, check) */
-static int read_version(cls_method_context_t hctx, obj_version *objv, bool implicit_create)
+static int
+read_version(cls_method_context_t hctx, obj_version* objv, bool implicit_create)
 {
   bufferlist bl;
   int ret = cls_cxx_getxattr(hctx, VERSION_ATTR, &bl);
@@ -74,12 +77,14 @@ static int read_version(cls_method_context_t hctx, obj_version *objv, bool impli
     CLS_LOG(0, "ERROR: read_version(): failed to decode version entry\n");
     return -EIO;
   }
-  CLS_LOG(20, "cls_version: read_version %s:%d", objv->tag.c_str(), (int)objv->ver);
+  CLS_LOG(
+      20, "cls_version: read_version %s:%d", objv->tag.c_str(), (int)objv->ver);
 
   return 0;
 }
 
-static int cls_version_set(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_version_set(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -98,54 +103,59 @@ static int cls_version_set(cls_method_context_t hctx, bufferlist *in, bufferlist
   return 0;
 }
 
-static bool check_conds(list<obj_version_cond>& conds, obj_version& objv)
+static bool
+check_conds(list<obj_version_cond>& conds, obj_version& objv)
 {
   if (conds.empty())
     return true;
 
-  for (list<obj_version_cond>::iterator iter = conds.begin(); iter != conds.end(); ++iter) {
+  for (list<obj_version_cond>::iterator iter = conds.begin();
+       iter != conds.end(); ++iter) {
     obj_version_cond& cond = *iter;
     obj_version& v = cond.ver;
-    CLS_LOG(20, "cls_version: check_version %s:%d (cond=%d)", v.tag.c_str(), (int)v.ver, (int)cond.cond);
+    CLS_LOG(
+        20, "cls_version: check_version %s:%d (cond=%d)", v.tag.c_str(),
+        (int)v.ver, (int)cond.cond);
 
     switch (cond.cond) {
-      case VER_COND_NONE:
-	break;
-      case VER_COND_EQ:
-	if (!objv.compare(&v))
-	  return false;
-	break;
-      case VER_COND_GT:
-	if (!(objv.ver > v.ver))
-	  return false;
-	break;
-      case VER_COND_GE:
-	if (!(objv.ver >= v.ver))
-	  return false;
-	break;
-      case VER_COND_LT:
-	if (!(objv.ver < v.ver))
-	  return false;
-	break;
-      case VER_COND_LE:
-	if (!(objv.ver <= v.ver))
-	  return false;
-	break;
-      case VER_COND_TAG_EQ:
-	if (objv.tag.compare(v.tag) != 0)
-	  return false;
-	break;
-      case VER_COND_TAG_NE:
-	if (objv.tag.compare(v.tag) == 0)
-	  return false;
-	break;
+    case VER_COND_NONE:
+      break;
+    case VER_COND_EQ:
+      if (!objv.compare(&v))
+        return false;
+      break;
+    case VER_COND_GT:
+      if (!(objv.ver > v.ver))
+        return false;
+      break;
+    case VER_COND_GE:
+      if (!(objv.ver >= v.ver))
+        return false;
+      break;
+    case VER_COND_LT:
+      if (!(objv.ver < v.ver))
+        return false;
+      break;
+    case VER_COND_LE:
+      if (!(objv.ver <= v.ver))
+        return false;
+      break;
+    case VER_COND_TAG_EQ:
+      if (objv.tag.compare(v.tag) != 0)
+        return false;
+      break;
+    case VER_COND_TAG_NE:
+      if (objv.tag.compare(v.tag) == 0)
+        return false;
+      break;
     }
   }
 
   return true;
 }
 
-static int cls_version_inc(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_version_inc(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -161,7 +171,7 @@ static int cls_version_inc(cls_method_context_t hctx, bufferlist *in, bufferlist
   int ret = read_version(hctx, &objv, true);
   if (ret < 0)
     return ret;
-  
+
   if (!check_conds(op.conds, objv)) {
     return -ECANCELED;
   }
@@ -174,7 +184,8 @@ static int cls_version_inc(cls_method_context_t hctx, bufferlist *in, bufferlist
   return 0;
 }
 
-static int cls_version_check(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_version_check(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -199,7 +210,8 @@ static int cls_version_check(cls_method_context_t hctx, bufferlist *in, bufferli
   return 0;
 }
 
-static int cls_version_read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_version_read(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   obj_version objv;
 
@@ -227,12 +239,20 @@ CLS_INIT(version)
   cls_register("version", &h_class);
 
   /* version */
-  cls_register_cxx_method(h_class, "set", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_set, &h_version_set);
-  cls_register_cxx_method(h_class, "inc", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_inc, &h_version_inc);
-  cls_register_cxx_method(h_class, "inc_conds", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_inc, &h_version_inc_conds);
-  cls_register_cxx_method(h_class, "read", CLS_METHOD_RD, cls_version_read, &h_version_read);
-  cls_register_cxx_method(h_class, "check_conds", CLS_METHOD_RD, cls_version_check, &h_version_check_conds);
+  cls_register_cxx_method(
+      h_class, "set", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_set,
+      &h_version_set);
+  cls_register_cxx_method(
+      h_class, "inc", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_inc,
+      &h_version_inc);
+  cls_register_cxx_method(
+      h_class, "inc_conds", CLS_METHOD_RD | CLS_METHOD_WR, cls_version_inc,
+      &h_version_inc_conds);
+  cls_register_cxx_method(
+      h_class, "read", CLS_METHOD_RD, cls_version_read, &h_version_read);
+  cls_register_cxx_method(
+      h_class, "check_conds", CLS_METHOD_RD, cls_version_check,
+      &h_version_check_conds);
 
   return;
 }
-

@@ -22,15 +22,15 @@ namespace mirror {
 
 class Watcher {
 public:
-  Watcher(librados::IoCtx &ioctx, std::string_view oid, ContextWQ *work_queue);
+  Watcher(librados::IoCtx& ioctx, std::string_view oid, ContextWQ* work_queue);
   virtual ~Watcher();
 
-  void register_watch(Context *on_finish);
-  void unregister_watch(Context *on_finish);
+  void register_watch(Context* on_finish);
+  void unregister_watch(Context* on_finish);
 
   struct ErrorListener {
-    virtual ~ErrorListener() {
-    }
+    virtual ~ErrorListener() {}
+
     virtual void set_blocklisted_ts() = 0;
     virtual void set_failed_ts() = 0;
   };
@@ -38,16 +38,23 @@ public:
 protected:
   std::string m_oid;
 
-  void acknowledge_notify(uint64_t notify_if, uint64_t handle, bufferlist &bl);
+  void acknowledge_notify(uint64_t notify_if, uint64_t handle, bufferlist& bl);
 
-  bool is_registered() const {
+  bool
+  is_registered() const
+  {
     return m_state == STATE_IDLE && m_watch_handle != 0;
   }
-  bool is_unregistered() const {
+
+  bool
+  is_unregistered() const
+  {
     return m_state == STATE_IDLE && m_watch_handle == 0;
   }
 
-  virtual void handle_rewatch_complete(int r) { }
+  virtual void
+  handle_rewatch_complete(int r)
+  {}
 
 private:
   enum State {
@@ -57,33 +64,37 @@ private:
   };
 
   struct WatchCtx : public librados::WatchCtx2 {
-    Watcher &watcher;
+    Watcher& watcher;
 
-    WatchCtx(Watcher &parent) : watcher(parent) {}
+    WatchCtx(Watcher& parent) :
+      watcher(parent)
+    {}
 
-    void handle_notify(uint64_t notify_id,
-                       uint64_t handle,
-                       uint64_t notifier_id,
-                       bufferlist& bl) override;
+    void handle_notify(
+        uint64_t notify_id,
+        uint64_t handle,
+        uint64_t notifier_id,
+        bufferlist& bl) override;
     void handle_error(uint64_t handle, int err) override;
   };
 
   struct C_RegisterWatch : public Context {
-    Watcher *watcher;
-    Context *on_finish;
+    Watcher* watcher;
+    Context* on_finish;
 
-    C_RegisterWatch(Watcher *watcher, Context *on_finish)
-      : watcher(watcher),
-        on_finish(on_finish) {
-    }
+    C_RegisterWatch(Watcher* watcher, Context* on_finish) :
+      watcher(watcher), on_finish(on_finish)
+    {}
 
-    void finish(int r) override {
+    void
+    finish(int r) override
+    {
       watcher->handle_register_watch(r, on_finish);
     }
   };
 
-  librados::IoCtx &m_ioctx;
-  ContextWQ *m_work_queue;
+  librados::IoCtx& m_ioctx;
+  ContextWQ* m_work_queue;
 
   mutable ceph::shared_mutex m_lock;
   State m_state;
@@ -91,16 +102,19 @@ private:
   bool m_watch_blocklisted = false;
   uint64_t m_watch_handle;
   WatchCtx m_watch_ctx;
-  Context *m_unregister_watch_ctx = nullptr;
+  Context* m_unregister_watch_ctx = nullptr;
 
-  virtual void handle_notify(uint64_t notify_id, uint64_t handle,
-                     uint64_t notifier_id, bufferlist& bl) = 0;
+  virtual void handle_notify(
+      uint64_t notify_id,
+      uint64_t handle,
+      uint64_t notifier_id,
+      bufferlist& bl) = 0;
   void handle_error(uint64_t handle, int err);
 
   void rewatch();
   void handle_rewatch(int r);
   void handle_rewatch_callback(int r);
-  void handle_register_watch(int r, Context *on_finish);
+  void handle_register_watch(int r, Context* on_finish);
 };
 
 } // namespace mirror

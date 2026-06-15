@@ -1,13 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/rados/librados.hpp"
-#include "global/global_context.h"
-#include "test/librados/test.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
 #include <iostream>
 #include <string>
+
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "include/rados/librados.hpp"
+#include "test/librados/test.h"
+#include "test/librados/test_cxx.h"
 
 extern void register_test_librbd();
 #ifdef TEST_LIBRBD_INTERNALS
@@ -26,9 +27,10 @@ extern void register_test_operations();
 extern void register_test_trash();
 #endif // TEST_LIBRBD_INTERNALS
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
-  setenv("RBD_FORCE_ALLOW_V1","1",1);
+  setenv("RBD_FORCE_ALLOW_V1", "1", 1);
 
   register_test_librbd();
 #ifdef TEST_LIBRBD_INTERNALS
@@ -51,7 +53,7 @@ int main(int argc, char **argv)
 
   librados::Rados rados;
   std::string result = connect_cluster_pp(rados);
-  if (result != "" ) {
+  if (result != "") {
     std::cerr << result << std::endl;
     return 1;
   }

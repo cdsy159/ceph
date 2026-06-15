@@ -7,9 +7,10 @@
 #include "common/Formatter.h"
 #include "common/Thread.h"
 #include "mds/FSMap.h"
-#include "Types.h"
+
 #include "InstanceWatcher.h"
 #include "MirrorWatcher.h"
+#include "Types.h"
 
 class ContextWQ;
 
@@ -24,28 +25,38 @@ class ServiceDaemon;
 
 class FSMirror {
 public:
-  FSMirror(CephContext *cct, const Filesystem &filesystem, uint64_t pool_id,
-           ServiceDaemon *service_daemon, std::vector<const char*> args,
-           ContextWQ *work_queue);
+  FSMirror(
+      CephContext* cct,
+      const Filesystem& filesystem,
+      uint64_t pool_id,
+      ServiceDaemon* service_daemon,
+      std::vector<const char*> args,
+      ContextWQ* work_queue);
   ~FSMirror();
 
-  void init(Context *on_finish);
-  void shutdown(Context *on_finish);
+  void init(Context* on_finish);
+  void shutdown(Context* on_finish);
 
-  void add_peer(const Peer &peer);
-  void remove_peer(const Peer &peer);
+  void add_peer(const Peer& peer);
+  void remove_peer(const Peer& peer);
 
-  bool is_stopping() {
+  bool
+  is_stopping()
+  {
     std::scoped_lock locker(m_lock);
     return m_stopping;
   }
 
-  bool is_init_failed() {
+  bool
+  is_init_failed()
+  {
     std::scoped_lock locker(m_lock);
     return m_init_failed;
   }
 
-  bool is_failed() {
+  bool
+  is_failed()
+  {
     std::scoped_lock locker(m_lock);
     bool failed = m_init_failed;
     if (m_instance_watcher) {
@@ -57,44 +68,60 @@ public:
     return failed;
   }
 
-  monotime get_failed_ts() {
+  monotime
+  get_failed_ts()
+  {
     return m_failed_ts.load(std::memory_order_relaxed);
   }
 
-  void set_failed_ts() {
+  void
+  set_failed_ts()
+  {
     m_failed_ts.store(clock::now(), std::memory_order_relaxed);
   }
 
-  bool is_blocklisted() {
+  bool
+  is_blocklisted()
+  {
     std::scoped_lock locker(m_lock);
     return is_blocklisted(locker);
   }
 
-  monotime get_blocklisted_ts() {
+  monotime
+  get_blocklisted_ts()
+  {
     return m_blocklisted_ts.load(std::memory_order_relaxed);
   }
 
-  void set_blocklisted_ts() {
+  void
+  set_blocklisted_ts()
+  {
     m_blocklisted_ts.store(clock::now(), std::memory_order_relaxed);
   }
 
-  Peers get_peers() {
+  Peers
+  get_peers()
+  {
     std::scoped_lock locker(m_lock);
     return m_all_peers;
   }
 
-  std::string get_instance_addr() {
+  std::string
+  get_instance_addr()
+  {
     std::scoped_lock locker(m_lock);
     return m_addrs;
   }
 
   // admin socket helpers
-  void mirror_status(Formatter *f);
+  void mirror_status(Formatter* f);
 
   void reopen_logs();
 
 private:
-  bool is_blocklisted(const std::scoped_lock<ceph::mutex> &locker) const {
+  bool
+  is_blocklisted(const std::scoped_lock<ceph::mutex>& locker) const
+  {
     bool blocklisted = false;
     if (m_instance_watcher) {
       blocklisted = m_instance_watcher->is_blocklisted();
@@ -107,43 +134,53 @@ private:
   }
 
   struct SnapListener : public InstanceWatcher::Listener {
-    FSMirror *fs_mirror;
+    FSMirror* fs_mirror;
 
-    SnapListener(FSMirror *fs_mirror)
-      : fs_mirror(fs_mirror) {
-    }
+    SnapListener(FSMirror* fs_mirror) :
+      fs_mirror(fs_mirror)
+    {}
 
-    void acquire_directory(std::string_view dir_path) override {
+    void
+    acquire_directory(std::string_view dir_path) override
+    {
       fs_mirror->handle_acquire_directory(dir_path);
     }
 
-    void release_directory(std::string_view dir_path) override {
+    void
+    release_directory(std::string_view dir_path) override
+    {
       fs_mirror->handle_release_directory(dir_path);
     }
-
   };
 
-  struct TimestampListener: public Watcher::ErrorListener {
-    FSMirror *fs_mirror;
-    TimestampListener(FSMirror *fs_mirror)
-      : fs_mirror(fs_mirror) {
-    }
-    void set_blocklisted_ts() {
+  struct TimestampListener : public Watcher::ErrorListener {
+    FSMirror* fs_mirror;
+
+    TimestampListener(FSMirror* fs_mirror) :
+      fs_mirror(fs_mirror)
+    {}
+
+    void
+    set_blocklisted_ts()
+    {
       fs_mirror->set_blocklisted_ts();
     }
-    void set_failed_ts() {
+
+    void
+    set_failed_ts()
+    {
       fs_mirror->set_failed_ts();
     }
   };
 
   std::atomic<monotime> m_blocklisted_ts;
   std::atomic<monotime> m_failed_ts;
-  CephContext *m_cct;
+  CephContext* m_cct;
   Filesystem m_filesystem;
   uint64_t m_pool_id;
-  ServiceDaemon *m_service_daemon;
-  std::vector<const char *> m_args;
-  ContextWQ *m_work_queue;
+  ServiceDaemon* m_service_daemon;
+  std::vector<const char*> m_args;
+  ContextWQ* m_work_queue;
 
   ceph::mutex m_lock = ceph::make_mutex("cephfs::mirror::fs_mirror");
   SnapListener m_snap_listener;
@@ -155,26 +192,26 @@ private:
   RadosRef m_cluster;
   std::string m_addrs;
   librados::IoCtx m_ioctx;
-  InstanceWatcher *m_instance_watcher = nullptr;
-  MirrorWatcher *m_mirror_watcher = nullptr;
+  InstanceWatcher* m_instance_watcher = nullptr;
+  MirrorWatcher* m_mirror_watcher = nullptr;
 
   int m_retval = 0;
   bool m_stopping = false;
   bool m_init_failed = false;
-  Context *m_on_init_finish = nullptr;
-  Context *m_on_shutdown_finish = nullptr;
+  Context* m_on_init_finish = nullptr;
+  Context* m_on_shutdown_finish = nullptr;
 
-  MirrorAdminSocketHook *m_asok_hook = nullptr;
+  MirrorAdminSocketHook* m_asok_hook = nullptr;
 
   MountRef m_mount;
 
-  PerfCounters *m_perf_counters;
+  PerfCounters* m_perf_counters;
 
-  int init_replayer(PeerReplayer *peer_replayer);
-  void shutdown_replayer(PeerReplayer *peer_replayer);
+  int init_replayer(PeerReplayer* peer_replayer);
+  void shutdown_replayer(PeerReplayer* peer_replayer);
   void cleanup();
 
-  void init_instance_watcher(Context *on_finish);
+  void init_instance_watcher(Context* on_finish);
   void handle_init_instance_watcher(int r);
 
   void init_mirror_watcher();

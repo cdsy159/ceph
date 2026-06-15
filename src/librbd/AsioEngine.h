@@ -4,20 +4,27 @@
 #ifndef CEPH_LIBRBD_ASIO_ENGINE_H
 #define CEPH_LIBRBD_ASIO_ENGINE_H
 
-#include "include/common_fwd.h"
-#include "include/rados/librados_fwd.hpp"
 #include <memory>
+
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/strand.hpp>
+
+#include "include/common_fwd.h"
+#include "include/rados/librados_fwd.hpp"
 
 struct Context;
-namespace neorados { struct RADOS; }
+
+namespace neorados {
+struct RADOS;
+}
 
 namespace librbd {
 
-namespace asio { struct ContextWQ; }
+namespace asio {
+struct ContextWQ;
+}
 
 class AsioEngine {
 public:
@@ -29,41 +36,61 @@ public:
   AsioEngine(const AsioEngine&) = delete;
   AsioEngine& operator=(const AsioEngine&) = delete;
 
-  inline neorados::RADOS& get_rados_api() {
+  inline neorados::RADOS&
+  get_rados_api()
+  {
     return *m_rados_api;
   }
 
-  inline boost::asio::io_context& get_io_context() {
+  inline boost::asio::io_context&
+  get_io_context()
+  {
     return m_io_context;
   }
-  inline operator boost::asio::io_context&() {
+
+  inline
+  operator boost::asio::io_context&()
+  {
     return m_io_context;
   }
 
   using executor_type = boost::asio::io_context::executor_type;
-  inline executor_type get_executor() {
+
+  inline executor_type
+  get_executor()
+  {
     return m_io_context.get_executor();
   }
 
-  inline boost::asio::strand<executor_type>& get_api_strand() {
+  inline boost::asio::strand<executor_type>&
+  get_api_strand()
+  {
     // API client callbacks should never fire concurrently
     return *m_api_strand;
   }
 
-  inline asio::ContextWQ* get_work_queue() {
+  inline asio::ContextWQ*
+  get_work_queue()
+  {
     return m_context_wq.get();
   }
 
   template <typename T>
-  void dispatch(T&& t) {
+  void
+  dispatch(T&& t)
+  {
     boost::asio::dispatch(m_io_context, std::forward<T>(t));
   }
+
   void dispatch(Context* ctx, int r);
 
   template <typename T>
-  void post(T&& t) {
+  void
+  post(T&& t)
+  {
     boost::asio::post(m_io_context, std::forward<T>(t));
   }
+
   void post(Context* ctx, int r);
 
 private:

@@ -3,14 +3,25 @@
 
 #pragma once
 
-#include "rgw_rest.h"
 #include "rgw_op_type.h"
+#include "rgw_rest.h"
 
 class RGWGetAccountSummary : public RGWRESTOp {
   void add_entry(const std::string& key, int64_t value);
-  public:
+
+public:
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
-  const char* name() const override { return "get_account_summary"; }
-  RGWOpType get_type() override { return RGW_OP_GET_ACCOUNT_SUMMARY; }
+
+  const char*
+  name() const override
+  {
+    return "get_account_summary";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_GET_ACCOUNT_SUMMARY;
+  }
 };

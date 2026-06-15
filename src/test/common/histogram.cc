@@ -9,13 +9,16 @@
  * LGPL-2.1 (see COPYING-LGPL2.1) or later
  */
 
-#include <iostream>
+#include "common/histogram.h"
+
 #include <gtest/gtest.h>
 
-#include "common/histogram.h"
+#include <iostream>
+
 #include "include/stringify.h"
 
-TEST(Histogram, Basic) {
+TEST(Histogram, Basic)
+{
   pow2_hist_t h;
 
   h.add(0);
@@ -37,7 +40,8 @@ TEST(Histogram, Basic) {
   ASSERT_EQ(3u, h.h.size());
 }
 
-TEST(Histogram, Set) {
+TEST(Histogram, Set)
+{
   pow2_hist_t h;
   h.set_bin(0, 12);
   h.set_bin(2, 12);
@@ -47,14 +51,16 @@ TEST(Histogram, Set) {
   ASSERT_EQ(3u, h.h.size());
 }
 
-TEST(Histogram, Position) {
+TEST(Histogram, Position)
+{
   pow2_hist_t h;
   uint64_t lb, ub;
   h.add(0);
   ASSERT_EQ(-1, h.get_position_micro(-20, &lb, &ub));
 }
 
-TEST(Histogram, Position1) {
+TEST(Histogram, Position1)
+{
   pow2_hist_t h;
   h.add(0);
   uint64_t lb, ub;
@@ -69,7 +75,8 @@ TEST(Histogram, Position1) {
   ASSERT_EQ(1000000u, ub);
 }
 
-TEST(Histogram, Position2) {
+TEST(Histogram, Position2)
+{
   pow2_hist_t h;
   h.add(1);
   h.add(1);
@@ -86,7 +93,8 @@ TEST(Histogram, Position2) {
   ASSERT_EQ(1000000u, ub);
 }
 
-TEST(Histogram, Position3) {
+TEST(Histogram, Position3)
+{
   pow2_hist_t h;
   h.h.resize(10, 0);
   h.h[0] = 1;
@@ -97,7 +105,8 @@ TEST(Histogram, Position3) {
   ASSERT_EQ(500000u, ub);
 }
 
-TEST(Histogram, Position4) {
+TEST(Histogram, Position4)
+{
   pow2_hist_t h;
   h.h.resize(10, 0);
   h.h[0] = UINT_MAX;
@@ -108,7 +117,8 @@ TEST(Histogram, Position4) {
   ASSERT_EQ(0u, ub);
 }
 
-TEST(Histogram, Decay) {
+TEST(Histogram, Decay)
+{
   pow2_hist_t h;
   h.set_bin(0, 123);
   h.set_bin(3, 12);

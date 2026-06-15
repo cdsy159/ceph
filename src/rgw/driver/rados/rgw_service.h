@@ -3,31 +3,33 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "common/async/yield_context.h"
 
 #include "rgw_common.h"
 
 namespace rgw {
-  class SiteConfig;
-  namespace sal {
-    class RadosStore;
-  }
+class SiteConfig;
+
+namespace sal {
+class RadosStore;
 }
+} // namespace rgw
 
 struct RGWServices_Def;
 
-namespace rgwrados::topic { struct cache_entry; }
+namespace rgwrados::topic {
+struct cache_entry;
+}
 
-class RGWServiceInstance
-{
+class RGWServiceInstance {
   friend struct RGWServices_Def;
 
 protected:
-  CephContext *cct;
+  CephContext* cct;
 
   enum StartState {
     StateInit = 0,
@@ -35,20 +37,34 @@ protected:
     StateStarted = 2,
   } start_state{StateInit};
 
-  virtual void shutdown() {}
-  virtual int do_start(optional_yield, const DoutPrefixProvider *dpp) {
+  virtual void
+  shutdown()
+  {}
+
+  virtual int
+  do_start(optional_yield, const DoutPrefixProvider* dpp)
+  {
     return 0;
   }
+
 public:
-  RGWServiceInstance(CephContext *_cct) : cct(_cct) {}
+  RGWServiceInstance(CephContext* _cct) :
+    cct(_cct)
+  {}
+
   virtual ~RGWServiceInstance();
 
-  int start(optional_yield y, const DoutPrefixProvider *dpp);
-  bool is_started() {
+  int start(optional_yield y, const DoutPrefixProvider* dpp);
+
+  bool
+  is_started()
+  {
     return (start_state == StateStarted);
   }
 
-  CephContext *ctx() {
+  CephContext*
+  ctx()
+  {
     return cct;
   }
 };
@@ -78,8 +94,7 @@ class RGWSI_User_RADOS;
 class RGWDataChangesLog;
 class RGWAsyncRadosProcessor;
 
-struct RGWServices_Def
-{
+struct RGWServices_Def {
   bool can_shutdown{false};
   bool has_shutdown{false};
 
@@ -105,60 +120,98 @@ struct RGWServices_Def
   RGWServices_Def();
   ~RGWServices_Def();
 
-  int init(CephContext *cct, rgw::sal::RadosStore* store, bool have_cache,
-	   bool raw_storage, bool run_sync, bool background_tasks,
-	   optional_yield y, const DoutPrefixProvider *dpp, rgw::sal::ConfigStore* cfgstore, const rgw::SiteConfig* site);
+  int init(
+      CephContext* cct,
+      rgw::sal::RadosStore* store,
+      bool have_cache,
+      bool raw_storage,
+      bool run_sync,
+      bool background_tasks,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      rgw::sal::ConfigStore* cfgstore,
+      const rgw::SiteConfig* site);
   void shutdown();
 };
 
-namespace rgw { class SiteConfig; }
+namespace rgw {
+class SiteConfig;
+}
 
-struct RGWServices
-{
+struct RGWServices {
   RGWServices_Def _svc;
 
-  CephContext *cct;
+  CephContext* cct;
   const rgw::SiteConfig* site{nullptr};
 
-  RGWSI_Bucket *bucket{nullptr};
-  RGWSI_Bucket_SObj *bucket_sobj{nullptr};
-  RGWSI_Bucket_Sync *bucket_sync{nullptr};
-  RGWSI_Bucket_Sync_SObj *bucket_sync_sobj{nullptr};
-  RGWSI_BucketIndex *bi{nullptr};
-  RGWSI_BucketIndex_RADOS *bi_rados{nullptr};
-  RGWSI_BILog_RADOS *bilog_rados{nullptr};
-  RGWSI_Cls *cls{nullptr};
-  RGWSI_ConfigKey_RADOS *config_key_rados{nullptr};
-  RGWSI_ConfigKey *config_key{nullptr};
-  RGWDataChangesLog *datalog_rados{nullptr};
-  RGWSI_MDLog *mdlog{nullptr};
-  RGWSI_Zone *zone{nullptr};
-  RGWSI_ZoneUtils *zone_utils{nullptr};
-  RGWSI_Quota *quota{nullptr};
-  RGWSI_SyncModules *sync_modules{nullptr};
-  RGWSI_SysObj *sysobj{nullptr};
-  RGWSI_SysObj_Cache *cache{nullptr};
-  RGWSI_SysObj_Core *core{nullptr};
-  RGWSI_User *user{nullptr};
+  RGWSI_Bucket* bucket{nullptr};
+  RGWSI_Bucket_SObj* bucket_sobj{nullptr};
+  RGWSI_Bucket_Sync* bucket_sync{nullptr};
+  RGWSI_Bucket_Sync_SObj* bucket_sync_sobj{nullptr};
+  RGWSI_BucketIndex* bi{nullptr};
+  RGWSI_BucketIndex_RADOS* bi_rados{nullptr};
+  RGWSI_BILog_RADOS* bilog_rados{nullptr};
+  RGWSI_Cls* cls{nullptr};
+  RGWSI_ConfigKey_RADOS* config_key_rados{nullptr};
+  RGWSI_ConfigKey* config_key{nullptr};
+  RGWDataChangesLog* datalog_rados{nullptr};
+  RGWSI_MDLog* mdlog{nullptr};
+  RGWSI_Zone* zone{nullptr};
+  RGWSI_ZoneUtils* zone_utils{nullptr};
+  RGWSI_Quota* quota{nullptr};
+  RGWSI_SyncModules* sync_modules{nullptr};
+  RGWSI_SysObj* sysobj{nullptr};
+  RGWSI_SysObj_Cache* cache{nullptr};
+  RGWSI_SysObj_Core* core{nullptr};
+  RGWSI_User* user{nullptr};
   RGWAsyncRadosProcessor* async_processor;
 
-  int do_init(CephContext *cct, rgw::sal::RadosStore* store, bool have_cache,
-	      bool raw_storage, bool run_sync, bool background_tasks, optional_yield y,
-	      const DoutPrefixProvider *dpp, const rgw::SiteConfig& site, rgw::sal::ConfigStore* cfgstore);
+  int do_init(
+      CephContext* cct,
+      rgw::sal::RadosStore* store,
+      bool have_cache,
+      bool raw_storage,
+      bool run_sync,
+      bool background_tasks,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      const rgw::SiteConfig& site,
+      rgw::sal::ConfigStore* cfgstore);
 
-  int init(CephContext *cct, rgw::sal::RadosStore* store, bool have_cache,
-	   bool run_sync, bool background_tasks, optional_yield y, const DoutPrefixProvider *dpp,
-	   const rgw::SiteConfig& site, rgw::sal::ConfigStore* cfgstore) {
-    return do_init(cct, store, have_cache, false, run_sync, background_tasks, y, dpp, site, cfgstore);
+  int
+  init(
+      CephContext* cct,
+      rgw::sal::RadosStore* store,
+      bool have_cache,
+      bool run_sync,
+      bool background_tasks,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      const rgw::SiteConfig& site,
+      rgw::sal::ConfigStore* cfgstore)
+  {
+    return do_init(
+        cct, store, have_cache, false, run_sync, background_tasks, y, dpp, site,
+        cfgstore);
   }
 
-  int init_raw(CephContext *cct, rgw::sal::RadosStore* store,
-	       bool have_cache, optional_yield y,
-	       const DoutPrefixProvider *dpp,
-	       const rgw::SiteConfig& site, rgw::sal::ConfigStore* cfgstore) {
-    return do_init(cct, store, have_cache, true, false, false, y, dpp, site, cfgstore);
+  int
+  init_raw(
+      CephContext* cct,
+      rgw::sal::RadosStore* store,
+      bool have_cache,
+      optional_yield y,
+      const DoutPrefixProvider* dpp,
+      const rgw::SiteConfig& site,
+      rgw::sal::ConfigStore* cfgstore)
+  {
+    return do_init(
+        cct, store, have_cache, true, false, false, y, dpp, site, cfgstore);
   }
-  void shutdown() {
+
+  void
+  shutdown()
+  {
     _svc.shutdown();
   }
 };
@@ -183,7 +236,8 @@ struct RGWCtlDef {
     std::unique_ptr<RGWMetadataHandler> account;
     std::unique_ptr<RGWMetadataHandler> group;
 
-    std::unique_ptr<RGWChainedCacheImpl<rgwrados::topic::cache_entry>> topic_cache;
+    std::unique_ptr<RGWChainedCacheImpl<rgwrados::topic::cache_entry>>
+        topic_cache;
 
     _meta();
     ~_meta();
@@ -195,32 +249,38 @@ struct RGWCtlDef {
   RGWCtlDef();
   ~RGWCtlDef();
 
-  int init(RGWServices& svc, rgw::sal::Driver* driver,
-           librados::Rados& rados, const DoutPrefixProvider *dpp);
+  int init(
+      RGWServices& svc,
+      rgw::sal::Driver* driver,
+      librados::Rados& rados,
+      const DoutPrefixProvider* dpp);
 };
 
 struct RGWCtl {
-  CephContext *cct{nullptr};
-  RGWServices *svc{nullptr};
+  CephContext* cct{nullptr};
+  RGWServices* svc{nullptr};
 
   RGWCtlDef _ctl;
 
   struct _meta {
-    RGWMetadataManager *mgr{nullptr};
+    RGWMetadataManager* mgr{nullptr};
 
-    RGWMetadataHandler *bucket{nullptr};
-    RGWMetadataHandler *bucket_instance{nullptr};
-    RGWMetadataHandler *user{nullptr};
-    RGWMetadataHandler *otp{nullptr};
-    RGWMetadataHandler *role{nullptr};
+    RGWMetadataHandler* bucket{nullptr};
+    RGWMetadataHandler* bucket_instance{nullptr};
+    RGWMetadataHandler* user{nullptr};
+    RGWMetadataHandler* otp{nullptr};
+    RGWMetadataHandler* role{nullptr};
     RGWMetadataHandler* topic{nullptr};
 
     RGWChainedCacheImpl<rgwrados::topic::cache_entry>* topic_cache{nullptr};
   } meta;
 
-  RGWUserCtl *user{nullptr};
-  RGWBucketCtl *bucket{nullptr};
+  RGWUserCtl* user{nullptr};
+  RGWBucketCtl* bucket{nullptr};
 
-  int init(RGWServices *_svc, rgw::sal::Driver* driver,
-           librados::Rados& rados, const DoutPrefixProvider *dpp);
+  int init(
+      RGWServices* _svc,
+      rgw::sal::Driver* driver,
+      librados::Rados& rados,
+      const DoutPrefixProvider* dpp);
 };

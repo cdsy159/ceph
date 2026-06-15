@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,12 +21,13 @@
 #include <string>
 #include <vector>
 
-#include "mdstypes.h" // for dirfrag_t, mds_load_t
-#include "include/types.h"
-#include "common/ceph_time.h" // for coarse_mono_time()
-#include "include/cephfs/types.h" // for mds_rank_t
 #include "common/Clock.h"
+#include "common/ceph_time.h" // for coarse_mono_time()
 #include "common/ref.h"
+#include "include/cephfs/types.h" // for mds_rank_t
+#include "include/types.h"
+
+#include "mdstypes.h" // for dirfrag_t, mds_load_t
 
 class MDSMap;
 class MDSRank;
@@ -43,11 +44,13 @@ public:
   using time = ceph::coarse_mono_time;
   friend class C_Bal_SendHeartbeat;
 
-  MDBalancer(MDSRank *m, Messenger *msgr, MonClient *monc);
+  MDBalancer(MDSRank* m, Messenger* msgr, MonClient* monc);
 
-  void handle_conf_change(const std::set<std::string>& changed, const MDSMap& mds_map);
+  void handle_conf_change(
+      const std::set<std::string>& changed,
+      const MDSMap& mds_map);
 
-  int proc_message(const cref_t<Message> &m);
+  int proc_message(const cref_t<Message>& m);
 
   /**
    * Regularly called upkeep function.
@@ -58,16 +61,19 @@ public:
 
   void handle_export_pins(void);
 
-  void subtract_export(CDir *ex);
-  void add_import(CDir *im);
-  void adjust_pop_for_rename(CDir *pdir, CDir *dir, bool inc);
+  void subtract_export(CDir* ex);
+  void add_import(CDir* im);
+  void adjust_pop_for_rename(CDir* pdir, CDir* dir, bool inc);
 
-  void hit_inode(CInode *in, int type);
-  void hit_dir(CDir *dir, int type, double amount=1.0);
+  void hit_inode(CInode* in, int type);
+  void hit_dir(CDir* dir, int type, double amount = 1.0);
 
-  void queue_split(const CDir *dir, bool fast);
-  void queue_merge(CDir *dir);
-  bool is_fragment_pending(dirfrag_t df) {
+  void queue_split(const CDir* dir, bool fast);
+  void queue_merge(CDir* dir);
+
+  bool
+  is_fragment_pending(dirfrag_t df)
+  {
     return split_pending.count(df) || merge_pending.count(df);
   }
 
@@ -77,22 +83,33 @@ public:
    *
    * \param hot whether the directory's temperature is enough to split it
    */
-  void maybe_fragment(CDir *dir, bool hot);
+  void maybe_fragment(CDir* dir, bool hot);
 
   void handle_mds_failure(mds_rank_t who);
 
-  int dump_loads(Formatter *f, int64_t depth = -1) const;
+  int dump_loads(Formatter* f, int64_t depth = -1) const;
 
-  bool get_bal_export_pin() const {
+  bool
+  get_bal_export_pin() const
+  {
     return bal_export_pin;
   }
-  int64_t get_bal_merge_size() const {
+
+  int64_t
+  get_bal_merge_size() const
+  {
     return bal_merge_size;
   }
-  int64_t get_bal_split_size() const {
+
+  int64_t
+  get_bal_split_size() const
+  {
     return bal_split_size;
   }
-  double get_bal_fragment_fast_factor() const {
+
+  double
+  get_bal_fragment_fast_factor() const
+  {
     return bal_fragment_fast_factor;
   }
 
@@ -113,21 +130,30 @@ private:
   mds_load_t get_load();
   int localize_balancer();
   void send_heartbeat();
-  void handle_heartbeat(const cref_t<MHeartbeat> &m);
-  void find_exports(CDir *dir,
-                    double amount,
-                    std::vector<CDir*>* exports,
-                    double& have,
-                    std::set<CDir*>& already_exporting);
+  void handle_heartbeat(const cref_t<MHeartbeat>& m);
+  void find_exports(
+      CDir* dir,
+      double amount,
+      std::vector<CDir*>* exports,
+      double& have,
+      std::set<CDir*>& already_exporting);
 
-  double try_match(balance_state_t &state,
-                   mds_rank_t ex, double& maxex,
-                   mds_rank_t im, double& maxim);
+  double try_match(
+      balance_state_t& state,
+      mds_rank_t ex,
+      double& maxex,
+      mds_rank_t im,
+      double& maxim);
 
-  double get_maxim(balance_state_t &state, mds_rank_t im, double im_target_load) {
+  double
+  get_maxim(balance_state_t& state, mds_rank_t im, double im_target_load)
+  {
     return im_target_load - mds_meta_load[im] - state.imported[im];
   }
-  double get_maxex(balance_state_t &state, mds_rank_t ex, double ex_target_load) {
+
+  double
+  get_maxex(balance_state_t& state, mds_rank_t ex, double ex_target_load)
+  {
     return mds_meta_load[ex] - ex_target_load - state.exported[ex];
   }
 
@@ -158,9 +184,9 @@ private:
   int64_t bal_merge_size;
   int64_t num_bal_times;
 
-  MDSRank *mds;
-  Messenger *messenger;
-  MonClient *mon_client;
+  MDSRank* mds;
+  Messenger* messenger;
+  MonClient* mon_client;
   int beat_epoch = 0;
 
   std::string bal_code;
@@ -168,7 +194,8 @@ private:
 
   time last_heartbeat = clock::zero();
   time last_sample = clock::zero();
-  time rebalance_time = clock::zero(); //ensure a consistent view of load for rebalance
+  time rebalance_time =
+      clock::zero(); //ensure a consistent view of load for rebalance
 
   time last_get_load = clock::zero();
   uint64_t last_num_requests = 0;
@@ -185,7 +212,7 @@ private:
   // per-epoch scatter/gathered info
   std::map<mds_rank_t, mds_load_t> mds_load;
   std::map<mds_rank_t, double> mds_meta_load;
-  std::map<mds_rank_t, std::map<mds_rank_t, float> > mds_import_map;
+  std::map<mds_rank_t, std::map<mds_rank_t, float>> mds_import_map;
   std::map<mds_rank_t, int> mds_last_epoch_under_map;
 
   // per-epoch state

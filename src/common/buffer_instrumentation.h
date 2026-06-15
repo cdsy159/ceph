@@ -19,12 +19,16 @@ struct instrumented_raw : public ceph::buffer::raw {
 };
 
 struct instrumented_bptr : public ceph::buffer::ptr {
-  const ceph::buffer::raw* get_raw() const {
+  const ceph::buffer::raw*
+  get_raw() const
+  {
     return _raw;
   }
 
   template <class MarkerT>
-  bool is_raw_marked() const {
+  bool
+  is_raw_marked() const
+  {
     return dynamic_cast<const instrumented_raw<MarkerT>*>(get_raw()) != nullptr;
   }
 };

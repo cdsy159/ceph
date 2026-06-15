@@ -4,6 +4,7 @@
 #include "include/common_fwd.h"
 
 namespace TOPNSPC::common {
-  class ConfigProxy;
+class ConfigProxy;
 }
+
 using TOPNSPC::common::ConfigProxy;

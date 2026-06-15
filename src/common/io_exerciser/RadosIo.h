@@ -1,12 +1,15 @@
 #pragma once
 
-#include "ObjectModel.h"
+#include "common/ceph_mutex.h"
 #include "common/io_exerciser/IoSequence.h"
 #include "erasure-code/consistency/ConsistencyChecker.h"
 #include "librados/AioCompletionImpl.h"
-#include "common/ceph_mutex.h"
 
-namespace boost::asio { class io_context; }
+#include "ObjectModel.h"
+
+namespace boost::asio {
+class io_context;
+}
 
 /* Overview
  *
@@ -24,10 +27,10 @@ namespace io_exerciser {
 namespace data_generation {
 class DataGenerator;
 enum class GenerationType;
-}
+} // namespace data_generation
 
 class RadosIo : public Model {
- protected:
+protected:
   librados::Rados& rados;
   boost::asio::io_context& asio;
   std::unique_ptr<ObjectModel> om;
@@ -45,13 +48,23 @@ class RadosIo : public Model {
   void finish_io();
   void wait_for_io(int count);
 
- public:
-  RadosIo(librados::Rados& rados, boost::asio::io_context& asio,
-          const std::string& pool, const std::string& primary_oid, const std::string& secondary_oid,
-          uint64_t block_size, int seed, int threads, ceph::mutex& lock,
-          ceph::condition_variable& cond, bool is_replicated_pool,
-          bool ec_optimizations, ceph::io_exerciser::data_generation::GenerationType data_generation_type,
-          std::shared_ptr<ceph::io_exerciser::IoSequence> seq = nullptr, bool delete_objects = true);
+public:
+  RadosIo(
+      librados::Rados& rados,
+      boost::asio::io_context& asio,
+      const std::string& pool,
+      const std::string& primary_oid,
+      const std::string& secondary_oid,
+      uint64_t block_size,
+      int seed,
+      int threads,
+      ceph::mutex& lock,
+      ceph::condition_variable& cond,
+      bool is_replicated_pool,
+      bool ec_optimizations,
+      ceph::io_exerciser::data_generation::GenerationType data_generation_type,
+      std::shared_ptr<ceph::io_exerciser::IoSequence> seq = nullptr,
+      bool delete_objects = true);
 
   ~RadosIo();
 
@@ -60,13 +73,14 @@ class RadosIo : public Model {
 
   template <int N>
   class AsyncOpInfo {
-   public:
+  public:
     std::array<ceph::bufferlist, N> bufferlist;
     std::array<uint64_t, N> offset;
     std::array<uint64_t, N> length;
 
-    AsyncOpInfo(const std::array<uint64_t, N>& offset = {},
-                const std::array<uint64_t, N>& length = {});
+    AsyncOpInfo(
+        const std::array<uint64_t, N>& offset = {},
+        const std::array<uint64_t, N>& length = {});
     ~AsyncOpInfo() = default;
   };
 
@@ -74,9 +88,9 @@ class RadosIo : public Model {
   bool readyForIoOp(IoOp& op);
   void applyIoOp(IoOp& op);
 
- private:
+private:
   void applyReadWriteOp(IoOp& op);
   void applyInjectOp(IoOp& op);
 };
-}  // namespace io_exerciser
-}  // namespace ceph
+} // namespace io_exerciser
+} // namespace ceph

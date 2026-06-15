@@ -2,23 +2,23 @@
 
 #include <chrono>
 
-#include "gtest/gtest.h"
-
-#include "global/global_context.h"
-#include "global/global_init.h"
 #include "common/common_init.h"
 #include "common/mclock_common.h"
-
-#include "osd/scheduler/mClockScheduler.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
+#include "gtest/gtest.h"
 #include "osd/scheduler/OpSchedulerItem.h"
+#include "osd/scheduler/mClockScheduler.h"
 
 using namespace ceph::osd::scheduler;
 
-int main(int argc, char **argv) {
-  std::vector<const char*> args(argv, argv+argc);
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_OSD,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+int
+main(int argc, char** argv)
+{
+  std::vector<const char*> args(argv, argv + argc);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_OSD, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   ::testing::InitGoogleTest(&argc, argv);
@@ -48,9 +48,15 @@ public:
     is_rotational(false),
     cutoff_priority(12),
     init_perfcounter(true),
-    q(g_ceph_context, whoami, num_shards, shard_id, is_rotational,
+    q(g_ceph_context,
+      whoami,
+      num_shards,
+      shard_id,
+      is_rotational,
       cutoff_priority,
-      2ms, 2ms, 1ms,
+      2ms,
+      2ms,
+      1ms,
       init_perfcounter),
     client1(1001),
     client2(9999),
@@ -61,62 +67,79 @@ public:
     SchedulerClass scheduler_class;
 
     MockDmclockItem(SchedulerClass _scheduler_class) :
-      PGOpQueueable(spg_t()),
-      scheduler_class(_scheduler_class) {}
+      PGOpQueueable(spg_t()), scheduler_class(_scheduler_class)
+    {}
 
-    MockDmclockItem()
-      : MockDmclockItem(SchedulerClass::background_best_effort) {}
+    MockDmclockItem() :
+      MockDmclockItem(SchedulerClass::background_best_effort)
+    {}
 
-    ostream &print(ostream &rhs) const final { return rhs; }
+    ostream&
+    print(ostream& rhs) const final
+    {
+      return rhs;
+    }
 
-    std::string print() const final {
+    std::string
+    print() const final
+    {
       return std::string();
     }
 
-    std::optional<OpRequestRef> maybe_get_op() const final {
+    std::optional<OpRequestRef>
+    maybe_get_op() const final
+    {
       return std::nullopt;
     }
 
-    SchedulerClass get_scheduler_class() const final {
+    SchedulerClass
+    get_scheduler_class() const final
+    {
       return scheduler_class;
     }
 
-    void run(OSD *osd, OSDShard *sdata, PGRef& pg, ThreadPool::TPHandle &handle) final {}
+    void
+    run(OSD* osd, OSDShard* sdata, PGRef& pg, ThreadPool::TPHandle& handle) final
+    {}
   };
 };
 
 template <typename... Args>
-OpSchedulerItem create_item(
-  epoch_t e, uint64_t owner, Args&&... args)
+OpSchedulerItem
+create_item(epoch_t e, uint64_t owner, Args&&... args)
 {
   return OpSchedulerItem(
-    std::make_unique<mClockSchedulerTest::MockDmclockItem>(
-      std::forward<Args>(args)...),
-    12, 1,
-    utime_t(), owner, e);
+      std::make_unique<mClockSchedulerTest::MockDmclockItem>(
+          std::forward<Args>(args)...),
+      12, 1, utime_t(), owner, e);
 }
 
 template <typename... Args>
-OpSchedulerItem create_high_prio_item(
-  unsigned priority, epoch_t e, uint64_t owner, Args&&... args)
+OpSchedulerItem
+create_high_prio_item(
+    unsigned priority,
+    epoch_t e,
+    uint64_t owner,
+    Args&&... args)
 {
   // Create high priority item for testing high prio queue
   return OpSchedulerItem(
-    std::make_unique<mClockSchedulerTest::MockDmclockItem>(
-      std::forward<Args>(args)...),
-    12, priority,
-    utime_t(), owner, e);
+      std::make_unique<mClockSchedulerTest::MockDmclockItem>(
+          std::forward<Args>(args)...),
+      12, priority, utime_t(), owner, e);
 }
 
-OpSchedulerItem get_item(WorkItem item)
+OpSchedulerItem
+get_item(WorkItem item)
 {
   return std::move(std::get<OpSchedulerItem>(item));
 }
 
-TEST_F(mClockSchedulerTest, TestEmpty) {
+TEST_F(mClockSchedulerTest, TestEmpty)
+{
   ASSERT_TRUE(q.empty());
 
-  for (unsigned i = 100; i < 105; i+=2) {
+  for (unsigned i = 100; i < 105; i += 2) {
     q.enqueue(create_item(i, client1, SchedulerClass::client));
     std::this_thread::sleep_for(std::chrono::microseconds(1));
   }
@@ -131,7 +154,7 @@ TEST_F(mClockSchedulerTest, TestEmpty) {
   ASSERT_EQ(2u, reqs.size());
   ASSERT_FALSE(q.empty());
 
-  for (auto &&i : reqs) {
+  for (auto&& i : reqs) {
     q.enqueue_front(std::move(i));
   }
   reqs.clear();
@@ -146,7 +169,8 @@ TEST_F(mClockSchedulerTest, TestEmpty) {
   ASSERT_TRUE(q.empty());
 }
 
-TEST_F(mClockSchedulerTest, TestSingleClientOrderedEnqueueDequeue) {
+TEST_F(mClockSchedulerTest, TestSingleClientOrderedEnqueueDequeue)
+{
   ASSERT_TRUE(q.empty());
 
   for (unsigned i = 100; i < 105; ++i) {
@@ -170,17 +194,18 @@ TEST_F(mClockSchedulerTest, TestSingleClientOrderedEnqueueDequeue) {
   ASSERT_EQ(104u, r.get_map_epoch());
 }
 
-TEST_F(mClockSchedulerTest, TestMultiClientOrderedEnqueueDequeue) {
+TEST_F(mClockSchedulerTest, TestMultiClientOrderedEnqueueDequeue)
+{
   const unsigned NUM = 1000;
   for (unsigned i = 0; i < NUM; ++i) {
-    for (auto &&c: {client1, client2, client3}) {
+    for (auto&& c : {client1, client2, client3}) {
       q.enqueue(create_item(i, c, SchedulerClass::client));
       std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
   }
 
   std::map<uint64_t, epoch_t> next;
-  for (auto &&c: {client1, client2, client3}) {
+  for (auto&& c : {client1, client2, client3}) {
     next[c] = 0;
   }
   for (unsigned i = 0; i < NUM * 3; ++i) {
@@ -195,7 +220,8 @@ TEST_F(mClockSchedulerTest, TestMultiClientOrderedEnqueueDequeue) {
   ASSERT_TRUE(q.empty());
 }
 
-TEST_F(mClockSchedulerTest, TestHighPriorityQueueEnqueueDequeue) {
+TEST_F(mClockSchedulerTest, TestHighPriorityQueueEnqueueDequeue)
+{
   ASSERT_TRUE(q.empty());
   for (unsigned i = 200; i < 205; ++i) {
     q.enqueue(create_high_prio_item(i, i, client1, SchedulerClass::client));
@@ -222,7 +248,8 @@ TEST_F(mClockSchedulerTest, TestHighPriorityQueueEnqueueDequeue) {
   ASSERT_TRUE(q.empty());
 }
 
-TEST_F(mClockSchedulerTest, TestAllQueuesEnqueueDequeue) {
+TEST_F(mClockSchedulerTest, TestAllQueuesEnqueueDequeue)
+{
   ASSERT_TRUE(q.empty());
 
   // Insert ops into the mClock queue
@@ -266,12 +293,14 @@ TEST_F(mClockSchedulerTest, TestAllQueuesEnqueueDequeue) {
   ASSERT_TRUE(q.empty());
 }
 
-const OpSchedulerItem *maybe_get_item(const WorkItem &item)
+const OpSchedulerItem*
+maybe_get_item(const WorkItem& item)
 {
   return std::get_if<OpSchedulerItem>(&item);
 }
 
-TEST_F(mClockSchedulerTest, TestSlowDequeue) {
+TEST_F(mClockSchedulerTest, TestSlowDequeue)
+{
   ASSERT_TRUE(q.empty());
 
   // Insert ops into the mClock queue
@@ -289,7 +318,7 @@ TEST_F(mClockSchedulerTest, TestSlowDequeue) {
   for (; i < 200; ++i) {
     ASSERT_FALSE(q.empty());
     auto item = q.dequeue();
-    auto *wqi = maybe_get_item(item);
+    auto* wqi = maybe_get_item(item);
     ASSERT_TRUE(wqi);
   }
   ASSERT_TRUE(q.empty());

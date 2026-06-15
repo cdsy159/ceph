@@ -4,8 +4,8 @@
 #ifndef CEPH_LIBRBD_OBJECT_MAP_SNAPSHOT_CREATE_REQUEST_H
 #define CEPH_LIBRBD_OBJECT_MAP_SNAPSHOT_CREATE_REQUEST_H
 
-#include "include/int_types.h"
 #include "common/bit_vector.hpp"
+#include "include/int_types.h"
 #include "librbd/object_map/Request.h"
 
 class Context;
@@ -45,13 +45,17 @@ public:
     STATE_ADD_SNAPSHOT
   };
 
-  SnapshotCreateRequest(ImageCtx &image_ctx, ceph::shared_mutex* object_map_lock,
-                        ceph::BitVector<2> *object_map, uint64_t snap_id,
-                        Context *on_finish)
-    : Request(image_ctx, snap_id, on_finish),
-      m_object_map_lock(object_map_lock), m_object_map(*object_map),
-      m_ret_val(0) {
-  }
+  SnapshotCreateRequest(
+      ImageCtx& image_ctx,
+      ceph::shared_mutex* object_map_lock,
+      ceph::BitVector<2>* object_map,
+      uint64_t snap_id,
+      Context* on_finish) :
+    Request(image_ctx, snap_id, on_finish),
+    m_object_map_lock(object_map_lock),
+    m_object_map(*object_map),
+    m_ret_val(0)
+  {}
 
   void send() override;
 
@@ -60,7 +64,7 @@ protected:
 
 private:
   ceph::shared_mutex* m_object_map_lock;
-  ceph::BitVector<2> &m_object_map;
+  ceph::BitVector<2>& m_object_map;
 
   State m_state = STATE_READ_MAP;
   bufferlist m_read_bl;
@@ -71,7 +75,6 @@ private:
   bool send_add_snapshot();
 
   void update_object_map();
-
 };
 
 } // namespace object_map

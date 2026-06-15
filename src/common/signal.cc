@@ -13,26 +13,27 @@
  *
  */
 
-#include <cstdlib>
-#include <sstream>
+#include "common/signal.h"
 
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <signal.h>
+#include <cstdlib>
+#include <sstream>
+
+#include "common/debug.h"
 
 #include "common/BackTrace.h"
 #include "common/config.h"
-#include "common/debug.h"
-#include "common/signal.h"
 #include "common/perf_counters.h"
-
 #include "global/pidfile.h"
 
 using namespace std::literals;
 
 #ifndef _WIN32
-std::string signal_mask_to_str()
+std::string
+signal_mask_to_str()
 {
   sigset_t old_sigset;
   if (pthread_sigmask(SIG_SETMASK, NULL, &old_sigset)) {
@@ -53,13 +54,13 @@ std::string signal_mask_to_str()
 }
 
 /* Block the signals in 'siglist'. If siglist == NULL, block all signals. */
-void block_signals(const int *siglist, sigset_t *old_sigset)
+void
+block_signals(const int* siglist, sigset_t* old_sigset)
 {
   sigset_t sigset;
   if (!siglist) {
     sigfillset(&sigset);
-  }
-  else {
+  } else {
     int i = 0;
     sigemptyset(&sigset);
     while (siglist[i]) {
@@ -71,13 +72,15 @@ void block_signals(const int *siglist, sigset_t *old_sigset)
   ceph_assert(ret == 0);
 }
 
-void restore_sigset(const sigset_t *old_sigset)
+void
+restore_sigset(const sigset_t* old_sigset)
 {
   int ret = pthread_sigmask(SIG_SETMASK, old_sigset, NULL);
   ceph_assert(ret == 0);
 }
 
-void unblock_all_signals(sigset_t *old_sigset)
+void
+unblock_all_signals(sigset_t* old_sigset)
 {
   sigset_t sigset;
   sigfillset(&sigset);
@@ -86,13 +89,22 @@ void unblock_all_signals(sigset_t *old_sigset)
   ceph_assert(ret == 0);
 }
 #else
-std::string signal_mask_to_str()
+std::string
+signal_mask_to_str()
 {
   return "(unsupported signal)";
 }
 
 // Windows provides limited signal functionality.
-void block_signals(const int *siglist, sigset_t *old_sigset) {}
-void restore_sigset(const sigset_t *old_sigset) {}
-void unblock_all_signals(sigset_t *old_sigset) {}
+void
+block_signals(const int* siglist, sigset_t* old_sigset)
+{}
+
+void
+restore_sigset(const sigset_t* old_sigset)
+{}
+
+void
+unblock_all_signals(sigset_t* old_sigset)
+{}
 #endif /* _WIN32 */

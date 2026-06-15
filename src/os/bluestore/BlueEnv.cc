@@ -1,52 +1,54 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <filesystem>
-#include <iostream>
-#include <fstream>
 #include <time.h>
-#include <fcntl.h>
 #include <unistd.h>
-#include "global/global_init.h"
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+
 #include "common/ceph_argparse.h"
-#include "include/stringify.h"
 #include "common/errno.h"
 #include "common/safe_io.h"
-
+#include "global/global_init.h"
+#include "include/stringify.h"
 #include "os/bluestore/BlueStore.h"
 
 using namespace std;
 
-
-int BlueStore::create_bdev_labels(CephContext *cct,
-                                 const std::string& path,
-                                 const std::vector<std::string>& devs,
-				 std::vector<uint64_t>* valid_positions,
-				 bool force)
+int
+BlueStore::create_bdev_labels(
+    CephContext* cct,
+    const std::string& path,
+    const std::vector<std::string>& devs,
+    std::vector<uint64_t>* valid_positions,
+    bool force)
 {
   std::vector<std::string> metadata_files = {
-    "bfm_blocks",
-    "bfm_blocks_per_key",
-    "bfm_bytes_per_block",
-    "bfm_size",
-    "bluefs",
-    "ceph_fsid",
-    "ceph_version_when_created",
-    "created_at",
-    "elastic_shared_blobs",
-    "fsid",
-    "kv_backend",
-    "magic",
-    "osd_key",
-    "ready",
-    "require_osd_release",
-    "type",
-    "whoami"
-  };
+      "bfm_blocks",
+      "bfm_blocks_per_key",
+      "bfm_bytes_per_block",
+      "bfm_size",
+      "bluefs",
+      "ceph_fsid",
+      "ceph_version_when_created",
+      "created_at",
+      "elastic_shared_blobs",
+      "fsid",
+      "kv_backend",
+      "magic",
+      "osd_key",
+      "ready",
+      "require_osd_release",
+      "type",
+      "whoami"};
 
-  unique_ptr<BlockDevice> bdev(BlockDevice::create(cct, devs.front(), nullptr, nullptr, nullptr, nullptr));
+  unique_ptr<BlockDevice> bdev(BlockDevice::create(
+      cct, devs.front(), nullptr, nullptr, nullptr, nullptr));
   int r = bdev->open(devs.front());
   if (r < 0) {
     return r;
@@ -65,8 +67,8 @@ int BlueStore::create_bdev_labels(CephContext *cct,
   bool is_multi = false;
   int64_t epoch = -1;
 
-  r = BlueStore::read_bdev_label(cct, devs.front(), &label,
-    &out_positions, &is_multi, &epoch);
+  r = BlueStore::read_bdev_label(
+      cct, devs.front(), &label, &out_positions, &is_multi, &epoch);
 
   if (r == 0 && !force)
     return -EEXIST;
@@ -87,7 +89,9 @@ int BlueStore::create_bdev_labels(CephContext *cct,
   for (const auto& file : metadata_files) {
     std::ifstream infile(path + "/" + file);
     if (infile) {
-      std::string value((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+      std::string value(
+          (std::istreambuf_iterator<char>(infile)),
+          std::istreambuf_iterator<char>());
       value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
       if (file == "fsid") {
         label.osd_uuid.parse(value.c_str());

@@ -16,7 +16,9 @@ struct ImageCtx;
 template <typename ImageCtxT>
 class ConfigWatcher {
 public:
-  static ConfigWatcher* create(ImageCtxT& image_ctx) {
+  static ConfigWatcher*
+  create(ImageCtxT& image_ctx)
+  {
     return new ConfigWatcher(image_ctx);
   }
 
@@ -37,7 +39,6 @@ private:
   Observer* m_observer = nullptr;
 
   void handle_global_config_change(std::set<std::string> changed);
-
 };
 
 } // namespace librbd

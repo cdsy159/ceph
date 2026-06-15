@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,46 +17,86 @@
 #define CEPH_AUTHNONECLIENTHANDLER_H
 
 #include "auth/AuthClientHandler.h"
-#include "AuthNoneProtocol.h"
 #include "common/ceph_context.h"
 #include "common/config.h"
+
+#include "AuthNoneProtocol.h"
 
 class AuthNoneClientHandler : public AuthClientHandler {
 
 public:
-  AuthNoneClientHandler(CephContext *cct_)
-    : AuthClientHandler(cct_) {}
+  AuthNoneClientHandler(CephContext* cct_) :
+    AuthClientHandler(cct_)
+  {}
 
-  AuthNoneClientHandler* clone() const override {
+  AuthNoneClientHandler*
+  clone() const override
+  {
     return new AuthNoneClientHandler(*this);
   }
 
-  void reset() override { }
+  void
+  reset() override
+  {}
 
-  void prepare_build_request() override {}
-  int build_request(ceph::buffer::list& bl) const override { return 0; }
-  int handle_response(int ret, ceph::buffer::list::const_iterator& iter,
-		      CryptoKey *session_key,
-		      std::string *connection_secret) override { return 0; }
-  bool build_rotating_request(ceph::buffer::list& bl) const override { return false; }
+  void
+  prepare_build_request() override
+  {}
 
-  int get_protocol() const override { return CEPH_AUTH_NONE; }
-  
-  AuthAuthorizer *build_authorizer(uint32_t service_id) const override {
-    AuthNoneAuthorizer *auth = new AuthNoneAuthorizer();
+  int
+  build_request(ceph::buffer::list& bl) const override
+  {
+    return 0;
+  }
+
+  int
+  handle_response(
+      int ret,
+      ceph::buffer::list::const_iterator& iter,
+      CryptoKey* session_key,
+      std::string* connection_secret) override
+  {
+    return 0;
+  }
+
+  bool
+  build_rotating_request(ceph::buffer::list& bl) const override
+  {
+    return false;
+  }
+
+  int
+  get_protocol() const override
+  {
+    return CEPH_AUTH_NONE;
+  }
+
+  AuthAuthorizer*
+  build_authorizer(uint32_t service_id) const override
+  {
+    AuthNoneAuthorizer* auth = new AuthNoneAuthorizer();
     if (auth) {
       auth->build_authorizer(cct->_conf->name, global_id);
     }
     return auth;
   }
 
-  bool need_tickets() override { return false; }
+  bool
+  need_tickets() override
+  {
+    return false;
+  }
 
-  void set_global_id(uint64_t id) override {
+  void
+  set_global_id(uint64_t id) override
+  {
     global_id = id;
   }
+
 private:
-  void validate_tickets() override {}
+  void
+  validate_tickets() override
+  {}
 };
 
 #endif

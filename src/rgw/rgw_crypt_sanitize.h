@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string_view>
+
 #include "rgw_common.h"
 
 namespace rgw {
@@ -16,8 +17,9 @@ struct env {
   std::string_view name;
   std::string_view value;
 
-  env(std::string_view name, std::string_view value)
-  : name(name), value(value) {}
+  env(std::string_view name, std::string_view value) :
+    name(name), value(value)
+  {}
 };
 
 /*
@@ -26,8 +28,10 @@ struct env {
 struct x_meta_map {
   std::string_view name;
   std::string_view value;
-  x_meta_map(std::string_view name, std::string_view value)
-  : name(name), value(value) {}
+
+  x_meta_map(std::string_view name, std::string_view value) :
+    name(name), value(value)
+  {}
 };
 
 /*
@@ -36,8 +40,10 @@ struct x_meta_map {
 struct s3_policy {
   std::string_view name;
   std::string_view value;
-  s3_policy(std::string_view name, std::string_view value)
-  : name(name), value(value) {}
+
+  s3_policy(std::string_view name, std::string_view value) :
+    name(name), value(value)
+  {}
 };
 
 /*
@@ -46,8 +52,10 @@ struct s3_policy {
 struct auth {
   const req_state* const s;
   std::string_view value;
-  auth(const req_state* const s, std::string_view value)
-  : s(s), value(value) {}
+
+  auth(const req_state* const s, std::string_view value) :
+    s(s), value(value)
+  {}
 };
 
 /*
@@ -55,8 +63,10 @@ struct auth {
  */
 struct log_content {
   const std::string_view buf;
-  explicit log_content(const std::string_view buf)
-  : buf(buf) {}
+
+  explicit log_content(const std::string_view buf) :
+    buf(buf)
+  {}
 };
 
 std::ostream& operator<<(std::ostream& out, const env& e);
@@ -64,5 +74,5 @@ std::ostream& operator<<(std::ostream& out, const x_meta_map& x);
 std::ostream& operator<<(std::ostream& out, const s3_policy& x);
 std::ostream& operator<<(std::ostream& out, const auth& x);
 std::ostream& operator<<(std::ostream& out, const log_content& x);
-}
-}
+} // namespace crypt_sanitize
+} // namespace rgw

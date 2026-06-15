@@ -19,25 +19,23 @@
 
 #include <boost/asio/use_future.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "common/async/context_pool.h"
 #include "common/ceph_argparse.h"
-
 #include "global/global_init.h"
+#include "include/neorados/RADOS.hpp"
 
 namespace R = neorados;
 
-
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
   using namespace std::literals;
 
   auto args = argv_to_vec(argc, argv);
   env_to_vec(args);
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY, 0);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   common_init_finish(cct.get());
 
   {

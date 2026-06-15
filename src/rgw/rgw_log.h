@@ -3,14 +3,17 @@
 
 #pragma once
 
+#include <fstream>
+#include <vector>
+
 #include <boost/container/flat_map.hpp>
-#include "rgw_common.h"
+
 #include "common/OutputDataSocket.h"
 #include "common/versioned_variant.h"
-#include <vector>
-#include <fstream>
-#include "rgw_sal_fwd.h"
+
+#include "rgw_common.h"
 #include "rgw_keystone_scope.h"
+#include "rgw_sal_fwd.h"
 
 class RGWOp;
 
@@ -23,7 +26,9 @@ struct delete_multi_obj_entry {
   bool error = false;
   bool delete_marker = false;
 
-  void encode(bufferlist &bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(key, bl);
     encode(version_id, bl);
@@ -35,7 +40,9 @@ struct delete_multi_obj_entry {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator &p) {
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(1, 1, 1, p);
     decode(key, p);
     decode(version_id, p);
@@ -54,7 +61,9 @@ struct delete_multi_obj_op_meta {
   uint32_t num_err = 0;
   std::vector<delete_multi_obj_entry> objects;
 
-  void encode(bufferlist &bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(num_ok, bl);
     encode(num_err, bl);
@@ -62,7 +71,9 @@ struct delete_multi_obj_op_meta {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator &p) {
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(1, 1, 1, p);
     decode(num_ok, p);
     decode(num_err, p);
@@ -101,7 +112,7 @@ struct rgw_log_entry {
   uint32_t identity_type = TYPE_NONE;
   std::string access_key_id;
   std::string subuser;
-  bool temp_url {false};
+  bool temp_url{false};
   delete_multi_obj_op_meta delete_multi_obj_meta;
   rgw_account_id account_id;
   std::string role_id;
@@ -109,7 +120,9 @@ struct rgw_log_entry {
   // Keystone scope (optional) - uses unified structure from rgw_keystone_scope.h
   std::optional<rgw::keystone::ScopeInfo> keystone_scope;
 
-  void encode(bufferlist &bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(16, 5, bl);
     // old object/bucket owner ids, encoded in full in v8
     std::string empty_owner_id;
@@ -139,7 +152,7 @@ struct rgw_log_entry {
     encode(x_headers, bl);
     encode(trans_id, bl);
     encode(token_claims, bl);
-    encode(identity_type,bl);
+    encode(identity_type, bl);
     encode(access_key_id, bl);
     encode(subuser, bl);
     encode(temp_url, bl);
@@ -149,7 +162,10 @@ struct rgw_log_entry {
     encode(keystone_scope, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator &p) {
+
+  void
+  decode(bufferlist::const_iterator& p)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(16, 5, 5, p);
     std::string object_owner_id;
     std::string bucket_owner_id;
@@ -228,7 +244,8 @@ struct rgw_log_entry {
     }
     DECODE_FINISH(p);
   }
-  void dump(ceph::Formatter *f) const;
+
+  void dump(ceph::Formatter* f) const;
   static std::list<rgw_log_entry> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(rgw_log_entry)
@@ -239,8 +256,9 @@ public:
   virtual ~OpsLogSink() = default;
 };
 
-class OpsLogManifold: public OpsLogSink {
+class OpsLogManifold : public OpsLogSink {
   std::vector<OpsLogSink*> sinks;
+
 public:
   ~OpsLogManifold() override;
   void add_sink(OpsLogSink* sink);
@@ -248,19 +266,23 @@ public:
 };
 
 class JsonOpsLogSink : public OpsLogSink {
-  ceph::Formatter *formatter;
+  ceph::Formatter* formatter;
   ceph::mutex lock = ceph::make_mutex("JsonOpsLogSink");
 
   void formatter_to_bl(bufferlist& bl);
+
 protected:
   virtual int log_json(req_state* s, bufferlist& bl) = 0;
+
 public:
   JsonOpsLogSink();
   ~JsonOpsLogSink() override;
   int log(req_state* s, struct rgw_log_entry& entry) override;
 };
 
-class OpsLogFile : public JsonOpsLogSink, public Thread, public DoutPrefixProvider {
+class OpsLogFile : public JsonOpsLogSink,
+                   public Thread,
+                   public DoutPrefixProvider {
   CephContext* cct;
   ceph::mutex mutex = ceph::make_mutex("OpsLogFile");
   std::vector<bufferlist> log_buffer;
@@ -274,15 +296,29 @@ class OpsLogFile : public JsonOpsLogSink, public Thread, public DoutPrefixProvid
   std::atomic_bool need_reopen;
 
   void flush();
+
 protected:
   int log_json(req_state* s, bufferlist& bl) override;
-  void *entry() override;
+  void* entry() override;
+
 public:
   OpsLogFile(CephContext* cct, std::string& path, uint64_t max_data_size);
   ~OpsLogFile() override;
-  CephContext *get_cct() const override { return cct; }
+
+  CephContext*
+  get_cct() const override
+  {
+    return cct;
+  }
+
   unsigned get_subsys() const override;
-  std::ostream& gen_prefix(std::ostream& out) const override { return out << "rgw OpsLogFile: "; }
+
+  std::ostream&
+  gen_prefix(std::ostream& out) const override
+  {
+    return out << "rgw OpsLogFile: ";
+  }
+
   void reopen();
   void start();
   void stop();
@@ -294,7 +330,7 @@ protected:
   void init_connection(bufferlist& bl) override;
 
 public:
-  OpsLogSocket(CephContext *cct, uint64_t _backlog);
+  OpsLogSocket(CephContext* cct, uint64_t _backlog);
 };
 
 class OpsLogRados : public OpsLogSink {
@@ -308,9 +344,13 @@ public:
 
 class RGWREST;
 
-int rgw_log_op(RGWREST* const rest, struct req_state* s,
-	             const RGWOp* op, OpsLogSink* olog);
+int rgw_log_op(
+    RGWREST* const rest,
+    struct req_state* s,
+    const RGWOp* op,
+    OpsLogSink* olog);
 void rgw_log_usage_init(CephContext* cct, rgw::sal::Driver* driver);
 void rgw_log_usage_finalize();
-void rgw_format_ops_log_entry(struct rgw_log_entry& entry,
-			      ceph::Formatter *formatter);
+void rgw_format_ops_log_entry(
+    struct rgw_log_entry& entry,
+    ceph::Formatter* formatter);

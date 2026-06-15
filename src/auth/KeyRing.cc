@@ -13,19 +13,24 @@
  *
  */
 
+#include "auth/KeyRing.h"
+
 #include <errno.h>
+
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <sstream>
-#include <algorithm>
+
+#include "common/debug.h"
+
 #include <boost/algorithm/string/replace.hpp>
-#include "auth/KeyRing.h"
-#include "include/stringify.h"
+
+#include "common/Formatter.h"
 #include "common/ceph_context.h"
 #include "common/config.h"
-#include "common/debug.h"
 #include "common/errno.h"
-#include "common/Formatter.h"
+#include "include/stringify.h"
 
 #define dout_subsys ceph_subsys_auth
 
@@ -40,7 +45,8 @@ using std::string;
 using ceph::bufferlist;
 using ceph::Formatter;
 
-int KeyRing::from_ceph_context(CephContext *cct)
+int
+KeyRing::from_ceph_context(CephContext* cct)
 {
   const auto& conf = cct->_conf;
   string filename;
@@ -49,11 +55,11 @@ int KeyRing::from_ceph_context(CephContext *cct)
   if (!ret) {
     ret = load(cct, filename);
     if (ret < 0)
-      lderr(cct) << "failed to load " << filename
-		 << ": " << cpp_strerror(ret) << dendl;
+      lderr(cct) << "failed to load " << filename << ": " << cpp_strerror(ret)
+                 << dendl;
   } else if (conf->key.empty() && conf->keyfile.empty()) {
-    lderr(cct) << "unable to find a keyring on " << conf->keyring
-	       << ": " << cpp_strerror(ret) << dendl;
+    lderr(cct) << "unable to find a keyring on " << conf->keyring << ": "
+               << cpp_strerror(ret) << dendl;
   }
 
   if (!conf->key.empty()) {
@@ -62,8 +68,7 @@ int KeyRing::from_ceph_context(CephContext *cct)
       ea.key.decode_base64(conf->key);
       add(conf->name, ea);
       return 0;
-    }
-    catch (ceph::buffer::error& e) {
+    } catch (ceph::buffer::error& e) {
       lderr(cct) << "failed to decode key '" << conf->key << "'" << dendl;
       return -EINVAL;
     }
@@ -82,8 +87,7 @@ int KeyRing::from_ceph_context(CephContext *cct)
     try {
       ea.key.decode_base64(k);
       add(conf->name, ea);
-    }
-    catch (ceph::buffer::error& e) {
+    } catch (ceph::buffer::error& e) {
       lderr(cct) << "failed to decode key '" << k << "'" << dendl;
       return -EINVAL;
     }
@@ -93,10 +97,12 @@ int KeyRing::from_ceph_context(CephContext *cct)
   return ret;
 }
 
-int KeyRing::set_modifier(const char *type,
-			  const char *val,
-			  EntityName& name,
-			  map<string, bufferlist>& caps)
+int
+KeyRing::set_modifier(
+    const char* type,
+    const char* val,
+    EntityName& name,
+    map<string, bufferlist>& caps)
 {
   if (!val)
     return -EINVAL;
@@ -111,7 +117,7 @@ int KeyRing::set_modifier(const char *type,
     }
     set_key(name, key);
   } else if (strncmp(type, "caps ", 5) == 0) {
-    const char *caps_entity = type + 5;
+    const char* caps_entity = type + 5;
     if (!*caps_entity)
       return -EINVAL;
     string l(val);
@@ -127,7 +133,8 @@ int KeyRing::set_modifier(const char *type,
   return 0;
 }
 
-void KeyRing::encode_plaintext(bufferlist& bl)
+void
+KeyRing::encode_plaintext(bufferlist& bl)
 {
   std::ostringstream os;
   print(os);
@@ -135,10 +142,11 @@ void KeyRing::encode_plaintext(bufferlist& bl)
   bl.append(str);
 }
 
-void KeyRing::encode_formatted(string label, Formatter *f, bufferlist& bl)
+void
+KeyRing::encode_formatted(string label, Formatter* f, bufferlist& bl)
 {
   f->open_array_section(label.c_str());
-  for (const auto &[ename, eauth] : keys) {
+  for (const auto& [ename, eauth] : keys) {
     f->open_object_section("auth_entities");
     f->dump_string("entity", ename.to_str().c_str());
     f->dump_string("key", stringify(eauth.key));
@@ -152,14 +160,15 @@ void KeyRing::encode_formatted(string label, Formatter *f, bufferlist& bl)
       ceph::decode(caps, dataiter);
       f->dump_string(sys.c_str(), caps);
     }
-    f->close_section();	/* caps */
-    f->close_section();	/* auth_entities */
+    f->close_section(); /* caps */
+    f->close_section(); /* auth_entities */
   }
-  f->close_section();	/* auth_dump */
+  f->close_section(); /* auth_dump */
   f->flush(bl);
 }
 
-void KeyRing::decode(bufferlist::const_iterator& bli)
+void
+KeyRing::decode(bufferlist::const_iterator& bli)
 {
   int ret;
   bufferlist bl;
@@ -189,16 +198,17 @@ void KeyRing::decode(bufferlist::const_iterator& bli)
       std::replace_copy(k.begin(), k.end(), back_inserter(key), '_', ' ');
       ret = set_modifier(key.c_str(), val.c_str(), ename, caps);
       if (ret < 0) {
-	ostringstream oss;
-	oss << "error setting modifier for [" << name << "] type=" << key
-	    << " val=" << val;
-	throw ceph::buffer::malformed_input(oss.str().c_str());
+        ostringstream oss;
+        oss << "error setting modifier for [" << name << "] type=" << key
+            << " val=" << val;
+        throw ceph::buffer::malformed_input(oss.str().c_str());
       }
     }
   }
 }
 
-int KeyRing::load(CephContext *cct, const std::string &filename)
+int
+KeyRing::load(CephContext* cct, const std::string& filename)
 {
   if (filename.empty())
     return -EINVAL;
@@ -214,9 +224,9 @@ int KeyRing::load(CephContext *cct, const std::string &filename)
   try {
     auto iter = bl.cbegin();
     decode(iter);
-  }
-  catch (const ceph::buffer::error& err) {
-    lderr(cct) << "error parsing file " << filename << ": " << err.what() << dendl;
+  } catch (const ceph::buffer::error& err) {
+    lderr(cct) << "error parsing file " << filename << ": " << err.what()
+               << dendl;
     return -EIO;
   }
 
@@ -224,7 +234,8 @@ int KeyRing::load(CephContext *cct, const std::string &filename)
   return 0;
 }
 
-void KeyRing::print(ostream& out)
+void
+KeyRing::print(ostream& out)
 {
   for (auto& [ename, eauth] : keys) {
     out << "[" << ename << "]" << std::endl;
@@ -243,15 +254,13 @@ void KeyRing::print(ostream& out)
   }
 }
 
-void KeyRing::import(CephContext *cct, KeyRing& other)
+void
+KeyRing::import(CephContext* cct, KeyRing& other)
 {
   for (map<EntityName, EntityAuth>::iterator p = other.keys.begin();
-       p != other.keys.end();
-       ++p) {
+       p != other.keys.end(); ++p) {
     ldout(cct, 10) << " importing " << p->first << dendl;
     ldout(cct, 30) << "    " << p->second << dendl;
     keys[p->first] = p->second;
   }
 }
-
-

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,26 +13,31 @@
  * 
  */
 
-#include <iostream>
 #include <errno.h>
 
-#include "include/types.h"
-#include "common/Clock.h"
-#include "msg/msg_types.h"
-#include "include/rados/librados.hpp"
-
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
+#include <iostream>
 
 #include "cls/lock/cls_lock_client.h"
 #include "cls/lock/cls_lock_ops.h"
+#include "common/Clock.h"
+#include "gtest/gtest.h"
+#include "include/rados/librados.hpp"
+#include "include/types.h"
+#include "msg/msg_types.h"
+#include "test/librados/test_cxx.h"
 
 using namespace std;
 using namespace librados;
 using namespace rados::cls::lock;
 
-void lock_info(IoCtx *ioctx, string& oid, string& name, map<locker_id_t, locker_info_t>& lockers,
-	       ClsLockType *assert_type, string *assert_tag)
+void
+lock_info(
+    IoCtx* ioctx,
+    string& oid,
+    string& name,
+    map<locker_id_t, locker_info_t>& lockers,
+    ClsLockType* assert_type,
+    string* assert_tag)
 {
   ClsLockType lock_type = ClsLockType::NONE;
   string tag;
@@ -54,17 +59,25 @@ void lock_info(IoCtx *ioctx, string& oid, string& name, map<locker_id_t, locker_
   map<locker_id_t, locker_info_t>::iterator liter;
   for (liter = lockers.begin(); liter != lockers.end(); ++liter) {
     const locker_id_t& locker = liter->first;
-    cout << "    " << locker.locker << " expiration=" << liter->second.expiration
-         << " addr=" << liter->second.addr << " cookie=" << locker.cookie << std::endl;
+    cout << "    " << locker.locker
+         << " expiration=" << liter->second.expiration
+         << " addr=" << liter->second.addr << " cookie=" << locker.cookie
+         << std::endl;
   }
 }
 
-void lock_info(IoCtx *ioctx, string& oid, string& name, map<locker_id_t, locker_info_t>& lockers)
+void
+lock_info(
+    IoCtx* ioctx,
+    string& oid,
+    string& name,
+    map<locker_id_t, locker_info_t>& lockers)
 {
   lock_info(ioctx, oid, name, lockers, NULL, NULL);
 }
 
-TEST(ClsLock, TestMultiLocking) {
+TEST(ClsLock, TestMultiLocking)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -159,7 +172,8 @@ TEST(ClsLock, TestMultiLocking) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestMeta) {
+TEST(ClsLock, TestMeta)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -220,7 +234,8 @@ TEST(ClsLock, TestMeta) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestCookie) {
+TEST(ClsLock, TestCookie)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -256,7 +271,8 @@ TEST(ClsLock, TestCookie) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestMultipleLocks) {
+TEST(ClsLock, TestMultipleLocks)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -278,7 +294,8 @@ TEST(ClsLock, TestMultipleLocks) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestLockDuration) {
+TEST(ClsLock, TestLockDuration)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -306,7 +323,8 @@ TEST(ClsLock, TestLockDuration) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestAssertLocked) {
+TEST(ClsLock, TestAssertLocked)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -346,7 +364,8 @@ TEST(ClsLock, TestAssertLocked) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestSetCookie) {
+TEST(ClsLock, TestSetCookie)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -397,7 +416,8 @@ TEST(ClsLock, TestSetCookie) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestRenew) {
+TEST(ClsLock, TestRenew)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -420,9 +440,9 @@ TEST(ClsLock, TestRenew) {
   sleep(2);
   ASSERT_EQ(0, l1.lock_exclusive(&ioctx, oid1));
   sleep(7);
-  ASSERT_EQ(0, l1.lock_exclusive(&ioctx, oid1)) <<
-    "when a cls_lock is set to may_renew, a relock after expiration "
-    "should still work";
+  ASSERT_EQ(0, l1.lock_exclusive(&ioctx, oid1))
+      << "when a cls_lock is set to may_renew, a relock after expiration "
+         "should still work";
   ASSERT_EQ(0, l1.unlock(&ioctx, oid1));
 
   // ***********************************************
@@ -441,9 +461,9 @@ TEST(ClsLock, TestRenew) {
   sleep(2);
   ASSERT_EQ(0, l2.lock_exclusive(&ioctx, oid2));
   sleep(7);
-  ASSERT_EQ(-ENOENT, l2.lock_exclusive(&ioctx, oid2)) <<
-    "when a cls_lock is set to must_renew, a relock after expiration "
-    "should fail";
+  ASSERT_EQ(-ENOENT, l2.lock_exclusive(&ioctx, oid2))
+      << "when a cls_lock is set to must_renew, a relock after expiration "
+         "should fail";
   ASSERT_EQ(-ENOENT, l2.unlock(&ioctx, oid2));
 
   // ***********************************************
@@ -457,13 +477,14 @@ TEST(ClsLock, TestRenew) {
   l3.set_duration(utime_t(5, 0));
   l3.set_must_renew(true);
 
-  ASSERT_EQ(-ENOENT, l3.lock_exclusive(&ioctx, oid3)) <<
-    "unable to create a lock with must_renew";
+  ASSERT_EQ(-ENOENT, l3.lock_exclusive(&ioctx, oid3))
+      << "unable to create a lock with must_renew";
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLock, TestExclusiveEphemeralBasic) {
+TEST(ClsLock, TestExclusiveEphemeralBasic)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -504,8 +525,8 @@ TEST(ClsLock, TestExclusiveEphemeralBasic) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-
-TEST(ClsLock, TestExclusiveEphemeralStealEphemeral) {
+TEST(ClsLock, TestExclusiveEphemeralStealEphemeral)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -536,8 +557,8 @@ TEST(ClsLock, TestExclusiveEphemeralStealEphemeral) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-
-TEST(ClsLock, TestExclusiveEphemeralStealExclusive) {
+TEST(ClsLock, TestExclusiveEphemeralStealExclusive)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));

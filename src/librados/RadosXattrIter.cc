@@ -13,12 +13,12 @@
  *
  */
 
-#include <stdlib.h>
-
 #include "RadosXattrIter.h"
 
-librados::RadosXattrsIter::RadosXattrsIter()
-  : val(NULL)
+#include <stdlib.h>
+
+librados::RadosXattrsIter::RadosXattrsIter() :
+  val(NULL)
 {
   i = attrset.end();
 }

@@ -1,14 +1,17 @@
-#include <boost/algorithm/string.hpp>
-#include <boost/redis/src.hpp>
-#include <boost/asio/detached.hpp>
-
-#include "common/dout.h" 
-#include "common/async/blocked_completion.h"
 #include "rgw_redis_driver.h"
 
-namespace rgw { namespace cache {
+#include <boost/algorithm/string.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/redis/src.hpp>
 
-std::vector<std::string> build_attrs(const rgw::sal::Attrs& binary)
+#include "common/async/blocked_completion.h"
+#include "common/dout.h"
+
+namespace rgw {
+namespace cache {
+
+std::vector<std::string>
+build_attrs(const rgw::sal::Attrs& binary)
 {
   std::vector<std::string> values;
 
@@ -28,34 +31,46 @@ struct initiate_exec {
   std::shared_ptr<boost::redis::connection> conn;
 
   using executor_type = boost::redis::connection::executor_type;
-  executor_type get_executor() const noexcept { return conn->get_executor(); }
-  
+
+  executor_type
+  get_executor() const noexcept
+  {
+    return conn->get_executor();
+  }
+
   template <typename Handler, typename Response>
-  void operator()(Handler handler, const boost::redis::request& req, Response& resp)
+  void
+  operator()(Handler handler, const boost::redis::request& req, Response& resp)
   {
     auto h = boost::asio::consign(std::move(handler), conn);
-    return boost::asio::dispatch(get_executor(),
-        [c=conn, &req, &resp, h=std::move(h)] () mutable {
+    return boost::asio::dispatch(
+        get_executor(), [c = conn, &req, &resp, h = std::move(h)]() mutable {
           return c->async_exec(req, resp, std::move(h));
         });
-  } 
+  }
 };
 
 template <typename Response, typename CompletionToken>
-auto async_exec(std::shared_ptr<connection> conn,
-                const boost::redis::request& req,
-                Response& resp, CompletionToken&& token)
+auto
+async_exec(
+    std::shared_ptr<connection> conn,
+    const boost::redis::request& req,
+    Response& resp,
+    CompletionToken&& token)
 {
-  return boost::asio::async_initiate<CompletionToken,
-         void(boost::system::error_code, std::size_t)>(
+  return boost::asio::async_initiate<
+      CompletionToken, void(boost::system::error_code, std::size_t)>(
       initiate_exec{std::move(conn)}, token, req, resp);
 }
 
 template <typename... Types>
-void redis_exec(std::shared_ptr<connection> conn,
-                boost::system::error_code& ec,
-                const boost::redis::request& req,
-                boost::redis::response<Types...>& resp, optional_yield y)
+void
+redis_exec(
+    std::shared_ptr<connection> conn,
+    boost::system::error_code& ec,
+    const boost::redis::request& req,
+    boost::redis::response<Types...>& resp,
+    optional_yield y)
 {
   if (y) {
     auto yield = y.get_yield_context();
@@ -65,7 +80,10 @@ void redis_exec(std::shared_ptr<connection> conn,
   }
 }
 
-std::optional<fs::path> RedisDriver::resolve_valkey_data_dir(const DoutPrefixProvider* dpp, optional_yield y) const
+std::optional<fs::path>
+RedisDriver::resolve_valkey_data_dir(
+    const DoutPrefixProvider* dpp,
+    optional_yield y) const
 {
   try {
     boost::system::error_code ec;
@@ -77,22 +95,25 @@ std::optional<fs::path> RedisDriver::resolve_valkey_data_dir(const DoutPrefixPro
 
     if (ec) {
       ldpp_dout(dpp, 5) << "RedisDriver::" << __func__
-                        << "(): failed to execute CONFIG GET dir: " << ec.message()
-                        << dendl;
+                        << "(): failed to execute CONFIG GET dir: "
+                        << ec.message() << dendl;
       return std::nullopt;
     }
 
     const auto& entries = std::get<0>(resp);
-    std::clog << "MK| OK " << __FILE__ << " :" << __LINE__ << " | " << __func__ << "(): entries.value().size()=" << entries.value().size() << std::endl;
+    std::clog << "MK| OK " << __FILE__ << " :" << __LINE__ << " | " << __func__
+              << "(): entries.value().size()=" << entries.value().size()
+              << std::endl;
     if (entries.value().size() < 2) {
       ldpp_dout(dpp, 5) << "RedisDriver::" << __func__
-                        << "(): unexpected CONFIG GET dir response size=" << entries.value().size()
-                        << dendl;
+                        << "(): unexpected CONFIG GET dir response size="
+                        << entries.value().size() << dendl;
       return std::nullopt;
     }
 
     const fs::path dir_path(entries.value()[1]);
-    std::clog << "MK| OK " << __FILE__ << " :" << __LINE__ << " | " << __func__ << "(): dir_path=" << std::quoted(dir_path.string()) << std::endl;
+    std::clog << "MK| OK " << __FILE__ << " :" << __LINE__ << " | " << __func__
+              << "(): dir_path=" << std::quoted(dir_path.string()) << std::endl;
     if (dir_path.empty()) {
       ldpp_dout(dpp, 5) << "RedisDriver::" << __func__
                         << "(): CONFIG GET dir returned empty path" << dendl;
@@ -109,32 +130,40 @@ std::optional<fs::path> RedisDriver::resolve_valkey_data_dir(const DoutPrefixPro
   return std::nullopt;
 }
 
-uint64_t RedisDriver::get_free_space(const DoutPrefixProvider* dpp, optional_yield y)
+uint64_t
+RedisDriver::get_free_space(const DoutPrefixProvider* dpp, optional_yield y)
 {
   auto data_dir = resolve_valkey_data_dir(dpp, y);
   if (!data_dir) {
-    ldpp_dout(dpp, 0) << __func__ << "(): ERROR: could not resolve redis data dir" << dendl;
+    ldpp_dout(dpp, 0) << __func__
+                      << "(): ERROR: could not resolve redis data dir" << dendl;
     return 0;
   }
 
   const fs::path redis_probe_path = *data_dir;
-  ldpp_dout(dpp, 20) << __func__ << "(): redis path = " << std::quoted(redis_probe_path.string()) << dendl;
+  ldpp_dout(dpp, 20) << __func__ << "(): redis path = "
+                     << std::quoted(redis_probe_path.string()) << dendl;
 
   std::error_code ec;
   fs::space_info space = fs::space(redis_probe_path, ec);
   if (ec) {
     ldpp_dout(dpp, 0) << __func__ << "(): ERROR: unable to stat redis path "
-                      << std::quoted(redis_probe_path.string()) << " : " << ec.message() << dendl;
+                      << std::quoted(redis_probe_path.string()) << " : "
+                      << ec.message() << dendl;
     return 0;
   }
 
-  ldpp_dout(dpp, 20) << __func__ << "(): redis partition space.available=" << space.available
-                     << ", partition_info.reserve_size=" << partition_info.reserve_size << dendl;
+  ldpp_dout(dpp, 20) << __func__ << "(): redis partition space.available="
+                     << space.available << ", partition_info.reserve_size="
+                     << partition_info.reserve_size << dendl;
 
-  return (space.available < partition_info.reserve_size) ? 0 : (space.available - partition_info.reserve_size);
+  return (space.available < partition_info.reserve_size)
+             ? 0
+             : (space.available - partition_info.reserve_size);
 }
 
-int RedisDriver::initialize(const DoutPrefixProvider* dpp)
+int
+RedisDriver::initialize(const DoutPrefixProvider* dpp)
 {
   if (partition_info.location.back() != '/') {
     partition_info.location += "/";
@@ -148,7 +177,8 @@ int RedisDriver::initialize(const DoutPrefixProvider* dpp)
   cfg.clientname = "RedisDriver";
 
   if (!cfg.addr.host.length() || !cfg.addr.port.length()) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): Endpoint was not configured correctly." << dendl;
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): Endpoint was not configured correctly." << dendl;
     return -EDESTADDRREQ;
   }
 
@@ -157,7 +187,14 @@ int RedisDriver::initialize(const DoutPrefixProvider* dpp)
   return 0;
 }
 
-int RedisDriver::put(const DoutPrefixProvider* dpp, const std::string& key, const bufferlist& bl, uint64_t len, const rgw::sal::Attrs& attrs, optional_yield y) 
+int
+RedisDriver::put(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    const bufferlist& bl,
+    uint64_t len,
+    const rgw::sal::Attrs& attrs,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
 
@@ -178,11 +215,13 @@ int RedisDriver::put(const DoutPrefixProvider* dpp, const std::string& key, cons
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
@@ -190,48 +229,64 @@ int RedisDriver::put(const DoutPrefixProvider* dpp, const std::string& key, cons
   return 0;
 }
 
-int RedisDriver::get(const DoutPrefixProvider* dpp, const std::string& key, off_t offset, uint64_t len, bufferlist& bl, rgw::sal::Attrs& attrs, optional_yield y) 
+int
+RedisDriver::get(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    off_t offset,
+    uint64_t len,
+    bufferlist& bl,
+    rgw::sal::Attrs& attrs,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
-  
+
   /* Retrieve existing values from cache */
   try {
     boost::system::error_code ec;
-    response< std::optional<std::map<std::string, std::string>> > resp;
+    response<std::optional<std::map<std::string, std::string>>> resp;
     request req;
     req.push("HGETALL", entry);
 
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().value().empty()) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): No values returned." << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): No values returned." << dendl;
       return -ENOENT;
     }
 
     for (auto const& it : std::get<0>(resp).value().value()) {
       if (it.first == "data") {
-	bl.append(it.second);
+        bl.append(it.second);
       } else {
-	buffer::list bl_value;
-	bl_value.append(it.second);
-	attrs.insert({it.first, bl_value});
-	bl_value.clear();
+        buffer::list bl_value;
+        bl_value.append(it.second);
+        attrs.insert({it.first, bl_value});
+        bl_value.clear();
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int RedisDriver::append_data(const DoutPrefixProvider* dpp, const::std::string& key, const bufferlist& bl_data, optional_yield y) 
+int
+RedisDriver::append_data(
+    const DoutPrefixProvider* dpp,
+    const ::std::string& key,
+    const bufferlist& bl_data,
+    optional_yield y)
 {
   std::string value = "";
   std::string entry = partition_info.location + key;
@@ -239,21 +294,23 @@ int RedisDriver::append_data(const DoutPrefixProvider* dpp, const::std::string& 
   try {
     {
       boost::system::error_code ec;
-      response< std::optional<std::string> > resp;
+      response<std::optional<std::string>> resp;
       request req;
       req.push("HGET", entry, "data");
 
       redis_exec(conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                          << "(): ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
 
       if (std::get<0>(resp).value().value().empty()) {
-	ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): No data entry found." << dendl;
+        ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                          << "(): No data entry found." << dendl;
       } else {
-	value = std::get<0>(resp).value().value();
+        value = std::get<0>(resp).value().value();
       }
     }
 
@@ -269,12 +326,14 @@ int RedisDriver::append_data(const DoutPrefixProvider* dpp, const::std::string& 
       redis_exec(conn, ec, req, resp, y);
 
       if (ec) {
-	ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
-	return -ec.value();
+        ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                          << "(): ERROR: " << ec.what() << dendl;
+        return -ec.value();
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
@@ -282,7 +341,11 @@ int RedisDriver::append_data(const DoutPrefixProvider* dpp, const::std::string& 
   return 0;
 }
 
-int RedisDriver::delete_data(const DoutPrefixProvider* dpp, const::std::string& key, optional_yield y) 
+int
+RedisDriver::delete_data(
+    const DoutPrefixProvider* dpp,
+    const ::std::string& key,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
   response<int> resp;
@@ -290,11 +353,9 @@ int RedisDriver::delete_data(const DoutPrefixProvider* dpp, const::std::string& 
   try {
     boost::system::error_code ec;
     response<
-      ignore_t,
-      ignore_t,
-      ignore_t,
-      response<std::optional<int>, std::optional<int>>
-    > resp;
+        ignore_t, ignore_t, ignore_t,
+        response<std::optional<int>, std::optional<int>>>
+        resp;
     request req;
     req.push("MULTI");
     req.push("HSTRLEN", entry, "data");
@@ -304,20 +365,28 @@ int RedisDriver::delete_data(const DoutPrefixProvider* dpp, const::std::string& 
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     this->free_space += std::get<0>(std::get<3>(resp).value()).value().value();
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
-  return 0; 
+  return 0;
 }
 
-int RedisDriver::rename(const DoutPrefixProvider* dpp, const::std::string& oldKey, const::std::string& newKey, optional_yield y) {
+int
+RedisDriver::rename(
+    const DoutPrefixProvider* dpp,
+    const ::std::string& oldKey,
+    const ::std::string& newKey,
+    optional_yield y)
+{
   std::string entry = partition_info.location + oldKey;
   std::string newEntry = partition_info.location + newKey;
 
@@ -332,57 +401,71 @@ int RedisDriver::rename(const DoutPrefixProvider* dpp, const::std::string& oldKe
     if (ec) {
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int RedisDriver::get_attrs(const DoutPrefixProvider* dpp, const std::string& key, rgw::sal::Attrs& attrs, optional_yield y) 
+int
+RedisDriver::get_attrs(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    rgw::sal::Attrs& attrs,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
 
   try {
     boost::system::error_code ec;
-    response< std::optional<std::map<std::string, std::string>> > resp;
+    response<std::optional<std::map<std::string, std::string>>> resp;
     request req;
     req.push("HGETALL", entry);
 
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().value().empty()) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): No values returned." << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): No values returned." << dendl;
       return -ENOENT;
     }
 
     for (auto const& it : std::get<0>(resp).value().value()) {
       if (it.first != "data") { /* Ignore data */
-	buffer::list bl_value;
-	bl_value.append(it.second);
-	attrs.insert({it.first, bl_value});
-	bl_value.clear();
+        buffer::list bl_value;
+        bl_value.append(it.second);
+        attrs.insert({it.first, bl_value});
+        bl_value.clear();
       }
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int RedisDriver::set_attrs(const DoutPrefixProvider* dpp, const std::string& key, const rgw::sal::Attrs& attrs, optional_yield y) 
+int
+RedisDriver::set_attrs(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    const rgw::sal::Attrs& attrs,
+    optional_yield y)
 {
   if (attrs.empty())
     return -EINVAL;
-      
+
   std::string entry = partition_info.location + key;
 
   /* Every attr set will be treated as new */
@@ -397,23 +480,35 @@ int RedisDriver::set_attrs(const DoutPrefixProvider* dpp, const std::string& key
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-int RedisDriver::update_attrs(const DoutPrefixProvider* dpp, const std::string& key, const rgw::sal::Attrs& attrs, optional_yield y) 
+int
+RedisDriver::update_attrs(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    const rgw::sal::Attrs& attrs,
+    optional_yield y)
 {
   return set_attrs(dpp, key, attrs, y);
 }
 
-int RedisDriver::delete_attrs(const DoutPrefixProvider* dpp, const std::string& key, rgw::sal::Attrs& del_attrs, optional_yield y) 
+int
+RedisDriver::delete_attrs(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    rgw::sal::Attrs& del_attrs,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
 
@@ -428,21 +523,29 @@ int RedisDriver::delete_attrs(const DoutPrefixProvider* dpp, const std::string& 
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
-  
+
   return 0;
 }
 
-int RedisDriver::get_attr(const DoutPrefixProvider* dpp, const std::string& key, const std::string& attr_name, std::string& attr_val, optional_yield y) 
+int
+RedisDriver::get_attr(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    const std::string& attr_name,
+    std::string& attr_val,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
-  response< std::optional<std::string> > resp;
+  response<std::optional<std::string>> resp;
 
   try {
     boost::system::error_code ec;
@@ -452,27 +555,36 @@ int RedisDriver::get_attr(const DoutPrefixProvider* dpp, const std::string& key,
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
 
     if (std::get<0>(resp).value().value().empty()) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): No value returned." << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): No value returned." << dendl;
       return -ENOENT;
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
-  
+
   attr_val = std::get<0>(resp).value().value();
   return 0;
 }
 
-int RedisDriver::set_attr(const DoutPrefixProvider* dpp, const std::string& key, const std::string& attr_name, const std::string& attr_val, optional_yield y) 
+int
+RedisDriver::set_attr(
+    const DoutPrefixProvider* dpp,
+    const std::string& key,
+    const std::string& attr_name,
+    const std::string& attr_val,
+    optional_yield y)
 {
   std::string entry = partition_info.location + key;
-    
+
   /* Every attr set will be treated as new */
   try {
     boost::system::error_code ec;
@@ -483,21 +595,28 @@ int RedisDriver::set_attr(const DoutPrefixProvider* dpp, const std::string& key,
     redis_exec(conn, ec, req, resp, y);
 
     if (ec) {
-      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << ec.what() << dendl;
+      ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                        << "(): ERROR: " << ec.what() << dendl;
       return -ec.value();
     }
-  } catch (std::exception &e) {
-    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__ << "(): ERROR: " << e.what() << dendl;
+  } catch (std::exception& e) {
+    ldpp_dout(dpp, 0) << "RedisDriver::" << __func__
+                      << "(): ERROR: " << e.what() << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-Aio::OpFunc RedisDriver::redis_read_op(optional_yield y, std::shared_ptr<connection> conn,
-                                 off_t read_ofs, off_t read_len, const std::string& key)
+Aio::OpFunc
+RedisDriver::redis_read_op(
+    optional_yield y,
+    std::shared_ptr<connection> conn,
+    off_t read_ofs,
+    off_t read_len,
+    const std::string& key)
 {
-  return [y, conn, &key] (Aio* aio, AioResult& r) mutable {
+  return [y, conn, &key](Aio* aio, AioResult& r) mutable {
     using namespace boost::asio;
     yield_context yield = y.get_yield_context();
     auto ex = yield.get_executor();
@@ -508,14 +627,21 @@ Aio::OpFunc RedisDriver::redis_read_op(optional_yield y, std::shared_ptr<connect
     auto& req = s->req;
     req.push("HGET", key, "data");
 
-    conn->async_exec(req, resp, bind_executor(ex, RedisDriver::redis_aio_handler{aio, r, s}));
+    conn->async_exec(
+        req, resp, bind_executor(ex, RedisDriver::redis_aio_handler{aio, r, s}));
   };
 }
 
-Aio::OpFunc RedisDriver::redis_write_op(optional_yield y, std::shared_ptr<connection> conn,
-                                 const bufferlist& bl, uint64_t len, const rgw::sal::Attrs& attrs, const std::string& key)
+Aio::OpFunc
+RedisDriver::redis_write_op(
+    optional_yield y,
+    std::shared_ptr<connection> conn,
+    const bufferlist& bl,
+    uint64_t len,
+    const rgw::sal::Attrs& attrs,
+    const std::string& key)
 {
-  return [y, conn, &bl, &attrs, &key] (Aio* aio, AioResult& r) mutable {
+  return [y, conn, &bl, &attrs, &key](Aio* aio, AioResult& r) mutable {
     using namespace boost::asio;
     yield_context yield = y.get_yield_context();
     auto ex = yield.get_executor();
@@ -533,11 +659,21 @@ Aio::OpFunc RedisDriver::redis_write_op(optional_yield y, std::shared_ptr<connec
     auto& req = s->req;
     req.push_range("HSET", key, redisAttrs);
 
-    conn->async_exec(req, resp, bind_executor(ex, RedisDriver::redis_aio_handler{aio, r, s}));
+    conn->async_exec(
+        req, resp, bind_executor(ex, RedisDriver::redis_aio_handler{aio, r, s}));
   };
 }
 
-rgw::AioResultList RedisDriver::get_async(const DoutPrefixProvider* dpp, optional_yield y, rgw::Aio* aio, const std::string& key, off_t ofs, uint64_t len, uint64_t cost, uint64_t id) 
+rgw::AioResultList
+RedisDriver::get_async(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::Aio* aio,
+    const std::string& key,
+    off_t ofs,
+    uint64_t len,
+    uint64_t cost,
+    uint64_t id)
 {
   std::string entry = partition_info.location + key;
   rgw_raw_obj r_obj;
@@ -546,17 +682,31 @@ rgw::AioResultList RedisDriver::get_async(const DoutPrefixProvider* dpp, optiona
   return aio->get(r_obj, redis_read_op(y, conn, ofs, len, entry), cost, id);
 }
 
-rgw::AioResultList RedisDriver::put_async(const DoutPrefixProvider* dpp, optional_yield y, rgw::Aio* aio, const std::string& key, const bufferlist& bl, uint64_t len, const rgw::sal::Attrs& attrs, uint64_t cost, uint64_t id) {
+rgw::AioResultList
+RedisDriver::put_async(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    rgw::Aio* aio,
+    const std::string& key,
+    const bufferlist& bl,
+    uint64_t len,
+    const rgw::sal::Attrs& attrs,
+    uint64_t cost,
+    uint64_t id)
+{
   std::string entry = partition_info.location + key;
   rgw_raw_obj r_obj;
   r_obj.oid = key;
 
-  return aio->get(r_obj, redis_write_op(y, conn, bl, len, attrs, entry), cost, id);
-} 
+  return aio->get(
+      r_obj, redis_write_op(y, conn, bl, len, attrs, entry), cost, id);
+}
 
-void RedisDriver::shutdown()
+void
+RedisDriver::shutdown()
 {
   // call cancel() on the connection's executor
   boost::asio::dispatch(conn->get_executor(), [c = conn] { c->cancel(); });
 }
-} } // namespace rgw::cache
+} // namespace cache
+} // namespace rgw

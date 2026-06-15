@@ -4,13 +4,15 @@
 #ifndef CEPH_LIBRBD_ASIO_CONTEXT_WQ_H
 #define CEPH_LIBRBD_ASIO_CONTEXT_WQ_H
 
-#include "include/common_fwd.h"
-#include "include/Context.h"
 #include <atomic>
 #include <memory>
+
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/strand.hpp>
+
+#include "include/Context.h"
+#include "include/common_fwd.h"
 
 namespace librbd {
 namespace asio {
@@ -22,7 +24,9 @@ public:
 
   void drain();
 
-  void queue(Context *ctx, int r = 0) {
+  void
+  queue(Context* ctx, int r = 0)
+  {
     ++m_queued_ops;
 
     // ensure all legacy ContextWQ users are dispatched sequentially for
@@ -44,7 +48,6 @@ private:
   std::atomic<uint64_t> m_queued_ops;
 
   void drain_handler(Context* ctx);
-
 };
 
 } // namespace asio

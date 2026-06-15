@@ -14,17 +14,19 @@
  */
 
 #include "test/osd/PGBackendTestFixture.h"
+
 #include "common/errno.h"
-#include "messages/MOSDECSubOpWrite.h"
-#include "messages/MOSDECSubOpWriteReply.h"
 #include "messages/MOSDECSubOpRead.h"
 #include "messages/MOSDECSubOpReadReply.h"
+#include "messages/MOSDECSubOpWrite.h"
+#include "messages/MOSDECSubOpWriteReply.h"
 #include "messages/MOSDRepOp.h"
 #include "messages/MOSDRepOpReply.h"
 
-void PGBackendTestFixture::setup_ec_pool()
+void
+PGBackendTestFixture::setup_ec_pool()
 {
-  CephContext *cct = g_ceph_context;
+  CephContext* cct = g_ceph_context;
 
   int num_osds = k + m;
 
@@ -52,7 +54,9 @@ void PGBackendTestFixture::setup_ec_pool()
 
     // Set OSD features to include NAUTILUS, OCTOPUS and QUINCY server features (required for peering)
     osd_xinfo_t xinfo;
-    xinfo.features = CEPH_FEATUREMASK_SERVER_NAUTILUS | CEPH_FEATUREMASK_SERVER_OCTOPUS | CEPH_FEATUREMASK_SERVER_QUINCY;
+    xinfo.features = CEPH_FEATUREMASK_SERVER_NAUTILUS |
+                     CEPH_FEATUREMASK_SERVER_OCTOPUS |
+                     CEPH_FEATUREMASK_SERVER_QUINCY;
     inc.new_xinfo[i] = xinfo;
   }
 
@@ -60,7 +64,8 @@ void PGBackendTestFixture::setup_ec_pool()
   // This will properly calculate up_osd_features
   osdmap->apply_incremental(inc);
 
-  pg_pool_t pool = OSDMapTestHelpers::create_ec_pool(k, m, stripe_unit * k, pool_flags);
+  pg_pool_t pool =
+      OSDMapTestHelpers::create_ec_pool(k, m, stripe_unit * k, pool_flags);
   OSDMapTestHelpers::add_pool(osdmap, pool_id, pool);
 
   pgid = pg_t(0, pool_id);
@@ -94,14 +99,11 @@ void PGBackendTestFixture::setup_ec_pool()
     // Tests are run from the build directory, so "./lib" points to the
     // erasure code plugins in the build tree rather than /usr/local/lib64/ceph/erasure-code/
     int ret = ceph::ErasureCodePluginRegistry::instance().factory(
-      ec_plugin,
-      "./lib",
-      profile,
-      &ec_impl,
-      &ss);
+        ec_plugin, "./lib", profile, &ec_impl, &ss);
 
     if (ret != 0) {
-      FAIL() << "Failed to create EC plugin '" << ec_plugin << "': " << ss.str();
+      FAIL() << "Failed to create EC plugin '" << ec_plugin
+             << "': " << ss.str();
       return;
     }
   }
@@ -129,14 +131,15 @@ void PGBackendTestFixture::setup_ec_pool()
 
   for (int i = 0; i < num_osds; i++) {
     auto shard_listener = std::make_unique<MockPGBackendListener>(
-      osdmap, pool_id, dpp.get(), pg_shard_t(i, shard_id_t(i)));
+        osdmap, pool_id, dpp.get(), pg_shard_t(i, shard_id_t(i)));
 
     // Initialize the listener's own info.pgid so OSDMap queries work
     shard_listener->info.pgid = spg_t(pgid, shard_id_t(i));
 
     for (int j = 0; j < num_osds; j++) {
       shard_listener->shardset.insert(pg_shard_t(j, shard_id_t(j)));
-      shard_listener->acting_recovery_backfill_shard_id_set.insert(shard_id_t(j));
+      shard_listener->acting_recovery_backfill_shard_id_set.insert(
+          shard_id_t(j));
 
       // Initialize shard_info for each shard - required by EC backend
       pg_info_t shard_pg_info;
@@ -145,7 +148,8 @@ void PGBackendTestFixture::setup_ec_pool()
 
       // Initialize shard_missing for each shard - required by EC backend
       pg_missing_t shard_missing;
-      shard_listener->shard_missing[pg_shard_t(j, shard_id_t(j))] = shard_missing;
+      shard_listener->shard_missing[pg_shard_t(j, shard_id_t(j))] =
+          shard_missing;
     }
 
     shard_listener->set_store(store.get(), chs[i]);
@@ -153,8 +157,8 @@ void PGBackendTestFixture::setup_ec_pool()
 
     auto shard_lru = std::make_unique<ECExtentCache::LRU>(1024 * 1024 * 100);
     auto shard_ec_switch = std::make_unique<ECSwitch>(
-      shard_listener.get(), colls[i], chs[i], store.get(),
-      cct, ec_impl, stripe_unit * k, *shard_lru);
+        shard_listener.get(), colls[i], chs[i], store.get(), cct, ec_impl,
+        stripe_unit * k, *shard_lru);
 
     listeners[i] = std::move(shard_listener);
     lrus[i] = std::move(shard_lru);
@@ -163,7 +167,7 @@ void PGBackendTestFixture::setup_ec_pool()
 
   // Create MockMessenger and register a single handler that routes to backends
   messenger = std::make_unique<MockMessenger>(event_loop.get(), cct);
-  
+
   // Set up epoch getter for MockMessenger to enable epoch-based message filtering
   messenger->set_epoch_getter([this](int osd) -> epoch_t {
     // Get the epoch from the listener's osdmap
@@ -174,37 +178,41 @@ void PGBackendTestFixture::setup_ec_pool()
     // If listener doesn't exist yet, use the test fixture's osdmap
     return osdmap->get_epoch();
   });
-  
+
   // Create an OpTracker for wrapping messages in OpRequestRef
   // This is needed because PGBackend::_handle_message expects OpRequestRef
   // Store as member variable so it can be properly shut down in TearDown()
   op_tracker = std::make_shared<OpTracker>(cct, true, 1);
-  
+
   // Helper lambda to create a typed handler that wraps messages and routes to backends
   auto make_backend_handler = [this]<typename MsgType>(int msg_type) {
-    messenger->register_typed_handler<MsgType>(msg_type,
-      [this](int from_osd, int to_osd, MsgType* m) -> bool {
-        auto it = backends.find(to_osd);
-        ceph_assert(it != backends.end());
-        OpRequestRef op = this->op_tracker->create_request<OpRequest, Message*>(m);
-        return it->second->_handle_message(op);
-      });
+    messenger->register_typed_handler<MsgType>(
+        msg_type, [this](int from_osd, int to_osd, MsgType* m) -> bool {
+          auto it = backends.find(to_osd);
+          ceph_assert(it != backends.end());
+          OpRequestRef op =
+              this->op_tracker->create_request<OpRequest, Message*>(m);
+          return it->second->_handle_message(op);
+        });
   };
-  
+
   // Register typed handlers for all EC message types
   make_backend_handler.template operator()<MOSDECSubOpWrite>(MSG_OSD_EC_WRITE);
-  make_backend_handler.template operator()<MOSDECSubOpWriteReply>(MSG_OSD_EC_WRITE_REPLY);
+  make_backend_handler.template operator()<MOSDECSubOpWriteReply>(
+      MSG_OSD_EC_WRITE_REPLY);
   make_backend_handler.template operator()<MOSDECSubOpRead>(MSG_OSD_EC_READ);
-  make_backend_handler.template operator()<MOSDECSubOpReadReply>(MSG_OSD_EC_READ_REPLY);
+  make_backend_handler.template operator()<MOSDECSubOpReadReply>(
+      MSG_OSD_EC_READ_REPLY);
 
   for (int i = 0; i < num_osds; i++) {
     listeners[i]->set_messenger(messenger.get());
   }
 }
 
-void PGBackendTestFixture::setup_replicated_pool()
+void
+PGBackendTestFixture::setup_replicated_pool()
 {
-  CephContext *cct = g_ceph_context;
+  CephContext* cct = g_ceph_context;
 
   osdmap = std::make_shared<OSDMap>();
   osdmap->set_max_osd(num_replicas);
@@ -226,7 +234,7 @@ void PGBackendTestFixture::setup_replicated_pool()
 
   pgid = pg_t(0, pool_id);
   spgid = spg_t(pgid, shard_id_t::NO_SHARD);
-  
+
   // Set up pg_temp to define the acting set with OSD 0 as primary
   std::vector<int> acting;
   for (int i = 0; i < num_replicas; i++) {
@@ -257,7 +265,7 @@ void PGBackendTestFixture::setup_replicated_pool()
 
   for (int i = 0; i < num_replicas; i++) {
     auto replica_listener = std::make_unique<MockPGBackendListener>(
-      osdmap, pool_id, dpp.get(), pg_shard_t(i, shard_id_t::NO_SHARD));
+        osdmap, pool_id, dpp.get(), pg_shard_t(i, shard_id_t::NO_SHARD));
 
     // Initialize the listener's own info.pgid so OSDMap queries work
     replica_listener->info.pgid = spg_t(pgid, shard_id_t::NO_SHARD);
@@ -269,18 +277,20 @@ void PGBackendTestFixture::setup_replicated_pool()
       // Initialize shard_info for each replica - required by backend
       pg_info_t replica_pg_info;
       replica_pg_info.pgid = spg_t(pgid, shard_id_t::NO_SHARD);
-      replica_listener->shard_info[pg_shard_t(j, shard_id_t::NO_SHARD)] = replica_pg_info;
+      replica_listener->shard_info[pg_shard_t(j, shard_id_t::NO_SHARD)] =
+          replica_pg_info;
 
       // Initialize shard_missing for each replica - required by backend
       pg_missing_t replica_missing;
-      replica_listener->shard_missing[pg_shard_t(j, shard_id_t::NO_SHARD)] = replica_missing;
+      replica_listener->shard_missing[pg_shard_t(j, shard_id_t::NO_SHARD)] =
+          replica_missing;
     }
 
     replica_listener->set_store(store.get(), chs[i]);
     replica_listener->set_event_loop(event_loop.get());
 
     auto replica_backend = std::make_unique<ReplicatedBackend>(
-      replica_listener.get(), colls[i], chs[i], store.get(), cct);
+        replica_listener.get(), colls[i], chs[i], store.get(), cct);
 
     listeners[i] = std::move(replica_listener);
     backends[i] = std::move(replica_backend);
@@ -288,7 +298,7 @@ void PGBackendTestFixture::setup_replicated_pool()
 
   // Create MockMessenger and register a single handler that routes to backends
   messenger = std::make_unique<MockMessenger>(event_loop.get(), cct);
-  
+
   // Set up epoch getter for MockMessenger to enable epoch-based message filtering
   messenger->set_epoch_getter([this](int osd) -> epoch_t {
     // Get the epoch from the listener's osdmap
@@ -299,23 +309,24 @@ void PGBackendTestFixture::setup_replicated_pool()
     // If listener doesn't exist yet, use the test fixture's osdmap
     return osdmap->get_epoch();
   });
-  
+
   // Create an OpTracker for wrapping messages in OpRequestRef
   // This is needed because PGBackend::_handle_message expects OpRequestRef
   // Store as member variable so it can be properly shut down in TearDown()
   op_tracker = std::make_shared<OpTracker>(cct, true, 1);
-  
+
   // Helper lambda to create a typed handler that wraps messages and routes to backends
   auto make_backend_handler = [this]<typename MsgType>(int msg_type) {
-    messenger->register_typed_handler<MsgType>(msg_type,
-      [this](int from_osd, int to_osd, MsgType* m) -> bool {
-        auto it = backends.find(to_osd);
-        ceph_assert(it != backends.end());
-        OpRequestRef op = this->op_tracker->create_request<OpRequest, Message*>(m);
-        return it->second->_handle_message(op);
-      });
+    messenger->register_typed_handler<MsgType>(
+        msg_type, [this](int from_osd, int to_osd, MsgType* m) -> bool {
+          auto it = backends.find(to_osd);
+          ceph_assert(it != backends.end());
+          OpRequestRef op =
+              this->op_tracker->create_request<OpRequest, Message*>(m);
+          return it->second->_handle_message(op);
+        });
   };
-  
+
   // Register typed handlers for replicated backend message types
   make_backend_handler.template operator()<MOSDRepOp>(MSG_OSD_REPOP);
   make_backend_handler.template operator()<MOSDRepOpReply>(MSG_OSD_REPOPREPLY);
@@ -325,13 +336,14 @@ void PGBackendTestFixture::setup_replicated_pool()
   }
 }
 
-int PGBackendTestFixture::do_transaction_and_complete(
-  const hobject_t& hoid,
-  PGTransactionUPtr pg_t,
-  const object_stat_sum_t& delta_stats,
-  const eversion_t& at_version,
-  std::vector<pg_log_entry_t> log_entries,
-  std::function<void(int)> on_write_complete)
+int
+PGBackendTestFixture::do_transaction_and_complete(
+    const hobject_t& hoid,
+    PGTransactionUPtr pg_t,
+    const object_stat_sum_t& delta_stats,
+    const eversion_t& at_version,
+    std::vector<pg_log_entry_t> log_entries,
+    std::function<void(int)> on_write_complete)
 {
   eversion_t trim_to(0, 0);
   eversion_t pg_committed_to(0, 0);
@@ -339,7 +351,8 @@ int PGBackendTestFixture::do_transaction_and_complete(
 
   bool completed = false;
   int completion_result = -1;
-  Context *on_complete = new LambdaContext([&completed, &completion_result, on_write_complete](int r) {
+  Context* on_complete = new LambdaContext([&completed, &completion_result,
+                                            on_write_complete](int r) {
     completed = true;
     completion_result = r;
     // Call the write-specific completion lambda if provided
@@ -354,19 +367,9 @@ int PGBackendTestFixture::do_transaction_and_complete(
   PGBackend* primary_backend = get_primary_backend();
   ceph_assert(primary_backend != nullptr);
   primary_backend->submit_transaction(
-    hoid,
-    delta_stats,
-    at_version,
-    std::move(pg_t),
-    trim_to,
-    pg_committed_to,
-    std::move(log_entries),
-    hset_history,
-    on_complete,
-    tid,
-    reqid,
-    OpRequestRef()
-  );
+      hoid, delta_stats, at_version, std::move(pg_t), trim_to, pg_committed_to,
+      std::move(log_entries), hset_history, on_complete, tid, reqid,
+      OpRequestRef());
 
   event_loop->run_until_idle();
 
@@ -377,13 +380,14 @@ int PGBackendTestFixture::do_transaction_and_complete(
   return completion_result;
 }
 
-int PGBackendTestFixture::create_and_write(
-  const std::string& obj_name,
-  const std::string& data)
+int
+PGBackendTestFixture::create_and_write(
+    const std::string& obj_name,
+    const std::string& data)
 {
   // Auto-generate version
   eversion_t at_version = get_next_version();
-  
+
   hobject_t hoid = make_test_object(obj_name);
   PGTransactionUPtr pg_t = std::make_unique<PGTransaction>();
   pg_t->create(hoid);
@@ -417,8 +421,7 @@ int PGBackendTestFixture::create_and_write(
   // This matches PrimaryLogPG::finish_ctx() lines 9127-9130,9142.
   {
     bufferlist oi_bl;
-    new_oi.encode(oi_bl,
-      osdmap->get_features(CEPH_ENTITY_TYPE_OSD, nullptr));
+    new_oi.encode(oi_bl, osdmap->get_features(CEPH_ENTITY_TYPE_OSD, nullptr));
     pg_t->setattr(hoid, OI_ATTR, oi_bl);
   }
 
@@ -473,22 +476,25 @@ int PGBackendTestFixture::create_and_write(
   };
 
   int result = do_transaction_and_complete(
-    hoid, std::move(pg_t), delta_stats, at_version, std::move(log_entries), write_complete);
+      hoid, std::move(pg_t), delta_stats, at_version, std::move(log_entries),
+      write_complete);
 
   return result;
 }
 
-ObjectContextRef PGBackendTestFixture::get_object_context(
-  const hobject_t& hoid)
+ObjectContextRef
+PGBackendTestFixture::get_object_context(const hobject_t& hoid)
 {
   PGBackend* primary_backend = get_primary_backend();
   ObjectContextRef obc = std::make_shared<ObjectContext>();
   obc->obs.oi = object_info_t(hoid);
   obc->obs.exists = false;
   obc->ssc = nullptr;
-  
+
   // Try to read the ObjectInfo from the store
-  ghobject_t ghoid(hoid, ghobject_t::NO_GEN, primary_backend->get_parent()->whoami_shard().shard);
+  ghobject_t ghoid(
+      hoid, ghobject_t::NO_GEN,
+      primary_backend->get_parent()->whoami_shard().shard);
   ceph::buffer::ptr value_ptr;
   int r = store->getattr(ch, ghoid, OI_ATTR, value_ptr);
   ceph_assert(r >= 0 && value_ptr.length() > 0);
@@ -498,15 +504,16 @@ ObjectContextRef PGBackendTestFixture::get_object_context(
   auto p = bl.cbegin();
   obc->obs.oi.decode(p);
   obc->obs.exists = true;
-  
+
   return obc;
 }
 
-int PGBackendTestFixture::write(
-  const std::string& obj_name,
-  uint64_t offset,
-  const std::string& data,
-  uint64_t object_size)
+int
+PGBackendTestFixture::write(
+    const std::string& obj_name,
+    uint64_t offset,
+    const std::string& data,
+    uint64_t object_size)
 {
   hobject_t hoid = make_test_object(obj_name);
   PGTransactionUPtr pg_t = std::make_unique<PGTransaction>();
@@ -543,8 +550,7 @@ int PGBackendTestFixture::write(
   // Encode new OI into PGTransaction
   {
     bufferlist oi_bl;
-    new_oi.encode(oi_bl,
-      osdmap->get_features(CEPH_ENTITY_TYPE_OSD, nullptr));
+    new_oi.encode(oi_bl, osdmap->get_features(CEPH_ENTITY_TYPE_OSD, nullptr));
     pg_t->setattr(hoid, OI_ATTR, oi_bl);
   }
 
@@ -582,17 +588,19 @@ int PGBackendTestFixture::write(
   };
 
   int result = do_transaction_and_complete(
-    hoid, std::move(pg_t), delta_stats, at_version, std::move(log_entries), write_complete);
+      hoid, std::move(pg_t), delta_stats, at_version, std::move(log_entries),
+      write_complete);
 
   return result;
 }
 
-int PGBackendTestFixture::read_object(
-  const std::string& obj_name,
-  uint64_t offset,
-  uint64_t length,
-  bufferlist& out_data,
-  uint64_t object_size)
+int
+PGBackendTestFixture::read_object(
+    const std::string& obj_name,
+    uint64_t offset,
+    uint64_t length,
+    bufferlist& out_data,
+    uint64_t object_size)
 {
   hobject_t hoid = make_test_object(obj_name);
 
@@ -604,15 +612,16 @@ int PGBackendTestFixture::read_object(
 
     ec_align_t align(offset, length, 0);
 
-    Context *read_complete = new LambdaContext([&completed, &completion_result](int r) {
+    Context* read_complete = new LambdaContext([&completed,
+                                                &completion_result](int r) {
       completed = true;
       completion_result = r;
     });
 
-    to_read.push_back(std::make_pair(align, std::make_pair(&out_data, read_complete)));
+    to_read.push_back(
+        std::make_pair(align, std::make_pair(&out_data, read_complete)));
 
-    Context *on_complete = new LambdaContext([](int r) {
-    });
+    Context* on_complete = new LambdaContext([](int r) {});
 
     PGBackend* primary_backend = get_primary_backend();
     ceph_assert(primary_backend != nullptr);
@@ -620,12 +629,7 @@ int PGBackendTestFixture::read_object(
     ceph_assert(ec_switch != nullptr);
 
     ec_switch->objects_read_async(
-      hoid,
-      object_size,
-      to_read,
-      on_complete,
-      false
-    );
+        hoid, object_size, to_read, on_complete, false);
 
     event_loop->run_until_idle();
 
@@ -635,71 +639,75 @@ int PGBackendTestFixture::read_object(
   } else {
     PGBackend* primary_backend = get_primary_backend();
     ceph_assert(primary_backend != nullptr);
-    ReplicatedBackend* rep_backend = dynamic_cast<ReplicatedBackend*>(primary_backend);
+    ReplicatedBackend* rep_backend =
+        dynamic_cast<ReplicatedBackend*>(primary_backend);
     ceph_assert(rep_backend != nullptr);
 
-    int result = rep_backend->objects_read_sync(
-      hoid,
-      offset,
-      length,
-      0,
-      &out_data
-    );
+    int result =
+        rep_backend->objects_read_sync(hoid, offset, length, 0, &out_data);
 
     return result;
   }
 }
 
-void PGBackendTestFixture::verify_object(
-  const std::string& obj_name,
-  const std::string& expected_data,
-  size_t offset,
-  size_t object_size)
+void
+PGBackendTestFixture::verify_object(
+    const std::string& obj_name,
+    const std::string& expected_data,
+    size_t offset,
+    size_t object_size)
 {
   bufferlist read_data;
-  int read_result = read_object(obj_name, offset, expected_data.length(), read_data, object_size);
+  int read_result = read_object(
+      obj_name, offset, expected_data.length(), read_data, object_size);
 
   EXPECT_GE(read_result, 0) << "Read should complete successfully";
-  EXPECT_EQ(read_data.length(), expected_data.length()) << "Read data length should match";
-  
+  EXPECT_EQ(read_data.length(), expected_data.length())
+      << "Read data length should match";
+
   if (read_data.length() == expected_data.length()) {
     std::string read_string(read_data.c_str(), read_data.length());
     EXPECT_EQ(read_string, expected_data) << "Data should match";
   }
 }
 
-void PGBackendTestFixture::create_and_write_verify(
-  const std::string& obj_name,
-  const std::string& data)
+void
+PGBackendTestFixture::create_and_write_verify(
+    const std::string& obj_name,
+    const std::string& data)
 {
   int result = create_and_write(obj_name, data);
-  
+
   EXPECT_GE(result, 0) << "Write should complete successfully";
-  
+
   // Always verify - tests should only use this helper when success is expected
   verify_object(obj_name, data, 0, data.length());
 }
 
-void PGBackendTestFixture::write_verify(
-  const std::string& obj_name,
-  size_t offset,
-  const std::string& data,
-  size_t object_size,
-  const std::string& context_msg)
+void
+PGBackendTestFixture::write_verify(
+    const std::string& obj_name,
+    size_t offset,
+    const std::string& data,
+    size_t object_size,
+    const std::string& context_msg)
 {
   int result = write(obj_name, offset, data, object_size);
-  
+
   std::string msg_suffix = context_msg.empty() ? "" : " (" + context_msg + ")";
   EXPECT_GE(result, 0) << "Write should complete successfully" << msg_suffix;
-  
+
   // Always verify - tests should only use this helper when success is expected
   bufferlist read_data;
-  int read_result = read_object(obj_name, offset, data.length(), read_data,
-                                 std::max(object_size, offset + data.length()));
-  
-  EXPECT_GE(read_result, 0) << "Read should complete successfully" << msg_suffix;
-  EXPECT_EQ(read_data.length(), data.length()) << "Read data length should match" << msg_suffix;
-  
+  int read_result = read_object(
+      obj_name, offset, data.length(), read_data,
+      std::max(object_size, offset + data.length()));
+
+  EXPECT_GE(read_result, 0)
+      << "Read should complete successfully" << msg_suffix;
+  EXPECT_EQ(read_data.length(), data.length())
+      << "Read data length should match" << msg_suffix;
+
   if (read_data.length() == data.length()) {
     std::string read_string(read_data.c_str(), read_data.length());
     EXPECT_EQ(read_string, data) << "Written data should match" << msg_suffix;
@@ -732,9 +740,10 @@ void PGBackendTestFixture::write_verify(
 // acting_recovery_backfill_shard_id_set on every listener before delegating
 // to update_osdmap().
 // ---------------------------------------------------------------------------
-void PGBackendTestFixture::update_osdmap(
-  std::shared_ptr<OSDMap> new_osdmap,
-  std::optional<pg_shard_t> new_primary)
+void
+PGBackendTestFixture::update_osdmap(
+    std::shared_ptr<OSDMap> new_osdmap,
+    std::optional<pg_shard_t> new_primary)
 {
   // Step 1: Update the osdmap reference first
   osdmap = new_osdmap;
@@ -763,7 +772,8 @@ void PGBackendTestFixture::update_osdmap(
   event_loop->run_until_idle();
 }
 
-void PGBackendTestFixture::cleanup_data_dir()
+void
+PGBackendTestFixture::cleanup_data_dir()
 {
   // Only clean up if the directory exists and hasn't been cleaned already
   if (!data_dir.empty() && std::filesystem::exists(data_dir)) {
@@ -773,7 +783,8 @@ void PGBackendTestFixture::cleanup_data_dir()
   }
 }
 
-void PGBackendTestFixture::clear_all_attr_caches()
+void
+PGBackendTestFixture::clear_all_attr_caches()
 {
   // Clear attr_cache for all objects. This is called on on_change() to
   // invalidate cached attributes that might be stale after a peering event.

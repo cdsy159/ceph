@@ -19,11 +19,13 @@
  *
  */
 
-#include "ceph_ver.h"
-#include "common/debug.h"
 #include "ErasureCodePluginShec.h"
-#include "ErasureCodeShecTableCache.h"
+
+#include "common/debug.h"
+
 #include "ErasureCodeShec.h"
+#include "ErasureCodeShecTableCache.h"
+#include "ceph_ver.h"
 #include "jerasure_init.h"
 
 #define dout_context g_ceph_context
@@ -32,49 +34,59 @@
 #undef dout_prefix
 #define dout_prefix _prefix(_dout)
 
-static std::ostream& _prefix(std::ostream* _dout)
+static std::ostream&
+_prefix(std::ostream* _dout)
 {
   return *_dout << "ErasureCodePluginShec: ";
 }
 
-int ErasureCodePluginShec::factory(const std::string &directory,
-				   ceph::ErasureCodeProfile &profile,
-				   ceph::ErasureCodeInterfaceRef *erasure_code,
-				   std::ostream *ss) {
-    ErasureCodeShec *interface;
+int
+ErasureCodePluginShec::factory(
+    const std::string& directory,
+    ceph::ErasureCodeProfile& profile,
+    ceph::ErasureCodeInterfaceRef* erasure_code,
+    std::ostream* ss)
+{
+  ErasureCodeShec* interface;
 
-    if (profile.find("technique") == profile.end())
-      profile["technique"] = "multiple";
-    std::string t = profile.find("technique")->second;
+  if (profile.find("technique") == profile.end())
+    profile["technique"] = "multiple";
+  std::string t = profile.find("technique")->second;
 
-    if (t == "single"){
-      interface = new ErasureCodeShecReedSolomonVandermonde(tcache, ErasureCodeShec::SINGLE);
-    } else if (t == "multiple"){
-      interface = new ErasureCodeShecReedSolomonVandermonde(tcache, ErasureCodeShec::MULTIPLE);
-    } else {
-      *ss << "technique=" << t << " is not a valid coding technique. "
-	  << "Choose one of the following: "
-	  << "single, multiple ";
-      return -ENOENT;
-    }
-    int r = interface->init(profile, ss);
-    if (r) {
-      delete interface;
-      return r;
-    }
-    *erasure_code = ceph::ErasureCodeInterfaceRef(interface);
+  if (t == "single") {
+    interface = new ErasureCodeShecReedSolomonVandermonde(
+        tcache, ErasureCodeShec::SINGLE);
+  } else if (t == "multiple") {
+    interface = new ErasureCodeShecReedSolomonVandermonde(
+        tcache, ErasureCodeShec::MULTIPLE);
+  } else {
+    *ss << "technique=" << t << " is not a valid coding technique. "
+        << "Choose one of the following: " << "single, multiple ";
+    return -ENOENT;
+  }
+  int r = interface->init(profile, ss);
+  if (r) {
+    delete interface;
+    return r;
+  }
+  *erasure_code = ceph::ErasureCodeInterfaceRef(interface);
 
-    dout(10) << "ErasureCodePluginShec: factory() completed" << dendl;
+  dout(10) << "ErasureCodePluginShec: factory() completed" << dendl;
 
-    return 0;
+  return 0;
 }
 
-const char *__erasure_code_version() { return CEPH_GIT_NICE_VER; }
+const char*
+__erasure_code_version()
+{
+  return CEPH_GIT_NICE_VER;
+}
 
-int __erasure_code_init(char *plugin_name, char *directory = (char *)"")
+int
+__erasure_code_init(char* plugin_name, char* directory = (char*)"")
 {
   auto& instance = ceph::ErasureCodePluginRegistry::instance();
-  int w[] = { 8, 16, 32 };
+  int w[] = {8, 16, 32};
   int r = jerasure_init(3, w);
   if (r) {
     return -r;

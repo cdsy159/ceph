@@ -16,18 +16,19 @@
 #ifndef CEPH_MSG_TYPES_H
 #define CEPH_MSG_TYPES_H
 
+#include <netinet/in.h>
+
 #include <algorithm> // for std::min()
 #include <set>
 #include <string>
 
-#include <netinet/in.h>
 #include "common/fmt_common.h"
 #if FMT_VERSION >= 90000
 #include <fmt/ostream.h>
 #endif
 
-#include "include/ceph_features.h"
 #include "include/blobhash.h"
+#include "include/ceph_features.h"
 #include "include/encoding.h"
 #include "include/msgr.h" // for CEPH_ENTITY_TYPE_*
 
@@ -39,11 +40,11 @@
 #endif
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
-std::ostream& operator<<(std::ostream& out, const sockaddr_storage &ss);
-std::ostream& operator<<(std::ostream& out, const sockaddr *sa);
+std::ostream& operator<<(std::ostream& out, const sockaddr_storage& ss);
+std::ostream& operator<<(std::ostream& out, const sockaddr* sa);
 
 typedef uint8_t entity_type_t;
 
@@ -62,51 +63,127 @@ public:
   static const int64_t NEW = -1;
 
   // cons
-  entity_name_t() : _type(0), _num(0) { }
-  entity_name_t(int t, int64_t n) : _type(t), _num(n) { }
-  explicit entity_name_t(const ceph_entity_name &n) :
-    _type(n.type), _num(n.num) { }
+  entity_name_t() :
+    _type(0), _num(0)
+  {}
+
+  entity_name_t(int t, int64_t n) :
+    _type(t), _num(n)
+  {}
+
+  explicit entity_name_t(const ceph_entity_name& n) :
+    _type(n.type), _num(n.num)
+  {}
 
   // static cons
-  static entity_name_t MON(int64_t i=NEW) { return entity_name_t(TYPE_MON, i); }
-  static entity_name_t MDS(int64_t i=NEW) { return entity_name_t(TYPE_MDS, i); }
-  static entity_name_t OSD(int64_t i=NEW) { return entity_name_t(TYPE_OSD, i); }
-  static entity_name_t CLIENT(int64_t i=NEW) { return entity_name_t(TYPE_CLIENT, i); }
-  static entity_name_t MGR(int64_t i=NEW) { return entity_name_t(TYPE_MGR, i); }
+  static entity_name_t
+  MON(int64_t i = NEW)
+  {
+    return entity_name_t(TYPE_MON, i);
+  }
 
-  int64_t num() const { return _num; }
-  int type() const { return _type; }
-  const char *type_str() const {
+  static entity_name_t
+  MDS(int64_t i = NEW)
+  {
+    return entity_name_t(TYPE_MDS, i);
+  }
+
+  static entity_name_t
+  OSD(int64_t i = NEW)
+  {
+    return entity_name_t(TYPE_OSD, i);
+  }
+
+  static entity_name_t
+  CLIENT(int64_t i = NEW)
+  {
+    return entity_name_t(TYPE_CLIENT, i);
+  }
+
+  static entity_name_t
+  MGR(int64_t i = NEW)
+  {
+    return entity_name_t(TYPE_MGR, i);
+  }
+
+  int64_t
+  num() const
+  {
+    return _num;
+  }
+
+  int
+  type() const
+  {
+    return _type;
+  }
+
+  const char*
+  type_str() const
+  {
     return ceph_entity_type_name(type());
   }
 
-  bool is_new() const { return num() < 0; }
+  bool
+  is_new() const
+  {
+    return num() < 0;
+  }
 
-  bool is_client() const { return type() == TYPE_CLIENT; }
-  bool is_mds() const { return type() == TYPE_MDS; }
-  bool is_osd() const { return type() == TYPE_OSD; }
-  bool is_mon() const { return type() == TYPE_MON; }
-  bool is_mgr() const { return type() == TYPE_MGR; }
+  bool
+  is_client() const
+  {
+    return type() == TYPE_CLIENT;
+  }
 
-  operator ceph_entity_name() const {
-    ceph_entity_name n = { _type, ceph_le64(_num) };
+  bool
+  is_mds() const
+  {
+    return type() == TYPE_MDS;
+  }
+
+  bool
+  is_osd() const
+  {
+    return type() == TYPE_OSD;
+  }
+
+  bool
+  is_mon() const
+  {
+    return type() == TYPE_MON;
+  }
+
+  bool
+  is_mgr() const
+  {
+    return type() == TYPE_MGR;
+  }
+
+  operator ceph_entity_name() const
+  {
+    ceph_entity_name n = {_type, ceph_le64(_num)};
     return n;
   }
 
   bool parse(std::string_view s);
 
-  DENC(entity_name_t, v, p) {
+  DENC(entity_name_t, v, p)
+  {
     denc(v._type, p);
     denc(v._num, p);
   }
-  void dump(ceph::Formatter *f) const;
+
+  void dump(ceph::Formatter* f) const;
 
   template <typename FormatContext>
-  auto fmt_print_ctx(FormatContext& ctx) const {
+  auto
+  fmt_print_ctx(FormatContext& ctx) const
+  {
     if (is_new() || _num < 0) {
       return fmt::format_to(ctx.out(), "{}.?", type_str());
     } else {
-      return fmt::format_to(ctx.out(), "{}.{}",type_str(), _num);
+      return fmt::format_to(ctx.out(), "{}.{}", type_str(), _num);
     }
   }
 
@@ -114,32 +191,49 @@ public:
 };
 WRITE_CLASS_DENC(entity_name_t)
 
-inline bool operator== (const entity_name_t& l, const entity_name_t& r) {
-  return (l.type() == r.type()) && (l.num() == r.num()); }
-inline bool operator!= (const entity_name_t& l, const entity_name_t& r) {
-  return (l.type() != r.type()) || (l.num() != r.num()); }
-inline bool operator< (const entity_name_t& l, const entity_name_t& r) {
-  return (l.type() < r.type()) || (l.type() == r.type() && l.num() < r.num()); }
+inline bool
+operator==(const entity_name_t& l, const entity_name_t& r)
+{
+  return (l.type() == r.type()) && (l.num() == r.num());
+}
 
-inline std::ostream& operator<<(std::ostream& out, const entity_name_t& addr) {
+inline bool
+operator!=(const entity_name_t& l, const entity_name_t& r)
+{
+  return (l.type() != r.type()) || (l.num() != r.num());
+}
+
+inline bool
+operator<(const entity_name_t& l, const entity_name_t& r)
+{
+  return (l.type() < r.type()) || (l.type() == r.type() && l.num() < r.num());
+}
+
+inline std::ostream&
+operator<<(std::ostream& out, const entity_name_t& addr)
+{
   //if (addr.is_namer()) return out << "namer";
   if (addr.is_new() || addr.num() < 0)
     return out << addr.type_str() << ".?";
   else
     return out << addr.type_str() << '.' << addr.num();
 }
-inline std::ostream& operator<<(std::ostream& out, const ceph_entity_name& addr) {
+
+inline std::ostream&
+operator<<(std::ostream& out, const ceph_entity_name& addr)
+{
   return out << entity_name_t{addr.type, static_cast<int64_t>(addr.num)};
 }
 
 namespace std {
-  template<> struct hash< entity_name_t >
+template <>
+struct hash<entity_name_t> {
+  size_t
+  operator()(const entity_name_t& m) const
   {
-    size_t operator()( const entity_name_t &m ) const
-    {
-      return rjhash32(m.type() ^ m.num());
-    }
-  };
+    return rjhash32(m.type() ^ m.num());
+  }
+};
 } // namespace std
 
 // define a wire format for sockaddr that matches Linux's.
@@ -147,39 +241,45 @@ struct ceph_sockaddr_storage {
   ceph_le16 ss_family;
   __u8 __ss_padding[128 - sizeof(ceph_le16)];
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     struct ceph_sockaddr_storage ss = *this;
     ss.ss_family = htons(ss.ss_family);
     ceph::encode_raw(ss, bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     struct ceph_sockaddr_storage ss;
     ceph::decode_raw(ss, bl);
     ss.ss_family = ntohs(ss.ss_family);
     *this = ss;
   }
-} __attribute__ ((__packed__));
+} __attribute__((__packed__));
 WRITE_CLASS_ENCODER(ceph_sockaddr_storage)
 
 /*
  * encode sockaddr.ss_family as network byte order
  */
-static inline void encode(const sockaddr_storage& a, ceph::buffer::list& bl) {
+static inline void
+encode(const sockaddr_storage& a, ceph::buffer::list& bl)
+{
 #if defined(__linux__)
   struct sockaddr_storage ss = a;
   ss.ss_family = htons(ss.ss_family);
   ceph::encode_raw(ss, bl);
 #elif defined(__FreeBSD__) || defined(__APPLE__)
   ceph_sockaddr_storage ss{};
-  auto src = (unsigned char const *)&a;
-  auto dst = (unsigned char *)&ss;
+  auto src = (unsigned char const*)&a;
+  auto dst = (unsigned char*)&ss;
   src += sizeof(a.ss_len);
   ss.ss_family = a.ss_family;
   src += sizeof(a.ss_family);
   dst += sizeof(ss.ss_family);
-  const auto copy_size = std::min((unsigned char*)(&a + 1) - src,
-				  (unsigned char*)(&ss + 1) - dst);
+  const auto copy_size =
+      std::min((unsigned char*)(&a + 1) - src, (unsigned char*)(&ss + 1) - dst);
   ::memcpy(dst, src, copy_size);
   encode(ss, bl);
 #elif defined(_WIN32)
@@ -197,23 +297,25 @@ static inline void encode(const sockaddr_storage& a, ceph::buffer::list& bl) {
   encode(ss, bl);
 #endif
 }
-static inline void decode(sockaddr_storage& a,
-			  ceph::buffer::list::const_iterator& bl) {
+
+static inline void
+decode(sockaddr_storage& a, ceph::buffer::list::const_iterator& bl)
+{
 #if defined(__linux__)
   ceph::decode_raw(a, bl);
   a.ss_family = ntohs(a.ss_family);
 #elif defined(__FreeBSD__) || defined(__APPLE__)
   ceph_sockaddr_storage ss{};
   decode(ss, bl);
-  auto src = (unsigned char const *)&ss;
-  auto dst = (unsigned char *)&a;
+  auto src = (unsigned char const*)&ss;
+  auto dst = (unsigned char*)&a;
   a.ss_len = 0;
   dst += sizeof(a.ss_len);
   a.ss_family = ss.ss_family;
   src += sizeof(ss.ss_family);
   dst += sizeof(a.ss_family);
-  auto const copy_size = std::min((unsigned char*)(&ss + 1) - src,
-				  (unsigned char*)(&a + 1) - dst);
+  auto const copy_size =
+      std::min((unsigned char*)(&ss + 1) - src, (unsigned char*)(&a + 1) - dst);
   ::memcpy(dst, src, copy_size);
 #elif defined(_WIN32)
   ceph_sockaddr_storage ss{};
@@ -240,38 +342,56 @@ static inline void decode(sockaddr_storage& a,
 struct entity_addr_t {
   typedef enum {
     TYPE_NONE = 0,
-    TYPE_LEGACY = 1,  ///< legacy msgr1 protocol (ceph jewel and older)
-    TYPE_MSGR2 = 2,   ///< msgr2 protocol (new in ceph kraken)
-    TYPE_ANY = 3,  ///< ambiguous
+    TYPE_LEGACY = 1, ///< legacy msgr1 protocol (ceph jewel and older)
+    TYPE_MSGR2 = 2, ///< msgr2 protocol (new in ceph kraken)
+    TYPE_ANY = 3, ///< ambiguous
     TYPE_CIDR = 4,
   } type_t;
+
   static const type_t TYPE_DEFAULT = TYPE_MSGR2;
-  static std::string_view get_type_name(int t) {
+
+  static std::string_view
+  get_type_name(int t)
+  {
     switch (t) {
-    case TYPE_NONE: return "none";
-    case TYPE_LEGACY: return "v1";
-    case TYPE_MSGR2: return "v2";
-    case TYPE_ANY: return "any";
-    case TYPE_CIDR: return "cidr";
-    default: return "???";
+    case TYPE_NONE:
+      return "none";
+    case TYPE_LEGACY:
+      return "v1";
+    case TYPE_MSGR2:
+      return "v2";
+    case TYPE_ANY:
+      return "any";
+    case TYPE_CIDR:
+      return "cidr";
+    default:
+      return "???";
     }
   };
 
   __u32 type;
   __u32 nonce;
+
   union {
     sockaddr sa;
     sockaddr_in sin;
     sockaddr_in6 sin6;
   } u;
 
-  entity_addr_t() : type(0), nonce(0) {
+  entity_addr_t() :
+    type(0), nonce(0)
+  {
     memset(&u, 0, sizeof(u));
   }
-  entity_addr_t(__u32 _type, __u32 _nonce) : type(_type), nonce(_nonce) {
+
+  entity_addr_t(__u32 _type, __u32 _nonce) :
+    type(_type), nonce(_nonce)
+  {
     memset(&u, 0, sizeof(u));
   }
-  explicit entity_addr_t(const ceph_entity_addr &o) {
+
+  explicit entity_addr_t(const ceph_entity_addr& o)
+  {
     type = o.type;
     nonce = o.nonce;
     memcpy(&u, &o.in_addr, sizeof(u));
@@ -280,47 +400,112 @@ struct entity_addr_t {
 #endif
   }
 
-  uint32_t get_type() const { return type; }
-  void set_type(uint32_t t) { type = t; }
-  bool is_legacy() const { return type == TYPE_LEGACY; }
-  bool is_msgr2() const { return type == TYPE_MSGR2; }
-  bool is_any() const { return type == TYPE_ANY; }
+  uint32_t
+  get_type() const
+  {
+    return type;
+  }
+
+  void
+  set_type(uint32_t t)
+  {
+    type = t;
+  }
+
+  bool
+  is_legacy() const
+  {
+    return type == TYPE_LEGACY;
+  }
+
+  bool
+  is_msgr2() const
+  {
+    return type == TYPE_MSGR2;
+  }
+
+  bool
+  is_any() const
+  {
+    return type == TYPE_ANY;
+  }
+
   // this isn't a guarantee; some client addrs will match it
-  bool maybe_cidr() const { return get_port() == 0 && nonce != 0; }
+  bool
+  maybe_cidr() const
+  {
+    return get_port() == 0 && nonce != 0;
+  }
 
-  __u32 get_nonce() const { return nonce; }
-  void set_nonce(__u32 n) { nonce = n; }
+  __u32
+  get_nonce() const
+  {
+    return nonce;
+  }
 
-  int get_family() const {
+  void
+  set_nonce(__u32 n)
+  {
+    nonce = n;
+  }
+
+  int
+  get_family() const
+  {
     return u.sa.sa_family;
   }
-  void set_family(int f) {
+
+  void
+  set_family(int f)
+  {
     u.sa.sa_family = f;
   }
 
-  bool is_ipv4() const {
+  bool
+  is_ipv4() const
+  {
     return u.sa.sa_family == AF_INET;
   }
-  bool is_ipv6() const {
+
+  bool
+  is_ipv6() const
+  {
     return u.sa.sa_family == AF_INET6;
   }
 
-  sockaddr_in &in4_addr() {
+  sockaddr_in&
+  in4_addr()
+  {
     return u.sin;
   }
-  const sockaddr_in &in4_addr() const{
+
+  const sockaddr_in&
+  in4_addr() const
+  {
     return u.sin;
   }
-  sockaddr_in6 &in6_addr(){
+
+  sockaddr_in6&
+  in6_addr()
+  {
     return u.sin6;
   }
-  const sockaddr_in6 &in6_addr() const{
+
+  const sockaddr_in6&
+  in6_addr() const
+  {
     return u.sin6;
   }
-  const sockaddr *get_sockaddr() const {
+
+  const sockaddr*
+  get_sockaddr() const
+  {
     return &u.sa;
   }
-  size_t get_sockaddr_len() const {
+
+  size_t
+  get_sockaddr_len() const
+  {
     switch (u.sa.sa_family) {
     case AF_INET:
       return sizeof(u.sin);
@@ -329,7 +514,9 @@ struct entity_addr_t {
     }
     return sizeof(u);
   }
-  bool set_sockaddr(const struct sockaddr *sa)
+
+  bool
+  set_sockaddr(const struct sockaddr* sa)
   {
     switch (sa->sa_family) {
     case AF_INET:
@@ -351,19 +538,26 @@ struct entity_addr_t {
     return true;
   }
 
-  sockaddr_storage get_sockaddr_storage() const {
+  sockaddr_storage
+  get_sockaddr_storage() const
+  {
     sockaddr_storage ss;
     memcpy(&ss, &u, sizeof(u));
     memset((char*)&ss + sizeof(u), 0, sizeof(ss) - sizeof(u));
     return ss;
   }
 
-  void set_in4_quad(int pos, int val) {
+  void
+  set_in4_quad(int pos, int val)
+  {
     u.sin.sin_family = AF_INET;
-    unsigned char *ipq = (unsigned char*)&u.sin.sin_addr.s_addr;
+    unsigned char* ipq = (unsigned char*)&u.sin.sin_addr.s_addr;
     ipq[pos] = val;
   }
-  void set_port(int port) {
+
+  void
+  set_port(int port)
+  {
     switch (u.sa.sa_family) {
     case AF_INET:
       u.sin.sin_port = htons(port);
@@ -375,7 +569,10 @@ struct entity_addr_t {
       ceph_abort();
     }
   }
-  int get_port() const {
+
+  int
+  get_port() const
+  {
     switch (u.sa.sa_family) {
     case AF_INET:
       return ntohs(u.sin.sin_port);
@@ -385,7 +582,8 @@ struct entity_addr_t {
     return 0;
   }
 
-  operator ceph_entity_addr() const {
+  operator ceph_entity_addr() const
+  {
     ceph_entity_addr a;
     a.type = 0;
     a.nonce = nonce;
@@ -396,7 +594,9 @@ struct entity_addr_t {
     return a;
   }
 
-  bool probably_equals(const entity_addr_t &o) const {
+  bool
+  probably_equals(const entity_addr_t& o) const
+  {
     if (get_port() != o.get_port())
       return false;
     if (get_nonce() != o.get_nonce())
@@ -408,19 +608,23 @@ struct entity_addr_t {
     return false;
   }
 
-  bool is_same_host(const entity_addr_t &o) const {
+  bool
+  is_same_host(const entity_addr_t& o) const
+  {
     if (u.sa.sa_family != o.u.sa.sa_family)
       return false;
     if (u.sa.sa_family == AF_INET)
       return u.sin.sin_addr.s_addr == o.u.sin.sin_addr.s_addr;
     if (u.sa.sa_family == AF_INET6)
-      return memcmp(u.sin6.sin6_addr.s6_addr,
-		    o.u.sin6.sin6_addr.s6_addr,
-		    sizeof(u.sin6.sin6_addr.s6_addr)) == 0;
+      return memcmp(
+                 u.sin6.sin6_addr.s6_addr, o.u.sin6.sin6_addr.s6_addr,
+                 sizeof(u.sin6.sin6_addr.s6_addr)) == 0;
     return false;
   }
 
-  bool is_blank_ip() const {
+  bool
+  is_blank_ip() const
+  {
     switch (u.sa.sa_family) {
     case AF_INET:
       return u.sin.sin_addr.s_addr == INADDR_ANY;
@@ -431,7 +635,9 @@ struct entity_addr_t {
     }
   }
 
-  bool is_ip() const {
+  bool
+  is_ip() const
+  {
     switch (u.sa.sa_family) {
     case AF_INET:
     case AF_INET6:
@@ -446,10 +652,14 @@ struct entity_addr_t {
 
   std::string get_legacy_str() const;
 
-  bool parse(const std::string_view s, int default_type=TYPE_DEFAULT);
-  bool parse(const char *s, const char **end = 0, int default_type=TYPE_DEFAULT);
+  bool parse(const std::string_view s, int default_type = TYPE_DEFAULT);
+  bool parse(
+      const char* s,
+      const char** end = 0,
+      int default_type = TYPE_DEFAULT);
 
-  void decode_legacy_addr_after_marker(ceph::buffer::list::const_iterator& bl)
+  void
+  decode_legacy_addr_after_marker(ceph::buffer::list::const_iterator& bl)
   {
     using ceph::decode;
     __u8 marker;
@@ -471,7 +681,9 @@ struct entity_addr_t {
   // Apparently on BSD there is also an ss_len that we need to handle; this requires
   // broader study
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     using ceph::encode;
     if ((features & CEPH_FEATURE_MSG_ADDR2) == 0) {
       encode((__u32)0, bl);
@@ -490,14 +702,14 @@ struct entity_addr_t {
       // meaningless for pre-nautilus clients or daemons.
       auto t = type;
       if (t == TYPE_ANY) {
-	t = TYPE_LEGACY;
+        t = TYPE_LEGACY;
       }
       encode(t, bl);
     }
     encode(nonce, bl);
     __u32 elen = get_sockaddr_len();
 #if (__FreeBSD__) || defined(__APPLE__)
-      elen -= sizeof(u.sa.sa_len);
+    elen -= sizeof(u.sa.sa_len);
 #endif
     encode(elen, bl);
     if (elen) {
@@ -513,7 +725,10 @@ struct entity_addr_t {
     }
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     using ceph::decode;
     __u8 marker;
     decode(marker, bl);
@@ -534,7 +749,7 @@ struct entity_addr_t {
 #endif
       uint16_t ss_family;
       if (elen < sizeof(ss_family)) {
-	throw ceph::buffer::malformed_input("elen smaller than family len");
+        throw ceph::buffer::malformed_input("elen smaller than family len");
       }
       decode(ss_family, bl);
 #if defined(_WIN32)
@@ -545,32 +760,64 @@ struct entity_addr_t {
       u.sa.sa_family = ss_family;
       elen -= sizeof(ss_family);
       if (elen > get_sockaddr_len() - sizeof(u.sa.sa_family)) {
-	throw ceph::buffer::malformed_input("elen exceeds sockaddr len");
+        throw ceph::buffer::malformed_input("elen exceeds sockaddr len");
       }
       bl.copy(elen, u.sa.sa_data);
     }
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   std::string fmt_print() const; ///< used by the default fmt formatter
 
   static std::list<entity_addr_t> generate_test_instances();
 };
 WRITE_CLASS_ENCODER_FEATURES(entity_addr_t)
 
-std::ostream& operator<<(std::ostream& out, const entity_addr_t &addr);
+std::ostream& operator<<(std::ostream& out, const entity_addr_t& addr);
 
-inline bool operator==(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) == 0; }
-inline bool operator!=(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) != 0; }
-inline bool operator<(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) < 0; }
-inline bool operator<=(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) <= 0; }
-inline bool operator>(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) > 0; }
-inline bool operator>=(const entity_addr_t& a, const entity_addr_t& b) { return memcmp(&a, &b, sizeof(a)) >= 0; }
+inline bool
+operator==(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+inline bool
+operator!=(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) != 0;
+}
+
+inline bool
+operator<(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) < 0;
+}
+
+inline bool
+operator<=(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) <= 0;
+}
+
+inline bool
+operator>(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) > 0;
+}
+
+inline bool
+operator>=(const entity_addr_t& a, const entity_addr_t& b)
+{
+  return memcmp(&a, &b, sizeof(a)) >= 0;
+}
 
 namespace std {
-template<> struct hash<entity_addr_t> {
-  size_t operator()( const entity_addr_t& x ) const {
+template <>
+struct hash<entity_addr_t> {
+  size_t
+  operator()(const entity_addr_t& x) const
+  {
     static blobhash H;
     return H(&x, sizeof(x));
   }
@@ -581,23 +828,40 @@ struct entity_addrvec_t {
   std::vector<entity_addr_t> v;
 
   entity_addrvec_t() {}
-  explicit entity_addrvec_t(const entity_addr_t& a) : v({ a }) {}
 
-  unsigned size() const { return v.size(); }
-  bool empty() const { return v.empty(); }
+  explicit entity_addrvec_t(const entity_addr_t& a) :
+    v({a})
+  {}
 
-  entity_addr_t legacy_addr() const {
+  unsigned
+  size() const
+  {
+    return v.size();
+  }
+
+  bool
+  empty() const
+  {
+    return v.empty();
+  }
+
+  entity_addr_t
+  legacy_addr() const
+  {
     return addr_of_type(entity_addr_t::TYPE_LEGACY);
   }
-  entity_addr_t as_legacy_addr() const {
+
+  entity_addr_t
+  as_legacy_addr() const
+  {
     for (auto& a : v) {
       if (a.is_legacy()) {
-	return a;
+        return a;
       }
       if (a.is_any()) {
-	auto b = a;
-	b.set_type(entity_addr_t::TYPE_LEGACY);
-	return b;
+        auto b = a;
+        b.set_type(entity_addr_t::TYPE_LEGACY);
+        return b;
       }
     }
     // hrm... lie!
@@ -605,37 +869,53 @@ struct entity_addrvec_t {
     a.set_type(entity_addr_t::TYPE_LEGACY);
     return a;
   }
-  entity_addr_t front() const {
+
+  entity_addr_t
+  front() const
+  {
     if (!v.empty()) {
       return v.front();
     }
     return entity_addr_t();
   }
-  entity_addr_t legacy_or_front_addr() const {
+
+  entity_addr_t
+  legacy_or_front_addr() const
+  {
     for (auto& a : v) {
       if (a.type == entity_addr_t::TYPE_LEGACY) {
-	return a;
+        return a;
       }
     }
     return front();
   }
-  std::string get_legacy_str() const {
+
+  std::string
+  get_legacy_str() const
+  {
     return legacy_or_front_addr().get_legacy_str();
   }
 
-  entity_addr_t msgr2_addr() const {
+  entity_addr_t
+  msgr2_addr() const
+  {
     return addr_of_type(entity_addr_t::TYPE_MSGR2);
   }
-  bool has_msgr2() const {
+
+  bool
+  has_msgr2() const
+  {
     for (auto& a : v) {
       if (a.is_msgr2()) {
-	return true;
+        return true;
       }
     }
     return false;
   }
 
-  entity_addr_t pick_addr(uint32_t type) const {
+  entity_addr_t
+  pick_addr(uint32_t type) const
+  {
     entity_addr_t picked_addr;
     switch (type) {
     case entity_addr_t::TYPE_LEGACY:
@@ -655,8 +935,10 @@ struct entity_addrvec_t {
     }
   }
 
-  entity_addr_t addr_of_type(uint32_t type) const {
-    for (auto &a : v) {
+  entity_addr_t
+  addr_of_type(uint32_t type) const
+  {
+    for (auto& a : v) {
       if (a.type == type) {
         return a;
       }
@@ -664,14 +946,19 @@ struct entity_addrvec_t {
     return entity_addr_t();
   }
 
-  bool parse(const char *s, const char **end = 0);
+  bool parse(const char* s, const char** end = 0);
 
-  void get_ports(std::set<int> *ports) const {
+  void
+  get_ports(std::set<int>* ports) const
+  {
     for (auto& a : v) {
       ports->insert(a.get_port());
     }
   }
-  std::set<int> get_ports() const {
+
+  std::set<int>
+  get_ports() const
+  {
     std::set<int> r;
     get_ports(&r);
     return r;
@@ -679,46 +966,52 @@ struct entity_addrvec_t {
 
   void encode(ceph::buffer::list& bl, uint64_t features) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<entity_addrvec_t> generate_test_instances();
 
-  bool legacy_equals(const entity_addrvec_t& o) const {
+  bool
+  legacy_equals(const entity_addrvec_t& o) const
+  {
     if (v == o.v) {
       return true;
     }
-    if (v.size() == 1 &&
-	front().is_legacy() &&
-	front() == o.legacy_addr()) {
+    if (v.size() == 1 && front().is_legacy() && front() == o.legacy_addr()) {
       return true;
     }
-    if (o.v.size() == 1 &&
-	o.front().is_legacy() &&
-	o.front() == legacy_addr()) {
+    if (o.v.size() == 1 && o.front().is_legacy() && o.front() == legacy_addr()) {
       return true;
     }
     return false;
   }
 
-  bool probably_equals(const entity_addrvec_t& o) const {
+  bool
+  probably_equals(const entity_addrvec_t& o) const
+  {
     for (unsigned i = 0; i < v.size(); ++i) {
       if (!v[i].probably_equals(o.v[i])) {
-	return false;
+        return false;
       }
     }
     return true;
   }
-  bool contains(const entity_addr_t& a) const {
+
+  bool
+  contains(const entity_addr_t& a) const
+  {
     for (auto& i : v) {
       if (a == i) {
-	return true;
+        return true;
       }
     }
     return false;
   }
-  bool is_same_host(const entity_addr_t& a) const {
+
+  bool
+  is_same_host(const entity_addr_t& a) const
+  {
     for (auto& i : v) {
       if (i.is_same_host(a)) {
-	return true;
+        return true;
       }
     }
     return false;
@@ -726,27 +1019,43 @@ struct entity_addrvec_t {
 
   friend std::ostream& operator<<(std::ostream& out, const entity_addrvec_t& av);
 
-  friend bool operator==(const entity_addrvec_t& l, const entity_addrvec_t& r) {
+  friend bool
+  operator==(const entity_addrvec_t& l, const entity_addrvec_t& r)
+  {
     return l.v == r.v;
   }
-  friend bool operator!=(const entity_addrvec_t& l, const entity_addrvec_t& r) {
+
+  friend bool
+  operator!=(const entity_addrvec_t& l, const entity_addrvec_t& r)
+  {
     return l.v != r.v;
   }
-  friend bool operator<(const entity_addrvec_t& l, const entity_addrvec_t& r) {
-    return l.v < r.v;  // see lexicographical_compare()
+
+  friend bool
+  operator<(const entity_addrvec_t& l, const entity_addrvec_t& r)
+  {
+    return l.v < r.v; // see lexicographical_compare()
   }
-  friend bool operator>(const entity_addrvec_t& l, const entity_addrvec_t& r) {
-    return l.v > r.v;  // see lexicographical_compare()
+
+  friend bool
+  operator>(const entity_addrvec_t& l, const entity_addrvec_t& r)
+  {
+    return l.v > r.v; // see lexicographical_compare()
   }
 };
+
 WRITE_CLASS_ENCODER_FEATURES(entity_addrvec_t);
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<entity_addrvec_t> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<entity_addrvec_t> : fmt::ostream_formatter {};
 #endif
 
 namespace std {
-template<> struct hash<entity_addrvec_t> {
-  size_t operator()( const entity_addrvec_t& x) const {
+template <>
+struct hash<entity_addrvec_t> {
+  size_t
+  operator()(const entity_addrvec_t& x) const
+  {
     static blobhash H;
     size_t r = 0;
     for (auto& i : x.v) {
@@ -763,66 +1072,106 @@ template<> struct hash<entity_addrvec_t> {
 struct entity_inst_t {
   entity_name_t name;
   entity_addr_t addr;
+
   entity_inst_t() {}
-  entity_inst_t(entity_name_t n, const entity_addr_t& a) : name(n), addr(a) {}
+
+  entity_inst_t(entity_name_t n, const entity_addr_t& a) :
+    name(n), addr(a)
+  {}
+
   // cppcheck-suppress noExplicitConstructor
-  entity_inst_t(const ceph_entity_inst& i) : name(i.name), addr(i.addr) { }
-  entity_inst_t(const ceph_entity_name& n, const ceph_entity_addr &a) : name(n), addr(a) {}
-  operator ceph_entity_inst() {
+  entity_inst_t(const ceph_entity_inst& i) :
+    name(i.name), addr(i.addr)
+  {}
+
+  entity_inst_t(const ceph_entity_name& n, const ceph_entity_addr& a) :
+    name(n), addr(a)
+  {}
+
+  operator ceph_entity_inst()
+  {
     ceph_entity_inst i = {name, addr};
     return i;
   }
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     using ceph::encode;
     encode(name, bl);
     encode(addr, bl, features);
   }
-  void decode(ceph::buffer::list::const_iterator& bl) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     using ceph::decode;
     decode(name, bl);
     decode(addr, bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<entity_inst_t> generate_test_instances();
 };
 WRITE_CLASS_ENCODER_FEATURES(entity_inst_t)
 
-
-inline bool operator==(const entity_inst_t& a, const entity_inst_t& b) {
+inline bool
+operator==(const entity_inst_t& a, const entity_inst_t& b)
+{
   return a.name == b.name && a.addr == b.addr;
 }
-inline bool operator!=(const entity_inst_t& a, const entity_inst_t& b) {
+
+inline bool
+operator!=(const entity_inst_t& a, const entity_inst_t& b)
+{
   return a.name != b.name || a.addr != b.addr;
 }
-inline bool operator<(const entity_inst_t& a, const entity_inst_t& b) {
+
+inline bool
+operator<(const entity_inst_t& a, const entity_inst_t& b)
+{
   return a.name < b.name || (a.name == b.name && a.addr < b.addr);
 }
-inline bool operator<=(const entity_inst_t& a, const entity_inst_t& b) {
+
+inline bool
+operator<=(const entity_inst_t& a, const entity_inst_t& b)
+{
   return a.name < b.name || (a.name == b.name && a.addr <= b.addr);
 }
-inline bool operator>(const entity_inst_t& a, const entity_inst_t& b) { return b < a; }
-inline bool operator>=(const entity_inst_t& a, const entity_inst_t& b) { return b <= a; }
+
+inline bool
+operator>(const entity_inst_t& a, const entity_inst_t& b)
+{
+  return b < a;
+}
+
+inline bool
+operator>=(const entity_inst_t& a, const entity_inst_t& b)
+{
+  return b <= a;
+}
 
 namespace std {
-  template<> struct hash< entity_inst_t >
+template <>
+struct hash<entity_inst_t> {
+  size_t
+  operator()(const entity_inst_t& x) const
   {
-    size_t operator()( const entity_inst_t& x ) const
-    {
-      static hash< entity_name_t > H;
-      static hash< entity_addr_t > I;
-      return H(x.name) ^ I(x.addr);
-    }
-  };
+    static hash<entity_name_t> H;
+    static hash<entity_addr_t> I;
+    return H(x.name) ^ I(x.addr);
+  }
+};
 } // namespace std
 
-
-inline std::ostream& operator<<(std::ostream& out, const entity_inst_t &i)
+inline std::ostream&
+operator<<(std::ostream& out, const entity_inst_t& i)
 {
   return out << i.name << " " << i.addr;
 }
-inline std::ostream& operator<<(std::ostream& out, const ceph_entity_inst &i)
+
+inline std::ostream&
+operator<<(std::ostream& out, const ceph_entity_inst& i)
 {
   entity_inst_t n = i;
   return out << n;

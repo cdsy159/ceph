@@ -8,8 +8,8 @@
 #include "common/fmt_common.h"
 #include "include/types.h"
 
-
-static inline auto format_as(shard_id_t sid)
+static inline auto
+format_as(shard_id_t sid)
 {
   return (int)sid.id;
 }

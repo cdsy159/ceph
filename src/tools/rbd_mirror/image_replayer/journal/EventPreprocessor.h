@@ -4,17 +4,25 @@
 #ifndef RBD_MIRROR_IMAGE_REPLAYER_EVENT_PREPROCESSOR_H
 #define RBD_MIRROR_IMAGE_REPLAYER_EVENT_PREPROCESSOR_H
 
-#include "include/int_types.h"
-#include "librbd/journal/Types.h"
-#include "librbd/journal/TypeTraits.h"
 #include <map>
 #include <string>
 
+#include "include/int_types.h"
+#include "librbd/journal/TypeTraits.h"
+#include "librbd/journal/Types.h"
+
 struct Context;
-namespace journal { class Journaler; }
+
+namespace journal {
+class Journaler;
+}
+
 namespace librbd {
 class ImageCtx;
-namespace asio { struct ContextWQ; }
+
+namespace asio {
+struct ContextWQ;
+}
 } // namespace librbd
 
 namespace rbd {
@@ -29,27 +37,35 @@ public:
   using EventEntry = librbd::journal::EventEntry;
   using MirrorPeerClientMeta = librbd::journal::MirrorPeerClientMeta;
 
-  static EventPreprocessor *create(ImageCtxT &local_image_ctx,
-                                   Journaler &remote_journaler,
-                                   const std::string &local_mirror_uuid,
-                                   MirrorPeerClientMeta *client_meta,
-                                   librbd::asio::ContextWQ *work_queue) {
-    return new EventPreprocessor(local_image_ctx, remote_journaler,
-                                 local_mirror_uuid, client_meta, work_queue);
+  static EventPreprocessor*
+  create(
+      ImageCtxT& local_image_ctx,
+      Journaler& remote_journaler,
+      const std::string& local_mirror_uuid,
+      MirrorPeerClientMeta* client_meta,
+      librbd::asio::ContextWQ* work_queue)
+  {
+    return new EventPreprocessor(
+        local_image_ctx, remote_journaler, local_mirror_uuid, client_meta,
+        work_queue);
   }
 
-  static void destroy(EventPreprocessor* processor) {
+  static void
+  destroy(EventPreprocessor* processor)
+  {
     delete processor;
   }
 
-  EventPreprocessor(ImageCtxT &local_image_ctx, Journaler &remote_journaler,
-                    const std::string &local_mirror_uuid,
-                    MirrorPeerClientMeta *client_meta,
-                    librbd::asio::ContextWQ *work_queue);
+  EventPreprocessor(
+      ImageCtxT& local_image_ctx,
+      Journaler& remote_journaler,
+      const std::string& local_mirror_uuid,
+      MirrorPeerClientMeta* client_meta,
+      librbd::asio::ContextWQ* work_queue);
   ~EventPreprocessor();
 
-  bool is_required(const EventEntry &event_entry);
-  void preprocess(EventEntry *event_entry, Context *on_finish);
+  bool is_required(const EventEntry& event_entry);
+  void preprocess(EventEntry* event_entry, Context* on_finish);
 
 private:
   /**
@@ -73,47 +89,51 @@ private:
 
   class PreprocessEventVisitor {
   public:
-    EventPreprocessor *event_preprocessor;
+    EventPreprocessor* event_preprocessor;
 
-    PreprocessEventVisitor(EventPreprocessor *event_preprocessor)
-      : event_preprocessor(event_preprocessor) {
-    }
+    PreprocessEventVisitor(EventPreprocessor* event_preprocessor) :
+      event_preprocessor(event_preprocessor)
+    {}
 
     template <typename T>
-    inline int operator()(T&) const {
+    inline int
+    operator()(T&) const
+    {
       return 0;
     }
-    inline int operator()(librbd::journal::SnapRenameEvent &event) const {
+
+    inline int
+    operator()(librbd::journal::SnapRenameEvent& event) const
+    {
       return event_preprocessor->preprocess_snap_rename(event);
     }
   };
 
-  ImageCtxT &m_local_image_ctx;
-  Journaler &m_remote_journaler;
+  ImageCtxT& m_local_image_ctx;
+  Journaler& m_remote_journaler;
   std::string m_local_mirror_uuid;
-  MirrorPeerClientMeta *m_client_meta;
-  librbd::asio::ContextWQ *m_work_queue;
+  MirrorPeerClientMeta* m_client_meta;
+  librbd::asio::ContextWQ* m_work_queue;
 
   bool m_in_progress = false;
-  EventEntry *m_event_entry = nullptr;
-  Context *m_on_finish = nullptr;
+  EventEntry* m_event_entry = nullptr;
+  Context* m_on_finish = nullptr;
 
   SnapSeqs m_snap_seqs;
   bool m_snap_seqs_updated = false;
 
-  bool prune_snap_map(SnapSeqs *snap_seqs);
+  bool prune_snap_map(SnapSeqs* snap_seqs);
 
   void refresh_image();
   void handle_refresh_image(int r);
 
   void preprocess_event();
-  int preprocess_snap_rename(librbd::journal::SnapRenameEvent &event);
+  int preprocess_snap_rename(librbd::journal::SnapRenameEvent& event);
 
   void update_client();
   void handle_update_client(int r);
 
   void finish(int r);
-
 };
 
 } // namespace journal
@@ -121,6 +141,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::journal::EventPreprocessor<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::journal::EventPreprocessor<
+    librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_REPLAYER_EVENT_PREPROCESSOR_H

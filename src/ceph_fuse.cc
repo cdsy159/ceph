@@ -15,38 +15,35 @@
 
 #include <sys/stat.h>
 #include <sys/utsname.h>
-#include <iostream>
-#include <string>
-#include <optional>
 
-#include "common/async/context_pool.h"
-#include "common/config.h"
-#include "common/errno.h"
-#include "log/Log.h" // for g_ceph_context->_log
+#include <iostream>
+#include <optional>
+#include <string>
+
+#include "common/debug.h"
 
 #include "client/Client.h"
 #include "client/fuse_ll.h"
-
-#include "msg/Messenger.h"
-
-#include "mon/MonClient.h"
-
 #include "common/Timer.h"
+#include "common/async/context_pool.h"
 #include "common/ceph_argparse.h"
-#include "common/debug.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "log/Log.h" // for g_ceph_context->_log
+#include "mon/MonClient.h"
+#include "msg/Messenger.h"
 #if defined(__linux__)
 #include "common/linux_version.h"
 #endif
-#include "global/global_init.h"
-#include "global/signal_handler.h"
+#include <fcntl.h>
+#include <fuse_lowlevel.h>
+#include <sys/types.h>
+
 #include "common/Preforker.h"
 #include "common/safe_io.h"
-
-#include <sys/types.h>
-#include <fcntl.h>
-
+#include "global/global_init.h"
+#include "global/signal_handler.h"
 #include "include/ceph_fuse.h"
-#include <fuse_lowlevel.h>
 
 #define dout_context g_ceph_context
 
@@ -54,11 +51,12 @@ using namespace std;
 
 ceph::async::io_context_pool icp;
 
-static void fuse_usage()
+static void
+fuse_usage()
 {
   const char* argv[] = {
-    "ceph-fuse",
-    "-h",
+      "ceph-fuse",
+      "-h",
   };
   struct fuse_args args = FUSE_ARGS_INIT(2, (char**)argv);
 #if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 0)
@@ -81,19 +79,25 @@ static void fuse_usage()
   fuse_opt_free_args(&args);
 }
 
-void usage()
+void
+usage()
 {
-  cout <<
-"\nusage: ceph-fuse [-n client.username] [-m mon-ip-addr:mon-port] [--client_fs <fsname>] [--client_mountpoint/-r <sub_directory>] <mount point> [OPTIONS]\n\n"
+  cout << "\nusage: ceph-fuse [-n client.username] [-m mon-ip-addr:mon-port] "
+          "[--client_fs <fsname>] [--client_mountpoint/-r <sub_directory>] "
+          "<mount point> [OPTIONS]\n\n"
 
-"  --client_mountpoint/-r: use sub_directory as the mounted root, rather than the full CephFS tree.\n"
-"  --client_fs: named file system to mount (default: usually the first file system created).\n"
-"\n";
+          "  --client_mountpoint/-r: use sub_directory as the mounted root, "
+          "rather than the full CephFS tree.\n"
+          "  --client_fs: named file system to mount (default: usually the "
+          "first file system created).\n"
+          "\n";
   fuse_usage();
   generic_client_usage();
 }
 
-int main(int argc, const char **argv, const char *envp[]) {
+int
+main(int argc, const char** argv, const char* envp[])
+{
   int filer_flags = 0;
   //cerr << "ceph-fuse starting " << myrank << "/" << world << std::endl;
   auto args = argv_to_vec(argc, argv);
@@ -106,14 +110,13 @@ int main(int argc, const char **argv, const char *envp[]) {
     exit(0);
   }
 
-  std::map<std::string,std::string> defaults = {
-    { "pid_file", "" },
-    { "chdir", "/" }  // FUSE will chdir("/"); be ready.
+  std::map<std::string, std::string> defaults = {
+      {"pid_file", ""}, {"chdir", "/"} // FUSE will chdir("/"); be ready.
   };
 
-  auto cct = global_init(&defaults, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_DAEMON,
-			 CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
+  auto cct = global_init(
+      &defaults, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
 
   for (auto i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
@@ -122,10 +125,7 @@ int main(int argc, const char **argv, const char *envp[]) {
       cerr << "setting CEPH_OSD_FLAG_LOCALIZE_READS" << std::endl;
       filer_flags |= CEPH_OSD_FLAG_LOCALIZE_READS;
     } else if (ceph_argparse_flag(args, i, "-V", (char*)nullptr)) {
-      const char* tmpargv[] = {
-	"ceph-fuse",
-	"-V"
-      };
+      const char* tmpargv[] = {"ceph-fuse", "-V"};
 
       struct fuse_args fargs = FUSE_ARGS_INIT(2, (char**)tmpargv);
 #if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 0)
@@ -134,7 +134,7 @@ int main(int argc, const char **argv, const char *envp[]) {
 #else
       if (fuse_parse_cmdline(&fargs, nullptr, nullptr, nullptr) == -1) {
 #endif
-       derr << "fuse_parse_cmdline failed." << dendl;
+        derr << "fuse_parse_cmdline failed." << dendl;
       }
       ceph_assert(fargs.allocated);
       fuse_opt_free_args(&fargs);
@@ -145,16 +145,20 @@ int main(int argc, const char **argv, const char *envp[]) {
   }
 
   // args for fuse
-  const char **newargv;
+  const char** newargv;
   int newargc;
   vec_to_argv(argv[0], args, &newargc, &newargv);
 
   // check for 32-bit arch
 #ifndef __LP64__
-    cerr << std::endl;
-    cerr << "WARNING: Ceph inode numbers are 64 bits wide, and FUSE on 32-bit kernels does" << std::endl;
-    cerr << "         not cope well with that situation.  Expect to crash shortly." << std::endl;
-    cerr << std::endl;
+  cerr << std::endl;
+  cerr << "WARNING: Ceph inode numbers are 64 bits wide, and FUSE on 32-bit "
+          "kernels does"
+       << std::endl;
+  cerr
+      << "         not cope well with that situation.  Expect to crash shortly."
+      << std::endl;
+  cerr << std::endl;
 #endif
 
   Preforker forker;
@@ -176,7 +180,7 @@ int main(int argc, const char **argv, const char *envp[]) {
     if (forker.is_parent()) {
       r = forker.parent_wait(err);
       if (r < 0) {
-	cerr << "ceph-fuse " << err << std::endl;
+        cerr << "ceph-fuse " << err << std::endl;
       }
       return r;
     }
@@ -192,20 +196,30 @@ int main(int argc, const char **argv, const char *envp[]) {
     //cout << "child, mounting" << std::endl;
     class RemountTest : public Thread {
     public:
-      CephFuse *cfuse;
-      Client *client;
-      RemountTest() : cfuse(nullptr), client(nullptr) {}
-      void init(CephFuse *cf, Client *cl) {
-	cfuse = cf;
-	client = cl;
+      CephFuse* cfuse;
+      Client* client;
+
+      RemountTest() :
+        cfuse(nullptr), client(nullptr)
+      {}
+
+      void
+      init(CephFuse* cf, Client* cl)
+      {
+        cfuse = cf;
+        client = cl;
       }
+
       ~RemountTest() override {}
-      void *entry() override {
+
+      void*
+      entry() override
+      {
 #if defined(__linux__)
-        bool can_invalidate_dentries = g_conf().get_val<bool>(
-	  "client_try_dentry_invalidate");
-        uint64_t max_retries = g_conf().get_val<uint64_t>(
-          "client_max_retries_on_remount_failure");
+        bool can_invalidate_dentries =
+            g_conf().get_val<bool>("client_try_dentry_invalidate");
+        uint64_t max_retries =
+            g_conf().get_val<uint64_t>("client_max_retries_on_remount_failure");
         std::pair<int, bool> test_result;
         uint64_t i = 0;
         int tr = 0;
@@ -217,53 +231,56 @@ int main(int argc, const char **argv, const char *envp[]) {
           }
         } while (++i < max_retries && tr);
 
-	bool abort_on_failure = test_result.second;
-        bool client_die_on_failed_dentry_invalidate = g_conf().get_val<bool>(
-          "client_die_on_failed_dentry_invalidate");
-	if (tr != 0 && client_die_on_failed_dentry_invalidate) {
-	  cerr << "ceph-fuse[" << getpid()
-	       << "]: fuse failed dentry invalidate/remount test with error "
-	       << cpp_strerror(tr) << ", stopping" << std::endl;
+        bool abort_on_failure = test_result.second;
+        bool client_die_on_failed_dentry_invalidate =
+            g_conf().get_val<bool>("client_die_on_failed_dentry_invalidate");
+        if (tr != 0 && client_die_on_failed_dentry_invalidate) {
+          cerr << "ceph-fuse[" << getpid()
+               << "]: fuse failed dentry invalidate/remount test with error "
+               << cpp_strerror(tr) << ", stopping" << std::endl;
 
-	  char buf[5050];
-	  string mountpoint = cfuse->get_mount_point();
-	  snprintf(buf, sizeof(buf), "fusermount -u -z %s", mountpoint.c_str());
-	  int umount_r = system(buf);
-	  if (umount_r) {
-	    if (umount_r != -1) {
-	      if (WIFEXITED(umount_r)) {
-		umount_r = WEXITSTATUS(umount_r);
-		cerr << "got error " << umount_r
-		     << " when unmounting Ceph on failed remount test!" << std::endl;
-	      } else {
-		cerr << "attempt to umount on failed remount test failed (on a signal?)" << std::endl;
-	      }
-	    } else {
-	      cerr << "system() invocation failed during remount test" << std::endl;
-	    }
-	  }
-	}
-	if(abort_on_failure) {
-	  ceph_abort();
-	}
-	return reinterpret_cast<void*>(tr);
+          char buf[5050];
+          string mountpoint = cfuse->get_mount_point();
+          snprintf(buf, sizeof(buf), "fusermount -u -z %s", mountpoint.c_str());
+          int umount_r = system(buf);
+          if (umount_r) {
+            if (umount_r != -1) {
+              if (WIFEXITED(umount_r)) {
+                umount_r = WEXITSTATUS(umount_r);
+                cerr << "got error " << umount_r
+                     << " when unmounting Ceph on failed remount test!"
+                     << std::endl;
+              } else {
+                cerr << "attempt to umount on failed remount test failed (on a "
+                        "signal?)"
+                     << std::endl;
+              }
+            } else {
+              cerr << "system() invocation failed during remount test"
+                   << std::endl;
+            }
+          }
+        }
+        if (abort_on_failure) {
+          ceph_abort();
+        }
+        return reinterpret_cast<void*>(tr);
 #else
-	return reinterpret_cast<void*>(0);
+        return reinterpret_cast<void*>(0);
 #endif
       }
     } tester;
 
-
     // get monmap
-    Messenger *messenger = nullptr;
-    StandaloneClient *client;
-    CephFuse *cfuse;
+    Messenger* messenger = nullptr;
+    StandaloneClient* client;
+    CephFuse* cfuse;
     UserPerm perms;
     int tester_r = 0;
-    void *tester_rp = nullptr;
+    void* tester_rp = nullptr;
 
     icp.start(cct->_conf.get_val<std::uint64_t>("client_asio_thread_count"));
-    MonClient *mc = new MonClient(g_ceph_context, icp);
+    MonClient* mc = new MonClient(g_ceph_context, icp);
     int r = mc->build_initial_monmap();
     if (r == -EINVAL) {
       cerr << "failed to generate initial mon list" << std::endl;
@@ -275,8 +292,8 @@ int main(int argc, const char **argv, const char *envp[]) {
     // start up network
     messenger = Messenger::create_client_messenger(g_ceph_context, "client");
     messenger->set_default_policy(Messenger::Policy::lossy_client(0));
-    messenger->set_policy(entity_name_t::TYPE_MDS,
-			  Messenger::Policy::lossless_client(0));
+    messenger->set_policy(
+        entity_name_t::TYPE_MDS, Messenger::Policy::lossless_client(0));
 
     client = new StandaloneClient(messenger, mc, icp);
     if (filer_flags) {
@@ -287,40 +304,45 @@ int main(int argc, const char **argv, const char *envp[]) {
 
     r = cfuse->init(newargc, newargv);
     if (r != 0) {
-      cerr << "ceph-fuse[" << getpid() << "]: fuse failed to initialize" << std::endl;
+      cerr << "ceph-fuse[" << getpid() << "]: fuse failed to initialize"
+           << std::endl;
       goto out_messenger_start_failed;
     }
 
     cerr << "ceph-fuse[" << getpid() << "]: starting ceph client" << std::endl;
     r = messenger->start();
     if (r < 0) {
-      cerr << "ceph-fuse[" << getpid() << "]: ceph messenger failed with " << cpp_strerror(-r) << std::endl;
+      cerr << "ceph-fuse[" << getpid() << "]: ceph messenger failed with "
+           << cpp_strerror(-r) << std::endl;
       goto out_messenger_start_failed;
     }
 
     // start client
     r = client->init();
     if (r < 0) {
-      cerr << "ceph-fuse[" << getpid() << "]: ceph client failed with " << cpp_strerror(-r) << std::endl;
+      cerr << "ceph-fuse[" << getpid() << "]: ceph client failed with "
+           << cpp_strerror(-r) << std::endl;
       goto out_init_failed;
     }
-    
+
     client->update_metadata("mount_point", cfuse->get_mount_point());
     perms = client->pick_my_perms();
     {
       // start up fuse
       // use my argc, argv (make sure you pass a mount point!)
-      auto client_mountpoint = g_conf().get_val<std::string>(
-        "client_mountpoint");
+      auto client_mountpoint =
+          g_conf().get_val<std::string>("client_mountpoint");
       auto mountpoint = client_mountpoint.c_str();
-      auto fuse_require_active_mds = g_conf().get_val<bool>(
-        "fuse_require_active_mds");
+      auto fuse_require_active_mds =
+          g_conf().get_val<bool>("fuse_require_active_mds");
       r = client->mount(mountpoint, perms, fuse_require_active_mds);
       if (r < 0) {
         if (r == CEPH_FUSE_NO_MDS_UP) {
-          cerr << "ceph-fuse[" << getpid() << "]: probably no MDS server is up?" << std::endl;
+          cerr << "ceph-fuse[" << getpid() << "]: probably no MDS server is up?"
+               << std::endl;
         }
-        cerr << "ceph-fuse[" << getpid() << "]: ceph mount failed with " << cpp_strerror(-r) << std::endl;
+        cerr << "ceph-fuse[" << getpid() << "]: ceph mount failed with "
+             << cpp_strerror(-r) << std::endl;
         r = EXIT_FAILURE;
         goto out_shutdown;
       }
@@ -328,7 +350,8 @@ int main(int argc, const char **argv, const char *envp[]) {
 
     r = cfuse->start();
     if (r != 0) {
-      cerr << "ceph-fuse[" << getpid() << "]: fuse failed to start" << std::endl;
+      cerr << "ceph-fuse[" << getpid() << "]: fuse failed to start"
+           << std::endl;
       goto out_client_unmount;
     }
 
@@ -339,7 +362,7 @@ int main(int argc, const char **argv, const char *envp[]) {
     tester.join(&tester_rp);
     tester_r = static_cast<int>(reinterpret_cast<uint64_t>(tester_rp));
     cerr << "ceph-fuse[" << getpid() << "]: fuse finished with error " << r
-	 << " and tester_r " << tester_r <<std::endl;
+         << " and tester_r " << tester_r << std::endl;
 
   out_client_unmount:
     client->unmount();

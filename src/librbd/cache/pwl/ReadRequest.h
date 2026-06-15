@@ -20,22 +20,32 @@ public:
   bufferlist miss_bl;
 
   C_ReadRequest(
-      CephContext *cct, utime_t arrived, PerfCounters *perfcounter,
-      bufferlist *out_bl, Context *on_finish)
-    : m_cct(cct), m_on_finish(on_finish), m_out_bl(out_bl),
-      m_arrived_time(arrived), m_perfcounter(perfcounter) {}
+      CephContext* cct,
+      utime_t arrived,
+      PerfCounters* perfcounter,
+      bufferlist* out_bl,
+      Context* on_finish) :
+    m_cct(cct),
+    m_on_finish(on_finish),
+    m_out_bl(out_bl),
+    m_arrived_time(arrived),
+    m_perfcounter(perfcounter)
+  {}
+
   ~C_ReadRequest() {}
 
-  const char *get_name() const {
+  const char*
+  get_name() const
+  {
     return "C_ReadRequest";
   }
 
 protected:
-  CephContext *m_cct;
-  Context *m_on_finish;
-  bufferlist *m_out_bl;
+  CephContext* m_cct;
+  Context* m_on_finish;
+  bufferlist* m_out_bl;
   utime_t m_arrived_time;
-  PerfCounters *m_perfcounter;
+  PerfCounters* m_perfcounter;
 };
 
 } // namespace pwl

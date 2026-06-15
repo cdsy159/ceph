@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,23 +22,31 @@
 
 // generic log event
 class EResetJournal : public LogEvent, public SegmentBoundary {
- public:
-  EResetJournal() : LogEvent(EVENT_RESETJOURNAL) { }
+public:
+  EResetJournal() :
+    LogEvent(EVENT_RESETJOURNAL)
+  {}
+
   ~EResetJournal() override {}
 
-  bool is_major_segment_boundary() const override {
+  bool
+  is_major_segment_boundary() const override
+  {
     return true;
   }
 
   void encode(bufferlist& bl, uint64_t features) const override;
   void decode(bufferlist::const_iterator& bl) override;
-  void dump(Formatter *f) const override;
+  void dump(Formatter* f) const override;
   static std::list<EResetJournal> generate_test_instances();
-  void print(std::ostream& out) const override {
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "EResetJournal";
   }
 
-  void replay(MDSRank *mds) override;
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(EResetJournal)
 

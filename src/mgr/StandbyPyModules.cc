@@ -14,12 +14,12 @@
 
 #include "StandbyPyModules.h"
 
-#include "common/Finisher.h"
 #include "common/debug.h"
-#include "common/errno.h"
 
-#include "mgr/MgrContext.h"
+#include "common/Finisher.h"
+#include "common/errno.h"
 #include "mgr/Gil.h"
+#include "mgr/MgrContext.h"
 
 // For ::mgr_store_prefix
 #include "PyModuleRegistry.h"
@@ -29,27 +29,25 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "mgr " << __func__ << " "
 
-
 StandbyPyModules::StandbyPyModules(
-    const MgrMap &mgr_map_,
-    PyModuleConfig &module_config,
+    const MgrMap& mgr_map_,
+    PyModuleConfig& module_config,
     LogChannelRef clog_,
-    MonClient &monc_,
-    Finisher &f)
-    : state(module_config, monc_),
-      clog(clog_),
-      finisher(f)
+    MonClient& monc_,
+    Finisher& f) :
+  state(module_config, monc_), clog(clog_), finisher(f)
 {
   state.set_mgr_map(mgr_map_);
 }
 
 // FIXME: completely identical to ActivePyModules
-void StandbyPyModules::shutdown()
+void
+StandbyPyModules::shutdown()
 {
   std::lock_guard locker(lock);
 
   // Signal modules to drop out of serve() and/or tear down resources
-  for (auto &i : modules) {
+  for (auto& i : modules) {
     auto module = i.second.get();
     const auto& name = i.first;
     dout(10) << "waiting for module " << name << " to shutdown" << dendl;
@@ -61,7 +59,7 @@ void StandbyPyModules::shutdown()
 
   // For modules implementing serve(), finish the threads where we
   // were running that.
-  for (auto &i : modules) {
+  for (auto& i : modules) {
     lock.unlock();
     dout(10) << "joining thread for module " << i.first << dendl;
     i.second->thread.join();
@@ -72,7 +70,8 @@ void StandbyPyModules::shutdown()
   modules.clear();
 }
 
-void StandbyPyModules::start_one(PyModuleRef py_module)
+void
+StandbyPyModules::start_one(PyModuleRef py_module)
 {
   std::lock_guard l(lock);
   const auto name = py_module->get_name();
@@ -97,7 +96,8 @@ void StandbyPyModules::start_one(PyModuleRef py_module)
   }));
 }
 
-int StandbyPyModule::load()
+int
+StandbyPyModule::load()
 {
   Gil gil(py_module->pMyThreadState, true);
 
@@ -123,14 +123,14 @@ int StandbyPyModule::load()
   }
 }
 
-bool StandbyPyModule::get_config(const std::string &key,
-                                 std::string *value) const
+bool
+StandbyPyModule::get_config(const std::string& key, std::string* value) const
 {
   const std::string global_key = "mgr/" + get_name() + "/" + key;
 
   dout(4) << __func__ << " key: " << global_key << dendl;
- 
-  return state.with_config([global_key, value](const PyModuleConfig &config){
+
+  return state.with_config([global_key, value](const PyModuleConfig& config) {
     if (config.config.count(global_key)) {
       *value = config.config.at(global_key);
       return true;
@@ -140,12 +140,12 @@ bool StandbyPyModule::get_config(const std::string &key,
   });
 }
 
-bool StandbyPyModule::get_store(const std::string &key,
-                                std::string *value) const
+bool
+StandbyPyModule::get_store(const std::string& key, std::string* value) const
 {
 
-  const std::string global_key = PyModule::mgr_store_prefix
-    + get_name() + "/" + key;
+  const std::string global_key = PyModule::mgr_store_prefix + get_name() + "/" +
+                                 key;
 
   dout(4) << __func__ << " key: " << global_key << dendl;
 
@@ -154,22 +154,17 @@ bool StandbyPyModule::get_store(const std::string &key,
   // fetch values synchronously to get an up to date value.
   // It's an acceptable cost because standby modules should not be
   // doing a lot.
-  
-  MonClient &monc = state.get_monc();
+
+  MonClient& monc = state.get_monc();
 
   std::ostringstream cmd_json;
-  cmd_json << "{\"prefix\": \"config-key get\", \"key\": \""
-           << global_key << "\"}";
+  cmd_json << "{\"prefix\": \"config-key get\", \"key\": \"" << global_key
+           << "\"}";
 
   bufferlist outbl;
   std::string outs;
   C_SaferCond c;
-  monc.start_mon_command(
-      {cmd_json.str()},
-      {},
-      &outbl,
-      &outs,
-      &c);
+  monc.start_mon_command({cmd_json.str()}, {}, &outbl, &outs, &c);
 
   int r = c.wait();
   if (r == -ENOENT) {
@@ -177,8 +172,8 @@ bool StandbyPyModule::get_store(const std::string &key,
   } else if (r != 0) {
     // This is some internal error, not meaningful to python modules,
     // so let them just see no value.
-    derr << __func__ << " error fetching store key '" << global_key << "': "
-         << cpp_strerror(r) << " " << outs << dendl;
+    derr << __func__ << " error fetching store key '" << global_key
+         << "': " << cpp_strerror(r) << " " << outs << dendl;
     return false;
   } else {
     *value = outbl.to_str();
@@ -186,10 +181,11 @@ bool StandbyPyModule::get_store(const std::string &key,
   }
 }
 
-std::string StandbyPyModule::get_active_uri() const
+std::string
+StandbyPyModule::get_active_uri() const
 {
   std::string result;
-  state.with_mgr_map([&result, this](const MgrMap &mgr_map){
+  state.with_mgr_map([&result, this](const MgrMap& mgr_map) {
     auto iter = mgr_map.services.find(get_name());
     if (iter != mgr_map.services.end()) {
       result = iter->second;
@@ -198,4 +194,3 @@ std::string StandbyPyModule::get_active_uri() const
 
   return result;
 }
-

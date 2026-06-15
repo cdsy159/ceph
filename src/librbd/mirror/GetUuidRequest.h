@@ -4,12 +4,12 @@
 #ifndef CEPH_LIBRBD_MIRROR_GET_UUID_REQUEST_H
 #define CEPH_LIBRBD_MIRROR_GET_UUID_REQUEST_H
 
+#include <set>
+#include <string>
+
+#include "cls/rbd/cls_rbd_types.h"
 #include "include/buffer.h"
 #include "include/rados/librados.hpp"
-#include "cls/rbd/cls_rbd_types.h"
-
-#include <string>
-#include <set>
 
 struct Context;
 
@@ -22,13 +22,16 @@ namespace mirror {
 template <typename ImageCtxT = librbd::ImageCtx>
 class GetUuidRequest {
 public:
-  static GetUuidRequest *create(librados::IoCtx& io_ctx,
-                                std::string* mirror_uuid, Context* on_finish) {
+  static GetUuidRequest*
+  create(librados::IoCtx& io_ctx, std::string* mirror_uuid, Context* on_finish)
+  {
     return new GetUuidRequest(io_ctx, mirror_uuid, on_finish);
   }
 
-  GetUuidRequest(librados::IoCtx& io_ctx, std::string* mirror_uuid,
-                 Context* on_finish);
+  GetUuidRequest(
+      librados::IoCtx& io_ctx,
+      std::string* mirror_uuid,
+      Context* on_finish);
 
   void send();
 

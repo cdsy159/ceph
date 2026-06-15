@@ -15,41 +15,58 @@ template <typename T>
 class BlockCrypto : public CryptoInterface {
 
 public:
-    static BlockCrypto* create(CephContext* cct, DataCryptor<T>* data_cryptor,
-                               uint32_t block_size, uint64_t data_offset) {
-      return new BlockCrypto(cct, data_cryptor, block_size, data_offset);
-    }
-    BlockCrypto(CephContext* cct, DataCryptor<T>* data_cryptor,
-                uint64_t block_size, uint64_t data_offset);
-    ~BlockCrypto();
+  static BlockCrypto*
+  create(
+      CephContext* cct,
+      DataCryptor<T>* data_cryptor,
+      uint32_t block_size,
+      uint64_t data_offset)
+  {
+    return new BlockCrypto(cct, data_cryptor, block_size, data_offset);
+  }
 
-    int encrypt(ceph::bufferlist* data, uint64_t image_offset) override;
-    int decrypt(ceph::bufferlist* data, uint64_t image_offset) override;
+  BlockCrypto(
+      CephContext* cct,
+      DataCryptor<T>* data_cryptor,
+      uint64_t block_size,
+      uint64_t data_offset);
+  ~BlockCrypto();
 
-    uint64_t get_block_size() const override {
-      return m_block_size;
-    }
+  int encrypt(ceph::bufferlist* data, uint64_t image_offset) override;
+  int decrypt(ceph::bufferlist* data, uint64_t image_offset) override;
 
-    uint64_t get_data_offset() const override {
-      return m_data_offset;
-    }
+  uint64_t
+  get_block_size() const override
+  {
+    return m_block_size;
+  }
 
-    const unsigned char* get_key() const override {
-      return m_data_cryptor->get_key();
-    }
+  uint64_t
+  get_data_offset() const override
+  {
+    return m_data_offset;
+  }
 
-    int get_key_length() const override {
-      return m_data_cryptor->get_key_length();
-    }
+  const unsigned char*
+  get_key() const override
+  {
+    return m_data_cryptor->get_key();
+  }
+
+  int
+  get_key_length() const override
+  {
+    return m_data_cryptor->get_key_length();
+  }
 
 private:
-    CephContext* m_cct;
-    DataCryptor<T>* m_data_cryptor;
-    uint64_t m_block_size;
-    uint64_t m_data_offset;
-    uint32_t m_iv_size;
+  CephContext* m_cct;
+  DataCryptor<T>* m_data_cryptor;
+  uint64_t m_block_size;
+  uint64_t m_data_offset;
+  uint32_t m_iv_size;
 
-    int crypt(ceph::bufferlist* data, uint64_t image_offset, CipherMode mode);
+  int crypt(ceph::bufferlist* data, uint64_t image_offset, CipherMode mode);
 };
 
 } // namespace crypto

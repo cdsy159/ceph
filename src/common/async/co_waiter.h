@@ -15,12 +15,14 @@
 
 #include <exception>
 #include <optional>
-#include <boost/asio/associated_cancellation_slot.hpp>
+
 #include <boost/asio/append.hpp>
+#include <boost/asio/associated_cancellation_slot.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/execution/executor.hpp>
 #include <boost/asio/use_awaitable.hpp>
+
 #include "include/ceph_assert.h"
 
 namespace ceph::async {
@@ -30,23 +32,31 @@ template <typename Ret, boost::asio::execution::executor Executor>
 class co_waiter {
   using signature = void(std::exception_ptr, Ret);
   using token_type = boost::asio::use_awaitable_t<Executor>;
-  using handler_type = typename boost::asio::async_result<
-      token_type, signature>::handler_type;
+  using handler_type =
+      typename boost::asio::async_result<token_type, signature>::handler_type;
   std::optional<handler_type> handler;
 
   struct op_cancellation {
     co_waiter* self;
-    op_cancellation(co_waiter* self) : self(self) {}
-    void operator()(boost::asio::cancellation_type_t type) {
+
+    op_cancellation(co_waiter* self) :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type_t type)
+    {
       if (type != boost::asio::cancellation_type::none) {
         self->cancel();
       }
     }
   };
- public:
+
+public:
   co_waiter() = default;
 
-  ~co_waiter() {
+  ~co_waiter()
+  {
     // Clear the cancellation slot to prevent use-after-scope
     if (handler) {
       auto slot = boost::asio::get_associated_cancellation_slot(*handler);
@@ -61,25 +71,32 @@ class co_waiter {
   co_waiter& operator=(const co_waiter&) = delete;
 
   /// Returns true if there's a handler awaiting completion.
-  bool waiting() const { return handler.has_value(); }
+  bool
+  waiting() const
+  {
+    return handler.has_value();
+  }
 
   /// Returns an awaitable that blocks until complete() or cancel().
-  boost::asio::awaitable<Ret, Executor> get()
+  boost::asio::awaitable<Ret, Executor>
+  get()
   {
     ceph_assert(!handler);
     token_type token;
     return boost::asio::async_initiate<token_type, signature>(
-        [this] (handler_type h) {
+        [this](handler_type h) {
           auto slot = boost::asio::get_associated_cancellation_slot(h);
           if (slot.is_connected()) {
             slot.template emplace<op_cancellation>(this);
           }
           handler.emplace(std::move(h));
-        }, token);
+        },
+        token);
   }
 
   /// Schedule the completion handler with the given arguments.
-  void complete(std::exception_ptr eptr, Ret value)
+  void
+  complete(std::exception_ptr eptr, Ret value)
   {
     ceph_assert(handler);
     auto h = boost::asio::append(std::move(*handler), eptr, std::move(value));
@@ -88,18 +105,19 @@ class co_waiter {
   }
 
   /// Cancel the coroutine with an operation_aborted exception.
-  void cancel()
+  void
+  cancel()
   {
     if (handler) {
       auto eptr = std::make_exception_ptr(
-          boost::system::system_error(
-              boost::asio::error::operation_aborted));
+          boost::system::system_error(boost::asio::error::operation_aborted));
       complete(eptr, Ret{});
     }
   }
 
   /// Destroy the completion handler.
-  void shutdown()
+  void
+  shutdown()
   {
     handler.reset();
   }
@@ -110,23 +128,31 @@ template <boost::asio::execution::executor Executor>
 class co_waiter<void, Executor> {
   using signature = void(std::exception_ptr);
   using token_type = boost::asio::use_awaitable_t<Executor>;
-  using handler_type = typename boost::asio::async_result<
-      token_type, signature>::handler_type;
+  using handler_type =
+      typename boost::asio::async_result<token_type, signature>::handler_type;
   std::optional<handler_type> handler;
 
   struct op_cancellation {
     co_waiter* self;
-    op_cancellation(co_waiter* self) : self(self) {}
-    void operator()(boost::asio::cancellation_type_t type) {
+
+    op_cancellation(co_waiter* self) :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type_t type)
+    {
       if (type != boost::asio::cancellation_type::none) {
         self->cancel();
       }
     }
   };
- public:
+
+public:
   co_waiter() = default;
 
-  ~co_waiter() {
+  ~co_waiter()
+  {
     // Clear the cancellation slot to prevent use-after-scope
     if (handler) {
       auto slot = boost::asio::get_associated_cancellation_slot(*handler);
@@ -141,25 +167,32 @@ class co_waiter<void, Executor> {
   co_waiter& operator=(const co_waiter&) = delete;
 
   /// Returns true if there's a handler awaiting completion.
-  bool waiting() const { return handler.has_value(); }
+  bool
+  waiting() const
+  {
+    return handler.has_value();
+  }
 
   /// Returns an awaitable that blocks until complete() or cancel().
-  boost::asio::awaitable<void, Executor> get()
+  boost::asio::awaitable<void, Executor>
+  get()
   {
     ceph_assert(!handler);
     token_type token;
     return boost::asio::async_initiate<token_type, signature>(
-        [this] (handler_type h) {
+        [this](handler_type h) {
           auto slot = boost::asio::get_associated_cancellation_slot(h);
           if (slot.is_connected()) {
             slot.template emplace<op_cancellation>(this);
           }
           handler.emplace(std::move(h));
-        }, token);
+        },
+        token);
   }
 
   /// Schedule the completion handler with the given arguments.
-  void complete(std::exception_ptr eptr)
+  void
+  complete(std::exception_ptr eptr)
   {
     ceph_assert(handler);
     auto h = boost::asio::append(std::move(*handler), eptr);
@@ -168,18 +201,19 @@ class co_waiter<void, Executor> {
   }
 
   /// Cancel the coroutine with an operation_aborted exception.
-  void cancel()
+  void
+  cancel()
   {
     if (handler) {
       auto eptr = std::make_exception_ptr(
-          boost::system::system_error(
-              boost::asio::error::operation_aborted));
+          boost::system::system_error(boost::asio::error::operation_aborted));
       complete(eptr);
     }
   }
 
   /// Destroy the completion handler.
-  void shutdown()
+  void
+  shutdown()
   {
     handler.reset();
   }

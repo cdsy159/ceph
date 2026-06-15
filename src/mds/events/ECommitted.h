@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,27 +17,37 @@
 #define CEPH_MDS_ECOMMITTED_H
 
 #include "../LogEvent.h"
+
 #include "EMetaBlob.h"
 
 class ECommitted : public LogEvent {
 public:
   metareqid_t reqid;
 
-  ECommitted() : LogEvent(EVENT_COMMITTED) { }
-  explicit ECommitted(metareqid_t r) :
-    LogEvent(EVENT_COMMITTED), reqid(r) { }
+  ECommitted() :
+    LogEvent(EVENT_COMMITTED)
+  {}
 
-  void print(std::ostream& out) const override {
+  explicit ECommitted(metareqid_t r) :
+    LogEvent(EVENT_COMMITTED), reqid(r)
+  {}
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "ECommitted " << reqid;
   }
 
-  void encode(bufferlist &bl, uint64_t features) const override;
-  void decode(bufferlist::const_iterator &bl) override;
-  void dump(Formatter *f) const override;
+  void encode(bufferlist& bl, uint64_t features) const override;
+  void decode(bufferlist::const_iterator& bl) override;
+  void dump(Formatter* f) const override;
   static std::list<ECommitted> generate_test_instances();
 
-  void update_segment() override {}
-  void replay(MDSRank *mds) override;
+  void
+  update_segment() override
+  {}
+
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(ECommitted)
 

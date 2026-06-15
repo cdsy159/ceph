@@ -16,8 +16,8 @@
 #ifndef CEPH_MNVMEOFGWMAP_H
 #define CEPH_MNVMEOFGWMAP_H
 
-#include "msg/Message.h"
 #include "mon/NVMeofGwMap.h"
+#include "msg/Message.h"
 
 class MNVMeofGwMap final : public Message {
 private:
@@ -25,46 +25,69 @@ private:
 
 protected:
   std::map<NvmeGroupKey, NvmeGwMonClientStates> map;
-  epoch_t                           gwmap_epoch;
+  epoch_t gwmap_epoch;
 
 public:
-  const std::map<NvmeGroupKey, NvmeGwMonClientStates>& get_map() {return map;}
-  const epoch_t& get_gwmap_epoch() {return gwmap_epoch;}
+  const std::map<NvmeGroupKey, NvmeGwMonClientStates>&
+  get_map()
+  {
+    return map;
+  }
+
+  const epoch_t&
+  get_gwmap_epoch()
+  {
+    return gwmap_epoch;
+  }
 
 private:
   MNVMeofGwMap() :
-    Message{MSG_MNVMEOF_GW_MAP} {}
-  MNVMeofGwMap(const NVMeofGwMap &map_) :
+    Message{MSG_MNVMEOF_GW_MAP}
+  {}
+
+  MNVMeofGwMap(const NVMeofGwMap& map_) :
     Message{MSG_MNVMEOF_GW_MAP}, gwmap_epoch(map_.epoch)
   {
     map_.to_gmap(map);
   }
+
   ~MNVMeofGwMap() final {}
 
 public:
-  std::string_view get_type_name() const override { return "nvmeofgwmap"; }
+  std::string_view
+  get_type_name() const override
+  {
+    return "nvmeofgwmap";
+  }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     int version;
     decode(version, p);
     if (version > VERSION)
-      throw ::ceph::buffer::malformed_input(DECODE_ERR_OLDVERSION(__PRETTY_FUNCTION__, VERSION, version));
+      throw ::ceph::buffer::malformed_input(
+          DECODE_ERR_OLDVERSION(__PRETTY_FUNCTION__, VERSION, version));
     decode(gwmap_epoch, p);
     decode(map, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(VERSION, payload);
     encode(gwmap_epoch, payload);
     encode(map, payload, features);
   }
+
 private:
-  using RefCountedObject::put;
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

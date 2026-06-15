@@ -8,8 +8,8 @@
 #include "node_layout.h"
 
 // value implementations
-#include "test/crimson/seastore/onode_tree/test_value.h"
 #include "crimson/os/seastore/onode_manager/staged-fltree/fltree_onode_manager.h"
+#include "test/crimson/seastore/onode_tree/test_value.h"
 
 namespace crimson::os::seastore::onode {
 
@@ -24,52 +24,61 @@ ValueDeltaRecorder::get_encoded(NodeExtentMutable& payload_mut)
   return encoded;
 }
 
-Value::Value(NodeExtentManager& nm,
-             const ValueBuilder& vb,
-             Ref<tree_cursor_t>& p_cursor)
-  : nm{nm}, vb{vb}, p_cursor{p_cursor} {}
+Value::Value(
+    NodeExtentManager& nm,
+    const ValueBuilder& vb,
+    Ref<tree_cursor_t>& p_cursor) :
+  nm{nm}, vb{vb}, p_cursor{p_cursor}
+{}
 
 Value::~Value() {}
 
-bool Value::is_tracked() const
+bool
+Value::is_tracked() const
 {
   assert(!p_cursor->is_end());
   return p_cursor->is_tracked();
 }
 
-void Value::invalidate()
+void
+Value::invalidate()
 {
   p_cursor.reset();
 }
 
-eagain_ifuture<> Value::extend(Transaction& t, value_size_t extend_size)
+eagain_ifuture<>
+Value::extend(Transaction& t, value_size_t extend_size)
 {
   assert(is_tracked());
   [[maybe_unused]] auto target_size = get_payload_size() + extend_size;
-  return p_cursor->extend_value(get_context(t), extend_size)
+  return p_cursor
+      ->extend_value(get_context(t), extend_size)
 #ifndef NDEBUG
-  .si_then([this, target_size] {
-    assert(target_size == get_payload_size());
-  })
+      .si_then([this, target_size] {
+        assert(target_size == get_payload_size());
+      })
 #endif
-  ;
+      ;
 }
 
-eagain_ifuture<> Value::trim(Transaction& t, value_size_t trim_size)
+eagain_ifuture<>
+Value::trim(Transaction& t, value_size_t trim_size)
 {
   assert(is_tracked());
   assert(get_payload_size() > trim_size);
   [[maybe_unused]] auto target_size = get_payload_size() - trim_size;
-  return p_cursor->trim_value(get_context(t), trim_size)
+  return p_cursor
+      ->trim_value(get_context(t), trim_size)
 #ifndef NDEBUG
-  .si_then([this, target_size] {
-    assert(target_size == get_payload_size());
-  })
+      .si_then([this, target_size] {
+        assert(target_size == get_payload_size());
+      })
 #endif
-  ;
+      ;
 }
 
-const value_header_t* Value::read_value_header() const
+const value_header_t*
+Value::read_value_header() const
 {
   auto ret = p_cursor->read_value_header(vb.get_header_magic());
   assert(ret->payload_size <= vb.get_max_value_payload_size());
@@ -79,17 +88,19 @@ const value_header_t* Value::read_value_header() const
 std::pair<NodeExtentMutable&, ValueDeltaRecorder*>
 Value::do_prepare_mutate_payload(Transaction& t)
 {
-   return p_cursor->prepare_mutate_value_payload(get_context(t));
+  return p_cursor->prepare_mutate_value_payload(get_context(t));
 }
 
-laddr_t Value::get_hint() const
+laddr_t
+Value::get_hint() const
 {
   return p_cursor->get_key_view(vb.get_header_magic()).get_hint();
 }
 
 std::unique_ptr<ValueDeltaRecorder>
-build_value_recorder_by_type(ceph::bufferlist& encoded,
-                             const value_magic_t& magic)
+build_value_recorder_by_type(
+    ceph::bufferlist& encoded,
+    const value_magic_t& magic)
 {
   std::unique_ptr<ValueDeltaRecorder> ret;
   switch (magic) {
@@ -113,12 +124,11 @@ build_value_recorder_by_type(ceph::bufferlist& encoded,
   return ret;
 }
 
-void validate_tree_config(const tree_conf_t& conf)
+void
+validate_tree_config(const tree_conf_t& conf)
 {
-  ceph_assert(conf.max_ns_size <
-              string_key_view_t::VALID_UPPER_BOUND);
-  ceph_assert(conf.max_oid_size <
-              string_key_view_t::VALID_UPPER_BOUND);
+  ceph_assert(conf.max_ns_size < string_key_view_t::VALID_UPPER_BOUND);
+  ceph_assert(conf.max_oid_size < string_key_view_t::VALID_UPPER_BOUND);
   ceph_assert(is_valid_node_size(conf.internal_node_size));
   ceph_assert(is_valid_node_size(conf.leaf_node_size));
 
@@ -136,24 +146,21 @@ void validate_tree_config(const tree_conf_t& conf)
     key_hobj_t key(obj);
     auto max_str_size = conf.max_ns_size + conf.max_oid_size;
 #define _STAGE_T(NodeType) node_to_stage_t<typename NodeType::node_stage_t>
-#define NXT_T(StageType)  staged<typename StageType::next_param_t>
+#define NXT_T(StageType) staged<typename StageType::next_param_t>
 
     laddr_t i_value = L_ADDR_MIN;
-    auto insert_size_2 =
-      _STAGE_T(InternalNode0)::insert_size(key, i_value);
+    auto insert_size_2 = _STAGE_T(InternalNode0)::insert_size(key, i_value);
     auto insert_size_0 =
-      NXT_T(NXT_T(_STAGE_T(InternalNode0)))::insert_size(key, i_value);
-    unsigned internal_size_bound = sizeof(node_header_t) +
-                                   (insert_size_2 + max_str_size) * 2 +
-                                   (insert_size_2 - insert_size_0 + max_str_size);
+        NXT_T(NXT_T(_STAGE_T(InternalNode0)))::insert_size(key, i_value);
+    unsigned internal_size_bound =
+        sizeof(node_header_t) + (insert_size_2 + max_str_size) * 2 +
+        (insert_size_2 - insert_size_0 + max_str_size);
     ceph_assert(internal_size_bound <= conf.internal_node_size);
 
     value_config_t l_value;
     l_value.payload_size = conf.max_value_payload_size;
-    insert_size_2 =
-      _STAGE_T(LeafNode0)::insert_size(key, l_value);
-    insert_size_0 =
-      NXT_T(NXT_T(_STAGE_T(LeafNode0)))::insert_size(key, l_value);
+    insert_size_2 = _STAGE_T(LeafNode0)::insert_size(key, l_value);
+    insert_size_0 = NXT_T(NXT_T(_STAGE_T(LeafNode0)))::insert_size(key, l_value);
     unsigned leaf_size_bound = sizeof(node_header_t) +
                                (insert_size_2 + max_str_size) * 2 +
                                (insert_size_2 - insert_size_0 + max_str_size);
@@ -161,4 +168,4 @@ void validate_tree_config(const tree_conf_t& conf)
   }
 }
 
-}
+} // namespace crimson::os::seastore::onode

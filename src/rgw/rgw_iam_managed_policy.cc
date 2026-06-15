@@ -14,6 +14,7 @@
  */
 
 #include "rgw_iam_managed_policy.h"
+
 #include "rgw_iam_policy.h"
 
 namespace rgw::IAM {
@@ -153,7 +154,8 @@ static constexpr std::string_view AmazonS3ReadOnlyAccess = R"(
   ]
 })";
 
-auto get_managed_policy(CephContext* cct, std::string_view arn)
+auto
+get_managed_policy(CephContext* cct, std::string_view arn)
     -> std::optional<Policy>
 {
   const std::string* tenant = nullptr;
@@ -174,14 +176,16 @@ auto get_managed_policy(CephContext* cct, std::string_view arn)
   return {};
 }
 
-void encode(const ManagedPolicies& m, bufferlist& bl, uint64_t f)
+void
+encode(const ManagedPolicies& m, bufferlist& bl, uint64_t f)
 {
   ENCODE_START(1, 1, bl);
   encode(m.arns, bl);
   ENCODE_FINISH(bl);
 }
 
-void decode(ManagedPolicies& m, bufferlist::const_iterator& bl)
+void
+decode(ManagedPolicies& m, bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(m.arns, bl);

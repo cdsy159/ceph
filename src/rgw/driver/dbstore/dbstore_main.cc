@@ -1,31 +1,32 @@
-#include <stdio.h>
-#include <sqlite3.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-
-#include "dbstore_mgr.h"
 #include <dbstore.h>
 #include <dbstore_log.h>
+#include <pthread.h>
+#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "dbstore_mgr.h"
 
 using namespace std;
 using namespace rgw::store;
 using DB = rgw::store::DB;
 
 struct thr_args {
-  DB *dbs;
+  DB* dbs;
   int thr_id;
 };
 
-void* process(void *arg)
+void*
+process(void* arg)
 {
-  struct thr_args *t_args = (struct thr_args*)arg;
+  struct thr_args* t_args = (struct thr_args*)arg;
 
-  DB *db = t_args->dbs;
+  DB* db = t_args->dbs;
   int thr_id = t_args->thr_id;
   int ret = -1;
 
-  cout<<"Entered thread:"<<thr_id<<"\n";
+  cout << "Entered thread:" << thr_id << "\n";
 
   string user1 = "User1";
   string bucketa = "rgw";
@@ -41,7 +42,7 @@ void* process(void *arg)
   string objectc2 = "cns";
 
   DBOpParams params = {};
-  const DoutPrefixProvider *dpp = db->get_def_dpp();
+  const DoutPrefixProvider* dpp = db->get_def_dpp();
 
   db->InitializeParams(dpp, &params);
 
@@ -59,7 +60,7 @@ void* process(void *arg)
   params.op.user.uinfo.access_keys.insert(make_pair("key2", k2));
 
   ret = db->ProcessOp(dpp, "InsertUser", &params);
-  cout << "InsertUser return value: " <<  ret << "\n";
+  cout << "InsertUser return value: " << ret << "\n";
 
   DBOpParams params2 = {};
   params.op.user.uinfo.user_id.tenant = "tenant2";
@@ -68,7 +69,7 @@ void* process(void *arg)
   params2.op.user.uinfo.display_name = user1;
   ret = db->ProcessOp(dpp, "GetUser", &params2);
 
-  cout << "GetUser return value: " <<  ret << "\n";
+  cout << "GetUser return value: " << ret << "\n";
 
   cout << "tenant: " << params2.op.user.uinfo.user_id.tenant << "\n";
   cout << "suspended: " << (int)params2.op.user.uinfo.suspended << "\n";
@@ -80,7 +81,8 @@ void* process(void *arg)
     it++;
   }
 
-  map<string, RGWAccessKey>::iterator it2 = params2.op.user.uinfo.access_keys.begin();
+  map<string, RGWAccessKey>::iterator it2 =
+      params2.op.user.uinfo.access_keys.begin();
 
   while (it2 != params2.op.user.uinfo.access_keys.end()) {
     cout << "keys = " << it2->first << "\n";
@@ -114,7 +116,7 @@ void* process(void *arg)
 
   db->ListAllUsers(dpp, &params);
   db->ListAllBuckets(dpp, &params);
-  cout<<"Exiting thread:"<<thr_id<<"\n";
+  cout << "Exiting thread:" << thr_id << "\n";
 
   return 0;
 }
@@ -122,16 +124,17 @@ void* process(void *arg)
 // This has an uncaught exception. Even if the exception is caught, the program
 // would need to be terminated, so the warning is simply suppressed.
 // coverity[root_function:SUPPRESS]
-int main(int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
   string tenant = "Redhat";
   string logfile = "rgw_dbstore_bin.log";
   int loglevel = 20;
 
-  DBStoreManager *dbsm;
-  DB *dbs;
+  DBStoreManager* dbsm;
+  DB* dbs;
   int rc = 0, tnum = 0;
-  void *res;
+  void* res;
 
   pthread_attr_t attr;
   int num_thr = 2;
@@ -142,38 +145,39 @@ int main(int argc, char *argv[])
   cout << "loglevel  " << loglevel << "\n";
   // format: ./dbstore-bin logfile loglevel
   if (argc == 3) {
-	logfile = argv[1];
-	loglevel = (atoi)(argv[2]);
-	cout << "loglevel set to " << loglevel << "\n";
+    logfile = argv[1];
+    loglevel = (atoi)(argv[2]);
+    cout << "loglevel set to " << loglevel << "\n";
   }
 
   vector<const char*> args;
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-                CODE_ENVIRONMENT_DAEMON, CINIT_FLAG_NO_MON_CONFIG, 1);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_NO_MON_CONFIG, 1);
   dbsm = new DBStoreManager(cct.get(), logfile, loglevel);
   dbs = dbsm->getDB(tenant, true);
 
-  cout<<"No. of threads being created = "<<num_thr<<"\n";
+  cout << "No. of threads being created = " << num_thr << "\n";
 
   /* Initialize thread creation attributes */
   rc = pthread_attr_init(&attr);
 
   if (rc != 0) {
-    cout<<" error in pthread_attr_init \n";
+    cout << " error in pthread_attr_init \n";
     goto out;
   }
 
   for (tnum = 0; tnum < num_thr; tnum++) {
     t_args[tnum].dbs = dbs;
     t_args[tnum].thr_id = tnum;
-    rc = pthread_create((pthread_t*)&threads[tnum], &attr, &process,
-        &t_args[tnum]);
+    rc = pthread_create(
+        (pthread_t*)&threads[tnum], &attr, &process, &t_args[tnum]);
     if (rc != 0) {
-      cout<<" error in pthread_create \n";
+      cout << " error in pthread_create \n";
       goto out;
     }
 
-    cout<<"Created thread (thread-id:"<<tnum<<")\n";
+    cout << "Created thread (thread-id:" << tnum << ")\n";
   }
 
   /* Destroy the thread attributes object, since it is no
@@ -181,7 +185,7 @@ int main(int argc, char *argv[])
 
   rc = pthread_attr_destroy(&attr);
   if (rc != 0) {
-    cout<<"error in pthread_attr_destroy \n";
+    cout << "error in pthread_attr_destroy \n";
   }
 
   /* Now join with each thread, and display its returned value */
@@ -189,9 +193,9 @@ int main(int argc, char *argv[])
   for (tnum = 0; tnum < num_thr; tnum++) {
     rc = pthread_join(threads[tnum], &res);
     if (rc != 0) {
-      cout<<"error in pthread_join \n";
+      cout << "error in pthread_join \n";
     } else {
-      cout<<"Joined with thread "<<tnum<<"\n";
+      cout << "Joined with thread " << tnum << "\n";
     }
   }
 

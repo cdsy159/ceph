@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,8 +15,8 @@
 
 #include <filesystem>
 
-#include "gtest/gtest.h"
 #include "common/ceph_context.h"
+#include "gtest/gtest.h"
 #include "include/util.h"
 
 using namespace std;
@@ -32,7 +32,8 @@ TEST(util, collect_sys_info)
 
   map<string, string> sys_info;
 
-  boost::intrusive_ptr<CephContext> cct{new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
+  boost::intrusive_ptr<CephContext> cct{
+      new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
 
   collect_sys_info(&sys_info, cct.get());
 

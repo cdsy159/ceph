@@ -12,28 +12,32 @@ class OpsLogSink;
 class RGWREST;
 
 namespace rgw {
-  class SiteConfig;
+class SiteConfig;
 }
+
 namespace rgw::auth {
-  class StrategyRegistry;
+class StrategyRegistry;
 }
+
 namespace rgw::lua {
-  class Background;
+class Background;
 }
+
 namespace rgw::dedup {
-  class Background;
+class Background;
 }
+
 namespace rgw::sal {
-  class ConfigStore;
-  class Driver;
-  class LuaManager;
-}
+class ConfigStore;
+class Driver;
+class LuaManager;
+} // namespace rgw::sal
 
 #ifdef WITH_ARROW_FLIGHT
 namespace rgw::flight {
-  class FlightServer;
-  class FlightStore;
-}
+class FlightServer;
+class FlightStore;
+} // namespace rgw::flight
 #endif
 
 struct RGWLuaProcessEnv {
@@ -46,7 +50,7 @@ struct RGWProcessEnv {
   rgw::sal::ConfigStore* cfgstore = nullptr;
   rgw::sal::Driver* driver = nullptr;
   rgw::SiteConfig* site = nullptr;
-  RGWREST *rest = nullptr;
+  RGWREST* rest = nullptr;
   std::unique_ptr<OpsLogSink> olog;
   std::unique_ptr<rgw::auth::StrategyRegistry> auth_registry;
   ActiveRateLimiter* ratelimiting = nullptr;
@@ -57,4 +61,3 @@ struct RGWProcessEnv {
   rgw::flight::FlightStore* flight_store = nullptr;
 #endif
 };
-

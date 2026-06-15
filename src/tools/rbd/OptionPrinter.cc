@@ -2,8 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd/OptionPrinter.h"
-#include "tools/rbd/IndentStream.h"
+
 #include "include/ceph_assert.h"
+#include "tools/rbd/IndentStream.h"
 
 namespace rbd {
 
@@ -14,12 +15,15 @@ const std::string OptionPrinter::OPTIONAL_ARGUMENTS("Optional arguments");
 
 const size_t OptionPrinter::MAX_DESCRIPTION_OFFSET;
 
-OptionPrinter::OptionPrinter(const OptionsDescription &positional,
-                             const OptionsDescription &optional)
-  : m_positional(positional), m_optional(optional) {
-}
+OptionPrinter::OptionPrinter(
+    const OptionsDescription& positional,
+    const OptionsDescription& optional) :
+  m_positional(positional), m_optional(optional)
+{}
 
-void OptionPrinter::print_short(std::ostream &os, size_t initial_offset) {
+void
+OptionPrinter::print_short(std::ostream& os, size_t initial_offset)
+{
   size_t max_option_width = 0;
   std::vector<std::string> optionals;
   for (size_t i = 0; i < m_optional.options().size(); ++i) {
@@ -94,8 +98,12 @@ void OptionPrinter::print_short(std::ostream &os, size_t initial_offset) {
   }
 }
 
-void OptionPrinter::print_optional(const OptionsDescription &global_opts,
-                                   size_t &name_width, std::ostream &os) {
+void
+OptionPrinter::print_optional(
+    const OptionsDescription& global_opts,
+    size_t& name_width,
+    std::ostream& os)
+{
   std::string indent2(2, ' ');
 
   for (size_t i = 0; i < global_opts.options().size(); ++i) {
@@ -105,18 +113,19 @@ void OptionPrinter::print_optional(const OptionsDescription &global_opts,
       continue;
     }
     std::stringstream ss;
-    ss << indent2
-       << global_opts.options()[i]->format_name() << " "
+    ss << indent2 << global_opts.options()[i]->format_name() << " "
        << global_opts.options()[i]->format_parameter();
 
     std::cout << ss.str();
-    IndentStream indent_stream(name_width, ss.str().size(), LINE_WIDTH, std::cout);
+    IndentStream indent_stream(
+        name_width, ss.str().size(), LINE_WIDTH, std::cout);
     indent_stream << global_opts.options()[i]->description() << std::endl;
   }
-
 }
 
-void OptionPrinter::print_detailed(std::ostream &os) {
+void
+OptionPrinter::print_detailed(std::ostream& os)
+{
   std::string indent_prefix(2, ' ');
   size_t name_width = compute_name_width(indent_prefix.size());
 
@@ -141,15 +150,17 @@ void OptionPrinter::print_detailed(std::ostream &os) {
   }
 }
 
-size_t OptionPrinter::compute_name_width(size_t indent) {
+size_t
+OptionPrinter::compute_name_width(size_t indent)
+{
   size_t width = MIN_NAME_WIDTH;
   std::vector<OptionsDescription> descs = {m_positional, m_optional};
   for (size_t desc_idx = 0; desc_idx < descs.size(); ++desc_idx) {
-    const OptionsDescription &desc = descs[desc_idx];
+    const OptionsDescription& desc = descs[desc_idx];
     for (size_t opt_idx = 0; opt_idx < desc.options().size(); ++opt_idx) {
       size_t name_width = desc.options()[opt_idx]->format_name().size() +
-                          desc.options()[opt_idx]->format_parameter().size()
-                          + 1;
+                          desc.options()[opt_idx]->format_parameter().size() +
+                          1;
       width = std::max(width, name_width);
     }
   }

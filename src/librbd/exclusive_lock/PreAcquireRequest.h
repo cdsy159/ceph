@@ -4,11 +4,12 @@
 #ifndef CEPH_LIBRBD_EXCLUSIVE_LOCK_PRE_ACQUIRE_REQUEST_H
 #define CEPH_LIBRBD_EXCLUSIVE_LOCK_PRE_ACQUIRE_REQUEST_H
 
-#include "include/int_types.h"
+#include <string>
+
 #include "include/buffer.h"
+#include "include/int_types.h"
 #include "librbd/ImageCtx.h"
 #include "msg/msg_types.h"
-#include <string>
 
 class Context;
 
@@ -19,13 +20,12 @@ namespace exclusive_lock {
 template <typename ImageCtxT = ImageCtx>
 class PreAcquireRequest {
 public:
-  static PreAcquireRequest* create(ImageCtxT &image_ctx, Context *on_finish);
+  static PreAcquireRequest* create(ImageCtxT& image_ctx, Context* on_finish);
 
   ~PreAcquireRequest();
   void send();
 
 private:
-
   /**
    * @verbatim
    *
@@ -45,10 +45,10 @@ private:
    * @endverbatim
    */
 
-  PreAcquireRequest(ImageCtxT &image_ctx, Context *on_finish);
+  PreAcquireRequest(ImageCtxT& image_ctx, Context* on_finish);
 
-  ImageCtxT &m_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT& m_image_ctx;
+  Context* m_on_finish;
 
   int m_error_result;
 
@@ -60,7 +60,9 @@ private:
 
   void finish();
 
-  void save_result(int result) {
+  void
+  save_result(int result)
+  {
     if (m_error_result == 0 && result < 0) {
       m_error_result = result;
     }

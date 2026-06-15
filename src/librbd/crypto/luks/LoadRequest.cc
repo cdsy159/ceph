@@ -6,8 +6,8 @@
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/Utils.h"
-#include "librbd/crypto/Utils.h"
 #include "librbd/crypto/LoadRequest.h"
+#include "librbd/crypto/Utils.h"
 #include "librbd/crypto/luks/Magic.h"
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/ImageDispatchSpec.h"
@@ -15,8 +15,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::crypto::luks::LoadRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                          \
+  *_dout << "librbd::crypto::luks::LoadRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace crypto {
@@ -26,52 +27,63 @@ using librbd::util::create_context_callback;
 
 template <typename I>
 LoadRequest<I>::LoadRequest(
-        I* image_ctx, encryption_format_t format, std::string_view passphrase,
-        std::unique_ptr<CryptoInterface>* result_crypto,
-        std::string* detected_format_name,
-        Context* on_finish) : m_image_ctx(image_ctx),
-                              m_format(format),
-                              m_passphrase(passphrase),
-                              m_on_finish(on_finish),
-                              m_result_crypto(result_crypto),
-                              m_detected_format_name(detected_format_name),
-                              m_initial_read_size(DEFAULT_INITIAL_READ_SIZE),
-                              m_header(image_ctx->cct), m_offset(0) {
-}
+    I* image_ctx,
+    encryption_format_t format,
+    std::string_view passphrase,
+    std::unique_ptr<CryptoInterface>* result_crypto,
+    std::string* detected_format_name,
+    Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_format(format),
+  m_passphrase(passphrase),
+  m_on_finish(on_finish),
+  m_result_crypto(result_crypto),
+  m_detected_format_name(detected_format_name),
+  m_initial_read_size(DEFAULT_INITIAL_READ_SIZE),
+  m_header(image_ctx->cct),
+  m_offset(0)
+{}
 
 template <typename I>
-void LoadRequest<I>::set_initial_read_size(uint64_t read_size) {
+void
+LoadRequest<I>::set_initial_read_size(uint64_t read_size)
+{
   m_initial_read_size = read_size;
 }
 
 template <typename I>
-void LoadRequest<I>::send() {
+void
+LoadRequest<I>::send()
+{
   auto ctx = create_context_callback<
-          LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
+      LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
   read(m_initial_read_size, ctx);
 }
 
 template <typename I>
-void LoadRequest<I>::read(uint64_t end_offset, Context* on_finish) {
+void
+LoadRequest<I>::read(uint64_t end_offset, Context* on_finish)
+{
   auto length = end_offset - m_offset;
   auto aio_comp = io::AioCompletion::create_and_start(
-          on_finish, librbd::util::get_image_ctx(m_image_ctx),
-          io::AIO_TYPE_READ);
+      on_finish, librbd::util::get_image_ctx(m_image_ctx), io::AIO_TYPE_READ);
   ZTracer::Trace trace;
   auto req = io::ImageDispatchSpec::create_read(
-          *m_image_ctx, io::IMAGE_DISPATCH_LAYER_API_START, aio_comp,
-          {{m_offset, length}}, io::ImageArea::DATA, io::ReadResult{&m_bl},
-          m_image_ctx->get_data_io_context(), 0, 0, trace);
+      *m_image_ctx, io::IMAGE_DISPATCH_LAYER_API_START, aio_comp,
+      {{m_offset, length}}, io::ImageArea::DATA, io::ReadResult{&m_bl},
+      m_image_ctx->get_data_io_context(), 0, 0, trace);
   req->send();
 }
 
 template <typename I>
-bool LoadRequest<I>::handle_read(int r) {
+bool
+LoadRequest<I>::handle_read(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(m_image_ctx->cct) << "error reading from image: " << cpp_strerror(r)
-                            << dendl;
+    lderr(m_image_ctx->cct)
+        << "error reading from image: " << cpp_strerror(r) << dendl;
     finish(r);
     return false;
   }
@@ -99,19 +111,19 @@ bool LoadRequest<I>::handle_read(int r) {
         if (r == -EINVAL && m_bl.length() < max_header_size) {
           m_bl.clear();
           auto ctx = create_context_callback<
-                LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
+              LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
           read(max_header_size, ctx);
           return false;
         }
 
-        lderr(m_image_ctx->cct) << "error replacing rbd clone magic: "
-                                << cpp_strerror(r) << dendl;
+        lderr(m_image_ctx->cct)
+            << "error replacing rbd clone magic: " << cpp_strerror(r) << dendl;
         finish(r);
         return false;
       }
     }
   }
-  
+
   // setup interface with libcryptsetup
   r = m_header.init();
   if (r < 0) {
@@ -134,7 +146,9 @@ bool LoadRequest<I>::handle_read(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::handle_read_header(int r) {
+void
+LoadRequest<I>::handle_read_header(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (!handle_read(r)) {
@@ -153,8 +167,7 @@ void LoadRequest<I>::handle_read_header(int r) {
     type = CRYPT_LUKS2;
     break;
   default:
-    lderr(m_image_ctx->cct) << "unsupported format type: " << m_format
-                            << dendl;
+    lderr(m_image_ctx->cct) << "unsupported format type: " << m_format << dendl;
     finish(-EINVAL);
     return;
   }
@@ -165,7 +178,7 @@ void LoadRequest<I>::handle_read_header(int r) {
     if (m_offset < MAXIMUM_HEADER_SIZE) {
       // perhaps we did not feed the entire header to libcryptsetup, retry
       auto ctx = create_context_callback<
-              LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
+          LoadRequest<I>, &LoadRequest<I>::handle_read_header>(this);
       read(MAXIMUM_HEADER_SIZE, ctx);
       return;
     }
@@ -187,8 +200,8 @@ void LoadRequest<I>::handle_read_header(int r) {
 
   auto cipher_mode = m_header.get_cipher_mode();
   if (strcmp(cipher_mode, "xts-plain64") != 0) {
-    lderr(m_image_ctx->cct) << "unsupported cipher mode: " << cipher_mode
-                            << dendl;
+    lderr(m_image_ctx->cct)
+        << "unsupported cipher mode: " << cipher_mode << dendl;
     finish(-ENOTSUP);
     return;
   }
@@ -217,7 +230,9 @@ void LoadRequest<I>::handle_read_header(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::handle_read_keyslots(int r) {
+void
+LoadRequest<I>::handle_read_keyslots(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
 
   if (!handle_read(r)) {
@@ -228,19 +243,21 @@ void LoadRequest<I>::handle_read_keyslots(int r) {
 }
 
 template <typename I>
-void LoadRequest<I>::read_volume_key() {
+void
+LoadRequest<I>::read_volume_key()
+{
   char volume_key[64];
   size_t volume_key_size = sizeof(volume_key);
 
   auto r = m_header.read_volume_key(
-          m_passphrase.data(), m_passphrase.size(),
-          reinterpret_cast<char*>(volume_key), &volume_key_size);
+      m_passphrase.data(), m_passphrase.size(),
+      reinterpret_cast<char*>(volume_key), &volume_key_size);
   if (r != 0) {
     auto keyslots_end_offset = m_header.get_data_offset();
     if (m_offset < keyslots_end_offset) {
       // perhaps we did not feed the necessary keyslot, retry
       auto ctx = create_context_callback<
-              LoadRequest<I>, &LoadRequest<I>::handle_read_keyslots>(this);
+          LoadRequest<I>, &LoadRequest<I>::handle_read_keyslots>(this);
       read(keyslots_end_offset, ctx);
       return;
     }
@@ -250,17 +267,19 @@ void LoadRequest<I>::read_volume_key() {
   }
 
   r = util::build_crypto(
-          m_image_ctx->cct, reinterpret_cast<unsigned char*>(volume_key),
-          volume_key_size, m_header.get_sector_size(),
-          m_header.get_data_offset(), m_result_crypto);
+      m_image_ctx->cct, reinterpret_cast<unsigned char*>(volume_key),
+      volume_key_size, m_header.get_sector_size(), m_header.get_data_offset(),
+      m_result_crypto);
   ceph_memzero_s(volume_key, 64, 64);
   finish(r);
 }
 
 template <typename I>
-void LoadRequest<I>::finish(int r) {
+void
+LoadRequest<I>::finish(int r)
+{
   ldout(m_image_ctx->cct, 20) << "r=" << r << dendl;
-  
+
   m_on_finish->complete(r);
   delete this;
 }

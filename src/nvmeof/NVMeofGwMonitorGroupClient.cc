@@ -14,7 +14,9 @@
 
 #include "NVMeofGwMonitorGroupClient.h"
 
-bool NVMeofGwMonitorGroupClient::set_group_id(const uint32_t& id) {
+bool
+NVMeofGwMonitorGroupClient::set_group_id(const uint32_t& id)
+{
   group_id_req request;
   request.set_id(id);
   google::protobuf::Empty reply;

@@ -14,22 +14,27 @@ class ProgressContext;
 namespace operation {
 
 template <typename ImageCtxT = ImageCtx>
-class FlattenRequest : public Request<ImageCtxT>
-{
+class FlattenRequest : public Request<ImageCtxT> {
 public:
-  FlattenRequest(ImageCtxT &image_ctx, Context *on_finish,
-                 uint64_t start_object_no, uint64_t overlap_objects,
-                 ProgressContext& prog_ctx)
-      : Request<ImageCtxT>(image_ctx, on_finish),
-        m_start_object_no(start_object_no),
-        m_overlap_objects(overlap_objects),
-        m_prog_ctx(prog_ctx) {}
+  FlattenRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      uint64_t start_object_no,
+      uint64_t overlap_objects,
+      ProgressContext& prog_ctx) :
+    Request<ImageCtxT>(image_ctx, on_finish),
+    m_start_object_no(start_object_no),
+    m_overlap_objects(overlap_objects),
+    m_prog_ctx(prog_ctx)
+  {}
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::FlattenEvent(op_tid);
   }
 
@@ -59,7 +64,7 @@ private:
 
   uint64_t m_start_object_no;
   uint64_t m_overlap_objects;
-  ProgressContext &m_prog_ctx;
+  ProgressContext& m_prog_ctx;
 
   void flatten_objects();
   void handle_flatten_objects(int r);
@@ -73,7 +78,6 @@ private:
 
   void detach_parent();
   void handle_detach_parent(int r);
-
 };
 
 } // namespace operation

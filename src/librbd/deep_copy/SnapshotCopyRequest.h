@@ -4,47 +4,58 @@
 #ifndef CEPH_LIBRBD_DEEP_COPY_SNAPSHOT_COPY_REQUEST_H
 #define CEPH_LIBRBD_DEEP_COPY_SNAPSHOT_COPY_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/rados/librados.hpp"
-#include "common/RefCountedObj.h"
-#include "common/snap_types.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/Types.h"
 #include <map>
 #include <set>
 #include <string>
 #include <tuple>
 
+#include "common/RefCountedObj.h"
+#include "common/snap_types.h"
+#include "include/int_types.h"
+#include "include/rados/librados.hpp"
+#include "librbd/ImageCtx.h"
+#include "librbd/Types.h"
+
 class Context;
 
 namespace librbd {
 
-namespace asio { struct ContextWQ; }
+namespace asio {
+struct ContextWQ;
+}
 
 namespace deep_copy {
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class SnapshotCopyRequest : public RefCountedObject {
 public:
-  static SnapshotCopyRequest* create(ImageCtxT *src_image_ctx,
-                                     ImageCtxT *dst_image_ctx,
-                                     librados::snap_t src_snap_id_start,
-                                     librados::snap_t src_snap_id_end,
-                                     librados::snap_t dst_snap_id_start,
-                                     bool flatten, asio::ContextWQ *work_queue,
-                                     SnapSeqs *snap_seqs, Context *on_finish) {
-    return new SnapshotCopyRequest(src_image_ctx, dst_image_ctx,
-                                   src_snap_id_start, src_snap_id_end,
-                                   dst_snap_id_start, flatten, work_queue,
-                                   snap_seqs, on_finish);
+  static SnapshotCopyRequest*
+  create(
+      ImageCtxT* src_image_ctx,
+      ImageCtxT* dst_image_ctx,
+      librados::snap_t src_snap_id_start,
+      librados::snap_t src_snap_id_end,
+      librados::snap_t dst_snap_id_start,
+      bool flatten,
+      asio::ContextWQ* work_queue,
+      SnapSeqs* snap_seqs,
+      Context* on_finish)
+  {
+    return new SnapshotCopyRequest(
+        src_image_ctx, dst_image_ctx, src_snap_id_start, src_snap_id_end,
+        dst_snap_id_start, flatten, work_queue, snap_seqs, on_finish);
   }
 
-  SnapshotCopyRequest(ImageCtxT *src_image_ctx, ImageCtxT *dst_image_ctx,
-                      librados::snap_t src_snap_id_start,
-                      librados::snap_t src_snap_id_end,
-                      librados::snap_t dst_snap_id_start,
-                      bool flatten, asio::ContextWQ *work_queue,
-                      SnapSeqs *snap_seqs, Context *on_finish);
+  SnapshotCopyRequest(
+      ImageCtxT* src_image_ctx,
+      ImageCtxT* dst_image_ctx,
+      librados::snap_t src_snap_id_start,
+      librados::snap_t src_snap_id_end,
+      librados::snap_t dst_snap_id_start,
+      bool flatten,
+      asio::ContextWQ* work_queue,
+      SnapSeqs* snap_seqs,
+      Context* on_finish);
 
   void send();
   void cancel();
@@ -89,18 +100,18 @@ private:
 
   typedef std::set<librados::snap_t> SnapIdSet;
 
-  ImageCtxT *m_src_image_ctx;
-  ImageCtxT *m_dst_image_ctx;
+  ImageCtxT* m_src_image_ctx;
+  ImageCtxT* m_dst_image_ctx;
   librados::snap_t m_src_snap_id_start;
   librados::snap_t m_src_snap_id_end;
   librados::snap_t m_dst_snap_id_start;
   bool m_flatten;
-  asio::ContextWQ *m_work_queue;
-  SnapSeqs *m_snap_seqs_result;
+  asio::ContextWQ* m_work_queue;
+  SnapSeqs* m_snap_seqs_result;
   SnapSeqs m_snap_seqs;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
   SnapIdSet m_src_snap_ids;
   SnapIdSet m_dst_snap_ids;
   librados::snap_t m_prev_snap_id = CEPH_NOSNAP;
@@ -135,10 +146,10 @@ private:
 
   void error(int r);
 
-  int validate_parent(ImageCtxT *image_ctx, cls::rbd::ParentImageSpec *spec);
+  int validate_parent(ImageCtxT* image_ctx, cls::rbd::ParentImageSpec* spec);
 
-  Context *start_lock_op(int* r);
-  Context *start_lock_op(ceph::shared_mutex &owner_locki, int* r);
+  Context* start_lock_op(int* r);
+  Context* start_lock_op(ceph::shared_mutex& owner_locki, int* r);
 
   void finish(int r);
 };

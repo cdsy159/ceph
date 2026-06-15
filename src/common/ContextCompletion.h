@@ -10,7 +10,7 @@ namespace ceph {
 
 class ContextCompletion {
 public:
-  ContextCompletion(Context *ctx, bool ignore_enoent);
+  ContextCompletion(Context* ctx, bool ignore_enoent);
 
   void finish_adding_requests();
 
@@ -19,7 +19,7 @@ public:
 
 private:
   ceph::mutex m_lock = ceph::make_mutex("ContextCompletion::m_lock");
-  Context *m_ctx;
+  Context* m_ctx;
   bool m_ignore_enoent;
   int m_ret;
   bool m_building;
@@ -28,18 +28,20 @@ private:
 
 class C_ContextCompletion : public Context {
 public:
-  C_ContextCompletion(ContextCompletion &context_completion)
-    : m_context_completion(context_completion)
+  C_ContextCompletion(ContextCompletion& context_completion) :
+    m_context_completion(context_completion)
   {
     m_context_completion.start_op();
   }
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     m_context_completion.finish_op(r);
   }
 
 private:
-  ContextCompletion &m_context_completion;
+  ContextCompletion& m_context_completion;
 };
 
 } // namespace ceph

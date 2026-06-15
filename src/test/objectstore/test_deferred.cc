@@ -1,38 +1,43 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <iostream>
-#include <memory>
 #include <time.h>
 
-#include "os/ObjectStore.h"
-#include "os/bluestore/BlueStore.h"
-#include "include/Context.h"
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "common/ceph_mutex.h"
+#include <iostream>
+#include <memory>
+
 #include "common/Cond.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
 #include "common/errno.h"
 #include "common/options.h" // for the size literals
-#include <semaphore.h>
-
-
+#include "global/global_init.h"
+#include "include/Context.h"
+#include "os/ObjectStore.h"
+#include "os/bluestore/BlueStore.h"
 
 class C_do_action : public Context {
 public:
   std::function<void()> action;
-  C_do_action(std::function<void()> action)
-    : action(action) {}
 
-  void finish(int r) override {
+  C_do_action(std::function<void()> action) :
+    action(action)
+  {}
+
+  void
+  finish(int r) override
+  {
     action();
   }
 };
 
-void create_deferred_and_terminate() {
+void
+create_deferred_and_terminate()
+{
   std::unique_ptr<ObjectStore> store;
 
   g_ceph_context->_conf._clear_safe_to_start_threads();
@@ -45,12 +50,12 @@ void create_deferred_and_terminate() {
   coll_t cid;
   ghobject_t hoid;
   ObjectStore::CollectionHandle ch;
-  std::string const db_store_dir = "bluestore.test_temp_dir_" + std::to_string(time(NULL));
+  std::string const db_store_dir = "bluestore.test_temp_dir_" +
+                                   std::to_string(time(NULL));
   ceph_assert(::mkdir(db_store_dir.c_str(), 0777) == 0);
-  store = ObjectStore::create(g_ceph_context,
-                              "bluestore",
-                              db_store_dir.c_str(),
-                              "store_test_temp_journal");
+  store = ObjectStore::create(
+      g_ceph_context, "bluestore", db_store_dir.c_str(),
+      "store_test_temp_journal");
   ceph_assert(store->mkfs() == 0);
   ceph_assert(store->mount() == 0);
 
@@ -94,7 +99,7 @@ void create_deferred_and_terminate() {
     t.write(cid, hoid, 0, bl_64K.length(), bl_64K);
     t.register_on_commit(new C_do_action([&] {
       if (++prefill_counter == object_count) {
-	sem_post(&prefill_mutex);
+        sem_post(&prefill_mutex);
       }
     }));
 
@@ -115,7 +120,7 @@ void create_deferred_and_terminate() {
     std::string oid_d = "object-" + std::to_string(o + 1);
     ghobject_t hoid_d(hobject_t(oid_d, "", CEPH_NOSNAP, 1, poolid, ""));
 
-    for(int i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; i++) {
       t.write(cid, hoid_d, 4096 * i, bl_8_bytes.length(), bl_8_bytes);
     }
 
@@ -136,11 +141,13 @@ void create_deferred_and_terminate() {
   ceph_assert(0 && "should not reach here");
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   create_deferred_and_terminate();

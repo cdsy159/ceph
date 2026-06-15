@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 /*
@@ -13,26 +13,30 @@
  *
  */
 
-#include "common/ceph_json.h"
-#include "common/strtol.h"
-#include "rgw_rest.h"
-#include "rgw_op.h"
-#include "rgw_rest_s3.h"
 #include "rgw_rest_config.h"
-#include "rgw_client_io.h"
-#include "driver/rados/rgw_sal_rados.h"
-#include "common/errno.h"
-#include "include/ceph_assert.h"
 
+#include "common/ceph_json.h"
+#include "common/errno.h"
+#include "common/strtol.h"
+#include "driver/rados/rgw_sal_rados.h"
+#include "include/ceph_assert.h"
 #include "services/svc_zone.h"
+
+#include "rgw_client_io.h"
+#include "rgw_op.h"
+#include "rgw_rest.h"
+#include "rgw_rest_s3.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-void RGWOp_ZoneConfig_Get::send_response() {
-  const RGWZoneParams& zone_params = static_cast<rgw::sal::RadosStore*>(driver)->svc()->zone->get_zone_params();
+void
+RGWOp_ZoneConfig_Get::send_response()
+{
+  const RGWZoneParams& zone_params =
+      static_cast<rgw::sal::RadosStore*>(driver)->svc()->zone->get_zone_params();
 
   set_req_state_err(s, op_ret);
   dump_errno(s);
@@ -45,7 +49,9 @@ void RGWOp_ZoneConfig_Get::send_response() {
   flusher.flush();
 }
 
-RGWOp* RGWHandler_Config::op_get() {
+RGWOp*
+RGWHandler_Config::op_get()
+{
   bool exists;
   string type = s->info.args.get("type", &exists);
 

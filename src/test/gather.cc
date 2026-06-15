@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -12,33 +12,43 @@
  * Foundation.  See file COPYING.
  * 
  */
-#include "include/Context.h"
 #include "gtest/gtest.h"
+#include "include/Context.h"
 
 class C_Checker : public Context {
 public:
-  bool *finish_called;
-  int *result;
-  C_Checker(bool* _finish_called, int *r) :
-    finish_called(_finish_called), result(r) {}
-  void finish(int r) override { *finish_called = true; *result = r; }
+  bool* finish_called;
+  int* result;
+
+  C_Checker(bool* _finish_called, int* r) :
+    finish_called(_finish_called), result(r)
+  {}
+
+  void
+  finish(int r) override
+  {
+    *finish_called = true;
+    *result = r;
+  }
 };
 
-TEST(ContextGather, Constructor) {
+TEST(ContextGather, Constructor)
+{
   C_GatherBuilder gather(g_ceph_context);
   EXPECT_FALSE(gather.has_subs());
   EXPECT_TRUE(gather.get() == NULL);
 }
 
-TEST(ContextGather, OneSub) {
+TEST(ContextGather, OneSub)
+{
   C_GatherBuilder gather(g_ceph_context);
-  Context *sub = gather.new_sub();
+  Context* sub = gather.new_sub();
   EXPECT_EQ(1, gather.num_subs_created());
   EXPECT_EQ(1, gather.num_subs_remaining());
 
   bool finish_called = false;
   int result = 0;
-  C_Checker *checker = new C_Checker(&finish_called, &result);
+  C_Checker* checker = new C_Checker(&finish_called, &result);
   gather.set_finisher(checker);
   gather.activate();
   sub->complete(0);
@@ -46,7 +56,8 @@ TEST(ContextGather, OneSub) {
   EXPECT_EQ(0, result);
 }
 
-TEST(ContextGather, ManySubs) {
+TEST(ContextGather, ManySubs)
+{
   bool finish_called = false;
   int result = 0;
   C_GatherBuilder gather(g_ceph_context, new C_Checker(&finish_called, &result));
@@ -55,8 +66,8 @@ TEST(ContextGather, ManySubs) {
   //create subs and test
   for (int i = 0; i < sub_count; ++i) {
     subs[i] = gather.new_sub();
-    EXPECT_EQ(i+1, gather.num_subs_created());
-    EXPECT_EQ(i+1, gather.num_subs_remaining());
+    EXPECT_EQ(i + 1, gather.num_subs_created());
+    EXPECT_EQ(i + 1, gather.num_subs_remaining());
   }
   EXPECT_TRUE(gather.has_subs());
   gather.activate();
@@ -68,16 +79,17 @@ TEST(ContextGather, ManySubs) {
   }
 
   //finish last one and check asserts
-  subs[sub_count-1]->complete(0);
+  subs[sub_count - 1]->complete(0);
   EXPECT_TRUE(finish_called);
 }
 
-TEST(ContextGather, AlternatingSubCreateFinish) {
+TEST(ContextGather, AlternatingSubCreateFinish)
+{
   C_GatherBuilder gather(g_ceph_context);
   int sub_count = 8;
   bool finish_called = false;
   int result = 0;
-  C_Checker *checker = new C_Checker(&finish_called, &result);
+  C_Checker* checker = new C_Checker(&finish_called, &result);
   gather.set_finisher(checker);
   Context* subs[sub_count];
 

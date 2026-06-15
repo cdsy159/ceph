@@ -9,18 +9,23 @@
 
 class Context;
 
-namespace librbd { class ImageCtx; }
+namespace librbd {
+class ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
 namespace image_map {
 
-template<typename ImageCtxT = librbd::ImageCtx>
+template <typename ImageCtxT = librbd::ImageCtx>
 class LoadRequest {
 public:
-  static LoadRequest *create(librados::IoCtx &ioctx,
-                             std::map<std::string, cls::rbd::MirrorImageMap> *image_mapping,
-                             Context *on_finish) {
+  static LoadRequest*
+  create(
+      librados::IoCtx& ioctx,
+      std::map<std::string, cls::rbd::MirrorImageMap>* image_mapping,
+      Context* on_finish)
+  {
     return new LoadRequest(ioctx, image_mapping, on_finish);
   }
 
@@ -46,13 +51,14 @@ private:
    *
    * @endverbatim
    */
-  LoadRequest(librados::IoCtx &ioctx,
-              std::map<std::string, cls::rbd::MirrorImageMap> *image_mapping,
-              Context *on_finish);
+  LoadRequest(
+      librados::IoCtx& ioctx,
+      std::map<std::string, cls::rbd::MirrorImageMap>* image_mapping,
+      Context* on_finish);
 
-  librados::IoCtx &m_ioctx;
-  std::map<std::string, cls::rbd::MirrorImageMap> *m_image_mapping;
-  Context *m_on_finish;
+  librados::IoCtx& m_ioctx;
+  std::map<std::string, cls::rbd::MirrorImageMap>* m_image_mapping;
+  Context* m_on_finish;
 
   std::set<std::string> m_global_image_ids;
 

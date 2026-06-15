@@ -6,16 +6,21 @@
 namespace cephfs {
 namespace mirror {
 
-std::ostream& operator<<(std::ostream& out, const Filesystem &filesystem) {
-  out << "{fscid=" << filesystem.fscid << ", fs_name=" << filesystem.fs_name << "}";
+std::ostream&
+operator<<(std::ostream& out, const Filesystem& filesystem)
+{
+  out << "{fscid=" << filesystem.fscid << ", fs_name=" << filesystem.fs_name
+      << "}";
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const FilesystemSpec &spec) {
-  out << "{filesystem=" << spec.filesystem << ", pool_id=" << spec.pool_id << "}";
+std::ostream&
+operator<<(std::ostream& out, const FilesystemSpec& spec)
+{
+  out << "{filesystem=" << spec.filesystem << ", pool_id=" << spec.pool_id
+      << "}";
   return out;
 }
 
 } // namespace mirror
 } // namespace cephfs
-

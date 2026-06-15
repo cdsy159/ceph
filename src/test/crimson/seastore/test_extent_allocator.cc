@@ -5,11 +5,11 @@
 
 #include <boost/iterator/counting_iterator.hpp>
 
-#include "test/crimson/gtest_seastar.h"
 #include "crimson/os/seastore/random_block_manager.h"
-#include "crimson/os/seastore/random_block_manager/extent_allocator.h"
 #include "crimson/os/seastore/random_block_manager/avlallocator.h"
+#include "crimson/os/seastore/random_block_manager/extent_allocator.h"
 #include "include/interval_set.h"
+#include "test/crimson/gtest_seastar.h"
 
 
 using namespace crimson;
@@ -17,55 +17,80 @@ using namespace crimson::os;
 using namespace crimson::os::seastore;
 
 namespace {
-  [[maybe_unused]] seastar::logger& logger() {
-    return crimson::get_logger(ceph_subsys_test);
-  }
+[[maybe_unused]] seastar::logger&
+logger()
+{
+  return crimson::get_logger(ceph_subsys_test);
 }
+} // namespace
 
-struct allocator_test_t :
-  public seastar_test_suite_t,
-  ::testing::WithParamInterface<const char*> {
+struct allocator_test_t : public seastar_test_suite_t,
+                          ::testing::WithParamInterface<const char*> {
   std::random_device rd;
   std::mt19937 gen;
   ExtentAllocatorRef allocator;
 
-  allocator_test_t()
-    : gen(rd()) {}
+  allocator_test_t() :
+    gen(rd())
+  {}
 
-  seastar::future<> set_up_fut() final {
+  seastar::future<>
+  set_up_fut() final
+  {
     std::string a_type = GetParam();
     if (a_type == "avl") {
       allocator.reset(new AvlAllocator(false));
       return seastar::now();
-    } 
+    }
     ceph_abort("no support");
   }
-  seastar::future<> tear_down_fut() final {
+
+  seastar::future<>
+  tear_down_fut() final
+  {
     if (allocator) {
       allocator->close();
     }
     return seastar::now();
   }
-  void init_alloc(uint64_t block_size, uint64_t total_size, uint64_t base_addr = 0) {
+
+  void
+  init_alloc(uint64_t block_size, uint64_t total_size, uint64_t base_addr = 0)
+  {
     assert(allocator);
     allocator->init(base_addr, total_size, block_size);
   }
-  void close() {
+
+  void
+  close()
+  {
     assert(allocator);
     allocator->close();
   }
-  auto allocate(size_t size) {
+
+  auto
+  allocate(size_t size)
+  {
     return allocator->alloc_extent(size);
   }
-  auto allocates(size_t size) {
+
+  auto
+  allocates(size_t size)
+  {
     return allocator->alloc_extents(size);
   }
-  void free(uint64_t start, uint64_t length) {
+
+  void
+  free(uint64_t start, uint64_t length)
+  {
     allocator->free_extent(start, length);
   }
-  rbm_abs_addr get_random_addr(size_t block_size, size_t capacity) {
+
+  rbm_abs_addr
+  get_random_addr(size_t block_size, size_t capacity)
+  {
     return block_size *
-      std::uniform_int_distribution<>(0, (capacity / block_size) - 1)(gen);
+           std::uniform_int_distribution<>(0, (capacity / block_size) - 1)(gen);
   }
 };
 
@@ -93,8 +118,9 @@ TEST_P(allocator_test_t, test_init_alloc_free)
 
     auto free_length = allocator->get_available_size();
     allocate(allocator->get_max_alloc_size());
-    ASSERT_EQ(free_length - allocator->get_max_alloc_size(),
-      allocator->get_available_size());
+    ASSERT_EQ(
+        free_length - allocator->get_max_alloc_size(),
+        allocator->get_available_size());
 
     free(0, allocator->get_max_alloc_size());
     ASSERT_EQ(free_length, allocator->get_available_size());
@@ -130,7 +156,8 @@ TEST_P(allocator_test_t, test_base_addr)
     init_alloc(block_size, capacity, base_addr);
 
     allocator->mark_extent_used(base_addr, block_size * 256);
-    allocator->mark_extent_used(base_addr + (block_size * 512), block_size * 256);
+    allocator->mark_extent_used(
+        base_addr + (block_size * 512), block_size * 256);
 
     auto result = allocate(block_size * 512);
     ASSERT_EQ(false, result.has_value());
@@ -163,7 +190,8 @@ TEST_P(allocator_test_t, test_random_alloc_verify)
       auto addr = get_random_addr(block_size, capacity);
       auto size = get_random_addr(block_size, capacity) % (4 << 20);
       if (addr + size > capacity || size == 0 ||
-	  alloc_map.intersects(addr, size) ) continue;
+          alloc_map.intersects(addr, size))
+        continue;
       allocator->mark_extent_used(addr, size);
       alloc_map.insert(addr, size);
       avail -= size;
@@ -182,7 +210,8 @@ TEST_P(allocator_test_t, test_random_alloc_verify)
       auto addr = get_random_addr(block_size, capacity);
       auto size = get_random_addr(block_size, capacity) % (4 << 20);
       if (addr + size > capacity || size == 0 ||
-	  alloc_map.intersects(addr, size) ) continue;
+          alloc_map.intersects(addr, size))
+        continue;
       allocator->mark_extent_used(addr, size);
       alloc_map.insert(addr, size);
       avail -= size;
@@ -197,7 +226,8 @@ TEST_P(allocator_test_t, test_random_alloc_verify)
       auto addr = get_random_addr(block_size, capacity);
       auto size = get_random_addr(block_size, capacity) % (4 << 20);
       if (addr + size > capacity || size == 0 ||
-	  alloc_map.intersects(addr, size) ) continue;
+          alloc_map.intersects(addr, size))
+        continue;
       allocator->mark_extent_used(addr, size);
       alloc_map.insert(addr, size);
       avail -= size;
@@ -207,6 +237,6 @@ TEST_P(allocator_test_t, test_random_alloc_verify)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-  allocator_test,
-  allocator_test_t,
-  ::testing::Values("avl"));
+    allocator_test,
+    allocator_test_t,
+    ::testing::Values("avl"));

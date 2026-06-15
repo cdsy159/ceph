@@ -3,16 +3,20 @@
 
 #include "MonSub.h"
 
-bool MonSub::have_new() const {
+bool
+MonSub::have_new() const
+{
   return !sub_new.empty();
 }
 
-bool MonSub::need_renew() const
+bool
+MonSub::need_renew() const
 {
   return ceph::coarse_mono_clock::now() > renew_after;
 }
 
-void MonSub::renewed()
+void
+MonSub::renewed()
 {
   if (clock::is_zero(renew_sent)) {
     renew_sent = clock::now();
@@ -23,7 +27,8 @@ void MonSub::renewed()
   sub_new.clear();
 }
 
-void MonSub::acked(uint32_t interval)
+void
+MonSub::acked(uint32_t interval)
 {
   if (!clock::is_zero(renew_sent)) {
     // NOTE: this is only needed for legacy (infernalis or older)
@@ -34,7 +39,8 @@ void MonSub::acked(uint32_t interval)
   }
 }
 
-bool MonSub::reload()
+bool
+MonSub::reload()
 {
   for (auto& [what, sub] : sub_sent) {
     if (sub_new.count(what) == 0) {
@@ -44,7 +50,8 @@ bool MonSub::reload()
   return have_new();
 }
 
-void MonSub::got(const std::string& what, version_t have)
+void
+MonSub::got(const std::string& what, version_t have)
 {
   if (auto i = sub_new.find(what); i != sub_new.end()) {
     auto& sub = i->second;
@@ -67,18 +74,17 @@ void MonSub::got(const std::string& what, version_t have)
   }
 }
 
-bool MonSub::want(const std::string& what, version_t start, unsigned flags)
+bool
+MonSub::want(const std::string& what, version_t start, unsigned flags)
 {
-  if (auto sub = sub_new.find(what);
-      sub != sub_new.end() &&
-      sub->second.start == start &&
-      sub->second.flags == flags) {
+  if (auto sub = sub_new.find(what); sub != sub_new.end() &&
+                                     sub->second.start == start &&
+                                     sub->second.flags == flags) {
     return false;
-  } else if (auto sub = sub_sent.find(what);
-      sub != sub_sent.end() &&
-      sub->second.start == start &&
-      sub->second.flags == flags) {
-	return false;
+  } else if (auto sub = sub_sent.find(what); sub != sub_sent.end() &&
+                                             sub->second.start == start &&
+                                             sub->second.flags == flags) {
+    return false;
   } else {
     sub_new[what].start = start;
     sub_new[what].flags = flags;
@@ -86,7 +92,8 @@ bool MonSub::want(const std::string& what, version_t start, unsigned flags)
   }
 }
 
-bool MonSub::inc_want(const std::string& what, version_t start, unsigned flags)
+bool
+MonSub::inc_want(const std::string& what, version_t start, unsigned flags)
 {
   if (auto sub = sub_new.find(what); sub != sub_new.end()) {
     if (sub->second.start >= start) {
@@ -107,7 +114,8 @@ bool MonSub::inc_want(const std::string& what, version_t start, unsigned flags)
   }
 }
 
-void MonSub::unwant(const std::string& what)
+void
+MonSub::unwant(const std::string& what)
 {
   sub_sent.erase(what);
   sub_new.erase(what);

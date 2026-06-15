@@ -14,37 +14,50 @@ public:
 
   health_check_map_t health_checks;
 
-  MMonHealthChecks()
-    : PaxosServiceMessage{MSG_MON_HEALTH_CHECKS, HEAD_VERSION, COMPAT_VERSION} {
-  }
-  MMonHealthChecks(health_check_map_t& m)
-    : PaxosServiceMessage{MSG_MON_HEALTH_CHECKS, HEAD_VERSION, COMPAT_VERSION},
-      health_checks(m)
+  MMonHealthChecks() :
+    PaxosServiceMessage{MSG_MON_HEALTH_CHECKS, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MMonHealthChecks(health_check_map_t& m) :
+    PaxosServiceMessage{MSG_MON_HEALTH_CHECKS, HEAD_VERSION, COMPAT_VERSION},
+    health_checks(m)
   {}
 
 private:
-  ~MMonHealthChecks() final { }
+  ~MMonHealthChecks() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_health_checks"; }
-  void print(std::ostream &o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_health_checks";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "mon_health_checks(" << health_checks.checks.size() << " checks)";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
     decode(health_checks, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(health_checks, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

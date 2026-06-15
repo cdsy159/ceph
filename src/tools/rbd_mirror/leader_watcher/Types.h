@@ -4,16 +4,19 @@
 #ifndef RBD_MIRROR_LEADER_WATCHER_TYPES_H
 #define RBD_MIRROR_LEADER_WATCHER_TYPES_H
 
-#include "include/int_types.h"
-#include "include/buffer_fwd.h"
-#include "include/encoding.h"
 #include <string>
 #include <variant>
 #include <vector>
 
+#include "include/buffer_fwd.h"
+#include "include/encoding.h"
+#include "include/int_types.h"
+
 struct Context;
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
 namespace rbd {
 namespace mirror {
@@ -22,96 +25,90 @@ namespace leader_watcher {
 struct Listener {
   typedef std::vector<std::string> InstanceIds;
 
-  virtual ~Listener() {
-  }
+  virtual ~Listener() {}
 
-  virtual void post_acquire_handler(Context *on_finish) = 0;
-  virtual void pre_release_handler(Context *on_finish) = 0;
+  virtual void post_acquire_handler(Context* on_finish) = 0;
+  virtual void pre_release_handler(Context* on_finish) = 0;
 
-  virtual void update_leader_handler(
-    const std::string &leader_instance_id) = 0;
+  virtual void update_leader_handler(const std::string& leader_instance_id) = 0;
 
   virtual void handle_instances_added(const InstanceIds& instance_ids) = 0;
   virtual void handle_instances_removed(const InstanceIds& instance_ids) = 0;
 };
 
 enum NotifyOp : uint32_t {
-  NOTIFY_OP_HEARTBEAT        = 0,
-  NOTIFY_OP_LOCK_ACQUIRED    = 1,
-  NOTIFY_OP_LOCK_RELEASED    = 2,
+  NOTIFY_OP_HEARTBEAT = 0,
+  NOTIFY_OP_LOCK_ACQUIRED = 1,
+  NOTIFY_OP_LOCK_RELEASED = 2,
 };
 
 struct HeartbeatPayload {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_HEARTBEAT;
 
-  HeartbeatPayload() {
-  }
+  HeartbeatPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
 struct LockAcquiredPayload {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_LOCK_ACQUIRED;
 
-  LockAcquiredPayload() {
-  }
+  LockAcquiredPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
 struct LockReleasedPayload {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_LOCK_RELEASED;
 
-  LockReleasedPayload() {
-  }
+  LockReleasedPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
 struct UnknownPayload {
   static const NotifyOp NOTIFY_OP = static_cast<NotifyOp>(-1);
 
-  UnknownPayload() {
-  }
+  UnknownPayload() {}
 
-  void encode(bufferlist &bl) const;
-  void decode(__u8 version, bufferlist::const_iterator &iter);
-  void dump(Formatter *f) const;
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::const_iterator& iter);
+  void dump(Formatter* f) const;
 };
 
-typedef std::variant<HeartbeatPayload,
-		     LockAcquiredPayload,
-		     LockReleasedPayload,
-		     UnknownPayload> Payload;
+typedef std::
+    variant<HeartbeatPayload, LockAcquiredPayload, LockReleasedPayload, UnknownPayload>
+        Payload;
 
 struct NotifyMessage {
-  NotifyMessage(const Payload &payload = UnknownPayload()) : payload(payload) {
-  }
+  NotifyMessage(const Payload& payload = UnknownPayload()) :
+    payload(payload)
+  {}
 
   Payload payload;
 
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& it);
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 
   static std::list<NotifyMessage> generate_test_instances();
 };
 
 WRITE_CLASS_ENCODER(NotifyMessage);
 
-std::ostream &operator<<(std::ostream &out, const NotifyOp &op);
+std::ostream& operator<<(std::ostream& out, const NotifyOp& op);
 
 } // namespace leader_watcher
 } // namespace mirror
-} // namespace librbd
+} // namespace rbd
 
-using rbd::mirror::leader_watcher::encode;
 using rbd::mirror::leader_watcher::decode;
+using rbd::mirror::leader_watcher::encode;
 
 #endif // RBD_MIRROR_LEADER_WATCHER_TYPES_H

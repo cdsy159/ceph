@@ -2,13 +2,16 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/service_daemon/Types.h"
+
 #include <iostream>
 
 namespace rbd {
 namespace mirror {
 namespace service_daemon {
 
-std::ostream& operator<<(std::ostream& os, const CalloutLevel& callout_level) {
+std::ostream&
+operator<<(std::ostream& os, const CalloutLevel& callout_level)
+{
   switch (callout_level) {
   case CALLOUT_LEVEL_INFO:
     os << "info";
@@ -26,4 +29,3 @@ std::ostream& operator<<(std::ostream& os, const CalloutLevel& callout_level) {
 } // namespace service_daemon
 } // namespace mirror
 } // namespace rbd
-

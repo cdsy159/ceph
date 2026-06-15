@@ -1,8 +1,8 @@
 #pragma once
 
+#include "crimson/common/type_helpers.h"
 #include "messages/MOSDOp.h"
 #include "osd/osd_types.h"
-#include "crimson/common/type_helpers.h"
 
 // The fields in this struct are parameters that may be needed in multiple
 // level of processing. I inclosed all those parameters in this struct to

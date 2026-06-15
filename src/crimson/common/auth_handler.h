@@ -10,8 +10,9 @@ namespace crimson::common {
 class AuthHandler {
 public:
   // the peer just got authorized
-  virtual void handle_authentication(const EntityName& name,
-				     const AuthCapsInfo& caps) = 0;
+  virtual void handle_authentication(
+      const EntityName& name,
+      const AuthCapsInfo& caps) = 0;
   virtual ~AuthHandler() = default;
 };
-}
+} // namespace crimson::common

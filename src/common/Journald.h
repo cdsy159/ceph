@@ -4,10 +4,12 @@
 #ifndef CEPH_COMMON_JOURNALD_H
 #define CEPH_COMMON_JOURNALD_H
 
-#include "acconfig.h"
-#include <memory>
-#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+
+#include <memory>
+
+#include "acconfig.h"
 
 struct LogEntry;
 
@@ -24,12 +26,13 @@ class EntryEncoder;
 class LogEntryEncoder;
 
 class JournaldClient {
- public:
+public:
   JournaldClient();
   ~JournaldClient();
   int send();
   struct msghdr m_msghdr;
- private:
+
+private:
   int fd;
 
   enum class MemFileMode;
@@ -38,7 +41,7 @@ class JournaldClient {
   void detect_mem_file_mode();
   int open_mem_file();
 };
-}
+} // namespace detail
 
 /**
  * Logger to send local logs to journald
@@ -48,21 +51,21 @@ class JournaldClient {
  * @see JournaldClusterLogger
  */
 class JournaldLogger {
- public:
-  JournaldLogger(const SubsystemMap *s);
+public:
+  JournaldLogger(const SubsystemMap* s);
   ~JournaldLogger();
 
   /**
    * @returns 0 if log entry is successfully sent, -1 otherwise.
    */
-  int log_entry(const Entry &e);
+  int log_entry(const Entry& e);
 
- private:
+private:
   detail::JournaldClient client;
 
   std::unique_ptr<detail::EntryEncoder> m_entry_encoder;
 
-  const SubsystemMap * m_subs;
+  const SubsystemMap* m_subs;
 };
 
 /**
@@ -71,40 +74,45 @@ class JournaldLogger {
  * @see JournaldLogger
  */
 class JournaldClusterLogger {
- public:
+public:
   JournaldClusterLogger();
   ~JournaldClusterLogger();
 
   /**
    * @returns 0 if log entry is successfully sent, -1 otherwise.
    */
-  int log_log_entry(const LogEntry &le);
+  int log_log_entry(const LogEntry& le);
 
- private:
+private:
   detail::JournaldClient client;
 
   std::unique_ptr<detail::LogEntryEncoder> m_log_entry_encoder;
 };
 
-#else  // WITH_SYSTEMD
+#else // WITH_SYSTEMD
 
 class JournaldLogger {
 public:
-  JournaldLogger(const SubsystemMap *) {}
-  int log_entry(const Entry &) {
+  JournaldLogger(const SubsystemMap*) {}
+
+  int
+  log_entry(const Entry&)
+  {
     return 0;
   }
 };
 
 class JournaldClusterLogger {
 public:
-  int log_log_entry(const LogEntry &le) {
+  int
+  log_log_entry(const LogEntry& le)
+  {
     return 0;
   }
 };
 
 #endif // WITH_SYSTEMD
 
-} // ceph::logging
+} // namespace ceph::logging
 
 #endif

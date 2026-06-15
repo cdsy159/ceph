@@ -13,16 +13,18 @@
  *
  */
 
-#include "MDSMap.h"
-#include "MDSContext.h"
-#include "MDSRank.h"
-#include "msg/Messenger.h"
-#include "messages/MMDSTableRequest.h"
 #include "SnapClient.h"
 
-#include "common/config.h"
 #include "common/debug.h"
+
+#include "common/config.h"
 #include "include/ceph_assert.h"
+#include "messages/MMDSTableRequest.h"
+#include "msg/Messenger.h"
+
+#include "MDSContext.h"
+#include "MDSMap.h"
+#include "MDSRank.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
@@ -31,12 +33,14 @@
 
 using namespace std;
 
-void SnapClient::resend_queries()
+void
+SnapClient::resend_queries()
 {
   if (!waiting_for_version.empty() || (!synced && sync_reqid > 0)) {
     version_t want;
     if (!waiting_for_version.empty())
-      want = std::max<version_t>(cached_version, waiting_for_version.rbegin()->first);
+      want = std::max<version_t>(
+          cached_version, waiting_for_version.rbegin()->first);
     else
       want = std::max<version_t>(cached_version, 1);
     refresh(want, NULL);
@@ -45,7 +49,8 @@ void SnapClient::resend_queries()
   }
 }
 
-void SnapClient::handle_query_result(const cref_t<MMDSTableRequest> &m)
+void
+SnapClient::handle_query_result(const cref_t<MMDSTableRequest>& m)
 {
   dout(10) << __func__ << " " << *m << dendl;
 
@@ -59,41 +64,40 @@ void SnapClient::handle_query_result(const cref_t<MMDSTableRequest> &m)
     ceph_assert(cached_version == m->get_tid());
     break;
   case 'F': // full
-    {
-      decode(cached_snaps, p);
-      decode(cached_pending_update, p);
-      decode(cached_pending_destroy, p);
+  {
+    decode(cached_snaps, p);
+    decode(cached_pending_update, p);
+    decode(cached_pending_destroy, p);
 
-      snapid_t last_created, last_destroyed;
-      decode(last_created, p);
-      decode(last_destroyed, p);
+    snapid_t last_created, last_destroyed;
+    decode(last_created, p);
+    decode(last_destroyed, p);
 
-      if (last_created > cached_last_created)
-	cached_last_created = last_created;
-      if (last_destroyed > cached_last_destroyed)
-	cached_last_destroyed = last_destroyed;
+    if (last_created > cached_last_created)
+      cached_last_created = last_created;
+    if (last_destroyed > cached_last_destroyed)
+      cached_last_destroyed = last_destroyed;
 
-      cached_version = m->get_tid();
-    }
-    break;
+    cached_version = m->get_tid();
+  } break;
   default:
     ceph_abort();
   };
 
   if (!committing_tids.empty()) {
     for (auto p = committing_tids.begin();
-	 p != committing_tids.end() && *p <= cached_version; ) {
+         p != committing_tids.end() && *p <= cached_version;) {
       if (cached_pending_update.count(*p)) {
-	if (cached_pending_update[*p].snapid > cached_last_created)
-	  cached_last_created = cached_pending_update[*p].snapid;
-	++p;
+        if (cached_pending_update[*p].snapid > cached_last_created)
+          cached_last_created = cached_pending_update[*p].snapid;
+        ++p;
       } else if (cached_pending_destroy.count(*p)) {
-	if (cached_pending_destroy[*p].second > cached_last_destroyed)
-	  cached_last_destroyed = cached_pending_destroy[*p].second;
-	++p;
+        if (cached_pending_destroy[*p].second > cached_last_destroyed)
+          cached_last_destroyed = cached_pending_destroy[*p].second;
+        ++p;
       } else {
-	// pending update/destroy have been committed.
-	committing_tids.erase(p++);
+        // pending update/destroy have been committed.
+        committing_tids.erase(p++);
       }
     }
   }
@@ -106,7 +110,7 @@ void SnapClient::handle_query_result(const cref_t<MMDSTableRequest> &m)
     while (!waiting_for_version.empty()) {
       auto it = waiting_for_version.begin();
       if (it->first > cached_version)
-	break;
+        break;
       auto& v = it->second;
       finished.insert(finished.end(), v.begin(), v.end());
       waiting_for_version.erase(it);
@@ -116,15 +120,18 @@ void SnapClient::handle_query_result(const cref_t<MMDSTableRequest> &m)
   }
 }
 
-void SnapClient::handle_notify_prep(const cref_t<MMDSTableRequest> &m)
+void
+SnapClient::handle_notify_prep(const cref_t<MMDSTableRequest>& m)
 {
   dout(10) << __func__ << " " << *m << dendl;
   handle_query_result(m);
-  auto ack = make_message<MMDSTableRequest>(table, TABLESERVER_OP_NOTIFY_ACK, 0, m->get_tid());
+  auto ack = make_message<MMDSTableRequest>(
+      table, TABLESERVER_OP_NOTIFY_ACK, 0, m->get_tid());
   mds->send_message(ack, m->get_connection());
 }
 
-void SnapClient::notify_commit(version_t tid)
+void
+SnapClient::notify_commit(version_t tid)
 {
   dout(10) << __func__ << " tid " << tid << dendl;
 
@@ -146,8 +153,15 @@ void SnapClient::notify_commit(version_t tid)
   }
 }
 
-void SnapClient::prepare_create(inodeno_t dirino, std::string_view name, utime_t stamp,
-				version_t *pstid, bufferlist *pbl, MDSContext *onfinish) {
+void
+SnapClient::prepare_create(
+    inodeno_t dirino,
+    std::string_view name,
+    utime_t stamp,
+    version_t* pstid,
+    bufferlist* pbl,
+    MDSContext* onfinish)
+{
   bufferlist bl;
   __u32 op = TABLE_OP_CREATE;
   encode(op, bl);
@@ -157,7 +171,13 @@ void SnapClient::prepare_create(inodeno_t dirino, std::string_view name, utime_t
   _prepare(bl, pstid, pbl, onfinish);
 }
 
-void SnapClient::prepare_create_realm(inodeno_t ino, version_t *pstid, bufferlist *pbl, MDSContext *onfinish) {
+void
+SnapClient::prepare_create_realm(
+    inodeno_t ino,
+    version_t* pstid,
+    bufferlist* pbl,
+    MDSContext* onfinish)
+{
   bufferlist bl;
   __u32 op = TABLE_OP_CREATE;
   encode(op, bl);
@@ -165,7 +185,14 @@ void SnapClient::prepare_create_realm(inodeno_t ino, version_t *pstid, bufferlis
   _prepare(bl, pstid, pbl, onfinish);
 }
 
-void SnapClient::prepare_destroy(inodeno_t ino, snapid_t snapid, version_t *pstid, bufferlist *pbl, MDSContext *onfinish) {
+void
+SnapClient::prepare_destroy(
+    inodeno_t ino,
+    snapid_t snapid,
+    version_t* pstid,
+    bufferlist* pbl,
+    MDSContext* onfinish)
+{
   bufferlist bl;
   __u32 op = TABLE_OP_DESTROY;
   encode(op, bl);
@@ -174,8 +201,15 @@ void SnapClient::prepare_destroy(inodeno_t ino, snapid_t snapid, version_t *psti
   _prepare(bl, pstid, pbl, onfinish);
 }
 
-void SnapClient::prepare_update(inodeno_t ino, snapid_t snapid, std::string_view name, utime_t stamp,
-				version_t *pstid, MDSContext *onfinish) {
+void
+SnapClient::prepare_update(
+    inodeno_t ino,
+    snapid_t snapid,
+    std::string_view name,
+    utime_t stamp,
+    version_t* pstid,
+    MDSContext* onfinish)
+{
   bufferlist bl;
   __u32 op = TABLE_OP_UPDATE;
   encode(op, bl);
@@ -186,7 +220,8 @@ void SnapClient::prepare_update(inodeno_t ino, snapid_t snapid, std::string_view
   _prepare(bl, pstid, NULL, onfinish);
 }
 
-void SnapClient::refresh(version_t want, MDSContext *onfinish)
+void
+SnapClient::refresh(version_t want, MDSContext* onfinish)
 {
   dout(10) << __func__ << " want " << want << dendl;
 
@@ -198,7 +233,8 @@ void SnapClient::refresh(version_t want, MDSContext *onfinish)
     return;
 
   mds_rank_t ts = mds->mdsmap->get_tableserver();
-  auto req = make_message<MMDSTableRequest>(table, TABLESERVER_OP_QUERY, ++last_reqid, 0);
+  auto req = make_message<MMDSTableRequest>(
+      table, TABLESERVER_OP_QUERY, ++last_reqid, 0);
   using ceph::encode;
   char op = 'F';
   encode(op, req->bl);
@@ -206,7 +242,8 @@ void SnapClient::refresh(version_t want, MDSContext *onfinish)
   mds->send_message_mds(req, ts);
 }
 
-void SnapClient::sync(MDSContext *onfinish)
+void
+SnapClient::sync(MDSContext* onfinish)
 {
   dout(10) << __func__ << dendl;
 
@@ -218,7 +255,8 @@ void SnapClient::sync(MDSContext *onfinish)
     sync_reqid = (last_reqid == ~0ULL) ? 1 : last_reqid + 1;
 }
 
-void SnapClient::get_snaps(set<snapid_t>& result) const
+void
+SnapClient::get_snaps(set<snapid_t>& result) const
 {
   ceph_assert(cached_version > 0);
   for (auto& p : cached_snaps)
@@ -235,7 +273,8 @@ void SnapClient::get_snaps(set<snapid_t>& result) const
   }
 }
 
-set<snapid_t> SnapClient::filter(const set<snapid_t>& snaps) const
+set<snapid_t>
+SnapClient::filter(const set<snapid_t>& snaps) const
 {
   ceph_assert(cached_version > 0);
   if (snaps.empty())
@@ -252,7 +291,7 @@ set<snapid_t> SnapClient::filter(const set<snapid_t>& snaps) const
     auto q = cached_pending_update.find(tid);
     if (q != cached_pending_update.end()) {
       if (snaps.count(q->second.snapid))
-	result.insert(q->second.snapid);
+        result.insert(q->second.snapid);
     }
 
     auto r = cached_pending_destroy.find(tid);
@@ -260,11 +299,12 @@ set<snapid_t> SnapClient::filter(const set<snapid_t>& snaps) const
       result.erase(r->second.first);
   }
 
-  dout(10) << __func__ << " " << snaps << " -> " << result <<  dendl;
+  dout(10) << __func__ << " " << snaps << " -> " << result << dendl;
   return result;
 }
 
-const SnapInfo* SnapClient::get_snap_info(snapid_t snapid) const
+const SnapInfo*
+SnapClient::get_snap_info(snapid_t snapid) const
 {
   ceph_assert(cached_version > 0);
 
@@ -287,12 +327,14 @@ const SnapInfo* SnapClient::get_snap_info(snapid_t snapid) const
     }
   }
 
-  dout(10) << __func__ << " snapid " << snapid << " -> " << result <<  dendl;
+  dout(10) << __func__ << " snapid " << snapid << " -> " << result << dendl;
   return result;
 }
 
-void SnapClient::get_snap_infos(map<snapid_t, const SnapInfo*>& infomap,
-			        const set<snapid_t>& snaps) const
+void
+SnapClient::get_snap_infos(
+    map<snapid_t, const SnapInfo*>& infomap,
+    const set<snapid_t>& snaps) const
 {
   ceph_assert(cached_version > 0);
 
@@ -310,7 +352,7 @@ void SnapClient::get_snap_infos(map<snapid_t, const SnapInfo*>& infomap,
     auto q = cached_pending_update.find(tid);
     if (q != cached_pending_update.end()) {
       if (snaps.count(q->second.snapid))
-	result[q->second.snapid] = &q->second;
+        result[q->second.snapid] = &q->second;
     }
 
     auto r = cached_pending_destroy.find(tid);
@@ -321,7 +363,8 @@ void SnapClient::get_snap_infos(map<snapid_t, const SnapInfo*>& infomap,
   infomap.insert(result.begin(), result.end());
 }
 
-int SnapClient::dump_cache(Formatter *f) const
+int
+SnapClient::dump_cache(Formatter* f) const
 {
   if (!is_synced()) {
     dout(5) << "dump_cache: not synced" << dendl;

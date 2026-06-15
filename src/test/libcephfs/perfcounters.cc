@@ -12,31 +12,32 @@
  *
  */
 
-#include "include/compat.h"
+#include <string>
+
+#include "common/ceph_json.h"
 #include "gtest/gtest.h"
 #include "include/cephfs/libcephfs.h"
-#include "common/ceph_json.h"
+#include "include/compat.h"
 #include "include/utime.h"
-
-#include <string>
 
 using namespace std;
 
-TEST(LibCephFS, ValidatePerfCounters) {
-  struct ceph_mount_info *cmount;
+TEST(LibCephFS, ValidatePerfCounters)
+{
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
 
-  char *perf_dump;
+  char* perf_dump;
   int len = ceph_get_perf_counters(cmount, &perf_dump);
   ASSERT_GT(len, 0);
 
   JSONParser jp;
   ASSERT_TRUE(jp.parse(perf_dump, len));
 
-  JSONObj *jo = jp.find_obj("client");
+  JSONObj* jo = jp.find_obj("client");
 
   // basic verification to chek if we have (some) fields in
   // the json object.

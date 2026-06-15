@@ -11,19 +11,24 @@
 #include "include/types.h"
 
 // mon subscriptions
-class MonSub
-{
+class MonSub {
 public:
   // @returns true if there is any "new" subscriptions
   bool have_new() const;
-  auto get_subs() const {
+
+  auto
+  get_subs() const
+  {
     return sub_new;
   }
+
   // get the requested start epoch for a subscription
   // search first in "new" subs - subs that have not yet been sent
   // but requested and going to be sent, then in "sent" subs.
   // if not found, return 0
-  version_t get_start(const std::string& what) const {
+  version_t
+  get_start(const std::string& what) const
+  {
     if (auto i = sub_new.find(what); i != sub_new.end()) {
       return i->second.start;
     }
@@ -32,6 +37,7 @@ public:
     }
     return 0;
   }
+
   bool need_renew() const;
   // change the status of "new" subscriptions to "sent"
   void renewed();
@@ -48,11 +54,12 @@ public:
   bool inc_want(const std::string& what, version_t start, unsigned flags);
   // cancel a subscription
   void unwant(const std::string& what);
+
 private:
   // my subs, and current versions
-  std::map<std::string,ceph_mon_subscribe_item> sub_sent;
+  std::map<std::string, ceph_mon_subscribe_item> sub_sent;
   // unsent new subs
-  std::map<std::string,ceph_mon_subscribe_item> sub_new;
+  std::map<std::string, ceph_mon_subscribe_item> sub_new;
   using time_point = ceph::coarse_mono_time;
   using clock = typename time_point::clock;
   time_point renew_sent;

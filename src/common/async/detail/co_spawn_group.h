@@ -14,6 +14,7 @@
 #pragma once
 
 #include <exception>
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/cancellation_signal.hpp>
@@ -21,6 +22,7 @@
 #include <boost/asio/execution/executor.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
+
 #include "common/async/cancel_on_error.h"
 #include "common/async/co_waiter.h"
 #include "common/async/service.h"
@@ -42,25 +44,33 @@ class co_spawn_group_handler {
   boost::intrusive_ptr<impl_type> impl;
   boost::asio::cancellation_slot slot;
   size_type index;
- public:
-  co_spawn_group_handler(boost::intrusive_ptr<impl_type> impl,
-                         boost::asio::cancellation_slot slot, size_type index)
-      : impl(std::move(impl)), slot(std::move(slot)), index(index)
+
+public:
+  co_spawn_group_handler(
+      boost::intrusive_ptr<impl_type> impl,
+      boost::asio::cancellation_slot slot,
+      size_type index) :
+    impl(std::move(impl)), slot(std::move(slot)), index(index)
   {}
 
   using executor_type = typename impl_type::executor_type;
-  executor_type get_executor() const noexcept
+
+  executor_type
+  get_executor() const noexcept
   {
     return impl->get_executor();
   }
 
   using cancellation_slot_type = boost::asio::cancellation_slot;
-  cancellation_slot_type get_cancellation_slot() const noexcept
+
+  cancellation_slot_type
+  get_cancellation_slot() const noexcept
   {
     return slot;
   }
 
-  void operator()(std::exception_ptr eptr)
+  void
+  operator()(std::exception_ptr eptr)
   {
     impl->child_complete(index, eptr);
   }
@@ -68,37 +78,37 @@ class co_spawn_group_handler {
 
 // Reference-counted spawn group implementation.
 template <boost::asio::execution::executor Executor>
-class co_spawn_group_impl :
-    public boost::intrusive_ref_counter<co_spawn_group_impl<Executor>,
-        boost::thread_unsafe_counter>,
-    public service_list_base_hook
-{
- public:
+class co_spawn_group_impl : public boost::intrusive_ref_counter<
+                                co_spawn_group_impl<Executor>,
+                                boost::thread_unsafe_counter>,
+                            public service_list_base_hook {
+public:
   using size_type = uint16_t;
 
-  co_spawn_group_impl(Executor ex, size_type limit,
-                      cancel_on_error on_error)
-    : svc(boost::asio::use_service<service<co_spawn_group_impl>>(
-            boost::asio::query(ex, boost::asio::execution::context))),
-      ex(ex),
-      signals(std::make_unique<boost::asio::cancellation_signal[]>(limit)),
-      limit(limit), on_error(on_error)
+  co_spawn_group_impl(Executor ex, size_type limit, cancel_on_error on_error) :
+    svc(boost::asio::use_service<service<co_spawn_group_impl>>(
+        boost::asio::query(ex, boost::asio::execution::context))),
+    ex(ex),
+    signals(std::make_unique<boost::asio::cancellation_signal[]>(limit)),
+    limit(limit),
+    on_error(on_error)
   {
     // register for service_shutdown() notifications
     svc.add(*this);
   }
-  ~co_spawn_group_impl()
-  {
-    svc.remove(*this);
-  }
+
+  ~co_spawn_group_impl() { svc.remove(*this); }
 
   using executor_type = Executor;
-  executor_type get_executor() const noexcept
+
+  executor_type
+  get_executor() const noexcept
   {
     return ex;
   }
 
-  void child_complete(size_type index, std::exception_ptr e)
+  void
+  child_complete(size_type index, std::exception_ptr e)
   {
     if (e) {
       if (!eptr) {
@@ -115,12 +125,14 @@ class co_spawn_group_impl :
     }
   }
 
-  void spawn(boost::asio::awaitable<void, executor_type> cr)
+  void
+  spawn(boost::asio::awaitable<void, executor_type> cr)
   {
     boost::asio::co_spawn(get_executor(), std::move(cr), completion());
   }
 
-  boost::asio::awaitable<void, executor_type> wait()
+  boost::asio::awaitable<void, executor_type>
+  wait()
   {
     if (completed < spawned) {
       co_await waiter.get();
@@ -135,17 +147,19 @@ class co_spawn_group_impl :
     }
   }
 
-  void cancel()
+  void
+  cancel()
   {
     cancel_from(0);
   }
 
-  void service_shutdown()
+  void
+  service_shutdown()
   {
     waiter.shutdown();
   }
 
- private:
+private:
   service<co_spawn_group_impl>& svc;
   co_waiter<void, executor_type> waiter;
   executor_type ex;
@@ -156,21 +170,24 @@ class co_spawn_group_impl :
   size_type completed = 0;
   const cancel_on_error on_error;
 
-  void cancel_from(size_type begin)
+  void
+  cancel_from(size_type begin)
   {
     for (size_type i = begin; i < spawned; i++) {
       signals[i].emit(boost::asio::cancellation_type::terminal);
     }
   }
 
-  void complete()
+  void
+  complete()
   {
     if (waiter.waiting()) {
       waiter.complete(nullptr);
     }
   }
 
-  co_spawn_group_handler<executor_type> completion()
+  co_spawn_group_handler<executor_type>
+  completion()
   {
     if (spawned >= limit) {
       throw std::length_error("spawn group maximum size exceeded");

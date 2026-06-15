@@ -6,8 +6,7 @@
 
 #include "librbd/AsyncRequest.h"
 
-namespace librbd
-{
+namespace librbd {
 
 class ImageCtx;
 class ProgressContext;
@@ -15,19 +14,26 @@ class ProgressContext;
 namespace operation {
 
 template <typename ImageCtxT = ImageCtx>
-class TrimRequest : public AsyncRequest<ImageCtxT>
-{
+class TrimRequest : public AsyncRequest<ImageCtxT> {
 public:
-  static TrimRequest *create(ImageCtxT &image_ctx, Context *on_finish,
-                             uint64_t original_size, uint64_t new_size,
-                             ProgressContext &prog_ctx) {
-    return new TrimRequest(image_ctx, on_finish, original_size, new_size,
-                           prog_ctx);
+  static TrimRequest*
+  create(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      uint64_t original_size,
+      uint64_t new_size,
+      ProgressContext& prog_ctx)
+  {
+    return new TrimRequest(
+        image_ctx, on_finish, original_size, new_size, prog_ctx);
   }
 
-  TrimRequest(ImageCtxT &image_ctx, Context *on_finish,
-	      uint64_t original_size, uint64_t new_size,
-	      ProgressContext &prog_ctx);
+  TrimRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      uint64_t original_size,
+      uint64_t new_size,
+      ProgressContext& prog_ctx);
 
   void send() override;
 
@@ -89,7 +95,7 @@ private:
   uint64_t m_num_objects;
   uint64_t m_delete_off;
   uint64_t m_new_size;
-  ProgressContext &m_prog_ctx;
+  ProgressContext& m_prog_ctx;
 
   void send_pre_trim();
   void send_copyup_objects();

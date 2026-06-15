@@ -14,28 +14,32 @@
  */
 
 #include "TableFormatter.h"
-#include "common/escape.h"
-#include "common/StackStringStream.h"
-#include "include/buffer.h"
 
-#include <boost/container/small_vector.hpp>
 #include <fmt/format.h>
 
 #include <algorithm>
-#include <set>
 #include <limits>
+#include <set>
 #include <utility>
+
+#include <boost/container/small_vector.hpp>
+
+#include "common/StackStringStream.h"
+#include "common/escape.h"
+#include "include/buffer.h"
 
 #define LARGE_SIZE 1024
 
 namespace ceph {
 
-TableFormatter::TableFormatter(bool keyval) : m_keyval(keyval)
+TableFormatter::TableFormatter(bool keyval) :
+  m_keyval(keyval)
 {
   reset();
 }
 
-void TableFormatter::flush(std::ostream& os)
+void
+TableFormatter::flush(std::ostream& os)
 {
   finish_pending_string();
   std::vector<size_t> column_size = m_column_size;
@@ -98,8 +102,8 @@ void TableFormatter::flush(std::ostream& os)
           os << "|";
 
           for (size_t j = 0; j < m_vec[i].size(); j++) {
-            os << fmt::format(" {:<{}}|",
-                              m_vec[i][j].first, m_column_size[j] + 2);
+            os << fmt::format(
+                " {:<{}}|", m_vec[i][j].first, m_column_size[j] + 2);
           }
           os << "\n";
           os << "+";
@@ -148,7 +152,8 @@ void TableFormatter::flush(std::ostream& os)
   m_vec.clear();
 }
 
-void TableFormatter::reset()
+void
+TableFormatter::reset()
 {
   m_ss.clear();
   m_ss.str("");
@@ -157,43 +162,58 @@ void TableFormatter::reset()
   m_section_open = 0;
 }
 
-void TableFormatter::open_object_section(std::string_view name)
+void
+TableFormatter::open_object_section(std::string_view name)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_object_section_with_attrs(std::string_view name, const FormatterAttrs& attrs)
+void
+TableFormatter::open_object_section_with_attrs(
+    std::string_view name,
+    const FormatterAttrs& attrs)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_object_section_in_ns(std::string_view name, const char *ns)
+void
+TableFormatter::open_object_section_in_ns(std::string_view name, const char* ns)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_array_section(std::string_view name)
+void
+TableFormatter::open_array_section(std::string_view name)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_array_section_with_attrs(std::string_view name, const FormatterAttrs& attrs)
+void
+TableFormatter::open_array_section_with_attrs(
+    std::string_view name,
+    const FormatterAttrs& attrs)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_array_section_in_ns(std::string_view name, const char *ns)
+void
+TableFormatter::open_array_section_in_ns(std::string_view name, const char* ns)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void TableFormatter::open_section_in_ns(std::string_view name, const char *ns, const FormatterAttrs *attrs)
+void
+TableFormatter::open_section_in_ns(
+    std::string_view name,
+    const char* ns,
+    const FormatterAttrs* attrs)
 {
   m_section.push_back(std::string(name));
   m_section_open++;
 }
 
-void TableFormatter::close_section()
+void
+TableFormatter::close_section()
 {
   //
   m_section_open--;
@@ -203,7 +223,8 @@ void TableFormatter::close_section()
   }
 }
 
-size_t TableFormatter::m_vec_index(std::string_view name)
+size_t
+TableFormatter::m_vec_index(std::string_view name)
 {
   std::string key(name);
 
@@ -228,10 +249,11 @@ size_t TableFormatter::m_vec_index(std::string_view name)
   return i;
 }
 
-std::string TableFormatter::get_section_name(std::string_view name)
+std::string
+TableFormatter::get_section_name(std::string_view name)
 {
   std::string t_name{name};
-  for (const auto &i : m_section) {
+  for (const auto& i : m_section) {
     t_name.insert(0, ":");
     t_name.insert(0, i);
   }
@@ -248,7 +270,9 @@ std::string TableFormatter::get_section_name(std::string_view name)
 }
 
 template <class T>
-void TableFormatter::add_value(std::string_view name, T val) {
+void
+TableFormatter::add_value(std::string_view name, T val)
+{
   finish_pending_string();
   size_t i = m_vec_index(name);
   m_ss.precision(std::numeric_limits<double>::max_digits10);
@@ -259,27 +283,32 @@ void TableFormatter::add_value(std::string_view name, T val) {
   m_ss.str("");
 }
 
-void TableFormatter::dump_null(std::string_view name)
+void
+TableFormatter::dump_null(std::string_view name)
 {
   add_value(name, "null");
 }
 
-void TableFormatter::dump_unsigned(std::string_view name, uint64_t u)
+void
+TableFormatter::dump_unsigned(std::string_view name, uint64_t u)
 {
   add_value(name, u);
 }
 
-void TableFormatter::dump_int(std::string_view name, int64_t s)
+void
+TableFormatter::dump_int(std::string_view name, int64_t s)
 {
   add_value(name, s);
 }
 
-void TableFormatter::dump_float(std::string_view name, double d)
+void
+TableFormatter::dump_float(std::string_view name, double d)
 {
   add_value(name, d);
 }
 
-void TableFormatter::dump_string(std::string_view name, std::string_view s)
+void
+TableFormatter::dump_string(std::string_view name, std::string_view s)
 {
   finish_pending_string();
   size_t i = m_vec_index(name);
@@ -290,7 +319,11 @@ void TableFormatter::dump_string(std::string_view name, std::string_view s)
   m_ss.str("");
 }
 
-void TableFormatter::dump_string_with_attrs(std::string_view name, std::string_view s, const FormatterAttrs& attrs)
+void
+TableFormatter::dump_string_with_attrs(
+    std::string_view name,
+    std::string_view s,
+    const FormatterAttrs& attrs)
 {
   finish_pending_string();
   size_t i = m_vec_index(name);
@@ -304,9 +337,13 @@ void TableFormatter::dump_string_with_attrs(std::string_view name, std::string_v
   m_ss.str("");
 }
 
-void TableFormatter::dump_format_va(std::string_view name,
-				    const char *ns, bool quoted,
-				    const char *fmt, va_list ap)
+void
+TableFormatter::dump_format_va(
+    std::string_view name,
+    const char* ns,
+    bool quoted,
+    const char* fmt,
+    va_list ap)
 {
   finish_pending_string();
   auto buf = boost::container::small_vector<char, LARGE_SIZE>{
@@ -320,7 +357,7 @@ void TableFormatter::dump_format_va(std::string_view name,
   if (std::cmp_greater_equal(len, buf.size())) {
     // output was truncated, allocate a buffer large enough
     buf.resize(len + 1, boost::container::default_init);
-    vsnprintf(buf.data(), buf.size(), fmt, ap); 
+    vsnprintf(buf.data(), buf.size(), fmt, ap);
   }
 
   size_t i = m_vec_index(name);
@@ -335,7 +372,8 @@ void TableFormatter::dump_format_va(std::string_view name,
   m_ss.str("");
 }
 
-std::ostream& TableFormatter::dump_stream(std::string_view name)
+std::ostream&
+TableFormatter::dump_stream(std::string_view name)
 {
   finish_pending_string();
   // we don't support this
@@ -343,28 +381,35 @@ std::ostream& TableFormatter::dump_stream(std::string_view name)
   return m_ss;
 }
 
-int TableFormatter::get_len() const
+int
+TableFormatter::get_len() const
 {
   // we don't know the size until flush is called
   return 0;
 }
 
-void TableFormatter::write_raw_data(const char *data) {
+void
+TableFormatter::write_raw_data(const char* data)
+{
   // not supported
 }
 
-void TableFormatter::get_attrs_str(const FormatterAttrs *attrs, std::string& attrs_str) const
+void
+TableFormatter::get_attrs_str(
+    const FormatterAttrs* attrs,
+    std::string& attrs_str) const
 {
   CachedStackStringStream css;
 
-  for (const auto &p : attrs->attrs) {
+  for (const auto& p : attrs->attrs) {
     *css << " " << p.first << "=" << "\"" << p.second << "\"";
   }
 
   attrs_str = css->strv();
 }
 
-void TableFormatter::finish_pending_string()
+void
+TableFormatter::finish_pending_string()
 {
   if (m_pending_name.length()) {
     std::string ss = m_ss.str();
@@ -376,4 +421,4 @@ void TableFormatter::finish_pending_string()
   }
 }
 
-}
+} // namespace ceph

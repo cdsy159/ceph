@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,10 +19,9 @@
 #include <string_view>
 
 #include "include/encoding.h"
-
+#include "messages/PaxosServiceMessage.h"
 #include "msg/Message.h"
 #include "msg/MessageRef.h"
-#include "messages/PaxosServiceMessage.h"
 
 class MAuth final : public PaxosServiceMessage {
 public:
@@ -32,18 +31,30 @@ public:
 
   /* if protocol == 0, then auth_payload is a set<__u32> listing protocols the client supports */
 
-  MAuth() : PaxosServiceMessage{CEPH_MSG_AUTH, 0}, protocol(0), monmap_epoch(0) { }
+  MAuth() :
+    PaxosServiceMessage{CEPH_MSG_AUTH, 0}, protocol(0), monmap_epoch(0)
+  {}
+
 private:
   ~MAuth() final {}
 
 public:
-  std::string_view get_type_name() const override { return "auth"; }
-  void print(std::ostream& out) const override {
-    out << "auth(proto " << protocol << " " << auth_payload.length() << " bytes"
-	<< " epoch " << monmap_epoch << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "auth";
   }
 
-  void decode_payload() override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "auth(proto " << protocol << " " << auth_payload.length() << " bytes"
+        << " epoch " << monmap_epoch << ")";
+  }
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -54,14 +65,22 @@ public:
     else
       monmap_epoch = 0;
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(protocol, payload);
     encode(auth_payload, payload);
     encode(monmap_epoch, payload);
   }
-  ceph::buffer::list& get_auth_payload() { return auth_payload; }
+
+  ceph::buffer::list&
+  get_auth_payload()
+  {
+    return auth_payload;
+  }
 };
 
 #endif

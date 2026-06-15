@@ -2,7 +2,8 @@
 
 #include <ostream>
 
-std::pair<DaemonKey, bool> DaemonKey::parse(const std::string& s)
+std::pair<DaemonKey, bool>
+DaemonKey::parse(const std::string& s)
 {
   auto p = s.find('.');
   if (p == s.npos) {
@@ -12,7 +13,8 @@ std::pair<DaemonKey, bool> DaemonKey::parse(const std::string& s)
   }
 }
 
-bool operator<(const DaemonKey& lhs, const DaemonKey& rhs)
+bool
+operator<(const DaemonKey& lhs, const DaemonKey& rhs)
 {
   if (int cmp = lhs.type.compare(rhs.type); cmp < 0) {
     return true;
@@ -23,15 +25,16 @@ bool operator<(const DaemonKey& lhs, const DaemonKey& rhs)
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const DaemonKey& key)
+std::ostream&
+operator<<(std::ostream& os, const DaemonKey& key)
 {
   return os << key.type << '.' << key.name;
 }
 
 namespace ceph {
-std::string to_string(const DaemonKey& key)
+std::string
+to_string(const DaemonKey& key)
 {
   return key.type + '.' + key.name;
 }
-}
-
+} // namespace ceph

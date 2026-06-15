@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,46 +16,64 @@
 #ifndef CEPH_MDS_ESESSIONS_H
 #define CEPH_MDS_ESESSIONS_H
 
+#include "../LogEvent.h"
 #include "common/config.h"
 #include "include/types.h"
 
-#include "../LogEvent.h"
-
 class ESessions : public LogEvent {
 protected:
-  version_t cmapv;  // client map version
+  version_t cmapv; // client map version
   bool old_style_encode;
 
 public:
-  std::map<client_t,entity_inst_t> client_map;
-  std::map<client_t,client_metadata_t> client_metadata_map;
+  std::map<client_t, entity_inst_t> client_map;
+  std::map<client_t, client_metadata_t> client_metadata_map;
 
-  ESessions() : LogEvent(EVENT_SESSIONS), cmapv(0), old_style_encode(false) { }
-  ESessions(version_t pv, std::map<client_t,entity_inst_t>&& cm,
-	    std::map<client_t,client_metadata_t>&& cmm) :
+  ESessions() :
+    LogEvent(EVENT_SESSIONS), cmapv(0), old_style_encode(false)
+  {}
+
+  ESessions(
+      version_t pv,
+      std::map<client_t, entity_inst_t>&& cm,
+      std::map<client_t, client_metadata_t>&& cmm) :
     LogEvent(EVENT_SESSIONS),
-    cmapv(pv), old_style_encode(false),
+    cmapv(pv),
+    old_style_encode(false),
     client_map(std::move(cm)),
-    client_metadata_map(std::move(cmm)) {}
+    client_metadata_map(std::move(cmm))
+  {}
 
-  void mark_old_encoding() { old_style_encode = true; }
-
-  void encode(bufferlist &bl, uint64_t features) const override;
-  void decode_old(bufferlist::const_iterator &bl);
-  void decode_new(bufferlist::const_iterator &bl);
-  void decode(bufferlist::const_iterator &bl) override {
-    if (old_style_encode) decode_old(bl);
-    else decode_new(bl);
+  void
+  mark_old_encoding()
+  {
+    old_style_encode = true;
   }
-  void dump(Formatter *f) const override;
+
+  void encode(bufferlist& bl, uint64_t features) const override;
+  void decode_old(bufferlist::const_iterator& bl);
+  void decode_new(bufferlist::const_iterator& bl);
+
+  void
+  decode(bufferlist::const_iterator& bl) override
+  {
+    if (old_style_encode)
+      decode_old(bl);
+    else
+      decode_new(bl);
+  }
+
+  void dump(Formatter* f) const override;
   static std::list<ESessions> generate_test_instances();
 
-  void print(std::ostream& out) const override {
+  void
+  print(std::ostream& out) const override
+  {
     out << "ESessions " << client_map.size() << " opens cmapv " << cmapv;
   }
-  
+
   void update_segment() override;
-  void replay(MDSRank *mds) override;  
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(ESessions)
 

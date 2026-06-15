@@ -2,21 +2,30 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include "rgw_rest_ratelimit.h"
+
+#include "rgw_op.h"
+#include "rgw_process_env.h"
 #include "rgw_sal.h"
 #include "rgw_sal_config.h"
-#include "rgw_process_env.h"
-#include "rgw_op.h"
 
 class RGWOp_Ratelimit_Info : public RGWRESTOp {
-int check_caps(const RGWUserCaps& caps) override {
-  return caps.check_cap("ratelimit", RGW_CAP_READ);
-}
-  
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
+    return caps.check_cap("ratelimit", RGW_CAP_READ);
+  }
+
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "get_ratelimit_info"; }
+  const char*
+  name() const override
+  {
+    return "get_ratelimit_info";
+  }
 };
-void RGWOp_Ratelimit_Info::execute(optional_yield y)
+
+void
+RGWOp_Ratelimit_Info::execute(optional_yield y)
 {
   ldpp_dout(this, 20) << "" << dendl;
   std::string uid_str;
@@ -32,7 +41,7 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
   bool exists;
   std::string sval = s->info.args.get("global", &exists);
   if (exists) {
-    if (!boost::iequals(sval,"true") && !boost::iequals(sval,"false")) {
+    if (!boost::iequals(sval, "true") && !boost::iequals(sval, "false")) {
       op_ret = -EINVAL;
       ldpp_dout(this, 20) << "global is not equal to true or false" << dendl;
       return;
@@ -42,8 +51,8 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
 
   if (ratelimit_scope == "bucket" && !bucket_name.empty() && !global) {
     std::unique_ptr<rgw::sal::Bucket> bucket;
-    int r = driver->load_bucket(s, rgw_bucket(tenant_name, bucket_name),
-                                &bucket, y);
+    int r = driver->load_bucket(
+        s, rgw_bucket(tenant_name, bucket_name), &bucket, y);
     if (r != 0) {
       op_ret = r;
       ldpp_dout(this, 0) << "Error on getting bucket info" << dendl;
@@ -57,7 +66,8 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
         auto biter = bl.cbegin();
         decode(ratelimit_info, biter);
       } catch (buffer::error& err) {
-        ldpp_dout(this, 0) << "Error on decoding ratelimit info from bucket" << dendl;
+        ldpp_dout(this, 0) << "Error on decoding ratelimit info from bucket"
+                           << dendl;
         op_ret = -EIO;
         return;
       }
@@ -87,13 +97,14 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
     }
 
     auto iter = user_sal->get_attrs().find(RGW_ATTR_RATELIMIT);
-    if(iter != user_sal->get_attrs().end()) {
+    if (iter != user_sal->get_attrs().end()) {
       try {
         bufferlist& bl = iter->second;
         auto biter = bl.cbegin();
         decode(ratelimit_info, biter);
       } catch (buffer::error& err) {
-        ldpp_dout(this, 0) << "Error on decoding ratelimit info from user" << dendl;
+        ldpp_dout(this, 0) << "Error on decoding ratelimit info from user"
+                           << dendl;
         op_ret = -EIO;
         return;
       }
@@ -115,9 +126,11 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
     }
     flusher.start(0);
     s->formatter->open_object_section("period_config");
-    encode_json("bucket_ratelimit", period_config.bucket_ratelimit, s->formatter);
+    encode_json(
+        "bucket_ratelimit", period_config.bucket_ratelimit, s->formatter);
     encode_json("user_ratelimit", period_config.user_ratelimit, s->formatter);
-    encode_json("anonymous_ratelimit", period_config.anon_ratelimit, s->formatter);
+    encode_json(
+        "anonymous_ratelimit", period_config.anon_ratelimit, s->formatter);
     s->formatter->close_section();
     flusher.flush();
     return;
@@ -127,76 +140,108 @@ void RGWOp_Ratelimit_Info::execute(optional_yield y)
 }
 
 class RGWOp_Ratelimit_Set : public RGWRESTOp {
-  int check_caps(const RGWUserCaps& caps) override {
+  int
+  check_caps(const RGWUserCaps& caps) override
+  {
     return caps.check_cap("ratelimit", RGW_CAP_WRITE);
   }
 
   void execute(optional_yield y) override;
 
-  const char* name() const override { return "put_ratelimit_info"; }
-
-  void set_ratelimit_info(bool have_max_read_ops, int64_t max_read_ops, bool have_max_write_ops, int64_t max_write_ops,
-                          bool have_max_read_bytes, int64_t max_read_bytes, bool have_max_write_bytes, int64_t max_write_bytes,
-                          bool have_max_list_ops, int64_t max_list_ops, bool have_max_delete_ops, int64_t max_delete_ops,
-                          bool have_enabled, bool enabled, bool& ratelimit_configured, RGWRateLimitInfo& ratelimit_info);
-};
-
-
-  void RGWOp_Ratelimit_Set::set_ratelimit_info(bool have_max_read_ops, int64_t max_read_ops, bool have_max_write_ops, int64_t max_write_ops,
-                          bool have_max_read_bytes, int64_t max_read_bytes, bool have_max_write_bytes, int64_t max_write_bytes,
-                          bool have_max_list_ops, int64_t max_list_ops, bool have_max_delete_ops, int64_t max_delete_ops,
-                          bool have_enabled, bool enabled, bool& ratelimit_configured, RGWRateLimitInfo& ratelimit_info) 
+  const char*
+  name() const override
   {
-    if (have_max_read_ops) {
-      if (max_read_ops >= 0) {
-        ratelimit_info.max_read_ops = max_read_ops;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_max_write_ops) {
-      if (max_write_ops >= 0) {
-        ratelimit_info.max_write_ops = max_write_ops;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_max_read_bytes) {
-      if (max_read_bytes >= 0) {
-        ratelimit_info.max_read_bytes = max_read_bytes;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_max_write_bytes) {
-      if (max_write_bytes >= 0) {
-        ratelimit_info.max_write_bytes = max_write_bytes;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_max_list_ops) {
-      if (max_list_ops >= 0) {
-        ratelimit_info.max_list_ops = max_list_ops;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_max_delete_ops) {
-      if (max_delete_ops >= 0) {
-        ratelimit_info.max_delete_ops = max_delete_ops;
-        ratelimit_configured = true;
-      }
-    }
-    if (have_enabled) {
-      ratelimit_info.enabled = enabled;
-      ratelimit_configured = true;
-    }
-    if (!ratelimit_configured) {
-      ldpp_dout(this, 0) << "No rate limit configuration arguments have been sent" << dendl;
-      op_ret = -EINVAL;
-      return;
-    }
-
+    return "put_ratelimit_info";
   }
 
+  void set_ratelimit_info(
+      bool have_max_read_ops,
+      int64_t max_read_ops,
+      bool have_max_write_ops,
+      int64_t max_write_ops,
+      bool have_max_read_bytes,
+      int64_t max_read_bytes,
+      bool have_max_write_bytes,
+      int64_t max_write_bytes,
+      bool have_max_list_ops,
+      int64_t max_list_ops,
+      bool have_max_delete_ops,
+      int64_t max_delete_ops,
+      bool have_enabled,
+      bool enabled,
+      bool& ratelimit_configured,
+      RGWRateLimitInfo& ratelimit_info);
+};
 
-void RGWOp_Ratelimit_Set::execute(optional_yield y)
+void
+RGWOp_Ratelimit_Set::set_ratelimit_info(
+    bool have_max_read_ops,
+    int64_t max_read_ops,
+    bool have_max_write_ops,
+    int64_t max_write_ops,
+    bool have_max_read_bytes,
+    int64_t max_read_bytes,
+    bool have_max_write_bytes,
+    int64_t max_write_bytes,
+    bool have_max_list_ops,
+    int64_t max_list_ops,
+    bool have_max_delete_ops,
+    int64_t max_delete_ops,
+    bool have_enabled,
+    bool enabled,
+    bool& ratelimit_configured,
+    RGWRateLimitInfo& ratelimit_info)
+{
+  if (have_max_read_ops) {
+    if (max_read_ops >= 0) {
+      ratelimit_info.max_read_ops = max_read_ops;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_max_write_ops) {
+    if (max_write_ops >= 0) {
+      ratelimit_info.max_write_ops = max_write_ops;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_max_read_bytes) {
+    if (max_read_bytes >= 0) {
+      ratelimit_info.max_read_bytes = max_read_bytes;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_max_write_bytes) {
+    if (max_write_bytes >= 0) {
+      ratelimit_info.max_write_bytes = max_write_bytes;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_max_list_ops) {
+    if (max_list_ops >= 0) {
+      ratelimit_info.max_list_ops = max_list_ops;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_max_delete_ops) {
+    if (max_delete_ops >= 0) {
+      ratelimit_info.max_delete_ops = max_delete_ops;
+      ratelimit_configured = true;
+    }
+  }
+  if (have_enabled) {
+    ratelimit_info.enabled = enabled;
+    ratelimit_configured = true;
+  }
+  if (!ratelimit_configured) {
+    ldpp_dout(this, 0) << "No rate limit configuration arguments have been sent"
+                       << dendl;
+    op_ret = -EINVAL;
+    return;
+  }
+}
+
+void
+RGWOp_Ratelimit_Set::execute(optional_yield y)
 {
   std::string uid_str;
   std::string ratelimit_scope;
@@ -224,20 +269,27 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
   RESTArgs::get_string(s, "bucket", bucket_name, &bucket_name);
   RESTArgs::get_string(s, "tenant", tenant_name, &tenant_name);
   // check there was no -EINVAL coming from get_int64
-  op_ret = RESTArgs::get_int64(s, "max-read-ops", 0, &max_read_ops, &have_max_read_ops);
-  op_ret |= RESTArgs::get_int64(s, "max-write-ops", 0, &max_write_ops, &have_max_write_ops);
-  op_ret |= RESTArgs::get_int64(s, "max-read-bytes", 0, &max_read_bytes, &have_max_read_bytes);
-  op_ret |= RESTArgs::get_int64(s, "max-write-bytes", 0, &max_write_bytes, &have_max_write_bytes);
-  op_ret |= RESTArgs::get_int64(s, "max-list-ops", 0, &max_list_ops, &have_max_list_ops);
-  op_ret |= RESTArgs::get_int64(s, "max-delete-ops", 0, &max_delete_ops, &have_max_delete_ops);
+  op_ret = RESTArgs::get_int64(
+      s, "max-read-ops", 0, &max_read_ops, &have_max_read_ops);
+  op_ret |= RESTArgs::get_int64(
+      s, "max-write-ops", 0, &max_write_ops, &have_max_write_ops);
+  op_ret |= RESTArgs::get_int64(
+      s, "max-read-bytes", 0, &max_read_bytes, &have_max_read_bytes);
+  op_ret |= RESTArgs::get_int64(
+      s, "max-write-bytes", 0, &max_write_bytes, &have_max_write_bytes);
+  op_ret |= RESTArgs::get_int64(
+      s, "max-list-ops", 0, &max_list_ops, &have_max_list_ops);
+  op_ret |= RESTArgs::get_int64(
+      s, "max-delete-ops", 0, &max_delete_ops, &have_max_delete_ops);
   if (op_ret) {
-    ldpp_dout(this, 0) << "one of the maximum arguments could not be parsed" << dendl;
+    ldpp_dout(this, 0) << "one of the maximum arguments could not be parsed"
+                       << dendl;
     return;
   }
   // RESTArgs::get_bool default value to true even if enabled or global are empty
   std::string sval = s->info.args.get("enabled", &have_enabled);
   if (have_enabled) {
-    if (!boost::iequals(sval,"true") && !boost::iequals(sval,"false")) {
+    if (!boost::iequals(sval, "true") && !boost::iequals(sval, "false")) {
       ldpp_dout(this, 20) << "enabled is not equal to true or false" << dendl;
       op_ret = -EINVAL;
       return;
@@ -247,7 +299,7 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
   bool exists;
   sval = s->info.args.get("global", &exists);
   if (exists) {
-    if (!boost::iequals(sval,"true") && !boost::iequals(sval,"false")) {
+    if (!boost::iequals(sval, "true") && !boost::iequals(sval, "false")) {
       ldpp_dout(this, 20) << "global is not equal to true or false" << dendl;
       op_ret = -EINVAL;
       return;
@@ -256,17 +308,21 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
   RESTArgs::get_bool(s, "global", false, &global, nullptr);
 
   // forward to master zonegroup
-  op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->user->get_id(),
-                                         nullptr, nullptr, s->info, s->err, y);
+  op_ret = rgw_forward_request_to_master(
+      this, *s->penv.site, s->user->get_id(), nullptr, nullptr, s->info, s->err,
+      y);
   if (op_ret < 0) {
-    ldpp_dout(this, 0) << "ERROR: forward_request_to_master returned ret=" << op_ret << dendl;
+    ldpp_dout(this, 0) << "ERROR: forward_request_to_master returned ret="
+                       << op_ret << dendl;
     return;
   }
 
-  set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                     have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                     have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                     have_enabled, enabled, ratelimit_configured, ratelimit_info);
+  set_ratelimit_info(
+      have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+      have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+      max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+      max_delete_ops, have_enabled, enabled, ratelimit_configured,
+      ratelimit_info);
   if (op_ret) {
     return;
   }
@@ -292,15 +348,18 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
         auto biter = bl.cbegin();
         decode(ratelimit_info, biter);
       } catch (buffer::error& err) {
-        ldpp_dout(this, 0) << "Error on decoding ratelimit info from user" << dendl;
+        ldpp_dout(this, 0) << "Error on decoding ratelimit info from user"
+                           << dendl;
         op_ret = -EIO;
         return;
       }
     }
-    set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                       have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                       have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                       have_enabled, enabled, ratelimit_configured, ratelimit_info);
+    set_ratelimit_info(
+        have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+        have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+        max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+        max_delete_ops, have_enabled, enabled, ratelimit_configured,
+        ratelimit_info);
     bufferlist bl;
     ratelimit_info.encode(bl);
     rgw::sal::Attrs attr;
@@ -312,8 +371,8 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
   if (ratelimit_scope == "bucket" && !bucket_name.empty() && !global) {
     ldpp_dout(this, 0) << "getting bucket info" << dendl;
     std::unique_ptr<rgw::sal::Bucket> bucket;
-    op_ret = driver->load_bucket(this, rgw_bucket(tenant_name, bucket_name),
-                                 &bucket, y);
+    op_ret = driver->load_bucket(
+        this, rgw_bucket(tenant_name, bucket_name), &bucket, y);
     if (op_ret) {
       ldpp_dout(this, 0) << "Error on getting bucket info" << dendl;
       return;
@@ -325,16 +384,19 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
         auto biter = bl.cbegin();
         decode(ratelimit_info, biter);
       } catch (buffer::error& err) {
-        ldpp_dout(this, 0) << "Error on decoding ratelimit info from bucket" << dendl;
+        ldpp_dout(this, 0) << "Error on decoding ratelimit info from bucket"
+                           << dendl;
         op_ret = -EIO;
         return;
       }
     }
     bufferlist bl;
-    set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                       have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                       have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                       have_enabled, enabled, ratelimit_configured, ratelimit_info);
+    set_ratelimit_info(
+        have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+        have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+        max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+        max_delete_ops, have_enabled, enabled, ratelimit_configured,
+        ratelimit_info);
     ratelimit_info.encode(bl);
     rgw::sal::Attrs attr;
     attr[RGW_ATTR_RATELIMIT] = bl;
@@ -353,43 +415,56 @@ void RGWOp_Ratelimit_Set::execute(optional_yield y)
     }
     if (ratelimit_scope == "bucket") {
       ratelimit_info = period_config.bucket_ratelimit;
-      set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                         have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                         have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                         have_enabled, enabled, ratelimit_configured, ratelimit_info);
+      set_ratelimit_info(
+          have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+          have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+          max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+          max_delete_ops, have_enabled, enabled, ratelimit_configured,
+          ratelimit_info);
       period_config.bucket_ratelimit = ratelimit_info;
-      op_ret = cfgstore->write_period_config(s, y, false, realm_id, period_config);
+      op_ret =
+          cfgstore->write_period_config(s, y, false, realm_id, period_config);
       return;
     }
     if (ratelimit_scope == "anon") {
       ratelimit_info = period_config.anon_ratelimit;
-      set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                         have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                         have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                         have_enabled, enabled, ratelimit_configured, ratelimit_info);
+      set_ratelimit_info(
+          have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+          have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+          max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+          max_delete_ops, have_enabled, enabled, ratelimit_configured,
+          ratelimit_info);
       period_config.anon_ratelimit = ratelimit_info;
-      op_ret = cfgstore->write_period_config(s, y, false, realm_id, period_config);
+      op_ret =
+          cfgstore->write_period_config(s, y, false, realm_id, period_config);
       return;
     }
     if (ratelimit_scope == "user") {
       ratelimit_info = period_config.user_ratelimit;
-      set_ratelimit_info(have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
-                         have_max_read_bytes, max_read_bytes, have_max_write_bytes, max_write_bytes,
-                         have_max_list_ops, max_list_ops, have_max_delete_ops, max_delete_ops,
-                         have_enabled, enabled, ratelimit_configured, ratelimit_info);
+      set_ratelimit_info(
+          have_max_read_ops, max_read_ops, have_max_write_ops, max_write_ops,
+          have_max_read_bytes, max_read_bytes, have_max_write_bytes,
+          max_write_bytes, have_max_list_ops, max_list_ops, have_max_delete_ops,
+          max_delete_ops, have_enabled, enabled, ratelimit_configured,
+          ratelimit_info);
       period_config.user_ratelimit = ratelimit_info;
-      op_ret = cfgstore->write_period_config(s, y, false, realm_id, period_config);
+      op_ret =
+          cfgstore->write_period_config(s, y, false, realm_id, period_config);
       return;
     }
   }
   op_ret = -EINVAL;
   return;
 }
-RGWOp* RGWHandler_Ratelimit::op_get()
+
+RGWOp*
+RGWHandler_Ratelimit::op_get()
 {
   return new RGWOp_Ratelimit_Info;
 }
-RGWOp* RGWHandler_Ratelimit::op_post()
+
+RGWOp*
+RGWHandler_Ratelimit::op_post()
 {
   return new RGWOp_Ratelimit_Set;
 }

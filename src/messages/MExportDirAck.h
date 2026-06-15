@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,45 +16,68 @@
 #ifndef CEPH_MEXPORTDIRACK_H
 #define CEPH_MEXPORTDIRACK_H
 
-#include "MExportDir.h"
 #include "messages/MMDSOp.h"
+
+#include "MExportDir.h"
 
 class MExportDirAck final : public MMDSOp {
 public:
   dirfrag_t dirfrag;
   ceph::buffer::list imported_caps;
 
-  dirfrag_t get_dirfrag() const { return dirfrag; }
-  
+  dirfrag_t
+  get_dirfrag() const
+  {
+    return dirfrag;
+  }
+
 protected:
-  MExportDirAck() : MMDSOp{MSG_MDS_EXPORTDIRACK} {}
+  MExportDirAck() :
+    MMDSOp{MSG_MDS_EXPORTDIRACK}
+  {}
+
   MExportDirAck(dirfrag_t df, uint64_t tid) :
-    MMDSOp{MSG_MDS_EXPORTDIRACK}, dirfrag(df) {
+    MMDSOp{MSG_MDS_EXPORTDIRACK}, dirfrag(df)
+  {
     set_tid(tid);
   }
+
   ~MExportDirAck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "ExAck"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "ExAck";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export_ack(" << dirfrag << ")";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dirfrag, p);
     decode(imported_caps, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dirfrag, payload);
     encode(imported_caps, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

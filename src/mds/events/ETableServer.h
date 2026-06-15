@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,11 +16,10 @@
 #ifndef CEPH_MDS_ETABLESERVER_H
 #define CEPH_MDS_ETABLESERVER_H
 
+#include "../LogEvent.h"
+#include "../mds_table_types.h"
 #include "common/config.h"
 #include "include/types.h"
-
-#include "../mds_table_types.h"
-#include "../LogEvent.h"
 
 struct ETableServer : public LogEvent {
   __u16 table;
@@ -31,29 +30,56 @@ struct ETableServer : public LogEvent {
   version_t tid;
   version_t version;
 
-  ETableServer() : LogEvent(EVENT_TABLESERVER), table(0), op(0),
-		   reqid(0), bymds(MDS_RANK_NONE), tid(0), version(0) { }
-  ETableServer(int t, int o, uint64_t ri, mds_rank_t m, version_t ti, version_t v) :
+  ETableServer() :
     LogEvent(EVENT_TABLESERVER),
-    table(t), op(o), reqid(ri), bymds(m), tid(ti), version(v) { }
+    table(0),
+    op(0),
+    reqid(0),
+    bymds(MDS_RANK_NONE),
+    tid(0),
+    version(0)
+  {}
+
+  ETableServer(
+      int t,
+      int o,
+      uint64_t ri,
+      mds_rank_t m,
+      version_t ti,
+      version_t v) :
+    LogEvent(EVENT_TABLESERVER),
+    table(t),
+    op(o),
+    reqid(ri),
+    bymds(m),
+    tid(ti),
+    version(v)
+  {}
 
   void encode(bufferlist& bl, uint64_t features) const override;
   void decode(bufferlist::const_iterator& bl) override;
-  void dump(Formatter *f) const override;
+  void dump(Formatter* f) const override;
   static std::list<ETableServer> generate_test_instances();
 
-  void print(std::ostream& out) const override {
-    out << "ETableServer " << get_mdstable_name(table) 
-	<< " " << get_mdstableserver_opname(op);
-    if (reqid) out << " reqid " << reqid;
-    if (bymds >= 0) out << " mds." << bymds;
-    if (tid) out << " tid " << tid;
-    if (version) out << " version " << version;
-    if (mutation.length()) out << " mutation=" << mutation.length() << " bytes";
-  }  
+  void
+  print(std::ostream& out) const override
+  {
+    out << "ETableServer " << get_mdstable_name(table) << " "
+        << get_mdstableserver_opname(op);
+    if (reqid)
+      out << " reqid " << reqid;
+    if (bymds >= 0)
+      out << " mds." << bymds;
+    if (tid)
+      out << " tid " << tid;
+    if (version)
+      out << " version " << version;
+    if (mutation.length())
+      out << " mutation=" << mutation.length() << " bytes";
+  }
 
   void update_segment() override;
-  void replay(MDSRank *mds) override;  
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(ETableServer)
 

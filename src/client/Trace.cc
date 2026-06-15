@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,24 +14,21 @@
  */
 
 
-
 #include "Trace.h"
-#include "common/debug.h"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <iostream>
 #include <map>
 
+#include "common/debug.h"
+
 #include "common/config.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
-
-
-
-
-void Trace::start()
+void
+Trace::start()
 {
   //cout << "start" << std::endl;
   delete fs;
@@ -43,7 +40,7 @@ void Trace::start()
     ceph_abort();
   }
   //generic_dout(2) << "opened traced file '" << filename << "'" << dendl;
-  
+
   // read first line
   getline(*fs, line);
   //cout << "first line is " << line << std::endl;
@@ -51,11 +48,11 @@ void Trace::start()
   _line = 1;
 }
 
-const char *Trace::peek_string(string &buf, const char *prefix)
+const char*
+Trace::peek_string(string& buf, const char* prefix)
 {
   //if (prefix) cout << "prefix '" << prefix << "' line '" << line << "'" << std::endl;
-  if (prefix &&
-      strstr(line.c_str(), "/prefix") == line.c_str()) {
+  if (prefix && strstr(line.c_str(), "/prefix") == line.c_str()) {
     buf.clear();
     buf.append(prefix);
     buf.append(line.c_str() + strlen("/prefix"));
@@ -65,8 +62,8 @@ const char *Trace::peek_string(string &buf, const char *prefix)
   return buf.c_str();
 }
 
-
-const char *Trace::get_string(string &buf, const char *prefix)
+const char*
+Trace::get_string(string& buf, const char* prefix)
 {
   peek_string(buf, prefix);
 

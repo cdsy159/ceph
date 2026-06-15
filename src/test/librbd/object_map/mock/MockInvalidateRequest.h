@@ -14,10 +14,11 @@ struct MockInvalidateRequestBase {
   static std::list<InvalidateRequest<I>*> s_requests;
   uint64_t snap_id = 0;
   bool force = false;
-  Context *on_finish = nullptr;
+  Context* on_finish = nullptr;
 
-  static InvalidateRequest<I>* create(I &image_ctx, uint64_t snap_id,
-                                      bool force, Context *on_finish) {
+  static InvalidateRequest<I>*
+  create(I& image_ctx, uint64_t snap_id, bool force, Context* on_finish)
+  {
     ceph_assert(!s_requests.empty());
     InvalidateRequest<I>* req = s_requests.front();
     req->snap_id = snap_id;
@@ -27,7 +28,8 @@ struct MockInvalidateRequestBase {
     return req;
   }
 
-  MockInvalidateRequestBase() {
+  MockInvalidateRequestBase()
+  {
     s_requests.push_back(static_cast<InvalidateRequest<I>*>(this));
   }
 

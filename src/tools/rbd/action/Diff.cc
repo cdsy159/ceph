@@ -1,14 +1,16 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/Formatter.h"
+#include "common/TextTable.h"
+#include "common/errno.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/errno.h"
-#include "common/Formatter.h"
-#include "common/TextTable.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -18,15 +20,19 @@ namespace at = argument_types;
 namespace po = boost::program_options;
 
 struct output_method {
-  output_method() : f(NULL), t(NULL), empty(true) {}
-  Formatter *f;
-  TextTable *t;
+  output_method() :
+    f(NULL), t(NULL), empty(true)
+  {}
+
+  Formatter* f;
+  TextTable* t;
   bool empty;
 };
 
-static int diff_cb(uint64_t ofs, size_t len, int exists, void *arg)
+static int
+diff_cb(uint64_t ofs, size_t len, int exists, void* arg)
 {
-  output_method *om = static_cast<output_method *>(arg);
+  output_method* om = static_cast<output_method*>(arg);
   om->empty = false;
   if (om->f) {
     om->f->open_object_section("extent");
@@ -41,8 +47,12 @@ static int diff_cb(uint64_t ofs, size_t len, int exists, void *arg)
   return 0;
 }
 
-static int do_diff(librbd::Image& image, const char *fromsnapname,
-                   bool whole_object, Formatter *f)
+static int
+do_diff(
+    librbd::Image& image,
+    const char* fromsnapname,
+    bool whole_object,
+    Formatter* f)
 {
   int r;
   librbd::image_info_t info;
@@ -62,8 +72,8 @@ static int do_diff(librbd::Image& image, const char *fromsnapname,
     om.t->define_column("Type", TextTable::LEFT, TextTable::LEFT);
   }
 
-  r = image.diff_iterate2(fromsnapname, 0, info.size, true, whole_object,
-                          diff_cb, &om);
+  r = image.diff_iterate2(
+      fromsnapname, 0, info.size, true, whole_object, diff_cb, &om);
   if (f) {
     f->close_section();
     f->flush(std::cout);
@@ -75,28 +85,34 @@ static int do_diff(librbd::Image& image, const char *fromsnapname,
   return r;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
-  at::add_image_or_snap_spec_options(positional, options,
-                                     at::ARGUMENT_MODIFIER_NONE);
-  options->add_options()
-    (at::FROM_SNAPSHOT_NAME.c_str(), po::value<std::string>(),
-     "snapshot starting point")
-    (at::WHOLE_OBJECT.c_str(), po::bool_switch(), "compare whole object");
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  at::add_image_or_snap_spec_options(
+      positional, options, at::ARGUMENT_MODIFIER_NONE);
+  options->add_options()(
+      at::FROM_SNAPSHOT_NAME.c_str(), po::value<std::string>(),
+      "snapshot starting point")(
+      at::WHOLE_OBJECT.c_str(), po::bool_switch(), "compare whole object");
   at::add_format_options(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_PERMITTED,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_PERMITTED,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -117,14 +133,16 @@ int execute(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "",
-                                 snap_name, true, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", snap_name, true, &rados,
+      &io_ctx, &image);
   if (r < 0) {
     return r;
   }
 
-  r = do_diff(image, from_snap_name.empty() ? nullptr : from_snap_name.c_str(),
-              diff_whole_object, formatter.get());
+  r = do_diff(
+      image, from_snap_name.empty() ? nullptr : from_snap_name.c_str(),
+      diff_whole_object, formatter.get());
   if (r < 0) {
     std::cerr << "rbd: diff error: " << cpp_strerror(r) << std::endl;
     return -r;
@@ -133,9 +151,12 @@ int execute(const po::variables_map &vm,
 }
 
 Shell::Action action(
-  {"diff"}, {},
-  "Print extents that differ since a previous snap, or image creation.", "",
-  &get_arguments, &execute);
+    {"diff"},
+    {},
+    "Print extents that differ since a previous snap, or image creation.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace diff
 } // namespace action

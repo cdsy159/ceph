@@ -14,6 +14,7 @@
  */
 
 #include "common/common_init.h"
+
 #include "common/admin_socket.h"
 #include "common/ceph_argparse.h"
 #include "common/ceph_context.h"
@@ -29,15 +30,18 @@
 #define dout_subsys ceph_subsys_
 
 #ifndef WITH_CRIMSON
-CephContext *common_preinit(const CephInitParameters &iparams,
-			    enum code_environment_t code_env, int flags)
+CephContext*
+common_preinit(
+    const CephInitParameters& iparams,
+    enum code_environment_t code_env,
+    int flags)
 {
   // set code environment
   ANNOTATE_BENIGN_RACE_SIZED(&g_code_env, sizeof(g_code_env), "g_code_env");
   g_code_env = code_env;
 
   // Create a configuration object
-  CephContext *cct = new CephContext(iparams.module_type, code_env, flags);
+  CephContext* cct = new CephContext(iparams.module_type, code_env, flags);
 
   auto& conf = cct->_conf;
   // add config observers here
@@ -56,8 +60,8 @@ CephContext *common_preinit(const CephInitParameters &iparams,
 
   if ((flags & CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS)) {
     // make this unique despite multiple instances by the same name.
-    conf.set_val_default("admin_socket",
-			  "$run_dir/$cluster-$name.$pid.$cctid.asok");
+    conf.set_val_default(
+        "admin_socket", "$run_dir/$cluster-$name.$pid.$cctid.asok");
   }
 
   if (code_env == CODE_ENVIRONMENT_LIBRARY ||
@@ -74,10 +78,10 @@ CephContext *common_preinit(const CephInitParameters &iparams,
   }
   return cct;
 }
-#endif	// #ifndef WITH_CRIMSON
+#endif // #ifndef WITH_CRIMSON
 
-void complain_about_parse_error(CephContext *cct,
-				const std::string& parse_error)
+void
+complain_about_parse_error(CephContext* cct, const std::string& parse_error)
 {
   if (parse_error.empty())
     return;
@@ -89,7 +93,8 @@ void complain_about_parse_error(CephContext *cct,
 
 /* Please be sure that this can safely be called multiple times by the
  * same application. */
-void common_init_finish(CephContext *cct)
+void
+common_init_finish(CephContext* cct)
 {
   // only do this once per cct
   if (cct->_finished) {
@@ -124,7 +129,7 @@ void common_init_finish(CephContext *cct)
         cct->get_admin_socket()->chmod(static_cast<mode_t>(ret));
       } else {
         lderr(cct) << "Invalid octal permissions string: "
-            << conf->admin_socket_mode << dendl;
+                   << conf->admin_socket_mode << dendl;
       }
     } else {
       lderr(cct) << "Invalid octal string: " << err << dendl;
@@ -132,4 +137,4 @@ void common_init_finish(CephContext *cct)
   }
 }
 
-#endif	// #ifndef WITH_CRIMSON
+#endif // #ifndef WITH_CRIMSON

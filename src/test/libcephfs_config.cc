@@ -13,18 +13,20 @@
  *
  */
 
-#include "gtest/gtest.h"
-#include "include/compat.h"
-#include "include/cephfs/libcephfs.h"
+#include <string.h>
 
 #include <sstream>
 #include <string>
-#include <string.h>
+
+#include "gtest/gtest.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
 
 using std::string;
 
-TEST(LibCephConfig, SimpleSet) {
-  struct ceph_mount_info *cmount;
+TEST(LibCephConfig, SimpleSet)
+{
+  struct ceph_mount_info* cmount;
   int ret = ceph_create(&cmount, NULL);
   ASSERT_EQ(ret, 0);
 
@@ -40,13 +42,13 @@ TEST(LibCephConfig, SimpleSet) {
   ceph_shutdown(cmount);
 }
 
-TEST(LibCephConfig, ArgV) {
-  struct ceph_mount_info *cmount;
+TEST(LibCephConfig, ArgV)
+{
+  struct ceph_mount_info* cmount;
   int ret = ceph_create(&cmount, NULL);
   ASSERT_EQ(ret, 0);
 
-  const char *argv[] = { "foo", "--log_max_new", "2",
-			 "--key", "my-key", NULL };
+  const char* argv[] = {"foo", "--log_max_new", "2", "--key", "my-key", NULL};
   size_t argc = (sizeof(argv) / sizeof(argv[0])) - 1;
   ceph_conf_parse_argv(cmount, argc, argv);
 

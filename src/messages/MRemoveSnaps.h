@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -24,35 +24,52 @@ public:
 
 protected:
   MRemoveSnaps() :
-    PaxosServiceMessage{MSG_REMOVE_SNAPS, 0} { }
-  MRemoveSnaps(std::map<int, std::vector<snapid_t>>& s) : 
-    PaxosServiceMessage{MSG_REMOVE_SNAPS, 0} {
+    PaxosServiceMessage{MSG_REMOVE_SNAPS, 0}
+  {}
+
+  MRemoveSnaps(std::map<int, std::vector<snapid_t>>& s) :
+    PaxosServiceMessage{MSG_REMOVE_SNAPS, 0}
+  {
     snaps.swap(s);
   }
+
   ~MRemoveSnaps() final {}
 
 public:
-  std::string_view get_type_name() const override { return "remove_snaps"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "remove_snaps";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "remove_snaps(" << snaps << " v" << version << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(snaps, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
     decode(snaps, p);
     ceph_assert(p.end());
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

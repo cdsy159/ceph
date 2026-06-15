@@ -2,15 +2,17 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "Messenger.h"
+
 #include "SocketMessenger.h"
 
 namespace crimson::net {
 
 MessengerRef
-Messenger::create(const entity_name_t& name,
-                  const std::string& lname,
-                  uint64_t nonce,
-                  bool dispatch_only_on_this_shard)
+Messenger::create(
+    const entity_name_t& name,
+    const std::string& lname,
+    uint64_t nonce,
+    bool dispatch_only_on_this_shard)
 {
   return seastar::make_shared<SocketMessenger>(
       name, lname, nonce, dispatch_only_on_this_shard);

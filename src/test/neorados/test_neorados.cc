@@ -1,22 +1,23 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/rados/librados.hpp"
-#include "include/neorados/RADOS.hpp"
-#include "common/async/blocked_completion.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
 #include <iostream>
+
+#include "common/async/blocked_completion.h"
+#include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "include/rados/librados.hpp"
+#include "test/librados/test_cxx.h"
 
 namespace neorados {
 
 class TestNeoRADOS : public ::testing::Test {
 public:
-  TestNeoRADOS() {
-  }
+  TestNeoRADOS() {}
 };
 
-TEST_F(TestNeoRADOS, MakeWithLibRADOS) {
+TEST_F(TestNeoRADOS, MakeWithLibRADOS)
+{
   librados::Rados paleo_rados;
   auto result = connect_cluster_pp(paleo_rados);
   ASSERT_EQ("", result);
@@ -29,14 +30,17 @@ TEST_F(TestNeoRADOS, MakeWithLibRADOS) {
 
   // provide pool that doesn't exists -- just testing round-trip
   ASSERT_THROW(
-    rados.execute({"dummy-obj"}, IOContext{std::numeric_limits<int64_t>::max()},
-                  std::move(op), nullptr, ceph::async::use_blocked),
-    boost::system::system_error);
+      rados.execute(
+          {"dummy-obj"}, IOContext{std::numeric_limits<int64_t>::max()},
+          std::move(op), nullptr, ceph::async::use_blocked),
+      boost::system::system_error);
 }
 
 } // namespace neorados
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   ::testing::InitGoogleTest(&argc, argv);
 
   int seed = getpid();

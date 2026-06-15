@@ -13,36 +13,31 @@
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 
 // Consider std once C++23 is available
-#include <boost/stacktrace.hpp>
-
 #include <seastar/core/reactor.hh>
 
-#include "crimson/common/log.h"
+#include <boost/stacktrace.hpp>
 
 #include "common/safe_io.h"
+#include "crimson/common/log.h"
 #include "include/scope_guard.h"
 
 SET_SUBSYS(osd);
 
 FatalSignal::FatalSignal()
 {
-  install_oneshot_signals_handler<SIGSEGV,
-                                  SIGABRT,
-                                  SIGBUS,
-                                  SIGILL,
-                                  SIGFPE,
-                                  SIGXCPU,
-                                  SIGXFSZ,
-                                  SIGSYS>();
+  install_oneshot_signals_handler<
+      SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE, SIGXCPU, SIGXFSZ, SIGSYS>();
 }
 
 template <int... SigNums>
-void FatalSignal::install_oneshot_signals_handler()
+void
+FatalSignal::install_oneshot_signals_handler()
 {
-  (install_oneshot_signal_handler<SigNums>() , ...);
+  (install_oneshot_signal_handler<SigNums>(), ...);
 }
 
-static void reraise_fatal(const int signum)
+static void
+reraise_fatal(const int signum)
 {
   // use default handler to dump core
   ::signal(signum, SIG_DFL);
@@ -59,10 +54,8 @@ static void reraise_fatal(const int signum)
   ::_exit(1);
 }
 
-[[gnu::noinline]] void FatalSignal::signal_entry(
-  const int signum,
-  siginfo_t* const info,
-  void*)
+[[gnu::noinline]] void
+FatalSignal::signal_entry(const int signum, siginfo_t* const info, void*)
 {
   if (static std::atomic_bool handled{false}; handled.exchange(true)) {
     return;
@@ -73,7 +66,8 @@ static void reraise_fatal(const int signum)
 }
 
 template <int SigNum>
-void FatalSignal::install_oneshot_signal_handler()
+void
+FatalSignal::install_oneshot_signal_handler()
 {
   struct sigaction sa;
   // it's a bad idea to use a lambda here. On GCC there are `operator()`
@@ -88,7 +82,9 @@ void FatalSignal::install_oneshot_signal_handler()
   assert(r == 0);
 }
 
-[[gnu::noinline]] static void print_backtrace(std::string_view cause) {
+[[gnu::noinline]] static void
+print_backtrace(std::string_view cause)
+{
   // nobody wants to see things like `FatalSignal::signaled()` or
   // `print_backtrace()` in our backtraces. `+ 1` is for the extra
   // frame created by kernel (signal trampoline, it will take care
@@ -96,22 +92,23 @@ void FatalSignal::install_oneshot_signal_handler()
   constexpr std::size_t FRAMES_TO_SKIP = 2 + 1;
 
   // Let's inform regarding the abort before getting the stacktrace
-   std::string pre_backtrace = fmt::format(
-    "Aborting {} on shard {} - Stopping all shards",
-    cause,
-    seastar::engine_is_ready() ? std::to_string(seastar::this_shard_id()) : "no shard");
+  std::string pre_backtrace = fmt::format(
+      "Aborting {} on shard {} - Stopping all shards", cause,
+      seastar::engine_is_ready() ? std::to_string(seastar::this_shard_id())
+                                 : "no shard");
 
   GENERIC_ERROR("{}", pre_backtrace);
   std::cerr << pre_backtrace << std::flush;
 
   seastar::engine().exit(1);
 
-  std::string backtrace = fmt::format("{} on shard {}  \nBacktrace:\n {}",
-    cause,
-    seastar::engine_is_ready() ? std::to_string(seastar::this_shard_id()) : "no shard",
-    boost::stacktrace::to_string(boost::stacktrace::stacktrace(
-    FRAMES_TO_SKIP,
-    static_cast<std::size_t>(-1)/* max depth same as the default one */)));
+  std::string backtrace = fmt::format(
+      "{} on shard {}  \nBacktrace:\n {}", cause,
+      seastar::engine_is_ready() ? std::to_string(seastar::this_shard_id())
+                                 : "no shard",
+      boost::stacktrace::to_string(boost::stacktrace::stacktrace(
+          FRAMES_TO_SKIP, static_cast<std::size_t>(
+                              -1) /* max depth same as the default one */)));
 
   // Print backtrace in log and in std out
   GENERIC_ERROR("{}", backtrace);
@@ -121,48 +118,49 @@ void FatalSignal::install_oneshot_signal_handler()
   //       see handle_fatal_signal()
 }
 
-[[maybe_unused]] static void print_segv_info(const siginfo_t& siginfo)
+[[maybe_unused]] static void
+print_segv_info(const siginfo_t& siginfo)
 {
-  std::cerr \
-     << "Dump of siginfo:" << std::endl
-     << "  si_signo: " << siginfo.si_signo << std::endl
-     << "  si_errno: " << siginfo.si_errno << std::endl
-     << "  si_code: " << siginfo.si_code << std::endl
-     << "  si_pid: " << siginfo.si_pid << std::endl
-     << "  si_uid: " << siginfo.si_uid << std::endl
-     << "  si_status: " << siginfo.si_status << std::endl
-     << "  si_utime: " << siginfo.si_utime << std::endl
-     << "  si_stime: " << siginfo.si_stime << std::endl
-     << "  si_int: " << siginfo.si_int << std::endl
-     << "  si_ptr: " << siginfo.si_ptr << std::endl
-     << "  si_overrun: " << siginfo.si_overrun << std::endl
-     << "  si_timerid: " << siginfo.si_timerid << std::endl
-     << "  si_addr: " << siginfo.si_addr << std::endl
-     << "  si_band: " << siginfo.si_band << std::endl
-     << "  si_fd: " << siginfo.si_fd << std::endl
-     << "  si_addr_lsb: " << siginfo.si_addr_lsb << std::endl
-     << "  si_lower: " << siginfo.si_lower << std::endl
-     << "  si_upper: " << siginfo.si_upper << std::endl
-     << "  si_pkey: " << siginfo.si_pkey << std::endl
-     << "  si_call_addr: " << siginfo.si_call_addr << std::endl
-     << "  si_syscall: " << siginfo.si_syscall << std::endl
-     << "  si_arch: " << siginfo.si_arch << std::endl;
+  std::cerr << "Dump of siginfo:" << std::endl
+            << "  si_signo: " << siginfo.si_signo << std::endl
+            << "  si_errno: " << siginfo.si_errno << std::endl
+            << "  si_code: " << siginfo.si_code << std::endl
+            << "  si_pid: " << siginfo.si_pid << std::endl
+            << "  si_uid: " << siginfo.si_uid << std::endl
+            << "  si_status: " << siginfo.si_status << std::endl
+            << "  si_utime: " << siginfo.si_utime << std::endl
+            << "  si_stime: " << siginfo.si_stime << std::endl
+            << "  si_int: " << siginfo.si_int << std::endl
+            << "  si_ptr: " << siginfo.si_ptr << std::endl
+            << "  si_overrun: " << siginfo.si_overrun << std::endl
+            << "  si_timerid: " << siginfo.si_timerid << std::endl
+            << "  si_addr: " << siginfo.si_addr << std::endl
+            << "  si_band: " << siginfo.si_band << std::endl
+            << "  si_fd: " << siginfo.si_fd << std::endl
+            << "  si_addr_lsb: " << siginfo.si_addr_lsb << std::endl
+            << "  si_lower: " << siginfo.si_lower << std::endl
+            << "  si_upper: " << siginfo.si_upper << std::endl
+            << "  si_pkey: " << siginfo.si_pkey << std::endl
+            << "  si_call_addr: " << siginfo.si_call_addr << std::endl
+            << "  si_syscall: " << siginfo.si_syscall << std::endl
+            << "  si_arch: " << siginfo.si_arch << std::endl;
   std::cerr << std::flush;
 }
 
-[[maybe_unused]] static void print_proc_maps()
+[[maybe_unused]] static void
+print_proc_maps()
 {
   const int fd = ::open("/proc/self/maps", O_RDONLY);
   if (fd < 0) {
     std::cerr << "can't open /proc/self/maps. procfs not mounted?" << std::endl;
     return;
   }
-  const auto fd_guard = make_scope_guard([fd] {
-    ::close(fd);
-  });
+  const auto fd_guard = make_scope_guard([fd] { ::close(fd); });
   std::cerr << "Content of /proc/self/maps:" << std::endl;
   while (true) {
-    char chunk[4096] = {0, };
+    char chunk[4096] = {
+        0,
+    };
     const ssize_t r = safe_read(fd, chunk, sizeof(chunk) - 1);
     if (r < 0) {
       std::cerr << "error while reading /proc/self/maps: " << r << std::endl;
@@ -176,8 +174,8 @@ void FatalSignal::install_oneshot_signal_handler()
   }
 }
 
-[[gnu::noinline]] void FatalSignal::signaled(const int signum,
-                                             const siginfo_t& siginfo)
+[[gnu::noinline]] void
+FatalSignal::signaled(const int signum, const siginfo_t& siginfo)
 {
   // Commented out for clean backtrace logs,
   // can be used if needed:

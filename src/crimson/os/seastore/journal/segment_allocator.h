@@ -3,23 +3,23 @@
 
 #pragma once
 
-#include <optional>
 #include <seastar/core/circular_buffer.hh>
 #include <seastar/core/metrics.hh>
 #include <seastar/core/shared_future.hh>
 
-#include "include/buffer.h"
+#include <optional>
 
 #include "crimson/common/errorator.h"
+#include "crimson/os/seastore/async_cleaner.h"
+#include "crimson/os/seastore/journal/record_submitter.h"
 #include "crimson/os/seastore/segment_manager_group.h"
 #include "crimson/os/seastore/segment_seq_allocator.h"
-#include "crimson/os/seastore/journal/record_submitter.h"
-#include "crimson/os/seastore/async_cleaner.h"
+#include "include/buffer.h"
 
 namespace crimson::os::seastore {
-  class SegmentProvider;
-  class JournalTrimmer;
-}
+class SegmentProvider;
+class JournalTrimmer;
+} // namespace crimson::os::seastore
 
 namespace crimson::os::seastore::journal {
 
@@ -30,49 +30,62 @@ namespace crimson::os::seastore::journal {
  */
 class SegmentAllocator : public JournalAllocator {
 
- public:
+public:
   // SegmentAllocator specific methods
-  SegmentAllocator(JournalTrimmer *trimmer,
-                   data_category_t category,
-                   rewrite_gen_t gen,
-                   SegmentProvider &sp,
-                   SegmentSeqAllocator &ssa);
+  SegmentAllocator(
+      JournalTrimmer* trimmer,
+      data_category_t category,
+      rewrite_gen_t gen,
+      SegmentProvider& sp,
+      SegmentSeqAllocator& ssa);
 
-  segment_id_t get_segment_id() const {
+  segment_id_t
+  get_segment_id() const
+  {
     assert(can_write());
     return current_segment->get_segment_id();
   }
 
-  extent_len_t get_max_write_length() const {
-    return sm_group.get_segment_size() -
-           sm_group.get_rounded_header_length() -
+  extent_len_t
+  get_max_write_length() const
+  {
+    return sm_group.get_segment_size() - sm_group.get_rounded_header_length() -
            sm_group.get_rounded_tail_length();
   }
 
- public:
+public:
   // overriding methods
-  const std::string& get_name() const final {
+  const std::string&
+  get_name() const final
+  {
     return print_name;
   }
 
-  extent_len_t get_block_size() const final {
+  extent_len_t
+  get_block_size() const final
+  {
     return sm_group.get_block_size();
   }
 
-  bool can_write() const final {
+  bool
+  can_write() const final
+  {
     return !!current_segment;
   }
 
-  segment_nonce_t get_nonce() const final {
+  segment_nonce_t
+  get_nonce() const final
+  {
     assert(can_write());
     return current_segment_nonce;
   }
 
   // returns true iff the current segment has insufficient space
-  bool needs_roll(std::size_t length) const final {
+  bool
+  needs_roll(std::size_t length) const final
+  {
     assert(can_write());
-    assert(current_segment->get_write_capacity() ==
-           sm_group.get_segment_size());
+    assert(current_segment->get_write_capacity() == sm_group.get_segment_size());
     auto write_capacity = current_segment->get_write_capacity() -
                           sm_group.get_rounded_tail_length();
     return length + written_to > std::size_t(write_capacity);
@@ -95,17 +108,19 @@ class SegmentAllocator : public JournalAllocator {
   using close_ertr = base_ertr;
   close_ertr::future<> close() final;
 
-  void update_modify_time(record_t& record) final {
+  void
+  update_modify_time(record_t& record) final
+  {
     segment_provider.update_modify_time(
-      get_segment_id(),
-      record.modify_time,
-      record.extents.size());
+        get_segment_id(), record.modify_time, record.extents.size());
   }
 
- private:
+private:
   open_ret do_open(bool is_mkfs);
 
-  void reset() {
+  void
+  reset()
+  {
     current_segment.reset();
     written_to = 0;
 
@@ -121,13 +136,13 @@ class SegmentAllocator : public JournalAllocator {
   const segment_type_t type; // JOURNAL or OOL
   const data_category_t category;
   const rewrite_gen_t gen;
-  SegmentProvider &segment_provider;
-  SegmentManagerGroup &sm_group;
+  SegmentProvider& segment_provider;
+  SegmentManagerGroup& sm_group;
   SegmentRef current_segment;
   segment_off_t written_to;
-  SegmentSeqAllocator &segment_seq_allocator;
+  SegmentSeqAllocator& segment_seq_allocator;
   segment_nonce_t current_segment_nonce;
-  JournalTrimmer *trimmer;
+  JournalTrimmer* trimmer;
 };
 
-}
+} // namespace crimson::os::seastore::journal

@@ -1,4 +1,4 @@
-// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -23,21 +23,20 @@ class JournalScanner;
 /**
  * Different output formats for the results of a journal scan
  */
-class EventOutput
-{
-  private:
-    JournalScanner const &scan;
-    std::string const path;
+class EventOutput {
+private:
+  JournalScanner const& scan;
+  std::string const path;
 
-  public:
-    EventOutput(JournalScanner const &scan_, std::string const &path_)
-      : scan(scan_), path(path_) {}
+public:
+  EventOutput(JournalScanner const& scan_, std::string const& path_) :
+    scan(scan_), path(path_)
+  {}
 
-    void summary() const;
-    void list() const;
-    int json() const;
-    int binary() const;
+  void summary() const;
+  void list() const;
+  int json() const;
+  int binary() const;
 };
 
 #endif // EVENT_OUTPUT_H
-

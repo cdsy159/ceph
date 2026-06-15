@@ -12,41 +12,45 @@
  */
 
 #include "DaemonPerfCounters.h"
-#include "PerfCounterInstance.h"
-#include "MgrSession.h"
-#include "common/Clock.h" // for ceph_clock_now()
+
 #include "common/debug.h"
+
+#include "common/Clock.h" // for ceph_clock_now()
 #include "messages/MMgrReport.h"
+
+#include "MgrSession.h"
+#include "PerfCounterInstance.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
 #undef dout_prefix
 #define dout_prefix *_dout << "mgr " << __func__ << " "
 
-DaemonPerfCounters::DaemonPerfCounters(PerfCounterTypes &types_)
-  : types(types_)
+DaemonPerfCounters::DaemonPerfCounters(PerfCounterTypes& types_) :
+  types(types_)
 {}
 
 DaemonPerfCounters::~DaemonPerfCounters() noexcept = default;
 
-void DaemonPerfCounters::update(const MMgrReport& report)
+void
+DaemonPerfCounters::update(const MMgrReport& report)
 {
   dout(20) << "loading " << report.declare_types.size() << " new types, "
-	   << report.undeclare_types.size() << " old types, had "
-	   << types.size() << " types, got "
-           << report.packed.length() << " bytes of data" << dendl;
+           << report.undeclare_types.size() << " old types, had "
+           << types.size() << " types, got " << report.packed.length()
+           << " bytes of data" << dendl;
 
   // Retrieve session state
   auto priv = report.get_connection()->get_priv();
   auto session = static_cast<MgrSession*>(priv.get());
 
   // Load any newly declared types
-  for (const auto &t : report.declare_types) {
+  for (const auto& t : report.declare_types) {
     types.insert(std::make_pair(t.path, t));
     session->declared_types.insert(t.path);
   }
   // Remove any old types
-  for (const auto &t : report.undeclare_types) {
+  for (const auto& t : report.undeclare_types) {
     session->declared_types.erase(t);
   }
 
@@ -55,8 +59,8 @@ void DaemonPerfCounters::update(const MMgrReport& report)
   // Parse packed data according to declared set of types
   auto p = report.packed.cbegin();
   DECODE_START(1, p);
-  for (const auto &t_path : session->declared_types) {
-    const auto &t = types.at(t_path);
+  for (const auto& t_path : session->declared_types) {
+    const auto& t = types.at(t_path);
     auto instances_it = instances.find(t_path);
     // Always check the instance exists, as we don't prevent yet
     // multiple sessions from daemons with the same name, and one
@@ -80,7 +84,8 @@ void DaemonPerfCounters::update(const MMgrReport& report)
   DECODE_FINISH(p);
 }
 
-void DaemonPerfCounters::clear()
+void
+DaemonPerfCounters::clear()
 {
   instances.clear();
 }

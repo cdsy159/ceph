@@ -1,11 +1,13 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/encoding.h"
 #include "KeyValueDBMemory.h"
+
+#include <iostream>
 #include <map>
 #include <set>
-#include <iostream>
+
+#include "include/encoding.h"
 
 using namespace std;
 
@@ -20,16 +22,21 @@ using namespace std;
  */
 class WholeSpaceMemIterator : public KeyValueDB::WholeSpaceIteratorImpl {
 protected:
-  KeyValueDBMemory *db;
+  KeyValueDBMemory* db;
   bool ready;
 
-  map<pair<string,string>, bufferlist>::iterator it;
+  map<pair<string, string>, bufferlist>::iterator it;
 
 public:
-  explicit WholeSpaceMemIterator(KeyValueDBMemory *db) : db(db), ready(false) { }
-  ~WholeSpaceMemIterator() override { }
+  explicit WholeSpaceMemIterator(KeyValueDBMemory* db) :
+    db(db), ready(false)
+  {}
 
-  int seek_to_first() override {
+  ~WholeSpaceMemIterator() override {}
+
+  int
+  seek_to_first() override
+  {
     if (db->db.empty()) {
       it = db->db.end();
       ready = false;
@@ -40,7 +47,9 @@ public:
     return 0;
   }
 
-  int seek_to_first(const string &prefix) override {
+  int
+  seek_to_first(const string& prefix) override
+  {
     it = db->db.lower_bound(make_pair(prefix, ""));
     if (db->db.empty() || (it == db->db.end())) {
       it = db->db.end();
@@ -51,7 +60,9 @@ public:
     return 0;
   }
 
-  int seek_to_last() override {
+  int
+  seek_to_last() override
+  {
     it = db->db.end();
     if (db->db.empty()) {
       ready = false;
@@ -63,23 +74,26 @@ public:
     return 0;
   }
 
-  int seek_to_last(const string &prefix) override {
+  int
+  seek_to_last(const string& prefix) override
+  {
     string tmp(prefix);
-    tmp.append(1, (char) 0);
-    it = db->db.upper_bound(make_pair(tmp,""));
+    tmp.append(1, (char)0);
+    it = db->db.upper_bound(make_pair(tmp, ""));
 
     if (db->db.empty() || (it == db->db.end())) {
       seek_to_last();
-    }
-    else {
+    } else {
       ready = true;
       prev();
     }
     return 0;
   }
 
-  int lower_bound(const string &prefix, const string &to) override {
-    it = db->db.lower_bound(make_pair(prefix,to));
+  int
+  lower_bound(const string& prefix, const string& to) override
+  {
+    it = db->db.lower_bound(make_pair(prefix, to));
     if ((db->db.empty()) || (it == db->db.end())) {
       it = db->db.end();
       ready = false;
@@ -92,8 +106,10 @@ public:
     return 0;
   }
 
-  int upper_bound(const string &prefix, const string &after) override {
-    it = db->db.upper_bound(make_pair(prefix,after));
+  int
+  upper_bound(const string& prefix, const string& after) override
+  {
+    it = db->db.upper_bound(make_pair(prefix, after));
     if ((db->db.empty()) || (it == db->db.end())) {
       it = db->db.end();
       ready = false;
@@ -104,15 +120,21 @@ public:
     return 0;
   }
 
-  bool valid() override {
+  bool
+  valid() override
+  {
     return ready && (it != db->db.end());
   }
 
-  bool begin() {
+  bool
+  begin()
+  {
     return ready && (it == db->db.begin());
   }
 
-  int prev() override {
+  int
+  prev() override
+  {
     if (!begin() && ready)
       --it;
     else
@@ -120,115 +142,141 @@ public:
     return 0;
   }
 
-  int next() override {
+  int
+  next() override
+  {
     if (valid())
       ++it;
     return 0;
   }
 
-  string key() override {
+  string
+  key() override
+  {
     if (valid())
       return (*it).first.second;
     else
       return "";
   }
 
-  string_view key_as_sv() override {
+  string_view
+  key_as_sv() override
+  {
     if (valid())
       return (*it).first.second;
     else
       return "";
   }
 
-  pair<string,string> raw_key() override {
+  pair<string, string>
+  raw_key() override
+  {
     if (valid())
       return (*it).first;
     else
       return make_pair("", "");
   }
 
-  pair<string_view,string_view> raw_key_as_sv() override {
+  pair<string_view, string_view>
+  raw_key_as_sv() override
+  {
     if (valid())
       return (*it).first;
     else
       return make_pair("", "");
   }
-  
-  bool raw_key_is_prefixed(const string &prefix) override {
+
+  bool
+  raw_key_is_prefixed(const string& prefix) override
+  {
     return prefix == (*it).first.first;
   }
 
-  bufferlist value() override {
+  bufferlist
+  value() override
+  {
     if (valid())
       return (*it).second;
     else
       return bufferlist();
   }
 
-  std::string_view value_as_sv() override {
+  std::string_view
+  value_as_sv() override
+  {
     if (valid())
       return std::string_view{it->second.c_str(), it->second.length()};
     else
       return std::string_view();
   }
 
-  int status() override {
+  int
+  status() override
+  {
     return 0;
   }
 };
 
-int KeyValueDBMemory::get(const string &prefix,
-			  const std::set<string> &key,
-			  map<string, bufferlist> *out) {
+int
+KeyValueDBMemory::get(
+    const string& prefix,
+    const std::set<string>& key,
+    map<string, bufferlist>* out)
+{
   if (!exists_prefix(prefix))
     return 0;
 
-  for (std::set<string>::const_iterator i = key.begin();
-       i != key.end();
-       ++i) {
-    pair<string,string> k(prefix, *i);
+  for (std::set<string>::const_iterator i = key.begin(); i != key.end(); ++i) {
+    pair<string, string> k(prefix, *i);
     if (db.count(k))
       (*out)[*i] = db[k];
   }
   return 0;
 }
 
-int KeyValueDBMemory::get_keys(const string &prefix,
-			       const std::set<string> &key,
-			       std::set<string> *out) {
+int
+KeyValueDBMemory::get_keys(
+    const string& prefix,
+    const std::set<string>& key,
+    std::set<string>* out)
+{
   if (!exists_prefix(prefix))
     return 0;
 
-  for (std::set<string>::const_iterator i = key.begin();
-       i != key.end();
-       ++i) {
+  for (std::set<string>::const_iterator i = key.begin(); i != key.end(); ++i) {
     if (db.count(make_pair(prefix, *i)))
       out->insert(*i);
   }
   return 0;
 }
 
-int KeyValueDBMemory::set(const string &prefix,
-			  const string &key,
-			  const bufferlist &bl) {
-  db[make_pair(prefix,key)] = bl;
+int
+KeyValueDBMemory::set(
+    const string& prefix,
+    const string& key,
+    const bufferlist& bl)
+{
+  db[make_pair(prefix, key)] = bl;
   return 0;
 }
 
-int KeyValueDBMemory::rmkey(const string &prefix,
-			    const string &key) {
-  db.erase(make_pair(prefix,key));
+int
+KeyValueDBMemory::rmkey(const string& prefix, const string& key)
+{
+  db.erase(make_pair(prefix, key));
   return 0;
 }
 
-int KeyValueDBMemory::rmkeys_by_prefix(const string &prefix) {
-  map<std::pair<string,string>,bufferlist>::iterator i;
+int
+KeyValueDBMemory::rmkeys_by_prefix(const string& prefix)
+{
+  map<std::pair<string, string>, bufferlist>::iterator i;
   i = db.lower_bound(make_pair(prefix, ""));
   if (i == db.end())
     return 0;
 
   while (i != db.end()) {
-    std::pair<string,string> key = (*i).first;
+    std::pair<string, string> key = (*i).first;
     if (key.first != prefix)
       break;
 
@@ -238,14 +286,19 @@ int KeyValueDBMemory::rmkeys_by_prefix(const string &prefix) {
   return 0;
 }
 
-int KeyValueDBMemory::rm_range_keys(const string &prefix, const string &start, const string &end) {
-  map<std::pair<string,string>,bufferlist>::iterator i;
+int
+KeyValueDBMemory::rm_range_keys(
+    const string& prefix,
+    const string& start,
+    const string& end)
+{
+  map<std::pair<string, string>, bufferlist>::iterator i;
   i = db.lower_bound(make_pair(prefix, start));
   if (i == db.end())
     return 0;
 
   while (i != db.end()) {
-    std::pair<string,string> key = (*i).first;
+    std::pair<string, string> key = (*i).first;
     if (key.first != prefix)
       break;
     if (key.second >= end)
@@ -256,15 +309,15 @@ int KeyValueDBMemory::rm_range_keys(const string &prefix, const string &start, c
   return 0;
 }
 
-KeyValueDB::WholeSpaceIterator KeyValueDBMemory::get_wholespace_iterator(IteratorOpts opts) {
+KeyValueDB::WholeSpaceIterator
+KeyValueDBMemory::get_wholespace_iterator(IteratorOpts opts)
+{
   return std::shared_ptr<KeyValueDB::WholeSpaceIteratorImpl>(
-    new WholeSpaceMemIterator(this)
-  );
+      new WholeSpaceMemIterator(this));
 }
 
 class WholeSpaceSnapshotMemIterator : public WholeSpaceMemIterator {
 public:
-
   /**
    * @note
    * We perform a copy of the db map, which is populated by bufferlists.
@@ -277,10 +330,9 @@ public:
    * keep it in mind.
    */
 
-  explicit WholeSpaceSnapshotMemIterator(KeyValueDBMemory *db) :
-    WholeSpaceMemIterator(db) { }
-  ~WholeSpaceSnapshotMemIterator() override {
-    delete db;
-  }
-};
+  explicit WholeSpaceSnapshotMemIterator(KeyValueDBMemory* db) :
+    WholeSpaceMemIterator(db)
+  {}
 
+  ~WholeSpaceSnapshotMemIterator() override { delete db; }
+};

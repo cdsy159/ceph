@@ -13,13 +13,16 @@
  *
  */
 
-#include "common/async/shared_mutex.h"
+#include <gtest/gtest.h>
+
 #include <future>
 #include <optional>
 #include <shared_mutex> // for std::shared_lock
+
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/io_context.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/shared_mutex.h"
 
 namespace ceph::async {
 
@@ -28,16 +31,19 @@ using unique_lock = std::unique_lock<SharedMutex<executor_type>>;
 using shared_lock = std::shared_lock<SharedMutex<executor_type>>;
 
 // return a lambda that captures its error code and lock
-auto capture(std::optional<boost::system::error_code>& ec, unique_lock& lock)
+auto
+capture(std::optional<boost::system::error_code>& ec, unique_lock& lock)
 {
-  return [&] (boost::system::error_code e, unique_lock l) {
+  return [&](boost::system::error_code e, unique_lock l) {
     ec = e;
     lock = std::move(l);
   };
 }
-auto capture(std::optional<boost::system::error_code>& ec, shared_lock& lock)
+
+auto
+capture(std::optional<boost::system::error_code>& ec, shared_lock& lock)
 {
-  return [&] (boost::system::error_code e, shared_lock l) {
+  return [&](boost::system::error_code e, shared_lock l) {
     ec = e;
     lock = std::move(l);
   };
@@ -323,8 +329,9 @@ TEST(SharedMutex, async_destruct)
 }
 
 // return a capture() lambda that's bound to the given executor
-template <typename Executor, typename ...Args>
-auto capture_ex(const Executor& ex, Args&& ...args)
+template <typename Executor, typename... Args>
+auto
+capture_ex(const Executor& ex, Args&&... args)
 {
   return boost::asio::bind_executor(ex, capture(std::forward<Args>(args)...));
 }
@@ -423,8 +430,12 @@ TEST(SharedMutex, cancel)
   // this will race with spawned threads. just keep canceling until the
   // futures are ready
   const auto t = std::chrono::milliseconds(1);
-  do { mutex.cancel(); } while (f1.wait_for(t) != std::future_status::ready);
-  do { mutex.cancel(); } while (f2.wait_for(t) != std::future_status::ready);
+  do {
+    mutex.cancel();
+  } while (f1.wait_for(t) != std::future_status::ready);
+  do {
+    mutex.cancel();
+  } while (f2.wait_for(t) != std::future_status::ready);
 
   EXPECT_THROW(f1.get(), boost::system::system_error);
   EXPECT_THROW(f2.get(), boost::system::system_error);

@@ -13,12 +13,14 @@
  *
  */
 
-#include "common/TextTable.h"
 #include <iostream>
+
+#include "common/TextTable.h"
 #include "gtest/gtest.h"
 #include "include/coredumpctl.h"
 
-TEST(TextTable, Alignment) {
+TEST(TextTable, Alignment)
+{
   TextTable t;
 
   // test alignment
@@ -33,7 +35,8 @@ TEST(TextTable, Alignment) {
   ASSERT_STREQ("HEAD1  HEAD2  HEAD3\n1        2        3\n", oss.str().c_str());
 }
 
-TEST(TextTable, WidenAndClearShrink) {
+TEST(TextTable, WidenAndClearShrink)
+{
   TextTable t;
 
   t.define_column("1", TextTable::LEFT, TextTable::LEFT);
@@ -54,7 +57,8 @@ TEST(TextTable, WidenAndClearShrink) {
   ASSERT_STREQ("1\ns\n", oss.str().c_str());
 }
 
-TEST(TextTable, Indent) {
+TEST(TextTable, Indent)
+{
   TextTable t;
 
   t.define_column("1", TextTable::LEFT, TextTable::LEFT);
@@ -65,8 +69,8 @@ TEST(TextTable, Indent) {
   ASSERT_STREQ("          1\n          s\n", oss.str().c_str());
 }
 
-
-TEST(TextTable, TooManyItems) {
+TEST(TextTable, TooManyItems)
+{
   TextTable t;
 
   t.define_column("1", TextTable::LEFT, TextTable::LEFT);

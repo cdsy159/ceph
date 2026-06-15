@@ -3,6 +3,7 @@
 
 #pragma once
 #include <vector>
+
 #include "common/options.h"
 
 std::vector<Option> build_options();

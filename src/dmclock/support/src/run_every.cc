@@ -28,8 +28,8 @@ crimson::RunEvery::RunEvery()
   // empty
 }
 
-
-crimson::RunEvery& crimson::RunEvery::operator=(crimson::RunEvery&& other)
+crimson::RunEvery&
+crimson::RunEvery::operator=(crimson::RunEvery&& other)
 {
   // finish run every thread
   {
@@ -58,15 +58,15 @@ crimson::RunEvery& crimson::RunEvery::operator=(crimson::RunEvery&& other)
 #endif
 
 
-crimson::RunEvery::~RunEvery() {
-  join();
-}
+crimson::RunEvery::~RunEvery() { join(); }
 
-
-void crimson::RunEvery::join() {
+void
+crimson::RunEvery::join()
+{
   {
     Guard l(mtx);
-    if (finishing) return;
+    if (finishing)
+      return;
     finishing = true;
     cv.notify_all();
   }
@@ -74,15 +74,19 @@ void crimson::RunEvery::join() {
 }
 
 // mtx must be held by caller
-void crimson::RunEvery::try_update(milliseconds _wait_period) {
+void
+crimson::RunEvery::try_update(milliseconds _wait_period)
+{
   if (_wait_period != wait_period) {
     wait_period = _wait_period;
   }
 }
 
-void crimson::RunEvery::run() {
+void
+crimson::RunEvery::run()
+{
   Lock l(mtx);
-  while(!finishing) {
+  while (!finishing) {
     TimePoint until = chrono::steady_clock::now() + wait_period;
     while (!finishing && chrono::steady_clock::now() < until) {
       cv.wait_until(l, until);

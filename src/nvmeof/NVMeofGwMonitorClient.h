@@ -16,22 +16,20 @@
 #ifndef NVMEOFGWMONITORCLIENT_H_
 #define NVMEOFGWMONITORCLIENT_H_
 
-#include "auth/Auth.h"
-#include "common/async/context_pool.h"
-#include "common/Finisher.h"
-#include "common/Timer.h"
-#include "common/LogClient.h"
-#include "common/ceph_time.h"
-
-#include "mon/MonClient.h"
-#include "osdc/Objecter.h"
-#include "messages/MNVMeofGwMap.h"
-
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
 
-class NVMeofGwMonitorClient: public Dispatcher,
-		   public md_config_obs_t {
+#include "auth/Auth.h"
+#include "common/Finisher.h"
+#include "common/LogClient.h"
+#include "common/Timer.h"
+#include "common/async/context_pool.h"
+#include "common/ceph_time.h"
+#include "messages/MNVMeofGwMap.h"
+#include "mon/MonClient.h"
+#include "osdc/Objecter.h"
+
+class NVMeofGwMonitorClient : public Dispatcher, public md_config_obs_t {
 private:
   std::string name;
   std::string pool;
@@ -41,22 +39,22 @@ private:
   std::string server_cert;
   std::string client_key;
   std::string client_cert;
-  grpc::SslCredentialsOptions
-              gw_ssl_opts;  // gateway grpc ssl options
-  epoch_t     osdmap_epoch; // last awaited osdmap_epoch
-  epoch_t     gwmap_epoch;  // last received gw map epoch
+  grpc::SslCredentialsOptions gw_ssl_opts; // gateway grpc ssl options
+  epoch_t osdmap_epoch; // last awaited osdmap_epoch
+  epoch_t gwmap_epoch; // last received gw map epoch
   std::chrono::time_point<std::chrono::steady_clock>
-              last_map_time; // used to panic on disconnect
+      last_map_time; // used to panic on disconnect
   std::chrono::time_point<std::chrono::steady_clock>
-                reset_timestamp; // used to bypass some validations
+      reset_timestamp; // used to bypass some validations
   std::chrono::time_point<std::chrono::steady_clock>
-                start_time; // used to panic on connect
+      start_time; // used to panic on connect
 
   bool first_beacon = true;
   bool set_group_id = false;
   uint64_t beacon_sequence = 0;
   BeaconSubsystems prev_beacon_subsystems;
-  bool cluster_beacon_diff_included = 0;  // track cluster features for beacon encoding
+  bool cluster_beacon_diff_included =
+      0; // track cluster features for beacon encoding
   // init gw ssl opts
   void init_gw_ssl_opts();
 
@@ -78,35 +76,54 @@ protected:
   ceph::mono_clock::time_point next_tick_time;
 
   int orig_argc;
-  const char **orig_argv;
+  const char** orig_argv;
 
-  void send_config_beacon(); 
+  void send_config_beacon();
   void send_beacon();
 
   // Timer management for exact frequency
   void schedule_next_tick();
-  void log_tick_execution_duration(const ceph::mono_clock::time_point& start_time);
- 
+  void log_tick_execution_duration(
+      const ceph::mono_clock::time_point& start_time);
+
 public:
-  NVMeofGwMonitorClient(int argc, const char **argv);
+  NVMeofGwMonitorClient(int argc, const char** argv);
   ~NVMeofGwMonitorClient() override;
 
   // Dispatcher interface
-  Dispatcher::dispatch_result_t ms_dispatch2(const ceph::ref_t<Message>& m) override;
-  bool ms_handle_reset(Connection *con) override { return false; }
-  void ms_handle_remote_reset(Connection *con) override {}
-  bool ms_handle_refused(Connection *con) override { return false; };
+  Dispatcher::dispatch_result_t ms_dispatch2(
+      const ceph::ref_t<Message>& m) override;
+
+  bool
+  ms_handle_reset(Connection* con) override
+  {
+    return false;
+  }
+
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
+
+  bool
+  ms_handle_refused(Connection* con) override
+  {
+    return false;
+  };
 
   // config observer bits
-  std::vector<std::string> get_tracked_keys() const noexcept override {
+  std::vector<std::string>
+  get_tracked_keys() const noexcept override
+  {
     return {};
   }
-  void handle_conf_change(const ConfigProxy& conf,
-			  const std::set<std::string> &changed) override {};
+
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override {};
 
   int init();
   void shutdown();
-  int main(std::vector<const char *> args);
+  int main(std::vector<const char*> args);
   void tick();
   void disconnect_panic();
 
@@ -116,4 +133,3 @@ public:
 };
 
 #endif
-

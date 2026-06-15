@@ -19,32 +19,34 @@
 
 
 #include "ExtBlkDevVdo.h"
-#include "common/blkdev.h"
-#include "include/stringify.h"
-#include "common/debug.h"
 
 #include <dirent.h> // for opendir()
 #include <errno.h>
+
+#include "common/debug.h"
+
+#include "common/blkdev.h"
+#include "include/stringify.h"
 
 #define dout_subsys ceph_subsys_bdev
 #define dout_context cct
 #undef dout_prefix
 #define dout_prefix *_dout << "vdo(" << this << ") "
 
-
-int ExtBlkDevVdo::_get_vdo_stats_handle(const std::string& devname)
+int
+ExtBlkDevVdo::_get_vdo_stats_handle(const std::string& devname)
 {
   int rc = -ENOENT;
   dout(10) << __func__ << " VDO init checking device: " << devname << dendl;
 
   // we need to go from the raw devname (e.g., dm-4) to the VDO volume name.
   // currently the best way seems to be to look at /dev/mapper/* ...
-  std::string expect = std::string("../") + devname;  // expected symlink target
-  DIR *dir = ::opendir("/dev/mapper");
+  std::string expect = std::string("../") + devname; // expected symlink target
+  DIR* dir = ::opendir("/dev/mapper");
   if (!dir) {
     return -errno;
   }
-  struct dirent *de = nullptr;
+  struct dirent* de = nullptr;
   while ((de = ::readdir(dir))) {
     if (de->d_name[0] == '.')
       continue;
@@ -56,12 +58,12 @@ int ExtBlkDevVdo::_get_vdo_stats_handle(const std::string& devname)
     target[r] = 0;
     if (expect == target) {
       snprintf(fn, sizeof(fn), "/sys/kvdo/%s/statistics", de->d_name);
-      int vdo_fd = ::open(fn, O_RDONLY|O_CLOEXEC);
+      int vdo_fd = ::open(fn, O_RDONLY | O_CLOEXEC);
       if (vdo_fd >= 0) {
-	name = de->d_name;
-	vdo_dir_fd = vdo_fd;
-	rc = 0;
-	break;
+        name = de->d_name;
+        vdo_dir_fd = vdo_fd;
+        rc = 0;
+        break;
       }
     }
   }
@@ -69,9 +71,10 @@ int ExtBlkDevVdo::_get_vdo_stats_handle(const std::string& devname)
   return rc;
 }
 
-int ExtBlkDevVdo::get_vdo_stats_handle()
+int
+ExtBlkDevVdo::get_vdo_stats_handle()
 {
-  std::set<std::string> devs = { logdevname };
+  std::set<std::string> devs = {logdevname};
   while (!devs.empty()) {
     std::string dev = *devs.begin();
     devs.erase(devs.begin());
@@ -88,10 +91,11 @@ int ExtBlkDevVdo::get_vdo_stats_handle()
   return -ENOENT;
 }
 
-int64_t ExtBlkDevVdo::get_vdo_stat(const char *property)
+int64_t
+ExtBlkDevVdo::get_vdo_stat(const char* property)
 {
   int64_t ret = 0;
-  int fd = ::openat(vdo_dir_fd, property, O_RDONLY|O_CLOEXEC);
+  int fd = ::openat(vdo_dir_fd, property, O_RDONLY | O_CLOEXEC);
   if (fd < 0) {
     return 0;
   }
@@ -105,16 +109,16 @@ int64_t ExtBlkDevVdo::get_vdo_stat(const char *property)
   return ret;
 }
 
-
-int ExtBlkDevVdo::init(const std::string& alogdevname)
+int
+ExtBlkDevVdo::init(const std::string& alogdevname)
 {
   logdevname = alogdevname;
   // get directory handle for VDO metadata
   return get_vdo_stats_handle();
 }
 
-
-int ExtBlkDevVdo::get_state(ceph::ExtBlkDevState& state)
+int
+ExtBlkDevVdo::get_state(ceph::ExtBlkDevState& state)
 {
   int64_t block_size = get_vdo_stat("block_size");
   int64_t physical_blocks = get_vdo_stat("physical_blocks");
@@ -122,23 +126,23 @@ int ExtBlkDevVdo::get_state(ceph::ExtBlkDevState& state)
   int64_t data_blocks_used = get_vdo_stat("data_blocks_used");
   int64_t logical_blocks = get_vdo_stat("logical_blocks");
   int64_t logical_blocks_used = get_vdo_stat("logical_blocks_used");
-  if (!block_size
-      || !physical_blocks
-      || !overhead_blocks_used
-      || !data_blocks_used
-      || !logical_blocks) {
-    dout(1) << __func__ << " VDO sysfs provided zero value for at least one statistic: " << dendl;
+  if (!block_size || !physical_blocks || !overhead_blocks_used ||
+      !data_blocks_used || !logical_blocks) {
+    dout(1) << __func__
+            << " VDO sysfs provided zero value for at least one statistic: "
+            << dendl;
     dout(1) << __func__ << " VDO block_size: " << block_size << dendl;
     dout(1) << __func__ << " VDO physical_blocks: " << physical_blocks << dendl;
-    dout(1) << __func__ << " VDO overhead_blocks_used: " << overhead_blocks_used << dendl;
-    dout(1) << __func__ << " VDO data_blocks_used: " << data_blocks_used << dendl;
+    dout(1) << __func__ << " VDO overhead_blocks_used: " << overhead_blocks_used
+            << dendl;
+    dout(1) << __func__ << " VDO data_blocks_used: " << data_blocks_used
+            << dendl;
     dout(1) << __func__ << " VDO logical_blocks: " << logical_blocks << dendl;
     return -1;
   }
-  int64_t avail_blocks =
-    physical_blocks - overhead_blocks_used - data_blocks_used;
-  int64_t logical_avail_blocks =
-    logical_blocks - logical_blocks_used;
+  int64_t avail_blocks = physical_blocks - overhead_blocks_used -
+                         data_blocks_used;
+  int64_t logical_avail_blocks = logical_blocks - logical_blocks_used;
   state.set_logical_total(block_size * logical_blocks);
   state.set_logical_avail(block_size * logical_avail_blocks);
   state.set_physical_total(block_size * physical_blocks);
@@ -146,11 +150,14 @@ int ExtBlkDevVdo::get_state(ceph::ExtBlkDevState& state)
   return 0;
 }
 
-int ExtBlkDevVdo::collect_metadata(const std::string& prefix, std::map<std::string,std::string> *pm)
+int
+ExtBlkDevVdo::collect_metadata(
+    const std::string& prefix,
+    std::map<std::string, std::string>* pm)
 {
   ceph::ExtBlkDevState state;
   int rc = get_state(state);
-  if(rc != 0){
+  if (rc != 0) {
     return rc;
   }
   (*pm)[prefix + "vdo"] = "true";

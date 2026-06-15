@@ -10,11 +10,14 @@
  *
  */
 
+#include "UadkAccel.h"
+
 #include <atomic>
 #include <mutex>
-#include "unistd.h"
+
 #include "common/debug.h"
-#include "UadkAccel.h"
+
+#include "unistd.h"
 
 using std::ostream;
 using std::string;
@@ -24,10 +27,10 @@ using std::string;
 #undef dout_prefix
 #define dout_prefix _prefix(_dout)
 
-#define NEED_MORE_OUT_BUFFER  5
-#define PROCESS_NOT_FINISH    6
-#define UADK_MIN_BUFFER       (32*1024)
-#define UADK_MAX_BUFFER       (8*1024*1024)
+#define NEED_MORE_OUT_BUFFER 5
+#define PROCESS_NOT_FINISH 6
+#define UADK_MIN_BUFFER (32 * 1024)
+#define UADK_MAX_BUFFER (8 * 1024 * 1024)
 
 static ostream&
 _prefix(std::ostream* _dout)
@@ -41,12 +44,13 @@ static std::mutex uadk_lock;
 
 struct UadkEngine {
   struct wd_ctx_config ctx_cfg;
-  struct wd_sched *sched;
+  struct wd_sched* sched;
   int numa_id;
 } engine;
 
 // helper function, can be reserved for custom scheduling policy, in here, munged to 0 if ret is positive.
-static int lib_poll_func(__u32 pos, __u32 expect, __u32 *count)
+static int
+lib_poll_func(__u32 pos, __u32 expect, __u32* count)
 {
   int ret = wd_comp_poll_ctx(pos, expect, count);
   if (ret < 0)
@@ -54,7 +58,8 @@ static int lib_poll_func(__u32 pos, __u32 expect, __u32 *count)
   return 0;
 }
 
-static int uadk_init()
+static int
+uadk_init()
 {
   dout(10) << __func__ << ": uadk_init()." << dendl;
   if (init_called) {
@@ -71,7 +76,7 @@ static int uadk_init()
   }
   engine.sched->name = "sched_rr";
 
-  struct uacce_dev *uadk_dev = wd_get_accel_dev("zlib");
+  struct uacce_dev* uadk_dev = wd_get_accel_dev("zlib");
   if (uadk_dev == nullptr) {
     derr << __func__ << ": cannot get uadk device " << dendl;
     wd_sched_rr_release(engine.sched);
@@ -79,7 +84,8 @@ static int uadk_init()
     return -ECANCELED;
   }
   engine.numa_id = uadk_dev->numa_id;
-  uint64_t cmprs_ctx_num = g_ceph_context->_conf.get_val<uint64_t>("uadk_wd_sync_ctx_num");
+  uint64_t cmprs_ctx_num =
+      g_ceph_context->_conf.get_val<uint64_t>("uadk_wd_sync_ctx_num");
   engine.ctx_cfg.ctx_num = cmprs_ctx_num;
   engine.ctx_cfg.ctxs = new wd_ctx[cmprs_ctx_num];
 
@@ -97,7 +103,7 @@ static int uadk_init()
 
   struct sched_params param;
   /******** create sched instance for compress ctx ********/
-  for(unsigned int m = 0; m != cmprs_ctx_num / 2; ++m) {
+  for (unsigned int m = 0; m != cmprs_ctx_num / 2; ++m) {
     engine.ctx_cfg.ctxs[m].op_type = WD_DIR_COMPRESS;
     engine.ctx_cfg.ctxs[m].ctx_mode = CTX_MODE_SYNC;
   }
@@ -107,15 +113,15 @@ static int uadk_init()
   param.begin = 0;
   param.end = cmprs_ctx_num / 2 - 1;
 
-  ret = wd_sched_rr_instance((const struct wd_sched *)engine.sched, &param);
+  ret = wd_sched_rr_instance((const struct wd_sched*)engine.sched, &param);
   if (ret < 0) {
-    derr << __func__ << ": Fail to fill compress sched region."
-	 << "(" << ret << ")" << dendl;
+    derr << __func__ << ": Fail to fill compress sched region." << "(" << ret
+         << ")" << dendl;
     goto out_fill;
   }
 
   /******** create sched instance for decompress ctx ********/
-  for(unsigned int m = cmprs_ctx_num / 2; m != cmprs_ctx_num; ++m) {
+  for (unsigned int m = cmprs_ctx_num / 2; m != cmprs_ctx_num; ++m) {
     engine.ctx_cfg.ctxs[m].op_type = WD_DIR_DECOMPRESS;
     engine.ctx_cfg.ctxs[m].ctx_mode = CTX_MODE_SYNC;
   }
@@ -123,17 +129,16 @@ static int uadk_init()
   param.mode = CTX_MODE_SYNC;
   param.begin = cmprs_ctx_num / 2;
   param.end = cmprs_ctx_num - 1;
-  ret = wd_sched_rr_instance((const struct wd_sched *)engine.sched, &param);
+  ret = wd_sched_rr_instance((const struct wd_sched*)engine.sched, &param);
   if (ret < 0) {
-    derr << __func__ << ": Fail to fill decompress sched region."
-	 << "(" << ret << ")" << dendl;
+    derr << __func__ << ": Fail to fill decompress sched region." << "(" << ret
+         << ")" << dendl;
     goto out_fill;
   }
 
   ret = wd_comp_init(&engine.ctx_cfg, engine.sched);
   if (ret != 0) {
-    derr << __func__ << ": fail to init UADK !"
-	 << "(" << ret << ")" << dendl;
+    derr << __func__ << ": fail to init UADK !" << "(" << ret << ")" << dendl;
     goto out_fill;
   }
 
@@ -154,7 +159,8 @@ out_fill:
   return ret;
 }
 
-bool UadkAccel::init()
+bool
+UadkAccel::init()
 {
   dout(10) << __func__ << ": UadkAccel::init" << dendl;
   ++uadk_compressor_thread_num;
@@ -177,7 +183,8 @@ bool UadkAccel::init()
   return true;
 }
 
-handle_t UadkAccel::create_comp_session()
+handle_t
+UadkAccel::create_comp_session()
 {
   struct wd_comp_sess_setup setup;
   struct sched_params ss_param = {0};
@@ -194,7 +201,8 @@ handle_t UadkAccel::create_comp_session()
   return h_comp_sess;
 }
 
-void UadkAccel::free_session(handle_t h_comp_sess)
+void
+UadkAccel::free_session(handle_t h_comp_sess)
 {
   if (h_comp_sess) {
     wd_comp_free_sess(h_comp_sess);
@@ -202,7 +210,8 @@ void UadkAccel::free_session(handle_t h_comp_sess)
   }
 }
 
-handle_t UadkAccel::create_decomp_session()
+handle_t
+UadkAccel::create_decomp_session()
 {
   struct wd_comp_sess_setup de_setup;
   struct sched_params ss_de_param = {0};
@@ -219,8 +228,14 @@ handle_t UadkAccel::create_decomp_session()
   return h_decomp_sess;
 }
 
-int UadkAccel::uadk_do_compress(handle_t h_sess, const unsigned char* in, unsigned int &inlen,
-		                           unsigned char *out, unsigned int &outlen, bool last_packet)
+int
+UadkAccel::uadk_do_compress(
+    handle_t h_sess,
+    const unsigned char* in,
+    unsigned int& inlen,
+    unsigned char* out,
+    unsigned int& outlen,
+    bool last_packet)
 {
   struct wd_comp_req req;
 
@@ -247,13 +262,15 @@ int UadkAccel::uadk_do_compress(handle_t h_sess, const unsigned char* in, unsign
   return ret;
 }
 
-int UadkAccel::compress(const bufferlist &in, bufferlist &out)
+int
+UadkAccel::compress(const bufferlist& in, bufferlist& out)
 {
   handle_t h_comp_sess = create_comp_session();
   unsigned int begin = 1;
   unsigned int out_len = 0;
-  for (ceph::bufferlist::buffers_t::const_iterator i = in.buffers().begin(); i != in.buffers().end();) {
-    const unsigned char* c_in = (unsigned char*) (*i).c_str();
+  for (ceph::bufferlist::buffers_t::const_iterator i = in.buffers().begin();
+       i != in.buffers().end();) {
+    const unsigned char* c_in = (unsigned char*)(*i).c_str();
     unsigned int len = (*i).length();
     unsigned int in_len = len;
     int ret = 0;
@@ -273,17 +290,18 @@ int UadkAccel::compress(const bufferlist &in, bufferlist &out)
       if (begin) {
         // put a compressor variation mark in front of compressed stream, not used at the moment
         ptr.c_str()[0] = 0;
-	out_len -= begin;
+        out_len -= begin;
       }
 
       bool last_packet = last_ptr && (in_len == len);
       memset(c_out, 0, out_len);
-      ret = uadk_do_compress(h_comp_sess, c_in, in_len, c_out, out_len, last_packet);
+      ret = uadk_do_compress(
+          h_comp_sess, c_in, in_len, c_out, out_len, last_packet);
       if (ret < 0) {
-        derr << __func__ << ": UADK deflation failed."
-	     << "(" << ret << ")" << dendl;
-	free_session(h_comp_sess);
-	return ret;
+        derr << __func__ << ": UADK deflation failed." << "(" << ret << ")"
+             << dendl;
+        free_session(h_comp_sess);
+        return ret;
       }
 
       c_in += in_len;
@@ -299,8 +317,13 @@ int UadkAccel::compress(const bufferlist &in, bufferlist &out)
   return 0;
 }
 
-int UadkAccel::uadk_do_decompress(handle_t h_sess, const unsigned char *in, unsigned int &inlen,
-		                             unsigned char *out, unsigned int &outlen)
+int
+UadkAccel::uadk_do_decompress(
+    handle_t h_sess,
+    const unsigned char* in,
+    unsigned int& inlen,
+    unsigned char* out,
+    unsigned int& outlen)
 {
   struct wd_comp_req req;
 
@@ -333,7 +356,8 @@ int UadkAccel::uadk_do_decompress(handle_t h_sess, const unsigned char *in, unsi
   return ret;
 }
 
-unsigned int cal_approx_ratio(unsigned int n, unsigned m)
+unsigned int
+cal_approx_ratio(unsigned int n, unsigned m)
 {
   unsigned int x = 0;
   m /= n;
@@ -344,7 +368,11 @@ unsigned int cal_approx_ratio(unsigned int n, unsigned m)
   return x + 1;
 }
 
-int UadkAccel::decompress(bufferlist::const_iterator &p, size_t compressed_len, bufferlist &dst)
+int
+UadkAccel::decompress(
+    bufferlist::const_iterator& p,
+    size_t compressed_len,
+    bufferlist& dst)
 {
   handle_t h_decomp_sess = create_decomp_session();
   unsigned int begin = 1;
@@ -354,10 +382,10 @@ int UadkAccel::decompress(bufferlist::const_iterator &p, size_t compressed_len, 
   size_t remaining = std::min<size_t>(p.get_remaining(), compressed_len);
 
   while (remaining) {
-    const char *c_in;
+    const char* c_in;
     unsigned int len = p.get_ptr_and_advance(remaining, &c_in) - begin;
     unsigned int in_len = len;
-    unsigned char *in = (unsigned char *)c_in + begin;
+    unsigned char* in = (unsigned char*)c_in + begin;
     int ret = 0;
 
     remaining -= (in_len + begin);
@@ -375,31 +403,35 @@ int UadkAccel::decompress(bufferlist::const_iterator &p, size_t compressed_len, 
       memset(out, 0, out_len);
       ret = uadk_do_decompress(h_decomp_sess, in, in_len, out, out_len);
       if (ret < 0) {
-        derr << __func__ << ": UADK inflation failed.(ret=" << ret << ")" << dendl;
-	free_session(h_decomp_sess);
-	return ret;
+        derr << __func__ << ": UADK inflation failed.(ret=" << ret << ")"
+             << dendl;
+        free_session(h_decomp_sess);
+        return ret;
       }
 
-     probe_ratio = cal_approx_ratio(in_len, out_len);
-     in += in_len;
-     in_len = len - in_len;
-     len = in_len;
-     dst.append(ptr, 0, out_len);
-    } while (ret == NEED_MORE_OUT_BUFFER || (ret == PROCESS_NOT_FINISH && remaining ==0) || len > 0);
+      probe_ratio = cal_approx_ratio(in_len, out_len);
+      in += in_len;
+      in_len = len - in_len;
+      len = in_len;
+      dst.append(ptr, 0, out_len);
+    } while (ret == NEED_MORE_OUT_BUFFER ||
+             (ret == PROCESS_NOT_FINISH && remaining == 0) || len > 0);
   }
 
   free_session(h_decomp_sess);
   return 0;
 }
 
-void UadkAccel::destroy()
+void
+UadkAccel::destroy()
 {
   if (!init_called) {
     return;
   }
 
   if (--uadk_compressor_thread_num != 0) {
-    dout(10) << __func__ << ": " << uadk_compressor_thread_num << " threads need uadk zip" << dendl;
+    dout(10) << __func__ << ": " << uadk_compressor_thread_num
+             << " threads need uadk zip" << dendl;
     return;
   }
 

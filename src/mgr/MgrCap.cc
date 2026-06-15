@@ -13,6 +13,13 @@
  *
  */
 
+#include "MgrCap.h"
+
+#include <algorithm>
+#include <regex>
+
+#include "common/debug.h"
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/config/warning_disable.hpp>
 #include <boost/fusion/adapted/struct/adapt_struct.hpp>
@@ -22,22 +29,20 @@
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/qi_uint.hpp>
 
-#include "MgrCap.h"
-#include "include/stringify.h"
-#include "include/ipaddr.h"
-#include "common/debug.h"
 #include "common/Formatter.h"
-
-#include <algorithm>
-#include <regex>
-
 #include "include/ceph_assert.h"
+#include "include/ipaddr.h"
+#include "include/stringify.h"
 
-static inline bool is_not_alnum_space(char c) {
+static inline bool
+is_not_alnum_space(char c)
+{
   return !(isalpha(c) || isdigit(c) || (c == '-') || (c == '_'));
 }
 
-static std::string maybe_quote_string(const std::string& str) {
+static std::string
+maybe_quote_string(const std::string& str)
+{
   if (find_if(str.begin(), str.end(), is_not_alnum_space) == str.end())
     return str;
   return std::string("\"") + str + std::string("\"");
@@ -45,7 +50,9 @@ static std::string maybe_quote_string(const std::string& str) {
 
 #define dout_subsys ceph_subsys_mgr
 
-std::ostream& operator<<(std::ostream& out, const mgr_rwxa_t& p) {
+std::ostream&
+operator<<(std::ostream& out, const mgr_rwxa_t& p)
+{
   if (p == MGR_CAP_ANY)
     return out << "*";
 
@@ -58,7 +65,9 @@ std::ostream& operator<<(std::ostream& out, const mgr_rwxa_t& p) {
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const MgrCapGrantConstraint& c) {
+std::ostream&
+operator<<(std::ostream& out, const MgrCapGrantConstraint& c)
+{
   switch (c.match_type) {
   case MgrCapGrantConstraint::MATCH_TYPE_EQUAL:
     out << "=";
@@ -76,7 +85,9 @@ std::ostream& operator<<(std::ostream& out, const MgrCapGrantConstraint& c) {
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const MgrCapGrant& m) {
+std::ostream&
+operator<<(std::ostream& out, const MgrCapGrant& m)
+{
   if (!m.profile.empty()) {
     out << "profile " << maybe_quote_string(m.profile);
   } else {
@@ -112,27 +123,28 @@ std::ostream& operator<<(std::ostream& out, const MgrCapGrant& m) {
 
 typedef std::map<std::string, MgrCapGrantConstraint> kvmap;
 
-BOOST_FUSION_ADAPT_STRUCT(MgrCapGrant,
-                          (std::string, service)
-                          (std::string, module)
-                          (std::string, profile)
-                          (std::string, command)
-                          (kvmap, arguments)
-                          (mgr_rwxa_t, allow)
-                          (std::string, network))
+BOOST_FUSION_ADAPT_STRUCT(
+    MgrCapGrant,
+    (std::string, service)(std::string, module)(std::string, profile)(
+        std::string,
+        command)(kvmap, arguments)(mgr_rwxa_t, allow)(std::string, network))
 
-BOOST_FUSION_ADAPT_STRUCT(MgrCapGrantConstraint,
-                          (MgrCapGrantConstraint::MatchType, match_type)
-                          (std::string, value))
+BOOST_FUSION_ADAPT_STRUCT(
+    MgrCapGrantConstraint,
+    (MgrCapGrantConstraint::MatchType, match_type)(std::string, value))
 
 // </magic>
 
-void MgrCapGrant::parse_network() {
-  network_valid = ::parse_network(network.c_str(), &network_parsed,
-                                  &network_prefix);
+void
+MgrCapGrant::parse_network()
+{
+  network_valid =
+      ::parse_network(network.c_str(), &network_parsed, &network_prefix);
 }
 
-void MgrCapGrant::expand_profile(std::ostream *err) const {
+void
+MgrCapGrant::expand_profile(std::ostream* err) const
+{
   // only generate this list once
   if (!profile_grants.empty()) {
     return;
@@ -146,8 +158,8 @@ void MgrCapGrant::expand_profile(std::ostream *err) const {
 
   if (profile == "read-write") {
     // grants READ-WRITE caps MGR-wide
-    profile_grants.push_back({{}, {}, {}, {}, {},
-                              mgr_rwxa_t{MGR_CAP_R | MGR_CAP_W}});
+    profile_grants.push_back(
+        {{}, {}, {}, {}, {}, mgr_rwxa_t{MGR_CAP_R | MGR_CAP_W}});
     return;
   }
 
@@ -189,8 +201,8 @@ void MgrCapGrant::expand_profile(std::ostream *err) const {
 
     // allow all 'rbd_support' commands (restricted by optional
     // pool/namespace constraints)
-    profile_grants.push_back({{}, "rbd_support", {}, {},
-                              std::move(filtered_arguments), perms});
+    profile_grants.push_back(
+        {{}, "rbd_support", {}, {}, std::move(filtered_arguments), perms});
     return;
   }
 
@@ -199,8 +211,10 @@ void MgrCapGrant::expand_profile(std::ostream *err) const {
   }
 }
 
-bool MgrCapGrant::validate_arguments(
-      const std::map<std::string, std::string>& args) const {
+bool
+MgrCapGrant::validate_arguments(
+    const std::map<std::string, std::string>& args) const
+{
   for (auto& [key, constraint] : arguments) {
     auto q = args.find(key);
 
@@ -224,7 +238,7 @@ bool MgrCapGrant::validate_arguments(
         if (!std::regex_match(q->second, pattern)) {
           return false;
         }
-      } catch(const std::regex_error&) {
+      } catch (const std::regex_error&) {
         return false;
       }
       break;
@@ -236,10 +250,15 @@ bool MgrCapGrant::validate_arguments(
   return true;
 }
 
-mgr_rwxa_t MgrCapGrant::get_allowed(
-    CephContext *cct, EntityName name, const std::string& s,
-    const std::string& m, const std::string& c,
-    const std::map<std::string, std::string>& args) const {
+mgr_rwxa_t
+MgrCapGrant::get_allowed(
+    CephContext* cct,
+    EntityName name,
+    const std::string& s,
+    const std::string& m,
+    const std::string& c,
+    const std::map<std::string, std::string>& args) const
+{
   if (!profile.empty()) {
     expand_profile(nullptr);
     mgr_rwxa_t a;
@@ -281,7 +300,9 @@ mgr_rwxa_t MgrCapGrant::get_allowed(
   return allow;
 }
 
-std::ostream& operator<<(std::ostream&out, const MgrCap& m) {
+std::ostream&
+operator<<(std::ostream& out, const MgrCap& m)
+{
   bool first = true;
   for (auto& grant : m.grants) {
     if (!first) {
@@ -294,7 +315,9 @@ std::ostream& operator<<(std::ostream&out, const MgrCap& m) {
   return out;
 }
 
-bool MgrCap::is_allow_all() const {
+bool
+MgrCap::is_allow_all() const
+{
   for (auto& grant : grants) {
     if (grant.is_allow_all()) {
       return true;
@@ -303,31 +326,34 @@ bool MgrCap::is_allow_all() const {
   return false;
 }
 
-void MgrCap::set_allow_all() {
+void
+MgrCap::set_allow_all()
+{
   grants.clear();
   grants.push_back({{}, {}, {}, {}, {}, mgr_rwxa_t{MGR_CAP_ANY}});
   text = "allow *";
 }
 
-bool MgrCap::is_capable(
-    CephContext *cct,
+bool
+MgrCap::is_capable(
+    CephContext* cct,
     EntityName name,
     const std::string& service,
     const std::string& module,
     const std::string& command,
     const std::map<std::string, std::string>& command_args,
-    bool op_may_read, bool op_may_write, bool op_may_exec,
-    const entity_addr_t& addr) const {
+    bool op_may_read,
+    bool op_may_write,
+    bool op_may_exec,
+    const entity_addr_t& addr) const
+{
   if (cct) {
     ldout(cct, 20) << "is_capable service=" << service << " "
-                   << "module=" << module << " "
-                   << "command=" << command
-                   << (op_may_read ? " read":"")
-                   << (op_may_write ? " write":"")
-                   << (op_may_exec ? " exec":"")
-                   << " addr " << addr
-                   << " on cap " << *this
-                   << dendl;
+                   << "module=" << module << " " << "command=" << command
+                   << (op_may_read ? " read" : "")
+                   << (op_may_write ? " write" : "")
+                   << (op_may_exec ? " exec" : "") << " addr " << addr
+                   << " on cap " << *this << dendl;
   }
 
   mgr_rwxa_t allow;
@@ -338,9 +364,7 @@ bool MgrCap::is_capable(
 
     if (grant.network.size() &&
         (!grant.network_valid ||
-         !network_contains(grant.network_parsed,
-                           grant.network_prefix,
-                           addr))) {
+         !network_contains(grant.network_parsed, grant.network_prefix, addr))) {
       continue;
     }
 
@@ -352,8 +376,8 @@ bool MgrCap::is_capable(
     }
 
     // check enumerated caps
-    allow = allow | grant.get_allowed(cct, name, service, module, command,
-                                      command_args);
+    allow = allow |
+            grant.get_allowed(cct, name, service, module, command, command_args);
     if ((!op_may_read || (allow & MGR_CAP_R)) &&
         (!op_may_write || (allow & MGR_CAP_W)) &&
         (!op_may_exec || (allow & MGR_CAP_X))) {
@@ -366,14 +390,18 @@ bool MgrCap::is_capable(
   return false;
 }
 
-void MgrCap::encode(ceph::buffer::list& bl) const {
+void
+MgrCap::encode(ceph::buffer::list& bl) const
+{
   // remain backwards compatible w/ MgrCap
   ENCODE_START(4, 4, bl);
   encode(text, bl);
   ENCODE_FINISH(bl);
 }
 
-void MgrCap::decode(ceph::buffer::list::const_iterator& bl) {
+void
+MgrCap::decode(ceph::buffer::list::const_iterator& bl)
+{
   // remain backwards compatible w/ MgrCap
   std::string s;
   DECODE_START(4, bl);
@@ -382,11 +410,15 @@ void MgrCap::decode(ceph::buffer::list::const_iterator& bl) {
   parse(s, NULL);
 }
 
-void MgrCap::dump(ceph::Formatter *f) const {
+void
+MgrCap::dump(ceph::Formatter* f) const
+{
   f->dump_string("text", text);
 }
 
-std::list<MgrCap> MgrCap::generate_test_instances() {
+std::list<MgrCap>
+MgrCap::generate_test_instances()
+{
   std::list<MgrCap> ls;
   ls.emplace_back();
   ls.emplace_back();
@@ -417,22 +449,23 @@ namespace phoenix = boost::phoenix;
 
 template <typename Iterator>
 struct MgrCapParser : qi::grammar<Iterator, MgrCap()> {
-  MgrCapParser() : MgrCapParser::base_type(mgrcap) {
-    using qi::char_;
-    using qi::int_;
-    using qi::ulong_long;
-    using qi::lexeme;
-    using qi::alnum;
-    using qi::_val;
+  MgrCapParser() :
+    MgrCapParser::base_type(mgrcap)
+  {
     using qi::_1;
     using qi::_2;
     using qi::_3;
+    using qi::_val;
+    using qi::alnum;
+    using qi::char_;
     using qi::eps;
+    using qi::int_;
+    using qi::lexeme;
     using qi::lit;
+    using qi::ulong_long;
 
-    quoted_string %=
-      lexeme['"' >> +(char_ - '"') >> '"'] |
-      lexeme['\'' >> +(char_ - '\'') >> '\''];
+    quoted_string %= lexeme['"' >> +(char_ - '"') >> '"'] |
+                     lexeme['\'' >> +(char_ - '\'') >> '\''];
     unquoted_word %= +char_("a-zA-Z0-9_./-");
     str %= quoted_string | unquoted_word;
     network_str %= +char_("/.:a-fA-F0-9][");
@@ -445,79 +478,63 @@ struct MgrCapParser : qi::grammar<Iterator, MgrCap()> {
     str_prefix = spaces >> lit("prefix") >> spaces >>
                  qi::attr(MgrCapGrantConstraint::MATCH_TYPE_PREFIX) >> str;
     str_regex = spaces >> lit("regex") >> spaces >>
-                 qi::attr(MgrCapGrantConstraint::MATCH_TYPE_REGEX) >> str;
+                qi::attr(MgrCapGrantConstraint::MATCH_TYPE_REGEX) >> str;
     kv_pair = str >> (str_match | str_prefix | str_regex);
     kv_map %= kv_pair >> *(spaces >> kv_pair);
 
     // command := command[=]cmd [k1=v1 k2=v2 ...]
-    command_match = -spaces >> lit("allow") >> spaces >> lit("command") >> (lit('=') | spaces)
-                            >> qi::attr(std::string())
-                            >> qi::attr(std::string())
-                            >> qi::attr(std::string())
-                            >> str
-                            >> -(spaces >> lit("with") >> spaces >> kv_map)
-                            >> qi::attr(0)
-                            >> -(spaces >> lit("network") >> spaces >> network_str);
+    command_match = -spaces >> lit("allow") >> spaces >> lit("command") >>
+                    (lit('=') | spaces) >> qi::attr(std::string()) >>
+                    qi::attr(std::string()) >> qi::attr(std::string()) >> str >>
+                    -(spaces >> lit("with") >> spaces >> kv_map) >>
+                    qi::attr(0) >>
+                    -(spaces >> lit("network") >> spaces >> network_str);
 
     // service foo rwxa
-    service_match %= -spaces >> lit("allow") >> spaces >> lit("service") >> (lit('=') | spaces)
-                             >> str
-                             >> qi::attr(std::string())
-                             >> qi::attr(std::string())
-                             >> qi::attr(std::string())
-                             >> qi::attr(std::map<std::string, MgrCapGrantConstraint>())
-                             >> spaces >> rwxa
-                             >> -(spaces >> lit("network") >> spaces >> network_str);
+    service_match %= -spaces >> lit("allow") >> spaces >> lit("service") >>
+                     (lit('=') | spaces) >> str >> qi::attr(std::string()) >>
+                     qi::attr(std::string()) >> qi::attr(std::string()) >>
+                     qi::attr(std::map<std::string, MgrCapGrantConstraint>()) >>
+                     spaces >> rwxa >>
+                     -(spaces >> lit("network") >> spaces >> network_str);
 
     // module foo rwxa
-    module_match %= -spaces >> lit("allow") >> spaces >> lit("module") >> (lit('=') | spaces)
-                            >> qi::attr(std::string())
-                            >> str
-                            >> qi::attr(std::string())
-                            >> qi::attr(std::string())
-                            >> -(spaces >> lit("with") >> spaces >> kv_map)
-                            >> spaces >> rwxa
-                            >> -(spaces >> lit("network") >> spaces >> network_str);
+    module_match %= -spaces >> lit("allow") >> spaces >> lit("module") >>
+                    (lit('=') | spaces) >> qi::attr(std::string()) >> str >>
+                    qi::attr(std::string()) >> qi::attr(std::string()) >>
+                    -(spaces >> lit("with") >> spaces >> kv_map) >> spaces >>
+                    rwxa >>
+                    -(spaces >> lit("network") >> spaces >> network_str);
 
     // profile foo
-    profile_match %= -spaces >> -(lit("allow") >> spaces)
-                             >> lit("profile") >> (lit('=') | spaces)
-                             >> qi::attr(std::string())
-                             >> qi::attr(std::string())
-                             >> str
-                             >> qi::attr(std::string())
-                             >> -(spaces >> kv_map)
-                             >> qi::attr(0)
-                             >> -(spaces >> lit("network") >> spaces >> network_str);
+    profile_match %= -spaces >> -(lit("allow") >> spaces) >> lit("profile") >>
+                     (lit('=') | spaces) >> qi::attr(std::string()) >>
+                     qi::attr(std::string()) >> str >>
+                     qi::attr(std::string()) >> -(spaces >> kv_map) >>
+                     qi::attr(0) >>
+                     -(spaces >> lit("network") >> spaces >> network_str);
 
     // rwxa
-    rwxa_match %= -spaces >> lit("allow") >> spaces
-                          >> qi::attr(std::string())
-                          >> qi::attr(std::string())
-                          >> qi::attr(std::string())
-                          >> qi::attr(std::string())
-                          >> qi::attr(std::map<std::string,MgrCapGrantConstraint>())
-                          >> rwxa
-                          >> -(spaces >> lit("network") >> spaces >> network_str);
+    rwxa_match %= -spaces >> lit("allow") >> spaces >>
+                  qi::attr(std::string()) >> qi::attr(std::string()) >>
+                  qi::attr(std::string()) >> qi::attr(std::string()) >>
+                  qi::attr(std::map<std::string, MgrCapGrantConstraint>()) >>
+                  rwxa >> -(spaces >> lit("network") >> spaces >> network_str);
 
     // rwxa := * | [r][w][x]
-    rwxa =
-      (lit("*")[_val = MGR_CAP_ANY]) |
-      (lit("all")[_val = MGR_CAP_ANY]) |
-      ( eps[_val = 0] >>
-        ( lit('r')[_val |= MGR_CAP_R] ||
-          lit('w')[_val |= MGR_CAP_W] ||
-          lit('x')[_val |= MGR_CAP_X]
-          )
-        );
+    rwxa = (lit("*")[_val = MGR_CAP_ANY]) | (lit("all")[_val = MGR_CAP_ANY]) |
+           (eps[_val = 0] >> (lit('r')[_val |= MGR_CAP_R] ||
+                              lit('w')[_val |= MGR_CAP_W] ||
+                              lit('x')[_val |= MGR_CAP_X]));
 
     // grant := allow ...
     grant = -spaces >> (rwxa_match | profile_match | service_match |
-                        module_match | command_match) >> -spaces;
+                        module_match | command_match) >>
+            -spaces;
 
     // mgrcap := grant [grant ...]
     grants %= (grant % (*lit(' ') >> (lit(';') | lit(',')) >> *lit(' ')));
-    mgrcap = grants  [_val = phoenix::construct<MgrCap>(_1)];
+    mgrcap = grants[_val = phoenix::construct<MgrCap>(_1)];
   }
 
   qi::rule<Iterator> spaces;
@@ -540,7 +557,9 @@ struct MgrCapParser : qi::grammar<Iterator, MgrCap()> {
   qi::rule<Iterator, MgrCap()> mgrcap;
 };
 
-bool MgrCap::parse(const std::string& str, std::ostream *err) {
+bool
+MgrCap::parse(const std::string& str, std::ostream* err)
+{
   auto iter = str.begin();
   auto end = str.end();
 

@@ -8,29 +8,33 @@
 #include <map>
 #include <string>
 
+#include "common/entity_name.h"
 #include "include/common_fwd.h"
 #include "include/types.h"
-#include "common/entity_name.h"
 #include "msg/msg_types.h" // for struct entity_addr_t
 
-static const __u8 MGR_CAP_R     = (1 << 1);      // read
-static const __u8 MGR_CAP_W     = (1 << 2);      // write
-static const __u8 MGR_CAP_X     = (1 << 3);      // execute
-static const __u8 MGR_CAP_ANY   = 0xff;          // *
+static const __u8 MGR_CAP_R = (1 << 1); // read
+static const __u8 MGR_CAP_W = (1 << 2); // write
+static const __u8 MGR_CAP_X = (1 << 3); // execute
+static const __u8 MGR_CAP_ANY = 0xff; // *
 
 struct mgr_rwxa_t {
   __u8 val = 0U;
 
   mgr_rwxa_t() {}
-  explicit mgr_rwxa_t(__u8 v) : val(v) {}
 
-  mgr_rwxa_t& operator=(__u8 v) {
+  explicit mgr_rwxa_t(__u8 v) :
+    val(v)
+  {}
+
+  mgr_rwxa_t&
+  operator=(__u8 v)
+  {
     val = v;
     return *this;
   }
-  operator __u8() const {
-    return val;
-  }
+
+  operator __u8() const { return val; }
 };
 
 std::ostream& operator<<(std::ostream& out, const mgr_rwxa_t& p);
@@ -47,9 +51,10 @@ struct MgrCapGrantConstraint {
   std::string value;
 
   MgrCapGrantConstraint() {}
-  MgrCapGrantConstraint(MatchType match_type, std::string value)
-    : match_type(match_type), value(value) {
-  }
+
+  MgrCapGrantConstraint(MatchType match_type, std::string value) :
+    match_type(match_type), value(value)
+  {}
 };
 
 std::ostream& operator<<(std::ostream& out, const MgrCapGrantConstraint& c);
@@ -106,19 +111,26 @@ struct MgrCapGrant {
   // needed by expand_profile() (via is_match()) and cached here.
   mutable std::list<MgrCapGrant> profile_grants;
 
-  void expand_profile(std::ostream *err=nullptr) const;
+  void expand_profile(std::ostream* err = nullptr) const;
 
-  MgrCapGrant() : allow(0) {}
-  MgrCapGrant(std::string&& service,
-              std::string&& module,
-              std::string&& profile,
-              std::string&& command,
-              Arguments&& arguments,
-              mgr_rwxa_t allow)
-    : service(std::move(service)), module(std::move(module)),
-      profile(std::move(profile)), command(std::move(command)),
-      arguments(std::move(arguments)), allow(allow) {
-  }
+  MgrCapGrant() :
+    allow(0)
+  {}
+
+  MgrCapGrant(
+      std::string&& service,
+      std::string&& module,
+      std::string&& profile,
+      std::string&& command,
+      Arguments&& arguments,
+      mgr_rwxa_t allow) :
+    service(std::move(service)),
+    module(std::move(module)),
+    profile(std::move(profile)),
+    command(std::move(command)),
+    arguments(std::move(arguments)),
+    allow(allow)
+  {}
 
   bool validate_arguments(
       const std::map<std::string, std::string>& arguments) const;
@@ -135,19 +147,19 @@ struct MgrCapGrant {
    * @return bits we allow
    */
   mgr_rwxa_t get_allowed(
-      CephContext *cct,
+      CephContext* cct,
       EntityName name,
       const std::string& service,
       const std::string& module,
       const std::string& command,
       const std::map<std::string, std::string>& arguments) const;
 
-  bool is_allow_all() const {
-    return (allow == MGR_CAP_ANY &&
-            service.empty() &&
-            module.empty() &&
-            profile.empty() &&
-            command.empty());
+  bool
+  is_allow_all() const
+  {
+    return (
+        allow == MGR_CAP_ANY && service.empty() && module.empty() &&
+        profile.empty() && command.empty());
   }
 };
 
@@ -158,15 +170,20 @@ struct MgrCap {
   std::vector<MgrCapGrant> grants;
 
   MgrCap() {}
-  explicit MgrCap(const std::vector<MgrCapGrant> &g) : grants(g) {}
 
-  std::string get_str() const {
+  explicit MgrCap(const std::vector<MgrCapGrant>& g) :
+    grants(g)
+  {}
+
+  std::string
+  get_str() const
+  {
     return text;
   }
 
   bool is_allow_all() const;
   void set_allow_all();
-  bool parse(const std::string& str, std::ostream *err=NULL);
+  bool parse(const std::string& str, std::ostream* err = NULL);
 
   /**
    * check if we are capable of something
@@ -183,18 +200,21 @@ struct MgrCap {
    * @param op_may_exec whether the operation may exec
    * @return true if the operation is allowed, false otherwise
    */
-  bool is_capable(CephContext *cct,
-		  EntityName name,
-		  const std::string& service,
-		  const std::string& module,
-		  const std::string& command,
-		  const std::map<std::string, std::string>& arguments,
-		  bool op_may_read, bool op_may_write, bool op_may_exec,
-		  const entity_addr_t& addr) const;
+  bool is_capable(
+      CephContext* cct,
+      EntityName name,
+      const std::string& service,
+      const std::string& module,
+      const std::string& command,
+      const std::map<std::string, std::string>& arguments,
+      bool op_may_read,
+      bool op_may_write,
+      bool op_may_exec,
+      const entity_addr_t& addr) const;
 
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<MgrCap> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(MgrCap)

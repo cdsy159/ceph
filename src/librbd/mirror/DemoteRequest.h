@@ -18,13 +18,15 @@ namespace mirror {
 template <typename ImageCtxT = librbd::ImageCtx>
 class DemoteRequest {
 public:
-  static DemoteRequest *create(ImageCtxT &image_ctx, Context *on_finish) {
+  static DemoteRequest*
+  create(ImageCtxT& image_ctx, Context* on_finish)
+  {
     return new DemoteRequest(image_ctx, on_finish);
   }
 
-  DemoteRequest(ImageCtxT &image_ctx, Context *on_finish)
-    : m_image_ctx(image_ctx), m_on_finish(on_finish) {
-  }
+  DemoteRequest(ImageCtxT& image_ctx, Context* on_finish) :
+    m_image_ctx(image_ctx), m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -52,8 +54,8 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT &m_image_ctx;
-  Context *m_on_finish;
+  ImageCtxT& m_image_ctx;
+  Context* m_on_finish;
 
   int m_ret_val = 0;
   bool m_blocked_requests = false;
@@ -75,7 +77,6 @@ private:
   void handle_release_lock(int r);
 
   void finish(int r);
-
 };
 
 } // namespace mirror

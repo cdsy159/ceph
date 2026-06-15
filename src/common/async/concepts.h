@@ -17,9 +17,8 @@
 
 #include <type_traits>
 
-#include <boost/asio/execution/executor.hpp>
-
 #include <boost/asio/disposition.hpp>
+#include <boost/asio/execution/executor.hpp>
 #include <boost/asio/execution_context.hpp>
 
 /// \file common/async/concepts
@@ -30,13 +29,11 @@ namespace ceph::async {
 
 /// The constraint from functions taking an ExecutionContext packed
 /// into a concept.
-template<typename ExecutionContext>
+template <typename ExecutionContext>
 concept execution_context =
-  std::is_convertible_v<ExecutionContext&,
-                        boost::asio::execution_context&>;
+    std::is_convertible_v<ExecutionContext&, boost::asio::execution_context&>;
 /// A concept for Asio 'disposition's, a generalization of error
 /// codes/exception pointers, etc.
-template<typename T>
-concept disposition =
-  boost::asio::is_disposition_v<T>;
-}
+template <typename T>
+concept disposition = boost::asio::is_disposition_v<T>;
+} // namespace ceph::async

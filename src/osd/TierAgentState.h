@@ -22,7 +22,6 @@
 #include "common/Formatter.h"
 #include "common/histogram.h"
 #include "common/hobject.h"
-
 #include "osd/HitSet.h"
 
 struct TierAgentState {
@@ -38,42 +37,62 @@ struct TierAgentState {
   int hist_age;
 
   /// past HitSet(s) (not current)
-  std::map<time_t,HitSetRef> hit_set_map;
+  std::map<time_t, HitSetRef> hit_set_map;
 
   /// a few recent things we've seen that are clean
   std::list<hobject_t> recent_clean;
 
   enum flush_mode_t {
-    FLUSH_MODE_IDLE,   // nothing to flush
+    FLUSH_MODE_IDLE, // nothing to flush
     FLUSH_MODE_LOW, // flush dirty objects with a low speed
     FLUSH_MODE_HIGH, //flush dirty objects with a high speed
-  } flush_mode;     ///< current flush behavior
-  static const char *get_flush_mode_name(flush_mode_t m) {
+  } flush_mode; ///< current flush behavior
+
+  static const char*
+  get_flush_mode_name(flush_mode_t m)
+  {
     switch (m) {
-    case FLUSH_MODE_IDLE: return "idle";
-    case FLUSH_MODE_LOW: return "low";
-    case FLUSH_MODE_HIGH: return "high";
-    default: ceph_abort_msg("bad flush mode");
+    case FLUSH_MODE_IDLE:
+      return "idle";
+    case FLUSH_MODE_LOW:
+      return "low";
+    case FLUSH_MODE_HIGH:
+      return "high";
+    default:
+      ceph_abort_msg("bad flush mode");
     }
   }
-  const char *get_flush_mode_name() const {
+
+  const char*
+  get_flush_mode_name() const
+  {
     return get_flush_mode_name(flush_mode);
   }
 
   enum evict_mode_t {
-    EVICT_MODE_IDLE,      // no need to evict anything
-    EVICT_MODE_SOME,      // evict some things as we are near the target
-    EVICT_MODE_FULL,      // evict anything
-  } evict_mode;     ///< current evict behavior
-  static const char *get_evict_mode_name(evict_mode_t m) {
+    EVICT_MODE_IDLE, // no need to evict anything
+    EVICT_MODE_SOME, // evict some things as we are near the target
+    EVICT_MODE_FULL, // evict anything
+  } evict_mode; ///< current evict behavior
+
+  static const char*
+  get_evict_mode_name(evict_mode_t m)
+  {
     switch (m) {
-    case EVICT_MODE_IDLE: return "idle";
-    case EVICT_MODE_SOME: return "some";
-    case EVICT_MODE_FULL: return "full";
-    default: ceph_abort_msg("bad evict mode");
+    case EVICT_MODE_IDLE:
+      return "idle";
+    case EVICT_MODE_SOME:
+      return "some";
+    case EVICT_MODE_FULL:
+      return "full";
+    default:
+      ceph_abort_msg("bad evict mode");
     }
   }
-  const char *get_evict_mode_name() const {
+
+  const char*
+  get_evict_mode_name() const
+  {
     return get_evict_mode_name(evict_mode);
   }
 
@@ -81,40 +100,48 @@ struct TierAgentState {
   /// distributed) that i should aim to evict.
   unsigned evict_effort;
 
-  TierAgentState()
-    : started(0),
-      delaying(false),
-      hist_age(0),
-      flush_mode(FLUSH_MODE_IDLE),
-      evict_mode(EVICT_MODE_IDLE),
-      evict_effort(0)
+  TierAgentState() :
+    started(0),
+    delaying(false),
+    hist_age(0),
+    flush_mode(FLUSH_MODE_IDLE),
+    evict_mode(EVICT_MODE_IDLE),
+    evict_effort(0)
   {}
 
   /// false if we have any work to do
-  bool is_idle() const {
-    return
-      delaying ||
-      (flush_mode == FLUSH_MODE_IDLE &&
-      evict_mode == EVICT_MODE_IDLE);
+  bool
+  is_idle() const
+  {
+    return delaying ||
+           (flush_mode == FLUSH_MODE_IDLE && evict_mode == EVICT_MODE_IDLE);
   }
 
   /// add archived HitSet
-  void add_hit_set(time_t start, HitSetRef hs) {
+  void
+  add_hit_set(time_t start, HitSetRef hs)
+  {
     hit_set_map.insert(std::make_pair(start, hs));
   }
 
   /// remove old/trimmed HitSet
-  void remove_oldest_hit_set() {
+  void
+  remove_oldest_hit_set()
+  {
     if (!hit_set_map.empty())
       hit_set_map.erase(hit_set_map.begin());
   }
 
   /// discard all open hit sets
-  void discard_hit_sets() {
+  void
+  discard_hit_sets()
+  {
     hit_set_map.clear();
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("flush_mode", get_flush_mode_name());
     f->dump_string("evict_mode", get_evict_mode_name());
     f->dump_unsigned("evict_effort", evict_effort);

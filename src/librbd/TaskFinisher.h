@@ -4,35 +4,41 @@
 #ifndef LIBRBD_TASK_FINISHER_H
 #define LIBRBD_TASK_FINISHER_H
 
-#include "include/common_fwd.h"
-#include "include/Context.h"
-#include "common/ceph_context.h"
-#include "common/Finisher.h"
-#include "common/ceph_mutex.h"
-#include "common/Timer.h"
 #include <map>
 #include <utility>
 
+#include "common/Finisher.h"
+#include "common/Timer.h"
+#include "common/ceph_context.h"
+#include "common/ceph_mutex.h"
+#include "include/Context.h"
+#include "include/common_fwd.h"
 
 namespace librbd {
 
 struct TaskFinisherSingleton {
   ceph::mutex m_lock = ceph::make_mutex("librbd::TaskFinisher::m_lock");
-  SafeTimer *m_safe_timer;
-  Finisher *m_finisher;
+  SafeTimer* m_safe_timer;
+  Finisher* m_finisher;
 
-  static TaskFinisherSingleton& get_singleton(CephContext* cct) {
-    return cct->lookup_or_create_singleton_object<
-      TaskFinisherSingleton>("librbd::TaskFinisherSingleton", false, cct);
+  static TaskFinisherSingleton&
+  get_singleton(CephContext* cct)
+  {
+    return cct->lookup_or_create_singleton_object<TaskFinisherSingleton>(
+        "librbd::TaskFinisherSingleton", false, cct);
   }
 
-  explicit TaskFinisherSingleton(CephContext *cct) {
+  explicit TaskFinisherSingleton(CephContext* cct)
+  {
     m_safe_timer = new SafeTimer(cct, m_lock, false);
     m_safe_timer->init();
-    m_finisher = new Finisher(cct, "librbd::TaskFinisher::m_finisher", "taskfin_librbd");
+    m_finisher =
+        new Finisher(cct, "librbd::TaskFinisher::m_finisher", "taskfin_librbd");
     m_finisher->start();
   }
-  virtual ~TaskFinisherSingleton() {
+
+  virtual ~TaskFinisherSingleton()
+  {
     {
       std::lock_guard l{m_lock};
       m_safe_timer->shutdown();
@@ -43,23 +49,28 @@ struct TaskFinisherSingleton {
     delete m_finisher;
   }
 
-  void queue(Context* ctx, int r) {
+  void
+  queue(Context* ctx, int r)
+  {
     m_finisher->queue(ctx, r);
   }
 };
 
-
 template <typename Task>
 class TaskFinisher {
 public:
-  TaskFinisher(CephContext &cct) : m_cct(cct) {
+  TaskFinisher(CephContext& cct) :
+    m_cct(cct)
+  {
     auto& singleton = TaskFinisherSingleton::get_singleton(&cct);
     m_lock = &singleton.m_lock;
     m_safe_timer = singleton.m_safe_timer;
     m_finisher = singleton.m_finisher;
   }
 
-  bool cancel(const Task& task) {
+  bool
+  cancel(const Task& task)
+  {
     std::lock_guard l{*m_lock};
     typename TaskContexts::iterator it = m_task_contexts.find(task);
     if (it == m_task_contexts.end()) {
@@ -71,30 +82,36 @@ public:
     return true;
   }
 
-  void cancel_all() {
+  void
+  cancel_all()
+  {
     std::lock_guard l{*m_lock};
-    for (auto &[task, pair] : m_task_contexts) {
+    for (auto& [task, pair] : m_task_contexts) {
       pair.first->complete(-ECANCELED);
       m_safe_timer->cancel_event(pair.second);
     }
     m_task_contexts.clear();
   }
 
-  bool add_event_after(const Task& task, double seconds, Context *ctx) {
+  bool
+  add_event_after(const Task& task, double seconds, Context* ctx)
+  {
     std::lock_guard l{*m_lock};
     if (m_task_contexts.count(task) != 0) {
       // task already scheduled on finisher or timer
       delete ctx;
       return false;
     }
-    C_Task *timer_ctx = new C_Task(this, task);
+    C_Task* timer_ctx = new C_Task(this, task);
     m_task_contexts[task] = std::make_pair(ctx, timer_ctx);
 
     m_safe_timer->add_event_after(seconds, timer_ctx);
     return true;
   }
 
-  bool reschedule_event_after(const Task& task, double seconds) {
+  bool
+  reschedule_event_after(const Task& task, double seconds)
+  {
     std::lock_guard l{*m_lock};
     auto it = m_task_contexts.find(task);
     if (it == m_task_contexts.end()) {
@@ -110,11 +127,15 @@ public:
     return true;
   }
 
-  void queue(Context *ctx, int r = 0) {
+  void
+  queue(Context* ctx, int r = 0)
+  {
     m_finisher->queue(ctx, r);
   }
 
-  bool queue(const Task& task, Context *ctx) {
+  bool
+  queue(const Task& task, Context* ctx)
+  {
     std::lock_guard l{*m_lock};
     typename TaskContexts::iterator it = m_task_contexts.find(task);
     if (it != m_task_contexts.end()) {
@@ -127,7 +148,7 @@ public:
         return false;
       }
     }
-    m_task_contexts[task] = std::make_pair(ctx, reinterpret_cast<Context *>(0));
+    m_task_contexts[task] = std::make_pair(ctx, reinterpret_cast<Context*>(0));
 
     m_finisher->queue(new C_Task(this, task));
     return true;
@@ -136,30 +157,35 @@ public:
 private:
   class C_Task : public Context {
   public:
-    C_Task(TaskFinisher *task_finisher, const Task& task)
-      : m_task_finisher(task_finisher), m_task(task)
-    {
-    }
+    C_Task(TaskFinisher* task_finisher, const Task& task) :
+      m_task_finisher(task_finisher), m_task(task)
+    {}
+
   protected:
-    void finish(int r) override {
+    void
+    finish(int r) override
+    {
       m_task_finisher->complete(m_task);
     }
+
   private:
-    TaskFinisher *m_task_finisher;
+    TaskFinisher* m_task_finisher;
     Task m_task;
   };
 
-  CephContext &m_cct;
+  CephContext& m_cct;
 
-  ceph::mutex *m_lock;
-  Finisher *m_finisher;
-  SafeTimer *m_safe_timer;
+  ceph::mutex* m_lock;
+  Finisher* m_finisher;
+  SafeTimer* m_safe_timer;
 
-  typedef std::map<Task, std::pair<Context *, Context *> > TaskContexts;
+  typedef std::map<Task, std::pair<Context*, Context*>> TaskContexts;
   TaskContexts m_task_contexts;
 
-  void complete(const Task& task) {
-    Context *ctx = NULL;
+  void
+  complete(const Task& task)
+  {
+    Context* ctx = NULL;
     {
       std::lock_guard l{*m_lock};
       typename TaskContexts::iterator it = m_task_contexts.find(task);

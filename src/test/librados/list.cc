@@ -1,20 +1,21 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <errno.h>
+
+#include <stdexcept>
+#include <string>
+
+#include "common/hobject.h"
+#include "global/global_context.h"
+#include "gtest/gtest.h"
 #include "include/rados/librados.h"
 #include "include/rados/librados.hpp"
 #include "include/stringify.h"
+#include "include/types.h"
+#include "test/librados/TestCase.h"
 #include "test/librados/test.h"
 #include "test/librados/test_common.h"
-#include "test/librados/TestCase.h"
-#include "global/global_context.h"
-
-#include "include/types.h"
-#include "common/hobject.h"
-#include "gtest/gtest.h"
-#include <errno.h>
-#include <string>
-#include <stdexcept>
 
 #include "crimson_utils.h"
 
@@ -25,14 +26,14 @@ typedef RadosTestNSCleanup LibRadosList;
 typedef RadosTestECNSCleanup LibRadosListEC;
 typedef RadosTestNP LibRadosListNP;
 
-
-TEST_F(LibRadosList, ListObjects) {
+TEST_F(LibRadosList, ListObjects)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  const char *entry;
+  const char* entry;
   bool foundit = false;
   while (rados_nobjects_list_next(ctx, &entry, NULL, NULL) != -ENOENT) {
     foundit = true;
@@ -42,17 +43,18 @@ TEST_F(LibRadosList, ListObjects) {
   rados_nobjects_list_close(ctx);
 }
 
-TEST_F(LibRadosList, ListObjectsZeroInName) {
+TEST_F(LibRadosList, ListObjectsZeroInName)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo\0bar", buf, sizeof(buf), 0));
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  const char *entry;
+  const char* entry;
   size_t entry_size;
   bool foundit = false;
-  while (rados_nobjects_list_next2(ctx, &entry, NULL, NULL,
-				   &entry_size, NULL, NULL) != -ENOENT) {
+  while (rados_nobjects_list_next2(
+             ctx, &entry, NULL, NULL, &entry_size, NULL, NULL) != -ENOENT) {
     foundit = true;
     ASSERT_EQ(std::string(entry, entry_size), "foo\0bar");
   }
@@ -60,10 +62,11 @@ TEST_F(LibRadosList, ListObjectsZeroInName) {
   rados_nobjects_list_close(ctx);
 }
 
-static void check_list(
-  std::set<std::string>& myset,
-  rados_list_ctx_t& ctx,
-  const std::string &check_nspace)
+static void
+check_list(
+    std::set<std::string>& myset,
+    rados_list_ctx_t& ctx,
+    const std::string& check_nspace)
 {
   const char *entry, *nspace;
   cout << "myset " << myset << std::endl;
@@ -86,7 +89,8 @@ static void check_list(
   ASSERT_TRUE(myset.empty());
 }
 
-TEST_F(LibRadosList, ListObjectsNS) {
+TEST_F(LibRadosList, ListObjectsNS)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   // Create :foo1, :foo2, :foo3, n1:foo1, ns1:foo4, ns1:foo5, ns2:foo6, n2:foo7
@@ -106,8 +110,9 @@ TEST_F(LibRadosList, ListObjectsNS) {
 
   char nspace[4];
   ASSERT_EQ(-ERANGE, rados_ioctx_get_namespace(ioctx, nspace, 3));
-  ASSERT_EQ(static_cast<int>(strlen("ns2")),
-	    rados_ioctx_get_namespace(ioctx, nspace, sizeof(nspace)));
+  ASSERT_EQ(
+      static_cast<int>(strlen("ns2")),
+      rados_ioctx_get_namespace(ioctx, nspace, sizeof(nspace)));
   ASSERT_EQ(0, strcmp("ns2", nspace));
 
   std::set<std::string> def, ns1, ns2, all;
@@ -154,20 +159,20 @@ TEST_F(LibRadosList, ListObjectsNS) {
   rados_nobjects_list_close(ctx);
 }
 
-
-TEST_F(LibRadosList, ListObjectsStart) {
+TEST_F(LibRadosList, ListObjectsStart)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
 
-  for (int i=0; i<16; ++i) {
+  for (int i = 0; i < 16; ++i) {
     string n = stringify(i);
     ASSERT_EQ(0, rados_write(ioctx, n.c_str(), buf, sizeof(buf), 0));
   }
 
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  std::map<int, std::set<std::string> > pg_to_obj;
-  const char *entry;
+  std::map<int, std::set<std::string>> pg_to_obj;
+  const char* entry;
   while (rados_nobjects_list_next(ctx, &entry, NULL, NULL) == 0) {
     uint32_t pos = rados_nobjects_list_get_pg_hash_position(ctx);
     std::cout << entry << " " << pos << std::endl;
@@ -175,13 +180,13 @@ TEST_F(LibRadosList, ListObjectsStart) {
   }
   rados_nobjects_list_close(ctx);
 
-  std::map<int, std::set<std::string> >::reverse_iterator p =
-    pg_to_obj.rbegin();
+  std::map<int, std::set<std::string>>::reverse_iterator p = pg_to_obj.rbegin();
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
   while (p != pg_to_obj.rend()) {
     ASSERT_EQ((uint32_t)p->first, rados_nobjects_list_seek(ctx, p->first));
     ASSERT_EQ(0, rados_nobjects_list_next(ctx, &entry, NULL, NULL));
-    std::cout << "have " << entry << " expect one of " << p->second << std::endl;
+    std::cout << "have " << entry << " expect one of " << p->second
+              << std::endl;
     ASSERT_TRUE(p->second.count(entry));
     ++p;
   }
@@ -191,30 +196,32 @@ TEST_F(LibRadosList, ListObjectsStart) {
 // this function replicates
 // librados::operator<<(std::ostream& os, const librados::ObjectCursor& oc)
 // because we don't want to use librados in librados client.
-std::ostream& operator<<(std::ostream&os, const rados_object_list_cursor& oc)
+std::ostream&
+operator<<(std::ostream& os, const rados_object_list_cursor& oc)
 {
   if (oc) {
-    os << *(hobject_t *)oc;
+    os << *(hobject_t*)oc;
   } else {
     os << hobject_t{};
   }
   return os;
 }
 
-TEST_F(LibRadosList, ListObjectsCursor) {
+TEST_F(LibRadosList, ListObjectsCursor)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
 
   const int max_objs = 16;
 
-  for (int i=0; i<max_objs; ++i) {
+  for (int i = 0; i < max_objs; ++i) {
     string n = stringify(i);
     ASSERT_EQ(0, rados_write(ioctx, n.c_str(), buf, sizeof(buf), 0));
   }
 
   {
     rados_list_ctx_t ctx;
-    const char *entry;
+    const char* entry;
     rados_object_list_cursor cursor;
     ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
     ASSERT_EQ(rados_nobjects_list_get_cursor(ctx, &cursor), 0);
@@ -227,7 +234,8 @@ TEST_F(LibRadosList, ListObjectsCursor) {
     }
     rados_nobjects_list_seek_cursor(ctx, first_cursor);
     ASSERT_EQ(rados_nobjects_list_next(ctx, &entry, NULL, NULL), 0);
-    cout << "FIRST> seek to " << first_cursor << " oid=" << string(entry) << std::endl;
+    cout << "FIRST> seek to " << first_cursor << " oid=" << string(entry)
+         << std::endl;
   }
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
@@ -235,7 +243,7 @@ TEST_F(LibRadosList, ListObjectsCursor) {
   std::map<rados_object_list_cursor, string> cursor_to_obj;
   int count = 0;
 
-  const char *entry;
+  const char* entry;
   while (rados_nobjects_list_next(ctx, &entry, NULL, NULL) == 0) {
     rados_object_list_cursor cursor;
     ASSERT_EQ(rados_nobjects_list_get_cursor(ctx, &cursor), 0);
@@ -276,14 +284,15 @@ TEST_F(LibRadosList, ListObjectsCursor) {
   }
 }
 
-TEST_F(LibRadosListEC, ListObjects) {
+TEST_F(LibRadosListEC, ListObjects)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   ASSERT_EQ(0, rados_write(ioctx, "foo", buf, sizeof(buf), 0));
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  const char *entry;
+  const char* entry;
   bool foundit = false;
   while (rados_nobjects_list_next(ctx, &entry, NULL, NULL) != -ENOENT) {
     foundit = true;
@@ -293,7 +302,8 @@ TEST_F(LibRadosListEC, ListObjects) {
   rados_nobjects_list_close(ctx);
 }
 
-TEST_F(LibRadosListEC, ListObjectsNS) {
+TEST_F(LibRadosListEC, ListObjectsNS)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -356,21 +366,21 @@ TEST_F(LibRadosListEC, ListObjectsNS) {
   rados_nobjects_list_close(ctx);
 }
 
-
-TEST_F(LibRadosListEC, ListObjectsStart) {
+TEST_F(LibRadosListEC, ListObjectsStart)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
 
-  for (int i=0; i<16; ++i) {
+  for (int i = 0; i < 16; ++i) {
     string n = stringify(i);
     ASSERT_EQ(0, rados_write(ioctx, n.c_str(), buf, sizeof(buf), 0));
   }
 
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  std::map<int, std::set<std::string> > pg_to_obj;
-  const char *entry;
+  std::map<int, std::set<std::string>> pg_to_obj;
+  const char* entry;
   while (rados_nobjects_list_next(ctx, &entry, NULL, NULL) == 0) {
     uint32_t pos = rados_nobjects_list_get_pg_hash_position(ctx);
     std::cout << entry << " " << pos << std::endl;
@@ -378,20 +388,21 @@ TEST_F(LibRadosListEC, ListObjectsStart) {
   }
   rados_nobjects_list_close(ctx);
 
-  std::map<int, std::set<std::string> >::reverse_iterator p =
-    pg_to_obj.rbegin();
+  std::map<int, std::set<std::string>>::reverse_iterator p = pg_to_obj.rbegin();
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
   while (p != pg_to_obj.rend()) {
     ASSERT_EQ((uint32_t)p->first, rados_nobjects_list_seek(ctx, p->first));
     ASSERT_EQ(0, rados_nobjects_list_next(ctx, &entry, NULL, NULL));
-    std::cout << "have " << entry << " expect one of " << p->second << std::endl;
+    std::cout << "have " << entry << " expect one of " << p->second
+              << std::endl;
     ASSERT_TRUE(p->second.count(entry));
     ++p;
   }
   rados_nobjects_list_close(ctx);
 }
 
-TEST_F(LibRadosListNP, ListObjectsError) {
+TEST_F(LibRadosListNP, ListObjectsError)
+{
   std::string pool_name;
   rados_t cluster;
   rados_ioctx_t ioctx;
@@ -408,32 +419,34 @@ TEST_F(LibRadosListNP, ListObjectsError) {
     char *buf, *st;
     size_t buflen, stlen;
     string c = "{\"prefix\":\"osd pool rm\",\"pool\": \"" + pool_name +
-      "\",\"pool2\":\"" + pool_name +
-      "\",\"yes_i_really_really_mean_it_not_faking\": true}";
-    const char *cmd[2] = { c.c_str(), 0 };
-    ASSERT_EQ(0, rados_mon_command(cluster, (const char **)cmd, 1, "", 0, &buf, &buflen, &st, &stlen));
+               "\",\"pool2\":\"" + pool_name +
+               "\",\"yes_i_really_really_mean_it_not_faking\": true}";
+    const char* cmd[2] = {c.c_str(), 0};
+    ASSERT_EQ(
+        0,
+        rados_mon_command(
+            cluster, (const char**)cmd, 1, "", 0, &buf, &buflen, &st, &stlen));
     ASSERT_EQ(0, rados_wait_for_latest_osdmap(cluster));
   }
 
   rados_list_ctx_t ctx;
   ASSERT_EQ(0, rados_nobjects_list_open(ioctx, &ctx));
-  const char *entry;
+  const char* entry;
   ASSERT_EQ(-ENOENT, rados_nobjects_list_next(ctx, &entry, NULL, NULL));
   rados_nobjects_list_close(ctx);
   rados_ioctx_destroy(ioctx);
   rados_shutdown(cluster);
 }
 
-
-
 // ---------------------------------------------
 
-TEST_F(LibRadosList, EnumerateObjects) {
+TEST_F(LibRadosList, EnumerateObjects)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
 
   const uint32_t n_objects = 16;
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     ASSERT_EQ(0, rados_write(ioctx, stringify(i).c_str(), buf, sizeof(buf), 0));
   }
 
@@ -446,19 +459,17 @@ TEST_F(LibRadosList, EnumerateObjects) {
   std::set<std::string> saw_obj;
   rados_object_list_cursor c = rados_object_list_begin(ioctx);
   rados_object_list_cursor end = rados_object_list_end(ioctx);
-  while(!rados_object_list_is_end(ioctx, c))
-  {
+  while (!rados_object_list_is_end(ioctx, c)) {
     rados_object_list_item results[12];
     memset(results, 0, sizeof(rados_object_list_item) * 12);
     rados_object_list_cursor temp_end = rados_object_list_end(ioctx);
-    int r = rados_object_list(ioctx, c, temp_end,
-            12, NULL, 0, results, &c);
+    int r = rados_object_list(ioctx, c, temp_end, 12, NULL, 0, results, &c);
     rados_object_list_cursor_free(ioctx, temp_end);
     ASSERT_GE(r, 0);
     for (int i = 0; i < r; ++i) {
       std::string oid(results[i].oid, results[i].oid_length);
       if (saw_obj.count(oid)) {
-          std::cerr << "duplicate obj " << oid << std::endl;
+        std::cerr << "duplicate obj " << oid << std::endl;
       }
       ASSERT_FALSE(saw_obj.count(oid));
       saw_obj.insert(oid);
@@ -468,21 +479,22 @@ TEST_F(LibRadosList, EnumerateObjects) {
   rados_object_list_cursor_free(ioctx, c);
   rados_object_list_cursor_free(ioctx, end);
 
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     if (!saw_obj.count(stringify(i))) {
-        std::cerr << "missing object " << i << std::endl;
+      std::cerr << "missing object " << i << std::endl;
     }
     ASSERT_TRUE(saw_obj.count(stringify(i)));
   }
   ASSERT_EQ(n_objects, saw_obj.size());
 }
 
-TEST_F(LibRadosList, EnumerateObjectsSplit) {
+TEST_F(LibRadosList, EnumerateObjectsSplit)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
 
   const uint32_t n_objects = 16;
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     ASSERT_EQ(0, rados_write(ioctx, stringify(i).c_str(), buf, sizeof(buf), 0));
   }
 
@@ -504,51 +516,42 @@ TEST_F(LibRadosList, EnumerateObjectsSplit) {
   unsigned m = 5;
   std::set<std::string> saw_obj;
   for (unsigned n = 0; n < m; ++n) {
-      rados_object_list_cursor shard_start = rados_object_list_begin(ioctx);;
-      rados_object_list_cursor shard_end = rados_object_list_end(ioctx);;
+    rados_object_list_cursor shard_start = rados_object_list_begin(ioctx);
+    ;
+    rados_object_list_cursor shard_end = rados_object_list_end(ioctx);
+    ;
 
-      rados_object_list_slice(
-        ioctx,
-        begin,
-        end,
-        n,
-        m,
-        &shard_start,
-        &shard_end);
-      std::cout << "split " << n << "/" << m << " -> "
-		<< *(hobject_t*)shard_start << " "
-		<< *(hobject_t*)shard_end << std::endl;
+    rados_object_list_slice(ioctx, begin, end, n, m, &shard_start, &shard_end);
+    std::cout << "split " << n << "/" << m << " -> " << *(hobject_t*)shard_start
+              << " " << *(hobject_t*)shard_end << std::endl;
 
-      rados_object_list_cursor c = shard_start;
-      //while(c < shard_end)
-      while(rados_object_list_cursor_cmp(ioctx, c, shard_end) == -1)
-      {
-        rados_object_list_item results[12];
-        memset(results, 0, sizeof(rados_object_list_item) * 12);
-        int r = rados_object_list(ioctx,
-                c, shard_end,
-                12, NULL, 0, results, &c);
-        ASSERT_GE(r, 0);
-        for (int i = 0; i < r; ++i) {
-          std::string oid(results[i].oid, results[i].oid_length);
-          if (saw_obj.count(oid)) {
-              std::cerr << "duplicate obj " << oid << std::endl;
-          }
-          ASSERT_FALSE(saw_obj.count(oid));
-          saw_obj.insert(oid);
+    rados_object_list_cursor c = shard_start;
+    //while(c < shard_end)
+    while (rados_object_list_cursor_cmp(ioctx, c, shard_end) == -1) {
+      rados_object_list_item results[12];
+      memset(results, 0, sizeof(rados_object_list_item) * 12);
+      int r = rados_object_list(ioctx, c, shard_end, 12, NULL, 0, results, &c);
+      ASSERT_GE(r, 0);
+      for (int i = 0; i < r; ++i) {
+        std::string oid(results[i].oid, results[i].oid_length);
+        if (saw_obj.count(oid)) {
+          std::cerr << "duplicate obj " << oid << std::endl;
         }
-        rados_object_list_free(12, results);
+        ASSERT_FALSE(saw_obj.count(oid));
+        saw_obj.insert(oid);
       }
-      rados_object_list_cursor_free(ioctx, shard_start);
-      rados_object_list_cursor_free(ioctx, shard_end);
+      rados_object_list_free(12, results);
+    }
+    rados_object_list_cursor_free(ioctx, shard_start);
+    rados_object_list_cursor_free(ioctx, shard_end);
   }
 
   rados_object_list_cursor_free(ioctx, begin);
   rados_object_list_cursor_free(ioctx, end);
 
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     if (!saw_obj.count(stringify(i))) {
-        std::cerr << "missing object " << i << std::endl;
+      std::cerr << "missing object " << i << std::endl;
     }
     ASSERT_TRUE(saw_obj.count(stringify(i)));
   }

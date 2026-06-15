@@ -1,42 +1,52 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <vector>
+
+#include "common/debug.h"
+
+#include "common/Preforker.h"
+#include "common/async/context_pool.h"
 #include "common/ceph_argparse.h"
 #include "common/config.h"
-#include "common/debug.h"
 #include "common/errno.h"
-#include "common/async/context_pool.h"
-#include "common/Preforker.h"
 #include "global/global_init.h"
 #include "global/signal_handler.h"
 #include "log/Log.h"
 #include "mon/MonClient.h"
 #include "msg/Messenger.h"
-#include "Mirror.h"
 
-#include <vector>
+#include "Mirror.h"
 
 using namespace std;
 
-void usage() {
+void
+usage()
+{
   std::cout << "usage: cephfs-mirror [options...]" << std::endl;
   std::cout << "options:\n";
   std::cout << "  --mon-host monaddress[:port]  connect to specified monitor\n";
-  std::cout << "  --keyring=<path>              path to keyring for local cluster\n";
+  std::cout
+      << "  --keyring=<path>              path to keyring for local cluster\n";
   std::cout << "  --log-file=<logfile>          file to log debug output\n";
-  std::cout << "  --debug-cephfs-mirror=<log-level>/<memory-level>  set cephfs-mirror debug level\n";
+  std::cout << "  --debug-cephfs-mirror=<log-level>/<memory-level>  set "
+               "cephfs-mirror debug level\n";
   generic_server_usage();
 }
 
-cephfs::mirror::Mirror *mirror = nullptr;
+cephfs::mirror::Mirror* mirror = nullptr;
 
-static void handle_signal(int signum) {
+static void
+handle_signal(int signum)
+{
   if (mirror) {
     mirror->handle_signal(signum);
   }
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char** argv)
+{
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
     cerr << argv[0] << ": -h or --help for usage" << std::endl;
@@ -48,9 +58,9 @@ int main(int argc, const char **argv) {
     ::exit(0);
   }
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_DAEMON,
-                         CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
 
   Preforker forker;
   if (global_init_prefork(g_ceph_context) >= 0) {
@@ -85,7 +95,7 @@ int main(int argc, const char **argv) {
 
   auto cmd_args = argv_to_vec(argc, argv);
 
-  Messenger *msgr = Messenger::create_client_messenger(g_ceph_context, "client");
+  Messenger* msgr = Messenger::create_client_messenger(g_ceph_context, "client");
   msgr->set_default_policy(Messenger::Policy::lossy_client(0));
 
   std::string reason;

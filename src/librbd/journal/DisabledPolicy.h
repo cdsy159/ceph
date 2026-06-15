@@ -14,13 +14,21 @@ namespace journal {
 
 class DisabledPolicy : public Policy {
 public:
-  bool append_disabled() const override {
+  bool
+  append_disabled() const override
+  {
     return true;
   }
-  bool journal_disabled() const override {
+
+  bool
+  journal_disabled() const override
+  {
     return true;
   }
-  void allocate_tag_on_lock(Context *on_finish) override {
+
+  void
+  allocate_tag_on_lock(Context* on_finish) override
+  {
     ceph_abort();
   }
 };

@@ -21,24 +21,24 @@
 #include <shared_mutex> // for std::shared_lock
 
 #include <boost/asio/append.hpp>
-#include <boost/smart_ptr/intrusive_ref_counter.hpp>
-#include <boost/intrusive_ptr.hpp>
 #include <boost/intrusive/list.hpp>
-
-#include "include/ceph_assert.h"
+#include <boost/intrusive_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
 #include "common/async/completion.h"
+#include "include/ceph_assert.h"
 
 namespace ceph::async::detail {
 
 struct LockRequest : public boost::intrusive::list_base_hook<> {
   virtual ~LockRequest() {}
+
   virtual void complete(boost::system::error_code ec) = 0;
   virtual void destroy() = 0;
 };
 
 class SharedMutexImpl : public boost::intrusive_ref_counter<SharedMutexImpl> {
- public:
+public:
   ~SharedMutexImpl();
 
   template <typename Mutex, typename CompletionToken>
@@ -55,7 +55,7 @@ class SharedMutexImpl : public boost::intrusive_ref_counter<SharedMutexImpl> {
   void unlock_shared();
   void cancel();
 
- private:
+private:
   using RequestList = boost::intrusive::list<LockRequest>;
 
   RequestList shared_queue; //< requests waiting on a shared lock
@@ -77,17 +77,26 @@ class SharedMutexImpl : public boost::intrusive_ref_counter<SharedMutexImpl> {
 class SyncRequest : public LockRequest {
   std::condition_variable cond;
   std::optional<boost::system::error_code> ec;
- public:
-  boost::system::error_code wait(std::unique_lock<std::mutex>& lock) {
+
+public:
+  boost::system::error_code
+  wait(std::unique_lock<std::mutex>& lock)
+  {
     // return the error code once its been set
     cond.wait(lock, [this] { return ec; });
     return *ec;
   }
-  void complete(boost::system::error_code ec) override {
+
+  void
+  complete(boost::system::error_code ec) override
+  {
     this->ec = ec;
     cond.notify_one();
   }
-  void destroy() override {
+
+  void
+  destroy() override
+  {
     // nothing, SyncRequests live on the stack
   }
 };
@@ -96,19 +105,28 @@ class SyncRequest : public LockRequest {
 template <typename Mutex, template <typename> typename Lock>
 class AsyncRequest : public LockRequest {
   Mutex& mutex; //< mutex argument for lock guard
- public:
-  explicit AsyncRequest(Mutex& mutex) : mutex(mutex) {}
+
+public:
+  explicit AsyncRequest(Mutex& mutex) :
+    mutex(mutex)
+  {}
 
   using Signature = void(boost::system::error_code, Lock<Mutex>);
   using LockCompletion = Completion<Signature, AsBase<AsyncRequest>>;
 
-  void complete(boost::system::error_code ec) override {
+  void
+  complete(boost::system::error_code ec) override
+  {
     auto r = static_cast<LockCompletion*>(this);
     // pass ownership of ourselves to post(). on error, pass an empty lock
-    post(std::unique_ptr<LockCompletion>{r}, ec,
-         ec ? Lock{mutex, std::defer_lock} : Lock{mutex, std::adopt_lock});
+    post(
+        std::unique_ptr<LockCompletion>{r}, ec,
+        ec ? Lock{mutex, std::defer_lock} : Lock{mutex, std::adopt_lock});
   }
-  void destroy() override {
+
+  void
+  destroy() override
+  {
     delete static_cast<LockCompletion*>(this);
   }
 };
@@ -121,12 +139,13 @@ inline SharedMutexImpl::~SharedMutexImpl()
 }
 
 template <typename Mutex, typename CompletionToken>
-auto SharedMutexImpl::async_lock(Mutex& mtx, CompletionToken&& token)
+auto
+SharedMutexImpl::async_lock(Mutex& mtx, CompletionToken&& token)
 {
   using Request = AsyncRequest<Mutex, std::unique_lock>;
   using Signature = typename Request::Signature;
   return boost::asio::async_initiate<CompletionToken, Signature>(
-      [this] (auto handler, Mutex& mtx) {
+      [this](auto handler, Mutex& mtx) {
         auto ex1 = mtx.get_executor();
 
         std::lock_guard lock{mutex};
@@ -136,18 +155,22 @@ auto SharedMutexImpl::async_lock(Mutex& mtx, CompletionToken&& token)
           state = Exclusive;
 
           // post a successful completion
-          boost::asio::post(ex1, boost::asio::append(std::move(handler),
-                  ec, std::unique_lock{mtx, std::adopt_lock}));
+          boost::asio::post(
+              ex1, boost::asio::append(
+                       std::move(handler), ec,
+                       std::unique_lock{mtx, std::adopt_lock}));
         } else {
           // create a request and add it to the exclusive list
           using LockCompletion = typename Request::LockCompletion;
           auto request = LockCompletion::create(ex1, std::move(handler), mtx);
           exclusive_queue.push_back(*request.release());
         }
-      }, token, mtx);
+      },
+      token, mtx);
 }
 
-inline void SharedMutexImpl::lock()
+inline void
+SharedMutexImpl::lock()
 {
   boost::system::error_code ec;
   lock(ec);
@@ -156,7 +179,8 @@ inline void SharedMutexImpl::lock()
   }
 }
 
-inline void SharedMutexImpl::lock(boost::system::error_code& ec)
+inline void
+SharedMutexImpl::lock(boost::system::error_code& ec)
 {
   std::unique_lock lock{mutex};
 
@@ -170,7 +194,8 @@ inline void SharedMutexImpl::lock(boost::system::error_code& ec)
   }
 }
 
-inline bool SharedMutexImpl::try_lock()
+inline bool
+SharedMutexImpl::try_lock()
 {
   std::lock_guard lock{mutex};
 
@@ -181,7 +206,8 @@ inline bool SharedMutexImpl::try_lock()
   return false;
 }
 
-inline void SharedMutexImpl::unlock()
+inline void
+SharedMutexImpl::unlock()
 {
   RequestList granted;
   {
@@ -199,8 +225,8 @@ inline void SharedMutexImpl::unlock()
       if (state > MaxShared) {
         state = MaxShared;
         auto end = std::next(shared_queue.begin(), MaxShared);
-        granted.splice(granted.end(), shared_queue,
-                       shared_queue.begin(), end, MaxShared);
+        granted.splice(
+            granted.end(), shared_queue, shared_queue.begin(), end, MaxShared);
       } else {
         granted.splice(granted.end(), shared_queue);
       }
@@ -210,12 +236,13 @@ inline void SharedMutexImpl::unlock()
 }
 
 template <typename Mutex, typename CompletionToken>
-auto SharedMutexImpl::async_lock_shared(Mutex& mtx, CompletionToken&& token)
+auto
+SharedMutexImpl::async_lock_shared(Mutex& mtx, CompletionToken&& token)
 {
   using Request = AsyncRequest<Mutex, std::shared_lock>;
   using Signature = typename Request::Signature;
   return boost::asio::async_initiate<CompletionToken, Signature>(
-      [this] (auto handler, Mutex& mtx) {
+      [this](auto handler, Mutex& mtx) {
         auto ex1 = mtx.get_executor();
 
         std::lock_guard lock{mutex};
@@ -224,17 +251,21 @@ auto SharedMutexImpl::async_lock_shared(Mutex& mtx, CompletionToken&& token)
         if (exclusive_queue.empty() && state < MaxShared) {
           state++;
 
-          boost::asio::post(ex1, boost::asio::append(std::move(handler),
-                  ec, std::shared_lock{mtx, std::adopt_lock}));
+          boost::asio::post(
+              ex1, boost::asio::append(
+                       std::move(handler), ec,
+                       std::shared_lock{mtx, std::adopt_lock}));
         } else {
           using LockCompletion = typename Request::LockCompletion;
           auto request = LockCompletion::create(ex1, std::move(handler), mtx);
           shared_queue.push_back(*request.release());
         }
-      }, token, mtx);
+      },
+      token, mtx);
 }
 
-inline void SharedMutexImpl::lock_shared()
+inline void
+SharedMutexImpl::lock_shared()
 {
   boost::system::error_code ec;
   lock_shared(ec);
@@ -243,7 +274,8 @@ inline void SharedMutexImpl::lock_shared()
   }
 }
 
-inline void SharedMutexImpl::lock_shared(boost::system::error_code& ec)
+inline void
+SharedMutexImpl::lock_shared(boost::system::error_code& ec)
 {
   std::unique_lock lock{mutex};
 
@@ -257,7 +289,8 @@ inline void SharedMutexImpl::lock_shared(boost::system::error_code& ec)
   }
 }
 
-inline bool SharedMutexImpl::try_lock_shared()
+inline bool
+SharedMutexImpl::try_lock_shared()
 {
   std::lock_guard lock{mutex};
 
@@ -268,7 +301,8 @@ inline bool SharedMutexImpl::try_lock_shared()
   return false;
 }
 
-inline void SharedMutexImpl::unlock_shared()
+inline void
+SharedMutexImpl::unlock_shared()
 {
   std::lock_guard lock{mutex};
   ceph_assert(state != Unlocked && state <= MaxShared);
@@ -279,8 +313,8 @@ inline void SharedMutexImpl::unlock_shared()
     auto& request = exclusive_queue.front();
     exclusive_queue.pop_front();
     request.complete(boost::system::error_code{});
-  } else if (state == MaxShared && !shared_queue.empty() &&
-             exclusive_queue.empty()) {
+  } else if (
+      state == MaxShared && !shared_queue.empty() && exclusive_queue.empty()) {
     // grant next shared lock
     auto& request = shared_queue.front();
     shared_queue.pop_front();
@@ -290,7 +324,8 @@ inline void SharedMutexImpl::unlock_shared()
   }
 }
 
-inline void SharedMutexImpl::cancel()
+inline void
+SharedMutexImpl::cancel()
 {
   RequestList canceled;
   {
@@ -301,8 +336,8 @@ inline void SharedMutexImpl::cancel()
   complete(std::move(canceled), boost::asio::error::operation_aborted);
 }
 
-inline void SharedMutexImpl::complete(RequestList&& requests,
-                                      boost::system::error_code ec)
+inline void
+SharedMutexImpl::complete(RequestList&& requests, boost::system::error_code ec)
 {
   while (!requests.empty()) {
     auto& request = requests.front();
@@ -311,7 +346,7 @@ inline void SharedMutexImpl::complete(RequestList&& requests,
       request.complete(ec);
     } catch (...) {
       // clean up any remaining completions and rethrow
-      requests.clear_and_dispose([] (LockRequest *r) { r->destroy(); });
+      requests.clear_and_dispose([](LockRequest* r) { r->destroy(); });
       throw;
     }
   }

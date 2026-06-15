@@ -8,9 +8,13 @@
 #include <random>
 
 template <class RandomIt, class DistIt, class URBG>
-void weighted_shuffle(RandomIt first, RandomIt last,
-		      DistIt weight_first, DistIt weight_last,
-		      URBG &&g)
+void
+weighted_shuffle(
+    RandomIt first,
+    RandomIt last,
+    DistIt weight_first,
+    DistIt weight_last,
+    URBG&& g)
 {
   if (first == last) {
     return;

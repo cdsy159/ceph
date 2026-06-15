@@ -1,23 +1,30 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <algorithm>
 #include "aio.h"
 
-std::ostream& operator<<(std::ostream& os, const aio_t& aio)
+#include <algorithm>
+
+std::ostream&
+operator<<(std::ostream& os, const aio_t& aio)
 {
   unsigned i = 0;
   os << "aio: ";
   for (auto& iov : aio.iov) {
-    os << "\n [" << i++ << "] 0x"
-       << std::hex << iov.iov_base << "~" << iov.iov_len << std::dec;
+    os << "\n [" << i++ << "] 0x" << std::hex << iov.iov_base << "~"
+       << iov.iov_len << std::dec;
   }
   return os;
 }
 
-int aio_queue_t::submit_batch(aio_iter begin, aio_iter end, 
-			      void *priv,
-			      int *retries, int submit_retries, int initial_delay_us)
+int
+aio_queue_t::submit_batch(
+    aio_iter begin,
+    aio_iter end,
+    void* priv,
+    int* retries,
+    int submit_retries,
+    int initial_delay_us)
 {
   // 2^16 * 125us = ~8 seconds, so default max sleep is ~16 seconds
   int attempts = submit_retries;
@@ -26,7 +33,7 @@ int aio_queue_t::submit_batch(aio_iter begin, aio_iter end,
 
   aio_iter cur = begin;
 #if defined(HAVE_LIBAIO)
-  struct aio_t *piocb[max_iodepth];
+  struct aio_t* piocb[max_iodepth];
 #endif
   int done = 0;
   int pushed = 0; //used for LIBAIO only
@@ -65,10 +72,10 @@ int aio_queue_t::submit_batch(aio_iter begin, aio_iter end,
 #endif
     if (r < 0) {
       if (r == -EAGAIN && attempts-- > 0) {
-	usleep(delay);
-	delay *= 2;
-	(*retries)++;
-	continue;
+        usleep(delay);
+        delay *= 2;
+        (*retries)++;
+        continue;
       }
       return r;
     }
@@ -81,17 +88,15 @@ int aio_queue_t::submit_batch(aio_iter begin, aio_iter end,
   return done;
 }
 
-int aio_queue_t::get_next_completed(int timeout_ms, aio_t **paio, int max)
+int
+aio_queue_t::get_next_completed(int timeout_ms, aio_t** paio, int max)
 {
 #if defined(HAVE_LIBAIO)
   io_event events[max];
 #elif defined(HAVE_POSIXAIO)
   struct kevent events[max];
 #endif
-  struct timespec t = {
-    timeout_ms / 1000,
-    (timeout_ms % 1000) * 1000 * 1000
-  };
+  struct timespec t = {timeout_ms / 1000, (timeout_ms % 1000) * 1000 * 1000};
 
   int r = 0;
   do {
@@ -104,9 +109,9 @@ int aio_queue_t::get_next_completed(int timeout_ms, aio_t **paio, int max)
 #endif
   } while (r == -EINTR);
 
-  for (int i=0; i<r; ++i) {
+  for (int i = 0; i < r; ++i) {
 #if defined(HAVE_LIBAIO)
-    paio[i] = (aio_t *)events[i].obj;
+    paio[i] = (aio_t*)events[i].obj;
     paio[i]->rval = events[i].res;
 #else
     paio[i] = (aio_t*)events[i].udata;
@@ -118,13 +123,13 @@ int aio_queue_t::get_next_completed(int timeout_ms, aio_t **paio, int max)
       // assume that it's just like pwritev/preadv/pwrite/pread.
       paio[i]->rval = 0;
       for (int j = 0; j < paio[i]->n_aiocb; j++) {
-	int res = aio_return(&paio[i]->aio.aiocbp[j]);
-	if (res < 0) {
-	  paio[i]->rval = res;
-	  break;
-	} else {
-	  paio[i]->rval += res;
-	}
+        int res = aio_return(&paio[i]->aio.aiocbp[j]);
+        if (res < 0) {
+          paio[i]->rval = res;
+          break;
+        } else {
+          paio[i]->rval += res;
+        }
       }
       free(paio[i]->aio.aiocbp);
     }

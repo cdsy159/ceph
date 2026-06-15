@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,40 +17,54 @@
 #ifndef CEPH_MEXPORTCAPS_H
 #define CEPH_MEXPORTCAPS_H
 
+#include "include/fs_types.h" // for inodeno_t
 #include "mds/mdstypes.h" // for client_metadata_t
 #include "messages/MMDSOp.h"
-#include "include/fs_types.h" // for inodeno_t
 
 class MExportCaps final : public MMDSOp {
 private:
   static constexpr int HEAD_VERSION = 2;
   static constexpr int COMPAT_VERSION = 1;
 
-public:  
+public:
   inodeno_t ino;
   ceph::buffer::list cap_bl;
-  std::map<client_t,entity_inst_t> client_map;
-  std::map<client_t,client_metadata_t> client_metadata_map;
+  std::map<client_t, entity_inst_t> client_map;
+  std::map<client_t, client_metadata_t> client_metadata_map;
 
 protected:
   MExportCaps() :
-    MMDSOp{MSG_MDS_EXPORTCAPS, HEAD_VERSION, COMPAT_VERSION} {}
+    MMDSOp{MSG_MDS_EXPORTCAPS, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   ~MExportCaps() final {}
 
 public:
-  std::string_view get_type_name() const override { return "export_caps"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "export_caps";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export_caps(" << ino << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(ino, payload);
     encode(cap_bl, payload);
     encode(client_map, payload, features);
     encode(client_metadata_map, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(ino, p);
@@ -59,10 +73,11 @@ public:
     if (header.version >= 2)
       decode(client_metadata_map, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

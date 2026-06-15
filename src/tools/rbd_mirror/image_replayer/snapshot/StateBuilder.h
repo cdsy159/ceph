@@ -4,8 +4,9 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_STATE_BUILDER_H
 #define CEPH_RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_STATE_BUILDER_H
 
-#include "tools/rbd_mirror/image_replayer/StateBuilder.h"
 #include <string>
+
+#include "tools/rbd_mirror/image_replayer/StateBuilder.h"
 
 struct Context;
 
@@ -16,7 +17,8 @@ struct ImageCtx;
 namespace mirror {
 namespace snapshot {
 
-template <typename> class ImageMeta;
+template <typename>
+class ImageMeta;
 
 } // namespace snapshot
 } // namespace mirror
@@ -27,12 +29,15 @@ namespace mirror {
 namespace image_replayer {
 namespace snapshot {
 
-template <typename> class SyncPointHandler;
+template <typename>
+class SyncPointHandler;
 
 template <typename ImageCtxT>
 class StateBuilder : public image_replayer::StateBuilder<ImageCtxT> {
 public:
-  static StateBuilder* create(const std::string& global_image_id) {
+  static StateBuilder*
+  create(const std::string& global_image_id)
+  {
     return new StateBuilder(global_image_id);
   }
 
@@ -47,7 +52,9 @@ public:
 
   image_sync::SyncPointHandler* create_sync_point_handler() override;
 
-  bool replay_requires_remote_image() const override {
+  bool
+  replay_requires_remote_image() const override
+  {
     return true;
   }
 
@@ -88,6 +95,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::snapshot::StateBuilder<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::snapshot::StateBuilder<
+    librbd::ImageCtx>;
 
 #endif // CEPH_RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_STATE_BUILDER_H

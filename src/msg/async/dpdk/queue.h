@@ -31,8 +31,10 @@ class queue {
   std::queue<T, circular_buffer<T>> _q;
   size_t _max;
 
- public:
-  explicit queue(size_t size): _max(size) {}
+public:
+  explicit queue(size_t size) :
+    _max(size)
+  {}
 
   // Push an item.
   //
@@ -55,10 +57,16 @@ class queue {
   // Returns true when the queue is full.
   bool full() const;
 
-  size_t size() const { return _q.size(); }
+  size_t
+  size() const
+  {
+    return _q.size();
+  }
 
   // Destroy any items in the queue
-  void clear() {
+  void
+  clear()
+  {
     while (!_q.empty()) {
       _q.pop();
     }
@@ -66,7 +74,9 @@ class queue {
 };
 
 template <typename T>
-inline bool queue<T>::push(T&& data) {
+inline bool
+queue<T>::push(T&& data)
+{
   if (_q.size() < _max) {
     _q.push(std::move(data));
     notify_not_empty();
@@ -77,19 +87,25 @@ inline bool queue<T>::push(T&& data) {
 }
 
 template <typename T>
-inline T queue<T>::pop() {
+inline T
+queue<T>::pop()
+{
   T data = std::move(_q.front());
   _q.pop();
   return data;
 }
 
 template <typename T>
-inline bool queue<T>::empty() const {
+inline bool
+queue<T>::empty() const
+{
   return _q.empty();
 }
 
 template <typename T>
-inline bool queue<T>::full() const {
+inline bool
+queue<T>::full() const
+{
   return _q.size() == _max;
 }
 

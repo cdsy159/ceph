@@ -4,10 +4,11 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_REMOVE_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_REMOVE_REQUEST_H
 
-#include "librbd/operation/Request.h"
+#include <string>
+
 #include "include/buffer.h"
 #include "librbd/Types.h"
-#include <string>
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -58,23 +59,32 @@ public:
    * @endverbatim
    */
 
-  static SnapshotRemoveRequest *create(
-      ImageCtxT &image_ctx, const cls::rbd::SnapshotNamespace &snap_namespace,
-      const std::string &snap_name, uint64_t snap_id, Context *on_finish) {
-    return new SnapshotRemoveRequest(image_ctx, on_finish, snap_namespace,
-                                     snap_name, snap_id);
+  static SnapshotRemoveRequest*
+  create(
+      ImageCtxT& image_ctx,
+      const cls::rbd::SnapshotNamespace& snap_namespace,
+      const std::string& snap_name,
+      uint64_t snap_id,
+      Context* on_finish)
+  {
+    return new SnapshotRemoveRequest(
+        image_ctx, on_finish, snap_namespace, snap_name, snap_id);
   }
 
-  SnapshotRemoveRequest(ImageCtxT &image_ctx, Context *on_finish,
-			const cls::rbd::SnapshotNamespace &snap_namespace,
-		        const std::string &snap_name,
-			uint64_t snap_id);
+  SnapshotRemoveRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const cls::rbd::SnapshotNamespace& snap_namespace,
+      const std::string& snap_name,
+      uint64_t snap_id);
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::SnapRemoveEvent(op_tid, m_snap_namespace, m_snap_name);
   }
 
@@ -116,8 +126,7 @@ private:
   void handle_remove_snap(int r);
 
   void remove_snap_context();
-  int scan_for_parents(cls::rbd::ParentImageSpec &pspec);
-
+  int scan_for_parents(cls::rbd::ParentImageSpec& pspec);
 };
 
 } // namespace operation

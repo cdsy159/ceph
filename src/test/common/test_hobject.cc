@@ -1,6 +1,7 @@
-#include <string>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+
+#include <string>
 
 #include "common/hobject.h"
 #include "gtest/gtest.h"
@@ -11,7 +12,7 @@ using std::string;
 TEST(HObject, cmp)
 {
   hobject_t c{object_t{"fooc"}, "food", CEPH_NOSNAP, 42, 0, "nspace"};
-  hobject_t d{object_t{"food"}, "",     CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t d{object_t{"food"}, "", CEPH_NOSNAP, 42, 0, "nspace"};
   hobject_t e{object_t{"fooe"}, "food", CEPH_NOSNAP, 42, 0, "nspace"};
   ASSERT_EQ(-1, cmp(c, d));
   ASSERT_EQ(-1, cmp(d, e));
@@ -60,8 +61,8 @@ static std::vector<obj_n_expected_t> known_examples = {
      "1:71c00000:n2::oname3:snapdir"},
 
     {hobject_t{
-	 object_t("nonprint\030%_%.%"), "c"s, 0x12345678, 0xe0e0f0f0, 0x2727,
-	 "n5"s},
+         object_t("nonprint\030%_%.%"), "c"s, 0x12345678, 0xe0e0f0f0, 0x2727,
+         "n5"s},
      "0000000000002727.0F0F0E0E.12345678.nonprint\x18%p%u%p%e%p.c.n5",
      "10023:0f0f0707:n5:c:nonprint%18%25_%25.%25:12345678"},
 
@@ -74,31 +75,44 @@ static std::vector<obj_n_expected_t> known_examples = {
 struct test_hobject_fmt_t : public hobject_t {
 
   template <typename... ARGS>
-  test_hobject_fmt_t(ARGS&&... args) : hobject_t{std::forward<ARGS>(args)...}
+  test_hobject_fmt_t(ARGS&&... args) :
+    hobject_t{std::forward<ARGS>(args)...}
   {}
 
   test_hobject_fmt_t(const test_hobject_fmt_t& rhs) = default;
   test_hobject_fmt_t(test_hobject_fmt_t&& rhs) = default;
   test_hobject_fmt_t& operator=(const test_hobject_fmt_t& rhs) = default;
   test_hobject_fmt_t& operator=(test_hobject_fmt_t&& rhs) = default;
-  test_hobject_fmt_t(hobject_t_max&& singleton) : test_hobject_fmt_t()
+
+  test_hobject_fmt_t(hobject_t_max&& singleton) :
+    test_hobject_fmt_t()
   {
     max = true;
   }
-  test_hobject_fmt_t& operator=(hobject_t_max&& singleton)
+
+  test_hobject_fmt_t&
+  operator=(hobject_t_max&& singleton)
   {
     *this = hobject_t();
     max = true;
     return *this;
   }
-  bool is_max() const { return max; }
-  bool is_min() const
+
+  bool
+  is_max() const
+  {
+    return max;
+  }
+
+  bool
+  is_min() const
   {
     // this needs to match how it's constructed
     return snap == 0 && hash == 0 && !max && pool == INT64_MIN;
   }
 
-  auto operator<=>(const test_hobject_fmt_t& rhs) const noexcept
+  auto
+  operator<=>(const test_hobject_fmt_t& rhs) const noexcept
   {
     auto cmp = is_max() <=> rhs.is_max();
     if (cmp != 0)
@@ -115,20 +129,23 @@ struct test_hobject_fmt_t : public hobject_t {
     if (!(get_key().empty() && rhs.get_key().empty())) {
       cmp = get_effective_key() <=> rhs.get_effective_key();
       if (cmp != 0)
-	return cmp;
+        return cmp;
     }
     cmp = oid <=> rhs.oid;
     if (cmp != 0)
       return cmp;
     return snap <=> rhs.snap;
   }
-  bool operator==(const hobject_t& rhs) const noexcept
+
+  bool
+  operator==(const hobject_t& rhs) const noexcept
   {
     return operator<=>(rhs) == 0;
   }
 };
 
-static inline void append_out_escaped(const std::string& in, std::string* out)
+static inline void
+append_out_escaped(const std::string& in, std::string* out)
 {
   for (auto i = in.cbegin(); i != in.cend(); ++i) {
     if (*i == '%' || *i == ':' || *i == '/' || *i < 32 || *i >= 127) {
@@ -142,7 +159,8 @@ static inline void append_out_escaped(const std::string& in, std::string* out)
 }
 
 // why don't we escape non-printable characters?
-static void append_escaped(const string& in, string* out)
+static void
+append_escaped(const string& in, string* out)
 {
   for (string::const_iterator i = in.begin(); i != in.end(); ++i) {
     if (*i == '%') {
@@ -161,7 +179,8 @@ static void append_escaped(const string& in, string* out)
 }
 
 // original Ceph code as it was in version Squid
-string hobject_t::to_str() const
+string
+hobject_t::to_str() const
 {
   string out;
 
@@ -194,17 +213,21 @@ string hobject_t::to_str() const
   return out;
 }
 
-
 namespace fmt {
 // original Ceph code as it was in version Squid
 // (modified to use test_hobject_fmt_t)
 template <>
 struct formatter<test_hobject_fmt_t> {
 
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const test_hobject_fmt_t& ho, FormatContext& ctx) const
+  auto
+  format(const test_hobject_fmt_t& ho, FormatContext& ctx) const
   {
     if (ho == hobject_t{}) {
       return fmt::format_to(ctx.out(), "MIN");
@@ -222,16 +245,15 @@ struct formatter<test_hobject_fmt_t> {
     append_out_escaped(ho.oid.name, &v);
 
     return fmt::format_to(
-	ctx.out(), "{}:{:08x}:{}:{}", static_cast<uint64_t>(ho.pool),
-	ho.get_bitwise_key_u32(), v, ho.snap);
+        ctx.out(), "{}:{:08x}:{}:{}", static_cast<uint64_t>(ho.pool),
+        ho.get_bitwise_key_u32(), v, ho.snap);
   }
 };
-}  // namespace fmt
-
+} // namespace fmt
 
 TEST(HObject, to_str)
 {
-  const auto dbg = false;  // turns on debug output
+  const auto dbg = false; // turns on debug output
   known_examples[0].obj = hobject_t::get_max();
 
   for (const auto& [obj, expected_to_str, expected_fmt] : known_examples) {
@@ -242,7 +264,7 @@ TEST(HObject, to_str)
     test_hobject_fmt_t legacy_obj{obj};
     if (dbg) {
       std::cout << "to_str(): legacy: " << legacy_obj.to_str()
-		<< " . Now: " << obj.to_str() << std::endl;
+                << " . Now: " << obj.to_str() << std::endl;
     }
     EXPECT_EQ(legacy_obj.to_str(), obj.to_str());
     EXPECT_EQ(expected_to_str, obj.to_str());
@@ -252,7 +274,7 @@ TEST(HObject, to_str)
 // test the fmt::formatter for hobject_t vs legacy & the stream operator
 TEST(HObject, fmt)
 {
-  const auto dbg = false;  // turns on debug output
+  const auto dbg = false; // turns on debug output
   known_examples[0].obj = hobject_t::get_max();
 
   for (const auto& [obj, expected_to_str, expected_fmt] : known_examples) {
@@ -260,14 +282,14 @@ TEST(HObject, fmt)
     test_hobject_fmt_t legacy_obj{obj};
     if (dbg) {
       std::cout << fmt::format("fmt: legacy: {} now: {}", legacy_obj, obj)
-		<< std::endl;
+                << std::endl;
     }
     EXPECT_EQ(fmt::format("{}", legacy_obj), fmt::format("{}", obj));
     EXPECT_EQ(expected_fmt, fmt::format("{}", obj));
 
     if (dbg) {
       std::cout << "ostream: legacy: " << legacy_obj << " . Now: " << obj
-		<< std::endl;
+                << std::endl;
     }
     std::ostringstream oss;
     oss << obj;
@@ -280,7 +302,7 @@ TEST(HObject, fmt)
 
 TEST(HObject, fmt_random)
 {
-  const auto dbg = false;  // turns on debug output
+  const auto dbg = false; // turns on debug output
   for (uint32_t i = 0; i < 10; i++) {
 
     auto name_length = (i * 17) % 51;
@@ -290,7 +312,7 @@ TEST(HObject, fmt_random)
     }
 
     std::string key =
-	(i % 3) ? fmt::format("key_{}::", static_cast<unsigned char>(i)) : name;
+        (i % 3) ? fmt::format("key_{}::", static_cast<unsigned char>(i)) : name;
 
     snapid_t snap = (i % 7) ? i : ((i % 2) ? CEPH_SNAPDIR : CEPH_NOSNAP);
 
@@ -300,13 +322,13 @@ TEST(HObject, fmt_random)
 
     if (dbg) {
       std::cout << fmt::format("fmt: legacy: {} now: {}", legacy_obj, obj)
-		<< std::endl;
+                << std::endl;
     }
     EXPECT_EQ(fmt::format("{}", legacy_obj), fmt::format("{}", obj));
 
     if (dbg) {
       std::cout << "ostream: legacy: " << legacy_obj << " . Now: " << obj
-		<< std::endl;
+                << std::endl;
     }
     std::ostringstream oss;
     oss << obj;

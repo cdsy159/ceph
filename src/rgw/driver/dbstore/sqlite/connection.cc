@@ -13,13 +13,16 @@
  *
  */
 
-#include "common/dout.h"
 #include "connection.h"
+
+#include "common/dout.h"
+
 #include "error.h"
 
 namespace rgw::dbstore::sqlite {
 
-db_ptr open_database(const char* filename, int flags)
+db_ptr
+open_database(const char* filename, int flags)
 {
   sqlite3* db = nullptr;
   const int result = ::sqlite3_open_v2(filename, &db, flags, nullptr);
@@ -27,7 +30,7 @@ db_ptr open_database(const char* filename, int flags)
     throw std::system_error(result, sqlite::error_category());
   }
   // request extended result codes
-  (void) ::sqlite3_extended_result_codes(db, 1);
+  (void)::sqlite3_extended_result_codes(db, 1);
   return db_ptr{db};
 }
 

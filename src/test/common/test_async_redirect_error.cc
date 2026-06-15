@@ -11,7 +11,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See
 // accompanying copy at http://www.boost.org/LICENSE_1_0.txt)
 
-#include "common/async/redirect_error.h"
+#include <gtest/gtest.h>
 
 #include <exception>
 #include <future>
@@ -23,16 +23,17 @@
 #include <boost/asio/system_timer.hpp>
 #include <boost/asio/use_future.hpp>
 
-#include <gtest/gtest.h>
+#include "common/async/redirect_error.h"
 
-struct redirect_error_handler
-{
+struct redirect_error_handler {
   int* count;
 
-  explicit redirect_error_handler(int* c)
-    : count(c) {}
+  explicit redirect_error_handler(int* c) :
+    count(c)
+  {}
 
-  void operator ()()
+  void
+  operator()()
   {
     ++(*count);
   }
@@ -47,10 +48,10 @@ TEST(RedirectError, RedirectError)
   int count = 0;
 
   timer1.expires_after(boost::asio::chrono::seconds(0));
-  timer1.async_wait(
-      ceph::async::redirect_error(
-        boost::asio::bind_executor(io2.get_executor(),
-          redirect_error_handler(&count)), ec));
+  timer1.async_wait(ceph::async::redirect_error(
+      boost::asio::bind_executor(
+          io2.get_executor(), redirect_error_handler(&count)),
+      ec));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(0, count);
@@ -66,10 +67,9 @@ TEST(RedirectError, RedirectError)
   ASSERT_EQ(1, count);
 
   ec = boost::asio::error::would_block;
-  timer1.async_wait(
-      ceph::async::redirect_error(
-        boost::asio::bind_executor(io2.get_executor(),
-          boost::asio::deferred), ec))(redirect_error_handler(&count));
+  timer1.async_wait(ceph::async::redirect_error(
+      boost::asio::bind_executor(io2.get_executor(), boost::asio::deferred),
+      ec))(redirect_error_handler(&count));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(1, count);
@@ -87,10 +87,9 @@ TEST(RedirectError, RedirectError)
   ASSERT_EQ(2, count);
 
   ec = boost::asio::error::would_block;
-  std::future<void> f = timer1.async_wait(
-      ceph::async::redirect_error(
-        boost::asio::bind_executor(io2.get_executor(),
-          boost::asio::use_future), ec));
+  std::future<void> f = timer1.async_wait(ceph::async::redirect_error(
+      boost::asio::bind_executor(io2.get_executor(), boost::asio::use_future),
+      ec));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(std::future_status::timeout, f.wait_for(std::chrono::seconds(0)));
@@ -116,13 +115,15 @@ TEST(RedirectError, RedirectErrorExceptionPtr)
   int count = 0;
 
   boost::asio::co_spawn(
-    io, []() -> boost::asio::awaitable<void> {
-      throw std::exception{};
-      co_return;
-    },
-    ceph::async::redirect_error(
-      boost::asio::bind_executor(io.get_executor(),
-				 redirect_error_handler(&count)), eptr));
+      io,
+      []() -> boost::asio::awaitable<void> {
+        throw std::exception{};
+        co_return;
+      },
+      ceph::async::redirect_error(
+          boost::asio::bind_executor(
+              io.get_executor(), redirect_error_handler(&count)),
+          eptr));
 
   ASSERT_FALSE(eptr);
   ASSERT_EQ(0, count);
@@ -133,12 +134,11 @@ TEST(RedirectError, RedirectErrorExceptionPtr)
   ASSERT_EQ(1, count);
 
   boost::asio::co_spawn(
-    io, []() -> boost::asio::awaitable<void> {
-      co_return;
-    },
-    ceph::async::redirect_error(
-      boost::asio::bind_executor(io.get_executor(),
-				 redirect_error_handler(&count)), eptr));
+      io, []() -> boost::asio::awaitable<void> { co_return; },
+      ceph::async::redirect_error(
+          boost::asio::bind_executor(
+              io.get_executor(), redirect_error_handler(&count)),
+          eptr));
   ASSERT_TRUE(eptr);
   ASSERT_EQ(1, count);
 
@@ -158,9 +158,8 @@ TEST(RedirectError, PartialRedirectError)
   int count = 0;
 
   timer1.expires_after(boost::asio::chrono::seconds(0));
-  timer1.async_wait(ceph::async::redirect_error(ec))(
-      boost::asio::bind_executor(io2.get_executor(),
-        redirect_error_handler(&count)));
+  timer1.async_wait(ceph::async::redirect_error(ec))(boost::asio::bind_executor(
+      io2.get_executor(), redirect_error_handler(&count)));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(0, count);
@@ -176,9 +175,9 @@ TEST(RedirectError, PartialRedirectError)
   ASSERT_EQ(1, count);
 
   ec = boost::asio::error::would_block;
-  timer1.async_wait(ceph::async::redirect_error(ec))(
-      boost::asio::bind_executor(io2.get_executor(),
-        boost::asio::deferred))(redirect_error_handler(&count));
+  timer1.async_wait(ceph::async::redirect_error(ec))(boost::asio::bind_executor(
+      io2.get_executor(),
+      boost::asio::deferred))(redirect_error_handler(&count));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(1, count);
@@ -197,8 +196,8 @@ TEST(RedirectError, PartialRedirectError)
 
   ec = boost::asio::error::would_block;
   timer1.async_wait()(ceph::async::redirect_error(ec))(
-      boost::asio::bind_executor(io2.get_executor(),
-        boost::asio::deferred))(redirect_error_handler(&count));
+      boost::asio::bind_executor(io2.get_executor(), boost::asio::deferred))(
+      redirect_error_handler(&count));
 
   ASSERT_EQ(boost::asio::error::would_block, ec);
   ASSERT_EQ(2, count);
@@ -243,13 +242,13 @@ TEST(RedirectError, PartialRedirectErrorExceptionPtr)
   int count = 0;
 
   boost::asio::co_spawn(
-    io, []() -> boost::asio::awaitable<void> {
-      throw std::exception{};
-      co_return;
-    },
-    ceph::async::redirect_error(eptr)(boost::asio::bind_executor(
-					io.get_executor(),
-					redirect_error_handler(&count))));
+      io,
+      []() -> boost::asio::awaitable<void> {
+        throw std::exception{};
+        co_return;
+      },
+      ceph::async::redirect_error(eptr)(boost::asio::bind_executor(
+          io.get_executor(), redirect_error_handler(&count))));
 
   ASSERT_FALSE(eptr);
   ASSERT_EQ(0, count);
@@ -260,12 +259,9 @@ TEST(RedirectError, PartialRedirectErrorExceptionPtr)
   ASSERT_EQ(1, count);
 
   boost::asio::co_spawn(
-    io, []() -> boost::asio::awaitable<void> {
-      co_return;
-    },
-    ceph::async::redirect_error(eptr)(boost::asio::bind_executor(
-					io.get_executor(),
-					redirect_error_handler(&count))));
+      io, []() -> boost::asio::awaitable<void> { co_return; },
+      ceph::async::redirect_error(eptr)(boost::asio::bind_executor(
+          io.get_executor(), redirect_error_handler(&count))));
   ASSERT_TRUE(eptr);
   ASSERT_EQ(1, count);
 

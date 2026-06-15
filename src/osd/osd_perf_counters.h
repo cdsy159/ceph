@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "include/common_fwd.h"
 #include "common/perf_counters.h"
 #include "common/perf_counters_key.h"
+#include "include/common_fwd.h"
 
 enum osd_counter_idx_t {
   l_osd_first = 10000,
@@ -146,10 +146,10 @@ enum osd_counter_idx_t {
   l_osd_watch_timeouts,
 
   // scrub I/O (no EC vs. replicated differentiation)
-  l_osd_scrub_omapgetheader_cnt,  ///< omap get header calls count
-  l_osd_scrub_omapgetheader_bytes,  ///< bytes read by omap get header
-  l_osd_scrub_omapget_cnt,      ///< omap get calls count
-  l_osd_scrub_omapget_bytes,    ///< total bytes read by omap get
+  l_osd_scrub_omapgetheader_cnt, ///< omap get header calls count
+  l_osd_scrub_omapgetheader_bytes, ///< bytes read by omap get header
+  l_osd_scrub_omapget_cnt, ///< omap get calls count
+  l_osd_scrub_omapget_bytes, ///< total bytes read by omap get
 
   // ----   scrub I/O - replicated pools
   l_osd_scrub_rppool_getattr_cnt, ///< get_attr calls count
@@ -221,7 +221,7 @@ enum osd_counter_idx_t {
   l_osd_last,
 };
 
-PerfCounters *build_osd_logger(CephContext *cct);
+PerfCounters* build_osd_logger(CephContext* cct);
 
 // PeeringState perf counters
 enum {
@@ -261,7 +261,7 @@ enum {
   rs_last,
 };
 
-PerfCounters *build_recoverystate_perf(CephContext *cct);
+PerfCounters* build_recoverystate_perf(CephContext* cct);
 
 // Scrubber perf counters. There are four sets (shallow vs. deep,
 // EC vs. replicated) of these counters:
@@ -281,4 +281,4 @@ enum {
   scrbcnt_last,
 };
 
-PerfCounters *build_scrub_labeled_perf(CephContext *cct, std::string label);
+PerfCounters* build_scrub_labeled_perf(CephContext* cct, std::string label);

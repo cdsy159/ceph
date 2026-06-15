@@ -26,13 +26,13 @@
 
 /* Boilerplate for function entry points */
 #define ENTRY(name) \
-.globl name;        \
-.align 4, 0x90;     \
-name:
+  .globl name;      \
+  .align 4, 0x90;   \
+  name:
 
 /* Macros to generate vector instruction byte code */
 
-#define REG_NUM_INVALID	       255
+#define REG_NUM_INVALID 255
 
 /* GR_NUM - Retrieve general-purpose register number
  *
@@ -95,7 +95,7 @@ name:
 .endm
 
 /* VX_R() - Macro to encode the VX_NUM into the instruction */
-#define VX_R(v)		(v & 0x0F)
+#define VX_R(v) (v & 0x0F)
 
 /* VX_NUM - Retrieve vector register number
  *
@@ -496,4 +496,4 @@ name:
 .section .note.GNU-stack,"",%progbits
 #endif
 
-#endif	/* __ASM_S390_VX_INSN_H */
+#endif /* __ASM_S390_VX_INSN_H */

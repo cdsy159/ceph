@@ -163,6 +163,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -175,8 +176,9 @@
 #endif
 
 // for C++20 std::span
-#include <boost/beast/core/span.hpp>
 #include <fmt/format.h>
+
+#include <boost/beast/core/span.hpp>
 
 #if defined(__GXX_RTTI)
 #define ABSL_INTERNAL_HAS_CXA_DEMANGLE
@@ -239,8 +241,9 @@ struct AlignOf : NotAligned<T> {
 
 template <class T, size_t N>
 struct AlignOf<Aligned<T, N>> {
-  static_assert(N % alignof(T) == 0,
-                "Custom alignment can't be lower than the type's alignment");
+  static_assert(
+      N % alignof(T) == 0,
+      "Custom alignment can't be lower than the type's alignment");
   static constexpr size_t value = N;
 };
 
@@ -262,40 +265,64 @@ using SliceType = boost::beast::span<T>;
 namespace adl_barrier {
 
 template <class Needle, class... Ts>
-constexpr size_t Find(Needle, Needle, Ts...) {
+constexpr size_t
+Find(Needle, Needle, Ts...)
+{
   static_assert(!Contains<Needle, Ts...>(), "Duplicate element type");
   return 0;
 }
 
 template <class Needle, class T, class... Ts>
-constexpr size_t Find(Needle, T, Ts...) {
+constexpr size_t
+Find(Needle, T, Ts...)
+{
   return adl_barrier::Find(Needle(), Ts()...) + 1;
 }
 
-constexpr bool IsPow2(size_t n) { return !(n & (n - 1)); }
+constexpr bool
+IsPow2(size_t n)
+{
+  return !(n & (n - 1));
+}
 
 // Returns `q * m` for the smallest `q` such that `q * m >= n`.
 // Requires: `m` is a power of two. It's enforced by IsLegalElementType below.
-constexpr size_t Align(size_t n, size_t m) { return (n + m - 1) & ~(m - 1); }
+constexpr size_t
+Align(size_t n, size_t m)
+{
+  return (n + m - 1) & ~(m - 1);
+}
 
-constexpr size_t Min(size_t a, size_t b) { return b < a ? b : a; }
+constexpr size_t
+Min(size_t a, size_t b)
+{
+  return b < a ? b : a;
+}
 
-constexpr size_t Max(size_t a) { return a; }
+constexpr size_t
+Max(size_t a)
+{
+  return a;
+}
 
 template <class... Ts>
-constexpr size_t Max(size_t a, size_t b, Ts... rest) {
+constexpr size_t
+Max(size_t a, size_t b, Ts... rest)
+{
   return adl_barrier::Max(b < a ? a : b, rest...);
 }
 
 template <class T>
-std::string TypeName() {
+std::string
+TypeName()
+{
   std::string out;
   int status = 0;
   char* demangled = nullptr;
 #ifdef ABSL_INTERNAL_HAS_CXA_DEMANGLE
   demangled = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status);
 #endif
-  if (status == 0 && demangled != nullptr) {  // Demangling succeeded.
+  if (status == 0 && demangled != nullptr) { // Demangling succeeded.
     out = fmt::format("<{}>", demangled);
     free(demangled);
   } else {
@@ -306,7 +333,7 @@ std::string TypeName() {
   return out;
 }
 
-}  // namespace adl_barrier
+} // namespace adl_barrier
 
 template <bool C>
 using EnableIf = typename std::enable_if_t<C, int>;
@@ -314,10 +341,11 @@ using EnableIf = typename std::enable_if_t<C, int>;
 // Can `T` be a template argument of `Layout`?
 template <class T>
 using IsLegalElementType = std::integral_constant<
-    bool, !std::is_reference_v<T> && !std::is_volatile_v<T> &&
-              !std::is_reference_v<typename Type<T>::type> &&
-              !std::is_volatile_v<typename Type<T>::type> &&
-              adl_barrier::IsPow2(AlignOf<T>::value)>;
+    bool,
+    !std::is_reference_v<T> && !std::is_volatile_v<T> &&
+        !std::is_reference_v<typename Type<T>::type> &&
+        !std::is_volatile_v<typename Type<T>::type> &&
+        adl_barrier::IsPow2(AlignOf<T>::value)>;
 
 template <class Elements, class SizeSeq, class OffsetSeq>
 class LayoutImpl;
@@ -334,12 +362,15 @@ class LayoutImpl;
 // `Min(sizeof...(Elements), NumSizes + 1)` (the number of arrays for which we
 // can compute offsets).
 template <class... Elements, size_t... SizeSeq, size_t... OffsetSeq>
-class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
-                 std::index_sequence<OffsetSeq...>> {
- private:
+class LayoutImpl<
+    std::tuple<Elements...>,
+    std::index_sequence<SizeSeq...>,
+    std::index_sequence<OffsetSeq...>> {
+private:
   static_assert(sizeof...(Elements) > 0, "At least one field is required");
-  static_assert(std::conjunction_v<IsLegalElementType<Elements>...>,
-                "Invalid element type (see IsLegalElementType)");
+  static_assert(
+      std::conjunction_v<IsLegalElementType<Elements>...>,
+      "Invalid element type (see IsLegalElementType)");
 
   enum {
     NumTypes = sizeof...(Elements),
@@ -348,25 +379,29 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   };
 
   // These are guaranteed by `Layout`.
-  static_assert(NumOffsets == adl_barrier::Min(NumTypes, NumSizes + 1),
-                "Internal error");
+  static_assert(
+      NumOffsets == adl_barrier::Min(NumTypes, NumSizes + 1),
+      "Internal error");
   static_assert(NumTypes > 0, "Internal error");
 
   // Returns the index of `T` in `Elements...`. Results in a compilation error
   // if `Elements...` doesn't contain exactly one instance of `T`.
   template <class T>
-  static constexpr size_t ElementIndex() {
-    static_assert(Contains<Type<T>, Type<typename Type<Elements>::type>...>(),
-                  "Type not found");
-    return adl_barrier::Find(Type<T>(),
-                             Type<typename Type<Elements>::type>()...);
+  static constexpr size_t
+  ElementIndex()
+  {
+    static_assert(
+        Contains<Type<T>, Type<typename Type<Elements>::type>...>(),
+        "Type not found");
+    return adl_barrier::Find(
+        Type<T>(), Type<typename Type<Elements>::type>()...);
   }
 
   template <size_t N>
   using ElementAlignment =
       AlignOf<typename std::tuple_element<N, std::tuple<Elements...>>::type>;
 
- public:
+public:
   // Element types of all arrays packed in a tuple.
   using ElementTypes = std::tuple<typename Type<Elements>::type...>;
 
@@ -374,12 +409,15 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   template <size_t N>
   using ElementType = typename std::tuple_element<N, ElementTypes>::type;
 
-  constexpr explicit LayoutImpl(IntToSize<SizeSeq>... sizes)
-      : size_{sizes...} {}
+  constexpr explicit LayoutImpl(IntToSize<SizeSeq>... sizes) :
+    size_{sizes...}
+  {}
 
   // Alignment of the layout, equal to the strictest alignment of all elements.
   // All pointers passed to the methods of layout must be aligned to this value.
-  static constexpr size_t Alignment() {
+  static constexpr size_t
+  Alignment()
+  {
     return adl_barrier::Max(AlignOf<Elements>::value...);
   }
 
@@ -392,12 +430,16 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //
   // Requires: `N <= NumSizes && N < sizeof...(Ts)`.
   template <size_t N, EnableIf<N == 0> = 0>
-  constexpr size_t Offset() const {
+  constexpr size_t
+  Offset() const
+  {
     return 0;
   }
 
   template <size_t N, EnableIf<N != 0> = 0>
-  constexpr size_t Offset() const {
+  constexpr size_t
+  Offset() const
+  {
     static_assert(N < NumOffsets, "Index out of bounds");
     return adl_barrier::Align(
         Offset<N - 1>() + SizeOf<ElementType<N - 1>>() * size_[N - 1],
@@ -413,12 +455,16 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //   assert(x.Offset<int>() == 0);      // The ints starts from 0.
   //   assert(x.Offset<double>() == 16);  // The doubles starts from 16.
   template <class T>
-  constexpr size_t Offset() const {
+  constexpr size_t
+  Offset() const
+  {
     return Offset<ElementIndex<T>()>();
   }
 
   // Offsets in bytes of all arrays for which the offsets are known.
-  constexpr std::array<size_t, NumOffsets> Offsets() const {
+  constexpr std::array<size_t, NumOffsets>
+  Offsets() const
+  {
     return {{Offset<OffsetSeq>()...}};
   }
 
@@ -432,7 +478,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //
   // Requires: `N < NumSizes`.
   template <size_t N>
-  constexpr size_t Size() const {
+  constexpr size_t
+  Size() const
+  {
     static_assert(N < NumSizes, "Index out of bounds");
     return size_[N];
   }
@@ -446,12 +494,16 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //   assert(x.Size<int>() == 3);
   //   assert(x.Size<double>() == 4);
   template <class T>
-  constexpr size_t Size() const {
+  constexpr size_t
+  Size() const
+  {
     return Size<ElementIndex<T>()>();
   }
 
   // The number of elements of all arrays for which they are known.
-  constexpr std::array<size_t, NumSizes> Sizes() const {
+  constexpr std::array<size_t, NumSizes>
+  Sizes() const
+  {
     return {{Size<SizeSeq>()...}};
   }
 
@@ -468,7 +520,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   // Requires: `N <= NumSizes && N < sizeof...(Ts)`.
   // Requires: `p` is aligned to `Alignment()`.
   template <size_t N, class Char>
-  CopyConst<Char, ElementType<N>>* Pointer(Char* p) const {
+  CopyConst<Char, ElementType<N>>*
+  Pointer(Char* p) const
+  {
     using C = typename std::remove_const<Char>::type;
     static_assert(
         std::is_same<C, char>() || std::is_same<C, unsigned char>() ||
@@ -494,7 +548,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //
   // Requires: `p` is aligned to `Alignment()`.
   template <class T, class Char>
-  CopyConst<Char, T>* Pointer(Char* p) const {
+  CopyConst<Char, T>*
+  Pointer(Char* p) const
+  {
     return Pointer<ElementIndex<T>()>(p);
   }
 
@@ -515,9 +571,10 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   // Note: We're not using ElementType alias here because it does not compile
   // under MSVC.
   template <class Char>
-  std::tuple<CopyConst<
-      Char, typename std::tuple_element<OffsetSeq, ElementTypes>::type>*...>
-  Pointers(Char* p) const {
+  std::tuple<
+      CopyConst<Char, typename std::tuple_element<OffsetSeq, ElementTypes>::type>*...>
+  Pointers(Char* p) const
+  {
     return std::tuple<CopyConst<Char, ElementType<OffsetSeq>>*...>(
         Pointer<OffsetSeq>(p)...);
   }
@@ -535,7 +592,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   // Requires: `N < NumSizes`.
   // Requires: `p` is aligned to `Alignment()`.
   template <size_t N, class Char>
-  SliceType<CopyConst<Char, ElementType<N>>> Slice(Char* p) const {
+  SliceType<CopyConst<Char, ElementType<N>>>
+  Slice(Char* p) const
+  {
     return SliceType<CopyConst<Char, ElementType<N>>>(Pointer<N>(p), Size<N>());
   }
 
@@ -552,7 +611,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //
   // Requires: `p` is aligned to `Alignment()`.
   template <class T, class Char>
-  SliceType<CopyConst<Char, T>> Slice(Char* p) const {
+  SliceType<CopyConst<Char, T>>
+  Slice(Char* p) const
+  {
     return Slice<ElementIndex<T>()>(p);
   }
 
@@ -573,9 +634,10 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   // Note: We're not using ElementType alias here because it does not compile
   // under MSVC.
   template <class Char>
-  std::tuple<SliceType<CopyConst<
-      Char, typename std::tuple_element<SizeSeq, ElementTypes>::type>>...>
-  Slices(Char* p) const {
+  std::tuple<SliceType<
+      CopyConst<Char, typename std::tuple_element<SizeSeq, ElementTypes>::type>>...>
+  Slices(Char* p) const
+  {
     // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63875 (fixed
     // in 6.1).
     (void)p;
@@ -590,7 +652,9 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //   unsigned char* p = new unsigned char[x.AllocSize()];  // 48 bytes
   //
   // Requires: `NumSizes == sizeof...(Ts)`.
-  constexpr size_t AllocSize() const {
+  constexpr size_t
+  AllocSize() const
+  {
     static_assert(NumTypes == NumSizes, "You must specify sizes of all fields");
     return Offset<NumTypes - 1>() +
            SizeOf<ElementType<NumTypes - 1>>() * size_[NumTypes - 1];
@@ -604,20 +668,24 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   //
   // Requires: `p` is aligned to `Alignment()`.
   template <class Char, size_t N = NumOffsets - 1, EnableIf<N == 0> = 0>
-  void PoisonPadding(const Char* p) const {
-    Pointer<0>(p);  // verify the requirements on `Char` and `p`
+  void
+  PoisonPadding(const Char* p) const
+  {
+    Pointer<0>(p); // verify the requirements on `Char` and `p`
   }
 
   template <class Char, size_t N = NumOffsets - 1, EnableIf<N != 0> = 0>
-  void PoisonPadding(const Char* p) const {
+  void
+  PoisonPadding(const Char* p) const
+  {
     static_assert(N < NumOffsets, "Index out of bounds");
     (void)p;
 #ifdef ADDRESS_SANITIZER
     PoisonPadding<Char, N - 1>(p);
     // The `if` is an optimization. It doesn't affect the observable behaviour.
     if (ElementAlignment<N - 1>::value % ElementAlignment<N>::value) {
-      size_t start =
-          Offset<N - 1>() + SizeOf<ElementType<N - 1>>() * size_[N - 1];
+      size_t start = Offset<N - 1>() +
+                     SizeOf<ElementType<N - 1>>() * size_[N - 1];
       ASAN_POISON_MEMORY_REGION(p + start, Offset<N>() - start);
     }
 #endif
@@ -639,14 +707,17 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
   // be missing (as in the example above). Only fields with known offsets are
   // described. Type names may differ across platforms: one compiler might
   // produce "unsigned*" where another produces "unsigned int *".
-  std::string DebugString() const {
+  std::string
+  DebugString() const
+  {
     const auto offsets = Offsets();
     const size_t sizes[] = {SizeOf<ElementType<OffsetSeq>>()...};
     const std::string types[] = {
         adl_barrier::TypeName<ElementType<OffsetSeq>>()...};
     std::string res = fmt::format("@0{}({})", types[0], sizes[0]);
     for (size_t i = 0; i != NumOffsets - 1; ++i) {
-      res += fmt::format("[{}]; @({})", size_[i], offsets[i + 1], types[i + 1], sizes[i + 1]);
+      res += fmt::format(
+          "[{}]; @({})", size_[i], offsets[i + 1], types[i + 1], sizes[i + 1]);
     }
     // NumSizes is a constant that may be zero. Some compilers cannot see that
     // inside the if statement "size_[NumSizes - 1]" must be valid.
@@ -657,17 +728,18 @@ class LayoutImpl<std::tuple<Elements...>, std::index_sequence<SizeSeq...>,
     return res;
   }
 
- private:
+private:
   // Arguments of `Layout::Partial()` or `Layout::Layout()`.
   size_t size_[NumSizes > 0 ? NumSizes : 1];
 };
 
 template <size_t NumSizes, class... Ts>
 using LayoutType = LayoutImpl<
-    std::tuple<Ts...>, std::make_index_sequence<NumSizes>,
+    std::tuple<Ts...>,
+    std::make_index_sequence<NumSizes>,
     std::make_index_sequence<adl_barrier::Min(sizeof...(Ts), NumSizes + 1)>>;
 
-}  // namespace internal_layout
+} // namespace internal_layout
 
 // Descriptor of arrays of various types and sizes laid out in memory one after
 // another. See the top of the file for documentation.
@@ -677,7 +749,7 @@ using LayoutType = LayoutImpl<
 // by `Layout`.
 template <class... Ts>
 class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
- public:
+public:
   static_assert(sizeof...(Ts) > 0, "At least one field is required");
   static_assert(
       std::conjunction_v<internal_layout::IsLegalElementType<Ts>...>,
@@ -714,7 +786,9 @@ class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
   // Requires: `sizeof...(Sizes) <= sizeof...(Ts)`.
   // Requires: all arguments are convertible to `size_t`.
   template <class... Sizes>
-  static constexpr PartialType<sizeof...(Sizes)> Partial(Sizes&&... sizes) {
+  static constexpr PartialType<sizeof...(Sizes)>
+  Partial(Sizes&&... sizes)
+  {
     static_assert(sizeof...(Sizes) <= sizeof...(Ts));
     return PartialType<sizeof...(Sizes)>(std::forward<Sizes>(sizes)...);
   }
@@ -727,11 +801,12 @@ class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
   //
   // Note: The sizes of the arrays must be specified in number of elements,
   // not in bytes.
-  constexpr explicit Layout(internal_layout::TypeToSize<Ts>... sizes)
-      : internal_layout::LayoutType<sizeof...(Ts), Ts...>(sizes...) {}
+  constexpr explicit Layout(internal_layout::TypeToSize<Ts>... sizes) :
+    internal_layout::LayoutType<sizeof...(Ts), Ts...>(sizes...)
+  {}
 };
 
-}  // namespace container_internal
-}  // namespace absl
+} // namespace container_internal
+} // namespace absl
 
-#endif  // ABSL_CONTAINER_INTERNAL_LAYOUT_H_
+#endif // ABSL_CONTAINER_INTERNAL_LAYOUT_H_

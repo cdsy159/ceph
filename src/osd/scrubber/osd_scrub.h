@@ -4,8 +4,8 @@
 #pragma once
 #include <string_view>
 
-#include "osd/osd_types_fmt.h"
 #include "osd/osd_perf_counters.h"
+#include "osd/osd_types_fmt.h"
 #include "osd/scrubber/osd_scrub_sched.h"
 #include "osd/scrubber/scrub_resources.h"
 #include "osd/scrubber_common.h"
@@ -21,7 +21,7 @@
  *    (as it is not yet protected by any single OSDservice lock).
  */
 class OsdScrub {
- public:
+public:
   OsdScrub(
       CephContext* cct,
       Scrub::ScrubSchedListener& osd_svc,
@@ -44,12 +44,13 @@ class OsdScrub {
    */
   void log_fwd(std::string_view text);
 
-  const Scrub::ScrubResources& resource_bookkeeper() const
+  const Scrub::ScrubResources&
+  resource_bookkeeper() const
   {
     return m_resource_bookkeeper;
   }
 
-  void dump_scrubs(ceph::Formatter* f) const;  ///< fwd to the queue
+  void dump_scrubs(ceph::Formatter* f) const; ///< fwd to the queue
 
   void dump_scrub_reservations(ceph::Formatter* f) const;
 
@@ -132,11 +133,11 @@ class OsdScrub {
    */
   std::optional<double> update_load_average();
 
-   // the scrub performance counters collections
-   // ---------------------------------------------------------------
+  // the scrub performance counters collections
+  // ---------------------------------------------------------------
   PerfCounters* get_perf_counters(int pool_type, scrub_level_t level);
 
- private:
+private:
   CephContext* cct;
   Scrub::ScrubSchedListener& m_osd_svc;
   const ceph::common::ConfigProxy& conf;
@@ -235,17 +236,17 @@ class OsdScrub {
   // the labels matrix is: <shallow/deep>  X  <replicated/EC>
   static inline std::vector<std::string> perf_labels = {
       ceph::perf_counters::key_create(
-	  "osd_scrub_sh_repl",
-	  {{"level", "shallow"}, {"pooltype", "replicated"}}),
+          "osd_scrub_sh_repl",
+          {{"level", "shallow"}, {"pooltype", "replicated"}}),
       ceph::perf_counters::key_create(
-	  "osd_scrub_dp_repl",
-	  {{"level", "deep"}, {"pooltype", "replicated"}}),
+          "osd_scrub_dp_repl",
+          {{"level", "deep"}, {"pooltype", "replicated"}}),
       ceph::perf_counters::key_create(
-	  "osd_scrub_sh_ec",
-	  {{"level", "shallow"}, {"pooltype", "ec"}}),
+          "osd_scrub_sh_ec",
+          {{"level", "shallow"}, {"pooltype", "ec"}}),
       ceph::perf_counters::key_create(
-	  "osd_scrub_dp_ec",
-	  {{"level", "deep"}, {"pooltype", "ec"}})};
+          "osd_scrub_dp_ec",
+          {{"level", "deep"}, {"pooltype", "ec"}})};
 
   /**
    * create 4 sets of performance counters (for shallow vs. deep,

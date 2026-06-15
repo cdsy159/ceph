@@ -15,9 +15,10 @@
 
 #pragma once
 
+#include <boost/intrusive_ptr.hpp>
+
 #include "detail/spawn_throttle_impl.h"
 
-#include <boost/intrusive_ptr.hpp>
 #include "cancel_on_error.h"
 
 namespace ceph::async {
@@ -56,10 +57,12 @@ class spawn_throttle {
   using impl_type = detail::spawn_throttle_impl;
   boost::intrusive_ptr<impl_type> impl;
 
- public:
-  spawn_throttle(boost::asio::yield_context yield, size_t limit,
-                 cancel_on_error on_error = cancel_on_error::none)
-    : impl(new detail::spawn_throttle_impl(yield, limit, on_error))
+public:
+  spawn_throttle(
+      boost::asio::yield_context yield,
+      size_t limit,
+      cancel_on_error on_error = cancel_on_error::none) :
+    impl(new detail::spawn_throttle_impl(yield, limit, on_error))
   {}
 
   spawn_throttle(spawn_throttle&&) = default;
@@ -77,7 +80,9 @@ class spawn_throttle {
   }
 
   using executor_type = impl_type::executor_type;
-  executor_type get_executor()
+
+  executor_type
+  get_executor()
   {
     return impl->get_executor();
   }
@@ -89,17 +94,20 @@ class spawn_throttle {
   /// available. If one or more previously-spawned coroutines exit with an
   /// exception, the first such exception is rethrown here.
   template <typename F>
-  void spawn(F&& f)
+  void
+  spawn(F&& f)
   {
     boost::asio::spawn(get_executor(), std::forward<F>(f), impl->get());
   }
 
   /// /overload
   template <typename StackAllocator, typename F>
-  void spawn(std::allocator_arg_t arg, StackAllocator&& alloc, F&& f)
+  void
+  spawn(std::allocator_arg_t arg, StackAllocator&& alloc, F&& f)
   {
-    boost::asio::spawn(get_executor(), arg, std::forward<StackAllocator>(alloc),
-                       std::forward<F>(f), impl->get());
+    boost::asio::spawn(
+        get_executor(), arg, std::forward<StackAllocator>(alloc),
+        std::forward<F>(f), impl->get());
   }
 
   /// Wait for all outstanding completions before returning. If any
@@ -108,13 +116,15 @@ class spawn_throttle {
   ///
   /// After wait() completes, whether successfully or by exception, the yield
   /// throttle can be reused to spawn and await additional coroutines.
-  void wait()
+  void
+  wait()
   {
     impl->wait_for(0);
   }
 
   /// Cancel all outstanding coroutines.
-  void cancel()
+  void
+  cancel()
   {
     impl->cancel();
   }

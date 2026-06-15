@@ -21,11 +21,10 @@ namespace journal {
 class JournalMetadata;
 
 struct JournalMetadataListener {
-  virtual ~JournalMetadataListener() {};
-  virtual void handle_update(JournalMetadata *) = 0;
+  virtual ~JournalMetadataListener(){};
+  virtual void handle_update(JournalMetadata*) = 0;
 };
 
 } // namespace journal
 
 #endif // CEPH_JOURNAL_JOURNAL_METADATA_LISTENER_H
-

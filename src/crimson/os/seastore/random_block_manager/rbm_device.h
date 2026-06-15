@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include "crimson/os/seastore/seastore_types.h"
-#include "crimson/os/seastore/random_block_manager.h"
 #include "crimson/os/seastore/device.h"
+#include "crimson/os/seastore/random_block_manager.h"
+#include "crimson/os/seastore/seastore_types.h"
 
 namespace ceph {
-  namespace buffer {
-    class bufferptr;
-  }
+namespace buffer {
+class bufferptr;
 }
+} // namespace ceph
 
 namespace crimson::os::seastore::random_block_device {
 
@@ -19,70 +19,71 @@ namespace crimson::os::seastore::random_block_device {
 #if defined(__linux__)
 #if !defined(F_SET_FILE_RW_HINT)
 #define F_LINUX_SPECIFIC_BASE 1024
-#define F_SET_FILE_RW_HINT         (F_LINUX_SPECIFIC_BASE + 14)
+#define F_SET_FILE_RW_HINT (F_LINUX_SPECIFIC_BASE + 14)
 #endif
 // These values match Linux definition
 // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/fcntl.h#n56
-#define  WRITE_LIFE_NOT_SET  	0 	// No hint information set
-#define  WRITE_LIFE_NONE  	1       // No hints about write life time
-#define  WRITE_LIFE_SHORT  	2       // Data written has a short life time
-#define  WRITE_LIFE_MEDIUM  	3    	// Data written has a medium life time
-#define  WRITE_LIFE_LONG  	4       // Data written has a long life time
-#define  WRITE_LIFE_EXTREME  	5     	// Data written has an extremely long life time
-#define  WRITE_LIFE_MAX  	6
+#define WRITE_LIFE_NOT_SET 0 // No hint information set
+#define WRITE_LIFE_NONE 1 // No hints about write life time
+#define WRITE_LIFE_SHORT 2 // Data written has a short life time
+#define WRITE_LIFE_MEDIUM 3 // Data written has a medium life time
+#define WRITE_LIFE_LONG 4 // Data written has a long life time
+#define WRITE_LIFE_EXTREME 5 // Data written has an extremely long life time
+#define WRITE_LIFE_MAX 6
 #else
 // On systems don't have WRITE_LIFE_* only use one FD
 // And all files are created equal
-#define  WRITE_LIFE_NOT_SET  	0 	// No hint information set
-#define  WRITE_LIFE_NONE  	0       // No hints about write life time
-#define  WRITE_LIFE_SHORT  	0       // Data written has a short life time
-#define  WRITE_LIFE_MEDIUM  	0    	// Data written has a medium life time
-#define  WRITE_LIFE_LONG  	0       // Data written has a long life time
-#define  WRITE_LIFE_EXTREME  	0    	// Data written has an extremely long life time
-#define  WRITE_LIFE_MAX  	1
+#define WRITE_LIFE_NOT_SET 0 // No hint information set
+#define WRITE_LIFE_NONE 0 // No hints about write life time
+#define WRITE_LIFE_SHORT 0 // Data written has a short life time
+#define WRITE_LIFE_MEDIUM 0 // Data written has a medium life time
+#define WRITE_LIFE_LONG 0 // Data written has a long life time
+#define WRITE_LIFE_EXTREME 0 // Data written has an extremely long life time
+#define WRITE_LIFE_MAX 1
 #endif
 
 using read_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error,
-  crimson::ct_error::invarg,
-  crimson::ct_error::enoent,
-  crimson::ct_error::erange>;
+    crimson::ct_error::input_output_error,
+    crimson::ct_error::invarg,
+    crimson::ct_error::enoent,
+    crimson::ct_error::erange>;
 
 using write_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error,
-  crimson::ct_error::invarg,
-  crimson::ct_error::ebadf,
-  crimson::ct_error::enospc>;
+    crimson::ct_error::input_output_error,
+    crimson::ct_error::invarg,
+    crimson::ct_error::ebadf,
+    crimson::ct_error::enospc>;
 
 using open_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error,
-  crimson::ct_error::invarg,
-  crimson::ct_error::enoent>;
+    crimson::ct_error::input_output_error,
+    crimson::ct_error::invarg,
+    crimson::ct_error::enoent>;
 
-using nvme_command_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error>;
+using nvme_command_ertr =
+    crimson::errorator<crimson::ct_error::input_output_error>;
 
-using discard_ertr = crimson::errorator<
-  crimson::ct_error::input_output_error>;
+using discard_ertr = crimson::errorator<crimson::ct_error::input_output_error>;
 
 constexpr uint32_t RBM_SUPERBLOCK_SIZE = 4096;
 
 class RBMDevice : public Device {
 public:
   using Device::read;
-  read_ertr::future<> read (
-    paddr_t addr,
-    size_t len,
-    ceph::bufferptr &out) final {
+
+  read_ertr::future<>
+  read(paddr_t addr, size_t len, ceph::bufferptr& out) final
+  {
     uint64_t rbm_addr = convert_paddr_to_abs_addr(addr);
     return read(rbm_addr, out);
   }
-  read_ertr::future<> readv(
-    paddr_t addr,
-    std::vector<bufferptr> ptrs) final {
+
+  read_ertr::future<>
+  readv(paddr_t addr, std::vector<bufferptr> ptrs) final
+  {
     uint64_t rbm_addr = convert_paddr_to_abs_addr(addr);
     return _readv(rbm_addr, std::move(ptrs));
   }
+
 protected:
   rbm_superblock_t super;
   rbm_shard_info_t shard_info;
@@ -90,50 +91,74 @@ protected:
   store_index_t store_index = 0;
   bool shard_status = true;
   virtual read_ertr::future<> _readv(
-    uint64_t offset,
-    std::vector<bufferptr> ptrs) = 0;
+      uint64_t offset,
+      std::vector<bufferptr> ptrs) = 0;
 
 public:
-  RBMDevice(store_index_t store_index = 0)
-  : store_index(store_index) {}
+  RBMDevice(store_index_t store_index = 0) :
+    store_index(store_index)
+  {}
+
   virtual ~RBMDevice() = default;
 
   template <typename T>
-  static std::unique_ptr<T> create() {
+  static std::unique_ptr<T>
+  create()
+  {
     return std::make_unique<T>();
   }
 
-  device_id_t get_device_id() const {
+  device_id_t
+  get_device_id() const
+  {
     return super.config.spec.id;
   }
 
-  magic_t get_magic() const final {
+  magic_t
+  get_magic() const final
+  {
     return super.config.spec.magic;
   }
 
-  device_type_t get_device_type() const final {
+  device_type_t
+  get_device_type() const final
+  {
     return device_type_t::RANDOM_BLOCK_SSD;
   }
 
-  backend_type_t get_backend_type() const final {
+  backend_type_t
+  get_backend_type() const final
+  {
     return backend_type_t::RANDOM_BLOCK;
   }
 
-  const seastore_meta_t &get_meta() const final {
+  const seastore_meta_t&
+  get_meta() const final
+  {
     return super.config.meta;
   }
 
-  secondary_device_set_t& get_secondary_devices() final {
+  secondary_device_set_t&
+  get_secondary_devices() final
+  {
     return super.config.secondary_devices;
   }
-  std::size_t get_available_size() const { return super.size; }
-  extent_len_t get_block_size() const { return super.block_size; }
+
+  std::size_t
+  get_available_size() const
+  {
+    return super.size;
+  }
+
+  extent_len_t
+  get_block_size() const
+  {
+    return super.block_size;
+  }
 
   read_ertr::future<uint32_t> get_shard_nums() final;
 
-  virtual read_ertr::future<> read(
-    uint64_t offset,
-    bufferptr &bptr) = 0;
+  virtual read_ertr::future<> read(uint64_t offset, bufferptr& bptr) = 0;
 
   /*
    * Multi-stream write
@@ -143,29 +168,35 @@ public:
    * SSD for better write performance.
    */
   virtual write_ertr::future<> write(
-    uint64_t offset,
-    bufferptr bptr,
-    uint16_t stream = 0) = 0;
+      uint64_t offset,
+      bufferptr bptr,
+      uint16_t stream = 0) = 0;
 
-  virtual discard_ertr::future<> discard(
-    uint64_t offset,
-    uint64_t len) { return seastar::now(); }
+  virtual discard_ertr::future<>
+  discard(uint64_t offset, uint64_t len)
+  {
+    return seastar::now();
+  }
 
   virtual open_ertr::future<> open(
       const std::string& path,
       seastar::open_flags mode) = 0;
 
   virtual write_ertr::future<> writev(
-    uint64_t offset,
-    ceph::bufferlist bl,
-    uint16_t stream = 0) = 0;
+      uint64_t offset,
+      ceph::bufferlist bl,
+      uint16_t stream = 0) = 0;
 
-  bool is_end_to_end_data_protection() const final {
+  bool
+  is_end_to_end_data_protection() const final
+  {
     return super.is_end_to_end_data_protection();
   }
 
-  virtual nvme_command_ertr::future<> initialize_nvme_features() { 
-    return nvme_command_ertr::now(); 
+  virtual nvme_command_ertr::future<>
+  initialize_nvme_features()
+  {
+    return nvme_command_ertr::now();
   }
 
   mkfs_ret do_mkfs(device_config_t);
@@ -181,32 +212,42 @@ public:
 
   read_ertr::future<rbm_superblock_t> read_rbm_superblock(rbm_abs_addr addr);
 
-  using stat_device_ret =
-    read_ertr::future<seastar::stat_data>;
+  using stat_device_ret = read_ertr::future<seastar::stat_data>;
   virtual stat_device_ret stat_device() = 0;
 
   virtual std::string get_device_path() const = 0;
 
-  uint64_t get_journal_size() const {
+  uint64_t
+  get_journal_size() const
+  {
     return super.journal_size;
   }
 
-  static rbm_abs_addr get_shard_reserved_size() {
+  static rbm_abs_addr
+  get_shard_reserved_size()
+  {
     return RBM_SUPERBLOCK_SIZE;
   }
 
-  rbm_abs_addr get_shard_journal_start() {
+  rbm_abs_addr
+  get_shard_journal_start()
+  {
     return shard_info.start_offset + get_shard_reserved_size();
   }
 
-  uint64_t get_shard_start() const {
+  uint64_t
+  get_shard_start() const
+  {
     return shard_info.start_offset;
   }
 
-  uint64_t get_shard_end() const {
+  uint64_t
+  get_shard_end() const
+  {
     return shard_info.start_offset + shard_info.size;
   }
 };
+
 using RBMDeviceRef = std::unique_ptr<RBMDevice>;
 
 constexpr uint64_t DEFAULT_TEST_CBJOURNAL_SIZE = 1 << 26;
@@ -218,64 +259,75 @@ public:
   constexpr static uint32_t TEST_BLOCK_SIZE = 4096;
 
   EphemeralRBMDevice(size_t size, uint64_t block_size) :
-    size(size), block_size(block_size), buf(nullptr) {
-  }
-  ~EphemeralRBMDevice() {
+    size(size), block_size(block_size), buf(nullptr)
+  {}
+
+  ~EphemeralRBMDevice()
+  {
     if (buf) {
       ::munmap(buf, size);
       buf = nullptr;
     }
   }
 
-  std::size_t get_available_size() const final { return size; }
-  extent_len_t get_block_size() const final { return block_size; }
+  std::size_t
+  get_available_size() const final
+  {
+    return size;
+  }
+
+  extent_len_t
+  get_block_size() const final
+  {
+    return block_size;
+  }
 
   mount_ret mount() final;
   mkfs_ret mkfs(device_config_t config) final;
 
   open_ertr::future<> open(
-    const std::string &in_path,
-    seastar::open_flags mode) override;
+      const std::string& in_path,
+      seastar::open_flags mode) override;
 
   write_ertr::future<> write(
-    uint64_t offset,
-    bufferptr bptr,
-    uint16_t stream = 0) override;
+      uint64_t offset,
+      bufferptr bptr,
+      uint16_t stream = 0) override;
 
   using RBMDevice::read;
-  read_ertr::future<> read(
-    uint64_t offset,
-    bufferptr &bptr) override;
+  read_ertr::future<> read(uint64_t offset, bufferptr& bptr) override;
   read_ertr::future<> _readv(
-    uint64_t offset,
-    std::vector<bufferptr> ptrs) override;
+      uint64_t offset,
+      std::vector<bufferptr> ptrs) override;
 
   close_ertr::future<> close() override;
 
   write_ertr::future<> writev(
-    uint64_t offset,
-    ceph::bufferlist bl,
-    uint16_t stream = 0) final;
+      uint64_t offset,
+      ceph::bufferlist bl,
+      uint16_t stream = 0) final;
 
-  stat_device_ret stat_device() final {
+  stat_device_ret
+  stat_device() final
+  {
     seastar::stat_data stat;
     stat.block_size = block_size;
     stat.size = size;
-    return stat_device_ret(
-      read_ertr::ready_future_marker{},
-      stat
-    );
+    return stat_device_ret(read_ertr::ready_future_marker{}, stat);
   }
 
-  std::string get_device_path() const final {
+  std::string
+  get_device_path() const final
+  {
     return "";
   }
 
-  char *buf;
+  char* buf;
 };
+
 using EphemeralRBMDeviceRef = std::unique_ptr<EphemeralRBMDevice>;
 EphemeralRBMDeviceRef create_test_ephemeral(
-  uint64_t journal_size = DEFAULT_TEST_CBJOURNAL_SIZE,
-  uint64_t data_size = DEFAULT_TEST_CBJOURNAL_SIZE);
+    uint64_t journal_size = DEFAULT_TEST_CBJOURNAL_SIZE,
+    uint64_t data_size = DEFAULT_TEST_CBJOURNAL_SIZE);
 
-}
+} // namespace crimson::os::seastore::random_block_device

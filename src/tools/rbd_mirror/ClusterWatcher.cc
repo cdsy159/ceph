@@ -2,21 +2,23 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ClusterWatcher.h"
-#include "include/stringify.h"
-#include "common/ceph_json.h"
+
 #include "common/debug.h"
-#include "common/errno.h"
+
 #include "cls/rbd/cls_rbd_client.h"
-#include "librbd/internal.h"
-#include "librbd/api/Mirror.h"
-#include "tools/rbd_mirror/ServiceDaemon.h"
+#include "common/ceph_json.h"
+#include "common/errno.h"
+#include "include/stringify.h"
 #include "json_spirit/json_spirit.h"
+#include "librbd/api/Mirror.h"
+#include "librbd/internal.h"
+#include "tools/rbd_mirror/ServiceDaemon.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::ClusterWatcher:" << this << " " \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::ClusterWatcher:" << this << " " << __func__ << ": "
 
 using std::list;
 using std::map;
@@ -26,30 +28,35 @@ using std::string;
 using std::unique_ptr;
 using std::vector;
 
-using librados::Rados;
 using librados::IoCtx;
+using librados::Rados;
 
 namespace rbd {
 namespace mirror {
 
-ClusterWatcher::ClusterWatcher(RadosRef cluster, ceph::mutex &lock,
-                               ServiceDaemon<librbd::ImageCtx>* service_daemon)
-  : m_cluster(cluster), m_lock(lock), m_service_daemon(service_daemon)
-{
-}
+ClusterWatcher::ClusterWatcher(
+    RadosRef cluster,
+    ceph::mutex& lock,
+    ServiceDaemon<librbd::ImageCtx>* service_daemon) :
+  m_cluster(cluster), m_lock(lock), m_service_daemon(service_daemon)
+{}
 
-const ClusterWatcher::PoolPeers& ClusterWatcher::get_pool_peers() const
+const ClusterWatcher::PoolPeers&
+ClusterWatcher::get_pool_peers() const
 {
   ceph_assert(ceph_mutex_is_locked(m_lock));
   return m_pool_peers;
 }
 
-std::string ClusterWatcher::get_site_name() const {
+std::string
+ClusterWatcher::get_site_name() const
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
   return m_site_name;
 }
 
-void ClusterWatcher::refresh_pools()
+void
+ClusterWatcher::refresh_pools()
 {
   dout(20) << "enter" << dendl;
 
@@ -70,7 +77,8 @@ void ClusterWatcher::refresh_pools()
   // about config changes for existing pools
 }
 
-void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
+void
+ClusterWatcher::read_pool_peers(PoolPeers* pool_peers)
 {
   int r = m_cluster->wait_for_latest_osdmap();
   if (r < 0) {
@@ -78,7 +86,7 @@ void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
     return;
   }
 
-  list<pair<int64_t, string> > pools;
+  list<pair<int64_t, string>> pools;
   r = m_cluster->pool_list2(pools);
   if (r < 0) {
     derr << "error listing pools: " << cpp_strerror(r) << dendl;
@@ -129,15 +137,15 @@ void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
     if (r == -EPERM) {
       dout(10) << "access denied querying pool " << pool_name << dendl;
       m_service_pools[pool_id] = m_service_daemon->add_or_update_callout(
-        pool_id, m_service_pools[pool_id],
-        service_daemon::CALLOUT_LEVEL_WARNING, "access denied");
+          pool_id, m_service_pools[pool_id],
+          service_daemon::CALLOUT_LEVEL_WARNING, "access denied");
       continue;
     } else if (r < 0) {
       derr << "could not tell whether mirroring was enabled for " << pool_name
-	   << " : " << cpp_strerror(r) << dendl;
+           << " : " << cpp_strerror(r) << dendl;
       m_service_pools[pool_id] = m_service_daemon->add_or_update_callout(
-        pool_id, m_service_pools[pool_id],
-        service_daemon::CALLOUT_LEVEL_WARNING, "mirroring mode query failed");
+          pool_id, m_service_pools[pool_id],
+          service_daemon::CALLOUT_LEVEL_WARNING, "mirroring mode query failed");
       continue;
     }
 
@@ -145,10 +153,10 @@ void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
     r = librbd::api::Mirror<>::peer_site_list(ioctx, &configs);
     if (r < 0) {
       derr << "error reading mirroring config for pool " << pool_name
-	   << cpp_strerror(r) << dendl;
+           << cpp_strerror(r) << dendl;
       m_service_pools[pool_id] = m_service_daemon->add_or_update_callout(
-        pool_id, m_service_pools[pool_id],
-        service_daemon::CALLOUT_LEVEL_ERROR, "mirroring peer list failed");
+          pool_id, m_service_pools[pool_id],
+          service_daemon::CALLOUT_LEVEL_ERROR, "mirroring peer list failed");
       continue;
     }
 
@@ -175,7 +183,7 @@ void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
     pool_peers->emplace(pool_id, Peers{peers.begin(), peers.end()});
   }
 
-  for (auto it = m_service_pools.begin(); it != m_service_pools.end(); ) {
+  for (auto it = m_service_pools.begin(); it != m_service_pools.end();) {
     auto current_it(it++);
     if (service_pool_ids.find(current_it->first) == service_pool_ids.end()) {
       m_service_daemon->remove_pool(current_it->first);
@@ -184,26 +192,32 @@ void ClusterWatcher::read_pool_peers(PoolPeers *pool_peers)
   }
 }
 
-int ClusterWatcher::read_site_name(std::string* site_name) {
+int
+ClusterWatcher::read_site_name(std::string* site_name)
+{
   librbd::RBD rbd;
   int r = rbd.mirror_site_name_get(*m_cluster, site_name);
   dout(10) << "site_name=" << *site_name << ", r=" << r << dendl;
   return r;
 }
 
-int ClusterWatcher::resolve_peer_site_config_keys(int64_t pool_id,
-                                                  const std::string& pool_name,
-                                                  PeerSpec* peer) {
+int
+ClusterWatcher::resolve_peer_site_config_keys(
+    int64_t pool_id,
+    const std::string& pool_name,
+    PeerSpec* peer)
+{
   dout(10) << "retrieving config-key: pool_id=" << pool_id << ", "
-           << "pool_name=" << pool_name << ", "
-           << "peer_uuid=" << peer->uuid << dendl;
+           << "pool_name=" << pool_name << ", " << "peer_uuid=" << peer->uuid
+           << dendl;
 
   std::string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config-key get\", "
-      "\"key\": \"" RBD_MIRROR_PEER_CONFIG_KEY_PREFIX + stringify(pool_id) +
-        "/" + peer->uuid + "\""
-    "}";
+      "\"key\": \"" RBD_MIRROR_PEER_CONFIG_KEY_PREFIX +
+      stringify(pool_id) + "/" + peer->uuid +
+      "\""
+      "}";
 
   bufferlist out_bl;
   int r = m_cluster->mon_command(std::move(cmd), {}, &out_bl, nullptr);
@@ -213,15 +227,15 @@ int ClusterWatcher::resolve_peer_site_config_keys(int64_t pool_id,
     derr << "error reading mirroring peer config for pool " << pool_name << ": "
          << cpp_strerror(r) << dendl;
     m_service_pools[pool_id] = m_service_daemon->add_or_update_callout(
-      pool_id, m_service_pools[pool_id],
-      service_daemon::CALLOUT_LEVEL_WARNING,
-      "mirroring peer config-key query failed");
+        pool_id, m_service_pools[pool_id],
+        service_daemon::CALLOUT_LEVEL_WARNING,
+        "mirroring peer config-key query failed");
     return r;
   }
 
   bool json_valid = false;
   json_spirit::mValue json_root;
-  if(json_spirit::read(out_bl.to_str(), json_root)) {
+  if (json_spirit::read(out_bl.to_str(), json_root)) {
     try {
       auto& json_obj = json_root.get_obj();
       if (json_obj.count("mon_host")) {
@@ -239,9 +253,9 @@ int ClusterWatcher::resolve_peer_site_config_keys(int64_t pool_id,
     derr << "error parsing mirroring peer config for pool " << pool_name << ", "
          << "peer " << peer->uuid << dendl;
     m_service_pools[pool_id] = m_service_daemon->add_or_update_callout(
-      pool_id, m_service_pools[pool_id],
-      service_daemon::CALLOUT_LEVEL_WARNING,
-      "mirroring peer config-key decode failed");
+        pool_id, m_service_pools[pool_id],
+        service_daemon::CALLOUT_LEVEL_WARNING,
+        "mirroring peer config-key decode failed");
   }
 
   return 0;

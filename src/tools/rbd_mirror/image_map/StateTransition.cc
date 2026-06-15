@@ -1,17 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <ostream>
-#include "include/ceph_assert.h"
 #include "StateTransition.h"
+
+#include <ostream>
+
+#include "include/ceph_assert.h"
 
 namespace rbd {
 namespace mirror {
 namespace image_map {
 
-std::ostream &operator<<(std::ostream &os,
-                         const StateTransition::State &state) {
-  switch(state) {
+std::ostream&
+operator<<(std::ostream& os, const StateTransition::State& state)
+{
+  switch (state) {
   case StateTransition::STATE_INITIALIZING:
     os << "INITIALIZING";
     break;
@@ -34,9 +37,10 @@ std::ostream &operator<<(std::ostream &os,
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os,
-                         const StateTransition::PolicyAction &policy_action) {
-  switch(policy_action) {
+std::ostream&
+operator<<(std::ostream& os, const StateTransition::PolicyAction& policy_action)
+{
+  switch (policy_action) {
   case StateTransition::POLICY_ACTION_MAP:
     os << "MAP";
     break;
@@ -50,39 +54,39 @@ std::ostream &operator<<(std::ostream &os,
   return os;
 }
 
-const StateTransition::TransitionTable StateTransition::s_transition_table {
-  // state             current_action           Transition
-  // ---------------------------------------------------------------------------
-  {{STATE_INITIALIZING, ACTION_TYPE_NONE},       {ACTION_TYPE_ACQUIRE, {}, {},
-                                                  {}}},
-  {{STATE_INITIALIZING, ACTION_TYPE_ACQUIRE},    {ACTION_TYPE_NONE, {}, {},
-                                                  {STATE_ASSOCIATED}}},
+const StateTransition::TransitionTable StateTransition::s_transition_table{
+    // state             current_action           Transition
+    // ---------------------------------------------------------------------------
+    {{STATE_INITIALIZING, ACTION_TYPE_NONE}, {ACTION_TYPE_ACQUIRE, {}, {}, {}}},
+    {{STATE_INITIALIZING, ACTION_TYPE_ACQUIRE},
+     {ACTION_TYPE_NONE, {}, {}, {STATE_ASSOCIATED}}},
 
-  {{STATE_ASSOCIATING,  ACTION_TYPE_NONE},       {ACTION_TYPE_MAP_UPDATE,
-                                                  {POLICY_ACTION_MAP}, {}, {}}},
-  {{STATE_ASSOCIATING,  ACTION_TYPE_MAP_UPDATE}, {ACTION_TYPE_ACQUIRE, {}, {},
-                                                  {}}},
-  {{STATE_ASSOCIATING,  ACTION_TYPE_ACQUIRE},    {ACTION_TYPE_NONE, {}, {},
-                                                  {STATE_ASSOCIATED}}},
+    {{STATE_ASSOCIATING, ACTION_TYPE_NONE},
+     {ACTION_TYPE_MAP_UPDATE, {POLICY_ACTION_MAP}, {}, {}}},
+    {{STATE_ASSOCIATING, ACTION_TYPE_MAP_UPDATE},
+     {ACTION_TYPE_ACQUIRE, {}, {}, {}}},
+    {{STATE_ASSOCIATING, ACTION_TYPE_ACQUIRE},
+     {ACTION_TYPE_NONE, {}, {}, {STATE_ASSOCIATED}}},
 
-  {{STATE_DISSOCIATING, ACTION_TYPE_NONE},       {ACTION_TYPE_RELEASE, {},
-                                                 {POLICY_ACTION_UNMAP}, {}}},
-  {{STATE_DISSOCIATING, ACTION_TYPE_RELEASE},    {ACTION_TYPE_MAP_REMOVE, {},
-                                                  {POLICY_ACTION_REMOVE}, {}}},
-  {{STATE_DISSOCIATING, ACTION_TYPE_MAP_REMOVE}, {ACTION_TYPE_NONE, {},
-                                                  {}, {STATE_UNASSOCIATED}}},
+    {{STATE_DISSOCIATING, ACTION_TYPE_NONE},
+     {ACTION_TYPE_RELEASE, {}, {POLICY_ACTION_UNMAP}, {}}},
+    {{STATE_DISSOCIATING, ACTION_TYPE_RELEASE},
+     {ACTION_TYPE_MAP_REMOVE, {}, {POLICY_ACTION_REMOVE}, {}}},
+    {{STATE_DISSOCIATING, ACTION_TYPE_MAP_REMOVE},
+     {ACTION_TYPE_NONE, {}, {}, {STATE_UNASSOCIATED}}},
 
-  {{STATE_SHUFFLING,    ACTION_TYPE_NONE},       {ACTION_TYPE_RELEASE, {},
-                                                  {POLICY_ACTION_UNMAP}, {}}},
-  {{STATE_SHUFFLING,    ACTION_TYPE_RELEASE},    {ACTION_TYPE_MAP_UPDATE,
-                                                  {POLICY_ACTION_MAP}, {}, {}}},
-  {{STATE_SHUFFLING,    ACTION_TYPE_MAP_UPDATE}, {ACTION_TYPE_ACQUIRE, {}, {},
-                                                  {}}},
-  {{STATE_SHUFFLING,    ACTION_TYPE_ACQUIRE},    {ACTION_TYPE_NONE, {}, {},
-                                                  {STATE_ASSOCIATED}}}
-};
+    {{STATE_SHUFFLING, ACTION_TYPE_NONE},
+     {ACTION_TYPE_RELEASE, {}, {POLICY_ACTION_UNMAP}, {}}},
+    {{STATE_SHUFFLING, ACTION_TYPE_RELEASE},
+     {ACTION_TYPE_MAP_UPDATE, {POLICY_ACTION_MAP}, {}, {}}},
+    {{STATE_SHUFFLING, ACTION_TYPE_MAP_UPDATE},
+     {ACTION_TYPE_ACQUIRE, {}, {}, {}}},
+    {{STATE_SHUFFLING, ACTION_TYPE_ACQUIRE},
+     {ACTION_TYPE_NONE, {}, {}, {STATE_ASSOCIATED}}}};
 
-void StateTransition::transit(State state, Transition* transition) {
+void
+StateTransition::transit(State state, Transition* transition)
+{
   auto it = s_transition_table.find({state, transition->action_type});
   ceph_assert(it != s_transition_table.end());
 

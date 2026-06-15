@@ -16,14 +16,14 @@
 #ifndef OP_QUEUE_H
 #define OP_QUEUE_H
 
+#include <functional>
+#include <list>
+
 #include "include/msgr.h"
 #include "osd/osd_types.h"
 
-#include <list>
-#include <functional>
-
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 /**
@@ -41,20 +41,20 @@ public:
   // front-to-back order. The typical strategy is to visit items in
   // the queue in *reverse* order and to use *push_front* to insert
   // them into out.
-  virtual void remove_by_class(K k, std::list<T> *out) = 0;
+  virtual void remove_by_class(K k, std::list<T>* out) = 0;
 
   // Enqueue op in the back of the strict queue
-  virtual void enqueue_strict(K cl, unsigned priority, T &&item) = 0;
+  virtual void enqueue_strict(K cl, unsigned priority, T&& item) = 0;
 
   // Enqueue op in the front of the strict queue
-  virtual void enqueue_strict_front(K cl, unsigned priority, T &&item) = 0;
+  virtual void enqueue_strict_front(K cl, unsigned priority, T&& item) = 0;
 
   // Enqueue op in the back of the regular queue
-  virtual void enqueue(K cl, unsigned priority, unsigned cost, T &&item) = 0;
+  virtual void enqueue(K cl, unsigned priority, unsigned cost, T&& item) = 0;
 
   // Enqueue the op in the front of the regular queue
-  virtual void enqueue_front(
-    K cl, unsigned priority, unsigned cost, T &&item) = 0;
+  virtual void
+  enqueue_front(K cl, unsigned priority, unsigned cost, T&& item) = 0;
 
   // Returns if the queue is empty
   virtual bool empty() const = 0;
@@ -63,16 +63,16 @@ public:
   virtual T dequeue() = 0;
 
   // Formatted output of the queue
-  virtual void dump(ceph::Formatter *f) const = 0;
+  virtual void dump(ceph::Formatter* f) const = 0;
 
   // Human readable brief description of queue and relevant parameters
-  virtual void print(std::ostream &f) const = 0;
+  virtual void print(std::ostream& f) const = 0;
 
   // Get the type of OpQueue implementation
   virtual op_queue_type_t get_type() const = 0;
 
   // Don't leak resources on destruction
-  virtual ~OpQueue() {};
+  virtual ~OpQueue(){};
 };
 
 #endif

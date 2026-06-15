@@ -7,7 +7,8 @@
 
 namespace std {
 
-ostream& operator<<(ostream& out,
-                    const seastar::lowres_system_clock::time_point& t);
+ostream& operator<<(
+    ostream& out,
+    const seastar::lowres_system_clock::time_point& t);
 
 }

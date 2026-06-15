@@ -17,16 +17,12 @@
 #include <utility>
 
 #include <boost/asio/use_awaitable.hpp>
-
 #include <boost/system/errc.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "common/ceph_json.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace sys = boost::system;
@@ -42,12 +38,12 @@ CORO_TEST_F(NeoRadosCls, DNE, NeoRadosTest)
   co_await execute(oid, WriteOp{}.create(true));
   // Call a bogus class
   co_await expect_error_code(
-    execute(oid, ReadOp{}.exec("doesnotexistasdfasdf", "method", {})),
-    sys::errc::operation_not_supported);
+      execute(oid, ReadOp{}.exec("doesnotexistasdfasdf", "method", {})),
+      sys::errc::operation_not_supported);
 
   // Call a bogus method on an existent class
   co_await expect_error_code(
-    execute(oid, ReadOp{}.exec("lock", "doesnotexistasdfasdfasdf", {})),
-    sys::errc::operation_not_supported);
+      execute(oid, ReadOp{}.exec("lock", "doesnotexistasdfasdfasdf", {})),
+      sys::errc::operation_not_supported);
   co_return;
 }

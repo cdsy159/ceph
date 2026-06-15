@@ -13,19 +13,22 @@
 #ifndef CEPH_COMPRESSION_PLUGIN_BROTLI_H
 #define CEPH_COMPRESSION_PLUGIN_BROTLI_H
 
-#include "ceph_ver.h"
 #include "compressor/CompressionPlugin.h"
+
 #include "BrotliCompressor.h"
+#include "ceph_ver.h"
 
 class CompressionPluginBrotli : public CompressionPlugin {
 public:
-  explicit CompressionPluginBrotli(CephContext *cct) : CompressionPlugin(cct)
+  explicit CompressionPluginBrotli(CephContext* cct) :
+    CompressionPlugin(cct)
   {}
-  
-  virtual int factory(CompressorRef *cs, std::ostream *ss)
+
+  virtual int
+  factory(CompressorRef* cs, std::ostream* ss)
   {
     if (compressor == nullptr) {
-      BrotliCompressor *interface = new BrotliCompressor();
+      BrotliCompressor* interface = new BrotliCompressor();
       compressor = CompressorRef(interface);
     }
     *cs = compressor;

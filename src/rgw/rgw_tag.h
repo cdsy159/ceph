@@ -9,12 +9,13 @@
 
 #include "include/encoding.h"
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
-class RGWObjTags
-{
+class RGWObjTags {
 public:
-  using tag_map_t = std::multimap <std::string, std::string>;
+  using tag_map_t = std::multimap<std::string, std::string>;
 
 protected:
   tag_map_t tag_map;
@@ -23,17 +24,24 @@ protected:
   static constexpr uint32_t max_tag_key_size{128};
   static constexpr uint32_t max_tag_val_size{256};
 
- public:
+public:
   RGWObjTags() = default;
-  RGWObjTags(uint32_t max_obj_tags):max_obj_tags(max_obj_tags) {}
 
-  void encode(bufferlist& bl) const {
-    ENCODE_START(1,1,bl);
+  RGWObjTags(uint32_t max_obj_tags) :
+    max_obj_tags(max_obj_tags)
+  {}
+
+  void
+  encode(bufferlist& bl) const
+  {
+    ENCODE_START(1, 1, bl);
     encode(tag_map, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator &bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     // Some older objects may have stored tags as a plain URL-encoded
     // string (e.g. "key=value") rather than binary ENCODE_START format.
     // Try binary decode first, fall back to set_from_string() on failure.
@@ -65,16 +73,42 @@ protected:
     }
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<RGWObjTags> generate_test_instances();
-  void add_tag(const std::string& key, const std::string& val="");
+  void add_tag(const std::string& key, const std::string& val = "");
   void emplace_tag(std::string&& key, std::string&& val);
-  int check_and_add_tag(const std::string& key, const std::string& val="");
-  size_t count() const {return tag_map.size();}
+  int check_and_add_tag(const std::string& key, const std::string& val = "");
+
+  size_t
+  count() const
+  {
+    return tag_map.size();
+  }
+
   int set_from_string(const std::string& input);
-  void clear() { tag_map.clear(); }
-  bool empty() const noexcept { return tag_map.empty(); }
-  const tag_map_t& get_tags() const {return tag_map;}
-  tag_map_t& get_tags() {return tag_map;}
+
+  void
+  clear()
+  {
+    tag_map.clear();
+  }
+
+  bool
+  empty() const noexcept
+  {
+    return tag_map.empty();
+  }
+
+  const tag_map_t&
+  get_tags() const
+  {
+    return tag_map;
+  }
+
+  tag_map_t&
+  get_tags()
+  {
+    return tag_map;
+  }
 };
 WRITE_CLASS_ENCODER(RGWObjTags)

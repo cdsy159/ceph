@@ -4,9 +4,9 @@
 #ifndef CEPH_LIBRBD_IMAGE_LIST_WATCHERS_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_LIST_WATCHERS_REQUEST_H
 
-#include "include/rados/rados_types.hpp"
-
 #include <list>
+
+#include "include/rados/rados_types.hpp"
 
 class Context;
 
@@ -22,12 +22,16 @@ enum {
   LIST_WATCHERS_MIRROR_INSTANCES_ONLY = 1 << 3,
 };
 
-template<typename ImageCtxT = ImageCtx>
+template <typename ImageCtxT = ImageCtx>
 class ListWatchersRequest {
 public:
-  static ListWatchersRequest *create(ImageCtxT &image_ctx, int flags,
-                                     std::list<obj_watch_t> *watchers,
-                                     Context *on_finish) {
+  static ListWatchersRequest*
+  create(
+      ImageCtxT& image_ctx,
+      int flags,
+      std::list<obj_watch_t>* watchers,
+      Context* on_finish)
+  {
     return new ListWatchersRequest(image_ctx, flags, watchers, on_finish);
   }
 
@@ -51,15 +55,18 @@ private:
    * @endverbatim
    */
 
-  ListWatchersRequest(ImageCtxT &image_ctx, int flags, std::list<obj_watch_t> *watchers,
-                      Context *on_finish);
+  ListWatchersRequest(
+      ImageCtxT& image_ctx,
+      int flags,
+      std::list<obj_watch_t>* watchers,
+      Context* on_finish);
 
   ImageCtxT& m_image_ctx;
   int m_flags;
-  std::list<obj_watch_t> *m_watchers;
-  Context *m_on_finish;
+  std::list<obj_watch_t>* m_watchers;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
   int m_ret_val;
   bufferlist m_out_bl;
   std::list<obj_watch_t> m_object_watchers;

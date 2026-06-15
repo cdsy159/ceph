@@ -5,15 +5,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <iostream>
+
+#include "common/debug.h"
+
+#include <boost/program_options.hpp>
+
+#include "common/errno.h"
+#include "common/safe_io.h"
 #include "include/compat.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/safe_io.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd
@@ -27,11 +30,12 @@ namespace merge_diff {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static int parse_diff_header(int fd, __u8 *tag, string *from, string *to, uint64_t *size)
+static int
+parse_diff_header(int fd, __u8* tag, string* from, string* to, uint64_t* size)
 {
   int r;
 
-  {//header
+  { //header
     char buf[utils::RBD_DIFF_BANNER.size() + 1];
     r = safe_read_exact(fd, buf, utils::RBD_DIFF_BANNER.size());
     if (r < 0)
@@ -51,12 +55,14 @@ static int parse_diff_header(int fd, __u8 *tag, string *from, string *to, uint64
       return r;
 
     if (*tag == RBD_DIFF_FROM_SNAP) {
-      r = utils::read_string(fd, 4096, from);   // 4k limit to make sure we don't get a garbage string
+      r = utils::read_string(
+          fd, 4096, from); // 4k limit to make sure we don't get a garbage string
       if (r < 0)
         return r;
       dout(2) << " from snap " << *from << dendl;
     } else if (*tag == RBD_DIFF_TO_SNAP) {
-      r = utils::read_string(fd, 4096, to);   // 4k limit to make sure we don't get a garbage string
+      r = utils::read_string(
+          fd, 4096, to); // 4k limit to make sure we don't get a garbage string
       if (r < 0)
         return r;
       dout(2) << " to snap " << *to << dendl;
@@ -78,7 +84,8 @@ static int parse_diff_header(int fd, __u8 *tag, string *from, string *to, uint64
   return 0;
 }
 
-static int parse_diff_body(int fd, __u8 *tag, uint64_t *offset, uint64_t *length)
+static int
+parse_diff_body(int fd, __u8* tag, uint64_t* offset, uint64_t* length)
 {
   int r;
 
@@ -118,7 +125,8 @@ static int parse_diff_body(int fd, __u8 *tag, uint64_t *offset, uint64_t *length
  * fd: the diff file to read from
  * pd: the diff file to be written into
  */
-static int accept_diff_body(int fd, int pd, __u8 tag, uint64_t offset, uint64_t length)
+static int
+accept_diff_body(int fd, int pd, __u8 tag, uint64_t offset, uint64_t length)
 {
   if (tag == RBD_DIFF_END)
     return 0;
@@ -154,8 +162,12 @@ static int accept_diff_body(int fd, int pd, __u8 tag, uint64_t offset, uint64_t 
  * since which complicates the process and is
  * rarely used
  */
-static int do_merge_diff(const char *first, const char *second,
-                         const char *path, bool no_progress)
+static int
+do_merge_diff(
+    const char* first,
+    const char* second,
+    const char* path,
+    bool no_progress)
 {
   utils::ProgressContext pc("Merging image diff", no_progress);
   int fd = -1, sd = -1, pd = -1, r;
@@ -175,7 +187,7 @@ static int do_merge_diff(const char *first, const char *second,
   if (first_stdin) {
     fd = STDIN_FILENO;
   } else {
-    fd = open(first, O_RDONLY|O_BINARY);
+    fd = open(first, O_RDONLY | O_BINARY);
     if (fd < 0) {
       r = -errno;
       std::cerr << "rbd: error opening " << first << std::endl;
@@ -183,7 +195,7 @@ static int do_merge_diff(const char *first, const char *second,
     }
   }
 
-  sd = open(second, O_RDONLY|O_BINARY);
+  sd = open(second, O_RDONLY | O_BINARY);
   if (sd < 0) {
     r = -errno;
     std::cerr << "rbd: error opening " << second << std::endl;
@@ -265,8 +277,7 @@ static int do_merge_diff(const char *first, const char *second,
 
       r = parse_diff_body(fd, &f_tag, &f_off, &f_len);
       dout(2) << "first diff data chunk: tag=" << f_tag << ", "
-              << "off=" << f_off << ", "
-              << "len=" << f_len << dendl;
+              << "off=" << f_off << ", " << "len=" << f_len << dendl;
       if (r < 0) {
         std::cerr << "rbd: failed to read first diff data chunk header"
                   << std::endl;
@@ -285,8 +296,8 @@ static int do_merge_diff(const char *first, const char *second,
 
       if (last_off > f_off) {
         r = -ENOTSUP;
-        std::cerr << "rbd: out-of-order offset from first diff ("
-             << last_off << " > " << f_off << ")" << std::endl;
+        std::cerr << "rbd: out-of-order offset from first diff (" << last_off
+                  << " > " << f_off << ")" << std::endl;
         goto done;
       }
     }
@@ -296,8 +307,7 @@ static int do_merge_diff(const char *first, const char *second,
 
       r = parse_diff_body(sd, &s_tag, &s_off, &s_len);
       dout(2) << "second diff data chunk: tag=" << s_tag << ", "
-              << "off=" << s_off << ", "
-              << "len=" << s_len << dendl;
+              << "off=" << s_off << ", " << "len=" << s_len << dendl;
       if (r < 0) {
         std::cerr << "rbd: failed to read second diff data chunk header"
                   << std::endl;
@@ -315,8 +325,8 @@ static int do_merge_diff(const char *first, const char *second,
 
       if (last_off > s_off) {
         r = -ENOTSUP;
-        std::cerr << "rbd: out-of-order offset from second diff ("
-                  << last_off << " > " << s_off << ")" << std::endl;
+        std::cerr << "rbd: out-of-order offset from second diff (" << last_off
+                  << " > " << s_off << ")" << std::endl;
         goto done;
       }
     }
@@ -381,7 +391,7 @@ static int do_merge_diff(const char *first, const char *second,
     continue;
   }
 
-  {//tail
+  { //tail
     __u8 tag = RBD_DIFF_END;
     bufferlist bl;
     encode(tag, bl);
@@ -396,7 +406,7 @@ done:
   if (fd > 2)
     close(fd);
 
-  if(r < 0) {
+  if (r < 0) {
     pc.fail();
     if (pd > 2)
       unlink(path);
@@ -406,18 +416,24 @@ done:
   return r;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
-  positional->add_options()
-    ("diff1-path", "path to first diff (or '-' for stdin)")
-    ("diff2-path", "path to second diff");
-  at::add_path_options(positional, options,
-                       "path to merged diff (or '-' for stdout)");
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  positional->add_options()(
+      "diff1-path", "path to first diff (or '-' for stdin)")(
+      "diff2-path", "path to second diff");
+  at::add_path_options(
+      positional, options, "path to merged diff (or '-' for stdout)");
   at::add_no_progress_option(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string first_diff = utils::get_positional_argument(vm, 0);
   if (first_diff.empty()) {
     std::cerr << "rbd: first diff was not specified" << std::endl;
@@ -437,8 +453,9 @@ int execute(const po::variables_map &vm,
     return r;
   }
 
-  r = do_merge_diff(first_diff.c_str(), second_diff.c_str(), path.c_str(),
-                    vm[at::NO_PROGRESS].as<bool>());
+  r = do_merge_diff(
+      first_diff.c_str(), second_diff.c_str(), path.c_str(),
+      vm[at::NO_PROGRESS].as<bool>());
   if (r < 0) {
     std::cerr << "rbd: merge-diff error" << std::endl;
     return -r;
@@ -448,8 +465,12 @@ int execute(const po::variables_map &vm,
 }
 
 Shell::Action action(
-  {"merge-diff"}, {}, "Merge two diff exports together.", "",
-  &get_arguments, &execute);
+    {"merge-diff"},
+    {},
+    "Merge two diff exports together.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace merge_diff
 } // namespace action

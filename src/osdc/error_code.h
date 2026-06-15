@@ -34,23 +34,27 @@ enum class osdc_errc {
 };
 
 namespace boost::system {
-template<>
+template <>
 struct is_error_code_enum<::osdc_errc> {
   static const bool value = true;
 };
 
-template<>
+template <>
 struct is_error_condition_enum<::osdc_errc> {
   static const bool value = false;
 };
-}
+} // namespace boost::system
 
 //  implicit conversion:
-inline boost::system::error_code make_error_code(osdc_errc e) noexcept {
-  return { static_cast<int>(e), osdc_category() };
+inline boost::system::error_code
+make_error_code(osdc_errc e) noexcept
+{
+  return {static_cast<int>(e), osdc_category()};
 }
 
 // explicit conversion:
-inline boost::system::error_condition make_error_condition(osdc_errc e) noexcept {
-  return { static_cast<int>(e), osdc_category() };
+inline boost::system::error_condition
+make_error_condition(osdc_errc e) noexcept
+{
+  return {static_cast<int>(e), osdc_category()};
 }

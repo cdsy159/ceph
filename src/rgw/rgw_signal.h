@@ -15,7 +15,6 @@
 
 #pragma once
 
-
 namespace rgw {
 namespace signal {
 

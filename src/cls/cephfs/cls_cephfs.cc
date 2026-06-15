@@ -14,27 +14,28 @@
  */
 
 
-#include <string>
+#include "cls_cephfs.h"
+
 #include <errno.h>
+
+#include <string>
 
 #include "objclass/objclass.h"
 #include "osd/osd_types.h"
 
-#include "cls_cephfs.h"
-
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(cephfs)
 
 using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-std::ostream &operator<<(std::ostream &out, const ObjCeiling &in)
+std::ostream&
+operator<<(std::ostream& out, const ObjCeiling& in)
 {
   out << "id: " << in.id << " size: " << in.size;
   return out;
 }
-
 
 /**
  * Set a named xattr to a given value, if and only if the xattr
@@ -48,8 +49,11 @@ std::ostream &operator<<(std::ostream &out, const ObjCeiling &in)
  *          was used) else an error code
  */
 template <typename A>
-static int set_if_greater(cls_method_context_t hctx,
-    const std::string &xattr_name, const A input_val)
+static int
+set_if_greater(
+    cls_method_context_t hctx,
+    const std::string& xattr_name,
+    const A input_val)
 {
   bufferlist existing_val_bl;
 
@@ -69,7 +73,7 @@ static int set_if_greater(cls_method_context_t hctx,
         // Valid existing value, do comparison
         set_val = input_val > existing_val;
       }
-    } catch (const ceph::buffer::error &err) {
+    } catch (const ceph::buffer::error& err) {
       // Corrupt or empty existing value, overwrite it
       set_val = true;
     }
@@ -87,8 +91,11 @@ static int set_if_greater(cls_method_context_t hctx,
   }
 }
 
-static int accumulate_inode_metadata(cls_method_context_t hctx,
-    bufferlist *in, bufferlist *out)
+static int
+accumulate_inode_metadata(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   ceph_assert(in != NULL);
   ceph_assert(out != NULL);
@@ -100,7 +107,7 @@ static int accumulate_inode_metadata(cls_method_context_t hctx,
   AccumulateArgs args;
   try {
     args.decode(q);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     return -EINVAL;
   }
 
@@ -130,13 +137,16 @@ static int accumulate_inode_metadata(cls_method_context_t hctx,
 class PGLSCephFSFilter : public PGLSFilter {
 protected:
   std::string scrub_tag;
+
 public:
-  int init(bufferlist::const_iterator& params) override {
+  int
+  init(bufferlist::const_iterator& params) override
+  {
     try {
       InodeTagFilterArgs args;
       args.decode(params);
       scrub_tag = args.scrub_tag;
-    } catch (ceph::buffer::error &e) {
+    } catch (ceph::buffer::error& e) {
       return -EINVAL;
     }
 
@@ -150,22 +160,29 @@ public:
   }
 
   ~PGLSCephFSFilter() override {}
-  bool reject_empty_xattr() const override { return false; }
-  bool filter(const hobject_t& obj,
-              const bufferlist& xattr_data) const override;
+
+  bool
+  reject_empty_xattr() const override
+  {
+    return false;
+  }
+
+  bool filter(const hobject_t& obj, const bufferlist& xattr_data) const override;
 };
 
-bool PGLSCephFSFilter::filter(const hobject_t &obj,
-                              const bufferlist& xattr_data) const
+bool
+PGLSCephFSFilter::filter(const hobject_t& obj, const bufferlist& xattr_data) const
 {
   const std::string need_ending = ".00000000";
-  const std::string &obj_name = obj.oid.name;
+  const std::string& obj_name = obj.oid.name;
 
   if (obj_name.length() < need_ending.length()) {
     return false;
   }
 
-  const bool match = obj_name.compare (obj_name.length() - need_ending.length(), need_ending.length(), need_ending) == 0;
+  const bool match = obj_name.compare(
+                         obj_name.length() - need_ending.length(),
+                         need_ending.length(), need_ending) == 0;
   if (!match) {
     return false;
   }
@@ -176,15 +193,16 @@ bool PGLSCephFSFilter::filter(const hobject_t &obj,
     try {
       decode(tag_ondisk, q);
       if (tag_ondisk == scrub_tag)
-	return false;
-    } catch (const ceph::buffer::error &err) {
+        return false;
+    } catch (const ceph::buffer::error& err) {
     }
   }
 
   return true;
 }
 
-PGLSFilter *inode_tag_filter()
+PGLSFilter*
+inode_tag_filter()
 {
   return new PGLSCephFSFilter();
 }
@@ -205,11 +223,10 @@ CLS_INIT(cephfs)
   cls_method_handle_t h_accumulate_inode_metadata;
 
   cls_register("cephfs", &h_class);
-  cls_register_cxx_method(h_class, "accumulate_inode_metadata",
-			  CLS_METHOD_WR | CLS_METHOD_RD,
-			  accumulate_inode_metadata, &h_accumulate_inode_metadata);
+  cls_register_cxx_method(
+      h_class, "accumulate_inode_metadata", CLS_METHOD_WR | CLS_METHOD_RD,
+      accumulate_inode_metadata, &h_accumulate_inode_metadata);
 
   // A PGLS filter
   cls_register_cxx_filter(h_class, "inode_tag", inode_tag_filter);
 }
-

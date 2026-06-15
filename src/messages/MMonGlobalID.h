@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,30 +21,46 @@
 class MMonGlobalID final : public PaxosServiceMessage {
 public:
   uint64_t old_max_id = 0;
-  MMonGlobalID() : PaxosServiceMessage{MSG_MON_GLOBAL_ID, 0}
+
+  MMonGlobalID() :
+    PaxosServiceMessage{MSG_MON_GLOBAL_ID, 0}
   {}
+
 private:
   ~MMonGlobalID() final {}
 
 public:
-  std::string_view get_type_name() const override { return "global_id"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "global_id";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "global_id  (" << old_max_id << ")";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
     decode(old_max_id, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(old_max_id, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

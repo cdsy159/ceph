@@ -17,6 +17,7 @@
 #define CEPH_ASYNC_BIND_HANDLER_H
 
 #include <tuple>
+
 #include <boost/asio/associator.hpp>
 
 namespace ceph::async {
@@ -38,18 +39,25 @@ struct CompletionHandler {
   Handler handler;
   Tuple args;
 
-  CompletionHandler(Handler&& handler, Tuple&& args)
-    : handler(std::move(handler)),
-      args(std::move(args))
+  CompletionHandler(Handler&& handler, Tuple&& args) :
+    handler(std::move(handler)), args(std::move(args))
   {}
 
-  void operator()() & {
+  void
+  operator()() &
+  {
     std::apply(handler, args);
   }
-  void operator()() const & {
+
+  void
+  operator()() const&
+  {
     std::apply(handler, args);
   }
-  void operator()() && {
+
+  void
+  operator()() &&
+  {
     std::apply(std::move(handler), std::move(args));
   }
 };
@@ -59,17 +67,26 @@ struct CompletionHandler {
 namespace boost::asio {
 
 // forward the handler's associated executor, allocator, cancellation slot, etc
-template <template <typename, typename> class Associator,
-          typename Handler, typename Tuple, typename DefaultCandidate>
-struct associator<Associator,
-    ceph::async::CompletionHandler<Handler, Tuple>, DefaultCandidate>
-  : Associator<Handler, DefaultCandidate>
-{
-  static auto get(const ceph::async::CompletionHandler<Handler, Tuple>& h) noexcept {
+template <
+    template <typename, typename>
+    class Associator,
+    typename Handler,
+    typename Tuple,
+    typename DefaultCandidate>
+struct associator<
+    Associator,
+    ceph::async::CompletionHandler<Handler, Tuple>,
+    DefaultCandidate> : Associator<Handler, DefaultCandidate> {
+  static auto
+  get(const ceph::async::CompletionHandler<Handler, Tuple>& h) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler);
   }
-  static auto get(const ceph::async::CompletionHandler<Handler, Tuple>& h,
-                  const DefaultCandidate& c) noexcept {
+
+  static auto
+  get(const ceph::async::CompletionHandler<Handler, Tuple>& h,
+      const DefaultCandidate& c) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler, c);
   }
 };
@@ -100,11 +117,12 @@ namespace ceph::async {
  *
  * @see CompletionHandler
  */
-template <typename Handler, typename ...Args>
-auto bind_handler(Handler&& h, Args&& ...args)
+template <typename Handler, typename... Args>
+auto
+bind_handler(Handler&& h, Args&&... args)
 {
-  return CompletionHandler{std::forward<Handler>(h),
-                           std::make_tuple(std::forward<Args>(args)...)};
+  return CompletionHandler{
+      std::forward<Handler>(h), std::make_tuple(std::forward<Args>(args)...)};
 }
 
 } // namespace ceph::async

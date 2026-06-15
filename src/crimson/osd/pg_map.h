@@ -3,16 +3,16 @@
 
 #pragma once
 
-#include <map>
-#include <algorithm>
-
 #include <seastar/core/future.hh>
 #include <seastar/core/shared_future.hh>
 
-#include "include/types.h"
-#include "crimson/common/type_helpers.h"
+#include <algorithm>
+#include <map>
+
 #include "crimson/common/smp_helpers.h"
+#include "crimson/common/type_helpers.h"
 #include "crimson/osd/osd_operation.h"
+#include "include/types.h"
 #include "osd/osd_types.h"
 
 namespace crimson::osd {
@@ -28,32 +28,46 @@ class PG;
 class PGShardMapping : public seastar::peering_sharded_service<PGShardMapping> {
 public:
   /// Returns mapping if present, NULL_CORE otherwise
-  core_id_t get_pg_mapping(spg_t pgid) {
+  core_id_t
+  get_pg_mapping(spg_t pgid)
+  {
     auto iter = pg_to_core.find(pgid);
-    ceph_assert_always(iter == pg_to_core.end() || iter->second.first != NULL_CORE);
+    ceph_assert_always(
+        iter == pg_to_core.end() || iter->second.first != NULL_CORE);
     return iter == pg_to_core.end() ? NULL_CORE : iter->second.first;
   }
 
   /// Returns mapping for pgid, creates new one if it doesn't already exist
   seastar::future<std::pair<core_id_t, store_index_t>> get_or_create_pg_mapping(
-    spg_t pgid,
-    core_id_t core_expected = NULL_CORE,
-    store_index_t store_index = NULL_STORE_INDEX);
+      spg_t pgid,
+      core_id_t core_expected = NULL_CORE,
+      store_index_t store_index = NULL_STORE_INDEX);
 
   /// Remove pgid mapping
   seastar::future<> remove_pg_mapping(spg_t pgid);
 
-  size_t get_num_pgs() const { return pg_to_core.size(); }
+  size_t
+  get_num_pgs() const
+  {
+    return pg_to_core.size();
+  }
 
-  seastar::future<> dump_store_shards(Formatter *f) const;
+  seastar::future<> dump_store_shards(Formatter* f) const;
 
   /// Map to cores in [min_core_mapping, core_mapping_limit)
-  PGShardMapping(core_id_t min_core_mapping, core_id_t core_mapping_limit, uint32_t store_shard_nums)
-    : store_shard_nums(store_shard_nums) {
+  PGShardMapping(
+      core_id_t min_core_mapping,
+      core_id_t core_mapping_limit,
+      uint32_t store_shard_nums) :
+    store_shard_nums(store_shard_nums)
+  {
     ceph_assert_always(min_core_mapping < core_mapping_limit);
-    auto max_core_mapping = std::min(min_core_mapping + store_shard_nums, core_mapping_limit);
-    auto num_shard_services = (store_shard_nums + seastar::smp::count - 1 ) / seastar::smp::count;
-    auto num_alien_cores = (seastar::smp::count + store_shard_nums -1 ) / store_shard_nums;
+    auto max_core_mapping =
+        std::min(min_core_mapping + store_shard_nums, core_mapping_limit);
+    auto num_shard_services = (store_shard_nums + seastar::smp::count - 1) /
+                              seastar::smp::count;
+    auto num_alien_cores = (seastar::smp::count + store_shard_nums - 1) /
+                           store_shard_nums;
 
     for (auto i = min_core_mapping; i != max_core_mapping; ++i) {
       for (unsigned int j = 0; j < num_shard_services; ++j) {
@@ -71,14 +85,15 @@ public:
   }
 
   template <typename F>
-  void for_each_pgid(F &&f) const {
-    for (const auto &i: pg_to_core) {
+  void
+  for_each_pgid(F&& f) const
+  {
+    for (const auto& i : pg_to_core) {
       std::invoke(f, i.first);
     }
   }
 
 private:
-
   uint32_t store_shard_nums;
   // only in shard 0
   //<core_id, num_pgs>
@@ -90,7 +105,6 @@ private:
   // per-shard, updated by shard 0
   //<pg, <core_id, store_index>>
   std::map<spg_t, std::pair<core_id_t, store_index_t>> pg_to_core;
-
 };
 
 /**
@@ -101,19 +115,19 @@ private:
  */
 class PGMap {
   struct PGCreationState : BlockerT<PGCreationState> {
-    static constexpr const char * type_name = "PGCreation";
+    static constexpr const char* type_name = "PGCreation";
 
-    void dump_detail(Formatter *f) const final;
+    void dump_detail(Formatter* f) const final;
 
     spg_t pgid;
     seastar::shared_promise<Ref<PG>> promise;
     bool creating = false;
     PGCreationState(spg_t pgid);
 
-    PGCreationState(const PGCreationState &) = delete;
-    PGCreationState(PGCreationState &&) = delete;
-    PGCreationState &operator=(const PGCreationState &) = delete;
-    PGCreationState &operator=(PGCreationState &&) = delete;
+    PGCreationState(const PGCreationState&) = delete;
+    PGCreationState(PGCreationState&&) = delete;
+    PGCreationState& operator=(const PGCreationState&) = delete;
+    PGCreationState& operator=(PGCreationState&&) = delete;
 
     ~PGCreationState();
   };
@@ -129,8 +143,7 @@ public:
    * Get future for pg with a bool indicating whether it's already being
    * created.
    */
-  using wait_for_pg_ertr = crimson::errorator<
-    crimson::ct_error::ecanceled>;
+  using wait_for_pg_ertr = crimson::errorator<crimson::ct_error::ecanceled>;
   using wait_for_pg_fut = wait_for_pg_ertr::future<Ref<PG>>;
   using wait_for_pg_ret = std::pair<wait_for_pg_fut, bool>;
   wait_for_pg_ret wait_for_pg(PGCreationBlockingEvent::TriggerI&&, spg_t pgid);
@@ -162,11 +175,26 @@ public:
 
   void remove_pg(spg_t pgid);
 
-  pgs_t& get_pgs() { return pgs; }
-  const pgs_t& get_pgs() const { return pgs; }
-  auto get_pg_count() const { return pgs.size(); }
+  pgs_t&
+  get_pgs()
+  {
+    return pgs;
+  }
+
+  const pgs_t&
+  get_pgs() const
+  {
+    return pgs;
+  }
+
+  auto
+  get_pg_count() const
+  {
+    return pgs.size();
+  }
+
   PGMap() = default;
   ~PGMap();
 };
 
-}
+} // namespace crimson::osd

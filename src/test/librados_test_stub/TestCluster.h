@@ -4,8 +4,8 @@
 #ifndef CEPH_TEST_CLUSTER_H
 #define CEPH_TEST_CLUSTER_H
 
-#include "test/librados_test_stub/TestWatchNotify.h"
 #include "include/common_fwd.h"
+#include "test/librados_test_stub/TestWatchNotify.h"
 
 namespace librados {
 
@@ -18,11 +18,13 @@ public:
     std::string nspace;
     std::string name;
 
-    ObjectLocator(const std::string& nspace, const std::string& name)
-      : nspace(nspace), name(name) {
-    }
+    ObjectLocator(const std::string& nspace, const std::string& name) :
+      nspace(nspace), name(name)
+    {}
 
-    bool operator<(const ObjectLocator& rhs) const {
+    bool
+    operator<(const ObjectLocator& rhs) const
+    {
       if (nspace != rhs.nspace) {
         return nspace < rhs.nspace;
       }
@@ -36,27 +38,31 @@ public:
     virtual void handle_removed(TestRadosClient* test_rados_client) = 0;
   };
 
-  TestCluster() : m_watch_notify(this) {
-  }
-  virtual ~TestCluster() {
-  }
+  TestCluster() :
+    m_watch_notify(this)
+  {}
 
-  virtual TestRadosClient *create_rados_client(CephContext *cct) = 0;
+  virtual ~TestCluster() {}
 
-  virtual int register_object_handler(int64_t pool_id,
-                                      const ObjectLocator& locator,
-                                      ObjectHandler* object_handler) = 0;
-  virtual void unregister_object_handler(int64_t pool_id,
-                                         const ObjectLocator& locator,
-                                         ObjectHandler* object_handler) = 0;
+  virtual TestRadosClient* create_rados_client(CephContext* cct) = 0;
 
-  TestWatchNotify *get_watch_notify() {
+  virtual int register_object_handler(
+      int64_t pool_id,
+      const ObjectLocator& locator,
+      ObjectHandler* object_handler) = 0;
+  virtual void unregister_object_handler(
+      int64_t pool_id,
+      const ObjectLocator& locator,
+      ObjectHandler* object_handler) = 0;
+
+  TestWatchNotify*
+  get_watch_notify()
+  {
     return &m_watch_notify;
   }
 
 protected:
   TestWatchNotify m_watch_notify;
-
 };
 
 } // namespace librados

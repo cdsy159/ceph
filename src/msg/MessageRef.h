@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -15,15 +15,16 @@
 
 #ifndef CEPH_MESSAGEREF_H
 #define CEPH_MESSAGEREF_H
- 
+
 #include <boost/intrusive_ptr.hpp>
+
 #include "common/RefCountedObj.h"
 
-template<typename T>
+template <typename T>
 using MRef = boost::intrusive_ptr<T>;
-template<typename T>
+template <typename T>
 using MConstRef = boost::intrusive_ptr<T const>;
-template<typename T>
+template <typename T>
 using MURef = std::unique_ptr<T, TOPNSPC::common::UniquePtrDeleter>;
 
 class Message;

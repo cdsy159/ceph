@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/EnableRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageState.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
@@ -13,8 +14,8 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::EnableRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::mirror::EnableRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -23,36 +24,45 @@ using util::create_context_callback;
 using util::create_rados_callback;
 
 template <typename I>
-EnableRequest<I>::EnableRequest(librados::IoCtx &io_ctx,
-                                const std::string &image_id,
-                                I* image_ctx,
-                                cls::rbd::MirrorImageMode mode,
-                                const std::string &non_primary_global_image_id,
-                                bool image_clean,
-                                asio::ContextWQ *op_work_queue,
-                                Context *on_finish)
-  : m_io_ctx(io_ctx), m_image_id(image_id), m_image_ctx(image_ctx),
-    m_mode(mode), m_non_primary_global_image_id(non_primary_global_image_id),
-    m_image_clean(image_clean), m_op_work_queue(op_work_queue),
-    m_on_finish(on_finish),
-    m_cct(reinterpret_cast<CephContext*>(io_ctx.cct())) {
-}
+EnableRequest<I>::EnableRequest(
+    librados::IoCtx& io_ctx,
+    const std::string& image_id,
+    I* image_ctx,
+    cls::rbd::MirrorImageMode mode,
+    const std::string& non_primary_global_image_id,
+    bool image_clean,
+    asio::ContextWQ* op_work_queue,
+    Context* on_finish) :
+  m_io_ctx(io_ctx),
+  m_image_id(image_id),
+  m_image_ctx(image_ctx),
+  m_mode(mode),
+  m_non_primary_global_image_id(non_primary_global_image_id),
+  m_image_clean(image_clean),
+  m_op_work_queue(op_work_queue),
+  m_on_finish(on_finish),
+  m_cct(reinterpret_cast<CephContext*>(io_ctx.cct()))
+{}
 
 template <typename I>
-void EnableRequest<I>::send() {
+void
+EnableRequest<I>::send()
+{
   get_mirror_image();
 }
 
 template <typename I>
-void EnableRequest<I>::get_mirror_image() {
+void
+EnableRequest<I>::get_mirror_image()
+{
   ldout(m_cct, 10) << dendl;
 
   librados::ObjectReadOperation op;
   cls_client::mirror_image_get_start(&op, m_image_id);
 
   using klass = EnableRequest<I>;
-  librados::AioCompletion *comp =
-    create_rados_callback<klass, &klass::handle_get_mirror_image>(this);
+  librados::AioCompletion* comp =
+      create_rados_callback<klass, &klass::handle_get_mirror_image>(this);
   m_out_bl.clear();
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, comp, &op, &m_out_bl);
   ceph_assert(r == 0);
@@ -60,7 +70,9 @@ void EnableRequest<I>::get_mirror_image() {
 }
 
 template <typename I>
-void EnableRequest<I>::handle_get_mirror_image(int r) {
+void
+EnableRequest<I>::handle_get_mirror_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r == 0) {
@@ -85,8 +97,7 @@ void EnableRequest<I>::handle_get_mirror_image(int r) {
       ceph_assert(!m_mirror_image.global_image_id.empty());
       ldout(m_cct, 10) << "enabling mirroring on in-progress image replication"
                        << dendl;
-    } else if (
-	m_mirror_image.state == cls::rbd::MIRROR_IMAGE_STATE_DISABLING) {
+    } else if (m_mirror_image.state == cls::rbd::MIRROR_IMAGE_STATE_DISABLING) {
       lderr(m_cct) << "currently disabling" << dendl;
       finish(-EINVAL);
       return;
@@ -115,7 +126,9 @@ void EnableRequest<I>::handle_get_mirror_image(int r) {
 }
 
 template <typename I>
-void EnableRequest<I>::get_tag_owner() {
+void
+EnableRequest<I>::get_tag_owner()
+{
   if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_SNAPSHOT) {
     open_image();
     return;
@@ -124,17 +137,19 @@ void EnableRequest<I>::get_tag_owner() {
     return;
   }
 
-  ldout(m_cct, 10)  << dendl;
+  ldout(m_cct, 10) << dendl;
 
   using klass = EnableRequest<I>;
-  Context *ctx = create_context_callback<
-      klass, &klass::handle_get_tag_owner>(this);
-  librbd::Journal<>::is_tag_owner(m_io_ctx, m_image_id, &m_is_primary,
-                                  m_op_work_queue, ctx);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_get_tag_owner>(this);
+  librbd::Journal<>::is_tag_owner(
+      m_io_ctx, m_image_id, &m_is_primary, m_op_work_queue, ctx);
 }
 
 template <typename I>
-void EnableRequest<I>::handle_get_tag_owner(int r) {
+void
+EnableRequest<I>::handle_get_tag_owner(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -154,7 +169,9 @@ void EnableRequest<I>::handle_get_tag_owner(int r) {
 }
 
 template <typename I>
-void EnableRequest<I>::open_image() {
+void
+EnableRequest<I>::open_image()
+{
   if (!m_non_primary_global_image_id.empty()) {
     // special case for rbd-mirror creating a non-primary image
     enable_non_primary_feature();
@@ -170,13 +187,15 @@ void EnableRequest<I>::open_image() {
   m_image_ctx = I::create("", m_image_id, CEPH_NOSNAP, m_io_ctx, false);
 
   auto ctx = create_context_callback<
-    EnableRequest<I>, &EnableRequest<I>::handle_open_image>(this);
-  m_image_ctx->state->open(OPEN_FLAG_SKIP_OPEN_PARENT |
-                           OPEN_FLAG_IGNORE_MIGRATING, ctx);
+      EnableRequest<I>, &EnableRequest<I>::handle_open_image>(this);
+  m_image_ctx->state->open(
+      OPEN_FLAG_SKIP_OPEN_PARENT | OPEN_FLAG_IGNORE_MIGRATING, ctx);
 }
 
 template <typename I>
-void EnableRequest<I>::handle_open_image(int r) {
+void
+EnableRequest<I>::handle_open_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -190,7 +209,9 @@ void EnableRequest<I>::handle_open_image(int r) {
 }
 
 template <typename I>
-void EnableRequest<I>::create_primary_snapshot() {
+void
+EnableRequest<I>::create_primary_snapshot()
+{
   ldout(m_cct, 10) << dendl;
 
   ceph_assert(m_image_ctx != nullptr);
@@ -200,17 +221,18 @@ void EnableRequest<I>::create_primary_snapshot() {
       &snap_create_flags);
   ceph_assert(r == 0);
   auto ctx = create_context_callback<
-    EnableRequest<I>,
-    &EnableRequest<I>::handle_create_primary_snapshot>(this);
+      EnableRequest<I>, &EnableRequest<I>::handle_create_primary_snapshot>(this);
   auto req = snapshot::CreatePrimaryRequest<I>::create(
-    m_image_ctx, m_mirror_image.global_image_id,
-    (m_image_clean ? 0 : CEPH_NOSNAP), snap_create_flags,
-    snapshot::CREATE_PRIMARY_FLAG_IGNORE_EMPTY_PEERS, &m_snap_id, ctx);
+      m_image_ctx, m_mirror_image.global_image_id,
+      (m_image_clean ? 0 : CEPH_NOSNAP), snap_create_flags,
+      snapshot::CREATE_PRIMARY_FLAG_IGNORE_EMPTY_PEERS, &m_snap_id, ctx);
   req->send();
 }
 
 template <typename I>
-void EnableRequest<I>::handle_create_primary_snapshot(int r) {
+void
+EnableRequest<I>::handle_create_primary_snapshot(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -223,7 +245,9 @@ void EnableRequest<I>::handle_create_primary_snapshot(int r) {
 }
 
 template <typename I>
-void EnableRequest<I>::close_image() {
+void
+EnableRequest<I>::close_image()
+{
   if (!m_close_image) {
     if (m_ret_val < 0) {
       finish(m_ret_val);
@@ -236,12 +260,14 @@ void EnableRequest<I>::close_image() {
   ldout(m_cct, 10) << dendl;
 
   auto ctx = create_context_callback<
-    EnableRequest<I>, &EnableRequest<I>::handle_close_image>(this);
+      EnableRequest<I>, &EnableRequest<I>::handle_close_image>(this);
   m_image_ctx->state->close(ctx);
 }
 
 template <typename I>
-void EnableRequest<I>::handle_close_image(int r) {
+void
+EnableRequest<I>::handle_close_image(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   m_image_ctx = nullptr;
@@ -261,9 +287,10 @@ void EnableRequest<I>::handle_close_image(int r) {
   image_state_update();
 }
 
-
 template <typename I>
-void EnableRequest<I>::enable_non_primary_feature() {
+void
+EnableRequest<I>::enable_non_primary_feature()
+{
   if (m_mirror_image.mode != cls::rbd::MIRROR_IMAGE_MODE_SNAPSHOT) {
     image_state_update();
     return;
@@ -274,24 +301,26 @@ void EnableRequest<I>::enable_non_primary_feature() {
   // ensure image is flagged with non-primary feature so that
   // standard RBD clients cannot write to it.
   librados::ObjectWriteOperation op;
-  cls_client::set_features(&op, RBD_FEATURE_NON_PRIMARY,
-                           RBD_FEATURE_NON_PRIMARY);
+  cls_client::set_features(
+      &op, RBD_FEATURE_NON_PRIMARY, RBD_FEATURE_NON_PRIMARY);
 
   auto aio_comp = create_rados_callback<
-    EnableRequest<I>,
-    &EnableRequest<I>::handle_enable_non_primary_feature>(this);
+      EnableRequest<I>, &EnableRequest<I>::handle_enable_non_primary_feature>(
+      this);
   int r = m_io_ctx.aio_operate(util::header_name(m_image_id), aio_comp, &op);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void EnableRequest<I>::handle_enable_non_primary_feature(int r) {
+void
+EnableRequest<I>::handle_enable_non_primary_feature(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(m_cct) << "failed to enable non-primary feature: "
-                 << cpp_strerror(r) << dendl;
+    lderr(m_cct) << "failed to enable non-primary feature: " << cpp_strerror(r)
+                 << dendl;
     finish(r);
     return;
   }
@@ -300,31 +329,36 @@ void EnableRequest<I>::handle_enable_non_primary_feature(int r) {
 }
 
 template <typename I>
-void EnableRequest<I>::image_state_update() {
+void
+EnableRequest<I>::image_state_update()
+{
   ldout(m_cct, 10) << dendl;
 
   auto ctx = create_context_callback<
-    EnableRequest<I>, &EnableRequest<I>::handle_image_state_update>(this);
+      EnableRequest<I>, &EnableRequest<I>::handle_image_state_update>(this);
   auto req = ImageStateUpdateRequest<I>::create(
-    m_io_ctx, m_image_id, cls::rbd::MIRROR_IMAGE_STATE_ENABLED,
-    m_mirror_image, ctx);
+      m_io_ctx, m_image_id, cls::rbd::MIRROR_IMAGE_STATE_ENABLED,
+      m_mirror_image, ctx);
   req->send();
 }
 
 template <typename I>
-void EnableRequest<I>::handle_image_state_update(int r) {
+void
+EnableRequest<I>::handle_image_state_update(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(m_cct) << "failed to enable mirroring: " << cpp_strerror(r)
-                 << dendl;
+    lderr(m_cct) << "failed to enable mirroring: " << cpp_strerror(r) << dendl;
   }
 
   finish(r);
 }
 
 template <typename I>
-void EnableRequest<I>::finish(int r) {
+void
+EnableRequest<I>::finish(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

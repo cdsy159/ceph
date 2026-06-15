@@ -1,7 +1,9 @@
 #include "FSMapUser.h"
+
 #include "common/Formatter.h"
 
-void FSMapUser::encode(ceph::buffer::list& bl, uint64_t features) const
+void
+FSMapUser::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   ENCODE_START(1, 1, bl);
   encode(epoch, bl);
@@ -13,7 +15,8 @@ void FSMapUser::encode(ceph::buffer::list& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void FSMapUser::decode(ceph::buffer::list::const_iterator& p)
+void
+FSMapUser::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(epoch, p);
@@ -26,7 +29,8 @@ void FSMapUser::decode(ceph::buffer::list::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void FSMapUser::fs_info_t::encode(ceph::buffer::list& bl, uint64_t features) const
+void
+FSMapUser::fs_info_t::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   ENCODE_START(1, 1, bl);
   encode(cid, bl);
@@ -34,7 +38,8 @@ void FSMapUser::fs_info_t::encode(ceph::buffer::list& bl, uint64_t features) con
   ENCODE_FINISH(bl);
 }
 
-void FSMapUser::fs_info_t::decode(ceph::buffer::list::const_iterator& p)
+void
+FSMapUser::fs_info_t::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(cid, p);
@@ -42,7 +47,8 @@ void FSMapUser::fs_info_t::decode(ceph::buffer::list::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-std::list<FSMapUser> FSMapUser::generate_test_instances()
+std::list<FSMapUser>
+FSMapUser::generate_test_instances()
 {
   std::list<FSMapUser> ls;
   FSMapUser m;
@@ -56,29 +62,30 @@ std::list<FSMapUser> FSMapUser::generate_test_instances()
   return ls;
 }
 
-
-void FSMapUser::print(std::ostream& out) const
+void
+FSMapUser::print(std::ostream& out) const
 {
   out << "e" << epoch << std::endl;
   out << "legacy_client_fscid: " << legacy_client_fscid << std::endl;
-  for (auto &p : filesystems)
-    out << " id " <<  p.second.cid << " name " << p.second.name << std::endl;
+  for (auto& p : filesystems)
+    out << " id " << p.second.cid << " name " << p.second.name << std::endl;
 }
 
-void FSMapUser::print_summary(ceph::Formatter *f, std::ostream *out) const
+void
+FSMapUser::print_summary(ceph::Formatter* f, std::ostream* out) const
 {
-  std::map<mds_role_t,std::string> by_rank;
-  std::map<std::string,int> by_state;
+  std::map<mds_role_t, std::string> by_rank;
+  std::map<std::string, int> by_state;
 
   if (f) {
     f->dump_unsigned("epoch", get_epoch());
-    for (auto &p : filesystems) {
+    for (auto& p : filesystems) {
       f->dump_unsigned("id", p.second.cid);
       f->dump_string("name", p.second.name);
     }
   } else {
     *out << "e" << get_epoch() << ":";
-    for (auto &p : filesystems)
+    for (auto& p : filesystems)
       *out << " " << p.second.name << "(" << p.second.cid << ")";
   }
 }

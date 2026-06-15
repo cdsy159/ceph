@@ -26,13 +26,13 @@ public:
   * Operation types
   */
   enum {
-    OP_GET_COOKIE_FULL = 1,   // -> start a session (full scan)
+    OP_GET_COOKIE_FULL = 1, // -> start a session (full scan)
     OP_GET_COOKIE_RECENT = 2, // -> start a session (only recent paxos events)
-    OP_COOKIE = 3,            // <- pass the iterator cookie, or
-    OP_GET_CHUNK = 4,         // -> get some keys
-    OP_CHUNK = 5,             // <- return some keys
-    OP_LAST_CHUNK = 6,        // <- return the last set of keys
-    OP_NO_COOKIE = 8,         // <- sorry, no cookie
+    OP_COOKIE = 3, // <- pass the iterator cookie, or
+    OP_GET_CHUNK = 4, // -> get some keys
+    OP_CHUNK = 5, // <- return some keys
+    OP_LAST_CHUNK = 6, // <- return the last set of keys
+    OP_NO_COOKIE = 8, // <- sorry, no cookie
   };
 
   /**
@@ -41,40 +41,57 @@ public:
   * @param op Operation type
   * @returns A string
   */
-  static const char *get_opname(int op) {
+  static const char*
+  get_opname(int op)
+  {
     switch (op) {
-    case OP_GET_COOKIE_FULL: return "get_cookie_full";
-    case OP_GET_COOKIE_RECENT: return "get_cookie_recent";
-    case OP_COOKIE: return "cookie";
-    case OP_GET_CHUNK: return "get_chunk";
-    case OP_CHUNK: return "chunk";
-    case OP_LAST_CHUNK: return "last_chunk";
-    case OP_NO_COOKIE: return "no_cookie";
-    default: ceph_abort_msg("unknown op type"); return NULL;
+    case OP_GET_COOKIE_FULL:
+      return "get_cookie_full";
+    case OP_GET_COOKIE_RECENT:
+      return "get_cookie_recent";
+    case OP_COOKIE:
+      return "cookie";
+    case OP_GET_CHUNK:
+      return "get_chunk";
+    case OP_CHUNK:
+      return "chunk";
+    case OP_LAST_CHUNK:
+      return "last_chunk";
+    case OP_NO_COOKIE:
+      return "no_cookie";
+    default:
+      ceph_abort_msg("unknown op type");
+      return NULL;
     }
   }
 
   uint32_t op = 0;
   uint64_t cookie = 0;
   version_t last_committed = 0;
-  std::pair<std::string,std::string> last_key;
+  std::pair<std::string, std::string> last_key;
   ceph::buffer::list chunk_bl;
   entity_inst_t reply_to;
 
-  MMonSync()
-    : Message{MSG_MON_SYNC, HEAD_VERSION, COMPAT_VERSION}
-  { }
+  MMonSync() :
+    Message{MSG_MON_SYNC, HEAD_VERSION, COMPAT_VERSION}
+  {}
 
-  MMonSync(uint32_t op, uint64_t c = 0)
-    : Message{MSG_MON_SYNC, HEAD_VERSION, COMPAT_VERSION},
-      op(op),
-      cookie(c),
-      last_committed(0)
-  { }
+  MMonSync(uint32_t op, uint64_t c = 0) :
+    Message{MSG_MON_SYNC, HEAD_VERSION, COMPAT_VERSION},
+    op(op),
+    cookie(c),
+    last_committed(0)
+  {}
 
-  std::string_view get_type_name() const override { return "mon_sync"; }
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_sync";
+  }
 
-  void print(std::ostream& out) const override {
+  void
+  print(std::ostream& out) const override
+  {
     out << "mon_sync(" << get_opname(op);
     if (cookie)
       out << " cookie " << cookie;
@@ -87,7 +104,9 @@ public:
     out << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(op, payload);
     encode(cookie, payload);
@@ -98,7 +117,9 @@ public:
     encode(reply_to, payload, features);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(op, p);
@@ -109,8 +130,9 @@ public:
     decode(chunk_bl, p);
     decode(reply_to, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

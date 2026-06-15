@@ -1,18 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/errno.h"
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
 #include "common/Formatter.h"
-#include "json_spirit/json_spirit.h"
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
+#include "common/errno.h"
 #include "include/rbd_types.h"
 #include "include/stringify.h"
 #include "include/types.h" // for byte_u_t
+#include "json_spirit/json_spirit.h"
 #include "librbd/cache/Types.h"
-#include <iostream>
-#include <boost/program_options.hpp>
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 namespace rbd {
 namespace action {
@@ -21,8 +23,12 @@ namespace status {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name,
-                          librbd::Image &image, Formatter *f)
+static int
+do_show_status(
+    librados::IoCtx& io_ctx,
+    const std::string& image_name,
+    librbd::Image& image,
+    Formatter* f)
 {
   int r;
   std::list<librbd::image_watcher_t> watchers;
@@ -43,9 +49,8 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
   std::string dest_pool_name;
   std::string migration_state;
   if ((features & RBD_FEATURE_MIGRATING) != 0) {
-    r = librbd::RBD().migration_status(io_ctx, image_name.c_str(),
-                                       &migration_status,
-                                       sizeof(migration_status));
+    r = librbd::RBD().migration_status(
+        io_ctx, image_name.c_str(), &migration_status, sizeof(migration_status));
     if (r < 0) {
       std::cerr << "rbd: getting migration status failed: " << cpp_strerror(r)
                 << std::endl;
@@ -53,7 +58,8 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
     } else {
       if (migration_status.source_pool_id >= 0) {
         librados::IoCtx src_io_ctx;
-        r = librados::Rados(io_ctx).ioctx_create2(migration_status.source_pool_id, src_io_ctx);
+        r = librados::Rados(io_ctx).ioctx_create2(
+            migration_status.source_pool_id, src_io_ctx);
         if (r < 0) {
           source_pool_name = stringify(migration_status.source_pool_id);
         } else {
@@ -68,7 +74,8 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
       }
 
       librados::IoCtx dst_io_ctx;
-      r = librados::Rados(io_ctx).ioctx_create2(migration_status.dest_pool_id, dst_io_ctx);
+      r = librados::Rados(io_ctx).ioctx_create2(
+          migration_status.dest_pool_id, dst_io_ctx);
       if (r < 0) {
         dest_pool_name = stringify(migration_status.dest_pool_id);
       } else {
@@ -127,12 +134,13 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
     int hits_partial_percent;
     int hit_bytes_percent;
   } cache_state;
+
   std::string cache_str;
   if (features & RBD_FEATURE_DIRTY_CACHE) {
     r = image.metadata_get(librbd::cache::PERSISTENT_CACHE_STATE, &cache_str);
     if (r < 0) {
-      std::cerr << "rbd: getting persistent cache state failed: " << cpp_strerror(r)
-                << std::endl;
+      std::cerr << "rbd: getting persistent cache state failed: "
+                << cpp_strerror(r) << std::endl;
       // not fatal
     }
     json_spirit::mValue json_root;
@@ -161,15 +169,16 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
         cache_state.misses = o["misses"].get_uint64();
         cache_state.hit_bytes = o["hit_bytes"].get_uint64();
         cache_state.miss_bytes = o["miss_bytes"].get_uint64();
-      } catch (std::runtime_error &e) {
+      } catch (std::runtime_error& e) {
         std::cerr << "rbd: parsing persistent cache state failed: " << e.what()
                   << std::endl;
         cache_str.clear();
       }
       cache_state.total_read_ops = cache_state.hits_full +
-          cache_state.hits_partial + cache_state.misses;
+                                   cache_state.hits_partial +
+                                   cache_state.misses;
       cache_state.total_read_bytes = cache_state.hit_bytes +
-          cache_state.miss_bytes;
+                                     cache_state.miss_bytes;
       cache_state.hits_full_percent = utils::get_percentage(
           cache_state.hits_full, cache_state.total_read_ops);
       cache_state.hits_partial_percent = utils::get_percentage(
@@ -184,7 +193,7 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
 
   if (f) {
     f->open_array_section("watchers");
-    for (auto &watcher : watchers) {
+    for (auto& watcher : watchers) {
       f->open_object_section("watcher");
       f->dump_string("address", watcher.addr);
       f->dump_unsigned("client", watcher.id);
@@ -198,14 +207,14 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
         f->dump_string("source_spec", source_spec);
       } else {
         f->dump_string("source_pool_name", source_pool_name);
-        f->dump_string("source_pool_namespace",
-                       migration_status.source_pool_namespace);
+        f->dump_string(
+            "source_pool_namespace", migration_status.source_pool_namespace);
         f->dump_string("source_image_name", migration_status.source_image_name);
         f->dump_string("source_image_id", migration_status.source_image_id);
       }
       f->dump_string("dest_pool_name", dest_pool_name);
-      f->dump_string("dest_pool_namespace",
-                     migration_status.dest_pool_namespace);
+      f->dump_string(
+          "dest_pool_namespace", migration_status.dest_pool_namespace);
       f->dump_string("dest_image_name", migration_status.dest_image_name);
       f->dump_string("dest_image_id", migration_status.dest_image_id);
       f->dump_string("state", migration_state);
@@ -239,7 +248,7 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
   } else {
     if (watchers.size()) {
       std::cout << "Watchers:" << std::endl;
-      for (auto &watcher : watchers) {
+      for (auto& watcher : watchers) {
         std::cout << "\twatcher=" << watcher.addr << " client." << watcher.id
                   << " cookie=" << watcher.cookie << std::endl;
       }
@@ -262,16 +271,16 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
         std::cout << source_pool_name << "/"
                   << migration_status.source_image_name;
         if (!migration_status.source_image_id.empty()) {
-          std::cout << " (" << migration_status.source_image_id <<  ")";
+          std::cout << " (" << migration_status.source_image_id << ")";
         }
       }
       std::cout << std::endl;
       std::cout << "\tdestination: " << dest_pool_name << "/"
                 << migration_status.dest_image_name << " ("
-                << migration_status.dest_image_id <<  ")" << std::endl;
+                << migration_status.dest_image_id << ")" << std::endl;
       std::cout << "\tstate: " << migration_state;
       if (!migration_status.state_description.empty()) {
-        std::cout << " (" << migration_status.state_description <<  ")";
+        std::cout << " (" << migration_status.state_description << ")";
       }
       std::cout << std::endl;
     }
@@ -291,7 +300,8 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
                 << std::endl;
       std::cout << "\tcached: " << byte_u_t(cache_state.cached_bytes)
                 << std::endl;
-      std::cout << "\tdirty: " << byte_u_t(cache_state.dirty_bytes) << std::endl;
+      std::cout << "\tdirty: " << byte_u_t(cache_state.dirty_bytes)
+                << std::endl;
       std::cout << "\tfree: " << byte_u_t(cache_state.free_bytes) << std::endl;
       std::cout << "\thits_full: " << cache_state.hits_full << " / "
                 << cache_state.hits_full_percent << "%" << std::endl;
@@ -313,23 +323,29 @@ static int do_show_status(librados::IoCtx& io_ctx, const std::string &image_name
   return 0;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_format_options(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -343,8 +359,9 @@ int execute(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "", "",
-                                 true, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", "", true, &rados, &io_ctx,
+      &image);
   if (r < 0) {
     return r;
   }
@@ -358,8 +375,12 @@ int execute(const po::variables_map &vm,
 }
 
 Shell::Action action(
-  {"status"}, {}, "Show the status of this image.", "", &get_arguments,
-  &execute);
+    {"status"},
+    {},
+    "Show the status of this image.",
+    "",
+    &get_arguments,
+    &execute);
 
 } // namespace status
 } // namespace action

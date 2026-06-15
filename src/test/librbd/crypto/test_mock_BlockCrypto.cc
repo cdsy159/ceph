@@ -1,92 +1,104 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_fixture.h"
+#include "librbd/crypto/BlockCrypto.cc"
 #include "librbd/crypto/BlockCrypto.h"
 #include "test/librbd/mock/crypto/MockDataCryptor.h"
+#include "test/librbd/test_fixture.h"
+template class librbd::crypto::BlockCrypto<librbd::crypto::MockCryptoContext>;
 
-#include "librbd/crypto/BlockCrypto.cc"
-template class librbd::crypto::BlockCrypto<
-        librbd::crypto::MockCryptoContext>;
-
+using ::testing::_;
 using ::testing::ExpectationSet;
-using ::testing::internal::ExpectationBase;
 using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::WithArg;
-using ::testing::_;
+using ::testing::internal::ExpectationBase;
 
 namespace librbd {
 namespace crypto {
 
-MATCHER_P(CompareArrayToString, s, "") {
+MATCHER_P(CompareArrayToString, s, "")
+{
   return (memcmp(arg, s.c_str(), s.length()) == 0);
 }
 
 struct TestMockCryptoBlockCrypto : public TestFixture {
-    MockDataCryptor* cryptor;
-    BlockCrypto<MockCryptoContext>* bc;
-    int cryptor_block_size = 16;
-    int cryptor_iv_size = 16;
-    int block_size = 4096;
-    int data_offset = 0;
-    ExpectationSet* expectation_set;
+  MockDataCryptor* cryptor;
+  BlockCrypto<MockCryptoContext>* bc;
+  int cryptor_block_size = 16;
+  int cryptor_iv_size = 16;
+  int block_size = 4096;
+  int data_offset = 0;
+  ExpectationSet* expectation_set;
 
-    void SetUp() override {
-      TestFixture::SetUp();
+  void
+  SetUp() override
+  {
+    TestFixture::SetUp();
 
-      cryptor = new MockDataCryptor();
-      cryptor->block_size = cryptor_block_size;
-      bc = new BlockCrypto<MockCryptoContext>(
-              reinterpret_cast<CephContext*>(m_ioctx.cct()), cryptor,
-              block_size, data_offset);
-      expectation_set = new ExpectationSet();
-    }
+    cryptor = new MockDataCryptor();
+    cryptor->block_size = cryptor_block_size;
+    bc = new BlockCrypto<MockCryptoContext>(
+        reinterpret_cast<CephContext*>(m_ioctx.cct()), cryptor, block_size,
+        data_offset);
+    expectation_set = new ExpectationSet();
+  }
 
-    void TearDown() override {
-      delete expectation_set;
-      delete bc;
-      TestFixture::TearDown();
-    }
+  void
+  TearDown() override
+  {
+    delete expectation_set;
+    delete bc;
+    TestFixture::TearDown();
+  }
 
-    void expect_get_context(CipherMode mode) {
-      _set_last_expectation(
-              EXPECT_CALL(*cryptor, get_context(mode))
-              .After(*expectation_set).WillOnce(Return(
-                      new MockCryptoContext())));
-    }
+  void
+  expect_get_context(CipherMode mode)
+  {
+    _set_last_expectation(EXPECT_CALL(*cryptor, get_context(mode))
+                              .After(*expectation_set)
+                              .WillOnce(Return(new MockCryptoContext())));
+  }
 
-    void expect_return_context(CipherMode mode) {
-      _set_last_expectation(
-              EXPECT_CALL(*cryptor, return_context(_, mode))
-              .After(*expectation_set).WillOnce(WithArg<0>(
-                      Invoke([](MockCryptoContext* ctx) {
-                        delete ctx;
-                      }))));
-    }
+  void
+  expect_return_context(CipherMode mode)
+  {
+    _set_last_expectation(EXPECT_CALL(*cryptor, return_context(_, mode))
+                              .After(*expectation_set)
+                              .WillOnce(WithArg<0>(Invoke(
+                                  [](MockCryptoContext* ctx) { delete ctx; }))));
+  }
 
-    void expect_init_context(const std::string& iv) {
-      _set_last_expectation(
-              EXPECT_CALL(*cryptor, init_context(_, CompareArrayToString(iv),
-                                                cryptor_iv_size))
-              .After(*expectation_set));
-    }
+  void
+  expect_init_context(const std::string& iv)
+  {
+    _set_last_expectation(
+        EXPECT_CALL(
+            *cryptor, init_context(_, CompareArrayToString(iv), cryptor_iv_size))
+            .After(*expectation_set));
+  }
 
-    void expect_update_context(const std::string& in_str, int out_ret) {
-      _set_last_expectation(
-              EXPECT_CALL(*cryptor, update_context(_,
-                                                  CompareArrayToString(in_str),
-                                                  _, in_str.length()))
-              .After(*expectation_set).WillOnce(Return(out_ret)));
-    }
+  void
+  expect_update_context(const std::string& in_str, int out_ret)
+  {
+    _set_last_expectation(
+        EXPECT_CALL(
+            *cryptor,
+            update_context(_, CompareArrayToString(in_str), _, in_str.length()))
+            .After(*expectation_set)
+            .WillOnce(Return(out_ret)));
+  }
 
-    void _set_last_expectation(ExpectationBase& expectation) {
-      delete expectation_set;
-      expectation_set = new ExpectationSet(expectation);
-    }
+  void
+  _set_last_expectation(ExpectationBase& expectation)
+  {
+    delete expectation_set;
+    expectation_set = new ExpectationSet(expectation);
+  }
 };
 
-TEST_F(TestMockCryptoBlockCrypto, Encrypt) {
+TEST_F(TestMockCryptoBlockCrypto, Encrypt)
+{
   uint32_t image_offset = 0x1230 * 512;
 
   ceph::bufferlist data1;
@@ -113,27 +125,31 @@ TEST_F(TestMockCryptoBlockCrypto, Encrypt) {
   ASSERT_EQ(data.length(), 8192);
 }
 
-TEST_F(TestMockCryptoBlockCrypto, UnalignedImageOffset) {
+TEST_F(TestMockCryptoBlockCrypto, UnalignedImageOffset)
+{
   ceph::bufferlist data;
   data.append(std::string(4096, '1'));
   ASSERT_EQ(-EINVAL, bc->encrypt(&data, 2));
 }
 
-TEST_F(TestMockCryptoBlockCrypto, UnalignedDataLength) {
+TEST_F(TestMockCryptoBlockCrypto, UnalignedDataLength)
+{
   ceph::bufferlist data;
   data.append(std::string(512, '1'));
   ASSERT_EQ(-EINVAL, bc->encrypt(&data, 0));
 }
 
-TEST_F(TestMockCryptoBlockCrypto, GetContextError) {
+TEST_F(TestMockCryptoBlockCrypto, GetContextError)
+{
   ceph::bufferlist data;
   data.append(std::string(4096, '1'));
-  EXPECT_CALL(*cryptor, get_context(CipherMode::CIPHER_MODE_ENC)).WillOnce(
-          Return(nullptr));
+  EXPECT_CALL(*cryptor, get_context(CipherMode::CIPHER_MODE_ENC))
+      .WillOnce(Return(nullptr));
   ASSERT_EQ(-EIO, bc->encrypt(&data, 0));
 }
 
-TEST_F(TestMockCryptoBlockCrypto, InitContextError) {
+TEST_F(TestMockCryptoBlockCrypto, InitContextError)
+{
   ceph::bufferlist data;
   data.append(std::string(4096, '1'));
   expect_get_context(CipherMode::CIPHER_MODE_ENC);
@@ -142,7 +158,8 @@ TEST_F(TestMockCryptoBlockCrypto, InitContextError) {
   ASSERT_EQ(-123, bc->encrypt(&data, 0));
 }
 
-TEST_F(TestMockCryptoBlockCrypto, UpdateContextError) {
+TEST_F(TestMockCryptoBlockCrypto, UpdateContextError)
+{
   ceph::bufferlist data;
   data.append(std::string(4096, '1'));
   expect_get_context(CipherMode::CIPHER_MODE_ENC);

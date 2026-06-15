@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include "crimson/common/type_helpers.h"
 #include "crimson/net/Connection.h"
 #include "crimson/osd/osd_operation.h"
-#include "crimson/common/type_helpers.h"
 #include "messages/MOSDRepOpReply.h"
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 namespace crimson::osd {
@@ -19,33 +19,39 @@ class ShardServices;
 class OSD;
 class PG;
 
-class ReplicatedRequestReply final
-  : public OperationT<ReplicatedRequestReply>,
-    public RemoteOperation
-{
+class ReplicatedRequestReply final : public OperationT<ReplicatedRequestReply>,
+                                     public RemoteOperation {
 public:
   static constexpr OperationTypeCode type =
-    OperationTypeCode::replicated_request_reply;
+      OperationTypeCode::replicated_request_reply;
   ReplicatedRequestReply(crimson::net::ConnectionRef&&, Ref<MOSDRepOpReply>&&);
 
-  void print(std::ostream &) const final;
+  void print(std::ostream&) const final;
   void dump_detail(ceph::Formatter* f) const final;
 
-  spg_t get_pgid() const {
+  spg_t
+  get_pgid() const
+  {
     return req->get_spg();
   }
 
-  seastar::future<> with_pg(
-    ShardServices &shard_services, Ref<PG> pg);
+  seastar::future<> with_pg(ShardServices& shard_services, Ref<PG> pg);
 
-  PipelineHandle &get_handle() { return handle; }
+  PipelineHandle&
+  get_handle()
+  {
+    return handle;
+  }
+
 private:
   PipelineHandle handle;
   Ref<MOSDRepOpReply> req;
 };
 
-}
+} // namespace crimson::osd
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::osd::ReplicatedRequestReply> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::osd::ReplicatedRequestReply>
+  : fmt::ostream_formatter {};
 #endif

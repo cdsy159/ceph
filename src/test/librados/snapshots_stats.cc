@@ -1,69 +1,85 @@
-#include "include/rados.h"
-#include "json_spirit/json_spirit.h"
-#include "test/librados/test.h"
-#include "test/librados/TestCase.h"
+#include <errno.h>
 
 #include <algorithm>
-#include <errno.h>
-#include "gtest/gtest.h"
 #include <string>
 #include <vector>
+
+#include "gtest/gtest.h"
+#include "include/rados.h"
+#include "json_spirit/json_spirit.h"
+#include "test/librados/TestCase.h"
+#include "test/librados/test.h"
 
 using std::string;
 
 class LibRadosSnapshotStatsSelfManaged : public RadosTest {
 public:
-  LibRadosSnapshotStatsSelfManaged() {};
-  ~LibRadosSnapshotStatsSelfManaged() override {};
+  LibRadosSnapshotStatsSelfManaged(){};
+  ~LibRadosSnapshotStatsSelfManaged() override{};
+
 protected:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     // disable pg autoscaler for the tests
     string c =
-      "{"
+        "{"
         "\"prefix\": \"config set\", "
         "\"who\": \"global\", "
         "\"name\": \"osd_pool_default_pg_autoscale_mode\", "
         "\"value\": \"off\""
-      "}";
-    char *cmd[1];
-    cmd[0] = (char *)c.c_str();
+        "}";
+    char* cmd[1];
+    cmd[0] = (char*)c.c_str();
     std::cout << "Setting pg_autoscaler to 'off'" << std::endl;
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL,
-      0, NULL, 0));
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     // disable scrubs for the test
     c = string("{\"prefix\": \"osd set\",\"key\":\"noscrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
     c = string("{\"prefix\": \"osd set\",\"key\":\"nodeep-scrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     RadosTest::SetUp();
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     // re-enable pg autoscaler
     string c =
-      "{"
+        "{"
         "\"prefix\": \"config set\", "
         "\"who\": \"global\", "
         "\"name\": \"osd_pool_default_pg_autoscale_mode\", "
         "\"value\": \"on\""
-      "}";
-    char *cmd[1];
-    cmd[0] = (char *)c.c_str();
+        "}";
+    char* cmd[1];
+    cmd[0] = (char*)c.c_str();
     std::cout << "Setting pg_autoscaler to 'on'" << std::endl;
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL,
-      0, NULL, 0));
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     // re-enable scrubs
     c = string("{\"prefix\": \"osd unset\",\"key\":\"noscrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
     c = string("{\"prefix\": \"osd unset\",\"key\":\"nodeep-scrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     RadosTest::TearDown();
   }
@@ -71,65 +87,83 @@ protected:
 
 class LibRadosSnapshotStatsSelfManagedEC : public RadosTestEC {
 public:
-  LibRadosSnapshotStatsSelfManagedEC() {};
-  ~LibRadosSnapshotStatsSelfManagedEC() override {};
+  LibRadosSnapshotStatsSelfManagedEC(){};
+  ~LibRadosSnapshotStatsSelfManagedEC() override{};
+
 protected:
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     // disable pg autoscaler for the tests
     string c =
-      "{"
+        "{"
         "\"prefix\": \"config set\", "
         "\"who\": \"global\", "
         "\"name\": \"osd_pool_default_pg_autoscale_mode\", "
         "\"value\": \"off\""
-      "}";
-    char *cmd[1];
-    cmd[0] = (char *)c.c_str();
+        "}";
+    char* cmd[1];
+    cmd[0] = (char*)c.c_str();
     std::cout << "Setting pg_autoscaler to 'off'" << std::endl;
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL,
-      0, NULL, 0));
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     // disable scrubs for the test
     c = string("{\"prefix\": \"osd set\",\"key\":\"noscrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
     c = string("{\"prefix\": \"osd set\",\"key\":\"nodeep-scrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     RadosTestEC::SetUp();
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     // re-enable pg autoscaler
     string c =
-      "{"
+        "{"
         "\"prefix\": \"config set\", "
         "\"who\": \"global\", "
         "\"name\": \"osd_pool_default_pg_autoscale_mode\", "
         "\"value\": \"on\""
-      "}";
-    char *cmd[1];
-    cmd[0] = (char *)c.c_str();
+        "}";
+    char* cmd[1];
+    cmd[0] = (char*)c.c_str();
     std::cout << "Setting pg_autoscaler to 'on'" << std::endl;
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL,
-      0, NULL, 0));
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     // re-enable scrubs
     c = string("{\"prefix\": \"osd unset\",\"key\":\"noscrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
     c = string("{\"prefix\": \"osd unset\",\"key\":\"nodeep-scrub\"}");
-    cmd[0] = (char *)c.c_str();
-    ASSERT_EQ(0, rados_mon_command(s_cluster, (const char **)cmd, 1, "", 0, NULL, 0, NULL, 0));
+    cmd[0] = (char*)c.c_str();
+    ASSERT_EQ(
+        0, rados_mon_command(
+               s_cluster, (const char**)cmd, 1, "", 0, NULL, 0, NULL, 0));
 
     RadosTestEC::TearDown();
   }
 };
 
-void get_snaptrim_stats(json_spirit::Object& pg_dump,
-                        int *objs_trimmed,
-                        double *trim_duration) {
+void
+get_snaptrim_stats(
+    json_spirit::Object& pg_dump,
+    int* objs_trimmed,
+    double* trim_duration)
+{
   // pg_map
   json_spirit::Object pgmap;
   for (json_spirit::Object::size_type i = 0; i < pg_dump.size(); ++i) {
@@ -153,7 +187,7 @@ void get_snaptrim_stats(json_spirit::Object& pg_dump,
   // snaptrim stats
   for (json_spirit::Object::size_type j = 0; j < pgs.size(); ++j) {
     json_spirit::Object& pg_stat = pgs[j].get_obj();
-    for(json_spirit::Object::size_type k = 0; k < pg_stat.size(); ++k) {
+    for (json_spirit::Object::size_type k = 0; k < pg_stat.size(); ++k) {
       json_spirit::Pair& stats = pg_stat[k];
       if (stats.name_ == "objects_trimmed") {
         *objs_trimmed += stats.value_.get_int();
@@ -167,7 +201,8 @@ void get_snaptrim_stats(json_spirit::Object& pg_dump,
 
 const int bufsize = 128;
 
-TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats) {
+TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats)
+{
   int num_objs = 10;
 
   // create objects
@@ -185,8 +220,9 @@ TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats) {
     ns.insert(ns.end(), my_snaps.begin(), my_snaps.end());
     my_snaps.swap(ns);
     ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps[0]));
-    ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-                                        &my_snaps[0], my_snaps.size()));
+    ASSERT_EQ(
+        0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+               ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
     char buf2[sizeof(buf)];
     memset(buf2, 0xdd, sizeof(buf2));
     for (int i = 0; i < num_objs; ++i) {
@@ -216,13 +252,16 @@ TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats) {
     char *buf, *st;
     size_t buflen, stlen;
     string c = string("{\"prefix\": \"pg dump\",\"format\":\"json\"}");
-    const char *cmd = c.c_str();
-    ASSERT_EQ(0, rados_mon_command(cluster, (const char **)&cmd, 1, "", 0,
-      &buf, &buflen, &st, &stlen));
+    const char* cmd = c.c_str();
+    ASSERT_EQ(
+        0,
+        rados_mon_command(
+            cluster, (const char**)&cmd, 1, "", 0, &buf, &buflen, &st, &stlen));
     string outstr(buf, buflen);
     json_spirit::Value v;
-    ASSERT_NE(0, json_spirit::read(outstr, v)) << "unable to parse json."
-      << '\n' << outstr;
+    ASSERT_NE(0, json_spirit::read(outstr, v))
+        << "unable to parse json." << '\n'
+        << outstr;
 
     // pg dump object
     json_spirit::Object& obj = v.get_obj();
@@ -230,10 +269,11 @@ TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats) {
     if (objects_trimmed < num_objs) {
       tries++;
       objects_trimmed = 0;
-      std::cout << "Still waiting for all objects to be trimmed... " <<std::endl;
+      std::cout << "Still waiting for all objects to be trimmed... "
+                << std::endl;
       sleep(30);
     }
-  } while(objects_trimmed < num_objs && tries < 5);
+  } while (objects_trimmed < num_objs && tries < 5);
 
   // final check for objects trimmed
   ASSERT_EQ(objects_trimmed, num_objs);
@@ -248,10 +288,11 @@ TEST_F(LibRadosSnapshotStatsSelfManaged, SnaptrimStats) {
 }
 
 // EC testing
-TEST_F(LibRadosSnapshotStatsSelfManagedEC, SnaptrimStats) {
+TEST_F(LibRadosSnapshotStatsSelfManagedEC, SnaptrimStats)
+{
   int num_objs = 10;
   int bsize = alignment;
-  char *buf = (char *)new char[bsize];
+  char* buf = (char*)new char[bsize];
   memset(buf, 0xcc, bsize);
   // create objects
   for (int i = 0; i < num_objs; ++i) {
@@ -266,9 +307,10 @@ TEST_F(LibRadosSnapshotStatsSelfManagedEC, SnaptrimStats) {
     ns.insert(ns.end(), my_snaps.begin(), my_snaps.end());
     my_snaps.swap(ns);
     ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_create(ioctx, &my_snaps[0]));
-    ASSERT_EQ(0, rados_ioctx_selfmanaged_snap_set_write_ctx(ioctx, my_snaps[0],
-                                        &my_snaps[0], my_snaps.size()));
-    char *buf2 = (char *)new char[bsize];
+    ASSERT_EQ(
+        0, rados_ioctx_selfmanaged_snap_set_write_ctx(
+               ioctx, my_snaps[0], &my_snaps[0], my_snaps.size()));
+    char* buf2 = (char*)new char[bsize];
     memset(buf2, 0xdd, bsize);
     for (int i = 0; i < num_objs; ++i) {
       string obj = string("foo") + std::to_string(i);
@@ -298,13 +340,16 @@ TEST_F(LibRadosSnapshotStatsSelfManagedEC, SnaptrimStats) {
     char *buf, *st;
     size_t buflen, stlen;
     string c = string("{\"prefix\": \"pg dump\",\"format\":\"json\"}");
-    const char *cmd = c.c_str();
-    ASSERT_EQ(0, rados_mon_command(cluster, (const char **)&cmd, 1, 0, 0,
-      &buf, &buflen, &st, &stlen));
+    const char* cmd = c.c_str();
+    ASSERT_EQ(
+        0,
+        rados_mon_command(
+            cluster, (const char**)&cmd, 1, 0, 0, &buf, &buflen, &st, &stlen));
     string outstr(buf, buflen);
     json_spirit::Value v;
-    ASSERT_NE(0, json_spirit::read(outstr, v)) << "Unable tp parse json."
-      << '\n' << outstr;
+    ASSERT_NE(0, json_spirit::read(outstr, v))
+        << "Unable tp parse json." << '\n'
+        << outstr;
 
     // pg dump object
     json_spirit::Object& obj = v.get_obj();
@@ -312,7 +357,8 @@ TEST_F(LibRadosSnapshotStatsSelfManagedEC, SnaptrimStats) {
     if (objects_trimmed != num_objs) {
       tries++;
       objects_trimmed = 0;
-      std::cout << "Still waiting for all objects to be trimmed... " <<std::endl;
+      std::cout << "Still waiting for all objects to be trimmed... "
+                << std::endl;
       sleep(30);
     }
   } while (objects_trimmed != num_objs && tries < 5);

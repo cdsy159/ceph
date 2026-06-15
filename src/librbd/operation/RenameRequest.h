@@ -4,8 +4,9 @@
 #ifndef CEPH_LIBRBD_RENAME_REQUEST_H
 #define CEPH_LIBRBD_RENAME_REQUEST_H
 
-#include "librbd/operation/Request.h"
 #include <string>
+
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -16,8 +17,7 @@ class ImageCtx;
 namespace operation {
 
 template <typename ImageCtxT = ImageCtx>
-class RenameRequest : public Request<ImageCtxT>
-{
+class RenameRequest : public Request<ImageCtxT> {
 public:
   /**
    * Rename goes through the following state machine:
@@ -55,15 +55,19 @@ public:
     STATE_REMOVE_SOURCE_HEADER
   };
 
-  RenameRequest(ImageCtxT &image_ctx, Context *on_finish,
-                const std::string &dest_name);
+  RenameRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const std::string& dest_name);
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
   int filter_return_code(int r) const override;
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::RenameEvent(op_tid, m_dest_name);
   }
 

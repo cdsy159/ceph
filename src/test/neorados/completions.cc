@@ -6,12 +6,16 @@ int completed = 0;
 
 boost::asio::io_context c;
 
-void nested_cb() {
+void
+nested_cb()
+{
   if (++completed < max_completions)
     boost::asio::post(c, &nested_cb);
 }
 
-int main(void) {
+int
+main(void)
+{
   boost::asio::post(c, &nested_cb);
   c.run();
   assert(completed == max_completions);

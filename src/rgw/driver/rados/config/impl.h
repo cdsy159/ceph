@@ -14,11 +14,12 @@
 
 #pragma once
 
-#include "include/rados/librados.hpp"
 #include "common/dout.h"
+#include "include/rados/librados.hpp"
+
 #include "rgw_basic_types.h"
-#include "rgw_tools.h"
 #include "rgw_sal_config.h"
+#include "rgw_tools.h"
 
 namespace rgw::rados {
 
@@ -39,14 +40,23 @@ struct ConfigImpl {
 
   ConfigImpl(const ceph::common::ConfigProxy& conf);
 
-  int read(const DoutPrefixProvider* dpp, optional_yield y,
-           const rgw_pool& pool, const std::string& oid,
-           bufferlist& bl, RGWObjVersionTracker* objv);
+  int read(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      bufferlist& bl,
+      RGWObjVersionTracker* objv);
 
   template <typename T>
-  int read(const DoutPrefixProvider* dpp, optional_yield y,
-           const rgw_pool& pool, const std::string& oid,
-           T& data, RGWObjVersionTracker* objv)
+  int
+  read(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      T& data,
+      RGWObjVersionTracker* objv)
   {
     bufferlist bl;
     int r = read(dpp, y, pool, oid, bl, objv);
@@ -57,21 +67,32 @@ struct ConfigImpl {
       auto p = bl.cbegin();
       decode(data, p);
     } catch (const buffer::error& err) {
-      ldpp_dout(dpp, 0) << "ERROR: failed to decode obj from "
-          << pool << ":" << oid << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: failed to decode obj from " << pool << ":"
+                        << oid << dendl;
       return -EIO;
     }
     return 0;
   }
 
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const rgw_pool& pool, const std::string& oid, Create create,
-            const bufferlist& bl, RGWObjVersionTracker* objv);
+  int write(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      Create create,
+      const bufferlist& bl,
+      RGWObjVersionTracker* objv);
 
   template <typename T>
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const rgw_pool& pool, const std::string& oid, Create create,
-            const T& data, RGWObjVersionTracker* objv)
+  int
+  write(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      Create create,
+      const T& data,
+      RGWObjVersionTracker* objv)
   {
     bufferlist bl;
     encode(data, bl);
@@ -79,15 +100,22 @@ struct ConfigImpl {
     return write(dpp, y, pool, oid, create, bl, objv);
   }
 
-  int remove(const DoutPrefixProvider* dpp, optional_yield y,
-             const rgw_pool& pool, const std::string& oid,
-             RGWObjVersionTracker* objv);
+  int remove(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      RGWObjVersionTracker* objv);
 
-  int list(const DoutPrefixProvider* dpp, optional_yield y,
-           const rgw_pool& pool, const std::string& marker,
-           std::regular_invocable<std::string> auto filter,
-           std::span<std::string> entries,
-           sal::ListResult<std::string>& result)
+  int
+  list(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& marker,
+      std::regular_invocable<std::string> auto filter,
+      std::span<std::string> entries,
+      sal::ListResult<std::string>& result)
   {
     librados::IoCtx ioctx;
     int r = rgw_init_ioctx(dpp, &rados, pool, ioctx, true, false);
@@ -122,13 +150,17 @@ struct ConfigImpl {
     return 0;
   }
 
-  int notify(const DoutPrefixProvider* dpp, optional_yield y,
-             const rgw_pool& pool, const std::string& oid,
-             bufferlist& bl, uint64_t timeout_ms);
+  int notify(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const rgw_pool& pool,
+      const std::string& oid,
+      bufferlist& bl,
+      uint64_t timeout_ms);
 };
 
-inline std::string_view name_or_default(std::string_view name,
-                                        std::string_view default_name)
+inline std::string_view
+name_or_default(std::string_view name, std::string_view default_name)
 {
   if (!name.empty()) {
     return name;

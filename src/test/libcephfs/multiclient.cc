@@ -13,21 +13,24 @@
  *
  */
 
-#include "gtest/gtest.h"
-#include "include/compat.h"
-#include "include/cephfs/libcephfs.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <thread>
+
+#include "gtest/gtest.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
 #ifdef __linux__
 #include <sys/xattr.h>
 #endif
 
-TEST(LibCephFS, MulticlientSimple) {
+TEST(LibCephFS, MulticlientSimple)
+{
   struct ceph_mount_info *ca, *cb;
   ASSERT_EQ(ceph_create(&ca, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(ca, NULL), 0);
@@ -41,22 +44,24 @@ TEST(LibCephFS, MulticlientSimple) {
 
   char name[20];
   snprintf(name, sizeof(name), "foo.%d", getpid());
-  int fda = ceph_open(ca, name, O_CREAT|O_RDWR, 0644);
+  int fda = ceph_open(ca, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fda);
-  int fdb = ceph_open(cb, name, O_CREAT|O_RDWR, 0644);
+  int fdb = ceph_open(cb, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fdb);
 
   char bufa[4] = "foo";
   char bufb[4];
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++) {
     strcpy(bufa, "foo");
-    ASSERT_EQ((int)sizeof(bufa), ceph_write(ca, fda, bufa, sizeof(bufa), i*6));
-    ASSERT_EQ((int)sizeof(bufa), ceph_read(cb, fdb, bufb, sizeof(bufa), i*6));
+    ASSERT_EQ((int)sizeof(bufa), ceph_write(ca, fda, bufa, sizeof(bufa), i * 6));
+    ASSERT_EQ((int)sizeof(bufa), ceph_read(cb, fdb, bufb, sizeof(bufa), i * 6));
     ASSERT_EQ(0, memcmp(bufa, bufb, sizeof(bufa)));
     strcpy(bufb, "bar");
-    ASSERT_EQ((int)sizeof(bufb), ceph_write(cb, fdb, bufb, sizeof(bufb), i*6+3));
-    ASSERT_EQ((int)sizeof(bufb), ceph_read(ca, fda, bufa, sizeof(bufb), i*6+3));
+    ASSERT_EQ(
+        (int)sizeof(bufb), ceph_write(cb, fdb, bufb, sizeof(bufb), i * 6 + 3));
+    ASSERT_EQ(
+        (int)sizeof(bufb), ceph_read(ca, fda, bufa, sizeof(bufb), i * 6 + 3));
     ASSERT_EQ(0, memcmp(bufa, bufb, sizeof(bufa)));
   }
 
@@ -67,7 +72,8 @@ TEST(LibCephFS, MulticlientSimple) {
   ceph_shutdown(cb);
 }
 
-TEST(LibCephFS, MulticlientHoleEOF) {
+TEST(LibCephFS, MulticlientHoleEOF)
+{
   struct ceph_mount_info *ca, *cb;
   ASSERT_EQ(ceph_create(&ca, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(ca, NULL), 0);
@@ -81,16 +87,16 @@ TEST(LibCephFS, MulticlientHoleEOF) {
 
   char name[20];
   snprintf(name, sizeof(name), "foo.%d", getpid());
-  int fda = ceph_open(ca, name, O_CREAT|O_RDWR, 0644);
+  int fda = ceph_open(ca, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fda);
-  int fdb = ceph_open(cb, name, O_CREAT|O_RDWR, 0644);
+  int fdb = ceph_open(cb, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fdb);
 
   ASSERT_EQ(3, ceph_write(ca, fda, "foo", 3, 0));
   ASSERT_EQ(0, ceph_ftruncate(ca, fda, 1000000));
 
   char buf[4];
-  ASSERT_EQ(2, ceph_read(cb, fdb, buf, sizeof(buf), 1000000-2));
+  ASSERT_EQ(2, ceph_read(cb, fdb, buf, sizeof(buf), 1000000 - 2));
   ASSERT_EQ(0, buf[0]);
   ASSERT_EQ(0, buf[1]);
 
@@ -101,9 +107,10 @@ TEST(LibCephFS, MulticlientHoleEOF) {
   ceph_shutdown(cb);
 }
 
-static void write_func(bool *stop)
+static void
+write_func(bool* stop)
 {
-  struct ceph_mount_info *cmount;
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(ceph_create(&cmount, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(cmount, NULL), 0);
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
@@ -111,11 +118,11 @@ static void write_func(bool *stop)
 
   char name[20];
   snprintf(name, sizeof(name), "foo.%d", getpid());
-  int fd = ceph_open(cmount, name, O_CREAT|O_RDWR, 0644);
+  int fd = ceph_open(cmount, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fd);
 
   int buf_size = 4096;
-  char *buf = (char *)malloc(buf_size);
+  char* buf = (char*)malloc(buf_size);
   if (!buf) {
     *stop = true;
     printf("write_func failed to allocate buffer!");
@@ -141,9 +148,10 @@ static void write_func(bool *stop)
   ceph_shutdown(cmount);
 }
 
-static void setattr_func(bool *stop)
+static void
+setattr_func(bool* stop)
 {
-  struct ceph_mount_info *cmount;
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(ceph_create(&cmount, NULL), 0);
   ASSERT_EQ(ceph_conf_read_file(cmount, NULL), 0);
   ASSERT_EQ(0, ceph_conf_parse_env(cmount, NULL));
@@ -151,7 +159,7 @@ static void setattr_func(bool *stop)
 
   char name[20];
   snprintf(name, sizeof(name), "foo.%d", getpid());
-  int fd = ceph_open(cmount, name, O_CREAT|O_RDWR, 0644);
+  int fd = ceph_open(cmount, name, O_CREAT | O_RDWR, 0644);
   ASSERT_LE(0, fd);
 
   while (!(*stop)) {
@@ -164,7 +172,8 @@ static void setattr_func(bool *stop)
   ceph_shutdown(cmount);
 }
 
-TEST(LibCephFS, MulticlientRevokeCaps) {
+TEST(LibCephFS, MulticlientRevokeCaps)
+{
   std::thread thread1, thread2;
   bool stop = false;
   int wait = 60; // in second

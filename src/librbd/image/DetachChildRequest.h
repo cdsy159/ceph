@@ -4,8 +4,8 @@
 #ifndef CEPH_LIBRBD_IMAGE_DETACH_CHILD_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_DETACH_CHILD_REQUEST_H
 
-#include "include/int_types.h"
 #include "include/buffer.h"
+#include "include/int_types.h"
 #include "include/rados/librados.hpp"
 #include "librbd/Types.h"
 #include "librbd/internal.h"
@@ -21,13 +21,16 @@ namespace image {
 template <typename ImageCtxT = ImageCtx>
 class DetachChildRequest {
 public:
-  static DetachChildRequest* create(ImageCtxT& image_ctx, Context* on_finish) {
+  static DetachChildRequest*
+  create(ImageCtxT& image_ctx, Context* on_finish)
+  {
     return new DetachChildRequest(image_ctx, on_finish);
   }
 
-  DetachChildRequest(ImageCtxT& image_ctx, Context* on_finish)
-    : m_image_ctx(image_ctx), m_on_finish(on_finish) {
-  }
+  DetachChildRequest(ImageCtxT& image_ctx, Context* on_finish) :
+    m_image_ctx(image_ctx), m_on_finish(on_finish)
+  {}
+
   ~DetachChildRequest();
 
   void send();
@@ -108,7 +111,6 @@ private:
   void handle_clone_v1_remove_child(int r);
 
   void finish(int r);
-
 };
 
 } // namespace image

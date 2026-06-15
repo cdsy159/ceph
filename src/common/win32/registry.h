@@ -10,16 +10,19 @@
  *
  */
 
-#include "include/compat.h"
 #include "common/ceph_context.h"
-
+#include "include/compat.h"
 
 class RegistryKey {
 public:
-  RegistryKey(CephContext *cct_, HKEY hRootKey, LPCTSTR strKey, bool create_value);
+  RegistryKey(
+      CephContext* cct_,
+      HKEY hRootKey,
+      LPCTSTR strKey,
+      bool create_value);
   ~RegistryKey();
 
-  static int remove(CephContext *cct_, HKEY hRootKey, LPCTSTR strKey);
+  static int remove(CephContext* cct_, HKEY hRootKey, LPCTSTR strKey);
 
   int flush();
 
@@ -34,5 +37,5 @@ public:
   bool missingKey = false;
 
 private:
-  CephContext *cct;
+  CephContext* cct;
 };

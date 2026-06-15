@@ -1,29 +1,30 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "common/errno.h"
-
 #include "rgw_cr_tools.h"
-#include "rgw_bucket.h"
-#include "rgw_user.h"
-#include "rgw_op.h"
-#include "rgw_acl_s3.h"
-#include "rgw_zone.h"
 
+#include "common/errno.h"
 #include "services/svc_zone.h"
+
+#include "rgw_acl_s3.h"
+#include "rgw_bucket.h"
+#include "rgw_op.h"
+#include "rgw_user.h"
+#include "rgw_zone.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-template<>
-int RGWUserCreateCR::Request::_send_request(const DoutPrefixProvider *dpp)
+template <>
+int
+RGWUserCreateCR::Request::_send_request(const DoutPrefixProvider* dpp)
 {
-  CephContext *cct = store->ctx();
+  CephContext* cct = store->ctx();
 
   const int32_t default_max_buckets =
-    cct->_conf.get_val<int64_t>("rgw_user_max_buckets");
+      cct->_conf.get_val<int64_t>("rgw_user_max_buckets");
 
   RGWUserAdminOpState op_state(store);
 
@@ -59,17 +60,20 @@ int RGWUserCreateCR::Request::_send_request(const DoutPrefixProvider *dpp)
     RGWQuota quota;
 
     if (cct->_conf->rgw_bucket_default_quota_max_objects >= 0) {
-      quota.bucket_quota.max_objects = cct->_conf->rgw_bucket_default_quota_max_objects;
+      quota.bucket_quota.max_objects =
+          cct->_conf->rgw_bucket_default_quota_max_objects;
       quota.bucket_quota.enabled = true;
     }
 
     if (cct->_conf->rgw_bucket_default_quota_max_size >= 0) {
-      quota.bucket_quota.max_size = cct->_conf->rgw_bucket_default_quota_max_size;
+      quota.bucket_quota.max_size =
+          cct->_conf->rgw_bucket_default_quota_max_size;
       quota.bucket_quota.enabled = true;
     }
 
     if (cct->_conf->rgw_user_default_quota_max_objects >= 0) {
-      quota.user_quota.max_objects = cct->_conf->rgw_user_default_quota_max_objects;
+      quota.user_quota.max_objects =
+          cct->_conf->rgw_user_default_quota_max_objects;
       quota.user_quota.enabled = true;
     }
 
@@ -91,52 +95,58 @@ int RGWUserCreateCR::Request::_send_request(const DoutPrefixProvider *dpp)
   return RGWUserAdminOp_User::create(dpp, store, op_state, flusher, null_yield);
 }
 
-template<>
-int RGWGetUserInfoCR::Request::_send_request(const DoutPrefixProvider *dpp)
+template <>
+int
+RGWGetUserInfoCR::Request::_send_request(const DoutPrefixProvider* dpp)
 {
-  return store->ctl()->user->get_info_by_uid(dpp, params.user, result.get(), null_yield);
+  return store->ctl()->user->get_info_by_uid(
+      dpp, params.user, result.get(), null_yield);
 }
 
-template<>
-int RGWGetBucketInfoCR::Request::_send_request(const DoutPrefixProvider *dpp)
+template <>
+int
+RGWGetBucketInfoCR::Request::_send_request(const DoutPrefixProvider* dpp)
 {
-  return store->load_bucket(dpp, rgw_bucket(params.tenant, params.bucket_name),
-                            &result->bucket, null_yield);
+  return store->load_bucket(
+      dpp, rgw_bucket(params.tenant, params.bucket_name), &result->bucket,
+      null_yield);
 }
 
-template<>
-int RGWBucketLifecycleConfigCR::Request::_send_request(const DoutPrefixProvider *dpp)
+template <>
+int
+RGWBucketLifecycleConfigCR::Request::_send_request(const DoutPrefixProvider* dpp)
 {
-  CephContext *cct = store->ctx();
+  CephContext* cct = store->ctx();
 
-  RGWLC *lc = store->getRados()->get_lc();
+  RGWLC* lc = store->getRados()->get_lc();
   if (!lc) {
     lderr(cct) << "ERROR: lifecycle object is not initialized!" << dendl;
     return -EIO;
   }
 
-  int ret = lc->set_bucket_config(dpp, null_yield, params.bucket,
-                                  params.bucket_attrs,
-                                  &params.config);
+  int ret = lc->set_bucket_config(
+      dpp, null_yield, params.bucket, params.bucket_attrs, &params.config);
   if (ret < 0) {
-    lderr(cct) << "ERROR: failed to set lifecycle on bucke: " << cpp_strerror(-ret) << dendl;
+    lderr(cct) << "ERROR: failed to set lifecycle on bucke: "
+               << cpp_strerror(-ret) << dendl;
     return -ret;
   }
 
   return 0;
 }
 
-template<>
-int RGWBucketGetSyncPolicyHandlerCR::Request::_send_request(const DoutPrefixProvider *dpp)
+template <>
+int
+RGWBucketGetSyncPolicyHandlerCR::Request::_send_request(
+    const DoutPrefixProvider* dpp)
 {
-  int r = store->ctl()->bucket->get_sync_policy_handler(params.zone,
-                                                        params.bucket,
-                                                        &result->policy_handler,
-                                                        null_yield,
-                                                        dpp);
+  int r = store->ctl()->bucket->get_sync_policy_handler(
+      params.zone, params.bucket, &result->policy_handler, null_yield, dpp);
   if (r < 0) {
-    ldpp_dout(dpp, -1) << "ERROR: " << __func__ << "(): get_sync_policy_handler() returned " << r << dendl;
-    return  r;
+    ldpp_dout(dpp, -1) << "ERROR: " << __func__
+                       << "(): get_sync_policy_handler() returned " << r
+                       << dendl;
+    return r;
   }
 
   return 0;

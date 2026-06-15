@@ -3,13 +3,13 @@
 
 
 #include "svc_cls.h"
-#include "svc_zone.h"
+
+#include "cls/lock/cls_lock_client.h"
+#include "cls/log/cls_log_client.h"
+#include "cls/otp/cls_otp_client.h"
 
 #include "rgw_zone.h"
-
-#include "cls/otp/cls_otp_client.h"
-#include "cls/log/cls_log_client.h"
-#include "cls/lock/cls_lock_client.h"
+#include "svc_zone.h"
 
 
 #define dout_subsys ceph_subsys_rgw
@@ -18,7 +18,8 @@ using namespace std;
 
 static string log_lock_name = "rgw_log_lock";
 
-int RGWSI_Cls::do_start(optional_yield y, const DoutPrefixProvider *dpp)
+int
+RGWSI_Cls::do_start(optional_yield y, const DoutPrefixProvider* dpp)
 {
   int r = mfa.do_start(y, dpp);
   if (r < 0) {
@@ -29,7 +30,11 @@ int RGWSI_Cls::do_start(optional_yield y, const DoutPrefixProvider *dpp)
   return 0;
 }
 
-int RGWSI_Cls::MFA::get_mfa_ref(const DoutPrefixProvider *dpp, const rgw_user& user, rgw_rados_ref *ref)
+int
+RGWSI_Cls::MFA::get_mfa_ref(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    rgw_rados_ref* ref)
 {
   string oid = get_mfa_oid(user);
   rgw_raw_obj o(cls->zone_svc->get_zone_params().otp_pool, oid);
@@ -43,7 +48,13 @@ int RGWSI_Cls::MFA::get_mfa_ref(const DoutPrefixProvider *dpp, const rgw_user& u
   return 0;
 }
 
-int RGWSI_Cls::MFA::check_mfa(const DoutPrefixProvider *dpp, const rgw_user& user, const string& otp_id, const string& pin, optional_yield y)
+int
+RGWSI_Cls::MFA::check_mfa(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    const string& otp_id,
+    const string& pin,
+    optional_yield y)
 {
   rgw_rados_ref ref;
   int r = get_mfa_ref(dpp, user, &ref);
@@ -53,18 +64,22 @@ int RGWSI_Cls::MFA::check_mfa(const DoutPrefixProvider *dpp, const rgw_user& use
 
   rados::cls::otp::otp_check_t result;
 
-  r = rados::cls::otp::OTP::check(cct, ref.ioctx, ref.obj.oid, otp_id, pin, &result);
+  r = rados::cls::otp::OTP::check(
+      cct, ref.ioctx, ref.obj.oid, otp_id, pin, &result);
   if (r < 0)
     return r;
 
-  ldpp_dout(dpp, 20) << "OTP check, otp_id=" << otp_id << " result=" << (int)result.result << dendl;
+  ldpp_dout(dpp, 20) << "OTP check, otp_id=" << otp_id
+                     << " result=" << (int)result.result << dendl;
 
   return (result.result == rados::cls::otp::OTP_CHECK_SUCCESS ? 0 : -EACCES);
 }
 
-void RGWSI_Cls::MFA::prepare_mfa_write(librados::ObjectWriteOperation *op,
-                                 RGWObjVersionTracker *objv_tracker,
-                                 const ceph::real_time& mtime)
+void
+RGWSI_Cls::MFA::prepare_mfa_write(
+    librados::ObjectWriteOperation* op,
+    RGWObjVersionTracker* objv_tracker,
+    const ceph::real_time& mtime)
 {
   RGWObjVersionTracker ot;
 
@@ -86,8 +101,14 @@ void RGWSI_Cls::MFA::prepare_mfa_write(librados::ObjectWriteOperation *op,
   op->mtime2(&mtime_ts);
 }
 
-int RGWSI_Cls::MFA::create_mfa(const DoutPrefixProvider *dpp, const rgw_user& user, const rados::cls::otp::otp_info_t& config,
-                         RGWObjVersionTracker *objv_tracker, const ceph::real_time& mtime, optional_yield y)
+int
+RGWSI_Cls::MFA::create_mfa(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    const rados::cls::otp::otp_info_t& config,
+    RGWObjVersionTracker* objv_tracker,
+    const ceph::real_time& mtime,
+    optional_yield y)
 {
   rgw_rados_ref obj;
   int r = get_mfa_ref(dpp, user, &obj);
@@ -100,18 +121,22 @@ int RGWSI_Cls::MFA::create_mfa(const DoutPrefixProvider *dpp, const rgw_user& us
   rados::cls::otp::OTP::create(&op, config);
   r = obj.operate(dpp, std::move(op), y);
   if (r < 0) {
-    ldpp_dout(dpp, 20) << "OTP create, otp_id=" << config.id << " result=" << (int)r << dendl;
+    ldpp_dout(dpp, 20) << "OTP create, otp_id=" << config.id
+                       << " result=" << (int)r << dendl;
     return r;
   }
 
   return 0;
 }
 
-int RGWSI_Cls::MFA::remove_mfa(const DoutPrefixProvider *dpp, 
-                         const rgw_user& user, const string& id,
-                         RGWObjVersionTracker *objv_tracker,
-                         const ceph::real_time& mtime,
-                         optional_yield y)
+int
+RGWSI_Cls::MFA::remove_mfa(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    const string& id,
+    RGWObjVersionTracker* objv_tracker,
+    const ceph::real_time& mtime,
+    optional_yield y)
 {
   rgw_rados_ref obj;
   int r = get_mfa_ref(dpp, user, &obj);
@@ -124,15 +149,21 @@ int RGWSI_Cls::MFA::remove_mfa(const DoutPrefixProvider *dpp,
   rados::cls::otp::OTP::remove(&op, id);
   r = obj.operate(dpp, std::move(op), y);
   if (r < 0) {
-    ldpp_dout(dpp, 20) << "OTP remove, otp_id=" << id << " result=" << (int)r << dendl;
+    ldpp_dout(dpp, 20) << "OTP remove, otp_id=" << id << " result=" << (int)r
+                       << dendl;
     return r;
   }
 
   return 0;
 }
 
-int RGWSI_Cls::MFA::get_mfa(const DoutPrefixProvider *dpp, const rgw_user& user, const string& id, rados::cls::otp::otp_info_t *result,
-			    optional_yield y)
+int
+RGWSI_Cls::MFA::get_mfa(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    const string& id,
+    rados::cls::otp::otp_info_t* result,
+    optional_yield y)
 {
   rgw_rados_ref ref;
 
@@ -149,8 +180,12 @@ int RGWSI_Cls::MFA::get_mfa(const DoutPrefixProvider *dpp, const rgw_user& user,
   return 0;
 }
 
-int RGWSI_Cls::MFA::list_mfa(const DoutPrefixProvider *dpp, const rgw_user& user, list<rados::cls::otp::otp_info_t> *result,
-			     optional_yield y)
+int
+RGWSI_Cls::MFA::list_mfa(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    list<rados::cls::otp::otp_info_t>* result,
+    optional_yield y)
 {
   rgw_rados_ref ref;
 
@@ -167,8 +202,12 @@ int RGWSI_Cls::MFA::list_mfa(const DoutPrefixProvider *dpp, const rgw_user& user
   return 0;
 }
 
-int RGWSI_Cls::MFA::otp_get_current_time(const DoutPrefixProvider *dpp, const rgw_user& user, ceph::real_time *result,
-					 optional_yield y)
+int
+RGWSI_Cls::MFA::otp_get_current_time(
+    const DoutPrefixProvider* dpp,
+    const rgw_user& user,
+    ceph::real_time* result,
+    optional_yield y)
 {
   rgw_rados_ref ref;
 
@@ -185,15 +224,19 @@ int RGWSI_Cls::MFA::otp_get_current_time(const DoutPrefixProvider *dpp, const rg
   return 0;
 }
 
-int RGWSI_Cls::MFA::set_mfa(const DoutPrefixProvider *dpp, const string& oid, const list<rados::cls::otp::otp_info_t>& entries,
-			    bool reset_obj, RGWObjVersionTracker *objv_tracker,
-			    const real_time& mtime,
-			    optional_yield y)
+int
+RGWSI_Cls::MFA::set_mfa(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    const list<rados::cls::otp::otp_info_t>& entries,
+    bool reset_obj,
+    RGWObjVersionTracker* objv_tracker,
+    const real_time& mtime,
+    optional_yield y)
 {
   rgw_rados_ref obj;
-  int r = rgw_get_rados_ref(dpp, cls->rados,
-			    { cls->zone_svc->get_zone_params().otp_pool, oid },
-			    &obj);
+  int r = rgw_get_rados_ref(
+      dpp, cls->rados, {cls->zone_svc->get_zone_params().otp_pool, oid}, &obj);
   if (r < 0) {
     ldpp_dout(dpp, 4) << "failed to open rados context for " << oid << dendl;
     return r;
@@ -208,21 +251,26 @@ int RGWSI_Cls::MFA::set_mfa(const DoutPrefixProvider *dpp, const string& oid, co
   rados::cls::otp::OTP::set(&op, entries);
   r = obj.operate(dpp, std::move(op), y);
   if (r < 0) {
-    ldpp_dout(dpp, 20) << "OTP set entries.size()=" << entries.size() << " result=" << (int)r << dendl;
+    ldpp_dout(dpp, 20) << "OTP set entries.size()=" << entries.size()
+                       << " result=" << (int)r << dendl;
     return r;
   }
 
   return 0;
 }
 
-int RGWSI_Cls::MFA::list_mfa(const DoutPrefixProvider *dpp, const string& oid, list<rados::cls::otp::otp_info_t> *result,
-			     RGWObjVersionTracker *objv_tracker, ceph::real_time *pmtime,
-			     optional_yield y)
+int
+RGWSI_Cls::MFA::list_mfa(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    list<rados::cls::otp::otp_info_t>* result,
+    RGWObjVersionTracker* objv_tracker,
+    ceph::real_time* pmtime,
+    optional_yield y)
 {
   rgw_rados_ref ref;
-  int r = rgw_get_rados_ref(dpp, cls->rados,
-			    { cls->zone_svc->get_zone_params().otp_pool, oid },
-			    &ref);
+  int r = rgw_get_rados_ref(
+      dpp, cls->rados, {cls->zone_svc->get_zone_params().otp_pool, oid}, &ref);
   if (r < 0) {
     ldpp_dout(dpp, 4) << "failed to open rados context for " << oid << dendl;
     return r;
@@ -244,28 +292,36 @@ int RGWSI_Cls::MFA::list_mfa(const DoutPrefixProvider *dpp, const string& oid, l
   return 0;
 }
 
-void RGWSI_Cls::TimeLog::prepare_entry(cls::log::entry& entry,
-                                       const real_time& ut,
-                                       const string& section,
-                                       const string& key,
-                                       bufferlist& bl)
+void
+RGWSI_Cls::TimeLog::prepare_entry(
+    cls::log::entry& entry,
+    const real_time& ut,
+    const string& section,
+    const string& key,
+    bufferlist& bl)
 {
   cls_log_add_prepare_entry(entry, ut, section, key, bl);
 }
 
-int RGWSI_Cls::TimeLog::init_obj(const DoutPrefixProvider *dpp, const string& oid, rgw_rados_ref& obj)
+int
+RGWSI_Cls::TimeLog::init_obj(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    rgw_rados_ref& obj)
 {
   rgw_raw_obj o(cls->zone_svc->get_zone_params().log_pool, oid);
   return rgw_get_rados_ref(dpp, cls->rados, o, &obj);
 }
 
-int RGWSI_Cls::TimeLog::add(const DoutPrefixProvider *dpp,
-                            const string& oid,
-                            const real_time& ut,
-                            const string& section,
-                            const string& key,
-                            bufferlist& bl,
-			    optional_yield y)
+int
+RGWSI_Cls::TimeLog::add(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    const real_time& ut,
+    const string& section,
+    const string& key,
+    bufferlist& bl,
+    optional_yield y)
 {
   rgw_rados_ref obj;
   int r = init_obj(dpp, oid, obj);
@@ -279,12 +335,14 @@ int RGWSI_Cls::TimeLog::add(const DoutPrefixProvider *dpp,
   return obj.operate(dpp, std::move(op), y);
 }
 
-int RGWSI_Cls::TimeLog::add(const DoutPrefixProvider *dpp,
-                            const string& oid,
-                            std::vector<cls::log::entry>& entries,
-                            librados::AioCompletion *completion,
-                            bool monotonic_inc,
-                            optional_yield y)
+int
+RGWSI_Cls::TimeLog::add(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    std::vector<cls::log::entry>& entries,
+    librados::AioCompletion* completion,
+    bool monotonic_inc,
+    optional_yield y)
 {
   rgw_rados_ref obj;
 
@@ -304,15 +362,18 @@ int RGWSI_Cls::TimeLog::add(const DoutPrefixProvider *dpp,
   return r;
 }
 
-int RGWSI_Cls::TimeLog::list(const DoutPrefixProvider *dpp, 
-                             const string& oid,
-                             const real_time& start_time,
-                             const real_time& end_time,
-                             int max_entries, std::vector<cls::log::entry>& entries,
-                             const string& marker,
-                             string *out_marker,
-                             bool *truncated,
-                             optional_yield y)
+int
+RGWSI_Cls::TimeLog::list(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    const real_time& start_time,
+    const real_time& end_time,
+    int max_entries,
+    std::vector<cls::log::entry>& entries,
+    const string& marker,
+    string* out_marker,
+    bool* truncated,
+    optional_yield y)
 {
   rgw_rados_ref obj;
 
@@ -323,8 +384,9 @@ int RGWSI_Cls::TimeLog::list(const DoutPrefixProvider *dpp,
 
   librados::ObjectReadOperation op;
 
-  cls_log_list(op, start_time, end_time, marker, max_entries, entries,
-	       out_marker, truncated);
+  cls_log_list(
+      op, start_time, end_time, marker, max_entries, entries, out_marker,
+      truncated);
 
   bufferlist obl;
 
@@ -335,10 +397,12 @@ int RGWSI_Cls::TimeLog::list(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int RGWSI_Cls::TimeLog::info(const DoutPrefixProvider *dpp, 
-                             const string& oid,
-                             cls::log::header *header,
-                             optional_yield y)
+int
+RGWSI_Cls::TimeLog::info(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    cls::log::header* header,
+    optional_yield y)
 {
   rgw_rados_ref obj;
 
@@ -360,11 +424,13 @@ int RGWSI_Cls::TimeLog::info(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int RGWSI_Cls::TimeLog::info_async(const DoutPrefixProvider *dpp,
-                                   rgw_rados_ref& obj,
-                                   const string& oid,
-                                   cls::log::header *header,
-                                   librados::AioCompletion *completion)
+int
+RGWSI_Cls::TimeLog::info_async(
+    const DoutPrefixProvider* dpp,
+    rgw_rados_ref& obj,
+    const string& oid,
+    cls::log::header* header,
+    librados::AioCompletion* completion)
 {
   int r = init_obj(dpp, oid, obj);
   if (r < 0) {
@@ -382,14 +448,16 @@ int RGWSI_Cls::TimeLog::info_async(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int RGWSI_Cls::TimeLog::trim(const DoutPrefixProvider *dpp, 
-                             const string& oid,
-                             const real_time& start_time,
-                             const real_time& end_time,
-                             const string& from_marker,
-                             const string& to_marker,
-                             librados::AioCompletion *completion,
-                             optional_yield y)
+int
+RGWSI_Cls::TimeLog::trim(
+    const DoutPrefixProvider* dpp,
+    const string& oid,
+    const real_time& start_time,
+    const real_time& end_time,
+    const string& from_marker,
+    const string& to_marker,
+    librados::AioCompletion* completion,
+    optional_yield y)
 {
   rgw_rados_ref obj;
 
@@ -409,13 +477,15 @@ int RGWSI_Cls::TimeLog::trim(const DoutPrefixProvider *dpp,
   return r;
 }
 
-int RGWSI_Cls::Lock::lock_exclusive(const DoutPrefixProvider *dpp,
-                                    const rgw_pool& pool,
-                                    const string& oid,
-                                    timespan& duration,
-                                    string& zone_id,
-                                    string& owner_id,
-                                    std::optional<string> lock_name)
+int
+RGWSI_Cls::Lock::lock_exclusive(
+    const DoutPrefixProvider* dpp,
+    const rgw_pool& pool,
+    const string& oid,
+    timespan& duration,
+    string& zone_id,
+    string& owner_id,
+    std::optional<string> lock_name)
 {
 
   librados::IoCtx p;
@@ -424,7 +494,8 @@ int RGWSI_Cls::Lock::lock_exclusive(const DoutPrefixProvider *dpp,
     return r;
   }
 
-  uint64_t msec = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  uint64_t msec =
+      std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
   utime_t ut(msec / 1000, msec % 1000);
 
   rados::cls::lock::Lock l(lock_name.value_or(log_lock_name));
@@ -436,12 +507,14 @@ int RGWSI_Cls::Lock::lock_exclusive(const DoutPrefixProvider *dpp,
   return l.lock_exclusive(&p, oid);
 }
 
-int RGWSI_Cls::Lock::unlock(const DoutPrefixProvider *dpp,
-                            const rgw_pool& pool,
-                            const string& oid,
-                            string& zone_id,
-                            string& owner_id,
-                            std::optional<string> lock_name)
+int
+RGWSI_Cls::Lock::unlock(
+    const DoutPrefixProvider* dpp,
+    const rgw_pool& pool,
+    const string& oid,
+    string& zone_id,
+    string& owner_id,
+    std::optional<string> lock_name)
 {
   librados::IoCtx p;
   int r = rgw_init_ioctx(dpp, cls->rados, pool, p, true, false);

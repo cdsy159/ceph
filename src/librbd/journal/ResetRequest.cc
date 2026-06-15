@@ -2,13 +2,14 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/journal/ResetRequest.h"
-#include "common/dout.h"
-#include "common/errno.h"
+
 #include "common/Timer.h"
 #include "common/WorkQueue.h"
+#include "common/dout.h"
+#include "common/errno.h"
+#include "include/ceph_assert.h"
 #include "journal/Journaler.h"
 #include "journal/Settings.h"
-#include "include/ceph_assert.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
 #include "librbd/journal/CreateRequest.h"
@@ -16,8 +17,8 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::journal::ResetRequest: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::journal::ResetRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 namespace journal {
@@ -25,23 +26,29 @@ namespace journal {
 using util::create_async_context_callback;
 using util::create_context_callback;
 
-template<typename I>
-void ResetRequest<I>::send() {
-   init_journaler();
+template <typename I>
+void
+ResetRequest<I>::send()
+{
+  init_journaler();
 }
 
-template<typename I>
-void ResetRequest<I>::init_journaler() {
+template <typename I>
+void
+ResetRequest<I>::init_journaler()
+{
   ldout(m_cct, 10) << dendl;
 
   m_journaler = new Journaler(m_io_ctx, m_image_id, m_client_id, {}, nullptr);
-  Context *ctx = create_context_callback<
-     ResetRequest<I>, &ResetRequest<I>::handle_init_journaler>(this);
+  Context* ctx = create_context_callback<
+      ResetRequest<I>, &ResetRequest<I>::handle_init_journaler>(this);
   m_journaler->init(ctx);
 }
 
-template<typename I>
-void ResetRequest<I>::handle_init_journaler(int r) {
+template <typename I>
+void
+ResetRequest<I>::handle_init_journaler(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -68,18 +75,23 @@ void ResetRequest<I>::handle_init_journaler(int r) {
   shut_down_journaler();
 }
 
-template<typename I>
-void ResetRequest<I>::shut_down_journaler() {
+template <typename I>
+void
+ResetRequest<I>::shut_down_journaler()
+{
   ldout(m_cct, 10) << dendl;
 
-  Context *ctx = create_async_context_callback(
-    m_op_work_queue, create_context_callback<
-      ResetRequest<I>, &ResetRequest<I>::handle_journaler_shutdown>(this));
+  Context* ctx = create_async_context_callback(
+      m_op_work_queue,
+      create_context_callback<
+          ResetRequest<I>, &ResetRequest<I>::handle_journaler_shutdown>(this));
   m_journaler->shut_down(ctx);
 }
 
-template<typename I>
-void ResetRequest<I>::handle_journaler_shutdown(int r) {
+template <typename I>
+void
+ResetRequest<I>::handle_journaler_shutdown(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   delete m_journaler;
@@ -99,19 +111,23 @@ void ResetRequest<I>::handle_journaler_shutdown(int r) {
   remove_journal();
 }
 
-template<typename I>
-void ResetRequest<I>::remove_journal() {
+template <typename I>
+void
+ResetRequest<I>::remove_journal()
+{
   ldout(m_cct, 10) << dendl;
 
-  Context *ctx = create_context_callback<
-    ResetRequest<I>, &ResetRequest<I>::handle_remove_journal>(this);
-  auto req = RemoveRequest<I>::create(m_io_ctx, m_image_id, m_client_id,
-                                      m_op_work_queue, ctx);
+  Context* ctx = create_context_callback<
+      ResetRequest<I>, &ResetRequest<I>::handle_remove_journal>(this);
+  auto req = RemoveRequest<I>::create(
+      m_io_ctx, m_image_id, m_client_id, m_op_work_queue, ctx);
   req->send();
 }
 
-template<typename I>
-void ResetRequest<I>::handle_remove_journal(int r) {
+template <typename I>
+void
+ResetRequest<I>::handle_remove_journal(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -123,23 +139,26 @@ void ResetRequest<I>::handle_remove_journal(int r) {
   create_journal();
 }
 
-template<typename I>
-void ResetRequest<I>::create_journal() {
+template <typename I>
+void
+ResetRequest<I>::create_journal()
+{
   ldout(m_cct, 10) << dendl;
 
-  Context *ctx = create_context_callback<
-    ResetRequest<I>, &ResetRequest<I>::handle_create_journal>(this);
+  Context* ctx = create_context_callback<
+      ResetRequest<I>, &ResetRequest<I>::handle_create_journal>(this);
   journal::TagData tag_data(m_mirror_uuid);
-  auto req = CreateRequest<I>::create(m_io_ctx, m_image_id, m_order,
-                                      m_splay_width, m_object_pool_name,
-                                      cls::journal::Tag::TAG_CLASS_NEW,
-                                      tag_data, m_client_id, m_op_work_queue,
-                                      ctx);
+  auto req = CreateRequest<I>::create(
+      m_io_ctx, m_image_id, m_order, m_splay_width, m_object_pool_name,
+      cls::journal::Tag::TAG_CLASS_NEW, tag_data, m_client_id, m_op_work_queue,
+      ctx);
   req->send();
 }
 
-template<typename I>
-void ResetRequest<I>::handle_create_journal(int r) {
+template <typename I>
+void
+ResetRequest<I>::handle_create_journal(int r)
+{
   ldout(m_cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -148,12 +167,14 @@ void ResetRequest<I>::handle_create_journal(int r) {
   finish(r);
 }
 
-template<typename I>
-void ResetRequest<I>::finish(int r) {
-   ldout(m_cct, 10) << "r=" << r << dendl;
+template <typename I>
+void
+ResetRequest<I>::finish(int r)
+{
+  ldout(m_cct, 10) << "r=" << r << dendl;
 
-   m_on_finish->complete(r);
-   delete this;
+  m_on_finish->complete(r);
+  delete this;
 }
 
 } // namespace journal

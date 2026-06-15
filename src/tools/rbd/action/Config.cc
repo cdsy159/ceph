@@ -1,26 +1,24 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/Formatter.h"
-#include "common/TextTable.h"
-#include "common/ceph_context.h"
-#include "common/ceph_json.h"
-#include "common/escape.h"
-#include "common/errno.h"
-#include "common/options.h"
-#include "global/global_context.h"
-#include "include/stringify.h"
-
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-
 #include <iostream>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/program_options.hpp>
 
+#include "common/Formatter.h"
+#include "common/TextTable.h"
+#include "common/ceph_context.h"
+#include "common/ceph_json.h"
+#include "common/errno.h"
+#include "common/escape.h"
+#include "common/options.h"
+#include "global/global_context.h"
+#include "include/stringify.h"
 #include "json_spirit/json_spirit.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 namespace rbd {
 namespace action {
@@ -33,23 +31,28 @@ namespace {
 
 const std::string METADATA_CONF_PREFIX = "conf_";
 
-void add_config_entity_option(
-    boost::program_options::options_description *positional) {
-  positional->add_options()
-    ("config-entity", "config entity (global, client, client.<id>)");
+void
+add_config_entity_option(boost::program_options::options_description* positional)
+{
+  positional->add_options()(
+      "config-entity", "config entity (global, client, client.<id>)");
 }
 
-void add_pool_option(boost::program_options::options_description *positional) {
-  positional->add_options()
-    ("pool-name", "pool name");
+void
+add_pool_option(boost::program_options::options_description* positional)
+{
+  positional->add_options()("pool-name", "pool name");
 }
 
-void add_key_option(po::options_description *positional) {
-  positional->add_options()
-    ("key", "config key");
+void
+add_key_option(po::options_description* positional)
+{
+  positional->add_options()("key", "config key");
 }
 
-int get_config_entity(const po::variables_map &vm, std::string *config_entity) {
+int
+get_config_entity(const po::variables_map& vm, std::string* config_entity)
+{
   *config_entity = utils::get_positional_argument(vm, 0);
 
   if (*config_entity != "global" && *config_entity != "client" &&
@@ -62,7 +65,9 @@ int get_config_entity(const po::variables_map &vm, std::string *config_entity) {
   return 0;
 }
 
-int get_pool(const po::variables_map &vm, std::string *pool_name) {
+int
+get_pool(const po::variables_map& vm, std::string* pool_name)
+{
   *pool_name = utils::get_positional_argument(vm, 0);
   if (pool_name->empty()) {
     std::cerr << "rbd: pool name was not specified" << std::endl;
@@ -72,8 +77,9 @@ int get_pool(const po::variables_map &vm, std::string *pool_name) {
   return 0;
 }
 
-int get_key(const po::variables_map &vm, size_t *arg_index,
-            std::string *key) {
+int
+get_key(const po::variables_map& vm, size_t* arg_index, std::string* key)
+{
   *key = utils::get_positional_argument(vm, *arg_index);
   if (key->empty()) {
     std::cerr << "rbd: config key was not specified" << std::endl;
@@ -97,8 +103,9 @@ int get_key(const po::variables_map &vm, size_t *arg_index,
   return 0;
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const librbd::config_source_t& source) {
+std::ostream&
+operator<<(std::ostream& os, const librbd::config_source_t& source)
+{
   switch (source) {
   case RBD_CONFIG_SOURCE_CONFIG:
     os << "config";
@@ -116,16 +123,18 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
-int config_global_list(
-    librados::Rados &rados, const std::string &config_entity,
-    std::map<std::string, std::pair<std::string, std::string>> *options) {
-  bool client_id_config_entity =
-    boost::starts_with(config_entity, ("client."));
+int
+config_global_list(
+    librados::Rados& rados,
+    const std::string& config_entity,
+    std::map<std::string, std::pair<std::string, std::string>>* options)
+{
+  bool client_id_config_entity = boost::starts_with(config_entity, ("client."));
   std::string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config dump\", "
       "\"format\": \"json\" "
-    "}";
+      "}";
   bufferlist out_bl;
   std::string ss;
   int r = rados.mon_command(std::move(cmd), {}, &out_bl, &ss);
@@ -141,14 +150,14 @@ int config_global_list(
   }
 
   try {
-    auto &json_array = json_root.get_array();
+    auto& json_array = json_root.get_array();
     for (auto& e : json_array) {
-      auto &json_obj = e.get_obj();
+      auto& json_obj = e.get_obj();
       std::string section;
       std::string name;
       std::string value;
 
-      for (auto &pairs : json_obj) {
+      for (auto& pairs : json_obj) {
         if (pairs.first == "section") {
           section = pairs.second.get_str();
         } else if (pairs.first == "name") {
@@ -181,7 +190,7 @@ int config_global_list(
         it->second = {value, section};
       }
     }
-  } catch (std::runtime_error &e) {
+  } catch (std::runtime_error& e) {
     std::cerr << "rbd: error parsing config dump: " << e.what() << std::endl;
     return -EINVAL;
   }
@@ -191,14 +200,20 @@ int config_global_list(
 
 } // anonymous namespace
 
-void get_global_get_arguments(po::options_description *positional,
-                              po::options_description *options) {
+void
+get_global_get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_config_entity_option(positional);
   add_key_option(positional);
 }
 
-int execute_global_get(const po::variables_map &vm,
-                       const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_global_get(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string config_entity;
   int r = get_config_entity(vm, &config_entity);
   if (r < 0) {
@@ -235,16 +250,21 @@ int execute_global_get(const po::variables_map &vm,
   return 0;
 }
 
-void get_global_set_arguments(po::options_description *positional,
-                              po::options_description *options) {
+void
+get_global_set_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_config_entity_option(positional);
   add_key_option(positional);
-  positional->add_options()
-    ("value", "config value");
+  positional->add_options()("value", "config value");
 }
 
-int execute_global_set(const po::variables_map &vm,
-                     const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_global_set(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string config_entity;
   int r = get_config_entity(vm, &config_entity);
   if (r < 0) {
@@ -266,12 +286,18 @@ int execute_global_set(const po::variables_map &vm,
 
   std::string value = utils::get_positional_argument(vm, 2);
   std::string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config set\", "
-      "\"who\": \"" + stringify(json_stream_escaper(config_entity)) + "\", "
-      "\"name\": \"" + key + "\", "
-      "\"value\": \"" + stringify(json_stream_escaper(value)) + "\""
-    "}";
+      "\"who\": \"" +
+      stringify(json_stream_escaper(config_entity)) +
+      "\", "
+      "\"name\": \"" +
+      key +
+      "\", "
+      "\"value\": \"" +
+      stringify(json_stream_escaper(value)) +
+      "\""
+      "}";
   std::string ss;
   r = rados.mon_command(std::move(cmd), {}, nullptr, &ss);
   if (r < 0) {
@@ -282,15 +308,20 @@ int execute_global_set(const po::variables_map &vm,
   return 0;
 }
 
-void get_global_remove_arguments(po::options_description *positional,
-                                 po::options_description *options) {
+void
+get_global_remove_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_config_entity_option(positional);
   add_key_option(positional);
 }
 
-int execute_global_remove(
-    const po::variables_map &vm,
-    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_global_remove(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string config_entity;
   int r = get_config_entity(vm, &config_entity);
   if (r < 0) {
@@ -311,11 +342,15 @@ int execute_global_remove(
   }
 
   std::string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config rm\", "
-      "\"who\": \"" + stringify(json_stream_escaper(config_entity)) + "\", "
-      "\"name\": \"" + key + "\""
-    "}";
+      "\"who\": \"" +
+      stringify(json_stream_escaper(config_entity)) +
+      "\", "
+      "\"name\": \"" +
+      key +
+      "\""
+      "}";
   std::string ss;
   r = rados.mon_command(std::move(cmd), {}, nullptr, &ss);
   if (r < 0) {
@@ -326,14 +361,20 @@ int execute_global_remove(
   return 0;
 }
 
-void get_global_list_arguments(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_global_list_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_config_entity_option(positional);
   at::add_format_options(options);
 }
 
-int execute_global_list(const po::variables_map &vm,
-                        const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_global_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string config_entity;
   int r = get_config_entity(vm, &config_entity);
   if (r < 0) {
@@ -372,7 +413,7 @@ int execute_global_list(const po::variables_map &vm,
     tbl.define_column("Section", TextTable::LEFT, TextTable::LEFT);
   }
 
-  for (const auto &it : options) {
+  for (const auto& it : options) {
     if (f) {
       f->open_object_section("option");
       f->dump_string("name", it.first);
@@ -395,14 +436,20 @@ int execute_global_list(const po::variables_map &vm,
   return 0;
 }
 
-void get_pool_get_arguments(po::options_description *positional,
-                            po::options_description *options) {
+void
+get_pool_get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_pool_option(positional);
   add_key_option(positional);
 }
 
-int execute_pool_get(const po::variables_map &vm,
-                     const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_pool_get(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   int r = get_pool(vm, &pool_name);
   if (r < 0) {
@@ -441,16 +488,21 @@ int execute_pool_get(const po::variables_map &vm,
   return 0;
 }
 
-void get_pool_set_arguments(po::options_description *positional,
-                            po::options_description *options) {
+void
+get_pool_set_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_pool_option(positional);
   add_key_option(positional);
-  positional->add_options()
-    ("value", "config value");
+  positional->add_options()("value", "config value");
 }
 
-int execute_pool_set(const po::variables_map &vm,
-                     const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_pool_set(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   int r = get_pool(vm, &pool_name);
   if (r < 0) {
@@ -484,14 +536,20 @@ int execute_pool_set(const po::variables_map &vm,
   return 0;
 }
 
-void get_pool_remove_arguments(po::options_description *positional,
-                               po::options_description *options) {
+void
+get_pool_remove_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_pool_option(positional);
   add_key_option(positional);
 }
 
-int execute_pool_remove(const po::variables_map &vm,
-                        const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_pool_remove(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   int r = get_pool(vm, &pool_name);
   if (r < 0) {
@@ -523,14 +581,20 @@ int execute_pool_remove(const po::variables_map &vm,
   return 0;
 }
 
-void get_pool_list_arguments(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_pool_list_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_pool_option(positional);
   at::add_format_options(options);
 }
 
-int execute_pool_list(const po::variables_map &vm,
-                      const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_pool_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   int r = get_pool(vm, &pool_name);
   if (r < 0) {
@@ -568,7 +632,7 @@ int execute_pool_list(const po::variables_map &vm,
     tbl.define_column("Source", TextTable::LEFT, TextTable::LEFT);
   }
 
-  for (auto &option : options) {
+  for (auto& option : options) {
     if (f) {
       f->open_object_section("option");
       f->dump_string("name", option.name);
@@ -592,23 +656,29 @@ int execute_pool_list(const po::variables_map &vm,
   return 0;
 }
 
-void get_image_get_arguments(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_image_get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   add_key_option(positional);
 }
 
-int execute_image_get(const po::variables_map &vm,
-                      const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_image_get(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -622,8 +692,9 @@ int execute_image_get(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "", "",
-                                 false, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", "", false, &rados, &io_ctx,
+      &image);
   if (r < 0) {
     return r;
   }
@@ -645,25 +716,30 @@ int execute_image_get(const po::variables_map &vm,
   return 0;
 }
 
-void get_image_set_arguments(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_image_set_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   add_key_option(positional);
-  positional->add_options()
-    ("value", "config value");
+  positional->add_options()("value", "config value");
 }
 
-int execute_image_set(const po::variables_map &vm,
-                      const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_image_set(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -683,8 +759,9 @@ int execute_image_set(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "", "",
-                                 false, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", "", false, &rados, &io_ctx,
+      &image);
   if (r < 0) {
     return r;
   }
@@ -699,24 +776,29 @@ int execute_image_set(const po::variables_map &vm,
   return 0;
 }
 
-void get_image_remove_arguments(po::options_description *positional,
-                                po::options_description *options) {
+void
+get_image_remove_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   add_key_option(positional);
 }
 
-int execute_image_remove(
-    const po::variables_map &vm,
-    const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_image_remove(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -730,8 +812,9 @@ int execute_image_remove(
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "", "",
-                                 false, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", "", false, &rados, &io_ctx,
+      &image);
   if (r < 0) {
     return r;
   }
@@ -746,23 +829,29 @@ int execute_image_remove(
   return 0;
 }
 
-void get_image_list_arguments(po::options_description *positional,
-                              po::options_description *options) {
+void
+get_image_list_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_format_options(options);
 }
 
-int execute_image_list(const po::variables_map &vm,
-                       const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_image_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -776,8 +865,9 @@ int execute_image_list(const po::variables_map &vm,
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "", "",
-                                 false, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", "", false, &rados, &io_ctx,
+      &image);
   if (r < 0) {
     return r;
   }
@@ -806,7 +896,7 @@ int execute_image_list(const po::variables_map &vm,
     tbl.define_column("Source", TextTable::LEFT, TextTable::LEFT);
   }
 
-  for (auto &option : options) {
+  for (auto& option : options) {
     if (f) {
       f->open_object_section("option");
       f->dump_string("name", option.name);
@@ -837,51 +927,91 @@ int execute_image_list(const po::variables_map &vm,
 }
 
 Shell::Action action_global_get(
-  {"config", "global", "get"}, {},
-   "Get a global-level configuration override.", "",
-   &get_global_get_arguments, &execute_global_get);
+    {"config", "global", "get"},
+    {},
+    "Get a global-level configuration override.",
+    "",
+    &get_global_get_arguments,
+    &execute_global_get);
 Shell::Action action_global_set(
-  {"config", "global", "set"}, {},
-   "Set a global-level configuration override.", "",
-   &get_global_set_arguments, &execute_global_set);
+    {"config", "global", "set"},
+    {},
+    "Set a global-level configuration override.",
+    "",
+    &get_global_set_arguments,
+    &execute_global_set);
 Shell::Action action_global_remove(
-  {"config", "global", "remove"}, {"config", "global", "rm"},
-   "Remove a global-level configuration override.", "",
-   &get_global_remove_arguments, &execute_global_remove);
+    {"config", "global", "remove"},
+    {"config", "global", "rm"},
+    "Remove a global-level configuration override.",
+    "",
+    &get_global_remove_arguments,
+    &execute_global_remove);
 Shell::Action action_global_list(
-  {"config", "global", "list"}, {"config", "global", "ls"},
-   "List global-level configuration overrides.", "",
-   &get_global_list_arguments, &execute_global_list);
+    {"config", "global", "list"},
+    {"config", "global", "ls"},
+    "List global-level configuration overrides.",
+    "",
+    &get_global_list_arguments,
+    &execute_global_list);
 
 Shell::Action action_pool_get(
-  {"config", "pool", "get"}, {}, "Get a pool-level configuration override.", "",
-   &get_pool_get_arguments, &execute_pool_get);
+    {"config", "pool", "get"},
+    {},
+    "Get a pool-level configuration override.",
+    "",
+    &get_pool_get_arguments,
+    &execute_pool_get);
 Shell::Action action_pool_set(
-  {"config", "pool", "set"}, {}, "Set a pool-level configuration override.", "",
-   &get_pool_set_arguments, &execute_pool_set);
+    {"config", "pool", "set"},
+    {},
+    "Set a pool-level configuration override.",
+    "",
+    &get_pool_set_arguments,
+    &execute_pool_set);
 Shell::Action action_pool_remove(
-  {"config", "pool", "remove"}, {"config", "pool", "rm"},
-   "Remove a pool-level configuration override.", "",
-   &get_pool_remove_arguments, &execute_pool_remove);
+    {"config", "pool", "remove"},
+    {"config", "pool", "rm"},
+    "Remove a pool-level configuration override.",
+    "",
+    &get_pool_remove_arguments,
+    &execute_pool_remove);
 Shell::Action action_pool_list(
-  {"config", "pool", "list"}, {"config", "pool", "ls"},
-   "List pool-level configuration overrides.", "",
-   &get_pool_list_arguments, &execute_pool_list);
+    {"config", "pool", "list"},
+    {"config", "pool", "ls"},
+    "List pool-level configuration overrides.",
+    "",
+    &get_pool_list_arguments,
+    &execute_pool_list);
 
 Shell::Action action_image_get(
-  {"config", "image", "get"}, {}, "Get an image-level configuration override.",
-   "", &get_image_get_arguments, &execute_image_get);
+    {"config", "image", "get"},
+    {},
+    "Get an image-level configuration override.",
+    "",
+    &get_image_get_arguments,
+    &execute_image_get);
 Shell::Action action_image_set(
-  {"config", "image", "set"}, {}, "Set an image-level configuration override.",
-   "", &get_image_set_arguments, &execute_image_set);
+    {"config", "image", "set"},
+    {},
+    "Set an image-level configuration override.",
+    "",
+    &get_image_set_arguments,
+    &execute_image_set);
 Shell::Action action_image_remove(
-  {"config", "image", "remove"}, {"config", "image", "rm"},
-   "Remove an image-level configuration override.", "",
-   &get_image_remove_arguments, &execute_image_remove);
+    {"config", "image", "remove"},
+    {"config", "image", "rm"},
+    "Remove an image-level configuration override.",
+    "",
+    &get_image_remove_arguments,
+    &execute_image_remove);
 Shell::Action action_image_list(
-  {"config", "image", "list"}, {"config", "image", "ls"},
-   "List image-level configuration overrides.", "",
-   &get_image_list_arguments, &execute_image_list);
+    {"config", "image", "list"},
+    {"config", "image", "ls"},
+    "List image-level configuration overrides.",
+    "",
+    &get_image_list_arguments,
+    &execute_image_list);
 
 } // namespace config
 } // namespace action

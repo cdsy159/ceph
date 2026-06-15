@@ -20,21 +20,20 @@
 
 #include <boost/intrusive_ptr.hpp>
 
+#include "common/RefCountedObj.h"
+#include "common/ceph_context.h"
 #include "include/rados/librados.h"
 #include "include/rados/librados.hpp"
 #include "include/radosstriper/libradosstriper.h"
 #include "include/radosstriper/libradosstriper.hpp"
-#include "MultiAioCompletionImpl.h"
-
-#include "librados/IoCtxImpl.h"
 #include "librados/AioCompletionImpl.h"
-#include "common/RefCountedObj.h"
-#include "common/ceph_context.h"
+#include "librados/IoCtxImpl.h"
+
+#include "MultiAioCompletionImpl.h"
 
 namespace libradosstriper {
 
-using MultiAioCompletionImplPtr =
-    boost::intrusive_ptr<MultiAioCompletionImpl>;
+using MultiAioCompletionImplPtr = boost::intrusive_ptr<MultiAioCompletionImpl>;
 
 struct RadosStriperImpl {
 
@@ -42,7 +41,8 @@ struct RadosStriperImpl {
    * exception wrapper around an error code
    */
   struct ErrorCode {
-    ErrorCode(int error) : m_code(error) {};
+    ErrorCode(int error) :
+      m_code(error){};
     int m_code;
   };
 
@@ -53,9 +53,9 @@ struct RadosStriperImpl {
    *          - if cluster_name is null : this is the client id
    *          - else : this is the full client name in format type.id
    */
-  RadosStriperImpl(librados::IoCtx& ioctx, librados::IoCtxImpl *ioctx_impl);
+  RadosStriperImpl(librados::IoCtx& ioctx, librados::IoCtxImpl* ioctx_impl);
   /// Destructor
-  ~RadosStriperImpl() {};
+  ~RadosStriperImpl(){};
 
   // configuration
   int setObjectLayoutStripeUnit(unsigned int stripe_unit);
@@ -63,65 +63,106 @@ struct RadosStriperImpl {
   int setObjectLayoutObjectSize(unsigned int object_size);
 
   // xattrs
-  int getxattr(const object_t& soid, const char *name, bufferlist& bl);
-  int setxattr(const object_t& soid, const char *name, bufferlist& bl);
+  int getxattr(const object_t& soid, const char* name, bufferlist& bl);
+  int setxattr(const object_t& soid, const char* name, bufferlist& bl);
   int getxattrs(const object_t& soid, std::map<std::string, bufferlist>& attrset);
-  int rmxattr(const object_t& soid, const char *name);
+  int rmxattr(const object_t& soid, const char* name);
 
   // io
-  int write(const std::string& soid, const bufferlist& bl, size_t len, uint64_t off);
+  int write(
+      const std::string& soid,
+      const bufferlist& bl,
+      size_t len,
+      uint64_t off);
   int append(const std::string& soid, const bufferlist& bl, size_t len);
   int write_full(const std::string& soid, const bufferlist& bl);
   int read(const std::string& soid, bufferlist* pbl, size_t len, uint64_t off);
 
   // asynchronous io
-  int aio_write(const std::string& soid, librados::AioCompletionImpl *c,
-		const bufferlist& bl, size_t len, uint64_t off);
-  int aio_append(const std::string& soid, librados::AioCompletionImpl *c,
-		 const bufferlist& bl, size_t len);
-  int aio_write_full(const std::string& soid, librados::AioCompletionImpl *c,
-		     const bufferlist& bl);
-  int aio_read(const std::string& soid, librados::AioCompletionImpl *c,
-	       bufferlist* pbl, size_t len, uint64_t off);
-  int aio_read(const std::string& soid, librados::AioCompletionImpl *c,
-	       char* buf, size_t len, uint64_t off);
+  int aio_write(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      const bufferlist& bl,
+      size_t len,
+      uint64_t off);
+  int aio_append(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      const bufferlist& bl,
+      size_t len);
+  int aio_write_full(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      const bufferlist& bl);
+  int aio_read(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      bufferlist* pbl,
+      size_t len,
+      uint64_t off);
+  int aio_read(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      char* buf,
+      size_t len,
+      uint64_t off);
   int aio_flush();
 
   // stat, deletion and truncation
-  int stat(const std::string& soid, uint64_t *psize, time_t *pmtime);
-  int stat2(const std::string& soid, uint64_t *psize, struct timespec *pts);
-  template<class TimeType>
+  int stat(const std::string& soid, uint64_t* psize, time_t* pmtime);
+  int stat2(const std::string& soid, uint64_t* psize, struct timespec* pts);
+
+  template <class TimeType>
   struct StatFunction {
-    typedef int (librados::IoCtxImpl::*Type) (const object_t& oid,
-					      librados::AioCompletionImpl *c,
-					      uint64_t *psize, TimeType *pmtime);
+    typedef int (librados::IoCtxImpl::*Type)(
+        const object_t& oid,
+        librados::AioCompletionImpl* c,
+        uint64_t* psize,
+        TimeType* pmtime);
   };
-  template<class TimeType>
-  int aio_generic_stat(const std::string& soid, librados::AioCompletionImpl *c,
-		       uint64_t *psize, TimeType *pmtime,
-		       typename StatFunction<TimeType>::Type statFunction);
-  int aio_stat(const std::string& soid, librados::AioCompletionImpl *c,
-	       uint64_t *psize, time_t *pmtime);
-  int aio_stat2(const std::string& soid, librados::AioCompletionImpl *c,
-		uint64_t *psize, struct timespec *pts);
-  int remove(const std::string& soid, int flags=0);
+  template <class TimeType>
+  int aio_generic_stat(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      uint64_t* psize,
+      TimeType* pmtime,
+      typename StatFunction<TimeType>::Type statFunction);
+  int aio_stat(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      uint64_t* psize,
+      time_t* pmtime);
+  int aio_stat2(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      uint64_t* psize,
+      struct timespec* pts);
+  int remove(const std::string& soid, int flags = 0);
   int trunc(const std::string& soid, uint64_t size);
 
   // asynchronous remove. Note that the removal is not 100% parallelized :
   // the removal of the first rados object of the striped object will be
   // done via a syncrhonous call after the completion of all other removals.
   // These are done asynchrounously and in parallel
-  int aio_remove(const std::string& soid, librados::AioCompletionImpl *c, int flags=0);
+  int aio_remove(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      int flags = 0);
 
   // reference counting
-  void get() {
+  void
+  get()
+  {
     std::lock_guard l{lock};
-    m_refCnt ++ ;
+    m_refCnt++;
   }
-  void put() {
+
+  void
+  put()
+  {
     bool deleteme = false;
     lock.lock();
-    m_refCnt --;
+    m_refCnt--;
     if (m_refCnt == 0)
       deleteme = true;
     cond.notify_all();
@@ -134,48 +175,55 @@ struct RadosStriperImpl {
   std::string getObjectId(const object_t& soid, long long unsigned objectno);
 
   // opening and closing of striped objects
-  void unlockObject(const std::string& soid,
-		    const std::string& lockCookie);
-  void aio_unlockObject(const std::string& soid,
-                        const std::string& lockCookie,
-                        librados::AioCompletion *c);
+  void unlockObject(const std::string& soid, const std::string& lockCookie);
+  void aio_unlockObject(
+      const std::string& soid,
+      const std::string& lockCookie,
+      librados::AioCompletion* c);
 
   // internal versions of IO method
-  int write_in_open_object(const std::string& soid,
-			   const ceph_file_layout& layout,
-			   const std::string& lockCookie,
-			   const bufferlist& bl,
-			   size_t len,
-			   uint64_t off);
-  int aio_write_in_open_object(const std::string& soid,
-			       librados::AioCompletionImpl *c,
-			       const ceph_file_layout& layout,
-			       const std::string& lockCookie,
-			       const bufferlist& bl,
-			       size_t len,
-			       uint64_t off);
-  int internal_aio_write(const std::string& soid,
-			 MultiAioCompletionImplPtr c,
-			 const bufferlist& bl,
-			 size_t len,
-			 uint64_t off,
-			 const ceph_file_layout& layout);
+  int write_in_open_object(
+      const std::string& soid,
+      const ceph_file_layout& layout,
+      const std::string& lockCookie,
+      const bufferlist& bl,
+      size_t len,
+      uint64_t off);
+  int aio_write_in_open_object(
+      const std::string& soid,
+      librados::AioCompletionImpl* c,
+      const ceph_file_layout& layout,
+      const std::string& lockCookie,
+      const bufferlist& bl,
+      size_t len,
+      uint64_t off);
+  int internal_aio_write(
+      const std::string& soid,
+      MultiAioCompletionImplPtr c,
+      const bufferlist& bl,
+      size_t len,
+      uint64_t off,
+      const ceph_file_layout& layout);
 
-  int extract_uint32_attr(std::map<std::string, bufferlist> &attrs,
-			  const std::string& key,
-			  ceph_le32 *value);
+  int extract_uint32_attr(
+      std::map<std::string, bufferlist>& attrs,
+      const std::string& key,
+      ceph_le32* value);
 
-  int extract_sizet_attr(std::map<std::string, bufferlist> &attrs,
-			 const std::string& key,
-			 size_t *value);
+  int extract_sizet_attr(
+      std::map<std::string, bufferlist>& attrs,
+      const std::string& key,
+      size_t* value);
 
-  int internal_get_layout_and_size(const std::string& oid,
-				   ceph_file_layout *layout,
-				   uint64_t *size);
+  int internal_get_layout_and_size(
+      const std::string& oid,
+      ceph_file_layout* layout,
+      uint64_t* size);
 
-  int internal_aio_remove(const std::string& soid,
-			  MultiAioCompletionImplPtr multi_completion,
-			  int flags=0);
+  int internal_aio_remove(
+      const std::string& soid,
+      MultiAioCompletionImplPtr multi_completion,
+      int flags = 0);
 
   /**
    * opens an existing striped object and takes a shared lock on it
@@ -183,10 +231,11 @@ struct RadosStriperImpl {
    * In particulae, if the striped object does not exists, -ENOENT is returned
    * In case the return code in not 0, no lock is taken
    */
-  int openStripedObjectForRead(const std::string& soid,
-			       ceph_file_layout *layout,
-			       uint64_t *size,
-			       std::string *lockCookie);
+  int openStripedObjectForRead(
+      const std::string& soid,
+      ceph_file_layout* layout,
+      uint64_t* size,
+      std::string* lockCookie);
 
   /**
    * opens an existing striped object, takes a shared lock on it
@@ -201,11 +250,12 @@ struct RadosStriperImpl {
    * @return 0 if everything is ok and the lock was taken. -errcode otherwise
    * In case the return code in not 0, no lock is taken
    */
-  int openStripedObjectForWrite(const std::string& soid,
-				ceph_file_layout *layout,
-				uint64_t *size,
-				std::string *lockCookie,
-				bool isFileSizeAbsolute);
+  int openStripedObjectForWrite(
+      const std::string& soid,
+      ceph_file_layout* layout,
+      uint64_t* size,
+      std::string* lockCookie,
+      bool isFileSizeAbsolute);
   /**
    * creates an empty striped object with the given size and opens it calling
    * openStripedObjectForWrite, which implies taking a shared lock on it
@@ -216,19 +266,21 @@ struct RadosStriperImpl {
    * @return 0 if everything is ok and the lock was taken. -errcode otherwise
    * In case the return code in not 0, no lock is taken
    */
-  int createAndOpenStripedObject(const std::string& soid,
-				 ceph_file_layout *layout,
-				 uint64_t size,
-				 std::string *lockCookie,
-				 bool isFileSizeAbsolute);
+  int createAndOpenStripedObject(
+      const std::string& soid,
+      ceph_file_layout* layout,
+      uint64_t size,
+      std::string* lockCookie,
+      bool isFileSizeAbsolute);
 
   /**
    * truncates an object synchronously. Should only be called with size < original_size
    */
-  int truncate(const std::string& soid,
-	       uint64_t original_size,
-	       uint64_t size,
-	       ceph_file_layout &layout);
+  int truncate(
+      const std::string& soid,
+      uint64_t original_size,
+      uint64_t size,
+      ceph_file_layout& layout);
 
   /**
    * truncates an object asynchronously. Should only be called with size < original_size
@@ -236,26 +288,30 @@ struct RadosStriperImpl {
    * is, the (potential) truncation of the rados object residing just at the truncation
    * point is synchronous for lack of asynchronous truncation in the rados layer
    */
-  int aio_truncate(const std::string& soid,
-		   MultiAioCompletionImplPtr c,
-		   uint64_t original_size,
-		   uint64_t size,
-		   ceph_file_layout &layout);
+  int aio_truncate(
+      const std::string& soid,
+      MultiAioCompletionImplPtr c,
+      uint64_t original_size,
+      uint64_t size,
+      ceph_file_layout& layout);
 
   /**
    * grows an object (adding 0s). Should only be called with size > original_size
    */
-  int grow(const std::string& soid,
-	   uint64_t original_size,
-	   uint64_t size,
-	   ceph_file_layout &layout);
+  int grow(
+      const std::string& soid,
+      uint64_t original_size,
+      uint64_t size,
+      ceph_file_layout& layout);
 
   /**
    * creates a unique identifier
    */
   static std::string getUUID();
 
-  CephContext *cct() {
+  CephContext*
+  cct()
+  {
     return (CephContext*)m_radosCluster.cct();
   }
 
@@ -268,10 +324,10 @@ struct RadosStriperImpl {
   // Context
   librados::Rados m_radosCluster;
   librados::IoCtx m_ioCtx;
-  librados::IoCtxImpl *m_ioCtxImpl;
+  librados::IoCtxImpl* m_ioCtxImpl;
 
   // Default layout
   ceph_file_layout m_layout;
 };
-}
+} // namespace libradosstriper
 #endif

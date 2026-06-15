@@ -18,12 +18,12 @@
 #define CEPH_DISPATCHER_H
 
 #include <memory>
+#include <variant>
+
 #include "include/buffer_fwd.h"
 #include "include/ceph_assert.h"
 #include "include/common_fwd.h"
 #include "msg/MessageRef.h"
-
-#include <variant>
 
 class Messenger;
 class Connection;
@@ -34,14 +34,17 @@ class Dispatcher {
 public:
   /* Ordering of dispatch for a list of Dispatchers. */
   using priority_t = uint32_t;
-  static constexpr priority_t PRIORITY_HIGH = std::numeric_limits<priority_t>::max() / 4;
-  static constexpr priority_t PRIORITY_DEFAULT = std::numeric_limits<priority_t>::max() / 2;
-  static constexpr priority_t PRIORITY_LOW = (std::numeric_limits<priority_t>::max() / 4) * 3;
+  static constexpr priority_t PRIORITY_HIGH =
+      std::numeric_limits<priority_t>::max() / 4;
+  static constexpr priority_t PRIORITY_DEFAULT =
+      std::numeric_limits<priority_t>::max() / 2;
+  static constexpr priority_t PRIORITY_LOW =
+      (std::numeric_limits<priority_t>::max() / 4) * 3;
 
-  explicit Dispatcher(CephContext *cct_)
-    : cct(cct_)
-  {
-  }
+  explicit Dispatcher(CephContext* cct_) :
+    cct(cct_)
+  {}
+
   virtual ~Dispatcher() = default;
 
   /**
@@ -68,29 +71,49 @@ public:
    * @param m The message we want to fast dispatch.
    * @returns True if the message can be fast dispatched; false otherwise.
    */
-  virtual bool ms_can_fast_dispatch(const Message *m) const { return false; }
-  virtual bool ms_can_fast_dispatch2(const MessageConstRef& m) const {
+  virtual bool
+  ms_can_fast_dispatch(const Message* m) const
+  {
+    return false;
+  }
+
+  virtual bool
+  ms_can_fast_dispatch2(const MessageConstRef& m) const
+  {
     return ms_can_fast_dispatch(m.get());
   }
+
   /**
    * This function determines if a dispatcher is included in the
    * list of fast-dispatch capable Dispatchers.
    * @returns True if the Dispatcher can handle any messages via
    * fast dispatch; false otherwise.
    */
-  virtual bool ms_can_fast_dispatch_any() const { return false; }
+  virtual bool
+  ms_can_fast_dispatch_any() const
+  {
+    return false;
+  }
+
   /**
    * Perform a "fast dispatch" on a given message. See
    * ms_can_fast_dispatch() for the requirements.
    *
    * @param m The Message to fast dispatch.
    */
-  virtual void ms_fast_dispatch(Message *m) { ceph_abort(); }
+  virtual void
+  ms_fast_dispatch(Message* m)
+  {
+    ceph_abort();
+  }
 
   /* ms_fast_dispatch2 because otherwise the child must define both */
-  virtual void ms_fast_dispatch2(const MessageRef &m) {
+  virtual void
+  ms_fast_dispatch2(const MessageRef& m)
+  {
     /* allow old style dispatch handling that expects a Message * with a floating ref */
-    return ms_fast_dispatch(MessageRef(m).detach()); /* XXX N.B. always consumes ref */
+    return ms_fast_dispatch(
+        MessageRef(m).detach()); /* XXX N.B. always consumes ref */
   }
 
   /**
@@ -108,10 +131,14 @@ public:
    *
    * @param m A message which has been received
    */
-  virtual void ms_fast_preprocess(Message *m) {}
+  virtual void
+  ms_fast_preprocess(Message* m)
+  {}
 
   /* ms_fast_preprocess2 because otherwise the child must define both */
-  virtual void ms_fast_preprocess2(const MessageRef &m) {
+  virtual void
+  ms_fast_preprocess2(const MessageRef& m)
+  {
     /* allow old style dispatch handling that expects a Message* */
     return ms_fast_preprocess(m.get());
   }
@@ -122,17 +149,24 @@ public:
    * @param m The message being delivered. You (the Dispatcher)
    * are given a single reference count on it.
    */
-  virtual bool ms_dispatch(Message *m) {
+  virtual bool
+  ms_dispatch(Message* m)
+  {
     ceph_abort();
   }
 
   /* ms_dispatch2 because otherwise the child must define both */
   struct HANDLED {};
+
   struct UNHANDLED {};
+
   struct ACKNOWLEDGED {};
+
   typedef std::variant<bool, HANDLED, UNHANDLED, ACKNOWLEDGED> dispatch_result_t;
 
-  static inline dispatch_result_t fold_dispatch_result(dispatch_result_t r) {
+  static inline dispatch_result_t
+  fold_dispatch_result(dispatch_result_t r)
+  {
     if (std::holds_alternative<bool>(r)) {
       if (std::get<bool>(r)) {
         return HANDLED();
@@ -144,7 +178,9 @@ public:
     }
   }
 
-  virtual dispatch_result_t ms_dispatch2(const MessageRef &m) {
+  virtual dispatch_result_t
+  ms_dispatch2(const MessageRef& m)
+  {
     /* allow old style dispatch handling that expects a Message * with a floating ref */
     MessageRef mr(m);
     if (ms_dispatch(mr.get())) {
@@ -161,7 +197,9 @@ public:
    * @param con The new Connection which has been established. You are not
    * granted a reference to it -- take one if you need one!
    */
-  virtual void ms_handle_connect(Connection *con) {}
+  virtual void
+  ms_handle_connect(Connection* con)
+  {}
 
   /**
    * This function will be called synchronously whenever a Connection is
@@ -172,14 +210,18 @@ public:
    * @param con The new Connection which has been established. You are not
    * granted a reference to it -- take one if you need one!
    */
-  virtual void ms_handle_fast_connect(Connection *con) {}
+  virtual void
+  ms_handle_fast_connect(Connection* con)
+  {}
 
   /**
    * Callback indicating we have accepted an incoming connection.
    *
    * @param con The (new or existing) Connection associated with the session
    */
-  virtual void ms_handle_accept(Connection *con) {}
+  virtual void
+  ms_handle_accept(Connection* con)
+  {}
 
   /**
    * Callback indicating we have accepted an incoming connection, if you
@@ -188,7 +230,9 @@ public:
    *
    * @param con The (new or existing) Connection associated with the session
    */
-  virtual void ms_handle_fast_accept(Connection *con) {}
+  virtual void
+  ms_handle_fast_accept(Connection* con)
+  {}
 
   /*
    * this indicates that the ordered+reliable delivery semantics have
@@ -199,7 +243,7 @@ public:
    * @param con The Connection which broke. You are not granted
    * a reference to it.
    */
-  virtual bool ms_handle_reset(Connection *con) = 0;
+  virtual bool ms_handle_reset(Connection* con) = 0;
 
   /**
    * This indicates that the ordered+reliable delivery semantics
@@ -210,7 +254,7 @@ public:
    * @param con The Connection which broke. You are not granted
    * a reference to it.
    */
-  virtual void ms_handle_remote_reset(Connection *con) = 0;
+  virtual void ms_handle_remote_reset(Connection* con) = 0;
 
   /**
    * This indicates that the connection is both broken and further
@@ -220,7 +264,7 @@ public:
    * @param con The Connection which broke. You are not granted
    * a reference to it.
    */
-  virtual bool ms_handle_refused(Connection *con) = 0;
+  virtual bool ms_handle_refused(Connection* con) = 0;
 
   /**
    * @defgroup Authentication
@@ -241,7 +285,9 @@ public:
    * return true for success (auth succeeds for this stage of session construction)
    * return false for failure (failure to parse caps, for instance)
    */
-  [[nodiscard]] virtual bool ms_handle_fast_authentication(Connection *con) {
+  [[nodiscard]] virtual bool
+  ms_handle_fast_authentication(Connection* con)
+  {
     return false;
   }
 
@@ -250,10 +296,11 @@ public:
    */
 
 protected:
-  CephContext *cct;
+  CephContext* cct;
+
 private:
-  explicit Dispatcher(const Dispatcher &rhs);
-  Dispatcher& operator=(const Dispatcher &rhs);
+  explicit Dispatcher(const Dispatcher& rhs);
+  Dispatcher& operator=(const Dispatcher& rhs);
 };
 
 #endif

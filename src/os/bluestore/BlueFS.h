@@ -4,24 +4,25 @@
 #ifndef CEPH_OS_BLUESTORE_BLUEFS_H
 #define CEPH_OS_BLUESTORE_BLUEFS_H
 
-#include <atomic>
-#include <mutex>
-#include <limits>
 #include <uuid/uuid.h>
 
-#include "bluefs_types.h"
-#include "blk/BlockDevice.h"
+#include <atomic>
+#include <limits>
+#include <mutex>
 
+#include "boost/dynamic_bitset.hpp"
+#include "boost/intrusive/list.hpp"
+
+#include "blk/BlockDevice.h"
 #include "common/RefCountedObj.h"
 #include "common/ceph_context.h"
 #include "global/global_context.h"
 #include "include/byteorder.h"
 #include "include/ceph_hash.h"
 #include "include/common_fwd.h"
-
-#include "boost/intrusive/list.hpp"
-#include "boost/dynamic_bitset.hpp"
 #include "include/hash.h"
+
+#include "bluefs_types.h"
 
 class Allocator;
 
@@ -95,8 +96,7 @@ class BlueFSVolumeSelector {
 public:
   typedef std::vector<std::pair<std::string, uint64_t>> paths;
 
-  virtual ~BlueFSVolumeSelector() {
-  }
+  virtual ~BlueFSVolumeSelector() {}
 
   /**
   *  Update config parameters from the config database.
@@ -125,12 +125,15 @@ public:
   *           (+1 file count, +file size, +all the extents)
   *
   */
-  void add_usage(void* hint, const bluefs_fnode_t& fnode) {
+  void
+  add_usage(void* hint, const bluefs_fnode_t& fnode)
+  {
     for (auto& e : fnode.extents) {
       add_usage(hint, e);
     }
     add_usage(hint, fnode.size, true);
   }
+
   /**
   *  Decrements stats for a given logical level using provided fnode as a delta
   *  Parameters:
@@ -139,12 +142,15 @@ public:
   *           (-1 file count, -file size, -all the extents)
   *
   */
-  void sub_usage(void* hint, const bluefs_fnode_t& fnode) {
+  void
+  sub_usage(void* hint, const bluefs_fnode_t& fnode)
+  {
     for (auto& e : fnode.extents) {
       sub_usage(hint, e);
     }
     sub_usage(hint, fnode.size, true);
   }
+
   /**
   *  Increments stats for a given logical level using provided extent as a delta,
   *  Parameters:
@@ -209,8 +215,17 @@ public:
   virtual void reset_history(std::ostream& sout) = 0;
 
   /* used for sanity checking of vselector */
-  virtual BlueFSVolumeSelector* clone_empty() const { return nullptr; }
-  virtual bool compare(BlueFSVolumeSelector* other) { return true; };
+  virtual BlueFSVolumeSelector*
+  clone_empty() const
+  {
+    return nullptr;
+  }
+
+  virtual bool
+  compare(BlueFSVolumeSelector* other)
+  {
+    return true;
+  };
 };
 
 struct bluefs_shared_alloc_context_t {
@@ -220,13 +235,18 @@ struct bluefs_shared_alloc_context_t {
 
   std::atomic<uint64_t> bluefs_used = 0;
 
-  void set(Allocator* _a, uint64_t _au) {
+  void
+  set(Allocator* _a, uint64_t _au)
+  {
     a = _a;
     alloc_unit = _au;
     need_init = true;
     bluefs_used = 0;
   }
-  void reset() {
+
+  void
+  reset()
+  {
     a = nullptr;
     alloc_unit = 0;
   }
@@ -248,19 +268,43 @@ struct bluefs_shared_alloc_context_t {
 template <class T>
 class debug_point_t {
 public:
-  debug_point_t() : m_func(nullptr) {};
-  debug_point_t(T&& func)
-  : m_func(func) {}
-  template<typename... Arg>
-  void operator()(Arg... arg) { if (m_func) m_func(std::forward<Arg...>(arg...)); }
-  void operator()() { if (m_func) m_func(); }
-  void operator=(T&& func) { m_func = std::move(func);}
-  void operator=(T& func) { m_func = func;}
+  debug_point_t() :
+    m_func(nullptr){};
+
+  debug_point_t(T&& func) :
+    m_func(func)
+  {}
+
+  template <typename... Arg>
+  void
+  operator()(Arg... arg)
+  {
+    if (m_func)
+      m_func(std::forward<Arg...>(arg...));
+  }
+
+  void
+  operator()()
+  {
+    if (m_func)
+      m_func();
+  }
+
+  void
+  operator=(T&& func)
+  {
+    m_func = std::move(func);
+  }
+
+  void
+  operator=(T& func)
+  {
+    m_func = func;
+  }
+
 private:
   T m_func;
 };
-
-
 
 class BlueFS {
 public:
@@ -277,6 +321,7 @@ public:
     WRITER_WAL,
     WRITER_SST,
   };
+
   void collect_alerts(osd_alert_list_t& alerts);
 
   struct File : public RefCountedObject {
@@ -298,22 +343,30 @@ public:
       typedef struct stamp_t {
         uint8_t v[8] = {0};
       } stamp_t;
+
       typedef uint64_t envelope_len_t;
       uint64_t file_offset = 0;
-      uint64_t content_offset = 0; // offset of start of flush, it should be length offset
+      uint64_t content_offset =
+          0; // offset of start of flush, it should be length offset
       uint32_t head_len = 0;
       uint32_t tail_len = 0;
       uint64_t content_length = 0;
 
-      static constexpr size_t head_size() {
+      static constexpr size_t
+      head_size()
+      {
         return sizeof(envelope_len_t);
       }
 
-      static constexpr size_t tail_size() {
+      static constexpr size_t
+      tail_size()
+      {
         return sizeof(stamp_t);
       }
 
-      static stamp_t generate_stamp(uuid_d uuid, uint64_t ino) {
+      static stamp_t
+      generate_stamp(uuid_d uuid, uint64_t ino)
+      {
         stamp_t m;
         const char* uuid_bytes = uuid.bytes();
         uint64_t hashed_ino = ino;
@@ -352,27 +405,30 @@ public:
     ceph::mutex lock = ceph::make_mutex("BlueFS::File::lock");
 
     bool envelopes_indexed; // Before reading from enveloped file all envelopes must be located.
-                             // The flag indicates whether `envelopes` is initialized.
-    std::vector<envelope_t> envelopes; // Reading from enveloped file requires having indexed envelopes.
-                                       // Its filled either on _replay() or when file is opened for read.
+        // The flag indicates whether `envelopes` is initialized.
+    std::vector<envelope_t>
+        envelopes; // Reading from enveloped file requires having indexed envelopes.
+        // Its filled either on _replay() or when file is opened for read.
     envelope_t::stamp_t stamp;
 
   private:
     FRIEND_MAKE_REF(File);
-    File()
-      :
-	refs(0),
-	dirty_seq(0),
-	locked(false),
-	deleted(false),
-	is_dirty(false),
-	num_readers(0),
-	num_writers(0),
-	num_reading(0),
-        vselector_hint(nullptr),
-        envelopes_indexed(false)
-      {}
-    ~File() override {
+
+    File() :
+      refs(0),
+      dirty_seq(0),
+      locked(false),
+      deleted(false),
+      is_dirty(false),
+      num_readers(0),
+      num_writers(0),
+      num_reading(0),
+      vselector_hint(nullptr),
+      envelopes_indexed(false)
+    {}
+
+    ~File() override
+    {
       ceph_assert(num_readers.load() == 0);
       ceph_assert(num_writers.load() == 0);
       ceph_assert(num_reading.load() == 0);
@@ -380,19 +436,20 @@ public:
     }
 
   public:
-    bool envelope_mode() {
+    bool
+    envelope_mode()
+    {
       return (fnode.encoding == ENVELOPE || fnode.encoding == ENVELOPE_FIN);
     }
-
   };
+
   using FileRef = ceph::ref_t<File>;
 
   typedef boost::intrusive::list<
       File,
-      boost::intrusive::member_hook<
-        File,
-	boost::intrusive::list_member_hook<>,
-	&File::dirty_item> > dirty_file_list_t;
+      boost::intrusive::
+          member_hook<File, boost::intrusive::list_member_hook<>, &File::dirty_item>>
+      dirty_file_list_t;
 
   struct Dir : public RefCountedObject {
     MEMPOOL_CLASS_HELPERS();
@@ -403,49 +460,62 @@ public:
     FRIEND_MAKE_REF(Dir);
     Dir() = default;
   };
+
   using DirRef = ceph::ref_t<Dir>;
 
   struct FileWriter {
     MEMPOOL_CLASS_HELPERS();
 
     FileRef file;
-    uint64_t pos = 0;       ///< start offset for buffer
+    uint64_t pos = 0; ///< start offset for buffer
+
   private:
-    ceph::buffer::list buffer;      ///< new data to write (at end of file)
-    ceph::buffer::list tail_block;  ///< existing partial block at end of file, if any
+    ceph::buffer::list buffer; ///< new data to write (at end of file)
+    ceph::buffer::list
+        tail_block; ///< existing partial block at end of file, if any
+
   public:
-    unsigned get_buffer_length() const {
+    unsigned
+    get_buffer_length() const
+    {
       return buffer.length();
     }
+
     ceph::bufferlist flush_buffer(
-      CephContext* cct,
-      const bool partial,
-      const unsigned length,
-      const bluefs_super_t& super);
-    ceph::buffer::list::page_aligned_appender buffer_appender;  //< for const char* only
+        CephContext* cct,
+        const bool partial,
+        const unsigned length,
+        const bluefs_super_t& super);
+    ceph::buffer::list::page_aligned_appender
+        buffer_appender; //< for const char* only
     bufferlist::contiguous_filler envelope_head_filler;
+
   public:
-    int writer_type = 0;    ///< WRITER_*
+    int writer_type = 0; ///< WRITER_*
     int write_hint = WRITE_LIFE_NOT_SET;
 
     ceph::mutex lock = ceph::make_mutex("BlueFS::FileWriter::lock");
-    std::array<IOContext*,MAX_BDEV> iocv; ///< for each bdev
+    std::array<IOContext*, MAX_BDEV> iocv; ///< for each bdev
     std::array<bool, MAX_BDEV> dirty_devs;
 
-    FileWriter(FileRef f, unsigned super_block_size)
-      : file(std::move(f))
-      , buffer_appender(buffer.get_page_aligned_appender(
-        std::max<uint64_t>(g_conf()->bluefs_alloc_size, 2 * super_block_size) / CEPH_PAGE_SIZE))
-      , envelope_head_filler() {
+    FileWriter(FileRef f, unsigned super_block_size) :
+      file(std::move(f)),
+      buffer_appender(buffer.get_page_aligned_appender(
+          std::max<uint64_t>(g_conf()->bluefs_alloc_size, 2 * super_block_size) /
+          CEPH_PAGE_SIZE)),
+      envelope_head_filler()
+    {
       ++file->num_writers;
       iocv.fill(nullptr);
       dirty_devs.fill(false);
       if (file->fnode.ino == 1) {
-	write_hint = WRITE_LIFE_MEDIUM;
+        write_hint = WRITE_LIFE_MEDIUM;
       }
     }
+
     // NOTE: caller must call BlueFS::close_writer()
-    ~FileWriter() {
+    ~FileWriter()
+    {
       --file->num_writers;
       for (unsigned i = 0; i < MAX_BDEV; ++i) {
         delete iocv[i];
@@ -455,31 +525,41 @@ public:
     // note: BlueRocksEnv uses this append exclusively, so it's safe
     // to use buffer_appender exclusively here (e.g., its notion of
     // offset will remain accurate).
-    void append(const char *buf, size_t len) {
+    void
+    append(const char* buf, size_t len)
+    {
       uint64_t l0 = get_buffer_length();
       ceph_assert(l0 + len <= std::numeric_limits<unsigned>::max());
       buffer_appender.append(buf, len);
     }
 
-    void append(const std::byte *buf, size_t len) {
+    void
+    append(const std::byte* buf, size_t len)
+    {
       // allow callers to use byte type instead of char* as we simply pass byte array
       append((const char*)buf, len);
     }
 
     // note: used internally only, for ino 1 or 0.
-    void append(ceph::buffer::list& bl) {
+    void
+    append(ceph::buffer::list& bl)
+    {
       uint64_t l0 = get_buffer_length();
       ceph_assert(l0 + bl.length() <= std::numeric_limits<unsigned>::max());
       buffer.claim_append(bl);
     }
 
-    void append_zero(size_t len) {
+    void
+    append_zero(size_t len)
+    {
       uint64_t l0 = get_buffer_length();
       ceph_assert(l0 + len <= std::numeric_limits<unsigned>::max());
       buffer_appender.append_zero(len);
     }
 
-    bufferlist::contiguous_filler append_hole(uint64_t len) {
+    bufferlist::contiguous_filler
+    append_hole(uint64_t len)
+    {
       if (buffer.get_append_buffer_unused_tail_length() < len) {
         ceph_assert(buffer.length() == 0);
         buffer_appender.refill();
@@ -487,42 +567,53 @@ public:
       return buffer.append_hole(len);
     }
 
-    uint64_t get_effective_write_pos() {
+    uint64_t
+    get_effective_write_pos()
+    {
       return pos + buffer.length();
     }
-
   };
 
   struct FileReaderBuffer {
     MEMPOOL_CLASS_HELPERS();
 
-    uint64_t bl_off = 0;    ///< prefetch buffer logical offset
-    ceph::buffer::list bl;          ///< prefetch buffer
-    uint64_t pos = 0;       ///< current logical offset
-    uint64_t max_prefetch;  ///< max allowed prefetch
+    uint64_t bl_off = 0; ///< prefetch buffer logical offset
+    ceph::buffer::list bl; ///< prefetch buffer
+    uint64_t pos = 0; ///< current logical offset
+    uint64_t max_prefetch; ///< max allowed prefetch
 
-    explicit FileReaderBuffer(uint64_t mpf)
-      : max_prefetch(mpf) {}
+    explicit FileReaderBuffer(uint64_t mpf) :
+      max_prefetch(mpf)
+    {}
 
-    uint64_t get_buf_end() const {
+    uint64_t
+    get_buf_end() const
+    {
       return bl_off + bl.length();
     }
-    uint64_t get_buf_remaining(uint64_t p) const {
+
+    uint64_t
+    get_buf_remaining(uint64_t p) const
+    {
       if (p >= bl_off && p < bl_off + bl.length())
-	return bl_off + bl.length() - p;
+        return bl_off + bl.length() - p;
       return 0;
     }
 
-    void skip(size_t n) {
+    void
+    skip(size_t n)
+    {
       pos += n;
     }
 
     // For the sake of simplicity, we invalidate completed rather than
     // for the provided extent
-    void invalidate_cache(uint64_t offset, uint64_t length) {
+    void
+    invalidate_cache(uint64_t offset, uint64_t length)
+    {
       if (offset >= bl_off && offset < get_buf_end()) {
-	bl.clear();
-	bl_off = 0;
+        bl.clear();
+        bl_off = 0;
       }
     }
   };
@@ -532,56 +623,56 @@ public:
 
     FileRef file;
     FileReaderBuffer buf;
-    bool ignore_eof;        ///< used when reading our log file
-    ceph::shared_mutex lock {
-     ceph::make_shared_mutex(std::string(), false, false, false)
-    };
+    bool ignore_eof; ///< used when reading our log file
+    ceph::shared_mutex lock{
+        ceph::make_shared_mutex(std::string(), false, false, false)};
 
-
-    FileReader(FileRef f, uint64_t mpf, bool ie)
-      : file(f),
-	buf(mpf),
-	ignore_eof(ie) {
+    FileReader(FileRef f, uint64_t mpf, bool ie) :
+      file(f), buf(mpf), ignore_eof(ie)
+    {
       ++file->num_readers;
     }
-    ~FileReader() {
-      --file->num_readers;
-    }
+
+    ~FileReader() { --file->num_readers; }
   };
 
   struct FileLock {
     MEMPOOL_CLASS_HELPERS();
 
     FileRef file;
-    explicit FileLock(FileRef f) : file(std::move(f)) {}
+
+    explicit FileLock(FileRef f) :
+      file(std::move(f))
+    {}
   };
+
 private:
-  PerfCounters *logger = nullptr;
+  PerfCounters* logger = nullptr;
 
   uint64_t max_bytes[MAX_BDEV] = {0};
   uint64_t max_bytes_pcounters[MAX_BDEV] = {
-    l_bluefs_max_bytes_wal,
-    l_bluefs_max_bytes_db,
-    l_bluefs_max_bytes_slow,
-    l_bluefs_max_bytes_wal,
-    l_bluefs_max_bytes_db,
+      l_bluefs_max_bytes_wal, l_bluefs_max_bytes_db, l_bluefs_max_bytes_slow,
+      l_bluefs_max_bytes_wal, l_bluefs_max_bytes_db,
   };
 
   // cache
   struct {
     ceph::mutex lock = ceph::make_mutex("BlueFS::nodes.lock");
-    mempool::bluefs::map<std::string, DirRef, std::less<>> dir_map; ///< dirname -> Dir
-    mempool::bluefs::unordered_map<uint64_t, FileRef> file_map;     ///< ino -> File
+    mempool::bluefs::map<std::string, DirRef, std::less<>>
+        dir_map; ///< dirname -> Dir
+    mempool::bluefs::unordered_map<uint64_t, FileRef> file_map; ///< ino -> File
   } nodes;
 
-  bluefs_super_t super;        ///< latest superblock (as last written)
-  uint64_t ino_last = 0;       ///< last assigned ino (this one is in use)
-  bool conf_wal_envelope_mode = false; ///< conf "bluefs_wal_envelope_mode" at mount
+  bluefs_super_t super; ///< latest superblock (as last written)
+  uint64_t ino_last = 0; ///< last assigned ino (this one is in use)
+  bool conf_wal_envelope_mode =
+      false; ///< conf "bluefs_wal_envelope_mode" at mount
 
   struct {
     ceph::mutex lock = ceph::make_mutex("BlueFS::log.lock");
-    uint64_t seq_live = 1;   //seq that log is currently writing to; mirrors dirty.seq_live
-    FileWriter *writer = nullptr;
+    uint64_t seq_live =
+        1; //seq that log is currently writing to; mirrors dirty.seq_live
+    FileWriter* writer = nullptr;
     bluefs_transaction_t t;
     bool uses_envelope_mode = false; // true if any file is in envelope mode
   } log;
@@ -589,7 +680,8 @@ private:
   struct {
     ceph::mutex lock = ceph::make_mutex("BlueFS::dirty.lock");
     uint64_t seq_stable = 0; //seq that is now stable on disk
-    uint64_t seq_live = 1;   //seq that is ongoing and dirty files will be written to
+    uint64_t seq_live =
+        1; //seq that is ongoing and dirty files will be written to
     // map of dirty files, files of same dirty_seq are grouped into list.
     std::map<uint64_t, dirty_file_list_t> files;
     std::vector<interval_set<uint64_t>> pending_release; ///< extents to release
@@ -599,10 +691,13 @@ private:
     // 2) we usually not remove extents from files. And when we do, we force log-syncing.
   } dirty;
 
-  ceph::condition_variable log_cond;                             ///< used for state control between log flush / log compaction
-  std::atomic<bool> log_is_compacting{false};                    ///< signals that bluefs log is already ongoing compaction
-  std::atomic<bool> log_forbidden_to_expand{false};              ///< used to signal that async compaction is in state
-                                                                 ///  that prohibits expansion of bluefs log
+  ceph::condition_variable
+      log_cond; ///< used for state control between log flush / log compaction
+  std::atomic<bool> log_is_compacting{
+      false}; ///< signals that bluefs log is already ongoing compaction
+  std::atomic<bool> log_forbidden_to_expand{
+      false}; ///< used to signal that async compaction is in state
+      ///  that prohibits expansion of bluefs log
   /*
    * There are up to 3 block devices:
    *
@@ -610,15 +705,15 @@ private:
    *  BDEV_WAL  db.wal/  - a small, fast device, specifically for the WAL
    *  BDEV_SLOW db.slow/ - a big, slow device, to spill over to as BDEV_DB fills
    */
-  std::vector<BlockDevice*> bdev;                  ///< block devices we can use
-  std::vector<IOContext*> ioc;                     ///< IOContexts for bdevs
-  std::vector<Allocator*> alloc;                   ///< allocators for bdevs
-  std::vector<uint64_t> alloc_size;                ///< alloc size for each device
-  std::vector<bluefs_locked_extents_t> locked_alloc;  ///< candidate extents
-                                                      ///< at both dev's head and tail
-                                                      ///< locked for allocations,
-                                                      ///< no alloc/release reqs matching
-                                                      ///< these space to be issued to allocator.
+  std::vector<BlockDevice*> bdev; ///< block devices we can use
+  std::vector<IOContext*> ioc; ///< IOContexts for bdevs
+  std::vector<Allocator*> alloc; ///< allocators for bdevs
+  std::vector<uint64_t> alloc_size; ///< alloc size for each device
+  std::vector<bluefs_locked_extents_t> locked_alloc; ///< candidate extents
+      ///< at both dev's head and tail
+      ///< locked for allocations,
+      ///< no alloc/release reqs matching
+      ///< these space to be issued to allocator.
 
 
   //std::vector<interval_set<uint64_t>> block_unused_too_granular;
@@ -629,9 +724,13 @@ private:
 
   bluefs_shared_alloc_context_t* shared_alloc = nullptr;
   unsigned shared_alloc_id = unsigned(-1);
-  inline bool is_shared_alloc(unsigned id) const {
+
+  inline bool
+  is_shared_alloc(unsigned id) const
+  {
     return id == shared_alloc_id;
   }
+
   std::atomic<int64_t> cooldown_deadline = 0;
 
   class SocketHook;
@@ -656,32 +755,37 @@ private:
   FileRef _get_file(uint64_t ino);
   void _drop_link_DF(FileRef f);
 
-  unsigned _get_slow_device_id() {
+  unsigned
+  _get_slow_device_id()
+  {
     return bdev[BDEV_SLOW] ? BDEV_SLOW : BDEV_DB;
   }
+
   const char* get_device_name(unsigned id);
 
   typedef std::function<void(const bluefs_extent_t)> update_fn_t;
   void _update_allocate_stats(uint8_t id, const ceph::timespan& d);
-  int _allocate(uint8_t bdev, uint64_t len,
-                uint64_t alloc_unit,
-		bluefs_fnode_t* node,
-                update_fn_t cb = nullptr,
-                size_t alloc_attempts = 0,
-                bool permit_dev_fallback = true);
+  int _allocate(
+      uint8_t bdev,
+      uint64_t len,
+      uint64_t alloc_unit,
+      bluefs_fnode_t* node,
+      update_fn_t cb = nullptr,
+      size_t alloc_attempts = 0,
+      bool permit_dev_fallback = true);
 
   /* signal replay log to include h->file in nearest log flush */
-  int _signal_dirty_to_log_D(FileWriter *h);
-  int _flush_range_F(FileWriter *h, uint64_t offset, uint64_t length);
-  int _flush_data(FileWriter *h, uint64_t offset, uint64_t length, bool buffered);
-  int _flush_F(FileWriter *h, bool force, bool *flushed = nullptr);
-  int _flush_envelope_F(FileWriter *h);
-  int _fsync(FileWriter *h, bool force_dirty);
-  uint64_t _flush_special(FileWriter *h);
+  int _signal_dirty_to_log_D(FileWriter* h);
+  int _flush_range_F(FileWriter* h, uint64_t offset, uint64_t length);
+  int _flush_data(FileWriter* h, uint64_t offset, uint64_t length, bool buffered);
+  int _flush_F(FileWriter* h, bool force, bool* flushed = nullptr);
+  int _flush_envelope_F(FileWriter* h);
+  int _fsync(FileWriter* h, bool force_dirty);
+  uint64_t _flush_special(FileWriter* h);
 
 #ifdef HAVE_LIBAIO
-  void _claim_completed_aios(FileWriter *h, std::list<aio_t> *ls);
-  void _wait_for_aio(FileWriter *h);  // safe to call without a lock
+  void _claim_completed_aios(FileWriter* h, std::list<aio_t>* ls);
+  void _wait_for_aio(FileWriter* h); // safe to call without a lock
 #endif
 
   int64_t _maybe_extend_log();
@@ -689,17 +793,19 @@ private:
   uint64_t _log_advance_seq();
   void _consume_dirty(uint64_t seq);
   void _clear_dirty_set_stable_D(uint64_t seq_stable);
-  void _release_pending_allocations(std::vector<interval_set<uint64_t>>& to_release);
+  void _release_pending_allocations(
+      std::vector<interval_set<uint64_t>>& to_release);
 
   void _flush_and_sync_log_core();
   int _flush_and_sync_log_jump_D(uint64_t jump_to);
   int _flush_and_sync_log_LD(uint64_t want_seq = 0);
 
   uint64_t _estimate_transaction_size(bluefs_transaction_t* t);
-  uint64_t _make_initial_transaction(uint64_t start_seq,
-                                     bluefs_fnode_t& fnode,
-                                     uint64_t expected_final_size,
-                                     bufferlist* out);
+  uint64_t _make_initial_transaction(
+      uint64_t start_seq,
+      bluefs_fnode_t& fnode,
+      uint64_t expected_final_size,
+      bufferlist* out);
   uint64_t _estimate_log_size_N();
   bool _should_start_compact_log_L_N();
 
@@ -709,81 +815,95 @@ private:
     RENAME_SLOW2DB = 4,
     RENAME_DB2SLOW = 8,
   };
-  void _compact_log_dump_metadata_NF(uint64_t start_seq,
-                                     bluefs_transaction_t *t,
-				     int flags,
-				     uint64_t capture_before_seq);
+
+  void _compact_log_dump_metadata_NF(
+      uint64_t start_seq,
+      bluefs_transaction_t* t,
+      int flags,
+      uint64_t capture_before_seq);
 
   void _compact_log_sync_LNF_LD();
   void _compact_log_async_LD_LNF_D();
 
-  void _rewrite_log_and_layout_sync_LNF_LD(bool permit_dev_fallback,
-				    int super_dev,
-				    int log_dev,
-				    int new_log_dev,
-				    int flags,
-				    std::optional<bluefs_layout_t> layout);
+  void _rewrite_log_and_layout_sync_LNF_LD(
+      bool permit_dev_fallback,
+      int super_dev,
+      int log_dev,
+      int new_log_dev,
+      int flags,
+      std::optional<bluefs_layout_t> layout);
 
   //void _aio_finish(void *priv);
 
-  void _flush_bdev(FileWriter *h, bool check_mutex_locked = true);
-  void _flush_bdev();  // this is safe to call without a lock
-  void _flush_bdev(std::array<bool, MAX_BDEV>& dirty_bdevs);  // this is safe to call without a lock
+  void _flush_bdev(FileWriter* h, bool check_mutex_locked = true);
+  void _flush_bdev(); // this is safe to call without a lock
+  void _flush_bdev(std::array<bool, MAX_BDEV>&
+                       dirty_bdevs); // this is safe to call without a lock
 
   int64_t _read_envmode(
-    FileReader *h,   ///< [in] read from here
-    uint64_t offset, ///< [in] offset
-    size_t len,      ///< [in] this many bytes
-    ceph::buffer::list *outbl,   ///< [out] optional: reference the result here
-    char *out);      ///< [out] optional: or copy it here
-  void _envmode_index_file(
-    FileRef file);
+      FileReader* h, ///< [in] read from here
+      uint64_t offset, ///< [in] offset
+      size_t len, ///< [in] this many bytes
+      ceph::buffer::list* outbl, ///< [out] optional: reference the result here
+      char* out); ///< [out] optional: or copy it here
+  void _envmode_index_file(FileRef file);
   int _envmode_seek_to(
-    FileReader *h,         ///< [in] wal-file to read
-    uint64_t off,          ///< [in] offset in wal datastream
-    File::envelope_t* fl);///< [out] set wal envelope params
+      FileReader* h, ///< [in] wal-file to read
+      uint64_t off, ///< [in] offset in wal datastream
+      File::envelope_t* fl); ///< [out] set wal envelope params
   bool _read_envelope(
-    FileReader *h,         ///< [in] wal-file to read
-    uint64_t file_ofs,     ///< [in] offset to expect envelope
-    uint64_t env_ofs,      ///< [in] respective offset in wal datastream
-    File::envelope_t* fl);///< [out] set wal envelope params
+      FileReader* h, ///< [in] wal-file to read
+      uint64_t file_ofs, ///< [in] offset to expect envelope
+      uint64_t env_ofs, ///< [in] respective offset in wal datastream
+      File::envelope_t* fl); ///< [out] set wal envelope params
   int64_t _read(
-    FileReader *h,   ///< [in] read from here
-    uint64_t offset, ///< [in] offset
-    size_t len,      ///< [in] this many bytes
-    ceph::buffer::list *outbl,   ///< [out] optional: reference the result here
-    char *out);      ///< [out] optional: or copy it here
+      FileReader* h, ///< [in] read from here
+      uint64_t offset, ///< [in] offset
+      size_t len, ///< [in] this many bytes
+      ceph::buffer::list* outbl, ///< [out] optional: reference the result here
+      char* out); ///< [out] optional: or copy it here
   int64_t _read_random(
-    FileReader *h,   ///< [in] read from here
-    uint64_t offset, ///< [in] offset
-    uint64_t len,    ///< [in] this many bytes
-    char *out);      ///< [out] optional: or copy it here
+      FileReader* h, ///< [in] read from here
+      uint64_t offset, ///< [in] offset
+      uint64_t len, ///< [in] this many bytes
+      char* out); ///< [out] optional: or copy it here
 
   int _open_super();
   int _write_super(int dev);
-  int _check_allocations(const bluefs_fnode_t& fnode,
-    boost::dynamic_bitset<uint64_t>* used_blocks,
-    bool is_alloc, //true when allocating, false when deallocating
-    const char* op_name);
+  int _check_allocations(
+      const bluefs_fnode_t& fnode,
+      boost::dynamic_bitset<uint64_t>* used_blocks,
+      bool is_alloc, //true when allocating, false when deallocating
+      const char* op_name);
   int _verify_alloc_granularity(
-    __u8 id, uint64_t offset, uint64_t length,
-    uint64_t alloc_unit,
-    const char *op);
+      __u8 id,
+      uint64_t offset,
+      uint64_t length,
+      uint64_t alloc_unit,
+      const char* op);
   int _replay(bool noop, bool to_stdout = false); ///< replay journal
 
-  FileWriter *_create_writer(FileRef f);
-  void _drain_writer(FileWriter *h);
-  void _close_writer(FileWriter *h);
+  FileWriter* _create_writer(FileRef f);
+  void _drain_writer(FileWriter* h);
+  void _close_writer(FileWriter* h);
 
   // always put the super in the second 4k block.  FIXME should this be
   // block size independent?
-  unsigned get_super_offset() {
+  unsigned
+  get_super_offset()
+  {
     return 4096;
   }
-  unsigned get_super_length() {
+
+  unsigned
+  get_super_length()
+  {
     return 4096;
   }
-  void _maybe_check_vselector_LNF() {
+
+  void
+  _maybe_check_vselector_LNF()
+  {
     if (cct->_conf->bluefs_check_volume_selector_often) {
       _check_vselector_LNF();
     }
@@ -799,27 +919,33 @@ public:
   int maybe_verify_layout(const bluefs_layout_t& layout) const;
   void umount(bool avoid_compact = false);
   int prepare_new_device(int id, const bluefs_layout_t& layout);
-  
+
   int log_dump();
   int super_dump();
 
-  void collect_metadata(std::map<std::string,std::string> *pm, unsigned skip_bdev_id);
-  void get_devices(std::set<std::string> *ls);
-  uint64_t get_alloc_size(int id) {
+  void collect_metadata(
+      std::map<std::string, std::string>* pm,
+      unsigned skip_bdev_id);
+  void get_devices(std::set<std::string>* ls);
+
+  uint64_t
+  get_alloc_size(int id)
+  {
     return alloc_size[id];
   }
+
   int fsck();
 
   int device_migrate_to_new(
-    CephContext *cct,
-    const std::set<int>& devs_source,
-    int dev_target,
-    const bluefs_layout_t& layout);
+      CephContext* cct,
+      const std::set<int>& devs_source,
+      int dev_target,
+      const bluefs_layout_t& layout);
   int device_migrate_to_existing(
-    CephContext *cct,
-    const std::set<int>& devs_source,
-    int dev_target,
-    const bluefs_layout_t& layout);
+      CephContext* cct,
+      const std::set<int>& devs_source,
+      int dev_target,
+      const bluefs_layout_t& layout);
   int revert_wal_to_plain();
 
   uint64_t get_used();
@@ -828,34 +954,37 @@ public:
   uint64_t get_free(unsigned id);
   uint64_t get_used(unsigned id);
   uint64_t get_full_reserved(unsigned id);
-  void dump_perf_counters(ceph::Formatter *f);
+  void dump_perf_counters(ceph::Formatter* f);
 
   void dump_block_extents(std::ostream& out);
 
   /// get current extents that we own for given block device
   void foreach_block_extents(
-    unsigned id,
-    std::function<void(uint64_t, uint32_t)> cb);
+      unsigned id,
+      std::function<void(uint64_t, uint32_t)> cb);
 
   int open_for_write(
-    std::string_view dir,
-    std::string_view file,
-    FileWriter **h,
-    bool overwrite);
+      std::string_view dir,
+      std::string_view file,
+      FileWriter** h,
+      bool overwrite);
 
   int open_for_read(
-    std::string_view dir,
-    std::string_view file,
-    FileReader **h,
-    bool random = false);
+      std::string_view dir,
+      std::string_view file,
+      FileReader** h,
+      bool random = false);
 
 
-  void close_writer(FileWriter *h);
+  void close_writer(FileWriter* h);
 
-  int rename(std::string_view old_dir, std::string_view old_file,
-	     std::string_view new_dir, std::string_view new_file);
+  int rename(
+      std::string_view old_dir,
+      std::string_view old_file,
+      std::string_view new_dir,
+      std::string_view new_file);
 
-  int readdir(std::string_view dirname, std::vector<std::string> *ls);
+  int readdir(std::string_view dirname, std::vector<std::string>* ls);
 
   int unlink(std::string_view dirname, std::string_view filename);
   int mkdir(std::string_view dirname);
@@ -864,53 +993,84 @@ public:
   bool db_is_rotational();
 
   bool dir_exists(std::string_view dirname);
-  int stat(std::string_view dirname, std::string_view filename,
-	   uint64_t *size, utime_t *mtime);
+  int stat(
+      std::string_view dirname,
+      std::string_view filename,
+      uint64_t* size,
+      utime_t* mtime);
 
-  int lock_file(std::string_view dirname, std::string_view filename, FileLock **p);
-  int unlock_file(FileLock *l);
+  int lock_file(
+      std::string_view dirname,
+      std::string_view filename,
+      FileLock** p);
+  int unlock_file(FileLock* l);
 
   void compact_log();
 
   /// sync any uncommitted state to disk
   void sync_metadata(bool avoid_compact);
 
-  void set_volume_selector(BlueFSVolumeSelector* s) {
+  void
+  set_volume_selector(BlueFSVolumeSelector* s)
+  {
     vselector.reset(s);
   }
-  void dump_volume_selector(std::ostream& sout) {
+
+  void
+  dump_volume_selector(std::ostream& sout)
+  {
     ceph_assert(vselector);
     vselector->dump(sout);
   }
-  void reset_volume_selector(std::ostream& sout) {
+
+  void
+  reset_volume_selector(std::ostream& sout)
+  {
     ceph_assert(vselector);
     vselector->reset_history(sout);
   }
-  void update_volume_selector_from_config() {
+
+  void
+  update_volume_selector_from_config()
+  {
     ceph_assert(vselector);
     vselector->update_from_config(cct);
   }
-  void get_vselector_paths(const std::string& base,
-                           BlueFSVolumeSelector::paths& res) const {
+
+  void
+  get_vselector_paths(
+      const std::string& base,
+      BlueFSVolumeSelector::paths& res) const
+  {
     ceph_assert(vselector);
     return vselector->get_paths(base, res);
   }
 
-  int add_block_device(unsigned bdev, const std::string& path, bool trim,
-                       bluefs_shared_alloc_context_t* _shared_alloc = nullptr);
+  int add_block_device(
+      unsigned bdev,
+      const std::string& path,
+      bool trim,
+      bluefs_shared_alloc_context_t* _shared_alloc = nullptr);
   bool bdev_support_label(unsigned id);
   BlockDevice* get_block_device(unsigned bdev) const;
 
   // handler for discard event
   void handle_discard(unsigned dev, interval_set<uint64_t>& to_release);
 
-  void flush(FileWriter *h, bool force = false);
+  void flush(FileWriter* h, bool force = false);
 
-  void append_try_flush(FileWriter *h, const char* buf, size_t len);
-  void flush_range(FileWriter *h, uint64_t offset, uint64_t length);
-  int fsync(FileWriter *h);
-  int64_t read(FileReader *h, uint64_t offset, size_t len,
-	   ceph::buffer::list *outbl, char *out) {
+  void append_try_flush(FileWriter* h, const char* buf, size_t len);
+  void flush_range(FileWriter* h, uint64_t offset, uint64_t length);
+  int fsync(FileWriter* h);
+
+  int64_t
+  read(
+      FileReader* h,
+      uint64_t offset,
+      size_t len,
+      ceph::buffer::list* outbl,
+      char* out)
+  {
     // no need to hold the global lock here; we only touch h and
     // h->file, and read vs write or delete is already protected (via
     // atomics and asserts).
@@ -919,25 +1079,31 @@ public:
     }
     return _read(h, offset, len, outbl, out);
   }
-  int64_t read_random(FileReader *h, uint64_t offset, size_t len,
-		  char *out) {
+
+  int64_t
+  read_random(FileReader* h, uint64_t offset, size_t len, char* out)
+  {
     // no need to hold the global lock here; we only touch h and
     // h->file, and read vs write or delete is already protected (via
     // atomics and asserts).
     return _read_random(h, offset, len, out);
   }
+
   void invalidate_cache(FileRef f, uint64_t offset, uint64_t len);
   int preallocate(FileRef f, uint64_t offset, uint64_t len);
-  int truncate(FileWriter *h, uint64_t offset);
+  int truncate(FileWriter* h, uint64_t offset);
 
   size_t probe_alloc_avail(int dev, uint64_t alloc_size);
 
   /// test purpose methods
-  const PerfCounters* get_perf_counters() const {
+  const PerfCounters*
+  get_perf_counters() const
+  {
     return logger;
   }
-  uint64_t debug_get_dirty_seq(FileWriter *h);
-  bool debug_get_is_dev_dirty(FileWriter *h, uint8_t dev);
+
+  uint64_t debug_get_dirty_seq(FileWriter* h);
+  bool debug_get_is_dev_dirty(FileWriter* h, uint8_t dev);
   debug_point_t<std::function<void(uint32_t)>> tracepoint_async_compact;
   void trim_free_space(const std::string& type, std::ostream& outss);
   debug_point_t<std::function<void()>> unittest_inject_delay;
@@ -945,26 +1111,44 @@ public:
 private:
   // Wrappers for BlockDevice::read(...) and BlockDevice::read_random(...)
   // They are used for checking if read values are all 0, and reread if so.
-  int _read_and_check(uint8_t ndev, uint64_t off, uint64_t len,
-	   ceph::buffer::list *pbl, IOContext *ioc, bool buffered);
-  int _read_random_and_check(uint8_t ndev, uint64_t off, uint64_t len, char *buf, bool buffered);
+  int _read_and_check(
+      uint8_t ndev,
+      uint64_t off,
+      uint64_t len,
+      ceph::buffer::list* pbl,
+      IOContext* ioc,
+      bool buffered);
+  int _read_random_and_check(
+      uint8_t ndev,
+      uint64_t off,
+      uint64_t len,
+      char* buf,
+      bool buffered);
 
-  int _bdev_read(uint8_t ndev, uint64_t off, uint64_t len,
-    ceph::buffer::list* pbl, IOContext* ioc, bool buffered);
-  int _bdev_read_random(uint8_t ndev, uint64_t off, uint64_t len, char* buf, bool buffered);
+  int _bdev_read(
+      uint8_t ndev,
+      uint64_t off,
+      uint64_t len,
+      ceph::buffer::list* pbl,
+      IOContext* ioc,
+      bool buffered);
+  int _bdev_read_random(
+      uint8_t ndev,
+      uint64_t off,
+      uint64_t len,
+      char* buf,
+      bool buffered);
 
   /// test and compact log, if necessary
   void _maybe_compact_log_LNF_NF_LD_D();
-  int _do_replay_recovery_read(FileReader *log,
-			       size_t log_pos,
-			       size_t read_offset,
-			       size_t read_len,
-			       bufferlist* bl);
+  int _do_replay_recovery_read(
+      FileReader* log,
+      size_t log_pos,
+      size_t read_offset,
+      size_t read_len,
+      bufferlist* bl);
   void _check_vselector_LNF();
-  int revert_wal_to_plain(
-    const std::string& dir,
-    const std::string& name
-  );
+  int revert_wal_to_plain(const std::string& dir, const std::string& name);
 };
 
 class OriginalVolumeSelector : public BlueFSVolumeSelector {
@@ -974,28 +1158,43 @@ class OriginalVolumeSelector : public BlueFSVolumeSelector {
 
 public:
   OriginalVolumeSelector(
-    uint64_t _wal_total,
-    uint64_t _db_total,
-    uint64_t _slow_total)
-    : wal_total(_wal_total), db_total(_db_total), slow_total(_slow_total) {}
+      uint64_t _wal_total,
+      uint64_t _db_total,
+      uint64_t _slow_total) :
+    wal_total(_wal_total), db_total(_db_total), slow_total(_slow_total)
+  {}
 
-  void update_from_config(CephContext* cct) override {}
+  void
+  update_from_config(CephContext* cct) override
+  {}
+
   void* get_hint_for_log() const override;
   void* get_hint_by_dir(std::string_view dirname) const override;
 
-  void add_usage(void* hint, const bluefs_extent_t& extent) override {
+  void
+  add_usage(void* hint, const bluefs_extent_t& extent) override
+  {
     // do nothing
     return;
   }
-  void sub_usage(void* hint, const bluefs_extent_t& extent) override {
+
+  void
+  sub_usage(void* hint, const bluefs_extent_t& extent) override
+  {
     // do nothing
     return;
   }
-  void add_usage(void*, uint64_t, bool) override {
+
+  void
+  add_usage(void*, uint64_t, bool) override
+  {
     // do nothing
     return;
   }
-  void sub_usage(void*, uint64_t, bool) override {
+
+  void
+  sub_usage(void*, uint64_t, bool) override
+  {
     // do nothing
     return;
   }
@@ -1004,7 +1203,9 @@ public:
   void get_paths(const std::string& base, paths& res) const override;
   void dump(std::ostream& sout) override;
 
-  void reset_history(std::ostream& sout) override {
+  void
+  reset_history(std::ostream& sout) override
+  {
     // do nothing
     return;
   }
@@ -1013,42 +1214,56 @@ public:
 class FitToFastVolumeSelector : public OriginalVolumeSelector {
 public:
   FitToFastVolumeSelector(
-    uint64_t _wal_total,
-    uint64_t _db_total,
-    uint64_t _slow_total)
-    : OriginalVolumeSelector(_wal_total, _db_total, _slow_total) {}
+      uint64_t _wal_total,
+      uint64_t _db_total,
+      uint64_t _slow_total) :
+    OriginalVolumeSelector(_wal_total, _db_total, _slow_total)
+  {}
 
   void get_paths(const std::string& base, paths& res) const override;
 };
 
-class RocksDBBlueFSVolumeSelector : public BlueFSVolumeSelector
-{
+class RocksDBBlueFSVolumeSelector : public BlueFSVolumeSelector {
   template <class T, size_t MaxX, size_t MaxY>
   class matrix_2d {
     T values[MaxX][MaxY];
+
   public:
-    matrix_2d() {
-      clear();
-    }
-    T& at(size_t x, size_t y) {
+    matrix_2d() { clear(); }
+
+    T&
+    at(size_t x, size_t y)
+    {
       ceph_assert(x < MaxX);
       ceph_assert(y < MaxY);
 
       return values[x][y];
     }
-    const T& at(size_t x, size_t y) const {
+
+    const T&
+    at(size_t x, size_t y) const
+    {
       ceph_assert(x < MaxX);
       ceph_assert(y < MaxY);
 
       return values[x][y];
     }
-    size_t get_max_x() const {
+
+    size_t
+    get_max_x() const
+    {
       return MaxX;
     }
-    size_t get_max_y() const {
+
+    size_t
+    get_max_y() const
+    {
       return MaxY;
     }
-    void clear() {
+
+    void
+    clear()
+    {
       memset(values, 0, sizeof(values));
     }
   };
@@ -1062,13 +1277,18 @@ class RocksDBBlueFSVolumeSelector : public BlueFSVolumeSelector
     LEVEL_SLOW,
     LEVEL_MAX
   };
+
   // add +1 row for per-level actual (taken from file size) total
   // add +1 column for corresponding per-device totals
-  typedef matrix_2d<std::atomic<uint64_t>, BlueFS::MAX_BDEV + 1, LEVEL_MAX - LEVEL_FIRST + 1> per_level_per_dev_usage_t;
+  typedef matrix_2d<
+      std::atomic<uint64_t>,
+      BlueFS::MAX_BDEV + 1,
+      LEVEL_MAX - LEVEL_FIRST + 1>
+      per_level_per_dev_usage_t;
 
   per_level_per_dev_usage_t per_level_per_dev_usage;
   // file count per level, add +1 to keep total file count
-  std::atomic<uint64_t> per_level_files[LEVEL_MAX - LEVEL_FIRST + 1] = { 0 };
+  std::atomic<uint64_t> per_level_files[LEVEL_MAX - LEVEL_FIRST + 1] = {0};
 
   // Note: maximum per-device totals below might be smaller than corresponding
   // perf counters by up to a single alloc unit (1M) due to superblock extent.
@@ -1082,6 +1302,7 @@ class RocksDBBlueFSVolumeSelector : public BlueFSVolumeSelector
   uint64_t level_multiplier = 0;
   bool new_pol = false;
   size_t extra_level = 0;
+
   enum {
     OLD_POLICY,
     USE_SOME_EXTRA
@@ -1089,13 +1310,14 @@ class RocksDBBlueFSVolumeSelector : public BlueFSVolumeSelector
 
 public:
   RocksDBBlueFSVolumeSelector(
-    uint64_t _wal_total,
-    uint64_t _db_total,
-    uint64_t _slow_total,
-    uint64_t _level0_size,
-    uint64_t _level_base,
-    uint64_t _level_multiplier,
-    bool _new_pol) {
+      uint64_t _wal_total,
+      uint64_t _db_total,
+      uint64_t _slow_total,
+      uint64_t _level0_size,
+      uint64_t _level_base,
+      uint64_t _level_multiplier,
+      bool _new_pol)
+  {
 
     l_totals[LEVEL_LOG - LEVEL_FIRST] = 0; // not used at the moment
     l_totals[LEVEL_WAL - LEVEL_FIRST] = _wal_total;
@@ -1109,7 +1331,8 @@ public:
     new_pol = _new_pol;
   }
 
-  void update_from_config(CephContext* cct) override
+  void
+  update_from_config(CephContext* cct) override
   {
     if (!new_pol) {
       return;
@@ -1118,7 +1341,7 @@ public:
     db_avail4slow = 0;
     extra_level = 0;
     double reserved_factor =
-      cct->_conf->bluestore_volume_selection_reserved_factor;
+        cct->_conf->bluestore_volume_selection_reserved_factor;
     uint64_t reserved = cct->_conf->bluestore_volume_selection_reserved;
 
     auto db_total = l_totals[LEVEL_DB - LEVEL_FIRST];
@@ -1137,38 +1360,51 @@ public:
         ++extra_level;
         if (db_total <= next_threshold) {
           uint64_t cur_threshold = prev_levels + cur_level * reserved_factor;
-          db_avail4slow = cur_threshold < db_total ? db_total - cur_threshold : 0;
+          db_avail4slow = cur_threshold < db_total ? db_total - cur_threshold
+                                                   : 0;
           break;
-        }
-        else {
+        } else {
           prev_levels += cur_level;
           cur_level = next_level;
         }
       } while (true);
-    }
-    else {
+    } else {
       db_avail4slow = reserved < db_total ? db_total - reserved : 0;
       extra_level = 0;
     }
   }
 
-  uint64_t get_available_extra() const {
+  uint64_t
+  get_available_extra() const
+  {
     return db_avail4slow;
   }
-  uint64_t get_extra_level() const {
+
+  uint64_t
+  get_extra_level() const
+  {
     return extra_level;
   }
-  void* get_hint_for_log() const override {
-    return  reinterpret_cast<void*>(LEVEL_LOG);
+
+  void*
+  get_hint_for_log() const override
+  {
+    return reinterpret_cast<void*>(LEVEL_LOG);
   }
+
   void* get_hint_by_dir(std::string_view dirname) const override;
 
   // intended primarily for UT
-  uint64_t get_max_db_total() const {
-    return per_level_per_dev_max.at(BlueFS::BDEV_DB, per_level_per_dev_usage.get_max_y() - 1);
+  uint64_t
+  get_max_db_total() const
+  {
+    return per_level_per_dev_max.at(
+        BlueFS::BDEV_DB, per_level_per_dev_usage.get_max_y() - 1);
   }
 
-  void add_usage(void* hint, const bluefs_extent_t& extent) override {
+  void
+  add_usage(void* hint, const bluefs_extent_t& extent) override
+  {
     if (hint == nullptr)
       return;
     size_t pos = (size_t)hint - LEVEL_FIRST;
@@ -1180,7 +1416,8 @@ public:
     }
     {
       //update per-device totals
-      auto& cur = per_level_per_dev_usage.at(extent.bdev, LEVEL_MAX - LEVEL_FIRST);
+      auto& cur =
+          per_level_per_dev_usage.at(extent.bdev, LEVEL_MAX - LEVEL_FIRST);
       auto& max = per_level_per_dev_max.at(extent.bdev, LEVEL_MAX - LEVEL_FIRST);
       uint64_t v = cur.fetch_add(extent.length) + extent.length;
       while (v > max) {
@@ -1188,7 +1425,10 @@ public:
       }
     }
   }
-  void sub_usage(void* hint, const bluefs_extent_t& extent) override {
+
+  void
+  sub_usage(void* hint, const bluefs_extent_t& extent) override
+  {
     if (hint == nullptr)
       return;
     size_t pos = (size_t)hint - LEVEL_FIRST;
@@ -1197,11 +1437,15 @@ public:
     cur -= extent.length;
 
     //update per-device totals
-    auto& cur2 = per_level_per_dev_usage.at(extent.bdev, LEVEL_MAX - LEVEL_FIRST);
+    auto& cur2 =
+        per_level_per_dev_usage.at(extent.bdev, LEVEL_MAX - LEVEL_FIRST);
     ceph_assert(cur2 >= extent.length);
     cur2 -= extent.length;
   }
-  void add_usage(void* hint, uint64_t size_more, bool upd_files) override {
+
+  void
+  add_usage(void* hint, uint64_t size_more, bool upd_files) override
+  {
     if (hint == nullptr)
       return;
     size_t pos = (size_t)hint - LEVEL_FIRST;
@@ -1217,7 +1461,10 @@ public:
       ++per_level_files[LEVEL_MAX - LEVEL_FIRST];
     }
   }
-  void sub_usage(void* hint, uint64_t size_less, bool upd_files) override {
+
+  void
+  sub_usage(void* hint, uint64_t size_less, bool upd_files) override
+  {
     if (hint == nullptr)
       return;
     size_t pos = (size_t)hint - LEVEL_FIRST;
@@ -1235,8 +1482,8 @@ public:
 
   uint8_t select_prefer_bdev(void* h) override;
   void get_paths(
-    const std::string& base,
-    BlueFSVolumeSelector::paths& res) const override;
+      const std::string& base,
+      BlueFSVolumeSelector::paths& res) const override;
 
   void reset_history(std::ostream& sout) override;
   void dump(std::ostream& sout) override;

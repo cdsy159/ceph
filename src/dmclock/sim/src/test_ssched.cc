@@ -13,28 +13,31 @@
  */
 
 
-#include "ssched_recs.h"
-#include "ssched_server.h"
-#include "ssched_client.h"
+#include "test_ssched.h"
 
+#include "sim_client.h"
 #include "sim_recs.h"
 #include "sim_server.h"
-#include "sim_client.h"
-
-#include "test_ssched.h"
+#include "ssched_client.h"
+#include "ssched_recs.h"
+#include "ssched_server.h"
 
 
 namespace test = crimson::test_simple_scheduler;
 namespace ssched = crimson::simple_scheduler;
 
-
-void test::simple_server_accumulate_f(test::SimpleAccum& a,
-				      const ssched::NullData& add_info) {
+void
+test::simple_server_accumulate_f(
+    test::SimpleAccum& a,
+    const ssched::NullData& add_info)
+{
   ++a.request_count;
 }
 
-
-void test::simple_client_accumulate_f(test::SimpleAccum& a,
-				      const ssched::NullData& ignore) {
+void
+test::simple_client_accumulate_f(
+    test::SimpleAccum& a,
+    const ssched::NullData& ignore)
+{
   // empty
 }

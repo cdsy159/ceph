@@ -4,29 +4,36 @@
 #ifndef CEPH_CLS_REFCOUNT_OPS_H
 #define CEPH_CLS_REFCOUNT_OPS_H
 
-#include "include/types.h"
 #include "common/hobject.h"
+#include "include/types.h"
 
 struct cls_refcount_get_op {
   std::string tag;
   bool implicit_ref;
 
-  cls_refcount_get_op() : implicit_ref(false) {}
+  cls_refcount_get_op() :
+    implicit_ref(false)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(tag, bl);
     encode(implicit_ref, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(tag, bl);
     decode(implicit_ref, bl);
     DECODE_FINISH(bl);
   }
-  void dump(ceph::Formatter *f) const;
+
+  void dump(ceph::Formatter* f) const;
   static std::list<cls_refcount_get_op> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(cls_refcount_get_op)
@@ -34,25 +41,31 @@ WRITE_CLASS_ENCODER(cls_refcount_get_op)
 struct cls_refcount_put_op {
   std::string tag;
   bool implicit_ref; // assume wildcard reference for
-                          // objects without a std::set ref
+      // objects without a std::set ref
 
-  cls_refcount_put_op() : implicit_ref(false) {}
+  cls_refcount_put_op() :
+    implicit_ref(false)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(tag, bl);
     encode(implicit_ref, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(tag, bl);
     decode(implicit_ref, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<cls_refcount_put_op> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(cls_refcount_put_op)
@@ -62,42 +75,52 @@ struct cls_refcount_set_op {
 
   cls_refcount_set_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(refs, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(refs, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<cls_refcount_set_op> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(cls_refcount_set_op)
 
 struct cls_refcount_read_op {
   bool implicit_ref; // assume wildcard reference for
-                          // objects without a std::set ref
+      // objects without a std::set ref
 
-  cls_refcount_read_op() : implicit_ref(false) {}
+  cls_refcount_read_op() :
+    implicit_ref(false)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(implicit_ref, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(implicit_ref, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<cls_refcount_read_op> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(cls_refcount_read_op)
@@ -107,19 +130,23 @@ struct cls_refcount_read_ret {
 
   cls_refcount_read_ret() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(refs, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(refs, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<cls_refcount_read_ret> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(cls_refcount_read_ret)
@@ -130,14 +157,18 @@ struct obj_refcount {
 
   obj_refcount() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(refs, bl);
     encode(retired_refs, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(refs, bl);
     if (struct_v >= 2) {
@@ -146,7 +177,7 @@ struct obj_refcount {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<obj_refcount> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(obj_refcount)

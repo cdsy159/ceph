@@ -1,12 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "driver/rados/rgw_tools.h"
+
 #include <errno.h>
 
 #include "common/errno.h"
 #include "common/safe_io.h" // for safe_read()
-
-#include "driver/rados/rgw_tools.h"
 
 #define dout_subsys ceph_subsys_rgw
 #define dout_context g_ceph_context
@@ -17,22 +17,23 @@ using namespace std;
 
 static std::map<std::string, std::string>* ext_mime_map;
 
-void parse_mime_map_line(const char *start, const char *end)
+void
+parse_mime_map_line(const char* start, const char* end)
 {
   char line[end - start + 1];
   strncpy(line, start, end - start);
   line[end - start] = '\0';
-  char *l = line;
+  char* l = line;
 #define DELIMS " \t\n\r"
 
   while (isspace(*l))
     l++;
 
-  char *mime = strsep(&l, DELIMS);
+  char* mime = strsep(&l, DELIMS);
   if (!mime)
     return;
 
-  char *ext;
+  char* ext;
   do {
     ext = strsep(&l, DELIMS);
     if (ext && *ext) {
@@ -41,8 +42,8 @@ void parse_mime_map_line(const char *start, const char *end)
   } while (ext);
 }
 
-
-void parse_mime_map(const char *buf)
+void
+parse_mime_map(const char* buf)
 {
   const char *start = buf, *end = buf;
   while (*end) {
@@ -55,15 +56,19 @@ void parse_mime_map(const char *buf)
   }
 }
 
-static int ext_mime_map_init(const DoutPrefixProvider *dpp, CephContext *cct, const char *ext_map)
+static int
+ext_mime_map_init(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    const char* ext_map)
 {
   int fd = open(ext_map, O_RDONLY);
-  char *buf = NULL;
+  char* buf = NULL;
   int ret;
   if (fd < 0) {
     ret = -errno;
-    ldpp_dout(dpp, 0) << __func__ << " failed to open file=" << ext_map
-                  << " : " << cpp_strerror(-ret) << dendl;
+    ldpp_dout(dpp, 0) << __func__ << " failed to open file=" << ext_map << " : "
+                      << cpp_strerror(-ret) << dendl;
     return ret;
   }
 
@@ -71,12 +76,12 @@ static int ext_mime_map_init(const DoutPrefixProvider *dpp, CephContext *cct, co
   ret = fstat(fd, &st);
   if (ret < 0) {
     ret = -errno;
-    ldpp_dout(dpp, 0) << __func__ << " failed to stat file=" << ext_map
-                  << " : " << cpp_strerror(-ret) << dendl;
+    ldpp_dout(dpp, 0) << __func__ << " failed to stat file=" << ext_map << " : "
+                      << cpp_strerror(-ret) << dendl;
     goto done;
   }
 
-  buf = (char *)malloc(st.st_size + 1);
+  buf = (char*)malloc(st.st_size + 1);
   if (!buf) {
     ret = -ENOMEM;
     ldpp_dout(dpp, 0) << __func__ << " failed to allocate buf" << dendl;
@@ -101,7 +106,8 @@ done:
   return ret;
 }
 
-const char *rgw_find_mime_by_ext(string& ext)
+const char*
+rgw_find_mime_by_ext(string& ext)
 {
   map<string, string>::iterator iter = ext_mime_map->find(ext);
   if (iter == ext_mime_map->end())
@@ -110,7 +116,8 @@ const char *rgw_find_mime_by_ext(string& ext)
   return iter->second.c_str();
 }
 
-int rgw_tools_init(const DoutPrefixProvider *dpp, CephContext *cct)
+int
+rgw_tools_init(const DoutPrefixProvider* dpp, CephContext* cct)
 {
   ext_mime_map = new std::map<std::string, std::string>;
   ext_mime_map_init(dpp, cct, cct->_conf->rgw_mime_types_file.c_str());
@@ -118,7 +125,8 @@ int rgw_tools_init(const DoutPrefixProvider *dpp, CephContext *cct)
   return 0;
 }
 
-void rgw_tools_cleanup()
+void
+rgw_tools_cleanup()
 {
   delete ext_mime_map;
   ext_mime_map = nullptr;

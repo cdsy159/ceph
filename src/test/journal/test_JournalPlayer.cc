@@ -1,16 +1,18 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "journal/JournalPlayer.h"
-#include "journal/Entry.h"
-#include "journal/JournalMetadata.h"
-#include "journal/ReplayHandler.h"
-#include "include/stringify.h"
+#include <list>
+
+#include <boost/scope_exit.hpp>
+
 #include "common/ceph_mutex.h"
 #include "gtest/gtest.h"
+#include "include/stringify.h"
+#include "journal/Entry.h"
+#include "journal/JournalMetadata.h"
+#include "journal/JournalPlayer.h"
+#include "journal/ReplayHandler.h"
 #include "test/journal/RadosTestFixture.h"
-#include <list>
-#include <boost/scope_exit.hpp>
 
 using namespace std::chrono_literals;
 typedef std::list<journal::Entry> Entries;
@@ -18,7 +20,7 @@ typedef std::list<journal::Entry> Entries;
 template <typename T>
 class TestJournalPlayer : public RadosTestFixture {
 public:
-  typedef std::list<journal::JournalPlayer *> JournalPlayers;
+  typedef std::list<journal::JournalPlayer*> JournalPlayers;
 
   static const uint64_t max_fetch_bytes = T::max_fetch_bytes;
 
@@ -29,17 +31,21 @@ public:
     bool complete;
     int complete_result;
 
-    ReplayHandler()
-      : entries_available(false), complete(false),
-        complete_result(0) {}
+    ReplayHandler() :
+      entries_available(false), complete(false), complete_result(0)
+    {}
 
-    void handle_entries_available() override {
+    void
+    handle_entries_available() override
+    {
       std::lock_guard locker{lock};
       entries_available = true;
       cond.notify_all();
     }
 
-    void handle_complete(int r) override {
+    void
+    handle_complete(int r) override
+    {
       std::lock_guard locker{lock};
       complete = true;
       complete_result = r;
@@ -47,41 +53,57 @@ public:
     }
   };
 
-  void TearDown() override {
-    for (JournalPlayers::iterator it = m_players.begin();
-         it != m_players.end(); ++it) {
+  void
+  TearDown() override
+  {
+    for (JournalPlayers::iterator it = m_players.begin(); it != m_players.end();
+         ++it) {
       delete *it;
     }
     RadosTestFixture::TearDown();
   }
 
-  auto create_metadata(const std::string &oid) {
-    return RadosTestFixture::create_metadata(oid, "client", 0.1,
-                                             max_fetch_bytes);
+  auto
+  create_metadata(const std::string& oid)
+  {
+    return RadosTestFixture::create_metadata(
+        oid, "client", 0.1, max_fetch_bytes);
   }
 
-  int client_commit(const std::string &oid,
-                    journal::JournalPlayer::ObjectSetPosition position) {
+  int
+  client_commit(
+      const std::string& oid,
+      journal::JournalPlayer::ObjectSetPosition position)
+  {
     return RadosTestFixture::client_commit(oid, "client", position);
   }
 
-  journal::Entry create_entry(uint64_t tag_tid, uint64_t entry_tid) {
+  journal::Entry
+  create_entry(uint64_t tag_tid, uint64_t entry_tid)
+  {
     std::string payload(128, '0');
     bufferlist payload_bl;
     payload_bl.append(payload);
     return journal::Entry(tag_tid, entry_tid, payload_bl);
   }
 
-  journal::JournalPlayer *create_player(const std::string &oid,
-                                        const ceph::ref_t<journal::JournalMetadata>& metadata) {
-    journal::JournalPlayer *player(new journal::JournalPlayer(
-      m_ioctx, oid + ".", metadata, &m_replay_hander, nullptr));
+  journal::JournalPlayer*
+  create_player(
+      const std::string& oid,
+      const ceph::ref_t<journal::JournalMetadata>& metadata)
+  {
+    journal::JournalPlayer* player(new journal::JournalPlayer(
+        m_ioctx, oid + ".", metadata, &m_replay_hander, nullptr));
     m_players.push_back(player);
     return player;
   }
 
-  bool wait_for_entries(journal::JournalPlayer *player, uint32_t count,
-                        Entries *entries) {
+  bool
+  wait_for_entries(
+      journal::JournalPlayer* player,
+      uint32_t count,
+      Entries* entries)
+  {
     entries->clear();
     while (entries->size() < count) {
       journal::Entry entry;
@@ -97,15 +119,18 @@ public:
       std::unique_lock locker{m_replay_hander.lock};
       if (m_replay_hander.entries_available) {
         m_replay_hander.entries_available = false;
-      } else if (m_replay_hander.cond.wait_for(locker, 10s) ==
-		 std::cv_status::timeout) {
+      } else if (
+          m_replay_hander.cond.wait_for(locker, 10s) ==
+          std::cv_status::timeout) {
         break;
       }
     }
     return entries->size() == count;
   }
 
-  bool wait_for_complete(journal::JournalPlayer *player) {
+  bool
+  wait_for_complete(journal::JournalPlayer* player)
+  {
     std::unique_lock locker{m_replay_hander.lock};
     while (!m_replay_hander.complete) {
       journal::Entry entry;
@@ -113,7 +138,7 @@ public:
       player->try_pop_front(&entry, &commit_tid);
 
       if (m_replay_hander.cond.wait_for(locker, 10s) ==
-	  std::cv_status::timeout) {
+          std::cv_status::timeout) {
         return false;
       }
     }
@@ -121,8 +146,13 @@ public:
     return true;
   }
 
-  int write_entry(const std::string &oid, uint64_t object_num,
-                  uint64_t tag_tid, uint64_t entry_tid) {
+  int
+  write_entry(
+      const std::string& oid,
+      uint64_t object_num,
+      uint64_t tag_tid,
+      uint64_t entry_tid)
+  {
     bufferlist bl;
     encode(create_entry(tag_tid, entry_tid), bl);
     return append(oid + "." + stringify(object_num), bl);
@@ -138,16 +168,16 @@ public:
   static const uint64_t max_fetch_bytes = _max_fetch_bytes;
 };
 
-typedef ::testing::Types<TestJournalPlayerParams<0>,
-                         TestJournalPlayerParams<16> > TestJournalPlayerTypes;
+typedef ::testing::Types<TestJournalPlayerParams<0>, TestJournalPlayerParams<16>>
+    TestJournalPlayerTypes;
 TYPED_TEST_SUITE(TestJournalPlayer, TestJournalPlayerTypes);
 
-TYPED_TEST(TestJournalPlayer, Prefetch) {
+TYPED_TEST(TestJournalPlayer, Prefetch)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions;
-  positions = {
-    cls::journal::ObjectPosition(0, 234, 122) };
+  positions = {cls::journal::ObjectPosition(0, 234, 122)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -157,8 +187,9 @@ TYPED_TEST(TestJournalPlayer, Prefetch) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -177,9 +208,8 @@ TYPED_TEST(TestJournalPlayer, Prefetch) {
 
   Entries expected_entries;
   expected_entries = {
-    this->create_entry(234, 123),
-    this->create_entry(234, 124),
-    this->create_entry(234, 125)};
+      this->create_entry(234, 123), this->create_entry(234, 124),
+      this->create_entry(234, 125)};
   ASSERT_EQ(expected_entries, entries);
 
   uint64_t last_tid;
@@ -187,13 +217,14 @@ TYPED_TEST(TestJournalPlayer, Prefetch) {
   ASSERT_EQ(125U, last_tid);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchSkip) {
+TYPED_TEST(TestJournalPlayer, PrefetchSkip)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions;
   positions = {
-    cls::journal::ObjectPosition(0, 234, 125),
-    cls::journal::ObjectPosition(1, 234, 124) };
+      cls::journal::ObjectPosition(0, 234, 125),
+      cls::journal::ObjectPosition(1, 234, 124)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -203,8 +234,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchSkip) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -226,7 +258,8 @@ TYPED_TEST(TestJournalPlayer, PrefetchSkip) {
   ASSERT_EQ(125U, last_tid);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchWithoutCommit) {
+TYPED_TEST(TestJournalPlayer, PrefetchWithoutCommit)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -238,8 +271,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchWithoutCommit) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -256,19 +290,19 @@ TYPED_TEST(TestJournalPlayer, PrefetchWithoutCommit) {
 
   Entries expected_entries;
   expected_entries = {
-    this->create_entry(234, 122),
-    this->create_entry(234, 123)};
+      this->create_entry(234, 122), this->create_entry(234, 123)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchMultipleTags) {
+TYPED_TEST(TestJournalPlayer, PrefetchMultipleTags)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions;
   positions = {
-    cls::journal::ObjectPosition(2, 234, 122),
-    cls::journal::ObjectPosition(1, 234, 121),
-    cls::journal::ObjectPosition(0, 234, 120)};
+      cls::journal::ObjectPosition(2, 234, 122),
+      cls::journal::ObjectPosition(1, 234, 121),
+      cls::journal::ObjectPosition(0, 234, 120)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid, 14, 3));
@@ -278,8 +312,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchMultipleTags) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -305,7 +340,8 @@ TYPED_TEST(TestJournalPlayer, PrefetchMultipleTags) {
   ASSERT_EQ(0U, last_tid);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchCorruptSequence) {
+TYPED_TEST(TestJournalPlayer, PrefetchCorruptSequence)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -317,8 +353,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchCorruptSequence) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -339,7 +376,8 @@ TYPED_TEST(TestJournalPlayer, PrefetchCorruptSequence) {
   ASSERT_EQ(-ENOMSG, this->m_replay_hander.complete_result);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchMissingSequence) {
+TYPED_TEST(TestJournalPlayer, PrefetchMissingSequence)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -351,8 +389,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchMissingSequence) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -376,20 +415,18 @@ TYPED_TEST(TestJournalPlayer, PrefetchMissingSequence) {
   ASSERT_TRUE(this->wait_for_entries(player, 7, &entries));
 
   Entries expected_entries = {
-    this->create_entry(2, 852),
-    this->create_entry(2, 853),
-    this->create_entry(2, 854),
-    this->create_entry(3, 0),
-    this->create_entry(3, 1),
-    this->create_entry(3, 2),
-    this->create_entry(3, 3)};
+      this->create_entry(2, 852), this->create_entry(2, 853),
+      this->create_entry(2, 854), this->create_entry(3, 0),
+      this->create_entry(3, 1),   this->create_entry(3, 2),
+      this->create_entry(3, 3)};
   ASSERT_EQ(expected_entries, entries);
 
   ASSERT_TRUE(this->wait_for_complete(player));
   ASSERT_EQ(0, this->m_replay_hander.complete_result);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchLargeMissingSequence) {
+TYPED_TEST(TestJournalPlayer, PrefetchLargeMissingSequence)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -401,8 +438,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchLargeMissingSequence) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -419,13 +457,13 @@ TYPED_TEST(TestJournalPlayer, PrefetchLargeMissingSequence) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   Entries expected_entries = {
-    this->create_entry(0, 0),
-    this->create_entry(0, 1),
-    this->create_entry(1, 0)};
+      this->create_entry(0, 0), this->create_entry(0, 1),
+      this->create_entry(1, 0)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchBlockedNewTag) {
+TYPED_TEST(TestJournalPlayer, PrefetchBlockedNewTag)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -437,8 +475,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchBlockedNewTag) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -455,18 +494,17 @@ TYPED_TEST(TestJournalPlayer, PrefetchBlockedNewTag) {
   ASSERT_TRUE(this->wait_for_entries(player, 4, &entries));
 
   Entries expected_entries = {
-    this->create_entry(0, 0),
-    this->create_entry(0, 1),
-    this->create_entry(0, 2),
-    this->create_entry(1, 0)};
+      this->create_entry(0, 0), this->create_entry(0, 1),
+      this->create_entry(0, 2), this->create_entry(1, 0)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchStaleEntries) {
+TYPED_TEST(TestJournalPlayer, PrefetchStaleEntries)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions = {
-    cls::journal::ObjectPosition(0, 1, 0) };
+      cls::journal::ObjectPosition(0, 1, 0)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -476,8 +514,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchStaleEntries) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -492,15 +531,15 @@ TYPED_TEST(TestJournalPlayer, PrefetchStaleEntries) {
   Entries entries;
   ASSERT_TRUE(this->wait_for_entries(player, 1, &entries));
 
-  Entries expected_entries = {
-    this->create_entry(1, 1)};
+  Entries expected_entries = {this->create_entry(1, 1)};
   ASSERT_EQ(expected_entries, entries);
 
   ASSERT_TRUE(this->wait_for_complete(player));
   ASSERT_EQ(0, this->m_replay_hander.complete_result);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchUnexpectedTag) {
+TYPED_TEST(TestJournalPlayer, PrefetchUnexpectedTag)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -512,8 +551,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchUnexpectedTag) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -534,12 +574,12 @@ TYPED_TEST(TestJournalPlayer, PrefetchUnexpectedTag) {
   ASSERT_EQ(0, this->m_replay_hander.complete_result);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchAndWatch) {
+TYPED_TEST(TestJournalPlayer, PrefetchAndWatch)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions;
-  positions = {
-    cls::journal::ObjectPosition(0, 234, 122)};
+  positions = {cls::journal::ObjectPosition(0, 234, 122)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -549,8 +589,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchAndWatch) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -575,7 +616,8 @@ TYPED_TEST(TestJournalPlayer, PrefetchAndWatch) {
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchSkippedObject) {
+TYPED_TEST(TestJournalPlayer, PrefetchSkippedObject)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -588,8 +630,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchSkippedObject) {
   ASSERT_EQ(0, this->init_metadata(metadata));
   ASSERT_EQ(0, metadata->set_active_set(2));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -609,11 +652,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchSkippedObject) {
 
   Entries expected_entries;
   expected_entries = {
-    this->create_entry(234, 122),
-    this->create_entry(234, 123),
-    this->create_entry(234, 124),
-    this->create_entry(234, 125),
-    this->create_entry(234, 126)};
+      this->create_entry(234, 122), this->create_entry(234, 123),
+      this->create_entry(234, 124), this->create_entry(234, 125),
+      this->create_entry(234, 126)};
   ASSERT_EQ(expected_entries, entries);
 
   uint64_t last_tid;
@@ -621,14 +662,15 @@ TYPED_TEST(TestJournalPlayer, PrefetchSkippedObject) {
   ASSERT_EQ(126U, last_tid);
 }
 
-TYPED_TEST(TestJournalPlayer, ImbalancedJournal) {
+TYPED_TEST(TestJournalPlayer, ImbalancedJournal)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions = {
-    cls::journal::ObjectPosition(9, 300, 1),
-    cls::journal::ObjectPosition(8, 300, 0),
-    cls::journal::ObjectPosition(10, 200, 4334),
-    cls::journal::ObjectPosition(11, 200, 4331) };
+      cls::journal::ObjectPosition(9, 300, 1),
+      cls::journal::ObjectPosition(8, 300, 0),
+      cls::journal::ObjectPosition(10, 200, 4334),
+      cls::journal::ObjectPosition(11, 200, 4331)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid, 14, 4));
@@ -640,8 +682,9 @@ TYPED_TEST(TestJournalPlayer, ImbalancedJournal) {
   ASSERT_EQ(0, metadata->set_active_set(2));
   metadata->set_minimum_set(2);
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -664,10 +707,8 @@ TYPED_TEST(TestJournalPlayer, ImbalancedJournal) {
 
   Entries expected_entries;
   expected_entries = {
-    this->create_entry(301, 0),
-    this->create_entry(301, 1),
-    this->create_entry(301, 2),
-    this->create_entry(301, 3)};
+      this->create_entry(301, 0), this->create_entry(301, 1),
+      this->create_entry(301, 2), this->create_entry(301, 3)};
   ASSERT_EQ(expected_entries, entries);
 
   uint64_t last_tid;
@@ -675,7 +716,8 @@ TYPED_TEST(TestJournalPlayer, ImbalancedJournal) {
   ASSERT_EQ(3U, last_tid);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayLaggyAppend) {
+TYPED_TEST(TestJournalPlayer, LiveReplayLaggyAppend)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -687,8 +729,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayLaggyAppend) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -705,9 +748,8 @@ TYPED_TEST(TestJournalPlayer, LiveReplayLaggyAppend) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   Entries expected_entries = {
-    this->create_entry(0, 0),
-    this->create_entry(0, 1),
-    this->create_entry(0, 2)};
+      this->create_entry(0, 0), this->create_entry(0, 1),
+      this->create_entry(0, 2)};
   ASSERT_EQ(expected_entries, entries);
 
   journal::Entry entry;
@@ -719,13 +761,13 @@ TYPED_TEST(TestJournalPlayer, LiveReplayLaggyAppend) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   expected_entries = {
-    this->create_entry(0, 3),
-    this->create_entry(0, 4),
-    this->create_entry(0, 5)};
+      this->create_entry(0, 3), this->create_entry(0, 4),
+      this->create_entry(0, 5)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayMissingSequence) {
+TYPED_TEST(TestJournalPlayer, LiveReplayMissingSequence)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -737,8 +779,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayMissingSequence) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -757,9 +800,8 @@ TYPED_TEST(TestJournalPlayer, LiveReplayMissingSequence) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   Entries expected_entries = {
-    this->create_entry(2, 852),
-    this->create_entry(2, 853),
-    this->create_entry(2, 854)};
+      this->create_entry(2, 852), this->create_entry(2, 853),
+      this->create_entry(2, 854)};
   ASSERT_EQ(expected_entries, entries);
 
   journal::Entry entry;
@@ -773,14 +815,13 @@ TYPED_TEST(TestJournalPlayer, LiveReplayMissingSequence) {
   ASSERT_TRUE(this->wait_for_entries(player, 4, &entries));
 
   expected_entries = {
-    this->create_entry(3, 0),
-    this->create_entry(3, 1),
-    this->create_entry(3, 2),
-    this->create_entry(3, 3)};
+      this->create_entry(3, 0), this->create_entry(3, 1),
+      this->create_entry(3, 2), this->create_entry(3, 3)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayLargeMissingSequence) {
+TYPED_TEST(TestJournalPlayer, LiveReplayLargeMissingSequence)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -792,8 +833,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayLargeMissingSequence) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -810,13 +852,13 @@ TYPED_TEST(TestJournalPlayer, LiveReplayLargeMissingSequence) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   Entries expected_entries = {
-    this->create_entry(0, 0),
-    this->create_entry(0, 1),
-    this->create_entry(1, 0)};
+      this->create_entry(0, 0), this->create_entry(0, 1),
+      this->create_entry(1, 0)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayBlockedNewTag) {
+TYPED_TEST(TestJournalPlayer, LiveReplayBlockedNewTag)
+{
   std::string oid = this->get_temp_oid();
 
   cls::journal::ObjectSetPosition commit_position;
@@ -828,8 +870,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayBlockedNewTag) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -851,9 +894,8 @@ TYPED_TEST(TestJournalPlayer, LiveReplayBlockedNewTag) {
   ASSERT_TRUE(this->wait_for_entries(player, 3, &entries));
 
   Entries expected_entries = {
-    this->create_entry(tag1.tid, 0),
-    this->create_entry(tag1.tid, 1),
-    this->create_entry(tag1.tid, 2)};
+      this->create_entry(tag1.tid, 0), this->create_entry(tag1.tid, 1),
+      this->create_entry(tag1.tid, 2)};
   ASSERT_EQ(expected_entries, entries);
 
   journal::Entry entry;
@@ -868,16 +910,16 @@ TYPED_TEST(TestJournalPlayer, LiveReplayBlockedNewTag) {
   ASSERT_EQ(0, this->write_entry(oid, 0, tag2.tid, 0));
   ASSERT_TRUE(this->wait_for_entries(player, 1, &entries));
 
-  expected_entries = {
-    this->create_entry(tag2.tid, 0)};
+  expected_entries = {this->create_entry(tag2.tid, 0)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayStaleEntries) {
+TYPED_TEST(TestJournalPlayer, LiveReplayStaleEntries)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions = {
-    cls::journal::ObjectPosition(0, 1, 0) };
+      cls::journal::ObjectPosition(0, 1, 0)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -887,8 +929,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayStaleEntries) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -903,17 +946,17 @@ TYPED_TEST(TestJournalPlayer, LiveReplayStaleEntries) {
   Entries entries;
   ASSERT_TRUE(this->wait_for_entries(player, 1, &entries));
 
-  Entries expected_entries = {
-    this->create_entry(1, 1)};
+  Entries expected_entries = {this->create_entry(1, 1)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayRefetchRemoveEmpty) {
+TYPED_TEST(TestJournalPlayer, LiveReplayRefetchRemoveEmpty)
+{
   std::string oid = this->get_temp_oid();
 
   journal::JournalPlayer::ObjectPositions positions = {
-    cls::journal::ObjectPosition(1, 0, 1),
-    cls::journal::ObjectPosition(0, 0, 0)};
+      cls::journal::ObjectPosition(1, 0, 1),
+      cls::journal::ObjectPosition(0, 0, 0)};
   cls::journal::ObjectSetPosition commit_position(positions);
 
   ASSERT_EQ(0, this->create(oid));
@@ -923,8 +966,9 @@ TYPED_TEST(TestJournalPlayer, LiveReplayRefetchRemoveEmpty) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -940,8 +984,7 @@ TYPED_TEST(TestJournalPlayer, LiveReplayRefetchRemoveEmpty) {
   Entries entries;
   ASSERT_TRUE(this->wait_for_entries(player, 1, &entries));
 
-  Entries expected_entries = {
-    this->create_entry(1, 0)};
+  Entries expected_entries = {this->create_entry(1, 0)};
   ASSERT_EQ(expected_entries, entries);
 
   // should remove player for offset 3 after refetching
@@ -950,12 +993,12 @@ TYPED_TEST(TestJournalPlayer, LiveReplayRefetchRemoveEmpty) {
 
   ASSERT_TRUE(this->wait_for_entries(player, 1, &entries));
 
-  expected_entries = {
-    this->create_entry(1, 1)};
+  expected_entries = {this->create_entry(1, 1)};
   ASSERT_EQ(expected_entries, entries);
 }
 
-TYPED_TEST(TestJournalPlayer, PrefetchShutDown) {
+TYPED_TEST(TestJournalPlayer, PrefetchShutDown)
+{
   std::string oid = this->get_temp_oid();
 
   ASSERT_EQ(0, this->create(oid));
@@ -965,8 +1008,9 @@ TYPED_TEST(TestJournalPlayer, PrefetchShutDown) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
@@ -974,7 +1018,8 @@ TYPED_TEST(TestJournalPlayer, PrefetchShutDown) {
   player->prefetch();
 }
 
-TYPED_TEST(TestJournalPlayer, LiveReplayShutDown) {
+TYPED_TEST(TestJournalPlayer, LiveReplayShutDown)
+{
   std::string oid = this->get_temp_oid();
 
   ASSERT_EQ(0, this->create(oid));
@@ -984,12 +1029,12 @@ TYPED_TEST(TestJournalPlayer, LiveReplayShutDown) {
   auto metadata = this->create_metadata(oid);
   ASSERT_EQ(0, this->init_metadata(metadata));
 
-  journal::JournalPlayer *player = this->create_player(oid, metadata);
-  BOOST_SCOPE_EXIT_ALL( (player) ) {
+  journal::JournalPlayer* player = this->create_player(oid, metadata);
+  BOOST_SCOPE_EXIT_ALL((player))
+  {
     C_SaferCond unwatch_ctx;
     player->shut_down(&unwatch_ctx);
     ASSERT_EQ(0, unwatch_ctx.wait());
   };
   player->prefetch_and_watch(0.25);
 }
-

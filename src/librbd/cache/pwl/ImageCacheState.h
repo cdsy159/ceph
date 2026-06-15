@@ -4,18 +4,22 @@
 #ifndef CEPH_LIBRBD_CACHE_RWL_IMAGE_CACHE_STATE_H
 #define CEPH_LIBRBD_CACHE_RWL_IMAGE_CACHE_STATE_H
 
+#include <string>
+
 #include "json_spirit/json_spirit.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/cache/Types.h"
-#include <string>
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 namespace librbd {
 
-namespace plugin { template <typename> struct Api; }
+namespace plugin {
+template <typename>
+struct Api;
+}
 
 namespace cache {
 namespace pwl {
@@ -25,6 +29,7 @@ class ImageCacheState {
 private:
   ImageCtxT* m_image_ctx;
   plugin::Api<ImageCtxT>& m_plugin_api;
+
 public:
   bool present = false;
   bool empty = true;
@@ -46,12 +51,15 @@ public:
   uint64_t hit_bytes = 0;
   uint64_t miss_bytes = 0;
 
-  ImageCacheState(ImageCtxT* image_ctx, plugin::Api<ImageCtxT>& plugin_api)
-      : m_image_ctx(image_ctx), m_plugin_api(plugin_api) {}
+  ImageCacheState(ImageCtxT* image_ctx, plugin::Api<ImageCtxT>& plugin_api) :
+    m_image_ctx(image_ctx), m_plugin_api(plugin_api)
+  {}
 
   ~ImageCacheState() {}
 
-  ImageCacheType get_image_cache_mode() const {
+  ImageCacheType
+  get_image_cache_mode() const
+  {
     if (mode == "rwl") {
       return IMAGE_CACHE_TYPE_RWL;
     } else if (mode == "ssd") {
@@ -63,16 +71,20 @@ public:
   void init_from_config();
   bool init_from_metadata(json_spirit::mValue& json_root);
 
-  void write_image_cache_state(std::unique_lock<ceph::mutex>& locker,
-                               Context *on_finish);
+  void write_image_cache_state(
+      std::unique_lock<ceph::mutex>& locker,
+      Context* on_finish);
 
-  void clear_image_cache_state(Context *on_finish);
+  void clear_image_cache_state(Context* on_finish);
 
   static ImageCacheState<ImageCtxT>* create_image_cache_state(
-    ImageCtxT* image_ctx, plugin::Api<ImageCtxT>& plugin_api, int &r);
+      ImageCtxT* image_ctx,
+      plugin::Api<ImageCtxT>& plugin_api,
+      int& r);
 
   static ImageCacheState<ImageCtxT>* get_image_cache_state(
-    ImageCtxT* image_ctx, plugin::Api<ImageCtxT>& plugin_api);
+      ImageCtxT* image_ctx,
+      plugin::Api<ImageCtxT>& plugin_api);
 
   bool is_valid();
 };

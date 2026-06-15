@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -27,45 +27,78 @@ private:
   dirfrag_t dirfrag;
   bool success;
 
- public:
-  inodeno_t get_ino() const { return dirfrag.ino; }
-  dirfrag_t get_dirfrag() const { return dirfrag; }
-  bool is_success() const { return success; }
+public:
+  inodeno_t
+  get_ino() const
+  {
+    return dirfrag.ino;
+  }
+
+  dirfrag_t
+  get_dirfrag() const
+  {
+    return dirfrag;
+  }
+
+  bool
+  is_success() const
+  {
+    return success;
+  }
 
 protected:
-  MExportDirDiscoverAck() : MMDSOp{MSG_MDS_EXPORTDIRDISCOVERACK, HEAD_VERSION, COMPAT_VERSION} {}
-  MExportDirDiscoverAck(dirfrag_t df, uint64_t tid, bool s=true) :
+  MExportDirDiscoverAck() :
+    MMDSOp{MSG_MDS_EXPORTDIRDISCOVERACK, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MExportDirDiscoverAck(dirfrag_t df, uint64_t tid, bool s = true) :
     MMDSOp{MSG_MDS_EXPORTDIRDISCOVERACK, HEAD_VERSION, COMPAT_VERSION},
-    dirfrag(df), success(s) {
+    dirfrag(df),
+    success(s)
+  {
     set_tid(tid);
   }
+
   ~MExportDirDiscoverAck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "ExDisA"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "ExDisA";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export_discover_ack(" << dirfrag;
-    if (success) 
+    if (success)
       o << " success)";
     else
       o << " failure)";
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dirfrag, p);
     decode(success, p);
   }
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dirfrag, payload);
     encode(success, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

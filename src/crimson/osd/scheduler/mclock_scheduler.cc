@@ -14,10 +14,11 @@
  */
 
 
-#include <memory>
-#include <functional>
-
 #include "crimson/osd/scheduler/mclock_scheduler.h"
+
+#include <functional>
+#include <memory>
+
 #include "common/dout.h"
 
 #define dout_context cct
@@ -25,15 +26,16 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "mClockScheduler: "
 
-
 namespace crimson::osd::scheduler {
 
-uint32_t mClockScheduler::calc_scaled_cost(int item_cost)
+uint32_t
+mClockScheduler::calc_scaled_cost(int item_cost)
 {
   return mclock_conf.calc_scaled_cost(item_cost);
 }
 
-void mClockScheduler::dump(ceph::Formatter &f) const
+void
+mClockScheduler::dump(ceph::Formatter& f) const
 {
   // Display queue sizes
   f.open_object_section("queue_sizes");
@@ -55,15 +57,15 @@ void mClockScheduler::dump(ceph::Formatter &f) const
   f.close_section();
 
   f.open_object_section("HighPriorityQueue");
-  for (auto it = high_priority.begin();
-       it != high_priority.end(); it++) {
+  for (auto it = high_priority.begin(); it != high_priority.end(); it++) {
     f.dump_int("priority", it->first);
     f.dump_int("queue_size", it->second.size());
   }
   f.close_section();
 }
 
-void mClockScheduler::enqueue(item_t&& item)
+void
+mClockScheduler::enqueue(item_t&& item)
 {
   auto id = get_scheduler_id(item);
   unsigned priority = item.get_priority();
@@ -75,36 +77,28 @@ void mClockScheduler::enqueue(item_t&& item)
     enqueue_high(priority, std::move(item));
   } else {
     auto cost = calc_scaled_cost(item.get_cost());
-    dout(20) << __func__ << " " << id
-             << " item_cost: " << item.get_cost()
-             << " scaled_cost: " << cost
-             << dendl;
+    dout(20) << __func__ << " " << id << " item_cost: " << item.get_cost()
+             << " scaled_cost: " << cost << dendl;
 
     // Add item to scheduler queue
-    scheduler.add_request(
-      std::move(item),
-      id,
-      cost);
+    scheduler.add_request(std::move(item), id, cost);
   }
 
- dout(20) << __func__ << ": sched client_count: " << scheduler.client_count()
-          << " sched queue size: " << scheduler.request_count()
-          << dendl;
+  dout(20) << __func__ << ": sched client_count: " << scheduler.client_count()
+           << " sched queue size: " << scheduler.request_count() << dendl;
 
- for (auto it = high_priority.begin();it != high_priority.end(); ++it) {
-   dout(20) << __func__ << " high_priority[" << it->first
-            << "]: " << it->second.size()
-            << dendl;
- }
+  for (auto it = high_priority.begin(); it != high_priority.end(); ++it) {
+    dout(20) << __func__ << " high_priority[" << it->first
+             << "]: " << it->second.size() << dendl;
+  }
 
- dout(30) << __func__ << " mClockClients: "
-          << dendl;
- dout(30) << __func__ << " mClockQueues: { "
-          << display_queues() << " }"
-          << dendl;
+  dout(30) << __func__ << " mClockClients: " << dendl;
+  dout(30) << __func__ << " mClockQueues: { " << display_queues() << " }"
+           << dendl;
 }
 
-void mClockScheduler::enqueue_front(item_t&& item)
+void
+mClockScheduler::enqueue_front(item_t&& item)
 {
   unsigned priority = item.get_priority();
 
@@ -119,9 +113,8 @@ void mClockScheduler::enqueue_front(item_t&& item)
   }
 }
 
-void mClockScheduler::enqueue_high(unsigned priority,
-                                   item_t&& item,
-				   bool front)
+void
+mClockScheduler::enqueue_high(unsigned priority, item_t&& item, bool front)
 {
   if (front) {
     high_priority[priority].push_back(std::move(item));
@@ -130,7 +123,8 @@ void mClockScheduler::enqueue_high(unsigned priority,
   }
 }
 
-WorkItem mClockScheduler::dequeue()
+WorkItem
+mClockScheduler::dequeue()
 {
   if (!high_priority.empty()) {
     auto iter = high_priority.begin();
@@ -148,41 +142,39 @@ WorkItem mClockScheduler::dequeue()
     if (result.is_future()) {
       return result.getTime();
     } else if (result.is_none()) {
-      ceph_abort_msg(
-	"Impossible, must have checked empty() first");
+      ceph_abort_msg("Impossible, must have checked empty() first");
       return std::move(*(item_t*)nullptr);
     } else {
       ceph_assert(result.is_retn());
 
-      auto &retn = result.get_retn();
+      auto& retn = result.get_retn();
       return std::move(*retn.request);
     }
   }
 }
 
-std::string mClockScheduler::display_queues() const
+std::string
+mClockScheduler::display_queues() const
 {
   std::ostringstream out;
   scheduler.display_queues(out);
   return out.str();
 }
 
-
-std::vector<std::string> mClockScheduler::get_tracked_keys() const noexcept
+std::vector<std::string>
+mClockScheduler::get_tracked_keys() const noexcept
 {
   return mclock_conf.get_tracked_keys();
 }
 
-void mClockScheduler::handle_conf_change(
-  const ConfigProxy& conf,
-  const std::set<std::string> &changed)
+void
+mClockScheduler::handle_conf_change(
+    const ConfigProxy& conf,
+    const std::set<std::string>& changed)
 {
   mclock_conf.handle_conf_change(conf, changed);
 }
 
-mClockScheduler::~mClockScheduler()
-{
-  cct->_conf.remove_observer(this);
-}
+mClockScheduler::~mClockScheduler() { cct->_conf.remove_observer(this); }
 
-}
+} // namespace crimson::osd::scheduler

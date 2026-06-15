@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "crimson/os/seastore/extent_pinboard.h"
-#include "crimson/os/seastore/transaction.h"
 
 #include <boost/unordered/unordered_flat_map.hpp>
+
+#include "crimson/os/seastore/transaction.h"
 
 SET_SUBSYS(seastore_cache);
 
@@ -27,18 +28,17 @@ class ExtentQueue {
 
   counter_by_extent_t<cache_size_stats_t> sizes_by_ext;
   cache_io_stats_t overall_io;
-  counter_by_src_t<counter_by_extent_t<cache_io_stats_t> >
-    trans_io_by_src_ext;
+  counter_by_src_t<counter_by_extent_t<cache_io_stats_t>> trans_io_by_src_ext;
 
   mutable cache_io_stats_t last_overall_io;
-  mutable counter_by_src_t<counter_by_extent_t<cache_io_stats_t> >
-    last_trans_io_by_src_ext;
+  mutable counter_by_src_t<counter_by_extent_t<cache_io_stats_t>>
+      last_trans_io_by_src_ext;
 
   CachedExtent::primary_ref_list list;
 
-  void do_remove_from_list(
-    CachedExtent &extent,
-    const Transaction::src_t* p_src) {
+  void
+  do_remove_from_list(CachedExtent& extent, const Transaction::src_t* p_src)
+  {
     assert(extent.is_stable_clean());
     assert(!extent.is_placeholder());
     assert(extent.is_linked_to_list());
@@ -51,16 +51,15 @@ class ExtentQueue {
     get_by_ext(sizes_by_ext, extent.get_type()).account_out(extent_loaded_length);
     overall_io.out_sizes.account_in(extent_loaded_length);
     if (p_src) {
-      get_by_ext(
-        get_by_src(trans_io_by_src_ext, *p_src),
-        extent.get_type()
-      ).out_sizes.account_in(extent_loaded_length);
+      get_by_ext(get_by_src(trans_io_by_src_ext, *p_src), extent.get_type())
+          .out_sizes.account_in(extent_loaded_length);
     }
     intrusive_ptr_release(&extent);
   }
 
-  std::list<CachedExtentRef> trim_to_capacity(
-    const Transaction::src_t* p_src) {
+  std::list<CachedExtentRef>
+  trim_to_capacity(const Transaction::src_t* p_src)
+  {
     std::list<CachedExtentRef> ret;
     while (current_size > capacity) {
       ret.push_back(&list.front());
@@ -70,35 +69,45 @@ class ExtentQueue {
   }
 
 public:
-  explicit ExtentQueue(std::size_t capacity) : capacity(capacity) {}
+  explicit ExtentQueue(std::size_t capacity) :
+    capacity(capacity)
+  {}
 
-  std::size_t get_capacity_bytes() const {
+  std::size_t
+  get_capacity_bytes() const
+  {
     return capacity;
   }
 
-  std::size_t get_current_size_bytes() const {
+  std::size_t
+  get_current_size_bytes() const
+  {
     return current_size;
   }
 
-  std::size_t get_current_num_extents() const {
+  std::size_t
+  get_current_num_extents() const
+  {
     return list.size();
   }
 
   void get_stats(
-    std::string_view queue_name,
-    cache_stats_t &stats,
-    bool report_detail,
-    double seconds) const ;
+      std::string_view queue_name,
+      cache_stats_t& stats,
+      bool report_detail,
+      double seconds) const;
 
-  void remove(CachedExtent &extent) {
+  void
+  remove(CachedExtent& extent)
+  {
     assert(extent.is_linked_to_list());
 
     do_remove_from_list(extent, nullptr);
   }
 
-  std::list<CachedExtentRef> add_to_top(
-    CachedExtent &extent,
-    const Transaction::src_t* p_src) {
+  std::list<CachedExtentRef>
+  add_to_top(CachedExtent& extent, const Transaction::src_t* p_src)
+  {
     assert(extent.is_stable_clean());
     assert(!extent.is_placeholder());
     assert(!extent.is_linked_to_list());
@@ -109,22 +118,20 @@ public:
       current_size += extent_loaded_length;
       overall_io.in_sizes.account_in(extent_loaded_length);
       if (p_src) {
-        get_by_ext(
-          get_by_src(trans_io_by_src_ext, *p_src),
-          extent.get_type()
-        ).in_sizes.account_in(extent_loaded_length);
+        get_by_ext(get_by_src(trans_io_by_src_ext, *p_src), extent.get_type())
+            .in_sizes.account_in(extent_loaded_length);
       }
     } // else: the extent isn't loaded upon touch_extent()/on_cache(),
-      //       account the io later in increase_cached_size() upon read_extent()
+    //       account the io later in increase_cached_size() upon read_extent()
     get_by_ext(sizes_by_ext, extent.get_type()).account_in(extent_loaded_length);
     intrusive_ptr_add_ref(&extent);
     list.push_back(extent);
     return trim_to_capacity(p_src);
   }
 
-  void move_to_top(
-    CachedExtent &extent,
-    const Transaction::src_t* p_src) {
+  void
+  move_to_top(CachedExtent& extent, const Transaction::src_t* p_src)
+  {
     assert(extent.is_stable_clean());
     assert(!extent.is_placeholder());
     assert(extent.is_linked_to_list());
@@ -136,10 +143,12 @@ public:
     list.push_back(extent);
   }
 
-  std::list<CachedExtentRef> increase_cached_size(
-    CachedExtent &extent,
-    extent_len_t increased_length,
-    const Transaction::src_t* p_src) {
+  std::list<CachedExtentRef>
+  increase_cached_size(
+      CachedExtent& extent,
+      extent_len_t increased_length,
+      const Transaction::src_t* p_src)
+  {
     assert(extent.is_data_stable());
     assert(extent.is_linked_to_list());
     assert(extent.is_stable_clean());
@@ -148,19 +157,20 @@ public:
     // present, increase size
     assert(list.size() > 0);
     current_size += increased_length;
-    get_by_ext(sizes_by_ext, extent.get_type()).account_parital_in(increased_length);
+    get_by_ext(sizes_by_ext, extent.get_type())
+        .account_parital_in(increased_length);
     overall_io.in_sizes.account_in(increased_length);
     if (p_src) {
-      get_by_ext(
-        get_by_src(trans_io_by_src_ext, *p_src),
-        extent.get_type()
-      ).in_sizes.account_in(increased_length);
+      get_by_ext(get_by_src(trans_io_by_src_ext, *p_src), extent.get_type())
+          .in_sizes.account_in(increased_length);
     }
 
     return trim_to_capacity(p_src);
   }
 
-  void clear() {
+  void
+  clear()
+  {
     LOG_PREFIX(ExtentQueue::clear);
     for (auto iter = list.begin(); iter != list.end();) {
       SUBDEBUG(seastore_cache, "clearing {}", *iter);
@@ -168,16 +178,15 @@ public:
     }
   }
 
-  ~ExtentQueue() {
-    clear();
-  }
+  ~ExtentQueue() { clear(); }
 };
 
-void ExtentQueue::get_stats(
-  std::string_view queue_name,
-  cache_stats_t &stats,
-  bool report_detail,
-  double seconds) const
+void
+ExtentQueue::get_stats(
+    std::string_view queue_name,
+    cache_stats_t& stats,
+    bool report_detail,
+    double seconds) const
 {
   LOG_PREFIX(ExtentQueue::get_stats);
 
@@ -186,16 +195,16 @@ void ExtentQueue::get_stats(
   stats.pinboard_io.minus(last_overall_io);
 
   if (report_detail && seconds != 0) {
-    counter_by_src_t<counter_by_extent_t<cache_io_stats_t> >
-      _trans_io_by_src_ext = trans_io_by_src_ext;
+    counter_by_src_t<counter_by_extent_t<cache_io_stats_t>> _trans_io_by_src_ext =
+        trans_io_by_src_ext;
     counter_by_src_t<cache_io_stats_t> trans_io_by_src;
     cache_io_stats_t trans_io;
-    for (uint8_t _src=0; _src<TRANSACTION_TYPE_MAX; ++_src) {
+    for (uint8_t _src = 0; _src < TRANSACTION_TYPE_MAX; ++_src) {
       auto src = static_cast<transaction_type_t>(_src);
       auto& io_by_ext = get_by_src(_trans_io_by_src_ext, src);
       const auto& last_io_by_ext = get_by_src(last_trans_io_by_src_ext, src);
       auto& trans_io_per_src = get_by_src(trans_io_by_src, src);
-      for (uint8_t _ext=0; _ext<EXTENT_TYPES_MAX; ++_ext) {
+      for (uint8_t _ext = 0; _ext < EXTENT_TYPES_MAX; ++_ext) {
         auto ext = static_cast<extent_types_t>(_ext);
         auto& extent_io = get_by_ext(io_by_ext, ext);
         const auto& last_extent_io = get_by_ext(last_io_by_ext, ext);
@@ -212,7 +221,7 @@ void ExtentQueue::get_stats(
     cache_size_stats_t data_sizes;
     cache_size_stats_t mdat_sizes;
     cache_size_stats_t phys_sizes;
-    for (uint8_t _ext=0; _ext<EXTENT_TYPES_MAX; ++_ext) {
+    for (uint8_t _ext = 0; _ext < EXTENT_TYPES_MAX; ++_ext) {
       auto ext = static_cast<extent_types_t>(_ext);
       const auto& extent_sizes = get_by_ext(sizes_by_ext, ext);
       if (is_data_type(ext)) {
@@ -223,15 +232,14 @@ void ExtentQueue::get_stats(
         phys_sizes.add(extent_sizes);
       }
     }
-    oss << "\n  data" << data_sizes
-        << "\n  mdat" << mdat_sizes
-        << "\n  phys" << phys_sizes;
+    oss << "\n  data" << data_sizes << "\n  mdat" << mdat_sizes << "\n  phys"
+        << phys_sizes;
 
-    oss << "\n" << queue_name << " io: trans-"
-        << cache_io_stats_printer_t{seconds, trans_io}
-        << "; other-"
+    oss << "\n"
+        << queue_name << " io: trans-"
+        << cache_io_stats_printer_t{seconds, trans_io} << "; other-"
         << cache_io_stats_printer_t{seconds, other_io};
-    for (uint8_t _src=0; _src<TRANSACTION_TYPE_MAX; ++_src) {
+    for (uint8_t _src = 0; _src < TRANSACTION_TYPE_MAX; ++_src) {
       auto src = static_cast<transaction_type_t>(_src);
       const auto& trans_io_per_src = get_by_src(trans_io_by_src, src);
       if (trans_io_per_src.is_empty()) {
@@ -241,7 +249,7 @@ void ExtentQueue::get_stats(
       cache_io_stats_t mdat_io;
       cache_io_stats_t phys_io;
       const auto& io_by_ext = get_by_src(_trans_io_by_src_ext, src);
-      for (uint8_t _ext=0; _ext<EXTENT_TYPES_MAX; ++_ext) {
+      for (uint8_t _ext = 0; _ext < EXTENT_TYPES_MAX; ++_ext) {
         auto ext = static_cast<extent_types_t>(_ext);
         const auto extent_io = get_by_ext(io_by_ext, ext);
         if (is_data_type(ext)) {
@@ -254,12 +262,9 @@ void ExtentQueue::get_stats(
       }
       oss << "\n  " << src << ": "
           << cache_io_stats_printer_t{seconds, trans_io_per_src}
-          << "\n    data: "
-          << cache_io_stats_printer_t{seconds, data_io}
-          << "\n    mdat: "
-          << cache_io_stats_printer_t{seconds, mdat_io}
-          << "\n    phys: "
-          << cache_io_stats_printer_t{seconds, phys_io};
+          << "\n    data: " << cache_io_stats_printer_t{seconds, data_io}
+          << "\n    mdat: " << cache_io_stats_printer_t{seconds, mdat_io}
+          << "\n    phys: " << cache_io_stats_printer_t{seconds, phys_io};
     }
 
     INFO("{}", oss.str());
@@ -279,76 +284,84 @@ class ExtentPinboardLRU : public ExtentPinboard {
   uint64_t miss = 0;
 
 public:
-  ExtentPinboardLRU(std::size_t capacity) : lru(capacity) {
+  ExtentPinboardLRU(std::size_t capacity) :
+    lru(capacity)
+  {
     LOG_PREFIX(ExtentPinboardLRU::ExtentPinboardLRU);
     INFO("created, lru_capacity=0x{:x}B", capacity);
   }
 
-  std::size_t get_capacity_bytes() const {
+  std::size_t
+  get_capacity_bytes() const
+  {
     return lru.get_capacity_bytes();
   }
 
-  std::size_t get_current_size_bytes() const final {
+  std::size_t
+  get_current_size_bytes() const final
+  {
     return lru.get_current_size_bytes();
   }
 
-  std::size_t get_current_num_extents() const final {
+  std::size_t
+  get_current_num_extents() const final
+  {
     return lru.get_current_num_extents();
   }
 
-  void register_metrics(store_index_t store_index) final {
+  void
+  register_metrics(store_index_t store_index) final
+  {
     namespace sm = seastar::metrics;
     metrics.add_group(
-      "cache",
-      {
-        sm::make_counter(
-          "lru_size_bytes",
-          [this] {
-            return get_current_size_bytes();
-          },
-          sm::description("total bytes pinned by the lru"),
-          {sm::label_instance("shard_store_index", std::to_string(store_index))}
-        ),
-        sm::make_counter(
-          "lru_num_extents",
-          [this] {
-            return get_current_num_extents();
-          },
-          sm::description("total extents pinned by the lru"),
-          {sm::label_instance("shard_store_index", std::to_string(store_index))}
-        ),
-        sm::make_counter(
-          "lru_hit", hit,
-          sm::description("total count of the extents that are linked to lru when touching them"),
-          {sm::label_instance("shard_store_index", std::to_string(store_index))}
-        ),
-        sm::make_counter(
-          "lru_miss", miss,
-          sm::description("total count of the extents that are not linked to lru when touching them"),
-          {sm::label_instance("shard_store_index", std::to_string(store_index))}
-        ),
-      }
-    );
+        "cache",
+        {
+            sm::make_counter(
+                "lru_size_bytes", [this] { return get_current_size_bytes(); },
+                sm::description("total bytes pinned by the lru"),
+                {sm::label_instance(
+                    "shard_store_index", std::to_string(store_index))}),
+            sm::make_counter(
+                "lru_num_extents", [this] { return get_current_num_extents(); },
+                sm::description("total extents pinned by the lru"),
+                {sm::label_instance(
+                    "shard_store_index", std::to_string(store_index))}),
+            sm::make_counter(
+                "lru_hit", hit,
+                sm::description("total count of the extents that are linked to "
+                                "lru when touching them"),
+                {sm::label_instance(
+                    "shard_store_index", std::to_string(store_index))}),
+            sm::make_counter(
+                "lru_miss", miss,
+                sm::description("total count of the extents that are not "
+                                "linked to lru when touching them"),
+                {sm::label_instance(
+                    "shard_store_index", std::to_string(store_index))}),
+        });
   }
 
-  void get_stats(
-    cache_stats_t &stats,
-    bool report_detail,
-    double seconds) const final {
+  void
+  get_stats(cache_stats_t& stats, bool report_detail, double seconds) const final
+  {
     lru.get_stats("LRU", stats, report_detail, seconds);
   }
 
-  void remove(CachedExtent &extent) final {
+  void
+  remove(CachedExtent& extent) final
+  {
     if (extent.is_linked_to_list()) {
       lru.remove(extent);
     }
   }
 
-  void move_to_top(
-    CachedExtent &extent,
-    const Transaction::src_t* p_src,
-    extent_len_t /*load_start*/,
-    extent_len_t /*load_length*/) final {
+  void
+  move_to_top(
+      CachedExtent& extent,
+      const Transaction::src_t* p_src,
+      extent_len_t /*load_start*/,
+      extent_len_t /*load_length*/) final
+  {
     if (extent.is_linked_to_list()) {
       lru.move_to_top(extent, p_src);
       hit++;
@@ -358,35 +371,36 @@ public:
     }
   }
 
-  void increase_cached_size(
-    CachedExtent &extent,
-    extent_len_t increased_length,
-    const Transaction::src_t* p_src) final {
+  void
+  increase_cached_size(
+      CachedExtent& extent,
+      extent_len_t increased_length,
+      const Transaction::src_t* p_src) final
+  {
     if (extent.is_linked_to_list()) {
       lru.increase_cached_size(extent, increased_length, p_src);
     }
   }
 
-  void clear() final {
+  void
+  clear() final
+  {
     lru.clear();
   }
 
-  ~ExtentPinboardLRU() {
-    clear();
-  }
+  ~ExtentPinboardLRU() { clear(); }
 };
 
 // For A1_out queue(warm_out in ExtentPinboardTwoQ) in 2q algorithm
 class IndexedFifoQueue {
 public:
-  explicit IndexedFifoQueue(std::size_t capacity)
-      : capacity(capacity), current_size(0) {
+  explicit IndexedFifoQueue(std::size_t capacity) :
+    capacity(capacity), current_size(0)
+  {
     index.reserve(capacity >> 12);
   }
 
-  ~IndexedFifoQueue() {
-    clear();
-  }
+  ~IndexedFifoQueue() { clear(); }
 
   enum class AccessMode {
     Missing,
@@ -394,55 +408,58 @@ public:
     Again
   };
 
-  AccessMode accessed_recently(laddr_t laddr, extent_len_t load_start) {
+  AccessMode
+  accessed_recently(laddr_t laddr, extent_len_t load_start)
+  {
     auto iter = index.find(laddr);
     if (iter == index.end()) {
       return AccessMode::Missing;
     }
     // Current read start offset is same as the last access end offset,
     // we treat this access as sequential read.
-    auto &last_end = iter->second->last_access_end;
+    auto& last_end = iter->second->last_access_end;
     assert(last_end != 0);
-    auto ret = last_end == load_start
-	? AccessMode::ContinueFromLastEnd
-	: AccessMode::Again;
+    auto ret = last_end == load_start ? AccessMode::ContinueFromLastEnd
+                                      : AccessMode::Again;
     remove(iter);
     return ret;
   }
 
-  void add(laddr_t laddr,
-	   extent_len_t loaded_length,
-	   extent_len_t access_end) {
+  void
+  add(laddr_t laddr, extent_len_t loaded_length, extent_len_t access_end)
+  {
     assert(laddr != L_ADDR_NULL);
     assert(loaded_length != 0);
     assert(access_end != 0);
     assert(!index.contains(laddr));
-    index[laddr] = queue.emplace(
-      queue.end(), laddr, loaded_length, access_end);
+    index[laddr] = queue.emplace(queue.end(), laddr, loaded_length, access_end);
     current_size += loaded_length;
     trim_to(capacity);
   }
 
-  std::size_t get_tracked_num_extents() const {
+  std::size_t
+  get_tracked_num_extents() const
+  {
     return index.size();
   }
 
-  std::size_t get_tracked_size_bytes() const {
+  std::size_t
+  get_tracked_size_bytes() const
+  {
     return current_size;
   }
 
-  void clear() {
+  void
+  clear()
+  {
     trim_to(0);
   }
 
 private:
   struct entry_t {
-    entry_t(laddr_t laddr,
-	    extent_len_t loaded_length,
-	    extent_len_t access_end)
-	: laddr(laddr),
-	  loaded_length(loaded_length),
-	  last_access_end(access_end) {}
+    entry_t(laddr_t laddr, extent_len_t loaded_length, extent_len_t access_end) :
+      laddr(laddr), loaded_length(loaded_length), last_access_end(access_end)
+    {}
 
     laddr_t laddr;
     extent_len_t loaded_length;
@@ -450,10 +467,12 @@ private:
   };
 
   using entry_queue_t = std::list<entry_t>;
-  using entry_index_t = boost::unordered_flat_map<
-    laddr_t, entry_queue_t::iterator>;
+  using entry_index_t =
+      boost::unordered_flat_map<laddr_t, entry_queue_t::iterator>;
 
-  void remove(entry_index_t::iterator iter) {
+  void
+  remove(entry_index_t::iterator iter)
+  {
     assert(iter != index.end());
     assert(iter->second != queue.end());
     assert(current_size >= iter->second->loaded_length);
@@ -462,7 +481,9 @@ private:
     index.erase(iter);
   }
 
-  void trim_to(std::size_t target) {
+  void
+  trim_to(std::size_t target)
+  {
     while (current_size > target) {
       assert(!queue.empty());
       assert(queue.size() == index.size());
@@ -484,46 +505,51 @@ private:
 class ExtentPinboardTwoQ : public ExtentPinboard {
 public:
   ExtentPinboardTwoQ(
-    std::size_t warm_in_capacity,
-    std::size_t warm_out_capacity,
-    std::size_t hot_capacity)
-      : warm_in(warm_in_capacity),
-	warm_out(warm_out_capacity),
-	hot(hot_capacity)
+      std::size_t warm_in_capacity,
+      std::size_t warm_out_capacity,
+      std::size_t hot_capacity) :
+    warm_in(warm_in_capacity), warm_out(warm_out_capacity), hot(hot_capacity)
   {
     LOG_PREFIX(ExtentPinboardTwoQ::ExtentPinboardTwoQ);
-    INFO("created, warm_in_capacity=0x{:x}B, "
-	 "warm_out_capacity=0x{:x}B, hot_capacity=0x{:x}B",
-	 warm_in_capacity, warm_out_capacity, hot_capacity);
+    INFO(
+        "created, warm_in_capacity=0x{:x}B, "
+        "warm_out_capacity=0x{:x}B, hot_capacity=0x{:x}B",
+        warm_in_capacity, warm_out_capacity, hot_capacity);
   }
 
-  std::size_t get_capacity_bytes() const {
+  std::size_t
+  get_capacity_bytes() const
+  {
     return warm_in.get_capacity_bytes() + hot.get_capacity_bytes();
   }
 
-  std::size_t get_current_size_bytes() const final {
+  std::size_t
+  get_current_size_bytes() const final
+  {
     return warm_in.get_current_size_bytes() + hot.get_current_size_bytes();
   }
 
-  std::size_t get_current_num_extents() const final {
+  std::size_t
+  get_current_num_extents() const final
+  {
     return warm_in.get_current_num_extents() + hot.get_current_num_extents();
   }
 
   void register_metrics(store_index_t store_index) final;
 
-  void get_stats(
-    cache_stats_t &stats,
-    bool report_detail,
-    double seconds) const final;
+  void get_stats(cache_stats_t& stats, bool report_detail, double seconds)
+      const final;
 
-  void remove(CachedExtent &extent) final {
+  void
+  remove(CachedExtent& extent) final
+  {
     auto s = extent.get_2q_state();
     if (extent.is_linked_to_list()) {
       if (s == extent_2q_state_t::WarmIn) {
-	warm_in.remove(extent);
+        warm_in.remove(extent);
       } else {
-	ceph_assert(s == extent_2q_state_t::Hot);
-	hot.remove(extent);
+        ceph_assert(s == extent_2q_state_t::Hot);
+        hot.remove(extent);
       }
       extent.set_2q_state(extent_2q_state_t::Fresh);
     } else {
@@ -531,24 +557,26 @@ public:
     }
   }
 
-  void move_to_top(
-    CachedExtent &extent,
-    const Transaction::src_t* p_src,
-    extent_len_t load_start,
-    extent_len_t load_length) final {
+  void
+  move_to_top(
+      CachedExtent& extent,
+      const Transaction::src_t* p_src,
+      extent_len_t load_start,
+      extent_len_t load_length) final
+  {
     auto state = extent.get_2q_state();
     auto type = extent.get_type();
     if (extent.is_linked_to_list()) {
       if (state == extent_2q_state_t::Hot) {
-	hot.move_to_top(extent, p_src);
-	hit_queue(overall_hits.hot_hits, p_src, type);
+        hot.move_to_top(extent, p_src);
+        hit_queue(overall_hits.hot_hits, p_src, type);
       } else {
-	ceph_assert(state == extent_2q_state_t::WarmIn);
-	hit_queue(overall_hits.warm_in_hits, p_src, type);
-	// warm_in is a FIFO queue, do nothing here
-	// In the standard 2Q algorithm, the extent won't be considerred
-	// hot until it is evicted to the warm out queue and accessed once
-	// again.
+        ceph_assert(state == extent_2q_state_t::WarmIn);
+        hit_queue(overall_hits.warm_in_hits, p_src, type);
+        // warm_in is a FIFO queue, do nothing here
+        // In the standard 2Q algorithm, the extent won't be considerred
+        // hot until it is evicted to the warm out queue and accessed once
+        // again.
       }
       hit++;
     } else if (!is_logical_type(extent.get_type())) {
@@ -565,23 +593,23 @@ public:
       auto m = warm_out.accessed_recently(lext->get_laddr(), load_start);
       using AccessMode = IndexedFifoQueue::AccessMode;
       if (m == AccessMode::Again) {
-	// This extent was accessed recently, consider it's hot enough to
-	// promote to hot queue.
-	extent.set_2q_state(extent_2q_state_t::Hot);
-	auto trimmed_extents = hot.add_to_top(extent, p_src);
-	on_update_hot(trimmed_extents);
-	hit_queue(overall_hits.hot_absent, p_src, type);
+        // This extent was accessed recently, consider it's hot enough to
+        // promote to hot queue.
+        extent.set_2q_state(extent_2q_state_t::Hot);
+        auto trimmed_extents = hot.add_to_top(extent, p_src);
+        on_update_hot(trimmed_extents);
+        hit_queue(overall_hits.hot_absent, p_src, type);
       } else {
-	// This extent didn't be accessed recently, put it warm_in queue
-	// by default.
-	extent.set_2q_state(extent_2q_state_t::WarmIn);
-	auto trimmed_extents = warm_in.add_to_top(extent, p_src);
-	on_update_warm_in(trimmed_extents);
-	if (m == AccessMode::Missing) {
-	  hit_queue(overall_hits.absent, p_src, type);
-	} else { // m == AccessMode::ContinueFromLastEnd
-	  hit_queue(overall_hits.sequential_absent, p_src, type);
-	}
+        // This extent didn't be accessed recently, put it warm_in queue
+        // by default.
+        extent.set_2q_state(extent_2q_state_t::WarmIn);
+        auto trimmed_extents = warm_in.add_to_top(extent, p_src);
+        on_update_warm_in(trimmed_extents);
+        if (m == AccessMode::Missing) {
+          hit_queue(overall_hits.absent, p_src, type);
+        } else { // m == AccessMode::ContinueFromLastEnd
+          hit_queue(overall_hits.sequential_absent, p_src, type);
+        }
       }
       miss++;
     }
@@ -592,46 +620,56 @@ public:
     extent.set_last_touch_end(end);
   }
 
-  void increase_cached_size(
-    CachedExtent &extent,
-    extent_len_t increased_length,
-    const Transaction::src_t* p_src) final {
+  void
+  increase_cached_size(
+      CachedExtent& extent,
+      extent_len_t increased_length,
+      const Transaction::src_t* p_src) final
+  {
     if (extent.is_linked_to_list()) {
       auto state = extent.get_2q_state();
       if (state == extent_2q_state_t::WarmIn) {
-	auto trimmed_extents = warm_in.increase_cached_size(
-	  extent, increased_length, p_src);
-	on_update_warm_in(trimmed_extents);
+        auto trimmed_extents =
+            warm_in.increase_cached_size(extent, increased_length, p_src);
+        on_update_warm_in(trimmed_extents);
       } else {
-	ceph_assert(state == extent_2q_state_t::Hot);
-	auto trimmed_extents = hot.increase_cached_size(
-	  extent, increased_length, p_src);
-	on_update_hot(trimmed_extents);
+        ceph_assert(state == extent_2q_state_t::Hot);
+        auto trimmed_extents =
+            hot.increase_cached_size(extent, increased_length, p_src);
+        on_update_hot(trimmed_extents);
       }
     }
   }
 
-  void clear() final {
+  void
+  clear() final
+  {
     LOG_PREFIX(ExtentPinboardTwoQ::clear);
-    INFO("close with warm_in: {}({}B), traced by warm_out: {}({}B), hot: {}({}B)",
-	 warm_in.get_current_num_extents(), warm_in.get_current_size_bytes(),
-	 warm_out.get_tracked_num_extents(), warm_out.get_tracked_size_bytes(),
-	 hot.get_current_num_extents(), hot.get_current_size_bytes());
+    INFO(
+        "close with warm_in: {}({}B), traced by warm_out: {}({}B), hot: "
+        "{}({}B)",
+        warm_in.get_current_num_extents(), warm_in.get_current_size_bytes(),
+        warm_out.get_tracked_num_extents(), warm_out.get_tracked_size_bytes(),
+        hot.get_current_num_extents(), hot.get_current_size_bytes());
     warm_in.clear();
     warm_out.clear();
     hot.clear();
   }
 
-  ~ExtentPinboardTwoQ() {
-    clear();
-  }
+  ~ExtentPinboardTwoQ() { clear(); }
+
 private:
-  void on_update_hot(std::list<CachedExtentRef> &extents) {
+  void
+  on_update_hot(std::list<CachedExtentRef>& extents)
+  {
     for (auto extent : extents) {
       extent->set_2q_state(extent_2q_state_t::Fresh);
     }
   }
-  void on_update_warm_in(std::list<CachedExtentRef> &extents) {
+
+  void
+  on_update_warm_in(std::list<CachedExtentRef>& extents)
+  {
     for (auto extent : extents) {
       ceph_assert(is_logical_type(extent->get_type()));
       extent->set_2q_state(extent_2q_state_t::Fresh);
@@ -650,6 +688,7 @@ private:
       warm_out.add(laddr, len, end);
     }
   }
+
   // 2Q cache algorithm:
   // - warm_in: FIFO queue for new logical extents (for first insertion)
   // - warm_out: FIFO queue for tracking recently evicted extents from warm_in
@@ -675,35 +714,42 @@ private:
       uint64_t mdat;
       uint64_t phys;
 
-      bool empty() const {
-	return data == 0 && mdat == 0 && phys == 0;
+      bool
+      empty() const
+      {
+        return data == 0 && mdat == 0 && phys == 0;
       }
 
-      void minus(const summary_t &o) {
-	data -= o.data;
-	mdat -= o.mdat;
-	phys -= o.phys;
+      void
+      minus(const summary_t& o)
+      {
+        data -= o.data;
+        mdat -= o.mdat;
+        phys -= o.phys;
       }
     };
 
-    summary_t &get_summary_via_src(Transaction::src_t src) {
+    summary_t&
+    get_summary_via_src(Transaction::src_t src)
+    {
       if (src == Transaction::src_t::MAX) {
-	return other_hits;
+        return other_hits;
       }
       return get_by_src(trans_hits, src);
     }
+
     counter_by_src_t<summary_t> trans_hits;
     summary_t other_hits;
   };
-  void hit_queue(
-    QueueCounter &hits,
-    const Transaction::src_t *p_src,
-    extent_types_t type)
+
+  void
+  hit_queue(
+      QueueCounter& hits,
+      const Transaction::src_t* p_src,
+      extent_types_t type)
   {
-    auto &summary =
-	(p_src == nullptr)
-	? hits.other_hits
-	: get_by_src(hits.trans_hits, *p_src);
+    auto& summary = (p_src == nullptr) ? hits.other_hits
+                                       : get_by_src(hits.trans_hits, *p_src);
     if (is_data_type(type)) {
       summary.data++;
     } else if (is_logical_metadata_type(type)) {
@@ -714,6 +760,7 @@ private:
       ceph_abort("invalid extent type: {}", type);
     }
   }
+
   struct hit_stats_t {
     QueueCounter warm_in_hits;
     QueueCounter hot_hits;
@@ -721,6 +768,7 @@ private:
     QueueCounter hot_absent;
     QueueCounter sequential_absent;
   };
+
   mutable hit_stats_t overall_hits;
   mutable hit_stats_t last_hits;
 
@@ -729,10 +777,11 @@ private:
   uint64_t miss = 0;
 };
 
-void ExtentPinboardTwoQ::get_stats(
-  cache_stats_t &stats,
-  bool report_detail,
-  double seconds) const
+void
+ExtentPinboardTwoQ::get_stats(
+    cache_stats_t& stats,
+    bool report_detail,
+    double seconds) const
 {
   LOG_PREFIX(ExtentPinboardTwoQ::get_stats);
   hot.get_stats("2Q_Hot", stats, report_detail, seconds);
@@ -759,12 +808,12 @@ void ExtentPinboardTwoQ::get_stats(
     output_src_type = false;
   };
 
-  auto handle_queue_counter = [&oss, &header, seconds]
-      (QueueCounter &cur_qc, QueueCounter &other_qc,
-       std::string_view name, Transaction::src_t src)
-  {
+  auto handle_queue_counter = [&oss, &header, seconds](
+                                  QueueCounter& cur_qc, QueueCounter& other_qc,
+                                  std::string_view name,
+                                  Transaction::src_t src) {
     auto cur = cur_qc.get_summary_via_src(src);
-    auto &last = other_qc.get_summary_via_src(src);
+    auto& last = other_qc.get_summary_via_src(src);
     cur.minus(last);
     if (cur.empty()) {
       return;
@@ -787,78 +836,71 @@ void ExtentPinboardTwoQ::get_stats(
     auto src = static_cast<Transaction::src_t>(_src);
     output_src_type = true;
     handle_queue_counter(
-      overall_hits.hot_hits, last_hits.hot_hits,
-      "2Q_hot", src);
+        overall_hits.hot_hits, last_hits.hot_hits, "2Q_hot", src);
     handle_queue_counter(
-      overall_hits.warm_in_hits, last_hits.warm_in_hits,
-      "2Q_warm_in", src);
+        overall_hits.warm_in_hits, last_hits.warm_in_hits, "2Q_warm_in", src);
     handle_queue_counter(
-      overall_hits.absent, last_hits.absent,
-      "2Q_absent", src);
+        overall_hits.absent, last_hits.absent, "2Q_absent", src);
     handle_queue_counter(
-      overall_hits.hot_absent, last_hits.hot_absent,
-      "2Q_hot_absent", src);
+        overall_hits.hot_absent, last_hits.hot_absent, "2Q_hot_absent", src);
     handle_queue_counter(
-      overall_hits.sequential_absent, last_hits.sequential_absent,
-      "2Q_sequential_absent", src);
+        overall_hits.sequential_absent, last_hits.sequential_absent,
+        "2Q_sequential_absent", src);
   }
 
   INFO("{}", oss.str());
   last_hits = overall_hits;
 }
 
-void ExtentPinboardTwoQ::register_metrics(store_index_t store_index) {
+void
+ExtentPinboardTwoQ::register_metrics(store_index_t store_index)
+{
   namespace sm = seastar::metrics;
   metrics.add_group(
-    "cache",
-    {
-      sm::make_counter(
-        "2q_warm_in_size_bytes",
-        [this] {
-          return warm_in.get_current_size_bytes();
-        },
-        sm::description("total bytes pinned by the 2q warm_in queue"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-      sm::make_counter(
-        "2q_warm_in_num_extents",
-        [this] {
-          return warm_in.get_current_num_extents();
-        },
-        sm::description("total extents pinned by the 2q warm_in queue"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-      sm::make_counter(
-        "2q_hot_size_bytes",
-        [this] {
-          return hot.get_current_size_bytes();
-        },
-        sm::description("total bytes pinned by the 2q hot queue"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-      sm::make_counter(
-        "2q_hot_num_extents",
-        [this] {
-          return hot.get_current_num_extents();
-        },
-        sm::description("total extents pinned by the 2q hot queue"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-      sm::make_counter(
-        "2q_hit", hit,
-        sm::description("total count of the extents that are linked to 2Q when touching them"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-      sm::make_counter(
-        "2q_miss", miss,
-        sm::description("total count of the extents that are not linked to 2Q when touching them"),
-        {sm::label_instance("shard_store_index", std::to_string(store_index))}
-      ),
-    }
-  );
+      "cache",
+      {
+          sm::make_counter(
+              "2q_warm_in_size_bytes",
+              [this] { return warm_in.get_current_size_bytes(); },
+              sm::description("total bytes pinned by the 2q warm_in queue"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+          sm::make_counter(
+              "2q_warm_in_num_extents",
+              [this] { return warm_in.get_current_num_extents(); },
+              sm::description("total extents pinned by the 2q warm_in queue"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+          sm::make_counter(
+              "2q_hot_size_bytes",
+              [this] { return hot.get_current_size_bytes(); },
+              sm::description("total bytes pinned by the 2q hot queue"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+          sm::make_counter(
+              "2q_hot_num_extents",
+              [this] { return hot.get_current_num_extents(); },
+              sm::description("total extents pinned by the 2q hot queue"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+          sm::make_counter(
+              "2q_hit", hit,
+              sm::description("total count of the extents that are linked to "
+                              "2Q when touching them"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+          sm::make_counter(
+              "2q_miss", miss,
+              sm::description("total count of the extents that are not linked "
+                              "to 2Q when touching them"),
+              {sm::label_instance(
+                  "shard_store_index", std::to_string(store_index))}),
+      });
 }
 
-ExtentPinboardRef create_extent_pinboard(std::size_t capacity) {
+ExtentPinboardRef
+create_extent_pinboard(std::size_t capacity)
+{
   using crimson::common::get_conf;
   auto algorithm = get_conf<std::string>("seastore_cachepin_type");
   if (algorithm == "LRU") {
@@ -869,9 +911,8 @@ ExtentPinboardRef create_extent_pinboard(std::size_t capacity) {
     ceph_assert(0 < warm_in_ratio && warm_in_ratio < 1);
     ceph_assert(0 < warm_out_ratio && warm_out_ratio < 1);
     return std::make_unique<ExtentPinboardTwoQ>(
-      capacity * warm_in_ratio,
-      capacity * warm_out_ratio,
-      capacity * (1 - warm_in_ratio));
+        capacity * warm_in_ratio, capacity * warm_out_ratio,
+        capacity * (1 - warm_in_ratio));
   } else {
     ceph_abort("invalid seastore_cachepin_type(LRU or 2Q)");
     return nullptr;

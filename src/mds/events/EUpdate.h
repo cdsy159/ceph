@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "../LogEvent.h"
+
 #include "EMetaBlob.h"
 
 class EUpdate : public LogEvent {
@@ -30,26 +31,35 @@ public:
   metareqid_t reqid;
   bool had_peers;
 
-  EUpdate() : LogEvent(EVENT_UPDATE), cmapv(0), had_peers(false) { }
-  EUpdate(MDLog *mdlog, std::string_view s) :
-    LogEvent(EVENT_UPDATE),
-    type(s), cmapv(0), had_peers(false) { }
-  
-  void print(std::ostream& out) const override {
+  EUpdate() :
+    LogEvent(EVENT_UPDATE), cmapv(0), had_peers(false)
+  {}
+
+  EUpdate(MDLog* mdlog, std::string_view s) :
+    LogEvent(EVENT_UPDATE), type(s), cmapv(0), had_peers(false)
+  {}
+
+  void
+  print(std::ostream& out) const override
+  {
     if (type.length())
       out << "EUpdate " << type << " ";
     out << metablob;
   }
 
-  EMetaBlob *get_metablob() override { return &metablob; }
+  EMetaBlob*
+  get_metablob() override
+  {
+    return &metablob;
+  }
 
   void encode(bufferlist& bl, uint64_t features) const override;
   void decode(bufferlist::const_iterator& bl) override;
-  void dump(Formatter *f) const override;
+  void dump(Formatter* f) const override;
   static std::list<EUpdate> generate_test_instances();
 
   void update_segment() override;
-  void replay(MDSRank *mds) override;
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(EUpdate)
 

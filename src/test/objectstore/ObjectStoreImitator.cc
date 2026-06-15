@@ -6,16 +6,19 @@
  * Author: Tri Dao, daominhtri0503@gmail.com
  */
 #include "test/objectstore/ObjectStoreImitator.h"
-#include "common/Clock.h"
+
+#include <algorithm>
+#include <cmath>
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/debug.h"
+
+#include "common/Clock.h"
 #include "common/Finisher.h"
 #include "common/errno.h"
 #include "include/ceph_assert.h"
 #include "include/intarith.h"
 #include "os/bluestore/bluestore_types.h"
-#include <algorithm>
-#include <cmath>
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_test
@@ -23,18 +26,23 @@
 
 // ---------- Allocator ----------
 
-void ObjectStoreImitator::release_alloc(PExtentVector &old_extents) {
+void
+ObjectStoreImitator::release_alloc(PExtentVector& old_extents)
+{
   utime_t start = ceph_clock_now();
   alloc->release(old_extents);
   alloc_ops++;
   alloc_time += static_cast<double>(ceph_clock_now() - start);
 }
 
-int64_t ObjectStoreImitator::allocate_alloc(uint64_t want_size,
-                                            uint64_t block_size,
-                                            uint64_t max_alloc_size,
-                                            int64_t hint,
-                                            PExtentVector *extents) {
+int64_t
+ObjectStoreImitator::allocate_alloc(
+    uint64_t want_size,
+    uint64_t block_size,
+    uint64_t max_alloc_size,
+    int64_t hint,
+    PExtentVector* extents)
+{
   utime_t start = ceph_clock_now();
   int64_t ret =
       alloc->allocate(want_size, block_size, max_alloc_size, hint, extents);
@@ -44,8 +52,12 @@ int64_t ObjectStoreImitator::allocate_alloc(uint64_t want_size,
 
 // ---------- Object -----------
 
-void ObjectStoreImitator::Object::punch_hole(uint64_t offset, uint64_t length,
-                                             PExtentVector &old_extents) {
+void
+ObjectStoreImitator::Object::punch_hole(
+    uint64_t offset,
+    uint64_t length,
+    PExtentVector& old_extents)
+{
   if (extent_map.empty())
     return;
 
@@ -57,7 +69,7 @@ void ObjectStoreImitator::Object::punch_hole(uint64_t offset, uint64_t length,
   bluestore_pextent_t re_add;
 
   dout(20) << "current extents:" << dendl;
-  for (auto &[l_off, e] : extent_map) {
+  for (auto& [l_off, e] : extent_map) {
     dout(20) << "l_off " << l_off << ", off " << e.offset << ", len "
              << e.length << dendl;
   }
@@ -78,8 +90,8 @@ void ObjectStoreImitator::Object::punch_hole(uint64_t offset, uint64_t length,
     if (diff < it->second.length) {
       // the hole is bigger than the remaining of the extent
       if (end > it->first + it->second.length) {
-        to_be_punched.emplace_back(it->second.offset + diff,
-                                   it->second.length - diff);
+        to_be_punched.emplace_back(
+            it->second.offset + diff, it->second.length - diff);
       } else { // else the hole is entirely in this extent
         to_be_punched.emplace_back(it->second.offset + diff, length);
 
@@ -135,8 +147,10 @@ void ObjectStoreImitator::Object::punch_hole(uint64_t offset, uint64_t length,
   }
 }
 
-void ObjectStoreImitator::Object::append(PExtentVector &ext, uint64_t offset) {
-  for (auto &e : ext) {
+void
+ObjectStoreImitator::Object::append(PExtentVector& ext, uint64_t offset)
+{
+  for (auto& e : ext) {
     ceph_assert(e.length > 0);
     dout(20) << "adding off " << offset << ", len " << e.length << dendl;
     extent_map[offset] = e;
@@ -144,10 +158,12 @@ void ObjectStoreImitator::Object::append(PExtentVector &ext, uint64_t offset) {
   }
 }
 
-void ObjectStoreImitator::Object::verify_extents() {
+void
+ObjectStoreImitator::Object::verify_extents()
+{
   dout(20) << "Verifying extents:" << dendl;
   uint64_t prev{0};
-  for (auto &[l_off, ext] : extent_map) {
+  for (auto& [l_off, ext] : extent_map) {
     dout(20) << "logical offset: " << l_off << ", extent offset: " << ext.offset
              << ", extent length: " << ext.length << dendl;
 
@@ -160,9 +176,11 @@ void ObjectStoreImitator::Object::verify_extents() {
   }
 }
 
-uint64_t ObjectStoreImitator::Object::ext_length() {
+uint64_t
+ObjectStoreImitator::Object::ext_length()
+{
   uint64_t ret{0};
-  for (auto &[_, ext] : extent_map) {
+  for (auto& [_, ext] : extent_map) {
     ret += ext.length;
   }
   return ret;
@@ -170,14 +188,17 @@ uint64_t ObjectStoreImitator::Object::ext_length() {
 
 // ---------- ObjectStoreImitator ----------
 
-void ObjectStoreImitator::init_alloc(const std::string &alloc_type,
-                                     uint64_t size) {
+void
+ObjectStoreImitator::init_alloc(const std::string& alloc_type, uint64_t size)
+{
   alloc.reset(Allocator::create(cct, alloc_type, size, min_alloc_size));
   alloc->init_add_free(0, size);
   ceph_assert(alloc->get_free() == size);
 }
 
-void ObjectStoreImitator::print_status() {
+void
+ObjectStoreImitator::print_status()
+{
   dout(0) << std::hex
           << "Fragmentation score: " << alloc->get_fragmentation_score()
           << " , fragmentation: " << alloc->get_fragmentation()
@@ -187,33 +208,38 @@ void ObjectStoreImitator::print_status() {
           << std::dec << dendl;
 }
 
-void ObjectStoreImitator::verify_objects(CollectionHandle &ch) {
-  Collection *c = static_cast<Collection *>(ch.get());
-  for (auto &[_, obj] : c->objects) {
+void
+ObjectStoreImitator::verify_objects(CollectionHandle& ch)
+{
+  Collection* c = static_cast<Collection*>(ch.get());
+  for (auto& [_, obj] : c->objects) {
     obj->verify_extents();
   }
 }
 
-void ObjectStoreImitator::print_per_object_fragmentation() {
-  for (auto &[_, coll_ref] : coll_map) {
+void
+ObjectStoreImitator::print_per_object_fragmentation()
+{
+  for (auto& [_, coll_ref] : coll_map) {
     double coll_total{0};
-    for (auto &[id, obj] : coll_ref->objects) {
+    for (auto& [id, obj] : coll_ref->objects) {
       double frag_score{1};
       unsigned i{2};
       uint64_t ext_size = 0;
 
       PExtentVector extents;
-      for (auto &[_, ext] : obj->extent_map) {
+      for (auto& [_, ext] : obj->extent_map) {
         extents.push_back(ext);
         ext_size += ext.length;
       }
 
-      std::sort(extents.begin(), extents.end(),
-                [](bluestore_pextent_t &a, bluestore_pextent_t &b) {
-                  return a.length > b.length;
-                });
+      std::sort(
+          extents.begin(), extents.end(),
+          [](bluestore_pextent_t& a, bluestore_pextent_t& b) {
+            return a.length > b.length;
+          });
 
-      for (auto &ext : extents) {
+      for (auto& ext : extents) {
         double ext_frag =
             std::pow(((double)ext.length / (double)ext_size), (double)i++);
         frag_score -= ext_frag;
@@ -230,12 +256,14 @@ void ObjectStoreImitator::print_per_object_fragmentation() {
   }
 }
 
-void ObjectStoreImitator::print_per_access_fragmentation() {
-  for (auto &[_, coll_ref] : coll_map) {
+void
+ObjectStoreImitator::print_per_access_fragmentation()
+{
+  for (auto& [_, coll_ref] : coll_map) {
     double coll_blks_read{0}, coll_jmps{0};
-    for (auto &[id, read_ops] : coll_ref->read_ops) {
+    for (auto& [id, read_ops] : coll_ref->read_ops) {
       unsigned blks{0}, jmps{0};
-      for (auto &op : read_ops) {
+      for (auto& op : read_ops) {
         blks += op.blks;
         jmps += op.jmps;
       }
@@ -265,7 +293,9 @@ void ObjectStoreImitator::print_per_access_fragmentation() {
   }
 }
 
-void ObjectStoreImitator::print_allocator_profile() {
+void
+ObjectStoreImitator::print_allocator_profile()
+{
   double avg = alloc_time / alloc_ops;
   dout(0) << "Total alloc ops latency: " << alloc_time
           << ", total ops: " << alloc_ops
@@ -274,17 +304,19 @@ void ObjectStoreImitator::print_allocator_profile() {
 
 // ------- Transactions -------
 
-int ObjectStoreImitator::queue_transactions(CollectionHandle &ch,
-                                            std::vector<Transaction> &tls,
-                                            TrackedOpRef op,
-                                            ThreadPool::TPHandle *handle) {
-  std::list<Context *> on_applied, on_commit, on_applied_sync;
-  ObjectStore::Transaction::collect_contexts(tls, &on_applied, &on_commit,
-                                             &on_applied_sync);
-  Collection *c = static_cast<Collection *>(ch.get());
+int
+ObjectStoreImitator::queue_transactions(
+    CollectionHandle& ch,
+    std::vector<Transaction>& tls,
+    TrackedOpRef op,
+    ThreadPool::TPHandle* handle)
+{
+  std::list<Context*> on_applied, on_commit, on_applied_sync;
+  ObjectStore::Transaction::collect_contexts(
+      tls, &on_applied, &on_commit, &on_applied_sync);
+  Collection* c = static_cast<Collection*>(ch.get());
 
-  for (std::vector<Transaction>::iterator p = tls.begin(); p != tls.end();
-       ++p) {
+  for (std::vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     _add_transaction(&(*p));
   }
 
@@ -317,7 +349,8 @@ int ObjectStoreImitator::queue_transactions(CollectionHandle &ch,
 }
 
 ObjectStoreImitator::CollectionRef
-ObjectStoreImitator::_get_collection(const coll_t &cid) {
+ObjectStoreImitator::_get_collection(const coll_t& cid)
+{
   std::shared_lock l(coll_lock);
   auto cp = coll_map.find(cid);
   if (cp == coll_map.end())
@@ -325,7 +358,9 @@ ObjectStoreImitator::_get_collection(const coll_t &cid) {
   return cp->second;
 }
 
-void ObjectStoreImitator::_add_transaction(Transaction *t) {
+void
+ObjectStoreImitator::_add_transaction(Transaction* t)
+{
   Transaction::iterator i = t->begin();
 
   std::vector<CollectionRef> cvec(i.colls.size());
@@ -338,7 +373,7 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
   uint64_t prev_pool_id = META_POOL_ID;
 
   for (int pos = 0; i.have_op(); ++pos) {
-    Transaction::Op *op = i.decode_op();
+    Transaction::Op* op = i.decode_op();
     int r = 0;
 
     // no coll or obj
@@ -346,7 +381,7 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
       continue;
 
     // collection operations
-    CollectionRef &c = cvec[op->cid];
+    CollectionRef& c = cvec[op->cid];
 
     // validate all collections are in the same pool
     spg_t pgid;
@@ -357,7 +392,7 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
 
     switch (op->op) {
     case Transaction::OP_RMCOLL: {
-      const coll_t &cid = i.get_cid(op->cid);
+      const coll_t& cid = i.get_cid(op->cid);
       r = _remove_collection(cid, &c);
       if (!r)
         continue;
@@ -365,7 +400,7 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
 
     case Transaction::OP_MKCOLL: {
       ceph_assert(!c);
-      const coll_t &cid = i.get_cid(op->cid);
+      const coll_t& cid = i.get_cid(op->cid);
       r = _create_collection(cid, op->split_bits, &c);
       if (!r)
         continue;
@@ -426,7 +461,7 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
 
     // object operations
     std::unique_lock l(c->lock);
-    ObjectRef &o = ovec[op->oid];
+    ObjectRef& o = ovec[op->oid];
     if (!o) {
       ghobject_t oid = i.get_oid(op->oid);
       o = c->get_obj(oid, create);
@@ -481,9 +516,9 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
       break;
 
     case Transaction::OP_CLONE: {
-      ObjectRef &no = ovec[op->dest_oid];
+      ObjectRef& no = ovec[op->dest_oid];
       if (!no) {
-        const ghobject_t &noid = i.get_oid(op->dest_oid);
+        const ghobject_t& noid = i.get_oid(op->dest_oid);
         no = c->get_obj(noid, true);
       }
       r = _clone(c, o, no);
@@ -494,9 +529,9 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
       break;
 
     case Transaction::OP_CLONERANGE2: {
-      ObjectRef &no = ovec[op->dest_oid];
+      ObjectRef& no = ovec[op->dest_oid];
       if (!no) {
-        const ghobject_t &noid = i.get_oid(op->dest_oid);
+        const ghobject_t& noid = i.get_oid(op->dest_oid);
         no = c->get_obj(noid, true);
       }
       uint64_t srcoff = op->off;
@@ -517,8 +552,8 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
     case Transaction::OP_COLL_MOVE_RENAME:
     case Transaction::OP_TRY_RENAME: {
       ceph_assert(op->cid == op->dest_cid);
-      const ghobject_t &noid = i.get_oid(op->dest_oid);
-      ObjectRef &no = ovec[op->dest_oid];
+      const ghobject_t& noid = i.get_oid(op->dest_oid);
+      ObjectRef& no = ovec[op->dest_oid];
       if (!no) {
         no = c->get_obj(noid, false);
       }
@@ -533,8 +568,8 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
       break;
 
     case Transaction::OP_SETALLOCHINT: {
-      r = _set_alloc_hint(c, o, op->expected_object_size,
-                          op->expected_write_size, op->hint);
+      r = _set_alloc_hint(
+          c, o, op->expected_object_size, op->expected_write_size, op->hint);
     } break;
 
     default:
@@ -552,11 +587,17 @@ void ObjectStoreImitator::_add_transaction(Transaction *t) {
   }
 }
 
-int ObjectStoreImitator::read(CollectionHandle &c_, const ghobject_t &oid,
-                              uint64_t offset, size_t length, bufferlist &bl,
-                              uint32_t op_flags) {
+int
+ObjectStoreImitator::read(
+    CollectionHandle& c_,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t length,
+    bufferlist& bl,
+    uint32_t op_flags)
+{
 
-  Collection *c = static_cast<Collection *>(c_.get());
+  Collection* c = static_cast<Collection*>(c_.get());
   if (!c->exists)
     return -ENOENT;
 
@@ -582,7 +623,9 @@ out:
 
 // ------- Helpers -------
 
-void ObjectStoreImitator::_assign_nid(ObjectRef &o) {
+void
+ObjectStoreImitator::_assign_nid(ObjectRef& o)
+{
   if (o->nid) {
     ceph_assert(o->exists);
   }
@@ -591,17 +634,29 @@ void ObjectStoreImitator::_assign_nid(ObjectRef &o) {
   o->exists = true;
 }
 
-int ObjectStoreImitator::_do_zero(CollectionRef &c, ObjectRef &o,
-                                  uint64_t offset, size_t length) {
+int
+ObjectStoreImitator::_do_zero(
+    CollectionRef& c,
+    ObjectRef& o,
+    uint64_t offset,
+    size_t length)
+{
   PExtentVector old_extents;
   o->punch_hole(offset, length, old_extents);
   release_alloc(old_extents);
   return 0;
 }
 
-int ObjectStoreImitator::_do_read(Collection *c, ObjectRef &o, uint64_t offset,
-                                  size_t length, ceph::buffer::list &bl,
-                                  uint32_t op_flags, uint64_t retry_count) {
+int
+ObjectStoreImitator::_do_read(
+    Collection* c,
+    ObjectRef& o,
+    uint64_t offset,
+    size_t length,
+    ceph::buffer::list& bl,
+    uint32_t op_flags,
+    uint64_t retry_count)
+{
   auto data = std::string(length, 'a');
   bl.append(data);
 
@@ -653,9 +708,15 @@ int ObjectStoreImitator::_do_read(Collection *c, ObjectRef &o, uint64_t offset,
   return bl.length();
 }
 
-int ObjectStoreImitator::_do_write(CollectionRef &c, ObjectRef &o,
-                                   uint64_t offset, uint64_t length,
-                                   bufferlist &bl, uint32_t fadvise_flags) {
+int
+ObjectStoreImitator::_do_write(
+    CollectionRef& c,
+    ObjectRef& o,
+    uint64_t offset,
+    uint64_t length,
+    bufferlist& bl,
+    uint32_t fadvise_flags)
+{
   if (length == 0) {
     return 0;
   }
@@ -689,9 +750,15 @@ int ObjectStoreImitator::_do_write(CollectionRef &c, ObjectRef &o,
   return 0;
 }
 
-int ObjectStoreImitator::_do_clone_range(CollectionRef &c, ObjectRef &oldo,
-                                         ObjectRef &newo, uint64_t srcoff,
-                                         uint64_t length, uint64_t dstoff) {
+int
+ObjectStoreImitator::_do_clone_range(
+    CollectionRef& c,
+    ObjectRef& oldo,
+    ObjectRef& newo,
+    uint64_t srcoff,
+    uint64_t length,
+    uint64_t dstoff)
+{
   if (dstoff + length > newo->size)
     newo->size = dstoff + length;
   return 0;
@@ -699,9 +766,15 @@ int ObjectStoreImitator::_do_clone_range(CollectionRef &c, ObjectRef &oldo,
 
 // ------- Operations -------
 
-int ObjectStoreImitator::_write(CollectionRef &c, ObjectRef &o, uint64_t offset,
-                                size_t length, bufferlist &bl,
-                                uint32_t fadvise_flags) {
+int
+ObjectStoreImitator::_write(
+    CollectionRef& c,
+    ObjectRef& o,
+    uint64_t offset,
+    size_t length,
+    bufferlist& bl,
+    uint32_t fadvise_flags)
+{
   int r = 0;
   if (offset + length >= OBJECT_MAX_SIZE) {
     r = -E2BIG;
@@ -713,9 +786,14 @@ int ObjectStoreImitator::_write(CollectionRef &c, ObjectRef &o, uint64_t offset,
   return r;
 }
 
-int ObjectStoreImitator::_do_alloc_write(CollectionRef coll, ObjectRef &o,
-                                         bufferlist &bl, uint64_t offset,
-                                         uint64_t length) {
+int
+ObjectStoreImitator::_do_alloc_write(
+    CollectionRef coll,
+    ObjectRef& o,
+    bufferlist& bl,
+    uint64_t offset,
+    uint64_t length)
+{
 
   // No compression for now
   uint64_t need = length;
@@ -775,8 +853,9 @@ int ObjectStoreImitator::_do_alloc_write(CollectionRef coll, ObjectRef &o,
   return 0;
 }
 
-void ObjectStoreImitator::_do_truncate(CollectionRef &c, ObjectRef &o,
-                                       uint64_t offset) {
+void
+ObjectStoreImitator::_do_truncate(CollectionRef& c, ObjectRef& o, uint64_t offset)
+{
   // current size already satisfied
   if (offset >= o->size)
     return;
@@ -787,8 +866,13 @@ void ObjectStoreImitator::_do_truncate(CollectionRef &c, ObjectRef &o,
   release_alloc(old_extents);
 }
 
-int ObjectStoreImitator::_rename(CollectionRef &c, ObjectRef &oldo,
-                                 ObjectRef &newo, const ghobject_t &new_oid) {
+int
+ObjectStoreImitator::_rename(
+    CollectionRef& c,
+    ObjectRef& oldo,
+    ObjectRef& newo,
+    const ghobject_t& new_oid)
+{
   int r;
   ghobject_t old_oid = oldo->oid;
   if (newo) {
@@ -807,18 +891,23 @@ out:
   return r;
 }
 
-int ObjectStoreImitator::_set_alloc_hint(CollectionRef &c, ObjectRef &o,
-                                         uint64_t expected_object_size,
-                                         uint64_t expected_write_size,
-                                         uint32_t flags) {
+int
+ObjectStoreImitator::_set_alloc_hint(
+    CollectionRef& c,
+    ObjectRef& o,
+    uint64_t expected_object_size,
+    uint64_t expected_write_size,
+    uint32_t flags)
+{
   o->expected_object_size = expected_object_size;
   o->expected_write_size = expected_write_size;
   o->alloc_hint_flags = flags;
   return 0;
 }
 
-int ObjectStoreImitator::_clone(CollectionRef &c, ObjectRef &oldo,
-                                ObjectRef &newo) {
+int
+ObjectStoreImitator::_clone(CollectionRef& c, ObjectRef& oldo, ObjectRef& newo)
+{
   int r = 0;
   if (oldo->oid.hobj.get_hash() != newo->oid.hobj.get_hash()) {
     return -EINVAL;
@@ -844,14 +933,19 @@ out:
   return r;
 }
 
-int ObjectStoreImitator::_clone_range(CollectionRef &c, ObjectRef &oldo,
-                                      ObjectRef &newo, uint64_t srcoff,
-                                      uint64_t length, uint64_t dstoff) {
+int
+ObjectStoreImitator::_clone_range(
+    CollectionRef& c,
+    ObjectRef& oldo,
+    ObjectRef& newo,
+    uint64_t srcoff,
+    uint64_t length,
+    uint64_t dstoff)
+{
 
   int r = 0;
 
-  if (srcoff + length >= OBJECT_MAX_SIZE ||
-      dstoff + length >= OBJECT_MAX_SIZE) {
+  if (srcoff + length >= OBJECT_MAX_SIZE || dstoff + length >= OBJECT_MAX_SIZE) {
     r = -E2BIG;
     goto out;
   }
@@ -885,8 +979,12 @@ out:
 
 // ------- Collections -------
 
-int ObjectStoreImitator::_merge_collection(CollectionRef *c, CollectionRef &d,
-                                           unsigned bits) {
+int
+ObjectStoreImitator::_merge_collection(
+    CollectionRef* c,
+    CollectionRef& d,
+    unsigned bits)
+{
   std::unique_lock l((*c)->lock);
   std::unique_lock l2(d->lock);
   coll_t cid = (*c)->cid;
@@ -910,8 +1008,13 @@ int ObjectStoreImitator::_merge_collection(CollectionRef *c, CollectionRef &d,
   return 0;
 }
 
-int ObjectStoreImitator::_split_collection(CollectionRef &c, CollectionRef &d,
-                                           unsigned bits, int rem) {
+int
+ObjectStoreImitator::_split_collection(
+    CollectionRef& c,
+    CollectionRef& d,
+    unsigned bits,
+    int rem)
+{
   std::unique_lock l(c->lock);
   std::unique_lock l2(d->lock);
 
@@ -938,7 +1041,8 @@ int ObjectStoreImitator::_split_collection(CollectionRef &c, CollectionRef &d,
 };
 
 ObjectStore::CollectionHandle
-ObjectStoreImitator::open_collection(const coll_t &cid) {
+ObjectStoreImitator::open_collection(const coll_t& cid)
+{
   std::shared_lock l(coll_lock);
   auto cp = coll_map.find(cid);
   if (cp == coll_map.end())
@@ -947,15 +1051,19 @@ ObjectStoreImitator::open_collection(const coll_t &cid) {
 }
 
 ObjectStore::CollectionHandle
-ObjectStoreImitator::create_new_collection(const coll_t &cid) {
+ObjectStoreImitator::create_new_collection(const coll_t& cid)
+{
   std::unique_lock l{coll_lock};
   auto c = ceph::make_ref<Collection>(this, cid);
   new_coll_map[cid] = c;
   return c;
 }
 
-void ObjectStoreImitator::set_collection_commit_queue(
-    const coll_t &cid, ContextQueue *commit_queue) {
+void
+ObjectStoreImitator::set_collection_commit_queue(
+    const coll_t& cid,
+    ContextQueue* commit_queue)
+{
   if (commit_queue) {
     std::shared_lock l(coll_lock);
     if (coll_map.count(cid)) {
@@ -966,9 +1074,11 @@ void ObjectStoreImitator::set_collection_commit_queue(
   }
 }
 
-bool ObjectStoreImitator::exists(CollectionHandle &c_, const ghobject_t &oid) {
+bool
+ObjectStoreImitator::exists(CollectionHandle& c_, const ghobject_t& oid)
+{
 
-  Collection *c = static_cast<Collection *>(c_.get());
+  Collection* c = static_cast<Collection*>(c_.get());
   if (!c->exists)
     return false;
 
@@ -984,9 +1094,12 @@ bool ObjectStoreImitator::exists(CollectionHandle &c_, const ghobject_t &oid) {
   return r;
 }
 
-int ObjectStoreImitator::set_collection_opts(CollectionHandle &ch,
-                                             const pool_opts_t &opts) {
-  Collection *c = static_cast<Collection *>(ch.get());
+int
+ObjectStoreImitator::set_collection_opts(
+    CollectionHandle& ch,
+    const pool_opts_t& opts)
+{
+  Collection* c = static_cast<Collection*>(ch.get());
   if (!c->exists)
     return -ENOENT;
   std::unique_lock l{c->lock};
@@ -994,7 +1107,9 @@ int ObjectStoreImitator::set_collection_opts(CollectionHandle &ch,
   return 0;
 }
 
-int ObjectStoreImitator::list_collections(std::vector<coll_t> &ls) {
+int
+ObjectStoreImitator::list_collections(std::vector<coll_t>& ls)
+{
   std::shared_lock l(coll_lock);
   ls.reserve(coll_map.size());
   for (auto p = coll_map.begin(); p != coll_map.end(); ++p)
@@ -1002,12 +1117,16 @@ int ObjectStoreImitator::list_collections(std::vector<coll_t> &ls) {
   return 0;
 }
 
-bool ObjectStoreImitator::collection_exists(const coll_t &c) {
+bool
+ObjectStoreImitator::collection_exists(const coll_t& c)
+{
   std::shared_lock l(coll_lock);
   return coll_map.count(c);
 }
 
-int ObjectStoreImitator::collection_empty(CollectionHandle &ch, bool *empty) {
+int
+ObjectStoreImitator::collection_empty(CollectionHandle& ch, bool* empty)
+{
   std::vector<ghobject_t> ls;
   ghobject_t next;
   int r =
@@ -1022,18 +1141,24 @@ int ObjectStoreImitator::collection_empty(CollectionHandle &ch, bool *empty) {
   return 0;
 }
 
-int ObjectStoreImitator::collection_bits(CollectionHandle &ch) {
-  Collection *c = static_cast<Collection *>(ch.get());
+int
+ObjectStoreImitator::collection_bits(CollectionHandle& ch)
+{
+  Collection* c = static_cast<Collection*>(ch.get());
   std::shared_lock l(c->lock);
   return c->cnode.bits;
 }
 
-int ObjectStoreImitator::collection_list(CollectionHandle &c_,
-                                         const ghobject_t &start,
-                                         const ghobject_t &end, int max,
-                                         std::vector<ghobject_t> *ls,
-                                         ghobject_t *pnext) {
-  Collection *c = static_cast<Collection *>(c_.get());
+int
+ObjectStoreImitator::collection_list(
+    CollectionHandle& c_,
+    const ghobject_t& start,
+    const ghobject_t& end,
+    int max,
+    std::vector<ghobject_t>* ls,
+    ghobject_t* pnext)
+{
+  Collection* c = static_cast<Collection*>(c_.get());
   c->flush();
   int r;
   {
@@ -1044,9 +1169,16 @@ int ObjectStoreImitator::collection_list(CollectionHandle &c_,
   return r;
 }
 
-int ObjectStoreImitator::_collection_list(
-    Collection *c, const ghobject_t &start, const ghobject_t &end, int max,
-    bool legacy, std::vector<ghobject_t> *ls, ghobject_t *next) {
+int
+ObjectStoreImitator::_collection_list(
+    Collection* c,
+    const ghobject_t& start,
+    const ghobject_t& end,
+    int max,
+    bool legacy,
+    std::vector<ghobject_t>* ls,
+    ghobject_t* next)
+{
 
   if (!c->exists)
     return -ENOENT;
@@ -1078,8 +1210,9 @@ int ObjectStoreImitator::_collection_list(
   return 0;
 }
 
-int ObjectStoreImitator::_remove_collection(const coll_t &cid,
-                                            CollectionRef *c) {
+int
+ObjectStoreImitator::_remove_collection(const coll_t& cid, CollectionRef* c)
+{
   int r;
 
   {
@@ -1105,14 +1238,20 @@ out:
   return r;
 }
 
-void ObjectStoreImitator::_do_remove_collection(CollectionRef *c) {
+void
+ObjectStoreImitator::_do_remove_collection(CollectionRef* c)
+{
   coll_map.erase((*c)->cid);
   (*c)->exists = false;
   c->reset();
 }
 
-int ObjectStoreImitator::_create_collection(const coll_t &cid, unsigned bits,
-                                            CollectionRef *c) {
+int
+ObjectStoreImitator::_create_collection(
+    const coll_t& cid,
+    unsigned bits,
+    CollectionRef* c)
+{
   int r;
 
   {

@@ -3,25 +3,25 @@
  * one producer and one consumer.
  */
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* Do not overcomplicate, choose generic x86 case */
 #define L1_CACHE_BYTES 64
 #define __cacheline_aligned __attribute__((__aligned__(L1_CACHE_BYTES)))
 
-struct ring_buffer
-{
-  unsigned int read_idx   __cacheline_aligned;
-  unsigned int write_idx  __cacheline_aligned;
+struct ring_buffer {
+  unsigned int read_idx __cacheline_aligned;
+  unsigned int write_idx __cacheline_aligned;
   unsigned int size;
   unsigned int low_mask;
   unsigned int high_mask;
   unsigned int bit_shift;
-  void         *data_ptr;
+  void* data_ptr;
 };
 
-static inline unsigned int upper_power_of_two(unsigned int v)
+static inline unsigned int
+upper_power_of_two(unsigned int v)
 {
   v--;
   v |= v >> 1;
@@ -34,37 +34,41 @@ static inline unsigned int upper_power_of_two(unsigned int v)
   return v;
 }
 
-static inline int ring_buffer_init(struct ring_buffer* rbuf, unsigned int size)
+static inline int
+ring_buffer_init(struct ring_buffer* rbuf, unsigned int size)
 {
   /* Must be pow2 */
-  if (((size-1) & size))
+  if (((size - 1) & size))
     size = upper_power_of_two(size);
 
-  size *= sizeof(void *);
+  size *= sizeof(void*);
   rbuf->data_ptr = malloc(size);
   rbuf->size = size;
   rbuf->read_idx = 0;
   rbuf->write_idx = 0;
-  rbuf->bit_shift = __builtin_ffs(sizeof(void *))-1;
+  rbuf->bit_shift = __builtin_ffs(sizeof(void*)) - 1;
   rbuf->low_mask = rbuf->size - 1;
   rbuf->high_mask = rbuf->size * 2 - 1;
 
   return 0;
 }
 
-static inline void ring_buffer_deinit(struct ring_buffer* rbuf)
+static inline void
+ring_buffer_deinit(struct ring_buffer* rbuf)
 {
   free(rbuf->data_ptr);
 }
 
-static inline unsigned int ring_buffer_used_size(const struct ring_buffer* rbuf)
+static inline unsigned int
+ring_buffer_used_size(const struct ring_buffer* rbuf)
 {
   __sync_synchronize();
   return ((rbuf->write_idx - rbuf->read_idx) & rbuf->high_mask) >>
-    rbuf->bit_shift;
+         rbuf->bit_shift;
 }
 
-static inline void ring_buffer_enqueue(struct ring_buffer* rbuf, void *ptr)
+static inline void
+ring_buffer_enqueue(struct ring_buffer* rbuf, void* ptr)
 {
 
   unsigned int idx;
@@ -75,17 +79,18 @@ static inline void ring_buffer_enqueue(struct ring_buffer* rbuf, void *ptr)
    */
 
   idx = rbuf->write_idx & rbuf->low_mask;
-  *(void **)((uintptr_t)rbuf->data_ptr + idx) = ptr;
+  *(void**)((uintptr_t)rbuf->data_ptr + idx) = ptr;
   /* Barrier to be sure stored pointer will be seen properly */
   __sync_synchronize();
   rbuf->write_idx = (rbuf->write_idx + sizeof(ptr)) & rbuf->high_mask;
 }
 
-static inline void *ring_buffer_dequeue(struct ring_buffer* rbuf)
+static inline void*
+ring_buffer_dequeue(struct ring_buffer* rbuf)
 {
 
   unsigned idx;
-  void *ptr;
+  void* ptr;
 
   /*
    * Be aware: we do not check that buffer can be empty,
@@ -95,7 +100,7 @@ static inline void *ring_buffer_dequeue(struct ring_buffer* rbuf)
    */
 
   idx = rbuf->read_idx & rbuf->low_mask;
-  ptr = *(void **)((uintptr_t)rbuf->data_ptr + idx);
+  ptr = *(void**)((uintptr_t)rbuf->data_ptr + idx);
   rbuf->read_idx = (rbuf->read_idx + sizeof(ptr)) & rbuf->high_mask;
 
   return ptr;

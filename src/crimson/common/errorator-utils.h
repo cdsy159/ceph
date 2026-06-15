@@ -7,7 +7,6 @@
 
 #include "crimson/common/errorator.h"
 
-
 namespace crimson {
 template <class... AllowedErrors>
 class parallel_for_each_state final : private seastar::continuation_base<> {
@@ -15,8 +14,11 @@ class parallel_for_each_state final : private seastar::continuation_base<> {
   std::vector<future_t> _incomplete;
   seastar::promise<> _result;
   std::exception_ptr _ex;
+
 private:
-  void wait_for_one() noexcept {
+  void
+  wait_for_one() noexcept
+  {
     while (!_incomplete.empty() && _incomplete.back().available()) {
       if (_incomplete.back().failed()) {
         _ex = _incomplete.back().get_exception();
@@ -24,8 +26,9 @@ private:
       _incomplete.pop_back();
     }
     if (!_incomplete.empty()) {
-      seastar::internal::set_callback(std::move(_incomplete.back()),
-                                      static_cast<continuation_base<>*>(this));
+      seastar::internal::set_callback(
+          std::move(_incomplete.back()),
+          static_cast<continuation_base<>*>(this));
       _incomplete.pop_back();
       return;
     }
@@ -36,22 +39,35 @@ private:
     }
     delete this;
   }
-  virtual void run_and_dispose() noexcept override {
+
+  virtual void
+  run_and_dispose() noexcept override
+  {
     if (_state.failed()) {
       _ex = std::move(_state).get_exception();
     }
     _state = {};
     wait_for_one();
   }
-  task* waiting_task() noexcept override { return _result.waiting_task(); }
-public:
-  parallel_for_each_state(size_t n) {
-    _incomplete.reserve(n);
+
+  task*
+  waiting_task() noexcept override
+  {
+    return _result.waiting_task();
   }
-  void add_future(future_t&& f) {
+
+public:
+  parallel_for_each_state(size_t n) { _incomplete.reserve(n); }
+
+  void
+  add_future(future_t&& f)
+  {
     _incomplete.push_back(std::move(f));
   }
-  future_t get_future() {
+
+  future_t
+  get_future()
+  {
     auto ret = _result.get_future();
     wait_for_one();
     return ret;
@@ -60,18 +76,21 @@ public:
 
 template <typename Iterator, typename Func, typename... AllowedErrors>
 static inline typename errorator<AllowedErrors...>::template future<>
-parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept {
+parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept
+{
   parallel_for_each_state<AllowedErrors...>* s = nullptr;
   // Process all elements, giving each future the following treatment:
   //   - available, not failed: do nothing
   //   - available, failed: collect exception in ex
   //   - not available: collect in s (allocating it if needed)
-  for (;first != last; ++first) {
+  for (; first != last; ++first) {
     auto f = seastar::futurize_invoke(std::forward<Func>(func), *first);
     if (!f.available() || f.failed()) {
       if (!s) {
-        auto n = (seastar::internal::iterator_range_estimate_vector_capacity(
-              first, last) + 1);
+        auto n =
+            (seastar::internal::iterator_range_estimate_vector_capacity(
+                 first, last) +
+             1);
         s = new parallel_for_each_state<AllowedErrors...>(n);
       }
       s->add_future(std::move(f));
@@ -92,20 +111,21 @@ parallel_for_each(Iterator first, Iterator last, Func&& func) noexcept {
 // checking to ensure we the carried error is within AllowedErrors.
 template <class>
 struct ErrorHelper;
+
 template <class... AllowedErrors>
-struct ErrorHelper<crimson::errorator<AllowedErrors...>>
-{
+struct ErrorHelper<crimson::errorator<AllowedErrors...>> {
   // wrapped error to raw errror
   template <class ErrorT, const ErrorT& ErrorV>
-  static auto to_error(const unthrowable_wrapper<const ErrorT&, ErrorV>&)
+  static auto
+  to_error(const unthrowable_wrapper<const ErrorT&, ErrorV>&)
   {
     return ErrorT{ErrorV};
   }
 
   // raw_error to failed future carrying this error OR assert
-  template <class FutureValueT,
-            class UnexpectedErrorT>
-  static auto from_error(UnexpectedErrorT raw_ec)
+  template <class FutureValueT, class UnexpectedErrorT>
+  static auto
+  from_error(UnexpectedErrorT raw_ec)
   {
     std::exception_ptr ep;
     (... || [&] mutable {
@@ -116,8 +136,8 @@ struct ErrorHelper<crimson::errorator<AllowedErrors...>>
       return false; //  continue
     }());
     ceph_assert_always(ep);
-    return errorator<AllowedErrors...>\
-      ::template make_exception_future2<FutureValueT>(std::move(ep));
+    return errorator<AllowedErrors...>::template make_exception_future2<
+        FutureValueT>(std::move(ep));
   }
 };
 

@@ -14,73 +14,75 @@
  */
 
 #include <errno.h>
+#include <fmt/format.h>
+#include <sys/statvfs.h>
 
 #include <iostream>
 #include <string>
 
-#include <fmt/format.h>
-#include <sys/statvfs.h>
-
 #include "test/client/TestClient.h"
 
-TEST_F(TestClient, LlreadvLlwritevInvalidFileHandleSync) {
-    /* Test provding null or invalid file handle returns an error
+TEST_F(TestClient, LlreadvLlwritevInvalidFileHandleSync)
+{
+  /* Test provding null or invalid file handle returns an error
     as expected*/
-    Fh *fh_null = NULL;
-    char out_buf_0[] = "hello ";
-    char out_buf_1[] = "world\n";
-    struct iovec iov_out[2] = {
-        {out_buf_0, sizeof(out_buf_0)},
-        {out_buf_1, sizeof(out_buf_1)},
-    };
+  Fh* fh_null = NULL;
+  char out_buf_0[] = "hello ";
+  char out_buf_1[] = "world\n";
+  struct iovec iov_out[2] = {
+      {out_buf_0, sizeof(out_buf_0)},
+      {out_buf_1, sizeof(out_buf_1)},
+  };
 
-    char in_buf_0[sizeof(out_buf_0)];
-    char in_buf_1[sizeof(out_buf_1)];
-    struct iovec iov_in[2] = {
-        {in_buf_0, sizeof(in_buf_0)},
-        {in_buf_1, sizeof(in_buf_1)},
-    };
+  char in_buf_0[sizeof(out_buf_0)];
+  char in_buf_1[sizeof(out_buf_1)];
+  struct iovec iov_in[2] = {
+      {in_buf_0, sizeof(in_buf_0)},
+      {in_buf_1, sizeof(in_buf_1)},
+  };
 
-    int64_t rc;
+  int64_t rc;
 
-    rc = client->ll_writev(fh_null, iov_out, 2, 0);
-    ASSERT_EQ(rc, -EBADF);
+  rc = client->ll_writev(fh_null, iov_out, 2, 0);
+  ASSERT_EQ(rc, -EBADF);
 
-    rc = client->ll_readv(fh_null, iov_in, 2, 0);
-    ASSERT_EQ(rc, -EBADF);
+  rc = client->ll_readv(fh_null, iov_in, 2, 0);
+  ASSERT_EQ(rc, -EBADF);
 
-    // test after closing the file handle
-    int mypid = getpid();
-    char filename[256];
+  // test after closing the file handle
+  int mypid = getpid();
+  char filename[256];
 
-    client->unmount();
-    TearDown();
-    SetUp();
+  client->unmount();
+  TearDown();
+  SetUp();
 
-    sprintf(filename, "test_llreadvllwritevinvalidfhfile%u", mypid);
+  sprintf(filename, "test_llreadvllwritevinvalidfhfile%u", mypid);
 
-    Inode *root, *file;
-    root = client->get_root();
-    ASSERT_NE(root, (Inode *)NULL);
+  Inode *root, *file;
+  root = client->get_root();
+  ASSERT_NE(root, (Inode*)NULL);
 
-    Fh *fh;
-    struct ceph_statx stx;
+  Fh* fh;
+  struct ceph_statx stx;
 
-    ASSERT_EQ(0, client->ll_createx(root, filename, 0666,
-                    O_RDWR | O_CREAT | O_TRUNC,
-                    &file, &fh, &stx, 0, 0, myperm));
+  ASSERT_EQ(
+      0, client->ll_createx(
+             root, filename, 0666, O_RDWR | O_CREAT | O_TRUNC, &file, &fh, &stx,
+             0, 0, myperm));
 
-    client->ll_release(fh);
-    ASSERT_EQ(0, client->ll_unlink(root, filename, myperm));
+  client->ll_release(fh);
+  ASSERT_EQ(0, client->ll_unlink(root, filename, myperm));
 
-    rc = client->ll_writev(fh, iov_out, 2, 0);
-    ASSERT_EQ(rc, -EBADF);
+  rc = client->ll_writev(fh, iov_out, 2, 0);
+  ASSERT_EQ(rc, -EBADF);
 
-    rc = client->ll_readv(fh, iov_in, 2, 0);
-    ASSERT_EQ(rc, -EBADF);
+  rc = client->ll_readv(fh, iov_in, 2, 0);
+  ASSERT_EQ(rc, -EBADF);
 }
 
-TEST_F(TestClient, LlreadvLlwritevLargeBuffersSync) {
+TEST_F(TestClient, LlreadvLlwritevLargeBuffersSync)
+{
   /* Test that sync I/O code paths handle large buffers (total len >= 4GiB)*/
   int mypid = getpid();
   char filename[256];
@@ -93,14 +95,15 @@ TEST_F(TestClient, LlreadvLlwritevLargeBuffersSync) {
 
   Inode *root, *file;
   root = client->get_root();
-  ASSERT_NE(root, (Inode *)NULL);
+  ASSERT_NE(root, (Inode*)NULL);
 
-  Fh *fh;
+  Fh* fh;
   struct ceph_statx stx;
 
-  ASSERT_EQ(0, client->ll_createx(root, filename, 0666,
-                                  O_RDWR | O_CREAT | O_TRUNC,
-                                          &file, &fh, &stx, 0, 0, myperm));
+  ASSERT_EQ(
+      0, client->ll_createx(
+             root, filename, 0666, O_RDWR | O_CREAT | O_TRUNC, &file, &fh, &stx,
+             0, 0, myperm));
 
   struct statvfs stbuf;
   int64_t rc;
@@ -116,18 +119,14 @@ TEST_F(TestClient, LlreadvLlwritevLargeBuffersSync) {
   memset(out_buf_1.get(), 0xFF, BUFSIZE);
 
   struct iovec iov_out[2] = {
-    {out_buf_0.get(), BUFSIZE},
-    {out_buf_1.get(), BUFSIZE}
-  };
+      {out_buf_0.get(), BUFSIZE}, {out_buf_1.get(), BUFSIZE}};
 
   bufferlist bl;
   auto in_buf_0 = std::make_unique<char[]>(BUFSIZE);
   auto in_buf_1 = std::make_unique<char[]>(BUFSIZE);
 
   struct iovec iov_in[2] = {
-    {in_buf_0.get(), BUFSIZE},
-    {in_buf_1.get(), BUFSIZE}
-  };
+      {in_buf_0.get(), BUFSIZE}, {in_buf_1.get(), BUFSIZE}};
 
   int maxio_size = INT_MAX;
   if (fse.encrypted) {

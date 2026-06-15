@@ -1,4 +1,4 @@
-// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,17 +16,15 @@
 #ifndef JOURNAL_FILTER_H
 #define JOURNAL_FILTER_H
 
-#include "mds/mdstypes.h"
 #include "mds/LogEvent.h"
 #include "mds/PurgeQueue.h"
+#include "mds/mdstypes.h"
 
 /**
  * A set of conditions for narrowing down a search through the journal
  */
-class JournalFilter
-{
-  private:
-
+class JournalFilter {
+private:
   /* Filtering by journal offset range */
   uint64_t range_start;
   uint64_t range_end;
@@ -48,27 +46,27 @@ class JournalFilter
 
   /* Filtering by dirfrag */
   dirfrag_t frag;
-  std::string frag_dentry;  //< optional, filter dentry name within fragment
+  std::string frag_dentry; //< optional, filter dentry name within fragment
 
   /* Filtering by metablob client name */
   entity_name_t client_name;
 
-  public:
+public:
   JournalFilter(std::string t) :
     range_start(0),
     range_end(-1),
     inode(0),
     event_type(0),
     type(t),
-    purge_action(PurgeItem::NONE) {}
+    purge_action(PurgeItem::NONE)
+  {}
 
-  bool get_range(uint64_t &start, uint64_t &end) const;
-  bool apply(uint64_t pos, LogEvent &le) const;
-  bool apply(uint64_t pos, PurgeItem &pi) const;
+  bool get_range(uint64_t& start, uint64_t& end) const;
+  bool apply(uint64_t pos, LogEvent& le) const;
+  bool apply(uint64_t pos, PurgeItem& pi) const;
   int parse_args(
-    std::vector<const char*> &argv, 
-    std::vector<const char*>::iterator &arg);
+      std::vector<const char*>& argv,
+      std::vector<const char*>::iterator& arg);
 };
 
 #endif // JOURNAL_FILTER_H
-

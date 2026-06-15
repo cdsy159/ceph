@@ -1,10 +1,11 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #pragma once
 
-#include <string>
 #include <functional>
+#include <string>
+
 #include <boost/optional.hpp>
 
 #include "include/common_fwd.h"
@@ -37,18 +38,25 @@ struct connection_id_t {
 std::string to_string(const connection_id_t& id);
 
 // connect to an amqp endpoint
-bool connect(connection_id_t& conn_id, const std::string& url, const std::string& exchange, bool mandatory_delivery, bool verify_ssl,
-        boost::optional<const std::string&> ca_location);
+bool connect(
+    connection_id_t& conn_id,
+    const std::string& url,
+    const std::string& exchange,
+    bool mandatory_delivery,
+    bool verify_ssl,
+    boost::optional<const std::string&> ca_location);
 
 // publish a message over a connection that was already created
-int publish(const connection_id_t& conn_id,
+int publish(
+    const connection_id_t& conn_id,
     const std::string& topic,
     const std::string& message);
 
 // publish a message over a connection that was already created
 // and pass a callback that will be invoked (async) when broker confirms
 // receiving the message
-int publish_with_confirm(const connection_id_t& conn_id, 
+int publish_with_confirm(
+    const connection_id_t& conn_id,
     const std::string& topic,
     const std::string& message,
     reply_callback_t cb);
@@ -58,7 +66,7 @@ std::string status_to_string(int s);
 
 // number of connections
 size_t get_connection_count();
-  
+
 // return the number of messages that were sent
 // to broker, but were not yet acked/nacked/timedout
 size_t get_inflight();
@@ -78,5 +86,4 @@ size_t get_max_inflight();
 // maximum number of messages in the queue
 size_t get_max_queue();
 
-}
-
+} // namespace rgw::amqp

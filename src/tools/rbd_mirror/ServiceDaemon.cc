@@ -2,22 +2,25 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/ServiceDaemon.h"
-#include "include/Context.h"
-#include "include/stringify.h"
-#include "common/ceph_context.h"
-#include "common/config.h"
+
+#include <sstream>
+
 #include "common/debug.h"
-#include "common/errno.h"
+
 #include "common/JSONFormatter.h"
 #include "common/Timer.h"
+#include "common/ceph_context.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "include/Context.h"
+#include "include/stringify.h"
 #include "tools/rbd_mirror/Threads.h"
-#include <sstream>
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::ServiceDaemon: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::ServiceDaemon: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -27,20 +30,28 @@ namespace {
 const std::string RBD_MIRROR_AUTH_ID_PREFIX("rbd-mirror.");
 
 struct AttributeDumpVisitor {
-  ceph::Formatter *f;
+  ceph::Formatter* f;
   const std::string& name;
 
-  AttributeDumpVisitor(ceph::Formatter *f, const std::string& name)
-    : f(f), name(name) {
-  }
+  AttributeDumpVisitor(ceph::Formatter* f, const std::string& name) :
+    f(f), name(name)
+  {}
 
-  void operator()(bool val) const {
+  void
+  operator()(bool val) const
+  {
     f->dump_bool(name.c_str(), val);
   }
-  void operator()(uint64_t val) const {
+
+  void
+  operator()(uint64_t val) const
+  {
     f->dump_unsigned(name.c_str(), val);
   }
-  void operator()(const std::string& val) const {
+
+  void
+  operator()(const std::string& val) const
+  {
     f->dump_string(name.c_str(), val);
   }
 };
@@ -50,14 +61,18 @@ struct AttributeDumpVisitor {
 using namespace service_daemon;
 
 template <typename I>
-ServiceDaemon<I>::ServiceDaemon(CephContext *cct, RadosRef rados,
-                                Threads<I>* threads)
-  : m_cct(cct), m_rados(rados), m_threads(threads) {
+ServiceDaemon<I>::ServiceDaemon(
+    CephContext* cct,
+    RadosRef rados,
+    Threads<I>* threads) :
+  m_cct(cct), m_rados(rados), m_threads(threads)
+{
   dout(20) << dendl;
 }
 
 template <typename I>
-ServiceDaemon<I>::~ServiceDaemon() {
+ServiceDaemon<I>::~ServiceDaemon()
+{
   dout(20) << dendl;
   std::lock_guard timer_locker{m_threads->timer_lock};
   if (m_timer_ctx != nullptr) {
@@ -67,7 +82,9 @@ ServiceDaemon<I>::~ServiceDaemon() {
 }
 
 template <typename I>
-int ServiceDaemon<I>::init() {
+int
+ServiceDaemon<I>::init()
+{
   dout(20) << dendl;
 
   std::string id = m_cct->_conf->name.get_id();
@@ -77,9 +94,9 @@ int ServiceDaemon<I>::init() {
 
   std::string instance_id = stringify(m_rados->get_instance_id());
   std::map<std::string, std::string> service_metadata = {
-    {"id", id}, {"instance_id", instance_id}};
-  int r = m_rados->service_daemon_register("rbd-mirror", instance_id,
-                                           service_metadata);
+      {"id", id}, {"instance_id", instance_id}};
+  int r = m_rados->service_daemon_register(
+      "rbd-mirror", instance_id, service_metadata);
   if (r < 0) {
     return r;
   }
@@ -88,7 +105,9 @@ int ServiceDaemon<I>::init() {
 }
 
 template <typename I>
-void ServiceDaemon<I>::add_pool(int64_t pool_id, const std::string& pool_name) {
+void
+ServiceDaemon<I>::add_pool(int64_t pool_id, const std::string& pool_name)
+{
   dout(20) << "pool_id=" << pool_id << ", pool_name=" << pool_name << dendl;
 
   {
@@ -99,7 +118,9 @@ void ServiceDaemon<I>::add_pool(int64_t pool_id, const std::string& pool_name) {
 }
 
 template <typename I>
-void ServiceDaemon<I>::remove_pool(int64_t pool_id) {
+void
+ServiceDaemon<I>::remove_pool(int64_t pool_id)
+{
   dout(20) << "pool_id=" << pool_id << dendl;
   {
     std::lock_guard locker{m_lock};
@@ -109,8 +130,11 @@ void ServiceDaemon<I>::remove_pool(int64_t pool_id) {
 }
 
 template <typename I>
-void ServiceDaemon<I>::add_namespace(int64_t pool_id,
-                                     const std::string& namespace_name) {
+void
+ServiceDaemon<I>::add_namespace(
+    int64_t pool_id,
+    const std::string& namespace_name)
+{
   dout(20) << "pool_id=" << pool_id << ", namespace=" << namespace_name
            << dendl;
 
@@ -125,8 +149,11 @@ void ServiceDaemon<I>::add_namespace(int64_t pool_id,
 }
 
 template <typename I>
-void ServiceDaemon<I>::remove_namespace(int64_t pool_id,
-                                        const std::string& namespace_name) {
+void
+ServiceDaemon<I>::remove_namespace(
+    int64_t pool_id,
+    const std::string& namespace_name)
+{
   dout(20) << "pool_id=" << pool_id << ", namespace=" << namespace_name
            << dendl;
   {
@@ -141,13 +168,15 @@ void ServiceDaemon<I>::remove_namespace(int64_t pool_id,
 }
 
 template <typename I>
-uint64_t ServiceDaemon<I>::add_or_update_callout(int64_t pool_id,
-                                                 uint64_t callout_id,
-                                                 CalloutLevel callout_level,
-                                                 const std::string& text) {
-  dout(20) << "pool_id=" << pool_id << ", "
-           << "callout_id=" << callout_id << ", "
-           << "callout_level=" << callout_level << ", "
+uint64_t
+ServiceDaemon<I>::add_or_update_callout(
+    int64_t pool_id,
+    uint64_t callout_id,
+    CalloutLevel callout_level,
+    const std::string& text)
+{
+  dout(20) << "pool_id=" << pool_id << ", " << "callout_id=" << callout_id
+           << ", " << "callout_level=" << callout_level << ", "
            << "text=" << text << dendl;
 
   {
@@ -168,9 +197,11 @@ uint64_t ServiceDaemon<I>::add_or_update_callout(int64_t pool_id,
 }
 
 template <typename I>
-void ServiceDaemon<I>::remove_callout(int64_t pool_id, uint64_t callout_id) {
-  dout(20) << "pool_id=" << pool_id << ", "
-           << "callout_id=" << callout_id << dendl;
+void
+ServiceDaemon<I>::remove_callout(int64_t pool_id, uint64_t callout_id)
+{
+  dout(20) << "pool_id=" << pool_id << ", " << "callout_id=" << callout_id
+           << dendl;
 
   {
     std::lock_guard locker{m_lock};
@@ -184,19 +215,21 @@ void ServiceDaemon<I>::remove_callout(int64_t pool_id, uint64_t callout_id) {
   schedule_update_status();
 }
 
-std::ostream& operator<<(std::ostream& out, const AttributeValue& value) {
-  std::visit([&out](const auto& v) {
-    out << v;
-  }, value);
+std::ostream&
+operator<<(std::ostream& out, const AttributeValue& value)
+{
+  std::visit([&out](const auto& v) { out << v; }, value);
   return out;
 }
 
 template <typename I>
-void ServiceDaemon<I>::add_or_update_attribute(int64_t pool_id,
-                                               const std::string& key,
-                                               const AttributeValue& value) {
-  dout(20) << "pool_id=" << pool_id << ", "
-           << "key=" << key << ", "
+void
+ServiceDaemon<I>::add_or_update_attribute(
+    int64_t pool_id,
+    const std::string& key,
+    const AttributeValue& value)
+{
+  dout(20) << "pool_id=" << pool_id << ", " << "key=" << key << ", "
            << "value=" << value << dendl;
 
   {
@@ -212,13 +245,15 @@ void ServiceDaemon<I>::add_or_update_attribute(int64_t pool_id,
 }
 
 template <typename I>
-void ServiceDaemon<I>::add_or_update_namespace_attribute(
-    int64_t pool_id, const std::string& namespace_name, const std::string& key,
-    const AttributeValue& value) {
-  dout(20) << "pool_id=" << pool_id << ", "
-           << "namespace=" << namespace_name << ", "
-           << "key=" << key << ", "
-           << "value=" << value << dendl;
+void
+ServiceDaemon<I>::add_or_update_namespace_attribute(
+    int64_t pool_id,
+    const std::string& namespace_name,
+    const std::string& key,
+    const AttributeValue& value)
+{
+  dout(20) << "pool_id=" << pool_id << ", " << "namespace=" << namespace_name
+           << ", " << "key=" << key << ", " << "value=" << value << dendl;
 
   {
     std::lock_guard locker{m_lock};
@@ -239,10 +274,10 @@ void ServiceDaemon<I>::add_or_update_namespace_attribute(
 }
 
 template <typename I>
-void ServiceDaemon<I>::remove_attribute(int64_t pool_id,
-                                        const std::string& key) {
-  dout(20) << "pool_id=" << pool_id << ", "
-           << "key=" << key << dendl;
+void
+ServiceDaemon<I>::remove_attribute(int64_t pool_id, const std::string& key)
+{
+  dout(20) << "pool_id=" << pool_id << ", " << "key=" << key << dendl;
 
   {
     std::lock_guard locker{m_lock};
@@ -257,7 +292,9 @@ void ServiceDaemon<I>::remove_attribute(int64_t pool_id,
 }
 
 template <typename I>
-void ServiceDaemon<I>::schedule_update_status() {
+void
+ServiceDaemon<I>::schedule_update_status()
+{
   std::lock_guard timer_locker{m_threads->timer_lock};
   if (m_timer_ctx != nullptr) {
     return;
@@ -266,14 +303,16 @@ void ServiceDaemon<I>::schedule_update_status() {
   dout(20) << dendl;
 
   m_timer_ctx = new LambdaContext([this](int) {
-      m_timer_ctx = nullptr;
-      update_status();
-    });
+    m_timer_ctx = nullptr;
+    update_status();
+  });
   m_threads->timer->add_event_after(1, m_timer_ctx);
 }
 
 template <typename I>
-void ServiceDaemon<I>::update_status() {
+void
+ServiceDaemon<I>::update_status()
+{
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
 
   ceph::JSONFormatter f;

@@ -14,32 +14,32 @@
  */
 
 #include "XMLFormatter.h"
-#include "common/escape.h"
-#include "common/StackStringStream.h"
-#include "include/ceph_assert.h"
-
-#include <boost/container/small_vector.hpp>
 
 #include <algorithm>
 #include <limits>
 #include <utility>
 
+#include <boost/container/small_vector.hpp>
+
+#include "common/StackStringStream.h"
+#include "common/escape.h"
+#include "include/ceph_assert.h"
+
 #define LARGE_SIZE 1024
 
 namespace ceph {
 
-const char *XMLFormatter::XML_1_DTD =
-  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+const char* XMLFormatter::XML_1_DTD =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
-XMLFormatter::XMLFormatter(bool pretty, bool lowercased, bool underscored)
-: m_pretty(pretty),
-  m_lowercased(lowercased),
-  m_underscored(underscored)
+XMLFormatter::XMLFormatter(bool pretty, bool lowercased, bool underscored) :
+  m_pretty(pretty), m_lowercased(lowercased), m_underscored(underscored)
 {
   reset();
 }
 
-void XMLFormatter::flush(std::ostream& os)
+void
+XMLFormatter::flush(std::ostream& os)
 {
   finish_pending_string();
   std::string m_ss_str = m_ss.str();
@@ -54,7 +54,8 @@ void XMLFormatter::flush(std::ostream& os)
   m_ss.str("");
 }
 
-void XMLFormatter::reset()
+void
+XMLFormatter::reset()
 {
   m_ss.clear();
   m_ss.str("");
@@ -65,9 +66,10 @@ void XMLFormatter::reset()
   m_header_done = false;
 }
 
-void XMLFormatter::output_header()
+void
+XMLFormatter::output_header()
 {
-  if(!m_header_done) {
+  if (!m_header_done) {
     m_header_done = true;
     write_raw_data(XMLFormatter::XML_1_DTD);
     if (m_pretty)
@@ -75,52 +77,66 @@ void XMLFormatter::output_header()
   }
 }
 
-void XMLFormatter::output_footer()
+void
+XMLFormatter::output_footer()
 {
-  while(!m_sections.empty()) {
+  while (!m_sections.empty()) {
     close_section();
   }
 }
 
-void XMLFormatter::open_object_section(std::string_view name)
+void
+XMLFormatter::open_object_section(std::string_view name)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void XMLFormatter::open_object_section_with_attrs(std::string_view name, const FormatterAttrs& attrs)
+void
+XMLFormatter::open_object_section_with_attrs(
+    std::string_view name,
+    const FormatterAttrs& attrs)
 {
   open_section_in_ns(name, NULL, &attrs);
 }
 
-void XMLFormatter::open_object_section_in_ns(std::string_view name, const char *ns)
+void
+XMLFormatter::open_object_section_in_ns(std::string_view name, const char* ns)
 {
   open_section_in_ns(name, ns, NULL);
 }
 
-void XMLFormatter::open_array_section(std::string_view name)
+void
+XMLFormatter::open_array_section(std::string_view name)
 {
   open_section_in_ns(name, NULL, NULL);
 }
 
-void XMLFormatter::open_array_section_with_attrs(std::string_view name, const FormatterAttrs& attrs)
+void
+XMLFormatter::open_array_section_with_attrs(
+    std::string_view name,
+    const FormatterAttrs& attrs)
 {
   open_section_in_ns(name, NULL, &attrs);
 }
 
-void XMLFormatter::open_array_section_in_ns(std::string_view name, const char *ns)
+void
+XMLFormatter::open_array_section_in_ns(std::string_view name, const char* ns)
 {
   open_section_in_ns(name, ns, NULL);
 }
 
-std::string XMLFormatter::get_xml_name(std::string_view name) const
+std::string
+XMLFormatter::get_xml_name(std::string_view name) const
 {
   std::string e(name);
-  std::transform(e.begin(), e.end(), e.begin(),
-      [this](char c) { return this->to_lower_underscore(c); });
+  std::transform(e.begin(), e.end(), e.begin(), [this](char c) {
+    return this->to_lower_underscore(c);
+  });
   return e;
 }
 
-void XMLFormatter::close_section()
+void
+XMLFormatter::close_section()
 {
   ceph_assert(!m_sections.empty());
   finish_pending_string();
@@ -134,7 +150,8 @@ void XMLFormatter::close_section()
 }
 
 template <class T>
-void XMLFormatter::add_value(std::string_view name, T val)
+void
+XMLFormatter::add_value(std::string_view name, T val)
 {
   auto e = get_xml_name(name);
   print_spaces();
@@ -144,30 +161,37 @@ void XMLFormatter::add_value(std::string_view name, T val)
     m_ss << "\n";
 }
 
-void XMLFormatter::dump_null(std::string_view name)
+void
+XMLFormatter::dump_null(std::string_view name)
 {
   print_spaces();
-  m_ss << "<" << get_xml_name(name) << " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"true\" />";
+  m_ss << "<" << get_xml_name(name)
+       << " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+          "xsi:nil=\"true\" />";
   if (m_pretty)
     m_ss << "\n";
 }
 
-void XMLFormatter::dump_unsigned(std::string_view name, uint64_t u)
+void
+XMLFormatter::dump_unsigned(std::string_view name, uint64_t u)
 {
   add_value(name, u);
 }
 
-void XMLFormatter::dump_int(std::string_view name, int64_t s)
+void
+XMLFormatter::dump_int(std::string_view name, int64_t s)
 {
   add_value(name, s);
 }
 
-void XMLFormatter::dump_float(std::string_view name, double d)
+void
+XMLFormatter::dump_float(std::string_view name, double d)
 {
   add_value(name, d);
 }
 
-void XMLFormatter::dump_string(std::string_view name, std::string_view s)
+void
+XMLFormatter::dump_string(std::string_view name, std::string_view s)
 {
   auto e = get_xml_name(name);
   print_spaces();
@@ -176,18 +200,24 @@ void XMLFormatter::dump_string(std::string_view name, std::string_view s)
     m_ss << "\n";
 }
 
-void XMLFormatter::dump_string_with_attrs(std::string_view name, std::string_view s, const FormatterAttrs& attrs)
+void
+XMLFormatter::dump_string_with_attrs(
+    std::string_view name,
+    std::string_view s,
+    const FormatterAttrs& attrs)
 {
   auto e = get_xml_name(name);
   std::string attrs_str;
   get_attrs_str(&attrs, attrs_str);
   print_spaces();
-  m_ss << "<" << e << attrs_str << ">" << xml_stream_escaper(s) << "</" << e << ">";
+  m_ss << "<" << e << attrs_str << ">" << xml_stream_escaper(s) << "</" << e
+       << ">";
   if (m_pretty)
     m_ss << "\n";
 }
 
-std::ostream& XMLFormatter::dump_stream(std::string_view name)
+std::ostream&
+XMLFormatter::dump_stream(std::string_view name)
 {
   print_spaces();
   m_pending_string_name = name;
@@ -195,7 +225,13 @@ std::ostream& XMLFormatter::dump_stream(std::string_view name)
   return m_pending_string;
 }
 
-void XMLFormatter::dump_format_va(std::string_view name, const char *ns, bool quoted, const char *fmt, va_list ap)
+void
+XMLFormatter::dump_format_va(
+    std::string_view name,
+    const char* ns,
+    bool quoted,
+    const char* fmt,
+    va_list ap)
 {
   auto buf = boost::container::small_vector<char, LARGE_SIZE>{
       LARGE_SIZE, boost::container::default_init};
@@ -215,44 +251,58 @@ void XMLFormatter::dump_format_va(std::string_view name, const char *ns, bool qu
 
   print_spaces();
   if (ns) {
-    m_ss << "<" << e << " xmlns=\"" << ns << "\">" << xml_stream_escaper(std::string_view(buf.data(), len)) << "</" << e << ">";
+    m_ss << "<" << e << " xmlns=\"" << ns << "\">"
+         << xml_stream_escaper(std::string_view(buf.data(), len)) << "</" << e
+         << ">";
   } else {
-    m_ss << "<" << e << ">" << xml_stream_escaper(std::string_view(buf.data(), len)) << "</" << e << ">";
+    m_ss << "<" << e << ">"
+         << xml_stream_escaper(std::string_view(buf.data(), len)) << "</" << e
+         << ">";
   }
 
   if (m_pretty)
     m_ss << "\n";
 }
 
-int XMLFormatter::get_len() const
+int
+XMLFormatter::get_len() const
 {
   return m_ss.str().size();
 }
 
-void XMLFormatter::write_raw_data(const char *data)
+void
+XMLFormatter::write_raw_data(const char* data)
 {
   m_ss << data;
 }
 
-void XMLFormatter::write_bin_data(const char* buff, int buf_len)
+void
+XMLFormatter::write_bin_data(const char* buff, int buf_len)
 {
-  std::stringbuf *pbuf = m_ss.rdbuf();
+  std::stringbuf* pbuf = m_ss.rdbuf();
   pbuf->sputn(buff, buf_len);
   m_ss.seekg(buf_len);
 }
 
-void XMLFormatter::get_attrs_str(const FormatterAttrs *attrs, std::string& attrs_str) const
+void
+XMLFormatter::get_attrs_str(
+    const FormatterAttrs* attrs,
+    std::string& attrs_str) const
 {
   CachedStackStringStream css;
 
-  for (const auto &p : attrs->attrs) {
+  for (const auto& p : attrs->attrs) {
     *css << " " << p.first << "=" << "\"" << p.second << "\"";
   }
 
   attrs_str = css->strv();
 }
 
-void XMLFormatter::open_section_in_ns(std::string_view name, const char *ns, const FormatterAttrs *attrs)
+void
+XMLFormatter::open_section_in_ns(
+    std::string_view name,
+    const char* ns,
+    const FormatterAttrs* attrs)
 {
   print_spaces();
   std::string attrs_str;
@@ -273,11 +323,12 @@ void XMLFormatter::open_section_in_ns(std::string_view name, const char *ns, con
   m_sections.push_back(std::string(name));
 }
 
-void XMLFormatter::finish_pending_string()
+void
+XMLFormatter::finish_pending_string()
 {
   if (!m_pending_string_name.empty()) {
-    m_ss << xml_stream_escaper(m_pending_string.str())
-      << "</" << m_pending_string_name << ">";
+    m_ss << xml_stream_escaper(m_pending_string.str()) << "</"
+         << m_pending_string_name << ">";
     m_pending_string_name.clear();
     m_pending_string.str(std::string());
     if (m_pretty) {
@@ -286,7 +337,8 @@ void XMLFormatter::finish_pending_string()
   }
 }
 
-void XMLFormatter::print_spaces()
+void
+XMLFormatter::print_spaces()
 {
   finish_pending_string();
   if (m_pretty) {
@@ -295,14 +347,15 @@ void XMLFormatter::print_spaces()
   }
 }
 
-char XMLFormatter::to_lower_underscore(char c) const
+char
+XMLFormatter::to_lower_underscore(char c) const
 {
   if (m_underscored && c == ' ') {
-      return '_';
+    return '_';
   } else if (m_lowercased) {
     return std::tolower(c);
   }
   return c;
 }
 
-}
+} // namespace ceph

@@ -20,12 +20,13 @@
 
 #include "driver/rados/rgw_service.h"
 
-class RGWSI_ConfigKey : public RGWServiceInstance
-{
+class RGWSI_ConfigKey : public RGWServiceInstance {
 public:
-  RGWSI_ConfigKey(CephContext *cct) : RGWServiceInstance(cct) {}
+  RGWSI_ConfigKey(CephContext* cct) :
+    RGWServiceInstance(cct)
+  {}
+
   virtual ~RGWSI_ConfigKey() {}
 
-  virtual int get(const std::string& key, bool secure, bufferlist *result) = 0;
+  virtual int get(const std::string& key, bool secure, bufferlist* result) = 0;
 };
-

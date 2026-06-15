@@ -13,30 +13,32 @@
 *
 */
 
-#include "cross_process_sem.h"
-#include "include/rados/librados.h"
 #include "st_rados_delete_pool.h"
-#include "systest_runnable.h"
-#include "systest_settings.h"
 
 #include <errno.h>
 
-StRadosDeletePool::StRadosDeletePool(int argc, const char **argv,
-				     CrossProcessSem *pool_setup_sem,
-				     CrossProcessSem *delete_pool_sem,
-				     const std::string &pool_name)
-    : SysTestRunnable(argc, argv),
-      m_pool_setup_sem(pool_setup_sem),
-      m_delete_pool_sem(delete_pool_sem),
-      m_pool_name(pool_name)
-{
-}
+#include "include/rados/librados.h"
 
-StRadosDeletePool::~StRadosDeletePool()
-{
-}
+#include "cross_process_sem.h"
+#include "systest_runnable.h"
+#include "systest_settings.h"
 
-int StRadosDeletePool::run()
+StRadosDeletePool::StRadosDeletePool(
+    int argc,
+    const char** argv,
+    CrossProcessSem* pool_setup_sem,
+    CrossProcessSem* delete_pool_sem,
+    const std::string& pool_name) :
+  SysTestRunnable(argc, argv),
+  m_pool_setup_sem(pool_setup_sem),
+  m_delete_pool_sem(delete_pool_sem),
+  m_pool_name(pool_name)
+{}
+
+StRadosDeletePool::~StRadosDeletePool() {}
+
+int
+StRadosDeletePool::run()
 {
   rados_t cl;
   RETURN1_IF_NONZERO(rados_create(&cl, NULL));

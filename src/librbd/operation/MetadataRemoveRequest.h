@@ -4,9 +4,10 @@
 #ifndef CEPH_LIBRBD_OPERATION_METADATA_REMOVE_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_METADATA_REMOVE_REQUEST_H
 
-#include "librbd/operation/Request.h"
 #include <iosfwd>
 #include <string>
+
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -19,14 +20,18 @@ namespace operation {
 template <typename ImageCtxT = ImageCtx>
 class MetadataRemoveRequest : public Request<ImageCtxT> {
 public:
-  MetadataRemoveRequest(ImageCtxT &image_ctx, Context *on_finish,
-                        const std::string &key);
+  MetadataRemoveRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const std::string& key);
 
 protected:
   void send_op() override;
   bool should_complete(int r) override;
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::MetadataRemoveEvent(op_tid, m_key);
   }
 

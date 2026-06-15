@@ -1,35 +1,36 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <string>
-#include <vector>
 #include <cstring>
 #include <map>
-
-#include "common/async/context_pool.h"
-#include "common/ceph_context.h"
-#include "common/ceph_argparse.h"
-#include "common/config.h"
-#include "global/global_init.h"
+#include <string>
+#include <vector>
 
 #include "auth/KeyRing.h"
+#include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_context.h"
+#include "common/config.h"
+#include "global/global_init.h"
 #include "mon/MonClient.h"
 
 #include "mount.ceph.h"
 
 using namespace std;
 
-extern "C" void mount_ceph_get_config_info(const char *config_file,
-					   const char *name,
-					   bool v2_addrs,
-					   struct ceph_config_info *cci)
+extern "C" void
+mount_ceph_get_config_info(
+    const char* config_file,
+    const char* name,
+    bool v2_addrs,
+    struct ceph_config_info* cci)
 {
   int err;
   KeyRing keyring;
   CryptoKey secret;
   std::string secret_str;
   std::string monaddrs;
-  vector<const char *> args = { "--name", name };
+  vector<const char*> args = {"--name", name};
   bool first = true;
 
   if (config_file) {
@@ -38,9 +39,9 @@ extern "C" void mount_ceph_get_config_info(const char *config_file,
   }
 
   /* Create CephContext */
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DAEMON_ACTIONS|CINIT_FLAG_NO_MON_CONFIG);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DAEMON_ACTIONS | CINIT_FLAG_NO_MON_CONFIG);
   auto& conf = cct->_conf;
 
   conf.parse_env(cct->get_module_type()); // environment variables override
@@ -64,10 +65,10 @@ extern "C" void mount_ceph_get_config_info(const char *config_file,
      */
     if (v2_addrs) {
       if (!eaddr.is_msgr2())
-	continue;
+        continue;
     } else {
       if (!eaddr.is_legacy())
-	continue;
+        continue;
     }
 
     std::string addr = eaddr.ip_n_port_to_str();

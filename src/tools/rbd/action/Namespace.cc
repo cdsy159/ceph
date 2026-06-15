@@ -2,16 +2,18 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <algorithm>
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/Formatter.h"
+#include "common/TextTable.h"
+#include "common/errno.h"
+#include "include/stringify.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/errno.h"
-#include "include/stringify.h"
-#include "common/Formatter.h"
-#include "common/TextTable.h"
-#include <algorithm>
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -20,18 +22,24 @@ namespace ns {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-void get_create_arguments(po::options_description *positional,
-                          po::options_description *options) {
+void
+get_create_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
 }
 
-int execute_create(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_create(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -59,18 +67,24 @@ int execute_create(const po::variables_map &vm,
   return 0;
 }
 
-void get_remove_arguments(po::options_description *positional,
-                          po::options_description *options) {
+void
+get_remove_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, true);
 }
 
-int execute_remove(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_remove(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   std::string namespace_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              &namespace_name, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, &namespace_name, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -105,18 +119,24 @@ int execute_remove(const po::variables_map &vm,
   return 0;
 }
 
-void get_list_arguments(po::options_description *positional,
-                        po::options_description *options) {
+void
+get_list_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_pool_options(positional, options, false);
   at::add_format_options(options);
 }
 
-int execute_list(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   std::string pool_name;
   size_t arg_index = 0;
-  int r = utils::get_pool_and_namespace_names(vm, true, &pool_name,
-                                              nullptr, &arg_index);
+  int r = utils::get_pool_and_namespace_names(
+      vm, true, &pool_name, nullptr, &arg_index);
   if (r < 0) {
     return r;
   }
@@ -173,18 +193,28 @@ int execute_list(const po::variables_map &vm,
 }
 
 Shell::Action action_create(
-  {"namespace", "create"}, {},
-   "Create an RBD image namespace.", "",
-  &get_create_arguments, &execute_create);
+    {"namespace", "create"},
+    {},
+    "Create an RBD image namespace.",
+    "",
+    &get_create_arguments,
+    &execute_create);
 
 Shell::Action action_remove(
-  {"namespace", "remove"}, {"namespace", "rm"},
-   "Remove an RBD image namespace.", "",
-  &get_remove_arguments, &execute_remove);
+    {"namespace", "remove"},
+    {"namespace", "rm"},
+    "Remove an RBD image namespace.",
+    "",
+    &get_remove_arguments,
+    &execute_remove);
 
 Shell::Action action_list(
-  {"namespace", "list"}, {"namespace", "ls"}, "List RBD image namespaces.", "",
-  &get_list_arguments, &execute_list);
+    {"namespace", "list"},
+    {"namespace", "ls"},
+    "List RBD image namespaces.",
+    "",
+    &get_list_arguments,
+    &execute_list);
 
 } // namespace ns
 } // namespace action

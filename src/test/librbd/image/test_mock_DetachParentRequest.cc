@@ -1,21 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
-#include "test/librbd/mock/MockContextWQ.h"
-#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
-#include "librbd/image/DetachParentRequest.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "librbd/image/DetachParentRequest.h"
+#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
+#include "test/librbd/mock/MockContextWQ.h"
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -36,30 +37,41 @@ class TestMockImageDetachParentRequest : public TestMockFixture {
 public:
   typedef DetachParentRequest<MockTestImageCtx> MockDetachParentRequest;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
 
     ASSERT_EQ(0, open_image(m_image_name, &image_ctx));
   }
 
-  void expect_parent_detach(MockImageCtx &mock_image_ctx, int r) {
-    EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
-                exec(mock_image_ctx.header_oid, _, StrEq("rbd"),
-                     StrEq("parent_detach"), _, _, _, _))
-      .WillOnce(Return(r));
+  void
+  expect_parent_detach(MockImageCtx& mock_image_ctx, int r)
+  {
+    EXPECT_CALL(
+        get_mock_io_ctx(mock_image_ctx.md_ctx),
+        exec(
+            mock_image_ctx.header_oid, _, StrEq("rbd"), StrEq("parent_detach"),
+            _, _, _, _))
+        .WillOnce(Return(r));
   }
 
-  void expect_remove_parent(MockImageCtx &mock_image_ctx, int r) {
-    EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
-                exec(mock_image_ctx.header_oid, _, StrEq("rbd"),
-                     StrEq("remove_parent"), _, _, _, _))
-      .WillOnce(Return(r));
+  void
+  expect_remove_parent(MockImageCtx& mock_image_ctx, int r)
+  {
+    EXPECT_CALL(
+        get_mock_io_ctx(mock_image_ctx.md_ctx),
+        exec(
+            mock_image_ctx.header_oid, _, StrEq("rbd"), StrEq("remove_parent"),
+            _, _, _, _))
+        .WillOnce(Return(r));
   }
 
-  librbd::ImageCtx *image_ctx;
+  librbd::ImageCtx* image_ctx;
 };
 
-TEST_F(TestMockImageDetachParentRequest, ParentDetachSuccess) {
+TEST_F(TestMockImageDetachParentRequest, ParentDetachSuccess)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   MockTestImageCtx mock_image_ctx(*image_ctx);
@@ -73,7 +85,8 @@ TEST_F(TestMockImageDetachParentRequest, ParentDetachSuccess) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageDetachParentRequest, RemoveParentSuccess) {
+TEST_F(TestMockImageDetachParentRequest, RemoveParentSuccess)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   MockTestImageCtx mock_image_ctx(*image_ctx);
@@ -88,7 +101,8 @@ TEST_F(TestMockImageDetachParentRequest, RemoveParentSuccess) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageDetachParentRequest, ParentDNE) {
+TEST_F(TestMockImageDetachParentRequest, ParentDNE)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   MockTestImageCtx mock_image_ctx(*image_ctx);
@@ -102,7 +116,8 @@ TEST_F(TestMockImageDetachParentRequest, ParentDNE) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageDetachParentRequest, ParentDetachError) {
+TEST_F(TestMockImageDetachParentRequest, ParentDetachError)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   MockTestImageCtx mock_image_ctx(*image_ctx);
@@ -116,7 +131,8 @@ TEST_F(TestMockImageDetachParentRequest, ParentDetachError) {
   ASSERT_EQ(-EPERM, ctx.wait());
 }
 
-TEST_F(TestMockImageDetachParentRequest, RemoveParentError) {
+TEST_F(TestMockImageDetachParentRequest, RemoveParentError)
+{
   REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
 
   MockTestImageCtx mock_image_ctx(*image_ctx);

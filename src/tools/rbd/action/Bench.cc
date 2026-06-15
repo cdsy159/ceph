@@ -1,27 +1,31 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-#include "common/ceph_time.h" // for coarse_mono_time()
-#include "common/errno.h"
-#include "common/strtol.h"
-#include "common/ceph_mutex.h"
-#include "include/types.h"
-#include "global/signal_handler.h"
 #include <atomic>
 #include <chrono>
 #include <iostream>
+
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/rolling_sum.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
 #include <boost/program_options.hpp>
+
+#include "common/ceph_mutex.h"
+#include "common/ceph_time.h" // for coarse_mono_time()
+#include "common/errno.h"
+#include "common/strtol.h"
+#include "global/signal_handler.h"
+#include "include/types.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 using namespace std::chrono;
 
 static std::atomic<bool> terminating;
-static void handle_signal(int signum)
+
+static void
+handle_signal(int signum)
 {
   ceph_assert(signum == SIGINT || signum == SIGTERM);
   terminating = true;
@@ -54,14 +58,22 @@ const int PATTERN_BYTE_RAND = -1;
 const int PATTERN_BYTE_RAND_STR = -2;
 
 struct IOType {};
+
 struct Size {};
+
 struct IOPattern {};
+
 struct PatternByte {};
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              Size *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    Size* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
-  const std::string &s = po::validators::get_single_string(values);
+  const std::string& s = po::validators::get_single_string(values);
 
   std::string parse_error;
   uint64_t size = strict_iecstrtoll(s, &parse_error);
@@ -71,10 +83,15 @@ void validate(boost::any& v, const std::vector<std::string>& values,
   v = boost::any(size);
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              IOPattern *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    IOPattern* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
-  const std::string &s = po::validators::get_single_string(values);
+  const std::string& s = po::validators::get_single_string(values);
   if (s == "rand") {
     v = IO_PATTERN_RAND;
   } else if (s == "seq") {
@@ -86,7 +103,9 @@ void validate(boost::any& v, const std::vector<std::string>& values,
   }
 }
 
-io_type_t get_io_type(std::string io_type_string) {
+io_type_t
+get_io_type(std::string io_type_string)
+{
   if (io_type_string == "read")
     return IO_TYPE_READ;
   else if (io_type_string == "write")
@@ -97,10 +116,15 @@ io_type_t get_io_type(std::string io_type_string) {
     return IO_TYPE_NUM;
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              IOType *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    IOType* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
-  const std::string &s = po::validators::get_single_string(values);
+  const std::string& s = po::validators::get_single_string(values);
   io_type_t io_type = get_io_type(s);
   if (io_type >= IO_TYPE_NUM)
     throw po::validation_error(po::validation_error::invalid_option_value);
@@ -108,10 +132,15 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     v = boost::any(io_type);
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              PatternByte *target_type, int) {
+void
+validate(
+    boost::any& v,
+    const std::vector<std::string>& values,
+    PatternByte* target_type,
+    int)
+{
   po::validators::check_first_occurrence(v);
-  const std::string &s = po::validators::get_single_string(values);
+  const std::string& s = po::validators::get_single_string(values);
   if (s == "rand") {
     v = boost::any(PATTERN_BYTE_RAND);
   } else if (s == "rand-str") {
@@ -123,7 +152,7 @@ void validate(boost::any& v, const std::vector<std::string>& values,
         v = boost::any(pattern_byte);
         return;
       }
-    } catch (const boost::bad_lexical_cast &) {
+    } catch (const boost::bad_lexical_cast&) {
     }
     throw po::validation_error(po::validation_error::invalid_option_value);
   }
@@ -131,17 +160,17 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 
 } // anonymous namespace
 
-static void rbd_bencher_completion(void *c, void *pc);
+static void rbd_bencher_completion(void* c, void* pc);
 struct rbd_bencher;
 
 struct bencher_completer {
-  rbd_bencher *bencher;
-  bufferlist *bl;
+  rbd_bencher* bencher;
+  bufferlist* bl;
 
 public:
-  bencher_completer(rbd_bencher *bencher, bufferlist *bl)
-    : bencher(bencher), bl(bl)
-  { }
+  bencher_completer(rbd_bencher* bencher, bufferlist* bl) :
+    bencher(bencher), bl(bl)
+  {}
 
   ~bencher_completer()
   {
@@ -151,7 +180,7 @@ public:
 };
 
 struct rbd_bencher {
-  librbd::Image *image;
+  librbd::Image* image;
   ceph::mutex lock = ceph::make_mutex("rbd_bencher::lock");
   ceph::condition_variable cond;
   int in_flight;
@@ -160,12 +189,12 @@ struct rbd_bencher {
   bufferlist write_bl;
   int pattern_byte;
 
-  explicit rbd_bencher(librbd::Image *i, io_type_t io_type, uint64_t io_size,
-                       int pattern_byte)
-    : image(i),
-      in_flight(0),
-      io_type(io_type),
-      io_size(io_size)
+  explicit rbd_bencher(
+      librbd::Image* i,
+      io_type_t io_type,
+      uint64_t io_size,
+      int pattern_byte) :
+    image(i), in_flight(0), io_type(io_type), io_size(io_size)
   {
     if (io_type == IO_TYPE_WRITE || io_type == IO_TYPE_RW) {
       bufferptr bp(io_size);
@@ -182,27 +211,30 @@ struct rbd_bencher {
     }
   }
 
-  void start_io(int max, uint64_t off, uint64_t len, int op_flags, bool read_flag)
+  void
+  start_io(int max, uint64_t off, uint64_t len, int op_flags, bool read_flag)
   {
     {
       std::lock_guard l{lock};
       in_flight++;
     }
 
-    librbd::RBD::AioCompletion *c;
+    librbd::RBD::AioCompletion* c;
     if (read_flag) {
-      bufferlist *read_bl = new bufferlist();
-      c = new librbd::RBD::AioCompletion((void *)(new bencher_completer(this, read_bl)),
-					 rbd_bencher_completion);
+      bufferlist* read_bl = new bufferlist();
+      c = new librbd::RBD::AioCompletion(
+          (void*)(new bencher_completer(this, read_bl)), rbd_bencher_completion);
       image->aio_read2(off, len, *read_bl, c, op_flags);
     } else {
-      c = new librbd::RBD::AioCompletion((void *)(new bencher_completer(this, NULL)),
-					 rbd_bencher_completion);
+      c = new librbd::RBD::AioCompletion(
+          (void*)(new bencher_completer(this, NULL)), rbd_bencher_completion);
       image->aio_write2(off, len, write_bl, c, op_flags);
     }
   }
 
-  int wait_for(int max, bool interrupt_on_terminating) {
+  int
+  wait_for(int max, bool interrupt_on_terminating)
+  {
     std::unique_lock l{lock};
     while (in_flight > max && !(terminating && interrupt_on_terminating)) {
       cond.wait_for(l, 200ms);
@@ -210,14 +242,14 @@ struct rbd_bencher {
 
     return terminating ? -EINTR : 0;
   }
-
 };
 
-void rbd_bencher_completion(void *vc, void *pc)
+void
+rbd_bencher_completion(void* vc, void* pc)
 {
-  librbd::RBD::AioCompletion *c = (librbd::RBD::AioCompletion *)vc;
-  bencher_completer *bc = static_cast<bencher_completer *>(pc);
-  rbd_bencher *b = bc->bencher;
+  librbd::RBD::AioCompletion* c = (librbd::RBD::AioCompletion*)vc;
+  bencher_completer* bc = static_cast<bencher_completer*>(pc);
+  rbd_bencher* b = bc->bencher;
   //cout << "complete " << c << std::endl;
   int ret = c->get_return_value();
   if (b->io_type == IO_TYPE_WRITE && ret != 0) {
@@ -235,7 +267,8 @@ void rbd_bencher_completion(void *vc, void *pc)
   delete bc;
 }
 
-bool should_read(uint64_t read_proportion)
+bool
+should_read(uint64_t read_proportion)
 {
   uint64_t rand_num = rand() % 100;
 
@@ -245,10 +278,16 @@ bool should_read(uint64_t read_proportion)
     return false;
 }
 
-int do_bench(librbd::Image& image, io_type_t io_type,
-		   uint64_t io_size, uint64_t io_threads,
-		   uint64_t io_bytes, io_pattern_t io_pattern,
-                   uint64_t read_proportion, int pattern_byte)
+int
+do_bench(
+    librbd::Image& image,
+    io_type_t io_type,
+    uint64_t io_size,
+    uint64_t io_threads,
+    uint64_t io_bytes,
+    io_pattern_t io_pattern,
+    uint64_t read_proportion,
+    int pattern_byte)
 {
   uint64_t size = 0;
   image.size(&size);
@@ -270,20 +309,20 @@ int do_bench(librbd::Image& image, io_type_t io_type,
   }
 
   // seed rand() before constructing rbd_bencher
-  srand(time(NULL) % (unsigned long) -1);
+  srand(time(NULL) % (unsigned long)-1);
 
   rbd_bencher b(&image, io_type, io_size, pattern_byte);
 
-  std::cout << "bench "
-       << " type " << (io_type == IO_TYPE_READ ? "read" :
-                       io_type == IO_TYPE_WRITE ? "write" : "readwrite")
-       << (io_type == IO_TYPE_RW ? " read:write=" +
-           std::to_string(read_proportion) + ":" +
-	   std::to_string(100 - read_proportion) : "")
-       << " io_size " << io_size
-       << " io_threads " << io_threads
-       << " bytes " << io_bytes
-       << " pattern ";
+  std::cout << "bench " << " type "
+            << (io_type == IO_TYPE_READ    ? "read"
+                : io_type == IO_TYPE_WRITE ? "write"
+                                           : "readwrite")
+            << (io_type == IO_TYPE_RW
+                    ? " read:write=" + std::to_string(read_proportion) + ":" +
+                          std::to_string(100 - read_proportion)
+                    : "")
+            << " io_size " << io_size << " io_threads " << io_threads
+            << " bytes " << io_bytes << " pattern ";
   switch (io_pattern) {
   case IO_PATTERN_RAND:
     std::cout << "random";
@@ -306,7 +345,8 @@ int do_bench(librbd::Image& image, io_type_t io_type,
 
   std::vector<uint64_t> thread_offset;
   uint64_t i;
-  uint64_t seq_chunk_length = (size / io_size / io_threads) * io_size;;
+  uint64_t seq_chunk_length = (size / io_size / io_threads) * io_size;
+  ;
 
   // disturb all thread's offset
   for (i = 0; i < io_threads; i++) {
@@ -329,20 +369,20 @@ int do_bench(librbd::Image& image, io_type_t io_type,
 
   const int WINDOW_SIZE = 5;
   typedef boost::accumulators::accumulator_set<
-    double, boost::accumulators::stats<
-      boost::accumulators::tag::rolling_sum> > RollingSum;
+      double, boost::accumulators::stats<boost::accumulators::tag::rolling_sum>>
+      RollingSum;
 
   RollingSum time_acc(
-    boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
+      boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
   RollingSum ios_acc(
-    boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
+      boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
   RollingSum off_acc(
-    boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
+      boost::accumulators::tag::rolling_window::window_size = WINDOW_SIZE);
   uint64_t cur_ios = 0;
   uint64_t cur_off = 0;
 
   int op_flags;
-  if  (io_pattern == IO_PATTERN_RAND) {
+  if (io_pattern == IO_PATTERN_RAND) {
     op_flags = LIBRADOS_OP_FLAG_FADVISE_RANDOM;
   } else {
     op_flags = LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL;
@@ -353,7 +393,7 @@ int do_bench(librbd::Image& image, io_type_t io_type,
   int read_ops = 0;
   int write_ops = 0;
 
-  for (off = 0; off < io_bytes; ) {
+  for (off = 0; off < io_bytes;) {
     // Issue I/O
     i = 0;
     int r = 0;
@@ -430,8 +470,8 @@ int do_bench(librbd::Image& image, io_type_t io_type,
       std::cout.width(10);
       std::cout << boost::accumulators::rolling_sum(ios_acc) / time_sum;
       std::cout.width(10);
-      std::cout << byte_u_t(boost::accumulators::rolling_sum(off_acc) / time_sum) << "/s"
-                << std::endl;
+      std::cout << byte_u_t(boost::accumulators::rolling_sum(off_acc) / time_sum)
+                << "/s" << std::endl;
       last = elapsed;
     }
   }
@@ -448,56 +488,72 @@ int do_bench(librbd::Image& image, io_type_t io_type,
   coarse_mono_time now = coarse_mono_clock::now();
   std::chrono::duration<double> elapsed = now - start;
 
-  std::cout << "elapsed: " << (int)elapsed.count() << "   "
-            << "ops: " << ios << "   "
-            << "ops/sec: " << (double)ios / elapsed.count() << "   "
+  std::cout << "elapsed: " << (int)elapsed.count() << "   " << "ops: " << ios
+            << "   " << "ops/sec: " << (double)ios / elapsed.count() << "   "
             << "bytes/sec: " << byte_u_t((double)off / elapsed.count()) << "/s"
             << std::endl;
 
   if (io_type == IO_TYPE_RW) {
-  std::cout << "read_ops: " << read_ops << "   "
-            << "read_ops/sec: " << (double)read_ops / elapsed.count() << "   "
-            << "read_bytes/sec: " << byte_u_t((double)read_ops * io_size / elapsed.count()) << "/s"
-            << std::endl;
+    std::cout << "read_ops: " << read_ops << "   "
+              << "read_ops/sec: " << (double)read_ops / elapsed.count() << "   "
+              << "read_bytes/sec: "
+              << byte_u_t((double)read_ops * io_size / elapsed.count()) << "/s"
+              << std::endl;
 
-  std::cout << "write_ops: " << write_ops << "   "
-            << "write_ops/sec: " << (double)write_ops / elapsed.count() << "   "
-            << "write_bytes/sec: " << byte_u_t((double)write_ops * io_size / elapsed.count()) << "/s"
-            << std::endl;
-
+    std::cout << "write_ops: " << write_ops << "   "
+              << "write_ops/sec: " << (double)write_ops / elapsed.count()
+              << "   " << "write_bytes/sec: "
+              << byte_u_t((double)write_ops * io_size / elapsed.count()) << "/s"
+              << std::endl;
   }
 
   return 0;
 }
 
-void add_bench_common_options(po::options_description *positional,
-			      po::options_description *options) {
+void
+add_bench_common_options(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
 
-  options->add_options()
-    ("io-size", po::value<Size>(), "IO size (in B/K/M/G) (< 4G) [default: 4K]")
-    ("io-threads", po::value<uint32_t>(), "ios in flight [default: 16]")
-    ("io-total", po::value<Size>(), "total size for IO (in B/K/M/G/T) [default: 1G]")
-    ("io-pattern", po::value<IOPattern>(), "IO pattern (rand, seq, or full-seq) [default: seq]")
-    ("rw-mix-read", po::value<uint64_t>(), "read proportion in readwrite (<= 100) [default: 50]")
-    ("pattern-byte", po::value<PatternByte>(),
-     "which byte value to write (integer between 0-255, rand or rand-str [default: rand]");
+  options->add_options()(
+      "io-size", po::value<Size>(), "IO size (in B/K/M/G) (< 4G) [default: 4K]")(
+      "io-threads", po::value<uint32_t>(), "ios in flight [default: 16]")(
+      "io-total", po::value<Size>(),
+      "total size for IO (in B/K/M/G/T) [default: 1G]")(
+      "io-pattern", po::value<IOPattern>(),
+      "IO pattern (rand, seq, or full-seq) [default: seq]")(
+      "rw-mix-read", po::value<uint64_t>(),
+      "read proportion in readwrite (<= 100) [default: 50]")(
+      "pattern-byte", po::value<PatternByte>(),
+      "which byte value to write (integer between 0-255, rand or rand-str "
+      "[default: rand]");
 }
 
-void get_arguments_for_write(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_arguments_for_write(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_bench_common_options(positional, options);
 }
 
-void get_arguments_for_bench(po::options_description *positional,
-                             po::options_description *options) {
+void
+get_arguments_for_bench(
+    po::options_description* positional,
+    po::options_description* options)
+{
   add_bench_common_options(positional, options);
 
-  options->add_options()
-    ("io-type", po::value<IOType>()->required(), "IO type (read, write, or readwrite(rw))");
+  options->add_options()(
+      "io-type", po::value<IOType>()->required(),
+      "IO type (read, write, or readwrite(rw))");
 }
 
-int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
+int
+bench_execute(const po::variables_map& vm, io_type_t bench_io_type)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
@@ -508,8 +564,9 @@ int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
     snap_presence = utils::SNAPSHOT_PRESENCE_PERMITTED;
 
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, snap_presence, utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, snap_presence,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -570,7 +627,8 @@ int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
     }
 
     if (bench_read_proportion > 100) {
-      std::cerr << "rbd: --rw-mix-read should not be larger than 100." << std::endl;
+      std::cerr << "rbd: --rw-mix-read should not be larger than 100."
+                << std::endl;
       return -EINVAL;
     }
   }
@@ -578,8 +636,9 @@ int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
   librados::Rados rados;
   librados::IoCtx io_ctx;
   librbd::Image image;
-  r = utils::init_and_open_image(pool_name, namespace_name, image_name, "",
-                                 snap_name, false, &rados, &io_ctx, &image);
+  r = utils::init_and_open_image(
+      pool_name, namespace_name, image_name, "", snap_name, false, &rados,
+      &io_ctx, &image);
   if (r < 0) {
     return r;
   }
@@ -589,8 +648,9 @@ int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
   register_async_signal_handler_oneshot(SIGINT, handle_signal);
   register_async_signal_handler_oneshot(SIGTERM, handle_signal);
 
-  r = do_bench(image, bench_io_type, bench_io_size, bench_io_threads,
-               bench_bytes, bench_pattern, bench_read_proportion, pattern_byte);
+  r = do_bench(
+      image, bench_io_type, bench_io_size, bench_io_threads, bench_bytes,
+      bench_pattern, bench_read_proportion, pattern_byte);
 
   unregister_async_signal_handler(SIGHUP, sighup_handler);
   unregister_async_signal_handler(SIGINT, handle_signal);
@@ -604,14 +664,22 @@ int bench_execute(const po::variables_map &vm, io_type_t bench_io_type) {
   return 0;
 }
 
-int execute_for_write(const po::variables_map &vm,
-                      const std::vector<std::string> &ceph_global_init_args) {
-  std::cerr << "rbd: bench-write is deprecated, use rbd bench --io-type write ..." << std::endl;
+int
+execute_for_write(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
+  std::cerr
+      << "rbd: bench-write is deprecated, use rbd bench --io-type write ..."
+      << std::endl;
   return bench_execute(vm, IO_TYPE_WRITE);
 }
 
-int execute_for_bench(const po::variables_map &vm,
-                      const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_for_bench(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   io_type_t bench_io_type;
   if (vm.count("io-type")) {
     bench_io_type = vm["io-type"].as<io_type_t>();
@@ -624,11 +692,22 @@ int execute_for_bench(const po::variables_map &vm,
 }
 
 Shell::Action action_write(
-  {"bench-write"}, {}, "Simple write benchmark. (Deprecated, please use `rbd bench --io-type write` instead.)",
-		   "", &get_arguments_for_write, &execute_for_write, false);
+    {"bench-write"},
+    {},
+    "Simple write benchmark. (Deprecated, please use `rbd bench --io-type "
+    "write` instead.)",
+    "",
+    &get_arguments_for_write,
+    &execute_for_write,
+    false);
 
 Shell::Action action_bench(
-  {"bench"}, {}, "Simple benchmark.", "", &get_arguments_for_bench, &execute_for_bench);
+    {"bench"},
+    {},
+    "Simple benchmark.",
+    "",
+    &get_arguments_for_bench,
+    &execute_for_bench);
 
 } // namespace bench
 } // namespace action

@@ -4,20 +4,22 @@
 #include <errno.h>
 
 #include "cls/log/cls_log_ops.h"
-#include "include/rados/librados.hpp"
 #include "include/compat.h"
+#include "include/rados/librados.hpp"
 
 
-using std::vector;
 using std::string;
+using std::vector;
 
 using ceph::bufferlist;
 
 using namespace librados;
 
-
-
-void cls_log_add(librados::ObjectWriteOperation& op, vector<cls::log::entry>& entries, bool monotonic_inc)
+void
+cls_log_add(
+    librados::ObjectWriteOperation& op,
+    vector<cls::log::entry>& entries,
+    bool monotonic_inc)
 {
   bufferlist in;
   cls::log::ops::add_op call;
@@ -26,7 +28,8 @@ void cls_log_add(librados::ObjectWriteOperation& op, vector<cls::log::entry>& en
   op.exec("log", "add", in);
 }
 
-void cls_log_add(librados::ObjectWriteOperation& op, cls::log::entry& entry)
+void
+cls_log_add(librados::ObjectWriteOperation& op, cls::log::entry& entry)
 {
   bufferlist in;
   cls::log::ops::add_op call;
@@ -35,8 +38,13 @@ void cls_log_add(librados::ObjectWriteOperation& op, cls::log::entry& entry)
   op.exec("log", "add", in);
 }
 
-void cls_log_add_prepare_entry(cls::log::entry& entry, ceph::real_time timestamp,
-			       const string& section, const string& name, bufferlist& bl)
+void
+cls_log_add_prepare_entry(
+    cls::log::entry& entry,
+    ceph::real_time timestamp,
+    const string& section,
+    const string& name,
+    bufferlist& bl)
 {
   entry.timestamp = timestamp;
   entry.section = section;
@@ -44,8 +52,13 @@ void cls_log_add_prepare_entry(cls::log::entry& entry, ceph::real_time timestamp
   entry.data = bl;
 }
 
-void cls_log_add(librados::ObjectWriteOperation& op, ceph::real_time timestamp,
-                 const string& section, const string& name, bufferlist& bl)
+void
+cls_log_add(
+    librados::ObjectWriteOperation& op,
+    ceph::real_time timestamp,
+    const string& section,
+    const string& name,
+    bufferlist& bl)
 {
   cls::log::entry entry;
 
@@ -53,8 +66,13 @@ void cls_log_add(librados::ObjectWriteOperation& op, ceph::real_time timestamp,
   cls_log_add(op, entry);
 }
 
-void cls_log_trim(librados::ObjectWriteOperation& op, ceph::real_time from_time,
-		  ceph::real_time to_time, const string& from_marker, const string& to_marker)
+void
+cls_log_trim(
+    librados::ObjectWriteOperation& op,
+    ceph::real_time from_time,
+    ceph::real_time to_time,
+    const string& from_marker,
+    const string& to_marker)
 {
   bufferlist in;
   cls::log::ops::trim_op call;
@@ -66,9 +84,14 @@ void cls_log_trim(librados::ObjectWriteOperation& op, ceph::real_time from_time,
   op.exec("log", "trim", in);
 }
 
-int cls_log_trim(librados::IoCtx& io_ctx, const string& oid,
-		 ceph::real_time from_time, ceph::real_time to_time,
-                 const string& from_marker, const string& to_marker)
+int
+cls_log_trim(
+    librados::IoCtx& io_ctx,
+    const string& oid,
+    ceph::real_time from_time,
+    ceph::real_time to_time,
+    const string& from_marker,
+    const string& to_marker)
 {
   bool done = false;
 
@@ -91,12 +114,20 @@ int cls_log_trim(librados::IoCtx& io_ctx, const string& oid,
 
 class LogListCtx : public ObjectOperationCompletion {
   vector<cls::log::entry>* entries;
-  string *marker;
-  bool *truncated;
+  string* marker;
+  bool* truncated;
+
 public:
-  LogListCtx(vector<cls::log::entry> *_entries, string *_marker, bool *_truncated) :
-    entries(_entries), marker(_marker), truncated(_truncated) {}
-  void handle_completion(int r, bufferlist& outbl) override {
+  LogListCtx(
+      vector<cls::log::entry>* _entries,
+      string* _marker,
+      bool* _truncated) :
+    entries(_entries), marker(_marker), truncated(_truncated)
+  {}
+
+  void
+  handle_completion(int r, bufferlist& outbl) override
+  {
     if (r >= 0) {
       cls::log::ops::list_ret ret;
       try {
@@ -115,10 +146,16 @@ public:
   }
 };
 
-void cls_log_list(librados::ObjectReadOperation& op, ceph::real_time from,
-		  ceph::real_time to, const string& in_marker, int max_entries,
-		  vector<cls::log::entry>& entries,
-                  string *out_marker, bool *truncated)
+void
+cls_log_list(
+    librados::ObjectReadOperation& op,
+    ceph::real_time from,
+    ceph::real_time to,
+    const string& in_marker,
+    int max_entries,
+    vector<cls::log::entry>& entries,
+    string* out_marker,
+    bool* truncated)
 {
   bufferlist inbl;
   cls::log::ops::list_op call;
@@ -134,16 +171,22 @@ void cls_log_list(librados::ObjectReadOperation& op, ceph::real_time from,
 
 class LogInfoCtx : public ObjectOperationCompletion {
   cls::log::header* header;
+
 public:
-  explicit LogInfoCtx(cls::log::header *_header) : header(_header) {}
-  void handle_completion(int r, bufferlist& outbl) override {
+  explicit LogInfoCtx(cls::log::header* _header) :
+    header(_header)
+  {}
+
+  void
+  handle_completion(int r, bufferlist& outbl) override
+  {
     if (r >= 0) {
       cls::log::ops::info_ret ret;
       try {
         auto iter = outbl.cbegin();
         decode(ret, iter);
         if (header)
-	  *header = ret.header;
+          *header = ret.header;
       } catch (ceph::buffer::error& err) {
         // nothing we can do about it atm
       }
@@ -151,7 +194,8 @@ public:
   }
 };
 
-void cls_log_info(librados::ObjectReadOperation& op, cls::log::header *header)
+void
+cls_log_info(librados::ObjectReadOperation& op, cls::log::header* header)
 {
   bufferlist inbl;
   cls::log::ops::info_op call;

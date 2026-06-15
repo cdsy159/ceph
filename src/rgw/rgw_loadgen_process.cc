@@ -1,30 +1,32 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "common/errno.h"
+#include <atomic>
+
 #include "common/Throttle.h"
 #include "common/WorkQueue.h"
+#include "common/errno.h"
 
-#include "rgw_rest.h"
-#include "rgw_frontend.h"
-#include "rgw_request.h"
-#include "rgw_process.h"
-#include "rgw_loadgen.h"
 #include "rgw_client_io.h"
+#include "rgw_frontend.h"
+#include "rgw_loadgen.h"
+#include "rgw_process.h"
+#include "rgw_request.h"
+#include "rgw_rest.h"
 #include "rgw_signal.h"
-
-#include <atomic>
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-void RGWLoadGenProcess::checkpoint()
+void
+RGWLoadGenProcess::checkpoint()
 {
   m_tp.drain(&req_wq);
 }
 
-void RGWLoadGenProcess::run()
+void
+RGWLoadGenProcess::run()
 {
   m_tp.start(); /* start thread pool */
 
@@ -39,7 +41,7 @@ void RGWLoadGenProcess::run()
 
   vector<string> buckets(num_buckets);
 
-  std::atomic<bool> failed = { false };
+  std::atomic<bool> failed = {false};
 
   for (i = 0; i < num_buckets; i++) {
     buckets[i] = "/loadgen";
@@ -51,7 +53,7 @@ void RGWLoadGenProcess::run()
     checkpoint();
   }
 
-  string *objs = new string[num_objs];
+  string* objs = new string[num_objs];
 
   if (failed) {
     derr << "ERROR: bucket creation failed" << dendl;
@@ -102,19 +104,22 @@ done:
   rgw::signal::signal_shutdown();
 } /* RGWLoadGenProcess::run() */
 
-void RGWLoadGenProcess::gen_request(const string& method,
-				    const string& resource,
-				    int content_length, std::atomic<bool>* fail_flag)
+void
+RGWLoadGenProcess::gen_request(
+    const string& method,
+    const string& resource,
+    int content_length,
+    std::atomic<bool>* fail_flag)
 {
-  RGWLoadGenRequest* req =
-    new RGWLoadGenRequest(env.driver->get_new_req_id(), method, resource,
-			  content_length, fail_flag);
+  RGWLoadGenRequest* req = new RGWLoadGenRequest(
+      env.driver->get_new_req_id(), method, resource, content_length, fail_flag);
   dout(10) << "allocated request req=" << hex << req << dec << dendl;
   req_throttle.get(1);
   req_wq.queue(req);
 } /* RGWLoadGenProcess::gen_request */
 
-void RGWLoadGenProcess::handle_request(const DoutPrefixProvider *dpp, RGWRequest* r)
+void
+RGWLoadGenProcess::handle_request(const DoutPrefixProvider* dpp, RGWRequest* r)
 {
   RGWLoadGenRequest* req = static_cast<RGWLoadGenRequest*>(r);
 
@@ -132,8 +137,8 @@ void RGWLoadGenProcess::handle_request(const DoutPrefixProvider *dpp, RGWRequest
 
   RGWLoadGenIO real_client_io(&renv);
   RGWRestfulIO client_io(cct, &real_client_io);
-  int ret = process_request(env, req, uri_prefix, &client_io,
-                            null_yield, nullptr, nullptr, nullptr);
+  int ret = process_request(
+      env, req, uri_prefix, &client_io, null_yield, nullptr, nullptr, nullptr);
   if (ret < 0) {
     /* we don't really care about return code */
     dout(20) << "process_request() returned " << ret << dendl;

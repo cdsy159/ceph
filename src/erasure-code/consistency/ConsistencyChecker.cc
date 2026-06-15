@@ -1,11 +1,12 @@
 #include "ConsistencyChecker.h"
 
-#include "RadosCommands.h"
-#include "Pool.h"
-#include "ECReader.h"
+#include "osd/ECUtil.h"
+
 #include "ECEncoder.h"
 #include "ECEncoderSwitch.h"
-#include "osd/ECUtil.h"
+#include "ECReader.h"
+#include "Pool.h"
+#include "RadosCommands.h"
 
 using ConsistencyChecker = ceph::consistency::ConsistencyChecker;
 
@@ -13,20 +14,23 @@ using Read = ceph::consistency::Read;
 using ReadResult = ceph::consistency::ReadResult;
 using bufferlist = ceph::bufferlist;
 
-ConsistencyChecker::ConsistencyChecker(librados::Rados &rados,
-                                       boost::asio::io_context& asio,
-                                       const std::string& pool_name) :
+ConsistencyChecker::ConsistencyChecker(
+    librados::Rados& rados,
+    boost::asio::io_context& asio,
+    const std::string& pool_name) :
   rados(rados),
   asio(asio),
   reader(ceph::consistency::ECReader(rados, asio, pool_name)),
   commands(ceph::consistency::RadosCommands(rados)),
-  pool(pool_name,
-       commands.get_ec_profile_for_pool(pool_name),
-       commands.get_pool_allow_ec_optimizations(pool_name)),
-  encoder(ceph::consistency::ECEncoderSwitch(pool.get_ec_profile(),
-                                             commands.get_ec_chunk_size_for_pool(pool_name),
-                                             commands.get_pool_allow_ec_optimizations(pool_name)
-                                            )) {}
+  pool(
+      pool_name,
+      commands.get_ec_profile_for_pool(pool_name),
+      commands.get_pool_allow_ec_optimizations(pool_name)),
+  encoder(ceph::consistency::ECEncoderSwitch(
+      pool.get_ec_profile(),
+      commands.get_ec_chunk_size_for_pool(pool_name),
+      commands.get_pool_allow_ec_optimizations(pool_name)))
+{}
 
 /**
  * Perform an end-to-end read and consistency check on a single object.
@@ -39,10 +43,12 @@ ConsistencyChecker::ConsistencyChecker(librados::Rados &rados,
  * @param length int How much data of each shard to read
  * @return bool true if consistent, otherwise false
  */
-bool ConsistencyChecker::single_read_and_check_consistency(const std::string& oid,
-                                                           int block_size,
-                                                           int offset,
-                                                           int length)
+bool
+ConsistencyChecker::single_read_and_check_consistency(
+    const std::string& oid,
+    int block_size,
+    int offset,
+    int length)
 {
   clear_results();
   std::string error_message = "";
@@ -54,8 +60,8 @@ bool ConsistencyChecker::single_read_and_check_consistency(const std::string& oi
   auto read_results = reader.get_results();
   int result_count = read_results->size();
   if (result_count != 1) {
-    error_message = "Incorrect number of RADOS read results returned, count: "
-                    + std::to_string(result_count);
+    error_message = "Incorrect number of RADOS read results returned, count: " +
+                    std::to_string(result_count);
     success = false;
   }
 
@@ -77,8 +83,7 @@ bool ConsistencyChecker::single_read_and_check_consistency(const std::string& oi
   }
 
   results.push_back({oid, error_message, success});
-  commands.inject_clear_parity_read_on_primary_osd(pool.get_pool_name(),
-                                                   oid);
+  commands.inject_clear_parity_read_on_primary_osd(pool.get_pool_name(), oid);
   return success;
 }
 
@@ -87,10 +92,11 @@ bool ConsistencyChecker::single_read_and_check_consistency(const std::string& oi
  *
  * @param read Object containing information about the read
  */
-void ConsistencyChecker::queue_ec_read(Read read)
+void
+ConsistencyChecker::queue_ec_read(Read read)
 {
-  commands.inject_parity_read_on_primary_osd(pool.get_pool_name(),
-                                             read.get_oid());
+  commands.inject_parity_read_on_primary_osd(
+      pool.get_pool_name(), read.get_oid());
   reader.do_read(read);
 }
 
@@ -101,13 +107,15 @@ void ConsistencyChecker::queue_ec_read(Read read)
  * @param inbl bufferlist The entire contents of the object, including parities
  * @param stripe_unit int The chunk size for the object
  */
-bool ConsistencyChecker::check_object_consistency(const std::string& oid,
-                                                  const bufferlist& inbl)
+bool
+ConsistencyChecker::check_object_consistency(
+    const std::string& oid,
+    const bufferlist& inbl)
 {
   bool is_optimized = pool.has_optimizations_enabled();
   std::pair<bufferlist, bufferlist> data_and_parity;
-  data_and_parity = split_data_and_parity(oid, inbl, encoder.get_k(), 
-                                          encoder.get_m(), is_optimized);
+  data_and_parity = split_data_and_parity(
+      oid, inbl, encoder.get_k(), encoder.get_m(), is_optimized);
 
   std::optional<bufferlist> outbl;
   outbl = encoder.do_encode(data_and_parity.first);
@@ -122,17 +130,16 @@ bool ConsistencyChecker::check_object_consistency(const std::string& oid,
   ceph_assert(outbl->length() >= data_and_parity.second.length());
   // We check the difference is not larger than the page size multipled by the
   //    number of parities
-  ceph_assert(std::cmp_less_equal(outbl->length() - data_and_parity.second.length(),
-                (encoder.get_m() * encoder.get_chunk_size()) - encoder.get_m()));
+  ceph_assert(std::cmp_less_equal(
+      outbl->length() - data_and_parity.second.length(),
+      (encoder.get_m() * encoder.get_chunk_size()) - encoder.get_m()));
   // We truncate the encoded parity to the size of the client read for comparison
-  if (outbl->length() != data_and_parity.second.length())
-  {
+  if (outbl->length() != data_and_parity.second.length()) {
     const int aligned_shard_length = outbl->length() / encoder.get_m();
-    const int shard_data_length = data_and_parity.second.length()
-                                  / encoder.get_m();
+    const int shard_data_length = data_and_parity.second.length() /
+                                  encoder.get_m();
     ceph::bufferlist newdata;
-    for (int i = 0; i < encoder.get_m(); i++)
-    {
+    for (int i = 0; i < encoder.get_m(); i++) {
       ceph::bufferlist bl;
       bl.substr_of(*outbl, i * aligned_shard_length, shard_data_length);
       newdata.append(bl);
@@ -143,10 +150,11 @@ bool ConsistencyChecker::check_object_consistency(const std::string& oid,
   return buffers_match(outbl.value(), data_and_parity.second);
 }
 
-void ConsistencyChecker::print_results(std::ostream& out)
+void
+ConsistencyChecker::print_results(std::ostream& out)
 {
   out << "Results:" << std::endl;
-  for (const auto &r : results) {
+  for (const auto& r : results) {
     std::string result_str = (r.get_result()) ? "Passed" : "Failed";
     std::string error_str = r.get_error_message();
     out << "Object ID " << r.get_oid() << ": " << result_str << std::endl;
@@ -161,16 +169,19 @@ void ConsistencyChecker::print_results(std::ostream& out)
 }
 
 std::pair<bufferlist, bufferlist>
-  ConsistencyChecker::split_data_and_parity(const std::string& oid,
-                                            const bufferlist& read,
-                                            int k, int m,
-                                            bool is_optimized)
+ConsistencyChecker::split_data_and_parity(
+    const std::string& oid,
+    const bufferlist& read,
+    int k,
+    int m,
+    bool is_optimized)
 {
   uint64_t data_size, parity_size;
 
   // Optimized EC parity read should return the exact object size + parity shards
   // Legacy EC parity read will return the entire padded data shards + parity shards
-  data_size = is_optimized ? reader.get_object_size(oid) : (read.length() / (k + m)) * k;
+  data_size = is_optimized ? reader.get_object_size(oid)
+                           : (read.length() / (k + m)) * k;
   parity_size = read.length() - data_size;
 
   bufferlist data, parity;
@@ -180,13 +191,14 @@ std::pair<bufferlist, bufferlist>
   return std::pair<bufferlist, bufferlist>(data, parity);
 }
 
-bool ConsistencyChecker::buffers_match(const bufferlist& b1,
-                                       const bufferlist& b2)
+bool
+ConsistencyChecker::buffers_match(const bufferlist& b1, const bufferlist& b2)
 {
   return (b1.contents_equal(b2));
 }
 
-void ConsistencyChecker::clear_results()
+void
+ConsistencyChecker::clear_results()
 {
   reader.clear_results();
   results.clear();

@@ -15,7 +15,8 @@
 
 #include "lazy_omap_stats_test.h"
 
-int main(const int argc, const char** argv)
+int
+main(const int argc, const char** argv)
 {
   LazyOmapStatsTest app;
   return app.run(argc, argv);

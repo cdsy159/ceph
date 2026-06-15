@@ -13,13 +13,14 @@
  *
  */
 
-#include "rgw_string.h"
 #include <gtest/gtest.h>
 
+#include "rgw_string.h"
+
 const std::string abc{"abc"};
-const char *def{"def"}; // const char*
+const char* def{"def"}; // const char*
 char ghi_arr[] = {'g', 'h', 'i', '\0'};
-char *ghi{ghi_arr}; // char*
+char* ghi{ghi_arr}; // char*
 constexpr std::string_view jkl{"jkl", 3};
 #define mno "mno" // string literal (char[4])
 char pqr[] = {'p', 'q', 'r', '\0'};
@@ -44,8 +45,8 @@ TEST(string_size, types)
 
 TEST(string_cat_reserve, types)
 {
-  ASSERT_EQ("abcdefghijklmnopqr",
-            string_cat_reserve(abc, def, ghi, jkl, mno, pqr));
+  ASSERT_EQ(
+      "abcdefghijklmnopqr", string_cat_reserve(abc, def, ghi, jkl, mno, pqr));
 }
 
 TEST(string_cat_reserve, count)
@@ -57,8 +58,9 @@ TEST(string_cat_reserve, count)
 
 TEST(string_join_reserve, types)
 {
-  ASSERT_EQ("abc, def, ghi, jkl, mno, pqr",
-            string_join_reserve(", ", abc, def, ghi, jkl, mno, pqr));
+  ASSERT_EQ(
+      "abc, def, ghi, jkl, mno, pqr",
+      string_join_reserve(", ", abc, def, ghi, jkl, mno, pqr));
 }
 
 TEST(string_join_reserve, count)

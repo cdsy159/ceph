@@ -7,10 +7,9 @@
 #include <iostream>
 #include <map>
 
-#include "include/types.h"
-
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
+#include "include/types.h"
 
 #include "rgw_common.h"
 
@@ -18,24 +17,26 @@
 
 using namespace std;
 
-void dump_array(JSONObj *obj)
+void
+dump_array(JSONObj* obj)
 {
 
   JSONObjIter iter = obj->find_first();
 
-  for (; !iter.end(); ++iter) { 
-    JSONObj *o = *iter;
+  for (; !iter.end(); ++iter) {
+    JSONObj* o = *iter;
     cout << "data=" << o->get_data() << std::endl;
   }
-
 }
-                                  
+
 struct Key {
   string user;
   string access_key;
   string secret_key;
 
-  void decode_json(JSONObj *obj) {
+  void
+  decode_json(JSONObj* obj)
+  {
     JSONDecoder::decode_json("user", user, obj);
     JSONDecoder::decode_json("access_key", access_key, obj);
     JSONDecoder::decode_json("secret_key", secret_key, obj);
@@ -48,7 +49,9 @@ struct UserInfo {
   int max_buckets;
   list<Key> keys;
 
-  void decode_json(JSONObj *obj) {
+  void
+  decode_json(JSONObj* obj)
+  {
     JSONDecoder::decode_json("user_id", uid, obj);
     JSONDecoder::decode_json("display_name", display_name, obj);
     JSONDecoder::decode_json("max_buckets", max_buckets, obj);
@@ -59,7 +62,9 @@ struct UserInfo {
 // This has an uncaught exception. Even if the exception is caught, the program
 // would need to be terminated, so the warning is simply suppressed.
 // coverity[root_function:SUPPRESS]
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   JSONParser parser;
 
   char buf[1024];
@@ -88,8 +93,8 @@ int main(int argc, char **argv) {
 
   JSONObjIter iter = parser.find_first();
 
-  for (; !iter.end(); ++iter) { 
-    JSONObj *obj = *iter;
+  for (; !iter.end(); ++iter) {
+    JSONObj* obj = *iter;
     cout << "is_object=" << obj->is_object() << std::endl;
     cout << "is_array=" << obj->is_array() << std::endl;
     cout << "name=" << obj->get_name() << std::endl;
@@ -98,18 +103,18 @@ int main(int argc, char **argv) {
 
   iter = parser.find_first("conditions");
   if (!iter.end()) {
-    JSONObj *obj = *iter;
+    JSONObj* obj = *iter;
 
     JSONObjIter iter2 = obj->find_first();
     for (; !iter2.end(); ++iter2) {
-      JSONObj *child = *iter2;
+      JSONObj* child = *iter2;
       cout << "is_object=" << child->is_object() << std::endl;
       cout << "is_array=" << child->is_array() << std::endl;
       if (child->is_array()) {
         dump_array(child);
       }
-      cout << "name=" << child->get_name() <<std::endl;
-      cout << "data=" << child->get_data() <<std::endl;
+      cout << "name=" << child->get_name() << std::endl;
+      cout << "data=" << child->get_data() << std::endl;
     }
   }
 
@@ -132,4 +137,3 @@ int main(int argc, char **argv) {
 
   std::cout << std::endl;
 }
-

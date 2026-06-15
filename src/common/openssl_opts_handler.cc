@@ -19,13 +19,14 @@
 #include <openssl/conf.h>
 
 #include "common/debug.h"
-#include "global/global_context.h"
-#include "include/str_list.h"
-#include "include/scope_guard.h"
 
+#include "global/global_context.h"
+#include "include/scope_guard.h"
+#include "include/str_list.h"
+
+using std::ostream;
 using std::string;
 using std::string_view;
-using std::ostream;
 
 // -----------------------------------------------------------------------------
 #define dout_context g_ceph_context
@@ -33,16 +34,18 @@ using std::ostream;
 #undef dout_prefix
 #define dout_prefix _prefix(_dout)
 
-static ostream &_prefix(std::ostream *_dout)
+static ostream&
+_prefix(std::ostream* _dout)
 {
   return *_dout << "OpenSSLOptsHandler: ";
 }
 
 // -----------------------------------------------------------------------------
 
-static string get_openssl_error()
+static string
+get_openssl_error()
 {
-  BIO *bio = BIO_new(BIO_s_mem());
+  BIO* bio = BIO_new(BIO_s_mem());
   if (bio == nullptr) {
     return "failed to create BIO for more error printing";
   }
@@ -53,17 +56,20 @@ static string get_openssl_error()
   return ret;
 }
 
-static void log_error(const string_view &err)
+static void
+log_error(const string_view& err)
 {
   derr << "Intended OpenSSL acceleration failed.\n"
        << "set by openssl_conf = "
        << g_ceph_context->_conf.get_val<std::string>("openssl_conf")
-       << "\ndetail error information:\n" << err << dendl;
+       << "\ndetail error information:\n"
+       << err << dendl;
 }
 
-static void load_openssl_modules(const string &openssl_conf)
+static void
+load_openssl_modules(const string& openssl_conf)
 {
-  BIO *bio = BIO_new_file(openssl_conf.c_str(), "r");
+  BIO* bio = BIO_new_file(openssl_conf.c_str(), "r");
   if (bio == nullptr) {
     log_error("failed to open openssl conf");
     return;
@@ -71,7 +77,7 @@ static void load_openssl_modules(const string &openssl_conf)
 
   auto sg_bio = make_scope_guard([bio] { BIO_free(bio); });
 
-  CONF *conf = NCONF_new(nullptr);
+  CONF* conf = NCONF_new(nullptr);
   if (conf == nullptr) {
     log_error("failed to new OpenSSL CONF");
     return;
@@ -93,9 +99,11 @@ static void load_openssl_modules(const string &openssl_conf)
   }
 }
 
-static void init_openssl()
+static void
+init_openssl()
 {
-  string openssl_conf = g_ceph_context->_conf.get_val<std::string>("openssl_conf");
+  string openssl_conf =
+      g_ceph_context->_conf.get_val<std::string>("openssl_conf");
   if (openssl_conf.empty()) {
     return;
   }
@@ -103,7 +111,8 @@ static void init_openssl()
   load_openssl_modules(openssl_conf);
 }
 
-void ceph::crypto::init_openssl_once()
+void
+ceph::crypto::init_openssl_once()
 {
   static std::once_flag flag;
   std::call_once(flag, init_openssl);

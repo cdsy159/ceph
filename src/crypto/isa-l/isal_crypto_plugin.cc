@@ -17,16 +17,20 @@
 #include "crypto/isa-l/isal_crypto_plugin.h"
 
 #include "ceph_ver.h"
+
 // -----------------------------------------------------------------------------
 
-const char *__ceph_plugin_version()
+const char*
+__ceph_plugin_version()
 {
   return CEPH_GIT_NICE_VER;
 }
 
-int __ceph_plugin_init(CephContext *cct,
-                       const std::string& type,
-                       const std::string& name)
+int
+__ceph_plugin_init(
+    CephContext* cct,
+    const std::string& type,
+    const std::string& name)
 {
   auto instance = cct->get_plugin_registry();
 

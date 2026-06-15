@@ -22,50 +22,61 @@ namespace ceph {
 #ifdef _WIN32
 struct tcp_info {};
 
-bool tcp_info(int fd, struct tcp_info& info) {
+bool
+tcp_info(int fd, struct tcp_info& info)
+{
   return false;
 }
-bool dump_tcp_info(int fd, Formatter* f) {
+
+bool
+dump_tcp_info(int fd, Formatter* f)
+{
   return false;
 }
 
 #else
 
-bool tcp_info(int fd, struct tcp_info& info) {
+bool
+tcp_info(int fd, struct tcp_info& info)
+{
   socklen_t info_len = sizeof(info);
   return (getsockopt(fd, SOL_TCP, TCP_INFO, &info, &info_len) == 0);
 }
 
-static const char* get_tcpi_state_name(uint8_t state) {
+static const char*
+get_tcpi_state_name(uint8_t state)
+{
   switch (state) {
-    case TCP_ESTABLISHED:
-      return "established";
-    case TCP_SYN_SENT:
-      return "syn sent";
-    case TCP_SYN_RECV:
-      return "syn recv";
-    case TCP_FIN_WAIT1:
-      return "fin wait1";
-    case TCP_FIN_WAIT2:
-      return "fin wait2";
-    case TCP_TIME_WAIT:
-      return "time wait";
-    case TCP_CLOSE:
-      return "close";
-    case TCP_CLOSE_WAIT:
-      return "close wait";
-    case TCP_LAST_ACK:
-      return "last ack";
-    case TCP_LISTEN:
-      return "listen";
-    case TCP_CLOSING:
-      return "closing";
-    default:
-      return "UNKNOWN";
+  case TCP_ESTABLISHED:
+    return "established";
+  case TCP_SYN_SENT:
+    return "syn sent";
+  case TCP_SYN_RECV:
+    return "syn recv";
+  case TCP_FIN_WAIT1:
+    return "fin wait1";
+  case TCP_FIN_WAIT2:
+    return "fin wait2";
+  case TCP_TIME_WAIT:
+    return "time wait";
+  case TCP_CLOSE:
+    return "close";
+  case TCP_CLOSE_WAIT:
+    return "close wait";
+  case TCP_LAST_ACK:
+    return "last ack";
+  case TCP_LISTEN:
+    return "listen";
+  case TCP_CLOSING:
+    return "closing";
+  default:
+    return "UNKNOWN";
   }
 }
 
-bool dump_tcp_info(int fd, Formatter* f) {
+bool
+dump_tcp_info(int fd, Formatter* f)
+{
   struct tcp_info info;
   if (!tcp_info(fd, info)) {
     return false;
@@ -119,4 +130,4 @@ bool dump_tcp_info(int fd, Formatter* f) {
 
 #endif
 
-}  // namespace ceph
+} // namespace ceph

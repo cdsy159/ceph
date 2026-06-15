@@ -1,22 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <iostream>
-#include <vector>
 #include <string.h>
 
-#include "include/inline_memory.h"
-#include "include/utime.h"
+#include <iostream>
+#include <vector>
+
 #include "common/Clock.h"
 #include "gtest/gtest.h"
+#include "include/inline_memory.h"
+#include "include/utime.h"
 
 class MemoryIsZeroBigTest : public ::testing::TestWithParam<size_t> {};
+
 class MemoryIsZeroSmallTest : public ::testing::TestWithParam<size_t> {};
+
 class MemoryIsZeroPerformance : public ::testing::TestWithParam<size_t> {};
 
-TEST_P(MemoryIsZeroBigTest, MemoryIsZeroTestBig) {
+TEST_P(MemoryIsZeroBigTest, MemoryIsZeroTestBig)
+{
   size_t size = GetParam();
-  char *data = (char *)malloc(sizeof(char) * size);
+  char* data = (char*)malloc(sizeof(char) * size);
   memset(data, 0, sizeof(char) * size);
   EXPECT_TRUE(mem_is_zero(data, size));
 
@@ -27,7 +31,8 @@ TEST_P(MemoryIsZeroBigTest, MemoryIsZeroTestBig) {
   free(data);
 }
 
-TEST_P(MemoryIsZeroSmallTest, MemoryIsZeroTestSmall) {
+TEST_P(MemoryIsZeroSmallTest, MemoryIsZeroTestSmall)
+{
   size_t size = GetParam();
   for (size_t i = 0; i < size; i++) {
     auto data = std::make_unique<char[]>(size);
@@ -38,15 +43,16 @@ TEST_P(MemoryIsZeroSmallTest, MemoryIsZeroTestSmall) {
   }
 }
 
-TEST_P(MemoryIsZeroPerformance, MemoryIsZeroPerformanceTest) {
+TEST_P(MemoryIsZeroPerformance, MemoryIsZeroPerformanceTest)
+{
   constexpr size_t ITER = 1000000;
   utime_t start;
   utime_t end;
 
   size_t size = GetParam();
-  char *data = (char *)malloc(size);
+  char* data = (char*)malloc(size);
   memset(data, 0, size);
-  
+
   bool res = false;
   start = ceph_clock_now();
   for (size_t i = 0; i < ITER; i++) {
@@ -54,20 +60,24 @@ TEST_P(MemoryIsZeroPerformance, MemoryIsZeroPerformanceTest) {
   }
   end = ceph_clock_now();
 
-  std::cout << "iterators=" << ITER 
-            << " size= " << size 
-            << " time=" << (double)(end - start)
-            << std::endl;
+  std::cout << "iterators=" << ITER << " size= " << size
+            << " time=" << (double)(end - start) << std::endl;
 
   ASSERT_TRUE(res);
   free(data);
 }
 
-INSTANTIATE_TEST_SUITE_P(MemoryIsZeroSmallTests, MemoryIsZeroSmallTest,
-                        ::testing::Values(1, 4, 7, 8, 12, 28, 60, 64));
+INSTANTIATE_TEST_SUITE_P(
+    MemoryIsZeroSmallTests,
+    MemoryIsZeroSmallTest,
+    ::testing::Values(1, 4, 7, 8, 12, 28, 60, 64));
 
-INSTANTIATE_TEST_SUITE_P(MemoryIsZeroBigTests, MemoryIsZeroBigTest,
-                        ::testing::Values(1024, 4096, 8192, 64 * 1024));
+INSTANTIATE_TEST_SUITE_P(
+    MemoryIsZeroBigTests,
+    MemoryIsZeroBigTest,
+    ::testing::Values(1024, 4096, 8192, 64 * 1024));
 
-INSTANTIATE_TEST_SUITE_P(MemoryIsZeroPerformanceTests, MemoryIsZeroPerformance,
-                        ::testing::Values(1024, 2048, 4096, 8192, 64 * 1024));
+INSTANTIATE_TEST_SUITE_P(
+    MemoryIsZeroPerformanceTests,
+    MemoryIsZeroPerformance,
+    ::testing::Values(1024, 2048, 4096, 8192, 64 * 1024));

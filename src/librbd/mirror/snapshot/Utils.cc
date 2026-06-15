@@ -1,19 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/dout.h"
-#include "common/errno.h"
-#include "include/stringify.h"
-#include "librbd/ImageCtx.h"
 #include "librbd/mirror/snapshot/Utils.h"
 
 #include <shared_mutex> // for std::shared_lock
 
+#include "common/dout.h"
+#include "common/errno.h"
+#include "include/stringify.h"
+#include "librbd/ImageCtx.h"
+
 #define dout_subsys ceph_subsys_rbd
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::snapshot::util: " \
-                           << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::mirror::snapshot::util: " << " " << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -24,14 +25,16 @@ namespace {
 
 const std::string IMAGE_STATE_OBJECT_PREFIX = "rbd_mirror_snapshot.";
 
-bool get_rollback_snap_id(
+bool
+get_rollback_snap_id(
     std::map<librados::snap_t, SnapInfo>::reverse_iterator it,
     std::map<librados::snap_t, SnapInfo>::reverse_iterator end,
-    uint64_t *rollback_snap_id) {
+    uint64_t* rollback_snap_id)
+{
 
   for (; it != end; it++) {
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &it->second.snap_namespace);
+        &it->second.snap_namespace);
     if (mirror_ns == nullptr) {
       continue;
     }
@@ -53,15 +56,22 @@ bool get_rollback_snap_id(
 
 } // anonymous namespace
 
-std::string get_image_meta_key(const std::string& mirror_uuid) {
+std::string
+get_image_meta_key(const std::string& mirror_uuid)
+{
   return ".rbd_mirror." + mirror_uuid;
 }
 
 template <typename I>
-bool can_create_primary_snapshot(I *image_ctx, bool demoted, bool force,
-                                 bool* requires_orphan,
-                                 uint64_t *rollback_snap_id) {
-  CephContext *cct = image_ctx->cct;
+bool
+can_create_primary_snapshot(
+    I* image_ctx,
+    bool demoted,
+    bool force,
+    bool* requires_orphan,
+    uint64_t* rollback_snap_id)
+{
+  CephContext* cct = image_ctx->cct;
 
   if (requires_orphan != nullptr) {
     *requires_orphan = false;
@@ -75,7 +85,7 @@ bool can_create_primary_snapshot(I *image_ctx, bool demoted, bool force,
   for (auto it = image_ctx->snap_info.rbegin();
        it != image_ctx->snap_info.rend(); it++) {
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &it->second.snap_namespace);
+        &it->second.snap_namespace);
     if (mirror_ns == nullptr) {
       continue;
     }
@@ -83,22 +93,19 @@ bool can_create_primary_snapshot(I *image_ctx, bool demoted, bool force,
                    << *mirror_ns << dendl;
     if (mirror_ns->is_demoted() && !force) {
       lderr(cct) << "trying to create primary snapshot without force "
-                 << "when previous primary snapshot is demoted"
-                 << dendl;
+                 << "when previous primary snapshot is demoted" << dendl;
       return false;
     }
 
     if (mirror_ns->state == cls::rbd::MIRROR_SNAPSHOT_STATE_NON_PRIMARY) {
       if (!force) {
         lderr(cct) << "trying to create primary snapshot without force "
-                   << "when previous snapshot is non-primary"
-                   << dendl;
+                   << "when previous snapshot is non-primary" << dendl;
         return false;
       }
       if (demoted) {
         lderr(cct) << "trying to create primary demoted snapshot "
-                   << "when previous snapshot is non-primary"
-                   << dendl;
+                   << "when previous snapshot is non-primary" << dendl;
         return false;
       }
 
@@ -113,8 +120,8 @@ bool can_create_primary_snapshot(I *image_ctx, bool demoted, bool force,
                      << dendl;
           return false;
         }
-        if (!get_rollback_snap_id(++it, image_ctx->snap_info.rend(),
-                                  rollback_snap_id)) {
+        if (!get_rollback_snap_id(
+                ++it, image_ctx->snap_info.rend(), rollback_snap_id)) {
           lderr(cct) << "cannot rollback" << dendl;
           return false;
         }
@@ -131,15 +138,17 @@ bool can_create_primary_snapshot(I *image_ctx, bool demoted, bool force,
 }
 
 template <typename I>
-bool can_create_non_primary_snapshot(I *image_ctx) {
-  CephContext *cct = image_ctx->cct;
+bool
+can_create_non_primary_snapshot(I* image_ctx)
+{
+  CephContext* cct = image_ctx->cct;
 
   std::shared_lock image_locker{image_ctx->image_lock};
 
   for (auto it = image_ctx->snap_info.rbegin();
        it != image_ctx->snap_info.rend(); it++) {
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &it->second.snap_namespace);
+        &it->second.snap_namespace);
     if (mirror_ns != nullptr) {
       ldout(cct, 20) << "previous mirror snapshot snap_id=" << it->first << " "
                      << *mirror_ns << dendl;
@@ -169,10 +178,11 @@ bool can_create_non_primary_snapshot(I *image_ctx) {
 }
 
 template <typename I>
-std::string image_state_object_name(I *image_ctx, uint64_t snap_id,
-                                    uint64_t index) {
-  return IMAGE_STATE_OBJECT_PREFIX + image_ctx->id + "." +
-    stringify(snap_id) + "." + stringify(index);
+std::string
+image_state_object_name(I* image_ctx, uint64_t snap_id, uint64_t index)
+{
+  return IMAGE_STATE_OBJECT_PREFIX + image_ctx->id + "." + stringify(snap_id) +
+         "." + stringify(index);
 }
 
 } // namespace util
@@ -181,11 +191,16 @@ std::string image_state_object_name(I *image_ctx, uint64_t snap_id,
 } // namespace librbd
 
 template bool librbd::mirror::snapshot::util::can_create_primary_snapshot(
-  librbd::ImageCtx *image_ctx, bool demoted, bool force,
-  bool* requires_orphan, uint64_t *rollback_snap_id);
+    librbd::ImageCtx* image_ctx,
+    bool demoted,
+    bool force,
+    bool* requires_orphan,
+    uint64_t* rollback_snap_id);
 
 template bool librbd::mirror::snapshot::util::can_create_non_primary_snapshot(
-  librbd::ImageCtx *image_ctx);
+    librbd::ImageCtx* image_ctx);
 
 template std::string librbd::mirror::snapshot::util::image_state_object_name(
-  librbd::ImageCtx *image_ctx, uint64_t snap_id, uint64_t index);
+    librbd::ImageCtx* image_ctx,
+    uint64_t snap_id,
+    uint64_t index);

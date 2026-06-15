@@ -2,11 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/SnapshotRenameRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -18,9 +19,12 @@ namespace operation {
 namespace {
 
 template <typename I>
-std::ostream& operator<<(std::ostream& os,
-                         const typename SnapshotRenameRequest<I>::State& state) {
-  switch(state) {
+std::ostream&
+operator<<(
+    std::ostream& os,
+    const typename SnapshotRenameRequest<I>::State& state)
+{
+  switch (state) {
   case SnapshotRenameRequest<I>::STATE_RENAME_SNAP:
     os << "RENAME_SNAP";
     break;
@@ -31,17 +35,22 @@ std::ostream& operator<<(std::ostream& os,
 } // anonymous namespace
 
 template <typename I>
-SnapshotRenameRequest<I>::SnapshotRenameRequest(I &image_ctx,
-						Context *on_finish,
-						uint64_t snap_id,
-						const std::string &snap_name)
-  : Request<I>(image_ctx, on_finish), m_snap_id(snap_id),
-    m_snap_name(snap_name), m_state(STATE_RENAME_SNAP) {
-}
+SnapshotRenameRequest<I>::SnapshotRenameRequest(
+    I& image_ctx,
+    Context* on_finish,
+    uint64_t snap_id,
+    const std::string& snap_name) :
+  Request<I>(image_ctx, on_finish),
+  m_snap_id(snap_id),
+  m_snap_name(snap_name),
+  m_state(STATE_RENAME_SNAP)
+{}
 
 template <typename I>
-journal::Event SnapshotRenameRequest<I>::create_event(uint64_t op_tid) const {
-  I &image_ctx = this->m_image_ctx;
+journal::Event
+SnapshotRenameRequest<I>::create_event(uint64_t op_tid) const
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.image_lock));
 
   std::string src_snap_name;
@@ -50,19 +59,22 @@ journal::Event SnapshotRenameRequest<I>::create_event(uint64_t op_tid) const {
     src_snap_name = snap_info_it->second.name;
   }
 
-  return journal::SnapRenameEvent(op_tid, m_snap_id, src_snap_name,
-                                  m_snap_name);
+  return journal::SnapRenameEvent(op_tid, m_snap_id, src_snap_name, m_snap_name);
 }
 
 template <typename I>
-void SnapshotRenameRequest<I>::send_op() {
+void
+SnapshotRenameRequest<I>::send_op()
+{
   send_rename_snap();
 }
 
 template <typename I>
-bool SnapshotRenameRequest<I>::should_complete(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+bool
+SnapshotRenameRequest<I>::should_complete(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": state=" << m_state << ", "
                 << "r=" << r << dendl;
   if (r < 0) {
@@ -76,12 +88,14 @@ bool SnapshotRenameRequest<I>::should_complete(int r) {
 }
 
 template <typename I>
-void SnapshotRenameRequest<I>::send_rename_snap() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotRenameRequest<I>::send_rename_snap()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
   std::shared_lock image_locker{image_ctx.image_lock};
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
 
   librados::ObjectWriteOperation op;
@@ -91,9 +105,9 @@ void SnapshotRenameRequest<I>::send_rename_snap() {
     cls_client::snapshot_rename(&op, m_snap_id, m_snap_name);
   }
 
-  librados::AioCompletion *rados_completion = this->create_callback_completion();
-  int r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid,
-                                       rados_completion, &op);
+  librados::AioCompletion* rados_completion = this->create_callback_completion();
+  int r =
+      image_ctx.md_ctx.aio_operate(image_ctx.header_oid, rados_completion, &op);
   ceph_assert(r == 0);
   rados_completion->release();
 }

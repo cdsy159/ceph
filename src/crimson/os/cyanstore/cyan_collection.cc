@@ -4,21 +4,22 @@
 
 using std::make_pair;
 
-namespace crimson::os
-{
+namespace crimson::os {
 
-Collection::Collection(const coll_t& c)
-  : FuturizedCollection{c}
+Collection::Collection(const coll_t& c) :
+  FuturizedCollection{c}
 {}
 
 Collection::~Collection() = default;
 
-Collection::ObjectRef Collection::create_object() const
+Collection::ObjectRef
+Collection::create_object() const
 {
   return new crimson::os::Object;
 }
 
-Collection::ObjectRef Collection::get_object(ghobject_t oid)
+Collection::ObjectRef
+Collection::get_object(ghobject_t oid)
 {
   auto o = object_hash.find(oid);
   if (o == object_hash.end())
@@ -26,7 +27,8 @@ Collection::ObjectRef Collection::get_object(ghobject_t oid)
   return o->second;
 }
 
-Collection::ObjectRef Collection::get_or_create_object(ghobject_t oid)
+Collection::ObjectRef
+Collection::get_or_create_object(ghobject_t oid)
 {
   auto result = object_hash.emplace(oid, ObjectRef{});
   if (result.second)
@@ -34,7 +36,8 @@ Collection::ObjectRef Collection::get_or_create_object(ghobject_t oid)
   return result.first->second;
 }
 
-uint64_t Collection::used_bytes() const
+uint64_t
+Collection::used_bytes() const
 {
   uint64_t result = 0;
   for (auto& obj : object_map) {
@@ -43,7 +46,8 @@ uint64_t Collection::used_bytes() const
   return result;
 }
 
-void Collection::encode(bufferlist& bl) const
+void
+Collection::encode(bufferlist& bl) const
 {
   ENCODE_START(1, 1, bl);
   encode(xattr, bl);
@@ -57,7 +61,8 @@ void Collection::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void Collection::decode(bufferlist::const_iterator& p)
+void
+Collection::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(xattr, p);
@@ -75,4 +80,4 @@ void Collection::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-}
+} // namespace crimson::os

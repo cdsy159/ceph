@@ -14,10 +14,12 @@
  */
 
 #include "common/histogram.h"
+
 #include "common/Formatter.h"
 
 // -- pow2_hist_t --
-void pow2_hist_t::dump(ceph::Formatter *f) const
+void
+pow2_hist_t::dump(ceph::Formatter* f) const
 {
   f->open_array_section("histogram");
   for (std::vector<int32_t>::const_iterator p = h.begin(); p != h.end(); ++p)
@@ -26,21 +28,24 @@ void pow2_hist_t::dump(ceph::Formatter *f) const
   f->dump_int("upper_bound", upper_bound());
 }
 
-void pow2_hist_t::encode(ceph::buffer::list& bl) const
+void
+pow2_hist_t::encode(ceph::buffer::list& bl) const
 {
   ENCODE_START(1, 1, bl);
   encode(h, bl);
   ENCODE_FINISH(bl);
 }
 
-void pow2_hist_t::decode(ceph::buffer::list::const_iterator& p)
+void
+pow2_hist_t::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(1, p);
   decode(h, p);
   DECODE_FINISH(p);
 }
 
-std::list<pow2_hist_t> pow2_hist_t::generate_test_instances()
+std::list<pow2_hist_t>
+pow2_hist_t::generate_test_instances()
 {
   std::list<pow2_hist_t> ls;
   ls.emplace_back();
@@ -52,7 +57,8 @@ std::list<pow2_hist_t> pow2_hist_t::generate_test_instances()
   return ls;
 }
 
-void pow2_hist_t::decay(int bits)
+void
+pow2_hist_t::decay(int bits)
 {
   for (std::vector<int32_t>::iterator p = h.begin(); p != h.end(); ++p) {
     *p >>= bits;

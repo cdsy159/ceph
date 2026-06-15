@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -29,8 +29,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "debug.h"
 #include "Cycles.h"
+
+#include "debug.h"
 
 double Cycles::cycles_per_sec = 0;
 
@@ -43,7 +44,8 @@ double Cycles::cycles_per_sec = 0;
  * general process startup times to balloon
  * (http://tracker.ceph.com/issues/15225).
  */
-void Cycles::init()
+void
+Cycles::init()
 {
   if (cycles_per_sec != 0)
     return;
@@ -77,14 +79,15 @@ void Cycles::init()
       }
       uint64_t stop_cycles = rdtsc();
       micros = (stop_time.tv_usec - start_time.tv_usec) +
-          (stop_time.tv_sec - start_time.tv_sec)*1000000;
+               (stop_time.tv_sec - start_time.tv_sec) * 1000000;
       if (micros > 10000) {
         cycles_per_sec = static_cast<double>(stop_cycles - start_cycles);
-        cycles_per_sec = 1000000.0*cycles_per_sec/ static_cast<double>(micros);
+        cycles_per_sec = 1000000.0 * cycles_per_sec /
+                         static_cast<double>(micros);
         break;
       }
     }
-    double delta = cycles_per_sec/1000.0;
+    double delta = cycles_per_sec / 1000.0;
     if ((old_cycles > (cycles_per_sec - delta)) &&
         (old_cycles < (cycles_per_sec + delta))) {
       return;
@@ -96,7 +99,8 @@ void Cycles::init()
 /**
  * Return the number of CPU cycles per second.
  */
-double Cycles::per_second()
+double
+Cycles::per_second()
 {
   return get_cycles_per_sec();
 }
@@ -114,11 +118,12 @@ double Cycles::per_second()
  * \return
  *      The time in seconds corresponding to cycles.
  */
-double Cycles::to_seconds(uint64_t cycles, double cycles_per_sec)
+double
+Cycles::to_seconds(uint64_t cycles, double cycles_per_sec)
 {
   if (cycles_per_sec == 0)
     cycles_per_sec = get_cycles_per_sec();
-  return static_cast<double>(cycles)/cycles_per_sec;
+  return static_cast<double>(cycles) / cycles_per_sec;
 }
 
 /**
@@ -134,11 +139,12 @@ double Cycles::to_seconds(uint64_t cycles, double cycles_per_sec)
  * \return
  *      The approximate number of cycles corresponding to #seconds.
  */
-uint64_t Cycles::from_seconds(double seconds, double cycles_per_sec)
+uint64_t
+Cycles::from_seconds(double seconds, double cycles_per_sec)
 {
   if (cycles_per_sec == 0)
     cycles_per_sec = get_cycles_per_sec();
-  return (uint64_t) (seconds*cycles_per_sec + 0.5);
+  return (uint64_t)(seconds * cycles_per_sec + 0.5);
 }
 
 /**
@@ -155,7 +161,8 @@ uint64_t Cycles::from_seconds(double seconds, double cycles_per_sec)
  * \return
  *      The time in microseconds corresponding to cycles (rounded).
  */
-uint64_t Cycles::to_microseconds(uint64_t cycles, double cycles_per_sec)
+uint64_t
+Cycles::to_microseconds(uint64_t cycles, double cycles_per_sec)
 {
   return to_nanoseconds(cycles, cycles_per_sec) / 1000;
 }
@@ -174,11 +181,12 @@ uint64_t Cycles::to_microseconds(uint64_t cycles, double cycles_per_sec)
  * \return
  *      The time in nanoseconds corresponding to cycles (rounded).
  */
-uint64_t Cycles::to_nanoseconds(uint64_t cycles, double cycles_per_sec)
+uint64_t
+Cycles::to_nanoseconds(uint64_t cycles, double cycles_per_sec)
 {
   if (cycles_per_sec == 0)
     cycles_per_sec = get_cycles_per_sec();
-  return (uint64_t) (1e09*static_cast<double>(cycles)/cycles_per_sec + 0.5);
+  return (uint64_t)(1e09 * static_cast<double>(cycles) / cycles_per_sec + 0.5);
 }
 
 /**
@@ -199,7 +207,7 @@ Cycles::from_nanoseconds(uint64_t ns, double cycles_per_sec)
 {
   if (cycles_per_sec == 0)
     cycles_per_sec = get_cycles_per_sec();
-  return (uint64_t) (static_cast<double>(ns)*cycles_per_sec/1e09 + 0.5);
+  return (uint64_t)(static_cast<double>(ns) * cycles_per_sec / 1e09 + 0.5);
 }
 
 /**
@@ -216,6 +224,7 @@ Cycles::from_nanoseconds(uint64_t ns, double cycles_per_sec)
 void
 Cycles::sleep(uint64_t us)
 {
-  uint64_t stop = Cycles::rdtsc() + Cycles::from_nanoseconds(1000*us);
-  while (Cycles::rdtsc() < stop);
+  uint64_t stop = Cycles::rdtsc() + Cycles::from_nanoseconds(1000 * us);
+  while (Cycles::rdtsc() < stop)
+    ;
 }

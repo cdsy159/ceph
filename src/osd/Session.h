@@ -20,11 +20,12 @@
 #include "common/ceph_mutex.h"
 #include "global/global_context.h"
 #include "include/spinlock.h"
+
 #include "OSDCap.h"
-#include "OpRequest.h"
-#include "Watch.h"
 #include "OSDMap.h"
+#include "OpRequest.h"
 #include "PeeringState.h"
+#include "Watch.h"
 
 //#define PG_DEBUG_REFS
 
@@ -69,29 +70,45 @@ typedef boost::intrusive_ptr<PG> PGRef;
 
 struct Backoff : public RefCountedObject {
   enum {
-    STATE_NEW = 1,     ///< backoff in flight to client
-    STATE_ACKED = 2,   ///< backoff acked
+    STATE_NEW = 1, ///< backoff in flight to client
+    STATE_ACKED = 2, ///< backoff acked
     STATE_DELETING = 3 ///< backoff deleted, but un-acked
   };
-  std::atomic<int> state = {STATE_NEW};
-  spg_t pgid;          ///< owning pgid
-  uint64_t id = 0;     ///< unique id (within the Session)
 
-  bool is_new() const {
+  std::atomic<int> state = {STATE_NEW};
+  spg_t pgid; ///< owning pgid
+  uint64_t id = 0; ///< unique id (within the Session)
+
+  bool
+  is_new() const
+  {
     return state.load() == STATE_NEW;
   }
-  bool is_acked() const {
+
+  bool
+  is_acked() const
+  {
     return state.load() == STATE_ACKED;
   }
-  bool is_deleting() const {
+
+  bool
+  is_deleting() const
+  {
     return state.load() == STATE_DELETING;
   }
-  const char *get_state_name() const {
+
+  const char*
+  get_state_name() const
+  {
     switch (state.load()) {
-    case STATE_NEW: return "new";
-    case STATE_ACKED: return "acked";
-    case STATE_DELETING: return "deleting";
-    default: return "???";
+    case STATE_NEW:
+      return "new";
+    case STATE_ACKED:
+      return "acked";
+    case STATE_DELETING:
+      return "deleting";
+    default:
+      return "???";
     }
   }
 
@@ -100,26 +117,28 @@ struct Backoff : public RefCountedObject {
   //   - *both* set, or
   //   - both null (teardown), or
   //   - only session is set (and state == DELETING)
-  PGRef pg;             ///< owning pg
-  ceph::ref_t<struct Session> session;   ///< owning session
+  PGRef pg; ///< owning pg
+  ceph::ref_t<struct Session> session; ///< owning session
   hobject_t begin, end; ///< [) range to block, unless ==, then single obj
 
-  friend ostream& operator<<(ostream& out, const Backoff& b) {
-    return out << "Backoff(" << &b << " " << b.pgid << " " << b.id
-	       << " " << b.get_state_name()
-	       << " [" << b.begin << "," << b.end << ") "
-	       << " session " << b.session
-	       << " pg " << b.pg << ")";
+  friend ostream&
+  operator<<(ostream& out, const Backoff& b)
+  {
+    return out << "Backoff(" << &b << " " << b.pgid << " " << b.id << " "
+               << b.get_state_name() << " [" << b.begin << "," << b.end << ") "
+               << " session " << b.session << " pg " << b.pg << ")";
   }
 
 private:
   FRIEND_MAKE_REF(Backoff);
-  Backoff(spg_t pgid, PGRef pg, ceph::ref_t<Session> s,
-	  uint64_t i,
-	  const hobject_t& b, const hobject_t& e);
+  Backoff(
+      spg_t pgid,
+      PGRef pg,
+      ceph::ref_t<Session> s,
+      uint64_t i,
+      const hobject_t& b,
+      const hobject_t& e);
 };
-
-
 
 struct Session : public RefCountedObject {
   EntityName entity_name;
@@ -129,15 +148,16 @@ struct Session : public RefCountedObject {
   WatchConState wstate;
 
   ceph::mutex session_dispatch_lock =
-    ceph::make_mutex("Session::session_dispatch_lock");
-  boost::intrusive::list<OpRequest, boost::intrusive::constant_time_size<false>> waiting_on_map;
+      ceph::make_mutex("Session::session_dispatch_lock");
+  boost::intrusive::list<OpRequest, boost::intrusive::constant_time_size<false>>
+      waiting_on_map;
 
   ceph::spinlock projected_epoch_lock;
   epoch_t projected_epoch = 0;
 
   /// protects backoffs; orders inside Backoff::lock *and* PG::backoff_lock
   ceph::mutex backoff_lock = ceph::make_mutex("Session::backoff_lock");
-  std::atomic<int> backoff_count= {0};  ///< simple count of backoffs
+  std::atomic<int> backoff_count = {0}; ///< simple count of backoffs
   std::map<spg_t, std::map<hobject_t, std::set<ceph::ref_t<Backoff>>>> backoffs;
 
   std::atomic<uint64_t> backoff_seq = {0};
@@ -146,18 +166,22 @@ struct Session : public RefCountedObject {
   int peer = -1;
   HeartbeatStampsRef stamps;
 
-  entity_addr_t& get_peer_socket_addr() {
+  entity_addr_t&
+  get_peer_socket_addr()
+  {
     return socket_addr;
   }
 
   void ack_backoff(
-    CephContext *cct,
-    spg_t pgid,
-    uint64_t id,
-    const hobject_t& start,
-    const hobject_t& end);
+      CephContext* cct,
+      spg_t pgid,
+      uint64_t id,
+      const hobject_t& start,
+      const hobject_t& end);
 
-  ceph::ref_t<Backoff> have_backoff(spg_t pgid, const hobject_t& oid) {
+  ceph::ref_t<Backoff>
+  have_backoff(spg_t pgid, const hobject_t& oid)
+  {
     if (!backoff_count.load()) {
       return nullptr;
     }
@@ -168,27 +192,31 @@ struct Session : public RefCountedObject {
       return nullptr;
     }
     auto p = i->second.lower_bound(oid);
-    if (p != i->second.begin() &&
-	(p == i->second.end() || p->first > oid)) {
+    if (p != i->second.begin() && (p == i->second.end() || p->first > oid)) {
       --p;
     }
     if (p != i->second.end()) {
       int r = cmp(oid, p->first);
       if (r == 0 || r > 0) {
-	for (auto& q : p->second) {
-	  if (r == 0 || oid < q->end) {
-	    return &(*q);
-	  }
-	}
+        for (auto& q : p->second) {
+          if (r == 0 || oid < q->end) {
+            return &(*q);
+          }
+        }
       }
     }
     return nullptr;
   }
 
   bool check_backoff(
-    CephContext *cct, spg_t pgid, const hobject_t& oid, const Message *m);
+      CephContext* cct,
+      spg_t pgid,
+      const hobject_t& oid,
+      const Message* m);
 
-  void add_backoff(ceph::ref_t<Backoff> b) {
+  void
+  add_backoff(ceph::ref_t<Backoff> b)
+  {
     std::lock_guard l(backoff_lock);
     ceph_assert(!backoff_count == backoffs.empty());
     backoffs[b->pgid][b->begin].insert(std::move(b));
@@ -196,7 +224,9 @@ struct Session : public RefCountedObject {
   }
 
   // called by PG::release_*_backoffs and PG::clear_backoffs()
-  void rm_backoff(const ceph::ref_t<Backoff>& b) {
+  void
+  rm_backoff(const ceph::ref_t<Backoff>& b)
+  {
     std::lock_guard l(backoff_lock);
     ceph_assert(ceph_mutex_is_locked_by_me(b->lock));
     ceph_assert(b->session == this);
@@ -205,31 +235,33 @@ struct Session : public RefCountedObject {
       // may race with clear_backoffs()
       auto p = i->second.find(b->begin);
       if (p != i->second.end()) {
-	auto q = p->second.find(b);
-	if (q != p->second.end()) {
-	  p->second.erase(q);
-	  --backoff_count;
-	  if (p->second.empty()) {
-	    i->second.erase(p);
-	    if (i->second.empty()) {
-	      backoffs.erase(i);
-	    }
-	  }
-	}
+        auto q = p->second.find(b);
+        if (q != p->second.end()) {
+          p->second.erase(q);
+          --backoff_count;
+          if (p->second.empty()) {
+            i->second.erase(p);
+            if (i->second.empty()) {
+              backoffs.erase(i);
+            }
+          }
+        }
       }
     }
     ceph_assert(!backoff_count == backoffs.empty());
   }
+
   void clear_backoffs();
 
 private:
   FRIEND_MAKE_REF(Session);
-  explicit Session(CephContext *cct, Connection *con_) :
+
+  explicit Session(CephContext* cct, Connection* con_) :
     RefCountedObject(cct),
     con(con_),
     socket_addr(con_->get_peer_socket_addr()),
     wstate(cct)
-    {}
+  {}
 };
 
 #endif

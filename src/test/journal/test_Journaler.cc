@@ -1,62 +1,73 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "gtest/gtest.h"
 #include "include/stringify.h"
-
 #include "journal/Journaler.h"
 #include "journal/Settings.h"
-
-#include "test/librados/test.h"
 #include "test/journal/RadosTestFixture.h"
-
-#include "gtest/gtest.h"
+#include "test/librados/test.h"
 
 // reinclude our assert to clobber the system one
 #include "include/ceph_assert.h"
 
 class TestJournaler : public RadosTestFixture {
 public:
-
   static const std::string CLIENT_ID;
 
-  static std::string get_temp_journal_id() {
+  static std::string
+  get_temp_journal_id()
+  {
     return stringify(++_journal_id);
   }
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     RadosTestFixture::SetUp();
     m_journal_id = get_temp_journal_id();
-    m_journaler = new journal::Journaler(m_work_queue, m_timer, &m_timer_lock,
-                                         m_ioctx, m_journal_id, CLIENT_ID, {},
-                                         nullptr);
+    m_journaler = new journal::Journaler(
+        m_work_queue, m_timer, &m_timer_lock, m_ioctx, m_journal_id, CLIENT_ID,
+        {}, nullptr);
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     delete m_journaler;
     RadosTestFixture::TearDown();
   }
 
-  int create_journal(uint8_t order, uint8_t splay_width) {
+  int
+  create_journal(uint8_t order, uint8_t splay_width)
+  {
     C_SaferCond cond;
     m_journaler->create(order, splay_width, -1, &cond);
     return cond.wait();
   }
 
-  int init_journaler() {
+  int
+  init_journaler()
+  {
     C_SaferCond cond;
     m_journaler->init(&cond);
     return cond.wait();
   }
 
-  int shut_down_journaler() {
+  int
+  shut_down_journaler()
+  {
     C_SaferCond ctx;
     m_journaler->shut_down(&ctx);
     return ctx.wait();
   }
 
-  int register_client(const std::string &client_id, const std::string &desc) {
-    journal::Journaler journaler(m_work_queue, m_timer, &m_timer_lock, m_ioctx,
-                                 m_journal_id, client_id, {}, nullptr);
+  int
+  register_client(const std::string& client_id, const std::string& desc)
+  {
+    journal::Journaler journaler(
+        m_work_queue, m_timer, &m_timer_lock, m_ioctx, m_journal_id, client_id,
+        {}, nullptr);
     bufferlist data;
     data.append(desc);
     C_SaferCond cond;
@@ -64,9 +75,12 @@ public:
     return cond.wait();
   }
 
-  int update_client(const std::string &client_id, const std::string &desc) {
-    journal::Journaler journaler(m_work_queue, m_timer, &m_timer_lock, m_ioctx,
-                                 m_journal_id, client_id, {}, nullptr);
+  int
+  update_client(const std::string& client_id, const std::string& desc)
+  {
+    journal::Journaler journaler(
+        m_work_queue, m_timer, &m_timer_lock, m_ioctx, m_journal_id, client_id,
+        {}, nullptr);
     bufferlist data;
     data.append(desc);
     C_SaferCond cond;
@@ -74,9 +88,12 @@ public:
     return cond.wait();
   }
 
-  int unregister_client(const std::string &client_id) {
-    journal::Journaler journaler(m_work_queue, m_timer, &m_timer_lock, m_ioctx,
-                                 m_journal_id, client_id, {}, nullptr);
+  int
+  unregister_client(const std::string& client_id)
+  {
+    journal::Journaler journaler(
+        m_work_queue, m_timer, &m_timer_lock, m_ioctx, m_journal_id, client_id,
+        {}, nullptr);
     C_SaferCond cond;
     journaler.unregister_client(&cond);
     return cond.wait();
@@ -85,57 +102,63 @@ public:
   static uint64_t _journal_id;
 
   std::string m_journal_id;
-  journal::Journaler *m_journaler;
+  journal::Journaler* m_journaler;
 };
 
 const std::string TestJournaler::CLIENT_ID = "client1";
 uint64_t TestJournaler::_journal_id = 0;
 
-TEST_F(TestJournaler, Create) {
-  ASSERT_EQ(0, create_journal(12, 8));
-}
+TEST_F(TestJournaler, Create) { ASSERT_EQ(0, create_journal(12, 8)); }
 
-TEST_F(TestJournaler, CreateDuplicate) {
+TEST_F(TestJournaler, CreateDuplicate)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(-EEXIST, create_journal(12, 8));
 }
 
-TEST_F(TestJournaler, CreateInvalidParams) {
+TEST_F(TestJournaler, CreateInvalidParams)
+{
   ASSERT_EQ(-EDOM, create_journal(1, 8));
   ASSERT_EQ(-EDOM, create_journal(123, 8));
   ASSERT_EQ(-EINVAL, create_journal(12, 0));
 }
 
-TEST_F(TestJournaler, Init) {
+TEST_F(TestJournaler, Init)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
   ASSERT_EQ(0, init_journaler());
   ASSERT_EQ(0, shut_down_journaler());
 }
 
-TEST_F(TestJournaler, InitDNE) {
+TEST_F(TestJournaler, InitDNE)
+{
   ASSERT_EQ(-ENOENT, init_journaler());
   ASSERT_EQ(0, shut_down_journaler());
 }
 
-TEST_F(TestJournaler, RegisterClientDuplicate) {
+TEST_F(TestJournaler, RegisterClientDuplicate)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
   ASSERT_EQ(-EEXIST, register_client(CLIENT_ID, "foo2"));
 }
 
-TEST_F(TestJournaler, UpdateClient) {
+TEST_F(TestJournaler, UpdateClient)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
   ASSERT_EQ(0, update_client(CLIENT_ID, "foo2"));
 }
 
-TEST_F(TestJournaler, UpdateClientDNE) {
+TEST_F(TestJournaler, UpdateClientDNE)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(-ENOENT, update_client(CLIENT_ID, "foo"));
 }
 
-TEST_F(TestJournaler, UnregisterClient) {
+TEST_F(TestJournaler, UnregisterClient)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
   ASSERT_EQ(0, unregister_client(CLIENT_ID));
@@ -144,12 +167,14 @@ TEST_F(TestJournaler, UnregisterClient) {
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
 }
 
-TEST_F(TestJournaler, UnregisterClientDNE) {
+TEST_F(TestJournaler, UnregisterClientDNE)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(-ENOENT, unregister_client(CLIENT_ID));
 }
 
-TEST_F(TestJournaler, AllocateTag) {
+TEST_F(TestJournaler, AllocateTag)
+{
   ASSERT_EQ(0, create_journal(12, 8));
 
   cls::journal::Tag tag;
@@ -170,7 +195,8 @@ TEST_F(TestJournaler, AllocateTag) {
   ASSERT_EQ(cls::journal::Tag(1, 0, bufferlist()), tag);
 }
 
-TEST_F(TestJournaler, GetTags) {
+TEST_F(TestJournaler, GetTags)
+{
   ASSERT_EQ(0, create_journal(12, 8));
   ASSERT_EQ(0, register_client(CLIENT_ID, "foo"));
 

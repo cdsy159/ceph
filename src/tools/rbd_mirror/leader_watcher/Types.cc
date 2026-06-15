@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "Types.h"
+
+#include "common/Formatter.h"
 #include "include/ceph_assert.h"
 #include "include/stringify.h"
-#include "common/Formatter.h"
 
 namespace rbd {
 namespace mirror {
@@ -14,95 +15,123 @@ namespace {
 
 class EncodePayloadVisitor {
 public:
-  explicit EncodePayloadVisitor(bufferlist &bl) : m_bl(bl) {}
+  explicit EncodePayloadVisitor(bufferlist& bl) :
+    m_bl(bl)
+  {}
 
   template <typename Payload>
-  inline void operator()(const Payload &payload) const {
+  inline void
+  operator()(const Payload& payload) const
+  {
     using ceph::encode;
     encode(static_cast<uint32_t>(Payload::NOTIFY_OP), m_bl);
     payload.encode(m_bl);
   }
 
 private:
-  bufferlist &m_bl;
+  bufferlist& m_bl;
 };
 
 class DecodePayloadVisitor {
 public:
-  DecodePayloadVisitor(__u8 version, bufferlist::const_iterator &iter)
-    : m_version(version), m_iter(iter) {}
+  DecodePayloadVisitor(__u8 version, bufferlist::const_iterator& iter) :
+    m_version(version), m_iter(iter)
+  {}
 
   template <typename Payload>
-  inline void operator()(Payload &payload) const {
+  inline void
+  operator()(Payload& payload) const
+  {
     payload.decode(m_version, m_iter);
   }
 
 private:
   __u8 m_version;
-  bufferlist::const_iterator &m_iter;
+  bufferlist::const_iterator& m_iter;
 };
 
 class DumpPayloadVisitor {
 public:
-  explicit DumpPayloadVisitor(Formatter *formatter) : m_formatter(formatter) {}
+  explicit DumpPayloadVisitor(Formatter* formatter) :
+    m_formatter(formatter)
+  {}
 
   template <typename Payload>
-  inline void operator()(const Payload &payload) const {
+  inline void
+  operator()(const Payload& payload) const
+  {
     NotifyOp notify_op = Payload::NOTIFY_OP;
     m_formatter->dump_string("notify_op", stringify(notify_op));
     payload.dump(m_formatter);
   }
 
 private:
-  ceph::Formatter *m_formatter;
+  ceph::Formatter* m_formatter;
 };
 
 } // anonymous namespace
 
-void HeartbeatPayload::encode(bufferlist &bl) const {
-}
+void
+HeartbeatPayload::encode(bufferlist& bl) const
+{}
 
-void HeartbeatPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
-}
+void
+HeartbeatPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{}
 
-void HeartbeatPayload::dump(Formatter *f) const {
-}
+void
+HeartbeatPayload::dump(Formatter* f) const
+{}
 
-void LockAcquiredPayload::encode(bufferlist &bl) const {
-}
+void
+LockAcquiredPayload::encode(bufferlist& bl) const
+{}
 
-void LockAcquiredPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
-}
+void
+LockAcquiredPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{}
 
-void LockAcquiredPayload::dump(Formatter *f) const {
-}
+void
+LockAcquiredPayload::dump(Formatter* f) const
+{}
 
-void LockReleasedPayload::encode(bufferlist &bl) const {
-}
+void
+LockReleasedPayload::encode(bufferlist& bl) const
+{}
 
-void LockReleasedPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
-}
+void
+LockReleasedPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{}
 
-void LockReleasedPayload::dump(Formatter *f) const {
-}
+void
+LockReleasedPayload::dump(Formatter* f) const
+{}
 
-void UnknownPayload::encode(bufferlist &bl) const {
+void
+UnknownPayload::encode(bufferlist& bl) const
+{
   ceph_abort();
 }
 
-void UnknownPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
-}
+void
+UnknownPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{}
 
-void UnknownPayload::dump(Formatter *f) const {
-}
+void
+UnknownPayload::dump(Formatter* f) const
+{}
 
-void NotifyMessage::encode(bufferlist& bl) const {
+void
+NotifyMessage::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   std::visit(EncodePayloadVisitor(bl), payload);
   ENCODE_FINISH(bl);
 }
 
-void NotifyMessage::decode(bufferlist::const_iterator& iter) {
+void
+NotifyMessage::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
 
   uint32_t notify_op;
@@ -128,11 +157,15 @@ void NotifyMessage::decode(bufferlist::const_iterator& iter) {
   DECODE_FINISH(iter);
 }
 
-void NotifyMessage::dump(Formatter *f) const {
+void
+NotifyMessage::dump(Formatter* f) const
+{
   std::visit(DumpPayloadVisitor(f), payload);
 }
 
-std::list<NotifyMessage> NotifyMessage::generate_test_instances() {
+std::list<NotifyMessage>
+NotifyMessage::generate_test_instances()
+{
   std::list<NotifyMessage> o;
   o.push_back(NotifyMessage(HeartbeatPayload()));
   o.push_back(NotifyMessage(LockAcquiredPayload()));
@@ -140,7 +173,9 @@ std::list<NotifyMessage> NotifyMessage::generate_test_instances() {
   return o;
 }
 
-std::ostream &operator<<(std::ostream &out, const NotifyOp &op) {
+std::ostream&
+operator<<(std::ostream& out, const NotifyOp& op)
+{
   switch (op) {
   case NOTIFY_OP_HEARTBEAT:
     out << "Heartbeat";
@@ -160,4 +195,4 @@ std::ostream &operator<<(std::ostream &out, const NotifyOp &op) {
 
 } // namespace leader_watcher
 } // namespace mirror
-} // namespace librbd
+} // namespace rbd

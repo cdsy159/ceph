@@ -12,20 +12,19 @@
  * Foundation.  See file COPYING.
  *
  */
-#include <string>
 #include "QueueStrategy.h"
+
+#include <string>
 #define dout_subsys ceph_subsys_ms
 #include "common/debug.h"
 
-QueueStrategy::QueueStrategy(int _n_threads)
-  : n_threads(_n_threads),
-    stop(false),
-    mqueue(),
-    disp_threads()
-{
-}
+QueueStrategy::QueueStrategy(int _n_threads) :
+  n_threads(_n_threads), stop(false), mqueue(), disp_threads()
+{}
 
-void QueueStrategy::ds_dispatch(Message *m) {
+void
+QueueStrategy::ds_dispatch(Message* m)
+{
   msgr->ms_fast_preprocess(m);
   if (msgr->ms_can_fast_dispatch(m)) {
     msgr->ms_fast_dispatch(m);
@@ -34,42 +33,45 @@ void QueueStrategy::ds_dispatch(Message *m) {
   std::lock_guard l{lock};
   mqueue.push_back(*m);
   if (disp_threads.size()) {
-    if (! disp_threads.empty()) {
-      QSThread *thrd = &disp_threads.front();
+    if (!disp_threads.empty()) {
+      QSThread* thrd = &disp_threads.front();
       disp_threads.pop_front();
       thrd->cond.notify_all();
     }
   }
 }
 
-void QueueStrategy::entry(QSThread *thrd)
+void
+QueueStrategy::entry(QSThread* thrd)
 {
   for (;;) {
     ceph::ref_t<Message> m;
     std::unique_lock l{lock};
     for (;;) {
-      if (! mqueue.empty()) {
-	m = ceph::ref_t<Message>(&mqueue.front(), false);
-	mqueue.pop_front();
-	break;
+      if (!mqueue.empty()) {
+        m = ceph::ref_t<Message>(&mqueue.front(), false);
+        mqueue.pop_front();
+        break;
       }
       if (stop)
-	break;
+        break;
       disp_threads.push_front(*thrd);
       thrd->cond.wait(l);
     }
     l.unlock();
     if (stop) {
-	if (!m) break;
-	continue;
+      if (!m)
+        break;
+      continue;
     }
     get_messenger()->ms_deliver_dispatch(m);
   }
 }
 
-void QueueStrategy::shutdown()
+void
+QueueStrategy::shutdown()
 {
-  QSThread *thrd;
+  QSThread* thrd;
   std::lock_guard l{lock};
   stop = true;
   while (disp_threads.size()) {
@@ -79,7 +81,8 @@ void QueueStrategy::shutdown()
   }
 }
 
-void QueueStrategy::wait()
+void
+QueueStrategy::wait()
 {
   std::unique_lock l{lock};
   ceph_assert(stop);
@@ -93,7 +96,8 @@ void QueueStrategy::wait()
   }
 }
 
-void QueueStrategy::start()
+void
+QueueStrategy::start()
 {
   ceph_assert(!stop);
   std::lock_guard l{lock};

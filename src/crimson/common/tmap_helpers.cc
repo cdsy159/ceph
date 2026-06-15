@@ -3,28 +3,31 @@
 
 #include "crimson/common/tmap_helpers.h"
 
+#include <map>
+
 #include "include/buffer.h"
 #include "include/encoding.h"
 #include "include/rados.h"
 
-#include <map>
-
 namespace detail {
 
 #define decode_or_return(v, bp) \
-  try {				\
-    ::decode(v, bp);		\
-  } catch (...)	{		\
-    return -EINVAL;		\
+  try {                         \
+    ::decode(v, bp);            \
+  } catch (...) {               \
+    return -EINVAL;             \
   }
 
 class TMapContents {
   std::map<std::string, bufferlist> keys;
   bufferlist header;
+
 public:
   TMapContents() = default;
 
-  int decode(bufferlist::const_iterator &bliter) {
+  int
+  decode(bufferlist::const_iterator& bliter)
+  {
     keys.clear();
     header.clear();
     if (bliter.end()) {
@@ -41,25 +44,29 @@ public:
     return 0;
   }
 
-  bufferlist encode() {
+  bufferlist
+  encode()
+  {
     bufferlist bl;
     ::encode(header, bl);
     ::encode(static_cast<__u32>(keys.size()), bl);
-    for (auto &[k, v]: keys) {
+    for (auto& [k, v] : keys) {
       ::encode(k, bl);
       ::encode(v, bl);
     }
     return bl;
   }
 
-  int update(bufferlist::const_iterator in) {
+  int
+  update(bufferlist::const_iterator in)
+  {
     while (!in.end()) {
       __u8 op;
       decode_or_return(op, in);
 
       if (op == CEPH_OSD_TMAP_HDR) {
-	decode_or_return(header, in);
-	continue;
+        decode_or_return(header, in);
+        continue;
       }
 
       std::string key;
@@ -67,44 +74,48 @@ public:
 
       switch (op) {
       case CEPH_OSD_TMAP_SET: {
-	decode_or_return(keys[key], in);
-	break;
+        decode_or_return(keys[key], in);
+        break;
       }
       case CEPH_OSD_TMAP_CREATE: {
-	if (keys.contains(key)) {
-	  return -EEXIST;
-	}
-	decode_or_return(keys[key], in);
-	break;
+        if (keys.contains(key)) {
+          return -EEXIST;
+        }
+        decode_or_return(keys[key], in);
+        break;
       }
       case CEPH_OSD_TMAP_RM: {
-	auto kiter = keys.find(key);
-	if (kiter == keys.end()) {
-	  return -ENOENT;
-	}
-	keys.erase(kiter);
-	break;
+        auto kiter = keys.find(key);
+        if (kiter == keys.end()) {
+          return -ENOENT;
+        }
+        keys.erase(kiter);
+        break;
       }
       case CEPH_OSD_TMAP_RMSLOPPY: {
-	keys.erase(key);
-	break;
+        keys.erase(key);
+        break;
       }
       }
     }
     return 0;
   }
 
-  int put(bufferlist::const_iterator in) {
+  int
+  put(bufferlist::const_iterator in)
+  {
     return 0;
   }
 };
 
-}
+} // namespace detail
 
 namespace crimson::common {
 
 using do_tmap_up_ret = tl::expected<bufferlist, int>;
-do_tmap_up_ret do_tmap_up(bufferlist::const_iterator in, bufferlist contents)
+
+do_tmap_up_ret
+do_tmap_up(bufferlist::const_iterator in, bufferlist contents)
 {
   detail::TMapContents tmap;
   auto bliter = contents.cbegin();
@@ -120,7 +131,9 @@ do_tmap_up_ret do_tmap_up(bufferlist::const_iterator in, bufferlist contents)
 }
 
 using do_tmap_up_ret = tl::expected<bufferlist, int>;
-do_tmap_up_ret do_tmap_put(bufferlist::const_iterator in)
+
+do_tmap_up_ret
+do_tmap_put(bufferlist::const_iterator in)
 {
   detail::TMapContents tmap;
   int r = tmap.decode(in);
@@ -130,4 +143,4 @@ do_tmap_up_ret do_tmap_put(bufferlist::const_iterator in)
   return tmap.encode();
 }
 
-}
+} // namespace crimson::common

@@ -13,13 +13,13 @@
  *
  */
 
-#include "common/async/async_cond.h"
+#include <gtest/gtest.h>
 
 #include <coroutine>
 
 #include <boost/asio/io_context.hpp>
 
-#include <gtest/gtest.h>
+#include "common/async/async_cond.h"
 
 namespace asio = boost::asio;
 namespace sys = boost::system;
@@ -27,7 +27,8 @@ namespace sys = boost::system;
 namespace async = ceph::async;
 
 enum response : int {
-  error, success
+  error,
+  success
 };
 
 std::mutex m;
@@ -36,16 +37,19 @@ struct waiter {
   std::unique_lock<std::mutex> l{m};
   int* i;
 
-  waiter(int* i) : i(i) {}
+  waiter(int* i) :
+    i(i)
+  {}
 
-  void operator ()(sys::error_code ec) {
+  void
+  operator()(sys::error_code ec)
+  {
     EXPECT_TRUE(l.owns_lock());
     *i = ec ? error : success;
     l.unlock();
     delete this;
   }
 };
-
 
 TEST(async_cond, lambdata)
 {

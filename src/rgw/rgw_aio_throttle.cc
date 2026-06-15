@@ -17,19 +17,23 @@
 
 namespace rgw {
 
-bool Throttle::waiter_ready() const
+bool
+Throttle::waiter_ready() const
 {
   switch (waiter) {
-  case Wait::Available: return is_available();
-  case Wait::Completion: return has_completion();
-  case Wait::Drained: return is_drained();
-  default: return false;
+  case Wait::Available:
+    return is_available();
+  case Wait::Completion:
+    return has_completion();
+  case Wait::Drained:
+    return is_drained();
+  default:
+    return false;
   }
 }
 
-AioResultList BlockingAioThrottle::get(rgw_raw_obj obj,
-                                       OpFunc&& f,
-                                       uint64_t cost, uint64_t id)
+AioResultList
+BlockingAioThrottle::get(rgw_raw_obj obj, OpFunc&& f, uint64_t cost, uint64_t id)
 {
   auto p = std::make_unique<Pending>();
   p->obj = std::move(obj);
@@ -62,7 +66,8 @@ AioResultList BlockingAioThrottle::get(rgw_raw_obj obj,
   return std::move(completed);
 }
 
-void BlockingAioThrottle::put(AioResult& r)
+void
+BlockingAioThrottle::put(AioResult& r)
 {
   auto& p = static_cast<Pending&>(r);
   std::scoped_lock lock{mutex};
@@ -78,13 +83,15 @@ void BlockingAioThrottle::put(AioResult& r)
   }
 }
 
-AioResultList BlockingAioThrottle::poll()
+AioResultList
+BlockingAioThrottle::poll()
 {
   std::unique_lock lock{mutex};
   return std::move(completed);
 }
 
-AioResultList BlockingAioThrottle::wait()
+AioResultList
+BlockingAioThrottle::wait()
 {
   std::unique_lock lock{mutex};
   if (completed.empty() && !pending.empty()) {
@@ -96,7 +103,8 @@ AioResultList BlockingAioThrottle::wait()
   return std::move(completed);
 }
 
-AioResultList BlockingAioThrottle::drain()
+AioResultList
+BlockingAioThrottle::drain()
 {
   std::unique_lock lock{mutex};
   if (!pending.empty()) {
@@ -109,19 +117,20 @@ AioResultList BlockingAioThrottle::drain()
 }
 
 template <typename CompletionToken>
-auto YieldingAioThrottle::async_wait(CompletionToken&& token)
+auto
+YieldingAioThrottle::async_wait(CompletionToken&& token)
 {
   using Signature = void(boost::system::error_code);
   return boost::asio::async_initiate<CompletionToken, Signature>(
-      [this] (auto handler) {
-        completion = Completion::create(yield.get_executor(),
-                                        std::move(handler));
-      }, token);
+      [this](auto handler) {
+        completion =
+            Completion::create(yield.get_executor(), std::move(handler));
+      },
+      token);
 }
 
-AioResultList YieldingAioThrottle::get(rgw_raw_obj obj,
-                                       OpFunc&& f,
-                                       uint64_t cost, uint64_t id)
+AioResultList
+YieldingAioThrottle::get(rgw_raw_obj obj, OpFunc&& f, uint64_t cost, uint64_t id)
 {
   auto p = std::make_unique<Pending>();
   p->obj = std::move(obj);
@@ -152,7 +161,8 @@ AioResultList YieldingAioThrottle::get(rgw_raw_obj obj,
   return std::move(completed);
 }
 
-void YieldingAioThrottle::put(AioResult& r)
+void
+YieldingAioThrottle::put(AioResult& r)
 {
   auto& p = static_cast<Pending&>(r);
 
@@ -169,12 +179,14 @@ void YieldingAioThrottle::put(AioResult& r)
   }
 }
 
-AioResultList YieldingAioThrottle::poll()
+AioResultList
+YieldingAioThrottle::poll()
 {
   return std::move(completed);
 }
 
-AioResultList YieldingAioThrottle::wait()
+AioResultList
+YieldingAioThrottle::wait()
 {
   if (!has_completion() && !pending.empty()) {
     ceph_assert(waiter == Wait::None);
@@ -187,7 +199,8 @@ AioResultList YieldingAioThrottle::wait()
   return std::move(completed);
 }
 
-AioResultList YieldingAioThrottle::drain()
+AioResultList
+YieldingAioThrottle::drain()
 {
   if (!is_drained()) {
     ceph_assert(waiter == Wait::None);

@@ -19,13 +19,13 @@
 #include <set>
 
 #include "include/Context.h"
-#include "MgrMap.h"
-#include "PaxosService.h"
-#include "MonCommand.h"
-#include "CommandHandler.h"
 
-class MgrMonitor: public PaxosService, public CommandHandler
-{
+#include "CommandHandler.h"
+#include "MgrMap.h"
+#include "MonCommand.h"
+#include "PaxosService.h"
+
+class MgrMonitor : public PaxosService, public CommandHandler {
   MgrMap map;
   MgrMap pending_map;
   bool ever_had_active_mgr = false;
@@ -33,7 +33,7 @@ class MgrMonitor: public PaxosService, public CommandHandler
   std::map<std::string, ceph::buffer::list> pending_metadata;
   std::set<std::string> pending_metadata_rm;
 
-  std::map<std::string,Option> mgr_module_options;
+  std::map<std::string, Option> mgr_module_options;
   std::list<std::string> misc_option_strings;
 
   utime_t first_seen_inactive;
@@ -63,9 +63,9 @@ class MgrMonitor: public PaxosService, public CommandHandler
    * the daemon's metadata, for example if you're dropping
    * it as a standby before reinstating it as the active daemon.
    */
-  void drop_standby(uint64_t gid, bool drop_meta=true);
+  void drop_standby(uint64_t gid, bool drop_meta = true);
 
-  Context *digest_event = nullptr;
+  Context* digest_event = nullptr;
   void cancel_timer();
 
   std::vector<health_check_map_t> prev_health_checks;
@@ -79,22 +79,34 @@ class MgrMonitor: public PaxosService, public CommandHandler
   std::vector<MonCommand> pending_command_descs;
 
 public:
-  MgrMonitor(Monitor &mn, Paxos &p, const std::string& service_name)
-    : PaxosService(mn, p, service_name)
+  MgrMonitor(Monitor& mn, Paxos& p, const std::string& service_name) :
+    PaxosService(mn, p, service_name)
   {}
+
   ~MgrMonitor() override {}
 
   void init() override;
   void on_shutdown() override;
 
-  const MgrMap &get_map() const { return map; }
+  const MgrMap&
+  get_map() const
+  {
+    return map;
+  }
 
-  const std::map<std::string,Option>& get_mgr_module_options() {
+  const std::map<std::string, Option>&
+  get_mgr_module_options()
+  {
     return mgr_module_options;
   }
-  const Option *find_module_option(const std::string& name);
 
-  bool in_use() const { return map.epoch > 0; }
+  const Option* find_module_option(const std::string& name);
+
+  bool
+  in_use() const
+  {
+    return map.epoch > 0;
+  }
 
   version_t get_trim_to() const override;
 
@@ -102,7 +114,7 @@ public:
 
   void create_initial() override;
   void get_store_prefixes(std::set<std::string>& s) const override;
-  void update_from_paxos(bool *need_bootstrap) override;
+  void update_from_paxos(bool* need_bootstrap) override;
   void post_paxos_update() override;
   void create_pending() override;
   void encode_pending(MonitorDBStore::TransactionRef t) override;
@@ -113,12 +125,14 @@ public:
   bool preprocess_command(MonOpRequestRef op);
   bool prepare_command(MonOpRequestRef op);
 
-  void encode_full(MonitorDBStore::TransactionRef t) override { }
+  void
+  encode_full(MonitorDBStore::TransactionRef t) override
+  {}
 
   bool preprocess_beacon(MonOpRequestRef op);
   bool prepare_beacon(MonOpRequestRef op);
 
-  void check_sub(Subscription *sub);
+  void check_sub(Subscription* sub);
   void check_subs();
   void send_digests();
 
@@ -127,17 +141,22 @@ public:
 
   void tick() override;
 
-  void print_summary(ceph::Formatter *f, std::ostream *ss) const;
+  void print_summary(ceph::Formatter* f, std::ostream* ss) const;
 
-  const std::vector<MonCommand> &get_command_descs() const;
+  const std::vector<MonCommand>& get_command_descs() const;
 
-  int load_metadata(const std::string& name, std::map<std::string, std::string>& m,
-		    std::ostream *err) const;
-  int dump_metadata(const std::string& name, ceph::Formatter *f, std::ostream *err);
-  void print_nodes(ceph::Formatter *f) const;
-  void count_metadata(const std::string& field, ceph::Formatter *f);
-  void count_metadata(const std::string& field, std::map<std::string,int> *out);
-  void get_versions(std::map<std::string, std::list<std::string>> &versions);
+  int load_metadata(
+      const std::string& name,
+      std::map<std::string, std::string>& m,
+      std::ostream* err) const;
+  int dump_metadata(
+      const std::string& name,
+      ceph::Formatter* f,
+      std::ostream* err);
+  void print_nodes(ceph::Formatter* f) const;
+  void count_metadata(const std::string& field, ceph::Formatter* f);
+  void count_metadata(const std::string& field, std::map<std::string, int>* out);
+  void get_versions(std::map<std::string, std::list<std::string>>& versions);
 
   // When did the mon last call into our tick() method?  Used for detecting
   // when the mon was not updating us for some period (e.g. during slow

@@ -23,21 +23,30 @@ struct io_stat_t {
   uint64_t num = 0;
   uint64_t bytes = 0;
 
-  bool is_clear() const {
+  bool
+  is_clear() const
+  {
     return (num == 0 && bytes == 0);
   }
 
-  void increment(uint64_t _bytes) {
+  void
+  increment(uint64_t _bytes)
+  {
     ++num;
     bytes += _bytes;
   }
 
-  void increment_stat(const io_stat_t& stat) {
+  void
+  increment_stat(const io_stat_t& stat)
+  {
     num += stat.num;
     bytes += stat.bytes;
   }
 };
-inline std::ostream& operator<<(std::ostream& out, const io_stat_t& stat) {
+
+inline std::ostream&
+operator<<(std::ostream& out, const io_stat_t& stat)
+{
   return out << stat.num << "(" << stat.bytes << "B)";
 }
 
@@ -46,34 +55,48 @@ struct rewrite_stats_t {
   uint64_t num_dirty = 0;
   uint64_t dirty_version = 0;
 
-  bool is_clear() const {
+  bool
+  is_clear() const
+  {
     return (num_n_dirty == 0 && num_dirty == 0);
   }
 
-  uint64_t get_num_rewrites() const {
+  uint64_t
+  get_num_rewrites() const
+  {
     return num_n_dirty + num_dirty;
   }
 
-  double get_avg_version() const {
-    return static_cast<double>(dirty_version)/num_dirty;
+  double
+  get_avg_version() const
+  {
+    return static_cast<double>(dirty_version) / num_dirty;
   }
 
-  void account_n_dirty() {
+  void
+  account_n_dirty()
+  {
     ++num_n_dirty;
   }
 
-  void account_dirty(extent_version_t v) {
+  void
+  account_dirty(extent_version_t v)
+  {
     ++num_dirty;
     dirty_version += v;
   }
 
-  void add(const rewrite_stats_t& o) {
+  void
+  add(const rewrite_stats_t& o)
+  {
     num_n_dirty += o.num_n_dirty;
     num_dirty += o.num_dirty;
     dirty_version += o.dirty_version;
   }
 
-  void minus(const rewrite_stats_t& o) {
+  void
+  minus(const rewrite_stats_t& o)
+  {
     num_n_dirty -= o.num_n_dirty;
     num_dirty -= o.num_dirty;
     dirty_version -= o.dirty_version;
@@ -86,15 +109,14 @@ struct btree_cursor_stats_t {
   uint64_t num_refresh_unviewable_parent = 0;
   uint64_t num_refresh_modified_viewable_parent = 0;
 
-  void apply(btree_cursor_stats_t &stats) {
-    num_refresh_parent_total +=
-      stats.num_refresh_parent_total;
-    num_refresh_invalid_parent +=
-      stats.num_refresh_invalid_parent;
-    num_refresh_unviewable_parent +=
-      stats.num_refresh_unviewable_parent;
+  void
+  apply(btree_cursor_stats_t& stats)
+  {
+    num_refresh_parent_total += stats.num_refresh_parent_total;
+    num_refresh_invalid_parent += stats.num_refresh_invalid_parent;
+    num_refresh_unviewable_parent += stats.num_refresh_unviewable_parent;
     num_refresh_modified_viewable_parent +=
-      stats.num_refresh_modified_viewable_parent;
+        stats.num_refresh_modified_viewable_parent;
   }
 };
 
@@ -123,20 +145,26 @@ public:
     ABSENT,
     RETIRED
   };
-  get_extent_ret get_extent(paddr_t addr, CachedExtentRef *out) {
+
+  get_extent_ret
+  get_extent(paddr_t addr, CachedExtentRef* out)
+  {
     assert(addr.is_real_location() || addr.is_root());
     auto [result, ext] = do_get_extent(addr);
     // placeholder in read-set must be in the retired-set
     // at the same time, user should not see a placeholder.
-    assert(result != get_extent_ret::PRESENT ||
-           !is_retired_placeholder_type(ext->get_type()));
+    assert(
+        result != get_extent_ret::PRESENT ||
+        !is_retired_placeholder_type(ext->get_type()));
     if (out && result == get_extent_ret::PRESENT) {
       *out = ext;
     }
     return result;
   }
 
-  void add_absent_to_retired_set(CachedExtentRef ref) {
+  void
+  add_absent_to_retired_set(CachedExtentRef ref)
+  {
     assert(ref->get_paddr().is_absolute());
     bool added = do_add_to_read_set(ref);
     ceph_assert(added);
@@ -144,7 +172,10 @@ public:
   }
 
   using extent_cmp_t = read_set_item_t<Transaction>::extent_cmp_t;
-  void add_present_to_retired_set(CachedExtentRef ref) {
+
+  void
+  add_present_to_retired_set(CachedExtentRef ref)
+  {
     assert(ref->get_paddr().is_real_location());
     assert(!is_weak());
 #ifndef NDEBUG
@@ -152,8 +183,7 @@ public:
     assert(result == get_extent_ret::PRESENT);
     assert(ext == ref);
 #endif
-    if (ref->is_exist_clean() ||
-	ref->is_exist_mutation_pending()) {
+    if (ref->is_exist_clean() || ref->is_exist_mutation_pending()) {
       existing_block_stats.dec(ref);
       ref->set_invalid(*this);
       write_set.erase(*ref);
@@ -182,10 +212,13 @@ public:
     bool added;
     bool is_paddr_known;
   };
-  maybe_add_readset_ret maybe_add_to_read_set(CachedExtentRef ref) {
+
+  maybe_add_readset_ret
+  maybe_add_to_read_set(CachedExtentRef ref)
+  {
     assert(ref->is_stable());
-    assert(ref->get_paddr().is_absolute()
-           || ref->get_paddr().is_record_relative());
+    assert(
+        ref->get_paddr().is_absolute() || ref->get_paddr().is_record_relative());
     if (is_weak()) {
       return {false, true /* meaningless */};
     }
@@ -203,11 +236,15 @@ public:
     }
   }
 
-  bool is_in_read_set(CachedExtentRef extent) const {
+  bool
+  is_in_read_set(CachedExtentRef extent) const
+  {
     return lookup_trans_from_read_extent(extent).first;
   }
 
-  void add_to_read_set(CachedExtentRef ref) {
+  void
+  add_to_read_set(CachedExtentRef ref)
+  {
     if (is_weak()) {
       return;
     }
@@ -216,8 +253,9 @@ public:
     ceph_assert(added);
   }
 
-  void add_fresh_extent(
-    CachedExtentRef ref) {
+  void
+  add_fresh_extent(CachedExtentRef ref)
+  {
     assert(ref->get_paddr().is_real_location());
     ceph_assert(!is_weak());
     if (ref->is_exist_clean()) {
@@ -236,9 +274,9 @@ public:
     } else {
 #ifdef UNIT_TESTS_BUILT
       if (likely(ref->get_paddr() == make_record_relative_paddr(0))) {
-	ref->set_paddr(make_record_relative_paddr(offset));
+        ref->set_paddr(make_record_relative_paddr(offset));
       } else {
-	ceph_assert(ref->get_paddr().is_fake());
+        ceph_assert(ref->get_paddr().is_fake());
       }
 #else
       assert(ref->get_paddr() == make_record_relative_paddr(0));
@@ -253,27 +291,35 @@ public:
       fresh_backref_extents++;
   }
 
-  uint64_t get_num_fresh_backref() const {
+  uint64_t
+  get_num_fresh_backref() const
+  {
     return fresh_backref_extents;
   }
 
-  void mark_delayed_extent_inline(CachedExtentRef& ref) {
+  void
+  mark_delayed_extent_inline(CachedExtentRef& ref)
+  {
     write_set.erase(*ref);
     assert(ref->get_paddr().is_delayed());
-    ref->set_paddr(make_record_relative_paddr(offset),
-                   /* need_update_mapping: */ true);
+    ref->set_paddr(
+        make_record_relative_paddr(offset),
+        /* need_update_mapping: */ true);
     offset += ref->get_length();
     inline_block_list.push_back(ref);
     write_set.insert(*ref);
   }
 
-  void mark_delayed_extent_ool(CachedExtentRef& ref) {
+  void
+  mark_delayed_extent_ool(CachedExtentRef& ref)
+  {
     assert(ref->get_paddr().is_delayed());
     ool_block_list.push_back(ref);
   }
 
-  void update_delayed_ool_extent_addr(LogicalCachedExtentRef& ref,
-                                      paddr_t final_addr) {
+  void
+  update_delayed_ool_extent_addr(LogicalCachedExtentRef& ref, paddr_t final_addr)
+  {
     assert(ref->get_paddr().is_delayed());
     assert(final_addr.is_absolute());
     write_set.erase(*ref);
@@ -281,30 +327,38 @@ public:
     write_set.insert(*ref);
   }
 
-  void mark_allocated_extent_ool(CachedExtentRef& ref) {
+  void
+  mark_allocated_extent_ool(CachedExtentRef& ref)
+  {
     assert(ref->get_paddr().is_absolute());
     ool_block_list.push_back(ref);
   }
 
-  void mark_inplace_rewrite_extent_ool(LogicalCachedExtentRef ref) {
+  void
+  mark_inplace_rewrite_extent_ool(LogicalCachedExtentRef ref)
+  {
     assert(ref->get_paddr().is_absolute_random_block());
     inplace_ool_block_list.push_back(ref);
   }
 
-  void add_inplace_rewrite_extent(CachedExtentRef ref) {
-   ceph_assert(!is_weak());
-   ceph_assert(ref);
-   ceph_assert(ref->get_paddr().is_absolute_random_block());
-   assert(ref->state == CachedExtent::extent_state_t::DIRTY);
-   pre_inplace_rewrite_list.emplace_back(ref->cast<LogicalCachedExtent>());
+  void
+  add_inplace_rewrite_extent(CachedExtentRef ref)
+  {
+    ceph_assert(!is_weak());
+    ceph_assert(ref);
+    ceph_assert(ref->get_paddr().is_absolute_random_block());
+    assert(ref->state == CachedExtent::extent_state_t::DIRTY);
+    pre_inplace_rewrite_list.emplace_back(ref->cast<LogicalCachedExtent>());
   }
 
-  void add_mutated_extent(CachedExtentRef ref) {
+  void
+  add_mutated_extent(CachedExtentRef ref)
+  {
     ceph_assert(!is_weak());
-    assert(ref->get_paddr().is_absolute() ||
-           ref->get_paddr().is_root());
-    assert(ref->is_exist_mutation_pending() ||
-	   read_set.count(ref->prior_instance->get_paddr(), extent_cmp_t{}));
+    assert(ref->get_paddr().is_absolute() || ref->get_paddr().is_root());
+    assert(
+        ref->is_exist_mutation_pending() ||
+        read_set.count(ref->prior_instance->get_paddr(), extent_cmp_t{}));
     mutated_block_list.push_back(ref);
     if (ref->is_mutation_pending()) {
       write_set.insert(*ref);
@@ -315,7 +369,9 @@ public:
     }
   }
 
-  void replace_placeholder(CachedExtent& placeholder, CachedExtent& extent) {
+  void
+  replace_placeholder(CachedExtent& placeholder, CachedExtent& extent)
+  {
     LOG_PREFIX(Transaction::replace_placeholder);
     ceph_assert(!is_weak());
 
@@ -327,23 +383,24 @@ public:
     {
       auto where = read_set.find(placeholder.get_paddr(), extent_cmp_t{});
       if (unlikely(where == read_set.end())) {
-	SUBERRORT(seastore_t,
-	  "unable to find placeholder {}", *this, placeholder);
-	ceph_abort();
+        SUBERRORT(
+            seastore_t, "unable to find placeholder {}", *this, placeholder);
+        ceph_abort();
       }
       if (unlikely(where->ref.get() != &placeholder)) {
-	SUBERRORT(seastore_t,
-	  "inconsistent placeholder, current: {}; should-be: {}",
-	  *this, *where->ref.get(), placeholder);
-	ceph_abort();
+        SUBERRORT(
+            seastore_t, "inconsistent placeholder, current: {}; should-be: {}",
+            *this, *where->ref.get(), placeholder);
+        ceph_abort();
       }
       placeholder.read_transactions.erase(
-	read_trans_set_t<Transaction>::s_iterator_to(*where));
+          read_trans_set_t<Transaction>::s_iterator_to(*where));
       where = read_set.erase(where);
       // Note, the retired-placeholder is not removed from read_items after replace.
       read_items.emplace_back(this, &extent);
       auto it = read_set.insert_before(where, read_items.back());
-      extent.read_transactions.insert(const_cast<read_set_item_t<Transaction>&>(*it));
+      extent.read_transactions.insert(
+          const_cast<read_set_item_t<Transaction>&>(*it));
 #ifndef NDEBUG
       num_replace_placeholder++;
 #endif
@@ -357,7 +414,9 @@ public:
     }
   }
 
-  auto get_delayed_alloc_list() {
+  auto
+  get_delayed_alloc_list()
+  {
     std::list<CachedExtentRef> ret;
     for (auto& extent : delayed_alloc_list) {
       // delayed extents may be invalidated
@@ -371,35 +430,41 @@ public:
     return ret;
   }
 
-  auto get_valid_pre_alloc_list() {
+  auto
+  get_valid_pre_alloc_list()
+  {
     std::list<CachedExtentRef> ret;
     assert(num_allocated_invalid_extents == 0);
     for (auto& extent : pre_alloc_list) {
       if (extent->is_valid()) {
-	ret.push_back(extent);
+        ret.push_back(extent);
       } else {
-	++num_allocated_invalid_extents;
+        ++num_allocated_invalid_extents;
       }
     }
     for (auto& extent : pre_inplace_rewrite_list) {
       if (extent->is_valid()) {
-	ret.push_back(extent);
-      } 
+        ret.push_back(extent);
+      }
     }
     return ret;
   }
 
-  const auto &get_inline_block_list() {
+  const auto&
+  get_inline_block_list()
+  {
     return inline_block_list;
   }
 
-  bool is_stable_extent_retired(paddr_t paddr, extent_len_t len) {
+  bool
+  is_stable_extent_retired(paddr_t paddr, extent_len_t len)
+  {
     assert(paddr.is_absolute());
     auto iter = retired_set.lower_bound(paddr);
     if (iter == retired_set.end()) {
       return false;
     }
-    auto &extent = iter->extent;
+    auto& extent = iter->extent;
     if (extent->get_paddr() != paddr) {
       return false;
     } else {
@@ -408,8 +473,8 @@ public:
     }
   }
 
-  std::pair<bool, bool> pre_stable_extent_paddr_mod(
-    read_set_item_t<Transaction> &item)
+  std::pair<bool, bool>
+  pre_stable_extent_paddr_mod(read_set_item_t<Transaction>& item)
   {
     LOG_PREFIX(Transaction::pre_stable_extent_paddr_mod);
     SUBTRACET(seastore_t, "{}", *this, *item.ref);
@@ -423,7 +488,7 @@ public:
     if (!item.is_extent_attached_to_trans()) {
       return {false, false};
     }
-    auto &extent = *item.ref;
+    auto& extent = *item.ref;
     read_set.erase(read_extent_set_t<Transaction>::s_iterator_to(item));
     auto where1 = retired_set.find(extent.get_paddr());
     bool retired = (where1 != retired_set.end());
@@ -432,45 +497,50 @@ public:
     }
     return {true, retired};
   }
-  void post_stable_extent_paddr_mod(
-    read_set_item_t<Transaction> &item,
-    bool retired) {
+
+  void
+  post_stable_extent_paddr_mod(read_set_item_t<Transaction>& item, bool retired)
+  {
     read_set.insert(item);
     if (retired) {
       retired_set.emplace(item.ref, trans_id);
     }
   }
-  void maybe_update_pending_paddr(
-    const paddr_t &old_paddr,
-    const paddr_t &new_paddr,
-    extent_len_t len) {
+
+  void
+  maybe_update_pending_paddr(
+      const paddr_t& old_paddr,
+      const paddr_t& new_paddr,
+      extent_len_t len)
+  {
     assert(new_paddr.is_absolute());
 
     std::vector<CachedExtent*> exts;
     for (auto [bottom, top] = write_set.get_overlap(old_paddr, len);
-         bottom != top;
-         bottom++) {
-      auto &mextent = *bottom;
+         bottom != top; bottom++) {
+      auto& mextent = *bottom;
       if (mextent.is_initial_pending()) {
         continue;
       }
       exts.emplace_back(&mextent);
     }
     for (auto i : exts) {
-      auto &mextent = *i;
+      auto& mextent = *i;
       write_set.erase(mextent);
       extent_len_t off = 0;
       if (new_paddr.is_absolute_segmented()) {
-        assert(mextent.get_paddr().as_seg_paddr().get_segment_id()
-          == old_paddr.as_seg_paddr().get_segment_id());
-        assert(mextent.get_paddr().as_seg_paddr().get_segment_off()
-          >= old_paddr.as_seg_paddr().get_segment_off());
-        off = mextent.get_paddr().as_seg_paddr().get_segment_off()
-          - old_paddr.as_seg_paddr().get_segment_off();
+        assert(
+            mextent.get_paddr().as_seg_paddr().get_segment_id() ==
+            old_paddr.as_seg_paddr().get_segment_id());
+        assert(
+            mextent.get_paddr().as_seg_paddr().get_segment_off() >=
+            old_paddr.as_seg_paddr().get_segment_off());
+        off = mextent.get_paddr().as_seg_paddr().get_segment_off() -
+              old_paddr.as_seg_paddr().get_segment_off();
       } else {
         assert(new_paddr.is_absolute_random_block());
         off = mextent.get_paddr().as_blk_paddr().get_device_off() -
-          old_paddr.as_blk_paddr().get_device_off();
+              old_paddr.as_blk_paddr().get_device_off();
       }
       mextent.set_paddr(new_paddr + off);
       write_set.insert(mextent);
@@ -478,64 +548,84 @@ public:
   }
 
   template <typename F>
-  auto for_each_finalized_fresh_block(F &&f) const {
+  auto
+  for_each_finalized_fresh_block(F&& f) const
+  {
     std::for_each(ool_block_list.begin(), ool_block_list.end(), f);
     std::for_each(inline_block_list.begin(), inline_block_list.end(), f);
   }
 
   template <typename F>
-  auto for_each_existing_block(F &&f) {
+  auto
+  for_each_existing_block(F&& f)
+  {
     std::for_each(existing_block_list.begin(), existing_block_list.end(), f);
   }
 
-  const io_stat_t& get_fresh_block_stats() const {
+  const io_stat_t&
+  get_fresh_block_stats() const
+  {
     return fresh_block_stats;
   }
 
   using src_t = transaction_type_t;
-  src_t get_src() const {
+
+  src_t
+  get_src() const
+  {
     return src;
   }
 
-  bool is_weak() const {
+  bool
+  is_weak() const
+  {
     return weak;
   }
 
-  void test_set_conflict() {
+  void
+  test_set_conflict()
+  {
     conflicted = true;
   }
 
-  bool is_conflicted() const {
+  bool
+  is_conflicted() const
+  {
     return conflicted;
   }
 
-  auto &get_handle() {
+  auto&
+  get_handle()
+  {
     return handle;
   }
 
   Transaction(
-    OrderingHandle &&handle,
-    bool weak,
-    src_t src,
-    on_destruct_func_t&& f,
-    transaction_id_t trans_id,
-    cache_hint_t cache_hint
-  ) : weak(weak),
-      handle(std::move(handle)),
-      on_destruct(std::move(f)),
-      src(src),
-      trans_id(trans_id),
-      cache_hint(cache_hint)
+      OrderingHandle&& handle,
+      bool weak,
+      src_t src,
+      on_destruct_func_t&& f,
+      transaction_id_t trans_id,
+      cache_hint_t cache_hint) :
+    weak(weak),
+    handle(std::move(handle)),
+    on_destruct(std::move(f)),
+    src(src),
+    trans_id(trans_id),
+    cache_hint(cache_hint)
   {}
 
-  void invalidate_clear_write_set() {
-    for (auto &&i: write_set) {
+  void
+  invalidate_clear_write_set()
+  {
+    for (auto&& i : write_set) {
       i.set_invalid(*this);
     }
     write_set.clear();
   }
 
-  ~Transaction() {
+  ~Transaction()
+  {
     get_handle().exit();
     on_destruct(*this);
     invalidate_clear_write_set();
@@ -545,7 +635,9 @@ public:
   friend class crimson::os::seastore::SeaStore;
   friend class TransactionConflictCondition;
 
-  void reset_preserve_handle() {
+  void
+  reset_preserve_handle()
+  {
     root.reset();
     offset = 0;
     delayed_temp_offset = 0;
@@ -581,7 +673,9 @@ public:
     views.clear();
   }
 
-  bool did_reset() const {
+  bool
+  did_reset() const
+  {
     return has_reset;
   }
 
@@ -592,24 +686,36 @@ public:
     uint64_t num_updates = 0;
     int64_t extents_num_delta = 0;
 
-    bool is_clear() const {
-      return (depth == 0 &&
-              num_inserts == 0 &&
-              num_erases == 0 &&
-              num_updates == 0 &&
-	      extents_num_delta == 0);
+    bool
+    is_clear() const
+    {
+      return (
+          depth == 0 && num_inserts == 0 && num_erases == 0 &&
+          num_updates == 0 && extents_num_delta == 0);
     }
   };
-  tree_stats_t& get_onode_tree_stats() {
+
+  tree_stats_t&
+  get_onode_tree_stats()
+  {
     return onode_tree_stats;
   }
-  tree_stats_t& get_omap_tree_stats() {
+
+  tree_stats_t&
+  get_omap_tree_stats()
+  {
     return omap_tree_stats;
   }
-  tree_stats_t& get_lba_tree_stats() {
+
+  tree_stats_t&
+  get_lba_tree_stats()
+  {
     return lba_tree_stats;
   }
-  tree_stats_t& get_backref_tree_stats() {
+
+  tree_stats_t&
+  get_backref_tree_stats()
+  {
     return backref_tree_stats;
   }
 
@@ -618,20 +724,28 @@ public:
     uint64_t md_bytes = 0;
     uint64_t num_records = 0;
 
-    uint64_t get_data_bytes() const {
+    uint64_t
+    get_data_bytes() const
+    {
       return extents.bytes;
     }
 
-    bool is_clear() const {
-      return (extents.is_clear() &&
-              md_bytes == 0 &&
-              num_records == 0);
+    bool
+    is_clear() const
+    {
+      return (extents.is_clear() && md_bytes == 0 && num_records == 0);
     }
   };
-  ool_write_stats_t& get_ool_write_stats() {
+
+  ool_write_stats_t&
+  get_ool_write_stats()
+  {
     return ool_write_stats;
   }
-  rewrite_stats_t& get_rewrite_stats() {
+
+  rewrite_stats_t&
+  get_rewrite_stats()
+  {
     return rewrite_stats;
   }
 
@@ -639,53 +753,77 @@ public:
     uint64_t valid_num = 0;
     uint64_t clean_num = 0;
     uint64_t mutated_num = 0;
-    void inc(const CachedExtentRef &ref) {
+
+    void
+    inc(const CachedExtentRef& ref)
+    {
       valid_num++;
       if (ref->is_exist_clean()) {
-	clean_num++;
+        clean_num++;
       } else {
-	mutated_num++;
+        mutated_num++;
       }
     }
-    void dec(const CachedExtentRef &ref) {
+
+    void
+    dec(const CachedExtentRef& ref)
+    {
       valid_num--;
       if (ref->is_exist_clean()) {
-	clean_num--;
+        clean_num--;
       } else {
-	mutated_num--;
+        mutated_num--;
       }
     }
   };
-  existing_block_stats_t& get_existing_block_stats() {
+
+  existing_block_stats_t&
+  get_existing_block_stats()
+  {
     return existing_block_stats;
   }
 
-  transaction_id_t get_trans_id() const {
+  transaction_id_t
+  get_trans_id() const
+  {
     return trans_id;
   }
 
   using view_ref = std::unique_ptr<trans_spec_view_t>;
-  template <typename T, typename... Args,
-	   std::enable_if_t<std::is_base_of_v<trans_spec_view_t, T>, int> = 0>
-  T& add_transactional_view(Args&&... args) {
-    auto &view = views.emplace_back(
-      std::make_unique<T>(std::forward<Args>(args)...));
+
+  template <
+      typename T,
+      typename... Args,
+      std::enable_if_t<std::is_base_of_v<trans_spec_view_t, T>, int> = 0>
+  T&
+  add_transactional_view(Args&&... args)
+  {
+    auto& view =
+        views.emplace_back(std::make_unique<T>(std::forward<Args>(args)...));
     return static_cast<T&>(*view);
   }
 
-  void set_pending_ool(seastar::lw_shared_ptr<rbm_pending_ool_t> ptr) {
+  void
+  set_pending_ool(seastar::lw_shared_ptr<rbm_pending_ool_t> ptr)
+  {
     pending_ool = ptr;
   }
 
-  seastar::lw_shared_ptr<rbm_pending_ool_t> get_pending_ool() {
+  seastar::lw_shared_ptr<rbm_pending_ool_t>
+  get_pending_ool()
+  {
     return pending_ool;
   }
 
-  const auto& get_pre_alloc_list() {
+  const auto&
+  get_pre_alloc_list()
+  {
     return pre_alloc_list;
   }
 
-  cache_hint_t get_cache_hint() const {
+  cache_hint_t
+  get_cache_hint() const
+  {
     return cache_hint;
   }
 
@@ -696,7 +834,9 @@ private:
   friend class Cache;
   friend Ref make_test_transaction();
 
-  void clear_read_set() {
+  void
+  clear_read_set()
+  {
     read_items.clear();
     assert(read_set.empty());
 #ifndef NDEBUG
@@ -705,27 +845,27 @@ private:
     // Automatically unlink this transaction from CachedExtent::read_transactions
   }
 
-  std::pair<get_extent_ret, CachedExtentRef> do_get_extent(paddr_t addr) {
+  std::pair<get_extent_ret, CachedExtentRef>
+  do_get_extent(paddr_t addr)
+  {
     LOG_PREFIX(Transaction::do_get_extent);
     // it's possible that both write_set and retired_set contain
     // this addr at the same time when addr is absolute and the
     // corresponding extent is used to map existing extent on disk.
     // So search write_set first.
-    if (auto iter = write_set.find_offset(addr);
-	iter != write_set.end()) {
+    if (auto iter = write_set.find_offset(addr); iter != write_set.end()) {
       auto ret = CachedExtentRef(&*iter);
-      SUBTRACET(seastore_cache, "{} is present in write_set -- {}",
-                *this, addr, *ret);
+      SUBTRACET(
+          seastore_cache, "{} is present in write_set -- {}", *this, addr, *ret);
       assert(ret->is_valid());
       return {get_extent_ret::PRESENT, ret};
     } else if (retired_set.count(addr)) {
       return {get_extent_ret::RETIRED, nullptr};
-    } else if (
-      auto iter = read_set.find(addr, extent_cmp_t{});
-      iter != read_set.end()) {
+    } else if (auto iter = read_set.find(addr, extent_cmp_t{});
+               iter != read_set.end()) {
       auto ret = iter->ref;
-      SUBTRACET(seastore_cache, "{} is present in read_set -- {}",
-                *this, addr, *ret);
+      SUBTRACET(
+          seastore_cache, "{} is present in read_set -- {}", *this, addr, *ret);
       return {get_extent_ret::PRESENT, ret};
     } else {
       return {get_extent_ret::ABSENT, nullptr};
@@ -733,17 +873,19 @@ private:
   }
 
   std::pair<bool, read_trans_set_t<Transaction>::iterator>
-  lookup_trans_from_read_extent(CachedExtentRef ref) const {
+  lookup_trans_from_read_extent(CachedExtentRef ref) const
+  {
     assert(ref->is_valid());
     assert(!is_weak());
     auto it = ref->read_transactions.lower_bound(
-      this, read_set_item_t<Transaction>::trans_cmp_t());
-    bool exists =
-      (it != ref->read_transactions.end() && it->t == this);
+        this, read_set_item_t<Transaction>::trans_cmp_t());
+    bool exists = (it != ref->read_transactions.end() && it->t == this);
     return std::make_pair(exists, it);
   }
 
-  bool maybe_add_to_read_set_step_1(CachedExtentRef ref) {
+  bool
+  maybe_add_to_read_set_step_1(CachedExtentRef ref)
+  {
     assert(!is_weak());
     assert(ref->is_stable());
     auto [exists, it] = lookup_trans_from_read_extent(ref);
@@ -756,14 +898,15 @@ private:
     // so that transaction invalidation can populate
     assert(!read_set.count(ref->get_paddr(), extent_cmp_t{}));
     read_items.emplace_back(this, ref);
-    ref->read_transactions.insert_before(
-      it, read_items.back());
+    ref->read_transactions.insert_before(it, read_items.back());
 
     // added
     return true;
   }
 
-  void maybe_add_to_read_set_step_2(CachedExtentRef ref) {
+  void
+  maybe_add_to_read_set_step_2(CachedExtentRef ref)
+  {
     // paddr must be known for read_set
     assert(ref->is_stable_ready());
     ceph_assert(ref->get_paddr().is_absolute());
@@ -786,12 +929,13 @@ private:
     assert(inserted);
   }
 
-  bool do_add_to_read_set(CachedExtentRef ref) {
+  bool
+  do_add_to_read_set(CachedExtentRef ref)
+  {
     assert(!is_weak());
     assert(ref->is_stable());
     // paddr must be known for read_set
-    assert(ref->get_paddr().is_absolute()
-           || ref->get_paddr().is_root());
+    assert(ref->get_paddr().is_absolute() || ref->get_paddr().is_root());
 
     if (!maybe_add_to_read_set_step_1(ref)) {
       // step 2 must be complete if exist
@@ -808,12 +952,16 @@ private:
     return true;
   }
 
-  void set_backref_entries(backref_entry_refs_t&& entries) {
+  void
+  set_backref_entries(backref_entry_refs_t&& entries)
+  {
     assert(backref_entries.empty());
     backref_entries = std::move(entries);
   }
 
-  backref_entry_refs_t move_backref_entries() {
+  backref_entry_refs_t
+  move_backref_entries()
+  {
     return std::move(backref_entries);
   }
 
@@ -823,7 +971,7 @@ private:
    */
   const bool weak;
 
-  RootBlockRef root;        ///< ref to root if read or written by transaction
+  RootBlockRef root; ///< ref to root if read or written by transaction
 
   device_off_t offset = 0; ///< relative offset of next block
   device_off_t delayed_temp_offset = 0;
@@ -920,23 +1068,23 @@ private:
 
   cache_hint_t cache_hint = CACHE_HINT_TOUCH;
 };
+
 using TransactionRef = Transaction::Ref;
 
 /// Should only be used with dummy staged-fltree node extent manager
-inline TransactionRef make_test_transaction() {
+inline TransactionRef
+make_test_transaction()
+{
   static transaction_id_t next_id = 0;
   return std::make_unique<Transaction>(
-    get_dummy_ordering_handle(),
-    false,
-    Transaction::src_t::MUTATE,
-    [](Transaction&) {},
-    ++next_id,
-    CACHE_HINT_TOUCH
-  );
+      get_dummy_ordering_handle(), false, Transaction::src_t::MUTATE,
+      [](Transaction&) {}, ++next_id, CACHE_HINT_TOUCH);
 }
 
-}
+} // namespace crimson::os::seastore
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::os::seastore::io_stat_t> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::os::seastore::io_stat_t>
+  : fmt::ostream_formatter {};
 #endif

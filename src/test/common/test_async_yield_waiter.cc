@@ -13,39 +13,44 @@
  *
  */
 
-#include "common/async/yield_waiter.h"
+#include <gtest/gtest.h>
+
 #include <exception>
 #include <memory>
 #include <optional>
 #include <thread>
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/spawn.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/yield_waiter.h"
 
 namespace ceph::async {
 
 namespace asio = boost::asio;
 using error_code = boost::system::error_code;
 
-void rethrow(std::exception_ptr eptr)
+void
+rethrow(std::exception_ptr eptr)
 {
-  if (eptr) std::rethrow_exception(eptr);
+  if (eptr)
+    std::rethrow_exception(eptr);
 }
 
-auto capture(std::optional<std::exception_ptr>& eptr)
+auto
+capture(std::optional<std::exception_ptr>& eptr)
 {
-  return [&eptr] (std::exception_ptr e) { eptr = e; };
+  return [&eptr](std::exception_ptr e) { eptr = e; };
 }
-
 
 TEST(YieldWaiterVoid, wait_shutdown)
 {
   asio::io_context ctx;
   yield_waiter<void> waiter;
 
-  asio::spawn(ctx, [&waiter] (asio::yield_context yield) {
-        waiter.async_wait(yield);
-      }, rethrow);
+  asio::spawn(
+      ctx, [&waiter](asio::yield_context yield) { waiter.async_wait(yield); },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -56,9 +61,9 @@ TEST(YieldWaiterVoid, wait_complete)
   asio::io_context ctx;
   yield_waiter<void> waiter;
 
-  asio::spawn(ctx, [&waiter] (asio::yield_context yield) {
-        waiter.async_wait(yield);
-      }, rethrow);
+  asio::spawn(
+      ctx, [&waiter](asio::yield_context yield) { waiter.async_wait(yield); },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -77,9 +82,9 @@ TEST(YieldWaiterVoid, wait_error)
   yield_waiter<void> waiter;
   std::optional<std::exception_ptr> eptr;
 
-  asio::spawn(ctx, [&waiter] (asio::yield_context yield) {
-        waiter.async_wait(yield);
-      }, capture(eptr));
+  asio::spawn(
+      ctx, [&waiter](asio::yield_context yield) { waiter.async_wait(yield); },
+      capture(eptr));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -101,15 +106,14 @@ TEST(YieldWaiterVoid, wait_error)
   }
 }
 
-
 TEST(YieldWaiterInt, wait_shutdown)
 {
   asio::io_context ctx;
   yield_waiter<int> waiter;
 
-  asio::spawn(ctx, [&waiter] (asio::yield_context yield) {
-        waiter.async_wait(yield);
-      }, rethrow);
+  asio::spawn(
+      ctx, [&waiter](asio::yield_context yield) { waiter.async_wait(yield); },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -121,9 +125,12 @@ TEST(YieldWaiterInt, wait_complete)
   yield_waiter<int> waiter;
   std::optional<int> result;
 
-  asio::spawn(ctx, [&waiter, &result] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&waiter, &result](asio::yield_context yield) {
         result = waiter.async_wait(yield);
-      }, rethrow);
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -145,9 +152,12 @@ TEST(YieldWaiterInt, wait_error)
   std::optional<int> result;
   std::optional<std::exception_ptr> eptr;
 
-  asio::spawn(ctx, [&waiter, &result] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&waiter, &result](asio::yield_context yield) {
         result = waiter.async_wait(yield);
-      }, capture(eptr));
+      },
+      capture(eptr));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -170,16 +180,15 @@ TEST(YieldWaiterInt, wait_error)
   }
 }
 
-
 // test with move-only value type
 TEST(YieldWaiterPtr, wait_shutdown)
 {
   asio::io_context ctx;
   yield_waiter<std::unique_ptr<int>> waiter;
 
-  asio::spawn(ctx, [&waiter] (asio::yield_context yield) {
-        waiter.async_wait(yield);
-      }, rethrow);
+  asio::spawn(
+      ctx, [&waiter](asio::yield_context yield) { waiter.async_wait(yield); },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -191,9 +200,12 @@ TEST(YieldWaiterPtr, wait_complete)
   yield_waiter<std::unique_ptr<int>> waiter;
   std::optional<std::unique_ptr<int>> result;
 
-  asio::spawn(ctx, [&waiter, &result] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&waiter, &result](asio::yield_context yield) {
         result = waiter.async_wait(yield);
-      }, rethrow);
+      },
+      rethrow);
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
@@ -216,15 +228,19 @@ TEST(YieldWaiterPtr, wait_error)
   std::optional<std::unique_ptr<int>> result;
   std::optional<std::exception_ptr> eptr;
 
-  asio::spawn(ctx, [&waiter, &result] (asio::yield_context yield) {
+  asio::spawn(
+      ctx,
+      [&waiter, &result](asio::yield_context yield) {
         result = waiter.async_wait(yield);
-      }, capture(eptr));
+      },
+      capture(eptr));
 
   ctx.poll();
   ASSERT_FALSE(ctx.stopped());
 
   ASSERT_TRUE(waiter);
-  waiter.complete(make_error_code(std::errc::no_such_file_or_directory), nullptr);
+  waiter.complete(
+      make_error_code(std::errc::no_such_file_or_directory), nullptr);
   EXPECT_FALSE(waiter);
 
   ctx.poll();
@@ -241,10 +257,10 @@ TEST(YieldWaiterPtr, wait_error)
   }
 }
 
-void invoke_callback(int expected_reply, std::function<void(int)> cb) {
-  auto t = std::thread([cb, expected_reply] {
-      cb(expected_reply);
-  }); 
+void
+invoke_callback(int expected_reply, std::function<void(int)> cb)
+{
+  auto t = std::thread([cb, expected_reply] { cb(expected_reply); });
   t.detach();
 }
 
@@ -252,18 +268,21 @@ TEST(YieldWaiterInt, mt_wait_complete)
 {
   boost::asio::io_context io_context;
   int reply;
-  const int expected_reply = 42; 
-  boost::asio::spawn(io_context,
+  const int expected_reply = 42;
+  boost::asio::spawn(
+      io_context,
       [&reply](boost::asio::yield_context yield) {
         yield_waiter<int> waiter;
-        boost::asio::defer(yield.get_executor(),[&waiter] {
-            invoke_callback(expected_reply, [&waiter](int r) {waiter.complete(boost::system::error_code{}, r);});
+        boost::asio::defer(yield.get_executor(), [&waiter] {
+          invoke_callback(expected_reply, [&waiter](int r) {
+            waiter.complete(boost::system::error_code{}, r);
           });
+        });
         reply = waiter.async_wait(yield);
-      }, rethrow);
-  io_context.run(); 
+      },
+      rethrow);
+  io_context.run();
   EXPECT_EQ(reply, expected_reply);
 }
 
 } // namespace ceph::async
-

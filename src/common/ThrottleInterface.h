@@ -8,6 +8,7 @@
 class ThrottleInterface {
 public:
   virtual ~ThrottleInterface() {}
+
   /**
    * take the specified number of slots from the stock regardless the throttling
    * @param c number of slots to take

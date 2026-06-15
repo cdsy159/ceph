@@ -13,16 +13,16 @@
  */
 
 
-#include "common/ceph_argparse.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include "common/JSONFormatter.h"
-
-#include "mds/SessionMap.h"
-#include "mds/InoTable.h"
-#include "mds/SnapServer.h"
-
 #include "TableTool.h"
+
+#include "common/debug.h"
+
+#include "common/JSONFormatter.h"
+#include "common/ceph_argparse.h"
+#include "common/errno.h"
+#include "mds/InoTable.h"
+#include "mds/SessionMap.h"
+#include "mds/SnapServer.h"
 
 
 #define dout_context g_ceph_context
@@ -32,23 +32,27 @@
 
 using namespace std;
 
-void TableTool::usage()
+void
+TableTool::usage()
 {
   std::cout << "Usage: \n"
-    << "  cephfs-table-tool <all|[mds rank]> <reset|show> <session|snap|inode>"
-    << "  cephfs-table-tool <all|[mds rank]> <take_inos> <max_ino>"
-    << std::endl;
+            << "  cephfs-table-tool <all|[mds rank]> <reset|show> "
+               "<session|snap|inode>"
+            << "  cephfs-table-tool <all|[mds rank]> <take_inos> <max_ino>"
+            << std::endl;
 
   generic_client_usage();
 }
-
 
 /**
  * For a function that takes an MDS role as an argument and
  * returns an error code, execute it on the roles specified
  * by `role_selector`.
  */
-int TableTool::apply_role_fn(std::function<int(mds_role_t, Formatter *)> fptr, Formatter *f)
+int
+TableTool::apply_role_fn(
+    std::function<int(mds_role_t, Formatter*)> fptr,
+    Formatter* f)
 {
   ceph_assert(f != NULL);
 
@@ -81,7 +85,7 @@ int TableTool::apply_role_fn(std::function<int(mds_role_t, Formatter *)> fptr, F
   }
 
   f->close_section();
-  
+
   // Display final summary at the end (only if multiple ranks)
   if (roles.size() > 1) {
     progress_tracker->display_final_summary();
@@ -95,15 +99,13 @@ int TableTool::apply_role_fn(std::function<int(mds_role_t, Formatter *)> fptr, F
   return r;
 }
 
-
 /**
  * This class wraps an MDS table class (SessionMap, SnapServer, InoTable)
  * with offline load/store code such that we can do offline dumps and resets
  * on those tables.
  */
 template <typename A>
-class TableHandler
-{
+class TableHandler {
 protected:
   // The RADOS object ID for the table
   std::string object_name;
@@ -115,8 +117,8 @@ protected:
   bool mds_table;
 
 public:
-  TableHandler(mds_role_t r, std::string const &name, bool mds_table_)
-    : role(r), mds_table(mds_table_)
+  TableHandler(mds_role_t r, std::string const& name, bool mds_table_) :
+    role(r), mds_table(mds_table_)
   {
     // Compose object name of the table we will dump
     std::ostringstream oss;
@@ -128,7 +130,8 @@ public:
     object_name = oss.str();
   }
 
-  int load_and_dump(librados::IoCtx *io, Formatter *f)
+  int
+  load_and_dump(librados::IoCtx* io, Formatter* f)
   {
     ceph_assert(io != NULL);
     ceph_assert(f != NULL);
@@ -150,18 +153,19 @@ public:
         table_inst.dump(f);
 
         return 0;
-      } catch (buffer::error &e) {
+      } catch (buffer::error& e) {
         derr << "table " << object_name << " is corrupt" << dendl;
         return -EIO;
       }
     } else {
-      derr << "error reading table object " << object_name
-        << ": " << cpp_strerror(read_r) << dendl;
+      derr << "error reading table object " << object_name << ": "
+           << cpp_strerror(read_r) << dendl;
       return read_r;
     }
   }
 
-  int reset(librados::IoCtx *io)
+  int
+  reset(librados::IoCtx* io)
   {
     A table_inst;
     // Compose new (blank) table
@@ -172,8 +176,8 @@ public:
   }
 
 protected:
-
-  int write(const A &table_inst, librados::IoCtx *io)
+  int
+  write(const A& table_inst, librados::IoCtx* io)
   {
     bufferlist new_bl;
     if (mds_table) {
@@ -185,8 +189,8 @@ protected:
     // Write out new table
     int r = io->write_full(object_name, new_bl);
     if (r != 0) {
-      derr << "error writing table object " << object_name
-        << ": " << cpp_strerror(r) << dendl;
+      derr << "error writing table object " << object_name << ": "
+           << cpp_strerror(r) << dendl;
       return r;
     }
 
@@ -195,8 +199,7 @@ protected:
 };
 
 template <typename A>
-class TableHandlerOmap
-{
+class TableHandlerOmap {
 private:
   // The RADOS object ID for the table
   std::string object_name;
@@ -208,8 +211,8 @@ private:
   bool mds_table;
 
 public:
-  TableHandlerOmap(mds_role_t r, std::string const &name, bool mds_table_)
-    : role(r), mds_table(mds_table_)
+  TableHandlerOmap(mds_role_t r, std::string const& name, bool mds_table_) :
+    role(r), mds_table(mds_table_)
   {
     // Compose object name of the table we will dump
     std::ostringstream oss;
@@ -221,7 +224,8 @@ public:
     object_name = oss.str();
   }
 
-  int load_and_dump(librados::IoCtx *io, Formatter *f)
+  int
+  load_and_dump(librados::IoCtx* io, Formatter* f)
   {
     ceph_assert(io != NULL);
     ceph_assert(f != NULL);
@@ -230,8 +234,8 @@ public:
     bufferlist header_bl;
     int r = io->omap_get_header(object_name, &header_bl);
     if (r != 0) {
-      derr << "error reading header on '" << object_name << "': "
-           << cpp_strerror(r) << dendl;
+      derr << "error reading header on '" << object_name
+           << "': " << cpp_strerror(r) << dendl;
       return r;
     }
 
@@ -240,17 +244,17 @@ public:
     table_inst.set_rank(role.rank);
     try {
       table_inst.decode_header(header_bl);
-    } catch (buffer::error &e) {
+    } catch (buffer::error& e) {
       derr << "table " << object_name << " is corrupt" << dendl;
       return -EIO;
     }
 
     // Read and decode OMAP values in chunks
     std::string last_key = "";
-    while(true) {
+    while (true) {
       std::map<std::string, bufferlist> values;
-      int r = io->omap_get_vals(object_name, last_key,
-          g_conf()->mds_sessionmap_keys_per_op, &values);
+      int r = io->omap_get_vals(
+          object_name, last_key, g_conf()->mds_sessionmap_keys_per_op, &values);
 
       if (r != 0) {
         derr << "error reading values: " << cpp_strerror(r) << dendl;
@@ -263,7 +267,7 @@ public:
 
       try {
         table_inst.decode_values(values);
-      } catch (buffer::error &e) {
+      } catch (buffer::error& e) {
         derr << "table " << object_name << " is corrupt" << dendl;
         return -EIO;
       }
@@ -275,7 +279,8 @@ public:
     return 0;
   }
 
-  int reset(librados::IoCtx *io)
+  int
+  reset(librados::IoCtx* io)
   {
     A table_inst;
     table_inst.set_rank(role.rank);
@@ -288,19 +293,19 @@ public:
     op.omap_clear();
     op.set_op_flags2(LIBRADOS_OP_FLAG_FAILOK);
     op.omap_set_header(header_bl);
-    
+
     return io->operate(object_name, &op);
   }
 };
 
-class InoTableHandler : public TableHandler<InoTable>
-{
-  public:
-  explicit InoTableHandler(mds_role_t r)
-    : TableHandler(r, "inotable", true)
+class InoTableHandler : public TableHandler<InoTable> {
+public:
+  explicit InoTableHandler(mds_role_t r) :
+    TableHandler(r, "inotable", true)
   {}
 
-  int take_inos(librados::IoCtx *io, inodeno_t max, Formatter *f)
+  int
+  take_inos(librados::IoCtx* io, inodeno_t max, Formatter* f)
   {
     InoTable inst;
     inst.set_rank(role.rank);
@@ -318,8 +323,8 @@ class InoTableHandler : public TableHandler<InoTable>
   }
 };
 
-
-int TableTool::main(std::vector<const char*> &argv)
+int
+TableTool::main(std::vector<const char*>& argv)
 {
   int r;
 
@@ -377,13 +382,18 @@ int TableTool::main(std::vector<const char*> &argv)
   if (mode == "reset") {
     const std::string table = std::string(argv[2]);
     if (table == "session") {
-      r = apply_role_fn([this](mds_role_t rank, Formatter *f) -> int {
-            return TableHandlerOmap<SessionMapStore>(rank, "sessionmap", false).reset(&io);
-      }, &jf);
+      r = apply_role_fn(
+          [this](mds_role_t rank, Formatter* f) -> int {
+            return TableHandlerOmap<SessionMapStore>(rank, "sessionmap", false)
+                .reset(&io);
+          },
+          &jf);
     } else if (table == "inode") {
-      r = apply_role_fn([this](mds_role_t rank, Formatter *f) -> int {
+      r = apply_role_fn(
+          [this](mds_role_t rank, Formatter* f) -> int {
             return TableHandler<InoTable>(rank, "inotable", true).reset(&io);
-      }, &jf);
+          },
+          &jf);
     } else if (table == "snap") {
       r = TableHandler<SnapServer>(mds_role_t(), "snaptable", true).reset(&io);
       jf.open_object_section("reset_snap_status");
@@ -396,18 +406,25 @@ int TableTool::main(std::vector<const char*> &argv)
   } else if (mode == "show") {
     const std::string table = std::string(argv[2]);
     if (table == "session") {
-      r = apply_role_fn([this](mds_role_t rank, Formatter *f) -> int {
-        return TableHandlerOmap<SessionMapStore>(rank, "sessionmap", false).load_and_dump(&io, f);
-      }, &jf);
+      r = apply_role_fn(
+          [this](mds_role_t rank, Formatter* f) -> int {
+            return TableHandlerOmap<SessionMapStore>(rank, "sessionmap", false)
+                .load_and_dump(&io, f);
+          },
+          &jf);
     } else if (table == "inode") {
-      r = apply_role_fn([this](mds_role_t rank, Formatter *f) -> int {
-        return TableHandler<InoTable>(rank, "inotable", true).load_and_dump(&io, f);;
-      }, &jf);
+      r = apply_role_fn(
+          [this](mds_role_t rank, Formatter* f) -> int {
+            return TableHandler<InoTable>(rank, "inotable", true)
+                .load_and_dump(&io, f);
+            ;
+          },
+          &jf);
     } else if (table == "snap") {
       jf.open_object_section("show_snap_table");
       {
-        r = TableHandler<SnapServer>(
-            mds_role_t(), "snaptable", true).load_and_dump(&io, &jf);
+        r = TableHandler<SnapServer>(mds_role_t(), "snaptable", true)
+                .load_and_dump(&io, &jf);
         jf.dump_int("result", r);
       }
       jf.close_section();
@@ -423,9 +440,11 @@ int TableTool::main(std::vector<const char*> &argv)
       derr << "Bad ino '" << ino_str << "'" << dendl;
       return -EINVAL;
     }
-    r = apply_role_fn([this, ino](mds_role_t rank, Formatter *f) -> int {
-      return InoTableHandler(rank).take_inos(&io, ino, f);
-    }, &jf);
+    r = apply_role_fn(
+        [this, ino](mds_role_t rank, Formatter* f) -> int {
+          return InoTableHandler(rank).take_inos(&io, ino, f);
+        },
+        &jf);
   } else {
     cerr << "Invalid mode '" << mode << "'" << std::endl;
     return -EINVAL;
@@ -436,4 +455,3 @@ int TableTool::main(std::vector<const char*> &argv)
   std::cout << std::endl;
   return r;
 }
-

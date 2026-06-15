@@ -1,20 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "auth/AuthRegistry.h"
+#include "rgw_tools.h"
 
+#include "auth/AuthRegistry.h"
 #include "common/errno.h"
+#include "include/stringify.h"
 #include "librados/AioCompletionImpl.h"
 #include "librados/librados_asio.h"
+#include "services/svc_sys_obj.h"
 
-#include "include/stringify.h"
-
-#include "rgw_tools.h"
 #include "rgw_acl_s3.h"
 #include "rgw_aio_throttle.h"
 #include "rgw_asio_thread.h"
 #include "rgw_compression.h"
-#include "services/svc_sys_obj.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -22,22 +21,27 @@
 
 using namespace std;
 
-int rgw_init_ioctx(const DoutPrefixProvider *dpp,
-                   librados::Rados *rados, const rgw_pool& pool,
-                   librados::IoCtx& ioctx, bool create,
-                   bool mostly_omap,
-                   bool bulk)
+int
+rgw_init_ioctx(
+    const DoutPrefixProvider* dpp,
+    librados::Rados* rados,
+    const rgw_pool& pool,
+    librados::IoCtx& ioctx,
+    bool create,
+    bool mostly_omap,
+    bool bulk)
 {
   int r = rados->ioctx_create(pool.name.c_str(), ioctx);
   if (r == -ENOENT && create) {
     r = rados->pool_create(pool.name.c_str());
     if (r == -ERANGE) {
-      ldpp_dout(dpp, 0)
-        << __func__
-        << " ERROR: librados::Rados::pool_create returned " << cpp_strerror(-r)
-        << " (this can be due to a pool or placement group misconfiguration, e.g."
-        << " pg_num < pgp_num or mon_max_pg_per_osd exceeded)"
-        << dendl;
+      ldpp_dout(dpp, 0) << __func__
+                        << " ERROR: librados::Rados::pool_create returned "
+                        << cpp_strerror(-r)
+                        << " (this can be due to a pool or placement group "
+                           "misconfiguration, e.g."
+                        << " pg_num < pgp_num or mon_max_pg_per_osd exceeded)"
+                        << dendl;
     }
     if (r < 0 && r != -EEXIST) {
       return r;
@@ -57,35 +61,36 @@ int rgw_init_ioctx(const DoutPrefixProvider *dpp,
       // set pg_autoscale_bias
       float bias = g_conf().get_val<double>("rgw_rados_pool_autoscale_bias");
       int r = rados->mon_command(
-	"{\"prefix\": \"osd pool set\", \"pool\": \"" +
-	pool.name + "\", \"var\": \"pg_autoscale_bias\", \"val\": \"" +
-	stringify(bias) + "\"}",
-	{}, NULL, NULL);
+          "{\"prefix\": \"osd pool set\", \"pool\": \"" + pool.name +
+              "\", \"var\": \"pg_autoscale_bias\", \"val\": \"" +
+              stringify(bias) + "\"}",
+          {}, NULL, NULL);
       if (r < 0) {
-	ldpp_dout(dpp, 10) << __func__ << " warning: failed to set pg_autoscale_bias on "
-		 << pool.name << dendl;
+        ldpp_dout(dpp, 10) << __func__
+                           << " warning: failed to set pg_autoscale_bias on "
+                           << pool.name << dendl;
       }
       // set recovery_priority
       int p = g_conf().get_val<uint64_t>("rgw_rados_pool_recovery_priority");
       r = rados->mon_command(
-	"{\"prefix\": \"osd pool set\", \"pool\": \"" +
-	pool.name + "\", \"var\": \"recovery_priority\": \"" +
-	stringify(p) + "\"}",
-	{}, NULL, NULL);
+          "{\"prefix\": \"osd pool set\", \"pool\": \"" + pool.name +
+              "\", \"var\": \"recovery_priority\": \"" + stringify(p) + "\"}",
+          {}, NULL, NULL);
       if (r < 0) {
-	ldpp_dout(dpp, 10) << __func__ << " warning: failed to set recovery_priority on "
-		 << pool.name << dendl;
+        ldpp_dout(dpp, 10) << __func__
+                           << " warning: failed to set recovery_priority on "
+                           << pool.name << dendl;
       }
     }
     if (bulk) {
       // set bulk
       int r = rados->mon_command(
-        "{\"prefix\": \"osd pool set\", \"pool\": \"" +
-        pool.name + "\", \"var\": \"bulk\", \"val\": \"true\"}",
-        {}, NULL, NULL);
+          "{\"prefix\": \"osd pool set\", \"pool\": \"" + pool.name +
+              "\", \"var\": \"bulk\", \"val\": \"true\"}",
+          {}, NULL, NULL);
       if (r < 0) {
         ldpp_dout(dpp, 10) << __func__ << " warning: failed to set 'bulk' on "
-                 << pool.name << dendl;
+                           << pool.name << dendl;
       }
     }
   } else if (r < 0) {
@@ -99,16 +104,19 @@ int rgw_init_ioctx(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int rgw_get_rados_ref(const DoutPrefixProvider* dpp, librados::Rados* rados,
-		      rgw_raw_obj obj, rgw_rados_ref* ref)
+int
+rgw_get_rados_ref(
+    const DoutPrefixProvider* dpp,
+    librados::Rados* rados,
+    rgw_raw_obj obj,
+    rgw_rados_ref* ref)
 {
   ref->obj = std::move(obj);
 
-  int r = rgw_init_ioctx(dpp, rados, ref->obj.pool,
-			 ref->ioctx, true, false);
+  int r = rgw_init_ioctx(dpp, rados, ref->obj.pool, ref->ioctx, true, false);
   if (r < 0) {
     ldpp_dout(dpp, 0) << "ERROR: creating ioctx (pool=" << ref->obj.pool
-        << "); r=" << r << dendl;
+                      << "); r=" << r << dendl;
     return r;
   }
 
@@ -116,14 +124,18 @@ int rgw_get_rados_ref(const DoutPrefixProvider* dpp, librados::Rados* rados,
   return 0;
 }
 
-int rgw_rados_ref::watch(const DoutPrefixProvider* dpp, uint64_t* handle,
-                         librados::WatchCtx2* ctx, optional_yield y)
+int
+rgw_rados_ref::watch(
+    const DoutPrefixProvider* dpp,
+    uint64_t* handle,
+    librados::WatchCtx2* ctx,
+    optional_yield y)
 {
   if (y) {
     auto& yield = y.get_yield_context();
     boost::system::error_code ec;
-    librados::async_watch(yield.get_executor(), ioctx, obj.oid,
-                          handle, ctx, 0, yield[ec]);
+    librados::async_watch(
+        yield.get_executor(), ioctx, obj.oid, handle, ctx, 0, yield[ec]);
     return ceph::from_error_code(ec);
   } else {
     maybe_warn_about_blocking(dpp);
@@ -131,8 +143,11 @@ int rgw_rados_ref::watch(const DoutPrefixProvider* dpp, uint64_t* handle,
   }
 }
 
-int rgw_rados_ref::unwatch(const DoutPrefixProvider* dpp, uint64_t handle,
-                           optional_yield y)
+int
+rgw_rados_ref::unwatch(
+    const DoutPrefixProvider* dpp,
+    uint64_t handle,
+    optional_yield y)
 {
   if (y) {
     auto& yield = y.get_yield_context();
@@ -145,16 +160,27 @@ int rgw_rados_ref::unwatch(const DoutPrefixProvider* dpp, uint64_t handle,
   }
 }
 
-map<string, bufferlist>* no_change_attrs() {
+map<string, bufferlist>*
+no_change_attrs()
+{
   static map<string, bufferlist> no_change;
   return &no_change;
 }
 
-int rgw_put_system_obj(const DoutPrefixProvider *dpp, RGWSI_SysObj* svc_sysobj,
-                       const rgw_pool& pool, const string& oid, bufferlist& data, bool exclusive,
-                       RGWObjVersionTracker *objv_tracker, real_time set_mtime, optional_yield y, const map<string, bufferlist> *pattrs)
+int
+rgw_put_system_obj(
+    const DoutPrefixProvider* dpp,
+    RGWSI_SysObj* svc_sysobj,
+    const rgw_pool& pool,
+    const string& oid,
+    bufferlist& data,
+    bool exclusive,
+    RGWObjVersionTracker* objv_tracker,
+    real_time set_mtime,
+    optional_yield y,
+    const map<string, bufferlist>* pattrs)
 {
-  map<string,bufferlist> no_attrs;
+  map<string, bufferlist> no_attrs;
   if (!pattrs) {
     pattrs = &no_attrs;
   }
@@ -166,71 +192,95 @@ int rgw_put_system_obj(const DoutPrefixProvider *dpp, RGWSI_SysObj* svc_sysobj,
 
   if (pattrs != no_change_attrs()) {
     ret = sysobj.wop()
-      .set_objv_tracker(objv_tracker)
-      .set_exclusive(exclusive)
-      .set_mtime(set_mtime)
-      .set_attrs(*pattrs)
-      .write(dpp, data, y);
+              .set_objv_tracker(objv_tracker)
+              .set_exclusive(exclusive)
+              .set_mtime(set_mtime)
+              .set_attrs(*pattrs)
+              .write(dpp, data, y);
   } else {
     ret = sysobj.wop()
-      .set_objv_tracker(objv_tracker)
-      .set_exclusive(exclusive)
-      .set_mtime(set_mtime)
-      .write_data(dpp, data, y);
+              .set_objv_tracker(objv_tracker)
+              .set_exclusive(exclusive)
+              .set_mtime(set_mtime)
+              .write_data(dpp, data, y);
   }
 
   return ret;
 }
 
-int rgw_stat_system_obj(const DoutPrefixProvider *dpp, RGWSI_SysObj* svc_sysobj,
-                        const rgw_pool& pool, const std::string& key,
-                        RGWObjVersionTracker *objv_tracker,
-			real_time *pmtime, uint64_t *psize, optional_yield y,
-			std::map<std::string, bufferlist> *pattrs)
+int
+rgw_stat_system_obj(
+    const DoutPrefixProvider* dpp,
+    RGWSI_SysObj* svc_sysobj,
+    const rgw_pool& pool,
+    const std::string& key,
+    RGWObjVersionTracker* objv_tracker,
+    real_time* pmtime,
+    uint64_t* psize,
+    optional_yield y,
+    std::map<std::string, bufferlist>* pattrs)
 {
   rgw_raw_obj obj(pool, key);
   auto sysobj = svc_sysobj->get_obj(obj);
   return sysobj.rop()
-               .set_attrs(pattrs)
-               .set_last_mod(pmtime)
-               .set_obj_size(psize)
-               .stat(y, dpp);
+      .set_attrs(pattrs)
+      .set_last_mod(pmtime)
+      .set_obj_size(psize)
+      .stat(y, dpp);
 }
 
-
-int rgw_get_system_obj(RGWSI_SysObj* svc_sysobj, const rgw_pool& pool, const string& key, bufferlist& bl,
-                       RGWObjVersionTracker *objv_tracker, real_time *pmtime, optional_yield y,
-                       const DoutPrefixProvider *dpp, map<string, bufferlist> *pattrs,
-                       rgw_cache_entry_info *cache_info,
-		       boost::optional<obj_version> refresh_version, bool raw_attrs)
+int
+rgw_get_system_obj(
+    RGWSI_SysObj* svc_sysobj,
+    const rgw_pool& pool,
+    const string& key,
+    bufferlist& bl,
+    RGWObjVersionTracker* objv_tracker,
+    real_time* pmtime,
+    optional_yield y,
+    const DoutPrefixProvider* dpp,
+    map<string, bufferlist>* pattrs,
+    rgw_cache_entry_info* cache_info,
+    boost::optional<obj_version> refresh_version,
+    bool raw_attrs)
 {
   const rgw_raw_obj obj(pool, key);
   auto sysobj = svc_sysobj->get_obj(obj);
   auto rop = sysobj.rop();
   return rop.set_attrs(pattrs)
-            .set_last_mod(pmtime)
-            .set_objv_tracker(objv_tracker)
-            .set_raw_attrs(raw_attrs)
-            .set_cache_info(cache_info)
-            .set_refresh_version(refresh_version)
-            .read(dpp, &bl, y);
+      .set_last_mod(pmtime)
+      .set_objv_tracker(objv_tracker)
+      .set_raw_attrs(raw_attrs)
+      .set_cache_info(cache_info)
+      .set_refresh_version(refresh_version)
+      .read(dpp, &bl, y);
 }
 
-int rgw_delete_system_obj(const DoutPrefixProvider *dpp,
-                          RGWSI_SysObj *sysobj_svc, const rgw_pool& pool, const string& oid,
-                          RGWObjVersionTracker *objv_tracker, optional_yield y)
+int
+rgw_delete_system_obj(
+    const DoutPrefixProvider* dpp,
+    RGWSI_SysObj* sysobj_svc,
+    const rgw_pool& pool,
+    const string& oid,
+    RGWObjVersionTracker* objv_tracker,
+    optional_yield y)
 {
   auto sysobj = sysobj_svc->get_obj(rgw_raw_obj{pool, oid});
   rgw_raw_obj obj(pool, oid);
-  return sysobj.wop()
-               .set_objv_tracker(objv_tracker)
-               .remove(dpp, y);
+  return sysobj.wop().set_objv_tracker(objv_tracker).remove(dpp, y);
 }
 
-int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, const std::string& oid,
-                      librados::ObjectReadOperation&& op, bufferlist* pbl,
-                      optional_yield y, int flags, const jspan_context* trace_info,
-                      version_t* pver)
+int
+rgw_rados_operate(
+    const DoutPrefixProvider* dpp,
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    librados::ObjectReadOperation&& op,
+    bufferlist* pbl,
+    optional_yield y,
+    int flags,
+    const jspan_context* trace_info,
+    version_t* pver)
 {
   // given a yield_context, call async_operate() to yield the coroutine instead
   // of blocking
@@ -238,8 +288,8 @@ int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, con
     auto& yield = y.get_yield_context();
     auto ex = yield.get_executor();
     boost::system::error_code ec;
-    auto [ver, bl] = librados::async_operate(ex, ioctx, oid, std::move(op),
-                                             flags, trace_info, yield[ec]);
+    auto [ver, bl] = librados::async_operate(
+        ex, ioctx, oid, std::move(op), flags, trace_info, yield[ec]);
     if (pbl) {
       *pbl = std::move(bl);
     }
@@ -256,16 +306,23 @@ int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, con
   return r;
 }
 
-int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, const std::string& oid,
-                      librados::ObjectWriteOperation&& op, optional_yield y,
-		      int flags, const jspan_context* trace_info, version_t* pver)
+int
+rgw_rados_operate(
+    const DoutPrefixProvider* dpp,
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    librados::ObjectWriteOperation&& op,
+    optional_yield y,
+    int flags,
+    const jspan_context* trace_info,
+    version_t* pver)
 {
   if (y) {
     auto& yield = y.get_yield_context();
     auto ex = yield.get_executor();
     boost::system::error_code ec;
-    version_t ver = librados::async_operate(ex, ioctx, oid, std::move(op),
-                                            flags, trace_info, yield[ec]);
+    version_t ver = librados::async_operate(
+        ex, ioctx, oid, std::move(op), flags, trace_info, yield[ec]);
     if (pver) {
       *pver = ver;
     }
@@ -279,9 +336,15 @@ int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, con
   return r;
 }
 
-int rgw_rados_notify(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, const std::string& oid,
-                     bufferlist& bl, uint64_t timeout_ms, bufferlist* pbl,
-                     optional_yield y)
+int
+rgw_rados_notify(
+    const DoutPrefixProvider* dpp,
+    librados::IoCtx& ioctx,
+    const std::string& oid,
+    bufferlist& bl,
+    uint64_t timeout_ms,
+    bufferlist* pbl,
+    optional_yield y)
 {
   if (y) {
     auto& yield = y.get_yield_context();
@@ -297,8 +360,11 @@ int rgw_rados_notify(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, cons
   return ioctx.notify2(oid, bl, timeout_ms, pbl);
 }
 
-void rgw_filter_attrset(map<string, bufferlist>& unfiltered_attrset, const string& check_prefix,
-                        map<string, bufferlist> *attrset)
+void
+rgw_filter_attrset(
+    map<string, bufferlist>& unfiltered_attrset,
+    const string& check_prefix,
+    map<string, bufferlist>* attrset)
 {
   attrset->clear();
   map<string, bufferlist>::iterator iter;
@@ -310,13 +376,16 @@ void rgw_filter_attrset(map<string, bufferlist>& unfiltered_attrset, const strin
   }
 }
 
-void rgw_complete_aio_completion(librados::AioCompletion* c, int r) {
+void
+rgw_complete_aio_completion(librados::AioCompletion* c, int r)
+{
   auto pc = c->pc;
   librados::CB_AioCompleteAndSafe cb(pc);
   cb(r);
 }
 
-bool rgw_check_secure_mon_conn(const DoutPrefixProvider *dpp)
+bool
+rgw_check_secure_mon_conn(const DoutPrefixProvider* dpp)
 {
   AuthRegistry reg(dpp->get_cct());
 
@@ -326,18 +395,22 @@ bool rgw_check_secure_mon_conn(const DoutPrefixProvider *dpp)
   std::vector<uint32_t> modes;
 
   reg.get_supported_methods(CEPH_ENTITY_TYPE_MON, &methods, &modes);
-  ldpp_dout(dpp, 20) << __func__ << "(): auth registry supported: methods=" << methods << " modes=" << modes << dendl;
+  ldpp_dout(dpp, 20) << __func__
+                     << "(): auth registry supported: methods=" << methods
+                     << " modes=" << modes << dendl;
 
   for (auto method : methods) {
     if (!reg.is_secure_method(method)) {
-      ldpp_dout(dpp, 20) << __func__ << "(): method " << method << " is insecure" << dendl;
+      ldpp_dout(dpp, 20) << __func__ << "(): method " << method
+                         << " is insecure" << dendl;
       return false;
     }
   }
 
   for (auto mode : modes) {
     if (!reg.is_secure_mode(mode)) {
-      ldpp_dout(dpp, 20) << __func__ << "(): mode " << mode << " is insecure" << dendl;
+      ldpp_dout(dpp, 20) << __func__ << "(): mode " << mode << " is insecure"
+                         << dendl;
       return false;
     }
   }
@@ -345,25 +418,30 @@ bool rgw_check_secure_mon_conn(const DoutPrefixProvider *dpp)
   return true;
 }
 
-int rgw_clog_warn(librados::Rados* h, const string& msg)
+int
+rgw_clog_warn(librados::Rados* h, const string& msg)
 {
   string cmd =
-    "{"
+      "{"
       "\"prefix\": \"log\", "
       "\"level\": \"warn\", "
-      "\"logtext\": [\"" + msg + "\"]"
-    "}";
+      "\"logtext\": [\"" +
+      msg +
+      "\"]"
+      "}";
 
   return h->mon_command(std::move(cmd), {}, nullptr, nullptr);
 }
 
-int rgw_list_pool(const DoutPrefixProvider *dpp,
-		  librados::IoCtx& ioctx,
-		  uint32_t max,
-		  const rgw::AccessListFilter& filter,
-		  std::string& marker,
-		  std::vector<string> *oids,
-		  bool *is_truncated)
+int
+rgw_list_pool(
+    const DoutPrefixProvider* dpp,
+    librados::IoCtx& ioctx,
+    uint32_t max,
+    const rgw::AccessListFilter& filter,
+    std::string& marker,
+    std::vector<string>* oids,
+    bool* is_truncated)
 {
   librados::ObjectCursor oc;
   if (!oc.from_str(marker)) {
@@ -375,8 +453,8 @@ int rgw_list_pool(const DoutPrefixProvider *dpp,
     iter = ioctx.nobjects_begin(oc);
   } catch (const std::system_error& e) {
     ldpp_dout(dpp, 1) << "rgw_list_pool: Failed to begin iteration of pool "
-		      << ioctx.get_pool_name() << " with error "
-		      << e.what() << dendl;
+                      << ioctx.get_pool_name() << " with error " << e.what()
+                      << dendl;
     return ceph::from_error_code(e.code());
   }
   /// Pool_iterate
@@ -390,14 +468,14 @@ int rgw_list_pool(const DoutPrefixProvider *dpp,
 
       // fill it in with initial values; we may correct later
       if (filter && !filter(oid, oid))
-	continue;
+        continue;
 
       oids->push_back(oid);
     }
   } catch (const std::system_error& e) {
     ldpp_dout(dpp, 1) << "rgw_list_pool: Failed iterating pool "
-		      << ioctx.get_pool_name() << " with error "
-		      << e.what() << dendl;
+                      << ioctx.get_pool_name() << " with error " << e.what()
+                      << dendl;
     return ceph::from_error_code(e.code());
   }
 

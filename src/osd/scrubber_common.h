@@ -3,12 +3,12 @@
 
 #pragma once
 
+#include <fmt/ranges.h>
+
 #include <iosfwd>
 #include <set>
 #include <string>
 #include <string_view>
-
-#include <fmt/ranges.h>
 
 #include "common/ceph_time.h"
 #include "common/fmt_common.h"
@@ -31,11 +31,11 @@ using ScrubClock = ceph::coarse_real_clock;
 using ScrubTimePoint = ScrubClock::time_point;
 
 namespace Scrub {
-  class ReplicaReservations;
-  struct ReplicaActive;
-  class ScrubJob;
-  struct SchedEntry;
-}
+class ReplicaReservations;
+struct ReplicaActive;
+class ScrubJob;
+struct SchedEntry;
+} // namespace Scrub
 
 /// reservation-related data sent by the primary to the replicas,
 /// and used to match the responses to the requests
@@ -44,24 +44,23 @@ struct AsyncScrubResData {
   pg_shard_t from;
   epoch_t request_epoch;
   MOSDScrubReserve::reservation_nonce_t nonce;
+
   AsyncScrubResData(
       spg_t pgid,
       pg_shard_t from,
       epoch_t request_epoch,
-      MOSDScrubReserve::reservation_nonce_t nonce)
-      : pgid{pgid}
-      , from{from}
-      , request_epoch{request_epoch}
-      , nonce{nonce}
+      MOSDScrubReserve::reservation_nonce_t nonce) :
+    pgid{pgid}, from{from}, request_epoch{request_epoch}, nonce{nonce}
   {}
+
   template <typename FormatContext>
-  auto fmt_print_ctx(FormatContext& ctx) const
+  auto
+  fmt_print_ctx(FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(), "pg[{}],f:{},ep:{},n:{}", pgid, from, request_epoch, nonce);
+        ctx.out(), "pg[{}],f:{},ep:{},n:{}", pgid, from, request_epoch, nonce);
   }
 };
-
 
 /// Facilitating scrub-related object access to private PG data
 class ScrubberPasskey {
@@ -71,20 +70,27 @@ private:
   friend class PrimaryLogScrub;
   friend class PgScrubber;
   friend class ScrubBackend;
+
   ScrubberPasskey() {}
+
   ScrubberPasskey(const ScrubberPasskey&) = default;
   ScrubberPasskey& operator=(const ScrubberPasskey&) = delete;
 };
 
 /// randomly returns true with probability equal to the passed parameter
-static inline bool random_bool_with_probability(double probability) {
+static inline bool
+random_bool_with_probability(double probability)
+{
   return (ceph::util::generate_random_number<double>(0.0, 1.0) < probability);
 }
 
 namespace Scrub {
 
 /// high/low OP priority
-enum class scrub_prio_t : bool { low_priority = false, high_priority = true };
+enum class scrub_prio_t : bool {
+  low_priority = false,
+  high_priority = true
+};
 
 /// Identifies a specific scrub activation within an interval,
 /// see ScrubPGgIF::m_current_token
@@ -100,14 +106,15 @@ struct OSDRestrictions {
   bool random_backoff_active{false};
 
   /// the CPU load is high. No regular scrubs are allowed.
-  bool cpu_overloaded:1{false};
+  bool cpu_overloaded : 1 {false};
 
   /// outside of allowed scrubbing hours/days
-  bool restricted_time:1{false};
+  bool restricted_time : 1 {false};
 
   /// the OSD is performing a recovery & osd_scrub_during_recovery is 'false'
-  bool recovery_in_progress:1{false};
+  bool recovery_in_progress : 1 {false};
 };
+
 static_assert(sizeof(Scrub::OSDRestrictions) <= sizeof(uint32_t));
 
 /// concise passing of PG state affecting scrub to the
@@ -117,13 +124,14 @@ struct ScrubPGPreconds {
   bool allow_deep{true};
   bool can_autorepair{false};
 };
+
 static_assert(sizeof(Scrub::ScrubPGPreconds) <= sizeof(uint32_t));
 
 /// possible outcome when trying to select a PG and scrub it
 enum class schedule_result_t {
-  scrub_initiated,	    // successfully started a scrub
-  target_specific_failure,  // failed to scrub this specific target
-  osd_wide_failure	    // failed to scrub any target
+  scrub_initiated, // successfully started a scrub
+  target_specific_failure, // failed to scrub this specific target
+  osd_wide_failure // failed to scrub any target
 };
 
 /// a collection of the basic scheduling information of a scrub target:
@@ -148,7 +156,8 @@ struct scrub_schedule_t {
    */
   utime_t scheduled_at{utime_t::max()};
 
-  std::partial_ordering operator<=>(const scrub_schedule_t& rhs) const
+  std::partial_ordering
+  operator<=>(const scrub_schedule_t& rhs) const
   {
     // when compared - the 'not_before' is ignored, assuming
     // we never compare jobs with different eligibility status.
@@ -158,49 +167,67 @@ struct scrub_schedule_t {
   bool operator==(const scrub_schedule_t& rhs) const = default;
 };
 
-}  // namespace Scrub
+} // namespace Scrub
 
 namespace fmt {
 template <>
 struct formatter<Scrub::ScrubPGPreconds> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const Scrub::ScrubPGPreconds& conds, FormatContext& ctx) const
+  auto
+  format(const Scrub::ScrubPGPreconds& conds, FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(), "allowed(shallow/deep):{:1}/{:1},can-autorepair:{:1}",
-	conds.allow_shallow, conds.allow_deep, conds.can_autorepair);
+        ctx.out(), "allowed(shallow/deep):{:1}/{:1},can-autorepair:{:1}",
+        conds.allow_shallow, conds.allow_deep, conds.can_autorepair);
   }
 };
 
 template <>
 struct formatter<Scrub::OSDRestrictions> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const Scrub::OSDRestrictions& conds, FormatContext& ctx) const {
+  auto
+  format(const Scrub::OSDRestrictions& conds, FormatContext& ctx) const
+  {
     return fmt::format_to(
-	ctx.out(), "<{}.{}.{}.{}.{}>",
-	conds.max_concurrency_reached ? "max-scrubs" : "",
-	conds.random_backoff_active ? "backoff" : "",
-	conds.cpu_overloaded ? "high-load" : "",
-	conds.restricted_time ? "time-restrict" : "",
-	conds.recovery_in_progress ? "recovery" : "");
+        ctx.out(), "<{}.{}.{}.{}.{}>",
+        conds.max_concurrency_reached ? "max-scrubs" : "",
+        conds.random_backoff_active ? "backoff" : "",
+        conds.cpu_overloaded ? "high-load" : "",
+        conds.restricted_time ? "time-restrict" : "",
+        conds.recovery_in_progress ? "recovery" : "");
   }
 };
 
 template <>
 struct formatter<Scrub::scrub_schedule_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const Scrub::scrub_schedule_t& sc, FormatContext& ctx) const {
+  auto
+  format(const Scrub::scrub_schedule_t& sc, FormatContext& ctx) const
+  {
     return fmt::format_to(
-	ctx.out(), "nb:{:s}(at:{:s})", sc.not_before, sc.scheduled_at);
+        ctx.out(), "nb:{:s}(at:{:s})", sc.not_before, sc.scheduled_at);
   }
 };
 
-}  // namespace fmt
+} // namespace fmt
 
 namespace Scrub {
 
@@ -209,19 +236,19 @@ namespace Scrub {
  * The enum value itself is mostly used for logging purposes.
  */
 enum class delay_cause_t {
-  none,		    ///< scrub attempt was successful
-  replicas,	    ///< failed to reserve replicas
-  flags,	    ///< noscrub or nodeep-scrub
-  pg_state,	    ///< not active+clean
-  snap_trimming,    ///< snap-trimming is in progress
-  restricted_time,  ///< time restrictions or busy CPU
-  local_resources,  ///< too many scrubbing PGs
-  aborted,	    ///< scrub was aborted w/ unspecified reason
-  interval,	    ///< the interval had ended mid-scrub
-  scrub_params,     ///< the specific scrub type is not allowed
-  operator_abort    ///< operator-requested abort
+  none, ///< scrub attempt was successful
+  replicas, ///< failed to reserve replicas
+  flags, ///< noscrub or nodeep-scrub
+  pg_state, ///< not active+clean
+  snap_trimming, ///< snap-trimming is in progress
+  restricted_time, ///< time restrictions or busy CPU
+  local_resources, ///< too many scrubbing PGs
+  aborted, ///< scrub was aborted w/ unspecified reason
+  interval, ///< the interval had ended mid-scrub
+  scrub_params, ///< the specific scrub type is not allowed
+  operator_abort ///< operator-requested abort
 };
-}  // namespace Scrub
+} // namespace Scrub
 
 namespace fmt {
 // clang-format off
@@ -249,9 +276,9 @@ struct formatter<Scrub::delay_cause_t> : ::fmt::formatter<std::string_view> {
     return ::fmt::formatter<string_view>::format(desc, ctx);
   }
 };
-// clang-format on
-}  // namespace fmt
 
+// clang-format on
+} // namespace fmt
 
 namespace Scrub {
 
@@ -261,23 +288,25 @@ struct PgScrubBeListener {
 
   virtual const PGPool& get_pgpool() const = 0;
   virtual pg_shard_t get_primary() const = 0;
-  virtual void force_object_missing(ScrubberPasskey,
-                                    const std::set<pg_shard_t>& peer,
-                                    const hobject_t& oid,
-                                    eversion_t version) = 0;
+  virtual void force_object_missing(
+      ScrubberPasskey,
+      const std::set<pg_shard_t>& peer,
+      const hobject_t& oid,
+      eversion_t version) = 0;
   virtual const pg_info_t& get_pg_info(ScrubberPasskey) const = 0;
 
   // query the PG backend for the on-disk size of an object
-  virtual uint64_t logical_to_ondisk_size(uint64_t logical_size,
-                                 shard_id_t shard_id,
-                                 bool object_is_legacy_ec) const = 0;
+  virtual uint64_t logical_to_ondisk_size(
+      uint64_t logical_size,
+      shard_id_t shard_id,
+      bool object_is_legacy_ec) const = 0;
 
   // used to verify our "cleanliness" before scrubbing
   virtual bool is_waiting_for_unreadable_object() const = 0;
 
   // A non-primary shard is one which can never become primary. It may
   // have an old version and cannot be considered authoritative.
-  virtual bool get_is_nonprimary_shard(const pg_shard_t &pg_shard) const = 0;
+  virtual bool get_is_nonprimary_shard(const pg_shard_t& pg_shard) const = 0;
 
   // hinfo objects are not used for some EC configurations. Do not raise scrub
   // errors on hinfo if they should not exist.
@@ -297,7 +326,8 @@ struct PgScrubBeListener {
   // Returns a map of all shards when given a map with missing shards that need
   // to be decoded
   virtual shard_id_map<bufferlist> ec_decode_acting_set(
-      const shard_id_map<bufferlist>& shard_map, int chunk_size) const = 0;
+      const shard_id_map<bufferlist>& shard_map,
+      int chunk_size) const = 0;
 
   // If true, the EC profile supports passing CRCs through the EC plugin encode
   // and decode functions to get a resulting CRC that is the same as if you were
@@ -313,13 +343,13 @@ struct PgScrubBeListener {
 // Separate sets are used for replicated and erasure-coded pools.
 struct ScrubCounterSet {
   osd_counter_idx_t getattr_cnt; ///< get_attr calls count
-  osd_counter_idx_t stats_cnt;  ///< stats calls count
-  osd_counter_idx_t read_cnt;   ///< read calls count
-  osd_counter_idx_t read_bytes;  ///< total bytes read
+  osd_counter_idx_t stats_cnt; ///< stats calls count
+  osd_counter_idx_t read_cnt; ///< read calls count
+  osd_counter_idx_t read_bytes; ///< total bytes read
   osd_counter_idx_t omapgetheader_cnt; ///< omap get header calls count
-  osd_counter_idx_t omapgetheader_bytes;  ///< bytes read by omap get header
-  osd_counter_idx_t omapget_cnt;  ///< omap get calls count
-  osd_counter_idx_t omapget_bytes;  ///< total bytes read by omap get
+  osd_counter_idx_t omapgetheader_bytes; ///< bytes read by omap get header
+  osd_counter_idx_t omapget_cnt; ///< omap get calls count
+  osd_counter_idx_t omapget_bytes; ///< total bytes read by omap get
   osd_counter_idx_t started_cnt; ///< the number of times we started a scrub
   osd_counter_idx_t active_started_cnt; ///< scrubs that got past reservation
   osd_counter_idx_t successful_cnt; ///< successful scrubs count
@@ -338,8 +368,7 @@ struct ScrubCounterSet {
   osd_counter_idx_t rsv_secondaries_num; ///< number of replicas (EC or rep)
 };
 
-}  // namespace Scrub
-
+} // namespace Scrub
 
 /**
  *  The interface used by the PG when requesting scrub-related info or services
@@ -348,7 +377,9 @@ struct ScrubPgIF {
 
   virtual ~ScrubPgIF() = default;
 
-  friend std::ostream& operator<<(std::ostream& out, const ScrubPgIF& s) {
+  friend std::ostream&
+  operator<<(std::ostream& out, const ScrubPgIF& s)
+  {
     return s.show_concise(out);
   }
 
@@ -372,11 +403,13 @@ struct ScrubPgIF {
 
   virtual void send_replica_pushes_upd(epoch_t epoch_queued) = 0;
 
-  virtual void send_start_replica(epoch_t epoch_queued,
-				  Scrub::act_token_t token) = 0;
+  virtual void send_start_replica(
+      epoch_t epoch_queued,
+      Scrub::act_token_t token) = 0;
 
-  virtual void send_sched_replica(epoch_t epoch_queued,
-				  Scrub::act_token_t token) = 0;
+  virtual void send_sched_replica(
+      epoch_t epoch_queued,
+      Scrub::act_token_t token) = 0;
 
   virtual void send_chunk_free(epoch_t epoch_queued) = 0;
 
@@ -394,10 +427,10 @@ struct ScrubPgIF {
 
   // --------------------------------------------------
 
-  [[nodiscard]] virtual bool are_callbacks_pending() const = 0;	 // currently
-								 // only used
-								 // for an
-								 // assert
+  [[nodiscard]] virtual bool are_callbacks_pending() const = 0; // currently
+      // only used
+      // for an
+      // assert
 
   /**
    * the scrubber is marked 'active':
@@ -473,18 +506,17 @@ struct ScrubPgIF {
 
   /// ... by faking the "last scrub" stamps
   virtual void on_operator_periodic_cmd(
-    ceph::Formatter* f,
-    scrub_level_t scrub_level,
-    int64_t offset) = 0;
+      ceph::Formatter* f,
+      scrub_level_t scrub_level,
+      int64_t offset) = 0;
 
   /// ... by requesting an "operator initiated" scrub
   virtual void on_operator_forced_scrub(
-    ceph::Formatter* f,
-    scrub_level_t scrub_level) = 0;
+      ceph::Formatter* f,
+      scrub_level_t scrub_level) = 0;
 
   /// abort an ongoing scrub, and cancel any pending operator scrub request
-  virtual void on_operator_abort_scrub(
-    ceph::Formatter* f) = 0;
+  virtual void on_operator_abort_scrub(ceph::Formatter* f) = 0;
 
   virtual void dump_scrubber(ceph::Formatter* f) const = 0;
 
@@ -500,24 +532,26 @@ struct ScrubPgIF {
   virtual bool write_blocked_by_scrub(const hobject_t& soid) = 0;
 
   /// Returns whether any objects in the range [begin, end] are being scrubbed
-  virtual bool range_intersects_scrub(const hobject_t& start,
-				      const hobject_t& end) = 0;
+  virtual bool range_intersects_scrub(
+      const hobject_t& start,
+      const hobject_t& end) = 0;
 
   /// the op priority, taken from the primary's request message
   virtual Scrub::scrub_prio_t replica_op_priority() const = 0;
 
   /// the priority of the on-going scrub (used when requeuing events)
   virtual unsigned int scrub_requeue_priority(
-    Scrub::scrub_prio_t with_priority) const = 0;
+      Scrub::scrub_prio_t with_priority) const = 0;
   virtual unsigned int scrub_requeue_priority(
-    Scrub::scrub_prio_t with_priority,
-    unsigned int suggested_priority) const = 0;
+      Scrub::scrub_prio_t with_priority,
+      unsigned int suggested_priority) const = 0;
 
   virtual void add_callback(Context* context) = 0;
 
   /// add to scrub statistics, but only if the soid is below the scrub start
-  virtual void stats_of_handled_objects(const object_stat_sum_t& delta_stats,
-					const hobject_t& soid) = 0;
+  virtual void stats_of_handled_objects(
+      const object_stat_sum_t& delta_stats,
+      const hobject_t& soid) = 0;
 
   /**
    * clears both internal scrub state, and some PG-visible flags:
@@ -532,15 +566,16 @@ struct ScrubPgIF {
 
   virtual void cleanup_store(ObjectStore::Transaction* t) = 0;
 
-  virtual bool get_store_errors(const scrub_ls_arg_t& arg,
-				scrub_ls_result_t& res_inout) const = 0;
+  virtual bool get_store_errors(
+      const scrub_ls_arg_t& arg,
+      scrub_ls_result_t& res_inout) const = 0;
 
   /**
    * force a periodic 'publish_stats_to_osd()' call, to update scrub-related
    * counters and statistics.
    */
   virtual void update_scrub_stats(
-    ceph::coarse_real_clock::time_point now_is) = 0;
+      ceph::coarse_real_clock::time_point now_is) = 0;
 
   /**
    * Recalculate scrub (both deep & shallow) schedules
@@ -578,8 +613,9 @@ struct ScrubPgIF {
 
   // --------------- debugging via the asok ------------------------------
 
-  virtual int asok_debug(std::string_view cmd,
-			 std::string param,
-			 Formatter* f,
-			 std::stringstream& ss) = 0;
+  virtual int asok_debug(
+      std::string_view cmd,
+      std::string param,
+      Formatter* f,
+      std::stringstream& ss) = 0;
 };

@@ -2,11 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "super.h"
+
 #include "node.h"
 
 namespace crimson::os::seastore::onode {
 
-Ref<Node> RootNodeTrackerIsolated::get_root(Transaction& t) const
+Ref<Node>
+RootNodeTrackerIsolated::get_root(Transaction& t) const
 {
   auto iter = tracked_supers.find(&t);
   if (iter == tracked_supers.end()) {
@@ -16,7 +18,8 @@ Ref<Node> RootNodeTrackerIsolated::get_root(Transaction& t) const
   }
 }
 
-Ref<Node> RootNodeTrackerShared::get_root(Transaction&) const
+Ref<Node>
+RootNodeTrackerShared::get_root(Transaction&) const
 {
   if (is_clean()) {
     return nullptr;
@@ -25,4 +28,4 @@ Ref<Node> RootNodeTrackerShared::get_root(Transaction&) const
   }
 }
 
-}
+} // namespace crimson::os::seastore::onode

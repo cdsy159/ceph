@@ -12,12 +12,15 @@
  *
  */
 
-#include <system_error>
-#include "include/buffer.h"
-#include "common/errno.h"
-#include "common/ceph_json.h"
-#include "rgw_zone.h"
 #include "driver/immutable_config/store.h"
+
+#include <system_error>
+
+#include "common/ceph_json.h"
+#include "common/errno.h"
+#include "include/buffer.h"
+
+#include "rgw_zone.h"
 #include "store.h"
 
 namespace rgw::sal {
@@ -29,7 +32,8 @@ struct DecodedConfig {
   RGWZoneParams zone;
   RGWPeriodConfig period_config;
 
-  void decode_json(JSONObj *obj)
+  void
+  decode_json(JSONObj* obj)
   {
     JSONDecoder::decode_json("zonegroup", zonegroup, obj);
     JSONDecoder::decode_json("zone", zone, obj);
@@ -37,14 +41,15 @@ struct DecodedConfig {
   }
 };
 
-static void parse_config(const DoutPrefixProvider* dpp, const char* filename)
+static void
+parse_config(const DoutPrefixProvider* dpp, const char* filename)
 {
   bufferlist bl;
   std::string errmsg;
   int r = bl.read_file(filename, &errmsg);
   if (r < 0) {
     ldpp_dout(dpp, 0) << "failed to read json config file '" << filename
-        << "': " << errmsg << dendl;
+                      << "': " << errmsg << dendl;
     throw std::system_error(-r, std::system_category());
   }
 
@@ -63,7 +68,8 @@ static void parse_config(const DoutPrefixProvider* dpp, const char* filename)
   }
 }
 
-void sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
+void
+sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
 {
   if (config.zonegroup.id.empty()) {
     config.zonegroup.id = "default";
@@ -87,8 +93,7 @@ void sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
   RGWZonePlacementInfo placement;
   placement.storage_classes.set_storage_class(
       RGW_STORAGE_CLASS_STANDARD, &pool, nullptr);
-  config.zone.placement_pools.emplace("default-placement",
-                                      std::move(placement));
+  config.zone.placement_pools.emplace("default-placement", std::move(placement));
 
   std::set<rgw_pool> pools;
   int r = rgw::init_zone_pool_names(dpp, null_yield, pools, config.zone);
@@ -106,23 +111,23 @@ void sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
   if (config.zonegroup.zones.size() == 1) {
     auto z = config.zonegroup.zones.begin();
     if (z->first != config.zone.id) {
-      ldpp_dout(dpp, 0) << "zonegroup contains unknown zone id="
-          << z->first << dendl;
+      ldpp_dout(dpp, 0) << "zonegroup contains unknown zone id=" << z->first
+                        << dendl;
       throw std::system_error(make_error_code(std::errc::invalid_argument));
     }
     if (z->second.id != config.zone.id) {
-      ldpp_dout(dpp, 0) << "zonegroup contains unknown zone id="
-          << z->second.id << dendl;
+      ldpp_dout(dpp, 0) << "zonegroup contains unknown zone id=" << z->second.id
+                        << dendl;
       throw std::system_error(make_error_code(std::errc::invalid_argument));
     }
     if (z->second.name != config.zone.name) {
       ldpp_dout(dpp, 0) << "zonegroup contains unknown zone name="
-          << z->second.name << dendl;
+                        << z->second.name << dendl;
       throw std::system_error(make_error_code(std::errc::invalid_argument));
     }
     if (config.zonegroup.master_zone != config.zone.id) {
       ldpp_dout(dpp, 0) << "zonegroup contains unknown master_zone="
-          << config.zonegroup.master_zone << dendl;
+                        << config.zonegroup.master_zone << dendl;
       throw std::system_error(make_error_code(std::errc::invalid_argument));
     }
   } else {
@@ -135,22 +140,22 @@ void sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
     rgw::zone_features::set enable_features;
     rgw::zone_features::set disable_features;
 
-    enable_features.insert(rgw::zone_features::supported.begin(),
-                           rgw::zone_features::supported.end());
+    enable_features.insert(
+        rgw::zone_features::supported.begin(),
+        rgw::zone_features::supported.end());
 
-    int r = rgw::add_zone_to_group(dpp, config.zonegroup, config.zone,
-                                   &is_master, &read_only, endpoints,
-                                   nullptr, nullptr, sync_from, sync_from_rm,
-                                   nullptr, std::nullopt,
-                                   enable_features, disable_features);
+    int r = rgw::add_zone_to_group(
+        dpp, config.zonegroup, config.zone, &is_master, &read_only, endpoints,
+        nullptr, nullptr, sync_from, sync_from_rm, nullptr, std::nullopt,
+        enable_features, disable_features);
     if (r < 0) {
       ldpp_dout(dpp, 0) << "failed to add zone to zonegroup: "
-          << cpp_strerror(r) << dendl;
+                        << cpp_strerror(r) << dendl;
       throw std::system_error(-r, std::system_category());
     }
 
-    config.zonegroup.enabled_features.insert(rgw::zone_features::enabled.begin(),
-                                             rgw::zone_features::enabled.end());
+    config.zonegroup.enabled_features.insert(
+        rgw::zone_features::enabled.begin(), rgw::zone_features::enabled.end());
   }
 
   // insert the default placement target if it doesn't exist
@@ -163,15 +168,16 @@ void sanity_check_config(const DoutPrefixProvider* dpp, DecodedConfig& config)
 
 } // anonymous namespace
 
-auto create_json_config_store(const DoutPrefixProvider* dpp,
-                              const std::string& filename)
-    -> std::unique_ptr<ConfigStore>
+auto
+create_json_config_store(
+    const DoutPrefixProvider* dpp,
+    const std::string& filename) -> std::unique_ptr<ConfigStore>
 {
   DecodedConfig config;
   parse_config(dpp, filename.c_str());
   sanity_check_config(dpp, config);
-  return create_immutable_config_store(dpp, config.zonegroup, config.zone,
-                                       config.period_config);
+  return create_immutable_config_store(
+      dpp, config.zonegroup, config.zone, config.period_config);
 }
 
 } // namespace rgw::sal

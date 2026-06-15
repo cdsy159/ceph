@@ -7,58 +7,70 @@
 #include <mutex> // for std::scoped_lock
 #include <vector>
 
-#include "compressor/Compressor.h"
 #include "common/ceph_mutex.h"
 #include "common/config_obs.h"
+#include "compressor/Compressor.h"
 #include "include/common_fwd.h" // for CephContext
 #include "include/msgr.h" // for CEPH_ENTITY_TYPE_OSD
 
 class CompressorRegistry : public md_config_obs_t {
 public:
-  CompressorRegistry(CephContext *cct);
+  CompressorRegistry(CephContext* cct);
   ~CompressorRegistry();
 
-  void refresh_config() {
+  void
+  refresh_config()
+  {
     std::scoped_lock l(lock);
     _refresh_config();
   }
 
   std::vector<std::string> get_tracked_keys() const noexcept override;
-  void handle_conf_change(const ConfigProxy& conf,
-                          const std::set<std::string>& changed) override;
+  void handle_conf_change(
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) override;
 
-  TOPNSPC::Compressor::CompressionAlgorithm pick_method(uint32_t peer_type,
-					       const std::vector<uint32_t>& preferred_methods);
+  TOPNSPC::Compressor::CompressionAlgorithm pick_method(
+      uint32_t peer_type,
+      const std::vector<uint32_t>& preferred_methods);
 
-  TOPNSPC::Compressor::CompressionMode get_mode(uint32_t peer_type, bool is_secure);
+  TOPNSPC::Compressor::CompressionMode get_mode(
+      uint32_t peer_type,
+      bool is_secure);
 
-  const std::vector<uint32_t> get_methods(uint32_t peer_type) { 
+  const std::vector<uint32_t>
+  get_methods(uint32_t peer_type)
+  {
     std::scoped_lock l(lock);
     switch (peer_type) {
-      case CEPH_ENTITY_TYPE_OSD:
-        return ms_osd_compression_methods;
-      default:
-        return {};
-    }
-   }
-
-  uint64_t get_min_compression_size(uint32_t peer_type) const {
-    std::scoped_lock l(lock);
-    switch (peer_type) {
-      case CEPH_ENTITY_TYPE_OSD:
-        return ms_osd_compress_min_size;
-      default:
-        return 0;
+    case CEPH_ENTITY_TYPE_OSD:
+      return ms_osd_compression_methods;
+    default:
+      return {};
     }
   }
 
-  bool get_is_compress_secure() const { 
+  uint64_t
+  get_min_compression_size(uint32_t peer_type) const
+  {
     std::scoped_lock l(lock);
-    return ms_compress_secure; 
+    switch (peer_type) {
+    case CEPH_ENTITY_TYPE_OSD:
+      return ms_osd_compress_min_size;
+    default:
+      return 0;
+    }
+  }
+
+  bool
+  get_is_compress_secure() const
+  {
+    std::scoped_lock l(lock);
+    return ms_compress_secure;
   }
 
 private:
-  CephContext *cct;
+  CephContext* cct;
   mutable ceph::mutex lock = ceph::make_mutex("CompressorRegistry::lock");
 
   uint32_t ms_osd_compress_mode;

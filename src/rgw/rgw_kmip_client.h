@@ -16,20 +16,24 @@ public:
     GET_ATTRIBUTE_LIST,
     DESTROY
   };
-  CephContext *cct;
+
+  CephContext* cct;
   kmip_operation operation;
-  char *name = 0;
-  char *unique_id = 0;
+  char* name = 0;
+  char* unique_id = 0;
   // output - must free
-  char *out = 0;    // unique_id, several
-  struct {    // unique_ids, locate
-    char **strings;
+  char* out = 0; // unique_id, several
+
+  struct { // unique_ids, locate
+    char** strings;
     int string_count;
   } outlist[1] = {{0, 0}};
-  struct {    // key, get
-    unsigned char *data;
+
+  struct { // key, get
+    unsigned char* data;
     int keylen;
   } outkey[1] = {0, 0};
+
   // end must free
   int ret;
   bool done;
@@ -37,13 +41,11 @@ public:
   ceph::condition_variable cond;
 
   int wait(const DoutPrefixProvider* dpp, optional_yield y);
-  RGWKMIPTransceiver(CephContext * const cct,
-    kmip_operation operation)
-  : cct(cct),
-    operation(operation),
-    ret(-EDOM),
-    done(false)
+
+  RGWKMIPTransceiver(CephContext* const cct, kmip_operation operation) :
+    cct(cct), operation(operation), ret(-EDOM), done(false)
   {}
+
   ~RGWKMIPTransceiver();
 
   int send();
@@ -52,15 +54,17 @@ public:
 
 class RGWKMIPManager {
 protected:
-  CephContext *cct;
+  CephContext* cct;
   bool is_started = false;
-  RGWKMIPManager(CephContext *cct) : cct(cct) {};
+  RGWKMIPManager(CephContext* cct) :
+    cct(cct){};
+
 public:
-  virtual ~RGWKMIPManager() { };
+  virtual ~RGWKMIPManager(){};
   virtual int start() = 0;
   virtual void stop() = 0;
   virtual int add_request(RGWKMIPTransceiver*) = 0;
 };
 
-void rgw_kmip_client_init(RGWKMIPManager &);
+void rgw_kmip_client_init(RGWKMIPManager&);
 void rgw_kmip_client_cleanup();

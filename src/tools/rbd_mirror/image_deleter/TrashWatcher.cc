@@ -2,11 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/image_deleter/TrashWatcher.h"
-#include "include/rbd_types.h"
-#include "cls/rbd/cls_rbd_client.h"
+
 #include "common/debug.h"
-#include "common/errno.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/Timer.h"
+#include "common/errno.h"
+#include "include/rbd_types.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/asio/ContextWQ.h"
@@ -16,8 +18,9 @@
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_deleter::TrashWatcher: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                     \
+  *_dout << "rbd::mirror::image_deleter::TrashWatcher: " << this << " " \
+         << __func__ << ": "
 
 using librbd::util::create_context_callback;
 using librbd::util::create_rados_callback;
@@ -33,16 +36,23 @@ const size_t MAX_RETURN = 1024;
 } // anonymous namespace
 
 template <typename I>
-TrashWatcher<I>::TrashWatcher(librados::IoCtx &io_ctx, Threads<I> *threads,
-                              TrashListener& trash_listener)
-  : librbd::TrashWatcher<I>(io_ctx, threads->work_queue),
-    m_io_ctx(io_ctx), m_threads(threads), m_trash_listener(trash_listener),
-    m_lock(ceph::make_mutex(librbd::util::unique_lock_name(
-      "rbd::mirror::image_deleter::TrashWatcher", this))) {
-}
+TrashWatcher<I>::TrashWatcher(
+    librados::IoCtx& io_ctx,
+    Threads<I>* threads,
+    TrashListener& trash_listener) :
+  librbd::TrashWatcher<I>(io_ctx, threads->work_queue),
+  m_io_ctx(io_ctx),
+  m_threads(threads),
+  m_trash_listener(trash_listener),
+  m_lock(ceph::make_mutex(librbd::util::unique_lock_name(
+      "rbd::mirror::image_deleter::TrashWatcher",
+      this)))
+{}
 
 template <typename I>
-void TrashWatcher<I>::init(Context *on_finish) {
+void
+TrashWatcher<I>::init(Context* on_finish)
+{
   dout(5) << dendl;
 
   {
@@ -57,7 +67,9 @@ void TrashWatcher<I>::init(Context *on_finish) {
 }
 
 template <typename I>
-void TrashWatcher<I>::shut_down(Context *on_finish) {
+void
+TrashWatcher<I>::shut_down(Context* on_finish)
+{
   dout(5) << dendl;
 
   {
@@ -72,14 +84,17 @@ void TrashWatcher<I>::shut_down(Context *on_finish) {
   }
 
   auto ctx = new LambdaContext([this, on_finish](int r) {
-      unregister_watcher(on_finish);
-    });
+    unregister_watcher(on_finish);
+  });
   m_async_op_tracker.wait_for_ops(ctx);
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_image_added(const std::string &image_id,
-                                         const cls::rbd::TrashImageSpec& spec) {
+void
+TrashWatcher<I>::handle_image_added(
+    const std::string& image_id,
+    const cls::rbd::TrashImageSpec& spec)
+{
   dout(10) << "image_id=" << image_id << dendl;
 
   std::lock_guard locker{m_lock};
@@ -87,12 +102,16 @@ void TrashWatcher<I>::handle_image_added(const std::string &image_id,
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_image_removed(const std::string &image_id) {
+void
+TrashWatcher<I>::handle_image_removed(const std::string& image_id)
+{
   // ignore removals -- the image deleter will ignore -ENOENTs
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_rewatch_complete(int r) {
+void
+TrashWatcher<I>::handle_rewatch_complete(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   if (r == -EBLOCKLISTED) {
@@ -108,7 +127,9 @@ void TrashWatcher<I>::handle_rewatch_complete(int r) {
 }
 
 template <typename I>
-void TrashWatcher<I>::create_trash() {
+void
+TrashWatcher<I>::create_trash()
+{
   dout(20) << dendl;
   {
     std::lock_guard locker{m_lock};
@@ -120,14 +141,16 @@ void TrashWatcher<I>::create_trash() {
 
   m_async_op_tracker.start_op();
   auto aio_comp = create_rados_callback<
-    TrashWatcher<I>, &TrashWatcher<I>::handle_create_trash>(this);
+      TrashWatcher<I>, &TrashWatcher<I>::handle_create_trash>(this);
   int r = m_io_ctx.aio_operate(RBD_TRASH, aio_comp, &op);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_create_trash(int r) {
+void
+TrashWatcher<I>::handle_create_trash(int r)
+{
   dout(20) << "r=" << r << dendl;
   {
     std::lock_guard locker{m_lock};
@@ -164,7 +187,9 @@ void TrashWatcher<I>::handle_create_trash(int r) {
 }
 
 template <typename I>
-void TrashWatcher<I>::register_watcher() {
+void
+TrashWatcher<I>::register_watcher()
+{
   {
     std::lock_guard locker{m_lock};
     ceph_assert(m_trash_list_in_progress);
@@ -181,13 +206,15 @@ void TrashWatcher<I>::register_watcher() {
   dout(5) << dendl;
   m_async_op_tracker.start_op();
 
-  Context *ctx = create_context_callback<
-    TrashWatcher, &TrashWatcher<I>::handle_register_watcher>(this);
+  Context* ctx = create_context_callback<
+      TrashWatcher, &TrashWatcher<I>::handle_register_watcher>(this);
   this->register_watch(ctx);
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_register_watcher(int r) {
+void
+TrashWatcher<I>::handle_register_watcher(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   {
@@ -198,7 +225,7 @@ void TrashWatcher<I>::handle_register_watcher(int r) {
     }
   }
 
-  Context *on_init_finish = nullptr;
+  Context* on_init_finish = nullptr;
   if (r >= 0) {
     trash_list(true);
   } else if (r == -EBLOCKLISTED) {
@@ -219,18 +246,22 @@ void TrashWatcher<I>::handle_register_watcher(int r) {
 }
 
 template <typename I>
-void TrashWatcher<I>::unregister_watcher(Context* on_finish) {
+void
+TrashWatcher<I>::unregister_watcher(Context* on_finish)
+{
   dout(5) << dendl;
 
   m_async_op_tracker.start_op();
-  Context *ctx = new LambdaContext([this, on_finish](int r) {
-      handle_unregister_watcher(r, on_finish);
-    });
+  Context* ctx = new LambdaContext([this, on_finish](int r) {
+    handle_unregister_watcher(r, on_finish);
+  });
   this->unregister_watch(ctx);
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_unregister_watcher(int r, Context* on_finish) {
+void
+TrashWatcher<I>::handle_unregister_watcher(int r, Context* on_finish)
+{
   dout(5) << "unregister_watcher: r=" << r << dendl;
   if (r < 0) {
     derr << "error unregistering watcher for trash directory: "
@@ -241,7 +272,9 @@ void TrashWatcher<I>::handle_unregister_watcher(int r, Context* on_finish) {
 }
 
 template <typename I>
-void TrashWatcher<I>::trash_list(bool initial_request) {
+void
+TrashWatcher<I>::trash_list(bool initial_request)
+{
   if (initial_request) {
     m_async_op_tracker.start_op();
     m_last_image_id = "";
@@ -257,8 +290,9 @@ void TrashWatcher<I>::trash_list(bool initial_request) {
   librados::ObjectReadOperation op;
   librbd::cls_client::trash_list_start(&op, m_last_image_id, MAX_RETURN);
 
-  librados::AioCompletion *aio_comp = create_rados_callback<
-    TrashWatcher<I>, &TrashWatcher<I>::handle_trash_list>(this);
+  librados::AioCompletion* aio_comp =
+      create_rados_callback<TrashWatcher<I>, &TrashWatcher<I>::handle_trash_list>(
+          this);
   m_out_bl.clear();
   int r = m_io_ctx.aio_operate(RBD_TRASH, aio_comp, &op, &m_out_bl);
   ceph_assert(r == 0);
@@ -266,7 +300,9 @@ void TrashWatcher<I>::trash_list(bool initial_request) {
 }
 
 template <typename I>
-void TrashWatcher<I>::handle_trash_list(int r) {
+void
+TrashWatcher<I>::handle_trash_list(int r)
+{
   dout(5) << "r=" << r << dendl;
 
   std::map<std::string, cls::rbd::TrashImageSpec> images;
@@ -275,7 +311,7 @@ void TrashWatcher<I>::handle_trash_list(int r) {
     r = librbd::cls_client::trash_list_finish(&bl_it, &images);
   }
 
-  Context *on_init_finish = nullptr;
+  Context* on_init_finish = nullptr;
   {
     std::lock_guard locker{m_lock};
     ceph_assert(m_trash_list_in_progress);
@@ -315,7 +351,9 @@ void TrashWatcher<I>::handle_trash_list(int r) {
 }
 
 template <typename I>
-void TrashWatcher<I>::schedule_trash_list(double interval) {
+void
+TrashWatcher<I>::schedule_trash_list(double interval)
+{
   std::scoped_lock locker{m_threads->timer_lock, m_lock};
   if (m_shutting_down || m_trash_list_in_progress || m_timer_ctx != nullptr) {
     if (m_trash_list_in_progress && !m_deferred_trash_list) {
@@ -327,14 +365,13 @@ void TrashWatcher<I>::schedule_trash_list(double interval) {
 
   dout(5) << dendl;
   m_timer_ctx = m_threads->timer->add_event_after(
-    interval,
-    new LambdaContext([this](int r) {
-	process_trash_list();
-      }));
+      interval, new LambdaContext([this](int r) { process_trash_list(); }));
 }
 
 template <typename I>
-void TrashWatcher<I>::process_trash_list() {
+void
+TrashWatcher<I>::process_trash_list()
+{
   dout(5) << dendl;
 
   ceph_assert(ceph_mutex_is_locked(m_threads->timer_lock));
@@ -349,16 +386,19 @@ void TrashWatcher<I>::process_trash_list() {
 
   // execute outside of the timer's lock
   m_async_op_tracker.start_op();
-  Context *ctx = new LambdaContext([this](int r) {
-      create_trash();
-      m_async_op_tracker.finish_op();
-    });
+  Context* ctx = new LambdaContext([this](int r) {
+    create_trash();
+    m_async_op_tracker.finish_op();
+  });
   m_threads->work_queue->queue(ctx, 0);
 }
 
 template <typename I>
-void TrashWatcher<I>::add_image(const std::string& image_id,
-                                const cls::rbd::TrashImageSpec& spec) {
+void
+TrashWatcher<I>::add_image(
+    const std::string& image_id,
+    const cls::rbd::TrashImageSpec& spec)
+{
   if (spec.source != cls::rbd::TRASH_IMAGE_SOURCE_MIRRORING) {
     return;
   }
@@ -370,14 +410,14 @@ void TrashWatcher<I>::add_image(const std::string& image_id,
 
   m_async_op_tracker.start_op();
   auto ctx = new LambdaContext([this, image_id, deferment_end_time](int r) {
-      m_trash_listener.handle_trash_image(image_id,
-					  deferment_end_time.to_real_time());
-      m_async_op_tracker.finish_op();
-    });
+    m_trash_listener.handle_trash_image(
+        image_id, deferment_end_time.to_real_time());
+    m_async_op_tracker.finish_op();
+  });
   m_threads->work_queue->queue(ctx, 0);
 }
 
-} // namespace image_deleter;
+} // namespace image_deleter
 } // namespace mirror
 } // namespace rbd
 

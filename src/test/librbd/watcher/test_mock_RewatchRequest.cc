@@ -1,14 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
 #include "include/rados/librados.hpp"
-#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
-#include "test/librados_test_stub/MockTestMemRadosClient.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
 #include "librados/AioCompletionImpl.h"
 #include "librbd/watcher/RewatchRequest.h"
+#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
+#include "test/librados_test_stub/MockTestMemRadosClient.h"
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 namespace watcher {
@@ -26,42 +26,60 @@ struct TestMockWatcherRewatchRequest : public TestMockFixture {
 
   TestMockWatcherRewatchRequest() = default;
 
-  void expect_aio_watch(MockImageCtx &mock_image_ctx, int r) {
-    librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(
-      mock_image_ctx.md_ctx));
+  void
+  expect_aio_watch(MockImageCtx& mock_image_ctx, int r)
+  {
+    librados::MockTestMemIoCtxImpl& mock_io_ctx(
+        get_mock_io_ctx(mock_image_ctx.md_ctx));
 
     EXPECT_CALL(mock_io_ctx, aio_watch(mock_image_ctx.header_oid, _, _, _))
-      .WillOnce(DoAll(WithArgs<1, 2>(Invoke([&mock_image_ctx, &mock_io_ctx, r](librados::AioCompletionImpl *c, uint64_t *cookie) {
-                                   *cookie = 234;
-                                   c->get();
-                                   mock_image_ctx.image_ctx->op_work_queue->queue(new LambdaContext([&mock_io_ctx, c](int r) {
-                                       mock_io_ctx.get_mock_rados_client()->finish_aio_completion(c, r);
-                                     }), r);
-                                   })),
-                      Return(0)));
+        .WillOnce(DoAll(
+            WithArgs<1, 2>(Invoke([&mock_image_ctx, &mock_io_ctx,
+                                   r](librados::AioCompletionImpl* c,
+                                      uint64_t* cookie) {
+              *cookie = 234;
+              c->get();
+              mock_image_ctx.image_ctx->op_work_queue->queue(
+                  new LambdaContext([&mock_io_ctx, c](int r) {
+                    mock_io_ctx.get_mock_rados_client()->finish_aio_completion(
+                        c, r);
+                  }),
+                  r);
+            })),
+            Return(0)));
   }
 
-  void expect_aio_unwatch(MockImageCtx &mock_image_ctx, int r) {
-    librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(
-      mock_image_ctx.md_ctx));
+  void
+  expect_aio_unwatch(MockImageCtx& mock_image_ctx, int r)
+  {
+    librados::MockTestMemIoCtxImpl& mock_io_ctx(
+        get_mock_io_ctx(mock_image_ctx.md_ctx));
 
     EXPECT_CALL(mock_io_ctx, aio_unwatch(m_watch_handle, _))
-      .WillOnce(DoAll(Invoke([&mock_image_ctx, &mock_io_ctx, r](uint64_t handle,
-                                                                librados::AioCompletionImpl *c) {
-                        c->get();
-                        mock_image_ctx.image_ctx->op_work_queue->queue(new LambdaContext([&mock_io_ctx, c](int r) {
-                            mock_io_ctx.get_mock_rados_client()->finish_aio_completion(c, r);
-                          }), r);
-                        }),
-                      Return(0)));
+        .WillOnce(DoAll(
+            Invoke([&mock_image_ctx, &mock_io_ctx,
+                    r](uint64_t handle, librados::AioCompletionImpl* c) {
+              c->get();
+              mock_image_ctx.image_ctx->op_work_queue->queue(
+                  new LambdaContext([&mock_io_ctx, c](int r) {
+                    mock_io_ctx.get_mock_rados_client()->finish_aio_completion(
+                        c, r);
+                  }),
+                  r);
+            }),
+            Return(0)));
   }
 
   struct WatchCtx : public librados::WatchCtx2 {
-    void handle_notify(uint64_t, uint64_t, uint64_t,
-                               ceph::bufferlist&) override {
+    void
+    handle_notify(uint64_t, uint64_t, uint64_t, ceph::bufferlist&) override
+    {
       ceph_abort();
     }
-    void handle_error(uint64_t, int) override {
+
+    void
+    handle_error(uint64_t, int) override
+    {
       ceph_abort();
     }
   };
@@ -71,8 +89,9 @@ struct TestMockWatcherRewatchRequest : public TestMockFixture {
   uint64_t m_watch_handle = 123;
 };
 
-TEST_F(TestMockWatcherRewatchRequest, Success) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, Success)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -82,12 +101,9 @@ TEST_F(TestMockWatcherRewatchRequest, Success) {
   expect_aio_watch(mock_image_ctx, 0);
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();
@@ -96,8 +112,9 @@ TEST_F(TestMockWatcherRewatchRequest, Success) {
   ASSERT_EQ(234U, m_watch_handle);
 }
 
-TEST_F(TestMockWatcherRewatchRequest, UnwatchError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, UnwatchError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -107,12 +124,9 @@ TEST_F(TestMockWatcherRewatchRequest, UnwatchError) {
   expect_aio_watch(mock_image_ctx, 0);
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();
@@ -121,8 +135,9 @@ TEST_F(TestMockWatcherRewatchRequest, UnwatchError) {
   ASSERT_EQ(234U, m_watch_handle);
 }
 
-TEST_F(TestMockWatcherRewatchRequest, WatchBlocklist) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, WatchBlocklist)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -132,12 +147,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchBlocklist) {
   expect_aio_watch(mock_image_ctx, -EBLOCKLISTED);
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();
@@ -146,8 +158,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchBlocklist) {
   ASSERT_EQ(0U, m_watch_handle);
 }
 
-TEST_F(TestMockWatcherRewatchRequest, WatchDNE) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, WatchDNE)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -157,12 +170,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchDNE) {
   expect_aio_watch(mock_image_ctx, -ENOENT);
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();
@@ -171,8 +181,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchDNE) {
   ASSERT_EQ(0U, m_watch_handle);
 }
 
-TEST_F(TestMockWatcherRewatchRequest, WatchError) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, WatchError)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -182,12 +193,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchError) {
   expect_aio_watch(mock_image_ctx, -EINVAL);
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();
@@ -196,8 +204,9 @@ TEST_F(TestMockWatcherRewatchRequest, WatchError) {
   ASSERT_EQ(0U, m_watch_handle);
 }
 
-TEST_F(TestMockWatcherRewatchRequest, InvalidWatchHandler) {
-  librbd::ImageCtx *ictx;
+TEST_F(TestMockWatcherRewatchRequest, InvalidWatchHandler)
+{
+  librbd::ImageCtx* ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
@@ -208,12 +217,9 @@ TEST_F(TestMockWatcherRewatchRequest, InvalidWatchHandler) {
   m_watch_handle = 0;
 
   C_SaferCond ctx;
-  MockRewatchRequest *req = MockRewatchRequest::create(mock_image_ctx.md_ctx,
-                                                       mock_image_ctx.header_oid,
-                                                       m_watch_lock,
-                                                       &m_watch_ctx,
-                                                       &m_watch_handle,
-                                                       &ctx);
+  MockRewatchRequest* req = MockRewatchRequest::create(
+      mock_image_ctx.md_ctx, mock_image_ctx.header_oid, m_watch_lock,
+      &m_watch_ctx, &m_watch_handle, &ctx);
   {
     std::unique_lock watch_locker{m_watch_lock};
     req->send();

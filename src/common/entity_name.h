@@ -26,21 +26,23 @@
 #include "include/msgr.h" // for CEPH_ENTITY_*
 
 class entity_name_t;
-namespace ceph { class Formatter; }
+
+namespace ceph {
+class Formatter;
+}
 
 /* Represents a Ceph entity name.
  *
  * For example, mds.0 is the name of the first metadata server.
  * client
  */
-struct EntityName
-{
+struct EntityName {
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<EntityName> generate_test_instances();
   const std::string& to_str() const;
-  const char *to_cstr() const;
+  const char* to_cstr() const;
   bool from_str(std::string_view s);
   void set(uint32_t type_, std::string_view id_);
   int set(std::string_view type_, std::string_view id_);
@@ -51,15 +53,44 @@ struct EntityName
 
   const char* get_type_str() const;
 
-  uint32_t get_type() const { return type; }
-  bool is_osd() const { return get_type() == CEPH_ENTITY_TYPE_OSD; }
-  bool is_mgr() const { return get_type() == CEPH_ENTITY_TYPE_MGR; }
-  bool is_mds() const { return get_type() == CEPH_ENTITY_TYPE_MDS; }
-  bool is_client() const { return get_type() == CEPH_ENTITY_TYPE_CLIENT; }
-  bool is_mon() const { return get_type() == CEPH_ENTITY_TYPE_MON; }
+  uint32_t
+  get_type() const
+  {
+    return type;
+  }
+
+  bool
+  is_osd() const
+  {
+    return get_type() == CEPH_ENTITY_TYPE_OSD;
+  }
+
+  bool
+  is_mgr() const
+  {
+    return get_type() == CEPH_ENTITY_TYPE_MGR;
+  }
+
+  bool
+  is_mds() const
+  {
+    return get_type() == CEPH_ENTITY_TYPE_MDS;
+  }
+
+  bool
+  is_client() const
+  {
+    return get_type() == CEPH_ENTITY_TYPE_CLIENT;
+  }
+
+  bool
+  is_mon() const
+  {
+    return get_type() == CEPH_ENTITY_TYPE_MON;
+  }
 
   std::string_view get_type_name() const;
-  const std::string &get_id() const;
+  const std::string& get_id() const;
   bool has_default_id() const;
 
   static std::string get_valid_types_as_str();
@@ -68,15 +99,18 @@ struct EntityName
   friend bool operator<(const EntityName& a, const EntityName& b);
   friend std::ostream& operator<<(std::ostream& out, const EntityName& n);
 
-  bool operator==(const EntityName& rhs) const noexcept {
+  bool
+  operator==(const EntityName& rhs) const noexcept
+  {
     return type == rhs.type && id == rhs.id;
   }
 
 private:
   struct str_to_entity_type_t {
     uint32_t type;
-    const char *str;
+    const char* str;
   };
+
   static const std::array<str_to_entity_type_t, 6> STR_TO_ENTITY_TYPE;
 
   uint32_t type = 0;

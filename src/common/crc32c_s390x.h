@@ -23,8 +23,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <sys/types.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 /* Portable implementations of CRC-32 (IEEE and Castagnoli) little-endian variant */
 unsigned int crc32c_le(uint32_t, unsigned char const*, unsigned);

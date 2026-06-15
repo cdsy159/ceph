@@ -15,24 +15,27 @@
 
 //#define BOOST_ASIO_ENABLE_HANDLER_TRACKING
 
-#include "rgw_dmclock_sync_scheduler.h"
-#include "rgw_dmclock_async_scheduler.h"
+#include <gtest/gtest.h>
 
 #include <optional>
+
 #include <boost/asio/spawn.hpp>
-#include <gtest/gtest.h>
-#include "acconfig.h"
+
 #include "global/global_context.h"
+
+#include "acconfig.h"
+#include "rgw_dmclock_async_scheduler.h"
+#include "rgw_dmclock_sync_scheduler.h"
 
 namespace rgw::dmclock {
 
 using boost::system::error_code;
 
 // return a lambda that can be used as a callback to capture its arguments
-auto capture(std::optional<error_code>& opt_ec,
-             std::optional<PhaseType>& opt_phase)
+auto
+capture(std::optional<error_code>& opt_ec, std::optional<PhaseType>& opt_phase)
 {
-  return [&] (error_code ec, PhaseType phase) {
+  return [&](error_code ec, PhaseType phase) {
     opt_ec = ec;
     opt_phase = phase;
   };
@@ -41,20 +44,19 @@ auto capture(std::optional<error_code>& opt_ec,
 TEST(Queue, SyncRequest)
 {
   ClientCounters counters(g_ceph_context);
-  auto client_info_f = [] (client_id client) -> ClientInfo* {
-                         static ClientInfo clients[] = {
-                                                        {1, 1, 1}, //admin: satisfy by reservation
-                                                        {0, 1, 1}, //auth: satisfy by priority
-                         };
-                         return &clients[static_cast<size_t>(client)];
-                       };
-  std::atomic <bool> ready = false;
-  auto server_ready_f = [&ready]() -> bool { return ready.load();};
+  auto client_info_f = [](client_id client) -> ClientInfo* {
+    static ClientInfo clients[] = {
+        {1, 1, 1}, //admin: satisfy by reservation
+        {0, 1, 1}, //auth: satisfy by priority
+    };
+    return &clients[static_cast<size_t>(client)];
+  };
+  std::atomic<bool> ready = false;
+  auto server_ready_f = [&ready]() -> bool { return ready.load(); };
 
-  SyncScheduler queue(g_ceph_context, std::ref(counters),
-		      client_info_f, server_ready_f,
-		      std::ref(SyncScheduler::handle_request_cb)
-		      );
+  SyncScheduler queue(
+      g_ceph_context, std::ref(counters), client_info_f, server_ready_f,
+      std::ref(SyncScheduler::handle_request_cb));
 
 
   auto now = get_time();
@@ -81,14 +83,16 @@ TEST(Queue, RateLimit)
 {
   boost::asio::io_context context;
   ClientCounters counters(g_ceph_context);
-  AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                  [] (client_id client) -> ClientInfo* {
-      static ClientInfo clients[] = {
-        {1, 1, 1}, // admin
-        {0, 1, 1}, // auth
-      };
-      return &clients[static_cast<size_t>(client)];
-    }, AtLimit::Reject);
+  AsyncScheduler queue(
+      g_ceph_context, context, std::ref(counters), nullptr,
+      [](client_id client) -> ClientInfo* {
+        static ClientInfo clients[] = {
+            {1, 1, 1}, // admin
+            {0, 1, 1}, // auth
+        };
+        return &clients[static_cast<size_t>(client)];
+      },
+      AtLimit::Reject);
 
   std::optional<error_code> ec1, ec2, ec3, ec4;
   std::optional<PhaseType> p1, p2, p3, p4;
@@ -142,15 +146,16 @@ TEST(Queue, AsyncRequest)
 {
   boost::asio::io_context context;
   ClientCounters counters(g_ceph_context);
-  AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                  [] (client_id client) -> ClientInfo* {
-      static ClientInfo clients[] = {
-        {1, 1, 1}, // admin: satisfy by reservation
-        {0, 1, 1}, // auth: satisfy by priority
-      };
-      return &clients[static_cast<size_t>(client)];
-		  }, AtLimit::Reject
-		  );
+  AsyncScheduler queue(
+      g_ceph_context, context, std::ref(counters), nullptr,
+      [](client_id client) -> ClientInfo* {
+        static ClientInfo clients[] = {
+            {1, 1, 1}, // admin: satisfy by reservation
+            {0, 1, 1}, // auth: satisfy by priority
+        };
+        return &clients[static_cast<size_t>(client)];
+      },
+      AtLimit::Reject);
 
   std::optional<error_code> ec1, ec2;
   std::optional<PhaseType> p1, p2;
@@ -190,16 +195,16 @@ TEST(Queue, AsyncRequest)
   EXPECT_EQ(0u, counters(client_id::auth)->get(queue_counters::l_cancel));
 }
 
-
 TEST(Queue, Cancel)
 {
   boost::asio::io_context context;
   ClientCounters counters(g_ceph_context);
-  AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                  [] (client_id client) -> ClientInfo* {
-      static ClientInfo info{0, 1, 1};
-      return &info;
-    });
+  AsyncScheduler queue(
+      g_ceph_context, context, std::ref(counters), nullptr,
+      [](client_id client) -> ClientInfo* {
+        static ClientInfo info{0, 1, 1};
+        return &info;
+      });
 
   std::optional<error_code> ec1, ec2;
   std::optional<PhaseType> p1, p2;
@@ -243,11 +248,12 @@ TEST(Queue, CancelClient)
 {
   boost::asio::io_context context;
   ClientCounters counters(g_ceph_context);
-  AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                  [] (client_id client) -> ClientInfo* {
-      static ClientInfo info{0, 1, 1};
-      return &info;
-    });
+  AsyncScheduler queue(
+      g_ceph_context, context, std::ref(counters), nullptr,
+      [](client_id client) -> ClientInfo* {
+        static ClientInfo info{0, 1, 1};
+        return &info;
+      });
 
   std::optional<error_code> ec1, ec2;
   std::optional<PhaseType> p1, p2;
@@ -299,11 +305,12 @@ TEST(Queue, CancelOnDestructor)
 
   ClientCounters counters(g_ceph_context);
   {
-    AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                    [] (client_id client) -> ClientInfo* {
-        static ClientInfo info{0, 1, 1};
-        return &info;
-      });
+    AsyncScheduler queue(
+        g_ceph_context, context, std::ref(counters), nullptr,
+        [](client_id client) -> ClientInfo* {
+          static ClientInfo info{0, 1, 1};
+          return &info;
+        });
 
     auto now = get_time();
     queue.async_request(client_id::admin, {}, now, 1, capture(ec1, p1));
@@ -339,8 +346,11 @@ TEST(Queue, CancelOnDestructor)
 
 // return a lambda from capture() that's bound to run on the given executor
 template <typename Executor>
-auto capture(const Executor& ex, std::optional<error_code>& opt_ec,
-             std::optional<PhaseType>& opt_res)
+auto
+capture(
+    const Executor& ex,
+    std::optional<error_code>& opt_ec,
+    std::optional<PhaseType>& opt_res)
 {
   return boost::asio::bind_executor(ex, capture(opt_ec, opt_res));
 }
@@ -349,11 +359,12 @@ TEST(Queue, CrossExecutorRequest)
 {
   boost::asio::io_context queue_context;
   ClientCounters counters(g_ceph_context);
-  AsyncScheduler queue(g_ceph_context, queue_context, std::ref(counters), nullptr,
-                  [] (client_id client) -> ClientInfo* {
-      static ClientInfo info{0, 1, 1};
-      return &info;
-    });
+  AsyncScheduler queue(
+      g_ceph_context, queue_context, std::ref(counters), nullptr,
+      [](client_id client) -> ClientInfo* {
+        static ClientInfo info{0, 1, 1};
+        return &info;
+      });
 
   // create a separate execution context to use for all callbacks to test that
   // pending requests maintain executor work guards on both executors
@@ -401,28 +412,35 @@ TEST(Queue, SpawnAsyncRequest)
 {
   boost::asio::io_context context;
 
-  boost::asio::spawn(context, [&] (boost::asio::yield_context yield) {
-    ClientCounters counters(g_ceph_context);
-    AsyncScheduler queue(g_ceph_context, context, std::ref(counters), nullptr,
-                    [] (client_id client) -> ClientInfo* {
-        static ClientInfo clients[] = {
-          {1, 1, 1}, // admin: satisfy by reservation
-          {0, 1, 1}, // auth: satisfy by priority
-        };
-        return &clients[static_cast<size_t>(client)];
+  boost::asio::spawn(
+      context,
+      [&](boost::asio::yield_context yield) {
+        ClientCounters counters(g_ceph_context);
+        AsyncScheduler queue(
+            g_ceph_context, context, std::ref(counters), nullptr,
+            [](client_id client) -> ClientInfo* {
+              static ClientInfo clients[] = {
+                  {1, 1, 1}, // admin: satisfy by reservation
+                  {0, 1, 1}, // auth: satisfy by priority
+              };
+              return &clients[static_cast<size_t>(client)];
+            });
+
+        error_code ec1, ec2;
+        auto p1 = queue.async_request(
+            client_id::admin, {}, get_time(), 1, yield[ec1]);
+        EXPECT_EQ(boost::system::errc::success, ec1);
+        EXPECT_EQ(PhaseType::reservation, p1);
+
+        auto p2 =
+            queue.async_request(client_id::auth, {}, get_time(), 1, yield[ec2]);
+        EXPECT_EQ(boost::system::errc::success, ec2);
+        EXPECT_EQ(PhaseType::priority, p2);
+      },
+      [](std::exception_ptr eptr) {
+        if (eptr)
+          std::rethrow_exception(eptr);
       });
-
-    error_code ec1, ec2;
-    auto p1 = queue.async_request(client_id::admin, {}, get_time(), 1, yield[ec1]);
-    EXPECT_EQ(boost::system::errc::success, ec1);
-    EXPECT_EQ(PhaseType::reservation, p1);
-
-    auto p2 = queue.async_request(client_id::auth, {}, get_time(), 1, yield[ec2]);
-    EXPECT_EQ(boost::system::errc::success, ec2);
-    EXPECT_EQ(PhaseType::priority, p2);
-  }, [] (std::exception_ptr eptr) {
-    if (eptr) std::rethrow_exception(eptr);
-  });
 
   context.run_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(context.stopped());

@@ -12,23 +12,24 @@ struct ExtentPinboard {
   virtual ~ExtentPinboard() = default;
   virtual void register_metrics(store_index_t store_index) = 0;
   virtual void move_to_top(
-    CachedExtent &extent,
-    const Transaction::src_t *p_src,
-    extent_len_t load_start,
-    extent_len_t load_length) = 0;
-  virtual void remove(CachedExtent &extent) = 0;
+      CachedExtent& extent,
+      const Transaction::src_t* p_src,
+      extent_len_t load_start,
+      extent_len_t load_length) = 0;
+  virtual void remove(CachedExtent& extent) = 0;
   virtual void get_stats(
-    cache_stats_t &stats,
-    bool report_detail,
-    double seconds) const = 0;
+      cache_stats_t& stats,
+      bool report_detail,
+      double seconds) const = 0;
   virtual std::size_t get_current_size_bytes() const = 0;
   virtual std::size_t get_current_num_extents() const = 0;
   virtual void increase_cached_size(
-    CachedExtent &extent,
-    extent_len_t increased_length,
-    const Transaction::src_t *p_src) = 0;
+      CachedExtent& extent,
+      extent_len_t increased_length,
+      const Transaction::src_t* p_src) = 0;
   virtual void clear() = 0;
 };
+
 using ExtentPinboardRef = std::unique_ptr<ExtentPinboard>;
 ExtentPinboardRef create_extent_pinboard(std::size_t capacity);
 

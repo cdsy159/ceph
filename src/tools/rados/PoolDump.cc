@@ -13,11 +13,12 @@
  *
  */
 
-#include "include/rados/librados.hpp"
-#include "common/debug.h"
-#include "common/errno.h"
-
 #include "PoolDump.h"
+
+#include "common/debug.h"
+
+#include "common/errno.h"
+#include "include/rados/librados.hpp"
 
 using namespace librados;
 using std::cerr;
@@ -34,7 +35,8 @@ using std::string;
  *
  * @returns 0 on success, else error code
  */
-int PoolDump::dump(IoCtx *io_ctx)
+int
+PoolDump::dump(IoCtx* io_ctx)
 {
   ceph_assert(io_ctx != NULL);
 
@@ -85,8 +87,8 @@ int PoolDump::dump(IoCtx *io_ctx)
         break;
       }
 
-      r = write_section(TYPE_DATA,
-          data_section(offset, outdata.length(), outdata), file_fd);
+      r = write_section(
+          TYPE_DATA, data_section(offset, outdata.length(), outdata), file_fd);
       if (r != 0) {
         // Output stream error
         return r;
@@ -102,7 +104,7 @@ int PoolDump::dump(IoCtx *io_ctx)
     // Compose TYPE_ATTRS chunk
     // ========================
     std::map<std::string, bufferlist> raw_xattrs;
-    std::map<std::string, bufferlist,less<>> xattrs;
+    std::map<std::string, bufferlist, less<>> xattrs;
     r = io_ctx->getxattrs(oid, raw_xattrs);
     if (r < 0) {
       cerr << "error getting xattr set " << oid << ": " << cpp_strerror(r)
@@ -112,7 +114,8 @@ int PoolDump::dump(IoCtx *io_ctx)
     // Prepend "_" to mimic how user keys are represented in a pg export
     for (std::map<std::string, bufferlist>::iterator i = raw_xattrs.begin();
          i != raw_xattrs.end(); ++i) {
-      std::pair< std::string, bufferlist> item(std::string("_") + std::string(i->first.c_str()), i->second);
+      std::pair<std::string, bufferlist> item(
+          std::string("_") + std::string(i->first.c_str()), i->second);
       xattrs.insert(item);
     }
     r = write_section(TYPE_ATTRS, attr_section(xattrs), file_fd);
@@ -125,8 +128,8 @@ int PoolDump::dump(IoCtx *io_ctx)
     bufferlist omap_header;
     r = io_ctx->omap_get_header(oid, &omap_header);
     if (r < 0) {
-      cerr << "error getting omap header " << oid
-	   << ": " << cpp_strerror(r) << std::endl;
+      cerr << "error getting omap header " << oid << ": " << cpp_strerror(r)
+           << std::endl;
       return r;
     }
     r = write_section(TYPE_OMAP_HDR, omap_hdr_section(omap_header), file_fd);
@@ -141,9 +144,9 @@ int PoolDump::dump(IoCtx *io_ctx)
       map<string, bufferlist> values;
       r = io_ctx->omap_get_vals(oid, last_read, MAX_READ, &values);
       if (r < 0) {
-	cerr << "error getting omap keys " << oid << ": "
-	     << cpp_strerror(r) << std::endl;
-	return r;
+        cerr << "error getting omap keys " << oid << ": " << cpp_strerror(r)
+             << std::endl;
+        return r;
       }
       if (values.size()) {
         last_read = values.rbegin()->first;

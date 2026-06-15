@@ -24,64 +24,66 @@
  */
 
 // -----------------------------------------------------------------------------
-#include "ceph_ver.h"
-#include "include/buffer.h"
 #include "ErasureCodePluginIsa.h"
+
+#include "include/buffer.h"
+
 #include "ErasureCodeIsa.h"
+#include "ceph_ver.h"
+
 // -----------------------------------------------------------------------------
 
-int ErasureCodePluginIsa::factory(const std::string &directory,
-                                  ceph::ErasureCodeProfile &profile,
-                                  ceph::ErasureCodeInterfaceRef *erasure_code,
-                                  std::ostream *ss)
+int
+ErasureCodePluginIsa::factory(
+    const std::string& directory,
+    ceph::ErasureCodeProfile& profile,
+    ceph::ErasureCodeInterfaceRef* erasure_code,
+    std::ostream* ss)
 {
-  ErasureCodeIsa *interface;
-    std::string technique;
-    technique = profile.find("technique")->second;
-    std::string _m = profile.find("m")->second;
-    if ((technique == "reed_sol_van")) {
-      interface = new ErasureCodeIsaDefault(tcache,
-                                            technique,
-                                            ErasureCodeIsaDefault::kVandermonde,
-                                            _m);
-    } else if ((technique == "cauchy")) {
-      interface = new ErasureCodeIsaDefault(tcache,
-                                            technique,
-                                            ErasureCodeIsaDefault::kCauchy,
-                                            _m);
-    } else {
-      *ss << "technique=" << technique << " is not a valid coding technique. "
-        << " Choose one of the following: "
-        << "reed_sol_van,"
-        << "cauchy" << std::endl;
-      return -ENOENT;
-    }
+  ErasureCodeIsa* interface;
+  std::string technique;
+  technique = profile.find("technique")->second;
+  std::string _m = profile.find("m")->second;
+  if ((technique == "reed_sol_van")) {
+    interface = new ErasureCodeIsaDefault(
+        tcache, technique, ErasureCodeIsaDefault::kVandermonde, _m);
+  } else if ((technique == "cauchy")) {
+    interface = new ErasureCodeIsaDefault(
+        tcache, technique, ErasureCodeIsaDefault::kCauchy, _m);
+  } else {
+    *ss << "technique=" << technique << " is not a valid coding technique. "
+        << " Choose one of the following: " << "reed_sol_van," << "cauchy"
+        << std::endl;
+    return -ENOENT;
+  }
 
-    int r = interface->init(profile, ss);
-    if (r) {
-      delete interface;
-      return r;
-    }
-    *erasure_code = ceph::ErasureCodeInterfaceRef(interface);
-    return 0;
+  int r = interface->init(profile, ss);
+  if (r) {
+    delete interface;
+    return r;
+  }
+  *erasure_code = ceph::ErasureCodeInterfaceRef(interface);
+  return 0;
 }
 
 // -----------------------------------------------------------------------------
 
-const char *__erasure_code_version()
+const char*
+__erasure_code_version()
 {
   return CEPH_GIT_NICE_VER;
 }
 
 // -----------------------------------------------------------------------------
 
-int __erasure_code_init(char *plugin_name, char *directory)
+int
+__erasure_code_init(char* plugin_name, char* directory)
 {
   auto& instance = ceph::ErasureCodePluginRegistry::instance();
   auto plugin = std::make_unique<ErasureCodePluginIsa>();
   int r = instance.add(plugin_name, plugin.get());
   if (r == 0) {
-    plugin.release();  
+    plugin.release();
   }
   return r;
 }

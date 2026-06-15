@@ -4,31 +4,40 @@
 #ifndef RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_REPLAYER_H
 #define RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_REPLAYER_H
 
-#include "tools/rbd_mirror/image_replayer/Replayer.h"
-#include "include/utime.h"
-#include "common/AsyncOpTracker.h"
-#include "common/ceph_mutex.h"
-#include "common/RefCountedObj.h"
-#include "cls/journal/cls_journal_types.h"
-#include "journal/ReplayEntry.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/journal/Types.h"
-#include "librbd/journal/TypeTraits.h"
 #include <string>
 #include <type_traits>
 
-namespace journal { class Journaler; }
+#include "cls/journal/cls_journal_types.h"
+#include "common/AsyncOpTracker.h"
+#include "common/RefCountedObj.h"
+#include "common/ceph_mutex.h"
+#include "include/utime.h"
+#include "journal/ReplayEntry.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/journal/TypeTraits.h"
+#include "librbd/journal/Types.h"
+#include "tools/rbd_mirror/image_replayer/Replayer.h"
+
+namespace journal {
+class Journaler;
+}
+
 namespace librbd {
 
 struct ImageCtx;
-namespace journal { template <typename I> class Replay; }
+
+namespace journal {
+template <typename I>
+class Replay;
+}
 
 } // namespace librbd
 
 namespace rbd {
 namespace mirror {
 
-template <typename> struct Threads;
+template <typename>
+struct Threads;
 
 namespace image_replayer {
 
@@ -36,22 +45,27 @@ struct ReplayerListener;
 
 namespace journal {
 
-template <typename> class EventPreprocessor;
-template <typename> class ReplayStatusFormatter;
-template <typename> class StateBuilder;
+template <typename>
+class EventPreprocessor;
+template <typename>
+class ReplayStatusFormatter;
+template <typename>
+class StateBuilder;
 
 template <typename ImageCtxT>
 class Replayer : public image_replayer::Replayer {
 public:
   typedef typename librbd::journal::TypeTraits<ImageCtxT>::Journaler Journaler;
 
-  static Replayer* create(
+  static Replayer*
+  create(
       Threads<ImageCtxT>* threads,
       const std::string& local_mirror_uuid,
       StateBuilder<ImageCtxT>* state_builder,
-      ReplayerListener* replayer_listener) {
-    return new Replayer(threads, local_mirror_uuid, state_builder,
-                        replayer_listener);
+      ReplayerListener* replayer_listener)
+  {
+    return new Replayer(
+        threads, local_mirror_uuid, state_builder, replayer_listener);
   }
 
   Replayer(
@@ -61,7 +75,9 @@ public:
       ReplayerListener* replayer_listener);
   ~Replayer();
 
-  void destroy() override {
+  void
+  destroy() override
+  {
     delete this;
   }
 
@@ -72,27 +88,37 @@ public:
 
   bool get_replay_status(std::string* description, Context* on_finish) override;
 
-  bool is_replaying() const override {
+  bool
+  is_replaying() const override
+  {
     std::unique_lock locker{m_lock};
     return (m_state == STATE_REPLAYING);
   }
 
-  bool is_resync_requested() const override {
+  bool
+  is_resync_requested() const override
+  {
     std::unique_lock locker(m_lock);
     return m_resync_requested;
   }
 
-  int get_error_code() const override {
+  int
+  get_error_code() const override
+  {
     std::unique_lock locker(m_lock);
     return m_error_code;
   }
 
-  std::string get_error_description() const override {
+  std::string
+  get_error_description() const override
+  {
     std::unique_lock locker(m_lock);
     return m_error_description;
   }
 
-  std::string get_image_spec() const {
+  std::string
+  get_image_spec() const
+  {
     std::unique_lock locker(m_lock);
     return m_image_spec;
   }
@@ -168,7 +194,8 @@ private:
    * @endverbatim
    */
 
-  typedef typename librbd::journal::TypeTraits<ImageCtxT>::ReplayEntry ReplayEntry;
+  typedef
+      typename librbd::journal::TypeTraits<ImageCtxT>::ReplayEntry ReplayEntry;
 
   enum State {
     STATE_INIT,
@@ -197,7 +224,7 @@ private:
   bool m_resync_requested = false;
 
   ceph::ref_t<typename std::remove_pointer<decltype(ImageCtxT::journal)>::type>
-    m_local_journal;
+      m_local_journal;
   RemoteJournalerListener* m_remote_listener = nullptr;
 
   librbd::journal::Replay<ImageCtxT>* m_local_journal_replay = nullptr;
@@ -206,7 +233,7 @@ private:
   RemoteReplayHandler* m_remote_replay_handler = nullptr;
   LocalJournalListener* m_local_journal_listener = nullptr;
 
-  PerfCounters *m_perf_counters = nullptr;
+  PerfCounters* m_perf_counters = nullptr;
 
   ReplayEntry m_replay_entry;
   uint64_t m_replay_bytes = 0;
@@ -220,10 +247,10 @@ private:
   AsyncOpTracker m_flush_tracker;
 
   AsyncOpTracker m_event_replay_tracker;
-  Context *m_delayed_preprocess_task = nullptr;
+  Context* m_delayed_preprocess_task = nullptr;
 
   AsyncOpTracker m_in_flight_op_tracker;
-  Context *m_flush_local_replay_task = nullptr;
+  Context* m_flush_local_replay_task = nullptr;
 
   void handle_remote_journal_metadata_updated();
 
@@ -275,14 +302,16 @@ private:
   void allocate_local_tag();
   void handle_allocate_local_tag(int r);
 
-  void handle_replay_error(int r, const std::string &error);
+  void handle_replay_error(int r, const std::string& error);
 
   bool is_replay_complete() const;
   bool is_replay_complete(const std::unique_lock<ceph::mutex>& locker) const;
 
-  void handle_replay_complete(int r, const std::string &error_desc);
-  void handle_replay_complete(const std::unique_lock<ceph::mutex>&,
-                              int r, const std::string &error_desc);
+  void handle_replay_complete(int r, const std::string& error_desc);
+  void handle_replay_complete(
+      const std::unique_lock<ceph::mutex>&,
+      int r,
+      const std::string& error_desc);
   void handle_replay_ready();
   void handle_replay_ready(std::unique_lock<ceph::mutex>& locker);
 
@@ -293,9 +322,11 @@ private:
 
   void process_entry();
   void handle_process_entry_ready(int r);
-  void handle_process_entry_safe(const ReplayEntry& replay_entry,
-                                 uint64_t relay_bytes,
-                                 const utime_t &replay_start_time, int r);
+  void handle_process_entry_safe(
+      const ReplayEntry& replay_entry,
+      uint64_t relay_bytes,
+      const utime_t& replay_start_time,
+      int r);
 
   void handle_resync_image();
 
@@ -306,11 +337,11 @@ private:
   int validate_remote_client_state(
       const cls::journal::Client& remote_client,
       librbd::journal::MirrorPeerClientMeta* remote_client_meta,
-      bool* resync_requested, std::string* error);
+      bool* resync_requested,
+      std::string* error);
 
   void register_perf_counters();
   void unregister_perf_counters();
-
 };
 
 } // namespace journal
@@ -318,6 +349,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::journal::Replayer<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::journal::Replayer<
+    librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_REPLAYER_H

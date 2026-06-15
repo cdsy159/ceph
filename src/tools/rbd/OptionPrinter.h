@@ -4,11 +4,13 @@
 #ifndef CEPH_RBD_OPTION_PRINTER_H
 #define CEPH_RBD_OPTION_PRINTER_H
 
-#include "include/int_types.h"
 #include <string>
 #include <vector>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
+
+#include "include/int_types.h"
 
 namespace rbd {
 
@@ -23,17 +25,20 @@ public:
   static const size_t MIN_NAME_WIDTH = 20;
   static const size_t MAX_DESCRIPTION_OFFSET = 37;
 
-  OptionPrinter(const OptionsDescription &positional,
-                const OptionsDescription &optional);
+  OptionPrinter(
+      const OptionsDescription& positional,
+      const OptionsDescription& optional);
 
-  void print_short(std::ostream &os, size_t initial_offset);
-  void print_detailed(std::ostream &os);
-  static void print_optional(const OptionsDescription &global_opts,
-                             size_t &name_width, std::ostream &os);
+  void print_short(std::ostream& os, size_t initial_offset);
+  void print_detailed(std::ostream& os);
+  static void print_optional(
+      const OptionsDescription& global_opts,
+      size_t& name_width,
+      std::ostream& os);
 
 private:
-  const OptionsDescription &m_positional;
-  const OptionsDescription &m_optional;
+  const OptionsDescription& m_positional;
+  const OptionsDescription& m_optional;
 
   size_t compute_name_width(size_t indent);
 };

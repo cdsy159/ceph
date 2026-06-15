@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 /*
  * This file is open source software, licensed to you under the terms
  * of the Apache License, Version 2.0 (the "License").  See the NOTICE file
@@ -23,26 +23,33 @@
 #ifndef CEPH_MSG_PACKET_UTIL_H_
 #define CEPH_MSG_PACKET_UTIL_H_
 
-#include <map>
 #include <iostream>
+#include <map>
 
 #include "Packet.h"
 
 template <typename Offset, typename Tag>
 class packet_merger {
- private:
-  static uint64_t& linearizations_ref() {
+private:
+  static uint64_t&
+  linearizations_ref()
+  {
     static thread_local uint64_t linearization_count;
     return linearization_count;
   }
- public:
+
+public:
   std::map<Offset, Packet> map;
 
-  static uint64_t linearizations() {
+  static uint64_t
+  linearizations()
+  {
     return linearizations_ref();
   }
 
-  void merge(Offset offset, Packet p) {
+  void
+  merge(Offset offset, Packet p)
+  {
     bool insert = true;
     auto beg = offset;
     auto end = beg + p.len();

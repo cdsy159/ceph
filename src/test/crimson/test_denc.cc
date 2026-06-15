@@ -1,15 +1,19 @@
-#include <string>
-#include <seastar/core/temporary_buffer.hh>
 #include <gtest/gtest.h>
-#include "include/denc.h"
+#include <seastar/core/temporary_buffer.hh>
+
+#include <string>
+
 #include "crimson/common/buffer_seastar.h"
+#include "include/denc.h"
 
 using temporary_buffer = seastar::temporary_buffer<char>;
 using buffer_iterator = seastar_buffer_iterator;
 using const_buffer_iterator = const_seastar_buffer_iterator;
 
-template<typename T>
-void test_denc(T v) {
+template <typename T>
+void
+test_denc(T v)
+{
   // estimate
   size_t s = 0;
   denc(v, s);

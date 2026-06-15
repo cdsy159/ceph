@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,32 +19,50 @@
 #ifndef CEPH_COMPRESSOR_EXAMPLE_H
 #define CEPH_COMPRESSOR_EXAMPLE_H
 
-#include <unistd.h>
 #include <errno.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <sstream>
 
+#include "compressor/Compressor.h"
 #include "crush/CrushWrapper.h"
 #include "osd/osd_types.h"
-#include "compressor/Compressor.h"
 
 class CompressorExample : public Compressor {
 public:
-  CompressorExample() : Compressor(COMP_ALG_NONE, "example") {}
+  CompressorExample() :
+    Compressor(COMP_ALG_NONE, "example")
+  {}
+
   ~CompressorExample() override {}
 
-  int compress(const bufferlist &in, bufferlist &out, std::optional<int32_t> &compressor_message) override
+  int
+  compress(
+      const bufferlist& in,
+      bufferlist& out,
+      std::optional<int32_t>& compressor_message) override
   {
     out = in;
     return 0;
   }
 
-  int decompress(const bufferlist &in, bufferlist &out, std::optional<int32_t> compressor_message) override
+  int
+  decompress(
+      const bufferlist& in,
+      bufferlist& out,
+      std::optional<int32_t> compressor_message) override
   {
     out = in;
     return 0;
   }
-  int decompress(bufferlist::const_iterator &p, size_t compressed_len, bufferlist &out, std::optional<int32_t> compressor_message) override
+
+  int
+  decompress(
+      bufferlist::const_iterator& p,
+      size_t compressed_len,
+      bufferlist& out,
+      std::optional<int32_t> compressor_message) override
   {
     p.copy(std::min<size_t>(p.get_remaining(), compressed_len), out);
     return 0;

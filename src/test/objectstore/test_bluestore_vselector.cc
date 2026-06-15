@@ -1,40 +1,38 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "common/ceph_argparse.h"
+#include "global/global_context.h"
+#include "global/global_init.h"
 #include "gtest/gtest.h"
 #include "os/bluestore/BlueStore.h"
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "global/global_context.h"
 
 using namespace std;
 
-TEST(rocksdb_bluefs_vselector, basic) {
+TEST(rocksdb_bluefs_vselector, basic)
+{
 
   uint64_t db_size = 168ull << 30;
   uint64_t level_base = 1ull << 30;
   size_t level_multi = 8;
 
   RocksDBBlueFSVolumeSelector selector(
-    10ull << 30,
-    db_size,
-    1000ull << 30,
-    1ull << 30,
-    level_base,
-    level_multi,
-    g_ceph_context->_conf->bluestore_volume_selection_policy.find("use_some_extra")
-      == 0);
+      10ull << 30, db_size, 1000ull << 30, 1ull << 30, level_base, level_multi,
+      g_ceph_context->_conf->bluestore_volume_selection_policy.find(
+          "use_some_extra") == 0);
   selector.update_from_config(g_ceph_context);
 
   // taken from RocksDBBlueFSVolumeSelector::
   size_t log_bdev = 1; // LEVEL_LOG
   size_t wal_bdev = 2; // LEVEL_WAL
-  size_t db_bdev = 3;  // LEVEL_DB
-  size_t slow_bdev = 4;// LEVEL_SLOW
+  size_t db_bdev = 3; // LEVEL_DB
+  size_t slow_bdev = 4; // LEVEL_SLOW
   bluefs_extent_t e;
 
   ASSERT_EQ(4, selector.get_extra_level());
-  ASSERT_EQ(30ull << 30, selector.get_available_extra()); // 168GB - 1GB (L0) - 1GB (L1) - 8GB (L2) - 2*64GB (L3)
+  ASSERT_EQ(
+      30ull << 30,
+      selector.get_available_extra()); // 168GB - 1GB (L0) - 1GB (L1) - 8GB (L2) - 2*64GB (L3)
 
   ASSERT_EQ(0, selector.select_prefer_bdev((void*)log_bdev));
   ASSERT_EQ(0, selector.select_prefer_bdev((void*)wal_bdev));
@@ -140,11 +138,13 @@ TEST(rocksdb_bluefs_vselector, basic) {
   }
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
-  auto cct =
-      global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
-                  CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

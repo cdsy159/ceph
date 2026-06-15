@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -26,49 +26,81 @@ private:
   bool client_must_resend;
 
 protected:
-  MClientRequestForward()
-    : SafeMessage{CEPH_MSG_CLIENT_REQUEST_FORWARD},
-      dest_mds(-1), num_fwd(-1), client_must_resend(false) {}
+  MClientRequestForward() :
+    SafeMessage{CEPH_MSG_CLIENT_REQUEST_FORWARD},
+    dest_mds(-1),
+    num_fwd(-1),
+    client_must_resend(false)
+  {}
+
   MClientRequestForward(ceph_tid_t t, int dm, int nf, bool cmr) :
     SafeMessage{CEPH_MSG_CLIENT_REQUEST_FORWARD},
-    dest_mds(dm), num_fwd(nf), client_must_resend(cmr) {
+    dest_mds(dm),
+    num_fwd(nf),
+    client_must_resend(cmr)
+  {
     ceph_assert(client_must_resend);
     header.tid = t;
   }
+
   ~MClientRequestForward() final {}
 
 public:
-  int get_dest_mds() const { return dest_mds; }
-  int get_num_fwd() const { return num_fwd; }
-  bool must_resend() const { return client_must_resend; }
-
-  std::string_view get_type_name() const override { return "client_request_forward"; }
-  void print(std::ostream& o) const override {
-    o << "client_request_forward(" << get_tid()
-      << " to mds." << dest_mds
-      << " num_fwd=" << num_fwd
-      << (client_must_resend ? " client_must_resend":"")
-      << ")";
+  int
+  get_dest_mds() const
+  {
+    return dest_mds;
   }
 
-  void encode_payload(uint64_t features) override {
+  int
+  get_num_fwd() const
+  {
+    return num_fwd;
+  }
+
+  bool
+  must_resend() const
+  {
+    return client_must_resend;
+  }
+
+  std::string_view
+  get_type_name() const override
+  {
+    return "client_request_forward";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
+    o << "client_request_forward(" << get_tid() << " to mds." << dest_mds
+      << " num_fwd=" << num_fwd
+      << (client_must_resend ? " client_must_resend" : "") << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dest_mds, payload);
     encode(num_fwd, payload);
     encode(client_must_resend, payload);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dest_mds, p);
     decode(num_fwd, p);
     decode(client_must_resend, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

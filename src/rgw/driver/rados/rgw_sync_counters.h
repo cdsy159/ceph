@@ -20,7 +20,7 @@ enum {
   l_last,
 };
 
-PerfCountersRef build(CephContext *cct, const std::string& name);
+PerfCountersRef build(CephContext* cct, const std::string& name);
 
 } // namespace sync_counters
 
@@ -36,10 +36,10 @@ enum {
 
 class SyncDeltaCountersManager {
   std::unique_ptr<PerfCounters> sync_delta_counters;
-  CephContext *cct;
+  CephContext* cct;
 
 public:
-  SyncDeltaCountersManager(const std::string& name, CephContext *cct);
+  SyncDeltaCountersManager(const std::string& name, CephContext* cct);
 
   void tset(int idx, ceph::timespan v);
 

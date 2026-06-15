@@ -15,7 +15,7 @@
 // Avoid conflicting COM types, exposed when using C++.
 #define _OLE2_H_
 
-#include <bcrypt.h>  // for typedef of NTSTATUS
+#include <bcrypt.h> // for typedef of NTSTATUS
 #include <dokan.h>
 
 struct Config {
@@ -46,7 +46,7 @@ struct Config {
   // It could be stored using an extended attribute.
 };
 
-extern Config *g_cfg;
+extern Config* g_cfg;
 
 // TODO: list and service commands.
 enum class Command {
@@ -59,7 +59,8 @@ enum class Command {
 
 void print_usage();
 int parse_args(
-  std::vector<const char*>& args,
-  std::ostream *err_msg,
-  Command *command, Config *cfg);
-int set_dokan_options(Config *cfg, PDOKAN_OPTIONS dokan_options);
+    std::vector<const char*>& args,
+    std::ostream* err_msg,
+    Command* command,
+    Config* cfg);
+int set_dokan_options(Config* cfg, PDOKAN_OPTIONS dokan_options);

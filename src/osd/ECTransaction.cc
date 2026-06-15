@@ -13,15 +13,17 @@
  *
  */
 
+#include "ECTransaction.h"
+
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <vector>
 
-#include "ECTransaction.h"
-#include "ECUtil.h"
-#include "os/ObjectStore.h"
 #include "common/inline_variant.h"
+#include "os/ObjectStore.h"
+
+#include "ECUtil.h"
 
 #ifndef WITH_CRIMSON
 #include "osd/osd_internal_types.h"
@@ -42,16 +44,23 @@ using ceph::decode;
 using ceph::encode;
 using ceph::ErasureCodeInterfaceRef;
 
-void debug(const hobject_t &oid, const std::string &str,
-           const ECUtil::shard_extent_map_t &map, DoutPrefixProvider *dpp) {
-  ldpp_dout(dpp, 20)
-    << " generate_transactions: " << "oid: " << oid << " " << str << " " << map << dendl;
-  ldpp_dout(dpp, 30)
-    << "EC_DEBUG_BUFFERS: " << map.debug_string(2048, 0) << dendl;
+void
+debug(
+    const hobject_t& oid,
+    const std::string& str,
+    const ECUtil::shard_extent_map_t& map,
+    DoutPrefixProvider* dpp)
+{
+  ldpp_dout(dpp, 20) << " generate_transactions: " << "oid: " << oid << " "
+                     << str << " " << map << dendl;
+  ldpp_dout(dpp, 30) << "EC_DEBUG_BUFFERS: " << map.debug_string(2048, 0)
+                     << dendl;
 }
 
-void ECTransaction::Generate::encode_and_write() {
-  ldpp_dout(dpp, 20)<< __func__ << dendl;
+void
+ECTransaction::Generate::encode_and_write()
+{
+  ldpp_dout(dpp, 20) << __func__ << dendl;
 
   // For PDW, we already have necessary parity buffers.
   if (!plan.do_parity_delta_write) {
@@ -60,12 +69,12 @@ void ECTransaction::Generate::encode_and_write() {
 
   // If partial writes are not supported, pad out to_write to a full stripe.
   if (!sinfo.supports_partial_writes()) {
-    for (auto &&[shard, eset]: plan.will_write) {
+    for (auto&& [shard, eset] : plan.will_write) {
       if (sinfo.get_raw_shard(shard) >= sinfo.get_k()) {
         continue;
       }
 
-      for (auto [off, len]: eset) {
+      for (auto [off, len] : eset) {
         to_write.zero_pad(shard, off, len);
       }
     }
@@ -87,59 +96,56 @@ void ECTransaction::Generate::encode_and_write() {
   //to_write = to_write.intersect(plan.will_write);
 
   debug(oid, "parity", to_write, dpp);
-  ldpp_dout(dpp, 20) << __func__ << ": " << oid
-	             << " plan " << plan
-	             << dendl;
+  ldpp_dout(dpp, 20) << __func__ << ": " << oid << " plan " << plan << dendl;
 
-  for (auto &&[shard, to_write_eset]: plan.will_write) {
+  for (auto&& [shard, to_write_eset] : plan.will_write) {
     /* Zero pad, even if we are not writing.  The extent cache requires that
      * all shards are fully populated with write data, even if the OSDs are
      * down. This is not a fundamental requirement of the cache, but dealing
      * with implied zeros due to incomplete writes is both difficult and
      * removes a level of protection against bugs.
      */
-    for (auto &&[offset, len]: to_write_eset) {
+    for (auto&& [offset, len] : to_write_eset) {
       to_write.zero_pad(shard, offset, len);
     }
 
     if (transactions.contains(shard)) {
-      auto &t = transactions.at(shard);
+      auto& t = transactions.at(shard);
       if (to_write_eset.begin().get_start() >= plan.orig_size) {
         t.set_alloc_hint(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard),
-          0, 0,
-          CEPH_OSD_ALLOC_HINT_FLAG_SEQUENTIAL_WRITE |
-          CEPH_OSD_ALLOC_HINT_FLAG_APPEND_ONLY);
+            coll_t(spg_t(pgid, shard)),
+            ghobject_t(oid, ghobject_t::NO_GEN, shard), 0, 0,
+            CEPH_OSD_ALLOC_HINT_FLAG_SEQUENTIAL_WRITE |
+                CEPH_OSD_ALLOC_HINT_FLAG_APPEND_ONLY);
       }
 
-      for (auto &&[offset, len]: to_write_eset) {
+      for (auto&& [offset, len] : to_write_eset) {
         buffer::list bl;
         to_write.get_buffer(shard, offset, len, bl);
-        t.write(coll_t(spg_t(pgid, shard)),
-                ghobject_t(oid, ghobject_t::NO_GEN, shard),
-                offset, bl.length(), bl, fadvise_flags);
+        t.write(
+            coll_t(spg_t(pgid, shard)),
+            ghobject_t(oid, ghobject_t::NO_GEN, shard), offset, bl.length(), bl,
+            fadvise_flags);
       }
     }
   }
 }
 
 ECTransaction::WritePlanObj::WritePlanObj(
-    const hobject_t &hoid,
-    const PGTransaction::ObjectOperation &op,
-    const ECUtil::stripe_info_t &sinfo,
+    const hobject_t& hoid,
+    const PGTransaction::ObjectOperation& op,
+    const ECUtil::stripe_info_t& sinfo,
     const shard_id_set readable_shards,
     const shard_id_set writable_shards,
     const bool object_in_cache,
     uint64_t orig_size,
-    const std::optional<object_info_t> &oi,
-    const std::optional<object_info_t> &soi,
-    unsigned pdw_write_mode
-  ) :
+    const std::optional<object_info_t>& oi,
+    const std::optional<object_info_t>& soi,
+    unsigned pdw_write_mode) :
   hoid(hoid),
   will_write(sinfo.get_k_plus_m()),
   orig_size(orig_size), // On-disk object sizes are rounded up to the next page.
-  projected_size(soi?soi->size:(oi?oi->size:0))
+  projected_size(soi ? soi->size : (oi ? oi->size : 0))
 {
   extent_set unaligned_ro_writes;
   hobject_t source;
@@ -148,7 +154,8 @@ ECTransaction::WritePlanObj::WritePlanObj(
    * 2. ALL delete operations (do NOT use is_delete() here!!!)
    * 3. Truncates that reduce size.
    */
-  invalidates_cache = op.has_source(&source) || op.delete_first || projected_size < orig_size;
+  invalidates_cache = op.has_source(&source) || op.delete_first ||
+                      projected_size < orig_size;
 
   op.buffer_updates.to_interval_set(unaligned_ro_writes);
 
@@ -160,13 +167,14 @@ ECTransaction::WritePlanObj::WritePlanObj(
   partial_page_ro_writes.align(EC_ALIGN_SIZE);
 
   extent_set write_superset;
-  for (auto &&[off, len] : unaligned_ro_writes) {
+  for (auto&& [off, len] : unaligned_ro_writes) {
     sinfo.ro_range_to_shard_extent_set_with_superset(
-      off, len, will_write, write_superset);
+        off, len, will_write, write_superset);
   }
   write_superset.align(EC_ALIGN_SIZE);
 
-  shard_id_set writable_parity_shards = shard_id_set::intersection(sinfo.get_parity_shards(), writable_shards);
+  shard_id_set writable_parity_shards =
+      shard_id_set::intersection(sinfo.get_parity_shards(), writable_shards);
   if (write_superset.size() > 0) {
     for (auto shard : writable_parity_shards) {
       will_write[shard].insert(write_superset);
@@ -181,7 +189,8 @@ ECTransaction::WritePlanObj::WritePlanObj(
       }
       will_write.align(sinfo.get_chunk_size());
       reads = will_write;
-      sinfo.ro_size_to_read_mask(sinfo.ro_offset_to_next_stripe_ro_offset(orig_size), read_mask);
+      sinfo.ro_size_to_read_mask(
+          sinfo.ro_offset_to_next_stripe_ro_offset(orig_size), read_mask);
       reads.intersection_of(read_mask);
       do_parity_delta_write = false;
     } else {
@@ -205,9 +214,8 @@ ECTransaction::WritePlanObj::WritePlanObj(
        * efficient as the are many divs in here, but non-4k aligned writes are
        * not very efficient anyway
        */
-      for (auto &&[off, len] : partial_page_ro_writes) {
-        sinfo.ro_range_to_shard_extent_set(
-          off, len, reads);
+      for (auto&& [off, len] : partial_page_ro_writes) {
+        sinfo.ro_range_to_shard_extent_set(off, len, reads);
       }
 
       reads.intersection_of(read_mask);
@@ -225,10 +233,12 @@ ECTransaction::WritePlanObj::WritePlanObj(
           // Even if recovery required for a convention RMW, PDW is not more
           // efficient.
           do_parity_delta_write = false;
-        } else if (!shard_id_set::difference(pdw_read_shards, readable_shards).empty()) {
+        } else if (
+            !shard_id_set::difference(pdw_read_shards, readable_shards).empty()) {
           // Some kind of reconstruct would be needed for PDW, so don't bother.
           do_parity_delta_write = false;
-        } else if (!shard_id_set::difference(read_shards, readable_shards).empty()) {
+        } else if (
+            !shard_id_set::difference(read_shards, readable_shards).empty()) {
           // Some kind of reconstruct is needed for conventional, but NOT for PDW!
           do_parity_delta_write = true;
         } else {
@@ -267,11 +277,11 @@ ECTransaction::WritePlanObj::WritePlanObj(
    */
   if (op.truncate && op.truncate->first < orig_size) {
     ECUtil::shard_extent_set_t truncate_read(sinfo.get_k_plus_m());
-    uint64_t prev_stripe = sinfo.ro_offset_to_prev_stripe_ro_offset(op.truncate->first);
+    uint64_t prev_stripe =
+        sinfo.ro_offset_to_prev_stripe_ro_offset(op.truncate->first);
     uint64_t next_align = ECUtil::align_next(op.truncate->first);
     sinfo.ro_range_to_shard_extent_set(
-      prev_stripe, next_align - prev_stripe,
-      truncate_read);
+        prev_stripe, next_align - prev_stripe, truncate_read);
 
     /* Unless we are doing a full stripe write, we must always read the data
      * for the partial stripe and update the parity. For the purposes of
@@ -292,7 +302,7 @@ ECTransaction::WritePlanObj::WritePlanObj(
       }
 
       // We only need to update the parity buffer for the write
-      for (auto && shard : sinfo.get_parity_shards()) {
+      for (auto&& shard : sinfo.get_parity_shards()) {
         will_write[shard] = truncate_write;
       }
     }
@@ -305,28 +315,36 @@ ECTransaction::WritePlanObj::WritePlanObj(
   ceph_assert(!to_read || !soi);
 }
 
-void ECTransaction::Generate::all_shards_written() {
+void
+ECTransaction::Generate::all_shards_written()
+{
   ceph_assert(!written_shards_final);
   if (entry) {
     entry->written_shards.insert_range(shard_id_t(0), sinfo.get_k_plus_m());
   }
 }
 
-void ECTransaction::Generate::shard_written(const shard_id_t shard) {
+void
+ECTransaction::Generate::shard_written(const shard_id_t shard)
+{
   ceph_assert(!written_shards_final);
   if (entry) {
     entry->written_shards.insert(shard);
   }
 }
 
-void ECTransaction::Generate::shards_written(const shard_id_set &shards) {
+void
+ECTransaction::Generate::shards_written(const shard_id_set& shards)
+{
   ceph_assert(!written_shards_final);
   if (entry) {
     entry->written_shards.insert(shards);
   }
 }
 
-void ECTransaction::Generate::zero_truncate_to_delete() {
+void
+ECTransaction::Generate::zero_truncate_to_delete()
+{
   ceph_assert(obc);
 
   if (op.truncate->first != op.truncate->second) {
@@ -343,17 +361,16 @@ void ECTransaction::Generate::zero_truncate_to_delete() {
        * std::map insert fortunately only writes keys
        * which don't already exist, so this should do
        * the right thing. */
-    op.attr_updates.insert(
-      obc->attr_cache.begin(),
-      obc->attr_cache.end());
+    op.attr_updates.insert(obc->attr_cache.begin(), obc->attr_cache.end());
   }
 }
 
-void ECTransaction::Generate::delete_first() {
+void
+ECTransaction::Generate::delete_first()
+{
   /* We also want to remove the std::nullopt entries since
    * the keys already won't exist */
-  for (auto j = op.attr_updates.begin();
-       j != op.attr_updates.end();) {
+  for (auto j = op.attr_updates.begin(); j != op.attr_updates.end();) {
     if (j->second) {
       ++j;
     } else {
@@ -362,137 +379,137 @@ void ECTransaction::Generate::delete_first() {
   }
   /* Fill in all current entries for xattr rollback */
   if (obc) {
-    xattr_rollback.insert(
-      obc->attr_cache.begin(),
-      obc->attr_cache.end());
+    xattr_rollback.insert(obc->attr_cache.begin(), obc->attr_cache.end());
     obc->attr_cache.clear();
   }
   if (entry) {
     entry->mod_desc.rmobject(entry->version.version);
     all_shards_written();
-    for (auto &&[shard, t]: transactions) {
+    for (auto&& [shard, t] : transactions) {
       t.collection_move_rename(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard),
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, entry->version.version, shard));
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard),
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, entry->version.version, shard));
     }
   } else {
-    for (auto &&[shard, t]: transactions) {
+    for (auto&& [shard, t] : transactions) {
       t.remove(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard));
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard));
     }
   }
 }
 
-void ECTransaction::Generate::process_init() {
+void
+ECTransaction::Generate::process_init()
+{
   match(
-    op.init_type,
-    [&](const PGTransaction::ObjectOperation::Init::None &) {},
-    [&](const PGTransaction::ObjectOperation::Init::Create &_) {
-      all_shards_written();
-      for (auto &&[shard, t]: transactions) {
-        t.create(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard));
-      }
-    },
-    [&](const PGTransaction::ObjectOperation::Init::Clone &cop) {
-      all_shards_written();
-      for (auto &&[shard, t]: transactions) {
-        t.clone(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(cop.source, ghobject_t::NO_GEN, shard),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard));
-      }
+      op.init_type, [&](const PGTransaction::ObjectOperation::Init::None&) {},
+      [&](const PGTransaction::ObjectOperation::Init::Create& _) {
+        all_shards_written();
+        for (auto&& [shard, t] : transactions) {
+          t.create(
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(oid, ghobject_t::NO_GEN, shard));
+        }
+      },
+      [&](const PGTransaction::ObjectOperation::Init::Clone& cop) {
+        all_shards_written();
+        for (auto&& [shard, t] : transactions) {
+          t.clone(
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(cop.source, ghobject_t::NO_GEN, shard),
+              ghobject_t(oid, ghobject_t::NO_GEN, shard));
+        }
 
-      if (obc) {
-        auto cobciter = t.obc_map.find(cop.source);
-        ceph_assert(cobciter != t.obc_map.end());
-        obc->attr_cache = cobciter->second->attr_cache;
-      }
-    },
-    [&](const PGTransaction::ObjectOperation::Init::Rename &rop) {
-      ceph_assert(rop.source.is_temp());
-      all_shards_written();
-      for (auto &&[shard, t]: transactions) {
-        t.collection_move_rename(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(rop.source, ghobject_t::NO_GEN, shard),
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard));
-      }
+        if (obc) {
+          auto cobciter = t.obc_map.find(cop.source);
+          ceph_assert(cobciter != t.obc_map.end());
+          obc->attr_cache = cobciter->second->attr_cache;
+        }
+      },
+      [&](const PGTransaction::ObjectOperation::Init::Rename& rop) {
+        ceph_assert(rop.source.is_temp());
+        all_shards_written();
+        for (auto&& [shard, t] : transactions) {
+          t.collection_move_rename(
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(rop.source, ghobject_t::NO_GEN, shard),
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(oid, ghobject_t::NO_GEN, shard));
+        }
 
-      if (obc) {
-        auto cobciter = t.obc_map.find(rop.source);
-        ceph_assert(cobciter == t.obc_map.end());
-        obc->attr_cache.clear();
-      }
-    });
+        if (obc) {
+          auto cobciter = t.obc_map.find(rop.source);
+          ceph_assert(cobciter == t.obc_map.end());
+          obc->attr_cache.clear();
+        }
+      });
 }
 
-void alloc_hint(PGTransaction::ObjectOperation& op,
-      shard_id_map<ObjectStore::Transaction> &transactions,
-      pg_t &pgid,
-      const hobject_t &oid,
-      const ECUtil::stripe_info_t &sinfo) {
+void
+alloc_hint(
+    PGTransaction::ObjectOperation& op,
+    shard_id_map<ObjectStore::Transaction>& transactions,
+    pg_t& pgid,
+    const hobject_t& oid,
+    const ECUtil::stripe_info_t& sinfo)
+{
   /* ro_offset_to_next_chunk_offset() scales down both aligned and
    * unaligned offsets
 
    * we don't bother to roll this back at this time for two reasons:
    * 1) it's advisory
    * 2) we don't track the old value */
-  uint64_t object_size = sinfo.ro_offset_to_next_chunk_offset(
-    op.alloc_hint->expected_object_size);
-  uint64_t write_size = sinfo.ro_offset_to_next_chunk_offset(
-    op.alloc_hint->expected_write_size);
+  uint64_t object_size =
+      sinfo.ro_offset_to_next_chunk_offset(op.alloc_hint->expected_object_size);
+  uint64_t write_size =
+      sinfo.ro_offset_to_next_chunk_offset(op.alloc_hint->expected_write_size);
 
-  for (auto &&[shard, t]: transactions) {
+  for (auto&& [shard, t] : transactions) {
     t.set_alloc_hint(
-      coll_t(spg_t(pgid, shard)),
-      ghobject_t(oid, ghobject_t::NO_GEN, shard),
-      object_size,
-      write_size,
-      op.alloc_hint->flags);
+        coll_t(spg_t(pgid, shard)), ghobject_t(oid, ghobject_t::NO_GEN, shard),
+        object_size, write_size, op.alloc_hint->flags);
   }
 }
 
-ECTransaction::Generate::Generate(PGTransaction &t,
-    ErasureCodeInterfaceRef &ec_impl,
-    pg_t &pgid,
-    const ECUtil::stripe_info_t &sinfo,
-    const std::map<hobject_t, ECUtil::shard_extent_map_t> &partial_extents,
-    std::map<hobject_t, ECUtil::shard_extent_map_t> *written_map,
-    shard_id_map<ceph::os::Transaction> &transactions,
-    const OSDMapRef &osdmap,
-    const hobject_t &oid,
-    PGTransaction::ObjectOperation &op,
-    WritePlanObj &plan,
-    DoutPrefixProvider *dpp,
-    pg_log_entry_t *entry,
-    bool &first_write_in_interval)
-  : t(t),
-    ec_impl(ec_impl),
-    pgid(pgid),
-    sinfo(sinfo),
-    transactions(transactions),
-    dpp(dpp),
-    osdmap(osdmap),
-    entry(entry),
-    oid(oid),
-    op(op),
-    plan(plan),
-    read_sem(&sinfo),
-    to_write(&sinfo) {
+ECTransaction::Generate::Generate(
+    PGTransaction& t,
+    ErasureCodeInterfaceRef& ec_impl,
+    pg_t& pgid,
+    const ECUtil::stripe_info_t& sinfo,
+    const std::map<hobject_t, ECUtil::shard_extent_map_t>& partial_extents,
+    std::map<hobject_t, ECUtil::shard_extent_map_t>* written_map,
+    shard_id_map<ceph::os::Transaction>& transactions,
+    const OSDMapRef& osdmap,
+    const hobject_t& oid,
+    PGTransaction::ObjectOperation& op,
+    WritePlanObj& plan,
+    DoutPrefixProvider* dpp,
+    pg_log_entry_t* entry,
+    bool& first_write_in_interval) :
+  t(t),
+  ec_impl(ec_impl),
+  pgid(pgid),
+  sinfo(sinfo),
+  transactions(transactions),
+  dpp(dpp),
+  osdmap(osdmap),
+  entry(entry),
+  oid(oid),
+  op(op),
+  plan(plan),
+  read_sem(&sinfo),
+  to_write(&sinfo)
+{
   ldpp_dout(dpp, 20) << __func__ << ": " << oid
-		     << " partial_extents=" << partial_extents
-		     << " written_map=" << *written_map
-                     << dendl;
+                     << " partial_extents=" << partial_extents
+                     << " written_map=" << *written_map << dendl;
 
   vector<unsigned> old_transaction_counts(sinfo.get_k_plus_m());
 
-  for (auto &&[shard, t] : transactions) {
+  for (auto&& [shard, t] : transactions) {
     old_transaction_counts[int(shard)] = t.get_num_ops();
   }
 
@@ -515,10 +532,10 @@ ECTransaction::Generate::Generate(PGTransaction &t,
   }
 
   ldpp_dout(dpp, 20) << __func__ << ": " << oid << plan
-                     << " fresh_object: " << op.is_fresh_object()
-                     << dendl;
+                     << " fresh_object: " << op.is_fresh_object() << dendl;
   if (op.truncate) {
-    ldpp_dout(dpp, 20) << __func__ << ": truncate is " << *(op.truncate) << dendl;
+    ldpp_dout(dpp, 20) << __func__ << ": truncate is " << *(op.truncate)
+                       << dendl;
   }
 
   if (entry && op.updated_snaps) {
@@ -581,11 +598,10 @@ ECTransaction::Generate::Generate(PGTransaction &t,
   bool clear_whiteout = false;
 
   // If we are updating the OI and we have a cache of the previous OI values
-  if (op.attr_updates.contains(OI_ATTR) && obc && obc->attr_cache.contains(OI_ATTR))
-  {
+  if (op.attr_updates.contains(OI_ATTR) && obc &&
+      obc->attr_cache.contains(OI_ATTR)) {
     object_info_t oi_cache((obc->attr_cache[OI_ATTR]));
-    if (oi_cache.test_flag(object_info_t::FLAG_WHITEOUT))
-    {
+    if (oi_cache.test_flag(object_info_t::FLAG_WHITEOUT)) {
       object_info_t oi_updates(*(op.attr_updates[OI_ATTR]));
       clear_whiteout = !oi_updates.test_flag(object_info_t::FLAG_WHITEOUT);
     }
@@ -619,11 +635,12 @@ ECTransaction::Generate::Generate(PGTransaction &t,
    * shard that would have a transaction if it were present. This is why we do
    * not simply construct written shards here.
    */
-  for (auto &&[shard, t] : transactions) {
+  for (auto&& [shard, t] : transactions) {
     if (std::cmp_greater(t.get_num_ops(), old_transaction_counts[int(shard)]) &&
         !entry->is_written_shard(shard)) {
-      ldpp_dout(dpp, 20) << __func__ << " Transaction for shard " << shard << ": ";
-      Formatter *f = Formatter::create("json");
+      ldpp_dout(dpp, 20) << __func__ << " Transaction for shard " << shard
+                         << ": ";
+      Formatter* f = Formatter::create("json");
       f->open_object_section("t");
       t.dump(f);
       f->close_section();
@@ -635,7 +652,9 @@ ECTransaction::Generate::Generate(PGTransaction &t,
   }
 }
 
-void ECTransaction::Generate::truncate() {
+void
+ECTransaction::Generate::truncate()
+{
   ceph_assert(!op.is_fresh_object());
   /* We always read aligned. If the new size is not aligned, there will be
    * some data in the read buffer that needs to be zeroed before the parity
@@ -652,8 +671,8 @@ void ECTransaction::Generate::truncate() {
     ECUtil::shard_extent_set_t truncate_eset(sinfo.get_k_plus_m());
     ECUtil::shard_extent_set_t new_size_eset(sinfo.get_k_plus_m());
     sinfo.ro_size_to_read_mask(plan.orig_size, truncate_eset);
-    sinfo.ro_range_to_shard_extent_set_with_parity(0, op.truncate->first,
-                                         new_size_eset);
+    sinfo.ro_range_to_shard_extent_set_with_parity(
+        0, op.truncate->first, new_size_eset);
     truncate_eset.subtract(new_size_eset);
 
     uint64_t clone_start = std::numeric_limits<uint64_t>::max();
@@ -661,7 +680,7 @@ void ECTransaction::Generate::truncate() {
 
     shard_id_set clone_shards;
 
-    for (auto &&[shard, eset]: truncate_eset) {
+    for (auto&& [shard, eset] : truncate_eset) {
       clone_shards.insert(shard);
       uint64_t start = eset.range_start();
       uint64_t start_align_prev = ECUtil::align_prev(start);
@@ -675,66 +694,63 @@ void ECTransaction::Generate::truncate() {
       }
     }
 
-    for (auto &&[shard, eset]: truncate_eset) {
+    for (auto&& [shard, eset] : truncate_eset) {
       if (!transactions.contains(shard)) {
         continue;
       }
 
-      auto &t = transactions.at(shard);
+      auto& t = transactions.at(shard);
       uint64_t start = eset.range_start();
       uint64_t start_align_next = ECUtil::align_next(start);
       uint64_t end = eset.range_end();
       t.touch(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, entry->version.version, shard));
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, entry->version.version, shard));
       t.clone_range(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard),
-        ghobject_t(oid, entry->version.version, shard),
-        clone_start,
-        end - clone_start,
-        clone_start);
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard),
+          ghobject_t(oid, entry->version.version, shard), clone_start,
+          end - clone_start, clone_start);
 
       // First truncate to exactly the right size.
       t.truncate(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard),
-        start);
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard), start);
 
       /* We have truncated to the correct size, but we guarantee aligned
        * shard sizes. So here, we truncate back up to an aligned size if needed.
        */
       if (start != start_align_next) {
         t.truncate(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard),
-          start_align_next);
+            coll_t(spg_t(pgid, shard)),
+            ghobject_t(oid, ghobject_t::NO_GEN, shard), start_align_next);
       }
     }
-    rollback_extents.emplace_back(make_pair(clone_start, clone_end - clone_start));
+    rollback_extents.emplace_back(
+        make_pair(clone_start, clone_end - clone_start));
     rollback_shards.emplace_back(clone_shards);
   }
 }
 
-void ECTransaction::Generate::overlay_writes() {
+void
+ECTransaction::Generate::overlay_writes()
+{
   ldpp_dout(dpp, 20) << __func__ << " start " << dendl;
 
-  for (auto &&extent: op.buffer_updates) {
+  for (auto&& extent : op.buffer_updates) {
     using BufferUpdate = PGTransaction::ObjectOperation::BufferUpdate;
     bufferlist bl;
     match(
-      extent.get_val(),
-      [&](const BufferUpdate::Write &wop) {
-        bl = wop.buffer;
-        fadvise_flags |= wop.fadvise_flags;
-      },
-      [&](const BufferUpdate::Zero &) {
-        bl.append_zero(extent.get_len());
-      },
-      [&](const BufferUpdate::CloneRange &) {
-        ceph_abort_msg(
-          "CloneRange is not allowed, do_op should have returned ENOTSUPP");
-      });
+        extent.get_val(),
+        [&](const BufferUpdate::Write& wop) {
+          bl = wop.buffer;
+          fadvise_flags |= wop.fadvise_flags;
+        },
+        [&](const BufferUpdate::Zero&) { bl.append_zero(extent.get_len()); },
+        [&](const BufferUpdate::CloneRange&) {
+          ceph_abort_msg(
+              "CloneRange is not allowed, do_op should have returned ENOTSUPP");
+        });
 
     uint64_t off = extent.get_off();
     uint64_t len = extent.get_len();
@@ -744,7 +760,9 @@ void ECTransaction::Generate::overlay_writes() {
   }
 }
 
-void ECTransaction::Generate::appends_and_clone_ranges() {
+void
+ECTransaction::Generate::appends_and_clone_ranges()
+{
 
   extent_set clone_ranges = plan.will_write.get_extent_superset();
   uint64_t clone_max = ECUtil::align_next(plan.orig_size);
@@ -760,9 +778,9 @@ void ECTransaction::Generate::appends_and_clone_ranges() {
 
   if (plan.orig_size < plan.projected_size) {
     ECUtil::shard_extent_set_t projected_cloneable_range(sinfo.get_k_plus_m());
-    sinfo.ro_size_to_read_mask(plan.projected_size,projected_cloneable_range);
+    sinfo.ro_size_to_read_mask(plan.projected_size, projected_cloneable_range);
 
-    for (auto &&[shard, eset]: projected_cloneable_range) {
+    for (auto&& [shard, eset] : projected_cloneable_range) {
       uint64_t old_shard_size = 0;
       if (cloneable_range.contains(shard)) {
         old_shard_size = cloneable_range.at(shard).range_end();
@@ -791,11 +809,10 @@ void ECTransaction::Generate::appends_and_clone_ranges() {
        * can actually truncate to a size larger than the object!
        */
       if (transactions.contains(shard)) {
-        auto &t = transactions.at(shard);
+        auto& t = transactions.at(shard);
         t.truncate(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard),
-          new_shard_size);
+            coll_t(spg_t(pgid, shard)),
+            ghobject_t(oid, ghobject_t::NO_GEN, shard), new_shard_size);
       }
       // Update written_shards because this must complete to consider
       // the write as complete
@@ -805,48 +822,51 @@ void ECTransaction::Generate::appends_and_clone_ranges() {
 
   shard_id_set touched;
 
-  for (auto &[start, len]: clone_ranges) {
+  for (auto& [start, len] : clone_ranges) {
     shard_id_set to_clone_shards;
     uint64_t clone_end = 0;
 
-    for (auto &&[shard, eset]: plan.will_write) {
+    for (auto&& [shard, eset] : plan.will_write) {
       shard_written(shard);
 
       // If no clonable range here, then ignore.
-      if (!cloneable_range.contains(shard)) continue;
+      if (!cloneable_range.contains(shard))
+        continue;
 
       // Do not clone off the end of the old range
       uint64_t shard_clone_max = cloneable_range.at(shard).range_end();
       uint64_t shard_end = start + len;
-      if (shard_end > shard_clone_max) shard_end = shard_clone_max;
+      if (shard_end > shard_clone_max)
+        shard_end = shard_clone_max;
 
       // clone_end needs to be the biggest shard_end.
-      if (shard_end > clone_end) clone_end = shard_end;
+      if (shard_end > clone_end)
+        clone_end = shard_end;
 
       // Ignore pure appends on this shard.
-      if (shard_end <= start) continue;
+      if (shard_end <= start)
+        continue;
 
       // Ignore clones that do not intersect with the write.
-      if (!eset.intersects(start, len)) continue;
+      if (!eset.intersects(start, len))
+        continue;
 
       // We need a clone...
       if (transactions.contains(shard)) {
-        auto &t = transactions.at(shard);
+        auto& t = transactions.at(shard);
 
         // Only touch once.
         if (!touched.contains(shard)) {
           t.touch(
-            coll_t(spg_t(pgid, shard)),
-            ghobject_t(oid, entry->version.version, shard));
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(oid, entry->version.version, shard));
           touched.insert(shard_id_t(shard));
         }
         t.clone_range(
-          coll_t(spg_t(pgid, shard)),
-          ghobject_t(oid, ghobject_t::NO_GEN, shard),
-          ghobject_t(oid, entry->version.version, shard),
-          start,
-          shard_end - start,
-          start);
+            coll_t(spg_t(pgid, shard)),
+            ghobject_t(oid, ghobject_t::NO_GEN, shard),
+            ghobject_t(oid, entry->version.version, shard), start,
+            shard_end - start, start);
 
         // We have done a clone, so tell the rollback.
         to_clone_shards.insert(shard);
@@ -867,14 +887,14 @@ void ECTransaction::Generate::appends_and_clone_ranges() {
   }
 }
 
-void ECTransaction::Generate::written_shards() {
+void
+ECTransaction::Generate::written_shards()
+{
   if (entry) {
     if (!rollback_extents.empty()) {
       entry->mod_desc.rollback_extents(
-        entry->version.version,
-        rollback_extents,
-        ECUtil::align_next(plan.orig_size),
-        rollback_shards);
+          entry->version.version, rollback_extents,
+          ECUtil::align_next(plan.orig_size), rollback_shards);
     }
     if (entry->written_shards.size() == sinfo.get_k_plus_m()) {
       // More efficient to encode an empty set for all shards
@@ -909,8 +929,8 @@ void ECTransaction::Generate::written_shards() {
       } else {
         for (shard_id_t shard; shard < sinfo.get_k_plus_m(); ++shard) {
           if (sinfo.is_nonprimary_shard(shard)) {
-            if (entry->is_written_shard(shard) || plan.orig_size != plan.
-                projected_size) {
+            if (entry->is_written_shard(shard) ||
+                plan.orig_size != plan.projected_size) {
               // Written - erase per shard version
               if (oi.shard_versions.erase(shard)) {
                 update = true;
@@ -942,18 +962,19 @@ void ECTransaction::Generate::written_shards() {
   }
 }
 
-void ECTransaction::Generate::attr_updates() {
+void
+ECTransaction::Generate::attr_updates()
+{
   map<string, bufferlist, less<>> to_set;
-  for (auto &&[attr, update]: op.attr_updates) {
+  for (auto&& [attr, update] : op.attr_updates) {
     if (update) {
       to_set[attr] = *(update);
     } else {
-      for (auto &&[shard, t]: transactions) {
+      for (auto&& [shard, t] : transactions) {
         if (!sinfo.is_nonprimary_shard(shard)) {
           t.rmattr(
-            coll_t(spg_t(pgid, shard)),
-            ghobject_t(oid, ghobject_t::NO_GEN, shard),
-            attr);
+              coll_t(spg_t(pgid, shard)),
+              ghobject_t(oid, ghobject_t::NO_GEN, shard), attr);
         }
       }
     }
@@ -963,15 +984,10 @@ void ECTransaction::Generate::attr_updates() {
         if (citer != obc->attr_cache.end()) {
           // won't overwrite anything we put in earlier
           xattr_rollback.insert(
-            make_pair(
-              attr,
-              std::optional<bufferlist>(citer->second)));
+              make_pair(attr, std::optional<bufferlist>(citer->second)));
         } else {
           // won't overwrite anything we put in earlier
-          xattr_rollback.insert(
-            make_pair(
-              attr,
-              std::nullopt));
+          xattr_rollback.insert(make_pair(attr, std::nullopt));
         }
       }
       if (update) {
@@ -983,74 +999,76 @@ void ECTransaction::Generate::attr_updates() {
       ceph_assert(!entry);
     }
   }
-  for (auto &&[shard, t]: transactions) {
+  for (auto&& [shard, t] : transactions) {
     if (!sinfo.is_nonprimary_shard(shard)) {
       // Primary shard - Update all attributes
       t.setattrs(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard),
-        to_set);
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard), to_set);
     } else if (entry->is_written_shard(shard)) {
       // Written shard - Only update object_info attribute
       t.setattr(
-        coll_t(spg_t(pgid, shard)),
-        ghobject_t(oid, ghobject_t::NO_GEN, shard),
-        OI_ATTR,
-        to_set[OI_ATTR]);
+          coll_t(spg_t(pgid, shard)),
+          ghobject_t(oid, ghobject_t::NO_GEN, shard), OI_ATTR, to_set[OI_ATTR]);
     } // Else: Unwritten shard - Don't update any attributes
   }
   ceph_assert(!xattr_rollback.empty());
 }
 
-void ECTransaction::generate_transactions(
-    PGTransaction *_t,
-    WritePlan &plans,
-    ErasureCodeInterfaceRef &ec_impl,
+void
+ECTransaction::generate_transactions(
+    PGTransaction* _t,
+    WritePlan& plans,
+    ErasureCodeInterfaceRef& ec_impl,
     pg_t pgid,
-    const ECUtil::stripe_info_t &sinfo,
-    const map<hobject_t, ECUtil::shard_extent_map_t> &partial_extents,
-    vector<pg_log_entry_t> &entries,
-    map<hobject_t, ECUtil::shard_extent_map_t> *written_map,
-    shard_id_map<ObjectStore::Transaction> *transactions,
-    set<hobject_t> *temp_added,
-    set<hobject_t> *temp_removed,
-    DoutPrefixProvider *dpp,
-    const OSDMapRef &osdmap,
-    bool &first_write_in_interval) {
+    const ECUtil::stripe_info_t& sinfo,
+    const map<hobject_t, ECUtil::shard_extent_map_t>& partial_extents,
+    vector<pg_log_entry_t>& entries,
+    map<hobject_t, ECUtil::shard_extent_map_t>* written_map,
+    shard_id_map<ObjectStore::Transaction>* transactions,
+    set<hobject_t>* temp_added,
+    set<hobject_t>* temp_removed,
+    DoutPrefixProvider* dpp,
+    const OSDMapRef& osdmap,
+    bool& first_write_in_interval)
+{
   ceph_assert(written_map);
   ceph_assert(transactions);
   ceph_assert(temp_added);
   ceph_assert(temp_removed);
   ceph_assert(_t);
-  auto &t = *_t;
+  auto& t = *_t;
 
   map<hobject_t, pg_log_entry_t*> obj_to_log;
-  for (auto &&i: entries) {
+  for (auto&& i : entries) {
     obj_to_log.insert(make_pair(i.soid, &i));
   }
 
   t.safe_create_traverse(
-    [&](pair<const hobject_t, PGTransaction::ObjectOperation> &opair) {
-      auto oid = opair.first;
-      PGTransaction::ObjectOperation& op = opair.second;
-      auto iter = obj_to_log.find(oid);
-      pg_log_entry_t *entry = iter != obj_to_log.end() ? iter->second : nullptr;
-      if (oid.is_temp()) {
-        if (op.is_fresh_object()) {
-          temp_added->insert(oid);
-        } else if (op.is_delete()) {
-          temp_removed->insert(oid);
+      [&](pair<const hobject_t, PGTransaction::ObjectOperation>& opair) {
+        auto oid = opair.first;
+        PGTransaction::ObjectOperation& op = opair.second;
+        auto iter = obj_to_log.find(oid);
+        pg_log_entry_t* entry = iter != obj_to_log.end() ? iter->second
+                                                         : nullptr;
+        if (oid.is_temp()) {
+          if (op.is_fresh_object()) {
+            temp_added->insert(oid);
+          } else if (op.is_delete()) {
+            temp_removed->insert(oid);
+          }
         }
-      }
 
-      // Transactions must be submitted in the same order that they were planned in.
-      ceph_assert(!plans.plans.empty());
-      ECTransaction::WritePlanObj &plan = plans.plans.front();
-      ceph_assert(plan.hoid == oid);
+        // Transactions must be submitted in the same order that they were planned in.
+        ceph_assert(!plans.plans.empty());
+        ECTransaction::WritePlanObj& plan = plans.plans.front();
+        ceph_assert(plan.hoid == oid);
 
-      Generate generate(t, ec_impl, pgid, sinfo, partial_extents, written_map,
-        *transactions, osdmap, oid, op, plan, dpp, entry, first_write_in_interval);
+        Generate generate(
+            t, ec_impl, pgid, sinfo, partial_extents, written_map,
+            *transactions, osdmap, oid, op, plan, dpp, entry,
+            first_write_in_interval);
 
-      plans.plans.pop_front();
-  });
+        plans.plans.pop_front();
+      });
 }

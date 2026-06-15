@@ -2,10 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/image_replayer/PrepareRemoteImageRequest.h"
-#include "include/rados/librados.hpp"
-#include "cls/rbd/cls_rbd_client.h"
+
 #include "common/debug.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/errno.h"
+#include "include/rados/librados.hpp"
 #include "journal/Journaler.h"
 #include "journal/Settings.h"
 #include "librbd/ImageCtx.h"
@@ -22,9 +24,9 @@
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::image_replayer::" \
-                           << "PrepareRemoteImageRequest: " << this << " " \
-                           << __func__ << ": "
+#define dout_prefix                                                          \
+  *_dout << "rbd::mirror::image_replayer::" << "PrepareRemoteImageRequest: " \
+         << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
@@ -35,12 +37,16 @@ using librbd::util::create_context_callback;
 using librbd::util::create_rados_callback;
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::send() {
+void
+PrepareRemoteImageRequest<I>::send()
+{
   if (*m_state_builder != nullptr) {
     (*m_state_builder)->remote_mirror_uuid = m_remote_pool_meta.mirror_uuid;
-    auto state_builder = dynamic_cast<snapshot::StateBuilder<I>*>(*m_state_builder);
+    auto state_builder =
+        dynamic_cast<snapshot::StateBuilder<I>*>(*m_state_builder);
     if (state_builder) {
-      state_builder->remote_mirror_peer_uuid = m_remote_pool_meta.mirror_peer_uuid;
+      state_builder->remote_mirror_peer_uuid =
+          m_remote_pool_meta.mirror_peer_uuid;
     }
   }
 
@@ -48,22 +54,25 @@ void PrepareRemoteImageRequest<I>::send() {
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::get_remote_image_id() {
+void
+PrepareRemoteImageRequest<I>::get_remote_image_id()
+{
   dout(10) << dendl;
 
-  Context *ctx = create_context_callback<
-    PrepareRemoteImageRequest<I>,
-    &PrepareRemoteImageRequest<I>::handle_get_remote_image_id>(this);
-  auto req = GetMirrorImageIdRequest<I>::create(m_remote_io_ctx,
-                                                m_global_image_id,
-                                                &m_remote_image_id, ctx);
+  Context* ctx = create_context_callback<
+      PrepareRemoteImageRequest<I>,
+      &PrepareRemoteImageRequest<I>::handle_get_remote_image_id>(this);
+  auto req = GetMirrorImageIdRequest<I>::create(
+      m_remote_io_ctx, m_global_image_id, &m_remote_image_id, ctx);
   req->send();
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::handle_get_remote_image_id(int r) {
-  dout(10) << "r=" << r << ", "
-           << "remote_image_id=" << m_remote_image_id << dendl;
+void
+PrepareRemoteImageRequest<I>::handle_get_remote_image_id(int r)
+{
+  dout(10) << "r=" << r << ", " << "remote_image_id=" << m_remote_image_id
+           << dendl;
 
   if (r < 0) {
     finish(r);
@@ -74,21 +83,24 @@ void PrepareRemoteImageRequest<I>::handle_get_remote_image_id(int r) {
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::get_mirror_info() {
+void
+PrepareRemoteImageRequest<I>::get_mirror_info()
+{
   dout(10) << dendl;
 
   auto ctx = create_context_callback<
-    PrepareRemoteImageRequest<I>,
-    &PrepareRemoteImageRequest<I>::handle_get_mirror_info>(this);
+      PrepareRemoteImageRequest<I>,
+      &PrepareRemoteImageRequest<I>::handle_get_mirror_info>(this);
   auto req = librbd::mirror::GetInfoRequest<I>::create(
-    m_remote_io_ctx, m_threads->work_queue, m_remote_image_id,
-    &m_mirror_image, &m_promotion_state, &m_primary_mirror_uuid,
-    ctx);
+      m_remote_io_ctx, m_threads->work_queue, m_remote_image_id,
+      &m_mirror_image, &m_promotion_state, &m_primary_mirror_uuid, ctx);
   req->send();
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::handle_get_mirror_info(int r) {
+void
+PrepareRemoteImageRequest<I>::handle_get_mirror_info(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
@@ -132,33 +144,38 @@ void PrepareRemoteImageRequest<I>::handle_get_mirror_info(int r) {
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::get_client() {
+void
+PrepareRemoteImageRequest<I>::get_client()
+{
   dout(10) << dendl;
 
-  auto cct = static_cast<CephContext *>(m_local_io_ctx.cct());
+  auto cct = static_cast<CephContext*>(m_local_io_ctx.cct());
   ::journal::Settings journal_settings;
-  journal_settings.commit_interval = cct->_conf.get_val<double>(
-    "rbd_mirror_journal_commit_age");
+  journal_settings.commit_interval =
+      cct->_conf.get_val<double>("rbd_mirror_journal_commit_age");
 
   // TODO use Journal thread pool for journal ops until converted to ASIO
   ContextWQ* context_wq;
   librbd::Journal<>::get_work_queue(cct, &context_wq);
 
   ceph_assert(m_remote_journaler == nullptr);
-  m_remote_journaler = new Journaler(context_wq, m_threads->timer,
-                                     &m_threads->timer_lock, m_remote_io_ctx,
-                                     m_remote_image_id, m_local_mirror_uuid,
-                                     journal_settings, m_cache_manager_handler);
+  m_remote_journaler = new Journaler(
+      context_wq, m_threads->timer, &m_threads->timer_lock, m_remote_io_ctx,
+      m_remote_image_id, m_local_mirror_uuid, journal_settings,
+      m_cache_manager_handler);
 
-  Context *ctx = create_async_context_callback(
-    m_threads->work_queue, create_context_callback<
-      PrepareRemoteImageRequest<I>,
-      &PrepareRemoteImageRequest<I>::handle_get_client>(this));
+  Context* ctx = create_async_context_callback(
+      m_threads->work_queue,
+      create_context_callback<
+          PrepareRemoteImageRequest<I>,
+          &PrepareRemoteImageRequest<I>::handle_get_client>(this));
   m_remote_journaler->get_client(m_local_mirror_uuid, &m_client, ctx);
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::handle_get_client(int r) {
+void
+PrepareRemoteImageRequest<I>::handle_get_client(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   MirrorPeerClientMeta client_meta;
@@ -179,27 +196,32 @@ void PrepareRemoteImageRequest<I>::handle_get_client(int r) {
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::register_client() {
+void
+PrepareRemoteImageRequest<I>::register_client()
+{
   dout(10) << dendl;
 
   auto state_builder = *m_state_builder;
   librbd::journal::MirrorPeerClientMeta client_meta{
-    (state_builder == nullptr ? "" : state_builder->local_image_id)};
+      (state_builder == nullptr ? "" : state_builder->local_image_id)};
   client_meta.state = librbd::journal::MIRROR_PEER_STATE_REPLAYING;
 
   librbd::journal::ClientData client_data{client_meta};
   bufferlist client_data_bl;
   encode(client_data, client_data_bl);
 
-  Context *ctx = create_async_context_callback(
-    m_threads->work_queue, create_context_callback<
-      PrepareRemoteImageRequest<I>,
-      &PrepareRemoteImageRequest<I>::handle_register_client>(this));
+  Context* ctx = create_async_context_callback(
+      m_threads->work_queue,
+      create_context_callback<
+          PrepareRemoteImageRequest<I>,
+          &PrepareRemoteImageRequest<I>::handle_register_client>(this));
   m_remote_journaler->register_client(client_data_bl, ctx);
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::handle_register_client(int r) {
+void
+PrepareRemoteImageRequest<I>::handle_register_client(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -211,17 +233,19 @@ void PrepareRemoteImageRequest<I>::handle_register_client(int r) {
 
   auto state_builder = *m_state_builder;
   librbd::journal::MirrorPeerClientMeta client_meta{
-    (state_builder == nullptr ? "" : state_builder->local_image_id)};
+      (state_builder == nullptr ? "" : state_builder->local_image_id)};
   client_meta.state = librbd::journal::MIRROR_PEER_STATE_REPLAYING;
-  finalize_journal_state_builder(cls::journal::CLIENT_STATE_CONNECTED,
-                                 client_meta);
+  finalize_journal_state_builder(
+      cls::journal::CLIENT_STATE_CONNECTED, client_meta);
   finish(0);
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::finalize_journal_state_builder(
+void
+PrepareRemoteImageRequest<I>::finalize_journal_state_builder(
     cls::journal::ClientState client_state,
-    const MirrorPeerClientMeta& client_meta) {
+    const MirrorPeerClientMeta& client_meta)
+{
   journal::StateBuilder<I>* state_builder = nullptr;
   if (*m_state_builder != nullptr) {
     // already verified that it's a matching builder in
@@ -242,7 +266,9 @@ void PrepareRemoteImageRequest<I>::finalize_journal_state_builder(
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::finalize_snapshot_state_builder() {
+void
+PrepareRemoteImageRequest<I>::finalize_snapshot_state_builder()
+{
   snapshot::StateBuilder<I>* state_builder = nullptr;
   if (*m_state_builder != nullptr) {
     state_builder = dynamic_cast<snapshot::StateBuilder<I>*>(*m_state_builder);
@@ -253,9 +279,8 @@ void PrepareRemoteImageRequest<I>::finalize_snapshot_state_builder() {
   }
 
   dout(10) << "remote_mirror_uuid=" << m_remote_pool_meta.mirror_uuid << ", "
-           << "remote_mirror_peer_uuid="
-           << m_remote_pool_meta.mirror_peer_uuid << ", "
-           << "remote_image_id=" << m_remote_image_id << ", "
+           << "remote_mirror_peer_uuid=" << m_remote_pool_meta.mirror_peer_uuid
+           << ", " << "remote_image_id=" << m_remote_image_id << ", "
            << "remote_promotion_state=" << m_promotion_state << dendl;
   state_builder->remote_mirror_uuid = m_remote_pool_meta.mirror_uuid;
   state_builder->remote_mirror_peer_uuid = m_remote_pool_meta.mirror_peer_uuid;
@@ -264,7 +289,9 @@ void PrepareRemoteImageRequest<I>::finalize_snapshot_state_builder() {
 }
 
 template <typename I>
-void PrepareRemoteImageRequest<I>::finish(int r) {
+void
+PrepareRemoteImageRequest<I>::finish(int r)
+{
   dout(10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -280,4 +307,5 @@ void PrepareRemoteImageRequest<I>::finish(int r) {
 } // namespace mirror
 } // namespace rbd
 
-template class rbd::mirror::image_replayer::PrepareRemoteImageRequest<librbd::ImageCtx>;
+template class rbd::mirror::image_replayer::PrepareRemoteImageRequest<
+    librbd::ImageCtx>;

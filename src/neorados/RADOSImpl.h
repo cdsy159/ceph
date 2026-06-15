@@ -21,19 +21,16 @@
 #include <boost/intrusive_ptr.hpp>
 
 #include "common/async/service.h"
-
 #include "common/ceph_context.h"
 #include "common/ceph_mutex.h"
-
 #include "librados/RadosClient.h"
-
-#include "mon/MonClient.h"
-
 #include "mgr/MgrClient.h"
-
+#include "mon/MonClient.h"
 #include "osdc/Objecter.h"
 
-namespace boost::asio { class io_context; }
+namespace boost::asio {
+class io_context;
+}
 
 namespace neorados {
 
@@ -62,27 +59,33 @@ class RADOS : public Dispatcher {
   std::atomic<bool> finished = false;
 
 public:
-
   RADOS(boost::asio::io_context& ioctx, boost::intrusive_ptr<CephContext> cct);
   ~RADOS();
-  bool ms_dispatch(Message *m) override;
-  void ms_handle_connect(Connection *con) override;
-  bool ms_handle_reset(Connection *con) override;
-  void ms_handle_remote_reset(Connection *con) override;
-  bool ms_handle_refused(Connection *con) override;
-  mon_feature_t get_required_monitor_features() const {
+  bool ms_dispatch(Message* m) override;
+  void ms_handle_connect(Connection* con) override;
+  bool ms_handle_reset(Connection* con) override;
+  void ms_handle_remote_reset(Connection* con) override;
+  bool ms_handle_refused(Connection* con) override;
+
+  mon_feature_t
+  get_required_monitor_features() const
+  {
     return monclient.with_monmap(std::mem_fn(&MonMap::get_required_features));
   }
+
   void shutdown();
 };
 
 class Client : public std::enable_shared_from_this<Client> {
 public:
-  Client(boost::asio::io_context& ioctx,
-         boost::intrusive_ptr<CephContext> cct,
-         MonClient& monclient, Objecter* objecter)
-    : ioctx(ioctx), cct(cct), monclient(monclient), objecter(objecter) {
-  }
+  Client(
+      boost::asio::io_context& ioctx,
+      boost::intrusive_ptr<CephContext> cct,
+      MonClient& monclient,
+      Objecter* objecter) :
+    ioctx(ioctx), cct(cct), monclient(monclient), objecter(objecter)
+  {}
+
   virtual ~Client() {}
 
   Client(const Client&) = delete;
@@ -94,36 +97,39 @@ public:
   MonClient& monclient;
   Objecter* objecter;
 
-  mon_feature_t get_required_monitor_features() const {
+  mon_feature_t
+  get_required_monitor_features() const
+  {
     return monclient.with_monmap(std::mem_fn(&MonMap::get_required_features));
   }
 
   virtual int get_instance_id() const = 0;
 };
 
-class NeoClient : public Client,
-		  public ceph::async::service_list_base_hook {
+class NeoClient : public Client, public ceph::async::service_list_base_hook {
 public:
-
-  NeoClient(std::unique_ptr<RADOS>&& rados)
-    : Client(rados->ioctx, rados->cct, rados->monclient,
-	     rados->objecter.get()),
-      svc(boost::asio::use_service<ceph::async::service<NeoClient>>(
-	  boost::asio::query(ioctx.get_executor(),
-			     boost::asio::execution::context))),
-      rados(std::move(rados)) {
+  NeoClient(std::unique_ptr<RADOS>&& rados) :
+    Client(rados->ioctx, rados->cct, rados->monclient, rados->objecter.get()),
+    svc(boost::asio::use_service<ceph::async::service<NeoClient>>(
+        boost::asio::query(
+            ioctx.get_executor(),
+            boost::asio::execution::context))),
+    rados(std::move(rados))
+  {
     svc.add(*this);
   }
 
-  ~NeoClient() {
-    svc.remove(*this);
-  }
+  ~NeoClient() { svc.remove(*this); }
 
-  int get_instance_id() const override {
+  int
+  get_instance_id() const override
+  {
     return rados->instance_id;
   }
 
-  void service_shutdown() {
+  void
+  service_shutdown()
+  {
     // In case the last owner of a reference is an op we're about to
     // cancel. (This can happen if the `RADOS` object
     auto service_ref = shared_from_this();
@@ -138,13 +144,18 @@ private:
 
 class RadosClient : public Client {
 public:
-  RadosClient(librados::RadosClient* rados_client)
-    : Client(rados_client->poolctx, {rados_client->cct},
-             rados_client->monclient, rados_client->objecter),
-      rados_client(rados_client) {
-  }
+  RadosClient(librados::RadosClient* rados_client) :
+    Client(
+        rados_client->poolctx,
+        {rados_client->cct},
+        rados_client->monclient,
+        rados_client->objecter),
+    rados_client(rados_client)
+  {}
 
-  int get_instance_id() const override {
+  int
+  get_instance_id() const override
+  {
     return rados_client->instance_id;
   }
 

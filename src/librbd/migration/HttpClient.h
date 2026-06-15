@@ -4,25 +4,27 @@
 #ifndef CEPH_LIBRBD_MIGRATION_HTTP_CLIENT_H
 #define CEPH_LIBRBD_MIGRATION_HTTP_CLIENT_H
 
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/write.hpp>
+#include <boost/beast/version.hpp>
+
 #include "include/common_fwd.h"
 #include "include/int_types.h"
 #include "librbd/io/Types.h"
 #include "librbd/migration/HttpProcessorInterface.h"
 #include "librbd/migration/Types.h"
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/asio/ssl/stream.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/beast/http/empty_body.hpp>
-#include <boost/beast/http/message.hpp>
-#include <boost/beast/http/string_body.hpp>
-#include <boost/beast/http/write.hpp>
-#include <functional>
-#include <memory>
-#include <string>
-#include <utility>
 
 struct Context;
 
@@ -43,7 +45,9 @@ public:
 
   using RequestPreprocessor = std::function<void(Request&)>;
 
-  static HttpClient* create(ImageCtxT* image_ctx, const std::string& url) {
+  static HttpClient*
+  create(ImageCtxT* image_ctx, const std::string& url)
+  {
     return new HttpClient(image_ctx, url);
   }
 
@@ -56,72 +60,91 @@ public:
 
   void get_size(uint64_t* size, Context* on_finish);
 
-  void read(io::Extents&& byte_extents, bufferlist* data,
-            Context* on_finish);
+  void read(io::Extents&& byte_extents, bufferlist* data, Context* on_finish);
 
-  void set_ignore_self_signed_cert(bool ignore) {
+  void
+  set_ignore_self_signed_cert(bool ignore)
+  {
     m_ignore_self_signed_cert = ignore;
   }
 
-  void set_http_processor(HttpProcessorInterface* http_processor) {
+  void
+  set_http_processor(HttpProcessorInterface* http_processor)
+  {
     m_http_processor = http_processor;
   }
 
   template <class Body, typename Completion>
-  void issue(boost::beast::http::request<Body>&& request,
-             Completion&& completion) {
+  void
+  issue(boost::beast::http::request<Body>&& request, Completion&& completion)
+  {
     struct WorkImpl : Work {
       HttpClient* http_client;
       boost::beast::http::request<Body> request;
       Completion completion;
 
-      WorkImpl(HttpClient* http_client,
-               boost::beast::http::request<Body>&& request,
-               Completion&& completion)
-        : http_client(http_client), request(std::move(request)),
-          completion(std::move(completion)) {
-      }
+      WorkImpl(
+          HttpClient* http_client,
+          boost::beast::http::request<Body>&& request,
+          Completion&& completion) :
+        http_client(http_client),
+        request(std::move(request)),
+        completion(std::move(completion))
+      {}
+
       WorkImpl(const WorkImpl&) = delete;
       WorkImpl& operator=(const WorkImpl&) = delete;
 
-      bool need_eof() const override {
+      bool
+      need_eof() const override
+      {
         return request.need_eof();
       }
 
-      bool header_only() const override {
+      bool
+      header_only() const override
+      {
         return (request.method() == boost::beast::http::verb::head);
       }
 
-      void complete(int r, Response&& response) override {
+      void
+      complete(int r, Response&& response) override
+      {
         completion(r, std::move(response));
       }
 
-      void operator()(boost::asio::ip::tcp::socket& stream) override {
+      void
+      operator()(boost::asio::ip::tcp::socket& stream) override
+      {
         preprocess_request();
 
         boost::beast::http::async_write(
-          stream, request,
-          [http_session=http_client->m_http_session.get(),
-           work=this->shared_from_this()]
-          (boost::beast::error_code ec, std::size_t) mutable {
-            http_session->handle_issue(ec, std::move(work));
-          });
+            stream, request,
+            [http_session = http_client->m_http_session.get(),
+             work = this->shared_from_this()](
+                boost::beast::error_code ec, std::size_t) mutable {
+              http_session->handle_issue(ec, std::move(work));
+            });
       }
 
-      void operator()(
-	  boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream) override {
+      void
+      operator()(boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream)
+          override
+      {
         preprocess_request();
 
         boost::beast::http::async_write(
-          stream, request,
-          [http_session=http_client->m_http_session.get(),
-           work=this->shared_from_this()]
-          (boost::beast::error_code ec, std::size_t) mutable {
-            http_session->handle_issue(ec, std::move(work));
-          });
+            stream, request,
+            [http_session = http_client->m_http_session.get(),
+             work = this->shared_from_this()](
+                boost::beast::error_code ec, std::size_t) mutable {
+              http_session->handle_issue(ec, std::move(work));
+            });
       }
 
-      void preprocess_request() {
+      void
+      preprocess_request()
+      {
         if (http_client->m_http_processor) {
           http_client->m_http_processor->process_request(request);
         }
@@ -129,12 +152,13 @@ public:
     };
 
     initialize_default_fields(request);
-    issue(std::make_shared<WorkImpl>(this, std::move(request),
-                                     std::move(completion)));
+    issue(std::make_shared<WorkImpl>(
+        this, std::move(request), std::move(completion)));
   }
 
 private:
   struct Work;
+
   struct HttpSessionInterface {
     virtual ~HttpSessionInterface() {}
 
@@ -142,12 +166,14 @@ private:
     virtual void shut_down(Context* on_finish) = 0;
 
     virtual void issue(std::shared_ptr<Work>&& work) = 0;
-    virtual void handle_issue(boost::system::error_code ec,
-                              std::shared_ptr<Work>&& work) = 0;
+    virtual void handle_issue(
+        boost::system::error_code ec,
+        std::shared_ptr<Work>&& work) = 0;
   };
 
   struct Work : public std::enable_shared_from_this<Work> {
     virtual ~Work() {}
+
     virtual bool need_eof() const = 0;
     virtual bool header_only() const = 0;
     virtual void complete(int r, Response&&) = 0;
@@ -156,7 +182,8 @@ private:
         boost::asio::ssl::stream<boost::asio::ip::tcp::socket>& stream) = 0;
   };
 
-  template <typename D> struct HttpSession;
+  template <typename D>
+  struct HttpSession;
   struct PlainHttpSession;
   struct SslHttpSession;
 
@@ -177,18 +204,28 @@ private:
   std::unique_ptr<HttpSessionInterface> m_http_session;
 
   template <typename Fields>
-  void initialize_default_fields(Fields& fields) const {
+  void
+  initialize_default_fields(Fields& fields) const
+  {
     fields.target(m_url_spec.path);
     fields.set(boost::beast::http::field::host, m_url_spec.host);
-    fields.set(boost::beast::http::field::user_agent,
-               BOOST_BEAST_VERSION_STRING);
+    fields.set(
+        boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
   }
 
-  void handle_get_size(int r, Response&& response, uint64_t* size,
-                       Context* on_finish);
+  void handle_get_size(
+      int r,
+      Response&& response,
+      uint64_t* size,
+      Context* on_finish);
 
-  void handle_read(int r, Response&& response, uint64_t byte_offset,
-                   uint64_t byte_length, bufferlist* data, Context* on_finish);
+  void handle_read(
+      int r,
+      Response&& response,
+      uint64_t byte_offset,
+      uint64_t byte_length,
+      bufferlist* data,
+      Context* on_finish);
 
   void issue(std::shared_ptr<Work>&& work);
 

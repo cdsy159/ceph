@@ -16,60 +16,64 @@
 #pragma once
 
 
-#include <cstdint>
-#include <ostream>
 #include <assert.h>
 
+#include <cstdint>
+#include <ostream>
 
 namespace crimson {
-  namespace dmclock {
-    using Counter = uint64_t;
+namespace dmclock {
+using Counter = uint64_t;
 
-    // we're abstracting cost to its own type to better allow for
-    // future changes; we're assuming that Cost is relatively small
-    // and that it would be more efficient to pass-by-value than
-    // by-reference.
-    using Cost = uint32_t;
+// we're abstracting cost to its own type to better allow for
+// future changes; we're assuming that Cost is relatively small
+// and that it would be more efficient to pass-by-value than
+// by-reference.
+using Cost = uint32_t;
 
-    enum class PhaseType : uint8_t { reservation, priority };
+enum class PhaseType : uint8_t {
+  reservation,
+  priority
+};
 
-    inline std::ostream& operator<<(std::ostream& out, const PhaseType& phase) {
-      out << (PhaseType::reservation == phase ? "reservation" : "priority");
-      return out;
-    }
-
-    struct ReqParams {
-      // count of all replies since last request
-      uint32_t delta;
-
-      // count of reservation replies since last request
-      uint32_t rho;
-
-      ReqParams(uint32_t _delta, uint32_t _rho) :
-	delta(_delta),
-	rho(_rho)
-      {
-	assert(rho <= delta);
-      }
-
-      ReqParams() :
-	ReqParams(0, 0)
-      {
-	// empty
-      }
-
-      ReqParams(const ReqParams& other) :
-	delta(other.delta),
-	rho(other.rho)
-      {
-	// empty
-      }
-
-      friend std::ostream& operator<<(std::ostream& out, const ReqParams& rp) {
-	out << "ReqParams{ delta:" << rp.delta <<
-	  ", rho:" << rp.rho << " }";
-	return out;
-      }
-    }; // class ReqParams
-  }
+inline std::ostream&
+operator<<(std::ostream& out, const PhaseType& phase)
+{
+  out << (PhaseType::reservation == phase ? "reservation" : "priority");
+  return out;
 }
+
+struct ReqParams {
+  // count of all replies since last request
+  uint32_t delta;
+
+  // count of reservation replies since last request
+  uint32_t rho;
+
+  ReqParams(uint32_t _delta, uint32_t _rho) :
+    delta(_delta), rho(_rho)
+  {
+    assert(rho <= delta);
+  }
+
+  ReqParams() :
+    ReqParams(0, 0)
+  {
+    // empty
+  }
+
+  ReqParams(const ReqParams& other) :
+    delta(other.delta), rho(other.rho)
+  {
+    // empty
+  }
+
+  friend std::ostream&
+  operator<<(std::ostream& out, const ReqParams& rp)
+  {
+    out << "ReqParams{ delta:" << rp.delta << ", rho:" << rp.rho << " }";
+    return out;
+  }
+}; // class ReqParams
+} // namespace dmclock
+} // namespace crimson

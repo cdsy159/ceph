@@ -14,51 +14,59 @@
 
 #include <pthread.h>
 #include <stdint.h>
-#include <string>
-#include <unordered_map>
+
+#include <atomic>
 #include <mutex>
 #include <sstream>
-#include <atomic>
+#include <string>
+#include <unordered_map>
 
 #include "common/Formatter.h"
 #include "include/ceph_assert.h"
+
 #include "ceph_mutex.h"
 
 #define CPUTRACE_MAX_ANCHORS 10
 #define CPUTRACE_MAX_THREADS 64
 
 enum cputrace_flags {
-  HW_PROFILE_SWI   = (1ULL << 0),
-  HW_PROFILE_CYC   = (1ULL << 1),
+  HW_PROFILE_SWI = (1ULL << 0),
+  HW_PROFILE_CYC = (1ULL << 1),
   HW_PROFILE_CMISS = (1ULL << 2),
   HW_PROFILE_BMISS = (1ULL << 3),
-  HW_PROFILE_INS   = (1ULL << 4),
+  HW_PROFILE_INS = (1ULL << 4),
 };
 
-inline cputrace_flags operator|(cputrace_flags a, cputrace_flags b) {
+inline cputrace_flags
+operator|(cputrace_flags a, cputrace_flags b)
+{
   return static_cast<cputrace_flags>(
-    static_cast<uint64_t>(a) | static_cast<uint64_t>(b));
+      static_cast<uint64_t>(a) | static_cast<uint64_t>(b));
 }
 
-inline cputrace_flags operator&(cputrace_flags a, cputrace_flags b) {
+inline cputrace_flags
+operator&(cputrace_flags a, cputrace_flags b)
+{
   return static_cast<cputrace_flags>(
-    static_cast<uint64_t>(a) & static_cast<uint64_t>(b));
+      static_cast<uint64_t>(a) & static_cast<uint64_t>(b));
 }
 
 int register_anchor(const char* name);
 
-#define HWProfileFunctionF(var, name, flags) \
+#define HWProfileFunctionF(var, name, flags)   \
   static int var##_id = register_anchor(name); \
   HW_profile var(name, var##_id, flags)
 
 struct sample_t {
-  uint64_t swi  = 0;
-  uint64_t cyc  = 0;
+  uint64_t swi = 0;
+  uint64_t cyc = 0;
   uint64_t cmiss = 0;
   uint64_t bmiss = 0;
-  uint64_t ins  = 0;
+  uint64_t ins = 0;
 
-  void operator=(const sample_t& other) {
+  void
+  operator=(const sample_t& other)
+  {
     swi = other.swi;
     cyc = other.cyc;
     cmiss = other.cmiss;
@@ -66,7 +74,9 @@ struct sample_t {
     ins = other.ins;
   }
 
-  sample_t operator-(const sample_t& other) const {
+  sample_t
+  operator-(const sample_t& other) const
+  {
     sample_t result;
     result.swi = swi - other.swi;
     result.cyc = cyc - other.cyc;
@@ -75,21 +85,26 @@ struct sample_t {
     result.ins = ins - other.ins;
     return result;
   }
-  sample_t& operator-=(const sample_t& other) {
-    swi   -= other.swi;
-    cyc   -= other.cyc;
+
+  sample_t&
+  operator-=(const sample_t& other)
+  {
+    swi -= other.swi;
+    cyc -= other.cyc;
     cmiss -= other.cmiss;
     bmiss -= other.bmiss;
-    ins   -= other.ins;
+    ins -= other.ins;
     return *this;
   }
 
-  sample_t& operator+=(const sample_t& other) {
-    swi   += other.swi;
-    cyc   += other.cyc;
+  sample_t&
+  operator+=(const sample_t& other)
+  {
+    swi += other.swi;
+    cyc += other.cyc;
     cmiss += other.cmiss;
     bmiss += other.bmiss;
-    ins   += other.ins;
+    ins += other.ins;
     return *this;
   }
 };
@@ -101,7 +116,9 @@ struct measurement_t {
   uint64_t non_zero_swi_count = 0;
   uint64_t zero_swi_count = 0;
 
-  void sample(const sample_t& s) {
+  void
+  sample(const sample_t& s)
+  {
     sample_count += 1;
     if (s.swi > 0) {
       sum_swi += s.swi;
@@ -116,7 +133,9 @@ struct measurement_t {
     sum_ins += s.ins;
   }
 
-  void reset() {
+  void
+  reset()
+  {
     call_count = 0;
     sample_count = 0;
     non_zero_swi_count = 0;
@@ -124,7 +143,12 @@ struct measurement_t {
     sum_swi = sum_cyc = sum_cmiss = sum_bmiss = sum_ins = 0;
   }
 
-  void dump(ceph::Formatter* f, cputrace_flags flags, const std::string& counter = "") const {
+  void
+  dump(
+      ceph::Formatter* f,
+      cputrace_flags flags,
+      const std::string& counter = "") const
+  {
     f->dump_unsigned("sample_count", sample_count);
     if (flags & HW_PROFILE_SWI) {
       f->open_object_section("context_switches");
@@ -149,17 +173,22 @@ struct measurement_t {
     if (flags & HW_PROFILE_CYC && (counter.empty() || counter == "cpu_cycles"))
       dump_counter("cpu_cycles", sum_cyc);
 
-    if (flags & HW_PROFILE_CMISS && (counter.empty() || counter == "cache_misses"))
+    if (flags & HW_PROFILE_CMISS &&
+        (counter.empty() || counter == "cache_misses"))
       dump_counter("cache_misses", sum_cmiss);
 
-    if (flags & HW_PROFILE_BMISS && (counter.empty() || counter == "branch_misses"))
+    if (flags & HW_PROFILE_BMISS &&
+        (counter.empty() || counter == "branch_misses"))
       dump_counter("branch_misses", sum_bmiss);
 
-    if (flags & HW_PROFILE_INS && (counter.empty() || counter == "instructions"))
+    if (flags & HW_PROFILE_INS &&
+        (counter.empty() || counter == "instructions"))
       dump_counter("instructions", sum_ins);
   }
 
-  void dump_to_stringstream(std::stringstream& ss, cputrace_flags flags) const {
+  void
+  dump_to_stringstream(std::stringstream& ss, cputrace_flags flags) const
+  {
     ss << "sample_count: " << sample_count << "\n";
     if (flags & HW_PROFILE_SWI) {
       ss << "\ncontext_switches:\n";
@@ -214,10 +243,10 @@ struct cputrace_anchor {
   pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
   measurement_t global_results{};
   cputrace_flags flags = static_cast<cputrace_flags>(0);
-  HW_ctx per_thread_ctx[CPUTRACE_MAX_THREADS] {};
+  HW_ctx per_thread_ctx[CPUTRACE_MAX_THREADS]{};
   HW_ctx* active_contexts[CPUTRACE_MAX_THREADS] = {nullptr};
-  sample_t start[CPUTRACE_MAX_THREADS] {};
-  sample_t end[CPUTRACE_MAX_THREADS] {};
+  sample_t start[CPUTRACE_MAX_THREADS]{};
+  sample_t end[CPUTRACE_MAX_THREADS]{};
   bool is_capturing[CPUTRACE_MAX_THREADS] = {false};
   uint32_t nest_level[CPUTRACE_MAX_THREADS] = {0};
 };
@@ -245,19 +274,23 @@ void HW_clean(HW_ctx* ctx);
 
 class HW_guard {
 public:
-  HW_guard(HW_ctx* ctx, measurement_t* out_measurement)
-    : ctx(ctx), meas(out_measurement) {
+  HW_guard(HW_ctx* ctx, measurement_t* out_measurement) :
+    ctx(ctx), meas(out_measurement)
+  {
     if (ctx && meas) {
       HW_read(ctx, &start);
     }
   }
-  ~HW_guard() {
+
+  ~HW_guard()
+  {
     if (ctx && meas) {
       HW_read(ctx, &end);
       sample_t elapsed = end - start;
       meas->sample(elapsed);
     }
   }
+
 private:
   HW_ctx* ctx{nullptr};
   measurement_t* meas{nullptr};
@@ -279,7 +312,10 @@ measurement_t* get_named_measurement(const std::string& name);
 void cputrace_start(ceph::Formatter* f = nullptr);
 void cputrace_stop(ceph::Formatter* f = nullptr);
 void cputrace_reset(ceph::Formatter* f = nullptr);
-void cputrace_dump(ceph::Formatter* f, const std::string& logger = "", const std::string& counter = "");
+void cputrace_dump(
+    ceph::Formatter* f,
+    const std::string& logger = "",
+    const std::string& counter = "");
 void cputrace_print_to_stringstream(std::stringstream& ss);
 
 struct hw_per_thread_ctx {
@@ -303,7 +339,8 @@ private:
 public:
   static hw_per_thread_ctx* get_thread_local();
 
-  sample_t read()
+  sample_t
+  read()
   {
     sample_t s;
     HW_read(&ctx, &s);
@@ -311,15 +348,14 @@ public:
     return s;
   };
 
-  void exclude_stats(const sample_t& exclude)
+  void
+  exclude_stats(const sample_t& exclude)
   {
     stats_excluded += exclude;
   }
 
-  static void sample(
-    const sample_t& elapsed,
-    measurement_t& mmt,
-    ceph::mutex& lock)
+  static void
+  sample(const sample_t& elapsed, measurement_t& mmt, ceph::mutex& lock)
   {
     std::lock_guard _(lock);
     mmt.sample(elapsed);
@@ -329,44 +365,50 @@ public:
 struct cpucounter_group {
   const char* name;
   std::vector<std::pair<const char*, measurement_t&>> counters;
-  cpucounter_group(const char* name)
-  : name(name) {
+
+  cpucounter_group(const char* name) :
+    name(name)
+  {
     register_group(this);
   }
+
   void register_group(cpucounter_group* group);
 };
 
 struct measure_scope {
-  measure_scope(
-    measurement_t& measure,
-    ceph::mutex& mutex)
-  : measure(measure), mutex(mutex)
+  measure_scope(measurement_t& measure, ceph::mutex& mutex) :
+    measure(measure), mutex(mutex)
   {
     tl_ctx = hw_per_thread_ctx::get_thread_local();
     start = tl_ctx->read();
   }
-  ~measure_scope() {
+
+  ~measure_scope()
+  {
     sample_t elapsed = tl_ctx->read() - start;
     tl_ctx->exclude_stats(elapsed);
     tl_ctx->sample(elapsed, measure, mutex);
   }
-  private:
+
+private:
   measurement_t& measure;
-  ceph::mutex&   mutex;
+  ceph::mutex& mutex;
   hw_per_thread_ctx* tl_ctx;
-  sample_t       start;
+  sample_t start;
 };
 
 struct register_trace_scope {
   measurement_t val;
   ceph::mutex mutex;
-  register_trace_scope(cpucounter_group& group, const char* name)
-  : mutex(ceph::make_mutex(name)) {
+
+  register_trace_scope(cpucounter_group& group, const char* name) :
+    mutex(ceph::make_mutex(name))
+  {
     group.counters.emplace_back(name, val);
   }
 };
 
-#define MEASURE_SCOPE(x, y) \
+#define MEASURE_SCOPE(x, y)                   \
   static register_trace_scope _##y##_(x, #y); \
   measure_scope _(_##y##_.val, _##y##_.mutex)
 

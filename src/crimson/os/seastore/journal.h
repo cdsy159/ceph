@@ -5,10 +5,10 @@
 
 #include <memory>
 
+#include "crimson/os/seastore/cached_extent.h"
 #include "crimson/os/seastore/ordering_handle.h"
 #include "crimson/os/seastore/seastore_types.h"
 #include "crimson/os/seastore/segment_seq_allocator.h"
-#include "crimson/os/seastore/cached_extent.h"
 
 namespace crimson::os::seastore {
 
@@ -22,7 +22,7 @@ class JournalTrimmer;
 
 class Journal {
 public:
-  virtual JournalTrimmer &get_trimmer() = 0;
+  virtual JournalTrimmer& get_trimmer() = 0;
 
   virtual writer_stats_t get_writer_stats() const = 0;
 
@@ -30,9 +30,8 @@ public:
    * initializes journal for mkfs writes -- must run prior to calls
    * to submit_record.
    */
-  using open_for_mkfs_ertr = crimson::errorator<
-    crimson::ct_error::input_output_error
-    >;
+  using open_for_mkfs_ertr =
+      crimson::errorator<crimson::ct_error::input_output_error>;
   using open_for_mkfs_ret = open_for_mkfs_ertr::future<journal_seq_t>;
   virtual open_for_mkfs_ret open_for_mkfs() = 0;
 
@@ -46,8 +45,7 @@ public:
   virtual open_for_mount_ret open_for_mount() = 0;
 
   /// close journal
-  using close_ertr = crimson::errorator<
-    crimson::ct_error::input_output_error>;
+  using close_ertr = crimson::errorator<crimson::ct_error::input_output_error>;
   virtual close_ertr::future<> close() = 0;
 
   /**
@@ -56,16 +54,14 @@ public:
    * write record with the ordering handle
    */
   using submit_record_ertr = crimson::errorator<
-    crimson::ct_error::erange,
-    crimson::ct_error::input_output_error
-    >;
-  using on_submission_func_t = std::function<
-    void(record_locator_t)>;
+      crimson::ct_error::erange,
+      crimson::ct_error::input_output_error>;
+  using on_submission_func_t = std::function<void(record_locator_t)>;
   virtual submit_record_ertr::future<> submit_record(
-    record_t &&record,
-    OrderingHandle &handle,
-    transaction_type_t t_src,
-    on_submission_func_t &&on_submission) = 0;
+      record_t&& record,
+      OrderingHandle& handle,
+      transaction_type_t t_src,
+      on_submission_func_t&& on_submission) = 0;
 
   /**
    * flush
@@ -74,10 +70,10 @@ public:
    * Note, flush() machinery must go through the same pipeline
    * stages and locks as submit_record.
    */
-  virtual seastar::future<> flush(OrderingHandle &handle) = 0;
+  virtual seastar::future<> flush(OrderingHandle& handle) = 0;
 
   /// sets write pipeline reference
-  virtual void set_write_pipeline(WritePipeline *_write_pipeline) = 0;
+  virtual void set_write_pipeline(WritePipeline* _write_pipeline) = 0;
 
   /**
    * Read deltas and pass to delta_handler
@@ -86,42 +82,42 @@ public:
    * of the first block in the record
    */
   using replay_ertr = crimson::errorator<
-    crimson::ct_error::input_output_error,
-    crimson::ct_error::invarg,
-    crimson::ct_error::enoent,
-    crimson::ct_error::erange>;
+      crimson::ct_error::input_output_error,
+      crimson::ct_error::invarg,
+      crimson::ct_error::enoent,
+      crimson::ct_error::erange>;
   using replay_ret = replay_ertr::future<>;
-  using delta_handler_t = std::function<
-    replay_ertr::future<std::pair<bool, CachedExtentRef>>(
-      const record_locator_t&,
-      const delta_info_t&,
-      const journal_seq_t&, // dirty_tail
-      const journal_seq_t&, // alloc_tail
-      sea_time_point modify_time)>;
-  virtual replay_ret replay(
-    delta_handler_t &&delta_handler) = 0;
+  using delta_handler_t =
+      std::function<replay_ertr::future<std::pair<bool, CachedExtentRef>>(
+          const record_locator_t&,
+          const delta_info_t&,
+          const journal_seq_t&, // dirty_tail
+          const journal_seq_t&, // alloc_tail
+          sea_time_point modify_time)>;
+  virtual replay_ret replay(delta_handler_t&& delta_handler) = 0;
 
   virtual ~Journal() {}
 
   virtual backend_type_t get_type() = 0;
 
-  virtual bool is_checksum_needed() = 0; 
+  virtual bool is_checksum_needed() = 0;
 };
+
 using JournalRef = std::unique_ptr<Journal>;
 
 namespace journal {
 
 JournalRef make_segmented(
-  store_index_t store_index,
-  SegmentProvider &provider,
-  JournalTrimmer &trimmer);
+    store_index_t store_index,
+    SegmentProvider& provider,
+    JournalTrimmer& trimmer);
 
 JournalRef make_circularbounded(
-  store_index_t store_index,
-  JournalTrimmer &trimmer,
-  crimson::os::seastore::random_block_device::RBMDevice* device,
-  std::string path);
+    store_index_t store_index,
+    JournalTrimmer& trimmer,
+    crimson::os::seastore::random_block_device::RBMDevice* device,
+    std::string path);
 
-}
+} // namespace journal
 
-}
+} // namespace crimson::os::seastore

@@ -3,15 +3,17 @@
 
 #pragma once
 
+#include <stdlib.h>
+
 #include <exception>
+#include <istream>
+#include <streambuf>
 #include <string>
 #include <string_view>
-#include <streambuf>
-#include <istream>
-#include <stdlib.h>
 #include <system_error>
 
 #include "include/types.h"
+
 #include "rgw_common.h"
 
 
@@ -26,13 +28,13 @@ using Exception = std::system_error;
  * interacted with. */
 class BasicClient {
 protected:
-  virtual int init_env(CephContext *cct) = 0;
+  virtual int init_env(CephContext* cct) = 0;
 
 public:
   virtual ~BasicClient() = default;
 
   /* Initialize the BasicClient and inject CephContext. */
-  int init(CephContext *cct);
+  int init(CephContext* cct);
 
   /* Return the RGWEnv describing the environment that a given request lives in.
    * The method does not throw exceptions. */
@@ -43,7 +45,6 @@ public:
    * On failure throws rgw::io::Exception containing errno. */
   virtual size_t complete_request() = 0;
 }; /* rgw::io::Client */
-
 
 class Accounter {
 public:
@@ -64,7 +65,6 @@ public:
   virtual uint64_t get_bytes_received() const = 0;
 }; /* rgw::io::Accounter */
 
-
 /* Interface abstracting restful interactions with clients, usually through
  * the HTTP protocol. The methods participating in the response generation
  * process should be called in the specific order:
@@ -84,7 +84,8 @@ public:
  * restrictions besides those imposed by BasicClient. That is, get_env()
  * and recv_body can be mixed. */
 class RestfulClient : public BasicClient {
-  template<typename T> friend class DecoratedRestfulClient;
+  template <typename T>
+  friend class DecoratedRestfulClient;
 
 public:
   /* Generate the 100 Continue message.
@@ -96,14 +97,15 @@ public:
    * and its name pointed in @status_name.
    * On success returns number of bytes generated for a direct client of RadosGW.
    * On failure throws rgw::io::Exception containing errno. */
-  virtual size_t send_status(int status, const char *status_name) = 0;
+  virtual size_t send_status(int status, const char* status_name) = 0;
 
   /* Generate header. On success returns number of bytes generated for a direct
    * client of RadosGW. On failure throws rgw::io::Exception containing errno.
    *
    * std::string_view is being used because of length it internally carries. */
-  virtual size_t send_header(const std::string_view& name,
-                             const std::string_view& value) = 0;
+  virtual size_t send_header(
+      const std::string_view& name,
+      const std::string_view& value) = 0;
 
   /* Inform a client about a content length. Takes number of bytes as @len.
    * On success returns number of bytes generated for a direct client of RadosGW.
@@ -121,7 +123,9 @@ public:
    * CALL LIMITATIONS:
    *  - The method must be called EXACTLY ONCE.
    *  - The method is interchangeable with send_content_length(). */
-  virtual size_t send_chunked_transfer_encoding() {
+  virtual size_t
+  send_chunked_transfer_encoding()
+  {
     /* This is a null implementation. We don't send anything here, even the HTTP
      * header. The intended behaviour should be provided through a decorator or
      * directly by a given front-end. */
@@ -150,18 +154,19 @@ public:
   virtual void flush() = 0;
 } /* rgw::io::RestfulClient */;
 
-
 /* Abstract decorator over any implementation of rgw::io::RestfulClient
  * which could be provided both as a pointer-to-object or the object itself. */
 template <typename DecorateeT>
 class DecoratedRestfulClient : public RestfulClient {
-  template<typename T> friend class DecoratedRestfulClient;
+  template <typename T>
+  friend class DecoratedRestfulClient;
   friend RGWRestfulIO;
 
   typedef typename std::remove_pointer<DecorateeT>::type DerefedDecorateeT;
 
-  static_assert(std::is_base_of<RestfulClient, DerefedDecorateeT>::value,
-                "DecorateeT must be a subclass of rgw::io::RestfulClient");
+  static_assert(
+      std::is_base_of<RestfulClient, DerefedDecorateeT>::value,
+      "DecorateeT must be a subclass of rgw::io::RestfulClient");
 
   DecorateeT decoratee;
 
@@ -169,18 +174,24 @@ class DecoratedRestfulClient : public RestfulClient {
    * code base between dynamic and static decorators. The difference is about
    * what we store internally: pointer to a decorated object versus the whole
    * object itself. */
-  template <typename T = void,
-            typename std::enable_if<
-    ! std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  DerefedDecorateeT& get_decoratee() {
+  template <
+      typename T = void,
+      typename std::enable_if<!std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  DerefedDecorateeT&
+  get_decoratee()
+  {
     return decoratee;
   }
 
 protected:
-  template <typename T = void,
-            typename std::enable_if<
-    std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  DerefedDecorateeT& get_decoratee() {
+  template <
+      typename T = void,
+      typename std::enable_if<std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  DerefedDecorateeT&
+  get_decoratee()
+  {
     return *decoratee;
   }
 
@@ -188,70 +199,93 @@ protected:
    * object itself) can be reconfigured on-the-fly. HOWEVER: there are no
    * facilities for orchestrating such changes. Callers must take care of
    * atomicity and thread-safety. */
-  template <typename T = void,
-            typename std::enable_if<
-    std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  void set_decoratee(DerefedDecorateeT& new_dec) {
+  template <
+      typename T = void,
+      typename std::enable_if<std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  void
+  set_decoratee(DerefedDecorateeT& new_dec)
+  {
     decoratee = &new_dec;
   }
 
-  int init_env(CephContext *cct) override {
+  int
+  init_env(CephContext* cct) override
+  {
     return get_decoratee().init_env(cct);
   }
 
 public:
-  explicit DecoratedRestfulClient(DecorateeT&& decoratee)
-    : decoratee(std::forward<DecorateeT>(decoratee)) {
-  }
+  explicit DecoratedRestfulClient(DecorateeT&& decoratee) :
+    decoratee(std::forward<DecorateeT>(decoratee))
+  {}
 
-  size_t send_status(const int status,
-                     const char* const status_name) override {
+  size_t
+  send_status(const int status, const char* const status_name) override
+  {
     return get_decoratee().send_status(status, status_name);
   }
 
-  size_t send_100_continue() override {
+  size_t
+  send_100_continue() override
+  {
     return get_decoratee().send_100_continue();
   }
 
-  size_t send_header(const std::string_view& name,
-                     const std::string_view& value) override {
+  size_t
+  send_header(const std::string_view& name, const std::string_view& value) override
+  {
     return get_decoratee().send_header(name, value);
   }
 
-  size_t send_content_length(const uint64_t len) override {
+  size_t
+  send_content_length(const uint64_t len) override
+  {
     return get_decoratee().send_content_length(len);
   }
 
-  size_t send_chunked_transfer_encoding() override {
+  size_t
+  send_chunked_transfer_encoding() override
+  {
     return get_decoratee().send_chunked_transfer_encoding();
   }
 
-  size_t complete_header() override {
+  size_t
+  complete_header() override
+  {
     return get_decoratee().complete_header();
   }
 
-  size_t recv_body(char* const buf, const size_t max) override {
+  size_t
+  recv_body(char* const buf, const size_t max) override
+  {
     return get_decoratee().recv_body(buf, max);
   }
 
-  size_t send_body(const char* const buf,
-                   const size_t len) override {
+  size_t
+  send_body(const char* const buf, const size_t len) override
+  {
     return get_decoratee().send_body(buf, len);
   }
 
-  void flush() override {
+  void
+  flush() override
+  {
     return get_decoratee().flush();
   }
 
-  RGWEnv& get_env() noexcept override {
+  RGWEnv&
+  get_env() noexcept override
+  {
     return get_decoratee().get_env();
   }
 
-  size_t complete_request() override {
+  size_t
+  complete_request() override
+  {
     return get_decoratee().complete_request();
   }
 } /* rgw::io::DecoratedRestfulClient */;
-
 
 /* Interface that should be provided by a front-end class wanting to use
  * the low-level buffering offered by i.e. StaticOutputBufferer. */
@@ -261,7 +295,7 @@ public:
 
   /* Send exactly @len bytes from the memory location pointed by @buf.
    * On success returns @len. On failure throws rgw::io::Exception. */
-  virtual size_t write_data(const char *buf, size_t len) = 0;
+  virtual size_t write_data(const char* buf, size_t len) = 0;
 };
 
 /* Utility class providing RestfulClient's implementations with facilities
@@ -275,16 +309,19 @@ public:
  * running on extremely fast network interfaces like the loopback). */
 template <size_t BufferSizeV = 4096>
 class StaticOutputBufferer : public std::streambuf {
-  static_assert(BufferSizeV >= sizeof(std::streambuf::char_type),
-                "Buffer size must be bigger than a single char_type.");
+  static_assert(
+      BufferSizeV >= sizeof(std::streambuf::char_type),
+      "Buffer size must be bigger than a single char_type.");
 
   using std::streambuf::int_type;
 
-  int_type overflow(const int_type c) override {
+  int_type
+  overflow(const int_type c) override
+  {
     *pptr() = c;
     pbump(sizeof(std::streambuf::char_type));
 
-    if (! sync()) {
+    if (!sync()) {
       /* No error, the buffer has been successfully synchronized. */
       return c;
     } else {
@@ -292,9 +329,11 @@ class StaticOutputBufferer : public std::streambuf {
     }
   }
 
-  int sync() override {
-    const auto len = static_cast<size_t>(std::streambuf::pptr() -
-                                         std::streambuf::pbase());
+  int
+  sync() override
+  {
+    const auto len =
+        static_cast<size_t>(std::streambuf::pptr() - std::streambuf::pbase());
     std::streambuf::pbump(-len);
     sink.write_data(std::streambuf::pbase(), len);
     /* Always return success here. In case of failure write_data() will throw
@@ -306,8 +345,9 @@ class StaticOutputBufferer : public std::streambuf {
   std::streambuf::char_type buffer[BufferSizeV];
 
 public:
-  explicit StaticOutputBufferer(BuffererSink& sink)
-    : sink(sink) {
+  explicit StaticOutputBufferer(BuffererSink& sink) :
+    sink(sink)
+  {
     constexpr size_t len = sizeof(buffer) - sizeof(std::streambuf::char_type);
     std::streambuf::setp(buffer, buffer + len);
   }
@@ -316,14 +356,12 @@ public:
 } /* namespace io */
 } /* namespace rgw */
 
-
 /* We're doing this nasty thing only because of extensive usage of templates
  * to implement the static decorator pattern. C++ templates de facto enforce
  * mixing interfaces with implementation. Additionally, those classes derive
  * from RGWRestfulIO defined here. I believe that including in the middle of
  * file is still better than polluting it directly. */
 #include "rgw_client_io_filters.h"
-
 
 /* RGWRestfulIO: high level interface to interact with RESTful clients. What
  * differentiates it from rgw::io::RestfulClient is providing more specific APIs
@@ -337,64 +375,69 @@ class RGWRestfulIO : public rgw::io::AccountingFilter<rgw::io::RestfulClient*> {
 public:
   ~RGWRestfulIO() override = default;
 
-  RGWRestfulIO(CephContext *_cx, rgw::io::RestfulClient* engine)
-    : AccountingFilter<rgw::io::RestfulClient*>(_cx, std::move(engine)) {
-  }
+  RGWRestfulIO(CephContext* _cx, rgw::io::RestfulClient* engine) :
+    AccountingFilter<rgw::io::RestfulClient*>(_cx, std::move(engine))
+  {}
 
-  void add_filter(std::shared_ptr<DecoratedRestfulClient> new_filter) {
+  void
+  add_filter(std::shared_ptr<DecoratedRestfulClient> new_filter)
+  {
     new_filter->set_decoratee(this->get_decoratee());
     this->set_decoratee(*new_filter);
     filters.emplace_back(std::move(new_filter));
   }
 }; /* RGWRestfulIO */
 
-
 /* Type conversions to work around lack of req_state type hierarchy matching
  * (e.g.) REST backends (may be replaced w/dynamic typed req_state). */
-static inline rgw::io::RestfulClient* RESTFUL_IO(req_state* s) {
+static inline rgw::io::RestfulClient*
+RESTFUL_IO(req_state* s)
+{
   ceph_assert(dynamic_cast<rgw::io::RestfulClient*>(s->cio) != nullptr);
 
   return static_cast<rgw::io::RestfulClient*>(s->cio);
 }
 
-static inline rgw::io::Accounter* ACCOUNTING_IO(req_state* s) {
+static inline rgw::io::Accounter*
+ACCOUNTING_IO(req_state* s)
+{
   auto ptr = dynamic_cast<rgw::io::Accounter*>(s->cio);
   ceph_assert(ptr != nullptr);
 
   return ptr;
 }
 
-static inline RGWRestfulIO* AWS_AUTHv4_IO(const req_state* const s) {
+static inline RGWRestfulIO*
+AWS_AUTHv4_IO(const req_state* const s)
+{
   ceph_assert(dynamic_cast<RGWRestfulIO*>(s->cio) != nullptr);
 
   return static_cast<RGWRestfulIO*>(s->cio);
 }
 
-
 class RGWClientIOStreamBuf : public std::streambuf {
 protected:
-  RGWRestfulIO &rio;
+  RGWRestfulIO& rio;
   size_t const window_size;
   size_t const putback_size;
   std::vector<char> buffer;
 
 public:
-  RGWClientIOStreamBuf(RGWRestfulIO &rio, size_t ws, size_t ps = 1)
-    : rio(rio),
-      window_size(ws),
-      putback_size(ps),
-      buffer(ws + ps)
+  RGWClientIOStreamBuf(RGWRestfulIO& rio, size_t ws, size_t ps = 1) :
+    rio(rio), window_size(ws), putback_size(ps), buffer(ws + ps)
   {
     setg(nullptr, nullptr, nullptr);
   }
 
-  std::streambuf::int_type underflow() override {
+  std::streambuf::int_type
+  underflow() override
+  {
     if (gptr() < egptr()) {
       return traits_type::to_int_type(*gptr());
     }
 
-    char * const base = buffer.data();
-    char * start;
+    char* const base = buffer.data();
+    char* start;
 
     if (nullptr != eback()) {
       /* We need to skip moving bytes on first underflow. In such case
@@ -423,13 +466,13 @@ public:
 };
 
 class RGWClientIOStream : private RGWClientIOStreamBuf, public std::istream {
-/* Inheritance from RGWClientIOStreamBuf is a kind of shadow, undirect
+  /* Inheritance from RGWClientIOStreamBuf is a kind of shadow, undirect
  * form of composition here. We cannot do that explicitly because istream
  * ctor is being called prior to construction of any member of this class. */
 
 public:
-  explicit RGWClientIOStream(RGWRestfulIO &s)
-    : RGWClientIOStreamBuf(s, 1, 2),
-      std::istream(static_cast<RGWClientIOStreamBuf *>(this)) {
-  }
+  explicit RGWClientIOStream(RGWRestfulIO& s) :
+    RGWClientIOStreamBuf(s, 1, 2),
+    std::istream(static_cast<RGWClientIOStreamBuf*>(this))
+  {}
 };

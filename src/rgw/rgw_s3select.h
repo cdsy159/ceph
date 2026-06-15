@@ -8,4 +8,3 @@
 namespace rgw::s3select {
 RGWOp* create_s3select_op();
 }
-

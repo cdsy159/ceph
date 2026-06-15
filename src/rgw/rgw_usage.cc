@@ -1,21 +1,27 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include <string>
-#include <map>
-
-#include "rgw_rados.h"
 #include "rgw_usage.h"
+
+#include <map>
+#include <string>
+
 #include "rgw_formats.h"
+#include "rgw_rados.h"
 #include "rgw_sal.h"
 
 using namespace std;
 
-static void dump_usage_categories_info(Formatter *formatter, const rgw_usage_log_entry& entry, map<string, bool> *categories)
+static void
+dump_usage_categories_info(
+    Formatter* formatter,
+    const rgw_usage_log_entry& entry,
+    map<string, bool>* categories)
 {
   formatter->open_array_section("categories");
   map<string, rgw_usage_data>::const_iterator uiter;
-  for (uiter = entry.usage_map.begin(); uiter != entry.usage_map.end(); ++uiter) {
+  for (uiter = entry.usage_map.begin(); uiter != entry.usage_map.end();
+       ++uiter) {
     if (categories && !categories->empty() && !categories->count(uiter->first))
       continue;
     const rgw_usage_data& usage = uiter->second;
@@ -30,18 +36,25 @@ static void dump_usage_categories_info(Formatter *formatter, const rgw_usage_log
   formatter->close_section(); // categories
 }
 
-int RGWUsage::show(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
-		  rgw::sal::User* user , rgw::sal::Bucket* bucket,
-		   uint64_t start_epoch, uint64_t end_epoch, bool show_log_entries,
-		   bool show_log_sum,
-		   map<string, bool> *categories, RGWFormatterFlusher& flusher)
+int
+RGWUsage::show(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    rgw::sal::User* user,
+    rgw::sal::Bucket* bucket,
+    uint64_t start_epoch,
+    uint64_t end_epoch,
+    bool show_log_entries,
+    bool show_log_sum,
+    map<string, bool>* categories,
+    RGWFormatterFlusher& flusher)
 {
   uint32_t max_entries = 1000;
 
   bool is_truncated = true;
 
   RGWUsageIter usage_iter;
-  Formatter *formatter = flusher.get_formatter();
+  Formatter* formatter = flusher.get_formatter();
 
   map<rgw_user_bucket, rgw_usage_log_entry> usage;
 
@@ -58,14 +71,17 @@ int RGWUsage::show(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
 
   while (is_truncated) {
     if (bucket) {
-      ret = bucket->read_usage(dpp, start_epoch, end_epoch, max_entries, &is_truncated,
-			       usage_iter, usage);
+      ret = bucket->read_usage(
+          dpp, start_epoch, end_epoch, max_entries, &is_truncated, usage_iter,
+          usage);
     } else if (user) {
-      ret = user->read_usage(dpp, start_epoch, end_epoch, max_entries, &is_truncated,
-			     usage_iter, usage);
+      ret = user->read_usage(
+          dpp, start_epoch, end_epoch, max_entries, &is_truncated, usage_iter,
+          usage);
     } else {
-      ret = driver->read_all_usage(dpp, start_epoch, end_epoch, max_entries, &is_truncated,
-				  usage_iter, usage);
+      ret = driver->read_all_usage(
+          dpp, start_epoch, end_epoch, max_entries, &is_truncated, usage_iter,
+          usage);
     }
 
     if (ret == -ENOENT) {
@@ -109,9 +125,12 @@ int RGWUsage::show(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
         dump_usage_categories_info(formatter, entry, categories);
 
         formatter->open_object_section("s3select");
-        if (!categories || categories->empty() || categories->count("s3select")) {
-          formatter->dump_unsigned("bytes_processed", entry.s3select_usage.bytes_processed);
-          formatter->dump_unsigned("bytes_returned", entry.s3select_usage.bytes_returned);
+        if (!categories || categories->empty() ||
+            categories->count("s3select")) {
+          formatter->dump_unsigned(
+              "bytes_processed", entry.s3select_usage.bytes_processed);
+          formatter->dump_unsigned(
+              "bytes_returned", entry.s3select_usage.bytes_returned);
         }
         formatter->close_section(); // s3select
 
@@ -145,8 +164,10 @@ int RGWUsage::show(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
       encode_json("bytes_received", total_usage.bytes_received, formatter);
       encode_json("ops", total_usage.ops, formatter);
       encode_json("successful_ops", total_usage.successful_ops, formatter);
-      encode_json("bytes_processed", entry.s3select_usage.bytes_processed, formatter);
-      encode_json("bytes_returned", entry.s3select_usage.bytes_returned, formatter);
+      encode_json(
+          "bytes_processed", entry.s3select_usage.bytes_processed, formatter);
+      encode_json(
+          "bytes_returned", entry.s3select_usage.bytes_returned, formatter);
       formatter->close_section(); // total
 
       formatter->close_section(); // user
@@ -163,9 +184,15 @@ int RGWUsage::show(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
   return 0;
 }
 
-int RGWUsage::trim(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
-		   rgw::sal::User* user , rgw::sal::Bucket* bucket,
-		   uint64_t start_epoch, uint64_t end_epoch, optional_yield y)
+int
+RGWUsage::trim(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    rgw::sal::User* user,
+    rgw::sal::Bucket* bucket,
+    uint64_t start_epoch,
+    uint64_t end_epoch,
+    optional_yield y)
 {
   if (bucket) {
     return bucket->trim_usage(dpp, start_epoch, end_epoch, y);
@@ -176,7 +203,11 @@ int RGWUsage::trim(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver,
   }
 }
 
-int RGWUsage::clear(const DoutPrefixProvider *dpp, rgw::sal::Driver* driver, optional_yield y)
+int
+RGWUsage::clear(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    optional_yield y)
 {
   return driver->clear_usage(dpp, y);
 }

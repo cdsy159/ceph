@@ -16,9 +16,9 @@
 #ifndef CEPH_MMGRCONFIGURE_H_
 #define CEPH_MMGRCONFIGURE_H_
 
-#include "msg/Message.h"
 #include "mgr/MetricTypes.h"
 #include "mgr/OSDPerfMetricTypes.h"
+#include "msg/Message.h"
 
 /**
  * This message is sent from ceph-mgr to MgrClient, instructing it
@@ -39,7 +39,8 @@ public:
 
   boost::optional<MetricConfigMessage> metric_config_message;
 
-  void decode_payload() override
+  void
+  decode_payload() override
   {
     using ceph::decode;
     auto p = payload.cbegin();
@@ -55,12 +56,15 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(stats_period, payload);
     encode(stats_threshold, payload);
     encode(osd_perf_metric_queries, payload);
-    if (metric_config_message && metric_config_message->should_encode(features)) {
+    if (metric_config_message &&
+        metric_config_message->should_encode(features)) {
       encode(metric_config_message, payload);
     } else {
       boost::optional<MetricConfigMessage> empty;
@@ -68,23 +72,30 @@ public:
     }
   }
 
-  std::string_view get_type_name() const override { return "mgrconfigure"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mgrconfigure";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << get_type_name() << "(period=" << stats_period
-			   << ", threshold=" << stats_threshold << ")";
+        << ", threshold=" << stats_threshold << ")";
   }
 
 private:
-  MMgrConfigure()
-    : Message{MSG_MGR_CONFIGURE, HEAD_VERSION, COMPAT_VERSION}
+  MMgrConfigure() :
+    Message{MSG_MGR_CONFIGURE, HEAD_VERSION, COMPAT_VERSION}
   {}
-  using RefCountedObject::put;
+
   using RefCountedObject::get;
-  template<class T, typename... Args>
+  using RefCountedObject::put;
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 
 #endif
-

@@ -21,7 +21,8 @@
 
 thread_local bool is_asio_thread = false;
 
-void maybe_warn_about_blocking(const DoutPrefixProvider* dpp)
+void
+maybe_warn_about_blocking(const DoutPrefixProvider* dpp)
 {
   // work on asio threads should be asynchronous, so warn when they block
   if (!is_asio_thread) {

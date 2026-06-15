@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include "include/buffer.h"
 #include "common/ceph_time.h"
+#include "include/buffer.h"
 
 namespace neorados::cls::fifo {
 /// Entries to be returned by the list operation
@@ -32,9 +32,10 @@ struct entry {
   ceph::real_time mtime;
 };
 
-inline std::ostream& operator <<(std::ostream& m, const entry& e) {
-  return m << "[data: " << e.data
-	   << ", marker: " << e.marker
-	   << ", mtime: " << e.mtime << "]";
+inline std::ostream&
+operator<<(std::ostream& m, const entry& e)
+{
+  return m << "[data: " << e.data << ", marker: " << e.marker
+           << ", mtime: " << e.mtime << "]";
 }
-} // neorados::cls::fifo
+} // namespace neorados::cls::fifo

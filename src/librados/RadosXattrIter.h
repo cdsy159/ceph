@@ -16,24 +16,24 @@
 #ifndef CEPH_LIBRADOS_XATTRITER_H
 #define CEPH_LIBRADOS_XATTRITER_H
 
-#include <string>
 #include <map>
+#include <string>
 
-#include "include/buffer.h"  // for bufferlist
+#include "include/buffer.h" // for bufferlist
 
 namespace librados {
 
-  /**
+/**
    * iterator object used in implementation of the external
    * attributes part of the C interface of librados
    */
-  struct RadosXattrsIter {
-    RadosXattrsIter();
-    ~RadosXattrsIter();
-    std::map<std::string, bufferlist> attrset;
-    std::map<std::string, bufferlist>::iterator i;
-    char *val;
-  };
+struct RadosXattrsIter {
+  RadosXattrsIter();
+  ~RadosXattrsIter();
+  std::map<std::string, bufferlist> attrset;
+  std::map<std::string, bufferlist>::iterator i;
+  char* val;
 };
+}; // namespace librados
 
 #endif

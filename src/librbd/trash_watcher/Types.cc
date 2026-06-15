@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "librbd/trash_watcher/Types.h"
+
 #include "common/Formatter.h"
 #include "include/ceph_assert.h"
 #include "include/stringify.h"
-#include "librbd/trash_watcher/Types.h"
 #include "librbd/watcher/Utils.h"
 
 namespace librbd {
@@ -14,71 +15,95 @@ namespace {
 
 class DumpPayloadVisitor {
 public:
-  explicit DumpPayloadVisitor(Formatter *formatter) : m_formatter(formatter) {}
+  explicit DumpPayloadVisitor(Formatter* formatter) :
+    m_formatter(formatter)
+  {}
 
   template <typename Payload>
-  inline void operator()(const Payload &payload) const {
+  inline void
+  operator()(const Payload& payload) const
+  {
     NotifyOp notify_op = Payload::NOTIFY_OP;
     m_formatter->dump_string("notify_op", stringify(notify_op));
     payload.dump(m_formatter);
   }
 
 private:
-  ceph::Formatter *m_formatter;
+  ceph::Formatter* m_formatter;
 };
 
 } // anonymous namespace
 
-void ImageAddedPayload::encode(bufferlist &bl) const {
+void
+ImageAddedPayload::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(image_id, bl);
   encode(trash_image_spec, bl);
 }
 
-void ImageAddedPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
+void
+ImageAddedPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{
   using ceph::decode;
   decode(image_id, iter);
   decode(trash_image_spec, iter);
 }
 
-void ImageAddedPayload::dump(Formatter *f) const {
+void
+ImageAddedPayload::dump(Formatter* f) const
+{
   f->dump_string("image_id", image_id);
   f->open_object_section("trash_image_spec");
   trash_image_spec.dump(f);
   f->close_section();
 }
 
-void ImageRemovedPayload::encode(bufferlist &bl) const {
+void
+ImageRemovedPayload::encode(bufferlist& bl) const
+{
   using ceph::encode;
   encode(image_id, bl);
 }
 
-void ImageRemovedPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
+void
+ImageRemovedPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{
   using ceph::decode;
   decode(image_id, iter);
 }
 
-void ImageRemovedPayload::dump(Formatter *f) const {
+void
+ImageRemovedPayload::dump(Formatter* f) const
+{
   f->dump_string("image_id", image_id);
 }
 
-void UnknownPayload::encode(bufferlist &bl) const {
+void
+UnknownPayload::encode(bufferlist& bl) const
+{
   ceph_abort();
 }
 
-void UnknownPayload::decode(__u8 version, bufferlist::const_iterator &iter) {
-}
+void
+UnknownPayload::decode(__u8 version, bufferlist::const_iterator& iter)
+{}
 
-void UnknownPayload::dump(Formatter *f) const {
-}
+void
+UnknownPayload::dump(Formatter* f) const
+{}
 
-void NotifyMessage::encode(bufferlist& bl) const {
+void
+NotifyMessage::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   std::visit(watcher::util::EncodePayloadVisitor(bl), payload);
   ENCODE_FINISH(bl);
 }
 
-void NotifyMessage::decode(bufferlist::const_iterator& iter) {
+void
+NotifyMessage::decode(bufferlist::const_iterator& iter)
+{
   DECODE_START(1, iter);
 
   uint32_t notify_op;
@@ -101,19 +126,25 @@ void NotifyMessage::decode(bufferlist::const_iterator& iter) {
   DECODE_FINISH(iter);
 }
 
-void NotifyMessage::dump(Formatter *f) const {
+void
+NotifyMessage::dump(Formatter* f) const
+{
   std::visit(DumpPayloadVisitor(f), payload);
 }
 
-std::list<NotifyMessage> NotifyMessage::generate_test_instances() {
+std::list<NotifyMessage>
+NotifyMessage::generate_test_instances()
+{
   std::list<NotifyMessage> o;
   o.push_back(NotifyMessage{ImageAddedPayload{
-    "id", {cls::rbd::TRASH_IMAGE_SOURCE_USER, "name", {}, {}}}});
+      "id", {cls::rbd::TRASH_IMAGE_SOURCE_USER, "name", {}, {}}}});
   o.push_back(NotifyMessage{ImageRemovedPayload{"id"}});
   return o;
 }
 
-std::ostream &operator<<(std::ostream &out, const NotifyOp &op) {
+std::ostream&
+operator<<(std::ostream& out, const NotifyOp& op)
+{
   switch (op) {
   case NOTIFY_OP_IMAGE_ADDED:
     out << "ImageAdded";

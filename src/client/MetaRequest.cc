@@ -1,14 +1,16 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
 #include "client/MetaRequest.h"
+
 #include "client/Dentry.h"
 #include "client/Inode.h"
-#include "messages/MClientReply.h"
 #include "common/Formatter.h"
+#include "include/types.h"
+#include "messages/MClientReply.h"
 
-void MetaRequest::dump(Formatter *f) const
+void
+MetaRequest::dump(Formatter* f) const
 {
   auto age = std::chrono::duration<double>(ceph_clock_now() - op_stamp);
 
@@ -56,18 +58,28 @@ void MetaRequest::dump(Formatter *f) const
   f->dump_unsigned("owner_gid", head.owner_gid);
 }
 
-void MetaRequest::set_dentry(DentryRef dn) {
+void
+MetaRequest::set_dentry(DentryRef dn)
+{
   ceph_assert(_dentry.get() == NULL);
   _dentry = std::move(dn);
 }
-Dentry *MetaRequest::dentry() {
+
+Dentry*
+MetaRequest::dentry()
+{
   return _dentry.get();
 }
 
-void MetaRequest::set_old_dentry(DentryRef dn) {
+void
+MetaRequest::set_old_dentry(DentryRef dn)
+{
   ceph_assert(_old_dentry.get() == NULL);
   _old_dentry = std::move(dn);
 }
-Dentry *MetaRequest::old_dentry() {
+
+Dentry*
+MetaRequest::old_dentry()
+{
   return _old_dentry.get();
 }

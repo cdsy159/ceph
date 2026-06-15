@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,10 +22,11 @@
 
 class ErasureCodePluginClay : public ceph::ErasureCodePlugin {
 public:
-  int factory(const std::string& directory,
-	      ceph::ErasureCodeProfile &profile,
-	      ceph::ErasureCodeInterfaceRef *erasure_code,
-	      std::ostream *ss) override;
+  int factory(
+      const std::string& directory,
+      ceph::ErasureCodeProfile& profile,
+      ceph::ErasureCodeInterfaceRef* erasure_code,
+      std::ostream* ss) override;
 };
 
 #endif

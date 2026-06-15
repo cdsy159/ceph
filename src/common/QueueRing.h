@@ -4,11 +4,11 @@
 #ifndef QUEUE_RING_H
 #define QUEUE_RING_H
 
-#include "common/ceph_mutex.h"
-
-#include <list>
 #include <atomic>
+#include <list>
 #include <vector>
+
+#include "common/ceph_mutex.h"
 
 template <class T>
 class QueueRing {
@@ -18,11 +18,12 @@ class QueueRing {
     typename std::list<T> entries;
 
     QueueBucket() {}
-    QueueBucket(const QueueBucket& rhs) {
-      entries = rhs.entries;
-    }
 
-    void enqueue(const T& entry) {
+    QueueBucket(const QueueBucket& rhs) { entries = rhs.entries; }
+
+    void
+    enqueue(const T& entry)
+    {
       lock.lock();
       if (entries.empty()) {
         cond.notify_all();
@@ -31,7 +32,9 @@ class QueueRing {
       lock.unlock();
     }
 
-    void dequeue(T *entry) {
+    void
+    dequeue(T* entry)
+    {
       std::unique_lock l(lock);
       while (entries.empty()) {
         cond.wait(l);
@@ -45,18 +48,23 @@ class QueueRing {
   std::vector<QueueBucket> buckets;
   int num_buckets;
 
-  std::atomic<int64_t> cur_read_bucket = { 0 };
-  std::atomic<int64_t> cur_write_bucket = { 0 };
+  std::atomic<int64_t> cur_read_bucket = {0};
+  std::atomic<int64_t> cur_write_bucket = {0};
 
 public:
-  QueueRing(int n) : buckets(n), num_buckets(n) {
-  }
+  QueueRing(int n) :
+    buckets(n), num_buckets(n)
+  {}
 
-  void enqueue(const T& entry) {
+  void
+  enqueue(const T& entry)
+  {
     buckets[++cur_write_bucket % num_buckets].enqueue(entry);
   };
 
-  void dequeue(T *entry) {
+  void
+  dequeue(T* entry)
+  {
     buckets[++cur_read_bucket % num_buckets].dequeue(entry);
   }
 };

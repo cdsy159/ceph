@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/snapshot/UnlinkPeerRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/Operations.h"
@@ -12,8 +13,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::snapshot::UnlinkPeerRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                        \
+  *_dout << "librbd::mirror::snapshot::UnlinkPeerRequest: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace mirror {
@@ -23,7 +25,9 @@ using librbd::util::create_context_callback;
 using librbd::util::create_rados_callback;
 
 template <typename I>
-void UnlinkPeerRequest<I>::send() {
+void
+UnlinkPeerRequest<I>::send()
+{
   if (!m_image_ctx->state->is_refresh_required()) {
     unlink_peer();
     return;
@@ -33,18 +37,22 @@ void UnlinkPeerRequest<I>::send() {
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::refresh_image() {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::refresh_image()
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << dendl;
 
   auto ctx = create_context_callback<
-    UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_refresh_image>(this);
+      UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_refresh_image>(this);
   m_image_ctx->state->refresh(ctx);
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::handle_refresh_image(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::handle_refresh_image(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -57,8 +65,10 @@ void UnlinkPeerRequest<I>::handle_refresh_image(int r) {
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::unlink_peer() {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::unlink_peer()
+{
+  CephContext* cct = m_image_ctx->cct;
 
   m_image_ctx->image_lock.lock_shared();
   int r = -ENOENT;
@@ -72,7 +82,7 @@ void UnlinkPeerRequest<I>::unlink_peer() {
       snap_namespace = snap_it->second.snap_namespace;
       snap_name = snap_it->second.name;
     } else if (std::holds_alternative<cls::rbd::MirrorSnapshotNamespace>(
-                 snap_it->second.snap_namespace)) {
+                   snap_it->second.snap_namespace)) {
       ldout(cct, 15) << "located newer mirror snapshot" << dendl;
       have_newer_mirror_snapshot = true;
       break;
@@ -80,8 +90,7 @@ void UnlinkPeerRequest<I>::unlink_peer() {
   }
 
   if (r == -ENOENT ||
-      std::holds_alternative<cls::rbd::TrashSnapshotNamespace>(
-        snap_namespace)) {
+      std::holds_alternative<cls::rbd::TrashSnapshotNamespace>(snap_namespace)) {
     ldout(cct, 15) << "missing or trashed snapshot: snap_id=" << m_snap_id
                    << dendl;
     m_image_ctx->image_lock.unlock_shared();
@@ -89,8 +98,8 @@ void UnlinkPeerRequest<I>::unlink_peer() {
     return;
   }
 
-  auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-    &snap_namespace);
+  auto mirror_ns =
+      std::get_if<cls::rbd::MirrorSnapshotNamespace>(&snap_namespace);
   if (mirror_ns == nullptr) {
     lderr(cct) << "not mirror snapshot (snap_id=" << m_snap_id << ")" << dendl;
     m_image_ctx->image_lock.unlock_shared();
@@ -131,18 +140,20 @@ void UnlinkPeerRequest<I>::unlink_peer() {
   ldout(cct, 15) << "snap_id=" << m_snap_id << ", "
                  << "mirror_peer_uuid=" << m_mirror_peer_uuid << dendl;
   librados::ObjectWriteOperation op;
-  librbd::cls_client::mirror_image_snapshot_unlink_peer(&op, m_snap_id,
-                                                        m_mirror_peer_uuid);
+  librbd::cls_client::mirror_image_snapshot_unlink_peer(
+      &op, m_snap_id, m_mirror_peer_uuid);
   auto aio_comp = create_rados_callback<
-    UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_unlink_peer>(this);
+      UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_unlink_peer>(this);
   r = m_image_ctx->md_ctx.aio_operate(m_image_ctx->header_oid, aio_comp, &op);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::handle_unlink_peer(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::handle_unlink_peer(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   if (r == -ERESTART || r == -ENOENT) {
@@ -164,18 +175,22 @@ void UnlinkPeerRequest<I>::handle_unlink_peer(int r) {
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::notify_update() {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::notify_update()
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << dendl;
 
   auto ctx = create_context_callback<
-    UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_notify_update>(this);
+      UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_notify_update>(this);
   m_image_ctx->notify_update(ctx);
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::handle_notify_update(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::handle_notify_update(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   if (r == -ENOENT || r == -ETIMEDOUT) {
@@ -191,20 +206,24 @@ void UnlinkPeerRequest<I>::handle_notify_update(int r) {
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::remove_snapshot(
+void
+UnlinkPeerRequest<I>::remove_snapshot(
     const cls::rbd::SnapshotNamespace& snap_namespace,
-    const std::string& snap_name) {
-  CephContext *cct = m_image_ctx->cct;
+    const std::string& snap_name)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << dendl;
 
   auto ctx = create_context_callback<
-    UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_remove_snapshot>(this);
+      UnlinkPeerRequest<I>, &UnlinkPeerRequest<I>::handle_remove_snapshot>(this);
   m_image_ctx->operations->snap_remove(snap_namespace, snap_name, ctx);
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::handle_remove_snapshot(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::handle_remove_snapshot(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -217,8 +236,10 @@ void UnlinkPeerRequest<I>::handle_remove_snapshot(int r) {
 }
 
 template <typename I>
-void UnlinkPeerRequest<I>::finish(int r) {
-  CephContext *cct = m_image_ctx->cct;
+void
+UnlinkPeerRequest<I>::finish(int r)
+{
+  CephContext* cct = m_image_ctx->cct;
   ldout(cct, 15) << "r=" << r << dendl;
 
   auto on_finish = m_on_finish;

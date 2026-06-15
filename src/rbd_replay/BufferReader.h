@@ -4,20 +4,22 @@
 #ifndef CEPH_RBD_REPLAY_BUFFER_READER_H
 #define CEPH_RBD_REPLAY_BUFFER_READER_H
 
-#include "include/int_types.h"
 #include "include/buffer.h"
+#include "include/int_types.h"
 
 namespace rbd_replay {
 
 class BufferReader {
 public:
-  static const size_t DEFAULT_MIN_BYTES = 1<<20;
-  static const size_t DEFAULT_MAX_BYTES = 1<<22;
+  static const size_t DEFAULT_MIN_BYTES = 1 << 20;
+  static const size_t DEFAULT_MAX_BYTES = 1 << 22;
 
-  BufferReader(int fd, size_t min_bytes = DEFAULT_MIN_BYTES,
-               size_t max_bytes = DEFAULT_MAX_BYTES);
+  BufferReader(
+      int fd,
+      size_t min_bytes = DEFAULT_MIN_BYTES,
+      size_t max_bytes = DEFAULT_MAX_BYTES);
 
-  int fetch(bufferlist::const_iterator **it);
+  int fetch(bufferlist::const_iterator** it);
 
 private:
   int m_fd;
@@ -26,7 +28,6 @@ private:
   bufferlist m_bl;
   bufferlist::const_iterator m_bl_it;
   bool m_eof_reached;
-
 };
 
 } // namespace rbd_replay

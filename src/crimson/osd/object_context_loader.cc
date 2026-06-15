@@ -1,7 +1,8 @@
-#include "crimson/common/coroutine.h"
 #include "crimson/osd/object_context_loader.h"
-#include "osd/osd_types_fmt.h"
+
+#include "crimson/common/coroutine.h"
 #include "osd/object_state_fmt.h"
+#include "osd/osd_types_fmt.h"
 
 SET_SUBSYS(osd);
 
@@ -9,9 +10,10 @@ namespace crimson::osd {
 
 using crimson::common::local_conf;
 
-
 ObjectContextLoader::load_and_lock_fut
-ObjectContextLoader::load_and_lock_head(Manager &manager, RWState::State lock_type)
+ObjectContextLoader::load_and_lock_head(
+    Manager& manager,
+    RWState::State lock_type)
 {
   LOG_PREFIX(ObjectContextLoader::load_and_lock_head);
   DEBUGDPP("{} {}", dpp, manager.target, lock_type);
@@ -32,8 +34,8 @@ ObjectContextLoader::load_and_lock_head(Manager &manager, RWState::State lock_ty
     manager.target_state.lock_excl_sync();
     manager.target_state.obc->loading_started = true;
     co_await load_obc(
-      manager.target_state.obc,
-      backend.load_metadata(manager.target_state.obc->get_oid()));
+        manager.target_state.obc,
+        backend.load_metadata(manager.target_state.obc->get_oid()));
     manager.target_state.demote_excl_to(lock_type);
   }
   releaser.cancel();
@@ -41,7 +43,9 @@ ObjectContextLoader::load_and_lock_head(Manager &manager, RWState::State lock_ty
 
 ObjectContextLoader::load_and_lock_fut
 ObjectContextLoader::load_and_lock_clone(
-  Manager &manager, RWState::State lock_type, bool lock_head)
+    Manager& manager,
+    RWState::State lock_type,
+    bool lock_head)
 {
   LOG_PREFIX(ObjectContextLoader::load_and_lock_clone);
   DEBUGDPP("{} {}", dpp, manager.target, lock_type);
@@ -61,8 +65,8 @@ ObjectContextLoader::load_and_lock_clone(
     manager.head_state.lock_excl_sync();
     manager.head_state.obc->loading_started = true;
     co_await load_obc(
-      manager.head_state.obc,
-      backend.load_metadata(manager.head_state.obc->get_oid()));
+        manager.head_state.obc,
+        backend.load_metadata(manager.head_state.obc->get_oid()));
     manager.head_state.demote_excl_to(RWState::RWREAD);
   } else if (lock_head) {
     co_await manager.head_state.lock_to(RWState::RWREAD);
@@ -72,14 +76,11 @@ ObjectContextLoader::load_and_lock_clone(
     // target_state must be empty because we won't know which object to load
     // until now
     ceph_assert(manager.target_state.is_empty());
-    auto resolved_oid = resolve_oid(
-      manager.head_state.obc->get_head_ss(),
-      manager.target);
+    auto resolved_oid =
+        resolve_oid(manager.head_state.obc->get_head_ss(), manager.target);
     if (!resolved_oid) {
       ERRORDPP("clone {} not found", dpp, manager.target);
-      co_await load_obc_iertr::future<>(
-	crimson::ct_error::enoent::make()
-      );
+      co_await load_obc_iertr::future<>(crimson::ct_error::enoent::make());
     }
     // note: might be head if snap was taken after most recent write!
     manager.target = *resolved_oid;
@@ -119,17 +120,17 @@ ObjectContextLoader::load_and_lock_clone(
     if (manager.target_state.obc->loading_started) {
       co_await manager.target_state.lock_to(RWState::RWREAD);
       if (!manager.target_state.obc->ssc) {
-	// A cached clone obc may have a null ssc if created via
-	// create_cached_obc_from_push_data.  This interface
-	// is responsible for fixing that if found.
-	manager.target_state.obc->ssc = manager.head_state.obc->ssc;
+        // A cached clone obc may have a null ssc if created via
+        // create_cached_obc_from_push_data.  This interface
+        // is responsible for fixing that if found.
+        manager.target_state.obc->ssc = manager.head_state.obc->ssc;
       }
     } else {
       manager.target_state.lock_excl_sync();
       manager.target_state.obc->loading_started = true;
       co_await load_obc(
-        manager.target_state.obc,
-        backend.load_metadata(manager.target_state.obc->get_oid()));
+          manager.target_state.obc,
+          backend.load_metadata(manager.target_state.obc->get_oid()));
       manager.target_state.obc->set_clone_ssc(manager.head_state.obc->ssc);
       manager.target_state.demote_excl_to(RWState::RWREAD);
     }
@@ -141,7 +142,7 @@ ObjectContextLoader::load_and_lock_clone(
 }
 
 ObjectContextLoader::load_and_lock_fut
-ObjectContextLoader::load_and_lock(Manager &manager, RWState::State lock_type)
+ObjectContextLoader::load_and_lock(Manager& manager, RWState::State lock_type)
 {
   LOG_PREFIX(ObjectContextLoader::load_and_lock);
   DEBUGDPP("{} {}", dpp, manager.target, lock_type);
@@ -154,32 +155,31 @@ ObjectContextLoader::load_and_lock(Manager &manager, RWState::State lock_type)
 
 ObjectContextLoader::load_obc_iertr::future<>
 ObjectContextLoader::load_obc(
-  ObjectContextRef obc,
-  PGBackend::load_metadata_iertr::future<PGBackend::loaded_object_md_t::ref> _md)
+    ObjectContextRef obc,
+    PGBackend::load_metadata_iertr::future<PGBackend::loaded_object_md_t::ref>
+        _md)
 {
   LOG_PREFIX(ObjectContextLoader::load_obc);
   auto md = co_await std::move(_md);
   if (md->os.oi.soid.is_head() && !md->ssc) {
-	  ERRORDPP("oid {} missing snapsetcontext",
-               dpp, md->os.oi.soid);
-	  co_await load_obc_iertr::future<>(
-          crimson::ct_error::object_corrupted::make());
+    ERRORDPP("oid {} missing snapsetcontext", dpp, md->os.oi.soid);
+    co_await load_obc_iertr::future<>(
+        crimson::ct_error::object_corrupted::make());
   }
   load_obc(obc, std::move(md));
 }
 
 void
 ObjectContextLoader::load_obc(
-  ObjectContextRef obc,
-  PGBackend::loaded_object_md_t::ref md)
+    ObjectContextRef obc,
+    PGBackend::loaded_object_md_t::ref md)
 {
   const hobject_t& oid = md->os.oi.soid;
   LOG_PREFIX(ObjectContextLoader::load_obc);
   DEBUGDPP("loaded obs {} for {}", dpp, md->os.oi, oid);
   if (oid.is_head()) {
     ceph_assert(md->ssc);
-    obc->set_head_state(std::move(md->os),
-		      std::move(md->ssc));
+    obc->set_head_state(std::move(md->os), std::move(md->ssc));
   } else {
     // we load and set the ssc only for head obc.
     // For clones, the head's ssc will be referenced later.
@@ -190,7 +190,8 @@ ObjectContextLoader::load_obc(
   DEBUGDPP("loaded obc {} for {}", dpp, obc->obs.oi, obc->obs.oi.soid);
 }
 
-void ObjectContextLoader::notify_on_change(bool is_primary)
+void
+ObjectContextLoader::notify_on_change(bool is_primary)
 {
   LOG_PREFIX(ObjectContextLoader::notify_on_change);
   DEBUGDPP("is_primary: {}", dpp, is_primary);
@@ -199,4 +200,4 @@ void ObjectContextLoader::notify_on_change(bool is_primary)
     obc.interrupt(::crimson::common::actingset_changed(is_primary));
   }
 }
-}
+} // namespace crimson::osd

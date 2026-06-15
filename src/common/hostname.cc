@@ -19,10 +19,11 @@
 
 #include "include/compat.h"
 
-std::string ceph_get_hostname()
+std::string
+ceph_get_hostname()
 {
   // are we in a container?  if so we would prefer the *real* hostname.
-  const char *node_name = getenv("NODE_NAME");
+  const char* node_name = getenv("NODE_NAME");
   if (node_name) {
     return node_name;
   }
@@ -32,16 +33,14 @@ std::string ceph_get_hostname()
   return std::string(buf);
 }
 
-std::string ceph_get_short_hostname()
+std::string
+ceph_get_short_hostname()
 {
   std::string hostname = ceph_get_hostname();
   size_t pos = hostname.find('.');
-  if (pos == std::string::npos)
-  {
+  if (pos == std::string::npos) {
     return hostname;
-  }
-  else
-  {
+  } else {
     return hostname.substr(0, pos);
   }
 }

@@ -13,11 +13,12 @@
  *
  */
 
+#include "PgFiles.h"
+
 #include "common/debug.h"
+
 #include "common/errno.h"
 #include "osdc/Striper.h"
-
-#include "PgFiles.h"
 
 
 #define dout_context g_ceph_context
@@ -25,7 +26,8 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "pgeffects." << __func__ << ": "
 
-int PgFiles::init()
+int
+PgFiles::init()
 {
   int r = ceph_create_with_context(&cmount, g_ceph_context);
   if (r != 0) {
@@ -35,24 +37,22 @@ int PgFiles::init()
   return ceph_init(cmount);
 }
 
-PgFiles::PgFiles(Objecter *o, const std::set<pg_t> &pgs_)
-  : objecter(o), pgs(pgs_)
+PgFiles::PgFiles(Objecter* o, const std::set<pg_t>& pgs_) :
+  objecter(o), pgs(pgs_)
 {
-  for (const auto &i : pgs) {
+  for (const auto& i : pgs) {
     pools.insert(i.m_pool);
   }
 }
 
-PgFiles::~PgFiles()
-{
-  ceph_release(cmount);
-}
+PgFiles::~PgFiles() { ceph_release(cmount); }
 
-void PgFiles::hit_dir(std::string const &path)
+void
+PgFiles::hit_dir(std::string const& path)
 {
   dout(10) << "entering " << path << dendl;
 
-  ceph_dir_result *dr = nullptr;
+  ceph_dir_result* dr = nullptr;
   int r = ceph_opendir(cmount, path.c_str(), &dr);
   if (r != 0) {
     derr << "Failed to open path: " << cpp_strerror(r) << dendl;
@@ -60,10 +60,9 @@ void PgFiles::hit_dir(std::string const &path)
   }
 
   struct dirent de;
-  while((r = ceph_readdir_r(cmount, dr, &de)) != 0) {
+  while ((r = ceph_readdir_r(cmount, dr, &de)) != 0) {
     if (r < 0) {
-      derr << "Error reading path " << path << ": " << cpp_strerror(r)
-           << dendl;
+      derr << "Error reading path " << path << ": " << cpp_strerror(r) << dendl;
       ceph_closedir(cmount, dr); // best effort, ignore r
       return;
     }
@@ -74,11 +73,11 @@ void PgFiles::hit_dir(std::string const &path)
 
     struct ceph_statx stx;
     std::string de_path = (path + std::string("/") + de.d_name);
-    r = ceph_statx(cmount, de_path.c_str(), &stx,
-		    CEPH_STATX_INO|CEPH_STATX_SIZE, 0);
+    r = ceph_statx(
+        cmount, de_path.c_str(), &stx, CEPH_STATX_INO | CEPH_STATX_SIZE, 0);
     if (r != 0) {
-      derr << "Failed to stat path " << de_path << ": "
-            << cpp_strerror(r) << dendl;
+      derr << "Failed to stat path " << de_path << ": " << cpp_strerror(r)
+           << dendl;
       // Don't hold up the whole process for one bad inode
       continue;
     }
@@ -99,7 +98,8 @@ void PgFiles::hit_dir(std::string const &path)
   }
 }
 
-void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
+void
+PgFiles::hit_file(std::string const& path, const struct ceph_statx& stx)
 {
   ceph_assert(S_ISREG(stx.stx_mode));
 
@@ -109,9 +109,9 @@ void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
   int l_stripe_count = 0;
   int l_object_size = 0;
   int l_pool_id = 0;
-  int r = ceph_get_path_layout(cmount, path.c_str(), &l_stripe_unit,
-                               &l_stripe_count, &l_object_size,
-                               &l_pool_id);
+  int r = ceph_get_path_layout(
+      cmount, path.c_str(), &l_stripe_unit, &l_stripe_count, &l_object_size,
+      &l_pool_id);
   if (r != 0) {
     derr << "Error reading layout on " << path << ": " << cpp_strerror(r)
          << dendl;
@@ -126,8 +126,10 @@ void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
 
   // Avoid calculating PG if the layout targeted a completely different pool
   if (pools.count(layout.pool_id) == 0) {
-    dout(20) << "Fast check missed: pool " << layout.pool_id << " not in "
-                "target set" << dendl;
+    dout(20) << "Fast check missed: pool " << layout.pool_id
+             << " not in "
+                "target set"
+             << dendl;
     return;
   }
 
@@ -135,8 +137,9 @@ void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
 
   for (uint64_t i = 0; i < num_objects; ++i) {
     char buf[32];
-    snprintf(buf, sizeof(buf), "%llx.%08llx", (long long unsigned)stx.stx_ino,
-                                              (long long unsigned int)i);
+    snprintf(
+        buf, sizeof(buf), "%llx.%08llx", (long long unsigned)stx.stx_ino,
+        (long long unsigned int)i);
     dout(20) << "  object " << std::string(buf) << dendl;
 
     pg_t target;
@@ -149,8 +152,8 @@ void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
     unsigned pg_num = 0;
 
     int r = 0;
-    objecter->with_osdmap([&r, oid, loc, &target, &pg_num_mask, &pg_num]
-                          (const OSDMap &osd_map) {
+    objecter->with_osdmap([&r, oid, loc, &target, &pg_num_mask,
+                           &pg_num](const OSDMap& osd_map) {
       r = osd_map.object_locator_to_pg(oid, loc, target);
       if (r == 0) {
         auto pool = osd_map.get_pg_pool(loc.pool);
@@ -172,10 +175,10 @@ void PgFiles::hit_file(std::string const &path, const struct ceph_statx &stx)
       return;
     }
   }
-  
 }
 
-int PgFiles::scan_path(std::string const &path)
+int
+PgFiles::scan_path(std::string const& path)
 {
   int r = ceph_mount(cmount, "/");
   if (r != 0) {
@@ -193,4 +196,3 @@ int PgFiles::scan_path(std::string const &path)
 
   return r;
 }
-

@@ -13,18 +13,25 @@
  *
  */
 
-#include "common/split.h"
-#include <algorithm>
 #include <gtest/gtest.h>
+
+#include <algorithm>
+
+#include "common/split.h"
 
 namespace ceph {
 
 using string_list = std::initializer_list<std::string_view>;
 
-bool operator==(const split& lhs, const string_list& rhs) {
+bool
+operator==(const split& lhs, const string_list& rhs)
+{
   return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
-bool operator==(const string_list& lhs, const split& rhs) {
+
+bool
+operator==(const string_list& lhs, const split& rhs)
+{
   return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
@@ -91,8 +98,8 @@ TEST(split, iterator_singular)
   split::iterator j;
   split::iterator k;
   EXPECT_EQ(j, parts.end()); // singular == end
-  EXPECT_EQ(j, k);           // singular == singular
-  EXPECT_NE(j, i);           // singular != valid
+  EXPECT_EQ(j, k); // singular == singular
+  EXPECT_NE(j, i); // singular != valid
 }
 
 TEST(split, iterator_multipass)

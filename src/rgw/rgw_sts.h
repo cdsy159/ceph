@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "rgw_role.h"
 #include "rgw_auth.h"
+#include "rgw_role.h"
 #include "rgw_web_idp.h"
 
 namespace STS {
@@ -26,19 +26,52 @@ protected:
   std::string iamPolicy;
   std::string roleArn;
   std::string roleSessionName;
+
 public:
-  AssumeRoleRequestBase(CephContext* cct,
-                        const std::string& duration,
-                        const std::string& iamPolicy,
-                        const std::string& roleArn,
-                        const std::string& roleSessionName);
-  const std::string& getRoleARN() const { return roleArn; }
-  const std::string& getRoleSessionName() const { return roleSessionName; }
-  const std::string& getPolicy() const {return iamPolicy; }
-  static const uint64_t& getMaxPolicySize() { return MAX_POLICY_SIZE; }
-  void setMaxDuration(const uint64_t& maxDuration) { MAX_DURATION_IN_SECS = maxDuration; }
-  const uint64_t& getDuration() const { return duration; }
-  int validate_input(const DoutPrefixProvider *dpp) const;
+  AssumeRoleRequestBase(
+      CephContext* cct,
+      const std::string& duration,
+      const std::string& iamPolicy,
+      const std::string& roleArn,
+      const std::string& roleSessionName);
+
+  const std::string&
+  getRoleARN() const
+  {
+    return roleArn;
+  }
+
+  const std::string&
+  getRoleSessionName() const
+  {
+    return roleSessionName;
+  }
+
+  const std::string&
+  getPolicy() const
+  {
+    return iamPolicy;
+  }
+
+  static const uint64_t&
+  getMaxPolicySize()
+  {
+    return MAX_POLICY_SIZE;
+  }
+
+  void
+  setMaxDuration(const uint64_t& maxDuration)
+  {
+    MAX_DURATION_IN_SECS = maxDuration;
+  }
+
+  const uint64_t&
+  getDuration() const
+  {
+    return duration;
+  }
+
+  int validate_input(const DoutPrefixProvider* dpp) const;
 };
 
 class AssumeRoleWithWebIdentityRequest : public AssumeRoleRequestBase {
@@ -49,26 +82,59 @@ class AssumeRoleWithWebIdentityRequest : public AssumeRoleRequestBase {
   std::string iss;
   std::string sub;
   std::string aud;
-  std::vector<std::pair<std::string,std::string>> session_princ_tags;
+  std::vector<std::pair<std::string, std::string>> session_princ_tags;
+
 public:
-  AssumeRoleWithWebIdentityRequest( CephContext* cct,
-                      const std::string& duration,
-                      const std::string& providerId,
-                      const std::string& iamPolicy,
-                      const std::string& roleArn,
-                      const std::string& roleSessionName,
-                      const std::string& iss,
-                      const std::string& sub,
-                      const std::string& aud,
-                      std::vector<std::pair<std::string,std::string>> session_princ_tags)
-    : AssumeRoleRequestBase(cct, duration, iamPolicy, roleArn, roleSessionName),
-      providerId(providerId), iss(iss), sub(sub), aud(aud), session_princ_tags(session_princ_tags) {}
-  const std::string& getProviderId() const { return providerId; }
-  const std::string& getIss() const { return iss; }
-  const std::string& getAud() const { return aud; }
-  const std::string& getSub() const { return sub; }
-  const std::vector<std::pair<std::string,std::string>>& getPrincipalTags() const { return session_princ_tags; }
-  int validate_input(const DoutPrefixProvider *dpp) const;
+  AssumeRoleWithWebIdentityRequest(
+      CephContext* cct,
+      const std::string& duration,
+      const std::string& providerId,
+      const std::string& iamPolicy,
+      const std::string& roleArn,
+      const std::string& roleSessionName,
+      const std::string& iss,
+      const std::string& sub,
+      const std::string& aud,
+      std::vector<std::pair<std::string, std::string>> session_princ_tags) :
+    AssumeRoleRequestBase(cct, duration, iamPolicy, roleArn, roleSessionName),
+    providerId(providerId),
+    iss(iss),
+    sub(sub),
+    aud(aud),
+    session_princ_tags(session_princ_tags)
+  {}
+
+  const std::string&
+  getProviderId() const
+  {
+    return providerId;
+  }
+
+  const std::string&
+  getIss() const
+  {
+    return iss;
+  }
+
+  const std::string&
+  getAud() const
+  {
+    return aud;
+  }
+
+  const std::string&
+  getSub() const
+  {
+    return sub;
+  }
+
+  const std::vector<std::pair<std::string, std::string>>&
+  getPrincipalTags() const
+  {
+    return session_princ_tags;
+  }
+
+  int validate_input(const DoutPrefixProvider* dpp) const;
 };
 
 class AssumeRoleRequest : public AssumeRoleRequestBase {
@@ -80,18 +146,24 @@ class AssumeRoleRequest : public AssumeRoleRequestBase {
   std::string externalId;
   std::string serialNumber;
   std::string tokenCode;
+
 public:
-  AssumeRoleRequest(CephContext* cct,
-                    const std::string& duration,
-                    const std::string& externalId,
-                    const std::string& iamPolicy,
-                    const std::string& roleArn,
-                    const std::string& roleSessionName,
-                    const std::string& serialNumber,
-                    const std::string& tokenCode)
-    : AssumeRoleRequestBase(cct, duration, iamPolicy, roleArn, roleSessionName),
-      externalId(externalId), serialNumber(serialNumber), tokenCode(tokenCode){}
-  int validate_input(const DoutPrefixProvider *dpp) const;
+  AssumeRoleRequest(
+      CephContext* cct,
+      const std::string& duration,
+      const std::string& externalId,
+      const std::string& iamPolicy,
+      const std::string& roleArn,
+      const std::string& roleSessionName,
+      const std::string& serialNumber,
+      const std::string& tokenCode) :
+    AssumeRoleRequestBase(cct, duration, iamPolicy, roleArn, roleSessionName),
+    externalId(externalId),
+    serialNumber(serialNumber),
+    tokenCode(tokenCode)
+  {}
+
+  int validate_input(const DoutPrefixProvider* dpp) const;
 };
 
 class GetSessionTokenRequest {
@@ -103,24 +175,49 @@ protected:
   std::string tokenCode;
 
 public:
-  GetSessionTokenRequest(const std::string& duration, const std::string& serialNumber, const std::string& tokenCode);
+  GetSessionTokenRequest(
+      const std::string& duration,
+      const std::string& serialNumber,
+      const std::string& tokenCode);
 
-  const uint64_t& getDuration() const { return duration; }
-  static const uint64_t& getMinDuration() { return MIN_DURATION_IN_SECS; }
+  const uint64_t&
+  getDuration() const
+  {
+    return duration;
+  }
+
+  static const uint64_t&
+  getMinDuration()
+  {
+    return MIN_DURATION_IN_SECS;
+  }
 };
 
 class AssumedRoleUser {
   std::string arn;
   std::string assumeRoleId;
+
 public:
-  int generateAssumedRoleUser( CephContext* cct,
-                                rgw::sal::Driver* driver,
-                                const std::string& roleId,
-                                const rgw::ARN& roleArn,
-                                const std::string& roleSessionName);
-  const std::string& getARN() const { return arn; }
-  const std::string& getAssumeRoleId() const { return assumeRoleId; }
-  void dump(Formatter *f) const;
+  int generateAssumedRoleUser(
+      CephContext* cct,
+      rgw::sal::Driver* driver,
+      const std::string& roleId,
+      const rgw::ARN& roleArn,
+      const std::string& roleSessionName);
+
+  const std::string&
+  getARN() const
+  {
+    return arn;
+  }
+
+  const std::string&
+  getAssumeRoleId() const
+  {
+    return assumeRoleId;
+  }
+
+  void dump(Formatter* f) const;
 };
 
 struct SessionToken {
@@ -137,11 +234,13 @@ struct SessionToken {
   std::string role_session;
   std::vector<std::string> token_claims;
   std::string issued_at;
-  std::vector<std::pair<std::string,std::string>> principal_tags;
+  std::vector<std::pair<std::string, std::string>> principal_tags;
 
   SessionToken() {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(5, 1, bl);
     encode(access_key_id, bl);
     encode(secret_access_key, bl);
@@ -160,7 +259,9 @@ struct SessionToken {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(5, bl);
     decode(access_key_id, bl);
     decode(secret_access_key, bl);
@@ -196,22 +297,46 @@ class Credentials {
   std::string expiration;
   std::string secretAccessKey;
   std::string sessionToken;
+
 public:
-  int generateCredentials(const DoutPrefixProvider *dpp,
-                          CephContext* cct,
-                          const uint64_t& duration,
-                          const boost::optional<std::string>& policy,
-                          const boost::optional<std::string>& roleId,
-                          const boost::optional<std::string>& role_session,
-                          const boost::optional<std::vector<std::string>>& token_claims,
-                          const boost::optional<std::vector<std::pair<std::string,std::string>>>& session_princ_tags,
-                          boost::optional<rgw_user> user,
-                          rgw::auth::Identity* identity);
-  const std::string& getAccessKeyId() const { return accessKeyId; }
-  const std::string& getExpiration() const { return expiration; }
-  const std::string& getSecretAccessKey() const { return secretAccessKey; }
-  const std::string& getSessionToken() const { return sessionToken; }
-  void dump(Formatter *f) const;
+  int generateCredentials(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const uint64_t& duration,
+      const boost::optional<std::string>& policy,
+      const boost::optional<std::string>& roleId,
+      const boost::optional<std::string>& role_session,
+      const boost::optional<std::vector<std::string>>& token_claims,
+      const boost::optional<std::vector<std::pair<std::string, std::string>>>&
+          session_princ_tags,
+      boost::optional<rgw_user> user,
+      rgw::auth::Identity* identity);
+
+  const std::string&
+  getAccessKeyId() const
+  {
+    return accessKeyId;
+  }
+
+  const std::string&
+  getExpiration() const
+  {
+    return expiration;
+  }
+
+  const std::string&
+  getSecretAccessKey() const
+  {
+    return secretAccessKey;
+  }
+
+  const std::string&
+  getSessionToken() const
+  {
+    return sessionToken;
+  }
+
+  void dump(Formatter* f) const;
 };
 
 struct AssumeRoleResponse {
@@ -228,9 +353,10 @@ struct AssumeRoleWithWebIdentityResponse {
   std::string sub;
 };
 
-using AssumeRoleResponse = struct AssumeRoleResponse ;
+using AssumeRoleResponse = struct AssumeRoleResponse;
 using GetSessionTokenResponse = std::tuple<int, Credentials>;
-using AssumeRoleWithWebIdentityResponse = struct AssumeRoleWithWebIdentityResponse;
+using AssumeRoleWithWebIdentityResponse =
+    struct AssumeRoleWithWebIdentityResponse;
 
 class STSService {
   CephContext* cct;
@@ -238,14 +364,31 @@ class STSService {
   rgw_user user_id;
   std::unique_ptr<rgw::sal::RGWRole> role;
   rgw::auth::Identity* identity;
+
 public:
   STSService() = default;
-  STSService(CephContext* cct, rgw::sal::Driver* driver, rgw_user user_id,
-	     rgw::auth::Identity* identity)
-    : cct(cct), driver(driver), user_id(user_id), identity(identity) {}
-  std::tuple<int, rgw::sal::RGWRole*> getRoleInfo(const DoutPrefixProvider *dpp, const std::string& arn, optional_yield y);
-  AssumeRoleResponse assumeRole(const DoutPrefixProvider *dpp, AssumeRoleRequest& req, optional_yield y);
-  GetSessionTokenResponse getSessionToken(const DoutPrefixProvider *dpp, GetSessionTokenRequest& req);
-  AssumeRoleWithWebIdentityResponse assumeRoleWithWebIdentity(const DoutPrefixProvider *dpp, AssumeRoleWithWebIdentityRequest& req);
+
+  STSService(
+      CephContext* cct,
+      rgw::sal::Driver* driver,
+      rgw_user user_id,
+      rgw::auth::Identity* identity) :
+    cct(cct), driver(driver), user_id(user_id), identity(identity)
+  {}
+
+  std::tuple<int, rgw::sal::RGWRole*> getRoleInfo(
+      const DoutPrefixProvider* dpp,
+      const std::string& arn,
+      optional_yield y);
+  AssumeRoleResponse assumeRole(
+      const DoutPrefixProvider* dpp,
+      AssumeRoleRequest& req,
+      optional_yield y);
+  GetSessionTokenResponse getSessionToken(
+      const DoutPrefixProvider* dpp,
+      GetSessionTokenRequest& req);
+  AssumeRoleWithWebIdentityResponse assumeRoleWithWebIdentity(
+      const DoutPrefixProvider* dpp,
+      AssumeRoleWithWebIdentityRequest& req);
 };
-}
+} // namespace STS

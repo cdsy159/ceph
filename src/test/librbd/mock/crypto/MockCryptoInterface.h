@@ -4,8 +4,8 @@
 #ifndef CEPH_TEST_LIBRBD_MOCK_CRYPTO_MOCK_CRYPTO_INTERFACE_H
 #define CEPH_TEST_LIBRBD_MOCK_CRYPTO_MOCK_CRYPTO_INTERFACE_H
 
-#include "include/buffer.h"
 #include "gmock/gmock.h"
+#include "include/buffer.h"
 #include "librbd/crypto/CryptoInterface.h"
 
 namespace librbd {
@@ -21,11 +21,15 @@ struct MockCryptoInterface : CryptoInterface {
   MOCK_CONST_METHOD0(get_key, const unsigned char*());
   MOCK_CONST_METHOD0(get_key_length, int());
 
-  uint64_t get_block_size() const override {
+  uint64_t
+  get_block_size() const override
+  {
     return BLOCK_SIZE;
   }
 
-  uint64_t get_data_offset() const override {
+  uint64_t
+  get_data_offset() const override
+  {
     return DATA_OFFSET;
   }
 };

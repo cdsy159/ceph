@@ -15,22 +15,24 @@
 
 #include "ECMsgTypes.h"
 
+using ceph::bufferlist;
+using ceph::Formatter;
 using std::list;
 using std::make_pair;
 using std::map;
 using std::pair;
 using std::set;
-using ceph::bufferlist;
-using ceph::Formatter;
 
 using namespace std::literals;
 
-void ECSubWrite::encode(bufferlist &bl) const
+void
+ECSubWrite::encode(bufferlist& bl) const
 {
   encode(bl, bl);
 }
 
-void ECSubWrite::encode(bufferlist &p_bl, bufferlist &d_bl, uint64_t features) const
+void
+ECSubWrite::encode(bufferlist& p_bl, bufferlist& d_bl, uint64_t features) const
 {
   uint8_t ver = HAVE_FEATURE(features, SERVER_TENTACLE) ? 5 : 4;
   ENCODE_START(ver, 1, p_bl);
@@ -55,13 +57,16 @@ void ECSubWrite::encode(bufferlist &p_bl, bufferlist &d_bl, uint64_t features) c
   ENCODE_FINISH(p_bl);
 }
 
-void ECSubWrite::decode(bufferlist::const_iterator &bl)
+void
+ECSubWrite::decode(bufferlist::const_iterator& bl)
 {
   decode(bl, bl);
 }
 
-void ECSubWrite::decode(bufferlist::const_iterator &p_bl,
-			bufferlist::const_iterator &d_bl)
+void
+ECSubWrite::decode(
+    bufferlist::const_iterator& p_bl,
+    bufferlist::const_iterator& d_bl)
 {
   DECODE_START(5, p_bl);
   decode(from, p_bl);
@@ -96,34 +101,34 @@ void ECSubWrite::decode(bufferlist::const_iterator &p_bl,
   DECODE_FINISH(p_bl);
 }
 
-std::ostream &operator<<(
-  std::ostream &lhs, const ECSubWrite &rhs)
+std::ostream&
+operator<<(std::ostream& lhs, const ECSubWrite& rhs)
 {
-  lhs << "ECSubWrite(tid=" << rhs.tid
-      << ", reqid=" << rhs.reqid
-      << ", at_version=" << rhs.at_version
-      << ", trim_to=" << rhs.trim_to
+  lhs << "ECSubWrite(tid=" << rhs.tid << ", reqid=" << rhs.reqid
+      << ", at_version=" << rhs.at_version << ", trim_to=" << rhs.trim_to
       << ", pg_committed_to=" << rhs.pg_committed_to;
   if (rhs.updated_hit_set_history)
     lhs << ", has_updated_hit_set_history";
   if (rhs.backfill_or_async_recovery)
     lhs << ", backfill_or_async_recovery";
-  return lhs <<  ")";
+  return lhs << ")";
 }
 
-void ECSubWrite::dump(Formatter *f) const
+void
+ECSubWrite::dump(Formatter* f) const
 {
   f->dump_unsigned("tid", tid);
   f->dump_stream("reqid") << reqid;
   f->dump_stream("at_version") << at_version;
   f->dump_stream("trim_to") << trim_to;
   f->dump_stream("pg_committed_to") << pg_committed_to;
-  f->dump_bool("has_updated_hit_set_history",
-      static_cast<bool>(updated_hit_set_history));
+  f->dump_bool(
+      "has_updated_hit_set_history", static_cast<bool>(updated_hit_set_history));
   f->dump_bool("backfill_or_async_recovery", backfill_or_async_recovery);
 }
 
-list<ECSubWrite> ECSubWrite::generate_test_instances()
+list<ECSubWrite>
+ECSubWrite::generate_test_instances()
 {
   list<ECSubWrite> o;
   o.emplace_back();
@@ -144,7 +149,8 @@ list<ECSubWrite> ECSubWrite::generate_test_instances()
   return o;
 }
 
-void ECSubWriteReply::encode(bufferlist &bl) const
+void
+ECSubWriteReply::encode(bufferlist& bl) const
 {
   ENCODE_START(1, 1, bl);
   encode(from, bl);
@@ -155,7 +161,8 @@ void ECSubWriteReply::encode(bufferlist &bl) const
   ENCODE_FINISH(bl);
 }
 
-void ECSubWriteReply::decode(bufferlist::const_iterator &bl)
+void
+ECSubWriteReply::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START(1, bl);
   decode(from, bl);
@@ -166,17 +173,17 @@ void ECSubWriteReply::decode(bufferlist::const_iterator &bl)
   DECODE_FINISH(bl);
 }
 
-std::ostream &operator<<(
-  std::ostream &lhs, const ECSubWriteReply &rhs)
+std::ostream&
+operator<<(std::ostream& lhs, const ECSubWriteReply& rhs)
 {
-  return lhs
-    << "ECSubWriteReply(tid=" << rhs.tid
-    << ", last_complete=" << rhs.last_complete
-    << ", committed=" << rhs.committed
-    << ", applied=" << rhs.applied << ")";
+  return lhs << "ECSubWriteReply(tid=" << rhs.tid
+             << ", last_complete=" << rhs.last_complete
+             << ", committed=" << rhs.committed << ", applied=" << rhs.applied
+             << ")";
 }
 
-void ECSubWriteReply::dump(Formatter *f) const
+void
+ECSubWriteReply::dump(Formatter* f) const
 {
   f->dump_unsigned("tid", tid);
   f->dump_stream("last_complete") << last_complete;
@@ -184,7 +191,8 @@ void ECSubWriteReply::dump(Formatter *f) const
   f->dump_bool("applied", applied);
 }
 
-list<ECSubWriteReply> ECSubWriteReply::generate_test_instances()
+list<ECSubWriteReply>
+ECSubWriteReply::generate_test_instances()
 {
   list<ECSubWriteReply> o;
   o.push_back(ECSubWriteReply());
@@ -198,17 +206,18 @@ list<ECSubWriteReply> ECSubWriteReply::generate_test_instances()
   return o;
 }
 
-void ECSubRead::encode(bufferlist &bl, uint64_t features) const
+void
+ECSubRead::encode(bufferlist& bl, uint64_t features) const
 {
   if ((features & CEPH_FEATURE_OSD_FADVISE_FLAGS) == 0) {
     ENCODE_START(2, 1, bl);
     encode(from, bl);
     encode(tid, bl);
-    map<hobject_t, list<pair<uint64_t, uint64_t> >> tmp;
+    map<hobject_t, list<pair<uint64_t, uint64_t>>> tmp;
     for (auto m = to_read.cbegin(); m != to_read.cend(); ++m) {
-      list<pair<uint64_t, uint64_t> > tlist;
+      list<pair<uint64_t, uint64_t>> tlist;
       for (auto l = m->second.cbegin(); l != m->second.cend(); ++l) {
-	tlist.push_back(std::make_pair(l->get<0>(), l->get<1>()));
+        tlist.push_back(std::make_pair(l->get<0>(), l->get<1>()));
       }
       tmp[m->first] = tlist;
     }
@@ -228,18 +237,19 @@ void ECSubRead::encode(bufferlist &bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void ECSubRead::decode(bufferlist::const_iterator &bl)
+void
+ECSubRead::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START(3, bl);
   decode(from, bl);
   decode(tid, bl);
   if (struct_v == 1) {
-    map<hobject_t, list<pair<uint64_t, uint64_t> >>tmp;
+    map<hobject_t, list<pair<uint64_t, uint64_t>>> tmp;
     decode(tmp, bl);
     for (auto m = tmp.cbegin(); m != tmp.cend(); ++m) {
-      list<boost::tuple<uint64_t, uint64_t, uint32_t> > tlist;
+      list<boost::tuple<uint64_t, uint64_t, uint32_t>> tlist;
       for (auto l = m->second.cbegin(); l != m->second.cend(); ++l) {
-	tlist.push_back(boost::make_tuple(l->first, l->second, 0));
+        tlist.push_back(boost::make_tuple(l->first, l->second, 0));
       }
       to_read[m->first] = tlist;
     }
@@ -250,24 +260,23 @@ void ECSubRead::decode(bufferlist::const_iterator &bl)
   if (struct_v > 2 && struct_v.v > struct_compat) {
     decode(subchunks, bl);
   } else {
-    for (auto &i : to_read) {
+    for (auto& i : to_read) {
       subchunks[i.first].push_back(make_pair(0, 1));
     }
   }
   DECODE_FINISH(bl);
 }
 
-std::ostream &operator<<(
-  std::ostream &lhs, const ECSubRead &rhs)
+std::ostream&
+operator<<(std::ostream& lhs, const ECSubRead& rhs)
 {
-  return lhs
-    << "ECSubRead(tid=" << rhs.tid
-    << ", to_read=" << rhs.to_read
-    << ", subchunks=" << rhs.subchunks
-    << ", attrs_to_read=" << rhs.attrs_to_read << ")";
+  return lhs << "ECSubRead(tid=" << rhs.tid << ", to_read=" << rhs.to_read
+             << ", subchunks=" << rhs.subchunks
+             << ", attrs_to_read=" << rhs.attrs_to_read << ")";
 }
 
-void ECSubRead::dump(Formatter *f) const
+void
+ECSubRead::dump(Formatter* f) const
 {
   using extent_t = boost::tuple<uint64_t, uint64_t, uint32_t>;
 
@@ -278,13 +287,13 @@ void ECSubRead::dump(Formatter *f) const
   f->with_obj_array_section(
       "object"sv, to_read,
       [](Formatter& f, const hobject_t& oid, const list<extent_t>& extents) {
-	f.dump_stream("oid") << oid;
-	f.with_obj_array_section(
-	    "extent", extents, [](Formatter& f, const extent_t& extent) {
-	      f.dump_unsigned("off", extent.get<0>());
-	      f.dump_unsigned("len", extent.get<1>());
-	      f.dump_unsigned("flags", extent.get<2>());
-	    });
+        f.dump_stream("oid") << oid;
+        f.with_obj_array_section(
+            "extent", extents, [](Formatter& f, const extent_t& extent) {
+              f.dump_unsigned("off", extent.get<0>());
+              f.dump_unsigned("len", extent.get<1>());
+              f.dump_unsigned("flags", extent.get<2>());
+            });
       });
 
   // 'object_attrs_requested': 'attrs_to_read' (set<hobject_t>)
@@ -293,7 +302,8 @@ void ECSubRead::dump(Formatter *f) const
       [](Formatter& f, const hobject_t& oid) { f.dump_stream("oid") << oid; });
 }
 
-list<ECSubRead> ECSubRead::generate_test_instances()
+list<ECSubRead>
+ECSubRead::generate_test_instances()
 {
   list<ECSubRead> o;
   hobject_t hoid1(sobject_t("asdf", 1));
@@ -315,14 +325,14 @@ list<ECSubRead> ECSubRead::generate_test_instances()
   return o;
 }
 
-void ECSubReadReply::encode(bufferlist &bl) const
+void
+ECSubReadReply::encode(bufferlist& bl) const
 {
   encode(bl, bl);
 }
 
-void ECSubReadReply::encode(bufferlist &p_bl,
-			    bufferlist &d_bl,
-			    uint64_t features) const
+void
+ECSubReadReply::encode(bufferlist& p_bl, bufferlist& d_bl, uint64_t features) const
 {
   uint8_t ver = HAVE_FEATURE(features, SERVER_TENTACLE) ? 2 : 1;
   ENCODE_START(ver, ver, p_bl);
@@ -338,10 +348,10 @@ void ECSubReadReply::encode(bufferlist &p_bl,
       encode(oid, p_bl);
       __u32 nlist = (__u32)(datalist.size());
       encode(nlist, p_bl);
-      for (auto [result,bl] : datalist) {
-	encode(result, p_bl);
-	encode(bl.length(), p_bl);
-	encode_nohead(bl, d_bl);
+      for (auto [result, bl] : datalist) {
+        encode(result, p_bl);
+        encode(bl.length(), p_bl);
+        encode_nohead(bl, d_bl);
       }
     }
   } else {
@@ -352,13 +362,16 @@ void ECSubReadReply::encode(bufferlist &p_bl,
   ENCODE_FINISH(p_bl);
 }
 
-void ECSubReadReply::decode(bufferlist::const_iterator &bl)
+void
+ECSubReadReply::decode(bufferlist::const_iterator& bl)
 {
   decode(bl, bl);
 }
 
-void ECSubReadReply::decode(bufferlist::const_iterator &p_bl,
-			    bufferlist::const_iterator &d_bl)
+void
+ECSubReadReply::decode(
+    bufferlist::const_iterator& p_bl,
+    bufferlist::const_iterator& d_bl)
 {
   DECODE_START(2, p_bl);
   decode(from, p_bl);
@@ -375,17 +388,17 @@ void ECSubReadReply::decode(bufferlist::const_iterator &p_bl,
     while (nmap--) {
       hobject_t oid;
       decode(oid, p_bl);
-      std::list<std::pair<uint64_t,ceph::buffer::list>> datalist;
+      std::list<std::pair<uint64_t, ceph::buffer::list>> datalist;
       __u32 nlist;
       decode(nlist, p_bl);
       while (nlist--) {
-	uint64_t result;
-	decode(result, p_bl);
-	ceph::buffer::list bl;
-	__u32 length;
-	decode(length, p_bl);
-	decode_nohead(length, bl, d_bl);
-	datalist.emplace_back(make_pair(result, bl));
+        uint64_t result;
+        decode(result, p_bl);
+        ceph::buffer::list bl;
+        __u32 length;
+        decode(length, p_bl);
+        decode_nohead(length, bl, d_bl);
+        datalist.emplace_back(make_pair(result, bl));
       }
       buffers_read[oid] = datalist;
     }
@@ -395,17 +408,15 @@ void ECSubReadReply::decode(bufferlist::const_iterator &p_bl,
   DECODE_FINISH(p_bl);
 }
 
-std::ostream &operator<<(
-  std::ostream &lhs, const ECSubReadReply &rhs)
+std::ostream&
+operator<<(std::ostream& lhs, const ECSubReadReply& rhs)
 {
-  return lhs
-    << "ECSubReadReply(tid=" << rhs.tid
-    << ", attrs_read=" << rhs.attrs_read.size()
-    << ")";
+  return lhs << "ECSubReadReply(tid=" << rhs.tid
+             << ", attrs_read=" << rhs.attrs_read.size() << ")";
 }
 
-
-void ECSubReadReply::dump(Formatter* f) const
+void
+ECSubReadReply::dump(Formatter* f) const
 {
   using offset_pair_t = pair<uint64_t, bufferlist>;
   using extents_list_t = list<offset_pair_t>;
@@ -417,41 +428,40 @@ void ECSubReadReply::dump(Formatter* f) const
   f->with_obj_array_section(
       "object"sv, buffers_read,
       [](Formatter& f, const hobject_t& oid, const extents_list_t& l) {
-	f.dump_stream("oid") << oid;
-	f.with_obj_array_section(
-	    "extent", l,
-	    [](Formatter& f, const offset_pair_t& offset_n_bl) {
-	      const auto& [off, bl] = offset_n_bl;
-	      f.dump_unsigned("off", off);
-	      f.dump_unsigned("buf_len", bl.length());
-	    });
+        f.dump_stream("oid") << oid;
+        f.with_obj_array_section(
+            "extent", l, [](Formatter& f, const offset_pair_t& offset_n_bl) {
+              const auto& [off, bl] = offset_n_bl;
+              f.dump_unsigned("off", off);
+              f.dump_unsigned("buf_len", bl.length());
+            });
       });
 
   // "attrs_returned" (mapping hobject_t to a <string to bl> table)
   f->with_obj_array_section(
       "object_attrs"sv, attrs_read,
       [](Formatter& f, const hobject_t& oid,
-	 const std::map<std::string, ceph::buffer::list, std::less<>>& m) {
-	f.dump_stream("oid") << oid;
-	f.with_obj_array_section(
-	    "attr", m,
-	    [](Formatter& f, const std::string& attr,
-	       const ceph::buffer::list& bl) {
-	      f.dump_string("attr", attr);
-	      f.dump_unsigned("val_len", bl.length());
-	    });
+         const std::map<std::string, ceph::buffer::list, std::less<>>& m) {
+        f.dump_stream("oid") << oid;
+        f.with_obj_array_section(
+            "attr", m,
+            [](Formatter& f, const std::string& attr,
+               const ceph::buffer::list& bl) {
+              f.dump_string("attr", attr);
+              f.dump_unsigned("val_len", bl.length());
+            });
       });
 
   // "errors": map<hobject_t, int>
   f->with_obj_array_section(
-      "error_pair"sv, errors,
-      [](Formatter& f, const hobject_t& oid, int err) {
-	f.dump_stream("oid") << oid;
+      "error_pair"sv, errors, [](Formatter& f, const hobject_t& oid, int err) {
+        f.dump_stream("oid") << oid;
         f.dump_int("error", err);
       });
 }
 
-list<ECSubReadReply> ECSubReadReply::generate_test_instances()
+list<ECSubReadReply>
+ECSubReadReply::generate_test_instances()
 {
   list<ECSubReadReply> o;
   hobject_t hoid1(sobject_t("asdf", 1));

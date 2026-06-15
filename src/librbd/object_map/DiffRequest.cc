@@ -2,20 +2,23 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/object_map/DiffRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+#include <string>
+
 #include "common/debug.h"
+
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
 #include "osdc/Striper.h"
 
-#include <shared_mutex> // for std::shared_lock
-#include <string>
-
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::object_map::DiffRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                        \
+  *_dout << "librbd::object_map::DiffRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace object_map {
@@ -23,30 +26,40 @@ namespace object_map {
 using util::create_rados_callback;
 
 template <typename I>
-DiffRequest<I>::DiffRequest(I* image_ctx,
-                            uint64_t snap_id_start, uint64_t snap_id_end,
-                            uint64_t start_object_no, uint64_t end_object_no,
-                            BitVector<2>* object_diff_state,
-                            Context* on_finish)
-    : m_image_ctx(image_ctx), m_snap_id_start(snap_id_start),
-      m_snap_id_end(snap_id_end), m_start_object_no(start_object_no),
-      m_end_object_no(end_object_no), m_object_diff_state(object_diff_state),
-      m_on_finish(on_finish) {
+DiffRequest<I>::DiffRequest(
+    I* image_ctx,
+    uint64_t snap_id_start,
+    uint64_t snap_id_end,
+    uint64_t start_object_no,
+    uint64_t end_object_no,
+    BitVector<2>* object_diff_state,
+    Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_snap_id_start(snap_id_start),
+  m_snap_id_end(snap_id_end),
+  m_start_object_no(start_object_no),
+  m_end_object_no(end_object_no),
+  m_object_diff_state(object_diff_state),
+  m_on_finish(on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << "snap_id_start=" << m_snap_id_start
                  << ", snap_id_end=" << m_snap_id_end
                  << ", start_object_no=" << m_start_object_no
-                 << ", end_object_no=" << m_end_object_no
-                 << dendl;
+                 << ", end_object_no=" << m_end_object_no << dendl;
 }
 
 template <typename I>
-bool DiffRequest<I>::is_diff_iterate() const {
+bool
+DiffRequest<I>::is_diff_iterate() const
+{
   return m_start_object_no != 0 || m_end_object_no != UINT64_MAX;
 }
 
 template <typename I>
-int DiffRequest<I>::prepare_for_object_map() {
+int
+DiffRequest<I>::prepare_for_object_map()
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx->image_lock));
 
   auto cct = m_image_ctx->cct;
@@ -74,8 +87,7 @@ int DiffRequest<I>::prepare_for_object_map() {
   ceph_assert(r == 0);
 
   if ((flags & RBD_FLAG_FAST_DIFF_INVALID) != 0) {
-    ldout(cct, 1) << "cannot perform fast diff on invalid object map"
-                  << dendl;
+    ldout(cct, 1) << "cannot perform fast diff on invalid object map" << dendl;
     return -EINVAL;
   }
 
@@ -83,15 +95,17 @@ int DiffRequest<I>::prepare_for_object_map() {
 }
 
 template <typename I>
-int DiffRequest<I>::process_object_map(const BitVector<2>& object_map) {
+int
+DiffRequest<I>::process_object_map(const BitVector<2>& object_map)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "snap_id=" << m_current_snap_id << dendl;
 
-  uint64_t num_objs = Striper::get_num_objects(m_image_ctx->layout,
-                                               m_current_size);
+  uint64_t num_objs =
+      Striper::get_num_objects(m_image_ctx->layout, m_current_size);
   if (object_map.size() < num_objs) {
-    ldout(cct, 1) << "object map too small: "
-                  << object_map.size() << " < " << num_objs << dendl;
+    ldout(cct, 1) << "object map too small: " << object_map.size() << " < "
+                  << num_objs << dendl;
     return -EINVAL;
   }
 
@@ -116,8 +130,8 @@ int DiffRequest<I>::process_object_map(const BitVector<2>& object_map) {
     end_object_no = m_object_diff_state->size();
   }
 
-  uint64_t overlap = std::min(m_object_diff_state->size(),
-                              prev_object_diff_state_size);
+  uint64_t overlap =
+      std::min(m_object_diff_state->size(), prev_object_diff_state_size);
   auto it = object_map.begin() + start_object_no;
   auto diff_it = m_object_diff_state->begin();
   uint64_t ono = start_object_no;
@@ -155,15 +169,14 @@ int DiffRequest<I>::process_object_map(const BitVector<2>& object_map) {
     }
 
     ldout(cct, 20) << "object state: " << ono << " "
-                   << static_cast<uint32_t>(prev_object_diff_state)
-                   << "->" << static_cast<uint32_t>(*diff_it) << " ("
-                   << static_cast<uint32_t>(object_map_state) << ")"
-                   << dendl;
+                   << static_cast<uint32_t>(prev_object_diff_state) << "->"
+                   << static_cast<uint32_t>(*diff_it) << " ("
+                   << static_cast<uint32_t>(object_map_state) << ")" << dendl;
   }
   ldout(cct, 20) << "computed overlap diffs" << dendl;
 
-  ceph_assert(diff_it == m_object_diff_state->end() ||
-              end_object_no <= num_objs);
+  ceph_assert(
+      diff_it == m_object_diff_state->end() || end_object_no <= num_objs);
   for (; ono < end_object_no; ++it, ++diff_it, ++ono) {
     uint8_t object_map_state = *it;
     if (object_map_state == OBJECT_NONEXISTENT) {
@@ -199,8 +212,8 @@ int DiffRequest<I>::process_object_map(const BitVector<2>& object_map) {
       }
     }
 
-    ldout(cct, 20) << "object state: " << ono << " "
-                   << "->" << static_cast<uint32_t>(*diff_it) << " ("
+    ldout(cct, 20) << "object state: " << ono << " " << "->"
+                   << static_cast<uint32_t>(*diff_it) << " ("
                    << static_cast<uint32_t>(*it) << ")" << dendl;
   }
   ldout(cct, 20) << "computed resize diffs" << dendl;
@@ -210,20 +223,22 @@ int DiffRequest<I>::process_object_map(const BitVector<2>& object_map) {
 }
 
 template <typename I>
-void DiffRequest<I>::send() {
+void
+DiffRequest<I>::send()
+{
   auto cct = m_image_ctx->cct;
 
   if (m_snap_id_start == CEPH_NOSNAP || m_snap_id_start > m_snap_id_end) {
-    lderr(cct) << "invalid start/end snap ids: "
-               << "snap_id_start=" << m_snap_id_start << ", "
-               << "snap_id_end=" << m_snap_id_end << dendl;
+    lderr(cct) << "invalid start/end snap ids: " << "snap_id_start="
+               << m_snap_id_start << ", " << "snap_id_end=" << m_snap_id_end
+               << dendl;
     finish(-EINVAL);
     return;
   }
   if (m_start_object_no == UINT64_MAX || m_start_object_no > m_end_object_no ||
       (m_start_object_no != 0 && m_end_object_no == UINT64_MAX)) {
-    lderr(cct) << "invalid start/end object numbers: "
-               << "start_object_no=" << m_start_object_no << ", "
+    lderr(cct) << "invalid start/end object numbers: " << "start_object_no="
+               << m_start_object_no << ", "
                << "end_object_no=" << m_end_object_no << dendl;
     finish(-EINVAL);
     return;
@@ -243,8 +258,7 @@ void DiffRequest<I>::send() {
   }
 
   std::shared_lock image_locker{m_image_ctx->image_lock};
-  if (is_diff_iterate() &&
-      m_snap_id_start == 0 &&
+  if (is_diff_iterate() && m_snap_id_start == 0 &&
       m_snap_id_end == m_image_ctx->snap_id &&
       m_image_ctx->object_map != nullptr) {
     ldout(cct, 10) << "using in-memory object map" << dendl;
@@ -253,9 +267,9 @@ void DiffRequest<I>::send() {
     int r = prepare_for_object_map();
     if (r == 0) {
       r = m_image_ctx->object_map->with_object_map(
-        [this](const BitVector<2>& object_map) {
-          return process_object_map(object_map);
-        });
+          [this](const BitVector<2>& object_map) {
+            return process_object_map(object_map);
+          });
     }
     image_locker.unlock();
 
@@ -282,8 +296,10 @@ void DiffRequest<I>::send() {
 }
 
 template <typename I>
-void DiffRequest<I>::load_object_map(
-    std::shared_lock<ceph::shared_mutex>* image_locker) {
+void
+DiffRequest<I>::load_object_map(
+    std::shared_lock<ceph::shared_mutex>* image_locker)
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx->image_lock));
 
   if (m_snap_ids.empty()) {
@@ -301,8 +317,9 @@ void DiffRequest<I>::load_object_map(
 
   // ignore ENOENT with intermediate snapshots since deleted
   // snaps will get merged with later snapshots
-  m_ignore_enoent = (m_current_snap_id != m_snap_id_start &&
-                     m_current_snap_id != m_snap_id_end);
+  m_ignore_enoent =
+      (m_current_snap_id != m_snap_id_start &&
+       m_current_snap_id != m_snap_id_end);
 
   int r = prepare_for_object_map();
   if (r == -ENOENT && m_ignore_enoent) {
@@ -316,28 +333,30 @@ void DiffRequest<I>::load_object_map(
   }
   image_locker->unlock();
 
-  std::string oid(ObjectMap<>::object_map_name(m_image_ctx->id,
-                                               m_current_snap_id));
+  std::string oid(
+      ObjectMap<>::object_map_name(m_image_ctx->id, m_current_snap_id));
 
   librados::ObjectReadOperation op;
   cls_client::object_map_load_start(&op);
 
   m_out_bl.clear();
   auto aio_comp = create_rados_callback<
-    DiffRequest<I>, &DiffRequest<I>::handle_load_object_map>(this);
+      DiffRequest<I>, &DiffRequest<I>::handle_load_object_map>(this);
   r = m_image_ctx->md_ctx.aio_operate(oid, aio_comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   aio_comp->release();
 }
 
 template <typename I>
-void DiffRequest<I>::handle_load_object_map(int r) {
+void
+DiffRequest<I>::handle_load_object_map(int r)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   BitVector<2> object_map;
-  std::string oid(ObjectMap<>::object_map_name(m_image_ctx->id,
-                                               m_current_snap_id));
+  std::string oid(
+      ObjectMap<>::object_map_name(m_image_ctx->id, m_current_snap_id));
 
   if (r == 0) {
     auto bl_it = m_out_bl.cbegin();
@@ -362,7 +381,9 @@ void DiffRequest<I>::handle_load_object_map(int r) {
 }
 
 template <typename I>
-void DiffRequest<I>::finish(int r) {
+void
+DiffRequest<I>::finish(int r)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << "r=" << r << dendl;
 

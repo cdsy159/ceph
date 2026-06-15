@@ -3,13 +3,18 @@
 #include "acconfig.h"
 
 #ifdef HAVE_SYS_PRCTL_H
-#include <iostream>
 #include <sys/prctl.h>
+
+#include <iostream>
+
 #include "common/errno.h"
 
 class PrCtl {
   int saved_state = -1;
-  static int get_dumpable() {
+
+  static int
+  get_dumpable()
+  {
     int r = prctl(PR_GET_DUMPABLE);
     if (r == -1) {
       r = errno;
@@ -18,18 +23,22 @@ class PrCtl {
     }
     return r;
   }
-  static int set_dumpable(bool new_state) {
+
+  static int
+  set_dumpable(bool new_state)
+  {
     int r = prctl(PR_SET_DUMPABLE, new_state);
     if (r) {
       r = -errno;
       std::cerr << "warning: unable to " << (new_state ? "set" : "unset")
-                << " dumpable flag: " << cpp_strerror(r)
-                << std::endl;
+                << " dumpable flag: " << cpp_strerror(r) << std::endl;
     }
     return r;
   }
+
 public:
-  PrCtl(int new_state = 0) {
+  PrCtl(int new_state = 0)
+  {
     int r = get_dumpable();
     if (r == -1) {
       return;
@@ -40,7 +49,9 @@ public:
       }
     }
   }
-  ~PrCtl() {
+
+  ~PrCtl()
+  {
     if (saved_state < 0) {
       return;
     }
@@ -51,13 +62,17 @@ public:
 #else
 #ifdef RLIMIT_CORE
 #include <sys/resource.h>
+
 #include <iostream>
-#include <sys/resource.h>
+
 #include "common/errno.h"
 
 class PrCtl {
   rlimit saved_lim;
-  static int get_dumpable(rlimit* saved) {
+
+  static int
+  get_dumpable(rlimit* saved)
+  {
     int r = getrlimit(RLIMIT_CORE, saved);
     if (r) {
       r = errno;
@@ -66,7 +81,10 @@ class PrCtl {
     }
     return r;
   }
-  static void set_dumpable(const rlimit& rlim) {
+
+  static void
+  set_dumpable(const rlimit& rlim)
+  {
     int r = setrlimit(RLIMIT_CORE, &rlim);
     if (r) {
       r = -errno;
@@ -74,8 +92,10 @@ class PrCtl {
                 << std::endl;
     }
   }
+
 public:
-  PrCtl(int new_state = 0) {
+  PrCtl(int new_state = 0)
+  {
     int r = get_dumpable(&saved_lim);
     if (r == -1) {
       return;
@@ -91,9 +111,8 @@ public:
     }
     set_dumpable(new_lim);
   }
-  ~PrCtl() {
-    set_dumpable(saved_lim);
-  }
+
+  ~PrCtl() { set_dumpable(saved_lim); }
 };
 #else
 struct PrCtl {
@@ -101,5 +120,5 @@ struct PrCtl {
   PrCtl() {}
 };
 
-#endif  // RLIMIT_CORE
+#endif // RLIMIT_CORE
 #endif

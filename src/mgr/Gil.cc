@@ -14,9 +14,9 @@
  */
 
 
-#include "Python.h"
-
 #include "common/debug.h"
+
+#include "Python.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
@@ -25,7 +25,8 @@
 
 #include "Gil.h"
 
-static void assert_gil()
+static void
+assert_gil()
 {
   /* Using PyGILState_Check() isn't appropriate:
    *
@@ -44,19 +45,20 @@ static void assert_gil()
    * change in the future).  Once we no longer need to support python versions
    * prior to 3.13, this can be PyThreadState_GetUnchecked().
    */
-  auto *ts = PyThreadState_Get();
+  auto* ts = PyThreadState_Get();
   ceph_assert(ts != nullptr);
   ceph_assert(ts->thread_id == PyThread_get_thread_ident());
 }
 
-SafeThreadState::SafeThreadState(PyThreadState *ts_)
-    : ts(ts_)
+SafeThreadState::SafeThreadState(PyThreadState* ts_) :
+  ts(ts_)
 {
   ceph_assert(ts != nullptr);
   thread = pthread_self();
 }
 
-Gil::Gil(SafeThreadState &ts, bool new_thread) : pThreadState(ts)
+Gil::Gil(SafeThreadState& ts, bool new_thread) :
+  pThreadState(ts)
 {
   //
   // If called from a separate OS thread (i.e. a thread not created
@@ -116,25 +118,24 @@ without_gil_t::~without_gil_t()
   }
 }
 
-void without_gil_t::release_gil()
+void
+without_gil_t::release_gil()
 {
   save = PyEval_SaveThread();
 }
 
-void without_gil_t::acquire_gil()
+void
+without_gil_t::acquire_gil()
 {
   assert(save);
   PyEval_RestoreThread(save);
   save = nullptr;
 }
 
-with_gil_t::with_gil_t(without_gil_t& allow_threads)
-  : allow_threads{allow_threads}
+with_gil_t::with_gil_t(without_gil_t& allow_threads) :
+  allow_threads{allow_threads}
 {
   allow_threads.acquire_gil();
 }
 
-with_gil_t::~with_gil_t()
-{
-  allow_threads.release_gil();
-}
+with_gil_t::~with_gil_t() { allow_threads.release_gil(); }

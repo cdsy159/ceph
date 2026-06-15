@@ -18,7 +18,7 @@
 #include <string>
 
 namespace ceph {
-  class Formatter;
+class Formatter;
 }
 
 class MMgrReport;
@@ -28,13 +28,12 @@ class PerfCounterInstance;
 typedef std::map<std::string, PerfCounterType> PerfCounterTypes;
 
 // Performance counters for one daemon
-class DaemonPerfCounters
-{
-  public:
+class DaemonPerfCounters {
+public:
   // The record of perf stat types, shared between daemons
-  PerfCounterTypes &types;
+  PerfCounterTypes& types;
 
-  explicit DaemonPerfCounters(PerfCounterTypes &types_);
+  explicit DaemonPerfCounters(PerfCounterTypes& types_);
   ~DaemonPerfCounters() noexcept;
 
   std::map<std::string, PerfCounterInstance> instances;

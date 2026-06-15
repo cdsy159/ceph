@@ -1,7 +1,9 @@
-#include <string>
-#include <stack>
-#include <memory>
 #include <gtest/gtest.h>
+
+#include <memory>
+#include <stack>
+#include <string>
+
 #include "common/config_fwd.h"
 
 class ObjectStore;
@@ -21,35 +23,45 @@ public:
   std::unique_ptr<ObjectStore> store;
   ObjectStore::CollectionHandle ch;
 
-  explicit StoreTestFixture(const std::string& type)
-    : type(type)
+  explicit StoreTestFixture(const std::string& type) :
+    type(type)
   {}
 
   void SetUp() override;
   void TearDown() override;
 
   void SetVal(ConfigProxy& conf, const char* key, const char* val);
+
   struct SettingsBookmark {
     StoreTestFixture& s;
     size_t pos;
 
-    SettingsBookmark(StoreTestFixture& _s, size_t p) : s(_s), pos(p)
+    SettingsBookmark(StoreTestFixture& _s, size_t p) :
+      s(_s), pos(p)
     {}
 
-    ~SettingsBookmark() {
-      s.PopSettings(pos);
-    }
+    ~SettingsBookmark() { s.PopSettings(pos); }
   };
-  SettingsBookmark BookmarkSettings() {
+
+  SettingsBookmark
+  BookmarkSettings()
+  {
     return SettingsBookmark(*this, saved_settings.size());
   }
+
   void PopSettings(size_t);
   void CloseAndReopen();
   void RemoveTestObjectStore();
-  const std::string get_type() const {
+
+  const std::string
+  get_type() const
+  {
     return type;
   }
-  const std::string get_data_dir() const {
+
+  const std::string
+  get_data_dir() const
+  {
     return data_dir;
   }
 };

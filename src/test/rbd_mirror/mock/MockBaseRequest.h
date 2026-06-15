@@ -4,8 +4,9 @@
 #ifndef CEPH_MOCK_BASE_REQUEST_H
 #define CEPH_MOCK_BASE_REQUEST_H
 
-#include "tools/rbd_mirror/BaseRequest.h"
 #include <gmock/gmock.h>
+
+#include "tools/rbd_mirror/BaseRequest.h"
 
 struct Context;
 
@@ -13,7 +14,9 @@ namespace rbd {
 namespace mirror {
 
 struct MockBaseRequest : public BaseRequest {
-  MockBaseRequest() : BaseRequest(nullptr) {}
+  MockBaseRequest() :
+    BaseRequest(nullptr)
+  {}
 
   Context* on_finish = nullptr;
 

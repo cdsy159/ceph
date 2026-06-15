@@ -13,33 +13,42 @@
  *
  */
 
+#include <stdint.h>
+
+#include <cstdarg>
+
+#include <boost/foreach.hpp>
+
 #include "common/escape.h"
 #include "gtest/gtest.h"
-#include <stdint.h>
-#include <boost/foreach.hpp>
-#include <cstdarg>
 #include "rbd_replay/ImageNameMap.hpp"
 #include "rbd_replay/ios.hpp"
 #include "rbd_replay/rbd_loc.hpp"
 
-
 namespace rbd_replay {
-std::ostream& operator<<(std::ostream& o, const rbd_loc& name) {
-  return o << "('" << name.pool << "', '" << name.image << "', '" << name.snap << "')";
+std::ostream&
+operator<<(std::ostream& o, const rbd_loc& name)
+{
+  return o << "('" << name.pool << "', '" << name.image << "', '" << name.snap
+           << "')";
 }
-}
+} // namespace rbd_replay
 
 using namespace rbd_replay;
 
-static void add_mapping(ImageNameMap *map, std::string mapping_string) {
+static void
+add_mapping(ImageNameMap* map, std::string mapping_string)
+{
   ImageNameMap::Mapping mapping;
   if (!map->parse_mapping(mapping_string, &mapping)) {
-    ASSERT_TRUE(false) << "Failed to parse mapping string '" << mapping_string << "'";
+    ASSERT_TRUE(false) << "Failed to parse mapping string '" << mapping_string
+                       << "'";
   }
   map->add_mapping(mapping);
 }
 
-TEST(RBDReplay, ImageNameMap) {
+TEST(RBDReplay, ImageNameMap)
+{
   ImageNameMap m;
   add_mapping(&m, "x@y=y@x");
   add_mapping(&m, "a\\=b@c=h@i");
@@ -58,7 +67,8 @@ TEST(RBDReplay, ImageNameMap) {
   EXPECT_EQ(rbd_loc("", "image_1", ""), m.map(rbd_loc("", "image", "snap_1")));
 }
 
-TEST(RBDReplay, rbd_loc_str) {
+TEST(RBDReplay, rbd_loc_str)
+{
   EXPECT_EQ("", rbd_loc("", "", "").str());
   EXPECT_EQ("a/", rbd_loc("a", "", "").str());
   EXPECT_EQ("b", rbd_loc("", "b", "").str());
@@ -72,7 +82,8 @@ TEST(RBDReplay, rbd_loc_str) {
   EXPECT_EQ("a\\\\x/b\\\\y@c\\\\z", rbd_loc("a\\x", "b\\y", "c\\z").str());
 }
 
-TEST(RBDReplay, rbd_loc_parse) {
+TEST(RBDReplay, rbd_loc_parse)
+{
   rbd_loc m("x", "y", "z");
 
   EXPECT_TRUE(m.parse(""));
@@ -134,4 +145,3 @@ TEST(RBDReplay, rbd_loc_parse) {
   EXPECT_FALSE(m.parse("a/b/c"));
   EXPECT_FALSE(m.parse("a@b/c"));
 }
-

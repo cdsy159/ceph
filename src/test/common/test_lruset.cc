@@ -9,32 +9,45 @@
  * LGPL-2.1 (see COPYING-LGPL2.1) or later
  */
 
-#include <iostream>
 #include <gtest/gtest.h>
+
+#include <iostream>
 
 #include "common/LRUSet.h"
 
 struct thing {
   int a;
-  thing(int i) : a(i) {}
-  friend bool operator==(const thing &a, const thing &b) {
+
+  thing(int i) :
+    a(i)
+  {}
+
+  friend bool
+  operator==(const thing& a, const thing& b)
+  {
     return a.a == b.a;
   }
-  friend std::size_t hash_value(const thing &value) {
+
+  friend std::size_t
+  hash_value(const thing& value)
+  {
     return value.a;
   }
 };
 
 namespace std {
-  template<> struct hash<thing> {
-    size_t operator()(const thing& r) const {
-      return r.a;
-    }
-  };
-}
+template <>
+struct hash<thing> {
+  size_t
+  operator()(const thing& r) const
+  {
+    return r.a;
+  }
+};
+} // namespace std
 
-
-TEST(LRUSet, insert_complex) {
+TEST(LRUSet, insert_complex)
+{
   LRUSet<thing> s;
   s.insert(thing(1));
   s.insert(thing(2));
@@ -44,7 +57,8 @@ TEST(LRUSet, insert_complex) {
   ASSERT_FALSE(s.contains(thing(3)));
 }
 
-TEST(LRUSet, insert) {
+TEST(LRUSet, insert)
+{
   LRUSet<int> s;
   s.insert(1);
   s.insert(2);
@@ -54,7 +68,8 @@ TEST(LRUSet, insert) {
   ASSERT_FALSE(s.contains(3));
 }
 
-TEST(LRUSet, erase) {
+TEST(LRUSet, erase)
+{
   LRUSet<int> s;
   s.insert(1);
   s.insert(2);
@@ -69,10 +84,11 @@ TEST(LRUSet, erase) {
   ASSERT_FALSE(s.contains(1));
 }
 
-TEST(LRUSet, prune) {
+TEST(LRUSet, prune)
+{
   LRUSet<int> s;
   int max = 1000;
-  for (int i=0; i<max; ++i) {
+  for (int i = 0; i < max; ++i) {
     s.insert(i);
     s.prune(max / 10);
   }
@@ -80,7 +96,8 @@ TEST(LRUSet, prune) {
   ASSERT_TRUE(s.empty());
 }
 
-TEST(LRUSet, lru) {
+TEST(LRUSet, lru)
+{
   LRUSet<int> s;
   s.insert(1);
   s.insert(2);
@@ -98,7 +115,8 @@ TEST(LRUSet, lru) {
   ASSERT_TRUE(s.contains(4));
 }
 
-TEST(LRUSet, copy) {
+TEST(LRUSet, copy)
+{
   LRUSet<int> a, b;
   a.insert(1);
   b.insert(2);

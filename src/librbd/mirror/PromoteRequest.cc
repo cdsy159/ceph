@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/PromoteRequest.h"
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/Journal.h"
@@ -14,8 +15,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::PromoteRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::mirror::PromoteRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace mirror {
@@ -23,26 +25,32 @@ namespace mirror {
 using librbd::util::create_context_callback;
 
 template <typename I>
-void PromoteRequest<I>::send() {
+void
+PromoteRequest<I>::send()
+{
   get_info();
 }
 
 template <typename I>
-void PromoteRequest<I>::get_info() {
-  CephContext *cct = m_image_ctx.cct;
+void
+PromoteRequest<I>::get_info()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    PromoteRequest<I>, &PromoteRequest<I>::handle_get_info>(this);
-  auto req = GetInfoRequest<I>::create(m_image_ctx, &m_mirror_image,
-                                       &m_promotion_state,
-                                       &m_primary_mirror_uuid, ctx);
+      PromoteRequest<I>, &PromoteRequest<I>::handle_get_info>(this);
+  auto req = GetInfoRequest<I>::create(
+      m_image_ctx, &m_mirror_image, &m_promotion_state, &m_primary_mirror_uuid,
+      ctx);
   req->send();
 }
 
 template <typename I>
-void PromoteRequest<I>::handle_get_info(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PromoteRequest<I>::handle_get_info(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0 && r != -ENOENT) {
@@ -59,7 +67,8 @@ void PromoteRequest<I>::handle_get_info(int r) {
     finish(-EINVAL);
     return;
   } else if (m_promotion_state == PROMOTION_STATE_NON_PRIMARY && !m_force) {
-    lderr(cct) << "image is primary within a remote cluster or demotion is not propagated yet"
+    lderr(cct) << "image is primary within a remote cluster or demotion is not "
+                  "propagated yet"
                << dendl;
     finish(-EBUSY);
     return;
@@ -69,17 +78,19 @@ void PromoteRequest<I>::handle_get_info(int r) {
 }
 
 template <typename I>
-void PromoteRequest<I>::promote() {
-  CephContext *cct = m_image_ctx.cct;
+void
+PromoteRequest<I>::promote()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    PromoteRequest<I>, &PromoteRequest<I>::handle_promote>(this);
+      PromoteRequest<I>, &PromoteRequest<I>::handle_promote>(this);
   if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_JOURNAL) {
     Journal<I>::promote(&m_image_ctx, ctx);
   } else if (m_mirror_image.mode == cls::rbd::MIRROR_IMAGE_MODE_SNAPSHOT) {
     auto req = mirror::snapshot::PromoteRequest<I>::create(
-      &m_image_ctx, m_mirror_image.global_image_id, ctx);
+        &m_image_ctx, m_mirror_image.global_image_id, ctx);
     req->send();
   } else {
     lderr(cct) << "unknown image mirror mode: " << m_mirror_image.mode << dendl;
@@ -88,21 +99,24 @@ void PromoteRequest<I>::promote() {
 }
 
 template <typename I>
-void PromoteRequest<I>::handle_promote(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PromoteRequest<I>::handle_promote(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(cct) << "failed to promote image: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to promote image: " << cpp_strerror(r) << dendl;
   }
 
   finish(r);
 }
 
 template <typename I>
-void PromoteRequest<I>::finish(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PromoteRequest<I>::finish(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

@@ -4,13 +4,17 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_DELETER_SNAPSHOT_PURGE_REQUEST_H
 #define CEPH_RBD_MIRROR_IMAGE_DELETER_SNAPSHOT_PURGE_REQUEST_H
 
-#include "include/rados/librados.hpp"
-#include "cls/rbd/cls_rbd_types.h"
 #include <string>
 #include <vector>
 
+#include "cls/rbd/cls_rbd_types.h"
+#include "include/rados/librados.hpp"
+
 class Context;
-namespace librbd { struct ImageCtx; }
+
+namespace librbd {
+struct ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
@@ -19,16 +23,18 @@ namespace image_deleter {
 template <typename ImageCtxT = librbd::ImageCtx>
 class SnapshotPurgeRequest {
 public:
-  static SnapshotPurgeRequest* create(librados::IoCtx &io_ctx,
-                                      const std::string &image_id,
-                                      Context *on_finish) {
+  static SnapshotPurgeRequest*
+  create(librados::IoCtx& io_ctx, const std::string& image_id, Context* on_finish)
+  {
     return new SnapshotPurgeRequest(io_ctx, image_id, on_finish);
   }
 
-  SnapshotPurgeRequest(librados::IoCtx &io_ctx, const std::string &image_id,
-                       Context *on_finish)
-    : m_io_ctx(io_ctx), m_image_id(image_id), m_on_finish(on_finish) {
-  }
+  SnapshotPurgeRequest(
+      librados::IoCtx& io_ctx,
+      const std::string& image_id,
+      Context* on_finish) :
+    m_io_ctx(io_ctx), m_image_id(image_id), m_on_finish(on_finish)
+  {}
 
   void send();
 
@@ -62,11 +68,11 @@ private:
    * @endverbatim
    */
 
-  librados::IoCtx &m_io_ctx;
+  librados::IoCtx& m_io_ctx;
   std::string m_image_id;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
-  ImageCtxT *m_image_ctx = nullptr;
+  ImageCtxT* m_image_ctx = nullptr;
   int m_ret_val = 0;
 
   std::vector<librados::snap_t> m_snaps;
@@ -91,15 +97,14 @@ private:
 
   void finish(int r);
 
-  Context *start_lock_op(int* r);
-
+  Context* start_lock_op(int* r);
 };
 
 } // namespace image_deleter
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_deleter::SnapshotPurgeRequest<librbd::ImageCtx>;
+extern template class rbd::mirror::image_deleter::SnapshotPurgeRequest<
+    librbd::ImageCtx>;
 
 #endif // CEPH_RBD_MIRROR_IMAGE_DELETER_SNAPSHOT_PURGE_REQUEST_H
-

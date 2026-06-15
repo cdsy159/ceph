@@ -24,21 +24,23 @@
 #include <variant>
 #include <vector>
 
+#include <boost/serialization/strong_typedef.hpp>
+
+#include "include/ceph_assert.h"
+#include "include/ceph_fs.h"
 #include "include/compact_set.h"
 #include "include/encoding.h"
 #include "include/fs_types.h"
-#include "include/ceph_fs.h"
 #include "include/object.h" // for snapid_t
 #include "include/types.h" // for version_t
 #include "include/utime.h"
 
-#include "include/ceph_assert.h"
-#include <boost/serialization/strong_typedef.hpp>
-
 #define CEPH_FS_ONDISK_MAGIC "ceph fs volume v011"
-#define MAX_MDS                   0x100
+#define MAX_MDS 0x100
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 class JSONObj;
 
 BOOST_STRONG_TYPEDEF(uint64_t, mds_gid_t)
@@ -46,18 +48,23 @@ extern const mds_gid_t MDS_GID_NONE;
 
 template <>
 struct std::hash<mds_gid_t> {
-  size_t operator()(const mds_gid_t& gid) const
+  size_t
+  operator()(const mds_gid_t& gid) const
   {
-    return hash<uint64_t> {}(gid);
+    return hash<uint64_t>{}(gid);
   }
 };
 
-inline void encode(const mds_gid_t &v, bufferlist& bl, uint64_t features = 0) {
+inline void
+encode(const mds_gid_t& v, bufferlist& bl, uint64_t features = 0)
+{
   uint64_t vv = v;
   encode_raw(vv, bl);
 }
 
-inline void decode(mds_gid_t &v, bufferlist::const_iterator& p) {
+inline void
+decode(mds_gid_t& v, bufferlist::const_iterator& p)
+{
   uint64_t vv;
   decode_raw(vv, p);
   v = vv;
@@ -70,38 +77,52 @@ constexpr fs_cluster_id_t FS_CLUSTER_ID_NONE = -1;
 constexpr fs_cluster_id_t FS_CLUSTER_ID_ANONYMOUS = 0;
 
 typedef int32_t mds_rank_t;
-constexpr mds_rank_t MDS_RANK_NONE		= -1;
-constexpr mds_rank_t MDS_RANK_EPHEMERAL_DIST	= -2;
-constexpr mds_rank_t MDS_RANK_EPHEMERAL_RAND	= -3;
+constexpr mds_rank_t MDS_RANK_NONE = -1;
+constexpr mds_rank_t MDS_RANK_EPHEMERAL_DIST = -2;
+constexpr mds_rank_t MDS_RANK_EPHEMERAL_RAND = -3;
 
 struct scatter_info_t {
   version_t version = 0;
 };
 
 struct frag_info_t : public scatter_info_t {
-  int64_t size() const { return nfiles + nsubdirs; }
+  int64_t
+  size() const
+  {
+    return nfiles + nsubdirs;
+  }
 
-  void zero() {
+  void
+  zero()
+  {
     *this = frag_info_t();
   }
 
   // *this += cur - acc;
-  void add_delta(const frag_info_t &cur, const frag_info_t &acc, bool *touched_mtime=0, bool *touched_chattr=0) {
+  void
+  add_delta(
+      const frag_info_t& cur,
+      const frag_info_t& acc,
+      bool* touched_mtime = 0,
+      bool* touched_chattr = 0)
+  {
     if (cur.mtime > mtime) {
       mtime = cur.mtime;
       if (touched_mtime)
-	*touched_mtime = true;
+        *touched_mtime = true;
     }
     if (cur.change_attr > change_attr) {
       change_attr = cur.change_attr;
       if (touched_chattr)
-	*touched_chattr = true;
+        *touched_chattr = true;
     }
     nfiles += cur.nfiles - acc.nfiles;
     nsubdirs += cur.nsubdirs - acc.nsubdirs;
   }
 
-  void add(const frag_info_t& other) {
+  void
+  add(const frag_info_t& other)
+  {
     if (other.mtime > mtime)
       mtime = other.mtime;
     if (other.change_attr > change_attr)
@@ -110,56 +131,74 @@ struct frag_info_t : public scatter_info_t {
     nsubdirs += other.nsubdirs;
   }
 
-  bool same_sums(const frag_info_t &o) const {
-    return mtime <= o.mtime &&
-	nfiles == o.nfiles &&
-	nsubdirs == o.nsubdirs;
+  bool
+  same_sums(const frag_info_t& o) const
+  {
+    return mtime <= o.mtime && nfiles == o.nfiles && nsubdirs == o.nsubdirs;
   }
 
-  void encode(ceph::buffer::list &bl) const;
+  void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
-  void decode_json(JSONObj *obj);
-  static std::list<frag_info_t>  generate_test_instances();
+  void dump(ceph::Formatter* f) const;
+  void decode_json(JSONObj* obj);
+  static std::list<frag_info_t> generate_test_instances();
 
   // this frag
   utime_t mtime;
   uint64_t change_attr = 0;
-  int64_t nfiles = 0;        // files
-  int64_t nsubdirs = 0;      // subdirs
+  int64_t nfiles = 0; // files
+  int64_t nsubdirs = 0; // subdirs
 };
 WRITE_CLASS_ENCODER(frag_info_t)
 
-inline bool operator==(const frag_info_t &l, const frag_info_t &r) {
+inline bool
+operator==(const frag_info_t& l, const frag_info_t& r)
+{
   return memcmp(&l, &r, sizeof(l)) == 0;
 }
-inline bool operator!=(const frag_info_t &l, const frag_info_t &r) {
+
+inline bool
+operator!=(const frag_info_t& l, const frag_info_t& r)
+{
   return !(l == r);
 }
 
-std::ostream& operator<<(std::ostream &out, const frag_info_t &f);
+std::ostream& operator<<(std::ostream& out, const frag_info_t& f);
 
 struct nest_info_t : public scatter_info_t {
-  int64_t rsize() const { return rfiles + rsubdirs; }
+  int64_t
+  rsize() const
+  {
+    return rfiles + rsubdirs;
+  }
 
-  void zero() {
+  void
+  zero()
+  {
     *this = nest_info_t();
   }
 
-  void sub(const nest_info_t &other) {
+  void
+  sub(const nest_info_t& other)
+  {
     add(other, -1);
   }
-  void add(const nest_info_t &other, int fac=1) {
+
+  void
+  add(const nest_info_t& other, int fac = 1)
+  {
     if (other.rctime > rctime)
       rctime = other.rctime;
-    rbytes += fac*other.rbytes;
-    rfiles += fac*other.rfiles;
-    rsubdirs += fac*other.rsubdirs;
-    rsnaps += fac*other.rsnaps;
+    rbytes += fac * other.rbytes;
+    rfiles += fac * other.rfiles;
+    rsubdirs += fac * other.rsubdirs;
+    rsnaps += fac * other.rsnaps;
   }
 
   // *this += cur - acc;
-  void add_delta(const nest_info_t &cur, const nest_info_t &acc) {
+  void
+  add_delta(const nest_info_t& cur, const nest_info_t& acc)
+  {
     if (cur.rctime > rctime)
       rctime = cur.rctime;
     rbytes += cur.rbytes - acc.rbytes;
@@ -168,18 +207,17 @@ struct nest_info_t : public scatter_info_t {
     rsnaps += cur.rsnaps - acc.rsnaps;
   }
 
-  bool same_sums(const nest_info_t &o) const {
-    return rctime <= o.rctime &&
-        rbytes == o.rbytes &&
-        rfiles == o.rfiles &&
-        rsubdirs == o.rsubdirs &&
-        rsnaps == o.rsnaps;
+  bool
+  same_sums(const nest_info_t& o) const
+  {
+    return rctime <= o.rctime && rbytes == o.rbytes && rfiles == o.rfiles &&
+           rsubdirs == o.rsubdirs && rsnaps == o.rsnaps;
   }
 
-  void encode(ceph::buffer::list &bl) const;
+  void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(ceph::Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<nest_info_t> generate_test_instances();
 
   // this frag + children
@@ -191,54 +229,78 @@ struct nest_info_t : public scatter_info_t {
 };
 WRITE_CLASS_ENCODER(nest_info_t)
 
-inline bool operator==(const nest_info_t &l, const nest_info_t &r) {
+inline bool
+operator==(const nest_info_t& l, const nest_info_t& r)
+{
   return memcmp(&l, &r, sizeof(l)) == 0;
 }
-inline bool operator!=(const nest_info_t &l, const nest_info_t &r) {
+
+inline bool
+operator!=(const nest_info_t& l, const nest_info_t& r)
+{
   return !(l == r);
 }
 
-std::ostream& operator<<(std::ostream &out, const nest_info_t &n);
+std::ostream& operator<<(std::ostream& out, const nest_info_t& n);
 
 struct vinodeno_t {
   vinodeno_t() {}
-  vinodeno_t(inodeno_t i, snapid_t s) : ino(i), snapid(s) {}
 
-  void encode(ceph::buffer::list& bl) const {
+  vinodeno_t(inodeno_t i, snapid_t s) :
+    ino(i), snapid(s)
+  {}
+
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     using ceph::encode;
     encode(ino, bl);
     encode(snapid, bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     using ceph::decode;
     decode(ino, p);
     decode(snapid, p);
   }
-  void dump(ceph::Formatter *f) const;
-  static std::list<vinodeno_t> generate_test_instances() {
+
+  void dump(ceph::Formatter* f) const;
+
+  static std::list<vinodeno_t>
+  generate_test_instances()
+  {
     std::list<vinodeno_t> ls;
     ls.emplace_back();
     ls.push_back(vinodeno_t(1, 2));
     return ls;
   }
+
   inodeno_t ino;
   snapid_t snapid;
 };
 WRITE_CLASS_ENCODER(vinodeno_t)
 
-inline bool operator==(const vinodeno_t &l, const vinodeno_t &r) {
+inline bool
+operator==(const vinodeno_t& l, const vinodeno_t& r)
+{
   return l.ino == r.ino && l.snapid == r.snapid;
 }
-inline bool operator!=(const vinodeno_t &l, const vinodeno_t &r) {
+
+inline bool
+operator!=(const vinodeno_t& l, const vinodeno_t& r)
+{
   return !(l == r);
 }
-inline bool operator<(const vinodeno_t &l, const vinodeno_t &r) {
-  return
-    l.ino < r.ino ||
-    (l.ino == r.ino && l.snapid < r.snapid);
+
+inline bool
+operator<(const vinodeno_t& l, const vinodeno_t& r)
+{
+  return l.ino < r.ino || (l.ino == r.ino && l.snapid < r.snapid);
 }
 
-template<template<typename> class Allocator>
+template <template <typename> class Allocator>
 class charmap_md_t {
 public:
   static constexpr int STRUCT_V = 1;
@@ -247,26 +309,36 @@ public:
   using str_t = std::basic_string<char, std::char_traits<char>, Allocator<char>>;
 
   charmap_md_t() = default;
-  charmap_md_t(auto const& cimd) {
+
+  charmap_md_t(auto const& cimd)
+  {
     casesensitive = cimd.casesensitive;
     normalization = cimd.normalization;
     encoding = cimd.encoding;
   }
-  charmap_md_t<Allocator>& operator=(auto const& other) {
+
+  charmap_md_t<Allocator>&
+  operator=(auto const& other)
+  {
     casesensitive = other.is_casesensitive();
     normalization = other.get_normalization();
     encoding = other.get_encoding();
     return *this;
   }
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     ENCODE_START(STRUCT_V, COMPAT_V, bl);
     ceph::encode(casesensitive, bl);
     ceph::encode(normalization, bl);
     ceph::encode(encoding, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(STRUCT_V, p);
     ceph::decode(casesensitive, p);
     ceph::decode(normalization, p);
@@ -274,39 +346,66 @@ public:
     DECODE_FINISH(p);
   }
 
-  void print(std::ostream& os) const {
-    os << "charmap_md_t(s=" << casesensitive << " f=" << normalization << " e=" << encoding << ")";
+  void
+  print(std::ostream& os) const
+  {
+    os << "charmap_md_t(s=" << casesensitive << " f=" << normalization
+       << " e=" << encoding << ")";
   }
 
-  std::string_view get_normalization() const {
+  std::string_view
+  get_normalization() const
+  {
     return std::string_view(normalization);
   }
-  std::string_view get_encoding() const {
+
+  std::string_view
+  get_encoding() const
+  {
     return std::string_view(encoding);
   }
-  void set_normalization(std::string_view sv) {
+
+  void
+  set_normalization(std::string_view sv)
+  {
     normalization = sv;
   }
-  void set_encoding(std::string_view sv) {
+
+  void
+  set_encoding(std::string_view sv)
+  {
     encoding = sv;
   }
-  void mark_casesensitive() {
+
+  void
+  mark_casesensitive()
+  {
     casesensitive = true;
   }
-  void mark_caseinsensitive() {
+
+  void
+  mark_caseinsensitive()
+  {
     casesensitive = false;
   }
-  bool is_casesensitive() const {
+
+  bool
+  is_casesensitive() const
+  {
     return casesensitive;
   }
 
   void dump(ceph::Formatter* f) const;
 
-  constexpr std::string_view get_default_normalization() const {
+  constexpr std::string_view
+  get_default_normalization() const
+  {
     return DEFAULT_NORMALIZATION;
   }
 
-  constexpr std::string_view get_default_encoding() const {
+  constexpr std::string_view
+  get_default_encoding() const
+  {
     return DEFAULT_ENCODING;
   }
 
@@ -319,36 +418,43 @@ private:
   str_t encoding{DEFAULT_ENCODING};
 };
 
-
-
 typedef enum {
   QUOTA_MAX_FILES,
   QUOTA_MAX_BYTES,
   QUOTA_ANY
 } quota_max_t;
 
-struct quota_info_t
-{
-  void encode(ceph::buffer::list& bl) const {
+struct quota_info_t {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(max_bytes, bl);
     encode(max_files, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(1, 1, 1, p);
     decode(max_bytes, p);
     decode(max_files, p);
     DECODE_FINISH(p);
   }
 
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<quota_info_t> generate_test_instances();
 
-  bool is_valid() const {
-    return max_bytes >=0 && max_files >=0;
+  bool
+  is_valid() const
+  {
+    return max_bytes >= 0 && max_files >= 0;
   }
-  bool is_enabled(quota_max_t type=QUOTA_ANY) const {
+
+  bool
+  is_enabled(quota_max_t type = QUOTA_ANY) const
+  {
     switch (type) {
     case QUOTA_MAX_FILES:
       return !!max_files;
@@ -359,36 +465,45 @@ struct quota_info_t
       return !!max_bytes || !!max_files;
     }
   }
-  void decode_json(JSONObj *obj);
+
+  void decode_json(JSONObj* obj);
 
   int64_t max_bytes = 0;
   int64_t max_files = 0;
 };
 WRITE_CLASS_ENCODER(quota_info_t)
 
-inline bool operator==(const quota_info_t &l, const quota_info_t &r) {
+inline bool
+operator==(const quota_info_t& l, const quota_info_t& r)
+{
   return memcmp(&l, &r, sizeof(l)) == 0;
 }
 
-std::ostream& operator<<(std::ostream &out, const quota_info_t &n);
+std::ostream& operator<<(std::ostream& out, const quota_info_t& n);
 
 struct client_writeable_range_t {
   struct byte_range_t {
-    uint64_t first = 0, last = 0;    // interval client can write to
+    uint64_t first = 0, last = 0; // interval client can write to
+
     byte_range_t() {}
-    void decode_json(JSONObj *obj);
+
+    void decode_json(JSONObj* obj);
   };
 
-  void encode(ceph::buffer::list &bl) const;
+  void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<client_writeable_range_t> generate_test_instances();
 
   byte_range_t range;
-  snapid_t follows = 0;     // aka "data+metadata flushed thru"
+  snapid_t follows = 0; // aka "data+metadata flushed thru"
 };
 
-inline void decode(client_writeable_range_t::byte_range_t& range, ceph::buffer::list::const_iterator& bl) {
+inline void
+decode(
+    client_writeable_range_t::byte_range_t& range,
+    ceph::buffer::list::const_iterator& bl)
+{
   using ceph::decode;
   decode(range.first, bl);
   decode(range.last, bl);
@@ -398,20 +513,27 @@ WRITE_CLASS_ENCODER(client_writeable_range_t)
 
 std::ostream& operator<<(std::ostream& out, const client_writeable_range_t& r);
 
-inline bool operator==(const client_writeable_range_t& l,
-		       const client_writeable_range_t& r) {
+inline bool
+operator==(const client_writeable_range_t& l, const client_writeable_range_t& r)
+{
   return l.range.first == r.range.first && l.range.last == r.range.last &&
-    l.follows == r.follows;
+         l.follows == r.follows;
 }
 
 struct inline_data_t {
 public:
   inline_data_t() {}
-  inline_data_t(const inline_data_t& o) : version(o.version) {
+
+  inline_data_t(const inline_data_t& o) :
+    version(o.version)
+  {
     if (o.blp)
       set_data(*o.blp);
   }
-  inline_data_t& operator=(const inline_data_t& o) {
+
+  inline_data_t&
+  operator=(const inline_data_t& o)
+  {
     version = o.version;
     if (o.blp)
       set_data(*o.blp);
@@ -420,33 +542,52 @@ public:
     return *this;
   }
 
-  void free_data() {
+  void
+  free_data()
+  {
     blp.reset();
   }
-  void get_data(ceph::buffer::list& ret) const {
+
+  void
+  get_data(ceph::buffer::list& ret) const
+  {
     if (blp)
       ret = *blp;
     else
       ret.clear();
   }
-  void set_data(const ceph::buffer::list& bl) {
+
+  void
+  set_data(const ceph::buffer::list& bl)
+  {
     if (!blp)
       blp.reset(new ceph::buffer::list);
     *blp = bl;
   }
-  size_t length() const { return blp ? blp->length() : 0; }
 
-  bool operator==(const inline_data_t& o) const {
-   return length() == o.length() &&
-	  (length() == 0 ||
-	   (*const_cast<ceph::buffer::list*>(blp.get()) == *const_cast<ceph::buffer::list*>(o.blp.get())));
+  size_t
+  length() const
+  {
+    return blp ? blp->length() : 0;
   }
-  bool operator!=(const inline_data_t& o) const {
+
+  bool
+  operator==(const inline_data_t& o) const
+  {
+    return length() == o.length() &&
+           (length() == 0 || (*const_cast<ceph::buffer::list*>(blp.get()) ==
+                              *const_cast<ceph::buffer::list*>(o.blp.get())));
+  }
+
+  bool
+  operator!=(const inline_data_t& o) const
+  {
     return !(*this == o);
   }
-  void encode(ceph::buffer::list &bl) const;
+
+  void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
+  void dump(ceph::Formatter* f) const;
   static std::list<inline_data_t> generate_test_instances();
   version_t version = 1;
 
@@ -456,40 +597,45 @@ private:
 WRITE_CLASS_ENCODER(inline_data_t)
 
 enum {
-  DAMAGE_STATS,     // statistics (dirstat, size, etc)
-  DAMAGE_RSTATS,    // recursive statistics (rstat, accounted_rstat)
-  DAMAGE_FRAGTREE   // fragtree -- repair by searching
+  DAMAGE_STATS, // statistics (dirstat, size, etc)
+  DAMAGE_RSTATS, // recursive statistics (rstat, accounted_rstat)
+  DAMAGE_FRAGTREE // fragtree -- repair by searching
 };
 
-
-template<template<typename> class Allocator>
+template <template <typename> class Allocator>
 class unknown_md_t {
 public:
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     encode_nohead(payload, bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     bufferlist bl;
     DECODE_UNKNOWN(bl, p);
     auto blp = bl.cbegin();
     blp.copy(blp.get_remaining(), payload);
   }
 
-  void print(std::ostream& os) const {
+  void
+  print(std::ostream& os) const
+  {
     os << "unknown_md_t(len=" << payload.size() << ")";
   }
+
   void dump(ceph::Formatter* f) const;
 
 private:
-  std::vector<uint8_t,Allocator<uint8_t>> payload;
+  std::vector<uint8_t, Allocator<uint8_t>> payload;
 };
 
-template<template<typename> class Allocator>
+template <template <typename> class Allocator>
 struct optmetadata_server_t {
-  using opts = std::variant<
-    unknown_md_t<Allocator>,
-    charmap_md_t<Allocator>
-  >;
+  using opts = std::variant<unknown_md_t<Allocator>, charmap_md_t<Allocator>>;
+
   enum kind_t : uint64_t {
     UNKNOWN,
     CHARMAP,
@@ -497,12 +643,10 @@ struct optmetadata_server_t {
   };
 };
 
-template<template<typename> class Allocator>
+template <template <typename> class Allocator>
 struct optmetadata_client_t {
-  using opts = std::variant<
-    unknown_md_t<Allocator>,
-    charmap_md_t<Allocator>
-  >;
+  using opts = std::variant<unknown_md_t<Allocator>, charmap_md_t<Allocator>>;
+
   enum kind_t : uint64_t {
     UNKNOWN,
     CHARMAP,
@@ -510,15 +654,16 @@ struct optmetadata_client_t {
   };
 };
 
-template<typename... Ts>
-void defconstruct_type(std::variant<Ts...>& v, std::size_t i)
+template <typename... Ts>
+void
+defconstruct_type(std::variant<Ts...>& v, std::size_t i)
 {
   constexpr auto N = sizeof...(Ts);
   static const std::array<std::variant<Ts...>, N> lookup = {Ts{}...};
   v = lookup[i];
 }
 
-template<typename M, template<typename> class Allocator>
+template <typename M, template <typename> class Allocator>
 struct optmetadata_singleton {
   using optmetadata_t = typename M::opts;
   using kind_t = typename M::kind_t;
@@ -529,7 +674,9 @@ struct optmetadata_singleton {
     defconstruct_type(optmetadata, get_kind());
   }
 
-  auto get_kind() const {
+  auto
+  get_kind() const
+  {
     constexpr auto optsmax = std::variant_size_v<optmetadata_t>;
     static_assert(kind_t::_MAX == optsmax);
     static_assert(kind_t::UNKNOWN == 0);
@@ -539,55 +686,76 @@ struct optmetadata_singleton {
       return (kind_t)u64kind;
     }
   }
-  template<template< template<typename> class > class T>
-  auto& get_meta() {
-    return std::get< T<Allocator> >(optmetadata);
-  }
-  template<template< template<typename> class > class T>
-  auto& get_meta() const {
-    return std::get< T<Allocator> >(optmetadata);
+
+  template <template <template <typename> class> class T>
+  auto&
+  get_meta()
+  {
+    return std::get<T<Allocator>>(optmetadata);
   }
 
-  void print(std::ostream& os) const {
+  template <template <template <typename> class> class T>
+  auto&
+  get_meta() const
+  {
+    return std::get<T<Allocator>>(optmetadata);
+  }
+
+  void
+  print(std::ostream& os) const
+  {
     os << "(k=" << u64kind << " m=";
     std::visit([&os](auto& o) { o.print(os); }, optmetadata);
     os << ")";
   }
+
   void dump(ceph::Formatter* f) const;
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     // no versioning, use optmetadata
     ceph::encode(u64kind, bl);
-    std::visit([&bl, features](auto& o) { o.encode(bl, features); }, optmetadata);
+    std::visit(
+        [&bl, features](auto& o) { o.encode(bl, features); }, optmetadata);
   }
 
-  void decode(ceph::buffer::list::const_iterator& p) {
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     ceph::decode(u64kind, p);
     *this = optmetadata_singleton((kind_t)u64kind);
     std::visit([&p](auto& o) { o.decode(p); }, optmetadata);
   }
 
-  bool operator<(const optmetadata_singleton& other) const {
+  bool
+  operator<(const optmetadata_singleton& other) const
+  {
     return u64kind < other.u64kind;
   }
 
-  bool operator == (const optmetadata_singleton& other) const {
+  bool
+  operator==(const optmetadata_singleton& other) const
+  {
     if (this->get_kind() != other.get_kind()) {
       return false;
     }
 
     return std::visit(
-      [](auto& this_optmetadata, auto& other_optmetadata)
-      {
-	// FIXME: optmetadata's can be an instance of unknown_md_t or
-	// charmap_md_t. former should memcmp() since there's no other way but
-	// latter should not. See https://tracker.ceph.com/issues/73382.
-	return memcmp(&this_optmetadata, &other_optmetadata, sizeof(this_optmetadata)) == 0;
-      },
-      optmetadata, other.optmetadata);
+        [](auto& this_optmetadata, auto& other_optmetadata) {
+          // FIXME: optmetadata's can be an instance of unknown_md_t or
+          // charmap_md_t. former should memcmp() since there's no other way but
+          // latter should not. See https://tracker.ceph.com/issues/73382.
+          return memcmp(
+                     &this_optmetadata, &other_optmetadata,
+                     sizeof(this_optmetadata)) == 0;
+        },
+        optmetadata, other.optmetadata);
   }
 
-  bool operator != (const optmetadata_singleton& other) const {
+  bool
+  operator!=(const optmetadata_singleton& other) const
+  {
     return !(*this == other);
   }
 
@@ -596,76 +764,94 @@ private:
   optmetadata_t optmetadata;
 };
 
-template<typename Singleton, template<typename> class Allocator>
+template <typename Singleton, template <typename> class Allocator>
 struct optmetadata_multiton {
   static constexpr int STRUCT_V = 1;
   static constexpr int COMPAT_V = 1;
 
   using optkind_t = typename Singleton::kind_t;
-  using optvec_t = std::vector<Singleton,Allocator<Singleton>>;
+  using optvec_t = std::vector<Singleton, Allocator<Singleton>>;
 
-  void encode(ceph::buffer::list& bl, uint64_t features) const {
+  void
+  encode(ceph::buffer::list& bl, uint64_t features) const
+  {
     // no versioning, use payload
     ENCODE_START(STRUCT_V, COMPAT_V, bl);
     ceph::encode(opts, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(ceph::buffer::list::const_iterator& p) {
+
+  void
+  decode(ceph::buffer::list::const_iterator& p)
+  {
     DECODE_START(STRUCT_V, p);
     ceph::decode(opts, p);
     DECODE_FINISH(p);
   }
 
-  void print(std::ostream& os) const {
+  void
+  print(std::ostream& os) const
+  {
     os << "optm(len=" << opts.size() << " " << opts << ")";
   }
+
   void dump(ceph::Formatter* f) const;
 
-  bool has_opt(optkind_t kind) const {
-    auto f = [kind](auto& o) {
-      return o.get_kind() == kind;
-    };
+  bool
+  has_opt(optkind_t kind) const
+  {
+    auto f = [kind](auto& o) { return o.get_kind() == kind; };
     auto it = std::find_if(opts.begin(), opts.end(), std::move(f));
     return it != opts.end();
   }
-  auto& get_opt(optkind_t kind) const {
-    auto f = [kind](auto& o) {
-      return o.get_kind() == kind;
-    };
+
+  auto&
+  get_opt(optkind_t kind) const
+  {
+    auto f = [kind](auto& o) { return o.get_kind() == kind; };
     auto it = std::find_if(opts.begin(), opts.end(), std::move(f));
     return *it;
   }
-  auto& get_opt(optkind_t kind) {
-    auto f = [kind](auto& o) {
-      return o.get_kind() == kind;
-    };
+
+  auto&
+  get_opt(optkind_t kind)
+  {
+    auto f = [kind](auto& o) { return o.get_kind() == kind; };
     auto it = std::find_if(opts.begin(), opts.end(), std::move(f));
     return *it;
   }
-  auto& get_or_create_opt(optkind_t kind) {
-    auto f = [kind](auto& o) {
-      return o.get_kind() == kind;
-    };
-    if (auto it = std::find_if(opts.begin(), opts.end(), std::move(f)); it != opts.end()) {
+
+  auto&
+  get_or_create_opt(optkind_t kind)
+  {
+    auto f = [kind](auto& o) { return o.get_kind() == kind; };
+    if (auto it = std::find_if(opts.begin(), opts.end(), std::move(f));
+        it != opts.end()) {
       return *it;
     }
     auto it = std::lower_bound(opts.begin(), opts.end(), kind);
     it = opts.emplace(it, kind);
     return *it;
   }
-  void del_opt(optkind_t kind) {
-    auto f = [kind](auto& o) {
-      return o.get_kind() == kind;
-    };
+
+  void
+  del_opt(optkind_t kind)
+  {
+    auto f = [kind](auto& o) { return o.get_kind() == kind; };
     auto it = std::remove_if(opts.begin(), opts.end(), std::move(f));
     opts.erase(it, opts.end());
   }
 
-  auto size() const {
+  auto
+  size() const
+  {
     return opts.size();
   }
 
-  bool operator == (const optmetadata_multiton<optmetadata_singleton<optmetadata_server_t<Allocator>,Allocator>, Allocator>& other) const
+  bool
+  operator==(const optmetadata_multiton<
+             optmetadata_singleton<optmetadata_server_t<Allocator>, Allocator>,
+             Allocator>& other) const
   {
     if (size() != other.size())
       return false;
@@ -684,7 +870,10 @@ struct optmetadata_multiton {
     return true;
   }
 
-  bool operator != (const optmetadata_multiton<optmetadata_singleton<optmetadata_server_t<Allocator>,Allocator>, Allocator>& other) const
+  bool
+  operator!=(const optmetadata_multiton<
+             optmetadata_singleton<optmetadata_server_t<Allocator>, Allocator>,
+             Allocator>& other) const
   {
     return !(*this == other);
   }
@@ -693,33 +882,49 @@ private:
   optvec_t opts;
 };
 
-template<typename T, template<typename> class Allocator>
-static inline void encode(optmetadata_singleton<T, Allocator> const& o, ::ceph::buffer::list& bl, uint64_t features=0)
+template <typename T, template <typename> class Allocator>
+static inline void
+encode(
+    optmetadata_singleton<T, Allocator> const& o,
+    ::ceph::buffer::list& bl,
+    uint64_t features = 0)
 {
   ENCODE_DUMP_PRE();
   o.encode(bl, features);
   ENCODE_DUMP_POST(cl);
 }
-template<typename T, template<typename> class Allocator>
-static inline void decode(optmetadata_singleton<T, Allocator>& o, ::ceph::buffer::list::const_iterator& p)
+
+template <typename T, template <typename> class Allocator>
+static inline void
+decode(
+    optmetadata_singleton<T, Allocator>& o,
+    ::ceph::buffer::list::const_iterator& p)
 {
   o.decode(p);
 }
 
-template<typename Singleton, template<typename> class Allocator>
-static inline void encode(optmetadata_multiton<Singleton,Allocator> const& o, ::ceph::buffer::list& bl, uint64_t features=0)
+template <typename Singleton, template <typename> class Allocator>
+static inline void
+encode(
+    optmetadata_multiton<Singleton, Allocator> const& o,
+    ::ceph::buffer::list& bl,
+    uint64_t features = 0)
 {
   ENCODE_DUMP_PRE();
   o.encode(bl, features);
   ENCODE_DUMP_POST(cl);
 }
-template<typename Singleton, template<typename> class Allocator>
-static inline void decode(optmetadata_multiton<Singleton,Allocator>& o, ::ceph::buffer::list::const_iterator& p)
+
+template <typename Singleton, template <typename> class Allocator>
+static inline void
+decode(
+    optmetadata_multiton<Singleton, Allocator>& o,
+    ::ceph::buffer::list::const_iterator& p)
 {
   o.decode(p);
 }
 
-template<template<typename> class Allocator = std::allocator>
+template <template <typename> class Allocator = std::allocator>
 struct inode_t {
 
   /**
@@ -728,28 +933,57 @@ struct inode_t {
    * ***************
    */
 
-  using optmetadata_singleton_server_t = optmetadata_singleton<optmetadata_server_t<Allocator>,Allocator>;
-  using client_range_map = std::map<client_t,client_writeable_range_t,std::less<client_t>,Allocator<std::pair<const client_t,client_writeable_range_t>>>;
+  using optmetadata_singleton_server_t =
+      optmetadata_singleton<optmetadata_server_t<Allocator>, Allocator>;
+  using client_range_map = std::map<
+      client_t,
+      client_writeable_range_t,
+      std::less<client_t>,
+      Allocator<std::pair<const client_t, client_writeable_range_t>>>;
 
-  static const uint8_t F_EPHEMERAL_DISTRIBUTED_PIN = (1<<0);
-  static const uint8_t F_QUIESCE_BLOCK             = (1<<1);
+  static const uint8_t F_EPHEMERAL_DISTRIBUTED_PIN = (1 << 0);
+  static const uint8_t F_QUIESCE_BLOCK = (1 << 1);
 
-  inode_t()
-  {
-    clear_layout();
-  }
+  inode_t() { clear_layout(); }
 
   // file type
-  bool is_symlink() const { return (mode & S_IFMT) == S_IFLNK; }
-  bool is_dir()     const { return (mode & S_IFMT) == S_IFDIR; }
-  bool is_file()    const { return (mode & S_IFMT) == S_IFREG; }
+  bool
+  is_symlink() const
+  {
+    return (mode & S_IFMT) == S_IFLNK;
+  }
 
-  bool is_truncating() const { return (truncate_pending > 0); }
-  void truncate(uint64_t old_size, uint64_t new_size, ::ceph::buffer::list::const_iterator fblp) {
+  bool
+  is_dir() const
+  {
+    return (mode & S_IFMT) == S_IFDIR;
+  }
+
+  bool
+  is_file() const
+  {
+    return (mode & S_IFMT) == S_IFREG;
+  }
+
+  bool
+  is_truncating() const
+  {
+    return (truncate_pending > 0);
+  }
+
+  void
+  truncate(
+      uint64_t old_size,
+      uint64_t new_size,
+      ::ceph::buffer::list::const_iterator fblp)
+  {
     truncate(old_size, new_size);
     fblp.copy(fblp.get_remaining(), fscrypt_last_block);
   }
-  void truncate(uint64_t old_size, uint64_t new_size) {
+
+  void
+  truncate(uint64_t old_size, uint64_t new_size)
+  {
     ceph_assert(new_size <= old_size);
     if (old_size > max_size_ever)
       max_size_ever = old_size;
@@ -761,115 +995,178 @@ struct inode_t {
     truncate_pending++;
   }
 
-  bool has_layout() const {
+  bool
+  has_layout() const
+  {
     return layout != file_layout_t();
   }
 
-  void clear_layout() {
+  void
+  clear_layout()
+  {
     layout = file_layout_t();
   }
 
-  uint64_t get_layout_size_increment() const {
+  uint64_t
+  get_layout_size_increment() const
+  {
     return layout.get_period();
   }
 
-  bool is_dirty_rstat() const { return !(rstat == accounted_rstat); }
+  bool
+  is_dirty_rstat() const
+  {
+    return !(rstat == accounted_rstat);
+  }
 
-  uint64_t get_client_range(client_t client) const {
+  uint64_t
+  get_client_range(client_t client) const
+  {
     auto it = client_ranges.find(client);
     return it != client_ranges.end() ? it->second.range.last : 0;
   }
 
-  uint64_t get_max_size() const {
+  uint64_t
+  get_max_size() const
+  {
     uint64_t max = 0;
-      for (std::map<client_t,client_writeable_range_t>::const_iterator p = client_ranges.begin();
-	   p != client_ranges.end();
-	   ++p)
-	if (p->second.range.last > max)
-	  max = p->second.range.last;
-      return max;
+    for (std::map<client_t, client_writeable_range_t>::const_iterator p =
+             client_ranges.begin();
+         p != client_ranges.end(); ++p)
+      if (p->second.range.last > max)
+        max = p->second.range.last;
+    return max;
   }
-  void set_max_size(uint64_t new_max) {
+
+  void
+  set_max_size(uint64_t new_max)
+  {
     if (new_max == 0) {
       client_ranges.clear();
     } else {
-      for (std::map<client_t,client_writeable_range_t>::iterator p = client_ranges.begin();
-	   p != client_ranges.end();
-	   ++p)
-	p->second.range.last = new_max;
+      for (std::map<client_t, client_writeable_range_t>::iterator p =
+               client_ranges.begin();
+           p != client_ranges.end(); ++p)
+        p->second.range.last = new_max;
     }
   }
 
-  void trim_client_ranges(snapid_t last) {
-    std::map<client_t, client_writeable_range_t>::iterator p = client_ranges.begin();
+  void
+  trim_client_ranges(snapid_t last)
+  {
+    std::map<client_t, client_writeable_range_t>::iterator p =
+        client_ranges.begin();
     while (p != client_ranges.end()) {
       if (p->second.follows >= last)
-	client_ranges.erase(p++);
+        client_ranges.erase(p++);
       else
-	++p;
+        ++p;
     }
   }
 
-  bool is_backtrace_updated() const {
+  bool
+  is_backtrace_updated() const
+  {
     return backtrace_version == version;
   }
-  void update_backtrace(version_t pv=0) {
+
+  void
+  update_backtrace(version_t pv = 0)
+  {
     backtrace_version = pv ? pv : version;
   }
 
-  void add_old_pool(int64_t l) {
+  void
+  add_old_pool(int64_t l)
+  {
     backtrace_version = version;
     old_pools.insert(l);
   }
 
-  void set_flag(bool v, uint8_t flag) {
+  void
+  set_flag(bool v, uint8_t flag)
+  {
     if (v) {
       flags |= flag;
     } else {
       flags &= ~(flag);
     }
   }
-  bool get_flag(uint8_t flag) const {
-    return flags&flag;
+
+  bool
+  get_flag(uint8_t flag) const
+  {
+    return flags & flag;
   }
-  void set_ephemeral_distributed_pin(bool v) {
+
+  void
+  set_ephemeral_distributed_pin(bool v)
+  {
     set_flag(v, F_EPHEMERAL_DISTRIBUTED_PIN);
   }
-  bool get_ephemeral_distributed_pin() const {
+
+  bool
+  get_ephemeral_distributed_pin() const
+  {
     return get_flag(F_EPHEMERAL_DISTRIBUTED_PIN);
   }
-  void set_quiesce_block(bool v) {
+
+  void
+  set_quiesce_block(bool v)
+  {
     set_flag(v, F_QUIESCE_BLOCK);
   }
-  bool get_quiesce_block() const {
+
+  bool
+  get_quiesce_block() const
+  {
     return get_flag(F_QUIESCE_BLOCK);
   }
 
-  bool has_charmap() const {
+  bool
+  has_charmap() const
+  {
     return optmetadata.has_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
   }
-  auto& get_charmap() const {
-    auto& opt = optmetadata.get_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
-    return opt.template get_meta< charmap_md_t >();
+
+  auto&
+  get_charmap() const
+  {
+    auto& opt =
+        optmetadata.get_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
+    return opt.template get_meta<charmap_md_t>();
   }
-  auto& get_charmap() {
-    auto& opt = optmetadata.get_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
-    return opt.template get_meta< charmap_md_t >();
+
+  auto&
+  get_charmap()
+  {
+    auto& opt =
+        optmetadata.get_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
+    return opt.template get_meta<charmap_md_t>();
   }
-  auto& set_charmap() {
-    auto& opt = optmetadata.get_or_create_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
-    return opt.template get_meta< charmap_md_t >();
+
+  auto&
+  set_charmap()
+  {
+    auto& opt = optmetadata.get_or_create_opt(
+        optmetadata_singleton_server_t::kind_t::CHARMAP);
+    return opt.template get_meta<charmap_md_t>();
   }
-  void del_charmap() {
+
+  void
+  del_charmap()
+  {
     optmetadata.del_opt(optmetadata_singleton_server_t::kind_t::CHARMAP);
   }
 
-  void encode(ceph::buffer::list &bl, uint64_t features) const;
+  void encode(ceph::buffer::list& bl, uint64_t features) const;
   void decode(ceph::buffer::list::const_iterator& bl);
-  void dump(ceph::Formatter *f) const;
-  static void client_ranges_cb(client_range_map& c, JSONObj *obj);
-  static void old_pools_cb(compact_set<int64_t, std::less<int64_t>, Allocator<int64_t> >& c, JSONObj *obj);
-  void decode_json(JSONObj *obj);
+  void dump(ceph::Formatter* f) const;
+  static void client_ranges_cb(client_range_map& c, JSONObj* obj);
+  static void old_pools_cb(
+      compact_set<int64_t, std::less<int64_t>, Allocator<int64_t>>& c,
+      JSONObj* obj);
+  void decode_json(JSONObj* obj);
   static std::list<inode_t> generate_test_instances();
   /**
    * Compare this inode_t with another that represent *the same inode*
@@ -883,46 +1180,47 @@ struct inode_t {
    *
    * @returns 1 if we are newer than the other, 0 if equal, -1 if older.
    */
-  int compare(const inode_t &other, bool *divergent) const;
+  int compare(const inode_t& other, bool* divergent) const;
 
   // base (immutable)
   inodeno_t ino = 0;
-  uint32_t   rdev = 0;    // if special file
+  uint32_t rdev = 0; // if special file
 
   // affected by any inode change...
-  utime_t    ctime;   // inode change time
-  utime_t    btime;   // birth time
+  utime_t ctime; // inode change time
+  utime_t btime; // birth time
 
   // perm (namespace permissions)
-  uint32_t   mode = 0;
-  uid_t      uid = 0;
-  gid_t      gid = 0;
+  uint32_t mode = 0;
+  uid_t uid = 0;
+  gid_t gid = 0;
 
   // nlink
-  int32_t    nlink = 0;
+  int32_t nlink = 0;
 
   // file (data access)
-  ceph_dir_layout dir_layout = {};    // [dir only]
+  ceph_dir_layout dir_layout = {}; // [dir only]
   file_layout_t layout;
   compact_set<int64_t, std::less<int64_t>, Allocator<int64_t>> old_pools;
-  uint64_t   size = 0;        // on directory, # dentries
-  uint64_t   max_size_ever = 0; // max size the file has ever been
-  uint32_t   truncate_seq = 0;
-  uint64_t   truncate_size = 0, truncate_from = 0;
-  uint32_t   truncate_pending = 0;
-  utime_t    mtime;   // file data modify time.
-  utime_t    atime;   // file data access time.
-  uint32_t   time_warp_seq = 0;  // count of (potential) mtime/atime timewarps (i.e., utimes())
+  uint64_t size = 0; // on directory, # dentries
+  uint64_t max_size_ever = 0; // max size the file has ever been
+  uint32_t truncate_seq = 0;
+  uint64_t truncate_size = 0, truncate_from = 0;
+  uint32_t truncate_pending = 0;
+  utime_t mtime; // file data modify time.
+  utime_t atime; // file data access time.
+  uint32_t time_warp_seq =
+      0; // count of (potential) mtime/atime timewarps (i.e., utimes())
   inline_data_t inline_data; // FIXME check
 
   // change attribute
-  uint64_t   change_attr = 0;
+  uint64_t change_attr = 0;
 
-  client_range_map client_ranges;  // client(s) can write to these ranges
+  client_range_map client_ranges; // client(s) can write to these ranges
 
   // dirfrag, recursive accountin
-  frag_info_t dirstat;         // protected by my filelock
-  nest_info_t rstat;           // protected by my nestlock
+  frag_info_t dirstat; // protected by my filelock
+  nest_info_t rstat; // protected by my nestlock
   nest_info_t accounted_rstat; // protected by parent's nestlock
 
   quota_info_t quota;
@@ -949,44 +1247,53 @@ struct inode_t {
   uint8_t flags = 0;
 
   // special stuff
-  version_t version = 0;           // auth only
+  version_t version = 0; // auth only
   version_t file_data_version = 0; // auth only
   version_t xattr_version = 0;
 
-  utime_t last_scrub_stamp;    // start time of last complete scrub
-  version_t last_scrub_version = 0;// (parent) start version of last complete scrub
+  utime_t last_scrub_stamp; // start time of last complete scrub
+  version_t last_scrub_version =
+      0; // (parent) start version of last complete scrub
 
   version_t backtrace_version = 0;
 
   snapid_t oldest_snap;
 
-  std::basic_string<char,std::char_traits<char>,Allocator<char>> stray_prior_path; //stores path before unlink
+  std::basic_string<char, std::char_traits<char>, Allocator<char>>
+      stray_prior_path; //stores path before unlink
 
-  std::vector<uint8_t,Allocator<uint8_t>> fscrypt_auth;
-  std::vector<uint8_t,Allocator<uint8_t>> fscrypt_file;
-  std::vector<uint8_t,Allocator<uint8_t>> fscrypt_last_block;
+  std::vector<uint8_t, Allocator<uint8_t>> fscrypt_auth;
+  std::vector<uint8_t, Allocator<uint8_t>> fscrypt_file;
+  std::vector<uint8_t, Allocator<uint8_t>> fscrypt_last_block;
 
-  optmetadata_multiton<optmetadata_singleton_server_t,Allocator> optmetadata;
+  optmetadata_multiton<optmetadata_singleton_server_t, Allocator> optmetadata;
 
 private:
-  bool older_is_consistent(const inode_t &other) const;
+  bool older_is_consistent(const inode_t& other) const;
 };
 
-template<template<typename> class Allocator>
-inline bool operator==(std::vector<uint8_t,Allocator<uint8_t>> l,
-	          std::vector<uint8_t,Allocator<uint8_t>> r) {
+template <template <typename> class Allocator>
+inline bool
+operator==(
+    std::vector<uint8_t, Allocator<uint8_t>> l,
+    std::vector<uint8_t, Allocator<uint8_t>> r)
+{
   return l.size() == r.size() && memcmp(l.data(), r.data(), l.size()) == 0;
 }
 
-template<template<typename> class Allocator>
-inline bool operator!=(std::vector<uint8_t,Allocator<uint8_t>> l,
-	          std::vector<uint8_t,Allocator<uint8_t>> r) {
+template <template <typename> class Allocator>
+inline bool
+operator!=(
+    std::vector<uint8_t, Allocator<uint8_t>> l,
+    std::vector<uint8_t, Allocator<uint8_t>> r)
+{
   return l.size() != r.size() || memcmp(l.data(), r.data(), l.size()) != 0;
 }
 
 // These methods may be moved back to mdstypes.cc when we have pmr
-template<template<typename> class Allocator>
-void inode_t<Allocator>::encode(ceph::buffer::list &bl, uint64_t features) const
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   ENCODE_START(20, 6, bl);
 
@@ -1053,8 +1360,9 @@ void inode_t<Allocator>::encode(ceph::buffer::list &bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-template<template<typename> class Allocator>
-void inode_t<Allocator>::decode(ceph::buffer::list::const_iterator &p)
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(19, 6, 6, p);
 
@@ -1175,8 +1483,9 @@ void inode_t<Allocator>::decode(ceph::buffer::list::const_iterator &p)
   DECODE_FINISH(p);
 }
 
-template<template<typename> class Allocator>
-auto inode_t<Allocator>::generate_test_instances() -> std::list<inode_t>
+template <template <typename> class Allocator>
+auto
+inode_t<Allocator>::generate_test_instances() -> std::list<inode_t>
 {
   std::list<inode_t> ls;
   ls.emplace_back();
@@ -1186,44 +1495,34 @@ auto inode_t<Allocator>::generate_test_instances() -> std::list<inode_t>
   return ls;
 }
 
-template<template<typename> class Allocator>
-int inode_t<Allocator>::compare(const inode_t<Allocator> &other, bool *divergent) const
+template <template <typename> class Allocator>
+int
+inode_t<Allocator>::compare(const inode_t<Allocator>& other, bool* divergent) const
 {
   ceph_assert(ino == other.ino);
   *divergent = false;
   if (version == other.version) {
-    if (rdev != other.rdev ||
-        ctime != other.ctime ||
-        btime != other.btime ||
-        mode != other.mode ||
-        uid != other.uid ||
-        gid != other.gid ||
+    if (rdev != other.rdev || ctime != other.ctime || btime != other.btime ||
+        mode != other.mode || uid != other.uid || gid != other.gid ||
         nlink != other.nlink ||
         memcmp(&dir_layout, &other.dir_layout, sizeof(dir_layout)) ||
-        layout != other.layout ||
-        old_pools != other.old_pools ||
-        size != other.size ||
-        max_size_ever != other.max_size_ever ||
+        layout != other.layout || old_pools != other.old_pools ||
+        size != other.size || max_size_ever != other.max_size_ever ||
         truncate_seq != other.truncate_seq ||
         truncate_size != other.truncate_size ||
         truncate_from != other.truncate_from ||
-        truncate_pending != other.truncate_pending ||
-        mtime != other.mtime ||
-        atime != other.atime ||
-        time_warp_seq != other.time_warp_seq ||
-        inline_data != other.inline_data ||
-	change_attr != other.change_attr ||
-        client_ranges != other.client_ranges ||
-        dirstat != other.dirstat ||
-        rstat != other.rstat ||
-        accounted_rstat != other.accounted_rstat ||
+        truncate_pending != other.truncate_pending || mtime != other.mtime ||
+        atime != other.atime || time_warp_seq != other.time_warp_seq ||
+        inline_data != other.inline_data || change_attr != other.change_attr ||
+        client_ranges != other.client_ranges || dirstat != other.dirstat ||
+        rstat != other.rstat || accounted_rstat != other.accounted_rstat ||
         file_data_version != other.file_data_version ||
         xattr_version != other.xattr_version ||
         backtrace_version != other.backtrace_version ||
-	fscrypt_auth != other.fscrypt_auth ||
-	fscrypt_file != other.fscrypt_file ||
-	fscrypt_last_block != other.fscrypt_last_block ||
-	optmetadata != other.optmetadata) {
+        fscrypt_auth != other.fscrypt_auth ||
+        fscrypt_file != other.fscrypt_file ||
+        fscrypt_last_block != other.fscrypt_last_block ||
+        optmetadata != other.optmetadata) {
       *divergent = true;
     }
     return 0;
@@ -1237,8 +1536,9 @@ int inode_t<Allocator>::compare(const inode_t<Allocator> &other, bool *divergent
   }
 }
 
-template<template<typename> class Allocator>
-bool inode_t<Allocator>::older_is_consistent(const inode_t<Allocator> &other) const
+template <template <typename> class Allocator>
+bool
+inode_t<Allocator>::older_is_consistent(const inode_t<Allocator>& other) const
 {
   if (max_size_ever < other.max_size_ever ||
       truncate_seq < other.truncate_seq ||
@@ -1255,15 +1555,18 @@ bool inode_t<Allocator>::older_is_consistent(const inode_t<Allocator> &other) co
   return true;
 }
 
-template<template<typename> class Allocator>
-inline void encode(const inode_t<Allocator> &c, ::ceph::buffer::list &bl, uint64_t features)
+template <template <typename> class Allocator>
+inline void
+encode(const inode_t<Allocator>& c, ::ceph::buffer::list& bl, uint64_t features)
 {
   ENCODE_DUMP_PRE();
   c.encode(bl, features);
   ENCODE_DUMP_POST(cl);
 }
-template<template<typename> class Allocator>
-inline void decode(inode_t<Allocator> &c, ::ceph::buffer::list::const_iterator &p)
+
+template <template <typename> class Allocator>
+inline void
+decode(inode_t<Allocator>& c, ::ceph::buffer::list::const_iterator& p)
 {
   c.decode(p);
 }

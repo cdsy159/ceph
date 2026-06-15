@@ -13,33 +13,39 @@
  *
  */
 
+#include <gtest/gtest.h>
 #include <stdio.h>
-#include <time.h>
 #include <string.h>
+#include <time.h>
+
 #include <iostream>
 #include <iterator>
 #include <sstream>
-#include "os/bluestore/BlueStore.h"
-#include "include/Context.h"
-#include "common/ceph_argparse.h"
-#include "common/ceph_mutex.h"
-#include "common/Cond.h"
-#include "global/global_init.h"
-#include <boost/scoped_ptr.hpp>
+
+#include <boost/random/binomial_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
-#include <boost/random/binomial_distribution.hpp>
-#include <gtest/gtest.h>
+#include <boost/scoped_ptr.hpp>
 
-void usage(const string &name) {
-  std::cerr << "Usage: " << name << " [xattr|omap] store_path"
-	    << std::endl;
+#include "common/Cond.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
+#include "global/global_init.h"
+#include "include/Context.h"
+#include "os/bluestore/BlueStore.h"
+
+void
+usage(const string& name)
+{
+  std::cerr << "Usage: " << name << " [xattr|omap] store_path" << std::endl;
 }
 
 const int THREADS = 5;
 
 template <typename T>
-typename T::iterator rand_choose(T &cont) {
+typename T::iterator
+rand_choose(T& cont)
+{
   if (std::empty(cont) == 0) {
     return std::end(cont);
   }
@@ -48,59 +54,74 @@ typename T::iterator rand_choose(T &cont) {
 
 class OnApplied : public Context {
 public:
-  ceph::mutex *lock;
-  ceph::condition_variable *cond;
-  int *in_progress;
-  ObjectStore::Transaction *t;
-  OnApplied(ceph::mutex *lock,
-	    ceph::condition_variable *cond,
-	    int *in_progress,
-	    ObjectStore::Transaction *t)
-    : lock(lock), cond(cond),
-      in_progress(in_progress), t(t) {
+  ceph::mutex* lock;
+  ceph::condition_variable* cond;
+  int* in_progress;
+  ObjectStore::Transaction* t;
+
+  OnApplied(
+      ceph::mutex* lock,
+      ceph::condition_variable* cond,
+      int* in_progress,
+      ObjectStore::Transaction* t) :
+    lock(lock), cond(cond), in_progress(in_progress), t(t)
+  {
     std::lock_guard l{*lock};
     (*in_progress)++;
   }
 
-  void finish(int r) override {
+  void
+  finish(int r) override
+  {
     std::lock_guard l{*lock};
     (*in_progress)--;
     cond->notify_all();
   }
 };
 
-uint64_t get_time() {
+uint64_t
+get_time()
+{
   time_t start;
   time(&start);
   return start * 1000;
 }
 
-double print_time(uint64_t ms) {
-  return ((double)ms)/1000;
+double
+print_time(uint64_t ms)
+{
+  return ((double)ms) / 1000;
 }
 
-uint64_t do_run(ObjectStore *store, int attrsize, int numattrs,
-		int run,
-		int transsize, int ops,
-		ostream &out) {
+uint64_t
+do_run(
+    ObjectStore* store,
+    int attrsize,
+    int numattrs,
+    int run,
+    int transsize,
+    int ops,
+    ostream& out)
+{
   ceph::mutex lock = ceph::make_mutex("lock");
   ceph::condition_variable cond;
   int in_flight = 0;
   ObjectStore::Sequencer osr(__func__);
   ObjectStore::Transaction t;
-  map<coll_t, pair<set<string>, ObjectStore::Sequencer*> > collections;
-  for (int i = 0; i < 3*THREADS; ++i) {
-    coll_t coll(spg_t(pg_t(0, i + 1000*run), shard_id_t::NO_SHARD));
+  map<coll_t, pair<set<string>, ObjectStore::Sequencer*>> collections;
+  for (int i = 0; i < 3 * THREADS; ++i) {
+    coll_t coll(spg_t(pg_t(0, i + 1000 * run), shard_id_t::NO_SHARD));
     t.create_collection(coll, 0);
     set<string> objects;
     for (int i = 0; i < transsize; ++i) {
       stringstream obj_str;
       obj_str << i;
-      t.touch(coll,
-	      ghobject_t(hobject_t(sobject_t(obj_str.str(), CEPH_NOSNAP))));
+      t.touch(
+          coll, ghobject_t(hobject_t(sobject_t(obj_str.str(), CEPH_NOSNAP))));
       objects.insert(obj_str.str());
     }
-    collections[coll] = make_pair(objects, new ObjectStore::Sequencer(coll.to_str()));
+    collections[coll] =
+        make_pair(objects, new ObjectStore::Sequencer(coll.to_str()));
   }
   store->queue_transaction(&osr, std::move(t));
 
@@ -115,24 +136,22 @@ uint64_t do_run(ObjectStore *store, int attrsize, int numattrs,
       std::unique_lock l{lock};
       cond.wait(l, [&] { in_flight < THREADS; });
     }
-    ObjectStore::Transaction *t = new ObjectStore::Transaction;
-    map<coll_t, pair<set<string>, ObjectStore::Sequencer*> >::iterator iter =
-      rand_choose(collections);
+    ObjectStore::Transaction* t = new ObjectStore::Transaction;
+    map<coll_t, pair<set<string>, ObjectStore::Sequencer*>>::iterator iter =
+        rand_choose(collections);
     for (set<string>::iterator obj = iter->second.first.begin();
-	 obj != iter->second.first.end();
-	 ++obj) {
+         obj != iter->second.first.end(); ++obj) {
       for (int j = 0; j < numattrs; ++j) {
-	stringstream ss;
-	ss << i << ", " << j << ", " << *obj;
-	t->setattr(iter->first,
-		   ghobject_t(hobject_t(sobject_t(*obj, CEPH_NOSNAP))),
-		   ss.str().c_str(),
-		   bl);
+        stringstream ss;
+        ss << i << ", " << j << ", " << *obj;
+        t->setattr(
+            iter->first, ghobject_t(hobject_t(sobject_t(*obj, CEPH_NOSNAP))),
+            ss.str().c_str(), bl);
       }
     }
-    store->queue_transaction(iter->second.second, std::move(*t),
-			     new OnApplied(&lock, &cond, &in_flight,
-					   t));
+    store->queue_transaction(
+        iter->second.second, std::move(*t),
+        new OnApplied(&lock, &cond, &in_flight, t));
     delete t;
   }
   {
@@ -142,7 +161,9 @@ uint64_t do_run(ObjectStore *store, int attrsize, int numattrs,
   return get_time() - start;
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
     cerr << argv[0] << ": -h or --help for usage" << std::endl;
@@ -153,9 +174,9 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
-  auto cct = global_init(0, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      0, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   std::cerr << "args: " << args << std::endl;
@@ -180,14 +201,10 @@ int main(int argc, char **argv) {
     for (int j = (total_size - i); j >= 0; --j) {
       std::cerr << "starting run " << runs << std::endl;
       ++runs;
-      uint64_t time = do_run(store.get(), (1 << i), (1 << j), runs,
-			     10,
-			     1000, std::cout);
-      std::cout << (1 << i) << "\t"
-		<< (1 << j) << "\t"
-		<< 10 << "\t"
-		<< 1000 << "\t"
-		<< print_time(time) << std::endl;
+      uint64_t time =
+          do_run(store.get(), (1 << i), (1 << j), runs, 10, 1000, std::cout);
+      std::cout << (1 << i) << "\t" << (1 << j) << "\t" << 10 << "\t" << 1000
+                << "\t" << print_time(time) << std::endl;
     }
   }
   store->umount();

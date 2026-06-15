@@ -9,22 +9,26 @@
 namespace rbd {
 namespace mirror {
 
-class BaseRequest  {
+class BaseRequest {
 public:
-  BaseRequest(Context *on_finish) : m_on_finish(on_finish) {
-  }
+  BaseRequest(Context* on_finish) :
+    m_on_finish(on_finish)
+  {}
+
   virtual ~BaseRequest() {}
 
   virtual void send() = 0;
 
 protected:
-  virtual void finish(int r) {
+  virtual void
+  finish(int r)
+  {
     m_on_finish->complete(r);
     delete this;
   }
 
 private:
-  Context *m_on_finish;
+  Context* m_on_finish;
 };
 
 } // namespace mirror

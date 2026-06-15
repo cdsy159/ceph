@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,34 +16,40 @@
 #ifndef CEPH_MDS_ETABLECLIENT_H
 #define CEPH_MDS_ETABLECLIENT_H
 
+#include "../LogEvent.h"
+#include "../mds_table_types.h"
 #include "common/config.h"
 #include "include/types.h"
-
-#include "../mds_table_types.h"
-#include "../LogEvent.h"
 
 struct ETableClient : public LogEvent {
   __u16 table;
   __s16 op;
   version_t tid;
 
-  ETableClient() : LogEvent(EVENT_TABLECLIENT), table(0), op(0), tid(0) { }
+  ETableClient() :
+    LogEvent(EVENT_TABLECLIENT), table(0), op(0), tid(0)
+  {}
+
   ETableClient(int t, int o, version_t ti) :
-    LogEvent(EVENT_TABLECLIENT),
-    table(t), op(o), tid(ti) { }
+    LogEvent(EVENT_TABLECLIENT), table(t), op(o), tid(ti)
+  {}
 
   void encode(bufferlist& bl, uint64_t features) const override;
   void decode(bufferlist::const_iterator& bl) override;
-  void dump(Formatter *f) const override;
+  void dump(Formatter* f) const override;
   static std::list<ETableClient> generate_test_instances();
 
-  void print(std::ostream& out) const override {
-    out << "ETableClient " << get_mdstable_name(table) << " " << get_mdstableserver_opname(op);
-    if (tid) out << " tid " << tid;
-  }  
+  void
+  print(std::ostream& out) const override
+  {
+    out << "ETableClient " << get_mdstable_name(table) << " "
+        << get_mdstableserver_opname(op);
+    if (tid)
+      out << " tid " << tid;
+  }
 
   //void update_segment();
-  void replay(MDSRank *mds) override;  
+  void replay(MDSRank* mds) override;
 };
 WRITE_CLASS_ENCODER_FEATURES(ETableClient)
 

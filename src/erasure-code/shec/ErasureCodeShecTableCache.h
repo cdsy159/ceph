@@ -26,6 +26,7 @@
 #include "erasure-code/ErasureCodeInterface.h"
 // -----------------------------------------------------------------------------
 #include <list>
+
 // -----------------------------------------------------------------------------
 
 class ErasureCodeShecTableCache {
@@ -37,18 +38,22 @@ class ErasureCodeShecTableCache {
   // ---------------------------------------------------------------------------
 
   class DecodingCacheParameter {
-   public:
-    int* decoding_matrix;  // size: k*k
-    int* dm_row;  // size: k
-    int* dm_column;  // size: k
-    int* minimum;  // size: k+m
-    DecodingCacheParameter() {
+  public:
+    int* decoding_matrix; // size: k*k
+    int* dm_row; // size: k
+    int* dm_column; // size: k
+    int* minimum; // size: k+m
+
+    DecodingCacheParameter()
+    {
       decoding_matrix = nullptr;
       dm_row = nullptr;
       dm_column = nullptr;
       minimum = nullptr;
     }
-    ~DecodingCacheParameter() {
+
+    ~DecodingCacheParameter()
+    {
       if (decoding_matrix) {
         delete[] decoding_matrix;
       }
@@ -64,45 +69,56 @@ class ErasureCodeShecTableCache {
     }
   };
 
- public:
-
+public:
   static const int decoding_tables_lru_length = 10000;
-  typedef std::pair<std::list<uint64_t>::iterator,
-                    DecodingCacheParameter> lru_entry_t;
-  typedef std::map< int, int** > codec_table_t;
-  typedef std::map< int, codec_table_t > codec_tables_t__;
-  typedef std::map< int, codec_tables_t__ > codec_tables_t_;
-  typedef std::map< int, codec_tables_t_ > codec_tables_t;
-  typedef std::map< int, codec_tables_t > codec_technique_tables_t;
+  typedef std::pair<std::list<uint64_t>::iterator, DecodingCacheParameter>
+      lru_entry_t;
+  typedef std::map<int, int**> codec_table_t;
+  typedef std::map<int, codec_table_t> codec_tables_t__;
+  typedef std::map<int, codec_tables_t__> codec_tables_t_;
+  typedef std::map<int, codec_tables_t_> codec_tables_t;
+  typedef std::map<int, codec_tables_t> codec_technique_tables_t;
   // int** matrix = codec_technique_tables_t[technique][k][m][c][w]
-  
-  typedef std::map< uint64_t, lru_entry_t > lru_map_t;
-  typedef std::list< uint64_t > lru_list_t;
 
-  ErasureCodeShecTableCache()  = default;
+  typedef std::map<uint64_t, lru_entry_t> lru_map_t;
+  typedef std::list<uint64_t> lru_list_t;
+
+  ErasureCodeShecTableCache() = default;
   virtual ~ErasureCodeShecTableCache();
   // mutex used to protect modifications in encoding/decoding table maps
   ceph::mutex codec_tables_guard = ceph::make_mutex("shec-lru-cache");
-  
-  bool getDecodingTableFromCache(int* matrix,
-                                 int* dm_row, int* dm_column,
-                                 int* minimum,
-                                 int technique,
-                                 int k, int m, int c, int w,
-                                 int* want, int* avails);
 
-  void putDecodingTableToCache(int* matrix,
-                               int* dm_row, int* dm_column,
-                               int* minimum,
-                               int technique,
-                               int k, int m, int c, int w,
-                               int* want, int* avails);
+  bool getDecodingTableFromCache(
+      int* matrix,
+      int* dm_row,
+      int* dm_column,
+      int* minimum,
+      int technique,
+      int k,
+      int m,
+      int c,
+      int w,
+      int* want,
+      int* avails);
+
+  void putDecodingTableToCache(
+      int* matrix,
+      int* dm_row,
+      int* dm_column,
+      int* minimum,
+      int technique,
+      int k,
+      int m,
+      int c,
+      int w,
+      int* want,
+      int* avails);
 
   int** getEncodingTable(int technique, int k, int m, int c, int w);
   int** getEncodingTableNoLock(int technique, int k, int m, int c, int w);
   int* setEncodingTable(int technique, int k, int m, int c, int w, int*);
-  
- private:
+
+private:
   // encoding table accessed via table[matrix][k][m][c][w]
   // decoding table cache accessed via map[matrixtype]
   // decoding table lru list accessed via list[matrixtype]
@@ -112,8 +128,8 @@ class ErasureCodeShecTableCache {
 
   lru_map_t* getDecodingTables(int technique);
   lru_list_t* getDecodingTablesLru(int technique);
-  uint64_t getDecodingCacheSignature(int k, int m, int c, int w,
-                                     int *want, int *avails);
+  uint64_t
+  getDecodingCacheSignature(int k, int m, int c, int w, int* want, int* avails);
 
   ceph::mutex* getLock();
 };

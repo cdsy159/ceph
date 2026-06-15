@@ -16,13 +16,15 @@
 
 #include <experimental/iterator>
 
-#include "MgrSession.h"
-#include "include/stringify.h"
-#include "include/str_map.h"
-#include "common/Clock.h" // for ceph_clock_now()
 #include "common/debug.h"
+
+#include "common/Clock.h" // for ceph_clock_now()
 #include "common/Formatter.h"
+#include "include/str_map.h"
+#include "include/stringify.h"
 #include "messages/MMgrReport.h"
+
+#include "MgrSession.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
@@ -38,14 +40,14 @@ using std::string;
 using std::stringstream;
 using std::unique_ptr;
 
-DaemonState::DaemonState(PerfCounterTypes &types_)
-    : perf_counters(types_)
-{
-}
+DaemonState::DaemonState(PerfCounterTypes& types_) :
+  perf_counters(types_)
+{}
 
 DaemonState::~DaemonState() noexcept = default;
 
-void DeviceState::set_metadata(map<string,string>&& m)
+void
+DeviceState::set_metadata(map<string, string>&& m)
 {
   metadata = std::move(m);
   auto p = metadata.find("life_expectancy_min");
@@ -66,7 +68,8 @@ void DeviceState::set_metadata(map<string,string>&& m)
   }
 }
 
-void DeviceState::set_life_expectancy(utime_t from, utime_t to, utime_t now)
+void
+DeviceState::set_life_expectancy(utime_t from, utime_t to, utime_t now)
 {
   life_expectancy = make_pair(from, to);
   life_expectancy_stamp = now;
@@ -87,7 +90,8 @@ void DeviceState::set_life_expectancy(utime_t from, utime_t to, utime_t now)
   }
 }
 
-void DeviceState::rm_life_expectancy()
+void
+DeviceState::rm_life_expectancy()
 {
   life_expectancy = make_pair(utime_t(), utime_t());
   life_expectancy_stamp = utime_t();
@@ -96,7 +100,8 @@ void DeviceState::rm_life_expectancy()
   metadata.erase("life_expectancy_stamp");
 }
 
-void DeviceState::set_wear_level(float wear)
+void
+DeviceState::set_wear_level(float wear)
 {
   wear_level = wear;
   if (wear >= 0) {
@@ -106,7 +111,8 @@ void DeviceState::set_wear_level(float wear)
   }
 }
 
-string DeviceState::get_life_expectancy_str(utime_t now) const
+string
+DeviceState::get_life_expectancy_str(utime_t now) const
 {
   if (life_expectancy.first == utime_t()) {
     return string();
@@ -127,7 +133,8 @@ string DeviceState::get_life_expectancy_str(utime_t now) const
   return a + " to " + b;
 }
 
-void DeviceState::dump(Formatter *f) const
+void
+DeviceState::dump(Formatter* f) const
 {
   f->dump_string("devid", devid);
   f->open_array_section("location");
@@ -147,70 +154,72 @@ void DeviceState::dump(Formatter *f) const
   if (life_expectancy.first != utime_t()) {
     f->dump_stream("life_expectancy_min") << life_expectancy.first;
     f->dump_stream("life_expectancy_max") << life_expectancy.second;
-    f->dump_stream("life_expectancy_stamp")
-      << life_expectancy_stamp;
+    f->dump_stream("life_expectancy_stamp") << life_expectancy_stamp;
   }
   if (wear_level >= 0) {
     f->dump_float("wear_level", wear_level);
   }
 }
 
-void DeviceState::print(ostream& out) const
+void
+DeviceState::print(ostream& out) const
 {
   out << "device " << devid << "\n";
   for (auto& i : attachments) {
     out << "attachment " << std::get<0>(i) << " " << std::get<1>(i) << " "
-	<< std::get<2>(i) << "\n";
+        << std::get<2>(i) << "\n";
     out << "\n";
   }
-  std::copy(std::begin(daemons), std::end(daemons),
-            std::experimental::make_ostream_joiner(out, ","));
+  std::copy(
+      std::begin(daemons), std::end(daemons),
+      std::experimental::make_ostream_joiner(out, ","));
   out << '\n';
   if (life_expectancy.first != utime_t()) {
     out << "life_expectancy " << life_expectancy.first << " to "
-	<< life_expectancy.second
-	<< " (as of " << life_expectancy_stamp << ")\n";
+        << life_expectancy.second << " (as of " << life_expectancy_stamp
+        << ")\n";
   }
   if (wear_level >= 0) {
     out << "wear_level " << wear_level << "\n";
   }
 }
 
-void DaemonState::set_metadata(const std::map<std::string,std::string>& m)
+void
+DaemonState::set_metadata(const std::map<std::string, std::string>& m)
 {
   devices.clear();
   devices_bypath.clear();
   metadata = m;
   if (auto found = m.find("device_ids"); found != m.end()) {
     auto& device_ids = found->second;
-    std::map<std::string,std::string> paths; // devname -> id or path
+    std::map<std::string, std::string> paths; // devname -> id or path
     if (auto found = m.find("device_paths"); found != m.end()) {
       get_str_map(found->second, &paths, ",; ");
     }
     for_each_pair(
-      device_ids, ",; ",
-      [&paths, this](std::string_view devname, std::string_view id) {
-	// skip blank ids
-	if (id.empty()) {
-	  return;
-	}
-	// id -> devname
-	devices.emplace(id, devname);
-	if (auto path = paths.find(std::string(id)); path != paths.end()) {
-	  // id -> path
-	  devices_bypath.emplace(id, path->second);
-	}
-      });
+        device_ids, ",; ",
+        [&paths, this](std::string_view devname, std::string_view id) {
+          // skip blank ids
+          if (id.empty()) {
+            return;
+          }
+          // id -> devname
+          devices.emplace(id, devname);
+          if (auto path = paths.find(std::string(id)); path != paths.end()) {
+            // id -> path
+            devices_bypath.emplace(id, path->second);
+          }
+        });
   }
   if (auto found = m.find("hostname"); found != m.end()) {
     hostname = found->second;
   }
 }
 
-const std::map<std::string,std::string>& DaemonState::_get_config_defaults()
+const std::map<std::string, std::string>&
+DaemonState::_get_config_defaults()
 {
-  if (config_defaults.empty() &&
-      config_defaults_bl.length()) {
+  if (config_defaults.empty() && config_defaults_bl.length()) {
     auto p = config_defaults_bl.cbegin();
     try {
       decode(config_defaults, p);
@@ -223,13 +232,15 @@ const std::map<std::string,std::string>& DaemonState::_get_config_defaults()
 DaemonStateIndex::DaemonStateIndex() = default;
 DaemonStateIndex::~DaemonStateIndex() = default;
 
-void DaemonStateIndex::insert(DaemonStatePtr dm)
+void
+DaemonStateIndex::insert(DaemonStatePtr dm)
 {
   std::unique_lock l{lock};
   _insert(dm);
 }
 
-void DaemonStateIndex::_insert(DaemonStatePtr dm)
+void
+DaemonStateIndex::_insert(DaemonStatePtr dm)
 {
   if (all.count(dm->key)) {
     _erase(dm->key);
@@ -245,13 +256,14 @@ void DaemonStateIndex::_insert(DaemonStatePtr dm)
     if (p != dm->devices_bypath.end()) {
       d->attachments.insert(std::make_tuple(dm->hostname, i.second, p->second));
     } else {
-      d->attachments.insert(std::make_tuple(dm->hostname, i.second,
-					    std::string()));
+      d->attachments.insert(
+          std::make_tuple(dm->hostname, i.second, std::string()));
     }
   }
 }
 
-void DaemonStateIndex::_erase(const DaemonKey& dmk)
+void
+DaemonStateIndex::_erase(const DaemonKey& dmk)
 {
   ceph_assert(ceph_mutex_is_wlocked(lock));
 
@@ -274,7 +286,7 @@ void DaemonStateIndex::_erase(const DaemonKey& dmk)
     }
   }
 
-  auto &server_collection = by_server[dm->hostname];
+  auto& server_collection = by_server[dm->hostname];
   server_collection.erase(dm->key);
   if (server_collection.empty()) {
     by_server.erase(dm->hostname);
@@ -283,8 +295,8 @@ void DaemonStateIndex::_erase(const DaemonKey& dmk)
   all.erase(to_erase);
 }
 
-DaemonStateCollection DaemonStateIndex::get_by_service(
-  const std::string& svc) const
+DaemonStateCollection
+DaemonStateIndex::get_by_service(const std::string& svc) const
 {
   std::shared_lock l{lock};
 
@@ -299,8 +311,8 @@ DaemonStateCollection DaemonStateIndex::get_by_service(
   return result;
 }
 
-DaemonStateCollection DaemonStateIndex::get_by_server(
-  const std::string &hostname) const
+DaemonStateCollection
+DaemonStateIndex::get_by_server(const std::string& hostname) const
 {
   std::shared_lock l{lock};
 
@@ -311,14 +323,16 @@ DaemonStateCollection DaemonStateIndex::get_by_server(
   }
 }
 
-bool DaemonStateIndex::exists(const DaemonKey &key) const
+bool
+DaemonStateIndex::exists(const DaemonKey& key) const
 {
   std::shared_lock l{lock};
 
   return all.count(key) > 0;
 }
 
-DaemonStatePtr DaemonStateIndex::get(const DaemonKey &key)
+DaemonStatePtr
+DaemonStateIndex::get(const DaemonKey& key)
 {
   std::shared_lock l{lock};
 
@@ -330,28 +344,32 @@ DaemonStatePtr DaemonStateIndex::get(const DaemonKey &key)
   }
 }
 
-void DaemonStateIndex::rm(const DaemonKey &key)
+void
+DaemonStateIndex::rm(const DaemonKey& key)
 {
   std::unique_lock l{lock};
   _rm(key);
 }
 
-void DaemonStateIndex::_rm(const DaemonKey &key)
+void
+DaemonStateIndex::_rm(const DaemonKey& key)
 {
   if (all.count(key)) {
     _erase(key);
   }
 }
 
-void DaemonStateIndex::cull(const std::string& svc_name,
-			    const std::set<std::string>& names_exist)
+void
+DaemonStateIndex::cull(
+    const std::string& svc_name,
+    const std::set<std::string>& names_exist)
 {
   std::vector<string> victims;
 
   std::unique_lock l{lock};
   auto begin = all.lower_bound({svc_name, ""});
   auto end = all.end();
-  for (auto &i = begin; i != end; ++i) {
+  for (auto& i = begin; i != end; ++i) {
     const auto& daemon_key = i->first;
     if (daemon_key.type != svc_name)
       break;
@@ -360,27 +378,27 @@ void DaemonStateIndex::cull(const std::string& svc_name,
     }
   }
 
-  for (auto &i : victims) {
+  for (auto& i : victims) {
     DaemonKey daemon_key{svc_name, i};
     dout(4) << "Removing data for " << daemon_key << dendl;
     _erase(daemon_key);
   }
 }
 
-void DaemonStateIndex::cull_services(const std::set<std::string>& types_exist)
+void
+DaemonStateIndex::cull_services(const std::set<std::string>& types_exist)
 {
   std::set<DaemonKey> victims;
 
   std::unique_lock l{lock};
   for (auto it = all.begin(); it != all.end(); ++it) {
     const auto& daemon_key = it->first;
-    if (it->second->service_daemon &&
-        types_exist.count(daemon_key.type) == 0) {
+    if (it->second->service_daemon && types_exist.count(daemon_key.type) == 0) {
       victims.insert(daemon_key);
     }
   }
 
-  for (auto &i : victims) {
+  for (auto& i : victims) {
     dout(4) << "Removing data for " << i << dendl;
     _erase(i);
   }

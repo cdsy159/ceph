@@ -13,34 +13,36 @@
 *
 */
 
-#include "cross_process_sem.h"
-#include "include/rados/librados.h"
 #include "st_rados_delete_objs.h"
-#include "systest_runnable.h"
-#include "systest_settings.h"
 
 #include <errno.h>
 
-StRadosDeleteObjs::StRadosDeleteObjs(int argc, const char **argv,
-				     CrossProcessSem *setup_sem,
-				     CrossProcessSem *deleted_sem,
-				     int num_objs,
-				     const std::string &pool_name,
-				     const std::string &suffix)
-  : SysTestRunnable(argc, argv),
-    m_setup_sem(setup_sem),
-    m_deleted_sem(deleted_sem),
-    m_num_objs(num_objs),
-    m_pool_name(pool_name),
-    m_suffix(suffix)
-{
-}
+#include "include/rados/librados.h"
 
-StRadosDeleteObjs::~StRadosDeleteObjs()
-{
-}
+#include "cross_process_sem.h"
+#include "systest_runnable.h"
+#include "systest_settings.h"
 
-int StRadosDeleteObjs::run()
+StRadosDeleteObjs::StRadosDeleteObjs(
+    int argc,
+    const char** argv,
+    CrossProcessSem* setup_sem,
+    CrossProcessSem* deleted_sem,
+    int num_objs,
+    const std::string& pool_name,
+    const std::string& suffix) :
+  SysTestRunnable(argc, argv),
+  m_setup_sem(setup_sem),
+  m_deleted_sem(deleted_sem),
+  m_num_objs(num_objs),
+  m_pool_name(pool_name),
+  m_suffix(suffix)
+{}
+
+StRadosDeleteObjs::~StRadosDeleteObjs() {}
+
+int
+StRadosDeleteObjs::run()
 {
   rados_t cl;
   RETURN1_IF_NONZERO(rados_create(&cl, NULL));

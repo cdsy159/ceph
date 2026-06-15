@@ -12,8 +12,9 @@
  *
  */
 
-#include <iostream>
 #include <errno.h>
+
+#include <iostream>
 #include <set>
 #include <sstream>
 #include <string>
@@ -25,7 +26,8 @@
 
 using namespace librados;
 
-TEST(ClsNumOps, Add) {
+TEST(ClsNumOps, Add)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -120,7 +122,8 @@ TEST(ClsNumOps, Add) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsNumOps, Sub) {
+TEST(ClsNumOps, Sub)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -209,7 +212,8 @@ TEST(ClsNumOps, Sub) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsNumOps, Mul) {
+TEST(ClsNumOps, Mul)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -312,7 +316,8 @@ TEST(ClsNumOps, Mul) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsNumOps, Div) {
+TEST(ClsNumOps, Div)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));

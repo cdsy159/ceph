@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -27,31 +27,50 @@ public:
   ceph::buffer::list client_map;
 
 protected:
-  MExportDir() : MMDSOp{MSG_MDS_EXPORTDIR} {}
+  MExportDir() :
+    MMDSOp{MSG_MDS_EXPORTDIR}
+  {}
+
   MExportDir(dirfrag_t df, uint64_t tid) :
-    MMDSOp{MSG_MDS_EXPORTDIR}, dirfrag(df) {
+    MMDSOp{MSG_MDS_EXPORTDIR}, dirfrag(df)
+  {
     set_tid(tid);
   }
+
   ~MExportDir() final {}
 
 public:
-  std::string_view get_type_name() const override { return "Ex"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "Ex";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     o << "export(" << dirfrag << ")";
   }
 
-  void add_export(dirfrag_t df) { 
-    bounds.push_back(df); 
+  void
+  add_export(dirfrag_t df)
+  {
+    bounds.push_back(df);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(dirfrag, payload);
     encode(bounds, payload);
     encode(export_data, payload);
     encode(client_map, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(dirfrag, p);
@@ -59,10 +78,11 @@ public:
     decode(export_data, p);
     decode(client_map, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend MURef<T> crimson::make_message(Args&&... args);
 };
 

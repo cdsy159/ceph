@@ -17,8 +17,9 @@
 #ifndef CEPH_MOSDBACKOFF_H
 #define CEPH_MOSDBACKOFF_H
 
-#include "MOSDFastDispatchOp.h"
 #include "osd/osd_types.h"
+
+#include "MOSDFastDispatchOp.h"
 
 class MOSDBackoff : public MOSDFastDispatchOp {
 public:
@@ -27,30 +28,45 @@ public:
 
   spg_t pgid;
   epoch_t map_epoch = 0;
-  uint8_t op = 0;           ///< CEPH_OSD_BACKOFF_OP_*
-  uint64_t id = 0;          ///< unique id within this session
-  hobject_t begin, end;     ///< [) range to block, unless ==, block single obj
+  uint8_t op = 0; ///< CEPH_OSD_BACKOFF_OP_*
+  uint64_t id = 0; ///< unique id within this session
+  hobject_t begin, end; ///< [) range to block, unless ==, block single obj
 
-  spg_t get_spg() const override {
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
-  epoch_t get_map_epoch() const override {
+
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
 
-  MOSDBackoff()
-    : MOSDFastDispatchOp{CEPH_MSG_OSD_BACKOFF, HEAD_VERSION, COMPAT_VERSION} {}
-  MOSDBackoff(spg_t pgid_, epoch_t ep, uint8_t op_, uint64_t id_,
-	      hobject_t begin_, hobject_t end_)
-    : MOSDFastDispatchOp{CEPH_MSG_OSD_BACKOFF, HEAD_VERSION, COMPAT_VERSION},
-      pgid(pgid_),
-      map_epoch(ep),
-      op(op_),
-      id(id_),
-      begin(begin_),
-      end(end_) { }
+  MOSDBackoff() :
+    MOSDFastDispatchOp{CEPH_MSG_OSD_BACKOFF, HEAD_VERSION, COMPAT_VERSION}
+  {}
 
-  void encode_payload(uint64_t features) override {
+  MOSDBackoff(
+      spg_t pgid_,
+      epoch_t ep,
+      uint8_t op_,
+      uint64_t id_,
+      hobject_t begin_,
+      hobject_t end_) :
+    MOSDFastDispatchOp{CEPH_MSG_OSD_BACKOFF, HEAD_VERSION, COMPAT_VERSION},
+    pgid(pgid_),
+    map_epoch(ep),
+    op(op_),
+    id(id_),
+    begin(begin_),
+    end(end_)
+  {}
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(pgid, payload);
     encode(map_epoch, payload);
@@ -60,7 +76,9 @@ public:
     encode(end, payload);
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(pgid, p);
@@ -71,16 +89,22 @@ public:
     decode(end, p);
   }
 
-  std::string_view get_type_name() const override { return "osd_backoff"; }
-
-  void print(std::ostream& out) const override {
-    out << "osd_backoff(" << pgid << " " << ceph_osd_backoff_op_name(op)
-	<< " id " << id
-	<< " [" << begin << "," << end << ")"
-	<< " e" << map_epoch << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "osd_backoff";
   }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "osd_backoff(" << pgid << " " << ceph_osd_backoff_op_name(op)
+        << " id " << id << " [" << begin << "," << end << ")" << " e"
+        << map_epoch << ")";
+  }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -27,43 +27,42 @@
 #endif
 
 #include <iostream>
-#include <string>
 #include <map>
+#include <string>
 
-#include <boost/scoped_ptr.hpp>
+#include "common/debug.h"
+
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
+#include <boost/scoped_ptr.hpp>
 
-
-#include "osd/osd_types.h"
-#include "osdc/Objecter.h"
+#include "auth/AuthAuthorizeHandler.h"
+#include "auth/KeyRing.h"
+#include "common/JSONFormatter.h"
+#include "common/LogEntry.h"
+#include "common/Timer.h"
+#include "common/async/context_pool.h"
+#include "common/ceph_argparse.h"
+#include "common/ceph_mutex.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "common/strtol.h"
+#include "global/global_init.h"
+#include "global/signal_handler.h"
+#include "include/ceph_assert.h"
+#include "include/uuid.h"
+#include "messages/MLog.h"
+#include "messages/MOSDAlive.h"
+#include "messages/MOSDBoot.h"
+#include "messages/MOSDMap.h"
+#include "messages/MOSDPGRemove.h"
+#include "messages/MOSDPGTemp.h"
+#include "messages/MPGStats.h"
 #include "mon/MonClient.h"
 #include "msg/Dispatcher.h"
 #include "msg/Messenger.h"
-#include "common/async/context_pool.h"
-#include "common/Timer.h"
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "global/signal_handler.h"
-#include "common/config.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include "common/ceph_mutex.h"
-#include "common/JSONFormatter.h"
-#include "common/strtol.h"
-#include "common/LogEntry.h"
-#include "auth/KeyRing.h"
-#include "auth/AuthAuthorizeHandler.h"
-#include "include/uuid.h"
-#include "include/ceph_assert.h"
-
-#include "messages/MOSDBoot.h"
-#include "messages/MOSDAlive.h"
-#include "messages/MOSDPGRemove.h"
-#include "messages/MOSDMap.h"
-#include "messages/MPGStats.h"
-#include "messages/MLog.h"
-#include "messages/MOSDPGTemp.h"
+#include "osd/osd_types.h"
+#include "osdc/Objecter.h"
 
 using namespace std;
 
@@ -71,18 +70,19 @@ using namespace std;
 #define dout_subsys ceph_subsys_
 #undef dout_prefix
 #define dout_prefix _prefix(_dout, get_name())
-static ostream& _prefix(std::ostream *_dout, const string &n) {
+
+static ostream&
+_prefix(std::ostream* _dout, const string& n)
+{
   return *_dout << " stub(" << n << ") ";
 }
-
 
 typedef boost::mt11213b rngen_t;
 typedef boost::scoped_ptr<Messenger> MessengerRef;
 typedef boost::scoped_ptr<Objecter> ObjecterRef;
 
-class TestStub : public Dispatcher
-{
- protected:
+class TestStub : public Dispatcher {
+protected:
   MessengerRef messenger;
   ceph::async::io_context_pool poolctx;
   MonClient monc;
@@ -95,29 +95,40 @@ class TestStub : public Dispatcher
   double tick_seconds;
 
   struct C_Tick : public Context {
-    TestStub *s;
-    explicit C_Tick(TestStub *stub) : s(stub) {}
-    void finish(int r) override {
+    TestStub* s;
+
+    explicit C_Tick(TestStub* stub) :
+      s(stub)
+    {}
+
+    void
+    finish(int r) override
+    {
       generic_dout(20) << "C_Tick::" << __func__ << dendl;
       if (r == -ECANCELED) {
-	generic_dout(20) << "C_Tick::" << __func__
-			<< " shutdown" << dendl;
-	return;
+        generic_dout(20) << "C_Tick::" << __func__ << " shutdown" << dendl;
+        return;
       }
       s->tick();
     }
   };
 
-  bool ms_dispatch(Message *m) override = 0;
-  void ms_handle_connect(Connection *con) override = 0;
-  void ms_handle_remote_reset(Connection *con) override = 0;
+  bool ms_dispatch(Message* m) override = 0;
+  void ms_handle_connect(Connection* con) override = 0;
+  void ms_handle_remote_reset(Connection* con) override = 0;
   virtual int _shutdown() = 0;
+
   // courtesy method to be implemented by the stubs at their
   // own discretion
-  virtual void _tick() { }
+  virtual void
+  _tick()
+  {}
+
   // different stubs may have different needs; if a stub needs
   // to tick, then it must call this function.
-  void start_ticking(double t=1.0) {
+  void
+  start_ticking(double t = 1.0)
+  {
     tick_seconds = t;
     if (t <= 0) {
       stop_ticking();
@@ -126,6 +137,7 @@ class TestStub : public Dispatcher
     dout(20) << __func__ << " adding tick timer" << dendl;
     timer.add_event_after(tick_seconds, new C_Tick(this));
   }
+
   // If we have a function to start ticking that the stubs can
   // use at their own discretion, then we should also have a
   // function to disable said ticking to be used the same way.
@@ -133,18 +145,21 @@ class TestStub : public Dispatcher
   // For simplicity's sake, we don't cancel the tick right off
   // the bat; instead, we wait for the next tick to kick in and
   // disable itself.
-  void stop_ticking() {
+  void
+  stop_ticking()
+  {
     dout(20) << __func__ << " disable tick" << dendl;
     tick_seconds = 0;
   }
 
- public:
-  void tick() {
+public:
+  void
+  tick()
+  {
     std::cout << __func__ << std::endl;
     if (do_shutdown || (tick_seconds <= 0)) {
       std::cout << __func__ << " "
-		<< (do_shutdown ? "shutdown" : "stop ticking")
-		<< std::endl;
+                << (do_shutdown ? "shutdown" : "stop ticking") << std::endl;
       return;
     }
     _tick();
@@ -154,13 +169,15 @@ class TestStub : public Dispatcher
   virtual const string get_name() = 0;
   virtual int init() = 0;
 
-  virtual int shutdown() {
+  virtual int
+  shutdown()
+  {
     std::lock_guard l{lock};
     do_shutdown = true;
     int r = _shutdown();
     if (r < 0) {
-      dout(10) << __func__ << " error shutting down: "
-	       << cpp_strerror(-r) << dendl;
+      dout(10) << __func__ << " error shutting down: " << cpp_strerror(-r)
+               << dendl;
       return r;
     }
     monc.shutdown();
@@ -170,31 +187,37 @@ class TestStub : public Dispatcher
     return 0;
   }
 
-  virtual void print(ostream &out) {
+  virtual void
+  print(ostream& out)
+  {
     out << "stub(" << get_name() << ")";
   }
 
-  void wait() {
+  void
+  wait()
+  {
     if (messenger != NULL)
       messenger->wait();
   }
 
-  TestStub(CephContext *cct, string who)
-    : Dispatcher(cct),
-      monc(cct, poolctx),
-      lock(ceph::make_mutex(who.append("::lock"))),
-      timer(cct, lock),
-      do_shutdown(false),
-      tick_seconds(0.0) { }
+  TestStub(CephContext* cct, string who) :
+    Dispatcher(cct),
+    monc(cct, poolctx),
+    lock(ceph::make_mutex(who.append("::lock"))),
+    timer(cct, lock),
+    do_shutdown(false),
+    tick_seconds(0.0)
+  {}
 };
 
-class ClientStub : public TestStub
-{
+class ClientStub : public TestStub {
   ObjecterRef objecter;
   rngen_t gen;
 
- protected:
-  bool ms_dispatch(Message *m) override {
+protected:
+  bool
+  ms_dispatch(Message* m) override
+  {
     std::lock_guard l{lock};
     dout(1) << "client::" << __func__ << " " << *m << dendl;
     switch (m->get_type()) {
@@ -206,53 +229,66 @@ class ClientStub : public TestStub
     return true;
   }
 
-  void ms_handle_connect(Connection *con) override {
+  void
+  ms_handle_connect(Connection* con) override
+  {
     dout(1) << "client::" << __func__ << " " << con << dendl;
     std::lock_guard l{lock};
     objecter->ms_handle_connect(con);
   }
 
-  void ms_handle_remote_reset(Connection *con) override {
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {
     dout(1) << "client::" << __func__ << " " << con << dendl;
     std::lock_guard l{lock};
     objecter->ms_handle_remote_reset(con);
   }
 
-  bool ms_handle_reset(Connection *con) override {
+  bool
+  ms_handle_reset(Connection* con) override
+  {
     dout(1) << "client::" << __func__ << dendl;
     std::lock_guard l{lock};
     objecter->ms_handle_reset(con);
     return false;
   }
 
-  bool ms_handle_refused(Connection *con) override {
+  bool
+  ms_handle_refused(Connection* con) override
+  {
     return false;
   }
 
-  const string get_name() override {
+  const string
+  get_name() override
+  {
     return "client";
   }
 
-  int _shutdown() override {
+  int
+  _shutdown() override
+  {
     if (objecter) {
       objecter->shutdown();
     }
     return 0;
   }
 
- public:
-  explicit ClientStub(CephContext *cct)
-    : TestStub(cct, "client"),
-      gen((int) time(NULL))
-  { }
+public:
+  explicit ClientStub(CephContext* cct) :
+    TestStub(cct, "client"), gen((int)time(NULL))
+  {}
 
-  int init() override {
+  int
+  init() override
+  {
     int err;
     poolctx.start(1);
     err = monc.build_initial_monmap();
     if (err < 0) {
-      derr << "ClientStub::" << __func__ << " ERROR: build initial monmap: "
-	   << cpp_strerror(err) << dendl;
+      derr << "ClientStub::" << __func__
+           << " ERROR: build initial monmap: " << cpp_strerror(err) << dendl;
       return err;
     }
 
@@ -260,9 +296,9 @@ class ClientStub : public TestStub
     ceph_assert(messenger.get() != NULL);
 
     messenger->set_default_policy(
-	Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
+        Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
     dout(10) << "ClientStub::" << __func__ << " starting messenger at "
-	    << messenger->get_myaddrs() << dendl;
+             << messenger->get_myaddrs() << dendl;
 
     objecter.reset(new Objecter(cct, messenger.get(), &monc, poolctx));
     ceph_assert(objecter.get() != NULL);
@@ -272,19 +308,19 @@ class ClientStub : public TestStub
     objecter->init();
     messenger->add_dispatcher_head(this);
     messenger->start();
-    monc.set_want_keys(CEPH_ENTITY_TYPE_MON|CEPH_ENTITY_TYPE_OSD);
+    monc.set_want_keys(CEPH_ENTITY_TYPE_MON | CEPH_ENTITY_TYPE_OSD);
 
     err = monc.init();
     if (err < 0) {
-      derr << "ClientStub::" << __func__ << " monc init error: "
-	   << cpp_strerror(-err) << dendl;
+      derr << "ClientStub::" << __func__
+           << " monc init error: " << cpp_strerror(-err) << dendl;
       return err;
     }
 
     err = monc.authenticate();
     if (err < 0) {
-      derr << "ClientStub::" << __func__ << " monc authenticate error: "
-	   << cpp_strerror(-err) << dendl;
+      derr << "ClientStub::" << __func__
+           << " monc authenticate error: " << cpp_strerror(-err) << dendl;
       monc.shutdown();
       return err;
     }
@@ -306,14 +342,13 @@ class ClientStub : public TestStub
   }
 };
 
-class OSDStub : public TestStub
-{
+class OSDStub : public TestStub {
   int whoami;
   OSDSuperblock sb;
   OSDMap osdmap;
   osd_stat_t osd_stat;
 
-  map<pg_t,pg_stat_t> pgs;
+  map<pg_t, pg_stat_t> pgs;
   set<pg_t> pgs_changes;
 
   rngen_t gen;
@@ -323,62 +358,68 @@ class OSDStub : public TestStub
   static const double STUB_BOOT_INTERVAL;
 
 
- public:
-
+public:
   enum {
-    STUB_MON_OSD_ALIVE	  = 1,
-    STUB_MON_OSD_PGTEMP	  = 2,
-    STUB_MON_OSD_FAILURE  = 3,
-    STUB_MON_OSD_PGSTATS  = 4,
-    STUB_MON_LOG	  = 5,
+    STUB_MON_OSD_ALIVE = 1,
+    STUB_MON_OSD_PGTEMP = 2,
+    STUB_MON_OSD_FAILURE = 3,
+    STUB_MON_OSD_PGSTATS = 4,
+    STUB_MON_LOG = 5,
 
-    STUB_MON_OSD_FIRST	  = STUB_MON_OSD_ALIVE,
-    STUB_MON_OSD_LAST	  = STUB_MON_LOG,
+    STUB_MON_OSD_FIRST = STUB_MON_OSD_ALIVE,
+    STUB_MON_OSD_LAST = STUB_MON_LOG,
   };
 
   struct C_CreatePGs : public Context {
-    OSDStub *s;
-    explicit C_CreatePGs(OSDStub *stub) : s(stub) {}
-    void finish(int r) override {
+    OSDStub* s;
+
+    explicit C_CreatePGs(OSDStub* stub) :
+      s(stub)
+    {}
+
+    void
+    finish(int r) override
+    {
       if (r == -ECANCELED) {
-	generic_dout(20) << "C_CreatePGs::" << __func__
-			<< " shutdown" << dendl;
-	return;
+        generic_dout(20) << "C_CreatePGs::" << __func__ << " shutdown" << dendl;
+        return;
       }
       generic_dout(20) << "C_CreatePGs::" << __func__ << dendl;
       s->auto_create_pgs();
     }
   };
 
-
-  OSDStub(int _whoami, CephContext *cct)
-    : TestStub(cct, "osd"),
-      whoami(_whoami),
-      gen(whoami),
-      mon_osd_rng(STUB_MON_OSD_FIRST, STUB_MON_OSD_LAST)
+  OSDStub(int _whoami, CephContext* cct) :
+    TestStub(cct, "osd"),
+    whoami(_whoami),
+    gen(whoami),
+    mon_osd_rng(STUB_MON_OSD_FIRST, STUB_MON_OSD_LAST)
   {
-    dout(20) << __func__ << " auth supported: "
-	     << cct->_conf->auth_supported << dendl;
+    dout(20) << __func__ << " auth supported: " << cct->_conf->auth_supported
+             << dendl;
     stringstream ss;
     ss << "client-osd" << whoami;
-    std::string public_msgr_type = cct->_conf->ms_public_type.empty() ? cct->_conf.get_val<std::string>("ms_type") : cct->_conf->ms_public_type;
-    messenger.reset(Messenger::create(cct, public_msgr_type, entity_name_t::OSD(whoami),
-				      ss.str().c_str(), getpid()));
+    std::string public_msgr_type =
+        cct->_conf->ms_public_type.empty()
+            ? cct->_conf.get_val<std::string>("ms_type")
+            : cct->_conf->ms_public_type;
+    messenger.reset(Messenger::create(
+        cct, public_msgr_type, entity_name_t::OSD(whoami), ss.str().c_str(),
+        getpid()));
 
-    Throttle throttler(g_ceph_context, "osd_client_bytes",
-	g_conf()->osd_client_message_size_cap);
+    Throttle throttler(
+        g_ceph_context, "osd_client_bytes",
+        g_conf()->osd_client_message_size_cap);
 
-    messenger->set_default_policy(
-	Messenger::Policy::stateless_server(0));
-    messenger->set_policy_throttlers(entity_name_t::TYPE_CLIENT,
-				    &throttler, NULL);
-    messenger->set_policy(entity_name_t::TYPE_MON,
-	Messenger::Policy::lossy_client(
-	  CEPH_FEATURE_UID |
-	  CEPH_FEATURE_PGID64 |
-	  CEPH_FEATURE_OSDENC));
-    messenger->set_policy(entity_name_t::TYPE_OSD,
-	Messenger::Policy::stateless_server(0));
+    messenger->set_default_policy(Messenger::Policy::stateless_server(0));
+    messenger->set_policy_throttlers(
+        entity_name_t::TYPE_CLIENT, &throttler, NULL);
+    messenger->set_policy(
+        entity_name_t::TYPE_MON,
+        Messenger::Policy::lossy_client(
+            CEPH_FEATURE_UID | CEPH_FEATURE_PGID64 | CEPH_FEATURE_OSDENC));
+    messenger->set_policy(
+        entity_name_t::TYPE_OSD, Messenger::Policy::stateless_server(0));
 
     dout(10) << __func__ << " public addr " << g_conf()->public_addr << dendl;
     int err = messenger->bind(g_conf()->public_addr);
@@ -392,12 +433,14 @@ class OSDStub : public TestStub
     monc.set_messenger(messenger.get());
   }
 
-  int init() override {
+  int
+  init() override
+  {
     dout(10) << __func__ << dendl;
     std::lock_guard l{lock};
 
-    dout(1) << __func__ << " fsid " << monc.monmap.fsid
-	    << " osd_fsid " << g_conf()->osd_uuid << dendl;
+    dout(1) << __func__ << " fsid " << monc.monmap.fsid << " osd_fsid "
+            << g_conf()->osd_uuid << dendl;
     dout(1) << __func__ << " name " << g_conf()->name << dendl;
 
     timer.init();
@@ -406,15 +449,14 @@ class OSDStub : public TestStub
 
     int err = monc.init();
     if (err < 0) {
-      derr << __func__ << " monc init error: "
-	   << cpp_strerror(-err) << dendl;
+      derr << __func__ << " monc init error: " << cpp_strerror(-err) << dendl;
       return err;
     }
 
     err = monc.authenticate();
     if (err < 0) {
-      derr << __func__ << " monc authenticate error: "
-	   << cpp_strerror(-err) << dendl;
+      derr << __func__ << " monc authenticate error: " << cpp_strerror(-err)
+           << dendl;
       monc.shutdown();
       return err;
     }
@@ -440,29 +482,35 @@ class OSDStub : public TestStub
     return 0;
   }
 
-  int _shutdown() override {
+  int
+  _shutdown() override
+  {
 
     return 0;
   }
 
-  void boot() {
+  void
+  boot()
+  {
     dout(1) << __func__ << " boot?" << dendl;
 
     utime_t now = ceph_clock_now();
-    if ((last_boot_attempt > 0.0)
-	&& ((now - last_boot_attempt)) <= STUB_BOOT_INTERVAL) {
+    if ((last_boot_attempt > 0.0) &&
+        ((now - last_boot_attempt)) <= STUB_BOOT_INTERVAL) {
       dout(1) << __func__ << " backoff and try again later." << dendl;
       return;
     }
 
     dout(1) << __func__ << " boot!" << dendl;
-    MOSDBoot *mboot = new MOSDBoot;
+    MOSDBoot* mboot = new MOSDBoot;
     mboot->sb = sb;
     last_boot_attempt = now;
     monc.send_mon_message(mboot);
   }
 
-  void add_pg(pg_t pgid, epoch_t epoch, pg_t parent) {
+  void
+  add_pg(pg_t pgid, epoch_t epoch, pg_t parent)
+  {
 
     utime_t now = ceph_clock_now();
 
@@ -481,16 +529,18 @@ class OSDStub : public TestStub
     pgs_changes.insert(pgid);
   }
 
-  void auto_create_pgs() {
+  void
+  auto_create_pgs()
+  {
     bool has_pgs = !pgs.empty();
-    dout(10) << __func__
-	     << ": " << (has_pgs ? "has pgs; ignore" : "create pgs") << dendl;
+    dout(10) << __func__ << ": " << (has_pgs ? "has pgs; ignore" : "create pgs")
+             << dendl;
     if (has_pgs)
       return;
 
     if (!osdmap.get_epoch()) {
-      dout(1) << __func__
-	      << " still don't have osdmap; reschedule pg creation" << dendl;
+      dout(1) << __func__ << " still don't have osdmap; reschedule pg creation"
+              << dendl;
       timer.add_event_after(10.0, new C_CreatePGs(this));
       return;
     }
@@ -498,38 +548,37 @@ class OSDStub : public TestStub
     auto& osdmap_pools = osdmap.get_pools();
     for (auto pit = osdmap_pools.begin(); pit != osdmap_pools.end(); ++pit) {
       const int64_t pool_id = pit->first;
-      const pg_pool_t &pool = pit->second;
+      const pg_pool_t& pool = pit->second;
       int ruleno = pool.get_crush_rule();
 
       if (!osdmap.crush->rule_exists(ruleno)) {
-	dout(20) << __func__
-		 << " no crush rule for pool id " << pool_id
-		 << " rule no " << ruleno << dendl;
-	continue;
+        dout(20) << __func__ << " no crush rule for pool id " << pool_id
+                 << " rule no " << ruleno << dendl;
+        continue;
       }
 
       epoch_t pool_epoch = pool.get_last_change();
-      dout(20) << __func__
-	       << " pool num pgs " << pool.get_pg_num()
-	       << " epoch " << pool_epoch << dendl;
+      dout(20) << __func__ << " pool num pgs " << pool.get_pg_num() << " epoch "
+               << pool_epoch << dendl;
 
       for (ps_t ps = 0; ps < pool.get_pg_num(); ++ps) {
-	pg_t pgid(ps, pool_id);
-	pg_t parent;
-	dout(20) << __func__
-		 << " pgid " << pgid << " parent " << parent << dendl;
-	add_pg(pgid, pool_epoch, parent);
+        pg_t pgid(ps, pool_id);
+        pg_t parent;
+        dout(20) << __func__ << " pgid " << pgid << " parent " << parent
+                 << dendl;
+        add_pg(pgid, pool_epoch, parent);
       }
     }
   }
 
-  void update_osd_stat() {
+  void
+  update_osd_stat()
+  {
     struct statfs stbuf;
     int ret = statfs(".", &stbuf);
     if (ret < 0) {
       ret = -errno;
-      dout(0) << __func__ 
-              << " cannot statfs ." << cpp_strerror(ret) << dendl;
+      dout(0) << __func__ << " cannot statfs ." << cpp_strerror(ret) << dendl;
       return;
     }
 
@@ -538,10 +587,12 @@ class OSDStub : public TestStub
     osd_stat.statfs.internally_reserved = 0;
   }
 
-  void send_pg_stats() {
-    dout(10) << __func__
-	     << " pgs " << pgs.size() << " osdmap " << osdmap << dendl;
-    MPGStats *mstats = new MPGStats(monc.get_fsid(), osdmap.get_epoch());
+  void
+  send_pg_stats()
+  {
+    dout(10) << __func__ << " pgs " << pgs.size() << " osdmap " << osdmap
+             << dendl;
+    MPGStats* mstats = new MPGStats(monc.get_fsid(), osdmap.get_epoch());
 
     mstats->set_tid(1);
     mstats->osd_stat = osd_stat;
@@ -550,35 +601,34 @@ class OSDStub : public TestStub
     for (it = pgs_changes.begin(); it != pgs_changes.end(); ++it) {
       pg_t pgid = (*it);
       if (pgs.count(pgid) == 0) {
-	derr << __func__
-	     << " pgid " << pgid << " not on our map" << dendl;
-	ceph_abort_msg("pgid not on our map");
+        derr << __func__ << " pgid " << pgid << " not on our map" << dendl;
+        ceph_abort_msg("pgid not on our map");
       }
-      pg_stat_t &s = pgs[pgid];
+      pg_stat_t& s = pgs[pgid];
       mstats->pg_stat[pgid] = s;
 
       JSONFormatter f(true);
       s.dump(&f);
-      dout(20) << __func__
-	       << " pg " << pgid << " stats:\n";
+      dout(20) << __func__ << " pg " << pgid << " stats:\n";
       f.flush(*_dout);
       *_dout << dendl;
-
     }
     dout(10) << __func__ << " send " << *mstats << dendl;
     monc.send_mon_message(mstats);
   }
 
-  void modify_pg(pg_t pgid) {
+  void
+  modify_pg(pg_t pgid)
+  {
     dout(10) << __func__ << " pg " << pgid << dendl;
     ceph_assert(pgs.count(pgid) > 0);
 
-    pg_stat_t &s = pgs[pgid];
+    pg_stat_t& s = pgs[pgid];
     utime_t now = ceph_clock_now();
 
     if (now - s.last_change < 10.0) {
-      dout(10) << __func__
-	       << " pg " << pgid << " changed in the last 10s" << dendl;
+      dout(10) << __func__ << " pg " << pgid << " changed in the last 10s"
+               << dendl;
       return;
     }
 
@@ -591,23 +641,25 @@ class OSDStub : public TestStub
     pgs_changes.insert(pgid);
   }
 
-  void modify_pgs() {
+  void
+  modify_pgs()
+  {
     dout(10) << __func__ << dendl;
 
     if (pgs.empty()) {
-      dout(1) << __func__
-	      << " no pgs available! don't attempt to modify." << dendl;
+      dout(1) << __func__ << " no pgs available! don't attempt to modify."
+              << dendl;
       return;
     }
 
-    boost::uniform_int<> pg_rng(0, pgs.size()-1);
+    boost::uniform_int<> pg_rng(0, pgs.size() - 1);
     set<int> pgs_pos;
 
     int num_pgs = pg_rng(gen);
     while ((int)pgs_pos.size() < num_pgs)
       pgs_pos.insert(pg_rng(gen));
 
-    map<pg_t,pg_stat_t>::iterator it = pgs.begin();
+    map<pg_t, pg_stat_t>::iterator it = pgs.begin();
     set<int>::iterator pos_it = pgs_pos.begin();
 
     int pgs_at = 0;
@@ -615,18 +667,19 @@ class OSDStub : public TestStub
       int at = *pos_it;
       dout(20) << __func__ << " pg at pos " << at << dendl;
       while ((pgs_at != at) && (it != pgs.end())) {
-	++it;
-	++pgs_at;
+        ++it;
+        ++pgs_at;
       }
       ceph_assert(it != pgs.end());
-      dout(20) << __func__
-	       << " pg at pos " << at << ": " << it->first << dendl;
+      dout(20) << __func__ << " pg at pos " << at << ": " << it->first << dendl;
       modify_pg(it->first);
       ++pos_it;
     }
   }
 
-  void op_alive() {
+  void
+  op_alive()
+  {
     dout(10) << __func__ << dendl;
     if (!osdmap.exists(whoami)) {
       dout(0) << __func__ << " I'm not in the osdmap!!\n";
@@ -645,21 +698,27 @@ class OSDStub : public TestStub
     monc.send_mon_message(new MOSDAlive(osdmap.get_epoch(), up_thru));
   }
 
-  void op_pgtemp() {
+  void
+  op_pgtemp()
+  {
     if (osdmap.get_epoch() == 0) {
       dout(1) << __func__ << " wait for osdmap" << dendl;
       return;
     }
     dout(10) << __func__ << dendl;
-    MOSDPGTemp *m = new MOSDPGTemp(osdmap.get_epoch());
+    MOSDPGTemp* m = new MOSDPGTemp(osdmap.get_epoch());
     monc.send_mon_message(m);
   }
 
-  void op_failure() {
+  void
+  op_failure()
+  {
     dout(10) << __func__ << dendl;
   }
 
-  void op_pgstats() {
+  void
+  op_pgstats()
+  {
     dout(10) << __func__ << dendl;
 
     modify_pgs();
@@ -675,7 +734,7 @@ class OSDStub : public TestStub
     auto& osdmap_pools = osdmap.get_pools();
     for (auto pit = osdmap_pools.begin(); pit != osdmap_pools.end(); ++pit) {
       const int64_t pool_id = pit->first;
-      const pg_pool_t &pool = pit->second;
+      const pg_pool_t& pool = pit->second;
       f.open_object_section("pool");
       f.dump_int("pool_id", pool_id);
       f.open_object_section("pool_dump");
@@ -688,15 +747,16 @@ class OSDStub : public TestStub
     *_dout << dendl;
   }
 
-  void op_log() {
+  void
+  op_log()
+  {
     dout(10) << __func__ << dendl;
 
-    MLog *m = new MLog(monc.get_fsid());
+    MLog* m = new MLog(monc.get_fsid());
 
     boost::uniform_int<> log_rng(1, 10);
     size_t num_entries = log_rng(gen);
-    dout(10) << __func__
-	     << " send " << num_entries << " log messages" << dendl;
+    dout(10) << __func__ << " send " << num_entries << " log messages" << dendl;
 
     utime_t now = ceph_clock_now();
     int seq = 0;
@@ -714,7 +774,9 @@ class OSDStub : public TestStub
     monc.send_mon_message(m);
   }
 
-  void _tick() override {
+  void
+  _tick() override
+  {
     if (!osdmap.exists(whoami)) {
       std::cout << __func__ << " not in the cluster; boot!" << std::endl;
       boot();
@@ -744,14 +806,14 @@ class OSDStub : public TestStub
     }
   }
 
-  void handle_osd_map(MOSDMap *m) {
+  void
+  handle_osd_map(MOSDMap* m)
+  {
     dout(1) << __func__ << dendl;
     if (m->fsid != monc.get_fsid()) {
-      dout(0) << __func__
-              << " message fsid " << m->fsid << " != " << monc.get_fsid()
-              << dendl;
-      dout(0) << __func__ << " " << m
-              << " from " << m->get_source_inst()
+      dout(0) << __func__ << " message fsid " << m->fsid
+              << " != " << monc.get_fsid() << dendl;
+      dout(0) << __func__ << " " << m << " from " << m->get_source_inst()
               << dendl;
       dout(0) << monc.get_monmap() << dendl;
     }
@@ -759,9 +821,8 @@ class OSDStub : public TestStub
 
     epoch_t first = m->get_first();
     epoch_t last = m->get_last();
-    dout(5) << __func__
-	    << " epochs [" << first << "," << last << "]"
-	    << " current " << osdmap.get_epoch() << dendl;
+    dout(5) << __func__ << " epochs [" << first << "," << last << "]"
+            << " current " << osdmap.get_epoch() << dendl;
 
     if (last <= osdmap.get_epoch()) {
       dout(5) << __func__ << " no new maps here; dropping" << dendl;
@@ -770,55 +831,51 @@ class OSDStub : public TestStub
     }
 
     if (first > osdmap.get_epoch() + 1) {
-      dout(5) << __func__
-	      << osdmap.get_epoch() + 1 << ".." << (first-1) << dendl;
-      if ((m->cluster_osdmap_trim_lower_bound <
-           first && osdmap.get_epoch() == 0) ||
-	  m->cluster_osdmap_trim_lower_bound <=
-          osdmap.get_epoch()) {
-	monc.sub_want("osdmap", osdmap.get_epoch()+1,
-		       CEPH_SUBSCRIBE_ONETIME);
-	monc.renew_subs();
-	m->put();
-	return;
+      dout(5) << __func__ << osdmap.get_epoch() + 1 << ".." << (first - 1)
+              << dendl;
+      if ((m->cluster_osdmap_trim_lower_bound < first &&
+           osdmap.get_epoch() == 0) ||
+          m->cluster_osdmap_trim_lower_bound <= osdmap.get_epoch()) {
+        monc.sub_want("osdmap", osdmap.get_epoch() + 1, CEPH_SUBSCRIBE_ONETIME);
+        monc.renew_subs();
+        m->put();
+        return;
       }
     }
 
     epoch_t start_full = std::max(osdmap.get_epoch() + 1, first);
 
     if (m->maps.size() > 0) {
-      map<epoch_t,bufferlist>::reverse_iterator rit;
+      map<epoch_t, bufferlist>::reverse_iterator rit;
       rit = m->maps.rbegin();
       if (start_full <= rit->first) {
-	start_full = rit->first;
-	dout(5) << __func__
-		<< " full epoch " << start_full << dendl;
-	bufferlist &bl = rit->second;
-	auto p = bl.cbegin();
-	osdmap.decode(p);
+        start_full = rit->first;
+        dout(5) << __func__ << " full epoch " << start_full << dendl;
+        bufferlist& bl = rit->second;
+        auto p = bl.cbegin();
+        osdmap.decode(p);
       }
     }
 
     for (epoch_t e = start_full; e <= last; e++) {
-      map<epoch_t,bufferlist>::iterator it;
+      map<epoch_t, bufferlist>::iterator it;
       it = m->incremental_maps.find(e);
       if (it == m->incremental_maps.end())
-	continue;
+        continue;
 
-      dout(20) << __func__
-	       << " incremental epoch " << e
-	       << " on full epoch " << start_full << dendl;
+      dout(20) << __func__ << " incremental epoch " << e << " on full epoch "
+               << start_full << dendl;
       OSDMap::Incremental inc;
-      bufferlist &bl = it->second;
+      bufferlist& bl = it->second;
       auto p = bl.cbegin();
       inc.decode(p);
 
       int err = osdmap.apply_incremental(inc);
       if (err < 0) {
-	derr << "osd." << whoami << "::" << __func__
-	     << "** ERROR: applying incremental: "
-	     << cpp_strerror(err) << dendl;
-	ceph_abort_msg("error applying incremental");
+        derr << "osd." << whoami << "::" << __func__
+             << "** ERROR: applying incremental: " << cpp_strerror(err)
+             << dendl;
+        ceph_abort_msg("error applying incremental");
       }
     }
     dout(30) << __func__ << "\nosdmap:\n";
@@ -828,15 +885,13 @@ class OSDStub : public TestStub
     *_dout << dendl;
 
     if (osdmap.is_up(whoami) &&
-	osdmap.get_addrs(whoami) == messenger->get_myaddrs()) {
-      dout(1) << __func__
-	      << " got into the osdmap and we're up!" << dendl;
+        osdmap.get_addrs(whoami) == messenger->get_myaddrs()) {
+      dout(1) << __func__ << " got into the osdmap and we're up!" << dendl;
     }
 
     if (m->newest_map && m->newest_map > last) {
-      dout(1) << __func__
-	      << " they have more maps; requesting them!" << dendl;
-      monc.sub_want("osdmap", osdmap.get_epoch()+1, CEPH_SUBSCRIBE_ONETIME);
+      dout(1) << __func__ << " they have more maps; requesting them!" << dendl;
+      monc.sub_want("osdmap", osdmap.get_epoch() + 1, CEPH_SUBSCRIBE_ONETIME);
       monc.renew_subs();
     }
 
@@ -844,7 +899,9 @@ class OSDStub : public TestStub
     m->put();
   }
 
-  bool ms_dispatch(Message *m) override {
+  bool
+  ms_dispatch(Message* m) override
+  {
     dout(1) << __func__ << " " << *m << dendl;
 
     switch (m->get_type()) {
@@ -858,25 +915,35 @@ class OSDStub : public TestStub
     return true;
   }
 
-  void ms_handle_connect(Connection *con) override {
+  void
+  ms_handle_connect(Connection* con) override
+  {
     dout(1) << __func__ << " " << con << dendl;
     if (con->get_peer_type() == CEPH_ENTITY_TYPE_MON) {
       dout(10) << __func__ << " on mon" << dendl;
     }
   }
 
-  void ms_handle_remote_reset(Connection *con) override {}
+  void
+  ms_handle_remote_reset(Connection* con) override
+  {}
 
-  bool ms_handle_reset(Connection *con) override {
+  bool
+  ms_handle_reset(Connection* con) override
+  {
     dout(1) << __func__ << dendl;
     return con->get_priv().get();
   }
 
-  bool ms_handle_refused(Connection *con) override {
+  bool
+  ms_handle_refused(Connection* con) override
+  {
     return false;
   }
 
-  const string get_name() override {
+  const string
+  get_name() override
+  {
     stringstream ss;
     ss << "osd." << whoami;
     return ss.str();
@@ -888,22 +955,24 @@ double const OSDStub::STUB_BOOT_INTERVAL = 10.0;
 #undef dout_prefix
 #define dout_prefix *_dout << "main "
 
-const char *our_name = NULL;
+const char* our_name = NULL;
 vector<TestStub*> stubs;
 ceph::mutex shutdown_lock = ceph::make_mutex("main::shutdown_lock");
 ceph::condition_variable shutdown_cond;
-Context *shutdown_cb = NULL;
-SafeTimer *shutdown_timer = NULL;
+Context* shutdown_cb = NULL;
+SafeTimer* shutdown_timer = NULL;
 
-struct C_Shutdown : public Context
-{
-  void finish(int r) override {
+struct C_Shutdown : public Context {
+  void
+  finish(int r) override
+  {
     generic_dout(10) << "main::shutdown time has ran out" << dendl;
     shutdown_cond.notify_all();
   }
 };
 
-void handle_test_signal(int signum)
+void
+handle_test_signal(int signum)
 {
   if ((signum != SIGINT) && (signum != SIGTERM))
     return;
@@ -916,12 +985,13 @@ void handle_test_signal(int signum)
   }
 }
 
-void usage() {
+void
+usage()
+{
   ceph_assert(our_name != NULL);
 
-  std::cout << "usage: " << our_name
-	    << " <--stub-id ID> [--stub-id ID...]"
-	    << std::endl;
+  std::cout << "usage: " << our_name << " <--stub-id ID> [--stub-id ID...]"
+            << std::endl;
   std::cout << "\n\
 Global Options:\n\
   -c FILE                   Read configuration from FILE\n\
@@ -935,7 +1005,8 @@ Test-specific Options:\n\
 " << std::endl;
 }
 
-int get_id_interval(int &first, int &last, string &str)
+int
+get_id_interval(int& first, int& last, string& str)
 {
   size_t found = str.find("..");
   string first_str, last_str;
@@ -943,7 +1014,7 @@ int get_id_interval(int &first, int &last, string &str)
     first_str = last_str = str;
   } else {
     first_str = str.substr(0, found);
-    last_str = str.substr(found+2);
+    last_str = str.substr(found + 2);
   }
 
   string err;
@@ -961,14 +1032,15 @@ int get_id_interval(int &first, int &last, string &str)
   return 0;
 }
 
-int main(int argc, const char *argv[])
+int
+main(int argc, const char* argv[])
 {
   our_name = argv[0];
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(nullptr, args,
-			 CEPH_ENTITY_TYPE_OSD, CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_OSD, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
   common_init_finish(g_ceph_context);
   g_ceph_context->_conf.apply_changes(nullptr);
@@ -981,26 +1053,24 @@ int main(int argc, const char *argv[])
 
     if (ceph_argparse_double_dash(args, i)) {
       break;
-    } else if (ceph_argparse_witharg(args, i, &val,
-        "--stub-id", (char*) NULL)) {
+    } else if (ceph_argparse_witharg(args, i, &val, "--stub-id", (char*)NULL)) {
       int first = -1, last = -1;
       if (get_id_interval(first, last, val) < 0) {
-	std::cerr << "** error parsing stub id '" << val << "'" << std::endl;
-	exit(1);
+        std::cerr << "** error parsing stub id '" << val << "'" << std::endl;
+        exit(1);
       }
 
       for (; first <= last; ++first)
-	stub_ids.insert(first);
-    } else if (ceph_argparse_witharg(args, i, &val,
-	"--duration", (char*) NULL)) {
+        stub_ids.insert(first);
+    } else if (ceph_argparse_witharg(args, i, &val, "--duration", (char*)NULL)) {
       string err;
-      duration = (double) strict_strtol(val.c_str(), 10, &err);
+      duration = (double)strict_strtol(val.c_str(), 10, &err);
       if ((duration == 0) && (!err.empty())) {
-	std::cerr << "** error parsing '--duration " << val << "': '"
-		  << err << std::endl;
-	exit(1);
+        std::cerr << "** error parsing '--duration " << val << "': '" << err
+                  << std::endl;
+        exit(1);
       }
-    } else if (ceph_argparse_flag(args, i, "--help", (char*) NULL)) {
+    } else if (ceph_argparse_flag(args, i, "--help", (char*)NULL)) {
       usage();
       exit(0);
     } else {
@@ -1011,7 +1081,7 @@ int main(int argc, const char *argv[])
 
   if (stub_ids.empty()) {
     std::cerr << "** error: must specify at least one '--stub-id <ID>'"
-         << std::endl;
+              << std::endl;
     usage();
     return 1;
   }
@@ -1020,7 +1090,7 @@ int main(int argc, const char *argv[])
     int whoami = *i;
 
     std::cout << __func__ << " starting stub." << whoami << std::endl;
-    OSDStub *stub = new OSDStub(whoami, g_ceph_context);
+    OSDStub* stub = new OSDStub(whoami, g_ceph_context);
     int err = stub->init();
     if (err < 0) {
       std::cerr << "** osd stub error: " << cpp_strerror(-err) << std::endl;
@@ -1030,7 +1100,7 @@ int main(int argc, const char *argv[])
   }
 
   std::cout << __func__ << " starting client stub" << std::endl;
-  ClientStub *cstub = new ClientStub(g_ceph_context);
+  ClientStub* cstub = new ClientStub(g_ceph_context);
   int err = cstub->init();
   if (err < 0) {
     std::cerr << "** client stub error: " << cpp_strerror(-err) << std::endl;
@@ -1047,9 +1117,9 @@ int main(int argc, const char *argv[])
     shutdown_timer = new SafeTimer(g_ceph_context, shutdown_lock);
     shutdown_timer->init();
     if (duration != 0) {
-      std::cout << __func__
-		<< " run test for " << duration << " seconds" << std::endl;
-      shutdown_timer->add_event_after((double) duration, new C_Shutdown);
+      std::cout << __func__ << " run test for " << duration << " seconds"
+                << std::endl;
+      shutdown_timer->add_event_after((double)duration, new C_Shutdown);
     }
     shutdown_cond.wait(locker);
     shutdown_timer->shutdown();

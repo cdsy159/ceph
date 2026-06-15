@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,23 +17,24 @@
 
 #include <unistd.h>
 
-#include "ceph_ver.h"
 #include "compressor/CompressionPlugin.h"
+
+#include "ceph_ver.h"
 #include "compressor_example.h"
 
 using namespace std;
 
 class CompressorPluginExample : public CompressionPlugin {
 public:
-
-  explicit CompressorPluginExample(CephContext* cct) : CompressionPlugin(cct)
+  explicit CompressorPluginExample(CephContext* cct) :
+    CompressionPlugin(cct)
   {}
 
-  int factory(CompressorRef *cs,
-		      ostream *ss) override
+  int
+  factory(CompressorRef* cs, ostream* ss) override
   {
     if (compressor == 0) {
-      CompressorExample *interface = new CompressorExample();
+      CompressorExample* interface = new CompressorExample();
       compressor = CompressorRef(interface);
     }
     *cs = compressor;
@@ -43,18 +44,21 @@ public:
 
 // -----------------------------------------------------------------------------
 
-const char *__ceph_plugin_version()
+const char*
+__ceph_plugin_version()
 {
   return CEPH_GIT_NICE_VER;
 }
 
 // -----------------------------------------------------------------------------
 
-int __ceph_plugin_init(CephContext *cct,
-                       const std::string& type,
-                       const std::string& name)
+int
+__ceph_plugin_init(
+    CephContext* cct,
+    const std::string& type,
+    const std::string& name)
 {
-  PluginRegistry *instance = cct->get_plugin_registry();
+  PluginRegistry* instance = cct->get_plugin_registry();
 
   return instance->add(type, name, new CompressorPluginExample(cct));
 }

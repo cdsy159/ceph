@@ -1,73 +1,77 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "common/errno.h"
-#include "common/Throttle.h"
-#include "common/WorkQueue.h"
-#include "include/scope_guard.h"
+#include "rgw_process.h"
 
 #include <utility>
+
+#include "common/Throttle.h"
+#include "common/WorkQueue.h"
+#include "common/errno.h"
+#include "include/scope_guard.h"
+#include "services/svc_zone_utils.h"
+
 #include "rgw_auth_registry.h"
-#include "rgw_dmclock_scheduler.h"
-#include "rgw_rest.h"
-#include "rgw_frontend.h"
-#include "rgw_request.h"
-#include "rgw_process.h"
-#include "rgw_loadgen.h"
+#include "rgw_bucket_logging.h"
 #include "rgw_client_io.h"
-#include "rgw_opa.h"
-#include "rgw_perf_counters.h"
+#include "rgw_dmclock_scheduler.h"
+#include "rgw_frontend.h"
+#include "rgw_loadgen.h"
 #include "rgw_lua.h"
 #include "rgw_lua_request.h"
-#include "rgw_tracer.h"
+#include "rgw_opa.h"
+#include "rgw_perf_counters.h"
 #include "rgw_ratelimit.h"
-#include "rgw_bucket_logging.h"
-
-#include "services/svc_zone_utils.h"
+#include "rgw_request.h"
+#include "rgw_rest.h"
+#include "rgw_tracer.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 using rgw::dmclock::Scheduler;
 
-void RGWProcess::RGWWQ::_dump_queue()
+void
+RGWProcess::RGWWQ::_dump_queue()
 {
   if (!g_conf()->subsys.should_gather<ceph_subsys_rgw, 20>()) {
     return;
   }
-  deque<RGWRequest *>::iterator iter;
+  deque<RGWRequest*>::iterator iter;
   if (process->m_req_queue.empty()) {
     dout(20) << "RGWWQ: empty" << dendl;
     return;
   }
   dout(20) << "RGWWQ:" << dendl;
-  for (iter = process->m_req_queue.begin();
-       iter != process->m_req_queue.end(); ++iter) {
+  for (iter = process->m_req_queue.begin(); iter != process->m_req_queue.end();
+       ++iter) {
     dout(20) << "req: " << hex << *iter << dec << dendl;
   }
 } /* RGWProcess::RGWWQ::_dump_queue */
 
-auto schedule_request(Scheduler *scheduler, req_state *s, RGWOp *op)
+auto
+schedule_request(Scheduler* scheduler, req_state* s, RGWOp* op)
 {
   using rgw::dmclock::SchedulerCompleter;
   if (!scheduler)
-    return std::make_pair(0,SchedulerCompleter{});
+    return std::make_pair(0, SchedulerCompleter{});
 
   const auto client = op->dmclock_client();
   const auto cost = op->dmclock_cost();
   if (s->cct->_conf->subsys.should_gather(ceph_subsys_rgw, 10)) {
-    ldpp_dout(op,10) << "scheduling with "
-		     << s->cct->_conf.get_val<std::string>("rgw_scheduler_type")
-		     << " client=" << static_cast<int>(client)
-		     << " cost=" << cost << dendl;
+    ldpp_dout(op, 10) << "scheduling with "
+                      << s->cct->_conf.get_val<std::string>(
+                             "rgw_scheduler_type")
+                      << " client=" << static_cast<int>(client)
+                      << " cost=" << cost << dendl;
   }
-  return scheduler->schedule_request(client, {},
-                                     req_state::Clock::to_double(s->time),
-                                     cost,
-                                     s->yield);
+  return scheduler->schedule_request(
+      client, {}, req_state::Clock::to_double(s->time), cost, s->yield);
 }
 
-bool RGWProcess::RGWWQ::_enqueue(RGWRequest* req) {
+bool
+RGWProcess::RGWWQ::_enqueue(RGWRequest* req)
+{
   process->m_req_queue.push_back(req);
   perfcounter->inc(l_rgw_qlen);
   dout(20) << "enqueued request req=" << hex << req << dec << dendl;
@@ -75,10 +79,12 @@ bool RGWProcess::RGWWQ::_enqueue(RGWRequest* req) {
   return true;
 }
 
-RGWRequest* RGWProcess::RGWWQ::_dequeue() {
+RGWRequest*
+RGWProcess::RGWWQ::_dequeue()
+{
   if (process->m_req_queue.empty())
     return NULL;
-  RGWRequest *req = process->m_req_queue.front();
+  RGWRequest* req = process->m_req_queue.front();
   process->m_req_queue.pop_front();
   dout(20) << "dequeued request req=" << hex << req << dec << dendl;
   _dump_queue();
@@ -86,15 +92,20 @@ RGWRequest* RGWProcess::RGWWQ::_dequeue() {
   return req;
 }
 
-void RGWProcess::RGWWQ::_process(RGWRequest *req, ThreadPool::TPHandle &) {
+void
+RGWProcess::RGWWQ::_process(RGWRequest* req, ThreadPool::TPHandle&)
+{
   perfcounter->inc(l_rgw_qactive);
   process->handle_request(this, req);
   process->req_throttle.put(1);
   perfcounter->inc(l_rgw_qactive, -1);
 }
-bool rate_limit(rgw::sal::Driver* driver, req_state* s) {
+
+bool
+rate_limit(rgw::sal::Driver* driver, req_state* s)
+{
   // we dont want to limit health check or system or admin requests
-  if ((s->op_type ==  RGW_OP_GET_HEALTH_CHECK) || s->system_request)
+  if ((s->op_type == RGW_OP_GET_HEALTH_CHECK) || s->system_request)
     return false;
   std::string userfind;
   RGWRateLimitInfo global_user;
@@ -108,20 +119,26 @@ bool rate_limit(rgw::sal::Driver* driver, req_state* s) {
   s->user->get_id().to_str(userfind);
   userfind = "u" + userfind;
   s->ratelimit_user_name = userfind;
-  std::string bucketfind = !rgw::sal::Bucket::empty(s->bucket.get()) ? "b" + s->bucket->get_marker() : "";
+  std::string bucketfind = !rgw::sal::Bucket::empty(s->bucket.get())
+                               ? "b" + s->bucket->get_marker()
+                               : "";
   s->ratelimit_bucket_marker = bucketfind;
-  const char *method = s->info.method;
+  const char* method = s->info.method;
 
-  bool is_sts_user = (s->auth.identity && s->auth.identity->get_identity_type() == TYPE_ROLE);
+  bool is_sts_user =
+      (s->auth.identity && s->auth.identity->get_identity_type() == TYPE_ROLE);
   if (is_sts_user) {
-    ldpp_dout(s, 21) << "STS user detected: uid=" << std::quoted(s->user->get_id().to_str()) << dendl;
+    ldpp_dout(s, 21) << "STS user detected: uid="
+                     << std::quoted(s->user->get_id().to_str()) << dendl;
     auto op_ret = s->user->read_attrs(s, s->yield);
     if (op_ret < 0) {
-      ldpp_dout(s, 0) << "checking rate_limit: uid=" << std::quoted(s->user->get_id().to_str()) << " failed to read user attrs" << dendl;
+      ldpp_dout(s, 0) << "checking rate_limit: uid="
+                      << std::quoted(s->user->get_id().to_str())
+                      << " failed to read user attrs" << dendl;
     }
   }
   auto iter = s->user->get_attrs().find(RGW_ATTR_RATELIMIT);
-  if(iter != s->user->get_attrs().end()) {
+  if (iter != s->user->get_attrs().end()) {
     try {
       RGWRateLimitInfo user_ratelimit_temp;
       bufferlist& bl = iter->second;
@@ -135,18 +152,21 @@ bool rate_limit(rgw::sal::Driver* driver, req_state* s) {
       return -EIO;
     }
   } else {
-    ldpp_dout(s, 21) << "checking rate_limit: uid=" << std::quoted(s->user->get_id().to_str()) << " does not have a rate limit attribute" << dendl;
+    ldpp_dout(s, 21) << "checking rate_limit: uid="
+                     << std::quoted(s->user->get_id().to_str())
+                     << " does not have a rate limit attribute" << dendl;
   }
   if (s->user->get_id().id == RGW_USER_ANON_ID && global_anon.enabled) {
     *user_ratelimit = global_anon;
   }
   bool limit_bucket = false;
-  bool limit_user = s->ratelimit_data->should_rate_limit(method, s->ratelimit_user_name, s->time, user_ratelimit, s->info.request_params);
+  bool limit_user = s->ratelimit_data->should_rate_limit(
+      method, s->ratelimit_user_name, s->time, user_ratelimit,
+      s->info.request_params);
 
-  if(!rgw::sal::Bucket::empty(s->bucket.get()))
-  {
+  if (!rgw::sal::Bucket::empty(s->bucket.get())) {
     iter = s->bucket->get_attrs().find(RGW_ATTR_RATELIMIT);
-    if(iter != s->bucket->get_attrs().end()) {
+    if (iter != s->bucket->get_attrs().end()) {
       try {
         RGWRateLimitInfo bucket_ratelimit_temp;
         bufferlist& bl = iter->second;
@@ -161,24 +181,29 @@ bool rate_limit(rgw::sal::Driver* driver, req_state* s) {
       }
     }
     if (!limit_user) {
-      limit_bucket = s->ratelimit_data->should_rate_limit(method, s->ratelimit_bucket_marker, s->time, bucket_ratelimit, s->info.request_params);
+      limit_bucket = s->ratelimit_data->should_rate_limit(
+          method, s->ratelimit_bucket_marker, s->time, bucket_ratelimit,
+          s->info.request_params);
     }
   }
-  if(limit_bucket && !limit_user) {
-    s->ratelimit_data->giveback_tokens(method, s->ratelimit_user_name, s->info.request_params, user_ratelimit);
+  if (limit_bucket && !limit_user) {
+    s->ratelimit_data->giveback_tokens(
+        method, s->ratelimit_user_name, s->info.request_params, user_ratelimit);
   }
   s->user_ratelimit = *user_ratelimit;
   s->bucket_ratelimit = *bucket_ratelimit;
   return (limit_user || limit_bucket);
 }
 
-int rgw_process_authenticated(RGWHandler_REST * const handler,
-                              RGWOp *& op,
-                              RGWRequest * const req,
-                              req_state * const s,
-			                        optional_yield y,
-                              rgw::sal::Driver* driver,
-                              const bool skip_retarget)
+int
+rgw_process_authenticated(
+    RGWHandler_REST* const handler,
+    RGWOp*& op,
+    RGWRequest* const req,
+    req_state* const s,
+    optional_yield y,
+    rgw::sal::Driver* driver,
+    const bool skip_retarget)
 {
   ldpp_dout(op, 2) << "init permissions" << dendl;
   int ret = handler->init_permissions(op, y);
@@ -190,7 +215,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
    * Only some accesses support website mode, and website mode does NOT apply
    * if you are using the REST endpoint either (ergo, no authenticated access)
    */
-  if (! skip_retarget) {
+  if (!skip_retarget) {
     ldpp_dout(op, 2) << "recalculating target" << dendl;
     ret = handler->retarget(op, &op, y);
     if (ret < 0) {
@@ -266,22 +291,25 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   {
     if (!is_health_request) {
       std::string script;
-      auto rc = rgw::lua::read_script(s, s->penv.lua.manager.get(),
-                                      s->bucket_tenant, s->yield,
-                                      rgw::lua::context::postAuth, script);
+      auto rc = rgw::lua::read_script(
+          s, s->penv.lua.manager.get(), s->bucket_tenant, s->yield,
+          rgw::lua::context::postAuth, script);
       if (rc == -ENOENT) {
         // no script, nothing to do
       } else if (rc < 0) {
-        ldpp_dout(op, 5) <<
-          "WARNING: failed to execute post authorization script. "
-          "error: " << rc << dendl;
+        ldpp_dout(op, 5)
+            << "WARNING: failed to execute post authorization script. "
+               "error: "
+            << rc << dendl;
       } else {
         int script_return_code = 0;
-        rc = rgw::lua::request::execute(s->penv.rest, s->penv.olog.get(), s, op, script, script_return_code);
+        rc = rgw::lua::request::execute(
+            s->penv.rest, s->penv.olog.get(), s, op, script, script_return_code);
         if (rc < 0) {
-          ldpp_dout(op, 5) <<
-            "WARNING: failed to execute post authorization script. "
-            "error: " << rc << dendl;
+          ldpp_dout(op, 5)
+              << "WARNING: failed to execute post authorization script. "
+                 "error: "
+              << rc << dendl;
         }
         if (script_return_code == -EPERM) {
           return script_return_code;
@@ -303,15 +331,17 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   return 0;
 }
 
-int process_request(const RGWProcessEnv& penv,
-                    RGWRequest* const req,
-                    const std::string& frontend_prefix,
-                    RGWRestfulIO* const client_io,
-                    optional_yield yield,
-		    rgw::dmclock::Scheduler *scheduler,
-                    string* user,
-                    ceph::coarse_real_clock::duration* latency,
-                    int* http_ret)
+int
+process_request(
+    const RGWProcessEnv& penv,
+    RGWRequest* const req,
+    const std::string& frontend_prefix,
+    RGWRestfulIO* const client_io,
+    optional_yield yield,
+    rgw::dmclock::Scheduler* scheduler,
+    string* user,
+    ceph::coarse_real_clock::duration* latency,
+    int* http_ret)
 {
   int ret = client_io->init(g_ceph_context);
   rgw::sal::Driver* driver = penv.driver;
@@ -323,7 +353,7 @@ int process_request(const RGWProcessEnv& penv,
   RGWEnv& rgw_env = client_io->get_env();
 
   req_state rstate(g_ceph_context, penv, &rgw_env, req->id);
-  req_state *s = &rstate;
+  req_state* s = &rstate;
 
   s->ratelimit_data = penv.ratelimiting->get_active();
 
@@ -345,12 +375,11 @@ int process_request(const RGWProcessEnv& penv,
   int init_error = 0;
   bool should_log = false;
   RGWREST* rest = penv.rest;
-  RGWRESTMgr *mgr;
+  RGWRESTMgr* mgr;
   bool is_health_request = false;
-  RGWHandler_REST *handler = rest->get_handler(driver, s,
-                                               *penv.auth_registry,
-                                               frontend_prefix,
-                                               client_io, &mgr, &init_error);
+  RGWHandler_REST* handler = rest->get_handler(
+      driver, s, *penv.auth_registry, frontend_prefix, client_io, &mgr,
+      &init_error);
   rgw::dmclock::SchedulerCompleter c;
 
   if (init_error != 0) {
@@ -367,12 +396,12 @@ int process_request(const RGWProcessEnv& penv,
     abort_early(s, NULL, -ERR_METHOD_NOT_ALLOWED, handler, yield);
     goto done;
   }
-  std::tie(ret,c) = schedule_request(scheduler, s, op);
+  std::tie(ret, c) = schedule_request(scheduler, s, op);
   if (ret < 0) {
     if (ret == -EAGAIN) {
       ret = -ERR_RATE_LIMITED;
     }
-    ldpp_dout(op,0) << "Scheduling request failed with " << ret << dendl;
+    ldpp_dout(op, 0) << "Scheduling request failed with " << ret << dendl;
     abort_early(s, op, ret, handler, yield);
     goto done;
   }
@@ -392,8 +421,8 @@ int process_request(const RGWProcessEnv& penv,
     /* FIXME: remove this after switching all handlers to the new authentication
      * infrastructure. */
     if (nullptr == s->auth.identity) {
-      auto result = rgw::auth::transform_old_authinfo(
-          op, yield, driver, s->user.get());
+      auto result =
+          rgw::auth::transform_old_authinfo(op, yield, driver, s->user.get());
       if (!result) {
         abort_early(s, op, result.error(), handler, yield);
         goto done;
@@ -415,35 +444,37 @@ int process_request(const RGWProcessEnv& penv,
       goto done;
     }
 
-  is_health_request = (op->get_type() == RGW_OP_GET_HEALTH_CHECK);
-  {
-    s->trace_enabled = tracing::rgw::tracer.is_enabled();
-    if (!is_health_request) {
-      auto [lua_script, rc] = rgw::lua::read_script_or_bytecode(s, penv.lua.manager.get(),
-                                                  s->bucket_tenant, s->yield,
-                                                  rgw::lua::context::preRequest);
-      if (rc == -ENOENT) {
-        // no script, nothing to do
-      } else if (rc < 0) {
-        ldpp_dout(op, 5) <<
-          "WARNING: failed to execute pre request script. "
-          "error: " << rc << dendl;
-      } else {
-        int script_return_code = 0;
-        rc = rgw::lua::request::execute(rest, penv.olog.get(), s, op, lua_script, script_return_code);
+    is_health_request = (op->get_type() == RGW_OP_GET_HEALTH_CHECK);
+    {
+      s->trace_enabled = tracing::rgw::tracer.is_enabled();
+      if (!is_health_request) {
+        auto [lua_script, rc] = rgw::lua::read_script_or_bytecode(
+            s, penv.lua.manager.get(), s->bucket_tenant, s->yield,
+            rgw::lua::context::preRequest);
+        if (rc == -ENOENT) {
+          // no script, nothing to do
+        } else if (rc < 0) {
+          ldpp_dout(op, 5) << "WARNING: failed to execute pre request script. "
+                              "error: "
+                           << rc << dendl;
+        } else {
+          int script_return_code = 0;
+          rc = rgw::lua::request::execute(
+              rest, penv.olog.get(), s, op, lua_script, script_return_code);
 
-        if (rc < 0) {
-          ldpp_dout(op, 5) <<
-            "WARNING: failed to execute pre request script. "
-            "error: " << rc << dendl;
-        }
-        if (script_return_code == -EPERM) {
-          abort_early(s, op, script_return_code, handler, yield);
-          goto done;
+          if (rc < 0) {
+            ldpp_dout(op, 5)
+                << "WARNING: failed to execute pre request script. "
+                   "error: "
+                << rc << dendl;
+          }
+          if (script_return_code == -EPERM) {
+            abort_early(s, op, script_return_code, handler, yield);
+            goto done;
+          }
         }
       }
     }
-  }
     s->trace = tracing::rgw::tracer.start_trace(op->name(), s->trace_enabled);
     s->trace->SetAttribute(tracing::rgw::TRANS_ID, s->trans_id);
 
@@ -474,21 +505,22 @@ done:
       }
     }
     if (!is_health_request) {
-      auto [lua_script, rc] = rgw::lua::read_script_or_bytecode(s, penv.lua.manager.get(),
-                                                  s->bucket_tenant, s->yield,
-                                                  rgw::lua::context::postRequest);
+      auto [lua_script, rc] = rgw::lua::read_script_or_bytecode(
+          s, penv.lua.manager.get(), s->bucket_tenant, s->yield,
+          rgw::lua::context::postRequest);
       if (rc == -ENOENT) {
         // no script, nothing to do
       } else if (rc < 0) {
-        ldpp_dout(op, 5) <<
-          "WARNING: failed to read post request script. "
-          "error: " << rc << dendl;
+        ldpp_dout(op, 5) << "WARNING: failed to read post request script. "
+                            "error: "
+                         << rc << dendl;
       } else {
-        rc = rgw::lua::request::execute(rest, penv.olog.get(), s, op, lua_script);
+        rc = rgw::lua::request::execute(
+            rest, penv.olog.get(), s, op, lua_script);
         if (rc < 0) {
-          ldpp_dout(op, 5) <<
-            "WARNING: failed to execute post request script. "
-            "error: " << rc << dendl;
+          ldpp_dout(op, 5) << "WARNING: failed to execute post request script. "
+                              "error: "
+                           << rc << dendl;
         }
       }
     }
@@ -497,8 +529,8 @@ done:
   try {
     client_io->complete_request();
   } catch (rgw::io::Exception& e) {
-    dout(0) << "ERROR: client_io->complete_request() returned "
-            << e.what() << dendl;
+    dout(0) << "ERROR: client_io->complete_request() returned " << e.what()
+            << dendl;
     perfcounter->inc(l_rgw_qlen, -1);
     perfcounter->inc(l_rgw_qactive, -1);
   }
@@ -507,17 +539,12 @@ done:
   }
 
   if (op && op->always_do_bucket_logging()) {
-    std::ignore = rgw::bucketlogging::log_record(driver,
-        rgw::bucketlogging::LoggingType::Standard,
-        s->object.get(),
-        s,
-        op->canonical_name(),
-        "",
-        (s->src_object ? s->src_object->get_size() : (s->object ? s->object->get_size() : 0)),
-        op,
-        yield,
-        true,
-        false);
+    std::ignore = rgw::bucketlogging::log_record(
+        driver, rgw::bucketlogging::LoggingType::Standard, s->object.get(), s,
+        op->canonical_name(), "",
+        (s->src_object ? s->src_object->get_size()
+                       : (s->object ? s->object->get_size() : 0)),
+        op, yield, true, false);
   }
 
   if (http_ret != nullptr) {
@@ -543,13 +570,9 @@ done:
   }
   dout(1) << "====== req done req=" << hex << req << dec
           << " op=" << (op ? op->name() : "unknown")
-          << " bucket=" << s->bucket_name
-          << " status=" << op_ret
-          << " http_status=" << s->err.http_ret
-          << " latency=" << lat
-          << " request_id=" << s->trans_id
-          << " ======"
-          << dendl;
+          << " bucket=" << s->bucket_name << " status=" << op_ret
+          << " http_status=" << s->err.http_ret << " latency=" << lat
+          << " request_id=" << s->trans_id << " ======" << dendl;
 
   if (handler)
     handler->put_op(op);

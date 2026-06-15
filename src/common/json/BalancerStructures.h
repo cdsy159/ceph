@@ -30,6 +30,6 @@ struct BalancerStatusReply {
   void dump(Formatter* f) const;
   void decode_json(JSONObj* obj);
 };
-}  // namespace balancer
-}  // namespace messaging
-}  // namespace ceph
+} // namespace balancer
+} // namespace messaging
+} // namespace ceph

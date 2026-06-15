@@ -16,10 +16,10 @@
 #ifndef CEPH_COMMON_INIT_H
 #define CEPH_COMMON_INIT_H
 
-#include "include/common_fwd.h"
-#include "common/code_environment.h"
-
 #include <string>
+
+#include "common/code_environment.h"
+#include "include/common_fwd.h"
 
 enum common_init_flags_t {
   // Set up defaults that make sense for an unprivileged daemon
@@ -64,13 +64,14 @@ class CephInitParameters;
  *
  * Your library may also supply functions to read a configuration file.
  */
-CephContext *common_preinit(const CephInitParameters &iparams,
-			    enum code_environment_t code_env, int flags);
+CephContext* common_preinit(
+    const CephInitParameters& iparams,
+    enum code_environment_t code_env,
+    int flags);
 #endif // #ifndef WITH_CRIMSON
 
 /* Print out some parse error. */
-void complain_about_parse_error(CephContext *cct,
-				const std::string& parse_error);
+void complain_about_parse_error(CephContext* cct, const std::string& parse_error);
 
 /* This function is called after you have done your last
  * fork. When you make this call, the system will initialize everything that
@@ -84,6 +85,6 @@ void complain_about_parse_error(CephContext *cct,
  * libraries. The most obvious reason for this is that the threads started by
  * the Ceph libraries would be destroyed by a fork().
  */
-void common_init_finish(CephContext *cct);
+void common_init_finish(CephContext* cct);
 
 #endif

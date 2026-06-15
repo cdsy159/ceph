@@ -14,9 +14,10 @@
  *
  */
 
+#include "common/error_code.h"
+
 #include <string>
 
-#include "common/error_code.h"
 #include "error_code.h"
 
 namespace bs = boost::system;
@@ -25,28 +26,32 @@ namespace bs = boost::system;
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnon-virtual-dtor"
+
 class osdc_error_category : public ceph::converting_category {
 public:
-  osdc_error_category(){}
+  osdc_error_category() {}
+
   const char* name() const noexcept override;
   const char* message(int ev, char*, std::size_t) const noexcept override;
   std::string message(int ev) const override;
-  bs::error_condition default_error_condition(int ev) const noexcept
-    override;
-  bool equivalent(int ev, const bs::error_condition& c) const
-    noexcept override;
+  bs::error_condition default_error_condition(int ev) const noexcept override;
+  bool equivalent(int ev, const bs::error_condition& c) const noexcept override;
   using ceph::converting_category::equivalent;
   int from_code(int ev) const noexcept override;
 };
+
 #pragma GCC diagnostic pop
 #pragma clang diagnostic pop
 
-const char* osdc_error_category::name() const noexcept {
+const char*
+osdc_error_category::name() const noexcept
+{
   return "osdc";
 }
 
-const char* osdc_error_category::message(int ev, char*,
-					 std::size_t) const noexcept {
+const char*
+osdc_error_category::message(int ev, char*, std::size_t) const noexcept
+{
   if (ev == 0)
     return "No error";
 
@@ -82,12 +87,15 @@ const char* osdc_error_category::message(int ev, char*,
   return "Unknown error";
 }
 
-std::string osdc_error_category::message(int ev) const {
+std::string
+osdc_error_category::message(int ev) const
+{
   return message(ev, nullptr, 0);
 }
 
 bs::error_condition
-osdc_error_category::default_error_condition(int ev) const noexcept {
+osdc_error_category::default_error_condition(int ev) const noexcept
+{
   switch (static_cast<osdc_errc>(ev)) {
   case osdc_errc::pool_dne:
     return ceph::errc::does_not_exist;
@@ -109,11 +117,14 @@ osdc_error_category::default_error_condition(int ev) const noexcept {
     return bs::errc::io_error;
   }
 
-  return { ev, *this };
+  return {ev, *this};
 }
 
-bool osdc_error_category::equivalent(int ev,
-                                     const bs::error_condition& c) const noexcept {
+bool
+osdc_error_category::equivalent(
+    int ev,
+    const bs::error_condition& c) const noexcept
+{
   if (static_cast<osdc_errc>(ev) == osdc_errc::pool_dne) {
     if (c == bs::errc::no_such_file_or_directory) {
       return true;
@@ -144,7 +155,9 @@ bool osdc_error_category::equivalent(int ev,
   return default_error_condition(ev) == c;
 }
 
-int osdc_error_category::from_code(int ev) const noexcept {
+int
+osdc_error_category::from_code(int ev) const noexcept
+{
   switch (static_cast<osdc_errc>(ev)) {
   case osdc_errc::pool_dne:
     return -ENOENT;
@@ -168,7 +181,9 @@ int osdc_error_category::from_code(int ev) const noexcept {
   return -EDOM;
 }
 
-const bs::error_category& osdc_category() noexcept {
+const bs::error_category&
+osdc_category() noexcept
+{
   static const osdc_error_category c;
   return c;
 }

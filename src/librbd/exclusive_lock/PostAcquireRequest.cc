@@ -2,6 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/exclusive_lock/PostAcquireRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "cls/lock/cls_lock_client.h"
 #include "cls/lock/cls_lock_types.h"
 #include "common/dout.h"
@@ -13,17 +16,16 @@
 #include "librbd/ImageWatcher.h"
 #include "librbd/Journal.h"
 #include "librbd/ObjectMap.h"
+#include "librbd/PluginRegistry.h"
 #include "librbd/Utils.h"
 #include "librbd/image/RefreshRequest.h"
 #include "librbd/journal/Policy.h"
-#include "librbd/PluginRegistry.h"
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::exclusive_lock::PostAcquireRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::exclusive_lock::PostAcquireRequest: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace exclusive_lock {
@@ -33,23 +35,31 @@ using util::create_context_callback;
 using util::create_rados_callback;
 
 template <typename I>
-PostAcquireRequest<I>* PostAcquireRequest<I>::create(I &image_ctx,
-                                                     Context *on_acquire,
-                                                     Context *on_finish) {
+PostAcquireRequest<I>*
+PostAcquireRequest<I>::create(
+    I& image_ctx,
+    Context* on_acquire,
+    Context* on_finish)
+{
   return new PostAcquireRequest(image_ctx, on_acquire, on_finish);
 }
 
 template <typename I>
-PostAcquireRequest<I>::PostAcquireRequest(I &image_ctx, Context *on_acquire,
-                                          Context *on_finish)
-  : m_image_ctx(image_ctx),
-    m_on_acquire(on_acquire),
-    m_on_finish(create_async_context_callback(image_ctx, on_finish)),
-    m_object_map(nullptr), m_journal(nullptr), m_error_result(0) {
-}
+PostAcquireRequest<I>::PostAcquireRequest(
+    I& image_ctx,
+    Context* on_acquire,
+    Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_on_acquire(on_acquire),
+  m_on_finish(create_async_context_callback(image_ctx, on_finish)),
+  m_object_map(nullptr),
+  m_journal(nullptr),
+  m_error_result(0)
+{}
 
 template <typename I>
-PostAcquireRequest<I>::~PostAcquireRequest() {
+PostAcquireRequest<I>::~PostAcquireRequest()
+{
   if (!m_prepare_lock_completed) {
     m_image_ctx.state->handle_prepare_lock_complete();
   }
@@ -57,34 +67,40 @@ PostAcquireRequest<I>::~PostAcquireRequest() {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send() {
+void
+PostAcquireRequest<I>::send()
+{
   send_refresh();
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_refresh() {
+void
+PostAcquireRequest<I>::send_refresh()
+{
   if (!m_image_ctx.state->is_refresh_required()) {
     send_open_object_map();
     return;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_async_context_callback(
-    m_image_ctx, create_context_callback<klass, &klass::handle_refresh>(this));
+  Context* ctx = create_async_context_callback(
+      m_image_ctx, create_context_callback<klass, &klass::handle_refresh>(this));
 
   // ImageState is blocked waiting for lock to complete -- safe to directly
   // refresh
-  image::RefreshRequest<I> *req = image::RefreshRequest<I>::create(
-    m_image_ctx, true, false, ctx);
+  image::RefreshRequest<I>* req =
+      image::RefreshRequest<I>::create(m_image_ctx, true, false, ctx);
   req->send();
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_refresh(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_refresh(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   if (r == -ERESTART) {
@@ -103,7 +119,9 @@ void PostAcquireRequest<I>::handle_refresh(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_open_journal() {
+void
+PostAcquireRequest<I>::send_open_journal()
+{
   // alert caller that we now own the exclusive lock
   m_on_acquire->complete(0);
   m_on_acquire = nullptr;
@@ -111,9 +129,10 @@ void PostAcquireRequest<I>::send_open_journal() {
   bool journal_enabled;
   {
     std::shared_lock image_locker{m_image_ctx.image_lock};
-    journal_enabled = (m_image_ctx.test_features(RBD_FEATURE_JOURNALING,
-                                                 m_image_ctx.image_lock) &&
-                       !m_image_ctx.get_journal_policy()->journal_disabled());
+    journal_enabled =
+        (m_image_ctx.test_features(
+             RBD_FEATURE_JOURNALING, m_image_ctx.image_lock) &&
+         !m_image_ctx.get_journal_policy()->journal_disabled());
   }
   if (!journal_enabled) {
     apply();
@@ -121,12 +140,12 @@ void PostAcquireRequest<I>::send_open_journal() {
     return;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_open_journal>(
-    this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_open_journal>(this);
   m_journal = m_image_ctx.create_journal();
 
   // journal playback requires object map (if enabled) and itself
@@ -136,8 +155,10 @@ void PostAcquireRequest<I>::send_open_journal() {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_open_journal(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_open_journal(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   save_result(r);
@@ -151,20 +172,25 @@ void PostAcquireRequest<I>::handle_open_journal(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_allocate_journal_tag() {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::send_allocate_journal_tag()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   std::shared_lock image_locker{m_image_ctx.image_lock};
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<
-    klass, &klass::handle_allocate_journal_tag>(this, m_journal);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_allocate_journal_tag>(
+          this, m_journal);
   m_image_ctx.get_journal_policy()->allocate_tag_on_lock(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_allocate_journal_tag(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_allocate_journal_tag(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   save_result(r);
@@ -179,25 +205,29 @@ void PostAcquireRequest<I>::handle_allocate_journal_tag(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_process_plugin_acquire_lock() {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::send_process_plugin_acquire_lock()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<
-    klass, &klass::handle_process_plugin_acquire_lock>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_process_plugin_acquire_lock>(
+          this);
   m_image_ctx.plugin_registry->acquired_exclusive_lock(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_process_plugin_acquire_lock(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_process_plugin_acquire_lock(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   save_result(r);
   if (r < 0) {
-    lderr(cct) << "failed to process plugins: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to process plugins: " << cpp_strerror(r) << dendl;
     send_process_plugin_release_lock();
     return;
   }
@@ -206,48 +236,56 @@ void PostAcquireRequest<I>::handle_process_plugin_acquire_lock(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_process_plugin_release_lock() {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::send_process_plugin_release_lock()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<
-    klass, &klass::handle_process_plugin_release_lock>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_process_plugin_release_lock>(
+          this);
   m_image_ctx.plugin_registry->prerelease_exclusive_lock(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_process_plugin_release_lock(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_process_plugin_release_lock(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   save_result(r);
   if (r < 0) {
-    lderr(cct) << "failed to release plugins: " << cpp_strerror(r)
-               << dendl;
+    lderr(cct) << "failed to release plugins: " << cpp_strerror(r) << dendl;
   }
   send_close_journal();
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_close_journal() {
+void
+PostAcquireRequest<I>::send_close_journal()
+{
   if (m_journal == nullptr) {
     send_close_object_map();
     return;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_close_journal>(
-    this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_close_journal>(this);
   m_journal->close(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_close_journal(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_close_journal(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   save_result(r);
@@ -259,26 +297,30 @@ void PostAcquireRequest<I>::handle_close_journal(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_open_object_map() {
+void
+PostAcquireRequest<I>::send_open_object_map()
+{
   if (!m_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
     send_open_journal();
     return;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_open_object_map>(
-    this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_open_object_map>(this);
 
   m_object_map = m_image_ctx.create_object_map(CEPH_NOSNAP);
   m_object_map->open(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_open_object_map(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_open_object_map(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -298,25 +340,29 @@ void PostAcquireRequest<I>::handle_open_object_map(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::send_close_object_map() {
+void
+PostAcquireRequest<I>::send_close_object_map()
+{
   if (m_object_map == nullptr) {
     revert();
     finish();
     return;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << dendl;
 
   using klass = PostAcquireRequest<I>;
-  Context *ctx = create_context_callback<
-    klass, &klass::handle_close_object_map>(this);
+  Context* ctx =
+      create_context_callback<klass, &klass::handle_close_object_map>(this);
   m_object_map->close(ctx);
 }
 
 template <typename I>
-void PostAcquireRequest<I>::handle_close_object_map(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+PostAcquireRequest<I>::handle_close_object_map(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 10) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -328,7 +374,9 @@ void PostAcquireRequest<I>::handle_close_object_map(int r) {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::apply() {
+void
+PostAcquireRequest<I>::apply()
+{
   {
     std::unique_lock image_locker{m_image_ctx.image_lock};
     ceph_assert(m_image_ctx.object_map == nullptr);
@@ -343,7 +391,9 @@ void PostAcquireRequest<I>::apply() {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::revert() {
+void
+PostAcquireRequest<I>::revert()
+{
   std::unique_lock image_locker{m_image_ctx.image_lock};
   m_image_ctx.object_map = nullptr;
   m_image_ctx.journal = nullptr;
@@ -359,7 +409,9 @@ void PostAcquireRequest<I>::revert() {
 }
 
 template <typename I>
-void PostAcquireRequest<I>::finish() {
+void
+PostAcquireRequest<I>::finish()
+{
   m_on_finish->complete(m_error_result);
   delete this;
 }

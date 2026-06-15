@@ -14,137 +14,154 @@
  */
 
 #include "Filer.h"
-#include "Objecter.h"
-#include "Striper.h"
 
 #include <algorithm>
-#include "osd/OSDMap.h"
-#include "Striper.h"
-
-#include "messages/MOSDOp.h"
-#include "messages/MOSDOpReply.h"
-#include "messages/MOSDMap.h"
-
-#include "msg/Messenger.h"
-
-#include "include/Context.h"
 
 #include "common/Finisher.h"
 #include "common/config.h"
+#include "include/Context.h"
+#include "messages/MOSDMap.h"
+#include "messages/MOSDOp.h"
+#include "messages/MOSDOpReply.h"
+#include "msg/Messenger.h"
+#include "osd/OSDMap.h"
+
+#include "Objecter.h"
+#include "Striper.h"
 
 #define dout_subsys ceph_subsys_filer
 #undef dout_prefix
 #define dout_prefix *_dout << objecter->messenger->get_myname() << ".filer "
 
-using std::hex;
 using std::dec;
+using std::hex;
 using std::vector;
 
-Filer::Filer(Objecter *o, Finisher *f) : cct(o->cct), objecter(o), finisher(f) {}
+Filer::Filer(Objecter* o, Finisher* f) :
+  cct(o->cct), objecter(o), finisher(f)
+{}
 
-bool Filer::is_active() {
+bool
+Filer::is_active()
+{
   return objecter->is_active(); // || (oc && oc->is_active());
 }
 
-void Filer::read(inodeno_t ino,
-		 const file_layout_t *layout,
-		 snapid_t snap,
-		 uint64_t offset,
-		 uint64_t len,
-		 ceph::buffer::list *bl,   // ptr to data
-		 int flags,
-		 Context *onfinish,
-		 int op_flags) {
-  ceph_assert(snap);  // (until there is a non-NOSNAP write)
+void
+Filer::read(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    snapid_t snap,
+    uint64_t offset,
+    uint64_t len,
+    ceph::buffer::list* bl, // ptr to data
+    int flags,
+    Context* onfinish,
+    int op_flags)
+{
+  ceph_assert(snap); // (until there is a non-NOSNAP write)
   std::vector<ObjectExtent> extents;
   Striper::file_to_extents(cct, ino, layout, offset, len, 0, extents);
   objecter->sg_read(extents, snap, bl, flags, onfinish, op_flags);
 }
 
-void Filer::read_trunc(inodeno_t ino,
-		       const file_layout_t *layout,
-		       snapid_t snap,
-		       uint64_t offset,
-		       uint64_t len,
-		       ceph::buffer::list *bl, // ptr to data
-		       int flags,
-		       uint64_t truncate_size,
-		       __u32 truncate_seq,
-		       Context *onfinish,
-		       int op_flags) {
-  ceph_assert(snap);  // (until there is a non-NOSNAP write)
+void
+Filer::read_trunc(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    snapid_t snap,
+    uint64_t offset,
+    uint64_t len,
+    ceph::buffer::list* bl, // ptr to data
+    int flags,
+    uint64_t truncate_size,
+    __u32 truncate_seq,
+    Context* onfinish,
+    int op_flags)
+{
+  ceph_assert(snap); // (until there is a non-NOSNAP write)
   std::vector<ObjectExtent> extents;
-  Striper::file_to_extents(cct, ino, layout, offset, len, truncate_size,
-			   extents);
-  objecter->sg_read_trunc(extents, snap, bl, flags,
-			  truncate_size, truncate_seq, onfinish, op_flags);
+  Striper::file_to_extents(
+      cct, ino, layout, offset, len, truncate_size, extents);
+  objecter->sg_read_trunc(
+      extents, snap, bl, flags, truncate_size, truncate_seq, onfinish, op_flags);
 }
 
-void Filer::write(inodeno_t ino,
-		  const file_layout_t *layout,
-		  const SnapContext& snapc,
-		  uint64_t offset,
-		  uint64_t len,
-		  ceph::buffer::list& bl,
-		  ceph::real_time mtime,
-		  int flags,
-		  Context *oncommit,
-		  int op_flags) {
+void
+Filer::write(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    const SnapContext& snapc,
+    uint64_t offset,
+    uint64_t len,
+    ceph::buffer::list& bl,
+    ceph::real_time mtime,
+    int flags,
+    Context* oncommit,
+    int op_flags)
+{
   std::vector<ObjectExtent> extents;
   Striper::file_to_extents(cct, ino, layout, offset, len, 0, extents);
   objecter->sg_write(extents, snapc, bl, mtime, flags, oncommit, op_flags);
 }
 
-void Filer::write_trunc(inodeno_t ino,
-			const file_layout_t *layout,
-			const SnapContext& snapc,
-			uint64_t offset,
-			uint64_t len,
-			ceph::buffer::list& bl,
-			ceph::real_time mtime,
-			int flags,
-			uint64_t truncate_size,
-			__u32 truncate_seq,
-			Context *oncommit,
-			int op_flags) {
+void
+Filer::write_trunc(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    const SnapContext& snapc,
+    uint64_t offset,
+    uint64_t len,
+    ceph::buffer::list& bl,
+    ceph::real_time mtime,
+    int flags,
+    uint64_t truncate_size,
+    __u32 truncate_seq,
+    Context* oncommit,
+    int op_flags)
+{
   std::vector<ObjectExtent> extents;
-  Striper::file_to_extents(cct, ino, layout, offset, len, truncate_size,
-			   extents);
-  objecter->sg_write_trunc(extents, snapc, bl, mtime, flags,
-			   truncate_size, truncate_seq, oncommit, op_flags);
+  Striper::file_to_extents(
+      cct, ino, layout, offset, len, truncate_size, extents);
+  objecter->sg_write_trunc(
+      extents, snapc, bl, mtime, flags, truncate_size, truncate_seq, oncommit,
+      op_flags);
 }
 
-void Filer::zero(inodeno_t ino,
-		 const file_layout_t *layout,
-		 const SnapContext& snapc,
-		 uint64_t offset,
-		 uint64_t len,
-		 ceph::real_time mtime,
-		 int flags,
-		 bool keep_first,
-		 Context *oncommit) {
+void
+Filer::zero(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    const SnapContext& snapc,
+    uint64_t offset,
+    uint64_t len,
+    ceph::real_time mtime,
+    int flags,
+    bool keep_first,
+    Context* oncommit)
+{
   std::vector<ObjectExtent> extents;
   Striper::file_to_extents(cct, ino, layout, offset, len, 0, extents);
   if (extents.size() == 1) {
-    if (extents[0].offset == 0 && extents[0].length == layout->object_size
-	&& (!keep_first || extents[0].objectno != 0))
-      objecter->remove(extents[0].oid, extents[0].oloc,
-		       snapc, mtime, flags, oncommit);
+    if (extents[0].offset == 0 && extents[0].length == layout->object_size &&
+        (!keep_first || extents[0].objectno != 0))
+      objecter->remove(
+          extents[0].oid, extents[0].oloc, snapc, mtime, flags, oncommit);
     else
-      objecter->zero(extents[0].oid, extents[0].oloc, extents[0].offset,
-		     extents[0].length, snapc, mtime, flags, oncommit);
+      objecter->zero(
+          extents[0].oid, extents[0].oloc, extents[0].offset, extents[0].length,
+          snapc, mtime, flags, oncommit);
   } else {
     C_GatherBuilder gcom(cct, oncommit);
     for (auto p = extents.begin(); p != extents.end(); ++p) {
       if (p->offset == 0 && p->length == layout->object_size &&
-	  (!keep_first || p->objectno != 0))
-	objecter->remove(p->oid, p->oloc,
-			 snapc, mtime, flags,
-			 oncommit ? gcom.new_sub():0);
+          (!keep_first || p->objectno != 0))
+        objecter->remove(
+            p->oid, p->oloc, snapc, mtime, flags, oncommit ? gcom.new_sub() : 0);
       else
-	objecter->zero(p->oid, p->oloc, p->offset, p->length,
-		       snapc, mtime, flags,
-		       oncommit ? gcom.new_sub():0);
+        objecter->zero(
+            p->oid, p->oloc, p->offset, p->length, snapc, mtime, flags,
+            oncommit ? gcom.new_sub() : 0);
     }
     gcom.activate();
   }
@@ -152,14 +169,19 @@ void Filer::zero(inodeno_t ino,
 
 class Filer::C_Probe : public Context {
 public:
-  Filer *filer;
-  Probe *probe;
+  Filer* filer;
+  Probe* probe;
   object_t oid;
   uint64_t size;
   ceph::real_time mtime;
-  C_Probe(Filer *f, Probe *p, object_t o) : filer(f), probe(p), oid(o),
-					    size(0) {}
-  void finish(int r) override {
+
+  C_Probe(Filer* f, Probe* p, object_t o) :
+    filer(f), probe(p), oid(o), size(0)
+  {}
+
+  void
+  finish(int r) override
+  {
     if (r == -ENOENT) {
       r = 0;
       ceph_assert(size == 0);
@@ -169,7 +191,7 @@ public:
     {
       Probe::unique_lock pl(probe->lock);
       if (r != 0) {
-	probe->err = r;
+        probe->err = r;
       }
 
       probe_complete = filer->_probed(probe, oid, size, mtime, pl);
@@ -182,53 +204,57 @@ public:
   }
 };
 
-int Filer::probe(inodeno_t ino,
-		 const file_layout_t *layout,
-		 snapid_t snapid,
-		 uint64_t start_from,
-		 uint64_t *end, // LB, when !fwd
-		 ceph::real_time *pmtime,
-		 bool fwd,
-		 int flags,
-		 Context *onfinish)
+int
+Filer::probe(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    snapid_t snapid,
+    uint64_t start_from,
+    uint64_t* end, // LB, when !fwd
+    ceph::real_time* pmtime,
+    bool fwd,
+    int flags,
+    Context* onfinish)
 {
-  ldout(cct, 10) << "probe " << (fwd ? "fwd ":"bwd ")
-	   << hex << ino << dec
-	   << " starting from " << start_from
-	   << dendl;
+  ldout(cct, 10) << "probe " << (fwd ? "fwd " : "bwd ") << hex << ino << dec
+                 << " starting from " << start_from << dendl;
 
-  ceph_assert(snapid);  // (until there is a non-NOSNAP write)
+  ceph_assert(snapid); // (until there is a non-NOSNAP write)
 
-  Probe *probe = new Probe(ino, *layout, snapid, start_from, end, pmtime,
-			   flags, fwd, onfinish);
+  Probe* probe = new Probe(
+      ino, *layout, snapid, start_from, end, pmtime, flags, fwd, onfinish);
 
   return probe_impl(probe, layout, start_from, end);
 }
 
-int Filer::probe(inodeno_t ino,
-		 const file_layout_t *layout,
-		 snapid_t snapid,
-		 uint64_t start_from,
-		 uint64_t *end, // LB, when !fwd
-		 utime_t *pmtime,
-		 bool fwd,
-		 int flags,
-		 Context *onfinish)
+int
+Filer::probe(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    snapid_t snapid,
+    uint64_t start_from,
+    uint64_t* end, // LB, when !fwd
+    utime_t* pmtime,
+    bool fwd,
+    int flags,
+    Context* onfinish)
 {
-  ldout(cct, 10) << "probe " << (fwd ? "fwd ":"bwd ")
-	   << hex << ino << dec
-	   << " starting from " << start_from
-	   << dendl;
+  ldout(cct, 10) << "probe " << (fwd ? "fwd " : "bwd ") << hex << ino << dec
+                 << " starting from " << start_from << dendl;
 
-  ceph_assert(snapid);  // (until there is a non-NOSNAP write)
+  ceph_assert(snapid); // (until there is a non-NOSNAP write)
 
-  Probe *probe = new Probe(ino, *layout, snapid, start_from, end, pmtime,
-			   flags, fwd, onfinish);
+  Probe* probe = new Probe(
+      ino, *layout, snapid, start_from, end, pmtime, flags, fwd, onfinish);
   return probe_impl(probe, layout, start_from, end);
 }
 
-int Filer::probe_impl(Probe* probe, const file_layout_t *layout,
-		      uint64_t start_from, uint64_t *end) // LB, when !fwd
+int
+Filer::probe_impl(
+    Probe* probe,
+    const file_layout_t* layout,
+    uint64_t start_from,
+    uint64_t* end) // LB, when !fwd
 {
   // period (bytes before we jump unto a new set of object(s))
   uint64_t period = layout->get_period();
@@ -252,24 +278,23 @@ int Filer::probe_impl(Probe* probe, const file_layout_t *layout,
   return 0;
 }
 
-
-
 /**
  * probe->lock must be initially locked, this function will release it
  */
-void Filer::_probe(Probe *probe, Probe::unique_lock& pl)
+void
+Filer::_probe(Probe* probe, Probe::unique_lock& pl)
 {
   ceph_assert(pl.owns_lock() && pl.mutex() == &probe->lock);
 
-  ldout(cct, 10) << "_probe " << hex << probe->ino << dec
-		 << " " << probe->probing_off << "~" << probe->probing_len
-		 << dendl;
+  ldout(cct, 10) << "_probe " << hex << probe->ino << dec << " "
+                 << probe->probing_off << "~" << probe->probing_len << dendl;
 
   // map range onto objects
   probe->known_size.clear();
   probe->probing.clear();
-  Striper::file_to_extents(cct, probe->ino, &probe->layout, probe->probing_off,
-			   probe->probing_len, 0, probe->probing);
+  Striper::file_to_extents(
+      cct, probe->ino, &probe->layout, probe->probing_off, probe->probing_len,
+      0, probe->probing);
 
   std::vector<ObjectExtent> stat_extents;
   for (auto p = probe->probing.begin(); p != probe->probing.end(); ++p) {
@@ -281,10 +306,10 @@ void Filer::_probe(Probe *probe, Probe::unique_lock& pl)
   pl.unlock();
   for (std::vector<ObjectExtent>::iterator i = stat_extents.begin();
        i != stat_extents.end(); ++i) {
-    C_Probe *c = new C_Probe(this, probe, i->oid);
-    objecter->stat(i->oid, i->oloc, probe->snapid, &c->size, &c->mtime,
-		   probe->flags | CEPH_OSD_FLAG_RWORDERED,
-		   new C_OnFinisher(c, finisher));
+    C_Probe* c = new C_Probe(this, probe, i->oid);
+    objecter->stat(
+        i->oid, i->oloc, probe->snapid, &c->size, &c->mtime,
+        probe->flags | CEPH_OSD_FLAG_RWORDERED, new C_OnFinisher(c, finisher));
   }
 }
 
@@ -293,13 +318,18 @@ void Filer::_probe(Probe *probe, Probe::unique_lock& pl)
  *
  * @return true if probe is complete and Probe object may be freed.
  */
-bool Filer::_probed(Probe *probe, const object_t& oid, uint64_t size,
-		    ceph::real_time mtime, Probe::unique_lock& pl)
+bool
+Filer::_probed(
+    Probe* probe,
+    const object_t& oid,
+    uint64_t size,
+    ceph::real_time mtime,
+    Probe::unique_lock& pl)
 {
   ceph_assert(pl.owns_lock() && pl.mutex() == &probe->lock);
 
   ldout(cct, 10) << "_probed " << probe->ino << " object " << oid
-	   << " has size " << size << " mtime " << mtime << dendl;
+                 << " has size " << size << " mtime " << mtime << dendl;
 
   probe->known_size[oid] = size;
   if (mtime > probe->max_mtime)
@@ -310,7 +340,7 @@ bool Filer::_probed(Probe *probe, const object_t& oid, uint64_t size,
 
   if (!probe->ops.empty()) {
     pl.unlock();
-    return false;  // waiting for more!
+    return false; // waiting for more!
   }
 
   if (probe->err) { // we hit an error, propagate back up
@@ -327,48 +357,46 @@ bool Filer::_probed(Probe *probe, const object_t& oid, uint64_t size,
 
   for (auto p = probe->probing.begin(); p != probe->probing.end(); ++p) {
     uint64_t shouldbe = p->length + p->offset;
-    ldout(cct, 10) << "_probed  " << probe->ino << " object " << hex
-		   << p->oid << dec << " should be " << shouldbe
-		   << ", actual is " << probe->known_size[p->oid]
-		   << dendl;
+    ldout(cct, 10) << "_probed  " << probe->ino << " object " << hex << p->oid
+                   << dec << " should be " << shouldbe << ", actual is "
+                   << probe->known_size[p->oid] << dendl;
 
     if (!probe->found_size) {
       ceph_assert(probe->known_size[p->oid] <= shouldbe);
 
       if ((probe->fwd && probe->known_size[p->oid] == shouldbe) ||
-	  (!probe->fwd && probe->known_size[p->oid] == 0 &&
-	   probe->probing_off > 0))
-	continue;  // keep going
+          (!probe->fwd && probe->known_size[p->oid] == 0 &&
+           probe->probing_off > 0))
+        continue; // keep going
 
       // aha, we found the end!
       // calc offset into buffer_extent to get distance from probe->from.
       uint64_t oleft = probe->known_size[p->oid] - p->offset;
-      for (auto i = p->buffer_extents.begin();
-	   i != p->buffer_extents.end();
-	   ++i) {
-	if (oleft <= (uint64_t)i->second) {
-	  end = probe->probing_off + i->first + oleft;
-	  ldout(cct, 10) << "_probed  end is in buffer_extent " << i->first
-			 << "~" << i->second << " off " << oleft
-			 << ", from was " << probe->probing_off << ", end is "
-			 << end << dendl;
+      for (auto i = p->buffer_extents.begin(); i != p->buffer_extents.end();
+           ++i) {
+        if (oleft <= (uint64_t)i->second) {
+          end = probe->probing_off + i->first + oleft;
+          ldout(cct, 10) << "_probed  end is in buffer_extent " << i->first
+                         << "~" << i->second << " off " << oleft
+                         << ", from was " << probe->probing_off << ", end is "
+                         << end << dendl;
 
-	  probe->found_size = true;
-	  ldout(cct, 10) << "_probed found size at " << end << dendl;
-	  *probe->psize = end;
+          probe->found_size = true;
+          ldout(cct, 10) << "_probed found size at " << end << dendl;
+          *probe->psize = end;
 
-	  if (!probe->pmtime &&
-	      !probe->pumtime)  // stop if we don't need mtime too
-	    break;
-	}
-	oleft -= i->second;
+          if (!probe->pmtime &&
+              !probe->pumtime) // stop if we don't need mtime too
+            break;
+        }
+        oleft -= i->second;
       }
     }
     break;
   }
 
-  if (!probe->found_size || (probe->probing_off && (probe->pmtime ||
-						    probe->pumtime))) {
+  if (!probe->found_size ||
+      (probe->probing_off && (probe->pmtime || probe->pumtime))) {
     // keep probing!
     ldout(cct, 10) << "_probed probing further" << dendl;
 
@@ -398,7 +426,6 @@ bool Filer::_probed(Probe *probe, const object_t& oid, uint64_t size,
   return true;
 }
 
-
 // -----------------------
 
 struct PurgeRange {
@@ -411,23 +438,41 @@ struct PurgeRange {
   uint64_t first, num;
   ceph::real_time mtime;
   int flags;
-  Context *oncommit;
+  Context* oncommit;
   int uncommitted;
   int err = 0;
-  PurgeRange(inodeno_t i, const file_layout_t& l, const SnapContext& sc,
-	     uint64_t fo, uint64_t no, ceph::real_time t, int fl,
-	     Context *fin)
-    : ino(i), layout(l), snapc(sc), first(fo), num(no), mtime(t), flags(fl),
-      oncommit(fin), uncommitted(0) {}
+
+  PurgeRange(
+      inodeno_t i,
+      const file_layout_t& l,
+      const SnapContext& sc,
+      uint64_t fo,
+      uint64_t no,
+      ceph::real_time t,
+      int fl,
+      Context* fin) :
+    ino(i),
+    layout(l),
+    snapc(sc),
+    first(fo),
+    num(no),
+    mtime(t),
+    flags(fl),
+    oncommit(fin),
+    uncommitted(0)
+  {}
 };
 
-int Filer::purge_range(inodeno_t ino,
-		       const file_layout_t *layout,
-		       const SnapContext& snapc,
-		       uint64_t first_obj, uint64_t num_obj,
-		       ceph::real_time mtime,
-		       int flags,
-		       Context *oncommit)
+int
+Filer::purge_range(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    const SnapContext& snapc,
+    uint64_t first_obj,
+    uint64_t num_obj,
+    ceph::real_time mtime,
+    int flags,
+    Context* oncommit)
 {
   ceph_assert(num_obj > 0);
 
@@ -440,31 +485,38 @@ int Filer::purge_range(inodeno_t ino,
     return 0;
   }
 
-  PurgeRange *pr = new PurgeRange(ino, *layout, snapc, first_obj,
-				  num_obj, mtime, flags, oncommit);
+  PurgeRange* pr = new PurgeRange(
+      ino, *layout, snapc, first_obj, num_obj, mtime, flags, oncommit);
 
   _do_purge_range(pr, 0, 0);
   return 0;
 }
 
 struct C_PurgeRange : public Context {
-  Filer *filer;
-  PurgeRange *pr;
-  C_PurgeRange(Filer *f, PurgeRange *p) : filer(f), pr(p) {}
-  void finish(int r) override {
+  Filer* filer;
+  PurgeRange* pr;
+
+  C_PurgeRange(Filer* f, PurgeRange* p) :
+    filer(f), pr(p)
+  {}
+
+  void
+  finish(int r) override
+  {
     filer->_do_purge_range(pr, 1, r);
   }
 };
 
-void Filer::_do_purge_range(PurgeRange *pr, int fin, int err)
+void
+Filer::_do_purge_range(PurgeRange* pr, int fin, int err)
 {
   PurgeRange::unique_lock prl(pr->lock);
   if (err && err != -ENOENT)
     pr->err = err;
   pr->uncommitted -= fin;
   ldout(cct, 10) << "_do_purge_range " << pr->ino << " objects " << pr->first
-		 << "~" << pr->num << " uncommitted " << pr->uncommitted
-		 << dendl;
+                 << "~" << pr->num << " uncommitted " << pr->uncommitted
+                 << dendl;
 
   if (pr->num == 0 && pr->uncommitted == 0) {
     pr->oncommit->complete(pr->err);
@@ -488,8 +540,9 @@ void Filer::_do_purge_range(PurgeRange *pr, int fin, int err)
   // Issue objecter ops outside pr->lock to avoid lock dependency loop
   for (const auto& oid : remove_oids) {
     object_locator_t oloc = OSDMap::file_to_object_locator(pr->layout);
-    objecter->remove(oid, oloc, pr->snapc, pr->mtime, pr->flags,
-		     new C_OnFinisher(new C_PurgeRange(this, pr), finisher));
+    objecter->remove(
+        oid, oloc, pr->snapc, pr->mtime, pr->flags,
+        new C_OnFinisher(new C_PurgeRange(this, pr), finisher));
   }
 }
 
@@ -503,27 +556,46 @@ struct TruncRange {
   SnapContext snapc;
   ceph::real_time mtime;
   int flags;
-  Context *oncommit;
+  Context* oncommit;
   int uncommitted;
   uint64_t offset;
   uint64_t length;
   uint32_t truncate_seq;
-  TruncRange(inodeno_t i, const file_layout_t& l, const SnapContext& sc,
-	     ceph::real_time t, int fl, Context *fin,
-	     uint64_t off, uint64_t len, uint32_t ts)
-    : ino(i), layout(l), snapc(sc), mtime(t), flags(fl), oncommit(fin),
-      uncommitted(0), offset(off), length(len), truncate_seq(ts) {}
+
+  TruncRange(
+      inodeno_t i,
+      const file_layout_t& l,
+      const SnapContext& sc,
+      ceph::real_time t,
+      int fl,
+      Context* fin,
+      uint64_t off,
+      uint64_t len,
+      uint32_t ts) :
+    ino(i),
+    layout(l),
+    snapc(sc),
+    mtime(t),
+    flags(fl),
+    oncommit(fin),
+    uncommitted(0),
+    offset(off),
+    length(len),
+    truncate_seq(ts)
+  {}
 };
 
-void Filer::truncate(inodeno_t ino,
-		     const file_layout_t *layout,
-		     const SnapContext& snapc,
-		     uint64_t offset,
-		     uint64_t len,
-		     __u32 truncate_seq,
-		     ceph::real_time mtime,
-		     int flags,
-		     Context *oncommit)
+void
+Filer::truncate(
+    inodeno_t ino,
+    const file_layout_t* layout,
+    const SnapContext& snapc,
+    uint64_t offset,
+    uint64_t len,
+    __u32 truncate_seq,
+    ceph::real_time mtime,
+    int flags,
+    Context* oncommit)
 {
   uint64_t period = layout->get_period();
   uint64_t num_objs = Striper::get_num_objects(*layout, len + (offset % period));
@@ -534,35 +606,42 @@ void Filer::truncate(inodeno_t ino,
     ops[0].op.op = CEPH_OSD_OP_TRIMTRUNC;
     ops[0].op.extent.truncate_seq = truncate_seq;
     ops[0].op.extent.truncate_size = extents[0].offset;
-    objecter->_modify(extents[0].oid, extents[0].oloc, ops, mtime, snapc,
-		      flags, oncommit);
+    objecter->_modify(
+        extents[0].oid, extents[0].oloc, ops, mtime, snapc, flags, oncommit);
     return;
   }
 
   if (len > 0 && (offset + len) % period)
     len += period - ((offset + len) % period);
 
-  TruncRange *tr = new TruncRange(ino, *layout, snapc, mtime, flags, oncommit,
-				  offset, len, truncate_seq);
+  TruncRange* tr = new TruncRange(
+      ino, *layout, snapc, mtime, flags, oncommit, offset, len, truncate_seq);
   _do_truncate_range(tr, 0);
 }
 
 struct C_TruncRange : public Context {
-  Filer *filer;
-  TruncRange *tr;
-  C_TruncRange(Filer *f, TruncRange *t) : filer(f), tr(t) {}
-  void finish(int r) override {
+  Filer* filer;
+  TruncRange* tr;
+
+  C_TruncRange(Filer* f, TruncRange* t) :
+    filer(f), tr(t)
+  {}
+
+  void
+  finish(int r) override
+  {
     filer->_do_truncate_range(tr, 1);
   }
 };
 
-void Filer::_do_truncate_range(TruncRange *tr, int fin)
+void
+Filer::_do_truncate_range(TruncRange* tr, int fin)
 {
   TruncRange::unique_lock trl(tr->lock);
   tr->uncommitted -= fin;
-  ldout(cct, 10) << "_do_truncate_range " << tr->ino << " objects " << tr->offset
-		 << "~" << tr->length << " uncommitted " << tr->uncommitted
-		 << dendl;
+  ldout(cct, 10) << "_do_truncate_range " << tr->ino << " objects "
+                 << tr->offset << "~" << tr->length << " uncommitted "
+                 << tr->uncommitted << dendl;
 
   if (tr->length == 0 && tr->uncommitted == 0) {
     tr->oncommit->complete(0);
@@ -593,7 +672,8 @@ void Filer::_do_truncate_range(TruncRange *tr, int fin)
     ops[0].op.op = CEPH_OSD_OP_TRIMTRUNC;
     ops[0].op.extent.truncate_size = p.offset;
     ops[0].op.extent.truncate_seq = tr->truncate_seq;
-    objecter->_modify(p.oid, p.oloc, ops, tr->mtime, tr->snapc, tr->flags,
-		      new C_OnFinisher(new C_TruncRange(this, tr), finisher));
+    objecter->_modify(
+        p.oid, p.oloc, ops, tr->mtime, tr->snapc, tr->flags,
+        new C_OnFinisher(new C_TruncRange(this, tr), finisher));
   }
 }

@@ -17,12 +17,14 @@
 
 #include <thread>
 #include <type_traits>
+#include <variant>
+
 #include <boost/type_traits/has_equal_to.hpp>
 #include <boost/type_traits/has_left_shift.hpp>
-#include <variant>
-#include "include/ceph_assert.h"
+
 #include "common/ceph_time.h"
 #include "common/dout.h"
+#include "include/ceph_assert.h"
 
 /// @file
 
@@ -65,42 +67,55 @@ struct InjectDelay {
  */
 template <typename Key>
 class FaultInjector {
- public:
+public:
   /// Default-construct with no injected failure.
-  constexpr FaultInjector() noexcept : location() {}
+  constexpr FaultInjector() noexcept :
+    location()
+  {}
 
   /// Construct with an injected assertion failure at the given location.
-  constexpr FaultInjector(Key location, InjectAbort a)
-    : location(std::move(location)), failure(a) {}
+  constexpr FaultInjector(Key location, InjectAbort a) :
+    location(std::move(location)), failure(a)
+  {}
 
   /// Construct with an injected error code at the given location.
-  constexpr FaultInjector(Key location, InjectError e)
-    : location(std::move(location)), failure(e) {}
+  constexpr FaultInjector(Key location, InjectError e) :
+    location(std::move(location)), failure(e)
+  {}
 
   /// Construct with an injected delay at the given location.
-  constexpr FaultInjector(Key location, InjectDelay d)
-    : location(std::move(location)), failure(d) {}
+  constexpr FaultInjector(Key location, InjectDelay d) :
+    location(std::move(location)), failure(d)
+  {}
 
   /// Inject an assertion failure at the given location.
-  void inject(Key location, InjectAbort a) {
+  void
+  inject(Key location, InjectAbort a)
+  {
     this->location = std::move(location);
     this->failure = a;
   }
 
   /// Inject an error at the given location.
-  void inject(Key location, InjectError e) {
+  void
+  inject(Key location, InjectError e)
+  {
     this->location = std::move(location);
     this->failure = e;
   }
 
   /// Injecte a delay at the given location.
-  void inject(Key location, InjectDelay d) {
+  void
+  inject(Key location, InjectDelay d)
+  {
     this->location = std::move(location);
     this->failure = d;
   }
 
   /// Clear any injected failure.
-  void clear() {
+  void
+  clear()
+  {
     this->failure = Empty{};
   }
 
@@ -109,51 +124,69 @@ class FaultInjector {
   /// failure.
   /// @returns 0 or InjectError::error if the location matches an InjectError
   /// failure
-  [[nodiscard]] constexpr int check(const Key& location) const {
+  [[nodiscard]] constexpr int
+  check(const Key& location) const
+  {
     struct visitor {
       const Key& check_location;
       const Key& this_location;
-      constexpr int operator()(const std::monostate&) const {
+
+      constexpr int
+      operator()(const std::monostate&) const
+      {
         return 0;
       }
-      int operator()(const InjectAbort&) const {
+
+      int
+      operator()(const InjectAbort&) const
+      {
         if (check_location == this_location) {
           ceph_assert_always(!"FaultInjector");
         }
         return 0;
       }
-      int operator()(const InjectError& e) const {
+
+      int
+      operator()(const InjectError& e) const
+      {
         if (check_location == this_location) {
           ldpp_dout(e.dpp, -1) << "Injecting error=" << e.error
-              << " at location=" << this_location << dendl;
+                               << " at location=" << this_location << dendl;
           return e.error;
         }
         return 0;
       }
-      int operator()(const InjectDelay& e) const {
+
+      int
+      operator()(const InjectDelay& e) const
+      {
         if (check_location == this_location) {
           ldpp_dout(e.dpp, -1) << "Injecting delay=" << e.duration
-              << " at location=" << this_location << dendl;
+                               << " at location=" << this_location << dendl;
           std::this_thread::sleep_for(e.duration);
         }
         return 0;
       }
     };
+
     return std::visit(visitor{location, this->location}, failure);
   }
 
- private:
+private:
   // Key requirements:
-  static_assert(std::is_default_constructible_v<Key>,
-                "Key must be default-constrible");
-  static_assert(std::is_move_constructible_v<Key>,
-                "Key must be move-constructible");
-  static_assert(std::is_move_assignable_v<Key>,
-                "Key must be move-assignable");
-  static_assert(boost::has_equal_to<Key, Key, bool>::value,
-                "Key must be equality-comparable");
-  static_assert(boost::has_left_shift<std::ostream, Key, std::ostream&>::value,
-                "Key must have an ostream operator<<");
+  static_assert(
+      std::is_default_constructible_v<Key>,
+      "Key must be default-constrible");
+  static_assert(
+      std::is_move_constructible_v<Key>,
+      "Key must be move-constructible");
+  static_assert(std::is_move_assignable_v<Key>, "Key must be move-assignable");
+  static_assert(
+      boost::has_equal_to<Key, Key, bool>::value,
+      "Key must be equality-comparable");
+  static_assert(
+      boost::has_left_shift<std::ostream, Key, std::ostream&>::value,
+      "Key must have an ostream operator<<");
 
   Key location; // location of the check that should fail
 

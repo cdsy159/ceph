@@ -2,16 +2,17 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ConfigMap.h"
-#include "crush/CrushWrapper.h"
-#include "common/entity_name.h"
 
 #include <boost/algorithm/string/split.hpp>
 
+#include "common/entity_name.h"
+#include "crush/CrushWrapper.h"
+
 #define dout_subsys ceph_subsys_mon
 #undef dout_prefix
-#include "common/dout.h"
-
 #include <iomanip>
+
+#include "common/dout.h"
 
 using namespace std::literals;
 
@@ -20,8 +21,8 @@ using std::cout;
 using std::dec;
 using std::hex;
 using std::list;
-using std::map;
 using std::make_pair;
+using std::map;
 using std::ostream;
 using std::ostringstream;
 using std::pair;
@@ -30,8 +31,8 @@ using std::setfill;
 using std::string;
 using std::stringstream;
 using std::to_string;
-using std::vector;
 using std::unique_ptr;
+using std::vector;
 
 using ceph::bufferlist;
 using ceph::decode;
@@ -41,7 +42,8 @@ using ceph::mono_clock;
 using ceph::mono_time;
 using ceph::timespan_str;
 
-int MaskedOption::get_precision(const CrushWrapper *crush)
+int
+MaskedOption::get_precision(const CrushWrapper* crush)
 {
   // 0 = most precise
   if (mask.location_type.size()) {
@@ -58,7 +60,8 @@ int MaskedOption::get_precision(const CrushWrapper *crush)
   return num_types + 1;
 }
 
-void OptionMask::dump(Formatter *f) const
+void
+OptionMask::dump(Formatter* f) const
 {
   if (location_type.size()) {
     f->dump_string("location_type", location_type);
@@ -69,7 +72,8 @@ void OptionMask::dump(Formatter *f) const
   }
 }
 
-void MaskedOption::dump(Formatter *f) const
+void
+MaskedOption::dump(Formatter* f) const
 {
   f->dump_string("name", localized_name);
   f->dump_string("value", raw_value);
@@ -79,7 +83,8 @@ void MaskedOption::dump(Formatter *f) const
   mask.dump(f);
 }
 
-ostream& operator<<(ostream& out, const MaskedOption& o)
+ostream&
+operator<<(ostream& out, const MaskedOption& o)
 {
   out << o.localized_name;
   if (o.mask.location_type.size()) {
@@ -93,34 +98,36 @@ ostream& operator<<(ostream& out, const MaskedOption& o)
 
 // ----------
 
-void Section::dump(Formatter *f) const
+void
+Section::dump(Formatter* f) const
 {
   for (auto& i : options) {
     f->dump_object(i.first.c_str(), i.second);
   }
 }
 
-std::string Section::get_minimal_conf() const
+std::string
+Section::get_minimal_conf() const
 {
   std::string r;
   for (auto& i : options) {
     if (i.second.opt->has_flag(Option::FLAG_NO_MON_UPDATE) ||
-	i.second.opt->has_flag(Option::FLAG_MINIMAL_CONF)) {
+        i.second.opt->has_flag(Option::FLAG_MINIMAL_CONF)) {
       if (i.second.mask.empty()) {
-	r += "\t"s + i.first + " = " + i.second.raw_value + "\n";
+        r += "\t"s + i.first + " = " + i.second.raw_value + "\n";
       } else {
-	r += "\t# masked option excluded: " + i.first + " = " +
-	  i.second.raw_value + "\n";
+        r += "\t# masked option excluded: " + i.first + " = " +
+             i.second.raw_value + "\n";
       }
     }
   }
   return r;
 }
 
-
 // ------------
 
-void ConfigMap::dump(Formatter *f) const
+void
+ConfigMap::dump(Formatter* f) const
 {
   f->dump_object("global", global);
   f->open_object_section("by_type");
@@ -135,24 +142,24 @@ void ConfigMap::dump(Formatter *f) const
   f->close_section();
 }
 
-std::map<std::string,std::string,std::less<>>
+std::map<std::string, std::string, std::less<>>
 ConfigMap::generate_entity_map(
-  const EntityName& name,
-  const map<std::string,std::string>& crush_location,
-  const CrushWrapper *crush,
-  const std::string& device_class,
-  std::unordered_map<std::string, ValueSource> *src)
+    const EntityName& name,
+    const map<std::string, std::string>& crush_location,
+    const CrushWrapper* crush,
+    const std::string& device_class,
+    std::unordered_map<std::string, ValueSource>* src)
 {
   // global, then by type, then by name prefix component(s), then name.
   // name prefix components are .-separated,
   // e.g. client.a.b.c -> [global, client, client.a, client.a.b, client.a.b.c]
-  vector<pair<string,Section*>> sections = { make_pair("global", &global) };
+  vector<pair<string, Section*>> sections = {make_pair("global", &global)};
   auto p = by_type.find(name.get_type_name());
   if (p != by_type.end()) {
     sections.emplace_back(name.get_type_name(), &p->second);
   }
   vector<std::string> name_bits;
-  boost::split(name_bits, name.to_str(), [](char c){ return c == '.'; });
+  boost::split(name_bits, name.to_str(), [](char c) { return c == '.'; });
   std::string tname;
   for (unsigned p = 0; p < name_bits.size(); ++p) {
     if (p) {
@@ -164,33 +171,30 @@ ConfigMap::generate_entity_map(
       sections.push_back(make_pair(tname, &q->second));
     }
   }
-  std::map<std::string,std::string,std::less<>> out;
-  MaskedOption *prev = nullptr;
+  std::map<std::string, std::string, std::less<>> out;
+  MaskedOption* prev = nullptr;
   for (auto s : sections) {
     for (auto& i : s.second->options) {
       auto& o = i.second;
       // match against crush location, class
-      if (o.mask.device_class.size() &&
-	  o.mask.device_class != device_class) {
-	continue;
+      if (o.mask.device_class.size() && o.mask.device_class != device_class) {
+        continue;
       }
       if (o.mask.location_type.size()) {
-	auto p = crush_location.find(o.mask.location_type);
-	if (p == crush_location.end() ||
-	    p->second != o.mask.location_value) {
-	  continue;
-	}
+        auto p = crush_location.find(o.mask.location_type);
+        if (p == crush_location.end() || p->second != o.mask.location_value) {
+          continue;
+        }
       }
       if (prev && prev->opt->name != i.first) {
-	prev = nullptr;
+        prev = nullptr;
       }
-      if (prev &&
-	  prev->get_precision(crush) < o.get_precision(crush)) {
-	continue;
+      if (prev && prev->get_precision(crush) < o.get_precision(crush)) {
+        continue;
       }
       out[i.first] = o.raw_value;
       if (src) {
-	(*src).emplace(i.first, ConfigMap::ValueSource(s.first, &o));
+        (*src).emplace(i.first, ConfigMap::ValueSource(s.first, &o));
       }
       prev = &o;
     }
@@ -198,13 +202,14 @@ ConfigMap::generate_entity_map(
   return out;
 }
 
-bool ConfigMap::parse_mask(
-  const std::string& who,
-  std::string *section,
-  OptionMask *mask)
+bool
+ConfigMap::parse_mask(
+    const std::string& who,
+    std::string* section,
+    OptionMask* mask)
 {
   vector<std::string> split;
-  boost::split(split, who, [](char c){ return c == '/'; });
+  boost::split(split, who, [](char c) { return c == '/'; });
   for (unsigned j = 0; j < split.size(); ++j) {
     auto& i = split[j];
     if (i == "global") {
@@ -215,10 +220,10 @@ bool ConfigMap::parse_mask(
     if (delim != std::string::npos) {
       string k = i.substr(0, delim);
       if (k == "class") {
-	mask->device_class = i.substr(delim + 1);
+        mask->device_class = i.substr(delim + 1);
       } else {
-	mask->location_type = k;
-	mask->location_value = i.substr(delim + 1);
+        mask->location_type = k;
+        mask->location_value = i.substr(delim + 1);
       }
       continue;
     }
@@ -238,10 +243,8 @@ bool ConfigMap::parse_mask(
   return true;
 }
 
-void ConfigMap::parse_key(
-  const std::string& key,
-  std::string *name,
-  std::string *who)
+void
+ConfigMap::parse_key(const std::string& key, std::string* name, std::string* who)
 {
   auto last_slash = key.rfind('/');
   if (last_slash == std::string::npos) {
@@ -255,19 +258,20 @@ void ConfigMap::parse_key(
   }
 }
 
-int ConfigMap::add_option(
-  CephContext *cct,
-  const std::string& name,
-  const std::string& who,
-  const std::string& orig_value,
-  std::function<const Option *(const std::string&)> get_opt)
+int
+ConfigMap::add_option(
+    CephContext* cct,
+    const std::string& name,
+    const std::string& who,
+    const std::string& orig_value,
+    std::function<const Option*(const std::string&)> get_opt)
 {
-  const Option *opt = get_opt(name);
+  const Option* opt = get_opt(name);
   if (!opt) {
-    ldout(cct, 10) << __func__ << " unrecognized option '" << name << "'" << dendl;
-    stray_options.push_back(
-      std::unique_ptr<Option>(
-	new Option(std::string{name}, Option::TYPE_STR, Option::LEVEL_UNKNOWN)));
+    ldout(cct, 10) << __func__ << " unrecognized option '" << name << "'"
+                   << dendl;
+    stray_options.push_back(std::unique_ptr<Option>(new Option(
+        std::string{name}, Option::TYPE_STR, Option::LEVEL_UNKNOWN)));
     opt = stray_options.back().get();
   }
 
@@ -276,7 +280,7 @@ int ConfigMap::add_option(
   int r = opt->pre_validate(&value, &err);
   if (r < 0) {
     ldout(cct, 10) << __func__ << " pre-validate failed on '" << name << "' = '"
-		   << value << "' for " << name << dendl;
+                   << value << "' for " << name << dendl;
   }
 
   int ret = 0;
@@ -284,23 +288,22 @@ int ConfigMap::add_option(
   mopt.raw_value = value;
   mopt.localized_name = name;
   string section_name;
-  if (who.size() &&
-      !ConfigMap::parse_mask(who, &section_name, &mopt.mask)) {
-    lderr(cct) << __func__ << " invalid mask for option " << name << " mask " << who
-	       << dendl;
+  if (who.size() && !ConfigMap::parse_mask(who, &section_name, &mopt.mask)) {
+    lderr(cct) << __func__ << " invalid mask for option " << name << " mask "
+               << who << dendl;
     ret = -EINVAL;
   } else if (opt->has_flag(Option::FLAG_NO_MON_UPDATE)) {
-    ldout(cct, 10) << __func__ << " NO_MON_UPDATE option '"
-		   << name << "' = '" << value << "' for " << name
-		   << dendl;
+    ldout(cct, 10) << __func__ << " NO_MON_UPDATE option '" << name << "' = '"
+                   << value << "' for " << name << dendl;
     ret = -EINVAL;
   } else {
-    Section *section = &global;;
+    Section* section = &global;
+    ;
     if (section_name.size() && section_name != "global") {
       if (section_name.find('.') != std::string::npos) {
-	section = &by_id[section_name];
+        section = &by_id[section_name];
       } else {
-	section = &by_type[section_name];
+        section = &by_type[section_name];
       }
     }
     section->options.insert(make_pair(name, std::move(mopt)));
@@ -308,10 +311,10 @@ int ConfigMap::add_option(
   return ret;
 }
 
-
 // --------------
 
-void ConfigChangeSet::dump(Formatter *f) const
+void
+ConfigChangeSet::dump(Formatter* f) const
 {
   f->dump_int("version", version);
   f->dump_stream("timestamp") << stamp;
@@ -331,7 +334,8 @@ void ConfigChangeSet::dump(Formatter *f) const
   f->close_section();
 }
 
-void ConfigChangeSet::print(ostream& out) const
+void
+ConfigChangeSet::print(ostream& out) const
 {
   out << "--- " << version << " --- " << stamp;
   if (name.size()) {

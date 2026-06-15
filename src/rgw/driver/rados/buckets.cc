@@ -14,19 +14,25 @@
  */
 
 #include "buckets.h"
-#include "include/rados/librados.hpp"
+
+#include "cls/user/cls_user_client.h"
 #include "common/async/yield_context.h"
 #include "common/dout.h"
-#include "cls/user/cls_user_client.h"
+#include "include/rados/librados.hpp"
+
 #include "rgw_common.h"
 #include "rgw_sal.h"
 #include "rgw_tools.h"
 
 namespace rgwrados::buckets {
 
-static int set(const DoutPrefixProvider* dpp, optional_yield y,
-               librados::Rados& rados, const rgw_raw_obj& obj,
-               cls_user_bucket_entry&& entry, bool add)
+static int
+set(const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    cls_user_bucket_entry&& entry,
+    bool add)
 {
   std::list<cls_user_bucket_entry> entries;
   entries.push_back(std::move(entry));
@@ -42,9 +48,13 @@ static int set(const DoutPrefixProvider* dpp, optional_yield y,
   return ref.operate(dpp, std::move(op), y);
 }
 
-int add(const DoutPrefixProvider* dpp, optional_yield y,
-        librados::Rados& rados, const rgw_raw_obj& obj,
-        const rgw_bucket& bucket, ceph::real_time creation_time)
+int
+add(const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const rgw_bucket& bucket,
+    ceph::real_time creation_time)
 {
   cls_user_bucket_entry entry;
   bucket.convert(&entry.bucket);
@@ -59,9 +69,13 @@ int add(const DoutPrefixProvider* dpp, optional_yield y,
   return set(dpp, y, rados, obj, std::move(entry), add);
 }
 
-int remove(const DoutPrefixProvider* dpp, optional_yield y,
-           librados::Rados& rados, const rgw_raw_obj& obj,
-           const rgw_bucket& bucket)
+int
+remove(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const rgw_bucket& bucket)
 {
   cls_user_bucket clsbucket;
   bucket.convert(&clsbucket);
@@ -77,11 +91,17 @@ int remove(const DoutPrefixProvider* dpp, optional_yield y,
   return ref.operate(dpp, std::move(op), y);
 }
 
-int list(const DoutPrefixProvider* dpp, optional_yield y,
-         librados::Rados& rados, const rgw_raw_obj& obj,
-         const std::string& tenant, const std::string& start_marker,
-         const std::string& end_marker, uint64_t max,
-         rgw::sal::BucketList& listing)
+int
+list(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const std::string& tenant,
+    const std::string& start_marker,
+    const std::string& end_marker,
+    uint64_t max,
+    rgw::sal::BucketList& listing)
 {
   listing.buckets.clear();
 
@@ -100,8 +120,8 @@ int list(const DoutPrefixProvider* dpp, optional_yield y,
 
     librados::ObjectReadOperation op;
     int rc = 0;
-    ::cls_user_bucket_list(op, marker, end_marker, count,
-                           entries, &marker, &truncated, &rc);
+    ::cls_user_bucket_list(
+        op, marker, end_marker, count, entries, &marker, &truncated, &rc);
 
     bufferlist bl;
     int r = ref.operate(dpp, std::move(op), &bl, y);
@@ -139,9 +159,13 @@ int list(const DoutPrefixProvider* dpp, optional_yield y,
   return 0;
 }
 
-int write_stats(const DoutPrefixProvider* dpp, optional_yield y,
-                librados::Rados& rados, const rgw_raw_obj& obj,
-                const RGWBucketEnt& ent)
+int
+write_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    const RGWBucketEnt& ent)
 {
   cls_user_bucket_entry entry;
   ent.convert(&entry);
@@ -150,10 +174,15 @@ int write_stats(const DoutPrefixProvider* dpp, optional_yield y,
   return set(dpp, y, rados, obj, std::move(entry), add);
 }
 
-int read_stats(const DoutPrefixProvider* dpp, optional_yield y,
-               librados::Rados& rados, const rgw_raw_obj& obj,
-               RGWStorageStats& stats, ceph::real_time* last_synced,
-               ceph::real_time* last_updated)
+int
+read_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    RGWStorageStats& stats,
+    ceph::real_time* last_synced,
+    ceph::real_time* last_updated)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);
@@ -186,11 +215,15 @@ int read_stats(const DoutPrefixProvider* dpp, optional_yield y,
 // callback wrapper for cls_user_get_header_async()
 class AsyncHeaderCB : public RGWGetUserHeader_CB {
   boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb;
- public:
-  explicit AsyncHeaderCB(boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb)
-    : cb(std::move(cb)) {}
 
-  void handle_response(int r, cls_user_header& header) override {
+public:
+  explicit AsyncHeaderCB(boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb) :
+    cb(std::move(cb))
+  {}
+
+  void
+  handle_response(int r, cls_user_header& header) override
+  {
     const cls_user_stats& hs = header.stats;
     RGWStorageStats stats;
     stats.size = hs.total_bytes;
@@ -201,10 +234,12 @@ class AsyncHeaderCB : public RGWGetUserHeader_CB {
   }
 };
 
-int read_stats_async(const DoutPrefixProvider* dpp,
-                     librados::Rados& rados,
-                     const rgw_raw_obj& obj,
-                     boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb)
+int
+read_stats_async(
+    const DoutPrefixProvider* dpp,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj,
+    boost::intrusive_ptr<rgw::sal::ReadStatsCB> cb)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);
@@ -220,8 +255,12 @@ int read_stats_async(const DoutPrefixProvider* dpp,
   return r;
 }
 
-int reset_stats(const DoutPrefixProvider* dpp, optional_yield y,
-                librados::Rados& rados, const rgw_raw_obj& obj)
+int
+reset_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);
@@ -258,8 +297,12 @@ int reset_stats(const DoutPrefixProvider* dpp, optional_yield y,
   return rval;
 }
 
-int complete_flush_stats(const DoutPrefixProvider* dpp, optional_yield y,
-                         librados::Rados& rados, const rgw_raw_obj& obj)
+int
+complete_flush_stats(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    librados::Rados& rados,
+    const rgw_raw_obj& obj)
 {
   rgw_rados_ref ref;
   int r = rgw_get_rados_ref(dpp, &rados, obj, &ref);

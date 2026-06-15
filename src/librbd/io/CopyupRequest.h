@@ -4,19 +4,21 @@
 #ifndef CEPH_LIBRBD_IO_COPYUP_REQUEST_H
 #define CEPH_LIBRBD_IO_COPYUP_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/buffer.h"
-#include "include/interval_set.h"
-#include "common/ceph_mutex.h"
-#include "common/zipkin_trace.h"
-#include "librbd/io/AsyncOperation.h"
-#include "librbd/io/Types.h"
-
 #include <map>
 #include <string>
 #include <vector>
 
-namespace ZTracer { struct Trace; }
+#include "common/ceph_mutex.h"
+#include "common/zipkin_trace.h"
+#include "include/buffer.h"
+#include "include/int_types.h"
+#include "include/interval_set.h"
+#include "librbd/io/AsyncOperation.h"
+#include "librbd/io/Types.h"
+
+namespace ZTracer {
+struct Trace;
+}
 
 namespace librbd {
 
@@ -24,25 +26,35 @@ struct ImageCtx;
 
 namespace io {
 
-template <typename I> class AbstractObjectWriteRequest;
+template <typename I>
+class AbstractObjectWriteRequest;
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class CopyupRequest {
 public:
-  static CopyupRequest* create(ImageCtxT *ictx, uint64_t objectno,
-                               Extents &&image_extents, ImageArea area,
-                               const ZTracer::Trace &parent_trace) {
-    return new CopyupRequest(ictx, objectno, std::move(image_extents), area,
-                             parent_trace);
+  static CopyupRequest*
+  create(
+      ImageCtxT* ictx,
+      uint64_t objectno,
+      Extents&& image_extents,
+      ImageArea area,
+      const ZTracer::Trace& parent_trace)
+  {
+    return new CopyupRequest(
+        ictx, objectno, std::move(image_extents), area, parent_trace);
   }
 
-  CopyupRequest(ImageCtxT *ictx, uint64_t objectno,
-                Extents &&image_extents, ImageArea area,
-                const ZTracer::Trace &parent_trace);
+  CopyupRequest(
+      ImageCtxT* ictx,
+      uint64_t objectno,
+      Extents&& image_extents,
+      ImageArea area,
+      const ZTracer::Trace& parent_trace);
   ~CopyupRequest();
 
-  void append_request(AbstractObjectWriteRequest<ImageCtxT> *req,
-                      const Extents& object_extents);
+  void append_request(
+      AbstractObjectWriteRequest<ImageCtxT>* req,
+      const Extents& object_extents);
 
   void send();
 
@@ -79,9 +91,9 @@ private:
    * no data was read from the parent *and* there are no additional ops.
    */
 
-  typedef std::vector<AbstractObjectWriteRequest<ImageCtxT> *> WriteRequests;
+  typedef std::vector<AbstractObjectWriteRequest<ImageCtxT>*> WriteRequests;
 
-  ImageCtxT *m_image_ctx;
+  ImageCtxT* m_image_ctx;
   uint64_t m_object_no;
   Extents m_image_extents;
   ImageArea m_image_area;

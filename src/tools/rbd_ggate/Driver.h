@@ -18,19 +18,23 @@ class Driver {
 public:
   typedef std::pair<std::string, std::string> DevInfo;
   static int load();
-  static int kill(const std::string &devname);
-  static int list(std::map<std::string, DevInfo> *devices);
+  static int kill(const std::string& devname);
+  static int list(std::map<std::string, DevInfo>* devices);
 
-  Driver(const std::string &devname, size_t sectorsize, size_t mediasize,
-         bool readonly, const std::string &info);
+  Driver(
+      const std::string& devname,
+      size_t sectorsize,
+      size_t mediasize,
+      bool readonly,
+      const std::string& info);
 
   int init();
   void shut_down();
 
   std::string get_devname() const;
 
-  int recv(Request **req);
-  int send(Request *req);
+  int recv(Request** req);
+  int send(Request* req);
 
   int resize(size_t newsize);
 
@@ -47,4 +51,3 @@ private:
 } // namespace rbd
 
 #endif // CEPH_RBD_GGATE_DRIVER_H
-

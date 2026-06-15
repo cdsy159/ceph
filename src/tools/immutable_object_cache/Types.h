@@ -4,8 +4,9 @@
 #ifndef CEPH_CACHE_TYPES_H
 #define CEPH_CACHE_TYPES_H
 
-#include "include/encoding.h"
 #include "include/Context.h"
+#include "include/encoding.h"
+
 #include "SocketCommon.h"
 
 namespace ceph {
@@ -16,20 +17,24 @@ struct HeaderHelper {
   uint8_t v;
   uint8_t c_v;
   ceph_le32 len;
-}__attribute__((packed));
+} __attribute__((packed));
 
-inline uint8_t get_header_size() {
+inline uint8_t
+get_header_size()
+{
   return sizeof(HeaderHelper);
 }
 
-inline uint32_t get_data_len(char* buf) {
+inline uint32_t
+get_data_len(char* buf)
+{
   HeaderHelper* header = reinterpret_cast<HeaderHelper*>(buf);
   return header->len;
 }
-}  //  namespace
+} //  namespace
 
 class ObjectCacheRequest {
- public:
+public:
   uint16_t type;
   uint64_t seq;
 
@@ -47,43 +52,71 @@ class ObjectCacheRequest {
   //          need to be encoded which be implements by child class.
   void encode();
   void decode(bufferlist& bl);
-  bufferlist get_payload_bufferlist() { return payload; }
+
+  bufferlist
+  get_payload_bufferlist()
+  {
+    return payload;
+  }
 
   virtual void encode_payload() = 0;
-  virtual void decode_payload(bufferlist::const_iterator bl_it,
-                              __u8 encode_version) = 0;
+  virtual void decode_payload(
+      bufferlist::const_iterator bl_it,
+      __u8 encode_version) = 0;
   virtual uint16_t get_request_type() = 0;
   virtual bool payload_empty() = 0;
 };
 
 class ObjectCacheRegData : public ObjectCacheRequest {
- public:
+public:
   std::string version;
   ObjectCacheRegData();
-  ObjectCacheRegData(uint16_t t, uint64_t s, const std::string &version);
+  ObjectCacheRegData(uint16_t t, uint64_t s, const std::string& version);
   ObjectCacheRegData(uint16_t t, uint64_t s);
   ~ObjectCacheRegData() override;
   void encode_payload() override;
-  void decode_payload(bufferlist::const_iterator bl,
-                      __u8 encode_version) override;
-  uint16_t get_request_type() override { return RBDSC_REGISTER; }
-  bool payload_empty() override { return false; }
+  void decode_payload(
+      bufferlist::const_iterator bl,
+      __u8 encode_version) override;
+
+  uint16_t
+  get_request_type() override
+  {
+    return RBDSC_REGISTER;
+  }
+
+  bool
+  payload_empty() override
+  {
+    return false;
+  }
 };
 
 class ObjectCacheRegReplyData : public ObjectCacheRequest {
- public:
+public:
   ObjectCacheRegReplyData();
   ObjectCacheRegReplyData(uint16_t t, uint64_t s);
   ~ObjectCacheRegReplyData() override;
   void encode_payload() override;
-  void decode_payload(bufferlist::const_iterator iter,
-                      __u8 encode_version) override;
-  uint16_t get_request_type() override { return RBDSC_REGISTER_REPLY; }
-  bool payload_empty() override { return true; }
+  void decode_payload(
+      bufferlist::const_iterator iter,
+      __u8 encode_version) override;
+
+  uint16_t
+  get_request_type() override
+  {
+    return RBDSC_REGISTER_REPLY;
+  }
+
+  bool
+  payload_empty() override
+  {
+    return true;
+  }
 };
 
 class ObjectCacheReadData : public ObjectCacheRequest {
- public:
+public:
   uint64_t read_offset;
   uint64_t read_len;
   uint64_t pool_id;
@@ -91,46 +124,85 @@ class ObjectCacheReadData : public ObjectCacheRequest {
   uint64_t object_size = 0;
   std::string oid;
   std::string pool_namespace;
-  ObjectCacheReadData(uint16_t t, uint64_t s, uint64_t read_offset,
-                      uint64_t read_len, uint64_t pool_id,
-                      uint64_t snap_id, uint64_t object_size,
-                      std::string oid, std::string pool_namespace);
+  ObjectCacheReadData(
+      uint16_t t,
+      uint64_t s,
+      uint64_t read_offset,
+      uint64_t read_len,
+      uint64_t pool_id,
+      uint64_t snap_id,
+      uint64_t object_size,
+      std::string oid,
+      std::string pool_namespace);
   ObjectCacheReadData(uint16_t t, uint64_t s);
   ~ObjectCacheReadData() override;
   void encode_payload() override;
-  void decode_payload(bufferlist::const_iterator bl,
-                      __u8 encode_version) override;
-  uint16_t get_request_type() override { return RBDSC_READ; }
-  bool payload_empty() override { return false; }
+  void decode_payload(
+      bufferlist::const_iterator bl,
+      __u8 encode_version) override;
+
+  uint16_t
+  get_request_type() override
+  {
+    return RBDSC_READ;
+  }
+
+  bool
+  payload_empty() override
+  {
+    return false;
+  }
 };
 
 class ObjectCacheReadReplyData : public ObjectCacheRequest {
- public:
+public:
   std::string cache_path;
   ObjectCacheReadReplyData(uint16_t t, uint64_t s, std::string cache_path);
   ObjectCacheReadReplyData(uint16_t t, uint64_t s);
   ~ObjectCacheReadReplyData() override;
   void encode_payload() override;
-  void decode_payload(bufferlist::const_iterator bl,
-                      __u8 encode_version) override;
-  uint16_t get_request_type() override { return RBDSC_READ_REPLY; }
-  bool payload_empty() override { return false; }
+  void decode_payload(
+      bufferlist::const_iterator bl,
+      __u8 encode_version) override;
+
+  uint16_t
+  get_request_type() override
+  {
+    return RBDSC_READ_REPLY;
+  }
+
+  bool
+  payload_empty() override
+  {
+    return false;
+  }
 };
 
 class ObjectCacheReadRadosData : public ObjectCacheRequest {
- public:
+public:
   ObjectCacheReadRadosData();
   ObjectCacheReadRadosData(uint16_t t, uint64_t s);
   ~ObjectCacheReadRadosData() override;
   void encode_payload() override;
-  void decode_payload(bufferlist::const_iterator bl,
-                      __u8 encode_version) override;
-  uint16_t get_request_type() override { return RBDSC_READ_RADOS; }
-  bool payload_empty() override { return true; }
+  void decode_payload(
+      bufferlist::const_iterator bl,
+      __u8 encode_version) override;
+
+  uint16_t
+  get_request_type() override
+  {
+    return RBDSC_READ_RADOS;
+  }
+
+  bool
+  payload_empty() override
+  {
+    return true;
+  }
 };
 
 ObjectCacheRequest* decode_object_cache_request(bufferlist payload_buffer);
 
-}  // namespace immutable_obj_cache
-}  // namespace ceph
-#endif  // CEPH_CACHE_TYPES_H
+} // namespace immutable_obj_cache
+} // namespace ceph
+#endif // CEPH_CACHE_TYPES_H

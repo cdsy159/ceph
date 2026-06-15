@@ -14,10 +14,10 @@
 
 #include "common/dout.h"
 #include "common/errno.h"
-#include "rgw_zone.h"
 #include "driver/rados/config/store.h"
 
 #include "impl.h"
+#include "rgw_zone.h"
 
 namespace rgw::rados {
 
@@ -26,7 +26,8 @@ constexpr std::string_view period_info_oid_prefix = "periods.";
 constexpr std::string_view period_latest_epoch_info_oid = ".latest_epoch";
 constexpr std::string_view period_staging_suffix = ":staging";
 
-static std::string period_oid(std::string_view period_id, uint32_t epoch)
+static std::string
+period_oid(std::string_view period_id, uint32_t epoch)
 {
   // omit the epoch for the staging period
   if (period_id.ends_with(period_staging_suffix)) {
@@ -35,18 +36,25 @@ static std::string period_oid(std::string_view period_id, uint32_t epoch)
   return fmt::format("{}{}.{}", period_info_oid_prefix, period_id, epoch);
 }
 
-static std::string latest_epoch_oid(const ceph::common::ConfigProxy& conf,
-                                    std::string_view period_id)
+static std::string
+latest_epoch_oid(
+    const ceph::common::ConfigProxy& conf,
+    std::string_view period_id)
 {
   return string_cat_reserve(
       period_info_oid_prefix, period_id,
-      name_or_default(conf->rgw_period_latest_epoch_info_oid,
-                      period_latest_epoch_info_oid));
+      name_or_default(
+          conf->rgw_period_latest_epoch_info_oid, period_latest_epoch_info_oid));
 }
 
-static int read_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
-                             ConfigImpl* impl, std::string_view period_id,
-                             uint32_t& epoch, RGWObjVersionTracker* objv)
+static int
+read_latest_epoch(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    ConfigImpl* impl,
+    std::string_view period_id,
+    uint32_t& epoch,
+    RGWObjVersionTracker* objv)
 {
   const auto& pool = impl->period_pool;
   const auto latest_oid = latest_epoch_oid(dpp->get_cct()->_conf, period_id);
@@ -58,10 +66,15 @@ static int read_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
   return r;
 }
 
-static int write_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
-                              ConfigImpl* impl, bool exclusive,
-                              std::string_view period_id, uint32_t epoch,
-                              RGWObjVersionTracker* objv)
+static int
+write_latest_epoch(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    ConfigImpl* impl,
+    bool exclusive,
+    std::string_view period_id,
+    uint32_t epoch,
+    RGWObjVersionTracker* objv)
 {
   const auto& pool = impl->period_pool;
   const auto latest_oid = latest_epoch_oid(dpp->get_cct()->_conf, period_id);
@@ -70,17 +83,25 @@ static int write_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
   return impl->write(dpp, y, pool, latest_oid, create, latest, objv);
 }
 
-static int delete_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
-                               ConfigImpl* impl, std::string_view period_id,
-                               RGWObjVersionTracker* objv)
+static int
+delete_latest_epoch(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    ConfigImpl* impl,
+    std::string_view period_id,
+    RGWObjVersionTracker* objv)
 {
   const auto& pool = impl->period_pool;
   const auto latest_oid = latest_epoch_oid(dpp->get_cct()->_conf, period_id);
   return impl->remove(dpp, y, pool, latest_oid, objv);
 }
 
-int RadosConfigStore::update_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
-                                          std::string_view period_id, uint32_t epoch)
+int
+RadosConfigStore::update_latest_epoch(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id,
+    uint32_t epoch)
 {
   static constexpr int MAX_RETRIES = 20;
 
@@ -90,27 +111,31 @@ int RadosConfigStore::update_latest_epoch(const DoutPrefixProvider* dpp, optiona
     bool exclusive = false;
 
     // read existing epoch
-    int r = read_latest_epoch(dpp, y, impl.get(), period_id, existing_epoch, &objv);
+    int r =
+        read_latest_epoch(dpp, y, impl.get(), period_id, existing_epoch, &objv);
     if (r == -ENOENT) {
       // use an exclusive create to set the epoch atomically
       exclusive = true;
       objv.generate_new_write_ver(dpp->get_cct());
       ldpp_dout(dpp, 20) << "creating initial latest_epoch=" << epoch
-          << " for period=" << period_id << dendl;
+                         << " for period=" << period_id << dendl;
     } else if (r < 0) {
       ldpp_dout(dpp, 0) << "ERROR: failed to read latest_epoch" << dendl;
       return r;
     } else if (epoch <= existing_epoch) {
       r = -EEXIST; // fail with EEXIST if epoch is not newer
       ldpp_dout(dpp, 10) << "found existing latest_epoch " << existing_epoch
-          << " >= given epoch " << epoch << ", returning r=" << r << dendl;
+                         << " >= given epoch " << epoch << ", returning r=" << r
+                         << dendl;
       return r;
     } else {
       ldpp_dout(dpp, 20) << "updating latest_epoch from " << existing_epoch
-          << " -> " << epoch << " on period=" << period_id << dendl;
+                         << " -> " << epoch << " on period=" << period_id
+                         << dendl;
     }
 
-    r = write_latest_epoch(dpp, y, impl.get(), exclusive, period_id, epoch, &objv);
+    r = write_latest_epoch(
+        dpp, y, impl.get(), exclusive, period_id, epoch, &objv);
     if (r == -EEXIST) {
       continue; // exclusive create raced with another update, retry
     } else if (r == -ECANCELED) {
@@ -126,9 +151,12 @@ int RadosConfigStore::update_latest_epoch(const DoutPrefixProvider* dpp, optiona
   return -ECANCELED; // fail after max retries
 }
 
-int RadosConfigStore::create_period(const DoutPrefixProvider* dpp,
-                                    optional_yield y, bool exclusive,
-                                    const RGWPeriod& info)
+int
+RadosConfigStore::create_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWPeriod& info)
 {
   if (info.get_id().empty()) {
     ldpp_dout(dpp, 0) << "period cannot have an empty id" << dendl;
@@ -151,11 +179,13 @@ int RadosConfigStore::create_period(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int RadosConfigStore::read_period(const DoutPrefixProvider* dpp,
-                                  optional_yield y,
-                                  std::string_view period_id,
-                                  std::optional<uint32_t> epoch,
-                                  RGWPeriod& info)
+int
+RadosConfigStore::read_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id,
+    std::optional<uint32_t> epoch,
+    RGWPeriod& info)
 {
   int r = 0;
   if (!epoch) {
@@ -171,19 +201,22 @@ int RadosConfigStore::read_period(const DoutPrefixProvider* dpp,
   return impl->read(dpp, y, pool, info_oid, info, nullptr);
 }
 
-int RadosConfigStore::delete_period(const DoutPrefixProvider* dpp,
-                                    optional_yield y,
-                                    std::string_view period_id)
+int
+RadosConfigStore::delete_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id)
 {
   const auto& pool = impl->period_pool;
 
   // read the latest_epoch
   uint32_t latest_epoch = 0;
   RGWObjVersionTracker latest_objv;
-  int r = read_latest_epoch(dpp, y, impl.get(), period_id, latest_epoch, &latest_objv);
+  int r = read_latest_epoch(
+      dpp, y, impl.get(), period_id, latest_epoch, &latest_objv);
   if (r < 0 && r != -ENOENT) { // just delete epoch=0 on ENOENT
-    ldpp_dout(dpp, 0) << "failed to read latest epoch for period "
-        << period_id << ": " << cpp_strerror(r) << dendl;
+    ldpp_dout(dpp, 0) << "failed to read latest epoch for period " << period_id
+                      << ": " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -191,8 +224,8 @@ int RadosConfigStore::delete_period(const DoutPrefixProvider* dpp,
     const auto info_oid = period_oid(period_id, epoch);
     r = impl->remove(dpp, y, pool, info_oid, nullptr);
     if (r < 0 && r != -ENOENT) { // ignore ENOENT
-      ldpp_dout(dpp, 0) << "failed to delete period " << info_oid
-          << ": " << cpp_strerror(r) << dendl;
+      ldpp_dout(dpp, 0) << "failed to delete period " << info_oid << ": "
+                        << cpp_strerror(r) << dendl;
       return r;
     }
   }
@@ -200,26 +233,27 @@ int RadosConfigStore::delete_period(const DoutPrefixProvider* dpp,
   return delete_latest_epoch(dpp, y, impl.get(), period_id, &latest_objv);
 }
 
-int RadosConfigStore::list_period_ids(const DoutPrefixProvider* dpp,
-                                      optional_yield y,
-                                      const std::string& marker,
-                                      std::span<std::string> entries,
-                                      sal::ListResult<std::string>& result)
+int
+RadosConfigStore::list_period_ids(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
   const auto& pool = impl->period_pool;
-  constexpr auto prefix = [] (std::string oid) -> std::string {
-      if (!oid.starts_with(period_info_oid_prefix)) {
-        return {};
-      }
-      if (!oid.ends_with(period_latest_epoch_info_oid)) {
-        return {};
-      }
-      // trim the prefix and suffix
-      const std::size_t count = oid.size() -
-          period_info_oid_prefix.size() -
-          period_latest_epoch_info_oid.size();
-      return oid.substr(period_info_oid_prefix.size(), count);
-    };
+  constexpr auto prefix = [](std::string oid) -> std::string {
+    if (!oid.starts_with(period_info_oid_prefix)) {
+      return {};
+    }
+    if (!oid.ends_with(period_latest_epoch_info_oid)) {
+      return {};
+    }
+    // trim the prefix and suffix
+    const std::size_t count = oid.size() - period_info_oid_prefix.size() -
+                              period_latest_epoch_info_oid.size();
+    return oid.substr(period_info_oid_prefix.size(), count);
+  };
 
   return impl->list(dpp, y, pool, marker, prefix, entries, result);
 }

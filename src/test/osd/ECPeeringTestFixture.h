@@ -15,14 +15,15 @@
 
 #pragma once
 
-#include <memory>
 #include <map>
+#include <memory>
 #include <vector>
-#include "test/osd/PGBackendTestFixture.h"
-#include "test/osd/MockPeeringListener.h"
-#include "osd/PeeringState.h"
+
 #include "messages/MOSDPGNotify2.h"
+#include "osd/PeeringState.h"
 #include "test/osd/MockMessenger.h"
+#include "test/osd/MockPeeringListener.h"
+#include "test/osd/PGBackendTestFixture.h"
 
 // Forward declaration
 class ECPeeringTestFixture;
@@ -40,36 +41,38 @@ protected:
   std::map<int, std::unique_ptr<PeeringState>> shard_peering_states;
   std::map<int, std::unique_ptr<PeeringCtx>> shard_peering_ctxs;
   std::map<int, std::unique_ptr<MockPeeringListener>> shard_peering_listeners;
-  
+
   class ShardDpp : public NoDoutPrefix {
   public:
-    ECPeeringTestFixture *fixture;
+    ECPeeringTestFixture* fixture;
     int shard;
-    
-    ShardDpp(CephContext *cct, ECPeeringTestFixture *f, int s)
-      : NoDoutPrefix(cct, ceph_subsys_osd), fixture(f), shard(s) {}
-    
+
+    ShardDpp(CephContext* cct, ECPeeringTestFixture* f, int s) :
+      NoDoutPrefix(cct, ceph_subsys_osd), fixture(f), shard(s)
+    {}
+
     std::ostream& gen_prefix(std::ostream& out) const override;
   };
+
   std::map<int, std::unique_ptr<ShardDpp>> shard_dpps;
-  
-  IsPGRecoverablePredicate *get_is_recoverable_predicate();
-  IsPGReadablePredicate *get_is_readable_predicate();
+
+  IsPGRecoverablePredicate* get_is_recoverable_predicate();
+  IsPGReadablePredicate* get_is_readable_predicate();
 
 public:
   ECPeeringTestFixture();
 
   int queue_transaction_helper(int shard, ObjectStore::Transaction&& t);
-  
+
   void SetUp() override;
   void TearDown() override;
-  
+
   PeeringState* create_peering_state(int shard);
-  
+
   PeeringState* get_peering_state(int shard);
   PeeringCtx* get_peering_ctx(int shard);
   MockPeeringListener* get_peering_listener(int shard);
-  
+
   /**
    * Query the OSDMap to determine which shard is the primary.
    * This is the authoritative source of truth for primary determination.
@@ -77,16 +80,16 @@ public:
    * @return The shard ID of the primary, or -1 if no primary exists
    */
   int get_primary_shard_from_osdmap() const;
-  
+
   // Override base class methods to work with peering fixture's structure
   MockPGBackendListener* get_primary_listener() override;
   PGBackend* get_primary_backend() override;
-  
+
   void init_peering(bool dne = false);
   void event_initialize();
   void event_advance_map();
   void event_activate_map();
-  
+
 private:
   /**
    * dispatch_buffered_messages - Check for and dispatch any buffered messages
@@ -98,49 +101,48 @@ private:
   void dispatch_buffered_messages(int from_shard, PeeringCtx* ctx);
 
 public:
-
   // IMPORTANT: For EC pools, shard positions in acting array must be preserved.
   // Failed OSDs should be replaced with CRUSH_ITEM_NONE, not removed.
   void update_osdmap_with_peering(
-    std::shared_ptr<OSDMap> new_osdmap,
-    std::optional<pg_shard_t> new_primary = std::nullopt);
+      std::shared_ptr<OSDMap> new_osdmap,
+      std::optional<pg_shard_t> new_primary = std::nullopt);
 
   void new_epoch_loop();
   bool new_epoch(bool if_required = false);
 
   void run_first_peering();
-  
+
   // OSDMap manipulation helpers - these create a new epoch and trigger peering
-  
+
   /**
    * Mark an OSD as down (exists but not UP).
    * Creates a new OSDMap epoch and triggers peering.
    */
   void mark_osd_down(int osd_id);
-  
+
   /**
    * Mark an OSD as up.
    * Creates a new OSDMap epoch and triggers peering.
    */
   void mark_osd_up(int osd_id);
-  
+
   /**
    * Mark multiple OSDs as down.
    * Creates a new OSDMap epoch and triggers peering.
    */
   void mark_osds_down(const std::vector<int>& osd_ids);
-  
+
   /**
    * Advance to a new epoch without changing OSD states.
    * Useful for testing re-peering scenarios.
    */
   void advance_epoch();
-  
+
   bool all_shards_active();
-  
+
   // In EC pools, only the primary tracks PG_STATE_CLEAN.
   bool all_shards_clean();
-  
+
   std::string get_state_name(int shard);
 
   /**
@@ -185,4 +187,3 @@ public:
    */
   void unsuspend_primary_to_osd(int to_osd);
 };
-

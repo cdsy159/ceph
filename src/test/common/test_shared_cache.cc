@@ -21,45 +21,63 @@
  *
  */
 
-#include <stdio.h>
 #include <signal.h>
+#include <stdio.h>
 
 #include <iostream> // for std::cout
 
-#include "gtest/gtest.h"
 #include "common/Thread.h"
 #include "common/shared_cache.hpp"
+#include "gtest/gtest.h"
 
 using namespace std;
 
 class SharedLRUTest : public SharedLRU<unsigned int, int> {
 public:
-  auto& get_lock() { return lock; }
-  auto& get_cond() { return cond; }
-  map<unsigned int, pair< std::weak_ptr<int>, int* > > &get_weak_refs() {
+  auto&
+  get_lock()
+  {
+    return lock;
+  }
+
+  auto&
+  get_cond()
+  {
+    return cond;
+  }
+
+  map<unsigned int, pair<std::weak_ptr<int>, int*>>&
+  get_weak_refs()
+  {
     return weak_refs;
   }
 };
 
 class SharedLRU_all : public ::testing::Test {
 public:
-
   class Thread_wait : public Thread {
   public:
-    SharedLRUTest &cache;
+    SharedLRUTest& cache;
     unsigned int key;
     int value;
     std::shared_ptr<int> ptr;
-    enum in_method_t { LOOKUP, LOWER_BOUND } in_method;
 
-    Thread_wait(SharedLRUTest& _cache, unsigned int _key, 
-                int _value, in_method_t _in_method) :
-      cache(_cache),
-      key(_key),
-      value(_value),
-      in_method(_in_method) { }
+    enum in_method_t {
+      LOOKUP,
+      LOWER_BOUND
+    } in_method;
 
-    void * entry() override {
+    Thread_wait(
+        SharedLRUTest& _cache,
+        unsigned int _key,
+        int _value,
+        in_method_t _in_method) :
+      cache(_cache), key(_key), value(_value), in_method(_in_method)
+    {}
+
+    void*
+    entry() override
+    {
       switch (in_method) {
       case LOWER_BOUND:
         ptr = cache.lower_bound(key);
@@ -77,13 +95,15 @@ public:
   static const useconds_t DELAY_MAX = 20 * 1000 * 1000;
   static useconds_t delay;
 
-  bool wait_for(SharedLRUTest &cache, int waitting) {
+  bool
+  wait_for(SharedLRUTest& cache, int waitting)
+  {
     do {
       //
       // the delay variable is supposed to be initialized to zero. It would be fine
-      // to usleep(0) but we take this opportunity to test the loop. It will try 
+      // to usleep(0) but we take this opportunity to test the loop. It will try
       // again and therefore show that the logic ( increasing the delay ) actually
-      // works. 
+      // works.
       //
       if (delay > 0)
         usleep(delay);
@@ -96,14 +116,15 @@ public:
       if (delay > 0) {
         cout << "delay " << delay << "us, is not long enough, try again\n";
       }
-    } while ((delay = delay * 2 + 1) < DELAY_MAX); 
+    } while ((delay = delay * 2 + 1) < DELAY_MAX);
     return delay < DELAY_MAX;
   }
 };
 
 useconds_t SharedLRU_all::delay = 0;
 
-TEST_F(SharedLRU_all, add) {
+TEST_F(SharedLRU_all, add)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value1 = 2;
@@ -122,7 +143,9 @@ TEST_F(SharedLRU_all, add) {
     delete p;
   }
 }
-TEST_F(SharedLRU_all, empty) {
+
+TEST_F(SharedLRU_all, empty)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   bool existed = false;
@@ -140,7 +163,8 @@ TEST_F(SharedLRU_all, empty) {
   ASSERT_TRUE(cache.empty());
 }
 
-TEST_F(SharedLRU_all, lookup) {
+TEST_F(SharedLRU_all, lookup)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   {
@@ -151,7 +175,9 @@ TEST_F(SharedLRU_all, lookup) {
   }
   ASSERT_TRUE(cache.lookup(key).get());
 }
-TEST_F(SharedLRU_all, lookup_or_create) {
+
+TEST_F(SharedLRU_all, lookup_or_create)
+{
   SharedLRUTest cache;
   {
     int value = 2;
@@ -169,7 +195,8 @@ TEST_F(SharedLRU_all, lookup_or_create) {
   ASSERT_TRUE(cache.lookup(2).get());
 }
 
-TEST_F(SharedLRU_all, wait_lookup) {
+TEST_F(SharedLRU_all, wait_lookup)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -195,7 +222,9 @@ TEST_F(SharedLRU_all, wait_lookup) {
   t.join();
   EXPECT_FALSE(t.ptr);
 }
-TEST_F(SharedLRU_all, wait_lookup_or_create) {
+
+TEST_F(SharedLRU_all, wait_lookup_or_create)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -222,7 +251,8 @@ TEST_F(SharedLRU_all, wait_lookup_or_create) {
   EXPECT_FALSE(t.ptr);
 }
 
-TEST_F(SharedLRU_all, lower_bound) {
+TEST_F(SharedLRU_all, lower_bound)
+{
   SharedLRUTest cache;
 
   {
@@ -236,7 +266,8 @@ TEST_F(SharedLRU_all, lower_bound) {
   }
 }
 
-TEST_F(SharedLRU_all, wait_lower_bound) {
+TEST_F(SharedLRU_all, wait_lower_bound)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -266,7 +297,9 @@ TEST_F(SharedLRU_all, wait_lower_bound) {
   t.join();
   EXPECT_TRUE(t.ptr.get());
 }
-TEST_F(SharedLRU_all, get_next) {
+
+TEST_F(SharedLRU_all, get_next)
+{
 
   {
     SharedLRUTest cache;
@@ -305,11 +338,12 @@ TEST_F(SharedLRU_all, get_next) {
   {
     SharedLRUTest cache;
     const unsigned int key1 = 111;
-    std::shared_ptr<int> *ptr1 = new shared_ptr<int>(cache.lookup_or_create(key1));
+    std::shared_ptr<int>* ptr1 =
+        new shared_ptr<int>(cache.lookup_or_create(key1));
     const unsigned int key2 = 222;
     std::shared_ptr<int> ptr2 = cache.lookup_or_create(key2);
 
-    pair<unsigned int, std::shared_ptr<int> > i;
+    pair<unsigned int, std::shared_ptr<int>> i;
     EXPECT_TRUE(cache.get_next(i.first, &i));
     EXPECT_EQ(key1, i.first);
     delete ptr1;
@@ -318,7 +352,8 @@ TEST_F(SharedLRU_all, get_next) {
   }
 }
 
-TEST_F(SharedLRU_all, clear) {
+TEST_F(SharedLRU_all, clear)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -337,7 +372,9 @@ TEST_F(SharedLRU_all, clear) {
   cache.clear(key);
   ASSERT_FALSE(cache.lookup(key));
 }
-TEST_F(SharedLRU_all, clear_all) {
+
+TEST_F(SharedLRU_all, clear_all)
+{
   SharedLRUTest cache;
   unsigned int key = 1;
   int value = 2;
@@ -356,7 +393,8 @@ TEST_F(SharedLRU_all, clear_all) {
   ASSERT_FALSE(cache.empty());
 }
 
-TEST(SharedCache_all, add) {
+TEST(SharedCache_all, add)
+{
   SharedLRU<int, int> cache;
   unsigned int key = 1;
   int value = 2;
@@ -365,7 +403,8 @@ TEST(SharedCache_all, add) {
   ASSERT_EQ(value, *cache.lookup(key));
 }
 
-TEST(SharedCache_all, lru) {
+TEST(SharedCache_all, lru)
+{
   const size_t SIZE = 5;
   SharedLRU<int, int> cache(NULL, SIZE);
 
@@ -373,12 +412,12 @@ TEST(SharedCache_all, lru) {
   std::shared_ptr<int> ptr = cache.add(0, new int(0), &existed);
   ASSERT_FALSE(existed);
   {
-    int *tmpint = new int(0);
+    int* tmpint = new int(0);
     std::shared_ptr<int> ptr2 = cache.add(0, tmpint, &existed);
     ASSERT_TRUE(existed);
     delete tmpint;
   }
-  for (size_t i = 1; i < 2*SIZE; ++i) {
+  for (size_t i = 1; i < 2 * SIZE; ++i) {
     cache.add(i, new int(i), &existed);
     ASSERT_FALSE(existed);
   }
@@ -386,10 +425,10 @@ TEST(SharedCache_all, lru) {
   ASSERT_TRUE(cache.lookup(0).get());
   ASSERT_EQ(0, *cache.lookup(0));
 
-  ASSERT_FALSE(cache.lookup(SIZE-1));
+  ASSERT_FALSE(cache.lookup(SIZE - 1));
   ASSERT_FALSE(cache.lookup(SIZE));
-  ASSERT_TRUE(cache.lookup(SIZE+1).get());
-  ASSERT_EQ((int)SIZE+1, *cache.lookup(SIZE+1));
+  ASSERT_TRUE(cache.lookup(SIZE + 1).get());
+  ASSERT_EQ((int)SIZE + 1, *cache.lookup(SIZE + 1));
 
   cache.purge(0);
   ASSERT_FALSE(cache.lookup(0));

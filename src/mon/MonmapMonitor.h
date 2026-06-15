@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -26,33 +26,37 @@
 
 #include "include/buffer_fwd.h"
 
-#include "PaxosService.h"
 #include "MonMap.h"
 #include "MonitorDBStore.h"
+#include "PaxosService.h"
 
 class MonmapMonitor : public PaxosService {
- public:
-  MonmapMonitor(Monitor &mn, Paxos &p, const std::string& service_name)
-    : PaxosService(mn, p, service_name)
-  {
-  }
+public:
+  MonmapMonitor(Monitor& mn, Paxos& p, const std::string& service_name) :
+    PaxosService(mn, p, service_name)
+  {}
+
   MonMap pending_map; //the pending map awaiting passage
 
   void create_initial() override;
 
-  void update_from_paxos(bool *need_bootstrap) override;
+  void update_from_paxos(bool* need_bootstrap) override;
 
   void create_pending() override;
 
   void encode_pending(MonitorDBStore::TransactionRef t) override;
+
   // we always encode the full map; we have no use for full versions
-  void encode_full(MonitorDBStore::TransactionRef t) override { }
+  void
+  encode_full(MonitorDBStore::TransactionRef t) override
+  {}
 
   void on_active() override;
-  void apply_mon_features(const mon_feature_t& features,
-			  ceph_release_t min_mon_release);
+  void apply_mon_features(
+      const mon_feature_t& features,
+      ceph_release_t min_mon_release);
 
-  void dump_info(ceph::Formatter *f);
+  void dump_info(ceph::Formatter* f);
 
   bool preprocess_query(MonOpRequestRef op) override;
   bool prepare_update(MonOpRequestRef op) override;
@@ -63,7 +67,7 @@ class MonmapMonitor : public PaxosService {
   bool preprocess_command(MonOpRequestRef op);
   bool prepare_command(MonOpRequestRef op);
 
-  int get_monmap(ceph::buffer::list &bl);
+  int get_monmap(ceph::buffer::list& bl);
 
   /*
    * Since monitors are pretty
@@ -71,7 +75,7 @@ class MonmapMonitor : public PaxosService {
    */
   bool should_propose(double& delay) override;
 
-  void check_sub(Subscription *sub);
+  void check_sub(Subscription* sub);
 
   void tick() override;
 
@@ -90,10 +94,13 @@ private:
    * @param tiebreaker_mon: the name of the monitor to declare tiebreaker
    * @param dividing_bucket: the bucket type (eg 'dc') that divides the cluster
    */
-  void try_enable_stretch_mode(std::stringstream& ss, bool *okay,
-			       int *errcode, bool commit,
-			       const std::string& tiebreaker_mon,
-			       const std::string& dividing_bucket);
+  void try_enable_stretch_mode(
+      std::stringstream& ss,
+      bool* okay,
+      int* errcode,
+      bool commit,
+      const std::string& tiebreaker_mon,
+      const std::string& dividing_bucket);
 
 public:
   /**

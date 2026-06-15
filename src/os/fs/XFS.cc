@@ -17,7 +17,8 @@
 
 #include <xfs/xfs.h>
 
-int XFS::set_alloc_hint(int fd, uint64_t val)
+int
+XFS::set_alloc_hint(int fd, uint64_t val)
 {
   struct fsxattr fsx;
   struct stat sb;

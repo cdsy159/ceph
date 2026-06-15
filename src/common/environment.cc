@@ -18,9 +18,10 @@
 #include <stdlib.h>
 #include <strings.h>
 
-bool get_env_bool(const char *key)
+bool
+get_env_bool(const char* key)
 {
-  const char *val = getenv(key);
+  const char* val = getenv(key);
   if (!val)
     return false;
   if (strcasecmp(val, "off") == 0)
@@ -34,9 +35,10 @@ bool get_env_bool(const char *key)
   return true;
 }
 
-int get_env_int(const char *key)
+int
+get_env_int(const char* key)
 {
-  const char *val = getenv(key);
+  const char* val = getenv(key);
   if (!val)
     return 0;
   int v = atoi(val);

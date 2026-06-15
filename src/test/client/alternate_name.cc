@@ -14,18 +14,21 @@
  */
 
 #include <errno.h>
+#include <fmt/format.h>
 
 #include <iostream>
 #include <string>
 
-#include <fmt/format.h>
-
 #include "test/client/TestClient.h"
 
-TEST_F(TestClient, AlternateNameRemount) {
+TEST_F(TestClient, AlternateNameRemount)
+{
   auto altname = std::string("foo");
-  auto dir = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  ASSERT_EQ(0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, altname));
+  auto dir = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  ASSERT_EQ(
+      0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, altname));
 
   client->unmount();
   TearDown();
@@ -41,10 +44,13 @@ TEST_F(TestClient, AlternateNameRemount) {
   ASSERT_EQ(0, client->rmdir(dir.c_str(), myperm));
 }
 
-
-TEST_F(TestClient, AlternateNameMkdir) {
-  auto dir = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  ASSERT_EQ(0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, "foo"));
+TEST_F(TestClient, AlternateNameMkdir)
+{
+  auto dir = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  ASSERT_EQ(
+      0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, "foo"));
 
   {
     ClientScaffold::walk_dentry_result wdr;
@@ -55,10 +61,14 @@ TEST_F(TestClient, AlternateNameMkdir) {
   ASSERT_EQ(0, client->rmdir(dir.c_str(), myperm));
 }
 
-TEST_F(TestClient, AlternateNameLong) {
-  auto altname = std::string(4096+1024, '-');
-  auto dir = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  ASSERT_EQ(0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, altname));
+TEST_F(TestClient, AlternateNameLong)
+{
+  auto altname = std::string(4096 + 1024, '-');
+  auto dir = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  ASSERT_EQ(
+      0, client->mkdirat(CEPHFS_AT_FDCWD, dir.c_str(), 0777, myperm, altname));
 
   {
     ClientScaffold::walk_dentry_result wdr;
@@ -69,10 +79,15 @@ TEST_F(TestClient, AlternateNameLong) {
   ASSERT_EQ(0, client->rmdir(dir.c_str(), myperm));
 }
 
-TEST_F(TestClient, AlternateNameCreat) {
+TEST_F(TestClient, AlternateNameCreat)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
@@ -84,17 +99,24 @@ TEST_F(TestClient, AlternateNameCreat) {
   }
 }
 
-TEST_F(TestClient, AlternateNameSymlink) {
+TEST_F(TestClient, AlternateNameSymlink)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  auto file2 = file+"2";
-  auto altname2 = altname+"2";
-  ASSERT_EQ(0, client->symlinkat(file.c_str(), CEPHFS_AT_FDCWD, file2.c_str(), myperm, altname2));
+  auto file2 = file + "2";
+  auto altname2 = altname + "2";
+  ASSERT_EQ(
+      0, client->symlinkat(
+             file.c_str(), CEPHFS_AT_FDCWD, file2.c_str(), myperm, altname2));
 
   {
     ClientScaffold::walk_dentry_result wdr;
@@ -105,16 +127,21 @@ TEST_F(TestClient, AlternateNameSymlink) {
   }
 }
 
-TEST_F(TestClient, AlternateNameRename) {
+TEST_F(TestClient, AlternateNameRename)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  auto file2 = file+"2";
-  auto altname2 = altname+"2";
+  auto file2 = file + "2";
+  auto altname2 = altname + "2";
 
   ASSERT_EQ(0, client->rename(file.c_str(), file2.c_str(), myperm, altname2));
 
@@ -125,18 +152,25 @@ TEST_F(TestClient, AlternateNameRename) {
   }
 }
 
-TEST_F(TestClient, AlternateNameRenameExistMatch) {
+TEST_F(TestClient, AlternateNameRenameExistMatch)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  auto file2 = file+"2";
-  auto altname2 = altname+"2";
+  auto file2 = file + "2";
+  auto altname2 = altname + "2";
 
-  fd = client->openat(CEPHFS_AT_FDCWD, file2.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname2);
+  fd = client->openat(
+      CEPHFS_AT_FDCWD, file2.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname2);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
@@ -150,41 +184,54 @@ TEST_F(TestClient, AlternateNameRenameExistMatch) {
   }
 }
 
-TEST_F(TestClient, AlternateNameRenameExistMisMatch) {
+TEST_F(TestClient, AlternateNameRenameExistMisMatch)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  auto file2 = file+"2";
-  auto altname2 = altname+"2";
+  auto file2 = file + "2";
+  auto altname2 = altname + "2";
 
-  fd = client->openat(CEPHFS_AT_FDCWD, file2.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname+"mismatch");
+  fd = client->openat(
+      CEPHFS_AT_FDCWD, file2.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname + "mismatch");
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  ASSERT_EQ(-EINVAL, client->rename(file.c_str(), file2.c_str(), myperm, altname2));
+  ASSERT_EQ(
+      -EINVAL, client->rename(file.c_str(), file2.c_str(), myperm, altname2));
 
   {
     ClientScaffold::walk_dentry_result wdr;
     ASSERT_EQ(0, client->walk(file2, &wdr, myperm));
-    ASSERT_EQ(wdr.alternate_name, altname+"mismatch");
+    ASSERT_EQ(wdr.alternate_name, altname + "mismatch");
   }
 }
 
-TEST_F(TestClient, AlternateNameLink) {
+TEST_F(TestClient, AlternateNameLink)
+{
   auto altname = std::string("foo");
-  auto file = fmt::format("{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(), getpid());
-  int fd = client->openat(CEPHFS_AT_FDCWD, file.c_str(), O_CREAT|O_WRONLY, myperm, 0777, 0, 0, 0, nullptr, altname);
+  auto file = fmt::format(
+      "{}_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name(),
+      getpid());
+  int fd = client->openat(
+      CEPHFS_AT_FDCWD, file.c_str(), O_CREAT | O_WRONLY, myperm, 0777, 0, 0, 0,
+      nullptr, altname);
   ASSERT_LE(0, fd);
   ASSERT_EQ(3, client->write(fd, "baz", 3, 0));
   ASSERT_EQ(0, client->close(fd));
 
-  auto file2 = file+"2";
-  auto altname2 = altname+"2";
+  auto file2 = file + "2";
+  auto altname2 = altname + "2";
 
   ASSERT_EQ(0, client->link(file.c_str(), file2.c_str(), myperm, altname2));
 

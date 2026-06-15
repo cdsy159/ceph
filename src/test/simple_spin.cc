@@ -2,7 +2,6 @@
 #include <future>
 
 #include "gtest/gtest.h"
-
 #include "include/spinlock.h"
 
 using ceph::spin_lock;
@@ -18,7 +17,8 @@ TEST(SimpleSpin, Test0)
   spin_unlock(&lock0);
 }
 
-static void* mythread(void *v)
+static void*
+mythread(void* v)
 {
   for (int j = 0; j < 1000000; ++j) {
     spin_lock(&lock);
@@ -50,60 +50,61 @@ TEST(SimpleSpin, Test1)
   // (Note that we don't care about cross-threading here as-such.)
   counter = 0;
   auto f = async(std::launch::async, []() {
-        for(int i = 0; n != i; ++i) {
-            spin_lock(lock);
-            counter++;
-            spin_unlock(lock);
-        }
-       });
+    for (int i = 0; n != i; ++i) {
+      spin_lock(lock);
+      counter++;
+      spin_unlock(lock);
+    }
+  });
   f.wait();
   ASSERT_EQ(n, counter);
 }
 
 template <typename LockT>
-int64_t check_lock_unlock(const int64_t n, int64_t& cntr, LockT& lock)
+int64_t
+check_lock_unlock(const int64_t n, int64_t& cntr, LockT& lock)
 {
- auto do_lock_unlock = [&]() -> int64_t {
-        int64_t i = 0;
+  auto do_lock_unlock = [&]() -> int64_t {
+    int64_t i = 0;
 
-        for(; n != i; ++i) {
-           spin_lock(lock);
-           cntr++;
-           spin_unlock(lock);
-        }
+    for (; n != i; ++i) {
+      spin_lock(lock);
+      cntr++;
+      spin_unlock(lock);
+    }
 
-        return i;
-      };
+    return i;
+  };
 
- auto fone   = async(std::launch::async, do_lock_unlock);
- auto ftwo   = async(std::launch::async, do_lock_unlock);
- auto fthree = async(std::launch::async, do_lock_unlock);
+  auto fone = async(std::launch::async, do_lock_unlock);
+  auto ftwo = async(std::launch::async, do_lock_unlock);
+  auto fthree = async(std::launch::async, do_lock_unlock);
 
- auto one = fone.get();
- auto two = ftwo.get();
- auto three = fthree.get();
+  auto one = fone.get();
+  auto two = ftwo.get();
+  auto three = fthree.get();
 
- // Google test doesn't like us using its macros out of individual tests, so:
- if(n != one || n != two || n != three)
-  return 0;
+  // Google test doesn't like us using its macros out of individual tests, so:
+  if (n != one || n != two || n != three)
+    return 0;
 
- return one + two + three;
+  return one + two + three;
 }
 
 TEST(SimpleSpin, Test2)
 {
- const auto n = 2000000U;
+  const auto n = 2000000U;
 
- // ceph::spinlock:
- {
- counter = 0;
- ceph::spinlock l;
+  // ceph::spinlock:
+  {
+    counter = 0;
+    ceph::spinlock l;
 
- ASSERT_EQ(0, counter);
- auto result = check_lock_unlock(n, counter, l);
- ASSERT_NE(0, counter);
- ASSERT_EQ(counter, result);
- }
+    ASSERT_EQ(0, counter);
+    auto result = check_lock_unlock(n, counter, l);
+    ASSERT_NE(0, counter);
+    ASSERT_EQ(counter, result);
+  }
 }
 
 // ceph::spinlock should work with std::lock_guard<>:
@@ -115,21 +116,20 @@ TEST(SimpleSpin, spinlock_guard)
 
   counter = 0;
   auto f = async(std::launch::async, [&sl]() {
-        for(int i = 0; n != i; ++i) {
-            std::lock_guard<ceph::spinlock> g(sl);
-            counter++;
-        }
-       });
+    for (int i = 0; n != i; ++i) {
+      std::lock_guard<ceph::spinlock> g(sl);
+      counter++;
+    }
+  });
 
   auto g = async(std::launch::async, [&sl]() {
-        for(int i = 0; n != i; ++i) {
-            std::lock_guard<ceph::spinlock> g(sl);
-            counter++;
-        }
-       });
+    for (int i = 0; n != i; ++i) {
+      std::lock_guard<ceph::spinlock> g(sl);
+      counter++;
+    }
+  });
 
   f.wait();
   g.wait();
-  ASSERT_EQ(2*n, counter);
+  ASSERT_EQ(2 * n, counter);
 }
-

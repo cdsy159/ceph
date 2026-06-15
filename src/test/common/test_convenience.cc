@@ -15,15 +15,19 @@
  *
  */
 
-#include "common/convenience.h" // include first: tests that header is standalone
+#include <gtest/gtest.h>
 
 #include <string>
+
 #include <boost/optional.hpp>
-#include <gtest/gtest.h>
+
+#include "common/convenience.h" // include first: tests that header is standalone
 
 // A just god would not allow the C++ standard to make taking the
 // address of member functions in the standard library undefined behavior.
-static std::string::size_type l(const std::string& s) {
+static std::string::size_type
+l(const std::string& s)
+{
   return s.size();
 }
 

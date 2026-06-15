@@ -34,13 +34,14 @@ private:
   inodeno_t ino;
 
 public:
-  Dumper() : ino(-1)
+  Dumper() :
+    ino(-1)
   {}
 
-  int init(mds_role_t role_, const std::string &type);
-  int recover_journal(Journaler *journaler);
-  int dump(const char *dumpfile);
-  int undump(const char *dumpfile, bool force);
+  int init(mds_role_t role_, const std::string& type);
+  int recover_journal(Journaler* journaler);
+  int dump(const char* dumpfile);
+  int undump(const char* dumpfile, bool force);
 };
 
 #endif /* JOURNAL_DUMPER_H_ */

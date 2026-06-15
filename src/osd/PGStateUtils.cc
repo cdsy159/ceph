@@ -2,26 +2,30 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "PGStateUtils.h"
+
 #include "common/Clock.h"
 
 using ceph::Formatter;
 
 /*------NamedState----*/
-NamedState::NamedState(PGStateHistory *pgsh, const char *state_name)
-  : pgsh(pgsh), state_name(state_name), enter_time(ceph_clock_now()) {
-  if(pgsh) {
+NamedState::NamedState(PGStateHistory* pgsh, const char* state_name) :
+  pgsh(pgsh), state_name(state_name), enter_time(ceph_clock_now())
+{
+  if (pgsh) {
     pgsh->enter(enter_time, state_name);
   }
 }
 
-NamedState::~NamedState() {
-  if(pgsh) {
+NamedState::~NamedState()
+{
+  if (pgsh) {
     pgsh->exit(state_name);
   }
 }
 
 /*---------PGStateHistory---------*/
-void PGStateHistory::enter(const utime_t entime, const char* state)
+void
+PGStateHistory::enter(const utime_t entime, const char* state)
 {
   if (pi == nullptr) {
     pi = std::make_unique<PGStateInstance>();
@@ -29,7 +33,9 @@ void PGStateHistory::enter(const utime_t entime, const char* state)
   pi->enter_state(entime, state);
 }
 
-void PGStateHistory::exit(const char* state) {
+void
+PGStateHistory::exit(const char* state)
+{
   pi->setepoch(es.get_osdmap_epoch());
   pi->exit_state(ceph_clock_now());
   if (pi->empty()) {
@@ -37,7 +43,9 @@ void PGStateHistory::exit(const char* state) {
   }
 }
 
-void PGStateHistory::dump(Formatter* f) const {
+void
+PGStateHistory::dump(Formatter* f) const
+{
   f->open_array_section("history");
   for (auto pi = buffer.begin(); pi != buffer.end(); ++pi) {
     f->open_object_section("epochs");

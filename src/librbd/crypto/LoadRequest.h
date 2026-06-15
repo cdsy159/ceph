@@ -18,36 +18,41 @@ namespace crypto {
 template <typename I>
 class LoadRequest {
 public:
-    using EncryptionFormat = decltype(I::encryption_format);
+  using EncryptionFormat = decltype(I::encryption_format);
 
-    static constexpr char UNKNOWN_FORMAT[] = "<unknown>";
+  static constexpr char UNKNOWN_FORMAT[] = "<unknown>";
 
-    static LoadRequest* create(
-            I* image_ctx, std::vector<EncryptionFormat>&& formats,
-            Context* on_finish) {
-      return new LoadRequest(image_ctx, std::move(formats), on_finish);
-    }
+  static LoadRequest*
+  create(
+      I* image_ctx,
+      std::vector<EncryptionFormat>&& formats,
+      Context* on_finish)
+  {
+    return new LoadRequest(image_ctx, std::move(formats), on_finish);
+  }
 
-    LoadRequest(I* image_ctx, std::vector<EncryptionFormat>&& formats,
-                Context* on_finish);
-    void send();
-    void flush();
-    void handle_flush(int r);
-    void load();
-    void handle_load(int r);
-    void invalidate_cache();
-    void handle_invalidate_cache(int r);
-    void finish(int r);
+  LoadRequest(
+      I* image_ctx,
+      std::vector<EncryptionFormat>&& formats,
+      Context* on_finish);
+  void send();
+  void flush();
+  void handle_flush(int r);
+  void load();
+  void handle_load(int r);
+  void invalidate_cache();
+  void handle_invalidate_cache(int r);
+  void finish(int r);
 
 private:
-    I* m_image_ctx;
-    Context* m_on_finish;
+  I* m_image_ctx;
+  Context* m_on_finish;
 
-    size_t m_format_idx;
-    bool m_is_current_format_assumed;
-    std::vector<EncryptionFormat> m_formats;
-    I* m_current_image_ctx;
-    std::string m_detected_format_name;
+  size_t m_format_idx;
+  bool m_is_current_format_assumed;
+  std::vector<EncryptionFormat> m_formats;
+  I* m_current_image_ctx;
+  std::string m_detected_format_name;
 };
 
 } // namespace crypto

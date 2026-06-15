@@ -1,5 +1,7 @@
 #include "ECEncoder.h"
+
 #include <typeinfo>
+
 #include "common/errno.h"
 #include "osd/ECUtil.h"
 #include "osd/ECUtilL.h"
@@ -12,8 +14,7 @@ namespace consistency {
 
 template <typename SInfo>
 ECEncoder<SInfo>::ECEncoder(ceph::ErasureCodeProfile profile, int chunk_size) :
-  profile(profile),
-  chunk_size(chunk_size)
+  profile(profile), chunk_size(chunk_size)
 {
   int r = ec_init_plugin(ec_impl);
   if (r < 0) {
@@ -29,7 +30,8 @@ ECEncoder<SInfo>::ECEncoder(ceph::ErasureCodeProfile profile, int chunk_size) :
  * @returns int 0 if successful, otherwise 1
  */
 template <typename SInfo>
-int ECEncoder<SInfo>::ec_init_plugin(ceph::ErasureCodeInterfaceRef &ec_impl)
+int
+ECEncoder<SInfo>::ec_init_plugin(ceph::ErasureCodeInterfaceRef& ec_impl)
 {
   auto plugin = profile.find("plugin");
   if (plugin == profile.end()) {
@@ -39,9 +41,8 @@ int ECEncoder<SInfo>::ec_init_plugin(ceph::ErasureCodeInterfaceRef &ec_impl)
 
   std::stringstream ss;
   std::string dir = g_conf().get_val<std::string>("erasure_code_dir");
-  ceph::ErasureCodePluginRegistry::instance().factory(plugin->second,
-                                                      dir, profile,
-                                                      &ec_impl, &ss);
+  ceph::ErasureCodePluginRegistry::instance().factory(
+      plugin->second, dir, profile, &ec_impl, &ss);
   if (!ec_impl) {
     std::cerr << "Invalid profile: " << ss.str() << std::endl;
     return 1;
@@ -57,14 +58,14 @@ int ECEncoder<SInfo>::ec_init_plugin(ceph::ErasureCodeInterfaceRef &ec_impl)
  * @returns Unique pointer to the stripe info object associated with the EC profile
  */
 template <>
-std::unique_ptr<stripe_info_o_t> ECEncoder<stripe_info_o_t>::ec_init_sinfo(
-  ceph::ErasureCodeInterfaceRef &ec_impl)
+std::unique_ptr<stripe_info_o_t>
+ECEncoder<stripe_info_o_t>::ec_init_sinfo(ceph::ErasureCodeInterfaceRef& ec_impl)
 {
   uint64_t k = std::stol(profile["k"]);
   ceph_assert(k > 0);
   uint64_t stripe_width = k * chunk_size;
   std::unique_ptr<stripe_info_o_t> s(
-    new stripe_info_o_t(ec_impl, nullptr, stripe_width));
+      new stripe_info_o_t(ec_impl, nullptr, stripe_width));
   return s;
 }
 
@@ -75,8 +76,8 @@ std::unique_ptr<stripe_info_o_t> ECEncoder<stripe_info_o_t>::ec_init_sinfo(
  * @returns Unique pointer to the stripe info object associated with the EC profile.
  */
 template <>
-std::unique_ptr<stripe_info_l_t> ECEncoder<stripe_info_l_t>::ec_init_sinfo(
-  ceph::ErasureCodeInterfaceRef &ec_impl)
+std::unique_ptr<stripe_info_l_t>
+ECEncoder<stripe_info_l_t>::ec_init_sinfo(ceph::ErasureCodeInterfaceRef& ec_impl)
 {
   uint64_t k = stol(profile["k"]);
   ceph_assert(k > 0);
@@ -93,8 +94,10 @@ std::unique_ptr<stripe_info_l_t> ECEncoder<stripe_info_l_t>::ec_init_sinfo(
  * @returns Optional, returns buffer for the encode output if encode is successful
  */
 template <>
-std::optional<ceph::bufferlist> ECEncoder<stripe_info_o_t>::do_encode(ceph::bufferlist inbl,
-                                                                      stripe_info_o_t &sinfo)
+std::optional<ceph::bufferlist>
+ECEncoder<stripe_info_o_t>::do_encode(
+    ceph::bufferlist inbl,
+    stripe_info_o_t& sinfo)
 {
   ECUtil::shard_extent_map_t encoded_data(&sinfo);
 
@@ -113,7 +116,7 @@ std::optional<ceph::bufferlist> ECEncoder<stripe_info_o_t>::do_encode(ceph::buff
   }
 
   ceph::bufferlist outbl;
-  for (const auto &[shard, _] : encoded_data.get_extent_maps()) {
+  for (const auto& [shard, _] : encoded_data.get_extent_maps()) {
     if (shard >= sinfo.get_k()) {
       encoded_data.get_shard_first_buffer(shard, outbl);
     }
@@ -130,8 +133,10 @@ std::optional<ceph::bufferlist> ECEncoder<stripe_info_o_t>::do_encode(ceph::buff
  * @returns Optional, returns buffer for the encode output if encode is successful
  */
 template <>
-std::optional<ceph::bufferlist> ECEncoder<stripe_info_l_t>::do_encode(ceph::bufferlist inbl,
-                                                                      stripe_info_l_t &sinfo)
+std::optional<ceph::bufferlist>
+ECEncoder<stripe_info_l_t>::do_encode(
+    ceph::bufferlist inbl,
+    stripe_info_l_t& sinfo)
 {
   uint64_t stripe_width = sinfo.get_stripe_width();
 
@@ -154,7 +159,7 @@ std::optional<ceph::bufferlist> ECEncoder<stripe_info_l_t>::do_encode(ceph::buff
   }
 
   ceph::bufferlist outbl;
-  for (const auto &[shard, bl] : encoded_data) {
+  for (const auto& [shard, bl] : encoded_data) {
     unsigned int raw_shard = sinfo.get_raw_shard(shard);
     if (raw_shard >= sinfo.get_k()) {
       bufferlist::const_iterator it = bl.begin();
@@ -172,7 +177,8 @@ std::optional<ceph::bufferlist> ECEncoder<stripe_info_l_t>::do_encode(ceph::buff
  * @returns Optional, returns buffer for the encode output if encode is successful
  */
 template <typename SInfo>
-std::optional<ceph::bufferlist> ECEncoder<SInfo>::do_encode(ceph::bufferlist inbl)
+std::optional<ceph::bufferlist>
+ECEncoder<SInfo>::do_encode(ceph::bufferlist inbl)
 {
   return do_encode(inbl, *(stripe_info.get()));
 }
@@ -183,7 +189,8 @@ std::optional<ceph::bufferlist> ECEncoder<SInfo>::do_encode(ceph::bufferlist inb
  * @returns int Number of data shards
  */
 template <typename SInfo>
-int ECEncoder<SInfo>::get_k()
+int
+ECEncoder<SInfo>::get_k()
 {
   return stripe_info->get_k();
 }
@@ -194,7 +201,8 @@ int ECEncoder<SInfo>::get_k()
  * @returns int Number of parity shards
  */
 template <typename SInfo>
-int ECEncoder<SInfo>::get_m()
+int
+ECEncoder<SInfo>::get_m()
 {
   return stripe_info->get_m();
 }
@@ -205,12 +213,13 @@ int ECEncoder<SInfo>::get_m()
  * @returns int Chunksize for the stripe
  */
 template <typename SInfo>
-int ECEncoder<SInfo>::get_chunk_size()
+int
+ECEncoder<SInfo>::get_chunk_size()
 {
   return stripe_info->get_chunk_size();
 }
-}
-}
+} // namespace consistency
+} // namespace ceph
 
 template class ceph::consistency::ECEncoder<stripe_info_l_t>;
 template class ceph::consistency::ECEncoder<stripe_info_o_t>;

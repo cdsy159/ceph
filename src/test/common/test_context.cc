@@ -23,19 +23,20 @@
 
 #include <iostream> // for std::cout
 
-#include "gtest/gtest.h"
-#include "include/types.h"
-#include "include/msgr.h"
+#include "common/Formatter.h"
 #include "common/ceph_context.h"
 #include "common/config_proxy.h"
-#include "common/Formatter.h"
+#include "gtest/gtest.h"
+#include "include/msgr.h"
+#include "include/types.h"
 #include "log/Log.h"
 
 using namespace std;
 
 TEST(CephContext, do_command)
 {
-  boost::intrusive_ptr<CephContext> cct{new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
+  boost::intrusive_ptr<CephContext> cct{
+      new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
 
   cct->_conf->cluster = "ceph";
 
@@ -92,13 +93,21 @@ TEST(CephContext, do_command)
     cct->do_command("config diff get", cmdmap, f.get(), ss, &out);
     f->flush(out);
     string s(out.c_str(), out.length());
-    EXPECT_EQ("<config_diff_get><diff><key><default></default><override>" + value + "</override><final>value</final></key><rbd_default_features><default>61</default><final>61</final></rbd_default_features><rbd_qos_exclude_ops><default>0</default><final>0</final></rbd_qos_exclude_ops></diff></config_diff_get>", s);
+    EXPECT_EQ(
+        "<config_diff_get><diff><key><default></default><override>" + value +
+            "</override><final>value</final></"
+            "key><rbd_default_features><default>61</default><final>61</final></"
+            "rbd_default_features><rbd_qos_exclude_ops><default>0</"
+            "default><final>0</final></rbd_qos_exclude_ops></diff></"
+            "config_diff_get>",
+        s);
   }
 }
 
 TEST(CephContext, experimental_features)
 {
-  boost::intrusive_ptr<CephContext> cct{new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
+  boost::intrusive_ptr<CephContext> cct{
+      new CephContext(CEPH_ENTITY_TYPE_CLIENT), false};
 
   cct->_conf->cluster = "ceph";
 
@@ -106,29 +115,29 @@ TEST(CephContext, experimental_features)
   ASSERT_FALSE(cct->check_experimental_feature_enabled("bar"));
   ASSERT_FALSE(cct->check_experimental_feature_enabled("baz"));
 
-  cct->_conf.set_val("enable_experimental_unrecoverable_data_corrupting_features",
-		      "foo,bar");
+  cct->_conf.set_val(
+      "enable_experimental_unrecoverable_data_corrupting_features", "foo,bar");
   cct->_conf.apply_changes(&cout);
   ASSERT_TRUE(cct->check_experimental_feature_enabled("foo"));
   ASSERT_TRUE(cct->check_experimental_feature_enabled("bar"));
   ASSERT_FALSE(cct->check_experimental_feature_enabled("baz"));
 
-  cct->_conf.set_val("enable_experimental_unrecoverable_data_corrupting_features",
-		      "foo bar");
+  cct->_conf.set_val(
+      "enable_experimental_unrecoverable_data_corrupting_features", "foo bar");
   cct->_conf.apply_changes(&cout);
   ASSERT_TRUE(cct->check_experimental_feature_enabled("foo"));
   ASSERT_TRUE(cct->check_experimental_feature_enabled("bar"));
   ASSERT_FALSE(cct->check_experimental_feature_enabled("baz"));
 
-  cct->_conf.set_val("enable_experimental_unrecoverable_data_corrupting_features",
-		      "baz foo");
+  cct->_conf.set_val(
+      "enable_experimental_unrecoverable_data_corrupting_features", "baz foo");
   cct->_conf.apply_changes(&cout);
   ASSERT_TRUE(cct->check_experimental_feature_enabled("foo"));
   ASSERT_FALSE(cct->check_experimental_feature_enabled("bar"));
   ASSERT_TRUE(cct->check_experimental_feature_enabled("baz"));
 
-  cct->_conf.set_val("enable_experimental_unrecoverable_data_corrupting_features",
-		      "*");
+  cct->_conf.set_val(
+      "enable_experimental_unrecoverable_data_corrupting_features", "*");
   cct->_conf.apply_changes(&cout);
   ASSERT_TRUE(cct->check_experimental_feature_enabled("foo"));
   ASSERT_TRUE(cct->check_experimental_feature_enabled("bar"));

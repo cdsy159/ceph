@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,24 +14,26 @@
  */
 
 #include "InoTable.h"
-#include "MDSRank.h"
 
-#include "include/types.h"
+#include "common/debug.h"
 
 #include "common/config.h"
-#include "common/debug.h"
+#include "include/types.h"
+
+#include "MDSRank.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
 #undef dout_prefix
 #define dout_prefix *_dout << "mds." << rank << "." << table_name << ": "
 
-void InoTable::reset_state()
+void
+InoTable::reset_state()
 {
   // use generic range. FIXME THIS IS CRAP
   free.clear();
   //#ifdef __LP64__
-  uint64_t start = (uint64_t)(rank+1) << 40;
+  uint64_t start = (uint64_t)(rank + 1) << 40;
   uint64_t len = (uint64_t)1 << 40;
   //#else
   //# warning this looks like a 32-bit system, using small inode numbers.
@@ -43,9 +45,11 @@ void InoTable::reset_state()
   projected_free = free;
 }
 
-inodeno_t InoTable::project_alloc_id(inodeno_t id) 
+inodeno_t
+InoTable::project_alloc_id(inodeno_t id)
 {
-  dout(10) << "project_alloc_id " << id << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "project_alloc_id " << id << " to " << projected_free << "/"
+           << free << dendl;
   ceph_assert(is_active());
   if (!id)
     id = projected_free.range_start();
@@ -53,14 +57,18 @@ inodeno_t InoTable::project_alloc_id(inodeno_t id)
   ++projected_version;
   return id;
 }
-void InoTable::apply_alloc_id(inodeno_t id)
+
+void
+InoTable::apply_alloc_id(inodeno_t id)
 {
-  dout(10) << "apply_alloc_id " << id << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "apply_alloc_id " << id << " to " << projected_free << "/" << free
+           << dendl;
   free.erase(id);
   ++version;
 }
 
-void InoTable::project_alloc_ids(interval_set<inodeno_t>& ids, int want) 
+void
+InoTable::project_alloc_ids(interval_set<inodeno_t>& ids, int want)
 {
   ceph_assert(is_active());
   while (want > 0) {
@@ -73,64 +81,76 @@ void InoTable::project_alloc_ids(interval_set<inodeno_t>& ids, int want)
     ids.insert(start, num);
     want -= num;
   }
-  dout(10) << "project_alloc_ids " << ids << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "project_alloc_ids " << ids << " to " << projected_free << "/"
+           << free << dendl;
   ++projected_version;
 }
-void InoTable::apply_alloc_ids(interval_set<inodeno_t>& ids)
+
+void
+InoTable::apply_alloc_ids(interval_set<inodeno_t>& ids)
 {
-  dout(10) << "apply_alloc_ids " << ids << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "apply_alloc_ids " << ids << " to " << projected_free << "/"
+           << free << dendl;
   free.subtract(ids);
   ++version;
 }
 
-
-void InoTable::project_release_ids(const interval_set<inodeno_t>& ids) 
+void
+InoTable::project_release_ids(const interval_set<inodeno_t>& ids)
 {
-  dout(10) << "project_release_ids " << ids << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "project_release_ids " << ids << " to " << projected_free << "/"
+           << free << dendl;
   projected_free.insert(ids);
   ++projected_version;
 }
-void InoTable::apply_release_ids(const interval_set<inodeno_t>& ids) 
+
+void
+InoTable::apply_release_ids(const interval_set<inodeno_t>& ids)
 {
-  dout(10) << "apply_release_ids " << ids << " to " << projected_free << "/" << free << dendl;
+  dout(10) << "apply_release_ids " << ids << " to " << projected_free << "/"
+           << free << dendl;
   free.insert(ids);
   ++version;
 }
 
-
 //
 
-void InoTable::replay_alloc_id(inodeno_t id) 
+void
+InoTable::replay_alloc_id(inodeno_t id)
 {
-  ceph_assert(mds);  // Only usable in online mode
+  ceph_assert(mds); // Only usable in online mode
 
   dout(10) << "replay_alloc_id " << id << dendl;
   if (free.contains(id)) {
     free.erase(id);
     projected_free.erase(id);
   } else {
-    mds->clog->error() << "journal replay alloc " << id
-      << " not in free " << free;
+    mds->clog->error() << "journal replay alloc " << id << " not in free "
+                       << free;
   }
   projected_version = ++version;
 }
-void InoTable::replay_alloc_ids(interval_set<inodeno_t>& ids) 
+
+void
+InoTable::replay_alloc_ids(interval_set<inodeno_t>& ids)
 {
-  ceph_assert(mds);  // Only usable in online mode
+  ceph_assert(mds); // Only usable in online mode
 
   dout(10) << "replay_alloc_ids " << ids << dendl;
   interval_set<inodeno_t> is;
   is.intersection_of(free, ids);
-  if (!(is==ids)) {
-    mds->clog->error() << "journal replay alloc " << ids << ", only "
-	<< is << " is in free " << free;
+  if (!(is == ids)) {
+    mds->clog->error() << "journal replay alloc " << ids << ", only " << is
+                       << " is in free " << free;
   }
   free.subtract(is);
   projected_free.subtract(is);
 
   projected_version = ++version;
 }
-void InoTable::replay_release_ids(interval_set<inodeno_t>& ids) 
+
+void
+InoTable::replay_release_ids(interval_set<inodeno_t>& ids)
 {
   dout(10) << "replay_release_ids " << ids << dendl;
   free.insert(ids);
@@ -138,17 +158,17 @@ void InoTable::replay_release_ids(interval_set<inodeno_t>& ids)
   projected_version = ++version;
 }
 
-
-void InoTable::replay_reset()
+void
+InoTable::replay_reset()
 {
   dout(10) << "replay_reset " << free << dendl;
-  skip_inos(inodeno_t(10000000));  // a lot!
+  skip_inos(inodeno_t(10000000)); // a lot!
   projected_free = free;
   projected_version = ++version;
 }
 
-
-void InoTable::skip_inos(inodeno_t i)
+void
+InoTable::skip_inos(inodeno_t i)
 {
   dout(10) << "skip_inos was " << free << dendl;
   inodeno_t first = free.range_start();
@@ -161,12 +181,14 @@ void InoTable::skip_inos(inodeno_t i)
   dout(10) << "skip_inos now " << free << dendl;
 }
 
-void InoTable::dump(Formatter *f) const
+void
+InoTable::dump(Formatter* f) const
 {
   f->open_object_section("inotable");
 
   f->open_array_section("projected_free");
-  for (interval_set<inodeno_t>::const_iterator i = projected_free.begin(); i != projected_free.end(); ++i) {
+  for (interval_set<inodeno_t>::const_iterator i = projected_free.begin();
+       i != projected_free.end(); ++i) {
     f->open_object_section("range");
     f->dump_int("start", (*i).first);
     f->dump_int("len", (*i).second);
@@ -175,7 +197,8 @@ void InoTable::dump(Formatter *f) const
   f->close_section();
 
   f->open_array_section("free");
-  for (interval_set<inodeno_t>::const_iterator i = free.begin(); i != free.end(); ++i) {
+  for (interval_set<inodeno_t>::const_iterator i = free.begin();
+       i != free.end(); ++i) {
     f->open_object_section("range");
     f->dump_int("start", (*i).first);
     f->dump_int("len", (*i).second);
@@ -186,23 +209,24 @@ void InoTable::dump(Formatter *f) const
   f->close_section();
 }
 
-
-std::list<InoTable> InoTable::generate_test_instances()
+std::list<InoTable>
+InoTable::generate_test_instances()
 {
   std::list<InoTable> ls;
   ls.push_back(InoTable());
   return ls;
 }
 
-
-bool InoTable::is_marked_free(inodeno_t id) const
+bool
+InoTable::is_marked_free(inodeno_t id) const
 {
   return free.contains(id) || projected_free.contains(id);
 }
 
-bool InoTable::intersects_free(
-    const interval_set<inodeno_t> &other,
-    interval_set<inodeno_t> *intersection)
+bool
+InoTable::intersects_free(
+    const interval_set<inodeno_t>& other,
+    interval_set<inodeno_t>* intersection)
 {
   interval_set<inodeno_t> i;
   i.intersection_of(free, other);
@@ -212,7 +236,8 @@ bool InoTable::intersects_free(
   return !(i.empty());
 }
 
-bool InoTable::repair(inodeno_t id)
+bool
+InoTable::repair(inodeno_t id)
 {
   if (projected_version != version) {
     // Can't do the repair while other things are in flight
@@ -220,15 +245,18 @@ bool InoTable::repair(inodeno_t id)
   }
 
   ceph_assert(is_marked_free(id));
-  dout(10) << "repair: before status. ino = " << id << " pver =" << projected_version << " ver= " << version << dendl;
+  dout(10) << "repair: before status. ino = " << id
+           << " pver =" << projected_version << " ver= " << version << dendl;
   free.erase(id);
   projected_free.erase(id);
   projected_version = ++version;
-  dout(10) << "repair: after status. ino = " << id << " pver =" << projected_version << " ver= " << version << dendl;
+  dout(10) << "repair: after status. ino = " << id
+           << " pver =" << projected_version << " ver= " << version << dendl;
   return true;
 }
 
-bool InoTable::force_consume_to(inodeno_t ino)
+bool
+InoTable::force_consume_to(inodeno_t ino)
 {
   inodeno_t first = free.range_start();
   if (first > ino)

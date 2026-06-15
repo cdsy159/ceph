@@ -16,12 +16,12 @@ struct obj_watch_t {
   uint64_t cookie;
   /// Timeout in Seconds
   uint32_t timeout_seconds;
-}; 
+};
 
 struct notify_ack_t {
   uint64_t notifier_id;
   uint64_t cookie;
-  char *payload;
+  char* payload;
   uint64_t payload_len;
 };
 
@@ -36,6 +36,6 @@ struct notify_timeout_t {
  * before calling rados_nobjects_list_open() to return
  * all objects in all namespaces.
  */
-#define	LIBRADOS_ALL_NSPACES "\001"
+#define LIBRADOS_ALL_NSPACES "\001"
 
 #endif

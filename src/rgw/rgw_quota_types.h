@@ -20,7 +20,8 @@
 
 #pragma once
 
-static inline int64_t rgw_rounded_kb(int64_t bytes)
+static inline int64_t
+rgw_rounded_kb(int64_t bytes)
 {
   return (bytes + 1023) / 1024;
 }
@@ -35,14 +36,13 @@ struct RGWQuotaInfo {
    * or maybe rounded-to-4KiB RGWStorageStats::size_rounded (false)? */
   bool check_on_raw;
 
-  RGWQuotaInfo()
-    : max_size(-1),
-      max_objects(-1),
-      enabled(false),
-      check_on_raw(false) {
-  }
+  RGWQuotaInfo() :
+    max_size(-1), max_objects(-1), enabled(false), check_on_raw(false)
+  {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(3, 1, bl);
     if (max_size < 0) {
       encode(-rgw_rounded_kb(abs(max_size)), bl);
@@ -55,7 +55,10 @@ struct RGWQuotaInfo {
     encode(check_on_raw, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN(3, 1, 1, bl);
     int64_t max_size_kb;
     decode(max_size_kb, bl);
@@ -72,14 +75,13 @@ struct RGWQuotaInfo {
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<RGWQuotaInfo> generate_test_instances();
-  void decode_json(JSONObj *obj);
-
+  void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(RGWQuotaInfo)
 
 struct RGWQuota {
-    RGWQuotaInfo user_quota;
-    RGWQuotaInfo bucket_quota;
+  RGWQuotaInfo user_quota;
+  RGWQuotaInfo bucket_quota;
 };

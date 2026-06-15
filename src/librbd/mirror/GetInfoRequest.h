@@ -4,55 +4,78 @@
 #ifndef CEPH_LIBRBD_MIRROR_GET_INFO_REQUEST_H
 #define CEPH_LIBRBD_MIRROR_GET_INFO_REQUEST_H
 
+#include <string>
+
 #include "common/snap_types.h"
 #include "include/buffer.h"
 #include "include/common_fwd.h"
 #include "include/rados/librados.hpp"
 #include "librbd/Types.h"
 #include "librbd/mirror/Types.h"
-#include <string>
 
 struct Context;
 
-namespace cls { namespace rbd { struct MirrorImage; } }
+namespace cls {
+namespace rbd {
+struct MirrorImage;
+}
+} // namespace cls
 
 namespace librbd {
 
 struct ImageCtx;
-namespace asio { struct ContextWQ; }
+
+namespace asio {
+struct ContextWQ;
+}
 
 namespace mirror {
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class GetInfoRequest {
 public:
-  static GetInfoRequest *create(librados::IoCtx &io_ctx,
-                                asio::ContextWQ *op_work_queue,
-                                const std::string &image_id,
-                                cls::rbd::MirrorImage *mirror_image,
-                                PromotionState *promotion_state,
-                                std::string* primary_mirror_uuid,
-                                Context *on_finish) {
-    return new GetInfoRequest(io_ctx, op_work_queue, image_id, mirror_image,
-                              promotion_state, primary_mirror_uuid, on_finish);
-  }
-  static GetInfoRequest *create(ImageCtxT &image_ctx,
-                                cls::rbd::MirrorImage *mirror_image,
-                                PromotionState *promotion_state,
-                                std::string* primary_mirror_uuid,
-                                Context *on_finish) {
-    return new GetInfoRequest(image_ctx, mirror_image, promotion_state,
-                              primary_mirror_uuid, on_finish);
+  static GetInfoRequest*
+  create(
+      librados::IoCtx& io_ctx,
+      asio::ContextWQ* op_work_queue,
+      const std::string& image_id,
+      cls::rbd::MirrorImage* mirror_image,
+      PromotionState* promotion_state,
+      std::string* primary_mirror_uuid,
+      Context* on_finish)
+  {
+    return new GetInfoRequest(
+        io_ctx, op_work_queue, image_id, mirror_image, promotion_state,
+        primary_mirror_uuid, on_finish);
   }
 
-  GetInfoRequest(librados::IoCtx& io_ctx, asio::ContextWQ *op_work_queue,
-                 const std::string &image_id,
-                 cls::rbd::MirrorImage *mirror_image,
-                 PromotionState *promotion_state,
-                 std::string* primary_mirror_uuid, Context *on_finish);
-  GetInfoRequest(ImageCtxT &image_ctx, cls::rbd::MirrorImage *mirror_image,
-                 PromotionState *promotion_state,
-                 std::string* primary_mirror_uuid, Context *on_finish);
+  static GetInfoRequest*
+  create(
+      ImageCtxT& image_ctx,
+      cls::rbd::MirrorImage* mirror_image,
+      PromotionState* promotion_state,
+      std::string* primary_mirror_uuid,
+      Context* on_finish)
+  {
+    return new GetInfoRequest(
+        image_ctx, mirror_image, promotion_state, primary_mirror_uuid,
+        on_finish);
+  }
+
+  GetInfoRequest(
+      librados::IoCtx& io_ctx,
+      asio::ContextWQ* op_work_queue,
+      const std::string& image_id,
+      cls::rbd::MirrorImage* mirror_image,
+      PromotionState* promotion_state,
+      std::string* primary_mirror_uuid,
+      Context* on_finish);
+  GetInfoRequest(
+      ImageCtxT& image_ctx,
+      cls::rbd::MirrorImage* mirror_image,
+      PromotionState* promotion_state,
+      std::string* primary_mirror_uuid,
+      Context* on_finish);
 
   void send();
 
@@ -81,16 +104,16 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_image_ctx = nullptr;
-  librados::IoCtx &m_io_ctx;
-  asio::ContextWQ *m_op_work_queue;
+  ImageCtxT* m_image_ctx = nullptr;
+  librados::IoCtx& m_io_ctx;
+  asio::ContextWQ* m_op_work_queue;
   std::string m_image_id;
-  cls::rbd::MirrorImage *m_mirror_image;
-  PromotionState *m_promotion_state;
+  cls::rbd::MirrorImage* m_mirror_image;
+  PromotionState* m_promotion_state;
   std::string* m_primary_mirror_uuid;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
-  CephContext *m_cct;
+  CephContext* m_cct;
 
   bufferlist m_out_bl;
   std::string m_mirror_uuid;
@@ -111,7 +134,7 @@ private:
   void finish(int r);
 
   void calc_promotion_state(
-    const std::map<librados::snap_t, SnapInfo> &snap_info);
+      const std::map<librados::snap_t, SnapInfo>& snap_info);
 };
 
 } // namespace mirror
@@ -120,4 +143,3 @@ private:
 extern template class librbd::mirror::GetInfoRequest<librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_MIRROR_GET_INFO_REQUEST_H
-

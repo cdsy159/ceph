@@ -7,12 +7,13 @@
 namespace rbd {
 namespace mirror {
 
-class ProgressContext
-{
+class ProgressContext {
 public:
   virtual ~ProgressContext() {}
-  virtual void update_progress(const std::string &description,
-			       bool flush = true) = 0;
+
+  virtual void update_progress(
+      const std::string& description,
+      bool flush = true) = 0;
 };
 
 } // namespace mirror

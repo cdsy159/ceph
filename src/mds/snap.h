@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -28,15 +28,17 @@
 #include "include/object.h" // for snapid_t
 #include "include/utime.h"
 
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
 /*
  * generic snap descriptor.
  */
 struct SnapInfo {
-  void encode(ceph::buffer::list &bl) const;
-  void decode(ceph::buffer::list::const_iterator &bl);
-  void dump(ceph::Formatter *f) const;
+  void encode(ceph::buffer::list& bl) const;
+  void decode(ceph::buffer::list::const_iterator& bl);
+  void dump(ceph::Formatter* f) const;
   static std::list<SnapInfo> generate_test_instances();
 
   std::string_view get_long_name() const;
@@ -48,17 +50,18 @@ struct SnapInfo {
   std::string alternate_name;
 
   mutable std::string long_name; ///< cached _$ino_$name
-  std::map<std::string,std::string> metadata;
+  std::map<std::string, std::string> metadata;
 };
 WRITE_CLASS_ENCODER(SnapInfo)
 
-inline bool operator==(const SnapInfo &l, const SnapInfo &r)
+inline bool
+operator==(const SnapInfo& l, const SnapInfo& r)
 {
-  return l.snapid == r.snapid && l.ino == r.ino &&
-	 l.stamp == r.stamp && l.name == r.name;
+  return l.snapid == r.snapid && l.ino == r.ino && l.stamp == r.stamp &&
+         l.name == r.name;
 }
 
-std::ostream& operator<<(std::ostream& out, const SnapInfo &sn);
+std::ostream& operator<<(std::ostream& out, const SnapInfo& sn);
 
 /*
  * SnapRealm - a subtree that shares the same set of snapshots.
@@ -66,9 +69,9 @@ std::ostream& operator<<(std::ostream& out, const SnapInfo &sn);
 struct SnapRealm;
 
 struct snaplink_t {
-  void encode(ceph::buffer::list &bl) const;
-  void decode(ceph::buffer::list::const_iterator &bl);
-  void dump(ceph::Formatter *f) const;
+  void encode(ceph::buffer::list& bl) const;
+  void decode(ceph::buffer::list::const_iterator& bl);
+  void dump(ceph::Formatter* f) const;
   static std::list<snaplink_t> generate_test_instances();
 
   inodeno_t ino;
@@ -76,44 +79,86 @@ struct snaplink_t {
 };
 WRITE_CLASS_ENCODER(snaplink_t)
 
-std::ostream& operator<<(std::ostream& out, const snaplink_t &l);
+std::ostream& operator<<(std::ostream& out, const snaplink_t& l);
 
 // carry data about a specific version of a SnapRealm
 struct sr_t {
-  void mark_parent_global() { flags |= PARENT_GLOBAL; }
-  void clear_parent_global() { flags &= ~PARENT_GLOBAL; }
-  bool is_parent_global() const { return flags & PARENT_GLOBAL; }
+  void
+  mark_parent_global()
+  {
+    flags |= PARENT_GLOBAL;
+  }
 
-  void mark_subvolume() { flags |= SUBVOLUME; }
-  void clear_subvolume() { flags &= ~SUBVOLUME; }
-  bool is_subvolume() const { return flags & SUBVOLUME; }
+  void
+  clear_parent_global()
+  {
+    flags &= ~PARENT_GLOBAL;
+  }
 
-  void set_snapdir_visibility() { flags |= SNAPDIR_VISIBILITY; }
-  void unset_snapdir_visibility() { flags &= ~SNAPDIR_VISIBILITY; }
-  bool is_snapdir_visible() const { return flags & SNAPDIR_VISIBILITY; }
+  bool
+  is_parent_global() const
+  {
+    return flags & PARENT_GLOBAL;
+  }
 
-  void encode(ceph::buffer::list &bl) const;
-  void decode(ceph::buffer::list::const_iterator &bl);
-  void dump(ceph::Formatter *f) const;
+  void
+  mark_subvolume()
+  {
+    flags |= SUBVOLUME;
+  }
+
+  void
+  clear_subvolume()
+  {
+    flags &= ~SUBVOLUME;
+  }
+
+  bool
+  is_subvolume() const
+  {
+    return flags & SUBVOLUME;
+  }
+
+  void
+  set_snapdir_visibility()
+  {
+    flags |= SNAPDIR_VISIBILITY;
+  }
+
+  void
+  unset_snapdir_visibility()
+  {
+    flags &= ~SNAPDIR_VISIBILITY;
+  }
+
+  bool
+  is_snapdir_visible() const
+  {
+    return flags & SNAPDIR_VISIBILITY;
+  }
+
+  void encode(ceph::buffer::list& bl) const;
+  void decode(ceph::buffer::list::const_iterator& bl);
+  void dump(ceph::Formatter* f) const;
   static std::list<sr_t> generate_test_instances();
   void print(std::ostream&) const;
 
-  snapid_t seq = 0;                     // basically, a version/seq # for changes to _this_ realm.
-  snapid_t created = 0;                 // when this realm was created.
-  snapid_t last_created = 0;            // last snap created in _this_ realm.
-  snapid_t last_destroyed = 0;          // seq for last removal
+  snapid_t seq = 0; // basically, a version/seq # for changes to _this_ realm.
+  snapid_t created = 0; // when this realm was created.
+  snapid_t last_created = 0; // last snap created in _this_ realm.
+  snapid_t last_destroyed = 0; // seq for last removal
   snapid_t current_parent_since = 1;
   std::map<snapid_t, SnapInfo> snaps;
-  std::map<snapid_t, snaplink_t> past_parents;  // key is "last" (or NOSNAP)
+  std::map<snapid_t, snaplink_t> past_parents; // key is "last" (or NOSNAP)
   std::set<snapid_t> past_parent_snaps;
-  utime_t last_modified;                // timestamp when this realm
-                                        // was last changed.
-  uint64_t change_attr = 0;             // tracks changes to snap
-                                        // realm attrs.
+  utime_t last_modified; // timestamp when this realm
+      // was last changed.
+  uint64_t change_attr = 0; // tracks changes to snap
+      // realm attrs.
 
   enum {
-    PARENT_GLOBAL	= 1 << 0,
-    SUBVOLUME		= 1 << 1,
+    PARENT_GLOBAL = 1 << 0,
+    SUBVOLUME = 1 << 1,
     SNAPDIR_VISIBILITY = 1 << 2,
   };
 

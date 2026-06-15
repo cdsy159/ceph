@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,11 +18,11 @@
 
 using namespace librados;
 
-#include <iostream>
-
 #include <errno.h>
 #include <stdlib.h>
 #include <time.h>
+
+#include <iostream>
 
 #pragma GCC diagnostic ignored "-Wpragmas"
 #pragma GCC diagnostic push
@@ -30,23 +30,29 @@ using namespace librados;
 
 using namespace std;
 
-void buf_to_hex(const unsigned char *buf, int len, char *str)
+void
+buf_to_hex(const unsigned char* buf, int len, char* str)
 {
   str[0] = '\0';
   for (int i = 0; i < len; i++) {
-    sprintf(&str[i*2], "%02x", (int)buf[i]);
+    sprintf(&str[i * 2], "%02x", (int)buf[i]);
   }
 }
 
 class C_Watch : public WatchCtx {
 public:
   C_Watch() {}
-  void notify(uint8_t opcode, uint64_t ver, bufferlist& bl) override {
-    cout << "C_Watch::notify() opcode=" << (int)opcode << " ver=" << ver << std::endl;
+
+  void
+  notify(uint8_t opcode, uint64_t ver, bufferlist& bl) override
+  {
+    cout << "C_Watch::notify() opcode=" << (int)opcode << " ver=" << ver
+         << std::endl;
   }
 };
 
-void testradospp_milestone(void)
+void
+testradospp_milestone(void)
 {
   int c;
   cout << "*** press enter to continue ***" << std::endl;
@@ -56,22 +62,22 @@ void testradospp_milestone(void)
   }
 }
 
-int main(int argc, const char **argv) 
+int
+main(int argc, const char** argv)
 {
   Rados rados;
   if (rados.init(NULL) < 0) {
-     cerr << "couldn't initialize rados!" << std::endl;
-     exit(1);
+    cerr << "couldn't initialize rados!" << std::endl;
+    exit(1);
   }
 
   if (rados.conf_read_file(NULL)) {
-     cerr << "couldn't read configuration file." << std::endl;
-     exit(1);
+    cerr << "couldn't read configuration file." << std::endl;
+    exit(1);
   }
   rados.conf_parse_argv(argc, argv);
 
-  if (!rados.conf_set("config option that doesn't exist",
-                     "some random value")) {
+  if (!rados.conf_set("config option that doesn't exist", "some random value")) {
     printf("error: succeeded in setting nonexistent config option\n");
     exit(1);
   }
@@ -106,7 +112,7 @@ int main(int argc, const char **argv)
   bl.append(buf, strlen(buf));
   blf.append(buf, 16);
 
-  const char *oid = "bar";
+  const char* oid = "bar";
 
   int r = rados.pool_create("foo");
   cout << "pool_create result = " << r << std::endl;
@@ -123,7 +129,8 @@ int main(int argc, const char **argv)
   uint64_t stat_size;
   time_t stat_mtime;
   r = io_ctx.stat(oid, &stat_size, &stat_mtime);
-  cout << "io_ctx.stat returned " << r << " size = " << stat_size << " mtime = " << stat_mtime << std::endl;
+  cout << "io_ctx.stat returned " << r << " size = " << stat_size
+       << " mtime = " << stat_mtime << std::endl;
 
   r = io_ctx.stat(oid, NULL, NULL);
   cout << "io_ctx.stat(does_not_exist) = " << r << std::endl;
@@ -171,9 +178,9 @@ int main(int argc, const char **argv)
   r = io_ctx.read(oid, bl, bl.length(), 0);
   cout << "rados.read returned " << r << std::endl;
   r = io_ctx.exec(oid, "crypto", "md5", bl, bl2);
-  cout << "exec returned " << r <<  " buf size=" << bl2.length() << std::endl;
-  const unsigned char *md5 = (const unsigned char *)bl2.c_str();
-  char md5_str[bl2.length()*2 + 1];
+  cout << "exec returned " << r << " buf size=" << bl2.length() << std::endl;
+  const unsigned char* md5 = (const unsigned char*)bl2.c_str();
+  char md5_str[bl2.length() * 2 + 1];
   buf_to_hex(md5, bl2.length(), md5_str);
   cout << "md5 result=" << md5_str << std::endl;
 
@@ -195,8 +202,8 @@ int main(int argc, const char **argv)
 
   r = io_ctx.exec(oid, "crypto", "sha1", bl, bl2);
   cout << "exec returned " << r << std::endl;
-  const unsigned char *sha1 = (const unsigned char *)bl2.c_str();
-  char sha1_str[bl2.length()*2 + 1];
+  const unsigned char* sha1 = (const unsigned char*)bl2.c_str();
+  char sha1_str[bl2.length() * 2 + 1];
   buf_to_hex(sha1, bl2.length(), sha1_str);
   cout << "sha1 result=" << sha1_str << std::endl;
 
@@ -223,15 +230,15 @@ int main(int argc, const char **argv)
   cout << "read result='" << rbuf << "'" << std::endl;
   cout << "size=" << size << std::endl;
 
-  const char *oid2 = "jjj10.rbd";
+  const char* oid2 = "jjj10.rbd";
   r = io_ctx.exec(oid2, "rbd", "snap_list", bl, bl2);
   cout << "snap_list result=" << r << std::endl;
   r = io_ctx.exec(oid2, "rbd", "snap_add", bl, bl2);
   cout << "snap_add result=" << r << std::endl;
 
   if (r > 0) {
-    char *s = bl2.c_str();
-    for (int i=0; i<r; i++, s += strlen(s) + 1)
+    char* s = bl2.c_str();
+    for (int i = 0; i < r; i++, s += strlen(s) + 1)
       cout << s << std::endl;
   }
 
@@ -259,7 +266,8 @@ int main(int argc, const char **argv)
     ObjectReadOperation o;
     o.cmpxattr("foo", CEPH_OSD_CMPXATTR_OP_EQ, val);
     r = io_ctx.operate(oid, &o, &bl2);
-    cout << " got " << r << " wanted " << -ECANCELED << " (-ECANCELED)" << std::endl;
+    cout << " got " << r << " wanted " << -ECANCELED << " (-ECANCELED)"
+         << std::endl;
     ceph_assert(r == -ECANCELED);
   }
 

@@ -2,6 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "DeepCopyRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/errno.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
@@ -12,12 +15,10 @@
 #include "librbd/deep_copy/SnapshotCopyRequest.h"
 #include "librbd/internal.h"
 
-#include <shared_mutex> // for std::shared_lock
-
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::DeepCopyRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::DeepCopyRequest: " << this << " " << __func__ << ": "
 
 namespace librbd {
 
@@ -28,33 +29,45 @@ using librbd::util::create_rados_callback;
 using librbd::util::unique_lock_name;
 
 template <typename I>
-DeepCopyRequest<I>::DeepCopyRequest(I *src_image_ctx, I *dst_image_ctx,
-                                    librados::snap_t src_snap_id_start,
-                                    librados::snap_t src_snap_id_end,
-                                    librados::snap_t dst_snap_id_start,
-                                    bool flatten,
-                                    const ObjectNumber &object_number,
-                                    asio::ContextWQ *work_queue,
-                                    SnapSeqs *snap_seqs,
-                                    deep_copy::Handler *handler,
-                                    Context *on_finish)
-  : RefCountedObject(dst_image_ctx->cct), m_src_image_ctx(src_image_ctx),
-    m_dst_image_ctx(dst_image_ctx), m_src_snap_id_start(src_snap_id_start),
-    m_src_snap_id_end(src_snap_id_end), m_dst_snap_id_start(dst_snap_id_start),
-    m_flatten(flatten), m_object_number(object_number),
-    m_work_queue(work_queue), m_snap_seqs(snap_seqs), m_handler(handler),
-    m_on_finish(on_finish), m_cct(dst_image_ctx->cct),
-    m_lock(ceph::make_mutex(unique_lock_name("DeepCopyRequest::m_lock", this))) {
-}
+DeepCopyRequest<I>::DeepCopyRequest(
+    I* src_image_ctx,
+    I* dst_image_ctx,
+    librados::snap_t src_snap_id_start,
+    librados::snap_t src_snap_id_end,
+    librados::snap_t dst_snap_id_start,
+    bool flatten,
+    const ObjectNumber& object_number,
+    asio::ContextWQ* work_queue,
+    SnapSeqs* snap_seqs,
+    deep_copy::Handler* handler,
+    Context* on_finish) :
+  RefCountedObject(dst_image_ctx->cct),
+  m_src_image_ctx(src_image_ctx),
+  m_dst_image_ctx(dst_image_ctx),
+  m_src_snap_id_start(src_snap_id_start),
+  m_src_snap_id_end(src_snap_id_end),
+  m_dst_snap_id_start(dst_snap_id_start),
+  m_flatten(flatten),
+  m_object_number(object_number),
+  m_work_queue(work_queue),
+  m_snap_seqs(snap_seqs),
+  m_handler(handler),
+  m_on_finish(on_finish),
+  m_cct(dst_image_ctx->cct),
+  m_lock(ceph::make_mutex(unique_lock_name("DeepCopyRequest::m_lock", this)))
+{}
 
 template <typename I>
-DeepCopyRequest<I>::~DeepCopyRequest() {
+DeepCopyRequest<I>::~DeepCopyRequest()
+{
   ceph_assert(m_snapshot_copy_request == nullptr);
   ceph_assert(m_image_copy_request == nullptr);
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send() {
+void
+DeepCopyRequest<I>::send()
+{
   if (!m_src_image_ctx->data_ctx.is_valid()) {
     lderr(m_cct) << "missing data pool for source image" << dendl;
     finish(-ENODEV);
@@ -77,7 +90,9 @@ void DeepCopyRequest<I>::send() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::cancel() {
+void
+DeepCopyRequest<I>::cancel()
+{
   std::lock_guard locker{m_lock};
 
   ldout(m_cct, 20) << dendl;
@@ -94,7 +109,9 @@ void DeepCopyRequest<I>::cancel() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send_copy_snapshots() {
+void
+DeepCopyRequest<I>::send_copy_snapshots()
+{
   m_lock.lock();
   if (m_canceled) {
     m_lock.unlock();
@@ -104,11 +121,11 @@ void DeepCopyRequest<I>::send_copy_snapshots() {
 
   ldout(m_cct, 20) << dendl;
 
-  Context *ctx = create_context_callback<
-    DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_snapshots>(this);
+  Context* ctx = create_context_callback<
+      DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_snapshots>(this);
   m_snapshot_copy_request = SnapshotCopyRequest<I>::create(
-    m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start, m_src_snap_id_end,
-    m_dst_snap_id_start, m_flatten, m_work_queue, m_snap_seqs, ctx);
+      m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start, m_src_snap_id_end,
+      m_dst_snap_id_start, m_flatten, m_work_queue, m_snap_seqs, ctx);
   m_snapshot_copy_request->get();
   m_lock.unlock();
 
@@ -116,7 +133,9 @@ void DeepCopyRequest<I>::send_copy_snapshots() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::handle_copy_snapshots(int r) {
+void
+DeepCopyRequest<I>::handle_copy_snapshots(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   {
@@ -147,7 +166,9 @@ void DeepCopyRequest<I>::handle_copy_snapshots(int r) {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send_copy_image() {
+void
+DeepCopyRequest<I>::send_copy_image()
+{
   m_lock.lock();
   if (m_canceled) {
     m_lock.unlock();
@@ -157,12 +178,12 @@ void DeepCopyRequest<I>::send_copy_image() {
 
   ldout(m_cct, 20) << dendl;
 
-  Context *ctx = create_context_callback<
-    DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_image>(this);
+  Context* ctx = create_context_callback<
+      DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_image>(this);
   m_image_copy_request = ImageCopyRequest<I>::create(
-    m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start, m_src_snap_id_end,
-    m_dst_snap_id_start, m_flatten, m_object_number, *m_snap_seqs, m_handler,
-    ctx);
+      m_src_image_ctx, m_dst_image_ctx, m_src_snap_id_start, m_src_snap_id_end,
+      m_dst_snap_id_start, m_flatten, m_object_number, *m_snap_seqs, m_handler,
+      ctx);
   m_image_copy_request->get();
   m_lock.unlock();
 
@@ -170,7 +191,9 @@ void DeepCopyRequest<I>::send_copy_image() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::handle_copy_image(int r) {
+void
+DeepCopyRequest<I>::handle_copy_image(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   {
@@ -196,12 +219,14 @@ void DeepCopyRequest<I>::handle_copy_image(int r) {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send_copy_object_map() {
+void
+DeepCopyRequest<I>::send_copy_object_map()
+{
   m_dst_image_ctx->owner_lock.lock_shared();
   m_dst_image_ctx->image_lock.lock_shared();
 
-  if (!m_dst_image_ctx->test_features(RBD_FEATURE_OBJECT_MAP,
-                                      m_dst_image_ctx->image_lock)) {
+  if (!m_dst_image_ctx->test_features(
+          RBD_FEATURE_OBJECT_MAP, m_dst_image_ctx->image_lock)) {
     m_dst_image_ctx->image_lock.unlock_shared();
     m_dst_image_ctx->owner_lock.unlock_shared();
     send_copy_metadata();
@@ -218,7 +243,7 @@ void DeepCopyRequest<I>::send_copy_object_map() {
 
   ldout(m_cct, 20) << dendl;
 
-  Context *finish_op_ctx = nullptr;
+  Context* finish_op_ctx = nullptr;
   int r;
   if (m_dst_image_ctx->exclusive_lock != nullptr) {
     finish_op_ctx = m_dst_image_ctx->exclusive_lock->start_op(&r);
@@ -233,9 +258,9 @@ void DeepCopyRequest<I>::send_copy_object_map() {
 
   // rollback the object map (copy snapshot object map to HEAD)
   auto ctx = new LambdaContext([this, finish_op_ctx](int r) {
-      handle_copy_object_map(r);
-      finish_op_ctx->complete(0);
-    });
+    handle_copy_object_map(r);
+    finish_op_ctx->complete(0);
+  });
   ceph_assert(m_snap_seqs->count(m_src_snap_id_end) > 0);
   librados::snap_t copy_snap_id = (*m_snap_seqs)[m_src_snap_id_end];
   m_dst_image_ctx->object_map->rollback(copy_snap_id, ctx);
@@ -244,7 +269,9 @@ void DeepCopyRequest<I>::send_copy_object_map() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::handle_copy_object_map(int r) {
+void
+DeepCopyRequest<I>::handle_copy_object_map(int r)
+{
   ldout(m_cct, 20) << dendl;
 
   if (r < 0) {
@@ -258,9 +285,11 @@ void DeepCopyRequest<I>::handle_copy_object_map(int r) {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send_refresh_object_map() {
+void
+DeepCopyRequest<I>::send_refresh_object_map()
+{
   int r;
-  Context *finish_op_ctx = nullptr;
+  Context* finish_op_ctx = nullptr;
   {
     std::shared_lock owner_locker{m_dst_image_ctx->owner_lock};
     if (m_dst_image_ctx->exclusive_lock != nullptr) {
@@ -276,20 +305,21 @@ void DeepCopyRequest<I>::send_refresh_object_map() {
   ldout(m_cct, 20) << dendl;
 
   auto ctx = new LambdaContext([this, finish_op_ctx](int r) {
-      handle_refresh_object_map(r);
-      finish_op_ctx->complete(0);
-    });
+    handle_refresh_object_map(r);
+    finish_op_ctx->complete(0);
+  });
   m_object_map = m_dst_image_ctx->create_object_map(CEPH_NOSNAP);
   m_object_map->open(ctx);
 }
 
 template <typename I>
-void DeepCopyRequest<I>::handle_refresh_object_map(int r) {
+void
+DeepCopyRequest<I>::handle_refresh_object_map(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
-    lderr(m_cct) << "failed to open object map: " << cpp_strerror(r)
-                 << dendl;
+    lderr(m_cct) << "failed to open object map: " << cpp_strerror(r) << dendl;
     delete m_object_map;
 
     finish(r);
@@ -306,18 +336,22 @@ void DeepCopyRequest<I>::handle_refresh_object_map(int r) {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::send_copy_metadata() {
+void
+DeepCopyRequest<I>::send_copy_metadata()
+{
   ldout(m_cct, 20) << dendl;
 
-  Context *ctx = create_context_callback<
-    DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_metadata>(this);
-  auto request = MetadataCopyRequest<I>::create(m_src_image_ctx,
-                                                m_dst_image_ctx, ctx);
+  Context* ctx = create_context_callback<
+      DeepCopyRequest<I>, &DeepCopyRequest<I>::handle_copy_metadata>(this);
+  auto request =
+      MetadataCopyRequest<I>::create(m_src_image_ctx, m_dst_image_ctx, ctx);
   request->send();
 }
 
 template <typename I>
-void DeepCopyRequest<I>::handle_copy_metadata(int r) {
+void
+DeepCopyRequest<I>::handle_copy_metadata(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -330,19 +364,21 @@ void DeepCopyRequest<I>::handle_copy_metadata(int r) {
 }
 
 template <typename I>
-int DeepCopyRequest<I>::validate_copy_points() {
+int
+DeepCopyRequest<I>::validate_copy_points()
+{
   std::shared_lock image_locker{m_src_image_ctx->image_lock};
 
   if (m_src_snap_id_start != 0 &&
       m_src_image_ctx->snap_info.find(m_src_snap_id_start) ==
-      m_src_image_ctx->snap_info.end()) {
+          m_src_image_ctx->snap_info.end()) {
     lderr(m_cct) << "invalid start snap_id " << m_src_snap_id_start << dendl;
     return -EINVAL;
   }
 
   if (m_src_snap_id_end != CEPH_NOSNAP &&
       m_src_image_ctx->snap_info.find(m_src_snap_id_end) ==
-      m_src_image_ctx->snap_info.end()) {
+          m_src_image_ctx->snap_info.end()) {
     lderr(m_cct) << "invalid end snap_id " << m_src_snap_id_end << dendl;
     return -EINVAL;
   }
@@ -351,7 +387,9 @@ int DeepCopyRequest<I>::validate_copy_points() {
 }
 
 template <typename I>
-void DeepCopyRequest<I>::finish(int r) {
+void
+DeepCopyRequest<I>::finish(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

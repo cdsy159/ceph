@@ -1,40 +1,38 @@
-#include <sys/types.h>
-#include <cstdint>
 #include <dirent.h>
 #include <errno.h>
-#include <vector>
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
 
 using namespace std;
 
-int getPidByName(string procName)
+int
+getPidByName(string procName)
 {
   int pid = -1;
 
   // Open the /proc directory
-  DIR *dp = opendir("/proc");
-  if (dp != NULL)
-  {
+  DIR* dp = opendir("/proc");
+  if (dp != NULL) {
     // Enumerate all entries in '/proc' until process is found
-    struct dirent *dirp;
-    while (pid < 0 && (dirp = readdir(dp)))
-    {
+    struct dirent* dirp;
+    while (pid < 0 && (dirp = readdir(dp))) {
       // Skip non-numeric entries
       int id = atoi(dirp->d_name);
-      if (id > 0)
-      {
+      if (id > 0) {
         // Read contents of virtual /proc/{pid}/cmdline file
         string cmdPath = string("/proc/") + dirp->d_name + "/cmdline";
         ifstream cmdFile(cmdPath.c_str());
         string cmdLine;
         getline(cmdFile, cmdLine);
-        if (!cmdLine.empty())
-        {
+        if (!cmdLine.empty()) {
           // Keep first cmdline item which contains the program path
           size_t pos = cmdLine.find('\0');
           if (pos != string::npos) {
@@ -59,7 +57,8 @@ int getPidByName(string procName)
   return pid;
 }
 
-uint64_t getRssUsage(string pid)
+uint64_t
+getRssUsage(string pid)
 {
   int totalSize = 0;
   int resSize = 0;
@@ -75,12 +74,11 @@ uint64_t getRssUsage(string pid)
   return rss;
 }
 
-int main(int argc, char* argv[])
+int
+main(int argc, char* argv[])
 {
   if (argc != 2) {
-    cout << "Syntax: "
-         << "ceph_test_log_rss_usage <process name>"
-         << endl;
+    cout << "Syntax: " << "ceph_test_log_rss_usage <process name>" << endl;
     exit(EINVAL);
   }
   uint64_t rss = 0;

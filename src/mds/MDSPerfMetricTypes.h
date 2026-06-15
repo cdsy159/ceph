@@ -11,6 +11,7 @@
 #include "include/cephfs/types.h" // for mds_rank_t
 #include "include/denc.h"
 #include "include/utime.h"
+
 #include "mdstypes.h"
 
 enum UpdateType : uint32_t {
@@ -20,26 +21,32 @@ enum UpdateType : uint32_t {
 
 inline constexpr uint32_t l_mds_rank_perf_start = 40000;
 inline constexpr uint32_t l_mds_rank_perf_cpu_usage = l_mds_rank_perf_start + 1;
-inline constexpr uint32_t l_mds_rank_perf_open_requests = l_mds_rank_perf_start + 2;
+inline constexpr uint32_t l_mds_rank_perf_open_requests =
+    l_mds_rank_perf_start + 2;
 inline constexpr uint32_t l_mds_rank_perf_last = l_mds_rank_perf_start + 3;
 
 struct CapHitMetric {
   uint64_t hits = 0;
   uint64_t misses = 0;
 
-  DENC(CapHitMetric, v, p) {
+  DENC(CapHitMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.hits, p);
     denc(v.misses, p);
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("hits", hits);
     f->dump_unsigned("misses", misses);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const CapHitMetric &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const CapHitMetric& metric)
+  {
     os << "{hits=" << metric.hits << ", misses=" << metric.misses << "}";
     return os;
   }
@@ -52,7 +59,8 @@ struct ReadLatencyMetric {
   uint64_t count;
   bool updated = false;
 
-  DENC(ReadLatencyMetric, v, p) {
+  DENC(ReadLatencyMetric, v, p)
+  {
     DENC_START(3, 1, p);
     denc(v.lat, p);
     if (struct_v >= 2)
@@ -65,14 +73,18 @@ struct ReadLatencyMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_object("read_latency", lat);
     f->dump_object("avg_read_alatency", mean);
     f->dump_unsigned("sq_sum", sq_sum);
     f->dump_unsigned("count", count);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const ReadLatencyMetric &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const ReadLatencyMetric& metric)
+  {
     os << "{latency=" << metric.lat << ", avg_latency=" << metric.mean
        << ", sq_sum=" << metric.sq_sum << ", count=" << metric.count << "}";
     return os;
@@ -86,7 +98,8 @@ struct WriteLatencyMetric {
   uint64_t count;
   bool updated = false;
 
-  DENC(WriteLatencyMetric, v, p) {
+  DENC(WriteLatencyMetric, v, p)
+  {
     DENC_START(3, 1, p);
     denc(v.lat, p);
     if (struct_v >= 2)
@@ -99,16 +112,20 @@ struct WriteLatencyMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_object("write_latency", lat);
     f->dump_object("avg_write_alatency", mean);
     f->dump_unsigned("sq_sum", sq_sum);
     f->dump_unsigned("count", count);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const WriteLatencyMetric &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const WriteLatencyMetric& metric)
+  {
     os << "{latency=" << metric.lat << ", avg_latency=" << metric.mean
-       << ", sq_sum=" << metric.sq_sum << ", count=" << metric.count  << "}";
+       << ", sq_sum=" << metric.sq_sum << ", count=" << metric.count << "}";
     return os;
   }
 };
@@ -120,7 +137,8 @@ struct MetadataLatencyMetric {
   uint64_t count;
   bool updated = false;
 
-  DENC(MetadataLatencyMetric, v, p) {
+  DENC(MetadataLatencyMetric, v, p)
+  {
     DENC_START(3, 1, p);
     denc(v.lat, p);
     if (struct_v >= 2)
@@ -133,14 +151,18 @@ struct MetadataLatencyMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_object("metadata_latency", lat);
     f->dump_object("avg_metadata_alatency", mean);
     f->dump_unsigned("sq_sum", sq_sum);
     f->dump_unsigned("count", count);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const MetadataLatencyMetric &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const MetadataLatencyMetric& metric)
+  {
     os << "{latency=" << metric.lat << ", avg_latency=" << metric.mean
        << ", sq_sum=" << metric.sq_sum << ", count=" << metric.count << "}";
     return os;
@@ -152,7 +174,8 @@ struct DentryLeaseHitMetric {
   uint64_t misses = 0;
   bool updated = false;
 
-  DENC(DentryLeaseHitMetric, v, p) {
+  DENC(DentryLeaseHitMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.hits, p);
     denc(v.misses, p);
@@ -160,12 +183,16 @@ struct DentryLeaseHitMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("hits", hits);
     f->dump_unsigned("misses", misses);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const DentryLeaseHitMetric &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const DentryLeaseHitMetric& metric)
+  {
     os << "{hits=" << metric.hits << ", misses=" << metric.misses << "}";
     return os;
   }
@@ -176,7 +203,8 @@ struct OpenedFilesMetric {
   uint64_t total_inodes = 0;
   bool updated = false;
 
-  DENC(OpenedFilesMetric, v, p) {
+  DENC(OpenedFilesMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.opened_files, p);
     denc(v.total_inodes, p);
@@ -184,14 +212,18 @@ struct OpenedFilesMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("opened_files", opened_files);
     f->dump_unsigned("total_inodes", total_inodes);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const OpenedFilesMetric &metric) {
-    os << "{opened_files=" << metric.opened_files  << ", total_inodes="
-       << metric.total_inodes << "}";
+  friend std::ostream&
+  operator<<(std::ostream& os, const OpenedFilesMetric& metric)
+  {
+    os << "{opened_files=" << metric.opened_files
+       << ", total_inodes=" << metric.total_inodes << "}";
     return os;
   }
 };
@@ -201,7 +233,8 @@ struct PinnedIcapsMetric {
   uint64_t total_inodes = 0;
   bool updated = false;
 
-  DENC(PinnedIcapsMetric, v, p) {
+  DENC(PinnedIcapsMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.pinned_icaps, p);
     denc(v.total_inodes, p);
@@ -209,14 +242,18 @@ struct PinnedIcapsMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("pinned_icaps", pinned_icaps);
     f->dump_unsigned("total_inodes", total_inodes);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const PinnedIcapsMetric &metric) {
-    os << "{pinned_icaps=" << metric.pinned_icaps << ", total_inodes="
-       << metric.total_inodes << "}";
+  friend std::ostream&
+  operator<<(std::ostream& os, const PinnedIcapsMetric& metric)
+  {
+    os << "{pinned_icaps=" << metric.pinned_icaps
+       << ", total_inodes=" << metric.total_inodes << "}";
     return os;
   }
 };
@@ -226,7 +263,8 @@ struct OpenedInodesMetric {
   uint64_t total_inodes = 0;
   bool updated = false;
 
-  DENC(OpenedInodesMetric, v, p) {
+  DENC(OpenedInodesMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.opened_inodes, p);
     denc(v.total_inodes, p);
@@ -234,14 +272,18 @@ struct OpenedInodesMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("opened_inodes", opened_inodes);
     f->dump_unsigned("total_inodes", total_inodes);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const OpenedInodesMetric &metric) {
-    os << "{opened_inodes=" << metric.opened_inodes << ", total_inodes="
-       << metric.total_inodes << "}";
+  friend std::ostream&
+  operator<<(std::ostream& os, const OpenedInodesMetric& metric)
+  {
+    os << "{opened_inodes=" << metric.opened_inodes
+       << ", total_inodes=" << metric.total_inodes << "}";
     return os;
   }
 };
@@ -251,7 +293,8 @@ struct ReadIoSizesMetric {
   uint64_t total_size = 0;
   bool updated = false;
 
-  DENC(ReadIoSizesMetric, v, p) {
+  DENC(ReadIoSizesMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.total_ops, p);
     denc(v.total_size, p);
@@ -259,13 +302,18 @@ struct ReadIoSizesMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("total_ops", total_ops);
     f->dump_unsigned("total_size", total_size);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const ReadIoSizesMetric &metric) {
-    os << "{total_ops=" << metric.total_ops << ", total_size=" << metric.total_size <<"}";
+  friend std::ostream&
+  operator<<(std::ostream& os, const ReadIoSizesMetric& metric)
+  {
+    os << "{total_ops=" << metric.total_ops
+       << ", total_size=" << metric.total_size << "}";
     return os;
   }
 };
@@ -275,7 +323,8 @@ struct WriteIoSizesMetric {
   uint64_t total_size = 0;
   bool updated = false;
 
-  DENC(WriteIoSizesMetric, v, p) {
+  DENC(WriteIoSizesMetric, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.total_ops, p);
     denc(v.total_size, p);
@@ -283,13 +332,18 @@ struct WriteIoSizesMetric {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("total_ops", total_ops);
     f->dump_unsigned("total_size", total_size);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const WriteIoSizesMetric &metric) {
-    os << "{total_ops=" << metric.total_ops << ", total_size=" << metric.total_size <<"}";
+  friend std::ostream&
+  operator<<(std::ostream& os, const WriteIoSizesMetric& metric)
+  {
+    os << "{total_ops=" << metric.total_ops
+       << ", total_size=" << metric.total_size << "}";
     return os;
   }
 };
@@ -310,19 +364,24 @@ struct RankPerfMetrics {
   uint64_t cpu_usage_percent = 0;
   uint64_t open_requests = 0;
 
-  DENC(RankPerfMetrics, v, p) {
+  DENC(RankPerfMetrics, v, p)
+  {
     DENC_START(1, 1, p);
     denc(v.cpu_usage_percent, p);
     denc(v.open_requests, p);
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("cpu_usage_percent", cpu_usage_percent);
     f->dump_unsigned("open_requests", open_requests);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const RankPerfMetrics &metric) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const RankPerfMetrics& metric)
+  {
     os << "{cpu_usage_percent=" << metric.cpu_usage_percent
        << ", open_requests=" << metric.open_requests << "}";
     return os;
@@ -347,7 +406,8 @@ struct Metrics {
   // metric update type
   uint32_t update_type = UpdateType::UPDATE_TYPE_REFRESH;
 
-  DENC(Metrics, v, p) {
+  DENC(Metrics, v, p)
+  {
     DENC_START(4, 1, p);
     denc(v.update_type, p);
     denc(v.cap_hit_metric, p);
@@ -369,7 +429,9 @@ struct Metrics {
     DENC_FINISH(p);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_int("update_type", static_cast<uint32_t>(update_type));
     f->dump_object("cap_hit_metric", cap_hit_metric);
     f->dump_object("read_latency_metric", read_latency_metric);
@@ -383,7 +445,9 @@ struct Metrics {
     f->dump_object("write_io_sizes_metric", write_io_sizes_metric);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const Metrics& metrics) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const Metrics& metrics)
+  {
     os << "[update_type=" << metrics.update_type << ", metrics={"
        << "cap_hit_metric=" << metrics.cap_hit_metric
        << ", read_latency=" << metrics.read_latency_metric
@@ -394,8 +458,7 @@ struct Metrics {
        << ", pinned_icaps_metric=" << metrics.pinned_icaps_metric
        << ", opened_inodes_metric=" << metrics.opened_inodes_metric
        << ", read_io_sizes_metric=" << metrics.read_io_sizes_metric
-       << ", write_io_sizes_metric=" << metrics.write_io_sizes_metric
-       << "}]";
+       << ", write_io_sizes_metric=" << metrics.write_io_sizes_metric << "}]";
     return os;
   }
 };
@@ -408,13 +471,15 @@ struct metrics_message_t {
   std::vector<SubvolumeMetric> subvolume_metrics;
   RankPerfMetrics rank_metrics;
 
-  metrics_message_t() {
-  }
-  metrics_message_t(version_t seq, mds_rank_t rank)
-    : seq(seq), rank(rank) {
-  }
+  metrics_message_t() {}
 
-  void encode(bufferlist &bl, uint64_t features) const {
+  metrics_message_t(version_t seq, mds_rank_t rank) :
+    seq(seq), rank(rank)
+  {}
+
+  void
+  encode(bufferlist& bl, uint64_t features) const
+  {
     using ceph::encode;
     ENCODE_START(3, 1, bl);
     encode(seq, bl);
@@ -425,7 +490,9 @@ struct metrics_message_t {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator &iter) {
+  void
+  decode(bufferlist::const_iterator& iter)
+  {
     using ceph::decode;
     DECODE_START(3, iter);
     decode(seq, iter);
@@ -442,16 +509,18 @@ struct metrics_message_t {
     DECODE_FINISH(iter);
   }
 
-  void dump(Formatter *f) const {
+  void
+  dump(Formatter* f) const
+  {
     f->dump_unsigned("seq", seq);
     f->dump_int("rank", rank);
-    for (auto &[client, metrics] : client_metrics_map) {
+    for (auto& [client, metrics] : client_metrics_map) {
       f->dump_object("client", client);
       f->dump_object("metrics", metrics);
     }
     f->dump_object("rank_metrics", rank_metrics);
     f->open_array_section("subvolume_metrics");
-    for (const auto &metric : subvolume_metrics) {
+    for (const auto& metric : subvolume_metrics) {
       f->open_object_section("metric");
       metric.dump(f);
       f->close_section();
@@ -459,14 +528,16 @@ struct metrics_message_t {
     f->close_section();
   }
 
-    friend std::ostream& operator<<(std::ostream& os, const metrics_message_t &m) {
-      os << "[sequence=" << m.seq << ", rank=" << m.rank
-         << ", client_metrics=" << m.client_metrics_map
-         << ", subvolume_metrics=" << m.subvolume_metrics;
-      os << ", rank_metrics=" << m.rank_metrics;
-      os << "]";
-      return os;
-    }
+  friend std::ostream&
+  operator<<(std::ostream& os, const metrics_message_t& m)
+  {
+    os << "[sequence=" << m.seq << ", rank=" << m.rank
+       << ", client_metrics=" << m.client_metrics_map
+       << ", subvolume_metrics=" << m.subvolume_metrics;
+    os << ", rank_metrics=" << m.rank_metrics;
+    os << "]";
+    return os;
+  }
 };
 
 WRITE_CLASS_ENCODER_FEATURES(metrics_message_t)

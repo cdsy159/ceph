@@ -18,45 +18,53 @@
 
 #include "driver/rados/rgw_service.h"
 
-class RGWSI_BILog_RADOS : public RGWServiceInstance
-{
+class RGWSI_BILog_RADOS : public RGWServiceInstance {
 public:
   struct Svc {
-    RGWSI_BucketIndex_RADOS *bi{nullptr};
+    RGWSI_BucketIndex_RADOS* bi{nullptr};
   } svc;
 
-  RGWSI_BILog_RADOS(CephContext *cct);
+  RGWSI_BILog_RADOS(CephContext* cct);
 
-  void init(RGWSI_BucketIndex_RADOS *bi_rados_svc);
+  void init(RGWSI_BucketIndex_RADOS* bi_rados_svc);
 
-  int log_start(const DoutPrefixProvider *dpp, optional_yield y,
-                const RGWBucketInfo& bucket_info,
-                const rgw::bucket_log_layout_generation& log_layout,
-                int shard_id);
-  int log_stop(const DoutPrefixProvider *dpp, optional_yield y,
-               const RGWBucketInfo& bucket_info,
-               const rgw::bucket_log_layout_generation& log_layout,
-               int shard_id);
+  int log_start(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWBucketInfo& bucket_info,
+      const rgw::bucket_log_layout_generation& log_layout,
+      int shard_id);
+  int log_stop(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWBucketInfo& bucket_info,
+      const rgw::bucket_log_layout_generation& log_layout,
+      int shard_id);
 
-  int log_trim(const DoutPrefixProvider *dpp, optional_yield y,
-               const RGWBucketInfo& bucket_info,
-               const rgw::bucket_log_layout_generation& log_layout,
-               int shard_id,
-               std::string_view start_marker,
-               std::string_view end_marker);
-  int log_list(const DoutPrefixProvider *dpp, optional_yield y,
-               const RGWBucketInfo& bucket_info,
-               const rgw::bucket_log_layout_generation& log_layout,
-               int shard_id,
-               std::string& marker,
-               uint32_t max,
-               std::list<rgw_bi_log_entry>& result,
-               bool *truncated);
+  int log_trim(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWBucketInfo& bucket_info,
+      const rgw::bucket_log_layout_generation& log_layout,
+      int shard_id,
+      std::string_view start_marker,
+      std::string_view end_marker);
+  int log_list(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWBucketInfo& bucket_info,
+      const rgw::bucket_log_layout_generation& log_layout,
+      int shard_id,
+      std::string& marker,
+      uint32_t max,
+      std::list<rgw_bi_log_entry>& result,
+      bool* truncated);
 
-  int get_log_status(const DoutPrefixProvider *dpp,
-                     const RGWBucketInfo& bucket_info,
-                     const rgw::bucket_log_layout_generation& log_layout,
-                     int shard_id,
-                     std::map<int, std::string> *markers,
-                     optional_yield y);
+  int get_log_status(
+      const DoutPrefixProvider* dpp,
+      const RGWBucketInfo& bucket_info,
+      const rgw::bucket_log_layout_generation& log_layout,
+      int shard_id,
+      std::map<int, std::string>* markers,
+      optional_yield y);
 };

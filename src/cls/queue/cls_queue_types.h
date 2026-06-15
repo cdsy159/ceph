@@ -17,32 +17,41 @@
 
 constexpr unsigned int QUEUE_HEAD_START = 0xDEAD;
 constexpr unsigned int QUEUE_ENTRY_START = 0xBEEF;
-constexpr unsigned int QUEUE_ENTRY_OVERHEAD = sizeof(uint16_t) + sizeof(uint64_t);
+constexpr unsigned int QUEUE_ENTRY_OVERHEAD = sizeof(uint16_t) +
+                                              sizeof(uint64_t);
 
-struct cls_queue_entry
-{
+struct cls_queue_entry {
   ceph::buffer::list data;
   std::string marker;
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(data, bl);
     encode(marker, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(data, bl);
     decode(marker, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_string("marker", marker);
     f->dump_unsigned("data_len", data.length());
   }
-  static std::list<cls_queue_entry> generate_test_instances() {
+
+  static std::list<cls_queue_entry>
+  generate_test_instances()
+  {
     std::list<cls_queue_entry> o;
     o.emplace_back();
     o.emplace_back();
@@ -53,30 +62,37 @@ struct cls_queue_entry
 };
 WRITE_CLASS_ENCODER(cls_queue_entry)
 
-struct cls_queue_marker
-{
+struct cls_queue_marker {
   uint64_t offset{0};
   uint64_t gen{0};
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(gen, bl);
     encode(offset, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(gen, bl);
     decode(offset, bl);
     DECODE_FINISH(bl);
   }
 
-  std::string to_str() {
+  std::string
+  to_str()
+  {
     return std::to_string(gen) + '/' + std::to_string(offset);
   }
 
-  int from_str(const char* str) {
+  int
+  from_str(const char* str)
+  {
     errno = 0;
     char* end = nullptr;
     gen = ::strtoull(str, &end, 10);
@@ -96,11 +112,17 @@ struct cls_queue_marker
     }
     return 0;
   }
-  void dump(ceph::Formatter *f) const {
+
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("offset", offset);
     f->dump_unsigned("gen", gen);
   }
-  static std::list<cls_queue_marker> generate_test_instances() {
+
+  static std::list<cls_queue_marker>
+  generate_test_instances()
+  {
     std::list<cls_queue_marker> o;
     o.emplace_back();
     o.emplace_back();
@@ -111,16 +133,19 @@ struct cls_queue_marker
 };
 WRITE_CLASS_ENCODER(cls_queue_marker)
 
-struct cls_queue_head
-{
+struct cls_queue_head {
   uint64_t max_head_size = QUEUE_HEAD_SIZE_1K;
   cls_queue_marker front{QUEUE_START_OFFSET_1K, 0};
   cls_queue_marker tail{QUEUE_START_OFFSET_1K, 0};
-  uint64_t queue_size{0}; // size of queue requested by user, with head size added to it
+  uint64_t queue_size{
+      0}; // size of queue requested by user, with head size added to it
   uint64_t max_urgent_data_size{0};
-  ceph::buffer::list bl_urgent_data;  // special data known to application using queue
+  ceph::buffer::list
+      bl_urgent_data; // special data known to application using queue
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(max_head_size, bl);
     encode(front, bl);
@@ -131,7 +156,9 @@ struct cls_queue_head
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(max_head_size, bl);
     decode(front, bl);
@@ -142,7 +169,9 @@ struct cls_queue_head
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_unsigned("max_head_size", max_head_size);
     f->dump_unsigned("queue_size", queue_size);
     f->dump_unsigned("max_urgent_data_size", max_urgent_data_size);
@@ -151,7 +180,10 @@ struct cls_queue_head
     f->dump_unsigned("tail_offset", tail.offset);
     f->dump_unsigned("tail_gen", tail.gen);
   }
-  static std::list<cls_queue_head> generate_test_instances() {
+
+  static std::list<cls_queue_head>
+  generate_test_instances()
+  {
     std::list<cls_queue_head> o;
     o.emplace_back();
     o.emplace_back();

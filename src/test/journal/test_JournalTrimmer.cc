@@ -1,17 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "journal/JournalTrimmer.h"
-#include "journal/JournalMetadata.h"
-#include "include/stringify.h"
-#include "test/journal/RadosTestFixture.h"
 #include <limits>
 #include <list>
 
+#include "include/stringify.h"
+#include "journal/JournalMetadata.h"
+#include "journal/JournalTrimmer.h"
+#include "test/journal/RadosTestFixture.h"
+
 class TestJournalTrimmer : public RadosTestFixture {
 public:
-
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     for (MetadataList::iterator it = m_metadata_list.begin();
          it != m_metadata_list.end(); ++it) {
       (*it)->remove_listener(&m_listener);
@@ -28,9 +30,14 @@ public:
     RadosTestFixture::TearDown();
   }
 
-  int append_payload(const ceph::ref_t<journal::JournalMetadata>& metadata,
-                     const std::string &oid, uint64_t object_num,
-                     const std::string &payload, uint64_t *commit_tid) {
+  int
+  append_payload(
+      const ceph::ref_t<journal::JournalMetadata>& metadata,
+      const std::string& oid,
+      uint64_t object_num,
+      const std::string& payload,
+      uint64_t* commit_tid)
+  {
     int r = append(oid + "." + stringify(object_num), create_payload(payload));
     uint64_t tid = metadata->allocate_commit_tid(object_num, 234, 123);
     if (commit_tid != NULL) {
@@ -39,22 +46,29 @@ public:
     return r;
   }
 
-  auto create_metadata(const std::string &oid) {
+  auto
+  create_metadata(const std::string& oid)
+  {
     auto metadata = RadosTestFixture::create_metadata(oid);
     m_metadata_list.push_back(metadata);
     metadata->add_listener(&m_listener);
     return metadata;
   }
 
-  journal::JournalTrimmer *create_trimmer(const std::string &oid,
-                                          const ceph::ref_t<journal::JournalMetadata>& metadata) {
-    journal::JournalTrimmer *trimmer(new journal::JournalTrimmer(
-      m_ioctx, oid + ".", metadata));
+  journal::JournalTrimmer*
+  create_trimmer(
+      const std::string& oid,
+      const ceph::ref_t<journal::JournalMetadata>& metadata)
+  {
+    journal::JournalTrimmer* trimmer(
+        new journal::JournalTrimmer(m_ioctx, oid + ".", metadata));
     m_trimmers.push_back(trimmer);
     return trimmer;
   }
 
-  int assert_exists(const std::string &oid) {
+  int
+  assert_exists(const std::string& oid)
+  {
     librados::ObjectWriteOperation op;
     op.assert_exists();
     return m_ioctx.operate(oid, &op);
@@ -65,7 +79,8 @@ public:
   std::list<journal::JournalTrimmer*> m_trimmers;
 };
 
-TEST_F(TestJournalTrimmer, Committed) {
+TEST_F(TestJournalTrimmer, Committed)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -90,7 +105,7 @@ TEST_F(TestJournalTrimmer, Committed) {
   ASSERT_EQ(0, append_payload(metadata, oid, 4, "payload", &commit_tid5));
   ASSERT_EQ(0, append_payload(metadata, oid, 5, "payload", &commit_tid6));
 
-  journal::JournalTrimmer *trimmer = create_trimmer(oid, metadata);
+  journal::JournalTrimmer* trimmer = create_trimmer(oid, metadata);
 
   trimmer->committed(commit_tid4);
   trimmer->committed(commit_tid6);
@@ -107,7 +122,8 @@ TEST_F(TestJournalTrimmer, Committed) {
   ASSERT_EQ(0, assert_exists(oid + ".5"));
 }
 
-TEST_F(TestJournalTrimmer, CommittedWithOtherClient) {
+TEST_F(TestJournalTrimmer, CommittedWithOtherClient)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -129,7 +145,7 @@ TEST_F(TestJournalTrimmer, CommittedWithOtherClient) {
   ASSERT_EQ(0, append_payload(metadata, oid, 3, "payload", &commit_tid3));
   ASSERT_EQ(0, append_payload(metadata, oid, 5, "payload", &commit_tid4));
 
-  journal::JournalTrimmer *trimmer = create_trimmer(oid, metadata);
+  journal::JournalTrimmer* trimmer = create_trimmer(oid, metadata);
 
   trimmer->committed(commit_tid1);
   trimmer->committed(commit_tid2);
@@ -143,7 +159,8 @@ TEST_F(TestJournalTrimmer, CommittedWithOtherClient) {
   ASSERT_EQ(0, assert_exists(oid + ".5"));
 }
 
-TEST_F(TestJournalTrimmer, RemoveObjects) {
+TEST_F(TestJournalTrimmer, RemoveObjects)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -160,7 +177,7 @@ TEST_F(TestJournalTrimmer, RemoveObjects) {
   ASSERT_EQ(0, append(oid + ".3", create_payload("payload")));
   ASSERT_EQ(0, append(oid + ".5", create_payload("payload")));
 
-  journal::JournalTrimmer *trimmer = create_trimmer(oid, metadata);
+  journal::JournalTrimmer* trimmer = create_trimmer(oid, metadata);
 
   C_SaferCond cond;
   trimmer->remove_objects(false, &cond);
@@ -174,7 +191,8 @@ TEST_F(TestJournalTrimmer, RemoveObjects) {
   ASSERT_EQ(-ENOENT, assert_exists(oid + ".5"));
 }
 
-TEST_F(TestJournalTrimmer, RemoveObjectsWithOtherClient) {
+TEST_F(TestJournalTrimmer, RemoveObjectsWithOtherClient)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -184,7 +202,7 @@ TEST_F(TestJournalTrimmer, RemoveObjectsWithOtherClient) {
   ASSERT_EQ(0, init_metadata(metadata));
   ASSERT_TRUE(wait_for_update(metadata));
 
-  journal::JournalTrimmer *trimmer = create_trimmer(oid, metadata);
+  journal::JournalTrimmer* trimmer = create_trimmer(oid, metadata);
 
   C_SaferCond ctx1;
   trimmer->remove_objects(false, &ctx1);
@@ -194,4 +212,3 @@ TEST_F(TestJournalTrimmer, RemoveObjectsWithOtherClient) {
   trimmer->remove_objects(true, &ctx2);
   ASSERT_EQ(0, ctx2.wait());
 }
-

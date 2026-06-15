@@ -2,19 +2,25 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 
 #include "rgw_restore_waiter.h"
-#include <algorithm>
+
 #include <errno.h>
+
+#include <algorithm>
 
 namespace rgw::restore {
 
-void RestoreWaiter::reset() {
+void
+RestoreWaiter::reset()
+{
   completed.store(false, std::memory_order_relaxed);
   failed.store(false, std::memory_order_relaxed);
   result.store(0, std::memory_order_relaxed);
   cached_key.clear();
 }
 
-bool RestoreWaiter::wait_for(std::chrono::milliseconds timeout, optional_yield y) {
+bool
+RestoreWaiter::wait_for(std::chrono::milliseconds timeout, optional_yield y)
+{
   if (completed.load(std::memory_order_acquire)) {
     return true;
   }
@@ -47,11 +53,14 @@ bool RestoreWaiter::wait_for(std::chrono::milliseconds timeout, optional_yield y
   }
 
   std::unique_lock lock(mtx);
-  return cv.wait_for(lock, timeout,
-                     [this] { return completed.load(std::memory_order_acquire); });
+  return cv.wait_for(lock, timeout, [this] {
+    return completed.load(std::memory_order_acquire);
+  });
 }
 
-void RestoreWaiter::complete(bool success, int result_code) {
+void
+RestoreWaiter::complete(bool success, int result_code)
+{
   failed.store(!success, std::memory_order_release);
   result.store(result_code, std::memory_order_release);
   completed.store(true, std::memory_order_release);
@@ -69,7 +78,9 @@ void RestoreWaiter::complete(bool success, int result_code) {
 }
 
 // RestoreWaiterPool implementation
-std::shared_ptr<RestoreWaiter> RestoreWaiterPool::acquire(std::weak_ptr<RestoreWaiterRegistry> owner) {
+std::shared_ptr<RestoreWaiter>
+RestoreWaiterPool::acquire(std::weak_ptr<RestoreWaiterRegistry> owner)
+{
   std::unique_lock lock(pool_mtx);
 
   // Periodic eviction of old waiters
@@ -83,29 +94,31 @@ std::shared_ptr<RestoreWaiter> RestoreWaiterPool::acquire(std::weak_ptr<RestoreW
     // Reset state
     waiter->reset();
 
-    return std::shared_ptr<RestoreWaiter>(waiter.release(),
-      [owner](RestoreWaiter* w) {
+    return std::shared_ptr<RestoreWaiter>(
+        waiter.release(), [owner](RestoreWaiter* w) {
+          if (auto reg = owner.lock()) {
+            reg->release_waiter(w);
+          } else {
+            delete w;
+          }
+        });
+  }
+
+  lock.unlock();
+  auto waiter = std::make_unique<RestoreWaiter>();
+  return std::shared_ptr<RestoreWaiter>(
+      waiter.release(), [owner](RestoreWaiter* w) {
         if (auto reg = owner.lock()) {
           reg->release_waiter(w);
         } else {
           delete w;
         }
       });
-  }
-
-  lock.unlock();
-  auto waiter = std::make_unique<RestoreWaiter>();
-  return std::shared_ptr<RestoreWaiter>(waiter.release(),
-    [owner](RestoreWaiter* w) {
-      if (auto reg = owner.lock()) {
-        reg->release_waiter(w);
-      } else {
-        delete w;
-      }
-    });
 }
 
-void RestoreWaiterPool::release(RestoreWaiter* waiter) {
+void
+RestoreWaiterPool::release(RestoreWaiter* waiter)
+{
   std::lock_guard lock(pool_mtx);
   if (free_list.size() < MAX_POOL_SIZE) {
     waiter->last_used = ceph::coarse_real_clock::now();
@@ -115,7 +128,9 @@ void RestoreWaiterPool::release(RestoreWaiter* waiter) {
   }
 }
 
-void RestoreWaiterPool::evict_old_waiters() {
+void
+RestoreWaiterPool::evict_old_waiters()
+{
   // Assumes pool_mtx is already held
   if (free_list.empty()) {
     return;
@@ -125,18 +140,23 @@ void RestoreWaiterPool::evict_old_waiters() {
   const auto eviction_threshold = now - EVICTION_TIME;
 
   free_list.erase(
-    std::remove_if(free_list.begin(), free_list.end(),
-      [eviction_threshold](const std::unique_ptr<RestoreWaiter>& w) {
-        return w->last_used < eviction_threshold;
-      }),
-    free_list.end()
-  );
+      std::remove_if(
+          free_list.begin(), free_list.end(),
+          [eviction_threshold](const std::unique_ptr<RestoreWaiter>& w) {
+            return w->last_used < eviction_threshold;
+          }),
+      free_list.end());
 }
 
 // RestoreWaiterRegistry implementation
-std::string RestoreWaiterRegistry::make_key(const rgw_bucket& bucket, const rgw_obj_key& obj_key) {
+std::string
+RestoreWaiterRegistry::make_key(
+    const rgw_bucket& bucket,
+    const rgw_obj_key& obj_key)
+{
   std::string key;
-  key.reserve(bucket.name.size() + obj_key.name.size() + obj_key.instance.size() + 10);
+  key.reserve(
+      bucket.name.size() + obj_key.name.size() + obj_key.instance.size() + 10);
   key = bucket.get_key();
   key += ':';
   key += obj_key.name;
@@ -147,12 +167,17 @@ std::string RestoreWaiterRegistry::make_key(const rgw_bucket& bucket, const rgw_
   return key;
 }
 
-void RestoreWaiterRegistry::release_waiter(RestoreWaiter* waiter) {
+void
+RestoreWaiterRegistry::release_waiter(RestoreWaiter* waiter)
+{
   waiter_pool.release(waiter);
 }
 
-std::shared_ptr<RestoreWaiter> RestoreWaiterRegistry::register_waiter(const rgw_bucket& bucket,
-                                                                        const rgw_obj_key& obj_key) {
+std::shared_ptr<RestoreWaiter>
+RestoreWaiterRegistry::register_waiter(
+    const rgw_bucket& bucket,
+    const rgw_obj_key& obj_key)
+{
   if (shutting_down.load(std::memory_order_acquire)) {
     return nullptr;
   }
@@ -171,7 +196,9 @@ std::shared_ptr<RestoreWaiter> RestoreWaiterRegistry::register_waiter(const rgw_
   return waiter;
 }
 
-void RestoreWaiterRegistry::unregister_waiter(std::shared_ptr<RestoreWaiter> waiter) {
+void
+RestoreWaiterRegistry::unregister_waiter(std::shared_ptr<RestoreWaiter> waiter)
+{
   std::unique_lock lock(registry_mtx);
 
   auto it = waiters.find(waiter->cached_key);
@@ -184,10 +211,13 @@ void RestoreWaiterRegistry::unregister_waiter(std::shared_ptr<RestoreWaiter> wai
   }
 }
 
-void RestoreWaiterRegistry::notify_completion(const rgw_bucket& bucket,
-                                               const rgw_obj_key& obj_key,
-                                               bool success,
-                                               int result) {
+void
+RestoreWaiterRegistry::notify_completion(
+    const rgw_bucket& bucket,
+    const rgw_obj_key& obj_key,
+    bool success,
+    int result)
+{
   std::string key = make_key(bucket, obj_key);
   std::vector<std::shared_ptr<RestoreWaiter>> to_notify;
 
@@ -206,7 +236,9 @@ void RestoreWaiterRegistry::notify_completion(const rgw_bucket& bucket,
   }
 }
 
-void RestoreWaiterRegistry::shutdown() {
+void
+RestoreWaiterRegistry::shutdown()
+{
   shutting_down.store(true, std::memory_order_release);
   std::vector<std::shared_ptr<RestoreWaiter>> to_notify;
 

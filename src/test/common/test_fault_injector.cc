@@ -13,10 +13,11 @@
  *
  */
 
-#include "common/fault_injector.h"
-#include "common/common_init.h"
-#include "common/ceph_argparse.h"
 #include <gtest/gtest.h>
+
+#include "common/ceph_argparse.h"
+#include "common/common_init.h"
+#include "common/fault_injector.h"
 
 TEST(FaultInjectorDeathTest, InjectAbort)
 {
@@ -38,19 +39,31 @@ TEST(FaultInjectorDeathTest, AssignAbort)
 class Fixture : public testing::Test {
   boost::intrusive_ptr<CephContext> cct;
   std::optional<NoDoutPrefix> prefix;
- protected:
-  void SetUp() override {
+
+protected:
+  void
+  SetUp() override
+  {
     CephInitParameters params(CEPH_ENTITY_TYPE_CLIENT);
-    cct.reset(common_preinit(params, CODE_ENVIRONMENT_UTILITY,
-			     CINIT_FLAG_NO_DEFAULT_CONFIG_FILE),
-	      false);
+    cct.reset(
+        common_preinit(
+            params, CODE_ENVIRONMENT_UTILITY, CINIT_FLAG_NO_DEFAULT_CONFIG_FILE),
+        false);
     prefix.emplace(cct.get(), ceph_subsys_context);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     prefix.reset();
     cct.reset();
   }
-  const DoutPrefixProvider* dpp() { return &*prefix; }
+
+  const DoutPrefixProvider*
+  dpp()
+  {
+    return &*prefix;
+  }
 };
 
 // test int as a Key type
@@ -145,13 +158,22 @@ TEST_F(FaultInjectorString, AssignErrorMessage)
 // test enum class as a Key type
 using FaultInjectorEnum = Fixture;
 
-enum class Color { Red, Green, Blue };
+enum class Color {
+  Red,
+  Green,
+  Blue
+};
 
-static std::ostream& operator<<(std::ostream& out, const Color& c) {
+static std::ostream&
+operator<<(std::ostream& out, const Color& c)
+{
   switch (c) {
-    case Color::Red: return out << "Red";
-    case Color::Green: return out << "Green";
-    case Color::Blue: return out << "Blue";
+  case Color::Red:
+    return out << "Red";
+  case Color::Green:
+    return out << "Green";
+  case Color::Blue:
+    return out << "Blue";
   }
   return out;
 }
@@ -208,10 +230,15 @@ struct MoveOnlyKey {
   ~MoveOnlyKey() = default;
 };
 
-static bool operator==(const MoveOnlyKey&, const MoveOnlyKey&) {
+static bool
+operator==(const MoveOnlyKey&, const MoveOnlyKey&)
+{
   return true; // all keys are equal
 }
-static std::ostream& operator<<(std::ostream& out, const MoveOnlyKey&) {
+
+static std::ostream&
+operator<<(std::ostream& out, const MoveOnlyKey&)
+{
   return out;
 }
 

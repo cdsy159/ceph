@@ -1,23 +1,27 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "cls/refcount/cls_refcount_client.h"
-
-#include "gtest/gtest.h"
-#include "test/librados/test_cxx.h"
-
 #include <errno.h>
+
 #include <string>
 #include <vector>
 
+#include "cls/refcount/cls_refcount_client.h"
+#include "gtest/gtest.h"
+#include "include/types.h"
+#include "test/librados/test_cxx.h"
+
 using namespace std;
 
-static librados::ObjectWriteOperation *new_op() {
+static librados::ObjectWriteOperation*
+new_op()
+{
   return new librados::ObjectWriteOperation();
 }
 
-TEST(cls_refcount, test_implicit) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_implicit) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -34,7 +38,7 @@ TEST(cls_refcount, test_implicit) /* test refcount using implicit referencing of
 
 
   /* get on a missing object will fail */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag, true);
   ASSERT_EQ(-ENOENT, ioctx.operate(oid, op));
   delete op;
@@ -118,7 +122,9 @@ TEST(cls_refcount, test_implicit) /* test refcount using implicit referencing of
  * similar to test_implicit, just changes the order of the tags removal
  * see issue #20107
  */
-TEST(cls_refcount, test_implicit_idempotent) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_implicit_idempotent) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -135,7 +141,7 @@ TEST(cls_refcount, test_implicit_idempotent) /* test refcount using implicit ref
 
 
   /* get on a missing object will fail */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag, true);
   ASSERT_EQ(-ENOENT, ioctx.operate(oid, op));
   delete op;
@@ -215,8 +221,8 @@ TEST(cls_refcount, test_implicit_idempotent) /* test refcount using implicit ref
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
 }
 
-
-TEST(cls_refcount, test_put_snap) {
+TEST(cls_refcount, test_put_snap)
+{
   librados::Rados rados;
   librados::IoCtx ioctx;
   string pool_name = get_temp_pool_name();
@@ -235,7 +241,7 @@ TEST(cls_refcount, test_put_snap) {
 
   ASSERT_EQ(0, ioctx.snap_create("snapbar"));
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_put(*op, "notag", true);
   ASSERT_EQ(-ENOENT, ioctx.operate("foo", op));
 
@@ -249,7 +255,9 @@ TEST(cls_refcount, test_put_snap) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
 }
 
-TEST(cls_refcount, test_explicit) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_explicit) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -279,7 +287,7 @@ TEST(cls_refcount, test_explicit) /* test refcount using implicit referencing of
 
   string newtag = "newtag";
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -325,7 +333,9 @@ TEST(cls_refcount, test_explicit) /* test refcount using implicit referencing of
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
 }
 
-TEST(cls_refcount, set) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    set) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -362,7 +372,7 @@ TEST(cls_refcount, set) /* test refcount using implicit referencing of newly cre
 
   /* set reference list, verify */
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_set(*op, tag_refs);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -397,7 +407,9 @@ TEST(cls_refcount, set) /* test refcount using implicit referencing of newly cre
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
 }
 
-TEST(cls_refcount, test_implicit_ec) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_implicit_ec) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -414,7 +426,7 @@ TEST(cls_refcount, test_implicit_ec) /* test refcount using implicit referencing
 
 
   /* get on a missing object will fail */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag, true);
   ASSERT_EQ(-ENOENT, ioctx.operate(oid, op));
   delete op;
@@ -498,7 +510,9 @@ TEST(cls_refcount, test_implicit_ec) /* test refcount using implicit referencing
  * similar to test_implicit, just changes the order of the tags removal
  * see issue #20107
  */
-TEST(cls_refcount, test_implicit_idempotent_ec) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_implicit_idempotent_ec) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -515,7 +529,7 @@ TEST(cls_refcount, test_implicit_idempotent_ec) /* test refcount using implicit 
 
 
   /* get on a missing object will fail */
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag, true);
   ASSERT_EQ(-ENOENT, ioctx.operate(oid, op));
   delete op;
@@ -595,8 +609,8 @@ TEST(cls_refcount, test_implicit_idempotent_ec) /* test refcount using implicit 
   ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, rados));
 }
 
-
-TEST(cls_refcount, test_put_snap_ec) {
+TEST(cls_refcount, test_put_snap_ec)
+{
   librados::Rados rados;
   librados::IoCtx ioctx;
   string pool_name = get_temp_pool_name();
@@ -615,7 +629,7 @@ TEST(cls_refcount, test_put_snap_ec) {
 
   ASSERT_EQ(0, ioctx.snap_create("snapbar"));
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_put(*op, "notag", true);
   ASSERT_EQ(-ENOENT, ioctx.operate("foo", op));
 
@@ -629,7 +643,9 @@ TEST(cls_refcount, test_put_snap_ec) {
   ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, rados));
 }
 
-TEST(cls_refcount, test_explicit_ec) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    test_explicit_ec) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -659,7 +675,7 @@ TEST(cls_refcount, test_explicit_ec) /* test refcount using implicit referencing
 
   string newtag = "newtag";
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_get(*op, newtag);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 
@@ -705,7 +721,9 @@ TEST(cls_refcount, test_explicit_ec) /* test refcount using implicit referencing
   ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, rados));
 }
 
-TEST(cls_refcount, set_ec) /* test refcount using implicit referencing of newly created objects */
+TEST(
+    cls_refcount,
+    set_ec) /* test refcount using implicit referencing of newly created objects */
 {
   librados::Rados rados;
   librados::IoCtx ioctx;
@@ -742,7 +760,7 @@ TEST(cls_refcount, set_ec) /* test refcount using implicit referencing of newly 
 
   /* set reference list, verify */
 
-  librados::ObjectWriteOperation *op = new_op();
+  librados::ObjectWriteOperation* op = new_op();
   cls_refcount_set(*op, tag_refs);
   ASSERT_EQ(0, ioctx.operate(oid, op));
 

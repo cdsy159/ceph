@@ -1,24 +1,26 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "CrushTester.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
 
-#include <boost/lexical_cast.hpp>
-#include <boost/icl/interval_map.hpp>
+#include "common/debug.h"
+
 #include <boost/algorithm/string/join.hpp>
+#include <boost/icl/interval_map.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "common/SubProcess.h"
-#include "common/fork_function.h"
-
-#include "include/stringify.h"
-#include "CrushTester.h"
-#include "CrushTreeDumper.h"
 #include "common/ceph_context.h"
+#include "common/fork_function.h"
 #include "include/ceph_features.h"
-#include "common/debug.h"
+#include "include/stringify.h"
+
+#include "CrushTreeDumper.h"
 
 #define dout_subsys ceph_subsys_crush
 #undef dout_prefix
@@ -32,7 +34,8 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
-void CrushTester::set_device_weight(int dev, float f)
+void
+CrushTester::set_device_weight(int dev, float f)
 {
   int w = (int)(f * 0x10000);
   if (w < 0)
@@ -42,21 +45,22 @@ void CrushTester::set_device_weight(int dev, float f)
   device_weight[dev] = w;
 }
 
-int CrushTester::get_maximum_affected_by_rule(int ruleno)
+int
+CrushTester::get_maximum_affected_by_rule(int ruleno)
 {
   // get the number of steps in RULENO
   int rule_size = crush.get_rule_len(ruleno);
   vector<int> affected_types;
-  map<int,int> replications_by_type;
+  map<int, int> replications_by_type;
 
-  for (int i = 0; i < rule_size; i++){
+  for (int i = 0; i < rule_size; i++) {
     // get what operation is done by the current step
     int rule_operation = crush.get_rule_op(ruleno, i);
 
     // if the operation specifies choosing a device type, store it
-    if (rule_operation >= 2 && rule_operation != 4){
-      int desired_replication = crush.get_rule_arg1(ruleno,i);
-      int affected_type = crush.get_rule_arg2(ruleno,i);
+    if (rule_operation >= 2 && rule_operation != 4) {
+      int desired_replication = crush.get_rule_arg1(ruleno, i);
+      int affected_type = crush.get_rule_arg2(ruleno, i);
       affected_types.push_back(affected_type);
       replications_by_type[affected_type] = desired_replication;
     }
@@ -67,20 +71,24 @@ int CrushTester::get_maximum_affected_by_rule(int ruleno)
    * maximum we are (a) requesting or (b) have
    */
 
-  map<int,int> max_devices_of_type;
+  map<int, int> max_devices_of_type;
 
   // loop through the vector of affected types
-  for (vector<int>::iterator it = affected_types.begin(); it != affected_types.end(); ++it){
+  for (vector<int>::iterator it = affected_types.begin();
+       it != affected_types.end(); ++it) {
     // loop through the number of buckets looking for affected types
-    for (map<int,string>::iterator p = crush.name_map.begin(); p != crush.name_map.end(); ++p){
+    for (map<int, string>::iterator p = crush.name_map.begin();
+         p != crush.name_map.end(); ++p) {
       int bucket_type = crush.get_bucket_type(p->first);
-      if ( bucket_type == *it)
+      if (bucket_type == *it)
         max_devices_of_type[*it]++;
     }
   }
 
-  for(std::vector<int>::iterator it = affected_types.begin(); it != affected_types.end(); ++it){
-    if ( replications_by_type[*it] > 0 && replications_by_type[*it] < max_devices_of_type[*it] )
+  for (std::vector<int>::iterator it = affected_types.begin();
+       it != affected_types.end(); ++it) {
+    if (replications_by_type[*it] > 0 &&
+        replications_by_type[*it] < max_devices_of_type[*it])
       max_devices_of_type[*it] = replications_by_type[*it];
   }
 
@@ -88,34 +96,36 @@ int CrushTester::get_maximum_affected_by_rule(int ruleno)
    * get the smallest number of buckets available of any type as this is our upper bound on
    * the number of replicas we can place
   */
-  int max_affected = std::max( crush.get_max_buckets(), crush.get_max_devices() );
+  int max_affected = std::max(crush.get_max_buckets(), crush.get_max_devices());
 
-  for(std::vector<int>::iterator it = affected_types.begin(); it != affected_types.end(); ++it){
-    if (max_devices_of_type[*it] > 0 && max_devices_of_type[*it] < max_affected )
+  for (std::vector<int>::iterator it = affected_types.begin();
+       it != affected_types.end(); ++it) {
+    if (max_devices_of_type[*it] > 0 && max_devices_of_type[*it] < max_affected)
       max_affected = max_devices_of_type[*it];
   }
 
   return max_affected;
 }
 
-
-map<int,int> CrushTester::get_collapsed_mapping()
+map<int, int>
+CrushTester::get_collapsed_mapping()
 {
   int num_to_check = crush.get_max_devices();
   int next_id = 0;
   map<int, int> collapse_mask;
 
-  for (int i = 0; i < num_to_check; i++){
-    if (crush.check_item_present(i)){
+  for (int i = 0; i < num_to_check; i++) {
+    if (crush.check_item_present(i)) {
       collapse_mask[i] = next_id;
       next_id++;
     }
   }
-  
+
   return collapse_mask;
 }
 
-void CrushTester::adjust_weights(vector<__u32>& weight)
+void
+CrushTester::adjust_weights(vector<__u32>& weight)
 {
 
   if (mark_down_device_ratio > 0) {
@@ -135,7 +145,8 @@ void CrushTester::adjust_weights(vector<__u32>& weight)
       int id = bucket_ids[i];
       if (crush.get_bucket_size(id) == 0)
         continue;
-      int first_child = crush.get_bucket_item(id, 0); // returns the ID of the bucket or device
+      int first_child = crush.get_bucket_item(
+          id, 0); // returns the ID of the bucket or device
       if (first_child >= 0) {
         buckets_above_devices.push_back(id);
       }
@@ -148,7 +159,8 @@ void CrushTester::adjust_weights(vector<__u32>& weight)
     }
 
     // calculate how many buckets and devices we need to reap...
-    int num_buckets_to_visit = (int) (mark_down_bucket_ratio * buckets_above_devices.size());
+    int num_buckets_to_visit = (int)(mark_down_bucket_ratio *
+                                     buckets_above_devices.size());
 
     for (int i = 0; i < num_buckets_to_visit; i++) {
       int id = buckets_above_devices[i];
@@ -163,8 +175,8 @@ void CrushTester::adjust_weights(vector<__u32>& weight)
         std::swap(items[o], items[j]);
       }
 
-      int local_devices_to_visit = (int) (mark_down_device_ratio*size);
-      for (int o = 0; o < local_devices_to_visit; o++){
+      int local_devices_to_visit = (int)(mark_down_device_ratio * size);
+      for (int o = 0; o < local_devices_to_visit; o++) {
         int item = crush.get_bucket_item(id, o);
         weight[item] = 0;
       }
@@ -172,12 +184,16 @@ void CrushTester::adjust_weights(vector<__u32>& weight)
   }
 }
 
-bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector<__u32>& weight)
+bool
+CrushTester::check_valid_placement(
+    int ruleno,
+    vector<int> in,
+    const vector<__u32>& weight)
 {
 
   bool valid_placement = true;
   vector<int> included_devices;
-  map<string,string> seen_devices;
+  map<string, string> seen_devices;
 
   // first do the easy check that all devices are "up"
   for (vector<int>::iterator it = in.begin(); it != in.end(); ++it) {
@@ -185,7 +201,7 @@ bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector
       valid_placement = false;
       break;
     } else if (weight[(*it)] > 0) {
-      included_devices.push_back( (*it) );
+      included_devices.push_back((*it));
     }
   }
 
@@ -201,8 +217,9 @@ bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector
 
   // get the smallest type id, and name
   int min_map_type = crush.get_num_type_names();
-  for (map<int,string>::iterator it = crush.type_map.begin(); it != crush.type_map.end(); ++it ) {
-    if ( (*it).first < min_map_type ) {
+  for (map<int, string>::iterator it = crush.type_map.begin();
+       it != crush.type_map.end(); ++it) {
+    if ((*it).first < min_map_type) {
       min_map_type = (*it).first;
     }
   }
@@ -216,22 +233,25 @@ bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector
 
     // if the operation specifies choosing a device type, store it
     if (rule_operation >= 2 && rule_operation != 4) {
-      int affected_type = crush.get_rule_arg2(ruleno,i);
-      affected_types.push_back( crush.get_type_name(affected_type));
+      int affected_type = crush.get_rule_arg2(ruleno, i);
+      affected_types.push_back(crush.get_type_name(affected_type));
     }
   }
 
   // find in if we are only dealing with osd's
   bool only_osd_affected = false;
   if (affected_types.size() == 1) {
-    if ((affected_types.back() == min_map_type_name) && (min_map_type_name == "osd")) {
+    if ((affected_types.back() == min_map_type_name) &&
+        (min_map_type_name == "osd")) {
       only_osd_affected = true;
     }
   }
 
   // check that we don't have any duplicate id's
-  for (vector<int>::iterator it = included_devices.begin(); it != included_devices.end(); ++it) {
-    int num_copies = std::count(included_devices.begin(), included_devices.end(), (*it) );
+  for (vector<int>::iterator it = included_devices.begin();
+       it != included_devices.end(); ++it) {
+    int num_copies =
+        std::count(included_devices.begin(), included_devices.end(), (*it));
     if (num_copies > 1) {
       valid_placement = false;
     }
@@ -240,21 +260,24 @@ bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector
   // if we have more than just osd's affected we need to do a lot more work
   if (!only_osd_affected) {
     // loop through the devices that are "in/up"
-    for (vector<int>::iterator it = included_devices.begin(); it != included_devices.end(); ++it) {
+    for (vector<int>::iterator it = included_devices.begin();
+         it != included_devices.end(); ++it) {
       if (valid_placement == false)
         break;
 
       // create a temporary map of the form (device type, device name in map)
-      map<string,string> device_location_hierarchy = crush.get_full_location(*it);
+      map<string, string> device_location_hierarchy =
+          crush.get_full_location(*it);
 
       // loop over the types affected by RULENO looking for duplicate bucket assignments
-      for (vector<string>::iterator t = affected_types.begin(); t != affected_types.end(); ++t) {
-        if (seen_devices.count( device_location_hierarchy[*t])) {
+      for (vector<string>::iterator t = affected_types.begin();
+           t != affected_types.end(); ++t) {
+        if (seen_devices.count(device_location_hierarchy[*t])) {
           valid_placement = false;
           break;
         } else {
           // store the devices we have seen in the form of (device name, device type)
-          seen_devices[ device_location_hierarchy[*t] ] = *t;
+          seen_devices[device_location_hierarchy[*t]] = *t;
         }
       }
     }
@@ -263,15 +286,19 @@ bool CrushTester::check_valid_placement(int ruleno, vector<int> in, const vector
   return valid_placement;
 }
 
-int CrushTester::random_placement(int ruleno, vector<int>& out, int maxout, vector<__u32>& weight)
+int
+CrushTester::random_placement(
+    int ruleno,
+    vector<int>& out,
+    int maxout,
+    vector<__u32>& weight)
 {
   // get the total weight of the system
   int total_weight = 0;
   for (unsigned i = 0; i < weight.size(); i++)
     total_weight += weight[i];
 
-  if (total_weight == 0 ||
-      crush.get_max_devices() == 0)
+  if (total_weight == 0 || crush.get_max_devices() == 0)
     return -EINVAL;
 
   // determine the real maximum number of devices to return
@@ -284,7 +311,7 @@ int CrushTester::random_placement(int ruleno, vector<int>& out, int maxout, vect
   do {
     // create a vector to hold our trial mappings
     int temp_array[devices_requested];
-    for (int i = 0; i < devices_requested; i++){
+    for (int i = 0; i < devices_requested; i++) {
       temp_array[i] = lrand48() % (crush.get_max_devices());
     }
 
@@ -304,9 +331,13 @@ int CrushTester::random_placement(int ruleno, vector<int>& out, int maxout, vect
   return 0;
 }
 
-void CrushTester::write_integer_indexed_vector_data_string(vector<string> &dst, int index, vector<int> vector_data)
+void
+CrushTester::write_integer_indexed_vector_data_string(
+    vector<string>& dst,
+    int index,
+    vector<int> vector_data)
 {
-  stringstream data_buffer (stringstream::in | stringstream::out);
+  stringstream data_buffer(stringstream::in | stringstream::out);
   unsigned input_size = vector_data.size();
 
   // pass the indexing variable to the data buffer
@@ -320,12 +351,16 @@ void CrushTester::write_integer_indexed_vector_data_string(vector<string> &dst, 
   data_buffer << std::endl;
 
   // write the data buffer to the destination
-  dst.push_back( data_buffer.str() );
+  dst.push_back(data_buffer.str());
 }
 
-void CrushTester::write_integer_indexed_vector_data_string(vector<string> &dst, int index, vector<float> vector_data)
+void
+CrushTester::write_integer_indexed_vector_data_string(
+    vector<string>& dst,
+    int index,
+    vector<float> vector_data)
 {
-  stringstream data_buffer (stringstream::in | stringstream::out);
+  stringstream data_buffer(stringstream::in | stringstream::out);
   unsigned input_size = vector_data.size();
 
   // pass the indexing variable to the data buffer
@@ -339,12 +374,16 @@ void CrushTester::write_integer_indexed_vector_data_string(vector<string> &dst, 
   data_buffer << std::endl;
 
   // write the data buffer to the destination
-  dst.push_back( data_buffer.str() );
+  dst.push_back(data_buffer.str());
 }
 
-void CrushTester::write_integer_indexed_scalar_data_string(vector<string> &dst, int index, int scalar_data)
+void
+CrushTester::write_integer_indexed_scalar_data_string(
+    vector<string>& dst,
+    int index,
+    int scalar_data)
 {
-  stringstream data_buffer (stringstream::in | stringstream::out);
+  stringstream data_buffer(stringstream::in | stringstream::out);
 
   // pass the indexing variable to the data buffer
   data_buffer << index;
@@ -354,11 +393,16 @@ void CrushTester::write_integer_indexed_scalar_data_string(vector<string> &dst, 
   data_buffer << std::endl;
 
   // write the data buffer to the destination
-  dst.push_back( data_buffer.str() );
+  dst.push_back(data_buffer.str());
 }
-void CrushTester::write_integer_indexed_scalar_data_string(vector<string> &dst, int index, float scalar_data)
+
+void
+CrushTester::write_integer_indexed_scalar_data_string(
+    vector<string>& dst,
+    int index,
+    float scalar_data)
 {
-  stringstream data_buffer (stringstream::in | stringstream::out);
+  stringstream data_buffer(stringstream::in | stringstream::out);
 
   // pass the indexing variable to the data buffer
   data_buffer << index;
@@ -368,16 +412,15 @@ void CrushTester::write_integer_indexed_scalar_data_string(vector<string> &dst, 
   data_buffer << std::endl;
 
   // write the data buffer to the destination
-  dst.push_back( data_buffer.str() );
+  dst.push_back(data_buffer.str());
 }
 
-int CrushTester::test_with_fork(CephContext* cct, int timeout)
+int
+CrushTester::test_with_fork(CephContext* cct, int timeout)
 {
   ldout(cct, 20) << __func__ << dendl;
   ostringstream sink;
-  int r = fork_function(timeout, sink, [&]() {
-      return test(cct);
-    });
+  int r = fork_function(timeout, sink, [&]() { return test(cct); });
   if (r == -ETIMEDOUT) {
     err << "timed out during smoke test (" << timeout << " seconds)";
   }
@@ -385,41 +428,50 @@ int CrushTester::test_with_fork(CephContext* cct, int timeout)
 }
 
 namespace {
-  class BadCrushMap : public std::runtime_error {
-  public:
-    int item;
-    BadCrushMap(const char* msg, int id)
-      : std::runtime_error(msg), item(id) {}
-  };
-  // throws if any node in the crush fail to print
-  class CrushWalker : public CrushTreeDumper::Dumper<void> {
-    typedef void DumbFormatter;
-    typedef CrushTreeDumper::Dumper<DumbFormatter> Parent;
-    int max_id;
-  public:
-    CrushWalker(const CrushWrapper *crush, unsigned max_id)
-      : Parent(crush, CrushTreeDumper::name_map_t()), max_id(max_id) {}
-    void dump_item(const CrushTreeDumper::Item &qi, DumbFormatter *) override {
-      int type = -1;
-      if (qi.is_bucket()) {
-	if (!crush->get_item_name(qi.id)) {
-	  throw BadCrushMap("unknown item name", qi.id);
-	}
-	type = crush->get_bucket_type(qi.id);
-      } else {
-	if (max_id > 0 && qi.id >= max_id) {
-	  throw BadCrushMap("item id too large", qi.id);
-	}
-	type = 0;
-      }
-      if (!crush->get_type_name(type)) {
-	throw BadCrushMap("unknown type name", qi.id);
-      }
-    }
-  };
-}
+class BadCrushMap : public std::runtime_error {
+public:
+  int item;
 
-bool CrushTester::check_name_maps(unsigned max_id) const
+  BadCrushMap(const char* msg, int id) :
+    std::runtime_error(msg), item(id)
+  {}
+};
+
+// throws if any node in the crush fail to print
+class CrushWalker : public CrushTreeDumper::Dumper<void> {
+  typedef void DumbFormatter;
+  typedef CrushTreeDumper::Dumper<DumbFormatter> Parent;
+  int max_id;
+
+public:
+  CrushWalker(const CrushWrapper* crush, unsigned max_id) :
+    Parent(crush, CrushTreeDumper::name_map_t()), max_id(max_id)
+  {}
+
+  void
+  dump_item(const CrushTreeDumper::Item& qi, DumbFormatter*) override
+  {
+    int type = -1;
+    if (qi.is_bucket()) {
+      if (!crush->get_item_name(qi.id)) {
+        throw BadCrushMap("unknown item name", qi.id);
+      }
+      type = crush->get_bucket_type(qi.id);
+    } else {
+      if (max_id > 0 && qi.id >= max_id) {
+        throw BadCrushMap("item id too large", qi.id);
+      }
+      type = 0;
+    }
+    if (!crush->get_type_name(type)) {
+      throw BadCrushMap("unknown type name", qi.id);
+    }
+  }
+};
+} // namespace
+
+bool
+CrushTester::check_name_maps(unsigned max_id) const
 {
   CrushWalker crush_walker(&crush, max_id);
   try {
@@ -436,7 +488,8 @@ bool CrushTester::check_name_maps(unsigned max_id) const
   return true;
 }
 
-int CrushTester::test(CephContext* cct)
+int
+CrushTester::test(CephContext* cct)
 {
   ldout(cct, 20) << dendl;
   if (min_rule < 0 || max_rule < 0) {
@@ -448,7 +501,8 @@ int CrushTester::test(CephContext* cct)
     max_x = 1023;
   }
   if (min_rep < 0 && max_rep < 0) {
-    cerr << "must specify --num-rep or both --min-rep and --max-rep" << std::endl;
+    cerr << "must specify --num-rep or both --min-rep and --max-rep"
+         << std::endl;
     return -EINVAL;
   }
 
@@ -470,14 +524,15 @@ int CrushTester::test(CephContext* cct)
   }
 
   if (output_utilization_all)
-    cerr << "devices weights (hex): " << std::hex << weight << std::dec << std::endl;
+    cerr << "devices weights (hex): " << std::hex << weight << std::dec
+         << std::endl;
 
   // make adjustments
   adjust_weights(weight);
 
   if (output_choose_tries)
     crush.start_choose_profile();
-  
+
   for (int r = min_rule; r < crush.get_max_rules() && r <= max_rule; r++) {
     ldout(cct, 20) << "rule: " << r << dendl;
 
@@ -486,28 +541,29 @@ int CrushTester::test(CephContext* cct)
         err << "rule " << r << " dne" << std::endl;
       continue;
     }
-    
+
     if (output_statistics)
       err << "rule " << r << " (" << crush.get_rule_name(r)
-      << "), x = " << min_x << ".." << max_x
-      << ", numrep = " << min_rep << ".." << max_rep
-      << std::endl;
+          << "), x = " << min_x << ".." << max_x << ", numrep = " << min_rep
+          << ".." << max_rep << std::endl;
 
     for (int nr = min_rep; nr <= max_rep; nr++) {
       ldout(cct, 20) << "current numrep: " << nr << dendl;
 
       vector<int> per(crush.get_max_devices());
-      map<int,int> sizes;
+      map<int, int> sizes;
 
       int num_objects = ((max_x - min_x) + 1);
-      float num_devices = (float) per.size(); // get the total number of devices, better to cast as a float here 
+      float num_devices =
+          (float)per
+              .size(); // get the total number of devices, better to cast as a float here
 
       // create a structure to hold data for post-processing
       tester_data_set tester_data;
       vector<float> vector_data_buffer_f;
 
       // create a map to hold batch-level placement information
-      map<int, vector<int> > batch_per;
+      map<int, vector<int>> batch_per;
       int objects_per_batch = num_objects / num_batches;
       int batch_min = min_x;
       int batch_max = min_x + objects_per_batch - 1;
@@ -518,37 +574,37 @@ int CrushTester::test(CephContext* cct)
         total_weight += weight[i];
 
       if (total_weight == 0)
-	continue;
+        continue;
 
       // compute the expected number of objects stored per device in the absence of weighting
-      float expected_objects = std::min(nr, get_maximum_affected_by_rule(r)) * num_objects;
+      float expected_objects = std::min(nr, get_maximum_affected_by_rule(r)) *
+                               num_objects;
 
       // compute each device's proportional weight
-      vector<float> proportional_weights( per.size() );
+      vector<float> proportional_weights(per.size());
 
       for (unsigned i = 0; i < per.size(); i++)
-        proportional_weights[i] = (float) weight[i] / (float) total_weight;
+        proportional_weights[i] = (float)weight[i] / (float)total_weight;
 
       if (output_data_file) {
         // stage the absolute weight information for post-processing
         for (unsigned i = 0; i < per.size(); i++) {
-          tester_data.absolute_weights[i] = (float) weight[i] / (float)0x10000;
+          tester_data.absolute_weights[i] = (float)weight[i] / (float)0x10000;
         }
 
         // stage the proportional weight information for post-processing
         for (unsigned i = 0; i < per.size(); i++) {
-          if (proportional_weights[i] > 0 )
+          if (proportional_weights[i] > 0)
             tester_data.proportional_weights[i] = proportional_weights[i];
 
           tester_data.proportional_weights_all[i] = proportional_weights[i];
         }
-
       }
       // compute the expected number of objects stored per device when a device's weight is considered
       vector<float> num_objects_expected(num_devices);
 
       for (unsigned i = 0; i < num_devices; i++)
-        num_objects_expected[i] = (proportional_weights[i]*expected_objects);
+        num_objects_expected[i] = (proportional_weights[i] * expected_objects);
 
       for (int current_batch = 0; current_batch < num_batches; current_batch++) {
         if (current_batch == (num_batches - 1)) {
@@ -556,14 +612,16 @@ int CrushTester::test(CephContext* cct)
           objects_per_batch = (batch_max - batch_min + 1);
         }
 
-        float batch_expected_objects = std::min(nr, get_maximum_affected_by_rule(r)) * objects_per_batch;
-        vector<float> batch_num_objects_expected( per.size() );
+        float batch_expected_objects =
+            std::min(nr, get_maximum_affected_by_rule(r)) * objects_per_batch;
+        vector<float> batch_num_objects_expected(per.size());
 
-        for (unsigned i = 0; i < per.size() ; i++)
-          batch_num_objects_expected[i] = (proportional_weights[i]*batch_expected_objects);
+        for (unsigned i = 0; i < per.size(); i++)
+          batch_num_objects_expected[i] =
+              (proportional_weights[i] * batch_expected_objects);
 
-        // create a vector to hold placement results temporarily 
-        vector<int> temporary_per ( per.size() );
+        // create a vector to hold placement results temporarily
+        vector<int> temporary_per(per.size());
 
         for (int x = batch_min; x <= batch_max; x++) {
           // create a vector to hold the results of a CRUSH placement or RNG simulation
@@ -571,24 +629,26 @@ int CrushTester::test(CephContext* cct)
 
           if (use_crush) {
             if (output_mappings)
-	      err << "CRUSH"; // prepend CRUSH to placement output
+              err << "CRUSH"; // prepend CRUSH to placement output
             uint32_t real_x = x;
             if (pool_id != -1) {
-              real_x = crush_hash32_2(CRUSH_HASH_RJENKINS1, x, (uint32_t)pool_id);
+              real_x =
+                  crush_hash32_2(CRUSH_HASH_RJENKINS1, x, (uint32_t)pool_id);
             }
             crush.do_rule(r, real_x, out, nr, weight, 0);
           } else {
             if (output_mappings)
-	      err << "RNG"; // prepend RNG to placement output to denote simulation
+              err << "RNG"; // prepend RNG to placement output to denote simulation
             // test our new monte carlo placement generator
             random_placement(r, out, nr, weight);
           }
 
-	  if (output_mappings)
-	    err << " rule " << r << " x " << x << " " << out << std::endl;
+          if (output_mappings)
+            err << " rule " << r << " x " << x << " " << out << std::endl;
 
           if (output_data_file)
-            write_integer_indexed_vector_data_string(tester_data.placement_information, x, out);
+            write_integer_indexed_vector_data_string(
+                tester_data.placement_information, x, out);
 
           bool has_item_none = false;
           for (unsigned i = 0; i < out.size(); i++) {
@@ -602,10 +662,10 @@ int CrushTester::test(CephContext* cct)
 
           batch_per[current_batch] = temporary_per;
           sizes[out.size()]++;
-          if (output_bad_mappings && 
-              (out.size() != (unsigned)nr ||
-               has_item_none)) {
-            err << "bad mapping rule " << r << " x " << x << " num_rep " << nr << " result " << out << std::endl;
+          if (output_bad_mappings &&
+              (out.size() != (unsigned)nr || has_item_none)) {
+            err << "bad mapping rule " << r << " x " << x << " num_rep " << nr
+                << " result " << out << std::endl;
           }
         }
 
@@ -615,29 +675,26 @@ int CrushTester::test(CephContext* cct)
 
       for (unsigned i = 0; i < per.size(); i++)
         if (output_utilization && !output_statistics)
-          err << "  device " << i
-          << ":\t" << per[i] << std::endl;
+          err << "  device " << i << ":\t" << per[i] << std::endl;
 
-      for (map<int,int>::iterator p = sizes.begin(); p != sizes.end(); ++p)
+      for (map<int, int>::iterator p = sizes.begin(); p != sizes.end(); ++p)
         if (output_statistics)
-          err << "rule " << r << " (" << crush.get_rule_name(r) << ") num_rep " << nr
-          << " result size == " << p->first << ":\t"
-          << p->second << "/" << (max_x-min_x+1) << std::endl;
+          err << "rule " << r << " (" << crush.get_rule_name(r) << ") num_rep "
+              << nr << " result size == " << p->first << ":\t" << p->second
+              << "/" << (max_x - min_x + 1) << std::endl;
 
       if (output_statistics)
         for (unsigned i = 0; i < per.size(); i++) {
           if (output_utilization) {
             if (num_objects_expected[i] > 0 && per[i] > 0) {
-              err << "  device " << i << ":\t"
-                  << "\t" << " stored " << ": " << per[i]
-                  << "\t" << " expected " << ": " << num_objects_expected[i]
-                  << std::endl;
+              err << "  device " << i << ":\t" << "\t" << " stored " << ": "
+                  << per[i] << "\t" << " expected " << ": "
+                  << num_objects_expected[i] << std::endl;
             }
           } else if (output_utilization_all) {
-            err << "  device " << i << ":\t"
-                << "\t" << " stored " << ": " << per[i]
-                << "\t" << " expected " << ": " << num_objects_expected[i]
-                << std::endl;
+            err << "  device " << i << ":\t" << "\t" << " stored " << ": "
+                << per[i] << "\t" << " expected " << ": "
+                << num_objects_expected[i] << std::endl;
           }
         }
 
@@ -646,20 +703,25 @@ int CrushTester::test(CephContext* cct)
       if (output_data_file)
         for (unsigned i = 0; i < per.size(); i++) {
           vector_data_buffer_f.clear();
-          vector_data_buffer_f.push_back( (float) per[i]);
-          vector_data_buffer_f.push_back( (float) num_objects_expected[i]);
+          vector_data_buffer_f.push_back((float)per[i]);
+          vector_data_buffer_f.push_back((float)num_objects_expected[i]);
 
-          write_integer_indexed_vector_data_string(tester_data.device_utilization_all, i, vector_data_buffer_f);
+          write_integer_indexed_vector_data_string(
+              tester_data.device_utilization_all, i, vector_data_buffer_f);
 
           if (num_objects_expected[i] > 0 && per[i] > 0)
-            write_integer_indexed_vector_data_string(tester_data.device_utilization, i, vector_data_buffer_f);
+            write_integer_indexed_vector_data_string(
+                tester_data.device_utilization, i, vector_data_buffer_f);
         }
 
       if (output_data_file && num_batches > 1) {
         // stage batch utilization information for post-processing
         for (int i = 0; i < num_batches; i++) {
-          write_integer_indexed_vector_data_string(tester_data.batch_device_utilization_all, i, batch_per[i]);
-          write_integer_indexed_vector_data_string(tester_data.batch_device_expected_utilization_all, i, batch_per[i]);
+          write_integer_indexed_vector_data_string(
+              tester_data.batch_device_utilization_all, i, batch_per[i]);
+          write_integer_indexed_vector_data_string(
+              tester_data.batch_device_expected_utilization_all, i,
+              batch_per[i]);
         }
       }
 
@@ -667,19 +729,18 @@ int CrushTester::test(CephContext* cct)
       string rule_tag = crush.get_rule_name(r);
 
       if (output_csv)
-        write_data_set_to_csv(output_data_file_name+rule_tag,tester_data);
+        write_data_set_to_csv(output_data_file_name + rule_tag, tester_data);
 
       ldout(cct, 20) << "successfully written csv" << dendl;
     }
   }
 
   if (output_choose_tries) {
-    __u32 *v = 0;
+    __u32* v = 0;
     int n = crush.get_choose_profile(&v);
-    for (int i=0; i<n; i++) {
+    for (int i = 0; i < n; i++) {
       cout.setf(std::ios::right);
-      cout << std::setw(2)
-      << i << ": " << std::setw(9) << v[i];
+      cout << std::setw(2) << i << ": " << std::setw(9) << v[i];
       cout.unsetf(std::ios::right);
       cout << std::endl;
     }
@@ -690,7 +751,8 @@ int CrushTester::test(CephContext* cct)
   return 0;
 }
 
-int CrushTester::compare(CrushWrapper& crush2)
+int
+CrushTester::compare(CrushWrapper& crush2)
 {
   if (min_rule < 0 || max_rule < 0) {
     min_rule = 0;
@@ -721,7 +783,7 @@ int CrushTester::compare(CrushWrapper& crush2)
   // make adjustments
   adjust_weights(weight);
 
-  map<int,int> bad_by_rule;
+  map<int, int> bad_by_rule;
 
   int ret = 0;
   for (int r = min_rule; r < crush.get_max_rules() && r <= max_rule; r++) {
@@ -733,13 +795,13 @@ int CrushTester::compare(CrushWrapper& crush2)
     int bad = 0;
     for (int nr = min_rep; nr <= max_rep; nr++) {
       for (int x = min_x; x <= max_x; ++x) {
-	vector<int> out;
-	crush.do_rule(r, x, out, nr, weight, 0);
-	vector<int> out2;
-	crush2.do_rule(r, x, out2, nr, weight, 0);
-	if (out != out2) {
-	  ++bad;
-	}
+        vector<int> out;
+        crush.do_rule(r, x, out, nr, weight, 0);
+        vector<int> out2;
+        crush2.do_rule(r, x, out2, nr, weight, 0);
+        if (out != out2) {
+          ++bad;
+        }
       }
     }
     if (bad) {
@@ -748,7 +810,7 @@ int CrushTester::compare(CrushWrapper& crush2)
     int max = (max_rep - min_rep + 1) * (max_x - min_x + 1);
     double ratio = (double)bad / (double)max;
     cout << "rule " << r << " had " << bad << "/" << max
-	 << " mismatched mappings (" << ratio << ")" << std::endl;
+         << " mismatched mappings (" << ratio << ")" << std::endl;
   }
   if (ret) {
     cerr << "warning: maps are NOT equivalent" << std::endl;

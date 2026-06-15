@@ -136,16 +136,16 @@ struct OSDSetRequest {
   void decode_json(JSONObj* obj);
 };
 
-  struct OSDEnableApplicationRequest {
-    std::string pool;
-    std::string app;
-    std::optional<bool> yes_i_really_mean_it;
-    std::optional<std::string> key;
-    std::optional<std::string> value;
+struct OSDEnableApplicationRequest {
+  std::string pool;
+  std::string app;
+  std::optional<bool> yes_i_really_mean_it;
+  std::optional<std::string> key;
+  std::optional<std::string> value;
 
-    void dump(Formatter* f) const;
-    void decode_json(JSONObj* obj);
-  };
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
+};
 
 // These structures are sent directly to the relevant OSD
 // rather than the monitor
@@ -158,20 +158,22 @@ struct InjectECErrorRequest {
   std::optional<uint64_t> when;
   std::optional<uint64_t> duration;
 
-  void dump(Formatter* f) const {
+  void
+  dump(Formatter* f) const
+  {
     switch (op_type) {
-      case io_exerciser::InjectOpType::ReadEIO:
-        [[fallthrough]];
-      case io_exerciser::InjectOpType::ReadMissingShard:
-        ::encode_json("prefix", "injectecreaderr", f);
-        break;
-      case io_exerciser::InjectOpType::WriteFailAndRollback:
-        [[fallthrough]];
-      case io_exerciser::InjectOpType::WriteOSDAbort:
-        ::encode_json("prefix", "injectecwriteerr", f);
-        break;
-      default:
-        ceph_abort_msg("Unsupported Inject Type");
+    case io_exerciser::InjectOpType::ReadEIO:
+      [[fallthrough]];
+    case io_exerciser::InjectOpType::ReadMissingShard:
+      ::encode_json("prefix", "injectecreaderr", f);
+      break;
+    case io_exerciser::InjectOpType::WriteFailAndRollback:
+      [[fallthrough]];
+    case io_exerciser::InjectOpType::WriteOSDAbort:
+      ::encode_json("prefix", "injectecwriteerr", f);
+      break;
+    default:
+      ceph_abort_msg("Unsupported Inject Type");
     }
     ::encode_json("pool", pool, f);
     ::encode_json("objname", objname, f);
@@ -180,7 +182,10 @@ struct InjectECErrorRequest {
     ::encode_json("when", when, f);
     ::encode_json("duration", duration, f);
   }
-  void decode_json(JSONObj* obj) {
+
+  void
+  decode_json(JSONObj* obj)
+  {
     JSONDecoder::decode_json("pool", pool, obj);
     JSONDecoder::decode_json("objname", objname, obj);
     JSONDecoder::decode_json("shardid", shardid, obj);
@@ -197,33 +202,39 @@ struct InjectECClearErrorRequest {
   int shardid;
   std::optional<uint64_t> type;
 
-  void dump(Formatter* f) const {
+  void
+  dump(Formatter* f) const
+  {
     switch (op_type) {
-      case io_exerciser::InjectOpType::ReadEIO:
-        [[fallthrough]];
-      case io_exerciser::InjectOpType::ReadMissingShard:
-        ::encode_json("prefix", "injectecclearreaderr", f);
-        break;
-      case io_exerciser::InjectOpType::WriteFailAndRollback:
-        [[fallthrough]];
-      case io_exerciser::InjectOpType::WriteOSDAbort:
-        ::encode_json("prefix", "injectecclearwriteerr", f);
-        break;
-      default:
-        ceph_abort_msg("Unsupported Inject Type");
+    case io_exerciser::InjectOpType::ReadEIO:
+      [[fallthrough]];
+    case io_exerciser::InjectOpType::ReadMissingShard:
+      ::encode_json("prefix", "injectecclearreaderr", f);
+      break;
+    case io_exerciser::InjectOpType::WriteFailAndRollback:
+      [[fallthrough]];
+    case io_exerciser::InjectOpType::WriteOSDAbort:
+      ::encode_json("prefix", "injectecclearwriteerr", f);
+      break;
+    default:
+      ceph_abort_msg("Unsupported Inject Type");
     }
     ::encode_json("pool", pool, f);
     ::encode_json("objname", objname, f);
     ::encode_json("shardid", shardid, f);
     ::encode_json("type", type, f);
   }
-  void decode_json(JSONObj* obj) {
+
+  void
+  decode_json(JSONObj* obj)
+  {
     JSONDecoder::decode_json("pool", pool, obj);
     JSONDecoder::decode_json("objname", objname, obj);
     JSONDecoder::decode_json("shardid", shardid, obj);
     JSONDecoder::decode_json("type", type, obj);
   }
 };
+
 struct InjectECParityRead {
   std::string pool;
   std::string objname;
@@ -231,6 +242,7 @@ struct InjectECParityRead {
   void dump(Formatter* f) const;
   void decode_json(JSONObj* obj);
 };
+
 struct InjectECClearParityRead {
   std::string pool;
   std::string objname;
@@ -238,6 +250,6 @@ struct InjectECClearParityRead {
   void dump(Formatter* f) const;
   void decode_json(JSONObj* obj);
 };
-}  // namespace osd
-}  // namespace messaging
-}  // namespace ceph
+} // namespace osd
+} // namespace messaging
+} // namespace ceph

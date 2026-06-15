@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include <gtest/gtest.h>
+
 #include "rgw/driver/rados/rgw_sync_trace.h"
 
 TEST(TestSSTR, using_a_var_named_ss)

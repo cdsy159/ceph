@@ -2,13 +2,14 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/object_map/Request.h"
-#include "common/dout.h"
-#include "common/errno.h"
-#include "common/RWLock.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/object_map/InvalidateRequest.h"
 
 #include <shared_mutex> // for std::shared_lock
+
+#include "common/RWLock.h"
+#include "common/dout.h"
+#include "common/errno.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/object_map/InvalidateRequest.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -17,20 +18,20 @@
 namespace librbd {
 namespace object_map {
 
-bool Request::should_complete(int r) {
-  CephContext *cct = m_image_ctx.cct;
+bool
+Request::should_complete(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << this << " should_complete: r=" << r << dendl;
 
-  switch (m_state)
-  {
+  switch (m_state) {
   case STATE_REQUEST:
     if (r == -ETIMEDOUT &&
         !cct->_conf.get_val<bool>("rbd_invalidate_object_map_on_timeout")) {
       m_state = STATE_TIMEOUT;
       return true;
     } else if (r < 0) {
-      lderr(cct) << "failed to update object map: " << cpp_strerror(r)
-		 << dendl;
+      lderr(cct) << "failed to update object map: " << cpp_strerror(r) << dendl;
       return invalidate();
     }
 
@@ -41,7 +42,7 @@ bool Request::should_complete(int r) {
     ldout(cct, 20) << "INVALIDATE" << dendl;
     if (r < 0) {
       lderr(cct) << "failed to invalidate object map: " << cpp_strerror(r)
-		 << dendl;
+                 << dendl;
     }
     return true;
 
@@ -53,10 +54,12 @@ bool Request::should_complete(int r) {
   return false;
 }
 
-bool Request::invalidate() {
+bool
+Request::invalidate()
+{
   bool flags_set;
-  int r = m_image_ctx.test_flags(m_snap_id, RBD_FLAG_OBJECT_MAP_INVALID,
-                                 &flags_set);
+  int r = m_image_ctx.test_flags(
+      m_snap_id, RBD_FLAG_OBJECT_MAP_INVALID, &flags_set);
   if (r < 0 || flags_set) {
     return true;
   }
@@ -65,9 +68,8 @@ bool Request::invalidate() {
 
   std::shared_lock owner_locker{m_image_ctx.owner_lock};
   std::unique_lock image_locker{m_image_ctx.image_lock};
-  InvalidateRequest<> *req = new InvalidateRequest<>(m_image_ctx, m_snap_id,
-                                                     true,
-                                                     create_callback_context());
+  InvalidateRequest<>* req = new InvalidateRequest<>(
+      m_image_ctx, m_snap_id, true, create_callback_context());
   req->send();
   return false;
 }

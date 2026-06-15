@@ -26,22 +26,17 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/co_composed.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
-#include <boost/asio/experimental/co_composed.hpp>
-
-#include <boost/system/error_code.hpp>
 #include <boost/system/errc.hpp>
-
-#include "include/buffer.h"
-
-#include "include/neorados/RADOS.hpp"
-
-#include "common/ceph_time.h"
+#include <boost/system/error_code.hpp>
 
 #include "cls/log/cls_log_ops.h"
 #include "cls/log/cls_log_types.h"
+#include "common/ceph_time.h"
+#include "include/buffer.h"
+#include "include/neorados/RADOS.hpp"
 
 #include "common.h"
 
@@ -57,15 +52,15 @@ static constexpr auto max_list_entries = 1000u;
 /// \param entries Entries to push
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto add(std::vector<entry> entries)
+[[nodiscard]] inline auto
+add(std::vector<entry> entries)
 {
   buffer::list in;
   ::cls::log::ops::add_op call;
   call.entries = std::move(entries);
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("log", "add", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("log", "add", in); }};
 }
 
 /// \brief Push an entry to the log
@@ -75,15 +70,15 @@ static constexpr auto max_list_entries = 1000u;
 /// \param entry Entry to push
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto add(entry e)
+[[nodiscard]] inline auto
+add(entry e)
 {
   bufferlist in;
   ::cls::log::ops::add_op call;
   call.entries.push_back(std::move(e));
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("log", "add", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("log", "add", in); }};
 }
 
 /// \brief Push an entry to the log
@@ -96,17 +91,19 @@ static constexpr auto max_list_entries = 1000u;
 /// \param bl Data held in the log entry
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto add(ceph::real_time timestamp, std::string section,
-			      std::string name, buffer::list&& bl)
+[[nodiscard]] inline auto
+add(ceph::real_time timestamp,
+    std::string section,
+    std::string name,
+    buffer::list&& bl)
 {
   bufferlist in;
   ::cls::log::ops::add_op call;
-  call.entries.emplace_back(timestamp, std::move(section),
-			    std::move(name), std::move(bl));
+  call.entries.emplace_back(
+      timestamp, std::move(section), std::move(name), std::move(bl));
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("log", "add", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("log", "add", in); }};
 }
 
 /// \brief List log entries
@@ -123,10 +120,14 @@ static constexpr auto max_list_entries = 1000u;
 ///                  there's more to list)
 ///
 /// \return The ClsReadOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto list(ceph::real_time from, ceph::real_time to,
-			       std::string in_marker,
-			       std::span<entry> entries, std::span<entry>* result,
-			       std::string* const out_marker)
+[[nodiscard]] inline auto
+list(
+    ceph::real_time from,
+    ceph::real_time to,
+    std::string in_marker,
+    std::span<entry> entries,
+    std::span<entry>* result,
+    std::string* const out_marker)
 {
   using boost::system::error_code;
   bufferlist in;
@@ -138,25 +139,24 @@ static constexpr auto max_list_entries = 1000u;
 
   encode(call, in);
   return ClsReadOp{[entries, result, out_marker,
-		    in = std::move(in)](ReadOp& op) {
-    op.exec("log", "list", in,
-	    [entries, result, out_marker](error_code ec, const buffer::list& bl) {
-	      ::cls::log::ops::list_ret ret;
-	      if (!ec) {
-		auto iter = bl.cbegin();
-		decode(ret, iter);
-		if (result) {
-		  *result = entries.first(ret.entries.size());
-		  std::move(ret.entries.begin(), ret.entries.end(),
-			    entries.begin());
-		}
-		if (out_marker) {
-		  *out_marker = (ret.truncated ?
-				 std::move(ret.marker) :
-				 std::string{});
-		}
-	      }
-	    });
+                    in = std::move(in)](ReadOp& op) {
+    op.exec(
+        "log", "list", in,
+        [entries, result, out_marker](error_code ec, const buffer::list& bl) {
+          ::cls::log::ops::list_ret ret;
+          if (!ec) {
+            auto iter = bl.cbegin();
+            decode(ret, iter);
+            if (result) {
+              *result = entries.first(ret.entries.size());
+              std::move(ret.entries.begin(), ret.entries.end(), entries.begin());
+            }
+            if (out_marker) {
+              *out_marker =
+                  (ret.truncated ? std::move(ret.marker) : std::string{});
+            }
+          }
+        });
   }};
 }
 
@@ -210,7 +210,8 @@ auto list(RADOS& r, Object o, IOContext ioc, ceph::real_time from,
 /// \param header Place to store the log header
 ///
 /// \return The ClsReadOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto info(header* const header)
+[[nodiscard]] inline auto
+info(header* const header)
 {
   using boost::system::error_code;
   buffer::list in;
@@ -219,17 +220,15 @@ auto list(RADOS& r, Object o, IOContext ioc, ceph::real_time from,
   encode(call, in);
 
   return ClsReadOp{[header, in = std::move(in)](ReadOp& op) {
-    op.exec("log", "info", in,
-	    [header](error_code ec,
-		     const buffer::list& bl) {
-	      ::cls::log::ops::info_ret ret;
-	      if (!ec) {
-		auto iter = bl.cbegin();
-		decode(ret, iter);
-		if (header)
-		*header = std::move(ret.header);
-	      }
-	    });
+    op.exec("log", "info", in, [header](error_code ec, const buffer::list& bl) {
+      ::cls::log::ops::info_ret ret;
+      if (!ec) {
+        auto iter = bl.cbegin();
+        decode(ret, iter);
+        if (header)
+          *header = std::move(ret.header);
+      }
+    });
   }};
 }
 
@@ -274,17 +273,16 @@ auto info(RADOS& r, Object o, IOContext ioc, CompletionToken&& token)
 /// boost::system::errc::no_message_available
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto trim(ceph::real_time from_time,
-			       ceph::real_time to_time)
+[[nodiscard]] inline auto
+trim(ceph::real_time from_time, ceph::real_time to_time)
 {
   bufferlist in;
   ::cls::log::ops::trim_op call;
   call.from_time = from_time;
   call.to_time = to_time;
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("log", "trim", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("log", "trim", in); }};
 }
 
 /// \brief Beginning marker for trim
@@ -316,17 +314,16 @@ inline constexpr std::string_view end_marker{"9"};
 /// boost::system::errc::no_message_available
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto trim(std::string_view from_marker,
-			       std::string_view to_marker)
+[[nodiscard]] inline auto
+trim(std::string_view from_marker, std::string_view to_marker)
 {
   bufferlist in;
   ::cls::log::ops::trim_op call;
   call.from_marker = std::string{from_marker};
   call.to_marker = std::string{to_marker};
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec("log", "trim", in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec("log", "trim", in); }};
 }
 
 
@@ -446,22 +443,26 @@ auto trim(RADOS& r, Object oid, IOContext ioc, ceph::real_time from_time,
 /// documentation.
 template <typename E>
 boost::asio::awaitable<void, E>
-trim(RADOS& r, Object oid, IOContext ioc,
-     std::string_view from_marker, std::string_view to_marker,
-     boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
+trim(
+    RADOS& r,
+    Object oid,
+    IOContext ioc,
+    std::string_view from_marker,
+    std::string_view to_marker,
+    boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
 {
   using boost::system::error_code;
   using boost::system::system_error;
-  using ceph::real_time;
   using boost::system::errc::no_message_available;
+  using ceph::real_time;
 
-  for (;;) try {
-      co_await r.execute(oid, ioc,
-			 WriteOp{}.exec(trim(from_marker, to_marker)),
-			 ua);
+  for (;;)
+    try {
+      co_await r.execute(
+          oid, ioc, WriteOp{}.exec(trim(from_marker, to_marker)), ua);
     } catch (const system_error& e) {
       if (e.code() != no_message_available) {
-	throw;
+        throw;
       }
     }
   co_return;
@@ -478,23 +479,27 @@ trim(RADOS& r, Object oid, IOContext ioc,
 ///
 /// \return As appropriate to the completion token. See Boost.Asio
 /// documentation.
-template<typename E>
+template <typename E>
 boost::asio::awaitable<void, E>
-trim(RADOS& r, Object oid, IOContext ioc,
-     ceph::real_time from_time, ceph::real_time to_time,
-     boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
+trim(
+    RADOS& r,
+    Object oid,
+    IOContext ioc,
+    ceph::real_time from_time,
+    ceph::real_time to_time,
+    boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
 {
   using boost::system::error_code;
   using boost::system::system_error;
-  using ceph::real_time;
   using boost::system::errc::no_message_available;
+  using ceph::real_time;
 
-  for (;;) try {
-      co_await r.execute(oid, ioc, WriteOp{}.exec(trim(from_time, to_time)),
-			 ua);
+  for (;;)
+    try {
+      co_await r.execute(oid, ioc, WriteOp{}.exec(trim(from_time, to_time)), ua);
     } catch (const system_error& e) {
       if (e.code() != no_message_available) {
-	co_return e.code();
+        co_return e.code();
       }
     }
   co_return error_code{};
@@ -513,14 +518,17 @@ trim(RADOS& r, Object oid, IOContext ioc,
 ///
 /// \return (entries, marker) in a way appropriate to the
 /// completion token. See Boost.Asio documentation.
-template<typename E>
-boost::asio::awaitable<std::tuple<std::span<entry>,
-				  std::string>,
-		       E>
-list(RADOS& r, Object o, IOContext ioc, ceph::real_time from,
-     ceph::real_time to, std::string in_marker,
-     std::span<entry> entries,
-     boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
+template <typename E>
+boost::asio::awaitable<std::tuple<std::span<entry>, std::string>, E>
+list(
+    RADOS& r,
+    Object o,
+    IOContext ioc,
+    ceph::real_time from,
+    ceph::real_time to,
+    std::string in_marker,
+    std::span<entry> entries,
+    boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
 {
   using namespace std::literals;
   ReadOp op;
@@ -541,10 +549,13 @@ list(RADOS& r, Object o, IOContext ioc, ceph::real_time from,
 ///
 /// \return The log header in a way appropriate to the completion
 /// token. See Boost.Asio documentation.
-template<typename E>
+template <typename E>
 boost::asio::awaitable<header, E>
-info(RADOS& r, Object o, IOContext ioc,
-     boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
+info(
+    RADOS& r,
+    Object o,
+    IOContext ioc,
+    boost::asio::use_awaitable_t<E> ua = boost::asio::use_awaitable)
 {
   using namespace std::literals;
   ReadOp op;

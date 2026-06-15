@@ -1,28 +1,29 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_rest_oidc_provider.h"
+
 #include <errno.h>
 
-#include "common/errno.h"
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
-
+#include "common/errno.h"
 #include "include/types.h"
-#include "rgw_string.h"
 
 #include "rgw_common.h"
+#include "rgw_oidc_provider.h"
 #include "rgw_op.h"
 #include "rgw_rest.h"
 #include "rgw_rest_iam.h"
-#include "rgw_rest_oidc_provider.h"
-#include "rgw_oidc_provider.h"
 #include "rgw_sal.h"
+#include "rgw_string.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
 
-int RGWRestOIDCProvider::verify_permission(optional_yield y)
+int
+RGWRestOIDCProvider::verify_permission(optional_yield y)
 {
   if (verify_user_permission(this, s, resource, action)) {
     return 0;
@@ -31,12 +32,14 @@ int RGWRestOIDCProvider::verify_permission(optional_yield y)
   return RGWRESTOp::verify_permission(y);
 }
 
-int RGWRestOIDCProvider::check_caps(const RGWUserCaps& caps)
+int
+RGWRestOIDCProvider::check_caps(const RGWUserCaps& caps)
 {
   return caps.check_cap("oidc-provider", perm);
 }
 
-void RGWRestOIDCProvider::send_response()
+void
+RGWRestOIDCProvider::send_response()
 {
   if (op_ret) {
     set_req_state_err(s, op_ret);
@@ -45,8 +48,8 @@ void RGWRestOIDCProvider::send_response()
   end_header(s, this);
 }
 
-
-static std::string format_creation_date(ceph::real_time now)
+static std::string
+format_creation_date(ceph::real_time now)
 {
   struct timeval tv;
   real_clock::to_timeval(now, tv);
@@ -54,16 +57,14 @@ static std::string format_creation_date(ceph::real_time now)
   struct tm result;
   gmtime_r(&tv.tv_sec, &result);
   char buf[30];
-  strftime(buf,30,"%Y-%m-%dT%H:%M:%S", &result);
-  sprintf(buf + strlen(buf),".%03dZ",(int)tv.tv_usec/1000);
+  strftime(buf, 30, "%Y-%m-%dT%H:%M:%S", &result);
+  sprintf(buf + strlen(buf), ".%03dZ", (int)tv.tv_usec / 1000);
   return buf;
 }
 
-
-RGWCreateOIDCProvider::RGWCreateOIDCProvider()
-  : RGWRestOIDCProvider(rgw::IAM::iamCreateOIDCProvider, RGW_CAP_WRITE)
-{
-}
+RGWCreateOIDCProvider::RGWCreateOIDCProvider() :
+  RGWRestOIDCProvider(rgw::IAM::iamCreateOIDCProvider, RGW_CAP_WRITE)
+{}
 
 inline constexpr int MAX_OIDC_NUM_CLIENT_IDS = 100;
 inline constexpr int MAX_OIDC_CLIENT_ID_LEN = 255;
@@ -71,7 +72,8 @@ inline constexpr int MAX_OIDC_NUM_THUMBPRINTS = 5;
 inline constexpr int MAX_OIDC_THUMBPRINT_LEN = 40;
 inline constexpr int MAX_OIDC_URL_LEN = 255;
 
-int RGWCreateOIDCProvider::init_processing(optional_yield y)
+int
+RGWCreateOIDCProvider::init_processing(optional_yield y)
 {
   info.provider_url = s->info.args.get("Url");
   if (info.provider_url.empty()) {
@@ -79,8 +81,8 @@ int RGWCreateOIDCProvider::init_processing(optional_yield y)
     return -EINVAL;
   }
   if (info.provider_url.size() > MAX_OIDC_URL_LEN) {
-    s->err.message = "Url cannot exceed the maximum length of "
-        + std::to_string(MAX_OIDC_URL_LEN);
+    s->err.message = "Url cannot exceed the maximum length of " +
+                     std::to_string(MAX_OIDC_URL_LEN);
     return -EINVAL;
   }
 
@@ -88,16 +90,16 @@ int RGWCreateOIDCProvider::init_processing(optional_yield y)
   for (auto& it : val_map) {
     if (it.first.find("ClientIDList.member.") != string::npos) {
       if (it.second.size() > MAX_OIDC_CLIENT_ID_LEN) {
-        s->err.message = "ClientID cannot exceed the maximum length of "
-            + std::to_string(MAX_OIDC_CLIENT_ID_LEN);
+        s->err.message = "ClientID cannot exceed the maximum length of " +
+                         std::to_string(MAX_OIDC_CLIENT_ID_LEN);
         return -EINVAL;
       }
       info.client_ids.emplace_back(it.second);
     }
     if (it.first.find("ThumbprintList.member.") != string::npos) {
       if (it.second.size() > MAX_OIDC_THUMBPRINT_LEN) {
-        s->err.message = "Thumbprint cannot exceed the maximum length of "
-            + std::to_string(MAX_OIDC_THUMBPRINT_LEN);
+        s->err.message = "Thumbprint cannot exceed the maximum length of " +
+                         std::to_string(MAX_OIDC_THUMBPRINT_LEN);
         return -EINVAL;
       }
       info.thumbprints.emplace_back(it.second);
@@ -105,14 +107,14 @@ int RGWCreateOIDCProvider::init_processing(optional_yield y)
   }
 
   if (info.thumbprints.size() > MAX_OIDC_NUM_THUMBPRINTS) {
-    s->err.message = "ThumbprintList cannot exceed the maximum size of "
-        + std::to_string(MAX_OIDC_NUM_THUMBPRINTS);
+    s->err.message = "ThumbprintList cannot exceed the maximum size of " +
+                     std::to_string(MAX_OIDC_NUM_THUMBPRINTS);
     return -EINVAL;
   }
 
   if (info.client_ids.size() > MAX_OIDC_NUM_CLIENT_IDS) {
-    s->err.message = "ClientIDList cannot exceed the maximum size of "
-        + std::to_string(MAX_OIDC_NUM_CLIENT_IDS);
+    s->err.message = "ClientIDList cannot exceed the maximum size of " +
+                     std::to_string(MAX_OIDC_NUM_CLIENT_IDS);
     return -EINVAL;
   }
 
@@ -121,20 +123,22 @@ int RGWCreateOIDCProvider::init_processing(optional_yield y)
   } else {
     info.tenant = s->user->get_tenant();
   }
-  resource = rgw::ARN(url_remove_prefix(info.provider_url),
-                      "oidc-provider/", info.tenant, true);
+  resource = rgw::ARN(
+      url_remove_prefix(info.provider_url), "oidc-provider/", info.tenant, true);
   info.arn = resource.to_string();
   info.creation_date = format_creation_date(real_clock::now());
 
   return 0;
 }
 
-void RGWCreateOIDCProvider::execute(optional_yield y)
+void
+RGWCreateOIDCProvider::execute(optional_yield y)
 {
   constexpr bool exclusive = true;
   op_ret = driver->store_oidc_provider(this, y, info, exclusive);
   if (op_ret == 0) {
-    s->formatter->open_object_section_in_ns("CreateOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
+    s->formatter->open_object_section_in_ns(
+        "CreateOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
     s->formatter->open_object_section("CreateOpenIDConnectProviderResult");
     encode_json("OpenIDConnectProviderArn", info.arn, s->formatter);
     s->formatter->close_section();
@@ -145,11 +149,13 @@ void RGWCreateOIDCProvider::execute(optional_yield y)
   }
 }
 
-
-static int validate_provider_arn(const std::string& provider_arn,
-                                 std::string_view tenant,
-                                 rgw::ARN& resource, std::string& url,
-                                 std::string& message)
+static int
+validate_provider_arn(
+    const std::string& provider_arn,
+    std::string_view tenant,
+    rgw::ARN& resource,
+    std::string& url,
+    std::string& message)
 {
   if (provider_arn.empty()) {
     message = "Missing required element OpenIDConnectProviderArn";
@@ -204,13 +210,12 @@ static int validate_provider_arn(const std::string& provider_arn,
   return 0;
 }
 
+RGWDeleteOIDCProvider::RGWDeleteOIDCProvider() :
+  RGWRestOIDCProvider(rgw::IAM::iamDeleteOIDCProvider, RGW_CAP_WRITE)
+{}
 
-RGWDeleteOIDCProvider::RGWDeleteOIDCProvider()
-  : RGWRestOIDCProvider(rgw::IAM::iamDeleteOIDCProvider, RGW_CAP_WRITE)
-{
-}
-
-int RGWDeleteOIDCProvider::init_processing(optional_yield y)
+int
+RGWDeleteOIDCProvider::init_processing(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -219,11 +224,12 @@ int RGWDeleteOIDCProvider::init_processing(optional_yield y)
     account = s->user->get_tenant();
   }
   std::string provider_arn = s->info.args.get("OpenIDConnectProviderArn");
-  return validate_provider_arn(provider_arn, account,
-                               resource, url, s->err.message);
+  return validate_provider_arn(
+      provider_arn, account, resource, url, s->err.message);
 }
 
-void RGWDeleteOIDCProvider::execute(optional_yield y)
+void
+RGWDeleteOIDCProvider::execute(optional_yield y)
 {
   op_ret = driver->delete_oidc_provider(this, y, resource.account, url);
 
@@ -232,7 +238,8 @@ void RGWDeleteOIDCProvider::execute(optional_yield y)
   }
 
   if (op_ret == 0) {
-    s->formatter->open_object_section_in_ns("DeleteOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
+    s->formatter->open_object_section_in_ns(
+        "DeleteOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
@@ -240,12 +247,12 @@ void RGWDeleteOIDCProvider::execute(optional_yield y)
   }
 }
 
-RGWGetOIDCProvider::RGWGetOIDCProvider()
-  : RGWRestOIDCProvider(rgw::IAM::iamGetOIDCProvider, RGW_CAP_READ)
-{
-}
+RGWGetOIDCProvider::RGWGetOIDCProvider() :
+  RGWRestOIDCProvider(rgw::IAM::iamGetOIDCProvider, RGW_CAP_READ)
+{}
 
-int RGWGetOIDCProvider::init_processing(optional_yield y)
+int
+RGWGetOIDCProvider::init_processing(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -254,11 +261,12 @@ int RGWGetOIDCProvider::init_processing(optional_yield y)
     account = s->user->get_tenant();
   }
   std::string provider_arn = s->info.args.get("OpenIDConnectProviderArn");
-  return validate_provider_arn(provider_arn, account,
-                               resource, url, s->err.message);
+  return validate_provider_arn(
+      provider_arn, account, resource, url, s->err.message);
 }
 
-static void dump_oidc_provider(const RGWOIDCProviderInfo& info, Formatter *f)
+static void
+dump_oidc_provider(const RGWOIDCProviderInfo& info, Formatter* f)
 {
   f->open_object_section("ClientIDList");
   for (const auto& it : info.client_ids) {
@@ -274,7 +282,8 @@ static void dump_oidc_provider(const RGWOIDCProviderInfo& info, Formatter *f)
   encode_json("Url", info.provider_url, f);
 }
 
-void RGWGetOIDCProvider::execute(optional_yield y)
+void
+RGWGetOIDCProvider::execute(optional_yield y)
 {
   RGWOIDCProviderInfo info;
   op_ret = driver->load_oidc_provider(this, y, resource.account, url, info);
@@ -284,7 +293,8 @@ void RGWGetOIDCProvider::execute(optional_yield y)
   }
 
   if (op_ret == 0) {
-    s->formatter->open_object_section_in_ns("GetOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
+    s->formatter->open_object_section_in_ns(
+        "GetOpenIDConnectProviderResponse", RGW_REST_IAM_XMLNS);
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
@@ -295,13 +305,12 @@ void RGWGetOIDCProvider::execute(optional_yield y)
   }
 }
 
+RGWListOIDCProviders::RGWListOIDCProviders() :
+  RGWRestOIDCProvider(rgw::IAM::iamListOIDCProviders, RGW_CAP_READ)
+{}
 
-RGWListOIDCProviders::RGWListOIDCProviders()
-  : RGWRestOIDCProvider(rgw::IAM::iamListOIDCProviders, RGW_CAP_READ)
-{
-}
-
-void RGWListOIDCProviders::execute(optional_yield y)
+void
+RGWListOIDCProviders::execute(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -313,7 +322,8 @@ void RGWListOIDCProviders::execute(optional_yield y)
   op_ret = driver->get_oidc_providers(this, y, account, result);
 
   if (op_ret == 0) {
-    s->formatter->open_object_section_in_ns("ListOpenIDConnectProvidersResponse", RGW_REST_IAM_XMLNS);
+    s->formatter->open_object_section_in_ns(
+        "ListOpenIDConnectProvidersResponse", RGW_REST_IAM_XMLNS);
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
@@ -330,12 +340,12 @@ void RGWListOIDCProviders::execute(optional_yield y)
   }
 }
 
-RGWAddClientIdToOIDCProvider::RGWAddClientIdToOIDCProvider()
-  : RGWRestOIDCProvider(rgw::IAM::iamAddClientIdToOIDCProvider, RGW_CAP_WRITE)
-{
-}
+RGWAddClientIdToOIDCProvider::RGWAddClientIdToOIDCProvider() :
+  RGWRestOIDCProvider(rgw::IAM::iamAddClientIdToOIDCProvider, RGW_CAP_WRITE)
+{}
 
-int RGWAddClientIdToOIDCProvider::init_processing(optional_yield y)
+int
+RGWAddClientIdToOIDCProvider::init_processing(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -344,8 +354,8 @@ int RGWAddClientIdToOIDCProvider::init_processing(optional_yield y)
     account = s->user->get_tenant();
   }
   std::string provider_arn = s->info.args.get("OpenIDConnectProviderArn");
-  auto ret = validate_provider_arn(provider_arn, account,
-                               resource, url, s->err.message);
+  auto ret = validate_provider_arn(
+      provider_arn, account, resource, url, s->err.message);
   if (ret < 0) {
     return ret;
   }
@@ -359,16 +369,18 @@ int RGWAddClientIdToOIDCProvider::init_processing(optional_yield y)
   }
 
   if (client_id.size() > MAX_OIDC_CLIENT_ID_LEN) {
-    s->err.message = "ClientID cannot exceed the maximum length of "
-        + std::to_string(MAX_OIDC_CLIENT_ID_LEN);
-    ldpp_dout(this, 20) << "ERROR: ClientID length exceeded " << MAX_OIDC_CLIENT_ID_LEN << dendl;
+    s->err.message = "ClientID cannot exceed the maximum length of " +
+                     std::to_string(MAX_OIDC_CLIENT_ID_LEN);
+    ldpp_dout(this, 20) << "ERROR: ClientID length exceeded "
+                        << MAX_OIDC_CLIENT_ID_LEN << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-void RGWAddClientIdToOIDCProvider::execute(optional_yield y)
+void
+RGWAddClientIdToOIDCProvider::execute(optional_yield y)
 {
   RGWOIDCProviderInfo info;
   op_ret = driver->load_oidc_provider(this, y, resource.account, url, info);
@@ -380,7 +392,8 @@ void RGWAddClientIdToOIDCProvider::execute(optional_yield y)
     return;
   }
 
-  if(std::find(info.client_ids.begin(), info.client_ids.end(), client_id) != info.client_ids.end()) {
+  if (std::find(info.client_ids.begin(), info.client_ids.end(), client_id) !=
+      info.client_ids.end()) {
     op_ret = -EEXIST;
   } else {
 
@@ -391,23 +404,25 @@ void RGWAddClientIdToOIDCProvider::execute(optional_yield y)
   }
   if (op_ret == 0 || op_ret == -EEXIST) {
     op_ret = 0;
-    s->formatter->open_object_section("AddClientIDToOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "AddClientIDToOpenIDConnectProviderResponse");
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
-    s->formatter->open_object_section("AddClientIDToOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "AddClientIDToOpenIDConnectProviderResponse");
     dump_oidc_provider(info, s->formatter);
     s->formatter->close_section();
     s->formatter->close_section();
   }
 }
 
-RGWRemoveCientIdFromOIDCProvider::RGWRemoveCientIdFromOIDCProvider()
-    : RGWRestOIDCProvider(rgw::IAM::iamRemoveClientIdFromOIDCProvider, RGW_CAP_WRITE)
-{
-}
+RGWRemoveCientIdFromOIDCProvider::RGWRemoveCientIdFromOIDCProvider() :
+  RGWRestOIDCProvider(rgw::IAM::iamRemoveClientIdFromOIDCProvider, RGW_CAP_WRITE)
+{}
 
-int RGWRemoveCientIdFromOIDCProvider::init_processing(optional_yield y)
+int
+RGWRemoveCientIdFromOIDCProvider::init_processing(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -416,8 +431,8 @@ int RGWRemoveCientIdFromOIDCProvider::init_processing(optional_yield y)
     account = s->user->get_tenant();
   }
   std::string provider_arn = s->info.args.get("OpenIDConnectProviderArn");
-  auto ret = validate_provider_arn(provider_arn, account,
-                               resource, url, s->err.message);
+  auto ret = validate_provider_arn(
+      provider_arn, account, resource, url, s->err.message);
   if (ret < 0) {
     return ret;
   }
@@ -431,16 +446,18 @@ int RGWRemoveCientIdFromOIDCProvider::init_processing(optional_yield y)
   }
 
   if (client_id.size() > MAX_OIDC_CLIENT_ID_LEN) {
-    s->err.message = "ClientID cannot exceed the maximum length of "
-        + std::to_string(MAX_OIDC_CLIENT_ID_LEN);
-    ldpp_dout(this, 20) << "ERROR: ClientID length exceeded " << MAX_OIDC_CLIENT_ID_LEN << dendl;
+    s->err.message = "ClientID cannot exceed the maximum length of " +
+                     std::to_string(MAX_OIDC_CLIENT_ID_LEN);
+    ldpp_dout(this, 20) << "ERROR: ClientID length exceeded "
+                        << MAX_OIDC_CLIENT_ID_LEN << dendl;
     return -EINVAL;
   }
 
   return 0;
 }
 
-void RGWRemoveCientIdFromOIDCProvider::execute(optional_yield y)
+void
+RGWRemoveCientIdFromOIDCProvider::execute(optional_yield y)
 {
   RGWOIDCProviderInfo info;
   op_ret = driver->load_oidc_provider(this, y, resource.account, url, info);
@@ -452,9 +469,10 @@ void RGWRemoveCientIdFromOIDCProvider::execute(optional_yield y)
     return;
   }
 
-  auto position = std::find(info.client_ids.begin(), info.client_ids.end(), client_id);
+  auto position =
+      std::find(info.client_ids.begin(), info.client_ids.end(), client_id);
 
-  if(position != info.client_ids.end()) {
+  if (position != info.client_ids.end()) {
     info.client_ids.erase(position);
     constexpr bool exclusive = false;
     op_ret = driver->store_oidc_provider(this, y, info, exclusive);
@@ -462,23 +480,25 @@ void RGWRemoveCientIdFromOIDCProvider::execute(optional_yield y)
 
   if (op_ret == 0) {
     op_ret = 0;
-    s->formatter->open_object_section("RemoveClientIDFromOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "RemoveClientIDFromOpenIDConnectProviderResponse");
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
-    s->formatter->open_object_section("RemoveClientIDFromOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "RemoveClientIDFromOpenIDConnectProviderResponse");
     dump_oidc_provider(info, s->formatter);
     s->formatter->close_section();
     s->formatter->close_section();
   }
 }
 
-RGWUpdateOIDCProviderThumbprint::RGWUpdateOIDCProviderThumbprint()
-  : RGWRestOIDCProvider(rgw::IAM::iamUpdateOIDCProviderThumbprint, RGW_CAP_WRITE)
-{
-}
+RGWUpdateOIDCProviderThumbprint::RGWUpdateOIDCProviderThumbprint() :
+  RGWRestOIDCProvider(rgw::IAM::iamUpdateOIDCProviderThumbprint, RGW_CAP_WRITE)
+{}
 
-int RGWUpdateOIDCProviderThumbprint::init_processing(optional_yield y)
+int
+RGWUpdateOIDCProviderThumbprint::init_processing(optional_yield y)
 {
   std::string_view account;
   if (const auto& acc = s->auth.identity->get_account(); acc) {
@@ -487,8 +507,8 @@ int RGWUpdateOIDCProviderThumbprint::init_processing(optional_yield y)
     account = s->user->get_tenant();
   }
   std::string provider_arn = s->info.args.get("OpenIDConnectProviderArn");
-  auto ret = validate_provider_arn(provider_arn, account,
-                               resource, url, s->err.message);
+  auto ret = validate_provider_arn(
+      provider_arn, account, resource, url, s->err.message);
   if (ret < 0) {
     return ret;
   }
@@ -498,13 +518,14 @@ int RGWUpdateOIDCProviderThumbprint::init_processing(optional_yield y)
   The list that you pass with this operation completely replaces the existing list of thumbprints. (The lists are not merged.) */
   for (auto& it : val_map) {
     if (it.first.find("ThumbprintList.member.") != string::npos) {
-        if (it.second.size() > MAX_OIDC_THUMBPRINT_LEN) {
-          s->err.message = "Thumbprint cannot exceed the maximum length of "
-              + std::to_string(MAX_OIDC_THUMBPRINT_LEN);
-          ldpp_dout(this, 20) << "ERROR: Thumbprint exceeds maximum length of " << MAX_OIDC_THUMBPRINT_LEN << dendl;
-          return -EINVAL;
-        }
-        thumbprints.emplace_back(it.second);
+      if (it.second.size() > MAX_OIDC_THUMBPRINT_LEN) {
+        s->err.message = "Thumbprint cannot exceed the maximum length of " +
+                         std::to_string(MAX_OIDC_THUMBPRINT_LEN);
+        ldpp_dout(this, 20) << "ERROR: Thumbprint exceeds maximum length of "
+                            << MAX_OIDC_THUMBPRINT_LEN << dendl;
+        return -EINVAL;
+      }
+      thumbprints.emplace_back(it.second);
     }
   }
 
@@ -517,7 +538,8 @@ int RGWUpdateOIDCProviderThumbprint::init_processing(optional_yield y)
   return 0;
 }
 
-void RGWUpdateOIDCProviderThumbprint::execute(optional_yield y)
+void
+RGWUpdateOIDCProviderThumbprint::execute(optional_yield y)
 {
   RGWOIDCProviderInfo info;
   op_ret = driver->load_oidc_provider(this, y, resource.account, url, info);
@@ -534,11 +556,13 @@ void RGWUpdateOIDCProviderThumbprint::execute(optional_yield y)
   constexpr bool exclusive = false;
   op_ret = driver->store_oidc_provider(this, y, info, exclusive);
   if (op_ret == 0) {
-    s->formatter->open_object_section("AddClientIDToOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "AddClientIDToOpenIDConnectProviderResponse");
     s->formatter->open_object_section("ResponseMetadata");
     s->formatter->dump_string("RequestId", s->trans_id);
     s->formatter->close_section();
-    s->formatter->open_object_section("AddClientIDToOpenIDConnectProviderResponse");
+    s->formatter->open_object_section(
+        "AddClientIDToOpenIDConnectProviderResponse");
     dump_oidc_provider(info, s->formatter);
     s->formatter->close_section();
     s->formatter->close_section();

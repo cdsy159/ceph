@@ -1,23 +1,28 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "common/debug.h"
-#include "common/dout.h"
 #include "tools/rbd_mirror/PoolMetaCache.h"
+
 #include <shared_mutex>
+
+#include "common/debug.h"
+
+#include "common/dout.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rbd_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "rbd::mirror::PoolMetaCache: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "rbd::mirror::PoolMetaCache: " << this << " " << __func__ << ": "
 
 namespace rbd {
 namespace mirror {
 
-int PoolMetaCache::get_local_pool_meta(
+int
+PoolMetaCache::get_local_pool_meta(
     int64_t pool_id,
-    LocalPoolMeta* local_pool_meta) const {
+    LocalPoolMeta* local_pool_meta) const
+{
   dout(15) << "pool_id=" << pool_id << dendl;
 
   std::shared_lock locker{m_lock};
@@ -30,9 +35,11 @@ int PoolMetaCache::get_local_pool_meta(
   return 0;
 }
 
-void PoolMetaCache::set_local_pool_meta(
+void
+PoolMetaCache::set_local_pool_meta(
     int64_t pool_id,
-    const LocalPoolMeta& local_pool_meta) {
+    const LocalPoolMeta& local_pool_meta)
+{
   dout(15) << "pool_id=" << pool_id << ", "
            << "local_pool_meta=" << local_pool_meta << dendl;
 
@@ -40,16 +47,21 @@ void PoolMetaCache::set_local_pool_meta(
   m_local_pool_metas[pool_id] = local_pool_meta;
 }
 
-void PoolMetaCache::remove_local_pool_meta(int64_t pool_id) {
+void
+PoolMetaCache::remove_local_pool_meta(int64_t pool_id)
+{
   dout(15) << "pool_id=" << pool_id << dendl;
 
   std::unique_lock locker(m_lock);
   m_local_pool_metas.erase(pool_id);
 }
 
-int PoolMetaCache::get_remote_pool_meta(
-    const std::string& fsid, int64_t pool_id,
-    RemotePoolMeta* remote_pool_meta) const {
+int
+PoolMetaCache::get_remote_pool_meta(
+    const std::string& fsid,
+    int64_t pool_id,
+    RemotePoolMeta* remote_pool_meta) const
+{
   dout(15) << "fsid=" << fsid << ", pool_id=" << pool_id << dendl;
 
   std::shared_lock locker{m_lock};
@@ -62,9 +74,12 @@ int PoolMetaCache::get_remote_pool_meta(
   return 0;
 }
 
-void PoolMetaCache::set_remote_pool_meta(
-    const std::string& fsid, int64_t pool_id,
-    const RemotePoolMeta& remote_pool_meta) {
+void
+PoolMetaCache::set_remote_pool_meta(
+    const std::string& fsid,
+    int64_t pool_id,
+    const RemotePoolMeta& remote_pool_meta)
+{
   dout(15) << "fsid=" << fsid << ", pool_id=" << pool_id
            << ", remote_pool_meta=" << remote_pool_meta << dendl;
 
@@ -72,8 +87,9 @@ void PoolMetaCache::set_remote_pool_meta(
   m_remote_pool_metas[{fsid, pool_id}] = remote_pool_meta;
 }
 
-void PoolMetaCache::remove_remote_pool_meta(
-    const std::string& fsid, int64_t pool_id) {
+void
+PoolMetaCache::remove_remote_pool_meta(const std::string& fsid, int64_t pool_id)
+{
   dout(15) << "fsid=" << fsid << ", pool_id=" << pool_id << dendl;
 
   std::unique_lock locker(m_lock);

@@ -11,14 +11,16 @@
  *
  */
 
-#include "common/async/parallel_for_each.h"
+#include <gtest/gtest.h>
 
 #include <optional>
+
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
-#include <gtest/gtest.h>
+
 #include "common/async/co_waiter.h"
+#include "common/async/parallel_for_each.h"
 
 namespace ceph::async {
 
@@ -34,13 +36,15 @@ using awaitable = asio::awaitable<T, executor_type>;
 using void_waiter = co_waiter<void, executor_type>;
 
 template <typename T>
-auto capture(std::optional<T>& opt)
+auto
+capture(std::optional<T>& opt)
 {
-  return [&opt] (T value) { opt = std::move(value); };
+  return [&opt](T value) { opt = std::move(value); };
 }
 
 template <typename T>
-auto capture(asio::cancellation_signal& signal, std::optional<T>& opt)
+auto
+capture(asio::cancellation_signal& signal, std::optional<T>& opt)
 {
   return asio::bind_cancellation_slot(signal.slot(), capture(opt));
 }
@@ -50,7 +54,7 @@ TEST(parallel_for_each, empty)
   asio::io_context ctx;
 
   int* end = nullptr;
-  auto cr = [] (int i) -> awaitable<void> { co_return; };
+  auto cr = [](int i) -> awaitable<void> { co_return; };
 
   std::optional<std::exception_ptr> result;
   asio::co_spawn(ctx, parallel_for_each(end, end, cr), capture(result));
@@ -66,7 +70,7 @@ TEST(parallel_for_each, shutdown)
   asio::io_context ctx;
 
   void_waiter waiters[2];
-  auto cr = [] (void_waiter& w) -> awaitable<void> { return w.get(); };
+  auto cr = [](void_waiter& w) -> awaitable<void> { return w.get(); };
 
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
@@ -83,7 +87,7 @@ TEST(parallel_for_each, cancel)
   asio::io_context ctx;
 
   void_waiter waiters[2];
-  auto cr = [] (void_waiter& w) -> awaitable<void> { return w.get(); };
+  auto cr = [](void_waiter& w) -> awaitable<void> { return w.get(); };
 
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
@@ -114,7 +118,7 @@ TEST(parallel_for_each, complete_shutdown)
   asio::io_context ctx;
 
   void_waiter waiters[2];
-  auto cr = [] (void_waiter& w) -> awaitable<void> { return w.get(); };
+  auto cr = [](void_waiter& w) -> awaitable<void> { return w.get(); };
 
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
@@ -137,7 +141,7 @@ TEST(parallel_for_each, complete_cancel)
   asio::io_context ctx;
 
   void_waiter waiters[2];
-  auto cr = [] (void_waiter& w) -> awaitable<void> { return w.get(); };
+  auto cr = [](void_waiter& w) -> awaitable<void> { return w.get(); };
 
   asio::cancellation_signal signal;
   std::optional<std::exception_ptr> result;
@@ -174,7 +178,7 @@ TEST(parallel_for_each, complete_complete)
   asio::io_context ctx;
 
   void_waiter waiters[2];
-  auto cr = [] (void_waiter& w) -> awaitable<void> { return w.get(); };
+  auto cr = [](void_waiter& w) -> awaitable<void> { return w.get(); };
 
   std::optional<std::exception_ptr> result;
   asio::co_spawn(ctx, parallel_for_each(waiters, cr), capture(result));
@@ -198,7 +202,13 @@ TEST(parallel_for_each, complete_complete)
 }
 
 struct null_sentinel {};
-bool operator==(const char* c, null_sentinel) { return !*c; }
+
+bool
+operator==(const char* c, null_sentinel)
+{
+  return !*c;
+}
+
 static_assert(std::sentinel_for<null_sentinel, const char*>);
 
 TEST(parallel_for_each, sentinel)
@@ -209,7 +219,7 @@ TEST(parallel_for_each, sentinel)
   null_sentinel end;
 
   size_t count = 0;
-  auto cr = [&count] (char c) -> awaitable<void> {
+  auto cr = [&count](char c) -> awaitable<void> {
     ++count;
     co_return;
   };
@@ -230,14 +240,14 @@ TEST(parallel_for_each, move_iterator)
 
   using value_type = std::unique_ptr<int>;
   value_type values[] = {
-    std::make_unique<int>(42),
-    std::make_unique<int>(43),
+      std::make_unique<int>(42),
+      std::make_unique<int>(43),
   };
 
   auto begin = std::make_move_iterator(std::begin(values));
   auto end = std::make_move_iterator(std::end(values));
 
-  auto cr = [] (value_type v) -> awaitable<void> {
+  auto cr = [](value_type v) -> awaitable<void> {
     if (!v) {
       throw std::invalid_argument("empty");
     }

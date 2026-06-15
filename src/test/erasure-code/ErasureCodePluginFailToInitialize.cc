@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,11 +17,17 @@
  */
 
 #include <errno.h>
+
 #include "ceph_ver.h"
 
-extern "C" const char *__erasure_code_version() { return CEPH_GIT_NICE_VER; }
+extern "C" const char*
+__erasure_code_version()
+{
+  return CEPH_GIT_NICE_VER;
+}
 
-extern "C" int __erasure_code_init(char *plugin_name, char *directory)
+extern "C" int
+__erasure_code_init(char* plugin_name, char* directory)
 {
   return -ESRCH;
 }

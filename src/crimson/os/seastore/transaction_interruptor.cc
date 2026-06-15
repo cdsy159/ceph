@@ -6,16 +6,17 @@
 #include "crimson/os/seastore/transaction.h"
 
 namespace crimson::interruptible {
-template
-thread_local interrupt_cond_t<::crimson::os::seastore::TransactionConflictCondition>
-interrupt_cond<::crimson::os::seastore::TransactionConflictCondition>;
+template thread_local interrupt_cond_t<
+    ::crimson::os::seastore::TransactionConflictCondition>
+    interrupt_cond<::crimson::os::seastore::TransactionConflictCondition>;
 }
 
 namespace crimson::os::seastore {
 
-bool TransactionConflictCondition::is_conflicted() const
+bool
+TransactionConflictCondition::is_conflicted() const
 {
   return t.conflicted;
 }
 
-}
+} // namespace crimson::os::seastore

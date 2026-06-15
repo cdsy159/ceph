@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,16 +14,17 @@
  */
 
 #include "AuthMethodList.h"
-#include "common/debug.h"
-#include "include/ceph_fs.h" // for CEPH_AUTH_*
-#include "include/str_list.h"
 
 #include <algorithm> // for std::find()
 
+#include "common/debug.h"
+
+#include "include/ceph_fs.h" // for CEPH_AUTH_*
+#include "include/str_list.h"
+
 const static int dout_subsys = ceph_subsys_auth;
 
-
-AuthMethodList::AuthMethodList(CephContext *cct, std::string str)
+AuthMethodList::AuthMethodList(CephContext* cct, std::string str)
 {
   std::list<std::string> sup_list;
   get_str_list(str, sup_list);
@@ -40,21 +41,26 @@ AuthMethodList::AuthMethodList(CephContext *cct, std::string str)
       auth_supported.push_back(CEPH_AUTH_GSS);
     } else {
       auth_supported.push_back(CEPH_AUTH_UNKNOWN);
-      lderr(cct) << "WARNING: unknown auth protocol defined: " << *iter << dendl;
+      lderr(cct) << "WARNING: unknown auth protocol defined: " << *iter
+                 << dendl;
     }
   }
   if (auth_supported.empty()) {
-    lderr(cct) << "WARNING: no auth protocol defined, use 'cephx' by default" << dendl;
+    lderr(cct) << "WARNING: no auth protocol defined, use 'cephx' by default"
+               << dendl;
     auth_supported.push_back(CEPH_AUTH_CEPHX);
   }
 }
 
-bool AuthMethodList::is_supported_auth(int auth_type)
+bool
+AuthMethodList::is_supported_auth(int auth_type)
 {
-  return std::find(auth_supported.begin(), auth_supported.end(), auth_type) != auth_supported.end();
+  return std::find(auth_supported.begin(), auth_supported.end(), auth_type) !=
+         auth_supported.end();
 }
 
-int AuthMethodList::pick(const std::set<__u32>& supported)
+int
+AuthMethodList::pick(const std::set<__u32>& supported)
 {
   for (auto p = supported.rbegin(); p != supported.rend(); ++p)
     if (is_supported_auth(*p))
@@ -62,12 +68,13 @@ int AuthMethodList::pick(const std::set<__u32>& supported)
   return CEPH_AUTH_UNKNOWN;
 }
 
-void AuthMethodList::remove_supported_auth(int auth_type)
+void
+AuthMethodList::remove_supported_auth(int auth_type)
 {
-  for (auto p = auth_supported.begin(); p != auth_supported.end(); ) {
+  for (auto p = auth_supported.begin(); p != auth_supported.end();) {
     if (*p == (__u32)auth_type)
       auth_supported.erase(p++);
-    else 
+    else
       ++p;
   }
 }

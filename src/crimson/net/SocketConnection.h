@@ -17,10 +17,10 @@
 
 #include <seastar/core/sharded.hh>
 
-#include "msg/Policy.h"
 #include "crimson/common/throttle.h"
 #include "crimson/net/Connection.h"
 #include "crimson/net/Socket.h"
+#include "msg/Policy.h"
 
 namespace crimson::net {
 
@@ -46,10 +46,10 @@ public:
 
   virtual ~ConnectionHandler() = default;
 
-  ConnectionHandler(const ConnectionHandler &) = delete;
-  ConnectionHandler(ConnectionHandler &&) = delete;
-  ConnectionHandler &operator=(const ConnectionHandler &) = delete;
-  ConnectionHandler &operator=(ConnectionHandler &&) = delete;
+  ConnectionHandler(const ConnectionHandler&) = delete;
+  ConnectionHandler(ConnectionHandler&&) = delete;
+  ConnectionHandler& operator=(const ConnectionHandler&) = delete;
+  ConnectionHandler& operator=(ConnectionHandler&&) = delete;
 
   virtual seastar::shard_id get_shard_id() const = 0;
 
@@ -72,33 +72,43 @@ protected:
 };
 
 class SocketConnection : public Connection {
- /*
+  /*
   * Connection interfaces, public to users
   * Working in ConnectionHandler::get_shard_id()
   */
- public:
-  SocketConnection(SocketMessenger& messenger,
-                   ChainedDispatchers& dispatchers);
+
+public:
+  SocketConnection(SocketMessenger& messenger, ChainedDispatchers& dispatchers);
 
   ~SocketConnection() override;
 
-  const seastar::shard_id get_shard_id() const override {
+  const seastar::shard_id
+  get_shard_id() const override
+  {
     return io_handler->get_shard_id();
   }
 
-  const entity_name_t &get_peer_name() const override {
+  const entity_name_t&
+  get_peer_name() const override
+  {
     return peer_name;
   }
 
-  const entity_addr_t &get_peer_addr() const override {
+  const entity_addr_t&
+  get_peer_addr() const override
+  {
     return peer_addr;
   }
 
-  const entity_addr_t &get_peer_socket_addr() const override {
+  const entity_addr_t&
+  get_peer_socket_addr() const override
+  {
     return target_addr;
   }
 
-  uint64_t get_features() const override {
+  uint64_t
+  get_features() const override
+  {
     return features;
   }
 
@@ -116,36 +126,43 @@ class SocketConnection : public Connection {
 
   void mark_down() override;
 
-  bool has_user_private() const override {
+  bool
+  has_user_private() const override
+  {
     return user_private != nullptr;
   }
 
-  user_private_t &get_user_private() override {
+  user_private_t&
+  get_user_private() override
+  {
     assert(has_user_private());
     return *user_private;
   }
 
-  void set_user_private(std::unique_ptr<user_private_t> new_user_private) override {
+  void
+  set_user_private(std::unique_ptr<user_private_t> new_user_private) override
+  {
     assert(!has_user_private());
     user_private = std::move(new_user_private);
   }
 
   void print(std::ostream& out) const override;
 
- /*
+  /*
   * Public to SocketMessenger
   * Working in SocketMessenger::get_shard_id();
   */
- public:
+
+public:
   /// start a handshake from the client's perspective,
   /// only call when SocketConnection first construct
-  void start_connect(const entity_addr_t& peer_addr,
-                     const entity_name_t& peer_name);
+  void start_connect(
+      const entity_addr_t& peer_addr,
+      const entity_name_t& peer_name);
 
   /// start a handshake from the server's perspective,
   /// only call when SocketConnection first construct
-  void start_accept(SocketFRef&& socket,
-                    const entity_addr_t& peer_addr);
+  void start_accept(SocketFRef&& socket, const entity_addr_t& peer_addr);
 
   seastar::future<> close_clean_yielded();
 
@@ -153,7 +170,7 @@ class SocketConnection : public Connection {
 
   seastar::shard_id get_messenger_shard_id() const;
 
-  SocketMessenger &get_messenger() const;
+  SocketMessenger& get_messenger() const;
 
   ConnectionRef get_local_shared_foreign_from_this();
 
@@ -162,14 +179,16 @@ private:
 
   void set_peer_id(int64_t peer_id);
 
-  void set_peer_name(entity_name_t name) {
+  void
+  set_peer_name(entity_name_t name)
+  {
     set_peer_type(name.type());
     set_peer_id(name.num());
   }
 
   void set_features(uint64_t f);
 
-  void set_socket(Socket *s);
+  void set_socket(Socket* s);
 
 #ifdef UNIT_TESTS_BUILT
   bool is_protocol_ready() const override;
@@ -183,7 +202,7 @@ private:
   // peer wins if myaddr > peeraddr
   bool peer_wins() const override;
 
-  Interceptor *interceptor = nullptr;
+  Interceptor* interceptor = nullptr;
 #else
   // peer wins if myaddr > peeraddr
   bool peer_wins() const;
@@ -199,7 +218,7 @@ private:
 
   std::unique_ptr<ProtocolV2> protocol;
 
-  Socket *socket = nullptr;
+  Socket* socket = nullptr;
 
   entity_name_t peer_name = {0, entity_name_t::NEW};
 
@@ -233,5 +252,7 @@ private:
 } // namespace crimson::net
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::net::SocketConnection> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::net::SocketConnection> : fmt::ostream_formatter {
+};
 #endif

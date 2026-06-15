@@ -24,55 +24,53 @@ class InodeStore;
 class MDSTable;
 
 class RecoveryDriver {
-  protected:
-    // If true, overwrite structures that generate decoding errors.
-    bool force_corrupt;
+protected:
+  // If true, overwrite structures that generate decoding errors.
+  bool force_corrupt;
 
-    // If true, overwrite root objects during init_roots even if they
-    // exist
-    bool force_init;
+  // If true, overwrite root objects during init_roots even if they
+  // exist
+  bool force_init;
 
-  public:
-    virtual int init(
-        librados::Rados &rados,
-	std::string &metadata_pool_name,
-        const FSMap *fsmap,
-        fs_cluster_id_t fscid) = 0;
+public:
+  virtual int init(
+      librados::Rados& rados,
+      std::string& metadata_pool_name,
+      const FSMap* fsmap,
+      fs_cluster_id_t fscid) = 0;
 
-    void set_force_corrupt(const bool val)
-    {
-      force_corrupt = val;
-    }
+  void
+  set_force_corrupt(const bool val)
+  {
+    force_corrupt = val;
+  }
 
-    void set_force_init(const bool val)
-    {
-      force_init = val;
-    }
+  void
+  set_force_init(const bool val)
+  {
+    force_init = val;
+  }
 
-
-    /**
+  /**
      * Inject an inode + dentry parents into the metadata pool,
      * based on a backtrace recovered from the data pool
      */
-    virtual int inject_with_backtrace(
-        const inode_backtrace_t &bt,
-        const InodeStore &dentry) = 0;
+  virtual int inject_with_backtrace(
+      const inode_backtrace_t& bt,
+      const InodeStore& dentry) = 0;
 
-    /**
+  /**
      * Inject an inode + dentry into the lost+found directory,
      * when all we know about a file is its inode.
      */
-    virtual int inject_lost_and_found(
-        inodeno_t ino,
-        const InodeStore &dentry) = 0;
+  virtual int inject_lost_and_found(inodeno_t ino, const InodeStore& dentry) = 0;
 
-    /**
+  /**
      * Create any missing roots (i.e. mydir, strays, root inode)
      */
-    virtual int init_roots(
-        int64_t data_pool_id) = 0;
+  virtual int init_roots(int64_t data_pool_id) = 0;
 
-    /**
+  /**
      * Pre-injection check that all the roots are present in
      * the metadata pool.  Used to avoid parallel workers interfering
      * with one another, by cueing the user to go run 'init' on a
@@ -83,168 +81,164 @@ class RecoveryDriver {
      *          are not considered an unexpected error: check *result for
      *          this case.
      */
-    virtual int check_roots(bool *result) = 0;
+  virtual int check_roots(bool* result) = 0;
 
-    /**
+  /**
      * Helper to compose dnames for links to lost+found
      * inodes.
      */
-    std::string lost_found_dname(inodeno_t ino)
-    {
-      char s[20];
-      snprintf(s, sizeof(s), "%llx", (unsigned long long)ino);
-      return std::string(s);
-    }
+  std::string
+  lost_found_dname(inodeno_t ino)
+  {
+    char s[20];
+    snprintf(s, sizeof(s), "%llx", (unsigned long long)ino);
+    return std::string(s);
+  }
 
-    RecoveryDriver()
-      : force_corrupt(false),
-	force_init(false)
-    {}
+  RecoveryDriver() :
+    force_corrupt(false), force_init(false)
+  {}
 
-    virtual ~RecoveryDriver() {}
+  virtual ~RecoveryDriver() {}
 };
 
-class LocalFileDriver : public RecoveryDriver
-{ 
-  protected:
-    const std::string path;
-    librados::IoCtx &data_io;
+class LocalFileDriver : public RecoveryDriver {
+protected:
+  const std::string path;
+  librados::IoCtx& data_io;
 
   int inject_data(
-      const std::string &file_path,
+      const std::string& file_path,
       uint64_t size,
       uint32_t chunk_size,
       inodeno_t ino);
-  public:
 
-    LocalFileDriver(const std::string &path_, librados::IoCtx &data_io_)
-      : RecoveryDriver(), path(path_), data_io(data_io_)
-    {}
+public:
+  LocalFileDriver(const std::string& path_, librados::IoCtx& data_io_) :
+    RecoveryDriver(), path(path_), data_io(data_io_)
+  {}
 
-    // Implement RecoveryDriver interface
-    int init(
-        librados::Rados &rados,
-	std::string &metadata_pool_name,
-        const FSMap *fsmap,
-        fs_cluster_id_t fscid) override;
+  // Implement RecoveryDriver interface
+  int init(
+      librados::Rados& rados,
+      std::string& metadata_pool_name,
+      const FSMap* fsmap,
+      fs_cluster_id_t fscid) override;
 
-    int inject_with_backtrace(
-        const inode_backtrace_t &bt,
-        const InodeStore &dentry) override;
+  int inject_with_backtrace(
+      const inode_backtrace_t& bt,
+      const InodeStore& dentry) override;
 
-    int inject_lost_and_found(
-        inodeno_t ino,
-        const InodeStore &dentry) override;
+  int inject_lost_and_found(inodeno_t ino, const InodeStore& dentry) override;
 
-    int init_roots(int64_t data_pool_id) override;
+  int init_roots(int64_t data_pool_id) override;
 
-    int check_roots(bool *result) override;
+  int check_roots(bool* result) override;
 };
 
 /**
  * A class that knows how to work with objects in a CephFS
  * metadata pool.
  */
-class MetadataTool
-{
-  protected:
-
+class MetadataTool {
+protected:
   librados::IoCtx metadata_io;
 
   /**
    * Construct a synthetic InodeStore for a normal file
    */
   void build_file_dentry(
-    inodeno_t ino, uint64_t file_size, time_t file_mtime,
-    const file_layout_t &layout,
-    InodeStore *out,
-    std::string symlink);
+      inodeno_t ino,
+      uint64_t file_size,
+      time_t file_mtime,
+      const file_layout_t& layout,
+      InodeStore* out,
+      std::string symlink);
 
   /**
    * Construct a synthetic InodeStore for a directory
    */
   void build_dir_dentry(
-    inodeno_t ino,
-    const frag_info_t &fragstat,
-    const file_layout_t &layout,
-    InodeStore *out);
+      inodeno_t ino,
+      const frag_info_t& fragstat,
+      const file_layout_t& layout,
+      InodeStore* out);
 
   /**
    * Try and read an fnode from a dirfrag
    */
-  int read_fnode(inodeno_t ino, frag_t frag,
-                 fnode_t *fnode, uint64_t *read_version);
+  int read_fnode(
+      inodeno_t ino,
+      frag_t frag,
+      fnode_t* fnode,
+      uint64_t* read_version);
 
   /**
    * Try and read a dentry from a dirfrag
    */
-  int read_dentry(inodeno_t parent_ino, frag_t frag,
-		  const std::string &dname, InodeStore *inode, snapid_t *dnfirst=nullptr);
+  int read_dentry(
+      inodeno_t parent_ino,
+      frag_t frag,
+      const std::string& dname,
+      InodeStore* inode,
+      snapid_t* dnfirst = nullptr);
 };
 
 /**
  * A class that knows how to manipulate CephFS metadata pools
  */
-class MetadataDriver : public RecoveryDriver, public MetadataTool
-{
-  protected:
-    /**
+class MetadataDriver : public RecoveryDriver, public MetadataTool {
+protected:
+  /**
      * Create a .inode object, i.e. root or mydir
      */
-    int inject_unlinked_inode(inodeno_t inono, int mode, int64_t data_pool_id);
+  int inject_unlinked_inode(inodeno_t inono, int mode, int64_t data_pool_id);
 
-    /**
+  /**
      * Check for existence of .inode objects, before
      * trying to go ahead and inject metadata.
      */
-    int root_exists(inodeno_t ino, bool *result);
-    int find_or_create_dirfrag(
-        inodeno_t ino,
-        frag_t fragment,
-        bool *created);
+  int root_exists(inodeno_t ino, bool* result);
+  int find_or_create_dirfrag(inodeno_t ino, frag_t fragment, bool* created);
 
 
-    /**
+  /**
      * Work out which fragment of a directory should contain a named
      * dentry, recursing up the trace as necessary to retrieve
      * fragtrees.
      */
-    int get_frag_of(
-        inodeno_t dirino,
-        const std::string &dname,
-        frag_t *result_ft);
+  int get_frag_of(inodeno_t dirino, const std::string& dname, frag_t* result_ft);
 
-  public:
+public:
+  // Implement RecoveryDriver interface
+  int init(
+      librados::Rados& rados,
+      std::string& metadata_pool_name,
+      const FSMap* fsmap,
+      fs_cluster_id_t fscid) override;
 
-    // Implement RecoveryDriver interface
-    int init(
-        librados::Rados &rados,
-	std::string &metadata_pool_name,
-        const FSMap *fsmap,
-        fs_cluster_id_t fscid) override;
+  int inject_linkage(
+      inodeno_t dir_ino,
+      const std::string& dname,
+      const frag_t fragment,
+      const InodeStore& inode,
+      snapid_t dnfirst = CEPH_NOSNAP);
 
-    int inject_linkage(
-        inodeno_t dir_ino, const std::string &dname,
-        const frag_t fragment, const InodeStore &inode, snapid_t dnfirst=CEPH_NOSNAP);
+  int inject_with_backtrace(
+      const inode_backtrace_t& bt,
+      const InodeStore& dentry) override;
 
-    int inject_with_backtrace(
-        const inode_backtrace_t &bt,
-        const InodeStore &dentry) override;
+  int inject_lost_and_found(inodeno_t ino, const InodeStore& dentry) override;
 
-    int inject_lost_and_found(
-        inodeno_t ino,
-        const InodeStore &dentry) override;
+  int init_roots(int64_t data_pool_id) override;
 
-    int init_roots(int64_t data_pool_id) override;
+  int check_roots(bool* result) override;
 
-    int check_roots(bool *result) override;
-
-    int load_table(MDSTable *table);
-    int save_table(MDSTable *table);
+  int load_table(MDSTable* table);
+  int save_table(MDSTable* table);
 };
 
-class DataScan : public MDSUtility, public MetadataTool
-{
+class DataScan : public MDSUtility, public MetadataTool {
 private:
   librados::Rados rados;
 
@@ -353,12 +347,7 @@ public:
     force_pool(false),
     force_corrupt(false),
     force_init(false)
-  {
-  }
+  {}
 
-    ~DataScan() override
-    {
-      delete driver;
-    }
+  ~DataScan() override { delete driver; }
 };
-

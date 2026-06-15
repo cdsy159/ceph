@@ -25,6 +25,7 @@
 
 // -----------------------------------------------------------------------------
 #include "ErasureCodeIsaTableCache.h"
+
 #include "common/debug.h"
 // -----------------------------------------------------------------------------
 
@@ -33,6 +34,7 @@
 #define dout_subsys ceph_subsys_osd
 #undef dout_prefix
 #define dout_prefix _tc_prefix(_dout)
+
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
@@ -57,9 +59,12 @@ ErasureCodeIsaTableCache::~ErasureCodeIsaTableCache()
   std::map<int, lru_list_t*>::const_iterator lru_list_it;
 
   // clean-up all allocated tables
-  for (ttables_it = encoding_coefficient.begin(); ttables_it != encoding_coefficient.end(); ++ttables_it) {
-    for (tables_it = ttables_it->second.begin(); tables_it != ttables_it->second.end(); ++tables_it) {
-      for (table_it = tables_it->second.begin(); table_it != tables_it->second.end(); ++table_it) {
+  for (ttables_it = encoding_coefficient.begin();
+       ttables_it != encoding_coefficient.end(); ++ttables_it) {
+    for (tables_it = ttables_it->second.begin();
+         tables_it != ttables_it->second.end(); ++tables_it) {
+      for (table_it = tables_it->second.begin();
+           table_it != tables_it->second.end(); ++table_it) {
         if (table_it->second) {
           if (*(table_it->second)) {
             delete[] *(table_it->second);
@@ -70,9 +75,12 @@ ErasureCodeIsaTableCache::~ErasureCodeIsaTableCache()
     }
   }
 
-  for (ttables_it = encoding_table.begin(); ttables_it != encoding_table.end(); ++ttables_it) {
-    for (tables_it = ttables_it->second.begin(); tables_it != ttables_it->second.end(); ++tables_it) {
-      for (table_it = tables_it->second.begin(); table_it != tables_it->second.end(); ++table_it) {
+  for (ttables_it = encoding_table.begin(); ttables_it != encoding_table.end();
+       ++ttables_it) {
+    for (tables_it = ttables_it->second.begin();
+         tables_it != ttables_it->second.end(); ++tables_it) {
+      for (table_it = tables_it->second.begin();
+           table_it != tables_it->second.end(); ++table_it) {
         if (table_it->second) {
           if (*(table_it->second)) {
             delete[] *(table_it->second);
@@ -83,13 +91,15 @@ ErasureCodeIsaTableCache::~ErasureCodeIsaTableCache()
     }
   }
 
-  for (lru_map_it = decoding_tables.begin(); lru_map_it != decoding_tables.end(); ++lru_map_it) {
+  for (lru_map_it = decoding_tables.begin();
+       lru_map_it != decoding_tables.end(); ++lru_map_it) {
     if (lru_map_it->second) {
       delete lru_map_it->second;
     }
   }
 
-  for (lru_list_it = decoding_tables_lru.begin(); lru_list_it != decoding_tables_lru.end(); ++lru_list_it) {
+  for (lru_list_it = decoding_tables_lru.begin();
+       lru_list_it != decoding_tables_lru.end(); ++lru_list_it) {
     if (lru_list_it->second) {
       delete lru_list_it->second;
     }
@@ -144,7 +154,7 @@ unsigned char**
 ErasureCodeIsaTableCache::getEncodingTable(int matrix, int k, int m)
 {
   std::lock_guard lock{codec_tables_guard};
-  return getEncodingTableNoLock(matrix,k,m);
+  return getEncodingTableNoLock(matrix, k, m);
 }
 
 // -----------------------------------------------------------------------------
@@ -166,7 +176,7 @@ unsigned char**
 ErasureCodeIsaTableCache::getEncodingCoefficient(int matrix, int k, int m)
 {
   std::lock_guard lock{codec_tables_guard};
-  return getEncodingCoefficientNoLock(matrix,k,m);
+  return getEncodingCoefficientNoLock(matrix, k, m);
 }
 
 // -----------------------------------------------------------------------------
@@ -185,7 +195,11 @@ ErasureCodeIsaTableCache::getEncodingCoefficientNoLock(int matrix, int k, int m)
 // -----------------------------------------------------------------------------
 
 unsigned char*
-ErasureCodeIsaTableCache::setEncodingTable(int matrix, int k, int m, unsigned char* ec_in_table)
+ErasureCodeIsaTableCache::setEncodingTable(
+    int matrix,
+    int k,
+    int m,
+    unsigned char* ec_in_table)
 {
   std::lock_guard lock{codec_tables_guard};
   unsigned char** ec_out_table = getEncodingTableNoLock(matrix, k, m);
@@ -204,7 +218,11 @@ ErasureCodeIsaTableCache::setEncodingTable(int matrix, int k, int m, unsigned ch
 // -----------------------------------------------------------------------------
 
 unsigned char*
-ErasureCodeIsaTableCache::setEncodingCoefficient(int matrix, int k, int m, unsigned char* ec_in_coeff)
+ErasureCodeIsaTableCache::setEncodingCoefficient(
+    int matrix,
+    int k,
+    int m,
+    unsigned char* ec_in_coeff)
 {
   std::lock_guard lock{codec_tables_guard};
   unsigned char** ec_out_coeff = getEncodingCoefficientNoLock(matrix, k, m);
@@ -231,11 +249,12 @@ ErasureCodeIsaTableCache::getLock()
 // -----------------------------------------------------------------------------
 
 bool
-ErasureCodeIsaTableCache::getDecodingTableFromCache(std::string &signature,
-                                                    unsigned char* &table,
-                                                    int matrixtype,
-                                                    int k,
-                                                    int m)
+ErasureCodeIsaTableCache::getDecodingTableFromCache(
+    std::string& signature,
+    unsigned char*& table,
+    int matrixtype,
+    int k,
+    int m)
 {
   // --------------------------------------------------------------------------
   // LRU decoding matrix cache
@@ -252,11 +271,9 @@ ErasureCodeIsaTableCache::getDecodingTableFromCache(std::string &signature,
   // we try to fetch a decoding table from an LRU cache
   std::lock_guard lock{codec_tables_guard};
 
-  lru_map_t* decode_tbls_map =
-    getDecodingTables(matrixtype);
+  lru_map_t* decode_tbls_map = getDecodingTables(matrixtype);
 
-  lru_list_t* decode_tbls_lru =
-    getDecodingTablesLru(matrixtype);
+  lru_list_t* decode_tbls_lru = getDecodingTablesLru(matrixtype);
 
   auto lru_map_it = decode_tbls_map->find(signature);
   if (lru_map_it == decode_tbls_map->end()) {
@@ -265,21 +282,23 @@ ErasureCodeIsaTableCache::getDecodingTableFromCache(std::string &signature,
   const auto& [lru_list_it, cached_table] = lru_map_it->second;
   dout(12) << "[ cached table ] = " << signature << dendl;
   // copy the table out of the cache
-  memcpy(table, cached_table.c_str(), k * (m + k)*32);
+  memcpy(table, cached_table.c_str(), k * (m + k) * 32);
   // find item in LRU queue and push back
   dout(12) << "[ cache size   ] = " << decode_tbls_lru->size() << dendl;
-  decode_tbls_lru->splice( (decode_tbls_lru->begin()), *decode_tbls_lru, lru_list_it);
+  decode_tbls_lru->splice(
+      (decode_tbls_lru->begin()), *decode_tbls_lru, lru_list_it);
   return true;
 }
 
 // -----------------------------------------------------------------------------
 
 void
-ErasureCodeIsaTableCache::putDecodingTableToCache(std::string &signature,
-                                                  unsigned char* &table,
-                                                  int matrixtype,
-                                                  int k,
-                                                  int m)
+ErasureCodeIsaTableCache::putDecodingTableToCache(
+    std::string& signature,
+    unsigned char*& table,
+    int matrixtype,
+    int k,
+    int m)
 {
   // --------------------------------------------------------------------------
   // LRU decoding matrix cache
@@ -296,21 +315,20 @@ ErasureCodeIsaTableCache::putDecodingTableToCache(std::string &signature,
 
   std::lock_guard lock{codec_tables_guard};
 
-  lru_map_t* decode_tbls_map =
-    getDecodingTables(matrixtype);
+  lru_map_t* decode_tbls_map = getDecodingTables(matrixtype);
 
-  lru_list_t* decode_tbls_lru =
-    getDecodingTablesLru(matrixtype);
+  lru_list_t* decode_tbls_lru = getDecodingTablesLru(matrixtype);
 
   // evt. shrink the LRU queue/map
-  if ((int) decode_tbls_lru->size() >= ErasureCodeIsaTableCache::decoding_tables_lru_length) {
+  if ((int)decode_tbls_lru->size() >=
+      ErasureCodeIsaTableCache::decoding_tables_lru_length) {
     dout(12) << "[ shrink lru   ] = " << signature << dendl;
     // reuse old buffer
     cachetable = (*decode_tbls_map)[decode_tbls_lru->back()].second;
 
-    if ((int) cachetable.length() != (k * (m + k)*32)) {
+    if ((int)cachetable.length() != (k * (m + k) * 32)) {
       // we need to replace this with a different size buffer
-      cachetable = ceph::buffer::create(k * (m + k)*32);
+      cachetable = ceph::buffer::create(k * (m + k) * 32);
     }
 
     // remove from map
@@ -320,16 +338,18 @@ ErasureCodeIsaTableCache::putDecodingTableToCache(std::string &signature,
     // add to the head of lru
     decode_tbls_lru->push_front(signature);
     // add the new to the map
-    (*decode_tbls_map)[signature] = std::make_pair(decode_tbls_lru->begin(), cachetable);
+    (*decode_tbls_map)[signature] =
+        std::make_pair(decode_tbls_lru->begin(), cachetable);
   } else {
     dout(12) << "[ store table  ] = " << signature << dendl;
     // allocate a new buffer
-    cachetable = ceph::buffer::create(k * (m + k)*32);
+    cachetable = ceph::buffer::create(k * (m + k) * 32);
     decode_tbls_lru->push_front(signature);
-    (*decode_tbls_map)[signature] = std::make_pair(decode_tbls_lru->begin(), cachetable);
+    (*decode_tbls_map)[signature] =
+        std::make_pair(decode_tbls_lru->begin(), cachetable);
     dout(12) << "[ cache size   ] = " << decode_tbls_lru->size() << dendl;
   }
 
   // copy-in the new table
-  memcpy(cachetable.c_str(), table, k * (m + k)*32);
+  memcpy(cachetable.c_str(), table, k * (m + k) * 32);
 }

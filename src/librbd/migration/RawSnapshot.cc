@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/migration/RawSnapshot.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
@@ -22,32 +23,39 @@ const std::string NAME_KEY{"name"};
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::RawSnapshot::OpenRequest " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::migration::RawSnapshot::OpenRequest " << this << " " \
+         << __func__ << ": "
 
 template <typename I>
 struct RawSnapshot<I>::OpenRequest {
   RawSnapshot* raw_snapshot;
   Context* on_finish;
 
-  OpenRequest(RawSnapshot* raw_snapshot, Context* on_finish)
-    : raw_snapshot(raw_snapshot), on_finish(on_finish) {
-  }
+  OpenRequest(RawSnapshot* raw_snapshot, Context* on_finish) :
+    raw_snapshot(raw_snapshot), on_finish(on_finish)
+  {}
 
-  void send() {
+  void
+  send()
+  {
     open_stream();
   }
 
-  void open_stream() {
+  void
+  open_stream()
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << dendl;
 
     auto ctx = util::create_context_callback<
-      OpenRequest, &OpenRequest::handle_open_stream>(this);
+        OpenRequest, &OpenRequest::handle_open_stream>(this);
     raw_snapshot->m_stream->open(ctx);
   }
 
-  void handle_open_stream(int r) {
+  void
+  handle_open_stream(int r)
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << "r=" << r << dendl;
 
@@ -60,16 +68,20 @@ struct RawSnapshot<I>::OpenRequest {
     get_image_size();
   }
 
-  void get_image_size() {
+  void
+  get_image_size()
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << dendl;
 
     auto ctx = util::create_context_callback<
-      OpenRequest, &OpenRequest::handle_get_image_size>(this);
+        OpenRequest, &OpenRequest::handle_get_image_size>(this);
     raw_snapshot->m_stream->get_size(&raw_snapshot->m_snap_info.size, ctx);
   }
 
-  void handle_get_image_size(int r) {
+  void
+  handle_get_image_size(int r)
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << "r=" << r << ", "
                    << "image_size=" << raw_snapshot->m_snap_info.size << dendl;
@@ -83,17 +95,19 @@ struct RawSnapshot<I>::OpenRequest {
     finish(0);
   }
 
-  void close_stream(int r) {
+  void
+  close_stream(int r)
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << dendl;
 
-    auto ctx = new LambdaContext([this, r](int) {
-      handle_close_stream(r);
-    });
+    auto ctx = new LambdaContext([this, r](int) { handle_close_stream(r); });
     raw_snapshot->m_stream->close(ctx);
   }
 
-  void handle_close_stream(int r) {
+  void
+  handle_close_stream(int r)
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << "r=" << r << dendl;
 
@@ -102,7 +116,9 @@ struct RawSnapshot<I>::OpenRequest {
     finish(r);
   }
 
-  void finish(int r) {
+  void
+  finish(int r)
+  {
     auto cct = raw_snapshot->m_image_ctx->cct;
     ldout(cct, 10) << "r=" << r << dendl;
 
@@ -112,24 +128,30 @@ struct RawSnapshot<I>::OpenRequest {
 };
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::RawSnapshot: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::migration::RawSnapshot: " << this << " " << __func__ \
+         << ": "
 
 template <typename I>
-RawSnapshot<I>::RawSnapshot(I* image_ctx,
-                            const json_spirit::mObject& json_object,
-                            const SourceSpecBuilder<I>* source_spec_builder,
-                            uint64_t index)
-  : m_image_ctx(image_ctx), m_json_object(json_object),
-    m_source_spec_builder(source_spec_builder), m_index(index),
-    m_snap_info({}, {}, 0, {}, 0, 0, {}) {
+RawSnapshot<I>::RawSnapshot(
+    I* image_ctx,
+    const json_spirit::mObject& json_object,
+    const SourceSpecBuilder<I>* source_spec_builder,
+    uint64_t index) :
+  m_image_ctx(image_ctx),
+  m_json_object(json_object),
+  m_source_spec_builder(source_spec_builder),
+  m_index(index),
+  m_snap_info({}, {}, 0, {}, 0, 0, {})
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 }
 
 template <typename I>
-void RawSnapshot<I>::open(SnapshotInterface* previous_snapshot,
-                          Context* on_finish) {
+void
+RawSnapshot<I>::open(SnapshotInterface* previous_snapshot, Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
 
   // special-case for treating the HEAD revision as a snapshot
@@ -164,7 +186,9 @@ void RawSnapshot<I>::open(SnapshotInterface* previous_snapshot,
 }
 
 template <typename I>
-void RawSnapshot<I>::close(Context* on_finish) {
+void
+RawSnapshot<I>::close(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 10) << dendl;
 
@@ -177,11 +201,15 @@ void RawSnapshot<I>::close(Context* on_finish) {
 }
 
 template <typename I>
-void RawSnapshot<I>::read(io::AioCompletion* aio_comp,
-                          io::Extents&& image_extents,
-                          io::ReadResult&& read_result, int op_flags,
-                          int read_flags,
-                          const ZTracer::Trace &parent_trace) {
+void
+RawSnapshot<I>::read(
+    io::AioCompletion* aio_comp,
+    io::Extents&& image_extents,
+    io::ReadResult&& read_result,
+    int op_flags,
+    int read_flags,
+    const ZTracer::Trace& parent_trace)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "image_extents=" << image_extents << dendl;
 
@@ -189,25 +217,27 @@ void RawSnapshot<I>::read(io::AioCompletion* aio_comp,
   aio_comp->read_result.set_image_extents(image_extents);
 
   aio_comp->set_request_count(1);
-  auto ctx = new io::ReadResult::C_ImageReadRequest(aio_comp,
-                                                    0, image_extents);
+  auto ctx = new io::ReadResult::C_ImageReadRequest(aio_comp, 0, image_extents);
 
   // raw directly maps the image-extent IO down to a byte IO extent
   m_stream->read(std::move(image_extents), &ctx->bl, ctx);
 }
 
 template <typename I>
-void RawSnapshot<I>::list_snap(io::Extents&& image_extents,
-                               int list_snaps_flags,
-                               io::SparseExtents* sparse_extents,
-                               const ZTracer::Trace &parent_trace,
-                               Context* on_finish) {
+void
+RawSnapshot<I>::list_snap(
+    io::Extents&& image_extents,
+    int list_snaps_flags,
+    io::SparseExtents* sparse_extents,
+    const ZTracer::Trace& parent_trace,
+    Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "image_extents=" << image_extents << dendl;
 
   // raw directly maps the image-extent IO down to a byte IO extent
-  m_stream->list_sparse_extents(std::move(image_extents), sparse_extents,
-                                on_finish);
+  m_stream->list_sparse_extents(
+      std::move(image_extents), sparse_extents, on_finish);
 }
 
 } // namespace migration

@@ -2,12 +2,13 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/migration/NBDStream.h"
+
+#include <libnbd.h>
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/AsioEngine.h"
 #include "librbd/ImageCtx.h"
-
-#include <libnbd.h>
 
 namespace librbd {
 namespace migration {
@@ -16,7 +17,9 @@ namespace {
 
 const std::string URI_KEY{"uri"};
 
-int from_nbd_errno(int rc) {
+int
+from_nbd_errno(int rc)
+{
   // nbd_get_errno() needs a default/fallback error:
   // "Even when a call returns an error, nbd_get_errno() might return 0.
   // This does not mean there was no error. It means no additional errno
@@ -24,8 +27,15 @@ int from_nbd_errno(int rc) {
   return rc > 0 ? -rc : -EIO;
 }
 
-int extent_cb(void* data, const char* metacontext, uint64_t offset,
-              uint32_t* entries, size_t nr_entries, int* error) {
+int
+extent_cb(
+    void* data,
+    const char* metacontext,
+    uint64_t offset,
+    uint32_t* entries,
+    size_t nr_entries,
+    int* error)
+{
   auto sparse_extents = reinterpret_cast<io::SparseExtents*>(data);
 
   // "[...] always check the metacontext field to ensure you are
@@ -35,8 +45,8 @@ int extent_cb(void* data, const char* metacontext, uint64_t offset,
       auto length = entries[i];
       auto state = entries[i + 1];
       if (length > 0 && state & (LIBNBD_STATE_HOLE | LIBNBD_STATE_ZERO)) {
-        sparse_extents->insert(offset, length,
-                               {io::SPARSE_EXTENT_STATE_ZEROED, length});
+        sparse_extents->insert(
+            offset, length, {io::SPARSE_EXTENT_STATE_ZEROED, length});
       }
       offset += length;
     }
@@ -50,62 +60,89 @@ int extent_cb(void* data, const char* metacontext, uint64_t offset,
 template <typename>
 class NBDClient {
 public:
-  static NBDClient* create() {
+  static NBDClient*
+  create()
+  {
     return new NBDClient();
   }
 
-  const char* get_error() {
+  const char*
+  get_error()
+  {
     return nbd_get_error();
   }
 
-  int get_errno() {
+  int
+  get_errno()
+  {
     return nbd_get_errno();
   }
 
-  int init() {
+  int
+  init()
+  {
     m_handle.reset(nbd_create());
     return m_handle != nullptr ? 0 : -1;
   }
 
-  int add_meta_context(const char* name) {
+  int
+  add_meta_context(const char* name)
+  {
     return nbd_add_meta_context(m_handle.get(), name);
   }
 
-  int connect_uri(const char* uri) {
+  int
+  connect_uri(const char* uri)
+  {
     return nbd_connect_uri(m_handle.get(), uri);
   }
 
-  int64_t get_size() {
+  int64_t
+  get_size()
+  {
     return nbd_get_size(m_handle.get());
   }
 
-  int pread(void* buf, size_t count, uint64_t offset, uint32_t flags) {
+  int
+  pread(void* buf, size_t count, uint64_t offset, uint32_t flags)
+  {
     return nbd_pread(m_handle.get(), buf, count, offset, flags);
   }
 
-  int block_status(uint64_t count, uint64_t offset,
-                   nbd_extent_callback extent_callback, uint32_t flags) {
-    return nbd_block_status(m_handle.get(), count, offset, extent_callback,
-                            flags);
+  int
+  block_status(
+      uint64_t count,
+      uint64_t offset,
+      nbd_extent_callback extent_callback,
+      uint32_t flags)
+  {
+    return nbd_block_status(
+        m_handle.get(), count, offset, extent_callback, flags);
   }
 
-  int shutdown(uint32_t flags) {
+  int
+  shutdown(uint32_t flags)
+  {
     return nbd_shutdown(m_handle.get(), flags);
   }
 
 private:
   struct nbd_handle_deleter {
-    void operator()(nbd_handle* h) {
+    void
+    operator()(nbd_handle* h)
+    {
       nbd_close(h);
     }
   };
+
   std::unique_ptr<nbd_handle, nbd_handle_deleter> m_handle;
 };
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::NBDStream::ReadRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                      \
+  *_dout << "librbd::migration::NBDStream::ReadRequest: " << this << " " \
+         << __func__ << ": "
 
 template <typename I>
 struct NBDStream<I>::ReadRequest {
@@ -115,20 +152,30 @@ struct NBDStream<I>::ReadRequest {
   Context* on_finish;
   size_t index = 0;
 
-  ReadRequest(NBDStream* nbd_stream, io::Extents&& byte_extents,
-              bufferlist* data, Context* on_finish)
-    : nbd_stream(nbd_stream), byte_extents(std::move(byte_extents)),
-      data(data), on_finish(on_finish) {
+  ReadRequest(
+      NBDStream* nbd_stream,
+      io::Extents&& byte_extents,
+      bufferlist* data,
+      Context* on_finish) :
+    nbd_stream(nbd_stream),
+    byte_extents(std::move(byte_extents)),
+    data(data),
+    on_finish(on_finish)
+  {
     auto cct = nbd_stream->m_cct;
     ldout(cct, 20) << dendl;
   }
 
-  void send() {
+  void
+  send()
+  {
     data->clear();
     read();
   }
 
-  void read() {
+  void
+  read()
+  {
     if (index >= byte_extents.size()) {
       finish(0);
       return;
@@ -136,12 +183,12 @@ struct NBDStream<I>::ReadRequest {
 
     auto cct = nbd_stream->m_cct;
     auto [byte_offset, byte_length] = byte_extents[index++];
-    ldout(cct, 20) << "byte_offset=" << byte_offset << " byte_length="
-                   << byte_length << dendl;
+    ldout(cct, 20) << "byte_offset=" << byte_offset
+                   << " byte_length=" << byte_length << dendl;
 
     auto& nbd_client = nbd_stream->m_nbd_client;
-    auto ptr = buffer::ptr_node::create(buffer::create_small_page_aligned(
-      byte_length));
+    auto ptr = buffer::ptr_node::create(
+        buffer::create_small_page_aligned(byte_length));
     int rc = nbd_client->pread(ptr->c_str(), byte_length, byte_offset, 0);
     if (rc == -1) {
       rc = nbd_client->get_errno();
@@ -156,7 +203,9 @@ struct NBDStream<I>::ReadRequest {
     boost::asio::post(nbd_stream->m_strand, [this] { read(); });
   }
 
-  void finish(int r) {
+  void
+  finish(int r)
+  {
     auto cct = nbd_stream->m_cct;
     ldout(cct, 20) << "r=" << r << dendl;
 
@@ -170,8 +219,9 @@ struct NBDStream<I>::ReadRequest {
 };
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::NBDStream::ListSparseExtentsRequest: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                            \
+  *_dout << "librbd::migration::NBDStream::ListSparseExtentsRequest: " << this \
+         << " " << __func__ << ": "
 
 template <typename I>
 struct NBDStream<I>::ListSparseExtentsRequest {
@@ -181,19 +231,29 @@ struct NBDStream<I>::ListSparseExtentsRequest {
   Context* on_finish;
   size_t index = 0;
 
-  ListSparseExtentsRequest(NBDStream* nbd_stream, io::Extents&& byte_extents,
-                           io::SparseExtents* sparse_extents, Context* on_finish)
-    : nbd_stream(nbd_stream), byte_extents(std::move(byte_extents)),
-      sparse_extents(sparse_extents), on_finish(on_finish) {
+  ListSparseExtentsRequest(
+      NBDStream* nbd_stream,
+      io::Extents&& byte_extents,
+      io::SparseExtents* sparse_extents,
+      Context* on_finish) :
+    nbd_stream(nbd_stream),
+    byte_extents(std::move(byte_extents)),
+    sparse_extents(sparse_extents),
+    on_finish(on_finish)
+  {
     auto cct = nbd_stream->m_cct;
     ldout(cct, 20) << dendl;
   }
 
-  void send() {
+  void
+  send()
+  {
     list_sparse_extents();
   }
 
-  void list_sparse_extents() {
+  void
+  list_sparse_extents()
+  {
     if (index >= byte_extents.size()) {
       finish(0);
       return;
@@ -201,8 +261,8 @@ struct NBDStream<I>::ListSparseExtentsRequest {
 
     auto cct = nbd_stream->m_cct;
     auto [byte_offset, byte_length] = byte_extents[index++];
-    ldout(cct, 20) << "byte_offset=" << byte_offset << " byte_length="
-                   << byte_length << dendl;
+    ldout(cct, 20) << "byte_offset=" << byte_offset
+                   << " byte_length=" << byte_length << dendl;
 
     // nbd_block_status() is specified to be really loose:
     // "The count parameter is a hint: the server may choose to
@@ -212,12 +272,12 @@ struct NBDStream<I>::ListSparseExtentsRequest {
     // possible that the extent function is not called at all, even
     // for metadata contexts that you requested."
     io::SparseExtents tmp_sparse_extents;
-    tmp_sparse_extents.insert(byte_offset, byte_length,
-                              {io::SPARSE_EXTENT_STATE_DATA, byte_length});
+    tmp_sparse_extents.insert(
+        byte_offset, byte_length, {io::SPARSE_EXTENT_STATE_DATA, byte_length});
 
     auto& nbd_client = nbd_stream->m_nbd_client;
-    int rc = nbd_client->block_status(byte_length, byte_offset,
-                                      {extent_cb, &tmp_sparse_extents}, 0);
+    int rc = nbd_client->block_status(
+        byte_length, byte_offset, {extent_cb, &tmp_sparse_extents}, 0);
     if (rc == -1) {
       rc = nbd_client->get_errno();
       lderr(cct) << "block_status " << byte_offset << "~" << byte_length << ": "
@@ -229,13 +289,15 @@ struct NBDStream<I>::ListSparseExtentsRequest {
     }
 
     // trim the result in case more status was returned
-    sparse_extents->insert(tmp_sparse_extents.intersect(byte_offset,
-                                                        byte_length));
+    sparse_extents->insert(
+        tmp_sparse_extents.intersect(byte_offset, byte_length));
 
     boost::asio::post(nbd_stream->m_strand, [this] { list_sparse_extents(); });
   }
 
-  void finish(int r) {
+  void
+  finish(int r)
+  {
     auto cct = nbd_stream->m_cct;
     ldout(cct, 20) << "r=" << r << dendl;
 
@@ -245,27 +307,29 @@ struct NBDStream<I>::ListSparseExtentsRequest {
 };
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::migration::NBDStream: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::migration::NBDStream: " << this << " " << __func__ << ": "
 
 template <typename I>
-NBDStream<I>::NBDStream(I* image_ctx, const json_spirit::mObject& json_object)
-  : m_cct(image_ctx->cct), m_asio_engine(image_ctx->asio_engine),
-    m_json_object(json_object),
-    m_strand(boost::asio::make_strand(*m_asio_engine)) {
-}
+NBDStream<I>::NBDStream(I* image_ctx, const json_spirit::mObject& json_object) :
+  m_cct(image_ctx->cct),
+  m_asio_engine(image_ctx->asio_engine),
+  m_json_object(json_object),
+  m_strand(boost::asio::make_strand(*m_asio_engine))
+{}
 
 template <typename I>
-NBDStream<I>::~NBDStream() {
-}
+NBDStream<I>::~NBDStream()
+{}
 
 template <typename I>
-void NBDStream<I>::open(Context* on_finish) {
+void
+NBDStream<I>::open(Context* on_finish)
+{
   std::string uri;
   int rc;
 
-  if (auto it = m_json_object.find(URI_KEY);
-      it != m_json_object.end()) {
+  if (auto it = m_json_object.find(URI_KEY); it != m_json_object.end()) {
     if (it->second.type() == json_spirit::str_type) {
       uri = it->second.get_str();
     } else {
@@ -285,8 +349,8 @@ void NBDStream<I>::open(Context* on_finish) {
   rc = m_nbd_client->init();
   if (rc == -1) {
     rc = m_nbd_client->get_errno();
-    lderr(m_cct) << "init: " << m_nbd_client->get_error()
-                 << " (errno = " << rc << ")" << dendl;
+    lderr(m_cct) << "init: " << m_nbd_client->get_error() << " (errno = " << rc
+                 << ")" << dendl;
     on_finish->complete(from_nbd_errno(rc));
     return;
   }
@@ -313,7 +377,9 @@ void NBDStream<I>::open(Context* on_finish) {
 }
 
 template <typename I>
-void NBDStream<I>::close(Context* on_finish) {
+void
+NBDStream<I>::close(Context* on_finish)
+{
   ldout(m_cct, 20) << dendl;
 
   if (m_nbd_client != nullptr) {
@@ -329,7 +395,9 @@ void NBDStream<I>::close(Context* on_finish) {
 }
 
 template <typename I>
-void NBDStream<I>::get_size(uint64_t* size, Context* on_finish) {
+void
+NBDStream<I>::get_size(uint64_t* size, Context* on_finish)
+{
   ldout(m_cct, 20) << dendl;
 
   int64_t rc = m_nbd_client->get_size();
@@ -346,21 +414,27 @@ void NBDStream<I>::get_size(uint64_t* size, Context* on_finish) {
 }
 
 template <typename I>
-void NBDStream<I>::read(io::Extents&& byte_extents,
-                        bufferlist* data,
-                        Context* on_finish) {
+void
+NBDStream<I>::read(
+    io::Extents&& byte_extents,
+    bufferlist* data,
+    Context* on_finish)
+{
   ldout(m_cct, 20) << byte_extents << dendl;
   auto ctx = new ReadRequest(this, std::move(byte_extents), data, on_finish);
   boost::asio::post(m_strand, [ctx] { ctx->send(); });
 }
 
 template <typename I>
-void NBDStream<I>::list_sparse_extents(io::Extents&& byte_extents,
-                                       io::SparseExtents* sparse_extents,
-                                       Context* on_finish) {
+void
+NBDStream<I>::list_sparse_extents(
+    io::Extents&& byte_extents,
+    io::SparseExtents* sparse_extents,
+    Context* on_finish)
+{
   ldout(m_cct, 20) << byte_extents << dendl;
-  auto ctx = new ListSparseExtentsRequest(this, std::move(byte_extents),
-                                          sparse_extents, on_finish);
+  auto ctx = new ListSparseExtentsRequest(
+      this, std::move(byte_extents), sparse_extents, on_finish);
   boost::asio::post(m_strand, [ctx] { ctx->send(); });
 }
 

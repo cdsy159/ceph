@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -23,52 +23,65 @@ class Distribution {
   std::vector<float> p;
   std::vector<int> v;
 
- public:
-  //Distribution() { 
+public:
+  //Distribution() {
   //}
-  
-  unsigned get_width() {
+
+  unsigned
+  get_width()
+  {
     return p.size();
   }
 
-  void clear() {
+  void
+  clear()
+  {
     p.clear();
     v.clear();
   }
-  void add(int val, float pr) {
+
+  void
+  add(int val, float pr)
+  {
     p.push_back(pr);
     v.push_back(val);
   }
 
-  void random() {
+  void
+  random()
+  {
     float sum = 0.0;
-    for (unsigned i=0; i<p.size(); i++) {
+    for (unsigned i = 0; i < p.size(); i++) {
       p[i] = (float)(rand() % 10000);
       sum += p[i];
     }
-    for (unsigned i=0; i<p.size(); i++) 
+    for (unsigned i = 0; i < p.size(); i++)
       p[i] /= sum;
   }
 
-  int sample() {
+  int
+  sample()
+  {
     float s = (float)(rand() % 10000) / 10000.0;
-    for (unsigned i=0; i<p.size(); i++) {
-      if (s < p[i]) return v[i];
+    for (unsigned i = 0; i < p.size(); i++) {
+      if (s < p[i])
+        return v[i];
       s -= p[i];
     }
     ceph_abort();
-    return v[p.size() - 1];  // hmm.  :/
+    return v[p.size() - 1]; // hmm.  :/
   }
 
-  float normalize() {
+  float
+  normalize()
+  {
     float s = 0.0;
-    for (unsigned i=0; i<p.size(); i++)
+    for (unsigned i = 0; i < p.size(); i++)
       s += p[i];
-    for (unsigned i=0; i<p.size(); i++)
+    for (unsigned i = 0; i < p.size(); i++)
       p[i] /= s;
     return s;
   }
-
 };
 
 #endif

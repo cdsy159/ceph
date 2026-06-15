@@ -6,21 +6,22 @@
 
 #include <map>
 
-#include "mdstypes.h" // for mds_rank_t
 #include "common/ceph_mutex.h"
 #include "common/ceph_time.h"
 #include "include/types.h" // for version_t
 #include "msg/msg_types.h" // for entity_addrvec_t
 
+#include "mdstypes.h" // for mds_rank_t
+
 class MDSRank;
 
 class MDSPinger {
 public:
-  MDSPinger(MDSRank *mds);
+  MDSPinger(MDSRank* mds);
 
   // send a ping message to an mds rank. initialize ping state if
   // required.
-  void send_ping(mds_rank_t rank, const entity_addrvec_t &addr);
+  void send_ping(mds_rank_t rank, const entity_addrvec_t& addr);
 
   // check if a pong response is valid. a pong reponse from an
   // mds is valid if at least one ping message was sent to the
@@ -48,7 +49,7 @@ private:
     time last_acked_time = clock::now();
   };
 
-  MDSRank *mds;
+  MDSRank* mds;
   // drop this lock when calling ->send_message_mds() else mds might
   // deadlock
   ceph::mutex lock = ceph::make_mutex("MDSPinger::lock");

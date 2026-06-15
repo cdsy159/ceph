@@ -21,9 +21,8 @@
 #include <cstdint>
 
 enum ceph_subsys_id_t {
-  ceph_subsys_,   // default
-#define SUBSYS(name, log, gather) \
-  ceph_subsys_##name,
+  ceph_subsys_, // default
+#define SUBSYS(name, log, gather) ceph_subsys_##name,
 #define DEFAULT_SUBSYS(log, gather)
 #include "common/subsys.h"
 #undef SUBSYS
@@ -31,7 +30,9 @@ enum ceph_subsys_id_t {
   ceph_subsys_max
 };
 
-constexpr static std::size_t ceph_subsys_get_num() {
+constexpr static std::size_t
+ceph_subsys_get_num()
+{
   return static_cast<std::size_t>(ceph_subsys_max);
 }
 
@@ -42,11 +43,12 @@ struct ceph_subsys_item_t {
 };
 
 constexpr static std::array<ceph_subsys_item_t, ceph_subsys_get_num()>
-ceph_subsys_get_as_array() {
-#define SUBSYS(name, log, gather) \
-  ceph_subsys_item_t{ #name, log, gather },
-#define DEFAULT_SUBSYS(log, gather) \
-  ceph_subsys_item_t{ "none", log, gather },
+ceph_subsys_get_as_array()
+{
+#define SUBSYS(name, log, gather)           \
+  ceph_subsys_item_t { #name, log, gather } \
+  ,
+#define DEFAULT_SUBSYS(log, gather) ceph_subsys_item_t{"none", log, gather},
 
   return {
 #include "common/subsys.h"
@@ -56,7 +58,8 @@ ceph_subsys_get_as_array() {
 }
 
 constexpr static std::uint8_t
-ceph_subsys_get_max_default_level(const std::size_t subidx) {
+ceph_subsys_get_max_default_level(const std::size_t subidx)
+{
   const auto item = ceph_subsys_get_as_array()[subidx];
   return std::max(item.log_level, item.gather_level);
 }
@@ -64,7 +67,9 @@ ceph_subsys_get_max_default_level(const std::size_t subidx) {
 // Compile time-capable version of std::strlen. Resorting to own
 // implementation only because C++17 doesn't mandate constexpr
 // on the standard one.
-constexpr static std::size_t strlen_ct(const char* const s) {
+constexpr static std::size_t
+strlen_ct(const char* const s)
+{
   std::size_t l = 0;
   while (s[l] != '\0') {
     ++l;
@@ -72,12 +77,12 @@ constexpr static std::size_t strlen_ct(const char* const s) {
   return l;
 }
 
-constexpr static std::size_t ceph_subsys_max_name_length() {
+constexpr static std::size_t
+ceph_subsys_max_name_length()
+{
   return std::max({
-#define SUBSYS(name, log, gather) \
-  strlen_ct(#name),
-#define DEFAULT_SUBSYS(log, gather) \
-  strlen_ct("none"),
+#define SUBSYS(name, log, gather) strlen_ct(#name),
+#define DEFAULT_SUBSYS(log, gather) strlen_ct("none"),
 #include "common/subsys.h"
 #undef SUBSYS
 #undef DEFAULT_SUBSYS
@@ -85,4 +90,3 @@ constexpr static std::size_t ceph_subsys_max_name_length() {
 }
 
 #endif // CEPH_SUBSYS_TYPES_H
-

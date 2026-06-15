@@ -12,50 +12,56 @@
  * Foundation. See file COPYING.
  *
  */
-#include "rgw_rados.h"
-#include "rgw_http_client.h"
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include <unistd.h>
 #include <curl/curl.h>
+#include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <thread>
+
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
-#include <thread>
-#include <gtest/gtest.h>
+
+#include "common/ceph_argparse.h"
+#include "global/global_init.h"
+
+#include "rgw_http_client.h"
+#include "rgw_rados.h"
 
 using namespace std;
 
 namespace {
+using tcp = boost::asio::ip::tcp;
+
+// if we have a racing where another thread manages to bind and listen the
+// port picked by this acceptor, try again.
+static constexpr int MAX_BIND_RETRIES = 60;
+
+tcp::acceptor
+try_bind(boost::asio::io_context& ioctx)
+{
   using tcp = boost::asio::ip::tcp;
-
-  // if we have a racing where another thread manages to bind and listen the
-  // port picked by this acceptor, try again.
-  static constexpr int MAX_BIND_RETRIES = 60;
-
-  tcp::acceptor try_bind(boost::asio::io_context& ioctx) {
-    using tcp = boost::asio::ip::tcp;
-    tcp::endpoint endpoint(tcp::v4(), 0);
-    tcp::acceptor acceptor(ioctx);
-    acceptor.open(endpoint.protocol());
-    for (int retries = 0;; retries++) {
-      try {
-	acceptor.bind(endpoint);
-	// yay!
-	break;
-      } catch (const boost::system::system_error& e) {
-	if (retries == MAX_BIND_RETRIES) {
-	  throw;
-	}
-	if (e.code() != boost::system::errc::address_in_use) {
-	  throw;
-	}
+  tcp::endpoint endpoint(tcp::v4(), 0);
+  tcp::acceptor acceptor(ioctx);
+  acceptor.open(endpoint.protocol());
+  for (int retries = 0;; retries++) {
+    try {
+      acceptor.bind(endpoint);
+      // yay!
+      break;
+    } catch (const boost::system::system_error& e) {
+      if (retries == MAX_BIND_RETRIES) {
+        throw;
       }
-      // backoff a little bit
-      sleep(1);
+      if (e.code() != boost::system::errc::address_in_use) {
+        throw;
+      }
     }
-    return acceptor;
+    // backoff a little bit
+    sleep(1);
   }
+  return acceptor;
 }
+} // namespace
 
 TEST(HTTPManager, ReadTruncated)
 {
@@ -74,7 +80,8 @@ TEST(HTTPManager, ReadTruncated)
         "short body";
     boost::asio::write(socket, boost::asio::buffer(response));
   }};
-  const auto url = std::string{"http://127.0.0.1:"} + std::to_string(acceptor.local_endpoint().port());
+  const auto url = std::string{"http://127.0.0.1:"} +
+                   std::to_string(acceptor.local_endpoint().port());
 
   RGWHTTPClient client{g_ceph_context, "GET", url};
   const auto dpp = NoDoutPrefix{g_ceph_context, ceph_subsys_rgw};
@@ -99,7 +106,8 @@ TEST(HTTPManager, Head)
         "\r\n";
     boost::asio::write(socket, boost::asio::buffer(response));
   }};
-  const auto url = std::string{"http://127.0.0.1:"} + std::to_string(acceptor.local_endpoint().port());
+  const auto url = std::string{"http://127.0.0.1:"} +
+                   std::to_string(acceptor.local_endpoint().port());
 
   RGWHTTPClient client{g_ceph_context, "HEAD", url};
   const auto dpp = NoDoutPrefix{g_ceph_context, ceph_subsys_rgw};
@@ -133,12 +141,13 @@ TEST(HTTPManager, SignalThread)
   }
 }
 
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   rgw_http_client_init(cct->get());

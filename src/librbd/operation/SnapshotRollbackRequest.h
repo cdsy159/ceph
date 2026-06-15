@@ -4,11 +4,12 @@
 #ifndef CEPH_LIBRBD_OPERATION_SNAPSHOT_ROLLBACK_REQUEST_H
 #define CEPH_LIBRBD_OPERATION_SNAPSHOT_ROLLBACK_REQUEST_H
 
-#include "librbd/operation/Request.h"
+#include <string>
+
 #include "librbd/ImageCtx.h"
 #include "librbd/internal.h"
 #include "librbd/journal/Types.h"
-#include <string>
+#include "librbd/operation/Request.h"
 
 class Context;
 
@@ -59,20 +60,28 @@ public:
    * The _INVALIDATE_CACHE state is skipped if the cache isn't enabled.
    */
 
-  SnapshotRollbackRequest(ImageCtxT &image_ctx, Context *on_finish,
-			  const cls::rbd::SnapshotNamespace &snap_namespace,
-                          const std::string &snap_name,
-			  uint64_t snap_id,
-                          uint64_t snap_size, ProgressContext &prog_ctx);
+  SnapshotRollbackRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      const cls::rbd::SnapshotNamespace& snap_namespace,
+      const std::string& snap_name,
+      uint64_t snap_id,
+      uint64_t snap_size,
+      ProgressContext& prog_ctx);
   ~SnapshotRollbackRequest() override;
 
 protected:
   void send_op() override;
-  bool should_complete(int r) override {
+
+  bool
+  should_complete(int r) override
+  {
     return true;
   }
 
-  journal::Event create_event(uint64_t op_tid) const override {
+  journal::Event
+  create_event(uint64_t op_tid) const override
+  {
     return journal::SnapRollbackEvent(op_tid, m_snap_namespace, m_snap_name);
   }
 
@@ -82,7 +91,7 @@ private:
   uint64_t m_snap_id;
   uint64_t m_snap_size;
   uint64_t m_head_num_objects;
-  ProgressContext &m_prog_ctx;
+  ProgressContext& m_prog_ctx;
 
   NoOpProgressContext m_no_op_prog_ctx;
 
@@ -91,25 +100,25 @@ private:
   decltype(ImageCtxT::object_map) m_snap_object_map;
 
   void send_block_writes();
-  Context *handle_block_writes(int *result);
+  Context* handle_block_writes(int* result);
 
   void send_resize_image();
-  Context *handle_resize_image(int *result);
+  Context* handle_resize_image(int* result);
 
   void send_get_snap_object_map();
-  Context *handle_get_snap_object_map(int *result);
+  Context* handle_get_snap_object_map(int* result);
 
   void send_rollback_object_map();
-  Context *handle_rollback_object_map(int *result);
+  Context* handle_rollback_object_map(int* result);
 
   void send_rollback_objects();
-  Context *handle_rollback_objects(int *result);
+  Context* handle_rollback_objects(int* result);
 
-  Context *send_refresh_object_map();
-  Context *handle_refresh_object_map(int *result);
+  Context* send_refresh_object_map();
+  Context* handle_refresh_object_map(int* result);
 
-  Context *send_invalidate_cache();
-  Context *handle_invalidate_cache(int *result);
+  Context* send_invalidate_cache();
+  Context* handle_invalidate_cache(int* result);
 
   void apply();
 };

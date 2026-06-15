@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -26,10 +26,14 @@
 
 class ExtBlkDevPluginVdo : public ceph::ExtBlkDevPlugin {
 public:
-  explicit ExtBlkDevPluginVdo(CephContext *cct) : ExtBlkDevPlugin(cct) {}
+  explicit ExtBlkDevPluginVdo(CephContext* cct) :
+    ExtBlkDevPlugin(cct)
+  {}
+
   int get_required_cap_set(cap_t caps) override;
-  int factory(const std::string& logdevname,
-	      ceph::ExtBlkDevInterfaceRef& ext_blk_dev) override;
+  int factory(
+      const std::string& logdevname,
+      ceph::ExtBlkDevInterfaceRef& ext_blk_dev) override;
 };
 
 #endif

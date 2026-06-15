@@ -10,7 +10,7 @@ class Context;
 
 namespace librbd {
 
-struct MockPluginRegistry{
+struct MockPluginRegistry {
   MOCK_METHOD2(init, void(const std::string&, Context*));
   MOCK_METHOD1(acquired_exclusive_lock, void(Context*));
   MOCK_METHOD1(prerelease_exclusive_lock, void(Context*));

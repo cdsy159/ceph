@@ -12,20 +12,27 @@
  * Foundation. See file COPYING.
  *
  */
+#include <gtest/gtest.h>
+
+#include <boost/lexical_cast.hpp>
+
+#include "common/ceph_argparse.h"
+#include "global/global_init.h"
+
 #include "rgw_period_history.h"
 #include "rgw_rados.h"
 #include "rgw_zone.h"
-#include "global/global_init.h"
-#include "common/ceph_argparse.h"
-#include <boost/lexical_cast.hpp>
-#include <gtest/gtest.h>
 
 using namespace std;
+
 namespace {
 
 // construct a period with the given fields
-RGWPeriod make_period(const std::string& id, epoch_t realm_epoch,
-                      const std::string& predecessor)
+RGWPeriod
+make_period(
+    const std::string& id,
+    epoch_t realm_epoch,
+    const std::string& predecessor)
 {
   RGWPeriod period(id);
   period.set_realm_epoch(realm_epoch);
@@ -37,20 +44,41 @@ const auto current_period = make_period("5", 5, "4");
 
 // mock puller that throws an exception if it's called
 struct ErrorPuller : public RGWPeriodHistory::Puller {
-  int pull(const DoutPrefixProvider *dpp, const std::string& id, RGWPeriod& period, optional_yield, rgw::sal::ConfigStore* cfgstore) override {
+  int
+  pull(
+      const DoutPrefixProvider* dpp,
+      const std::string& id,
+      RGWPeriod& period,
+      optional_yield,
+      rgw::sal::ConfigStore* cfgstore) override
+  {
     throw std::runtime_error("unexpected call to pull");
   }
 };
+
 ErrorPuller puller; // default puller
 
 // mock puller that records the period ids requested and returns an error
 using Ids = std::vector<std::string>;
+
 class RecordingPuller : public RGWPeriodHistory::Puller {
   const int error;
- public:
-  explicit RecordingPuller(int error) : error(error) {}
+
+public:
+  explicit RecordingPuller(int error) :
+    error(error)
+  {}
+
   Ids ids;
-  int pull(const DoutPrefixProvider *dpp, const std::string& id, RGWPeriod& period, optional_yield, rgw::sal::ConfigStore* cfgstore) override {
+
+  int
+  pull(
+      const DoutPrefixProvider* dpp,
+      const std::string& id,
+      RGWPeriod& period,
+      optional_yield,
+      rgw::sal::ConfigStore* cfgstore) override
+  {
     ids.push_back(id);
     return error;
   }
@@ -58,10 +86,17 @@ class RecordingPuller : public RGWPeriodHistory::Puller {
 
 // mock puller that returns a fake period by parsing the period id
 struct NumericPuller : public RGWPeriodHistory::Puller {
-  int pull(const DoutPrefixProvider *dpp, const std::string& id, RGWPeriod& period, optional_yield, rgw::sal::ConfigStore* cfgstore) override {
+  int
+  pull(
+      const DoutPrefixProvider* dpp,
+      const std::string& id,
+      RGWPeriod& period,
+      optional_yield,
+      rgw::sal::ConfigStore* cfgstore) override
+  {
     // relies on numeric period ids to divine the realm_epoch
     auto realm_epoch = boost::lexical_cast<epoch_t>(id);
-    auto predecessor = boost::lexical_cast<std::string>(realm_epoch-1);
+    auto predecessor = boost::lexical_cast<std::string>(realm_epoch - 1);
     period = make_period(id, realm_epoch, predecessor);
     return 0;
   }
@@ -70,10 +105,11 @@ struct NumericPuller : public RGWPeriodHistory::Puller {
 } // anonymous namespace
 
 // for ASSERT_EQ()
-bool operator==(const RGWPeriod& lhs, const RGWPeriod& rhs)
+bool
+operator==(const RGWPeriod& lhs, const RGWPeriod& rhs)
 {
-  return lhs.get_id() == rhs.get_id()
-      && lhs.get_realm_epoch() == rhs.get_realm_epoch();
+  return lhs.get_id() == rhs.get_id() &&
+         lhs.get_realm_epoch() == rhs.get_realm_epoch();
 }
 
 TEST(PeriodHistory, InsertBefore)
@@ -324,12 +360,13 @@ TEST(PeriodHistory, AttachAfter)
   ASSERT_FALSE(c.has_next());
 }
 
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   ::testing::InitGoogleTest(&argc, argv);

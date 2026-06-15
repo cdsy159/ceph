@@ -13,284 +13,290 @@
  */
 
 #include "rgw_dedup_table.h"
-#include "include/ceph_assert.h"
+
 #include <cstring>
 #include <iostream>
 
+#include "include/ceph_assert.h"
+
 namespace rgw::dedup {
 
-  //---------------------------------------------------------------------------
-  dedup_table_t::dedup_table_t(const DoutPrefixProvider* _dpp,
-                               uint32_t _head_object_size,
-                               uint32_t _min_obj_size_for_dedup,
-                               bool     _split_head,
-                               uint8_t *p_slab,
-                               uint64_t slab_size)
-  {
-    dpp = _dpp;
-    head_object_size = _head_object_size;
-    min_obj_size_for_dedup = _min_obj_size_for_dedup;
-    split_head = _split_head;
-    memset(p_slab, 0, slab_size);
-    hash_tab = (table_entry_t*)p_slab;
-    entries_count = slab_size/sizeof(table_entry_t);
-    occupied_count = 0;
-  }
+//---------------------------------------------------------------------------
+dedup_table_t::dedup_table_t(
+    const DoutPrefixProvider* _dpp,
+    uint32_t _head_object_size,
+    uint32_t _min_obj_size_for_dedup,
+    bool _split_head,
+    uint8_t* p_slab,
+    uint64_t slab_size)
+{
+  dpp = _dpp;
+  head_object_size = _head_object_size;
+  min_obj_size_for_dedup = _min_obj_size_for_dedup;
+  split_head = _split_head;
+  memset(p_slab, 0, slab_size);
+  hash_tab = (table_entry_t*)p_slab;
+  entries_count = slab_size / sizeof(table_entry_t);
+  occupied_count = 0;
+}
 
-  //---------------------------------------------------------------------------
-  void dedup_table_t::remove_singletons_and_redistribute_keys()
-  {
-    for (uint32_t tab_idx = 0; tab_idx < entries_count; tab_idx++) {
-      if (!hash_tab[tab_idx].val.is_occupied()) {
-        continue;
-      }
-
-      if (hash_tab[tab_idx].val.is_singleton()) {
-        hash_tab[tab_idx].val.clear_flags();
-        redistributed_clear++;
-        continue;
-      }
-
-      const key_t &key = hash_tab[tab_idx].key;
-      // This is an approximation only since size is stored in 4KB resolution
-      uint64_t byte_size_approx = disk_blocks_to_byte_size(key.size_4k_units);
-      if (!dedupable_object(key.multipart_object(), min_obj_size_for_dedup, byte_size_approx)) {
-        hash_tab[tab_idx].val.clear_flags();
-        redistributed_clear++;
-        continue;
-      }
-
-      uint32_t key_idx = key.hash() % entries_count;
-      if (key_idx != tab_idx) {
-        uint64_t count = 1;
-        redistributed_count++;
-        uint32_t idx = key_idx;
-        while (hash_tab[idx].val.is_occupied()   &&
-               !hash_tab[idx].val.is_singleton() &&
-               (hash_tab[idx].key != key)) {
-          count++;
-          idx = (idx + 1) % entries_count;
-        }
-
-        if (idx != tab_idx) {
-          if (hash_tab[idx].val.is_occupied() && hash_tab[idx].val.is_singleton() ) {
-            redistributed_clear++;
-          }
-          if (idx == key_idx) {
-            redistributed_perfect++;
-          }
-          hash_tab[idx] = hash_tab[tab_idx];
-          hash_tab[tab_idx].val.clear_flags();
-        }
-        else {
-          redistributed_loopback++;
-        }
-
-        // we no longer need the counter, reuse it to count actual dedup
-        hash_tab[idx].val.reset_count();
-        redistributed_search_max = std::max(redistributed_search_max, count);
-        redistributed_search_total += count;
-      }
-      else {
-        // we no longer need the counter, reuse it to count actual dedup
-        hash_tab[tab_idx].val.reset_count();
-        redistributed_not_needed++;
-      }
+//---------------------------------------------------------------------------
+void
+dedup_table_t::remove_singletons_and_redistribute_keys()
+{
+  for (uint32_t tab_idx = 0; tab_idx < entries_count; tab_idx++) {
+    if (!hash_tab[tab_idx].val.is_occupied()) {
+      continue;
     }
-  }
 
-  //---------------------------------------------------------------------------
-  // find_entry() assumes that entries are not removed during operation
-  // remove_entry() is only called from remove_singletons_and_redistribute_keys()
-  //       doing a linear pass over the array.
-  uint32_t dedup_table_t::find_entry(const key_t *p_key) const
-  {
-    uint32_t idx = p_key->hash() % entries_count;
-
-    // search until we either find the key, or find an empty slot.
-    while (hash_tab[idx].val.is_occupied() && (hash_tab[idx].key != *p_key)) {
-      idx = (idx + 1) % entries_count;
+    if (hash_tab[tab_idx].val.is_singleton()) {
+      hash_tab[tab_idx].val.clear_flags();
+      redistributed_clear++;
+      continue;
     }
-    return idx;
-  }
 
-  //---------------------------------------------------------------------------
-  void dedup_table_t::inc_counters(const key_t *p_key,
-                                   dedup_stats_t *p_dedup_stats)
-  {
+    const key_t& key = hash_tab[tab_idx].key;
     // This is an approximation only since size is stored in 4KB resolution
-    uint64_t byte_size_approx = disk_blocks_to_byte_size(p_key->size_4k_units);
+    uint64_t byte_size_approx = disk_blocks_to_byte_size(key.size_4k_units);
+    if (!dedupable_object(
+            key.multipart_object(), min_obj_size_for_dedup, byte_size_approx)) {
+      hash_tab[tab_idx].val.clear_flags();
+      redistributed_clear++;
+      continue;
+    }
 
-    uint64_t dup_bytes_approx = calc_deduped_bytes(head_object_size,
-                                                   min_obj_size_for_dedup,
-                                                   split_head,
-                                                   p_key->num_parts,
-                                                   byte_size_approx);
-    if (dup_bytes_approx) {
-      p_dedup_stats->duplicate_count ++;
-      p_dedup_stats->dedup_bytes_estimate += dup_bytes_approx;
+    uint32_t key_idx = key.hash() % entries_count;
+    if (key_idx != tab_idx) {
+      uint64_t count = 1;
+      redistributed_count++;
+      uint32_t idx = key_idx;
+      while (hash_tab[idx].val.is_occupied() &&
+             !hash_tab[idx].val.is_singleton() && (hash_tab[idx].key != key)) {
+        count++;
+        idx = (idx + 1) % entries_count;
+      }
+
+      if (idx != tab_idx) {
+        if (hash_tab[idx].val.is_occupied() &&
+            hash_tab[idx].val.is_singleton()) {
+          redistributed_clear++;
+        }
+        if (idx == key_idx) {
+          redistributed_perfect++;
+        }
+        hash_tab[idx] = hash_tab[tab_idx];
+        hash_tab[tab_idx].val.clear_flags();
+      } else {
+        redistributed_loopback++;
+      }
+
+      // we no longer need the counter, reuse it to count actual dedup
+      hash_tab[idx].val.reset_count();
+      redistributed_search_max = std::max(redistributed_search_max, count);
+      redistributed_search_total += count;
+    } else {
+      // we no longer need the counter, reuse it to count actual dedup
+      hash_tab[tab_idx].val.reset_count();
+      redistributed_not_needed++;
     }
   }
+}
 
-  //---------------------------------------------------------------------------
-  int dedup_table_t::add_entry(key_t *p_key,
-                               disk_block_id_t block_id,
-                               record_id_t rec_id,
-                               bool shared_manifest,
-                               dedup_stats_t *p_dedup_stats)
-  {
-    value_t new_val(block_id, rec_id, shared_manifest);
-    uint32_t idx = find_entry(p_key);
-    value_t &val = hash_tab[idx].val;
-    if (!val.is_occupied()) {
-      if (occupied_count < entries_count) {
-        occupied_count++;
-      }
-      else {
-        return -EOVERFLOW;
-      }
+//---------------------------------------------------------------------------
+// find_entry() assumes that entries are not removed during operation
+// remove_entry() is only called from remove_singletons_and_redistribute_keys()
+//       doing a linear pass over the array.
+uint32_t
+dedup_table_t::find_entry(const key_t* p_key) const
+{
+  uint32_t idx = p_key->hash() % entries_count;
 
-      hash_tab[idx].key = *p_key;
-      hash_tab[idx].val = new_val;
-      ldpp_dout(dpp, 20) << __func__ << "::add new entry" << dendl;
-      ceph_assert(val.count == 1);
-    }
-    else {
-      ceph_assert(hash_tab[idx].key == *p_key);
-      if (val.count <= MAX_COPIES_PER_OBJ) {
-        inc_counters(p_key, p_dedup_stats);
-      }
-      if (val.count < std::numeric_limits<std::uint16_t>::max()) {
-        val.count ++;
-      }
-      if (!val.has_shared_manifest() && shared_manifest) {
-        // replace value!
-        ldpp_dout(dpp, 20) << __func__ << "::Replace with shared_manifest::["
-                           << val.block_idx << "/" << (int)val.rec_id << "] -> ["
-                           << block_id << "/" << (int)rec_id << "]" << dendl;
-        new_val.count = val.count;
-        hash_tab[idx].val = new_val;
-      }
-      ceph_assert(val.count > 1);
-    }
-    ldpp_dout(dpp, 20) << __func__ << "::COUNT="<< val.count << dendl;
-    return 0;
+  // search until we either find the key, or find an empty slot.
+  while (hash_tab[idx].val.is_occupied() && (hash_tab[idx].key != *p_key)) {
+    idx = (idx + 1) % entries_count;
   }
+  return idx;
+}
 
-  //---------------------------------------------------------------------------
-  void dedup_table_t::update_entry(key_t *p_key,
-                                   disk_block_id_t block_id,
-                                   record_id_t rec_id,
-                                   bool shared_manifest)
-  {
-    uint32_t idx = find_entry(p_key);
+//---------------------------------------------------------------------------
+void
+dedup_table_t::inc_counters(const key_t* p_key, dedup_stats_t* p_dedup_stats)
+{
+  // This is an approximation only since size is stored in 4KB resolution
+  uint64_t byte_size_approx = disk_blocks_to_byte_size(p_key->size_4k_units);
+
+  uint64_t dup_bytes_approx = calc_deduped_bytes(
+      head_object_size, min_obj_size_for_dedup, split_head, p_key->num_parts,
+      byte_size_approx);
+  if (dup_bytes_approx) {
+    p_dedup_stats->duplicate_count++;
+    p_dedup_stats->dedup_bytes_estimate += dup_bytes_approx;
+  }
+}
+
+//---------------------------------------------------------------------------
+int
+dedup_table_t::add_entry(
+    key_t* p_key,
+    disk_block_id_t block_id,
+    record_id_t rec_id,
+    bool shared_manifest,
+    dedup_stats_t* p_dedup_stats)
+{
+  value_t new_val(block_id, rec_id, shared_manifest);
+  uint32_t idx = find_entry(p_key);
+  value_t& val = hash_tab[idx].val;
+  if (!val.is_occupied()) {
+    if (occupied_count < entries_count) {
+      occupied_count++;
+    } else {
+      return -EOVERFLOW;
+    }
+
+    hash_tab[idx].key = *p_key;
+    hash_tab[idx].val = new_val;
+    ldpp_dout(dpp, 20) << __func__ << "::add new entry" << dendl;
+    ceph_assert(val.count == 1);
+  } else {
     ceph_assert(hash_tab[idx].key == *p_key);
-    value_t &val = hash_tab[idx].val;
-    ceph_assert(val.is_occupied());
-
-    // need to overwrite the block_idx/rec_id from the first pass
-    // unless already set with shared_manifest with the correct block-id/rec-id
-    // We only set the shared_manifest flag on the second pass where we
-    // got valid block-id/rec-id
-    if (!val.has_shared_manifest()) {
+    if (val.count <= MAX_COPIES_PER_OBJ) {
+      inc_counters(p_key, p_dedup_stats);
+    }
+    if (val.count < std::numeric_limits<std::uint16_t>::max()) {
+      val.count++;
+    }
+    if (!val.has_shared_manifest() && shared_manifest) {
       // replace value!
-      value_t new_val(block_id, rec_id, shared_manifest);
-      new_val.count = val.count;
-      ldpp_dout(dpp, 20) << __func__ << "::Replaced table entry::["
+      ldpp_dout(dpp, 20) << __func__ << "::Replace with shared_manifest::["
                          << val.block_idx << "/" << (int)val.rec_id << "] -> ["
                          << block_id << "/" << (int)rec_id << "]" << dendl;
-
-      val = new_val;
+      new_val.count = val.count;
+      hash_tab[idx].val = new_val;
     }
+    ceph_assert(val.count > 1);
   }
+  ldpp_dout(dpp, 20) << __func__ << "::COUNT=" << val.count << dendl;
+  return 0;
+}
 
-  //---------------------------------------------------------------------------
-  int dedup_table_t::set_src_mode(const key_t *p_key,
-                                  disk_block_id_t block_id,
-                                  record_id_t rec_id,
-                                  bool set_shared_manifest_src,
-                                  bool set_has_valid_hash_src)
-  {
-    uint32_t idx = find_entry(p_key);
-    value_t &val = hash_tab[idx].val;
-    if (val.is_occupied()) {
-      if (val.block_idx == block_id && val.rec_id == rec_id) {
-        if (set_shared_manifest_src) {
-          val.set_shared_manifest_src();
-        }
-        if (set_has_valid_hash_src) {
-          val.set_has_valid_hash_src();
-        }
-        return 0;
-      }
-    }
+//---------------------------------------------------------------------------
+void
+dedup_table_t::update_entry(
+    key_t* p_key,
+    disk_block_id_t block_id,
+    record_id_t rec_id,
+    bool shared_manifest)
+{
+  uint32_t idx = find_entry(p_key);
+  ceph_assert(hash_tab[idx].key == *p_key);
+  value_t& val = hash_tab[idx].val;
+  ceph_assert(val.is_occupied());
 
-    return -ENOENT;
+  // need to overwrite the block_idx/rec_id from the first pass
+  // unless already set with shared_manifest with the correct block-id/rec-id
+  // We only set the shared_manifest flag on the second pass where we
+  // got valid block-id/rec-id
+  if (!val.has_shared_manifest()) {
+    // replace value!
+    value_t new_val(block_id, rec_id, shared_manifest);
+    new_val.count = val.count;
+    ldpp_dout(dpp, 20) << __func__ << "::Replaced table entry::["
+                       << val.block_idx << "/" << (int)val.rec_id << "] -> ["
+                       << block_id << "/" << (int)rec_id << "]" << dendl;
+
+    val = new_val;
   }
+}
 
-  //---------------------------------------------------------------------------
-  int dedup_table_t::inc_count(const key_t *p_key,
-                               disk_block_id_t block_id,
-                               record_id_t rec_id)
-  {
-    uint32_t idx = find_entry(p_key);
-    value_t &val = hash_tab[idx].val;
-    if (val.is_occupied()) {
-      if (val.block_idx == block_id && val.rec_id == rec_id) {
-        val.inc_count();
-        return 0;
+//---------------------------------------------------------------------------
+int
+dedup_table_t::set_src_mode(
+    const key_t* p_key,
+    disk_block_id_t block_id,
+    record_id_t rec_id,
+    bool set_shared_manifest_src,
+    bool set_has_valid_hash_src)
+{
+  uint32_t idx = find_entry(p_key);
+  value_t& val = hash_tab[idx].val;
+  if (val.is_occupied()) {
+    if (val.block_idx == block_id && val.rec_id == rec_id) {
+      if (set_shared_manifest_src) {
+        val.set_shared_manifest_src();
       }
-      else {
-        ldpp_dout(dpp, 5) << __func__ << "::ERR Failed Ncopies bloc/rec" << dendl;
+      if (set_has_valid_hash_src) {
+        val.set_has_valid_hash_src();
       }
-    }
-    else {
-      ldpp_dout(dpp, 5) << __func__ << "::ERR Failed Ncopies key" << dendl;
-    }
-
-    return -ENOENT;
-  }
-
-  //---------------------------------------------------------------------------
-  int dedup_table_t::get_val(const key_t *p_key, struct value_t *p_val /*OUT*/)
-  {
-    uint32_t idx = find_entry(p_key);
-    const value_t &val = hash_tab[idx].val;
-    if (val.is_occupied()) {
-      *p_val = val;
       return 0;
     }
-    else {
-      return -ENOENT;
-    }
   }
 
-  //---------------------------------------------------------------------------
-  void dedup_table_t::count_duplicates(dedup_stats_t *p_dedup_stats)
-  {
-    for (uint32_t tab_idx = 0; tab_idx < entries_count; tab_idx++) {
-      if (!hash_tab[tab_idx].val.is_occupied()) {
-        continue;
-      }
+  return -ENOENT;
+}
 
-      if (hash_tab[tab_idx].val.is_singleton()) {
-        p_dedup_stats->singleton_count++;
-      }
-      else {
-        ceph_assert(hash_tab[tab_idx].val.count > 1);
-        p_dedup_stats->unique_count ++;
-      }
+//---------------------------------------------------------------------------
+int
+dedup_table_t::inc_count(
+    const key_t* p_key,
+    disk_block_id_t block_id,
+    record_id_t rec_id)
+{
+  uint32_t idx = find_entry(p_key);
+  value_t& val = hash_tab[idx].val;
+  if (val.is_occupied()) {
+    if (val.block_idx == block_id && val.rec_id == rec_id) {
+      val.inc_count();
+      return 0;
+    } else {
+      ldpp_dout(dpp, 5) << __func__ << "::ERR Failed Ncopies bloc/rec" << dendl;
+    }
+  } else {
+    ldpp_dout(dpp, 5) << __func__ << "::ERR Failed Ncopies key" << dendl;
+  }
+
+  return -ENOENT;
+}
+
+//---------------------------------------------------------------------------
+int
+dedup_table_t::get_val(const key_t* p_key, struct value_t* p_val /*OUT*/)
+{
+  uint32_t idx = find_entry(p_key);
+  const value_t& val = hash_tab[idx].val;
+  if (val.is_occupied()) {
+    *p_val = val;
+    return 0;
+  } else {
+    return -ENOENT;
+  }
+}
+
+//---------------------------------------------------------------------------
+void
+dedup_table_t::count_duplicates(dedup_stats_t* p_dedup_stats)
+{
+  for (uint32_t tab_idx = 0; tab_idx < entries_count; tab_idx++) {
+    if (!hash_tab[tab_idx].val.is_occupied()) {
+      continue;
+    }
+
+    if (hash_tab[tab_idx].val.is_singleton()) {
+      p_dedup_stats->singleton_count++;
+    } else {
+      ceph_assert(hash_tab[tab_idx].val.count > 1);
+      p_dedup_stats->unique_count++;
     }
   }
+}
 
 } // namespace rgw::dedup
 
 #if 0
 #include <climits>
-#include <cstdlib>
-#include <iostream>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
+#include <iostream>
 #include <random>
 
 //---------------------------------------------------------------------------

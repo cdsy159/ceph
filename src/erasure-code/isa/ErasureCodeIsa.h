@@ -27,7 +27,9 @@
 
 // -----------------------------------------------------------------------------
 #include <string_view>
+
 #include "erasure-code/ErasureCode.h"
+
 #include "ErasureCodeIsaTableCache.h"
 // -----------------------------------------------------------------------------
 
@@ -36,13 +38,13 @@ using namespace std::literals;
 #define EC_ISA_ADDRESS_ALIGNMENT 32u
 
 #define is_aligned(POINTER, BYTE_COUNT) \
-  (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
+  (((uintptr_t)(const void*)(POINTER)) % (BYTE_COUNT) == 0)
 
 class ErasureCodeIsa : public ceph::ErasureCode {
 public:
-
   enum eMatrix {
-    kVandermonde = 0, kCauchy = 1
+    kVandermonde = 0,
+    kCauchy = 1
   };
 
   static constexpr int MAX_K = 32;
@@ -52,18 +54,15 @@ public:
   int m;
   int w;
 
-  ErasureCodeIsaTableCache &tcache;
+  ErasureCodeIsaTableCache& tcache;
   std::string technique;
   uint64_t flags;
 
-  ErasureCodeIsa(const std::string &_technique,
-                 ErasureCodeIsaTableCache &_tcache,
-                 const std::string &_m = "0") :
-  k(0),
-  m(0),
-  w(0),
-  tcache(_tcache),
-  technique(_technique)
+  ErasureCodeIsa(
+      const std::string& _technique,
+      ErasureCodeIsaTableCache& _tcache,
+      const std::string& _m = "0") :
+    k(0), m(0), w(0), tcache(_tcache), technique(_technique)
   {
     flags = FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED |
             FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION |
@@ -73,18 +72,17 @@ public:
             FLAG_EC_PLUGIN_DIRECT_READS;
 
     if (technique == "reed_sol_van"sv) {
-       flags |= FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT;
+      flags |= FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT;
     } else if (technique == "cauchy"sv && _m == "1"sv) {
-       flags |= FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT;
+      flags |= FLAG_EC_PLUGIN_CRC_ENCODE_DECODE_SUPPORT;
     }
   }
 
-  
-  ~ErasureCodeIsa() override
-  {
-  }
+  ~ErasureCodeIsa() override {}
 
-  uint64_t get_supported_optimizations() const override {
+  uint64_t
+  get_supported_optimizations() const override
+  {
     return flags;
   }
 
@@ -103,41 +101,40 @@ public:
   unsigned int get_chunk_size(unsigned int stripe_width) const override;
 
   [[deprecated]]
-  int encode_chunks(const std::set<int> &want_to_encode,
-                    std::map<int, ceph::buffer::list> *encoded) override;
-  int encode_chunks(const shard_id_map<bufferptr> &in,
-                    shard_id_map<bufferptr> &out) override;
+  int encode_chunks(
+      const std::set<int>& want_to_encode,
+      std::map<int, ceph::buffer::list>* encoded) override;
+  int encode_chunks(
+      const shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) override;
 
   [[deprecated]]
-  int decode_chunks(const std::set<int> &want_to_read,
-                            const std::map<int, ceph::buffer::list> &chunks,
-                            std::map<int, ceph::buffer::list> *decoded) override;
-  int decode_chunks(const shard_id_set &want_to_read,
-                    shard_id_map<bufferptr> &in,
-                    shard_id_map<bufferptr> &out) override;
+  int decode_chunks(
+      const std::set<int>& want_to_read,
+      const std::map<int, ceph::buffer::list>& chunks,
+      std::map<int, ceph::buffer::list>* decoded) override;
+  int decode_chunks(
+      const shard_id_set& want_to_read,
+      shard_id_map<bufferptr>& in,
+      shard_id_map<bufferptr>& out) override;
 
-  int init(ceph::ErasureCodeProfile &profile, std::ostream *ss) override;
+  int init(ceph::ErasureCodeProfile& profile, std::ostream* ss) override;
 
-  void isa_xor(char **data, char *coding, int blocksize, int data_vectors);
+  void isa_xor(char** data, char* coding, int blocksize, int data_vectors);
 
-  void byte_xor(int data_vects, int blocksize, char **array);
+  void byte_xor(int data_vects, int blocksize, char** array);
 
-  virtual void isa_encode(char **data,
-                          char **coding,
-                          int blocksize) = 0;
+  virtual void isa_encode(char** data, char** coding, int blocksize) = 0;
 
-  virtual int isa_decode(int *erasures,
-                         char **data,
-                         char **coding,
-                         int blocksize) = 0;
+  virtual int
+  isa_decode(int* erasures, char** data, char** coding, int blocksize) = 0;
 
   virtual unsigned get_alignment() const = 0;
 
   virtual void prepare() = 0;
 
- private:
-  virtual int parse(ceph::ErasureCodeProfile &profile,
-                    std::ostream *ss) = 0;
+private:
+  virtual int parse(ceph::ErasureCodeProfile& profile, std::ostream* ss) = 0;
 };
 
 // -----------------------------------------------------------------------------
@@ -147,59 +144,54 @@ private:
   int matrixtype;
 
 public:
-
   static const std::string DEFAULT_K;
   static const std::string DEFAULT_M;
 
   unsigned char* encode_coeff; // encoding coefficient
   unsigned char* encode_tbls; // encoding table
 
-  ErasureCodeIsaDefault(ErasureCodeIsaTableCache &_tcache,
-                        const std::string& technique,
-                        int matrix = kVandermonde,
-                        const std::string &_m = "0") :
-  ErasureCodeIsa(technique, _tcache, _m),
-  encode_coeff(0), encode_tbls(0)
+  ErasureCodeIsaDefault(
+      ErasureCodeIsaTableCache& _tcache,
+      const std::string& technique,
+      int matrix = kVandermonde,
+      const std::string& _m = "0") :
+    ErasureCodeIsa(technique, _tcache, _m), encode_coeff(0), encode_tbls(0)
   {
     matrixtype = matrix;
   }
 
-  ~ErasureCodeIsaDefault() override
-  {
+  ~ErasureCodeIsaDefault() override {}
 
-  }
+  void isa_encode(char** data, char** coding, int blocksize) override;
 
-  void isa_encode(char **data,
-                          char **coding,
-                          int blocksize) override;
+  virtual bool erasure_contains(int* erasures, int i);
 
-  virtual bool erasure_contains(int *erasures, int i);
+  int isa_decode(int* erasures, char** data, char** coding, int blocksize)
+      override;
 
-  int isa_decode(int *erasures,
-                         char **data,
-                         char **coding,
-                         int blocksize) override;
+  void encode_delta(
+      const ceph::bufferptr& old_data,
+      const ceph::bufferptr& new_data,
+      ceph::bufferptr* delta_maybe_in_place) override;
 
-  void encode_delta(const ceph::bufferptr &old_data,
-                    const ceph::bufferptr &new_data,
-                    ceph::bufferptr *delta_maybe_in_place) override;
-
-  void apply_delta(const shard_id_map<ceph::bufferptr> &in,
-                   shard_id_map<ceph::bufferptr> &out);
+  void apply_delta(
+      const shard_id_map<ceph::bufferptr>& in,
+      shard_id_map<ceph::bufferptr>& out);
 
   unsigned get_alignment() const override;
 
-  size_t get_minimum_granularity() override
+  size_t
+  get_minimum_granularity() override
   {
     return 1;
   }
 
   void prepare() override;
 
- private:
-  int parse(ceph::ErasureCodeProfile &profile,
-            std::ostream *ss) override;
+private:
+  int parse(ceph::ErasureCodeProfile& profile, std::ostream* ss) override;
 };
+
 static_assert(!std::is_abstract<ErasureCodeIsaDefault>());
 
 #endif

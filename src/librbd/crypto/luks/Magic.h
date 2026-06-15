@@ -17,11 +17,14 @@ public:
   static int is_rbd_clone(ceph::bufferlist& bl);
 
   static int replace_magic(CephContext* cct, ceph::bufferlist& bl);
+
 private:
-  static int read(ceph::bufferlist& bl, uint32_t bl_off,
-                  uint32_t read_size, char* result);
-  static int cmp(ceph::bufferlist& bl, uint32_t bl_off,
-                 const std::string& cmp_str);
+  static int
+  read(ceph::bufferlist& bl, uint32_t bl_off, uint32_t read_size, char* result);
+  static int cmp(
+      ceph::bufferlist& bl,
+      uint32_t bl_off,
+      const std::string& cmp_str);
   static void transform_secondary_header_magic(char* magic);
 };
 

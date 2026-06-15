@@ -5,14 +5,13 @@
 
 #include <random>
 
-#include "FastCDC.h"
-#include "FixedCDC.h"
 #include "include/byteorder.h" // for ceph_le64
 
-std::unique_ptr<CDC> CDC::create(
-  const std::string& type,
-  int bits,
-  int windowbits)
+#include "FastCDC.h"
+#include "FixedCDC.h"
+
+std::unique_ptr<CDC>
+CDC::create(const std::string& type, int bits, int windowbits)
 {
   if (type == "fastcdc") {
     return std::unique_ptr<CDC>(new FastCDC(bits, windowbits));
@@ -23,7 +22,8 @@ std::unique_ptr<CDC> CDC::create(
   return nullptr;
 }
 
-void generate_buffer(int size, bufferlist *outbl, int seed)
+void
+generate_buffer(int size, bufferlist* outbl, int seed)
 {
   std::mt19937_64 engine, engine2;
   engine.seed(seed);
@@ -37,11 +37,10 @@ void generate_buffer(int size, bufferlist *outbl, int seed)
     left -= l;
     bufferptr p(l);
     p.set_length(l);
-    char *b = p.c_str();
+    char* b = p.c_str();
     for (size_t i = 0; i < l / sizeof(uint64_t); ++i) {
-      ((ceph_le64 *)b)[i] = ceph_le64(engine());
+      ((ceph_le64*)b)[i] = ceph_le64(engine());
     }
     outbl->append(p);
   }
 }
-

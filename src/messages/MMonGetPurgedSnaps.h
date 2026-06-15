@@ -3,35 +3,46 @@
 
 #pragma once
 
-#include "PaxosServiceMessage.h"
 #include "include/types.h"
+
+#include "PaxosServiceMessage.h"
 
 class MMonGetPurgedSnaps final : public PaxosServiceMessage {
 public:
   epoch_t start, last;
 
-  MMonGetPurgedSnaps(epoch_t s=0, epoch_t l=0)
-    : PaxosServiceMessage{MSG_MON_GET_PURGED_SNAPS, 0},
-      start(s),
-      last(l) {}
+  MMonGetPurgedSnaps(epoch_t s = 0, epoch_t l = 0) :
+    PaxosServiceMessage{MSG_MON_GET_PURGED_SNAPS, 0}, start(s), last(l)
+  {}
+
 private:
   ~MMonGetPurgedSnaps() final {}
 
 public:
-  std::string_view get_type_name() const override {
+  std::string_view
+  get_type_name() const override
+  {
     return "mon_get_purged_snaps";
   }
-  void print(std::ostream& out) const override {
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "mon_get_purged_snaps([" << start << "," << last << "])";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(start, payload);
     encode(last, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -40,6 +51,6 @@ public:
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };

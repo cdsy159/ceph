@@ -17,11 +17,11 @@ namespace object_map {
 
 class Request : public AsyncRequest<> {
 public:
-  Request(ImageCtx &image_ctx, uint64_t snap_id, Context *on_finish)
-    : AsyncRequest(image_ctx, on_finish), m_snap_id(snap_id),
-      m_state(STATE_REQUEST)
-  {
-  }
+  Request(ImageCtx& image_ctx, uint64_t snap_id, Context* on_finish) :
+    AsyncRequest(image_ctx, on_finish),
+    m_snap_id(snap_id),
+    m_state(STATE_REQUEST)
+  {}
 
   void send() override = 0;
 
@@ -29,15 +29,20 @@ protected:
   const uint64_t m_snap_id;
 
   bool should_complete(int r) override;
-  int filter_return_code(int r) const override {
+
+  int
+  filter_return_code(int r) const override
+  {
     if (m_state == STATE_REQUEST) {
       // never propagate an error back to the caller
       return 0;
     }
     return r;
   }
-  virtual void finish_request() {
-  }
+
+  virtual void
+  finish_request()
+  {}
 
 private:
   /**

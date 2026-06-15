@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,15 +16,15 @@
 #ifndef CEPH_MMONCOMMAND_H
 #define CEPH_MMONCOMMAND_H
 
-#include "messages/PaxosServiceMessage.h"
-#include "common/cmdparse.h" // for cmdmap_from_json()
-
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
-using ceph::common::cmdmap_from_json;
+#include "common/cmdparse.h" // for cmdmap_from_json()
+#include "messages/PaxosServiceMessage.h"
+
 using ceph::common::cmd_getval;
+using ceph::common::cmdmap_from_json;
 
 class MMonCommand final : public PaxosServiceMessage {
 public:
@@ -35,16 +35,17 @@ public:
   uuid_d fsid;
   std::vector<std::string> cmd;
 
-  MMonCommand() : PaxosServiceMessage{MSG_MON_COMMAND, 0} {}
-  MMonCommand(const uuid_d &f)
-    : PaxosServiceMessage{MSG_MON_COMMAND, 0},
-      fsid(f)
-  { }
+  MMonCommand() :
+    PaxosServiceMessage{MSG_MON_COMMAND, 0}
+  {}
 
-  MMonCommand(const MMonCommand &other)
-    : PaxosServiceMessage(MSG_MON_COMMAND, 0),
-      fsid(other.fsid),
-      cmd(other.cmd) {
+  MMonCommand(const uuid_d& f) :
+    PaxosServiceMessage{MSG_MON_COMMAND, 0}, fsid(f)
+  {}
+
+  MMonCommand(const MMonCommand& other) :
+    PaxosServiceMessage(MSG_MON_COMMAND, 0), fsid(other.fsid), cmd(other.cmd)
+  {
     set_tid(other.get_tid());
     set_data(other.get_data());
   }
@@ -52,8 +53,15 @@ public:
   ~MMonCommand() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_command"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_command";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     cmdmap_t cmdmap;
     std::ostringstream ss;
     std::string prefix;
@@ -70,21 +78,27 @@ public:
       cmd_getval(cmdmap, "key", key);
       o << "[{prefix=" << prefix << ", key=" << key << "}]";
     } else {
-      for (unsigned i=0; i<cmd.size(); i++) {
-        if (i) o << ' ';
+      for (unsigned i = 0; i < cmd.size(); i++) {
+        if (i)
+          o << ' ';
         o << cmd[i];
       }
     }
     o << " v " << version << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
     encode(cmd, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -93,7 +107,7 @@ public:
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

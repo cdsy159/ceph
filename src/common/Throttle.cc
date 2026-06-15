@@ -3,10 +3,9 @@
 
 #include "common/Throttle.h"
 
-#include "include/scope_guard.h"
-
 #include "common/ceph_time.h"
 #include "common/perf_counters.h"
+#include "include/scope_guard.h"
 
 
 // re-include our assert to clobber the system one; fix dout:
@@ -42,10 +41,12 @@ enum {
   l_throttle_last,
 };
 
-Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
-		   bool _use_perf)
-  : cct(cct), name(n), max(m),
-    use_perf(_use_perf)
+Throttle::Throttle(
+    CephContext* cct,
+    const std::string& n,
+    int64_t m,
+    bool _use_perf) :
+  cct(cct), name(n), max(m), use_perf(_use_perf)
 {
   ceph_assert(m >= 0);
 
@@ -53,21 +54,28 @@ Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
     return;
 
   if (cct->_conf->throttler_perf_counter) {
-    PerfCountersBuilder b(cct, string("throttle-") + name, l_throttle_first, l_throttle_last);
+    PerfCountersBuilder b(
+        cct, string("throttle-") + name, l_throttle_first, l_throttle_last);
     b.add_u64(l_throttle_val, "val", "Currently taken slots");
     b.add_u64(l_throttle_max, "max", "Max value for throttle");
-    b.add_u64_counter(l_throttle_get_started, "get_started", "Number of get calls, increased before wait");
+    b.add_u64_counter(
+        l_throttle_get_started, "get_started",
+        "Number of get calls, increased before wait");
     b.add_u64_counter(l_throttle_get, "get", "Gets");
     b.add_u64_counter(l_throttle_get_sum, "get_sum", "Got data");
-    b.add_u64_counter(l_throttle_get_or_fail_fail, "get_or_fail_fail", "Get blocked during get_or_fail");
-    b.add_u64_counter(l_throttle_get_or_fail_success, "get_or_fail_success", "Successful get during get_or_fail");
+    b.add_u64_counter(
+        l_throttle_get_or_fail_fail, "get_or_fail_fail",
+        "Get blocked during get_or_fail");
+    b.add_u64_counter(
+        l_throttle_get_or_fail_success, "get_or_fail_success",
+        "Successful get during get_or_fail");
     b.add_u64_counter(l_throttle_take, "take", "Takes");
     b.add_u64_counter(l_throttle_take_sum, "take_sum", "Taken data");
     b.add_u64_counter(l_throttle_put, "put", "Puts");
     b.add_u64_counter(l_throttle_put_sum, "put_sum", "Put data");
     b.add_time_avg(l_throttle_wait, "wait", "Waiting latency");
 
-    logger = { b.create_perf_counters(), cct };
+    logger = {b.create_perf_counters(), cct};
     cct->get_perfcounters_collection()->add(logger.get());
     logger->set(l_throttle_max, max);
   }
@@ -79,7 +87,8 @@ Throttle::~Throttle()
   ceph_assert(conds.empty());
 }
 
-void Throttle::_reset_max(int64_t m)
+void
+Throttle::_reset_max(int64_t m)
 {
   // lock must be held.
   if (max == m)
@@ -91,26 +100,26 @@ void Throttle::_reset_max(int64_t m)
   max = m;
 }
 
-bool Throttle::_wait(int64_t c, std::unique_lock<std::mutex>& l)
+bool
+Throttle::_wait(int64_t c, std::unique_lock<std::mutex>& l)
 {
   mono_time start;
   bool waited = false;
   if (_should_wait(c) || !conds.empty()) { // always wait behind other waiters.
     {
       auto cv = conds.emplace(conds.end());
-      auto w = make_scope_guard([this, cv]() {
-	  conds.erase(cv);
-	});
+      auto w = make_scope_guard([this, cv]() { conds.erase(cv); });
       waited = true;
       ldout(cct, 2) << "_wait waiting..." << dendl;
       if (logger)
-	start = mono_clock::now();
+        start = mono_clock::now();
 
-      cv->wait(l, [this, c, cv]() { return (!_should_wait(c) &&
-					    cv == conds.begin()); });
+      cv->wait(l, [this, c, cv]() {
+        return (!_should_wait(c) && cv == conds.begin());
+      });
       ldout(cct, 2) << "_wait finished waiting" << dendl;
       if (logger) {
-	logger->tinc(l_throttle_wait, mono_clock::now() - start);
+        logger->tinc(l_throttle_wait, mono_clock::now() - start);
       }
     }
     // wake up the next guy
@@ -120,7 +129,8 @@ bool Throttle::_wait(int64_t c, std::unique_lock<std::mutex>& l)
   return waited;
 }
 
-bool Throttle::wait(int64_t m)
+bool
+Throttle::wait(int64_t m)
 {
   if (0 == max && 0 == m) {
     return false;
@@ -135,7 +145,8 @@ bool Throttle::wait(int64_t m)
   return _wait(0, l);
 }
 
-int64_t Throttle::take(int64_t c)
+int64_t
+Throttle::take(int64_t c)
 {
   if (0 == max) {
     return 0;
@@ -151,7 +162,8 @@ int64_t Throttle::take(int64_t c)
   return count;
 }
 
-bool Throttle::get(int64_t c, int64_t m)
+bool
+Throttle::get(int64_t c, int64_t m)
 {
   if (0 == max && 0 == m) {
     count += c;
@@ -159,7 +171,8 @@ bool Throttle::get(int64_t c, int64_t m)
   }
 
   ceph_assert(c >= 0);
-  ldout(cct, 10) << "get " << c << " (" << count.load() << " -> " << (count.load() + c) << ")" << dendl;
+  ldout(cct, 10) << "get " << c << " (" << count.load() << " -> "
+                 << (count.load() + c) << ")" << dendl;
   if (logger) {
     logger->inc(l_throttle_get_started);
   }
@@ -184,14 +197,15 @@ bool Throttle::get(int64_t c, int64_t m)
 /* Returns true if it successfully got the requested amount,
  * or false if it would block.
  */
-bool Throttle::get_or_fail(int64_t c)
+bool
+Throttle::get_or_fail(int64_t c)
 {
   if (0 == max) {
     count += c;
     return true;
   }
 
-  assert (c >= 0);
+  assert(c >= 0);
   bool result = false;
   {
     std::lock_guard l(lock);
@@ -200,7 +214,7 @@ bool Throttle::get_or_fail(int64_t c)
       result = false;
     } else {
       ldout(cct, 10) << "get_or_fail " << c << " success (" << count.load()
-	<< " -> " << (count.load() + c) << ")" << dendl;
+                     << " -> " << (count.load() + c) << ")" << dendl;
       count += c;
       result = true;
     }
@@ -219,7 +233,8 @@ bool Throttle::get_or_fail(int64_t c)
   return result;
 }
 
-int64_t Throttle::put(int64_t c)
+int64_t
+Throttle::put(int64_t c)
 {
   if (0 == max) {
     count -= c;
@@ -228,14 +243,14 @@ int64_t Throttle::put(int64_t c)
 
   ceph_assert(c >= 0);
   ldout(cct, 10) << "put " << c << " (" << count.load() << " -> "
-		 << (count.load()-c) << ")" << dendl;
+                 << (count.load() - c) << ")" << dendl;
   int64_t new_count;
   {
     std::lock_guard l(lock);
     new_count = count;
     if (c) {
       if (!conds.empty())
-	conds.front().notify_one();
+        conds.front().notify_one();
       // if count goes negative, we failed somewhere!
       ceph_assert(count >= c);
       new_count = count -= c;
@@ -250,7 +265,8 @@ int64_t Throttle::put(int64_t c)
   return new_count;
 }
 
-void Throttle::reset()
+void
+Throttle::reset()
 {
   std::lock_guard l(lock);
   if (!conds.empty())
@@ -275,18 +291,22 @@ enum {
   l_backoff_throttle_last,
 };
 
-BackoffThrottle::BackoffThrottle(CephContext *cct, const std::string& n,
-				 unsigned expected_concurrency, bool _use_perf)
-  : name(n),
-    conds(expected_concurrency),///< [in] determines size of conds
-    use_perf(_use_perf)
+BackoffThrottle::BackoffThrottle(
+    CephContext* cct,
+    const std::string& n,
+    unsigned expected_concurrency,
+    bool _use_perf) :
+  name(n),
+  conds(expected_concurrency), ///< [in] determines size of conds
+  use_perf(_use_perf)
 {
   if (!use_perf)
     return;
 
   if (cct->_conf->throttler_perf_counter) {
-    PerfCountersBuilder b(cct, string("throttle-") + name,
-			  l_backoff_throttle_first, l_backoff_throttle_last);
+    PerfCountersBuilder b(
+        cct, string("throttle-") + name, l_backoff_throttle_first,
+        l_backoff_throttle_last);
     b.add_u64(l_backoff_throttle_val, "val", "Currently available throttle");
     b.add_u64(l_backoff_throttle_max, "max", "Max value for throttle");
     b.add_u64_counter(l_backoff_throttle_get, "get", "Gets");
@@ -297,7 +317,7 @@ BackoffThrottle::BackoffThrottle(CephContext *cct, const std::string& n,
     b.add_u64_counter(l_backoff_throttle_put_sum, "put_sum", "Put data");
     b.add_time_avg(l_backoff_throttle_wait, "wait", "Waiting latency");
 
-    logger = { b.create_perf_counters(), cct };
+    logger = {b.create_perf_counters(), cct};
     cct->get_perfcounters_collection()->add(logger.get());
     logger->set(l_backoff_throttle_max, max);
   }
@@ -309,22 +329,23 @@ BackoffThrottle::~BackoffThrottle()
   ceph_assert(waiters.empty());
 }
 
-bool BackoffThrottle::set_params(
-  double _low_threshold,
-  double _high_threshold,
-  double _expected_throughput,
-  double _high_multiple,
-  double _max_multiple,
-  uint64_t _throttle_max,
-  ostream *errstream)
+bool
+BackoffThrottle::set_params(
+    double _low_threshold,
+    double _high_threshold,
+    double _expected_throughput,
+    double _high_multiple,
+    double _max_multiple,
+    uint64_t _throttle_max,
+    ostream* errstream)
 {
   bool valid = true;
   if (_low_threshold > _high_threshold) {
     valid = false;
     if (errstream) {
       *errstream << "low_threshold (" << _low_threshold
-		 << ") > high_threshold (" << _high_threshold
-		 << ")" << std::endl;
+                 << ") > high_threshold (" << _high_threshold << ")"
+                 << std::endl;
     }
   }
 
@@ -332,8 +353,7 @@ bool BackoffThrottle::set_params(
     valid = false;
     if (errstream) {
       *errstream << "_high_multiple (" << _high_multiple
-		 << ") > _max_multiple (" << _max_multiple
-		 << ")" << std::endl;
+                 << ") > _max_multiple (" << _max_multiple << ")" << std::endl;
     }
   }
 
@@ -341,7 +361,7 @@ bool BackoffThrottle::set_params(
     valid = false;
     if (errstream) {
       *errstream << "invalid low_threshold (" << _low_threshold << ")"
-		 << std::endl;
+                 << std::endl;
     }
   }
 
@@ -349,34 +369,31 @@ bool BackoffThrottle::set_params(
     valid = false;
     if (errstream) {
       *errstream << "invalid high_threshold (" << _high_threshold << ")"
-		 << std::endl;
+                 << std::endl;
     }
   }
 
   if (_max_multiple < 0) {
     valid = false;
     if (errstream) {
-      *errstream << "invalid _max_multiple ("
-		 << _max_multiple << ")"
-		 << std::endl;
+      *errstream << "invalid _max_multiple (" << _max_multiple << ")"
+                 << std::endl;
     }
   }
 
   if (_high_multiple < 0) {
     valid = false;
     if (errstream) {
-      *errstream << "invalid _high_multiple ("
-		 << _high_multiple << ")"
-		 << std::endl;
+      *errstream << "invalid _high_multiple (" << _high_multiple << ")"
+                 << std::endl;
     }
   }
 
   if (_expected_throughput < 0) {
     valid = false;
     if (errstream) {
-      *errstream << "invalid _expected_throughput("
-		 << _expected_throughput << ")"
-		 << std::endl;
+      *errstream << "invalid _expected_throughput(" << _expected_throughput
+                 << ")" << std::endl;
     }
   }
 
@@ -401,8 +418,7 @@ bool BackoffThrottle::set_params(
   }
 
   if (1 - high_threshold > 0) {
-    s1 = (max_delay_per_count - high_delay_per_count)
-      / (1 - high_threshold);
+    s1 = (max_delay_per_count - high_delay_per_count) / (1 - high_threshold);
   } else {
     high_threshold = 1;
     s1 = 0;
@@ -412,7 +428,8 @@ bool BackoffThrottle::set_params(
   return true;
 }
 
-ceph::timespan BackoffThrottle::_get_delay(uint64_t c) const
+ceph::timespan
+BackoffThrottle::_get_delay(uint64_t c) const
 {
   if (max == 0)
     return ceph::timespan(0);
@@ -421,15 +438,15 @@ ceph::timespan BackoffThrottle::_get_delay(uint64_t c) const
   if (r < low_threshold) {
     return ceph::timespan(0);
   } else if (r < high_threshold) {
-    return c * ceph::make_timespan(
-      (r - low_threshold) * s0);
+    return c * ceph::make_timespan((r - low_threshold) * s0);
   } else {
     return c * ceph::make_timespan(
-      high_delay_per_count + ((r - high_threshold) * s1));
+                   high_delay_per_count + ((r - high_threshold) * s1));
   }
 }
 
-ceph::timespan BackoffThrottle::get(uint64_t c)
+ceph::timespan
+BackoffThrottle::get(uint64_t c)
 {
   locker l(lock);
   auto delay = _get_delay(c);
@@ -440,8 +457,7 @@ ceph::timespan BackoffThrottle::get(uint64_t c)
   }
 
   // fast path
-  if (delay.count() == 0 &&
-      waiters.empty() &&
+  if (delay.count() == 0 && waiters.empty() &&
       ((max == 0) || (current == 0) || ((current + c) <= max))) {
     current += c;
 
@@ -497,7 +513,8 @@ ceph::timespan BackoffThrottle::get(uint64_t c)
   return mono_clock::now() - start;
 }
 
-uint64_t BackoffThrottle::put(uint64_t c)
+uint64_t
+BackoffThrottle::put(uint64_t c)
 {
   locker l(lock);
   ceph_assert(current >= c);
@@ -513,7 +530,8 @@ uint64_t BackoffThrottle::put(uint64_t c)
   return current;
 }
 
-uint64_t BackoffThrottle::take(uint64_t c)
+uint64_t
+BackoffThrottle::take(uint64_t c)
 {
   locker l(lock);
   current += c;
@@ -527,20 +545,23 @@ uint64_t BackoffThrottle::take(uint64_t c)
   return current;
 }
 
-uint64_t BackoffThrottle::get_current()
+uint64_t
+BackoffThrottle::get_current()
 {
   locker l(lock);
   return current;
 }
 
-uint64_t BackoffThrottle::get_max()
+uint64_t
+BackoffThrottle::get_max()
 {
   locker l(lock);
   return max;
 }
 
-SimpleThrottle::SimpleThrottle(uint64_t max, bool ignore_enoent)
-  : m_max(max), m_ignore_enoent(ignore_enoent) {}
+SimpleThrottle::SimpleThrottle(uint64_t max, bool ignore_enoent) :
+  m_max(max), m_ignore_enoent(ignore_enoent)
+{}
 
 SimpleThrottle::~SimpleThrottle()
 {
@@ -549,7 +570,8 @@ SimpleThrottle::~SimpleThrottle()
   ceph_assert(waiters == 0);
 }
 
-void SimpleThrottle::start_op()
+void
+SimpleThrottle::start_op()
 {
   std::unique_lock l(m_lock);
   waiters++;
@@ -558,7 +580,8 @@ void SimpleThrottle::start_op()
   ++m_current;
 }
 
-void SimpleThrottle::end_op(int r)
+void
+SimpleThrottle::end_op(int r)
 {
   std::lock_guard l(m_lock);
   --m_current;
@@ -567,13 +590,15 @@ void SimpleThrottle::end_op(int r)
   m_cond.notify_all();
 }
 
-bool SimpleThrottle::pending_error() const
+bool
+SimpleThrottle::pending_error() const
 {
   std::lock_guard l(m_lock);
   return (m_ret < 0);
 }
 
-int SimpleThrottle::wait_for_ret()
+int
+SimpleThrottle::wait_for_ret()
 {
   std::unique_lock l(m_lock);
   waiters++;
@@ -582,19 +607,25 @@ int SimpleThrottle::wait_for_ret()
   return m_ret;
 }
 
-void C_OrderedThrottle::finish(int r) {
+void
+C_OrderedThrottle::finish(int r)
+{
   m_ordered_throttle->finish_op(m_tid, r);
 }
 
-OrderedThrottle::OrderedThrottle(uint64_t max, bool ignore_enoent)
-  : m_max(max), m_ignore_enoent(ignore_enoent) {}
+OrderedThrottle::OrderedThrottle(uint64_t max, bool ignore_enoent) :
+  m_max(max), m_ignore_enoent(ignore_enoent)
+{}
 
-OrderedThrottle::~OrderedThrottle() {
+OrderedThrottle::~OrderedThrottle()
+{
   std::lock_guard l(m_lock);
   ceph_assert(waiters == 0);
 }
 
-C_OrderedThrottle *OrderedThrottle::start_op(Context *on_finish) {
+C_OrderedThrottle*
+OrderedThrottle::start_op(Context* on_finish)
+{
   ceph_assert(on_finish);
 
   std::unique_lock l(m_lock);
@@ -614,7 +645,9 @@ C_OrderedThrottle *OrderedThrottle::start_op(Context *on_finish) {
   return ctx.release();
 }
 
-void OrderedThrottle::end_op(int r) {
+void
+OrderedThrottle::end_op(int r)
+{
   std::lock_guard l(m_lock);
   ceph_assert(m_current > 0);
 
@@ -625,7 +658,9 @@ void OrderedThrottle::end_op(int r) {
   m_cond.notify_all();
 }
 
-void OrderedThrottle::finish_op(uint64_t tid, int r) {
+void
+OrderedThrottle::finish_op(uint64_t tid, int r)
+{
   std::lock_guard l(m_lock);
 
   auto it = m_tid_result.find(tid);
@@ -636,12 +671,16 @@ void OrderedThrottle::finish_op(uint64_t tid, int r) {
   m_cond.notify_all();
 }
 
-bool OrderedThrottle::pending_error() const {
+bool
+OrderedThrottle::pending_error() const
+{
   std::lock_guard l(m_lock);
   return (m_ret_val < 0);
 }
 
-int OrderedThrottle::wait_for_ret() {
+int
+OrderedThrottle::wait_for_ret()
+{
   std::unique_lock l(m_lock);
   complete_pending_ops(l);
 
@@ -654,7 +693,9 @@ int OrderedThrottle::wait_for_ret() {
   return m_ret_val;
 }
 
-void OrderedThrottle::complete_pending_ops(std::unique_lock<std::mutex>& l) {
+void
+OrderedThrottle::complete_pending_ops(std::unique_lock<std::mutex>& l)
+{
   while (true) {
     auto it = m_tid_result.begin();
     if (it == m_tid_result.end() || it->first != m_complete_tid ||
@@ -674,10 +715,12 @@ void OrderedThrottle::complete_pending_ops(std::unique_lock<std::mutex>& l) {
 }
 
 #undef dout_prefix
-#define dout_prefix *_dout << "TokenBucketThrottle(" << m_name << " " \
-                           << (void*)this << ") "
+#define dout_prefix \
+  *_dout << "TokenBucketThrottle(" << m_name << " " << (void*)this << ") "
 
-uint64_t TokenBucketThrottle::Bucket::get(uint64_t c) {
+uint64_t
+TokenBucketThrottle::Bucket::get(uint64_t c)
+{
   if (0 == max) {
     return 0;
   }
@@ -697,7 +740,9 @@ uint64_t TokenBucketThrottle::Bucket::get(uint64_t c) {
   return got;
 }
 
-uint64_t TokenBucketThrottle::Bucket::put(uint64_t tokens, double burst_ratio) {
+uint64_t
+TokenBucketThrottle::Bucket::put(uint64_t tokens, double burst_ratio)
+{
   if (0 == max) {
     return 0;
   }
@@ -717,23 +762,24 @@ uint64_t TokenBucketThrottle::Bucket::put(uint64_t tokens, double burst_ratio) {
       available_inc = (uint64_t)(tokens * burst_ratio);
     }
     uint64_t inc_upper_limit = remain > max ? max : remain;
-    if ((available + available_inc) <= inc_upper_limit ){
+    if ((available + available_inc) <= inc_upper_limit) {
       available += available_inc;
-    }else{
+    } else {
       available = inc_upper_limit;
     }
-    
   }
   return remain;
 }
 
-void TokenBucketThrottle::Bucket::set_max(uint64_t max, uint64_t burst_seconds) {
+void
+TokenBucketThrottle::Bucket::set_max(uint64_t max, uint64_t burst_seconds)
+{
   // the capacity of bucket should not be less than max
-  if (burst_seconds < 1){
+  if (burst_seconds < 1) {
     burst_seconds = 1;
   }
-  uint64_t new_capacity = max*burst_seconds;
-  if (capacity != new_capacity){
+  uint64_t new_capacity = max * burst_seconds;
+  if (capacity != new_capacity) {
     capacity = new_capacity;
     remain = capacity;
   }
@@ -744,19 +790,24 @@ void TokenBucketThrottle::Bucket::set_max(uint64_t max, uint64_t burst_seconds) 
 }
 
 TokenBucketThrottle::TokenBucketThrottle(
-    CephContext *cct,
-    const std::string &name,
+    CephContext* cct,
+    const std::string& name,
     uint64_t burst,
     uint64_t avg,
-    SafeTimer *timer,
-    ceph::mutex *timer_lock)
-  : m_cct(cct), m_name(name),
-    m_throttle(m_cct, name + "_bucket", burst),
-    m_burst(burst), m_avg(avg), m_timer(timer), m_timer_lock(timer_lock),
-    m_lock(ceph::make_mutex(name + "_lock"))
+    SafeTimer* timer,
+    ceph::mutex* timer_lock) :
+  m_cct(cct),
+  m_name(name),
+  m_throttle(m_cct, name + "_bucket", burst),
+  m_burst(burst),
+  m_avg(avg),
+  m_timer(timer),
+  m_timer_lock(timer_lock),
+  m_lock(ceph::make_mutex(name + "_lock"))
 {}
 
-TokenBucketThrottle::~TokenBucketThrottle() {
+TokenBucketThrottle::~TokenBucketThrottle()
+{
   // cancel the timer events.
   {
     std::lock_guard timer_locker(*m_timer_lock);
@@ -766,7 +817,8 @@ TokenBucketThrottle::~TokenBucketThrottle() {
   list<Blocker> tmp_blockers;
   {
     std::lock_guard blockers_lock(m_lock);
-    tmp_blockers.splice(tmp_blockers.begin(), m_blockers, m_blockers.begin(), m_blockers.end());
+    tmp_blockers.splice(
+        tmp_blockers.begin(), m_blockers, m_blockers.begin(), m_blockers.end());
   }
 
   for (auto b : tmp_blockers) {
@@ -774,7 +826,12 @@ TokenBucketThrottle::~TokenBucketThrottle() {
   }
 }
 
-int TokenBucketThrottle::set_limit(uint64_t average, uint64_t burst, uint64_t burst_seconds) {
+int
+TokenBucketThrottle::set_limit(
+    uint64_t average,
+    uint64_t burst,
+    uint64_t burst_seconds)
+{
   {
     std::lock_guard lock{m_lock};
 
@@ -817,18 +874,24 @@ int TokenBucketThrottle::set_limit(uint64_t average, uint64_t burst, uint64_t bu
   return 0;
 }
 
-void TokenBucketThrottle::set_schedule_tick_min(uint64_t tick) {
+void
+TokenBucketThrottle::set_schedule_tick_min(uint64_t tick)
+{
   std::lock_guard lock(m_lock);
   if (tick != 0) {
     m_tick_min = tick;
   }
 }
 
-uint64_t TokenBucketThrottle::tokens_filled(double tick) {
+uint64_t
+TokenBucketThrottle::tokens_filled(double tick)
+{
   return (0 == m_avg) ? 0 : (tick / m_ticks_per_second * m_avg);
 }
 
-uint64_t TokenBucketThrottle::tokens_this_tick() {
+uint64_t
+TokenBucketThrottle::tokens_this_tick()
+{
   if (0 == m_avg) {
     return 0;
   }
@@ -840,14 +903,16 @@ uint64_t TokenBucketThrottle::tokens_this_tick() {
   return tokens_filled(m_current_tick) - tokens_filled(m_current_tick - 1);
 }
 
-void TokenBucketThrottle::add_tokens() {
+void
+TokenBucketThrottle::add_tokens()
+{
   list<Blocker> tmp_blockers;
   {
     std::lock_guard lock(m_lock);
     // put tokens into bucket.
     double burst_ratio = 1.0;
-    if (m_throttle.max > m_avg && m_avg > 0){
-      burst_ratio = (double)m_throttle.max/m_avg;
+    if (m_throttle.max > m_avg && m_avg > 0) {
+      burst_ratio = (double)m_throttle.max / m_avg;
     }
     m_throttle.put(tokens_this_tick(), burst_ratio);
     if (0 == m_avg || 0 == m_throttle.max)
@@ -855,7 +920,7 @@ void TokenBucketThrottle::add_tokens() {
     // check the m_blockers from head to tail, if blocker can get
     // enough tokens, let it go.
     while (!m_blockers.empty()) {
-      Blocker &blocker = m_blockers.front();
+      Blocker& blocker = m_blockers.front();
       uint64_t got = m_throttle.get(blocker.tokens_requested);
       if (got == blocker.tokens_requested) {
         // got enough tokens for front.
@@ -873,16 +938,17 @@ void TokenBucketThrottle::add_tokens() {
   }
 }
 
-void TokenBucketThrottle::schedule_timer() {
-  m_token_ctx = new LambdaContext(
-      [this](int r) {
-        schedule_timer();
-      });
+void
+TokenBucketThrottle::schedule_timer()
+{
+  m_token_ctx = new LambdaContext([this](int r) { schedule_timer(); });
   m_timer->add_event_after(m_schedule_tick, m_token_ctx);
 
   add_tokens();
 }
 
-void TokenBucketThrottle::cancel_timer() {
+void
+TokenBucketThrottle::cancel_timer()
+{
   m_timer->cancel_event(m_token_ctx);
 }

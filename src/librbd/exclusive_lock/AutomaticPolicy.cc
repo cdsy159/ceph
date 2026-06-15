@@ -2,8 +2,9 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/exclusive_lock/AutomaticPolicy.h"
-#include "librbd/ImageCtx.h"
+
 #include "librbd/ExclusiveLock.h"
+#include "librbd/ImageCtx.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -12,12 +13,14 @@
 namespace librbd {
 namespace exclusive_lock {
 
-int AutomaticPolicy::lock_requested(bool force) {
+int
+AutomaticPolicy::lock_requested(bool force)
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx->owner_lock));
   ceph_assert(m_image_ctx->exclusive_lock != nullptr);
 
-  ldout(m_image_ctx->cct, 20) << this << " " << __func__ << ": force=" << force
-			      << dendl;
+  ldout(m_image_ctx->cct, 20)
+      << this << " " << __func__ << ": force=" << force << dendl;
 
   // release the lock upon request (ignore forced requests)
   m_image_ctx->exclusive_lock->release_lock(nullptr);
@@ -26,4 +29,3 @@ int AutomaticPolicy::lock_requested(bool force) {
 
 } // namespace exclusive_lock
 } // namespace librbd
-

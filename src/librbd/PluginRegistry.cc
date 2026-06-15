@@ -2,32 +2,37 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/PluginRegistry.h"
-#include "include/Context.h"
-#include "common/dout.h"
-#include "librbd/cache/ImageWriteback.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/plugin/Api.h"
+
 #include <boost/tokenizer.hpp>
+
+#include "common/dout.h"
+#include "include/Context.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/cache/ImageWriteback.h"
+#include "librbd/plugin/Api.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::PluginRegistry: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix \
+  *_dout << "librbd::PluginRegistry: " << this << " " << __func__ << ": "
 
 namespace librbd {
 
 template <typename I>
-PluginRegistry<I>::PluginRegistry(I* image_ctx)
-  : m_image_ctx(image_ctx), m_plugin_api(std::make_unique<plugin::Api<I>>()),
-    m_image_writeback(std::make_unique<cache::ImageWriteback<I>>(*image_ctx)) {
-}
+PluginRegistry<I>::PluginRegistry(I* image_ctx) :
+  m_image_ctx(image_ctx),
+  m_plugin_api(std::make_unique<plugin::Api<I>>()),
+  m_image_writeback(std::make_unique<cache::ImageWriteback<I>>(*image_ctx))
+{}
 
 template <typename I>
-PluginRegistry<I>::~PluginRegistry() {
-}
+PluginRegistry<I>::~PluginRegistry()
+{}
 
 template <typename I>
-void PluginRegistry<I>::init(const std::string& plugins, Context* on_finish) {
+void
+PluginRegistry<I>::init(const std::string& plugins, Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   auto plugin_registry = cct->get_plugin_registry();
 
@@ -40,7 +45,7 @@ void PluginRegistry<I>::init(const std::string& plugins, Context* on_finish) {
     auto ctx = gather_ctx->new_sub();
 
     auto plugin = dynamic_cast<plugin::Interface<I>*>(
-      plugin_registry->get_with_load("librbd", "librbd_" + token));
+        plugin_registry->get_with_load("librbd", "librbd_" + token));
     if (plugin == nullptr) {
       lderr(cct) << "failed to load plugin: " << token << dendl;
       ctx->complete(-ENOSYS);
@@ -48,20 +53,23 @@ void PluginRegistry<I>::init(const std::string& plugins, Context* on_finish) {
     }
 
     plugin->init(
-	m_image_ctx, *m_plugin_api, *m_image_writeback, m_plugin_hook_points, ctx);
+        m_image_ctx, *m_plugin_api, *m_image_writeback, m_plugin_hook_points,
+        ctx);
   }
 
   gather_ctx->activate();
 }
 
 template <typename I>
-void PluginRegistry<I>::acquired_exclusive_lock(Context* on_finish) {
+void
+PluginRegistry<I>::acquired_exclusive_lock(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
   auto gather_ctx = new C_Gather(cct, on_finish);
 
-  for (auto &hook : m_plugin_hook_points) {
+  for (auto& hook : m_plugin_hook_points) {
     auto ctx = gather_ctx->new_sub();
     hook->acquired_exclusive_lock(ctx);
   }
@@ -69,13 +77,15 @@ void PluginRegistry<I>::acquired_exclusive_lock(Context* on_finish) {
 }
 
 template <typename I>
-void PluginRegistry<I>::prerelease_exclusive_lock(Context* on_finish) {
+void
+PluginRegistry<I>::prerelease_exclusive_lock(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
   auto gather_ctx = new C_Gather(cct, on_finish);
 
-  for (auto &hook : m_plugin_hook_points) {
+  for (auto& hook : m_plugin_hook_points) {
     auto ctx = gather_ctx->new_sub();
     hook->prerelease_exclusive_lock(ctx);
   }
@@ -83,13 +93,15 @@ void PluginRegistry<I>::prerelease_exclusive_lock(Context* on_finish) {
 }
 
 template <typename I>
-void PluginRegistry<I>::discard(Context* on_finish) {
+void
+PluginRegistry<I>::discard(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
   auto gather_ctx = new C_Gather(cct, on_finish);
 
-  for (auto &hook : m_plugin_hook_points) {
+  for (auto& hook : m_plugin_hook_points) {
     auto ctx = gather_ctx->new_sub();
     hook->discard(ctx);
   }

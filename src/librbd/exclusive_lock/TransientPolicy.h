@@ -15,10 +15,13 @@ namespace exclusive_lock {
 template <typename ImageCtxT = ImageCtx>
 class TransientPolicy : public Policy {
 public:
-  TransientPolicy(ImageCtxT* image_ctx) : m_image_ctx(image_ctx) {
-  }
+  TransientPolicy(ImageCtxT* image_ctx) :
+    m_image_ctx(image_ctx)
+  {}
 
-  bool may_auto_request_lock() override {
+  bool
+  may_auto_request_lock() override
+  {
     return false;
   }
 

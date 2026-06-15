@@ -17,8 +17,11 @@
 
 #include <limits>
 
-void PerfHistogramCommon::dump_formatted_axis(
-    ceph::Formatter *f, const PerfHistogramCommon::axis_config_d &ac) {
+void
+PerfHistogramCommon::dump_formatted_axis(
+    ceph::Formatter* f,
+    const PerfHistogramCommon::axis_config_d& ac)
+{
   f->open_object_section("axis");
 
   // Dump axis configuration
@@ -27,14 +30,14 @@ void PerfHistogramCommon::dump_formatted_axis(
   f->dump_int("quant_size", ac.m_quant_size);
   f->dump_int("buckets", ac.m_buckets);
   switch (ac.m_scale_type) {
-    case SCALE_LINEAR:
-      f->dump_string("scale_type", "linear");
-      break;
-    case SCALE_LOG2:
-      f->dump_string("scale_type", "log2");
-      break;
-    default:
-      ceph_abort_msg("Invalid scale type");
+  case SCALE_LINEAR:
+    f->dump_string("scale_type", "linear");
+    break;
+  case SCALE_LOG2:
+    f->dump_string("scale_type", "log2");
+    break;
+  default:
+    ceph_abort_msg("Invalid scale type");
   }
 
   {
@@ -57,18 +60,23 @@ void PerfHistogramCommon::dump_formatted_axis(
   f->close_section();
 }
 
-int64_t get_quants(int64_t i, PerfHistogramCommon::scale_type_d st) {
+int64_t
+get_quants(int64_t i, PerfHistogramCommon::scale_type_d st)
+{
   switch (st) {
-    case PerfHistogramCommon::SCALE_LINEAR:
-      return i;
-    case PerfHistogramCommon::SCALE_LOG2:
-      return int64_t(1) << (i - 1);
+  case PerfHistogramCommon::SCALE_LINEAR:
+    return i;
+  case PerfHistogramCommon::SCALE_LOG2:
+    return int64_t(1) << (i - 1);
   }
   ceph_abort_msg("Invalid scale type");
 }
 
-int64_t PerfHistogramCommon::get_bucket_for_axis(
-    int64_t value, const PerfHistogramCommon::axis_config_d &ac) {
+int64_t
+PerfHistogramCommon::get_bucket_for_axis(
+    int64_t value,
+    const PerfHistogramCommon::axis_config_d& ac)
+{
   if (value < ac.m_min) {
     return 0;
   }
@@ -77,31 +85,32 @@ int64_t PerfHistogramCommon::get_bucket_for_axis(
   value /= ac.m_quant_size;
 
   switch (ac.m_scale_type) {
-    case SCALE_LINEAR:
-      return std::min<int64_t>(value + 1, ac.m_buckets - 1);
+  case SCALE_LINEAR:
+    return std::min<int64_t>(value + 1, ac.m_buckets - 1);
 
-    case SCALE_LOG2:
-      for (int64_t i = 1; i < ac.m_buckets; ++i) {
-        if (value < get_quants(i, SCALE_LOG2)) {
-          return i;
-        }
+  case SCALE_LOG2:
+    for (int64_t i = 1; i < ac.m_buckets; ++i) {
+      if (value < get_quants(i, SCALE_LOG2)) {
+        return i;
       }
-      return ac.m_buckets - 1;
+    }
+    return ac.m_buckets - 1;
   }
   ceph_abort_msg("Invalid scale type");
 }
 
 std::vector<std::pair<int64_t, int64_t>>
 PerfHistogramCommon::get_axis_bucket_ranges(
-    const PerfHistogramCommon::axis_config_d &ac) {
+    const PerfHistogramCommon::axis_config_d& ac)
+{
   std::vector<std::pair<int64_t, int64_t>> ret;
   ret.resize(ac.m_buckets);
 
   // First bucket is for value < min
   int64_t min = ac.m_min;
   for (int64_t i = 1; i < ac.m_buckets - 1; i++) {
-    int64_t max_exclusive =
-        ac.m_min + get_quants(i, ac.m_scale_type) * ac.m_quant_size;
+    int64_t max_exclusive = ac.m_min +
+                            get_quants(i, ac.m_scale_type) * ac.m_quant_size;
 
     // Dump bucket range
     ret[i].first = min;

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -17,10 +17,10 @@
 #ifndef CEPH_MMONPROBE_H
 #define CEPH_MMONPROBE_H
 
-#include "include/ceph_features.h"
 #include "common/ceph_releases.h"
-#include "msg/Message.h"
+#include "include/ceph_features.h"
 #include "mon/MonMap.h"
+#include "msg/Message.h"
 
 class MMonProbe final : public Message {
 public:
@@ -36,18 +36,28 @@ public:
     OP_MISSING_FEATURES = 6,
   };
 
-  static const char *get_opname(int o) {
+  static const char*
+  get_opname(int o)
+  {
     switch (o) {
-    case OP_PROBE: return "probe";
-    case OP_REPLY: return "reply";
-    case OP_SLURP: return "slurp";
-    case OP_SLURP_LATEST: return "slurp_latest";
-    case OP_DATA: return "data";
-    case OP_MISSING_FEATURES: return "missing_features";
-    default: ceph_abort(); return 0;
+    case OP_PROBE:
+      return "probe";
+    case OP_REPLY:
+      return "reply";
+    case OP_SLURP:
+      return "slurp";
+    case OP_SLURP_LATEST:
+      return "slurp_latest";
+    case OP_DATA:
+      return "data";
+    case OP_MISSING_FEATURES:
+      return "missing_features";
+    default:
+      ceph_abort();
+      return 0;
     }
   }
-  
+
   uuid_d fsid;
   int32_t op = 0;
   std::string name;
@@ -60,33 +70,47 @@ public:
   uint64_t required_features = 0;
   ceph_release_t mon_release{ceph_release_t::unknown};
 
-  MMonProbe()
-    : Message{MSG_MON_PROBE, HEAD_VERSION, COMPAT_VERSION} {}
-  MMonProbe(const uuid_d& f, int o, const std::string& n, bool hej, ceph_release_t mr)
-    : Message{MSG_MON_PROBE, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f),
-      op(o),
-      name(n),
-      paxos_first_version(0),
-      paxos_last_version(0),
-      has_ever_joined(hej),
-      required_features(0),
-      mon_release{mr} {}
+  MMonProbe() :
+    Message{MSG_MON_PROBE, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MMonProbe(
+      const uuid_d& f,
+      int o,
+      const std::string& n,
+      bool hej,
+      ceph_release_t mr) :
+    Message{MSG_MON_PROBE, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    op(o),
+    name(n),
+    paxos_first_version(0),
+    paxos_last_version(0),
+    has_ever_joined(hej),
+    required_features(0),
+    mon_release{mr}
+  {}
+
 private:
   ~MMonProbe() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_probe"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_probe";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "mon_probe(" << get_opname(op) << " " << fsid << " name " << name;
     if (quorum.size())
       out << " quorum " << quorum;
     out << " leader " << leader;
     if (op == OP_REPLY) {
-      out << " paxos("
-	<< " fc " << paxos_first_version
-	<< " lc " << paxos_last_version
-	<< " )";
+      out << " paxos(" << " fc " << paxos_first_version << " lc "
+          << paxos_last_version << " )";
     }
     if (!has_ever_joined)
       out << " new";
@@ -97,11 +121,12 @@ public:
     out << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
-    if (monmap_bl.length() &&
-	((features & CEPH_FEATURE_MONENC) == 0 ||
-	 (features & CEPH_FEATURE_MSG_ADDR2) == 0)) {
+    if (monmap_bl.length() && ((features & CEPH_FEATURE_MONENC) == 0 ||
+                               (features & CEPH_FEATURE_MSG_ADDR2) == 0)) {
       // reencode old-format monmap
       MonMap t;
       t.decode(monmap_bl);
@@ -121,7 +146,10 @@ public:
     encode(mon_release, payload);
     encode(leader, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(fsid, p);
@@ -146,8 +174,9 @@ public:
       leader = *quorum.begin();
     }
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

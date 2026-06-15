@@ -16,11 +16,15 @@
 #include "osd/osd_types.h"
 #include "osd/osd_types_fmt.h"
 #include "osd/scrubber_common.h"
+
 #include "scrub_queue_entry.h"
 
 namespace Scrub {
 
-enum class must_scrub_t { not_mandatory, mandatory };
+enum class must_scrub_t {
+  not_mandatory,
+  mandatory
+};
 
 struct sched_params_t {
   utime_t proposed_time{};
@@ -63,15 +67,14 @@ struct sched_conf_t {
   bool mandatory_on_invalid{true};
 };
 
-
 /**
  * a wrapper around a Scrub::SchedEntry, adding some state flags
  * to be used only by the Scrubber. Note that the SchedEntry itself is known to
  * multiple objects (and must be kept small in size).
 */
 struct SchedTarget {
-  constexpr explicit SchedTarget(spg_t pg_id, scrub_level_t scrub_level)
-      : sched_info{pg_id, scrub_level}
+  constexpr explicit SchedTarget(spg_t pg_id, scrub_level_t scrub_level) :
+    sched_info{pg_id, scrub_level}
   {}
 
   /// our ID and scheduling parameters
@@ -92,36 +95,63 @@ struct SchedTarget {
   void up_urgency_to(urgency_t u);
 
   /// access that part of the SchedTarget that is queued in the scrub queue
-  const SchedEntry& queued_element() const { return sched_info; }
+  const SchedEntry&
+  queued_element() const
+  {
+    return sched_info;
+  }
 
-  bool is_deep() const { return sched_info.level == scrub_level_t::deep; }
+  bool
+  is_deep() const
+  {
+    return sched_info.level == scrub_level_t::deep;
+  }
 
-  bool is_shallow() const { return sched_info.level == scrub_level_t::shallow; }
+  bool
+  is_shallow() const
+  {
+    return sched_info.level == scrub_level_t::shallow;
+  }
 
-  scrub_level_t level() const { return sched_info.level; }
+  scrub_level_t
+  level() const
+  {
+    return sched_info.level;
+  }
 
-  urgency_t urgency() const { return sched_info.urgency; }
+  urgency_t
+  urgency() const
+  {
+    return sched_info.urgency;
+  }
 
   /**
    * a loose definition of 'high priority' scrubs. Can only be used for
    * logs and user messages. Actual scheduling decisions should be based
    * on the 'urgency' attribute and its fine-grained characteristics.
    */
-  bool is_high_priority() const
+  bool
+  is_high_priority() const
   {
     return urgency() != urgency_t::periodic_regular;
   }
 
-  bool was_delayed() const { return sched_info.last_issue != delay_cause_t::none; }
+  bool
+  was_delayed() const
+  {
+    return sched_info.last_issue != delay_cause_t::none;
+  }
 
   /// provides r/w access to the scheduling sub-object
-  SchedEntry& sched_info_ref() { return sched_info; }
+  SchedEntry&
+  sched_info_ref()
+  {
+    return sched_info;
+  }
 };
 
-
-
 class ScrubJob {
- public:
+public:
   /// pg to be scrubbed
   spg_t pgid;
 
@@ -195,10 +225,11 @@ class ScrubJob {
   /// the not-before of our earliest target (either shallow or deep)
   utime_t get_sched_time() const;
 
-  std::string_view state_desc() const
+  std::string_view
+  state_desc() const
   {
     return registered ? (is_queued() ? "queued" : "registered")
-		      : "not-registered";
+                      : "not-registered";
   }
 
   SchedTarget& get_target(scrub_level_t s_or_d);
@@ -216,14 +247,14 @@ class ScrubJob {
    *   on the configuration; the n.b. is reset to the target.
    */
   void adjust_shallow_schedule(
-    utime_t last_scrub,
-    const Scrub::sched_conf_t& app_conf,
-    utime_t scrub_clock_now);
+      utime_t last_scrub,
+      const Scrub::sched_conf_t& app_conf,
+      utime_t scrub_clock_now);
 
   void adjust_deep_schedule(
-    utime_t last_deep,
-    const Scrub::sched_conf_t& app_conf,
-    utime_t scrub_clock_now);
+      utime_t last_deep,
+      const Scrub::sched_conf_t& app_conf,
+      utime_t scrub_clock_now);
 
   /**
    * For the level specified, set the 'not-before' time to 'now+delay',
@@ -238,7 +269,7 @@ class ScrubJob {
       delay_cause_t delay_cause,
       utime_t scrub_clock_now);
 
- /**
+  /**
    * recalculate the scheduling parameters for the periodic scrub targets.
    * Used whenever the "external state" of the PG changes, e.g. when made
    * primary - or indeed when the configuration changes.
@@ -247,10 +278,12 @@ class ScrubJob {
    * (why? for example, a 'scrub pg' command following a 'deepscrub pg'
    * would otherwise push the deep scrub to the future).
    */
-  void on_periods_change(
+  void
+  on_periods_change(
       const sched_params_t& suggested,
       const Scrub::sched_conf_t& aconf,
-      utime_t scrub_clock_now) {}
+      utime_t scrub_clock_now)
+  {}
 
   /**
    * the operator requested a scrub (shallow, deep or repair).
@@ -270,7 +303,11 @@ class ScrubJob {
       scrub_level_t s_or_d,
       const Scrub::sched_conf_t& app_conf);
 
-  bool is_registered() const { return registered; }
+  bool
+  is_registered() const
+  {
+    return registered;
+  }
 
   /// are any of our two SchedTargets queued in the scrub queue?
   bool is_queued() const;
@@ -292,15 +329,15 @@ class ScrubJob {
   // Note that it would not be needed in the next iteration of this code, as
   // the queue would *not* hold the full ScrubJob objects, but rather -
   // SchedTarget(s).
-  std::partial_ordering operator<=>(const ScrubJob& rhs) const
+  std::partial_ordering
+  operator<=>(const ScrubJob& rhs) const
   {
     return cmp_entries(
-      ceph_clock_now(), shallow_target.queued_element(),
-      deep_target.queued_element());
+        ceph_clock_now(), shallow_target.queued_element(),
+        deep_target.queued_element());
   };
 
-
- /*
+  /*
  * Restrictions and limitations that apply to each urgency level:
  * -------------------------------------------------------------
  * Some types of scrubs are exempt from some or all of the preconditions and
@@ -382,63 +419,84 @@ class ScrubJob {
    */
   static bool is_repairs_count_limited(urgency_t urgency);
 };
-}  // namespace Scrub
+} // namespace Scrub
 
 namespace std {
 std::ostream& operator<<(std::ostream& out, const Scrub::ScrubJob& pg);
-}  // namespace std
+} // namespace std
 
 namespace fmt {
 
 template <>
 struct formatter<Scrub::sched_params_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const Scrub::sched_params_t& pm, FormatContext& ctx) const
+  auto
+  format(const Scrub::sched_params_t& pm, FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(), "proposed:{:s},must:{:c}", pm.proposed_time,
-	pm.is_must == Scrub::must_scrub_t::mandatory ? 'y' : 'n');
+        ctx.out(), "proposed:{:s},must:{:c}", pm.proposed_time,
+        pm.is_must == Scrub::must_scrub_t::mandatory ? 'y' : 'n');
   }
 };
 
 template <>
 struct formatter<Scrub::SchedTarget> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-  template <typename FormatContext>
-  auto format(const Scrub::SchedTarget& st, FormatContext& ctx) const
+  constexpr auto
+  parse(format_parse_context& ctx)
   {
-     return fmt::format_to(
- 	ctx.out(), "{},q:{:c},issue:{}", st.sched_info,
- 	st.queued ? '+' : '-', st.sched_info.last_issue);
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto
+  format(const Scrub::SchedTarget& st, FormatContext& ctx) const
+  {
+    return fmt::format_to(
+        ctx.out(), "{},q:{:c},issue:{}", st.sched_info, st.queued ? '+' : '-',
+        st.sched_info.last_issue);
   }
 };
 
 template <>
 struct formatter<Scrub::ScrubJob> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(const Scrub::ScrubJob& sjob, FormatContext& ctx) const
+  auto
+  format(const Scrub::ScrubJob& sjob, FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(), "pg[{}]:sh:{}/dp:{}<{}>",
-	sjob.pgid, sjob.shallow_target, sjob.deep_target, sjob.state_desc());
+        ctx.out(), "pg[{}]:sh:{}/dp:{}<{}>", sjob.pgid, sjob.shallow_target,
+        sjob.deep_target, sjob.state_desc());
   }
 };
 
 template <>
 struct formatter<Scrub::sched_conf_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const Scrub::sched_conf_t& cf, FormatContext& ctx) const
+  auto
+  format(const Scrub::sched_conf_t& cf, FormatContext& ctx) const
   {
     return fmt::format_to(
-	ctx.out(),
-	"periods:s:{},d:{},iv-ratio:{},deep-rand:{},on-inv:{}",
-	cf.shallow_interval, cf.deep_interval,
-	cf.interval_randomize_ratio, cf.deep_randomize_ratio,
-	cf.mandatory_on_invalid);
+        ctx.out(), "periods:s:{},d:{},iv-ratio:{},deep-rand:{},on-inv:{}",
+        cf.shallow_interval, cf.deep_interval, cf.interval_randomize_ratio,
+        cf.deep_randomize_ratio, cf.mandatory_on_invalid);
   }
 };
-}  // namespace fmt
+} // namespace fmt

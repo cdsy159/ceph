@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,7 +16,7 @@
 
 #include <stdarg.h>
 
-#ifdef    __cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -26,17 +26,17 @@ extern "C" {
   ((c) || (exiterror("Assertion failed at %s:%d", __FILE__, __LINE__), 1))
 
 /* print usage error message and exit */
-extern void userror(const char *use, const char *fmt, ...);
+extern void userror(const char* use, const char* fmt, ...);
 
 /* print system error message and exit */
-extern void syserror(const char *fmt, ...);
+extern void syserror(const char* fmt, ...);
 
 /* print error message and exit */
-extern void exiterror(const char *fmt, ...);
+extern void exiterror(const char* fmt, ...);
 
 /* print error message */
-extern void error(const char *fmt, ...);
+extern void error(const char* fmt, ...);
 
-#ifdef    __cplusplus
+#ifdef __cplusplus
 } // extern "C"
 #endif

@@ -3,46 +3,48 @@
 
 #pragma once
 
+#include <seastar/core/future.hh>
+
 #include <memory>
 
 #include <boost/intrusive_ptr.hpp>
-#include <seastar/core/future.hh>
 
-#include "include/common_fwd.h"
-#include "osd_operation.h"
-#include "osd/osd_types_fmt.h"
-#include "msg/MessageRef.h"
+#include "common/AsyncReserver.h"
 #include "crimson/common/exception.h"
-#include "crimson/common/shared_lru.h"
-#include "crimson/os/futurized_collection.h"
-#include "osd/PeeringState.h"
 #include "crimson/common/log.h"
+#include "crimson/common/shared_lru.h"
+#include "crimson/net/Connection.h"
+#include "crimson/os/futurized_collection.h"
 #include "crimson/osd/heartbeat.h"
-#include "crimson/osd/osdmap_service.h"
-#include "crimson/osd/osdmap_gate.h"
-#include "crimson/osd/osd_meta.h"
 #include "crimson/osd/object_context.h"
+#include "crimson/osd/osd_meta.h"
+#include "crimson/osd/osdmap_gate.h"
+#include "crimson/osd/osdmap_service.h"
 #include "crimson/osd/pg_map.h"
 #include "crimson/osd/state.h"
-#include "common/AsyncReserver.h"
-#include "crimson/net/Connection.h"
+#include "include/common_fwd.h"
 #include "mgr/OSDPerfMetricTypes.h"
+#include "msg/MessageRef.h"
 #include "osd/ECExtentCache.h"
+#include "osd/PeeringState.h"
+#include "osd/osd_types_fmt.h"
+
+#include "osd_operation.h"
 
 namespace crimson::net {
-  class Messenger;
+class Messenger;
 }
 
 namespace crimson::mgr {
-  class Client;
+class Client;
 }
 
 namespace crimson::mon {
-  class Client;
+class Client;
 }
 
 namespace crimson::os {
-  class FuturizedStore;
+class FuturizedStore;
 }
 
 class OSDMap;
@@ -72,17 +74,19 @@ class PerShardState {
   crimson::os::BackendStore b_store;
   crimson::common::CephContext cct;
 
-  OSDState &osd_state;
+  OSDState& osd_state;
   OSD_OSDMapGate osdmap_gate;
 
   PerShardPipeline client_request_pipeline;
   PerShardPipeline peering_request_pipeline;
   PerShardPipeline replicated_request_pipeline;
 
-  PerfCounters *perf = nullptr;
-  PerfCounters *recoverystate_perf = nullptr;
+  PerfCounters* perf = nullptr;
+  PerfCounters* recoverystate_perf = nullptr;
 
-  const epoch_t& get_osdmap_tlb() {
+  const epoch_t&
+  get_osdmap_tlb()
+  {
     return per_shard_superblock.cluster_osdmap_trim_lower_bound;
   }
 
@@ -90,19 +94,28 @@ class PerShardState {
   OSDOperationRegistry registry;
   OperationThrottler throttler;
 
-  seastar::future<> dump_ops_in_flight(Formatter *f) const;
+  seastar::future<> dump_ops_in_flight(Formatter* f) const;
 
   epoch_t up_epoch = 0;
   OSDMapService::cached_map_t osdmap;
-  const auto &get_osdmap() const {
+
+  const auto&
+  get_osdmap() const
+  {
     assert_core();
     return osdmap;
   }
-  void update_map(OSDMapService::cached_map_t new_osdmap) {
+
+  void
+  update_map(OSDMapService::cached_map_t new_osdmap)
+  {
     assert_core();
     osdmap = std::move(new_osdmap);
   }
-  void set_up_epoch(epoch_t epoch) {
+
+  void
+  set_up_epoch(epoch_t epoch)
+  {
     assert_core();
     up_epoch = epoch;
   }
@@ -113,7 +126,10 @@ class PerShardState {
   // creats and waits on a new and may-never-resolve future, in which
   // case the shutdown may never succeed.
   bool stopping = false;
-  seastar::future<> stop_registry() {
+
+  seastar::future<>
+  stop_registry()
+  {
     assert_core();
     auto& logger = crimson::get_logger(ceph_subsys_osd);
     logger.info("PerShardState::{}", __func__);
@@ -132,63 +148,73 @@ class PerShardState {
   seastar::future<> stop_pgs();
   std::map<pg_t, pg_stat_t> get_pg_stats();
   seastar::future<> broadcast_map_to_pgs(
-    ShardServices &shard_services,
-    epoch_t epoch);
+      ShardServices& shard_services,
+      epoch_t epoch);
 
   Ref<PG> get_pg(spg_t pgid);
+
   template <typename F>
-  void for_each_pg(F &&f) const {
+  void
+  for_each_pg(F&& f) const
+  {
     assert_core();
-    for (auto &pg : pg_map.get_pgs()) {
+    for (auto& pg : pg_map.get_pgs()) {
       std::invoke(f, pg.first, pg.second);
     }
   }
 
   template <typename T, typename... Args>
-  auto start_operation(Args&&... args) {
+  auto
+  start_operation(Args&&... args)
+  {
     assert_core();
     if (__builtin_expect(stopping, false)) {
       throw crimson::common::system_shutdown_exception();
     }
     auto op = registry.create_operation<T>(std::forward<Args>(args)...);
-    crimson::get_logger(ceph_subsys_osd).info(
-      "PerShardState::{}, {}", __func__, *op);
+    crimson::get_logger(ceph_subsys_osd)
+        .info("PerShardState::{}, {}", __func__, *op);
     auto fut = seastar::yield().then([op] {
       return op->start().finally([op /* by copy */] {
-	// ensure the op's lifetime is appropriate. It is not enough to
-	// guarantee it's alive at the scheduling stages (i.e. `then()`
-	// calling) but also during the actual execution (i.e. when passed
-	// lambdas are actually run).
+        // ensure the op's lifetime is appropriate. It is not enough to
+        // guarantee it's alive at the scheduling stages (i.e. `then()`
+        // calling) but also during the actual execution (i.e. when passed
+        // lambdas are actually run).
       });
     });
     return std::make_pair(std::move(op), std::move(fut));
   }
 
   template <typename InterruptorT, typename T, typename... Args>
-  auto start_operation_may_interrupt(Args&&... args) {
+  auto
+  start_operation_may_interrupt(Args&&... args)
+  {
     assert_core();
     if (__builtin_expect(stopping, false)) {
       throw crimson::common::system_shutdown_exception();
     }
     auto op = registry.create_operation<T>(std::forward<Args>(args)...);
-    crimson::get_logger(ceph_subsys_osd).info(
-      "PerShardState::{}, {}", __func__, *op);
-    auto fut = InterruptorT::make_interruptible(
-      seastar::yield()
-    ).then_interruptible([op] {
-      return op->start().finally([op /* by copy */] {
-	// ensure the op's lifetime is appropriate. It is not enough to
-	// guarantee it's alive at the scheduling stages (i.e. `then()`
-	// calling) but also during the actual execution (i.e. when passed
-	// lambdas are actually run).
-      });
-    });
+    crimson::get_logger(ceph_subsys_osd)
+        .info("PerShardState::{}, {}", __func__, *op);
+    auto fut =
+        InterruptorT::make_interruptible(seastar::yield())
+            .then_interruptible([op] {
+              return op->start().finally([op /* by copy */] {
+                // ensure the op's lifetime is appropriate. It is not enough to
+                // guarantee it's alive at the scheduling stages (i.e. `then()`
+                // calling) but also during the actual execution (i.e. when passed
+                // lambdas are actually run).
+              });
+            });
     return std::make_pair(std::move(op), std::move(fut));
   }
 
   // tids for ops i issue, prefixed with core id to ensure uniqueness
   ceph_tid_t next_tid;
-  ceph_tid_t get_tid() {
+
+  ceph_tid_t
+  get_tid()
+  {
     assert_core();
     return next_tid++;
   }
@@ -200,7 +226,10 @@ class PerShardState {
 
   // Time state
   const ceph::mono_time startup_time;
-  ceph::signedspan get_mnow() const {
+
+  ceph::signedspan
+  get_mnow() const
+  {
     assert_core();
     return ceph::mono_clock::now() - startup_time;
   }
@@ -216,18 +245,20 @@ class PerShardState {
 
 public:
   PerShardState(
-    int whoami,
-    ceph::mono_time startup_time,
-    PerfCounters *perf,
-    PerfCounters *recoverystate_perf,
-    crimson::os::FuturizedStore &store,
-    OSDState& osd_state);
+      int whoami,
+      ceph::mono_time startup_time,
+      PerfCounters* perf,
+      PerfCounters* recoverystate_perf,
+      crimson::os::FuturizedStore& store,
+      OSDState& osd_state);
 
-  void initialize_scheduler(CephContext* cct, bool is_rotational) {
-    throttler.initialize_scheduler(cct, crimson::common::local_conf(), is_rotational, whoami);
+  void
+  initialize_scheduler(CephContext* cct, bool is_rotational)
+  {
+    throttler.initialize_scheduler(
+        cct, crimson::common::local_conf(), is_rotational, whoami);
     throttler.start();
- }
-
+  }
 };
 
 /**
@@ -246,78 +277,104 @@ class OSDSingletonState : public md_config_obs_t {
 
 public:
   OSDSingletonState(
-    int whoami,
-    crimson::net::Messenger &cluster_msgr,
-    crimson::net::Messenger &public_msgr,
-    crimson::mon::Client &monc,
-    crimson::mgr::Client &mgrc);
+      int whoami,
+      crimson::net::Messenger& cluster_msgr,
+      crimson::net::Messenger& public_msgr,
+      crimson::mon::Client& monc,
+      crimson::mgr::Client& mgrc);
 
 private:
   const int whoami;
 
   crimson::common::CephContext cct;
-  PerfCounters *perf = nullptr;
-  PerfCounters *recoverystate_perf = nullptr;
+  PerfCounters* perf = nullptr;
+  PerfCounters* recoverystate_perf = nullptr;
 
   SharedLRU<epoch_t, OSDMap> osdmaps;
   SimpleLRU<epoch_t, bufferlist, false> map_bl_cache;
   SimpleLRU<epoch_t, bufferlist, false> inc_map_bl_cache;
 
   cached_map_t osdmap;
-  cached_map_t &get_osdmap() { return osdmap; }
-  void update_map(cached_map_t new_osdmap) {
+
+  cached_map_t&
+  get_osdmap()
+  {
+    return osdmap;
+  }
+
+  void
+  update_map(cached_map_t new_osdmap)
+  {
     osdmap = std::move(new_osdmap);
   }
 
-  crimson::net::Messenger &cluster_msgr;
-  crimson::net::Messenger &public_msgr;
+  crimson::net::Messenger& cluster_msgr;
+  crimson::net::Messenger& public_msgr;
 
   seastar::future<> send_to_osd(int peer, MessageURef m, epoch_t from_epoch);
 
-  crimson::mon::Client &monc;
+  crimson::mon::Client& monc;
   seastar::future<> osdmap_subscribe(version_t epoch, bool force_request);
 
-  crimson::mgr::Client &mgrc;
+  crimson::mgr::Client& mgrc;
 
   osd_stat_t osd_stat;
   uint32_t osd_stat_seq = 0;
-  osd_stat_t get_osd_stat() {
+
+  osd_stat_t
+  get_osd_stat()
+  {
     return osd_stat;
   }
+
   void update_osd_stat(
-    epoch_t up_epoch,
-    const Heartbeat::osds_t& peers,
-    const store_statfs_t& st);
-  void inc_osd_stat_repaired() {
+      epoch_t up_epoch,
+      const Heartbeat::osds_t& peers,
+      const store_statfs_t& st);
+
+  void
+  inc_osd_stat_repaired()
+  {
     osd_stat.num_shards_repaired++;
   }
 
   std::unique_ptr<OSDMeta> meta_coll;
+
   template <typename... Args>
-  void init_meta_coll(Args&&... args) {
+  void
+  init_meta_coll(Args&&... args)
+  {
     meta_coll = std::make_unique<OSDMeta>(std::forward<Args>(args)...);
   }
-  OSDMeta &get_meta_coll() {
+
+  OSDMeta&
+  get_meta_coll()
+  {
     assert(meta_coll);
     return *meta_coll;
   }
 
   OSDSuperblock superblock;
-  void set_singleton_superblock(OSDSuperblock _superblock) {
+
+  void
+  set_singleton_superblock(OSDSuperblock _superblock)
+  {
     superblock = std::move(_superblock);
   }
 
   seastar::future<MURef<MOSDMap>> build_incremental_map_msg(
-    epoch_t first,
-    epoch_t last);
+      epoch_t first,
+      epoch_t last);
 
   seastar::future<> send_incremental_map(
-    crimson::net::Connection &conn,
-    epoch_t first);
+      crimson::net::Connection& conn,
+      epoch_t first);
 
   seastar::future<> send_incremental_map_to_osd(int osd, epoch_t first);
 
-  auto get_pool_info(int64_t poolid) {
+  auto
+  get_pool_info(int64_t poolid)
+  {
     return get_meta_coll().load_final_pool_info(poolid);
   }
 
@@ -326,12 +383,15 @@ private:
     std::vector<int> acting;
     bool forced = false;
   };
+
   std::map<pg_t, pg_temp_t> pg_temp_wanted;
   std::map<pg_t, pg_temp_t> pg_temp_pending;
   friend std::ostream& operator<<(std::ostream&, const pg_temp_t&);
 
-  void queue_want_pg_temp(pg_t pgid, const std::vector<int>& want,
-			  bool forced = false);
+  void queue_want_pg_temp(
+      pg_t pgid,
+      const std::vector<int>& want,
+      bool forced = false);
   void remove_want_pg_temp(pg_t pgid);
   void requeue_pg_temp();
   seastar::future<> send_pg_temp();
@@ -342,10 +402,13 @@ private:
   void prune_pg_created();
 
   struct DirectFinisher {
-    void queue(Context *c) {
+    void
+    queue(Context* c)
+    {
       c->complete(0);
     }
   } finisher;
+
   AsyncReserver<spg_t, DirectFinisher> local_reserver;
   AsyncReserver<spg_t, DirectFinisher> remote_reserver;
   AsyncReserver<spg_t, DirectFinisher> snap_reserver;
@@ -355,21 +418,22 @@ private:
 
   std::vector<std::string> get_tracked_keys() const noexcept final;
   void handle_conf_change(
-    const ConfigProxy& conf,
-    const std::set <std::string> &changed) final;
+      const ConfigProxy& conf,
+      const std::set<std::string>& changed) final;
 
   seastar::future<local_cached_map_t> get_local_map(epoch_t e);
   seastar::future<std::unique_ptr<OSDMap>> load_map(epoch_t e);
   seastar::future<bufferlist> load_map_bl(epoch_t e);
   read_errorator::future<ceph::bufferlist> load_inc_map_bl(epoch_t e);
-  seastar::future<OSDMapService::bls_map_t>
-  load_map_bls(epoch_t first, epoch_t last);
-  void store_map_bl(ceph::os::Transaction& t,
-                    epoch_t e, bufferlist&& bl);
-  void store_inc_map_bl(ceph::os::Transaction& t,
-                    epoch_t e, bufferlist&& bl);
-  seastar::future<> store_maps(ceph::os::Transaction& t,
-                               epoch_t start, Ref<MOSDMap> m);
+  seastar::future<OSDMapService::bls_map_t> load_map_bls(
+      epoch_t first,
+      epoch_t last);
+  void store_map_bl(ceph::os::Transaction& t, epoch_t e, bufferlist&& bl);
+  void store_inc_map_bl(ceph::os::Transaction& t, epoch_t e, bufferlist&& bl);
+  seastar::future<> store_maps(
+      ceph::os::Transaction& t,
+      epoch_t start,
+      Ref<MOSDMap> m);
   void trim_maps(ceph::os::Transaction& t, OSDSuperblock& superblock);
 };
 
@@ -383,17 +447,16 @@ class ShardServices : public OSDMapService {
   using local_cached_map_t = OSDMapService::local_cached_map_t;
 
   PerShardState local_state;
-  seastar::sharded<OSDSingletonState> &osd_singleton_state;
+  seastar::sharded<OSDSingletonState>& osd_singleton_state;
   PGShardMapping& pg_to_shard_mapping;
   uint32_t store_shard_nums = 0;
 
   template <typename F, typename... Args>
-  auto with_singleton(F &&f, Args&&... args) {
+  auto
+  with_singleton(F&& f, Args&&... args)
+  {
     return osd_singleton_state.invoke_on(
-      PRIMARY_CORE,
-      std::forward<F>(f),
-      std::forward<Args>(args)...
-    );
+        PRIMARY_CORE, std::forward<F>(f), std::forward<Args>(args)...);
   }
 
 public:
@@ -415,78 +478,85 @@ public:
     std::vector<remote_func_t> queue;
 
     singleton_orderer_t() = default;
-    singleton_orderer_t(singleton_orderer_t &&) = default;
-    singleton_orderer_t &operator=(singleton_orderer_t &&) = default;
+    singleton_orderer_t(singleton_orderer_t&&) = default;
+    singleton_orderer_t& operator=(singleton_orderer_t&&) = default;
 
-    singleton_orderer_t(const singleton_orderer_t &) = delete;
-    singleton_orderer_t &operator=(const singleton_orderer_t &) = delete;
+    singleton_orderer_t(const singleton_orderer_t&) = delete;
+    singleton_orderer_t& operator=(const singleton_orderer_t&) = delete;
   };
 
-  seastar::future<> run_orderer(singleton_orderer_t &&orderer) {
-    return with_singleton([](auto &singleton, auto &&orderer) {
-      return seastar::do_with(
-	std::move(orderer),
-	[&singleton](auto &orderer) {
-	  return seastar::do_for_each(
-	    orderer.queue,
-	    [&singleton](auto &func) {
-	      return std::invoke(func, singleton);
-	    });
-	});
-    }, std::move(orderer));
+  seastar::future<>
+  run_orderer(singleton_orderer_t&& orderer)
+  {
+    return with_singleton(
+        [](auto& singleton, auto&& orderer) {
+          return seastar::do_with(
+              std::move(orderer), [&singleton](auto& orderer) {
+                return seastar::do_for_each(
+                    orderer.queue, [&singleton](auto& func) {
+                      return std::invoke(func, singleton);
+                    });
+              });
+        },
+        std::move(orderer));
   }
 
 private:
   template <typename F, typename... Args>
-  void schedule_for_singleton(
-    singleton_orderer_t &orderer, F &&f, Args&&... args) {
+  void
+  schedule_for_singleton(singleton_orderer_t& orderer, F&& f, Args&&... args)
+  {
     orderer.queue.push_back(
-      [f=std::forward<F>(f),
-       args=std::make_tuple(
-	 std::forward<Args>(args)...)](OSDSingletonState &state) -> seastar::future<> {
-	return seastar::futurize_apply<>(
-	  std::move(f),
-	  std::tuple_cat(std::make_tuple(std::ref(state)), std::move(args)));
-      });
+        [f = std::forward<F>(f),
+         args = std::make_tuple(std::forward<Args>(args)...)](
+            OSDSingletonState& state) -> seastar::future<> {
+          return seastar::futurize_apply<>(
+              std::move(f),
+              std::tuple_cat(std::make_tuple(std::ref(state)), std::move(args)));
+        });
   }
 
-#define FORWARD_CONST(FROM_METHOD, TO_METHOD, TARGET)		\
-  template <typename... Args>					\
-  auto FROM_METHOD(Args&&... args) const {			\
-    return TARGET.TO_METHOD(std::forward<Args>(args)...);	\
+#define FORWARD_CONST(FROM_METHOD, TO_METHOD, TARGET)     \
+  template <typename... Args>                             \
+  auto FROM_METHOD(Args&&... args) const                  \
+  {                                                       \
+    return TARGET.TO_METHOD(std::forward<Args>(args)...); \
   }
 
-#define FORWARD(FROM_METHOD, TO_METHOD, TARGET)		\
-  template <typename... Args>					\
-  auto FROM_METHOD(Args&&... args) {				\
-    return TARGET.TO_METHOD(std::forward<Args>(args)...);	\
+#define FORWARD(FROM_METHOD, TO_METHOD, TARGET)           \
+  template <typename... Args>                             \
+  auto FROM_METHOD(Args&&... args)                        \
+  {                                                       \
+    return TARGET.TO_METHOD(std::forward<Args>(args)...); \
   }
 
 #define FORWARD_TO_LOCAL(METHOD) FORWARD(METHOD, METHOD, local_state)
-#define FORWARD_TO_LOCAL_CONST(METHOD) FORWARD_CONST(	\
-    METHOD, METHOD, local_state)			\
+#define FORWARD_TO_LOCAL_CONST(METHOD) \
+  FORWARD_CONST(METHOD, METHOD, local_state)
 
-#define FORWARD_TO_OSD_SINGLETON_TARGET(METHOD, TARGET)		\
-  template <typename... Args>					\
-  auto METHOD(Args&&... args) {				        \
-    return with_singleton(                                      \
-      [](auto &local_state, auto&&... args) {                   \
-        return local_state.TARGET(                              \
-	  std::forward<decltype(args)>(args)...);		\
-      }, std::forward<Args>(args)...);				\
+#define FORWARD_TO_OSD_SINGLETON_TARGET(METHOD, TARGET)                     \
+  template <typename... Args>                                               \
+  auto METHOD(Args&&... args)                                               \
+  {                                                                         \
+    return with_singleton(                                                  \
+        [](auto& local_state, auto&&... args) {                             \
+          return local_state.TARGET(std::forward<decltype(args)>(args)...); \
+        },                                                                  \
+        std::forward<Args>(args)...);                                       \
   }
 #define FORWARD_TO_OSD_SINGLETON(METHOD) \
   FORWARD_TO_OSD_SINGLETON_TARGET(METHOD, METHOD)
 
-#define QUEUE_FOR_OSD_SINGLETON_TARGET(METHOD, TARGET)			\
-  template <typename... Args>						\
-  auto METHOD(singleton_orderer_t &orderer, Args&&... args) {		\
-    return schedule_for_singleton(					\
-      orderer,								\
-      [](auto &local_state, auto&&... args) {				\
-        return local_state.TARGET(					\
-	  std::forward<decltype(args)>(args)...);			\
-      }, std::forward<Args>(args)...);					\
+#define QUEUE_FOR_OSD_SINGLETON_TARGET(METHOD, TARGET)                      \
+  template <typename... Args>                                               \
+  auto METHOD(singleton_orderer_t& orderer, Args&&... args)                 \
+  {                                                                         \
+    return schedule_for_singleton(                                          \
+        orderer,                                                            \
+        [](auto& local_state, auto&&... args) {                             \
+          return local_state.TARGET(std::forward<decltype(args)>(args)...); \
+        },                                                                  \
+        std::forward<Args>(args)...);                                       \
   }
 #define QUEUE_FOR_OSD_SINGLETON(METHOD) \
   QUEUE_FOR_OSD_SINGLETON_TARGET(METHOD, METHOD)
@@ -494,18 +564,21 @@ private:
 public:
   template <typename... PSSArgs>
   ShardServices(
-    seastar::sharded<OSDSingletonState> &osd_singleton_state,
-    PGShardMapping& pg_to_shard_mapping,
-    uint32_t store_shard_nums,
-    PSSArgs&&... args)
-    : local_state(std::forward<PSSArgs>(args)...),
-      osd_singleton_state(osd_singleton_state),
-      pg_to_shard_mapping(pg_to_shard_mapping),
-      store_shard_nums(store_shard_nums) {}
+      seastar::sharded<OSDSingletonState>& osd_singleton_state,
+      PGShardMapping& pg_to_shard_mapping,
+      uint32_t store_shard_nums,
+      PSSArgs&&... args) :
+    local_state(std::forward<PSSArgs>(args)...),
+    osd_singleton_state(osd_singleton_state),
+    pg_to_shard_mapping(pg_to_shard_mapping),
+    store_shard_nums(store_shard_nums)
+  {}
 
   FORWARD_TO_OSD_SINGLETON(send_to_osd)
 
-  crimson::os::BackendStore get_store(store_index_t store_index) {
+  crimson::os::BackendStore
+  get_store(store_index_t store_index)
+  {
     auto store = local_state.b_store;
     store.store_index = store_index;
     return store;
@@ -514,47 +587,71 @@ public:
   struct shard_stats_t {
     double reactor_utilization;
   };
-  shard_stats_t report_stats() {
+
+  shard_stats_t
+  report_stats()
+  {
     return {get_reactor_utilization()};
   }
 
-  auto dump_store_shards(Formatter *f) const {
+  auto
+  dump_store_shards(Formatter* f) const
+  {
     return pg_to_shard_mapping.dump_store_shards(f);
   }
 
-  auto create_split_pg_mapping(spg_t pgid, core_id_t core, store_index_t store_index) {
+  auto
+  create_split_pg_mapping(spg_t pgid, core_id_t core, store_index_t store_index)
+  {
     return pg_to_shard_mapping.get_or_create_pg_mapping(pgid, core, store_index);
   }
 
-  auto remove_pg(spg_t pgid) {
+  auto
+  remove_pg(spg_t pgid)
+  {
     local_state.pg_map.remove_pg(pgid);
     return pg_to_shard_mapping.remove_pg_mapping(pgid);
   }
 
   Ref<PG> get_pg(spg_t pgid);
 
-  crimson::common::CephContext *get_cct() {
+  crimson::common::CephContext*
+  get_cct()
+  {
     return &(local_state.cct);
   }
 
   template <typename T, typename... Args>
-  auto start_operation(Args&&... args) {
+  auto
+  start_operation(Args&&... args)
+  {
     return local_state.start_operation<T>(std::forward<Args>(args)...);
   }
 
   template <typename InterruptorT, typename T, typename... Args>
-  auto start_operation_may_interrupt(Args&&... args) {
-    return local_state.start_operation_may_interrupt<
-      InterruptorT, T>(std::forward<Args>(args)...);
+  auto
+  start_operation_may_interrupt(Args&&... args)
+  {
+    return local_state.start_operation_may_interrupt<InterruptorT, T>(
+        std::forward<Args>(args)...);
   }
 
-  auto &get_registry() { return local_state.registry; }
+  auto&
+  get_registry()
+  {
+    return local_state.registry;
+  }
 
   // Loggers
-  PerfCounters &get_recoverystate_perf_logger() {
+  PerfCounters&
+  get_recoverystate_perf_logger()
+  {
     return *local_state.recoverystate_perf;
   }
-  PerfCounters &get_perf_logger() {
+
+  PerfCounters&
+  get_perf_logger()
+  {
     return *local_state.perf;
   }
 
@@ -563,90 +660,118 @@ public:
 
   // Local PG Management
   seastar::future<Ref<PG>> make_pg(
-    cached_map_t create_map,
-    spg_t pgid,
-    store_index_t store_index,
-    bool do_create);
+      cached_map_t create_map,
+      spg_t pgid,
+      store_index_t store_index,
+      bool do_create);
   seastar::future<Ref<PG>> handle_pg_create_info(
-    store_index_t store_index,
-    std::unique_ptr<PGCreateInfo> info);
+      store_index_t store_index,
+      std::unique_ptr<PGCreateInfo> info);
 
   using get_or_create_pg_ertr = PGMap::wait_for_pg_ertr;
   using get_or_create_pg_ret = get_or_create_pg_ertr::future<Ref<PG>>;
   get_or_create_pg_ret get_or_create_pg(
-    PGMap::PGCreationBlockingEvent::TriggerI&&,
-    spg_t pgid,
-    store_index_t store_index,
-    std::unique_ptr<PGCreateInfo> info);
+      PGMap::PGCreationBlockingEvent::TriggerI&&,
+      spg_t pgid,
+      store_index_t store_index,
+      std::unique_ptr<PGCreateInfo> info);
 
   using wait_for_pg_ertr = PGMap::wait_for_pg_ertr;
   using wait_for_pg_ret = wait_for_pg_ertr::future<Ref<PG>>;
   wait_for_pg_ret wait_for_pg(
-    PGMap::PGCreationBlockingEvent::TriggerI&&, spg_t pgid);
+      PGMap::PGCreationBlockingEvent::TriggerI&&,
+      spg_t pgid);
   wait_for_pg_ret create_split_pg(
-    PGMap::PGCreationBlockingEvent::TriggerI&& trigger,
-    spg_t pgid);
+      PGMap::PGCreationBlockingEvent::TriggerI&& trigger,
+      spg_t pgid);
 
   seastar::future<Ref<PG>> load_pg(spg_t pgid, store_index_t store_index);
 
   /// Dispatch and reset ctx transaction
   seastar::future<> dispatch_context_transaction(
-    crimson::os::CollectionRef col, PeeringCtx &ctx, store_index_t store_index);
+      crimson::os::CollectionRef col,
+      PeeringCtx& ctx,
+      store_index_t store_index);
 
   /// Dispatch and reset ctx messages
-  seastar::future<> dispatch_context_messages(
-    BufferedRecoveryMessages &&ctx);
+  seastar::future<> dispatch_context_messages(BufferedRecoveryMessages&& ctx);
 
   /// Dispatch ctx and dispose of context
   seastar::future<> dispatch_context(
-    store_index_t store_index,
-    crimson::os::CollectionRef col,
-    PeeringCtx &&ctx);
+      store_index_t store_index,
+      crimson::os::CollectionRef col,
+      PeeringCtx&& ctx);
 
   /// Dispatch ctx and dispose of ctx, transaction must be empty
-  seastar::future<> dispatch_context(
-    store_index_t store_index,
-    PeeringCtx &&ctx) {
+  seastar::future<>
+  dispatch_context(store_index_t store_index, PeeringCtx&& ctx)
+  {
     return dispatch_context(store_index, {}, std::move(ctx));
   }
 
-  PerShardPipeline &get_client_request_pipeline() {
+  PerShardPipeline&
+  get_client_request_pipeline()
+  {
     return local_state.client_request_pipeline;
   }
 
-  PerShardPipeline &get_peering_request_pipeline() {
+  PerShardPipeline&
+  get_peering_request_pipeline()
+  {
     return local_state.peering_request_pipeline;
   }
 
-  PerShardPipeline &get_replicated_request_pipeline() {
+  PerShardPipeline&
+  get_replicated_request_pipeline()
+  {
     return local_state.replicated_request_pipeline;
   }
 
   /// Return per-core tid
-  ceph_tid_t get_tid() { return local_state.get_tid(); }
+  ceph_tid_t
+  get_tid()
+  {
+    return local_state.get_tid();
+  }
 
   /// Return core-local pg count * number of cores
-  unsigned get_num_local_pgs() const {
+  unsigned
+  get_num_local_pgs() const
+  {
     return local_state.pg_map.get_pg_count();
   }
 
   // OSDMapService
-  cached_map_t get_map() const final { return local_state.get_osdmap(); }
-  epoch_t get_up_epoch() const final { return local_state.up_epoch; }
-  seastar::future<cached_map_t> get_map(epoch_t e) final {
-    return with_singleton(
-      [](auto &sstate, epoch_t e) {
-	return sstate.get_local_map(
-	  e
-	).then([](auto lmap) {
-	  return seastar::foreign_ptr<local_cached_map_t>(lmap);
-	});
-      }, e).then([](auto fmap) {
-	return make_local_shared_foreign(std::move(fmap));
-      });
+  cached_map_t
+  get_map() const final
+  {
+    return local_state.get_osdmap();
   }
 
-  ECExtentCache::LRU &lookup_ec_extent_cache_lru() {
+  epoch_t
+  get_up_epoch() const final
+  {
+    return local_state.up_epoch;
+  }
+
+  seastar::future<cached_map_t>
+  get_map(epoch_t e) final
+  {
+    return with_singleton(
+               [](auto& sstate, epoch_t e) {
+                 return sstate.get_local_map(e).then([](auto lmap) {
+                   return seastar::foreign_ptr<local_cached_map_t>(lmap);
+                 });
+               },
+               e)
+        .then([](auto fmap) {
+          return make_local_shared_foreign(std::move(fmap));
+        });
+  }
+
+  ECExtentCache::LRU&
+  lookup_ec_extent_cache_lru()
+  {
     return local_state.ec_extent_cache_lru;
   }
 
@@ -674,141 +799,141 @@ public:
 
   FORWARD(pg_created, pg_created, local_state.pg_map)
 
-  FORWARD_TO_OSD_SINGLETON_TARGET(
-    snap_dump_reservations,
-    snap_reserver.dump)
+  FORWARD_TO_OSD_SINGLETON_TARGET(snap_dump_reservations, snap_reserver.dump)
 
-  bool throttle_available() const {
+  bool
+  throttle_available() const
+  {
     return local_state.throttler.available();
   }
 
-  auto local_update_priority(
-    singleton_orderer_t &orderer,
-    spg_t pgid, unsigned newprio) {
+  auto
+  local_update_priority(
+      singleton_orderer_t& orderer,
+      spg_t pgid,
+      unsigned newprio)
+  {
     LOG_PREFIX(ShardServices::local_update_priority);
     SUBDEBUG(osd, "sending to singleton pgid {} newprio {}", pgid, newprio);
     return schedule_for_singleton(
-      orderer,
-      [FNAME, pgid, newprio](auto &singleton) {
-	SUBDEBUG(osd, "on singleton pgid {} newprio {}", pgid, newprio);
-	return singleton.local_reserver.update_priority(pgid, newprio);
-      });
+        orderer, [FNAME, pgid, newprio](auto& singleton) {
+          SUBDEBUG(osd, "on singleton pgid {} newprio {}", pgid, newprio);
+          return singleton.local_reserver.update_priority(pgid, newprio);
+        });
   }
-  auto local_cancel_reservation(
-    singleton_orderer_t &orderer,
-    spg_t pgid) {
+
+  auto
+  local_cancel_reservation(singleton_orderer_t& orderer, spg_t pgid)
+  {
     LOG_PREFIX(ShardServices::local_cancel_reservation);
     SUBDEBUG(osd, "sending to singleton pgid {}", pgid);
-    return schedule_for_singleton(
-      orderer,
-      [FNAME, pgid](auto &singleton) {
-	SUBDEBUG(osd, "on singleton pgid {}", pgid);
-	return singleton.local_reserver.cancel_reservation(pgid);
-      });
+    return schedule_for_singleton(orderer, [FNAME, pgid](auto& singleton) {
+      SUBDEBUG(osd, "on singleton pgid {}", pgid);
+      return singleton.local_reserver.cancel_reservation(pgid);
+    });
   }
-  FORWARD_TO_OSD_SINGLETON_TARGET(
-    local_dump_reservations,
-    local_reserver.dump)
+  FORWARD_TO_OSD_SINGLETON_TARGET(local_dump_reservations, local_reserver.dump)
 
-  auto remote_update_priority(
-    singleton_orderer_t &orderer,
-    spg_t pgid, unsigned newprio) {
+  auto
+  remote_update_priority(
+      singleton_orderer_t& orderer,
+      spg_t pgid,
+      unsigned newprio)
+  {
     LOG_PREFIX(ShardServices::remote_update_priority);
     SUBDEBUG(osd, "sending to singleton pgid {} newprio {}", pgid, newprio);
     return schedule_for_singleton(
-      orderer,
-      [FNAME, pgid, newprio](auto &singleton) {
-	SUBDEBUG(osd, "on singleton pgid {} newprio {}", pgid, newprio);
-	return singleton.remote_reserver.update_priority(pgid, newprio);
-      });
+        orderer, [FNAME, pgid, newprio](auto& singleton) {
+          SUBDEBUG(osd, "on singleton pgid {} newprio {}", pgid, newprio);
+          return singleton.remote_reserver.update_priority(pgid, newprio);
+        });
   }
-  auto remote_cancel_reservation(
-    singleton_orderer_t &orderer,
-    spg_t pgid) {
+
+  auto
+  remote_cancel_reservation(singleton_orderer_t& orderer, spg_t pgid)
+  {
     LOG_PREFIX(ShardServices::remote_cancel_reservation);
     SUBDEBUG(osd, "sending to singleton pgid {}", pgid);
-    return schedule_for_singleton(
-      orderer,
-      [FNAME, pgid](auto &singleton) {
-	SUBDEBUG(osd, "on singleton pgid {}", pgid);
-	return singleton.remote_reserver.cancel_reservation(pgid);
-      });
-  }
-  FORWARD_TO_OSD_SINGLETON_TARGET(
-    remote_dump_reservations,
-    remote_reserver.dump)
-
-  Context *invoke_context_on_core(core_id_t core, Context *c) {
-    if (!c) return nullptr;
-    return new LambdaContext([core, c](int code) {
-      std::ignore = seastar::smp::submit_to(
-	core,
-	[c, code] {
-	  c->complete(code);
-	});
+    return schedule_for_singleton(orderer, [FNAME, pgid](auto& singleton) {
+      SUBDEBUG(osd, "on singleton pgid {}", pgid);
+      return singleton.remote_reserver.cancel_reservation(pgid);
     });
   }
-  void local_request_reservation(
-    singleton_orderer_t &orderer,
-    spg_t item,
-    Context *on_reserved,
-    unsigned prio,
-    Context *on_preempt) {
+  FORWARD_TO_OSD_SINGLETON_TARGET(remote_dump_reservations, remote_reserver.dump)
+
+  Context*
+  invoke_context_on_core(core_id_t core, Context* c)
+  {
+    if (!c)
+      return nullptr;
+    return new LambdaContext([core, c](int code) {
+      std::ignore = seastar::smp::submit_to(core, [c, code] {
+        c->complete(code);
+      });
+    });
+  }
+
+  void
+  local_request_reservation(
+      singleton_orderer_t& orderer,
+      spg_t item,
+      Context* on_reserved,
+      unsigned prio,
+      Context* on_preempt)
+  {
     LOG_PREFIX(ShardServices::local_request_reservation);
     SUBDEBUG(osd, "sending to singleton pgid {} prio {}", item, prio);
     return schedule_for_singleton(
-      orderer,
-      [FNAME, item, prio](
-	OSDSingletonState &singleton,
-	Context *wrapped_on_reserved, Context *wrapped_on_preempt) {
-	SUBDEBUG(osd, "on singleton pgid {} prio {}", item, prio);
-	return singleton.local_reserver.request_reservation(
-	  item,
-	  wrapped_on_reserved,
-	  prio,
-	  wrapped_on_preempt);
-      },
-      invoke_context_on_core(seastar::this_shard_id(), on_reserved),
-      invoke_context_on_core(seastar::this_shard_id(), on_preempt));
+        orderer,
+        [FNAME, item, prio](
+            OSDSingletonState& singleton, Context* wrapped_on_reserved,
+            Context* wrapped_on_preempt) {
+          SUBDEBUG(osd, "on singleton pgid {} prio {}", item, prio);
+          return singleton.local_reserver.request_reservation(
+              item, wrapped_on_reserved, prio, wrapped_on_preempt);
+        },
+        invoke_context_on_core(seastar::this_shard_id(), on_reserved),
+        invoke_context_on_core(seastar::this_shard_id(), on_preempt));
   }
-  void remote_request_reservation(
-    singleton_orderer_t &orderer,
-    spg_t item,
-    Context *on_reserved,
-    unsigned prio,
-    Context *on_preempt) {
+
+  void
+  remote_request_reservation(
+      singleton_orderer_t& orderer,
+      spg_t item,
+      Context* on_reserved,
+      unsigned prio,
+      Context* on_preempt)
+  {
     LOG_PREFIX(ShardServices::remote_request_reservation);
     SUBDEBUG(osd, "sending to singleton pgid {} prio {}", item, prio);
     return schedule_for_singleton(
-      orderer,
-      [FNAME, item, prio](
-	OSDSingletonState &singleton,
-	Context *wrapped_on_reserved, Context *wrapped_on_preempt) {
-	SUBDEBUG(osd, "on singleton pgid {} prio {}", item, prio);
-	return singleton.remote_reserver.request_reservation(
-	  item,
-	  wrapped_on_reserved,
-	  prio,
-	  wrapped_on_preempt);
-      },
-      invoke_context_on_core(seastar::this_shard_id(), on_reserved),
-      invoke_context_on_core(seastar::this_shard_id(), on_preempt));
+        orderer,
+        [FNAME, item, prio](
+            OSDSingletonState& singleton, Context* wrapped_on_reserved,
+            Context* wrapped_on_preempt) {
+          SUBDEBUG(osd, "on singleton pgid {} prio {}", item, prio);
+          return singleton.remote_reserver.request_reservation(
+              item, wrapped_on_reserved, prio, wrapped_on_preempt);
+        },
+        invoke_context_on_core(seastar::this_shard_id(), on_reserved),
+        invoke_context_on_core(seastar::this_shard_id(), on_preempt));
   }
-  void snap_request_reservation(
-    singleton_orderer_t &orderer,
-    spg_t item,
-    Context *on_reserved,
-    unsigned prio) {
+
+  void
+  snap_request_reservation(
+      singleton_orderer_t& orderer,
+      spg_t item,
+      Context* on_reserved,
+      unsigned prio)
+  {
     return schedule_for_singleton(
-      orderer,
-      [item, prio](OSDSingletonState &singleton,
-		   Context *wrapped_on_reserved) {
-	return singleton.snap_reserver.request_reservation(
-	  item,
-	  wrapped_on_reserved,
-	  prio);
-      },
-      invoke_context_on_core(seastar::this_shard_id(), on_reserved));
+        orderer,
+        [item,
+         prio](OSDSingletonState& singleton, Context* wrapped_on_reserved) {
+          return singleton.snap_reserver.request_reservation(
+              item, wrapped_on_reserved, prio);
+        },
+        invoke_context_on_core(seastar::this_shard_id(), on_reserved));
   }
 
 #undef FORWARD_CONST
@@ -818,8 +943,10 @@ public:
 #undef FORWARD_TO_LOCAL_CONST
 };
 
-}
+} // namespace crimson::osd
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::osd::OSDSingletonState::pg_temp_t> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::osd::OSDSingletonState::pg_temp_t>
+  : fmt::ostream_formatter {};
 #endif

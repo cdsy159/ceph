@@ -20,16 +20,32 @@ public:
   bool repair = false;
   bool deep = false;
 
-  MOSDScrub2() : Message{MSG_OSD_SCRUB2, HEAD_VERSION, COMPAT_VERSION} {}
+  MOSDScrub2() :
+    Message{MSG_OSD_SCRUB2, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
   MOSDScrub2(const uuid_d& f, epoch_t e, std::vector<spg_t>& pgs, bool r, bool d) :
     Message{MSG_OSD_SCRUB2, HEAD_VERSION, COMPAT_VERSION},
-    fsid(f), epoch(e), scrub_pgs(pgs), repair(r), deep(d) {}
+    fsid(f),
+    epoch(e),
+    scrub_pgs(pgs),
+    repair(r),
+    deep(d)
+  {}
+
 private:
   ~MOSDScrub2() final {}
 
 public:
-  std::string_view get_type_name() const override { return "scrub2"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "scrub2";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "scrub2(" << scrub_pgs;
     if (repair)
       out << " repair";
@@ -38,7 +54,9 @@ public:
     out << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(fsid, payload);
     encode(epoch, payload);
@@ -46,7 +64,10 @@ public:
     encode(repair, payload);
     encode(deep, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(fsid, p);
@@ -55,7 +76,8 @@ public:
     decode(repair, p);
     decode(deep, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };

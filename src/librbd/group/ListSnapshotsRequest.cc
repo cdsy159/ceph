@@ -2,17 +2,19 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/group/ListSnapshotsRequest.h"
-#include "include/ceph_assert.h"
+
+#include "cls/rbd/cls_rbd_client.h"
+#include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "common/ceph_context.h"
-#include "cls/rbd/cls_rbd_client.h"
+#include "include/ceph_assert.h"
 #include "librbd/Utils.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::group::ListSnapshotsRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                            \
+  *_dout << "librbd::group::ListSnapshotsRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace group {
@@ -24,29 +26,37 @@ const uint32_t MAX_RETURN = 1024;
 } // anonymous namespace
 
 template <typename I>
-ListSnapshotsRequest<I>::ListSnapshotsRequest(librados::IoCtx &group_io_ctx,
-                                              const std::string &group_id,
-                                              bool try_to_sort,
-                                              bool fail_if_not_sorted,
-                                              std::vector<cls::rbd::GroupSnapshot> *snaps,
-                                              Context *on_finish)
-     : m_group_io_ctx(group_io_ctx), m_group_id(group_id),
-       m_try_to_sort(try_to_sort), m_fail_if_not_sorted(fail_if_not_sorted),
-       m_snaps(snaps), m_on_finish(on_finish) {
+ListSnapshotsRequest<I>::ListSnapshotsRequest(
+    librados::IoCtx& group_io_ctx,
+    const std::string& group_id,
+    bool try_to_sort,
+    bool fail_if_not_sorted,
+    std::vector<cls::rbd::GroupSnapshot>* snaps,
+    Context* on_finish) :
+  m_group_io_ctx(group_io_ctx),
+  m_group_id(group_id),
+  m_try_to_sort(try_to_sort),
+  m_fail_if_not_sorted(fail_if_not_sorted),
+  m_snaps(snaps),
+  m_on_finish(on_finish)
+{
   auto cct = reinterpret_cast<CephContext*>(m_group_io_ctx.cct());
   ldout(cct, 20) << "group_id=" << m_group_id
                  << ", try_to_sort=" << m_try_to_sort
-                 << ", fail_if_not_sorted=" << m_fail_if_not_sorted
-                 << dendl;
+                 << ", fail_if_not_sorted=" << m_fail_if_not_sorted << dendl;
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::send() {
+void
+ListSnapshotsRequest<I>::send()
+{
   list_snap_orders();
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::list_snap_orders() {
+void
+ListSnapshotsRequest<I>::list_snap_orders()
+{
   if (!m_try_to_sort) {
     list_snaps();
     return;
@@ -58,17 +68,19 @@ void ListSnapshotsRequest<I>::list_snap_orders() {
   librados::ObjectReadOperation op;
   cls_client::group_snap_list_order_start(&op, m_start_after_order, MAX_RETURN);
   auto comp = util::create_rados_callback<
-      ListSnapshotsRequest<I>,
-      &ListSnapshotsRequest<I>::handle_list_snap_orders>(this);
+      ListSnapshotsRequest<I>, &ListSnapshotsRequest<I>::handle_list_snap_orders>(
+      this);
   m_out_bl.clear();
-  int r = m_group_io_ctx.aio_operate(util::group_header_name(m_group_id), comp,
-                                     &op, &m_out_bl);
+  int r = m_group_io_ctx.aio_operate(
+      util::group_header_name(m_group_id), comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::handle_list_snap_orders(int r) {
+void
+ListSnapshotsRequest<I>::handle_list_snap_orders(int r)
+{
   auto cct = reinterpret_cast<CephContext*>(m_group_io_ctx.cct());
   ldout(cct, 10) << "r=" << r << dendl;
 
@@ -105,24 +117,28 @@ void ListSnapshotsRequest<I>::handle_list_snap_orders(int r) {
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::list_snaps() {
+void
+ListSnapshotsRequest<I>::list_snaps()
+{
   auto cct = reinterpret_cast<CephContext*>(m_group_io_ctx.cct());
   ldout(cct, 10) << dendl;
 
   librados::ObjectReadOperation op;
   cls_client::group_snap_list_start(&op, m_start_after, MAX_RETURN);
   auto comp = util::create_rados_callback<
-      ListSnapshotsRequest<I>,
-      &ListSnapshotsRequest<I>::handle_list_snaps>(this);
+      ListSnapshotsRequest<I>, &ListSnapshotsRequest<I>::handle_list_snaps>(
+      this);
   m_out_bl.clear();
-  int r = m_group_io_ctx.aio_operate(util::group_header_name(m_group_id), comp,
-                                     &op, &m_out_bl);
+  int r = m_group_io_ctx.aio_operate(
+      util::group_header_name(m_group_id), comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::handle_list_snaps(int r) {
+void
+ListSnapshotsRequest<I>::handle_list_snaps(int r)
+{
   auto cct = reinterpret_cast<CephContext*>(m_group_io_ctx.cct());
   ldout(cct, 10) << "r=" << r << dendl;
 
@@ -150,7 +166,9 @@ void ListSnapshotsRequest<I>::handle_list_snaps(int r) {
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::sort_snaps() {
+void
+ListSnapshotsRequest<I>::sort_snaps()
+{
   if (!m_try_to_sort) {
     finish(0);
     return;
@@ -178,17 +196,19 @@ void ListSnapshotsRequest<I>::sort_snaps() {
     }
   }
 
-  std::sort(m_snaps->begin(), m_snaps->end(),
-            [this](const cls::rbd::GroupSnapshot &a,
-                   const cls::rbd::GroupSnapshot &b) {
-	       return this->m_snap_orders[a.id] < this->m_snap_orders[b.id];
-	    });
+  std::sort(
+      m_snaps->begin(), m_snaps->end(),
+      [this](const cls::rbd::GroupSnapshot& a, const cls::rbd::GroupSnapshot& b) {
+        return this->m_snap_orders[a.id] < this->m_snap_orders[b.id];
+      });
 
   finish(0);
 }
 
 template <typename I>
-void ListSnapshotsRequest<I>::finish(int r) {
+void
+ListSnapshotsRequest<I>::finish(int r)
+{
   auto cct = reinterpret_cast<CephContext*>(m_group_io_ctx.cct());
   ldout(cct, 10) << "r=" << r << dendl;
 

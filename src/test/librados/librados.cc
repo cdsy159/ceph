@@ -3,7 +3,8 @@
 
 #include "gtest/gtest.h"
 
-TEST(Librados, CreateShutdown) {
+TEST(Librados, CreateShutdown)
+{
   rados_t cluster;
   int err;
   err = rados_create(&cluster, "someid");

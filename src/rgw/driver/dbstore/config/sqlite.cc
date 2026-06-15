@@ -13,28 +13,27 @@
  *
  */
 
+#include "sqlite.h"
+
+#include <fmt/format.h>
+#include <sqlite3.h>
+
 #include <charconv>
 #include <initializer_list>
 #include <map>
 
-#include <fmt/format.h>
-
-#include <sqlite3.h>
-
-#include "include/buffer.h"
-#include "include/encoding.h"
+#include "common/connection_pool.h"
 #include "common/dout.h"
 #include "common/random_string.h"
-#include "rgw_realm_watcher.h"
-
+#include "include/buffer.h"
+#include "include/encoding.h"
 #include "rgw/rgw_zone.h"
-
-#include "common/connection_pool.h"
 #include "sqlite/connection.h"
 #include "sqlite/error.h"
 #include "sqlite/statement.h"
+
+#include "rgw_realm_watcher.h"
 #include "sqlite_schema.h"
-#include "sqlite.h"
 
 #define dout_subsys ceph_subsys_rgw_dbstore
 
@@ -42,10 +41,20 @@ namespace rgw::dbstore::config {
 
 struct Prefix : DoutPrefixPipe {
   std::string_view prefix;
-  Prefix(const DoutPrefixProvider& dpp, std::string_view prefix)
-      : DoutPrefixPipe(dpp), prefix(prefix) {}
-  unsigned get_subsys() const override { return dout_subsys; }
-  void add_prefix(std::ostream& out) const override {
+
+  Prefix(const DoutPrefixProvider& dpp, std::string_view prefix) :
+    DoutPrefixPipe(dpp), prefix(prefix)
+  {}
+
+  unsigned
+  get_subsys() const override
+  {
+    return dout_subsys;
+  }
+
+  void
+  add_prefix(std::ostream& out) const override
+  {
     out << prefix;
   }
 };
@@ -61,9 +70,12 @@ static constexpr const char* P5 = ":5";
 static constexpr const char* P6 = ":6";
 
 // bind as text unless value is empty
-void bind_text_or_null(const DoutPrefixProvider* dpp,
-                       const sqlite::stmt_binding& stmt,
-                       const char* name, std::string_view value)
+void
+bind_text_or_null(
+    const DoutPrefixProvider* dpp,
+    const sqlite::stmt_binding& stmt,
+    const char* name,
+    std::string_view value)
 {
   if (value.empty()) {
     sqlite::bind_null(dpp, stmt, name);
@@ -72,10 +84,12 @@ void bind_text_or_null(const DoutPrefixProvider* dpp,
   }
 }
 
-void read_text_rows(const DoutPrefixProvider* dpp,
-                    const sqlite::stmt_execution& stmt,
-                    std::span<std::string> entries,
-                    sal::ListResult<std::string>& result)
+void
+read_text_rows(
+    const DoutPrefixProvider* dpp,
+    const sqlite::stmt_execution& stmt,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
   result.entries = sqlite::read_text_rows(dpp, stmt, entries);
   if (result.entries.size() < entries.size()) { // end of listing
@@ -91,7 +105,8 @@ struct RealmRow {
   std::string tag;
 };
 
-void read_realm_row(const sqlite::stmt_execution& stmt, RealmRow& row)
+void
+read_realm_row(const sqlite::stmt_execution& stmt, RealmRow& row)
 {
   row.info.id = sqlite::column_text(stmt, 0);
   row.info.name = sqlite::column_text(stmt, 1);
@@ -101,7 +116,8 @@ void read_realm_row(const sqlite::stmt_execution& stmt, RealmRow& row)
   row.tag = sqlite::column_text(stmt, 5);
 }
 
-void read_period_row(const sqlite::stmt_execution& stmt, RGWPeriod& row)
+void
+read_period_row(const sqlite::stmt_execution& stmt, RGWPeriod& row)
 {
   // just read the Data column and decode everything else from that
   std::string data = sqlite::column_text(stmt, 3);
@@ -117,7 +133,8 @@ struct ZoneGroupRow {
   std::string tag;
 };
 
-void read_zonegroup_row(const sqlite::stmt_execution& stmt, ZoneGroupRow& row)
+void
+read_zonegroup_row(const sqlite::stmt_execution& stmt, ZoneGroupRow& row)
 {
   std::string data = sqlite::column_text(stmt, 3);
   row.ver = sqlite::column_int(stmt, 4);
@@ -134,7 +151,8 @@ struct ZoneRow {
   std::string tag;
 };
 
-void read_zone_row(const sqlite::stmt_execution& stmt, ZoneRow& row)
+void
+read_zone_row(const sqlite::stmt_execution& stmt, ZoneRow& row)
 {
   std::string data = sqlite::column_text(stmt, 3);
   row.ver = sqlite::column_int(stmt, 4);
@@ -145,7 +163,8 @@ void read_zone_row(const sqlite::stmt_execution& stmt, ZoneRow& row)
   decode(row.info, p);
 }
 
-std::string generate_version_tag(CephContext* cct)
+std::string
+generate_version_tag(CephContext* cct)
 {
   static constexpr auto TAG_LEN = 24;
   return gen_rand_alphanumeric(cct, TAG_LEN);
@@ -153,24 +172,21 @@ std::string generate_version_tag(CephContext* cct)
 
 using SQLiteConnectionHandle = ConnectionHandle<sqlite::Connection>;
 
-using SQLiteConnectionPool = ConnectionPool<
-    sqlite::Connection, sqlite::ConnectionFactory>;
+using SQLiteConnectionPool =
+    ConnectionPool<sqlite::Connection, sqlite::ConnectionFactory>;
 
 } // anonymous namespace
 
 class SQLiteImpl : public SQLiteConnectionPool {
- public:
+public:
   using SQLiteConnectionPool::SQLiteConnectionPool;
 };
 
-
-SQLiteConfigStore::SQLiteConfigStore(std::unique_ptr<SQLiteImpl> impl)
-  : impl(std::move(impl))
-{
-}
+SQLiteConfigStore::SQLiteConfigStore(std::unique_ptr<SQLiteImpl> impl) :
+  impl(std::move(impl))
+{}
 
 SQLiteConfigStore::~SQLiteConfigStore() = default;
-
 
 // Realm
 
@@ -180,17 +196,27 @@ class SQLiteRealmWriter : public sal::RealmWriter {
   std::string tag;
   std::string realm_id;
   std::string realm_name;
- public:
-  SQLiteRealmWriter(SQLiteImpl* impl, int ver, std::string tag,
-                    std::string_view realm_id, std::string_view realm_name)
-    : impl(impl), ver(ver), tag(std::move(tag)),
-      realm_id(realm_id), realm_name(realm_name)
+
+public:
+  SQLiteRealmWriter(
+      SQLiteImpl* impl,
+      int ver,
+      std::string tag,
+      std::string_view realm_id,
+      std::string_view realm_name) :
+    impl(impl),
+    ver(ver),
+    tag(std::move(tag)),
+    realm_id(realm_id),
+    realm_name(realm_name)
   {}
 
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const RGWRealm& info) override
+  int
+  write(const DoutPrefixProvider* dpp, optional_yield y, const RGWRealm& info)
+      override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:realm_write "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:realm_write "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after a conflict or delete
@@ -203,8 +229,8 @@ class SQLiteRealmWriter : public sal::RealmWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["realm_upd"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::realm_update5,
-                                            P1, P2, P3, P4, P5);
+        const std::string sql =
+            fmt::format(schema::realm_update5, P1, P2, P3, P4, P5);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -235,10 +261,15 @@ class SQLiteRealmWriter : public sal::RealmWriter {
     return 0;
   }
 
-  int rename(const DoutPrefixProvider* dpp, optional_yield y,
-             RGWRealm& info, std::string_view new_name) override
+  int
+  rename(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      RGWRealm& info,
+      std::string_view new_name) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:realm_rename "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:realm_rename "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -255,8 +286,8 @@ class SQLiteRealmWriter : public sal::RealmWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["realm_rename"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::realm_rename4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::realm_rename4, P1, P2, P3, P4);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -286,9 +317,11 @@ class SQLiteRealmWriter : public sal::RealmWriter {
     return 0;
   }
 
-  int remove(const DoutPrefixProvider* dpp, optional_yield y) override
+  int
+  remove(const DoutPrefixProvider* dpp, optional_yield y) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:realm_remove "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:realm_remove "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -323,12 +356,15 @@ class SQLiteRealmWriter : public sal::RealmWriter {
   }
 }; // SQLiteRealmWriter
 
-
-int SQLiteConfigStore::write_default_realm_id(const DoutPrefixProvider* dpp,
-                                              optional_yield y, bool exclusive,
-                                              std::string_view realm_id)
+int
+SQLiteConfigStore::write_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    std::string_view realm_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_realm_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_realm_id "};
+  dpp = &prefix;
 
   if (realm_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a realm id" << dendl;
@@ -368,11 +404,14 @@ int SQLiteConfigStore::write_default_realm_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_realm_id(const DoutPrefixProvider* dpp,
-                                             optional_yield y,
-                                             std::string& realm_id)
+int
+SQLiteConfigStore::read_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string& realm_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_realm_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_realm_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -395,11 +434,14 @@ int SQLiteConfigStore::read_default_realm_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::delete_default_realm_id(const DoutPrefixProvider* dpp,
-                                               optional_yield y)
+int
+SQLiteConfigStore::delete_default_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_realm_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_realm_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -424,13 +466,16 @@ int SQLiteConfigStore::delete_default_realm_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
-int SQLiteConfigStore::create_realm(const DoutPrefixProvider* dpp,
-                                    optional_yield y, bool exclusive,
-                                    const RGWRealm& info,
-                                    std::unique_ptr<sal::RealmWriter>* writer)
+int
+SQLiteConfigStore::create_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:create_realm "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:create_realm "};
+  dpp = &prefix;
 
   if (info.id.empty()) {
     ldpp_dout(dpp, 0) << "realm cannot have an empty id" << dendl;
@@ -450,15 +495,15 @@ int SQLiteConfigStore::create_realm(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["realm_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::realm_insert4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::realm_insert4, P1, P2, P3, P4);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["realm_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::realm_upsert4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::realm_upsert4, P1, P2, P3, P4);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -489,13 +534,16 @@ int SQLiteConfigStore::create_realm(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_realm_by_id(const DoutPrefixProvider* dpp,
-                                        optional_yield y,
-                                        std::string_view realm_id,
-                                        RGWRealm& info,
-                                        std::unique_ptr<sal::RealmWriter>* writer)
+int
+SQLiteConfigStore::read_realm_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_by_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_by_id "};
+  dpp = &prefix;
 
   if (realm_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a realm id" << dendl;
@@ -538,10 +586,12 @@ int SQLiteConfigStore::read_realm_by_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-static void realm_select_by_name(const DoutPrefixProvider* dpp,
-                                 sqlite::Connection& conn,
-                                 std::string_view realm_name,
-                                 RealmRow& row)
+static void
+realm_select_by_name(
+    const DoutPrefixProvider* dpp,
+    sqlite::Connection& conn,
+    std::string_view realm_name,
+    RealmRow& row)
 {
   auto& stmt = conn.statements["realm_sel_name"];
   if (!stmt) {
@@ -557,13 +607,16 @@ static void realm_select_by_name(const DoutPrefixProvider* dpp,
   read_realm_row(reset, row);
 }
 
-int SQLiteConfigStore::read_realm_by_name(const DoutPrefixProvider* dpp,
-                                          optional_yield y,
-                                          std::string_view realm_name,
-                                          RGWRealm& info,
-                                          std::unique_ptr<sal::RealmWriter>* writer)
+int
+SQLiteConfigStore::read_realm_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_name,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_by_name "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_by_name "};
+  dpp = &prefix;
 
   if (realm_name.empty()) {
     ldpp_dout(dpp, 0) << "requires a realm name" << dendl;
@@ -595,12 +648,15 @@ int SQLiteConfigStore::read_realm_by_name(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_realm(const DoutPrefixProvider* dpp,
-                                          optional_yield y,
-                                          RGWRealm& info,
-                                          std::unique_ptr<sal::RealmWriter>* writer)
+int
+SQLiteConfigStore::read_default_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_realm "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_realm "};
+  dpp = &prefix;
 
   RealmRow row;
   try {
@@ -635,12 +691,15 @@ int SQLiteConfigStore::read_default_realm(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_realm_id(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     std::string_view realm_name,
-                                     std::string& realm_id)
+int
+SQLiteConfigStore::read_realm_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_name,
+    std::string& realm_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_realm_id "};
+  dpp = &prefix;
 
   if (realm_name.empty()) {
     ldpp_dout(dpp, 0) << "requires a realm name" << dendl;
@@ -670,27 +729,34 @@ int SQLiteConfigStore::read_realm_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::realm_notify_new_period(const DoutPrefixProvider* dpp,
-                                               optional_yield y,
-                                               const RGWPeriod& period)
+int
+SQLiteConfigStore::realm_notify_new_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const RGWPeriod& period)
 {
   return -ENOTSUP;
 }
 
-auto SQLiteConfigStore::create_realm_watcher(const DoutPrefixProvider* dpp,
-                                             optional_yield y,
-                                             const RGWRealm& realm)
-  -> std::unique_ptr<RGWRealmWatcher>
+auto
+SQLiteConfigStore::create_realm_watcher(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const RGWRealm& realm) -> std::unique_ptr<RGWRealmWatcher>
 {
   return nullptr;
 }
 
-int SQLiteConfigStore::list_realm_names(const DoutPrefixProvider* dpp,
-                                        optional_yield y, const std::string& marker,
-                                        std::span<std::string> entries,
-                                        sal::ListResult<std::string>& result)
+int
+SQLiteConfigStore::list_realm_names(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:list_realm_names "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:list_realm_names "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -715,14 +781,17 @@ int SQLiteConfigStore::list_realm_names(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
 // Period
 
-int SQLiteConfigStore::create_period(const DoutPrefixProvider* dpp,
-                                     optional_yield y, bool exclusive,
-                                     const RGWPeriod& info)
+int
+SQLiteConfigStore::create_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWPeriod& info)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:create_period "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:create_period "};
+  dpp = &prefix;
 
   if (info.id.empty()) {
     ldpp_dout(dpp, 0) << "period cannot have an empty id" << dendl;
@@ -739,15 +808,15 @@ int SQLiteConfigStore::create_period(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["period_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::period_insert4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::period_insert4, P1, P2, P3, P4);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["period_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::period_upsert4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::period_upsert4, P1, P2, P3, P4);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -771,10 +840,13 @@ int SQLiteConfigStore::create_period(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-static void period_select_epoch(const DoutPrefixProvider* dpp,
-                                sqlite::Connection& conn,
-                                std::string_view id, uint32_t epoch,
-                                RGWPeriod& row)
+static void
+period_select_epoch(
+    const DoutPrefixProvider* dpp,
+    sqlite::Connection& conn,
+    std::string_view id,
+    uint32_t epoch,
+    RGWPeriod& row)
 {
   auto& stmt = conn.statements["period_sel_epoch"];
   if (!stmt) {
@@ -791,9 +863,12 @@ static void period_select_epoch(const DoutPrefixProvider* dpp,
   read_period_row(reset, row);
 }
 
-static void period_select_latest(const DoutPrefixProvider* dpp,
-                                 sqlite::Connection& conn,
-                                 std::string_view id, RGWPeriod& row)
+static void
+period_select_latest(
+    const DoutPrefixProvider* dpp,
+    sqlite::Connection& conn,
+    std::string_view id,
+    RGWPeriod& row)
 {
   auto& stmt = conn.statements["period_sel_latest"];
   if (!stmt) {
@@ -809,13 +884,16 @@ static void period_select_latest(const DoutPrefixProvider* dpp,
   read_period_row(reset, row);
 }
 
-int SQLiteConfigStore::read_period(const DoutPrefixProvider* dpp,
-                                   optional_yield y,
-                                   std::string_view period_id,
-                                   std::optional<uint32_t> epoch,
-                                   RGWPeriod& info)
+int
+SQLiteConfigStore::read_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id,
+    std::optional<uint32_t> epoch,
+    RGWPeriod& info)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_period "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_period "};
+  dpp = &prefix;
 
   if (period_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a period id" << dendl;
@@ -844,11 +922,14 @@ int SQLiteConfigStore::read_period(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::delete_period(const DoutPrefixProvider* dpp,
-                                     optional_yield y,
-                                     std::string_view period_id)
+int
+SQLiteConfigStore::delete_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:delete_period "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:delete_period "};
+  dpp = &prefix;
 
   if (period_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a period id" << dendl;
@@ -881,21 +962,29 @@ int SQLiteConfigStore::delete_period(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::update_latest_epoch(const DoutPrefixProvider* dpp, optional_yield y,
-                                           std::string_view period_id, uint32_t epoch)
+int
+SQLiteConfigStore::update_latest_epoch(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view period_id,
+    uint32_t epoch)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_latest_epoch "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_latest_epoch "};
+  dpp = &prefix;
   // TODO: implement it later
   return 0;
 }
 
-int SQLiteConfigStore::list_period_ids(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       const std::string& marker,
-                                       std::span<std::string> entries,
-                                       sal::ListResult<std::string>& result)
+int
+SQLiteConfigStore::list_period_ids(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:list_period_ids "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:list_period_ids "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -920,7 +1009,6 @@ int SQLiteConfigStore::list_period_ids(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
 // ZoneGroup
 
 class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
@@ -929,18 +1017,29 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
   std::string tag;
   std::string zonegroup_id;
   std::string zonegroup_name;
- public:
-  SQLiteZoneGroupWriter(SQLiteImpl* impl, int ver, std::string tag,
-                        std::string_view zonegroup_id,
-                        std::string_view zonegroup_name)
-    : impl(impl), ver(ver), tag(std::move(tag)),
-      zonegroup_id(zonegroup_id), zonegroup_name(zonegroup_name)
+
+public:
+  SQLiteZoneGroupWriter(
+      SQLiteImpl* impl,
+      int ver,
+      std::string tag,
+      std::string_view zonegroup_id,
+      std::string_view zonegroup_name) :
+    impl(impl),
+    ver(ver),
+    tag(std::move(tag)),
+    zonegroup_id(zonegroup_id),
+    zonegroup_name(zonegroup_name)
   {}
 
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const RGWZoneGroup& info) override
+  int
+  write(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWZoneGroup& info) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_write "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_write "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -957,8 +1056,8 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["zonegroup_upd"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::zonegroup_update5,
-                                            P1, P2, P3, P4, P5);
+        const std::string sql =
+            fmt::format(schema::zonegroup_update5, P1, P2, P3, P4, P5);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -987,10 +1086,15 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
     return 0;
   }
 
-  int rename(const DoutPrefixProvider* dpp, optional_yield y,
-             RGWZoneGroup& info, std::string_view new_name) override
+  int
+  rename(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      RGWZoneGroup& info,
+      std::string_view new_name) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_rename "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_rename "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -1007,8 +1111,8 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["zonegroup_rename"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::zonegroup_rename4,
-                                            P1, P2, P3, P4);
+        const std::string sql =
+            fmt::format(schema::zonegroup_rename4, P1, P2, P3, P4);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -1037,9 +1141,11 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
     return 0;
   }
 
-  int remove(const DoutPrefixProvider* dpp, optional_yield y) override
+  int
+  remove(const DoutPrefixProvider* dpp, optional_yield y) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_remove "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zonegroup_remove "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -1048,8 +1154,8 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["zonegroup_del"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::zonegroup_delete3,
-                                            P1, P2, P3);
+        const std::string sql =
+            fmt::format(schema::zonegroup_delete3, P1, P2, P3);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -1075,13 +1181,16 @@ class SQLiteZoneGroupWriter : public sal::ZoneGroupWriter {
   }
 }; // SQLiteZoneGroupWriter
 
-
-int SQLiteConfigStore::write_default_zonegroup_id(const DoutPrefixProvider* dpp,
-                                                  optional_yield y, bool exclusive,
-                                                  std::string_view realm_id,
-                                                  std::string_view zonegroup_id)
+int
+SQLiteConfigStore::write_default_zonegroup_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    std::string_view realm_id,
+    std::string_view zonegroup_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_zonegroup_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_zonegroup_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1089,15 +1198,15 @@ int SQLiteConfigStore::write_default_zonegroup_id(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["def_zonegroup_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::default_zonegroup_insert2,
-                                            P1, P2);
+        const std::string sql =
+            fmt::format(schema::default_zonegroup_insert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["def_zonegroup_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::default_zonegroup_upsert2,
-                                            P1, P2);
+        const std::string sql =
+            fmt::format(schema::default_zonegroup_upsert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -1108,7 +1217,8 @@ int SQLiteConfigStore::write_default_zonegroup_id(const DoutPrefixProvider* dpp,
     auto reset = sqlite::stmt_execution{stmt->get()};
     sqlite::eval0(dpp, reset);
   } catch (const sqlite::error& e) {
-    ldpp_dout(dpp, 20) << "default zonegroup insert failed: " << e.what() << dendl;
+    ldpp_dout(dpp, 20) << "default zonegroup insert failed: " << e.what()
+                       << dendl;
     if (e.code() == sqlite::errc::busy) {
       return -EBUSY;
     }
@@ -1117,12 +1227,15 @@ int SQLiteConfigStore::write_default_zonegroup_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_zonegroup_id(const DoutPrefixProvider* dpp,
-                                                 optional_yield y,
-                                                 std::string_view realm_id,
-                                                 std::string& zonegroup_id)
+int
+SQLiteConfigStore::read_default_zonegroup_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    std::string& zonegroup_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zonegroup_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zonegroup_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1139,7 +1252,8 @@ int SQLiteConfigStore::read_default_zonegroup_id(const DoutPrefixProvider* dpp,
 
     zonegroup_id = sqlite::column_text(reset, 0);
   } catch (const sqlite::error& e) {
-    ldpp_dout(dpp, 20) << "default zonegroup select failed: " << e.what() << dendl;
+    ldpp_dout(dpp, 20) << "default zonegroup select failed: " << e.what()
+                       << dendl;
     if (e.code() == sqlite::errc::done) {
       return -ENOENT;
     } else if (e.code() == sqlite::errc::busy) {
@@ -1150,11 +1264,14 @@ int SQLiteConfigStore::read_default_zonegroup_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::delete_default_zonegroup_id(const DoutPrefixProvider* dpp,
-                                                   optional_yield y,
-                                                   std::string_view realm_id)
+int
+SQLiteConfigStore::delete_default_zonegroup_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_zonegroup_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_zonegroup_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1173,7 +1290,8 @@ int SQLiteConfigStore::delete_default_zonegroup_id(const DoutPrefixProvider* dpp
       return -ENOENT;
     }
   } catch (const sqlite::error& e) {
-    ldpp_dout(dpp, 20) << "default zonegroup delete failed: " << e.what() << dendl;
+    ldpp_dout(dpp, 20) << "default zonegroup delete failed: " << e.what()
+                       << dendl;
     if (e.code() == sqlite::errc::busy) {
       return -EBUSY;
     }
@@ -1182,13 +1300,16 @@ int SQLiteConfigStore::delete_default_zonegroup_id(const DoutPrefixProvider* dpp
   return 0;
 }
 
-
-int SQLiteConfigStore::create_zonegroup(const DoutPrefixProvider* dpp,
-                                        optional_yield y, bool exclusive,
-                                        const RGWZoneGroup& info,
-                                        std::unique_ptr<sal::ZoneGroupWriter>* writer)
+int
+SQLiteConfigStore::create_zonegroup(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWZoneGroup& info,
+    std::unique_ptr<sal::ZoneGroupWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:create_zonegroup "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:create_zonegroup "};
+  dpp = &prefix;
 
   if (info.id.empty()) {
     ldpp_dout(dpp, 0) << "zonegroup cannot have an empty id" << dendl;
@@ -1212,15 +1333,15 @@ int SQLiteConfigStore::create_zonegroup(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["zonegroup_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::zonegroup_insert6,
-                                            P1, P2, P3, P4, P5, P6);
+        const std::string sql =
+            fmt::format(schema::zonegroup_insert6, P1, P2, P3, P4, P5, P6);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["zonegroup_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::zonegroup_upsert6,
-                                            P1, P2, P3, P4, P5, P6);
+        const std::string sql =
+            fmt::format(schema::zonegroup_upsert6, P1, P2, P3, P4, P5, P6);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -1255,13 +1376,16 @@ int SQLiteConfigStore::create_zonegroup(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_zonegroup_by_id(const DoutPrefixProvider* dpp,
-                                            optional_yield y,
-                                            std::string_view zonegroup_id,
-                                            RGWZoneGroup& info,
-                                            std::unique_ptr<sal::ZoneGroupWriter>* writer)
+int
+SQLiteConfigStore::read_zonegroup_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view zonegroup_id,
+    RGWZoneGroup& info,
+    std::unique_ptr<sal::ZoneGroupWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_zonegroup_by_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_zonegroup_by_id "};
+  dpp = &prefix;
 
   if (zonegroup_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a zonegroup id" << dendl;
@@ -1304,13 +1428,16 @@ int SQLiteConfigStore::read_zonegroup_by_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_zonegroup_by_name(const DoutPrefixProvider* dpp,
-                                              optional_yield y,
-                                              std::string_view zonegroup_name,
-                                              RGWZoneGroup& info,
-                                              std::unique_ptr<sal::ZoneGroupWriter>* writer)
+int
+SQLiteConfigStore::read_zonegroup_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view zonegroup_name,
+    RGWZoneGroup& info,
+    std::unique_ptr<sal::ZoneGroupWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_zonegroup_by_name "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_zonegroup_by_name "};
+  dpp = &prefix;
 
   if (zonegroup_name.empty()) {
     ldpp_dout(dpp, 0) << "requires a zonegroup name" << dendl;
@@ -1353,13 +1480,16 @@ int SQLiteConfigStore::read_zonegroup_by_name(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_zonegroup(const DoutPrefixProvider* dpp,
-                                              optional_yield y,
-                                              std::string_view realm_id,
-                                              RGWZoneGroup& info,
-                                              std::unique_ptr<sal::ZoneGroupWriter>* writer)
+int
+SQLiteConfigStore::read_default_zonegroup(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    RGWZoneGroup& info,
+    std::unique_ptr<sal::ZoneGroupWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zonegroup "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zonegroup "};
+  dpp = &prefix;
 
   ZoneGroupRow row;
   try {
@@ -1394,19 +1524,23 @@ int SQLiteConfigStore::read_default_zonegroup(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::list_zonegroup_names(const DoutPrefixProvider* dpp,
-                                            optional_yield y,
-                                            const std::string& marker,
-                                            std::span<std::string> entries,
-                                            sal::ListResult<std::string>& result)
+int
+SQLiteConfigStore::list_zonegroup_names(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:list_zonegroup_names "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:list_zonegroup_names "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
     auto& stmt = conn->statements["zonegroup_sel_names"];
     if (!stmt) {
-      const std::string sql = fmt::format(schema::zonegroup_select_names2, P1, P2);
+      const std::string sql =
+          fmt::format(schema::zonegroup_select_names2, P1, P2);
       stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
     }
     auto binding = sqlite::stmt_binding{stmt.get()};
@@ -1426,7 +1560,6 @@ int SQLiteConfigStore::list_zonegroup_names(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
 // Zone
 
 class SQLiteZoneWriter : public sal::ZoneWriter {
@@ -1435,17 +1568,29 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
   std::string tag;
   std::string zone_id;
   std::string zone_name;
- public:
-  SQLiteZoneWriter(SQLiteImpl* impl, int ver, std::string tag,
-                   std::string_view zone_id, std::string_view zone_name)
-    : impl(impl), ver(ver), tag(std::move(tag)),
-      zone_id(zone_id), zone_name(zone_name)
+
+public:
+  SQLiteZoneWriter(
+      SQLiteImpl* impl,
+      int ver,
+      std::string tag,
+      std::string_view zone_id,
+      std::string_view zone_name) :
+    impl(impl),
+    ver(ver),
+    tag(std::move(tag)),
+    zone_id(zone_id),
+    zone_name(zone_name)
   {}
 
-  int write(const DoutPrefixProvider* dpp, optional_yield y,
-            const RGWZoneParams& info) override
+  int
+  write(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      const RGWZoneParams& info) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zone_write "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zone_write "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -1462,8 +1607,8 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["zone_upd"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::zone_update5,
-                                            P1, P2, P3, P4, P5);
+        const std::string sql =
+            fmt::format(schema::zone_update5, P1, P2, P3, P4, P5);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -1493,10 +1638,15 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
     return 0;
   }
 
-  int rename(const DoutPrefixProvider* dpp, optional_yield y,
-             RGWZoneParams& info, std::string_view new_name) override
+  int
+  rename(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      RGWZoneParams& info,
+      std::string_view new_name) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zone_rename "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zone_rename "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -1513,7 +1663,8 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
       auto conn = impl->get(dpp);
       auto& stmt = conn->statements["zone_rename"];
       if (!stmt) {
-        const std::string sql = fmt::format(schema::zone_rename4, P1, P2, P2, P3);
+        const std::string sql =
+            fmt::format(schema::zone_rename4, P1, P2, P2, P3);
         stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
       auto binding = sqlite::stmt_binding{stmt.get()};
@@ -1543,9 +1694,11 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
     return 0;
   }
 
-  int remove(const DoutPrefixProvider* dpp, optional_yield y) override
+  int
+  remove(const DoutPrefixProvider* dpp, optional_yield y) override
   {
-    Prefix prefix{*dpp, "dbconfig:sqlite:zone_remove "}; dpp = &prefix;
+    Prefix prefix{*dpp, "dbconfig:sqlite:zone_remove "};
+    dpp = &prefix;
 
     if (!impl) {
       return -EINVAL; // can't write after conflict or delete
@@ -1580,13 +1733,16 @@ class SQLiteZoneWriter : public sal::ZoneWriter {
   }
 }; // SQLiteZoneWriter
 
-
-int SQLiteConfigStore::write_default_zone_id(const DoutPrefixProvider* dpp,
-                                             optional_yield y, bool exclusive,
-                                             std::string_view realm_id,
-                                             std::string_view zone_id)
+int
+SQLiteConfigStore::write_default_zone_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    std::string_view realm_id,
+    std::string_view zone_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_zone_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:write_default_zone_id "};
+  dpp = &prefix;
 
   if (zone_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a zone id" << dendl;
@@ -1599,13 +1755,15 @@ int SQLiteConfigStore::write_default_zone_id(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["def_zone_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::default_zone_insert2, P1, P2);
+        const std::string sql =
+            fmt::format(schema::default_zone_insert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["def_zone_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::default_zone_upsert2, P1, P2);
+        const std::string sql =
+            fmt::format(schema::default_zone_upsert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -1625,12 +1783,15 @@ int SQLiteConfigStore::write_default_zone_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_zone_id(const DoutPrefixProvider* dpp,
-                                            optional_yield y,
-                                            std::string_view realm_id,
-                                            std::string& zone_id)
+int
+SQLiteConfigStore::read_default_zone_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    std::string& zone_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zone_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zone_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1658,11 +1819,14 @@ int SQLiteConfigStore::read_default_zone_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::delete_default_zone_id(const DoutPrefixProvider* dpp,
-                                              optional_yield y,
-                                              std::string_view realm_id)
+int
+SQLiteConfigStore::delete_default_zone_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_zone_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:delete_default_zone_id "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1690,13 +1854,16 @@ int SQLiteConfigStore::delete_default_zone_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
-int SQLiteConfigStore::create_zone(const DoutPrefixProvider* dpp,
-                                   optional_yield y, bool exclusive,
-                                   const RGWZoneParams& info,
-                                   std::unique_ptr<sal::ZoneWriter>* writer)
+int
+SQLiteConfigStore::create_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    const RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:create_zone "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:create_zone "};
+  dpp = &prefix;
 
   if (info.id.empty()) {
     ldpp_dout(dpp, 0) << "zone cannot have an empty id" << dendl;
@@ -1720,15 +1887,15 @@ int SQLiteConfigStore::create_zone(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["zone_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::zone_insert6,
-                                            P1, P2, P3, P4, P5, P6);
+        const std::string sql =
+            fmt::format(schema::zone_insert6, P1, P2, P3, P4, P5, P6);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["zone_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::zone_upsert6,
-                                            P1, P2, P3, P4, P5, P6);
+        const std::string sql =
+            fmt::format(schema::zone_upsert6, P1, P2, P3, P4, P5, P6);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -1763,13 +1930,16 @@ int SQLiteConfigStore::create_zone(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_zone_by_id(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       std::string_view zone_id,
-                                       RGWZoneParams& info,
-                                       std::unique_ptr<sal::ZoneWriter>* writer)
+int
+SQLiteConfigStore::read_zone_by_id(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view zone_id,
+    RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_zone_by_id "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_zone_by_id "};
+  dpp = &prefix;
 
   if (zone_id.empty()) {
     ldpp_dout(dpp, 0) << "requires a zone id" << dendl;
@@ -1809,13 +1979,16 @@ int SQLiteConfigStore::read_zone_by_id(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_zone_by_name(const DoutPrefixProvider* dpp,
-                                         optional_yield y,
-                                         std::string_view zone_name,
-                                         RGWZoneParams& info,
-                                         std::unique_ptr<sal::ZoneWriter>* writer)
+int
+SQLiteConfigStore::read_zone_by_name(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view zone_name,
+    RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_zone_by_name "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_zone_by_name "};
+  dpp = &prefix;
 
   if (zone_name.empty()) {
     ldpp_dout(dpp, 0) << "requires a zone name" << dendl;
@@ -1855,13 +2028,16 @@ int SQLiteConfigStore::read_zone_by_name(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::read_default_zone(const DoutPrefixProvider* dpp,
-                                         optional_yield y,
-                                         std::string_view realm_id,
-                                         RGWZoneParams& info,
-                                         std::unique_ptr<sal::ZoneWriter>* writer)
+int
+SQLiteConfigStore::read_default_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zone "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_default_zone "};
+  dpp = &prefix;
 
   ZoneRow row;
   try {
@@ -1893,13 +2069,16 @@ int SQLiteConfigStore::read_default_zone(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::list_zone_names(const DoutPrefixProvider* dpp,
-                                       optional_yield y,
-                                       const std::string& marker,
-                                       std::span<std::string> entries,
-                                       sal::ListResult<std::string>& result)
+int
+SQLiteConfigStore::list_zone_names(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::string& marker,
+    std::span<std::string> entries,
+    sal::ListResult<std::string>& result)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:list_zone_names "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:list_zone_names "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1924,15 +2103,17 @@ int SQLiteConfigStore::list_zone_names(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-
 // PeriodConfig
 
-int SQLiteConfigStore::read_period_config(const DoutPrefixProvider* dpp,
-                                          optional_yield y,
-                                          std::string_view realm_id,
-                                          RGWPeriodConfig& info)
+int
+SQLiteConfigStore::read_period_config(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    std::string_view realm_id,
+    RGWPeriodConfig& info)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:read_period_config "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:read_period_config "};
+  dpp = &prefix;
 
   try {
     auto conn = impl->get(dpp);
@@ -1967,12 +2148,16 @@ int SQLiteConfigStore::read_period_config(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SQLiteConfigStore::write_period_config(const DoutPrefixProvider* dpp,
-                                           optional_yield y, bool exclusive,
-                                           std::string_view realm_id,
-                                           const RGWPeriodConfig& info)
+int
+SQLiteConfigStore::write_period_config(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    bool exclusive,
+    std::string_view realm_id,
+    const RGWPeriodConfig& info)
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:write_period_config "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:write_period_config "};
+  dpp = &prefix;
 
   bufferlist bl;
   encode(info, bl);
@@ -1984,13 +2169,15 @@ int SQLiteConfigStore::write_period_config(const DoutPrefixProvider* dpp,
     if (exclusive) {
       stmt = &conn->statements["period_conf_ins"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::period_config_insert2, P1, P2);
+        const std::string sql =
+            fmt::format(schema::period_config_insert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     } else {
       stmt = &conn->statements["period_conf_ups"];
       if (!*stmt) {
-        const std::string sql = fmt::format(schema::period_config_upsert2, P1, P2);
+        const std::string sql =
+            fmt::format(schema::period_config_upsert2, P1, P2);
         *stmt = sqlite::prepare_statement(dpp, conn->db.get(), sql);
       }
     }
@@ -2017,7 +2204,8 @@ int SQLiteConfigStore::write_period_config(const DoutPrefixProvider* dpp,
 
 namespace {
 
-int version_cb(void* user, int count, char** values, char** names)
+int
+version_cb(void* user, int count, char** values, char** names)
 {
   if (count != 1) {
     return EINVAL;
@@ -2027,15 +2215,16 @@ int version_cb(void* user, int count, char** values, char** names)
     return EINVAL;
   }
   std::string_view value = values[0];
-  auto result = std::from_chars(value.begin(), value.end(),
-                                *reinterpret_cast<uint32_t*>(user));
+  auto result = std::from_chars(
+      value.begin(), value.end(), *reinterpret_cast<uint32_t*>(user));
   if (result.ec != std::errc{}) {
     return static_cast<int>(result.ec);
   }
   return 0;
 }
 
-void apply_schema_migrations(const DoutPrefixProvider* dpp, sqlite3* db)
+void
+apply_schema_migrations(const DoutPrefixProvider* dpp, sqlite3* db)
 {
   sqlite::execute(dpp, db, "PRAGMA foreign_keys = ON", nullptr, nullptr);
 
@@ -2054,7 +2243,7 @@ void apply_schema_migrations(const DoutPrefixProvider* dpp, sqlite3* db)
       sqlite::execute(dpp, db, m->up, nullptr, nullptr);
     } catch (const sqlite::error&) {
       ldpp_dout(dpp, -1) << "ERROR: schema migration failed on v" << version
-          << ": " << m->description << dendl;
+                         << ": " << m->description << dendl;
       throw;
     }
   }
@@ -2064,7 +2253,8 @@ void apply_schema_migrations(const DoutPrefixProvider* dpp, sqlite3* db)
     const auto commit = fmt::format("PRAGMA user_version = {}; COMMIT", version);
     sqlite::execute(dpp, db, commit.c_str(), nullptr, nullptr);
 
-    ldpp_dout(dpp, 4) << "upgraded database schema to version " << version << dendl;
+    ldpp_dout(dpp, 4) << "upgraded database schema to version " << version
+                      << dendl;
   } else {
     // nothing to commit
     sqlite::execute(dpp, db, "ROLLBACK", nullptr, nullptr);
@@ -2073,15 +2263,16 @@ void apply_schema_migrations(const DoutPrefixProvider* dpp, sqlite3* db)
 
 } // anonymous namespace
 
-
-auto create_sqlite_store(const DoutPrefixProvider* dpp, const std::string& uri)
-  -> std::unique_ptr<config::SQLiteConfigStore>
+auto
+create_sqlite_store(const DoutPrefixProvider* dpp, const std::string& uri)
+    -> std::unique_ptr<config::SQLiteConfigStore>
 {
-  Prefix prefix{*dpp, "dbconfig:sqlite:create_sqlite_store "}; dpp = &prefix;
+  Prefix prefix{*dpp, "dbconfig:sqlite:create_sqlite_store "};
+  dpp = &prefix;
 
   // build the connection pool
   int flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_URI | SQLITE_OPEN_READWRITE |
-      SQLITE_OPEN_NOMUTEX;
+              SQLITE_OPEN_NOMUTEX;
   auto factory = sqlite::ConnectionFactory{uri, flags};
 
   // sqlite does not support concurrent writers. we enforce this limitation by

@@ -1,27 +1,28 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "librbd/cache/Utils.h"
 #include "librbd/ExclusiveLock.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/ImageWatcher.h"
-#include "librbd/ImageState.h"
-#include "librbd/exclusive_lock/ImageDispatch.h"
-#include "librbd/exclusive_lock/PreAcquireRequest.h"
-#include "librbd/exclusive_lock/PostAcquireRequest.h"
-#include "librbd/exclusive_lock/PreReleaseRequest.h"
-#include "librbd/io/ImageDispatcherInterface.h"
-#include "librbd/Utils.h"
-#include "librbd/asio/ContextWQ.h"
-#include "common/ceph_mutex.h"
+
 #include "common/Clock.h" // for ceph_clock_now()
+#include "common/ceph_mutex.h"
 #include "common/dout.h"
 #include "common/perf_counters.h"
+#include "librbd/ImageCtx.h"
+#include "librbd/ImageState.h"
+#include "librbd/ImageWatcher.h"
+#include "librbd/Utils.h"
+#include "librbd/asio/ContextWQ.h"
+#include "librbd/cache/Utils.h"
+#include "librbd/exclusive_lock/ImageDispatch.h"
+#include "librbd/exclusive_lock/PostAcquireRequest.h"
+#include "librbd/exclusive_lock/PreAcquireRequest.h"
+#include "librbd/exclusive_lock/PreReleaseRequest.h"
+#include "librbd/io/ImageDispatcherInterface.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::ExclusiveLock: " << this << " " \
-                           <<  __func__
+#define dout_prefix \
+  *_dout << "librbd::ExclusiveLock: " << this << " " << __func__
 
 namespace librbd {
 
@@ -32,33 +33,44 @@ template <typename I>
 using ML = ManagedLock<I>;
 
 template <typename I>
-ExclusiveLock<I>::ExclusiveLock(I &image_ctx)
-  : RefCountedObject(image_ctx.cct),
-    ML<I>(image_ctx.md_ctx, *image_ctx.asio_engine, image_ctx.header_oid,
-          image_ctx.image_watcher, managed_lock::EXCLUSIVE,
-          image_ctx.config.template get_val<bool>("rbd_blocklist_on_break_lock"),
-          image_ctx.config.template get_val<uint64_t>("rbd_blocklist_expire_seconds")),
-    m_image_ctx(image_ctx) {
+ExclusiveLock<I>::ExclusiveLock(I& image_ctx) :
+  RefCountedObject(image_ctx.cct),
+  ML<I>(
+      image_ctx.md_ctx,
+      *image_ctx.asio_engine,
+      image_ctx.header_oid,
+      image_ctx.image_watcher,
+      managed_lock::EXCLUSIVE,
+      image_ctx.config.template get_val<bool>("rbd_blocklist_on_break_lock"),
+      image_ctx.config.template get_val<uint64_t>(
+          "rbd_blocklist_expire_seconds")),
+  m_image_ctx(image_ctx)
+{
   std::lock_guard locker{ML<I>::m_lock};
   ML<I>::set_state_uninitialized();
 }
 
 template <typename I>
-bool ExclusiveLock<I>::accept_request(OperationRequestType request_type) const {
+bool
+ExclusiveLock<I>::accept_request(OperationRequestType request_type) const
+{
   int ret_val; // ignored
   return accept_request(request_type, &ret_val);
 }
 
 template <typename I>
-bool ExclusiveLock<I>::accept_request(OperationRequestType request_type,
-                                      int *ret_val) const {
+bool
+ExclusiveLock<I>::accept_request(
+    OperationRequestType request_type,
+    int* ret_val) const
+{
   std::lock_guard locker{ML<I>::m_lock};
 
   bool accept_request;
   if (!ML<I>::is_state_shutdown() && ML<I>::is_state_locked()) {
     if (m_request_blocked_count == 0 ||
         m_image_ctx.get_exclusive_lock_policy()->accept_blocked_request(
-          request_type)) {
+            request_type)) {
       accept_request = true;
       *ret_val = 0;
     } else {
@@ -70,13 +82,16 @@ bool ExclusiveLock<I>::accept_request(OperationRequestType request_type,
     *ret_val = 0;
   }
 
-  ldout(m_image_ctx.cct, 20) << "=" << accept_request << " ret_val=" << *ret_val
-                             << " (request_type=" << request_type << ")" << dendl;
+  ldout(m_image_ctx.cct, 20)
+      << "=" << accept_request << " ret_val=" << *ret_val
+      << " (request_type=" << request_type << ")" << dendl;
   return accept_request;
 }
 
 template <typename I>
-bool ExclusiveLock<I>::accept_ops() const {
+bool
+ExclusiveLock<I>::accept_ops() const
+{
   std::lock_guard locker{ML<I>::m_lock};
   bool accept = accept_ops(ML<I>::m_lock);
   ldout(m_image_ctx.cct, 20) << "=" << accept << dendl;
@@ -84,25 +99,35 @@ bool ExclusiveLock<I>::accept_ops() const {
 }
 
 template <typename I>
-bool ExclusiveLock<I>::accept_ops(const ceph::mutex &lock) const {
-  return (!ML<I>::is_state_shutdown() &&
-          (ML<I>::is_state_locked() || ML<I>::is_state_post_acquiring()));
+bool
+ExclusiveLock<I>::accept_ops(const ceph::mutex& lock) const
+{
+  return (
+      !ML<I>::is_state_shutdown() &&
+      (ML<I>::is_state_locked() || ML<I>::is_state_post_acquiring()));
 }
 
 template <typename I>
-void ExclusiveLock<I>::set_require_lock(bool init_shutdown,
-                                        io::Direction direction,
-                                        Context* on_finish) {
+void
+ExclusiveLock<I>::set_require_lock(
+    bool init_shutdown,
+    io::Direction direction,
+    Context* on_finish)
+{
   m_image_dispatch->set_require_lock(init_shutdown, direction, on_finish);
 }
 
 template <typename I>
-void ExclusiveLock<I>::unset_require_lock(io::Direction direction) {
+void
+ExclusiveLock<I>::unset_require_lock(io::Direction direction)
+{
   m_image_dispatch->unset_require_lock(direction);
 }
 
 template <typename I>
-void ExclusiveLock<I>::block_requests(int r) {
+void
+ExclusiveLock<I>::block_requests(int r)
+{
   std::lock_guard locker{ML<I>::m_lock};
 
   m_request_blocked_count++;
@@ -114,7 +139,9 @@ void ExclusiveLock<I>::block_requests(int r) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::unblock_requests() {
+void
+ExclusiveLock<I>::unblock_requests()
+{
   std::lock_guard locker{ML<I>::m_lock};
 
   ceph_assert(m_request_blocked_count > 0);
@@ -127,7 +154,9 @@ void ExclusiveLock<I>::unblock_requests() {
 }
 
 template <typename I>
-int ExclusiveLock<I>::get_unlocked_op_error() const {
+int
+ExclusiveLock<I>::get_unlocked_op_error() const
+{
   if (m_image_ctx.image_watcher->is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -135,7 +164,9 @@ int ExclusiveLock<I>::get_unlocked_op_error() const {
 }
 
 template <typename I>
-void ExclusiveLock<I>::init(uint64_t features, Context *on_init) {
+void
+ExclusiveLock<I>::init(uint64_t features, Context* on_init)
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx.owner_lock));
 
   on_init = create_context_callback<Context>(on_init, this);
@@ -151,18 +182,17 @@ void ExclusiveLock<I>::init(uint64_t features, Context *on_init) {
   m_image_ctx.io_image_dispatcher->register_dispatch(m_image_dispatch);
 
   on_init = new LambdaContext([this, on_init](int r) {
-      {
-        std::lock_guard locker{ML<I>::m_lock};
-        ML<I>::set_state_unlocked();
-      }
+    {
+      std::lock_guard locker{ML<I>::m_lock};
+      ML<I>::set_state_unlocked();
+    }
 
-      on_init->complete(r);
-    });
+    on_init->complete(r);
+  });
 
   bool pwl_enabled = cache::util::is_pwl_enabled(m_image_ctx);
   if (m_image_ctx.clone_copy_on_read ||
-      (features & RBD_FEATURE_JOURNALING) != 0 ||
-      pwl_enabled) {
+      (features & RBD_FEATURE_JOURNALING) != 0 || pwl_enabled) {
     m_image_dispatch->set_require_lock(true, io::DIRECTION_BOTH, on_init);
   } else {
     m_image_dispatch->set_require_lock(true, io::DIRECTION_WRITE, on_init);
@@ -170,7 +200,9 @@ void ExclusiveLock<I>::init(uint64_t features, Context *on_init) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::shut_down(Context *on_shut_down) {
+void
+ExclusiveLock<I>::shut_down(Context* on_shut_down)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
 
   auto ref = ceph::ref_t<ExclusiveLock<I>>(this);
@@ -183,7 +215,9 @@ void ExclusiveLock<I>::shut_down(Context *on_shut_down) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::handle_peer_notification(int r) {
+void
+ExclusiveLock<I>::handle_peer_notification(int r)
+{
   std::lock_guard locker{ML<I>::m_lock};
   if (!ML<I>::is_state_waiting_for_lock()) {
     return;
@@ -197,7 +231,9 @@ void ExclusiveLock<I>::handle_peer_notification(int r) {
 }
 
 template <typename I>
-Context *ExclusiveLock<I>::start_op(int* ret_val) {
+Context*
+ExclusiveLock<I>::start_op(int* ret_val)
+{
   ceph_assert(ceph_mutex_is_locked(m_image_ctx.owner_lock));
   std::lock_guard locker{ML<I>::m_lock};
 
@@ -207,13 +243,13 @@ Context *ExclusiveLock<I>::start_op(int* ret_val) {
   }
 
   m_async_op_tracker.start_op();
-  return new LambdaContext([this](int r) {
-      m_async_op_tracker.finish_op();
-    });
+  return new LambdaContext([this](int r) { m_async_op_tracker.finish_op(); });
 }
 
 template <typename I>
-void ExclusiveLock<I>::shutdown_handler(int r, Context *on_finish) {
+void
+ExclusiveLock<I>::shutdown_handler(int r, Context* on_finish)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
 
   {
@@ -222,15 +258,17 @@ void ExclusiveLock<I>::shutdown_handler(int r, Context *on_finish) {
   }
 
   on_finish = new LambdaContext([this, on_finish](int r) {
-      m_image_dispatch = nullptr;
-      m_image_ctx.image_watcher->flush(on_finish);
-    });
+    m_image_dispatch = nullptr;
+    m_image_ctx.image_watcher->flush(on_finish);
+  });
   m_image_ctx.io_image_dispatcher->shut_down_dispatch(
-    m_image_dispatch->get_dispatch_layer(), on_finish);
+      m_image_dispatch->get_dispatch_layer(), on_finish);
 }
 
 template <typename I>
-void ExclusiveLock<I>::pre_acquire_lock_handler(Context *on_finish) {
+void
+ExclusiveLock<I>::pre_acquire_lock_handler(Context* on_finish)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
 
   int acquire_lock_peer_ret_val = 0;
@@ -245,15 +283,17 @@ void ExclusiveLock<I>::pre_acquire_lock_handler(Context *on_finish) {
     return;
   }
 
-  PreAcquireRequest<I> *req = PreAcquireRequest<I>::create(m_image_ctx,
-                                                           on_finish);
+  PreAcquireRequest<I>* req =
+      PreAcquireRequest<I>::create(m_image_ctx, on_finish);
   m_image_ctx.op_work_queue->queue(new LambdaContext([req](int r) {
     req->send();
   }));
 }
 
 template <typename I>
-void ExclusiveLock<I>::post_acquire_lock_handler(int r, Context *on_finish) {
+void
+ExclusiveLock<I>::post_acquire_lock_handler(int r, Context* on_finish)
+{
   ldout(m_image_ctx.cct, 10) << ": r=" << r << dendl;
 
   if (r == -EROFS) {
@@ -293,7 +333,8 @@ void ExclusiveLock<I>::post_acquire_lock_handler(int r, Context *on_finish) {
   std::lock_guard locker{ML<I>::m_lock};
   m_pre_post_callback = on_finish;
   using EL = ExclusiveLock<I>;
-  PostAcquireRequest<I> *req = PostAcquireRequest<I>::create(m_image_ctx,
+  PostAcquireRequest<I>* req = PostAcquireRequest<I>::create(
+      m_image_ctx,
       util::create_context_callback<EL, &EL::handle_post_acquiring_lock>(this),
       util::create_context_callback<EL, &EL::handle_post_acquired_lock>(this));
 
@@ -303,7 +344,9 @@ void ExclusiveLock<I>::post_acquire_lock_handler(int r, Context *on_finish) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::handle_post_acquiring_lock(int r) {
+void
+ExclusiveLock<I>::handle_post_acquiring_lock(int r)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
 
   std::lock_guard locker{ML<I>::m_lock};
@@ -315,16 +358,17 @@ void ExclusiveLock<I>::handle_post_acquiring_lock(int r) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::handle_post_acquired_lock(int r) {
+void
+ExclusiveLock<I>::handle_post_acquired_lock(int r)
+{
   ldout(m_image_ctx.cct, 10) << ": r=" << r << dendl;
 
-  Context *on_finish = nullptr;
+  Context* on_finish = nullptr;
   {
     std::lock_guard locker{ML<I>::m_lock};
-    ceph_assert(ML<I>::is_state_acquiring() ||
-                ML<I>::is_state_post_acquiring());
+    ceph_assert(ML<I>::is_state_acquiring() || ML<I>::is_state_post_acquiring());
 
-    assert (m_pre_post_callback != nullptr);
+    assert(m_pre_post_callback != nullptr);
     std::swap(m_pre_post_callback, on_finish);
   }
 
@@ -333,8 +377,7 @@ void ExclusiveLock<I>::handle_post_acquired_lock(int r) {
     return;
   }
 
-  m_image_ctx.perfcounter->tset(l_librbd_lock_acquired_time,
-                                ceph_clock_now());
+  m_image_ctx.perfcounter->tset(l_librbd_lock_acquired_time, ceph_clock_now());
   m_image_ctx.image_watcher->notify_acquired_lock();
   m_image_dispatch->unset_require_lock(io::DIRECTION_BOTH);
 
@@ -342,29 +385,34 @@ void ExclusiveLock<I>::handle_post_acquired_lock(int r) {
 }
 
 template <typename I>
-void ExclusiveLock<I>::pre_release_lock_handler(bool shutting_down,
-                                                Context *on_finish) {
+void
+ExclusiveLock<I>::pre_release_lock_handler(bool shutting_down, Context* on_finish)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
   std::lock_guard locker{ML<I>::m_lock};
 
   auto req = PreReleaseRequest<I>::create(
-    m_image_ctx, m_image_dispatch, shutting_down, m_async_op_tracker,
-    on_finish);
+      m_image_ctx, m_image_dispatch, shutting_down, m_async_op_tracker,
+      on_finish);
   m_image_ctx.op_work_queue->queue(new LambdaContext([req](int r) {
     req->send();
   }));
 }
 
 template <typename I>
-void ExclusiveLock<I>::post_release_lock_handler(bool shutting_down, int r,
-                                                 Context *on_finish) {
-  ldout(m_image_ctx.cct, 10) << ": r=" << r << " shutting_down="
-                             << shutting_down << dendl;
+void
+ExclusiveLock<I>::post_release_lock_handler(
+    bool shutting_down,
+    int r,
+    Context* on_finish)
+{
+  ldout(m_image_ctx.cct, 10)
+      << ": r=" << r << " shutting_down=" << shutting_down << dendl;
   if (!shutting_down) {
     {
       std::lock_guard locker{ML<I>::m_lock};
-      ceph_assert(ML<I>::is_state_pre_releasing() ||
-                  ML<I>::is_state_releasing());
+      ceph_assert(
+          ML<I>::is_state_pre_releasing() || ML<I>::is_state_releasing());
     }
 
     if (r >= 0) {
@@ -379,17 +427,19 @@ void ExclusiveLock<I>::post_release_lock_handler(bool shutting_down, int r,
     }
 
     on_finish = new LambdaContext([this, r, on_finish](int) {
-        m_image_dispatch = nullptr;
-        m_image_ctx.image_watcher->notify_released_lock();
-        on_finish->complete(r);
-      });
+      m_image_dispatch = nullptr;
+      m_image_ctx.image_watcher->notify_released_lock();
+      on_finish->complete(r);
+    });
     m_image_ctx.io_image_dispatcher->shut_down_dispatch(
-      m_image_dispatch->get_dispatch_layer(), on_finish);
+        m_image_dispatch->get_dispatch_layer(), on_finish);
   }
 }
 
 template <typename I>
-void ExclusiveLock<I>::post_reacquire_lock_handler(int r, Context *on_finish) {
+void
+ExclusiveLock<I>::post_reacquire_lock_handler(int r, Context* on_finish)
+{
   ldout(m_image_ctx.cct, 10) << dendl;
   if (r >= 0) {
     m_image_ctx.image_watcher->notify_acquired_lock();

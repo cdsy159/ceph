@@ -2,19 +2,19 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <errno.h>
-#include <string>
+
 #include <stdexcept>
+#include <string>
 
+#include "common/hobject.h"
+#include "global/global_context.h"
 #include "gtest/gtest.h"
-
 #include "include/rados/librados.hpp"
 #include "include/stringify.h"
 #include "include/types.h"
-#include "common/hobject.h"
-#include "test/librados/test_cxx.h"
 #include "test/librados/test_common.h"
+#include "test/librados/test_cxx.h"
 #include "test/librados/testcase_cxx.h"
-#include "global/global_context.h"
 
 #include "crimson_utils.h"
 
@@ -23,7 +23,8 @@ using namespace librados;
 typedef RadosTestPPNSCleanup LibRadosListPP;
 typedef RadosTestECPPNSCleanup LibRadosListECPP;
 
-TEST_F(LibRadosListPP, ListObjectsPP) {
+TEST_F(LibRadosListPP, ListObjectsPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl1;
@@ -39,7 +40,8 @@ TEST_F(LibRadosListPP, ListObjectsPP) {
   ASSERT_TRUE(foundit);
 }
 
-TEST_F(LibRadosListPP, ListObjectsTwicePP) {
+TEST_F(LibRadosListPP, ListObjectsTwicePP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl1;
@@ -65,7 +67,8 @@ TEST_F(LibRadosListPP, ListObjectsTwicePP) {
   ASSERT_TRUE(foundit);
 }
 
-TEST_F(LibRadosListPP, ListObjectsCopyIterPP) {
+TEST_F(LibRadosListPP, ListObjectsCopyIterPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl1;
@@ -97,7 +100,8 @@ TEST_F(LibRadosListPP, ListObjectsCopyIterPP) {
   ASSERT_TRUE(iter3 == ioctx.nobjects_end());
 }
 
-TEST_F(LibRadosListPP, ListObjectsEndIter) {
+TEST_F(LibRadosListPP, ListObjectsEndIter)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl1;
@@ -122,7 +126,11 @@ TEST_F(LibRadosListPP, ListObjectsEndIter) {
   ASSERT_TRUE(iter2 == iter_end2);
 }
 
-static void check_listpp(std::set<std::string>& myset, IoCtx& ioctx, const std::string &check_nspace)
+static void
+check_listpp(
+    std::set<std::string>& myset,
+    IoCtx& ioctx,
+    const std::string& check_nspace)
 {
   NObjectIterator iter(ioctx.nobjects_begin());
   std::set<std::string> orig_set(myset);
@@ -147,7 +155,8 @@ static void check_listpp(std::set<std::string>& myset, IoCtx& ioctx, const std::
   ASSERT_TRUE(myset.empty());
 }
 
-TEST_F(LibRadosListPP, ListObjectsPPNS) {
+TEST_F(LibRadosListPP, ListObjectsPPNS)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl1;
@@ -199,13 +208,14 @@ TEST_F(LibRadosListPP, ListObjectsPPNS) {
   check_listpp(all, ioctx, all_nspaces);
 }
 
-TEST_F(LibRadosListPP, ListObjectsManyPP) {
+TEST_F(LibRadosListPP, ListObjectsManyPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
-  for (int i=0; i<256; ++i) {
+  for (int i = 0; i < 256; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, bl.length(), 0));
   }
 
@@ -213,8 +223,7 @@ TEST_F(LibRadosListPP, ListObjectsManyPP) {
   std::set<std::string> saw_obj;
   std::set<int> saw_pg;
   for (; it != ioctx.nobjects_end(); ++it) {
-    std::cout << it->get_oid()
-	      << " " << it.get_pg_hash_position() << std::endl;
+    std::cout << it->get_oid() << " " << it.get_pg_hash_position() << std::endl;
     saw_obj.insert(it->get_oid());
     saw_pg.insert(it.get_pg_hash_position());
   }
@@ -225,35 +234,37 @@ TEST_F(LibRadosListPP, ListObjectsManyPP) {
     ASSERT_TRUE(saw_pg.count(i));
 }
 
-TEST_F(LibRadosListPP, ListObjectsStartPP) {
+TEST_F(LibRadosListPP, ListObjectsStartPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
-  for (int i=0; i<16; ++i) {
+  for (int i = 0; i < 16; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, bl.length(), 0));
   }
 
   librados::NObjectIterator it = ioctx.nobjects_begin();
-  std::map<int, std::set<std::string> > pg_to_obj;
+  std::map<int, std::set<std::string>> pg_to_obj;
   for (; it != ioctx.nobjects_end(); ++it) {
     std::cout << it->get_oid() << " " << it.get_pg_hash_position() << std::endl;
     pg_to_obj[it.get_pg_hash_position()].insert(it->get_oid());
   }
 
-  std::map<int, std::set<std::string> >::reverse_iterator p =
-    pg_to_obj.rbegin();
+  std::map<int, std::set<std::string>>::reverse_iterator p = pg_to_obj.rbegin();
   it = ioctx.nobjects_begin(p->first);
   while (p != pg_to_obj.rend()) {
     ASSERT_EQ((uint32_t)p->first, it.seek(p->first));
-    std::cout << "have " << it->get_oid() << " expect one of " << p->second << std::endl;
+    std::cout << "have " << it->get_oid() << " expect one of " << p->second
+              << std::endl;
     ASSERT_TRUE(p->second.count(it->get_oid()));
     ++p;
   }
 }
 
-TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
+TEST_F(LibRadosListPP, ListObjectsCursorNSPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -263,7 +274,7 @@ TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
 
   map<string, string> oid_to_ns;
 
-  for (int i=0; i<max_objs; ++i) {
+  for (int i = 0; i < max_objs; ++i) {
     stringstream ss;
     ss << "ns" << i / 4;
     ioctx.set_namespace(ss.str());
@@ -282,7 +293,7 @@ TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
 
   librados::ObjectCursor seek_cursor;
 
-  map<string, list<librados::ObjectCursor> > ns_to_cursors;
+  map<string, list<librados::ObjectCursor>> ns_to_cursors;
 
   for (it = ioctx.nobjects_begin(); it != ioctx.nobjects_end(); ++it) {
     librados::ObjectCursor cursor = it.get_cursor();
@@ -302,13 +313,14 @@ TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
     ASSERT_EQ(oid_to_ns[oid], it->get_nspace());
 
     it.seek(cursor);
-    cout << ": seek to " << cursor << " it.cursor=" << it.get_cursor() << std::endl;
+    cout << ": seek to " << cursor << " it.cursor=" << it.get_cursor()
+         << std::endl;
     ASSERT_EQ(oid, it->get_oid());
     ASSERT_LT(count, max_objs); /* avoid infinite loops due to bad seek */
 
     ns_to_cursors[it->get_nspace()].push_back(cursor);
 
-    if (count == max_objs/2) {
+    if (count == max_objs / 2) {
       seek_cursor = cursor;
     }
     objs_order.push_back(it->get_oid());
@@ -319,7 +331,7 @@ TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
   /* check that reading past seek also works */
   cout << "seek_cursor=" << seek_cursor << std::endl;
   it.seek(seek_cursor);
-  for (count = max_objs/2; count < max_objs; ++count, ++it) {
+  for (count = max_objs / 2; count < max_objs; ++count, ++it) {
     ASSERT_EQ(objs_order[count], it->get_oid());
   }
 
@@ -333,16 +345,20 @@ TEST_F(LibRadosListPP, ListObjectsCursorNSPP) {
       it.seek(cursor);
       ASSERT_EQ(cursor, it.get_cursor());
       string& expected_oid = cursor_to_obj[cursor];
-      cout << ": it->get_cursor()=" << it.get_cursor() << " expected=" << cursor << std::endl;
-      cout << ": it->get_oid()=" << it->get_oid() << " expected=" << expected_oid << std::endl;
-      cout << ": it->get_nspace()=" << it->get_oid() << " expected=" << ns << std::endl;
+      cout << ": it->get_cursor()=" << it.get_cursor() << " expected=" << cursor
+           << std::endl;
+      cout << ": it->get_oid()=" << it->get_oid()
+           << " expected=" << expected_oid << std::endl;
+      cout << ": it->get_nspace()=" << it->get_oid() << " expected=" << ns
+           << std::endl;
       ASSERT_EQ(expected_oid, it->get_oid());
       ASSERT_EQ(it->get_nspace(), ns);
     }
   }
 }
 
-TEST_F(LibRadosListPP, ListObjectsCursorPP) {
+TEST_F(LibRadosListPP, ListObjectsCursorPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
@@ -350,7 +366,7 @@ TEST_F(LibRadosListPP, ListObjectsCursorPP) {
 
   const int max_objs = 16;
 
-  for (int i=0; i<max_objs; ++i) {
+  for (int i = 0; i < max_objs; ++i) {
     stringstream ss;
     ss << "ns" << i / 4;
     ioctx.set_namespace(ss.str());
@@ -385,8 +401,10 @@ TEST_F(LibRadosListPP, ListObjectsCursorPP) {
     cout << ": seek to " << p->first << std::endl;
     it.seek(p->first);
     ASSERT_EQ(p->first, it.get_cursor());
-    cout << ": it->get_cursor()=" << it.get_cursor() << " expected=" << p->first << std::endl;
-    cout << ": it->get_oid()=" << it->get_oid() << " expected=" << p->second << std::endl;
+    cout << ": it->get_cursor()=" << it.get_cursor() << " expected=" << p->first
+         << std::endl;
+    cout << ": it->get_oid()=" << it->get_oid() << " expected=" << p->second
+         << std::endl;
     ASSERT_EQ(p->second, it->get_oid());
 
     librados::NObjectIterator it2 = ioctx.nobjects_begin(it.get_cursor());
@@ -396,7 +414,8 @@ TEST_F(LibRadosListPP, ListObjectsCursorPP) {
   }
 }
 
-TEST_F(LibRadosListECPP, ListObjectsPP) {
+TEST_F(LibRadosListECPP, ListObjectsPP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -413,7 +432,8 @@ TEST_F(LibRadosListECPP, ListObjectsPP) {
   ASSERT_TRUE(foundit);
 }
 
-TEST_F(LibRadosListECPP, ListObjectsTwicePP) {
+TEST_F(LibRadosListECPP, ListObjectsTwicePP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -440,7 +460,8 @@ TEST_F(LibRadosListECPP, ListObjectsTwicePP) {
   ASSERT_TRUE(foundit);
 }
 
-TEST_F(LibRadosListECPP, ListObjectsCopyIterPP) {
+TEST_F(LibRadosListECPP, ListObjectsCopyIterPP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -473,7 +494,8 @@ TEST_F(LibRadosListECPP, ListObjectsCopyIterPP) {
   ASSERT_TRUE(iter3 == ioctx.nobjects_end());
 }
 
-TEST_F(LibRadosListECPP, ListObjectsEndIter) {
+TEST_F(LibRadosListECPP, ListObjectsEndIter)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -499,7 +521,8 @@ TEST_F(LibRadosListECPP, ListObjectsEndIter) {
   ASSERT_TRUE(iter2 == iter_end2);
 }
 
-TEST_F(LibRadosListECPP, ListObjectsPPNS) {
+TEST_F(LibRadosListECPP, ListObjectsPPNS)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
@@ -540,14 +563,15 @@ TEST_F(LibRadosListECPP, ListObjectsPPNS) {
   check_listpp(ns2, ioctx, "ns2");
 }
 
-TEST_F(LibRadosListECPP, ListObjectsManyPP) {
+TEST_F(LibRadosListECPP, ListObjectsManyPP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
-  for (int i=0; i<256; ++i) {
+  for (int i = 0; i < 256; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, bl.length(), 0));
   }
 
@@ -555,8 +579,7 @@ TEST_F(LibRadosListECPP, ListObjectsManyPP) {
   std::set<std::string> saw_obj;
   std::set<int> saw_pg;
   for (; it != ioctx.nobjects_end(); ++it) {
-    std::cout << it->get_oid()
-	      << " " << it.get_pg_hash_position() << std::endl;
+    std::cout << it->get_oid() << " " << it.get_pg_hash_position() << std::endl;
     saw_obj.insert(it->get_oid());
     saw_pg.insert(it.get_pg_hash_position());
   }
@@ -567,36 +590,38 @@ TEST_F(LibRadosListECPP, ListObjectsManyPP) {
     ASSERT_TRUE(saw_pg.count(i));
 }
 
-TEST_F(LibRadosListECPP, ListObjectsStartPP) {
+TEST_F(LibRadosListECPP, ListObjectsStartPP)
+{
   SKIP_IF_CRIMSON();
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
-  for (int i=0; i<16; ++i) {
+  for (int i = 0; i < 16; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, bl.length(), 0));
   }
 
   librados::NObjectIterator it = ioctx.nobjects_begin();
-  std::map<int, std::set<std::string> > pg_to_obj;
+  std::map<int, std::set<std::string>> pg_to_obj;
   for (; it != ioctx.nobjects_end(); ++it) {
     std::cout << it->get_oid() << " " << it.get_pg_hash_position() << std::endl;
     pg_to_obj[it.get_pg_hash_position()].insert(it->get_oid());
   }
 
-  std::map<int, std::set<std::string> >::reverse_iterator p =
-    pg_to_obj.rbegin();
+  std::map<int, std::set<std::string>>::reverse_iterator p = pg_to_obj.rbegin();
   it = ioctx.nobjects_begin(p->first);
   while (p != pg_to_obj.rend()) {
     ASSERT_EQ((uint32_t)p->first, it.seek(p->first));
-    std::cout << "have " << it->get_oid() << " expect one of " << p->second << std::endl;
+    std::cout << "have " << it->get_oid() << " expect one of " << p->second
+              << std::endl;
     ASSERT_TRUE(p->second.count(it->get_oid()));
     ++p;
   }
 }
 
-TEST_F(LibRadosListPP, ListObjectsFilterPP) {
+TEST_F(LibRadosListPP, ListObjectsFilterPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist obj_content;
@@ -611,7 +636,8 @@ TEST_F(LibRadosListPP, ListObjectsFilterPP) {
   nontarget_val.append("rhubarb");
 
   ASSERT_EQ(0, ioctx.write("has_xattr", obj_content, obj_content.length(), 0));
-  ASSERT_EQ(0, ioctx.write("has_wrong_xattr", obj_content, obj_content.length(), 0));
+  ASSERT_EQ(
+      0, ioctx.write("has_wrong_xattr", obj_content, obj_content.length(), 0));
   ASSERT_EQ(0, ioctx.write("no_xattr", obj_content, obj_content.length(), 0));
 
   ASSERT_EQ(0, ioctx.setxattr("has_xattr", "theattr", target_val));
@@ -638,22 +664,22 @@ TEST_F(LibRadosListPP, ListObjectsFilterPP) {
   ASSERT_TRUE(foundit);
 }
 
-TEST_F(LibRadosListPP, EnumerateObjectsPP) {
+TEST_F(LibRadosListPP, EnumerateObjectsPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
   const uint32_t n_objects = 16;
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, sizeof(buf), 0));
   }
 
   std::set<std::string> saw_obj;
   ObjectCursor c = ioctx.object_list_begin();
   ObjectCursor end = ioctx.object_list_end();
-  while(!ioctx.object_list_is_end(c))
-  {
+  while (!ioctx.object_list_is_end(c)) {
     std::vector<ObjectItem> result;
     int r = ioctx.object_list(c, end, 12, {}, &result, &c);
     ASSERT_GE(r, 0);
@@ -661,30 +687,31 @@ TEST_F(LibRadosListPP, EnumerateObjectsPP) {
     for (int i = 0; i < r; ++i) {
       auto oid = result[i].oid;
       if (saw_obj.count(oid)) {
-          std::cerr << "duplicate obj " << oid << std::endl;
+        std::cerr << "duplicate obj " << oid << std::endl;
       }
       ASSERT_FALSE(saw_obj.count(oid));
       saw_obj.insert(oid);
     }
   }
 
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     if (!saw_obj.count(stringify(i))) {
-        std::cerr << "missing object " << i << std::endl;
+      std::cerr << "missing object " << i << std::endl;
     }
     ASSERT_TRUE(saw_obj.count(stringify(i)));
   }
   ASSERT_EQ(n_objects, saw_obj.size());
 }
 
-TEST_F(LibRadosListPP, EnumerateObjectsSplitPP) {
+TEST_F(LibRadosListPP, EnumerateObjectsSplitPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist bl;
   bl.append(buf, sizeof(buf));
 
   const uint32_t n_objects = 16;
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     ASSERT_EQ(0, ioctx.write(stringify(i), bl, sizeof(buf), 0));
   }
 
@@ -695,46 +722,39 @@ TEST_F(LibRadosListPP, EnumerateObjectsSplitPP) {
   unsigned m = 5;
   std::set<std::string> saw_obj;
   for (unsigned n = 0; n < m; ++n) {
-      ObjectCursor shard_start;
-      ObjectCursor shard_end;
+    ObjectCursor shard_start;
+    ObjectCursor shard_end;
 
-      ioctx.object_list_slice(
-        begin,
-        end,
-        n,
-        m,
-        &shard_start,
-        &shard_end);
+    ioctx.object_list_slice(begin, end, n, m, &shard_start, &shard_end);
 
-      ObjectCursor c(shard_start);
-      while(c < shard_end)
-      {
-        std::vector<ObjectItem> result;
-        int r = ioctx.object_list(c, shard_end, 12, {}, &result, &c);
-        ASSERT_GE(r, 0);
+    ObjectCursor c(shard_start);
+    while (c < shard_end) {
+      std::vector<ObjectItem> result;
+      int r = ioctx.object_list(c, shard_end, 12, {}, &result, &c);
+      ASSERT_GE(r, 0);
 
-        for (const auto & i : result) {
-          const auto &oid = i.oid;
-          if (saw_obj.count(oid)) {
-              std::cerr << "duplicate obj " << oid << std::endl;
-          }
-          ASSERT_FALSE(saw_obj.count(oid));
-          saw_obj.insert(oid);
+      for (const auto& i : result) {
+        const auto& oid = i.oid;
+        if (saw_obj.count(oid)) {
+          std::cerr << "duplicate obj " << oid << std::endl;
         }
+        ASSERT_FALSE(saw_obj.count(oid));
+        saw_obj.insert(oid);
       }
+    }
   }
 
-  for (unsigned i=0; i<n_objects; ++i) {
+  for (unsigned i = 0; i < n_objects; ++i) {
     if (!saw_obj.count(stringify(i))) {
-        std::cerr << "missing object " << i << std::endl;
+      std::cerr << "missing object " << i << std::endl;
     }
     ASSERT_TRUE(saw_obj.count(stringify(i)));
   }
   ASSERT_EQ(n_objects, saw_obj.size());
 }
 
-
-TEST_F(LibRadosListPP, EnumerateObjectsFilterPP) {
+TEST_F(LibRadosListPP, EnumerateObjectsFilterPP)
+{
   char buf[128];
   memset(buf, 0xcc, sizeof(buf));
   bufferlist obj_content;
@@ -749,7 +769,8 @@ TEST_F(LibRadosListPP, EnumerateObjectsFilterPP) {
   nontarget_val.append("rhubarb");
 
   ASSERT_EQ(0, ioctx.write("has_xattr", obj_content, obj_content.length(), 0));
-  ASSERT_EQ(0, ioctx.write("has_wrong_xattr", obj_content, obj_content.length(), 0));
+  ASSERT_EQ(
+      0, ioctx.write("has_wrong_xattr", obj_content, obj_content.length(), 0));
   ASSERT_EQ(0, ioctx.write("no_xattr", obj_content, obj_content.length(), 0));
 
   ASSERT_EQ(0, ioctx.setxattr("has_xattr", "theattr", target_val));
@@ -764,8 +785,7 @@ TEST_F(LibRadosListPP, EnumerateObjectsFilterPP) {
   ObjectCursor c = ioctx.object_list_begin();
   ObjectCursor end = ioctx.object_list_end();
   bool foundit = false;
-  while(!ioctx.object_list_is_end(c))
-  {
+  while (!ioctx.object_list_is_end(c)) {
     std::vector<ObjectItem> result;
     int r = ioctx.object_list(c, end, 12, filter_bl, &result, &c);
     ASSERT_GE(r, 0);

@@ -16,79 +16,89 @@
 #ifndef CEPH_MRECOVERY_H
 #define CEPH_MRECOVERY_H
 
-#include "msg/Message.h"
 #include "messages/MOSDPeeringOp.h"
+#include "msg/Message.h"
 #include "osd/PGPeeringEvent.h"
 
 class MRecoveryReserve : public MOSDPeeringOp {
 private:
   static constexpr int HEAD_VERSION = 3;
   static constexpr int COMPAT_VERSION = 2;
+
 public:
   spg_t pgid;
   epoch_t query_epoch;
+
   enum {
-    REQUEST = 0,   // primary->replica: please reserve slot
-    GRANT = 1,     // replica->primary: ok, i reserved it
-    RELEASE = 2,   // primary->replica: release the slot i reserved before
-    REVOKE = 3,    // replica->primary: i'm taking back the slot i gave you
+    REQUEST = 0, // primary->replica: please reserve slot
+    GRANT = 1, // replica->primary: ok, i reserved it
+    RELEASE = 2, // primary->replica: release the slot i reserved before
+    REVOKE = 3, // replica->primary: i'm taking back the slot i gave you
   };
+
   uint32_t type;
   uint32_t priority = 0;
 
-  spg_t get_spg() const {
+  spg_t
+  get_spg() const
+  {
     return pgid;
   }
-  epoch_t get_map_epoch() const {
-    return query_epoch;
-  }
-  epoch_t get_min_epoch() const {
+
+  epoch_t
+  get_map_epoch() const
+  {
     return query_epoch;
   }
 
-  PGPeeringEvent *get_event() override {
+  epoch_t
+  get_min_epoch() const
+  {
+    return query_epoch;
+  }
+
+  PGPeeringEvent*
+  get_event() override
+  {
     switch (type) {
     case REQUEST:
       return new PGPeeringEvent(
-	query_epoch,
-	query_epoch,
-	RequestRecoveryPrio(priority));
+          query_epoch, query_epoch, RequestRecoveryPrio(priority));
     case GRANT:
       return new PGPeeringEvent(
-	query_epoch,
-	query_epoch,
-	RemoteRecoveryReserved());
+          query_epoch, query_epoch, RemoteRecoveryReserved());
     case RELEASE:
-      return new PGPeeringEvent(
-	query_epoch,
-	query_epoch,
-	RecoveryDone());
+      return new PGPeeringEvent(query_epoch, query_epoch, RecoveryDone());
     case REVOKE:
-      return new PGPeeringEvent(
-	query_epoch,
-	query_epoch,
-	DeferRecovery(0.0));
+      return new PGPeeringEvent(query_epoch, query_epoch, DeferRecovery(0.0));
     default:
       ceph_abort();
     }
   }
 
-  MRecoveryReserve()
-    : MOSDPeeringOp{MSG_OSD_RECOVERY_RESERVE, HEAD_VERSION, COMPAT_VERSION},
-      query_epoch(0), type(-1) {}
-  MRecoveryReserve(int type,
-		   spg_t pgid,
-		   epoch_t query_epoch,
-		   unsigned prio = 0)
-    : MOSDPeeringOp{MSG_OSD_RECOVERY_RESERVE, HEAD_VERSION, COMPAT_VERSION},
-      pgid(pgid), query_epoch(query_epoch),
-      type(type), priority(prio) {}
+  MRecoveryReserve() :
+    MOSDPeeringOp{MSG_OSD_RECOVERY_RESERVE, HEAD_VERSION, COMPAT_VERSION},
+    query_epoch(0),
+    type(-1)
+  {}
 
-  std::string_view get_type_name() const override {
+  MRecoveryReserve(int type, spg_t pgid, epoch_t query_epoch, unsigned prio = 0) :
+    MOSDPeeringOp{MSG_OSD_RECOVERY_RESERVE, HEAD_VERSION, COMPAT_VERSION},
+    pgid(pgid),
+    query_epoch(query_epoch),
+    type(type),
+    priority(prio)
+  {}
+
+  std::string_view
+  get_type_name() const override
+  {
     return "MRecoveryReserve";
   }
 
-  void inner_print(std::ostream& out) const override {
+  void
+  inner_print(std::ostream& out) const override
+  {
     switch (type) {
     case REQUEST:
       out << "REQUEST";
@@ -103,10 +113,13 @@ public:
       out << "REVOKE";
       break;
     }
-    if (type == REQUEST) out << " prio: " << priority;
+    if (type == REQUEST)
+      out << " prio: " << priority;
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     using ceph::decode;
     decode(pgid.pgid, p);
@@ -118,7 +131,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(pgid.pgid, payload);
     encode(query_epoch, payload);
@@ -126,8 +141,9 @@ public:
     encode(pgid.shard, payload);
     encode(priority, payload);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

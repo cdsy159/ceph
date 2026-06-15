@@ -1,24 +1,28 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <boost/iterator/counting_iterator.hpp>
 #include <numeric>
 
-#include "test/crimson/gtest_seastar.h"
+#include <boost/iterator/counting_iterator.hpp>
 
-#include "crimson/common/errorator.h"
 #include "crimson/common/errorator-utils.h"
+#include "crimson/common/errorator.h"
 #include "crimson/common/log.h"
 #include "seastar/core/sleep.hh"
+#include "test/crimson/gtest_seastar.h"
 
 struct errorator_abort_test_t : public seastar_test_suite_t {
   using ertr = crimson::errorator<crimson::ct_error::invarg>;
 
-  ertr::future<> invarg_foo() {
+  ertr::future<>
+  invarg_foo()
+  {
     return crimson::ct_error::invarg::make();
   };
 
-  ertr::future<> clean_foo() {
+  ertr::future<>
+  clean_foo()
+  {
     return ertr::now();
   };
 
@@ -26,6 +30,7 @@ struct errorator_abort_test_t : public seastar_test_suite_t {
     constexpr noncopyable_t() = default;
     ~noncopyable_t() = default;
     noncopyable_t(noncopyable_t&&) = default;
+
   private:
     noncopyable_t(const noncopyable_t&) = delete;
     noncopyable_t& operator=(const noncopyable_t&) = delete;

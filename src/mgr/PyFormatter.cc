@@ -17,57 +17,65 @@
 
 
 #include "PyFormatter.h"
+
 #include <fstream>
 
 #define LARGE_SIZE 1024
 
-
-void PyFormatter::open_array_section(std::string_view name)
+void
+PyFormatter::open_array_section(std::string_view name)
 {
-  PyObject *list = PyList_New(0);
+  PyObject* list = PyList_New(0);
   dump_pyobject(name, list);
   stack.push(cursor);
   cursor = list;
 }
 
-void PyFormatter::open_object_section(std::string_view name)
+void
+PyFormatter::open_object_section(std::string_view name)
 {
-  PyObject *dict = PyDict_New();
+  PyObject* dict = PyDict_New();
   dump_pyobject(name, dict);
   stack.push(cursor);
   cursor = dict;
 }
 
-void PyFormatter::dump_null(std::string_view name)
+void
+PyFormatter::dump_null(std::string_view name)
 {
   dump_pyobject(name, Py_None);
 }
 
-void PyFormatter::dump_unsigned(std::string_view name, uint64_t u)
+void
+PyFormatter::dump_unsigned(std::string_view name, uint64_t u)
 {
-  PyObject *p = PyLong_FromUnsignedLong(u);
+  PyObject* p = PyLong_FromUnsignedLong(u);
   ceph_assert(p);
   dump_pyobject(name, p);
 }
 
-void PyFormatter::dump_int(std::string_view name, int64_t u)
+void
+PyFormatter::dump_int(std::string_view name, int64_t u)
 {
-  PyObject *p = PyLong_FromLongLong(u);
+  PyObject* p = PyLong_FromLongLong(u);
   ceph_assert(p);
   dump_pyobject(name, p);
 }
 
-void PyFormatter::dump_float(std::string_view name, double d)
+void
+PyFormatter::dump_float(std::string_view name, double d)
 {
   dump_pyobject(name, PyFloat_FromDouble(d));
 }
 
-void PyFormatter::dump_string(std::string_view name, std::string_view s)
+void
+PyFormatter::dump_string(std::string_view name, std::string_view s)
 {
   dump_pyobject(name, PyUnicode_FromString(s.data()));
 }
 
-void PyFormatter::dump_bool(std::string_view name, bool b)
+void
+PyFormatter::dump_bool(std::string_view name, bool b)
 {
   if (b) {
     Py_INCREF(Py_True);
@@ -78,7 +86,8 @@ void PyFormatter::dump_bool(std::string_view name, bool b)
   }
 }
 
-std::ostream& PyFormatter::dump_stream(std::string_view name)
+std::ostream&
+PyFormatter::dump_stream(std::string_view name)
 {
   // Give the caller an ostream, construct a PyString,
   // and remember the association between the two.  On flush,
@@ -92,7 +101,13 @@ std::ostream& PyFormatter::dump_stream(std::string_view name)
   return ps->stream;
 }
 
-void PyFormatter::dump_format_va(std::string_view name, const char *ns, bool quoted, const char *fmt, va_list ap)
+void
+PyFormatter::dump_format_va(
+    std::string_view name,
+    const char* ns,
+    bool quoted,
+    const char* fmt,
+    va_list ap)
 {
   char buf[LARGE_SIZE];
   vsnprintf(buf, LARGE_SIZE, fmt, ap);
@@ -103,13 +118,14 @@ void PyFormatter::dump_format_va(std::string_view name, const char *ns, bool quo
 /**
  * Steals reference to `p`
  */
-void PyFormatter::dump_pyobject(std::string_view name, PyObject *p)
+void
+PyFormatter::dump_pyobject(std::string_view name, PyObject* p)
 {
   if (PyList_Check(cursor)) {
     PyList_Append(cursor, p);
     Py_DECREF(p);
   } else if (PyDict_Check(cursor)) {
-    PyObject *key = PyUnicode_DecodeUTF8(name.data(), name.size(), nullptr);
+    PyObject* key = PyUnicode_DecodeUTF8(name.data(), name.size(), nullptr);
     PyDict_SetItem(cursor, key, p);
     Py_DECREF(key);
     Py_DECREF(p);
@@ -118,23 +134,24 @@ void PyFormatter::dump_pyobject(std::string_view name, PyObject *p)
   }
 }
 
-void PyFormatter::finish_pending_streams()
+void
+PyFormatter::finish_pending_streams()
 {
-  for (const auto &i : pending_streams) {
-    PyObject *tmp_cur = cursor;
+  for (const auto& i : pending_streams) {
+    PyObject* tmp_cur = cursor;
     cursor = i->cursor;
     dump_pyobject(
-        i->name.c_str(),
-        PyUnicode_FromString(i->stream.str().c_str()));
+        i->name.c_str(), PyUnicode_FromString(i->stream.str().c_str()));
     cursor = tmp_cur;
   }
 
   pending_streams.clear();
 }
 
-PyObject* PyJSONFormatter::get()
+PyObject*
+PyJSONFormatter::get()
 {
-  if(json_formatter::stack_size()) {
+  if (json_formatter::stack_size()) {
     close_section();
   }
   ceph_assert(!json_formatter::stack_size());

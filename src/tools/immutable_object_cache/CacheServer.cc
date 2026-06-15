@@ -1,33 +1,40 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "CacheServer.h"
+
+#include "common/debug.h"
+
 #include <boost/asio/error.hpp>
 #include <boost/asio/placeholders.hpp>
 #include <boost/bind/bind.hpp>
-#include "common/debug.h"
+
 #include "common/ceph_context.h"
-#include "CacheServer.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_immutable_obj_cache
 #undef dout_prefix
-#define dout_prefix *_dout << "ceph::cache::CacheServer: " << this << " " \
-                           << __func__ << ": "
-
+#define dout_prefix \
+  *_dout << "ceph::cache::CacheServer: " << this << " " << __func__ << ": "
 
 namespace ceph {
 namespace immutable_obj_cache {
 
-CacheServer::CacheServer(CephContext* cct, const std::string& file,
-                         ProcessMsg processmsg)
-  : cct(cct), m_server_process_msg(processmsg),
-    m_local_path(file), m_acceptor(m_io_service) {}
+CacheServer::CacheServer(
+    CephContext* cct,
+    const std::string& file,
+    ProcessMsg processmsg) :
+  cct(cct),
+  m_server_process_msg(processmsg),
+  m_local_path(file),
+  m_acceptor(m_io_service)
+{}
 
-CacheServer::~CacheServer() {
-  stop();
-}
+CacheServer::~CacheServer() { stop(); }
 
-int CacheServer::run() {
+int
+CacheServer::run()
+{
   ldout(cct, 20) << dendl;
 
   int ret = start_accept();
@@ -44,12 +51,16 @@ int CacheServer::run() {
   return 0;
 }
 
-int CacheServer::stop() {
+int
+CacheServer::stop()
+{
   m_io_service.stop();
   return 0;
 }
 
-int CacheServer::start_accept() {
+int
+CacheServer::start_accept()
+{
   ldout(cct, 20) << dendl;
 
   boost::system::error_code ec;
@@ -61,8 +72,8 @@ int CacheServer::start_accept() {
 
   m_acceptor.bind(m_local_path, ec);
   if (ec) {
-    lderr(cct) << "failed to bind to domain socket '"
-               << m_local_path << "': " << ec.message() << dendl;
+    lderr(cct) << "failed to bind to domain socket '" << m_local_path
+               << "': " << ec.message() << dendl;
     return -ec.value();
   }
 
@@ -77,19 +88,24 @@ int CacheServer::start_accept() {
   return 0;
 }
 
-void CacheServer::accept() {
+void
+CacheServer::accept()
+{
   CacheSessionPtr new_session = nullptr;
 
-  new_session.reset(new CacheSession(m_io_service,
-                    m_server_process_msg, cct));
+  new_session.reset(new CacheSession(m_io_service, m_server_process_msg, cct));
 
-  m_acceptor.async_accept(new_session->socket(),
-      boost::bind(&CacheServer::handle_accept, this, new_session,
-        boost::asio::placeholders::error));
+  m_acceptor.async_accept(
+      new_session->socket(), boost::bind(
+                                 &CacheServer::handle_accept, this, new_session,
+                                 boost::asio::placeholders::error));
 }
 
-void CacheServer::handle_accept(CacheSessionPtr new_session,
-                                const boost::system::error_code& error) {
+void
+CacheServer::handle_accept(
+    CacheSessionPtr new_session,
+    const boost::system::error_code& error)
+{
   ldout(cct, 20) << dendl;
   if (error) {
     // operation_absort
@@ -104,5 +120,5 @@ void CacheServer::handle_accept(CacheSessionPtr new_session,
   accept();
 }
 
-}  // namespace immutable_obj_cache
-}  // namespace ceph
+} // namespace immutable_obj_cache
+} // namespace ceph

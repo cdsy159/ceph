@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,8 +19,8 @@
 #include <map>
 
 #include "common/Formatter.h"
-#include "osd/osd_types.h"
 #include "messages/PaxosServiceMessage.h"
+#include "osd/osd_types.h"
 
 class MPGStats final : public PaxosServiceMessage {
   static constexpr int HEAD_VERSION = 2;
@@ -33,26 +33,40 @@ public:
   std::map<int64_t, store_statfs_t> pool_stat;
   epoch_t epoch = 0;
 
-  MPGStats() : PaxosServiceMessage{MSG_PGSTATS, 0, HEAD_VERSION, COMPAT_VERSION} {}
-  MPGStats(const uuid_d& f, epoch_t e)
-    : PaxosServiceMessage{MSG_PGSTATS, 0, HEAD_VERSION, COMPAT_VERSION},
-      fsid(f),
-      epoch(e)
+  MPGStats() :
+    PaxosServiceMessage{MSG_PGSTATS, 0, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MPGStats(const uuid_d& f, epoch_t e) :
+    PaxosServiceMessage{MSG_PGSTATS, 0, HEAD_VERSION, COMPAT_VERSION},
+    fsid(f),
+    epoch(e)
   {}
 
 private:
   ~MPGStats() final {}
 
 public:
-  std::string_view get_type_name() const override { return "pg_stats"; }
-  void print(std::ostream& out) const override {
-    out << "pg_stats(" << pg_stat.size() << " pgs seq " << osd_stat.seq << " v " << version << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "pg_stats";
   }
-  void dump_stats(ceph::Formatter *f) const {
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "pg_stats(" << pg_stat.size() << " pgs seq " << osd_stat.seq << " v "
+        << version << ")";
+  }
+
+  void
+  dump_stats(ceph::Formatter* f) const
+  {
     f->open_object_section("stats");
     {
       f->open_array_section("pg_stat");
-      for(const auto& [_pg, _stat] : pg_stat) {
+      for (const auto& [_pg, _stat] : pg_stat) {
         f->open_object_section("pg_stat");
         _pg.dump(f);
         _stat.dump(f);
@@ -63,7 +77,7 @@ public:
       f->dump_object("osd_stat", osd_stat);
 
       f->open_array_section("pool_stat");
-      for(const auto& [_id, _stat] : pool_stat) {
+      for (const auto& [_id, _stat] : pool_stat) {
         f->open_object_section("pool");
         f->dump_int("poolid", _id);
         _stat.dump(f);
@@ -74,7 +88,9 @@ public:
     f->close_section();
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
@@ -84,7 +100,10 @@ public:
     encode(utime_t{}, payload);
     encode(pool_stat, payload, features);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);

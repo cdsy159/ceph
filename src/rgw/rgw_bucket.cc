@@ -12,13 +12,22 @@
 
 using namespace std;
 
-static void set_err_msg(std::string *sink, std::string msg)
+static void
+set_err_msg(std::string* sink, std::string msg)
 {
   if (sink && !msg.empty())
     *sink = msg;
 }
 
-void init_bucket(rgw_bucket *b, const char *t, const char *n, const char *dp, const char *ip, const char *m, const char *id)
+void
+init_bucket(
+    rgw_bucket* b,
+    const char* t,
+    const char* n,
+    const char* dp,
+    const char* ip,
+    const char* m,
+    const char* id)
 {
   b->tenant = t;
   b->name = n;
@@ -29,8 +38,12 @@ void init_bucket(rgw_bucket *b, const char *t, const char *n, const char *dp, co
 }
 
 // parse key in format: [tenant/]name:instance[:shard_id]
-int rgw_bucket_parse_bucket_key(CephContext *cct, const string& key,
-                                rgw_bucket *bucket, int *shard_id)
+int
+rgw_bucket_parse_bucket_key(
+    CephContext* cct,
+    const string& key,
+    rgw_bucket* bucket,
+    int* shard_id)
 {
   std::string_view name{key};
   std::string_view instance;
@@ -70,7 +83,7 @@ int rgw_bucket_parse_bucket_key(CephContext *cct, const string& key,
   if (!err.empty()) {
     if (cct) {
       ldout(cct, 0) << "ERROR: failed to parse bucket shard '"
-          << instance.data() << "': " << err << dendl;
+                    << instance.data() << "': " << err << dendl;
     }
     return -EINVAL;
   }
@@ -90,8 +103,11 @@ int rgw_bucket_parse_bucket_key(CephContext *cct, const string& key,
  * acceptable in bucket names and thus qualified buckets cannot conflict
  * with the legacy or S3 buckets.
  */
-std::string rgw_make_bucket_entry_name(const std::string& tenant_name,
-                                       const std::string& bucket_name) {
+std::string
+rgw_make_bucket_entry_name(
+    const std::string& tenant_name,
+    const std::string& bucket_name)
+{
   std::string bucket_entry;
 
   if (bucket_name.empty()) {
@@ -109,8 +125,13 @@ std::string rgw_make_bucket_entry_name(const std::string& tenant_name,
  * Tenants are separated from buckets in URLs by a colon in S3.
  * This function is not to be used on Swift URLs, not even for COPY arguments.
  */
-int rgw_parse_url_bucket(const string &bucket, const string& auth_tenant,
-                         string &tenant_name, string &bucket_name) {
+int
+rgw_parse_url_bucket(
+    const string& bucket,
+    const string& auth_tenant,
+    string& tenant_name,
+    string& bucket_name)
+{
 
   int pos = bucket.find(':');
   if (pos >= 0) {
@@ -131,16 +152,22 @@ int rgw_parse_url_bucket(const string &bucket, const string& auth_tenant,
   return 0;
 }
 
-int rgw_chown_bucket_and_objects(rgw::sal::Driver* driver, rgw::sal::Bucket* bucket,
-				 rgw::sal::User* new_user,
-				 const std::string& marker, std::string *err_msg,
-				 const DoutPrefixProvider *dpp, optional_yield y)
+int
+rgw_chown_bucket_and_objects(
+    rgw::sal::Driver* driver,
+    rgw::sal::Bucket* bucket,
+    rgw::sal::User* new_user,
+    const std::string& marker,
+    std::string* err_msg,
+    const DoutPrefixProvider* dpp,
+    optional_yield y)
 {
   /* Chown on the bucket */
-  int ret = bucket->chown(dpp, new_user->get_id(), new_user->get_display_name(),
-                          y);
+  int ret =
+      bucket->chown(dpp, new_user->get_id(), new_user->get_display_name(), y);
   if (ret < 0) {
-    set_err_msg(err_msg, "Failed to change bucket ownership: " + cpp_strerror(-ret));
+    set_err_msg(
+        err_msg, "Failed to change bucket ownership: " + cpp_strerror(-ret));
     return ret;
   }
 
@@ -169,7 +196,8 @@ int rgw_chown_bucket_and_objects(rgw::sal::Driver* driver, rgw::sal::Bucket* buc
     results.objs.clear();
     ret = bucket->list(dpp, params, max_entries, results, y);
     if (ret < 0) {
-      ldpp_dout(dpp, 0) << "ERROR: list objects failed: " << cpp_strerror(-ret) << dendl;
+      ldpp_dout(dpp, 0) << "ERROR: list objects failed: " << cpp_strerror(-ret)
+                        << dendl;
       return ret;
     }
 
@@ -180,15 +208,15 @@ int rgw_chown_bucket_and_objects(rgw::sal::Driver* driver, rgw::sal::Bucket* buc
       std::unique_ptr<rgw::sal::Object> r_obj = bucket->get_object(obj.key);
 
       ret = r_obj->chown(*new_user, dpp, y);
-        if (ret < 0) {
-          ldpp_dout(dpp, 0) << "ERROR: chown failed on " << r_obj << " :" << cpp_strerror(-ret) << dendl;
-          return ret;
-        }
+      if (ret < 0) {
+        ldpp_dout(dpp, 0) << "ERROR: chown failed on " << r_obj << " :"
+                          << cpp_strerror(-ret) << dendl;
+        return ret;
       }
-    cerr << count << " objects processed in " << bucket
-        << ". Next marker " << params.marker.name << std::endl;
-  } while(results.is_truncated);
+    }
+    cerr << count << " objects processed in " << bucket << ". Next marker "
+         << params.marker.name << std::endl;
+  } while (results.is_truncated);
 
   return ret;
 }
-

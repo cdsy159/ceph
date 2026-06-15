@@ -1,24 +1,24 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-
 #include <errno.h>
 
-#include "objclass/objclass.h"
-#include "cls/queue/cls_queue_types.h"
-#include "cls/queue/cls_queue_ops.h"
 #include "cls/queue/cls_queue_const.h"
+#include "cls/queue/cls_queue_ops.h"
 #include "cls/queue/cls_queue_src.h"
+#include "cls/queue/cls_queue_types.h"
+#include "include/types.h"
+#include "objclass/objclass.h"
 
 using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(queue)
 
-static int cls_queue_init(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_queue_init(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
   cls_queue_init_op op;
@@ -32,7 +32,8 @@ static int cls_queue_init(cls_method_context_t hctx, bufferlist *in, bufferlist 
   return queue_init(hctx, op);
 }
 
-static int cls_queue_get_capacity(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_queue_get_capacity(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   cls_queue_get_capacity_ret op_ret;
   auto ret = queue_get_capacity(hctx, op_ret);
@@ -44,7 +45,8 @@ static int cls_queue_get_capacity(cls_method_context_t hctx, bufferlist *in, buf
   return 0;
 }
 
-static int cls_queue_enqueue(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_queue_enqueue(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto iter = in->cbegin();
   cls_queue_enqueue_op op;
@@ -70,7 +72,8 @@ static int cls_queue_enqueue(cls_method_context_t hctx, bufferlist *in, bufferli
   return queue_write_head(hctx, head);
 }
 
-static int cls_queue_list_entries(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_queue_list_entries(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
   cls_queue_list_op op;
@@ -97,7 +100,11 @@ static int cls_queue_list_entries(cls_method_context_t hctx, bufferlist *in, buf
   return 0;
 }
 
-static int cls_queue_remove_entries(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_queue_remove_entries(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   auto in_iter = in->cbegin();
   cls_queue_remove_op op;
@@ -130,16 +137,25 @@ CLS_INIT(queue)
   cls_method_handle_t h_queue_enqueue;
   cls_method_handle_t h_queue_list_entries;
   cls_method_handle_t h_queue_remove_entries;
- 
+
   cls_register(QUEUE_CLASS, &h_class);
 
   /* queue*/
-  cls_register_cxx_method(h_class, QUEUE_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_queue_init, &h_queue_init);
-  cls_register_cxx_method(h_class, QUEUE_GET_CAPACITY, CLS_METHOD_RD, cls_queue_get_capacity, &h_queue_get_capacity);
-  cls_register_cxx_method(h_class, QUEUE_ENQUEUE, CLS_METHOD_RD | CLS_METHOD_WR, cls_queue_enqueue, &h_queue_enqueue);
-  cls_register_cxx_method(h_class, QUEUE_LIST_ENTRIES, CLS_METHOD_RD, cls_queue_list_entries, &h_queue_list_entries);
-  cls_register_cxx_method(h_class, QUEUE_REMOVE_ENTRIES, CLS_METHOD_RD | CLS_METHOD_WR, cls_queue_remove_entries, &h_queue_remove_entries);
+  cls_register_cxx_method(
+      h_class, QUEUE_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_queue_init,
+      &h_queue_init);
+  cls_register_cxx_method(
+      h_class, QUEUE_GET_CAPACITY, CLS_METHOD_RD, cls_queue_get_capacity,
+      &h_queue_get_capacity);
+  cls_register_cxx_method(
+      h_class, QUEUE_ENQUEUE, CLS_METHOD_RD | CLS_METHOD_WR, cls_queue_enqueue,
+      &h_queue_enqueue);
+  cls_register_cxx_method(
+      h_class, QUEUE_LIST_ENTRIES, CLS_METHOD_RD, cls_queue_list_entries,
+      &h_queue_list_entries);
+  cls_register_cxx_method(
+      h_class, QUEUE_REMOVE_ENTRIES, CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_queue_remove_entries, &h_queue_remove_entries);
 
   return;
 }
-

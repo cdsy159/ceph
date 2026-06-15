@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -20,30 +20,37 @@
 #include "common/config.h"
 
 namespace ceph {
-  class NetHandler {
-    int generic_connect(const entity_addr_t& addr, const entity_addr_t& bind_addr, bool nonblock);
+class NetHandler {
+  int generic_connect(
+      const entity_addr_t& addr,
+      const entity_addr_t& bind_addr,
+      bool nonblock);
 
-    CephContext *cct;
-    bool try_smc;
-   public:
-    int create_socket(int domain, bool reuse_addr=false);
-    explicit NetHandler(CephContext *c, bool try_smc=false): cct(c), try_smc(try_smc) {
-    }
-    int set_nonblock(int sd);
-    int set_socket_options(int sd, bool nodelay, int size);
-    int connect(const entity_addr_t &addr, const entity_addr_t& bind_addr);
-    
-    /**
+  CephContext* cct;
+  bool try_smc;
+
+public:
+  int create_socket(int domain, bool reuse_addr = false);
+
+  explicit NetHandler(CephContext* c, bool try_smc = false) :
+    cct(c), try_smc(try_smc)
+  {}
+
+  int set_nonblock(int sd);
+  int set_socket_options(int sd, bool nodelay, int size);
+  int connect(const entity_addr_t& addr, const entity_addr_t& bind_addr);
+
+  /**
      * Try to reconnect the socket.
      *
      * @return    0         success
      *            > 0       just break, and wait for event
      *            < 0       need to goto fail
      */
-    int reconnect(const entity_addr_t &addr, int sd);
-    int nonblock_connect(const entity_addr_t &addr, const entity_addr_t& bind_addr);
-    void set_priority(int sd, int priority, int domain);
-  };
-}
+  int reconnect(const entity_addr_t& addr, int sd);
+  int nonblock_connect(const entity_addr_t& addr, const entity_addr_t& bind_addr);
+  void set_priority(int sd, int priority, int domain);
+};
+} // namespace ceph
 
 #endif

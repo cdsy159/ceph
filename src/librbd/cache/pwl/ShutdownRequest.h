@@ -10,30 +10,32 @@ namespace librbd {
 
 class ImageCtx;
 
-namespace plugin { template <typename> struct Api; }
+namespace plugin {
+template <typename>
+struct Api;
+}
 
 namespace cache {
 namespace pwl {
 
-template<typename>
+template <typename>
 class AbstractWriteLog;
 
-template<typename>
+template <typename>
 class ImageCacheState;
 
 template <typename ImageCtxT = ImageCtx>
 class ShutdownRequest {
 public:
   static ShutdownRequest* create(
-      ImageCtxT &image_ctx,
-      AbstractWriteLog<ImageCtxT> *image_cache,
+      ImageCtxT& image_ctx,
+      AbstractWriteLog<ImageCtxT>* image_cache,
       plugin::Api<ImageCtxT>& plugin_api,
-      Context *on_finish);
+      Context* on_finish);
 
   void send();
 
 private:
-
   /**
    * @verbatim
    *
@@ -56,15 +58,16 @@ private:
    * @endverbatim
    */
 
-  ShutdownRequest(ImageCtxT &image_ctx,
-    AbstractWriteLog<ImageCtxT> *image_cache,
-    plugin::Api<ImageCtxT>& plugin_api,
-    Context *on_finish);
+  ShutdownRequest(
+      ImageCtxT& image_ctx,
+      AbstractWriteLog<ImageCtxT>* image_cache,
+      plugin::Api<ImageCtxT>& plugin_api,
+      Context* on_finish);
 
-  ImageCtxT &m_image_ctx;
-  AbstractWriteLog<ImageCtxT> *m_image_cache;
+  ImageCtxT& m_image_ctx;
+  AbstractWriteLog<ImageCtxT>* m_image_cache;
   plugin::Api<ImageCtxT>& m_plugin_api;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   int m_error_result;
 
@@ -79,7 +82,9 @@ private:
 
   void finish();
 
-  void save_result(int result) {
+  void
+  save_result(int result)
+  {
     if (m_error_result == 0 && result < 0) {
       m_error_result = result;
     }

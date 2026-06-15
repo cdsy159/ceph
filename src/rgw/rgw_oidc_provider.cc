@@ -5,7 +5,8 @@
 
 #define dout_subsys ceph_subsys_rgw
 
-void RGWOIDCProviderInfo::dump(Formatter *f) const
+void
+RGWOIDCProviderInfo::dump(Formatter* f) const
 {
   encode_json("id", id, f);
   encode_json("provider_url", provider_url, f);
@@ -16,7 +17,8 @@ void RGWOIDCProviderInfo::dump(Formatter *f) const
   encode_json("thumbprints", thumbprints, f);
 }
 
-void RGWOIDCProviderInfo::decode_json(JSONObj *obj)
+void
+RGWOIDCProviderInfo::decode_json(JSONObj* obj)
 {
   JSONDecoder::decode_json("id", id, obj);
   JSONDecoder::decode_json("provider_url", provider_url, obj);
@@ -27,7 +29,8 @@ void RGWOIDCProviderInfo::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("thumbprints", thumbprints, obj);
 }
 
-std::list<RGWOIDCProviderInfo> RGWOIDCProviderInfo::generate_test_instances()
+std::list<RGWOIDCProviderInfo>
+RGWOIDCProviderInfo::generate_test_instances()
 {
   std::list<RGWOIDCProviderInfo> l;
   RGWOIDCProviderInfo p;

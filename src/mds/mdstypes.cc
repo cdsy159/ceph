@@ -1,17 +1,19 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "mdstypes.h"
-#include "include/cephfs/types.h"
-#include "MDSContext.h"
-#include "common/ceph_json.h"
-#include "common/Formatter.h"
-#include "common/StackStringStream.h"
 
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
+
+#include "common/Formatter.h"
+#include "common/StackStringStream.h"
+#include "common/ceph_json.h"
+#include "include/cephfs/types.h"
+
+#include "MDSContext.h"
 
 const mds_gid_t MDS_GID_NONE = mds_gid_t(0);
 
@@ -24,11 +26,15 @@ using std::vector;
 using ceph::bufferlist;
 using ceph::Formatter;
 
-void mds_role_t::print(std::ostream& out) const {
+void
+mds_role_t::print(std::ostream& out) const
+{
   out << fscid << ":" << rank;
 }
 
-std::ostream& operator<<(std::ostream &out, const vinodeno_t &vino) {
+std::ostream&
+operator<<(std::ostream& out, const vinodeno_t& vino)
+{
   out << vino.ino;
   if (vino.snapid == CEPH_NOSNAP)
     out << ".head";
@@ -41,7 +47,8 @@ std::ostream& operator<<(std::ostream &out, const vinodeno_t &vino) {
  * frag_info_t
  */
 
-void frag_info_t::encode(bufferlist &bl) const
+void
+frag_info_t::encode(bufferlist& bl) const
 {
   ENCODE_START(3, 2, bl);
   encode(version, bl);
@@ -52,7 +59,8 @@ void frag_info_t::encode(bufferlist &bl) const
   ENCODE_FINISH(bl);
 }
 
-void frag_info_t::decode(bufferlist::const_iterator &bl)
+void
+frag_info_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(3, 2, 2, bl);
   decode(version, bl);
@@ -66,7 +74,8 @@ void frag_info_t::decode(bufferlist::const_iterator &bl)
   DECODE_FINISH(bl);
 }
 
-void frag_info_t::dump(Formatter *f) const
+void
+frag_info_t::dump(Formatter* f) const
 {
   f->dump_unsigned("version", version);
   f->dump_stream("mtime") << mtime;
@@ -75,7 +84,9 @@ void frag_info_t::dump(Formatter *f) const
   f->dump_unsigned("change_attr", change_attr);
 }
 
-void frag_info_t::decode_json(JSONObj *obj){
+void
+frag_info_t::decode_json(JSONObj* obj)
+{
 
   JSONDecoder::decode_json("version", version, obj, true);
   JSONDecoder::decode_json("mtime", mtime, obj, true);
@@ -84,7 +95,8 @@ void frag_info_t::decode_json(JSONObj *obj){
   JSONDecoder::decode_json("change_attr", change_attr, obj, true);
 }
 
-std::list<frag_info_t> frag_info_t::generate_test_instances()
+std::list<frag_info_t>
+frag_info_t::generate_test_instances()
 {
   std::list<frag_info_t> ls;
   ls.emplace_back();
@@ -96,7 +108,8 @@ std::list<frag_info_t> frag_info_t::generate_test_instances()
   return ls;
 }
 
-ostream& operator<<(ostream &out, const frag_info_t &f)
+ostream&
+operator<<(ostream& out, const frag_info_t& f)
 {
   if (f == frag_info_t())
     return out << "f()";
@@ -109,12 +122,12 @@ ostream& operator<<(ostream &out, const frag_info_t &f)
   return out;
 }
 
-
 /*
  * nest_info_t
  */
 
-void nest_info_t::encode(bufferlist &bl) const
+void
+nest_info_t::encode(bufferlist& bl) const
 {
   ENCODE_START(3, 2, bl);
   encode(version, bl);
@@ -131,7 +144,8 @@ void nest_info_t::encode(bufferlist &bl) const
   ENCODE_FINISH(bl);
 }
 
-void nest_info_t::decode(bufferlist::const_iterator &bl)
+void
+nest_info_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(3, 2, 2, bl);
   decode(version, bl);
@@ -147,7 +161,8 @@ void nest_info_t::decode(bufferlist::const_iterator &bl)
   DECODE_FINISH(bl);
 }
 
-void nest_info_t::dump(Formatter *f) const
+void
+nest_info_t::dump(Formatter* f) const
 {
   f->dump_unsigned("version", version);
   f->dump_unsigned("rbytes", rbytes);
@@ -157,7 +172,9 @@ void nest_info_t::dump(Formatter *f) const
   f->dump_stream("rctime") << rctime;
 }
 
-void nest_info_t::decode_json(JSONObj *obj){
+void
+nest_info_t::decode_json(JSONObj* obj)
+{
 
   JSONDecoder::decode_json("version", version, obj, true);
   JSONDecoder::decode_json("rbytes", rbytes, obj, true);
@@ -167,7 +184,8 @@ void nest_info_t::decode_json(JSONObj *obj){
   JSONDecoder::decode_json("rctime", rctime, obj, true);
 }
 
-std::list<nest_info_t> nest_info_t::generate_test_instances()
+std::list<nest_info_t>
+nest_info_t::generate_test_instances()
 {
   std::list<nest_info_t> ls;
   ls.emplace_back();
@@ -181,7 +199,8 @@ std::list<nest_info_t> nest_info_t::generate_test_instances()
   return ls;
 }
 
-ostream& operator<<(ostream &out, const nest_info_t &n)
+ostream&
+operator<<(ostream& out, const nest_info_t& n)
 {
   if (n == nest_info_t())
     return out << "n()";
@@ -194,26 +213,30 @@ ostream& operator<<(ostream &out, const nest_info_t &n)
     out << " rs" << n.rsnaps;
   if (n.rfiles || n.rsubdirs)
     out << " " << n.rsize() << "=" << n.rfiles << "+" << n.rsubdirs;
-  out << ")";    
+  out << ")";
   return out;
 }
 
 /*
  * quota_info_t
  */
-void quota_info_t::dump(Formatter *f) const
+void
+quota_info_t::dump(Formatter* f) const
 {
   f->dump_int("max_bytes", max_bytes);
   f->dump_int("max_files", max_files);
 }
 
-void  quota_info_t::decode_json(JSONObj *obj){
+void
+quota_info_t::decode_json(JSONObj* obj)
+{
 
   JSONDecoder::decode_json("max_bytes", max_bytes, obj, true);
   JSONDecoder::decode_json("max_files", max_files, obj, true);
 }
 
-std::list<quota_info_t> quota_info_t::generate_test_instances()
+std::list<quota_info_t>
+quota_info_t::generate_test_instances()
 {
   std::list<quota_info_t> ls;
   ls.emplace_back();
@@ -223,12 +246,11 @@ std::list<quota_info_t> quota_info_t::generate_test_instances()
   return ls;
 }
 
-ostream& operator<<(ostream &out, const quota_info_t &n)
+ostream&
+operator<<(ostream& out, const quota_info_t& n)
 {
-  out << "quota("
-      << "max_bytes = " << n.max_bytes
-      << " max_files = " << n.max_files
-      << ")";
+  out << "quota(" << "max_bytes = " << n.max_bytes
+      << " max_files = " << n.max_files << ")";
   return out;
 }
 
@@ -236,7 +258,8 @@ ostream& operator<<(ostream &out, const quota_info_t &n)
  * client_writeable_range_t
  */
 
-void client_writeable_range_t::encode(bufferlist &bl) const
+void
+client_writeable_range_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(range.first, bl);
@@ -245,7 +268,8 @@ void client_writeable_range_t::encode(bufferlist &bl) const
   ENCODE_FINISH(bl);
 }
 
-void client_writeable_range_t::decode(bufferlist::const_iterator& bl)
+void
+client_writeable_range_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(range.first, bl);
@@ -254,7 +278,8 @@ void client_writeable_range_t::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void client_writeable_range_t::dump(Formatter *f) const
+void
+client_writeable_range_t::dump(Formatter* f) const
 {
   f->open_object_section("byte range");
   f->dump_unsigned("first", range.first);
@@ -263,13 +288,16 @@ void client_writeable_range_t::dump(Formatter *f) const
   f->dump_unsigned("follows", follows);
 }
 
-void client_writeable_range_t::byte_range_t::decode_json(JSONObj *obj){
+void
+client_writeable_range_t::byte_range_t::decode_json(JSONObj* obj)
+{
 
   JSONDecoder::decode_json("first", first, obj, true);
   JSONDecoder::decode_json("last", last, obj, true);
 }
 
-std::list<client_writeable_range_t> client_writeable_range_t::generate_test_instances()
+std::list<client_writeable_range_t>
+client_writeable_range_t::generate_test_instances()
 {
   std::list<client_writeable_range_t> ls;
   ls.emplace_back();
@@ -280,7 +308,8 @@ std::list<client_writeable_range_t> client_writeable_range_t::generate_test_inst
   return ls;
 }
 
-ostream& operator<<(ostream& out, const client_writeable_range_t& r)
+ostream&
+operator<<(ostream& out, const client_writeable_range_t& r)
 {
   return out << r.range.first << '-' << r.range.last << "@" << r.follows;
 }
@@ -288,7 +317,8 @@ ostream& operator<<(ostream& out, const client_writeable_range_t& r)
 /*
  * inline_data_t
  */
-void inline_data_t::encode(bufferlist &bl) const
+void
+inline_data_t::encode(bufferlist& bl) const
 {
   using ceph::encode;
   encode(version, bl);
@@ -297,7 +327,9 @@ void inline_data_t::encode(bufferlist &bl) const
   else
     encode(bufferlist(), bl);
 }
-void inline_data_t::decode(bufferlist::const_iterator &p)
+
+void
+inline_data_t::decode(bufferlist::const_iterator& p)
 {
   using ceph::decode;
   decode(version, p);
@@ -311,13 +343,15 @@ void inline_data_t::decode(bufferlist::const_iterator &p)
     free_data();
 }
 
-void inline_data_t::dump(Formatter *f) const
+void
+inline_data_t::dump(Formatter* f) const
 {
   f->dump_unsigned("version", version);
   f->dump_unsigned("length", length());
 }
 
-std::list<inline_data_t> inline_data_t::generate_test_instances()
+std::list<inline_data_t>
+inline_data_t::generate_test_instances()
 {
   std::list<inline_data_t> ls;
   ls.emplace_back();
@@ -328,11 +362,11 @@ std::list<inline_data_t> inline_data_t::generate_test_instances()
   return ls;
 }
 
-
 /*
  * fnode_t
  */
-void fnode_t::encode(bufferlist &bl) const
+void
+fnode_t::encode(bufferlist& bl) const
 {
   ENCODE_START(4, 3, bl);
   encode(version, bl);
@@ -349,7 +383,8 @@ void fnode_t::encode(bufferlist &bl) const
   ENCODE_FINISH(bl);
 }
 
-void fnode_t::decode(bufferlist::const_iterator &bl)
+void
+fnode_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(3, 2, 2, bl);
   decode(version, bl);
@@ -370,7 +405,8 @@ void fnode_t::decode(bufferlist::const_iterator &bl)
   DECODE_FINISH(bl);
 }
 
-void fnode_t::dump(Formatter *f) const
+void
+fnode_t::dump(Formatter* f) const
 {
   f->dump_unsigned("version", version);
   f->dump_unsigned("snap_purged_thru", snap_purged_thru);
@@ -391,7 +427,10 @@ void fnode_t::dump(Formatter *f) const
   accounted_rstat.dump(f);
   f->close_section();
 }
-void fnode_t::decode_json(JSONObj *obj){
+
+void
+fnode_t::decode_json(JSONObj* obj)
+{
   JSONDecoder::decode_json("version", version, obj, true);
   uint64_t tmp;
   JSONDecoder::decode_json("snap_purged_thru", tmp, obj, true);
@@ -401,7 +440,9 @@ void fnode_t::decode_json(JSONObj *obj){
   JSONDecoder::decode_json("rstat", rstat, obj, true);
   JSONDecoder::decode_json("accounted_rstat", accounted_rstat, obj, true);
 }
-std::list<fnode_t> fnode_t::generate_test_instances()
+
+std::list<fnode_t>
+fnode_t::generate_test_instances()
 {
   std::list<fnode_t> ls;
   ls.emplace_back();
@@ -417,11 +458,11 @@ std::list<fnode_t> fnode_t::generate_test_instances()
   return ls;
 }
 
-
 /*
  * old_rstat_t
  */
-void old_rstat_t::encode(bufferlist& bl) const
+void
+old_rstat_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(first, bl);
@@ -430,7 +471,8 @@ void old_rstat_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void old_rstat_t::decode(bufferlist::const_iterator& bl)
+void
+old_rstat_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(first, bl);
@@ -439,7 +481,8 @@ void old_rstat_t::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void old_rstat_t::dump(Formatter *f) const
+void
+old_rstat_t::dump(Formatter* f) const
 {
   f->dump_unsigned("snapid", first);
   f->open_object_section("rstat");
@@ -450,7 +493,8 @@ void old_rstat_t::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<old_rstat_t> old_rstat_t::generate_test_instances()
+std::list<old_rstat_t>
+old_rstat_t::generate_test_instances()
 {
   std::list<old_rstat_t> ls;
   ls.push_back(old_rstat_t());
@@ -462,8 +506,11 @@ std::list<old_rstat_t> old_rstat_t::generate_test_instances()
   return ls;
 }
 
-void old_rstat_t::print(std::ostream& out) const {
-  out << "old_rstat(first " << first << " " << rstat << " " << accounted_rstat << ")";
+void
+old_rstat_t::print(std::ostream& out) const
+{
+  out << "old_rstat(first " << first << " " << rstat << " " << accounted_rstat
+      << ")";
 }
 
 /*
@@ -478,7 +525,8 @@ feature_bitset_t::feature_bitset_t(unsigned long value)
   }
 }
 
-void feature_bitset_t::init_array(const vector<size_t>& array)
+void
+feature_bitset_t::init_array(const vector<size_t>& array)
 {
   if (!array.empty()) {
     size_t n = array.back();
@@ -489,9 +537,9 @@ void feature_bitset_t::init_array(const vector<size_t>& array)
     size_t last = 0;
     for (auto& bit : array) {
       if (bit > last)
-	last = bit;
+        last = bit;
       else
-	ceph_assert(bit == last);
+        ceph_assert(bit == last);
       _vec[bit / bits_per_block] |= (block_type)1 << (bit % bits_per_block);
     }
   }
@@ -517,7 +565,8 @@ feature_bitset_t::feature_bitset_t(const vector<size_t>& array)
   init_array(array);
 }
 
-feature_bitset_t& feature_bitset_t::operator-=(const feature_bitset_t& other)
+feature_bitset_t&
+feature_bitset_t::operator-=(const feature_bitset_t& other)
 {
   for (size_t i = 0; i < _vec.size(); ++i) {
     if (i >= other._vec.size())
@@ -527,7 +576,9 @@ feature_bitset_t& feature_bitset_t::operator-=(const feature_bitset_t& other)
   return *this;
 }
 
-void feature_bitset_t::encode(bufferlist& bl) const {
+void
+feature_bitset_t::encode(bufferlist& bl) const
+{
   using ceph::encode;
   using ceph::encode_nohead;
   uint32_t len = _vec.size() * sizeof(block_type);
@@ -535,7 +586,9 @@ void feature_bitset_t::encode(bufferlist& bl) const {
   encode_nohead(_vec, bl);
 }
 
-void feature_bitset_t::decode(bufferlist::const_iterator &p) {
+void
+feature_bitset_t::decode(bufferlist::const_iterator& p)
+{
   using ceph::decode;
   using ceph::decode_nohead;
   uint32_t len;
@@ -552,13 +605,16 @@ void feature_bitset_t::decode(bufferlist::const_iterator &p) {
   }
 }
 
-void feature_bitset_t::dump(Formatter *f) const {
+void
+feature_bitset_t::dump(Formatter* f) const
+{
   CachedStackStringStream css;
   print(*css);
   f->dump_string("feature_bits", css->strv());
 }
 
-std::list<feature_bitset_t> feature_bitset_t::generate_test_instances()
+std::list<feature_bitset_t>
+feature_bitset_t::generate_test_instances()
 {
   std::list<feature_bitset_t> ls;
   ls.push_back(feature_bitset_t());
@@ -569,7 +625,8 @@ std::list<feature_bitset_t> feature_bitset_t::generate_test_instances()
   return ls;
 }
 
-void feature_bitset_t::print(ostream& out) const
+void
+feature_bitset_t::print(ostream& out) const
 {
   std::ios_base::fmtflags f(out.flags());
   int size = _vec.size();
@@ -578,8 +635,8 @@ void feature_bitset_t::print(ostream& out) const
   } else {
     out << "0x";
     for (int i = size - 1; i >= 0; --i)
-      out << std::setfill('0') << std::setw(sizeof(block_type) * 2)
-          << std::hex << _vec[i];
+      out << std::setfill('0') << std::setw(sizeof(block_type) * 2) << std::hex
+          << _vec[i];
   }
   out.flags(f);
 }
@@ -587,25 +644,32 @@ void feature_bitset_t::print(ostream& out) const
 /*
  * metric_spec_t
  */
-void metric_spec_t::encode(bufferlist& bl) const {
+void
+metric_spec_t::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ENCODE_START(1, 1, bl);
   encode(metric_flags, bl);
   ENCODE_FINISH(bl);
 }
 
-void metric_spec_t::decode(bufferlist::const_iterator &p) {
+void
+metric_spec_t::decode(bufferlist::const_iterator& p)
+{
   using ceph::decode;
   DECODE_START(1, p);
   decode(metric_flags, p);
   DECODE_FINISH(p);
 }
 
-void metric_spec_t::dump(Formatter *f) const {
+void
+metric_spec_t::dump(Formatter* f) const
+{
   f->dump_object("metric_flags", metric_flags);
 }
 
-std::list<metric_spec_t> metric_spec_t::generate_test_instances()
+std::list<metric_spec_t>
+metric_spec_t::generate_test_instances()
 {
   std::list<metric_spec_t> ls;
   ls.push_back(metric_spec_t());
@@ -614,7 +678,8 @@ std::list<metric_spec_t> metric_spec_t::generate_test_instances()
   return ls;
 }
 
-void metric_spec_t::print(ostream& out) const
+void
+metric_spec_t::print(ostream& out) const
 {
   out << "{metric_flags: '" << metric_flags << "'}";
 }
@@ -622,7 +687,8 @@ void metric_spec_t::print(ostream& out) const
 /*
  * client_metadata_t
  */
-void client_metadata_t::encode(bufferlist& bl) const
+void
+client_metadata_t::encode(bufferlist& bl) const
 {
   ENCODE_START(3, 1, bl);
   encode(kv_map, bl);
@@ -631,7 +697,8 @@ void client_metadata_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void client_metadata_t::decode(bufferlist::const_iterator& p)
+void
+client_metadata_t::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(3, p);
   decode(kv_map, p);
@@ -643,7 +710,8 @@ void client_metadata_t::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void client_metadata_t::dump(Formatter *f) const
+void
+client_metadata_t::dump(Formatter* f) const
 {
   f->dump_object("client_features", features);
   f->dump_object("metric_spec", metric_spec);
@@ -651,7 +719,8 @@ void client_metadata_t::dump(Formatter *f) const
     f->dump_string(name.c_str(), val);
 }
 
-std::list<client_metadata_t> client_metadata_t::generate_test_instances()
+std::list<client_metadata_t>
+client_metadata_t::generate_test_instances()
 {
   std::list<client_metadata_t> ls;
   ls.push_back(client_metadata_t());
@@ -666,12 +735,13 @@ std::list<client_metadata_t> client_metadata_t::generate_test_instances()
 /*
  * session_info_t
  */
-void session_info_t::encode(bufferlist& bl, uint64_t features) const
+void
+session_info_t::encode(bufferlist& bl, uint64_t features) const
 {
   ENCODE_START(7, 7, bl);
   encode(inst, bl, features);
   encode(completed_requests, bl);
-  encode(prealloc_inos, bl);   // hacky, see below.
+  encode(prealloc_inos, bl); // hacky, see below.
   encode((__u32)0, bl); // used_inos
   encode(completed_flushes, bl);
   encode(auth_name, bl);
@@ -679,7 +749,8 @@ void session_info_t::encode(bufferlist& bl, uint64_t features) const
   ENCODE_FINISH(bl);
 }
 
-void session_info_t::decode(bufferlist::const_iterator& p)
+void
+session_info_t::decode(bufferlist::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(7, 2, 2, p);
   decode(inst, p);
@@ -714,7 +785,8 @@ void session_info_t::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void session_info_t::dump(Formatter *f) const
+void
+session_info_t::dump(Formatter* f) const
 {
   f->dump_stream("inst") << inst;
 
@@ -739,9 +811,10 @@ void session_info_t::dump(Formatter *f) const
   f->dump_object("client_metadata", client_metadata);
 }
 
-std::list<session_info_t> session_info_t::generate_test_instances()
+std::list<session_info_t>
+session_info_t::generate_test_instances()
 {
-  std::list<session_info_t>ls;
+  std::list<session_info_t> ls;
   ls.emplace_back();
   ls.emplace_back();
   ls.back().inst = entity_inst_t(entity_name_t::MDS(12), entity_addr_t());
@@ -756,11 +829,15 @@ std::list<session_info_t> session_info_t::generate_test_instances()
 /*
  * dentry_key_t
  */
-void dentry_key_t::print(std::ostream& out) const {
+void
+dentry_key_t::print(std::ostream& out) const
+{
   out << "(" << name << "," << snapid << ")";
 }
 
-void dentry_key_t::encode(std::string& key) const {
+void
+dentry_key_t::encode(std::string& key) const
+{
   char b[20];
   if (snapid != CEPH_NOSNAP) {
     uint64_t val(snapid);
@@ -776,11 +853,14 @@ void dentry_key_t::encode(std::string& key) const {
 /*
  * string_snap_t
  */
-void string_snap_t::print(std::ostream& out) const {
+void
+string_snap_t::print(std::ostream& out) const
+{
   out << "(" << name << "," << snapid << ")";
 }
 
-void string_snap_t::encode(bufferlist& bl) const
+void
+string_snap_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(name, bl);
@@ -788,7 +868,8 @@ void string_snap_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void string_snap_t::decode(bufferlist::const_iterator& bl)
+void
+string_snap_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(name, bl);
@@ -796,13 +877,15 @@ void string_snap_t::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void string_snap_t::dump(Formatter *f) const
+void
+string_snap_t::dump(Formatter* f) const
 {
   f->dump_string("name", name);
   f->dump_unsigned("snapid", snapid);
 }
 
-std::list<string_snap_t> string_snap_t::generate_test_instances()
+std::list<string_snap_t>
+string_snap_t::generate_test_instances()
 {
   std::list<string_snap_t> ls;
   ls.emplace_back();
@@ -815,11 +898,11 @@ std::list<string_snap_t> string_snap_t::generate_test_instances()
   return ls;
 }
 
-
 /*
  * MDSCacheObjectInfo
  */
-void MDSCacheObjectInfo::encode(bufferlist& bl) const
+void
+MDSCacheObjectInfo::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(ino, bl);
@@ -829,7 +912,8 @@ void MDSCacheObjectInfo::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void MDSCacheObjectInfo::decode(bufferlist::const_iterator& p)
+void
+MDSCacheObjectInfo::decode(bufferlist::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, p);
   decode(ino, p);
@@ -839,7 +923,8 @@ void MDSCacheObjectInfo::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void MDSCacheObjectInfo::dump(Formatter *f) const
+void
+MDSCacheObjectInfo::dump(Formatter* f) const
 {
   f->dump_unsigned("ino", ino);
   f->dump_object("dirfrag", dirfrag);
@@ -847,29 +932,31 @@ void MDSCacheObjectInfo::dump(Formatter *f) const
   f->dump_unsigned("snapid", snapid);
 }
 
-void MDSCacheObjectInfo::print(std::ostream& out) const {
+void
+MDSCacheObjectInfo::print(std::ostream& out) const
+{
   if (ino) {
     out << ino << "." << snapid;
   } else if (dname.length()) {
-    out << dirfrag << "/" << dname
-        << " snap " << snapid;
+    out << dirfrag << "/" << dname << " snap " << snapid;
   } else {
     out << dirfrag;
   }
 }
 
-std::list<MDSCacheObjectInfo> MDSCacheObjectInfo::generate_test_instances()
+std::list<MDSCacheObjectInfo>
+MDSCacheObjectInfo::generate_test_instances()
 {
   std::list<MDSCacheObjectInfo> ls;
   ls.emplace_back();
   ls.emplace_back();
   ls.back().ino = 1;
-  ls.back().dirfrag = dirfrag_t(2, frag_t((1<<22), 2));
+  ls.back().dirfrag = dirfrag_t(2, frag_t((1 << 22), 2));
   ls.back().dname = "fooname";
   ls.back().snapid = CEPH_NOSNAP;
   ls.emplace_back();
   ls.back().ino = 121;
-  ls.back().dirfrag = dirfrag_t(222, frag_t((1<<19), 8));
+  ls.back().dirfrag = dirfrag_t(222, frag_t((1 << 19), 8));
   ls.back().dname = "bar foo";
   ls.back().snapid = 21322;
   return ls;
@@ -878,7 +965,8 @@ std::list<MDSCacheObjectInfo> MDSCacheObjectInfo::generate_test_instances()
 /*
  * mds_table_pending_t
  */
-void mds_table_pending_t::encode(bufferlist& bl) const
+void
+mds_table_pending_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode(reqid, bl);
@@ -887,7 +975,8 @@ void mds_table_pending_t::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void mds_table_pending_t::decode(bufferlist::const_iterator& bl)
+void
+mds_table_pending_t::decode(bufferlist::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(reqid, bl);
@@ -896,14 +985,16 @@ void mds_table_pending_t::decode(bufferlist::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void mds_table_pending_t::dump(Formatter *f) const
+void
+mds_table_pending_t::dump(Formatter* f) const
 {
   f->dump_unsigned("reqid", reqid);
   f->dump_unsigned("mds", mds);
   f->dump_unsigned("tid", tid);
 }
 
-std::list<mds_table_pending_t> mds_table_pending_t::generate_test_instances()
+std::list<mds_table_pending_t>
+mds_table_pending_t::generate_test_instances()
 {
   std::list<mds_table_pending_t> ls;
   ls.emplace_back();
@@ -914,16 +1005,22 @@ std::list<mds_table_pending_t> mds_table_pending_t::generate_test_instances()
   return ls;
 }
 
-void metareqid_t::dump(ceph::Formatter* f) const {
+void
+metareqid_t::dump(ceph::Formatter* f) const
+{
   f->dump_object("entity", name);
   f->dump_unsigned("tid", tid);
 }
 
-void metareqid_t::print(std::ostream& out) const {
+void
+metareqid_t::print(std::ostream& out) const
+{
   out << name << ":" << tid;
 }
 
-std::list<metareqid_t> metareqid_t::generate_test_instances() {
+std::list<metareqid_t>
+metareqid_t::generate_test_instances()
+{
   std::list<metareqid_t> ls;
   ls.emplace_back();
   ls.push_back(metareqid_t(entity_name_t::CLIENT(123), 456));
@@ -933,22 +1030,28 @@ std::list<metareqid_t> metareqid_t::generate_test_instances() {
 /*
  * dirfrag_t
  */
-void dirfrag_t::print(std::ostream& out) const {
+void
+dirfrag_t::print(std::ostream& out) const
+{
   out << ino;
   if (!frag.is_root()) {
     out << "." << frag;
   }
 }
 
-void dirfrag_t::dump(ceph::Formatter *f) const {
+void
+dirfrag_t::dump(ceph::Formatter* f) const
+{
   f->dump_unsigned("ino", ino);
   f->dump_unsigned("frag", frag);
 }
 
-std::list<dirfrag_t> dirfrag_t::generate_test_instances() {
+std::list<dirfrag_t>
+dirfrag_t::generate_test_instances()
+{
   std::list<dirfrag_t> ls;
   ls.emplace_back();
-  ls.push_back(dirfrag_t(1, frag_t((1<<23), 2)));
+  ls.push_back(dirfrag_t(1, frag_t((1 << 23), 2)));
   ls.push_back(dirfrag_t(2, frag_t()));
   return ls;
 }
@@ -956,28 +1059,31 @@ std::list<dirfrag_t> dirfrag_t::generate_test_instances() {
 /*
  * inode_load_vec_t
  */
-void inode_load_vec_t::encode(bufferlist &bl) const
+void
+inode_load_vec_t::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
-  for (const auto &i : vec) {
+  for (const auto& i : vec) {
     encode(i, bl);
   }
   ENCODE_FINISH(bl);
 }
 
-void inode_load_vec_t::decode(bufferlist::const_iterator &p)
+void
+inode_load_vec_t::decode(bufferlist::const_iterator& p)
 {
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, p);
-  for (auto &i : vec) {
+  for (auto& i : vec) {
     decode(i, p);
   }
   DECODE_FINISH(p);
 }
 
-void inode_load_vec_t::dump(Formatter *f) const
+void
+inode_load_vec_t::dump(Formatter* f) const
 {
   f->open_array_section("Decay Counters");
-  for (const auto &i : vec) {
+  for (const auto& i : vec) {
     f->open_object_section("Decay Counter");
     i.dump(f);
     f->close_section();
@@ -985,21 +1091,22 @@ void inode_load_vec_t::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<inode_load_vec_t> inode_load_vec_t::generate_test_instances()
+std::list<inode_load_vec_t>
+inode_load_vec_t::generate_test_instances()
 {
   std::list<inode_load_vec_t> ls;
   ls.push_back(inode_load_vec_t(DecayRate()));
   return ls;
 }
 
-
 /*
  * dirfrag_load_vec_t
  */
-void dirfrag_load_vec_t::dump(Formatter *f) const
+void
+dirfrag_load_vec_t::dump(Formatter* f) const
 {
   f->open_array_section("Decay Counters");
-  for (const auto &i : vec) {
+  for (const auto& i : vec) {
     f->open_object_section("Decay Counter");
     i.dump(f);
     f->close_section();
@@ -1007,7 +1114,8 @@ void dirfrag_load_vec_t::dump(Formatter *f) const
   f->close_section();
 }
 
-void dirfrag_load_vec_t::dump(Formatter *f, const DecayRate& rate) const
+void
+dirfrag_load_vec_t::dump(Formatter* f, const DecayRate& rate) const
 {
   f->dump_float("meta_load", meta_load());
   f->dump_float("IRD", get(META_POP_IRD).get());
@@ -1017,20 +1125,20 @@ void dirfrag_load_vec_t::dump(Formatter *f, const DecayRate& rate) const
   f->dump_float("STORE", get(META_POP_STORE).get());
 }
 
-void dirfrag_load_vec_t::print(std::ostream& out) const {
+void
+dirfrag_load_vec_t::print(std::ostream& out) const
+{
   CachedStackStringStream css;
   *css << std::setprecision(1) << std::fixed
        << "[pop"
-          " IRD:" << vec[0]
-       << " IWR:" << vec[1]
-       << " RDR:" << vec[2]
-       << " FET:" << vec[3]
-       << " STR:" << vec[4]
-       << " *LOAD:" << meta_load() << "]";
+          " IRD:"
+       << vec[0] << " IWR:" << vec[1] << " RDR:" << vec[2] << " FET:" << vec[3]
+       << " STR:" << vec[4] << " *LOAD:" << meta_load() << "]";
   out << css->strv();
 }
 
-std::list<dirfrag_load_vec_t> dirfrag_load_vec_t::generate_test_instances()
+std::list<dirfrag_load_vec_t>
+dirfrag_load_vec_t::generate_test_instances()
 {
   std::list<dirfrag_load_vec_t> ls;
   ls.push_back(dirfrag_load_vec_t(DecayRate()));
@@ -1040,16 +1148,17 @@ std::list<dirfrag_load_vec_t> dirfrag_load_vec_t::generate_test_instances()
 /*
  * mds_load_t
  */
-void mds_load_t::print(std::ostream& out) const {
-  out << "mdsload<" << auth << "/" << all
-      << ", req " << req_rate
-      << ", hr " << cache_hit_rate
-      << ", qlen " << queue_len
-	<< ", cpu " << cpu_load_avg
+void
+mds_load_t::print(std::ostream& out) const
+{
+  out << "mdsload<" << auth << "/" << all << ", req " << req_rate << ", hr "
+      << cache_hit_rate << ", qlen " << queue_len << ", cpu " << cpu_load_avg
       << ">";
 }
 
-void mds_load_t::encode(bufferlist &bl) const {
+void
+mds_load_t::encode(bufferlist& bl) const
+{
   ENCODE_START(2, 2, bl);
   encode(auth, bl);
   encode(all, bl);
@@ -1060,7 +1169,9 @@ void mds_load_t::encode(bufferlist &bl) const {
   ENCODE_FINISH(bl);
 }
 
-void mds_load_t::decode(bufferlist::const_iterator &bl) {
+void
+mds_load_t::decode(bufferlist::const_iterator& bl)
+{
   DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
   decode(auth, bl);
   decode(all, bl);
@@ -1071,7 +1182,8 @@ void mds_load_t::decode(bufferlist::const_iterator &bl) {
   DECODE_FINISH(bl);
 }
 
-void mds_load_t::dump(Formatter *f) const
+void
+mds_load_t::dump(Formatter* f) const
 {
   f->dump_float("request rate", req_rate);
   f->dump_float("cache hit rate", cache_hit_rate);
@@ -1085,7 +1197,8 @@ void mds_load_t::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<mds_load_t> mds_load_t::generate_test_instances()
+std::list<mds_load_t>
+mds_load_t::generate_test_instances()
 {
   std::list<mds_load_t> ls;
   ls.push_back(mds_load_t(DecayRate()));
@@ -1095,14 +1208,18 @@ std::list<mds_load_t> mds_load_t::generate_test_instances()
 /*
  * cap_reconnect_t
  */
-void cap_reconnect_t::encode(bufferlist& bl) const {
+void
+cap_reconnect_t::encode(bufferlist& bl) const
+{
   ENCODE_START(2, 1, bl);
   encode_old(bl); // extract out when something changes
   encode(snap_follows, bl);
   ENCODE_FINISH(bl);
 }
 
-void cap_reconnect_t::encode_old(bufferlist& bl) const {
+void
+cap_reconnect_t::encode_old(bufferlist& bl) const
+{
   using ceph::encode;
   encode(path, bl);
   capinfo.flock_len = flockbl.length();
@@ -1110,7 +1227,9 @@ void cap_reconnect_t::encode_old(bufferlist& bl) const {
   ceph::encode_nohead(flockbl, bl);
 }
 
-void cap_reconnect_t::decode(bufferlist::const_iterator& bl) {
+void
+cap_reconnect_t::decode(bufferlist::const_iterator& bl)
+{
   DECODE_START(2, bl);
   decode_old(bl); // extract out when something changes
   if (struct_v >= 2)
@@ -1118,14 +1237,17 @@ void cap_reconnect_t::decode(bufferlist::const_iterator& bl) {
   DECODE_FINISH(bl);
 }
 
-void cap_reconnect_t::decode_old(bufferlist::const_iterator& bl) {
+void
+cap_reconnect_t::decode_old(bufferlist::const_iterator& bl)
+{
   using ceph::decode;
   decode(path, bl);
   decode(capinfo, bl);
   ceph::decode_nohead(capinfo.flock_len, flockbl, bl);
 }
 
-void cap_reconnect_t::dump(Formatter *f) const
+void
+cap_reconnect_t::dump(Formatter* f) const
 {
   f->dump_string("path", path);
   f->dump_int("cap_id", capinfo.cap_id);
@@ -1136,7 +1258,8 @@ void cap_reconnect_t::dump(Formatter *f) const
   f->dump_string("has file locks", capinfo.flock_len ? "true" : "false");
 }
 
-std::list<cap_reconnect_t> cap_reconnect_t::generate_test_instances()
+std::list<cap_reconnect_t>
+cap_reconnect_t::generate_test_instances()
 {
   std::list<cap_reconnect_t> ls;
   ls.emplace_back();
@@ -1148,36 +1271,46 @@ std::list<cap_reconnect_t> cap_reconnect_t::generate_test_instances()
 /*
  * snaprealm_reconnect_t
  */
-void snaprealm_reconnect_t::encode(bufferlist& bl) const {
+void
+snaprealm_reconnect_t::encode(bufferlist& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode_old(bl); // extract out when something changes
   ENCODE_FINISH(bl);
 }
 
-void snaprealm_reconnect_t::encode_old(bufferlist& bl) const {
+void
+snaprealm_reconnect_t::encode_old(bufferlist& bl) const
+{
   using ceph::encode;
   encode(realm, bl);
 }
 
-void snaprealm_reconnect_t::decode(bufferlist::const_iterator& bl) {
+void
+snaprealm_reconnect_t::decode(bufferlist::const_iterator& bl)
+{
   DECODE_START(1, bl);
   decode_old(bl); // extract out when something changes
   DECODE_FINISH(bl);
 }
 
-void snaprealm_reconnect_t::decode_old(bufferlist::const_iterator& bl) {
+void
+snaprealm_reconnect_t::decode_old(bufferlist::const_iterator& bl)
+{
   using ceph::decode;
   decode(realm, bl);
 }
 
-void snaprealm_reconnect_t::dump(Formatter *f) const
+void
+snaprealm_reconnect_t::dump(Formatter* f) const
 {
   f->dump_int("ino", realm.ino);
   f->dump_int("seq", realm.seq);
   f->dump_int("parent", realm.parent);
 }
 
-std::list<snaprealm_reconnect_t> snaprealm_reconnect_t::generate_test_instances()
+std::list<snaprealm_reconnect_t>
+snaprealm_reconnect_t::generate_test_instances()
 {
   std::list<snaprealm_reconnect_t> ls;
   ls.emplace_back();
@@ -1187,15 +1320,20 @@ std::list<snaprealm_reconnect_t> snaprealm_reconnect_t::generate_test_instances(
   return ls;
 }
 
-void EstimatedReplayTime::print(std::ostream& out) {
-  out << "replay: " << percent_complete << "% complete - elapsed time: "
-      << elapsed_time << ", estimated time remaining: " << estimated_time;
+void
+EstimatedReplayTime::print(std::ostream& out)
+{
+  out << "replay: " << percent_complete
+      << "% complete - elapsed time: " << elapsed_time
+      << ", estimated time remaining: " << estimated_time;
 }
 
 /*
  * file block diffs
  */
-void BlockDiff::encode(bufferlist& bl) const {
+void
+BlockDiff::encode(bufferlist& bl) const
+{
   using ceph::encode;
   ENCODE_START(1, 1, bl);
   encode(rval, bl);
@@ -1204,7 +1342,9 @@ void BlockDiff::encode(bufferlist& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void BlockDiff::decode(bufferlist::const_iterator &p) {
+void
+BlockDiff::decode(bufferlist::const_iterator& p)
+{
   using ceph::decode;
   DECODE_START(1, p);
   decode(rval, p);
@@ -1213,13 +1353,16 @@ void BlockDiff::decode(bufferlist::const_iterator &p) {
   DECODE_FINISH(p);
 }
 
-void BlockDiff::dump(Formatter *f) const {
+void
+BlockDiff::dump(Formatter* f) const
+{
   f->dump_int("rval", rval);
   f->dump_unsigned("scan_idx", scan_idx);
   f->dump_stream("blocks") << blocks;
 }
 
-std::list<BlockDiff> BlockDiff::generate_test_instances()
+std::list<BlockDiff>
+BlockDiff::generate_test_instances()
 {
   std::list<BlockDiff> ls;
   ls.push_back(BlockDiff());
@@ -1230,12 +1373,16 @@ std::list<BlockDiff> BlockDiff::generate_test_instances()
   return ls;
 }
 
-void BlockDiff::print(ostream& out) const
+void
+BlockDiff::print(ostream& out) const
 {
-  out << "{rval: " << rval << ", scan_idx=" << scan_idx << ", blocks=" << blocks << "}";
+  out << "{rval: " << rval << ", scan_idx=" << scan_idx << ", blocks=" << blocks
+      << "}";
 }
 
-void SubvolumeMetric::dump(Formatter *f) const {
+void
+SubvolumeMetric::dump(Formatter* f) const
+{
   f->dump_string("subvolume_path", subvolume_path);
   f->dump_unsigned("read_ops", read_ops);
   f->dump_unsigned("write_ops", write_ops);
@@ -1248,16 +1395,16 @@ void SubvolumeMetric::dump(Formatter *f) const {
   f->dump_unsigned("used_bytes", used_bytes);
 }
 
-std::ostream& operator<<(std::ostream& os, const SubvolumeMetric &m) {
-  os << "{subv_path=" << m.subvolume_path
-     << ", read_ops=" << m.read_ops
-     << ", write_ops=" << m.write_ops
-     << ", read_size=" << m.read_size
+std::ostream&
+operator<<(std::ostream& os, const SubvolumeMetric& m)
+{
+  os << "{subv_path=" << m.subvolume_path << ", read_ops=" << m.read_ops
+     << ", write_ops=" << m.write_ops << ", read_size=" << m.read_size
      << ", write_size=" << m.write_size
      << ", avg_read_lat=" << m.avg_read_latency
      << ", avg_write_lat=" << m.avg_write_latency
      << ", time_window_sec=" << m.time_stamp
-     << ", quota_bytes=" << m.quota_bytes
-     << ", used_bytes=" << m.used_bytes << "}";
+     << ", quota_bytes=" << m.quota_bytes << ", used_bytes=" << m.used_bytes
+     << "}";
   return os;
 }

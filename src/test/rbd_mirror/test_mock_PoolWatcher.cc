@@ -1,17 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/rbd_mirror/test_mock_fixture.h"
+#include "include/stringify.h"
+#include "librbd/MirroringWatcher.h"
 #include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
 #include "test/librados_test_stub/MockTestMemRadosClient.h"
 #include "test/librbd/mock/MockImageCtx.h"
 #include "test/rbd_mirror/mock/MockContextWQ.h"
 #include "test/rbd_mirror/mock/MockSafeTimer.h"
-#include "librbd/MirroringWatcher.h"
-#include "tools/rbd_mirror/Threads.h"
+#include "test/rbd_mirror/test_mock_fixture.h"
 #include "tools/rbd_mirror/PoolWatcher.h"
+#include "tools/rbd_mirror/Threads.h"
 #include "tools/rbd_mirror/pool_watcher/RefreshImagesRequest.h"
-#include "include/stringify.h"
 
 using namespace std::chrono_literals;
 
@@ -19,23 +19,24 @@ namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public librbd::MockImageCtx {
-  MockTestImageCtx(librbd::ImageCtx &image_ctx)
-    : librbd::MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(librbd::ImageCtx& image_ctx) :
+    librbd::MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
 
 struct MockMirroringWatcher {
-  static MockMirroringWatcher *s_instance;
-  static MockMirroringWatcher &get_instance() {
+  static MockMirroringWatcher* s_instance;
+
+  static MockMirroringWatcher&
+  get_instance()
+  {
     ceph_assert(s_instance != nullptr);
     return *s_instance;
   }
 
-  MockMirroringWatcher() {
-    s_instance = this;
-  }
+  MockMirroringWatcher() { s_instance = this; }
 
   MOCK_CONST_METHOD0(is_unregistered, bool());
   MOCK_METHOD1(register_watch, void(Context*));
@@ -46,15 +47,18 @@ struct MockMirroringWatcher {
 
 template <>
 struct MirroringWatcher<MockTestImageCtx> {
-  static MirroringWatcher *s_instance;
+  static MirroringWatcher* s_instance;
 
-  MirroringWatcher(librados::IoCtx &io_ctx, ::MockContextWQ *work_queue) {
+  MirroringWatcher(librados::IoCtx& io_ctx, ::MockContextWQ* work_queue)
+  {
     s_instance = this;
   }
-  virtual ~MirroringWatcher() {
-  }
 
-  static MirroringWatcher<MockTestImageCtx> &get_instance() {
+  virtual ~MirroringWatcher() {}
+
+  static MirroringWatcher<MockTestImageCtx>&
+  get_instance()
+  {
     ceph_assert(s_instance != nullptr);
     return *s_instance;
   }
@@ -62,26 +66,39 @@ struct MirroringWatcher<MockTestImageCtx> {
   virtual void handle_rewatch_complete(int r) = 0;
 
   virtual void handle_mode_updated(cls::rbd::MirrorMode mirror_mode) = 0;
-  virtual void handle_image_updated(cls::rbd::MirrorImageState state,
-                                    const std::string &remote_image_id,
-                                    const std::string &global_image_id) = 0;
+  virtual void handle_image_updated(
+      cls::rbd::MirrorImageState state,
+      const std::string& remote_image_id,
+      const std::string& global_image_id) = 0;
 
-  bool is_unregistered() const {
+  bool
+  is_unregistered() const
+  {
     return MockMirroringWatcher::get_instance().is_unregistered();
   }
-  void register_watch(Context *ctx) {
+
+  void
+  register_watch(Context* ctx)
+  {
     MockMirroringWatcher::get_instance().register_watch(ctx);
   }
-  void unregister_watch(Context *ctx) {
+
+  void
+  unregister_watch(Context* ctx)
+  {
     MockMirroringWatcher::get_instance().unregister_watch(ctx);
   }
-  std::string get_oid() const {
+
+  std::string
+  get_oid() const
+  {
     return MockMirroringWatcher::get_instance().get_oid();
   }
 };
 
-MockMirroringWatcher *MockMirroringWatcher::s_instance = nullptr;
-MirroringWatcher<MockTestImageCtx> *MirroringWatcher<MockTestImageCtx>::s_instance = nullptr;
+MockMirroringWatcher* MockMirroringWatcher::s_instance = nullptr;
+MirroringWatcher<MockTestImageCtx>*
+    MirroringWatcher<MockTestImageCtx>::s_instance = nullptr;
 
 } // namespace librbd
 
@@ -90,17 +107,19 @@ namespace mirror {
 
 template <>
 struct Threads<librbd::MockTestImageCtx> {
-  MockSafeTimer *timer;
-  ceph::mutex &timer_lock;
+  MockSafeTimer* timer;
+  ceph::mutex& timer_lock;
 
-  MockContextWQ *work_queue;
+  MockContextWQ* work_queue;
 
-  Threads(Threads<librbd::ImageCtx> *threads)
-    : timer(new MockSafeTimer()),
-      timer_lock(threads->timer_lock),
-      work_queue(new MockContextWQ()) {
-  }
-  ~Threads() {
+  Threads(Threads<librbd::ImageCtx>* threads) :
+    timer(new MockSafeTimer()),
+    timer_lock(threads->timer_lock),
+    work_queue(new MockContextWQ())
+  {}
+
+  ~Threads()
+  {
     delete timer;
     delete work_queue;
   }
@@ -110,12 +129,13 @@ namespace pool_watcher {
 
 template <>
 struct RefreshImagesRequest<librbd::MockTestImageCtx> {
-  ImageIds *image_ids = nullptr;
-  Context *on_finish = nullptr;
-  static RefreshImagesRequest *s_instance;
-  static RefreshImagesRequest *create(librados::IoCtx &io_ctx,
-                                      ImageIds *image_ids,
-                                      Context *on_finish) {
+  ImageIds* image_ids = nullptr;
+  Context* on_finish = nullptr;
+  static RefreshImagesRequest* s_instance;
+
+  static RefreshImagesRequest*
+  create(librados::IoCtx& io_ctx, ImageIds* image_ids, Context* on_finish)
+  {
     ceph_assert(s_instance != nullptr);
     s_instance->image_ids = image_ids;
     s_instance->on_finish = on_finish;
@@ -124,12 +144,11 @@ struct RefreshImagesRequest<librbd::MockTestImageCtx> {
 
   MOCK_METHOD0(send, void());
 
-  RefreshImagesRequest() {
-    s_instance = this;
-  }
+  RefreshImagesRequest() { s_instance = this; }
 };
 
-RefreshImagesRequest<librbd::MockTestImageCtx> *RefreshImagesRequest<librbd::MockTestImageCtx>::s_instance = nullptr;
+RefreshImagesRequest<librbd::MockTestImageCtx>*
+    RefreshImagesRequest<librbd::MockTestImageCtx>::s_instance = nullptr;
 
 } // namespace pool_watcher
 
@@ -156,97 +175,129 @@ class TestMockPoolWatcher : public TestMockFixture {
 public:
   typedef PoolWatcher<librbd::MockTestImageCtx> MockPoolWatcher;
   typedef Threads<librbd::MockTestImageCtx> MockThreads;
-  typedef pool_watcher::RefreshImagesRequest<librbd::MockTestImageCtx> MockRefreshImagesRequest;
+  typedef pool_watcher::RefreshImagesRequest<librbd::MockTestImageCtx>
+      MockRefreshImagesRequest;
   typedef librbd::MockMirroringWatcher MockMirroringWatcher;
   typedef librbd::MirroringWatcher<librbd::MockTestImageCtx> MirroringWatcher;
 
   struct MockListener : pool_watcher::Listener {
-    TestMockPoolWatcher *test;
+    TestMockPoolWatcher* test;
 
-    MockListener(TestMockPoolWatcher *test) : test(test) {
-    }
+    MockListener(TestMockPoolWatcher* test) :
+      test(test)
+    {}
 
-    MOCK_METHOD3(mock_handle_update, void(const std::string &, const ImageIds &,
-                                          const ImageIds &));
-    void handle_update(const std::string &mirror_uuid,
-                       ImageIds &&added_image_ids,
-                       ImageIds &&removed_image_ids) override {
+    MOCK_METHOD3(
+        mock_handle_update,
+        void(const std::string&, const ImageIds&, const ImageIds&));
+
+    void
+    handle_update(
+        const std::string& mirror_uuid,
+        ImageIds&& added_image_ids,
+        ImageIds&& removed_image_ids) override
+    {
       mock_handle_update(mirror_uuid, added_image_ids, removed_image_ids);
     }
   };
 
   TestMockPoolWatcher() = default;
 
-  void expect_work_queue(MockThreads &mock_threads) {
+  void
+  expect_work_queue(MockThreads& mock_threads)
+  {
     EXPECT_CALL(*mock_threads.work_queue, queue(_, _))
-      .WillRepeatedly(Invoke([this](Context *ctx, int r) {
+        .WillRepeatedly(Invoke([this](Context* ctx, int r) {
           m_threads->work_queue->queue(ctx, r);
         }));
   }
 
-  void expect_mirroring_watcher_is_unregistered(MockMirroringWatcher &mock_mirroring_watcher,
-                                                bool unregistered) {
+  void
+  expect_mirroring_watcher_is_unregistered(
+      MockMirroringWatcher& mock_mirroring_watcher,
+      bool unregistered)
+  {
     EXPECT_CALL(mock_mirroring_watcher, is_unregistered())
-      .WillOnce(Return(unregistered));
+        .WillOnce(Return(unregistered));
   }
 
-  void expect_mirroring_watcher_register(MockMirroringWatcher &mock_mirroring_watcher,
-                                         int r) {
+  void
+  expect_mirroring_watcher_register(
+      MockMirroringWatcher& mock_mirroring_watcher,
+      int r)
+  {
     EXPECT_CALL(mock_mirroring_watcher, register_watch(_))
-      .WillOnce(CompleteContext(r));
+        .WillOnce(CompleteContext(r));
   }
 
-  void expect_mirroring_watcher_unregister(MockMirroringWatcher &mock_mirroring_watcher,
-                                         int r) {
+  void
+  expect_mirroring_watcher_unregister(
+      MockMirroringWatcher& mock_mirroring_watcher,
+      int r)
+  {
     EXPECT_CALL(mock_mirroring_watcher, unregister_watch(_))
-      .WillOnce(CompleteContext(r));
+        .WillOnce(CompleteContext(r));
   }
 
-  void expect_refresh_images(MockRefreshImagesRequest &request,
-                             const ImageIds &image_ids, int r) {
-    EXPECT_CALL(request, send())
-      .WillOnce(Invoke([&request, image_ids, r]() {
-          *request.image_ids = image_ids;
-          request.on_finish->complete(r);
-        }));
+  void
+  expect_refresh_images(
+      MockRefreshImagesRequest& request,
+      const ImageIds& image_ids,
+      int r)
+  {
+    EXPECT_CALL(request, send()).WillOnce(Invoke([&request, image_ids, r]() {
+      *request.image_ids = image_ids;
+      request.on_finish->complete(r);
+    }));
   }
 
-  void expect_listener_handle_update(MockListener &mock_listener,
-                                     const std::string &mirror_uuid,
-                                     const ImageIds &added_image_ids,
-                                     const ImageIds &removed_image_ids) {
-    EXPECT_CALL(mock_listener, mock_handle_update(mirror_uuid, added_image_ids,
-                                                  removed_image_ids))
-      .WillOnce(WithoutArgs(Invoke([this]() {
+  void
+  expect_listener_handle_update(
+      MockListener& mock_listener,
+      const std::string& mirror_uuid,
+      const ImageIds& added_image_ids,
+      const ImageIds& removed_image_ids)
+  {
+    EXPECT_CALL(
+        mock_listener,
+        mock_handle_update(mirror_uuid, added_image_ids, removed_image_ids))
+        .WillOnce(WithoutArgs(Invoke([this]() {
           std::lock_guard locker{m_lock};
           ++m_update_count;
           m_cond.notify_all();
         })));
   }
 
-  void expect_timer_add_event(MockThreads &mock_threads) {
+  void
+  expect_timer_add_event(MockThreads& mock_threads)
+  {
     EXPECT_CALL(*mock_threads.timer, add_event_after(_, _))
-      .WillOnce(DoAll(WithArg<1>(Invoke([this](Context *ctx) {
-                        auto wrapped_ctx =
-			  new LambdaContext([this, ctx](int r) {
-			      std::lock_guard timer_locker{m_threads->timer_lock};
-			      ctx->complete(r);
-			    });
-			m_threads->work_queue->queue(wrapped_ctx, 0);
-                      })),
-                      ReturnArg<1>()));
+        .WillOnce(DoAll(
+            WithArg<1>(Invoke([this](Context* ctx) {
+              auto wrapped_ctx = new LambdaContext([this, ctx](int r) {
+                std::lock_guard timer_locker{m_threads->timer_lock};
+                ctx->complete(r);
+              });
+              m_threads->work_queue->queue(wrapped_ctx, 0);
+            })),
+            ReturnArg<1>()));
   }
 
-  int when_shut_down(MockPoolWatcher &mock_pool_watcher) {
+  int
+  when_shut_down(MockPoolWatcher& mock_pool_watcher)
+  {
     C_SaferCond ctx;
     mock_pool_watcher.shut_down(&ctx);
     return ctx.wait();
   }
 
-  bool wait_for_update(uint32_t count) {
+  bool
+  wait_for_update(uint32_t count)
+  {
     std::unique_lock locker{m_lock};
-    if (m_cond.wait_for(locker, 10s,
-			[count, this] { return m_update_count >= count; })) {
+    if (m_cond.wait_for(locker, 10s, [count, this] {
+          return m_update_count >= count;
+        })) {
       m_update_count -= count;
       return true;
     } else {
@@ -259,7 +310,8 @@ public:
   uint32_t m_update_count = 0;
 };
 
-TEST_F(TestMockPoolWatcher, EmptyPool) {
+TEST_F(TestMockPoolWatcher, EmptyPool)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -274,8 +326,8 @@ TEST_F(TestMockPoolWatcher, EmptyPool) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -285,7 +337,8 @@ TEST_F(TestMockPoolWatcher, EmptyPool) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, NonEmptyPool) {
+TEST_F(TestMockPoolWatcher, NonEmptyPool)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -295,16 +348,15 @@ TEST_F(TestMockPoolWatcher, NonEmptyPool) {
   expect_mirroring_watcher_register(mock_mirroring_watcher, 0);
 
   ImageIds image_ids{
-    {"global id 1", "remote id 1"},
-    {"global id 2", "remote id 2"}};
+      {"global id 1", "remote id 1"}, {"global id 2", "remote id 2"}};
   MockRefreshImagesRequest mock_refresh_images_request;
   expect_refresh_images(mock_refresh_images_request, image_ids, 0);
 
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", image_ids, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -314,7 +366,8 @@ TEST_F(TestMockPoolWatcher, NonEmptyPool) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, NotifyDuringRefresh) {
+TEST_F(TestMockPoolWatcher, NotifyDuringRefresh)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -324,14 +377,13 @@ TEST_F(TestMockPoolWatcher, NotifyDuringRefresh) {
   expect_mirroring_watcher_register(mock_mirroring_watcher, 0);
 
   ImageIds image_ids{
-    {"global id 1", "remote id 1"},
-    {"global id 2", "remote id 2"}};
+      {"global id 1", "remote id 1"}, {"global id 2", "remote id 2"}};
   MockRefreshImagesRequest mock_refresh_images_request;
   bool refresh_sent = false;
   EXPECT_CALL(mock_refresh_images_request, send())
-    .WillOnce(Invoke([this, &mock_refresh_images_request, &image_ids,
-                      &refresh_sent]() {
-       *mock_refresh_images_request.image_ids = image_ids;
+      .WillOnce(Invoke([this, &mock_refresh_images_request, &image_ids,
+                        &refresh_sent]() {
+        *mock_refresh_images_request.image_ids = image_ids;
 
         std::lock_guard locker{m_lock};
         refresh_sent = true;
@@ -340,13 +392,11 @@ TEST_F(TestMockPoolWatcher, NotifyDuringRefresh) {
 
 
   MockListener mock_listener(this);
-  image_ids = {
-    {"global id 1", "remote id 1a"},
-    {"global id 3", "remote id 3"}};
+  image_ids = {{"global id 1", "remote id 1a"}, {"global id 3", "remote id 3"}};
   expect_listener_handle_update(mock_listener, "remote uuid", image_ids, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   mock_pool_watcher.init(nullptr);
 
   {
@@ -355,11 +405,11 @@ TEST_F(TestMockPoolWatcher, NotifyDuringRefresh) {
   }
 
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_DISABLING, "remote id 2", "global id 2");
+      cls::rbd::MIRROR_IMAGE_STATE_DISABLING, "remote id 2", "global id 2");
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 1a", "global id 1");
+      cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 1a", "global id 1");
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 3", "global id 3");
+      cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 3", "global id 3");
 
   mock_refresh_images_request.on_finish->complete(0);
   ASSERT_TRUE(wait_for_update(1));
@@ -368,7 +418,8 @@ TEST_F(TestMockPoolWatcher, NotifyDuringRefresh) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, Notify) {
+TEST_F(TestMockPoolWatcher, Notify)
+{
   MockThreads mock_threads(m_threads);
 
   InSequence seq;
@@ -377,34 +428,33 @@ TEST_F(TestMockPoolWatcher, Notify) {
   expect_mirroring_watcher_register(mock_mirroring_watcher, 0);
 
   ImageIds image_ids{
-    {"global id 1", "remote id 1"},
-    {"global id 2", "remote id 2"}};
+      {"global id 1", "remote id 1"}, {"global id 2", "remote id 2"}};
   MockRefreshImagesRequest mock_refresh_images_request;
   expect_refresh_images(mock_refresh_images_request, image_ids, 0);
 
   EXPECT_CALL(*mock_threads.work_queue, queue(_, _))
-    .WillOnce(Invoke([this](Context *ctx, int r) {
+      .WillOnce(Invoke([this](Context* ctx, int r) {
         m_threads->work_queue->queue(ctx, r);
       }));
 
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", image_ids, {});
 
-  Context *notify_ctx = nullptr;
+  Context* notify_ctx = nullptr;
   EXPECT_CALL(*mock_threads.work_queue, queue(_, _))
-    .WillOnce(Invoke([this, &notify_ctx](Context *ctx, int r) {
+      .WillOnce(Invoke([this, &notify_ctx](Context* ctx, int r) {
         std::lock_guard locker{m_lock};
         ASSERT_EQ(nullptr, notify_ctx);
         notify_ctx = ctx;
         m_cond.notify_all();
       }));
   expect_listener_handle_update(
-    mock_listener, "remote uuid",
-    {{"global id 1", "remote id 1a"}, {"global id 3", "remote id 3"}},
-    {{"global id 1", "remote id 1"}, {"global id 2", "remote id 2"}});
+      mock_listener, "remote uuid",
+      {{"global id 1", "remote id 1a"}, {"global id 3", "remote id 3"}},
+      {{"global id 1", "remote id 1"}, {"global id 2", "remote id 2"}});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -415,13 +465,13 @@ TEST_F(TestMockPoolWatcher, Notify) {
   ASSERT_EQ(0, flush_ctx.wait());
 
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_DISABLING, "remote id 2", "global id 2");
+      cls::rbd::MIRROR_IMAGE_STATE_DISABLING, "remote id 2", "global id 2");
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_DISABLED, "remote id 2", "global id 2");
+      cls::rbd::MIRROR_IMAGE_STATE_DISABLED, "remote id 2", "global id 2");
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 1a", "global id 1");
+      cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 1a", "global id 1");
   MirroringWatcher::get_instance().handle_image_updated(
-    cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 3", "global id 3");
+      cls::rbd::MIRROR_IMAGE_STATE_ENABLED, "remote id 3", "global id 3");
   notify_ctx->complete(0);
 
   ASSERT_TRUE(wait_for_update(1));
@@ -430,7 +480,8 @@ TEST_F(TestMockPoolWatcher, Notify) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RegisterWatcherBlocklist) {
+TEST_F(TestMockPoolWatcher, RegisterWatcherBlocklist)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -440,8 +491,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherBlocklist) {
   expect_mirroring_watcher_register(mock_mirroring_watcher, -EBLOCKLISTED);
 
   MockListener mock_listener(this);
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(-EBLOCKLISTED, ctx.wait());
@@ -451,7 +502,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherBlocklist) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RegisterWatcherMissing) {
+TEST_F(TestMockPoolWatcher, RegisterWatcherMissing)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -470,8 +522,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherMissing) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(-ENOENT, ctx.wait());
@@ -481,7 +533,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherMissing) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RegisterWatcherError) {
+TEST_F(TestMockPoolWatcher, RegisterWatcherError)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -500,8 +553,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherError) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -511,7 +564,8 @@ TEST_F(TestMockPoolWatcher, RegisterWatcherError) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RefreshBlocklist) {
+TEST_F(TestMockPoolWatcher, RefreshBlocklist)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -524,8 +578,8 @@ TEST_F(TestMockPoolWatcher, RefreshBlocklist) {
   expect_refresh_images(mock_refresh_images_request, {}, -EBLOCKLISTED);
 
   MockListener mock_listener(this);
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(-EBLOCKLISTED, ctx.wait());
@@ -535,7 +589,8 @@ TEST_F(TestMockPoolWatcher, RefreshBlocklist) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RefreshMissing) {
+TEST_F(TestMockPoolWatcher, RefreshMissing)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -550,8 +605,8 @@ TEST_F(TestMockPoolWatcher, RefreshMissing) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -561,7 +616,8 @@ TEST_F(TestMockPoolWatcher, RefreshMissing) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RefreshError) {
+TEST_F(TestMockPoolWatcher, RefreshError)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -580,8 +636,8 @@ TEST_F(TestMockPoolWatcher, RefreshError) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -591,7 +647,8 @@ TEST_F(TestMockPoolWatcher, RefreshError) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, Rewatch) {
+TEST_F(TestMockPoolWatcher, Rewatch)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -608,12 +665,13 @@ TEST_F(TestMockPoolWatcher, Rewatch) {
 
   expect_timer_add_event(mock_threads);
   expect_mirroring_watcher_is_unregistered(mock_mirroring_watcher, false);
-  expect_refresh_images(mock_refresh_images_request, {{"global id", "image id"}}, 0);
-  expect_listener_handle_update(mock_listener, "remote uuid",
-                                {{"global id", "image id"}}, {});
+  expect_refresh_images(
+      mock_refresh_images_request, {{"global id", "image id"}}, 0);
+  expect_listener_handle_update(
+      mock_listener, "remote uuid", {{"global id", "image id"}}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -626,7 +684,8 @@ TEST_F(TestMockPoolWatcher, Rewatch) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RewatchBlocklist) {
+TEST_F(TestMockPoolWatcher, RewatchBlocklist)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -641,8 +700,8 @@ TEST_F(TestMockPoolWatcher, RewatchBlocklist) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -655,7 +714,8 @@ TEST_F(TestMockPoolWatcher, RewatchBlocklist) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, RewatchError) {
+TEST_F(TestMockPoolWatcher, RewatchError)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -672,12 +732,13 @@ TEST_F(TestMockPoolWatcher, RewatchError) {
 
   expect_timer_add_event(mock_threads);
   expect_mirroring_watcher_is_unregistered(mock_mirroring_watcher, false);
-  expect_refresh_images(mock_refresh_images_request, {{"global id", "image id"}}, 0);
-  expect_listener_handle_update(mock_listener, "remote uuid",
-                                {{"global id", "image id"}}, {});
+  expect_refresh_images(
+      mock_refresh_images_request, {{"global id", "image id"}}, 0);
+  expect_listener_handle_update(
+      mock_listener, "remote uuid", {{"global id", "image id"}}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());
@@ -690,7 +751,8 @@ TEST_F(TestMockPoolWatcher, RewatchError) {
   ASSERT_EQ(0, when_shut_down(mock_pool_watcher));
 }
 
-TEST_F(TestMockPoolWatcher, DeferredRefresh) {
+TEST_F(TestMockPoolWatcher, DeferredRefresh)
+{
   MockThreads mock_threads(m_threads);
   expect_work_queue(mock_threads);
 
@@ -702,11 +764,11 @@ TEST_F(TestMockPoolWatcher, DeferredRefresh) {
   MockRefreshImagesRequest mock_refresh_images_request;
 
   EXPECT_CALL(mock_refresh_images_request, send())
-    .WillOnce(Invoke([&mock_refresh_images_request]() {
+      .WillOnce(Invoke([&mock_refresh_images_request]() {
         *mock_refresh_images_request.image_ids = {};
         MirroringWatcher::get_instance().handle_rewatch_complete(0);
         mock_refresh_images_request.on_finish->complete(0);
-        }));
+      }));
   expect_timer_add_event(mock_threads);
 
   expect_mirroring_watcher_is_unregistered(mock_mirroring_watcher, false);
@@ -715,8 +777,8 @@ TEST_F(TestMockPoolWatcher, DeferredRefresh) {
   MockListener mock_listener(this);
   expect_listener_handle_update(mock_listener, "remote uuid", {}, {});
 
-  MockPoolWatcher mock_pool_watcher(&mock_threads, m_remote_io_ctx,
-                                    "remote uuid", mock_listener);
+  MockPoolWatcher mock_pool_watcher(
+      &mock_threads, m_remote_io_ctx, "remote uuid", mock_listener);
   C_SaferCond ctx;
   mock_pool_watcher.init(&ctx);
   ASSERT_EQ(0, ctx.wait());

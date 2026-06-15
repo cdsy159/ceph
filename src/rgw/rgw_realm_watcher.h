@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+
 #include "include/buffer.h"
 #include "include/encoding.h"
 
@@ -18,17 +19,18 @@ WRITE_RAW_ENCODER(RGWRealmNotify);
  * and forwards notifications to registered observers.
  */
 class RGWRealmWatcher {
- public:
+public:
   /**
    * Watcher is an interface that allows the RGWRealmWatcher to pass
    * notifications on to other interested objects.
    */
   class Watcher {
-   public:
+  public:
     virtual ~Watcher() = default;
 
-    virtual void handle_notify(RGWRealmNotify type,
-                               bufferlist::const_iterator& p) = 0;
+    virtual void handle_notify(
+        RGWRealmNotify type,
+        bufferlist::const_iterator& p) = 0;
   };
 
   virtual ~RGWRealmWatcher();
@@ -36,6 +38,6 @@ class RGWRealmWatcher {
   /// register a watcher for the given notification type
   void add_watcher(RGWRealmNotify type, Watcher& watcher);
 
- protected:
+protected:
   std::map<RGWRealmNotify, Watcher&> watchers;
 };

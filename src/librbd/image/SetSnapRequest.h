@@ -4,26 +4,31 @@
 #ifndef CEPH_LIBRBD_IMAGE_SNAP_SET_REQUEST_H
 #define CEPH_LIBRBD_IMAGE_SNAP_SET_REQUEST_H
 
-#include "cls/rbd/cls_rbd_client.h"
 #include <string>
+
+#include "cls/rbd/cls_rbd_client.h"
 
 class Context;
 
 namespace librbd {
 
-template <typename> class ExclusiveLock;
+template <typename>
+class ExclusiveLock;
 class ImageCtx;
-template <typename> class ObjectMap;
+template <typename>
+class ObjectMap;
 
 namespace image {
 
-template <typename> class RefreshParentRequest;
+template <typename>
+class RefreshParentRequest;
 
 template <typename ImageCtxT = ImageCtx>
 class SetSnapRequest {
 public:
-  static SetSnapRequest *create(ImageCtxT &image_ctx, uint64_t snap_id,
-                                Context *on_finish) {
+  static SetSnapRequest*
+  create(ImageCtxT& image_ctx, uint64_t snap_id, Context* on_finish)
+  {
     return new SetSnapRequest(image_ctx, snap_id, on_finish);
   }
 
@@ -75,35 +80,35 @@ private:
    * @endverbatim
    */
 
-  SetSnapRequest(ImageCtxT &image_ctx, uint64_t snap_id, Context *on_finish);
+  SetSnapRequest(ImageCtxT& image_ctx, uint64_t snap_id, Context* on_finish);
 
-  ImageCtxT &m_image_ctx;
+  ImageCtxT& m_image_ctx;
   uint64_t m_snap_id;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
-  ExclusiveLock<ImageCtxT> *m_exclusive_lock;
-  ObjectMap<ImageCtxT> *m_object_map;
-  RefreshParentRequest<ImageCtxT> *m_refresh_parent;
+  ExclusiveLock<ImageCtxT>* m_exclusive_lock;
+  ObjectMap<ImageCtxT>* m_object_map;
+  RefreshParentRequest<ImageCtxT>* m_refresh_parent;
 
   bool m_writes_blocked;
 
   void send_block_writes();
-  Context *handle_block_writes(int *result);
+  Context* handle_block_writes(int* result);
 
   void send_init_exclusive_lock();
-  Context *handle_init_exclusive_lock(int *result);
+  Context* handle_init_exclusive_lock(int* result);
 
-  Context *send_shut_down_exclusive_lock(int *result);
-  Context *handle_shut_down_exclusive_lock(int *result);
+  Context* send_shut_down_exclusive_lock(int* result);
+  Context* handle_shut_down_exclusive_lock(int* result);
 
-  Context *send_refresh_parent(int *result);
-  Context *handle_refresh_parent(int *result);
+  Context* send_refresh_parent(int* result);
+  Context* handle_refresh_parent(int* result);
 
-  Context *send_open_object_map(int *result);
-  Context *handle_open_object_map(int *result);
+  Context* send_open_object_map(int* result);
+  Context* handle_open_object_map(int* result);
 
-  Context *send_finalize_refresh_parent(int *result);
-  Context *handle_finalize_refresh_parent(int *result);
+  Context* send_finalize_refresh_parent(int* result);
+  Context* handle_finalize_refresh_parent(int* result);
 
   int apply();
   void finalize();

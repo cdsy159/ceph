@@ -30,32 +30,46 @@ public:
   std::vector<PushReplyOp> replies;
   uint64_t cost = 0;
 
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  epoch_t
+  get_min_epoch() const override
+  {
     return min_epoch;
   }
-  spg_t get_spg() const override {
+
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
 
-  MOSDPGPushReply()
-    : MOSDFastDispatchOp{MSG_OSD_PG_PUSH_REPLY, HEAD_VERSION, COMPAT_VERSION}
-    {}
+  MOSDPGPushReply() :
+    MOSDFastDispatchOp{MSG_OSD_PG_PUSH_REPLY, HEAD_VERSION, COMPAT_VERSION}
+  {}
 
-  void compute_cost(CephContext *cct) {
+  void
+  compute_cost(CephContext* cct)
+  {
     cost = 0;
     for (auto i = replies.begin(); i != replies.end(); ++i) {
       cost += i->cost(cct);
     }
   }
 
-  int get_cost() const override {
+  int
+  get_cost() const override
+  {
     return cost;
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(pgid.pgid, p);
@@ -71,7 +85,9 @@ public:
     }
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(pgid.pgid, payload);
     encode(map_epoch, payload);
@@ -82,14 +98,19 @@ public:
     encode(min_epoch, payload);
   }
 
-  void print(std::ostream& out) const override {
-    out << "MOSDPGPushReply(" << pgid
-	<< " " << map_epoch << "/" << min_epoch
-	<< " " << replies;
+  void
+  print(std::ostream& out) const override
+  {
+    out << "MOSDPGPushReply(" << pgid << " " << map_epoch << "/" << min_epoch
+        << " " << replies;
     out << ")";
   }
 
-  std::string_view get_type_name() const override { return "MOSDPGPushReply"; }
+  std::string_view
+  get_type_name() const override
+  {
+    return "MOSDPGPushReply";
+  }
 };
 
 #endif

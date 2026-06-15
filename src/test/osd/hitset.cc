@@ -11,21 +11,26 @@
  * Copyright 2013 Inktank
  */
 
-#include "gtest/gtest.h"
 #include "osd/HitSet.h"
+
 #include <iostream>
+
+#include "gtest/gtest.h"
 
 class HitSetTestStrap {
 protected:
-  HitSet *hitset;
+  HitSet* hitset;
 
 public:
-  explicit HitSetTestStrap(HitSet *h) : hitset(h) {}
-  ~HitSetTestStrap() {
-    delete hitset;
-  }
+  explicit HitSetTestStrap(HitSet* h) :
+    hitset(h)
+  {}
 
-  void fill(unsigned count) {
+  ~HitSetTestStrap() { delete hitset; }
+
+  void
+  fill(unsigned count)
+  {
     char buf[50];
     for (unsigned i = 0; i < count; ++i) {
       sprintf(buf, "hitsettest_%u", i);
@@ -34,7 +39,10 @@ public:
     }
     EXPECT_EQ(count, hitset->insert_count());
   }
-  void verify_fill(unsigned count) {
+
+  void
+  verify_fill(unsigned count)
+  {
     char buf[50];
     for (unsigned i = 0; i < count; ++i) {
       sprintf(buf, "hitsettest_%u", i);
@@ -42,25 +50,32 @@ public:
       EXPECT_TRUE(hitset->contains(obj));
     }
   }
-
 };
 
 class BloomHitSetTest : public testing::Test, public HitSetTestStrap {
 public:
+  BloomHitSetTest() :
+    HitSetTestStrap(new HitSet(new BloomHitSet))
+  {}
 
-  BloomHitSetTest() : HitSetTestStrap(new HitSet(new BloomHitSet)) {}
-
-  void rebuild(double fp, uint64_t target, uint64_t seed) {
-    BloomHitSet::Params *bparams = new BloomHitSet::Params(fp, target, seed);
+  void
+  rebuild(double fp, uint64_t target, uint64_t seed)
+  {
+    BloomHitSet::Params* bparams = new BloomHitSet::Params(fp, target, seed);
     HitSet::Params param(bparams);
     HitSet new_set(param);
     *hitset = new_set;
   }
 
-  BloomHitSet *get_hitset() { return static_cast<BloomHitSet*>(hitset->impl.get()); }
+  BloomHitSet*
+  get_hitset()
+  {
+    return static_cast<BloomHitSet*>(hitset->impl.get());
+  }
 };
 
-TEST_F(BloomHitSetTest, Params) {
+TEST_F(BloomHitSetTest, Params)
+{
   BloomHitSet::Params params(0.01, 100, 5);
   EXPECT_EQ(.01, params.get_fpp());
   EXPECT_EQ((unsigned)100, params.target_size);
@@ -78,17 +93,20 @@ TEST_F(BloomHitSetTest, Params) {
   EXPECT_EQ((unsigned)5, p2.seed);
 }
 
-TEST_F(BloomHitSetTest, Construct) {
+TEST_F(BloomHitSetTest, Construct)
+{
   ASSERT_EQ(hitset->impl->get_type(), HitSet::TYPE_BLOOM);
   // success!
 }
 
-TEST_F(BloomHitSetTest, Rebuild) {
+TEST_F(BloomHitSetTest, Rebuild)
+{
   rebuild(0.1, 100, 1);
   ASSERT_EQ(hitset->impl->get_type(), HitSet::TYPE_BLOOM);
 }
 
-TEST_F(BloomHitSetTest, InsertsMatch) {
+TEST_F(BloomHitSetTest, InsertsMatch)
+{
   rebuild(0.1, 100, 1);
   fill(50);
   /*
@@ -96,20 +114,23 @@ TEST_F(BloomHitSetTest, InsertsMatch) {
    *  evidence suggests the current test will produce a value of 62
    *  regardless of hitset size
    */
-  EXPECT_TRUE(hitset->approx_unique_insert_count() >= 50 &&
-              hitset->approx_unique_insert_count() <= 62);
+  EXPECT_TRUE(
+      hitset->approx_unique_insert_count() >= 50 &&
+      hitset->approx_unique_insert_count() <= 62);
   verify_fill(50);
   EXPECT_FALSE(hitset->is_full());
 }
 
-TEST_F(BloomHitSetTest, FillsUp) {
+TEST_F(BloomHitSetTest, FillsUp)
+{
   rebuild(0.1, 20, 1);
   fill(20);
   verify_fill(20);
   EXPECT_TRUE(hitset->is_full());
 }
 
-TEST_F(BloomHitSetTest, RejectsNoMatch) {
+TEST_F(BloomHitSetTest, RejectsNoMatch)
+{
   rebuild(0.001, 100, 1);
   fill(100);
   verify_fill(100);
@@ -129,25 +150,33 @@ TEST_F(BloomHitSetTest, RejectsNoMatch) {
 
 class ExplicitHashHitSetTest : public testing::Test, public HitSetTestStrap {
 public:
+  ExplicitHashHitSetTest() :
+    HitSetTestStrap(new HitSet(new ExplicitHashHitSet))
+  {}
 
-  ExplicitHashHitSetTest() : HitSetTestStrap(new HitSet(new ExplicitHashHitSet)) {}
-
-  ExplicitHashHitSet *get_hitset() { return static_cast<ExplicitHashHitSet*>(hitset->impl.get()); }
+  ExplicitHashHitSet*
+  get_hitset()
+  {
+    return static_cast<ExplicitHashHitSet*>(hitset->impl.get());
+  }
 };
 
-TEST_F(ExplicitHashHitSetTest, Construct) {
+TEST_F(ExplicitHashHitSetTest, Construct)
+{
   ASSERT_EQ(hitset->impl->get_type(), HitSet::TYPE_EXPLICIT_HASH);
   // success!
 }
 
-TEST_F(ExplicitHashHitSetTest, InsertsMatch) {
+TEST_F(ExplicitHashHitSetTest, InsertsMatch)
+{
   fill(50);
   verify_fill(50);
   EXPECT_EQ((unsigned)50, hitset->approx_unique_insert_count());
   EXPECT_FALSE(hitset->is_full());
 }
 
-TEST_F(ExplicitHashHitSetTest, RejectsNoMatch) {
+TEST_F(ExplicitHashHitSetTest, RejectsNoMatch)
+{
   fill(100);
   verify_fill(100);
   EXPECT_FALSE(hitset->is_full());
@@ -166,25 +195,33 @@ TEST_F(ExplicitHashHitSetTest, RejectsNoMatch) {
 
 class ExplicitObjectHitSetTest : public testing::Test, public HitSetTestStrap {
 public:
+  ExplicitObjectHitSetTest() :
+    HitSetTestStrap(new HitSet(new ExplicitObjectHitSet))
+  {}
 
-  ExplicitObjectHitSetTest() : HitSetTestStrap(new HitSet(new ExplicitObjectHitSet)) {}
-
-  ExplicitObjectHitSet *get_hitset() { return static_cast<ExplicitObjectHitSet*>(hitset->impl.get()); }
+  ExplicitObjectHitSet*
+  get_hitset()
+  {
+    return static_cast<ExplicitObjectHitSet*>(hitset->impl.get());
+  }
 };
 
-TEST_F(ExplicitObjectHitSetTest, Construct) {
+TEST_F(ExplicitObjectHitSetTest, Construct)
+{
   ASSERT_EQ(hitset->impl->get_type(), HitSet::TYPE_EXPLICIT_OBJECT);
   // success!
 }
 
-TEST_F(ExplicitObjectHitSetTest, InsertsMatch) {
+TEST_F(ExplicitObjectHitSetTest, InsertsMatch)
+{
   fill(50);
   verify_fill(50);
   EXPECT_EQ((unsigned)50, hitset->approx_unique_insert_count());
   EXPECT_FALSE(hitset->is_full());
 }
 
-TEST_F(ExplicitObjectHitSetTest, RejectsNoMatch) {
+TEST_F(ExplicitObjectHitSetTest, RejectsNoMatch)
+{
   fill(100);
   verify_fill(100);
   EXPECT_FALSE(hitset->is_full());

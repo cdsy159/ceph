@@ -2,11 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/operation/SnapshotProtectRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
-
-#include <shared_mutex> // for std::shared_lock
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
@@ -18,9 +19,12 @@ namespace operation {
 namespace {
 
 template <typename I>
-std::ostream& operator<<(std::ostream& os,
-                         const typename SnapshotProtectRequest<I>::State& state) {
-  switch(state) {
+std::ostream&
+operator<<(
+    std::ostream& os,
+    const typename SnapshotProtectRequest<I>::State& state)
+{
+  switch (state) {
   case SnapshotProtectRequest<I>::STATE_PROTECT_SNAP:
     os << "PROTECT_SNAP";
     break;
@@ -31,23 +35,30 @@ std::ostream& operator<<(std::ostream& os,
 } // anonymous namespace
 
 template <typename I>
-SnapshotProtectRequest<I>::SnapshotProtectRequest(I &image_ctx,
-                                                  Context *on_finish,
-						  const cls::rbd::SnapshotNamespace &snap_namespace,
-						  const std::string &snap_name)
-  : Request<I>(image_ctx, on_finish), m_snap_namespace(snap_namespace),
-    m_snap_name(snap_name), m_state(STATE_PROTECT_SNAP) {
-}
+SnapshotProtectRequest<I>::SnapshotProtectRequest(
+    I& image_ctx,
+    Context* on_finish,
+    const cls::rbd::SnapshotNamespace& snap_namespace,
+    const std::string& snap_name) :
+  Request<I>(image_ctx, on_finish),
+  m_snap_namespace(snap_namespace),
+  m_snap_name(snap_name),
+  m_state(STATE_PROTECT_SNAP)
+{}
 
 template <typename I>
-void SnapshotProtectRequest<I>::send_op() {
+void
+SnapshotProtectRequest<I>::send_op()
+{
   send_protect_snap();
 }
 
 template <typename I>
-bool SnapshotProtectRequest<I>::should_complete(int r) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
+bool
+SnapshotProtectRequest<I>::should_complete(int r)
+{
+  I& image_ctx = this->m_image_ctx;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": state=" << m_state << ", "
                 << "r=" << r << dendl;
   if (r < 0) {
@@ -61,11 +72,13 @@ bool SnapshotProtectRequest<I>::should_complete(int r) {
 }
 
 template <typename I>
-void SnapshotProtectRequest<I>::send_protect_snap() {
-  I &image_ctx = this->m_image_ctx;
+void
+SnapshotProtectRequest<I>::send_protect_snap()
+{
+  I& image_ctx = this->m_image_ctx;
   ceph_assert(ceph_mutex_is_locked(image_ctx.owner_lock));
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << dendl;
 
   int r = verify_and_send_protect_snap();
@@ -76,11 +89,13 @@ void SnapshotProtectRequest<I>::send_protect_snap() {
 }
 
 template <typename I>
-int SnapshotProtectRequest<I>::verify_and_send_protect_snap() {
-  I &image_ctx = this->m_image_ctx;
+int
+SnapshotProtectRequest<I>::verify_and_send_protect_snap()
+{
+  I& image_ctx = this->m_image_ctx;
   std::shared_lock image_locker{image_ctx.image_lock};
 
-  CephContext *cct = image_ctx.cct;
+  CephContext* cct = image_ctx.cct;
   if ((image_ctx.features & RBD_FEATURE_LAYERING) == 0) {
     lderr(cct) << "image must support layering" << dendl;
     return -ENOSYS;
@@ -102,13 +117,11 @@ int SnapshotProtectRequest<I>::verify_and_send_protect_snap() {
   }
 
   librados::ObjectWriteOperation op;
-  cls_client::set_protection_status(&op, snap_id,
-                                    RBD_PROTECTION_STATUS_PROTECTED);
+  cls_client::set_protection_status(
+      &op, snap_id, RBD_PROTECTION_STATUS_PROTECTED);
 
-  librados::AioCompletion *rados_completion =
-    this->create_callback_completion();
-  r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid, rados_completion,
-                                     &op);
+  librados::AioCompletion* rados_completion = this->create_callback_completion();
+  r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid, rados_completion, &op);
   ceph_assert(r == 0);
   rados_completion->release();
   return 0;

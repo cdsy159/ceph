@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,27 +14,26 @@
  */
 
 #include <sys/stat.h>
+
 #include <iostream>
 #include <string>
 using namespace std;
 
-#include "common/config.h"
-
-#include "mon/MonMap.h"
-#include "mon/MonClient.h"
-#include "msg/Messenger.h"
-#include "messages/MPing.h"
+#include <fcntl.h>
+#include <sys/types.h>
 
 #include "common/Timer.h"
-#include "global/global_init.h"
 #include "common/ceph_argparse.h"
-
-#include <sys/types.h>
-#include <fcntl.h>
+#include "common/config.h"
+#include "global/global_init.h"
+#include "messages/MPing.h"
+#include "mon/MonClient.h"
+#include "mon/MonMap.h"
+#include "msg/Messenger.h"
 
 #define dout_subsys ceph_subsys_ms
 
-Messenger *messenger = 0;
+Messenger* messenger = 0;
 
 ceph::mutex test_lock = ceph::make_mutex("mylock");
 ceph::condition_variable cond;
@@ -43,12 +42,14 @@ uint64_t received = 0;
 
 class Admin : public Dispatcher {
 public:
-  Admin() 
-    : Dispatcher(g_ceph_context)
-  {
-  }
+  Admin() :
+    Dispatcher(g_ceph_context)
+  {}
+
 private:
-  bool ms_dispatch(Message *m) {
+  bool
+  ms_dispatch(Message* m)
+  {
 
     //cerr << "got ping from " << m->get_source() << std::endl;
     dout(0) << "got ping from " << m->get_source() << dendl;
@@ -61,20 +62,33 @@ private:
     return true;
   }
 
-  bool ms_handle_reset(Connection *con) { return false; }
-  void ms_handle_remote_reset(Connection *con) {}
-  bool ms_handle_refused(Connection *con) { return false; }
+  bool
+  ms_handle_reset(Connection* con)
+  {
+    return false;
+  }
+
+  void
+  ms_handle_remote_reset(Connection* con)
+  {}
+
+  bool
+  ms_handle_refused(Connection* con)
+  {
+    return false;
+  }
 
 } dispatcher;
 
-
-int main(int argc, const char **argv, const char *envp[]) {
+int
+main(int argc, const char** argv, const char* envp[])
+{
 
   auto args = argv_to_vec(argc, argv);
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   dout(0) << "i am mon " << args[0] << dendl;
@@ -83,7 +97,7 @@ int main(int argc, const char **argv, const char *envp[]) {
   MonClient mc(g_ceph_context);
   if (mc.build_initial_monmap() < 0)
     return -1;
-  
+
   // start up network
   int whoami = mc.monmap.get_rank(args[0]);
   ceph_assert(whoami >= 0);
@@ -92,11 +106,12 @@ int main(int argc, const char **argv, const char *envp[]) {
   std::string sss(ss.str());
   g_ceph_context->_conf.set_val("public_addr", sss.c_str());
   g_ceph_context->_conf.apply_changes(nullptr);
-  std::string public_msgr_type = g_conf()->ms_public_type.empty() ? g_conf().get_val<std::string>("ms_type") : g_conf()->ms_public_type;
-  Messenger *rank = Messenger::create(g_ceph_context,
-				      public_msgr_type,
-				      entity_name_t::MON(whoami), "tester",
-				      getpid());
+  std::string public_msgr_type = g_conf()->ms_public_type.empty()
+                                     ? g_conf().get_val<std::string>("ms_type")
+                                     : g_conf()->ms_public_type;
+  Messenger* rank = Messenger::create(
+      g_ceph_context, public_msgr_type, entity_name_t::MON(whoami), "tester",
+      getpid());
   int err = rank->bind(g_ceph_context->_conf->public_addr);
   if (err < 0)
     return 1;
@@ -107,7 +122,7 @@ int main(int argc, const char **argv, const char *envp[]) {
   messenger->add_dispatcher_head(&dispatcher);
 
   rank->start();
-  
+
   int isend = 0;
   if (whoami == 0)
     isend = 100;
@@ -117,19 +132,20 @@ int main(int argc, const char **argv, const char *envp[]) {
   while (1) {
     while (received + isend <= sent) {
       //cerr << "wait r " << received << " s " << sent << " is " << isend << std::endl;
-      dout(0) << "wait r " << received << " s " << sent << " is " << isend << dendl;
+      dout(0) << "wait r " << received << " s " << sent << " is " << isend
+              << dendl;
       cond.wait(l);
     }
 
     int t = rand() % mc.get_num_mon();
     if (t == whoami)
       continue;
-    
+
     if (rand() % 10 == 0) {
       //cerr << "mark_down " << t << std::endl;
       dout(0) << "mark_down " << t << dendl;
       messenger->mark_down_addrs(mc.get_mon_addrs(t));
-    } 
+    }
     //cerr << "pinging " << t << std::endl;
     dout(0) << "pinging " << t << dendl;
     messenger->send_to_mon(new MPing, mc.get_mon_addrs(t));
@@ -139,7 +155,6 @@ int main(int argc, const char **argv, const char *envp[]) {
 
   // wait for messenger to finish
   rank->wait();
-  
+
   return 0;
 }
-

@@ -1,15 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "include/stringify.h"
-#include "compressor/Compressor.h"
-#include "msg/compressor_registry.h"
-#include "gtest/gtest.h"
-#include "common/ceph_context.h"
-#include "global/global_context.h"
-
 #include <sstream>
+
+#include "common/ceph_context.h"
+#include "compressor/Compressor.h"
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "include/stringify.h"
+#include "include/types.h"
+#include "msg/compressor_registry.h"
 
 TEST(CompressorRegistry, con_modes)
 {
@@ -19,13 +19,14 @@ TEST(CompressorRegistry, con_modes)
   uint32_t method;
   uint32_t mode;
 
-  const std::vector<uint32_t> snappy_method = { Compressor::COMP_ALG_SNAPPY };
-  const std::vector<uint32_t> zlib_method = { Compressor::COMP_ALG_ZLIB };
-  const std::vector<uint32_t> both_methods = { Compressor::COMP_ALG_ZLIB, Compressor::COMP_ALG_SNAPPY};
-  const std::vector<uint32_t> no_method = { Compressor::COMP_ALG_NONE };
+  const std::vector<uint32_t> snappy_method = {Compressor::COMP_ALG_SNAPPY};
+  const std::vector<uint32_t> zlib_method = {Compressor::COMP_ALG_ZLIB};
+  const std::vector<uint32_t> both_methods = {
+      Compressor::COMP_ALG_ZLIB, Compressor::COMP_ALG_SNAPPY};
+  const std::vector<uint32_t> no_method = {Compressor::COMP_ALG_NONE};
 
   cct->_conf.set_val(
-    "enable_experimental_unrecoverable_data_corrupting_features", "*");
+      "enable_experimental_unrecoverable_data_corrupting_features", "*");
 
   // baseline: compression for communication with osd is enabled
   cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);
@@ -45,7 +46,8 @@ TEST(CompressorRegistry, con_modes)
 
   methods = reg.get_methods(CEPH_ENTITY_TYPE_OSD);
   ASSERT_EQ(methods, snappy_method);
-  const std::vector<uint32_t> rev_both_methods (both_methods.rbegin(), both_methods.rend());
+  const std::vector<uint32_t> rev_both_methods(
+      both_methods.rbegin(), both_methods.rend());
   method = reg.pick_method(CEPH_ENTITY_TYPE_OSD, rev_both_methods);
   ASSERT_EQ(method, Compressor::COMP_ALG_SNAPPY);
   mode = reg.get_mode(CEPH_ENTITY_TYPE_OSD, false);
@@ -92,7 +94,7 @@ TEST(CompressorRegistry, con_modes)
 
   mode = reg.get_mode(CEPH_ENTITY_TYPE_OSD, false);
   ASSERT_EQ(mode, Compressor::COMP_FORCE);
-  
+
   // back to normalish, for the benefit of the next test(s)
-  cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);  
+  cct->_set_module_type(CEPH_ENTITY_TYPE_CLIENT);
 }

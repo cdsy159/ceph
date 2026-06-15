@@ -14,6 +14,7 @@
 #include "wnbd_wmi.h"
 
 #include "common/debug.h"
+
 #include "common/win32/wstring.h"
 
 #define dout_context g_ceph_context
@@ -23,7 +24,8 @@
 
 // Initializes the COM library for use by the calling thread using
 // COINIT_MULTITHREADED.
-static HRESULT co_initialize_basic()
+static HRESULT
+co_initialize_basic()
 {
   dout(10) << "initializing COM library" << dendl;
 
@@ -38,12 +40,8 @@ static HRESULT co_initialize_basic()
 
   if (!com_security_flags_set) {
     hres = CoInitializeSecurity(
-      NULL, -1, NULL, NULL,
-      RPC_C_AUTHN_LEVEL_DEFAULT,
-      RPC_C_IMP_LEVEL_IMPERSONATE,
-      NULL,
-      EOAC_NONE,
-      NULL);
+        NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT,
+        RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
     if (FAILED(hres)) {
       derr << "CoInitializeSecurity failed. HRESULT: " << hres << dendl;
       CoUninitialize();
@@ -59,13 +57,15 @@ static HRESULT co_initialize_basic()
 // co_uninitialize must be called once for every successful
 // co_initialize_basic call. Any WMI objects (including connections,
 // event subscriptions, etc) must be released beforehand.
-static void co_uninitialize()
+static void
+co_uninitialize()
 {
   dout(10) << "closing COM library" << dendl;
   CoUninitialize();
 }
 
-HRESULT COMBootstrapper::initialize()
+HRESULT
+COMBootstrapper::initialize()
 {
   std::unique_lock l{init_lock};
 
@@ -76,7 +76,8 @@ HRESULT COMBootstrapper::initialize()
   return hres;
 }
 
-void COMBootstrapper::cleanup()
+void
+COMBootstrapper::cleanup()
 {
   if (initialized) {
     co_uninitialize();
@@ -84,11 +85,11 @@ void COMBootstrapper::cleanup()
   }
 }
 
-void WmiConnection::close()
+void
+WmiConnection::close()
 {
-  dout(20) << "closing wmi conn: " << this
-      << ", svc: " << wbem_svc
-      << ", loc: " << wbem_loc << dendl;
+  dout(20) << "closing wmi conn: " << this << ", svc: " << wbem_svc
+           << ", loc: " << wbem_loc << dendl;
   if (wbem_svc != NULL) {
     wbem_svc->Release();
     wbem_svc = NULL;
@@ -99,35 +100,34 @@ void WmiConnection::close()
   }
 }
 
-HRESULT WmiConnection::initialize()
+HRESULT
+WmiConnection::initialize()
 {
   HRESULT hres = CoCreateInstance(
-    CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER,
-    IID_IWbemLocator, (LPVOID*)&wbem_loc);
+      CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator,
+      (LPVOID*)&wbem_loc);
   if (FAILED(hres)) {
     derr << "CoCreateInstance failed. HRESULT: " << hres << dendl;
     return hres;
   }
 
   hres = wbem_loc->ConnectServer(
-    _bstr_t(ns.c_str()).GetBSTR(), NULL, NULL, NULL,
-    WBEM_FLAG_CONNECT_USE_MAX_WAIT, NULL, NULL,
-    &wbem_svc);
+      _bstr_t(ns.c_str()).GetBSTR(), NULL, NULL, NULL,
+      WBEM_FLAG_CONNECT_USE_MAX_WAIT, NULL, NULL, &wbem_svc);
   if (FAILED(hres)) {
     derr << "Could not connect to WMI service. HRESULT: " << hres << dendl;
     return hres;
   }
 
   if (!wbem_svc) {
-    hres = MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32,
-                        ERROR_INVALID_HANDLE);
+    hres = MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32, ERROR_INVALID_HANDLE);
     derr << "WMI connection failed, no WMI service object received." << dendl;
     return hres;
   }
 
   hres = CoSetProxyBlanket(
-    wbem_svc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
-    RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
+      wbem_svc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
+      RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
   if (FAILED(hres)) {
     derr << "CoSetProxyBlanket failed. HRESULT:" << hres << dendl;
   }
@@ -135,10 +135,11 @@ HRESULT WmiConnection::initialize()
   return hres;
 }
 
-HRESULT get_property_str(
-  IWbemClassObject* cls_obj,
-  const std::wstring& property,
-  std::wstring& value)
+HRESULT
+get_property_str(
+    IWbemClassObject* cls_obj,
+    const std::wstring& property,
+    std::wstring& value)
 {
   VARIANT vt_prop;
   VariantInit(&vt_prop);
@@ -161,10 +162,11 @@ HRESULT get_property_str(
   return hres;
 }
 
-HRESULT get_property_int(
-  IWbemClassObject* cls_obj,
-  const std::wstring& property,
-  uint32_t& value)
+HRESULT
+get_property_int(
+    IWbemClassObject* cls_obj,
+    const std::wstring& property,
+    uint32_t& value)
 {
   VARIANT vt_prop;
   VariantInit(&vt_prop);
@@ -187,7 +189,8 @@ HRESULT get_property_int(
   return hres;
 }
 
-HRESULT WmiSubscription::initialize()
+HRESULT
+WmiSubscription::initialize()
 {
   HRESULT hres = conn.initialize();
   if (FAILED(hres)) {
@@ -196,66 +199,62 @@ HRESULT WmiSubscription::initialize()
   }
 
   hres = conn.wbem_svc->ExecNotificationQuery(
-    _bstr_t(L"WQL").GetBSTR(),
-    _bstr_t(query.c_str()).GetBSTR(),
-    WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-    NULL,
-    &event_enum);
+      _bstr_t(L"WQL").GetBSTR(), _bstr_t(query.c_str()).GetBSTR(),
+      WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, NULL, &event_enum);
 
   if (FAILED(hres)) {
     derr << "Notification query failed, unable to subscribe to "
          << "WMI events. HRESULT: " << hres << dendl;
   } else {
     dout(20) << "wmi subscription initialized: " << this
-      << ", event enum: " << event_enum
-      << ", conn: " << &conn << ", conn svc: " << conn.wbem_svc << dendl;
+             << ", event enum: " << event_enum << ", conn: " << &conn
+             << ", conn svc: " << conn.wbem_svc << dendl;
   }
 
   return hres;
 }
 
-void WmiSubscription::close()
+void
+WmiSubscription::close()
 {
   dout(20) << "closing wmi subscription: " << this
-    << ", event enum: " << event_enum << dendl;
+           << ", event enum: " << event_enum << dendl;
   if (event_enum != NULL) {
     event_enum->Release();
     event_enum = NULL;
   }
 }
 
-HRESULT WmiSubscription::next(
-  long timeout,
-  ULONG count,
-  IWbemClassObject **objects,
-  ULONG *returned)
+HRESULT
+WmiSubscription::next(
+    long timeout,
+    ULONG count,
+    IWbemClassObject** objects,
+    ULONG* returned)
 {
- if (!event_enum) {
-    HRESULT hres = MAKE_HRESULT(
-      SEVERITY_ERROR, FACILITY_WIN32,
-      ERROR_INVALID_HANDLE);
+  if (!event_enum) {
+    HRESULT hres =
+        MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32, ERROR_INVALID_HANDLE);
     derr << "WMI subscription uninitialized." << dendl;
     return hres;
   }
 
   HRESULT hres = event_enum->Next(timeout, count, objects, returned);
   if (FAILED(hres)) {
-    derr << "Unable to retrieve WMI events. HRESULT: "
-         << hres << dendl;
+    derr << "Unable to retrieve WMI events. HRESULT: " << hres << dendl;
   }
   return hres;
 }
 
-WmiSubscription subscribe_wnbd_adapter_events(
-  uint32_t interval)
+WmiSubscription
+subscribe_wnbd_adapter_events(uint32_t interval)
 {
   std::wostringstream query_stream;
-  query_stream
-    << L"SELECT * FROM __InstanceOperationEvent "
-    << L"WITHIN " << interval
-    << L"WHERE TargetInstance ISA 'Win32_ScsiController' "
-    << L"AND TargetInstance.Description="
-    << L"'WNBD SCSI Virtual Adapter'";
+  query_stream << L"SELECT * FROM __InstanceOperationEvent " << L"WITHIN "
+               << interval
+               << L"WHERE TargetInstance ISA 'Win32_ScsiController' "
+               << L"AND TargetInstance.Description="
+               << L"'WNBD SCSI Virtual Adapter'";
 
   return WmiSubscription(L"root\\cimv2", query_stream.str());
 }

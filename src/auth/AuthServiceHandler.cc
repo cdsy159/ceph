@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,18 +14,18 @@
  */
 
 #include "AuthServiceHandler.h"
+
 #include "cephx/CephxServiceHandler.h"
 #ifdef HAVE_GSSAPI
 #include "krb/KrbServiceHandler.hpp"
 #endif
-#include "none/AuthNoneServiceHandler.h"
 #include "common/dout.h"
+#include "none/AuthNoneServiceHandler.h"
 
 #define dout_subsys ceph_subsys_auth
 
-
-std::ostream& operator<<(std::ostream& os,
-			 global_id_status_t global_id_status)
+std::ostream&
+operator<<(std::ostream& os, global_id_status_t global_id_status)
 {
   switch (global_id_status) {
   case global_id_status_t::NONE:
@@ -47,25 +47,29 @@ std::ostream& operator<<(std::ostream& os,
   }
 }
 
-int AuthServiceHandler::start_session(const EntityName& entity_name,
-				      uint64_t global_id,
-				      bool is_new_global_id,
-				      ceph::buffer::list *result,
-				      AuthCapsInfo *caps)
+int
+AuthServiceHandler::start_session(
+    const EntityName& entity_name,
+    uint64_t global_id,
+    bool is_new_global_id,
+    ceph::buffer::list* result,
+    AuthCapsInfo* caps)
 {
-  ceph_assert(!this->entity_name.get_type() && !this->global_id &&
-	      global_id_status == global_id_status_t::NONE);
+  ceph_assert(
+      !this->entity_name.get_type() && !this->global_id &&
+      global_id_status == global_id_status_t::NONE);
 
   ldout(cct, 10) << __func__ << " entity_name=" << entity_name
-		 << " global_id=" << global_id << " is_new_global_id="
-		 << is_new_global_id << dendl;
+                 << " global_id=" << global_id
+                 << " is_new_global_id=" << is_new_global_id << dendl;
   this->entity_name = entity_name;
   this->global_id = global_id;
 
   return do_start_session(is_new_global_id, result, caps);
 }
 
-AuthServiceHandler *get_auth_service_handler(int type, CephContext *cct, KeyServer *ks)
+AuthServiceHandler*
+get_auth_service_handler(int type, CephContext* cct, KeyServer* ks)
 {
   switch (type) {
   case CEPH_AUTH_CEPHX:
@@ -73,7 +77,7 @@ AuthServiceHandler *get_auth_service_handler(int type, CephContext *cct, KeyServ
   case CEPH_AUTH_NONE:
     return new AuthNoneServiceHandler(cct);
 #ifdef HAVE_GSSAPI
-  case CEPH_AUTH_GSS: 
+  case CEPH_AUTH_GSS:
     return new KrbServiceHandler(cct, ks);
 #endif
   default:

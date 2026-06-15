@@ -4,9 +4,10 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_DELETER_TYPES_H
 #define CEPH_RBD_MIRROR_IMAGE_DELETER_TYPES_H
 
+#include <string>
+
 #include "include/Context.h"
 #include "librbd/journal/Policy.h"
-#include <string>
 
 struct utime_t;
 
@@ -21,28 +22,34 @@ enum ErrorResult {
 };
 
 struct TrashListener {
-  TrashListener() {
-  }
+  TrashListener() {}
+
   TrashListener(const TrashListener&) = delete;
   TrashListener& operator=(const TrashListener&) = delete;
 
-  virtual ~TrashListener() {
-  }
+  virtual ~TrashListener() {}
 
-  virtual void handle_trash_image(const std::string& image_id,
-    const ceph::real_clock::time_point& deferment_end_time) = 0;
-
+  virtual void handle_trash_image(
+      const std::string& image_id,
+      const ceph::real_clock::time_point& deferment_end_time) = 0;
 };
 
 struct JournalPolicy : public librbd::journal::Policy {
-  bool append_disabled() const override {
-    return true;
-  }
-  bool journal_disabled() const override {
+  bool
+  append_disabled() const override
+  {
     return true;
   }
 
-  void allocate_tag_on_lock(Context *on_finish) override {
+  bool
+  journal_disabled() const override
+  {
+    return true;
+  }
+
+  void
+  allocate_tag_on_lock(Context* on_finish) override
+  {
     on_finish->complete(0);
   }
 };

@@ -19,7 +19,9 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+
 #include <boost/circular_buffer.hpp>
+
 #include "common/dout.h"
 
 namespace rgw::dbstore {
@@ -32,16 +34,18 @@ class ConnectionHandle;
 /// is the subset of ConnectionPool which doesn't depend on the Factory type.
 template <typename Connection>
 class ConnectionPoolBase {
- public:
-  ConnectionPoolBase(std::size_t max_connections)
-      : connections(max_connections)
+public:
+  ConnectionPoolBase(std::size_t max_connections) :
+    connections(max_connections)
   {}
- private:
+
+private:
   friend class ConnectionHandle<Connection>;
 
   // TODO: the caller may detect a connection error that prevents the connection
   // from being reused. allow them to indicate these errors here
-  void put(std::unique_ptr<Connection> connection)
+  void
+  put(std::unique_ptr<Connection> connection)
   {
     auto lock = std::scoped_lock{mutex};
     connections.push_back(std::move(connection));
@@ -50,7 +54,8 @@ class ConnectionPoolBase {
       cond.notify_one();
     }
   }
- protected:
+
+protected:
   std::mutex mutex;
   std::condition_variable cond;
   boost::circular_buffer<std::unique_ptr<Connection>> connections;
@@ -62,20 +67,28 @@ template <typename Connection>
 class ConnectionHandle {
   ConnectionPoolBase<Connection>* pool = nullptr;
   std::unique_ptr<Connection> conn;
- public:
-  ConnectionHandle() noexcept = default;
-  ConnectionHandle(ConnectionPoolBase<Connection>* pool,
-                   std::unique_ptr<Connection> conn) noexcept
-    : pool(pool), conn(std::move(conn)) {}
 
-  ~ConnectionHandle() {
+public:
+  ConnectionHandle() noexcept = default;
+
+  ConnectionHandle(
+      ConnectionPoolBase<Connection>* pool,
+      std::unique_ptr<Connection> conn) noexcept :
+    pool(pool), conn(std::move(conn))
+  {}
+
+  ~ConnectionHandle()
+  {
     if (conn) {
       pool->put(std::move(conn));
     }
   }
 
   ConnectionHandle(ConnectionHandle&&) = default;
-  ConnectionHandle& operator=(ConnectionHandle&& o) noexcept {
+
+  ConnectionHandle&
+  operator=(ConnectionHandle&& o) noexcept
+  {
     if (conn) {
       pool->put(std::move(conn));
     }
@@ -84,37 +97,53 @@ class ConnectionHandle {
     return *this;
   }
 
-  explicit operator bool() const noexcept { return static_cast<bool>(conn); }
-  Connection& operator*() const noexcept { return *conn; }
-  Connection* operator->() const noexcept { return conn.get(); }
-  Connection* get() const noexcept { return conn.get(); }
-};
+  explicit
+  operator bool() const noexcept
+  {
+    return static_cast<bool>(conn);
+  }
 
+  Connection&
+  operator*() const noexcept
+  {
+    return *conn;
+  }
+
+  Connection*
+  operator->() const noexcept
+  {
+    return conn.get();
+  }
+
+  Connection*
+  get() const noexcept
+  {
+    return conn.get();
+  }
+};
 
 // factory_of concept requires the function signature:
 //   F(const DoutPrefixProvider*) -> std::unique_ptr<T>
 template <typename F, typename T>
-concept factory_of = requires (F factory, const DoutPrefixProvider* dpp) {
+concept factory_of = requires(F factory, const DoutPrefixProvider* dpp) {
   { factory(dpp) } -> std::same_as<std::unique_ptr<T>>;
   requires std::move_constructible<F>;
 };
 
-
 /// Generic database connection pool that enforces a limit on open connections.
 template <typename Connection, factory_of<Connection> Factory>
 class ConnectionPool : public ConnectionPoolBase<Connection> {
- public:
-  ConnectionPool(Factory factory, std::size_t max_connections)
-      : ConnectionPoolBase<Connection>(max_connections),
-        factory(std::move(factory))
+public:
+  ConnectionPool(Factory factory, std::size_t max_connections) :
+    ConnectionPoolBase<Connection>(max_connections), factory(std::move(factory))
   {}
 
   /// Borrow a connection from the pool. If all existing connections are in use,
   /// use the connection factory to create another one. If we've reached the
   /// limit on open connections, wait on a condition variable for the next one
   /// returned to the pool.
-  auto get(const DoutPrefixProvider* dpp)
-      -> ConnectionHandle<Connection>
+  auto
+  get(const DoutPrefixProvider* dpp) -> ConnectionHandle<Connection>
   {
     auto lock = std::unique_lock{this->mutex};
     std::unique_ptr<Connection> conn;
@@ -139,7 +168,8 @@ class ConnectionPool : public ConnectionPoolBase<Connection> {
 
     return {this, std::move(conn)};
   }
- private:
+
+private:
   Factory factory;
   std::size_t total = 0;
 };

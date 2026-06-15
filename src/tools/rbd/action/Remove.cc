@@ -1,13 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <iostream>
+
+#include <boost/program_options.hpp>
+
+#include "common/errno.h"
+#include "include/stringify.h"
 #include "tools/rbd/ArgumentTypes.h"
 #include "tools/rbd/Shell.h"
 #include "tools/rbd/Utils.h"
-#include "common/errno.h"
-#include "include/stringify.h"
-#include <iostream>
-#include <boost/program_options.hpp>
 
 namespace rbd {
 namespace action {
@@ -15,8 +17,11 @@ namespace remove {
 
 namespace {
 
-bool is_auto_delete_snapshot(librbd::Image* image,
-                             const librbd::snap_info_t &snap_info) {
+bool
+is_auto_delete_snapshot(
+    librbd::Image* image,
+    const librbd::snap_info_t& snap_info)
+{
   librbd::snap_namespace_type_t namespace_type;
   int r = image->snap_get_namespace_type(snap_info.id, &namespace_type);
   if (r < 0) {
@@ -36,8 +41,12 @@ bool is_auto_delete_snapshot(librbd::Image* image,
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static int do_delete(librbd::RBD &rbd, librados::IoCtx& io_ctx,
-                     const char *imgname, bool no_progress)
+static int
+do_delete(
+    librbd::RBD& rbd,
+    librados::IoCtx& io_ctx,
+    const char* imgname,
+    bool no_progress)
 {
   utils::ProgressContext pc("Removing image", no_progress);
   int r = rbd.remove_with_progress(io_ctx, imgname, pc);
@@ -49,23 +58,29 @@ static int do_delete(librbd::RBD &rbd, librados::IoCtx& io_ctx,
   return 0;
 }
 
-void get_arguments(po::options_description *positional,
-                   po::options_description *options) {
+void
+get_arguments(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_no_progress_option(options);
 }
 
-int execute(const po::variables_map &vm,
-            const std::vector<std::string> &ceph_global_init_args) {
+int
+execute(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
   size_t arg_index = 0;
   std::string pool_name;
   std::string namespace_name;
   std::string image_name;
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
-    vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
-    &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
-    utils::SPEC_VALIDATION_NONE);
+      vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &namespace_name,
+      &image_name, &snap_name, true, utils::SNAPSHOT_PRESENCE_NONE,
+      utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -80,8 +95,7 @@ int execute(const po::variables_map &vm,
   io_ctx.set_pool_full_try();
 
   librbd::RBD rbd;
-  r = do_delete(rbd, io_ctx, image_name.c_str(),
-                vm[at::NO_PROGRESS].as<bool>());
+  r = do_delete(rbd, io_ctx, image_name.c_str(), vm[at::NO_PROGRESS].as<bool>());
   if (r < 0) {
     if (r == -ENOTEMPTY) {
       librbd::Image image;
@@ -91,12 +105,13 @@ int execute(const po::variables_map &vm,
         image_r = image.snap_list(snaps);
       }
       if (image_r >= 0) {
-        snaps.erase(std::remove_if(snaps.begin(), snaps.end(),
-			           [&image](const librbd::snap_info_t& snap) {
-                                     return is_auto_delete_snapshot(&image,
-                                                                    snap);
-                                   }),
-                    snaps.end());
+        snaps.erase(
+            std::remove_if(
+                snaps.begin(), snaps.end(),
+                [&image](const librbd::snap_info_t& snap) {
+                  return is_auto_delete_snapshot(&image, snap);
+                }),
+            snaps.end());
       }
 
       if (!snaps.empty()) {
@@ -109,8 +124,7 @@ int execute(const po::variables_map &vm,
                   << std::endl;
       }
     } else if (r == -EBUSY) {
-      std::cerr << "rbd: error: image still has watchers"
-                << std::endl
+      std::cerr << "rbd: error: image still has watchers" << std::endl
                 << "This means the image is still open or the client using "
                 << "it crashed. Try again after closing/unmapping it or "
                 << "waiting 30s for the crashed client to timeout."
@@ -120,7 +134,7 @@ int execute(const po::variables_map &vm,
       int image_r = utils::open_image(io_ctx, image_name, true, &image);
       librbd::group_info_t group_info;
       if (image_r == 0) {
-	image_r = image.get_group(&group_info, sizeof(group_info));
+        image_r = image.get_group(&group_info, sizeof(group_info));
       }
       if (image_r == 0) {
         std::string pool_name = "";
@@ -132,18 +146,18 @@ int execute(const po::variables_map &vm,
         } else {
           pool_name = pool_io_ctx.get_pool_name();
         }
-        std::cerr << "rbd: error: image belongs to a group "
-                  << pool_name << "/";
+        std::cerr << "rbd: error: image belongs to a group " << pool_name
+                  << "/";
         if (!io_ctx.get_namespace().empty()) {
           std::cerr << io_ctx.get_namespace() << "/";
         }
         std::cerr << group_info.name;
       } else
-	std::cerr << "rbd: error: image belongs to a group";
+        std::cerr << "rbd: error: image belongs to a group";
 
       std::cerr << std::endl
-		<< "Remove the image from the group and try again."
-		<< std::endl;
+                << "Remove the image from the group and try again."
+                << std::endl;
       image.close();
     } else {
       std::cerr << "rbd: delete error: " << cpp_strerror(r) << std::endl;
@@ -153,8 +167,8 @@ int execute(const po::variables_map &vm,
   return 0;
 }
 
-Shell::Action action(
-  {"remove"}, {"rm"}, "Delete an image.", "", &get_arguments, &execute);
+Shell::Action
+    action({"remove"}, {"rm"}, "Delete an image.", "", &get_arguments, &execute);
 
 } // namespace remove
 } // namespace action

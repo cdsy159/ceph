@@ -4,30 +4,31 @@
 #ifndef CEPH_RBD_MIRROR_DAEMON_SERVICE_INFO_H
 #define CEPH_RBD_MIRROR_DAEMON_SERVICE_INFO_H
 
-#include "include/rados/librados_fwd.hpp"
-#include "tools/rbd/ArgumentTypes.h"
-
 #include <iosfwd>
 #include <list>
 #include <map>
 #include <string>
 
+#include "include/rados/librados_fwd.hpp"
+#include "tools/rbd/ArgumentTypes.h"
+
 namespace rbd {
 
 enum MirrorHealth {
-  MIRROR_HEALTH_OK      = 0,
+  MIRROR_HEALTH_OK = 0,
   MIRROR_HEALTH_UNKNOWN = 1,
   MIRROR_HEALTH_WARNING = 2,
-  MIRROR_HEALTH_ERROR   = 3
+  MIRROR_HEALTH_ERROR = 3
 };
 
 std::ostream& operator<<(std::ostream& os, MirrorHealth mirror_health);
 
 struct MirrorService {
   MirrorService() {}
-  explicit MirrorService(const std::string& service_id)
-    : service_id(service_id) {
-  }
+
+  explicit MirrorService(const std::string& service_id) :
+    service_id(service_id)
+  {}
 
   std::string service_id;
   std::string instance_id;
@@ -47,8 +48,9 @@ typedef std::list<MirrorService> MirrorServices;
 
 class MirrorDaemonServiceInfo {
 public:
-  MirrorDaemonServiceInfo(librados::IoCtx &io_ctx) : m_io_ctx(io_ctx) {
-  }
+  MirrorDaemonServiceInfo(librados::IoCtx& io_ctx) :
+    m_io_ctx(io_ctx)
+  {}
 
   int init();
 
@@ -56,12 +58,15 @@ public:
   const MirrorService* get_by_instance_id(const std::string& instance_id) const;
 
   MirrorServices get_mirror_services() const;
-  MirrorHealth get_daemon_health() const {
+
+  MirrorHealth
+  get_daemon_health() const
+  {
     return m_daemon_health;
   }
 
 private:
-  librados::IoCtx &m_io_ctx;
+  librados::IoCtx& m_io_ctx;
 
   std::map<std::string, MirrorService> m_mirror_services;
   std::map<std::string, std::string> m_instance_to_service_ids;
@@ -70,7 +75,6 @@ private:
 
   int get_mirror_service_dump();
   int get_mirror_service_status();
-
 };
 
 } // namespace rbd

@@ -34,23 +34,28 @@ namespace ceph {
 
 class ceph_error_category : public converting_category {
 public:
-  ceph_error_category(){}
+  ceph_error_category() {}
+
   const char* name() const noexcept override;
   using converting_category::message;
   std::string message(int ev) const override;
   const char* message(int ev, char*, std::size_t) const noexcept override;
   using converting_category::equivalent;
-  bool equivalent(const boost::system::error_code& c,
-		  int ev) const noexcept override;
+  bool equivalent(
+      const boost::system::error_code& c,
+      int ev) const noexcept override;
   int from_code(int ev) const noexcept override;
 };
 
-const char* ceph_error_category::name() const noexcept {
+const char*
+ceph_error_category::name() const noexcept
+{
   return "ceph";
 }
 
-const char* ceph_error_category::message(int ev, char*,
-					 std::size_t) const noexcept {
+const char*
+ceph_error_category::message(int ev, char*, std::size_t) const noexcept
+{
   if (ev == 0)
     return "No error";
 
@@ -75,46 +80,53 @@ const char* ceph_error_category::message(int ev, char*,
   return "Unknown error.";
 }
 
-std::string ceph_error_category::message(int ev) const {
+std::string
+ceph_error_category::message(int ev) const
+{
   return message(ev, nullptr, 0);
 }
 
-bool ceph_error_category::equivalent(const boost::system::error_code& c,
-				     int ev) const noexcept {
+bool
+ceph_error_category::equivalent(
+    const boost::system::error_code& c,
+    int ev) const noexcept
+{
   if (c.category() == system_category()) {
     if (c.value() == boost::system::errc::no_such_file_or_directory) {
       if (ev == static_cast<int>(errc::not_in_map) ||
-	  ev == static_cast<int>(errc::does_not_exist)) {
-	// Blargh. A bunch of stuff returns ENOENT now, so just to be safe.
-	return true;
+          ev == static_cast<int>(errc::does_not_exist)) {
+        // Blargh. A bunch of stuff returns ENOENT now, so just to be safe.
+        return true;
       }
     }
     if (c.value() == boost::system::errc::io_error) {
       if (ev == static_cast<int>(errc::failure)) {
-	return true;
+        return true;
       }
     }
     if (c.value() == boost::system::errc::file_exists) {
       if (ev == static_cast<int>(errc::exists)) {
-	return true;
+        return true;
       }
     }
     if (c.value() == boost::system::errc::no_space_on_device ||
-	c.value() == boost::system::errc::invalid_argument) {
+        c.value() == boost::system::errc::invalid_argument) {
       if (ev == static_cast<int>(errc::limit_exceeded)) {
-	return true;
+        return true;
       }
     }
     if (c.value() == boost::system::errc::operation_not_permitted) {
       if (ev == static_cast<int>(ceph::errc::conflict)) {
-	return true;
+        return true;
       }
     }
   }
   return false;
 }
 
-int ceph_error_category::from_code(int ev) const noexcept {
+int
+ceph_error_category::from_code(int ev) const noexcept
+{
   if (ev == 0)
     return 0;
 
@@ -137,25 +149,28 @@ int ceph_error_category::from_code(int ev) const noexcept {
   return -EDOM;
 }
 
-const error_category& ceph_category() noexcept {
+const error_category&
+ceph_category() noexcept
+{
   static const ceph_error_category c;
   return c;
 }
 
-
 // This is part of the glue for hooking new code to old. Since
 // Context* and other things give us integer codes from errno, wrap
 // them in an error_code.
-[[nodiscard]] boost::system::error_code to_error_code(int ret) noexcept
+[[nodiscard]] boost::system::error_code
+to_error_code(int ret) noexcept
 {
   if (ret == 0)
     return {};
-  return { std::abs(ret), boost::system::system_category() };
+  return {std::abs(ret), boost::system::system_category()};
 }
 
 // This is more complicated. For the case of categories defined
 // elsewhere, we have to convert everything here.
-[[nodiscard]] int from_error_code(boost::system::error_code e) noexcept
+[[nodiscard]] int
+from_error_code(boost::system::error_code e) noexcept
 {
   if (!e)
     return 0;
@@ -192,6 +207,7 @@ const error_category& ceph_category() noexcept {
   // So many things defautl to EIO this is probably the safest
   return -EIO;
 }
-}
+} // namespace ceph
+
 #pragma GCC diagnostic pop
 #pragma clang diagnostic pop

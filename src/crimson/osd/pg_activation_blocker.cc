@@ -1,17 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab expandtab
 
-#include "crimson/osd/pg.h"
 #include "crimson/osd/pg_activation_blocker.h"
+
+#include "crimson/osd/pg.h"
 
 namespace crimson::osd {
 
-void PGActivationBlocker::dump_detail(Formatter *f) const
+void
+PGActivationBlocker::dump_detail(Formatter* f) const
 {
   f->dump_stream("pgid") << pg->get_pgid();
 }
 
-void PGActivationBlocker::unblock()
+void
+PGActivationBlocker::unblock()
 {
   p.set_value();
   p = {};
@@ -27,7 +30,8 @@ PGActivationBlocker::wait(PGActivationBlocker::BlockingEvent::TriggerI&& trigger
   }
 }
 
-seastar::future<> PGActivationBlocker::stop()
+seastar::future<>
+PGActivationBlocker::stop()
 {
   p.set_exception(crimson::common::system_shutdown_exception());
   return seastar::now();

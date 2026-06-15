@@ -17,13 +17,14 @@
 
 #include <functional>
 #include <vector>
+
+#include "common/TrackedOp.h"
+#include "common/dout.h"
 #include "msg/Message.h"
+#include "msg/async/frames_v2.h"
+#include "osd/OpRequest.h"
 #include "test/osd/EventLoop.h"
 #include "test/osd/MockConnection.h"
-#include "common/dout.h"
-#include "common/TrackedOp.h"
-#include "osd/OpRequest.h"
-#include "msg/async/frames_v2.h"
 
 #define dout_subsys ceph_subsys_osd
 
@@ -48,37 +49,45 @@ class MockMessenger {
 public:
   using MessageHandler = std::function<bool(int from_osd, int to_osd, Message*)>;
   using EpochGetter = std::function<epoch_t(int osd)>;
-  
+
 private:
   EventLoop* event_loop = nullptr;
   std::map<int, MessageHandler> handlers;
   EpochGetter epoch_getter;
-  DoutPrefixProvider *dpp = nullptr;
-  
+  DoutPrefixProvider* dpp = nullptr;
+
 public:
-  MockMessenger(EventLoop* loop, CephContext* cct, DoutPrefixProvider *dpp = nullptr)
-    : event_loop(loop), dpp(dpp) {
+  MockMessenger(
+      EventLoop* loop,
+      CephContext* cct,
+      DoutPrefixProvider* dpp = nullptr) :
+    event_loop(loop), dpp(dpp)
+  {
     ceph_assert(event_loop != nullptr);
     ceph_assert(cct != nullptr);
   }
-  
+
   /**
    * Set the epoch getter callback.
    * This callback is used to get the current epoch for a given OSD.
    *
    * @param getter Lambda that accepts an OSD number and returns its current epoch
    */
-  void set_epoch_getter(EpochGetter getter) {
+  void
+  set_epoch_getter(EpochGetter getter)
+  {
     epoch_getter = std::move(getter);
   }
-  
+
   /**
    * Set the DoutPrefixProvider for logging
    */
-  void set_dpp(DoutPrefixProvider *d) {
+  void
+  set_dpp(DoutPrefixProvider* d)
+  {
     dpp = d;
   }
-  
+
   /**
    * Register an event handler for processing messages.
    * Handlers are called in registration order until one returns true.
@@ -87,7 +96,9 @@ public:
    * @param handler Lambda that accepts (from_osd, to_osd, Message*) and returns true if handled
    *                Handler is responsible for wrapping the message in appropriate tracker/reference type
    */
-  void register_handler(int type, MessageHandler handler) {
+  void
+  register_handler(int type, MessageHandler handler)
+  {
     ceph_assert(!handlers.contains(type));
     handlers.emplace(type, std::move(handler));
   }
@@ -101,19 +112,24 @@ public:
    * @param msg_type The message type code (e.g., MSG_OSD_EC_WRITE)
    * @param handler Lambda that accepts (from_osd, to_osd, MsgType*) and returns true if handled
    */
-  template<typename MsgType>
-  requires std::derived_from<MsgType, Message>
-  void register_typed_handler(int msg_type, std::function<bool(int, int, MsgType*)> handler) {
+  template <typename MsgType>
+    requires std::derived_from<MsgType, Message>
+  void
+  register_typed_handler(
+      int msg_type,
+      std::function<bool(int, int, MsgType*)> handler)
+  {
     // Wrap the typed handler in a generic handler that performs the cast
-    register_handler(msg_type, [handler](int from_osd, int to_osd, Message* m) -> bool {
-      MsgType* typed_msg = dynamic_cast<MsgType*>(m);
-      if (!typed_msg) {
-        return false;  // Wrong type, let other handlers try
-      }
-      return handler(from_osd, to_osd, typed_msg);
-    });
+    register_handler(
+        msg_type, [handler](int from_osd, int to_osd, Message* m) -> bool {
+          MsgType* typed_msg = dynamic_cast<MsgType*>(m);
+          if (!typed_msg) {
+            return false; // Wrong type, let other handlers try
+          }
+          return handler(from_osd, to_osd, typed_msg);
+        });
   }
-  
+
   /**
    * Send a message from one OSD to another.
    * The message will be scheduled on the EventLoop and processed by
@@ -127,116 +143,123 @@ public:
    * @param to_osd Destination OSD number
    * @param m Message to send (takes ownership)
    */
-  void send_message(int from_osd, int to_osd, Message* m) {
+  void
+  send_message(int from_osd, int to_osd, Message* m)
+  {
     ceph_assert(from_osd >= 0);
     ceph_assert(to_osd >= 0);
     ceph_assert(m != nullptr);
-    
+
     // Wrap in MessageRef to manage lifetime
     MessageRef mref(m);
-    
+
     // Capture the receiver's epoch at send time for epoch checking
     epoch_t send_epoch = 0;
     if (epoch_getter) {
       send_epoch = epoch_getter(to_osd);
     }
-    
+
     // Set the message header's source to the sender OSD BEFORE encoding
     // This is critical for peering messages - MOSDPGInfo2::get_event() uses
     // get_source().num() to construct the pg_shard_t for MInfoRec
     ceph_msg_header h = m->get_header();
     h.src.num = from_osd;
     m->set_header(h);
-    
+
     if (dpp) {
-      ldpp_dout(dpp, 10) << "MockMessenger: Scheduling message from OSD." << from_osd
-                         << " to OSD." << to_osd << " (type: " << m->get_type()
+      ldpp_dout(dpp, 10) << "MockMessenger: Scheduling message from OSD."
+                         << from_osd << " to OSD." << to_osd
+                         << " (type: " << m->get_type()
                          << ", epoch: " << send_epoch << ")" << dendl;
     }
-    
+
     // Encode the message payload to prepare it for transmission
     // This ensures internal structures like txn_payload are properly serialized
     m->encode(CEPH_FEATURES_ALL, 0);
-    
+
     // Copy the message components to simulate network transmission
     // This creates independent copies that can be decoded into a new message object
     // on the receiver side, avoiding use-after-free issues
 
-    ceph_msg_header &header = m->get_header();
-    ceph_msg_footer &footer = m->get_footer();
+    ceph_msg_header& header = m->get_header();
+    ceph_msg_footer& footer = m->get_footer();
 
-    ceph_msg_header2 header2{header.seq,        header.tid,
-                             header.type,       header.priority,
-                             header.version,
-                             ceph_le32(0),      header.data_off,
-                             ceph_le64(0),
-                             footer.flags,      header.compat_version,
+    ceph_msg_header2 header2{header.seq,      header.tid,
+                             header.type,     header.priority,
+                             header.version,  ceph_le32(0),
+                             header.data_off, ceph_le64(0),
+                             footer.flags,    header.compat_version,
                              header.reserved};
 
     auto mf = ceph::msgr::v2::MessageFrame::Encode(
-                               header2,
-                               m->get_payload(),
-                               m->get_middle(),
-                               m->get_data());
+        header2, m->get_payload(), m->get_middle(), m->get_data());
 
 
     // Schedule event on EventLoop with the copied message components
-    event_loop->schedule_osd_message(from_osd, to_osd,
-      [this, header, footer, mf, from_osd, to_osd, send_epoch]() mutable {
-        // Get the receiver's current epoch when processing
-        epoch_t current_epoch = 0;
-        if (epoch_getter) {
-          current_epoch = epoch_getter(to_osd);
-        }
-        
-        // Drop messages from different epochs (both old and new)
-        if (current_epoch != send_epoch) {
-          if (dpp) {
-            ldpp_dout(dpp, 10) << "MockMessenger: Dropping message from OSD." << from_osd
-                               << " to OSD." << to_osd << " (type: " << header.type
-                               << ") - epoch mismatch: send_epoch=" << send_epoch
-                               << " current_epoch=" << current_epoch << dendl;
+    event_loop->schedule_osd_message(
+        from_osd, to_osd,
+        [this, header, footer, mf, from_osd, to_osd, send_epoch]() mutable {
+          // Get the receiver's current epoch when processing
+          epoch_t current_epoch = 0;
+          if (epoch_getter) {
+            current_epoch = epoch_getter(to_osd);
           }
-          return;
-        }
-        
-        // Decode the message components into a new message object
-        // This uses the proper decode_message() function that real messengers use,
-        // which supports the new footer format with message authentication
-        Message *decoded_msg = decode_message(g_ceph_context, 0, header, footer,
-                                              mf.front(), mf.middle(), mf.data(), new MockConnection(from_osd));
 
-        ceph_assert(decoded_msg);
-        
-        // Try specific handler first, then catch-all handler (-1)
-        if (!handlers.contains(header.type)) {
-          std::cerr << "ERROR: No handler registered for message type " << header.type
-                    << " (0x" << std::hex << header.type << std::dec << ")" << std::endl;
-          std::cerr << "Registered handlers: ";
-          for (const auto& [type, _] : handlers) {
-            std::cerr << type << " (0x" << std::hex << type << std::dec << "), ";
+          // Drop messages from different epochs (both old and new)
+          if (current_epoch != send_epoch) {
+            if (dpp) {
+              ldpp_dout(dpp, 10)
+                  << "MockMessenger: Dropping message from OSD." << from_osd
+                  << " to OSD." << to_osd << " (type: " << header.type
+                  << ") - epoch mismatch: send_epoch=" << send_epoch
+                  << " current_epoch=" << current_epoch << dendl;
+            }
+            return;
           }
-          std::cerr << std::endl;
-        }
-        ceph_assert(handlers.contains(header.type));
-        ceph_assert(handlers.at(header.type)(from_osd, to_osd, decoded_msg));
-      });
+
+          // Decode the message components into a new message object
+          // This uses the proper decode_message() function that real messengers use,
+          // which supports the new footer format with message authentication
+          Message* decoded_msg = decode_message(
+              g_ceph_context, 0, header, footer, mf.front(), mf.middle(),
+              mf.data(), new MockConnection(from_osd));
+
+          ceph_assert(decoded_msg);
+
+          // Try specific handler first, then catch-all handler (-1)
+          if (!handlers.contains(header.type)) {
+            std::cerr << "ERROR: No handler registered for message type "
+                      << header.type << " (0x" << std::hex << header.type
+                      << std::dec << ")" << std::endl;
+            std::cerr << "Registered handlers: ";
+            for (const auto& [type, _] : handlers) {
+              std::cerr << type << " (0x" << std::hex << type << std::dec
+                        << "), ";
+            }
+            std::cerr << std::endl;
+          }
+          ceph_assert(handlers.contains(header.type));
+          ceph_assert(handlers.at(header.type)(from_osd, to_osd, decoded_msg));
+        });
   }
-  
+
   /**
    * Get the number of registered handlers
    */
-  size_t handler_count() const {
+  size_t
+  handler_count() const
+  {
     return handlers.size();
   }
-  
+
   /**
    * Clear all registered handlers
    */
-  void clear_handlers() {
+  void
+  clear_handlers()
+  {
     handlers.clear();
   }
-  
 };
 
 // Made with Bob

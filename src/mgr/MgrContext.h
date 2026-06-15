@@ -20,28 +20,29 @@
 #include "common/Cond.h"
 #include "mon/MonClient.h"
 
-class Command
-{
+class Command {
 protected:
   C_SaferCond cond;
+
 public:
   ceph::buffer::list outbl;
   std::string outs;
   int r;
 
-  void run(MonClient *monc, const std::string &command)
+  void
+  run(MonClient* monc, const std::string& command)
   {
-    monc->start_mon_command({command}, {},
-        &outbl, &outs, &cond);
+    monc->start_mon_command({command}, {}, &outbl, &outs, &cond);
   }
 
-  void run(MonClient *monc, const std::string &command, ceph::buffer::list &&inbl)
+  void
+  run(MonClient* monc, const std::string& command, ceph::buffer::list&& inbl)
   {
-    monc->start_mon_command({command}, std::move(inbl),
-        &outbl, &outs, &cond);
+    monc->start_mon_command({command}, std::move(inbl), &outbl, &outs, &cond);
   }
 
-  virtual void wait()
+  virtual void
+  wait()
   {
     r = cond.wait();
   }
@@ -50,4 +51,3 @@ public:
 };
 
 #endif
-

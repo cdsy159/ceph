@@ -12,7 +12,14 @@ enum class ESType {
   Keyword,
 
   /* Numeric Types */
-  Long, Integer, Short, Byte, Double, Float, Half_Float, Scaled_Float,
+  Long,
+  Integer,
+  Short,
+  Byte,
+  Double,
+  Float,
+  Half_Float,
+  Scaled_Float,
 
   /* Date Type */
   Date,
@@ -24,21 +31,32 @@ enum class ESType {
   Binary,
 
   /* Range Types */
-  Integer_Range, Float_Range, Long_Range, Double_Range, Date_Range,
+  Integer_Range,
+  Float_Range,
+  Long_Range,
+  Double_Range,
+  Date_Range,
 
   /* A Few Specialized Types */
   Geo_Point,
   Ip
 };
 
-
 class RGWElasticSyncModule : public RGWSyncModule {
 public:
   RGWElasticSyncModule() {}
-  bool supports_data_export() override {
+
+  bool
+  supports_data_export() override
+  {
     return false;
   }
-  int create_instance(const DoutPrefixProvider *dpp, CephContext *cct, const JSONFormattable& config, RGWSyncModuleInstanceRef *instance) override;
+
+  int create_instance(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const JSONFormattable& config,
+      RGWSyncModuleInstanceRef* instance) override;
 };
 
 class RGWElasticDataSyncModule;
@@ -46,14 +64,21 @@ class RGWRESTConn;
 
 class RGWElasticSyncModuleInstance : public RGWSyncModuleInstance {
   std::unique_ptr<RGWElasticDataSyncModule> data_handler;
+
 public:
-  RGWElasticSyncModuleInstance(const DoutPrefixProvider *dpp, CephContext *cct, const JSONFormattable& config);
-  RGWDataSyncModule *get_data_handler() override;
-  RGWRESTMgr *get_rest_filter(int dialect, RGWRESTMgr *orig) override;
-  RGWRESTConn *get_rest_conn();
+  RGWElasticSyncModuleInstance(
+      const DoutPrefixProvider* dpp,
+      CephContext* cct,
+      const JSONFormattable& config);
+  RGWDataSyncModule* get_data_handler() override;
+  RGWRESTMgr* get_rest_filter(int dialect, RGWRESTMgr* orig) override;
+  RGWRESTConn* get_rest_conn();
   std::string get_index_path();
   std::map<std::string, std::string>& get_request_headers();
-  bool supports_user_writes() override {
+
+  bool
+  supports_user_writes() override
+  {
     return true;
   }
 };

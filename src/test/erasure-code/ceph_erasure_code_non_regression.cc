@@ -17,22 +17,23 @@
 
 #include <errno.h>
 #include <stdlib.h>
-#include <boost/scoped_ptr.hpp>
+
+#include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/program_options/cmdline.hpp>
 #include <boost/program_options/option.hpp>
 #include <boost/program_options/options_description.hpp>
-#include <boost/program_options/variables_map.hpp>
-#include <boost/program_options/cmdline.hpp>
 #include <boost/program_options/parsers.hpp>
-#include <boost/algorithm/string.hpp>
+#include <boost/program_options/variables_map.hpp>
+#include <boost/scoped_ptr.hpp>
 
+#include "common/ceph_argparse.h"
+#include "common/ceph_context.h"
+#include "common/config.h"
+#include "common/errno.h"
+#include "erasure-code/ErasureCodePlugin.h"
 #include "global/global_context.h"
 #include "global/global_init.h"
-#include "common/errno.h"
-#include "common/ceph_context.h"
-#include "common/ceph_argparse.h"
-#include "common/config.h"
-#include "erasure-code/ErasureCodePlugin.h"
 
 namespace po = boost::program_options;
 using namespace std;
@@ -46,56 +47,58 @@ class ErasureCodeNonRegression {
   string directory;
   ErasureCodeProfile profile;
   boost::intrusive_ptr<CephContext> cct;
+
 public:
   int setup(int argc, char** argv);
   int run();
   int run_create();
   int run_check();
-  int decode_erasures(ErasureCodeInterfaceRef erasure_code,
-		      shard_id_set erasures,
-		      shard_id_map<bufferlist> chunks);
+  int decode_erasures(
+      ErasureCodeInterfaceRef erasure_code,
+      shard_id_set erasures,
+      shard_id_map<bufferlist> chunks);
   string content_path();
   string chunk_path(shard_id_t chunk);
 };
 
-int ErasureCodeNonRegression::setup(int argc, char** argv) {
+int
+ErasureCodeNonRegression::setup(int argc, char** argv)
+{
 
   po::options_description desc("Allowed options");
-  desc.add_options()
-    ("help,h", "produce help message")
-    ("stripe-width,s", po::value<int>()->default_value(4 * 1024),
-     "stripe_width, i.e. the size of the buffer to be encoded")
-    ("plugin,p", po::value<string>()->default_value("isa"),
-     "erasure code plugin name")
-    ("base", po::value<string>()->default_value("."),
-     "prefix all paths with base")
-    ("parameter,P", po::value<vector<string> >(),
-     "add a parameter to the erasure code profile")
-    ("create", "create the erasure coded content in the directory")
-    ("check", "check the content in the directory matches the chunks and vice versa")
-    ;
+  desc.add_options()("help,h", "produce help message")(
+      "stripe-width,s", po::value<int>()->default_value(4 * 1024),
+      "stripe_width, i.e. the size of the buffer to be encoded")(
+      "plugin,p", po::value<string>()->default_value("isa"),
+      "erasure code plugin name")(
+      "base", po::value<string>()->default_value("."),
+      "prefix all paths with base")(
+      "parameter,P", po::value<vector<string>>(),
+      "add a parameter to the erasure code profile")(
+      "create", "create the erasure coded content in the directory")(
+      "check",
+      "check the content in the directory matches the chunks and vice versa");
 
   po::variables_map vm;
-  po::parsed_options parsed =
-    po::command_line_parser(argc, argv).options(desc).allow_unregistered().run();
-  po::store(
-    parsed,
-    vm);
+  po::parsed_options parsed = po::command_line_parser(argc, argv)
+                                  .options(desc)
+                                  .allow_unregistered()
+                                  .run();
+  po::store(parsed, vm);
   po::notify(vm);
 
-  vector<const char *> ceph_options;
-  vector<string> ceph_option_strings = po::collect_unrecognized(
-    parsed.options, po::include_positional);
+  vector<const char*> ceph_options;
+  vector<string> ceph_option_strings =
+      po::collect_unrecognized(parsed.options, po::include_positional);
   ceph_options.reserve(ceph_option_strings.size());
   for (vector<string>::iterator i = ceph_option_strings.begin();
-       i != ceph_option_strings.end();
-       ++i) {
+       i != ceph_option_strings.end(); ++i) {
     ceph_options.push_back(i->c_str());
   }
 
-  cct = global_init(NULL, ceph_options, CEPH_ENTITY_TYPE_CLIENT,
-		    CODE_ENVIRONMENT_UTILITY,
-		    CINIT_FLAG_NO_MON_CONFIG);
+  cct = global_init(
+      NULL, ceph_options, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_MON_CONFIG);
   common_init_finish(g_ceph_context);
   g_ceph_context->_conf.apply_changes(nullptr);
 
@@ -117,21 +120,22 @@ int ErasureCodeNonRegression::setup(int argc, char** argv) {
 
   {
     stringstream path;
-    path << base << "/" << "plugin=" << plugin << " stripe-width=" << stripe_width;
+    path << base << "/" << "plugin=" << plugin
+         << " stripe-width=" << stripe_width;
     directory = path.str();
   }
 
   if (vm.count("parameter")) {
-    const vector<string> &p = vm["parameter"].as< vector<string> >();
-    for (vector<string>::const_iterator i = p.begin();
-	 i != p.end();
-	 ++i) {
+    const vector<string>& p = vm["parameter"].as<vector<string>>();
+    for (vector<string>::const_iterator i = p.begin(); i != p.end(); ++i) {
       std::vector<std::string> strs;
       boost::split(strs, *i, boost::is_any_of("="));
       if (strs.size() != 2) {
-	cerr << "--parameter " << *i << " ignored because it does not contain exactly one =" << std::endl;
+        cerr << "--parameter " << *i
+             << " ignored because it does not contain exactly one ="
+             << std::endl;
       } else {
-	profile[strs[0]] = strs[1];
+        profile[strs[0]] = strs[1];
       }
       directory += " " + *i;
     }
@@ -140,24 +144,26 @@ int ErasureCodeNonRegression::setup(int argc, char** argv) {
   return 0;
 }
 
-int ErasureCodeNonRegression::run()
-  {
+int
+ErasureCodeNonRegression::run()
+{
   int ret = 0;
-  if(create && (ret = run_create()))
+  if (create && (ret = run_create()))
     return ret;
-  if(check && (ret = run_check()))
+  if (check && (ret = run_check()))
     return ret;
   return ret;
 }
 
-int ErasureCodeNonRegression::run_create()
+int
+ErasureCodeNonRegression::run_create()
 {
-  ErasureCodePluginRegistry &instance = ErasureCodePluginRegistry::instance();
+  ErasureCodePluginRegistry& instance = ErasureCodePluginRegistry::instance();
   ErasureCodeInterfaceRef erasure_code;
   stringstream messages;
-  int code = instance.factory(plugin,
-			      g_conf().get_val<std::string>("erasure_code_dir"),
-			      profile, &erasure_code, &messages);
+  int code = instance.factory(
+      plugin, g_conf().get_val<std::string>("erasure_code_dir"), profile,
+      &erasure_code, &messages);
   if (code) {
     cerr << messages.str() << std::endl;
     return code;
@@ -187,33 +193,32 @@ int ErasureCodeNonRegression::run_create()
   if (code)
     return code;
   for (shard_id_map<bufferlist>::iterator chunk = encoded.begin();
-       chunk != encoded.end();
-       ++chunk) {
+       chunk != encoded.end(); ++chunk) {
     if (chunk->second.write_file(chunk_path(chunk->first).c_str()))
       return 1;
   }
   return 0;
 }
 
-int ErasureCodeNonRegression::decode_erasures(ErasureCodeInterfaceRef erasure_code,
-					      shard_id_set erasures,
-					      shard_id_map<bufferlist> chunks)
+int
+ErasureCodeNonRegression::decode_erasures(
+    ErasureCodeInterfaceRef erasure_code,
+    shard_id_set erasures,
+    shard_id_map<bufferlist> chunks)
 {
   shard_id_map<bufferlist> available(erasure_code->get_chunk_count());
   for (shard_id_map<bufferlist>::iterator chunk = chunks.begin();
-       chunk != chunks.end();
-       ++chunk) {
+       chunk != chunks.end(); ++chunk) {
     if (erasures.count(chunk->first) == 0)
       available[chunk->first] = chunk->second;
-      
   }
   shard_id_map<bufferlist> decoded(erasure_code->get_chunk_count());
-  int code = erasure_code->decode(erasures, available, &decoded, available.begin()->second.length());
+  int code = erasure_code->decode(
+      erasures, available, &decoded, available.begin()->second.length());
   if (code)
     return code;
   for (shard_id_set::const_iterator erasure = erasures.begin();
-       erasure != erasures.end();
-       ++erasure) {
+       erasure != erasures.end(); ++erasure) {
     if (!chunks[*erasure].contents_equal(decoded[*erasure])) {
       cerr << "chunk " << *erasure << " incorrectly recovered" << std::endl;
       return 1;
@@ -222,14 +227,15 @@ int ErasureCodeNonRegression::decode_erasures(ErasureCodeInterfaceRef erasure_co
   return 0;
 }
 
-int ErasureCodeNonRegression::run_check()
+int
+ErasureCodeNonRegression::run_check()
 {
-  ErasureCodePluginRegistry &instance = ErasureCodePluginRegistry::instance();
+  ErasureCodePluginRegistry& instance = ErasureCodePluginRegistry::instance();
   ErasureCodeInterfaceRef erasure_code;
   stringstream messages;
-  int code = instance.factory(plugin,
-			      g_conf().get_val<std::string>("erasure_code_dir"),
-			      profile, &erasure_code, &messages);
+  int code = instance.factory(
+      plugin, g_conf().get_val<std::string>("erasure_code_dir"), profile,
+      &erasure_code, &messages);
   if (code) {
     cerr << messages.str() << std::endl;
     return code;
@@ -251,16 +257,15 @@ int ErasureCodeNonRegression::run_check()
     return code;
 
   for (shard_id_map<bufferlist>::iterator chunk = encoded.begin();
-       chunk != encoded.end();
-       ++chunk) {
+       chunk != encoded.end(); ++chunk) {
     bufferlist existing;
     if (existing.read_file(chunk_path(chunk->first).c_str(), &errors)) {
       cerr << errors << std::endl;
       return 1;
     }
-    bufferlist &old = chunk->second;
+    bufferlist& old = chunk->second;
     if (existing.length() != old.length() ||
-	memcmp(existing.c_str(), old.c_str(), old.length())) {
+        memcmp(existing.c_str(), old.c_str(), old.length())) {
       cerr << "chunk " << chunk->first << " encodes differently" << std::endl;
       return 1;
     }
@@ -274,7 +279,8 @@ int ErasureCodeNonRegression::run_check()
   if (code)
     return code;
 
-  if (erasure_code->get_chunk_count() - erasure_code->get_data_chunk_count() > 1) {
+  if (erasure_code->get_chunk_count() - erasure_code->get_data_chunk_count() >
+      1) {
     // erasing two chunks is likely to be the general case
     erasures.clear();
     erasures.insert(shard_id_t());
@@ -283,25 +289,29 @@ int ErasureCodeNonRegression::run_check()
     if (code)
       return code;
   }
-  
+
   return 0;
 }
 
-string ErasureCodeNonRegression::content_path()
+string
+ErasureCodeNonRegression::content_path()
 {
   stringstream path;
   path << directory << "/content";
   return path.str();
 }
 
-string ErasureCodeNonRegression::chunk_path(shard_id_t chunk)
+string
+ErasureCodeNonRegression::chunk_path(shard_id_t chunk)
 {
   stringstream path;
   path << directory << "/" << chunk;
   return path.str();
 }
 
-int main(int argc, char** argv) {
+int
+main(int argc, char** argv)
+{
   ErasureCodeNonRegression non_regression;
   int err = non_regression.setup(argc, argv);
   if (err)

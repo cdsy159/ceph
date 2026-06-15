@@ -13,68 +13,98 @@ struct seastar_test_suite_t : public ::testing::Test {
   static SeastarRunner seastar_env;
 
   template <typename Func>
-  void do_run(Func &&func, const char *name) {
-    seastar_env.run([func=std::forward<Func>(func), name]() mutable {
-      crimson::get_logger(ceph_subsys_test).info(
-        "{} started...", name);
+  void
+  do_run(Func&& func, const char* name)
+  {
+    seastar_env.run([func = std::forward<Func>(func), name]() mutable {
+      crimson::get_logger(ceph_subsys_test).info("{} started...", name);
       auto start_time = seastar::lowres_clock::now();
-      return std::invoke(std::move(func)
-      ).finally([name, start_time] {
+      return std::invoke(std::move(func)).finally([name, start_time] {
         std::chrono::duration<double> duration_d =
-          seastar::lowres_clock::now() - start_time;
+            seastar::lowres_clock::now() - start_time;
         auto seconds = duration_d.count();
-        crimson::get_logger(ceph_subsys_test).info(
-          "{} finished, duration={:.2f}s", name, seconds);
+        crimson::get_logger(ceph_subsys_test)
+            .info("{} finished, duration={:.2f}s", name, seconds);
       });
     });
   }
 
   template <typename Func>
-  void run(Func &&func) {
+  void
+  run(Func&& func)
+  {
     do_run(std::forward<Func>(func), "run");
   }
 
   template <typename Func>
-  void run_ertr(Func &&func) {
+  void
+  run_ertr(Func&& func)
+  {
     do_run(
-      [func=std::forward<Func>(func)]() mutable {
-	return std::invoke(std::move(func)).handle_error(
-	  crimson::ct_error::assert_all("error"));
-      }, "run_ertr");
+        [func = std::forward<Func>(func)]() mutable {
+          return std::invoke(std::move(func))
+              .handle_error(crimson::ct_error::assert_all("error"));
+        },
+        "run_ertr");
   }
 
   template <typename Func>
-  void run_async(Func &&func) {
+  void
+  run_async(Func&& func)
+  {
     do_run(
-      [func=std::forward<Func>(func)]() mutable {
-	return seastar::async(std::forward<Func>(func));
-      }, "run_async");
+        [func = std::forward<Func>(func)]() mutable {
+          return seastar::async(std::forward<Func>(func));
+        },
+        "run_async");
   }
 
   template <typename F>
-  auto scl(F &&f) {
+  auto
+  scl(F&& f)
+  {
     return [fptr = std::make_unique<F>(std::forward<F>(f))]() mutable {
-      return std::invoke(*fptr).finally([fptr=std::move(fptr)] {});
+      return std::invoke(*fptr).finally([fptr = std::move(fptr)] {});
     };
   }
 
-  void run_scl(auto &&f) {
-    do_run([this, f=std::forward<decltype(f)>(f)]() mutable {
-      return std::invoke(scl(std::move(f)));
-    }, "run_scl");
+  void
+  run_scl(auto&& f)
+  {
+    do_run(
+        [this, f = std::forward<decltype(f)>(f)]() mutable {
+          return std::invoke(scl(std::move(f)));
+        },
+        "run_scl");
   }
 
-  void run_ertr_scl(auto &&f) {
+  void
+  run_ertr_scl(auto&& f)
+  {
     run_ertr(scl(std::forward<decltype(f)>(f)));
   }
 
-  virtual seastar::future<> set_up_fut() { return seastar::now(); }
-  void SetUp() final {
+  virtual seastar::future<>
+  set_up_fut()
+  {
+    return seastar::now();
+  }
+
+  void
+  SetUp() final
+  {
     do_run([this] { return set_up_fut(); }, "setup");
   }
 
-  virtual seastar::future<> tear_down_fut() { return seastar::now(); }
-  void TearDown() final {
+  virtual seastar::future<>
+  tear_down_fut()
+  {
+    return seastar::now();
+  }
+
+  void
+  TearDown() final
+  {
     do_run([this] { return tear_down_fut(); }, "teardown");
   }
 };

@@ -1,10 +1,10 @@
 #include "gtest/gtest.h"
-#include "tools/immutable_object_cache/Types.h"
 #include "tools/immutable_object_cache/SocketCommon.h"
+#include "tools/immutable_object_cache/Types.h"
 
 using namespace ceph::immutable_obj_cache;
 
-TEST(test_for_message, test_1) 
+TEST(test_for_message, test_1)
 {
   std::string pool_nspace("this is a pool namespace");
   std::string oid_name("this is a oid name");
@@ -19,8 +19,9 @@ TEST(test_for_message, test_1)
   uint64_t object_size = 666666UL;
 
   // ObjectRequest --> bufferlist
-  ObjectCacheRequest* req = new ObjectCacheReadData(type, seq, read_offset, read_len,
-                                    pool_id, snap_id, object_size, oid_name, pool_nspace);
+  ObjectCacheRequest* req = new ObjectCacheReadData(
+      type, seq, read_offset, read_len, pool_id, snap_id, object_size, oid_name,
+      pool_nspace);
   req->encode();
   auto payload_bl = req->get_payload_bufferlist();
 

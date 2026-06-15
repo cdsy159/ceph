@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,22 +16,25 @@
 #ifndef CEPH_AUTHMETHODLIST_H
 #define CEPH_AUTHMETHODLIST_H
 
-#include "include/common_fwd.h"
-#include "include/int_types.h"
-
 #include <list>
 #include <set>
 #include <string>
 
+#include "include/common_fwd.h"
+#include "include/int_types.h"
+
 class AuthMethodList {
   std::list<__u32> auth_supported;
+
 public:
-  AuthMethodList(CephContext *cct, std::string str);
+  AuthMethodList(CephContext* cct, std::string str);
 
   bool is_supported_auth(int auth_type);
   int pick(const std::set<__u32>& supported);
 
-  const std::list<__u32>& get_supported_set() const {
+  const std::list<__u32>&
+  get_supported_set() const
+  {
     return auth_supported;
   }
 

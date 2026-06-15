@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,11 +21,12 @@
 #define CONST_DELIMS ",;\t\n "
 
 #include <map>
-#include <string>
 #include <sstream>
+#include <string>
 
 template <typename Func>
-void for_each_pair(std::string_view s, const char* delims, Func&& f)
+void
+for_each_pair(std::string_view s, const char* delims, Func&& f)
 {
   auto pos = s.find_first_not_of(delims);
   while (pos != s.npos) {
@@ -41,7 +42,7 @@ void for_each_pair(std::string_view s, const char* delims, Func&& f)
   }
 }
 
-using str_map_t = std::map<std::string,std::string>;
+using str_map_t = std::map<std::string, std::string>;
 
 /**
  * Parse **str** and set **str_map** with the key/value pairs read
@@ -66,8 +67,8 @@ using str_map_t = std::map<std::string,std::string>;
  * @return **0** on success or a -EINVAL on error.
  */
 int get_json_str_map(
-    const std::string &str,
-    std::ostream &ss,
+    const std::string& str,
+    std::ostream& ss,
     str_map_t* str_map,
     bool fallback_to_plain = true);
 
@@ -110,14 +111,12 @@ int get_json_str_map(
  * @return **0**
  */
 int get_str_map(
-    const std::string &str,
+    const std::string& str,
     str_map_t* str_map,
-    const char *delims = CONST_DELIMS);
+    const char* delims = CONST_DELIMS);
 
 // an alternate form (as we never fail):
-str_map_t get_str_map(
-    const std::string& str,
-    const char* delim = CONST_DELIMS);
+str_map_t get_str_map(const std::string& str, const char* delim = CONST_DELIMS);
 
 /**
  * Returns the value of **key** in **str_map** if available.
@@ -133,8 +132,8 @@ str_map_t get_str_map(
  */
 std::string get_str_map_value(
     const str_map_t& str_map,
-    const std::string &key,
-    const std::string *def_val = nullptr);
+    const std::string& key,
+    const std::string* def_val = nullptr);
 
 /**
  * Returns the value of **key** in **str_map** if available.
@@ -154,8 +153,8 @@ std::string get_str_map_value(
  */
 std::string get_str_map_key(
     const str_map_t& str_map,
-    const std::string &key,
-    const std::string *fallback_key = nullptr);
+    const std::string& key,
+    const std::string* fallback_key = nullptr);
 
 // This function's only purpose is to check whether a given map has only
 // ONE key with an empty value (which would mean that 'get_str_map()' read
@@ -164,18 +163,18 @@ std::string get_str_map_key(
 // with a map of the form "m = { 'def_key' : 'VALUE' }" instead of the
 // original "m = { 'VALUE' : '' }".
 int get_conf_str_map_helper(
-    const std::string &str,
-    std::ostringstream &oss,
+    const std::string& str,
+    std::ostringstream& oss,
     str_map_t* str_map,
-    const std::string &default_key);
+    const std::string& default_key);
 
 std::string get_value_via_strmap(
-  const std::string& conf_string,
-  std::string_view default_key);
+    const std::string& conf_string,
+    std::string_view default_key);
 
 std::string get_value_via_strmap(
-  const std::string& conf_string,
-  const std::string& key,
-  std::string_view default_key);
+    const std::string& conf_string,
+    const std::string& key,
+    std::string_view default_key);
 
 #endif

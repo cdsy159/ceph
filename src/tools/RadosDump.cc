@@ -18,7 +18,8 @@
 using std::cerr;
 using std::cout;
 
-int RadosDump::read_super()
+int
+RadosDump::read_super()
 {
   bufferlist ebl;
   auto ebliter = ebl.cbegin();
@@ -35,10 +36,10 @@ int RadosDump::read_super()
   return 0;
 }
 
-
-int RadosDump::get_header(header *h)
+int
+RadosDump::get_header(header* h)
 {
-  assert (h != NULL);
+  assert(h != NULL);
 
   bufferlist ebl;
   auto ebliter = ebl.cbegin();
@@ -55,7 +56,8 @@ int RadosDump::get_header(header *h)
   return 0;
 }
 
-int RadosDump::get_footer(footer *f)
+int
+RadosDump::get_footer(footer* f)
 {
   ceph_assert(f != NULL);
 
@@ -79,7 +81,8 @@ int RadosDump::get_footer(footer *f)
   return 0;
 }
 
-int RadosDump::read_section(sectiontype_t *type, bufferlist *bl)
+int
+RadosDump::read_section(sectiontype_t* type, bufferlist* bl)
 {
   header hdr;
   ssize_t bytes;
@@ -107,12 +110,12 @@ int RadosDump::read_section(sectiontype_t *type, bufferlist *bl)
   return 0;
 }
 
-
-int RadosDump::skip_object(bufferlist &bl)
+int
+RadosDump::skip_object(bufferlist& bl)
 {
   bufferlist ebl;
   bool done = false;
-  while(!done) {
+  while (!done) {
     sectiontype_t type;
     int ret = read_section(&type, &ebl);
     if (ret)
@@ -122,7 +125,7 @@ int RadosDump::skip_object(bufferlist &bl)
       cout << "Skipping unknown object section type" << std::endl;
       continue;
     }
-    switch(type) {
+    switch (type) {
     case TYPE_DATA:
     case TYPE_ATTRS:
     case TYPE_OMAP_HDR:
@@ -143,7 +146,8 @@ int RadosDump::skip_object(bufferlist &bl)
 }
 
 //Write super_header with its fixed 16 byte length
-void RadosDump::write_super()
+void
+RadosDump::write_super()
 {
   if (dry_run) {
     return;

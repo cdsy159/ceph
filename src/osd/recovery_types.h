@@ -65,37 +65,48 @@ public:
   virtual void clear() = 0;
 
   /// clear objects std::list only
-  void clear_objects() {
+  void
+  clear_objects()
+  {
     objects.clear();
   }
 
   /// reinstantiate with a new start+end position and sort order
-  void reset(hobject_t start) {
+  void
+  reset(hobject_t start)
+  {
     clear();
     begin = end = start;
   }
 
   /// true if there are no objects in this interval
-  bool empty() const {
+  bool
+  empty() const
+  {
     return objects.empty();
   }
 
   /// true if interval extends to the end of the range
-  bool extends_to_end() const {
+  bool
+  extends_to_end() const
+  {
     return end.is_max();
   }
 
   /// removes items <= soid and adjusts begin to the first object
-  void trim_to(const hobject_t &soid) {
+  void
+  trim_to(const hobject_t& soid)
+  {
     trim();
-    while (!objects.empty() &&
-           objects.begin()->first <= soid) {
+    while (!objects.empty() && objects.begin()->first <= soid) {
       pop_front();
     }
   }
 
   /// Adjusts begin to the first object
-  void trim() {
+  void
+  trim()
+  {
     if (!objects.empty()) {
       begin = objects.begin()->first;
     } else {
@@ -107,20 +118,24 @@ public:
   virtual void pop_front() = 0;
 
   /// dump
-  virtual void dump(ceph::Formatter *f) const = 0;
+  virtual void dump(ceph::Formatter* f) const = 0;
 };
 
-class PrimaryBackfillInterval: public BackfillInterval<std::multimap<hobject_t,
-					std::pair<shard_id_t, eversion_t>>> {
+class PrimaryBackfillInterval
+  : public BackfillInterval<
+        std::multimap<hobject_t, std::pair<shard_id_t, eversion_t>>> {
 public:
-
   /// clear content
-  void clear() override {
+  void
+  clear() override
+  {
     *this = PrimaryBackfillInterval();
   }
 
   /// drop first entry, and adjust @begin accordingly
-  void pop_front() override {
+  void
+  pop_front() override
+  {
     ceph_assert(!objects.empty());
     // Use erase(key) to erase all entries for key
     objects.erase(objects.begin()->first);
@@ -128,7 +143,9 @@ public:
   }
 
   /// dump
-  void dump(ceph::Formatter *f) const override {
+  void
+  dump(ceph::Formatter* f) const override
+  {
     f->dump_stream("begin") << begin;
     f->dump_stream("end") << end;
     f->open_array_section("objects");
@@ -144,23 +161,29 @@ public:
   }
 };
 
-class ReplicaBackfillInterval: public BackfillInterval<std::map<hobject_t,
-								eversion_t>> {
+class ReplicaBackfillInterval
+  : public BackfillInterval<std::map<hobject_t, eversion_t>> {
 public:
   /// clear content
-  void clear() override {
+  void
+  clear() override
+  {
     *this = ReplicaBackfillInterval();
   }
 
   /// drop first entry, and adjust @begin accordingly
-  void pop_front() {
+  void
+  pop_front()
+  {
     ceph_assert(!objects.empty());
     objects.erase(objects.begin());
     trim();
   }
 
   /// dump
-  void dump(ceph::Formatter *f) const override {
+  void
+  dump(ceph::Formatter* f) const override
+  {
     f->dump_stream("begin") << begin;
     f->dump_stream("end") << end;
     f->open_array_section("objects");
@@ -174,8 +197,9 @@ public:
   }
 };
 
-template<typename T> std::ostream& operator<<(std::ostream& out,
-					      const BackfillInterval<T>& bi)
+template <typename T>
+std::ostream&
+operator<<(std::ostream& out, const BackfillInterval<T>& bi)
 {
   out << "BackfillInfo(" << bi.begin << "-" << bi.end << " ";
   if (!bi.objects.empty()) {
@@ -186,6 +210,9 @@ template<typename T> std::ostream& operator<<(std::ostream& out,
 }
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<PrimaryBackfillInterval> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<ReplicaBackfillInterval> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<PrimaryBackfillInterval> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<ReplicaBackfillInterval> : fmt::ostream_formatter {};
 #endif

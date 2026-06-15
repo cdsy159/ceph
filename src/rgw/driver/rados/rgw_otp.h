@@ -19,8 +19,10 @@ namespace rgwrados::otp {
 std::string get_meta_key(const rgw_user& user);
 
 // otp metadata handler factory
-auto create_metadata_handler(RGWSI_SysObj& sysobj, RGWSI_Cls& cls,
-                             RGWSI_MDLog& mdlog, const RGWZoneParams& zone)
-    -> std::unique_ptr<RGWMetadataHandler>;
+auto create_metadata_handler(
+    RGWSI_SysObj& sysobj,
+    RGWSI_Cls& cls,
+    RGWSI_MDLog& mdlog,
+    const RGWZoneParams& zone) -> std::unique_ptr<RGWMetadataHandler>;
 
 } // namespace rgwrados::otp

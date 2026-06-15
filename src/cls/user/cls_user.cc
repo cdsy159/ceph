@@ -2,14 +2,15 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include <errno.h>
+
 #include <algorithm>
 #include <cctype>
 
 #include "include/utime.h"
 #include "objclass/objclass.h"
+#include "rgw/rgw_string.h"
 
 #include "cls_user_ops.h"
-#include "rgw/rgw_string.h"
 
 using std::map;
 using std::string;
@@ -18,10 +19,14 @@ using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(user)
 
-static int write_entry(cls_method_context_t hctx, const string& key, const cls_user_bucket_entry& entry)
+static int
+write_entry(
+    cls_method_context_t hctx,
+    const string& key,
+    const cls_user_bucket_entry& entry)
 {
   bufferlist bl;
   encode(entry, bl);
@@ -33,7 +38,8 @@ static int write_entry(cls_method_context_t hctx, const string& key, const cls_u
   return 0;
 }
 
-static int remove_entry(cls_method_context_t hctx, const string& key)
+static int
+remove_entry(cls_method_context_t hctx, const string& key)
 {
   int ret = cls_cxx_map_remove_key(hctx, key);
   if (ret < 0)
@@ -42,13 +48,17 @@ static int remove_entry(cls_method_context_t hctx, const string& key)
   return 0;
 }
 
-static void get_key_by_bucket_name(const string& bucket_name, string *key)
+static void
+get_key_by_bucket_name(const string& bucket_name, string* key)
 {
   *key = bucket_name;
 }
 
-static int get_existing_bucket_entry(cls_method_context_t hctx, const string& bucket_name,
-                                     cls_user_bucket_entry& entry)
+static int
+get_existing_bucket_entry(
+    cls_method_context_t hctx,
+    const string& bucket_name,
+    cls_user_bucket_entry& entry)
 {
   if (bucket_name.empty()) {
     return -EINVAL;
@@ -75,7 +85,8 @@ static int get_existing_bucket_entry(cls_method_context_t hctx, const string& bu
 }
 
 template <typename T>
-static int read_header(cls_method_context_t hctx, T *header)
+static int
+read_header(cls_method_context_t hctx, T* header)
 {
   bufferlist bl;
 
@@ -98,28 +109,37 @@ static int read_header(cls_method_context_t hctx, T *header)
   return 0;
 }
 
-static void add_header_stats(cls_user_stats *stats, cls_user_bucket_entry& entry)
+static void
+add_header_stats(cls_user_stats* stats, cls_user_bucket_entry& entry)
 {
   stats->total_entries += entry.count;
   stats->total_bytes += entry.size;
   stats->total_bytes_rounded += entry.size_rounded;
 }
 
-static void dec_header_stats(cls_user_stats *stats, cls_user_bucket_entry& entry)
+static void
+dec_header_stats(cls_user_stats* stats, cls_user_bucket_entry& entry)
 {
   stats->total_bytes -= entry.size;
   stats->total_bytes_rounded -= entry.size_rounded;
   stats->total_entries -= entry.count;
 }
 
-static void apply_entry_stats(const cls_user_bucket_entry& src_entry, cls_user_bucket_entry *target_entry)
+static void
+apply_entry_stats(
+    const cls_user_bucket_entry& src_entry,
+    cls_user_bucket_entry* target_entry)
 {
   target_entry->size = src_entry.size;
   target_entry->size_rounded = src_entry.size_rounded;
   target_entry->count = src_entry.count;
 }
 
-static int cls_user_set_buckets_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_user_set_buckets_info(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -149,12 +169,12 @@ static int cls_user_set_buckets_info(cls_method_context_t hctx, bufferlist *in, 
     ret = get_existing_bucket_entry(hctx, key, entry);
 
     if (ret == -ENOENT) {
-     if (!op.add)
-      continue; /* racing bucket removal */
+      if (!op.add)
+        continue; /* racing bucket removal */
 
-     entry = update_entry;
+      entry = update_entry;
 
-     ret = 0;
+      ret = 0;
     } else if (op.add) {
       // bucket id may have changed (ie reshard)
       entry.bucket.bucket_id = update_entry.bucket.bucket_id;
@@ -163,19 +183,22 @@ static int cls_user_set_buckets_info(cls_method_context_t hctx, bufferlist *in, 
     }
 
     if (ret < 0) {
-      CLS_LOG(0, "ERROR: get_existing_bucket_entry() key=%s returned %d", key.c_str(), ret);
+      CLS_LOG(
+          0, "ERROR: get_existing_bucket_entry() key=%s returned %d",
+          key.c_str(), ret);
       return ret;
     } else if (ret >= 0 && entry.user_stats_sync) {
       dec_header_stats(&header.stats, entry);
     }
 
-    CLS_LOG(20, "storing entry for key=%s size=%lld count=%lld",
-            key.c_str(), (long long)update_entry.size, (long long)update_entry.count);
+    CLS_LOG(
+        20, "storing entry for key=%s size=%lld count=%lld", key.c_str(),
+        (long long)update_entry.size, (long long)update_entry.count);
 
     // sync entry stats when not an op.add, as when the case is op.add if its a
     // new entry we already have copied update_entry earlier, OTOH, for an existing entry
     // we end up clobbering the existing stats for the bucket
-    if (!op.add){
+    if (!op.add) {
       apply_entry_stats(update_entry, &entry);
     }
     entry.user_stats_sync = true;
@@ -189,13 +212,16 @@ static int cls_user_set_buckets_info(cls_method_context_t hctx, bufferlist *in, 
 
   bufferlist bl;
 
-  CLS_LOG(20, "header: total bytes=%lld entries=%lld", (long long)header.stats.total_bytes, (long long)header.stats.total_entries);
+  CLS_LOG(
+      20, "header: total bytes=%lld entries=%lld",
+      (long long)header.stats.total_bytes,
+      (long long)header.stats.total_entries);
 
   if (header.last_stats_update < op.time)
     header.last_stats_update = op.time;
 
   encode(header, bl);
-  
+
   ret = cls_cxx_map_write_header(hctx, &bl);
   if (ret < 0)
     return ret;
@@ -203,7 +229,11 @@ static int cls_user_set_buckets_info(cls_method_context_t hctx, bufferlist *in, 
   return 0;
 }
 
-static int cls_user_complete_stats_sync(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_user_complete_stats_sync(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -236,7 +266,8 @@ static int cls_user_complete_stats_sync(cls_method_context_t hctx, bufferlist *i
   return 0;
 }
 
-static int cls_user_remove_bucket(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_user_remove_bucket(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -265,7 +296,8 @@ static int cls_user_remove_bucket(cls_method_context_t hctx, bufferlist *in, buf
     return 0; /* idempotent removal */
   }
   if (ret < 0) {
-    CLS_LOG(0, "ERROR: get existing bucket entry, key=%s ret=%d", key.c_str(), ret);
+    CLS_LOG(
+        0, "ERROR: get existing bucket entry, key=%s ret=%d", key.c_str(), ret);
     return ret;
   }
 
@@ -281,14 +313,18 @@ static int cls_user_remove_bucket(cls_method_context_t hctx, bufferlist *in, buf
 
   dec_header_stats(&header.stats, entry);
 
-  CLS_LOG(20, "header: total bytes=%lld entries=%lld", (long long)header.stats.total_bytes, (long long)header.stats.total_entries);
+  CLS_LOG(
+      20, "header: total bytes=%lld entries=%lld",
+      (long long)header.stats.total_bytes,
+      (long long)header.stats.total_entries);
 
   bufferlist bl;
   encode(header, bl);
   return cls_cxx_map_write_header(hctx, &bl);
 }
 
-static int cls_user_list_buckets(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_user_list_buckets(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -314,14 +350,14 @@ static int cls_user_list_buckets(cls_method_context_t hctx, bufferlist *in, buff
   string match_prefix;
   cls_user_list_buckets_ret ret;
 
-  int rc = cls_cxx_map_get_vals(hctx, from_index, match_prefix, max_entries, &keys, &ret.truncated);
+  int rc = cls_cxx_map_get_vals(
+      hctx, from_index, match_prefix, max_entries, &keys, &ret.truncated);
   if (rc < 0)
     return rc;
 
-  CLS_LOG(20, "from_index=%s to_index=%s match_prefix=%s",
-          from_index.c_str(),
-          to_index.c_str(),
-          match_prefix.c_str());
+  CLS_LOG(
+      20, "from_index=%s to_index=%s match_prefix=%s", from_index.c_str(),
+      to_index.c_str(), match_prefix.c_str());
 
   auto& entries = ret.entries;
   auto iter = keys.begin();
@@ -344,7 +380,9 @@ static int cls_user_list_buckets(cls_method_context_t hctx, bufferlist *in, buff
       decode(e, biter);
       entries.push_back(e);
     } catch (ceph::buffer::error& err) {
-      CLS_LOG(0, "ERROR: cls_user_list: could not decode entry, index=%s", index.c_str());
+      CLS_LOG(
+          0, "ERROR: cls_user_list: could not decode entry, index=%s",
+          index.c_str());
     }
   }
 
@@ -357,7 +395,8 @@ static int cls_user_list_buckets(cls_method_context_t hctx, bufferlist *in, buff
   return 0;
 }
 
-static int cls_user_get_header(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+cls_user_get_header(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   auto in_iter = in->cbegin();
 
@@ -384,8 +423,11 @@ static int cls_user_get_header(cls_method_context_t hctx, bufferlist *in, buffer
 /// the values seen in the user.buckets omap keys. This is not be
 /// equivalent to --sync-stats which also re-calculates the stats for
 /// each bucket.
-static int cls_user_reset_stats(cls_method_context_t hctx,
-				bufferlist *in, bufferlist *out /*ignore*/)
+static int
+cls_user_reset_stats(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out /*ignore*/)
 {
   cls_user_reset_stats_op op;
 
@@ -402,25 +444,27 @@ static int cls_user_reset_stats(cls_method_context_t hctx,
   string from_index, prefix;
   do {
     map<string, bufferlist> keys;
-    int rc = cls_cxx_map_get_vals(hctx, from_index, prefix, MAX_ENTRIES,
-				  &keys, &truncated);
+    int rc = cls_cxx_map_get_vals(
+        hctx, from_index, prefix, MAX_ENTRIES, &keys, &truncated);
     if (rc < 0) {
       CLS_LOG(0, "ERROR: %s failed to retrieve omap key-values", __func__);
       return rc;
     }
-    CLS_LOG(20, "%s: read %lu key-values, truncated=%d",
-	    __func__, keys.size(), truncated);
+    CLS_LOG(
+        20, "%s: read %lu key-values, truncated=%d", __func__, keys.size(),
+        truncated);
 
     for (const auto& kv : keys) {
       cls_user_bucket_entry e;
       try {
-	auto bl = kv.second;
-	auto bliter = bl.cbegin();
-	decode(e, bliter);
+        auto bl = kv.second;
+        auto bliter = bl.cbegin();
+        decode(e, bliter);
       } catch (ceph::buffer::error& err) {
-	CLS_LOG(0, "ERROR: %s failed to decode bucket entry for %s",
-		__func__, kv.first.c_str());
-	return -EIO;
+        CLS_LOG(
+            0, "ERROR: %s failed to decode bucket entry for %s", __func__,
+            kv.first.c_str());
+        return -EIO;
       }
       add_header_stats(&header.stats, e);
     }
@@ -441,8 +485,11 @@ static int cls_user_reset_stats(cls_method_context_t hctx,
 /// the values seen in the user.buckets omap keys. This is not be
 /// equivalent to --sync-stats which also re-calculates the stats for
 /// each bucket.
-static int cls_user_reset_stats2(cls_method_context_t hctx,
-				 buffer::list *in, buffer::list *out)
+static int
+cls_user_reset_stats2(
+    cls_method_context_t hctx,
+    buffer::list* in,
+    buffer::list* out)
 {
   cls_user_reset_stats2_op op;
 
@@ -459,14 +506,15 @@ static int cls_user_reset_stats2(cls_method_context_t hctx,
   cls_user_reset_stats2_ret ret;
 
   map<string, buffer::list> keys;
-  int rc = cls_cxx_map_get_vals(hctx, from_index, prefix, MAX_ENTRIES,
-				&keys, &ret.truncated);
+  int rc = cls_cxx_map_get_vals(
+      hctx, from_index, prefix, MAX_ENTRIES, &keys, &ret.truncated);
   if (rc < 0) {
     CLS_LOG(0, "ERROR: %s failed to retrieve omap key-values", __func__);
     return rc;
   }
-  CLS_LOG(20, "%s: read %lu key-values, truncated=%d",
-	  __func__, keys.size(), ret.truncated);
+  CLS_LOG(
+      20, "%s: read %lu key-values, truncated=%d", __func__, keys.size(),
+      ret.truncated);
 
   for (const auto& kv : keys) {
     cls_user_bucket_entry e;
@@ -475,14 +523,15 @@ static int cls_user_reset_stats2(cls_method_context_t hctx,
       auto bliter = bl.cbegin();
       decode(e, bliter);
     } catch (ceph::buffer::error& err) {
-      CLS_LOG(0, "ERROR: %s failed to decode bucket entry for %s",
-	      __func__, kv.first.c_str());
+      CLS_LOG(
+          0, "ERROR: %s failed to decode bucket entry for %s", __func__,
+          kv.first.c_str());
       return -EIO;
     }
     add_header_stats(&ret.acc_stats, e);
   }
 
-  if (! ret.truncated) {
+  if (!ret.truncated) {
     buffer::list bl;
     header.last_stats_update = op.time;
     header.stats = ret.acc_stats;
@@ -497,7 +546,7 @@ static int cls_user_reset_stats2(cls_method_context_t hctx,
   }
 
   /* try-update marker */
-  if(!keys.empty())
+  if (!keys.empty())
     ret.marker = (--keys.cend())->first;
 
   /* return partial result */
@@ -505,20 +554,24 @@ static int cls_user_reset_stats2(cls_method_context_t hctx,
   return 0;
 } /* cls_user_reset_stats2 */
 
-
 // account resource names must be unique and aren't distinguished by case, so
 // convert all keys to lowercase
-static std::string resource_key(std::string_view name)
+static std::string
+resource_key(std::string_view name)
 {
   std::string key;
   key.resize(name.size());
-  std::transform(name.begin(), name.end(), key.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  std::transform(name.begin(), name.end(), key.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
   return key;
 }
 
-static int cls_account_resource_add(cls_method_context_t hctx,
-                                    buffer::list *in, buffer::list *out)
+static int
+cls_account_resource_add(
+    cls_method_context_t hctx,
+    buffer::list* in,
+    buffer::list* out)
 {
   cls_user_account_resource_add_op op;
   try {
@@ -529,8 +582,9 @@ static int cls_account_resource_add(cls_method_context_t hctx,
     return -EINVAL;
   }
 
-  CLS_LOG(20, "adding account resource name=%s path=%s",
-          op.entry.name.c_str(), op.entry.path.c_str());
+  CLS_LOG(
+      20, "adding account resource name=%s path=%s", op.entry.name.c_str(),
+      op.entry.path.c_str());
 
   const std::string key = resource_key(op.entry.name);
 
@@ -551,8 +605,9 @@ static int cls_account_resource_add(cls_method_context_t hctx,
       return ret;
     }
     if (header->count >= op.limit) {
-      CLS_LOG(4, "account resource limit exceeded, %u >= %u",
-              header->count, op.limit);
+      CLS_LOG(
+          4, "account resource limit exceeded, %u >= %u", header->count,
+          op.limit);
       return -EUSERS; // too many users
     }
     header->count++;
@@ -578,8 +633,11 @@ static int cls_account_resource_add(cls_method_context_t hctx,
   return 0;
 } // cls_account_resource_add
 
-static int cls_account_resource_get(cls_method_context_t hctx,
-                                    bufferlist *in, bufferlist *out)
+static int
+cls_account_resource_get(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   cls_user_account_resource_get_op op;
   try {
@@ -613,8 +671,11 @@ static int cls_account_resource_get(cls_method_context_t hctx,
   return 0;
 } // cls_account_resource_get
 
-static int cls_account_resource_rm(cls_method_context_t hctx,
-                                   buffer::list *in, buffer::list *out)
+static int
+cls_account_resource_rm(
+    cls_method_context_t hctx,
+    buffer::list* in,
+    buffer::list* out)
 {
   cls_user_account_resource_rm_op op;
   try {
@@ -660,8 +721,11 @@ static int cls_account_resource_rm(cls_method_context_t hctx,
   return cls_cxx_map_write_header(hctx, &headerbl);
 } // cls_account_resource_rm
 
-static int cls_account_resource_list(cls_method_context_t hctx,
-                                     bufferlist *in, bufferlist *out)
+static int
+cls_account_resource_list(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
 {
   cls_user_account_resource_list_op op;
   try {
@@ -671,16 +735,18 @@ static int cls_account_resource_list(cls_method_context_t hctx,
     CLS_LOG(0, "ERROR: %s failed to decode op", __func__);
     return -EINVAL;
   }
-  CLS_LOG(20, "listing account resources from marker=%s path_prefix=%s max_entries=%d",
-          op.marker.c_str(), op.path_prefix.c_str(), (int)op.max_entries);
+  CLS_LOG(
+      20,
+      "listing account resources from marker=%s path_prefix=%s max_entries=%d",
+      op.marker.c_str(), op.path_prefix.c_str(), (int)op.max_entries);
 
   const std::string prefix; // empty
   const uint32_t max_entries = std::min(op.max_entries, 1000u);
   std::map<std::string, bufferlist> entries;
   bool truncated = false;
 
-  int rc = cls_cxx_map_get_vals(hctx, op.marker, prefix, max_entries,
-                                &entries, &truncated);
+  int rc = cls_cxx_map_get_vals(
+      hctx, op.marker, prefix, max_entries, &entries, &truncated);
   if (rc < 0) {
     return rc;
   }
@@ -695,15 +761,17 @@ static int cls_account_resource_list(cls_method_context_t hctx,
       auto p = bl.cbegin();
       decode(entry, p);
     } catch (const ceph::buffer::error& e) {
-      CLS_LOG(1, "ERROR: %s failed to decode resource entry at key=%s",
-              __func__, key.c_str());
+      CLS_LOG(
+          1, "ERROR: %s failed to decode resource entry at key=%s", __func__,
+          key.c_str());
       return -EIO;
     }
 
     // filter entries by path prefix
     if (entry.path.starts_with(op.path_prefix)) {
-      CLS_LOG(20, "included resource path=%s name=%s",
-              entry.path.c_str(), entry.name.c_str());
+      CLS_LOG(
+          20, "included resource path=%s name=%s", entry.path.c_str(),
+          entry.name.c_str());
       ret.entries.push_back(std::move(entry));
     }
   }
@@ -712,13 +780,13 @@ static int cls_account_resource_list(cls_method_context_t hctx,
   if (!entries.empty()) {
     ret.marker = entries.rbegin()->first;
   }
-  CLS_LOG(20, "entries=%d next_marker=%s truncated=%d",
-          (int)ret.entries.size(), ret.marker.c_str(), (int)ret.truncated);
+  CLS_LOG(
+      20, "entries=%d next_marker=%s truncated=%d", (int)ret.entries.size(),
+      ret.marker.c_str(), (int)ret.truncated);
 
   encode(ret, *out);
   return 0;
 } // cls_account_resource_list
-
 
 CLS_INIT(user)
 {
@@ -736,15 +804,27 @@ CLS_INIT(user)
   cls_register("user", &h_class);
 
   /* log */
-  cls_register_cxx_method(h_class, "set_buckets_info", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cls_user_set_buckets_info, &h_user_set_buckets_info);
-  cls_register_cxx_method(h_class, "complete_stats_sync", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cls_user_complete_stats_sync, &h_user_complete_stats_sync);
-  cls_register_cxx_method(h_class, "remove_bucket", CLS_METHOD_RD | CLS_METHOD_WR, cls_user_remove_bucket, &h_user_remove_bucket);
-  cls_register_cxx_method(h_class, "list_buckets", CLS_METHOD_RD, cls_user_list_buckets, &h_user_list_buckets);
-  cls_register_cxx_method(h_class, "get_header", CLS_METHOD_RD, cls_user_get_header, &h_user_get_header);
-  cls_register_cxx_method(h_class, "reset_user_stats", CLS_METHOD_RD | CLS_METHOD_WR, cls_user_reset_stats, &h_user_reset_stats);
-  cls_register_cxx_method(h_class, "reset_user_stats2", CLS_METHOD_RD | CLS_METHOD_WR, cls_user_reset_stats2, &h_user_reset_stats2);
+  cls_register_cxx_method(
+      h_class, "set_buckets_info", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_user_set_buckets_info, &h_user_set_buckets_info);
+  cls_register_cxx_method(
+      h_class, "complete_stats_sync", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_user_complete_stats_sync, &h_user_complete_stats_sync);
+  cls_register_cxx_method(
+      h_class, "remove_bucket", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_user_remove_bucket, &h_user_remove_bucket);
+  cls_register_cxx_method(
+      h_class, "list_buckets", CLS_METHOD_RD, cls_user_list_buckets,
+      &h_user_list_buckets);
+  cls_register_cxx_method(
+      h_class, "get_header", CLS_METHOD_RD, cls_user_get_header,
+      &h_user_get_header);
+  cls_register_cxx_method(
+      h_class, "reset_user_stats", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_user_reset_stats, &h_user_reset_stats);
+  cls_register_cxx_method(
+      h_class, "reset_user_stats2", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_user_reset_stats2, &h_user_reset_stats2);
 
   // account
   cls_method_handle_t h_account_resource_add;
@@ -752,12 +832,16 @@ CLS_INIT(user)
   cls_method_handle_t h_account_resource_rm;
   cls_method_handle_t h_account_resource_list;
 
-  cls_register_cxx_method(h_class, "account_resource_add", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cls_account_resource_add, &h_account_resource_add);
-  cls_register_cxx_method(h_class, "account_resource_get", CLS_METHOD_RD,
-                          cls_account_resource_get, &h_account_resource_get);
-  cls_register_cxx_method(h_class, "account_resource_rm", CLS_METHOD_RD | CLS_METHOD_WR,
-                          cls_account_resource_rm, &h_account_resource_rm);
-  cls_register_cxx_method(h_class, "account_resource_list", CLS_METHOD_RD,
-                          cls_account_resource_list, &h_account_resource_list);
+  cls_register_cxx_method(
+      h_class, "account_resource_add", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_account_resource_add, &h_account_resource_add);
+  cls_register_cxx_method(
+      h_class, "account_resource_get", CLS_METHOD_RD, cls_account_resource_get,
+      &h_account_resource_get);
+  cls_register_cxx_method(
+      h_class, "account_resource_rm", CLS_METHOD_RD | CLS_METHOD_WR,
+      cls_account_resource_rm, &h_account_resource_rm);
+  cls_register_cxx_method(
+      h_class, "account_resource_list", CLS_METHOD_RD,
+      cls_account_resource_list, &h_account_resource_list);
 }

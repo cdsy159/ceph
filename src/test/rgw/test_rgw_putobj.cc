@@ -13,10 +13,13 @@
  *
  */
 
-#include "rgw_putobj.h"
 #include <gtest/gtest.h>
 
-inline bufferlist string_buf(const char* buf) {
+#include "rgw_putobj.h"
+
+inline bufferlist
+string_buf(const char* buf)
+{
   bufferlist bl;
   bl.append(buffer::create_static(strlen(buf), (char*)buf));
   return bl;
@@ -26,17 +29,25 @@ struct Op {
   std::string data;
   uint64_t offset;
 };
-inline bool operator==(const Op& lhs, const Op& rhs) {
+
+inline bool
+operator==(const Op& lhs, const Op& rhs)
+{
   return lhs.data == rhs.data && lhs.offset == rhs.offset;
 }
-inline std::ostream& operator<<(std::ostream& out, const Op& op) {
+
+inline std::ostream&
+operator<<(std::ostream& out, const Op& op)
+{
   return out << "{off=" << op.offset << " data='" << op.data << "'}";
 }
 
 struct MockProcessor : rgw::sal::DataProcessor {
   std::vector<Op> ops;
 
-  int process(bufferlist&& data, uint64_t offset) override {
+  int
+  process(bufferlist&& data, uint64_t offset) override
+  {
     ops.push_back({data.to_str(), offset});
     return {};
   }
@@ -122,15 +133,19 @@ TEST(PutObj_Chunk, TwoAndFlushHalf)
   EXPECT_EQ(Op({"", 10}), mock.ops[3]);
 }
 
-
 using StripeMap = std::map<uint64_t, uint64_t>; // offset, stripe_size
 
 class StripeMapGen : public rgw::putobj::StripeGenerator {
   const StripeMap& stripes;
- public:
-  StripeMapGen(const StripeMap& stripes) : stripes(stripes) {}
 
-  int next(uint64_t offset, uint64_t *stripe_size) override {
+public:
+  StripeMapGen(const StripeMap& stripes) :
+    stripes(stripes)
+  {}
+
+  int
+  next(uint64_t offset, uint64_t* stripe_size) override
+  {
     auto i = stripes.find(offset);
     if (i == stripes.end()) {
       return -ENOENT;
@@ -143,11 +158,7 @@ class StripeMapGen : public rgw::putobj::StripeGenerator {
 TEST(PutObj_Stripe, DifferentStripeSize)
 {
   MockProcessor mock;
-  StripeMap stripes{
-    { 0, 4},
-    { 4, 6},
-    {10, 2}
-  };
+  StripeMap stripes{{0, 4}, {4, 6}, {10, 2}};
   StripeMapGen gen(stripes);
   rgw::putobj::StripeProcessor processor(&mock, &gen, stripes.begin()->second);
 
@@ -179,8 +190,8 @@ TEST(PutObj_Stripe, SkipFirstChunk)
 {
   MockProcessor mock;
   StripeMap stripes{
-    {0, 4},
-    {4, 4},
+      {0, 4},
+      {4, 4},
   };
   StripeMapGen gen(stripes);
   rgw::putobj::StripeProcessor processor(&mock, &gen, stripes.begin()->second);

@@ -1,6 +1,8 @@
-#include "acconfig.h"
 #include <cstdint>
+
 #include "include/ceph_features.h"
+
+#include "acconfig.h"
 
 #define TYPE(t)
 #define TYPE_STRAYDATA(t)
@@ -27,12 +29,14 @@
 // cannot initialize dencoders when initializing static variables, as some of
 // the types are allocated using mempool, and the mempools are initialized as
 // static variables.
-DENC_API void register_dencoders(DencoderPlugin* plugin)
+DENC_API void
+register_dencoders(DencoderPlugin* plugin)
 {
 #include "osd_types.h"
 }
 
-DENC_API void unregister_dencoders(DencoderPlugin* plugin)
+DENC_API void
+unregister_dencoders(DencoderPlugin* plugin)
 {
   plugin->unregister_dencoders();
 }

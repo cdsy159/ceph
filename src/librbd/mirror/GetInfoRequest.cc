@@ -2,20 +2,22 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/mirror/GetInfoRequest.h"
+
+#include <shared_mutex> // for std::shared_lock
+
+#include "cls/rbd/cls_rbd_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
 
-#include <shared_mutex> // for std::shared_lock
-
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::mirror::GetInfoRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::mirror::GetInfoRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace mirror {
@@ -24,53 +26,69 @@ using librbd::util::create_context_callback;
 using librbd::util::create_rados_callback;
 
 template <typename I>
-GetInfoRequest<I>::GetInfoRequest(librados::IoCtx& io_ctx,
-                                  asio::ContextWQ *op_work_queue,
-                                  const std::string &image_id,
-                                  cls::rbd::MirrorImage *mirror_image,
-                                  PromotionState *promotion_state,
-                                  std::string* primary_mirror_uuid,
-                                  Context *on_finish)
-  : m_io_ctx(io_ctx), m_op_work_queue(op_work_queue), m_image_id(image_id),
-    m_mirror_image(mirror_image), m_promotion_state(promotion_state),
-    m_primary_mirror_uuid(primary_mirror_uuid), m_on_finish(on_finish),
-    m_cct(reinterpret_cast<CephContext *>(io_ctx.cct())) {
-}
+GetInfoRequest<I>::GetInfoRequest(
+    librados::IoCtx& io_ctx,
+    asio::ContextWQ* op_work_queue,
+    const std::string& image_id,
+    cls::rbd::MirrorImage* mirror_image,
+    PromotionState* promotion_state,
+    std::string* primary_mirror_uuid,
+    Context* on_finish) :
+  m_io_ctx(io_ctx),
+  m_op_work_queue(op_work_queue),
+  m_image_id(image_id),
+  m_mirror_image(mirror_image),
+  m_promotion_state(promotion_state),
+  m_primary_mirror_uuid(primary_mirror_uuid),
+  m_on_finish(on_finish),
+  m_cct(reinterpret_cast<CephContext*>(io_ctx.cct()))
+{}
 
 template <typename I>
-GetInfoRequest<I>::GetInfoRequest(I &image_ctx,
-                                  cls::rbd::MirrorImage *mirror_image,
-                                  PromotionState *promotion_state,
-                                  std::string* primary_mirror_uuid,
-                                  Context *on_finish)
-  : m_image_ctx(&image_ctx), m_io_ctx(image_ctx.md_ctx),
-    m_op_work_queue(image_ctx.op_work_queue), m_image_id(image_ctx.id),
-    m_mirror_image(mirror_image), m_promotion_state(promotion_state),
-    m_primary_mirror_uuid(primary_mirror_uuid), m_on_finish(on_finish),
-    m_cct(image_ctx.cct) {
-}
+GetInfoRequest<I>::GetInfoRequest(
+    I& image_ctx,
+    cls::rbd::MirrorImage* mirror_image,
+    PromotionState* promotion_state,
+    std::string* primary_mirror_uuid,
+    Context* on_finish) :
+  m_image_ctx(&image_ctx),
+  m_io_ctx(image_ctx.md_ctx),
+  m_op_work_queue(image_ctx.op_work_queue),
+  m_image_id(image_ctx.id),
+  m_mirror_image(mirror_image),
+  m_promotion_state(promotion_state),
+  m_primary_mirror_uuid(primary_mirror_uuid),
+  m_on_finish(on_finish),
+  m_cct(image_ctx.cct)
+{}
 
 template <typename I>
-void GetInfoRequest<I>::send() {
+void
+GetInfoRequest<I>::send()
+{
   get_mirror_image();
 }
 
 template <typename I>
-void GetInfoRequest<I>::get_mirror_image() {
+void
+GetInfoRequest<I>::get_mirror_image()
+{
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectReadOperation op;
   cls_client::mirror_image_get_start(&op, m_image_id);
 
-  librados::AioCompletion *comp = create_rados_callback<
-    GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_mirror_image>(this);
+  librados::AioCompletion* comp = create_rados_callback<
+      GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_mirror_image>(this);
   int r = m_io_ctx.aio_operate(RBD_MIRRORING, comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void GetInfoRequest<I>::handle_get_mirror_image(int r) {
+void
+GetInfoRequest<I>::handle_get_mirror_image(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   m_mirror_image->state = cls::rbd::MIRROR_IMAGE_STATE_DISABLED;
@@ -86,7 +104,7 @@ void GetInfoRequest<I>::handle_get_mirror_image(int r) {
     return;
   } else if (r < 0) {
     lderr(m_cct) << "failed to retrieve mirroring state: " << cpp_strerror(r)
-               << dendl;
+                 << dendl;
     finish(r);
     return;
   }
@@ -103,17 +121,21 @@ void GetInfoRequest<I>::handle_get_mirror_image(int r) {
 }
 
 template <typename I>
-void GetInfoRequest<I>::get_journal_tag_owner() {
+void
+GetInfoRequest<I>::get_journal_tag_owner()
+{
   ldout(m_cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_journal_tag_owner>(this);
-  Journal<I>::get_tag_owner(m_io_ctx, m_image_id, &m_mirror_uuid,
-                            m_op_work_queue, ctx);
+      GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_journal_tag_owner>(this);
+  Journal<I>::get_tag_owner(
+      m_io_ctx, m_image_id, &m_mirror_uuid, m_op_work_queue, ctx);
 }
 
 template <typename I>
-void GetInfoRequest<I>::handle_get_journal_tag_owner(int r) {
+void
+GetInfoRequest<I>::handle_get_journal_tag_owner(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -137,7 +159,9 @@ void GetInfoRequest<I>::handle_get_journal_tag_owner(int r) {
 }
 
 template <typename I>
-void GetInfoRequest<I>::get_snapcontext() {
+void
+GetInfoRequest<I>::get_snapcontext()
+{
   if (m_image_ctx != nullptr) {
     {
       std::shared_lock image_locker{m_image_ctx->image_lock};
@@ -152,17 +176,19 @@ void GetInfoRequest<I>::get_snapcontext() {
   librados::ObjectReadOperation op;
   cls_client::get_snapcontext_start(&op);
 
-  librados::AioCompletion *comp = create_rados_callback<
-    GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_snapcontext>(this);
+  librados::AioCompletion* comp = create_rados_callback<
+      GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_snapcontext>(this);
   m_out_bl.clear();
-  int r = m_io_ctx.aio_operate(util::header_name(m_image_id), comp, &op,
-                               &m_out_bl);
+  int r =
+      m_io_ctx.aio_operate(util::header_name(m_image_id), comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void GetInfoRequest<I>::handle_get_snapcontext(int r) {
+void
+GetInfoRequest<I>::handle_get_snapcontext(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r >= 0) {
@@ -180,8 +206,7 @@ void GetInfoRequest<I>::handle_get_snapcontext(int r) {
     finish(0);
     return;
   } else if (r < 0) {
-    lderr(m_cct) << "failed to get snapcontext: " << cpp_strerror(r)
-                 << dendl;
+    lderr(m_cct) << "failed to get snapcontext: " << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
@@ -189,9 +214,10 @@ void GetInfoRequest<I>::handle_get_snapcontext(int r) {
   get_snapshots();
 }
 
-
 template <typename I>
-void GetInfoRequest<I>::get_snapshots() {
+void
+GetInfoRequest<I>::get_snapshots()
+{
   ldout(m_cct, 20) << dendl;
 
   if (m_snapc.snaps.empty()) {
@@ -204,17 +230,19 @@ void GetInfoRequest<I>::get_snapshots() {
     cls_client::snapshot_get_start(&op, snap_id);
   }
 
-  librados::AioCompletion *comp = create_rados_callback<
-    GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_snapshots>(this);
+  librados::AioCompletion* comp = create_rados_callback<
+      GetInfoRequest<I>, &GetInfoRequest<I>::handle_get_snapshots>(this);
   m_out_bl.clear();
-  int r = m_io_ctx.aio_operate(util::header_name(m_image_id), comp, &op,
-                               &m_out_bl);
+  int r =
+      m_io_ctx.aio_operate(util::header_name(m_image_id), comp, &op, &m_out_bl);
   ceph_assert(r == 0);
   comp->release();
 }
 
 template <typename I>
-void GetInfoRequest<I>::handle_get_snapshots(int r) {
+void
+GetInfoRequest<I>::handle_get_snapshots(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   std::map<librados::snap_t, SnapInfo> snap_info;
@@ -226,7 +254,7 @@ void GetInfoRequest<I>::handle_get_snapshots(int r) {
       r = cls_client::snapshot_get_finish(&it, &snap);
     }
     snap_info.emplace(
-      snap_id, SnapInfo(snap.name, snap.snapshot_namespace, 0, {}, 0, 0, {}));
+        snap_id, SnapInfo(snap.name, snap.snapshot_namespace, 0, {}, 0, 0, {}));
   }
 
   if (r == -ENOENT) {
@@ -236,8 +264,7 @@ void GetInfoRequest<I>::handle_get_snapshots(int r) {
   }
 
   if (r < 0) {
-    lderr(m_cct) << "failed to get snapshots: " << cpp_strerror(r)
-                 << dendl;
+    lderr(m_cct) << "failed to get snapshots: " << cpp_strerror(r) << dendl;
     finish(r);
     return;
   }
@@ -247,7 +274,9 @@ void GetInfoRequest<I>::handle_get_snapshots(int r) {
 }
 
 template <typename I>
-void GetInfoRequest<I>::finish(int r) {
+void
+GetInfoRequest<I>::finish(int r)
+{
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);
@@ -255,14 +284,16 @@ void GetInfoRequest<I>::finish(int r) {
 }
 
 template <typename I>
-void GetInfoRequest<I>::calc_promotion_state(
-    const std::map<librados::snap_t, SnapInfo> &snap_info) {
+void
+GetInfoRequest<I>::calc_promotion_state(
+    const std::map<librados::snap_t, SnapInfo>& snap_info)
+{
   *m_promotion_state = PROMOTION_STATE_UNKNOWN;
   *m_primary_mirror_uuid = "";
 
   for (auto it = snap_info.rbegin(); it != snap_info.rend(); it++) {
     auto mirror_ns = std::get_if<cls::rbd::MirrorSnapshotNamespace>(
-      &it->second.snap_namespace);
+        &it->second.snap_namespace);
 
     if (mirror_ns != nullptr) {
       switch (mirror_ns->state) {

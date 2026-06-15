@@ -16,116 +16,114 @@
 #pragma once
 
 
-#include <stdint.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <signal.h>
-
+#include <stdint.h>
+#include <stdlib.h>
 #include <sys/time.h>
 
 #include <cmath>
-#include <limits>
-#include <string>
-#include <mutex>
-#include <iostream>
 #include <functional>
+#include <iostream>
+#include <limits>
+#include <mutex>
+#include <string>
 
 
 using ClientId = unsigned;
 using ServerId = unsigned;
 
-
 namespace crimson {
-  namespace qos_simulation {
+namespace qos_simulation {
 
-    using Cost = uint32_t;
+using Cost = uint32_t;
 
-    inline void debugger() {
-      raise(SIGCONT);
-    }
+inline void
+debugger()
+{
+  raise(SIGCONT);
+}
 
-    template<typename T>
-    void time_stats(std::mutex& mtx,
-		    T& time_accumulate,
-		    std::function<void()> code) {
-      auto t1 = std::chrono::steady_clock::now();
-      code();
-      auto t2 = std::chrono::steady_clock::now();
-      auto duration = t2 - t1;
-      auto cast_duration = std::chrono::duration_cast<T>(duration);
-      std::lock_guard<std::mutex> lock(mtx);
-      time_accumulate += cast_duration;
-    }
+template <typename T>
+void
+time_stats(std::mutex& mtx, T& time_accumulate, std::function<void()> code)
+{
+  auto t1 = std::chrono::steady_clock::now();
+  code();
+  auto t2 = std::chrono::steady_clock::now();
+  auto duration = t2 - t1;
+  auto cast_duration = std::chrono::duration_cast<T>(duration);
+  std::lock_guard<std::mutex> lock(mtx);
+  time_accumulate += cast_duration;
+}
 
-    // unfortunately it's hard for the compiler to infer the types,
-    // and therefore when called the template params might have to be
-    // explicit
-    template<typename T, typename R>
-    R time_stats_w_return(std::mutex& mtx,
-			  T& time_accumulate,
-			  std::function<R()> code) {
-      auto t1 = std::chrono::steady_clock::now();
-      R result = code();
-      auto t2 = std::chrono::steady_clock::now();
-      auto duration = t2 - t1;
-      auto cast_duration = std::chrono::duration_cast<T>(duration);
-      std::lock_guard<std::mutex> lock(mtx);
-      time_accumulate += cast_duration;
-      return result;
-    }
+// unfortunately it's hard for the compiler to infer the types,
+// and therefore when called the template params might have to be
+// explicit
+template <typename T, typename R>
+R
+time_stats_w_return(std::mutex& mtx, T& time_accumulate, std::function<R()> code)
+{
+  auto t1 = std::chrono::steady_clock::now();
+  R result = code();
+  auto t2 = std::chrono::steady_clock::now();
+  auto duration = t2 - t1;
+  auto cast_duration = std::chrono::duration_cast<T>(duration);
+  std::lock_guard<std::mutex> lock(mtx);
+  time_accumulate += cast_duration;
+  return result;
+}
 
-    template<typename T>
-    void count_stats(std::mutex& mtx,
-		     T& counter) {
-      std::lock_guard<std::mutex> lock(mtx);
-      ++counter;
-    }
+template <typename T>
+void
+count_stats(std::mutex& mtx, T& counter)
+{
+  std::lock_guard<std::mutex> lock(mtx);
+  ++counter;
+}
 
-    struct TestRequest {
-      ServerId server; // allows debugging
-      uint32_t epoch;
-      uint32_t op;
+struct TestRequest {
+  ServerId server; // allows debugging
+  uint32_t epoch;
+  uint32_t op;
 
-      TestRequest(ServerId _server,
-		  uint32_t _epoch,
-		  uint32_t _op) :
-	server(_server),
-	epoch(_epoch),
-	op(_op)
-      {
-	// empty
-      }
+  TestRequest(ServerId _server, uint32_t _epoch, uint32_t _op) :
+    server(_server), epoch(_epoch), op(_op)
+  {
+    // empty
+  }
 
-      TestRequest(const TestRequest& r) :
-	TestRequest(r.server, r.epoch, r.op)
-      {
-	// empty
-      }
-    }; // struct TestRequest
+  TestRequest(const TestRequest& r) :
+    TestRequest(r.server, r.epoch, r.op)
+  {
+    // empty
+  }
+}; // struct TestRequest
 
+struct TestResponse {
+  uint32_t epoch;
 
-    struct TestResponse {
-      uint32_t epoch;
+  explicit TestResponse(uint32_t _epoch) :
+    epoch(_epoch)
+  {
+    // empty
+  }
 
-      explicit TestResponse(uint32_t _epoch) :
-	epoch(_epoch)
-      {
-	// empty
-      }
+  TestResponse(const TestResponse& r) :
+    epoch(r.epoch)
+  {
+    // empty
+  }
 
-      TestResponse(const TestResponse& r) :
-	epoch(r.epoch)
-      {
-	// empty
-      }
+  friend std::ostream&
+  operator<<(std::ostream& out, const TestResponse& resp)
+  {
+    out << "{ ";
+    out << "epoch:" << resp.epoch;
+    out << " }";
+    return out;
+  }
+}; // class TestResponse
 
-      friend std::ostream& operator<<(std::ostream& out, const TestResponse& resp) {
-	out << "{ ";
-	out << "epoch:" << resp.epoch;
-	out << " }";
-	return out;
-      }
-    }; // class TestResponse
-
-  }; // namespace qos_simulation
+}; // namespace qos_simulation
 }; // namespace crimson

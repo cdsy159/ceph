@@ -4,29 +4,34 @@
 #ifndef CEPH_CACHE_SIMPLE_POLICY_H
 #define CEPH_CACHE_SIMPLE_POLICY_H
 
+#include <string>
+#include <unordered_map>
+
 #include "common/ceph_context.h"
 #include "common/ceph_mutex.h"
 #include "include/lru.h"
-#include "Policy.h"
 
-#include <unordered_map>
-#include <string>
+#include "Policy.h"
 
 namespace ceph {
 namespace immutable_obj_cache {
 
 class SimplePolicy : public Policy {
- public:
-  SimplePolicy(CephContext *cct, uint64_t block_num, uint64_t max_inflight,
-               double watermark);
+public:
+  SimplePolicy(
+      CephContext* cct,
+      uint64_t block_num,
+      uint64_t max_inflight,
+      double watermark);
   ~SimplePolicy();
 
   cache_status_t lookup_object(std::string file_name);
   cache_status_t get_status(std::string file_name);
 
-  void update_status(std::string file_name,
-                     cache_status_t new_status,
-                     uint64_t size = 0);
+  void update_status(
+      std::string file_name,
+      cache_status_t new_status,
+      uint64_t size = 0);
 
   int evict_entry(std::string file_name);
 
@@ -37,13 +42,17 @@ class SimplePolicy : public Policy {
   uint64_t get_promoted_entry_num();
   std::string get_evict_entry();
 
- private:
+private:
   cache_status_t alloc_entry(std::string file_name);
 
   class Entry : public LRUObject {
-   public:
+  public:
     cache_status_t status;
-    Entry() : status(OBJ_CACHE_NONE) {}
+
+    Entry() :
+      status(OBJ_CACHE_NONE)
+    {}
+
     std::string file_name;
     uint64_t size;
   };
@@ -56,13 +65,13 @@ class SimplePolicy : public Policy {
 
   std::unordered_map<std::string, Entry*> m_cache_map;
   ceph::shared_mutex m_cache_map_lock =
-    ceph::make_shared_mutex("rbd::cache::SimplePolicy::m_cache_map_lock");
+      ceph::make_shared_mutex("rbd::cache::SimplePolicy::m_cache_map_lock");
 
   std::atomic<uint64_t> m_cache_size;
 
   LRU m_promoted_lru;
 };
 
-}  // namespace immutable_obj_cache
-}  // namespace ceph
-#endif  // CEPH_CACHE_SIMPLE_POLICY_H
+} // namespace immutable_obj_cache
+} // namespace ceph
+#endif // CEPH_CACHE_SIMPLE_POLICY_H

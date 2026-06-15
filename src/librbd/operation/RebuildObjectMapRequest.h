@@ -17,13 +17,15 @@ namespace operation {
 template <typename ImageCtxT = ImageCtx>
 class RebuildObjectMapRequest : public AsyncRequest<ImageCtxT> {
 public:
-
-  RebuildObjectMapRequest(ImageCtxT &image_ctx, Context *on_finish,
-                          ProgressContext &prog_ctx)
-    : AsyncRequest<ImageCtxT>(image_ctx, on_finish), m_image_ctx(image_ctx),
-      m_prog_ctx(prog_ctx), m_attempted_trim(false)
-  {
-  }
+  RebuildObjectMapRequest(
+      ImageCtxT& image_ctx,
+      Context* on_finish,
+      ProgressContext& prog_ctx) :
+    AsyncRequest<ImageCtxT>(image_ctx, on_finish),
+    m_image_ctx(image_ctx),
+    m_prog_ctx(prog_ctx),
+    m_attempted_trim(false)
+  {}
 
   void send() override;
 
@@ -62,8 +64,8 @@ private:
     STATE_UPDATE_HEADER
   };
 
-  ImageCtxT &m_image_ctx;
-  ProgressContext &m_prog_ctx;
+  ImageCtxT& m_image_ctx;
+  ProgressContext& m_prog_ctx;
   State m_state = STATE_RESIZE_OBJECT_MAP;
   bool m_attempted_trim;
 
@@ -74,7 +76,6 @@ private:
   void send_update_header();
 
   uint64_t get_image_size() const;
-
 };
 
 } // namespace operation

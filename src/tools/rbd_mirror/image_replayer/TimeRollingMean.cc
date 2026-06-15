@@ -2,13 +2,16 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "tools/rbd_mirror/image_replayer/TimeRollingMean.h"
+
 #include "common/Clock.h"
 
 namespace rbd {
 namespace mirror {
 namespace image_replayer {
 
-void TimeRollingMean::operator()(uint32_t value) {
+void
+TimeRollingMean::operator()(uint32_t value)
+{
   auto time = ceph_clock_now();
   if (m_last_time.is_zero()) {
     m_last_time = time;
@@ -25,7 +28,9 @@ void TimeRollingMean::operator()(uint32_t value) {
   m_sum += value;
 }
 
-double TimeRollingMean::get_average() const {
+double
+TimeRollingMean::get_average() const
+{
   return boost::accumulators::rolling_mean(m_rolling_mean);
 }
 

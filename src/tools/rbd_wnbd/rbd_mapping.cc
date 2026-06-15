@@ -13,9 +13,9 @@
 #include "rbd_mapping.h"
 
 #include "common/debug.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
-
 #include "global/global_init.h"
 
 #define dout_context g_ceph_context
@@ -25,8 +25,8 @@
 
 #define DISK_STATUS_POLLING_INTERVAL_MS 500
 
-
-int RbdMapping::init()
+int
+RbdMapping::init()
 {
   librbd::image_info_t info;
 
@@ -38,8 +38,7 @@ int RbdMapping::init()
   int r = rados->ioctx_create(cfg.poolname.c_str(), io_ctx);
   if (r < 0) {
     derr << "rbd-wnbd: couldn't create IO context: " << cpp_strerror(r)
-         << ". Pool name: " << cfg.poolname
-         << dendl;
+         << ". Pool name: " << cfg.poolname << dendl;
     return r;
   }
 
@@ -47,8 +46,7 @@ int RbdMapping::init()
 
   r = rbd.open(io_ctx, image, cfg.imgname.c_str());
   if (r < 0) {
-    derr << "rbd-wnbd: couldn't open rbd image: " << cpp_strerror(r)
-         << dendl;
+    derr << "rbd-wnbd: couldn't open rbd image: " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -64,8 +62,7 @@ int RbdMapping::init()
   if (!cfg.snapname.empty()) {
     r = image.snap_set(cfg.snapname.c_str());
     if (r < 0) {
-      derr << "rbd-wnbd: couldn't use snapshot: " << cpp_strerror(r)
-         << dendl;
+      derr << "rbd-wnbd: couldn't use snapshot: " << cpp_strerror(r) << dendl;
       return r;
     }
   }
@@ -79,18 +76,16 @@ int RbdMapping::init()
   CephContext* cct = reinterpret_cast<CephContext*>(io_ctx.cct());
   ceph_assert(cct != nullptr);
 
-  handler = new WnbdHandler(image, cfg.devpath,
-                            info.size / RBD_WNBD_BLKSIZE,
-                            RBD_WNBD_BLKSIZE,
-                            !cfg.snapname.empty() || cfg.readonly,
-                            g_conf().get_val<bool>("rbd_cache"),
-                            cfg.io_req_workers,
-                            cfg.io_reply_workers,
-                            cct->get_admin_socket());
+  handler = new WnbdHandler(
+      image, cfg.devpath, info.size / RBD_WNBD_BLKSIZE, RBD_WNBD_BLKSIZE,
+      !cfg.snapname.empty() || cfg.readonly,
+      g_conf().get_val<bool>("rbd_cache"), cfg.io_req_workers,
+      cfg.io_reply_workers, cct->get_admin_socket());
   return 0;
 }
 
-void RbdMapping::shutdown()
+void
+RbdMapping::shutdown()
 {
   std::unique_lock l{shutdown_lock};
 
@@ -98,20 +93,22 @@ void RbdMapping::shutdown()
 
   int r = 0;
   if (!cfg.persistent && saved_cfg_to_registry) {
-    dout(5) << __func__ << ": cleaning up non-persistent mapping: "
-            << cfg.devpath << dendl;
+    dout(5) << __func__
+            << ": cleaning up non-persistent mapping: " << cfg.devpath << dendl;
     r = remove_config_from_registry(&cfg);
     if (r) {
-      derr << __func__ << ": could not clean up non-persistent mapping: "
-           << cfg.devpath << ". Error: " << cpp_strerror(r) << dendl;
+      derr << __func__
+           << ": could not clean up non-persistent mapping: " << cfg.devpath
+           << ". Error: " << cpp_strerror(r) << dendl;
     }
   }
 
   if (watch_ctx) {
     r = image.update_unwatch(watch_handle);
     if (r < 0) {
-      derr << __func__ << ": update_unwatch failed with error: "
-           << cpp_strerror(r) << dendl;
+      derr << __func__
+           << ": update_unwatch failed with error: " << cpp_strerror(r)
+           << dendl;
     }
     delete watch_ctx;
     watch_ctx = nullptr;
@@ -127,7 +124,8 @@ void RbdMapping::shutdown()
   io_ctx.close();
 }
 
-int RbdMapping::start()
+int
+RbdMapping::start()
 {
   dout(10) << "initializing mapping" << dendl;
   int r = init();
@@ -145,8 +143,8 @@ int RbdMapping::start()
   watch_ctx = new WNBDWatchCtx(io_ctx, handler, image, initial_image_size);
   r = image.update_watch(watch_ctx, &watch_handle);
   if (r < 0) {
-    derr << __func__ << ": update_watch failed with error: "
-         << cpp_strerror(r) << dendl;
+    derr << __func__ << ": update_watch failed with error: " << cpp_strerror(r)
+         << dendl;
     return r;
   }
 
@@ -169,7 +167,7 @@ int RbdMapping::start()
   }
 
   if (disconnect_cbk) {
-    monitor_thread = std::thread([this]{
+    monitor_thread = std::thread([this] {
       int ret = this->wait();
       // Allow "this" to be destroyed by the disconnect callback.
       this->monitor_thread.detach();
@@ -183,7 +181,8 @@ int RbdMapping::start()
 }
 
 // Wait until the image gets disconnected.
-int RbdMapping::wait()
+int
+RbdMapping::wait()
 {
   if (handler) {
     return handler->wait();
@@ -193,34 +192,32 @@ int RbdMapping::wait()
 
 RbdMapping::~RbdMapping()
 {
-  dout(10) << __func__ << ": cleaning up rbd mapping: "
-           << cfg.devpath << dendl;
+  dout(10) << __func__ << ": cleaning up rbd mapping: " << cfg.devpath << dendl;
   shutdown();
 }
 
 // Wait for the mapped disk to become available.
-int wait_mapped_disk(Config& cfg)
+int
+wait_mapped_disk(Config& cfg)
 {
   DWORD status = WnbdPollDiskNumber(
-    cfg.devpath.c_str(),
-    TRUE, // ExpectMapped
-    TRUE, // TryOpen
-    cfg.image_map_timeout * 1000,
-    DISK_STATUS_POLLING_INTERVAL_MS,
-    (PDWORD) &cfg.disk_number);
+      cfg.devpath.c_str(),
+      TRUE, // ExpectMapped
+      TRUE, // TryOpen
+      cfg.image_map_timeout * 1000, DISK_STATUS_POLLING_INTERVAL_MS,
+      (PDWORD)&cfg.disk_number);
   if (status) {
-    derr << "WNBD disk unavailable, error: "
-         << win32_strerror(status) << dendl;
+    derr << "WNBD disk unavailable, error: " << win32_strerror(status) << dendl;
     return -EINVAL;
   }
   dout(0) << "Successfully mapped image: " << cfg.devpath
           << ". Windows disk path: "
-          << "\\\\.\\PhysicalDrive" + std::to_string(cfg.disk_number)
-          << dendl;
+          << "\\\\.\\PhysicalDrive" + std::to_string(cfg.disk_number) << dendl;
   return 0;
 }
 
-int RbdMappingDispatcher::create(Config& cfg)
+int
+RbdMappingDispatcher::create(Config& cfg)
 {
   if (cfg.devpath.empty()) {
     derr << "missing device identifier" << dendl;
@@ -233,18 +230,15 @@ int RbdMappingDispatcher::create(Config& cfg)
   }
 
   if (stop_requested) {
-    derr << "service stop requested, refusing to create new mapping."
-         << dendl;
+    derr << "service stop requested, refusing to create new mapping." << dendl;
     return -ESHUTDOWN;
   }
 
   auto rbd_mapping = std::make_shared<RbdMapping>(
-    cfg, client_cache,
-    std::bind(
-      &RbdMappingDispatcher::disconnect_cbk,
-      this,
-      std::placeholders::_1,
-      std::placeholders::_2));
+      cfg, client_cache,
+      std::bind(
+          &RbdMappingDispatcher::disconnect_cbk, this, std::placeholders::_1,
+          std::placeholders::_2));
 
   int r = rbd_mapping.get()->start();
   if (!r) {
@@ -254,8 +248,8 @@ int RbdMappingDispatcher::create(Config& cfg)
   return r;
 }
 
-std::shared_ptr<RbdMapping> RbdMappingDispatcher::get_mapping(
-  std::string& devpath)
+std::shared_ptr<RbdMapping>
+RbdMappingDispatcher::get_mapping(std::string& devpath)
 {
   std::unique_lock l{map_mutex};
 
@@ -268,12 +262,12 @@ std::shared_ptr<RbdMapping> RbdMappingDispatcher::get_mapping(
   }
 }
 
-void RbdMappingDispatcher::disconnect_cbk(std::string devpath, int ret)
+void
+RbdMappingDispatcher::disconnect_cbk(std::string devpath, int ret)
 {
   dout(10) << "RbdMappingDispatcher: cleaning up stopped mapping" << dendl;
   if (ret) {
-    derr << "rbd mapping wait error: " << ret
-         << ", allowing cleanup to proceed"
+    derr << "rbd mapping wait error: " << ret << ", allowing cleanup to proceed"
          << dendl;
   }
 
@@ -289,10 +283,11 @@ void RbdMappingDispatcher::disconnect_cbk(std::string devpath, int ret)
   }
 }
 
-int RbdMappingDispatcher::stop(
-  bool hard_disconnect,
-  int soft_disconnect_timeout,
-  int worker_count)
+int
+RbdMappingDispatcher::stop(
+    bool hard_disconnect,
+    int soft_disconnect_timeout,
+    int worker_count)
 {
   stop_requested = true;
 
@@ -315,49 +310,49 @@ int RbdMappingDispatcher::stop(
   // Once ready, the WNBD driver notifies rbd-wnbd that the disk has been
   // disconnected.
   auto mapped_devpaths = get_mapped_devpaths();
-  for (const auto& devpath: mapped_devpaths) {
-    boost::asio::post(pool,
-      [devpath, start_t, counter_freq, soft_disconnect_timeout,
-       hard_disconnect, &err]()
-      {
-        LARGE_INTEGER curr_t, elapsed_ms;
-        QueryPerformanceCounter(&curr_t);
-        elapsed_ms.QuadPart = curr_t.QuadPart - start_t.QuadPart;
-        elapsed_ms.QuadPart *= 1000;
-        elapsed_ms.QuadPart /= counter_freq.QuadPart;
+  for (const auto& devpath : mapped_devpaths) {
+    boost::asio::post(
+        pool, [devpath, start_t, counter_freq, soft_disconnect_timeout,
+               hard_disconnect, &err]() {
+          LARGE_INTEGER curr_t, elapsed_ms;
+          QueryPerformanceCounter(&curr_t);
+          elapsed_ms.QuadPart = curr_t.QuadPart - start_t.QuadPart;
+          elapsed_ms.QuadPart *= 1000;
+          elapsed_ms.QuadPart /= counter_freq.QuadPart;
 
-        int64_t time_left_ms = std::max(
-          (int64_t)0,
-          soft_disconnect_timeout * 1000 - elapsed_ms.QuadPart);
+          int64_t time_left_ms = std::max(
+              (int64_t)0, soft_disconnect_timeout * 1000 - elapsed_ms.QuadPart);
 
-        dout(1) << "Removing mapping: " << devpath
-                << ". Timeout: " << time_left_ms
-                << "ms. Hard disconnect: " << hard_disconnect
-                << dendl;
+          dout(1) << "Removing mapping: " << devpath
+                  << ". Timeout: " << time_left_ms
+                  << "ms. Hard disconnect: " << hard_disconnect << dendl;
 
-        WNBD_REMOVE_OPTIONS remove_options = {0};
-        remove_options.Flags.HardRemove = hard_disconnect || !time_left_ms;
-        remove_options.Flags.HardRemoveFallback = true;
-        remove_options.SoftRemoveTimeoutMs = time_left_ms;
-        remove_options.SoftRemoveRetryIntervalMs = SOFT_REMOVE_RETRY_INTERVAL * 1000;
+          WNBD_REMOVE_OPTIONS remove_options = {0};
+          remove_options.Flags.HardRemove = hard_disconnect || !time_left_ms;
+          remove_options.Flags.HardRemoveFallback = true;
+          remove_options.SoftRemoveTimeoutMs = time_left_ms;
+          remove_options.SoftRemoveRetryIntervalMs =
+              SOFT_REMOVE_RETRY_INTERVAL * 1000;
 
-        // This is asynchronous, it may take a few seconds for the disk to be
-        // removed. We'll perform the wait outside the loop to speed up the
-        // process.
-        int r = WnbdRemoveEx(devpath.c_str(), &remove_options);
-        if (r && r != ERROR_FILE_NOT_FOUND) {
-          err = -EINVAL;
-          derr << "Could not initiate mapping removal: " << devpath
-               << ". Error: " << win32_strerror(r) << dendl;
-        } else {
-          dout(1) << "Successfully initiated mapping removal: " << devpath << dendl;
-        }
-      });
+          // This is asynchronous, it may take a few seconds for the disk to be
+          // removed. We'll perform the wait outside the loop to speed up the
+          // process.
+          int r = WnbdRemoveEx(devpath.c_str(), &remove_options);
+          if (r && r != ERROR_FILE_NOT_FOUND) {
+            err = -EINVAL;
+            derr << "Could not initiate mapping removal: " << devpath
+                 << ". Error: " << win32_strerror(r) << dendl;
+          } else {
+            dout(1) << "Successfully initiated mapping removal: " << devpath
+                    << dendl;
+          }
+        });
   }
   pool.join();
 
   if (err) {
-    derr << "Could not initiate removal of all mappings. Error: " << err << dendl;
+    derr << "Could not initiate removal of all mappings. Error: " << err
+         << dendl;
     return err;
   }
 
@@ -365,7 +360,9 @@ int RbdMappingDispatcher::stop(
   return wait_for_mappings_removal(10000);
 }
 
-std::vector<std::string> RbdMappingDispatcher::get_mapped_devpaths() {
+std::vector<std::string>
+RbdMappingDispatcher::get_mapped_devpaths()
+{
   std::vector<std::string> out;
   std::unique_lock l{map_mutex};
 
@@ -376,12 +373,16 @@ std::vector<std::string> RbdMappingDispatcher::get_mapped_devpaths() {
   return out;
 }
 
-int RbdMappingDispatcher::get_mappings_count() {
+int
+RbdMappingDispatcher::get_mappings_count()
+{
   std::unique_lock l{map_mutex};
   return mappings.size();
 }
 
-int RbdMappingDispatcher::wait_for_mappings_removal(int timeout_ms) {
+int
+RbdMappingDispatcher::wait_for_mappings_removal(int timeout_ms)
+{
   LARGE_INTEGER start_t, counter_freq;
   QueryPerformanceFrequency(&counter_freq);
   QueryPerformanceCounter(&start_t);

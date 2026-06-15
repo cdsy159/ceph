@@ -1,16 +1,16 @@
 #include "RadosCommands.h"
+
+#include <boost/algorithm/string.hpp>
+
 #include "common/ceph_json.h"
 #include "common/json/OSDStructures.h"
 #include "erasure-code/ErasureCodePlugin.h"
-#include <boost/algorithm/string.hpp>
 
 using RadosCommands = ceph::consistency::RadosCommands;
 
 RadosCommands::RadosCommands(librados::Rados& rados) :
-  rados(rados),
-  formatter(new JSONFormatter(true))
-{
-}
+  rados(rados), formatter(new JSONFormatter(true))
+{}
 
 /**
  * Return the index of the acting primary OSD for the given pool
@@ -20,8 +20,10 @@ RadosCommands::RadosCommands(librados::Rados& rados) :
  * @param oid string OID of the object to find acting primary of
  * @returns int ID of the acting primary OSD
  */
-int RadosCommands::get_primary_osd(const std::string& pool_name,
-                                   const std::string& oid)
+int
+RadosCommands::get_primary_osd(
+    const std::string& pool_name,
+    const std::string& oid)
 {
   ceph::messaging::osd::OSDMapRequest osd_map_request{pool_name, oid, ""};
   encode_json("OSDMapRequest", osd_map_request, formatter.get());
@@ -52,7 +54,8 @@ int RadosCommands::get_primary_osd(const std::string& pool_name,
  * @param pool_name string Name of the pool to get the erasure code profile for
  * @returns bool Whether allow EC optimizations is set on the pool
  */
-bool RadosCommands::get_pool_allow_ec_optimizations(const std::string& pool_name)
+bool
+RadosCommands::get_pool_allow_ec_optimizations(const std::string& pool_name)
 {
   ceph::messaging::osd::OSDPoolGetRequest osd_pool_get_request{pool_name, "all"};
   encode_json("OSDPoolGetRequest", osd_pool_get_request, formatter.get());
@@ -81,7 +84,8 @@ bool RadosCommands::get_pool_allow_ec_optimizations(const std::string& pool_name
  * @param pool_name string Name of the pool to get the erasure code profile for
  * @returns string The erasure code profile for the specified pool
  */
-std::string RadosCommands::get_pool_ec_profile_name(const std::string& pool_name)
+std::string
+RadosCommands::get_pool_ec_profile_name(const std::string& pool_name)
 {
   ceph::messaging::osd::OSDPoolGetRequest osd_pool_get_request{pool_name, "all"};
   encode_json("OSDPoolGetRequest", osd_pool_get_request, formatter.get());
@@ -101,8 +105,9 @@ std::string RadosCommands::get_pool_ec_profile_name(const std::string& pool_name
   osd_pool_get_reply.decode_json(&p);
 
   if (!osd_pool_get_reply.erasure_code_profile) {
-    throw std::runtime_error("No profile for given pool. "
-                             "Is it an Erasure Coded pool?");
+    throw std::runtime_error(
+        "No profile for given pool. "
+        "Is it an Erasure Coded pool?");
   }
 
   return *osd_pool_get_reply.erasure_code_profile;
@@ -114,7 +119,8 @@ std::string RadosCommands::get_pool_ec_profile_name(const std::string& pool_name
  * @param pool_name string Name of the pool to get the EC profile for
  * @returns ErasureCodeProfile The EC profile for the specified pool
  */
-ceph::ErasureCodeProfile RadosCommands::get_ec_profile_for_pool(const std::string& pool_name)
+ceph::ErasureCodeProfile
+RadosCommands::get_ec_profile_for_pool(const std::string& pool_name)
 {
   ceph::messaging::osd::OSDECProfileGetRequest osd_ec_profile_get_req{
       get_pool_ec_profile_name(pool_name), "plain"};
@@ -147,10 +153,13 @@ ceph::ErasureCodeProfile RadosCommands::get_ec_profile_for_pool(const std::strin
  * @param pool_name string Name of the pool to get chunk size of
  * @return int the chunk size of the pool
  */
-int RadosCommands::get_ec_chunk_size_for_pool(const std::string& pool_name)
+int
+RadosCommands::get_ec_chunk_size_for_pool(const std::string& pool_name)
 {
   ceph::ErasureCodeProfile profile = get_ec_profile_for_pool(pool_name);
-  return (profile.contains("stripe_unit") ? std::stol(profile["stripe_unit"]) : 4096);
+  return (
+      profile.contains("stripe_unit") ? std::stol(profile["stripe_unit"])
+                                      : 4096);
 }
 
 /**
@@ -160,8 +169,10 @@ int RadosCommands::get_ec_chunk_size_for_pool(const std::string& pool_name)
  * @param pool_name string Name of the pool to perform inject on
  * @param oid string OID of the object to perform inject on
  */
-void RadosCommands::inject_parity_read_on_primary_osd(const std::string& pool_name,
-                                                      const std::string& oid)
+void
+RadosCommands::inject_parity_read_on_primary_osd(
+    const std::string& pool_name,
+    const std::string& oid)
 {
   int primary_osd = get_primary_osd(pool_name, oid);
   ceph::messaging::osd::InjectECParityRead parity_read_req{pool_name, oid};
@@ -182,11 +193,14 @@ void RadosCommands::inject_parity_read_on_primary_osd(const std::string& pool_na
  * @param pool_name string Name of the pool to perform inject on
  * @param oid string OID of the object to perform inject on
  */
-void RadosCommands::inject_clear_parity_read_on_primary_osd(const std::string& pool_name,
-                                                       const std::string& oid)
+void
+RadosCommands::inject_clear_parity_read_on_primary_osd(
+    const std::string& pool_name,
+    const std::string& oid)
 {
   int primary_osd = get_primary_osd(pool_name, oid);
-  ceph::messaging::osd::InjectECClearParityRead clear_parity_read_req{pool_name, oid};
+  ceph::messaging::osd::InjectECClearParityRead clear_parity_read_req{
+      pool_name, oid};
   encode_json("InjectECClearParityRead", clear_parity_read_req, formatter.get());
 
   std::ostringstream oss;

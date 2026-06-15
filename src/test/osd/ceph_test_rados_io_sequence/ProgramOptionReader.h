@@ -1,9 +1,10 @@
 #pragma once
 
-#include <boost/program_options.hpp>
 #include <optional>
 #include <random>
 #include <string>
+
+#include <boost/program_options.hpp>
 
 #include "include/ceph_assert.h"
 #include "include/random.h"
@@ -49,13 +50,12 @@ namespace po = boost::program_options;
 namespace ceph {
 namespace io_sequence {
 namespace tester {
-template <typename option_type,
-          typename return_type = option_type>
+template <typename option_type, typename return_type = option_type>
 class ProgramOptionReader {
- public:
-  ProgramOptionReader(po::variables_map& vm,
-                      const std::string& option_name)
-      : option_name(option_name) {
+public:
+  ProgramOptionReader(po::variables_map& vm, const std::string& option_name) :
+    option_name(option_name)
+  {
     if (vm.count(option_name) > 0) {
       force_value = vm[option_name].as<option_type>();
     }
@@ -63,11 +63,15 @@ class ProgramOptionReader {
 
   virtual ~ProgramOptionReader() = default;
 
-  bool isForced() { return force_value.has_value(); }
+  bool
+  isForced()
+  {
+    return force_value.has_value();
+  }
 
   virtual const return_type select() = 0;
 
- protected:
+protected:
   std::optional<option_type> force_value;
 
   std::string option_name;
@@ -75,23 +79,25 @@ class ProgramOptionReader {
 
 template <typename option_type>
 class OptionalProgramOptionReader
-    : public ProgramOptionReader<option_type, std::optional<option_type>> {
- public:
-  using ProgramOptionReader<option_type,
-                            std::optional<option_type>>::ProgramOptionReader;
+  : public ProgramOptionReader<option_type, std::optional<option_type>> {
+public:
+  using ProgramOptionReader<option_type, std::optional<option_type>>::
+      ProgramOptionReader;
 };
 
-template <typename option_type,
-          int num_selections,
-          const std::array< option_type,
-                            num_selections>& selections_array>
+template <
+    typename option_type,
+    int num_selections,
+    const std::array<option_type, num_selections>& selections_array>
 class ProgramOptionSelector : public ProgramOptionReader<option_type> {
- public:
-  ProgramOptionSelector(std::mt19937_64& rng,
-                        po::variables_map& vm,
-                        const std::string& option_name,
-                        bool select_first)
-      : ProgramOptionReader<option_type>(vm, option_name), rng(rng) {
+public:
+  ProgramOptionSelector(
+      std::mt19937_64& rng,
+      po::variables_map& vm,
+      const std::string& option_name,
+      bool select_first) :
+    ProgramOptionReader<option_type>(vm, option_name), rng(rng)
+  {
     if (select_first) {
       ceph_assert(selections_array.size() > 0);
       first_value = selections_array[0];
@@ -100,7 +106,9 @@ class ProgramOptionSelector : public ProgramOptionReader<option_type> {
 
   virtual ~ProgramOptionSelector() = default;
 
-  virtual const option_type select() override {
+  virtual const option_type
+  select() override
+  {
     if (this->force_value.has_value()) {
       return *this->force_value;
     } else if (first_value.has_value()) {
@@ -114,28 +122,31 @@ class ProgramOptionSelector : public ProgramOptionReader<option_type> {
   }
 
 
- protected:
+protected:
   std::mt19937_64& rng;
 
   std::optional<option_type> first_value;
 };
 
-template <typename option_type,
-          int num_selections,
-          const std::array< option_type,
-                            num_selections>& selections_array,
-          int num_selections_stable,
-          const std::array< option_type,
-                            num_selections_stable>& selections_array_stable>
+template <
+    typename option_type,
+    int num_selections,
+    const std::array<option_type, num_selections>& selections_array,
+    int num_selections_stable,
+    const std::array<option_type, num_selections_stable>& selections_array_stable>
 class StableOptionSelector : public ProgramOptionReader<option_type> {
 public:
-  StableOptionSelector(std::mt19937_64& rng,
-                        po::variables_map& vm,
-                        const std::string& option_name,
-                        bool select_first)
-      : ProgramOptionReader<option_type>(vm, option_name), rng(rng),
-        stable(!vm.contains("allow_unstable_pool_configs") ||
-          vm.contains("disable_pool_ec_optimizations")) {
+  StableOptionSelector(
+      std::mt19937_64& rng,
+      po::variables_map& vm,
+      const std::string& option_name,
+      bool select_first) :
+    ProgramOptionReader<option_type>(vm, option_name),
+    rng(rng),
+    stable(
+        !vm.contains("allow_unstable_pool_configs") ||
+        vm.contains("disable_pool_ec_optimizations"))
+  {
     if (select_first) {
       if (stable) {
         ceph_assert(selections_array.size() > 0);
@@ -149,7 +160,9 @@ public:
 
   virtual ~StableOptionSelector() = default;
 
-  virtual const option_type select() override {
+  virtual const option_type
+  select() override
+  {
     if (this->force_value.has_value()) {
       return *this->force_value;
     } else if (first_value.has_value()) {
@@ -175,17 +188,21 @@ protected:
 
 template <typename option_type>
 class ProgramOptionGeneratedSelector
-    : public OptionalProgramOptionReader<option_type> {
- public:
-  ProgramOptionGeneratedSelector(std::mt19937_64& rng,
-                                 po::variables_map& vm,
-                                 const std::string& option_name,
-                                 bool first_use)
-      : OptionalProgramOptionReader<option_type>(vm, option_name),
-        rng(rng),
-        first_use(first_use) {}
+  : public OptionalProgramOptionReader<option_type> {
+public:
+  ProgramOptionGeneratedSelector(
+      std::mt19937_64& rng,
+      po::variables_map& vm,
+      const std::string& option_name,
+      bool first_use) :
+    OptionalProgramOptionReader<option_type>(vm, option_name),
+    rng(rng),
+    first_use(first_use)
+  {}
 
-  const std::optional<option_type> select() final {
+  const std::optional<option_type>
+  select() final
+  {
     if (this->force_value.has_value())
       return *this->force_value;
     else if (first_use)
@@ -194,9 +211,12 @@ class ProgramOptionGeneratedSelector
       return selectRandom();
   }
 
- protected:
+protected:
   virtual const std::vector<option_type> generate_selections() = 0;
-  virtual const std::optional<option_type> selectFirst() {
+
+  virtual const std::optional<option_type>
+  selectFirst()
+  {
     first_use = false;
     std::vector<option_type> selection = generate_selections();
     if (selection.size() > 0)
@@ -205,7 +225,9 @@ class ProgramOptionGeneratedSelector
       return std::nullopt;
   }
 
-  virtual const std::optional<option_type> selectRandom() {
+  virtual const std::optional<option_type>
+  selectRandom()
+  {
     std::vector<option_type> selection = generate_selections();
 
     if (!selection.empty()) {
@@ -218,13 +240,17 @@ class ProgramOptionGeneratedSelector
     }
   }
 
-  bool is_first_use() { return first_use; }
+  bool
+  is_first_use()
+  {
+    return first_use;
+  }
 
- private:
+private:
   std::mt19937_64& rng;
 
   bool first_use;
 };
-}  // namespace tester
-}  // namespace io_sequence
-}  // namespace ceph
+} // namespace tester
+} // namespace io_sequence
+} // namespace ceph

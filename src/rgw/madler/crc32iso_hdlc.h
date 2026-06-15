@@ -12,16 +12,16 @@
 #include <stdint.h>
 
 // Compute the CRC a bit at a time.
-uint32_t crc32iso_hdlc_bit(uint32_t crc, void const *mem, size_t len);
+uint32_t crc32iso_hdlc_bit(uint32_t crc, void const* mem, size_t len);
 
 // Compute the CRC of the low bits bits in val.
 uint32_t crc32iso_hdlc_rem(uint32_t crc, unsigned val, unsigned bits);
 
 // Compute the CRC a byte at a time.
-uint32_t crc32iso_hdlc_byte(uint32_t crc, void const *mem, size_t len);
+uint32_t crc32iso_hdlc_byte(uint32_t crc, void const* mem, size_t len);
 
 // Compute the CRC a word at a time.
-uint32_t crc32iso_hdlc_word(uint32_t crc, void const *mem, size_t len);
+uint32_t crc32iso_hdlc_word(uint32_t crc, void const* mem, size_t len);
 
 // Compute the combination of two CRCs.
 uint32_t crc32iso_hdlc_comb(uint32_t crc1, uint32_t crc2, uintmax_t len2);

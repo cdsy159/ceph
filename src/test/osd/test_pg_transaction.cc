@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+
 #include "osd/PGTransaction.h"
 
 using namespace std;
@@ -27,12 +28,12 @@ TEST(pgtransaction, simple)
   ASSERT_FALSE(t.empty());
   unsigned num = 0;
   t.safe_create_traverse(
-    [&](const pair<const hobject_t, PGTransaction::ObjectOperation> &p) {
-      ASSERT_EQ(p.first, h);
-      using T = PGTransaction::ObjectOperation::Init;
-      ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
-      ++num;
-    });
+      [&](const pair<const hobject_t, PGTransaction::ObjectOperation>& p) {
+        ASSERT_EQ(p.first, h);
+        using T = PGTransaction::ObjectOperation::Init;
+        ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
+        ++num;
+      });
   ASSERT_EQ(num, 1u);
 }
 
@@ -47,22 +48,20 @@ TEST(pgtransaction, clone_safe_create_traverse)
   t.clone(h, h2);
   unsigned num = 0;
   t.safe_create_traverse(
-    [&](const pair<const hobject_t, PGTransaction::ObjectOperation> &p) {
-      using T = PGTransaction::ObjectOperation::Init;
-      if (num == 0) {
-	ASSERT_EQ(p.first, h);
-	ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
-	ASSERT_EQ(
-	  std::get_if<T::Clone>(&p.second.init_type)->source,
-	  h2);
-      } else if (num == 1) {
-	ASSERT_EQ(p.first, h2);
-	ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
-      } else {
-	ASSERT_LT(num, 2u);
-      }
-      ++num;
-    });
+      [&](const pair<const hobject_t, PGTransaction::ObjectOperation>& p) {
+        using T = PGTransaction::ObjectOperation::Init;
+        if (num == 0) {
+          ASSERT_EQ(p.first, h);
+          ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
+          ASSERT_EQ(std::get_if<T::Clone>(&p.second.init_type)->source, h2);
+        } else if (num == 1) {
+          ASSERT_EQ(p.first, h2);
+          ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
+        } else {
+          ASSERT_LT(num, 2u);
+        }
+        ++num;
+      });
 }
 
 TEST(pgtransaction, clone_safe_create_traverse2)
@@ -80,28 +79,24 @@ TEST(pgtransaction, clone_safe_create_traverse2)
   t.clone(h2, h3);
   unsigned num = 0;
   t.safe_create_traverse(
-    [&](const pair<const hobject_t, PGTransaction::ObjectOperation> &p) {
-      using T = PGTransaction::ObjectOperation::Init;
-      if (num == 0) {
-	ASSERT_EQ(p.first, h);
-	ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
-	ASSERT_EQ(
-	  std::get_if<T::Clone>(&p.second.init_type)->source,
-	  h2);
-      } else if (num == 1) {
-	ASSERT_EQ(p.first, h2);
-	ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
-	ASSERT_EQ(
-	  std::get_if<T::Clone>(&p.second.init_type)->source,
-	  h3);
-      } else if (num == 2) {
-	ASSERT_EQ(p.first, h3);
-	ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
-      } else {
-	ASSERT_LT(num, 3u);
-      }
-      ++num;
-    });
+      [&](const pair<const hobject_t, PGTransaction::ObjectOperation>& p) {
+        using T = PGTransaction::ObjectOperation::Init;
+        if (num == 0) {
+          ASSERT_EQ(p.first, h);
+          ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
+          ASSERT_EQ(std::get_if<T::Clone>(&p.second.init_type)->source, h2);
+        } else if (num == 1) {
+          ASSERT_EQ(p.first, h2);
+          ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
+          ASSERT_EQ(std::get_if<T::Clone>(&p.second.init_type)->source, h3);
+        } else if (num == 2) {
+          ASSERT_EQ(p.first, h3);
+          ASSERT_TRUE(std::holds_alternative<T::None>(p.second.init_type));
+        } else {
+          ASSERT_LT(num, 3u);
+        }
+        ++num;
+      });
 }
 
 TEST(pgtransaction, clone_safe_create_traverse3)
@@ -116,17 +111,15 @@ TEST(pgtransaction, clone_safe_create_traverse3)
   t.clone(h2, h3);
   unsigned num = 0;
   t.safe_create_traverse(
-    [&](const pair<const hobject_t, PGTransaction::ObjectOperation> &p) {
-      using T = PGTransaction::ObjectOperation::Init;
-      if (p.first == h) {
-	ASSERT_TRUE(p.second.is_delete());
-      } else if (p.first == h2) {
-	ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
-	ASSERT_EQ(
-	  std::get_if<T::Clone>(&p.second.init_type)->source,
-	  h3);
-      }
-      ASSERT_LT(num, 2u);
-      ++num;
-    });
+      [&](const pair<const hobject_t, PGTransaction::ObjectOperation>& p) {
+        using T = PGTransaction::ObjectOperation::Init;
+        if (p.first == h) {
+          ASSERT_TRUE(p.second.is_delete());
+        } else if (p.first == h2) {
+          ASSERT_TRUE(std::holds_alternative<T::Clone>(p.second.init_type));
+          ASSERT_EQ(std::get_if<T::Clone>(&p.second.init_type)->source, h3);
+        }
+        ASSERT_LT(num, 2u);
+        ++num;
+      });
 }

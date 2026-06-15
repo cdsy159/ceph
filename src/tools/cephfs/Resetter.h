@@ -33,13 +33,14 @@ private:
   bool is_mdlog;
 
 protected:
-  int _write_reset_event(Journaler *journaler);
+  int _write_reset_event(Journaler* journaler);
 
 public:
   Resetter() {}
+
   ~Resetter() {}
 
-  int init(mds_role_t role_, const std::string &type, bool hard);
+  int init(mds_role_t role_, const std::string& type, bool hard);
   /**
    * For use when no journal header/pointer was present: write one
    * out from scratch.

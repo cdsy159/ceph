@@ -21,22 +21,25 @@
 #pragma once
 
 #include <optional>
-#include "rgw_zone_types.h"
+
+#include "common/Formatter.h"
+#include "common/dout.h"
+
 #include "rgw_bucket_types.h"
 #include "rgw_obj_types.h"
 #include "rgw_placement_types.h"
-
-#include "common/dout.h"
-#include "common/Formatter.h"
+#include "rgw_zone_types.h"
 
 class RGWSI_Zone;
 struct RGWZoneGroup;
 struct RGWZoneParams;
 class RGWRados;
 
-namespace rgw { namespace sal {
-  class RadosStore;
-} };
+namespace rgw {
+namespace sal {
+class RadosStore;
+}
+}; // namespace rgw
 
 class rgw_obj_select {
   rgw_placement_rule placement_rule;
@@ -45,10 +48,20 @@ class rgw_obj_select {
   bool is_raw;
 
 public:
-  rgw_obj_select() : is_raw(false) {}
-  explicit rgw_obj_select(const rgw_obj& _obj) : obj(_obj), is_raw(false) {}
-  explicit rgw_obj_select(const rgw_raw_obj& _raw_obj) : raw_obj(_raw_obj), is_raw(true) {}
-  rgw_obj_select(const rgw_obj_select& rhs) {
+  rgw_obj_select() :
+    is_raw(false)
+  {}
+
+  explicit rgw_obj_select(const rgw_obj& _obj) :
+    obj(_obj), is_raw(false)
+  {}
+
+  explicit rgw_obj_select(const rgw_raw_obj& _raw_obj) :
+    raw_obj(_raw_obj), is_raw(true)
+  {}
+
+  rgw_obj_select(const rgw_obj_select& rhs)
+  {
     placement_rule = rhs.placement_rule;
     is_raw = rhs.is_raw;
     if (is_raw) {
@@ -58,7 +71,9 @@ public:
     }
   }
 
-  std::optional<rgw_obj> get_head_obj() const {
+  std::optional<rgw_obj>
+  get_head_obj() const
+  {
     if (is_raw) {
       return std::nullopt;
     } else {
@@ -66,35 +81,48 @@ public:
     }
   }
 
-  rgw_raw_obj get_raw_obj(const RGWZoneGroup& zonegroup, const RGWZoneParams& zone_params) const;
+  rgw_raw_obj get_raw_obj(
+      const RGWZoneGroup& zonegroup,
+      const RGWZoneParams& zone_params) const;
   rgw_raw_obj get_raw_obj(RGWRados* store) const;
 
-  rgw_obj_select& operator=(const rgw_obj& rhs) {
+  rgw_obj_select&
+  operator=(const rgw_obj& rhs)
+  {
     obj = rhs;
     is_raw = false;
     return *this;
   }
 
-  rgw_obj_select& operator=(const rgw_raw_obj& rhs) {
+  rgw_obj_select&
+  operator=(const rgw_raw_obj& rhs)
+  {
     raw_obj = rhs;
     is_raw = true;
     return *this;
   }
 
-  void set_placement_rule(const rgw_placement_rule& rule) {
+  void
+  set_placement_rule(const rgw_placement_rule& rule)
+  {
     placement_rule = rule;
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
 };
 
 struct RGWObjManifestPart {
-  rgw_obj loc;   /* the object where the data is located */
-  uint64_t loc_ofs;  /* the offset at that object where the data is located */
-  uint64_t size;     /* the part size */
+  rgw_obj loc; /* the object where the data is located */
+  uint64_t loc_ofs; /* the offset at that object where the data is located */
+  uint64_t size; /* the part size */
 
-  RGWObjManifestPart() : loc_ofs(0), size(0) {}
+  RGWObjManifestPart() :
+    loc_ofs(0), size(0)
+  {}
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 2, bl);
     encode(loc, bl);
     encode(loc_ofs, bl);
@@ -102,15 +130,17 @@ struct RGWObjManifestPart {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
-     DECODE_START_LEGACY_COMPAT_LEN_32(2, 2, 2, bl);
-     decode(loc, bl);
-     decode(loc_ofs, bl);
-     decode(size, bl);
-     DECODE_FINISH(bl);
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
+    DECODE_START_LEGACY_COMPAT_LEN_32(2, 2, 2, bl);
+    decode(loc, bl);
+    decode(loc_ofs, bl);
+    decode(size, bl);
+    DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<RGWObjManifestPart> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWObjManifestPart)
@@ -134,15 +164,29 @@ WRITE_CLASS_ENCODER(RGWObjManifestPart)
 struct RGWObjManifestRule {
   uint32_t start_part_num;
   uint64_t start_ofs;
-  uint64_t part_size; /* each part size, 0 if there's no part size, meaning it's unlimited */
+  uint64_t
+      part_size; /* each part size, 0 if there's no part size, meaning it's unlimited */
   uint64_t stripe_max_size; /* underlying obj max size */
   std::string override_prefix;
 
-  RGWObjManifestRule() : start_part_num(0), start_ofs(0), part_size(0), stripe_max_size(0) {}
-  RGWObjManifestRule(uint32_t _start_part_num, uint64_t _start_ofs, uint64_t _part_size, uint64_t _stripe_max_size) :
-                       start_part_num(_start_part_num), start_ofs(_start_ofs), part_size(_part_size), stripe_max_size(_stripe_max_size) {}
+  RGWObjManifestRule() :
+    start_part_num(0), start_ofs(0), part_size(0), stripe_max_size(0)
+  {}
 
-  void encode(bufferlist& bl) const {
+  RGWObjManifestRule(
+      uint32_t _start_part_num,
+      uint64_t _start_ofs,
+      uint64_t _part_size,
+      uint64_t _stripe_max_size) :
+    start_part_num(_start_part_num),
+    start_ofs(_start_ofs),
+    part_size(_part_size),
+    stripe_max_size(_stripe_max_size)
+  {}
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(start_part_num, bl);
     encode(start_ofs, bl);
@@ -152,7 +196,9 @@ struct RGWObjManifestRule {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(start_part_num, bl);
     decode(start_ofs, bl);
@@ -162,35 +208,43 @@ struct RGWObjManifestRule {
       decode(override_prefix, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
+
+  void dump(Formatter* f) const;
   static std::list<RGWObjManifestRule> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWObjManifestRule)
 
 struct RGWObjTier {
-    std::string name;
-    RGWZoneGroupPlacementTier tier_placement;
-    bool is_multipart_upload{false};
+  std::string name;
+  RGWZoneGroupPlacementTier tier_placement;
+  bool is_multipart_upload{false};
 
-    RGWObjTier(): name("none") {}
+  RGWObjTier() :
+    name("none")
+  {}
 
-    void encode(bufferlist& bl) const {
-      ENCODE_START(2, 2, bl);
-      encode(name, bl);
-      encode(tier_placement, bl);
-      encode(is_multipart_upload, bl);
-      ENCODE_FINISH(bl);
-    }
+  void
+  encode(bufferlist& bl) const
+  {
+    ENCODE_START(2, 2, bl);
+    encode(name, bl);
+    encode(tier_placement, bl);
+    encode(is_multipart_upload, bl);
+    ENCODE_FINISH(bl);
+  }
 
-    void decode(bufferlist::const_iterator& bl) {
-      DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
-      decode(name, bl);
-      decode(tier_placement, bl);
-      decode(is_multipart_upload, bl);
-      DECODE_FINISH(bl);
-    }
-    void dump(Formatter *f) const;
-    static std::list<RGWObjTier> generate_test_instances();
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
+    DECODE_START_LEGACY_COMPAT_LEN(2, 2, 2, bl);
+    decode(name, bl);
+    decode(tier_placement, bl);
+    decode(is_multipart_upload, bl);
+    DECODE_FINISH(bl);
+  }
+
+  void dump(Formatter* f) const;
+  static std::list<RGWObjTier> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWObjTier)
 
@@ -207,7 +261,8 @@ protected:
 
   uint64_t max_head_size{0};
   std::string prefix;
-  rgw_bucket_placement tail_placement; /* might be different than the original bucket,
+  rgw_bucket_placement
+      tail_placement; /* might be different than the original bucket,
                                        as object might have been copied across pools */
   std::map<uint64_t, RGWObjManifestRule> rules;
 
@@ -216,17 +271,28 @@ protected:
   std::string tier_type;
   RGWObjTier tier_config;
 
-  void convert_to_explicit(const DoutPrefixProvider *dpp, const RGWZoneGroup& zonegroup, const RGWZoneParams& zone_params);
-  int append_explicit(const DoutPrefixProvider *dpp, RGWObjManifest& m, const RGWZoneGroup& zonegroup, const RGWZoneParams& zone_params);
-  void append_rules(RGWObjManifest& m, std::map<uint64_t, RGWObjManifestRule>::iterator& iter, std::string *override_prefix);
+  void convert_to_explicit(
+      const DoutPrefixProvider* dpp,
+      const RGWZoneGroup& zonegroup,
+      const RGWZoneParams& zone_params);
+  int append_explicit(
+      const DoutPrefixProvider* dpp,
+      RGWObjManifest& m,
+      const RGWZoneGroup& zonegroup,
+      const RGWZoneParams& zone_params);
+  void append_rules(
+      RGWObjManifest& m,
+      std::map<uint64_t, RGWObjManifestRule>::iterator& iter,
+      std::string* override_prefix);
 
 public:
-
   RGWObjManifest() = default;
-  RGWObjManifest(const RGWObjManifest& rhs) {
-    *this = rhs;
-  }
-  RGWObjManifest& operator=(const RGWObjManifest& rhs) {
+
+  RGWObjManifest(const RGWObjManifest& rhs) { *this = rhs; }
+
+  RGWObjManifest&
+  operator=(const RGWObjManifest& rhs)
+  {
     explicit_objs = rhs.explicit_objs;
     objs = rhs.objs;
     obj_size = rhs.obj_size;
@@ -242,42 +308,59 @@ public:
     return *this;
   }
 
-  std::map<uint64_t, RGWObjManifestPart>& get_explicit_objs() {
+  std::map<uint64_t, RGWObjManifestPart>&
+  get_explicit_objs()
+  {
     return objs;
   }
 
-
-  void set_explicit(uint64_t _size, std::map<uint64_t, RGWObjManifestPart>& _objs) {
+  void
+  set_explicit(uint64_t _size, std::map<uint64_t, RGWObjManifestPart>& _objs)
+  {
     explicit_objs = true;
     objs.swap(_objs);
     set_obj_size(_size);
   }
 
-  void get_implicit_location(uint64_t cur_part_id, uint64_t cur_stripe, uint64_t ofs,
-                             const std::string *override_prefix, rgw_obj_select *location) const;
+  void get_implicit_location(
+      uint64_t cur_part_id,
+      uint64_t cur_stripe,
+      uint64_t ofs,
+      const std::string* override_prefix,
+      rgw_obj_select* location) const;
 
-  const std::map<uint64_t, RGWObjManifestRule>& get_rules() const {
+  const std::map<uint64_t, RGWObjManifestRule>&
+  get_rules() const
+  {
     return rules;
   }
 
-  void clear_rules() {
+  void
+  clear_rules()
+  {
     rules.clear();
   }
 
-  void set_trivial_rule(uint64_t tail_ofs, uint64_t stripe_max_size) {
+  void
+  set_trivial_rule(uint64_t tail_ofs, uint64_t stripe_max_size)
+  {
     RGWObjManifestRule rule(0, tail_ofs, 0, stripe_max_size);
     rules[0] = rule;
     max_head_size = tail_ofs;
   }
 
-  void set_multipart_part_rule(uint64_t stripe_max_size, uint64_t part_num) {
+  void
+  set_multipart_part_rule(uint64_t stripe_max_size, uint64_t part_num)
+  {
     RGWObjManifestRule rule(0, 0, 0, stripe_max_size);
     rule.start_part_num = part_num;
     rules[0] = rule;
     max_head_size = 0;
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(8, 6, bl);
     encode(obj_size, bl);
     encode(objs, bl);
@@ -304,7 +387,9 @@ public:
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START_LEGACY_COMPAT_LEN_32(8, 2, 2, bl);
     decode(obj_size, bl);
     decode(objs, bl);
@@ -381,25 +466,34 @@ public:
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
   static std::list<RGWObjManifest> generate_test_instances();
 
-  int append(const DoutPrefixProvider *dpp, RGWObjManifest& m, const RGWZoneGroup& zonegroup,
-             const RGWZoneParams& zone_params);
+  int append(
+      const DoutPrefixProvider* dpp,
+      RGWObjManifest& m,
+      const RGWZoneGroup& zonegroup,
+      const RGWZoneParams& zone_params);
 
-  bool get_rule(uint64_t ofs, RGWObjManifestRule *rule) const;
+  bool get_rule(uint64_t ofs, RGWObjManifestRule* rule) const;
 
-  bool empty() const {
+  bool
+  empty() const
+  {
     if (explicit_objs)
       return objs.empty();
     return rules.empty();
   }
 
-  bool has_explicit_objs() const {
+  bool
+  has_explicit_objs() const
+  {
     return explicit_objs;
   }
 
-  bool has_tail() const {
+  bool
+  has_tail() const
+  {
     if (explicit_objs) {
       if (objs.size() == 1) {
         auto iter = objs.begin();
@@ -411,7 +505,12 @@ public:
     return (obj_size > head_size);
   }
 
-  void set_head(const rgw_placement_rule& placement_rule, const rgw_obj& _o, uint64_t _s) {
+  void
+  set_head(
+      const rgw_placement_rule& placement_rule,
+      const rgw_obj& _o,
+      uint64_t _s)
+  {
     head_placement_rule = placement_rule;
     obj = _o;
     head_size = _s;
@@ -422,111 +521,154 @@ public:
     }
   }
 
-  const rgw_obj& get_obj() const {
+  const rgw_obj&
+  get_obj() const
+  {
     return obj;
   }
 
-  void set_tail_placement(const rgw_placement_rule& placement_rule, const rgw_bucket& _b) {
+  void
+  set_tail_placement(
+      const rgw_placement_rule& placement_rule,
+      const rgw_bucket& _b)
+  {
     tail_placement.placement_rule = placement_rule;
     tail_placement.bucket = _b;
   }
 
-  const rgw_bucket_placement& get_tail_placement() const {
+  const rgw_bucket_placement&
+  get_tail_placement() const
+  {
     return tail_placement;
   }
 
-  const rgw_placement_rule& get_head_placement_rule() const {
+  const rgw_placement_rule&
+  get_head_placement_rule() const
+  {
     return head_placement_rule;
   }
 
-  void set_prefix(const std::string& _p) {
+  void
+  set_prefix(const std::string& _p)
+  {
     prefix = _p;
   }
 
-  const std::string& get_prefix() const {
+  const std::string&
+  get_prefix() const
+  {
     return prefix;
   }
 
-  void set_tail_instance(const std::string& _ti) {
+  void
+  set_tail_instance(const std::string& _ti)
+  {
     tail_instance = _ti;
   }
 
-  const std::string& get_tail_instance() const {
+  const std::string&
+  get_tail_instance() const
+  {
     return tail_instance;
   }
 
-  void set_head_size(uint64_t _s) {
+  void
+  set_head_size(uint64_t _s)
+  {
     head_size = _s;
   }
 
-  void set_obj_size(uint64_t s) {
+  void
+  set_obj_size(uint64_t s)
+  {
     obj_size = s;
   }
 
-  uint64_t get_obj_size() const {
+  uint64_t
+  get_obj_size() const
+  {
     return obj_size;
   }
 
-  uint64_t get_head_size() const {
+  uint64_t
+  get_head_size() const
+  {
     return head_size;
   }
 
-  uint64_t get_max_head_size() const {
+  uint64_t
+  get_max_head_size() const
+  {
     return max_head_size;
   }
 
-  void set_max_head_size(uint64_t _max_head_size) {
+  void
+  set_max_head_size(uint64_t _max_head_size)
+  {
     max_head_size = _max_head_size;
   }
 
-  const std::string& get_tier_type() {
-      return tier_type;
+  const std::string&
+  get_tier_type()
+  {
+    return tier_type;
   }
 
-  bool is_tier_type_s3() {
-      return (tier_type == RGWTierType::CLOUD_S3 ||
-              tier_type == RGWTierType::CLOUD_S3_GLACIER);
+  bool
+  is_tier_type_s3()
+  {
+    return (
+        tier_type == RGWTierType::CLOUD_S3 ||
+        tier_type == RGWTierType::CLOUD_S3_GLACIER);
   }
 
-  bool is_tier_type_s3_glacier() {
-      return (tier_type == RGWTierType::CLOUD_S3_GLACIER);
+  bool
+  is_tier_type_s3_glacier()
+  {
+    return (tier_type == RGWTierType::CLOUD_S3_GLACIER);
   }
 
-  inline void set_tier_type(std::string value) {
-      /* Only RGWTierType::CLOUD_S3 & RGWTierType::CLOUD_S3_GLACIER
+  inline void
+  set_tier_type(std::string value)
+  {
+    /* Only RGWTierType::CLOUD_S3 & RGWTierType::CLOUD_S3_GLACIER
        * tier-type are supported for now */
-      if (RGWTierType::is_tier_type_supported(value)) {
-        tier_type = value;
-      }
+    if (RGWTierType::is_tier_type_supported(value)) {
+      tier_type = value;
+    }
   }
 
-  inline void set_tier_config(RGWObjTier t) {
-      /* Set only if tier_type set to RGWTierType::CLOUD_S3 or
+  inline void
+  set_tier_config(RGWObjTier t)
+  {
+    /* Set only if tier_type set to RGWTierType::CLOUD_S3 or
        * RGWTierType::CLOUD_S3_GLACIER */
-      if (!is_tier_type_s3())
-        return;
+    if (!is_tier_type_s3())
+      return;
 
-      tier_config.name = t.name;
-      tier_config.tier_placement = t.tier_placement;
-      tier_config.is_multipart_upload = t.is_multipart_upload;
+    tier_config.name = t.name;
+    tier_config.tier_placement = t.tier_placement;
+    tier_config.is_multipart_upload = t.is_multipart_upload;
   }
 
-  inline const void get_tier_config(RGWObjTier* t) {
-      if (!is_tier_type_s3())
-        return;
+  inline const void
+  get_tier_config(RGWObjTier* t)
+  {
+    if (!is_tier_type_s3())
+      return;
 
-      t->name = tier_config.name;
-      t->tier_placement = tier_config.tier_placement;
-      t->is_multipart_upload = tier_config.is_multipart_upload;
+    t->name = tier_config.name;
+    t->tier_placement = tier_config.tier_placement;
+    t->is_multipart_upload = tier_config.is_multipart_upload;
   }
 
   class obj_iterator {
-    const DoutPrefixProvider *dpp;
-    const RGWObjManifest *manifest = nullptr;
-    uint64_t part_ofs = 0;   /* where current part starts */
+    const DoutPrefixProvider* dpp;
+    const RGWObjManifest* manifest = nullptr;
+    uint64_t part_ofs = 0; /* where current part starts */
     uint64_t stripe_ofs = 0; /* where current stripe starts */
-    uint64_t ofs = 0;        /* current position within the object */
-    uint64_t stripe_size = 0;      /* current part size */
+    uint64_t ofs = 0; /* current position within the object */
+    uint64_t stripe_size = 0; /* current part size */
 
     int cur_part_id = 0;
     int cur_stripe = 0;
@@ -542,32 +684,55 @@ public:
 
   public:
     obj_iterator() = default;
-    explicit obj_iterator(const DoutPrefixProvider *_dpp, const RGWObjManifest *_m)
-      : obj_iterator(_dpp, _m, 0)
+
+    explicit obj_iterator(
+        const DoutPrefixProvider* _dpp,
+        const RGWObjManifest* _m) :
+      obj_iterator(_dpp, _m, 0)
     {}
-    obj_iterator(const DoutPrefixProvider *_dpp, const RGWObjManifest *_m, uint64_t _ofs) : dpp(_dpp), manifest(_m) {
+
+    obj_iterator(
+        const DoutPrefixProvider* _dpp,
+        const RGWObjManifest* _m,
+        uint64_t _ofs) :
+      dpp(_dpp), manifest(_m)
+    {
       seek(_ofs);
     }
+
     void seek(uint64_t ofs);
 
     void operator++();
-    bool operator==(const obj_iterator& rhs) const {
+
+    bool
+    operator==(const obj_iterator& rhs) const
+    {
       return (ofs == rhs.ofs);
     }
-    bool operator!=(const obj_iterator& rhs) const {
+
+    bool
+    operator!=(const obj_iterator& rhs) const
+    {
       return (ofs != rhs.ofs);
     }
-    const rgw_obj_select& get_location() {
+
+    const rgw_obj_select&
+    get_location()
+    {
       return location;
     }
 
     /* where current part starts */
-    uint64_t get_part_ofs() const {
+    uint64_t
+    get_part_ofs() const
+    {
       return part_ofs;
     }
 
     /* start of current stripe */
-    uint64_t get_stripe_ofs() {
+    uint64_t
+    get_stripe_ofs()
+    {
       if (manifest->explicit_objs) {
         return explicit_iter->first;
       }
@@ -575,25 +740,35 @@ public:
     }
 
     /* current ofs relative to start of rgw object */
-    uint64_t get_ofs() const {
+    uint64_t
+    get_ofs() const
+    {
       return ofs;
     }
 
-    const std::string& get_cur_override_prefix() const {
+    const std::string&
+    get_cur_override_prefix() const
+    {
       return cur_override_prefix;
     }
 
-    int get_cur_part_id() const {
+    int
+    get_cur_part_id() const
+    {
       return cur_part_id;
     }
 
     /* stripe number */
-    int get_cur_stripe() const {
+    int
+    get_cur_stripe() const
+    {
       return cur_stripe;
     }
 
     /* current stripe size */
-    uint64_t get_stripe_size() {
+    uint64_t
+    get_stripe_size()
+    {
       if (manifest->explicit_objs) {
         return explicit_iter->second.size;
       }
@@ -601,7 +776,9 @@ public:
     }
 
     /* offset where data starts within current stripe */
-    uint64_t location_ofs() {
+    uint64_t
+    location_ofs()
+    {
       if (manifest->explicit_objs) {
         return explicit_iter->second.loc_ofs;
       }
@@ -610,29 +787,42 @@ public:
 
     void update_location();
 
-    void dump(Formatter *f) const;
+    void dump(Formatter* f) const;
   }; // class obj_iterator
 
-  obj_iterator obj_begin(const DoutPrefixProvider *dpp) const { return obj_iterator{dpp, this}; }
-  obj_iterator obj_end(const DoutPrefixProvider *dpp) const { return obj_iterator{dpp, this, obj_size}; }
-  obj_iterator obj_find(const DoutPrefixProvider *dpp, uint64_t ofs) const {
+  obj_iterator
+  obj_begin(const DoutPrefixProvider* dpp) const
+  {
+    return obj_iterator{dpp, this};
+  }
+
+  obj_iterator
+  obj_end(const DoutPrefixProvider* dpp) const
+  {
+    return obj_iterator{dpp, this, obj_size};
+  }
+
+  obj_iterator
+  obj_find(const DoutPrefixProvider* dpp, uint64_t ofs) const
+  {
     return obj_iterator{dpp, this, std::min(ofs, obj_size)};
   }
+
   // return an iterator to the beginning of the given part number
-  obj_iterator obj_find_part(const DoutPrefixProvider *dpp, int part_num) const;
+  obj_iterator obj_find_part(const DoutPrefixProvider* dpp, int part_num) const;
 
   /*
    * simple object generator. Using a simple single rule manifest.
    */
   class generator {
-    RGWObjManifest *manifest;
+    RGWObjManifest* manifest;
     uint64_t last_ofs;
     uint64_t cur_part_ofs;
     int cur_part_id;
     int cur_stripe;
     uint64_t cur_stripe_size;
     std::string cur_oid;
-    
+
     std::string oid_prefix;
 
     rgw_obj_select cur_obj;
@@ -640,21 +830,41 @@ public:
     RGWObjManifestRule rule;
 
   public:
-    generator() : manifest(NULL), last_ofs(0), cur_part_ofs(0), cur_part_id(0), 
-		  cur_stripe(0), cur_stripe_size(0) {}
-    int create_begin(CephContext *cct, RGWObjManifest *manifest,
-                     const rgw_placement_rule& head_placement_rule,
-                     const rgw_placement_rule *tail_placement_rule,
-                     const rgw_bucket& bucket,
-                     const rgw_obj& obj);
+    generator() :
+      manifest(NULL),
+      last_ofs(0),
+      cur_part_ofs(0),
+      cur_part_id(0),
+      cur_stripe(0),
+      cur_stripe_size(0)
+    {}
+
+    int create_begin(
+        CephContext* cct,
+        RGWObjManifest* manifest,
+        const rgw_placement_rule& head_placement_rule,
+        const rgw_placement_rule* tail_placement_rule,
+        const rgw_bucket& bucket,
+        const rgw_obj& obj);
 
     int create_next(uint64_t ofs);
 
-    rgw_raw_obj get_cur_obj(RGWZoneGroup& zonegroup, RGWZoneParams& zone_params) { return cur_obj.get_raw_obj(zonegroup, zone_params); }
-    rgw_raw_obj get_cur_obj(RGWRados* store) const { return cur_obj.get_raw_obj(store); }
+    rgw_raw_obj
+    get_cur_obj(RGWZoneGroup& zonegroup, RGWZoneParams& zone_params)
+    {
+      return cur_obj.get_raw_obj(zonegroup, zone_params);
+    }
+
+    rgw_raw_obj
+    get_cur_obj(RGWRados* store) const
+    {
+      return cur_obj.get_raw_obj(store);
+    }
 
     /* total max size of current stripe (including head obj) */
-    uint64_t cur_stripe_max_size() const {
+    uint64_t
+    cur_stripe_max_size() const
+    {
       return cur_stripe_size;
     }
   };

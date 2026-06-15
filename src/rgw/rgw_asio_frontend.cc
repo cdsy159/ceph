@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "rgw_asio_frontend.h"
+
 #include <atomic>
 #include <chrono>
 #include <ctime>
@@ -8,8 +10,8 @@
 #include <list>
 #include <memory>
 
-#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/bind_cancellation_slot.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/error.hpp>
@@ -17,20 +19,17 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/v6_only.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/spawn.hpp>
 #include <boost/asio/write.hpp>
-
+#include <boost/context/protected_fixedsize_stack.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
-
-#include <boost/context/protected_fixedsize_stack.hpp>
-#include <boost/asio/spawn.hpp>
 
 #include "common/async/shared_mutex.h"
 #include "common/errno.h"
 #include "common/strtol.h"
 
 #include "rgw_asio_client.h"
-#include "rgw_asio_frontend.h"
 #include "rgw_asio_thread.h"
 
 #ifdef WITH_RADOSGW_BEAST_OPENSSL
@@ -38,14 +37,12 @@
 #endif
 
 #include "common/split.h"
-
 #include "services/svc_config_key.h"
 #include "services/svc_zone.h"
 
-#include "rgw_zone.h"
-
 #include "rgw_asio_frontend_timer.h"
 #include "rgw_dmclock_async_scheduler.h"
+#include "rgw_zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -59,15 +56,19 @@ namespace ssl = boost::asio::ssl;
 
 struct Connection;
 
-using timeout_timer = rgw::basic_timeout_timer<ceph::coarse_mono_clock,
-      boost::asio::any_io_executor, Connection>;
+using timeout_timer = rgw::basic_timeout_timer<
+    ceph::coarse_mono_clock,
+    boost::asio::any_io_executor,
+    Connection>;
 
 static constexpr size_t parse_buffer_size = 65536;
 using parse_buffer = boost::beast::flat_static_buffer<parse_buffer_size>;
 
 // use mmap/mprotect to allocate 512k coroutine stacks
-auto make_stack_allocator() {
-  return boost::context::protected_fixedsize_stack{512*1024};
+auto
+make_stack_allocator()
+{
+  return boost::context::protected_fixedsize_stack{512 * 1024};
 }
 
 static constexpr std::chrono::milliseconds BACKOFF_MAX_WAIT(5000);
@@ -79,19 +80,23 @@ class RGWAsioBackoff {
 
   ceph::timespan cur_wait;
   void update_wait_time();
+
 public:
   explicit RGWAsioBackoff(boost::asio::io_context& context) :
-                          timer(context),
-                          cur_wait(std::chrono::milliseconds(1)) {
-  }
+    timer(context), cur_wait(std::chrono::milliseconds(1))
+  {}
 
   void backoff_sleep(boost::asio::yield_context yield);
-  void reset() {
+
+  void
+  reset()
+  {
     cur_wait = std::chrono::milliseconds(1);
   }
 };
 
-void RGWAsioBackoff::update_wait_time()
+void
+RGWAsioBackoff::update_wait_time()
 {
   if (cur_wait < BACKOFF_MAX_WAIT) {
     cur_wait = cur_wait * 2;
@@ -101,7 +106,8 @@ void RGWAsioBackoff::update_wait_time()
   }
 }
 
-void RGWAsioBackoff::backoff_sleep(boost::asio::yield_context yield)
+void
+RGWAsioBackoff::backoff_sleep(boost::asio::yield_context yield)
 {
   update_wait_time();
   timer.expires_after(cur_wait);
@@ -118,27 +124,42 @@ class StreamIO : public rgw::asio::ClientIO {
   optional_yield y;
   parse_buffer& buffer;
   boost::system::error_code fatal_ec;
- public:
-  StreamIO(CephContext *cct, Stream& stream, timeout_timer& timeout,
-           rgw::asio::parser_type& parser, optional_yield y,
-           parse_buffer& buffer, bool is_ssl,
-           const tcp::endpoint& local_endpoint,
-           const tcp::endpoint& remote_endpoint)
-      : ClientIO(parser, is_ssl, local_endpoint, remote_endpoint),
-        cct(cct), stream(stream), timeout(timeout), y(y),
-        buffer(buffer)
+
+public:
+  StreamIO(
+      CephContext* cct,
+      Stream& stream,
+      timeout_timer& timeout,
+      rgw::asio::parser_type& parser,
+      optional_yield y,
+      parse_buffer& buffer,
+      bool is_ssl,
+      const tcp::endpoint& local_endpoint,
+      const tcp::endpoint& remote_endpoint) :
+    ClientIO(parser, is_ssl, local_endpoint, remote_endpoint),
+    cct(cct),
+    stream(stream),
+    timeout(timeout),
+    y(y),
+    buffer(buffer)
   {}
 
-  boost::system::error_code get_fatal_error_code() const { return fatal_ec; }
+  boost::system::error_code
+  get_fatal_error_code() const
+  {
+    return fatal_ec;
+  }
 
-  size_t write_data(const char* buf, size_t len) override {
+  size_t
+  write_data(const char* buf, size_t len) override
+  {
     boost::system::error_code ec;
     timeout.start();
     size_t bytes = 0;
     if (y) {
       boost::asio::yield_context& yield = y.get_yield_context();
-      bytes = boost::asio::async_write(stream, boost::asio::buffer(buf, len),
-                                       yield[ec]);
+      bytes = boost::asio::async_write(
+          stream, boost::asio::buffer(buf, len), yield[ec]);
     } else {
       bytes = boost::asio::write(stream, boost::asio::buffer(buf, len), ec);
     }
@@ -157,7 +178,9 @@ class StreamIO : public rgw::asio::ClientIO {
     return bytes;
   }
 
-  size_t recv_body(char* buf, size_t max) override {
+  size_t
+  recv_body(char* buf, size_t max) override
+  {
     auto& message = parser.get();
     auto& body_remaining = message.body();
     body_remaining.data = buf;
@@ -192,10 +215,15 @@ class StreamIO : public rgw::asio::ClientIO {
 struct http_version {
   unsigned major_ver;
   unsigned minor_ver;
-  explicit http_version(unsigned version)
-    : major_ver(version / 10), minor_ver(version % 10) {}
+
+  explicit http_version(unsigned version) :
+    major_ver(version / 10), minor_ver(version % 10)
+  {}
 };
-std::ostream& operator<<(std::ostream& out, const http_version& v) {
+
+std::ostream&
+operator<<(std::ostream& out, const http_version& v)
+{
   return out << "HTTP/" << v.major_ver << '.' << v.minor_ver;
 }
 
@@ -204,11 +232,18 @@ struct log_header {
   const http::fields& fields;
   http::field field;
   std::string_view quote;
-  log_header(const http::fields& fields, http::field field,
-             std::string_view quote = "")
-    : fields(fields), field(field), quote(quote) {}
+
+  log_header(
+      const http::fields& fields,
+      http::field field,
+      std::string_view quote = "") :
+    fields(fields), field(field), quote(quote)
+  {}
 };
-std::ostream& operator<<(std::ostream& out, const log_header& h) {
+
+std::ostream&
+operator<<(std::ostream& out, const log_header& h)
+{
   auto p = h.fields.find(h.field);
   if (p == h.fields.end()) {
     return out << '-';
@@ -219,9 +254,15 @@ std::ostream& operator<<(std::ostream& out, const log_header& h) {
 // log fractional seconds in milliseconds
 struct log_ms_remainder {
   ceph::coarse_real_time t;
-  log_ms_remainder(ceph::coarse_real_time t) : t(t) {}
+
+  log_ms_remainder(ceph::coarse_real_time t) :
+    t(t)
+  {}
 };
-std::ostream& operator<<(std::ostream& out, const log_ms_remainder& m) {
+
+std::ostream&
+operator<<(std::ostream& out, const log_ms_remainder& m)
+{
   using namespace std::chrono;
 
   std::ios oldState(nullptr);
@@ -237,27 +278,38 @@ std::ostream& operator<<(std::ostream& out, const log_ms_remainder& m) {
 // log time in apache format: day/month/year:hour:minute:second zone
 struct log_apache_time {
   ceph::coarse_real_time t;
-  log_apache_time(ceph::coarse_real_time t) : t(t) {}
+
+  log_apache_time(ceph::coarse_real_time t) :
+    t(t)
+  {}
 };
-std::ostream& operator<<(std::ostream& out, const log_apache_time& a) {
+
+std::ostream&
+operator<<(std::ostream& out, const log_apache_time& a)
+{
   const auto t = ceph::coarse_real_clock::to_time_t(a.t);
   const auto local = std::localtime(&t);
   return out << std::put_time(local, "%d/%b/%Y:%T.") << log_ms_remainder{a.t}
-      << std::put_time(local, " %z");
+             << std::put_time(local, " %z");
 };
 
 using SharedMutex = ceph::async::SharedMutex<boost::asio::any_io_executor>;
 
 template <typename Stream>
-void handle_connection(boost::asio::io_context& context,
-                       RGWProcessEnv& env, Stream& stream,
-                       timeout_timer& timeout, size_t header_limit,
-                       parse_buffer& buffer, bool is_ssl,
-                       SharedMutex& pause_mutex,
-                       rgw::dmclock::Scheduler *scheduler,
-                       const std::string& uri_prefix,
-                       boost::system::error_code& ec,
-                       boost::asio::yield_context yield)
+void
+handle_connection(
+    boost::asio::io_context& context,
+    RGWProcessEnv& env,
+    Stream& stream,
+    timeout_timer& timeout,
+    size_t header_limit,
+    parse_buffer& buffer,
+    bool is_ssl,
+    SharedMutex& pause_mutex,
+    rgw::dmclock::Scheduler* scheduler,
+    const std::string& uri_prefix,
+    boost::system::error_code& ec,
+    boost::asio::yield_context yield)
 {
   // don't impose a limit on the body, since we read it in pieces
   static constexpr size_t body_limit = std::numeric_limits<size_t>::max();
@@ -329,20 +381,21 @@ void handle_connection(boost::asio::io_context& context,
       if (cct->_conf->rgw_beast_enable_async) {
         y = optional_yield{yield};
       }
-      StreamIO real_client{cct, stream, timeout, parser, y, buffer,
-                           is_ssl, local_endpoint, remote_endpoint};
+      StreamIO real_client{cct,    stream, timeout,        parser,         y,
+                           buffer, is_ssl, local_endpoint, remote_endpoint};
 
-      auto real_client_io = rgw::io::add_reordering(
-                              rgw::io::add_buffering(cct,
-                                rgw::io::add_chunking(
-                                  rgw::io::add_conlen_controlling(
-                                    &real_client))));
+      auto real_client_io = rgw::io::add_reordering(rgw::io::add_buffering(
+          cct,
+          rgw::io::add_chunking(rgw::io::add_conlen_controlling(&real_client))));
       RGWRestfulIO client(cct, &real_client_io);
       // getting ssl_cipher and tls_version
-      if(is_ssl) {
-        ceph_assert(typeid(Stream) == typeid(boost::asio::ssl::stream<tcp::socket&>));
-        const SSL * native_handle = reinterpret_cast<const SSL *>(stream.native_handle());
-        const auto ssl_cipher = SSL_CIPHER_get_name(SSL_get_current_cipher(native_handle));
+      if (is_ssl) {
+        ceph_assert(
+            typeid(Stream) == typeid(boost::asio::ssl::stream<tcp::socket&>));
+        const SSL* native_handle =
+            reinterpret_cast<const SSL*>(stream.native_handle());
+        const auto ssl_cipher =
+            SSL_CIPHER_get_name(SSL_get_current_cipher(native_handle));
         const auto tls_version = SSL_get_version(native_handle);
         auto& client_env = client.get_env();
         client_env.set("SSL_CIPHER", ssl_cipher);
@@ -352,20 +405,23 @@ void handle_connection(boost::asio::io_context& context,
       string user = "-";
       const auto started = ceph::coarse_real_clock::now();
       ceph::coarse_real_clock::duration latency{};
-      process_request(env, &req, uri_prefix, &client, y,
-                      scheduler, &user, &latency, &http_ret);
+      process_request(
+          env, &req, uri_prefix, &client, y, scheduler, &user, &latency,
+          &http_ret);
 
       if (cct->_conf->subsys.should_gather(ceph_subsys_rgw_access, 1)) {
         // access log line elements begin per Apache Combined Log Format with additions following
-        lsubdout(cct, rgw_access, 1) << "beast: " << std::hex << &req << std::dec << ": "
-            << remote_endpoint.address() << " - " << user << " [" << log_apache_time{started} << "] \""
-            << message.method_string() << ' ' << message.target() << ' '
-            << http_version{message.version()} << "\" " << http_ret << ' '
+        lsubdout(cct, rgw_access, 1)
+            << "beast: " << std::hex << &req << std::dec << ": "
+            << remote_endpoint.address() << " - " << user << " ["
+            << log_apache_time{started} << "] \"" << message.method_string()
+            << ' ' << message.target() << ' ' << http_version{message.version()}
+            << "\" " << http_ret << ' '
             << client.get_bytes_sent() + client.get_bytes_received() << ' '
             << log_header{message, http::field::referer, "\""} << ' '
             << log_header{message, http::field::user_agent, "\""} << ' '
-            << log_header{message, http::field::range} << " latency="
-            << latency << dendl;
+            << log_header{message, http::field::range} << " latency=" << latency
+            << dendl;
       }
 
       // process_request() can't distinguish between connection errors and
@@ -383,7 +439,7 @@ void handle_connection(boost::asio::io_context& context,
     // if we failed before reading the entire message, discard any remaining
     // bytes before reading the next
     while (!parser.is_done()) {
-      static std::array<char, 1024*1024> discard_buffer;
+      static std::array<char, 1024 * 1024> discard_buffer;
 
       auto& body = parser.get().body();
       body.size = discard_buffer.size();
@@ -399,8 +455,8 @@ void handle_connection(boost::asio::io_context& context,
         return;
       }
       if (ec) {
-        ldout(cct, 5) << "failed to discard unread message: "
-            << ec.message() << dendl;
+        ldout(cct, 5) << "failed to discard unread message: " << ec.message()
+                      << dendl;
         return;
       }
     }
@@ -410,19 +466,25 @@ void handle_connection(boost::asio::io_context& context,
 // timeout support requires that connections are reference-counted, because the
 // timeout_handler can outlive the coroutine
 struct Connection : boost::intrusive::list_base_hook<>,
-                    boost::intrusive_ref_counter<Connection>
-{
+                    boost::intrusive_ref_counter<Connection> {
   tcp::socket socket;
   parse_buffer buffer;
 
-  explicit Connection(tcp::socket&& socket) noexcept
-      : socket(std::move(socket)) {}
+  explicit Connection(tcp::socket&& socket) noexcept :
+    socket(std::move(socket))
+  {}
 
-  void close(boost::system::error_code& ec) {
+  void
+  close(boost::system::error_code& ec)
+  {
     socket.close(ec);
   }
 
-  tcp::socket& get_socket() { return socket; }
+  tcp::socket&
+  get_socket()
+  {
+    return socket;
+  }
 };
 
 class ConnectionList {
@@ -430,26 +492,39 @@ class ConnectionList {
   List connections;
   std::mutex mutex;
 
-  void remove(Connection& c) {
+  void
+  remove(Connection& c)
+  {
     std::lock_guard lock{mutex};
     if (c.is_linked()) {
       connections.erase(List::s_iterator_to(c));
     }
   }
- public:
+
+public:
   class Guard {
-    ConnectionList *list;
-    Connection *conn;
-   public:
-    Guard(ConnectionList *list, Connection *conn) : list(list), conn(conn) {}
+    ConnectionList* list;
+    Connection* conn;
+
+  public:
+    Guard(ConnectionList* list, Connection* conn) :
+      list(list), conn(conn)
+    {}
+
     ~Guard() { list->remove(*conn); }
   };
-  [[nodiscard]] Guard add(Connection& conn) {
+
+  [[nodiscard]] Guard
+  add(Connection& conn)
+  {
     std::lock_guard lock{mutex};
     connections.push_back(conn);
     return Guard{this, &conn};
   }
-  void close(boost::system::error_code& ec) {
+
+  void
+  close(boost::system::error_code& ec)
+  {
     std::lock_guard lock{mutex};
     for (auto& conn : connections) {
       conn.socket.close(ec);
@@ -459,6 +534,7 @@ class ConnectionList {
 };
 
 namespace dmc = rgw::dmclock;
+
 class AsioFrontend {
   RGWProcessEnv& env;
   boost::intrusive_ptr<CephContext> cct{env.driver->ctx()};
@@ -474,10 +550,11 @@ class AsioFrontend {
   std::shared_ptr<ssl::context> ssl_context;
 #endif
   boost::asio::steady_timer ssl_reload_timer;
-  int get_config_key_val(string name,
-                         const string& type,
-                         bufferlist *pbl);
-  int ssl_set_private_key(ssl::context& ctx, const string& name, bool is_ssl_cert);
+  int get_config_key_val(string name, const string& type, bufferlist* pbl);
+  int ssl_set_private_key(
+      ssl::context& ctx,
+      const string& name,
+      bool is_ssl_cert);
   int ssl_set_certificate_chain(ssl::context& ctx, const string& name);
   int ssl_init();
   int ssl_reload();
@@ -494,9 +571,11 @@ class AsioFrontend {
     bool use_ssl = false;
     bool use_nodelay = false;
 
-    explicit Listener(boost::asio::io_context& context)
-      : acceptor(context), socket(context) {}
+    explicit Listener(boost::asio::io_context& context) :
+      acceptor(context), socket(context)
+    {}
   };
+
   std::list<Listener> listeners;
 
   ConnectionList connections;
@@ -504,56 +583,70 @@ class AsioFrontend {
   std::atomic<bool> going_down{false};
 
   RGWAsioBackoff backoff;
-  CephContext* ctx() const { return cct.get(); }
+
+  CephContext*
+  ctx() const
+  {
+    return cct.get();
+  }
+
   std::optional<dmc::ClientCounters> client_counters;
   std::unique_ptr<dmc::ClientConfig> client_config;
 
   void accept(Listener& listener, boost::asio::yield_context yield);
   void on_accept(Listener& listener, tcp::socket stream);
 
- public:
-  AsioFrontend(RGWProcessEnv& env, RGWFrontendConfig* conf,
-	       dmc::SchedulerCtx& sched_ctx,
-	       boost::asio::io_context& context)
-    : env(env), conf(conf), context(context),
+public:
+  AsioFrontend(
+      RGWProcessEnv& env,
+      RGWFrontendConfig* conf,
+      dmc::SchedulerCtx& sched_ctx,
+      boost::asio::io_context& context) :
+    env(env),
+    conf(conf),
+    context(context),
 #ifdef WITH_RADOSGW_BEAST_OPENSSL
-      ssl_reload_timer(context),
+    ssl_reload_timer(context),
 #endif
-      pause_mutex(context.get_executor()),
-      backoff(context)
+    pause_mutex(context.get_executor()),
+    backoff(context)
   {
     auto sched_t = dmc::get_scheduler_t(ctx());
-    switch(sched_t){
+    switch (sched_t) {
     case dmc::scheduler_t::dmclock:
-      scheduler.reset(new dmc::AsyncScheduler(ctx(),
-                                              context,
-                                              std::ref(sched_ctx.get_dmc_client_counters()),
-                                              sched_ctx.get_dmc_client_config(),
-                                              *sched_ctx.get_dmc_client_config(),
-                                              dmc::AtLimit::Reject));
+      scheduler.reset(new dmc::AsyncScheduler(
+          ctx(), context, std::ref(sched_ctx.get_dmc_client_counters()),
+          sched_ctx.get_dmc_client_config(), *sched_ctx.get_dmc_client_config(),
+          dmc::AtLimit::Reject));
       break;
     case dmc::scheduler_t::none:
-      lderr(ctx()) << "Got invalid scheduler type for beast, defaulting to throttler" << dendl;
+      lderr(ctx())
+          << "Got invalid scheduler type for beast, defaulting to throttler"
+          << dendl;
       [[fallthrough]];
     case dmc::scheduler_t::throttler:
       scheduler.reset(new dmc::SimpleThrottler(ctx()));
-
     }
   }
 
   int init();
-  int run() {
+
+  int
+  run()
+  {
     return 0;
   }
+
   void stop();
   void join();
   void pause();
   void unpause();
 };
 
-unsigned short parse_port(const char *input, boost::system::error_code& ec)
+unsigned short
+parse_port(const char* input, boost::system::error_code& ec)
 {
-  char *end = nullptr;
+  char* end = nullptr;
   auto port = std::strtoul(input, &end, 10);
   if (port > std::numeric_limits<unsigned short>::max()) {
     ec.assign(ERANGE, boost::system::system_category());
@@ -563,9 +656,11 @@ unsigned short parse_port(const char *input, boost::system::error_code& ec)
   return port;
 }
 
-tcp::endpoint parse_endpoint(boost::asio::string_view input,
-                             unsigned short default_port,
-                             boost::system::error_code& ec)
+tcp::endpoint
+parse_endpoint(
+    boost::asio::string_view input,
+    unsigned short default_port,
+    boost::system::error_code& ec)
 {
   tcp::endpoint endpoint;
 
@@ -612,7 +707,8 @@ tcp::endpoint parse_endpoint(boost::asio::string_view input,
   return endpoint;
 }
 
-static int drop_privileges(CephContext *ctx)
+static int
+drop_privileges(CephContext* ctx)
 {
   uid_t uid = ctx->get_set_uid();
   gid_t gid = ctx->get_set_gid();
@@ -620,22 +716,25 @@ static int drop_privileges(CephContext *ctx)
   std::string gid_string = ctx->get_set_gid_string();
   if (gid && setgid(gid) != 0) {
     int err = errno;
-    ldout(ctx, -1) << "unable to setgid " << gid << ": " << cpp_strerror(err) << dendl;
+    ldout(ctx, -1) << "unable to setgid " << gid << ": " << cpp_strerror(err)
+                   << dendl;
     return -err;
   }
   if (uid && setuid(uid) != 0) {
     int err = errno;
-    ldout(ctx, -1) << "unable to setuid " << uid << ": " << cpp_strerror(err) << dendl;
+    ldout(ctx, -1) << "unable to setuid " << uid << ": " << cpp_strerror(err)
+                   << dendl;
     return -err;
   }
   if (uid && gid) {
-    ldout(ctx, 0) << "set uid:gid to " << uid << ":" << gid
-                  << " (" << uid_string << ":" << gid_string << ")" << dendl;
+    ldout(ctx, 0) << "set uid:gid to " << uid << ":" << gid << " ("
+                  << uid_string << ":" << gid_string << ")" << dendl;
   }
   return 0;
 }
 
-int AsioFrontend::init()
+int
+AsioFrontend::init()
 {
   boost::system::error_code ec;
   auto& config = conf->get_config_map();
@@ -644,16 +743,17 @@ int AsioFrontend::init()
     uri_prefix = i->second;
   }
 
-// Setting global timeout
+  // Setting global timeout
   auto timeout = config.find("request_timeout_ms");
   if (timeout != config.end()) {
     auto timeout_number = ceph::parse<uint64_t>(timeout->second);
     if (timeout_number) {
-      request_timeout =  std::chrono::milliseconds(*timeout_number);
+      request_timeout = std::chrono::milliseconds(*timeout_number);
     } else {
       lderr(ctx()) << "WARNING: invalid value for request_timeout_ms: "
-      << timeout->second << " setting it to the default value: "
-      << REQUEST_TIMEOUT << dendl;
+                   << timeout->second
+                   << " setting it to the default value: " << REQUEST_TIMEOUT
+                   << dendl;
     }
   }
 
@@ -662,12 +762,12 @@ int AsioFrontend::init()
     auto limit = ceph::parse<uint64_t>(max_header_size->second);
     if (!limit) {
       lderr(ctx()) << "WARNING: invalid value for max_header_size: "
-          << max_header_size->second << ", using the default value: "
-          << header_limit << dendl;
+                   << max_header_size->second
+                   << ", using the default value: " << header_limit << dendl;
     } else if (*limit > parse_buffer_size) { // can't exceed parse buffer size
       header_limit = parse_buffer_size;
       lderr(ctx()) << "WARNING: max_header_size " << max_header_size->second
-          << " capped at maximum value " << header_limit << dendl;
+                   << " capped at maximum value " << header_limit << dendl;
     } else {
       header_limit = *limit;
     }
@@ -681,7 +781,8 @@ int AsioFrontend::init()
 #ifdef __cpp_lib_atomic_shared_ptr
   const auto ssl_ctx = ssl_context.load(std::memory_order_acquire);
 #else
-  const auto ssl_ctx = std::atomic_load_explicit(&ssl_context, std::memory_order_acquire);
+  const auto ssl_ctx =
+      std::atomic_load_explicit(&ssl_context, std::memory_order_acquire);
 #endif
   if (ssl_ctx != nullptr) {
     r = ssl_reload_timer_start();
@@ -735,9 +836,9 @@ int AsioFrontend::init()
     l.acceptor.open(l.endpoint.protocol(), ec);
     if (ec) {
       if (ec == boost::asio::error::address_family_not_supported) {
-	ldout(ctx(), 0) << "WARNING: cannot open socket for endpoint=" << l.endpoint
-			<< ", " << ec.message() << dendl;
-	continue;
+        ldout(ctx(), 0) << "WARNING: cannot open socket for endpoint="
+                        << l.endpoint << ", " << ec.message() << dendl;
+        continue;
       }
 
       lderr(ctx()) << "failed to open socket: " << ec.message() << dendl;
@@ -747,9 +848,9 @@ int AsioFrontend::init()
     if (l.endpoint.protocol() == tcp::v6()) {
       l.acceptor.set_option(boost::asio::ip::v6_only(true), ec);
       if (ec) {
-        lderr(ctx()) << "failed to set v6_only socket option: "
-		     << ec.message() << dendl;
-	return -ec.value();
+        lderr(ctx()) << "failed to set v6_only socket option: " << ec.message()
+                     << dendl;
+        return -ec.value();
       }
     }
 
@@ -758,10 +859,11 @@ int AsioFrontend::init()
       // the same port. Can read more about the implementation here.
       // https://web.git.kernel.org/pub/scm/linux/kernel/git/netdev/net-next.git/commit/?id=c617f398edd4db2b8567a28e899a88f8f574798d
       int one = 1;
-      if (setsockopt(l.acceptor.native_handle(), SOL_SOCKET,
-                     SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one)) == -1) {
-        lderr(ctx()) << "setsockopt SO_REUSEADDR | SO_REUSEPORT failed:" <<
- dendl;
+      if (setsockopt(
+              l.acceptor.native_handle(), SOL_SOCKET,
+              SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one)) == -1) {
+        lderr(ctx()) << "setsockopt SO_REUSEADDR | SO_REUSEPORT failed:"
+                     << dendl;
         return -1;
       }
     } else {
@@ -770,29 +872,34 @@ int AsioFrontend::init()
 
     l.acceptor.bind(l.endpoint, ec);
     if (ec) {
-      lderr(ctx()) << "failed to bind address " << l.endpoint
-          << ": " << ec.message() << dendl;
+      lderr(ctx()) << "failed to bind address " << l.endpoint << ": "
+                   << ec.message() << dendl;
       return -ec.value();
     }
 
     auto it = config.find("max_connection_backlog");
-    auto max_connection_backlog = boost::asio::socket_base::max_listen_connections;
+    auto max_connection_backlog =
+        boost::asio::socket_base::max_listen_connections;
     if (it != config.end()) {
       string err;
       max_connection_backlog = strict_strtol(it->second.c_str(), 10, &err);
       if (!err.empty()) {
-        ldout(ctx(), 0) << "WARNING: invalid value for max_connection_backlog=" << it->second << dendl;
-        max_connection_backlog = boost::asio::socket_base::max_listen_connections;
+        ldout(ctx(), 0) << "WARNING: invalid value for max_connection_backlog="
+                        << it->second << dendl;
+        max_connection_backlog =
+            boost::asio::socket_base::max_listen_connections;
       }
     }
     l.acceptor.listen(max_connection_backlog);
 
     // spawn a cancellable coroutine to the run the accept loop
-    boost::asio::spawn(context,
-      [this, &l] (boost::asio::yield_context yield) mutable {
-        accept(l, yield);
-      }, bind_cancellation_slot(l.signal.slot(),
-             bind_executor(context, boost::asio::detached)));
+    boost::asio::spawn(
+        context,
+        [this, &l](boost::asio::yield_context yield) mutable {
+          accept(l, yield);
+        },
+        bind_cancellation_slot(
+            l.signal.slot(), bind_executor(context, boost::asio::detached)));
 
     ldout(ctx(), 4) << "frontend listening on " << l.endpoint << dendl;
     socket_bound = true;
@@ -815,7 +922,8 @@ class ExpandMetaVar {
   map<string, string> meta_map;
 
 public:
-  ExpandMetaVar(rgw::sal::Zone* zone_svc) {
+  ExpandMetaVar(rgw::sal::Zone* zone_svc)
+  {
     meta_map["realm"] = zone_svc->get_realm_name();
     meta_map["realm_id"] = zone_svc->get_realm_id();
     meta_map["zonegroup"] = zone_svc->get_zonegroup().get_name();
@@ -827,7 +935,8 @@ public:
   string process_str(const string& in);
 };
 
-string ExpandMetaVar::process_str(const string& in)
+string
+ExpandMetaVar::process_str(const string& in)
 {
   if (meta_map.empty()) {
     return in;
@@ -847,24 +956,23 @@ string ExpandMetaVar::process_str(const string& in)
     }
 
     string var;
-    const char *valid_chars = "abcdefghijklmnopqrstuvwxyz_";
+    const char* valid_chars = "abcdefghijklmnopqrstuvwxyz_";
 
     size_t endpos = 0;
-    if (in[pos+1] == '{') {
+    if (in[pos + 1] == '{') {
       // ...${foo_bar}...
       endpos = in.find_first_not_of(valid_chars, pos + 2);
-      if (endpos != std::string::npos &&
-	  in[endpos] == '}') {
-	var = in.substr(pos + 2, endpos - pos - 2);
-	endpos++;
+      if (endpos != std::string::npos && in[endpos] == '}') {
+        var = in.substr(pos + 2, endpos - pos - 2);
+        endpos++;
       }
     } else {
       // ...$foo...
       endpos = in.find_first_not_of(valid_chars, pos + 1);
       if (endpos != std::string::npos)
-	var = in.substr(pos + 1, endpos - pos - 1);
+        var = in.substr(pos + 1, endpos - pos - 1);
       else
-	var = in.substr(pos + 1);
+        var = in.substr(pos + 1);
     }
     string var_source = in.substr(pos, endpos - pos);
     last_pos = endpos;
@@ -886,9 +994,8 @@ string ExpandMetaVar::process_str(const string& in)
 
 } /* anonymous namespace */
 
-int AsioFrontend::get_config_key_val(string name,
-                                     const string& type,
-                                     bufferlist *pbl)
+int
+AsioFrontend::get_config_key_val(string name, const string& type, bufferlist* pbl)
 {
   if (name.empty()) {
     lderr(ctx()) << "bad " << type << " config value" << dendl;
@@ -903,7 +1010,11 @@ int AsioFrontend::get_config_key_val(string name,
   return 0;
 }
 
-int AsioFrontend::ssl_set_private_key(ssl::context& ssl_ctx, const string& name, bool is_ssl_certificate)
+int
+AsioFrontend::ssl_set_private_key(
+    ssl::context& ssl_ctx,
+    const string& name,
+    bool is_ssl_certificate)
 {
   boost::system::error_code ec;
 
@@ -911,23 +1022,22 @@ int AsioFrontend::ssl_set_private_key(ssl::context& ssl_ctx, const string& name,
     ssl_ctx.use_private_key_file(name, ssl::context::pem, ec);
   } else {
     bufferlist bl;
-    int r = get_config_key_val(name.substr(config_val_prefix.size()),
-                               "ssl_private_key",
-                               &bl);
+    int r = get_config_key_val(
+        name.substr(config_val_prefix.size()), "ssl_private_key", &bl);
     if (r < 0) {
       return r;
     }
-    ssl_ctx.use_private_key(boost::asio::buffer(bl.c_str(), bl.length()),
-                                 ssl::context::pem, ec);
+    ssl_ctx.use_private_key(
+        boost::asio::buffer(bl.c_str(), bl.length()), ssl::context::pem, ec);
   }
 
   if (ec) {
     if (!is_ssl_certificate) {
-      lderr(ctx()) << "failed to add ssl_private_key=" << name
-        << ": " << ec.message() << dendl;
+      lderr(ctx()) << "failed to add ssl_private_key=" << name << ": "
+                   << ec.message() << dendl;
     } else {
       lderr(ctx()) << "failed to use ssl_certificate=" << name
-        << " as a private key: " << ec.message() << dendl;
+                   << " as a private key: " << ec.message() << dendl;
     }
     return -ec.value();
   }
@@ -935,7 +1045,8 @@ int AsioFrontend::ssl_set_private_key(ssl::context& ssl_ctx, const string& name,
   return 0;
 }
 
-int AsioFrontend::ssl_set_certificate_chain(ssl::context& ssl_ctx, const string& name)
+int
+AsioFrontend::ssl_set_certificate_chain(ssl::context& ssl_ctx, const string& name)
 {
   boost::system::error_code ec;
 
@@ -943,26 +1054,26 @@ int AsioFrontend::ssl_set_certificate_chain(ssl::context& ssl_ctx, const string&
     ssl_ctx.use_certificate_chain_file(name, ec);
   } else {
     bufferlist bl;
-    int r = get_config_key_val(name.substr(config_val_prefix.size()),
-                               "ssl_certificate",
-                               &bl);
+    int r = get_config_key_val(
+        name.substr(config_val_prefix.size()), "ssl_certificate", &bl);
     if (r < 0) {
       return r;
     }
-    ssl_ctx.use_certificate_chain(boost::asio::buffer(bl.c_str(), bl.length()),
-                                 ec);
+    ssl_ctx.use_certificate_chain(
+        boost::asio::buffer(bl.c_str(), bl.length()), ec);
   }
 
   if (ec) {
-    lderr(ctx()) << "failed to use ssl_certificate=" << name
-      << ": " << ec.message() << dendl;
+    lderr(ctx()) << "failed to use ssl_certificate=" << name << ": "
+                 << ec.message() << dendl;
     return -ec.value();
   }
 
   return 0;
 }
 
-int AsioFrontend::ssl_init()
+int
+AsioFrontend::ssl_init()
 {
   boost::system::error_code ec;
   auto& config = conf->get_config_map();
@@ -973,8 +1084,7 @@ int AsioFrontend::ssl_init()
   /*
    * don't try to config certificate if frontend isn't configured for ssl
    */
-  if (ports.first == ports.second &&
-      endpoints.first == endpoints.second) {
+  if (ports.first == ports.second && endpoints.first == endpoints.second) {
     return 0;
   }
 
@@ -1013,13 +1123,17 @@ int AsioFrontend::ssl_init()
   return 0;
 }
 
-int AsioFrontend::ssl_reload() {
-  const auto ssl_ctx = std::make_shared<ssl::context>(ssl::context(ssl::context::tls));
+int
+AsioFrontend::ssl_reload()
+{
+  const auto ssl_ctx =
+      std::make_shared<ssl::context>(ssl::context(ssl::context::tls));
 
   std::optional<string> cert = conf->get_val("ssl_certificate");
   std::optional<string> key = conf->get_val("ssl_private_key");
   if (key && !cert) {
-    lderr(ctx()) << "no ssl_certificate configured for ssl_private_key" << dendl;
+    lderr(ctx()) << "no ssl_certificate configured for ssl_private_key"
+                 << dendl;
     return -EINVAL;
   }
 
@@ -1034,7 +1148,7 @@ int AsioFrontend::ssl_reload() {
   }
 
   if (options) {
-    for (auto &option : ceph::split(*options, ":")) {
+    for (auto& option : ceph::split(*options, ":")) {
       if (option == "default_workarounds") {
         ssl_ctx->set_options(ssl::context::default_workarounds);
       } else if (option == "no_compression") {
@@ -1052,7 +1166,8 @@ int AsioFrontend::ssl_reload() {
       } else if (option == "single_dh_use") {
         ssl_ctx->set_options(ssl::context::single_dh_use);
       } else {
-        lderr(ctx()) << "ignoring unknown ssl option '" << option << "'" << dendl;
+        lderr(ctx()) << "ignoring unknown ssl option '" << option << "'"
+                     << dendl;
       }
     }
   }
@@ -1113,7 +1228,9 @@ int AsioFrontend::ssl_reload() {
   return 0;
 }
 
-int AsioFrontend::ssl_reload_timer_start() {
+int
+AsioFrontend::ssl_reload_timer_start()
+{
   const auto interval_str = conf->get_val("ssl_reload");
   if (!interval_str) {
     return 0;
@@ -1130,7 +1247,7 @@ int AsioFrontend::ssl_reload_timer_start() {
   }
 
   ssl_reload_timer.expires_after(std::chrono::seconds(*interval));
-  ssl_reload_timer.async_wait([this](const boost::system::error_code &ec) {
+  ssl_reload_timer.async_wait([this](const boost::system::error_code& ec) {
     if (ec) {
       return;
     }
@@ -1150,7 +1267,8 @@ int AsioFrontend::ssl_reload_timer_start() {
 }
 #endif // WITH_RADOSGW_BEAST_OPENSSL
 
-void AsioFrontend::accept(Listener& l, boost::asio::yield_context yield)
+void
+AsioFrontend::accept(Listener& l, boost::asio::yield_context yield)
 {
   for (;;) {
     boost::system::error_code ec;
@@ -1170,7 +1288,8 @@ void AsioFrontend::accept(Listener& l, boost::asio::yield_context yield)
         backoff.backoff_sleep(yield);
         continue;
       }
-      ldout(ctx(), 0) << "accept stopped due to error: " << ec.message() << dendl;
+      ldout(ctx(), 0) << "accept stopped due to error: " << ec.message()
+                      << dendl;
       return;
     }
 
@@ -1179,7 +1298,8 @@ void AsioFrontend::accept(Listener& l, boost::asio::yield_context yield)
   }
 }
 
-void AsioFrontend::on_accept(Listener& l, tcp::socket stream)
+void
+AsioFrontend::on_accept(Listener& l, tcp::socket stream)
 {
   boost::system::error_code ec;
   stream.set_option(tcp::no_delay(l.use_nodelay), ec);
@@ -1190,60 +1310,72 @@ void AsioFrontend::on_accept(Listener& l, tcp::socket stream)
 #ifdef __cpp_lib_atomic_shared_ptr
     const auto ssl_ctx = ssl_context.load(std::memory_order_acquire);
 #else
-    const auto ssl_ctx = std::atomic_load_explicit(&ssl_context, std::memory_order_acquire);
+    const auto ssl_ctx =
+        std::atomic_load_explicit(&ssl_context, std::memory_order_acquire);
 #endif
-    boost::asio::spawn(make_strand(context), std::allocator_arg, make_stack_allocator(),
-      [this, s=std::move(stream), ssl_ctx] (boost::asio::yield_context yield) mutable {
-        auto conn = boost::intrusive_ptr{new Connection(std::move(s))};
-        auto c = connections.add(*conn);
-        // wrap the tcp stream in an ssl stream
-        boost::asio::ssl::stream<tcp::socket&> stream{conn->socket, *ssl_ctx};
-        auto timeout = timeout_timer{yield.get_executor(), request_timeout, conn};
-        // do ssl handshake
-        boost::system::error_code ec;
-        timeout.start();
-        auto bytes = stream.async_handshake(ssl::stream_base::server,
-                                            conn->buffer.data(), yield[ec]);
-        timeout.cancel();
-        if (ec) {
-          ldout(ctx(), 1) << "ssl handshake failed: " << ec.message() << dendl;
-          return;
-        }
-        conn->buffer.consume(bytes);
-        handle_connection(context, env, stream, timeout, header_limit,
-                          conn->buffer, true, pause_mutex, scheduler.get(),
-                          uri_prefix, ec, yield);
+    boost::asio::spawn(
+        make_strand(context), std::allocator_arg, make_stack_allocator(),
+        [this, s = std::move(stream),
+         ssl_ctx](boost::asio::yield_context yield) mutable {
+          auto conn = boost::intrusive_ptr{new Connection(std::move(s))};
+          auto c = connections.add(*conn);
+          // wrap the tcp stream in an ssl stream
+          boost::asio::ssl::stream<tcp::socket&> stream{conn->socket, *ssl_ctx};
+          auto timeout =
+              timeout_timer{yield.get_executor(), request_timeout, conn};
+          // do ssl handshake
+          boost::system::error_code ec;
+          timeout.start();
+          auto bytes = stream.async_handshake(
+              ssl::stream_base::server, conn->buffer.data(), yield[ec]);
+          timeout.cancel();
+          if (ec) {
+            ldout(ctx(), 1)
+                << "ssl handshake failed: " << ec.message() << dendl;
+            return;
+          }
+          conn->buffer.consume(bytes);
+          handle_connection(
+              context, env, stream, timeout, header_limit, conn->buffer, true,
+              pause_mutex, scheduler.get(), uri_prefix, ec, yield);
 
-        if (!ec || ec == http::error::end_of_stream) {
-          // ssl shutdown (ignoring errors)
-          stream.async_shutdown(yield[ec]);
-        }
+          if (!ec || ec == http::error::end_of_stream) {
+            // ssl shutdown (ignoring errors)
+            stream.async_shutdown(yield[ec]);
+          }
 
-        conn->socket.shutdown(tcp::socket::shutdown_both, ec);
-      }, [] (std::exception_ptr eptr) {
-        if (eptr) std::rethrow_exception(eptr);
-      });
+          conn->socket.shutdown(tcp::socket::shutdown_both, ec);
+        },
+        [](std::exception_ptr eptr) {
+          if (eptr)
+            std::rethrow_exception(eptr);
+        });
   } else {
 #else
   {
 #endif // WITH_RADOSGW_BEAST_OPENSSL
-    boost::asio::spawn(make_strand(context), std::allocator_arg, make_stack_allocator(),
-      [this, s=std::move(stream)] (boost::asio::yield_context yield) mutable {
-        auto conn = boost::intrusive_ptr{new Connection(std::move(s))};
-        auto c = connections.add(*conn);
-        auto timeout = timeout_timer{yield.get_executor(), request_timeout, conn};
-        boost::system::error_code ec;
-        handle_connection(context, env, conn->socket, timeout, header_limit,
-                          conn->buffer, false, pause_mutex, scheduler.get(),
-                          uri_prefix, ec, yield);
-        conn->socket.shutdown(tcp::socket::shutdown_both, ec);
-      }, [] (std::exception_ptr eptr) {
-        if (eptr) std::rethrow_exception(eptr);
-      });
+    boost::asio::spawn(
+        make_strand(context), std::allocator_arg, make_stack_allocator(),
+        [this, s = std::move(stream)](boost::asio::yield_context yield) mutable {
+          auto conn = boost::intrusive_ptr{new Connection(std::move(s))};
+          auto c = connections.add(*conn);
+          auto timeout =
+              timeout_timer{yield.get_executor(), request_timeout, conn};
+          boost::system::error_code ec;
+          handle_connection(
+              context, env, conn->socket, timeout, header_limit, conn->buffer,
+              false, pause_mutex, scheduler.get(), uri_prefix, ec, yield);
+          conn->socket.shutdown(tcp::socket::shutdown_both, ec);
+        },
+        [](std::exception_ptr eptr) {
+          if (eptr)
+            std::rethrow_exception(eptr);
+        });
   }
 }
 
-void AsioFrontend::stop()
+void
+AsioFrontend::stop()
 {
   ceph_assert(!is_asio_thread);
 
@@ -1260,9 +1392,11 @@ void AsioFrontend::stop()
   }
   ssl_reload_timer.cancel();
 
-  const bool graceful_stop{ g_ceph_context->_conf->rgw_graceful_stop };
+  const bool graceful_stop{g_ceph_context->_conf->rgw_graceful_stop};
   if (graceful_stop) {
-    ldout(ctx(), 4) << "frontend pausing and waiting for outstanding requests to complete..." << dendl;
+    ldout(ctx(), 4) << "frontend pausing and waiting for outstanding requests "
+                       "to complete..."
+                    << dendl;
     pause_mutex.lock(ec);
     if (ec) {
       ldout(ctx(), 1) << "frontend failed to pause: " << ec.message() << dendl;
@@ -1278,14 +1412,16 @@ void AsioFrontend::stop()
   pause_mutex.cancel();
 }
 
-void AsioFrontend::join()
+void
+AsioFrontend::join()
 {
   if (!going_down) {
     stop();
   }
 }
 
-void AsioFrontend::pause()
+void
+AsioFrontend::pause()
 {
   ldout(ctx(), 4) << "frontend pausing, closing connections..." << dendl;
 
@@ -1297,7 +1433,7 @@ void AsioFrontend::pause()
     l.signal.emit(boost::asio::cancellation_type::terminal);
   }
 
-  const bool graceful_stop{ g_ceph_context->_conf->rgw_graceful_stop };
+  const bool graceful_stop{g_ceph_context->_conf->rgw_graceful_stop};
   if (!graceful_stop) {
     // close all connections so outstanding requests fail quickly
     connections.close(ec);
@@ -1313,19 +1449,21 @@ void AsioFrontend::pause()
   }
 }
 
-void AsioFrontend::unpause()
+void
+AsioFrontend::unpause()
 {
   // unpause to unblock connections
   pause_mutex.unlock();
 
   // start accepting connections again
   for (auto& l : listeners) {
-    boost::asio::spawn(context,
-      [this, &l] (boost::asio::yield_context yield) mutable {
-        accept(l, yield);
-      }, bind_cancellation_slot(l.signal.slot(),
-             bind_executor(context, boost::asio::detached)));
-
+    boost::asio::spawn(
+        context,
+        [this, &l](boost::asio::yield_context yield) mutable {
+          accept(l, yield);
+        },
+        bind_cancellation_slot(
+            l.signal.slot(), bind_executor(context, boost::asio::detached)));
   }
 
   ldout(ctx(), 4) << "frontend unpaused" << dendl;
@@ -1334,49 +1472,58 @@ void AsioFrontend::unpause()
 } // anonymous namespace
 
 class RGWAsioFrontend::Impl : public AsioFrontend {
- public:
-  Impl(RGWProcessEnv& env, RGWFrontendConfig* conf,
-       rgw::dmclock::SchedulerCtx& sched_ctx,
-       boost::asio::io_context& context)
-    : AsioFrontend(env, conf, sched_ctx, context) {}
+public:
+  Impl(
+      RGWProcessEnv& env,
+      RGWFrontendConfig* conf,
+      rgw::dmclock::SchedulerCtx& sched_ctx,
+      boost::asio::io_context& context) :
+    AsioFrontend(env, conf, sched_ctx, context)
+  {}
 };
 
-RGWAsioFrontend::RGWAsioFrontend(RGWProcessEnv& env,
-                                 RGWFrontendConfig* conf,
-				 rgw::dmclock::SchedulerCtx& sched_ctx,
-				 boost::asio::io_context& context)
-  : impl(new Impl(env, conf, sched_ctx, context))
-{
-}
+RGWAsioFrontend::RGWAsioFrontend(
+    RGWProcessEnv& env,
+    RGWFrontendConfig* conf,
+    rgw::dmclock::SchedulerCtx& sched_ctx,
+    boost::asio::io_context& context) :
+  impl(new Impl(env, conf, sched_ctx, context))
+{}
 
 RGWAsioFrontend::~RGWAsioFrontend() = default;
 
-int RGWAsioFrontend::init()
+int
+RGWAsioFrontend::init()
 {
   return impl->init();
 }
 
-int RGWAsioFrontend::run()
+int
+RGWAsioFrontend::run()
 {
   return impl->run();
 }
 
-void RGWAsioFrontend::stop()
+void
+RGWAsioFrontend::stop()
 {
   impl->stop();
 }
 
-void RGWAsioFrontend::join()
+void
+RGWAsioFrontend::join()
 {
   impl->join();
 }
 
-void RGWAsioFrontend::pause_for_new_config()
+void
+RGWAsioFrontend::pause_for_new_config()
 {
   impl->pause();
 }
 
-void RGWAsioFrontend::unpause_with_new_config()
+void
+RGWAsioFrontend::unpause_with_new_config()
 {
   impl->unpause();
 }

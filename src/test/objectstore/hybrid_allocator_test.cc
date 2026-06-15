@@ -1,27 +1,32 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <iostream>
 #include <gtest/gtest.h>
+
+#include <iostream>
 
 #include "os/bluestore/HybridAllocator.h"
 
 class TestHybridAllocator : public HybridAvlAllocator {
 public:
-  TestHybridAllocator(CephContext* cct,
-                      int64_t device_size,
-                      int64_t _block_size,
-                      uint64_t max_entries,
+  TestHybridAllocator(
+      CephContext* cct,
+      int64_t device_size,
+      int64_t _block_size,
+      uint64_t max_entries,
       const std::string& name) :
-    HybridAvlAllocator(cct, device_size, _block_size,
-      max_entries,
-      name) {
-  }
+    HybridAvlAllocator(cct, device_size, _block_size, max_entries, name)
+  {}
 
-  uint64_t get_bmap_free() {
+  uint64_t
+  get_bmap_free()
+  {
     return get_bmap() ? get_bmap()->get_free() : 0;
   }
-  uint64_t get_avl_free() {
+
+  uint64_t
+  get_avl_free()
+  {
     return AvlAllocator::get_free();
   }
 };
@@ -34,21 +39,20 @@ TEST(BitmapAllocator, claim_edge)
   {
     uint64_t block_size = 0x1000;
     uint64_t capacity = _1m;
-    BitmapAllocator ha(g_ceph_context, capacity, block_size,
-      "test_allocator");
+    BitmapAllocator ha(g_ceph_context, capacity, block_size, "test_allocator");
 
     ha.init_add_free(0x1000, _1m - 0x2000);
     auto r = ha.claim_free_to_left(0);
     ASSERT_EQ(r, 0);
 
-    ha.foreach([&](uint64_t o, uint64_t l) {
+    ha.foreach ([&](uint64_t o, uint64_t l) {
       ASSERT_EQ(o, 0x1000);
       ASSERT_EQ(l, 0xfe000);
     });
 
     r = ha.claim_free_to_right(0);
     ASSERT_EQ(r, 0);
-    ha.foreach([&](uint64_t o, uint64_t l) {
+    ha.foreach ([&](uint64_t o, uint64_t l) {
       ASSERT_EQ(o, 0x1000);
       ASSERT_EQ(l, 0xfe000);
     });
@@ -60,8 +64,9 @@ TEST(HybridAllocator, basic)
   {
     uint64_t block_size = 0x1000;
     uint64_t capacity = 0x10000 * _1m; // = 64GB
-    TestHybridAllocator ha(g_ceph_context, capacity, block_size,
-      4 * sizeof(range_seg_t), "test_hybrid_allocator");
+    TestHybridAllocator ha(
+        g_ceph_context, capacity, block_size, 4 * sizeof(range_seg_t),
+        "test_hybrid_allocator");
 
     ASSERT_EQ(0, ha.get_free());
     ASSERT_EQ(0, ha.get_avl_free());
@@ -112,8 +117,9 @@ TEST(HybridAllocator, basic)
 
     PExtentVector extents;
     // allocate 4K, to be served from bitmap
-    EXPECT_EQ(block_size, ha.allocate(block_size, block_size,
-      0, (int64_t)-1, &extents));
+    EXPECT_EQ(
+        block_size,
+        ha.allocate(block_size, block_size, 0, (int64_t)-1, &extents));
     ASSERT_EQ(1, extents.size());
     ASSERT_EQ(0, extents[0].offset);
 
@@ -209,8 +215,9 @@ TEST(HybridAllocator, basic)
   {
     uint64_t block_size = 0x1000;
     uint64_t capacity = 0x10000 * _1m; // = 64GB
-    TestHybridAllocator ha(g_ceph_context, capacity, block_size,
-      4 * sizeof(range_seg_t), "test_hybrid_allocator");
+    TestHybridAllocator ha(
+        g_ceph_context, capacity, block_size, 4 * sizeof(range_seg_t),
+        "test_hybrid_allocator");
 
     ha.init_add_free(_1m, _1m);
     ha.init_add_free(_1m * 3, _1m);
@@ -234,12 +241,13 @@ TEST(HybridAllocator, basic)
   {
     uint64_t block_size = 0x1000;
     uint64_t capacity = 0x10000 * _1m; // = 64GB
-    TestHybridAllocator ha(g_ceph_context, capacity, block_size,
-      4 * sizeof(range_seg_t), "test_hybrid_allocator");
+    TestHybridAllocator ha(
+        g_ceph_context, capacity, block_size, 4 * sizeof(range_seg_t),
+        "test_hybrid_allocator");
 
     // to be at avl
     ha.init_add_free(0, 2 * _1m);
-    ha.init_add_free(4 * _1m , 2 * _1m);
+    ha.init_add_free(4 * _1m, 2 * _1m);
     ha.init_add_free(8 * _1m, 2 * _1m);
     ha.init_add_free(16 * _1m, 4 * _1m);
 
@@ -252,8 +260,8 @@ TEST(HybridAllocator, basic)
 
     // allocate 12M using 2M chunks. 10M to be returned
     PExtentVector extents;
-    EXPECT_EQ(10 * _1m, ha.allocate(12 * _1m, 2 * _1m,
-      0, (int64_t)-1, &extents));
+    EXPECT_EQ(
+        10 * _1m, ha.allocate(12 * _1m, 2 * _1m, 0, (int64_t)-1, &extents));
 
     // release everything allocated
     for (auto& e : extents) {
@@ -271,8 +279,9 @@ TEST(HybridAllocator, fragmentation)
   {
     uint64_t block_size = 0x1000;
     uint64_t capacity = 0x1000 * 0x1000; // = 16M
-    TestHybridAllocator ha(g_ceph_context, capacity, block_size,
-      4 * sizeof(range_seg_t), "test_hybrid_allocator");
+    TestHybridAllocator ha(
+        g_ceph_context, capacity, block_size, 4 * sizeof(range_seg_t),
+        "test_hybrid_allocator");
 
     ha.init_add_free(0, 0x2000);
     ha.init_add_free(0x4000, 0x2000);

@@ -2,27 +2,34 @@
 
 #include <fmt/format.h>
 
-#include "include/health.h"
-#include "include/types.h"
-
 #include <sstream>
 #include <vector>
 
+#include "include/health.h"
+#include "include/types.h"
+
 namespace {
 
+using std::ostringstream;
 using std::unique_ptr;
 using std::vector;
-using std::ostringstream;
 
 class SlowOps final : public DaemonHealthMetricCollector {
-  bool _is_relevant(daemon_metric type) const override {
+  bool
+  _is_relevant(daemon_metric type) const override
+  {
     return type == daemon_metric::SLOW_OPS;
   }
-  health_check_t& _get_check(health_check_map_t& cm) const override {
+
+  health_check_t&
+  _get_check(health_check_map_t& cm) const override
+  {
     return cm.get_or_add("SLOW_OPS", HEALTH_WARN, "", 1);
   }
-  bool _update(const DaemonKey& daemon,
-               const DaemonHealthMetric& metric) override {
+
+  bool
+  _update(const DaemonKey& daemon, const DaemonHealthMetric& metric) override
+  {
     auto num_slow = metric.get_n1();
     auto blocked_time = metric.get_n2();
     value.n1 += num_slow;
@@ -34,7 +41,10 @@ class SlowOps final : public DaemonHealthMetricCollector {
       return false;
     }
   }
-  void _summarize(health_check_t& check) const override {
+
+  void
+  _summarize(health_check_t& check) const override
+  {
     if (daemons.empty()) {
       return;
     }
@@ -43,32 +53,40 @@ class SlowOps final : public DaemonHealthMetricCollector {
     ostringstream ss;
     if (daemons.size() > 1) {
       if (daemons.size() > 10) {
-        ss << "daemons " << vector<DaemonKey>(daemons.begin(), daemons.begin()+10)
-           << "..." << " have slow ops.";
+        ss << "daemons "
+           << vector<DaemonKey>(daemons.begin(), daemons.begin() + 10) << "..."
+           << " have slow ops.";
       } else {
         ss << "daemons " << daemons << " have slow ops.";
       }
     } else {
       ss << daemons.front() << " has slow ops";
     }
-    check.summary =
-        fmt::format("{} slow ops, oldest one blocked for {} sec, {}",
-                    value.n1, value.n2, ss.str());
+    check.summary = fmt::format(
+        "{} slow ops, oldest one blocked for {} sec, {}", value.n1, value.n2,
+        ss.str());
     // No detail
   }
+
   vector<DaemonKey> daemons;
 };
 
-
 class PendingPGs final : public DaemonHealthMetricCollector {
-  bool _is_relevant(daemon_metric type) const override {
+  bool
+  _is_relevant(daemon_metric type) const override
+  {
     return type == daemon_metric::PENDING_CREATING_PGS;
   }
-  health_check_t& _get_check(health_check_map_t& cm) const override {
+
+  health_check_t&
+  _get_check(health_check_map_t& cm) const override
+  {
     return cm.get_or_add("PENDING_CREATING_PGS", HEALTH_WARN, "", 1);
   }
-  bool _update(const DaemonKey& osd,
-               const DaemonHealthMetric& metric) override {
+
+  bool
+  _update(const DaemonKey& osd, const DaemonHealthMetric& metric) override
+  {
     value.n += metric.get_n();
     if (metric.get_n()) {
       osds.push_back(osd);
@@ -77,7 +95,10 @@ class PendingPGs final : public DaemonHealthMetricCollector {
       return false;
     }
   }
-  void _summarize(health_check_t& check) const override {
+
+  void
+  _summarize(health_check_t& check) const override
+  {
     if (osds.empty()) {
       return;
     }
@@ -90,6 +111,7 @@ class PendingPGs final : public DaemonHealthMetricCollector {
     }
     check.detail.push_back(ss.str());
   }
+
   vector<DaemonKey> osds;
 };
 

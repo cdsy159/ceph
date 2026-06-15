@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 /*
  * Ceph - scalable distributed file system
  *
@@ -55,7 +55,7 @@
  * destruction).
  */
 class Initialize {
- public:
+public:
   /**
    * This form of constructor causes its function argument to be invoked
    * when the object is constructed.  When used with a static Initialize
@@ -69,9 +69,7 @@ class Initialize {
    *      function should normally contain an internal guard so that it
    *      only performs its initialization the first time it is invoked.
    */
-  explicit Initialize(void (*func)()) {
-    (*func)();
-  }
+  explicit Initialize(void (*func)()) { (*func)(); }
 
   /**
    * This form of constructor causes a new object of a particular class
@@ -85,12 +83,13 @@ class Initialize {
    *      it is replaced with a pointer to a newly allocated object of
    *      the given type.
    */
-  template<typename T>
-  explicit Initialize(T*& p) {
+  template <typename T>
+  explicit Initialize(T*& p)
+  {
     if (p == NULL) {
       p = new T;
     }
   }
 };
 
-#endif  // CEPH_INITIALIZE_H
+#endif // CEPH_INITIALIZE_H

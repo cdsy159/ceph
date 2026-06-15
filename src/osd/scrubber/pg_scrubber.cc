@@ -1,7 +1,7 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=2 sw=2 sts=2 expandtab
 
-#include "./pg_scrubber.h"  // '.' notation used to affect clang-format order
+#include "./pg_scrubber.h" // '.' notation used to affect clang-format order
 
 #include <fmt/ranges.h>
 
@@ -11,18 +11,18 @@
 #include <sstream>
 #include <vector>
 
+#include "common/debug.h"
 #include "debug.h"
 
 #include "common/ceph_time.h"
-#include "common/debug.h"
 #include "common/errno.h"
+#include "include/utime_fmt.h"
 #include "messages/MOSDOp.h"
 #include "messages/MOSDRepScrub.h"
 #include "messages/MOSDRepScrubMap.h"
 #include "messages/MOSDScrubReserve.h"
 #include "osd/OSD.h"
 #include "osd/PG.h"
-#include "include/utime_fmt.h"
 #include "osd/osd_types_fmt.h"
 
 #include "ScrubStore.h"
@@ -44,12 +44,14 @@ using namespace std::literals;
 #define dout_prefix _prefix(_dout, this)
 
 template <class T>
-static ostream& _prefix(std::ostream* _dout, T* t)
+static ostream&
+_prefix(std::ostream* _dout, T* t)
 {
   return t->gen_prefix(*_dout);
 }
 
-ostream& operator<<(ostream& out, const scrub_flags_t& sf)
+ostream&
+operator<<(ostream& out, const scrub_flags_t& sf)
 {
   if (sf.auto_repair)
     out << " AUTO_REPAIR";
@@ -61,37 +63,40 @@ ostream& operator<<(ostream& out, const scrub_flags_t& sf)
   return out;
 }
 
-void PgScrubber::on_replica_activate()
+void
+PgScrubber::on_replica_activate()
 {
   dout(10) << __func__ << dendl;
   m_fsm->process_event(ReplicaActivate{});
 }
-
 
 /*
  * if the incoming message is from a previous interval, it must mean
  * PrimaryLogPG::on_change() was called when that interval ended. We can safely
  * discard the stale message.
  */
-bool PgScrubber::check_interval(epoch_t epoch_to_verify) const
+bool
+PgScrubber::check_interval(epoch_t epoch_to_verify) const
 {
   return epoch_to_verify >= m_pg->get_same_interval_since();
 }
 
-bool PgScrubber::should_drop_message(OpRequestRef &op) const
+bool
+PgScrubber::should_drop_message(OpRequestRef& op) const
 {
   if (check_interval(op->sent_epoch)) {
     return false;
   } else {
-    dout(10) << __func__ <<  ": discarding message " << *(op->get_req())
-	     << " from prior interval, epoch " << op->sent_epoch
-	     << ".  Current history.same_interval_since: "
+    dout(10) << __func__ << ": discarding message " << *(op->get_req())
+             << " from prior interval, epoch " << op->sent_epoch
+             << ".  Current history.same_interval_since: "
              << m_pg->info.history.same_interval_since << dendl;
     return true;
   }
 }
 
-bool PgScrubber::is_message_relevant(epoch_t epoch_to_verify)
+bool
+PgScrubber::is_message_relevant(epoch_t epoch_to_verify)
 {
   if (!m_active) {
     // not scrubbing. We can assume that the scrub was already terminated, and
@@ -117,14 +122,15 @@ bool PgScrubber::is_message_relevant(epoch_t epoch_to_verify)
   return verify_against_abort(epoch_to_verify);
 }
 
-bool PgScrubber::verify_against_abort(epoch_t epoch_to_verify)
+bool
+PgScrubber::verify_against_abort(epoch_t epoch_to_verify)
 {
   if (!should_abort()) {
     return true;
   }
 
   dout(10) << __func__ << " aborting. incoming epoch: " << epoch_to_verify
-	   << " vs last-aborted: " << m_last_aborted << dendl;
+           << " vs last-aborted: " << m_last_aborted << dendl;
 
   // if we were not aware of the abort before - kill the scrub.
   if (epoch_to_verify >= m_last_aborted) {
@@ -134,7 +140,8 @@ bool PgScrubber::verify_against_abort(epoch_t epoch_to_verify)
   return false;
 }
 
-bool PgScrubber::should_abort() const
+bool
+PgScrubber::should_abort() const
 {
   if (!ScrubJob::observes_noscrub_flags(m_active_target->urgency())) {
     // not aborting some types of high-priority scrubs
@@ -145,12 +152,13 @@ bool PgScrubber::should_abort() const
   // 'no-deepscrub')
   if (m_is_deep) {
     if (get_osdmap()->test_flag(CEPH_OSDMAP_NODEEP_SCRUB) ||
-	m_pg->pool.info.has_flag(pg_pool_t::FLAG_NODEEP_SCRUB)) {
+        m_pg->pool.info.has_flag(pg_pool_t::FLAG_NODEEP_SCRUB)) {
       dout(10) << "nodeep_scrub set, aborting" << dendl;
       return true;
     }
-  } else if (get_osdmap()->test_flag(CEPH_OSDMAP_NOSCRUB) ||
-	     m_pg->pool.info.has_flag(pg_pool_t::FLAG_NOSCRUB)) {
+  } else if (
+      get_osdmap()->test_flag(CEPH_OSDMAP_NOSCRUB) ||
+      m_pg->pool.info.has_flag(pg_pool_t::FLAG_NOSCRUB)) {
     dout(10) << "noscrub set, aborting" << dendl;
     return true;
   }
@@ -180,53 +188,57 @@ bool PgScrubber::should_abort() const
  * initiation
  */
 
-void PgScrubber::initiate_regular_scrub(epoch_t epoch_queued)
+void
+PgScrubber::initiate_regular_scrub(epoch_t epoch_queued)
 {
   dout(10) << fmt::format(
-		  "{}: epoch:{} is PrimaryIdle:{}", __func__, epoch_queued,
-		  m_fsm->is_primary_idle())
-	   << dendl;
+                  "{}: epoch:{} is PrimaryIdle:{}", __func__, epoch_queued,
+                  m_fsm->is_primary_idle())
+           << dendl;
 
   // we may have lost our Primary status while the message languished in the
   // queue
   if (check_interval(epoch_queued)) {
     dout(10) << "scrubber event -->> StartScrub epoch: " << epoch_queued
-	     << dendl;
+             << dendl;
     m_fsm->process_event(StartScrub{});
     dout(10) << "scrubber event --<< StartScrub" << dendl;
   }
 }
 
-void PgScrubber::advance_token()
+void
+PgScrubber::advance_token()
 {
   m_current_token++;
 }
 
-void PgScrubber::send_scrub_unblock(epoch_t epoch_queued)
+void
+PgScrubber::send_scrub_unblock(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(Unblocked{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_scrub_resched(epoch_t epoch_queued)
+void
+PgScrubber::send_scrub_resched(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(InternalSchedScrub{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_start_replica(epoch_t epoch_queued,
-				    Scrub::act_token_t token)
+void
+PgScrubber::send_start_replica(epoch_t epoch_queued, Scrub::act_token_t token)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << " token: " << token << dendl;
+           << " token: " << token << dendl;
   if (is_primary()) {
     // shouldn't happen. Ignore
     dout(1) << "got a replica scrub request while Primary!" << dendl;
@@ -239,114 +251,124 @@ void PgScrubber::send_start_replica(epoch_t epoch_queued,
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_sched_replica(epoch_t epoch_queued,
-				    Scrub::act_token_t token)
+void
+PgScrubber::send_sched_replica(epoch_t epoch_queued, Scrub::act_token_t token)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << " token: " << token << dendl;
+           << " token: " << token << dendl;
   if (check_interval(epoch_queued) && is_token_current(token)) {
-    m_fsm->process_event(SchedReplica{});  // retest for map availability
+    m_fsm->process_event(SchedReplica{}); // retest for map availability
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::active_pushes_notification(epoch_t epoch_queued)
+void
+PgScrubber::active_pushes_notification(epoch_t epoch_queued)
 {
   // note: Primary only
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(ActivePushesUpd{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::update_applied_notification(epoch_t epoch_queued)
+void
+PgScrubber::update_applied_notification(epoch_t epoch_queued)
 {
   // note: Primary only
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(UpdatesApplied{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::digest_update_notification(epoch_t epoch_queued)
+void
+PgScrubber::digest_update_notification(epoch_t epoch_queued)
 {
   // note: Primary only
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(DigestUpdate{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_local_map_done(epoch_t epoch_queued)
+void
+PgScrubber::send_local_map_done(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(Scrub::IntLocalMapDone{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_replica_maps_ready(epoch_t epoch_queued)
+void
+PgScrubber::send_replica_maps_ready(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(GotReplicas{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_replica_pushes_upd(epoch_t epoch_queued)
+void
+PgScrubber::send_replica_pushes_upd(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (check_interval(epoch_queued)) {
     m_fsm->process_event(ReplicaPushesUpd{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_chunk_free(epoch_t epoch_queued)
+void
+PgScrubber::send_chunk_free(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (check_interval(epoch_queued)) {
     m_fsm->process_event(Scrub::SelectedChunkFree{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_chunk_busy(epoch_t epoch_queued)
+void
+PgScrubber::send_chunk_busy(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (check_interval(epoch_queued)) {
     m_fsm->process_event(Scrub::ChunkIsBusy{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_get_next_chunk(epoch_t epoch_queued)
+void
+PgScrubber::send_get_next_chunk(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
   if (is_message_relevant(epoch_queued)) {
     m_fsm->process_event(Scrub::NextChunk{});
   }
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_scrub_is_finished(epoch_t epoch_queued)
+void
+PgScrubber::send_scrub_is_finished(epoch_t epoch_queued)
 {
   dout(10) << "scrubber event -->> " << __func__ << " epoch: " << epoch_queued
-	   << dendl;
+           << dendl;
 
   // can't check for "active"
 
@@ -355,7 +377,8 @@ void PgScrubber::send_scrub_is_finished(epoch_t epoch_queued)
   dout(10) << "scrubber event --<< " << __func__ << dendl;
 }
 
-void PgScrubber::send_granted_by_reserver(const AsyncScrubResData& req)
+void
+PgScrubber::send_granted_by_reserver(const AsyncScrubResData& req)
 {
   dout(10) << "scrubber event -->> granted_by_reserver" << dendl;
   if (check_interval(req.request_epoch)) {
@@ -366,15 +389,17 @@ void PgScrubber::send_granted_by_reserver(const AsyncScrubResData& req)
 
 // -----------------
 
-bool PgScrubber::is_reserving() const
+bool
+PgScrubber::is_reserving() const
 {
   return m_fsm->is_reserving();
 }
 
-void PgScrubber::reset_epoch()
+void
+PgScrubber::reset_epoch()
 {
   dout(10) << __func__ << " state deep? " << state_test(PG_STATE_DEEP_SCRUB)
-	   << dendl;
+           << dendl;
   m_fsm->assert_not_in_session();
 
   m_epoch_start = m_pg->get_same_interval_since();
@@ -382,27 +407,28 @@ void PgScrubber::reset_epoch()
   update_op_mode_text();
 }
 
-unsigned int PgScrubber::scrub_requeue_priority(
-  Scrub::scrub_prio_t with_priority) const
+unsigned int
+PgScrubber::scrub_requeue_priority(Scrub::scrub_prio_t with_priority) const
 {
   unsigned int qu_priority = m_flags.priority;
 
   if (with_priority == Scrub::scrub_prio_t::high_priority) {
-    qu_priority =
-      std::max(qu_priority,
-	       (unsigned int)m_pg->get_cct()->_conf->osd_client_op_priority);
+    qu_priority = std::max(
+        qu_priority,
+        (unsigned int)m_pg->get_cct()->_conf->osd_client_op_priority);
   }
   return qu_priority;
 }
 
-unsigned int PgScrubber::scrub_requeue_priority(
-  Scrub::scrub_prio_t with_priority,
-  unsigned int suggested_priority) const
+unsigned int
+PgScrubber::scrub_requeue_priority(
+    Scrub::scrub_prio_t with_priority,
+    unsigned int suggested_priority) const
 {
   if (with_priority == Scrub::scrub_prio_t::high_priority) {
-    suggested_priority =
-      std::max(suggested_priority,
-	       (unsigned int)m_pg->get_cct()->_conf->osd_client_op_priority);
+    suggested_priority = std::max(
+        suggested_priority,
+        (unsigned int)m_pg->get_cct()->_conf->osd_client_op_priority);
   }
   return suggested_priority;
 }
@@ -421,13 +447,14 @@ unsigned int PgScrubber::scrub_requeue_priority(
  *   Session. That resets both the scrubber and the FSM.
  * - if we are a reserved replica - we need to free ourselves;
  */
-void PgScrubber::on_new_interval()
+void
+PgScrubber::on_new_interval()
 {
   dout(10) << fmt::format(
-		  "{}: current role:{} active?{} q/a:{}", __func__,
-		  (is_primary() ? "Primary" : "Replica/other"),
-		  is_scrub_active(), is_queued_or_active())
-	   << dendl;
+                  "{}: current role:{} active?{} q/a:{}", __func__,
+                  (is_primary() ? "Primary" : "Replica/other"),
+                  is_scrub_active(), is_queued_or_active())
+           << dendl;
   m_after_repair_scrub_required = false;
   m_fsm->process_event(IntervalChanged{});
   // the following asserts were added due to a past bug, where PG flags were
@@ -437,12 +464,14 @@ void PgScrubber::on_new_interval()
   ceph_assert(!state_test(PG_STATE_DEEP_SCRUB));
 }
 
-bool PgScrubber::is_scrub_registered() const
+bool
+PgScrubber::is_scrub_registered() const
 {
   return m_scrub_job && m_scrub_job->is_registered();
 }
 
-std::string_view PgScrubber::registration_state() const
+std::string_view
+PgScrubber::registration_state() const
 {
   if (m_scrub_job) {
     return m_scrub_job->state_desc();
@@ -450,31 +479,32 @@ std::string_view PgScrubber::registration_state() const
   return "(no sched job)"sv;
 }
 
-void PgScrubber::rm_from_osd_scrubbing()
+void
+PgScrubber::rm_from_osd_scrubbing()
 {
   if (m_scrub_job && m_scrub_job->is_registered()) {
     dout(15) << fmt::format(
-		    "{}: prev. state: {}", __func__, registration_state())
-	     << dendl;
+                    "{}: prev. state: {}", __func__, registration_state())
+             << dendl;
     m_osds->get_scrub_services().remove_from_osd_queue(m_pg_id);
     m_scrub_job->clear_both_targets_queued();
     m_scrub_job->registered = false;
   }
 }
 
-
-void PgScrubber::update_targets(utime_t scrub_clock_now)
+void
+PgScrubber::update_targets(utime_t scrub_clock_now)
 {
   const auto applicable_conf = populate_config_params();
 
   dout(10) << fmt::format(
-		  "{}: config:{} job on entry:{}{}", __func__, applicable_conf,
-		  *m_scrub_job,
-		  m_pg->info.stats.stats_invalid ? " invalid-stats" : "")
-	   << dendl;
+                  "{}: config:{} job on entry:{}{}", __func__, applicable_conf,
+                  *m_scrub_job,
+                  m_pg->info.stats.stats_invalid ? " invalid-stats" : "")
+           << dendl;
   if (m_pg->info.stats.stats_invalid && applicable_conf.mandatory_on_invalid) {
     m_scrub_job->shallow_target.sched_info_ref().schedule.scheduled_at =
-	scrub_clock_now;
+        scrub_clock_now;
     m_scrub_job->shallow_target.up_urgency_to(urgency_t::must_scrub);
   }
 
@@ -488,28 +518,27 @@ void PgScrubber::update_targets(utime_t scrub_clock_now)
   dout(10) << fmt::format("{}: adjusted:{}", __func__, *m_scrub_job) << dendl;
 }
 
-
-void PgScrubber::schedule_scrub_with_osd()
+void
+PgScrubber::schedule_scrub_with_osd()
 {
   ceph_assert(is_primary());
   ceph_assert(m_scrub_job);
 
   dout(20) << fmt::format(
-		  "{}: state at entry: {}", __func__, m_scrub_job->state_desc())
-	   << dendl;
+                  "{}: state at entry: {}", __func__, m_scrub_job->state_desc())
+           << dendl;
   m_scrub_job->registered = true;
   update_scrub_job();
 }
 
-
-void PgScrubber::on_primary_active_clean()
+void
+PgScrubber::on_primary_active_clean()
 {
   dout(10) << fmt::format(
-		  "{}: reg state: {}", __func__, m_scrub_job->state_desc())
-	   << dendl;
+                  "{}: reg state: {}", __func__, m_scrub_job->state_desc())
+           << dendl;
   m_fsm->process_event(PrimaryActivate{});
 }
-
 
 /*
  * A note re the call to publish_stats_to_osd() below:
@@ -522,24 +551,24 @@ void PgScrubber::on_primary_active_clean()
  * - in the 2nd case - we know the PG state and we know we are only called
  *   for a Primary.
  */
-void PgScrubber::update_scrub_job()
+void
+PgScrubber::update_scrub_job()
 {
   if (!is_primary() || !m_scrub_job) {
     dout(10) << fmt::format(
-		    "{}: PG[{}]: not Primary or no scrub-job", __func__,
-		    m_pg_id)
-	     << dendl;
+                    "{}: PG[{}]: not Primary or no scrub-job", __func__, m_pg_id)
+             << dendl;
     return;
   }
 
   dout(15) << fmt::format("{}: job on entry:{}", __func__, *m_scrub_job)
-	   << dendl;
+           << dendl;
 
   // if we were marked as 'not registered' - do not try to push into
   // the queue. And if we are already in the queue - dequeue.
   if (!m_scrub_job->is_registered()) {
     dout(10) << fmt::format("{}: PG[{}] not registered", __func__, m_pg_id)
-	     << dendl;
+             << dendl;
     return;
   }
   ceph_assert(m_pg->is_locked());
@@ -548,8 +577,8 @@ void PgScrubber::update_scrub_job()
     m_osds->get_scrub_services().remove_from_osd_queue(m_pg_id);
     m_scrub_job->clear_both_targets_queued();
     dout(20) << fmt::format(
-		    "{}: PG[{}] dequeuing for an update", __func__, m_pg_id)
-	     << dendl;
+                    "{}: PG[{}] dequeuing for an update", __func__, m_pg_id)
+             << dendl;
   }
 
   update_targets(ceph_clock_now());
@@ -557,35 +586,33 @@ void PgScrubber::update_scrub_job()
   m_scrub_job->set_both_targets_queued();
   m_pg->publish_stats_to_osd();
   dout(10) << fmt::format("{}: job on exit:{}", __func__, *m_scrub_job)
-	   << dendl;
+           << dendl;
 }
 
-
-scrub_level_t PgScrubber::scrub_requested(
-    scrub_level_t scrub_level,
-    scrub_type_t scrub_type)
+scrub_level_t
+PgScrubber::scrub_requested(scrub_level_t scrub_level, scrub_type_t scrub_type)
 {
   const bool repair_requested = (scrub_type == scrub_type_t::do_repair);
-  const bool deep_requested =
-      (scrub_level == scrub_level_t::deep) || repair_requested;
+  const bool deep_requested = (scrub_level == scrub_level_t::deep) ||
+                              repair_requested;
   scrub_level = deep_requested ? scrub_level_t::deep : scrub_level_t::shallow;
   dout(10) << fmt::format(
-		  "{}: {}{} scrub requested. "
-		  "@entry:last-stamp:{:s},Registered?{}",
-		  __func__,
-		  (scrub_type == scrub_type_t::do_repair ? "repair + "
-							 : "not-repair + "),
-		  (deep_requested ? "deep" : "shallow"),
-		  m_scrub_job->get_sched_time(), registration_state())
-	   << dendl;
+                  "{}: {}{} scrub requested. "
+                  "@entry:last-stamp:{:s},Registered?{}",
+                  __func__,
+                  (scrub_type == scrub_type_t::do_repair ? "repair + "
+                                                         : "not-repair + "),
+                  (deep_requested ? "deep" : "shallow"),
+                  m_scrub_job->get_sched_time(), registration_state())
+           << dendl;
 
   // if we were marked as 'not registered' - do not try to push into
   // the queue.
   if (!m_scrub_job->is_registered()) {
     dout(10) << fmt::format(
-		    "{}: pg[{}]: not registered for scrubbing on this OSD",
-		    __func__, m_pg_id)
-	     << dendl;
+                    "{}: pg[{}]: not registered for scrubbing on this OSD",
+                    __func__, m_pg_id)
+             << dendl;
     return scrub_level_t::shallow;
   }
 
@@ -603,13 +630,13 @@ scrub_level_t PgScrubber::scrub_requested(
   return scrub_level;
 }
 
-
-void PgScrubber::recovery_completed()
+void
+PgScrubber::recovery_completed()
 {
   dout(15) << fmt::format(
-		  "{}: is scrub required? {}", __func__,
-		  m_after_repair_scrub_required)
-	   << dendl;
+                  "{}: is scrub required? {}", __func__,
+                  m_after_repair_scrub_required)
+           << dendl;
   if (m_after_repair_scrub_required) {
     m_after_repair_scrub_required = false;
     m_osds->get_scrub_services().dequeue_target(m_pg_id, scrub_level_t::deep);
@@ -622,19 +649,19 @@ void PgScrubber::recovery_completed()
   }
 }
 
-
-bool PgScrubber::is_after_repair_required() const
+bool
+PgScrubber::is_after_repair_required() const
 {
   return m_after_repair_scrub_required;
 }
-
 
 /**
  * mark for a deep-scrub after the current scrub ended with errors.
  * Note that no need to requeue the target, as it will be requeued
  * when the scrub ends.
  */
-void PgScrubber::request_rescrubbing()
+void
+PgScrubber::request_rescrubbing()
 {
   dout(10) << fmt::format("{}: job on entry: {}", __func__, *m_scrub_job)
            << dendl;
@@ -645,7 +672,6 @@ void PgScrubber::request_rescrubbing()
   trgt.sched_info.schedule.not_before = clock_now;
 }
 
-
 /*
  * Implementation:
  * try to create the reservation object (which translates into asking the
@@ -653,7 +679,8 @@ void PgScrubber::request_rescrubbing()
  * a wrapper around the actual reservation, and that object releases
  * the local resource automatically when reset.
  */
-bool PgScrubber::reserve_local(const Scrub::SchedTarget& trgt)
+bool
+PgScrubber::reserve_local(const Scrub::SchedTarget& trgt)
 {
   const bool is_hp = !ScrubJob::observes_max_concurrency(trgt.urgency());
 
@@ -667,24 +694,24 @@ bool PgScrubber::reserve_local(const Scrub::SchedTarget& trgt)
   return false;
 }
 
-
-Scrub::sched_conf_t PgScrubber::populate_config_params() const
+Scrub::sched_conf_t
+PgScrubber::populate_config_params() const
 {
   const pool_opts_t& pool_conf = m_pg->get_pgpool().info.opts;
-  const auto& conf = get_pg_cct()->_conf;  // for brevity
+  const auto& conf = get_pg_cct()->_conf; // for brevity
   Scrub::sched_conf_t configs;
 
   // shallow scrubs interval
   const auto shallow_pool =
       pool_conf.value_or(pool_opts_t::SCRUB_MIN_INTERVAL, 0.0);
-  configs.shallow_interval =
-      shallow_pool > 0.0 ? shallow_pool : conf->osd_scrub_min_interval;
+  configs.shallow_interval = shallow_pool > 0.0 ? shallow_pool
+                                                : conf->osd_scrub_min_interval;
 
   // deep scrubs optimal interval
   const auto deep_pool =
       pool_conf.value_or(pool_opts_t::DEEP_SCRUB_INTERVAL, 0.0);
-  configs.deep_interval =
-      deep_pool > 0.0 ? deep_pool : conf->osd_deep_scrub_interval;
+  configs.deep_interval = deep_pool > 0.0 ? deep_pool
+                                          : conf->osd_deep_scrub_interval;
 
   configs.interval_randomize_ratio = conf->osd_scrub_interval_randomize_ratio;
   configs.deep_randomize_ratio =
@@ -692,19 +719,19 @@ Scrub::sched_conf_t PgScrubber::populate_config_params() const
   configs.mandatory_on_invalid = conf->osd_scrub_invalid_stats;
 
   dout(15) << fmt::format(
-		  "{}: inputs: intervals: sh:{}(pl:{}),dp:{}(pl:{})",
-		  __func__, configs.shallow_interval, shallow_pool,
-		  configs.deep_interval, deep_pool)
-	   << dendl;
+                  "{}: inputs: intervals: sh:{}(pl:{}),dp:{}(pl:{})", __func__,
+                  configs.shallow_interval, shallow_pool, configs.deep_interval,
+                  deep_pool)
+           << dendl;
   dout(10) << fmt::format("{}: updated config:{}", __func__, configs) << dendl;
   return configs;
 }
 
-
 // handling Asok's "scrub" & "deep-scrub" commands
 
 namespace {
-void asok_response_section(
+void
+asok_response_section(
     ceph::Formatter* f,
     bool is_periodic,
     scrub_level_t scrub_level,
@@ -715,10 +742,11 @@ void asok_response_section(
   f->dump_bool("must", !is_periodic);
   f->dump_named_fmt("stamp", "{}", stamp);
 }
-}  // namespace
+} // namespace
 
 // when asked to force a "periodic" scrub by faking the timestamps
-void PgScrubber::on_operator_periodic_cmd(
+void
+PgScrubber::on_operator_periodic_cmd(
     ceph::Formatter* f,
     scrub_level_t scrub_level,
     int64_t offset)
@@ -729,23 +757,23 @@ void PgScrubber::on_operator_periodic_cmd(
     const auto cnf = populate_config_params();
     offset = m_scrub_job->guaranteed_offset(scrub_level, cnf);
     dout(15) << fmt::format(
-		    "{}: {} (calculated offset:{}) conf:{}", __func__,
-		    (scrub_level == scrub_level_t::deep ? "deep" : "shallow"),
-		    offset, cnf)
-	     << dendl;
+                    "{}: {} (calculated offset:{}) conf:{}", __func__,
+                    (scrub_level == scrub_level_t::deep ? "deep" : "shallow"),
+                    offset, cnf)
+             << dendl;
   } else {
     dout(15) << fmt::format(
-		    "{}: {} command offset:{}", __func__,
-		    (scrub_level == scrub_level_t::deep ? "deep" : "shallow"),
-		    offset)
-	     << dendl;
+                    "{}: {} command offset:{}", __func__,
+                    (scrub_level == scrub_level_t::deep ? "deep" : "shallow"),
+                    offset)
+             << dendl;
   }
   // move the relevant time-stamp backwards - enough to trigger a scrub
   utime_t stamp = ceph_clock_now();
-  stamp -= offset;  // can't combine with prev line
+  stamp -= offset; // can't combine with prev line
 
   dout(10) << fmt::format("{}: calculated stamp:{:s}", __func__, stamp)
-	   << dendl;
+           << dendl;
   asok_response_section(f, true, scrub_level, stamp);
 
   if (scrub_level == scrub_level_t::deep) {
@@ -762,14 +790,14 @@ void PgScrubber::on_operator_periodic_cmd(
 }
 
 // when asked to force a high-priority scrub
-void PgScrubber::on_operator_forced_scrub(
+void
+PgScrubber::on_operator_forced_scrub(
     ceph::Formatter* f,
     scrub_level_t scrub_level)
 {
   auto deep_req = scrub_requested(scrub_level, scrub_type_t::not_repair);
   asok_response_section(f, false, deep_req);
 }
-
 
 /**
  * Operation:
@@ -779,14 +807,15 @@ void PgScrubber::on_operator_forced_scrub(
  *   and deep).
  * - otherwise - manually manipulate the two urgencies.
  */
-void PgScrubber::on_operator_abort_scrub(ceph::Formatter* f)
+void
+PgScrubber::on_operator_abort_scrub(ceph::Formatter* f)
 {
   Formatter::ObjectSection asok_resp_section{*f, "result"sv};
   if (!is_primary() || !m_scrub_job) {
     dout(10) << fmt::format(
-		    "{}: pg[{}]: not Primary or no scrub-job", __func__,
-		    m_pg_id.pgid)
-	     << dendl;
+                    "{}: pg[{}]: not Primary or no scrub-job", __func__,
+                    m_pg_id.pgid)
+             << dendl;
     f->dump_bool("applicable", false);
     f->dump_bool("active", false);
     return;
@@ -862,25 +891,27 @@ void PgScrubber::on_operator_abort_scrub(ceph::Formatter* f)
   m_pg->publish_stats_to_osd();
 }
 
-
 // ----------------------------------------------------------------------------
 
-bool PgScrubber::has_pg_marked_new_updates() const
+bool
+PgScrubber::has_pg_marked_new_updates() const
 {
   auto last_applied = m_pg->recovery_state.get_last_update_applied();
   dout(10) << __func__ << " recovery last: " << last_applied
-	   << " vs. scrub's: " << m_subset_last_update << dendl;
+           << " vs. scrub's: " << m_subset_last_update << dendl;
 
   return last_applied >= m_subset_last_update;
 }
 
-void PgScrubber::set_subset_last_update(eversion_t e)
+void
+PgScrubber::set_subset_last_update(eversion_t e)
 {
   m_subset_last_update = e;
   dout(15) << __func__ << " last-update: " << e << dendl;
 }
 
-void PgScrubber::on_applied_when_primary(const eversion_t& applied_version)
+void
+PgScrubber::on_applied_when_primary(const eversion_t& applied_version)
 {
   // we are only interested in updates if we are the Primary, and in state
   // WaitLastUpdate
@@ -888,10 +919,9 @@ void PgScrubber::on_applied_when_primary(const eversion_t& applied_version)
       (applied_version >= m_subset_last_update)) {
     m_osds->queue_scrub_applied_update(m_pg, m_pg->is_scrub_blocking_ops());
     dout(15) << __func__ << " update: " << applied_version
-	     << " vs. required: " << m_subset_last_update << dendl;
+             << " vs. required: " << m_subset_last_update << dendl;
   }
 }
-
 
 namespace {
 
@@ -899,7 +929,8 @@ namespace {
  * an aux function to be used in select_range() below, to
  * select the correct chunk size based on the type of scrub
  */
-int64_t size_from_conf(
+int64_t
+size_from_conf(
     bool is_deep,
     const ceph::common::ConfigProxy& conf,
     const md_config_cacher_t<int64_t>& deep_opt,
@@ -915,42 +946,46 @@ int64_t size_from_conf(
   }
   return *deep_opt;
 }
-}  // anonymous namespace
+} // anonymous namespace
 
 PgScrubber::scrubber_callback_cancel_token_t
 PgScrubber::schedule_callback_after(
-  ceph::timespan duration, scrubber_callback_t &&cb)
+    ceph::timespan duration,
+    scrubber_callback_t&& cb)
 {
   std::lock_guard l(m_osds->sleep_lock);
   return m_osds->sleep_timer.add_event_after(
-    duration,
-    new LambdaContext(
-      [this, pg=PGRef(m_pg), cb=std::move(cb), epoch=get_osdmap_epoch()] {
-	pg->lock();
-	if (check_interval(epoch)) {
-	  cb();
-	}
-	pg->unlock();
+      duration, new LambdaContext([this, pg = PGRef(m_pg), cb = std::move(cb),
+                                   epoch = get_osdmap_epoch()] {
+        pg->lock();
+        if (check_interval(epoch)) {
+          cb();
+        }
+        pg->unlock();
       }));
 }
 
-void PgScrubber::cancel_callback(scrubber_callback_cancel_token_t token)
+void
+PgScrubber::cancel_callback(scrubber_callback_cancel_token_t token)
 {
   std::lock_guard l(m_osds->sleep_lock);
   m_osds->sleep_timer.cancel_event(token);
 }
 
-LogChannelRef& PgScrubber::get_clog() const
+LogChannelRef&
+PgScrubber::get_clog() const
 {
   return m_osds->clog;
 }
 
-int PgScrubber::get_whoami() const
+int
+PgScrubber::get_whoami() const
 {
   return m_osds->whoami;
 }
 
-[[nodiscard]] bool PgScrubber::is_reservation_required() const
+[[nodiscard]] bool
+PgScrubber::is_reservation_required() const
 {
   ceph_assert(m_active_target);
   return ScrubJob::requires_reservation(m_active_target->urgency());
@@ -967,7 +1002,8 @@ int PgScrubber::get_whoami() const
  * - std::nullopt if the range is blocked
  * - otherwise, the number of objects in the selected range
  */
-std::optional<uint64_t> PgScrubber::select_range()
+std::optional<uint64_t>
+PgScrubber::select_range()
 {
   m_be->new_chunk();
 
@@ -990,13 +1026,11 @@ std::optional<uint64_t> PgScrubber::select_range()
 
   const auto& conf = m_pg->get_cct()->_conf;
   dout(20) << fmt::format(
-		  "{} {} mins: {}d {}s, max: {}d {}s", __func__,
-		  (m_is_deep ? "D" : "S"),
-		  *osd_scrub_chunk_min,
-		  *osd_shallow_scrub_chunk_min,
-		  *osd_scrub_chunk_max,
-		  *osd_shallow_scrub_chunk_max)
-	   << dendl;
+                  "{} {} mins: {}d {}s, max: {}d {}s", __func__,
+                  (m_is_deep ? "D" : "S"), *osd_scrub_chunk_min,
+                  *osd_shallow_scrub_chunk_min, *osd_scrub_chunk_max,
+                  *osd_shallow_scrub_chunk_max)
+           << dendl;
 
   const int min_from_conf = static_cast<int>(size_from_conf(
       m_is_deep, conf, osd_scrub_chunk_min, osd_shallow_scrub_chunk_min));
@@ -1008,9 +1042,9 @@ std::optional<uint64_t> PgScrubber::select_range()
   const int max_chunk_sz = std::max(min_chunk_sz, max_from_conf / divisor);
 
   dout(10) << fmt::format(
-		  "{}: Min: {} Max: {} Div: {}", __func__, min_chunk_sz,
-		  max_chunk_sz, divisor)
-	   << dendl;
+                  "{}: Min: {} Max: {} Div: {}", __func__, min_chunk_sz,
+                  max_chunk_sz, divisor)
+           << dendl;
 
   hobject_t start = m_start;
   hobject_t candidate_end;
@@ -1026,9 +1060,10 @@ std::optional<uint64_t> PgScrubber::select_range()
       candidate_end = back;
       objects.pop_back();
       if (objects.empty()) {
-	ceph_assert(0 ==
-		    "Somehow we got more than 2 objects which"
-		    " have the same head but are not clones");
+        ceph_assert(
+            0 ==
+            "Somehow we got more than 2 objects which"
+            " have the same head but are not clones");
       }
       back = objects.back();
     }
@@ -1047,8 +1082,8 @@ std::optional<uint64_t> PgScrubber::select_range()
 
   if (!m_pg->_range_available_for_scrub(m_start, candidate_end)) {
     // we'll be requeued by whatever made us unavailable for scrub
-    dout(10) << __func__ << ": scrub blocked somewhere in range "
-	     << "[" << m_start << ", " << candidate_end << ")" << dendl;
+    dout(10) << __func__ << ": scrub blocked somewhere in range " << "["
+             << m_start << ", " << candidate_end << ")" << dendl;
     return std::nullopt;
   }
 
@@ -1057,7 +1092,7 @@ std::optional<uint64_t> PgScrubber::select_range()
     m_max_end = m_end;
 
   dout(15) << __func__ << " range selected: " << m_start << " //// " << m_end
-	   << " //// " << m_max_end << dendl;
+           << " //// " << m_max_end << dendl;
 
   // debug: be 'blocked' if told so by the 'pg scrub_debug block' asok command
   if (m_debug_blockrange > 0) {
@@ -1067,7 +1102,8 @@ std::optional<uint64_t> PgScrubber::select_range()
   return objects.size();
 }
 
-void PgScrubber::select_range_n_notify()
+void
+PgScrubber::select_range_n_notify()
 {
   get_labeled_counters()->inc(scrbcnt_chunks_selected);
   auto num_chunk_objects = select_range();
@@ -1075,7 +1111,8 @@ void PgScrubber::select_range_n_notify()
     // the next chunk to handle is not blocked
     dout(20) << __func__ << ": selection OK" << dendl;
     auto cost = get_scrub_cost(num_chunk_objects.value());
-    m_osds->queue_scrub_chunk_free(m_pg, Scrub::scrub_prio_t::low_priority, cost);
+    m_osds->queue_scrub_chunk_free(
+        m_pg, Scrub::scrub_prio_t::low_priority, cost);
   } else {
     // we will wait for the objects range to become available for scrubbing
     dout(10) << __func__ << ": selected chunk is busy" << dendl;
@@ -1084,10 +1121,12 @@ void PgScrubber::select_range_n_notify()
   }
 }
 
-uint64_t PgScrubber::get_scrub_cost(uint64_t num_chunk_objects)
+uint64_t
+PgScrubber::get_scrub_cost(uint64_t num_chunk_objects)
 {
   const auto& conf = m_pg->get_cct()->_conf;
-  if (op_queue_type_t::WeightedPriorityQueue == m_osds->osd->osd_op_queue_type()) {
+  if (op_queue_type_t::WeightedPriorityQueue ==
+      m_osds->osd->osd_op_queue_type()) {
     // if the osd_op_queue is WPQ, we will use the default osd_scrub_cost value
     return conf->osd_scrub_cost;
   }
@@ -1095,18 +1134,22 @@ uint64_t PgScrubber::get_scrub_cost(uint64_t num_chunk_objects)
   double scrub_metadata_cost = m_osds->get_cost_per_io();
   if (m_is_deep) {
     auto pg_avg_object_size = m_pg->get_average_object_size();
-    cost = conf->osd_scrub_event_cost + (num_chunk_objects
-    * (scrub_metadata_cost + pg_avg_object_size));
-    dout(20) << fmt::format("{} : deep-scrub cost = {}", __func__, cost) << dendl;
+    cost = conf->osd_scrub_event_cost +
+           (num_chunk_objects * (scrub_metadata_cost + pg_avg_object_size));
+    dout(20) << fmt::format("{} : deep-scrub cost = {}", __func__, cost)
+             << dendl;
     return cost;
   } else {
-    cost = conf->osd_scrub_event_cost + (num_chunk_objects *  scrub_metadata_cost);
-    dout(20) << fmt::format("{} : shallow-scrub cost = {}", __func__, cost) << dendl;
+    cost = conf->osd_scrub_event_cost +
+           (num_chunk_objects * scrub_metadata_cost);
+    dout(20) << fmt::format("{} : shallow-scrub cost = {}", __func__, cost)
+             << dendl;
     return cost;
   }
 }
 
-bool PgScrubber::write_blocked_by_scrub(const hobject_t& soid)
+bool
+PgScrubber::write_blocked_by_scrub(const hobject_t& soid)
 {
   if (soid < m_start || soid >= m_end) {
     return false;
@@ -1115,8 +1158,8 @@ bool PgScrubber::write_blocked_by_scrub(const hobject_t& soid)
   const auto& unlabeled_cntrs_idx = get_unlabeled_counters();
   get_osd_perf_counters()->inc(unlabeled_cntrs_idx.write_intersects);
   dout(20) << __func__ << " " << soid << " can preempt? "
-	   << preemption_data.is_preemptable() << " already preempted? "
-	   << preemption_data.was_preempted() << dendl;
+           << preemption_data.is_preemptable() << " already preempted? "
+           << preemption_data.was_preempted() << dendl;
 
   if (preemption_data.was_preempted()) {
     // otherwise - write requests arriving while 'already preempted' is set
@@ -1131,7 +1174,7 @@ bool PgScrubber::write_blocked_by_scrub(const hobject_t& soid)
 
     // signal the preemption
     preemption_data.do_preempt();
-    m_end = m_start;  // free the range we were scrubbing
+    m_end = m_start; // free the range we were scrubbing
 
     return false;
   }
@@ -1140,21 +1183,21 @@ bool PgScrubber::write_blocked_by_scrub(const hobject_t& soid)
   return true;
 }
 
-bool PgScrubber::range_intersects_scrub(const hobject_t& start,
-					const hobject_t& end)
+bool
+PgScrubber::range_intersects_scrub(const hobject_t& start, const hobject_t& end)
 {
   // does [start, end] intersect [scrubber.start, scrubber.m_max_end)
   return (start < m_max_end && end >= m_start);
 }
 
-eversion_t PgScrubber::search_log_for_updates() const
+eversion_t
+PgScrubber::search_log_for_updates() const
 {
   auto& projected = m_pg->projected_log.log;
-  auto pi = find_if(projected.crbegin(),
-		    projected.crend(),
-		    [this](const auto& e) -> bool {
-		      return e.soid >= m_start && e.soid < m_end;
-		    });
+  auto pi = find_if(
+      projected.crbegin(), projected.crend(), [this](const auto& e) -> bool {
+        return e.soid >= m_start && e.soid < m_end;
+      });
 
   if (pi != projected.crend())
     return pi->version;
@@ -1172,11 +1215,12 @@ eversion_t PgScrubber::search_log_for_updates() const
     return p->version;
 }
 
-void PgScrubber::get_replicas_maps(bool replica_can_preempt)
+void
+PgScrubber::get_replicas_maps(bool replica_can_preempt)
 {
   dout(10) << __func__ << " started in epoch/interval: " << m_epoch_start << "/"
-	   << m_interval_start << " pg same_interval_since: "
-	   << m_pg->info.history.same_interval_since << dendl;
+           << m_interval_start << " pg same_interval_since: "
+           << m_pg->info.history.same_interval_since << dendl;
 
   m_primary_scrubmap_pos.reset();
 
@@ -1187,79 +1231,77 @@ void PgScrubber::get_replicas_maps(bool replica_can_preempt)
       continue;
 
     m_maps_status.mark_replica_map_request(i);
-    _request_scrub_map(i,
-		       m_subset_last_update,
-		       m_start,
-		       m_end,
-		       m_is_deep,
-		       replica_can_preempt);
+    _request_scrub_map(
+        i, m_subset_last_update, m_start, m_end, m_is_deep, replica_can_preempt);
   }
 
   dout(10) << __func__ << " awaiting" << m_maps_status << dendl;
 }
 
-bool PgScrubber::was_epoch_changed() const
+bool
+PgScrubber::was_epoch_changed() const
 {
   // for crimson we have m_pg->get_info().history.same_interval_since
   dout(10) << __func__ << " epoch_start: " << m_interval_start
-	   << " from pg: " << m_pg->get_history().same_interval_since << dendl;
+           << " from pg: " << m_pg->get_history().same_interval_since << dendl;
 
   return m_interval_start < m_pg->get_history().same_interval_since;
 }
 
-void PgScrubber::mark_local_map_ready()
+void
+PgScrubber::mark_local_map_ready()
 {
   m_maps_status.mark_local_map_ready();
 }
 
-bool PgScrubber::are_all_maps_available() const
+bool
+PgScrubber::are_all_maps_available() const
 {
   return m_maps_status.are_all_maps_available();
 }
 
-std::string PgScrubber::dump_awaited_maps() const
+std::string
+PgScrubber::dump_awaited_maps() const
 {
   return m_maps_status.dump();
 }
 
-void PgScrubber::update_op_mode_text()
+void
+PgScrubber::update_op_mode_text()
 {
   auto visible_repair = state_test(PG_STATE_REPAIR);
   m_mode_desc =
-    (visible_repair ? "repair" : (m_is_deep ? "deep-scrub" : "scrub"));
+      (visible_repair ? "repair" : (m_is_deep ? "deep-scrub" : "scrub"));
 
   dout(10) << __func__
-	   << ": repair: visible: " << (visible_repair ? "true" : "false")
-	   << ", internal: " << (m_is_repair ? "true" : "false")
-	   << ". Displayed: " << m_mode_desc << dendl;
+           << ": repair: visible: " << (visible_repair ? "true" : "false")
+           << ", internal: " << (m_is_repair ? "true" : "false")
+           << ". Displayed: " << m_mode_desc << dendl;
 }
 
-std::string_view PgScrubber::get_op_mode_text() const
+std::string_view
+PgScrubber::get_op_mode_text() const
 {
   return m_mode_desc;
 }
 
-void PgScrubber::_request_scrub_map(pg_shard_t replica,
-				    eversion_t version,
-				    hobject_t start,
-				    hobject_t end,
-				    bool deep,
-				    bool allow_preemption)
+void
+PgScrubber::_request_scrub_map(
+    pg_shard_t replica,
+    eversion_t version,
+    hobject_t start,
+    hobject_t end,
+    bool deep,
+    bool allow_preemption)
 {
   ceph_assert(replica != m_pg_whoami);
   dout(10) << __func__ << " scrubmap from osd." << replica
-	   << (deep ? " deep" : " shallow") << dendl;
+           << (deep ? " deep" : " shallow") << dendl;
 
-  auto repscrubop = new MOSDRepScrub(spg_t(m_pg->info.pgid.pgid, replica.shard),
-				     version,
-				     get_osdmap_epoch(),
-				     m_pg->get_last_peering_reset(),
-				     start,
-				     end,
-				     deep,
-				     allow_preemption,
-				     m_flags.priority,
-				     m_pg->ops_blocked_by_scrub());
+  auto repscrubop = new MOSDRepScrub(
+      spg_t(m_pg->info.pgid.pgid, replica.shard), version, get_osdmap_epoch(),
+      m_pg->get_last_peering_reset(), start, end, deep, allow_preemption,
+      m_flags.priority, m_pg->ops_blocked_by_scrub());
 
   // default priority. We want the replica-scrub processed prior to any recovery
   // or client io messages (we are holding a lock!)
@@ -1267,25 +1309,31 @@ void PgScrubber::_request_scrub_map(pg_shard_t replica,
 }
 
 // only called on interval change. Both DBs are to be removed.
-void PgScrubber::cleanup_store(ObjectStore::Transaction* t)
+void
+PgScrubber::cleanup_store(ObjectStore::Transaction* t)
 {
   if (!m_store)
     return;
 
   struct OnComplete : Context {
     std::unique_ptr<Scrub::Store> store;
-    explicit OnComplete(std::unique_ptr<Scrub::Store>&& store)
-	: store(std::move(store))
+
+    explicit OnComplete(std::unique_ptr<Scrub::Store>&& store) :
+      store(std::move(store))
     {}
-    void finish(int) override {}
+
+    void
+    finish(int) override
+    {}
   };
+
   m_store->cleanup(t);
   t->register_on_complete(new OnComplete(std::move(m_store)));
   ceph_assert(!m_store);
 }
 
-
-void PgScrubber::reinit_scrub_store()
+void
+PgScrubber::reinit_scrub_store()
 {
   // Entering, 0 to 3 of the following objects(*) may exist:
   // ((*)'objects' here: both code objects (the ScrubStore object) and
@@ -1306,7 +1354,7 @@ void PgScrubber::reinit_scrub_store()
   } else {
     dout(10) << __func__ << " creating new store" << dendl;
     m_store = std::make_unique<Scrub::Store>(
-	*this, *m_pg->osd->store, &t, m_pg->info.pgid, m_pg->coll);
+        *this, *m_pg->osd->store, &t, m_pg->info.pgid, m_pg->coll);
   }
 
   // regardless of whether the ScrubStore object was recreated or reused, we need to
@@ -1315,8 +1363,8 @@ void PgScrubber::reinit_scrub_store()
   m_pg->osd->store->queue_transaction(m_pg->ch, std::move(t), nullptr);
 }
 
-
-void PgScrubber::on_init()
+void
+PgScrubber::on_init()
 {
   // going upwards from 'inactive'
   ceph_assert(!is_scrub_active());
@@ -1326,12 +1374,9 @@ void PgScrubber::on_init()
   dout(10) << __func__ << " start same_interval:" << m_interval_start << dendl;
 
   m_be = std::make_unique<ScrubBackend>(
-    *this,
-    *m_pg,
-    m_pg_whoami,
-    m_is_repair,
-    m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow,
-    m_pg->get_actingset());
+      *this, *m_pg, m_pg_whoami, m_is_repair,
+      m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow,
+      m_pg->get_actingset());
 
   // create or reuse the 'known errors' store
   reinit_scrub_store();
@@ -1343,32 +1388,30 @@ void PgScrubber::on_init()
   m_pg->publish_stats_to_osd();
 }
 
-
-void PgScrubber::on_replica_init()
+void
+PgScrubber::on_replica_init()
 {
   dout(10) << __func__ << " called with 'active' "
-	   << (m_active ? "set" : "cleared") << dendl;
+           << (m_active ? "set" : "cleared") << dendl;
   if (!m_active) {
     m_be = std::make_unique<ScrubBackend>(
-      *this, *m_pg, m_pg_whoami, m_is_repair,
-      m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow);
+        *this, *m_pg, m_pg_whoami, m_is_repair,
+        m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow);
     m_active = true;
     ++m_sessions_counter;
   }
 }
 
-
-int PgScrubber::build_primary_map_chunk()
+int
+PgScrubber::build_primary_map_chunk()
 {
   epoch_t map_building_since = m_pg->get_osdmap_epoch();
   dout(20) << __func__ << ": initiated at epoch " << map_building_since
-	   << dendl;
+           << dendl;
 
-  auto ret = build_scrub_map_chunk(m_be->get_primary_scrubmap(),
-				   m_primary_scrubmap_pos,
-				   m_start,
-				   m_end,
-				   m_is_deep);
+  auto ret = build_scrub_map_chunk(
+      m_be->get_primary_scrubmap(), m_primary_scrubmap_pos, m_start, m_end,
+      m_is_deep);
 
   if (ret == -EINPROGRESS) {
     // reschedule another round of asking the backend to collect the scrub data
@@ -1377,77 +1420,71 @@ int PgScrubber::build_primary_map_chunk()
   return ret;
 }
 
-
-int PgScrubber::build_replica_map_chunk()
+int
+PgScrubber::build_replica_map_chunk()
 {
   dout(10) << __func__ << " interval start: " << m_interval_start
-	   << " current token: " << m_current_token
-	   << " epoch: " << m_epoch_start << " deep: " << m_is_deep << dendl;
+           << " current token: " << m_current_token
+           << " epoch: " << m_epoch_start << " deep: " << m_is_deep << dendl;
 
   ceph_assert(m_be);
 
-  auto ret = build_scrub_map_chunk(replica_scrubmap,
-				   replica_scrubmap_pos,
-				   m_start,
-				   m_end,
-				   m_is_deep);
+  auto ret = build_scrub_map_chunk(
+      replica_scrubmap, replica_scrubmap_pos, m_start, m_end, m_is_deep);
 
   switch (ret) {
 
-    case -EINPROGRESS:
-      // must wait for the backend to finish. No external event source.
-      // (note: previous version used low priority here. Now switched to using
-      // the priority of the original message)
-      m_osds->queue_for_rep_scrub_resched(m_pg,
-					  m_replica_request_priority,
-					  m_flags.priority,
-					  m_current_token);
-      break;
-
-    case 0: {
-      // finished!
-
-      auto required_fixes = m_be->replica_clean_meta(replica_scrubmap,
-						     m_end.is_max(),
-						     m_start,
-						     get_snap_mapper_accessor());
-      // actuate snap-mapper changes:
-      apply_snap_mapper_fixes(required_fixes);
-
-      // the local map has been created. Send it to the primary.
-      // Note: once the message reaches the Primary, it may ask us for another
-      // chunk - and we better be done with the current scrub. The clearing of
-      // state must be complete before we relinquish the PG lock.
-
-      send_replica_map(prep_replica_map_msg(PreemptionNoted::no_preemption));
-      dout(15) << fmt::format("{}: chunk map sent", __func__) << dendl;
-    }
+  case -EINPROGRESS:
+    // must wait for the backend to finish. No external event source.
+    // (note: previous version used low priority here. Now switched to using
+    // the priority of the original message)
+    m_osds->queue_for_rep_scrub_resched(
+        m_pg, m_replica_request_priority, m_flags.priority, m_current_token);
     break;
 
-    default:
-      // build_scrub_map_chunk() signalled an error
-      // Pre-Pacific code ignored this option, treating it as a success.
-      // Now: "regular" I/O errors were already handled by the backend (by
-      // setting the error flag in the scrub-map). We are left with the
-      // "unknown" error case - and we have no mechanism to handle it.
-      // Thus - we must abort.
-      dout(1) << "Error! Aborting. ActiveReplica::react(SchedReplica) Ret: "
-	      << ret << dendl;
-      ceph_abort_msg("backend error");
-      break;
+  case 0: {
+    // finished!
+
+    auto required_fixes = m_be->replica_clean_meta(
+        replica_scrubmap, m_end.is_max(), m_start, get_snap_mapper_accessor());
+    // actuate snap-mapper changes:
+    apply_snap_mapper_fixes(required_fixes);
+
+    // the local map has been created. Send it to the primary.
+    // Note: once the message reaches the Primary, it may ask us for another
+    // chunk - and we better be done with the current scrub. The clearing of
+    // state must be complete before we relinquish the PG lock.
+
+    send_replica_map(prep_replica_map_msg(PreemptionNoted::no_preemption));
+    dout(15) << fmt::format("{}: chunk map sent", __func__) << dendl;
+  } break;
+
+  default:
+    // build_scrub_map_chunk() signalled an error
+    // Pre-Pacific code ignored this option, treating it as a success.
+    // Now: "regular" I/O errors were already handled by the backend (by
+    // setting the error flag in the scrub-map). We are left with the
+    // "unknown" error case - and we have no mechanism to handle it.
+    // Thus - we must abort.
+    dout(1) << "Error! Aborting. ActiveReplica::react(SchedReplica) Ret: "
+            << ret << dendl;
+    ceph_abort_msg("backend error");
+    break;
   };
 
   return ret;
 }
 
-int PgScrubber::build_scrub_map_chunk(ScrubMap& map,
-				      ScrubMapBuilder& pos,
-				      hobject_t start,
-				      hobject_t end,
-				      bool deep)
+int
+PgScrubber::build_scrub_map_chunk(
+    ScrubMap& map,
+    ScrubMapBuilder& pos,
+    hobject_t start,
+    hobject_t end,
+    bool deep)
 {
-  dout(10) << __func__ << " [" << start << "," << end << ") "
-	   << " pos " << pos << " Deep: " << deep << dendl;
+  dout(10) << __func__ << " [" << start << "," << end << ") " << " pos " << pos
+           << " Deep: " << deep << dendl;
 
   // start
   while (pos.empty()) {
@@ -1457,17 +1494,15 @@ int PgScrubber::build_scrub_map_chunk(ScrubMap& map,
 
     // objects
     vector<ghobject_t> rollback_obs;
-    pos.ret = m_pg->get_pgbackend()->objects_list_range(start,
-							end,
-							&pos.ls,
-							&rollback_obs);
+    pos.ret = m_pg->get_pgbackend()->objects_list_range(
+        start, end, &pos.ls, &rollback_obs);
     dout(10) << __func__ << " while pos empty " << pos.ret << dendl;
     if (pos.ret < 0) {
       dout(5) << "objects_list_range error: " << pos.ret << dendl;
       return pos.ret;
     }
     dout(10) << __func__ << " pos.ls.empty()? " << (pos.ls.empty() ? "+" : "-")
-	     << dendl;
+             << dendl;
     if (pos.ls.empty()) {
       break;
     }
@@ -1483,7 +1518,7 @@ int PgScrubber::build_scrub_map_chunk(ScrubMap& map,
   // scan objects
   while (!pos.done()) {
     int r =
-	m_pg->get_pgbackend()->be_scan_list(get_unlabeled_counters(), map, pos);
+        m_pg->get_pgbackend()->be_scan_list(get_unlabeled_counters(), map, pos);
     dout(30) << __func__ << " BE returned " << r << dendl;
     if (r == -EINPROGRESS) {
       dout(20) << __func__ << " in progress" << dendl;
@@ -1493,14 +1528,15 @@ int PgScrubber::build_scrub_map_chunk(ScrubMap& map,
 
   // finish
   ceph_assert(pos.done());
-  dout(20) << fmt::format("{}: done. {} objects in scrub-map", __func__,
-                          map.objects.size())
+  dout(20) << fmt::format(
+                  "{}: done. {} objects in scrub-map", __func__,
+                  map.objects.size())
            << dendl;
   return 0;
 }
 
-
-void PgScrubber::run_callbacks()
+void
+PgScrubber::run_callbacks()
 {
   std::list<Context*> to_run;
   to_run.swap(m_callbacks);
@@ -1510,7 +1546,8 @@ void PgScrubber::run_callbacks()
   }
 }
 
-void PgScrubber::persist_scrub_results(inconsistent_objs_t&& all_errors)
+void
+PgScrubber::persist_scrub_results(inconsistent_objs_t&& all_errors)
 {
   dout(10) << __func__ << " " << all_errors.size() << " errors" << dendl;
 
@@ -1523,8 +1560,9 @@ void PgScrubber::persist_scrub_results(inconsistent_objs_t&& all_errors)
   m_osds->store->queue_transaction(m_pg->ch, std::move(t), nullptr);
 }
 
-void PgScrubber::apply_snap_mapper_fixes(
-  const std::vector<snap_mapper_fix_t>& fix_list)
+void
+PgScrubber::apply_snap_mapper_fixes(
+    const std::vector<snap_mapper_fix_t>& fix_list)
 {
   dout(15) << __func__ << " " << fix_list.size() << " fixes" << dendl;
 
@@ -1542,35 +1580,28 @@ void PgScrubber::apply_snap_mapper_fixes(
       // must remove the existing snap-set before inserting the correct one
       if (auto r = m_pg->snap_mapper.remove_oid(hoid, &t_drv); r < 0) {
 
-	derr << __func__ << ": remove_oid returned " << cpp_strerror(r)
-	     << dendl;
-	if (fix_op == snap_mapper_op_t::update) {
-	  // for inconsistent snapmapper objects (i.e. for
-	  // snap_mapper_op_t::inconsistent), we don't fret if we can't remove
-	  // the old entries
-	  ceph_abort();
-	}
+        derr << __func__ << ": remove_oid returned " << cpp_strerror(r)
+             << dendl;
+        if (fix_op == snap_mapper_op_t::update) {
+          // for inconsistent snapmapper objects (i.e. for
+          // snap_mapper_op_t::inconsistent), we don't fret if we can't remove
+          // the old entries
+          ceph_abort();
+        }
       }
 
       m_osds->clog->error() << fmt::format(
-	"osd.{} found snap mapper error on pg {} oid {} snaps in mapper: {}, "
-	"oi: "
-	"{} ...repaired",
-	m_pg_whoami,
-	m_pg_id,
-	hoid,
-	bogus_snaps,
-	snaps);
+          "osd.{} found snap mapper error on pg {} oid {} snaps in mapper: {}, "
+          "oi: "
+          "{} ...repaired",
+          m_pg_whoami, m_pg_id, hoid, bogus_snaps, snaps);
 
     } else {
 
       m_osds->clog->error() << fmt::format(
-	"osd.{} found snap mapper error on pg {} oid {} snaps missing in "
-	"mapper, should be: {} ...repaired",
-	m_pg_whoami,
-	m_pg_id,
-	hoid,
-	snaps);
+          "osd.{} found snap mapper error on pg {} oid {} snaps missing in "
+          "mapper, should be: {} ...repaired",
+          m_pg_whoami, m_pg_id, hoid, snaps);
     }
 
     // now - insert the correct snap-set
@@ -1589,24 +1620,26 @@ void PgScrubber::apply_snap_mapper_fixes(
     t.register_on_applied_sync(new C_SafeCond(my_lock, my_cond, &done, &e));
 
     if (e = m_pg->osd->store->queue_transaction(m_pg->ch, std::move(t));
-	e != 0) {
+        e != 0) {
       derr << __func__ << ": queue_transaction got " << cpp_strerror(e)
-	   << dendl;
+           << dendl;
     } else {
       std::unique_lock l{my_lock};
       my_cond.wait(l, [&done] { return done; });
-      ceph_assert(m_pg->osd->store);  // RRR why?
+      ceph_assert(m_pg->osd->store); // RRR why?
     }
     dout(15) << __func__ << " wait on repair - done" << dendl;
   }
 }
 
-void PgScrubber::maps_compare_n_cleanup()
+void
+PgScrubber::maps_compare_n_cleanup()
 {
-  m_pg->add_objects_scrubbed_count(std::ssize(m_be->get_primary_scrubmap().objects));
+  m_pg->add_objects_scrubbed_count(
+      std::ssize(m_be->get_primary_scrubmap().objects));
 
   auto required_fixes =
-    m_be->scrub_compare_maps(m_end.is_max(), get_snap_mapper_accessor());
+      m_be->scrub_compare_maps(m_end.is_max(), get_snap_mapper_accessor());
   if (!required_fixes.inconsistent_objs.empty()) {
     if (state_test(PG_STATE_REPAIR)) {
       dout(10) << __func__ << ": discarding scrub results (repairing)" << dendl;
@@ -1630,7 +1663,8 @@ void PgScrubber::maps_compare_n_cleanup()
   requeue_waiting();
 }
 
-Scrub::preemption_t& PgScrubber::get_preemptor()
+Scrub::preemption_t&
+PgScrubber::get_preemptor()
 {
   return preemption_data;
 }
@@ -1640,13 +1674,14 @@ Scrub::preemption_t& PgScrubber::get_preemptor()
  * Unlike the original implementation, we do not requeue the Op waiting for
  * updates. Instead - we trigger the FSM.
  */
-void PgScrubber::replica_scrub_op(OpRequestRef op)
+void
+PgScrubber::replica_scrub_op(OpRequestRef op)
 {
   op->mark_started();
   auto msg = op->get_req<MOSDRepScrub>();
   dout(10) << __func__ << " pg:" << m_pg->pg_id
-	   << " Msg: map_epoch:" << msg->map_epoch
-	   << " min_epoch:" << msg->min_epoch << " deep?" << msg->deep << dendl;
+           << " Msg: map_epoch:" << msg->map_epoch
+           << " min_epoch:" << msg->min_epoch << " deep?" << msg->deep << dendl;
 
   if (should_drop_message(op)) {
     return;
@@ -1662,8 +1697,8 @@ void PgScrubber::replica_scrub_op(OpRequestRef op)
   m_is_deep = msg->deep;
   m_interval_start = m_pg->info.history.same_interval_since;
   m_replica_request_priority = msg->high_priority
-				 ? Scrub::scrub_prio_t::high_priority
-				 : Scrub::scrub_prio_t::low_priority;
+                                   ? Scrub::scrub_prio_t::high_priority
+                                   : Scrub::scrub_prio_t::low_priority;
   m_flags.priority = msg->priority ? msg->priority : m_pg->get_scrub_priority();
 
   preemption_data.reset();
@@ -1673,21 +1708,19 @@ void PgScrubber::replica_scrub_op(OpRequestRef op)
   advance_token();
   const auto& conf = m_pg->get_cct()->_conf;
   const int max_from_conf = size_from_conf(
-    m_is_deep, conf, osd_scrub_chunk_max, osd_shallow_scrub_chunk_max);
+      m_is_deep, conf, osd_scrub_chunk_max, osd_shallow_scrub_chunk_max);
   auto cost = get_scrub_cost(max_from_conf);
-  m_osds->queue_for_rep_scrub(m_pg,
-			      m_replica_request_priority,
-			      m_flags.priority,
-			      m_current_token,
-			      cost);
+  m_osds->queue_for_rep_scrub(
+      m_pg, m_replica_request_priority, m_flags.priority, m_current_token, cost);
 }
 
-void PgScrubber::set_op_parameters(ScrubPGPreconds pg_cond)
+void
+PgScrubber::set_op_parameters(ScrubPGPreconds pg_cond)
 {
   dout(10) << fmt::format("{}: target: {}", __func__, *m_active_target)
-	   << dendl;
+           << dendl;
 
-  set_queued_or_active();  // we are fully committed now.
+  set_queued_or_active(); // we are fully committed now.
 
   // write down the epoch of starting a new scrub. Will be used
   // to discard stale messages from previous aborted scrubs.
@@ -1717,8 +1750,8 @@ void PgScrubber::set_op_parameters(ScrubPGPreconds pg_cond)
   // the PG status as appearing in the logs), and would not be turned on for
   // 'on the go' - only after errors to be repair are found.
   m_is_repair = m_flags.auto_repair ||
-		ScrubJob::is_repair_implied(m_active_target->urgency());
-  ceph_assert(!m_is_repair || m_is_deep);  // repair implies deep-scrub
+                ScrubJob::is_repair_implied(m_active_target->urgency());
+  ceph_assert(!m_is_repair || m_is_deep); // repair implies deep-scrub
   if (ScrubJob::is_repair_implied(m_active_target->urgency())) {
     state_set(PG_STATE_REPAIR);
     update_op_mode_text();
@@ -1731,9 +1764,9 @@ void PgScrubber::set_op_parameters(ScrubPGPreconds pg_cond)
       m_active_target->urgency() == urgency_t::periodic_regular) {
     m_flags.deep_scrub_on_error = true;
     dout(10) << fmt::format(
-		    "{}: auto repair with scrubbing, rescrub if errors found",
-		    __func__)
-	     << dendl;
+                    "{}: auto repair with scrubbing, rescrub if errors found",
+                    __func__)
+             << dendl;
   } else {
     m_flags.deep_scrub_on_error = false;
   }
@@ -1745,16 +1778,14 @@ void PgScrubber::set_op_parameters(ScrubPGPreconds pg_cond)
   m_pg->publish_stats_to_osd();
 }
 
-
-ScrubMachineListener::MsgAndEpoch PgScrubber::prep_replica_map_msg(
-  PreemptionNoted was_preempted)
+ScrubMachineListener::MsgAndEpoch
+PgScrubber::prep_replica_map_msg(PreemptionNoted was_preempted)
 {
   dout(10) << __func__ << " min epoch:" << m_replica_min_epoch << dendl;
 
   auto reply = make_message<MOSDRepScrubMap>(
-    spg_t(m_pg->info.pgid.pgid, m_pg->get_primary().shard),
-    m_replica_min_epoch,
-    m_pg_whoami);
+      spg_t(m_pg->info.pgid.pgid, m_pg->get_primary().shard),
+      m_replica_min_epoch, m_pg_whoami);
 
   reply->preempted = (was_preempted == PreemptionNoted::preempted);
   ::encode(replica_scrubmap, reply->get_data());
@@ -1762,28 +1793,26 @@ ScrubMachineListener::MsgAndEpoch PgScrubber::prep_replica_map_msg(
   return ScrubMachineListener::MsgAndEpoch{reply, m_replica_min_epoch};
 }
 
-void PgScrubber::send_replica_map(const MsgAndEpoch& preprepared)
+void
+PgScrubber::send_replica_map(const MsgAndEpoch& preprepared)
 {
-  m_pg->send_cluster_message(m_pg->get_primary().osd,
-			     preprepared.m_msg,
-			     preprepared.m_epoch,
-			     false);
+  m_pg->send_cluster_message(
+      m_pg->get_primary().osd, preprepared.m_msg, preprepared.m_epoch, false);
 }
 
-void PgScrubber::send_preempted_replica()
+void
+PgScrubber::send_preempted_replica()
 {
   auto reply = make_message<MOSDRepScrubMap>(
-    spg_t{m_pg->info.pgid.pgid, m_pg->get_primary().shard},
-    m_replica_min_epoch,
-    m_pg_whoami);
+      spg_t{m_pg->info.pgid.pgid, m_pg->get_primary().shard},
+      m_replica_min_epoch, m_pg_whoami);
 
   reply->preempted = true;
-  ::encode(replica_scrubmap,
-	   reply->get_data());	// skipping this crashes the scrubber
-  m_pg->send_cluster_message(m_pg->get_primary().osd,
-			     reply,
-			     m_replica_min_epoch,
-			     false);
+  ::encode(
+      replica_scrubmap,
+      reply->get_data()); // skipping this crashes the scrubber
+  m_pg->send_cluster_message(
+      m_pg->get_primary().osd, reply, m_replica_min_epoch, false);
 }
 
 /*
@@ -1795,7 +1824,8 @@ void PgScrubber::send_preempted_replica()
  * limitations of the FSM, we do not 'process' the event directly. Instead - it
  * is queued for the OSD to handle.
  */
-void PgScrubber::map_from_replica(OpRequestRef op)
+void
+PgScrubber::map_from_replica(OpRequestRef op)
 {
   auto m = op->get_req<MOSDRepScrubMap>();
   dout(15) << __func__ << " " << *m << dendl;
@@ -1834,7 +1864,8 @@ void PgScrubber::map_from_replica(OpRequestRef op)
  * As the ReplicaReservations object is to be owned by the ScrubMachine, we
  * send the relevant messages to the ScrubMachine.
  */
-void PgScrubber::handle_scrub_reserve_msgs(OpRequestRef op)
+void
+PgScrubber::handle_scrub_reserve_msgs(OpRequestRef op)
 {
   dout(10) << fmt::format("{}: {}", __func__, *op->get_req()) << dendl;
   op->mark_started();
@@ -1843,27 +1874,29 @@ void PgScrubber::handle_scrub_reserve_msgs(OpRequestRef op)
   }
   auto m = op->get_req<MOSDScrubReserve>();
   switch (m->type) {
-    case MOSDScrubReserve::REQUEST:
-      m_fsm->process_event(ReplicaReserveReq{op, m->from});
-      break;
-    case MOSDScrubReserve::GRANT:
-      m_fsm->process_event(ReplicaGrant{op, m->from});
-      break;
-    case MOSDScrubReserve::REJECT:
-      m_fsm->process_event(ReplicaReject{op, m->from});
-      break;
-    case MOSDScrubReserve::RELEASE:
-      m_fsm->process_event(ReplicaRelease{op, m->from});
-      break;
+  case MOSDScrubReserve::REQUEST:
+    m_fsm->process_event(ReplicaReserveReq{op, m->from});
+    break;
+  case MOSDScrubReserve::GRANT:
+    m_fsm->process_event(ReplicaGrant{op, m->from});
+    break;
+  case MOSDScrubReserve::REJECT:
+    m_fsm->process_event(ReplicaReject{op, m->from});
+    break;
+  case MOSDScrubReserve::RELEASE:
+    m_fsm->process_event(ReplicaRelease{op, m->from});
+    break;
   }
 }
 
-void PgScrubber::set_queued_or_active()
+void
+PgScrubber::set_queued_or_active()
 {
   m_queued_or_active = true;
 }
 
-void PgScrubber::clear_queued_or_active()
+void
+PgScrubber::clear_queued_or_active()
 {
   if (m_queued_or_active) {
     m_queued_or_active = false;
@@ -1872,12 +1905,14 @@ void PgScrubber::clear_queued_or_active()
   }
 }
 
-bool PgScrubber::is_queued_or_active() const
+bool
+PgScrubber::is_queued_or_active() const
 {
   return m_queued_or_active;
 }
 
-void PgScrubber::set_scrub_blocked(utime_t since)
+void
+PgScrubber::set_scrub_blocked(utime_t since)
 {
   ceph_assert(!m_scrub_job->blocked);
   // we are called from a time-triggered lambda,
@@ -1891,7 +1926,8 @@ void PgScrubber::set_scrub_blocked(utime_t since)
   pg->unlock();
 }
 
-void PgScrubber::clear_scrub_blocked()
+void
+PgScrubber::clear_scrub_blocked()
 {
   ceph_assert(m_scrub_job->blocked);
   m_osds->get_scrub_services().clear_pg_scrub_blocked(m_pg_id);
@@ -1899,7 +1935,8 @@ void PgScrubber::clear_scrub_blocked()
   m_pg->publish_stats_to_osd();
 }
 
-void PgScrubber::flag_reservations_failure()
+void
+PgScrubber::flag_reservations_failure()
 {
   dout(10) << __func__ << dendl;
   // delay the next invocation of the scrubber on this target. Note that
@@ -1913,11 +1950,12 @@ void PgScrubber::flag_reservations_failure()
 /*
  * note: only called for the Primary.
  */
-void PgScrubber::scrub_finish()
+void
+PgScrubber::scrub_finish()
 {
   dout(10) << __func__ << " before flags: " << m_flags << ". repair state: "
-	   << (state_test(PG_STATE_REPAIR) ? "repair" : "no-repair")
-	   << ". deep_scrub_on_error: " << m_flags.deep_scrub_on_error << dendl;
+           << (state_test(PG_STATE_REPAIR) ? "repair" : "no-repair")
+           << ". deep_scrub_on_error: " << m_flags.deep_scrub_on_error << dendl;
 
   ceph_assert(m_pg->is_locked());
   ceph_assert(is_queued_or_active());
@@ -1927,16 +1965,15 @@ void PgScrubber::scrub_finish()
   if (m_is_repair && m_flags.auto_repair &&
       ScrubJob::is_repairs_count_limited(m_active_target->urgency()) &&
       m_be->authoritative_peers_count() >
-	  static_cast<int>(
-	      m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)) {
+          static_cast<int>(m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)) {
 
     dout(5) << fmt::format(
-		   "{}: undoing the repair. Damaged objects count ({}) is "
-		   "above configured limit ({})",
-		   __func__, m_be->authoritative_peers_count(),
-		   m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)
-	    << dendl;
-    state_clear(PG_STATE_REPAIR);  // not expected to be set, anyway
+                   "{}: undoing the repair. Damaged objects count ({}) is "
+                   "above configured limit ({})",
+                   __func__, m_be->authoritative_peers_count(),
+                   m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)
+            << dendl;
+    state_clear(PG_STATE_REPAIR); // not expected to be set, anyway
     m_is_repair = false;
     update_op_mode_text();
   }
@@ -1948,12 +1985,12 @@ void PgScrubber::scrub_finish()
   bool do_auto_scrub = false;
   if (m_flags.deep_scrub_on_error && m_be->authoritative_peers_count() &&
       m_be->authoritative_peers_count() <=
-	static_cast<int>(m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)) {
+          static_cast<int>(m_pg->cct->_conf->osd_scrub_auto_repair_num_errors)) {
     ceph_assert(!m_is_deep);
     do_auto_scrub = true;
-    dout(10) << fmt::format("{}: will initiate a deep scrub to fix {} errors",
-                            __func__,
-                            m_be->authoritative_peers_count())
+    dout(10) << fmt::format(
+                    "{}: will initiate a deep scrub to fix {} errors", __func__,
+                    m_be->authoritative_peers_count())
              << dendl;
   }
 
@@ -1967,11 +2004,9 @@ void PgScrubber::scrub_finish()
 
   if (m_be->authoritative_peers_count()) {
 
-    auto err_msg = fmt::format("{} {} {} missing, {} inconsistent objects",
-			       m_pg->info.pgid,
-			       m_mode_desc,
-			       m_be->m_missing.size(),
-			       m_be->m_inconsistent.size());
+    auto err_msg = fmt::format(
+        "{} {} {} missing, {} inconsistent objects", m_pg->info.pgid,
+        m_mode_desc, m_be->m_missing.size(), m_be->m_inconsistent.size());
 
     dout(2) << err_msg << dendl;
     m_osds->clog->error() << fmt::to_string(err_msg);
@@ -2001,7 +2036,7 @@ void PgScrubber::scrub_finish()
       oss << "ok";
     if (!m_is_deep && m_pg->info.stats.stats.sum.num_deep_scrub_errors)
       oss << " ( " << m_pg->info.stats.stats.sum.num_deep_scrub_errors
-	  << " remaining deep scrub error details lost)";
+          << " remaining deep scrub error details lost)";
     if (m_is_repair)
       oss << ", " << m_fixed_count << " fixed";
     if (total_errors)
@@ -2013,11 +2048,10 @@ void PgScrubber::scrub_finish()
   // Since we don't know which errors were fixed, we can only clear them
   // when every one has been fixed.
   if (m_is_repair) {
-    dout(15) << fmt::format("{}: {} errors. {} errors fixed",
-			    __func__,
-			    m_shallow_errors + m_deep_errors,
-			    m_fixed_count)
-	     << dendl;
+    dout(15) << fmt::format(
+                    "{}: {} errors. {} errors fixed", __func__,
+                    m_shallow_errors + m_deep_errors, m_fixed_count)
+             << dendl;
     if (m_fixed_count == m_shallow_errors + m_deep_errors) {
 
       ceph_assert(m_is_deep);
@@ -2031,10 +2065,10 @@ void PgScrubber::scrub_finish()
       // after the recovery, to get the updated error counts.
       m_after_repair_scrub_required = true;
       dout(20) << fmt::format(
-		      "{}: setting for deep-scrub-after-repair ({} errors. {} "
-		      "errors fixed)",
-		      __func__, m_shallow_errors + m_deep_errors, m_fixed_count)
-	       << dendl;
+                      "{}: setting for deep-scrub-after-repair ({} errors. {} "
+                      "errors fixed)",
+                      __func__, m_shallow_errors + m_deep_errors, m_fixed_count)
+               << dendl;
 
     } else if (m_shallow_errors || m_deep_errors) {
 
@@ -2042,17 +2076,15 @@ void PgScrubber::scrub_finish()
       // possible.
       state_set(PG_STATE_FAILED_REPAIR);
       dout(10) << __func__ << " " << (m_shallow_errors + m_deep_errors)
-	       << " error(s) present with no repair possible" << dendl;
+               << " error(s) present with no repair possible" << dendl;
     }
   }
 
   emit_scrub_result();
 
   if (has_error) {
-    m_pg->queue_peering_event(PGPeeringEventRef(
-      std::make_shared<PGPeeringEvent>(get_osdmap_epoch(),
-				       get_osdmap_epoch(),
-				       PeeringState::DoRecovery())));
+    m_pg->queue_peering_event(PGPeeringEventRef(std::make_shared<PGPeeringEvent>(
+        get_osdmap_epoch(), get_osdmap_epoch(), PeeringState::DoRecovery())));
   } else {
     m_is_repair = false;
     state_clear(PG_STATE_REPAIR);
@@ -2132,13 +2164,13 @@ PgScrubber::emit_scrub_result()
   ceph_assert(tr == 0);
 }
 
-
-void PgScrubber::on_digest_updates()
+void
+PgScrubber::on_digest_updates()
 {
   dout(10) << __func__ << " #pending: " << num_digest_updates_pending << " "
-	   << (m_end.is_max() ? " <last chunk>" : " <mid chunk>")
-	   << (is_queued_or_active() ? "" : " ** not marked as scrubbing **")
-	   << dendl;
+           << (m_end.is_max() ? " <last chunk>" : " <mid chunk>")
+           << (is_queued_or_active() ? "" : " ** not marked as scrubbing **")
+           << dendl;
 
   if (num_digest_updates_pending > 0) {
     // do nothing for now. We will be called again when new updates arrive
@@ -2155,13 +2187,14 @@ void PgScrubber::on_digest_updates()
   }
 }
 
-bool PgScrubber::downgrade_on_operator_abort(
+bool
+PgScrubber::downgrade_on_operator_abort(
     Scrub::SchedTarget& targ,
     utime_t scrub_clock_now)
 {
   if (targ.urgency() != urgency_t::operator_requested &&
       targ.urgency() != urgency_t::must_repair) {
-    return false;  // no need to downgrade
+    return false; // no need to downgrade
   }
 
   targ.sched_info.urgency = urgency_t::periodic_regular;
@@ -2174,7 +2207,6 @@ bool PgScrubber::downgrade_on_operator_abort(
       << dendl;
   return true;
 }
-
 
 /**
  * The scrub session was aborted. We are left with two sets of parameters
@@ -2191,22 +2223,23 @@ bool PgScrubber::downgrade_on_operator_abort(
  * operator request - make sure we are not left with a high-priority
  * target (one that would immediately restart, against the operator wishes).
  */
-void PgScrubber::on_mid_scrub_abort(Scrub::delay_cause_t issue)
+void
+PgScrubber::on_mid_scrub_abort(Scrub::delay_cause_t issue)
 {
   if (!m_scrub_job->is_registered()) {
     dout(5) << fmt::format(
-		    "{}: PG not registered for scrubbing on this OSD. Won't "
-		    "requeue!",
-		    __func__)
-	     << dendl;
+                   "{}: PG not registered for scrubbing on this OSD. Won't "
+                   "requeue!",
+                   __func__)
+            << dendl;
     return;
   }
 
   dout(10) << fmt::format(
-		  "{}: executing target: {}. Session flags: {} up-to-date job: "
-		  "{}. Abort cause: {}",
-		  __func__, *m_active_target, m_flags, *m_scrub_job, issue)
-	   << dendl;
+                  "{}: executing target: {}. Session flags: {} up-to-date job: "
+                  "{}. Abort cause: {}",
+                  __func__, *m_active_target, m_flags, *m_scrub_job, issue)
+           << dendl;
 
   // copy the aborted target
   auto aborted_target = *m_active_target;
@@ -2240,13 +2273,13 @@ void PgScrubber::on_mid_scrub_abort(Scrub::delay_cause_t issue)
     curr_sched.not_before =
         std::min(curr_sched.not_before, abrt_sched.not_before);
     dout(10) << fmt::format(
-		    "{}: merged target (before delay): {}", __func__,
-		    current_targ)
-	     << dendl;
+                    "{}: merged target (before delay): {}", __func__,
+                    current_targ)
+             << dendl;
   } else {
     dout(10) << fmt::format(
-                    "{}: aborted oper-urgency target discarded: {}",
-                    __func__, current_targ)
+                    "{}: aborted oper-urgency target discarded: {}", __func__,
+                    current_targ)
              << dendl;
   }
 
@@ -2258,7 +2291,7 @@ void PgScrubber::on_mid_scrub_abort(Scrub::delay_cause_t issue)
   // our sister target is off the queue, too:
   auto& sister = m_scrub_job->get_target(
       aborted_target.level() == scrub_level_t::deep ? scrub_level_t::shallow
-						    : scrub_level_t::deep);
+                                                    : scrub_level_t::deep);
   // if 'operator-aborted' - that one should be downgraded, too (the scenario
   // we are trying to help the operator with: trying to recover from a set of
   // scrub requests issued by mistake).
@@ -2271,8 +2304,8 @@ void PgScrubber::on_mid_scrub_abort(Scrub::delay_cause_t issue)
   }
 }
 
-
-void PgScrubber::requeue_penalized(
+void
+PgScrubber::requeue_penalized(
     scrub_level_t s_or_d,
     delay_both_targets_t delay_both,
     Scrub::delay_cause_t cause,
@@ -2280,10 +2313,10 @@ void PgScrubber::requeue_penalized(
 {
   if (!m_scrub_job->is_registered()) {
     dout(10) << fmt::format(
-		    "{}: PG not registered for scrubbing on this OSD. Won't "
-		    "requeue!",
-		    __func__)
-	     << dendl;
+                    "{}: PG not registered for scrubbing on this OSD. Won't "
+                    "requeue!",
+                    __func__)
+             << dendl;
     return;
   }
 
@@ -2294,15 +2327,15 @@ void PgScrubber::requeue_penalized(
 
   if (delay_both == delay_both_targets_t::yes) {
     const auto sister_level = (s_or_d == scrub_level_t::deep)
-				  ? scrub_level_t::shallow
-				  : scrub_level_t::deep;
+                                  ? scrub_level_t::shallow
+                                  : scrub_level_t::deep;
     auto& trgt2 = m_scrub_job->get_target(sister_level);
     // do not delay if the other target has higher urgency
     if (trgt2.urgency() > trgt.urgency()) {
       dout(10) << fmt::format(
-		      "{}: not delaying the other target (urgency: {})",
-		      __func__, trgt2.urgency())
-	       << dendl;
+                      "{}: not delaying the other target (urgency: {})",
+                      __func__, trgt2.urgency())
+               << dendl;
       return;
     }
     if (trgt2.queued) {
@@ -2315,18 +2348,18 @@ void PgScrubber::requeue_penalized(
   }
 }
 
-
-Scrub::schedule_result_t PgScrubber::start_scrub_session(
+Scrub::schedule_result_t
+PgScrubber::start_scrub_session(
     scrub_level_t s_or_d,
     Scrub::OSDRestrictions osd_restrictions,
     Scrub::ScrubPGPreconds pg_cond)
 {
   auto& trgt = m_scrub_job->get_target(s_or_d);
   dout(10) << fmt::format(
-		  "{}: pg[{}] {} {} target: {}", __func__, m_pg_id,
-		  (m_pg->is_active() ? "<active>" : "<not-active>"),
-		  (m_pg->is_clean() ? "<clean>" : "<not-clean>"), trgt)
-	   << dendl;
+                  "{}: pg[{}] {} {} target: {}", __func__, m_pg_id,
+                  (m_pg->is_active() ? "<active>" : "<not-active>"),
+                  (m_pg->is_clean() ? "<clean>" : "<not-clean>"), trgt)
+           << dendl;
   // mark our target as not-in-queue. If any error is encountered - that
   // target must be requeued!
   trgt.queued = false;
@@ -2344,8 +2377,7 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
   if (!is_primary() || !m_pg->is_active()) {
     // the PG is not expected to be 'registered' in this state. And we should
     // not attempt to queue it.
-    dout(10) << __func__ << ": cannot scrub (not an active primary)"
-	     << dendl;
+    dout(10) << __func__ << ": cannot scrub (not an active primary)" << dendl;
     return schedule_result_t::target_specific_failure;
   }
 
@@ -2353,11 +2385,11 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
   // For some of the failures, we will also delay the 'other' target.
   if (!m_pg->is_clean()) {
     dout(10) << fmt::format(
-		    "{}: cannot scrub (not clean). Registered?{:c}", __func__,
-		    m_scrub_job->is_registered() ? 'Y' : 'n')
-	     << dendl;
+                    "{}: cannot scrub (not clean). Registered?{:c}", __func__,
+                    m_scrub_job->is_registered() ? 'Y' : 'n')
+             << dendl;
     requeue_penalized(
-	s_or_d, delay_both_targets_t::yes, delay_cause_t::pg_state, clock_now);
+        s_or_d, delay_both_targets_t::yes, delay_cause_t::pg_state, clock_now);
     return schedule_result_t::target_specific_failure;
   }
 
@@ -2367,8 +2399,8 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
     // i.e. some time before setting 'snaptrim'.
     dout(10) << __func__ << ": cannot scrub while snap-trimming" << dendl;
     requeue_penalized(
-	s_or_d, delay_both_targets_t::yes, delay_cause_t::snap_trimming,
-	clock_now);
+        s_or_d, delay_both_targets_t::yes, delay_cause_t::snap_trimming,
+        clock_now);
     return schedule_result_t::target_specific_failure;
   }
 
@@ -2377,17 +2409,17 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
   if (ScrubJob::observes_noscrub_flags(trgt.urgency())) {
     if (trgt.is_shallow()) {
       if (!pg_cond.allow_shallow) {
-	// can't scrub at all
-	dout(10) << __func__ << ": shallow not allowed" << dendl;
-	requeue_penalized(
-	    s_or_d, delay_both_targets_t::no, delay_cause_t::flags, clock_now);
-	return schedule_result_t::target_specific_failure;
+        // can't scrub at all
+        dout(10) << __func__ << ": shallow not allowed" << dendl;
+        requeue_penalized(
+            s_or_d, delay_both_targets_t::no, delay_cause_t::flags, clock_now);
+        return schedule_result_t::target_specific_failure;
       }
     } else if (!pg_cond.allow_deep) {
       // can't scrub at all
       dout(10) << __func__ << ": deep not allowed" << dendl;
       requeue_penalized(
-	  s_or_d, delay_both_targets_t::no, delay_cause_t::flags, clock_now);
+          s_or_d, delay_both_targets_t::no, delay_cause_t::flags, clock_now);
       return schedule_result_t::target_specific_failure;
     }
   }
@@ -2397,8 +2429,8 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
   if (!reserve_local(trgt)) {
     dout(10) << __func__ << ": failed to reserve locally" << dendl;
     requeue_penalized(
-	s_or_d, delay_both_targets_t::yes, delay_cause_t::local_resources,
-	clock_now);
+        s_or_d, delay_both_targets_t::yes, delay_cause_t::local_resources,
+        clock_now);
     return schedule_result_t::osd_wide_failure;
   }
 
@@ -2424,9 +2456,9 @@ Scrub::schedule_result_t PgScrubber::start_scrub_session(
   return schedule_result_t::scrub_initiated;
 }
 
-
 ///\todo modify the fields dumped here to match the new scrub-job structure
-void PgScrubber::dump_scrubber(ceph::Formatter* f) const
+void
+PgScrubber::dump_scrubber(ceph::Formatter* f) const
 {
   Formatter::ObjectSection scrubber_section{*f, "scrubber"sv};
 
@@ -2438,8 +2470,7 @@ void PgScrubber::dump_scrubber(ceph::Formatter* f) const
     const auto now_is = ceph_clock_now();
     const auto& earliest = m_scrub_job->earliest_target(now_is);
     f->dump_bool("must_scrub", earliest.is_high_priority());
-    f->dump_bool(
-        "must_deep_scrub", m_scrub_job->deep_target.is_high_priority());
+    f->dump_bool("must_deep_scrub", m_scrub_job->deep_target.is_high_priority());
     // the following data item is deprecated. Will be replaced by a set
     // of reported attributes that match the updated scrub-job state.
     f->dump_bool("must_repair", earliest.urgency() == urgency_t::must_repair);
@@ -2485,8 +2516,8 @@ void PgScrubber::dump_scrubber(ceph::Formatter* f) const
   }
 }
 
-
-void PgScrubber::dump_active_scrubber(ceph::Formatter* f) const
+void
+PgScrubber::dump_active_scrubber(ceph::Formatter* f) const
 {
   f->dump_named_fmt("epoch_start", "{}", m_interval_start);
   f->dump_named_fmt("start", "{}", m_start);
@@ -2530,16 +2561,17 @@ void PgScrubber::dump_active_scrubber(ceph::Formatter* f) const
   f->dump_named_fmt("urgency", "{}", m_active_target->urgency());
 }
 
-pg_scrubbing_status_t PgScrubber::get_schedule() const
+pg_scrubbing_status_t
+PgScrubber::get_schedule() const
 {
   if (!m_scrub_job) {
     return pg_scrubbing_status_t{};
   }
 
   dout(25) << fmt::format(
-		  "{}: active:{} blocked:{}", __func__, m_active,
-		  m_scrub_job->blocked)
-	   << dendl;
+                  "{}: active:{} blocked:{}", __func__, m_active,
+                  m_scrub_job->blocked)
+           << dendl;
 
   auto now_is = ceph_clock_now();
 
@@ -2548,38 +2580,36 @@ pg_scrubbing_status_t PgScrubber::get_schedule() const
 
     if (m_scrub_job->blocked) {
       // a bug. An object is held locked.
-      int32_t blocked_for =
-	  (utime_t{now_is} - m_scrub_job->blocked_since).sec();
+      int32_t blocked_for = (utime_t{now_is} - m_scrub_job->blocked_since).sec();
       return pg_scrubbing_status_t{
-	  utime_t{},
-	  blocked_for,
-	  pg_scrub_sched_status_t::blocked,
-	  true,	 // active
-	  (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
-	  (m_active_target->urgency() == urgency_t::periodic_regular)};
+          utime_t{},
+          blocked_for,
+          pg_scrub_sched_status_t::blocked,
+          true, // active
+          (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
+          (m_active_target->urgency() == urgency_t::periodic_regular)};
 
     } else {
-      int32_t dur_seconds =
-	  ceil<seconds>(m_fsm->get_time_scrubbing()).count();
+      int32_t dur_seconds = ceil<seconds>(m_fsm->get_time_scrubbing()).count();
       return pg_scrubbing_status_t{
-	  utime_t{},
-	  dur_seconds,
-	  pg_scrub_sched_status_t::active,
-	  true,	 // active
-	  (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
-	  (m_active_target->urgency() == urgency_t::periodic_regular)};
+          utime_t{},
+          dur_seconds,
+          pg_scrub_sched_status_t::active,
+          true, // active
+          (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
+          (m_active_target->urgency() == urgency_t::periodic_regular)};
     }
   }
 
   // not registered to be scrubbed?
   if (!m_scrub_job->is_registered()) {
     return pg_scrubbing_status_t{
-	utime_t{},
-	0,
-	pg_scrub_sched_status_t::not_queued,
-	false,
-	scrub_level_t::shallow,
-	false};
+        utime_t{},
+        0,
+        pg_scrub_sched_status_t::not_queued,
+        false,
+        scrub_level_t::shallow,
+        false};
   }
 
   // in session, but still reserving replicas?
@@ -2589,22 +2619,22 @@ pg_scrubbing_status_t PgScrubber::get_schedule() const
     // m_active is false). The 'maybe_register' attests to being in
     // ReservingReplicas state, and m_active wasn't set yet.
     dout(20) << fmt::format(
-		    "{}:maybe_register: osd:{} {}s ({} of {})", __func__,
-		    maybe_register->m_osd_to_respond,
-		    maybe_register->m_duration_seconds,
-		    maybe_register->m_ordinal_of_requested_replica,
-		    maybe_register->m_num_to_reserve)
-	     << dendl;
+                    "{}:maybe_register: osd:{} {}s ({} of {})", __func__,
+                    maybe_register->m_osd_to_respond,
+                    maybe_register->m_duration_seconds,
+                    maybe_register->m_ordinal_of_requested_replica,
+                    maybe_register->m_num_to_reserve)
+             << dendl;
     return pg_scrubbing_status_t{
-	utime_t{},
-	maybe_register->m_duration_seconds,
-	pg_scrub_sched_status_t::active,
-	true,  // active
-	(m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
-	(m_active_target->urgency() == urgency_t::periodic_regular),
-	maybe_register->m_osd_to_respond,
-	maybe_register->m_ordinal_of_requested_replica,
-	maybe_register->m_num_to_reserve};
+        utime_t{},
+        maybe_register->m_duration_seconds,
+        pg_scrub_sched_status_t::active,
+        true, // active
+        (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow),
+        (m_active_target->urgency() == urgency_t::periodic_regular),
+        maybe_register->m_osd_to_respond,
+        maybe_register->m_ordinal_of_requested_replica,
+        maybe_register->m_num_to_reserve};
   }
 
   const auto first_ready = m_scrub_job->earliest_eligible(now_is);
@@ -2613,12 +2643,12 @@ pg_scrubbing_status_t PgScrubber::get_schedule() const
   if (first_ready) {
     const auto& targ = first_ready->get();
     return pg_scrubbing_status_t{
-	targ.sched_info.schedule.not_before,
-	0,
-	pg_scrub_sched_status_t::queued,
-	false,
-	(targ.is_deep() ? scrub_level_t::deep : scrub_level_t::shallow),
-	!targ.is_high_priority()};
+        targ.sched_info.schedule.not_before,
+        0,
+        pg_scrub_sched_status_t::queued,
+        false,
+        (targ.is_deep() ? scrub_level_t::deep : scrub_level_t::shallow),
+        !targ.is_high_priority()};
   }
 
   // both targets are not ready yet
@@ -2632,8 +2662,8 @@ pg_scrubbing_status_t PgScrubber::get_schedule() const
       !targ.is_high_priority()};
 }
 
-
-void PgScrubber::handle_query_state(ceph::Formatter* f)
+void
+PgScrubber::handle_query_state(ceph::Formatter* f)
 {
   dout(15) << __func__ << dendl;
 
@@ -2659,29 +2689,28 @@ PgScrubber::~PgScrubber()
   m_scrub_job.reset();
 }
 
-PgScrubber::PgScrubber(PG* pg)
-    : m_pg{pg}
-    , m_pg_id{pg->pg_id}
-    , m_osds{m_pg->osd}
-    , m_pg_whoami{pg->pg_whoami}
-    , osd_scrub_chunk_max{m_osds->cct->_conf, "osd_scrub_chunk_max"}
-    , osd_shallow_scrub_chunk_max{m_osds->cct->_conf,
-				  "osd_shallow_scrub_chunk_max"}
-    , osd_scrub_chunk_min{m_osds->cct->_conf, "osd_scrub_chunk_min"}
-    , osd_shallow_scrub_chunk_min{m_osds->cct->_conf,
-				  "osd_shallow_scrub_chunk_min"}
-    , osd_stats_update_period_scrubbing{
-	m_osds->cct->_conf, "osd_stats_update_period_scrubbing"}
-    , osd_stats_update_period_not_scrubbing{
-	m_osds->cct->_conf, "osd_stats_update_period_not_scrubbing"}
-    , preemption_data{pg}
+PgScrubber::PgScrubber(PG* pg) :
+  m_pg{pg},
+  m_pg_id{pg->pg_id},
+  m_osds{m_pg->osd},
+  m_pg_whoami{pg->pg_whoami},
+  osd_scrub_chunk_max{m_osds->cct->_conf, "osd_scrub_chunk_max"},
+  osd_shallow_scrub_chunk_max{m_osds->cct->_conf, "osd_shallow_scrub_chunk_max"},
+  osd_scrub_chunk_min{m_osds->cct->_conf, "osd_scrub_chunk_min"},
+  osd_shallow_scrub_chunk_min{m_osds->cct->_conf, "osd_shallow_scrub_chunk_min"},
+  osd_stats_update_period_scrubbing{
+      m_osds->cct->_conf, "osd_stats_update_period_scrubbing"},
+  osd_stats_update_period_not_scrubbing{
+      m_osds->cct->_conf, "osd_stats_update_period_not_scrubbing"},
+  preemption_data{pg}
 {
   m_fsm = std::make_unique<ScrubMachine>(m_pg, this);
   m_fsm->initiate();
   m_scrub_job.emplace(m_osds->cct, m_pg->pg_id, m_osds->get_nodeid());
 }
 
-void PgScrubber::set_scrub_duration(std::chrono::milliseconds duration)
+void
+PgScrubber::set_scrub_duration(std::chrono::milliseconds duration)
 {
   dout(20) << fmt::format("{}: to {}", __func__, duration) << dendl;
   double dur_ms = double(duration.count());
@@ -2692,18 +2721,21 @@ void PgScrubber::set_scrub_duration(std::chrono::milliseconds duration)
   });
 }
 
-PerfCounters* PgScrubber::get_osd_perf_counters() const
+PerfCounters*
+PgScrubber::get_osd_perf_counters() const
 {
   return m_osds->logger;
 }
 
-const Scrub::ScrubCounterSet& PgScrubber::get_unlabeled_counters() const
+const Scrub::ScrubCounterSet&
+PgScrubber::get_unlabeled_counters() const
 {
   return m_pg->pool.info.is_replicated() ? io_counters_replicated
-					 : io_counters_ec;
+                                         : io_counters_ec;
 }
 
-PerfCounters* PgScrubber::get_labeled_counters() const
+PerfCounters*
+PgScrubber::get_labeled_counters() const
 {
   return m_osds->get_scrub_services().get_perf_counters(
       (m_pg->pool.info.is_replicated() ? pg_pool_t::TYPE_REPLICATED
@@ -2711,7 +2743,8 @@ PerfCounters* PgScrubber::get_labeled_counters() const
       (m_is_deep ? scrub_level_t::deep : scrub_level_t::shallow));
 }
 
-void PgScrubber::cleanup_on_finish()
+void
+PgScrubber::cleanup_on_finish()
 {
   dout(10) << __func__ << dendl;
   clear_pgscrub_state();
@@ -2723,7 +2756,8 @@ void PgScrubber::cleanup_on_finish()
 /*
  * note: does not access the state-machine
  */
-void PgScrubber::clear_pgscrub_state()
+void
+PgScrubber::clear_pgscrub_state()
 {
   dout(10) << __func__ << dendl;
   ceph_assert(m_pg->is_locked());
@@ -2741,7 +2775,8 @@ void PgScrubber::clear_pgscrub_state()
   _scrub_clear_state();
 }
 
-void PgScrubber::replica_handling_done()
+void
+PgScrubber::replica_handling_done()
 {
   dout(10) << __func__ << dendl;
 
@@ -2751,14 +2786,16 @@ void PgScrubber::replica_handling_done()
   reset_internal_state();
 }
 
-std::chrono::milliseconds PgScrubber::get_scrub_sleep_time() const
+std::chrono::milliseconds
+PgScrubber::get_scrub_sleep_time() const
 {
   return m_osds->get_scrub_services().scrub_sleep_time(
       ceph_clock_now(),
       ScrubJob::observes_extended_sleep(m_active_target->urgency()));
 }
 
-void PgScrubber::queue_for_scrub_resched(Scrub::scrub_prio_t prio)
+void
+PgScrubber::queue_for_scrub_resched(Scrub::scrub_prio_t prio)
 {
   m_osds->queue_for_scrub_resched(m_pg, prio);
 }
@@ -2767,7 +2804,8 @@ void PgScrubber::queue_for_scrub_resched(Scrub::scrub_prio_t prio)
  * note: performs run_callbacks()
  * note: reservations-related variables are not reset here
  */
-void PgScrubber::reset_internal_state()
+void
+PgScrubber::reset_internal_state()
 {
   dout(10) << __func__ << dendl;
 
@@ -2795,30 +2833,39 @@ void PgScrubber::reset_internal_state()
   m_be.reset();
 }
 
-bool PgScrubber::is_token_current(Scrub::act_token_t received_token)
+bool
+PgScrubber::is_token_current(Scrub::act_token_t received_token)
 {
   if (received_token == 0 || received_token == m_current_token) {
     return true;
   }
-  dout(5) << fmt::format("{}: obsolete token {} does not match current ({})",
-                  __func__, received_token, m_current_token)
-           << dendl;
+  dout(5) << fmt::format(
+                 "{}: obsolete token {} does not match current ({})", __func__,
+                 received_token, m_current_token)
+          << dendl;
   return false;
 }
 
-const OSDMapRef& PgScrubber::get_osdmap() const
+const OSDMapRef&
+PgScrubber::get_osdmap() const
 {
   return m_pg->get_osdmap();
 }
 
-LoggerSinkSet& PgScrubber::get_logger() const { return *m_osds->clog.get(); }
+LoggerSinkSet&
+PgScrubber::get_logger() const
+{
+  return *m_osds->clog.get();
+}
 
-ostream& operator<<(ostream& out, const PgScrubber& scrubber)
+ostream&
+operator<<(ostream& out, const PgScrubber& scrubber)
 {
   return out << scrubber.m_flags;
 }
 
-std::ostream& PgScrubber::gen_prefix(std::ostream& out) const
+std::ostream&
+PgScrubber::gen_prefix(std::ostream& out) const
 {
   if (m_pg) {
     return m_pg->gen_prefix(out) << "scrubber<" << m_fsm_state_name << ">: ";
@@ -2827,13 +2874,14 @@ std::ostream& PgScrubber::gen_prefix(std::ostream& out) const
   }
 }
 
-void PgScrubber::log_cluster_warning(const std::string& warning) const
+void
+PgScrubber::log_cluster_warning(const std::string& warning) const
 {
   m_osds->clog->do_log(CLOG_WARN, warning);
 }
 
-
-ostream& PgScrubber::show_concise(ostream& out) const
+ostream&
+PgScrubber::show_concise(ostream& out) const
 {
   /*
   * 'show_concise()' is only used when calling operator<< thru the ScrubPgIF,
@@ -2859,13 +2907,13 @@ ostream& PgScrubber::show_concise(ostream& out) const
     const std::string sep = (flags_txt.empty() ? "" : ",");
     if (m_active_target) {
       return out << fmt::format(
-		 "({}{}{}{})", (m_scrub_job->blocked ? "*blocked*," : ""),
-		 m_active_target->urgency(), sep, flags_txt);
+                 "({}{}{}{})", (m_scrub_job->blocked ? "*blocked*," : ""),
+                 m_active_target->urgency(), sep, flags_txt);
     } else {
       // only expected in a couple of messages during scrub termination
       return out << fmt::format(
-		 "(teardown{}{}{})", (m_scrub_job->blocked ? "-*blocked*" : ""),
-		 sep, flags_txt);
+                 "(teardown{}{}{})", (m_scrub_job->blocked ? "-*blocked*" : ""),
+                 sep, flags_txt);
     }
   }
 
@@ -2877,21 +2925,23 @@ ostream& PgScrubber::show_concise(ostream& out) const
     return out;
   }
   return out << fmt::format(
-	     "[next-scrub:{},{:10.10}]", (next_scrub.is_deep() ? "dp" : "sh"),
-	     next_scrub.urgency());
+             "[next-scrub:{},{:10.10}]", (next_scrub.is_deep() ? "dp" : "sh"),
+             next_scrub.urgency());
 }
 
-int PgScrubber::asok_debug(std::string_view cmd,
-			   std::string param,
-			   Formatter* f,
-			   stringstream& ss)
+int
+PgScrubber::asok_debug(
+    std::string_view cmd,
+    std::string param,
+    Formatter* f,
+    stringstream& ss)
 {
   dout(10) << __func__ << " cmd: " << cmd << " param: " << param << dendl;
 
   if (cmd == "block") {
     // 'm_debug_blockrange' causes the next 'select_range' to report a blocked
     // object
-    m_debug_blockrange = 10;  // >1, so that will trigger fast state reports
+    m_debug_blockrange = 10; // >1, so that will trigger fast state reports
 
   } else if (cmd == "unblock") {
     // send an 'unblock' event, as if a blocked range was freed
@@ -2906,13 +2956,13 @@ int PgScrubber::asok_debug(std::string_view cmd,
 
     } else if (param == "block") {
       if (cmd == "set") {
-	// set a flag that will cause the next 'select_range' to report a
-	// blocked object
-	m_debug_blockrange = 10;  // >1, so that will trigger fast state reports
+        // set a flag that will cause the next 'select_range' to report a
+        // blocked object
+        m_debug_blockrange = 10; // >1, so that will trigger fast state reports
       } else {
-	// send an 'unblock' event, as if a blocked range was freed
-	m_debug_blockrange = 0;
-	m_fsm->process_event(Unblocked{});
+        // send an 'unblock' event, as if a blocked range was freed
+        m_debug_blockrange = 0;
+        m_fsm->process_event(Unblocked{});
       }
     }
   }
@@ -2923,7 +2973,8 @@ int PgScrubber::asok_debug(std::string_view cmd,
 /*
  * Note: under PG lock
  */
-void PgScrubber::update_scrub_stats(ceph::coarse_real_clock::time_point now_is)
+void
+PgScrubber::update_scrub_stats(ceph::coarse_real_clock::time_point now_is)
 {
   using clock = ceph::coarse_real_clock;
   using namespace std::chrono;
@@ -2934,8 +2985,7 @@ void PgScrubber::update_scrub_stats(ceph::coarse_real_clock::time_point now_is)
     return;
   }
   const seconds period_inactive = seconds(
-      *osd_stats_update_period_not_scrubbing +
-      m_pg_id.pgid.m_seed % 30);
+      *osd_stats_update_period_not_scrubbing + m_pg_id.pgid.m_seed % 30);
 
   // determine the required update period, based on our current state
   auto period{period_inactive};
@@ -2952,13 +3002,10 @@ void PgScrubber::update_scrub_stats(ceph::coarse_real_clock::time_point now_is)
     if (!localtime_r(&time, &tm_local)) {
       throw fmt::format_error("time_t value out of range");
     }
-    dout(20) << fmt::format("{}: period: {}/{}-> {} last:{:%FT%T}",
-			    __func__,
-			    period_active,
-			    period_inactive,
-			    period,
-			    tm_local)
-	     << dendl;
+    dout(20) << fmt::format(
+                    "{}: period: {}/{}-> {} last:{:%FT%T}", __func__,
+                    period_active, period_inactive, period, tm_local)
+             << dendl;
   }
 
   if (now_is - m_last_stat_upd > period) {
@@ -2966,7 +3013,6 @@ void PgScrubber::update_scrub_stats(ceph::coarse_real_clock::time_point now_is)
     m_last_stat_upd = now_is;
   }
 }
-
 
 // ///////////////////// preemption_data_t //////////////////////////////////
 
@@ -2976,7 +3022,8 @@ PgScrubber::preemption_data_t::preemption_data_t(PG* pg) :
   m_left = *osd_scrub_max_preemptions;
 }
 
-void PgScrubber::preemption_data_t::reset()
+void
+PgScrubber::preemption_data_t::reset()
 {
   std::lock_guard<ceph::mutex> lk{m_preemption_lock};
 
@@ -2990,11 +3037,12 @@ namespace Scrub {
 
 // ///////////////////// MapsCollectionStatus ////////////////////////////////
 
-auto MapsCollectionStatus::mark_arriving_map(pg_shard_t from)
-  -> std::tuple<bool, std::string_view>
+auto
+MapsCollectionStatus::mark_arriving_map(
+    pg_shard_t from) -> std::tuple<bool, std::string_view>
 {
   auto fe =
-    std::find(m_maps_awaited_for.begin(), m_maps_awaited_for.end(), from);
+      std::find(m_maps_awaited_for.begin(), m_maps_awaited_for.end(), from);
   if (fe != m_maps_awaited_for.end()) {
     // we are indeed waiting for a map from this replica
     m_maps_awaited_for.erase(fe);
@@ -3004,12 +3052,14 @@ auto MapsCollectionStatus::mark_arriving_map(pg_shard_t from)
   }
 }
 
-void MapsCollectionStatus::reset()
+void
+MapsCollectionStatus::reset()
 {
   *this = MapsCollectionStatus{};
 }
 
-std::string MapsCollectionStatus::dump() const
+std::string
+MapsCollectionStatus::dump() const
 {
   std::string all;
   for (const auto& rp : m_maps_awaited_for) {
@@ -3018,7 +3068,8 @@ std::string MapsCollectionStatus::dump() const
   return all;
 }
 
-ostream& operator<<(ostream& out, const MapsCollectionStatus& sf)
+ostream&
+operator<<(ostream& out, const MapsCollectionStatus& sf)
 {
   out << " [ ";
   for (const auto& rp : sf.m_maps_awaited_for) {
@@ -3030,4 +3081,4 @@ ostream& operator<<(ostream& out, const MapsCollectionStatus& sf)
   return out << " ] ";
 }
 
-}  // namespace Scrub
+} // namespace Scrub

@@ -13,20 +13,21 @@
  *
  */
 
-#include "gtest/gtest.h"
-
 #include "common/ceph_argparse.h"
-#include "global/global_init.h"
 #include "global/global_context.h"
+#include "global/global_init.h"
+#include "gtest/gtest.h"
 
 #include "fscrypt_conf.h"
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
   fscrypt_enabled = true;
 
   auto args = argv_to_vec(argc, argv);
-  [[maybe_unused]] auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
+  [[maybe_unused]] auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

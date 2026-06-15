@@ -23,20 +23,24 @@
 
 #include "rgw_xml.h"
 
-struct RGWRedirectInfo
-{
+struct RGWRedirectInfo {
   std::string protocol;
   std::string hostname;
   uint16_t http_redirect_code = 0;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(protocol, bl);
     encode(hostname, bl);
     encode(http_redirect_code, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(protocol, bl);
     decode(hostname, bl);
@@ -44,26 +48,29 @@ struct RGWRedirectInfo
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(RGWRedirectInfo)
 
-
-struct RGWBWRedirectInfo
-{
+struct RGWBWRedirectInfo {
   RGWRedirectInfo redirect;
   std::string replace_key_prefix_with;
   std::string replace_key_with;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(redirect, bl);
     encode(replace_key_prefix_with, bl);
     encode(replace_key_with, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(redirect, bl);
     decode(replace_key_prefix_with, bl);
@@ -71,110 +78,131 @@ struct RGWBWRedirectInfo
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
-  void decode_json(JSONObj *obj);
-  void decode_xml(XMLObj *obj);
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
+  void decode_json(JSONObj* obj);
+  void decode_xml(XMLObj* obj);
 };
 WRITE_CLASS_ENCODER(RGWBWRedirectInfo)
 
-struct RGWBWRoutingRuleCondition
-{
+struct RGWBWRoutingRuleCondition {
   std::string key_prefix_equals;
   uint16_t http_error_code_returned_equals = 0;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(key_prefix_equals, bl);
     encode(http_error_code_returned_equals, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(key_prefix_equals, bl);
     decode(http_error_code_returned_equals, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
-  void decode_json(JSONObj *obj);
-  void decode_xml(XMLObj *obj);
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
+  void decode_json(JSONObj* obj);
+  void decode_xml(XMLObj* obj);
 
   bool check_key_condition(const std::string& key);
-  bool check_error_code_condition(const int error_code) {
+
+  bool
+  check_error_code_condition(const int error_code)
+  {
     return (uint16_t)error_code == http_error_code_returned_equals;
   }
 };
 WRITE_CLASS_ENCODER(RGWBWRoutingRuleCondition)
 
-struct RGWBWRoutingRule
-{
+struct RGWBWRoutingRule {
   RGWBWRoutingRuleCondition condition;
   RGWBWRedirectInfo redirect_info;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(condition, bl);
     encode(redirect_info, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(condition, bl);
     decode(redirect_info, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
-  void decode_json(JSONObj *obj);
-  void decode_xml(XMLObj *obj);
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
+  void decode_json(JSONObj* obj);
+  void decode_xml(XMLObj* obj);
 
-  bool check_key_condition(const std::string& key) {
+  bool
+  check_key_condition(const std::string& key)
+  {
     return condition.check_key_condition(key);
   }
-  bool check_error_code_condition(int error_code) {
+
+  bool
+  check_error_code_condition(int error_code)
+  {
     return condition.check_error_code_condition(error_code);
   }
 
-  void apply_rule(const std::string& default_protocol,
-                  const std::string& default_hostname,
-                  const std::string& key,
-                  std::string *redirect,
-                  int *redirect_code);
+  void apply_rule(
+      const std::string& default_protocol,
+      const std::string& default_hostname,
+      const std::string& key,
+      std::string* redirect,
+      int* redirect_code);
 };
 WRITE_CLASS_ENCODER(RGWBWRoutingRule)
 
-struct RGWBWRoutingRules
-{
+struct RGWBWRoutingRules {
   std::list<RGWBWRoutingRule> rules;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(rules, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(rules, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 
-  bool check_key_condition(const std::string& key, RGWBWRoutingRule **rule);
-  bool check_error_code_condition(int error_code, RGWBWRoutingRule **rule);
-  bool check_key_and_error_code_condition(const std::string& key,
-                                          const int error_code,
-                                          RGWBWRoutingRule **rule);
+  bool check_key_condition(const std::string& key, RGWBWRoutingRule** rule);
+  bool check_error_code_condition(int error_code, RGWBWRoutingRule** rule);
+  bool check_key_and_error_code_condition(
+      const std::string& key,
+      const int error_code,
+      RGWBWRoutingRule** rule);
 };
 WRITE_CLASS_ENCODER(RGWBWRoutingRules)
 
-struct RGWBucketWebsiteConf
-{
+struct RGWBucketWebsiteConf {
   RGWRedirectInfo redirect_all;
   std::string index_doc_suffix;
   std::string error_doc;
@@ -185,13 +213,16 @@ struct RGWBucketWebsiteConf
   bool is_set_index_doc;
   RGWBWRoutingRules routing_rules;
 
-  RGWBucketWebsiteConf()
-    : listing_enabled(false) {
+  RGWBucketWebsiteConf() :
+    listing_enabled(false)
+  {
     is_redirect_all = false;
     is_set_index_doc = false;
   }
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(index_doc_suffix, bl);
     encode(error_doc, bl);
@@ -202,7 +233,10 @@ struct RGWBucketWebsiteConf
     encode(listing_enabled, bl);
     ENCODE_FINISH(bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(index_doc_suffix, bl);
     decode(error_doc, bl);
@@ -216,28 +250,32 @@ struct RGWBucketWebsiteConf
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
-  void decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
+  void decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 
-  bool should_redirect(const std::string& key,
-                       const int http_error_code,
-                       RGWBWRoutingRule *redirect);
+  bool should_redirect(
+      const std::string& key,
+      const int http_error_code,
+      RGWBWRoutingRule* redirect);
 
-  bool get_effective_key(const std::string& key,
-                         std::string *effective_key, bool is_file) const;
+  bool get_effective_key(
+      const std::string& key,
+      std::string* effective_key,
+      bool is_file) const;
 
-  const std::string& get_index_doc() const {
+  const std::string&
+  get_index_doc() const
+  {
     return index_doc_suffix;
   }
 
-  bool is_empty() const {
-    return index_doc_suffix.empty() &&
-           error_doc.empty() &&
-           subdir_marker.empty() &&
-           listing_css_doc.empty() &&
-           ! listing_enabled;
+  bool
+  is_empty() const
+  {
+    return index_doc_suffix.empty() && error_doc.empty() &&
+           subdir_marker.empty() && listing_css_doc.empty() && !listing_enabled;
   }
 };
 WRITE_CLASS_ENCODER(RGWBucketWebsiteConf)

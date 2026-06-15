@@ -15,37 +15,45 @@
 #ifndef CEPH_FSMAPCOMPACT_H
 #define CEPH_FSMAPCOMPACT_H
 
-#include <map>
 #include <iosfwd>
+#include <map>
 #include <string>
 #include <string_view>
 
+#include "include/cephfs/types.h" // for fs_cluster_id_t
+#include "include/encoding.h"
+#include "include/types.h" // for epoch_t
 #include "mds/mdstypes.h"
 
-#include "include/encoding.h"
-#include "include/cephfs/types.h" // for fs_cluster_id_t
-#include "include/types.h" // for epoch_t
-
-namespace ceph { class Formatter; }
+namespace ceph {
+class Formatter;
+}
 
 class FSMapUser {
 public:
   struct fs_info_t {
     fs_info_t() {}
+
     void encode(ceph::buffer::list& bl, uint64_t features) const;
-    void decode(ceph::buffer::list::const_iterator &bl);
+    void decode(ceph::buffer::list::const_iterator& bl);
     std::string name;
     fs_cluster_id_t cid = FS_CLUSTER_ID_NONE;
   };
 
   FSMapUser() {}
 
-  epoch_t get_epoch() const { return epoch; }
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
 
-  fs_cluster_id_t get_fs_cid(std::string_view name) const {
-    for (auto &p : filesystems) {
+  fs_cluster_id_t
+  get_fs_cid(std::string_view name) const
+  {
+    for (auto& p : filesystems) {
       if (p.second.name == name)
-	return p.first;
+        return p.first;
     }
     return FS_CLUSTER_ID_NONE;
   }
@@ -54,7 +62,7 @@ public:
   void decode(ceph::buffer::list::const_iterator& bl);
 
   void print(std::ostream& out) const;
-  void print_summary(ceph::Formatter *f, std::ostream *out) const;
+  void print_summary(ceph::Formatter* f, std::ostream* out) const;
 
   static std::list<FSMapUser> generate_test_instances();
 
@@ -65,7 +73,9 @@ public:
 WRITE_CLASS_ENCODER_FEATURES(FSMapUser::fs_info_t)
 WRITE_CLASS_ENCODER_FEATURES(FSMapUser)
 
-inline std::ostream& operator<<(std::ostream& out, const FSMapUser& m) {
+inline std::ostream&
+operator<<(std::ostream& out, const FSMapUser& m)
+{
   m.print_summary(NULL, &out);
   return out;
 }

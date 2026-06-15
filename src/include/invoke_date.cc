@@ -13,28 +13,33 @@
  *
  */
 
-#include "utime.h"
-#include "common/safe_io.h"
-#include "common/SubProcess.h"
+#include <errno.h>
 
 #include <sstream>
 
-#include <errno.h>
+#include "common/SubProcess.h"
+#include "common/safe_io.h"
 
-int utime_t::invoke_date(const std::string& date_str, utime_t *result) {
+#include "utime.h"
+
+int
+utime_t::invoke_date(const std::string& date_str, utime_t* result)
+{
   char buf[256];
 
-  SubProcess bin_date("/bin/date", SubProcess::CLOSE, SubProcess::PIPE,
-						      SubProcess::KEEP);
+  SubProcess bin_date(
+      "/bin/date", SubProcess::CLOSE, SubProcess::PIPE, SubProcess::KEEP);
   bin_date.add_cmd_args("-d", date_str.c_str(), "+%s %N", NULL);
 
   int r = bin_date.spawn();
-  if (r < 0) return r;
+  if (r < 0)
+    return r;
 
   ssize_t n = safe_read(bin_date.get_stdout(), buf, sizeof(buf));
 
   r = bin_date.join();
-  if (r || n <= 0) return -EINVAL;
+  if (r || n <= 0)
+    return -EINVAL;
 
   uint64_t epoch, nsec;
   std::istringstream iss(buf);

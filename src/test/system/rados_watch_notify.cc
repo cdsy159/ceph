@@ -13,29 +13,31 @@
 *
 */
 
-#include "cross_process_sem.h"
-#include "include/rados/librados.h"
-#include "st_rados_create_pool.h"
-#include "st_rados_delete_pool.h"
-#include "st_rados_delete_objs.h"
-#include "st_rados_watch.h"
-#include "st_rados_notify.h"
-#include "systest_runnable.h"
-#include "systest_settings.h"
-#include "include/stringify.h"
-
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <sstream>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
-#include <time.h>
-#include <vector>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
+
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "include/rados/librados.h"
+#include "include/stringify.h"
+
+#include "cross_process_sem.h"
+#include "st_rados_create_pool.h"
+#include "st_rados_delete_objs.h"
+#include "st_rados_delete_pool.h"
+#include "st_rados_notify.h"
+#include "st_rados_watch.h"
+#include "systest_runnable.h"
+#include "systest_settings.h"
 
 using std::ostringstream;
 using std::string;
@@ -52,28 +54,30 @@ using std::vector;
  * DO NOT EXPECT      * hangs, crashes
  */
 
-const char *get_id_str()
+const char*
+get_id_str()
 {
   return "main";
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   std::string pool = "foo." + stringify(getpid());
-  CrossProcessSem *setup_sem = NULL;
+  CrossProcessSem* setup_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &setup_sem));
-  CrossProcessSem *watch_sem = NULL;
+  CrossProcessSem* watch_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &watch_sem));
-  CrossProcessSem *notify_sem = NULL;
+  CrossProcessSem* notify_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &notify_sem));
 
   // create a pool and an object, watch the object, notify.
   {
     StRadosCreatePool r1(argc, argv, NULL, setup_sem, NULL, pool, 1, ".obj");
-    StRadosWatch r2(argc, argv, setup_sem, watch_sem, notify_sem,
-		    1, 0, pool, "0.obj");
-    StRadosNotify r3(argc, argv, setup_sem, watch_sem, notify_sem,
-		     0, pool, "0.obj");
+    StRadosWatch r2(
+        argc, argv, setup_sem, watch_sem, notify_sem, 1, 0, pool, "0.obj");
+    StRadosNotify r3(
+        argc, argv, setup_sem, watch_sem, notify_sem, 0, pool, "0.obj");
     StRadosDeletePool r4(argc, argv, notify_sem, NULL, pool);
     vector<SysTestRunnable*> vec;
     vec.push_back(&r1);
@@ -96,10 +100,10 @@ int main(int argc, const char **argv)
   pool += ".";
   {
     StRadosCreatePool r1(argc, argv, NULL, setup_sem, NULL, pool, 0, ".obj");
-    StRadosWatch r2(argc, argv, setup_sem, watch_sem, notify_sem,
-		    0, -ENOENT, pool, "0.obj");
-    StRadosNotify r3(argc, argv, setup_sem, watch_sem, notify_sem,
-		     -ENOENT, pool, "0.obj");
+    StRadosWatch r2(
+        argc, argv, setup_sem, watch_sem, notify_sem, 0, -ENOENT, pool, "0.obj");
+    StRadosNotify r3(
+        argc, argv, setup_sem, watch_sem, notify_sem, -ENOENT, pool, "0.obj");
     StRadosDeletePool r4(argc, argv, notify_sem, NULL, pool);
     vector<SysTestRunnable*> vec;
     vec.push_back(&r1);
@@ -117,11 +121,11 @@ int main(int argc, const char **argv)
   RETURN1_IF_NONZERO(watch_sem->reinit(0));
   RETURN1_IF_NONZERO(notify_sem->reinit(0));
 
-  CrossProcessSem *finished_notifies_sem = NULL;
+  CrossProcessSem* finished_notifies_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &finished_notifies_sem));
-  CrossProcessSem *deleted_sem = NULL;
+  CrossProcessSem* deleted_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &deleted_sem));
-  CrossProcessSem *second_pool_sem = NULL;
+  CrossProcessSem* second_pool_sem = NULL;
   RETURN1_IF_NONZERO(CrossProcessSem::create(0, &second_pool_sem));
 
   // create a pool and an object, watch the object, notify,
@@ -131,15 +135,17 @@ int main(int argc, const char **argv)
   pool += ".";
   {
     StRadosCreatePool r1(argc, argv, NULL, setup_sem, NULL, pool, 1, ".obj");
-    StRadosWatch r2(argc, argv, setup_sem, watch_sem, finished_notifies_sem,
-		    1, 0, pool, "0.obj");
-    StRadosNotify r3(argc, argv, setup_sem, watch_sem, notify_sem,
-		     0, pool, "0.obj");
+    StRadosWatch r2(
+        argc, argv, setup_sem, watch_sem, finished_notifies_sem, 1, 0, pool,
+        "0.obj");
+    StRadosNotify r3(
+        argc, argv, setup_sem, watch_sem, notify_sem, 0, pool, "0.obj");
     StRadosDeletePool r4(argc, argv, notify_sem, deleted_sem, pool);
-    StRadosCreatePool r5(argc, argv, deleted_sem, second_pool_sem, NULL,
-			 "bar", 1, ".obj");
-    StRadosNotify r6(argc, argv, second_pool_sem, NULL, finished_notifies_sem,
-		     0, "bar", "0.obj");
+    StRadosCreatePool r5(
+        argc, argv, deleted_sem, second_pool_sem, NULL, "bar", 1, ".obj");
+    StRadosNotify r6(
+        argc, argv, second_pool_sem, NULL, finished_notifies_sem, 0, "bar",
+        "0.obj");
     StRadosDeletePool r7(argc, argv, finished_notifies_sem, NULL, "bar");
     vector<SysTestRunnable*> vec;
     vec.push_back(&r1);
@@ -168,13 +174,15 @@ int main(int argc, const char **argv)
   pool += ".";
   {
     StRadosCreatePool r1(argc, argv, NULL, setup_sem, NULL, pool, 1, ".obj");
-    StRadosWatch r2(argc, argv, setup_sem, watch_sem, finished_notifies_sem,
-		    1, 0, pool, "0.obj");
-    StRadosNotify r3(argc, argv, setup_sem, watch_sem, notify_sem,
-		     0, pool, "0.obj");
+    StRadosWatch r2(
+        argc, argv, setup_sem, watch_sem, finished_notifies_sem, 1, 0, pool,
+        "0.obj");
+    StRadosNotify r3(
+        argc, argv, setup_sem, watch_sem, notify_sem, 0, pool, "0.obj");
     StRadosDeleteObjs r4(argc, argv, notify_sem, deleted_sem, 1, pool, ".obj");
-    StRadosNotify r5(argc, argv, setup_sem, deleted_sem, finished_notifies_sem,
-		     -ENOENT, pool, "0.obj");
+    StRadosNotify r5(
+        argc, argv, setup_sem, deleted_sem, finished_notifies_sem, -ENOENT,
+        pool, "0.obj");
     StRadosDeletePool r6(argc, argv, finished_notifies_sem, NULL, pool);
 
     vector<SysTestRunnable*> vec;

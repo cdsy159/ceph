@@ -3,19 +3,23 @@
 
 #pragma once
 
+#include <ranges>
+
+#include <boost/container/flat_map.hpp>
+
 #include "common/versioned_variant.h"
+
+#include "rgw_notify_event_type.h"
+#include "rgw_s3_filter.h"
 #include "rgw_sal_fwd.h"
 #include "rgw_zone.h"
-#include "rgw_notify_event_type.h"
-#include <boost/container/flat_map.hpp>
-#include "rgw_s3_filter.h"
-#include <ranges>
 
 class XMLObj;
 
 using OptionalFilter = std::optional<rgw_s3_filter>;
 
 struct rgw_pubsub_topic_filter;
+
 /* S3 notification configuration
  * based on: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUTnotification.html
 <NotificationConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
@@ -57,12 +61,13 @@ struct rgw_pubsub_s3_notification {
   // filter rules
   rgw_s3_filter filter;
 
-  bool decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  bool decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 
   rgw_pubsub_s3_notification() = default;
   // construct from rgw_pubsub_topic_filter (used by get/list notifications)
-  explicit rgw_pubsub_s3_notification(const rgw_pubsub_topic_filter& topic_filter);
+  explicit rgw_pubsub_s3_notification(
+      const rgw_pubsub_topic_filter& topic_filter);
 };
 
 // return true if the key matches the prefix/suffix/regex rules of the key filter
@@ -75,12 +80,14 @@ bool match(const rgw_s3_key_value_filter& filter, const KeyValueMap& kv);
 bool match(const rgw_s3_key_value_filter& filter, const KeyMultiValueMap& kv);
 
 // return true if the event type matches (equal or contained in) one of the events in the list
-bool match(const rgw::notify::EventTypeList& events, rgw::notify::EventType event);
+bool match(
+    const rgw::notify::EventTypeList& events,
+    rgw::notify::EventType event);
 
 struct rgw_pubsub_s3_notifications {
   std::list<rgw_pubsub_s3_notification> list;
-  bool decode_xml(XMLObj *obj);
-  void dump_xml(Formatter *f) const;
+  bool decode_xml(XMLObj* obj);
+  void dump_xml(Formatter* f) const;
 };
 
 /* S3 event records structure
@@ -181,7 +188,9 @@ struct rgw_pubsub_s3_event {
   // could be used to identify the gateway
   std::string opaque_data;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(4, 1, bl);
     encode(eventVersion, bl);
     encode(eventSource, bl);
@@ -210,7 +219,9 @@ struct rgw_pubsub_s3_event {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(4, bl);
     decode(eventVersion, bl);
     decode(eventSource, bl);
@@ -245,21 +256,23 @@ struct rgw_pubsub_s3_event {
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_s3_event)
 
 // setting a unique ID for an event based on object hash and timestamp
 void set_event_id(std::string& id, const std::string& hash, const utime_t& ts);
 
-using ShardNamesView = std::ranges::transform_view<std::ranges::iota_view<uint64_t, uint64_t>, std::function<std::string(uint64_t)>>; 
+using ShardNamesView = std::ranges::transform_view<
+    std::ranges::iota_view<uint64_t, uint64_t>,
+    std::function<std::string(uint64_t)>>;
 
 namespace rgw::notify {
-  // Denotes that the topic has not overridden the global configurations for (time_to_live / max_retries / retry_sleep_duration)
-  // defaults: (rgw_topic_persistency_time_to_live / rgw_topic_persistency_max_retries / rgw_topic_persistency_sleep_duration)
-  constexpr uint32_t DEFAULT_GLOBAL_VALUE = UINT32_MAX;
-  // Used in case the topic is using the default global value for dumping in a formatter
-  constexpr static const std::string_view DEFAULT_CONFIG{"None"};
+// Denotes that the topic has not overridden the global configurations for (time_to_live / max_retries / retry_sleep_duration)
+// defaults: (rgw_topic_persistency_time_to_live / rgw_topic_persistency_max_retries / rgw_topic_persistency_sleep_duration)
+constexpr uint32_t DEFAULT_GLOBAL_VALUE = UINT32_MAX;
+// Used in case the topic is using the default global value for dumping in a formatter
+constexpr static const std::string_view DEFAULT_CONFIG{"None"};
 } // namespace rgw::notify
 
 struct rgw_pubsub_dest {
@@ -274,10 +287,12 @@ struct rgw_pubsub_dest {
   uint32_t max_retries = rgw::notify::DEFAULT_GLOBAL_VALUE;
   uint32_t retry_sleep_duration = rgw::notify::DEFAULT_GLOBAL_VALUE;
   // naming convention of sharded queues in the 'notif' pool -> persistent_queue, persistent_queue.1, persistent_queue.(num_shards -1)...
-  uint64_t num_shards = 1; // Default to 1 shard for backward compatibility with pre-sharding persistent topics.
+  uint64_t num_shards =
+      1; // Default to 1 shard for backward compatibility with pre-sharding persistent topics.
 
-  
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(8, 1, bl);
     encode("", bl);
     encode("", bl);
@@ -294,7 +309,9 @@ struct rgw_pubsub_dest {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(8, bl);
     std::string dummy;
     decode(dummy, bl);
@@ -319,8 +336,7 @@ struct rgw_pubsub_dest {
     }
     if (struct_v >= 7) {
       decode(persistent_queue, bl);
-    } 
-    else if (persistent) {
+    } else if (persistent) {
       // persistent topics created before v7 did not support tenant namespacing.
       // continue to use 'arn_topic' alone as the queue's rados object name
       persistent_queue = arn_topic;
@@ -333,13 +349,13 @@ struct rgw_pubsub_dest {
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
   std::string to_json_str() const;
   void decode_json(JSONObj* obj);
 
   // get the names of the shards in the persistent queue
-  ShardNamesView get_shard_names() const; 
+  ShardNamesView get_shard_names() const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_dest)
 
@@ -351,7 +367,9 @@ struct rgw_pubsub_topic {
   std::string opaque_data;
   std::string policy_text;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(4, 1, bl);
     // converted from rgw_user to rgw_owner
     ceph::converted_variant::encode(owner, bl);
@@ -363,7 +381,9 @@ struct rgw_pubsub_topic {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(4, bl);
     // converted from rgw_user to rgw_owner
     ceph::converted_variant::decode(owner, bl);
@@ -381,9 +401,9 @@ struct rgw_pubsub_topic {
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
-  void dump_xml_as_attributes(Formatter *f) const;
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
+  void dump_xml_as_attributes(Formatter* f) const;
   void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_topic)
@@ -393,21 +413,25 @@ struct rgw_pubsub_topic_subs {
   rgw_pubsub_topic topic;
   std::set<std::string> subs;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(topic, bl);
     encode(subs, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(topic, bl);
     decode(subs, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_topic_subs)
 
@@ -417,26 +441,34 @@ struct rgw_pubsub_topic_filter {
   std::string s3_id;
   rgw_s3_filter s3_filter;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(3, 1, bl);
     encode(topic, bl);
     // events are stored as a vector of std::strings
     std::vector<std::string> tmp_events;
-    std::transform(events.begin(), events.end(), std::back_inserter(tmp_events), rgw::notify::to_string);
+    std::transform(
+        events.begin(), events.end(), std::back_inserter(tmp_events),
+        rgw::notify::to_string);
     encode(tmp_events, bl);
     encode(s3_id, bl);
     encode(s3_filter, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(3, bl);
     decode(topic, bl);
     // events are stored as a vector of std::strings
     events.clear();
     std::vector<std::string> tmp_events;
     decode(tmp_events, bl);
-    std::transform(tmp_events.begin(), tmp_events.end(), std::back_inserter(events), rgw::notify::from_string);
+    std::transform(
+        tmp_events.begin(), tmp_events.end(), std::back_inserter(events),
+        rgw::notify::from_string);
     if (struct_v >= 2) {
       decode(s3_id, bl);
     }
@@ -446,93 +478,114 @@ struct rgw_pubsub_topic_filter {
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_topic_filter)
 
 struct rgw_pubsub_bucket_topics {
   std::map<std::string, rgw_pubsub_topic_filter> topics;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(topics, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(topics, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
+  void dump(Formatter* f) const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_bucket_topics)
 
 struct rgw_pubsub_topics {
   std::map<std::string, rgw_pubsub_topic> topics;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 2, bl);
     encode(topics, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     if (struct_v >= 2) {
       decode(topics, bl);
     } else {
       std::map<std::string, rgw_pubsub_topic_subs> v1topics;
       decode(v1topics, bl);
-      std::transform(v1topics.begin(), v1topics.end(), std::inserter(topics, topics.end()),
+      std::transform(
+          v1topics.begin(), v1topics.end(), std::inserter(topics, topics.end()),
           [](const auto& entry) {
-            return std::pair<std::string, rgw_pubsub_topic>(entry.first, entry.second.topic); 
+            return std::pair<std::string, rgw_pubsub_topic>(
+                entry.first, entry.second.topic);
           });
     }
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void dump_xml(Formatter *f) const;
+  void dump(Formatter* f) const;
+  void dump_xml(Formatter* f) const;
 };
 WRITE_CLASS_ENCODER(rgw_pubsub_topics)
 
-class RGWPubSub
-{
+class RGWPubSub {
   friend class Bucket;
 
   rgw::sal::Driver* const driver;
   const std::string tenant;
   bool use_notification_v2 = false;
 
-  int read_topics_v1(const DoutPrefixProvider *dpp, rgw_pubsub_topics& result,
-                     RGWObjVersionTracker* objv_tracker, optional_yield y) const;
-  int write_topics_v1(const DoutPrefixProvider *dpp, const rgw_pubsub_topics& topics,
-                      RGWObjVersionTracker* objv_tracker, optional_yield y) const;
+  int read_topics_v1(
+      const DoutPrefixProvider* dpp,
+      rgw_pubsub_topics& result,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y) const;
+  int write_topics_v1(
+      const DoutPrefixProvider* dpp,
+      const rgw_pubsub_topics& topics,
+      RGWObjVersionTracker* objv_tracker,
+      optional_yield y) const;
 
   // remove a topic according to its name
   // if the topic does not exists it is a no-op (considered success)
   // return 0 on success, error code otherwise
-  int remove_topic_v2(const DoutPrefixProvider* dpp,
-                      const std::string& name,
-                      optional_yield y) const;
+  int remove_topic_v2(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      optional_yield y) const;
   // create a topic with a name only
   // if the topic already exists it is a no-op (considered success)
   // return 0 on success, error code otherwise
-  int create_topic_v2(const DoutPrefixProvider* dpp,
-                      const rgw_pubsub_topic& topic,
-                      optional_yield y) const;
+  int create_topic_v2(
+      const DoutPrefixProvider* dpp,
+      const rgw_pubsub_topic& topic,
+      optional_yield y) const;
 
-  int list_account_topics(const DoutPrefixProvider* dpp,
-                          const std::string& start_marker, int max_items,
-                          rgw_pubsub_topics& result, std::string& next_marker,
-                          optional_yield y) const;
+  int list_account_topics(
+      const DoutPrefixProvider* dpp,
+      const std::string& start_marker,
+      int max_items,
+      rgw_pubsub_topics& result,
+      std::string& next_marker,
+      optional_yield y) const;
 
 public:
-  RGWPubSub(rgw::sal::Driver* _driver,
-            const std::string& _tenant,
-            const rgw::SiteConfig& site);
+  RGWPubSub(
+      rgw::sal::Driver* _driver,
+      const std::string& _tenant,
+      const rgw::SiteConfig& site);
 
   class Bucket {
     friend class RGWPubSub;
@@ -542,129 +595,176 @@ public:
     // read the list of topics associated with a bucket and populate into result
     // use version tacker to enforce atomicity between read/write
     // return 0 on success or if no topic was associated with the bucket, error code otherwise
-    int read_topics(const DoutPrefixProvider *dpp, rgw_pubsub_bucket_topics& result, 
-        RGWObjVersionTracker* objv_tracker, optional_yield y) const;
+    int read_topics(
+        const DoutPrefixProvider* dpp,
+        rgw_pubsub_bucket_topics& result,
+        RGWObjVersionTracker* objv_tracker,
+        optional_yield y) const;
     // set the list of topics associated with a bucket
     // use version tacker to enforce atomicity between read/write
     // return 0 on success, error code otherwise
-    int write_topics(const DoutPrefixProvider *dpp, const rgw_pubsub_bucket_topics& topics,
-		     RGWObjVersionTracker* objv_tracker, optional_yield y) const;
-    int remove_notification_inner(const DoutPrefixProvider *dpp, const std::string& notification_id,
-                                  bool notif_id_or_topic, optional_yield y) const;
+    int write_topics(
+        const DoutPrefixProvider* dpp,
+        const rgw_pubsub_bucket_topics& topics,
+        RGWObjVersionTracker* objv_tracker,
+        optional_yield y) const;
+    int remove_notification_inner(
+        const DoutPrefixProvider* dpp,
+        const std::string& notification_id,
+        bool notif_id_or_topic,
+        optional_yield y) const;
+
   public:
-    Bucket(const RGWPubSub& _ps, rgw::sal::Bucket* _bucket) : 
+    Bucket(const RGWPubSub& _ps, rgw::sal::Bucket* _bucket) :
       ps(_ps), bucket(_bucket)
     {}
 
     // get the list of topics associated with a bucket and populate into result
     // return 0 on success or if no topic was associated with the bucket, error code otherwise
-    int get_topics(const DoutPrefixProvider *dpp, rgw_pubsub_bucket_topics& result, optional_yield y) const {
+    int
+    get_topics(
+        const DoutPrefixProvider* dpp,
+        rgw_pubsub_bucket_topics& result,
+        optional_yield y) const
+    {
       return read_topics(dpp, result, nullptr, y);
     }
+
     // adds a topic + filter (event list, and possibly name metadata or tags filters) to a bucket
     // assigning a notification name is optional (needed for S3 compatible notifications)
     // if the topic already exist on the bucket, the filter event list may be updated
     // for S3 compliant notifications the version with: s3_filter and notif_name should be used
     // return -ENOENT if the topic does not exists
     // return 0 on success, error code otherwise
-    int create_notification(const DoutPrefixProvider *dpp, const std::string& topic_name,
-        const rgw::notify::EventTypeList& events, OptionalFilter s3_filter, const std::string& notif_name, optional_yield y) const;
+    int create_notification(
+        const DoutPrefixProvider* dpp,
+        const std::string& topic_name,
+        const rgw::notify::EventTypeList& events,
+        OptionalFilter s3_filter,
+        const std::string& notif_name,
+        optional_yield y) const;
     // remove a topic and filter from bucket
     // if the topic does not exists on the bucket it is a no-op (considered success)
     // return -ENOENT if the notification-id/topic does not exists
     // return 0 on success, error code otherwise
-    int remove_notification_by_id(const DoutPrefixProvider *dpp, const std::string& notif_id, optional_yield y) const;
-    int remove_notification(const DoutPrefixProvider *dpp, const std::string& topic_name, optional_yield y) const;
+    int remove_notification_by_id(
+        const DoutPrefixProvider* dpp,
+        const std::string& notif_id,
+        optional_yield y) const;
+    int remove_notification(
+        const DoutPrefixProvider* dpp,
+        const std::string& topic_name,
+        optional_yield y) const;
     // remove all notifications (and autogenerated topics) associated with the bucket
     // return 0 on success or if no topic was associated with the bucket, error code otherwise
-    int remove_notifications(const DoutPrefixProvider *dpp, optional_yield y) const;
+    int remove_notifications(
+        const DoutPrefixProvider* dpp,
+        optional_yield y) const;
   };
 
   // get a paginated list of topics
   // return 0 on success, error code otherwise
-  int get_topics_v2(const DoutPrefixProvider* dpp,
-                    const std::string& start_marker, int max_items,
-                    rgw_pubsub_topics& result, std::string& next_marker,
-                    optional_yield y) const;
+  int get_topics_v2(
+      const DoutPrefixProvider* dpp,
+      const std::string& start_marker,
+      int max_items,
+      rgw_pubsub_topics& result,
+      std::string& next_marker,
+      optional_yield y) const;
 
   // return 0 on success, error code otherwise
-  int get_topics_v1(const DoutPrefixProvider* dpp,
-                 rgw_pubsub_topics& result,
-                 optional_yield y) const;
+  int get_topics_v1(
+      const DoutPrefixProvider* dpp,
+      rgw_pubsub_topics& result,
+      optional_yield y) const;
 
   // get a topic with by its name and populate it into "result"
   // return -ENOENT if the topic does not exists
   // return 0 on success, error code otherwise.
   // if |subscribed_buckets| valid, then for notification_v2 read the bucket
   // topic mapping object.
-  int get_topic(const DoutPrefixProvider* dpp,
-                const std::string& name,
-                rgw_pubsub_topic& result,
-                optional_yield y,
-                std::set<std::string>* subscribed_buckets) const;
+  int get_topic(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      rgw_pubsub_topic& result,
+      optional_yield y,
+      std::set<std::string>* subscribed_buckets) const;
   // create a topic with a name only
   // if the topic already exists it is a no-op (considered success)
   // return 0 on success, error code otherwise
-  int create_topic(const DoutPrefixProvider* dpp, const std::string& name,
-                   const rgw_pubsub_dest& dest, const std::string& arn,
-                   const std::string& opaque_data, const rgw_owner& owner,
-                   const std::string& policy_text, optional_yield y) const;
+  int create_topic(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      const rgw_pubsub_dest& dest,
+      const std::string& arn,
+      const std::string& opaque_data,
+      const rgw_owner& owner,
+      const std::string& policy_text,
+      optional_yield y) const;
   // remove a topic according to its name
   // if the topic does not exists it is a no-op (considered success)
   // return 0 on success, error code otherwise
-  int remove_topic(const DoutPrefixProvider *dpp, const std::string& name, optional_yield y) const;
+  int remove_topic(
+      const DoutPrefixProvider* dpp,
+      const std::string& name,
+      optional_yield y) const;
 };
 
 namespace rgw::notify {
-  struct event_entry_t {
-    rgw_pubsub_s3_event event;
-    std::string push_endpoint;
-    std::string push_endpoint_args;
-    std::string arn_topic;
-    ceph::coarse_real_time creation_time;
-    uint32_t time_to_live = DEFAULT_GLOBAL_VALUE;
-    uint32_t max_retries = DEFAULT_GLOBAL_VALUE;
-    uint32_t retry_sleep_duration = DEFAULT_GLOBAL_VALUE;
-    
-    void encode(bufferlist& bl) const {
-      ENCODE_START(3, 1, bl);
-      encode(event, bl);
-      encode(push_endpoint, bl);
-      encode(push_endpoint_args, bl);
-      encode(arn_topic, bl);
-      encode(creation_time, bl);
-      encode(time_to_live, bl);
-      encode(max_retries, bl);
-      encode(retry_sleep_duration, bl);
-      ENCODE_FINISH(bl);
+struct event_entry_t {
+  rgw_pubsub_s3_event event;
+  std::string push_endpoint;
+  std::string push_endpoint_args;
+  std::string arn_topic;
+  ceph::coarse_real_time creation_time;
+  uint32_t time_to_live = DEFAULT_GLOBAL_VALUE;
+  uint32_t max_retries = DEFAULT_GLOBAL_VALUE;
+  uint32_t retry_sleep_duration = DEFAULT_GLOBAL_VALUE;
+
+  void
+  encode(bufferlist& bl) const
+  {
+    ENCODE_START(3, 1, bl);
+    encode(event, bl);
+    encode(push_endpoint, bl);
+    encode(push_endpoint_args, bl);
+    encode(arn_topic, bl);
+    encode(creation_time, bl);
+    encode(time_to_live, bl);
+    encode(max_retries, bl);
+    encode(retry_sleep_duration, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
+    DECODE_START(3, bl);
+    decode(event, bl);
+    decode(push_endpoint, bl);
+    decode(push_endpoint_args, bl);
+    decode(arn_topic, bl);
+    if (struct_v > 1) {
+      decode(creation_time, bl);
+    } else {
+      creation_time = ceph::coarse_real_clock::zero();
     }
-
-    void decode(bufferlist::const_iterator& bl) {
-      DECODE_START(3, bl);
-      decode(event, bl);
-      decode(push_endpoint, bl);
-      decode(push_endpoint_args, bl);
-      decode(arn_topic, bl);
-      if (struct_v > 1) {
-        decode(creation_time, bl);
-      } else {
-        creation_time = ceph::coarse_real_clock::zero();
-      }
-      if (struct_v > 2) {
-        decode(time_to_live, bl);
-        decode(max_retries, bl);
-        decode(retry_sleep_duration, bl);
-      }
-      DECODE_FINISH(bl);
+    if (struct_v > 2) {
+      decode(time_to_live, bl);
+      decode(max_retries, bl);
+      decode(retry_sleep_duration, bl);
     }
+    DECODE_FINISH(bl);
+  }
 
-    void dump(Formatter *f) const;
-  };
-  WRITE_CLASS_ENCODER(event_entry_t)
-}
+  void dump(Formatter* f) const;
+};
+WRITE_CLASS_ENCODER(event_entry_t)
+} // namespace rgw::notify
 
-std::string topic_to_unique(const std::string& topic,
-                            const std::string& notification);
+std::string topic_to_unique(
+    const std::string& topic,
+    const std::string& notification);
 
 std::optional<rgw_pubsub_topic_filter> find_unique_topic(
     const rgw_pubsub_bucket_topics& bucket_topics,
@@ -673,20 +773,24 @@ std::optional<rgw_pubsub_topic_filter> find_unique_topic(
 // Delete the bucket notification if |notification_id| is passed, else delete
 // all the bucket notifications for the given |bucket| and update the topic
 // bucket mapping.
-int remove_notification_v2(const DoutPrefixProvider* dpp,
-                           rgw::sal::Driver* driver,
-                           rgw::sal::Bucket* bucket,
-                           const std::string& notification_id,
-                           optional_yield y);
+int remove_notification_v2(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Driver* driver,
+    rgw::sal::Bucket* bucket,
+    const std::string& notification_id,
+    optional_yield y);
 
-int get_bucket_notifications(const DoutPrefixProvider* dpp,
-                             rgw::sal::Bucket* bucket,
-                             rgw_pubsub_bucket_topics& bucket_topics);
+int get_bucket_notifications(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::Bucket* bucket,
+    rgw_pubsub_bucket_topics& bucket_topics);
 
 // format and parse topic metadata keys as tenant:name
-std::string get_topic_metadata_key(std::string_view tenant,
-                                   std::string_view topic_name);
+std::string get_topic_metadata_key(
+    std::string_view tenant,
+    std::string_view topic_name);
 std::string get_topic_metadata_key(const rgw_pubsub_topic& topic);
-void parse_topic_metadata_key(const std::string& key,
-                              std::string& tenant_name,
-                              std::string& topic_name);
+void parse_topic_metadata_key(
+    const std::string& key,
+    std::string& tenant_name,
+    std::string& topic_name);

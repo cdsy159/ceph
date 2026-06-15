@@ -1,35 +1,42 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "journal/JournalRecorder.h"
-#include "journal/Entry.h"
-#include "journal/JournalMetadata.h"
-#include "test/journal/RadosTestFixture.h"
 #include <limits>
 #include <list>
 #include <memory>
 
+#include "journal/Entry.h"
+#include "journal/JournalMetadata.h"
+#include "journal/JournalRecorder.h"
+#include "test/journal/RadosTestFixture.h"
+
 class TestJournalRecorder : public RadosTestFixture {
 public:
-  using JournalRecorderPtr = std::unique_ptr<journal::JournalRecorder,
-					     std::function<void(journal::JournalRecorder*)>>;
-  JournalRecorderPtr create_recorder(
-      const std::string &oid, const ceph::ref_t<journal::JournalMetadata>& metadata) {
+  using JournalRecorderPtr = std::unique_ptr<
+      journal::JournalRecorder,
+      std::function<void(journal::JournalRecorder*)>>;
+
+  JournalRecorderPtr
+  create_recorder(
+      const std::string& oid,
+      const ceph::ref_t<journal::JournalMetadata>& metadata)
+  {
     JournalRecorderPtr recorder{
-      new journal::JournalRecorder(m_ioctx, oid + ".", metadata, 0),
-      [](journal::JournalRecorder* recorder) {
-	C_SaferCond cond;
-	recorder->shut_down(&cond);
-	cond.wait();
-	delete recorder;
-      }
-    };
-    recorder->set_append_batch_options(0, std::numeric_limits<uint32_t>::max(), 0);
+        new journal::JournalRecorder(m_ioctx, oid + ".", metadata, 0),
+        [](journal::JournalRecorder* recorder) {
+          C_SaferCond cond;
+          recorder->shut_down(&cond);
+          cond.wait();
+          delete recorder;
+        }};
+    recorder->set_append_batch_options(
+        0, std::numeric_limits<uint32_t>::max(), 0);
     return recorder;
   }
 };
 
-TEST_F(TestJournalRecorder, Append) {
+TEST_F(TestJournalRecorder, Append)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -46,7 +53,8 @@ TEST_F(TestJournalRecorder, Append) {
   ASSERT_EQ(0, cond.wait());
 }
 
-TEST_F(TestJournalRecorder, AppendKnownOverflow) {
+TEST_F(TestJournalRecorder, AppendKnownOverflow)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -57,9 +65,12 @@ TEST_F(TestJournalRecorder, AppendKnownOverflow) {
 
   JournalRecorderPtr recorder = create_recorder(oid, metadata);
 
-  recorder->append(123, create_payload(std::string(metadata->get_object_size() -
-                                                   journal::Entry::get_fixed_size(), '1')));
-  journal::Future future2 = recorder->append(123, create_payload(std::string(1, '2')));
+  recorder->append(
+      123, create_payload(std::string(
+               metadata->get_object_size() - journal::Entry::get_fixed_size(),
+               '1')));
+  journal::Future future2 =
+      recorder->append(123, create_payload(std::string(1, '2')));
 
   C_SaferCond cond;
   future2.flush(&cond);
@@ -68,7 +79,8 @@ TEST_F(TestJournalRecorder, AppendKnownOverflow) {
   ASSERT_EQ(1U, metadata->get_active_set());
 }
 
-TEST_F(TestJournalRecorder, AppendDelayedOverflow) {
+TEST_F(TestJournalRecorder, AppendDelayedOverflow)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -81,10 +93,13 @@ TEST_F(TestJournalRecorder, AppendDelayedOverflow) {
   JournalRecorderPtr recorder2 = create_recorder(oid, metadata);
 
   recorder1->append(234, create_payload(std::string(1, '1')));
-  recorder2->append(123, create_payload(std::string(metadata->get_object_size() -
-                                                    journal::Entry::get_fixed_size(), '2')));
+  recorder2->append(
+      123, create_payload(std::string(
+               metadata->get_object_size() - journal::Entry::get_fixed_size(),
+               '2')));
 
-  journal::Future future = recorder2->append(123, create_payload(std::string(1, '3')));
+  journal::Future future =
+      recorder2->append(123, create_payload(std::string(1, '3')));
 
   C_SaferCond cond;
   future.flush(&cond);
@@ -93,7 +108,8 @@ TEST_F(TestJournalRecorder, AppendDelayedOverflow) {
   ASSERT_EQ(1U, metadata->get_active_set());
 }
 
-TEST_F(TestJournalRecorder, FutureFlush) {
+TEST_F(TestJournalRecorder, FutureFlush)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -113,7 +129,8 @@ TEST_F(TestJournalRecorder, FutureFlush) {
   ASSERT_TRUE(future2.is_complete());
 }
 
-TEST_F(TestJournalRecorder, Flush) {
+TEST_F(TestJournalRecorder, Flush)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -137,7 +154,8 @@ TEST_F(TestJournalRecorder, Flush) {
   ASSERT_TRUE(future2.is_complete());
 }
 
-TEST_F(TestJournalRecorder, OverflowCommitObjectNumber) {
+TEST_F(TestJournalRecorder, OverflowCommitObjectNumber)
+{
   std::string oid = get_temp_oid();
   ASSERT_EQ(0, create(oid, 12, 2));
   ASSERT_EQ(0, client_register(oid));
@@ -148,9 +166,12 @@ TEST_F(TestJournalRecorder, OverflowCommitObjectNumber) {
 
   JournalRecorderPtr recorder = create_recorder(oid, metadata);
 
-  recorder->append(123, create_payload(std::string(metadata->get_object_size() -
-                                                   journal::Entry::get_fixed_size(), '1')));
-  journal::Future future2 = recorder->append(124, create_payload(std::string(1, '2')));
+  recorder->append(
+      123, create_payload(std::string(
+               metadata->get_object_size() - journal::Entry::get_fixed_size(),
+               '1')));
+  journal::Future future2 =
+      recorder->append(124, create_payload(std::string(1, '2')));
 
   C_SaferCond cond;
   future2.flush(&cond);
@@ -171,4 +192,3 @@ TEST_F(TestJournalRecorder, OverflowCommitObjectNumber) {
   ASSERT_EQ(124U, tag_tid);
   ASSERT_EQ(0U, entry_tid);
 }
-

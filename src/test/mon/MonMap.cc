@@ -13,44 +13,49 @@
  *
  */
 #include "mon/MonMap.h"
-#include "common/ceph_context.h"
-#include "common/dns_resolve.h"
-#include "test/common/dns_messages.h"
+
+#include <sstream>
 
 #include "common/debug.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
-#include <sstream>
+#include "common/ceph_context.h"
+#include "common/dns_resolve.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "test/common/dns_messages.h"
 
 #define TEST_DEBUG 20
 
 #define dout_subsys ceph_subsys_mon
 
 
-using ::testing::Return;
 using ::testing::_;
-using ::testing::SetArrayArgument;
 using ::testing::DoAll;
+using ::testing::Return;
+using ::testing::SetArrayArgument;
 using ::testing::StrEq;
 
-
 class MonMapTest : public ::testing::Test {
-  protected:
-    virtual void SetUp() {
-      g_ceph_context->_conf->subsys.set_log_level(dout_subsys, TEST_DEBUG);
-    }
+protected:
+  virtual void
+  SetUp()
+  {
+    g_ceph_context->_conf->subsys.set_log_level(dout_subsys, TEST_DEBUG);
+  }
 
-    virtual void TearDown()  {
-      DNSResolver::get_instance(nullptr);
-    }
+  virtual void
+  TearDown()
+  {
+    DNSResolver::get_instance(nullptr);
+  }
 };
 
-TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns) {
+TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns)
+{
 
-  MockResolvHWrapper *resolvH = new MockResolvHWrapper();
+  MockResolvHWrapper* resolvH = new MockResolvHWrapper();
   DNSResolver::get_instance(resolvH);
 
   int len = sizeof(ns_search_msg_ok_payload);
@@ -63,43 +68,63 @@ TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns) {
     InSequence s;
 
 #ifdef HAVE_RES_NQUERY
-    EXPECT_CALL(*resolvH, res_nsearch(_, StrEq("_cephmon._tcp"), C_IN, T_SRV, _, _))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_search_msg_ok_payload,
-            ns_search_msg_ok_payload+len), Return(len)));
+    EXPECT_CALL(
+        *resolvH, res_nsearch(_, StrEq("_cephmon._tcp"), C_IN, T_SRV, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_search_msg_ok_payload, ns_search_msg_ok_payload + len),
+            Return(len)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_,StrEq("mon.a.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_a_payload,
-            ns_query_msg_mon_a_payload+lena), Return(lena)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.a.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_a_payload, ns_query_msg_mon_a_payload + lena),
+            Return(lena)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_, StrEq("mon.c.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_c_payload,
-            ns_query_msg_mon_c_payload+lenc), Return(lenc)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.c.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_c_payload, ns_query_msg_mon_c_payload + lenc),
+            Return(lenc)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_,StrEq("mon.b.ceph.com"), C_IN, T_A, _,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_b_payload,
-            ns_query_msg_mon_b_payload+lenb), Return(lenb)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.b.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_b_payload, ns_query_msg_mon_b_payload + lenb),
+            Return(lenb)));
 #else
     EXPECT_CALL(*resolvH, res_search(StrEq("_cephmon._tcp"), C_IN, T_SRV, _, _))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_search_msg_ok_payload,
-            ns_search_msg_ok_payload+len), Return(len)));
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_search_msg_ok_payload, ns_search_msg_ok_payload + len),
+            Return(len)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.a.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_a_payload,
-            ns_query_msg_mon_a_payload+lena), Return(lena)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.a.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_a_payload, ns_query_msg_mon_a_payload + lena),
+            Return(lena)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.c.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_c_payload,
-            ns_query_msg_mon_c_payload+lenc), Return(lenc)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.c.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_c_payload, ns_query_msg_mon_c_payload + lenc),
+            Return(lenc)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.b.ceph.com"), C_IN, T_A, _,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_b_payload,
-            ns_query_msg_mon_b_payload+lenb), Return(lenb)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.b.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_b_payload, ns_query_msg_mon_b_payload + lenb),
+            Return(lenb)));
 #endif
   }
 
 
-
-  boost::intrusive_ptr<CephContext> cct(new CephContext(CEPH_ENTITY_TYPE_MON), false);
+  boost::intrusive_ptr<CephContext> cct(
+      new CephContext(CEPH_ENTITY_TYPE_MON), false);
   cct->_conf.set_val("mon_dns_srv_name", "cephmon");
   MonMap monmap;
   int r = monmap.build_initial(cct.get(), false, std::cerr);
@@ -123,32 +148,35 @@ TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns) {
   ASSERT_EQ(os.str(), "192.168.1.13:6789/0");
 }
 
-TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_fail) {
-  MockResolvHWrapper *resolvH = new MockResolvHWrapper();
+TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_fail)
+{
+  MockResolvHWrapper* resolvH = new MockResolvHWrapper();
   DNSResolver::get_instance(resolvH);
 
 
 #ifdef HAVE_RES_NQUERY
-    EXPECT_CALL(*resolvH, res_nsearch(_, StrEq("_ceph-mon._tcp"), C_IN, T_SRV, _, _))
+  EXPECT_CALL(
+      *resolvH, res_nsearch(_, StrEq("_ceph-mon._tcp"), C_IN, T_SRV, _, _))
       .WillOnce(Return(0));
 #else
-    EXPECT_CALL(*resolvH, res_search(StrEq("_ceph-mon._tcp"), C_IN, T_SRV, _, _))
+  EXPECT_CALL(*resolvH, res_search(StrEq("_ceph-mon._tcp"), C_IN, T_SRV, _, _))
       .WillOnce(Return(0));
 #endif
 
-  boost::intrusive_ptr<CephContext> cct(new CephContext(CEPH_ENTITY_TYPE_MON), false);
+  boost::intrusive_ptr<CephContext> cct(
+      new CephContext(CEPH_ENTITY_TYPE_MON), false);
   // using default value of mon_dns_srv_name option
   MonMap monmap;
   int r = monmap.build_initial(cct.get(), false, std::cerr);
 
   ASSERT_EQ(r, -ENOENT);
   ASSERT_EQ(monmap.mon_info.size(), (unsigned int)0);
-
 }
 
-TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_with_domain) {
+TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_with_domain)
+{
 
-  MockResolvHWrapper *resolvH = new MockResolvHWrapper();
+  MockResolvHWrapper* resolvH = new MockResolvHWrapper();
   DNSResolver::get_instance(resolvH);
 
   int len = sizeof(ns_search_msg_ok_payload);
@@ -161,43 +189,65 @@ TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_with_domain) {
     InSequence s;
 
 #ifdef HAVE_RES_NQUERY
-    EXPECT_CALL(*resolvH, res_nsearch(_, StrEq("_cephmon._tcp.ceph.com"), C_IN, T_SRV, _, _))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_search_msg_ok_payload,
-            ns_search_msg_ok_payload+len), Return(len)));
+    EXPECT_CALL(
+        *resolvH,
+        res_nsearch(_, StrEq("_cephmon._tcp.ceph.com"), C_IN, T_SRV, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_search_msg_ok_payload, ns_search_msg_ok_payload + len),
+            Return(len)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_,StrEq("mon.a.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_a_payload,
-            ns_query_msg_mon_a_payload+lena), Return(lena)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.a.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_a_payload, ns_query_msg_mon_a_payload + lena),
+            Return(lena)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_, StrEq("mon.c.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_c_payload,
-            ns_query_msg_mon_c_payload+lenc), Return(lenc)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.c.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_c_payload, ns_query_msg_mon_c_payload + lenc),
+            Return(lenc)));
 
-    EXPECT_CALL(*resolvH, res_nquery(_,StrEq("mon.b.ceph.com"), C_IN, T_A, _,_))
-      .WillOnce(DoAll(SetArrayArgument<4>(ns_query_msg_mon_b_payload,
-            ns_query_msg_mon_b_payload+lenb), Return(lenb)));
+    EXPECT_CALL(
+        *resolvH, res_nquery(_, StrEq("mon.b.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<4>(
+                ns_query_msg_mon_b_payload, ns_query_msg_mon_b_payload + lenb),
+            Return(lenb)));
 #else
-    EXPECT_CALL(*resolvH, res_search(StrEq("_cephmon._tcp.ceph.com"), C_IN, T_SRV, _, _))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_search_msg_ok_payload,
-            ns_search_msg_ok_payload+len), Return(len)));
+    EXPECT_CALL(
+        *resolvH, res_search(StrEq("_cephmon._tcp.ceph.com"), C_IN, T_SRV, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_search_msg_ok_payload, ns_search_msg_ok_payload + len),
+            Return(len)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.a.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_a_payload,
-            ns_query_msg_mon_a_payload+lena), Return(lena)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.a.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_a_payload, ns_query_msg_mon_a_payload + lena),
+            Return(lena)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.c.ceph.com"), C_IN, T_A,_,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_c_payload,
-            ns_query_msg_mon_c_payload+lenc), Return(lenc)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.c.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_c_payload, ns_query_msg_mon_c_payload + lenc),
+            Return(lenc)));
 
-    EXPECT_CALL(*resolvH, res_query(StrEq("mon.b.ceph.com"), C_IN, T_A, _,_))
-      .WillOnce(DoAll(SetArrayArgument<3>(ns_query_msg_mon_b_payload,
-            ns_query_msg_mon_b_payload+lenb), Return(lenb)));
+    EXPECT_CALL(*resolvH, res_query(StrEq("mon.b.ceph.com"), C_IN, T_A, _, _))
+        .WillOnce(DoAll(
+            SetArrayArgument<3>(
+                ns_query_msg_mon_b_payload, ns_query_msg_mon_b_payload + lenb),
+            Return(lenb)));
 #endif
   }
 
 
-
-  boost::intrusive_ptr<CephContext> cct(new CephContext(CEPH_ENTITY_TYPE_MON), false);
+  boost::intrusive_ptr<CephContext> cct(
+      new CephContext(CEPH_ENTITY_TYPE_MON), false);
   cct->_conf.set_val("mon_dns_srv_name", "cephmon_ceph.com");
   MonMap monmap;
   int r = monmap.build_initial(cct.get(), false, std::cerr);
@@ -221,8 +271,10 @@ TEST_F(MonMapTest, DISABLED_build_initial_config_from_dns_with_domain) {
   ASSERT_EQ(os.str(), "192.168.1.13:6789/0");
 }
 
-TEST(MonMapBuildInitial, build_initial_mon_host_from_dns) {
-  boost::intrusive_ptr<CephContext> cct(new CephContext(CEPH_ENTITY_TYPE_MON), false);
+TEST(MonMapBuildInitial, build_initial_mon_host_from_dns)
+{
+  boost::intrusive_ptr<CephContext> cct(
+      new CephContext(CEPH_ENTITY_TYPE_MON), false);
   cct->_conf.set_val("mon_host", "ceph.io");
   MonMap monmap;
   int r = monmap.build_initial(cct.get(), false, std::cerr);
@@ -233,8 +285,10 @@ TEST(MonMapBuildInitial, build_initial_mon_host_from_dns) {
   }
 }
 
-TEST(MonMapBuildInitial, build_initial_mon_host_from_dns_fail) {
-  boost::intrusive_ptr<CephContext> cct(new CephContext(CEPH_ENTITY_TYPE_MON), false);
+TEST(MonMapBuildInitial, build_initial_mon_host_from_dns_fail)
+{
+  boost::intrusive_ptr<CephContext> cct(
+      new CephContext(CEPH_ENTITY_TYPE_MON), false);
   cct->_conf.set_val("mon_host", "ceph.noname");
   MonMap monmap;
   int r = monmap.build_initial(cct.get(), false, std::cerr);

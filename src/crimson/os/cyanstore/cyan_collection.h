@@ -5,17 +5,18 @@
 
 #include <string>
 #include <unordered_map>
+
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
+#include "crimson/os/futurized_collection.h"
 #include "include/buffer.h"
 #include "osd/osd_types.h"
-
-#include "crimson/os/futurized_collection.h"
 
 namespace crimson::os {
 
 class Object;
+
 /**
  * a collection also orders transactions
  *
@@ -31,9 +32,9 @@ struct Collection final : public FuturizedCollection {
   int bits = 0;
   // always use bufferlist object for testing
   bool use_page_set = false;
-  std::unordered_map<ghobject_t, ObjectRef> object_hash;  ///< for lookup
-  std::map<ghobject_t, ObjectRef> object_map;        ///< for iteration
-  std::map<std::string,bufferptr> xattr;
+  std::unordered_map<ghobject_t, ObjectRef> object_hash; ///< for lookup
+  std::map<ghobject_t, ObjectRef> object_map; ///< for iteration
+  std::map<std::string, bufferptr> xattr;
   bool exists = true;
 
   pool_opts_t pool_opts;
@@ -50,4 +51,4 @@ struct Collection final : public FuturizedCollection {
   void decode(bufferlist::const_iterator& p);
 };
 
-}
+} // namespace crimson::os

@@ -5,8 +5,9 @@
 #define CEPH_OSD_BLUEADMIN_H
 
 
-#include "BlueStore.h"
 #include "common/admin_socket.h"
+
+#include "BlueStore.h"
 
 using std::string;
 using std::to_string;
@@ -20,11 +21,12 @@ class BlueStore::SocketHook : public AdminSocketHook {
 public:
   SocketHook(BlueStore& store);
   virtual ~SocketHook();
-  int call(std::string_view command,
-           const cmdmap_t& cmdmap,
-           const bufferlist& inbl,
-           Formatter *f,
-           std::ostream& ss,
-           bufferlist& out) override;
+  int call(
+      std::string_view command,
+      const cmdmap_t& cmdmap,
+      const bufferlist& inbl,
+      Formatter* f,
+      std::ostream& ss,
+      bufferlist& out) override;
 };
 #endif

@@ -2,17 +2,21 @@
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
 #include "rgw_etag_verifier.h"
+
 #include "rgw_obj_manifest.h"
 
 #define dout_subsys ceph_subsys_rgw
 
 namespace rgw::putobj {
 
-int create_etag_verifier(const DoutPrefixProvider *dpp, 
-                         CephContext* cct, rgw::sal::DataProcessor* filter,
-                         const bufferlist& manifest_bl,
-                         const std::optional<RGWCompressionInfo>& compression,
-                         etag_verifier_ptr& verifier)
+int
+create_etag_verifier(
+    const DoutPrefixProvider* dpp,
+    CephContext* cct,
+    rgw::sal::DataProcessor* filter,
+    const bufferlist& manifest_bl,
+    const std::optional<RGWCompressionInfo>& compression,
+    etag_verifier_ptr& verifier)
 {
   RGWObjManifest manifest;
 
@@ -27,7 +31,8 @@ int create_etag_verifier(const DoutPrefixProvider *dpp,
   RGWObjManifestRule rule;
   bool found = manifest.get_rule(0, &rule);
   if (!found) {
-    ldpp_dout(dpp, -1) << "ERROR: manifest->get_rule() could not find rule" << dendl;
+    ldpp_dout(dpp, -1) << "ERROR: manifest->get_rule() could not find rule"
+                       << dendl;
     return -EIO;
   }
 
@@ -61,13 +66,13 @@ int create_etag_verifier(const DoutPrefixProvider *dpp,
     auto block = blocks.begin();
     for (auto& ofs : part_ofs) {
       // find the compression_block with new_ofs == ofs
-      constexpr auto less = [] (const compression_block& block, uint64_t ofs) {
+      constexpr auto less = [](const compression_block& block, uint64_t ofs) {
         return block.new_ofs < ofs;
       };
       block = std::lower_bound(block, blocks.end(), ofs, less);
       if (block == blocks.end() || block->new_ofs != ofs) {
         ldpp_dout(dpp, 4) << "no match for compressed offset " << ofs
-            << ", disabling etag verification" << dendl;
+                          << ", disabling etag verification" << dendl;
         return -EIO;
       }
       ofs = block->old_ofs;
@@ -79,16 +84,18 @@ int create_etag_verifier(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int ETagVerifier_Atomic::process(bufferlist&& in, uint64_t logical_offset)
+int
+ETagVerifier_Atomic::process(bufferlist&& in, uint64_t logical_offset)
 {
   bufferlist out;
   if (in.length() > 0)
-    hash.Update((const unsigned char *)in.c_str(), in.length());
+    hash.Update((const unsigned char*)in.c_str(), in.length());
 
   return Pipe::process(std::move(in), logical_offset);
 }
 
-void ETagVerifier_Atomic::calculate_etag()
+void
+ETagVerifier_Atomic::calculate_etag()
 {
   unsigned char m[CEPH_CRYPTO_MD5_DIGESTSIZE];
   char calc_md5[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + 1];
@@ -101,17 +108,18 @@ void ETagVerifier_Atomic::calculate_etag()
   buf_to_hex(m, CEPH_CRYPTO_MD5_DIGESTSIZE, calc_md5);
   calculated_etag = calc_md5;
   ldout(cct, 20) << "Single part object: " << " etag:" << calculated_etag
-          << dendl;
+                 << dendl;
 }
 
-void ETagVerifier_MPU::process_end_of_MPU_part()
+void
+ETagVerifier_MPU::process_end_of_MPU_part()
 {
   unsigned char m[CEPH_CRYPTO_MD5_DIGESTSIZE];
   char calc_md5_part[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + 1];
   std::string calculated_etag_part;
 
   hash.Final(m);
-  mpu_etag_hash.Update((const unsigned char *)m, sizeof(m));
+  mpu_etag_hash.Update((const unsigned char*)m, sizeof(m));
   hash.Restart();
 
   if (cct->_conf->subsys.should_gather(dout_subsys, 20)) {
@@ -124,13 +132,14 @@ void ETagVerifier_MPU::process_end_of_MPU_part()
   next_part_index++;
 }
 
-int ETagVerifier_MPU::process(bufferlist&& in, uint64_t logical_offset)
+int
+ETagVerifier_MPU::process(bufferlist&& in, uint64_t logical_offset)
 {
   uint64_t bl_end = in.length() + logical_offset;
 
   /* Handle the last MPU part */
   if (size_t(next_part_index) == part_ofs.size()) {
-    hash.Update((const unsigned char *)in.c_str(), in.length());
+    hash.Update((const unsigned char*)in.c_str(), in.length());
     goto done;
   }
 
@@ -138,11 +147,12 @@ int ETagVerifier_MPU::process(bufferlist&& in, uint64_t logical_offset)
   if (bl_end > part_ofs[next_part_index]) {
 
     uint64_t part_one_len = part_ofs[next_part_index] - logical_offset;
-    hash.Update((const unsigned char *)in.c_str(), part_one_len);
+    hash.Update((const unsigned char*)in.c_str(), part_one_len);
     process_end_of_MPU_part();
 
-    hash.Update((const unsigned char *)in.c_str() + part_one_len,
-      bl_end - part_ofs[cur_part_index]);
+    hash.Update(
+        (const unsigned char*)in.c_str() + part_one_len,
+        bl_end - part_ofs[cur_part_index]);
     /*
      * If we've moved to the last part of the MPU, avoid usage of
      * parts_ofs[next_part_index] as it will lead to our-of-range access.
@@ -150,7 +160,7 @@ int ETagVerifier_MPU::process(bufferlist&& in, uint64_t logical_offset)
     if (size_t(next_part_index) == part_ofs.size())
       goto done;
   } else {
-    hash.Update((const unsigned char *)in.c_str(), in.length());
+    hash.Update((const unsigned char*)in.c_str(), in.length());
   }
 
   /* Update the MPU Etag if the current part has ended */
@@ -161,13 +171,15 @@ done:
   return Pipe::process(std::move(in), logical_offset);
 }
 
-void ETagVerifier_MPU::calculate_etag()
+void
+ETagVerifier_MPU::calculate_etag()
 {
   const uint32_t parts = part_ofs.size();
   constexpr auto digits10 = std::numeric_limits<uint32_t>::digits10;
   constexpr auto extra = 2 + digits10; // add "-%u\0" at the end
 
-  unsigned char m[CEPH_CRYPTO_MD5_DIGESTSIZE], mpu_m[CEPH_CRYPTO_MD5_DIGESTSIZE];
+  unsigned char m[CEPH_CRYPTO_MD5_DIGESTSIZE],
+      mpu_m[CEPH_CRYPTO_MD5_DIGESTSIZE];
   char final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + extra];
 
   /* Return early if ETag has already been calculated */
@@ -175,14 +187,14 @@ void ETagVerifier_MPU::calculate_etag()
     return;
 
   hash.Final(m);
-  mpu_etag_hash.Update((const unsigned char *)m, sizeof(m));
+  mpu_etag_hash.Update((const unsigned char*)m, sizeof(m));
 
   /* Refer RGWCompleteMultipart::execute() for ETag calculation for MPU object */
   mpu_etag_hash.Final(mpu_m);
   buf_to_hex(mpu_m, CEPH_CRYPTO_MD5_DIGESTSIZE, final_etag_str);
-  snprintf(&final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2],
-           sizeof(final_etag_str) - CEPH_CRYPTO_MD5_DIGESTSIZE * 2,
-           "-%u", parts);
+  snprintf(
+      &final_etag_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2],
+      sizeof(final_etag_str) - CEPH_CRYPTO_MD5_DIGESTSIZE * 2, "-%u", parts);
 
   calculated_etag = final_etag_str;
   ldout(cct, 20) << "MPU calculated ETag:" << calculated_etag << dendl;

@@ -5,17 +5,19 @@
  *      Author: Eleanor Cawthon
  */
 
-#include "include/compat.h"
-#include "objclass/objclass.h"
 #include <errno.h>
-#include "key_value_store/kvs_arg_types.h"
-#include "include/types.h"
-#include <iostream>
-#include <climits>
 
-using std::string;
+#include <climits>
+#include <iostream>
+
+#include "include/compat.h"
+#include "include/types.h"
+#include "key_value_store/kvs_arg_types.h"
+#include "objclass/objclass.h"
+
 using std::map;
 using std::set;
+using std::string;
 
 /**
  * finds the index_data where a key belongs.
@@ -28,8 +30,13 @@ using std::set;
  * @post: idata contains complete information
  * stored
  */
-static int get_idata_from_key(cls_method_context_t hctx, const string &key,
-    index_data &idata, index_data &next_idata) {
+static int
+get_idata_from_key(
+    cls_method_context_t hctx,
+    const string& key,
+    index_data& idata,
+    index_data& next_idata)
+{
   bufferlist raw_val;
   int r = 0;
   std::map<std::string, bufferlist> kvmap;
@@ -43,7 +50,7 @@ static int get_idata_from_key(cls_method_context_t hctx, const string &key,
   }
 
   r = cls_cxx_map_get_val(hctx, key_data(key).encoded(), &raw_val);
-  if (r == 0){
+  if (r == 0) {
     CLS_LOG(20, "%s is already in the index: %d", key.c_str(), r);
     auto b = raw_val.cbegin();
     idata.decode(b);
@@ -69,9 +76,9 @@ static int get_idata_from_key(cls_method_context_t hctx, const string &key,
   return r;
 }
 
-
-static int get_idata_from_key_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+get_idata_from_key_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "get_idata_from_key_op");
   idata_from_key_args op;
   auto it = in->cbegin();
@@ -101,13 +108,17 @@ static int get_idata_from_key_op(cls_method_context_t hctx,
  * @pre: idata must contain a key.
  * @post: out_data contains complete information
  */
-static int get_next_idata(cls_method_context_t hctx, const index_data &idata,
-    index_data &out_data) {
+static int
+get_next_idata(
+    cls_method_context_t hctx,
+    const index_data& idata,
+    index_data& out_data)
+{
   int r = 0;
   std::map<std::string, bufferlist> kvs;
   bool more;
   r = cls_cxx_map_get_vals(hctx, idata.kdata.encoded(), "", 1, &kvs, &more);
-  if (r < 0){
+  if (r < 0) {
     CLS_LOG(20, "getting kvs failed with error %d", r);
     return r;
   }
@@ -123,8 +134,9 @@ static int get_next_idata(cls_method_context_t hctx, const index_data &idata,
   return r;
 }
 
-static int get_next_idata_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+get_next_idata_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "get_next_idata_op");
   idata_from_idata_args op;
   auto it = in->cbegin();
@@ -153,13 +165,17 @@ static int get_next_idata_op(cls_method_context_t hctx,
  * @pre: idata must contain a key.
  * @ost: out_data contains complete information
  */
-static int get_prev_idata(cls_method_context_t hctx, const index_data &idata,
-    index_data &out_data) {
+static int
+get_prev_idata(
+    cls_method_context_t hctx,
+    const index_data& idata,
+    index_data& out_data)
+{
   int r = 0;
   std::map<std::string, bufferlist> kvs;
   bool more;
   r = cls_cxx_map_get_vals(hctx, "", "", LONG_MAX, &kvs, &more);
-  if (r < 0){
+  if (r < 0) {
     CLS_LOG(20, "getting kvs failed with error %d", r);
     return r;
   }
@@ -167,9 +183,9 @@ static int get_prev_idata(cls_method_context_t hctx, const index_data &idata,
   std::map<std::string, bufferlist>::iterator it =
       kvs.lower_bound(idata.kdata.encoded());
   if (it->first != idata.kdata.encoded()) {
-    CLS_LOG(20, "object %s not found in the index (expected %s, found %s)",
-	idata.str().c_str(), idata.kdata.encoded().c_str(),
-	it->first.c_str());
+    CLS_LOG(
+        20, "object %s not found in the index (expected %s, found %s)",
+        idata.str().c_str(), idata.kdata.encoded().c_str(), it->first.c_str());
     return -ENODATA;
   }
   if (it == kvs.begin()) {
@@ -185,8 +201,9 @@ static int get_prev_idata(cls_method_context_t hctx, const index_data &idata,
   return 0;
 }
 
-static int get_prev_idata_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+get_prev_idata_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "get_next_idata_op");
   idata_from_idata_args op;
   auto it = in->cbegin();
@@ -207,36 +224,43 @@ static int get_prev_idata_op(cls_method_context_t hctx,
 /**
  * Read all of the index entries where any keys in the map go
  */
-static int read_many(cls_method_context_t hctx, const set<string> &keys,
-    map<string, bufferlist> * out) {
+static int
+read_many(
+    cls_method_context_t hctx,
+    const set<string>& keys,
+    map<string, bufferlist>* out)
+{
   int r = 0;
   bool more;
-  CLS_ERR("reading from a map of size %d, first key encoded is %s",
+  CLS_ERR(
+      "reading from a map of size %d, first key encoded is %s",
       (int)keys.size(), key_data(*keys.begin()).encoded().c_str());
-  r = cls_cxx_map_get_vals(hctx, key_data(*keys.begin()).encoded().c_str(),
-      "", LONG_MAX, out, &more);
+  r = cls_cxx_map_get_vals(
+      hctx, key_data(*keys.begin()).encoded().c_str(), "", LONG_MAX, out, &more);
   if (r < 0) {
     CLS_ERR("getting omap vals failed with error %d", r);
   }
 
   CLS_ERR("got map of size %d ", (int)out->size());
   if (out->size() > 1) {
-    out->erase(out->upper_bound(key_data(*keys.rbegin()).encoded().c_str()),
-      out->end());
+    out->erase(
+        out->upper_bound(key_data(*keys.rbegin()).encoded().c_str()),
+        out->end());
   }
   CLS_ERR("returning map of size %d", (int)out->size());
   return r;
 }
 
-static int read_many_op(cls_method_context_t hctx, bufferlist *in,
-    bufferlist *out) {
+static int
+read_many_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "read_many_op");
   set<string> op;
   map<string, bufferlist> outmap;
   auto it = in->cbegin();
   try {
     decode(op, it);
-  } catch (buffer::error & err) {
+  } catch (buffer::error& err) {
     return -EINVAL;
   }
   int r = read_many(hctx, op, &outmap);
@@ -252,7 +276,9 @@ static int read_many_op(cls_method_context_t hctx, bufferlist *in,
  * Checks the unwritable xattr. If it is "1" (i.e., it is unwritable), returns
  * -EACCES. otherwise, returns 0.
  */
-static int check_writable(cls_method_context_t hctx) {
+static int
+check_writable(cls_method_context_t hctx)
+{
   bufferlist bl;
   int r = cls_cxx_getxattr(hctx, "unwritable", &bl);
   if (r < 0) {
@@ -261,13 +287,14 @@ static int check_writable(cls_method_context_t hctx) {
   }
   if (string(bl.c_str(), bl.length()) == "1") {
     return -EACCES;
-  } else{
+  } else {
     return 0;
   }
 }
 
-static int check_writable_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+check_writable_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "check_writable_op");
   return check_writable(hctx);
 }
@@ -278,8 +305,9 @@ static int check_writable_op(cls_method_context_t hctx,
  * @bound: the limit to test
  * @comparator: should be CEPH_OSD_CMPXATTR_OP_[EQ|GT|LT]
  */
-static int assert_size_in_bound(cls_method_context_t hctx, int bound,
-    int comparator) {
+static int
+assert_size_in_bound(cls_method_context_t hctx, int bound, int comparator)
+{
   //determine size
   bufferlist size_bl;
   int r = cls_cxx_getxattr(hctx, "size", &size_bl);
@@ -309,15 +337,19 @@ static int assert_size_in_bound(cls_method_context_t hctx, int bound,
     }
     break;
   default:
-    CLS_LOG(20, "invalid argument passed to assert_size_in_bound: %d",
-	    comparator);
+    CLS_LOG(
+        20, "invalid argument passed to assert_size_in_bound: %d", comparator);
     return -EINVAL;
   }
   return 0;
 }
 
-static int assert_size_in_bound_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+assert_size_in_bound_op(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   CLS_LOG(20, "assert_size_in_bound_op");
   assert_size_args op;
   auto it = in->cbegin();
@@ -339,8 +371,13 @@ static int assert_size_in_bound_op(cls_method_context_t hctx,
  *
  * @post: object has omap entries inserted, and size xattr is updated
  */
-static int omap_insert(cls_method_context_t hctx,
-    const map<string, bufferlist> &omap, int bound, bool exclusive) {
+static int
+omap_insert(
+    cls_method_context_t hctx,
+    const map<string, bufferlist>& omap,
+    int bound,
+    bool exclusive)
+{
 
   uint64_t size;
   time_t time;
@@ -359,14 +396,15 @@ static int omap_insert(cls_method_context_t hctx,
 
   //if this is an exclusive insert, make sure the key doesn't already exist.
   for (map<string, bufferlist>::const_iterator it = omap.begin();
-      it != omap.end(); ++it) {
+       it != omap.end(); ++it) {
     bufferlist bl;
     r = cls_cxx_map_get_val(hctx, it->first, &bl);
-    if (r == 0 && string(bl.c_str(), bl.length()) != ""){
+    if (r == 0 && string(bl.c_str(), bl.length()) != "") {
       if (exclusive) {
-	CLS_LOG(20, "error: this is an exclusive insert and %s exists.",
-	    it->first.c_str());
-	return -EEXIST;
+        CLS_LOG(
+            20, "error: this is an exclusive insert and %s exists.",
+            it->first.c_str());
+        return -EEXIST;
       }
       assert_bound++;
       CLS_LOG(20, "increased assert_bound to %d", assert_bound);
@@ -385,7 +423,8 @@ static int omap_insert(cls_method_context_t hctx,
 
   int old_size_int = atoi(string(old_size.c_str(), old_size.length()).c_str());
 
-  CLS_LOG(20, "asserting size is less than %d (bound is %d)", assert_bound, bound);
+  CLS_LOG(
+      20, "asserting size is less than %d (bound is %d)", assert_bound, bound);
   if (old_size_int >= assert_bound) {
     return -EKEYREJECTED;
   }
@@ -412,8 +451,9 @@ static int omap_insert(cls_method_context_t hctx,
   return 0;
 }
 
-static int omap_insert_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+omap_insert_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "omap_insert");
   omap_set_args op;
   auto it = in->cbegin();
@@ -425,8 +465,9 @@ static int omap_insert_op(cls_method_context_t hctx,
   return omap_insert(hctx, op.omap, op.bound, op.exclusive);
 }
 
-static int create_with_omap(cls_method_context_t hctx,
-    const map<string, bufferlist> &omap) {
+static int
+create_with_omap(cls_method_context_t hctx, const map<string, bufferlist>& omap)
+{
   CLS_LOG(20, "creating with omap: %s", omap.begin()->first.c_str());
   //first make sure the object is writable
   int r = cls_cxx_create(hctx, true);
@@ -466,8 +507,9 @@ static int create_with_omap(cls_method_context_t hctx,
   return 0;
 }
 
-static int create_with_omap_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+create_with_omap_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "omap_insert");
   map<string, bufferlist> omap;
   auto it = in->cbegin();
@@ -489,8 +531,9 @@ static int create_with_omap_op(cls_method_context_t hctx,
  *
  * @post: object has omap entries removed, and size xattr is updated
  */
-static int omap_remove(cls_method_context_t hctx,
-    const std::set<string> &omap, int bound) {
+static int
+omap_remove(cls_method_context_t hctx, const std::set<string>& omap, int bound)
+{
   int r;
   uint64_t size;
   time_t time;
@@ -506,12 +549,10 @@ static int omap_remove(cls_method_context_t hctx,
   }
 
   //check for existance of the key first
-  for (set<string>::const_iterator it = omap.begin();
-      it != omap.end(); ++it) {
+  for (set<string>::const_iterator it = omap.begin(); it != omap.end(); ++it) {
     bufferlist bl;
     r = cls_cxx_map_get_val(hctx, *it, &bl);
-    if (r == -ENOENT || r == -ENODATA
-	|| string(bl.c_str(), bl.length()) == ""){
+    if (r == -ENOENT || r == -ENODATA || string(bl.c_str(), bl.length()) == "") {
       return -ENODATA;
     } else if (r < 0) {
       CLS_LOG(20, "error reading omap val for %s: %d", it->c_str(), r);
@@ -546,8 +587,8 @@ static int omap_remove(cls_method_context_t hctx,
     return r;
   }
 
-  for (std::set<string>::const_iterator it = omap.begin();
-      it != omap.end(); ++it) {
+  for (std::set<string>::const_iterator it = omap.begin(); it != omap.end();
+       ++it) {
     r = cls_cxx_map_remove_key(hctx, *it);
     if (r < 0) {
       CLS_LOG(20, "error removing omap: %d", r);
@@ -557,8 +598,9 @@ static int omap_remove(cls_method_context_t hctx,
   return 0;
 }
 
-static int omap_remove_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+omap_remove_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
+{
   CLS_LOG(20, "omap_remove");
   omap_rm_args op;
   auto it = in->cbegin();
@@ -578,8 +620,13 @@ static int omap_remove_op(cls_method_context_t hctx,
  * odata contains the size, omap, and unwritable attributes for this object.
  * Otherwise, odata contains the size and unwritable attribute.
  */
-static int maybe_read_for_balance(cls_method_context_t hctx,
-    object_data &odata, int bound, int comparator) {
+static int
+maybe_read_for_balance(
+    cls_method_context_t hctx,
+    object_data& odata,
+    int bound,
+    int comparator)
+{
   CLS_LOG(20, "rebalance reading");
   //if unwritable, return
   int r = check_writable(hctx);
@@ -610,19 +657,23 @@ static int maybe_read_for_balance(cls_method_context_t hctx,
   //if the assert succeeded, it needs to be balanced
   bool more;
   r = cls_cxx_map_get_vals(hctx, "", "", LONG_MAX, &odata.omap, &more);
-  if (r < 0){
+  if (r < 0) {
     CLS_LOG(20, "rebalance read: getting kvs failed with error %d", r);
     return r;
   }
 
-  CLS_LOG(20, "rebalance read: size xattr is %llu, omap size is %llu",
-	  (unsigned long long)odata.size,
-	  (unsigned long long)odata.omap.size());
+  CLS_LOG(
+      20, "rebalance read: size xattr is %llu, omap size is %llu",
+      (unsigned long long)odata.size, (unsigned long long)odata.omap.size());
   return 0;
 }
 
-static int maybe_read_for_balance_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out) {
+static int
+maybe_read_for_balance_op(
+    cls_method_context_t hctx,
+    bufferlist* in,
+    bufferlist* out)
+{
   CLS_LOG(20, "maybe_read_for_balance");
   rebalance_args op;
   auto it = in->cbegin();
@@ -639,7 +690,6 @@ static int maybe_read_for_balance_op(cls_method_context_t hctx,
     return 0;
   }
 }
-
 
 CLS_INIT(kvs)
 {
@@ -658,36 +708,33 @@ CLS_INIT(kvs)
   cls_method_handle_t h_maybe_read_for_balance;
 
   cls_register("kvs", &h_class);
-  cls_register_cxx_method(h_class, "get_idata_from_key",
-                          CLS_METHOD_RD,
-                          get_idata_from_key_op, &h_get_idata_from_key);
-  cls_register_cxx_method(h_class, "get_next_idata",
-                          CLS_METHOD_RD,
-                          get_next_idata_op, &h_get_next_idata);
-  cls_register_cxx_method(h_class, "get_prev_idata",
-                          CLS_METHOD_RD,
-                          get_prev_idata_op, &h_get_prev_idata);
-  cls_register_cxx_method(h_class, "read_many",
-                          CLS_METHOD_RD,
-                          read_many_op, &h_read_many);
-  cls_register_cxx_method(h_class, "check_writable",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          check_writable_op, &h_check_writable);
-  cls_register_cxx_method(h_class, "assert_size_in_bound",
-                          CLS_METHOD_WR,
-                          assert_size_in_bound_op, &h_assert_size_in_bound);
-  cls_register_cxx_method(h_class, "omap_insert",
-                          CLS_METHOD_WR,
-                          omap_insert_op, &h_omap_insert);
-  cls_register_cxx_method(h_class, "create_with_omap",
-			  CLS_METHOD_WR,
-			  create_with_omap_op, &h_create_with_omap);
-  cls_register_cxx_method(h_class, "omap_remove",
-                          CLS_METHOD_WR,
-                          omap_remove_op, &h_omap_remove);
-  cls_register_cxx_method(h_class, "maybe_read_for_balance",
-                          CLS_METHOD_RD,
-                          maybe_read_for_balance_op, &h_maybe_read_for_balance);
+  cls_register_cxx_method(
+      h_class, "get_idata_from_key", CLS_METHOD_RD, get_idata_from_key_op,
+      &h_get_idata_from_key);
+  cls_register_cxx_method(
+      h_class, "get_next_idata", CLS_METHOD_RD, get_next_idata_op,
+      &h_get_next_idata);
+  cls_register_cxx_method(
+      h_class, "get_prev_idata", CLS_METHOD_RD, get_prev_idata_op,
+      &h_get_prev_idata);
+  cls_register_cxx_method(
+      h_class, "read_many", CLS_METHOD_RD, read_many_op, &h_read_many);
+  cls_register_cxx_method(
+      h_class, "check_writable", CLS_METHOD_RD | CLS_METHOD_WR,
+      check_writable_op, &h_check_writable);
+  cls_register_cxx_method(
+      h_class, "assert_size_in_bound", CLS_METHOD_WR, assert_size_in_bound_op,
+      &h_assert_size_in_bound);
+  cls_register_cxx_method(
+      h_class, "omap_insert", CLS_METHOD_WR, omap_insert_op, &h_omap_insert);
+  cls_register_cxx_method(
+      h_class, "create_with_omap", CLS_METHOD_WR, create_with_omap_op,
+      &h_create_with_omap);
+  cls_register_cxx_method(
+      h_class, "omap_remove", CLS_METHOD_WR, omap_remove_op, &h_omap_remove);
+  cls_register_cxx_method(
+      h_class, "maybe_read_for_balance", CLS_METHOD_RD,
+      maybe_read_for_balance_op, &h_maybe_read_for_balance);
 
   return;
 }

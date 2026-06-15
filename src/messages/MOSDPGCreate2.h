@@ -16,32 +16,45 @@ public:
   static constexpr int COMPAT_VERSION = 1;
 
   epoch_t epoch = 0;
-  std::map<spg_t,std::pair<epoch_t,utime_t>> pgs;
-  std::map<spg_t,std::pair<pg_history_t,PastIntervals>> pg_extra;
+  std::map<spg_t, std::pair<epoch_t, utime_t>> pgs;
+  std::map<spg_t, std::pair<pg_history_t, PastIntervals>> pg_extra;
 
-  MOSDPGCreate2()
-    : Message{MSG_OSD_PG_CREATE2, HEAD_VERSION, COMPAT_VERSION} {}
-  MOSDPGCreate2(epoch_t e)
-    : Message{MSG_OSD_PG_CREATE2, HEAD_VERSION, COMPAT_VERSION},
-      epoch(e) { }
+  MOSDPGCreate2() :
+    Message{MSG_OSD_PG_CREATE2, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MOSDPGCreate2(epoch_t e) :
+    Message{MSG_OSD_PG_CREATE2, HEAD_VERSION, COMPAT_VERSION}, epoch(e)
+  {}
+
 private:
   ~MOSDPGCreate2() final {}
 
 public:
-  std::string_view get_type_name() const override {
+  std::string_view
+  get_type_name() const override
+  {
     return "pg_create2";
   }
-  void print(std::ostream& out) const override {
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "pg_create2(e" << epoch << " " << pgs << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(epoch, payload);
     encode(pgs, payload);
     encode(pg_extra, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     auto p = payload.cbegin();
     using ceph::decode;
     decode(epoch, p);
@@ -50,7 +63,8 @@ public:
       decode(pg_extra, p);
     }
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };

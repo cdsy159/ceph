@@ -17,19 +17,20 @@
 #define _CEPH_INCLUDE_MEMPOOL_H
 
 #include <cstddef>
-#include <map>
-#include <unordered_map>
-#include <set>
-#include <vector>
 #include <list>
+#include <map>
 #include <mutex>
+#include <set>
 #include <typeinfo>
-#include <boost/container/flat_set.hpp>
+#include <unordered_map>
+#include <vector>
+
 #include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
 
 #if defined(_GNU_SOURCE)
-#  define MEMPOOL_SCHED_GETCPU
-#  include <sched.h>
+#define MEMPOOL_SCHED_GETCPU
+#include <sched.h>
 #endif
 
 #include "common/Formatter.h"
@@ -37,7 +38,6 @@
 #include "include/compact_map.h"
 #include "include/compact_set.h"
 #include "include/compat.h"
-
 
 /*
 
@@ -151,45 +151,29 @@ namespace mempool {
 // --------------------------------------------------------------
 // define memory pools
 
-#define DEFINE_MEMORY_POOLS_HELPER(f) \
-  f(bloom_filter)		      \
-  f(bluestore_alloc)		      \
-  f(bluestore_cache_data)	      \
-  f(bluestore_cache_onode)	      \
-  f(bluestore_cache_meta)	      \
-  f(bluestore_cache_other)	      \
-  f(bluestore_cache_buffer)	      \
-  f(bluestore_extent)		      \
-  f(bluestore_blob)		      \
-  f(bluestore_shared_blob)	      \
-  f(bluestore_inline_bl)	      \
-  f(bluestore_fsck)		      \
-  f(bluestore_txc)		      \
-  f(bluestore_writing_deferred)      \
-  f(bluestore_writing)		      \
-  f(bluefs)			      \
-  f(bluefs_file_reader)              \
-  f(bluefs_file_writer)              \
-  f(buffer_anon)		      \
-  f(buffer_meta)		      \
-  f(osd)			      \
-  f(osd_mapbl)			      \
-  f(osd_pglog)			      \
-  f(osdmap)			      \
-  f(osdmap_mapping)		      \
-  f(pgmap)			      \
-  f(mds_co)			      \
-  f(ec_extent_cache)                  \
-  f(unittest_1)			      \
-  f(unittest_2)
+#define DEFINE_MEMORY_POOLS_HELPER(f)                                          \
+  f(bloom_filter) f(bluestore_alloc) f(bluestore_cache_data)                   \
+      f(bluestore_cache_onode) f(bluestore_cache_meta)                         \
+          f(bluestore_cache_other) f(bluestore_cache_buffer)                   \
+              f(bluestore_extent) f(bluestore_blob) f(bluestore_shared_blob)   \
+                  f(bluestore_inline_bl) f(bluestore_fsck) f(bluestore_txc)    \
+                      f(bluestore_writing_deferred) f(bluestore_writing)       \
+                          f(bluefs) f(bluefs_file_reader)                      \
+                              f(bluefs_file_writer) f(buffer_anon)             \
+                                  f(buffer_meta) f(osd) f(osd_mapbl)           \
+                                      f(osd_pglog) f(osdmap) f(osdmap_mapping) \
+                                          f(pgmap) f(mds_co)                   \
+                                              f(ec_extent_cache) f(unittest_1) \
+                                                  f(unittest_2)
 
 
 // give them integer ids
 #define P(x) mempool_##x,
+
 enum pool_index_t {
-  DEFINE_MEMORY_POOLS_HELPER(P)
-  num_pools        // Must be last.
+  DEFINE_MEMORY_POOLS_HELPER(P) num_pools // Must be last.
 };
+
 #undef P
 
 extern bool debug_mode;
@@ -200,12 +184,12 @@ class pool_t;
 
 enum {
 #if defined(MEMPOOL_SCHED_GETCPU)
-  MIN_SHARDS = 1,        //1
+  MIN_SHARDS = 1, //1
 #else
-  MIN_SHARDS = 1<<5,     //32
+  MIN_SHARDS = 1 << 5, //32
 #endif
-  DEFAULT_SHARDS = 1<<5, //32
-  MAX_SHARDS = 1<<7      //128
+  DEFAULT_SHARDS = 1 << 5, //32
+  MAX_SHARDS = 1 << 7 //128
 };
 
 int pick_a_shard_int(void);
@@ -215,12 +199,16 @@ struct stats_t {
   std::atomic<size_t> items = {0};
   std::atomic<size_t> bytes = {0};
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_int("items", items);
     f->dump_int("bytes", bytes);
   }
 
-  stats_t& operator+=(const stats_t& o) {
+  stats_t&
+  operator+=(const stats_t& o)
+  {
     items += o.items;
     bytes += o.bytes;
     return *this;
@@ -239,38 +227,46 @@ struct stats_t {
 //
 struct shard_t {
   stats_t pool[num_pools];
-} __attribute__ ((aligned (128)));
-static_assert(sizeof(shard_t)%128 == 0, "shard_t should be cacheline-sized");
+} __attribute__((aligned(128)));
+
+static_assert(sizeof(shard_t) % 128 == 0, "shard_t should be cacheline-sized");
 
 extern std::unique_ptr<shard_t[]> shards;
 
 pool_t& get_pool(pool_index_t ix);
-const char *get_pool_name(pool_index_t ix);
+const char* get_pool_name(pool_index_t ix);
 
 struct type_t {
-  const char *type_name;
+  const char* type_name;
   size_t item_size;
+
   struct type_shard_t {
     std::atomic<ssize_t> items = {0}; // signed
     char __padding[128 - sizeof(std::atomic<ssize_t>)];
-  } __attribute__ ((aligned (128)));
-  static_assert(sizeof(type_shard_t) == 128,
-                "type_shard_t should be cacheline-sized");
-  std::unique_ptr<type_shard_t[]> shards = std::make_unique<type_shard_t[]>(get_num_shards());
+  } __attribute__((aligned(128)));
+
+  static_assert(
+      sizeof(type_shard_t) == 128,
+      "type_shard_t should be cacheline-sized");
+  std::unique_ptr<type_shard_t[]> shards =
+      std::make_unique<type_shard_t[]>(get_num_shards());
 };
 
 struct type_info_hash {
-  std::size_t operator()(const std::type_info& k) const {
+  std::size_t
+  operator()(const std::type_info& k) const
+  {
     return k.hash_code();
   }
 };
 
 class pool_t {
-  mutable std::mutex lock;  // only used for types list
-  std::unordered_map<const char *, type_t> type_map;
+  mutable std::mutex lock; // only used for types list
+  std::unordered_map<const char*, type_t> type_map;
 
-  template<pool_index_t, typename T>
+  template <pool_index_t, typename T>
   friend class pool_allocator;
+
 public:
   pool_index_t pool_index;
 
@@ -282,67 +278,72 @@ public:
 
   void adjust_count(ssize_t items, ssize_t bytes);
 
-  type_t *get_type(const std::type_info& ti, size_t size) {
+  type_t*
+  get_type(const std::type_info& ti, size_t size)
+  {
     std::lock_guard<std::mutex> l(lock);
     auto p = type_map.find(ti.name());
     if (p != type_map.end()) {
       return &p->second;
     }
-    type_t &t = type_map[ti.name()];
+    type_t& t = type_map[ti.name()];
     t.type_name = ti.name();
     t.item_size = size;
     return &t;
   }
 
   // get pool stats.  by_type is not populated if !debug
-  void get_stats(stats_t *total,
-		 std::map<std::string, stats_t> *by_type) const;
+  void get_stats(stats_t* total, std::map<std::string, stats_t>* by_type) const;
 
-  void dump(ceph::Formatter *f, stats_t *ptotal=0) const;
+  void dump(ceph::Formatter* f, stats_t* ptotal = 0) const;
 };
 
-void dump(ceph::Formatter *f);
-
+void dump(ceph::Formatter* f);
 
 // STL allocator for use with containers.  All actual state
 // is stored in the static pool_allocator_base_t, which saves us from
 // passing the allocator to container constructors.
 
-template<pool_index_t pool_ix, typename T>
+template <pool_index_t pool_ix, typename T>
 class pool_allocator {
-  pool_t *pool;
-  type_t *type = nullptr;
+  pool_t* pool;
+  type_t* type = nullptr;
 
 public:
   typedef pool_allocator<pool_ix, T> allocator_type;
   typedef T value_type;
-  typedef value_type *pointer;
-  typedef const value_type * const_pointer;
+  typedef value_type* pointer;
+  typedef const value_type* const_pointer;
   typedef value_type& reference;
   typedef const value_type& const_reference;
   typedef std::size_t size_type;
   typedef std::ptrdiff_t difference_type;
 
-  template<typename U> struct rebind {
-    typedef pool_allocator<pool_ix,U> other;
+  template <typename U>
+  struct rebind {
+    typedef pool_allocator<pool_ix, U> other;
   };
 
-  void init(bool force_register) {
+  void
+  init(bool force_register)
+  {
     pool = &get_pool(pool_ix);
     if (debug_mode || force_register) {
       type = pool->get_type(typeid(T), sizeof(T));
     }
   }
 
-  pool_allocator(bool force_register=false) {
-    init(force_register);
-  }
-  template<typename U>
-  pool_allocator(const pool_allocator<pool_ix,U>&) {
+  pool_allocator(bool force_register = false) { init(force_register); }
+
+  template <typename U>
+  pool_allocator(const pool_allocator<pool_ix, U>&)
+  {
     init(false);
   }
 
-  T* allocate(size_t n, void *p = nullptr) {
+  T*
+  allocate(size_t n, void* p = nullptr)
+  {
     size_t total = sizeof(T) * n;
     const auto shid = pick_a_shard_int();
     auto& shard = shards[shid].pool[pool->pool_index];
@@ -355,7 +356,9 @@ public:
     return r;
   }
 
-  void deallocate(T* p, size_t n) {
+  void
+  deallocate(T* p, size_t n)
+  {
     size_t total = sizeof(T) * n;
     const auto shid = pick_a_shard_int();
     auto& shard = shards[shid].pool[pool->pool_index];
@@ -367,7 +370,9 @@ public:
     delete[] reinterpret_cast<char*>(p);
   }
 
-  T* allocate_aligned(size_t n, size_t align, void *p = nullptr) {
+  T*
+  allocate_aligned(size_t n, size_t align, void* p = nullptr)
+  {
     size_t total = sizeof(T) * n;
     const auto shid = pick_a_shard_int();
     auto& shard = shards[shid].pool[pool->pool_index];
@@ -376,7 +381,7 @@ public:
     if (type) {
       type->shards[shid].items += n;
     }
-    char *ptr;
+    char* ptr;
     int rc = ::posix_memalign((void**)(void*)&ptr, align, total);
     if (rc)
       throw std::bad_alloc();
@@ -384,7 +389,9 @@ public:
     return r;
   }
 
-  void deallocate_aligned(T* p, size_t n) {
+  void
+  deallocate_aligned(T* p, size_t n)
+  {
     size_t total = sizeof(T) * n;
     const auto shid = pick_a_shard_int();
     auto& shard = shards[shid].pool[pool->pool_index];
@@ -396,94 +403,115 @@ public:
     aligned_free(p);
   }
 
-  void destroy(T* p) {
+  void
+  destroy(T* p)
+  {
     p->~T();
   }
 
-  template<class U>
-  void destroy(U *p) {
+  template <class U>
+  void
+  destroy(U* p)
+  {
     p->~U();
   }
 
-  void construct(T* p, const T& val) {
-    ::new ((void *)p) T(val);
+  void
+  construct(T* p, const T& val)
+  {
+    ::new ((void*)p) T(val);
   }
 
-  template<class U, class... Args> void construct(U* p,Args&&... args) {
-    ::new((void *)p) U(std::forward<Args>(args)...);
+  template <class U, class... Args>
+  void
+  construct(U* p, Args&&... args)
+  {
+    ::new ((void*)p) U(std::forward<Args>(args)...);
   }
 
-  bool operator==(const pool_allocator&) const { return true; }
-  bool operator!=(const pool_allocator&) const { return false; }
+  bool
+  operator==(const pool_allocator&) const
+  {
+    return true;
+  }
+
+  bool
+  operator!=(const pool_allocator&) const
+  {
+    return false;
+  }
 };
-
 
 // Namespace mempool
 
-#define P(x)								\
-  namespace x {								\
-    static const mempool::pool_index_t id = mempool::mempool_##x;	\
-    template<typename v>						\
-    using pool_allocator = mempool::pool_allocator<id,v>;		\
-                                                                        \
-    using string = std::basic_string<char,std::char_traits<char>,       \
-                                     pool_allocator<char>>;             \
-                                                                        \
-    template<typename k,typename v, typename cmp = std::less<k> >	\
-    using map = std::map<k, v, cmp,					\
-			 pool_allocator<std::pair<const k,v>>>;		\
-                                                                        \
-    template<typename k,typename v, typename cmp = std::less<k> >       \
-    using compact_map = compact_map<k, v, cmp,                          \
-			 pool_allocator<std::pair<const k,v>>>;         \
-                                                                        \
-    template<typename k,typename v, typename cmp = std::less<k> >       \
-    using compact_multimap = compact_multimap<k, v, cmp,                \
-			 pool_allocator<std::pair<const k,v>>>;         \
-                                                                        \
-    template<typename k, typename cmp = std::less<k> >                  \
-    using compact_set = compact_set<k, cmp, pool_allocator<k>>;         \
-                                                                        \
-    template<typename k,typename v, typename cmp = std::less<k> >	\
-    using multimap = std::multimap<k,v,cmp,				\
-				   pool_allocator<std::pair<const k,	\
-							    v>>>;	\
-                                                                        \
-    template<typename k, typename cmp = std::less<k> >			\
-    using set = std::set<k,cmp,pool_allocator<k>>;			\
-                                                                        \
-    template<typename k, typename cmp = std::less<k> >			\
-    using flat_set = boost::container::flat_set<k,cmp,pool_allocator<k>>; \
-									\
-    template<typename k, typename v, typename cmp = std::less<k> >	\
-    using flat_map = boost::container::flat_map<k,v,cmp,		\
-						pool_allocator<std::pair<k,v>>>; \
-                                                                        \
-    template<typename v>						\
-    using list = std::list<v,pool_allocator<v>>;			\
-                                                                        \
-    template<typename v>						\
-    using vector = std::vector<v,pool_allocator<v>>;			\
-                                                                        \
-    template<typename k, typename v,					\
-	     typename h=std::hash<k>,					\
-	     typename eq = std::equal_to<k>>				\
-    using unordered_map =						\
-      std::unordered_map<k,v,h,eq,pool_allocator<std::pair<const k,v>>>;\
-                                                                        \
-    inline size_t allocated_bytes() {					\
-      return mempool::get_pool(id).allocated_bytes();			\
-    }									\
-    inline size_t allocated_items() {					\
-      return mempool::get_pool(id).allocated_items();			\
-    }									\
+#define P(x)                                                                  \
+  namespace x {                                                               \
+  static const mempool::pool_index_t id = mempool::mempool_##x;               \
+  template <typename v>                                                       \
+  using pool_allocator = mempool::pool_allocator<id, v>;                      \
+                                                                              \
+  using string =                                                              \
+      std::basic_string<char, std::char_traits<char>, pool_allocator<char>>;  \
+                                                                              \
+  template <typename k, typename v, typename cmp = std::less<k>>              \
+  using map = std::map<k, v, cmp, pool_allocator<std::pair<const k, v>>>;     \
+                                                                              \
+  template <typename k, typename v, typename cmp = std::less<k>>              \
+  using compact_map =                                                         \
+      compact_map<k, v, cmp, pool_allocator<std::pair<const k, v>>>;          \
+                                                                              \
+  template <typename k, typename v, typename cmp = std::less<k>>              \
+  using compact_multimap =                                                    \
+      compact_multimap<k, v, cmp, pool_allocator<std::pair<const k, v>>>;     \
+                                                                              \
+  template <typename k, typename cmp = std::less<k>>                          \
+  using compact_set = compact_set<k, cmp, pool_allocator<k>>;                 \
+                                                                              \
+  template <typename k, typename v, typename cmp = std::less<k>>              \
+  using multimap =                                                            \
+      std::multimap<k, v, cmp, pool_allocator<std::pair<const k, v>>>;        \
+                                                                              \
+  template <typename k, typename cmp = std::less<k>>                          \
+  using set = std::set<k, cmp, pool_allocator<k>>;                            \
+                                                                              \
+  template <typename k, typename cmp = std::less<k>>                          \
+  using flat_set = boost::container::flat_set<k, cmp, pool_allocator<k>>;     \
+                                                                              \
+  template <typename k, typename v, typename cmp = std::less<k>>              \
+  using flat_map =                                                            \
+      boost::container::flat_map<k, v, cmp, pool_allocator<std::pair<k, v>>>; \
+                                                                              \
+  template <typename v>                                                       \
+  using list = std::list<v, pool_allocator<v>>;                               \
+                                                                              \
+  template <typename v>                                                       \
+  using vector = std::vector<v, pool_allocator<v>>;                           \
+                                                                              \
+  template <                                                                  \
+      typename k,                                                             \
+      typename v,                                                             \
+      typename h = std::hash<k>,                                              \
+      typename eq = std::equal_to<k>>                                         \
+  using unordered_map =                                                       \
+      std::unordered_map<k, v, h, eq, pool_allocator<std::pair<const k, v>>>; \
+                                                                              \
+  inline size_t                                                               \
+  allocated_bytes()                                                           \
+  {                                                                           \
+    return mempool::get_pool(id).allocated_bytes();                           \
+  }                                                                           \
+  inline size_t                                                               \
+  allocated_items()                                                           \
+  {                                                                           \
+    return mempool::get_pool(id).allocated_items();                           \
+  }                                                                           \
   };
 
 DEFINE_MEMORY_POOLS_HELPER(P)
 
 #undef P
 
-};
+}; // namespace mempool
 
 // the elements allocated by mempool is in the same memory space as the ones
 // allocated by the default allocator. so compare them in an efficient way:
@@ -491,49 +519,58 @@ DEFINE_MEMORY_POOLS_HELPER(P)
 // pointer. this is good enough for our usecase. use
 // std::is_trivially_copyable<T> to expand the support to more types if
 // nececssary.
-template<typename T, mempool::pool_index_t pool_index>
-bool operator==(const std::vector<T, std::allocator<T>>& lhs,
-		const std::vector<T, mempool::pool_allocator<pool_index, T>>& rhs)
+template <typename T, mempool::pool_index_t pool_index>
+bool
+operator==(
+    const std::vector<T, std::allocator<T>>& lhs,
+    const std::vector<T, mempool::pool_allocator<pool_index, T>>& rhs)
 {
-  return (lhs.size() == rhs.size() &&
-	  std::equal(lhs.begin(), lhs.end(), rhs.begin()));
+  return (
+      lhs.size() == rhs.size() &&
+      std::equal(lhs.begin(), lhs.end(), rhs.begin()));
 }
 
-template<typename T, mempool::pool_index_t pool_index>
-bool operator!=(const std::vector<T, std::allocator<T>>& lhs,
-		const std::vector<T, mempool::pool_allocator<pool_index, T>>& rhs)
+template <typename T, mempool::pool_index_t pool_index>
+bool
+operator!=(
+    const std::vector<T, std::allocator<T>>& lhs,
+    const std::vector<T, mempool::pool_allocator<pool_index, T>>& rhs)
 {
   return !(lhs == rhs);
 }
 
-template<typename T, mempool::pool_index_t pool_index>
-bool operator==(const std::vector<T, mempool::pool_allocator<pool_index, T>>& lhs,
-		const std::vector<T, std::allocator<T>>& rhs)
+template <typename T, mempool::pool_index_t pool_index>
+bool
+operator==(
+    const std::vector<T, mempool::pool_allocator<pool_index, T>>& lhs,
+    const std::vector<T, std::allocator<T>>& rhs)
 {
   return rhs == lhs;
 }
 
-template<typename T, mempool::pool_index_t pool_index>
-bool operator!=(const std::vector<T, mempool::pool_allocator<pool_index, T>>& lhs,
-		const std::vector<T, std::allocator<T>>& rhs)
+template <typename T, mempool::pool_index_t pool_index>
+bool
+operator!=(
+    const std::vector<T, mempool::pool_allocator<pool_index, T>>& lhs,
+    const std::vector<T, std::allocator<T>>& rhs)
 {
   return !(lhs == rhs);
 }
 
 // Use this for any type that is contained by a container (unless it
 // is a class you defined; see below).
-#define MEMPOOL_DECLARE_FACTORY(obj, factoryname, pool)			\
-  namespace mempool {							\
-    namespace pool {							\
-      extern pool_allocator<obj> alloc_##factoryname;			\
-    }									\
+#define MEMPOOL_DECLARE_FACTORY(obj, factoryname, pool) \
+  namespace mempool {                                   \
+  namespace pool {                                      \
+  extern pool_allocator<obj> alloc_##factoryname;       \
+  }                                                     \
   }
 
-#define MEMPOOL_DEFINE_FACTORY(obj, factoryname, pool)			\
-  namespace mempool {							\
-    namespace pool {							\
-      pool_allocator<obj> alloc_##factoryname = {true};			\
-    }									\
+#define MEMPOOL_DEFINE_FACTORY(obj, factoryname, pool) \
+  namespace mempool {                                  \
+  namespace pool {                                     \
+  pool_allocator<obj> alloc_##factoryname = {true};    \
+  }                                                    \
   }
 
 // Use this for each class that belongs to a mempool.  For example,
@@ -543,24 +580,28 @@ bool operator!=(const std::vector<T, mempool::pool_allocator<pool_index, T>>& lh
 //     ...
 //   };
 //
-#define MEMPOOL_CLASS_HELPERS()						\
-  void *operator new(size_t size);					\
-  void *operator new[](size_t size) noexcept {				\
-    ceph_abort_msg("no array new");					\
-    return nullptr; }							\
-  void  operator delete(void *);					\
-  void  operator delete[](void *) { ceph_abort_msg("no array delete"); }
+#define MEMPOOL_CLASS_HELPERS()              \
+  void* operator new(size_t size);           \
+  void* operator new[](size_t size) noexcept \
+  {                                          \
+    ceph_abort_msg("no array new");          \
+    return nullptr;                          \
+  }                                          \
+  void operator delete(void*);               \
+  void operator delete[](void*) { ceph_abort_msg("no array delete"); }
 
 
 // Use this in some particular .cc file to match each class with a
 // MEMPOOL_CLASS_HELPERS().
-#define MEMPOOL_DEFINE_OBJECT_FACTORY(obj,factoryname,pool)		\
-  MEMPOOL_DEFINE_FACTORY(obj, factoryname, pool)			\
-  void *obj::operator new(size_t size) {				\
-    return mempool::pool::alloc_##factoryname.allocate(1); \
-  }									\
-  void obj::operator delete(void *p)  {					\
-    return mempool::pool::alloc_##factoryname.deallocate((obj*)p, 1);	\
+#define MEMPOOL_DEFINE_OBJECT_FACTORY(obj, factoryname, pool)         \
+  MEMPOOL_DEFINE_FACTORY(obj, factoryname, pool)                      \
+  void* obj::operator new(size_t size)                                \
+  {                                                                   \
+    return mempool::pool::alloc_##factoryname.allocate(1);            \
+  }                                                                   \
+  void obj::operator delete(void* p)                                  \
+  {                                                                   \
+    return mempool::pool::alloc_##factoryname.deallocate((obj*)p, 1); \
   }
 
 #endif

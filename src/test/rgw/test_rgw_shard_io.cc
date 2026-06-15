@@ -10,10 +10,10 @@
  * Foundation.  See file COPYING.
  */
 
-#include "driver/rados/shard_io.h"
+#include <gtest/gtest.h>
 
-#include <optional>
 #include <limits>
+#include <optional>
 
 #include <boost/asio/append.hpp>
 #include <boost/asio/associated_cancellation_slot.hpp>
@@ -26,8 +26,7 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/system/errc.hpp>
 
-#include <gtest/gtest.h>
-
+#include "driver/rados/shard_io.h"
 #include "global/global_context.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -42,30 +41,36 @@ using boost::system::errc::resource_unavailable_try_again;
 constexpr size_t infinite_aio = std::numeric_limits<size_t>::max();
 
 template <typename T>
-auto capture(std::optional<T>& opt)
+auto
+capture(std::optional<T>& opt)
 {
-  return [&opt] (T value) { opt = std::move(value); };
+  return [&opt](T value) { opt = std::move(value); };
 }
 
 template <typename T>
-auto capture(boost::asio::cancellation_signal& signal, std::optional<T>& opt)
+auto
+capture(boost::asio::cancellation_signal& signal, std::optional<T>& opt)
 {
   return boost::asio::bind_cancellation_slot(signal.slot(), capture(opt));
 }
 
 // handler wrapper that removes itself from a list on cancellation
 template <typename Handler>
-struct MockHandler :
-    boost::intrusive::list_base_hook<
-        boost::intrusive::link_mode<
-            boost::intrusive::auto_unlink>> {
+struct MockHandler
+  : boost::intrusive::list_base_hook<
+        boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
   Handler handler;
 
   struct Cancel {
     MockHandler* self;
-    explicit Cancel(MockHandler* self) : self(self) {}
 
-    void operator()(boost::asio::cancellation_type type) {
+    explicit Cancel(MockHandler* self) :
+      self(self)
+    {}
+
+    void
+    operator()(boost::asio::cancellation_type type)
+    {
       if (!!(type & boost::asio::cancellation_type::terminal)) {
         auto tmp = std::move(self->handler);
         delete self; // auto unlink
@@ -75,35 +80,49 @@ struct MockHandler :
     }
   };
 
-  MockHandler(Handler&& h) : handler(std::move(h)) {
+  MockHandler(Handler&& h) :
+    handler(std::move(h))
+  {
     auto slot = boost::asio::get_associated_cancellation_slot(handler);
     if (slot.is_connected()) {
       slot.template emplace<Cancel>(this);
     }
   }
 
-  void operator()(error_code ec) {
+  void
+  operator()(error_code ec)
+  {
     auto slot = boost::asio::get_associated_cancellation_slot(handler);
     slot.clear();
     std::move(handler)(ec);
   }
 
-  const Handler* operator->() const { return &handler; }
+  const Handler*
+  operator->() const
+  {
+    return &handler;
+  }
 };
 
 namespace boost::asio {
 
 // forward wrapped handler's associations
-template <template <typename, typename> class Associator,
-    typename Handler, typename DefaultCandidate>
+template <
+    template <typename, typename>
+    class Associator,
+    typename Handler,
+    typename DefaultCandidate>
 struct associator<Associator, MockHandler<Handler>, DefaultCandidate>
-  : Associator<Handler, DefaultCandidate>
-{
-  static auto get(const MockHandler<Handler>& h) noexcept {
+  : Associator<Handler, DefaultCandidate> {
+  static auto
+  get(const MockHandler<Handler>& h) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler);
   }
-  static auto get(const MockHandler<Handler>& h,
-                  const DefaultCandidate& c) noexcept {
+
+  static auto
+  get(const MockHandler<Handler>& h, const DefaultCandidate& c) noexcept
+  {
     return Associator<Handler, DefaultCandidate>::get(h.handler, c);
   }
 };
@@ -111,12 +130,13 @@ struct associator<Associator, MockHandler<Handler>, DefaultCandidate>
 } // namespace boost::asio
 
 template <typename Handler>
-using MockHandlerList = boost::intrusive::list<MockHandler<Handler>,
-      boost::intrusive::constant_time_size<false>>; // required by auto_unlink
+using MockHandlerList = boost::intrusive::list<
+    MockHandler<Handler>,
+    boost::intrusive::constant_time_size<false>>; // required by auto_unlink
 
 template <typename Handler>
-static void complete_at(MockHandlerList<Handler>& handlers,
-                        size_t index, error_code ec)
+static void
+complete_at(MockHandlerList<Handler>& handlers, size_t index, error_code ec)
 {
   auto i = std::next(handlers.begin(), index);
   auto h = std::move(*i);
@@ -132,24 +152,35 @@ struct MockRevertibleWriter : RevertibleWriter {
 
   using RevertibleWriter::RevertibleWriter;
 
-  ~MockRevertibleWriter() {
-    writes.clear_and_dispose(std::default_delete<
-        MockHandler<detail::RevertibleWriteHandler>>{});
-    reverts.clear_and_dispose(std::default_delete<
-        MockHandler<detail::RevertHandler>>{});
+  ~MockRevertibleWriter()
+  {
+    writes.clear_and_dispose(
+        std::default_delete<MockHandler<detail::RevertibleWriteHandler>>{});
+    reverts.clear_and_dispose(
+        std::default_delete<MockHandler<detail::RevertHandler>>{});
   }
 
-  void write(int shard, const std::string& object,
-             detail::RevertibleWriteHandler&& handler) override {
+  void
+  write(
+      int shard,
+      const std::string& object,
+      detail::RevertibleWriteHandler&& handler) override
+  {
     auto h = new MockHandler<detail::RevertibleWriteHandler>(std::move(handler));
     writes.push_back(*h);
   }
-  void revert(int shard, const std::string& object,
-              detail::RevertHandler&& handler) override {
+
+  void
+  revert(int shard, const std::string& object, detail::RevertHandler&& handler)
+      override
+  {
     auto h = new MockHandler<detail::RevertHandler>(std::move(handler));
     reverts.push_back(*h);
   }
-  Result on_complete(int, error_code ec) override {
+
+  Result
+  on_complete(int, error_code ec) override
+  {
     if (ec == resource_unavailable_try_again) {
       return Result::Retry;
     } else if (ec) {
@@ -190,10 +221,10 @@ TEST(RevertibleWriter, co_spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::co_spawn(ex,
-                        async_writes(writer, objects, infinite_aio,
-                                     boost::asio::use_awaitable),
-                        capture(eptr));
+  boost::asio::co_spawn(
+      ex,
+      async_writes(writer, objects, infinite_aio, boost::asio::use_awaitable),
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -213,9 +244,12 @@ TEST(RevertibleWriter, spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::spawn(ex, [&] (boost::asio::yield_context yield) {
+  boost::asio::spawn(
+      ex,
+      [&](boost::asio::yield_context yield) {
         async_writes(writer, objects, infinite_aio, yield);
-      }, capture(eptr));
+      },
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -233,7 +267,7 @@ TEST(RevertibleWriter, throttle)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -450,7 +484,7 @@ TEST(RevertibleWriter, retry_throttle)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -512,7 +546,7 @@ TEST(RevertibleWriter, revert)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   std::optional<error_code> ec;
   async_writes(writer, objects, infinite_aio, capture(ec));
@@ -567,7 +601,7 @@ TEST(RevertibleWriter, throttle_all_fail)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -597,7 +631,7 @@ TEST(RevertibleWriter, drain_all_fail)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   std::optional<error_code> ec;
   async_writes(writer, objects, infinite_aio, capture(ec));
@@ -628,7 +662,7 @@ TEST(RevertibleWriter, throttle_cancel_total)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -683,7 +717,7 @@ TEST(RevertibleWriter, throttle_cancel_total_then_terminal)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -731,7 +765,7 @@ TEST(RevertibleWriter, throttle_cancel_terminal)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -761,7 +795,7 @@ TEST(RevertibleWriter, drain_cancel_total)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -819,7 +853,7 @@ TEST(RevertibleWriter, drain_cancel_total_then_terminal)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -868,7 +902,7 @@ TEST(RevertibleWriter, drain_cancel_terminal)
 
   auto writer = MockRevertibleWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -889,23 +923,28 @@ TEST(RevertibleWriter, drain_cancel_terminal)
   EXPECT_EQ(0, writer.reverts.size());
 }
 
-
 struct MockWriter : Writer {
   MockHandlerList<detail::WriteHandler> writes;
 
   using Writer::Writer;
 
-  ~MockWriter() {
-    writes.clear_and_dispose(std::default_delete<
-        MockHandler<detail::WriteHandler>>{});
+  ~MockWriter()
+  {
+    writes.clear_and_dispose(
+        std::default_delete<MockHandler<detail::WriteHandler>>{});
   }
 
-  void write(int shard, const std::string& object,
-             detail::WriteHandler&& handler) override {
+  void
+  write(int shard, const std::string& object, detail::WriteHandler&& handler)
+      override
+  {
     auto h = new MockHandler<detail::WriteHandler>(std::move(handler));
     writes.push_back(*h);
   }
-  Result on_complete(int, error_code ec) override {
+
+  Result
+  on_complete(int, error_code ec) override
+  {
     if (ec == resource_unavailable_try_again) {
       return Result::Retry;
     } else if (ec) {
@@ -945,10 +984,10 @@ TEST(Writer, co_spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::co_spawn(ex,
-                        async_writes(writer, objects, infinite_aio,
-                                     boost::asio::use_awaitable),
-                        capture(eptr));
+  boost::asio::co_spawn(
+      ex,
+      async_writes(writer, objects, infinite_aio, boost::asio::use_awaitable),
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -967,9 +1006,12 @@ TEST(Writer, spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::spawn(ex, [&] (boost::asio::yield_context yield) {
+  boost::asio::spawn(
+      ex,
+      [&](boost::asio::yield_context yield) {
         async_writes(writer, objects, infinite_aio, yield);
-      }, capture(eptr));
+      },
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -986,7 +1028,7 @@ TEST(Writer, throttle)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1177,7 +1219,7 @@ TEST(Writer, retry_throttle)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1234,7 +1276,7 @@ TEST(Writer, throttle_errors)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1271,7 +1313,7 @@ TEST(Writer, drain_errors)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   std::optional<error_code> ec;
   async_writes(writer, objects, infinite_aio, capture(ec));
@@ -1301,7 +1343,7 @@ TEST(Writer, throttle_cancel_total)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -1346,7 +1388,7 @@ TEST(Writer, throttle_cancel_terminal)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -1375,7 +1417,7 @@ TEST(Writer, drain_cancel_total)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -1419,7 +1461,7 @@ TEST(Writer, drain_cancel_terminal)
 
   auto writer = MockWriter{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -1439,23 +1481,28 @@ TEST(Writer, drain_cancel_terminal)
   EXPECT_EQ(0, writer.writes.size());
 }
 
-
 struct MockReader : Reader {
   MockHandlerList<detail::ReadHandler> reads;
 
   using Reader::Reader;
 
-  ~MockReader() {
-    reads.clear_and_dispose(std::default_delete<
-        MockHandler<detail::ReadHandler>>{});
+  ~MockReader()
+  {
+    reads.clear_and_dispose(
+        std::default_delete<MockHandler<detail::ReadHandler>>{});
   }
 
-  void read(int shard, const std::string& object,
-            detail::ReadHandler&& handler) override {
+  void
+  read(int shard, const std::string& object, detail::ReadHandler&& handler)
+      override
+  {
     auto h = new MockHandler<detail::ReadHandler>(std::move(handler));
     reads.push_back(*h);
   }
-  Result on_complete(int, error_code ec) override {
+
+  Result
+  on_complete(int, error_code ec) override
+  {
     if (ec == resource_unavailable_try_again) {
       return Result::Retry;
     } else if (ec) {
@@ -1495,10 +1542,10 @@ TEST(Reader, co_spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::co_spawn(ex,
-                        async_reads(reader, objects, infinite_aio,
-                                    boost::asio::use_awaitable),
-                        capture(eptr));
+  boost::asio::co_spawn(
+      ex,
+      async_reads(reader, objects, infinite_aio, boost::asio::use_awaitable),
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -1517,9 +1564,12 @@ TEST(Reader, spawn)
   const auto objects = std::map<int, std::string>{}; // no objects
 
   std::optional<std::exception_ptr> eptr;
-  boost::asio::spawn(ex, [&] (boost::asio::yield_context yield) {
+  boost::asio::spawn(
+      ex,
+      [&](boost::asio::yield_context yield) {
         async_reads(reader, objects, infinite_aio, yield);
-      }, capture(eptr));
+      },
+      capture(eptr));
 
   service.poll();
   ASSERT_TRUE(service.stopped());
@@ -1536,7 +1586,7 @@ TEST(Reader, throttle)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1719,7 +1769,7 @@ TEST(Reader, retry_throttle)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1776,7 +1826,7 @@ TEST(Reader, throttle_errors)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   std::optional<error_code> ec;
@@ -1805,7 +1855,7 @@ TEST(Reader, drain_errors)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   std::optional<error_code> ec;
   async_reads(reader, objects, infinite_aio, capture(ec));
@@ -1833,7 +1883,7 @@ TEST(Reader, throttle_cancel_total)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -1878,7 +1928,7 @@ TEST(Reader, throttle_cancel_terminal)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
   constexpr size_t max_aio = 2;
 
   boost::asio::cancellation_signal signal;
@@ -1907,7 +1957,7 @@ TEST(Reader, drain_cancel_total)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;
@@ -1951,7 +2001,7 @@ TEST(Reader, drain_cancel_terminal)
 
   auto reader = MockReader{dpp, ex};
   const auto objects = std::map<int, std::string>{
-    {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
+      {0, "obj0"}, {1, "obj1"}, {2, "obj2"}, {3, "obj3"}};
 
   boost::asio::cancellation_signal signal;
   std::optional<error_code> ec;

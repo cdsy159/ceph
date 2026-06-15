@@ -10,10 +10,13 @@
 
 namespace rgw {
 
-bool parse_url_authority(const std::string& url,
-                         std::string& host,
-                         std::string& user,
-                         std::string& password) {
+bool
+parse_url_authority(
+    const std::string& url,
+    std::string& host,
+    std::string& user,
+    std::string& password)
+{
   auto r = boost::urls::parse_uri(url);
   if (!r) {
     return false;
@@ -29,9 +32,12 @@ bool parse_url_authority(const std::string& url,
   return true;
 }
 
-bool parse_url_userinfo(const std::string& url,
-                        std::string& user,
-                        std::string& password) {
+bool
+parse_url_userinfo(
+    const std::string& url,
+    std::string& user,
+    std::string& password)
+{
   auto r = boost::urls::parse_uri(url);
   if (!r) {
     return false;

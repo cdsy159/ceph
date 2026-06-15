@@ -1,13 +1,13 @@
+#include <errno.h>
+#include <sys/time.h>
+
 #include <algorithm>
 #include <chrono>
 #include <thread>
-#include <errno.h>
-#include <sys/time.h>
-#include "gtest/gtest.h"
 
-#include "include/rados/librados.hpp"
 #include "cls/lock/cls_lock_client.h"
-
+#include "gtest/gtest.h"
+#include "include/rados/librados.hpp"
 #include "test/librados/test_cxx.h"
 #include "test/librados/testcase_cxx.h"
 
@@ -19,17 +19,26 @@ using namespace librados;
 typedef RadosTestPP LibRadosLockPP;
 typedef RadosTestECPP LibRadosLockECPP;
 
-TEST_F(LibRadosLockPP, LockExclusivePP) {
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP1", "Cookie", "", NULL,  0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_exclusive("foo", "TestLockPP1", "Cookie", "", NULL, 0));
+TEST_F(LibRadosLockPP, LockExclusivePP)
+{
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockPP1", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_exclusive("foo", "TestLockPP1", "Cookie", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockPP, LockSharedPP) {
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockPP2", "Cookie", "Tag", "", NULL, 0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_shared("foo", "TestLockPP2", "Cookie", "Tag", "", NULL, 0));
+TEST_F(LibRadosLockPP, LockSharedPP)
+{
+  ASSERT_EQ(
+      0, ioctx.lock_shared("foo", "TestLockPP2", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_shared("foo", "TestLockPP2", "Cookie", "Tag", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockPP, LockExclusiveDurPP) {
+TEST_F(LibRadosLockPP, LockExclusiveDurPP)
+{
   struct timeval tv;
   tv.tv_sec = 1;
   tv.tv_usec = 0;
@@ -41,7 +50,8 @@ TEST_F(LibRadosLockPP, LockExclusiveDurPP) {
   ASSERT_EQ(expected, wait_until(1.0s, 0.1s, expected, lock_exclusive, nullptr));
 }
 
-TEST_F(LibRadosLockPP, LockSharedDurPP) {
+TEST_F(LibRadosLockPP, LockSharedDurPP)
+{
   struct timeval tv;
   tv.tv_sec = 1;
   tv.tv_usec = 0;
@@ -53,36 +63,50 @@ TEST_F(LibRadosLockPP, LockSharedDurPP) {
   ASSERT_EQ(expected, wait_until(1.0s, 0.1s, expected, lock_shared, nullptr));
 }
 
-TEST_F(LibRadosLockPP, LockMayRenewPP) {
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP5", "Cookie", "", NULL, 0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_exclusive("foo", "TestLockPP5", "Cookie", "", NULL, 0));
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP5", "Cookie", "", NULL, LOCK_FLAG_MAY_RENEW));
+TEST_F(LibRadosLockPP, LockMayRenewPP)
+{
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockPP5", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_exclusive("foo", "TestLockPP5", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive(
+             "foo", "TestLockPP5", "Cookie", "", NULL, LOCK_FLAG_MAY_RENEW));
 }
 
-TEST_F(LibRadosLockPP, UnlockPP) {
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP6", "Cookie", "", NULL, 0));
+TEST_F(LibRadosLockPP, UnlockPP)
+{
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockPP6", "Cookie", "", NULL, 0));
   ASSERT_EQ(0, ioctx.unlock("foo", "TestLockPP6", "Cookie"));
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP6", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockPP6", "Cookie", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockPP, ListLockersPP) {
+TEST_F(LibRadosLockPP, ListLockersPP)
+{
   std::stringstream sstm;
   sstm << "client." << cluster.get_instance_id();
   std::string me = sstm.str();
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockPP7", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_shared("foo", "TestLockPP7", "Cookie", "Tag", "", NULL, 0));
   ASSERT_EQ(0, ioctx.unlock("foo", "TestLockPP7", "Cookie"));
   {
     int exclusive;
     std::string tag;
     std::list<librados::locker_t> lockers;
-    ASSERT_EQ(0, ioctx.list_lockers("foo", "TestLockPP7", &exclusive, &tag, &lockers));
+    ASSERT_EQ(
+        0, ioctx.list_lockers("foo", "TestLockPP7", &exclusive, &tag, &lockers));
   }
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockPP7", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_shared("foo", "TestLockPP7", "Cookie", "Tag", "", NULL, 0));
   {
     int exclusive;
     std::string tag;
     std::list<librados::locker_t> lockers;
-    ASSERT_EQ(1, ioctx.list_lockers("foo", "TestLockPP7", &exclusive, &tag, &lockers));
+    ASSERT_EQ(
+        1, ioctx.list_lockers("foo", "TestLockPP7", &exclusive, &tag, &lockers));
     std::list<librados::locker_t>::iterator it = lockers.begin();
     ASSERT_FALSE(lockers.end() == it);
     ASSERT_EQ(me, it->client);
@@ -90,15 +114,18 @@ TEST_F(LibRadosLockPP, ListLockersPP) {
   }
 }
 
-TEST_F(LibRadosLockPP, BreakLockPP) {
+TEST_F(LibRadosLockPP, BreakLockPP)
+{
   int exclusive;
   std::string tag;
   std::list<librados::locker_t> lockers;
   std::stringstream sstm;
   sstm << "client." << cluster.get_instance_id();
   std::string me = sstm.str();
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockPP8", "Cookie",  "", NULL, 0));
-  ASSERT_EQ(1, ioctx.list_lockers("foo", "TestLockPP8", &exclusive, &tag, &lockers));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockPP8", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      1, ioctx.list_lockers("foo", "TestLockPP8", &exclusive, &tag, &lockers));
   std::list<librados::locker_t>::iterator it = lockers.begin();
   ASSERT_FALSE(lockers.end() == it);
   ASSERT_EQ(me, it->client);
@@ -107,19 +134,29 @@ TEST_F(LibRadosLockPP, BreakLockPP) {
 }
 
 // EC testing
-TEST_F(LibRadosLockECPP, LockExclusivePP) {
+TEST_F(LibRadosLockECPP, LockExclusivePP)
+{
   SKIP_IF_CRIMSON();
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP1", "Cookie", "", NULL,  0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_exclusive("foo", "TestLockECPP1", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockECPP1", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_exclusive("foo", "TestLockECPP1", "Cookie", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockECPP, LockSharedPP) {
+TEST_F(LibRadosLockECPP, LockSharedPP)
+{
   SKIP_IF_CRIMSON();
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockECPP2", "Cookie", "Tag", "", NULL, 0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_shared("foo", "TestLockECPP2", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      0,
+      ioctx.lock_shared("foo", "TestLockECPP2", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_shared("foo", "TestLockECPP2", "Cookie", "Tag", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockECPP, LockExclusiveDurPP) {
+TEST_F(LibRadosLockECPP, LockExclusiveDurPP)
+{
   SKIP_IF_CRIMSON();
   struct timeval tv;
   tv.tv_sec = 1;
@@ -132,7 +169,8 @@ TEST_F(LibRadosLockECPP, LockExclusiveDurPP) {
   ASSERT_EQ(expected, wait_until(1.0s, 0.1s, expected, lock_exclusive, nullptr));
 }
 
-TEST_F(LibRadosLockECPP, LockSharedDurPP) {
+TEST_F(LibRadosLockECPP, LockSharedDurPP)
+{
   SKIP_IF_CRIMSON();
   struct timeval tv;
   tv.tv_sec = 1;
@@ -145,39 +183,57 @@ TEST_F(LibRadosLockECPP, LockSharedDurPP) {
   ASSERT_EQ(expected, wait_until(1.0s, 0.1s, expected, lock_shared, nullptr));
 }
 
-TEST_F(LibRadosLockECPP, LockMayRenewPP) {
+TEST_F(LibRadosLockECPP, LockMayRenewPP)
+{
   SKIP_IF_CRIMSON();
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP5", "Cookie", "", NULL, 0));
-  ASSERT_EQ(-EEXIST, ioctx.lock_exclusive("foo", "TestLockECPP5", "Cookie", "", NULL, 0));
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP5", "Cookie", "", NULL, LOCK_FLAG_MAY_RENEW));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockECPP5", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      -EEXIST,
+      ioctx.lock_exclusive("foo", "TestLockECPP5", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive(
+             "foo", "TestLockECPP5", "Cookie", "", NULL, LOCK_FLAG_MAY_RENEW));
 }
 
-TEST_F(LibRadosLockECPP, UnlockPP) {
+TEST_F(LibRadosLockECPP, UnlockPP)
+{
   SKIP_IF_CRIMSON();
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP6", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockECPP6", "Cookie", "", NULL, 0));
   ASSERT_EQ(0, ioctx.unlock("foo", "TestLockECPP6", "Cookie"));
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP6", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockECPP6", "Cookie", "", NULL, 0));
 }
 
-TEST_F(LibRadosLockECPP, ListLockersPP) {
+TEST_F(LibRadosLockECPP, ListLockersPP)
+{
   SKIP_IF_CRIMSON();
   std::stringstream sstm;
   sstm << "client." << cluster.get_instance_id();
   std::string me = sstm.str();
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockECPP7", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      0,
+      ioctx.lock_shared("foo", "TestLockECPP7", "Cookie", "Tag", "", NULL, 0));
   ASSERT_EQ(0, ioctx.unlock("foo", "TestLockECPP7", "Cookie"));
   {
     int exclusive;
     std::string tag;
     std::list<librados::locker_t> lockers;
-    ASSERT_EQ(0, ioctx.list_lockers("foo", "TestLockECPP7", &exclusive, &tag, &lockers));
+    ASSERT_EQ(
+        0,
+        ioctx.list_lockers("foo", "TestLockECPP7", &exclusive, &tag, &lockers));
   }
-  ASSERT_EQ(0, ioctx.lock_shared("foo", "TestLockECPP7", "Cookie", "Tag", "", NULL, 0));
+  ASSERT_EQ(
+      0,
+      ioctx.lock_shared("foo", "TestLockECPP7", "Cookie", "Tag", "", NULL, 0));
   {
     int exclusive;
     std::string tag;
     std::list<librados::locker_t> lockers;
-    ASSERT_EQ(1, ioctx.list_lockers("foo", "TestLockECPP7", &exclusive, &tag, &lockers));
+    ASSERT_EQ(
+        1,
+        ioctx.list_lockers("foo", "TestLockECPP7", &exclusive, &tag, &lockers));
     std::list<librados::locker_t>::iterator it = lockers.begin();
     ASSERT_FALSE(lockers.end() == it);
     ASSERT_EQ(me, it->client);
@@ -185,7 +241,8 @@ TEST_F(LibRadosLockECPP, ListLockersPP) {
   }
 }
 
-TEST_F(LibRadosLockECPP, BreakLockPP) {
+TEST_F(LibRadosLockECPP, BreakLockPP)
+{
   SKIP_IF_CRIMSON();
   int exclusive;
   std::string tag;
@@ -193,8 +250,10 @@ TEST_F(LibRadosLockECPP, BreakLockPP) {
   std::stringstream sstm;
   sstm << "client." << cluster.get_instance_id();
   std::string me = sstm.str();
-  ASSERT_EQ(0, ioctx.lock_exclusive("foo", "TestLockECPP8", "Cookie",  "", NULL, 0));
-  ASSERT_EQ(1, ioctx.list_lockers("foo", "TestLockECPP8", &exclusive, &tag, &lockers));
+  ASSERT_EQ(
+      0, ioctx.lock_exclusive("foo", "TestLockECPP8", "Cookie", "", NULL, 0));
+  ASSERT_EQ(
+      1, ioctx.list_lockers("foo", "TestLockECPP8", &exclusive, &tag, &lockers));
   std::list<librados::locker_t>::iterator it = lockers.begin();
   ASSERT_FALSE(lockers.end() == it);
   ASSERT_EQ(me, it->client);

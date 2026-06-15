@@ -17,8 +17,8 @@
 
 #include <bit>
 #include <cstddef>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 namespace ceph {
 // `static_ptr`
@@ -35,10 +35,14 @@ namespace _mem {
 // of the same arguments (which is not true for function type erasure)
 // it's a pretty good one.
 enum class op {
-  move, destroy, size
+  move,
+  destroy,
+  size
 };
-template<typename T>
-static std::size_t op_fun(op oper, void* p1, void* p2)
+
+template <typename T>
+static std::size_t
+op_fun(op oper, void* p1, void* p2)
 {
   auto me = static_cast<T*>(p1);
 
@@ -56,7 +60,8 @@ static std::size_t op_fun(op oper, void* p1, void* p2)
   }
   return 0;
 }
-}
+} // namespace _mem
+
 // The thing itself!
 //
 // The default value for Size may be wrong in almost all cases. You
@@ -72,25 +77,28 @@ static std::size_t op_fun(op oper, void* p1, void* p2)
 // you create a new derived class with a larger size, you only have to
 // change it in one place.
 //
-template<typename Base, std::size_t Size = sizeof(Base)>
+template <typename Base, std::size_t Size = sizeof(Base)>
 class static_ptr {
-  template<typename U, std::size_t S>
+  template <typename U, std::size_t S>
   friend class static_ptr;
 
   // Refuse to be set to anything with whose type we are
   // incompatible. Also never try to eat anything bigger than you are.
   //
-  template<typename T, std::size_t S>
-  constexpr static int create_ward() noexcept {
-    static_assert(std::is_void_v<Base> ||
-                  std::is_base_of_v<Base, std::decay_t<T>>,
-                  "Value to store must be a derivative of the base.");
+  template <typename T, std::size_t S>
+  constexpr static int
+  create_ward() noexcept
+  {
+    static_assert(
+        std::is_void_v<Base> || std::is_base_of_v<Base, std::decay_t<T>>,
+        "Value to store must be a derivative of the base.");
     static_assert(S <= Size, "Value too large.");
-    static_assert(std::is_void_v<Base> || !std::is_const<Base>{} ||
-                  std::is_const_v<T>,
-                  "Cannot assign const pointer to non-const pointer.");
+    static_assert(
+        std::is_void_v<Base> || !std::is_const<Base>{} || std::is_const_v<T>,
+        "Cannot assign const pointer to non-const pointer.");
     return 0;
   }
+
   // Here we can store anything that has the same signature, which is
   // relevant to the multiple-versions for move/copy support that I
   // mentioned above.
@@ -103,6 +111,7 @@ class static_ptr {
   // pointer.
   //
   static constexpr std::size_t Alignment = std::bit_ceil(Size);
+
   mutable struct alignas(Alignment) {
     unsigned char data[sizeof(Base)];
   } buf;
@@ -112,18 +121,27 @@ public:
   using pointer = Base*;
 
   // Empty
-  static_ptr() noexcept : operate(nullptr) {}
-  static_ptr(std::nullptr_t) noexcept : operate(nullptr) {}
-  static_ptr& operator =(std::nullptr_t) noexcept {
+  static_ptr() noexcept :
+    operate(nullptr)
+  {}
+
+  static_ptr(std::nullptr_t) noexcept :
+    operate(nullptr)
+  {}
+
+  static_ptr&
+  operator=(std::nullptr_t) noexcept
+  {
     reset();
     return *this;
   }
-  ~static_ptr() noexcept {
-    reset();
-  }
+
+  ~static_ptr() noexcept { reset(); }
 
   // Since other pointer-ish types have it
-  void reset() noexcept {
+  void
+  reset() noexcept
+  {
     if (operate) {
       operate(_mem::op::destroy, &buf, nullptr);
       operate = nullptr;
@@ -133,24 +151,30 @@ public:
   // Set from another static pointer.
   //
   // Since the templated versions don't count for overriding the defaults
-  static_ptr(static_ptr&& rhs)
-    noexcept(std::is_nothrow_move_constructible_v<Base>) : operate(rhs.operate) {
+  static_ptr(static_ptr&& rhs) noexcept(
+      std::is_nothrow_move_constructible_v<Base>) :
+    operate(rhs.operate)
+  {
     if (operate) {
       operate(_mem::op::move, &rhs.buf, &buf);
     }
   }
 
-  template<typename U, std::size_t S>
-  static_ptr(static_ptr<U, S>&& rhs)
-    noexcept(std::is_nothrow_move_constructible_v<U>) : operate(rhs.operate) {
+  template <typename U, std::size_t S>
+  static_ptr(static_ptr<U, S>&& rhs) noexcept(
+      std::is_nothrow_move_constructible_v<U>) :
+    operate(rhs.operate)
+  {
     create_ward<U, S>();
     if (operate) {
       operate(_mem::op::move, &rhs.buf, &buf);
     }
   }
 
-  static_ptr& operator =(static_ptr&& rhs)
-    noexcept(std::is_nothrow_move_constructible_v<Base>) {
+  static_ptr&
+  operator=(static_ptr&& rhs) noexcept(
+      std::is_nothrow_move_constructible_v<Base>)
+  {
     reset();
     if (rhs) {
       operate = rhs.operate;
@@ -159,9 +183,11 @@ public:
     return *this;
   }
 
-  template<typename U, std::size_t S>
-  static_ptr& operator =(static_ptr<U, S>&& rhs)
-    noexcept(std::is_nothrow_move_constructible_v<U>) {
+  template <typename U, std::size_t S>
+  static_ptr&
+  operator=(static_ptr<U, S>&& rhs) noexcept(
+      std::is_nothrow_move_constructible_v<U>)
+  {
     create_ward<U, S>();
     reset();
     if (rhs) {
@@ -171,8 +197,9 @@ public:
     return *this;
   }
 
-
-  bool operator ==(std::nullptr_t) const {
+  bool
+  operator==(std::nullptr_t) const
+  {
     return !operate;
   }
 
@@ -182,21 +209,23 @@ public:
   // construction because in-place construction renders it
   // unnecessary. Also it doesn't fit the pointer idiom as well.
   //
-  template<typename T, typename... Args>
-  static_ptr(std::in_place_type_t<T>, Args&& ...args)
-    noexcept(std::is_nothrow_constructible_v<T, Args...>)
-    : operate(&_mem::op_fun<T>){
-    static_assert((!std::is_nothrow_copy_constructible_v<Base> ||
-		   std::is_nothrow_copy_constructible_v<T>) &&
-		  (!std::is_nothrow_move_constructible_v<Base> ||
-		   std::is_nothrow_move_constructible_v<T>),
-		  "If declared type of static_ptr is nothrow "
-		  "move/copy constructible, then any "
-		  "type assigned to it must be as well. "
-		  "You can use reinterpret_pointer_cast "
-		  "to get around this limit, but don't "
-		  "come crying to me when the C++ "
-		  "runtime calls terminate().");
+  template <typename T, typename... Args>
+  static_ptr(std::in_place_type_t<T>, Args&&... args) noexcept(
+      std::is_nothrow_constructible_v<T, Args...>) :
+    operate(&_mem::op_fun<T>)
+  {
+    static_assert(
+        (!std::is_nothrow_copy_constructible_v<Base> ||
+         std::is_nothrow_copy_constructible_v<T>) &&
+            (!std::is_nothrow_move_constructible_v<Base> ||
+             std::is_nothrow_move_constructible_v<T>),
+        "If declared type of static_ptr is nothrow "
+        "move/copy constructible, then any "
+        "type assigned to it must be as well. "
+        "You can use reinterpret_pointer_cast "
+        "to get around this limit, but don't "
+        "come crying to me when the C++ "
+        "runtime calls terminate().");
     create_ward<T, sizeof(T)>();
     new (&buf) T(std::forward<Args>(args)...);
   }
@@ -205,9 +234,10 @@ public:
   // operator that takes a tuple as its right-hand side to provide
   // arguments.
   //
-  template<typename T, typename... Args>
-  void emplace(Args&& ...args)
-    noexcept(std::is_nothrow_constructible_v<T, Args...>) {
+  template <typename T, typename... Args>
+  void
+  emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+  {
     create_ward<T, sizeof(T)>();
     reset();
     operate = &_mem::op_fun<T>;
@@ -215,46 +245,53 @@ public:
   }
 
   // Access!
-  Base* get() const noexcept {
+  Base*
+  get() const noexcept
+  {
     return operate ? reinterpret_cast<Base*>(&buf) : nullptr;
   }
-  template<typename U = Base>
-  std::enable_if_t<!std::is_void_v<U>, Base*> operator->() const noexcept {
+
+  template <typename U = Base>
+  std::enable_if_t<!std::is_void_v<U>, Base*>
+  operator->() const noexcept
+  {
     return get();
   }
-  template<typename U = Base>
-  std::enable_if_t<!std::is_void_v<U>, Base&> operator *() const noexcept {
+
+  template <typename U = Base>
+  std::enable_if_t<!std::is_void_v<U>, Base&>
+  operator*() const noexcept
+  {
     return *get();
   }
-  operator bool() const noexcept {
-    return !!operate;
-  }
+
+  operator bool() const noexcept { return !!operate; }
 
   // Big wall of friendship
   //
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> static_pointer_cast(const static_ptr<T, S>& p);
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> static_pointer_cast(static_ptr<T, S>&& p);
 
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> dynamic_pointer_cast(const static_ptr<T, S>& p);
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> dynamic_pointer_cast(static_ptr<T, S>&& p);
 
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> const_pointer_cast(const static_ptr<T, S>& p);
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> const_pointer_cast(static_ptr<T, S>&& p);
 
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> reinterpret_pointer_cast(const static_ptr<T, S>& p);
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> reinterpret_pointer_cast(static_ptr<T, S>&& p);
 
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> resize_pointer_cast(const static_ptr<T, S>& p);
-  template<typename U, std::size_t Z, typename T, std::size_t S>
+  template <typename U, std::size_t Z, typename T, std::size_t S>
   friend static_ptr<U, Z> resize_pointer_cast(static_ptr<T, S>&& p);
 };
 
@@ -264,10 +301,11 @@ public:
 // *_pointer_cast overloads for a move-only unique pointer. It's a
 // nice idiom. Having to release and reconstruct is obnoxious.
 //
-template<typename U, std::size_t Z, typename T, std::size_t S>
-static_ptr<U, Z> static_pointer_cast(static_ptr<T, S>&& p) {
-  static_assert(Z >= S,
-                "Value too large.");
+template <typename U, std::size_t Z, typename T, std::size_t S>
+static_ptr<U, Z>
+static_pointer_cast(static_ptr<T, S>&& p)
+{
+  static_assert(Z >= S, "Value too large.");
   static_ptr<U, Z> r;
   if (static_cast<U*>(p.get())) {
     p.operate(_mem::op::move, &p.buf, &r.buf);
@@ -279,10 +317,11 @@ static_ptr<U, Z> static_pointer_cast(static_ptr<T, S>&& p) {
 // Here the conditional is actually important and ensures we have the
 // same behavior as dynamic_cast.
 //
-template<typename U, std::size_t Z, typename T, std::size_t S>
-static_ptr<U, Z> dynamic_pointer_cast(static_ptr<T, S>&& p) {
-  static_assert(Z >= S,
-                "Value too large.");
+template <typename U, std::size_t Z, typename T, std::size_t S>
+static_ptr<U, Z>
+dynamic_pointer_cast(static_ptr<T, S>&& p)
+{
+  static_assert(Z >= S, "Value too large.");
   static_ptr<U, Z> r;
   if (dynamic_cast<U*>(p.get())) {
     p.operate(_mem::op::move, &p.buf, &r.buf);
@@ -291,10 +330,11 @@ static_ptr<U, Z> dynamic_pointer_cast(static_ptr<T, S>&& p) {
   return r;
 }
 
-template<typename U, std::size_t Z, typename T, std::size_t S>
-static_ptr<U, Z> const_pointer_cast(static_ptr<T, S>&& p) {
-  static_assert(Z >= S,
-                "Value too large.");
+template <typename U, std::size_t Z, typename T, std::size_t S>
+static_ptr<U, Z>
+const_pointer_cast(static_ptr<T, S>&& p)
+{
+  static_assert(Z >= S, "Value too large.");
   static_ptr<U, Z> r;
   if (const_cast<U*>(p.get())) {
     p.operate(_mem::op::move, &p.buf, &r.buf);
@@ -306,10 +346,11 @@ static_ptr<U, Z> const_pointer_cast(static_ptr<T, S>&& p) {
 // I'm not sure if anyone will ever use this. I can imagine situations
 // where they might. It works, though!
 //
-template<typename U, std::size_t Z, typename T, std::size_t S>
-static_ptr<U, Z> reinterpret_pointer_cast(static_ptr<T, S>&& p) {
-  static_assert(Z >= S,
-                "Value too large.");
+template <typename U, std::size_t Z, typename T, std::size_t S>
+static_ptr<U, Z>
+reinterpret_pointer_cast(static_ptr<T, S>&& p)
+{
+  static_assert(Z >= S, "Value too large.");
   static_ptr<U, Z> r;
   p.operate(_mem::op::move, &p.buf, &r.buf);
   r.operate = p.operate;
@@ -323,10 +364,12 @@ static_ptr<U, Z> reinterpret_pointer_cast(static_ptr<T, S>&& p) {
 //
 // I follow cast semantics. Since this is a pointer-like type, it
 // returns a null value rather than throwing.
-template<typename U, std::size_t Z, typename T, std::size_t S>
-static_ptr<U, Z> resize_pointer_cast(static_ptr<T, S>&& p) {
-  static_assert(std::is_same_v<U, T>,
-                "resize_pointer_cast only changes size, not type.");
+template <typename U, std::size_t Z, typename T, std::size_t S>
+static_ptr<U, Z>
+resize_pointer_cast(static_ptr<T, S>&& p)
+{
+  static_assert(
+      std::is_same_v<U, T>, "resize_pointer_cast only changes size, not type.");
   static_ptr<U, Z> r;
   if (Z >= p.operate(_mem::op::size, &p.buf, nullptr)) {
     p.operate(_mem::op::move, &p.buf, &r.buf);
@@ -338,9 +381,14 @@ static_ptr<U, Z> resize_pointer_cast(static_ptr<T, S>&& p) {
 // Since `make_unique` and `make_shared` exist, we should follow their
 // lead.
 //
-template<typename Base, typename Derived = Base,
-         std::size_t Size = sizeof(Derived), typename... Args>
-static_ptr<Base, Size> make_static(Args&& ...args) {
-  return { std::in_place_type<Derived>, std::forward<Args>(args)... };
+template <
+    typename Base,
+    typename Derived = Base,
+    std::size_t Size = sizeof(Derived),
+    typename... Args>
+static_ptr<Base, Size>
+make_static(Args&&... args)
+{
+  return {std::in_place_type<Derived>, std::forward<Args>(args)...};
 }
-}
+} // namespace ceph

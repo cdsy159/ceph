@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -12,18 +12,26 @@
  * Foundation. See file COPYING.
  *
  */
+#include <gtest/gtest.h>
+
 #include <iostream>
-#include "common/ceph_json.h"
+
 #include "common/Formatter.h"
+#include "common/ceph_json.h"
+#include "services/svc_tier_rados.h"
+
 #include "rgw_common.h"
 #include "rgw_rados.h"
-#include "services/svc_tier_rados.h"
 #include "test_rgw_common.h"
-#include <gtest/gtest.h>
 
 using namespace std;
 
-void check_parsed_correctly(rgw_obj& obj, const string& name, const string& ns, const string& instance)
+void
+check_parsed_correctly(
+    rgw_obj& obj,
+    const string& name,
+    const string& ns,
+    const string& instance)
 {
   /* parse_raw_oid() */
   rgw_obj_key parsed_key;
@@ -53,21 +61,25 @@ void check_parsed_correctly(rgw_obj& obj, const string& name, const string& ns, 
   string strip_name = obj.get_oid();
   string strip_ns, strip_instance;
 
-  ASSERT_EQ(true, rgw_obj_key::strip_namespace_from_name(strip_name, strip_ns, strip_instance));
+  ASSERT_EQ(
+      true, rgw_obj_key::strip_namespace_from_name(
+                strip_name, strip_ns, strip_instance));
 
-  cout << "stripped: " << strip_name << " ns=" << strip_ns << " i=" << strip_instance << std::endl;
+  cout << "stripped: " << strip_name << " ns=" << strip_ns
+       << " i=" << strip_instance << std::endl;
 
   ASSERT_EQ(name, strip_name);
   ASSERT_EQ(ns, strip_ns);
   ASSERT_EQ(instance, strip_instance);
 }
 
-void test_obj(const string& name, const string& ns, const string& instance)
+void
+test_obj(const string& name, const string& ns, const string& instance)
 {
   rgw_bucket b;
   test_rgw_init_bucket(&b, "test");
 
-  JSONFormatter *formatter = new JSONFormatter(true);
+  JSONFormatter* formatter = new JSONFormatter(true);
 
   formatter->open_object_section("test");
   rgw_obj o(b, name);
@@ -79,7 +91,7 @@ void test_obj(const string& name, const string& ns, const string& instance)
   if (!ns.empty()) {
     obj1.key.ns = ns;
   }
-  
+
   check_parsed_correctly(obj1, name, ns, instance);
   encode_json("obj1", obj1, formatter);
 
@@ -127,14 +139,16 @@ void test_obj(const string& name, const string& ns, const string& instance)
   delete formatter;
 }
 
-TEST(TestRGWObj, underscore) {
+TEST(TestRGWObj, underscore)
+{
   test_obj("_obj", "", "");
   test_obj("_obj", "ns", "");
   test_obj("_obj", "", "v1");
   test_obj("_obj", "ns", "v1");
 }
 
-TEST(TestRGWObj, no_underscore) {
+TEST(TestRGWObj, no_underscore)
+{
   test_obj("obj", "", "");
   test_obj("obj", "ns", "");
   test_obj("obj", "", "v1");
@@ -142,7 +156,8 @@ TEST(TestRGWObj, no_underscore) {
 }
 
 template <class T>
-void dump(JSONFormatter& f, const string& name, const T& entity)
+void
+dump(JSONFormatter& f, const string& name, const T& entity)
 {
   f.open_object_section(name.c_str());
   ::encode_json(name.c_str(), entity, &f);
@@ -150,9 +165,14 @@ void dump(JSONFormatter& f, const string& name, const T& entity)
   f.flush(cout);
 }
 
-static void test_obj_to_raw(test_rgw_env& env, const rgw_bucket& b,
-                            const string& name, const string& instance, const string& ns,
-                            const string& placement_id)
+static void
+test_obj_to_raw(
+    test_rgw_env& env,
+    const rgw_bucket& b,
+    const string& name,
+    const string& instance,
+    const string& ns,
+    const string& placement_id)
 {
   JSONFormatter f(true);
   dump(f, "bucket", b);
@@ -176,10 +196,10 @@ static void test_obj_to_raw(test_rgw_env& env, const rgw_bucket& b,
   dump(f, "new_obj", new_obj);
 
   ASSERT_EQ(obj, new_obj);
-
 }
 
-TEST(TestRGWObj, obj_to_raw) {
+TEST(TestRGWObj, obj_to_raw)
+{
   test_rgw_env env;
 
   rgw_bucket b;
@@ -188,26 +208,28 @@ TEST(TestRGWObj, obj_to_raw) {
   rgw_bucket eb;
   test_rgw_init_explicit_placement_bucket(&eb, "ebtest");
 
-  for (auto name : { "myobj", "_myobj", "_myobj_"}) {
-    for (auto inst : { "", "inst"}) {
-      for (auto ns : { "", "ns"}) {
-        test_obj_to_raw(env, b, name, inst, ns, env.zonegroup.default_placement.name);
+  for (auto name : {"myobj", "_myobj", "_myobj_"}) {
+    for (auto inst : {"", "inst"}) {
+      for (auto ns : {"", "ns"}) {
+        test_obj_to_raw(
+            env, b, name, inst, ns, env.zonegroup.default_placement.name);
         test_obj_to_raw(env, eb, name, inst, ns, string());
       }
     }
   }
 }
 
-TEST(TestRGWObj, old_to_raw) {
+TEST(TestRGWObj, old_to_raw)
+{
   JSONFormatter f(true);
   test_rgw_env env;
 
   old_rgw_bucket eb;
   test_rgw_init_old_bucket(&eb, "ebtest");
 
-  for (auto name : { "myobj", "_myobj", "_myobj_"}) {
-    for (string inst : { "", "inst"}) {
-      for (string ns : { "", "ns"}) {
+  for (auto name : {"myobj", "_myobj", "_myobj_"}) {
+    for (string inst : {"", "inst"}) {
+      for (string ns : {"", "ns"}) {
         old_rgw_obj old(eb, name);
         if (!inst.empty()) {
           old.set_instance(inst);

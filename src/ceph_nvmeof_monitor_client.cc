@@ -17,17 +17,17 @@
 
 #include <pthread.h>
 
-#include "include/types.h"
-#include "include/compat.h"
-#include "common/config.h"
 #include "common/ceph_argparse.h"
+#include "common/config.h"
 #include "common/errno.h"
 #include "common/pick_address.h"
 #include "global/global_init.h"
-
+#include "include/compat.h"
+#include "include/types.h"
 #include "nvmeof/NVMeofGwMonitorClient.h"
 
-static void usage()
+static void
+usage()
 {
   std::cout << "usage: ceph-nvmeof-monitor-client\n"
                "        --gateway-name <GW_NAME>\n"
@@ -36,7 +36,7 @@ static void usage()
                "        --gateway-group <GW_GROUP>\n"
                "        --monitor-group-address <MONITOR_GROUP_ADDRESS>\n"
                "        [flags]\n"
-	    << std::endl;
+            << std::endl;
   generic_server_usage();
 }
 
@@ -44,7 +44,8 @@ static void usage()
  * A short main() which just instantiates a Nvme and
  * hands over control to that.
  */
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   ceph_pthread_setname("ceph-nvmeof-monitor-client");
 
@@ -58,9 +59,10 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY, // maybe later use CODE_ENVIRONMENT_DAEMON,
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      nullptr, args, CEPH_ENTITY_TYPE_CLIENT,
+      CODE_ENVIRONMENT_UTILITY, // maybe later use CODE_ENVIRONMENT_DAEMON,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
 
   pick_addresses(g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC);
 
@@ -71,10 +73,9 @@ int main(int argc, const char **argv)
   NVMeofGwMonitorClient gw_monitor_client(argc, argv);
   int rc = gw_monitor_client.init();
   if (rc != 0) {
-      std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
-      return rc;
+    std::cerr << "Error in initialization: " << cpp_strerror(rc) << std::endl;
+    return rc;
   }
 
   return gw_monitor_client.main(args);
 }
-

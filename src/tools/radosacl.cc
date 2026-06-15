@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,50 +13,55 @@
  * 
  */
 
+#include <errno.h>
 #include <stdlib.h>
 #include <time.h>
-#include <errno.h>
 
 #include <iostream> // for std::cerr
 
 #include "include/encoding.h"
 #include "include/int_types.h" // for __u32
-#include "include/types.h"
 #include "include/rados/librados.hpp"
+#include "include/types.h"
 
 using namespace std;
 using namespace librados;
 
-void buf_to_hex(const unsigned char *buf, int len, char *str)
+void
+buf_to_hex(const unsigned char* buf, int len, char* str)
 {
   str[0] = '\0';
   for (int i = 0; i < len; i++) {
-    sprintf(&str[i*2], "%02x", (int)buf[i]);
+    sprintf(&str[i * 2], "%02x", (int)buf[i]);
   }
 }
 
-
 #define ID_SIZE 8
 
-#define ACL_RD	0x1
-#define ACL_WR	0x2
+#define ACL_RD 0x1
+#define ACL_WR 0x2
 
 struct ACLID {
   char id[ID_SIZE + 1];
 
-  void encode(bufferlist& bl) const {
-    bl.append((const char *)id, ID_SIZE);
+  void
+  encode(bufferlist& bl) const
+  {
+    bl.append((const char*)id, ID_SIZE);
   }
-  void decode(bufferlist::const_iterator& iter) {
-    iter.copy(ID_SIZE, (char *)id);
+
+  void
+  decode(bufferlist::const_iterator& iter)
+  {
+    iter.copy(ID_SIZE, (char*)id);
   }
 };
 WRITE_CLASS_ENCODER(ACLID)
 
 typedef __u32 ACLFlags;
 
-
-inline bool operator<(const ACLID& l, const ACLID& r)
+inline bool
+operator<(const ACLID& l, const ACLID& r)
 {
   return (memcmp(&l, &r, ID_SIZE) < 0);
 }
@@ -70,22 +75,27 @@ class ObjectACLs {
   map<ACLID, ACLFlags> acls_map;
 
 public:
-
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     using ceph::encode;
     encode(acls_map, bl);
   }
-  void decode(bufferlist::const_iterator& bl) {
+
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     using ceph::decode;
     decode(acls_map, bl);
   }
 
-  int read_acl(ACLID& id, ACLFlags *flags);
+  int read_acl(ACLID& id, ACLFlags* flags);
   void set_acl(ACLID& id, ACLFlags flags);
 };
 WRITE_CLASS_ENCODER(ObjectACLs)
 
-int ObjectACLs::read_acl(ACLID& id, ACLFlags *flags)
+int
+ObjectACLs::read_acl(ACLID& id, ACLFlags* flags)
 {
   if (!flags)
     return -EINVAL;
@@ -100,15 +110,13 @@ int ObjectACLs::read_acl(ACLID& id, ACLFlags *flags)
   return 0;
 }
 
-void ObjectACLs::set_acl(ACLID& id, ACLFlags flags)
+void
+ObjectACLs::set_acl(ACLID& id, ACLFlags flags)
 {
   acls_map[id] = flags;
 }
 
-
-
-class ACLEntity
-{
+class ACLEntity {
   string name;
   map<ACLID, ACLEntity> groups;
 };
@@ -118,29 +126,27 @@ typedef map<ACLID, ACLEntity> tACLIDEntityMap;
 static map<ACLID, ACLEntity> users;
 static map<ACLID, ACLEntity> groups;
 
-void get_user(ACLID& aclid, ACLEntity *entity)
+void
+get_user(ACLID& aclid, ACLEntity* entity)
 {
   //users.find(aclid);
 }
 
-
-
-
-
-int main(int argc, const char **argv) 
+int
+main(int argc, const char** argv)
 {
   Rados rados;
   if (rados.init(NULL) < 0) {
-     cerr << "couldn't initialize rados!" << std::endl;
-     exit(1);
+    cerr << "couldn't initialize rados!" << std::endl;
+    exit(1);
   }
   if (rados.conf_read_file(NULL)) {
-     cerr << "couldn't read Ceph configuration file!" << std::endl;
-     exit(1);
+    cerr << "couldn't read Ceph configuration file!" << std::endl;
+    exit(1);
   }
   if (rados.connect() < 0) {
-     cerr << "couldn't connect to cluster!" << std::endl;
-     exit(1);
+    cerr << "couldn't connect to cluster!" << std::endl;
+    exit(1);
   }
 
   time_t tm;
@@ -151,11 +157,12 @@ int main(int argc, const char **argv)
   snprintf(buf, 128, "%s", ctime(&tm));
   bl.append(buf, strlen(buf));
 
-  const char *oid = "bar";
+  const char* oid = "bar";
 
   IoCtx io_ctx;
   int r = rados.ioctx_create("data", io_ctx);
-  cout << "open io_ctx result = " << r << " pool = " << io_ctx.get_pool_name() << std::endl;
+  cout << "open io_ctx result = " << r << " pool = " << io_ctx.get_pool_name()
+       << std::endl;
 
   ACLID id;
 
@@ -163,8 +170,8 @@ int main(int argc, const char **argv)
   cout << "id=" << id.id << std::endl;
 
   r = io_ctx.exec(oid, "acl", "get", bl, bl2);
-  cout << "exec(acl get) returned " << r
-       << " len=" << bl2.length() << std::endl;
+  cout << "exec(acl get) returned " << r << " len=" << bl2.length()
+       << std::endl;
   ObjectACLs oa;
   if (r >= 0) {
     auto iter = bl2.cbegin();
@@ -175,11 +182,11 @@ int main(int argc, const char **argv)
   bl.clear();
   oa.encode(bl);
   r = io_ctx.exec(oid, "acl", "set", bl, bl2);
-  cout << "exec(acl set) returned " << r
-       << " len=" << bl2.length() << std::endl;
+  cout << "exec(acl set) returned " << r << " len=" << bl2.length()
+       << std::endl;
 
-  const unsigned char *md5 = (const unsigned char *)bl2.c_str();
-  char md5_str[bl2.length()*2 + 1];
+  const unsigned char* md5 = (const unsigned char*)bl2.c_str();
+  char md5_str[bl2.length() * 2 + 1];
   buf_to_hex(md5, bl2.length(), md5_str);
   cout << "md5 result=" << md5_str << std::endl;
 
@@ -189,4 +196,3 @@ int main(int argc, const char **argv)
 
   return 0;
 }
-

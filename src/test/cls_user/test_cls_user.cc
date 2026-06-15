@@ -12,56 +12,67 @@
  * Foundation.  See file COPYING.
  */
 
-#include "cls/user/cls_user_client.h"
-#include "test/librados/test_cxx.h"
-#include "gtest/gtest.h"
-
 #include <optional>
 #include <system_error>
+
+#include "cls/user/cls_user_client.h"
+#include "gtest/gtest.h"
 #include "include/expected.hpp"
+#include "test/librados/test_cxx.h"
 
 // create/destroy a pool that's shared by all tests in the process
 struct RadosEnv : public ::testing::Environment {
   static std::optional<std::string> pool_name;
- public:
+
+public:
   static librados::Rados rados;
   static librados::IoCtx ioctx;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     // create pool
     std::string name = get_temp_pool_name();
     ASSERT_EQ("", create_one_pool_pp(name, rados));
     pool_name = name;
     ASSERT_EQ(rados.ioctx_create(name.c_str(), ioctx), 0);
   }
-  void TearDown() override {
+
+  void
+  TearDown() override
+  {
     ioctx.close();
     if (pool_name) {
       ASSERT_EQ(destroy_one_pool_pp(*pool_name, rados), 0);
     }
   }
 };
+
 std::optional<std::string> RadosEnv::pool_name;
 librados::Rados RadosEnv::rados;
 librados::IoCtx RadosEnv::ioctx;
 
-auto *const rados_env = ::testing::AddGlobalTestEnvironment(new RadosEnv);
+auto* const rados_env = ::testing::AddGlobalTestEnvironment(new RadosEnv);
 
 // test fixture with helper functions
 class ClsAccount : public ::testing::Test {
- protected:
+protected:
   librados::IoCtx& ioctx = RadosEnv::ioctx;
 
-  int add(const std::string& oid, const cls_user_account_resource& entry,
-          bool exclusive, uint32_t limit)
+  int
+  add(const std::string& oid,
+      const cls_user_account_resource& entry,
+      bool exclusive,
+      uint32_t limit)
   {
     librados::ObjectWriteOperation op;
     cls_user_account_resource_add(op, entry, exclusive, limit);
     return ioctx.operate(oid, &op);
   }
 
-  auto get(const std::string& oid, std::string_view name)
-      -> tl::expected<cls_user_account_resource, int>
+  auto
+  get(const std::string& oid,
+      std::string_view name) -> tl::expected<cls_user_account_resource, int>
   {
     librados::ObjectReadOperation op;
     cls_user_account_resource resource;
@@ -69,33 +80,44 @@ class ClsAccount : public ::testing::Test {
     cls_user_account_resource_get(op, name, resource, &r2);
 
     int r1 = ioctx.operate(oid, &op, nullptr);
-    if (r1 < 0) return tl::unexpected(r1);
-    if (r2 < 0) return tl::unexpected(r2);
+    if (r1 < 0)
+      return tl::unexpected(r1);
+    if (r2 < 0)
+      return tl::unexpected(r2);
     return resource;
   }
 
-  int rm(const std::string& oid, std::string_view name)
+  int
+  rm(const std::string& oid, std::string_view name)
   {
     librados::ObjectWriteOperation op;
     cls_user_account_resource_rm(op, name);
     return ioctx.operate(oid, &op);
   }
 
-  int list(const std::string& oid, std::string_view marker,
-           std::string_view path_prefix, uint32_t max_entries,
-           std::vector<cls_user_account_resource>& entries, bool& truncated,
-           std::string& next_marker, int& ret)
+  int
+  list(
+      const std::string& oid,
+      std::string_view marker,
+      std::string_view path_prefix,
+      uint32_t max_entries,
+      std::vector<cls_user_account_resource>& entries,
+      bool& truncated,
+      std::string& next_marker,
+      int& ret)
   {
     librados::ObjectReadOperation op;
-    cls_user_account_resource_list(op, marker, path_prefix, max_entries,
-                                   entries, &truncated, &next_marker, &ret);
+    cls_user_account_resource_list(
+        op, marker, path_prefix, max_entries, entries, &truncated, &next_marker,
+        &ret);
     return ioctx.operate(oid, &op, nullptr);
   }
 
-  auto list_all(const std::string& oid,
-                std::string_view path_prefix = "",
-                uint32_t max_chunk = 1000)
-    -> std::vector<cls_user_account_resource>
+  auto
+  list_all(
+      const std::string& oid,
+      std::string_view path_prefix = "",
+      uint32_t max_chunk = 1000) -> std::vector<cls_user_account_resource>
   {
     std::vector<cls_user_account_resource> all_entries;
     std::string marker;
@@ -105,26 +127,31 @@ class ClsAccount : public ::testing::Test {
       std::vector<cls_user_account_resource> entries;
       std::string next_marker;
       int r2 = 0;
-      int r1 = list(oid, marker, path_prefix, max_chunk,
-                    entries, truncated, next_marker, r2);
-      if (r1 < 0) throw std::system_error(r1, std::system_category());
-      if (r2 < 0) throw std::system_error(r2, std::system_category());
+      int r1 = list(
+          oid, marker, path_prefix, max_chunk, entries, truncated, next_marker,
+          r2);
+      if (r1 < 0)
+        throw std::system_error(r1, std::system_category());
+      if (r2 < 0)
+        throw std::system_error(r2, std::system_category());
       marker = std::move(next_marker);
-      std::move(entries.begin(), entries.end(),
-                std::back_inserter(all_entries));
+      std::move(entries.begin(), entries.end(), std::back_inserter(all_entries));
     }
     return all_entries;
   }
 };
 
-template <typename ...Args>
-std::vector<cls_user_account_resource> make_list(Args&& ...args)
+template <typename... Args>
+std::vector<cls_user_account_resource>
+make_list(Args&&... args)
 {
   return {std::forward<Args>(args)...};
 }
 
-bool operator==(const cls_user_account_resource& lhs,
-                const cls_user_account_resource& rhs)
+bool
+operator==(
+    const cls_user_account_resource& lhs,
+    const cls_user_account_resource& rhs)
 {
   if (lhs.name != rhs.name) {
     return false;
@@ -132,7 +159,9 @@ bool operator==(const cls_user_account_resource& lhs,
   return lhs.path == rhs.path;
   // ignore metadata
 }
-std::ostream& operator<<(std::ostream& out, const cls_user_account_resource& r)
+
+std::ostream&
+operator<<(std::ostream& out, const cls_user_account_resource& r)
 {
   return out << r.path << r.name;
 }

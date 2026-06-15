@@ -8,8 +8,8 @@ namespace librbd {
 namespace crypto {
 
 enum CipherMode {
-    CIPHER_MODE_ENC,
-    CIPHER_MODE_DEC,
+  CIPHER_MODE_ENC,
+  CIPHER_MODE_DEC,
 };
 
 } // namespace crypto

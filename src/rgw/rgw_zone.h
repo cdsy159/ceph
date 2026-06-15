@@ -4,11 +4,11 @@
 #pragma once
 
 #include <ostream>
-#include "rgw_zone_types.h"
+
 #include "rgw_common.h"
 #include "rgw_sal_fwd.h"
 #include "rgw_sync_policy.h"
-
+#include "rgw_zone_types.h"
 
 struct RGWZoneParams {
   std::string id;
@@ -46,23 +46,60 @@ struct RGWZoneParams {
   rgw_pool restore_pool;
 
   RGWZoneParams() {}
-  explicit RGWZoneParams(const std::string& _name) : name(_name){}
-  RGWZoneParams(const rgw_zone_id& _id, const std::string& _name) : id(_id.id), name(_name) {}
-  RGWZoneParams(const rgw_zone_id& _id, const std::string& _name, const std::string& _realm_id)
-    : id(_id.id), name(_name), realm_id(_realm_id) {}
 
-  const std::string& get_name() const { return name; }
-  const std::string& get_id() const { return id; }
+  explicit RGWZoneParams(const std::string& _name) :
+    name(_name)
+  {}
 
-  void set_name(const std::string& _name) { name = _name;}
-  void set_id(const std::string& _id) { id = _id;}
-  void clear_id() { id.clear(); }
+  RGWZoneParams(const rgw_zone_id& _id, const std::string& _name) :
+    id(_id.id), name(_name)
+  {}
 
-  rgw_pool get_pool(CephContext *cct) const;
+  RGWZoneParams(
+      const rgw_zone_id& _id,
+      const std::string& _name,
+      const std::string& _realm_id) :
+    id(_id.id), name(_name), realm_id(_realm_id)
+  {}
 
-  const std::string& get_compression_type(const rgw_placement_rule& placement_rule) const;
-  
-  void encode(bufferlist& bl) const {
+  const std::string&
+  get_name() const
+  {
+    return name;
+  }
+
+  const std::string&
+  get_id() const
+  {
+    return id;
+  }
+
+  void
+  set_name(const std::string& _name)
+  {
+    name = _name;
+  }
+
+  void
+  set_id(const std::string& _id)
+  {
+    id = _id;
+  }
+
+  void
+  clear_id()
+  {
+    id.clear();
+  }
+
+  rgw_pool get_pool(CephContext* cct) const;
+
+  const std::string& get_compression_type(
+      const rgw_placement_rule& placement_rule) const;
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(18, 1, bl);
     encode(domain_root, bl);
     encode(control_pool, bl);
@@ -105,7 +142,9 @@ struct RGWZoneParams {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(18, bl);
     decode(domain_root, bl);
     decode(control_pool, bl);
@@ -208,11 +247,16 @@ struct RGWZoneParams {
     }
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWZoneParams> generate_test_instances();
 
-  bool get_placement(const std::string& placement_id, RGWZonePlacementInfo *placement) const {
+  bool
+  get_placement(
+      const std::string& placement_id,
+      RGWZonePlacementInfo* placement) const
+  {
     auto iter = placement_pools.find(placement_id);
     if (iter == placement_pools.end()) {
       return false;
@@ -224,8 +268,14 @@ struct RGWZoneParams {
   /*
    * return data pool of the head object
    */
-  bool get_head_data_pool(const rgw_placement_rule& placement_rule, const rgw_obj& obj, rgw_pool* pool) const {
-    const rgw_data_placement_target& explicit_placement = obj.bucket.explicit_placement;
+  bool
+  get_head_data_pool(
+      const rgw_placement_rule& placement_rule,
+      const rgw_obj& obj,
+      rgw_pool* pool) const
+  {
+    const rgw_data_placement_target& explicit_placement =
+        obj.bucket.explicit_placement;
     if (!explicit_placement.data_pool.empty()) {
       if (!obj.in_extra_data) {
         *pool = explicit_placement.data_pool;
@@ -249,7 +299,9 @@ struct RGWZoneParams {
     return true;
   }
 
-  bool valid_placement(const rgw_placement_rule& rule) const {
+  bool
+  valid_placement(const rgw_placement_rule& rule) const
+  {
     auto iter = placement_pools.find(rule.name);
     if (iter == placement_pools.end()) {
       return false;
@@ -276,7 +328,7 @@ struct RGWZoneGroup {
   std::list<std::string> hostnames_s3website;
   // TODO: Maybe convert hostnames to a map<std::string,std::list<std::string>> for
   // endpoint_type->hostnames
-/*
+  /*
 20:05 < _robbat21irssi> maybe I do something like: if (hostname_map.empty()) { populate all map keys from hostnames; };
 20:05 < _robbat21irssi> but that's a later compatability migration planning bit
 20:06 < yehudasa> more like if (!hostnames.empty()) {
@@ -288,32 +340,77 @@ struct RGWZoneGroup {
 20:08 < yehudasa> yeah, probably
 20:08 < _robbat21irssi> s3, s3website, swift, swith_auth, swift_website
 */
-  std::map<std::string, std::list<std::string> > api_hostname_map;
-  std::map<std::string, std::list<std::string> > api_endpoints_map;
+  std::map<std::string, std::list<std::string>> api_hostname_map;
+  std::map<std::string, std::list<std::string>> api_endpoints_map;
 
   std::string realm_id;
 
   rgw_sync_policy_info sync_policy;
   rgw::zone_features::set enabled_features;
-  CephContext *cct{nullptr};
+  CephContext* cct{nullptr};
 
-  RGWZoneGroup(): is_master(false){}
-  RGWZoneGroup(const std::string &_id, const std::string &_name):id(_id), name(_name) {}
-  explicit RGWZoneGroup(const std::string &_name):name(_name) {}
-  RGWZoneGroup(const std::string &_name, bool _is_master, const std::string& _realm_id,
-               const std::list<std::string>& _endpoints)
-    : name(_name), endpoints(_endpoints), is_master(_is_master), realm_id(_realm_id) {}
+  RGWZoneGroup() :
+    is_master(false)
+  {}
 
-  const std::string& get_name() const { return name; }
-  const std::string& get_id() const { return id; }
+  RGWZoneGroup(const std::string& _id, const std::string& _name) :
+    id(_id), name(_name)
+  {}
 
-  void set_name(const std::string& _name) { name = _name;}
-  void set_id(const std::string& _id) { id = _id;}
-  void clear_id() { id.clear(); }
+  explicit RGWZoneGroup(const std::string& _name) :
+    name(_name)
+  {}
 
-  bool is_master_zonegroup() const { return is_master;}
+  RGWZoneGroup(
+      const std::string& _name,
+      bool _is_master,
+      const std::string& _realm_id,
+      const std::list<std::string>& _endpoints) :
+    name(_name),
+    endpoints(_endpoints),
+    is_master(_is_master),
+    realm_id(_realm_id)
+  {}
 
-  void encode(bufferlist& bl) const {
+  const std::string&
+  get_name() const
+  {
+    return name;
+  }
+
+  const std::string&
+  get_id() const
+  {
+    return id;
+  }
+
+  void
+  set_name(const std::string& _name)
+  {
+    name = _name;
+  }
+
+  void
+  set_id(const std::string& _id)
+  {
+    id = _id;
+  }
+
+  void
+  clear_id()
+  {
+    id.clear();
+  }
+
+  bool
+  is_master_zonegroup() const
+  {
+    return is_master;
+  }
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(6, 1, bl);
     encode(name, bl);
     encode(api_name, bl);
@@ -339,7 +436,9 @@ struct RGWZoneGroup {
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(6, bl);
     decode(name, bl);
     decode(api_name, bl);
@@ -356,14 +455,14 @@ struct RGWZoneGroup {
       decode(hostnames_s3website, bl);
     }
     if (struct_v >= 4) {
-    {
-      // these used to be wrapped by RGWSystemMetaObj::decode(),
-      // so the extra DECODE_START/DECODE_FINISH are preserved
-      DECODE_START(1, bl);
-      decode(id, bl);
-      decode(name, bl);
-      DECODE_FINISH(bl);
-    }
+      {
+        // these used to be wrapped by RGWSystemMetaObj::decode(),
+        // so the extra DECODE_START/DECODE_FINISH are preserved
+        DECODE_START(1, bl);
+        decode(id, bl);
+        decode(name, bl);
+        DECODE_FINISH(bl);
+      }
       decode(realm_id, bl);
     } else {
       id = name;
@@ -378,20 +477,21 @@ struct RGWZoneGroup {
   }
 
   int equals(const std::string& other_zonegroup) const;
-  rgw_pool get_pool(CephContext *cct) const;
+  rgw_pool get_pool(CephContext* cct) const;
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWZoneGroup> generate_test_instances();
 
-  bool supports(std::string_view feature) const {
+  bool
+  supports(std::string_view feature) const
+  {
     return enabled_features.contains(feature);
   }
 };
 WRITE_CLASS_ENCODER(RGWZoneGroup)
 
-struct RGWPeriodMap
-{
+struct RGWPeriodMap {
   std::string id;
   std::map<std::string, RGWZoneGroup> zonegroups;
   std::map<std::string, RGWZoneGroup> zonegroups_by_api;
@@ -402,12 +502,14 @@ struct RGWPeriodMap
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& bl);
 
-  int update(const RGWZoneGroup& zonegroup, CephContext *cct);
+  int update(const RGWZoneGroup& zonegroup, CephContext* cct);
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 
-  void reset() {
+  void
+  reset()
+  {
     zonegroups.clear();
     zonegroups_by_api.clear();
     master_zonegroup.clear();
@@ -415,24 +517,27 @@ struct RGWPeriodMap
 
   uint32_t get_zone_short_id(const std::string& zone_id) const;
 
-  bool find_zone_by_id(const rgw_zone_id& zone_id,
-                       RGWZoneGroup *zonegroup,
-                       RGWZone *zone) const;
-  bool find_zone_by_name(const std::string& zone_id,
-                       RGWZoneGroup *zonegroup,
-                       RGWZone *zone) const;
+  bool find_zone_by_id(
+      const rgw_zone_id& zone_id,
+      RGWZoneGroup* zonegroup,
+      RGWZone* zone) const;
+  bool find_zone_by_name(
+      const std::string& zone_id,
+      RGWZoneGroup* zonegroup,
+      RGWZone* zone) const;
 };
 WRITE_CLASS_ENCODER(RGWPeriodMap)
 
-struct RGWPeriodConfig
-{
+struct RGWPeriodConfig {
   RGWQuota quota;
   RGWRateLimitInfo user_ratelimit;
   RGWRateLimitInfo bucket_ratelimit;
   // rate limit unauthenticated user
   RGWRateLimitInfo anon_ratelimit;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(2, 1, bl);
     encode(quota.bucket_quota, bl);
     encode(quota.user_quota, bl);
@@ -442,7 +547,9 @@ struct RGWPeriodConfig
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(2, bl);
     decode(quota.bucket_quota, bl);
     decode(quota.user_quota, bl);
@@ -454,17 +561,19 @@ struct RGWPeriodConfig
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
 };
 WRITE_CLASS_ENCODER(RGWPeriodConfig)
 
 class RGWRealm;
 class RGWPeriod;
-namespace rgw {class SiteConfig;}
 
-class RGWRealm
-{
+namespace rgw {
+class SiteConfig;
+}
+
+class RGWRealm {
 public:
   std::string id;
   std::string name;
@@ -474,16 +583,44 @@ public:
 
 public:
   RGWRealm() {}
-  RGWRealm(const std::string& _id, const std::string& _name = "") : id(_id), name(_name) {}
 
-  const std::string& get_name() const { return name; }
-  const std::string& get_id() const { return id; }
+  RGWRealm(const std::string& _id, const std::string& _name = "") :
+    id(_id), name(_name)
+  {}
 
-  void set_name(const std::string& _name) { name = _name;}
-  void set_id(const std::string& _id) { id = _id;}
-  void clear_id() { id.clear(); }
+  const std::string&
+  get_name() const
+  {
+    return name;
+  }
 
-  void encode(bufferlist& bl) const {
+  const std::string&
+  get_id() const
+  {
+    return id;
+  }
+
+  void
+  set_name(const std::string& _name)
+  {
+    name = _name;
+  }
+
+  void
+  set_id(const std::string& _id)
+  {
+    id = _id;
+  }
+
+  void
+  clear_id()
+  {
+    id.clear();
+  }
+
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     {
       // these used to be wrapped by RGWSystemMetaObj::encode(),
@@ -498,7 +635,9 @@ public:
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     {
       // these used to be wrapped by RGWSystemMetaObj::decode(),
@@ -515,55 +654,69 @@ public:
 
   // TODO: use ConfigStore for watch/notify,
   // After refactoring RGWRealmWatcher and RGWRealmReloader, get_pool and get_info_oid_prefix will be removed.
-  rgw_pool get_pool(CephContext *cct) const;
+  rgw_pool get_pool(CephContext* cct) const;
   const std::string& get_info_oid_prefix(bool old_format = false) const;
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWRealm> generate_test_instances();
 
-  const std::string& get_current_period() const {
+  const std::string&
+  get_current_period() const
+  {
     return current_period;
   }
-  void clear_current_period_and_epoch() {
+
+  void
+  clear_current_period_and_epoch()
+  {
     current_period.clear();
     epoch = 0;
   }
-  epoch_t get_epoch() const { return epoch; }
+
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
 
   std::string get_control_oid() const;
 
-  int find_zone(const DoutPrefixProvider *dpp,
-                const rgw_zone_id& zid,
-                RGWPeriod *pperiod,
-                RGWZoneGroup *pzonegroup,
-                bool *pfound,
-                rgw::sal::ConfigStore* cfgstore,
-                optional_yield y) const;
+  int find_zone(
+      const DoutPrefixProvider* dpp,
+      const rgw_zone_id& zid,
+      RGWPeriod* pperiod,
+      RGWZoneGroup* pzonegroup,
+      bool* pfound,
+      rgw::sal::ConfigStore* cfgstore,
+      optional_yield y) const;
 };
 WRITE_CLASS_ENCODER(RGWRealm)
 
 struct RGWPeriodLatestEpochInfo {
   epoch_t epoch = 0;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(epoch, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(epoch, bl);
     DECODE_FINISH(bl);
   }
 
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWPeriodLatestEpochInfo> generate_test_instances();
 };
 WRITE_CLASS_ENCODER(RGWPeriodLatestEpochInfo)
-
 
 /*
  * The RGWPeriod object contains the entire configuration of a
@@ -585,8 +738,7 @@ WRITE_CLASS_ENCODER(RGWPeriodLatestEpochInfo)
  * RGWPeriod::predecessor_uuid field, thus creating a "linked
  * list"-like structure of RGWPeriods back to the cluster's creation.
  */
-class RGWPeriod
-{
+class RGWPeriod {
 public:
   std::string id; //< a uuid
   epoch_t epoch{0};
@@ -601,85 +753,168 @@ public:
   epoch_t realm_epoch{1}; //< realm epoch when period was made current
 
   // gather the metadata sync status for each shard; only for use on master zone
-  int update_sync_status(const DoutPrefixProvider *dpp, 
-                         rgw::sal::Driver* driver,
-                         const RGWPeriod &current_period,
-                         std::ostream& error_stream, bool force_if_stale);
+  int update_sync_status(
+      const DoutPrefixProvider* dpp,
+      rgw::sal::Driver* driver,
+      const RGWPeriod& current_period,
+      std::ostream& error_stream,
+      bool force_if_stale);
 
 public:
   RGWPeriod() {}
 
-  explicit RGWPeriod(const std::string& period_id, epoch_t _epoch = 0)
-    : id(period_id), epoch(_epoch) {}
+  explicit RGWPeriod(const std::string& period_id, epoch_t _epoch = 0) :
+    id(period_id), epoch(_epoch)
+  {}
 
-  const std::string& get_id() const { return id; }
-  epoch_t get_epoch() const { return epoch; }
-  epoch_t get_realm_epoch() const { return realm_epoch; }
-  const std::string& get_predecessor() const { return predecessor_uuid; }
-  const rgw_zone_id& get_master_zone() const { return master_zone; }
-  const std::string& get_master_zonegroup() const { return master_zonegroup; }
-  const std::string& get_realm() const { return realm_id; }
-  const RGWPeriodMap& get_map() const { return period_map; }
-  RGWPeriodConfig& get_config() { return period_config; }
-  const RGWPeriodConfig& get_config() const { return period_config; }
-  const std::vector<std::string>& get_sync_status() const { return sync_status; }
-  rgw_pool get_pool(CephContext *cct) const;
+  const std::string&
+  get_id() const
+  {
+    return id;
+  }
+
+  epoch_t
+  get_epoch() const
+  {
+    return epoch;
+  }
+
+  epoch_t
+  get_realm_epoch() const
+  {
+    return realm_epoch;
+  }
+
+  const std::string&
+  get_predecessor() const
+  {
+    return predecessor_uuid;
+  }
+
+  const rgw_zone_id&
+  get_master_zone() const
+  {
+    return master_zone;
+  }
+
+  const std::string&
+  get_master_zonegroup() const
+  {
+    return master_zonegroup;
+  }
+
+  const std::string&
+  get_realm() const
+  {
+    return realm_id;
+  }
+
+  const RGWPeriodMap&
+  get_map() const
+  {
+    return period_map;
+  }
+
+  RGWPeriodConfig&
+  get_config()
+  {
+    return period_config;
+  }
+
+  const RGWPeriodConfig&
+  get_config() const
+  {
+    return period_config;
+  }
+
+  const std::vector<std::string>&
+  get_sync_status() const
+  {
+    return sync_status;
+  }
+
+  rgw_pool get_pool(CephContext* cct) const;
   const std::string& get_info_oid_prefix() const;
 
-  void set_user_quota(RGWQuotaInfo& user_quota) {
+  void
+  set_user_quota(RGWQuotaInfo& user_quota)
+  {
     period_config.quota.user_quota = user_quota;
   }
 
-  void set_bucket_quota(RGWQuotaInfo& bucket_quota) {
+  void
+  set_bucket_quota(RGWQuotaInfo& bucket_quota)
+  {
     period_config.quota.bucket_quota = bucket_quota;
   }
 
-  void set_id(const std::string& _id) {
+  void
+  set_id(const std::string& _id)
+  {
     this->id = _id;
     period_map.id = _id;
   }
-  void set_epoch(epoch_t epoch) { this->epoch = epoch; }
-  void set_realm_epoch(epoch_t epoch) { realm_epoch = epoch; }
 
-  void set_predecessor(const std::string& predecessor)
+  void
+  set_epoch(epoch_t epoch)
+  {
+    this->epoch = epoch;
+  }
+
+  void
+  set_realm_epoch(epoch_t epoch)
+  {
+    realm_epoch = epoch;
+  }
+
+  void
+  set_predecessor(const std::string& predecessor)
   {
     predecessor_uuid = predecessor;
   }
 
-  void set_realm_id(const std::string& _realm_id) {
+  void
+  set_realm_id(const std::string& _realm_id)
+  {
     realm_id = _realm_id;
   }
 
-  int get_zonegroup(RGWZoneGroup& zonegroup,
-		    const std::string& zonegroup_id) const;
+  int get_zonegroup(
+      RGWZoneGroup& zonegroup,
+      const std::string& zonegroup_id) const;
 
-  bool is_single_zonegroup() const
+  bool
+  is_single_zonegroup() const
   {
-      return (period_map.zonegroups.size() <= 1);
+    return (period_map.zonegroups.size() <= 1);
   }
 
   /*
     returns true if there are several zone groups with a least one zone
    */
-  bool is_multi_zonegroups_with_zones() const
+  bool
+  is_multi_zonegroups_with_zones() const
   {
     int count = 0;
-    for (const auto& zg:  period_map.zonegroups) {
+    for (const auto& zg : period_map.zonegroups) {
       if (zg.second.zones.size() > 0) {
-	if (count++ > 0) {
-	  return true;
-	}
+        if (count++ > 0) {
+          return true;
+        }
       }
     }
     return false;
   }
 
-  bool find_zone(const DoutPrefixProvider *dpp,
-                const rgw_zone_id& zid,
-                RGWZoneGroup *pzonegroup,
-                optional_yield y) const;
+  bool find_zone(
+      const DoutPrefixProvider* dpp,
+      const rgw_zone_id& zid,
+      RGWZoneGroup* pzonegroup,
+      optional_yield y) const;
 
-  void encode(bufferlist& bl) const {
+  void
+  encode(bufferlist& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(id, bl);
     encode(epoch, bl);
@@ -696,7 +931,9 @@ public:
     ENCODE_FINISH(bl);
   }
 
-  void decode(bufferlist::const_iterator& bl) {
+  void
+  decode(bufferlist::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(id, bl);
     decode(epoch, bl);
@@ -712,11 +949,14 @@ public:
     decode(realm_name, bl);
     DECODE_FINISH(bl);
   }
-  void dump(Formatter *f) const;
-  void decode_json(JSONObj *obj);
+
+  void dump(Formatter* f) const;
+  void decode_json(JSONObj* obj);
   static std::list<RGWPeriod> generate_test_instances();
 
-  static std::string get_staging_id(const std::string& realm_id) {
+  static std::string
+  get_staging_id(const std::string& realm_id)
+  {
     return realm_id + ":staging";
   }
 };
@@ -726,35 +966,49 @@ namespace rgw {
 
 /// Look up a realm by its id. If no id is given, look it up by name.
 /// If no name is given, fall back to the cluster's default realm.
-int read_realm(const DoutPrefixProvider* dpp, optional_yield y,
-               sal::ConfigStore* cfgstore,
-               std::string_view realm_id,
-               std::string_view realm_name,
-               RGWRealm& info,
-               std::unique_ptr<sal::RealmWriter>* writer = nullptr);
+int read_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    std::string_view realm_id,
+    std::string_view realm_name,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer = nullptr);
 
 /// Create a realm and its initial period. If the info.id is empty, a
 /// random uuid will be generated.
-int create_realm(const DoutPrefixProvider* dpp, optional_yield y,
-                 sal::ConfigStore* cfgstore, bool exclusive,
-                 RGWRealm& info,
-                 std::unique_ptr<sal::RealmWriter>* writer = nullptr);
+int create_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    bool exclusive,
+    RGWRealm& info,
+    std::unique_ptr<sal::RealmWriter>* writer = nullptr);
 
 /// Set the given realm as the cluster's default realm.
-int set_default_realm(const DoutPrefixProvider* dpp, optional_yield y,
-                      sal::ConfigStore* cfgstore, const RGWRealm& info,
-                      bool exclusive = false);
+int set_default_realm(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    const RGWRealm& info,
+    bool exclusive = false);
 
 /// Update the current_period of an existing realm.
-int realm_set_current_period(const DoutPrefixProvider* dpp, optional_yield y,
-                             sal::ConfigStore* cfgstore,
-                             sal::RealmWriter& writer, RGWRealm& realm,
-                             const RGWPeriod& period);
+int realm_set_current_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    sal::RealmWriter& writer,
+    RGWRealm& realm,
+    const RGWPeriod& period);
 
 /// Overwrite the local zonegroup and period config objects with the new
 /// configuration contained in the given period.
-int reflect_period(const DoutPrefixProvider* dpp, optional_yield y,
-                   sal::ConfigStore* cfgstore, const RGWPeriod& info);
+int reflect_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    const RGWPeriod& info);
 
 /// Return the staging period id for the given realm.
 std::string get_staging_period_id(std::string_view realm_id);
@@ -765,128 +1019,191 @@ std::string get_staging_period_id(std::string_view realm_id);
 void fork_period(const DoutPrefixProvider* dpp, RGWPeriod& info);
 
 /// Read all zonegroups in the period's realm and add them to the period.
-int update_period(const DoutPrefixProvider* dpp, optional_yield y,
-                  sal::ConfigStore* cfgstore, RGWPeriod& info);
+int update_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    RGWPeriod& info);
 
 /// Validates the given 'staging' period and tries to commit it as the
 /// realm's new current period.
-int commit_period(const DoutPrefixProvider* dpp, optional_yield y,
-                  sal::ConfigStore* cfgstore, sal::Driver* driver,
-                  RGWRealm& realm, sal::RealmWriter& realm_writer,
-                  const RGWPeriod& current_period,
-                  RGWPeriod& info, std::ostream& error_stream,
-                  bool force_if_stale, const rgw::SiteConfig& site);
+int commit_period(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    sal::Driver* driver,
+    RGWRealm& realm,
+    sal::RealmWriter& realm_writer,
+    const RGWPeriod& current_period,
+    RGWPeriod& info,
+    std::ostream& error_stream,
+    bool force_if_stale,
+    const rgw::SiteConfig& site);
 
 
 /// Look up a zonegroup by its id. If no id is given, look it up by name.
 /// If no name is given, fall back to the cluster's default zonegroup.
-int read_zonegroup(const DoutPrefixProvider* dpp, optional_yield y,
-                   sal::ConfigStore* cfgstore,
-                   std::string_view zonegroup_id,
-                   std::string_view zonegroup_name,
-                   RGWZoneGroup& info,
-                   std::unique_ptr<sal::ZoneGroupWriter>* writer = nullptr);
+int read_zonegroup(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    std::string_view zonegroup_id,
+    std::string_view zonegroup_name,
+    RGWZoneGroup& info,
+    std::unique_ptr<sal::ZoneGroupWriter>* writer = nullptr);
 
 /// Initialize and create the given zonegroup. If the given info.id is empty,
 /// a random uuid will be generated. May fail with -EEXIST.
-int create_zonegroup(const DoutPrefixProvider* dpp, optional_yield y,
-                     sal::ConfigStore* cfgstore, bool exclusive,
-                     RGWZoneGroup& info);
+int create_zonegroup(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    bool exclusive,
+    RGWZoneGroup& info);
 
 /// Set the given zonegroup as its realm's default zonegroup.
-int set_default_zonegroup(const DoutPrefixProvider* dpp, optional_yield y,
-                          sal::ConfigStore* cfgstore, const RGWZoneGroup& info,
-                          bool exclusive = false);
+int set_default_zonegroup(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    const RGWZoneGroup& info,
+    bool exclusive = false);
 
 /// Return an endpoint from the zonegroup or its master zone.
 std::string get_zonegroup_endpoint(const RGWZoneGroup& info);
 
 /// Add a zone to the zonegroup, or update an existing zone entry.
-int add_zone_to_group(const DoutPrefixProvider* dpp,
-                      RGWZoneGroup& zonegroup,
-                      const RGWZoneParams& zone_params,
-                      const bool *pis_master, const bool *pread_only,
-                      const std::list<std::string>& endpoints,
-                      const std::string *ptier_type,
-                      const bool *psync_from_all,
-                      const std::list<std::string>& sync_from,
-                      const std::list<std::string>& sync_from_rm,
-                      const std::string *predirect_zone,
-                      std::optional<int> bucket_index_max_shards,
-                      const rgw::zone_features::set& enable_features,
-                      const rgw::zone_features::set& disable_features);
+int add_zone_to_group(
+    const DoutPrefixProvider* dpp,
+    RGWZoneGroup& zonegroup,
+    const RGWZoneParams& zone_params,
+    const bool* pis_master,
+    const bool* pread_only,
+    const std::list<std::string>& endpoints,
+    const std::string* ptier_type,
+    const bool* psync_from_all,
+    const std::list<std::string>& sync_from,
+    const std::list<std::string>& sync_from_rm,
+    const std::string* predirect_zone,
+    std::optional<int> bucket_index_max_shards,
+    const rgw::zone_features::set& enable_features,
+    const rgw::zone_features::set& disable_features);
 
 /// Remove a zone by id from its zonegroup, promoting a new master zone if
 /// necessary.
-int remove_zone_from_group(const DoutPrefixProvider* dpp,
-                           RGWZoneGroup& info,
-                           const rgw_zone_id& zone_id);
+int remove_zone_from_group(
+    const DoutPrefixProvider* dpp,
+    RGWZoneGroup& info,
+    const rgw_zone_id& zone_id);
 
 
 /// Look up a zone by its id. If no id is given, look it up by name. If no name
 /// is given, fall back to the realm's default zone.
-int read_zone(const DoutPrefixProvider* dpp, optional_yield y,
-              sal::ConfigStore* cfgstore,
-              std::string_view zone_id,
-              std::string_view zone_name,
-              RGWZoneParams& info,
-              std::unique_ptr<sal::ZoneWriter>* writer = nullptr);
+int read_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    std::string_view zone_id,
+    std::string_view zone_name,
+    RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer = nullptr);
 
 /// Initialize and create a new zone. If the given info.id is empty, a random
 /// uuid will be generated. Pool names are initialized with the zone name as a
 /// prefix. If any pool names conflict with existing zones, a random suffix is
 /// added.
-int create_zone(const DoutPrefixProvider* dpp, optional_yield y,
-                sal::ConfigStore* cfgstore, bool exclusive,
-                RGWZoneParams& info,
-                std::unique_ptr<sal::ZoneWriter>* writer = nullptr);
+int create_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    bool exclusive,
+    RGWZoneParams& info,
+    std::unique_ptr<sal::ZoneWriter>* writer = nullptr);
 
 /// Initialize the zone's pool names using the zone name as a prefix. If a pool
 /// name conflicts with an existing zone's pool, add a unique suffix.
-int init_zone_pool_names(const DoutPrefixProvider *dpp, optional_yield y,
-                         const std::set<rgw_pool>& pools, RGWZoneParams& info);
+int init_zone_pool_names(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    const std::set<rgw_pool>& pools,
+    RGWZoneParams& info);
 
 /// Set the given zone as its realm's default zone.
-int set_default_zone(const DoutPrefixProvider* dpp, optional_yield y,
-                      sal::ConfigStore* cfgstore, const RGWZoneParams& info,
-                      bool exclusive = false);
+int set_default_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    const RGWZoneParams& info,
+    bool exclusive = false);
 
 /// Delete an existing zone and remove it from any zonegroups that contain it.
-int delete_zone(const DoutPrefixProvider* dpp, optional_yield y,
-                sal::ConfigStore* cfgstore, const RGWZoneParams& info,
-                sal::ZoneWriter& writer);
+int delete_zone(
+    const DoutPrefixProvider* dpp,
+    optional_yield y,
+    sal::ConfigStore* cfgstore,
+    const RGWZoneParams& info,
+    sal::ZoneWriter& writer);
 
 /// Return the zone placement corresponding to the given rule, or nullptr.
-auto find_zone_placement(const DoutPrefixProvider* dpp,
-                         const RGWZoneParams& info,
-                         const rgw_placement_rule& rule)
-    -> const RGWZonePlacementInfo*;
-
+auto find_zone_placement(
+    const DoutPrefixProvider* dpp,
+    const RGWZoneParams& info,
+    const rgw_placement_rule& rule) -> const RGWZonePlacementInfo*;
 
 /// Global state about the site configuration. Initialized once during
 /// startup and may be reinitialized by RGWRealmReloader, but is otherwise
 /// immutable at runtime.
 class SiteConfig {
- public:
+public:
   /// Return the local zone params.
-  const RGWZoneParams& get_zone_params() const { return zone_params; }
+  const RGWZoneParams&
+  get_zone_params() const
+  {
+    return zone_params;
+  }
+
   /// Return the current realm configuration, if a realm is present.
-  const std::optional<RGWRealm>& get_realm() const { return realm; }
+  const std::optional<RGWRealm>&
+  get_realm() const
+  {
+    return realm;
+  }
+
   /// Return the current period configuration, if a period is present.
-  const std::optional<RGWPeriod>& get_period() const { return period; }
+  const std::optional<RGWPeriod>&
+  get_period() const
+  {
+    return period;
+  }
+
   /// Return the zonegroup configuration.
-  const RGWZoneGroup& get_zonegroup() const { return *zonegroup; }
+  const RGWZoneGroup&
+  get_zonegroup() const
+  {
+    return *zonegroup;
+  }
+
   /// Return the public zone configuration.
-  const RGWZone& get_zone() const { return *zone; }
+  const RGWZone&
+  get_zone() const
+  {
+    return *zone;
+  }
+
   /// Return true if the local zone can write metadata.
-  bool is_meta_master() const {
+  bool
+  is_meta_master() const
+  {
     return zonegroup->is_master && zonegroup->master_zone == zone->id;
   }
 
   /// Load or reload the multisite configuration from storage. This is not
   /// thread-safe, so requires careful coordination with the RGWRealmReloader.
-  int load(const DoutPrefixProvider* dpp, optional_yield y,
-           sal::ConfigStore* cfgstore, bool force_local_zonegroup = false);
+  int load(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      sal::ConfigStore* cfgstore,
+      bool force_local_zonegroup = false);
 
   /// Create a fake site config to be used by tests and similar, just
   /// to have a site config.
@@ -898,13 +1215,18 @@ class SiteConfig {
 
   virtual ~SiteConfig() = default;
 
- private:
-  int load_period_zonegroup(const DoutPrefixProvider* dpp, optional_yield y,
-                            sal::ConfigStore* cfgstore, const RGWRealm& realm,
-                            const rgw_zone_id& zone_id);
-  int load_local_zonegroup(const DoutPrefixProvider* dpp, optional_yield y,
-                           sal::ConfigStore* cfgstore,
-                           const rgw_zone_id& zone_id);
+private:
+  int load_period_zonegroup(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      sal::ConfigStore* cfgstore,
+      const RGWRealm& realm,
+      const rgw_zone_id& zone_id);
+  int load_local_zonegroup(
+      const DoutPrefixProvider* dpp,
+      optional_yield y,
+      sal::ConfigStore* cfgstore,
+      const rgw_zone_id& zone_id);
 
   RGWZoneParams zone_params;
   std::optional<RGWRealm> realm;
@@ -913,7 +1235,6 @@ class SiteConfig {
   const RGWZoneGroup* zonegroup = nullptr;
   const RGWZone* zone = nullptr;
 };
-
 
 /// Test whether all zonegroups in the realm support the given zone feature.
 bool all_zonegroups_support(const SiteConfig& site, std::string_view feature);

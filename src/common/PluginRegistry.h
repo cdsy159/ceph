@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,49 +21,52 @@
 
 #include <map>
 #include <string>
+
 #include "common/ceph_mutex.h"
 #include "include/common_fwd.h"
 
 extern "C" {
-  const char *__ceph_plugin_version();
-  int __ceph_plugin_init(CephContext *cct,
-			 const std::string& type,
-			 const std::string& name);
+const char* __ceph_plugin_version();
+int __ceph_plugin_init(
+    CephContext* cct,
+    const std::string& type,
+    const std::string& name);
 }
 
 namespace ceph {
 
-  class Plugin {
-  public:
-    void *library;
-    CephContext *cct;
+class Plugin {
+public:
+  void* library;
+  CephContext* cct;
 
-    explicit Plugin(CephContext *cct) : library(NULL), cct(cct) {}
-    virtual ~Plugin() {}
-  };
+  explicit Plugin(CephContext* cct) :
+    library(NULL), cct(cct)
+  {}
 
-  class PluginRegistry {
-  public:
-    CephContext *cct;
-    ceph::mutex lock = ceph::make_mutex("PluginRegistery::lock");
-    bool loading;
-    bool disable_dlclose;
-    std::map<std::string,std::map<std::string,Plugin*> > plugins;
+  virtual ~Plugin() {}
+};
 
-    explicit PluginRegistry(CephContext *cct);
-    ~PluginRegistry();
+class PluginRegistry {
+public:
+  CephContext* cct;
+  ceph::mutex lock = ceph::make_mutex("PluginRegistery::lock");
+  bool loading;
+  bool disable_dlclose;
+  std::map<std::string, std::map<std::string, Plugin*>> plugins;
 
-    int add(const std::string& type, const std::string& name,
-	    Plugin *factory);
-    int remove(const std::string& type, const std::string& name);
-    Plugin *get(const std::string& type, const std::string& name);
-    Plugin *get_with_load(const std::string& type, const std::string& name);
+  explicit PluginRegistry(CephContext* cct);
+  ~PluginRegistry();
 
-    int load(const std::string& type,
-	     const std::string& name);
-    int preload();
-    int preload(const std::string& type);
-  };
-}
+  int add(const std::string& type, const std::string& name, Plugin* factory);
+  int remove(const std::string& type, const std::string& name);
+  Plugin* get(const std::string& type, const std::string& name);
+  Plugin* get_with_load(const std::string& type, const std::string& name);
+
+  int load(const std::string& type, const std::string& name);
+  int preload();
+  int preload(const std::string& type);
+};
+} // namespace ceph
 
 #endif

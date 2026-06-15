@@ -23,21 +23,30 @@
 
 class ELid : public LogEvent, public SegmentBoundary {
 public:
-  ELid() : LogEvent(EVENT_LID) {}
-  ELid(LogSegment::seq_t _seq) : LogEvent(EVENT_SEGMENT), SegmentBoundary(_seq) {}
+  ELid() :
+    LogEvent(EVENT_LID)
+  {}
 
-  bool is_major_segment_boundary() const override {
+  ELid(LogSegment::seq_t _seq) :
+    LogEvent(EVENT_SEGMENT), SegmentBoundary(_seq)
+  {}
+
+  bool
+  is_major_segment_boundary() const override
+  {
     return true;
   }
 
-  void print(std::ostream& out) const override {
+  void
+  print(std::ostream& out) const override
+  {
     out << "ELid(" << seq << ")";
   }
 
   void encode(bufferlist& bl, uint64_t features) const override;
   void decode(bufferlist::const_iterator& bl) override;
-  void dump(Formatter *f) const override;
-  void replay(MDSRank *mds) override;
+  void dump(Formatter* f) const override;
+  void replay(MDSRank* mds) override;
   static std::list<ELid> generate_test_instances();
 };
 WRITE_CLASS_ENCODER_FEATURES(ELid)

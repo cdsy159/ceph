@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,9 +18,9 @@
 #define CEPH_MMONELECTION_H
 
 #include "common/ceph_releases.h"
-#include "msg/Message.h"
 #include "mon/MonMap.h"
 #include "mon/mon_types.h"
+#include "msg/Message.h"
 
 class MMonElection final : public Message {
 private:
@@ -29,16 +29,25 @@ private:
 
 public:
   static constexpr int OP_PROPOSE = 1;
-  static constexpr int OP_ACK     = 2;
-  static constexpr int OP_NAK     = 3;
+  static constexpr int OP_ACK = 2;
+  static constexpr int OP_NAK = 3;
   static constexpr int OP_VICTORY = 4;
-  static const char *get_opname(int o) {
+
+  static const char*
+  get_opname(int o)
+  {
     switch (o) {
-    case OP_PROPOSE: return "propose";
-    case OP_ACK: return "ack";
-    case OP_NAK: return "nak";
-    case OP_VICTORY: return "victory";
-    default: ceph_abort(); return 0;
+    case OP_PROPOSE:
+      return "propose";
+    case OP_ACK:
+      return "ack";
+    case OP_NAK:
+      return "nak";
+    case OP_VICTORY:
+      return "victory";
+    default:
+      ceph_abort();
+      return 0;
     }
   }
 
@@ -53,36 +62,52 @@ public:
   ceph::buffer::list sharing_bl;
   ceph::buffer::list scoring_bl;
   uint8_t strategy;
-  std::map<std::string,std::string> metadata;
-  
-  MMonElection() : Message{MSG_MON_ELECTION, HEAD_VERSION, COMPAT_VERSION},
-    op(0), epoch(0),
+  std::map<std::string, std::string> metadata;
+
+  MMonElection() :
+    Message{MSG_MON_ELECTION, HEAD_VERSION, COMPAT_VERSION},
+    op(0),
+    epoch(0),
     quorum_features(0),
     mon_features(0),
     strategy(0)
-  { }
+  {}
 
-  MMonElection(int o, epoch_t e, const bufferlist& bl, uint8_t s, MonMap *m)
-    : Message{MSG_MON_ELECTION, HEAD_VERSION, COMPAT_VERSION},
-      fsid(m->fsid), op(o), epoch(e),
-      quorum_features(0),
-      mon_features(0), scoring_bl(bl), strategy(s)
+  MMonElection(int o, epoch_t e, const bufferlist& bl, uint8_t s, MonMap* m) :
+    Message{MSG_MON_ELECTION, HEAD_VERSION, COMPAT_VERSION},
+    fsid(m->fsid),
+    op(o),
+    epoch(e),
+    quorum_features(0),
+    mon_features(0),
+    scoring_bl(bl),
+    strategy(s)
   {
     // encode using full feature set; we will reencode for dest later,
     // if necessary
     m->encode(monmap_bl, CEPH_FEATURES_ALL);
   }
+
 private:
   ~MMonElection() final {}
 
 public:
-  std::string_view get_type_name() const override { return "election"; }
-  void print(std::ostream& out) const override {
-    out << "election(" << fsid << " " << get_opname(op)
-	<< " rel " << (int)mon_release << " e" << epoch << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "election";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "election(" << fsid << " " << get_opname(op) << " rel "
+        << (int)mon_release << " e" << epoch << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     if (monmap_bl.length() && (features != CEPH_FEATURES_ALL)) {
       // reencode old-format monmap
@@ -98,8 +123,8 @@ public:
     encode(monmap_bl, payload);
     encode(quorum, payload);
     encode(quorum_features, payload);
-    encode((version_t)0, payload);  // defunct
-    encode((version_t)0, payload);  // defunct
+    encode((version_t)0, payload); // defunct
+    encode((version_t)0, payload); // defunct
     encode(sharing_bl, payload);
     encode(mon_features, payload);
     encode(metadata, payload);
@@ -107,7 +132,10 @@ public:
     encode(scoring_bl, payload);
     encode(strategy, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(fsid, p);
@@ -117,7 +145,7 @@ public:
     decode(quorum, p);
     decode(quorum_features, p);
     {
-      version_t v;  // defunct fields from old encoding
+      version_t v; // defunct fields from old encoding
       decode(v, p);
       decode(v, p);
     }
@@ -137,8 +165,9 @@ public:
       strategy = MonMap::election_strategy::CLASSIC;
     }
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

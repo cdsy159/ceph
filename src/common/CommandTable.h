@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -27,22 +27,21 @@
 #include "messages/MMgrCommand.h"
 #include "msg/Connection.h" // for ConnectionRef
 
-class CommandOp
-{
-  public:
+class CommandOp {
+public:
   ConnectionRef con;
   ceph_tid_t tid;
   // multi_target_id == 0 means single target command
   ceph_tid_t multi_target_id;
 
   std::vector<std::string> cmd;
-  ceph::buffer::list    inbl;
-  Context      *on_finish;
-  ceph::buffer::list   *outbl;
-  std::string  *outs;
+  ceph::buffer::list inbl;
+  Context* on_finish;
+  ceph::buffer::list* outbl;
+  std::string* outs;
 
-  MessageRef get_message(const uuid_d &fsid,
-			 bool mgr=false) const
+  MessageRef
+  get_message(const uuid_d& fsid, bool mgr = false) const
   {
     if (mgr) {
       auto m = ceph::make_message<MMgrCommand>(fsid);
@@ -59,31 +58,39 @@ class CommandOp
     }
   }
 
-  CommandOp(const ceph_tid_t t) : tid(t), multi_target_id(0), on_finish(nullptr),
-                                  outbl(nullptr), outs(nullptr) {}
-  CommandOp() : tid(0), on_finish(nullptr), outbl(nullptr), outs(nullptr) {}
-  CommandOp(const ceph_tid_t t, const ceph_tid_t multi_id) : tid(t), multi_target_id(multi_id),
-                                                             on_finish(nullptr), outbl(nullptr), outs(nullptr) {}
+  CommandOp(const ceph_tid_t t) :
+    tid(t), multi_target_id(0), on_finish(nullptr), outbl(nullptr), outs(nullptr)
+  {}
+
+  CommandOp() :
+    tid(0), on_finish(nullptr), outbl(nullptr), outs(nullptr)
+  {}
+
+  CommandOp(const ceph_tid_t t, const ceph_tid_t multi_id) :
+    tid(t),
+    multi_target_id(multi_id),
+    on_finish(nullptr),
+    outbl(nullptr),
+    outs(nullptr)
+  {}
 };
 
 /**
  * Hold client-side state for a collection of in-flight commands
  * to a remote service.
  */
-template<typename T>
-class CommandTable
-{
+template <typename T>
+class CommandTable {
 protected:
   ceph_tid_t last_tid;
   ceph_tid_t last_multi_target_id;
 
   std::map<ceph_tid_t, T> commands;
-  std::map<ceph_tid_t, std::set<ceph_tid_t> > multi_targets;
+  std::map<ceph_tid_t, std::set<ceph_tid_t>> multi_targets;
 
 public:
-
-  CommandTable()
-    : last_tid(0), last_multi_target_id(0)
+  CommandTable() :
+    last_tid(0), last_multi_target_id(0)
   {}
 
   ~CommandTable()
@@ -94,15 +101,17 @@ public:
     }
   }
 
-  ceph_tid_t get_new_multi_target_id()
+  ceph_tid_t
+  get_new_multi_target_id()
   {
     return ++last_multi_target_id;
   }
 
-  T& start_command(ceph_tid_t multi_id=0)
+  T&
+  start_command(ceph_tid_t multi_id = 0)
   {
     ceph_tid_t tid = last_tid++;
-    commands.insert(std::make_pair(tid, T(tid, multi_id)) );
+    commands.insert(std::make_pair(tid, T(tid, multi_id)));
 
     if (multi_id != 0) {
       multi_targets[multi_id].insert(tid);
@@ -111,42 +120,48 @@ public:
     return commands.at(tid);
   }
 
-  const std::map<ceph_tid_t, T> &get_commands() const
+  const std::map<ceph_tid_t, T>&
+  get_commands() const
   {
     return commands;
   }
 
-  bool exists(ceph_tid_t tid) const
+  bool
+  exists(ceph_tid_t tid) const
   {
     return commands.count(tid) > 0;
   }
 
-  std::size_t count_multi_commands(ceph_tid_t multi_id)
+  std::size_t
+  count_multi_commands(ceph_tid_t multi_id)
   {
     return multi_targets[multi_id].size();
   }
 
-  T& get_command(ceph_tid_t tid)
+  T&
+  get_command(ceph_tid_t tid)
   {
     return commands.at(tid);
   }
 
-  void erase(ceph_tid_t tid)
+  void
+  erase(ceph_tid_t tid)
   {
     ceph_tid_t multi_id = commands.at(tid).multi_target_id;
     commands.erase(tid);
     multi_targets[multi_id].erase(tid);
 
-    if(count_multi_commands(multi_id) == 0) {
+    if (count_multi_commands(multi_id) == 0) {
       multi_targets.erase(multi_id);
     }
   }
 
-  void clear() {
+  void
+  clear()
+  {
     commands.clear();
     multi_targets.clear();
   }
 };
 
 #endif
-

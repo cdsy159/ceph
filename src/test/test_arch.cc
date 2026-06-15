@@ -17,9 +17,9 @@
 
 #include <stdio.h>
 
-#include "arch/probe.h"
-#include "arch/intel.h"
 #include "arch/arm.h"
+#include "arch/intel.h"
+#include "arch/probe.h"
 #include "global/global_context.h"
 #include "gtest/gtest.h"
 
@@ -30,12 +30,14 @@ TEST(Arch, all)
 {
   ceph_arch_probe();
   EXPECT_TRUE(ceph_arch_probed);
-  
+
 #if (__arm__ || __aarch64__ || __x86_64__) && __linux__
   char flags[FLAGS_SIZE];
-  FILE *f = popen("grep '^\\(flags\\|Features\\)[	 ]*:' "
-                  "/proc/cpuinfo | head -1", "r");
-  if(f == NULL || fgets(flags, FLAGS_SIZE - 1, f) == NULL) {
+  FILE* f = popen(
+      "grep '^\\(flags\\|Features\\)[	 ]*:' "
+      "/proc/cpuinfo | head -1",
+      "r");
+  if (f == NULL || fgets(flags, FLAGS_SIZE - 1, f) == NULL) {
     // silently do nothing if /proc/cpuinfo does exist, is not
     // readable or does not contain the expected information
     if (f)
@@ -70,7 +72,10 @@ TEST(Arch, all)
   expected = strstr(flags, " sse4_1 ") ? 1 : 0;
   EXPECT_EQ(expected, ceph_arch_intel_sse41);
 
-  expected = (strstr(flags, " sse3 ") || strstr(flags, " ssse3 ") || strstr(flags, " pni ")) ? 1 : 0;
+  expected = (strstr(flags, " sse3 ") || strstr(flags, " ssse3 ") ||
+              strstr(flags, " pni "))
+                 ? 1
+                 : 0;
   EXPECT_EQ(expected, ceph_arch_intel_sse3);
 
   expected = strstr(flags, " ssse3 ") ? 1 : 0;
@@ -83,7 +88,6 @@ TEST(Arch, all)
 
 #endif
 }
-
 
 /*
  * Local Variables:

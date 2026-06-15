@@ -1,9 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "gtest/gtest.h"
 #include "crimson/osd/object_metadata_helper.h"
-
+#include "gtest/gtest.h"
 
 TEST(head_subsets, dirty_region)
 {
@@ -17,18 +16,15 @@ TEST(head_subsets, dirty_region)
   len_1 = 2;
   item.clean_regions.mark_data_region_dirty(offset_1, len_1);
   missing.add(head, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
   interval_set<uint64_t> expect_data_region;
   expect_data_region.insert(offset_1, len_1);
 
-// ****
+  // ****
 
-  crimson::osd::subsets_t result =
-    crimson::osd::calc_head_subsets(obj_size,
-                                    empty_ss,
-                                    head,
-                                    missing,
-                                    last_backfill);
+  crimson::osd::subsets_t result = crimson::osd::calc_head_subsets(
+      obj_size, empty_ss, head, missing, last_backfill);
 
   EXPECT_TRUE(result.clone_subsets.empty());
   EXPECT_TRUE(result.data_subset == expect_data_region);
@@ -42,16 +38,13 @@ TEST(head_subsets, head_all_clean)
   pg_missing_t missing;
   pg_missing_item item;
   missing.add(head, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
 
-// ****
+  // ****
 
-  crimson::osd::subsets_t result =
-    crimson::osd::calc_head_subsets(obj_size,
-                                    empty_ss,
-                                    head,
-                                    missing,
-                                    last_backfill);
+  crimson::osd::subsets_t result = crimson::osd::calc_head_subsets(
+      obj_size, empty_ss, head, missing, last_backfill);
 
   EXPECT_TRUE(result.clone_subsets.empty());
   EXPECT_TRUE(result.data_subset.empty());
@@ -66,16 +59,13 @@ TEST(head_subsets, all_dirty)
   pg_missing_item item;
   item.clean_regions.mark_fully_dirty();
   missing.add(head, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
 
-// ****
+  // ****
 
-  crimson::osd::subsets_t result =
-    crimson::osd::calc_head_subsets(obj_size,
-                                    empty_ss,
-                                    head,
-                                    missing,
-                                    last_backfill);
+  crimson::osd::subsets_t result = crimson::osd::calc_head_subsets(
+      obj_size, empty_ss, head, missing, last_backfill);
 
   EXPECT_TRUE(result.clone_subsets.empty());
   EXPECT_TRUE(result.data_subset.size() == obj_size);
@@ -90,12 +80,13 @@ TEST(head_subsets, clone_overlap)
   pg_missing_item item;
   item.clean_regions.mark_fully_dirty();
   missing.add(head, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
 
   // Clone object:
   hobject_t clone = head;
   clone.snap = 0;
-  std::map<snapid_t, interval_set<uint64_t>> clone_overlap;  // overlap w/ next
+  std::map<snapid_t, interval_set<uint64_t>> clone_overlap; // overlap w/ next
   interval_set<uint64_t> overlap;
   uint64_t offset_2, len_2;
   offset_2 = 2;
@@ -115,14 +106,10 @@ TEST(head_subsets, clone_overlap)
   interval_set<uint64_t> expect_clone_subset;
   expect_clone_subset.insert(offset_2, len_2);
 
-// ****
+  // ****
 
-  crimson::osd::subsets_t result =
-    crimson::osd::calc_head_subsets(obj_size,
-                                    ss,
-                                    head,
-                                    missing,
-                                    last_backfill);
+  crimson::osd::subsets_t result = crimson::osd::calc_head_subsets(
+      obj_size, ss, head, missing, last_backfill);
   EXPECT_TRUE(result.clone_subsets[clone] == expect_clone_subset);
 }
 
@@ -138,14 +125,15 @@ TEST(head_subsets, dirty_region_and_clone_overlap)
   len_1 = 2;
   item.clean_regions.mark_data_region_dirty(offset_1, len_1);
   missing.add(head, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
   interval_set<uint64_t> expect_data_region;
   expect_data_region.insert(offset_1, len_1);
 
   // Clone object:
   hobject_t clone = head;
   clone.snap = 0;
-  std::map<snapid_t, interval_set<uint64_t>> clone_overlap;  // overlap w/ next
+  std::map<snapid_t, interval_set<uint64_t>> clone_overlap; // overlap w/ next
   interval_set<uint64_t> overlap;
   uint64_t offset_2, len_2;
   offset_2 = 2;
@@ -167,14 +155,10 @@ TEST(head_subsets, dirty_region_and_clone_overlap)
   expect_clone_subset.intersection_of(expect_data_region);
   expect_data_region.subtract(expect_clone_subset);
 
-// ****
+  // ****
 
-  crimson::osd::subsets_t result =
-    crimson::osd::calc_head_subsets(obj_size,
-                                    ss,
-                                    head,
-                                    missing,
-                                    last_backfill);
+  crimson::osd::subsets_t result = crimson::osd::calc_head_subsets(
+      obj_size, ss, head, missing, last_backfill);
   EXPECT_TRUE(result.clone_subsets[clone] == expect_clone_subset);
   EXPECT_TRUE(result.data_subset == expect_data_region);
 }
@@ -192,7 +176,8 @@ TEST(clone_subsets, overlap)
   pg_missing_item item;
   item.clean_regions.mark_fully_dirty();
   missing.add(clone, std::move(item));
-  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0, "nspace"};
+  hobject_t last_backfill{object_t{"foo1"}, "foo1", CEPH_NOSNAP, 42, 0,
+                          "nspace"};
 
   interval_set<uint64_t> expect_clone_subset1, expect_clone_subset2;
 
@@ -200,7 +185,7 @@ TEST(clone_subsets, overlap)
   hobject_t older_clone = clone;
   older_clone.snap = 0;
   {
-    std::map<snapid_t, interval_set<uint64_t>> clone_overlap;  // overlap w/ next
+    std::map<snapid_t, interval_set<uint64_t>> clone_overlap; // overlap w/ next
     interval_set<uint64_t> overlap;
     uint64_t offset_2, len_2;
     offset_2 = 4;
@@ -224,7 +209,7 @@ TEST(clone_subsets, overlap)
   hobject_t newest_clone = clone;
   newest_clone.snap = 2;
   {
-    std::map<snapid_t, interval_set<uint64_t>> clone_overlap;  // overlap w/ next
+    std::map<snapid_t, interval_set<uint64_t>> clone_overlap; // overlap w/ next
     interval_set<uint64_t> overlap;
     uint64_t offset_2, len_2;
     offset_2 = 2;
@@ -244,13 +229,10 @@ TEST(clone_subsets, overlap)
     expect_clone_subset2.insert(offset_2, len_2);
   }
 
-// ****
+  // ****
 
   crimson::osd::subsets_t result =
-    crimson::osd::calc_clone_subsets(ss,
-                                     clone,
-                                     missing,
-                                     last_backfill);
+      crimson::osd::calc_clone_subsets(ss, clone, missing, last_backfill);
   EXPECT_TRUE(result.clone_subsets[older_clone] == expect_clone_subset1);
   EXPECT_TRUE(result.clone_subsets[newest_clone] == expect_clone_subset2);
 }

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,13 +14,15 @@
  */
 
 #include "filepath.h"
-#include "common/Formatter.h"
 
 #include <ostream>
 
+#include "common/Formatter.h"
+
 /* Trim given path to final 10 components and return it by prefixing it with
  * "..."  to indicate that the path has been trimmed. */
-std::string filepath::get_trimmed_path() const
+std::string
+filepath::get_trimmed_path() const
 {
   std::size_t n = 0;
   for (int i = 1; i <= 10; ++i) {
@@ -33,31 +35,38 @@ std::string filepath::get_trimmed_path() const
   return std::string("..." + path.substr(n, -1));
 }
 
-void filepath::rebuild_path() {
+void
+filepath::rebuild_path()
+{
   path.clear();
-  for (unsigned i=0; i<bits.size(); i++) {
-    if (i) path += "/";
+  for (unsigned i = 0; i < bits.size(); i++) {
+    if (i)
+      path += "/";
     path += bits[i];
   }
 }
 
-void filepath::parse_bits() const {
+void
+filepath::parse_bits() const
+{
   bits.clear();
   int off = 0;
   while (off < (int)path.length()) {
     int nextslash = path.find('/', off);
-    if (nextslash < 0) 
-      nextslash = path.length();  // no more slashes
+    if (nextslash < 0)
+      nextslash = path.length(); // no more slashes
     if (((nextslash - off) > 0) || encoded) {
       // skip empty components unless they were introduced deliberately
       // see commit message for more detail
-      bits.push_back( path.substr(off,nextslash-off) );
+      bits.push_back(path.substr(off, nextslash - off));
     }
-    off = nextslash+1;
+    off = nextslash + 1;
   }
 }
 
-void filepath::set_trimmed() {
+void
+filepath::set_trimmed()
+{
   if (trimmed)
     return;
   // indicates that the path has been shortened.
@@ -65,7 +74,9 @@ void filepath::set_trimmed() {
   trimmed = true;
 }
 
-void filepath::set_path(std::string_view s) {
+void
+filepath::set_path(std::string_view s)
+{
   if (!s.empty() && s[0] == '/') {
     path = s.substr(1);
     ino = 1;
@@ -76,29 +87,37 @@ void filepath::set_path(std::string_view s) {
   bits.clear();
 }
 
-filepath filepath::prefixpath(int s) const {
+filepath
+filepath::prefixpath(int s) const
+{
   filepath t(ino);
-  for (int i=0; i<s; i++)
+  for (int i = 0; i < s; i++)
     t.push_dentry(bits[i]);
   return t;
 }
 
-filepath filepath::postfixpath(int s) const {
+filepath
+filepath::postfixpath(int s) const
+{
   filepath t;
-  for (unsigned i=s; i<bits.size(); i++)
+  for (unsigned i = s; i < bits.size(); i++)
     t.push_dentry(bits[i]);
   return t;
 }
 
-void filepath::pop_dentry() {
-  if (bits.empty() && path.length() > 0) 
+void
+filepath::pop_dentry()
+{
+  if (bits.empty() && path.length() > 0)
     parse_bits();
   bits.pop_back();
   rebuild_path();
 }
 
-void filepath::push_dentry(std::string_view s) {
-  if (bits.empty() && path.length() > 0) 
+void
+filepath::push_dentry(std::string_view s)
+{
+  if (bits.empty() && path.length() > 0)
     parse_bits();
   if (!bits.empty())
     path += "/";
@@ -106,18 +125,24 @@ void filepath::push_dentry(std::string_view s) {
   bits.emplace_back(s);
 }
 
-void filepath::push_front_dentry(const std::string& s) {
+void
+filepath::push_front_dentry(const std::string& s)
+{
   bits.insert(bits.begin(), s);
   rebuild_path();
 }
 
-void filepath::append(const filepath& a) {
+void
+filepath::append(const filepath& a)
+{
   ceph_assert(a.pure_relative());
-  for (unsigned i=0; i<a.depth(); i++) 
+  for (unsigned i = 0; i < a.depth(); i++)
     push_dentry(a[i]);
 }
 
-void filepath::encode(ceph::buffer::list& bl) const {
+void
+filepath::encode(ceph::buffer::list& bl) const
+{
   using ceph::encode;
   __u8 struct_v = 1;
   encode(struct_v, bl);
@@ -125,7 +150,9 @@ void filepath::encode(ceph::buffer::list& bl) const {
   encode(path, bl);
 }
 
-void filepath::decode(ceph::buffer::list::const_iterator& blp) {
+void
+filepath::decode(ceph::buffer::list::const_iterator& blp)
+{
   using ceph::decode;
   bits.clear();
   __u8 struct_v;
@@ -135,12 +162,16 @@ void filepath::decode(ceph::buffer::list::const_iterator& blp) {
   encoded = true;
 }
 
-void filepath::dump(ceph::Formatter *f) const {
+void
+filepath::dump(ceph::Formatter* f) const
+{
   f->dump_unsigned("base_ino", ino);
   f->dump_string("relative_path", path);
 }
 
-std::list<filepath> filepath::generate_test_instances() {
+std::list<filepath>
+filepath::generate_test_instances()
+{
   std::list<filepath> o;
   o.emplace_back();
   o.push_back(filepath("/usr/bin", 0));
@@ -150,7 +181,9 @@ std::list<filepath> filepath::generate_test_instances() {
   return o;
 }
 
-bool filepath::is_last_dot_or_dotdot() const {
+bool
+filepath::is_last_dot_or_dotdot() const
+{
   if (depth() > 0) {
     std::string dname = last_dentry();
     if (dname == "." || dname == "..") {
@@ -161,7 +194,8 @@ bool filepath::is_last_dot_or_dotdot() const {
   return false;
 }
 
-std::ostream& operator<<(std::ostream& out, const filepath& path)
+std::ostream&
+operator<<(std::ostream& out, const filepath& path)
 {
   if (path.get_ino()) {
     out << '#' << path.get_ino();

@@ -2,10 +2,12 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "snap_types.h"
+
 #include "common/Formatter.h"
 #include "include/types.h" // for the ceph_mds_snap_realm encoder
 
-void SnapRealmInfo::encode(ceph::buffer::list& bl) const
+void
+SnapRealmInfo::encode(ceph::buffer::list& bl) const
 {
   h.num_snaps = my_snaps.size();
   h.num_prior_parent_snaps = prior_parent_snaps.size();
@@ -15,7 +17,8 @@ void SnapRealmInfo::encode(ceph::buffer::list& bl) const
   ceph::encode_nohead(prior_parent_snaps, bl);
 }
 
-void SnapRealmInfo::decode(ceph::buffer::list::const_iterator& bl)
+void
+SnapRealmInfo::decode(ceph::buffer::list::const_iterator& bl)
 {
   using ceph::decode;
   decode(h, bl);
@@ -23,7 +26,8 @@ void SnapRealmInfo::decode(ceph::buffer::list::const_iterator& bl)
   ceph::decode_nohead(h.num_prior_parent_snaps, prior_parent_snaps, bl);
 }
 
-void SnapRealmInfo::dump(ceph::Formatter *f) const
+void
+SnapRealmInfo::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("ino", ino());
   f->dump_unsigned("parent", parent());
@@ -42,7 +46,8 @@ void SnapRealmInfo::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<SnapRealmInfo> SnapRealmInfo::generate_test_instances()
+std::list<SnapRealmInfo>
+SnapRealmInfo::generate_test_instances()
 {
   std::list<SnapRealmInfo> o;
   o.emplace_back();
@@ -58,7 +63,8 @@ std::list<SnapRealmInfo> SnapRealmInfo::generate_test_instances()
 
 // -- "new" SnapRealmInfo --
 
-void SnapRealmInfoNew::encode(ceph::buffer::list& bl) const
+void
+SnapRealmInfoNew::encode(ceph::buffer::list& bl) const
 {
   using ceph::encode;
   ENCODE_START(2, 1, bl);
@@ -69,7 +75,8 @@ void SnapRealmInfoNew::encode(ceph::buffer::list& bl) const
   ENCODE_FINISH(bl);
 }
 
-void SnapRealmInfoNew::decode(ceph::buffer::list::const_iterator& bl)
+void
+SnapRealmInfoNew::decode(ceph::buffer::list::const_iterator& bl)
 {
   using ceph::decode;
   DECODE_START(2, bl);
@@ -82,7 +89,8 @@ void SnapRealmInfoNew::decode(ceph::buffer::list::const_iterator& bl)
   DECODE_FINISH(bl);
 }
 
-void SnapRealmInfoNew::dump(ceph::Formatter *f) const
+void
+SnapRealmInfoNew::dump(ceph::Formatter* f) const
 {
   info.dump(f);
   f->dump_stream("last_modified") << last_modified;
@@ -90,7 +98,8 @@ void SnapRealmInfoNew::dump(ceph::Formatter *f) const
   f->dump_bool("is_snapdir_visible", flags & SNAPDIR_VISIBILITY);
 }
 
-std::list<SnapRealmInfoNew> SnapRealmInfoNew::generate_test_instances()
+std::list<SnapRealmInfoNew>
+SnapRealmInfoNew::generate_test_instances()
 {
   std::list<SnapRealmInfoNew> o;
   o.emplace_back();
@@ -106,7 +115,8 @@ std::list<SnapRealmInfoNew> SnapRealmInfoNew::generate_test_instances()
 
 // -----
 
-bool SnapContext::is_valid() const
+bool
+SnapContext::is_valid() const
 {
   // seq is a valid snapid
   if (seq > CEPH_MAXSNAP)
@@ -117,28 +127,33 @@ bool SnapContext::is_valid() const
       return false;
     // snaps[] is descending
     snapid_t t = snaps[0];
-    for (unsigned i=1; i<snaps.size(); i++) {
+    for (unsigned i = 1; i < snaps.size(); i++) {
       if (snaps[i] >= t || t == 0)
-	return false;
+        return false;
       t = snaps[i];
     }
   }
   return true;
 }
 
-void SnapContext::encode(ceph::buffer::list& bl) const {
+void
+SnapContext::encode(ceph::buffer::list& bl) const
+{
   using ceph::encode;
   encode(seq, bl);
   encode(snaps, bl);
 }
 
-void SnapContext::decode(ceph::buffer::list::const_iterator& bl) {
+void
+SnapContext::decode(ceph::buffer::list::const_iterator& bl)
+{
   using ceph::decode;
   decode(seq, bl);
   decode(snaps, bl);
 }
 
-void SnapContext::dump(ceph::Formatter *f) const
+void
+SnapContext::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("seq", seq);
   f->open_array_section("snaps");
@@ -147,7 +162,8 @@ void SnapContext::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<SnapContext> SnapContext::generate_test_instances()
+std::list<SnapContext>
+SnapContext::generate_test_instances()
 {
   std::list<SnapContext> o;
   o.emplace_back();
@@ -160,6 +176,8 @@ std::list<SnapContext> SnapContext::generate_test_instances()
   return o;
 }
 
-std::ostream& operator<<(std::ostream& out, const SnapContext& snapc) {
+std::ostream&
+operator<<(std::ostream& out, const SnapContext& snapc)
+{
   return out << snapc.seq << "=" << snapc.snaps;
 }

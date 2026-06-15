@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,14 +22,27 @@
 
 class MPing final : public Message {
 public:
-  MPing() : Message{CEPH_MSG_PING} {}
+  MPing() :
+    Message{CEPH_MSG_PING}
+  {}
+
 private:
   ~MPing() final {}
 
 public:
-  void decode_payload() override { }
-  void encode_payload(uint64_t features) override { }
-  std::string_view get_type_name() const override { return "ping"; }
+  void
+  decode_payload() override
+  {}
+
+  void
+  encode_payload(uint64_t features) override
+  {}
+
+  std::string_view
+  get_type_name() const override
+  {
+    return "ping";
+  }
 };
 
 #endif

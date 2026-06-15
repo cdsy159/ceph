@@ -15,19 +15,15 @@
 #include <string_view>
 #include <utility>
 
-#include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/redirect_error.hpp>
-
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "cls/version/cls_version_types.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace sys = boost::system;
@@ -40,24 +36,26 @@ CORO_TEST_F(neocls_handler_error, test_handler_error, NeoRadosTest)
 
   {
     neorados::ReadOp op;
-    op.exec("version", "read", {},
-	    [](sys::error_code ec, const buffer::list& bl) {
-	      throw buffer::end_of_buffer{};
-	    });
-    co_await expect_error_code(rados().execute(oid, pool(), std::move(op),
-					       nullptr, asio::use_awaitable),
-			       buffer::errc::end_of_buffer);
+    op.exec(
+        "version", "read", {}, [](sys::error_code ec, const buffer::list& bl) {
+          throw buffer::end_of_buffer{};
+        });
+    co_await expect_error_code(
+        rados().execute(
+            oid, pool(), std::move(op), nullptr, asio::use_awaitable),
+        buffer::errc::end_of_buffer);
   }
 
   {
     neorados::ReadOp op;
-    op.exec("version", "read", {},
-	    [](sys::error_code ec, const buffer::list& bl) {
-	      throw std::exception();
-	    });
-    co_await expect_error_code(rados().execute(oid, pool(), std::move(op),
-					       nullptr, asio::use_awaitable),
-			       sys::errc::io_error);
+    op.exec(
+        "version", "read", {}, [](sys::error_code ec, const buffer::list& bl) {
+          throw std::exception();
+        });
+    co_await expect_error_code(
+        rados().execute(
+            oid, pool(), std::move(op), nullptr, asio::use_awaitable),
+        sys::errc::io_error);
   }
   co_return;
 }

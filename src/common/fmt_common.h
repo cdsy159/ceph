@@ -4,6 +4,7 @@
 #pragma once
 
 #include <fmt/base.h>
+
 #include <optional>
 #include <type_traits>
 
@@ -23,8 +24,9 @@
 #if FMT_VERSION < 110000
 // TODO: drop me once fmt v11 is required
 namespace fmt {
-  template <typename T, typename Char = char>
-  concept formattable = is_formattable<std::remove_reference_t<T>, Char>::value>;
+template <typename T, typename Char = char>
+concept formattable = is_formattable<std::remove_reference_t<T>, Char>::value >
+    ;
 }
 #endif
 
@@ -38,24 +40,22 @@ namespace fmt {
  * *or*
  * auto fmt_print_ctx(auto &ctx) -> decltype(ctx.out());
  */
-template<class T>
+template <class T>
 concept has_fmt_print = requires(T t) {
   { t.fmt_print() } -> std::same_as<std::string>;
 };
-template<class T>
+template <class T>
 concept has_alt_fmt_print = requires(T t) {
   { t.alt_fmt_print(bool{}) } -> std::same_as<std::string>;
 };
 #if FMT_VERSION >= 110000
-template<class T>
-concept has_fmt_print_ctx = requires(
-  T t, fmt::buffered_context<char> &ctx) {
+template <class T>
+concept has_fmt_print_ctx = requires(T t, fmt::buffered_context<char>& ctx) {
   { t.fmt_print_ctx(ctx) } -> std::same_as<decltype(ctx.out())>;
 };
 #else
-template<class T>
-concept has_fmt_print_ctx = requires(
-  T t, fmt::buffer_context<char> &ctx) {
+template <class T>
+concept has_fmt_print_ctx = requires(T t, fmt::buffer_context<char>& ctx) {
   { t.fmt_print_ctx(ctx) } -> std::same_as<decltype(ctx.out())>;
 };
 #endif
@@ -64,9 +64,16 @@ namespace fmt {
 
 template <has_fmt_print T>
 struct formatter<T> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const T& k, FormatContext& ctx) const {
+  auto
+  format(const T& k, FormatContext& ctx) const
+  {
     return fmt::format_to(ctx.out(), "{}", k.fmt_print());
   }
 };
@@ -74,7 +81,9 @@ struct formatter<T> {
 template <has_alt_fmt_print T>
 struct formatter<T> {
   template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx) {
+  constexpr auto
+  parse(ParseContext& ctx)
+  {
     auto it = ctx.begin();
     if (it != ctx.end() && *it == 's') {
       verbose = false;
@@ -82,31 +91,49 @@ struct formatter<T> {
     }
     return it;
   }
+
   template <typename FormatContext>
-  auto format(const T& k, FormatContext& ctx) const {
+  auto
+  format(const T& k, FormatContext& ctx) const
+  {
     if (verbose) {
       return fmt::format_to(ctx.out(), "{}", k.alt_fmt_print(true));
     }
     return fmt::format_to(ctx.out(), "{}", k.alt_fmt_print(false));
   }
+
   bool verbose{true};
 };
 
 template <has_fmt_print_ctx T>
 struct formatter<T> {
   template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const T& k, FormatContext& ctx) const {
+  auto
+  format(const T& k, FormatContext& ctx) const
+  {
     return k.fmt_print_ctx(ctx);
   }
 };
 
 template <typename T>
 struct formatter<std::optional<T>> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
+
   template <typename FormatContext>
-  auto format(const std::optional<T> &v, FormatContext& ctx) const {
+  auto
+  format(const std::optional<T>& v, FormatContext& ctx) const
+  {
     if (v.has_value()) {
       return fmt::format_to(ctx.out(), "{}", *v);
     }
@@ -114,4 +141,4 @@ struct formatter<std::optional<T>> {
   }
 };
 
-}  // namespace fmt
+} // namespace fmt

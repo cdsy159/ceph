@@ -13,12 +13,15 @@
  *
  */
 
-#include "common/async/completion.h"
+#include <gtest/gtest.h>
+
+#include <optional>
+
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
-#include <optional>
 #include <boost/intrusive/list.hpp>
-#include <gtest/gtest.h>
+
+#include "common/async/completion.h"
 
 namespace ceph::async {
 
@@ -34,7 +37,7 @@ struct move_only {
 
 TEST(AsyncCompletion, BindHandler)
 {
-  auto h1 = [] (int i, char c) {};
+  auto h1 = [](int i, char c) {};
   auto b1 = bind_handler(std::move(h1), 5, 'a');
   b1();
   const auto& c1 = b1;
@@ -42,12 +45,12 @@ TEST(AsyncCompletion, BindHandler)
   std::move(b1)();
 
   // move-only types can be forwarded with 'operator() &&'
-  auto h2 = [] (move_only&& m) {};
+  auto h2 = [](move_only&& m) {};
   auto b2 = bind_handler(std::move(h2), move_only{});
   std::move(b2)();
 
   // references bound with std::ref() can be passed to all operator() overloads
-  auto h3 = [] (int& c) { c++; };
+  auto h3 = [](int& c) { c++; };
   int count = 0;
   auto b3 = bind_handler(std::move(h3), std::ref(count));
   EXPECT_EQ(0, count);
@@ -63,7 +66,7 @@ TEST(AsyncCompletion, BindHandler)
 TEST(AsyncCompletion, ForwardHandler)
 {
   // move-only types can be forwarded with 'operator() &'
-  auto h = [] (move_only&& m) {};
+  auto h = [](move_only&& m) {};
   auto b = bind_handler(std::move(h), move_only{});
   auto f = forward_handler(std::move(b));
   f();
@@ -79,27 +82,29 @@ TEST(AsyncCompletion, MoveOnly)
   {
     // move-only user data
     using Completion = Completion<void(error_code), move_only>;
-    auto c = Completion::create(ex1, [&ec1] (error_code ec) { ec1 = ec; });
+    auto c = Completion::create(ex1, [&ec1](error_code ec) { ec1 = ec; });
     Completion::post(std::move(c), boost::asio::error::operation_aborted);
     EXPECT_FALSE(ec1);
   }
   {
     // move-only handler
     using Completion = Completion<void(error_code)>;
-    auto c = Completion::create(ex1, [&ec2, m=move_only{}] (error_code ec) {
-				       static_cast<void>(m);
-				       ec2 = ec; });
+    auto c = Completion::create(ex1, [&ec2, m = move_only{}](error_code ec) {
+      static_cast<void>(m);
+      ec2 = ec;
+    });
     Completion::post(std::move(c), boost::asio::error::operation_aborted);
     EXPECT_FALSE(ec2);
   }
   {
     // move-only arg in signature
     using Completion = Completion<void(error_code, move_only)>;
-    auto c = Completion::create(ex1, [&] (error_code ec, move_only m) {
-        ec3 = ec;
-        arg3 = std::move(m);
-      });
-    Completion::post(std::move(c), boost::asio::error::operation_aborted, move_only{});
+    auto c = Completion::create(ex1, [&](error_code ec, move_only m) {
+      ec3 = ec;
+      arg3 = std::move(m);
+    });
+    Completion::post(
+        std::move(c), boost::asio::error::operation_aborted, move_only{});
     EXPECT_FALSE(ec3);
   }
 
@@ -123,7 +128,7 @@ TEST(AsyncCompletion, VoidCompletion)
   using Completion = Completion<void(error_code)>;
   std::optional<error_code> ec1;
 
-  auto c = Completion::create(ex1, [&ec1] (error_code ec) { ec1 = ec; });
+  auto c = Completion::create(ex1, [&ec1](error_code ec) { ec1 = ec; });
   Completion::post(std::move(c), boost::asio::error::operation_aborted);
 
   EXPECT_FALSE(ec1);
@@ -148,9 +153,9 @@ TEST(AsyncCompletion, CompletionList)
     auto c = Completion::create(ex1, [&] { completed++; });
     completions.push_back(*c.release());
   }
-  completions.clear_and_dispose([] (Completion *c) {
-      Completion::post(std::unique_ptr<Completion>{c});
-    });
+  completions.clear_and_dispose([](Completion* c) {
+    Completion::post(std::unique_ptr<Completion>{c});
+  });
 
   EXPECT_EQ(0, completed);
 
@@ -169,9 +174,10 @@ TEST(AsyncCompletion, CompletionPair)
   using Completion = Completion<void(int, std::string), T>;
 
   std::optional<T> t;
-  auto c = Completion::create(ex1, [&] (int first, std::string second) {
-      t = T{first, std::move(second)};
-    }, 2, "hello");
+  auto c = Completion::create(
+      ex1,
+      [&](int first, std::string second) { t = T{first, std::move(second)}; },
+      2, "hello");
 
   auto data = std::move(c->user_data);
   Completion::post(std::move(c), data.first, std::move(data.second));
@@ -193,7 +199,7 @@ TEST(AsyncCompletion, CompletionReference)
 
   using Completion = Completion<void(int&)>;
 
-  auto c = Completion::create(ex1, [] (int& i) { ++i; });
+  auto c = Completion::create(ex1, [](int& i) { ++i; });
 
   int i = 42;
   Completion::post(std::move(c), std::ref(i));
@@ -208,12 +214,15 @@ TEST(AsyncCompletion, CompletionReference)
 
 struct throws_on_move {
   throws_on_move() = default;
-  throws_on_move(throws_on_move&&) {
+
+  throws_on_move(throws_on_move&&) { throw std::runtime_error("oops"); }
+
+  throws_on_move&
+  operator=(throws_on_move&&)
+  {
     throw std::runtime_error("oops");
   }
-  throws_on_move& operator=(throws_on_move&&) {
-    throw std::runtime_error("oops");
-  }
+
   throws_on_move(const throws_on_move&) = default;
   throws_on_move& operator=(const throws_on_move&) = default;
 };
@@ -226,18 +235,24 @@ TEST(AsyncCompletion, ThrowOnCtor)
     using Completion = Completion<void(int&)>;
 
     // throw on Handler move construction
-    EXPECT_THROW(Completion::create(ex1, [t=throws_on_move{}] (int& i) {
-					   static_cast<void>(t);
-					   ++i; }),
-                 std::runtime_error);
+    EXPECT_THROW(
+        Completion::create(
+            ex1,
+            [t = throws_on_move{}](int& i) {
+              static_cast<void>(t);
+              ++i;
+            }),
+        std::runtime_error);
   }
   {
     using T = throws_on_move;
     using Completion = Completion<void(int&), T>;
 
     // throw on UserData construction
-    EXPECT_THROW(Completion::create(ex1, [] (int& i) { ++i; }, throws_on_move{}),
-                 std::runtime_error);
+    EXPECT_THROW(
+        Completion::create(
+            ex1, [](int& i) { ++i; }, throws_on_move{}),
+        std::runtime_error);
   }
 }
 
@@ -249,7 +264,7 @@ TEST(AsyncCompletion, FreeFunctions)
   auto c1 = create_completion<void(), void>(ex1, [] {});
   post(std::move(c1));
 
-  auto c2 = create_completion<void(int), int>(ex1, [] (int) {}, 5);
+  auto c2 = create_completion<void(int), int>(ex1, [](int) {}, 5);
   defer(std::move(c2), c2->user_data);
 
   context.poll();

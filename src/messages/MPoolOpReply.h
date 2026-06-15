@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -25,35 +25,52 @@ public:
   epoch_t epoch = 0;
   ceph::buffer::list response_data;
 
-  MPoolOpReply() : PaxosServiceMessage{CEPH_MSG_POOLOP_REPLY, 0}
+  MPoolOpReply() :
+    PaxosServiceMessage{CEPH_MSG_POOLOP_REPLY, 0}
   {}
-  MPoolOpReply( uuid_d& f, ceph_tid_t t, int rc, int e, version_t v) :
+
+  MPoolOpReply(uuid_d& f, ceph_tid_t t, int rc, int e, version_t v) :
     PaxosServiceMessage{CEPH_MSG_POOLOP_REPLY, v},
     fsid(f),
     replyCode(rc),
-    epoch(e) {
+    epoch(e)
+  {
     set_tid(t);
   }
-  MPoolOpReply(uuid_d& f, ceph_tid_t t, int rc, int e, version_t v,
-	       ceph::buffer::list *blp) :
+
+  MPoolOpReply(
+      uuid_d& f,
+      ceph_tid_t t,
+      int rc,
+      int e,
+      version_t v,
+      ceph::buffer::list* blp) :
     PaxosServiceMessage{CEPH_MSG_POOLOP_REPLY, v},
     fsid(f),
     replyCode(rc),
-    epoch(e) {
+    epoch(e)
+  {
     set_tid(t);
     if (blp)
       response_data = std::move(*blp);
   }
 
-  std::string_view get_type_name() const override { return "poolopreply"; }
-
-  void print(std::ostream& out) const override {
-    out << "pool_op_reply(tid " << get_tid()
-	<< " " << cpp_strerror(-replyCode)
-	<< " v" << version << ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "poolopreply";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  print(std::ostream& out) const override
+  {
+    out << "pool_op_reply(tid " << get_tid() << " " << cpp_strerror(-replyCode)
+        << " v" << version << ")";
+  }
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(fsid, payload);
@@ -65,7 +82,10 @@ public:
     } else
       encode(false, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -78,8 +98,9 @@ public:
       decode(response_data, p);
     }
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

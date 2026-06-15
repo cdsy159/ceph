@@ -1,9 +1,9 @@
 #ifndef CEPH_INTTYPES_H
 #define CEPH_INTTYPES_H
 
-#include "acconfig.h"
-
 #include <inttypes.h>
+
+#include "acconfig.h"
 
 #ifdef __linux__
 #include <linux/types.h>

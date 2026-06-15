@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,31 +21,34 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+
+#include "common/debug.h"
+
 #include <boost/algorithm/string.hpp>
 
-#include "acconfig.h"
-#include "include/compat.h"
-#include "include/util.h"
-#include "common/debug.h"
 #include "common/errno.h"
 #include "common/version.h"
+#include "include/compat.h"
+#include "include/util.h"
+
+#include "acconfig.h"
 
 #ifdef HAVE_SYS_VFS_H
 #include <sys/vfs.h>
 #endif
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
-#include <sys/param.h>
 #include <sys/mount.h>
+#include <sys/param.h>
 #if defined(__APPLE__)
-#include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
 #endif
 #endif
-
-#include <string>
 
 #include <stdio.h>
+
+#include <string>
 
 using std::list;
 using std::map;
@@ -55,7 +58,8 @@ using ceph::bufferlist;
 using ceph::Formatter;
 
 #ifndef _WIN32
-int get_fs_stats(ceph_data_stats_t &stats, const char *path)
+int
+get_fs_stats(ceph_data_stats_t& stats, const char* path)
 {
   if (!path)
     return -EINVAL;
@@ -69,16 +73,16 @@ int get_fs_stats(ceph_data_stats_t &stats, const char *path)
   stats.byte_total = stbuf.f_blocks * stbuf.f_bsize;
   stats.byte_used = (stbuf.f_blocks - stbuf.f_bfree) * stbuf.f_bsize;
   stats.byte_avail = stbuf.f_bavail * stbuf.f_bsize;
-  stats.avail_percent = (((float)stats.byte_avail/stats.byte_total)*100);
+  stats.avail_percent = (((float)stats.byte_avail / stats.byte_total) * 100);
   return 0;
 }
 #else
-int get_fs_stats(ceph_data_stats_t &stats, const char *path)
+int
+get_fs_stats(ceph_data_stats_t& stats, const char* path)
 {
   ULARGE_INTEGER avail_bytes, total_bytes, total_free_bytes;
 
-  if (!GetDiskFreeSpaceExA(path, &avail_bytes,
-                           &total_bytes, &total_free_bytes)) {
+  if (!GetDiskFreeSpaceExA(path, &avail_bytes, &total_bytes, &total_free_bytes)) {
     return -EINVAL;
   }
 
@@ -91,7 +95,8 @@ int get_fs_stats(ceph_data_stats_t &stats, const char *path)
 }
 #endif
 
-static char* value_sanitize(char *value)
+static char*
+value_sanitize(char* value)
 {
   while (isspace(*value) || *value == '"')
     value++;
@@ -105,8 +110,8 @@ static char* value_sanitize(char *value)
   return value;
 }
 
-static bool value_set(char *buf, const char *prefix,
-		      map<string, string> *pm, const char *key)
+static bool
+value_set(char* buf, const char* prefix, map<string, string>* pm, const char* key)
 {
   if (strncmp(buf, prefix, strlen(prefix))) {
     return false;
@@ -116,7 +121,13 @@ static bool value_set(char *buf, const char *prefix,
   return true;
 }
 
-static void file_values_parse(const map<string, string>& kvm, FILE *fp, map<string, string> *m, CephContext *cct) {
+static void
+file_values_parse(
+    const map<string, string>& kvm,
+    FILE* fp,
+    map<string, string>* m,
+    CephContext* cct)
+{
   char buf[512];
   while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
     for (auto& kv : kvm) {
@@ -126,19 +137,20 @@ static void file_values_parse(const map<string, string>& kvm, FILE *fp, map<stri
   }
 }
 
-static bool os_release_parse(map<string, string> *m, CephContext *cct)
+static bool
+os_release_parse(map<string, string>* m, CephContext* cct)
 {
 #if defined(__linux__)
   static const map<string, string> kvm = {
-    { "distro", "ID=" },
-    { "distro_description", "PRETTY_NAME=" },
-    { "distro_version", "VERSION_ID=" }
-  };
+      {"distro", "ID="},
+      {"distro_description", "PRETTY_NAME="},
+      {"distro_version", "VERSION_ID="}};
 
-  FILE *fp = fopen("/etc/os-release", "r");
+  FILE* fp = fopen("/etc/os-release", "r");
   if (!fp) {
     int ret = -errno;
-    lderr(cct) << "os_release_parse - failed to open /etc/os-release: " << cpp_strerror(ret) << dendl;
+    lderr(cct) << "os_release_parse - failed to open /etc/os-release: "
+               << cpp_strerror(ret) << dendl;
     return false;
   }
 
@@ -149,42 +161,44 @@ static bool os_release_parse(map<string, string> *m, CephContext *cct)
   struct utsname u;
   int r = uname(&u);
   if (!r) {
-     m->insert(std::make_pair("distro", u.sysname));
-     m->insert(std::make_pair("distro_description", u.version));
-     m->insert(std::make_pair("distro_version", u.release));
+    m->insert(std::make_pair("distro", u.sysname));
+    m->insert(std::make_pair("distro_description", u.version));
+    m->insert(std::make_pair("distro_version", u.release));
   }
 #endif
 
   return true;
 }
 
-static void distro_detect(map<string, string> *m, CephContext *cct)
+static void
+distro_detect(map<string, string>* m, CephContext* cct)
 {
   if (!os_release_parse(m, cct)) {
     lderr(cct) << "distro_detect - /etc/os-release is required" << dendl;
   }
 
-  for (const char* rk: {"distro", "distro_description"}) {
+  for (const char* rk : {"distro", "distro_description"}) {
     if (m->find(rk) == m->end())
       lderr(cct) << "distro_detect - can't detect " << rk << dendl;
   }
 }
 
-int get_cgroup_memory_limit(uint64_t *limit)
+int
+get_cgroup_memory_limit(uint64_t* limit)
 {
 #if defined(__linux__)
   // /sys/fs/cgroup/memory/memory.limit_in_bytes
 
   // the magic value 9223372036854771712 or 0x7ffffffffffff000
   // appears to mean no limit.
-  FILE *f = fopen(PROCPREFIX "/sys/fs/cgroup/memory/memory.limit_in_bytes", "r");
+  FILE* f = fopen(PROCPREFIX "/sys/fs/cgroup/memory/memory.limit_in_bytes", "r");
   if (!f) {
     return -errno;
   }
   char buf[100];
   int ret = 0;
   long long value;
-  char *line = fgets(buf, sizeof(buf), f);
+  char* line = fgets(buf, sizeof(buf), f);
   if (!line) {
     ret = -EINVAL;
     goto out;
@@ -193,7 +207,7 @@ int get_cgroup_memory_limit(uint64_t *limit)
     ret = -EINVAL;
   }
   if (value == 0x7ffffffffffff000) {
-    *limit = 0;  // no limit
+    *limit = 0; // no limit
   } else {
     *limit = value;
   }
@@ -206,8 +220,10 @@ out:
 }
 
 #ifdef _WIN32
-int get_windows_version(POSVERSIONINFOEXW ver) {
-  using  get_version_func_t = DWORD (WINAPI *)(OSVERSIONINFOEXW*);
+int
+get_windows_version(POSVERSIONINFOEXW ver)
+{
+  using get_version_func_t = DWORD(WINAPI*)(OSVERSIONINFOEXW*);
 
   // We'll load the library directly to avoid depending on the NTDDK.
   HMODULE ntdll_lib = LoadLibraryW(L"Ntdll.dll");
@@ -217,8 +233,8 @@ int get_windows_version(POSVERSIONINFOEXW ver) {
 
   // The standard "GetVersion" returned values depend on the application
   // manifest. We'll get the "real" version by using the Rtl* version.
-  auto get_version_func = (
-    get_version_func_t)GetProcAddress(ntdll_lib, "RtlGetVersion");
+  auto get_version_func =
+      (get_version_func_t)GetProcAddress(ntdll_lib, "RtlGetVersion");
   int ret = 0;
   if (!get_version_func || get_version_func(ver)) {
     // RtlGetVersion returns non-zero values in case of errors.
@@ -230,14 +246,15 @@ int get_windows_version(POSVERSIONINFOEXW ver) {
 }
 #endif
 
-void collect_sys_info(map<string, string> *m, CephContext *cct)
+void
+collect_sys_info(map<string, string>* m, CephContext* cct)
 {
   // version
   (*m)["ceph_version"] = pretty_version_to_str();
   (*m)["ceph_version_short"] = ceph_version_to_str();
   (*m)["ceph_release"] = ceph_release_to_str();
 
-  #ifndef _WIN32
+#ifndef _WIN32
   // kernel info
   struct utsname u;
   int r = uname(&u);
@@ -248,14 +265,15 @@ void collect_sys_info(map<string, string> *m, CephContext *cct)
     (*m)["hostname"] = u.nodename;
     (*m)["arch"] = u.machine;
   }
-  #else
+#else
   OSVERSIONINFOEXW ver = {0};
   ver.dwOSVersionInfoSize = sizeof(ver);
   get_windows_version(&ver);
 
   char version_str[64];
-  snprintf(version_str, 64, "%lu.%lu (%lu)",
-           ver.dwMajorVersion, ver.dwMinorVersion, ver.dwBuildNumber);
+  snprintf(
+      version_str, 64, "%lu.%lu (%lu)", ver.dwMajorVersion, ver.dwMinorVersion,
+      ver.dwBuildNumber);
 
   char hostname[64];
   DWORD hostname_sz = sizeof(hostname);
@@ -266,18 +284,18 @@ void collect_sys_info(map<string, string> *m, CephContext *cct)
   GetNativeSystemInfo(&sys_info);
 
   switch (sys_info.wProcessorArchitecture) {
-    case PROCESSOR_ARCHITECTURE_AMD64:
-      arch_str = "x86_64";
-      break;
-    case PROCESSOR_ARCHITECTURE_INTEL:
-      arch_str = "x86";
-      break;
-    case PROCESSOR_ARCHITECTURE_ARM:
-      arch_str = "arm";
-      break;
-    default:
-      arch_str = "unknown";
-      break;
+  case PROCESSOR_ARCHITECTURE_AMD64:
+    arch_str = "x86_64";
+    break;
+  case PROCESSOR_ARCHITECTURE_INTEL:
+    arch_str = "x86";
+    break;
+  case PROCESSOR_ARCHITECTURE_ARM:
+    arch_str = "arm";
+    break;
+  default:
+    arch_str = "unknown";
+    break;
   }
 
   (*m)["os"] = "Windows";
@@ -285,29 +303,29 @@ void collect_sys_info(map<string, string> *m, CephContext *cct)
   (*m)["kernel_description"] = version_str;
   (*m)["hostname"] = hostname;
   (*m)["arch"] = arch_str;
-  #endif
+#endif
 
   // but wait, am i in a container?
   bool in_container = false;
 
-  if (const char *pod_name = getenv("POD_NAME")) {
+  if (const char* pod_name = getenv("POD_NAME")) {
     (*m)["pod_name"] = pod_name;
     in_container = true;
   }
-  if (const char *container_name = getenv("CONTAINER_NAME")) {
+  if (const char* container_name = getenv("CONTAINER_NAME")) {
     (*m)["container_name"] = container_name;
     in_container = true;
   }
-  if (const char *container_image = getenv("CONTAINER_IMAGE")) {
+  if (const char* container_image = getenv("CONTAINER_IMAGE")) {
     (*m)["container_image"] = container_image;
     in_container = true;
   }
   if (in_container) {
-    if (const char *node_name = getenv("NODE_NAME")) {
+    if (const char* node_name = getenv("NODE_NAME")) {
       (*m)["container_hostname"] = (*m)["hostname"];
       (*m)["hostname"] = node_name;
     }
-    if (const char *ns = getenv("POD_NAMESPACE")) {
+    if (const char* ns = getenv("POD_NAMESPACE")) {
       (*m)["pod_namespace"] = ns;
     }
   }
@@ -343,38 +361,38 @@ void collect_sys_info(map<string, string> *m, CephContext *cct)
 #elif !defined(_WIN32)
   // memory
   if (std::ifstream f{PROCPREFIX "/proc/meminfo"}; !f.fail()) {
-    for (std::string line; std::getline(f, line); ) {
+    for (std::string line; std::getline(f, line);) {
       std::vector<string> parts;
-      boost::split(parts, line, boost::is_any_of(":\t "), boost::token_compress_on);
+      boost::split(
+          parts, line, boost::is_any_of(":\t "), boost::token_compress_on);
       if (parts.size() != 3) {
-	continue;
+        continue;
       }
       if (parts[0] == "MemTotal") {
-	(*m)["mem_total_kb"] = parts[1];
+        (*m)["mem_total_kb"] = parts[1];
       } else if (parts[0] == "SwapTotal") {
-	(*m)["mem_swap_kb"] = parts[1];
+        (*m)["mem_swap_kb"] = parts[1];
       }
     }
   }
   uint64_t cgroup_limit;
-  if (get_cgroup_memory_limit(&cgroup_limit) == 0 &&
-      cgroup_limit > 0) {
+  if (get_cgroup_memory_limit(&cgroup_limit) == 0 && cgroup_limit > 0) {
     (*m)["mem_cgroup_limit"] = std::to_string(cgroup_limit);
   }
 
   // processor
   if (std::ifstream f{PROCPREFIX "/proc/cpuinfo"}; !f.fail()) {
-    for (std::string line; std::getline(f, line); ) {
+    for (std::string line; std::getline(f, line);) {
       std::vector<string> parts;
       boost::split(parts, line, boost::is_any_of(":"));
       if (parts.size() != 2) {
-	continue;
+        continue;
       }
       boost::trim(parts[0]);
       boost::trim(parts[1]);
       if (parts[0] == "model name") {
-	(*m)["cpu"] = parts[1];
-	break;
+        (*m)["cpu"] = parts[1];
+        break;
       }
     }
   }
@@ -383,17 +401,19 @@ void collect_sys_info(map<string, string> *m, CephContext *cct)
   distro_detect(m, cct);
 }
 
-void dump_services(Formatter* f, const map<string, list<int> >& services, const char* type)
+void
+dump_services(
+    Formatter* f,
+    const map<string, list<int>>& services,
+    const char* type)
 {
   ceph_assert(f);
 
   f->open_object_section(type);
-  for (auto host = services.begin();
-       host != services.end(); ++host) {
+  for (auto host = services.begin(); host != services.end(); ++host) {
     f->open_array_section(host->first.c_str());
     const list<int>& hosted = host->second;
-    for (auto s = hosted.cbegin();
-	 s != hosted.cend(); ++s) {
+    for (auto s = hosted.cbegin(); s != hosted.cend(); ++s) {
       f->dump_int(type, *s);
     }
     f->close_section();
@@ -401,7 +421,11 @@ void dump_services(Formatter* f, const map<string, list<int> >& services, const 
   f->close_section();
 }
 
-void dump_services(Formatter* f, const map<string, list<string> >& services, const char* type)
+void
+dump_services(
+    Formatter* f,
+    const map<string, list<string>>& services,
+    const char* type)
 {
   ceph_assert(f);
 
@@ -419,7 +443,8 @@ void dump_services(Formatter* f, const map<string, list<string> >& services, con
 
 // If non-printable characters found then convert bufferlist to
 // base64 encoded string indicating whether it did.
-string cleanbin(bufferlist &bl, bool &base64, bool show)
+string
+cleanbin(bufferlist& bl, bool& base64, bool show)
 {
   bufferlist::iterator it;
   for (it = bl.begin(); it != bl.end(); ++it) {
@@ -443,7 +468,8 @@ string cleanbin(bufferlist &bl, bool &base64, bool show)
 
 // If non-printable characters found then convert to "Base64:" followed by
 // base64 encoding
-string cleanbin(string &str)
+string
+cleanbin(string& str)
 {
   bool base64;
   bufferlist bl;
@@ -452,10 +478,12 @@ string cleanbin(string &str)
   return result;
 }
 
-std::string bytes2str(uint64_t count) {
+std::string
+bytes2str(uint64_t count)
+{
   static char s[][2] = {"\0", "k", "M", "G", "T", "P", "E", "\0"};
   int i = 0;
-  while (count >= 1024 && *s[i+1]) {
+  while (count >= 1024 && *s[i + 1]) {
     count >>= 10;
     i++;
   }
@@ -465,7 +493,8 @@ std::string bytes2str(uint64_t count) {
 }
 
 #ifndef _WIN32
-bool ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
+bool
+ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
 {
   ceph_assert(total != nullptr);
   const char* stat_path = PROCPREFIX "/proc/self/stat";
@@ -477,8 +506,9 @@ bool ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
     return false;
   }
 
-  std::vector<std::string> stat_vec((std::istream_iterator<std::string>{stat_file}),
-                                    std::istream_iterator<std::string>());
+  std::vector<std::string> stat_vec(
+      (std::istream_iterator<std::string>{stat_file}),
+      std::istream_iterator<std::string>());
   if (stat_vec.size() < 15) {
     if (error) {
       *error = std::string("failed to parse '") + stat_path + "'";
@@ -492,7 +522,8 @@ bool ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
   return true;
 }
 #else
-bool ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
+bool
+ceph::read_process_cpu_ticks(uint64_t* total, std::string* error)
 {
   if (error) {
     *error = "/proc/self/stat not available on this platform";

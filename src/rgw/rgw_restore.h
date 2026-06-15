@@ -3,27 +3,27 @@
 
 #pragma once
 
-#include <map>
 #include <array>
-#include <string>
+#include <atomic>
 #include <iostream>
+#include <map>
+#include <string>
+#include <tuple>
 
 #include "common/debug.h"
 
-#include "include/types.h"
-#include "include/rados/librados.hpp"
-#include "common/ceph_mutex.h"
-#include "common/Cond.h"
-#include "common/iso_8601.h"
-#include "common/Thread.h"
-#include "rgw_common.h"
 #include "cls/rgw/cls_rgw_types.h"
-#include "rgw_sal.h"
+#include "common/Cond.h"
+#include "common/Thread.h"
+#include "common/ceph_mutex.h"
+#include "common/iso_8601.h"
+#include "include/rados/librados.hpp"
+#include "include/types.h"
+
+#include "rgw_common.h"
 #include "rgw_notify.h"
 #include "rgw_restore_waiter.h"
-
-#include <atomic>
-#include <tuple>
+#include "rgw_sal.h"
 
 #define HASH_PRIME 7877
 #define MAX_ID_LEN 255
@@ -42,7 +42,9 @@ struct RestoreEntry {
 
   RestoreEntry() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(bucket, bl);
     encode(obj_key, bl);
@@ -52,7 +54,9 @@ struct RestoreEntry {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(bucket, bl);
     decode(obj_key, bl);
@@ -61,6 +65,7 @@ struct RestoreEntry {
     decode(status, bl);
     DECODE_FINISH(bl);
   }
+
   void dump(ceph::Formatter* f) const;
   void decode_json(JSONObj* obj);
   static void generate_test_instances(std::list<rgw::restore::RestoreEntry*>& l);
@@ -68,33 +73,45 @@ struct RestoreEntry {
 WRITE_CLASS_ENCODER(RestoreEntry)
 
 class Restore : public DoutPrefixProvider {
-  CephContext *cct;
+  CephContext* cct;
   rgw::sal::Driver* driver;
   std::unique_ptr<rgw::sal::Restore> sal_restore;
   int max_objs{0};
   std::vector<std::string> obj_names;
-  std::atomic<bool> down_flag = { false };
+  std::atomic<bool> down_flag = {false};
   std::shared_ptr<RestoreWaiterRegistry> waiter_registry;
 
-  class RestoreWorker : public Thread
-  {
-    const DoutPrefixProvider *dpp;
-    CephContext *cct;
-    rgw::restore::Restore *restore;
+  class RestoreWorker : public Thread {
+    const DoutPrefixProvider* dpp;
+    CephContext* cct;
+    rgw::restore::Restore* restore;
     ceph::mutex lock = ceph::make_mutex("RestoreWorker");
     ceph::condition_variable cond;
 
   public:
-
     using lock_guard = std::lock_guard<std::mutex>;
     using unique_lock = std::unique_lock<std::mutex>;
 
-    RestoreWorker(const DoutPrefixProvider* _dpp, CephContext *_cct, rgw::restore::Restore *_restore) : dpp(_dpp), cct(_cct), restore(_restore) {}
-    rgw::restore::Restore* get_restore() { return restore; }
-    std::string thr_name() {
+    RestoreWorker(
+        const DoutPrefixProvider* _dpp,
+        CephContext* _cct,
+        rgw::restore::Restore* _restore) :
+      dpp(_dpp), cct(_cct), restore(_restore)
+    {}
+
+    rgw::restore::Restore*
+    get_restore()
+    {
+      return restore;
+    }
+
+    std::string
+    thr_name()
+    {
       return std::string{"restore_thrd: "}; // + std::to_string(ix);
     }
-    void *entry() override;
+
+    void* entry() override;
     void stop();
 
     friend class Restore;
@@ -104,26 +121,44 @@ class Restore : public DoutPrefixProvider {
   std::unique_ptr<Restore::RestoreWorker> worker;
 
 public:
-  ~Restore() {
+  ~Restore()
+  {
     stop_processor();
     finalize();
   }
 
   friend class RGWRados;
 
-  Restore() : cct(nullptr), driver(nullptr), max_objs(0) {}
+  Restore() :
+    cct(nullptr), driver(nullptr), max_objs(0)
+  {}
 
-  int initialize(CephContext *_cct, rgw::sal::Driver* _driver);
+  int initialize(CephContext* _cct, rgw::sal::Driver* _driver);
   void finalize();
 
   bool going_down();
   void start_processor();
   void stop_processor();
   void wake_worker();
-  std::shared_ptr<RestoreWaiterRegistry> get_waiter_registry() const { return waiter_registry; }
 
-  CephContext *get_cct() const override { return cct; }
-  rgw::sal::Restore* get_restore() const { return sal_restore.get(); }
+  std::shared_ptr<RestoreWaiterRegistry>
+  get_waiter_registry() const
+  {
+    return waiter_registry;
+  }
+
+  CephContext*
+  get_cct() const override
+  {
+    return cct;
+  }
+
+  rgw::sal::Restore*
+  get_restore() const
+  {
+    return sal_restore.get();
+  }
+
   unsigned get_subsys() const;
 
   std::ostream& gen_prefix(std::ostream& out) const;
@@ -135,50 +170,67 @@ public:
   time_t thread_stop_at();
 
   /** Set the restore status for the given object */
-  int set_cloud_restore_status(const DoutPrefixProvider* dpp, rgw::sal::Object* pobj,
-		  	   optional_yield y,
-			   const rgw::sal::RGWRestoreStatus& restore_status);
+  int set_cloud_restore_status(
+      const DoutPrefixProvider* dpp,
+      rgw::sal::Object* pobj,
+      optional_yield y,
+      const rgw::sal::RGWRestoreStatus& restore_status);
 
   /** Calculate expiration date based on expiry days */
-  void get_expiration_date(const DoutPrefixProvider* dpp,
-                           int expiry_days, ceph::real_time& exp_date);
+  void get_expiration_date(
+      const DoutPrefixProvider* dpp,
+      int expiry_days,
+      ceph::real_time& exp_date);
 
   /** Update expiry date for temp restored copies */
-  int update_cloud_restore_exp_date(rgw::sal::Bucket* pbucket,
-	       			       rgw::sal::Object* pobj, std::optional<uint64_t> days,
-				             const DoutPrefixProvider* dpp, optional_yield y);
+  int update_cloud_restore_exp_date(
+      rgw::sal::Bucket* pbucket,
+      rgw::sal::Object* pobj,
+      std::optional<uint64_t> days,
+      const DoutPrefixProvider* dpp,
+      optional_yield y);
 
   /** Given <bucket, obj>, restore the object from the cloud-tier. In case the
    * object cannot be restored immediately, save that restore state(/entry) 
    * to be procesed later by RestoreWorker thread. */
-  int restore_obj_from_cloud(rgw::sal::Bucket* pbucket, rgw::sal::Object* pobj,
-		  	     rgw::sal::PlacementTier* tier,
-			     std::optional<uint64_t> days,
-			     const DoutPrefixProvider* dpp,
-			     optional_yield y);
+  int restore_obj_from_cloud(
+      rgw::sal::Bucket* pbucket,
+      rgw::sal::Object* pobj,
+      rgw::sal::PlacementTier* tier,
+      std::optional<uint64_t> days,
+      const DoutPrefixProvider* dpp,
+      optional_yield y);
 
   /**
    * Send notification incase of restore events
    */
 
-  void send_notification(const DoutPrefixProvider* dpp,
-                              rgw::sal::Driver* driver,
-                              rgw::sal::Object* obj,
-                              rgw::sal::Bucket* bucket,
-                              const std::string& etag,
-                              uint64_t size,
-                              const std::string& version_id,
-                              const rgw::notify::EventTypeList& event_types,
-                              optional_yield y);
+  void send_notification(
+      const DoutPrefixProvider* dpp,
+      rgw::sal::Driver* driver,
+      rgw::sal::Object* obj,
+      rgw::sal::Bucket* bucket,
+      const std::string& etag,
+      uint64_t size,
+      const std::string& version_id,
+      const rgw::notify::EventTypeList& event_types,
+      optional_yield y);
   // list restore status of objects in the bucket
-  int list(const DoutPrefixProvider* dpp, RestoreEntry& entry,
-           std::optional<std::string> restore_status_filter, std::string& err_msg,
-           RGWFormatterFlusher& flusher, optional_yield y);
+  int list(
+      const DoutPrefixProvider* dpp,
+      RestoreEntry& entry,
+      std::optional<std::string> restore_status_filter,
+      std::string& err_msg,
+      RGWFormatterFlusher& flusher,
+      optional_yield y);
 
   // restore status of an object in a bucket
-  int status(const DoutPrefixProvider* dpp, RestoreEntry& entry,
-             std::string& err_msg, RGWFormatterFlusher& flusher,
-             optional_yield y);
+  int status(
+      const DoutPrefixProvider* dpp,
+      RestoreEntry& entry,
+      std::string& err_msg,
+      RGWFormatterFlusher& flusher,
+      optional_yield y);
 };
 
 } // namespace rgw::restore

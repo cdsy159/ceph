@@ -14,14 +14,15 @@
 
 #ifndef MON_NVMEOFGWTYPES_H_
 #define MON_NVMEOFGWTYPES_H_
-#include <string>
+#include <chrono>
+#include <cstdint>
 #include <iomanip>
-#include <map>
 #include <iostream>
 #include <list>
+#include <map>
+#include <string>
 #include <vector>
-#include <cstdint>
-#include <chrono>
+
 #include "include/types.h"
 #include "msg/msg_types.h"
 
@@ -67,19 +68,20 @@ enum class subsystem_change_t {
 };
 
 #define REDUNDANT_GW_ANA_GROUP_ID 0xFF
-using SmState = std::map < NvmeAnaGrpId, gw_states_per_group_t>;
+using SmState = std::map<NvmeAnaGrpId, gw_states_per_group_t>;
 
 using ana_state_t =
-  std::vector<std::pair<gw_exported_states_per_group_t, epoch_t>>;
+    std::vector<std::pair<gw_exported_states_per_group_t, epoch_t>>;
 
 struct BeaconNamespace {
   NvmeAnaGrpId anagrpid;
-  std::string  nonce;
+  std::string nonce;
 
   // Define the equality operator
-  bool operator==(const BeaconNamespace& other) const {
-    return anagrpid == other.anagrpid &&
-      nonce == other.nonce;
+  bool
+  operator==(const BeaconNamespace& other) const
+  {
+    return anagrpid == other.anagrpid && nonce == other.nonce;
   }
 };
 
@@ -90,45 +92,50 @@ struct BeaconNamespace {
 // https://spdk.io/doc/jsonrpc.html#rpc_nvmf_listen_address.
 struct BeaconListener {
   std::string address_family; // IPv4 or IPv6
-  std::string address;        //
-  std::string svcid;          // port
+  std::string address; //
+  std::string svcid; // port
 
   // Define the equality operator
-  bool operator==(const BeaconListener& other) const {
-    return address_family == other.address_family &&
-      address == other.address &&
-      svcid == other.svcid;
+  bool
+  operator==(const BeaconListener& other) const
+  {
+    return address_family == other.address_family && address == other.address &&
+           svcid == other.svcid;
   }
 };
 
 struct BeaconSubsystem {
   NvmeNqnId nqn;
-  std::list<BeaconListener>  listeners;
+  std::list<BeaconListener> listeners;
   std::list<BeaconNamespace> namespaces;
   subsystem_change_t change_descriptor = subsystem_change_t::SUBSYSTEM_ADDED;
 
   // Define the equality operator
-  bool operator==(const BeaconSubsystem& other) const {
-    return nqn == other.nqn &&
-      listeners == other.listeners &&
-      namespaces == other.namespaces;
+  bool
+  operator==(const BeaconSubsystem& other) const
+  {
+    return nqn == other.nqn && listeners == other.listeners &&
+           namespaces == other.namespaces;
   }
 };
 
 using BeaconSubsystems = std::list<BeaconSubsystem>;
 
 using NvmeNonceVector = std::vector<std::string>;
-using NvmeAnaNonceMap = std::map <NvmeAnaGrpId, NvmeNonceVector>;
+using NvmeAnaNonceMap = std::map<NvmeAnaGrpId, NvmeNonceVector>;
 
-struct Blocklist_data{
+struct Blocklist_data {
   epoch_t osd_epoch;
   bool is_failover;
-  Blocklist_data() {
+
+  Blocklist_data()
+  {
     osd_epoch = 0;
     is_failover = true;
   };
-  Blocklist_data(epoch_t epoch, bool failover)
-    : osd_epoch(epoch), is_failover(failover) {};
+
+  Blocklist_data(epoch_t epoch, bool failover) :
+    osd_epoch(epoch), is_failover(failover){};
 };
 
 using BlocklistData = std::map<NvmeAnaGrpId, Blocklist_data>;
@@ -151,9 +158,11 @@ struct NvmeGwMonState {
   BlocklistData blocklist_data;
   //ceph entity address allocated for the GW-client that represents this GW-id
   entity_addrvec_t addr_vect;
-  uint64_t beacon_sequence = 0;// sequence number of last beacon copied to GW state
+  uint64_t beacon_sequence =
+      0; // sequence number of last beacon copied to GW state
   bool beacon_sequence_ooo = false; // last beacon sequence was out of order;
-  uint16_t beacon_index = 0; // used for filter acks sent to the client as response to beacon
+  uint16_t beacon_index =
+      0; // used for filter acks sent to the client as response to beacon
   /**
    * during redeploy action and maybe other emergency use-cases gw performs scenario
    * that we call fast-reboot. It quickly reboots(due to redeploy f.e) and sends the
@@ -177,74 +186,99 @@ struct NvmeGwMonState {
   gw_admin_state_t gw_admin_state = gw_admin_state_t::GW_ADMIN_ENABLED;
   std::string location = "";
   std::chrono::system_clock::time_point allow_failovers_ts =
-             std::chrono::system_clock::now();
+      std::chrono::system_clock::now();
   std::chrono::system_clock::time_point last_gw_down_ts =
-             std::chrono::system_clock::now() - std::chrono::seconds(30);
-  NvmeGwMonState(): ana_grp_id(REDUNDANT_GW_ANA_GROUP_ID) {}
+      std::chrono::system_clock::now() - std::chrono::seconds(30);
 
-  NvmeGwMonState(NvmeAnaGrpId id)
-    : ana_grp_id(id), availability(gw_availability_t::GW_CREATED),
-      last_gw_map_epoch_valid(false), performed_full_startup(false) {}
-  void set_unavailable_state() {
+  NvmeGwMonState() :
+    ana_grp_id(REDUNDANT_GW_ANA_GROUP_ID)
+  {}
+
+  NvmeGwMonState(NvmeAnaGrpId id) :
+    ana_grp_id(id),
+    availability(gw_availability_t::GW_CREATED),
+    last_gw_map_epoch_valid(false),
+    performed_full_startup(false)
+  {}
+
+  void
+  set_unavailable_state()
+  {
     if (availability != gw_availability_t::GW_DELETING) {
       //for not to override Deleting
       availability = gw_availability_t::GW_UNAVAILABLE;
     }
-     // after setting this state, the next time monitor sees GW,
-     // it expects it performed the full startup
+    // after setting this state, the next time monitor sees GW,
+    // it expects it performed the full startup
     performed_full_startup = false;
   }
-  void reset_beacon_sequence(){
+
+  void
+  reset_beacon_sequence()
+  {
     beacon_sequence = 0;
   }
-  void standby_state(NvmeAnaGrpId grpid) {
-    sm_state[grpid]       = gw_states_per_group_t::GW_STANDBY_STATE;
+
+  void
+  standby_state(NvmeAnaGrpId grpid)
+  {
+    sm_state[grpid] = gw_states_per_group_t::GW_STANDBY_STATE;
   }
-  void active_state(NvmeAnaGrpId grpid) {
-    sm_state[grpid]       = gw_states_per_group_t::GW_ACTIVE_STATE;
+
+  void
+  active_state(NvmeAnaGrpId grpid)
+  {
+    sm_state[grpid] = gw_states_per_group_t::GW_ACTIVE_STATE;
     blocklist_data[grpid].osd_epoch = 0;
   }
-  void set_last_gw_down_ts(){
+
+  void
+  set_last_gw_down_ts()
+  {
     last_gw_down_ts = std::chrono::system_clock::now();
   }
 };
 
 struct NqnState {
-  std::string nqn;          // subsystem NQN
-  ana_state_t ana_state;    // subsystem's ANA state
+  std::string nqn; // subsystem NQN
+  ana_state_t ana_state; // subsystem's ANA state
 
   // constructors
-  NqnState(const std::string& _nqn, const ana_state_t& _ana_state)
-    : nqn(_nqn), ana_state(_ana_state)  {}
+  NqnState(const std::string& _nqn, const ana_state_t& _ana_state) :
+    nqn(_nqn), ana_state(_ana_state)
+  {}
+
   NqnState(
-    const std::string& _nqn, const SmState& sm_state,
-    const NvmeGwMonState & gw_created)
-    : nqn(_nqn)  {
+      const std::string& _nqn,
+      const SmState& sm_state,
+      const NvmeGwMonState& gw_created) :
+    nqn(_nqn)
+  {
     uint32_t i = 0;
-    for (auto& state_itr: sm_state) {
+    for (auto& state_itr : sm_state) {
       if (state_itr.first > i) {
-	uint32_t num_to_add = state_itr.first - i;
+        uint32_t num_to_add = state_itr.first - i;
         // add fake elements to the ana_state in order to
-	// preserve vector index == correct ana_group_id
-	for (uint32_t j = 0; j < num_to_add; j++) {
-	  std::pair<gw_exported_states_per_group_t, epoch_t> state_pair;
-	  state_pair.first =
-	    gw_exported_states_per_group_t::GW_EXPORTED_INACCESSIBLE_STATE;
-	  state_pair.second = 0;
-	  ana_state.push_back(state_pair);
-	}
-	i += num_to_add;
+        // preserve vector index == correct ana_group_id
+        for (uint32_t j = 0; j < num_to_add; j++) {
+          std::pair<gw_exported_states_per_group_t, epoch_t> state_pair;
+          state_pair.first =
+              gw_exported_states_per_group_t::GW_EXPORTED_INACCESSIBLE_STATE;
+          state_pair.second = 0;
+          ana_state.push_back(state_pair);
+        }
+        i += num_to_add;
       }
       std::pair<gw_exported_states_per_group_t, epoch_t> state_pair;
-      state_pair.first = (
-	(sm_state.at(state_itr.first) ==
-	 gw_states_per_group_t::GW_ACTIVE_STATE) ||
-	(sm_state.at(state_itr.first) ==
-	 gw_states_per_group_t::GW_WAIT_BLOCKLIST_CMPL))
-	? gw_exported_states_per_group_t::GW_EXPORTED_OPTIMIZED_STATE
-	: gw_exported_states_per_group_t::GW_EXPORTED_INACCESSIBLE_STATE;
+      state_pair.first =
+          ((sm_state.at(state_itr.first) ==
+            gw_states_per_group_t::GW_ACTIVE_STATE) ||
+           (sm_state.at(state_itr.first) ==
+            gw_states_per_group_t::GW_WAIT_BLOCKLIST_CMPL))
+              ? gw_exported_states_per_group_t::GW_EXPORTED_OPTIMIZED_STATE
+              : gw_exported_states_per_group_t::GW_EXPORTED_INACCESSIBLE_STATE;
       state_pair.second =
-	gw_created.blocklist_data.at(state_itr.first).osd_epoch;
+          gw_created.blocklist_data.at(state_itr.first).osd_epoch;
       ana_state.push_back(state_pair);
       i++;
     }
@@ -261,22 +295,40 @@ struct NvmeGwClientState {
   uint64_t last_beacon_seq_number;
   bool last_beacon_seq_ooo; //out of order sequence
   uint64_t map_features; // last map features
-  NvmeGwClientState(NvmeAnaGrpId id, epoch_t epoch, gw_availability_t available,
-     uint64_t sequence, bool sequence_ooo, uint64_t last_published_features)
-    : group_id(id), gw_map_epoch(epoch), availability(available),
-      last_beacon_seq_number(sequence), last_beacon_seq_ooo(sequence_ooo),
-	  map_features(last_published_features) {}
 
-  NvmeGwClientState()
-    : NvmeGwClientState(
-      REDUNDANT_GW_ANA_GROUP_ID, 0, gw_availability_t::GW_UNAVAILABLE, 0, 0, 0) {}
+  NvmeGwClientState(
+      NvmeAnaGrpId id,
+      epoch_t epoch,
+      gw_availability_t available,
+      uint64_t sequence,
+      bool sequence_ooo,
+      uint64_t last_published_features) :
+    group_id(id),
+    gw_map_epoch(epoch),
+    availability(available),
+    last_beacon_seq_number(sequence),
+    last_beacon_seq_ooo(sequence_ooo),
+    map_features(last_published_features)
+  {}
+
+  NvmeGwClientState() :
+    NvmeGwClientState(
+        REDUNDANT_GW_ANA_GROUP_ID,
+        0,
+        gw_availability_t::GW_UNAVAILABLE,
+        0,
+        0,
+        0)
+  {}
 };
 
 struct Tmdata {
   uint32_t timer_started; // statemachine timer(timestamp) set in some state
   uint8_t timer_value;
   std::chrono::system_clock::time_point end_time;
-  Tmdata() {
+
+  Tmdata()
+  {
     timer_started = 0;
     timer_value = 0;
   }
@@ -286,14 +338,13 @@ using TmData = std::map<NvmeAnaGrpId, Tmdata>;
 
 struct NvmeGwTimerState {
   TmData data;
-  NvmeGwTimerState() {};
+  NvmeGwTimerState(){};
 };
 
 struct LocationState {
   bool failbacks_in_process; //failbacks allowed in recovering state
-  LocationState() {
-    failbacks_in_process = 0;
-  }
+
+  LocationState() { failbacks_in_process = 0; }
 };
 
 using NvmeGwMonClientStates = std::map<NvmeGwId, NvmeGwClientState>;

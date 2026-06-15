@@ -9,23 +9,32 @@ class sstring_wrapper {
   sstring16 s1;
   using sstring24 = basic_sstring<char8_t, uint16_t, 24>;
   sstring24 s2;
- public:
+
+public:
   sstring_wrapper() = default;
-  sstring_wrapper(sstring16&& s1, sstring24&& s2)
-    : s1(std::move(s1)), s2(std::move(s2))
+
+  sstring_wrapper(sstring16&& s1, sstring24&& s2) :
+    s1(std::move(s1)), s2(std::move(s2))
   {}
 
-  DENC(sstring_wrapper, w, p) {
+  DENC(sstring_wrapper, w, p)
+  {
     DENC_START(1, 1, p);
     denc(w.s1, p);
     denc(w.s2, p);
     DENC_FINISH(p);
   }
-  void dump(Formatter* f) {
+
+  void
+  dump(Formatter* f)
+  {
     f->dump_string("s1", s1.c_str());
     f->dump_string("s2", reinterpret_cast<const char*>(s2.c_str()));
   }
-  static std::list<sstring_wrapper> generate_test_instances() {
+
+  static std::list<sstring_wrapper>
+  generate_test_instances()
+  {
     std::list<sstring_wrapper> ls;
     ls.push_back(sstring_wrapper());
     // initialize sstrings that fit in internal storage

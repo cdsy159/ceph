@@ -4,23 +4,26 @@
 #ifndef CEPH_LIBRBD_DEEP_COPY_OBJECT_COPY_REQUEST_H
 #define CEPH_LIBRBD_DEEP_COPY_OBJECT_COPY_REQUEST_H
 
-#include "include/int_types.h"
-#include "include/interval_set.h"
-#include "include/rados/librados.hpp"
-#include "common/snap_types.h"
-#include "librbd/ImageCtx.h"
-#include "librbd/deep_copy/Types.h"
-#include "librbd/io/Types.h"
 #include <list>
 #include <map>
 #include <string>
+
+#include "common/snap_types.h"
+#include "include/int_types.h"
+#include "include/interval_set.h"
+#include "include/rados/librados.hpp"
+#include "librbd/ImageCtx.h"
+#include "librbd/deep_copy/Types.h"
+#include "librbd/io/Types.h"
 
 class Context;
 class RWLock;
 
 namespace librbd {
 
-namespace io { class AsyncOperation; }
+namespace io {
+class AsyncOperation;
+}
 
 namespace deep_copy {
 
@@ -29,31 +32,46 @@ struct Handler;
 template <typename ImageCtxT = librbd::ImageCtx>
 class ObjectCopyRequest {
 public:
-  static ObjectCopyRequest* create(ImageCtxT *src_image_ctx,
-                                   ImageCtxT *dst_image_ctx,
-                                   librados::snap_t src_snap_id_start,
-                                   librados::snap_t dst_snap_id_start,
-                                   const SnapMap &snap_map,
-                                   uint64_t object_number, uint32_t flags,
-                                   Handler* handler, Context *on_finish) {
-    return new ObjectCopyRequest(src_image_ctx, dst_image_ctx,
-                                 src_snap_id_start, dst_snap_id_start, snap_map,
-                                 object_number, flags, handler, on_finish);
+  static ObjectCopyRequest*
+  create(
+      ImageCtxT* src_image_ctx,
+      ImageCtxT* dst_image_ctx,
+      librados::snap_t src_snap_id_start,
+      librados::snap_t dst_snap_id_start,
+      const SnapMap& snap_map,
+      uint64_t object_number,
+      uint32_t flags,
+      Handler* handler,
+      Context* on_finish)
+  {
+    return new ObjectCopyRequest(
+        src_image_ctx, dst_image_ctx, src_snap_id_start, dst_snap_id_start,
+        snap_map, object_number, flags, handler, on_finish);
   }
 
-  ObjectCopyRequest(ImageCtxT *src_image_ctx, ImageCtxT *dst_image_ctx,
-                    librados::snap_t src_snap_id_start,
-                    librados::snap_t dst_snap_id_start, const SnapMap &snap_map,
-                    uint64_t object_number, uint32_t flags, Handler* handler,
-                    Context *on_finish);
+  ObjectCopyRequest(
+      ImageCtxT* src_image_ctx,
+      ImageCtxT* dst_image_ctx,
+      librados::snap_t src_snap_id_start,
+      librados::snap_t dst_snap_id_start,
+      const SnapMap& snap_map,
+      uint64_t object_number,
+      uint32_t flags,
+      Handler* handler,
+      Context* on_finish);
 
   void send();
 
   // testing support
-  inline librados::IoCtx &get_src_io_ctx() {
+  inline librados::IoCtx&
+  get_src_io_ctx()
+  {
     return m_src_io_ctx;
   }
-  inline librados::IoCtx &get_dst_io_ctx() {
+
+  inline librados::IoCtx&
+  get_dst_io_ctx()
+  {
     return m_dst_io_ctx;
   }
 
@@ -95,16 +113,16 @@ private:
 
   typedef std::pair<librados::snap_t, librados::snap_t> WriteReadSnapIds;
 
-  ImageCtxT *m_src_image_ctx;
-  ImageCtxT *m_dst_image_ctx;
-  CephContext *m_cct;
+  ImageCtxT* m_src_image_ctx;
+  ImageCtxT* m_dst_image_ctx;
+  CephContext* m_cct;
   librados::snap_t m_src_snap_id_start;
   librados::snap_t m_dst_snap_id_start;
   SnapMap m_snap_map;
   uint64_t m_dst_object_number;
   uint32_t m_flags;
   Handler* m_handler;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   decltype(m_src_image_ctx->data_ctx) m_src_io_ctx;
   decltype(m_dst_image_ctx->data_ctx) m_dst_io_ctx;
@@ -139,7 +157,7 @@ private:
   void send_write_object();
   void handle_write_object(int r);
 
-  Context *start_lock_op(ceph::shared_mutex &owner_lock, int* r);
+  Context* start_lock_op(ceph::shared_mutex& owner_lock, int* r);
 
   void compute_read_ops();
   void merge_write_ops();

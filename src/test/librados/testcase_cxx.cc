@@ -3,21 +3,25 @@
 
 #include "testcase_cxx.h"
 
+#include <errno.h>
+#include <fmt/format.h>
+
 #include <chrono>
 #include <thread>
 
-#include <errno.h>
-#include <fmt/format.h>
+#include "include/scope_guard.h"
+
+#include "crimson_utils.h"
 #include "test_cxx.h"
 #include "test_shared.h"
-#include "crimson_utils.h"
-#include "include/scope_guard.h"
 
 using namespace librados;
 
 namespace {
 
-void init_rand() {
+void
+init_rand()
+{
   static bool seeded = false;
   if (!seeded) {
     seeded = true;
@@ -32,19 +36,23 @@ void init_rand() {
 std::string RadosTestPPNS::pool_name;
 Rados RadosTestPPNS::s_cluster;
 
-void RadosTestPPNS::SetUpTestCase()
+void
+RadosTestPPNS::SetUpTestCase()
 {
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestPPNS::TearDownTestCase()
+void
+RadosTestPPNS::TearDownTestCase()
 {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestPPNS::SetUp()
+void
+RadosTestPPNS::SetUp()
 {
   ASSERT_EQ(0, cluster.ioctx_create(pool_name.c_str(), ioctx));
   bool req;
@@ -52,20 +60,22 @@ void RadosTestPPNS::SetUp()
   ASSERT_FALSE(req);
 }
 
-void RadosTestPPNS::TearDown()
+void
+RadosTestPPNS::TearDown()
 {
   if (cleanup)
     cleanup_all_objects(ioctx);
   ioctx.close();
 }
 
-void RadosTestPPNS::cleanup_all_objects(librados::IoCtx ioctx)
+void
+RadosTestPPNS::cleanup_all_objects(librados::IoCtx ioctx)
 {
   // remove all objects to avoid polluting other tests
   ioctx.snap_set_read(librados::SNAP_HEAD);
   ioctx.set_namespace(all_nspaces);
-  for (NObjectIterator it = ioctx.nobjects_begin();
-       it != ioctx.nobjects_end(); ++it) {
+  for (NObjectIterator it = ioctx.nobjects_begin(); it != ioctx.nobjects_end();
+       ++it) {
     ioctx.locator_set_key(it->get_locator());
     ioctx.set_namespace(it->get_nspace());
     ASSERT_EQ(0, ioctx.remove(it->get_oid()));
@@ -76,57 +86,71 @@ std::string RadosTestParamPPNS::pool_name;
 std::string RadosTestParamPPNS::cache_pool_name;
 Rados RadosTestParamPPNS::s_cluster;
 
-void RadosTestParamPPNS::SetUpTestCase()
+void
+RadosTestParamPPNS::SetUpTestCase()
 {
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestParamPPNS::TearDownTestCase()
+void
+RadosTestParamPPNS::TearDownTestCase()
 {
   if (cache_pool_name.length()) {
     // tear down tiers
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd tier remove-overlay\", \"pool\": \"" + pool_name +
-      "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd tier remove\", \"pool\": \"" + pool_name +
-      "\", \"tierpool\": \"" + cache_pool_name + "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd pool delete\", \"pool\": \"" + cache_pool_name +
-      "\", \"pool2\": \"" + cache_pool_name + "\", \"yes_i_really_really_mean_it\": true}",
-      {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd tier remove-overlay\", \"pool\": \"" +
+                   pool_name + "\"}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd tier remove\", \"pool\": \"" + pool_name +
+                   "\", \"tierpool\": \"" + cache_pool_name + "\"}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd pool delete\", \"pool\": \"" +
+                   cache_pool_name + "\", \"pool2\": \"" + cache_pool_name +
+                   "\", \"yes_i_really_really_mean_it\": true}",
+               {}, NULL, NULL));
     cache_pool_name = "";
   }
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestParamPPNS::SetUp()
+void
+RadosTestParamPPNS::SetUp()
 {
   if (!is_crimson_cluster() && strcmp(GetParam(), "cache") == 0 &&
       cache_pool_name.empty()) {
-    auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+    auto pool_prefix = fmt::format(
+        "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
     cache_pool_name = get_temp_pool_name();
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd pool create\", \"pool\": \"" + cache_pool_name +
-      "\", \"pg_num\": 4}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier add\", \"pool\": \"" + pool_name +
-      "\", \"tierpool\": \"" + cache_pool_name +
-      "\", \"force_nonempty\": \"--force-nonempty\" }",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier set-overlay\", \"pool\": \"" + pool_name +
-      "\", \"overlaypool\": \"" + cache_pool_name + "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier cache-mode\", \"pool\": \"" + cache_pool_name +
-      "\", \"mode\": \"writeback\"}",
-      {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd pool create\", \"pool\": \"" +
+                   cache_pool_name + "\", \"pg_num\": 4}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd tier add\", \"pool\": \"" + pool_name +
+                   "\", \"tierpool\": \"" + cache_pool_name +
+                   "\", \"force_nonempty\": \"--force-nonempty\" }",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0,
+        cluster.mon_command(
+            "{\"prefix\": \"osd tier set-overlay\", \"pool\": \"" + pool_name +
+                "\", \"overlaypool\": \"" + cache_pool_name + "\"}",
+            {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd tier cache-mode\", \"pool\": \"" +
+                   cache_pool_name + "\", \"mode\": \"writeback\"}",
+               {}, NULL, NULL));
     cluster.wait_for_latest_osdmap();
   }
 
@@ -136,20 +160,22 @@ void RadosTestParamPPNS::SetUp()
   ASSERT_FALSE(req);
 }
 
-void RadosTestParamPPNS::TearDown()
+void
+RadosTestParamPPNS::TearDown()
 {
   if (cleanup)
     cleanup_all_objects(ioctx);
   ioctx.close();
 }
 
-void RadosTestParamPPNS::cleanup_all_objects(librados::IoCtx ioctx)
+void
+RadosTestParamPPNS::cleanup_all_objects(librados::IoCtx ioctx)
 {
   // remove all objects to avoid polluting other tests
   ioctx.snap_set_read(librados::SNAP_HEAD);
   ioctx.set_namespace(all_nspaces);
-  for (NObjectIterator it = ioctx.nobjects_begin();
-       it != ioctx.nobjects_end(); ++it) {
+  for (NObjectIterator it = ioctx.nobjects_begin(); it != ioctx.nobjects_end();
+       ++it) {
     ioctx.locator_set_key(it->get_locator());
     ioctx.set_namespace(it->get_nspace());
     ASSERT_EQ(0, ioctx.remove(it->get_oid()));
@@ -159,19 +185,23 @@ void RadosTestParamPPNS::cleanup_all_objects(librados::IoCtx ioctx)
 std::string RadosTestECPPNS::pool_name;
 Rados RadosTestECPPNS::s_cluster;
 
-void RadosTestECPPNS::SetUpTestCase()
+void
+RadosTestECPPNS::SetUpTestCase()
 {
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_ec_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestECPPNS::TearDownTestCase()
+void
+RadosTestECPPNS::TearDownTestCase()
 {
   ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestECPPNS::SetUp()
+void
+RadosTestECPPNS::SetUp()
 {
   ASSERT_EQ(0, cluster.ioctx_create(pool_name.c_str(), ioctx));
   bool req;
@@ -181,7 +211,8 @@ void RadosTestECPPNS::SetUp()
   ASSERT_NE(0U, alignment);
 }
 
-void RadosTestECPPNS::TearDown()
+void
+RadosTestECPPNS::TearDown()
 {
   if (cleanup)
     cleanup_all_objects(ioctx);
@@ -191,20 +222,24 @@ void RadosTestECPPNS::TearDown()
 std::string RadosTestPP::pool_name;
 Rados RadosTestPP::s_cluster;
 
-void RadosTestPP::SetUpTestCase()
+void
+RadosTestPP::SetUpTestCase()
 {
   init_rand();
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestPP::TearDownTestCase()
+void
+RadosTestPP::TearDownTestCase()
 {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestPP::SetUp()
+void
+RadosTestPP::SetUp()
 {
   ASSERT_EQ(0, cluster.ioctx_create(pool_name.c_str(), ioctx));
   nspace = get_temp_pool_name();
@@ -214,7 +249,8 @@ void RadosTestPP::SetUp()
   ASSERT_FALSE(req);
 }
 
-void RadosTestPP::TearDown()
+void
+RadosTestPP::TearDown()
 {
   if (cleanup) {
     cleanup_default_namespace(ioctx);
@@ -223,14 +259,16 @@ void RadosTestPP::TearDown()
   ioctx.close();
 }
 
-void RadosTestPP::cleanup_default_namespace(librados::IoCtx ioctx)
+void
+RadosTestPP::cleanup_default_namespace(librados::IoCtx ioctx)
 {
   // remove all objects from the default namespace to avoid polluting
   // other tests
   cleanup_namespace(ioctx, "");
 }
 
-void RadosTestPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
+void
+RadosTestPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
 {
   ioctx.snap_set_read(librados::SNAP_HEAD);
   ioctx.set_namespace(ns);
@@ -238,35 +276,37 @@ void RadosTestPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
   while (--tries) {
     int got_enoent = 0;
     for (NObjectIterator it = ioctx.nobjects_begin();
-	 it != ioctx.nobjects_end(); ++it) {
+         it != ioctx.nobjects_end(); ++it) {
       ioctx.locator_set_key(it->get_locator());
       ObjectWriteOperation op;
       op.remove();
-      librados::AioCompletion *completion = s_cluster.aio_create_completion();
+      librados::AioCompletion* completion = s_cluster.aio_create_completion();
       auto sg = make_scope_guard([&] { completion->release(); });
-      ASSERT_EQ(0, ioctx.aio_operate(it->get_oid(), completion, &op,
-				     librados::OPERATION_IGNORE_CACHE));
+      ASSERT_EQ(
+          0, ioctx.aio_operate(
+                 it->get_oid(), completion, &op,
+                 librados::OPERATION_IGNORE_CACHE));
       completion->wait_for_complete();
       if (completion->get_return_value() == -ENOENT) {
-	++got_enoent;
-	std::cout << " got ENOENT removing " << it->get_oid()
-		  << " in ns " << ns << std::endl;
+        ++got_enoent;
+        std::cout << " got ENOENT removing " << it->get_oid() << " in ns " << ns
+                  << std::endl;
       } else {
-	ASSERT_EQ(0, completion->get_return_value());
+        ASSERT_EQ(0, completion->get_return_value());
       }
     }
     if (!got_enoent) {
       break;
     }
     std::cout << " got ENOENT on " << got_enoent
-	      << " objects, waiting a bit for snap"
-	      << " trimming before retrying " << tries << " more times..."
-	      << std::endl;
+              << " objects, waiting a bit for snap"
+              << " trimming before retrying " << tries << " more times..."
+              << std::endl;
     sleep(1);
   }
   if (tries == 0) {
     std::cout << "failed to clean up; probably need to scrub purged_snaps."
-	      << std::endl;
+              << std::endl;
   }
 }
 
@@ -274,57 +314,71 @@ std::string RadosTestParamPP::pool_name;
 std::string RadosTestParamPP::cache_pool_name;
 Rados RadosTestParamPP::s_cluster;
 
-void RadosTestParamPP::SetUpTestCase()
+void
+RadosTestParamPP::SetUpTestCase()
 {
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestParamPP::TearDownTestCase()
+void
+RadosTestParamPP::TearDownTestCase()
 {
   if (cache_pool_name.length()) {
     // tear down tiers
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd tier remove-overlay\", \"pool\": \"" + pool_name +
-      "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd tier remove\", \"pool\": \"" + pool_name +
-      "\", \"tierpool\": \"" + cache_pool_name + "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, s_cluster.mon_command(
-      "{\"prefix\": \"osd pool delete\", \"pool\": \"" + cache_pool_name +
-      "\", \"pool2\": \"" + cache_pool_name + "\", \"yes_i_really_really_mean_it\": true}",
-      {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd tier remove-overlay\", \"pool\": \"" +
+                   pool_name + "\"}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd tier remove\", \"pool\": \"" + pool_name +
+                   "\", \"tierpool\": \"" + cache_pool_name + "\"}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, s_cluster.mon_command(
+               "{\"prefix\": \"osd pool delete\", \"pool\": \"" +
+                   cache_pool_name + "\", \"pool2\": \"" + cache_pool_name +
+                   "\", \"yes_i_really_really_mean_it\": true}",
+               {}, NULL, NULL));
     cache_pool_name = "";
   }
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestParamPP::SetUp()
+void
+RadosTestParamPP::SetUp()
 {
   if (!is_crimson_cluster() && strcmp(GetParam(), "cache") == 0 &&
       cache_pool_name.empty()) {
-    auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+    auto pool_prefix = fmt::format(
+        "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
     cache_pool_name = get_temp_pool_name();
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd pool create\", \"pool\": \"" + cache_pool_name +
-      "\", \"pg_num\": 4}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier add\", \"pool\": \"" + pool_name +
-      "\", \"tierpool\": \"" + cache_pool_name +
-      "\", \"force_nonempty\": \"--force-nonempty\" }",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier set-overlay\", \"pool\": \"" + pool_name +
-      "\", \"overlaypool\": \"" + cache_pool_name + "\"}",
-      {}, NULL, NULL));
-    ASSERT_EQ(0, cluster.mon_command(
-      "{\"prefix\": \"osd tier cache-mode\", \"pool\": \"" + cache_pool_name +
-      "\", \"mode\": \"writeback\"}",
-      {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd pool create\", \"pool\": \"" +
+                   cache_pool_name + "\", \"pg_num\": 4}",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd tier add\", \"pool\": \"" + pool_name +
+                   "\", \"tierpool\": \"" + cache_pool_name +
+                   "\", \"force_nonempty\": \"--force-nonempty\" }",
+               {}, NULL, NULL));
+    ASSERT_EQ(
+        0,
+        cluster.mon_command(
+            "{\"prefix\": \"osd tier set-overlay\", \"pool\": \"" + pool_name +
+                "\", \"overlaypool\": \"" + cache_pool_name + "\"}",
+            {}, NULL, NULL));
+    ASSERT_EQ(
+        0, cluster.mon_command(
+               "{\"prefix\": \"osd tier cache-mode\", \"pool\": \"" +
+                   cache_pool_name + "\", \"mode\": \"writeback\"}",
+               {}, NULL, NULL));
     cluster.wait_for_latest_osdmap();
   }
 
@@ -336,7 +390,8 @@ void RadosTestParamPP::SetUp()
   ASSERT_FALSE(req);
 }
 
-void RadosTestParamPP::TearDown()
+void
+RadosTestParamPP::TearDown()
 {
   if (cleanup) {
     cleanup_default_namespace(ioctx);
@@ -345,19 +400,21 @@ void RadosTestParamPP::TearDown()
   ioctx.close();
 }
 
-void RadosTestParamPP::cleanup_default_namespace(librados::IoCtx ioctx)
+void
+RadosTestParamPP::cleanup_default_namespace(librados::IoCtx ioctx)
 {
   // remove all objects from the default namespace to avoid polluting
   // other tests
   cleanup_namespace(ioctx, "");
 }
 
-void RadosTestParamPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
+void
+RadosTestParamPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
 {
   ioctx.snap_set_read(librados::SNAP_HEAD);
   ioctx.set_namespace(ns);
-  for (NObjectIterator it = ioctx.nobjects_begin();
-       it != ioctx.nobjects_end(); ++it) {
+  for (NObjectIterator it = ioctx.nobjects_begin(); it != ioctx.nobjects_end();
+       ++it) {
     ioctx.locator_set_key(it->get_locator());
     ASSERT_EQ(0, ioctx.remove(it->get_oid()));
   }
@@ -366,21 +423,25 @@ void RadosTestParamPP::cleanup_namespace(librados::IoCtx ioctx, std::string ns)
 std::string RadosTestECPP::pool_name;
 Rados RadosTestECPP::s_cluster;
 
-void RadosTestECPP::SetUpTestCase()
+void
+RadosTestECPP::SetUpTestCase()
 {
   SKIP_IF_CRIMSON();
-  auto pool_prefix = fmt::format("{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
+  auto pool_prefix = fmt::format(
+      "{}_", ::testing::UnitTest::GetInstance()->current_test_case()->name());
   pool_name = get_temp_pool_name(pool_prefix);
   ASSERT_EQ("", create_one_ec_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestECPP::TearDownTestCase()
+void
+RadosTestECPP::TearDownTestCase()
 {
   SKIP_IF_CRIMSON();
   ASSERT_EQ(0, destroy_one_ec_pool_pp(pool_name, s_cluster));
 }
 
-void RadosTestECPP::SetUp()
+void
+RadosTestECPP::SetUp()
 {
   SKIP_IF_CRIMSON();
   ASSERT_EQ(0, cluster.ioctx_create(pool_name.c_str(), ioctx));
@@ -393,7 +454,8 @@ void RadosTestECPP::SetUp()
   ASSERT_NE(0U, alignment);
 }
 
-void RadosTestECPP::TearDown()
+void
+RadosTestECPP::TearDown()
 {
   SKIP_IF_CRIMSON();
   if (cleanup) {
@@ -408,7 +470,8 @@ void RadosTestECPP::TearDown()
   ioctx.close();
 }
 
-void RadosTestECPP::set_allow_ec_overwrites()
+void
+RadosTestECPP::set_allow_ec_overwrites()
 {
   ec_overwrites_set = true;
   ASSERT_EQ("", set_allow_ec_overwrites_pp(pool_name, cluster, true));

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -22,18 +22,26 @@ class MOSDPGBackfill final : public MOSDFastDispatchOp {
 private:
   static constexpr int HEAD_VERSION = 3;
   static constexpr int COMPAT_VERSION = 3;
+
 public:
   enum {
     OP_BACKFILL_PROGRESS = 2,
     OP_BACKFILL_FINISH = 3,
     OP_BACKFILL_FINISH_ACK = 4,
   };
-  const char *get_op_name(int o) const {
+
+  const char*
+  get_op_name(int o) const
+  {
     switch (o) {
-    case OP_BACKFILL_PROGRESS: return "progress";
-    case OP_BACKFILL_FINISH: return "finish";
-    case OP_BACKFILL_FINISH_ACK: return "finish_ack";
-    default: return "???";
+    case OP_BACKFILL_PROGRESS:
+      return "progress";
+    case OP_BACKFILL_FINISH:
+      return "finish";
+    case OP_BACKFILL_FINISH_ACK:
+      return "finish_ack";
+    default:
+      return "???";
     }
   }
 
@@ -43,17 +51,27 @@ public:
   hobject_t last_backfill;
   pg_stat_t stats;
 
-  epoch_t get_map_epoch() const override {
+  epoch_t
+  get_map_epoch() const override
+  {
     return map_epoch;
   }
-  epoch_t get_min_epoch() const override {
+
+  epoch_t
+  get_min_epoch() const override
+  {
     return query_epoch;
   }
-  spg_t get_spg() const override {
+
+  spg_t
+  get_spg() const override
+  {
     return pgid;
   }
 
-  void decode_payload() override {
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(op, p);
@@ -68,13 +86,14 @@ public:
     decode(stats, p);
 
     // Handle hobject_t format change
-    if (!last_backfill.is_max() &&
-	last_backfill.pool == -1)
+    if (!last_backfill.is_max() && last_backfill.pool == -1)
       last_backfill.pool = pgid.pool();
     decode(pgid.shard, p);
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(op, payload);
     encode(map_epoch, payload);
@@ -90,28 +109,37 @@ public:
     encode(pgid.shard, payload);
   }
 
-  MOSDPGBackfill()
-    : MOSDFastDispatchOp{MSG_OSD_PG_BACKFILL, HEAD_VERSION, COMPAT_VERSION} {}
-  MOSDPGBackfill(__u32 o, epoch_t e, epoch_t qe, spg_t p)
-    : MOSDFastDispatchOp{MSG_OSD_PG_BACKFILL, HEAD_VERSION, COMPAT_VERSION},
-      op(o),
-      map_epoch(e), query_epoch(e),
-      pgid(p) {}
+  MOSDPGBackfill() :
+    MOSDFastDispatchOp{MSG_OSD_PG_BACKFILL, HEAD_VERSION, COMPAT_VERSION}
+  {}
+
+  MOSDPGBackfill(__u32 o, epoch_t e, epoch_t qe, spg_t p) :
+    MOSDFastDispatchOp{MSG_OSD_PG_BACKFILL, HEAD_VERSION, COMPAT_VERSION},
+    op(o),
+    map_epoch(e),
+    query_epoch(e),
+    pgid(p)
+  {}
+
 private:
   ~MOSDPGBackfill() final {}
 
 public:
-  std::string_view get_type_name() const override { return "pg_backfill"; }
-  void print(std::ostream& out) const override {
-    out << "pg_backfill(" << get_op_name(op)
-	<< " " << pgid
-	<< " e " << map_epoch << "/" << query_epoch
-	<< " lb " << last_backfill
-	<< ")";
+  std::string_view
+  get_type_name() const override
+  {
+    return "pg_backfill";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
+    out << "pg_backfill(" << get_op_name(op) << " " << pgid << " e "
+        << map_epoch << "/" << query_epoch << " lb " << last_backfill << ")";
   }
 
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

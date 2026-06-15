@@ -12,30 +12,42 @@
  *
  */
 
-#include "nvmeof/NVMeofGwUtils.h"
-#include "mon/NVMeofGwTypes.h"
-#include <iostream>
 #include <algorithm>
+#include <iostream>
+
 #include "include/ceph_assert.h"
+#include "mon/NVMeofGwTypes.h"
+#include "nvmeof/NVMeofGwUtils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mon
 #undef dout_prefix
 #define dout_prefix *_dout
 
-void test_determine_subsystem_changes() {
+void
+test_determine_subsystem_changes()
+{
   std::cout << __func__ << "\n\n" << std::endl;
   // Prepare old and new subsystems
-  BeaconSubsystem sub1_old = { "nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystem sub2_old = { "nqn2", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystem sub3_old = { "nqn3", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystems old_subs = { sub1_old, sub2_old, sub3_old };
+  BeaconSubsystem sub1_old = {
+      "nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystem sub2_old = {
+      "nqn2", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystem sub3_old = {
+      "nqn3", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystems old_subs = {sub1_old, sub2_old, sub3_old};
 
   // sub1 unchanged, sub2 changed, sub4 added, sub3 deleted
-  BeaconSubsystem sub1_new = { "nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystem sub2_new = { "nqn2", { {"IPv4", "1.2.3.4", "4420"} }, {}, subsystem_change_t::SUBSYSTEM_ADDED }; // changed listeners
-  BeaconSubsystem sub4_new = { "nqn4", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystems new_subs = { sub1_new, sub2_new, sub4_new };
+  BeaconSubsystem sub1_new = {
+      "nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystem sub2_new = {
+      "nqn2",
+      {{"IPv4", "1.2.3.4", "4420"}},
+      {},
+      subsystem_change_t::SUBSYSTEM_ADDED}; // changed listeners
+  BeaconSubsystem sub4_new = {
+      "nqn4", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystems new_subs = {sub1_new, sub2_new, sub4_new};
 
   determine_subsystem_changes(old_subs, new_subs);
 
@@ -63,7 +75,9 @@ void test_determine_subsystem_changes() {
   std::cout << "determine_subsystem_changes test passed" << std::endl;
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char** argv)
+{
   test_determine_subsystem_changes();
   return 0;
 }

@@ -1,26 +1,27 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/rbd_mirror/test_mock_fixture.h"
+#include <map>
+#include <string>
+#include <utility>
+
 #include "include/stringify.h"
-#include "tools/rbd_mirror/MirrorStatusUpdater.h"
-#include "tools/rbd_mirror/MirrorStatusWatcher.h"
-#include "tools/rbd_mirror/Threads.h"
 #include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
 #include "test/librbd/mock/MockImageCtx.h"
 #include "test/rbd_mirror/mock/MockContextWQ.h"
 #include "test/rbd_mirror/mock/MockSafeTimer.h"
-#include <map>
-#include <string>
-#include <utility>
+#include "test/rbd_mirror/test_mock_fixture.h"
+#include "tools/rbd_mirror/MirrorStatusUpdater.h"
+#include "tools/rbd_mirror/MirrorStatusWatcher.h"
+#include "tools/rbd_mirror/Threads.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(librbd::ImageCtx &image_ctx)
-    : librbd::MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(librbd::ImageCtx& image_ctx) :
+    librbd::MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -32,8 +33,10 @@ namespace mirror {
 template <>
 struct MirrorStatusWatcher<librbd::MockTestImageCtx> {
   static MirrorStatusWatcher* s_instance;
-  static MirrorStatusWatcher* create(librados::IoCtx& io_ctx,
-                                     MockContextWQ* mock_context_wq) {
+
+  static MirrorStatusWatcher*
+  create(librados::IoCtx& io_ctx, MockContextWQ* mock_context_wq)
+  {
     ceph_assert(s_instance != nullptr);
     return s_instance;
   }
@@ -41,26 +44,27 @@ struct MirrorStatusWatcher<librbd::MockTestImageCtx> {
   MOCK_METHOD1(init, void(Context*));
   MOCK_METHOD1(shut_down, void(Context*));
 
-  MirrorStatusWatcher() {
-    s_instance = this;
-  }
+  MirrorStatusWatcher() { s_instance = this; }
 };
 
-MirrorStatusWatcher<librbd::MockTestImageCtx>* MirrorStatusWatcher<librbd::MockTestImageCtx>::s_instance = nullptr;
+MirrorStatusWatcher<librbd::MockTestImageCtx>*
+    MirrorStatusWatcher<librbd::MockTestImageCtx>::s_instance = nullptr;
 
 template <>
 struct Threads<librbd::MockTestImageCtx> {
-  MockSafeTimer *timer;
-  ceph::mutex &timer_lock;
+  MockSafeTimer* timer;
+  ceph::mutex& timer_lock;
 
-  MockContextWQ *work_queue;
+  MockContextWQ* work_queue;
 
-  Threads(Threads<librbd::ImageCtx> *threads)
-    : timer(new MockSafeTimer()),
-      timer_lock(threads->timer_lock),
-      work_queue(new MockContextWQ()) {
-  }
-  ~Threads() {
+  Threads(Threads<librbd::ImageCtx>* threads) :
+    timer(new MockSafeTimer()),
+    timer_lock(threads->timer_lock),
+    work_queue(new MockContextWQ())
+  {}
+
+  ~Threads()
+  {
     delete timer;
     delete work_queue;
   }
@@ -78,8 +82,8 @@ using ::testing::_;
 using ::testing::DoDefault;
 using ::testing::InSequence;
 using ::testing::Invoke;
-using ::testing::StrEq;
 using ::testing::Return;
+using ::testing::StrEq;
 using ::testing::WithArg;
 
 class TestMockMirrorStatusUpdater : public TestMockFixture {
@@ -91,37 +95,47 @@ public:
   typedef std::map<std::string, cls::rbd::MirrorImageSiteStatus>
       MirrorImageSiteStatuses;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
 
     m_mock_local_io_ctx = &get_mock_io_ctx(m_local_io_ctx);
     m_mock_threads = new MockThreads(m_threads);
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     delete m_mock_threads;
     TestMockFixture::TearDown();
   }
 
-  void expect_timer_add_event(Context** timer_event) {
+  void
+  expect_timer_add_event(Context** timer_event)
+  {
     EXPECT_CALL(*m_mock_threads->timer, add_event_after(_, _))
-      .WillOnce(WithArg<1>(Invoke([timer_event](Context *ctx) {
+        .WillOnce(WithArg<1>(Invoke([timer_event](Context* ctx) {
           *timer_event = ctx;
           return ctx;
         })));
   }
 
-  void expect_timer_cancel_event() {
+  void
+  expect_timer_cancel_event()
+  {
     EXPECT_CALL(*m_mock_threads->timer, cancel_event(_))
-      .WillOnce(Invoke([](Context* ctx) {
+        .WillOnce(Invoke([](Context* ctx) {
           delete ctx;
           return false;
         }));
   }
 
-  void expect_work_queue(bool async) {
+  void
+  expect_work_queue(bool async)
+  {
     EXPECT_CALL(*m_mock_threads->work_queue, queue(_, _))
-      .WillOnce(Invoke([this, async](Context *ctx, int r) {
+        .WillOnce(Invoke([this, async](Context* ctx, int r) {
           if (async) {
             m_threads->work_queue->queue(ctx, r);
           } else {
@@ -130,30 +144,40 @@ public:
         }));
   }
 
-  void expect_mirror_status_watcher_init(
-      MockMirrorStatusWatcher& mock_mirror_status_watcher, int r) {
+  void
+  expect_mirror_status_watcher_init(
+      MockMirrorStatusWatcher& mock_mirror_status_watcher,
+      int r)
+  {
     EXPECT_CALL(*mock_mirror_status_watcher.s_instance, init(_))
-      .WillOnce(Invoke([this, r](Context* ctx) {
+        .WillOnce(Invoke([this, r](Context* ctx) {
           m_threads->work_queue->queue(ctx, r);
         }));
   }
 
-  void expect_mirror_status_watcher_shut_down(
-      MockMirrorStatusWatcher& mock_mirror_status_watcher, int r) {
+  void
+  expect_mirror_status_watcher_shut_down(
+      MockMirrorStatusWatcher& mock_mirror_status_watcher,
+      int r)
+  {
     EXPECT_CALL(*mock_mirror_status_watcher.s_instance, shut_down(_))
-      .WillOnce(Invoke([this, r](Context* ctx) {
+        .WillOnce(Invoke([this, r](Context* ctx) {
           m_threads->work_queue->queue(ctx, r);
         }));
   }
 
-  void expect_mirror_status_update(
+  void
+  expect_mirror_status_update(
       const std::string& global_image_id,
-      const cls::rbd::MirrorImageSiteStatus& mirror_image_status, int r) {
-    EXPECT_CALL(*m_mock_local_io_ctx,
-                exec(RBD_MIRRORING, _, StrEq("rbd"),
-                     StrEq("mirror_image_status_set"), _, _, _, _))
-      .WillOnce(WithArg<4>(Invoke(
-        [r, global_image_id, mirror_image_status](bufferlist& in_bl) {
+      const cls::rbd::MirrorImageSiteStatus& mirror_image_status,
+      int r)
+  {
+    EXPECT_CALL(
+        *m_mock_local_io_ctx, exec(
+                                  RBD_MIRRORING, _, StrEq("rbd"),
+                                  StrEq("mirror_image_status_set"), _, _, _, _))
+        .WillOnce(WithArg<4>(Invoke([r, global_image_id,
+                                     mirror_image_status](bufferlist& in_bl) {
           auto bl_it = in_bl.cbegin();
           std::string decode_global_image_id;
           decode(decode_global_image_id, bl_it);
@@ -166,18 +190,21 @@ public:
         })));
   }
 
-  void expect_mirror_status_update(
+  void
+  expect_mirror_status_update(
       const MirrorImageSiteStatuses& mirror_image_site_statuses,
-      const std::string& mirror_uuid, int r) {
+      const std::string& mirror_uuid,
+      int r)
+  {
     EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-      .WillOnce(Invoke([this](auto&&... args) {
+        .WillOnce(Invoke([this](auto&&... args) {
           int r = m_mock_local_io_ctx->do_aio_operate(decltype(args)(args)...);
           m_mock_local_io_ctx->aio_flush();
           return r;
         }));
 
     for (auto [global_image_id, mirror_image_status] :
-           mirror_image_site_statuses) {
+         mirror_image_site_statuses) {
       mirror_image_status.mirror_uuid = mirror_uuid;
       expect_mirror_status_update(global_image_id, mirror_image_status, r);
       if (r < 0) {
@@ -186,12 +213,15 @@ public:
     }
   }
 
-  void expect_mirror_status_remove(const std::string& global_image_id, int r) {
-    EXPECT_CALL(*m_mock_local_io_ctx,
-                exec(RBD_MIRRORING, _, StrEq("rbd"),
-                     StrEq("mirror_image_status_remove"), _, _, _, _))
-      .WillOnce(WithArg<4>(Invoke(
-        [r, global_image_id](bufferlist& in_bl) {
+  void
+  expect_mirror_status_remove(const std::string& global_image_id, int r)
+  {
+    EXPECT_CALL(
+        *m_mock_local_io_ctx,
+        exec(
+            RBD_MIRRORING, _, StrEq("rbd"), StrEq("mirror_image_status_remove"),
+            _, _, _, _))
+        .WillOnce(WithArg<4>(Invoke([r, global_image_id](bufferlist& in_bl) {
           auto bl_it = in_bl.cbegin();
           std::string decode_global_image_id;
           decode(decode_global_image_id, bl_it);
@@ -201,10 +231,11 @@ public:
         })));
   }
 
-  void expect_mirror_status_removes(const std::set<std::string>& mirror_images,
-                                    int r) {
+  void
+  expect_mirror_status_removes(const std::set<std::string>& mirror_images, int r)
+  {
     EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-      .WillOnce(Invoke([this](auto&&... args) {
+        .WillOnce(Invoke([this](auto&&... args) {
           int r = m_mock_local_io_ctx->do_aio_operate(decltype(args)(args)...);
           m_mock_local_io_ctx->aio_flush();
           return r;
@@ -218,13 +249,14 @@ public:
     }
   }
 
-  void fire_timer_event(Context** timer_event,
-                        Context** update_task) {
+  void
+  fire_timer_event(Context** timer_event, Context** update_task)
+  {
     expect_timer_add_event(timer_event);
 
     // timer queues the update task
     EXPECT_CALL(*m_mock_threads->work_queue, queue(_, _))
-      .WillOnce(WithArg<0>(Invoke([update_task](Context* ctx) mutable {
+        .WillOnce(WithArg<0>(Invoke([update_task](Context* ctx) mutable {
           *update_task = ctx;
         })));
 
@@ -236,10 +268,12 @@ public:
     }
   }
 
-  void init_mirror_status_updater(
+  void
+  init_mirror_status_updater(
       MockMirrorStatusUpdater& mock_mirror_status_updater,
       MockMirrorStatusWatcher& mock_mirror_status_watcher,
-      Context** timer_event) {
+      Context** timer_event)
+  {
     expect_timer_add_event(timer_event);
     expect_mirror_status_watcher_init(mock_mirror_status_watcher, 0);
     expect_work_queue(true);
@@ -249,9 +283,11 @@ public:
     ASSERT_EQ(0, ctx.wait());
   }
 
-  void shut_down_mirror_status_updater(
+  void
+  shut_down_mirror_status_updater(
       MockMirrorStatusUpdater& mock_mirror_status_updater,
-      MockMirrorStatusWatcher& mock_mirror_status_watcher) {
+      MockMirrorStatusWatcher& mock_mirror_status_watcher)
+  {
     expect_timer_cancel_event();
     expect_mirror_status_watcher_shut_down(mock_mirror_status_watcher, 0);
     expect_work_queue(true);
@@ -265,25 +301,27 @@ public:
   MockThreads* m_mock_threads = nullptr;
 };
 
-TEST_F(TestMockMirrorStatusUpdater, InitShutDown) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, InitShutDown)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, InitStatusWatcherError) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, InitStatusWatcherError)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   Context* timer_event = nullptr;
   expect_timer_add_event(&timer_event);
@@ -296,15 +334,16 @@ TEST_F(TestMockMirrorStatusUpdater, InitStatusWatcherError) {
   ASSERT_EQ(-EINVAL, ctx.wait());
 }
 
-TEST_F(TestMockMirrorStatusUpdater, ShutDownStatusWatcherError) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, ShutDownStatusWatcherError)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   C_SaferCond on_shutdown;
   expect_timer_cancel_event();
@@ -315,25 +354,25 @@ TEST_F(TestMockMirrorStatusUpdater, ShutDownStatusWatcherError) {
   ASSERT_EQ(-EINVAL, on_shutdown.wait());
 }
 
-TEST_F(TestMockMirrorStatusUpdater, SmallBatch) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, SmallBatch)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   MirrorImageSiteStatuses mirror_image_site_statuses;
   for (auto i = 0; i < 100; ++i) {
     auto pair = mirror_image_site_statuses.emplace(
-      stringify(i), cls::rbd::MirrorImageSiteStatus{});
-    mock_mirror_status_updater.set_mirror_image_status(pair.first->first,
-                                                       pair.first->second,
-                                                       false);
+        stringify(i), cls::rbd::MirrorImageSiteStatus{});
+    mock_mirror_status_updater.set_mirror_image_status(
+        pair.first->first, pair.first->second, false);
   }
 
   Context* update_task = nullptr;
@@ -342,29 +381,29 @@ TEST_F(TestMockMirrorStatusUpdater, SmallBatch) {
   expect_mirror_status_update(mirror_image_site_statuses, "", 0);
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, LargeBatch) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, LargeBatch)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   MirrorImageSiteStatuses mirror_image_site_statuses;
   for (auto i = 0; i < 200; ++i) {
     auto pair = mirror_image_site_statuses.emplace(
-      stringify(i), cls::rbd::MirrorImageSiteStatus{});
-    mock_mirror_status_updater.set_mirror_image_status(pair.first->first,
-                                                       pair.first->second,
-                                                       false);
+        stringify(i), cls::rbd::MirrorImageSiteStatus{});
+    mock_mirror_status_updater.set_mirror_image_status(
+        pair.first->first, pair.first->second, false);
   }
 
   auto it_1 = mirror_image_site_statuses.begin();
@@ -383,51 +422,54 @@ TEST_F(TestMockMirrorStatusUpdater, LargeBatch) {
   expect_mirror_status_update(mirror_image_site_statuses_2, "", 0);
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, OverwriteStatus) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, OverwriteStatus)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
   mock_mirror_status_updater.set_mirror_image_status(
-    "1", {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"},
-    false);
+      "1", {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"},
+      false);
 
   Context* update_task = nullptr;
   fire_timer_event(&timer_event, &update_task);
 
   expect_mirror_status_update(
-    {{"1", cls::rbd::MirrorImageSiteStatus{
-        "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
-    "", 0);
+      {{"1",
+        cls::rbd::MirrorImageSiteStatus{
+            "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
+      "", 0);
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, RemoveStatus) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, RemoveStatus)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   C_SaferCond ctx;
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
@@ -440,7 +482,7 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveStatus) {
 
   C_SaferCond remove_flush_ctx;
   EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-    .WillOnce(Invoke([this, &remove_flush_ctx](auto&&... args) {
+      .WillOnce(Invoke([this, &remove_flush_ctx](auto&&... args) {
         int r = m_mock_local_io_ctx->do_aio_operate(decltype(args)(args)...);
         m_mock_local_io_ctx->aio_flush();
         remove_flush_ctx.complete(r);
@@ -450,21 +492,22 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveStatus) {
   update_task->complete(0);
   ASSERT_EQ(0, remove_flush_ctx.wait());
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, OverwriteRemoveStatus) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, OverwriteRemoveStatus)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   C_SaferCond ctx;
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
@@ -472,34 +515,36 @@ TEST_F(TestMockMirrorStatusUpdater, OverwriteRemoveStatus) {
   mock_mirror_status_updater.remove_mirror_image_status("1", false, &ctx);
   ASSERT_EQ(0, ctx.wait());
   mock_mirror_status_updater.set_mirror_image_status(
-    "1", {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"},
-    false);
+      "1", {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"},
+      false);
 
 
   Context* update_task = nullptr;
   fire_timer_event(&timer_event, &update_task);
 
   expect_mirror_status_update(
-    {{"1", cls::rbd::MirrorImageSiteStatus{
-        "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
-    "", 0);
+      {{"1",
+        cls::rbd::MirrorImageSiteStatus{
+            "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
+      "", 0);
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, OverwriteStatusInFlight) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, OverwriteStatusInFlight)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
 
@@ -507,11 +552,11 @@ TEST_F(TestMockMirrorStatusUpdater, OverwriteStatusInFlight) {
   fire_timer_event(&timer_event, &update_task);
 
   EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-    .WillOnce(Invoke([this, &mock_mirror_status_updater](auto&&... args) {
+      .WillOnce(Invoke([this, &mock_mirror_status_updater](auto&&... args) {
         mock_mirror_status_updater.set_mirror_image_status(
-          "1", {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING,
-                "description"},
-          true);
+            "1",
+            {"", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"},
+            true);
 
         int r = m_mock_local_io_ctx->do_aio_operate(decltype(args)(args)...);
         m_mock_local_io_ctx->aio_flush();
@@ -520,48 +565,50 @@ TEST_F(TestMockMirrorStatusUpdater, OverwriteStatusInFlight) {
   expect_mirror_status_update("1", cls::rbd::MirrorImageSiteStatus{}, 0);
   expect_work_queue(false);
   expect_mirror_status_update(
-    {{"1", cls::rbd::MirrorImageSiteStatus{
-        "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
-    "", 0);
+      {{"1",
+        cls::rbd::MirrorImageSiteStatus{
+            "", cls::rbd::MIRROR_IMAGE_STATUS_STATE_REPLAYING, "description"}}},
+      "", 0);
 
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, ImmediateUpdate) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, ImmediateUpdate)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   expect_work_queue(false);
-  expect_mirror_status_update({{"1", cls::rbd::MirrorImageSiteStatus{}}},
-                              "", 0);
+  expect_mirror_status_update({{"1", cls::rbd::MirrorImageSiteStatus{}}}, "", 0);
   mock_mirror_status_updater.set_mirror_image_status("1", {}, true);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, RemoveImmediateUpdate) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, RemoveImmediateUpdate)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
 
@@ -572,21 +619,22 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveImmediateUpdate) {
   mock_mirror_status_updater.remove_mirror_image_status("1", true, &ctx);
   ASSERT_EQ(0, ctx.wait());
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshIdleStatus) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshIdleStatus)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
 
@@ -595,21 +643,22 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshIdleStatus) {
   mock_mirror_status_updater.remove_refresh_mirror_image_status("1", &ctx);
   ASSERT_EQ(0, ctx.wait());
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshInFlightStatus) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshInFlightStatus)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
 
@@ -618,8 +667,8 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshInFlightStatus) {
 
   C_SaferCond on_removed;
   EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-    .WillOnce(Invoke(
-      [this, &mock_mirror_status_updater, &on_removed](auto&&... args) {
+      .WillOnce(Invoke([this, &mock_mirror_status_updater,
+                        &on_removed](auto&&... args) {
         mock_mirror_status_updater.remove_refresh_mirror_image_status(
             "1", &on_removed);
 
@@ -630,21 +679,22 @@ TEST_F(TestMockMirrorStatusUpdater, RemoveRefreshInFlightStatus) {
   update_task->complete(0);
   ASSERT_EQ(0, on_removed.wait());
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
-TEST_F(TestMockMirrorStatusUpdater, ShutDownWhileUpdating) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads, "");
+TEST_F(TestMockMirrorStatusUpdater, ShutDownWhileUpdating)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   mock_mirror_status_updater.set_mirror_image_status("1", {}, false);
 
@@ -653,8 +703,8 @@ TEST_F(TestMockMirrorStatusUpdater, ShutDownWhileUpdating) {
 
   C_SaferCond on_shutdown;
   EXPECT_CALL(*m_mock_local_io_ctx, aio_operate(_, _, _, _, _, _))
-    .WillOnce(Invoke(
-      [this, &mock_mirror_status_updater, &on_shutdown](auto&&... args) {
+      .WillOnce(Invoke([this, &mock_mirror_status_updater,
+                        &on_shutdown](auto&&... args) {
         mock_mirror_status_updater.shut_down(&on_shutdown);
         m_threads->work_queue->drain();
 
@@ -670,26 +720,25 @@ TEST_F(TestMockMirrorStatusUpdater, ShutDownWhileUpdating) {
   ASSERT_EQ(0, on_shutdown.wait());
 }
 
-TEST_F(TestMockMirrorStatusUpdater, MirrorPeerSitePing) {
-  MockMirrorStatusUpdater mock_mirror_status_updater(m_local_io_ctx,
-                                                     m_mock_threads,
-                                                     "mirror uuid");
+TEST_F(TestMockMirrorStatusUpdater, MirrorPeerSitePing)
+{
+  MockMirrorStatusUpdater mock_mirror_status_updater(
+      m_local_io_ctx, m_mock_threads, "mirror uuid");
   MockMirrorStatusWatcher* mock_mirror_status_watcher =
-    new MockMirrorStatusWatcher();
+      new MockMirrorStatusWatcher();
 
   InSequence seq;
 
   Context* timer_event = nullptr;
-  init_mirror_status_updater(mock_mirror_status_updater,
-                             *mock_mirror_status_watcher, &timer_event);
+  init_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher, &timer_event);
 
   MirrorImageSiteStatuses mirror_image_site_statuses;
   for (auto i = 0; i < 100; ++i) {
     auto pair = mirror_image_site_statuses.emplace(
-      stringify(i), cls::rbd::MirrorImageSiteStatus{});
-    mock_mirror_status_updater.set_mirror_image_status(pair.first->first,
-                                                       pair.first->second,
-                                                       false);
+        stringify(i), cls::rbd::MirrorImageSiteStatus{});
+    mock_mirror_status_updater.set_mirror_image_status(
+        pair.first->first, pair.first->second, false);
   }
 
   Context* update_task = nullptr;
@@ -698,8 +747,8 @@ TEST_F(TestMockMirrorStatusUpdater, MirrorPeerSitePing) {
   expect_mirror_status_update(mirror_image_site_statuses, "mirror uuid", 0);
   update_task->complete(0);
 
-  shut_down_mirror_status_updater(mock_mirror_status_updater,
-                                  *mock_mirror_status_watcher);
+  shut_down_mirror_status_updater(
+      mock_mirror_status_updater, *mock_mirror_status_watcher);
 }
 
 } // namespace mirror

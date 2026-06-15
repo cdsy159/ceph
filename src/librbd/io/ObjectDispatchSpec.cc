@@ -2,13 +2,16 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/io/ObjectDispatchSpec.h"
+
 #include "include/Context.h"
 #include "librbd/io/ObjectDispatcherInterface.h"
 
 namespace librbd {
 namespace io {
 
-void ObjectDispatchSpec::C_Dispatcher::complete(int r) {
+void
+ObjectDispatchSpec::C_Dispatcher::complete(int r)
+{
   if (r < 0) {
     finish(r);
     return;
@@ -28,16 +31,22 @@ void ObjectDispatchSpec::C_Dispatcher::complete(int r) {
   }
 }
 
-void ObjectDispatchSpec::C_Dispatcher::finish(int r) {
+void
+ObjectDispatchSpec::C_Dispatcher::finish(int r)
+{
   on_finish->complete(r);
   delete object_dispatch_spec;
 }
 
-void ObjectDispatchSpec::send() {
+void
+ObjectDispatchSpec::send()
+{
   object_dispatcher->send(this);
 }
 
-void ObjectDispatchSpec::fail(int r) {
+void
+ObjectDispatchSpec::fail(int r)
+{
   ceph_assert(r < 0);
   dispatcher_ctx.complete(r);
 }

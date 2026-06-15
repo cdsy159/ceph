@@ -18,27 +18,30 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 #include <boost/optional.hpp>
+
 #include "common/ceph_mutex.h"
-#include "Python.h"
-#include "Gil.h"
 #include "mon/MgrMap.h"
+
+#include "Gil.h"
+#include "Python.h"
 
 
 class MonClient;
 
-std::string handle_pyerror(bool generate_crash_dump = false,
-			   std::string module = {},
-			   std::string caller = {});
+std::string handle_pyerror(
+    bool generate_crash_dump = false,
+    std::string module = {},
+    std::string caller = {});
 
 std::string peek_pyerror();
 
 std::span<std::byte const> py_bytes_as_span(PyObject*);
-PyObject *py_bytes_from_span(std::span<std::byte const>);
+PyObject* py_bytes_from_span(std::span<std::byte const>);
 
 std::vector<std::byte> py_bytes_as_vec(PyObject*);
-PyObject *py_bytes_from_vec(const std::vector<std::byte> &);
-
+PyObject* py_bytes_from_vec(const std::vector<std::byte>&);
 
 /**
  * A Ceph CLI command description provided from a Python module
@@ -54,9 +57,9 @@ public:
   std::string module_name;
 };
 
-class PyModule
-{
+class PyModule {
   mutable ceph::mutex lock = ceph::make_mutex("PyModule::lock");
+
 private:
   const std::string module_name;
   int load_subclass_of(const char* class_name, PyObject** py_class);
@@ -84,13 +87,13 @@ private:
 
   // Helper for loading MODULE_OPTIONS and COMMANDS members
   int walk_dict_list(
-      const std::string &attr_name,
+      const std::string& attr_name,
       std::function<int(PyObject*)> fn);
 
   int load_commands();
   std::vector<ModuleCommand> commands;
 
-  int register_options(PyObject *cls);
+  int register_options(PyObject* cls);
   int load_options();
   std::map<std::string, MgrMap::ModuleOption> options;
 
@@ -101,85 +104,122 @@ public:
   static std::string mgr_store_prefix;
 
   SafeThreadState pMyThreadState;
-  PyObject *pClass = nullptr;
-  PyObject *pStandbyClass = nullptr;
-  PyObject *pPickleModule = nullptr;
+  PyObject* pClass = nullptr;
+  PyObject* pStandbyClass = nullptr;
+  PyObject* pPickleModule = nullptr;
 
   // true unless module in mgr_subinterpreter_modules
   bool use_main_interpreter = true;
 
-  explicit PyModule(const std::string &module_name_)
-    : module_name(module_name_)
-  {
-  }
+  explicit PyModule(const std::string& module_name_) :
+    module_name(module_name_)
+  {}
 
   ~PyModule();
 
-  bool is_option(const std::string &option_name);
-  const std::map<std::string,MgrMap::ModuleOption>& get_options() const {
+  bool is_option(const std::string& option_name);
+
+  const std::map<std::string, MgrMap::ModuleOption>&
+  get_options() const
+  {
     return options;
   }
 
-  PyObject *get_typed_option_value(
-    const std::string& option,
-    const std::string& value);
+  PyObject* get_typed_option_value(
+      const std::string& option,
+      const std::string& value);
 
-  int load(PyThreadState *pMainThreadState);
+  int load(PyThreadState* pMainThreadState);
   static PyObject* init_ceph_logger();
   static PyObject* init_ceph_module();
 
-  void set_enabled(const bool enabled_)
+  void
+  set_enabled(const bool enabled_)
   {
     enabled = enabled_;
   }
 
-  void set_always_on(const bool always_on_) {
+  void
+  set_always_on(const bool always_on_)
+  {
     always_on = always_on_;
   }
 
   /**
    * Extend `out` with the contents of `this->commands`
    */
-  void get_commands(std::vector<ModuleCommand> *out) const
+  void
+  get_commands(std::vector<ModuleCommand>* out) const
   {
     std::lock_guard l(lock);
     ceph_assert(out != nullptr);
     out->insert(out->end(), commands.begin(), commands.end());
   }
 
-
   /**
    * Mark the module as failed, recording the reason in the error
    * string.
    */
-  void fail(const std::string &reason)
+  void
+  fail(const std::string& reason)
   {
     std::lock_guard l(lock);
     failed = true;
     error_string = reason;
   }
 
-  bool is_enabled() const {
+  bool
+  is_enabled() const
+  {
     std::lock_guard l(lock);
     return enabled || always_on;
   }
 
-  bool is_failed() const { std::lock_guard l(lock) ; return failed; }
-  bool is_loaded() const { std::lock_guard l(lock) ; return loaded; }
-  bool is_always_on() const { std::lock_guard l(lock) ; return always_on; }
+  bool
+  is_failed() const
+  {
+    std::lock_guard l(lock);
+    return failed;
+  }
 
-  bool should_notify(const std::string& notify_type) const {
+  bool
+  is_loaded() const
+  {
+    std::lock_guard l(lock);
+    return loaded;
+  }
+
+  bool
+  is_always_on() const
+  {
+    std::lock_guard l(lock);
+    return always_on;
+  }
+
+  bool
+  should_notify(const std::string& notify_type) const
+  {
     return notify_types.count(notify_type);
   }
 
-  const std::string &get_name() const {
+  const std::string&
+  get_name() const
+  {
     return module_name;
   }
-  std::string get_error_string() const {
-    std::lock_guard l(lock) ; return error_string;
+
+  std::string
+  get_error_string() const
+  {
+    std::lock_guard l(lock);
+    return error_string;
   }
-  bool get_can_run() const {
-    std::lock_guard l(lock) ; return can_run;
+
+  bool
+  get_can_run() const
+  {
+    std::lock_guard l(lock);
+    return can_run;
   }
 };
 
@@ -191,14 +231,14 @@ public:
   std::map<std::string, std::string> config;
 
   PyModuleConfig();
-  
-  PyModuleConfig(PyModuleConfig &mconfig);
-  
+
+  PyModuleConfig(PyModuleConfig& mconfig);
+
   ~PyModuleConfig();
 
   std::pair<int, std::string> set_config(
-    MonClient *monc,
-    const std::string &module_name,
-    const std::string &key, const std::optional<std::string>& val);
-
+      MonClient* monc,
+      const std::string& module_name,
+      const std::string& key,
+      const std::optional<std::string>& val);
 };

@@ -22,19 +22,17 @@
 #include <utility>
 #include <vector>
 
-#include <boost/asio/execution/context.hpp>
-
 #include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/append.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/consign.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/asio/execution/context.hpp>
 #include <boost/asio/execution_context.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/query.hpp>
 #include <boost/asio/strand.hpp>
-
 #include <boost/system/error_code.hpp>
 
 #include "common/async/service.h"
@@ -48,8 +46,9 @@ namespace ceph::async {
 ///
 /// \tparam Executor An asio::executor
 /// \tparam BasicLockable The mutex
-template<typename Executor = boost::asio::any_io_executor,
-         typename BasicLockable = std::mutex>
+template <
+    typename Executor = boost::asio::any_io_executor,
+    typename BasicLockable = std::mutex>
 class async_cond : public service_list_base_hook {
   friend service<async_cond>;
 
@@ -58,23 +57,26 @@ class async_cond : public service_list_base_hook {
 
   std::mutex m;
   std::vector<std::pair<
-    boost::asio::any_completion_handler<
-    void(boost::system::error_code)>, std::unique_lock<BasicLockable>*>> handlers;
+      boost::asio::any_completion_handler<void(boost::system::error_code)>,
+      std::unique_lock<BasicLockable>*>>
+      handlers;
 
-  void service_shutdown() {
+  void
+  service_shutdown()
+  {
     std::unique_lock l(m);
     handlers.clear();
   }
 
 public:
-
   /// \brief Constructor
   ///
   /// \param executor The executor on which to post handlers.
-  async_cond(Executor executor)
-    : executor(executor),
-      svc(boost::asio::use_service<service<async_cond>>(
-	    boost::asio::query(executor, boost::asio::execution::context))) {
+  async_cond(Executor executor) :
+    executor(executor),
+    svc(boost::asio::use_service<service<async_cond>>(
+        boost::asio::query(executor, boost::asio::execution::context)))
+  {
     // register for service_shutdown() notifications
     svc.add(*this);
   }
@@ -83,15 +85,16 @@ public:
   ///
   /// Will call `cancel`, dispatching all handlers with
   /// `asio::error::operation_aborted`.
-  ~async_cond() {
+  ~async_cond()
+  {
     cancel();
     svc.remove(*this);
   }
 
   async_cond(const async_cond&) = delete;
-  async_cond& operator =(const async_cond&) = delete;
+  async_cond& operator=(const async_cond&) = delete;
   async_cond(async_cond&&) = delete;
-  async_cond& operator =(async_cond&&) = delete;
+  async_cond& operator=(async_cond&&) = delete;
 
   /// \brief Wait for notification
   ///
@@ -103,29 +106,36 @@ public:
   ///
   /// \returns Whatever is appropriate to the completion token. See
   /// Boost.Asio documentation.
-  template<boost::asio::completion_token_for<void(boost::system::error_code)>
-	   CompletionToken>
-  auto async_wait(std::unique_lock<BasicLockable>& caller_lock,
-		  CompletionToken&& token) {
+  template <boost::asio::completion_token_for<void(boost::system::error_code)>
+                CompletionToken>
+  auto
+  async_wait(
+      std::unique_lock<BasicLockable>& caller_lock,
+      CompletionToken&& token)
+  {
     namespace asio = boost::asio;
     namespace sys = boost::system;
     assert(caller_lock.owns_lock());
     auto consigned = asio::consign(
-      std::forward<CompletionToken>(token), asio::make_work_guard(
-	asio::get_associated_executor(token, get_executor())));
+        std::forward<CompletionToken>(token),
+        asio::make_work_guard(
+            asio::get_associated_executor(token, get_executor())));
     return asio::async_initiate<decltype(consigned), void(sys::error_code)>(
-      [this, &caller_lock](auto handler) {
-	std::unique_lock l(m);
-	handlers.emplace_back(std::move(handler), &caller_lock);
-	caller_lock.unlock();
-      }, consigned);
+        [this, &caller_lock](auto handler) {
+          std::unique_lock l(m);
+          handlers.emplace_back(std::move(handler), &caller_lock);
+          caller_lock.unlock();
+        },
+        consigned);
   }
 
   /// \brief Dispatch all handlers currently waiting
   ///
   /// Dispatches all handlers currently waiting. After this function
   /// is called, any new calls to `wait` will return immediately.
-  void notify(std::unique_lock<BasicLockable>& caller_lock) {
+  void
+  notify(std::unique_lock<BasicLockable>& caller_lock)
+  {
     namespace asio = boost::asio;
     namespace sys = boost::system;
     assert(caller_lock.owns_lock());
@@ -135,12 +145,11 @@ public:
       handlers.resize(0);
       l.unlock();
       for (auto&& [handler, lock] : workhandlers) {
-	asio::post(executor,
-		   [handler = std::move(handler), lock = lock]() mutable {
-		     lock->lock();
-		     std::move(handler)(sys::error_code{});
-		   });
-
+        asio::post(
+            executor, [handler = std::move(handler), lock = lock]() mutable {
+              lock->lock();
+              std::move(handler)(sys::error_code{});
+            });
       }
     }
   }
@@ -149,7 +158,9 @@ public:
   ///
   /// This wakes all handlers currently waiting and dispatches them with
   /// `asio::error::operation_aborted`.
-  void cancel() {
+  void
+  cancel()
+  {
     namespace asio = boost::asio;
     std::unique_lock l(m);
     if (!handlers.empty()) {
@@ -157,12 +168,11 @@ public:
       handlers.resize(0);
       l.unlock();
       for (auto&& [handler, lock] : workhandlers) {
-	asio::post(executor,
-		   [handler = std::move(handler), lock = lock]() mutable {
-		     lock->lock();
-		     std::move(handler)(asio::error::operation_aborted);
-		   });
-
+        asio::post(
+            executor, [handler = std::move(handler), lock = lock]() mutable {
+              lock->lock();
+              std::move(handler)(asio::error::operation_aborted);
+            });
       }
     }
   }
@@ -171,8 +181,10 @@ public:
   using executor_type = Executor;
 
   /// \brief Return the executor we dispatch on
-  auto get_executor() const {
+  auto
+  get_executor() const
+  {
     return executor;
   }
 };
-}
+} // namespace ceph::async

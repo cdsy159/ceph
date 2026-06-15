@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/journal/DemoteRequest.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "journal/Journaler.h"
@@ -14,8 +15,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::journal::DemoteRequest: " << this \
-                           << " " << __func__ << ": "
+#define dout_prefix                                                       \
+  *_dout << "librbd::journal::DemoteRequest: " << this << " " << __func__ \
+         << ": "
 
 namespace librbd {
 namespace journal {
@@ -24,40 +26,50 @@ using librbd::util::create_async_context_callback;
 using librbd::util::create_context_callback;
 
 template <typename I>
-DemoteRequest<I>::DemoteRequest(I &image_ctx, Context *on_finish)
-  : m_image_ctx(image_ctx), m_on_finish(on_finish),
-    m_lock(ceph::make_mutex("DemoteRequest::m_lock")) {
-}
+DemoteRequest<I>::DemoteRequest(I& image_ctx, Context* on_finish) :
+  m_image_ctx(image_ctx),
+  m_on_finish(on_finish),
+  m_lock(ceph::make_mutex("DemoteRequest::m_lock"))
+{}
 
 template <typename I>
-DemoteRequest<I>::~DemoteRequest() {
+DemoteRequest<I>::~DemoteRequest()
+{
   ceph_assert(m_journaler == nullptr);
 }
 
 template <typename I>
-void DemoteRequest<I>::send() {
+void
+DemoteRequest<I>::send()
+{
   open_journaler();
 }
 
 template <typename I>
-void DemoteRequest<I>::open_journaler() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::open_journaler()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
-  m_journaler = new Journaler(m_image_ctx.md_ctx, m_image_ctx.id,
-                              Journal<>::IMAGE_CLIENT_ID, {}, nullptr);
+  m_journaler = new Journaler(
+      m_image_ctx.md_ctx, m_image_ctx.id, Journal<>::IMAGE_CLIENT_ID, {},
+      nullptr);
   auto ctx = create_async_context_callback(
-    m_image_ctx, create_context_callback<
-      DemoteRequest<I>, &DemoteRequest<I>::handle_open_journaler>(this));
-  auto req = OpenRequest<I>::create(&m_image_ctx, m_journaler, &m_lock,
-                                    &m_client_meta, &m_tag_tid, &m_tag_data,
-                                    ctx);
+      m_image_ctx,
+      create_context_callback<
+          DemoteRequest<I>, &DemoteRequest<I>::handle_open_journaler>(this));
+  auto req = OpenRequest<I>::create(
+      &m_image_ctx, m_journaler, &m_lock, &m_client_meta, &m_tag_tid,
+      &m_tag_data, ctx);
   req->send();
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_open_journaler(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_open_journaler(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -76,8 +88,10 @@ void DemoteRequest<I>::handle_open_journaler(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::allocate_tag() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::allocate_tag()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   cls::journal::Client client;
@@ -106,13 +120,15 @@ void DemoteRequest<I>::allocate_tag() {
   encode(tag_data, tag_bl);
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_allocate_tag>(this);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_allocate_tag>(this);
   m_journaler->allocate_tag(m_client_meta.tag_class, tag_bl, &m_tag, ctx);
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_allocate_tag(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_allocate_tag(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -127,8 +143,10 @@ void DemoteRequest<I>::handle_allocate_tag(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::append_event() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::append_event()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   EventEntry event_entry{DemotePromoteEvent{}, {}};
@@ -139,14 +157,15 @@ void DemoteRequest<I>::append_event() {
   m_future = m_journaler->append(m_tag_tid, event_entry_bl);
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_append_event>(this);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_append_event>(this);
   m_future.flush(ctx);
-
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_append_event(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_append_event(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -161,20 +180,24 @@ void DemoteRequest<I>::handle_append_event(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::commit_event() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::commit_event()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   m_journaler->committed(m_future);
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_commit_event>(this);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_commit_event>(this);
   m_journaler->flush_commit_position(ctx);
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_commit_event(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_commit_event(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -187,18 +210,22 @@ void DemoteRequest<I>::handle_commit_event(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::stop_append() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::stop_append()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
   auto ctx = create_context_callback<
-    DemoteRequest<I>, &DemoteRequest<I>::handle_stop_append>(this);
+      DemoteRequest<I>, &DemoteRequest<I>::handle_stop_append>(this);
   m_journaler->stop_append(ctx);
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_stop_append(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_stop_append(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -212,19 +239,25 @@ void DemoteRequest<I>::handle_stop_append(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::shut_down_journaler() {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::shut_down_journaler()
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << dendl;
 
-  Context *ctx = create_async_context_callback(
-    m_image_ctx, create_context_callback<
-      DemoteRequest<I>, &DemoteRequest<I>::handle_shut_down_journaler>(this));
+  Context* ctx = create_async_context_callback(
+      m_image_ctx,
+      create_context_callback<
+          DemoteRequest<I>, &DemoteRequest<I>::handle_shut_down_journaler>(
+          this));
   m_journaler->shut_down(ctx);
 }
 
 template <typename I>
-void DemoteRequest<I>::handle_shut_down_journaler(int r) {
-  CephContext *cct = m_image_ctx.cct;
+void
+DemoteRequest<I>::handle_shut_down_journaler(int r)
+{
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
@@ -237,12 +270,14 @@ void DemoteRequest<I>::handle_shut_down_journaler(int r) {
 }
 
 template <typename I>
-void DemoteRequest<I>::finish(int r) {
+void
+DemoteRequest<I>::finish(int r)
+{
   if (m_ret_val < 0) {
     r = m_ret_val;
   }
 
-  CephContext *cct = m_image_ctx.cct;
+  CephContext* cct = m_image_ctx.cct;
   ldout(cct, 20) << "r=" << r << dendl;
 
   m_on_finish->complete(r);

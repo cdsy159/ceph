@@ -1,11 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include <climits>
 #include <gtest/gtest.h>
+
+#include <climits>
+
 #include "include/intarith.h"
 
-TEST(intarith, cbits) {
+TEST(intarith, cbits)
+{
   ASSERT_EQ(0u, cbits(0));
   ASSERT_EQ(1u, cbits(1));
   ASSERT_EQ(2u, cbits(2));
@@ -23,7 +26,8 @@ TEST(intarith, cbits) {
   ASSERT_EQ(64u, cbits(0xffffffffffffffff));
 }
 
-TEST(intarith, p2family) {
+TEST(intarith, p2family)
+{
   ASSERT_EQ(1024, p2align(1200, 1024));
   ASSERT_EQ(1024, p2align(1024, 1024));
   ASSERT_EQ(0x1200, p2align(0x1234, 0x100));

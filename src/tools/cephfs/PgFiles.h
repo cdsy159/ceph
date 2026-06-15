@@ -16,9 +16,10 @@
 #ifndef PG_EFFECTS_H_
 #define PG_EFFECTS_H_
 
+#include <set>
+
 #include "include/cephfs/libcephfs.h"
 #include "osd/osd_types.h"
-#include <set>
 #include "osdc/Objecter.h"
 
 /**
@@ -27,26 +28,24 @@
  * some bad/damaged PGs and wants to see which files might be
  * affected.
  */
-class PgFiles
-{
+class PgFiles {
 private:
-  Objecter *objecter;
-  struct ceph_mount_info *cmount = nullptr;
+  Objecter* objecter;
+  struct ceph_mount_info* cmount = nullptr;
 
   std::set<pg_t> pgs;
   std::set<uint64_t> pools;
 
-  void hit_file(std::string const &path, const struct ceph_statx &stx);
-  void hit_dir(std::string const &path);
+  void hit_file(std::string const& path, const struct ceph_statx& stx);
+  void hit_dir(std::string const& path);
 
 
 public:
-  PgFiles(Objecter *o, const std::set<pg_t> &pgs_);
+  PgFiles(Objecter* o, const std::set<pg_t>& pgs_);
   ~PgFiles();
 
   int init();
-  int scan_path(std::string const &path);
+  int scan_path(std::string const& path);
 };
 
 #endif
-

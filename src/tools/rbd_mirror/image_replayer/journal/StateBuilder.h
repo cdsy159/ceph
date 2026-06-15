@@ -4,22 +4,26 @@
 #ifndef CEPH_RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_STATE_BUILDER_H
 #define CEPH_RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_STATE_BUILDER_H
 
-#include "tools/rbd_mirror/image_replayer/StateBuilder.h"
-#include "cls/journal/cls_journal_types.h"
-#include "librbd/journal/Types.h"
-#include "librbd/journal/TypeTraits.h"
 #include <string>
+
+#include "cls/journal/cls_journal_types.h"
+#include "librbd/journal/TypeTraits.h"
+#include "librbd/journal/Types.h"
+#include "tools/rbd_mirror/image_replayer/StateBuilder.h"
 
 struct Context;
 
-namespace librbd { struct ImageCtx; }
+namespace librbd {
+struct ImageCtx;
+}
 
 namespace rbd {
 namespace mirror {
 namespace image_replayer {
 namespace journal {
 
-template <typename> class SyncPointHandler;
+template <typename>
+class SyncPointHandler;
 
 template <typename ImageCtxT>
 class StateBuilder : public image_replayer::StateBuilder<ImageCtxT> {
@@ -27,7 +31,9 @@ public:
   typedef librbd::journal::TypeTraits<ImageCtxT> TypeTraits;
   typedef typename TypeTraits::Journaler Journaler;
 
-  static StateBuilder* create(const std::string& global_image_id) {
+  static StateBuilder*
+  create(const std::string& global_image_id)
+  {
     return new StateBuilder(global_image_id);
   }
 
@@ -42,7 +48,9 @@ public:
 
   image_sync::SyncPointHandler* create_sync_point_handler() override;
 
-  bool replay_requires_remote_image() const override {
+  bool
+  replay_requires_remote_image() const override
+  {
     return false;
   }
 
@@ -72,7 +80,7 @@ public:
 
   Journaler* remote_journaler = nullptr;
   cls::journal::ClientState remote_client_state =
-    cls::journal::CLIENT_STATE_CONNECTED;
+      cls::journal::CLIENT_STATE_CONNECTED;
   librbd::journal::MirrorPeerClientMeta remote_client_meta;
 
   SyncPointHandler<ImageCtxT>* sync_point_handler = nullptr;
@@ -89,6 +97,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::journal::StateBuilder<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::journal::StateBuilder<
+    librbd::ImageCtx>;
 
 #endif // CEPH_RBD_MIRROR_IMAGE_REPLAYER_JOURNAL_STATE_BUILDER_H

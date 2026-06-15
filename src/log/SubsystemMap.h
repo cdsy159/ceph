@@ -4,15 +4,14 @@
 #ifndef CEPH_LOG_SUBSYSTEMS
 #define CEPH_LOG_SUBSYSTEMS
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "common/likely.h"
 #include "common/subsys_types.h"
-
 #include "include/ceph_assert.h"
 
 namespace ceph {
@@ -32,7 +31,8 @@ class SubsystemMap {
   friend class Log;
 
 public:
-  SubsystemMap() {
+  SubsystemMap()
+  {
     constexpr auto s = ceph_subsys_get_as_array();
     m_subsys.reserve(s.size());
 
@@ -43,35 +43,47 @@ public:
     }
   }
 
-  constexpr static std::size_t get_num() {
+  constexpr static std::size_t
+  get_num()
+  {
     return ceph_subsys_get_num();
   }
 
-  constexpr static std::size_t get_max_subsys_len() {
+  constexpr static std::size_t
+  get_max_subsys_len()
+  {
     return ceph_subsys_max_name_length();
   }
 
-  int get_log_level(unsigned subsys) const {
+  int
+  get_log_level(unsigned subsys) const
+  {
     if (subsys >= get_num())
       subsys = 0;
     return m_subsys[subsys].log_level;
   }
 
-  int get_gather_level(unsigned subsys) const {
+  int
+  get_gather_level(unsigned subsys) const
+  {
     if (subsys >= get_num())
       subsys = 0;
     return m_subsys[subsys].gather_level;
   }
 
   // TODO(rzarzynski): move to string_view?
-  constexpr const char* get_name(unsigned subsys) const {
+  constexpr const char*
+  get_name(unsigned subsys) const
+  {
     if (subsys >= get_num())
       subsys = 0;
     return ceph_subsys_get_as_array()[subsys].name;
   }
 
   template <unsigned SubV, int LvlV>
-  bool should_gather() const {
+  bool
+  should_gather() const
+  {
     static_assert(SubV < get_num(), "wrong subsystem ID");
     static_assert(LvlV >= -1 && LvlV <= 200);
 
@@ -83,33 +95,37 @@ public:
     } else {
       // we expect that setting level different than the default
       // is rather unusual.
-      return expect(LvlV <= static_cast<int>(m_gather_levels[SubV]),
-		    LvlV <= ceph_subsys_get_max_default_level(SubV));
+      return expect(
+          LvlV <= static_cast<int>(m_gather_levels[SubV]),
+          LvlV <= ceph_subsys_get_max_default_level(SubV));
     }
   }
-  bool should_gather(const unsigned sub, int level) const {
+
+  bool
+  should_gather(const unsigned sub, int level) const
+  {
     ceph_assert(sub < m_subsys.size());
     return level <= static_cast<int>(m_gather_levels[sub]);
   }
 
-  void set_log_level(unsigned subsys, uint8_t log)
+  void
+  set_log_level(unsigned subsys, uint8_t log)
   {
     ceph_assert(subsys < m_subsys.size());
     m_subsys[subsys].log_level = log;
-    m_gather_levels[subsys] = \
-      std::max(log, m_subsys[subsys].gather_level);
+    m_gather_levels[subsys] = std::max(log, m_subsys[subsys].gather_level);
   }
 
-  void set_gather_level(unsigned subsys, uint8_t gather)
+  void
+  set_gather_level(unsigned subsys, uint8_t gather)
   {
     ceph_assert(subsys < m_subsys.size());
     m_subsys[subsys].gather_level = gather;
-    m_gather_levels[subsys] = \
-      std::max(m_subsys[subsys].log_level, gather);
+    m_gather_levels[subsys] = std::max(m_subsys[subsys].log_level, gather);
   }
 };
 
-}
-}
+} // namespace logging
+} // namespace ceph
 
 #endif

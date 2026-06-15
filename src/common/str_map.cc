@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,20 +16,21 @@
  */
 
 #include "include/str_map.h"
-#include "include/str_list.h"
-
-#include <boost/algorithm/string.hpp>
-
-#include "json_spirit/json_spirit.h"
 
 #include <sstream>
 
+#include <boost/algorithm/string.hpp>
+
+#include "include/str_list.h"
+#include "json_spirit/json_spirit.h"
+
 using namespace std;
 
-int get_json_str_map(
-    const string &str,
-    ostream &ss,
-    str_map_t *str_map,
+int
+get_json_str_map(
+    const string& str,
+    ostream& ss,
+    str_map_t* str_map,
     bool fallback_to_plain)
 {
   json_spirit::mValue json;
@@ -39,19 +40,18 @@ int get_json_str_map(
     json_spirit::read_or_throw(str, json);
 
     if (json.type() != json_spirit::obj_type) {
-      ss << str << " must be a JSON object but is of type "
-	 << json.type() << " instead";
+      ss << str << " must be a JSON object but is of type " << json.type()
+         << " instead";
       return -EINVAL;
     }
 
     json_spirit::mObject o = json.get_obj();
 
-    for (map<string, json_spirit::mValue>::iterator i = o.begin();
-	 i != o.end();
-	 ++i) {
+    for (map<string, json_spirit::mValue>::iterator i = o.begin(); i != o.end();
+         ++i) {
       (*str_map)[i->first] = i->second.get_str();
     }
-  } catch (json_spirit::Error_position &e) {
+  } catch (json_spirit::Error_position& e) {
     if (fallback_to_plain) {
       // fallback to key=value format
       get_str_map(str, str_map, "\t\n ");
@@ -62,7 +62,8 @@ int get_json_str_map(
   return 0;
 }
 
-static std::string_view trim(std::string_view str)
+static std::string_view
+trim(std::string_view str)
 {
   static const char* whitespaces = "\t\n ";
   auto beg = str.find_first_not_of(whitespaces);
@@ -73,36 +74,34 @@ static std::string_view trim(std::string_view str)
   return str.substr(beg, end - beg + 1);
 }
 
-int get_str_map(
-    const string &str,
-    str_map_t* str_map,
-    const char *delims)
+int
+get_str_map(const string& str, str_map_t* str_map, const char* delims)
 {
-  for_each_pair(str, delims, [str_map](std::string_view key,
-				       std::string_view val) {
-    // is the format 'K=V' or just 'K'?
-    if (val.empty()) {
-      str_map->emplace(std::string(key), "");
-    } else {
-      str_map->emplace(std::string(trim(key)), std::string(trim(val)));
-    }
-  });
+  for_each_pair(
+      str, delims, [str_map](std::string_view key, std::string_view val) {
+        // is the format 'K=V' or just 'K'?
+        if (val.empty()) {
+          str_map->emplace(std::string(key), "");
+        } else {
+          str_map->emplace(std::string(trim(key)), std::string(trim(val)));
+        }
+      });
   return 0;
 }
 
-str_map_t get_str_map(
-  const string& str,
-  const char* delim)
+str_map_t
+get_str_map(const string& str, const char* delim)
 {
   str_map_t str_map;
   get_str_map(str, &str_map, delim);
   return str_map;
 }
 
-string get_str_map_value(
-    const str_map_t &str_map,
-    const string &key,
-    const string *def_val)
+string
+get_str_map_value(
+    const str_map_t& str_map,
+    const string& key,
+    const string* def_val)
 {
   auto p = str_map.find(key);
 
@@ -123,10 +122,11 @@ string get_str_map_value(
   return string();
 }
 
-string get_str_map_key(
-    const str_map_t &str_map,
-    const string &key,
-    const string *fallback_key)
+string
+get_str_map_key(
+    const str_map_t& str_map,
+    const string& key,
+    const string* fallback_key)
 {
   auto p = str_map.find(key);
   if (p != str_map.end())
@@ -146,11 +146,12 @@ string get_str_map_key(
 // event, to assign said 'VALUE' to a given 'def_key', such that we end up
 // with a map of the form "m = { 'def_key' : 'VALUE' }" instead of the
 // original "m = { 'VALUE' : '' }".
-int get_conf_str_map_helper(
-    const string &str,
-    ostringstream &oss,
+int
+get_conf_str_map_helper(
+    const string& str,
+    ostringstream& oss,
     str_map_t* str_map,
-    const string &default_key)
+    const string& default_key)
 {
   get_str_map(str, str_map);
 
@@ -165,9 +166,8 @@ int get_conf_str_map_helper(
   return 0;
 }
 
-std::string get_value_via_strmap(
-  const string& conf_string,
-  std::string_view default_key)
+std::string
+get_value_via_strmap(const string& conf_string, std::string_view default_key)
 {
   auto mp = get_str_map(conf_string);
   if (mp.size() != 1) {
@@ -183,10 +183,11 @@ std::string get_value_via_strmap(
   return v;
 }
 
-std::string get_value_via_strmap(
-  const string& conf_string,
-  const string& key,
-  std::string_view default_key)
+std::string
+get_value_via_strmap(
+    const string& conf_string,
+    const string& key,
+    std::string_view default_key)
 {
   auto mp = get_str_map(conf_string);
   if (mp.size() != 1) {

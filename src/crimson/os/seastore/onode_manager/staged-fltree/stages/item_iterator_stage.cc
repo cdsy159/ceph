@@ -12,9 +12,14 @@ namespace crimson::os::seastore::onode {
 
 template <node_type_t NODE_TYPE>
 template <IsFullKey Key>
-memory_range_t ITER_T::insert_prefix(
-    NodeExtentMutable& mut, const ITER_T& iter, const Key& key,
-    bool is_end, node_offset_t size, const char* p_left_bound)
+memory_range_t
+ITER_T::insert_prefix(
+    NodeExtentMutable& mut,
+    const ITER_T& iter,
+    const Key& key,
+    bool is_end,
+    node_offset_t size,
+    const char* p_left_bound)
 {
   // 1. insert range
   char* p_insert;
@@ -29,9 +34,7 @@ memory_range_t ITER_T::insert_prefix(
   // 2. shift memory
   const char* p_shift_start = p_left_bound;
   const char* p_shift_end = p_insert;
-  mut.shift_absolute(p_shift_start,
-                     p_shift_end - p_shift_start,
-                     -(int)size);
+  mut.shift_absolute(p_shift_start, p_shift_end - p_shift_start, -(int)size);
 
   // 3. append header
   p_insert -= sizeof(node_offset_t);
@@ -41,18 +44,19 @@ memory_range_t ITER_T::insert_prefix(
 
   return {p_insert_front, p_insert};
 }
-#define IP_TEMPLATE(NT, Key)                                  \
-  template memory_range_t ITER_INST(NT)::insert_prefix<Key>(  \
-      NodeExtentMutable&, const ITER_INST(NT)&, const Key&,   \
-      bool, node_offset_t, const char*)
+
+#define IP_TEMPLATE(NT, Key)                                      \
+  template memory_range_t ITER_INST(NT)::insert_prefix<Key>(      \
+      NodeExtentMutable&, const ITER_INST(NT)&, const Key&, bool, \
+      node_offset_t, const char*)
 IP_TEMPLATE(node_type_t::LEAF, key_view_t);
 IP_TEMPLATE(node_type_t::INTERNAL, key_view_t);
 IP_TEMPLATE(node_type_t::LEAF, key_hobj_t);
 IP_TEMPLATE(node_type_t::INTERNAL, key_hobj_t);
 
 template <node_type_t NODE_TYPE>
-void ITER_T::update_size(
-    NodeExtentMutable& mut, const ITER_T& iter, int change)
+void
+ITER_T::update_size(NodeExtentMutable& mut, const ITER_T& iter, int change)
 {
   node_offset_t offset = iter.get_back_offset();
   int new_size = change + offset;
@@ -62,7 +66,8 @@ void ITER_T::update_size(
 }
 
 template <node_type_t NODE_TYPE>
-node_offset_t ITER_T::trim_until(NodeExtentMutable& mut, const ITER_T& iter)
+node_offset_t
+ITER_T::trim_until(NodeExtentMutable& mut, const ITER_T& iter)
 {
   assert(iter.index() != 0);
   size_t ret = iter.p_end() - iter.p_items_start;
@@ -71,8 +76,8 @@ node_offset_t ITER_T::trim_until(NodeExtentMutable& mut, const ITER_T& iter)
 }
 
 template <node_type_t NODE_TYPE>
-node_offset_t ITER_T::trim_at(
-    NodeExtentMutable& mut, const ITER_T& iter, node_offset_t trimmed)
+node_offset_t
+ITER_T::trim_at(NodeExtentMutable& mut, const ITER_T& iter, node_offset_t trimmed)
 {
   size_t trim_size = iter.p_start() - iter.p_items_start + trimmed;
   assert(trim_size < mut.get_length());
@@ -83,8 +88,11 @@ node_offset_t ITER_T::trim_at(
 }
 
 template <node_type_t NODE_TYPE>
-node_offset_t ITER_T::erase(
-    NodeExtentMutable& mut, const ITER_T& iter, const char* p_left_bound)
+node_offset_t
+ITER_T::erase(
+    NodeExtentMutable& mut,
+    const ITER_T& iter,
+    const char* p_left_bound)
 {
   node_offset_t erase_size = iter.p_end() - iter.p_start();
   const char* p_shift_start = p_left_bound;
@@ -103,9 +111,11 @@ ITER_TEMPLATE(node_type_t::INTERNAL);
 
 template <node_type_t NODE_TYPE>
 template <KeyT KT>
-APPEND_T::Appender(NodeExtentMutable* p_mut,
-                   const item_iterator_t& iter,
-                   bool open) : p_mut{p_mut}
+APPEND_T::Appender(
+    NodeExtentMutable* p_mut,
+    const item_iterator_t& iter,
+    bool open) :
+  p_mut{p_mut}
 {
   assert(!iter.has_next());
   if (open) {
@@ -119,7 +129,8 @@ APPEND_T::Appender(NodeExtentMutable* p_mut,
 
 template <node_type_t NODE_TYPE>
 template <KeyT KT>
-bool APPEND_T::append(const ITER_T& src, index_t& items)
+bool
+APPEND_T::append(const ITER_T& src, index_t& items)
 {
   auto p_end = src.p_end();
   bool append_till_end = false;
@@ -185,7 +196,8 @@ APPEND_T::open_nxt(const full_key_t<KT>& key)
 
 template <node_type_t NODE_TYPE>
 template <KeyT KT>
-void APPEND_T::wrap_nxt(char* _p_append)
+void
+APPEND_T::wrap_nxt(char* _p_append)
 {
   assert(_p_append < p_append);
   p_mut->copy_in_absolute(
@@ -199,4 +211,4 @@ APPEND_TEMPLATE(node_type_t::INTERNAL, KeyT::VIEW);
 APPEND_TEMPLATE(node_type_t::LEAF, KeyT::HOBJ);
 APPEND_TEMPLATE(node_type_t::INTERNAL, KeyT::HOBJ);
 
-}
+} // namespace crimson::os::seastore::onode

@@ -23,8 +23,9 @@ namespace crypto {
 namespace util {
 
 template <typename I>
-void set_crypto(I *image_ctx,
-                decltype(I::encryption_format) encryption_format) {
+void
+set_crypto(I* image_ctx, decltype(I::encryption_format) encryption_format)
+{
   std::unique_lock image_locker{image_ctx->image_lock};
   ceph_assert(!image_ctx->encryption_format);
 
@@ -36,21 +37,26 @@ void set_crypto(I *image_ctx,
   image_ctx->encryption_format = std::move(encryption_format);
 }
 
-int build_crypto(
-        CephContext* cct, const unsigned char* key, uint32_t key_length,
-        uint64_t block_size, uint64_t data_offset,
-        std::unique_ptr<CryptoInterface>* result_crypto) {
+int
+build_crypto(
+    CephContext* cct,
+    const unsigned char* key,
+    uint32_t key_length,
+    uint64_t block_size,
+    uint64_t data_offset,
+    std::unique_ptr<CryptoInterface>* result_crypto)
+{
   const char* cipher_suite;
   switch (key_length) {
-    case 32:
-      cipher_suite = "aes-128-xts";
-      break;
-    case 64:
-      cipher_suite = "aes-256-xts";
-      break;
-    default:
-      lderr(cct) << "unsupported key length: " << key_length << dendl;
-      return -ENOTSUP;
+  case 32:
+    cipher_suite = "aes-128-xts";
+    break;
+  case 64:
+    cipher_suite = "aes-256-xts";
+    break;
+  default:
+    lderr(cct) << "unsupported key length: " << key_length << dendl;
+    return -ENOTSUP;
   }
 
   auto data_cryptor = new openssl::DataCryptor(cct);
@@ -63,7 +69,7 @@ int build_crypto(
   }
 
   result_crypto->reset(BlockCrypto<EVP_CIPHER_CTX>::create(
-          cct, data_cryptor, block_size, data_offset));
+      cct, data_cryptor, block_size, data_offset));
   return 0;
 }
 
@@ -72,5 +78,5 @@ int build_crypto(
 } // namespace librbd
 
 template void librbd::crypto::util::set_crypto(
-    librbd::ImageCtx *image_ctx,
+    librbd::ImageCtx* image_ctx,
     std::unique_ptr<EncryptionFormat<librbd::ImageCtx>> encryption_format);

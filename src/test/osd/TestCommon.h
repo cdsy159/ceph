@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <string>
+
 #include "test/osd/PGBackendTestFixture.h"
 
 /**
@@ -41,12 +42,13 @@ struct WriteReadParam {
 struct BackendConfig {
   PGBackendTestFixture::PoolType pool_type;
   // EC-specific (ignored for REPLICATED)
-  std::string ec_plugin;     // e.g. "isa", "jerasure", "mock"
-  std::string ec_technique;  // e.g. "reed_sol_van"
-  uint64_t pool_flags;       // Pool flags (e.g., FLAG_EC_OVERWRITES | FLAG_EC_OPTIMIZATIONS)
-  uint64_t stripe_unit = 4096;  // aka chunk_size; stripe_width = stripe_unit * k
-  int k = 4;  // data chunks (EC only)
-  int m = 2;  // coding chunks (EC only)
+  std::string ec_plugin; // e.g. "isa", "jerasure", "mock"
+  std::string ec_technique; // e.g. "reed_sol_van"
+  uint64_t
+      pool_flags; // Pool flags (e.g., FLAG_EC_OVERWRITES | FLAG_EC_OPTIMIZATIONS)
+  uint64_t stripe_unit = 4096; // aka chunk_size; stripe_width = stripe_unit * k
+  int k = 4; // data chunks (EC only)
+  int m = 2; // coding chunks (EC only)
   // Label for test naming
   std::string label;
 };
@@ -60,4 +62,3 @@ struct BackendWriteReadParam {
   BackendConfig backend;
   WriteReadParam write_read;
 };
-

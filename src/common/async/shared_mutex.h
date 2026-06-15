@@ -55,14 +55,19 @@ namespace ceph::async {
  */
 template <typename Executor>
 class SharedMutex {
- public:
+public:
   explicit SharedMutex(const Executor& ex);
 
   /// on destruction, all pending lock requests are canceled
   ~SharedMutex();
 
   using executor_type = Executor;
-  executor_type get_executor() const noexcept { return ex; }
+
+  executor_type
+  get_executor() const noexcept
+  {
+    return ex;
+  }
 
   /// initiate an asynchronous request for an exclusive lock. when the lock is
   /// granted, the completion handler is invoked with a successful error code
@@ -114,7 +119,7 @@ class SharedMutex {
   /// operation_aborted error
   void cancel();
 
- private:
+private:
   Executor ex; //< default callback executor
   boost::intrusive_ptr<detail::SharedMutexImpl> impl;
 
@@ -123,12 +128,10 @@ class SharedMutex {
   friend class std::shared_lock<SharedMutex>;
 };
 
-
 template <typename Executor>
-SharedMutex<Executor>::SharedMutex(const Executor& ex)
-  : ex(ex), impl(new detail::SharedMutexImpl)
-{
-}
+SharedMutex<Executor>::SharedMutex(const Executor& ex) :
+  ex(ex), impl(new detail::SharedMutexImpl)
+{}
 
 template <typename Executor>
 SharedMutex<Executor>::~SharedMutex()
@@ -142,68 +145,79 @@ SharedMutex<Executor>::~SharedMutex()
 
 template <typename Executor>
 template <typename CompletionToken>
-auto SharedMutex<Executor>::async_lock(CompletionToken&& token)
+auto
+SharedMutex<Executor>::async_lock(CompletionToken&& token)
 {
   return impl->async_lock(*this, std::forward<CompletionToken>(token));
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::lock()
+void
+SharedMutex<Executor>::lock()
 {
   impl->lock();
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::lock(boost::system::error_code& ec)
+void
+SharedMutex<Executor>::lock(boost::system::error_code& ec)
 {
   impl->lock(ec);
 }
 
 template <typename Executor>
-bool SharedMutex<Executor>::try_lock()
+bool
+SharedMutex<Executor>::try_lock()
 {
   return impl->try_lock();
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::unlock()
+void
+SharedMutex<Executor>::unlock()
 {
   impl->unlock();
 }
 
 template <typename Executor>
 template <typename CompletionToken>
-auto SharedMutex<Executor>::async_lock_shared(CompletionToken&& token)
+auto
+SharedMutex<Executor>::async_lock_shared(CompletionToken&& token)
 {
   return impl->async_lock_shared(*this, std::forward<CompletionToken>(token));
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::lock_shared()
+void
+SharedMutex<Executor>::lock_shared()
 {
   impl->lock_shared();
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::lock_shared(boost::system::error_code& ec)
+void
+SharedMutex<Executor>::lock_shared(boost::system::error_code& ec)
 {
   impl->lock_shared(ec);
 }
 
 template <typename Executor>
-bool SharedMutex<Executor>::try_lock_shared()
+bool
+SharedMutex<Executor>::try_lock_shared()
 {
   return impl->try_lock_shared();
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::unlock_shared()
+void
+SharedMutex<Executor>::unlock_shared()
 {
   impl->unlock_shared();
 }
 
 template <typename Executor>
-void SharedMutex<Executor>::cancel()
+void
+SharedMutex<Executor>::cancel()
 {
   impl->cancel();
 }

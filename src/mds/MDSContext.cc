@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,22 +14,26 @@
  */
 
 #include "MDSContext.h"
-#include "MDSRank.h"
-#include "MDLog.h"
 
 #include "common/debug.h"
+
+#include "MDLog.h"
+#include "MDSRank.h"
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mds
 
-void MDSContext::finish(int r) {
-  MDSRank *mds = get_mds();
+void
+MDSContext::finish(int r)
+{
+  MDSRank* mds = get_mds();
   ceph_assert(mds != nullptr);
   ceph_assert(ceph_mutex_is_locked_by_me(mds->mds_lock));
   dout(10) << "MDSContext::finish: " << typeid(*this).name() << dendl;
   mds->heartbeat_reset();
 }
 
-void MDSInternalContextWrapper::finish(int r)
+void
+MDSInternalContextWrapper::finish(int r)
 {
   fin->complete(r);
 }
@@ -37,8 +41,13 @@ void MDSInternalContextWrapper::finish(int r)
 struct MDSIOContextList {
   elist<MDSIOContextBase*> list;
   ceph::spinlock lock;
-  MDSIOContextList() : list(member_offset(MDSIOContextBase, list_item)) {}
-  ~MDSIOContextList() {
+
+  MDSIOContextList() :
+    list(member_offset(MDSIOContextBase, list_item))
+  {}
+
+  ~MDSIOContextList()
+  {
     list.clear(); // avoid assertion in elist's destructor
   }
 } ioctx_list;
@@ -60,16 +69,19 @@ MDSIOContextBase::~MDSIOContextBase()
   ioctx_list.lock.unlock();
 }
 
-bool MDSIOContextBase::check_ios_in_flight(ceph::coarse_mono_time cutoff,
-					   std::string& slow_count,
-					   ceph::coarse_mono_time& oldest)
+bool
+MDSIOContextBase::check_ios_in_flight(
+    ceph::coarse_mono_time cutoff,
+    std::string& slow_count,
+    ceph::coarse_mono_time& oldest)
 {
   static const unsigned MAX_COUNT = 100;
   unsigned slow = 0;
 
   ioctx_list.lock.lock();
-  for (elist<MDSIOContextBase*>::iterator p = ioctx_list.list.begin(); !p.end(); ++p) {
-    MDSIOContextBase *c = *p;
+  for (elist<MDSIOContextBase*>::iterator p = ioctx_list.list.begin(); !p.end();
+       ++p) {
+    MDSIOContextBase* c = *p;
     if (c->created_at >= cutoff)
       break;
     ++slow;
@@ -91,8 +103,10 @@ bool MDSIOContextBase::check_ios_in_flight(ceph::coarse_mono_time cutoff,
   }
 }
 
-void MDSIOContextBase::complete(int r) {
-  MDSRank *mds = get_mds();
+void
+MDSIOContextBase::complete(int r)
+{
+  MDSRank* mds = get_mds();
 
   dout(10) << "MDSIOContextBase::complete: " << typeid(*this).name() << dendl;
   ceph_assert(mds != NULL);
@@ -118,8 +132,10 @@ void MDSIOContextBase::complete(int r) {
   }
 }
 
-void MDSLogContextBase::complete(int r) {
-  MDLog *mdlog = get_mds()->mdlog;
+void
+MDSLogContextBase::complete(int r)
+{
+  MDLog* mdlog = get_mds()->mdlog;
   uint64_t safe_pos = write_pos;
   pre_finish(r);
   // MDSIOContext::complete() free this
@@ -128,12 +144,14 @@ void MDSLogContextBase::complete(int r) {
   mdlog->set_safe_pos(safe_pos);
 }
 
-void MDSIOContextWrapper::finish(int r)
+void
+MDSIOContextWrapper::finish(int r)
 {
   fin->complete(r);
 }
 
-void C_IO_Wrapper::complete(int r)
+void
+C_IO_Wrapper::complete(int r)
 {
   if (async) {
     dout(20) << "C_IO_Wrapper::complete " << r << " async" << dendl;

@@ -1,9 +1,9 @@
-#include "common/DecayCounter.h"
-
 #include <gtest/gtest.h>
 
-#include <list>
 #include <cmath>
+#include <list>
+
+#include "common/DecayCounter.h"
 
 TEST(DecayCounter, steady)
 {
@@ -17,13 +17,13 @@ TEST(DecayCounter, steady)
   double total = 0.0;
   while (1) {
     const auto now = DecayCounter::clock::now();
-    auto el = std::chrono::duration<double>(now-start);
+    auto el = std::chrono::duration<double>(now - start);
     if (el.count() > duration) {
       break;
     }
 
     double v = d.get();
-    double diff = max-v;
+    double diff = max - v;
     if (diff > 0.0) {
       d.hit(diff);
       total += diff;
@@ -34,7 +34,7 @@ TEST(DecayCounter, steady)
    * (where M is the maximum value of the counter, not varying with time.)
    * Integrating over t: N = -λMt (+c)
    */
-  double expected = -1*std::log(0.5)/rate*max*duration;
+  double expected = -1 * std::log(0.5) / rate * max * duration;
   std::cerr << "t " << total << " e " << expected << std::endl;
-  ASSERT_LT(std::abs(total-expected)/expected, 0.05);
+  ASSERT_LT(std::abs(total - expected) / expected, 0.05);
 }

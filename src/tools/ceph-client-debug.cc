@@ -14,14 +14,15 @@
  */
 
 
-#include "common/ceph_argparse.h"
-#include "global/global_init.h"
-#include "common/JSONFormatter.h"
 #include "common/debug.h"
-#include "common/errno.h"
-#include "client/Inode.h"
+
 #include "client/Dentry.h"
 #include "client/Dir.h"
+#include "client/Inode.h"
+#include "common/JSONFormatter.h"
+#include "common/ceph_argparse.h"
+#include "common/errno.h"
+#include "global/global_init.h"
 #include "include/cephfs/libcephfs.h"
 
 #define dout_context g_ceph_context
@@ -29,43 +30,44 @@
 
 using namespace std;
 
-void usage()
+void
+usage()
 {
   std::cout << "Usage: ceph-client-debug [options] <inode number>" << std::endl;
   generic_client_usage();
 }
 
-
 /**
  * Given an inode, look up the path from the Client cache: assumes
  * client cache is fully populated.
  */
-void traverse_dentries(Inode *ino, std::vector<Dentry*> &parts)
+void
+traverse_dentries(Inode* ino, std::vector<Dentry*>& parts)
 {
   if (ino->dentries.empty()) {
     return;
   }
-  
+
   Dentry* dn = *(ino->dentries.begin());
   parts.push_back(dn);
   traverse_dentries(dn->dir->parent_inode, parts);
 }
-
 
 /**
  * Given an inode, send lookup requests to the MDS for
  * all its ancestors, such that the full trace will be
  * populated in client cache.
  */
-int lookup_trace(ceph_mount_info *client, inodeno_t const ino)
+int
+lookup_trace(ceph_mount_info* client, inodeno_t const ino)
 {
-  Inode *inode;
+  Inode* inode;
   int r = ceph_ll_lookup_inode(client, ino, &inode);
   if (r != 0) {
     return r;
   } else {
     if (!inode->dentries.empty()) {
-      Dentry *dn = *(inode->dentries.begin());
+      Dentry* dn = *(inode->dentries.begin());
       ceph_assert(dn->dir);
       ceph_assert(dn->dir->parent_inode);
       r = lookup_trace(client, dn->dir->parent_inode->ino);
@@ -81,8 +83,8 @@ int lookup_trace(ceph_mount_info *client, inodeno_t const ino)
   return r;
 }
 
-
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   // Argument handling
   auto args = argv_to_vec(argc, argv);
@@ -95,11 +97,11 @@ int main(int argc, const char **argv)
     exit(0);
   }
 
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-			 CODE_ENVIRONMENT_UTILITY,
-			 CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS|
-			 CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
-  
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS |
+          CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+
   common_init_finish(g_ceph_context);
 
   // Expect exactly one positional argument (inode number)
@@ -107,7 +109,7 @@ int main(int argc, const char **argv)
     cerr << "missing position argument (inode number)" << std::endl;
     exit(1);
   }
-  char const *inode_str = args[0];
+  char const* inode_str = args[0];
   inodeno_t inode = strtoll(inode_str, NULL, 0);
   if (inode <= 0) {
     derr << "Invalid inode: " << inode_str << dendl;
@@ -115,7 +117,7 @@ int main(int argc, const char **argv)
   }
 
   // Initialize filesystem client
-  struct ceph_mount_info *client;
+  struct ceph_mount_info* client;
   int r = ceph_create_with_context(&client, g_ceph_context);
   if (r) {
     derr << "Error initializing libcephfs: " << cpp_strerror(r) << dendl;
@@ -133,8 +135,8 @@ int main(int argc, const char **argv)
   // Populate client cache with inode of interest & ancestors
   r = lookup_trace(client, inode);
   if (r) {
-    derr << "Error looking up inode " << std::hex << inode << std::dec <<
-      ": " << cpp_strerror(r) << dendl;
+    derr << "Error looking up inode " << std::hex << inode << std::dec << ": "
+         << cpp_strerror(r) << dendl;
     return -1;
   }
 
@@ -142,12 +144,12 @@ int main(int argc, const char **argv)
   struct vinodeno_t vinode;
   vinode.ino = inode;
   vinode.snapid = CEPH_NOSNAP;
-  Inode *ino = ceph_ll_get_inode(client, vinode);
+  Inode* ino = ceph_ll_get_inode(client, vinode);
 
   // Retrieve dentry trace
   std::vector<Dentry*> path;
   traverse_dentries(ino, path);
-  
+
   // Print inode and path as a JSON object
   JSONFormatter jf(true);
   jf.open_object_section("client_debug");
@@ -159,7 +161,8 @@ int main(int argc, const char **argv)
     jf.close_section(); // inode
     jf.open_array_section("path");
     {
-      for (std::vector<Dentry*>::reverse_iterator p = path.rbegin(); p != path.rend(); ++p) {
+      for (std::vector<Dentry*>::reverse_iterator p = path.rbegin();
+           p != path.rend(); ++p) {
         jf.open_object_section("dentry");
         {
           (*p)->dump(&jf);
@@ -175,11 +178,12 @@ int main(int argc, const char **argv)
 
   // Release Inode references
   ceph_ll_forget(client, ino, 1);
-  for (std::vector<Dentry*>::reverse_iterator p = path.rbegin(); p != path.rend(); ++p) {
+  for (std::vector<Dentry*>::reverse_iterator p = path.rbegin();
+       p != path.rend(); ++p) {
     ceph_ll_forget(client, (*p)->inode.get(), 1);
   }
   ino = NULL;
-  path.clear();  
+  path.clear();
 
   // Shut down
   r = ceph_unmount(client);
@@ -187,6 +191,6 @@ int main(int argc, const char **argv)
     derr << "Error mounting: " << cpp_strerror(r) << dendl;
   }
   ceph_shutdown(client);
-  
+
   return r;
 }

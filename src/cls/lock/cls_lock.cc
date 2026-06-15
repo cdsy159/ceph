@@ -9,22 +9,19 @@
  */
 
 #include <errno.h>
+
 #include <map>
 #include <sstream>
 
+#include "cls/lock/cls_lock_ops.h"
+#include "cls/lock/cls_lock_types.h"
+#include "common/Clock.h"
+#include "common/errno.h"
+#include "global/global_context.h"
+#include "include/compat.h"
 #include "include/types.h"
 #include "include/utime.h"
 #include "objclass/objclass.h"
-
-#include "common/errno.h"
-#include "common/Clock.h"
-
-#include "cls/lock/cls_lock_types.h"
-#include "cls/lock/cls_lock_ops.h"
-
-#include "global/global_context.h"
-
-#include "include/compat.h"
 
 using std::map;
 using std::string;
@@ -32,12 +29,13 @@ using std::string;
 using ceph::bufferlist;
 using namespace rados::cls::lock;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(lock)
 
-#define LOCK_PREFIX    "lock."
+#define LOCK_PREFIX "lock."
 
-static int clean_lock(cls_method_context_t hctx)
+static int
+clean_lock(cls_method_context_t hctx)
 {
   int r = cls_cxx_remove(hctx);
   if (r < 0)
@@ -46,17 +44,16 @@ static int clean_lock(cls_method_context_t hctx)
   return 0;
 }
 
-static int read_lock(cls_method_context_t hctx,
-		     const string& name,
-		     lock_info_t *lock)
+static int
+read_lock(cls_method_context_t hctx, const string& name, lock_info_t* lock)
 {
   bufferlist bl;
   string key = LOCK_PREFIX;
   key.append(name);
- 
+
   int r = cls_cxx_getxattr(hctx, key.c_str(), &bl);
   if (r < 0) {
-    if (r ==  -ENODATA) {
+    if (r == -ENODATA) {
       *lock = lock_info_t();
       return 0;
     }
@@ -69,7 +66,7 @@ static int read_lock(cls_method_context_t hctx,
   try {
     auto it = bl.cbegin();
     decode(*lock, it);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     CLS_ERR("error decoding %s", key.c_str());
     return -EIO;
   }
@@ -93,14 +90,16 @@ static int read_lock(cls_method_context_t hctx,
   if (lock->lockers.empty() && cls_lock_is_ephemeral(lock->lock_type)) {
     r = clean_lock(hctx);
     if (r < 0) {
-      CLS_ERR("error, on read, cleaning lock object %s", cpp_strerror(r).c_str());
+      CLS_ERR(
+          "error, on read, cleaning lock object %s", cpp_strerror(r).c_str());
     }
   }
 
   return 0;
 }
 
-static int write_lock(cls_method_context_t hctx, const string& name, const lock_info_t& lock)
+static int
+write_lock(cls_method_context_t hctx, const string& name, const lock_info_t& lock)
 {
   using ceph::encode;
   string key = LOCK_PREFIX;
@@ -131,23 +130,25 @@ static int write_lock(cls_method_context_t hctx, const string& name, const lock_
  *
  * @return 0 on success, or -errno on failure
  */
-static int lock_obj(cls_method_context_t hctx,
-                    const string& name,
-                    ClsLockType lock_type,
-                    utime_t duration,
-                    const string& description,
-                    uint8_t flags,
-                    const string& cookie,
-                    const string& tag)
+static int
+lock_obj(
+    cls_method_context_t hctx,
+    const string& name,
+    ClsLockType lock_type,
+    utime_t duration,
+    const string& description,
+    uint8_t flags,
+    const string& cookie,
+    const string& tag)
 {
   bool exclusive = cls_lock_is_exclusive(lock_type);
   lock_info_t linfo;
   bool fail_if_exists = (flags & LOCK_FLAG_MAY_RENEW) == 0;
   bool fail_if_does_not_exist = flags & LOCK_FLAG_MUST_RENEW;
 
-  CLS_LOG(20,
-	  "requested lock_type=%s fail_if_exists=%d fail_if_does_not_exist=%d",
-	  cls_lock_type_str(lock_type), fail_if_exists, fail_if_does_not_exist);
+  CLS_LOG(
+      20, "requested lock_type=%s fail_if_exists=%d fail_if_does_not_exist=%d",
+      cls_lock_type_str(lock_type), fail_if_exists, fail_if_does_not_exist);
   if (!cls_lock_is_valid(lock_type)) {
     return -EINVAL;
   }
@@ -200,14 +201,14 @@ static int lock_obj(cls_method_context_t hctx,
 
   if (!lockers.empty()) {
     if (exclusive) {
-      auto locker_lister =
-	[&lockers]() -> std::string {
-	  std::stringstream locker_list;
-	  locker_list << lockers;
-	  return locker_list.str();
-	};
-      CLS_LOG(20, "could not exclusive-lock object, already locked by %s",
-	      locker_lister().c_str());
+      auto locker_lister = [&lockers]() -> std::string {
+        std::stringstream locker_list;
+        locker_list << lockers;
+        return locker_list.str();
+      };
+      CLS_LOG(
+          20, "could not exclusive-lock object, already locked by %s",
+          locker_lister().c_str());
       return -EBUSY;
     }
 
@@ -223,7 +224,6 @@ static int lock_obj(cls_method_context_t hctx,
   if (!duration.is_zero()) {
     expiration = ceph_clock_now();
     expiration += duration;
-
   }
   // make all addrs of type legacy, because v2 clients speak v2 or v1,
   // even depending on which OSD they are talking to, and the type
@@ -252,21 +252,21 @@ static int lock_obj(cls_method_context_t hctx,
  * @returns 0 on success, -EINVAL if it can't decode the lock_cookie,
  * -EBUSY if the object is already locked, or -errno on (unexpected) failure.
  */
-static int lock_op(cls_method_context_t hctx,
-                   bufferlist *in, bufferlist *out)
+static int
+lock_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "lock_op");
   cls_lock_lock_op op;
   try {
     auto iter = in->cbegin();
     decode(op, iter);
-  } catch (const ceph::buffer::error &err) {
+  } catch (const ceph::buffer::error& err) {
     return -EINVAL;
   }
 
-  return lock_obj(hctx,
-                  op.name, op.type, op.duration, op.description,
-                  op.flags, op.cookie, op.tag);
+  return lock_obj(
+      hctx, op.name, op.type, op.duration, op.description, op.flags, op.cookie,
+      op.tag);
 }
 
 /**
@@ -279,16 +279,20 @@ static int lock_op(cls_method_context_t hctx,
  *  @return 0 on success, -ENOENT if there is no such lock (either
  *  entity or cookie is wrong), or -errno on other error.
  */
-static int remove_lock(cls_method_context_t hctx,
-		       const string& name,
-		       entity_name_t& locker,
-		       const string& cookie)
+static int
+remove_lock(
+    cls_method_context_t hctx,
+    const string& name,
+    entity_name_t& locker,
+    const string& cookie)
 {
   // get current lockers
   lock_info_t linfo;
   int r = read_lock(hctx, name, &linfo);
   if (r < 0) {
-    CLS_ERR("Could not read list of current lockers off disk: %s", cpp_strerror(r).c_str());
+    CLS_ERR(
+        "Could not read list of current lockers off disk: %s",
+        cpp_strerror(r).c_str());
     return r;
   }
 
@@ -298,8 +302,9 @@ static int remove_lock(cls_method_context_t hctx,
   // remove named locker from set
   auto iter = lockers.find(id);
   if (iter == lockers.end()) { // no such key
-    CLS_LOG(10, "locker %s [name: %s.%ld, cookie: %s] does not exist", name.c_str(), 
-            locker.type_str(), locker.num(), cookie.c_str());
+    CLS_LOG(
+        10, "locker %s [name: %s.%ld, cookie: %s] does not exist", name.c_str(),
+        locker.type_str(), locker.num(), cookie.c_str());
     return -ENOENT;
   }
   lockers.erase(iter);
@@ -324,8 +329,8 @@ static int remove_lock(cls_method_context_t hctx,
  * if there is no such lock (either entity or cookie is wrong), or
  * -errno on other (unexpected) error.
  */
-static int unlock_op(cls_method_context_t hctx,
-                     bufferlist *in, bufferlist *out)
+static int
+unlock_op(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "unlock_op");
   cls_lock_unlock_op op;
@@ -352,8 +357,8 @@ static int unlock_op(cls_method_context_t hctx,
  * cookie, -ENOENT if there is no such lock (either entity or cookie
  * is wrong), or -errno on other (unexpected) error.
  */
-static int break_lock(cls_method_context_t hctx,
-		      bufferlist *in, bufferlist *out)
+static int
+break_lock(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "break_lock");
   cls_lock_break_op op;
@@ -367,7 +372,6 @@ static int break_lock(cls_method_context_t hctx,
   return remove_lock(hctx, op.name, op.locker, op.cookie);
 }
 
-
 /**
  * Retrieve lock info: lockers, tag, exclusive
  *
@@ -379,7 +383,8 @@ static int break_lock(cls_method_context_t hctx,
  *
  * @return 0 on success, -errno on failure.
  */
-static int get_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+get_info(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "get_info");
   cls_lock_get_info_op op;
@@ -411,7 +416,6 @@ static int get_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return 0;
 }
 
-
 /**
  * Retrieve a list of locks for this object
  *
@@ -423,7 +427,8 @@ static int get_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  *
  * @return 0 on success, -errno on failure.
  */
-static int list_locks(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int
+list_locks(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "list_locks");
 
@@ -459,7 +464,8 @@ static int list_locks(cls_method_context_t hctx, bufferlist *in, bufferlist *out
  *
  * @return 0 on success, -errno on failure.
  */
-int assert_locked(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+int
+assert_locked(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "assert_locked");
 
@@ -493,14 +499,16 @@ int assert_locked(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 
   if (linfo.lock_type != op.type) {
-    CLS_LOG(20, "lock type mismatch: current=%s, assert=%s",
-            cls_lock_type_str(linfo.lock_type), cls_lock_type_str(op.type));
+    CLS_LOG(
+        20, "lock type mismatch: current=%s, assert=%s",
+        cls_lock_type_str(linfo.lock_type), cls_lock_type_str(op.type));
     return -EBUSY;
   }
 
   if (linfo.tag != op.tag) {
-    CLS_LOG(20, "lock tag mismatch: current=%s, assert=%s", linfo.tag.c_str(),
-            op.tag.c_str());
+    CLS_LOG(
+        20, "lock tag mismatch: current=%s, assert=%s", linfo.tag.c_str(),
+        op.tag.c_str());
     return -EBUSY;
   }
 
@@ -531,7 +539,8 @@ int assert_locked(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  *
  * @return 0 on success, -errno on failure.
  */
-int set_cookie(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+int
+set_cookie(cls_method_context_t hctx, bufferlist* in, bufferlist* out)
 {
   CLS_LOG(20, "set_cookie");
 
@@ -565,14 +574,16 @@ int set_cookie(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 
   if (linfo.lock_type != op.type) {
-    CLS_LOG(20, "lock type mismatch: current=%s, assert=%s",
-            cls_lock_type_str(linfo.lock_type), cls_lock_type_str(op.type));
+    CLS_LOG(
+        20, "lock type mismatch: current=%s, assert=%s",
+        cls_lock_type_str(linfo.lock_type), cls_lock_type_str(op.type));
     return -EBUSY;
   }
 
   if (linfo.tag != op.tag) {
-    CLS_LOG(20, "lock tag mismatch: current=%s, assert=%s", linfo.tag.c_str(),
-            op.tag.c_str());
+    CLS_LOG(
+        20, "lock tag mismatch: current=%s, assert=%s", linfo.tag.c_str(),
+        op.tag.c_str());
     return -EBUSY;
   }
 
@@ -622,27 +633,25 @@ CLS_INIT(lock)
   cls_method_handle_t h_set_cookie;
 
   cls_register("lock", &h_class);
-  cls_register_cxx_method(h_class, "lock",
-                          CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
-                          lock_op, &h_lock_op);
-  cls_register_cxx_method(h_class, "unlock",
-                          CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
-                          unlock_op, &h_unlock_op);
-  cls_register_cxx_method(h_class, "break_lock",
-                          CLS_METHOD_RD | CLS_METHOD_WR,
-                          break_lock, &h_break_lock);
-  cls_register_cxx_method(h_class, "get_info",
-                          CLS_METHOD_RD,
-                          get_info, &h_get_info);
-  cls_register_cxx_method(h_class, "list_locks",
-                          CLS_METHOD_RD,
-                          list_locks, &h_list_locks);
-  cls_register_cxx_method(h_class, "assert_locked",
-                          CLS_METHOD_RD | CLS_METHOD_PROMOTE,
-                          assert_locked, &h_assert_locked);
-  cls_register_cxx_method(h_class, "set_cookie",
-                          CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
-                          set_cookie, &h_set_cookie);
+  cls_register_cxx_method(
+      h_class, "lock", CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
+      lock_op, &h_lock_op);
+  cls_register_cxx_method(
+      h_class, "unlock", CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
+      unlock_op, &h_unlock_op);
+  cls_register_cxx_method(
+      h_class, "break_lock", CLS_METHOD_RD | CLS_METHOD_WR, break_lock,
+      &h_break_lock);
+  cls_register_cxx_method(
+      h_class, "get_info", CLS_METHOD_RD, get_info, &h_get_info);
+  cls_register_cxx_method(
+      h_class, "list_locks", CLS_METHOD_RD, list_locks, &h_list_locks);
+  cls_register_cxx_method(
+      h_class, "assert_locked", CLS_METHOD_RD | CLS_METHOD_PROMOTE,
+      assert_locked, &h_assert_locked);
+  cls_register_cxx_method(
+      h_class, "set_cookie", CLS_METHOD_RD | CLS_METHOD_WR | CLS_METHOD_PROMOTE,
+      set_cookie, &h_set_cookie);
 
   return;
 }

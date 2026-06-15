@@ -3,12 +3,25 @@
 
 #include "Log.h"
 
-#include "common/errno.h"
-#include "common/safe_io.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <fmt/ranges.h>
+#include <limits.h>
+#include <syslog.h>
+
+#include <algorithm>
+#include <iostream>
+#include <set>
+
+#include <boost/container/vector.hpp>
+
 #include "common/Graylog.h"
 #include "common/Journald.h"
+#include "common/errno.h"
+#include "common/safe_io.h"
 #include "common/valgrind.h"
-
 #include "include/ceph_assert.h"
 #include "include/compat.h"
 #include "include/on_exit.h"
@@ -18,21 +31,6 @@
 #include "LogClock.h"
 #include "SubsystemMap.h"
 
-#include <boost/container/vector.hpp>
-
-#include <errno.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <syslog.h>
-
-#include <algorithm>
-#include <iostream>
-#include <set>
-
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <fmt/ranges.h>
-
 #define MAX_LOG_BUF 65536
 
 namespace ceph {
@@ -40,18 +38,17 @@ namespace logging {
 
 static OnExitManager exit_callbacks;
 
-static void log_on_exit(void *p)
+static void
+log_on_exit(void* p)
 {
-  Log *l = *(Log **)p;
+  Log* l = *(Log**)p;
   if (l)
     l->flush();
-  delete (Log **)p;// Delete allocated pointer (not Log object, the pointer only!)
+  delete (Log**)p; // Delete allocated pointer (not Log object, the pointer only!)
 }
 
-Log::Log(const SubsystemMap *s)
-  : m_indirect_this(nullptr),
-    m_subs(s),
-    m_recent(DEFAULT_MAX_RECENT)
+Log::Log(const SubsystemMap* s) :
+  m_indirect_this(nullptr), m_subs(s), m_recent(DEFAULT_MAX_RECENT)
 {
   m_log_buf.reserve(MAX_LOG_BUF);
   _configure_stderr();
@@ -70,7 +67,8 @@ Log::~Log()
   }
 }
 
-void Log::_configure_stderr()
+void
+Log::_configure_stderr()
 {
 #ifndef _WIN32
   struct stat info;
@@ -88,14 +86,16 @@ void Log::_configure_stderr()
      */
     int flags = fcntl(m_fd_stderr, F_GETFL);
     if (flags == -1) {
-      std::cerr << "failed to get fcntl flags for stderr: " << cpp_strerror(errno) << std::endl;
+      std::cerr << "failed to get fcntl flags for stderr: "
+                << cpp_strerror(errno) << std::endl;
       return;
     }
     if (!(flags & O_NONBLOCK)) {
       flags |= O_NONBLOCK;
       flags = fcntl(m_fd_stderr, F_SETFL, flags);
       if (flags == -1) {
-        std::cerr << "failed to set fcntl flags for stderr: " << cpp_strerror(errno) << std::endl;
+        std::cerr << "failed to set fcntl flags for stderr: "
+                  << cpp_strerror(errno) << std::endl;
         return;
       }
     }
@@ -104,9 +104,10 @@ void Log::_configure_stderr()
 #endif // !_WIN32
 }
 
-
 ///
-void Log::set_coarse_timestamps(bool coarse) {
+void
+Log::set_coarse_timestamps(bool coarse)
+{
   std::scoped_lock lock(m_flush_mutex);
   if (coarse)
     Entry::clock().coarsen();
@@ -114,7 +115,8 @@ void Log::set_coarse_timestamps(bool coarse) {
     Entry::clock().refine();
 }
 
-void Log::set_flush_on_exit()
+void
+Log::set_flush_on_exit()
 {
   std::scoped_lock lock(m_flush_mutex);
   // Make sure we flush on shutdown.  We do this by deliberately
@@ -127,31 +129,36 @@ void Log::set_flush_on_exit()
   }
 }
 
-void Log::set_max_new(std::size_t n)
+void
+Log::set_max_new(std::size_t n)
 {
   std::scoped_lock lock(m_queue_mutex);
   m_max_new = n;
 }
 
-void Log::set_max_recent(std::size_t n)
+void
+Log::set_max_recent(std::size_t n)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_recent.set_capacity(n);
 }
 
-void Log::set_log_file(std::string_view fn)
+void
+Log::set_log_file(std::string_view fn)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_log_file = fn;
 }
 
-void Log::set_log_stderr_prefix(std::string_view p)
+void
+Log::set_log_stderr_prefix(std::string_view p)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_log_stderr_prefix = p;
 }
 
-void Log::reopen_log_file()
+void
+Log::reopen_log_file()
 {
   std::scoped_lock lock(m_flush_mutex);
   if (!is_started()) {
@@ -163,19 +170,21 @@ void Log::reopen_log_file()
     m_fd = -1;
   }
   if (m_log_file.length()) {
-    m_fd = ::open(m_log_file.c_str(), O_CREAT|O_WRONLY|O_APPEND|O_CLOEXEC, 0644);
+    m_fd = ::open(
+        m_log_file.c_str(), O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644);
     if (m_fd >= 0 && (m_uid || m_gid)) {
       if (::fchown(m_fd, m_uid, m_gid) < 0) {
-	int e = errno;
-	std::cerr << "failed to chown " << m_log_file << ": " << cpp_strerror(e)
-	     << std::endl;
+        int e = errno;
+        std::cerr << "failed to chown " << m_log_file << ": " << cpp_strerror(e)
+                  << std::endl;
       }
     }
   }
   m_flush_mutex_holder = 0;
 }
 
-void Log::chown_log_file(uid_t uid, gid_t gid)
+void
+Log::chown_log_file(uid_t uid, gid_t gid)
 {
   std::scoped_lock lock(m_flush_mutex);
   if (m_fd >= 0) {
@@ -183,58 +192,63 @@ void Log::chown_log_file(uid_t uid, gid_t gid)
     if (r < 0) {
       r = -errno;
       std::cerr << "failed to chown " << m_log_file << ": " << cpp_strerror(r)
-	   << std::endl;
+                << std::endl;
     }
   }
 }
 
-void Log::set_syslog_level(int log, int crash)
+void
+Log::set_syslog_level(int log, int crash)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_syslog_log = log;
   m_syslog_crash = crash;
 }
 
-void Log::set_stderr_level(int log, int crash)
+void
+Log::set_stderr_level(int log, int crash)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_stderr_log = log;
   m_stderr_crash = crash;
 }
 
-void Log::set_graylog_level(int log, int crash)
+void
+Log::set_graylog_level(int log, int crash)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_graylog_log = log;
   m_graylog_crash = crash;
 }
 
-void Log::start_graylog(const std::string& host,
-			const uuid_d& fsid)
+void
+Log::start_graylog(const std::string& host, const uuid_d& fsid)
 {
   std::scoped_lock lock(m_flush_mutex);
-  if (! m_graylog.get()) {
+  if (!m_graylog.get()) {
     m_graylog = std::make_shared<Graylog>(m_subs, "dlog");
     m_graylog->set_hostname(host);
     m_graylog->set_fsid(fsid);
   }
 }
 
-
-void Log::stop_graylog()
+void
+Log::stop_graylog()
 {
   std::scoped_lock lock(m_flush_mutex);
   m_graylog.reset();
 }
 
-void Log::set_journald_level(int log, int crash)
+void
+Log::set_journald_level(int log, int crash)
 {
   std::scoped_lock lock(m_flush_mutex);
   m_journald_log = log;
   m_journald_crash = crash;
 }
 
-void Log::start_journald_logger()
+void
+Log::start_journald_logger()
 {
   std::scoped_lock lock(m_flush_mutex);
   if (!m_journald) {
@@ -242,24 +256,26 @@ void Log::start_journald_logger()
   }
 }
 
-void Log::stop_journald_logger()
+void
+Log::stop_journald_logger()
 {
   std::scoped_lock lock(m_flush_mutex);
   m_journald.reset();
 }
 
-void Log::submit_entry(Entry&& e)
+void
+Log::submit_entry(Entry&& e)
 {
   std::unique_lock lock(m_queue_mutex);
   m_queue_mutex_holder = pthread_self();
 
   if (unlikely(m_inject_segv))
-    *(volatile int *)(0) = 0xdead;
+    *(volatile int*)(0) = 0xdead;
 
   // wait for flush to catch up
-  while (is_started() &&
-	 m_new.size() > m_max_new) {
-    if (m_stop) break; // force addition
+  while (is_started() && m_new.size() > m_max_new) {
+    if (m_stop)
+      break; // force addition
     m_cond_loggers.wait(lock);
   }
 
@@ -268,7 +284,8 @@ void Log::submit_entry(Entry&& e)
   m_queue_mutex_holder = 0;
 }
 
-void Log::flush()
+void
+Log::flush()
 {
   std::scoped_lock lock1(m_flush_mutex);
   m_flush_mutex_holder = pthread_self();
@@ -286,40 +303,42 @@ void Log::flush()
   m_flush_mutex_holder = 0;
 }
 
-void Log::_log_safe_write(std::string_view sv)
+void
+Log::_log_safe_write(std::string_view sv)
 {
   if (m_fd < 0)
     return;
   int r = safe_write(m_fd, sv.data(), sv.size());
   if (r != m_fd_last_error) {
     if (r < 0)
-      std::cerr << "problem writing to " << m_log_file
-           << ": " << cpp_strerror(r)
-           << std::endl;
+      std::cerr << "problem writing to " << m_log_file << ": "
+                << cpp_strerror(r) << std::endl;
     m_fd_last_error = r;
   }
 }
 
-void Log::set_stderr_fd(int fd)
+void
+Log::set_stderr_fd(int fd)
 {
   m_fd_stderr = fd;
   _configure_stderr();
 }
 
-void Log::_log_stderr(std::string_view strv)
+void
+Log::_log_stderr(std::string_view strv)
 {
   if (do_stderr_poll) {
     auto& prefix = m_log_stderr_prefix;
     size_t const len = prefix.size() + strv.size();
     boost::container::small_vector<char, PIPE_BUF> buf;
-    buf.resize(len+1, '\0');
+    buf.resize(len + 1, '\0');
     memcpy(buf.data(), prefix.c_str(), prefix.size());
-    memcpy(buf.data()+prefix.size(), strv.data(), strv.size());
+    memcpy(buf.data() + prefix.size(), strv.data(), strv.size());
 
     char const* const start = buf.data();
     char const* current = start;
-    while ((size_t)(current-start) < len) {
-      auto chunk = std::min<ssize_t>(PIPE_BUF, len-(ssize_t)(current-start));
+    while ((size_t)(current - start) < len) {
+      auto chunk = std::min<ssize_t>(PIPE_BUF, len - (ssize_t)(current - start));
       while (1) {
         ssize_t rc = write(m_fd_stderr, current, chunk);
         if (rc == chunk) {
@@ -363,7 +382,8 @@ void Log::_log_stderr(std::string_view strv)
   }
 }
 
-void Log::_flush_logbuf()
+void
+Log::_flush_logbuf()
 {
   if (m_log_buf.size()) {
     _log_safe_write(std::string_view(m_log_buf.data(), m_log_buf.size()));
@@ -371,7 +391,8 @@ void Log::_flush_logbuf()
   }
 }
 
-void Log::_flush(EntryVector& t, bool crash)
+void
+Log::_flush(EntryVector& t, bool crash)
 {
   auto now = mono_clock::now();
   long len = 0;
@@ -406,17 +427,20 @@ void Log::_flush(EntryVector& t, bool crash)
       char* pos = start + cur;
 
       if (crash) {
-        used += (std::size_t)snprintf(pos + used, allocated - used, "%6ld> ", -(--len));
+        used += (std::size_t)snprintf(
+            pos + used, allocated - used, "%6ld> ", -(--len));
       }
       used += (std::size_t)append_time(stamp, pos + used, allocated - used);
-      used += (std::size_t)snprintf(pos + used, allocated - used, " %lx %2d ", (unsigned long)thread, prio);
+      used += (std::size_t)snprintf(
+          pos + used, allocated - used, " %lx %2d ", (unsigned long)thread,
+          prio);
       memcpy(pos + used, str.data(), str.size());
       used += str.size();
       pos[used] = '\0';
       ceph_assert((used + 1 /* '\n' */) < allocated);
 
       if (do_syslog) {
-        syslog(LOG_USER|LOG_INFO, "%s", pos);
+        syslog(LOG_USER | LOG_INFO, "%s", pos);
       }
 
       /* now add newline */
@@ -446,7 +470,8 @@ void Log::_flush(EntryVector& t, bool crash)
     }
 
     {
-      auto [it, _] = m_recent_thread_names.try_emplace(e.m_thread, now, DEFAULT_MAX_THREAD_NAMES);
+      auto [it, _] = m_recent_thread_names.try_emplace(
+          e.m_thread, now, DEFAULT_MAX_THREAD_NAMES);
       auto& [t, names] = it->second;
       if (names.size() == 0 || names.front() != e.m_thread_name.data()) {
         names.push_front(e.m_thread_name.data());
@@ -458,10 +483,11 @@ void Log::_flush(EntryVector& t, bool crash)
   }
   t.clear();
 
-  for (auto it = m_recent_thread_names.begin(); it != m_recent_thread_names.end(); ) {
+  for (auto it = m_recent_thread_names.begin();
+       it != m_recent_thread_names.end();) {
     auto t = it->second.first;
     auto since = now - t;
-    if (since > std::chrono::seconds(60*60*24)) {
+    if (since > std::chrono::seconds(60 * 60 * 24)) {
       it = m_recent_thread_names.erase(it);
     } else {
       ++it;
@@ -471,16 +497,18 @@ void Log::_flush(EntryVector& t, bool crash)
   _flush_logbuf();
 }
 
-void Log::_log_message(std::string_view s, bool crash)
+void
+Log::_log_message(std::string_view s, bool crash)
 {
   if (m_fd >= 0) {
     std::string b = fmt::format("{}\n", s);
     int r = safe_write(m_fd, b.data(), b.size());
     if (r < 0)
-      std::cerr << "problem writing to " << m_log_file << ": " << cpp_strerror(r) << std::endl;
+      std::cerr << "problem writing to " << m_log_file << ": "
+                << cpp_strerror(r) << std::endl;
   }
   if ((crash ? m_syslog_crash : m_syslog_log) >= 0) {
-    syslog(LOG_USER|LOG_INFO, "%.*s", static_cast<int>(s.size()), s.data());
+    syslog(LOG_USER | LOG_INFO, "%.*s", static_cast<int>(s.size()), s.data());
   }
 
   if ((crash ? m_stderr_crash : m_stderr_log) >= 0) {
@@ -488,8 +516,9 @@ void Log::_log_message(std::string_view s, bool crash)
   }
 }
 
-template<typename T>
-static uint64_t tid_to_int(T tid)
+template <typename T>
+static uint64_t
+tid_to_int(T tid)
 {
   if constexpr (std::is_pointer_v<T>) {
     return reinterpret_cast<std::uintptr_t>(tid);
@@ -498,7 +527,8 @@ static uint64_t tid_to_int(T tid)
   }
 }
 
-void Log::dump_recent()
+void
+Log::dump_recent()
 {
   std::scoped_lock lock1(m_flush_mutex);
   m_flush_mutex_holder = pthread_self();
@@ -516,30 +546,35 @@ void Log::dump_recent()
   _log_message("--- begin dump of recent events ---", true);
   {
     EntryVector t;
-    t.insert(t.end(), std::make_move_iterator(m_recent.begin()), std::make_move_iterator(m_recent.end()));
+    t.insert(
+        t.end(), std::make_move_iterator(m_recent.begin()),
+        std::make_move_iterator(m_recent.end()));
     m_recent.clear();
     _flush(t, true);
   }
 
   _log_message("--- logging levels ---", true);
   for (const auto& p : m_subs->m_subsys) {
-    _log_message(fmt::format("  {:2d}/{:2d} {}",
-			     p.log_level, p.gather_level, p.name), true);
+    _log_message(
+        fmt::format("  {:2d}/{:2d} {}", p.log_level, p.gather_level, p.name),
+        true);
   }
-  _log_message(fmt::format("  {:2d}/{:2d} (syslog threshold)",
-			   m_syslog_log, m_syslog_crash), true);
-  _log_message(fmt::format("  {:2d}/{:2d} (stderr threshold)",
-			   m_stderr_log, m_stderr_crash), true);
+  _log_message(
+      fmt::format(
+          "  {:2d}/{:2d} (syslog threshold)", m_syslog_log, m_syslog_crash),
+      true);
+  _log_message(
+      fmt::format(
+          "  {:2d}/{:2d} (stderr threshold)", m_stderr_log, m_stderr_crash),
+      true);
 
   _log_message("--- pthread ID / name mapping for recent threads ---", true);
-  for (const auto& [tid, t_names] : m_recent_thread_names)
-  {
+  for (const auto& [tid, t_names] : m_recent_thread_names) {
     [[maybe_unused]] auto [t, names] = t_names;
     // we want the ID to be printed in the same format as we use for a log entry.
     // The reason is easier grepping.
-    auto msg = fmt::format("  {:x} / {}",
-      tid_to_int(tid),
-      fmt::join(names, ", "));
+    auto msg =
+        fmt::format("  {:x} / {}", tid_to_int(tid), fmt::join(names, ", "));
     _log_message(msg, true);
   }
 
@@ -554,7 +589,8 @@ void Log::dump_recent()
   m_flush_mutex_holder = 0;
 }
 
-void Log::start()
+void
+Log::start()
 {
   ceph_assert(!is_started());
   {
@@ -564,7 +600,8 @@ void Log::start()
   create("log");
 }
 
-void Log::stop()
+void
+Log::stop()
 {
   if (is_started()) {
     {
@@ -577,7 +614,8 @@ void Log::stop()
   }
 }
 
-void *Log::entry()
+void*
+Log::entry()
 {
   reopen_log_file();
   {
@@ -601,22 +639,24 @@ void *Log::entry()
   return NULL;
 }
 
-bool Log::is_inside_log_lock()
+bool
+Log::is_inside_log_lock()
 {
-  return
-    pthread_self() == m_queue_mutex_holder ||
-    pthread_self() == m_flush_mutex_holder;
+  return pthread_self() == m_queue_mutex_holder ||
+         pthread_self() == m_flush_mutex_holder;
 }
 
-void Log::inject_segv()
+void
+Log::inject_segv()
 {
   m_inject_segv = true;
 }
 
-void Log::reset_segv()
+void
+Log::reset_segv()
 {
   m_inject_segv = false;
 }
 
-} // ceph::logging::
-} // ceph::
+} // namespace logging
+} // namespace ceph

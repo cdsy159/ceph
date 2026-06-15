@@ -19,7 +19,9 @@
 #include <iterator>
 #include <ranges>
 #include <utility>
+
 #include <boost/asio/spawn.hpp>
+
 #include "cancel_on_error.h"
 #include "co_throttle.h"
 #include "spawn_throttle.h"
@@ -42,62 +44,76 @@ namespace ceph::async {
 ///   max_concurrent_for_each(tasks, 10, yield, child);
 /// }
 /// \endcode
-template <typename Iterator, typename Sentinel, typename Func,
-          typename Reference = std::iter_reference_t<Iterator>>
-    requires (std::input_iterator<Iterator> &&
-              std::sentinel_for<Sentinel, Iterator> &&
-              std::invocable<Func, Reference, boost::asio::yield_context>)
-void max_concurrent_for_each(Iterator begin,
-                             Sentinel end,
-                             size_t max_concurrent,
-                             boost::asio::yield_context yield,
-                             Func&& func,
-                             cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Iterator,
+    typename Sentinel,
+    typename Func,
+    typename Reference = std::iter_reference_t<Iterator>>
+  requires(
+      std::input_iterator<Iterator> && std::sentinel_for<Sentinel, Iterator> &&
+      std::invocable<Func, Reference, boost::asio::yield_context>)
+void
+max_concurrent_for_each(
+    Iterator begin,
+    Sentinel end,
+    size_t max_concurrent,
+    boost::asio::yield_context yield,
+    Func&& func,
+    cancel_on_error on_error = cancel_on_error::none)
 {
   if (begin == end) {
     return;
   }
   auto throttle = spawn_throttle{yield, max_concurrent, on_error};
   for (Iterator i = begin; i != end; ++i) {
-    throttle.spawn([&func, &val = *i] (boost::asio::yield_context yield) {
-        func(val, yield);
-      });
+    throttle.spawn([&func, &val = *i](boost::asio::yield_context yield) {
+      func(val, yield);
+    });
   }
   throttle.wait();
 }
 
 /// \overload
-template <typename Range, typename Func,
-          typename Reference = std::ranges::range_reference_t<Range>>
-    requires (std::ranges::range<Range> &&
-              std::invocable<Func, Reference, boost::asio::yield_context>)
-auto max_concurrent_for_each(Range&& range,
-                             size_t max_concurrent,
-                             boost::asio::yield_context yield,
-                             Func&& func,
-                             cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Range,
+    typename Func,
+    typename Reference = std::ranges::range_reference_t<Range>>
+  requires(
+      std::ranges::range<Range> &&
+      std::invocable<Func, Reference, boost::asio::yield_context>)
+auto
+max_concurrent_for_each(
+    Range&& range,
+    size_t max_concurrent,
+    boost::asio::yield_context yield,
+    Func&& func,
+    cancel_on_error on_error = cancel_on_error::none)
 {
-  return max_concurrent_for_each(std::begin(range), std::end(range),
-                                 max_concurrent, yield,
-                                 std::forward<Func>(func), on_error);
+  return max_concurrent_for_each(
+      std::begin(range), std::end(range), max_concurrent, yield,
+      std::forward<Func>(func), on_error);
 }
 
 // \overload
-template <typename Iterator, typename Sentinel, typename VoidAwaitableFactory,
-          typename Value = std::iter_reference_t<Iterator>,
-          typename VoidAwaitable = std::invoke_result_t<
-              VoidAwaitableFactory, Value>,
-          typename AwaitableT = typename VoidAwaitable::value_type,
-          typename AwaitableExecutor = typename VoidAwaitable::executor_type>
-    requires (std::input_iterator<Iterator> &&
-              std::sentinel_for<Sentinel, Iterator> &&
-              std::same_as<AwaitableT, void> &&
-              boost::asio::execution::executor<AwaitableExecutor>)
-auto max_concurrent_for_each(Iterator begin,
-                             Sentinel end,
-                             size_t max_concurrent,
-                             VoidAwaitableFactory&& factory,
-                             cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Iterator,
+    typename Sentinel,
+    typename VoidAwaitableFactory,
+    typename Value = std::iter_reference_t<Iterator>,
+    typename VoidAwaitable = std::invoke_result_t<VoidAwaitableFactory, Value>,
+    typename AwaitableT = typename VoidAwaitable::value_type,
+    typename AwaitableExecutor = typename VoidAwaitable::executor_type>
+  requires(std::input_iterator<Iterator> &&
+           std::sentinel_for<Sentinel, Iterator> &&
+           std::same_as<AwaitableT, void> &&
+           boost::asio::execution::executor<AwaitableExecutor>)
+auto
+max_concurrent_for_each(
+    Iterator begin,
+    Sentinel end,
+    size_t max_concurrent,
+    VoidAwaitableFactory&& factory,
+    cancel_on_error on_error = cancel_on_error::none)
     -> boost::asio::awaitable<void, AwaitableExecutor>
 {
   if (begin == end) {
@@ -112,19 +128,21 @@ auto max_concurrent_for_each(Iterator begin,
 }
 
 /// \overload
-template <typename Range, typename VoidAwaitableFactory,
-          typename Value = std::ranges::range_reference_t<Range>,
-          typename VoidAwaitable = std::invoke_result_t<
-              VoidAwaitableFactory, Value>,
-          typename AwaitableT = typename VoidAwaitable::value_type,
-          typename AwaitableExecutor = typename VoidAwaitable::executor_type>
-    requires (std::ranges::range<Range> &&
-              std::same_as<AwaitableT, void> &&
-              boost::asio::execution::executor<AwaitableExecutor>)
-auto max_concurrent_for_each(Range&& range,
-                             size_t max_concurrent,
-                             VoidAwaitableFactory&& factory,
-                             cancel_on_error on_error = cancel_on_error::none)
+template <
+    typename Range,
+    typename VoidAwaitableFactory,
+    typename Value = std::ranges::range_reference_t<Range>,
+    typename VoidAwaitable = std::invoke_result_t<VoidAwaitableFactory, Value>,
+    typename AwaitableT = typename VoidAwaitable::value_type,
+    typename AwaitableExecutor = typename VoidAwaitable::executor_type>
+  requires(std::ranges::range<Range> && std::same_as<AwaitableT, void> &&
+           boost::asio::execution::executor<AwaitableExecutor>)
+auto
+max_concurrent_for_each(
+    Range&& range,
+    size_t max_concurrent,
+    VoidAwaitableFactory&& factory,
+    cancel_on_error on_error = cancel_on_error::none)
     -> boost::asio::awaitable<void, AwaitableExecutor>
 {
   return max_concurrent_for_each(

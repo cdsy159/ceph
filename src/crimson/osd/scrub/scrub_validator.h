@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <string>
 #include <map>
+#include <string>
 
 #include "common/config_proxy.h"
 #include "common/scrub_types.h"
@@ -27,13 +27,16 @@ struct chunk_validation_policy_t {
   uint64_t omap_key_limit;
   size_t omap_bytes_limit;
 
-
-  bool is_ec() const {
+  bool
+  is_ec() const
+  {
     // FIXME: See scrub_backend in classic for reference.
     return false;
   }
 
-  size_t logical_to_ondisk_size(size_t size) const {
+  size_t
+  logical_to_ondisk_size(size_t size) const
+  {
     // FIXME: See scrub_backend in classic for how to handle EC.
     return size;
   }
@@ -63,7 +66,9 @@ struct chunk_result_t {
   std::vector<inconsistent_snapset_wrapper> snapset_errors;
   std::vector<inconsistent_obj_wrapper> object_errors;
 
-  bool has_errors() const {
+  bool
+  has_errors() const
+  {
     return !snapset_errors.empty() || !object_errors.empty();
   }
 };
@@ -75,8 +80,9 @@ struct chunk_result_t {
  * containing the results.  See chunk_result_t for details.
  */
 chunk_result_t validate_chunk(
-  DoutPrefixProvider &dpp,
-  const chunk_validation_policy_t &policy, const scrub_map_set_t &in);
+    DoutPrefixProvider& dpp,
+    const chunk_validation_policy_t& policy,
+    const scrub_map_set_t& in);
 
 /**
  * iterate_scrub_checked_stats
@@ -93,38 +99,32 @@ chunk_result_t validate_chunk(
  * pg stats.
  */
 template <typename Func>
-void foreach_scrub_checked_stat(Func &&op) {
+void
+foreach_scrub_checked_stat(Func&& op)
+{
   using namespace std::string_view_literals;
-  op("num_objects"sv,
-     &object_stat_sum_t::num_objects,
-     [](const pg_stat_t &in) { return false; });
-  op("num_bytes"sv,
-     &object_stat_sum_t::num_bytes,
-     [](const pg_stat_t &in) { return false; });
-  op("num_object_clones"sv,
-     &object_stat_sum_t::num_object_clones,
-     [](const pg_stat_t &in) { return false; });
-  op("num_whiteouts"sv,
-     &object_stat_sum_t::num_whiteouts,
-     [](const pg_stat_t &in) { return false; });
-  op("num_objects_dirty"sv,
-     &object_stat_sum_t::num_objects_dirty,
-     [](const pg_stat_t &in) { return in.dirty_stats_invalid; });
-  op("num_objects_omap"sv,
-     &object_stat_sum_t::num_objects_omap,
-     [](const pg_stat_t &in) { return in.omap_stats_invalid; });
-  op("num_objects_pinned"sv,
-     &object_stat_sum_t::num_objects_pinned,
-     [](const pg_stat_t &in) { return in.pin_stats_invalid; });
+  op("num_objects"sv, &object_stat_sum_t::num_objects,
+     [](const pg_stat_t& in) { return false; });
+  op("num_bytes"sv, &object_stat_sum_t::num_bytes,
+     [](const pg_stat_t& in) { return false; });
+  op("num_object_clones"sv, &object_stat_sum_t::num_object_clones,
+     [](const pg_stat_t& in) { return false; });
+  op("num_whiteouts"sv, &object_stat_sum_t::num_whiteouts,
+     [](const pg_stat_t& in) { return false; });
+  op("num_objects_dirty"sv, &object_stat_sum_t::num_objects_dirty,
+     [](const pg_stat_t& in) { return in.dirty_stats_invalid; });
+  op("num_objects_omap"sv, &object_stat_sum_t::num_objects_omap,
+     [](const pg_stat_t& in) { return in.omap_stats_invalid; });
+  op("num_objects_pinned"sv, &object_stat_sum_t::num_objects_pinned,
+     [](const pg_stat_t& in) { return in.pin_stats_invalid; });
   op("num_objects_hit_set_archive"sv,
      &object_stat_sum_t::num_objects_hit_set_archive,
-     [](const pg_stat_t &in) { return in.hitset_stats_invalid; });
+     [](const pg_stat_t& in) { return in.hitset_stats_invalid; });
   op("num_bytes_hit_set_archive"sv,
      &object_stat_sum_t::num_bytes_hit_set_archive,
-     [](const pg_stat_t &in) { return in.hitset_bytes_stats_invalid; });
-  op("num_objects_manifest"sv,
-     &object_stat_sum_t::num_objects_manifest,
-     [](const pg_stat_t &in) { return in.manifest_stats_invalid; });
+     [](const pg_stat_t& in) { return in.hitset_bytes_stats_invalid; });
+  op("num_objects_manifest"sv, &object_stat_sum_t::num_objects_manifest,
+     [](const pg_stat_t& in) { return in.manifest_stats_invalid; });
 }
 
 /**
@@ -140,41 +140,44 @@ void foreach_scrub_checked_stat(Func &&op) {
  * such as updating the pg maintained instance once scrub is complete.
  */
 template <typename Func>
-void foreach_scrub_maintained_stat(Func &&op) {
+void
+foreach_scrub_maintained_stat(Func&& op)
+{
   using namespace std::string_view_literals;
   op("num_scrub_errors"sv, &object_stat_sum_t::num_scrub_errors, false);
-  op("num_shallow_scrub_errors"sv,
-     &object_stat_sum_t::num_shallow_scrub_errors,
+  op("num_shallow_scrub_errors"sv, &object_stat_sum_t::num_shallow_scrub_errors,
      false);
   op("num_deep_scrub_errors"sv, &object_stat_sum_t::num_deep_scrub_errors, true);
   op("num_omap_bytes"sv, &object_stat_sum_t::num_omap_bytes, true);
   op("num_omap_keys"sv, &object_stat_sum_t::num_omap_keys, true);
-  op("num_large_omap_objects"sv,
-     &object_stat_sum_t::num_large_omap_objects,
+  op("num_large_omap_objects"sv, &object_stat_sum_t::num_large_omap_objects,
      true);
 }
 
-}
+} // namespace crimson::osd::scrub
 
 template <>
 struct fmt::formatter<crimson::osd::scrub::chunk_result_t> {
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  constexpr auto
+  parse(format_parse_context& ctx)
+  {
+    return ctx.begin();
+  }
 
   template <typename FormatContext>
-  auto format(
-    const crimson::osd::scrub::chunk_result_t &result, FormatContext& ctx) const
+  auto
+  format(
+      const crimson::osd::scrub::chunk_result_t& result,
+      FormatContext& ctx) const
   {
     return fmt::format_to(
-      ctx.out(),
-      "chunk_result_t("
-      "num_scrub_errors: {}, "
-      "num_deep_scrub_errors: {}, "
-      "snapset_errors: [{}], "
-      "object_errors: [{}])",
-      result.stats.num_scrub_errors,
-      result.stats.num_deep_scrub_errors,
-      result.snapset_errors,
-      result.object_errors
-    );
+        ctx.out(),
+        "chunk_result_t("
+        "num_scrub_errors: {}, "
+        "num_deep_scrub_errors: {}, "
+        "snapset_errors: [{}], "
+        "object_errors: [{}])",
+        result.stats.num_scrub_errors, result.stats.num_deep_scrub_errors,
+        result.snapset_errors, result.object_errors);
   }
 };

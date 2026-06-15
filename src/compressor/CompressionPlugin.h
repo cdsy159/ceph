@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -24,26 +24,30 @@
 
 #include "common/PluginRegistry.h"
 #include "include/common_fwd.h"
+
 #include "Compressor.h"
 
 namespace ceph {
 
-  class CompressionPlugin :  public Plugin {
-  public:
-    TOPNSPC::CompressorRef compressor;
+class CompressionPlugin : public Plugin {
+public:
+  TOPNSPC::CompressorRef compressor;
 
-    explicit CompressionPlugin(CephContext *cct)
-      : Plugin(cct)
-    {}
-    
-    ~CompressionPlugin() override {}
+  explicit CompressionPlugin(CephContext* cct) :
+    Plugin(cct)
+  {}
 
-    virtual int factory(TOPNSPC::CompressorRef *cs,
-			std::ostream *ss) = 0;
+  ~CompressionPlugin() override {}
 
-    virtual const char* name() {return "CompressionPlugin";}
-  };
+  virtual int factory(TOPNSPC::CompressorRef* cs, std::ostream* ss) = 0;
 
-}
+  virtual const char*
+  name()
+  {
+    return "CompressionPlugin";
+  }
+};
+
+} // namespace ceph
 
 #endif

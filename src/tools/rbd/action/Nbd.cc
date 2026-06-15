@@ -1,15 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "tools/rbd/ArgumentTypes.h"
-#include "tools/rbd/Shell.h"
-#include "tools/rbd/Utils.h"
-#include "include/stringify.h"
-#include "common/SubProcess.h"
 #include <iostream>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/program_options.hpp>
+
+#include "common/SubProcess.h"
+#include "include/stringify.h"
+#include "tools/rbd/ArgumentTypes.h"
+#include "tools/rbd/Shell.h"
+#include "tools/rbd/Utils.h"
 
 namespace rbd {
 namespace action {
@@ -18,33 +20,37 @@ namespace nbd {
 namespace at = argument_types;
 namespace po = boost::program_options;
 
-static int call_nbd_cmd(const po::variables_map &vm,
-                        const std::vector<std::string> &args,
-                        const std::vector<std::string> &ceph_global_init_args) {
-  #if defined(__FreeBSD__) || defined(_WIN32)
+static int
+call_nbd_cmd(
+    const po::variables_map& vm,
+    const std::vector<std::string>& args,
+    const std::vector<std::string>& ceph_global_init_args)
+{
+#if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
-  #else
+#else
   char exe_path[PATH_MAX];
-  ssize_t exe_path_bytes = readlink("/proc/self/exe", exe_path,
-				    sizeof(exe_path) - 1);
+  ssize_t exe_path_bytes =
+      readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
   if (exe_path_bytes < 0) {
     strcpy(exe_path, "rbd-nbd");
   } else {
-    if (snprintf(exe_path + exe_path_bytes,
-                 sizeof(exe_path) - exe_path_bytes,
-                 "-nbd") < 0) {
+    if (snprintf(
+            exe_path + exe_path_bytes, sizeof(exe_path) - exe_path_bytes,
+            "-nbd") < 0) {
       return -EOVERFLOW;
     }
   }
 
-  SubProcess process(exe_path, SubProcess::KEEP, SubProcess::KEEP, SubProcess::KEEP);
+  SubProcess process(
+      exe_path, SubProcess::KEEP, SubProcess::KEEP, SubProcess::KEEP);
 
-  for (auto &arg : ceph_global_init_args) {
+  for (auto& arg : ceph_global_init_args) {
     process.add_cmd_arg(arg.c_str());
   }
 
-  for (auto &arg : args) {
+  for (auto& arg : args) {
     process.add_cmd_arg(arg.c_str());
   }
 
@@ -52,16 +58,20 @@ static int call_nbd_cmd(const po::variables_map &vm,
     std::cerr << "rbd: failed to run rbd-nbd: " << process.err() << std::endl;
     return -EINVAL;
   } else if (process.join()) {
-    std::cerr << "rbd: rbd-nbd failed with error: " << process.err() << std::endl;
+    std::cerr << "rbd: rbd-nbd failed with error: " << process.err()
+              << std::endl;
     return -EINVAL;
   }
 
   return 0;
-  #endif
+#endif
 }
 
-int execute_list(const po::variables_map &vm,
-                 const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_list(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
@@ -82,8 +92,11 @@ int execute_list(const po::variables_map &vm,
 #endif
 }
 
-int execute_attach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_attach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
@@ -117,8 +130,10 @@ int execute_attach(const po::variables_map &vm,
     args.push_back(vm["cookie"].as<std::string>());
   } else if (!vm["force"].as<bool>()) {
     std::cerr << "rbd: could not validate attach request\n";
-    std::cerr << "rbd: mismatching the image and the device may lead to data corruption\n";
-    std::cerr << "rbd: must specify --cookie <arg> or --force to proceed" << std::endl;
+    std::cerr << "rbd: mismatching the image and the device may lead to data "
+                 "corruption\n";
+    std::cerr << "rbd: must specify --cookie <arg> or --force to proceed"
+              << std::endl;
     return -EINVAL;
   }
 
@@ -145,16 +160,19 @@ int execute_attach(const po::variables_map &vm,
   }
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_nbd_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-int execute_detach(const po::variables_map &vm,
-                   const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_detach(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
@@ -189,16 +207,19 @@ int execute_detach(const po::variables_map &vm,
   args.push_back(device_name.empty() ? image_name : device_name);
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_nbd_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-int execute_map(const po::variables_map &vm,
-                const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_map(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
@@ -245,16 +266,19 @@ int execute_map(const po::variables_map &vm,
   }
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_nbd_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-int execute_unmap(const po::variables_map &vm,
-                  const std::vector<std::string> &ceph_global_init_args) {
+int
+execute_unmap(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_init_args)
+{
 #if defined(__FreeBSD__) || defined(_WIN32)
   std::cerr << "rbd: nbd device is not supported" << std::endl;
   return -EOPNOTSUPP;
@@ -289,48 +313,61 @@ int execute_unmap(const po::variables_map &vm,
   args.push_back(device_name.empty() ? image_name : device_name);
 
   if (vm.count("options")) {
-    utils::append_options_as_args(vm["options"].as<std::vector<std::string>>(),
-                                  &args);
+    utils::append_options_as_args(
+        vm["options"].as<std::vector<std::string>>(), &args);
   }
 
   return call_nbd_cmd(vm, args, ceph_global_init_args);
 #endif
 }
 
-void get_list_arguments_deprecated(po::options_description *positional,
-                                   po::options_description *options) {
+void
+get_list_arguments_deprecated(
+    po::options_description* positional,
+    po::options_description* options)
+{
   at::add_format_options(options);
 }
 
-int execute_list_deprecated(const po::variables_map &vm,
-                            const std::vector<std::string> &ceph_global_args) {
+int
+execute_list_deprecated(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_args)
+{
   std::cerr << "rbd: 'nbd list' command is deprecated, "
             << "use 'device list -t nbd' instead" << std::endl;
   return execute_list(vm, ceph_global_args);
 }
 
-void get_map_arguments_deprecated(po::options_description *positional,
-                                  po::options_description *options) {
-  at::add_image_or_snap_spec_options(positional, options,
-                                     at::ARGUMENT_MODIFIER_NONE);
-  options->add_options()
-    ("read-only", po::bool_switch(), "map read-only")
-    ("exclusive", po::bool_switch(), "forbid writes by other clients")
-    ("device", po::value<std::string>(), "specify nbd device")
-    ("nbds_max", po::value<std::string>(), "override module param nbds_max")
-    ("max_part", po::value<std::string>(), "override module param max_part")
-    ("timeout", po::value<std::string>(), "set nbd request timeout (seconds)");
+void
+get_map_arguments_deprecated(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  at::add_image_or_snap_spec_options(
+      positional, options, at::ARGUMENT_MODIFIER_NONE);
+  options->add_options()("read-only", po::bool_switch(), "map read-only")(
+      "exclusive", po::bool_switch(), "forbid writes by other clients")(
+      "device", po::value<std::string>(), "specify nbd device")(
+      "nbds_max", po::value<std::string>(), "override module param nbds_max")(
+      "max_part", po::value<std::string>(), "override module param max_part")(
+      "timeout", po::value<std::string>(), "set nbd request timeout (seconds)");
 }
 
-int execute_map_deprecated(const po::variables_map &vm_deprecated,
-                           const std::vector<std::string> &ceph_global_args) {
+int
+execute_map_deprecated(
+    const po::variables_map& vm_deprecated,
+    const std::vector<std::string>& ceph_global_args)
+{
   std::cerr << "rbd: 'nbd map' command is deprecated, "
             << "use 'device map -t nbd' instead" << std::endl;
 
   po::options_description options;
-  options.add_options()
-    ("options,o", po::value<std::vector<std::string>>()
-                  ->default_value(std::vector<std::string>(), ""), "");
+  options.add_options()(
+      "options,o",
+      po::value<std::vector<std::string>>()->default_value(
+          std::vector<std::string>(), ""),
+      "");
 
   po::variables_map vm = vm_deprecated;
   po::store(po::command_line_parser({}).options(options).run(), vm);
@@ -354,35 +391,56 @@ int execute_map_deprecated(const po::variables_map &vm_deprecated,
   return execute_map(vm, ceph_global_args);
 }
 
-void get_unmap_arguments_deprecated(po::options_description *positional,
-                                    po::options_description *options) {
-  positional->add_options()
-    ("image-or-snap-or-device-spec",
-     "image, snapshot, or device specification\n"
-     "[<pool-name>/]<image-name>[@<snap-name>] or <device-path>");
+void
+get_unmap_arguments_deprecated(
+    po::options_description* positional,
+    po::options_description* options)
+{
+  positional->add_options()(
+      "image-or-snap-or-device-spec",
+      "image, snapshot, or device specification\n"
+      "[<pool-name>/]<image-name>[@<snap-name>] or <device-path>");
   at::add_pool_option(options, at::ARGUMENT_MODIFIER_NONE);
   at::add_image_option(options, at::ARGUMENT_MODIFIER_NONE);
   at::add_snap_option(options, at::ARGUMENT_MODIFIER_NONE);
 }
 
-int execute_unmap_deprecated(const po::variables_map &vm,
-                             const std::vector<std::string> &ceph_global_args) {
+int
+execute_unmap_deprecated(
+    const po::variables_map& vm,
+    const std::vector<std::string>& ceph_global_args)
+{
   std::cerr << "rbd: 'nbd unmap' command is deprecated, "
             << "use 'device unmap -t nbd' instead" << std::endl;
   return execute_unmap(vm, ceph_global_args);
 }
 
 Shell::Action action_show_deprecated(
-  {"nbd", "list"}, {"nbd", "ls"}, "List the nbd devices already used.", "",
-  &get_list_arguments_deprecated, &execute_list_deprecated, false);
+    {"nbd", "list"},
+    {"nbd", "ls"},
+    "List the nbd devices already used.",
+    "",
+    &get_list_arguments_deprecated,
+    &execute_list_deprecated,
+    false);
 
 Shell::Action action_map_deprecated(
-  {"nbd", "map"}, {}, "Map image to a nbd device.", "",
-  &get_map_arguments_deprecated, &execute_map_deprecated, false);
+    {"nbd", "map"},
+    {},
+    "Map image to a nbd device.",
+    "",
+    &get_map_arguments_deprecated,
+    &execute_map_deprecated,
+    false);
 
 Shell::Action action_unmap_deprecated(
-  {"nbd", "unmap"}, {}, "Unmap a nbd device.", "",
-  &get_unmap_arguments_deprecated, &execute_unmap_deprecated, false);
+    {"nbd", "unmap"},
+    {},
+    "Unmap a nbd device.",
+    "",
+    &get_unmap_arguments_deprecated,
+    &execute_unmap_deprecated,
+    false);
 
 } // namespace nbd
 } // namespace action

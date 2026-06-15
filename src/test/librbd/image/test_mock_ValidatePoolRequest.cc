@@ -1,19 +1,20 @@
 // -*- mode:c++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "test/librbd/test_mock_fixture.h"
-#include "test/librbd/test_support.h"
-#include "test/librbd/mock/MockImageCtx.h"
-#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
+#include "test/librbd/mock/MockImageCtx.h"
+#include "test/librbd/test_mock_fixture.h"
+#include "test/librbd/test_support.h"
 
 namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -37,47 +38,60 @@ class TestMockImageValidatePoolRequest : public TestMockFixture {
 public:
   typedef ValidatePoolRequest<MockTestImageCtx> MockValidatePoolRequest;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
     m_ioctx.remove(RBD_INFO);
     ASSERT_EQ(0, open_image(m_image_name, &image_ctx));
   }
 
-  void expect_clone(librados::MockTestMemIoCtxImpl &mock_io_ctx) {
-    EXPECT_CALL(mock_io_ctx, clone())
-      .WillOnce(Invoke([&mock_io_ctx]() {
-          mock_io_ctx.get();
-          return &mock_io_ctx;
-        }));
+  void
+  expect_clone(librados::MockTestMemIoCtxImpl& mock_io_ctx)
+  {
+    EXPECT_CALL(mock_io_ctx, clone()).WillOnce(Invoke([&mock_io_ctx]() {
+      mock_io_ctx.get();
+      return &mock_io_ctx;
+    }));
   }
 
-  void expect_read_rbd_info(librados::MockTestMemIoCtxImpl &mock_io_ctx,
-                            const std::string& data, int r) {
-    auto& expect = EXPECT_CALL(
-            mock_io_ctx, read(StrEq(RBD_INFO), 0, 0, _, _, _));
+  void
+  expect_read_rbd_info(
+      librados::MockTestMemIoCtxImpl& mock_io_ctx,
+      const std::string& data,
+      int r)
+  {
+    auto& expect =
+        EXPECT_CALL(mock_io_ctx, read(StrEq(RBD_INFO), 0, 0, _, _, _));
     if (r < 0) {
       expect.WillOnce(Return(r));
     } else {
       expect.WillOnce(WithArg<3>(Invoke([data](bufferlist* bl) {
-          bl->append(data);
-          return 0;
-        })));
+        bl->append(data);
+        return 0;
+      })));
     }
   }
 
-  void expect_write_rbd_info(librados::MockTestMemIoCtxImpl &mock_io_ctx,
-                             const std::string& data, int r) {
+  void
+  expect_write_rbd_info(
+      librados::MockTestMemIoCtxImpl& mock_io_ctx,
+      const std::string& data,
+      int r)
+  {
     bufferlist bl;
     bl.append(data);
 
-    EXPECT_CALL(mock_io_ctx, write(StrEq(RBD_INFO), ContentsEqual(bl),
-                                   data.length(), 0, _))
-      .WillOnce(Return(r));
+    EXPECT_CALL(
+        mock_io_ctx,
+        write(StrEq(RBD_INFO), ContentsEqual(bl), data.length(), 0, _))
+        .WillOnce(Return(r));
   }
 
-  void expect_allocate_snap_id(librados::MockTestMemIoCtxImpl &mock_io_ctx,
-                               int r) {
-    auto &expect = EXPECT_CALL(mock_io_ctx, selfmanaged_snap_create(_));
+  void
+  expect_allocate_snap_id(librados::MockTestMemIoCtxImpl& mock_io_ctx, int r)
+  {
+    auto& expect = EXPECT_CALL(mock_io_ctx, selfmanaged_snap_create(_));
     if (r < 0) {
       expect.WillOnce(Return(r));
     } else {
@@ -85,9 +99,10 @@ public:
     }
   }
 
-  void expect_release_snap_id(librados::MockTestMemIoCtxImpl &mock_io_ctx,
-                              int r) {
-    auto &expect = EXPECT_CALL(mock_io_ctx, selfmanaged_snap_remove(_));
+  void
+  expect_release_snap_id(librados::MockTestMemIoCtxImpl& mock_io_ctx, int r)
+  {
+    auto& expect = EXPECT_CALL(mock_io_ctx, selfmanaged_snap_remove(_));
     if (r < 0) {
       expect.WillOnce(Return(r));
     } else {
@@ -95,11 +110,12 @@ public:
     }
   }
 
-  librbd::ImageCtx *image_ctx;
+  librbd::ImageCtx* image_ctx;
 };
 
-TEST_F(TestMockImageValidatePoolRequest, Success) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, Success)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -115,8 +131,9 @@ TEST_F(TestMockImageValidatePoolRequest, Success) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, AlreadyValidated) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, AlreadyValidated)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -128,8 +145,9 @@ TEST_F(TestMockImageValidatePoolRequest, AlreadyValidated) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, SnapshotsValidated) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, SnapshotsValidated)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -142,8 +160,9 @@ TEST_F(TestMockImageValidatePoolRequest, SnapshotsValidated) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, ReadError) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, ReadError)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -155,8 +174,9 @@ TEST_F(TestMockImageValidatePoolRequest, ReadError) {
   ASSERT_EQ(-EPERM, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, CreateSnapshotError) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, CreateSnapshotError)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -169,8 +189,9 @@ TEST_F(TestMockImageValidatePoolRequest, CreateSnapshotError) {
   ASSERT_EQ(-EPERM, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, WriteError) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, WriteError)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -185,8 +206,9 @@ TEST_F(TestMockImageValidatePoolRequest, WriteError) {
   ASSERT_EQ(-EPERM, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, RemoveSnapshotError) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, RemoveSnapshotError)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);
@@ -202,8 +224,9 @@ TEST_F(TestMockImageValidatePoolRequest, RemoveSnapshotError) {
   ASSERT_EQ(0, ctx.wait());
 }
 
-TEST_F(TestMockImageValidatePoolRequest, OverwriteError) {
-  librados::MockTestMemIoCtxImpl &mock_io_ctx(get_mock_io_ctx(m_ioctx));
+TEST_F(TestMockImageValidatePoolRequest, OverwriteError)
+{
+  librados::MockTestMemIoCtxImpl& mock_io_ctx(get_mock_io_ctx(m_ioctx));
 
   InSequence seq;
   expect_clone(mock_io_ctx);

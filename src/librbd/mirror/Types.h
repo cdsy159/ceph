@@ -18,4 +18,3 @@ enum PromotionState {
 } // namespace librbd
 
 #endif // CEPH_LIBRBD_MIRROR_TYPES_H
-

@@ -2,18 +2,20 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "ServiceDaemon.h"
+
 #include "common/debug.h"
-#include "common/errno.h"
+
 #include "common/JSONFormatter.h"
 #include "common/Timer.h"
+#include "common/errno.h"
 #include "include/Context.h"
 #include "include/stringify.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_cephfs_mirror
 #undef dout_prefix
-#define dout_prefix *_dout << "cephfs::mirror::ServiceDaemon: " << this << " " \
-                           << __func__
+#define dout_prefix \
+  *_dout << "cephfs::mirror::ServiceDaemon: " << this << " " << __func__
 
 namespace cephfs {
 namespace mirror {
@@ -21,34 +23,42 @@ namespace mirror {
 namespace {
 
 struct AttributeDumpVisitor {
-  ceph::Formatter *f;
+  ceph::Formatter* f;
   std::string name;
 
-  AttributeDumpVisitor(ceph::Formatter *f, std::string_view name)
-    : f(f), name(name) {
-  }
+  AttributeDumpVisitor(ceph::Formatter* f, std::string_view name) :
+    f(f), name(name)
+  {}
 
-  void operator()(bool val) const {
+  void
+  operator()(bool val) const
+  {
     f->dump_bool(name.c_str(), val);
   }
-  void operator()(uint64_t val) const {
+
+  void
+  operator()(uint64_t val) const
+  {
     f->dump_unsigned(name.c_str(), val);
   }
-  void operator()(const std::string &val) const {
+
+  void
+  operator()(const std::string& val) const
+  {
     f->dump_string(name.c_str(), val);
   }
 };
 
 } // anonymous namespace
 
-ServiceDaemon::ServiceDaemon(CephContext *cct, RadosRef rados)
-  : m_cct(cct),
-    m_rados(rados),
-    m_timer(new SafeTimer(cct, m_timer_lock, true)) {
+ServiceDaemon::ServiceDaemon(CephContext* cct, RadosRef rados) :
+  m_cct(cct), m_rados(rados), m_timer(new SafeTimer(cct, m_timer_lock, true))
+{
   m_timer->init();
 }
 
-ServiceDaemon::~ServiceDaemon() {
+ServiceDaemon::~ServiceDaemon()
+{
   dout(10) << dendl;
   {
     std::scoped_lock timer_lock(m_timer_lock);
@@ -62,7 +72,9 @@ ServiceDaemon::~ServiceDaemon() {
   delete m_timer;
 }
 
-int ServiceDaemon::init() {
+int
+ServiceDaemon::init()
+{
   dout(20) << dendl;
 
   std::string id = m_cct->_conf->name.get_id();
@@ -71,17 +83,19 @@ int ServiceDaemon::init() {
   }
   std::string instance_id = stringify(m_rados->get_instance_id());
 
-  std::map<std::string, std::string> service_metadata = {{"id", id},
-                                                         {"instance_id", instance_id}};
-  int r = m_rados->service_daemon_register("cephfs-mirror", instance_id,
-                                           service_metadata);
+  std::map<std::string, std::string> service_metadata = {
+      {"id", id}, {"instance_id", instance_id}};
+  int r = m_rados->service_daemon_register(
+      "cephfs-mirror", instance_id, service_metadata);
   if (r < 0) {
     return r;
   }
   return 0;
 }
 
-void ServiceDaemon::add_filesystem(fs_cluster_id_t fscid, std::string_view fs_name) {
+void
+ServiceDaemon::add_filesystem(fs_cluster_id_t fscid, std::string_view fs_name)
+{
   dout(10) << ": fscid=" << fscid << ", fs_name=" << fs_name << dendl;
 
   {
@@ -91,7 +105,9 @@ void ServiceDaemon::add_filesystem(fs_cluster_id_t fscid, std::string_view fs_na
   schedule_update_status();
 }
 
-void ServiceDaemon::remove_filesystem(fs_cluster_id_t fscid) {
+void
+ServiceDaemon::remove_filesystem(fs_cluster_id_t fscid)
+{
   dout(10) << ": fscid=" << fscid << dendl;
 
   {
@@ -101,7 +117,9 @@ void ServiceDaemon::remove_filesystem(fs_cluster_id_t fscid) {
   schedule_update_status();
 }
 
-void ServiceDaemon::add_peer(fs_cluster_id_t fscid, const Peer &peer) {
+void
+ServiceDaemon::add_peer(fs_cluster_id_t fscid, const Peer& peer)
+{
   dout(10) << ": peer=" << peer << dendl;
 
   {
@@ -115,7 +133,9 @@ void ServiceDaemon::add_peer(fs_cluster_id_t fscid, const Peer &peer) {
   schedule_update_status();
 }
 
-void ServiceDaemon::remove_peer(fs_cluster_id_t fscid, const Peer &peer) {
+void
+ServiceDaemon::remove_peer(fs_cluster_id_t fscid, const Peer& peer)
+{
   dout(10) << ": peer=" << peer << dendl;
 
   {
@@ -129,8 +149,12 @@ void ServiceDaemon::remove_peer(fs_cluster_id_t fscid, const Peer &peer) {
   schedule_update_status();
 }
 
-void ServiceDaemon::add_or_update_fs_attribute(fs_cluster_id_t fscid, std::string_view key,
-                                               AttributeValue value) {
+void
+ServiceDaemon::add_or_update_fs_attribute(
+    fs_cluster_id_t fscid,
+    std::string_view key,
+    AttributeValue value)
+{
   dout(10) << ": fscid=" << fscid << dendl;
 
   {
@@ -145,8 +169,13 @@ void ServiceDaemon::add_or_update_fs_attribute(fs_cluster_id_t fscid, std::strin
   schedule_update_status();
 }
 
-void ServiceDaemon::add_or_update_peer_attribute(fs_cluster_id_t fscid, const Peer &peer,
-                                                 std::string_view key, AttributeValue value) {
+void
+ServiceDaemon::add_or_update_peer_attribute(
+    fs_cluster_id_t fscid,
+    const Peer& peer,
+    std::string_view key,
+    AttributeValue value)
+{
   dout(10) << ": fscid=" << fscid << dendl;
 
   {
@@ -166,7 +195,9 @@ void ServiceDaemon::add_or_update_peer_attribute(fs_cluster_id_t fscid, const Pe
   schedule_update_status();
 }
 
-void ServiceDaemon::schedule_update_status() {
+void
+ServiceDaemon::schedule_update_status()
+{
   dout(10) << dendl;
 
   std::scoped_lock timer_lock(m_timer_lock);
@@ -175,34 +206,36 @@ void ServiceDaemon::schedule_update_status() {
   }
 
   m_timer_ctx = new LambdaContext([this] {
-                                    m_timer_ctx = nullptr;
-                                    update_status();
-                                  });
+    m_timer_ctx = nullptr;
+    update_status();
+  });
   m_timer->add_event_after(1, m_timer_ctx);
 }
 
-void ServiceDaemon::update_status() {
+void
+ServiceDaemon::update_status()
+{
   dout(20) << ": " << m_filesystems.size() << " filesystem(s)" << dendl;
 
   ceph::JSONFormatter f;
   {
     std::scoped_lock locker(m_lock);
     f.open_object_section("filesystems");
-    for (auto &[fscid, filesystem] : m_filesystems) {
+    for (auto& [fscid, filesystem] : m_filesystems) {
       f.open_object_section(stringify(fscid).c_str());
       f.dump_string("name", filesystem.fs_name);
-      for (auto &[attr_name, attr_value] : filesystem.fs_attributes) {
-            AttributeDumpVisitor visitor(&f, attr_name);
-            std::visit(visitor, attr_value);
+      for (auto& [attr_name, attr_value] : filesystem.fs_attributes) {
+        AttributeDumpVisitor visitor(&f, attr_name);
+        std::visit(visitor, attr_value);
       }
       f.open_object_section("peers");
-      for (auto &[peer, attributes] : filesystem.peer_attributes) {
+      for (auto& [peer, attributes] : filesystem.peer_attributes) {
         f.open_object_section(peer.uuid);
         f.dump_object("remote", peer.remote);
         f.open_object_section("stats");
-        for (auto &[attr_name, attr_value] : attributes) {
-            AttributeDumpVisitor visitor(&f, attr_name);
-            std::visit(visitor, attr_value);
+        for (auto& [attr_name, attr_value] : attributes) {
+          AttributeDumpVisitor visitor(&f, attr_name);
+          std::visit(visitor, attr_value);
         }
         f.close_section(); // stats
         f.close_section(); // peer.uuid

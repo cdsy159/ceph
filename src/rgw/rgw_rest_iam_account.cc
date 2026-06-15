@@ -1,10 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "rgw_process_env.h"
 #include "rgw_rest_iam_account.h"
 
-int RGWGetAccountSummary::verify_permission(optional_yield y)
+#include "rgw_process_env.h"
+
+int
+RGWGetAccountSummary::verify_permission(optional_yield y)
 {
   std::string account_id;
   if (const auto& account = s->auth.identity->get_account(); account) {
@@ -19,7 +21,8 @@ int RGWGetAccountSummary::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-void RGWGetAccountSummary::add_entry(const std::string& type, int64_t value)
+void
+RGWGetAccountSummary::add_entry(const std::string& type, int64_t value)
 {
   s->formatter->open_object_section("entry");
   s->formatter->dump_string("key", type);
@@ -27,27 +30,29 @@ void RGWGetAccountSummary::add_entry(const std::string& type, int64_t value)
   s->formatter->close_section();
 }
 
-void RGWGetAccountSummary::execute(optional_yield y)
+void
+RGWGetAccountSummary::execute(optional_yield y)
 {
   const auto& info = s->user->get_info();
   const auto& account = s->auth.identity->get_account();
   uint32_t users_count = 0;
   uint32_t groups_count = 0;
 
-  if (account->max_users >= 0) { 
+  if (account->max_users >= 0) {
     op_ret = driver->count_account_users(this, y, info.account_id, users_count);
     if (op_ret < 0) {
       ldpp_dout(this, 4) << "failed to count users for iam account "
-          << info.account_id << ": " << op_ret << dendl;
+                         << info.account_id << ": " << op_ret << dendl;
       return;
     }
   }
 
   if (account->max_groups >= 0) {
-    op_ret = driver->count_account_groups(this, y, info.account_id, groups_count);
+    op_ret =
+        driver->count_account_groups(this, y, info.account_id, groups_count);
     if (op_ret < 0) {
       ldpp_dout(this, 4) << "failed to count groups for iam account "
-          << info.account_id << ": " << op_ret << dendl;
+                         << info.account_id << ": " << op_ret << dendl;
       return;
     }
   }
@@ -67,4 +72,3 @@ void RGWGetAccountSummary::execute(optional_yield y)
   s->formatter->close_section();
   s->formatter->close_section();
 }
-

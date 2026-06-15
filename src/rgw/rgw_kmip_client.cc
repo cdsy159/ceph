@@ -1,19 +1,21 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
-#include "common/Thread.h"
-#include "include/compat.h"
-#include "common/errno.h"
-#include "rgw_asio_thread.h"
-#include "rgw_common.h"
 #include "rgw_kmip_client.h"
 
 #include <atomic>
 
+#include "common/Thread.h"
+#include "common/errno.h"
+#include "include/compat.h"
+
+#include "rgw_asio_thread.h"
+#include "rgw_common.h"
+
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
 
-RGWKMIPManager *rgw_kmip_manager;
+RGWKMIPManager* rgw_kmip_manager;
 
 int
 RGWKMIPTransceiver::wait(const DoutPrefixProvider* dpp, optional_yield y)
@@ -73,7 +75,7 @@ RGWKMIPTransceiver::~RGWKMIPTransceiver()
 }
 
 void
-rgw_kmip_client_init(RGWKMIPManager &m)
+rgw_kmip_client_init(RGWKMIPManager& m)
 {
   rgw_kmip_manager = &m;
   rgw_kmip_manager->start();

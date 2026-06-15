@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -13,46 +13,40 @@
  * 
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <boost/scoped_ptr.hpp>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <iostream>
 #include <sstream>
 #include <string>
 
+#include "common/debug.h"
+
+#include <boost/scoped_ptr.hpp>
+
 #include "auth/KeyRing.h"
-#include "osd/OSD.h"
-#include "os/ObjectStore.h"
-#include "mon/MonClient.h"
-#include "include/ceph_features.h"
-#include "common/config.h"
-
-#include "mon/MonMap.h"
-
-#include "msg/Messenger.h"
-
+#include "common/Preforker.h"
 #include "common/Throttle.h"
 #include "common/Timer.h"
 #include "common/TracepointProvider.h"
 #include "common/ceph_argparse.h"
+#include "common/config.h"
+#include "common/errno.h"
 #include "common/numa.h"
-
+#include "common/pick_address.h"
 #include "global/global_init.h"
 #include "global/signal_handler.h"
-
-#include "include/color.h"
-#include "common/debug.h"
-#include "common/errno.h"
-#include "common/pick_address.h"
-
-#include "log/Log.h"
-#include "perfglue/heap_profiler.h"
-
 #include "include/ceph_assert.h"
-
-#include "common/Preforker.h"
+#include "include/ceph_features.h"
+#include "include/color.h"
+#include "log/Log.h"
+#include "mon/MonClient.h"
+#include "mon/MonMap.h"
+#include "msg/Messenger.h"
+#include "os/ObjectStore.h"
+#include "osd/OSD.h"
+#include "perfglue/heap_profiler.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_osd
@@ -68,38 +62,46 @@ using ceph::bufferlist;
 
 namespace {
 
-TracepointProvider::Traits osd_tracepoint_traits("libosd_tp.so",
-                                                 "osd_tracing");
-TracepointProvider::Traits os_tracepoint_traits("libos_tp.so",
-                                                "osd_objectstore_tracing");
-TracepointProvider::Traits bluestore_tracepoint_traits("libbluestore_tp.so",
-						       "bluestore_tracing");
+TracepointProvider::Traits osd_tracepoint_traits("libosd_tp.so", "osd_tracing");
+TracepointProvider::Traits os_tracepoint_traits(
+    "libos_tp.so",
+    "osd_objectstore_tracing");
+TracepointProvider::Traits bluestore_tracepoint_traits(
+    "libbluestore_tp.so",
+    "bluestore_tracing");
 #ifdef WITH_OSD_INSTRUMENT_FUNCTIONS
-TracepointProvider::Traits cyg_profile_traits("libcyg_profile_tp.so",
-                                                 "osd_function_tracing");
+TracepointProvider::Traits cyg_profile_traits(
+    "libcyg_profile_tp.so",
+    "osd_function_tracing");
 #endif
 
 } // anonymous namespace
 
-OSD *osdptr = nullptr;
+OSD* osdptr = nullptr;
 
-void handle_osd_signal(int signum)
+void
+handle_osd_signal(int signum)
 {
   if (osdptr)
     osdptr->handle_signal(signum);
 }
 
-static void usage()
+static void
+usage()
 {
   cout << "usage: ceph-osd -i <ID> [flags]\n"
        << "  --osd-data PATH data directory\n"
        << "  --osd-journal PATH\n"
        << "                    journal file or block device\n"
        << "  --mkfs            create a [new] data directory\n"
-       << "  --mkkey           generate a new secret key. This is normally used in combination with --mkfs\n"
-       << "  --monmap          specify the path to the monitor map. This is normally used in combination with --mkfs\n"
-       << "  --osd-uuid        specify the OSD's fsid. This is normally used in combination with --mkfs\n"
-       << "  --keyring         specify a path to the osd keyring. This is normally used in combination with --mkfs\n"
+       << "  --mkkey           generate a new secret key. This is normally "
+          "used in combination with --mkfs\n"
+       << "  --monmap          specify the path to the monitor map. This is "
+          "normally used in combination with --mkfs\n"
+       << "  --osd-uuid        specify the OSD's fsid. This is normally used "
+          "in combination with --mkfs\n"
+       << "  --keyring         specify a path to the osd keyring. This is "
+          "normally used in combination with --mkfs\n"
        << "  --convert-filestore\n"
        << "                    run any pending upgrade operations\n"
        << "  --flush-journal   flush all data out of journal\n"
@@ -116,12 +118,14 @@ static void usage()
        << "  --debug_osd <N>   set debug level (e.g. 10)\n"
        << "  --get-device-fsid PATH\n"
        << "                    get OSD fsid for the given block device\n"
-       << "  --run-benchmark   run a throughput benchmark test against the OSD and dump the result\n"
+       << "  --run-benchmark   run a throughput benchmark test against the OSD "
+          "and dump the result\n"
        << std::endl;
   generic_server_usage();
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   auto args = argv_to_vec(argc, argv);
   if (args.empty()) {
@@ -134,9 +138,7 @@ int main(int argc, const char **argv)
   }
 
   auto cct = global_init(
-    nullptr,
-    args, CEPH_ENTITY_TYPE_OSD,
-    CODE_ENVIRONMENT_DAEMON, 0);
+      nullptr, args, CEPH_ENTITY_TYPE_OSD, CODE_ENVIRONMENT_DAEMON, 0);
   ceph_heap_profiler_init();
 
   Preforker forker;
@@ -161,20 +163,24 @@ int main(int argc, const char **argv)
   std::string osdspec_affinity;
 
   std::string val;
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end();) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
     } else if (ceph_argparse_flag(args, i, "--mkfs", (char*)NULL)) {
       mkfs = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "--osdspec-affinity", (char*)NULL)) {
-     osdspec_affinity = val;
+    } else if (ceph_argparse_witharg(
+                   args, i, &val, "--osdspec-affinity", (char*)NULL)) {
+      osdspec_affinity = val;
     } else if (ceph_argparse_flag(args, i, "--mkjournal", (char*)NULL)) {
       mkjournal = true;
-    } else if (ceph_argparse_flag(args, i, "--check-allows-journal", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--check-allows-journal", (char*)NULL)) {
       check_allows_journal = true;
-    } else if (ceph_argparse_flag(args, i, "--check-wants-journal", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--check-wants-journal", (char*)NULL)) {
       check_wants_journal = true;
-    } else if (ceph_argparse_flag(args, i, "--check-needs-journal", (char*)NULL)) {
+    } else if (
+        ceph_argparse_flag(args, i, "--check-needs-journal", (char*)NULL)) {
       check_needs_journal = true;
     } else if (ceph_argparse_flag(args, i, "--mkkey", (char*)NULL)) {
       mkkey = true;
@@ -182,18 +188,22 @@ int main(int argc, const char **argv)
       flushjournal = true;
     } else if (ceph_argparse_flag(args, i, "--convert-filestore", (char*)NULL)) {
       convertfilestore = true;
-    } else if (ceph_argparse_witharg(args, i, &val, "--dump-pg-log", (char*)NULL)) {
+    } else if (
+        ceph_argparse_witharg(args, i, &val, "--dump-pg-log", (char*)NULL)) {
       dump_pg_log = val;
     } else if (ceph_argparse_flag(args, i, "--dump-journal", (char*)NULL)) {
       dump_journal = true;
     } else if (ceph_argparse_flag(args, i, "--get-cluster-fsid", (char*)NULL)) {
       get_cluster_fsid = true;
-    } else if (ceph_argparse_flag(args, i, "--get-osd-fsid", "--get-osd-uuid", (char*)NULL)) {
+    } else if (ceph_argparse_flag(
+                   args, i, "--get-osd-fsid", "--get-osd-uuid", (char*)NULL)) {
       get_osd_fsid = true;
-    } else if (ceph_argparse_flag(args, i, "--get-journal-fsid", "--get-journal-uuid", (char*)NULL)) {
+    } else if (ceph_argparse_flag(
+                   args, i, "--get-journal-fsid", "--get-journal-uuid",
+                   (char*)NULL)) {
       get_journal_fsid = true;
-    } else if (ceph_argparse_witharg(args, i, &device_path,
-				     "--get-device-fsid", (char*)NULL)) {
+    } else if (ceph_argparse_witharg(
+                   args, i, &device_path, "--get-device-fsid", (char*)NULL)) {
       get_device_fsid = true;
     } else if (ceph_argparse_flag(args, i, "--run-benchmark", (char*)NULL)) {
       run_benchmark = true;
@@ -232,11 +242,11 @@ int main(int argc, const char **argv)
   }
   if (get_device_fsid) {
     uuid_d uuid;
-    int r = ObjectStore::probe_block_device_fsid(g_ceph_context, device_path,
-						 &uuid);
+    int r = ObjectStore::probe_block_device_fsid(
+        g_ceph_context, device_path, &uuid);
     if (r < 0) {
-      cerr << "failed to get device fsid for " << device_path
-	   << ": " << cpp_strerror(r) << std::endl;
+      cerr << "failed to get device fsid for " << device_path << ": "
+           << cpp_strerror(r) << std::endl;
       forker.exit(1);
     }
     cout << uuid << std::endl;
@@ -252,15 +262,14 @@ int main(int argc, const char **argv)
       pg_log_entry_t e;
       auto p = bl.cbegin();
       while (!p.end()) {
-	uint64_t pos = p.get_off();
-	try {
-	  decode(e, p);
-	}
-	catch (const ceph::buffer::error &e) {
-	  derr << "failed to decode LogEntry at offset " << pos << dendl;
-	  forker.exit(1);
-	}
-	derr << pos << ":\t" << e << dendl;
+        uint64_t pos = p.get_off();
+        try {
+          decode(e, p);
+        } catch (const ceph::buffer::error& e) {
+          derr << "failed to decode LogEntry at offset " << pos << dendl;
+          forker.exit(1);
+        }
+        derr << pos << ":\t" << e << dendl;
       }
     } else {
       derr << "unable to open " << dump_pg_log << ": " << error << dendl;
@@ -269,8 +278,8 @@ int main(int argc, const char **argv)
   }
 
   // whoami
-  char *end;
-  const char *id = g_conf()->name.get_id().c_str();
+  char* end;
+  const char* id = g_conf()->name.get_id().c_str();
   int whoami = strtol(id, &end, 10);
   std::string data_path = g_conf().get_val<std::string>("osd_data");
   if (*end || end == id || whoami < 0) {
@@ -288,13 +297,13 @@ int main(int argc, const char **argv)
   {
     char fn[PATH_MAX];
     snprintf(fn, sizeof(fn), "%s/type", data_path.c_str());
-    int fd = ::open(fn, O_RDONLY|O_CLOEXEC);
+    int fd = ::open(fn, O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
       bufferlist bl;
       bl.read_fd(fd, 64);
       if (bl.length()) {
-	store_type = string(bl.c_str(), bl.length() - 1);  // drop \n
-	dout(5) << "object store type is " << store_type << dendl;
+        store_type = string(bl.c_str(), bl.length() - 1); // drop \n
+        dout(5) << "object store type is " << store_type << dendl;
       }
       ::close(fd);
     } else if (mkfs) {
@@ -303,33 +312,28 @@ int main(int argc, const char **argv)
       // hrm, infer the type
       snprintf(fn, sizeof(fn), "%s/current", data_path.c_str());
       struct stat st;
-      if (::stat(fn, &st) == 0 &&
-	  S_ISDIR(st.st_mode)) {
-	derr << "missing 'type' file, inferring filestore from current/ dir"
-	     << dendl;
-	store_type = "filestore";
+      if (::stat(fn, &st) == 0 && S_ISDIR(st.st_mode)) {
+        derr << "missing 'type' file, inferring filestore from current/ dir"
+             << dendl;
+        store_type = "filestore";
       } else {
-	snprintf(fn, sizeof(fn), "%s/block", data_path.c_str());
-	if (::stat(fn, &st) == 0 &&
-	    S_ISLNK(st.st_mode)) {
-	  derr << "missing 'type' file, inferring bluestore from block symlink"
-	       << dendl;
-	  store_type = "bluestore";
-	} else {
-	  derr << "missing 'type' file and unable to infer osd type" << dendl;
-	  forker.exit(1);
-	}
+        snprintf(fn, sizeof(fn), "%s/block", data_path.c_str());
+        if (::stat(fn, &st) == 0 && S_ISLNK(st.st_mode)) {
+          derr << "missing 'type' file, inferring bluestore from block symlink"
+               << dendl;
+          store_type = "bluestore";
+        } else {
+          derr << "missing 'type' file and unable to infer osd type" << dendl;
+          forker.exit(1);
+        }
       }
     }
   }
 
   std::string journal_path = g_conf().get_val<std::string>("osd_journal");
   uint32_t flags = g_conf().get_val<uint64_t>("osd_os_flags");
-  std::unique_ptr<ObjectStore> store = ObjectStore::create(g_ceph_context,
-							   store_type,
-							   data_path,
-							   journal_path,
-							   flags);
+  std::unique_ptr<ObjectStore> store = ObjectStore::create(
+      g_ceph_context, store_type, data_path, journal_path, flags);
   if (!store) {
     derr << "unable to create object store" << dendl;
     forker.exit(-ENODEV);
@@ -345,8 +349,7 @@ int main(int argc, const char **argv)
 
     std::string keyring_path = g_conf().get_val<std::string>("keyring");
     int ret = keyring.load(g_ceph_context, keyring_path);
-    if (ret == 0 &&
-	keyring.get_auth(ename, eauth)) {
+    if (ret == 0 && keyring.get_auth(ename, eauth)) {
       derr << "already have key in keyring " << keyring_path << dendl;
     } else {
       eauth.key.create(g_ceph_context, CEPH_CRYPTO_AES);
@@ -355,11 +358,10 @@ int main(int argc, const char **argv)
       keyring.encode_plaintext(bl);
       int r = bl.write_file(keyring_path.c_str(), 0600);
       if (r)
-	derr << TEXT_RED << " ** ERROR: writing new keyring to "
-             << keyring_path << ": " << cpp_strerror(r) << TEXT_NORMAL
-             << dendl;
+        derr << TEXT_RED << " ** ERROR: writing new keyring to " << keyring_path
+             << ": " << cpp_strerror(r) << TEXT_NORMAL << dendl;
       else
-	derr << "created new key in keyring " << keyring_path << dendl;
+        derr << "created new key in keyring " << keyring_path << dendl;
     }
   }
 
@@ -371,17 +373,16 @@ int main(int argc, const char **argv)
       forker.exit(-EINVAL);
     }
 
-    int err = OSD::mkfs(g_ceph_context, std::move(store), g_conf().get_val<uuid_d>("fsid"),
-                        whoami, osdspec_affinity);
+    int err = OSD::mkfs(
+        g_ceph_context, std::move(store), g_conf().get_val<uuid_d>("fsid"),
+        whoami, osdspec_affinity);
     if (err < 0) {
       derr << TEXT_RED << " ** ERROR: error creating empty object store in "
-	   << data_path << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
+           << data_path << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
       forker.exit(1);
     }
-    dout(0) << "created object store " << data_path
-	    << " for osd." << whoami
-	    << " fsid " << g_conf().get_val<uuid_d>("fsid")
-	    << dendl;
+    dout(0) << "created object store " << data_path << " for osd." << whoami
+            << " fsid " << g_conf().get_val<uuid_d>("fsid") << dendl;
     forker.exit(0);
   }
   if (mkkey) {
@@ -391,13 +392,14 @@ int main(int argc, const char **argv)
   if (run_benchmark) {
     store->mount();
     tl::expected<std::string, int> res =
-      OSD::run_osd_bench(g_ceph_context, store.get());
+        OSD::run_osd_bench(g_ceph_context, store.get());
     if (!res.has_value()) {
       int ret = res.error();
-      derr << TEXT_RED << " ** ERROR: error running benchmark: "
-           << cpp_strerror(ret) << TEXT_NORMAL << dendl;
-      cerr << " ** ERROR: error running benchmark: "
-           << cpp_strerror(ret) << std::endl;
+      derr << TEXT_RED
+           << " ** ERROR: error running benchmark: " << cpp_strerror(ret)
+           << TEXT_NORMAL << dendl;
+      cerr << " ** ERROR: error running benchmark: " << cpp_strerror(ret)
+           << std::endl;
       forker.exit(ret);
     }
     cout << res.value() << std::endl;
@@ -413,8 +415,8 @@ int main(int argc, const char **argv)
            << cpp_strerror(-err) << TEXT_NORMAL << dendl;
       forker.exit(1);
     }
-    derr << "created new journal " << journal_path
-	 << " for object store " << data_path << dendl;
+    derr << "created new journal " << journal_path << " for object store "
+         << data_path << dendl;
     forker.exit(0);
   }
   if (check_wants_journal) {
@@ -449,15 +451,14 @@ int main(int argc, const char **argv)
     int err = store->mount();
     if (err < 0) {
       derr << TEXT_RED << " ** ERROR: error flushing journal " << journal_path
-	   << " for object store " << data_path
-	   << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
+           << " for object store " << data_path << ": " << cpp_strerror(-err)
+           << TEXT_NORMAL << dendl;
       goto flushjournal_out;
     }
     store->umount();
-    derr << "flushed journal " << journal_path
-	 << " for object store " << data_path
-	 << dendl;
-flushjournal_out:
+    derr << "flushed journal " << journal_path << " for object store "
+         << data_path << dendl;
+  flushjournal_out:
     store.reset();
     forker.exit(err < 0 ? 1 : 0);
   }
@@ -466,13 +467,12 @@ flushjournal_out:
     int err = store->dump_journal(cout);
     if (err < 0) {
       derr << TEXT_RED << " ** ERROR: error dumping journal " << journal_path
-	   << " for object store " << data_path
-	   << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
+           << " for object store " << data_path << ": " << cpp_strerror(-err)
+           << TEXT_NORMAL << dendl;
       forker.exit(1);
     }
-    derr << "dumped journal " << journal_path
-	 << " for object store " << data_path
-	 << dendl;
+    derr << "dumped journal " << journal_path << " for object store "
+         << data_path << dendl;
     forker.exit(0);
   }
 
@@ -480,14 +480,14 @@ flushjournal_out:
     int err = store->mount();
     if (err < 0) {
       derr << TEXT_RED << " ** ERROR: error mounting store " << data_path
-	   << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
+           << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
       forker.exit(1);
     }
     err = store->upgrade();
     store->umount();
     if (err < 0) {
       derr << TEXT_RED << " ** ERROR: error converting store " << data_path
-	   << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
+           << ": " << cpp_strerror(-err) << TEXT_NORMAL << dendl;
       forker.exit(1);
     }
     forker.exit(0);
@@ -497,15 +497,14 @@ flushjournal_out:
   uuid_d cluster_fsid, osd_fsid;
   ceph_release_t require_osd_release = ceph_release_t::unknown;
   int w;
-  int r = OSD::peek_meta(store.get(), &magic, &cluster_fsid, &osd_fsid, &w,
-			 &require_osd_release);
+  int r = OSD::peek_meta(
+      store.get(), &magic, &cluster_fsid, &osd_fsid, &w, &require_osd_release);
   if (r < 0) {
     derr << TEXT_RED << " ** ERROR: unable to open OSD superblock on "
-	 << data_path << ": " << cpp_strerror(-r)
-	 << TEXT_NORMAL << dendl;
+         << data_path << ": " << cpp_strerror(-r) << TEXT_NORMAL << dendl;
     if (r == -ENOTSUP) {
       derr << TEXT_RED << " **        please verify that underlying storage "
-	   << "supports xattrs" << TEXT_NORMAL << dendl;
+           << "supports xattrs" << TEXT_NORMAL << dendl;
     }
     forker.exit(1);
   }
@@ -515,7 +514,7 @@ flushjournal_out:
   }
   if (strcmp(magic.c_str(), CEPH_OSD_ONDISK_MAGIC)) {
     derr << "OSD magic " << magic << " != my " << CEPH_OSD_ONDISK_MAGIC
-	 << dendl;
+         << dendl;
     forker.exit(1);
   }
 
@@ -549,29 +548,36 @@ flushjournal_out:
 
   // messengers
   std::string msg_type = g_conf().get_val<std::string>("ms_type");
-  std::string public_msg_type =
-    g_conf().get_val<std::string>("ms_public_type");
+  std::string public_msg_type = g_conf().get_val<std::string>("ms_public_type");
   std::string cluster_msg_type =
-    g_conf().get_val<std::string>("ms_cluster_type");
+      g_conf().get_val<std::string>("ms_cluster_type");
 
   public_msg_type = public_msg_type.empty() ? msg_type : public_msg_type;
   cluster_msg_type = cluster_msg_type.empty() ? msg_type : cluster_msg_type;
   uint64_t nonce = Messenger::get_random_nonce();
-  Messenger *ms_public = Messenger::create(g_ceph_context, public_msg_type,
-					   entity_name_t::OSD(whoami), "client", nonce);
-  Messenger *ms_cluster = Messenger::create(g_ceph_context, cluster_msg_type,
-					    entity_name_t::OSD(whoami), "cluster", nonce);
-  Messenger *ms_hb_back_client = Messenger::create(g_ceph_context, cluster_msg_type,
-					     entity_name_t::OSD(whoami), "hb_back_client", nonce);
-  Messenger *ms_hb_front_client = Messenger::create(g_ceph_context, public_msg_type,
-					     entity_name_t::OSD(whoami), "hb_front_client", nonce);
-  Messenger *ms_hb_back_server = Messenger::create(g_ceph_context, cluster_msg_type,
-						   entity_name_t::OSD(whoami), "hb_back_server", nonce);
-  Messenger *ms_hb_front_server = Messenger::create(g_ceph_context, public_msg_type,
-						    entity_name_t::OSD(whoami), "hb_front_server", nonce);
-  Messenger *ms_objecter = Messenger::create(g_ceph_context, public_msg_type,
-					     entity_name_t::OSD(whoami), "ms_objecter", nonce);
-  if (!ms_public || !ms_cluster || !ms_hb_front_client || !ms_hb_back_client || !ms_hb_back_server || !ms_hb_front_server || !ms_objecter)
+  Messenger* ms_public = Messenger::create(
+      g_ceph_context, public_msg_type, entity_name_t::OSD(whoami), "client",
+      nonce);
+  Messenger* ms_cluster = Messenger::create(
+      g_ceph_context, cluster_msg_type, entity_name_t::OSD(whoami), "cluster",
+      nonce);
+  Messenger* ms_hb_back_client = Messenger::create(
+      g_ceph_context, cluster_msg_type, entity_name_t::OSD(whoami),
+      "hb_back_client", nonce);
+  Messenger* ms_hb_front_client = Messenger::create(
+      g_ceph_context, public_msg_type, entity_name_t::OSD(whoami),
+      "hb_front_client", nonce);
+  Messenger* ms_hb_back_server = Messenger::create(
+      g_ceph_context, cluster_msg_type, entity_name_t::OSD(whoami),
+      "hb_back_server", nonce);
+  Messenger* ms_hb_front_server = Messenger::create(
+      g_ceph_context, public_msg_type, entity_name_t::OSD(whoami),
+      "hb_front_server", nonce);
+  Messenger* ms_objecter = Messenger::create(
+      g_ceph_context, public_msg_type, entity_name_t::OSD(whoami),
+      "ms_objecter", nonce);
+  if (!ms_public || !ms_cluster || !ms_hb_front_client || !ms_hb_back_client ||
+      !ms_hb_back_server || !ms_hb_front_server || !ms_objecter)
     forker.exit(1);
   ms_cluster->set_cluster_protocol(CEPH_OSD_PROTOCOL);
   ms_hb_front_client->set_cluster_protocol(CEPH_OSD_PROTOCOL);
@@ -579,67 +585,67 @@ flushjournal_out:
   ms_hb_back_server->set_cluster_protocol(CEPH_OSD_PROTOCOL);
   ms_hb_front_server->set_cluster_protocol(CEPH_OSD_PROTOCOL);
 
-  dout(0) << "starting osd." << whoami
-          << " osd_data " << data_path
-          << " " << ((journal_path.empty()) ?
-		    "(no journal)" : journal_path)
-          << dendl;
+  dout(0) << "starting osd." << whoami << " osd_data " << data_path << " "
+          << ((journal_path.empty()) ? "(no journal)" : journal_path) << dendl;
 
   uint64_t message_size =
-    g_conf().get_val<Option::size_t>("osd_client_message_size_cap");
+      g_conf().get_val<Option::size_t>("osd_client_message_size_cap");
   boost::scoped_ptr<Throttle> client_byte_throttler(
-    new Throttle(g_ceph_context, "osd_client_bytes", message_size));
+      new Throttle(g_ceph_context, "osd_client_bytes", message_size));
   uint64_t message_cap = g_conf().get_val<uint64_t>("osd_client_message_cap");
   boost::scoped_ptr<Throttle> client_msg_throttler(
-    new Throttle(g_ceph_context, "osd_client_messages", message_cap));
+      new Throttle(g_ceph_context, "osd_client_messages", message_cap));
 
   // All feature bits 0 - 34 should be present from dumpling v0.67 forward
-  uint64_t osd_required =
-    CEPH_FEATURE_UID |
-    CEPH_FEATURE_PGID64 |
-    CEPH_FEATURE_OSDENC;
+  uint64_t osd_required = CEPH_FEATURE_UID | CEPH_FEATURE_PGID64 |
+                          CEPH_FEATURE_OSDENC;
 
-  ms_public->set_default_policy(Messenger::Policy::stateless_registered_server(0));
-  ms_public->set_policy_throttlers(entity_name_t::TYPE_CLIENT,
-				   client_byte_throttler.get(),
-				   client_msg_throttler.get());
-  ms_public->set_policy(entity_name_t::TYPE_MON,
-                        Messenger::Policy::lossy_client(osd_required));
-  ms_public->set_policy(entity_name_t::TYPE_MGR,
-                        Messenger::Policy::lossy_client(osd_required));
+  ms_public->set_default_policy(
+      Messenger::Policy::stateless_registered_server(0));
+  ms_public->set_policy_throttlers(
+      entity_name_t::TYPE_CLIENT, client_byte_throttler.get(),
+      client_msg_throttler.get());
+  ms_public->set_policy(
+      entity_name_t::TYPE_MON, Messenger::Policy::lossy_client(osd_required));
+  ms_public->set_policy(
+      entity_name_t::TYPE_MGR, Messenger::Policy::lossy_client(osd_required));
 
   ms_cluster->set_default_policy(Messenger::Policy::stateless_server(0));
-  ms_cluster->set_policy(entity_name_t::TYPE_MON, Messenger::Policy::lossy_client(0));
-  ms_cluster->set_policy(entity_name_t::TYPE_OSD,
-			 Messenger::Policy::lossless_peer(osd_required));
-  ms_cluster->set_policy(entity_name_t::TYPE_CLIENT,
-			 Messenger::Policy::stateless_server(0));
+  ms_cluster->set_policy(
+      entity_name_t::TYPE_MON, Messenger::Policy::lossy_client(0));
+  ms_cluster->set_policy(
+      entity_name_t::TYPE_OSD, Messenger::Policy::lossless_peer(osd_required));
+  ms_cluster->set_policy(
+      entity_name_t::TYPE_CLIENT, Messenger::Policy::stateless_server(0));
 
-  ms_hb_front_client->set_policy(entity_name_t::TYPE_OSD,
-			  Messenger::Policy::lossy_client(0));
-  ms_hb_back_client->set_policy(entity_name_t::TYPE_OSD,
-			  Messenger::Policy::lossy_client(0));
-  ms_hb_back_server->set_policy(entity_name_t::TYPE_OSD,
-				Messenger::Policy::stateless_server(0));
-  ms_hb_front_server->set_policy(entity_name_t::TYPE_OSD,
-				 Messenger::Policy::stateless_server(0));
+  ms_hb_front_client->set_policy(
+      entity_name_t::TYPE_OSD, Messenger::Policy::lossy_client(0));
+  ms_hb_back_client->set_policy(
+      entity_name_t::TYPE_OSD, Messenger::Policy::lossy_client(0));
+  ms_hb_back_server->set_policy(
+      entity_name_t::TYPE_OSD, Messenger::Policy::stateless_server(0));
+  ms_hb_front_server->set_policy(
+      entity_name_t::TYPE_OSD, Messenger::Policy::stateless_server(0));
 
-  ms_objecter->set_default_policy(Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
+  ms_objecter->set_default_policy(
+      Messenger::Policy::lossy_client(CEPH_FEATURE_OSDREPLYMUX));
 
   entity_addrvec_t public_addrs, public_bind_addrs, cluster_addrs;
-  r = pick_addresses(g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC, &public_addrs,
-		     iface_preferred_numa_node);
+  r = pick_addresses(
+      g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC, &public_addrs,
+      iface_preferred_numa_node);
   if (r < 0) {
     derr << "Failed to pick public address." << dendl;
     forker.exit(1);
   } else {
     dout(10) << "picked public_addrs " << public_addrs << dendl;
   }
-  r = pick_addresses(g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC_BIND,
-		     &public_bind_addrs, iface_preferred_numa_node);
+  r = pick_addresses(
+      g_ceph_context, CEPH_PICK_ADDRESS_PUBLIC_BIND, &public_bind_addrs,
+      iface_preferred_numa_node);
   if (r == -ENOENT) {
     dout(10) << "there is no public_bind_addrs, defaulting to public_addrs"
-	     << dendl;
+             << dendl;
     public_bind_addrs = public_addrs;
   } else if (r < 0) {
     derr << "Failed to pick public bind address." << dendl;
@@ -647,8 +653,9 @@ flushjournal_out:
   } else {
     dout(10) << "picked public_bind_addrs " << public_bind_addrs << dendl;
   }
-  r = pick_addresses(g_ceph_context, CEPH_PICK_ADDRESS_CLUSTER, &cluster_addrs,
-		     iface_preferred_numa_node);
+  r = pick_addresses(
+      g_ceph_context, CEPH_PICK_ADDRESS_CLUSTER, &cluster_addrs,
+      iface_preferred_numa_node);
   if (r < 0) {
     derr << "Failed to pick cluster address." << dendl;
     forker.exit(1);
@@ -702,7 +709,7 @@ flushjournal_out:
   srand(time(NULL) + getpid());
 
   ceph::async::io_context_pool poolctx(
-    cct->_conf.get_val<std::uint64_t>("osd_asio_thread_count"));
+      cct->_conf.get_val<std::uint64_t>("osd_asio_thread_count"));
 
   MonClient mc(g_ceph_context, poolctx);
   if (mc.build_initial_monmap() < 0)
@@ -713,25 +720,15 @@ flushjournal_out:
     forker.exit(1);
   }
 
-  osdptr = new OSD(g_ceph_context,
-		   std::move(store),
-		   whoami,
-		   ms_cluster,
-		   ms_public,
-		   ms_hb_front_client,
-		   ms_hb_back_client,
-		   ms_hb_front_server,
-		   ms_hb_back_server,
-		   ms_objecter,
-		   &mc,
-		   data_path,
-		   journal_path,
-		   poolctx);
+  osdptr = new OSD(
+      g_ceph_context, std::move(store), whoami, ms_cluster, ms_public,
+      ms_hb_front_client, ms_hb_back_client, ms_hb_front_server,
+      ms_hb_back_server, ms_objecter, &mc, data_path, journal_path, poolctx);
 
   int err = osdptr->pre_init();
   if (err < 0) {
     derr << TEXT_RED << " ** ERROR: osd pre_init failed: " << cpp_strerror(-err)
-	 << TEXT_NORMAL << dendl;
+         << TEXT_NORMAL << dendl;
     forker.exit(1);
   }
 

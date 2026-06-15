@@ -4,31 +4,39 @@
 #ifndef RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_REPLAYER_H
 #define RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_REPLAYER_H
 
-#include "tools/rbd_mirror/image_replayer/Replayer.h"
-#include "common/ceph_mutex.h"
-#include "common/AsyncOpTracker.h"
-#include "cls/rbd/cls_rbd_types.h"
-#include "librbd/mirror/snapshot/Types.h"
-#include "tools/rbd_mirror/image_replayer/TimeRollingMean.h"
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/rolling_mean.hpp>
 #include <string>
 #include <type_traits>
+
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/rolling_mean.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+
+#include "cls/rbd/cls_rbd_types.h"
+#include "common/AsyncOpTracker.h"
+#include "common/ceph_mutex.h"
+#include "librbd/mirror/snapshot/Types.h"
+#include "tools/rbd_mirror/image_replayer/Replayer.h"
+#include "tools/rbd_mirror/image_replayer/TimeRollingMean.h"
 
 namespace librbd {
 
 struct ImageCtx;
-namespace snapshot { template <typename I> class Replay; }
+
+namespace snapshot {
+template <typename I>
+class Replay;
+}
 
 } // namespace librbd
 
 namespace rbd {
 namespace mirror {
 
-template <typename> struct InstanceWatcher;
+template <typename>
+struct InstanceWatcher;
 class PoolMetaCache;
-template <typename> struct Threads;
+template <typename>
+struct Threads;
 
 namespace image_replayer {
 
@@ -36,22 +44,28 @@ struct ReplayerListener;
 
 namespace snapshot {
 
-template <typename> class EventPreprocessor;
-template <typename> class ReplayStatusFormatter;
-template <typename> class StateBuilder;
+template <typename>
+class EventPreprocessor;
+template <typename>
+class ReplayStatusFormatter;
+template <typename>
+class StateBuilder;
 
 template <typename ImageCtxT>
 class Replayer : public image_replayer::Replayer {
 public:
-  static Replayer* create(
+  static Replayer*
+  create(
       Threads<ImageCtxT>* threads,
       InstanceWatcher<ImageCtxT>* instance_watcher,
       const std::string& local_mirror_uuid,
       PoolMetaCache* pool_meta_cache,
       StateBuilder<ImageCtxT>* state_builder,
-      ReplayerListener* replayer_listener) {
-    return new Replayer(threads, instance_watcher, local_mirror_uuid,
-                        pool_meta_cache, state_builder, replayer_listener);
+      ReplayerListener* replayer_listener)
+  {
+    return new Replayer(
+        threads, instance_watcher, local_mirror_uuid, pool_meta_cache,
+        state_builder, replayer_listener);
   }
 
   Replayer(
@@ -63,7 +77,9 @@ public:
       ReplayerListener* replayer_listener);
   ~Replayer();
 
-  void destroy() override {
+  void
+  destroy() override
+  {
     delete this;
   }
 
@@ -74,27 +90,37 @@ public:
 
   bool get_replay_status(std::string* description, Context* on_finish) override;
 
-  bool is_replaying() const override {
+  bool
+  is_replaying() const override
+  {
     std::unique_lock locker{m_lock};
     return (m_state == STATE_REPLAYING || m_state == STATE_IDLE);
   }
 
-  bool is_resync_requested() const override {
+  bool
+  is_resync_requested() const override
+  {
     std::unique_lock locker{m_lock};
     return m_resync_requested;
   }
 
-  int get_error_code() const override {
+  int
+  get_error_code() const override
+  {
     std::unique_lock locker(m_lock);
     return m_error_code;
   }
 
-  std::string get_error_description() const override {
+  std::string
+  get_error_description() const override
+  {
     std::unique_lock locker(m_lock);
     return m_error_description;
   }
 
-  std::string get_image_spec() const {
+  std::string
+  get_image_spec() const
+  {
     std::unique_lock locker(m_lock);
     return m_image_spec;
   }
@@ -244,9 +270,10 @@ private:
   uint64_t m_last_snapshot_bytes = 0;
 
   boost::accumulators::accumulator_set<
-    uint64_t, boost::accumulators::stats<
-      boost::accumulators::tag::rolling_mean>> m_bytes_per_snapshot{
-    boost::accumulators::tag::rolling_window::window_size = 2};
+      uint64_t,
+      boost::accumulators::stats<boost::accumulators::tag::rolling_mean>>
+      m_bytes_per_snapshot{
+          boost::accumulators::tag::rolling_window::window_size = 2};
   utime_t m_snapshot_replay_start;
 
   uint32_t m_pending_snapshots = 0;
@@ -255,7 +282,7 @@ private:
   bool m_updating_sync_point = false;
   bool m_sync_in_progress = false;
 
-  PerfCounters *m_perf_counters = nullptr;
+  PerfCounters* m_perf_counters = nullptr;
 
   bool is_remote_primary();
 
@@ -294,8 +321,7 @@ private:
 
   void copy_image();
   void handle_copy_image(int r);
-  void handle_copy_image_progress(uint64_t object_number,
-                                  uint64_t object_count);
+  void handle_copy_image_progress(uint64_t object_number, uint64_t object_count);
   void handle_copy_image_read(uint64_t bytes_read);
 
   void apply_image_state();
@@ -330,8 +356,10 @@ private:
   void handle_image_update_notify();
 
   void handle_replay_complete(int r, const std::string& description);
-  void handle_replay_complete(std::unique_lock<ceph::mutex>* locker,
-                              int r, const std::string& description);
+  void handle_replay_complete(
+      std::unique_lock<ceph::mutex>* locker,
+      int r,
+      const std::string& description);
   void notify_status_updated();
 
   bool is_replay_interrupted();
@@ -346,6 +374,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::snapshot::Replayer<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::snapshot::Replayer<
+    librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_REPLAYER_H

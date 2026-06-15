@@ -3,18 +3,17 @@
 
 #include <errno.h>
 
+#include "include/compat.h"
 #include "objclass/objclass.h"
 
 #include "cls_timeindex_ops.h"
-
-#include "include/compat.h"
 
 using std::map;
 using std::string;
 
 using ceph::bufferlist;
 
-CLS_VER(1,0)
+CLS_VER(1, 0)
 CLS_NAME(timeindex)
 
 static const size_t MAX_LIST_ENTRIES = 1000;
@@ -22,44 +21,48 @@ static const size_t MAX_TRIM_ENTRIES = 1000;
 
 static const string TIMEINDEX_PREFIX = "1_";
 
-static void get_index_time_prefix(const utime_t& ts,
-                                  string& index)
+static void
+get_index_time_prefix(const utime_t& ts, string& index)
 {
   char buf[32];
 
-  snprintf(buf, sizeof(buf), "%s%010ld.%06ld_", TIMEINDEX_PREFIX.c_str(),
-          (long)ts.sec(), (long)ts.usec());
+  snprintf(
+      buf, sizeof(buf), "%s%010ld.%06ld_", TIMEINDEX_PREFIX.c_str(),
+      (long)ts.sec(), (long)ts.usec());
   buf[sizeof(buf) - 1] = '\0';
 
   index = buf;
 }
 
-static void get_index(cls_method_context_t hctx,
-                      const utime_t& key_ts,
-                      const string& key_ext,
-                      string& index)
+static void
+get_index(
+    cls_method_context_t hctx,
+    const utime_t& key_ts,
+    const string& key_ext,
+    string& index)
 {
   get_index_time_prefix(key_ts, index);
   index.append(key_ext);
 }
 
-static int parse_index(const string& index,
-                       utime_t& key_ts,
-                       string& key_ext)
+static int
+parse_index(const string& index, utime_t& key_ts, string& key_ext)
 {
   int sec, usec;
   char keyext[256];
 
   int ret = sscanf(index.c_str(), "1_%d.%d_%255s", &sec, &usec, keyext);
 
-  key_ts  = utime_t(sec, usec);
+  key_ts = utime_t(sec, usec);
   key_ext = string(keyext);
   return ret;
 }
 
-static int cls_timeindex_add(cls_method_context_t hctx,
-                             bufferlist * const in,
-                             bufferlist * const out)
+static int
+cls_timeindex_add(
+    cls_method_context_t hctx,
+    bufferlist* const in,
+    bufferlist* const out)
 {
   auto in_iter = in->cbegin();
 
@@ -71,9 +74,7 @@ static int cls_timeindex_add(cls_method_context_t hctx,
     return -EINVAL;
   }
 
-  for (auto iter = op.entries.begin();
-       iter != op.entries.end();
-       ++iter) {
+  for (auto iter = op.entries.begin(); iter != op.entries.end(); ++iter) {
     cls_timeindex_entry& entry = *iter;
 
     string index;
@@ -90,9 +91,11 @@ static int cls_timeindex_add(cls_method_context_t hctx,
   return 0;
 }
 
-static int cls_timeindex_list(cls_method_context_t hctx,
-                              bufferlist * const in,
-                              bufferlist * const out)
+static int
+cls_timeindex_list(
+    cls_method_context_t hctx,
+    bufferlist* const in,
+    bufferlist* const out)
 {
   auto in_iter = in->cbegin();
 
@@ -127,8 +130,8 @@ static int cls_timeindex_list(cls_method_context_t hctx,
 
   cls_timeindex_list_ret ret;
 
-  int rc = cls_cxx_map_get_vals(hctx, from_index, TIMEINDEX_PREFIX,
-          max_entries, &keys, &ret.truncated);
+  int rc = cls_cxx_map_get_vals(
+      hctx, from_index, TIMEINDEX_PREFIX, max_entries, &keys, &ret.truncated);
   if (rc < 0) {
     return rc;
   }
@@ -143,8 +146,9 @@ static int cls_timeindex_list(cls_method_context_t hctx,
     bufferlist& bl = iter->second;
 
     if (use_time_boundary && index.compare(0, to_index.size(), to_index) >= 0) {
-      CLS_LOG(20, "DEBUG: cls_timeindex_list: finishing on to_index=%s",
-              to_index.c_str());
+      CLS_LOG(
+          20, "DEBUG: cls_timeindex_list: finishing on to_index=%s",
+          to_index.c_str());
       ret.truncated = false;
       break;
     }
@@ -152,11 +156,13 @@ static int cls_timeindex_list(cls_method_context_t hctx,
     cls_timeindex_entry e;
 
     if (parse_index(index, e.key_ts, e.key_ext) < 0) {
-      CLS_LOG(0, "ERROR: cls_timeindex_list: could not parse index=%s",
-              index.c_str());
+      CLS_LOG(
+          0, "ERROR: cls_timeindex_list: could not parse index=%s",
+          index.c_str());
     } else {
-      CLS_LOG(20, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s, bl.len = %d",
-              index.c_str(), e.key_ext.c_str(), bl.length());
+      CLS_LOG(
+          20, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s, bl.len = %d",
+          index.c_str(), e.key_ext.c_str(), bl.length());
       e.value = bl;
       entries.push_back(e);
     }
@@ -170,10 +176,11 @@ static int cls_timeindex_list(cls_method_context_t hctx,
   return 0;
 }
 
-
-static int cls_timeindex_trim(cls_method_context_t hctx,
-                              bufferlist * const in,
-                              bufferlist * const out)
+static int
+cls_timeindex_trim(
+    cls_method_context_t hctx,
+    bufferlist* const in,
+    bufferlist* const out)
 {
   auto in_iter = in->cbegin();
 
@@ -204,8 +211,8 @@ static int cls_timeindex_trim(cls_method_context_t hctx,
 
   bool more;
 
-  int rc = cls_cxx_map_get_vals(hctx, from_index, TIMEINDEX_PREFIX,
-          MAX_TRIM_ENTRIES, &keys, &more);
+  int rc = cls_cxx_map_get_vals(
+      hctx, from_index, TIMEINDEX_PREFIX, MAX_TRIM_ENTRIES, &keys, &more);
   if (rc < 0) {
     return rc;
   }
@@ -219,8 +226,9 @@ static int cls_timeindex_trim(cls_method_context_t hctx,
     CLS_LOG(20, "index=%s to_index=%s", index.c_str(), to_index.c_str());
 
     if (index.compare(0, to_index.size(), to_index) > 0) {
-      CLS_LOG(20, "DEBUG: cls_timeindex_trim: finishing on to_index=%s",
-              to_index.c_str());
+      CLS_LOG(
+          20, "DEBUG: cls_timeindex_trim: finishing on to_index=%s",
+          to_index.c_str());
       break;
     }
 
@@ -254,13 +262,14 @@ CLS_INIT(timeindex)
   cls_register("timeindex", &h_class);
 
   /* timeindex */
-  cls_register_cxx_method(h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR,
-          cls_timeindex_add, &h_timeindex_add);
-  cls_register_cxx_method(h_class, "list", CLS_METHOD_RD,
-          cls_timeindex_list, &h_timeindex_list);
-  cls_register_cxx_method(h_class, "trim", CLS_METHOD_RD | CLS_METHOD_WR,
-          cls_timeindex_trim, &h_timeindex_trim);
+  cls_register_cxx_method(
+      h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR, cls_timeindex_add,
+      &h_timeindex_add);
+  cls_register_cxx_method(
+      h_class, "list", CLS_METHOD_RD, cls_timeindex_list, &h_timeindex_list);
+  cls_register_cxx_method(
+      h_class, "trim", CLS_METHOD_RD | CLS_METHOD_WR, cls_timeindex_trim,
+      &h_timeindex_trim);
 
   return;
 }
-

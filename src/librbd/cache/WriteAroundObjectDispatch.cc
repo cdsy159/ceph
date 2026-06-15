@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "librbd/cache/WriteAroundObjectDispatch.h"
+
 #include "common/dout.h"
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
@@ -12,8 +13,9 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::cache::WriteAroundObjectDispatch: " \
-                           << this << " " << __func__ << ": "
+#define dout_prefix                                                     \
+  *_dout << "librbd::cache::WriteAroundObjectDispatch: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace cache {
@@ -22,21 +24,29 @@ using librbd::util::data_object_name;
 
 template <typename I>
 WriteAroundObjectDispatch<I>::WriteAroundObjectDispatch(
-    I* image_ctx, size_t max_dirty, bool writethrough_until_flush)
-  : m_image_ctx(image_ctx), m_init_max_dirty(max_dirty), m_max_dirty(max_dirty),
-    m_lock(ceph::make_mutex(util::unique_lock_name(
-      "librbd::cache::WriteAroundObjectDispatch::lock", this))) {
+    I* image_ctx,
+    size_t max_dirty,
+    bool writethrough_until_flush) :
+  m_image_ctx(image_ctx),
+  m_init_max_dirty(max_dirty),
+  m_max_dirty(max_dirty),
+  m_lock(ceph::make_mutex(util::unique_lock_name(
+      "librbd::cache::WriteAroundObjectDispatch::lock",
+      this)))
+{
   if (writethrough_until_flush) {
     m_max_dirty = 0;
   }
 }
 
 template <typename I>
-WriteAroundObjectDispatch<I>::~WriteAroundObjectDispatch() {
-}
+WriteAroundObjectDispatch<I>::~WriteAroundObjectDispatch()
+{}
 
 template <typename I>
-void WriteAroundObjectDispatch<I>::init() {
+void
+WriteAroundObjectDispatch<I>::init()
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 5) << dendl;
 
@@ -48,7 +58,9 @@ void WriteAroundObjectDispatch<I>::init() {
 }
 
 template <typename I>
-void WriteAroundObjectDispatch<I>::shut_down(Context* on_finish) {
+void
+WriteAroundObjectDispatch<I>::shut_down(Context* on_finish)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 5) << dendl;
 
@@ -56,84 +68,135 @@ void WriteAroundObjectDispatch<I>::shut_down(Context* on_finish) {
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::read(
-    uint64_t object_no, io::ReadExtents* extents, IOContext io_context,
-    int op_flags, int read_flags, const ZTracer::Trace &parent_trace,
-    uint64_t* version, int* object_dispatch_flags,
-    io::DispatchResult* dispatch_result, Context** on_finish,
-    Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::read(
+    uint64_t object_no,
+    io::ReadExtents* extents,
+    IOContext io_context,
+    int op_flags,
+    int read_flags,
+    const ZTracer::Trace& parent_trace,
+    uint64_t* version,
+    int* object_dispatch_flags,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   bool handled = false;
-  for (auto& extent: *extents) {
-    handled |= dispatch_unoptimized_io(object_no, extent.offset, extent.length,
-                                       dispatch_result, on_dispatched);
+  for (auto& extent : *extents) {
+    handled |= dispatch_unoptimized_io(
+        object_no, extent.offset, extent.length, dispatch_result, on_dispatched);
   }
   return handled;
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::discard(
-    uint64_t object_no, uint64_t object_off, uint64_t object_len,
-    IOContext io_context, int discard_flags,
-    const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
-    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
-    Context** on_finish, Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::discard(
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len,
+    IOContext io_context,
+    int discard_flags,
+    const ZTracer::Trace& parent_trace,
+    int* object_dispatch_flags,
+    uint64_t* journal_tid,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << data_object_name(m_image_ctx, object_no) << " "
                  << object_off << "~" << object_len << dendl;
 
-  return dispatch_io(object_no, object_off, object_len, 0, dispatch_result,
-                     on_finish, on_dispatched);
+  return dispatch_io(
+      object_no, object_off, object_len, 0, dispatch_result, on_finish,
+      on_dispatched);
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::write(
-    uint64_t object_no, uint64_t object_off, ceph::bufferlist&& data,
-    IOContext io_context, int op_flags, int write_flags,
+bool
+WriteAroundObjectDispatch<I>::write(
+    uint64_t object_no,
+    uint64_t object_off,
+    ceph::bufferlist&& data,
+    IOContext io_context,
+    int op_flags,
+    int write_flags,
     std::optional<uint64_t> assert_version,
-    const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
-    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
-    Context**on_finish, Context* on_dispatched) {
+    const ZTracer::Trace& parent_trace,
+    int* object_dispatch_flags,
+    uint64_t* journal_tid,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << data_object_name(m_image_ctx, object_no) << " "
                  << object_off << "~" << data.length() << dendl;
 
-  return dispatch_io(object_no, object_off, data.length(), op_flags,
-                     dispatch_result, on_finish, on_dispatched);
+  return dispatch_io(
+      object_no, object_off, data.length(), op_flags, dispatch_result,
+      on_finish, on_dispatched);
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::write_same(
-    uint64_t object_no, uint64_t object_off, uint64_t object_len,
-    io::LightweightBufferExtents&& buffer_extents, ceph::bufferlist&& data,
-    IOContext io_context, int op_flags,
-    const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
-    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
-    Context**on_finish, Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::write_same(
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len,
+    io::LightweightBufferExtents&& buffer_extents,
+    ceph::bufferlist&& data,
+    IOContext io_context,
+    int op_flags,
+    const ZTracer::Trace& parent_trace,
+    int* object_dispatch_flags,
+    uint64_t* journal_tid,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << data_object_name(m_image_ctx, object_no) << " "
                  << object_off << "~" << object_len << dendl;
 
-  return dispatch_io(object_no, object_off, object_len, op_flags,
-                     dispatch_result, on_finish, on_dispatched);
+  return dispatch_io(
+      object_no, object_off, object_len, op_flags, dispatch_result, on_finish,
+      on_dispatched);
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::compare_and_write(
-    uint64_t object_no, uint64_t object_off, ceph::bufferlist&& cmp_data,
-    ceph::bufferlist&& write_data, IOContext io_context, int op_flags,
-    const ZTracer::Trace &parent_trace, uint64_t* mismatch_offset,
-    int* object_dispatch_flags, uint64_t* journal_tid,
-    io::DispatchResult* dispatch_result, Context** on_finish,
-    Context* on_dispatched) {
-  return dispatch_unoptimized_io(object_no, object_off, cmp_data.length(),
-                                 dispatch_result, on_dispatched);
+bool
+WriteAroundObjectDispatch<I>::compare_and_write(
+    uint64_t object_no,
+    uint64_t object_off,
+    ceph::bufferlist&& cmp_data,
+    ceph::bufferlist&& write_data,
+    IOContext io_context,
+    int op_flags,
+    const ZTracer::Trace& parent_trace,
+    uint64_t* mismatch_offset,
+    int* object_dispatch_flags,
+    uint64_t* journal_tid,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
+  return dispatch_unoptimized_io(
+      object_no, object_off, cmp_data.length(), dispatch_result, on_dispatched);
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::flush(
-    io::FlushSource flush_source, const ZTracer::Trace &parent_trace,
-    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
-    Context** on_finish, Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::flush(
+    io::FlushSource flush_source,
+    const ZTracer::Trace& parent_trace,
+    uint64_t* journal_tid,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << dendl;
 
@@ -156,8 +219,8 @@ bool WriteAroundObjectDispatch<I>::flush(
 
   *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
   *on_finish = new LambdaContext([this, tid](int r) {
-      handle_in_flight_flush_complete(r, tid);
-    });
+    handle_in_flight_flush_complete(r, tid);
+  });
 
   if (m_queued_ios.empty() && m_blocked_ios.empty()) {
     // immediately allow the flush to be dispatched
@@ -173,9 +236,14 @@ bool WriteAroundObjectDispatch<I>::flush(
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::dispatch_unoptimized_io(
-    uint64_t object_no, uint64_t object_off, uint64_t object_len,
-    io::DispatchResult* dispatch_result, Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::dispatch_unoptimized_io(
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len,
+    io::DispatchResult* dispatch_result,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
 
   m_lock.lock();
@@ -193,17 +261,23 @@ bool WriteAroundObjectDispatch<I>::dispatch_unoptimized_io(
   ldout(cct, 20) << "blocked by in-flight IO: tid=" << tid << dendl;
   *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
   m_blocked_unoptimized_ios[object_no].emplace(
-    tid, BlockedIO{object_off, object_len, nullptr, on_dispatched});
+      tid, BlockedIO{object_off, object_len, nullptr, on_dispatched});
   m_lock.unlock();
 
   return true;
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::dispatch_io(
-    uint64_t object_no, uint64_t object_off, uint64_t object_len,
-    int op_flags, io::DispatchResult* dispatch_result, Context** on_finish,
-    Context* on_dispatched) {
+bool
+WriteAroundObjectDispatch<I>::dispatch_io(
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len,
+    int op_flags,
+    io::DispatchResult* dispatch_result,
+    Context** on_finish,
+    Context* on_dispatched)
+{
   auto cct = m_image_ctx->cct;
 
   m_lock.lock();
@@ -216,26 +290,26 @@ bool WriteAroundObjectDispatch<I>::dispatch_io(
   if ((op_flags & LIBRADOS_OP_FLAG_FADVISE_FUA) != 0) {
     // force unit access flag is set -- disable write-around
     m_lock.unlock();
-    return dispatch_unoptimized_io(object_no, object_off, object_len,
-                                   dispatch_result, on_dispatched);
+    return dispatch_unoptimized_io(
+        object_no, object_off, object_len, dispatch_result, on_dispatched);
   }
 
   auto tid = ++m_last_tid;
   auto ctx = util::create_async_context_callback(*m_image_ctx, *on_finish);
 
   *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
-  *on_finish = new LambdaContext(
-    [this, tid, object_no, object_off, object_len](int r) {
-      handle_in_flight_io_complete(r, tid, object_no, object_off, object_len);
-    });
+  *on_finish = new LambdaContext([this, tid, object_no, object_off,
+                                  object_len](int r) {
+    handle_in_flight_io_complete(r, tid, object_no, object_off, object_len);
+  });
 
-  bool blocked = block_overlapping_io(&m_in_flight_extents[object_no],
-                                      object_off, object_len);
+  bool blocked = block_overlapping_io(
+      &m_in_flight_extents[object_no], object_off, object_len);
   if (blocked) {
     ldout(cct, 20) << "blocked on overlap: tid=" << tid << dendl;
     m_queued_or_blocked_io_tids.insert(tid);
-    m_blocked_ios[object_no].emplace(tid, BlockedIO{object_off, object_len, ctx,
-                                                    on_dispatched});
+    m_blocked_ios[object_no].emplace(
+        tid, BlockedIO{object_off, object_len, ctx, on_dispatched});
     m_lock.unlock();
   } else if (can_dispatch_io(tid, object_len)) {
     m_lock.unlock();
@@ -253,9 +327,12 @@ bool WriteAroundObjectDispatch<I>::dispatch_io(
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::block_overlapping_io(
-    InFlightObjectExtents* in_flight_object_extents, uint64_t object_off,
-    uint64_t object_len) {
+bool
+WriteAroundObjectDispatch<I>::block_overlapping_io(
+    InFlightObjectExtents* in_flight_object_extents,
+    uint64_t object_off,
+    uint64_t object_len)
+{
   if (in_flight_object_extents->intersects(object_off, object_len)) {
     return true;
   }
@@ -265,9 +342,13 @@ bool WriteAroundObjectDispatch<I>::block_overlapping_io(
 }
 
 template <typename I>
-void WriteAroundObjectDispatch<I>::unblock_overlapping_ios(
-    uint64_t object_no, uint64_t object_off, uint64_t object_len,
-    Contexts* unoptimized_io_dispatches) {
+void
+WriteAroundObjectDispatch<I>::unblock_overlapping_ios(
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len,
+    Contexts* unoptimized_io_dispatches)
+{
   auto cct = m_image_ctx->cct;
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
@@ -285,13 +366,13 @@ void WriteAroundObjectDispatch<I>::unblock_overlapping_ios(
     for (auto it = blocked_unoptimized_object_ios.begin();
          it != blocked_unoptimized_object_ios.end();) {
       auto& blocked_io = it->second;
-      if (!in_flight_object_extents.intersects(blocked_io.offset,
-                                               blocked_io.length)) {
+      if (!in_flight_object_extents.intersects(
+              blocked_io.offset, blocked_io.length)) {
         unoptimized_io_dispatches->emplace(it->first, blocked_io.on_dispatched);
         it = blocked_unoptimized_object_ios.erase(it);
       } else {
-        blocked_unoptimized_ios.union_insert(blocked_io.offset,
-                                             blocked_io.length);
+        blocked_unoptimized_ios.union_insert(
+            blocked_io.offset, blocked_io.length);
         ++it;
       }
     }
@@ -312,10 +393,10 @@ void WriteAroundObjectDispatch<I>::unblock_overlapping_ios(
       ++next_blocked_object_ios_it;
 
       auto& blocked_io = blocked_object_ios_it->second;
-      if (blocked_unoptimized_ios.intersects(blocked_io.offset,
-                                             blocked_io.length) ||
-          block_overlapping_io(&in_flight_object_extents, blocked_io.offset,
-                               blocked_io.length)) {
+      if (blocked_unoptimized_ios.intersects(
+              blocked_io.offset, blocked_io.length) ||
+          block_overlapping_io(
+              &in_flight_object_extents, blocked_io.offset, blocked_io.length)) {
         break;
       }
 
@@ -340,8 +421,9 @@ void WriteAroundObjectDispatch<I>::unblock_overlapping_ios(
 }
 
 template <typename I>
-bool WriteAroundObjectDispatch<I>::can_dispatch_io(
-    uint64_t tid, uint64_t length) {
+bool
+WriteAroundObjectDispatch<I>::can_dispatch_io(uint64_t tid, uint64_t length)
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   if (m_in_flight_bytes == 0 || m_in_flight_bytes + length <= m_max_dirty) {
@@ -357,9 +439,14 @@ bool WriteAroundObjectDispatch<I>::can_dispatch_io(
 }
 
 template <typename I>
-void WriteAroundObjectDispatch<I>::handle_in_flight_io_complete(
-    int r, uint64_t tid, uint64_t object_no, uint64_t object_off,
-    uint64_t object_len) {
+void
+WriteAroundObjectDispatch<I>::handle_in_flight_io_complete(
+    int r,
+    uint64_t tid,
+    uint64_t object_no,
+    uint64_t object_off,
+    uint64_t object_len)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "r=" << r << ", tid=" << tid << dendl;
 
@@ -369,8 +456,8 @@ void WriteAroundObjectDispatch<I>::handle_in_flight_io_complete(
   m_in_flight_bytes -= object_len;
 
   if (r < 0) {
-    lderr(cct) << "IO error encountered: tid=" << tid << ": "
-               << cpp_strerror(r) << dendl;
+    lderr(cct) << "IO error encountered: tid=" << tid << ": " << cpp_strerror(r)
+               << dendl;
     if (m_pending_flush_error == 0) {
       m_pending_flush_error = r;
     }
@@ -378,8 +465,8 @@ void WriteAroundObjectDispatch<I>::handle_in_flight_io_complete(
 
   // any overlapping blocked IOs can be queued now
   Contexts unoptimized_io_dispatches;
-  unblock_overlapping_ios(object_no, object_off, object_len,
-                          &unoptimized_io_dispatches);
+  unblock_overlapping_ios(
+      object_no, object_off, object_len, &unoptimized_io_dispatches);
 
   // collect any flushes that are ready for completion
   int pending_flush_error = 0;
@@ -424,8 +511,9 @@ void WriteAroundObjectDispatch<I>::handle_in_flight_io_complete(
 }
 
 template <typename I>
-void WriteAroundObjectDispatch<I>::handle_in_flight_flush_complete(
-    int r, uint64_t tid) {
+void
+WriteAroundObjectDispatch<I>::handle_in_flight_flush_complete(int r, uint64_t tid)
+{
   auto cct = m_image_ctx->cct;
   ldout(cct, 20) << "r=" << r << ", tid=" << tid << dendl;
 
@@ -457,7 +545,8 @@ void WriteAroundObjectDispatch<I>::handle_in_flight_flush_complete(
 
 template <typename I>
 typename WriteAroundObjectDispatch<I>::QueuedIOs
-WriteAroundObjectDispatch<I>::collect_ready_ios() {
+WriteAroundObjectDispatch<I>::collect_ready_ios()
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   QueuedIOs queued_ios;
@@ -478,7 +567,8 @@ WriteAroundObjectDispatch<I>::collect_ready_ios() {
 
 template <typename I>
 typename WriteAroundObjectDispatch<I>::Contexts
-WriteAroundObjectDispatch<I>::collect_ready_flushes() {
+WriteAroundObjectDispatch<I>::collect_ready_flushes()
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   Contexts ready_flushes;
@@ -501,7 +591,8 @@ WriteAroundObjectDispatch<I>::collect_ready_flushes() {
 
 template <typename I>
 typename WriteAroundObjectDispatch<I>::Contexts
-WriteAroundObjectDispatch<I>::collect_finished_flushes() {
+WriteAroundObjectDispatch<I>::collect_finished_flushes()
+{
   ceph_assert(ceph_mutex_is_locked(m_lock));
 
   Contexts finished_flushes;

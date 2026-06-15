@@ -5,6 +5,7 @@
 #define CEPH_CLS_TIMEINDEX_OPS_H
 
 #include "common/ceph_json.h"
+
 #include "cls_timeindex_types.h"
 
 struct cls_timeindex_add_op {
@@ -12,13 +13,17 @@ struct cls_timeindex_add_op {
 
   cls_timeindex_add_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(entries, bl);
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(entries, bl);
     DECODE_FINISH(bl);
@@ -33,9 +38,13 @@ struct cls_timeindex_list_op {
   int max_entries; /* upperbound to returned num of entries
                       might return less than that and still be truncated */
 
-  cls_timeindex_list_op() : max_entries(0) {}
+  cls_timeindex_list_op() :
+    max_entries(0)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(from_time, bl);
     encode(marker, bl);
@@ -44,7 +53,9 @@ struct cls_timeindex_list_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(from_time, bl);
     decode(marker, bl);
@@ -53,7 +64,9 @@ struct cls_timeindex_list_op {
     DECODE_FINISH(bl);
   }
 
-   void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->open_object_section("from_time");
     from_time.dump(f);
     f->close_section();
@@ -64,7 +77,9 @@ struct cls_timeindex_list_op {
     f->dump_int("max_entries", max_entries);
   }
 
-  static std::list<cls_timeindex_list_op> generate_test_instances() {
+  static std::list<cls_timeindex_list_op>
+  generate_test_instances()
+  {
     std::list<cls_timeindex_list_op> o;
     o.emplace_back();
     o.emplace_back();
@@ -82,9 +97,13 @@ struct cls_timeindex_list_ret {
   std::string marker;
   bool truncated;
 
-  cls_timeindex_list_ret() : truncated(false) {}
+  cls_timeindex_list_ret() :
+    truncated(false)
+  {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(entries, bl);
     encode(marker, bl);
@@ -92,7 +111,9 @@ struct cls_timeindex_list_ret {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(entries, bl);
     decode(marker, bl);
@@ -100,13 +121,17 @@ struct cls_timeindex_list_ret {
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     encode_json("entries", entries, f);
     f->dump_string("marker", marker);
     f->dump_bool("truncated", truncated);
   }
 
-  static std::list<cls_timeindex_list_ret> generate_test_instances() {
+  static std::list<cls_timeindex_list_ret>
+  generate_test_instances()
+  {
     std::list<cls_timeindex_list_ret> o;
     o.emplace_back();
     o.emplace_back();
@@ -121,7 +146,6 @@ struct cls_timeindex_list_ret {
 };
 WRITE_CLASS_ENCODER(cls_timeindex_list_ret)
 
-
 /*
  * operation will return 0 when successfully removed but not done. Will return
  * -ENODATA when done, so caller needs to repeat sending request until that.
@@ -134,7 +158,9 @@ struct cls_timeindex_trim_op {
 
   cls_timeindex_trim_op() {}
 
-  void encode(ceph::buffer::list& bl) const {
+  void
+  encode(ceph::buffer::list& bl) const
+  {
     ENCODE_START(1, 1, bl);
     encode(from_time, bl);
     encode(to_time, bl);
@@ -143,7 +169,9 @@ struct cls_timeindex_trim_op {
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator& bl) {
+  void
+  decode(ceph::buffer::list::const_iterator& bl)
+  {
     DECODE_START(1, bl);
     decode(from_time, bl);
     decode(to_time, bl);

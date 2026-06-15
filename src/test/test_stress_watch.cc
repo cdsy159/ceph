@@ -1,19 +1,19 @@
+#include <errno.h>
+#include <semaphore.h>
+
+#include <atomic>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+
+#include "common/Clock.h"
+#include "common/Thread.h"
+#include "gtest/gtest.h"
 #include "include/rados/librados.h"
 #include "include/rados/librados.hpp"
 #include "include/utime.h"
-#include "common/Thread.h"
-#include "common/Clock.h"
 #include "test/librados/test_cxx.h"
-
-#include "gtest/gtest.h"
-#include <semaphore.h>
-#include <errno.h>
-#include <map>
-#include <sstream>
-#include <iostream>
-#include <string>
-#include <atomic>
-
 #include "test/librados/testcase_cxx.h"
 
 
@@ -23,15 +23,15 @@ using std::ostringstream;
 using std::string;
 
 static sem_t sem;
-static std::atomic<bool> stop_flag = { false };
+static std::atomic<bool> stop_flag = {false};
 
-class WatchNotifyTestCtx : public WatchCtx
-{
+class WatchNotifyTestCtx : public WatchCtx {
 public:
-    void notify(uint8_t opcode, uint64_t ver, bufferlist& bl) override
-    {
-      sem_post(&sem);
-    }
+  void
+  notify(uint8_t opcode, uint64_t ver, bufferlist& bl) override
+  {
+    sem_post(&sem);
+  }
 };
 
 #pragma GCC diagnostic ignored "-Wpragmas"
@@ -40,9 +40,14 @@ public:
 
 struct WatcherUnwatcher : public Thread {
   string pool;
-  explicit WatcherUnwatcher(string& _pool) : pool(_pool) {}
 
-  void *entry() override {
+  explicit WatcherUnwatcher(string& _pool) :
+    pool(_pool)
+  {}
+
+  void*
+  entry() override
+  {
     Rados cluster;
     connect_cluster_pp(cluster);
     while (!stop_flag) {
@@ -62,10 +67,13 @@ struct WatcherUnwatcher : public Thread {
 
 typedef RadosTestParamPP WatchStress;
 
-INSTANTIATE_TEST_SUITE_P(WatchStressTests, WatchStress,
-			::testing::Values("", "cache"));
+INSTANTIATE_TEST_SUITE_P(
+    WatchStressTests,
+    WatchStress,
+    ::testing::Values("", "cache"));
 
-TEST_P(WatchStress, Stress1) {
+TEST_P(WatchStress, Stress1)
+{
   ASSERT_EQ(0, sem_init(&sem, 0, 0));
   Rados ncluster;
   std::string pool_name = get_temp_pool_name();
@@ -73,7 +81,7 @@ TEST_P(WatchStress, Stress1) {
   IoCtx nioctx;
   ncluster.ioctx_create(pool_name.c_str(), nioctx);
 
-  WatcherUnwatcher *thr = new WatcherUnwatcher(pool_name);
+  WatcherUnwatcher* thr = new WatcherUnwatcher(pool_name);
   thr->create("watcher_unwatch");
   ASSERT_EQ(0, nioctx.create("foo", false));
 

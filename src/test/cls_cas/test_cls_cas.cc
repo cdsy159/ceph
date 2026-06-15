@@ -1,21 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "include/types.h"
-#include "include/stringify.h"
-#include "cls/cas/cls_cas_client.h"
-#include "cls/cas/cls_cas_internal.h"
-
-#include "include/utime.h"
-#include "common/Clock.h"
-#include "global/global_context.h"
-
-#include "gtest/gtest.h"
-#include "test/librados/test_cxx.h"
-
 #include <errno.h>
+
 #include <string>
 #include <vector>
+
+#include "cls/cas/cls_cas_client.h"
+#include "cls/cas/cls_cas_internal.h"
+#include "common/Clock.h"
+#include "global/global_context.h"
+#include "gtest/gtest.h"
+#include "include/stringify.h"
+#include "include/types.h"
+#include "include/utime.h"
+#include "test/librados/test_cxx.h"
 
 using namespace std;
 
@@ -23,23 +22,31 @@ using namespace std;
 class cls_cas : public ::testing::Test {
   librados::Rados rados;
   std::string pool_name;
- protected:
+
+protected:
   librados::IoCtx ioctx;
 
-  void SetUp() {
+  void
+  SetUp()
+  {
     pool_name = get_temp_pool_name();
     /* create pool */
     ASSERT_EQ("", create_one_pool_pp(pool_name, rados));
     ASSERT_EQ(0, rados.ioctx_create(pool_name.c_str(), ioctx));
   }
-  void TearDown() {
+
+  void
+  TearDown()
+  {
     /* remove pool */
     ioctx.close();
     ASSERT_EQ(0, destroy_one_pool_pp(pool_name, rados));
   }
 };
 
-static librados::ObjectWriteOperation *new_op() {
+static librados::ObjectWriteOperation*
+new_op()
+{
   return new librados::ObjectWriteOperation();
 }
 
@@ -70,7 +77,7 @@ TEST_F(cls_cas, get_put)
     ASSERT_EQ(0, ioctx.operate(oid, op));
   }
   ASSERT_EQ(bl.length(), ioctx.read(oid, t, 0, 0));
-  
+
   // get x3
   {
     auto op = new_op();
@@ -107,7 +114,7 @@ TEST_F(cls_cas, get_put)
   }
   ASSERT_EQ(-ENOENT, ioctx.read(oid, t, 0, 0));
 
-  
+
   // get
   {
     auto op = new_op();
@@ -249,7 +256,6 @@ TEST_F(cls_cas, dup_put)
   }
 }
 
-
 TEST_F(cls_cas, get_wrong_data)
 {
   bufferlist bl, bl2;
@@ -302,13 +308,14 @@ TEST_F(cls_cas, get_wrong_data)
   ASSERT_EQ(-ENOENT, ioctx.read(oid, t, 0, 0));
 }
 
-static int count_bits(unsigned long n)
+static int
+count_bits(unsigned long n)
 {
-    // base case
-    if (n == 0)
-        return 0;
-    else
-        return 1 + count_bits(n & (n - 1));
+  // base case
+  if (n == 0)
+    return 0;
+  else
+    return 1 + count_bits(n & (n - 1));
 }
 
 TEST(chunk_refs_t, size)
@@ -320,7 +327,7 @@ TEST(chunk_refs_t, size)
   size_t pool_mask = 0xfff5110;
 
   // eventually add in a zillion different pools to force us to a raw count
-  size_t pool_cutoff = max/2;
+  size_t pool_cutoff = max / 2;
 
   for (size_t i = 1; i <= max; ++i) {
     hobject_t h(sobject_t(object_t("foo"s + stringify(i)), i));
@@ -330,9 +337,8 @@ TEST(chunk_refs_t, size)
       bufferlist bl;
       r.dynamic_encode(bl, 512);
       if (count_bits(i) == 1) {
-	cout << i << "\t" << bl.length()
-	     << "\t" << r.describe_encoding()
-	     << std::endl;
+        cout << i << "\t" << bl.length() << "\t" << r.describe_encoding()
+             << std::endl;
       }
 
       // verify reencoding is correct
@@ -342,18 +348,18 @@ TEST(chunk_refs_t, size)
       bufferlist bl2;
       encode(a, bl2);
       if (!bl.contents_equal(bl2)) {
-	std::unique_ptr<Formatter> f(Formatter::create("json-pretty"));
-	cout << "original:\n";
-	f->dump_object("refs", r);
-	f->flush(cout);
-	cout << "decoded:\n";
-	f->dump_object("refs", a);
-	f->flush(cout);
-	cout << "original encoding:\n";
-	bl.hexdump(cout);
-	cout << "decoded re-encoding:\n";
-	bl2.hexdump(cout);
-	ASSERT_TRUE(bl.contents_equal(bl2));
+        std::unique_ptr<Formatter> f(Formatter::create("json-pretty"));
+        cout << "original:\n";
+        f->dump_object("refs", r);
+        f->flush(cout);
+        cout << "decoded:\n";
+        f->dump_object("refs", a);
+        f->flush(cout);
+        cout << "original encoding:\n";
+        bl.hexdump(cout);
+        cout << "decoded re-encoding:\n";
+        bl2.hexdump(cout);
+        ASSERT_TRUE(bl.contents_equal(bl2));
       }
     }
   }

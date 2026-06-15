@@ -13,53 +13,70 @@
  *
  */
 
+#include "Compressor.h"
+
+#include <algorithm>
+#include <iterator>
 #include <random>
 #include <sstream>
-#include <iterator>
-#include <algorithm>
+
+#include "common/debug.h"
+
+#include "common/ceph_context.h"
+#include "common/dout.h"
+#include "include/random.h"
 
 #include "CompressionPlugin.h"
-#include "Compressor.h"
-#include "include/random.h"
-#include "common/ceph_context.h"
-#include "common/debug.h"
-#include "common/dout.h"
 
 namespace TOPNSPC {
 
-const char* Compressor::get_comp_alg_name(int a) {
+const char*
+Compressor::get_comp_alg_name(int a)
+{
 
-  auto p = std::find_if(std::cbegin(compression_algorithms), std::cend(compression_algorithms),
-		   [a](const auto& kv) { return kv.second == a; });
+  auto p = std::find_if(
+      std::cbegin(compression_algorithms), std::cend(compression_algorithms),
+      [a](const auto& kv) { return kv.second == a; });
 
   if (std::cend(compression_algorithms) == p)
-   return "???"; // It would be nice to revise this...
+    return "???"; // It would be nice to revise this...
 
   return p->first;
 }
 
 std::optional<Compressor::CompressionAlgorithm>
-Compressor::get_comp_alg_type(std::string_view s) {
+Compressor::get_comp_alg_type(std::string_view s)
+{
 
-  auto p = std::find_if(std::cbegin(compression_algorithms), std::cend(compression_algorithms),
-		   [&s](const auto& kv) { return kv.first == s; });
+  auto p = std::find_if(
+      std::cbegin(compression_algorithms), std::cend(compression_algorithms),
+      [&s](const auto& kv) { return kv.first == s; });
   if (std::cend(compression_algorithms) == p)
     return {};
 
   return p->second;
 }
 
-const char *Compressor::get_comp_mode_name(int m) {
+const char*
+Compressor::get_comp_mode_name(int m)
+{
   switch (m) {
-    case COMP_NONE: return "none";
-    case COMP_PASSIVE: return "passive";
-    case COMP_AGGRESSIVE: return "aggressive";
-    case COMP_FORCE: return "force";
-    default: return "???";
+  case COMP_NONE:
+    return "none";
+  case COMP_PASSIVE:
+    return "passive";
+  case COMP_AGGRESSIVE:
+    return "aggressive";
+  case COMP_FORCE:
+    return "force";
+  default:
+    return "???";
   }
 }
+
 std::optional<Compressor::CompressionMode>
-Compressor::get_comp_mode_type(std::string_view s) {
+Compressor::get_comp_mode_type(std::string_view s)
+{
   if (s == "force")
     return COMP_FORCE;
   if (s == "aggressive")
@@ -71,7 +88,8 @@ Compressor::get_comp_mode_type(std::string_view s) {
   return {};
 }
 
-CompressorRef Compressor::create(CephContext *cct, const std::string &type)
+CompressorRef
+Compressor::create(CephContext* cct, const std::string& type)
 {
   // support "random" for teuthology testing
   if (type == "random") {
@@ -85,9 +103,11 @@ CompressorRef Compressor::create(CephContext *cct, const std::string &type)
   CompressorRef cs_impl = NULL;
   std::stringstream ss;
   auto reg = cct->get_plugin_registry();
-  auto factory = dynamic_cast<ceph::CompressionPlugin*>(reg->get_with_load("compressor", type));
+  auto factory = dynamic_cast<ceph::CompressionPlugin*>(
+      reg->get_with_load("compressor", type));
   if (factory == NULL) {
-    lderr(cct) << __func__ << " cannot load compressor of type " << type << dendl;
+    lderr(cct) << __func__ << " cannot load compressor of type " << type
+               << dendl;
     return NULL;
   }
   int err = factory->factory(&cs_impl, &ss);
@@ -96,7 +116,8 @@ CompressorRef Compressor::create(CephContext *cct, const std::string &type)
   return cs_impl;
 }
 
-CompressorRef Compressor::create(CephContext *cct, int alg)
+CompressorRef
+Compressor::create(CephContext* cct, int alg)
 {
   if (alg < 0 || alg >= COMP_ALG_LAST) {
     lderr(cct) << __func__ << " invalid algorithm value:" << alg << dendl;

@@ -1,40 +1,49 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
-#include "librbd/cache/ImageWriteback.h"
 #include "LogEntry.h"
+
+#include "librbd/cache/ImageWriteback.h"
 
 #define dout_subsys ceph_subsys_rbd_pwl
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::cache::pwl::rwl::WriteLogEntry: " \
-                           << this << " " <<  __func__ << ": "
+#define dout_prefix                                                   \
+  *_dout << "librbd::cache::pwl::rwl::WriteLogEntry: " << this << " " \
+         << __func__ << ": "
 
 namespace librbd {
 namespace cache {
 namespace pwl {
 namespace rwl {
 
-void WriteLogEntry::writeback(
-    librbd::cache::ImageWritebackInterface &image_writeback, Context *ctx) {
+void
+WriteLogEntry::writeback(
+    librbd::cache::ImageWritebackInterface& image_writeback,
+    Context* ctx)
+{
   /* Pass a copy of the pmem buffer to ImageWriteback (which may hang on to the
    * bl even after flush()). */
   bufferlist entry_bl;
   buffer::list entry_bl_copy;
   copy_cache_bl(&entry_bl_copy);
   entry_bl_copy.begin(0).copy(write_bytes(), entry_bl);
-  image_writeback.aio_write({{ram_entry.image_offset_bytes,
-                              ram_entry.write_bytes}},
-                            std::move(entry_bl), 0, ctx);
+  image_writeback.aio_write(
+      {{ram_entry.image_offset_bytes, ram_entry.write_bytes}},
+      std::move(entry_bl), 0, ctx);
 }
 
-void WriteLogEntry::init_cache_bp() {
+void
+WriteLogEntry::init_cache_bp()
+{
   ceph_assert(!this->cache_bp.have_raw());
-  cache_bp = buffer::ptr(buffer::create_static(this->write_bytes(),
-                                               (char*)this->cache_buffer));
+  cache_bp = buffer::ptr(
+      buffer::create_static(this->write_bytes(), (char*)this->cache_buffer));
 }
 
-void WriteLogEntry::init_bl(buffer::ptr &bp, buffer::list &bl) {
-  if(!is_writesame) {
+void
+WriteLogEntry::init_bl(buffer::ptr& bp, buffer::list& bl)
+{
+  if (!is_writesame) {
     bl.append(bp);
     return;
   }
@@ -47,14 +56,18 @@ void WriteLogEntry::init_bl(buffer::ptr &bp, buffer::list &bl) {
   }
 }
 
-void WriteLogEntry::init_cache_buffer(
-    std::vector<WriteBufferAllocation>::iterator allocation) {
+void
+WriteLogEntry::init_cache_buffer(
+    std::vector<WriteBufferAllocation>::iterator allocation)
+{
   this->ram_entry.write_data = allocation->buffer_oid;
   ceph_assert(!TOID_IS_NULL(this->ram_entry.write_data));
   cache_buffer = D_RW(this->ram_entry.write_data);
 }
 
-buffer::list& WriteLogEntry::get_cache_bl() {
+buffer::list&
+WriteLogEntry::get_cache_bl()
+{
   if (0 == bl_refs) {
     std::lock_guard locker(m_entry_bl_lock);
     if (0 == bl_refs) {
@@ -72,7 +85,9 @@ buffer::list& WriteLogEntry::get_cache_bl() {
   return cache_bl;
 }
 
-void WriteLogEntry::copy_cache_bl(bufferlist *out_bl) {
+void
+WriteLogEntry::copy_cache_bl(bufferlist* out_bl)
+{
   this->get_cache_bl();
   // cache_bp is now initialized
   ceph_assert(cache_bp.length() == cache_bp.raw_length());
@@ -81,7 +96,9 @@ void WriteLogEntry::copy_cache_bl(bufferlist *out_bl) {
   this->init_bl(cloned_bp, *out_bl);
 }
 
-unsigned int WriteLogEntry::reader_count() const {
+unsigned int
+WriteLogEntry::reader_count() const
+{
   if (cache_bp.have_raw()) {
     return (cache_bp.raw_nref() - bl_refs - 1);
   } else {
@@ -89,15 +106,18 @@ unsigned int WriteLogEntry::reader_count() const {
   }
 }
 
-void WriteSameLogEntry::writeback(
-    librbd::cache::ImageWritebackInterface &image_writeback, Context *ctx) {
+void
+WriteSameLogEntry::writeback(
+    librbd::cache::ImageWritebackInterface& image_writeback,
+    Context* ctx)
+{
   bufferlist entry_bl;
   buffer::list entry_bl_copy;
   copy_cache_bl(&entry_bl_copy);
   entry_bl_copy.begin(0).copy(write_bytes(), entry_bl);
-  image_writeback.aio_writesame(ram_entry.image_offset_bytes,
-                                ram_entry.write_bytes,
-                                std::move(entry_bl), 0, ctx);
+  image_writeback.aio_writesame(
+      ram_entry.image_offset_bytes, ram_entry.write_bytes, std::move(entry_bl),
+      0, ctx);
 }
 
 } // namespace rwl

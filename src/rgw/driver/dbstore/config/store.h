@@ -16,12 +16,13 @@
 #pragma once
 
 #include <memory>
+
 #include "rgw_sal_config.h"
 
 namespace rgw::dbstore {
 
 // ConfigStore factory
 auto create_config_store(const DoutPrefixProvider* dpp, const std::string& uri)
-  -> std::unique_ptr<sal::ConfigStore>;
+    -> std::unique_ptr<sal::ConfigStore>;
 
 } // namespace rgw::dbstore

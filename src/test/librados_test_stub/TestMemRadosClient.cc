@@ -2,39 +2,49 @@
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "test/librados_test_stub/TestMemRadosClient.h"
-#include "test/librados_test_stub/TestMemCluster.h"
-#include "test/librados_test_stub/TestMemIoCtxImpl.h"
+
 #include <errno.h>
+
 #include <shared_mutex> // for std::shared_lock
 #include <sstream>
 
+#include "test/librados_test_stub/TestMemCluster.h"
+#include "test/librados_test_stub/TestMemIoCtxImpl.h"
+
 namespace librados {
 
-TestMemRadosClient::TestMemRadosClient(CephContext *cct,
-                                       TestMemCluster *test_mem_cluster)
-  : TestRadosClient(cct, test_mem_cluster->get_watch_notify()),
-    m_mem_cluster(test_mem_cluster) {
+TestMemRadosClient::TestMemRadosClient(
+    CephContext* cct,
+    TestMemCluster* test_mem_cluster) :
+  TestRadosClient(cct, test_mem_cluster->get_watch_notify()),
+  m_mem_cluster(test_mem_cluster)
+{
   m_mem_cluster->allocate_client(&m_nonce, &m_global_id);
 }
 
-TestMemRadosClient::~TestMemRadosClient() {
+TestMemRadosClient::~TestMemRadosClient()
+{
   m_mem_cluster->deallocate_client(m_nonce);
 }
 
-TestIoCtxImpl *TestMemRadosClient::create_ioctx(int64_t pool_id,
-						const std::string &pool_name) {
-  return new TestMemIoCtxImpl(this, pool_id, pool_name,
-                              m_mem_cluster->get_pool(pool_name));
+TestIoCtxImpl*
+TestMemRadosClient::create_ioctx(int64_t pool_id, const std::string& pool_name)
+{
+  return new TestMemIoCtxImpl(
+      this, pool_id, pool_name, m_mem_cluster->get_pool(pool_name));
 }
 
-void TestMemRadosClient::object_list(int64_t pool_id,
- 				     std::list<librados::TestRadosClient::Object> *list) {
+void
+TestMemRadosClient::object_list(
+    int64_t pool_id,
+    std::list<librados::TestRadosClient::Object>* list)
+{
   list->clear();
 
   auto pool = m_mem_cluster->get_pool(pool_id);
   if (pool != nullptr) {
     std::shared_lock file_locker{pool->file_lock};
-    for (auto &file_pair : pool->files) {
+    for (auto& file_pair : pool->files) {
       Object obj;
       obj.oid = file_pair.first.name;
       list->push_back(obj);
@@ -42,49 +52,68 @@ void TestMemRadosClient::object_list(int64_t pool_id,
   }
 }
 
-int TestMemRadosClient::pool_create(const std::string &pool_name) {
+int
+TestMemRadosClient::pool_create(const std::string& pool_name)
+{
   if (is_blocklisted()) {
     return -EBLOCKLISTED;
   }
   return m_mem_cluster->pool_create(pool_name);
 }
 
-int TestMemRadosClient::pool_delete(const std::string &pool_name) {
+int
+TestMemRadosClient::pool_delete(const std::string& pool_name)
+{
   if (is_blocklisted()) {
     return -EBLOCKLISTED;
   }
   return m_mem_cluster->pool_delete(pool_name);
 }
 
-int TestMemRadosClient::pool_get_base_tier(int64_t pool_id, int64_t* base_tier) {
+int
+TestMemRadosClient::pool_get_base_tier(int64_t pool_id, int64_t* base_tier)
+{
   // TODO
   *base_tier = pool_id;
   return 0;
 }
 
-int TestMemRadosClient::pool_list(std::list<std::pair<int64_t, std::string> >& v) {
+int
+TestMemRadosClient::pool_list(std::list<std::pair<int64_t, std::string>>& v)
+{
   return m_mem_cluster->pool_list(v);
 }
 
-int64_t TestMemRadosClient::pool_lookup(const std::string &pool_name) {
+int64_t
+TestMemRadosClient::pool_lookup(const std::string& pool_name)
+{
   return m_mem_cluster->pool_lookup(pool_name);
 }
 
-int TestMemRadosClient::pool_reverse_lookup(int64_t id, std::string *name) {
+int
+TestMemRadosClient::pool_reverse_lookup(int64_t id, std::string* name)
+{
   return m_mem_cluster->pool_reverse_lookup(id, name);
 }
 
-int TestMemRadosClient::watch_flush() {
+int
+TestMemRadosClient::watch_flush()
+{
   get_watch_notify()->flush(this);
   return 0;
 }
 
-bool TestMemRadosClient::is_blocklisted() const {
+bool
+TestMemRadosClient::is_blocklisted() const
+{
   return m_mem_cluster->is_blocklisted(m_nonce);
 }
 
-int TestMemRadosClient::blocklist_add(const std::string& client_address,
-				      uint32_t expire_seconds) {
+int
+TestMemRadosClient::blocklist_add(
+    const std::string& client_address,
+    uint32_t expire_seconds)
+{
   if (is_blocklisted()) {
     return -EBLOCKLISTED;
   }
@@ -106,13 +135,19 @@ int TestMemRadosClient::blocklist_add(const std::string& client_address,
   return 0;
 }
 
-void TestMemRadosClient::transaction_start(const std::string& nspace,
-                                           const std::string &oid) {
+void
+TestMemRadosClient::transaction_start(
+    const std::string& nspace,
+    const std::string& oid)
+{
   m_mem_cluster->transaction_start({nspace, oid});
 }
 
-void TestMemRadosClient::transaction_finish(const std::string& nspace,
-                                            const std::string &oid) {
+void
+TestMemRadosClient::transaction_finish(
+    const std::string& nspace,
+    const std::string& oid)
+{
   m_mem_cluster->transaction_finish({nspace, oid});
 }
 

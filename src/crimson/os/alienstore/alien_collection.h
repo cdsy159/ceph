@@ -3,24 +3,26 @@
 
 #pragma once
 
-#include "os/ObjectStore.h"
-
 #include "crimson/os/futurized_collection.h"
 #include "crimson/os/futurized_store.h"
+#include "os/ObjectStore.h"
+
 #include "alien_store.h"
 
 namespace crimson::os {
 
 class AlienCollection final : public FuturizedCollection {
 public:
-  AlienCollection(ObjectStore::CollectionHandle ch)
-  : FuturizedCollection(ch->cid),
-    collection(ch) {}
+  AlienCollection(ObjectStore::CollectionHandle ch) :
+    FuturizedCollection(ch->cid), collection(ch)
+  {}
 
   ~AlienCollection() {}
 
   template <typename Func, typename Result = std::invoke_result_t<Func>>
-  seastar::futurize_t<Result> with_lock(Func&& func) {
+  seastar::futurize_t<Result>
+  with_lock(Func&& func)
+  {
     // newer versions of Seastar provide two variants of `with_lock`
     //   - generic, friendly towards throwing move constructors of Func,
     //   - specialized for `noexcept`.
@@ -36,4 +38,4 @@ private:
   seastar::shared_mutex mutex;
   friend AlienStore;
 };
-}
+} // namespace crimson::os

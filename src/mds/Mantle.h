@@ -16,31 +16,35 @@
 #ifndef CEPH_MANTLE_H
 #define CEPH_MANTLE_H
 
-#include <string_view>
-
 #include <lua.hpp>
-#include <vector>
+
 #include <map>
 #include <string>
-
-#include "mdstypes.h"
+#include <string_view>
+#include <vector>
 
 #include "include/cephfs/types.h" // for mds_rank_t
 
+#include "mdstypes.h"
+
 class Mantle {
-  public:
-    Mantle();
-    ~Mantle() { if (L) lua_close(L);
-    }
+public:
+  Mantle();
 
-    int balance(
-        const std::string& script,
-        mds_rank_t whoami,
-        const std::vector<std::map<std::string, double>>& metrics,
-        std::map<mds_rank_t, double>& my_targets);
+  ~Mantle()
+  {
+    if (L)
+      lua_close(L);
+  }
 
-  protected:
-    lua_State *L;
+  int balance(
+      const std::string& script,
+      mds_rank_t whoami,
+      const std::vector<std::map<std::string, double>>& metrics,
+      std::map<mds_rank_t, double>& my_targets);
+
+protected:
+  lua_State* L;
 };
 
 #endif

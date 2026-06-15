@@ -7,39 +7,43 @@
 
 using std::string;
 
-RGWSI_ConfigKey_RADOS::~RGWSI_ConfigKey_RADOS(){}
+RGWSI_ConfigKey_RADOS::~RGWSI_ConfigKey_RADOS() {}
 
-int RGWSI_ConfigKey_RADOS::do_start(optional_yield, const DoutPrefixProvider *dpp)
+int
+RGWSI_ConfigKey_RADOS::do_start(optional_yield, const DoutPrefixProvider* dpp)
 {
   maybe_insecure_mon_conn = !rgw_check_secure_mon_conn(dpp);
 
   return 0;
 }
 
-void RGWSI_ConfigKey_RADOS::warn_if_insecure()
+void
+RGWSI_ConfigKey_RADOS::warn_if_insecure()
 {
-  if (!maybe_insecure_mon_conn ||
-      warned_insecure.test_and_set()) {
+  if (!maybe_insecure_mon_conn || warned_insecure.test_and_set()) {
     return;
   }
 
-  string s = ("rgw is configured to optionally allow insecure connections to "
-	      "the monitors (auth_supported, ms_mon_client_mode), ssl "
-	      "certificates stored at the monitor configuration could leak");
+  string s =
+      ("rgw is configured to optionally allow insecure connections to "
+       "the monitors (auth_supported, ms_mon_client_mode), ssl "
+       "certificates stored at the monitor configuration could leak");
 
   rgw_clog_warn(rados, s);
 
   lderr(ctx()) << __func__ << "(): WARNING: " << s << dendl;
 }
 
-int RGWSI_ConfigKey_RADOS::get(const string& key, bool secure,
-			       bufferlist *result)
+int
+RGWSI_ConfigKey_RADOS::get(const string& key, bool secure, bufferlist* result)
 {
   string cmd =
-    "{"
+      "{"
       "\"prefix\": \"config-key get\", "
-      "\"key\": \"" + key + "\""
-    "}";
+      "\"key\": \"" +
+      key +
+      "\""
+      "}";
 
   int ret = rados->mon_command(std::move(cmd), {}, result, nullptr);
   if (ret < 0) {

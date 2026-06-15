@@ -19,21 +19,20 @@
  * available as methods on that object.
  */
 
-#include "Python.h"
-
-#include "Mgr.h"
-
-#include "mon/MonClient.h"
-#include "common/errno.h"
-#include "common/JSONFormatter.h"
-#include "common/version.h"
-#include "mgr/Types.h"
-
-#include "PyUtil.h"
 #include "BaseMgrModule.h"
-#include "Gil.h"
 
 #include <algorithm>
+
+#include "common/JSONFormatter.h"
+#include "common/errno.h"
+#include "common/version.h"
+#include "mgr/Types.h"
+#include "mon/MonClient.h"
+
+#include "Gil.h"
+#include "Mgr.h"
+#include "PyUtil.h"
+#include "Python.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
@@ -45,15 +44,13 @@ using std::string;
 using namespace std::literals;
 
 typedef struct {
-  PyObject_HEAD
-  ActivePyModules *py_modules;
-  ActivePyModule *this_module;
+  PyObject_HEAD ActivePyModules* py_modules;
+  ActivePyModule* this_module;
 } BaseMgrModule;
 
-class MonCommandCompletion : public Context
-{
-  ActivePyModules *py_modules;
-  PyObject *python_completion;
+class MonCommandCompletion : public Context {
+  ActivePyModules* py_modules;
+  PyObject* python_completion;
   const std::string tag;
   SafeThreadState pThreadState;
 
@@ -62,10 +59,11 @@ public:
   bufferlist outbl;
 
   MonCommandCompletion(
-      ActivePyModules *py_modules_, PyObject* ev,
-      const std::string &tag_, PyThreadState *ts_)
-    : py_modules(py_modules_), python_completion(ev),
-      tag(tag_), pThreadState(ts_)
+      ActivePyModules* py_modules_,
+      PyObject* ev,
+      const std::string& tag_,
+      PyThreadState* ts_) :
+    py_modules(py_modules_), python_completion(ev), tag(tag_), pThreadState(ts_)
   {
     ceph_assert(python_completion != nullptr);
     Py_INCREF(python_completion);
@@ -82,7 +80,8 @@ public:
     }
   }
 
-  void finish(int r) override
+  void
+  finish(int r) override
   {
     ceph_assert(python_completion != nullptr);
 
@@ -95,7 +94,8 @@ public:
 
       auto set_fn = PyObject_GetAttrString(python_completion, "complete");
       ceph_assert(set_fn != nullptr);
-      auto rtn = PyObject_CallFunction(set_fn, "(iss)", r, outbl.to_str().c_str(), outs.c_str());
+      auto rtn = PyObject_CallFunction(
+          set_fn, "(iss)", r, outbl.to_str().c_str(), outs.c_str());
       if (rtn == nullptr) {
         PyErr_Print();
       } else {
@@ -109,39 +109,35 @@ public:
   }
 };
 
-
 static PyObject*
-ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
+ceph_send_command(BaseMgrModule* self, PyObject* args, PyObject* kwargs)
 {
   // Like mon, osd, mds
-  char *type = nullptr;
+  char* type = nullptr;
 
   // Like "23" for an OSD or "myid" for an MDS
-  char *name = nullptr;
+  char* name = nullptr;
 
-  char *cmd_json = nullptr;
-  char *tag = nullptr;
-  char *inbuf_ptr = nullptr;
+  char* cmd_json = nullptr;
+  char* tag = nullptr;
+  char* inbuf_ptr = nullptr;
   Py_ssize_t inbuf_len = 0;
   bufferlist inbuf = {};
 
-  static const char * keywords[] {
-    "result",
-    "svc_type",
-    "svc_id",
-    "command",
-    "tag",
-    "inbuf",
-    // --- kwargs star here
-    "one_shot",   // whether to keep the command while we reestablish connection
-    nullptr       // must be the last element
+  static const char* keywords[]{
+      "result", "svc_type", "svc_id", "command", "tag", "inbuf",
+      // --- kwargs star here
+      "one_shot", // whether to keep the command while we reestablish connection
+      nullptr // must be the last element
   };
 
   int one_shot = false;
 
-  PyObject *completion = nullptr;
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ossssz#|$p:ceph_send_command", const_cast<char**>(keywords),
-        &completion, &type, &name, &cmd_json, &tag, &inbuf_ptr, &inbuf_len, &one_shot)) {
+  PyObject* completion = nullptr;
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "Ossssz#|$p:ceph_send_command",
+          const_cast<char**>(keywords), &completion, &type, &name, &cmd_json,
+          &tag, &inbuf_ptr, &inbuf_len, &one_shot)) {
     return nullptr;
   }
 
@@ -151,16 +147,16 @@ ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
 
   auto set_fn = PyObject_GetAttrString(completion, "complete");
   if (set_fn == nullptr) {
-    ceph_abort();  // TODO raise python exception instead
+    ceph_abort(); // TODO raise python exception instead
   } else {
     ceph_assert(PyCallable_Check(set_fn));
   }
   Py_DECREF(set_fn);
 
-  MonCommandCompletion *command_c = new MonCommandCompletion(self->py_modules,
-      completion, tag, PyThreadState_Get());
+  MonCommandCompletion* command_c = new MonCommandCompletion(
+      self->py_modules, completion, tag, PyThreadState_Get());
 
-  PyThreadState *tstate = PyEval_SaveThread();
+  PyThreadState* tstate = PyEval_SaveThread();
 
   if (std::string(type) == "mon") {
 
@@ -171,19 +167,15 @@ ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
     // TODO: enhance MCommand interface so that it returns
     // latest cluster map versions on completion, and callers
     // can wait for those.
-    auto c = new LambdaContext([command_c, self](int command_r){
+    auto c = new LambdaContext([command_c, self](int command_r) {
       self->py_modules->get_objecter().wait_for_latest_osdmap(
-	[command_c, command_r](boost::system::error_code) {
-	  command_c->complete(command_r);
-	});
+          [command_c, command_r](boost::system::error_code) {
+            command_c->complete(command_r);
+          });
     });
 
     self->py_modules->get_monc().start_mon_command(
-        name,
-        {cmd_json},
-        std::move(inbuf),
-        &command_c->outbl,
-        &command_c->outs,
+        name, {cmd_json}, std::move(inbuf), &command_c->outbl, &command_c->outs,
         new C_OnFinisher(c, &self->py_modules->cmd_finisher));
   } else if (std::string(type) == "osd") {
     std::string err;
@@ -199,16 +191,13 @@ ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
 
     ceph_tid_t tid;
     self->py_modules->get_objecter().osd_command(
-        osd_id,
-        {cmd_json},
-        std::move(inbuf),
-        &tid,
-	[command_c, f = &self->py_modules->cmd_finisher]
-	(boost::system::error_code ec, std::string s, ceph::buffer::list bl) {
-	  command_c->outs = std::move(s);
-	  command_c->outbl = std::move(bl);
-	  f->queue(command_c);
-	});
+        osd_id, {cmd_json}, std::move(inbuf), &tid,
+        [command_c, f = &self->py_modules->cmd_finisher](
+            boost::system::error_code ec, std::string s, ceph::buffer::list bl) {
+          command_c->outs = std::move(s);
+          command_c->outbl = std::move(bl);
+          f->queue(command_c);
+        });
   } else if (std::string(type) == "mds") {
     string msg("cannot send command to mds via this interface: ");
     msg.append(cpp_strerror(-ENOSYS));
@@ -228,16 +217,13 @@ ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
 
     ceph_tid_t tid;
     self->py_modules->get_objecter().pg_command(
-        pgid,
-        {cmd_json},
-        std::move(inbuf),
-        &tid,
-	[command_c, f = &self->py_modules->cmd_finisher]
-	(boost::system::error_code ec, std::string s, ceph::buffer::list bl) {
-	  command_c->outs = std::move(s);
-	  command_c->outbl = std::move(bl);
-	  f->queue(command_c);
-	});
+        pgid, {cmd_json}, std::move(inbuf), &tid,
+        [command_c, f = &self->py_modules->cmd_finisher](
+            boost::system::error_code ec, std::string s, ceph::buffer::list bl) {
+          command_c->outs = std::move(s);
+          command_c->outbl = std::move(bl);
+          f->queue(command_c);
+        });
     PyEval_RestoreThread(tstate);
     return nullptr;
   } else {
@@ -254,9 +240,9 @@ ceph_send_command(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject*
-ceph_set_health_checks(BaseMgrModule *self, PyObject *args)
+ceph_set_health_checks(BaseMgrModule* self, PyObject* args)
 {
-  PyObject *checks = NULL;
+  PyObject* checks = NULL;
   if (!PyArg_ParseTuple(args, "O:ceph_set_health_checks", &checks)) {
     return NULL;
   }
@@ -264,88 +250,87 @@ ceph_set_health_checks(BaseMgrModule *self, PyObject *args)
     derr << __func__ << " arg not a dict" << dendl;
     Py_RETURN_NONE;
   }
-  PyObject *checksls = PyDict_Items(checks);
+  PyObject* checksls = PyDict_Items(checks);
   health_check_map_t out_checks;
   for (int i = 0; i < PyList_Size(checksls); ++i) {
-    PyObject *kv = PyList_GET_ITEM(checksls, i);
-    char *check_name = nullptr;
-    PyObject *check_info = nullptr;
+    PyObject* kv = PyList_GET_ITEM(checksls, i);
+    char* check_name = nullptr;
+    PyObject* check_info = nullptr;
     if (!PyArg_ParseTuple(kv, "sO:pair", &check_name, &check_info)) {
-      derr << __func__ << " dict item " << i
-	   << " not a size 2 tuple" << dendl;
+      derr << __func__ << " dict item " << i << " not a size 2 tuple" << dendl;
       continue;
     }
     if (!PyDict_Check(check_info)) {
       derr << __func__ << " item " << i << " " << check_name
-	   << " value not a dict" << dendl;
+           << " value not a dict" << dendl;
       continue;
     }
     health_status_t severity = HEALTH_OK;
     string summary;
     list<string> detail;
     int64_t count = 0;
-    PyObject *infols = PyDict_Items(check_info);
+    PyObject* infols = PyDict_Items(check_info);
     for (int j = 0; j < PyList_Size(infols); ++j) {
-      PyObject *pair = PyList_GET_ITEM(infols, j);
+      PyObject* pair = PyList_GET_ITEM(infols, j);
       if (!PyTuple_Check(pair)) {
-	derr << __func__ << " item " << i << " pair " << j
-	     << " not a tuple" << dendl;
-	continue;
+        derr << __func__ << " item " << i << " pair " << j << " not a tuple"
+             << dendl;
+        continue;
       }
-      char *k = nullptr;
-      PyObject *v = nullptr;
+      char* k = nullptr;
+      PyObject* v = nullptr;
       if (!PyArg_ParseTuple(pair, "sO:pair", &k, &v)) {
-	derr << __func__ << " item " << i << " pair " << j
-	     << " not a size 2 tuple" << dendl;
-	continue;
+        derr << __func__ << " item " << i << " pair " << j
+             << " not a size 2 tuple" << dendl;
+        continue;
       }
       string ks(k);
       if (ks == "severity") {
-	if (!PyUnicode_Check(v)) {
-	  derr << __func__ << " check " << check_name
-	       << " severity value not string" << dendl;
-	  continue;
-	}
-	if (const string vs = PyUnicode_AsUTF8(v); vs == "warning") {
-	  severity = HEALTH_WARN;
-	} else if (vs == "error") {
-	  severity = HEALTH_ERR;
-	}
+        if (!PyUnicode_Check(v)) {
+          derr << __func__ << " check " << check_name
+               << " severity value not string" << dendl;
+          continue;
+        }
+        if (const string vs = PyUnicode_AsUTF8(v); vs == "warning") {
+          severity = HEALTH_WARN;
+        } else if (vs == "error") {
+          severity = HEALTH_ERR;
+        }
       } else if (ks == "summary") {
-	if (!PyUnicode_Check(v)) {
-	  derr << __func__ << " check " << check_name
-	       << " summary value not [unicode] string" << dendl;
-	  continue;
-	} else {
-	  summary = PyUnicode_AsUTF8(v);
-	}
+        if (!PyUnicode_Check(v)) {
+          derr << __func__ << " check " << check_name
+               << " summary value not [unicode] string" << dendl;
+          continue;
+        } else {
+          summary = PyUnicode_AsUTF8(v);
+        }
       } else if (ks == "count") {
-	if (PyLong_Check(v)) {
-	  count = PyLong_AsLong(v);
-	} else {
-	  derr << __func__ << " check " << check_name
-	       << " count value not int" << dendl;
-	  continue;
-	}
+        if (PyLong_Check(v)) {
+          count = PyLong_AsLong(v);
+        } else {
+          derr << __func__ << " check " << check_name << " count value not int"
+               << dendl;
+          continue;
+        }
       } else if (ks == "detail") {
-	if (!PyList_Check(v)) {
-	  derr << __func__ << " check " << check_name
-	       << " detail value not list" << dendl;
-	  continue;
-	}
-	for (int k = 0; k < PyList_Size(v); ++k) {
-	  PyObject *di = PyList_GET_ITEM(v, k);
-	  if (!PyUnicode_Check(di)) {
-	    derr << __func__ << " check " << check_name
-		 << " detail item " << k << " not a [unicode] string" << dendl;
-	    continue;
-	  } else {
-	    detail.push_back(PyUnicode_AsUTF8(di));
-	  }
-	}
+        if (!PyList_Check(v)) {
+          derr << __func__ << " check " << check_name
+               << " detail value not list" << dendl;
+          continue;
+        }
+        for (int k = 0; k < PyList_Size(v); ++k) {
+          PyObject* di = PyList_GET_ITEM(v, k);
+          if (!PyUnicode_Check(di)) {
+            derr << __func__ << " check " << check_name << " detail item " << k
+                 << " not a [unicode] string" << dendl;
+            continue;
+          } else {
+            detail.push_back(PyUnicode_AsUTF8(di));
+          }
+        }
       } else {
-	derr << __func__ << " check " << check_name
-	     << " unexpected key " << k << dendl;
+        derr << __func__ << " check " << check_name << " unexpected key " << k
+             << dendl;
       }
     }
     auto& d = out_checks.add(check_name, severity, summary, count);
@@ -353,37 +338,34 @@ ceph_set_health_checks(BaseMgrModule *self, PyObject *args)
   }
 
   JSONFormatter jf(true);
-  dout(10) << "module " << self->this_module->get_name()
-          << " health checks:\n";
+  dout(10) << "module " << self->this_module->get_name() << " health checks:\n";
   out_checks.dump(&jf);
   jf.flush(*_dout);
   *_dout << dendl;
   without_gil([&] {
-    self->py_modules->set_health_checks(self->this_module->get_name(),
-					std::move(out_checks));
+    self->py_modules->set_health_checks(
+        self->this_module->get_name(), std::move(out_checks));
   });
   Py_RETURN_NONE;
 }
 
 static PyObject*
-ceph_notify_all(BaseMgrModule *self, PyObject *args)
+ceph_notify_all(BaseMgrModule* self, PyObject* args)
 {
-  char *type = nullptr;
-  char *id = nullptr;
+  char* type = nullptr;
+  char* id = nullptr;
   if (!PyArg_ParseTuple(args, "ss:ceph_notify_all", &type, &id)) {
     return nullptr;
   }
 
-  without_gil([&] {
-    self->py_modules->notify_all(type, id);
-  });
+  without_gil([&] { self->py_modules->notify_all(type, id); });
   return nullptr;
 }
 
 static PyObject*
-ceph_state_get(BaseMgrModule *self, PyObject *args)
+ceph_state_get(BaseMgrModule* self, PyObject* args)
 {
-  char *what = NULL;
+  char* what = NULL;
   if (!PyArg_ParseTuple(args, "s:ceph_state_get", &what)) {
     return NULL;
   }
@@ -391,11 +373,10 @@ ceph_state_get(BaseMgrModule *self, PyObject *args)
   return self->py_modules->cacheable_get_python(what);
 }
 
-
 static PyObject*
-ceph_get_server(BaseMgrModule *self, PyObject *args)
+ceph_get_server(BaseMgrModule* self, PyObject* args)
 {
-  char *hostname = NULL;
+  char* hostname = NULL;
   if (!PyArg_ParseTuple(args, "z:ceph_get_server", &hostname)) {
     return NULL;
   }
@@ -408,21 +389,21 @@ ceph_get_server(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_get_mgr_id(BaseMgrModule *self, PyObject *args)
+ceph_get_mgr_id(BaseMgrModule* self, PyObject* args)
 {
   return PyUnicode_FromString(g_conf()->name.get_id().c_str());
 }
 
 static PyObject*
-ceph_option_get(BaseMgrModule *self, PyObject *args)
+ceph_option_get(BaseMgrModule* self, PyObject* args)
 {
-  char *what = nullptr;
+  char* what = nullptr;
   if (!PyArg_ParseTuple(args, "s:ceph_option_get", &what)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
   }
 
-  const Option *opt = g_conf().find_option(string(what));
+  const Option* opt = g_conf().find_option(string(what));
   if (opt) {
     std::string value;
     switch (int r = g_conf().get_val(string(what), &value); r) {
@@ -446,10 +427,10 @@ ceph_option_get(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_foreign_option_get(BaseMgrModule *self, PyObject *args)
+ceph_foreign_option_get(BaseMgrModule* self, PyObject* args)
 {
-  char *who = nullptr;
-  char *what = nullptr;
+  char* who = nullptr;
+  char* what = nullptr;
   if (!PyArg_ParseTuple(args, "ss:ceph_foreign_option_get", &who, &what)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
@@ -458,13 +439,13 @@ ceph_foreign_option_get(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_get_module_option(BaseMgrModule *self, PyObject *args)
+ceph_get_module_option(BaseMgrModule* self, PyObject* args)
 {
-  char *module = nullptr;
-  char *key = nullptr;
-  char *prefix = nullptr;
-  if (!PyArg_ParseTuple(args, "ss|s:ceph_get_module_option", &module, &key,
-			&prefix)) {
+  char* module = nullptr;
+  char* key = nullptr;
+  char* prefix = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "ss|s:ceph_get_module_option", &module, &key, &prefix)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
   }
@@ -478,26 +459,26 @@ ceph_get_module_option(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_store_get_prefix(BaseMgrModule *self, PyObject *args)
+ceph_store_get_prefix(BaseMgrModule* self, PyObject* args)
 {
-  char *prefix = nullptr;
+  char* prefix = nullptr;
   if (!PyArg_ParseTuple(args, "s:ceph_store_get_prefix", &prefix)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
   }
 
-  return self->py_modules->get_store_prefix(self->this_module->get_name(),
-      prefix);
+  return self->py_modules->get_store_prefix(
+      self->this_module->get_name(), prefix);
 }
 
 static PyObject*
-ceph_set_module_option(BaseMgrModule *self, PyObject *args)
+ceph_set_module_option(BaseMgrModule* self, PyObject* args)
 {
-  char *module = nullptr;
-  char *key = nullptr;
-  char *value = nullptr;
-  if (!PyArg_ParseTuple(args, "ssz:ceph_set_module_option",
-        &module, &key, &value)) {
+  char* module = nullptr;
+  char* key = nullptr;
+  char* value = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "ssz:ceph_set_module_option", &module, &key, &value)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
   }
@@ -516,19 +497,20 @@ ceph_set_module_option(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_store_get(BaseMgrModule *self, PyObject *args)
+ceph_store_get(BaseMgrModule* self, PyObject* args)
 {
-  char *what = nullptr;
+  char* what = nullptr;
   if (!PyArg_ParseTuple(args, "s:ceph_store_get", &what)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
   }
 
   std::string value;
-  bool found = self->py_modules->get_store(self->this_module->get_name(),
-      what, &value);
+  bool found =
+      self->py_modules->get_store(self->this_module->get_name(), what, &value);
   if (found) {
-    dout(10) << "ceph_store_get " << what << " found: " << value.c_str() << dendl;
+    dout(10) << "ceph_store_get " << what << " found: " << value.c_str()
+             << dendl;
     return PyUnicode_FromString(value.c_str());
   } else {
     dout(4) << "ceph_store_get " << what << " not found " << dendl;
@@ -537,10 +519,10 @@ ceph_store_get(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_store_set(BaseMgrModule *self, PyObject *args)
+ceph_store_set(BaseMgrModule* self, PyObject* args)
 {
-  char *key = nullptr;
-  char *value = nullptr;
+  char* key = nullptr;
+  char* value = nullptr;
   if (!PyArg_ParseTuple(args, "sz:ceph_store_set", &key, &value)) {
     return nullptr;
   }
@@ -555,10 +537,10 @@ ceph_store_set(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-get_metadata(BaseMgrModule *self, PyObject *args)
+get_metadata(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_name = NULL;
-  char *svc_id = NULL;
+  char* svc_name = NULL;
+  char* svc_id = NULL;
   if (!PyArg_ParseTuple(args, "ss:get_metadata", &svc_name, &svc_id)) {
     return nullptr;
   }
@@ -566,21 +548,20 @@ get_metadata(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-get_daemon_status(BaseMgrModule *self, PyObject *args)
+get_daemon_status(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_name = NULL;
-  char *svc_id = NULL;
-  if (!PyArg_ParseTuple(args, "ss:get_daemon_status", &svc_name,
-			&svc_id)) {
+  char* svc_name = NULL;
+  char* svc_id = NULL;
+  if (!PyArg_ParseTuple(args, "ss:get_daemon_status", &svc_name, &svc_id)) {
     return nullptr;
   }
   return self->py_modules->get_daemon_status_python(svc_name, svc_id);
 }
 
 static PyObject*
-ceph_log(BaseMgrModule *self, PyObject *args)
+ceph_log(BaseMgrModule* self, PyObject* args)
 {
-  char *record = nullptr;
+  char* record = nullptr;
   if (!PyArg_ParseTuple(args, "s:log", &record)) {
     return nullptr;
   }
@@ -593,13 +574,14 @@ ceph_log(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_cluster_log(BaseMgrModule *self, PyObject *args)
+ceph_cluster_log(BaseMgrModule* self, PyObject* args)
 {
   int prio = 0;
-  char *channel = nullptr;
-  char *message = nullptr;
+  char* channel = nullptr;
+  char* message = nullptr;
 
-  if (!PyArg_ParseTuple(args, "sis:ceph_cluster_log", &channel, &prio, &message)) {
+  if (!PyArg_ParseTuple(
+          args, "sis:ceph_cluster_log", &channel, &prio, &message)) {
     return nullptr;
   }
   without_gil([&] {
@@ -608,26 +590,26 @@ ceph_cluster_log(BaseMgrModule *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-ceph_get_version(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_get_version(BaseMgrModule* self, PyObject* args)
 {
   return PyUnicode_FromString(pretty_version_to_str().c_str());
 }
 
-static PyObject *
-ceph_get_ceph_conf_path(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_get_ceph_conf_path(BaseMgrModule* self, PyObject* args)
 {
   return PyUnicode_FromString(g_conf().get_conf_path().c_str());
 }
 
-static PyObject *
-ceph_get_release_name(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_get_release_name(BaseMgrModule* self, PyObject* args)
 {
   return PyUnicode_FromString(ceph_release_to_str());
 }
 
-static PyObject *
-ceph_lookup_release_name(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_lookup_release_name(BaseMgrModule* self, PyObject* args)
 {
   int major = 0;
   if (!PyArg_ParseTuple(args, "i:ceph_lookup_release_name", &major)) {
@@ -636,20 +618,21 @@ ceph_lookup_release_name(BaseMgrModule *self, PyObject *args)
   return PyUnicode_FromString(ceph_release_name(major));
 }
 
-static PyObject *
-ceph_get_context(BaseMgrModule *self)
+static PyObject*
+ceph_get_context(BaseMgrModule* self)
 {
   return self->py_modules->get_context();
 }
 
 static PyObject*
-get_unlabeled_counter(BaseMgrModule *self, PyObject *args)
+get_unlabeled_counter(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_name = nullptr;
-  char *svc_id = nullptr;
-  char *counter_path = nullptr;
-  if (!PyArg_ParseTuple(args, "sss:get_unlabeled_counter", &svc_name,
-                                                  &svc_id, &counter_path)) {
+  char* svc_name = nullptr;
+  char* svc_id = nullptr;
+  char* counter_path = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "sss:get_unlabeled_counter", &svc_name, &svc_id,
+          &counter_path)) {
     return nullptr;
   }
   return self->py_modules->get_unlabeled_counter_python(
@@ -657,13 +640,14 @@ get_unlabeled_counter(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-get_latest_unlabeled_counter(BaseMgrModule *self, PyObject *args)
+get_latest_unlabeled_counter(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_name = nullptr;
-  char *svc_id = nullptr;
-  char *counter_path = nullptr;
-  if (!PyArg_ParseTuple(args, "sss:get_latest_unlabeled_counter", &svc_name,
-                                                  &svc_id, &counter_path)) {
+  char* svc_name = nullptr;
+  char* svc_id = nullptr;
+  char* counter_path = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "sss:get_latest_unlabeled_counter", &svc_name, &svc_id,
+          &counter_path)) {
     return nullptr;
   }
   return self->py_modules->get_latest_unlabeled_counter_python(
@@ -671,16 +655,17 @@ get_latest_unlabeled_counter(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-get_latest_counter(BaseMgrModule *self, PyObject *args)
+get_latest_counter(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_name = nullptr;
-  char *svc_id = nullptr;
-  char *counter_name = nullptr;
-  char *sub_counter_name = nullptr;
-  PyObject *labels_list = nullptr; //labels = [("level", "deep"), ("pooltype", "ec")]
-  if (!PyArg_ParseTuple(args, "ssssO:get_latest_counter", &svc_name,
-                                                  &svc_id, &counter_name, &sub_counter_name,
-                                                  &labels_list)) {
+  char* svc_name = nullptr;
+  char* svc_id = nullptr;
+  char* counter_name = nullptr;
+  char* sub_counter_name = nullptr;
+  PyObject* labels_list =
+      nullptr; //labels = [("level", "deep"), ("pooltype", "ec")]
+  if (!PyArg_ParseTuple(
+          args, "ssssO:get_latest_counter", &svc_name, &svc_id, &counter_name,
+          &sub_counter_name, &labels_list)) {
     return nullptr;
   }
 
@@ -692,15 +677,18 @@ get_latest_counter(BaseMgrModule *self, PyObject *args)
   std::vector<std::pair<std::string_view, std::string_view>> labels;
   for (int i = 0; i < PyList_Size(labels_list); ++i) {
     // Get the tuple element of labels list ("level", "deep")
-    PyObject *label_key_value = PyList_GET_ITEM(labels_list, i);
+    PyObject* label_key_value = PyList_GET_ITEM(labels_list, i);
 
-    char *label_key = nullptr;
-    char *label_value = nullptr;
-    if (!PyArg_ParseTuple(label_key_value, "ss:label_pair", &label_key, &label_value)) {
-      derr << fmt::format("{} list item {} not a size 2 tuple", __func__, i) << dendl;
+    char* label_key = nullptr;
+    char* label_value = nullptr;
+    if (!PyArg_ParseTuple(
+            label_key_value, "ss:label_pair", &label_key, &label_value)) {
+      derr << fmt::format("{} list item {} not a size 2 tuple", __func__, i)
+           << dendl;
       continue;
     }
-    labels.push_back(std::make_pair<std::string_view, std::string_view>(label_key, label_value));
+    labels.push_back(std::make_pair<std::string_view, std::string_view>(
+        label_key, label_value));
   }
 
   return self->py_modules->get_latest_counter_python(
@@ -708,22 +696,23 @@ get_latest_counter(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-get_unlabeled_perf_schema(BaseMgrModule *self, PyObject *args)
+get_unlabeled_perf_schema(BaseMgrModule* self, PyObject* args)
 {
-  char *type_str = nullptr;
-  char *svc_id = nullptr;
-  if (!PyArg_ParseTuple(args, "ss:get_unlabeled_perf_schema", &type_str,
-                                                    &svc_id)) {
+  char* type_str = nullptr;
+  char* svc_id = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "ss:get_unlabeled_perf_schema", &type_str, &svc_id)) {
     return nullptr;
   }
 
   return self->py_modules->get_unlabeled_perf_schema_python(type_str, svc_id);
 }
 
-static PyObject* get_perf_schema(BaseMgrModule *self, PyObject *args)
+static PyObject*
+get_perf_schema(BaseMgrModule* self, PyObject* args)
 {
-  char *type_str = nullptr;
-  char *svc_id = nullptr;
+  char* type_str = nullptr;
+  char* svc_id = nullptr;
   if (!PyArg_ParseTuple(args, "ss:get_perf_schema", &type_str, &svc_id)) {
     return nullptr;
   }
@@ -732,24 +721,22 @@ static PyObject* get_perf_schema(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_get_rocksdb_version(BaseMgrModule *self)
+ceph_get_rocksdb_version(BaseMgrModule* self)
 {
   return self->py_modules->get_rocksdb_version();
 }
 
-
-static PyObject *
-ceph_get_osdmap(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_get_osdmap(BaseMgrModule* self, PyObject* args)
 {
   return self->py_modules->get_osdmap();
 }
 
 static PyObject*
-ceph_set_uri(BaseMgrModule *self, PyObject *args)
+ceph_set_uri(BaseMgrModule* self, PyObject* args)
 {
-  char *svc_str = nullptr;
-  if (!PyArg_ParseTuple(args, "s:ceph_advertize_service",
-        &svc_str)) {
+  char* svc_str = nullptr;
+  if (!PyArg_ParseTuple(args, "s:ceph_advertize_service", &svc_str)) {
     return nullptr;
   }
   // We call down into PyModules even though we have a MgrPyModule
@@ -762,12 +749,11 @@ ceph_set_uri(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_set_wear_level(BaseMgrModule *self, PyObject *args)
+ceph_set_wear_level(BaseMgrModule* self, PyObject* args)
 {
-  char *devid = nullptr;
+  char* devid = nullptr;
   float wear_level;
-  if (!PyArg_ParseTuple(args, "sf:ceph_set_wear_level",
-			&devid, &wear_level)) {
+  if (!PyArg_ParseTuple(args, "sf:ceph_set_wear_level", &devid, &wear_level)) {
     return nullptr;
   }
   without_gil([&] {
@@ -777,7 +763,7 @@ ceph_set_wear_level(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_have_mon_connection(BaseMgrModule *self, PyObject *args)
+ceph_have_mon_connection(BaseMgrModule* self, PyObject* args)
 {
   if (self->py_modules->get_monc().is_connected()) {
     Py_RETURN_TRUE;
@@ -787,14 +773,15 @@ ceph_have_mon_connection(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_update_progress_event(BaseMgrModule *self, PyObject *args)
+ceph_update_progress_event(BaseMgrModule* self, PyObject* args)
 {
-  char *evid = nullptr;
-  char *desc = nullptr;
+  char* evid = nullptr;
+  char* desc = nullptr;
   float progress = 0.0;
   bool add_to_ceph_s = false;
-  if (!PyArg_ParseTuple(args, "ssfb:ceph_update_progress_event",
-			&evid, &desc, &progress, &add_to_ceph_s)) {
+  if (!PyArg_ParseTuple(
+          args, "ssfb:ceph_update_progress_event", &evid, &desc, &progress,
+          &add_to_ceph_s)) {
     return nullptr;
   }
   without_gil([&] {
@@ -804,40 +791,34 @@ ceph_update_progress_event(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_complete_progress_event(BaseMgrModule *self, PyObject *args)
+ceph_complete_progress_event(BaseMgrModule* self, PyObject* args)
 {
-  char *evid = nullptr;
-  if (!PyArg_ParseTuple(args, "s:ceph_complete_progress_event",
-			&evid)) {
+  char* evid = nullptr;
+  if (!PyArg_ParseTuple(args, "s:ceph_complete_progress_event", &evid)) {
     return nullptr;
   }
-  without_gil([&] {
-    self->py_modules->complete_progress_event(evid);
-  });
+  without_gil([&] { self->py_modules->complete_progress_event(evid); });
   Py_RETURN_NONE;
 }
 
 static PyObject*
-ceph_clear_all_progress_events(BaseMgrModule *self, PyObject *args)
+ceph_clear_all_progress_events(BaseMgrModule* self, PyObject* args)
 {
-  without_gil([&] {
-    self->py_modules->clear_all_progress_events();
-  });
+  without_gil([&] { self->py_modules->clear_all_progress_events(); });
   Py_RETURN_NONE;
 }
 
-
-
-static PyObject *
-ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
+static PyObject*
+ceph_dispatch_remote(BaseMgrModule* self, PyObject* args)
 {
   // PyArgs_ParseTuple doesn't give us refcounts here
-  char *other_module = nullptr;
-  char *method = nullptr;
-  PyObject *remote_args = nullptr;
-  PyObject *remote_kwargs = nullptr;
-  if (!PyArg_ParseTuple(args, "ssOO:ceph_dispatch_remote",
-        &other_module, &method, &remote_args, &remote_kwargs)) {
+  char* other_module = nullptr;
+  char* method = nullptr;
+  PyObject* remote_args = nullptr;
+  PyObject* remote_kwargs = nullptr;
+  if (!PyArg_ParseTuple(
+          args, "ssOO:ceph_dispatch_remote", &other_module, &method,
+          &remote_args, &remote_kwargs)) {
     return nullptr;
   }
 
@@ -852,10 +833,7 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
 
   auto pmodule = self->this_module->py_module->pPickleModule;
   auto pickled_args = PyObject_CallMethodObjArgs(
-    pmodule,
-    PyUnicode_FromString("dumps"),
-    remote_args,
-    nullptr);
+      pmodule, PyUnicode_FromString("dumps"), remote_args, nullptr);
   if (pickled_args == nullptr) {
     std::string caller = "ceph_dispatch_remote "s + " " + method;
     std::string err = handle_pyerror(true, other_module, caller);
@@ -866,10 +844,7 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
   std::span<std::byte const> pickled_args_span = py_bytes_as_span(pickled_args);
 
   auto pickled_kwargs = PyObject_CallMethodObjArgs(
-    pmodule,
-    PyUnicode_FromString("dumps"),
-    remote_kwargs,
-    nullptr);
+      pmodule, PyUnicode_FromString("dumps"), remote_kwargs, nullptr);
   if (pickled_kwargs == nullptr) {
     std::string caller = "ceph_dispatch_remote "s + " " + method;
     std::string err = handle_pyerror(true, other_module, caller);
@@ -880,11 +855,11 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
     return nullptr;
   }
   std::span<std::byte const> pickled_kwargs_span =
-    py_bytes_as_span(pickled_kwargs);
+      py_bytes_as_span(pickled_kwargs);
 
   // Drop GIL from calling python thread state, it will be taken
   // both for checking for method existence and for executing method.
-  PyThreadState *tstate = PyEval_SaveThread();
+  PyThreadState* tstate = PyEval_SaveThread();
 
   if (!self->py_modules->method_exists(other_module, method)) {
     PyEval_RestoreThread(tstate);
@@ -897,12 +872,8 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
 
   std::string err;
   std::optional<std::vector<std::byte>> maybe_pickled_ret =
-    self->py_modules->dispatch_remote(
-      other_module,
-      method,
-      pickled_args_span,
-      pickled_kwargs_span,
-      &err);
+      self->py_modules->dispatch_remote(
+          other_module, method, pickled_args_span, pickled_kwargs_span, &err);
 
   PyEval_RestoreThread(tstate);
 
@@ -921,10 +892,7 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
 
   auto pickled_ret_bytes = py_bytes_from_vec(*maybe_pickled_ret);
   auto ret = PyObject_CallMethodObjArgs(
-    pmodule,
-    PyUnicode_FromString("loads"),
-    pickled_ret_bytes,
-    nullptr);
+      pmodule, PyUnicode_FromString("loads"), pickled_ret_bytes, nullptr);
   if (ret == nullptr) {
     std::string caller = "ceph_dispatch_remote "s + " " + method;
     std::string err = handle_pyerror(true, other_module, caller);
@@ -936,7 +904,7 @@ ceph_dispatch_remote(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
+ceph_add_osd_perf_query(BaseMgrModule* self, PyObject* args)
 {
   static const std::string NAME_KEY_DESCRIPTOR = "key_descriptor";
   static const std::string NAME_COUNTERS_DESCRIPTORS =
@@ -947,28 +915,28 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
   static const std::string NAME_LIMIT_ORDER_BY = "order_by";
   static const std::string NAME_LIMIT_MAX_COUNT = "max_count";
   static const std::map<std::string, OSDPerfMetricSubKeyType> sub_key_types = {
-    {"client_id", OSDPerfMetricSubKeyType::CLIENT_ID},
-    {"client_address", OSDPerfMetricSubKeyType::CLIENT_ADDRESS},
-    {"pool_id", OSDPerfMetricSubKeyType::POOL_ID},
-    {"namespace", OSDPerfMetricSubKeyType::NAMESPACE},
-    {"osd_id", OSDPerfMetricSubKeyType::OSD_ID},
-    {"pg_id", OSDPerfMetricSubKeyType::PG_ID},
-    {"object_name", OSDPerfMetricSubKeyType::OBJECT_NAME},
-    {"snap_id", OSDPerfMetricSubKeyType::SNAP_ID},
+      {"client_id", OSDPerfMetricSubKeyType::CLIENT_ID},
+      {"client_address", OSDPerfMetricSubKeyType::CLIENT_ADDRESS},
+      {"pool_id", OSDPerfMetricSubKeyType::POOL_ID},
+      {"namespace", OSDPerfMetricSubKeyType::NAMESPACE},
+      {"osd_id", OSDPerfMetricSubKeyType::OSD_ID},
+      {"pg_id", OSDPerfMetricSubKeyType::PG_ID},
+      {"object_name", OSDPerfMetricSubKeyType::OBJECT_NAME},
+      {"snap_id", OSDPerfMetricSubKeyType::SNAP_ID},
   };
   static const std::map<std::string, PerformanceCounterType> counter_types = {
-    {"ops", PerformanceCounterType::OPS},
-    {"write_ops", PerformanceCounterType::WRITE_OPS},
-    {"read_ops", PerformanceCounterType::READ_OPS},
-    {"bytes", PerformanceCounterType::BYTES},
-    {"write_bytes", PerformanceCounterType::WRITE_BYTES},
-    {"read_bytes", PerformanceCounterType::READ_BYTES},
-    {"latency", PerformanceCounterType::LATENCY},
-    {"write_latency", PerformanceCounterType::WRITE_LATENCY},
-    {"read_latency", PerformanceCounterType::READ_LATENCY},
+      {"ops", PerformanceCounterType::OPS},
+      {"write_ops", PerformanceCounterType::WRITE_OPS},
+      {"read_ops", PerformanceCounterType::READ_OPS},
+      {"bytes", PerformanceCounterType::BYTES},
+      {"write_bytes", PerformanceCounterType::WRITE_BYTES},
+      {"read_bytes", PerformanceCounterType::READ_BYTES},
+      {"latency", PerformanceCounterType::LATENCY},
+      {"write_latency", PerformanceCounterType::WRITE_LATENCY},
+      {"read_latency", PerformanceCounterType::READ_LATENCY},
   };
 
-  PyObject *py_query = nullptr;
+  PyObject* py_query = nullptr;
   if (!PyArg_ParseTuple(args, "O:ceph_add_osd_perf_query", &py_query)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
@@ -978,7 +946,7 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
     Py_RETURN_NONE;
   }
 
-  PyObject *query_params = PyDict_Items(py_query);
+  PyObject* query_params = PyDict_Items(py_query);
   OSDPerfMetricQuery query;
   std::optional<OSDPerfMetricLimit> limit;
 
@@ -994,9 +962,9 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
   // }
 
   for (int i = 0; i < PyList_Size(query_params); ++i) {
-    PyObject *kv = PyList_GET_ITEM(query_params, i);
-    char *query_param_name = nullptr;
-    PyObject *query_param_val = nullptr;
+    PyObject* kv = PyList_GET_ITEM(query_params, i);
+    char* query_param_name = nullptr;
+    PyObject* query_param_val = nullptr;
     if (!PyArg_ParseTuple(kv, "sO:pair", &query_param_name, &query_param_val)) {
       derr << __func__ << " dict item " << i << " not a size 2 tuple" << dendl;
       Py_RETURN_NONE;
@@ -1007,23 +975,23 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
         Py_RETURN_NONE;
       }
       for (int j = 0; j < PyList_Size(query_param_val); j++) {
-        PyObject *sub_key = PyList_GET_ITEM(query_param_val, j);
+        PyObject* sub_key = PyList_GET_ITEM(query_param_val, j);
         if (!PyDict_Check(sub_key)) {
           derr << __func__ << " query " << query_param_name << " item " << j
                << " not a dict" << dendl;
           Py_RETURN_NONE;
         }
         OSDPerfMetricSubKeyDescriptor d;
-        PyObject *sub_key_params = PyDict_Items(sub_key);
+        PyObject* sub_key_params = PyDict_Items(sub_key);
         for (int k = 0; k < PyList_Size(sub_key_params); ++k) {
-          PyObject *pair = PyList_GET_ITEM(sub_key_params, k);
+          PyObject* pair = PyList_GET_ITEM(sub_key_params, k);
           if (!PyTuple_Check(pair)) {
             derr << __func__ << " query " << query_param_name << " item " << j
                  << " pair " << k << " not a tuple" << dendl;
             Py_RETURN_NONE;
           }
-          char *param_name = nullptr;
-          PyObject *param_value = nullptr;
+          char* param_name = nullptr;
+          PyObject* param_value = nullptr;
           if (!PyArg_ParseTuple(pair, "sO:pair", &param_name, &param_value)) {
             derr << __func__ << " query " << query_param_name << " item " << j
                  << " pair " << k << " not a size 2 tuple" << dendl;
@@ -1083,7 +1051,7 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
         Py_RETURN_NONE;
       }
       for (int j = 0; j < PyList_Size(query_param_val); j++) {
-        PyObject *py_type = PyList_GET_ITEM(query_param_val, j);
+        PyObject* py_type = PyList_GET_ITEM(query_param_val, j);
         if (!PyUnicode_Check(py_type)) {
           derr << __func__ << " query " << query_param_name << " item " << j
                << " not a string" << dendl;
@@ -1106,14 +1074,14 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
       }
 
       limit = OSDPerfMetricLimit();
-      PyObject *limit_params = PyDict_Items(query_param_val);
+      PyObject* limit_params = PyDict_Items(query_param_val);
 
       for (int j = 0; j < PyList_Size(limit_params); ++j) {
-        PyObject *kv = PyList_GET_ITEM(limit_params, j);
-        char *limit_param_name = nullptr;
-        PyObject *limit_param_val = nullptr;
-        if (!PyArg_ParseTuple(kv, "sO:pair", &limit_param_name,
-                              &limit_param_val)) {
+        PyObject* kv = PyList_GET_ITEM(limit_params, j);
+        char* limit_param_name = nullptr;
+        PyObject* limit_param_val = nullptr;
+        if (!PyArg_ParseTuple(
+                kv, "sO:pair", &limit_param_name, &limit_param_val)) {
           derr << __func__ << " limit item " << j << " not a size 2 tuple"
                << dendl;
           Py_RETURN_NONE;
@@ -1159,7 +1127,7 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
   }
 
   if (limit) {
-    auto &ds = query.performance_counter_descriptors;
+    auto& ds = query.performance_counter_descriptors;
     if (std::find(ds.begin(), ds.end(), limit->order_by) == ds.end()) {
       derr << __func__ << " limit order_by " << limit->order_by
            << " not in performance_counter_descriptors" << dendl;
@@ -1172,7 +1140,7 @@ ceph_add_osd_perf_query(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_remove_osd_perf_query(BaseMgrModule *self, PyObject *args)
+ceph_remove_osd_perf_query(BaseMgrModule* self, PyObject* args)
 {
   MetricQueryID query_id;
   if (!PyArg_ParseTuple(args, "i:ceph_remove_osd_perf_query", &query_id)) {
@@ -1185,7 +1153,7 @@ ceph_remove_osd_perf_query(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_get_osd_perf_counters(BaseMgrModule *self, PyObject *args)
+ceph_get_osd_perf_counters(BaseMgrModule* self, PyObject* args)
 {
   MetricQueryID query_id;
   if (!PyArg_ParseTuple(args, "i:ceph_get_osd_perf_counters", &query_id)) {
@@ -1200,7 +1168,7 @@ ceph_get_osd_perf_counters(BaseMgrModule *self, PyObject *args)
 // style
 
 static PyObject*
-ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
+ceph_add_mds_perf_query(BaseMgrModule* self, PyObject* args)
 {
   static const std::string NAME_KEY_DESCRIPTOR = "key_descriptor";
   static const std::string NAME_COUNTERS_DESCRIPTORS =
@@ -1211,38 +1179,46 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
   static const std::string NAME_LIMIT_ORDER_BY = "order_by";
   static const std::string NAME_LIMIT_MAX_COUNT = "max_count";
   static const std::map<std::string, MDSPerfMetricSubKeyType> sub_key_types = {
-    {"mds_rank", MDSPerfMetricSubKeyType::MDS_RANK},
-    {"client_id", MDSPerfMetricSubKeyType::CLIENT_ID},
-    {"subvolume_path", MDSPerfMetricSubKeyType::SUBVOLUME_PATH},
+      {"mds_rank", MDSPerfMetricSubKeyType::MDS_RANK},
+      {"client_id", MDSPerfMetricSubKeyType::CLIENT_ID},
+      {"subvolume_path", MDSPerfMetricSubKeyType::SUBVOLUME_PATH},
   };
   static const std::map<std::string, MDSPerformanceCounterType> counter_types = {
-    {"cap_hit", MDSPerformanceCounterType::CAP_HIT_METRIC},
-    {"read_latency", MDSPerformanceCounterType::READ_LATENCY_METRIC},
-    {"write_latency", MDSPerformanceCounterType::WRITE_LATENCY_METRIC},
-    {"metadata_latency", MDSPerformanceCounterType::METADATA_LATENCY_METRIC},
-    {"dentry_lease", MDSPerformanceCounterType::DENTRY_LEASE_METRIC},
-    {"opened_files", MDSPerformanceCounterType::OPENED_FILES_METRIC},
-    {"pinned_icaps", MDSPerformanceCounterType::PINNED_ICAPS_METRIC},
-    {"opened_inodes", MDSPerformanceCounterType::OPENED_INODES_METRIC},
-    {"read_io_sizes", MDSPerformanceCounterType::READ_IO_SIZES_METRIC},
-    {"write_io_sizes", MDSPerformanceCounterType::WRITE_IO_SIZES_METRIC},
-    {"avg_read_latency", MDSPerformanceCounterType::AVG_READ_LATENCY_METRIC},
-    {"stdev_read_latency", MDSPerformanceCounterType::STDEV_READ_LATENCY_METRIC},
-    {"avg_write_latency", MDSPerformanceCounterType::AVG_WRITE_LATENCY_METRIC},
-    {"stdev_write_latency", MDSPerformanceCounterType::STDEV_WRITE_LATENCY_METRIC},
-    {"avg_metadata_latency", MDSPerformanceCounterType::AVG_METADATA_LATENCY_METRIC},
-    {"stdev_metadata_latency", MDSPerformanceCounterType::STDEV_METADATA_LATENCY_METRIC},
-    {"subv_read_iops", MDSPerformanceCounterType::SUBV_READ_IOPS_METRIC},
-    {"subv_write_iops", MDSPerformanceCounterType::SUBV_WRITE_IOPS_METRIC},
-    {"subv_read_throughput", MDSPerformanceCounterType::SUBV_READ_THROUGHPUT_METRIC},
-    {"subv_write_throughput", MDSPerformanceCounterType::SUBV_WRITE_THROUGHPUT_METRIC},
-    {"subv_avg_read_latency", MDSPerformanceCounterType::SUBV_AVG_READ_LATENCY_METRIC},
-    {"subv_avg_write_latency", MDSPerformanceCounterType::SUBV_AVG_WRITE_LATENCY_METRIC},
-    {"subv_quota_bytes", MDSPerformanceCounterType::SUBV_QUOTA_BYTES_METRIC},
-    {"subv_used_bytes", MDSPerformanceCounterType::SUBV_USED_BYTES_METRIC},
+      {"cap_hit", MDSPerformanceCounterType::CAP_HIT_METRIC},
+      {"read_latency", MDSPerformanceCounterType::READ_LATENCY_METRIC},
+      {"write_latency", MDSPerformanceCounterType::WRITE_LATENCY_METRIC},
+      {"metadata_latency", MDSPerformanceCounterType::METADATA_LATENCY_METRIC},
+      {"dentry_lease", MDSPerformanceCounterType::DENTRY_LEASE_METRIC},
+      {"opened_files", MDSPerformanceCounterType::OPENED_FILES_METRIC},
+      {"pinned_icaps", MDSPerformanceCounterType::PINNED_ICAPS_METRIC},
+      {"opened_inodes", MDSPerformanceCounterType::OPENED_INODES_METRIC},
+      {"read_io_sizes", MDSPerformanceCounterType::READ_IO_SIZES_METRIC},
+      {"write_io_sizes", MDSPerformanceCounterType::WRITE_IO_SIZES_METRIC},
+      {"avg_read_latency", MDSPerformanceCounterType::AVG_READ_LATENCY_METRIC},
+      {"stdev_read_latency",
+       MDSPerformanceCounterType::STDEV_READ_LATENCY_METRIC},
+      {"avg_write_latency", MDSPerformanceCounterType::AVG_WRITE_LATENCY_METRIC},
+      {"stdev_write_latency",
+       MDSPerformanceCounterType::STDEV_WRITE_LATENCY_METRIC},
+      {"avg_metadata_latency",
+       MDSPerformanceCounterType::AVG_METADATA_LATENCY_METRIC},
+      {"stdev_metadata_latency",
+       MDSPerformanceCounterType::STDEV_METADATA_LATENCY_METRIC},
+      {"subv_read_iops", MDSPerformanceCounterType::SUBV_READ_IOPS_METRIC},
+      {"subv_write_iops", MDSPerformanceCounterType::SUBV_WRITE_IOPS_METRIC},
+      {"subv_read_throughput",
+       MDSPerformanceCounterType::SUBV_READ_THROUGHPUT_METRIC},
+      {"subv_write_throughput",
+       MDSPerformanceCounterType::SUBV_WRITE_THROUGHPUT_METRIC},
+      {"subv_avg_read_latency",
+       MDSPerformanceCounterType::SUBV_AVG_READ_LATENCY_METRIC},
+      {"subv_avg_write_latency",
+       MDSPerformanceCounterType::SUBV_AVG_WRITE_LATENCY_METRIC},
+      {"subv_quota_bytes", MDSPerformanceCounterType::SUBV_QUOTA_BYTES_METRIC},
+      {"subv_used_bytes", MDSPerformanceCounterType::SUBV_USED_BYTES_METRIC},
   };
 
-  PyObject *py_query = nullptr;
+  PyObject* py_query = nullptr;
   if (!PyArg_ParseTuple(args, "O:ceph_add_mds_perf_query", &py_query)) {
     derr << "Invalid args!" << dendl;
     return nullptr;
@@ -1252,7 +1228,7 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
     Py_RETURN_NONE;
   }
 
-  PyObject *query_params = PyDict_Items(py_query);
+  PyObject* query_params = PyDict_Items(py_query);
   MDSPerfMetricQuery query;
   std::optional<MDSPerfMetricLimit> limit;
 
@@ -1268,9 +1244,9 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
   // }
 
   for (int i = 0; i < PyList_Size(query_params); ++i) {
-    PyObject *kv = PyList_GET_ITEM(query_params, i);
-    char *query_param_name = nullptr;
-    PyObject *query_param_val = nullptr;
+    PyObject* kv = PyList_GET_ITEM(query_params, i);
+    char* query_param_name = nullptr;
+    PyObject* query_param_val = nullptr;
     if (!PyArg_ParseTuple(kv, "sO:pair", &query_param_name, &query_param_val)) {
       derr << __func__ << " dict item " << i << " not a size 2 tuple" << dendl;
       Py_RETURN_NONE;
@@ -1281,23 +1257,23 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
         Py_RETURN_NONE;
       }
       for (int j = 0; j < PyList_Size(query_param_val); j++) {
-        PyObject *sub_key = PyList_GET_ITEM(query_param_val, j);
+        PyObject* sub_key = PyList_GET_ITEM(query_param_val, j);
         if (!PyDict_Check(sub_key)) {
           derr << __func__ << " query " << query_param_name << " item " << j
                << " not a dict" << dendl;
           Py_RETURN_NONE;
         }
         MDSPerfMetricSubKeyDescriptor d;
-        PyObject *sub_key_params = PyDict_Items(sub_key);
+        PyObject* sub_key_params = PyDict_Items(sub_key);
         for (int k = 0; k < PyList_Size(sub_key_params); ++k) {
-          PyObject *pair = PyList_GET_ITEM(sub_key_params, k);
+          PyObject* pair = PyList_GET_ITEM(sub_key_params, k);
           if (!PyTuple_Check(pair)) {
             derr << __func__ << " query " << query_param_name << " item " << j
                  << " pair " << k << " not a tuple" << dendl;
             Py_RETURN_NONE;
           }
-          char *param_name = nullptr;
-          PyObject *param_value = nullptr;
+          char* param_name = nullptr;
+          PyObject* param_value = nullptr;
           if (!PyArg_ParseTuple(pair, "sO:pair", &param_name, &param_value)) {
             derr << __func__ << " query " << query_param_name << " item " << j
                  << " pair " << k << " not a size 2 tuple" << dendl;
@@ -1357,7 +1333,7 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
         Py_RETURN_NONE;
       }
       for (int j = 0; j < PyList_Size(query_param_val); j++) {
-        PyObject *py_type = PyList_GET_ITEM(query_param_val, j);
+        PyObject* py_type = PyList_GET_ITEM(query_param_val, j);
         if (!PyUnicode_Check(py_type)) {
           derr << __func__ << " query " << query_param_name << " item " << j
                << " not a string" << dendl;
@@ -1380,14 +1356,14 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
       }
 
       limit = MDSPerfMetricLimit();
-      PyObject *limit_params = PyDict_Items(query_param_val);
+      PyObject* limit_params = PyDict_Items(query_param_val);
 
       for (int j = 0; j < PyList_Size(limit_params); ++j) {
-        PyObject *kv = PyList_GET_ITEM(limit_params, j);
-        char *limit_param_name = nullptr;
-        PyObject *limit_param_val = nullptr;
-        if (!PyArg_ParseTuple(kv, "sO:pair", &limit_param_name,
-                              &limit_param_val)) {
+        PyObject* kv = PyList_GET_ITEM(limit_params, j);
+        char* limit_param_name = nullptr;
+        PyObject* limit_param_val = nullptr;
+        if (!PyArg_ParseTuple(
+                kv, "sO:pair", &limit_param_name, &limit_param_val)) {
           derr << __func__ << " limit item " << j << " not a size 2 tuple"
                << dendl;
           Py_RETURN_NONE;
@@ -1432,7 +1408,7 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
   }
 
   if (limit) {
-    auto &ds = query.performance_counter_descriptors;
+    auto& ds = query.performance_counter_descriptors;
     if (std::find(ds.begin(), ds.end(), limit->order_by) == ds.end()) {
       derr << __func__ << " limit order_by " << limit->order_by
            << " not in performance_counter_descriptors" << dendl;
@@ -1445,7 +1421,7 @@ ceph_add_mds_perf_query(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_remove_mds_perf_query(BaseMgrModule *self, PyObject *args)
+ceph_remove_mds_perf_query(BaseMgrModule* self, PyObject* args)
 {
   MetricQueryID query_id;
   if (!PyArg_ParseTuple(args, "i:ceph_remove_mds_perf_query", &query_id)) {
@@ -1458,14 +1434,14 @@ ceph_remove_mds_perf_query(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_reregister_mds_perf_queries(BaseMgrModule *self, PyObject *args)
+ceph_reregister_mds_perf_queries(BaseMgrModule* self, PyObject* args)
 {
   self->py_modules->reregister_mds_perf_queries();
   Py_RETURN_NONE;
 }
 
 static PyObject*
-ceph_get_mds_perf_counters(BaseMgrModule *self, PyObject *args)
+ceph_get_mds_perf_counters(BaseMgrModule* self, PyObject* args)
 {
   MetricQueryID query_id;
   if (!PyArg_ParseTuple(args, "i:ceph_get_mds_perf_counters", &query_id)) {
@@ -1477,9 +1453,9 @@ ceph_get_mds_perf_counters(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_is_authorized(BaseMgrModule *self, PyObject *args)
+ceph_is_authorized(BaseMgrModule* self, PyObject* args)
 {
-  PyObject *args_dict = NULL;
+  PyObject* args_dict = NULL;
   if (!PyArg_ParseTuple(args, "O:ceph_is_authorized", &args_dict)) {
     return nullptr;
   }
@@ -1491,12 +1467,12 @@ ceph_is_authorized(BaseMgrModule *self, PyObject *args)
 
   std::map<std::string, std::string> arguments;
 
-  PyObject *args_list = PyDict_Items(args_dict);
+  PyObject* args_list = PyDict_Items(args_dict);
   for (int i = 0; i < PyList_Size(args_list); ++i) {
-    PyObject *kv = PyList_GET_ITEM(args_list, i);
+    PyObject* kv = PyList_GET_ITEM(args_list, i);
 
-    char *arg_key = nullptr;
-    char *arg_value = nullptr;
+    char* arg_key = nullptr;
+    char* arg_value = nullptr;
     if (!PyArg_ParseTuple(kv, "ss:pair", &arg_key, &arg_value)) {
       derr << __func__ << " dict item " << i << " not a size 2 tuple" << dendl;
       continue;
@@ -1516,51 +1492,51 @@ ceph_is_authorized(BaseMgrModule *self, PyObject *args)
 }
 
 static PyObject*
-ceph_register_client(BaseMgrModule *self, PyObject *args)
+ceph_register_client(BaseMgrModule* self, PyObject* args)
 {
   const char* _name = nullptr;
   char* addrs = nullptr;
   int replace = 0;
-  if (!PyArg_ParseTuple(args, "zsp:ceph_register_client", &_name, &addrs, &replace)) {
+  if (!PyArg_ParseTuple(
+          args, "zsp:ceph_register_client", &_name, &addrs, &replace)) {
     return nullptr;
   }
-  auto name = _name ? std::string(_name) : std::string(self->this_module->get_name());
-  without_gil([&] {
-    self->py_modules->register_client(name, addrs, replace);
-  });
+  auto name = _name ? std::string(_name)
+                    : std::string(self->this_module->get_name());
+  without_gil([&] { self->py_modules->register_client(name, addrs, replace); });
   Py_RETURN_NONE;
 }
 
 static PyObject*
-ceph_unregister_client(BaseMgrModule *self, PyObject *args)
+ceph_unregister_client(BaseMgrModule* self, PyObject* args)
 {
   const char* _name = nullptr;
   char* addrs = nullptr;
   if (!PyArg_ParseTuple(args, "zs:ceph_unregister_client", &_name, &addrs)) {
     return nullptr;
   }
-  auto name = _name ? std::string(_name) : std::string(self->this_module->get_name());
-  without_gil([&] {
-    self->py_modules->unregister_client(name, addrs);
-  });
+  auto name = _name ? std::string(_name)
+                    : std::string(self->this_module->get_name());
+  without_gil([&] { self->py_modules->unregister_client(name, addrs); });
   Py_RETURN_NONE;
 }
 
 static PyObject*
-ceph_get_daemon_health_metrics(BaseMgrModule *self, PyObject *args)
+ceph_get_daemon_health_metrics(BaseMgrModule* self, PyObject* args)
 {
   return self->py_modules->get_daemon_health_metrics();
 }
 
 static PyObject*
-ceph_exit(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
+ceph_exit(BaseMgrModule* self, PyObject* args, PyObject* kwargs)
 {
   int status = 0;
   int hard = 0;
-  static const char *keywords[] = { "status", "hard", nullptr };
+  static const char* keywords[] = {"status", "hard", nullptr};
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|p:ceph_exit",
-        const_cast<char**>(keywords), &status, &hard)) {
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "i|p:ceph_exit", const_cast<char**>(keywords), &status,
+          &hard)) {
     return nullptr;
   }
 
@@ -1572,7 +1548,7 @@ ceph_exit(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
   } else {
     // Standard C library exit (runs atexit handlers, flushes stdio)
     // It is good practice to release the GIL before abruptly terminating the C process.
-    PyThreadState *tstate = PyEval_SaveThread();
+    PyThreadState* tstate = PyEval_SaveThread();
     std::exit(status);
     PyEval_RestoreThread(tstate);
   }
@@ -1582,224 +1558,225 @@ ceph_exit(BaseMgrModule *self, PyObject *args, PyObject *kwargs)
 }
 
 PyMethodDef BaseMgrModule_methods[] = {
-  {"_ceph_exit", (PyCFunction)ceph_exit, METH_VARARGS | METH_KEYWORDS,
-   "Exit the ceph-mgr process directly, bypassing Python's sys/os modules."},
+    {"_ceph_exit", (PyCFunction)ceph_exit, METH_VARARGS | METH_KEYWORDS,
+     "Exit the ceph-mgr process directly, bypassing Python's sys/os modules."},
 
-  {"_ceph_get", (PyCFunction)ceph_state_get, METH_VARARGS,
-   "Get a cluster object"},
+    {"_ceph_get", (PyCFunction)ceph_state_get, METH_VARARGS,
+     "Get a cluster object"},
 
-  {"_ceph_notify_all", (PyCFunction)ceph_notify_all, METH_VARARGS,
-   "notify all modules"},
+    {"_ceph_notify_all", (PyCFunction)ceph_notify_all, METH_VARARGS,
+     "notify all modules"},
 
-  {"_ceph_get_server", (PyCFunction)ceph_get_server, METH_VARARGS,
-   "Get a server object"},
+    {"_ceph_get_server", (PyCFunction)ceph_get_server, METH_VARARGS,
+     "Get a server object"},
 
-  {"_ceph_get_metadata", (PyCFunction)get_metadata, METH_VARARGS,
-   "Get a service's metadata"},
+    {"_ceph_get_metadata", (PyCFunction)get_metadata, METH_VARARGS,
+     "Get a service's metadata"},
 
-  {"_ceph_get_daemon_status", (PyCFunction)get_daemon_status, METH_VARARGS,
-   "Get a service's status"},
+    {"_ceph_get_daemon_status", (PyCFunction)get_daemon_status, METH_VARARGS,
+     "Get a service's status"},
 
-  {"_ceph_send_command", (PyCFunction)ceph_send_command, METH_VARARGS | METH_KEYWORDS,
-   "Send a mon command"},
+    {"_ceph_send_command", (PyCFunction)ceph_send_command,
+     METH_VARARGS | METH_KEYWORDS, "Send a mon command"},
 
-  {"_ceph_set_health_checks", (PyCFunction)ceph_set_health_checks, METH_VARARGS,
-   "Set health checks for this module"},
+    {"_ceph_set_health_checks", (PyCFunction)ceph_set_health_checks,
+     METH_VARARGS, "Set health checks for this module"},
 
-  {"_ceph_get_mgr_id", (PyCFunction)ceph_get_mgr_id, METH_NOARGS,
-   "Get the name of the Mgr daemon where we are running"},
+    {"_ceph_get_mgr_id", (PyCFunction)ceph_get_mgr_id, METH_NOARGS,
+     "Get the name of the Mgr daemon where we are running"},
 
-  {"_ceph_get_ceph_conf_path", (PyCFunction)ceph_get_ceph_conf_path, METH_NOARGS,
-   "Get path to ceph.conf"},
+    {"_ceph_get_ceph_conf_path", (PyCFunction)ceph_get_ceph_conf_path,
+     METH_NOARGS, "Get path to ceph.conf"},
 
-  {"_ceph_get_option", (PyCFunction)ceph_option_get, METH_VARARGS,
-   "Get a native configuration option value"},
+    {"_ceph_get_option", (PyCFunction)ceph_option_get, METH_VARARGS,
+     "Get a native configuration option value"},
 
-  {"_ceph_get_foreign_option", (PyCFunction)ceph_foreign_option_get, METH_VARARGS,
-   "Get a native configuration option value for another entity"},
+    {"_ceph_get_foreign_option", (PyCFunction)ceph_foreign_option_get,
+     METH_VARARGS, "Get a native configuration option value for another entity"},
 
-  {"_ceph_get_module_option", (PyCFunction)ceph_get_module_option, METH_VARARGS,
-   "Get a module configuration option value"},
+    {"_ceph_get_module_option", (PyCFunction)ceph_get_module_option,
+     METH_VARARGS, "Get a module configuration option value"},
 
-  {"_ceph_get_store_prefix", (PyCFunction)ceph_store_get_prefix, METH_VARARGS,
-   "Get all KV store values with a given prefix"},
+    {"_ceph_get_store_prefix", (PyCFunction)ceph_store_get_prefix, METH_VARARGS,
+     "Get all KV store values with a given prefix"},
 
-  {"_ceph_set_module_option", (PyCFunction)ceph_set_module_option, METH_VARARGS,
-   "Set a module configuration option value"},
+    {"_ceph_set_module_option", (PyCFunction)ceph_set_module_option,
+     METH_VARARGS, "Set a module configuration option value"},
 
-  {"_ceph_get_store", (PyCFunction)ceph_store_get, METH_VARARGS,
-   "Get a stored field"},
+    {"_ceph_get_store", (PyCFunction)ceph_store_get, METH_VARARGS,
+     "Get a stored field"},
 
-  {"_ceph_set_store", (PyCFunction)ceph_store_set, METH_VARARGS,
-   "Set a stored field"},
+    {"_ceph_set_store", (PyCFunction)ceph_store_set, METH_VARARGS,
+     "Set a stored field"},
 
-  {"_ceph_get_unlabeled_counter", (PyCFunction)get_unlabeled_counter, METH_VARARGS,
-   "Get a performance counter"},
+    {"_ceph_get_unlabeled_counter", (PyCFunction)get_unlabeled_counter,
+     METH_VARARGS, "Get a performance counter"},
 
-  {"_ceph_get_latest_unlabeled_counter", (PyCFunction)get_latest_unlabeled_counter, METH_VARARGS,
-   "Fetch (or get) the latest (or updated) value of an unlabeled counter"},
+    {"_ceph_get_latest_unlabeled_counter",
+     (PyCFunction)get_latest_unlabeled_counter, METH_VARARGS,
+     "Fetch (or get) the latest (or updated) value of an unlabeled counter"},
 
-  {"_ceph_get_latest_counter", (PyCFunction)get_latest_counter, METH_VARARGS,
-   "Fetch (or get) the latest (or updated) value of a performance counter"},
+    {"_ceph_get_latest_counter", (PyCFunction)get_latest_counter, METH_VARARGS,
+     "Fetch (or get) the latest (or updated) value of a performance counter"},
 
-  {"_ceph_get_unlabeled_perf_schema", (PyCFunction)get_unlabeled_perf_schema, METH_VARARGS,
-   "Get the unlabeled performance counter schema"},
+    {"_ceph_get_unlabeled_perf_schema", (PyCFunction)get_unlabeled_perf_schema,
+     METH_VARARGS, "Get the unlabeled performance counter schema"},
 
-  {"_ceph_get_perf_schema", (PyCFunction)get_perf_schema, METH_VARARGS,
-   "Get the performance counter schema"},
+    {"_ceph_get_perf_schema", (PyCFunction)get_perf_schema, METH_VARARGS,
+     "Get the performance counter schema"},
 
-  {"_ceph_get_rocksdb_version", (PyCFunction)ceph_get_rocksdb_version, METH_NOARGS,
-    "Get the current RocksDB version number"},
+    {"_ceph_get_rocksdb_version", (PyCFunction)ceph_get_rocksdb_version,
+     METH_NOARGS, "Get the current RocksDB version number"},
 
-  {"_ceph_log", (PyCFunction)ceph_log, METH_VARARGS,
-   "Emit a (local) log message"},
+    {"_ceph_log", (PyCFunction)ceph_log, METH_VARARGS,
+     "Emit a (local) log message"},
 
-  {"_ceph_cluster_log", (PyCFunction)ceph_cluster_log, METH_VARARGS,
-   "Emit a cluster log message"},
+    {"_ceph_cluster_log", (PyCFunction)ceph_cluster_log, METH_VARARGS,
+     "Emit a cluster log message"},
 
-  {"_ceph_get_version", (PyCFunction)ceph_get_version, METH_NOARGS,
-   "Get the ceph version of this process"},
+    {"_ceph_get_version", (PyCFunction)ceph_get_version, METH_NOARGS,
+     "Get the ceph version of this process"},
 
-  {"_ceph_get_release_name", (PyCFunction)ceph_get_release_name, METH_NOARGS,
-   "Get the ceph release name of this process"},
+    {"_ceph_get_release_name", (PyCFunction)ceph_get_release_name, METH_NOARGS,
+     "Get the ceph release name of this process"},
 
-  {"_ceph_lookup_release_name", (PyCFunction)ceph_lookup_release_name, METH_VARARGS,
-   "Get the ceph release name for a given major number"},
+    {"_ceph_lookup_release_name", (PyCFunction)ceph_lookup_release_name,
+     METH_VARARGS, "Get the ceph release name for a given major number"},
 
-  {"_ceph_get_context", (PyCFunction)ceph_get_context, METH_NOARGS,
-    "Get a CephContext* in a python capsule"},
+    {"_ceph_get_context", (PyCFunction)ceph_get_context, METH_NOARGS,
+     "Get a CephContext* in a python capsule"},
 
-  {"_ceph_get_osdmap", (PyCFunction)ceph_get_osdmap, METH_NOARGS,
-    "Get an OSDMap* in a python capsule"},
+    {"_ceph_get_osdmap", (PyCFunction)ceph_get_osdmap, METH_NOARGS,
+     "Get an OSDMap* in a python capsule"},
 
-  {"_ceph_set_uri", (PyCFunction)ceph_set_uri, METH_VARARGS,
-    "Advertize a service URI served by this module"},
+    {"_ceph_set_uri", (PyCFunction)ceph_set_uri, METH_VARARGS,
+     "Advertize a service URI served by this module"},
 
-  {"_ceph_set_device_wear_level", (PyCFunction)ceph_set_wear_level, METH_VARARGS,
-   "Set device wear_level value"},
+    {"_ceph_set_device_wear_level", (PyCFunction)ceph_set_wear_level,
+     METH_VARARGS, "Set device wear_level value"},
 
-  {"_ceph_have_mon_connection", (PyCFunction)ceph_have_mon_connection,
-    METH_NOARGS, "Find out whether this mgr daemon currently has "
-                 "a connection to a monitor"},
+    {"_ceph_have_mon_connection", (PyCFunction)ceph_have_mon_connection,
+     METH_NOARGS,
+     "Find out whether this mgr daemon currently has "
+     "a connection to a monitor"},
 
-  {"_ceph_update_progress_event", (PyCFunction)ceph_update_progress_event,
-   METH_VARARGS, "Update status of a progress event"},
-  {"_ceph_complete_progress_event", (PyCFunction)ceph_complete_progress_event,
-   METH_VARARGS, "Complete a progress event"},
-  {"_ceph_clear_all_progress_events", (PyCFunction)ceph_clear_all_progress_events,
-   METH_NOARGS, "Clear all progress events"},
+    {"_ceph_update_progress_event", (PyCFunction)ceph_update_progress_event,
+     METH_VARARGS, "Update status of a progress event"},
+    {"_ceph_complete_progress_event", (PyCFunction)ceph_complete_progress_event,
+     METH_VARARGS, "Complete a progress event"},
+    {"_ceph_clear_all_progress_events",
+     (PyCFunction)ceph_clear_all_progress_events, METH_NOARGS,
+     "Clear all progress events"},
 
-  {"_ceph_dispatch_remote", (PyCFunction)ceph_dispatch_remote,
-    METH_VARARGS, "Dispatch a call to another module"},
+    {"_ceph_dispatch_remote", (PyCFunction)ceph_dispatch_remote, METH_VARARGS,
+     "Dispatch a call to another module"},
 
-  {"_ceph_add_osd_perf_query", (PyCFunction)ceph_add_osd_perf_query,
-    METH_VARARGS, "Add an osd perf query"},
+    {"_ceph_add_osd_perf_query", (PyCFunction)ceph_add_osd_perf_query,
+     METH_VARARGS, "Add an osd perf query"},
 
-  {"_ceph_remove_osd_perf_query", (PyCFunction)ceph_remove_osd_perf_query,
-    METH_VARARGS, "Remove an osd perf query"},
+    {"_ceph_remove_osd_perf_query", (PyCFunction)ceph_remove_osd_perf_query,
+     METH_VARARGS, "Remove an osd perf query"},
 
-  {"_ceph_get_osd_perf_counters", (PyCFunction)ceph_get_osd_perf_counters,
-    METH_VARARGS, "Get osd perf counters"},
+    {"_ceph_get_osd_perf_counters", (PyCFunction)ceph_get_osd_perf_counters,
+     METH_VARARGS, "Get osd perf counters"},
 
-  {"_ceph_add_mds_perf_query", (PyCFunction)ceph_add_mds_perf_query,
-    METH_VARARGS, "Add an mds perf query"},
+    {"_ceph_add_mds_perf_query", (PyCFunction)ceph_add_mds_perf_query,
+     METH_VARARGS, "Add an mds perf query"},
 
-  {"_ceph_remove_mds_perf_query", (PyCFunction)ceph_remove_mds_perf_query,
-    METH_VARARGS, "Remove an mds perf query"},
+    {"_ceph_remove_mds_perf_query", (PyCFunction)ceph_remove_mds_perf_query,
+     METH_VARARGS, "Remove an mds perf query"},
 
-  {"_ceph_reregister_mds_perf_queries", (PyCFunction)ceph_reregister_mds_perf_queries,
-    METH_NOARGS, "Re-register mds perf queries"},
+    {"_ceph_reregister_mds_perf_queries",
+     (PyCFunction)ceph_reregister_mds_perf_queries, METH_NOARGS,
+     "Re-register mds perf queries"},
 
-  {"_ceph_get_mds_perf_counters", (PyCFunction)ceph_get_mds_perf_counters,
-    METH_VARARGS, "Get mds perf counters"},
+    {"_ceph_get_mds_perf_counters", (PyCFunction)ceph_get_mds_perf_counters,
+     METH_VARARGS, "Get mds perf counters"},
 
-  {"_ceph_is_authorized", (PyCFunction)ceph_is_authorized,
-    METH_VARARGS, "Verify the current session caps are valid"},
+    {"_ceph_is_authorized", (PyCFunction)ceph_is_authorized, METH_VARARGS,
+     "Verify the current session caps are valid"},
 
-  {"_ceph_register_client", (PyCFunction)ceph_register_client,
-    METH_VARARGS, "Register RADOS instance for potential blocklisting"},
+    {"_ceph_register_client", (PyCFunction)ceph_register_client, METH_VARARGS,
+     "Register RADOS instance for potential blocklisting"},
 
-  {"_ceph_unregister_client", (PyCFunction)ceph_unregister_client,
-    METH_VARARGS, "Unregister RADOS instance for potential blocklisting"},
+    {"_ceph_unregister_client", (PyCFunction)ceph_unregister_client,
+     METH_VARARGS, "Unregister RADOS instance for potential blocklisting"},
 
-  {"_ceph_get_daemon_health_metrics", (PyCFunction)ceph_get_daemon_health_metrics,
-    METH_VARARGS, "Get health metrics for all daemons"},
+    {"_ceph_get_daemon_health_metrics",
+     (PyCFunction)ceph_get_daemon_health_metrics, METH_VARARGS,
+     "Get health metrics for all daemons"},
 
-  {NULL, NULL, 0, NULL}
-};
+    {NULL, NULL, 0, NULL}};
 
-
-static PyObject *
-BaseMgrModule_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject*
+BaseMgrModule_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
-    BaseMgrModule *self;
+  BaseMgrModule* self;
 
-    self = (BaseMgrModule *)type->tp_alloc(type, 0);
+  self = (BaseMgrModule*)type->tp_alloc(type, 0);
 
-    return (PyObject *)self;
+  return (PyObject*)self;
 }
 
 static int
-BaseMgrModule_init(BaseMgrModule *self, PyObject *args, PyObject *kwds)
+BaseMgrModule_init(BaseMgrModule* self, PyObject* args, PyObject* kwds)
 {
-    PyObject *py_modules_capsule = nullptr;
-    PyObject *this_module_capsule = nullptr;
-    static const char *kwlist[] = {"py_modules", "this_module", NULL};
+  PyObject* py_modules_capsule = nullptr;
+  PyObject* this_module_capsule = nullptr;
+  static const char* kwlist[] = {"py_modules", "this_module", NULL};
 
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "OO",
-                                      const_cast<char**>(kwlist),
-                                      &py_modules_capsule,
-                                      &this_module_capsule)) {
-        return -1;
-    }
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwds, "OO", const_cast<char**>(kwlist), &py_modules_capsule,
+          &this_module_capsule)) {
+    return -1;
+  }
 
-    self->py_modules = static_cast<ActivePyModules*>(PyCapsule_GetPointer(
-        py_modules_capsule, nullptr));
-    ceph_assert(self->py_modules);
-    self->this_module = static_cast<ActivePyModule*>(PyCapsule_GetPointer(
-        this_module_capsule, nullptr));
-    ceph_assert(self->this_module);
+  self->py_modules = static_cast<ActivePyModules*>(
+      PyCapsule_GetPointer(py_modules_capsule, nullptr));
+  ceph_assert(self->py_modules);
+  self->this_module = static_cast<ActivePyModule*>(
+      PyCapsule_GetPointer(this_module_capsule, nullptr));
+  ceph_assert(self->this_module);
 
-    return 0;
+  return 0;
 }
 
 PyTypeObject BaseMgrModuleType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-  "ceph_module.BaseMgrModule", /* tp_name */
-  sizeof(BaseMgrModule),     /* tp_basicsize */
-  0,                         /* tp_itemsize */
-  0,                         /* tp_dealloc */
-  0,                         /* tp_print */
-  0,                         /* tp_getattr */
-  0,                         /* tp_setattr */
-  0,                         /* tp_compare */
-  0,                         /* tp_repr */
-  0,                         /* tp_as_number */
-  0,                         /* tp_as_sequence */
-  0,                         /* tp_as_mapping */
-  0,                         /* tp_hash */
-  0,                         /* tp_call */
-  0,                         /* tp_str */
-  0,                         /* tp_getattro */
-  0,                         /* tp_setattro */
-  0,                         /* tp_as_buffer */
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,        /* tp_flags */
-  "ceph-mgr Python Plugin", /* tp_doc */
-  0,                         /* tp_traverse */
-  0,                         /* tp_clear */
-  0,                         /* tp_richcompare */
-  0,                         /* tp_weaklistoffset */
-  0,                         /* tp_iter */
-  0,                         /* tp_iternext */
-  BaseMgrModule_methods,     /* tp_methods */
-  0,                         /* tp_members */
-  0,                         /* tp_getset */
-  0,                         /* tp_base */
-  0,                         /* tp_dict */
-  0,                         /* tp_descr_get */
-  0,                         /* tp_descr_set */
-  0,                         /* tp_dictoffset */
-  (initproc)BaseMgrModule_init,                         /* tp_init */
-  0,                         /* tp_alloc */
-  BaseMgrModule_new,     /* tp_new */
+    PyVarObject_HEAD_INIT(NULL, 0) "ceph_module.BaseMgrModule", /* tp_name */
+    sizeof(BaseMgrModule), /* tp_basicsize */
+    0, /* tp_itemsize */
+    0, /* tp_dealloc */
+    0, /* tp_print */
+    0, /* tp_getattr */
+    0, /* tp_setattr */
+    0, /* tp_compare */
+    0, /* tp_repr */
+    0, /* tp_as_number */
+    0, /* tp_as_sequence */
+    0, /* tp_as_mapping */
+    0, /* tp_hash */
+    0, /* tp_call */
+    0, /* tp_str */
+    0, /* tp_getattro */
+    0, /* tp_setattro */
+    0, /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+    "ceph-mgr Python Plugin", /* tp_doc */
+    0, /* tp_traverse */
+    0, /* tp_clear */
+    0, /* tp_richcompare */
+    0, /* tp_weaklistoffset */
+    0, /* tp_iter */
+    0, /* tp_iternext */
+    BaseMgrModule_methods, /* tp_methods */
+    0, /* tp_members */
+    0, /* tp_getset */
+    0, /* tp_base */
+    0, /* tp_dict */
+    0, /* tp_descr_get */
+    0, /* tp_descr_set */
+    0, /* tp_dictoffset */
+    (initproc)BaseMgrModule_init, /* tp_init */
+    0, /* tp_alloc */
+    BaseMgrModule_new, /* tp_new */
 };

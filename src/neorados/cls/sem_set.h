@@ -26,11 +26,9 @@
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
-#include "include/buffer.h"
-
-#include "include/neorados/RADOS.hpp"
-
 #include "cls/sem_set/ops.h"
+#include "include/buffer.h"
+#include "include/neorados/RADOS.hpp"
 
 namespace neorados::cls::sem_set {
 using namespace std::literals;
@@ -47,7 +45,8 @@ using ::cls::sem_set::max_keys;
 /// \param key Key to increment
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto increment(std::string key)
+[[nodiscard]] inline auto
+increment(std::string key)
 {
   namespace ss = ::cls::sem_set;
   buffer::list in;
@@ -66,7 +65,8 @@ using ::cls::sem_set::max_keys;
 /// \param keys Keys to increment
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto increment(std::initializer_list<std::string> keys)
+[[nodiscard]] inline auto
+increment(std::initializer_list<std::string> keys)
 {
   namespace ss = ::cls::sem_set;
   namespace buffer = ::ceph::buffer;
@@ -86,7 +86,8 @@ using ::cls::sem_set::max_keys;
 /// \param keys Keys to increment
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto increment(boost::container::flat_set<std::string> keys)
+[[nodiscard]] inline auto
+increment(boost::container::flat_set<std::string> keys)
 {
   namespace ss = ::cls::sem_set;
   namespace buffer = ::ceph::buffer;
@@ -106,10 +107,11 @@ using ::cls::sem_set::max_keys;
 /// \param keys Keys to increment
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-template<std::input_iterator I>
-[[nodiscard]] inline auto increment(I begin, I end)
-  requires std::is_convertible_v<typename std::iterator_traits<I>::value_type,
-				 std::string>
+template <std::input_iterator I>
+[[nodiscard]] inline auto
+increment(I begin, I end)
+  requires std::
+      is_convertible_v<typename std::iterator_traits<I>::value_type, std::string>
 {
   namespace ss = ::cls::sem_set;
   namespace buffer = ::ceph::buffer;
@@ -175,7 +177,9 @@ decrement(std::initializer_list<std::string> keys, ceph::timespan grace = 0ns)
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
 [[nodiscard]] inline auto
-decrement(boost::container::flat_set<std::string> keys, ceph::timespan grace = 0ns)
+decrement(
+    boost::container::flat_set<std::string> keys,
+    ceph::timespan grace = 0ns)
 {
   namespace ss = ::cls::sem_set;
   namespace buffer = ::ceph::buffer;
@@ -224,15 +228,15 @@ decrement(I begin, I end, ceph::timespan grace = 0ns)
 /// in normal RGW operation and can lead to unreplicated objects.
 ///
 /// \return The ClsWriteOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto reset(std::string key, std::uint64_t val)
+[[nodiscard]] inline auto
+reset(std::string key, std::uint64_t val)
 {
   namespace ss = ::cls::sem_set;
   buffer::list in;
   ss::reset call{std::move(key), val};
   encode(call, in);
-  return ClsWriteOp{[in = std::move(in)](WriteOp& op) {
-    op.exec(ss::CLASS, ss::RESET, in);
-  }};
+  return ClsWriteOp{
+      [in = std::move(in)](WriteOp& op) { op.exec(ss::CLASS, ss::RESET, in); }};
 }
 
 /// \brief List keys and semaphores
@@ -247,10 +251,12 @@ decrement(I begin, I end, ceph::timespan grace = 0ns)
 /// \param new_cursor Where to start for the next iteration, empty if completed
 ///
 /// \return The ClsReadOp to be passed to WriteOp::exec
-[[nodiscard]] inline auto list(
-  std::uint64_t count, std::string cursor,
-  boost::container::flat_map<std::string, std::uint64_t>* const entries,
-  std::string* const new_cursor)
+[[nodiscard]] inline auto
+list(
+    std::uint64_t count,
+    std::string cursor,
+    boost::container::flat_map<std::string, std::uint64_t>* const entries,
+    std::string* const new_cursor)
 {
   namespace ss = ::cls::sem_set;
   namespace sys = ::boost::system;
@@ -261,39 +267,38 @@ decrement(I begin, I end, ceph::timespan grace = 0ns)
   call.cursor = std::move(cursor);
 
   encode(call, in);
-  return ClsReadOp{[entries, new_cursor,
-		    in = std::move(in)](ReadOp& op) {
-    op.exec(ss::CLASS, ss::LIST, in,
-	    [entries, new_cursor](sys::error_code ec, const buffer::list& bl) {
-	      ss::list_ret ret;
-	      if (!ec) {
-		auto iter = bl.cbegin();
-		try {
-		  decode(ret, iter);
-		} catch (const sys::system_error& e) {
-		  if (e.code() == buffer::errc::end_of_buffer &&
-		      bl.length() == 0) {
-		    // It looks like if the object doesn't exist the
-		    // CLS function isn't called and we don't get
-		    // -ENOENT even though we get it for the op, we
-		    // just get an empty buffer. This is crap.
-		    if (new_cursor) {
-		      new_cursor->clear();
-		    }
-		    return;
-		  } else {
-		    throw;
-		  }
-		}
-		if (entries) {
-		  entries->reserve(entries->size() + ret.kvs.size());
-		  entries->merge(std::move(ret.kvs));
-		}
-		if (new_cursor) {
-		  *new_cursor = std::move(ret.cursor);
-		}
-	      }
-	    });
+  return ClsReadOp{[entries, new_cursor, in = std::move(in)](ReadOp& op) {
+    op.exec(
+        ss::CLASS, ss::LIST, in,
+        [entries, new_cursor](sys::error_code ec, const buffer::list& bl) {
+          ss::list_ret ret;
+          if (!ec) {
+            auto iter = bl.cbegin();
+            try {
+              decode(ret, iter);
+            } catch (const sys::system_error& e) {
+              if (e.code() == buffer::errc::end_of_buffer && bl.length() == 0) {
+                // It looks like if the object doesn't exist the
+                // CLS function isn't called and we don't get
+                // -ENOENT even though we get it for the op, we
+                // just get an empty buffer. This is crap.
+                if (new_cursor) {
+                  new_cursor->clear();
+                }
+                return;
+              } else {
+                throw;
+              }
+            }
+            if (entries) {
+              entries->reserve(entries->size() + ret.kvs.size());
+              entries->merge(std::move(ret.kvs));
+            }
+            if (new_cursor) {
+              *new_cursor = std::move(ret.cursor);
+            }
+          }
+        });
   }};
 }
 
@@ -307,10 +312,13 @@ decrement(I begin, I end, ceph::timespan grace = 0ns)
 /// \param new_cursor Where to start for the next iteration, empty if completed
 ///
 /// \return The ClsReadOp to be passed to WriteOp::exec
-template<std::output_iterator<std::pair<std::string, std::uint64_t>> I>
-[[nodiscard]] inline auto list(std::uint64_t count,
-			       std::string cursor, I output,
-			       std::string* const new_cursor)
+template <std::output_iterator<std::pair<std::string, std::uint64_t>> I>
+[[nodiscard]] inline auto
+list(
+    std::uint64_t count,
+    std::string cursor,
+    I output,
+    std::string* const new_cursor)
 {
   namespace ss = ::cls::sem_set;
   using boost::system::error_code;
@@ -321,20 +329,20 @@ template<std::output_iterator<std::pair<std::string, std::uint64_t>> I>
   call.cursor = std::move(cursor);
 
   encode(call, in);
-  return ClsReadOp{[output, new_cursor,
-		    in = std::move(in)](ReadOp& op) {
-    op.exec(ss::CLASS, ss::LIST, in,
-	    [output, new_cursor](error_code ec, const buffer::list& bl) {
-	      ss::list_ret ret;
-	      if (!ec) {
-		auto iter = bl.cbegin();
-		decode(ret, iter);
-		std::move(ret.kvs.begin(), ret.kvs.end(), output);
-		if (new_cursor) {
-		  *new_cursor = std::move(ret.cursor);
-		}
-	      }
-	    });
+  return ClsReadOp{[output, new_cursor, in = std::move(in)](ReadOp& op) {
+    op.exec(
+        ss::CLASS, ss::LIST, in,
+        [output, new_cursor](error_code ec, const buffer::list& bl) {
+          ss::list_ret ret;
+          if (!ec) {
+            auto iter = bl.cbegin();
+            decode(ret, iter);
+            std::move(ret.kvs.begin(), ret.kvs.end(), output);
+            if (new_cursor) {
+              *new_cursor = std::move(ret.cursor);
+            }
+          }
+        });
   }};
 }
 } // namespace neorados::cls::sem_set

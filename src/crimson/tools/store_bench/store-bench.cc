@@ -24,14 +24,6 @@
    ./build/bin/crimson-store-bench --store-path store_bench_dir --smp 4 --duration 10 --work-load-type pg_log --seastore_device_size 10G
  */
 
-#include <random>
-#include <vector>
-#include <unordered_map>
-#include <experimental/random>
-
-#include <boost/program_options/parsers.hpp>
-#include <boost/program_options/variables_map.hpp>
-
 #include <seastar/apps/lib/stop_signal.hh>
 #include <seastar/core/app-template.hh>
 #include <seastar/core/byteorder.hh>
@@ -42,12 +34,19 @@
 #include <seastar/core/thread.hh>
 #include <seastar/util/defer.hh>
 
+#include <experimental/random>
+#include <random>
+#include <unordered_map>
+#include <vector>
+
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/variables_map.hpp>
+
 #include "common/JSONFormatter.h"
 #include "crimson/common/config_proxy.h"
 #include "crimson/common/coroutine.h"
 #include "crimson/common/log.h"
 #include "crimson/common/metrics_helpers.h"
-
 #include "crimson/os/futurized_collection.h"
 #include "crimson/os/futurized_store.h"
 
@@ -69,44 +68,49 @@ struct results_t {
   std::chrono::duration<double> total_latency = 0s;
   std::chrono::duration<double> duration = 0s;
 
-  results_t &operator += (const results_t &other_result) {
+  results_t&
+  operator+=(const results_t& other_result)
+  {
     ios_completed += other_result.ios_completed;
     total_latency += other_result.total_latency;
     return *this;
   }
 
-  void dump(ceph::Formatter *f) const {
+  void
+  dump(ceph::Formatter* f) const
+  {
     f->dump_int("ios_completed", ios_completed);
-    f->dump_float(
-      "total_latency_s",
-      total_latency.count());
-    f->dump_float(
-      "total_duration_s",
-      duration.count());
+    f->dump_float("total_latency_s", total_latency.count());
+    f->dump_float("total_duration_s", duration.count());
   }
 };
 
 struct common_options_t {
 private:
   unsigned duration = 0;
+
 public:
   unsigned num_concurrent_io = 16;
   bool dump_metrics = false;
-  std::chrono::duration<uint64_t> get_duration() const {
+
+  std::chrono::duration<uint64_t>
+  get_duration() const
+  {
     return std::chrono::seconds(duration);
   }
 
-  po::options_description get_options() {
+  po::options_description
+  get_options()
+  {
     po::options_description ret{"Common Options"};
-    ret.add_options()
-      ("num-concurrent-io", po::value<unsigned>(&num_concurrent_io),
-       "number of IOs happening simultaneously")
-      ("duration", po::value<unsigned>(&duration)->required(),
-       "how long in seconds the actual testing loop runs "
-       "for")
-      ("dump-metrics", po::bool_switch(&dump_metrics),
-       "Dump JSON formatted metrics to stdout")
-      ;
+    ret.add_options()(
+        "num-concurrent-io", po::value<unsigned>(&num_concurrent_io),
+        "number of IOs happening simultaneously")(
+        "duration", po::value<unsigned>(&duration)->required(),
+        "how long in seconds the actual testing loop runs "
+        "for")(
+        "dump-metrics", po::bool_switch(&dump_metrics),
+        "Dump JSON formatted metrics to stdout");
     return ret;
   }
 };
@@ -115,11 +119,11 @@ class StoreBenchWorkload {
 public:
   virtual po::options_description get_options() = 0;
   virtual seastar::future<results_t> run(
-    const common_options_t &common,
-    crimson::os::FuturizedStore &global_store) = 0;
+      const common_options_t& common,
+      crimson::os::FuturizedStore& global_store) = 0;
+
   virtual ~StoreBenchWorkload() {}
 };
-
 
 class PGLogWorkload final : public StoreBenchWorkload {
   unsigned num_logs = 4;
@@ -127,22 +131,24 @@ class PGLogWorkload final : public StoreBenchWorkload {
   unsigned log_length = 256;
 
 public:
-  po::options_description get_options() final {
+  po::options_description
+  get_options() final
+  {
     po::options_description ret{"PGLogWorkload"};
-    ret.add_options()
-      ("num-logs", po::value<unsigned>(&num_logs),
-       "how many different logs we create; aka, we create a log for every "
-       "object,so how many objects we create")
-      ("log-length", po::value<unsigned>(&log_length),
-       "number of entries per log")
-      ("log-size", po::value<unsigned>(&log_size),
-       "size of each log entry")
-      ;
+    ret.add_options()(
+        "num-logs", po::value<unsigned>(&num_logs),
+        "how many different logs we create; aka, we create a log for every "
+        "object,so how many objects we create")(
+        "log-length", po::value<unsigned>(&log_length),
+        "number of entries per log")(
+        "log-size", po::value<unsigned>(&log_size), "size of each log entry");
     return ret;
   }
+
   seastar::future<results_t> run(
-    const common_options_t &common,
-    crimson::os::FuturizedStore &global_store) final;
+      const common_options_t& common,
+      crimson::os::FuturizedStore& global_store) final;
+
   ~PGLogWorkload() final {}
 };
 
@@ -157,30 +163,30 @@ class RGWIndexWorkload final : public StoreBenchWorkload {
 public:
   po::options_description options{"RGWIndexWorkload"};
 
-  po::options_description get_options() final {
+  po::options_description
+  get_options() final
+  {
     po::options_description ret{"PGLogWorkload"};
-    ret.add_options()
-      ("num_indices", po::value<unsigned>(&num_indices),
-       "number of RGW indices/buckets")
-      ("key_size", po::value<uint64_t>(&key_size),
-       "size of keys in bytes")
-      ("value_size", po::value<uint64_t>(&value_size),
-        "size of values in bytes")
-      ("target_keys_per_bucket",
-       po::value<unsigned>(&target_keys_per_bucket),
-       "target number of keys per bucket")
-      ("tolerance_range",
-       po::value<unsigned>(&tolerance_range),
-       "tolerance range percentage")
-      ("num_buckets_per_collection",
-       po::value<unsigned>(&num_buckets_per_collection),
-       "the number of objects in each collection ")
-    ;
+    ret.add_options()(
+        "num_indices", po::value<unsigned>(&num_indices),
+        "number of RGW indices/buckets")(
+        "key_size", po::value<uint64_t>(&key_size), "size of keys in bytes")(
+        "value_size", po::value<uint64_t>(&value_size),
+        "size of values in bytes")(
+        "target_keys_per_bucket", po::value<unsigned>(&target_keys_per_bucket),
+        "target number of keys per bucket")(
+        "tolerance_range", po::value<unsigned>(&tolerance_range),
+        "tolerance range percentage")(
+        "num_buckets_per_collection",
+        po::value<unsigned>(&num_buckets_per_collection),
+        "the number of objects in each collection ");
     return ret;
   }
+
   seastar::future<results_t> run(
-    const common_options_t &common,
-    crimson::os::FuturizedStore &global_store) final;
+      const common_options_t& common,
+      crimson::os::FuturizedStore& global_store) final;
+
   ~RGWIndexWorkload() final {}
 };
 
@@ -191,13 +197,15 @@ public:
 /**
  * Creates ghobject_t object identifier from integer identifier.
  */
-ghobject_t create_hobj(unsigned id) {
+ghobject_t
+create_hobj(unsigned id)
+{
   return ghobject_t(
       shard_id_t::NO_SHARD, seastar::this_shard_id(),
       id, // hash, normally rjenkins of name, but let's just set it to id
       "", // namespace, empty here
       "", // name, empty here
-      0,  // snapshot
+      0, // snapshot
       ghobject_t::NO_GEN);
 };
 
@@ -211,7 +219,9 @@ ghobject_t create_hobj(unsigned id) {
  * we set it to x so all objects with obj id be 0 and x-1 will fall into 1
  * collection
  */
-coll_t make_cid(int obj_id, int num_objects_per_collection) {
+coll_t
+make_cid(int obj_id, int num_objects_per_collection)
+{
   int pg_id = obj_id / num_objects_per_collection;
   return coll_t(spg_t(pg_t(pg_id, 0)));
 }
@@ -225,9 +235,10 @@ coll_t make_cid(int obj_id, int num_objects_per_collection) {
  */
 seastar::future<results_t>
 run_concurrent_ios(
-  std::chrono::duration<double> duration,
-  int num_concurrent_io,
-  std::function<seastar::future<results_t>()> work_load) {
+    std::chrono::duration<double> duration,
+    int num_concurrent_io,
+    std::function<seastar::future<results_t>()> work_load)
+{
   std::vector<int> container_io;
   std::vector<results_t> all_io_res;
   for (int i = 0; i < num_concurrent_io; ++i) {
@@ -241,10 +252,7 @@ run_concurrent_ios(
       })));
 
   results_t total_result_all_io = {
-    0,
-    std::chrono::duration<double>(0.0),
-    duration
-  };
+      0, std::chrono::duration<double>(0.0), duration};
   for (const auto res : all_io_res) {
     total_result_all_io += res;
   }
@@ -260,11 +268,12 @@ run_concurrent_ios(
  * (b) writing and removing logs ,this is considered 1 I/O
  * (c) doing N I/o's concurrently on 1 thread
  */
-seastar::future<results_t> PGLogWorkload::run(
-  const common_options_t &common,
-  crimson::os::FuturizedStore &global_store)
+seastar::future<results_t>
+PGLogWorkload::run(
+    const common_options_t& common,
+    crimson::os::FuturizedStore& global_store)
 {
-  auto &local_store = global_store.get_sharded_store();
+  auto& local_store = global_store.get_sharded_store();
 
   std::map<int, coll_t> collection_id;
   std::map<int, crimson::os::CollectionRef> coll_ref_map;
@@ -298,10 +307,12 @@ seastar::future<results_t> PGLogWorkload::run(
     co_return;
   };
 
-  std::vector<int> first_key_per_log(num_logs,
-                                     0); // first key in each log object
-  std::vector<int> last_key_per_log(num_logs,
-                                    log_length); // last key in each log object
+  std::vector<int> first_key_per_log(
+      num_logs,
+      0); // first key in each log object
+  std::vector<int> last_key_per_log(
+      num_logs,
+      log_length); // last key in each log object
 
   /**
    * This method returns a future of type struct results_t
@@ -339,8 +350,7 @@ seastar::future<results_t> PGLogWorkload::run(
       one_write_delete.omap_rmkey(coll_id, object, key_to_remove);
 
       auto latency_start = ceph::mono_clock::now();
-      co_await local_store.do_transaction(coll_ref,
-                                          std::move(one_write_delete));
+      co_await local_store.do_transaction(coll_ref, std::move(one_write_delete));
       auto latency_end = ceph::mono_clock::now();
 
       auto time_nanosec = (latency_end - latency_start);
@@ -353,7 +363,7 @@ seastar::future<results_t> PGLogWorkload::run(
   };
   co_await pre_fill_logs();
   co_return co_await run_concurrent_ios(
-    common.get_duration(), common.num_concurrent_io, add_remove_entry);
+      common.get_duration(), common.num_concurrent_io, add_remove_entry);
 }
 
 // rgw start
@@ -363,7 +373,9 @@ seastar::future<results_t> PGLogWorkload::run(
  * Since this workload involves insertion and deletion of random keys we have a
  * function to generate a random key of size key_size
  */
-std::string generate_random_string(int key_size) {
+std::string
+generate_random_string(int key_size)
+{
   std::string res = "";
   for (int i = 0; i < key_size; ++i) {
     char letter = char(std::rand() % 26 + 97);
@@ -387,10 +399,15 @@ std::string generate_random_string(int key_size) {
  */
 
 seastar::future<results_t>
-write_unique_key(crimson::os::FuturizedStore::Shard &shard_ref, coll_t coll_id,
-                 crimson::os::CollectionRef coll_ref, ghobject_t bucket,
-                 std::set<std::string> &existing_keys, int key_size,
-                 int value_size) {
+write_unique_key(
+    crimson::os::FuturizedStore::Shard& shard_ref,
+    coll_t coll_id,
+    crimson::os::CollectionRef coll_ref,
+    ghobject_t bucket,
+    std::set<std::string>& existing_keys,
+    int key_size,
+    int value_size)
+{
   std::string new_key = generate_random_string(key_size);
   while (existing_keys.count(new_key) > 0) {
     new_key = generate_random_string(key_size);
@@ -427,9 +444,13 @@ write_unique_key(crimson::os::FuturizedStore::Shard &shard_ref, coll_t coll_id,
  */
 
 seastar::future<results_t>
-delete_random_key(crimson::os::FuturizedStore::Shard &shard_ref,
-                  coll_t &coll_id, crimson::os::CollectionRef coll_ref,
-                  ghobject_t &bucket, std::set<std::string> &existing_keys) {
+delete_random_key(
+    crimson::os::FuturizedStore::Shard& shard_ref,
+    coll_t& coll_id,
+    crimson::os::CollectionRef coll_ref,
+    ghobject_t& bucket,
+    std::set<std::string>& existing_keys)
+{
   int index = std::rand() % existing_keys.size();
   auto it = existing_keys.begin();
   std::advance(it, index);
@@ -456,18 +477,19 @@ delete_random_key(crimson::os::FuturizedStore::Shard &shard_ref,
  * based on the chosen bucets size,aka if its within acceptable range (c) doing
  * N I/o's concurrently on 1 thread
  */
-seastar::future<results_t> RGWIndexWorkload::run(
-  const common_options_t &common,
-  crimson::os::FuturizedStore &global_store)
+seastar::future<results_t>
+RGWIndexWorkload::run(
+    const common_options_t& common,
+    crimson::os::FuturizedStore& global_store)
 {
-  auto &local_store = global_store.get_sharded_store();
+  auto& local_store = global_store.get_sharded_store();
   std::map<int, coll_t> collection_id_for_rgw;
   std::map<int, crimson::os::CollectionRef>
       coll_ref_map_rgw; // map of bucket number and coll_ref
   std::vector<std::set<std::string>> keys_per_bucket(
       num_indices); // vector where each index is the bucket number and the
-                    // value at that index is a set of existing keys in that//
-                    // bucket
+      // value at that index is a set of existing keys in that//
+      // bucket
 
   /**
    * This method returns a future with pre filled buckets
@@ -501,10 +523,10 @@ seastar::future<results_t> RGWIndexWorkload::run(
       keys_per_bucket[i] = keys_in_this_bucket;
       ceph::os::Transaction txn_write_omap_for_bucket;
       txn_write_omap_for_bucket.create(coll_id, bucket_i);
-      txn_write_omap_for_bucket.omap_setkeys(coll_id, bucket_i,
-                                             omap_for_this_bucket);
-      co_await local_store.do_transaction(coll_ref,
-                                          std::move(txn_write_omap_for_bucket));
+      txn_write_omap_for_bucket.omap_setkeys(
+          coll_id, bucket_i, omap_for_this_bucket);
+      co_await local_store.do_transaction(
+          coll_ref, std::move(txn_write_omap_for_bucket));
     }
     co_return;
   };
@@ -537,7 +559,7 @@ seastar::future<results_t> RGWIndexWorkload::run(
       auto coll_ref = coll_ref_map_rgw[bucket_num_we_choose];
 
       int size_bucket_we_choose = size_per_bucket[bucket_num_we_choose];
-      auto &keys_in_that_bucket = keys_per_bucket[bucket_num_we_choose];
+      auto& keys_in_that_bucket = keys_per_bucket[bucket_num_we_choose];
 
       // this case happens when the size of the bucket is min size and we choose
       // to delete
@@ -572,9 +594,8 @@ seastar::future<results_t> RGWIndexWorkload::run(
 
   co_await pre_fill_buckets();
   co_return co_await run_concurrent_ios(
-    common.get_duration(), common.num_concurrent_io, rgw_actual_test);
+      common.get_duration(), common.num_concurrent_io, rgw_actual_test);
 };
-
 
 /**
  * RandomWriteWorkload 
@@ -582,70 +603,76 @@ seastar::future<results_t> RGWIndexWorkload::run(
  * Performs a simple random write workload.
  */
 class RandomWriteWorkload final : public StoreBenchWorkload {
-  uint64_t prefill_size = 128<<10;
-  uint64_t io_size = 4<<10;
-  uint64_t size_per_shard = 64<<20;
-  uint64_t size_per_obj = 4<<20;
+  uint64_t prefill_size = 128 << 10;
+  uint64_t io_size = 4 << 10;
+  uint64_t size_per_shard = 64 << 20;
+  uint64_t size_per_obj = 4 << 20;
   uint64_t colls_per_shard = 16;
   uint64_t io_concurrency_per_shard = 16;
-  uint64_t get_obj_per_shard() const {
+
+  uint64_t
+  get_obj_per_shard() const
+  {
     return size_per_shard / size_per_obj;
   }
+
 public:
-  po::options_description get_options() final {
+  po::options_description
+  get_options() final
+  {
     po::options_description ret{"RandomWriteWorkload"};
-    ret.add_options()
-      ("prefill-size", po::value<uint64_t>(&prefill_size),
-       "IO size to use when prefilling objets")
-      ("io-size", po::value<uint64_t>(&io_size),
-       "IO size")
-      ("size-per-shard", po::value<uint64_t>(&size_per_shard),
-       "Total size per shard")
-      ("size-per-obj", po::value<uint64_t>(&size_per_obj),
-       "Object Size")
-      ("colls-per-shard", po::value<uint64_t>(&colls_per_shard),
-       "Collections per shard")
-      ("io-concurrency-per-shard", po::value<uint64_t>(&io_concurrency_per_shard),
-       "IO Concurrency Per Shard")
-      ;
+    ret.add_options()(
+        "prefill-size", po::value<uint64_t>(&prefill_size),
+        "IO size to use when prefilling objets")(
+        "io-size", po::value<uint64_t>(&io_size), "IO size")(
+        "size-per-shard", po::value<uint64_t>(&size_per_shard),
+        "Total size per shard")(
+        "size-per-obj", po::value<uint64_t>(&size_per_obj), "Object Size")(
+        "colls-per-shard", po::value<uint64_t>(&colls_per_shard),
+        "Collections per shard")(
+        "io-concurrency-per-shard",
+        po::value<uint64_t>(&io_concurrency_per_shard),
+        "IO Concurrency Per Shard");
     return ret;
   }
+
   seastar::future<results_t> run(
-    const common_options_t &common,
-    crimson::os::FuturizedStore &global_store) final;
+      const common_options_t& common,
+      crimson::os::FuturizedStore& global_store) final;
+
   ~RandomWriteWorkload() final {}
 };
 
-seastar::future<bufferptr> generate_random_bp(uint64_t size)
+seastar::future<bufferptr>
+generate_random_bp(uint64_t size)
 {
   bufferptr bp(ceph::buffer::create_page_aligned(size));
-  auto f = co_await seastar::open_file_dma(
-    "/dev/urandom", seastar::open_flags::ro);
-  static constexpr uint64_t STRIDE = 256<<10;
+  auto f =
+      co_await seastar::open_file_dma("/dev/urandom", seastar::open_flags::ro);
+  static constexpr uint64_t STRIDE = 256 << 10;
   for (uint64_t off = 0; off < size; off += STRIDE) {
     co_await f.dma_read(off, bp.c_str() + off, STRIDE);
   }
   co_return bp;
 }
 
-
-seastar::future<results_t> RandomWriteWorkload::run(
-  const common_options_t &common,
-  crimson::os::FuturizedStore &global_store)
+seastar::future<results_t>
+RandomWriteWorkload::run(
+    const common_options_t& common,
+    crimson::os::FuturizedStore& global_store)
 {
   LOG_PREFIX(random_write);
-  auto &local_store = global_store.get_sharded_store();
+  auto& local_store = global_store.get_sharded_store();
 
-  auto random_buffer = co_await generate_random_bp(16<<20);
+  auto random_buffer = co_await generate_random_bp(16 << 20);
   auto get_random_buffer = [&random_buffer](uint64_t size) {
     assert((size % CEPH_PAGE_SIZE) == 0);
     bufferptr bp(
-      random_buffer,
-      std::experimental::randint<uint64_t>(
-        0,
-        (random_buffer.length() - size) / CEPH_PAGE_SIZE) *
-      CEPH_PAGE_SIZE,
-      size);
+        random_buffer,
+        std::experimental::randint<uint64_t>(
+            0, (random_buffer.length() - size) / CEPH_PAGE_SIZE) *
+            CEPH_PAGE_SIZE,
+        size);
     assert(bp.is_page_aligned());
     bufferlist bl;
     bl.append(bp);
@@ -654,26 +681,22 @@ seastar::future<results_t> RandomWriteWorkload::run(
 
   auto create_hobj = [](uint64_t obj_id) {
     return ghobject_t(
-      shard_id_t::NO_SHARD,
-      0,     // pool id
-      obj_id, // hash, normally rjenkins of name, but let's just set it to id
-      "",    // namespace, empty here
-      "",    // name, empty here
-      0,     // snapshot
-      ghobject_t::NO_GEN);
+        shard_id_t::NO_SHARD,
+        0, // pool id
+        obj_id, // hash, normally rjenkins of name, but let's just set it to id
+        "", // namespace, empty here
+        "", // name, empty here
+        0, // snapshot
+        ghobject_t::NO_GEN);
   };
 
-  std::unordered_map<
-    uint64_t,
-    std::pair<coll_t, crimson::os::CollectionRef>
-    > coll_refs;
+  std::unordered_map<uint64_t, std::pair<coll_t, crimson::os::CollectionRef>>
+      coll_refs;
   for (uint64_t collidx = 0; collidx < colls_per_shard; ++collidx) {
-   coll_t cid(
-     spg_t(pg_t(0, (seastar::this_shard_id() * colls_per_shard) + collidx))
-   );
-   auto ref = co_await local_store.create_new_collection(
-     cid);
-   coll_refs.emplace(collidx, std::make_pair(cid, std::move(ref)));
+    coll_t cid(
+        spg_t(pg_t(0, (seastar::this_shard_id() * colls_per_shard) + collidx)));
+    auto ref = co_await local_store.create_new_collection(cid);
+    coll_refs.emplace(collidx, std::make_pair(cid, std::move(ref)));
   }
   auto get_coll_id = [&](uint64_t obj_id) {
     assert(coll_refs.contains(obj_id % colls_per_shard));
@@ -690,30 +713,28 @@ seastar::future<results_t> RandomWriteWorkload::run(
   static constexpr unsigned io_concurrency_per_shard = 16;
   seastar::semaphore sem{io_concurrency_per_shard};
   results_t results;
-  auto submit_transaction = [&](
-    crimson::os::CollectionRef &col_ref,
-    ceph::os::Transaction &&t) -> seastar::future<> {
+  auto submit_transaction = [&](crimson::os::CollectionRef& col_ref,
+                                ceph::os::Transaction&& t) -> seastar::future<> {
     ++running;
     co_await sem.wait(1);
-    std::ignore = local_store.do_transaction(
-      col_ref,
-      std::move(t)
-    ).finally([&, start = ceph::mono_clock::now()] {
-      --running;
-      if (running == 0 && complete) {
-        complete->set_value();
-      }
-      sem.signal(1);
-      results.ios_completed++;
-      results.total_latency += ceph::mono_clock::now() - start;
-    });
+    std::ignore = local_store.do_transaction(col_ref, std::move(t))
+                      .finally([&, start = ceph::mono_clock::now()] {
+                        --running;
+                        if (running == 0 && complete) {
+                          complete->set_value();
+                        }
+                        sem.signal(1);
+                        results.ios_completed++;
+                        results.total_latency += ceph::mono_clock::now() -
+                                                 start;
+                      });
   };
 
   for (uint64_t obj_id = 0; obj_id < get_obj_per_shard(); ++obj_id) {
     auto hobj = create_hobj(obj_id);
     auto coll_id = get_coll_id(obj_id);
     auto coll_ref = get_coll_ref(obj_id);
-    
+
     {
       ceph::os::Transaction t;
       t.create(coll_id, hobj);
@@ -732,29 +753,25 @@ seastar::future<results_t> RandomWriteWorkload::run(
   auto start = ceph::mono_clock::now();
   uint64_t writes_started = 0;
   while (ceph::mono_clock::now() - start < common.get_duration()) {
-    auto obj_id = std::experimental::randint<uint64_t>(0, get_obj_per_shard() - 1);
+    auto obj_id =
+        std::experimental::randint<uint64_t>(0, get_obj_per_shard() - 1);
     auto hobj = create_hobj(obj_id);
     auto coll_id = get_coll_id(obj_id);
     auto coll_ref = get_coll_ref(obj_id);
 
-    auto offset = std::experimental::randint<uint64_t>(
-      0,
-      (size_per_obj / io_size) - 1) * io_size;
-    
+    auto offset =
+        std::experimental::randint<uint64_t>(0, (size_per_obj / io_size) - 1) *
+        io_size;
+
     ceph::os::Transaction t;
-    t.write(
-      coll_id,
-      hobj,
-      offset,
-      io_size,
-      get_random_buffer(io_size));
+    t.write(coll_id, hobj, offset, io_size, get_random_buffer(io_size));
     co_await submit_transaction(coll_ref, std::move(t));
     ++writes_started;
   }
 
   INFO("writes_started {}", writes_started);
-  for (auto &[_, entry]: coll_refs) {
-    auto &[id, ref] = entry;
+  for (auto& [_, entry] : coll_refs) {
+    auto& [id, ref] = entry;
     INFO("flushing {}", id);
     co_await local_store.flush(ref);
   }
@@ -768,7 +785,9 @@ seastar::future<results_t> RandomWriteWorkload::run(
   co_return results;
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   LOG_PREFIX(main);
   po::options_description desc{"Allowed options"};
   bool debug = false;
@@ -777,35 +796,33 @@ int main(int argc, char **argv) {
   std::string work_load_type;
   unsigned smp = 4;
 
-  desc.add_options()("help,h", "show help message")
-    ("store-type",
-     po::value<std::string>(&store_type)->default_value("seastore"),
-     "set store type")
+  desc.add_options()("help,h", "show help message")(
+      "store-type",
+      po::value<std::string>(&store_type)->default_value("seastore"),
+      "set store type")
       /* store-path is a path to a directory containing a file 'block'
        * block should be a symlink to a real device for actual performance
        * testing, but may be a file for testing this utility.
        * See build/dev/osd* after starting a vstart cluster for an example
        * of what that looks like.
        */
-    ("store-path", po::value<std::string>(&store_path)->required(),
-     "path to store, <store-path>/block should "
-     "be a symlink to the target device for bluestore or seastore")
-    ("debug", po::bool_switch(&debug), "enable debugging")
-    ("work-load-type",
-     po::value<std::string>(&work_load_type)->required(),
-     "work load type: pg_log, rgw_index or random_write")
-    ("smp", po::value<unsigned>(&smp),
-     "number of reactors");
-  
+      ("store-path", po::value<std::string>(&store_path)->required(),
+       "path to store, <store-path>/block should "
+       "be a symlink to the target device for bluestore or seastore")(
+          "debug", po::bool_switch(&debug), "enable debugging")(
+          "work-load-type", po::value<std::string>(&work_load_type)->required(),
+          "work load type: pg_log, rgw_index or random_write")(
+          "smp", po::value<unsigned>(&smp), "number of reactors");
+
   common_options_t common_options;
   std::map<std::string, std::unique_ptr<StoreBenchWorkload>> workloads;
-    
+
   workloads.emplace("pg_log", std::make_unique<PGLogWorkload>());
   workloads.emplace("rgw_index", std::make_unique<RGWIndexWorkload>());
   workloads.emplace("random_write", std::make_unique<RandomWriteWorkload>());
-  
+
   desc.add(common_options.get_options());
-  for (auto &[name, workload] : workloads) {
+  for (auto& [name, workload] : workloads) {
     desc.add(workload->get_options());
   }
 
@@ -825,7 +842,7 @@ int main(int argc, char **argv) {
     po::notify(vm);
     unrecognized_options =
         po::collect_unrecognized(parsed.options, po::include_positional);
-  } catch (const po::error &e) {
+  } catch (const po::error& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
   }
@@ -838,9 +855,9 @@ int main(int argc, char **argv) {
   seastar::app_template app(std::move(app_cfg));
 
   auto smp_str = std::to_string(smp);
-  const char *av[] = { argv[0], "--smp", smp_str.c_str() };
+  const char* av[] = {argv[0], "--smp", smp_str.c_str()};
   return app.run(
-      sizeof(av) / sizeof(av[0]), const_cast<char **>(av),
+      sizeof(av) / sizeof(av[0]), const_cast<char**>(av),
       /* crimson-osd uses seastar as its scheduler.  We use
        * sesastar::app_template::run to start the base task for the
        * application -- this lambda.  The -> seastar::future<int> here
@@ -883,10 +900,10 @@ int main(int argc, char **argv) {
         co_await crimson::common::local_conf().start();
 
         {
-          std::vector<const char *> cav;
+          std::vector<const char*> cav;
           std::transform(
               std::begin(unrecognized_options), std::end(unrecognized_options),
-              std::back_inserter(cav), [](auto &s) { return s.c_str(); });
+              std::back_inserter(cav), [](auto& s) { return s.c_str(); });
           co_await crimson::common::local_conf().parse_argv(cav);
         }
 
@@ -909,21 +926,23 @@ int main(int argc, char **argv) {
          */
         co_await store->mkfs(uuid).handle_error(
             crimson::stateful_ec::assert_failure(
-                std::format("error creating empty object store type {} in {}",
-                            store_type, store_path)
+                std::format(
+                    "error creating empty object store type {} in {}",
+                    store_type, store_path)
                     .c_str()));
         co_await store->stop();
 
         co_await store->start();
         co_await store->mount().handle_error(
             crimson::stateful_ec::assert_failure(
-                std::format("error mounting object store type {} in {}",
-                            store_type, store_path)
+                std::format(
+                    "error mounting object store type {} in {}", store_type,
+                    store_path)
                     .c_str()));
         std::vector<seastar::future<results_t>> per_shard_futures;
 
-        auto named_lambda = [&, &store_ref = *store]()
-          -> seastar::future<results_t> {
+        auto named_lambda =
+            [&, &store_ref = *store]() -> seastar::future<results_t> {
           DEBUG("running example_io on reactor {}", seastar::this_shard_id());
           auto iter = workloads.find(work_load_type);
           if (iter != workloads.end()) {
@@ -954,9 +973,8 @@ int main(int argc, char **argv) {
         if (common_options.dump_metrics) {
           f.open_array_section("metrics_values");
           crimson::metrics::dump_metric_value_map(
-            seastar::scollectd::get_value_map(),
-            &f,
-            [](const auto &) { return true; });
+              seastar::scollectd::get_value_map(), &f,
+              [](const auto&) { return true; });
           f.close_section();
         }
         f.close_section();

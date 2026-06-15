@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "common/map_cacher.hpp"
+#include "osd/SnapMapper.h" // for OSDriver
 #include "osd/osd_types_fmt.h"
-#include "osd/SnapMapper.h"  // for OSDriver
 
 namespace librados {
 struct object_id_t;
@@ -43,7 +43,7 @@ namespace Scrub {
  */
 
 class Store {
- public:
+public:
   ~Store();
 
   Store(
@@ -82,28 +82,26 @@ class Store {
   void reinit(ObjectStore::Transaction* t, scrub_level_t level);
 
   std::vector<ceph::buffer::list> get_snap_errors(
-    int64_t pool,
-    const librados::object_id_t& start,
-    uint64_t max_return) const;
+      int64_t pool,
+      const librados::object_id_t& start,
+      uint64_t max_return) const;
 
   std::vector<ceph::buffer::list> get_object_errors(
-    int64_t pool,
-    const librados::object_id_t& start,
-    uint64_t max_return) const;
+      int64_t pool,
+      const librados::object_id_t& start,
+      uint64_t max_return) const;
 
   std::ostream& gen_prefix(std::ostream& out, std::string_view fn) const;
 
- private:
+private:
   /**
    * at_level_t
    *
    * The machinery for caching and storing errors at a specific scrub level.
    */
   struct at_level_t {
-    at_level_t(const spg_t& pgid, const ghobject_t& err_obj, OSDriver&& drvr)
-	: errors_hoid{err_obj}
-	, driver{std::move(drvr)}
-	, backend{&driver}
+    at_level_t(const spg_t& pgid, const ghobject_t& err_obj, OSDriver&& drvr) :
+      errors_hoid{err_obj}, driver{std::move(drvr)}, backend{&driver}
     {}
 
     /// the object in the PG store, where the errors are stored
@@ -176,4 +174,4 @@ class Store {
       ExpCacherPosData& latest_sh,
       ExpCacherPosData& latest_dp) const;
 };
-}  // namespace Scrub
+} // namespace Scrub

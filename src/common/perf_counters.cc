@@ -15,35 +15,32 @@
  */
 
 #include "common/perf_counters.h"
-#include "common/perf_counters_key.h"
+
+#include <sstream>
+
 #include "common/dout.h"
+#include "common/perf_counters_key.h"
 #include "common/valgrind.h"
 #include "include/common_fwd.h"
 #include "include/utime.h"
 
-#include <sstream>
-
-using std::ostringstream;
 using std::make_pair;
+using std::ostringstream;
 using std::pair;
 
 using namespace std::literals;
 
 namespace TOPNSPC::common {
-PerfCountersCollectionImpl::PerfCountersCollectionImpl()
-{
-}
+PerfCountersCollectionImpl::PerfCountersCollectionImpl() {}
 
-PerfCountersCollectionImpl::~PerfCountersCollectionImpl()
-{
-  clear();
-}
+PerfCountersCollectionImpl::~PerfCountersCollectionImpl() { clear(); }
 
-void PerfCountersCollectionImpl::add(PerfCounters *l)
+void
+PerfCountersCollectionImpl::add(PerfCounters* l)
 {
   // make sure the name is unique
   while (m_loggers.contains(l)) {
-    l->set_name(fmt::format("{}-{:p}", l->get_name(), (void *)l));
+    l->set_name(fmt::format("{}-{:p}", l->get_name(), (void*)l));
   }
 
   m_loggers.insert(l);
@@ -63,10 +60,11 @@ void PerfCountersCollectionImpl::add(PerfCounters *l)
   }
 }
 
-void PerfCountersCollectionImpl::remove(PerfCounters *l)
+void
+PerfCountersCollectionImpl::remove(PerfCounters* l)
 {
   const auto rc_name = l->get_name();
-  for (const auto& dt: l->m_data) {
+  for (const auto& dt : l->m_data) {
     const auto path = rc_name + "." + dt.name;
     by_path.erase(path);
   }
@@ -75,7 +73,8 @@ void PerfCountersCollectionImpl::remove(PerfCounters *l)
   ceph_assert(rm_cnt == 1);
 }
 
-void PerfCountersCollectionImpl::clear()
+void
+PerfCountersCollectionImpl::clear()
 {
   for (auto& l : m_loggers) {
     delete l;
@@ -84,10 +83,11 @@ void PerfCountersCollectionImpl::clear()
   by_path.clear();
 }
 
-bool PerfCountersCollectionImpl::reset(std::string_view name)
+bool
+PerfCountersCollectionImpl::reset(std::string_view name)
 {
   if (name == "all"sv) {
-    for (auto& dt: m_loggers) {
+    for (auto& dt : m_loggers) {
       dt->reset();
     }
     return true;
@@ -102,7 +102,6 @@ bool PerfCountersCollectionImpl::reset(std::string_view name)
   return true;
 }
 
-
 /**
  * Serialize current values of performance counters.  Optionally
  * output the schema instead, or filter output to a particular
@@ -115,13 +114,14 @@ bool PerfCountersCollectionImpl::reset(std::string_view name)
  * @param histograms if true, dump histogram values,
  *                   if false dump all non-histogram counters
  */
-void PerfCountersCollectionImpl::dump_formatted_generic(
-    Formatter *f,
+void
+PerfCountersCollectionImpl::dump_formatted_generic(
+    Formatter* f,
     bool schema,
     bool histograms,
     select_labeled_t dump_labeled,
-    const std::string &logger,
-    const std::string &counter) const
+    const std::string& logger,
+    const std::string& counter) const
 {
   Formatter::ObjectSection collection_section(*f, "perfcounter_collection"sv);
 
@@ -130,14 +130,17 @@ void PerfCountersCollectionImpl::dump_formatted_generic(
     std::optional<Formatter::ArraySection> array_section;
     std::string prev_key_name;
     for (auto l = m_loggers.begin(); l != m_loggers.end(); ++l) {
-      std::string_view key_name = ceph::perf_counters::key_name((*l)->get_name());
+      std::string_view key_name =
+          ceph::perf_counters::key_name((*l)->get_name());
       if (key_name != prev_key_name) {
         // close previous set of counters before dumping new one
         array_section.emplace(*f, key_name);
         prev_key_name = key_name;
-        (*l)->dump_formatted_generic(f, schema, histograms, select_labeled_t::labeled, ""s);
+        (*l)->dump_formatted_generic(
+            f, schema, histograms, select_labeled_t::labeled, ""s);
       } else {
-        (*l)->dump_formatted_generic(f, schema, histograms, select_labeled_t::labeled, ""s);
+        (*l)->dump_formatted_generic(
+            f, schema, histograms, select_labeled_t::labeled, ""s);
       }
     }
   } else {
@@ -145,33 +148,33 @@ void PerfCountersCollectionImpl::dump_formatted_generic(
     if (logger.empty()) {
       // dump all loggers
       for (auto& l : m_loggers) {
-        l->dump_formatted_generic(f, schema, histograms,
-                                  select_labeled_t::unlabeled, counter);
+        l->dump_formatted_generic(
+            f, schema, histograms, select_labeled_t::unlabeled, counter);
       }
     } else {
       // dump only specified logger
       auto l = m_loggers.find(logger);
       if (l != m_loggers.end()) {
-        (*l)->dump_formatted_generic(f, schema, histograms,
-                                     select_labeled_t::unlabeled, counter);
+        (*l)->dump_formatted_generic(
+            f, schema, histograms, select_labeled_t::unlabeled, counter);
       }
     }
   }
 }
 
-void PerfCountersCollectionImpl::with_counters(std::function<void(
-      const PerfCountersCollectionImpl::CounterMap &)> fn) const
+void
+PerfCountersCollectionImpl::with_counters(
+    std::function<void(const PerfCountersCollectionImpl::CounterMap&)> fn) const
 {
   fn(by_path);
 }
 
 // ---------------------------
 
-PerfCounters::~PerfCounters()
-{
-}
+PerfCounters::~PerfCounters() {}
 
-void PerfCounters::inc(int idx, uint64_t amt)
+void
+PerfCounters::inc(int idx, uint64_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -192,7 +195,8 @@ void PerfCounters::inc(int idx, uint64_t amt)
   }
 }
 
-void PerfCounters::inc_with_max(int idx, uint64_t amt)
+void
+PerfCounters::inc_with_max(int idx, uint64_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -210,14 +214,15 @@ void PerfCounters::inc_with_max(int idx, uint64_t amt)
     uint64_t m;
     do {
       m = data.max_u64_inc.load();
-    } while(amt > m && !data.max_u64_inc.compare_exchange_weak(m, amt));
+    } while (amt > m && !data.max_u64_inc.compare_exchange_weak(m, amt));
     data.avgcount2++;
   } else {
     data.u64 += amt;
   }
 }
 
-void PerfCounters::dec(int idx, uint64_t amt)
+void
+PerfCounters::dec(int idx, uint64_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -233,7 +238,8 @@ void PerfCounters::dec(int idx, uint64_t amt)
   data.u64 -= amt;
 }
 
-void PerfCounters::set(int idx, uint64_t amt)
+void
+PerfCounters::set(int idx, uint64_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -246,8 +252,7 @@ void PerfCounters::set(int idx, uint64_t amt)
   if (!(data.type & PERFCOUNTER_U64))
     return;
 
-  ANNOTATE_BENIGN_RACE_SIZED(&data.u64, sizeof(data.u64),
-                             "perf counter atomic");
+  ANNOTATE_BENIGN_RACE_SIZED(&data.u64, sizeof(data.u64), "perf counter atomic");
   if (data.type & PERFCOUNTER_LONGRUNAVG) {
     data.avgcount++;
     data.u64 = amt;
@@ -257,7 +262,8 @@ void PerfCounters::set(int idx, uint64_t amt)
   }
 }
 
-uint64_t PerfCounters::get(int idx) const
+uint64_t
+PerfCounters::get(int idx) const
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -272,7 +278,8 @@ uint64_t PerfCounters::get(int idx) const
   return data.u64;
 }
 
-void PerfCounters::tinc(int idx, utime_t amt)
+void
+PerfCounters::tinc(int idx, utime_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -293,7 +300,8 @@ void PerfCounters::tinc(int idx, utime_t amt)
   }
 }
 
-void PerfCounters::tinc_with_max(int idx, utime_t amt)
+void
+PerfCounters::tinc_with_max(int idx, utime_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -312,14 +320,15 @@ void PerfCounters::tinc_with_max(int idx, utime_t amt)
     uint64_t m;
     do {
       m = data.max_u64_inc.load();
-    } while(new_m > m && !data.max_u64_inc.compare_exchange_weak(m, new_m));
+    } while (new_m > m && !data.max_u64_inc.compare_exchange_weak(m, new_m));
     data.avgcount2++;
   } else {
     data.u64 += amt.to_nsec();
   }
 }
 
-void PerfCounters::tinc(int idx, ceph::timespan amt)
+void
+PerfCounters::tinc(int idx, ceph::timespan amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -340,7 +349,8 @@ void PerfCounters::tinc(int idx, ceph::timespan amt)
   }
 }
 
-void PerfCounters::tinc_with_max(int idx, ceph::timespan amt)
+void
+PerfCounters::tinc_with_max(int idx, ceph::timespan amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -359,14 +369,15 @@ void PerfCounters::tinc_with_max(int idx, ceph::timespan amt)
     uint64_t m;
     do {
       m = data.max_u64_inc.load();
-    } while(new_m > m && !data.max_u64_inc.compare_exchange_weak(m, new_m));
+    } while (new_m > m && !data.max_u64_inc.compare_exchange_weak(m, new_m));
     data.avgcount2++;
   } else {
     data.u64 += amt.count();
   }
 }
 
-void PerfCounters::tset(int idx, utime_t amt)
+void
+PerfCounters::tset(int idx, utime_t amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -383,7 +394,8 @@ void PerfCounters::tset(int idx, utime_t amt)
     ceph_abort();
 }
 
-void PerfCounters::tset(int idx, ceph::timespan amt)
+void
+PerfCounters::tset(int idx, ceph::timespan amt)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -400,7 +412,8 @@ void PerfCounters::tset(int idx, ceph::timespan amt)
     ceph_abort();
 }
 
-utime_t PerfCounters::tget(int idx) const
+utime_t
+PerfCounters::tget(int idx) const
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -416,7 +429,8 @@ utime_t PerfCounters::tget(int idx) const
   return utime_t(v / 1000000000ull, v % 1000000000ull);
 }
 
-void PerfCounters::hinc(int idx, int64_t x, int64_t y)
+void
+PerfCounters::hinc(int idx, int64_t x, int64_t y)
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -427,13 +441,16 @@ void PerfCounters::hinc(int idx, int64_t x, int64_t y)
   ceph_assert(idx < m_upper_bound);
 
   perf_counter_data_any_d& data(m_data[idx - m_lower_bound - 1]);
-  ceph_assert(data.type == (PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER | PERFCOUNTER_U64));
+  ceph_assert(
+      data.type ==
+      (PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER | PERFCOUNTER_U64));
   ceph_assert(data.histogram);
 
   data.histogram->inc(x, y);
 }
 
-pair<uint64_t, uint64_t> PerfCounters::get_tavg_ns(int idx) const
+pair<uint64_t, uint64_t>
+PerfCounters::get_tavg_ns(int idx) const
 {
 #ifndef WITH_CRIMSON
   if (!m_cct->_conf->perf)
@@ -450,7 +467,8 @@ pair<uint64_t, uint64_t> PerfCounters::get_tavg_ns(int idx) const
   return data.read_avg();
 }
 
-void PerfCounters::reset()
+void
+PerfCounters::reset()
 {
   perf_counter_data_vec_t::iterator d = m_data.begin();
   perf_counter_data_vec_t::iterator d_end = m_data.end();
@@ -461,16 +479,19 @@ void PerfCounters::reset()
   }
 }
 
-
 /* Note:
  * This function dumps one counter. The dump format depends on
  * the dump request. Specifically - if the dump_labeled parameter
  * is set - even un-labeled counters are dumped using the "labeled
  * counter format".
  */
-void PerfCounters::dump_formatted_generic(Formatter *f, bool schema,
-    bool histograms, select_labeled_t dump_labeled,
-    const std::string &counter) const
+void
+PerfCounters::dump_formatted_generic(
+    Formatter* f,
+    bool schema,
+    bool histograms,
+    select_labeled_t dump_labeled,
+    const std::string& counter) const
 {
   // 'labeled_2nd_lvl_section' is only used in the context of dumping
   // labeled counters
@@ -485,10 +506,10 @@ void PerfCounters::dump_formatted_generic(Formatter *f, bool schema,
     // labeled counters format - the caller has opened an array section
     labeled_2nd_lvl_section.emplace(*f, "");
     for (Formatter::ObjectSection labels_section{*f, "labels"};
-	 const auto& label : ceph::perf_counters::key_labels(m_name)) {
+         const auto& label : ceph::perf_counters::key_labels(m_name)) {
       // don't dump labels with empty label names
       if (!label.first.empty()) {
-	f->dump_string(label.first, label.second);
+        f->dump_string(label.first, label.second);
       }
     }
     counters_section.emplace(*f, "counters");
@@ -523,29 +544,29 @@ void PerfCounters::dump_formatted_generic(Formatter *f, bool schema,
       f->dump_int("type", d->type);
 
       if (d->type & PERFCOUNTER_COUNTER) {
-	f->dump_string("metric_type", "counter");
+        f->dump_string("metric_type", "counter");
       } else {
-	f->dump_string("metric_type", "gauge");
+        f->dump_string("metric_type", "gauge");
       }
 
       if (d->type & PERFCOUNTER_LONGRUNAVG) {
-	if (d->type & PERFCOUNTER_TIME) {
-	  f->dump_string("value_type", "real-integer-pair");
-	} else {
-	  f->dump_string("value_type", "integer-integer-pair");
-	}
+        if (d->type & PERFCOUNTER_TIME) {
+          f->dump_string("value_type", "real-integer-pair");
+        } else {
+          f->dump_string("value_type", "integer-integer-pair");
+        }
       } else if (d->type & PERFCOUNTER_HISTOGRAM) {
-	if (d->type & PERFCOUNTER_TIME) {
-	  f->dump_string("value_type", "real-2d-histogram");
-	} else {
-	  f->dump_string("value_type", "integer-2d-histogram");
-	}
+        if (d->type & PERFCOUNTER_TIME) {
+          f->dump_string("value_type", "real-2d-histogram");
+        } else {
+          f->dump_string("value_type", "integer-2d-histogram");
+        }
       } else {
-	if (d->type & PERFCOUNTER_TIME) {
-	  f->dump_string("value_type", "real");
-	} else {
-	  f->dump_string("value_type", "integer");
-	}
+        if (d->type & PERFCOUNTER_TIME) {
+          f->dump_string("value_type", "real");
+        } else {
+          f->dump_string("value_type", "integer");
+        }
       }
 
       f->dump_string("description", d->description ? d->description : "");
@@ -557,91 +578,99 @@ void PerfCounters::dump_formatted_generic(Formatter *f, bool schema,
       f->dump_int("priority", get_adjusted_priority(d->prio));
 
       if (d->unit == UNIT_NONE) {
-	f->dump_string("units", "none"); 
+        f->dump_string("units", "none");
       } else if (d->unit == UNIT_BYTES) {
-	f->dump_string("units", "bytes");
+        f->dump_string("units", "bytes");
       }
     } else {
       if (d->type & PERFCOUNTER_LONGRUNAVG) {
         Formatter::ObjectSection longrunavg_section{*f, d->name};
-	std::tuple<uint64_t,uint64_t,uint64_t> a = d->read_avg_ex();
-	if (d->type & PERFCOUNTER_U64) {
-	  f->dump_unsigned("sum", std::get<0>(a));
-	  f->dump_unsigned("avgcount", std::get<1>(a));
+        std::tuple<uint64_t, uint64_t, uint64_t> a = d->read_avg_ex();
+        if (d->type & PERFCOUNTER_U64) {
+          f->dump_unsigned("sum", std::get<0>(a));
+          f->dump_unsigned("avgcount", std::get<1>(a));
           uint64_t max = std::get<2>(a);
           if (max != 0) {
-	    f->dump_unsigned("max_inc", std::get<2>(a));
+            f->dump_unsigned("max_inc", std::get<2>(a));
           }
-	} else if (d->type & PERFCOUNTER_TIME) {
+        } else if (d->type & PERFCOUNTER_TIME) {
           uint64_t sum_ns = std::get<0>(a);
           uint64_t count = std::get<1>(a);
-	  f->dump_unsigned("avgcount", count);
-	  f->dump_format_unquoted("sum", "%" PRId64 ".%09" PRId64,
-				  sum_ns / 1000000000ull,
-				  sum_ns % 1000000000ull);
+          f->dump_unsigned("avgcount", count);
+          f->dump_format_unquoted(
+              "sum", "%" PRId64 ".%09" PRId64, sum_ns / 1000000000ull,
+              sum_ns % 1000000000ull);
           uint64_t max_ns = std::get<2>(a);
           if (max_ns != 0) {
-	    f->dump_format_unquoted("max_inc", "%" PRId64 ".%09" PRId64,
-				    max_ns / 1000000000ull,
-				    max_ns % 1000000000ull);
+            f->dump_format_unquoted(
+                "max_inc", "%" PRId64 ".%09" PRId64, max_ns / 1000000000ull,
+                max_ns % 1000000000ull);
           }
           if (count) {
             uint64_t avg_ns = sum_ns / count;
-            f->dump_format_unquoted("avgtime", "%" PRId64 ".%09" PRId64,
-                                    avg_ns / 1000000000ull,
-                                    avg_ns % 1000000000ull);
+            f->dump_format_unquoted(
+                "avgtime", "%" PRId64 ".%09" PRId64, avg_ns / 1000000000ull,
+                avg_ns % 1000000000ull);
           } else {
             f->dump_format_unquoted("avgtime", "%" PRId64 ".%09" PRId64, 0, 0);
           }
-	} else {
-	  ceph_abort();
-	}
+        } else {
+          ceph_abort();
+        }
       } else if (d->type & PERFCOUNTER_HISTOGRAM) {
-        ceph_assert(d->type == (PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER | PERFCOUNTER_U64));
+        ceph_assert(
+            d->type ==
+            (PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER | PERFCOUNTER_U64));
         ceph_assert(d->histogram);
         Formatter::ObjectSection histogram_section{*f, d->name};
         d->histogram->dump_formatted(f);
       } else {
-	uint64_t v = d->u64;
-	if (d->type & PERFCOUNTER_U64) {
-	  f->dump_unsigned(d->name, v);
-	} else if (d->type & PERFCOUNTER_TIME) {
-	  f->dump_format_unquoted(d->name, "%" PRId64 ".%09" PRId64,
-				  v / 1000000000ull,
-				  v % 1000000000ull);
-	} else {
-	  ceph_abort();
-	}
+        uint64_t v = d->u64;
+        if (d->type & PERFCOUNTER_U64) {
+          f->dump_unsigned(d->name, v);
+        } else if (d->type & PERFCOUNTER_TIME) {
+          f->dump_format_unquoted(
+              d->name, "%" PRId64 ".%09" PRId64, v / 1000000000ull,
+              v % 1000000000ull);
+        } else {
+          ceph_abort();
+        }
       }
     }
   }
 }
 
-const std::string &PerfCounters::get_name() const
+const std::string&
+PerfCounters::get_name() const
 {
   return m_name;
 }
 
-PerfCounters::PerfCounters(CephContext *cct, const std::string &name,
-	   int lower_bound, int upper_bound)
-  : m_cct(cct),
-    m_lower_bound(lower_bound),
-    m_upper_bound(upper_bound),
-    m_name(name)
+PerfCounters::PerfCounters(
+    CephContext* cct,
+    const std::string& name,
+    int lower_bound,
+    int upper_bound) :
+  m_cct(cct),
+  m_lower_bound(lower_bound),
+  m_upper_bound(upper_bound),
+  m_name(name)
 #ifndef WITH_CRIMSON
-    ,
-    m_lock_name(std::string("PerfCounters::") + name.c_str()),
-    m_lock(ceph::make_mutex(m_lock_name))
+  ,
+  m_lock_name(std::string("PerfCounters::") + name.c_str()),
+  m_lock(ceph::make_mutex(m_lock_name))
 #endif
 {
   m_data.resize(upper_bound - lower_bound - 1);
 }
 
-PerfCountersBuilder::PerfCountersBuilder(CephContext *cct, const std::string &name,
-                  int first, int last)
-  : m_perf_counters(new PerfCounters(cct, name, first, last))
-{
-}
+PerfCountersBuilder::PerfCountersBuilder(
+    CephContext* cct,
+    const std::string& name,
+    int first,
+    int last) :
+  m_perf_counters(new PerfCounters(cct, name, first, last))
+{}
 
 PerfCountersBuilder::~PerfCountersBuilder()
 {
@@ -650,65 +679,104 @@ PerfCountersBuilder::~PerfCountersBuilder()
   m_perf_counters = NULL;
 }
 
-void PerfCountersBuilder::add_u64_counter(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio, int unit)
+void
+PerfCountersBuilder::add_u64_counter(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio,
+    int unit)
 {
-  add_impl(idx, name, description, nick, prio,
-	   PERFCOUNTER_U64 | PERFCOUNTER_COUNTER, unit);
+  add_impl(
+      idx, name, description, nick, prio, PERFCOUNTER_U64 | PERFCOUNTER_COUNTER,
+      unit);
 }
 
-void PerfCountersBuilder::add_u64(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio, int unit)
+void
+PerfCountersBuilder::add_u64(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio,
+    int unit)
 {
   add_impl(idx, name, description, nick, prio, PERFCOUNTER_U64, unit);
 }
 
-void PerfCountersBuilder::add_u64_avg(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio, int unit)
+void
+PerfCountersBuilder::add_u64_avg(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio,
+    int unit)
 {
-  add_impl(idx, name, description, nick, prio,
-	   PERFCOUNTER_U64 | PERFCOUNTER_LONGRUNAVG, unit);
+  add_impl(
+      idx, name, description, nick, prio,
+      PERFCOUNTER_U64 | PERFCOUNTER_LONGRUNAVG, unit);
 }
 
-void PerfCountersBuilder::add_time(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio)
+void
+PerfCountersBuilder::add_time(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio)
 {
   add_impl(idx, name, description, nick, prio, PERFCOUNTER_TIME);
 }
 
-void PerfCountersBuilder::add_time_avg(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio)
+void
+PerfCountersBuilder::add_time_avg(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio)
 {
-  add_impl(idx, name, description, nick, prio,
-	   PERFCOUNTER_TIME | PERFCOUNTER_LONGRUNAVG);
+  add_impl(
+      idx, name, description, nick, prio,
+      PERFCOUNTER_TIME | PERFCOUNTER_LONGRUNAVG);
 }
 
-void PerfCountersBuilder::add_u64_counter_histogram(
-  int idx, const char *name,
-  PerfHistogramCommon::axis_config_d x_axis_config,
-  PerfHistogramCommon::axis_config_d y_axis_config,
-  const char *description, const char *nick, int prio, int unit)
+void
+PerfCountersBuilder::add_u64_counter_histogram(
+    int idx,
+    const char* name,
+    PerfHistogramCommon::axis_config_d x_axis_config,
+    PerfHistogramCommon::axis_config_d y_axis_config,
+    const char* description,
+    const char* nick,
+    int prio,
+    int unit)
 {
-  add_impl(idx, name, description, nick, prio,
-	   PERFCOUNTER_U64 | PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER, unit,
-           std::unique_ptr<PerfHistogram<>>{new PerfHistogram<>{x_axis_config, y_axis_config}});
+  add_impl(
+      idx, name, description, nick, prio,
+      PERFCOUNTER_U64 | PERFCOUNTER_HISTOGRAM | PERFCOUNTER_COUNTER, unit,
+      std::unique_ptr<PerfHistogram<>>{
+          new PerfHistogram<>{x_axis_config, y_axis_config}});
 }
 
-void PerfCountersBuilder::add_impl(
-  int idx, const char *name,
-  const char *description, const char *nick, int prio, int ty, int unit,
-  std::unique_ptr<PerfHistogram<>> histogram)
+void
+PerfCountersBuilder::add_impl(
+    int idx,
+    const char* name,
+    const char* description,
+    const char* nick,
+    int prio,
+    int ty,
+    int unit,
+    std::unique_ptr<PerfHistogram<>> histogram)
 {
   ceph_assert(idx > m_perf_counters->m_lower_bound);
   ceph_assert(idx < m_perf_counters->m_upper_bound);
-  PerfCounters::perf_counter_data_vec_t &vec(m_perf_counters->m_data);
-  PerfCounters::perf_counter_data_any_d
-    &data(vec[idx - m_perf_counters->m_lower_bound - 1]);
+  PerfCounters::perf_counter_data_vec_t& vec(m_perf_counters->m_data);
+  PerfCounters::perf_counter_data_any_d& data(
+      vec[idx - m_perf_counters->m_lower_bound - 1]);
   ceph_assert(data.type == PERFCOUNTER_NONE);
   data.name = name;
   data.description = description;
@@ -719,22 +787,25 @@ void PerfCountersBuilder::add_impl(
   data.nick = nick;
   data.prio = prio ? prio : prio_default;
   data.type = (enum perfcounter_type_d)ty;
-  data.unit = (enum unit_t) unit;
+  data.unit = (enum unit_t)unit;
   data.histogram = std::move(histogram);
 }
 
-PerfCounters *PerfCountersBuilder::create_perf_counters()
+PerfCounters*
+PerfCountersBuilder::create_perf_counters()
 {
-  PerfCounters::perf_counter_data_vec_t::const_iterator d = m_perf_counters->m_data.begin();
-  PerfCounters::perf_counter_data_vec_t::const_iterator d_end = m_perf_counters->m_data.end();
+  PerfCounters::perf_counter_data_vec_t::const_iterator d =
+      m_perf_counters->m_data.begin();
+  PerfCounters::perf_counter_data_vec_t::const_iterator d_end =
+      m_perf_counters->m_data.end();
   for (; d != d_end; ++d) {
     ceph_assert(d->type != PERFCOUNTER_NONE);
     ceph_assert(d->type & (PERFCOUNTER_U64 | PERFCOUNTER_TIME));
   }
 
-  PerfCounters *ret = m_perf_counters;
+  PerfCounters* ret = m_perf_counters;
   m_perf_counters = NULL;
   return ret;
 }
 
-}
+} // namespace TOPNSPC::common

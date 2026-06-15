@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,14 +14,16 @@
  */
 
 #include "PaxosService.h"
-#include "Paxos.h"
+
 #include "common/Clock.h"
 #include "common/config.h"
-#include "include/stringify.h"
 #include "include/ceph_assert.h"
+#include "include/stringify.h"
 #include "messages/PaxosServiceMessage.h"
 #include "mon/MonOpRequest.h"
 #include "mon/Monitor.h"
+
+#include "Paxos.h"
 
 using std::ostream;
 using std::string;
@@ -30,71 +32,84 @@ using ceph::bufferlist;
 
 #define dout_subsys ceph_subsys_paxos
 #undef dout_prefix
-#define dout_prefix _prefix(_dout, mon, paxos, service_name, get_first_committed(), get_last_committed())
-static ostream& _prefix(std::ostream *_dout, Monitor &mon, Paxos &paxos, string service_name,
-			version_t fc, version_t lc) {
-  return *_dout << "mon." << mon.name << "@" << mon.rank
-		<< "(" << mon.get_state_name()
-		<< ").paxosservice(" << service_name << " " << fc << ".." << lc << ") ";
+#define dout_prefix                                           \
+  _prefix(                                                    \
+      _dout, mon, paxos, service_name, get_first_committed(), \
+      get_last_committed())
+
+static ostream&
+_prefix(
+    std::ostream* _dout,
+    Monitor& mon,
+    Paxos& paxos,
+    string service_name,
+    version_t fc,
+    version_t lc)
+{
+  return *_dout << "mon." << mon.name << "@" << mon.rank << "("
+                << mon.get_state_name() << ").paxosservice(" << service_name
+                << " " << fc << ".." << lc << ") ";
 }
 
-void PaxosService::C_ReplyOp::_finish(int r) {
+void
+PaxosService::C_ReplyOp::_finish(int r)
+{
   if (r >= 0) {
     mon.send_reply(op, reply.detach());
   }
 }
 
-bool PaxosService::dispatch(MonOpRequestRef op)
+bool
+PaxosService::dispatch(MonOpRequestRef op)
 {
   ceph_assert(op->is_type_service() || op->is_type_command());
   auto m = op->get_req<PaxosServiceMessage>();
   op->mark_event("psvc:dispatch");
 
-  dout(10) << __func__ << " " << m << " " << *m
-	   << " from " << m->get_orig_source_inst()
-	   << " con " << m->get_connection() << dendl;
+  dout(10) << __func__ << " " << m << " " << *m << " from "
+           << m->get_orig_source_inst() << " con " << m->get_connection()
+           << dendl;
 
   if (mon.is_shutdown()) {
     return true;
   }
 
   // make sure this message isn't forwarded from a previous election epoch
-  if (m->rx_election_epoch &&
-      m->rx_election_epoch < mon.get_epoch()) {
+  if (m->rx_election_epoch && m->rx_election_epoch < mon.get_epoch()) {
     dout(10) << " discarding forwarded message from previous election epoch "
-	     << m->rx_election_epoch << " < " << mon.get_epoch() << dendl;
+             << m->rx_election_epoch << " < " << mon.get_epoch() << dendl;
     return true;
   }
 
   // make sure the client is still connected.  note that a proxied
   // connection will be disconnected with a null message; don't drop
   // those.  also ignore loopback (e.g., log) messages.
-  if (m->get_connection() &&
-      !m->get_connection()->is_connected() &&
+  if (m->get_connection() && !m->get_connection()->is_connected() &&
       m->get_connection() != mon.con_self &&
       m->get_connection()->get_messenger() != NULL) {
     dout(10) << " discarding message from disconnected client "
-	     << m->get_source_inst() << " " << *m << dendl;
+             << m->get_source_inst() << " " << *m << dendl;
     return true;
   }
 
   // make sure our map is readable and up to date
   if (!is_readable(m->version)) {
-    dout(10) << " waiting for paxos -> readable (v" << m->version << ")" << dendl;
+    dout(10) << " waiting for paxos -> readable (v" << m->version << ")"
+             << dendl;
     wait_for_readable(op, new C_RetryMessage(this, op), m->version);
     return true;
   }
 
   // preprocess
-  if (preprocess_query(op)) 
-    return true;  // easy!
+  if (preprocess_query(op))
+    return true; // easy!
 
   // leader?
   if (!mon.is_leader()) {
     mon.forward_request_leader(op);
     return true;
   }
-  
+
   // writeable?
   if (!is_writeable()) {
     dout(10) << " waiting for paxos -> writeable" << dendl;
@@ -131,18 +146,19 @@ bool PaxosService::dispatch(MonOpRequestRef op)
        * Callback class used to propose the pending value once the proposal_timer
        * fires up.
        */
-    auto do_propose = new C_MonContext{&mon, [this](int r) {
-        proposal_timer = 0;
-        if (r >= 0) {
-          propose_pending();
-        } else if (r == -ECANCELED || r == -EAGAIN) {
-          return;
-        } else {
-          ceph_abort_msg("bad return value for proposal_timer");
-        }
-    }};
-    dout(10) << " setting proposal_timer " << do_propose
-             << " with delay of " << delay << dendl;
+    auto do_propose = new C_MonContext{
+        &mon, [this](int r) {
+          proposal_timer = 0;
+          if (r >= 0) {
+            propose_pending();
+          } else if (r == -ECANCELED || r == -EAGAIN) {
+            return;
+          } else {
+            ceph_abort_msg("bad return value for proposal_timer");
+          }
+        }};
+    dout(10) << " setting proposal_timer " << do_propose << " with delay of "
+             << delay << dendl;
     proposal_timer = mon.timer.add_event_after(delay, do_propose);
   } else {
     dout(10) << " proposal_timer already set" << dendl;
@@ -150,12 +166,14 @@ bool PaxosService::dispatch(MonOpRequestRef op)
   return true;
 }
 
-void PaxosService::refresh(bool *need_bootstrap)
+void
+PaxosService::refresh(bool* need_bootstrap)
 {
   dout(10) << __func__ << dendl;
 
   // update cached versions
-  auto first_committed = mon.store->get(get_service_name(), first_committed_name);
+  auto first_committed =
+      mon.store->get(get_service_name(), first_committed_name);
   auto last_committed = mon.store->get(get_service_name(), last_committed_name);
   if (last_committed > cached_last_committed) {
     finish_contexts(g_ceph_context, waiting_for_commit, 0);
@@ -165,7 +183,8 @@ void PaxosService::refresh(bool *need_bootstrap)
 
   version_t new_format = get_value("format_version");
   if (new_format != format_version) {
-    dout(1) << __func__ << " upgraded, format " << format_version << " -> " << new_format << dendl;
+    dout(1) << __func__ << " upgraded, format " << format_version << " -> "
+            << new_format << dendl;
     on_upgrade();
   }
   format_version = new_format;
@@ -174,7 +193,8 @@ void PaxosService::refresh(bool *need_bootstrap)
   update_from_paxos(need_bootstrap);
 }
 
-void PaxosService::post_refresh()
+void
+PaxosService::post_refresh()
 {
   dout(10) << __func__ << dendl;
 
@@ -186,7 +206,8 @@ void PaxosService::post_refresh()
   }
 }
 
-bool PaxosService::should_propose(double& delay)
+bool
+PaxosService::should_propose(double& delay)
 {
   // simple default policy: quick startup, then some damping.
   if (get_last_committed() <= 1) {
@@ -196,14 +217,14 @@ bool PaxosService::should_propose(double& delay)
     if ((now - paxos.last_commit_time) > g_conf()->paxos_propose_interval)
       delay = (double)g_conf()->paxos_min_wait;
     else
-      delay = (double)(g_conf()->paxos_propose_interval + paxos.last_commit_time
-		       - now);
+      delay = (double)(g_conf()->paxos_propose_interval +
+                       paxos.last_commit_time - now);
   }
   return true;
 }
 
-
-void PaxosService::propose_pending()
+void
+PaxosService::propose_pending()
 {
   dout(10) << __func__ << dendl;
   ceph_assert(have_pending);
@@ -241,6 +262,7 @@ void PaxosService::propose_pending()
   // apply to paxos
   proposing = true;
   need_immediate_propose = false; /* reset whenever we propose */
+
   /**
    * Callback class used to mark us as active once a proposal finishes going
    * through Paxos.
@@ -252,24 +274,32 @@ void PaxosService::propose_pending()
    * before waking up a C_Active, thus ending up without a pending value.
    */
   class C_Committed : public Context {
-    PaxosService *ps;
+    PaxosService* ps;
+
   public:
-    explicit C_Committed(PaxosService *p) : ps(p) { }
-    void finish(int r) override {
+    explicit C_Committed(PaxosService* p) :
+      ps(p)
+    {}
+
+    void
+    finish(int r) override
+    {
       ps->proposing = false;
       if (r >= 0)
-	ps->_active();
+        ps->_active();
       else if (r == -ECANCELED || r == -EAGAIN)
-	return;
+        return;
       else
-	ceph_abort_msg("bad return value for C_Committed");
+        ceph_abort_msg("bad return value for C_Committed");
     }
   };
+
   paxos.queue_pending_finisher(new C_Committed(this));
   paxos.trigger_propose();
 }
 
-bool PaxosService::should_stash_full()
+bool
+PaxosService::should_stash_full()
 {
   version_t latest_full = get_version_latest_full();
   /* @note The first member of the condition is moot and it is here just for
@@ -277,45 +307,67 @@ bool PaxosService::should_stash_full()
    *	   nonetheless because, in that event,
    *	      latest_full == get_trim_to() == 0.
    */
-  return (!latest_full ||
-	  (latest_full <= get_trim_to()) ||
-	  (get_last_committed() - latest_full > (version_t)g_conf()->paxos_stash_full_interval));
+  return (
+      !latest_full || (latest_full <= get_trim_to()) ||
+      (get_last_committed() - latest_full >
+       (version_t)g_conf()->paxos_stash_full_interval));
 }
 
-void PaxosService::put_version_full(MonitorDBStore::TransactionRef t,
-				    version_t ver, ceph::buffer::list& bl) {
+void
+PaxosService::put_version_full(
+    MonitorDBStore::TransactionRef t,
+    version_t ver,
+    ceph::buffer::list& bl)
+{
   std::string key = mon.store->combine_strings(full_prefix_name, ver);
   t->put(get_service_name(), key, bl);
 }
 
-void PaxosService::put_version_latest_full(MonitorDBStore::TransactionRef t, version_t ver) {
-  std::string key = mon.store->combine_strings(full_prefix_name, full_latest_name);
+void
+PaxosService::put_version_latest_full(
+    MonitorDBStore::TransactionRef t,
+    version_t ver)
+{
+  std::string key =
+      mon.store->combine_strings(full_prefix_name, full_latest_name);
   t->put(get_service_name(), key, ver);
 }
 
-int PaxosService::get_version(version_t ver, ceph::buffer::list& bl) {
+int
+PaxosService::get_version(version_t ver, ceph::buffer::list& bl)
+{
   return mon.store->get(get_service_name(), ver, bl);
 }
 
-int PaxosService::get_version_full(version_t ver, ceph::buffer::list& bl) {
+int
+PaxosService::get_version_full(version_t ver, ceph::buffer::list& bl)
+{
   std::string key = mon.store->combine_strings(full_prefix_name, ver);
   return mon.store->get(get_service_name(), key, bl);
 }
 
-version_t PaxosService::get_version_latest_full() {
-  std::string key = mon.store->combine_strings(full_prefix_name, full_latest_name);
+version_t
+PaxosService::get_version_latest_full()
+{
+  std::string key =
+      mon.store->combine_strings(full_prefix_name, full_latest_name);
   return mon.store->get(get_service_name(), key);
 }
 
-int PaxosService::get_value(const std::string& key, ceph::buffer::list& bl) {
+int
+PaxosService::get_value(const std::string& key, ceph::buffer::list& bl)
+{
   return mon.store->get(get_service_name(), key, bl);
 }
 
-version_t PaxosService::get_value(const std::string& key) {
+version_t
+PaxosService::get_value(const std::string& key)
+{
   return mon.store->get(get_service_name(), key);
 }
 
-void PaxosService::restart()
+void
+PaxosService::restart()
 {
   dout(10) << __func__ << dendl;
   if (proposal_timer) {
@@ -336,7 +388,8 @@ void PaxosService::restart()
   on_restart();
 }
 
-void PaxosService::election_finished()
+void
+PaxosService::election_finished()
 {
   dout(10) << __func__ << dendl;
 
@@ -347,7 +400,8 @@ void PaxosService::election_finished()
   _active();
 }
 
-void PaxosService::_active()
+void
+PaxosService::_active()
 {
   if (is_proposing()) {
     dout(10) << __func__ << " - proposing" << dendl;
@@ -355,6 +409,7 @@ void PaxosService::_active()
   }
   if (!is_active()) {
     dout(10) << __func__ << " - not active" << dendl;
+
     /**
      * Callback used to make sure we call the PaxosService::_active function
      * whenever a condition is fulfilled.
@@ -364,14 +419,21 @@ void PaxosService::_active()
      * election is finished.
      */
     class C_Active : public Context {
-      PaxosService *svc;
+      PaxosService* svc;
+
     public:
-      explicit C_Active(PaxosService *s) : svc(s) {}
-      void finish(int r) override {
-	if (r >= 0)
-	  svc->_active();
+      explicit C_Active(PaxosService* s) :
+        svc(s)
+      {}
+
+      void
+      finish(int r) override
+      {
+        if (r >= 0)
+          svc->_active();
       }
     };
+
     wait_for_active_ctx(new C_Active(this));
     return;
   }
@@ -392,7 +454,8 @@ void PaxosService::_active()
       return;
     }
   } else {
-    dout(7) << __func__ << " we are not the leader, hence we propose nothing!" << dendl;
+    dout(7) << __func__ << " we are not the leader, hence we propose nothing!"
+            << dendl;
   }
 
   // wake up anyone who came in while we were proposing.  note that
@@ -408,8 +471,8 @@ void PaxosService::_active()
   on_active();
 }
 
-
-void PaxosService::shutdown()
+void
+PaxosService::shutdown()
 {
   cancel_events();
 
@@ -425,7 +488,8 @@ void PaxosService::shutdown()
   on_shutdown();
 }
 
-void PaxosService::maybe_trim()
+void
+PaxosService::maybe_trim()
 {
   if (!is_writeable())
     return;
@@ -436,32 +500,34 @@ void PaxosService::maybe_trim()
 
   if (trim_to <= first_committed) {
     dout(10) << __func__ << " trim_to " << trim_to << " <= first_committed "
-	     << first_committed << dendl;
+             << first_committed << dendl;
     return;
   }
 
   version_t to_remove = trim_to - first_committed;
-  const version_t trim_min = g_conf().get_val<version_t>("paxos_service_trim_min");
-  if (trim_min > 0 &&
-      to_remove < trim_min) {
-    dout(10) << __func__ << " trim_to " << trim_to << " would only trim " << to_remove
-	     << " < paxos_service_trim_min " << trim_min << dendl;
+  const version_t trim_min =
+      g_conf().get_val<version_t>("paxos_service_trim_min");
+  if (trim_min > 0 && to_remove < trim_min) {
+    dout(10) << __func__ << " trim_to " << trim_to << " would only trim "
+             << to_remove << " < paxos_service_trim_min " << trim_min << dendl;
     return;
   }
 
   to_remove = [to_remove, trim_to, this] {
-    const version_t trim_max = g_conf().get_val<version_t>("paxos_service_trim_max");
+    const version_t trim_max =
+        g_conf().get_val<version_t>("paxos_service_trim_max");
     if (trim_max == 0 || to_remove < trim_max) {
       return to_remove;
     }
     if (to_remove < trim_max * 1.5) {
-      dout(10) << __func__ << " trim to " << trim_to << " would only trim " << to_remove
-             << " > paxos_service_trim_max, limiting to " << trim_max
-             << dendl;
+      dout(10) << __func__ << " trim to " << trim_to << " would only trim "
+               << to_remove << " > paxos_service_trim_max, limiting to "
+               << trim_max << dendl;
       return trim_max;
     }
     const version_t new_trim_max = (trim_max + to_remove) / 2;
-    const uint64_t trim_max_multiplier = g_conf().get_val<uint64_t>("paxos_service_trim_max_multiplier");
+    const uint64_t trim_max_multiplier =
+        g_conf().get_val<uint64_t>("paxos_service_trim_max_multiplier");
     if (trim_max_multiplier) {
       return std::min(new_trim_max, trim_max * trim_max_multiplier);
     } else {
@@ -470,7 +536,8 @@ void PaxosService::maybe_trim()
   }();
   trim_to = first_committed + to_remove;
 
-  dout(10) << __func__ << " trimming to " << trim_to << ", " << to_remove << " states" << dendl;
+  dout(10) << __func__ << " trimming to " << trim_to << ", " << to_remove
+           << " states" << dendl;
   MonitorDBStore::TransactionRef t = paxos.get_pending_transaction();
   trim(t, first_committed, trim_to);
   put_first_committed(t, trim_to);
@@ -482,8 +549,8 @@ void PaxosService::maybe_trim()
   paxos.trigger_propose();
 }
 
-void PaxosService::trim(MonitorDBStore::TransactionRef t,
-			version_t from, version_t to)
+void
+PaxosService::trim(MonitorDBStore::TransactionRef t, version_t from, version_t to)
 {
   dout(10) << __func__ << " from " << from << " to " << to << dendl;
   ceph_assert(from != to);
@@ -501,14 +568,18 @@ void PaxosService::trim(MonitorDBStore::TransactionRef t,
   if (g_conf()->mon_compact_on_trim) {
     dout(20) << " compacting prefix " << get_service_name() << dendl;
     t->compact_range(get_service_name(), stringify(from - 1), stringify(to));
-    t->compact_range(get_service_name(),
-		     mon.store->combine_strings(full_prefix_name, from - 1),
-		     mon.store->combine_strings(full_prefix_name, to));
+    t->compact_range(
+        get_service_name(),
+        mon.store->combine_strings(full_prefix_name, from - 1),
+        mon.store->combine_strings(full_prefix_name, to));
   }
 }
 
-void PaxosService::encode_health(const health_check_map_t& next,
-				 MonitorDBStore::TransactionRef t) {
+void
+PaxosService::encode_health(
+    const health_check_map_t& next,
+    MonitorDBStore::TransactionRef t)
+{
   using ceph::encode;
   ceph::buffer::list bl;
   encode(next, bl);
@@ -516,7 +587,8 @@ void PaxosService::encode_health(const health_check_map_t& next,
   mon.log_health(next, health_checks, t);
 }
 
-void PaxosService::load_health()
+void
+PaxosService::load_health()
 {
   bufferlist bl;
   mon.store->get("health", service_name, bl);
@@ -527,21 +599,25 @@ void PaxosService::load_health()
   }
 }
 
-bool PaxosService::is_active() const {
-  return
-    !is_proposing() &&
-    (paxos.is_active() || paxos.is_updating() || paxos.is_writing());
+bool
+PaxosService::is_active() const
+{
+  return !is_proposing() &&
+         (paxos.is_active() || paxos.is_updating() || paxos.is_writing());
 }
 
-bool PaxosService::is_readable(version_t ver) const {
-  if (ver > get_last_committed() ||
-      !paxos.is_readable(0) ||
+bool
+PaxosService::is_readable(version_t ver) const
+{
+  if (ver > get_last_committed() || !paxos.is_readable(0) ||
       get_last_committed() == 0)
     return false;
   return true;
 }
 
-void PaxosService::wait_for_active(MonOpRequestRef op, Context *c) {
+void
+PaxosService::wait_for_active(MonOpRequestRef op, Context* c)
+{
   if (op)
     op->mark_event(service_name + ":wait_for_active");
 
@@ -552,7 +628,9 @@ void PaxosService::wait_for_active(MonOpRequestRef op, Context *c) {
   wait_for_finished_proposal(op, c);
 }
 
-void PaxosService::wait_for_readable(MonOpRequestRef op, Context *c, version_t ver) {
+void
+PaxosService::wait_for_readable(MonOpRequestRef op, Context* c, version_t ver)
+{
   /* This is somewhat of a hack. We only do check if a version is readable on
    * PaxosService::dispatch(), but, nonetheless, we must make sure that if that
    * is why we are not readable, then we must wait on PaxosService and not on
@@ -562,9 +640,7 @@ void PaxosService::wait_for_readable(MonOpRequestRef op, Context *c, version_t v
   if (op)
     op->mark_event(service_name + ":wait_for_readable");
 
-  if (is_proposing() ||
-      ver > get_last_committed() ||
-      get_last_committed() == 0)
+  if (is_proposing() || ver > get_last_committed() || get_last_committed() == 0)
     wait_for_finished_proposal(op, c);
   else {
     if (op)
@@ -574,7 +650,9 @@ void PaxosService::wait_for_readable(MonOpRequestRef op, Context *c, version_t v
   }
 }
 
-void PaxosService::wait_for_writeable(MonOpRequestRef op, Context *c) {
+void
+PaxosService::wait_for_writeable(MonOpRequestRef op, Context* c)
+{
   if (op)
     op->mark_event(service_name + ":wait_for_writeable");
 
@@ -586,6 +664,8 @@ void PaxosService::wait_for_writeable(MonOpRequestRef op, Context *c) {
     paxos.wait_for_writeable(op, c);
 }
 
-void PaxosService::cancel_events() {
+void
+PaxosService::cancel_events()
+{
   paxos.cancel_events();
 }

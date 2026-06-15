@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,14 +16,14 @@
 #ifndef CEPH_MMONCOMMANDACK_H
 #define CEPH_MMONCOMMANDACK_H
 
-#include "messages/PaxosServiceMessage.h"
-
 #include <sstream>
 #include <string>
 #include <vector>
 
-using ceph::common::cmdmap_from_json;
+#include "messages/PaxosServiceMessage.h"
+
 using ceph::common::cmd_getval;
+using ceph::common::cmdmap_from_json;
 
 class MMonCommandAck final : public PaxosServiceMessage {
 public:
@@ -31,16 +31,34 @@ public:
   errorcode32_t r;
   std::string rs;
 
-  MMonCommandAck() : PaxosServiceMessage{MSG_MON_COMMAND_ACK, 0} {}
-  MMonCommandAck(const std::vector<std::string>& c, int _r, auto&& s, version_t v) :
+  MMonCommandAck() :
+    PaxosServiceMessage{MSG_MON_COMMAND_ACK, 0}
+  {}
+
+  MMonCommandAck(
+      const std::vector<std::string>& c,
+      int _r,
+      auto&& s,
+      version_t v) :
     PaxosServiceMessage{MSG_MON_COMMAND_ACK, v},
-    cmd(c), r(_r), rs(std::forward<decltype(s)>(s)) { }
+    cmd(c),
+    r(_r),
+    rs(std::forward<decltype(s)>(s))
+  {}
+
 private:
   ~MMonCommandAck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "mon_command"; }
-  void print(std::ostream& o) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "mon_command";
+  }
+
+  void
+  print(std::ostream& o) const override
+  {
     cmdmap_t cmdmap;
     std::ostringstream ss;
     std::string prefix;
@@ -51,28 +69,32 @@ public:
     if (prefix == "config set") {
       std::string name;
       cmd_getval(cmdmap, "name", name);
-      o << "[{prefix=" << prefix
-        << ", name=" << name << "}]"
-        << "=" << r << " " << rs << " v" << version << ")";
+      o << "[{prefix=" << prefix << ", name=" << name << "}]" << "=" << r << " "
+        << rs << " v" << version << ")";
     } else if (prefix == "config-key set") {
       std::string key;
       cmd_getval(cmdmap, "key", key);
-      o << "[{prefix=" << prefix << ", key=" << key << "}]"
-        << "=" << r << " " << rs << " v" << version << ")";
+      o << "[{prefix=" << prefix << ", key=" << key << "}]" << "=" << r << " "
+        << rs << " v" << version << ")";
     } else {
       o << cmd;
     }
     o << "=" << r << " " << rs << " v" << version << ")";
   }
-  
-  void encode_payload(uint64_t features) override {
+
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     paxos_encode();
     encode(r, payload);
     encode(rs, payload);
     encode(cmd, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     paxos_decode(p);
@@ -80,8 +102,9 @@ public:
     decode(rs, p);
     decode(cmd, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

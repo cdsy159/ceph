@@ -1,14 +1,18 @@
 #include "common/errno.h"
-#include "acconfig.h"
-#include "include/compat.h"
 
-#include <sstream>
 #include <string.h>
 
-std::string cpp_strerror(int err)
+#include <sstream>
+
+#include "include/compat.h"
+
+#include "acconfig.h"
+
+std::string
+cpp_strerror(int err)
 {
   char buf[128];
-  char *errmsg;
+  char* errmsg;
 
   if (err < 0)
     err = -err;

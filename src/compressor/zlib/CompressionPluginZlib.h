@@ -16,11 +16,12 @@
 #define CEPH_COMPRESSION_PLUGIN_ZLIB_H
 
 // -----------------------------------------------------------------------------
-#include "arch/probe.h"
-#include "arch/intel.h"
 #include "arch/arm.h"
+#include "arch/intel.h"
+#include "arch/probe.h"
 #include "common/ceph_context.h"
 #include "compressor/CompressionPlugin.h"
+
 #include "ZlibCompressor.h"
 
 // -----------------------------------------------------------------------------
@@ -29,11 +30,12 @@ class CompressionPluginZlib : public ceph::CompressionPlugin {
 public:
   bool has_isal = false;
 
-  explicit CompressionPluginZlib(CephContext *cct) : CompressionPlugin(cct)
+  explicit CompressionPluginZlib(CephContext* cct) :
+    CompressionPlugin(cct)
   {}
 
-  int factory(CompressorRef *cs,
-                      std::ostream *ss) override
+  int
+  factory(CompressorRef* cs, std::ostream* ss) override
   {
     bool isal = false;
 #if defined(__i386__) || defined(__x86_64__)

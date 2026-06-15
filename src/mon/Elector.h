@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -24,14 +24,13 @@
 
 #include "common/Formatter.h"
 #include "include/types.h"
+#include "mon/ConnectionTracker.h"
+#include "mon/ElectionLogic.h"
 #include "mon/MonOpRequest.h"
 #include "mon/mon_types.h"
-#include "mon/ElectionLogic.h"
-#include "mon/ConnectionTracker.h"
 
 class Context;
 class Monitor;
-
 
 /**
  * This class is responsible for handling messages and maintaining
@@ -45,8 +44,9 @@ class Elector : public ElectionOwner, RankProvider {
    * @{
    */
 
-  private:
-    std::set<int> pending_pings;  // Monitors waiting for quorum features to be established
+private:
+  std::set<int>
+      pending_pings; // Monitors waiting for quorum features to be established
 
   ElectionLogic logic;
   // connectivity validation and scoring
@@ -56,9 +56,9 @@ class Elector : public ElectionOwner, RankProvider {
   std::set<int> live_pinging; // ranks which we are currently pinging
   std::set<int> dead_pinging; // ranks which didn't answer (degrading scores)
   double ping_timeout; // the timeout after which we consider a ping to be dead
-  int PING_DIVISOR = 2;  // we time out pings
+  int PING_DIVISOR = 2; // we time out pings
 
-   /**
+  /**
    * @defgroup Elector_h_internal_types Internal Types
    * @{
    */
@@ -72,7 +72,7 @@ class Elector : public ElectionOwner, RankProvider {
     uint64_t cluster_features = 0;
     mon_feature_t mon_features;
     ceph_release_t mon_release{0};
-    std::map<std::string,std::string> metadata;
+    std::map<std::string, std::string> metadata;
   };
 
   /**
@@ -82,13 +82,13 @@ class Elector : public ElectionOwner, RankProvider {
   /**
    * The Monitor instance associated with this class.
    */
-  Monitor *mon;
+  Monitor* mon;
 
   /**
    * Event callback responsible for dealing with an expired election once a
    * timer runs out and fires up.
    */
-  Context *expire_event = nullptr;
+  Context* expire_event = nullptr;
 
   /**
    * Resets the expire_event timer, by cancelling any existing one and
@@ -102,7 +102,7 @@ class Elector : public ElectionOwner, RankProvider {
    *
    * @param plus The amount of time to be added to the default firing value.
    */
-  void reset_timer(double plus=0.0);
+  void reset_timer(double plus = 0.0);
   /**
    * Cancel the expire_event timer, if it is defined.
    *
@@ -123,7 +123,7 @@ class Elector : public ElectionOwner, RankProvider {
   /**
    * @}
    */
- 
+
   /**
    * Handle a message from some other node proposing itself to become it
    * the Leader.
@@ -197,7 +197,7 @@ class Elector : public ElectionOwner, RankProvider {
    * Send a ping to the specified peer.
    * @n optional time that we will use instead of calling ceph_clock_now()
    */
-  bool send_peer_ping(int peer, const utime_t *n=NULL);
+  bool send_peer_ping(int peer, const utime_t* n = NULL);
   /**
    * Check the state of pinging the specified peer. This is our
    * "tick" for heartbeating; scheduled by itself and begin_peer_ping().
@@ -222,8 +222,8 @@ class Elector : public ElectionOwner, RankProvider {
    * tracker bufferlist
    */
   void assimilate_connection_reports(const bufferlist& bl);
-  
- public:
+
+public:
   /**
    * @defgroup Elector_h_ElectionOwner Functions from the ElectionOwner interface
    * @{
@@ -243,7 +243,7 @@ class Elector : public ElectionOwner, RankProvider {
   /* Retrieve rank from the Monitor */
   int get_my_rank() const;
   /* Send MMonElection OP_PROPOSE to every monitor in the map. */
-  void propose_to_peers(epoch_t e, bufferlist &bl);
+  void propose_to_peers(epoch_t e, bufferlist& bl);
   /* bootstrap() the Monitor */
   void reset_election();
   /* Retrieve the Monitor::has_ever_joined member */
@@ -252,7 +252,13 @@ class Elector : public ElectionOwner, RankProvider {
   unsigned paxos_size() const;
   /* Right now we don't disallow anybody */
   std::set<int> disallowed_leaders;
-  const std::set<int>& get_disallowed_leaders() const { return disallowed_leaders; }
+
+  const std::set<int>&
+  get_disallowed_leaders() const
+  {
+    return disallowed_leaders;
+  }
+
   /**
    * Check if the monitor is the tiebreaker in a stretch cluster.
    *
@@ -299,15 +305,16 @@ class Elector : public ElectionOwner, RankProvider {
    */
   void persist_connectivity_scores();
 
-  Elector *elector;
-  
+  Elector* elector;
+
   /**
    * Create an Elector class
    *
    * @param m A Monitor instance
    * @param strategy The election strategy to use, defined in MonMap/ElectionLogic
    */
-  explicit Elector(Monitor *m, int strategy);
+  explicit Elector(Monitor* m, int strategy);
+
   virtual ~Elector() {}
 
   /**
@@ -324,15 +331,22 @@ class Elector : public ElectionOwner, RankProvider {
    *
    * @returns Our current epoch number
    */
-  epoch_t get_epoch() { return logic.get_epoch(); }
+  epoch_t
+  get_epoch()
+  {
+    return logic.get_epoch();
+  }
 
   /**
    * If the Monitor knows there are no Paxos peers (so
    * we are rank 0 and there are no others) we can declare victory.
    */
-  void declare_standalone_victory() {
+  void
+  declare_standalone_victory()
+  {
     logic.declare_standalone_victory();
   }
+
   /**
    * Tell the Elector to start pinging a given peer.
    * Do this when you discover a peer and it has a rank assigned.
@@ -356,7 +370,9 @@ class Elector : public ElectionOwner, RankProvider {
    *
    * This function simply calls ElectionLogic::start.
    */
-  void call_election() {
+  void
+  call_election()
+  {
     logic.start();
   }
 
@@ -365,7 +381,12 @@ class Elector : public ElectionOwner, RankProvider {
    *
    * @post @p participating is false
    */
-  void stop_participating() { logic.participating = false; }
+  void
+  stop_participating()
+  {
+    logic.participating = false;
+  }
+
   /**
    * Start participating in Elections.
    *
@@ -385,7 +406,8 @@ class Elector : public ElectionOwner, RankProvider {
   */
   bool peer_tracker_is_clean();
 
-  std::set<std::pair<unsigned, unsigned>> get_netsplit_peer_tracker(std::set<unsigned> &mons_down);
+  std::set<std::pair<unsigned, unsigned>> get_netsplit_peer_tracker(
+      std::set<unsigned>& mons_down);
 
   /**
    * Forget everything about our peers. :(
@@ -403,6 +425,7 @@ class Elector : public ElectionOwner, RankProvider {
    */
   void notify_rank_removed(unsigned rank_removed, unsigned new_rank);
   void notify_strategy_maybe_changed(int strategy);
+
   /**
    * Set the disallowed leaders.
    *
@@ -413,21 +436,29 @@ class Elector : public ElectionOwner, RankProvider {
    * @returns false if the set is unchanged,
    *   true if the set changed
    */
-  bool set_disallowed_leaders(const std::set<int>& dl) {
-    if (dl == disallowed_leaders) return false;
+  bool
+  set_disallowed_leaders(const std::set<int>& dl)
+  {
+    if (dl == disallowed_leaders)
+      return false;
     disallowed_leaders = dl;
     return true;
   }
+
   /**
    * process all pending pings when quorum is established
    *
    */
   void process_pending_pings();
-  void dump_connection_scores(Formatter *f) {
+
+  void
+  dump_connection_scores(Formatter* f)
+  {
     f->open_object_section("connection scores");
     peer_tracker.dump(f);
     f->close_section();
   }
+
   /**
    * @}
    */

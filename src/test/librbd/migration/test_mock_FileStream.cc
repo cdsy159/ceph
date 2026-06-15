@@ -1,15 +1,16 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <filesystem>
+
+#include "common/ceph_mutex.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "include/rbd_types.h"
+#include "json_spirit/json_spirit.h"
+#include "librbd/migration/FileStream.h"
 #include "test/librbd/test_mock_fixture.h"
 #include "test/librbd/test_support.h"
-#include "include/rbd_types.h"
-#include "common/ceph_mutex.h"
-#include "librbd/migration/FileStream.h"
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
-#include "json_spirit/json_spirit.h"
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -17,8 +18,9 @@ namespace librbd {
 namespace {
 
 struct MockTestImageCtx : public MockImageCtx {
-  MockTestImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
-  }
+  MockTestImageCtx(ImageCtx& image_ctx) :
+    MockImageCtx(image_ctx)
+  {}
 };
 
 } // anonymous namespace
@@ -35,9 +37,11 @@ class TestMockMigrationFileStream : public TestMockFixture {
 public:
   typedef FileStream<MockTestImageCtx> MockFileStream;
 
-  librbd::ImageCtx *m_image_ctx;
+  librbd::ImageCtx* m_image_ctx;
 
-  void SetUp() override {
+  void
+  SetUp() override
+  {
     TestMockFixture::SetUp();
 
     ASSERT_EQ(0, open_image(m_image_name, &m_image_ctx));
@@ -46,7 +50,9 @@ public:
     json_object["file_path"] = file_name;
   }
 
-  void TearDown() override {
+  void
+  TearDown() override
+  {
     fs::remove(file_name);
     TestMockFixture::TearDown();
   }
@@ -55,7 +61,8 @@ public:
   json_spirit::mObject json_object;
 };
 
-TEST_F(TestMockMigrationFileStream, OpenClose) {
+TEST_F(TestMockMigrationFileStream, OpenClose)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist bl;
@@ -72,7 +79,8 @@ TEST_F(TestMockMigrationFileStream, OpenClose) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, GetSize) {
+TEST_F(TestMockMigrationFileStream, GetSize)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist expect_bl;
@@ -96,7 +104,8 @@ TEST_F(TestMockMigrationFileStream, GetSize) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, Read) {
+TEST_F(TestMockMigrationFileStream, Read)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist expect_bl;
@@ -120,7 +129,8 @@ TEST_F(TestMockMigrationFileStream, Read) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, SeekRead) {
+TEST_F(TestMockMigrationFileStream, SeekRead)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist write_bl;
@@ -151,7 +161,8 @@ TEST_F(TestMockMigrationFileStream, SeekRead) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, DNE) {
+TEST_F(TestMockMigrationFileStream, DNE)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   MockFileStream mock_file_stream(&mock_image_ctx, json_object);
@@ -165,7 +176,8 @@ TEST_F(TestMockMigrationFileStream, DNE) {
   ASSERT_EQ(0, ctx2.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, SeekError) {
+TEST_F(TestMockMigrationFileStream, SeekError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist bl;
@@ -186,7 +198,8 @@ TEST_F(TestMockMigrationFileStream, SeekError) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, ShortReadError) {
+TEST_F(TestMockMigrationFileStream, ShortReadError)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist expect_bl;
@@ -209,7 +222,8 @@ TEST_F(TestMockMigrationFileStream, ShortReadError) {
   ASSERT_EQ(0, ctx3.wait());
 }
 
-TEST_F(TestMockMigrationFileStream, ListSparseExtents) {
+TEST_F(TestMockMigrationFileStream, ListSparseExtents)
+{
   MockTestImageCtx mock_image_ctx(*m_image_ctx);
 
   bufferlist bl;
@@ -223,8 +237,8 @@ TEST_F(TestMockMigrationFileStream, ListSparseExtents) {
 
   C_SaferCond ctx2;
   io::SparseExtents sparse_extents;
-  mock_file_stream.list_sparse_extents({{0, 128}, {256, 64}}, &sparse_extents,
-                                       &ctx2);
+  mock_file_stream.list_sparse_extents(
+      {{0, 128}, {256, 64}}, &sparse_extents, &ctx2);
   ASSERT_EQ(0, ctx2.wait());
 
   io::SparseExtents expected_sparse_extents;

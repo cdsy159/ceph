@@ -13,25 +13,28 @@
 *
 */
 
-#include "cross_process_sem.h"
-#include "include/ceph_assert.h"
-#include "include/rados/librados.h"
 #include "st_rados_create_pool.h"
-#include "systest_runnable.h"
-#include "systest_settings.h"
 
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
 #include <sstream>
 #include <string>
 
+#include "include/ceph_assert.h"
+#include "include/rados/librados.h"
+
+#include "cross_process_sem.h"
+#include "systest_runnable.h"
+#include "systest_settings.h"
+
 using std::ostringstream;
 
-std::string StRadosCreatePool::
-get_random_buf(int sz)
+std::string
+StRadosCreatePool::get_random_buf(int sz)
 {
   ostringstream oss;
   int size = rand() % sz; // yep, it's not very random
@@ -41,31 +44,28 @@ get_random_buf(int sz)
   return oss.str();
 }
 
-StRadosCreatePool::
-StRadosCreatePool(int argc, const char **argv,
-		  CrossProcessSem *setup_sem,
-		  CrossProcessSem *pool_setup_sem,
-		  CrossProcessSem *close_create_pool,
-		  const std::string &pool_name,
-		  int num_objects,
-		  const std::string &suffix)
-  : SysTestRunnable(argc, argv),
-    m_setup_sem(setup_sem),
-    m_pool_setup_sem(pool_setup_sem),
-    m_close_create_pool(close_create_pool),
-    m_pool_name(pool_name),
-    m_num_objects(num_objects),
-    m_suffix(suffix)
-{
-}
+StRadosCreatePool::StRadosCreatePool(
+    int argc,
+    const char** argv,
+    CrossProcessSem* setup_sem,
+    CrossProcessSem* pool_setup_sem,
+    CrossProcessSem* close_create_pool,
+    const std::string& pool_name,
+    int num_objects,
+    const std::string& suffix) :
+  SysTestRunnable(argc, argv),
+  m_setup_sem(setup_sem),
+  m_pool_setup_sem(pool_setup_sem),
+  m_close_create_pool(close_create_pool),
+  m_pool_name(pool_name),
+  m_num_objects(num_objects),
+  m_suffix(suffix)
+{}
 
-StRadosCreatePool::
-~StRadosCreatePool()
-{
-}
+StRadosCreatePool::~StRadosCreatePool() {}
 
-int StRadosCreatePool::
-run()
+int
+StRadosCreatePool::run()
 {
   int ret_val = 0;
   rados_t cl;
@@ -96,8 +96,8 @@ run()
     std::string buf(get_random_buf(256));
     int ret = rados_write(io_ctx, oid, buf.c_str(), buf.size(), 0);
     if (ret != 0) {
-      printf("%s: rados_write(%s) failed with error: %d\n",
-	     get_id_str(), oid, ret);
+      printf(
+          "%s: rados_write(%s) failed with error: %d\n", get_id_str(), oid, ret);
       ret_val = ret;
       goto out;
     }
@@ -117,7 +117,8 @@ out:
   return ret_val;
 }
 
-std::string get_temp_pool_name(const char* prefix)
+std::string
+get_temp_pool_name(const char* prefix)
 {
   ceph_assert(prefix);
   char hostname[80];
@@ -125,8 +126,8 @@ std::string get_temp_pool_name(const char* prefix)
   ret = gethostname(hostname, sizeof(hostname));
   ceph_assert(!ret);
   char poolname[256];
-  ret = snprintf(poolname, sizeof(poolname),
-                 "%s.%s-%d", prefix, hostname, getpid());
+  ret = snprintf(
+      poolname, sizeof(poolname), "%s.%s-%d", prefix, hostname, getpid());
   ceph_assert(ret > 0);
   ceph_assert((unsigned int)ret < sizeof(poolname));
   return poolname;

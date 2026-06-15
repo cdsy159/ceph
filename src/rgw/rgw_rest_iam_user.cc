@@ -16,8 +16,10 @@
 #include "rgw_rest_iam_user.h"
 
 #include <utility>
-#include "include/buffer.h"
+
 #include "common/errno.h"
+#include "include/buffer.h"
+
 #include "rgw_arn.h"
 #include "rgw_common.h"
 #include "rgw_iam_managed_policy.h"
@@ -26,8 +28,8 @@
 #include "rgw_rest.h"
 #include "rgw_rest_iam.h"
 
-
-static std::string make_resource_name(const RGWUserInfo& info)
+static std::string
+make_resource_name(const RGWUserInfo& info)
 {
   std::string_view path = info.path;
   if (path.empty()) {
@@ -36,7 +38,8 @@ static std::string make_resource_name(const RGWUserInfo& info)
   return string_cat_reserve(path, info.display_name);
 }
 
-static void dump_iam_user(const RGWUserInfo& info, Formatter* f)
+static void
+dump_iam_user(const RGWUserInfo& info, Formatter* f)
 {
   encode_json("Path", info.path, f);
   encode_json("UserName", info.display_name, f);
@@ -45,27 +48,41 @@ static void dump_iam_user(const RGWUserInfo& info, Formatter* f)
   encode_json("CreateDate", info.create_date, f);
 }
 
-
 // CreateUser
 class RGWCreateUser_IAM : public RGWOp {
   bufferlist post_body;
   RGWUserInfo info;
 
-  int forward_to_master(optional_yield y, const rgw::SiteConfig& site, std::string& uid);
- public:
-  explicit RGWCreateUser_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+  int forward_to_master(
+      optional_yield y,
+      const rgw::SiteConfig& site,
+      std::string& uid);
+
+public:
+  explicit RGWCreateUser_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "create_user"; }
-  RGWOpType get_type() override { return RGW_OP_CREATE_USER; }
+  const char*
+  name() const override
+  {
+    return "create_user";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_CREATE_USER;
+  }
 };
 
-int RGWCreateUser_IAM::init_processing(optional_yield y)
+int
+RGWCreateUser_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -91,7 +108,8 @@ int RGWCreateUser_IAM::init_processing(optional_yield y)
   return 0;
 }
 
-int RGWCreateUser_IAM::verify_permission(optional_yield y)
+int
+RGWCreateUser_IAM::verify_permission(optional_yield y)
 {
   const std::string resource_name = make_resource_name(info);
   const rgw::ARN arn{resource_name, "user", info.account_id, true};
@@ -101,9 +119,11 @@ int RGWCreateUser_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWCreateUser_IAM::forward_to_master(optional_yield y,
-                                         const rgw::SiteConfig& site,
-                                         std::string& uid)
+int
+RGWCreateUser_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site,
+    std::string& uid)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -122,14 +142,17 @@ int RGWCreateUser_IAM::forward_to_master(optional_yield y,
     params.erase(lower, upper);
   }
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
 
-  XMLObj* response = parser.find_first("CreateUserResponse");;
+  XMLObj* response = parser.find_first("CreateUserResponse");
+  ;
   if (!response) {
     ldpp_dout(this, 5) << "ERROR: unexpected xml: CreateUserResponse" << dendl;
     return -EINVAL;
@@ -154,21 +177,23 @@ int RGWCreateUser_IAM::forward_to_master(optional_yield y,
     return -EINVAL;
   }
 
-  ldpp_dout(this, 4) << "user_id decoded from forwarded response is " << uid << dendl;
+  ldpp_dout(this, 4) << "user_id decoded from forwarded response is " << uid
+                     << dendl;
   return 0;
 }
 
-void RGWCreateUser_IAM::execute(optional_yield y)
+void
+RGWCreateUser_IAM::execute(optional_yield y)
 {
   // check the current user count against account limit
   RGWAccountInfo account;
   rgw::sal::Attrs attrs; // unused
   RGWObjVersionTracker objv; // unused
-  op_ret = driver->load_account_by_id(this, y, info.account_id,
-                                      account, attrs, objv);
+  op_ret = driver->load_account_by_id(
+      this, y, info.account_id, account, attrs, objv);
   if (op_ret < 0) {
-    ldpp_dout(this, 4) << "failed to load iam account "
-        << info.account_id << ": " << cpp_strerror(op_ret) << dendl;
+    ldpp_dout(this, 4) << "failed to load iam account " << info.account_id
+                       << ": " << cpp_strerror(op_ret) << dendl;
     return;
   }
 
@@ -177,12 +202,12 @@ void RGWCreateUser_IAM::execute(optional_yield y)
     op_ret = driver->count_account_users(this, y, info.account_id, count);
     if (op_ret < 0) {
       ldpp_dout(this, 4) << "failed to count users for iam account "
-          << info.account_id << ": " << cpp_strerror(op_ret) << dendl;
+                         << info.account_id << ": " << cpp_strerror(op_ret)
+                         << dendl;
       return;
     }
     if (std::cmp_greater_equal(count, account.max_users)) {
-      s->err.message = fmt::format("User limit {} exceeded",
-                                   account.max_users);
+      s->err.message = fmt::format("User limit {} exceeded", account.max_users);
       op_ret = ERR_LIMIT_EXCEEDED;
       return;
     }
@@ -211,12 +236,14 @@ void RGWCreateUser_IAM::execute(optional_yield y)
   op_ret = user->store_user(this, y, exclusive, nullptr);
 }
 
-void RGWCreateUser_IAM::send_response()
+void
+RGWCreateUser_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "CreateUserResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "CreateUserResponse", RGW_REST_IAM_XMLNS};
     {
       Formatter::ObjectSection result{*f, "CreateUserResult"};
       Formatter::ObjectSection user{*f, "User"};
@@ -235,22 +262,32 @@ void RGWCreateUser_IAM::send_response()
   end_header(s, this);
 }
 
-
 // GetUser
 class RGWGetUser_IAM : public RGWOp {
   rgw_account_id account_id;
   std::unique_ptr<rgw::sal::User> user;
- public:
+
+public:
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "get_user"; }
-  RGWOpType get_type() override { return RGW_OP_GET_USER; }
+  const char*
+  name() const override
+  {
+    return "get_user";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_GET_USER;
+  }
 };
 
-int RGWGetUser_IAM::init_processing(optional_yield y)
+int
+RGWGetUser_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -273,8 +310,8 @@ int RGWGetUser_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -284,7 +321,8 @@ int RGWGetUser_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWGetUser_IAM::verify_permission(optional_yield y)
+int
+RGWGetUser_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -295,11 +333,12 @@ int RGWGetUser_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-void RGWGetUser_IAM::execute(optional_yield y)
-{
-}
+void
+RGWGetUser_IAM::execute(optional_yield y)
+{}
 
-void RGWGetUser_IAM::send_response()
+void
+RGWGetUser_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
@@ -323,7 +362,6 @@ void RGWGetUser_IAM::send_response()
   end_header(s, this);
 }
 
-
 // UpdateUser
 class RGWUpdateUser_IAM : public RGWOp {
   bufferlist post_body;
@@ -332,20 +370,32 @@ class RGWUpdateUser_IAM : public RGWOp {
   std::unique_ptr<rgw::sal::User> user;
 
   int forward_to_master(optional_yield y, const rgw::SiteConfig& site);
- public:
-  explicit RGWUpdateUser_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+
+public:
+  explicit RGWUpdateUser_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "update_user"; }
-  RGWOpType get_type() override { return RGW_OP_UPDATE_USER; }
+  const char*
+  name() const override
+  {
+    return "update_user";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_UPDATE_USER;
+  }
 };
 
-int RGWUpdateUser_IAM::init_processing(optional_yield y)
+int
+RGWUpdateUser_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -375,8 +425,8 @@ int RGWUpdateUser_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -386,7 +436,8 @@ int RGWUpdateUser_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWUpdateUser_IAM::verify_permission(optional_yield y)
+int
+RGWUpdateUser_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -397,7 +448,10 @@ int RGWUpdateUser_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWUpdateUser_IAM::forward_to_master(optional_yield y, const rgw::SiteConfig& site)
+int
+RGWUpdateUser_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -411,16 +465,19 @@ int RGWUpdateUser_IAM::forward_to_master(optional_yield y, const rgw::SiteConfig
   s->info.args.remove("Action");
   s->info.args.remove("Version");
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
   return 0;
 }
 
-void RGWUpdateUser_IAM::execute(optional_yield y)
+void
+RGWUpdateUser_IAM::execute(optional_yield y)
 {
   const rgw::SiteConfig& site = *s->penv.site;
   if (!site.is_meta_master()) {
@@ -430,34 +487,35 @@ void RGWUpdateUser_IAM::execute(optional_yield y)
     }
   }
 
-  op_ret = retry_raced_user_write(this, y, user.get(),
-      [this, y] {
-        RGWUserInfo& info = user->get_info();
-        RGWUserInfo old_info = info;
+  op_ret = retry_raced_user_write(this, y, user.get(), [this, y] {
+    RGWUserInfo& info = user->get_info();
+    RGWUserInfo old_info = info;
 
-        if (!new_path.empty()) {
-          info.path = new_path;
-        }
-        if (!new_username.empty()) {
-          info.display_name = new_username;
-        }
+    if (!new_path.empty()) {
+      info.path = new_path;
+    }
+    if (!new_username.empty()) {
+      info.display_name = new_username;
+    }
 
-        if (info.path == old_info.path &&
-            info.display_name == old_info.display_name) {
-          return 0; // no changes to write
-        }
+    if (info.path == old_info.path &&
+        info.display_name == old_info.display_name) {
+      return 0; // no changes to write
+    }
 
-        constexpr bool exclusive = false;
-        return user->store_user(this, y, exclusive, &old_info);
-      });
+    constexpr bool exclusive = false;
+    return user->store_user(this, y, exclusive, &old_info);
+  });
 }
 
-void RGWUpdateUser_IAM::send_response()
+void
+RGWUpdateUser_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "UpdateUserResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "UpdateUserResponse", RGW_REST_IAM_XMLNS};
     {
       Formatter::ObjectSection result{*f, "UpdateUserResult"};
       Formatter::ObjectSection User{*f, "User"};
@@ -476,7 +534,6 @@ void RGWUpdateUser_IAM::send_response()
   end_header(s, this);
 }
 
-
 // DeleteUser
 class RGWDeleteUser_IAM : public RGWOp {
   bufferlist post_body;
@@ -484,20 +541,32 @@ class RGWDeleteUser_IAM : public RGWOp {
 
   int forward_to_master(optional_yield y, const rgw::SiteConfig& site);
   int check_empty();
- public:
-  explicit RGWDeleteUser_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+
+public:
+  explicit RGWDeleteUser_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "delete_user"; }
-  RGWOpType get_type() override { return RGW_OP_DELETE_USER; }
+  const char*
+  name() const override
+  {
+    return "delete_user";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_DELETE_USER;
+  }
 };
 
-int RGWDeleteUser_IAM::init_processing(optional_yield y)
+int
+RGWDeleteUser_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -516,8 +585,8 @@ int RGWDeleteUser_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -527,7 +596,8 @@ int RGWDeleteUser_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWDeleteUser_IAM::verify_permission(optional_yield y)
+int
+RGWDeleteUser_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -538,7 +608,10 @@ int RGWDeleteUser_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWDeleteUser_IAM::forward_to_master(optional_yield y, const rgw::SiteConfig& site)
+int
+RGWDeleteUser_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -550,16 +623,19 @@ int RGWDeleteUser_IAM::forward_to_master(optional_yield y, const rgw::SiteConfig
   s->info.args.remove("Action");
   s->info.args.remove("Version");
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
   return 0;
 }
 
-int RGWDeleteUser_IAM::check_empty()
+int
+RGWDeleteUser_IAM::check_empty()
 {
   if (!s->penv.site->is_meta_master()) {
     // only check on the master zone. if a forwarded DeleteUser request
@@ -570,7 +646,8 @@ int RGWDeleteUser_IAM::check_empty()
   // verify that all user resources are removed first
   const RGWUserInfo& info = user->get_info();
   if (!info.access_keys.empty()) {
-    s->err.message = "The user cannot be deleted until its AccessKeys are removed";
+    s->err.message =
+        "The user cannot be deleted until its AccessKeys are removed";
     return -ERR_DELETE_CONFLICT;
   }
 
@@ -585,7 +662,8 @@ int RGWDeleteUser_IAM::check_empty()
     }
 
     if (!policies.empty()) {
-      s->err.message = "The user cannot be deleted until all user policies are removed";
+      s->err.message =
+          "The user cannot be deleted until all user policies are removed";
       return -ERR_DELETE_CONFLICT;
     }
   }
@@ -599,7 +677,8 @@ int RGWDeleteUser_IAM::check_empty()
     }
 
     if (!policies.arns.empty()) {
-      s->err.message = "The user cannot be deleted until all managed policies are detached";
+      s->err.message =
+          "The user cannot be deleted until all managed policies are detached";
       return -ERR_DELETE_CONFLICT;
     }
   }
@@ -607,7 +686,8 @@ int RGWDeleteUser_IAM::check_empty()
   return 0;
 }
 
-void RGWDeleteUser_IAM::execute(optional_yield y)
+void
+RGWDeleteUser_IAM::execute(optional_yield y)
 {
   const rgw::SiteConfig& site = *s->penv.site;
   if (!site.is_meta_master()) {
@@ -632,12 +712,14 @@ void RGWDeleteUser_IAM::execute(optional_yield y)
   }
 }
 
-void RGWDeleteUser_IAM::send_response()
+void
+RGWDeleteUser_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "DeleteUserResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "DeleteUserResponse", RGW_REST_IAM_XMLNS};
     Formatter::ObjectSection metadata{*f, "ResponseMetadata"};
     f->dump_string("RequestId", s->trans_id);
     // /ResponseMetadata
@@ -648,7 +730,6 @@ void RGWDeleteUser_IAM::send_response()
   dump_errno(s);
   end_header(s, this);
 }
-
 
 // ListUsers
 class RGWListUsers_IAM : public RGWOp {
@@ -661,17 +742,28 @@ class RGWListUsers_IAM : public RGWOp {
   void start_response();
   void end_response(std::string_view next_marker);
   void send_response_data(std::span<RGWUserInfo> users);
- public:
+
+public:
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "list_users"; }
-  RGWOpType get_type() override { return RGW_OP_LIST_USERS; }
+  const char*
+  name() const override
+  {
+    return "list_users";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_LIST_USERS;
+  }
 };
 
-int RGWListUsers_IAM::init_processing(optional_yield y)
+int
+RGWListUsers_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -693,7 +785,8 @@ int RGWListUsers_IAM::init_processing(optional_yield y)
   return 0;
 }
 
-int RGWListUsers_IAM::verify_permission(optional_yield y)
+int
+RGWListUsers_IAM::verify_permission(optional_yield y)
 {
   const std::string resource_name = "";
   const rgw::ARN arn{resource_name, "user", account_id, true};
@@ -703,16 +796,17 @@ int RGWListUsers_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-void RGWListUsers_IAM::execute(optional_yield y)
+void
+RGWListUsers_IAM::execute(optional_yield y)
 {
   const std::string& tenant = s->auth.identity->get_tenant();
 
   rgw::sal::UserList listing;
   listing.next_marker = marker;
 
-  op_ret = driver->list_account_users(this, y, account_id, tenant,
-                                      path_prefix, listing.next_marker,
-                                      max_items, listing);
+  op_ret = driver->list_account_users(
+      this, y, account_id, tenant, path_prefix, listing.next_marker, max_items,
+      listing);
   if (op_ret == -ENOENT) {
     op_ret = 0;
   } else if (op_ret < 0) {
@@ -728,10 +822,11 @@ void RGWListUsers_IAM::execute(optional_yield y)
   end_response(listing.next_marker);
 }
 
-void RGWListUsers_IAM::start_response()
+void
+RGWListUsers_IAM::start_response()
 {
-  const int64_t proposed_content_length =
-      op_ret ? NO_CONTENT_LENGTH : CHUNKED_TRANSFER_ENCODING;
+  const int64_t proposed_content_length = op_ret ? NO_CONTENT_LENGTH
+                                                 : CHUNKED_TRANSFER_ENCODING;
 
   set_req_state_err(s, op_ret);
   dump_errno(s);
@@ -742,12 +837,14 @@ void RGWListUsers_IAM::start_response()
   }
 
   dump_start(s); // <?xml block ?>
-  s->formatter->open_object_section_in_ns("ListUsersResponse", RGW_REST_IAM_XMLNS);
+  s->formatter->open_object_section_in_ns(
+      "ListUsersResponse", RGW_REST_IAM_XMLNS);
   s->formatter->open_object_section("ListUsersResult");
   s->formatter->open_array_section("Users");
 }
 
-void RGWListUsers_IAM::end_response(std::string_view next_marker)
+void
+RGWListUsers_IAM::end_response(std::string_view next_marker)
 {
   s->formatter->close_section(); // Users
 
@@ -762,7 +859,8 @@ void RGWListUsers_IAM::end_response(std::string_view next_marker)
   rgw_flush_formatter_and_reset(s, s->formatter);
 }
 
-void RGWListUsers_IAM::send_response_data(std::span<RGWUserInfo> users)
+void
+RGWListUsers_IAM::send_response_data(std::span<RGWUserInfo> users)
 {
   if (!started_response) {
     started_response = true;
@@ -782,15 +880,16 @@ void RGWListUsers_IAM::send_response_data(std::span<RGWUserInfo> users)
   rgw_flush_formatter(s, s->formatter);
 }
 
-void RGWListUsers_IAM::send_response()
+void
+RGWListUsers_IAM::send_response()
 {
   if (!started_response) { // errored out before execute() wrote anything
     start_response();
   }
 }
 
-
-void dump_access_key(const RGWAccessKey& key, Formatter* f)
+void
+dump_access_key(const RGWAccessKey& key, Formatter* f)
 {
   encode_json("AccessKeyId", key.id, f);
   encode_json("Status", key.active ? "Active" : "Inactive", f);
@@ -803,22 +902,36 @@ class RGWCreateAccessKey_IAM : public RGWOp {
   std::unique_ptr<rgw::sal::User> user;
   RGWAccessKey key;
 
-  int forward_to_master(optional_yield y, const rgw::SiteConfig& site,
-                        RGWAccessKey& cred);
- public:
-  explicit RGWCreateAccessKey_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+  int forward_to_master(
+      optional_yield y,
+      const rgw::SiteConfig& site,
+      RGWAccessKey& cred);
+
+public:
+  explicit RGWCreateAccessKey_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "create_access_key"; }
-  RGWOpType get_type() override { return RGW_OP_CREATE_ACCESS_KEY; }
+  const char*
+  name() const override
+  {
+    return "create_access_key";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_CREATE_ACCESS_KEY;
+  }
 };
 
-int RGWCreateAccessKey_IAM::init_processing(optional_yield y)
+int
+RGWCreateAccessKey_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -845,8 +958,8 @@ int RGWCreateAccessKey_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -856,7 +969,8 @@ int RGWCreateAccessKey_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWCreateAccessKey_IAM::verify_permission(optional_yield y)
+int
+RGWCreateAccessKey_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -867,9 +981,11 @@ int RGWCreateAccessKey_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWCreateAccessKey_IAM::forward_to_master(optional_yield y,
-                                              const rgw::SiteConfig& site,
-                                              RGWAccessKey& cred)
+int
+RGWCreateAccessKey_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site,
+    RGWAccessKey& cred)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -881,22 +997,27 @@ int RGWCreateAccessKey_IAM::forward_to_master(optional_yield y,
   s->info.args.remove("Action");
   s->info.args.remove("Version");
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
 
-  XMLObj* response = parser.find_first("CreateAccessKeyResponse");;
+  XMLObj* response = parser.find_first("CreateAccessKeyResponse");
+  ;
   if (!response) {
-    ldpp_dout(this, 5) << "ERROR: unexpected xml: CreateAccessKeyResponse" << dendl;
+    ldpp_dout(this, 5) << "ERROR: unexpected xml: CreateAccessKeyResponse"
+                       << dendl;
     return -EINVAL;
   }
 
   XMLObj* result = response->find_first("CreateAccessKeyResult");
   if (!result) {
-    ldpp_dout(this, 5) << "ERROR: unexpected xml: CreateAccessKeyResult" << dendl;
+    ldpp_dout(this, 5) << "ERROR: unexpected xml: CreateAccessKeyResult"
+                       << dendl;
     return -EINVAL;
   }
 
@@ -918,7 +1039,8 @@ int RGWCreateAccessKey_IAM::forward_to_master(optional_yield y,
   return 0;
 }
 
-void RGWCreateAccessKey_IAM::execute(optional_yield y)
+void
+RGWCreateAccessKey_IAM::execute(optional_yield y)
 {
   std::optional<int> max_keys;
   {
@@ -926,11 +1048,12 @@ void RGWCreateAccessKey_IAM::execute(optional_yield y)
     RGWAccountInfo account;
     rgw::sal::Attrs attrs; // unused
     RGWObjVersionTracker objv; // unused
-    op_ret = driver->load_account_by_id(this, y, user->get_info().account_id,
-                                        account, attrs, objv);
+    op_ret = driver->load_account_by_id(
+        this, y, user->get_info().account_id, account, attrs, objv);
     if (op_ret < 0) {
       ldpp_dout(this, 4) << "failed to load iam account "
-          << user->get_info().account_id << ": " << cpp_strerror(op_ret) << dendl;
+                         << user->get_info().account_id << ": "
+                         << cpp_strerror(op_ret) << dendl;
       return;
     }
     if (account.max_access_keys >= 0) { // max < 0 means unlimited
@@ -955,30 +1078,31 @@ void RGWCreateAccessKey_IAM::execute(optional_yield y)
     }
   }
 
-  op_ret = retry_raced_user_write(this, y, user.get(),
-      [this, y, &max_keys] {
-        RGWUserInfo& info = user->get_info();
-        RGWUserInfo old_info = info;
+  op_ret = retry_raced_user_write(this, y, user.get(), [this, y, &max_keys] {
+    RGWUserInfo& info = user->get_info();
+    RGWUserInfo old_info = info;
 
-        info.access_keys[key.id] = key;
+    info.access_keys[key.id] = key;
 
-        // check the current count against account limit
-        if (max_keys && std::cmp_greater(info.access_keys.size(), *max_keys)) {
-          s->err.message = fmt::format("Access key limit {} exceeded", *max_keys);
-          return -ERR_LIMIT_EXCEEDED;
-        }
+    // check the current count against account limit
+    if (max_keys && std::cmp_greater(info.access_keys.size(), *max_keys)) {
+      s->err.message = fmt::format("Access key limit {} exceeded", *max_keys);
+      return -ERR_LIMIT_EXCEEDED;
+    }
 
-        constexpr bool exclusive = false;
-        return user->store_user(this, y, exclusive, &old_info);
-      });
+    constexpr bool exclusive = false;
+    return user->store_user(this, y, exclusive, &old_info);
+  });
 }
 
-void RGWCreateAccessKey_IAM::send_response()
+void
+RGWCreateAccessKey_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "CreateAccessKeyResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "CreateAccessKeyResponse", RGW_REST_IAM_XMLNS};
     {
       Formatter::ObjectSection result{*f, "CreateAccessKeyResult"};
       Formatter::ObjectSection accesskey{*f, "AccessKey"};
@@ -999,7 +1123,6 @@ void RGWCreateAccessKey_IAM::send_response()
   end_header(s, this);
 }
 
-
 // UpdateAccessKey
 class RGWUpdateAccessKey_IAM : public RGWOp {
   bufferlist post_body;
@@ -1008,20 +1131,32 @@ class RGWUpdateAccessKey_IAM : public RGWOp {
   std::unique_ptr<rgw::sal::User> user;
 
   int forward_to_master(optional_yield y, const rgw::SiteConfig& site);
- public:
-  explicit RGWUpdateAccessKey_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+
+public:
+  explicit RGWUpdateAccessKey_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "update_access_key"; }
-  RGWOpType get_type() override { return RGW_OP_UPDATE_ACCESS_KEY; }
+  const char*
+  name() const override
+  {
+    return "update_access_key";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_UPDATE_ACCESS_KEY;
+  }
 };
 
-int RGWUpdateAccessKey_IAM::init_processing(optional_yield y)
+int
+RGWUpdateAccessKey_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -1068,8 +1203,8 @@ int RGWUpdateAccessKey_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -1079,7 +1214,8 @@ int RGWUpdateAccessKey_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWUpdateAccessKey_IAM::verify_permission(optional_yield y)
+int
+RGWUpdateAccessKey_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -1090,8 +1226,10 @@ int RGWUpdateAccessKey_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWUpdateAccessKey_IAM::forward_to_master(optional_yield y,
-                                              const rgw::SiteConfig& site)
+int
+RGWUpdateAccessKey_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -1105,16 +1243,19 @@ int RGWUpdateAccessKey_IAM::forward_to_master(optional_yield y,
   s->info.args.remove("Action");
   s->info.args.remove("Version");
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
   return 0;
 }
 
-void RGWUpdateAccessKey_IAM::execute(optional_yield y)
+void
+RGWUpdateAccessKey_IAM::execute(optional_yield y)
 {
   const rgw::SiteConfig& site = *s->penv.site;
   if (!site.is_meta_master()) {
@@ -1124,34 +1265,35 @@ void RGWUpdateAccessKey_IAM::execute(optional_yield y)
     }
   }
 
-  op_ret = retry_raced_user_write(this, y, user.get(),
-      [this, y] {
-        RGWUserInfo& info = user->get_info();
-        RGWUserInfo old_info = info;
+  op_ret = retry_raced_user_write(this, y, user.get(), [this, y] {
+    RGWUserInfo& info = user->get_info();
+    RGWUserInfo old_info = info;
 
-        auto key = info.access_keys.find(access_key_id);
-        if (key == info.access_keys.end()) {
-          s->err.message = "No such AccessKeyId in the user";
-          return -ERR_NO_SUCH_ENTITY;
-        }
+    auto key = info.access_keys.find(access_key_id);
+    if (key == info.access_keys.end()) {
+      s->err.message = "No such AccessKeyId in the user";
+      return -ERR_NO_SUCH_ENTITY;
+    }
 
-        if (key->second.active == new_status) {
-          return 0; // nothing to do, return success
-        }
+    if (key->second.active == new_status) {
+      return 0; // nothing to do, return success
+    }
 
-        key->second.active = new_status;
+    key->second.active = new_status;
 
-        constexpr bool exclusive = false;
-        return user->store_user(this, y, exclusive, &old_info);
-      });
+    constexpr bool exclusive = false;
+    return user->store_user(this, y, exclusive, &old_info);
+  });
 }
 
-void RGWUpdateAccessKey_IAM::send_response()
+void
+RGWUpdateAccessKey_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "UpdateAccessKeyResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "UpdateAccessKeyResponse", RGW_REST_IAM_XMLNS};
     Formatter::ObjectSection metadata{*f, "ResponseMetadata"};
     f->dump_string("RequestId", s->trans_id);
     // /ResponseMetadata
@@ -1170,20 +1312,32 @@ class RGWDeleteAccessKey_IAM : public RGWOp {
   std::unique_ptr<rgw::sal::User> user;
 
   int forward_to_master(optional_yield y, const rgw::SiteConfig& site);
- public:
-  explicit RGWDeleteAccessKey_IAM(const ceph::bufferlist& post_body)
-    : post_body(post_body) {}
+
+public:
+  explicit RGWDeleteAccessKey_IAM(const ceph::bufferlist& post_body) :
+    post_body(post_body)
+  {}
 
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "delete_access_key"; }
-  RGWOpType get_type() override { return RGW_OP_DELETE_ACCESS_KEY; }
+  const char*
+  name() const override
+  {
+    return "delete_access_key";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_DELETE_ACCESS_KEY;
+  }
 };
 
-int RGWDeleteAccessKey_IAM::init_processing(optional_yield y)
+int
+RGWDeleteAccessKey_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -1216,8 +1370,8 @@ int RGWDeleteAccessKey_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  int r = driver->load_account_user_by_name(this, y, account_id,
-                                            tenant, username, &user);
+  int r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -1227,7 +1381,8 @@ int RGWDeleteAccessKey_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWDeleteAccessKey_IAM::verify_permission(optional_yield y)
+int
+RGWDeleteAccessKey_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -1238,8 +1393,10 @@ int RGWDeleteAccessKey_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-int RGWDeleteAccessKey_IAM::forward_to_master(optional_yield y,
-                                              const rgw::SiteConfig& site)
+int
+RGWDeleteAccessKey_IAM::forward_to_master(
+    optional_yield y,
+    const rgw::SiteConfig& site)
 {
   RGWXMLDecoder::XMLParser parser;
   if (!parser.init()) {
@@ -1252,16 +1409,19 @@ int RGWDeleteAccessKey_IAM::forward_to_master(optional_yield y,
   s->info.args.remove("Action");
   s->info.args.remove("Version");
 
-  int r = forward_iam_request_to_master(this, site, s->user->get_info(),
-                                        post_body, parser, s->info, s->err, y);
+  int r = forward_iam_request_to_master(
+      this, site, s->user->get_info(), post_body, parser, s->info, s->err, y);
   if (r < 0) {
-    ldpp_dout(this, 20) << "ERROR: forward_iam_request_to_master failed with error code: " << r << dendl;
+    ldpp_dout(this, 20)
+        << "ERROR: forward_iam_request_to_master failed with error code: " << r
+        << dendl;
     return r;
   }
   return 0;
 }
 
-void RGWDeleteAccessKey_IAM::execute(optional_yield y)
+void
+RGWDeleteAccessKey_IAM::execute(optional_yield y)
 {
   const rgw::SiteConfig& site = *s->penv.site;
   if (!site.is_meta_master()) {
@@ -1271,33 +1431,34 @@ void RGWDeleteAccessKey_IAM::execute(optional_yield y)
     }
   }
 
-  op_ret = retry_raced_user_write(this, y, user.get(),
-      [this, y, &site] {
-        RGWUserInfo& info = user->get_info();
-        RGWUserInfo old_info = info;
+  op_ret = retry_raced_user_write(this, y, user.get(), [this, y, &site] {
+    RGWUserInfo& info = user->get_info();
+    RGWUserInfo old_info = info;
 
-        auto key = info.access_keys.find(access_key_id);
-        if (key == info.access_keys.end()) {
-          if (!site.is_meta_master()) {
-            return 0; // delete succeeded on the master
-          }
-          s->err.message = "No such AccessKeyId in the user";
-          return -ERR_NO_SUCH_ENTITY;
-        }
+    auto key = info.access_keys.find(access_key_id);
+    if (key == info.access_keys.end()) {
+      if (!site.is_meta_master()) {
+        return 0; // delete succeeded on the master
+      }
+      s->err.message = "No such AccessKeyId in the user";
+      return -ERR_NO_SUCH_ENTITY;
+    }
 
-        info.access_keys.erase(key);
+    info.access_keys.erase(key);
 
-        constexpr bool exclusive = false;
-        return user->store_user(this, y, exclusive, &old_info);
-      });
+    constexpr bool exclusive = false;
+    return user->store_user(this, y, exclusive, &old_info);
+  });
 }
 
-void RGWDeleteAccessKey_IAM::send_response()
+void
+RGWDeleteAccessKey_IAM::send_response()
 {
   if (!op_ret) {
     dump_start(s); // <?xml block ?>
     Formatter* f = s->formatter;
-    Formatter::ObjectSection response{*f, "DeleteAccessKeyResponse", RGW_REST_IAM_XMLNS};
+    Formatter::ObjectSection response{
+        *f, "DeleteAccessKeyResponse", RGW_REST_IAM_XMLNS};
     Formatter::ObjectSection metadata{*f, "ResponseMetadata"};
     f->dump_string("RequestId", s->trans_id);
     // /ResponseMetadata
@@ -1309,7 +1470,6 @@ void RGWDeleteAccessKey_IAM::send_response()
   end_header(s, this);
 }
 
-
 // ListAccessKeys
 class RGWListAccessKeys_IAM : public RGWOp {
   std::unique_ptr<rgw::sal::User> user;
@@ -1318,17 +1478,28 @@ class RGWListAccessKeys_IAM : public RGWOp {
 
   bool started_response = false;
   void start_response();
- public:
+
+public:
   int init_processing(optional_yield y) override;
   int verify_permission(optional_yield y) override;
   void execute(optional_yield y) override;
   void send_response() override;
 
-  const char* name() const override { return "list_access_keys"; }
-  RGWOpType get_type() override { return RGW_OP_LIST_ACCESS_KEYS; }
+  const char*
+  name() const override
+  {
+    return "list_access_keys";
+  }
+
+  RGWOpType
+  get_type() override
+  {
+    return RGW_OP_LIST_ACCESS_KEYS;
+  }
 };
 
-int RGWListAccessKeys_IAM::init_processing(optional_yield y)
+int
+RGWListAccessKeys_IAM::init_processing(optional_yield y)
 {
   // use account id from authenticated user/role. with AssumeRole, this may not
   // match the account of s->user
@@ -1363,8 +1534,8 @@ int RGWListAccessKeys_IAM::init_processing(optional_yield y)
 
   // look up user by UserName
   const std::string& tenant = s->auth.identity->get_tenant();
-  r = driver->load_account_user_by_name(this, y, account_id,
-                                        tenant, username, &user);
+  r = driver->load_account_user_by_name(
+      this, y, account_id, tenant, username, &user);
   // root user is hidden from user apis
   const bool is_root = (user && user->get_type() == TYPE_ROOT);
   if (r == -ENOENT || is_root) {
@@ -1373,7 +1544,8 @@ int RGWListAccessKeys_IAM::init_processing(optional_yield y)
   return r;
 }
 
-int RGWListAccessKeys_IAM::verify_permission(optional_yield y)
+int
+RGWListAccessKeys_IAM::verify_permission(optional_yield y)
 {
   const RGWUserInfo& info = user->get_info();
   const std::string resource_name = make_resource_name(info);
@@ -1384,7 +1556,8 @@ int RGWListAccessKeys_IAM::verify_permission(optional_yield y)
   return -EACCES;
 }
 
-void RGWListAccessKeys_IAM::execute(optional_yield y)
+void
+RGWListAccessKeys_IAM::execute(optional_yield y)
 {
   start_response();
   started_response = true;
@@ -1420,49 +1593,75 @@ void RGWListAccessKeys_IAM::execute(optional_yield y)
   rgw_flush_formatter_and_reset(s, f);
 }
 
-void RGWListAccessKeys_IAM::start_response()
+void
+RGWListAccessKeys_IAM::start_response()
 {
-  const int64_t proposed_content_length =
-      op_ret ? NO_CONTENT_LENGTH : CHUNKED_TRANSFER_ENCODING;
+  const int64_t proposed_content_length = op_ret ? NO_CONTENT_LENGTH
+                                                 : CHUNKED_TRANSFER_ENCODING;
 
   set_req_state_err(s, op_ret);
   dump_errno(s);
   end_header(s, this, to_mime_type(s->format), proposed_content_length);
 }
 
-void RGWListAccessKeys_IAM::send_response()
+void
+RGWListAccessKeys_IAM::send_response()
 {
   if (!started_response) { // errored out before execute() wrote anything
     start_response();
   }
 }
 
-
-RGWOp* make_iam_create_user_op(const ceph::bufferlist& post_body) {
+RGWOp*
+make_iam_create_user_op(const ceph::bufferlist& post_body)
+{
   return new RGWCreateUser_IAM(post_body);
 }
-RGWOp* make_iam_get_user_op(const ceph::bufferlist&) {
+
+RGWOp*
+make_iam_get_user_op(const ceph::bufferlist&)
+{
   return new RGWGetUser_IAM;
 }
-RGWOp* make_iam_update_user_op(const ceph::bufferlist& post_body) {
+
+RGWOp*
+make_iam_update_user_op(const ceph::bufferlist& post_body)
+{
   return new RGWUpdateUser_IAM(post_body);
 }
-RGWOp* make_iam_delete_user_op(const ceph::bufferlist& post_body) {
+
+RGWOp*
+make_iam_delete_user_op(const ceph::bufferlist& post_body)
+{
   return new RGWDeleteUser_IAM(post_body);
 }
-RGWOp* make_iam_list_users_op(const ceph::bufferlist&) {
+
+RGWOp*
+make_iam_list_users_op(const ceph::bufferlist&)
+{
   return new RGWListUsers_IAM;
 }
 
-RGWOp* make_iam_create_access_key_op(const ceph::bufferlist& post_body) {
+RGWOp*
+make_iam_create_access_key_op(const ceph::bufferlist& post_body)
+{
   return new RGWCreateAccessKey_IAM(post_body);
 }
-RGWOp* make_iam_update_access_key_op(const ceph::bufferlist& post_body) {
+
+RGWOp*
+make_iam_update_access_key_op(const ceph::bufferlist& post_body)
+{
   return new RGWUpdateAccessKey_IAM(post_body);
 }
-RGWOp* make_iam_delete_access_key_op(const ceph::bufferlist& post_body) {
+
+RGWOp*
+make_iam_delete_access_key_op(const ceph::bufferlist& post_body)
+{
   return new RGWDeleteAccessKey_IAM(post_body);
 }
-RGWOp* make_iam_list_access_keys_op(const ceph::bufferlist& unused) {
+
+RGWOp*
+make_iam_list_access_keys_op(const ceph::bufferlist& unused)
+{
   return new RGWListAccessKeys_IAM;
 }

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -26,82 +26,82 @@
 
 class JournalScanner;
 
-
 /**
  * Command line tool for investigating and repairing filesystems
  * with damaged metadata logs
  */
-class JournalTool : public MDSUtility
-{
-  private:
-    std::unique_ptr<ProgressTracker> progress_tracker;
-    MDSRoleSelector role_selector;
-    // Bit hacky, use this `rank` member to control behaviour of the
-    // various main_ functions.
-    mds_rank_t rank;
-    // when set, generate per rank dump file path
-    bool all_ranks = false;
-   
-    std::string type;
+class JournalTool : public MDSUtility {
+private:
+  std::unique_ptr<ProgressTracker> progress_tracker;
+  MDSRoleSelector role_selector;
+  // Bit hacky, use this `rank` member to control behaviour of the
+  // various main_ functions.
+  mds_rank_t rank;
+  // when set, generate per rank dump file path
+  bool all_ranks = false;
 
-    // Entry points
-    int main_journal(std::vector<const char*> &argv);
-    int main_header(std::vector<const char*> &argv);
-    int main_event(std::vector<const char*> &argv);
+  std::string type;
 
-    // Shared functionality
-    int recover_journal();
+  // Entry points
+  int main_journal(std::vector<const char*>& argv);
+  int main_header(std::vector<const char*>& argv);
+  int main_event(std::vector<const char*>& argv);
 
-    // Journal operations
-    int journal_inspect();
-    int journal_export(std::string const &path, bool import, bool force);
-    int journal_reset(bool hard);
+  // Shared functionality
+  int recover_journal();
 
-    // Header operations
-    int header_set();
+  // Journal operations
+  int journal_inspect();
+  int journal_export(std::string const& path, bool import, bool force);
+  int journal_reset(bool hard);
 
-    // I/O handles
-    librados::Rados rados;
-    librados::IoCtx input;
-    librados::IoCtx output;
+  // Header operations
+  int header_set();
 
-    bool other_pool;
+  // I/O handles
+  librados::Rados rados;
+  librados::IoCtx input;
+  librados::IoCtx output;
 
-    // Metadata backing store manipulation
-    int read_lost_found(std::set<std::string> &lost);
-    int recover_dentries(
-        EMetaBlob const &metablob,
-        bool const dry_run,
-        std::set<inodeno_t> *consumed_inos);
+  bool other_pool;
 
-    // Splicing
-    int erase_region(JournalScanner const &jp, uint64_t const pos, uint64_t const length);
+  // Metadata backing store manipulation
+  int read_lost_found(std::set<std::string>& lost);
+  int recover_dentries(
+      EMetaBlob const& metablob,
+      bool const dry_run,
+      std::set<inodeno_t>* consumed_inos);
 
-    // Backing store helpers
-    void encode_fullbit_as_inode(
-        const EMetaBlob::fullbit &fb,
-        bufferlist *out_bl);
-    int consume_inos(const std::set<inodeno_t> &inos);
+  // Splicing
+  int erase_region(
+      JournalScanner const& jp,
+      uint64_t const pos,
+      uint64_t const length);
 
-    //validate type
-    int validate_type(const std::string &type);
+  // Backing store helpers
+  void encode_fullbit_as_inode(const EMetaBlob::fullbit& fb, bufferlist* out_bl);
+  int consume_inos(const std::set<inodeno_t>& inos);
 
-    // generate output file path for dump/export
-    std::string gen_dump_file_path(const std::string &prefix);
+  //validate type
+  int validate_type(const std::string& type);
 
-    // check if an operation (mode, command) is safe to be
-    // executed on all ranks.
-    bool can_execute_for_all_ranks(const std::string &mode,
-                                   const std::string &command);
-  public:
-    static void usage();
+  // generate output file path for dump/export
+  std::string gen_dump_file_path(const std::string& prefix);
 
-    JournalTool() :
-      rank(0), other_pool(false)
-    {
-      progress_tracker =
-          std::make_unique<ProgressTracker>("Journal processing");
-    }
-    int main(std::vector<const char*> &argv);
+  // check if an operation (mode, command) is safe to be
+  // executed on all ranks.
+  bool can_execute_for_all_ranks(
+      const std::string& mode,
+      const std::string& command);
+
+public:
+  static void usage();
+
+  JournalTool() :
+    rank(0), other_pool(false)
+  {
+    progress_tracker = std::make_unique<ProgressTracker>("Journal processing");
+  }
+
+  int main(std::vector<const char*>& argv);
 };
-

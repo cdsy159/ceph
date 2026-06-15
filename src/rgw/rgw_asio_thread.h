@@ -29,11 +29,11 @@ void maybe_warn_about_blocking(const DoutPrefixProvider* dpp);
 
 /// enables warnings while in scope. these scopes must not be nested
 struct warn_about_blocking_in_scope {
-  warn_about_blocking_in_scope() {
+  warn_about_blocking_in_scope()
+  {
     assert(!is_asio_thread);
     is_asio_thread = true;
   }
-  ~warn_about_blocking_in_scope() {
-    is_asio_thread = false;
-  }
+
+  ~warn_about_blocking_in_scope() { is_asio_thread = false; }
 };

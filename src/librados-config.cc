@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,21 +21,21 @@
 #include <boost/program_options/variables_map.hpp>
 
 #include "include/rados/librados.h"
+
 #include "ceph_ver.h"
 
 namespace po = boost::program_options;
 
-int main(int argc, const char **argv) 
+int
+main(int argc, const char** argv)
 {
   po::options_description desc{"usage: librados-config [option]"};
-  desc.add_options()
-    ("help,h", "print this help message")
-    ("version", "library version")
-    ("vernum", "library version code")
-    ("release", "print release name");
+  desc.add_options()("help,h", "print this help message")(
+      "version", "library version")("vernum", "library version code")(
+      "release", "print release name");
 
   po::parsed_options parsed =
-    po::command_line_parser(argc, argv).options(desc).run();
+      po::command_line_parser(argc, argv).options(desc).run();
   po::variables_map vm;
   po::store(parsed, vm);
   po::notify(vm);
@@ -49,12 +49,10 @@ int main(int argc, const char **argv)
   } else if (vm.count("vernum")) {
     std::cout << std::hex << LIBRADOS_VERSION_CODE << std::dec << std::endl;
   } else if (vm.count("release")) {
-    std::cout << CEPH_RELEASE_NAME << ' '
-	      << '(' << CEPH_RELEASE_TYPE << ')'
-	      << std::endl;
+    std::cout << CEPH_RELEASE_NAME << ' ' << '(' << CEPH_RELEASE_TYPE << ')'
+              << std::endl;
   } else {
     std::cerr << argv[0] << ": -h or --help for usage" << std::endl;
     return 1;
   }
 }
-

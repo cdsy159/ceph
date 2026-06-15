@@ -10,19 +10,18 @@ using ceph::bufferlist;
 using ceph::bufferptr;
 using ceph::Formatter;
 
-double bloom_filter::density() const
+double
+bloom_filter::density() const
 {
   // TODO: use transform_reduce() in GCC-9 and up
   unsigned set = std::accumulate(
-    bit_table_.begin(),
-    bit_table_.begin() + table_size_,
-    0u, [](unsigned set, cell_type cell) {
-      return set + std::popcount(cell);
-    });
+      bit_table_.begin(), bit_table_.begin() + table_size_, 0u,
+      [](unsigned set, cell_type cell) { return set + std::popcount(cell); });
   return (double)set / (table_size_ * sizeof(cell_type) * CHAR_BIT);
 }
 
-void bloom_filter::encode(bufferlist& bl) const
+void
+bloom_filter::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   encode((uint64_t)salt_count_, bl);
@@ -33,7 +32,8 @@ void bloom_filter::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void bloom_filter::decode(bufferlist::const_iterator& p)
+void
+bloom_filter::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(2, p);
   uint64_t v;
@@ -52,7 +52,8 @@ void bloom_filter::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void bloom_filter::dump(Formatter *f) const
+void
+bloom_filter::dump(Formatter* f) const
 {
   f->dump_unsigned("salt_count", salt_count_);
   f->dump_unsigned("table_size", table_size_);
@@ -61,7 +62,8 @@ void bloom_filter::dump(Formatter *f) const
   f->dump_unsigned("random_seed", random_seed_);
 
   f->open_array_section("salt_table");
-  for (std::vector<bloom_type>::const_iterator i = salt_.begin(); i != salt_.end(); ++i)
+  for (std::vector<bloom_type>::const_iterator i = salt_.begin();
+       i != salt_.end(); ++i)
     f->dump_unsigned("salt", *i);
   f->close_section();
 
@@ -72,7 +74,8 @@ void bloom_filter::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<bloom_filter> bloom_filter::generate_test_instances()
+std::list<bloom_filter>
+bloom_filter::generate_test_instances()
 {
   std::list<bloom_filter> ls;
   ls.push_back(bloom_filter(10, .5, 1));
@@ -88,8 +91,8 @@ std::list<bloom_filter> bloom_filter::generate_test_instances()
   return ls;
 }
 
-
-void compressible_bloom_filter::encode(bufferlist& bl) const
+void
+compressible_bloom_filter::encode(bufferlist& bl) const
 {
   ENCODE_START(2, 2, bl);
   bloom_filter::encode(bl);
@@ -103,7 +106,8 @@ void compressible_bloom_filter::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void compressible_bloom_filter::decode(bufferlist::const_iterator& p)
+void
+compressible_bloom_filter::decode(bufferlist::const_iterator& p)
 {
   DECODE_START(2, p);
   bloom_filter::decode(p);
@@ -120,7 +124,8 @@ void compressible_bloom_filter::decode(bufferlist::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void compressible_bloom_filter::dump(Formatter *f) const
+void
+compressible_bloom_filter::dump(Formatter* f) const
 {
   bloom_filter::dump(f);
 
@@ -131,7 +136,8 @@ void compressible_bloom_filter::dump(Formatter *f) const
   f->close_section();
 }
 
-std::list<compressible_bloom_filter> compressible_bloom_filter::generate_test_instances()
+std::list<compressible_bloom_filter>
+compressible_bloom_filter::generate_test_instances()
 {
   std::list<compressible_bloom_filter> ls;
   ls.push_back(compressible_bloom_filter(10, .5, 1));

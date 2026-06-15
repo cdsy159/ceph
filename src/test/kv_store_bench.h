@@ -14,16 +14,16 @@
 #ifndef KVSTOREBENCH_H_
 #define KVSTOREBENCH_H_
 
+#include <cfloat>
+#include <climits>
+#include <iostream>
+#include <string>
+
+#include "common/Clock.h"
+#include "common/Cond.h"
+#include "global/global_context.h"
 #include "key_value_store/key_value_structure.h"
 #include "key_value_store/kv_flat_btree_async.h"
-#include "common/Clock.h"
-#include "global/global_context.h"
-#include "common/Cond.h"
-
-#include <string>
-#include <climits>
-#include <cfloat>
-#include <iostream>
 
 /**
  * stores pairings from op type to time taken for that op (for latency), and to
@@ -45,16 +45,27 @@ struct StopWatch {
   utime_t begin_time;
   utime_t end_time;
 
-  void start_time() {
+  void
+  start_time()
+  {
     begin_time = ceph_clock_now();
   }
-  void stop_time() {
+
+  void
+  stop_time()
+  {
     end_time = ceph_clock_now();
   }
-  double get_time() {
+
+  double
+  get_time()
+  {
     return (end_time - begin_time) * 1000;
   }
-  void clear() {
+
+  void
+  clear()
+  {
     begin_time = end_time = utime_t();
   }
 };
@@ -65,59 +76,54 @@ struct StopWatch {
 struct timed_args {
   StopWatch sw;
   //kv_bench_data data;
-  KvStoreBench * kvsb;
+  KvStoreBench* kvsb;
   ceph::buffer::list val;
   int err;
   char op;
 
-  timed_args ()
-  : kvsb(NULL),
-    err(0),
-    op(' ')
-  {};
+  timed_args() :
+    kvsb(NULL), err(0), op(' '){};
 
-  timed_args (KvStoreBench * k)
-  : kvsb(k),
-    err(0),
-    op(' ')
+  timed_args(KvStoreBench* k) :
+    kvsb(k), err(0), op(' ')
   {}
 };
 
-typedef std::pair<std::string, ceph::buffer::list> (KvStoreBench::*next_gen_t)(bool new_elem);
+typedef std::pair<std::string, ceph::buffer::list> (KvStoreBench::*next_gen_t)(
+    bool new_elem);
 
 class KvStoreBench {
 
 protected:
-
   //test setup variables set from command line
   int entries; //the number of entries to write initially
   int ops; //the number of operations to time
   int clients; //the total number of clients running this test - used
-	       //in the aio test to coordinate the end of the initial sets
-  int key_size;//number of characters in keys to write
-  int val_size;//number of characters in values to write
+      //in the aio test to coordinate the end of the initial sets
+  int key_size; //number of characters in keys to write
+  int val_size; //number of characters in values to write
   int max_ops_in_flight;
-  bool clear_first;//if true, remove all objects in pool before starting tests
+  bool clear_first; //if true, remove all objects in pool before starting tests
 
   //variables passed to KeyValueStructure
   int k;
   int cache_size; //number of index entries to store in cache
   double cache_refresh; //cache_size / cache_refresh entries are read each time
-			//the index is read
+      //the index is read
   std::string client_name;
-  bool verbose;//if true, display debug output
+  bool verbose; //if true, display debug output
 
   //internal
-  std::map<int, char> probs;//map of numbers from 1 to 100 to chars representing
-			//operation types - used to generate random operations
-  std::set<std::string> key_set;//set of keys already in the data set
-  KeyValueStructure * kvs;
-  kv_bench_data data;//stores throughput and latency from completed tests
+  std::map<int, char> probs; //map of numbers from 1 to 100 to chars representing
+      //operation types - used to generate random operations
+  std::set<std::string> key_set; //set of keys already in the data set
+  KeyValueStructure* kvs;
+  kv_bench_data data; //stores throughput and latency from completed tests
   ceph::mutex data_lock = ceph::make_mutex("data lock");
   ceph::condition_variable op_avail; // signaled when an op completes
-  int ops_in_flight;//number of operations currently in progress
+  int ops_in_flight; //number of operations currently in progress
   ceph::mutex ops_in_flight_lock =
-    ceph::make_mutex("KvStoreBench::ops_in_flight_lock");
+      ceph::make_mutex("KvStoreBench::ops_in_flight_lock");
   //these are used for cleanup and setup purposes - they are NOT passed to kvs!
   librados::Rados rados;
   std::string rados_id;
@@ -135,7 +141,6 @@ protected:
   void print_time_data();
 
 public:
-
   KvStoreBench();
 
   //after this is called, objects created by the KeyValueStructure remain.
@@ -161,13 +166,13 @@ public:
    * calls test_random_insertions, then does ops randomly chosen operations
    * asynchronously, with max_ops_in_flight operations at a time.
    */
-  int test_teuthology_aio(next_gen_t distr, const std::map<int, char> &probs);
+  int test_teuthology_aio(next_gen_t distr, const std::map<int, char>& probs);
 
   /**
    * calls test_random_insertions, then does ops randomly chosen operations
    * synchronously.
    */
-  int test_teuthology_sync(next_gen_t distr, const std::map<int, char> &probs);
+  int test_teuthology_sync(next_gen_t distr, const std::map<int, char>& probs);
 
   /**
    * returns a key-value pair. If new_elem is true, the key is randomly
@@ -179,14 +184,13 @@ public:
   /**
    * Called when aio operations complete. Updates data.
    */
-  static void aio_callback_timed(int * err, void *arg);
+  static void aio_callback_timed(int* err, void* arg);
 
   /**
    * Calls test_ methods. Change to call, for example, multiple runs of a test
    * with different settings. Currently just calls test_teuthology_aio.
    */
   int teuthology_tests();
-
 };
 
 #endif /* KVSTOREBENCH_H_ */

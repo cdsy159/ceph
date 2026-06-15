@@ -23,19 +23,31 @@ public:
   using seq_t = LogSegment::seq_t;
 
   virtual ~SegmentBoundary() {}
-  SegmentBoundary() = default;
-  SegmentBoundary(seq_t seq) : seq(seq) {}
 
-  virtual bool is_major_segment_boundary() const {
+  SegmentBoundary() = default;
+
+  SegmentBoundary(seq_t seq) :
+    seq(seq)
+  {}
+
+  virtual bool
+  is_major_segment_boundary() const
+  {
     return false;
   }
 
-  seq_t get_seq() const {
+  seq_t
+  get_seq() const
+  {
     return seq;
   }
-  void set_seq(seq_t _seq) {
+
+  void
+  set_seq(seq_t _seq)
+  {
     seq = _seq;
   }
+
 protected:
   seq_t seq = 0;
 };

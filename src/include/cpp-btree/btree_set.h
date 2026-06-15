@@ -66,16 +66,20 @@ namespace btree {
 // requires specifying a custom comparator `C`) as in
 // `btree::btree_set<K, C, A>`.
 //
-template <typename Key, typename Compare = std::less<Key>,
-          typename Alloc = std::allocator<Key>>
+template <
+    typename Key,
+    typename Compare = std::less<Key>,
+    typename Alloc = std::allocator<Key>>
 class btree_set
-    : public internal::btree_set_container<
-          internal::btree<internal::set_params<
-              Key, Compare, Alloc, /*TargetNodeSize=*/256,
-              /*Multi=*/false>>> {
+  : public internal::btree_set_container<internal::btree<internal::set_params<
+        Key,
+        Compare,
+        Alloc,
+        /*TargetNodeSize=*/256,
+        /*Multi=*/false>>> {
   using Base = typename btree_set::btree_set_container;
 
- public:
+public:
   // Constructors and Assignment Operators
   //
   // A `btree_set` supports the same overload set as `std::set`
@@ -115,6 +119,7 @@ class btree_set
   //   std::vector<std::string> v = {"a", "b"};
   //   btree::btree_set<std::string> set7(v.begin(), v.end());
   btree_set() {}
+
   using Base::Base;
 
   // btree_set::begin()
@@ -331,7 +336,9 @@ class btree_set
 //
 // Swaps the contents of two `btree::btree_set` containers.
 template <typename K, typename C, typename A>
-void swap(btree_set<K, C, A> &x, btree_set<K, C, A> &y) {
+void
+swap(btree_set<K, C, A>& x, btree_set<K, C, A>& y)
+{
   return x.swap(y);
 }
 
@@ -339,7 +346,9 @@ void swap(btree_set<K, C, A> &x, btree_set<K, C, A> &y) {
 //
 // Erases all elements that satisfy the predicate pred from the container.
 template <typename K, typename C, typename A, typename Pred>
-void erase_if(btree_set<K, C, A> &set, Pred pred) {
+void
+erase_if(btree_set<K, C, A>& set, Pred pred)
+{
   for (auto it = set.begin(); it != set.end();) {
     if (pred(*it)) {
       it = set.erase(it);
@@ -365,16 +374,20 @@ void erase_if(btree_set<K, C, A> &set, Pred pred) {
 // requires specifying a custom comparator `C`) as in
 // `btree::btree_multiset<K, C, A>`.
 //
-template <typename Key, typename Compare = std::less<Key>,
-          typename Alloc = std::allocator<Key>>
+template <
+    typename Key,
+    typename Compare = std::less<Key>,
+    typename Alloc = std::allocator<Key>>
 class btree_multiset
-    : public internal::btree_multiset_container<
-          internal::btree<internal::set_params<
-              Key, Compare, Alloc, /*TargetNodeSize=*/256,
-              /*Multi=*/true>>> {
+  : public internal::btree_multiset_container<internal::btree<internal::set_params<
+        Key,
+        Compare,
+        Alloc,
+        /*TargetNodeSize=*/256,
+        /*Multi=*/true>>> {
   using Base = typename btree_multiset::btree_multiset_container;
 
- public:
+public:
   // Constructors and Assignment Operators
   //
   // A `btree_multiset` supports the same overload set as `std::set`
@@ -414,6 +427,7 @@ class btree_multiset
   //   std::vector<std::string> v = {"a", "b"};
   //   btree::btree_multiset<std::string> set7(v.begin(), v.end());
   btree_multiset() {}
+
   using Base::Base;
 
   // btree_multiset::begin()
@@ -611,7 +625,9 @@ class btree_multiset
 //
 // Swaps the contents of two `btree::btree_multiset` containers.
 template <typename K, typename C, typename A>
-void swap(btree_multiset<K, C, A> &x, btree_multiset<K, C, A> &y) {
+void
+swap(btree_multiset<K, C, A>& x, btree_multiset<K, C, A>& y)
+{
   return x.swap(y);
 }
 
@@ -619,7 +635,9 @@ void swap(btree_multiset<K, C, A> &x, btree_multiset<K, C, A> &y) {
 //
 // Erases all elements that satisfy the predicate pred from the container.
 template <typename K, typename C, typename A, typename Pred>
-void erase_if(btree_multiset<K, C, A> &set, Pred pred) {
+void
+erase_if(btree_multiset<K, C, A>& set, Pred pred)
+{
   for (auto it = set.begin(); it != set.end();) {
     if (pred(*it)) {
       it = set.erase(it);
@@ -629,4 +647,4 @@ void erase_if(btree_multiset<K, C, A> &set, Pred pred) {
   }
 }
 
-}  // namespace btree
+} // namespace btree

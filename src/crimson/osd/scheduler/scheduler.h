@@ -16,10 +16,11 @@
 #pragma once
 
 #include <seastar/core/future.hh>
+
 #include <ostream>
 
-#include "crimson/common/config_proxy.h"
 #include "common/mclock_common.h"
+#include "crimson/common/config_proxy.h"
 
 namespace crimson::osd::scheduler {
 
@@ -35,11 +36,22 @@ struct params_t {
 struct item_t {
   params_t params;
   seastar::promise<> wake;
-  int get_cost() const { return params.cost; }
-  unsigned get_priority() const { return params.priority; }
+
+  int
+  get_cost() const
+  {
+    return params.cost;
+  }
+
+  unsigned
+  get_priority() const
+  {
+    return params.priority;
+  }
 };
 
 using WorkItem = std::variant<std::monostate, item_t, double>;
+
 /**
  * Base interface for classes responsible for choosing
  * op processing order in the OSD.
@@ -47,11 +59,11 @@ using WorkItem = std::variant<std::monostate, item_t, double>;
 class Scheduler {
 public:
   // Enqueue op for scheduling
-  virtual void enqueue(item_t &&item) = 0;
+  virtual void enqueue(item_t&& item) = 0;
 
   // Enqueue op for processing as though it were enqueued prior
   // to other items already scheduled.
-  virtual void enqueue_front(item_t &&item) = 0;
+  virtual void enqueue_front(item_t&& item) = 0;
 
   // Returns true iff there are no ops scheduled
   virtual bool empty() const = 0;
@@ -60,19 +72,25 @@ public:
   virtual WorkItem dequeue() = 0;
 
   // Dump formatted representation for the queue
-  virtual void dump(ceph::Formatter &f) const = 0;
+  virtual void dump(ceph::Formatter& f) const = 0;
 
   // Print human readable brief description with relevant parameters
-  virtual void print(std::ostream &out) const = 0;
+  virtual void print(std::ostream& out) const = 0;
 
   // Destructor
-  virtual ~Scheduler() {};
+  virtual ~Scheduler(){};
 };
 
-std::ostream &operator<<(std::ostream &lhs, const Scheduler &);
+std::ostream& operator<<(std::ostream& lhs, const Scheduler&);
 using SchedulerRef = std::unique_ptr<Scheduler>;
 
-SchedulerRef make_scheduler(CephContext *cct, ConfigProxy &, int whoami, uint32_t num_shards,
-                            int shard_id, bool is_rotational, bool perf_cnt);
+SchedulerRef make_scheduler(
+    CephContext* cct,
+    ConfigProxy&,
+    int whoami,
+    uint32_t num_shards,
+    int shard_id,
+    bool is_rotational,
+    bool perf_cnt);
 
-}
+} // namespace crimson::osd::scheduler

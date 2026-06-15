@@ -1,16 +1,19 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include "MirrorWatcher.h"
+
+#include "common/debug.h"
+
+#include "common/WorkQueue.h"
 #include "common/ceph_context.h"
 #include "common/ceph_json.h"
-#include "common/debug.h"
 #include "common/errno.h"
-#include "common/WorkQueue.h"
 #include "include/stringify.h"
 #include "msg/Messenger.h"
-#include "aio_utils.h"
-#include "MirrorWatcher.h"
+
 #include "FSMirror.h"
+#include "aio_utils.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_cephfs_mirror
@@ -20,38 +23,44 @@
 namespace cephfs {
 namespace mirror {
 
-MirrorWatcher::MirrorWatcher(librados::IoCtx &ioctx, FSMirror *fs_mirror,
-                             ErrorListener &elistener, ContextWQ *work_queue)
-  : Watcher(ioctx, CEPHFS_MIRROR_OBJECT, work_queue),
-    m_ioctx(ioctx),
-    m_fs_mirror(fs_mirror),
-    m_elistener(elistener),
-    m_work_queue(work_queue),
-    m_lock(ceph::make_mutex("cephfs::mirror::mirror_watcher")),
-    m_instance_id(stringify(m_ioctx.get_instance_id())) {
-}
+MirrorWatcher::MirrorWatcher(
+    librados::IoCtx& ioctx,
+    FSMirror* fs_mirror,
+    ErrorListener& elistener,
+    ContextWQ* work_queue) :
+  Watcher(ioctx, CEPHFS_MIRROR_OBJECT, work_queue),
+  m_ioctx(ioctx),
+  m_fs_mirror(fs_mirror),
+  m_elistener(elistener),
+  m_work_queue(work_queue),
+  m_lock(ceph::make_mutex("cephfs::mirror::mirror_watcher")),
+  m_instance_id(stringify(m_ioctx.get_instance_id()))
+{}
 
-MirrorWatcher::~MirrorWatcher() {
-}
+MirrorWatcher::~MirrorWatcher() {}
 
-void MirrorWatcher::init(Context *on_finish) {
+void
+MirrorWatcher::init(Context* on_finish)
+{
   dout(20) << dendl;
 
   {
     std::scoped_lock locker(m_lock);
     ceph_assert(m_on_init_finish == nullptr);
     m_on_init_finish = new LambdaContext([this, on_finish](int r) {
-                                           on_finish->complete(r);
-                                           if (m_on_shutdown_finish != nullptr) {
-                                             m_on_shutdown_finish->complete(0);
-                                           }
-                                         });
+      on_finish->complete(r);
+      if (m_on_shutdown_finish != nullptr) {
+        m_on_shutdown_finish->complete(0);
+      }
+    });
   }
 
   register_watcher();
 }
 
-void MirrorWatcher::shutdown(Context *on_finish) {
+void
+MirrorWatcher::shutdown(Context* on_finish)
+{
   dout(20) << dendl;
 
   {
@@ -60,9 +69,9 @@ void MirrorWatcher::shutdown(Context *on_finish) {
     if (m_on_init_finish != nullptr) {
       dout(10) << ": delaying shutdown -- init in progress" << dendl;
       m_on_shutdown_finish = new LambdaContext([this, on_finish](int r) {
-                                                 m_on_shutdown_finish = nullptr;
-                                                 shutdown(on_finish);
-                                               });
+        m_on_shutdown_finish = nullptr;
+        shutdown(on_finish);
+      });
       return;
     }
 
@@ -72,8 +81,13 @@ void MirrorWatcher::shutdown(Context *on_finish) {
   unregister_watcher();
 }
 
-void MirrorWatcher::handle_notify(uint64_t notify_id, uint64_t handle,
-                                  uint64_t notifier_id, bufferlist& bl) {
+void
+MirrorWatcher::handle_notify(
+    uint64_t notify_id,
+    uint64_t handle,
+    uint64_t notifier_id,
+    bufferlist& bl)
+{
   dout(20) << dendl;
 
   JSONFormatter f;
@@ -86,11 +100,13 @@ void MirrorWatcher::handle_notify(uint64_t notify_id, uint64_t handle,
   acknowledge_notify(notify_id, handle, outbl);
 }
 
-void MirrorWatcher::handle_rewatch_complete(int r) {
+void
+MirrorWatcher::handle_rewatch_complete(int r)
+{
   dout(5) << ": r=" << r << dendl;
 
   if (r == -EBLOCKLISTED) {
-    dout(0) << ": client blocklisted" <<dendl;
+    dout(0) << ": client blocklisted" << dendl;
     {
       std::scoped_lock locker(m_lock);
       m_blocklisted = true;
@@ -107,19 +123,23 @@ void MirrorWatcher::handle_rewatch_complete(int r) {
   }
 }
 
-void MirrorWatcher::register_watcher() {
+void
+MirrorWatcher::register_watcher()
+{
   dout(20) << dendl;
 
   std::scoped_lock locker(m_lock);
-  Context *on_finish = new C_CallbackAdapter<
-    MirrorWatcher, &MirrorWatcher::handle_register_watcher>(this);
+  Context* on_finish = new C_CallbackAdapter<
+      MirrorWatcher, &MirrorWatcher::handle_register_watcher>(this);
   register_watch(on_finish);
 }
 
-void MirrorWatcher::handle_register_watcher(int r) {
+void
+MirrorWatcher::handle_register_watcher(int r)
+{
   dout(20) << ": r=" << r << dendl;
 
-  Context *on_init_finish = nullptr;
+  Context* on_init_finish = nullptr;
   {
     std::scoped_lock locker(m_lock);
     std::swap(on_init_finish, m_on_init_finish);
@@ -128,19 +148,23 @@ void MirrorWatcher::handle_register_watcher(int r) {
   on_init_finish->complete(r);
 }
 
-void MirrorWatcher::unregister_watcher() {
+void
+MirrorWatcher::unregister_watcher()
+{
   dout(20) << dendl;
 
   std::scoped_lock locker(m_lock);
-  Context *on_finish = new C_CallbackAdapter<
-    MirrorWatcher, &MirrorWatcher::handle_unregister_watcher>(this);
+  Context* on_finish = new C_CallbackAdapter<
+      MirrorWatcher, &MirrorWatcher::handle_unregister_watcher>(this);
   unregister_watch(new C_AsyncCallback<ContextWQ>(m_work_queue, on_finish));
 }
 
-void MirrorWatcher::handle_unregister_watcher(int r) {
+void
+MirrorWatcher::handle_unregister_watcher(int r)
+{
   dout(20) << ": r=" << r << dendl;
 
-  Context *on_shutdown_finish = nullptr;
+  Context* on_shutdown_finish = nullptr;
   {
     std::scoped_lock locker(m_lock);
     std::swap(on_shutdown_finish, m_on_shutdown_finish);

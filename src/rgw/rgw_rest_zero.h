@@ -14,6 +14,7 @@
 #pragma once
 
 #include <memory>
+
 #include "rgw_rest.h"
 
 namespace rgw {
@@ -24,11 +25,14 @@ class ZeroResource;
 // requests are not authenticated, and do no reads/writes to the backend
 class RESTMgr_Zero : public RGWRESTMgr {
   std::unique_ptr<ZeroResource> resource;
- public:
+
+public:
   RESTMgr_Zero();
-  RGWHandler_REST* get_handler(sal::Driver* driver, req_state* s,
-                               const auth::StrategyRegistry& auth,
-                               const std::string& prefix) override;
+  RGWHandler_REST* get_handler(
+      sal::Driver* driver,
+      req_state* s,
+      const auth::StrategyRegistry& auth,
+      const std::string& prefix) override;
 };
 
 } // namespace rgw

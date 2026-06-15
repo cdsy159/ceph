@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -18,18 +18,21 @@
 
 #include <unistd.h>
 
-#include "ceph_ver.h"
 #include "erasure-code/ErasureCodePlugin.h"
+
 #include "ErasureCodeExample.h"
+#include "ceph_ver.h"
 
 using namespace std;
 
 class ErasureCodePluginExample : public ErasureCodePlugin {
 public:
-  int factory(const std::string &directory,
-		      ErasureCodeProfile &profile,
-                      ErasureCodeInterfaceRef *erasure_code,
-		      ostream *ss) override
+  int
+  factory(
+      const std::string& directory,
+      ErasureCodeProfile& profile,
+      ErasureCodeInterfaceRef* erasure_code,
+      ostream* ss) override
   {
     auto ec = std::make_unique<ErasureCodeExample>();
     if (int r = ec->init(profile, ss); r) {
@@ -40,9 +43,14 @@ public:
   }
 };
 
-const char *__erasure_code_version() { return CEPH_GIT_NICE_VER; }
+const char*
+__erasure_code_version()
+{
+  return CEPH_GIT_NICE_VER;
+}
 
-int __erasure_code_init(char *plugin_name, char *directory)
+int
+__erasure_code_init(char* plugin_name, char* directory)
 {
   auto& instance = ErasureCodePluginRegistry::instance();
   auto plugin = std::make_unique<ErasureCodePluginExample>();

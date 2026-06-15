@@ -12,12 +12,15 @@
  */
 
 #include "MgrMap.h"
-#include "common/ceph_json.h"
-#include "common/Formatter.h"
 
 #include <sstream>
 
-void MgrMap::ModuleOption::encode(ceph::buffer::list& bl) const {
+#include "common/Formatter.h"
+#include "common/ceph_json.h"
+
+void
+MgrMap::ModuleOption::encode(ceph::buffer::list& bl) const
+{
   ENCODE_START(1, 1, bl);
   encode(name, bl);
   encode(type, bl);
@@ -34,7 +37,9 @@ void MgrMap::ModuleOption::encode(ceph::buffer::list& bl) const {
   ENCODE_FINISH(bl);
 }
 
-void MgrMap::ModuleOption::decode(ceph::buffer::list::const_iterator& p) {
+void
+MgrMap::ModuleOption::decode(ceph::buffer::list::const_iterator& p)
+{
   DECODE_START(1, p);
   decode(name, p);
   decode(type, p);
@@ -51,13 +56,13 @@ void MgrMap::ModuleOption::decode(ceph::buffer::list::const_iterator& p) {
   DECODE_FINISH(p);
 }
 
-void MgrMap::ModuleOption::dump(ceph::Formatter *f) const
+void
+MgrMap::ModuleOption::dump(ceph::Formatter* f) const
 {
   f->dump_string("name", name);
-  f->dump_string("type", Option::type_to_str(
-    static_cast<Option::type_t>(type)));
-  f->dump_string("level", Option::level_to_str(
-    static_cast<Option::level_t>(level)));
+  f->dump_string("type", Option::type_to_str(static_cast<Option::type_t>(type)));
+  f->dump_string(
+      "level", Option::level_to_str(static_cast<Option::level_t>(level)));
   f->dump_unsigned("flags", flags);
   f->dump_string("default_value", default_value);
   f->dump_string("min", min);
@@ -81,7 +86,8 @@ void MgrMap::ModuleOption::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<MgrMap::ModuleOption> MgrMap::ModuleOption::generate_test_instances()
+std::list<MgrMap::ModuleOption>
+MgrMap::ModuleOption::generate_test_instances()
 {
   std::list<ModuleOption> ls;
   ls.emplace_back();
@@ -103,7 +109,9 @@ std::list<MgrMap::ModuleOption> MgrMap::ModuleOption::generate_test_instances()
 
 // We do not include the module's `failed` field in the beacon,
 // because it is exposed via health checks.
-void MgrMap::ModuleInfo::encode(ceph::buffer::list &bl) const {
+void
+MgrMap::ModuleInfo::encode(ceph::buffer::list& bl) const
+{
   ENCODE_START(2, 1, bl);
   encode(name, bl);
   encode(can_run, bl);
@@ -112,7 +120,9 @@ void MgrMap::ModuleInfo::encode(ceph::buffer::list &bl) const {
   ENCODE_FINISH(bl);
 }
 
-void MgrMap::ModuleInfo::decode(ceph::buffer::list::const_iterator &bl) {
+void
+MgrMap::ModuleInfo::decode(ceph::buffer::list::const_iterator& bl)
+{
   DECODE_START(2, bl);
   decode(name, bl);
   decode(can_run, bl);
@@ -123,7 +133,8 @@ void MgrMap::ModuleInfo::decode(ceph::buffer::list::const_iterator &bl) {
   DECODE_FINISH(bl);
 }
 
-void MgrMap::ModuleInfo::dump(ceph::Formatter *f) const 
+void
+MgrMap::ModuleInfo::dump(ceph::Formatter* f) const
 {
   f->open_object_section("module");
   f->dump_string("name", name);
@@ -131,13 +142,14 @@ void MgrMap::ModuleInfo::dump(ceph::Formatter *f) const
   f->dump_string("error_string", error_string);
   f->open_object_section("module_options");
   for (auto& i : module_options) {
-	f->dump_object(i.first.c_str(), i.second);
+    f->dump_object(i.first.c_str(), i.second);
   }
   f->close_section();
   f->close_section();
 }
 
-std::list<MgrMap::ModuleInfo> MgrMap::ModuleInfo::generate_test_instances()
+std::list<MgrMap::ModuleInfo>
+MgrMap::ModuleInfo::generate_test_instances()
 {
   std::list<ModuleInfo> ls;
   ls.emplace_back();
@@ -149,7 +161,9 @@ std::list<MgrMap::ModuleInfo> MgrMap::ModuleInfo::generate_test_instances()
   return ls;
 }
 
-std::set<std::string> MgrMap::get_all_names() const {
+std::set<std::string>
+MgrMap::get_all_names() const
+{
   std::set<std::string> ls;
   if (active_name.size()) {
     ls.insert(active_name);
@@ -160,7 +174,9 @@ std::set<std::string> MgrMap::get_all_names() const {
   return ls;
 }
 
-std::set<std::string> MgrMap::get_always_on_modules() const {
+std::set<std::string>
+MgrMap::get_always_on_modules() const
+{
   unsigned rnum = to_integer<uint32_t>(ceph_release());
   auto it = always_on_modules.find(rnum);
   if (it == always_on_modules.end()) {
@@ -172,27 +188,29 @@ std::set<std::string> MgrMap::get_always_on_modules() const {
     if (it->first < rnum) {
       return it->second;
     }
-    return {};      // wth
+    return {}; // wth
   }
   return it->second;
 }
 
-void MgrMap::StandbyInfo::encode(ceph::buffer::list& bl) const
+void
+MgrMap::StandbyInfo::encode(ceph::buffer::list& bl) const
 {
   ENCODE_START(4, 1, bl);
   encode(gid, bl);
   encode(name, bl);
   std::set<std::string> old_available_modules;
-  for (const auto &i : available_modules) {
+  for (const auto& i : available_modules) {
     old_available_modules.insert(i.name);
   }
-  encode(old_available_modules, bl);  // version 2
-  encode(available_modules, bl);  // version 3
+  encode(old_available_modules, bl); // version 2
+  encode(available_modules, bl); // version 3
   encode(mgr_features, bl); // v4
   ENCODE_FINISH(bl);
 }
 
-void MgrMap::StandbyInfo::decode(ceph::buffer::list::const_iterator& p)
+void
+MgrMap::StandbyInfo::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(4, p);
   decode(gid, p);
@@ -201,7 +219,7 @@ void MgrMap::StandbyInfo::decode(ceph::buffer::list::const_iterator& p)
     std::set<std::string> old_available_modules;
     decode(old_available_modules, p);
     if (struct_v < 3) {
-      for (const auto &name : old_available_modules) {
+      for (const auto& name : old_available_modules) {
         MgrMap::ModuleInfo info;
         info.name = name;
         available_modules.push_back(std::move(info));
@@ -212,12 +230,13 @@ void MgrMap::StandbyInfo::decode(ceph::buffer::list::const_iterator& p)
     decode(available_modules, p);
   }
   if (struct_v >= 4) {
-	decode(mgr_features, p);
+    decode(mgr_features, p);
   }
   DECODE_FINISH(p);
 }
 
-void MgrMap::StandbyInfo::dump(ceph::Formatter *f) const
+void
+MgrMap::StandbyInfo::dump(ceph::Formatter* f) const
 {
   f->dump_unsigned("gid", gid);
   f->dump_string("name", name);
@@ -225,7 +244,8 @@ void MgrMap::StandbyInfo::dump(ceph::Formatter *f) const
   f->dump_unsigned("mgr_features", mgr_features);
 }
 
-std::list<MgrMap::StandbyInfo> MgrMap::StandbyInfo::generate_test_instances()
+std::list<MgrMap::StandbyInfo>
+MgrMap::StandbyInfo::generate_test_instances()
 {
   std::list<StandbyInfo> ls;
   ls.push_back(StandbyInfo(1, "a", {}, 0));
@@ -234,11 +254,12 @@ std::list<MgrMap::StandbyInfo> MgrMap::StandbyInfo::generate_test_instances()
   return ls;
 }
 
-bool MgrMap::StandbyInfo::have_module(const std::string &module_name) const
+bool
+MgrMap::StandbyInfo::have_module(const std::string& module_name) const
 {
-  auto it = std::find_if(available_modules.begin(),
-      available_modules.end(),
-      [module_name](const ModuleInfo &m) -> bool {
+  auto it = std::find_if(
+      available_modules.begin(), available_modules.end(),
+      [module_name](const ModuleInfo& m) -> bool {
         return m.name == module_name;
       });
 
@@ -248,28 +269,33 @@ bool MgrMap::StandbyInfo::have_module(const std::string &module_name) const
 MgrMap::MgrMap() noexcept = default;
 MgrMap::~MgrMap() noexcept = default;
 
-MgrMap MgrMap::create_null_mgrmap() {
+MgrMap
+MgrMap::create_null_mgrmap()
+{
   MgrMap null_map;
   /* Use the largest epoch so it's always bigger than whatever the mgr has. */
   null_map.epoch = std::numeric_limits<decltype(epoch)>::max();
   return null_map;
 }
 
-bool MgrMap::all_support_module(const std::string& module) {
+bool
+MgrMap::all_support_module(const std::string& module)
+{
   if (!have_module(module)) {
     return false;
   }
   for (auto& p : standbys) {
     if (!p.second.have_module(module)) {
-	return false;
+      return false;
     }
   }
   return true;
 }
 
-bool MgrMap::have_module(const std::string &module_name) const
+bool
+MgrMap::have_module(const std::string& module_name) const
 {
-  for (const auto &i : available_modules) {
+  for (const auto& i : available_modules) {
     if (i.name == module_name) {
       return true;
     }
@@ -278,8 +304,10 @@ bool MgrMap::have_module(const std::string &module_name) const
   return false;
 }
 
-const MgrMap::ModuleInfo *MgrMap::get_module_info(const std::string &module_name) const {
-  for (const auto &i : available_modules) {
+const MgrMap::ModuleInfo*
+MgrMap::get_module_info(const std::string& module_name) const
+{
+  for (const auto& i : available_modules) {
     if (i.name == module_name) {
       return &i;
     }
@@ -287,9 +315,10 @@ const MgrMap::ModuleInfo *MgrMap::get_module_info(const std::string &module_name
   return nullptr;
 }
 
-bool MgrMap::can_run_module(const std::string &module_name, std::string *error) const
+bool
+MgrMap::can_run_module(const std::string& module_name, std::string* error) const
 {
-  for (const auto &i : available_modules) {
+  for (const auto& i : available_modules) {
     if (i.name == module_name) {
       *error = i.error_string;
       return i.can_run;
@@ -301,7 +330,8 @@ bool MgrMap::can_run_module(const std::string &module_name, std::string *error) 
   throw std::logic_error(oss.str());
 }
 
-void MgrMap::encode(ceph::buffer::list& bl, uint64_t features) const
+void
+MgrMap::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   if (!HAVE_FEATURE(features, SERVER_NAUTILUS)) {
     ENCODE_START(5, 1, bl);
@@ -316,8 +346,8 @@ void MgrMap::encode(ceph::buffer::list& bl, uint64_t features) const
     // Pre-version 4 std::string std::list of available modules
     // (replaced by direct encode of ModuleInfo below)
     std::set<std::string> old_available_modules;
-    for (const auto &i : available_modules) {
-	old_available_modules.insert(i.name);
+    for (const auto& i : available_modules) {
+      old_available_modules.insert(i.name);
     }
     encode(old_available_modules, bl);
 
@@ -356,7 +386,8 @@ void MgrMap::encode(ceph::buffer::list& bl, uint64_t features) const
   return;
 }
 
-void MgrMap::decode(ceph::buffer::list::const_iterator& p)
+void
+MgrMap::decode(ceph::buffer::list::const_iterator& p)
 {
   DECODE_START(14, p);
   decode(epoch, p);
@@ -369,18 +400,18 @@ void MgrMap::decode(ceph::buffer::list::const_iterator& p)
     decode(modules, p);
 
     if (struct_v < 6) {
-	// Reconstitute ModuleInfos from names
-	std::set<std::string> module_name_list;
-	decode(module_name_list, p);
-	// Only need to unpack this field if we won't have the full
-	// MgrMap::ModuleInfo structures added in v4
-	if (struct_v < 4) {
-	  for (const auto &i : module_name_list) {
-	    MgrMap::ModuleInfo info;
-	    info.name = i;
-	    available_modules.push_back(std::move(info));
-	  }
-	}
+      // Reconstitute ModuleInfos from names
+      std::set<std::string> module_name_list;
+      decode(module_name_list, p);
+      // Only need to unpack this field if we won't have the full
+      // MgrMap::ModuleInfo structures added in v4
+      if (struct_v < 4) {
+        for (const auto& i : module_name_list) {
+          MgrMap::ModuleInfo info;
+          info.name = i;
+          available_modules.push_back(std::move(info));
+        }
+      }
     }
   }
   if (struct_v >= 3) {
@@ -408,21 +439,21 @@ void MgrMap::decode(ceph::buffer::list::const_iterator& p)
     decode(clients_addrs, p);
     clients.clear();
     if (struct_v >= 12) {
-	std::vector<std::string> clients_names;
-	decode(clients_names, p);
-	if (clients_names.size() != clients_addrs.size()) {
-	  throw ceph::buffer::malformed_input(
-	    "clients_names.size() != clients_addrs.size()");
-	}
-	auto cn = clients_names.begin();
-	auto ca = clients_addrs.begin();
-	for(; cn != clients_names.end(); ++cn, ++ca) {
-	  clients.emplace(*cn, *ca);
-	}
+      std::vector<std::string> clients_names;
+      decode(clients_names, p);
+      if (clients_names.size() != clients_addrs.size()) {
+        throw ceph::buffer::malformed_input(
+            "clients_names.size() != clients_addrs.size()");
+      }
+      auto cn = clients_names.begin();
+      auto ca = clients_addrs.begin();
+      for (; cn != clients_names.end(); ++cn, ++ca) {
+        clients.emplace(*cn, *ca);
+      }
     } else {
-	for (const auto& i : clients_addrs) {
-	  clients.emplace("", i);
-	}
+      for (const auto& i : clients_addrs) {
+        clients.emplace("", i);
+      }
     }
   }
   if (struct_v >= 13) {
@@ -436,7 +467,8 @@ void MgrMap::decode(ceph::buffer::list::const_iterator& p)
   DECODE_FINISH(p);
 }
 
-void MgrMap::dump(ceph::Formatter *f) const
+void
+MgrMap::dump(ceph::Formatter* f) const
 {
   f->dump_int("epoch", epoch);
   f->dump_int("flags", flags);
@@ -448,7 +480,7 @@ void MgrMap::dump(ceph::Formatter *f) const
   f->dump_unsigned("active_mgr_features", active_mgr_features);
   f->dump_bool("available", available);
   f->open_array_section("standbys");
-  for (const auto &i : standbys) {
+  for (const auto& i : standbys) {
     f->open_object_section("standby");
     f->dump_int("gid", i.second.gid);
     f->dump_string("name", i.second.name);
@@ -473,7 +505,7 @@ void MgrMap::dump(ceph::Formatter *f) const
   f->close_section();
 
   f->open_object_section("services");
-  for (const auto &i : services) {
+  for (const auto& i : services) {
     f->dump_string(i.first.c_str(), i.second);
   }
   f->close_section();
@@ -490,8 +522,8 @@ void MgrMap::dump(ceph::Formatter *f) const
 
   f->open_object_section("force_disabled_modules");
   for (auto& m : force_disabled_modules) {
-      f->dump_string("module", m);
-    }
+    f->dump_string("module", m);
+  }
   f->close_section();
 
   f->dump_int("last_failure_osd_epoch", last_failure_osd_epoch);
@@ -505,14 +537,16 @@ void MgrMap::dump(ceph::Formatter *f) const
   f->close_section(); // active_clients
 }
 
-std::list<MgrMap> MgrMap::generate_test_instances()
+std::list<MgrMap>
+MgrMap::generate_test_instances()
 {
   std::list<MgrMap> l;
   l.emplace_back();
   return l;
 }
 
-void MgrMap::print_summary(ceph::Formatter *f, std::ostream *ss) const
+void
+MgrMap::print_summary(ceph::Formatter* f, std::ostream* ss) const
 {
   // One or the other, not both
   ceph_assert((ss != nullptr) != (f != nullptr));
@@ -521,56 +555,60 @@ void MgrMap::print_summary(ceph::Formatter *f, std::ostream *ss) const
     f->dump_int("num_standbys", standbys.size());
     f->open_array_section("modules");
     for (auto& i : modules) {
-	f->dump_string("module", i);
+      f->dump_string("module", i);
     }
     f->close_section();
     f->open_object_section("services");
-    for (const auto &i : services) {
-	f->dump_string(i.first.c_str(), i.second);
+    for (const auto& i : services) {
+      f->dump_string(i.first.c_str(), i.second);
     }
     f->close_section();
   } else {
     utime_t now = ceph_clock_now();
     if (get_active_gid() != 0) {
-	*ss << get_active_name();
+      *ss << get_active_name();
       if (!available) {
         // If the daemon hasn't gone active yet, indicate that.
         *ss << "(active, starting";
       } else {
         *ss << "(active";
       }
-	if (active_change) {
-	  *ss << ", since " << utimespan_str(now - active_change);
-	}
-	*ss << ")";
+      if (active_change) {
+        *ss << ", since " << utimespan_str(now - active_change);
+      }
+      *ss << ")";
     } else {
-	*ss << "no daemons active";
-	if (active_change) {
-	  *ss << " (since " << utimespan_str(now - active_change) << ")";
-	}
+      *ss << "no daemons active";
+      if (active_change) {
+        *ss << " (since " << utimespan_str(now - active_change) << ")";
+      }
     }
     if (standbys.size()) {
-	*ss << ", standbys: ";
-	bool first = true;
-	for (const auto &i : standbys) {
-	  if (!first) {
-	    *ss << ", ";
-	  }
-	  *ss << i.second.name;
-	  first = false;
-	}
+      *ss << ", standbys: ";
+      bool first = true;
+      for (const auto& i : standbys) {
+        if (!first) {
+          *ss << ", ";
+        }
+        *ss << i.second.name;
+        first = false;
+      }
     }
   }
 }
 
-std::ostream& operator<<(std::ostream& out, const MgrMap& m) {
+std::ostream&
+operator<<(std::ostream& out, const MgrMap& m)
+{
   std::ostringstream ss;
   m.print_summary(nullptr, &ss);
   return out << ss.str();
 }
 
-std::ostream& operator<<(std::ostream& out, const std::vector<MgrMap::ModuleInfo>& mi) {
-  for (const auto &i : mi) {
+std::ostream&
+operator<<(std::ostream& out, const std::vector<MgrMap::ModuleInfo>& mi)
+{
+  for (const auto& i : mi) {
     out << i.name << " ";
   }
   return out;

@@ -20,8 +20,7 @@
 #include <iosfwd>
 #include <string_view>
 
-class CommandHandler
-{
+class CommandHandler {
 public:
   /**
    * Parse true|yes|1 style boolean string from `bool_str`

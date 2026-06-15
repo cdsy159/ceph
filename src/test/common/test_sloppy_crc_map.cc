@@ -1,15 +1,17 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
+#include <gtest/gtest.h>
+
 #include <iostream>
 
-#include "common/SloppyCRCMap.h"
 #include "common/Formatter.h"
-#include <gtest/gtest.h>
+#include "common/SloppyCRCMap.h"
 
 using namespace std;
 
-void dump(const SloppyCRCMap& scm)
+void
+dump(const SloppyCRCMap& scm)
 {
   auto f = Formatter::create_unique("json-pretty");
   f->open_object_section("map");
@@ -18,7 +20,8 @@ void dump(const SloppyCRCMap& scm)
   f->flush(cout);
 }
 
-TEST(SloppyCRCMap, basic) {
+TEST(SloppyCRCMap, basic)
+{
   SloppyCRCMap scm(4);
 
   bufferlist a, b;
@@ -38,7 +41,8 @@ TEST(SloppyCRCMap, basic) {
   ASSERT_EQ(1, scm.read(0, a.length(), a, &cout));
 }
 
-TEST(SloppyCRCMap, truncate) {
+TEST(SloppyCRCMap, truncate)
+{
   SloppyCRCMap scm(4);
 
   bufferlist a, b;
@@ -53,7 +57,8 @@ TEST(SloppyCRCMap, truncate) {
   ASSERT_EQ(0, scm.read(4, 4, b, &cout));
 }
 
-TEST(SloppyCRCMap, zero) {
+TEST(SloppyCRCMap, zero)
+{
   SloppyCRCMap scm(4);
 
   bufferlist a, b;
@@ -79,7 +84,8 @@ TEST(SloppyCRCMap, zero) {
   ASSERT_EQ(0, scm.read(0, 4, c, &cout));
 }
 
-TEST(SloppyCRCMap, clone_range) {
+TEST(SloppyCRCMap, clone_range)
+{
   SloppyCRCMap src(4);
   SloppyCRCMap dst(4);
 

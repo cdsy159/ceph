@@ -8,9 +8,10 @@
 
 #include <boost/logic/tribool.hpp>
 
-#include "rgw_common.h"
-#include "rgw_auth.h"
 #include "driver/rados/rgw_user.h"
+
+#include "rgw_auth.h"
+#include "rgw_common.h"
 
 namespace rgw {
 namespace auth {
@@ -21,9 +22,9 @@ template <typename DecorateeT>
 class DecoratedApplier : public rgw::auth::IdentityApplier {
   typedef typename std::remove_pointer<DecorateeT>::type DerefedDecorateeT;
 
-  static_assert(std::is_base_of<rgw::auth::IdentityApplier,
-                                DerefedDecorateeT>::value,
-                "DecorateeT must be a subclass of rgw::auth::IdentityApplier");
+  static_assert(
+      std::is_base_of<rgw::auth::IdentityApplier, DerefedDecorateeT>::value,
+      "DecorateeT must be a subclass of rgw::auth::IdentityApplier");
 
   DecorateeT decoratee;
 
@@ -31,112 +32,162 @@ class DecoratedApplier : public rgw::auth::IdentityApplier {
    * code base between dynamic and static decorators. The difference is about
    * what we store internally: pointer to a decorated object versus the whole
    * object itself. Googling for "SFINAE" can help to understand the code. */
-  template <typename T = void,
-            typename std::enable_if<
-    std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  DerefedDecorateeT& get_decoratee() {
+  template <
+      typename T = void,
+      typename std::enable_if<std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  DerefedDecorateeT&
+  get_decoratee()
+  {
     return *decoratee;
   }
 
-  template <typename T = void,
-            typename std::enable_if<
-    ! std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  DerefedDecorateeT& get_decoratee() {
+  template <
+      typename T = void,
+      typename std::enable_if<!std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  DerefedDecorateeT&
+  get_decoratee()
+  {
     return decoratee;
   }
 
-  template <typename T = void,
-            typename std::enable_if<
-    std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  const DerefedDecorateeT& get_decoratee() const {
+  template <
+      typename T = void,
+      typename std::enable_if<std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  const DerefedDecorateeT&
+  get_decoratee() const
+  {
     return *decoratee;
   }
 
-  template <typename T = void,
-            typename std::enable_if<
-    ! std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
-  const DerefedDecorateeT& get_decoratee() const {
+  template <
+      typename T = void,
+      typename std::enable_if<!std::is_pointer<DecorateeT>::value, T>::type* =
+          nullptr>
+  const DerefedDecorateeT&
+  get_decoratee() const
+  {
     return decoratee;
   }
 
 public:
-  explicit DecoratedApplier(DecorateeT&& decoratee)
-    : decoratee(std::forward<DecorateeT>(decoratee)) {
-  }
+  explicit DecoratedApplier(DecorateeT&& decoratee) :
+    decoratee(std::forward<DecorateeT>(decoratee))
+  {}
 
-  ACLOwner get_aclowner() const override {
+  ACLOwner
+  get_aclowner() const override
+  {
     return get_decoratee().get_aclowner();
   }
 
-  uint32_t get_perms_from_aclspec(const DoutPrefixProvider* dpp, const aclspec_t& aclspec) const override {
+  uint32_t
+  get_perms_from_aclspec(
+      const DoutPrefixProvider* dpp,
+      const aclspec_t& aclspec) const override
+  {
     return get_decoratee().get_perms_from_aclspec(dpp, aclspec);
   }
 
-  bool is_admin() const override {
+  bool
+  is_admin() const override
+  {
     return get_decoratee().is_admin();
   }
 
-  bool is_owner_of(const rgw_owner& o) const override {
+  bool
+  is_owner_of(const rgw_owner& o) const override
+  {
     return get_decoratee().is_owner_of(o);
   }
 
-  bool is_root() const override {
+  bool
+  is_root() const override
+  {
     return get_decoratee().is_root();
   }
 
-  bool is_anonymous() const override {
+  bool
+  is_anonymous() const override
+  {
     return get_decoratee().is_anonymous();
   }
 
-  uint32_t get_perm_mask() const override {
+  uint32_t
+  get_perm_mask() const override
+  {
     return get_decoratee().get_perm_mask();
   }
 
-  uint32_t get_identity_type() const override {
+  uint32_t
+  get_identity_type() const override
+  {
     return get_decoratee().get_identity_type();
   }
 
-  std::optional<rgw::ARN> get_caller_identity() const override {
+  std::optional<rgw::ARN>
+  get_caller_identity() const override
+  {
     return get_decoratee().get_caller_identity();
   }
 
-  std::string get_acct_name() const override {
+  std::string
+  get_acct_name() const override
+  {
     return get_decoratee().get_acct_name();
   }
 
-  std::string get_subuser() const override {
+  std::string
+  get_subuser() const override
+  {
     return get_decoratee().get_subuser();
   }
 
-  bool is_identity(const Principal& p) const override {
+  bool
+  is_identity(const Principal& p) const override
+  {
     return get_decoratee().is_identity(p);
   }
 
-  void to_str(std::ostream& out) const override {
+  void
+  to_str(std::ostream& out) const override
+  {
     get_decoratee().to_str(out);
   }
 
-  const std::string& get_tenant() const override {
+  const std::string&
+  get_tenant() const override
+  {
     return get_decoratee().get_tenant();
   }
 
-  const std::optional<RGWAccountInfo>& get_account() const override {
+  const std::optional<RGWAccountInfo>&
+  get_account() const override
+  {
     return get_decoratee().get_account();
   }
 
-  auto load_acct_info(const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User> override {  /* out */
+  auto
+  load_acct_info(const DoutPrefixProvider* dpp) const
+      -> std::unique_ptr<rgw::sal::User> override
+  { /* out */
     return get_decoratee().load_acct_info(dpp);
   }
 
-  void modify_request_state(const DoutPrefixProvider* dpp, req_state * s) const override {     /* in/out */
+  void
+  modify_request_state(const DoutPrefixProvider* dpp, req_state* s) const override
+  { /* in/out */
     return get_decoratee().modify_request_state(dpp, s);
   }
 
-  void write_ops_log_entry(rgw_log_entry& entry) const override {
+  void
+  write_ops_log_entry(rgw_log_entry& entry) const override
+  {
     return get_decoratee().write_ops_log_entry(entry);
   }
 };
-
 
 template <typename T>
 class ThirdPartyAccountApplier : public DecoratedApplier<T> {
@@ -150,16 +201,18 @@ public:
   static const rgw_user UNKNOWN_ACCT;
 
   template <typename U>
-  ThirdPartyAccountApplier(rgw::sal::Driver* driver,
-                           const rgw_user &acct_user_override,
-                           U&& decoratee)
-    : DecoratedApplier<T>(std::move(decoratee)),
-      driver(driver),
-      acct_user_override(acct_user_override) {
-  }
+  ThirdPartyAccountApplier(
+      rgw::sal::Driver* driver,
+      const rgw_user& acct_user_override,
+      U&& decoratee) :
+    DecoratedApplier<T>(std::move(decoratee)),
+    driver(driver),
+    acct_user_override(acct_user_override)
+  {}
 
   void to_str(std::ostream& out) const override;
-  auto load_acct_info(const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User> override;   /* out */
+  auto load_acct_info(const DoutPrefixProvider* dpp) const
+      -> std::unique_ptr<rgw::sal::User> override; /* out */
 };
 
 /* static declaration: UNKNOWN_ACCT will be an empty rgw_user that is a result
@@ -168,15 +221,19 @@ template <typename T>
 const rgw_user ThirdPartyAccountApplier<T>::UNKNOWN_ACCT;
 
 template <typename T>
-void ThirdPartyAccountApplier<T>::to_str(std::ostream& out) const
+void
+ThirdPartyAccountApplier<T>::to_str(std::ostream& out) const
 {
-  out << "rgw::auth::ThirdPartyAccountApplier(" + acct_user_override.to_str() + ")"
-      <<   " -> ";
+  out << "rgw::auth::ThirdPartyAccountApplier(" + acct_user_override.to_str() +
+             ")"
+      << " -> ";
   DecoratedApplier<T>::to_str(out);
 }
 
 template <typename T>
-auto ThirdPartyAccountApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User>
+auto
+ThirdPartyAccountApplier<T>::load_acct_info(
+    const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User>
 {
   std::unique_ptr<rgw::sal::User> luser;
   if (UNKNOWN_ACCT == acct_user_override) {
@@ -192,9 +249,11 @@ auto ThirdPartyAccountApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) 
      * to the correct tenant */
     luser = driver->get_user(rgw_user(RGW_USER_ANON_ID));
     if (acct_user_override.tenant.empty())
-      luser->get_info().user_id = rgw_user(acct_user_override.id, RGW_USER_ANON_ID);
+      luser->get_info().user_id =
+          rgw_user(acct_user_override.id, RGW_USER_ANON_ID);
     else
-      luser->get_info().user_id = rgw_user(acct_user_override.tenant, RGW_USER_ANON_ID);
+      luser->get_info().user_id =
+          rgw_user(acct_user_override.tenant, RGW_USER_ANON_ID);
   } else {
     /* Compatibility mechanism for multi-tenancy. For more details refer to
      * load_acct_info method of rgw::auth::RemoteApplier. */
@@ -229,14 +288,13 @@ auto ThirdPartyAccountApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) 
   return luser;
 }
 
-template <typename T> static inline
-ThirdPartyAccountApplier<T> add_3rdparty(rgw::sal::Driver* driver,
-                                         const rgw_user &acct_user_override,
-                                         T&& t) {
-  return ThirdPartyAccountApplier<T>(driver, acct_user_override,
-                                     std::forward<T>(t));
+template <typename T>
+static inline ThirdPartyAccountApplier<T>
+add_3rdparty(rgw::sal::Driver* driver, const rgw_user& acct_user_override, T&& t)
+{
+  return ThirdPartyAccountApplier<T>(
+      driver, acct_user_override, std::forward<T>(t));
 }
-
 
 template <typename T>
 class SysReqApplier : public DecoratedApplier<T> {
@@ -250,16 +308,18 @@ class SysReqApplier : public DecoratedApplier<T> {
 
 public:
   template <typename U>
-  SysReqApplier(CephContext* const cct,
-		rgw::sal::Driver* driver,
-                const req_state* const s,
-                U&& decoratee,
-                bool is_impersonating = false)
-    : DecoratedApplier<T>(std::forward<T>(decoratee)),
-      cct(cct),
-      driver(driver),
-      args(s->info.args),
-      is_impersonating(is_impersonating) {
+  SysReqApplier(
+      CephContext* const cct,
+      rgw::sal::Driver* driver,
+      const req_state* const s,
+      U&& decoratee,
+      bool is_impersonating = false) :
+    DecoratedApplier<T>(std::forward<T>(decoratee)),
+    cct(cct),
+    driver(driver),
+    args(s->info.args),
+    is_impersonating(is_impersonating)
+  {
     if (is_impersonating) {
       // we only accept impersonated requests from a system user
       is_system = true;
@@ -267,24 +327,33 @@ public:
   }
 
   void to_str(std::ostream& out) const override;
-  auto load_acct_info(const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User> override;   /* out */
-  void modify_request_state(const DoutPrefixProvider* dpp, req_state* s) const override;       /* in/out */
+  auto load_acct_info(const DoutPrefixProvider* dpp) const
+      -> std::unique_ptr<rgw::sal::User> override; /* out */
+  void modify_request_state(
+      const DoutPrefixProvider* dpp,
+      req_state* s) const override; /* in/out */
 
-  ACLOwner get_aclowner() const override {
+  ACLOwner
+  get_aclowner() const override
+  {
     if (effective_owner) {
       return *effective_owner;
     }
     return DecoratedApplier<T>::get_aclowner();
   }
 
-  const std::string& get_tenant() const override {
+  const std::string&
+  get_tenant() const override
+  {
     if (effective_tenant) {
       return *effective_tenant;
     }
     return DecoratedApplier<T>::get_tenant();
   }
 
-  bool is_admin() const override {
+  bool
+  is_admin() const override
+  {
     if (is_system && !is_impersonating) {
       return true;
     }
@@ -294,7 +363,8 @@ public:
 };
 
 template <typename T>
-void SysReqApplier<T>::to_str(std::ostream& out) const
+void
+SysReqApplier<T>::to_str(std::ostream& out) const
 {
   out << "rgw::auth::SysReqApplier";
   if (effective_owner) {
@@ -305,9 +375,12 @@ void SysReqApplier<T>::to_str(std::ostream& out) const
 }
 
 template <typename T>
-auto SysReqApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User>
+auto
+SysReqApplier<T>::load_acct_info(
+    const DoutPrefixProvider* dpp) const -> std::unique_ptr<rgw::sal::User>
 {
-  std::unique_ptr<rgw::sal::User> user = DecoratedApplier<T>::load_acct_info(dpp);
+  std::unique_ptr<rgw::sal::User> user =
+      DecoratedApplier<T>::load_acct_info(dpp);
 
   // skip loading the account info if we already have it through impersonation
   if (is_impersonating) {
@@ -332,11 +405,14 @@ auto SysReqApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) const -> st
         }
         effective_owner->display_name = user->get_display_name();
         effective_tenant = uid->tenant;
-      } else if (const auto* id = std::get_if<rgw_account_id>(&effective_owner->id); id) {
+      } else if (const auto* id =
+                     std::get_if<rgw_account_id>(&effective_owner->id);
+                 id) {
         RGWAccountInfo info;
         rgw::sal::Attrs attrs;
         RGWObjVersionTracker objv;
-        int r = driver->load_account_by_id(dpp, null_yield, *id, info, attrs, objv);
+        int r =
+            driver->load_account_by_id(dpp, null_yield, *id, info, attrs, objv);
         if (r < 0) {
           throw -EACCES;
         }
@@ -348,10 +424,13 @@ auto SysReqApplier<T>::load_acct_info(const DoutPrefixProvider* dpp) const -> st
 }
 
 template <typename T>
-void SysReqApplier<T>::modify_request_state(const DoutPrefixProvider* dpp, req_state* const s) const
+void
+SysReqApplier<T>::modify_request_state(
+    const DoutPrefixProvider* dpp,
+    req_state* const s) const
 {
   if (boost::logic::indeterminate(is_system)) {
-    std::unique_ptr<rgw::sal::User> unused_user{ load_acct_info(dpp) };
+    std::unique_ptr<rgw::sal::User> unused_user{load_acct_info(dpp)};
   }
 
   if (is_system) {
@@ -361,12 +440,15 @@ void SysReqApplier<T>::modify_request_state(const DoutPrefixProvider* dpp, req_s
   DecoratedApplier<T>::modify_request_state(dpp, s);
 }
 
-template <typename T> static inline
-SysReqApplier<T> add_sysreq(CephContext* const cct,
-			    rgw::sal::Driver* driver,
-                            const req_state* const s,
-                            T&& t,
-                            bool is_impersonating = false) {
+template <typename T>
+static inline SysReqApplier<T>
+add_sysreq(
+    CephContext* const cct,
+    rgw::sal::Driver* driver,
+    const req_state* const s,
+    T&& t,
+    bool is_impersonating = false)
+{
   return SysReqApplier<T>(cct, driver, s, std::forward<T>(t), is_impersonating);
 }
 

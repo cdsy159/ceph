@@ -1,21 +1,21 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 #include "msg_types.h"
 
 #include <arpa/inet.h>
+#include <fmt/format.h>
+#include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
 
 #include <sstream>
-
-#include <fmt/format.h>
 
 #include "common/Formatter.h"
 #include "include/types.h"
 
-bool entity_name_t::parse(std::string_view s)
+bool
+entity_name_t::parse(std::string_view s)
 {
   const char* start = s.data();
   if (s.find("mon.") == 0) {
@@ -38,7 +38,7 @@ bool entity_name_t::parse(std::string_view s)
   }
   if (isspace(*start))
     return false;
-  char *end = nullptr;
+  char* end = nullptr;
   _num = strtoll(start, &end, 10);
   if (end == nullptr || end == start) {
     return false;
@@ -47,26 +47,30 @@ bool entity_name_t::parse(std::string_view s)
   }
 }
 
-void entity_name_t::dump(ceph::Formatter *f) const
+void
+entity_name_t::dump(ceph::Formatter* f) const
 {
   f->dump_string("type", type_str());
   f->dump_unsigned("num", num());
 }
 
-void entity_addr_t::dump(ceph::Formatter *f) const
+void
+entity_addr_t::dump(ceph::Formatter* f) const
 {
   f->dump_string("type", get_type_name(type));
   f->dump_stream("addr") << get_sockaddr();
   f->dump_unsigned("nonce", nonce);
 }
 
-void entity_inst_t::dump(ceph::Formatter *f) const
+void
+entity_inst_t::dump(ceph::Formatter* f) const
 {
   f->dump_object("name", name);
   f->dump_object("addr", addr);
 }
 
-std::list<entity_name_t> entity_name_t::generate_test_instances()
+std::list<entity_name_t>
+entity_name_t::generate_test_instances()
 {
   std::list<entity_name_t> o;
   o.push_back(entity_name_t(entity_name_t::MON()));
@@ -76,7 +80,8 @@ std::list<entity_name_t> entity_name_t::generate_test_instances()
   return o;
 }
 
-std::list<entity_addr_t> entity_addr_t::generate_test_instances()
+std::list<entity_addr_t>
+entity_addr_t::generate_test_instances()
 {
   std::list<entity_addr_t> o;
   o.push_back(entity_addr_t());
@@ -96,7 +101,8 @@ std::list<entity_addr_t> entity_addr_t::generate_test_instances()
   return o;
 }
 
-std::list<entity_inst_t> entity_inst_t::generate_test_instances()
+std::list<entity_inst_t>
+entity_inst_t::generate_test_instances()
 {
   std::list<entity_inst_t> o;
   o.push_back(entity_inst_t());
@@ -107,7 +113,8 @@ std::list<entity_inst_t> entity_inst_t::generate_test_instances()
   return o;
 }
 
-bool entity_addr_t::parse(const std::string_view s, int default_type)
+bool
+entity_addr_t::parse(const std::string_view s, int default_type)
 {
   const char* start = s.data();
   const char* end = nullptr;
@@ -115,11 +122,12 @@ bool entity_addr_t::parse(const std::string_view s, int default_type)
   return got && end == start + s.size();
 }
 
-bool entity_addr_t::parse(const char *s, const char **end, int default_type)
+bool
+entity_addr_t::parse(const char* s, const char** end, int default_type)
 {
   *this = entity_addr_t();
 
-  const char *start = s;
+  const char* start = s;
   if (end) {
     *end = s;
   }
@@ -147,28 +155,25 @@ bool entity_addr_t::parse(const char *s, const char **end, int default_type)
     start++;
     brackets = true;
   }
-  
+
   // inet_pton() requires a null terminated input, so let's fill two
   // buffers, one with ipv4 allowed characters, and one with ipv6, and
   // then see which parses.
   char buf4[39];
-  char *o = buf4;
-  const char *p = start;
-  while (o < buf4 + sizeof(buf4) &&
-	 *p && ((*p == '.') ||
-		(*p >= '0' && *p <= '9'))) {
+  char* o = buf4;
+  const char* p = start;
+  while (o < buf4 + sizeof(buf4) && *p &&
+         ((*p == '.') || (*p >= '0' && *p <= '9'))) {
     *o++ = *p++;
   }
   *o = 0;
 
-  char buf6[64];  // actually 39 + null is sufficient.
+  char buf6[64]; // actually 39 + null is sufficient.
   o = buf6;
   p = start;
-  while (o < buf6 + sizeof(buf6) &&
-	 *p && ((*p == ':') ||
-		(*p >= '0' && *p <= '9') ||
-		(*p >= 'a' && *p <= 'f') ||
-		(*p >= 'A' && *p <= 'F'))) {
+  while (o < buf6 + sizeof(buf6) && *p &&
+         ((*p == ':') || (*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') ||
+          (*p >= 'A' && *p <= 'F'))) {
     *o++ = *p++;
   }
   *o = 0;
@@ -194,7 +199,7 @@ bool entity_addr_t::parse(const char *s, const char **end, int default_type)
       return false;
     p++;
   }
-  
+
   //cout << "p is " << *p << std::endl;
   if (*p == ':') {
     // parse a port, too!
@@ -226,7 +231,8 @@ bool entity_addr_t::parse(const char *s, const char **end, int default_type)
   return true;
 }
 
-std::ostream& operator<<(std::ostream& out, const entity_addr_t &addr)
+std::ostream&
+operator<<(std::ostream& out, const entity_addr_t& addr)
 {
   if (addr.type == entity_addr_t::TYPE_NONE) {
     return out << "-";
@@ -238,12 +244,13 @@ std::ostream& operator<<(std::ostream& out, const entity_addr_t &addr)
   return out;
 }
 
-std::string entity_addr_t::fmt_print() const
+std::string
+entity_addr_t::fmt_print() const
 {
   if (type == entity_addr_t::TYPE_NONE) {
     return "-";
   }
-  std::ostringstream out;  //< \todo use fmt::format
+  std::ostringstream out; //< \todo use fmt::format
   out << get_sockaddr();
 
   if (type == entity_addr_t::TYPE_ANY) {
@@ -253,42 +260,40 @@ std::string entity_addr_t::fmt_print() const
   }
 }
 
-std::ostream& operator<<(std::ostream& out, const sockaddr *psa)
+std::ostream&
+operator<<(std::ostream& out, const sockaddr* psa)
 {
-  char buf[NI_MAXHOST] = { 0 };
+  char buf[NI_MAXHOST] = {0};
 
   switch (psa->sa_family) {
-  case AF_INET:
-    {
-      const sockaddr_in *sa = (const sockaddr_in*)psa;
-      inet_ntop(AF_INET, &sa->sin_addr, buf, NI_MAXHOST);
-      return out << buf << ':'
-		 << ntohs(sa->sin_port);
-    }
-  case AF_INET6:
-    {
-      const sockaddr_in6 *sa = (const sockaddr_in6*)psa;
-      inet_ntop(AF_INET6, &sa->sin6_addr, buf, NI_MAXHOST);
-      return out << '[' << buf << "]:"
-		 << ntohs(sa->sin6_port);
-    }
+  case AF_INET: {
+    const sockaddr_in* sa = (const sockaddr_in*)psa;
+    inet_ntop(AF_INET, &sa->sin_addr, buf, NI_MAXHOST);
+    return out << buf << ':' << ntohs(sa->sin_port);
+  }
+  case AF_INET6: {
+    const sockaddr_in6* sa = (const sockaddr_in6*)psa;
+    inet_ntop(AF_INET6, &sa->sin6_addr, buf, NI_MAXHOST);
+    return out << '[' << buf << "]:" << ntohs(sa->sin6_port);
+  }
   default:
     return out << "(unrecognized address family " << psa->sa_family << ")";
   }
 }
 
-std::ostream& operator<<(std::ostream& out, const sockaddr_storage &ss)
+std::ostream&
+operator<<(std::ostream& out, const sockaddr_storage& ss)
 {
   return out << (const sockaddr*)&ss;
 }
 
-
 // entity_addrvec_t
 
-bool entity_addrvec_t::parse(const char *s, const char **end)
+bool
+entity_addrvec_t::parse(const char* s, const char** end)
 {
-  const char *orig_s = s;
-  const char *static_end;
+  const char* orig_s = s;
+  const char* static_end;
   if (!end) {
     end = &static_end;
   } else {
@@ -299,7 +304,7 @@ bool entity_addrvec_t::parse(const char *s, const char **end)
   if (*s == '[') {
     // weirdness: make sure this isn't an IPV6 addr!
     entity_addr_t a;
-    const char *p;
+    const char* p;
     if (!a.parse(s, &p) || !a.is_ipv6()) {
       // it's not
       brackets = true;
@@ -311,9 +316,9 @@ bool entity_addrvec_t::parse(const char *s, const char **end)
     bool r = a.parse(s, end);
     if (!r) {
       if (brackets) {
-	v.clear();
-	*end = orig_s;
-	return false;
+        v.clear();
+        *end = orig_s;
+        return false;
       }
       break;
     }
@@ -340,7 +345,8 @@ bool entity_addrvec_t::parse(const char *s, const char **end)
   return !v.empty();
 }
 
-void entity_addrvec_t::encode(ceph::buffer::list& bl, uint64_t features) const
+void
+entity_addrvec_t::encode(ceph::buffer::list& bl, uint64_t features) const
 {
   using ceph::encode;
   if ((features & CEPH_FEATURE_MSG_ADDR2) == 0) {
@@ -352,7 +358,8 @@ void entity_addrvec_t::encode(ceph::buffer::list& bl, uint64_t features) const
   encode(v, bl, features);
 }
 
-void entity_addrvec_t::decode(ceph::buffer::list::const_iterator& bl)
+void
+entity_addrvec_t::decode(ceph::buffer::list::const_iterator& bl)
 {
   using ceph::decode;
   __u8 marker;
@@ -373,7 +380,7 @@ void entity_addrvec_t::decode(ceph::buffer::list::const_iterator& bl)
     __u32 elen;
     decode(elen, bl);
     if (elen) {
-      struct sockaddr *sa = (struct sockaddr *)addr.get_sockaddr();
+      struct sockaddr* sa = (struct sockaddr*)addr.get_sockaddr();
 #if defined(__FreeBSD__) || defined(__APPLE__)
       sa->sa_len = 0;
 #endif
@@ -399,7 +406,8 @@ void entity_addrvec_t::decode(ceph::buffer::list::const_iterator& bl)
   decode(v, bl);
 }
 
-void entity_addrvec_t::dump(ceph::Formatter *f) const
+void
+entity_addrvec_t::dump(ceph::Formatter* f) const
 {
   f->open_array_section("addrvec");
   for (auto p = v.begin(); p != v.end(); ++p) {
@@ -408,7 +416,8 @@ void entity_addrvec_t::dump(ceph::Formatter *f) const
   f->close_section();
 }
 
-std::list<entity_addrvec_t> entity_addrvec_t::generate_test_instances()
+std::list<entity_addrvec_t>
+entity_addrvec_t::generate_test_instances()
 {
   std::list<entity_addrvec_t> ls;
   ls.push_back(entity_addrvec_t());
@@ -420,7 +429,9 @@ std::list<entity_addrvec_t> entity_addrvec_t::generate_test_instances()
   return ls;
 }
 
-std::ostream& operator<<(std::ostream& out, const entity_addrvec_t& av) {
+std::ostream&
+operator<<(std::ostream& out, const entity_addrvec_t& av)
+{
   if (av.v.empty()) {
     return out;
   } else if (av.v.size() == 1) {
@@ -430,18 +441,19 @@ std::ostream& operator<<(std::ostream& out, const entity_addrvec_t& av) {
   }
 }
 
-std::string entity_addr_t::ip_only_to_str() const 
+std::string
+entity_addr_t::ip_only_to_str() const
 {
-  const char *host_ip = NULL;
+  const char* host_ip = NULL;
   char addr_buf[INET6_ADDRSTRLEN];
   switch (get_family()) {
   case AF_INET:
-    host_ip = inet_ntop(AF_INET, &in4_addr().sin_addr, 
-                        addr_buf, INET_ADDRSTRLEN);
+    host_ip =
+        inet_ntop(AF_INET, &in4_addr().sin_addr, addr_buf, INET_ADDRSTRLEN);
     break;
   case AF_INET6:
-    host_ip = inet_ntop(AF_INET6, &in6_addr().sin6_addr, 
-                        addr_buf, INET6_ADDRSTRLEN);
+    host_ip =
+        inet_ntop(AF_INET6, &in6_addr().sin6_addr, addr_buf, INET6_ADDRSTRLEN);
     break;
   default:
     break;
@@ -449,7 +461,8 @@ std::string entity_addr_t::ip_only_to_str() const
   return host_ip ? host_ip : "";
 }
 
-std::string entity_addr_t::ip_n_port_to_str() const
+std::string
+entity_addr_t::ip_n_port_to_str() const
 {
   if (is_ipv6()) {
     return fmt::format("[{}]:{}", ip_only_to_str(), get_port());
@@ -458,7 +471,9 @@ std::string entity_addr_t::ip_n_port_to_str() const
   }
 }
 
-std::string entity_addr_t::get_legacy_str() const {
+std::string
+entity_addr_t::get_legacy_str() const
+{
   std::ostringstream ss;
   ss << get_sockaddr() << "/" << get_nonce();
   return ss.str();

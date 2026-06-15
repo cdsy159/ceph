@@ -13,25 +13,21 @@
  *
  */
 
-#include "rgw_datalog.h"
+#include <fmt/format.h>
 
 #include <string_view>
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
 
-#include <fmt/format.h>
-
+#include "gtest/gtest.h"
 #include "include/neorados/RADOS.hpp"
-
 #include "neorados/cls/sem_set.h"
-
 #include "test/neorados/common_tests.h"
 
-#include "gtest/gtest.h"
+#include "rgw_datalog.h"
 
 namespace asio = boost::asio;
 namespace ss = neorados::cls::sem_set;
@@ -40,84 +36,134 @@ using neorados::WriteOp;
 
 class DataLogTestBase : public CoroTest {
 private:
-  const std::string prefix_{std::string{"test framework "} +
-			    testing::UnitTest::GetInstance()->
-			    current_test_info()->name() +
-			    std::string{": "}};
+  const std::string prefix_{
+      std::string{"test framework "} +
+      testing::UnitTest::GetInstance()->current_test_info()->name() +
+      std::string{": "}};
 
   std::optional<neorados::RADOS> rados_;
   neorados::IOContext pool_;
   const std::string pool_name_ = get_temp_pool_name(
-    testing::UnitTest::GetInstance()->current_test_info()->name());
+      testing::UnitTest::GetInstance()->current_test_info()->name());
   std::unique_ptr<DoutPrefix> dpp_;
 
-  boost::asio::awaitable<uint64_t> create_pool() {
-    co_return co_await ::create_pool(rados(), pool_name(),
-				     boost::asio::use_awaitable);
+  boost::asio::awaitable<uint64_t>
+  create_pool()
+  {
+    co_return co_await ::create_pool(
+        rados(), pool_name(), boost::asio::use_awaitable);
   }
 
-  boost::asio::awaitable<void> clean_pool() {
-    co_await rados().delete_pool(pool().get_pool(),
-				boost::asio::use_awaitable);
+  boost::asio::awaitable<void>
+  clean_pool()
+  {
+    co_await rados().delete_pool(pool().get_pool(), boost::asio::use_awaitable);
   }
 
   virtual asio::awaitable<std::unique_ptr<RGWDataChangesLog>>
   create_datalog() = 0;
 
 protected:
-
   std::unique_ptr<RGWDataChangesLog> datalog;
 
-  neorados::RADOS& rados() noexcept { return *rados_; }
-  const std::string& pool_name() const noexcept { return pool_name_; }
-  const neorados::IOContext& pool() const noexcept { return pool_; }
-  std::string_view prefix() const noexcept { return prefix_; }
-  const DoutPrefixProvider* dpp() const noexcept { return dpp_.get(); }
-  auto execute(std::string_view oid, neorados::WriteOp&& op,
-	       std::uint64_t* ver = nullptr) {
-    return rados().execute(oid, pool(), std::move(op),
-			   boost::asio::use_awaitable, ver);
+  neorados::RADOS&
+  rados() noexcept
+  {
+    return *rados_;
   }
-  auto execute(std::string_view oid, neorados::ReadOp&& op,
-	       std::uint64_t* ver = nullptr) {
-    return rados().execute(oid, pool(), std::move(op), nullptr,
-			   boost::asio::use_awaitable, ver);
+
+  const std::string&
+  pool_name() const noexcept
+  {
+    return pool_name_;
   }
-  auto execute(std::string_view oid, neorados::WriteOp&& op,
-	       neorados::IOContext ioc, std::uint64_t* ver = nullptr) {
-    return rados().execute(oid, std::move(ioc), std::move(op),
-			   boost::asio::use_awaitable, ver);
+
+  const neorados::IOContext&
+  pool() const noexcept
+  {
+    return pool_;
   }
-  auto execute(std::string_view oid, neorados::ReadOp&& op,
-	       neorados::IOContext ioc, std::uint64_t* ver = nullptr) {
-    return rados().execute(oid, std::move(ioc), std::move(op), nullptr,
-			   boost::asio::use_awaitable, ver);
+
+  std::string_view
+  prefix() const noexcept
+  {
+    return prefix_;
+  }
+
+  const DoutPrefixProvider*
+  dpp() const noexcept
+  {
+    return dpp_.get();
+  }
+
+  auto
+  execute(
+      std::string_view oid,
+      neorados::WriteOp&& op,
+      std::uint64_t* ver = nullptr)
+  {
+    return rados().execute(
+        oid, pool(), std::move(op), boost::asio::use_awaitable, ver);
+  }
+
+  auto
+  execute(
+      std::string_view oid,
+      neorados::ReadOp&& op,
+      std::uint64_t* ver = nullptr)
+  {
+    return rados().execute(
+        oid, pool(), std::move(op), nullptr, boost::asio::use_awaitable, ver);
+  }
+
+  auto
+  execute(
+      std::string_view oid,
+      neorados::WriteOp&& op,
+      neorados::IOContext ioc,
+      std::uint64_t* ver = nullptr)
+  {
+    return rados().execute(
+        oid, std::move(ioc), std::move(op), boost::asio::use_awaitable, ver);
+  }
+
+  auto
+  execute(
+      std::string_view oid,
+      neorados::ReadOp&& op,
+      neorados::IOContext ioc,
+      std::uint64_t* ver = nullptr)
+  {
+    return rados().execute(
+        oid, std::move(ioc), std::move(op), nullptr, boost::asio::use_awaitable,
+        ver);
   }
 
   asio::awaitable<void>
-  read_all_sems(int index,
-		bc::flat_map<std::string, uint64_t>* out) {
+  read_all_sems(int index, bc::flat_map<std::string, uint64_t>* out)
+  {
     std::string cursor;
     do {
       try {
-	co_await rados().execute(
-	  datalog->get_sem_set_oid(index), datalog->loc,
-	  neorados::ReadOp{}.exec(ss::list(datalog->sem_max_keys, cursor, out,
-					   &cursor)),
-	  nullptr, asio::use_awaitable);
+        co_await rados().execute(
+            datalog->get_sem_set_oid(index), datalog->loc,
+            neorados::ReadOp{}.exec(
+                ss::list(datalog->sem_max_keys, cursor, out, &cursor)),
+            nullptr, asio::use_awaitable);
       } catch (const sys::system_error& e) {
-	if (e.code() == sys::errc::no_such_file_or_directory) {
-	  break;
-	} else {
-	  throw;
-	}
+        if (e.code() == sys::errc::no_such_file_or_directory) {
+          break;
+        } else {
+          throw;
+        }
       }
     } while (!cursor.empty());
     co_return;
   }
 
   asio::awaitable<bc::flat_map<std::string, uint64_t>>
-  read_all_sems_all_shards() {
+  read_all_sems_all_shards()
+  {
     bc::flat_map<std::string, uint64_t> all_sems;
 
     for (auto i = 0; i < datalog->num_shards; ++i) {
@@ -127,25 +173,26 @@ protected:
   }
 
   asio::awaitable<bc::flat_map<BucketGen, uint64_t>>
-  read_all_log(const DoutPrefixProvider* dpp) {
+  read_all_log(const DoutPrefixProvider* dpp)
+  {
     bc::flat_map<BucketGen, uint64_t> all_keys;
 
     RGWDataChangesLogMarker marker;
     do {
       std::vector<rgw_data_change_log_entry> entries;
       std::tie(entries, marker, std::ignore) =
-	co_await datalog->list_entries(dpp, 1'000,
-				       std::move(marker));
+          co_await datalog->list_entries(dpp, 1'000, std::move(marker));
       for (const auto& entry : entries) {
-	auto key = fmt::format("{}:{}", entry.entry.key, entry.entry.gen);
-	all_keys[BucketGen{key}] += 1;
+        auto key = fmt::format("{}:{}", entry.entry.key, entry.entry.gen);
+        all_keys[BucketGen{key}] += 1;
       }
     } while (marker);
     co_return std::move(all_keys);
   }
 
-  asio::awaitable<void> add_entry(const DoutPrefixProvider* dpp,
-                                  const BucketGen& bg) {
+  asio::awaitable<void>
+  add_entry(const DoutPrefixProvider* dpp, const BucketGen& bg)
+  {
     RGWBucketInfo bi;
     bi.bucket = bg.shard.bucket;
     rgw::bucket_log_layout_generation gen;
@@ -154,42 +201,57 @@ protected:
     co_return;
   }
 
-  auto renew_entries(const DoutPrefixProvider* dpp) {
+  auto
+  renew_entries(const DoutPrefixProvider* dpp)
+  {
     return datalog->renew_entries(dpp);
   }
 
-  auto oid(const BucketGen& bg) {
+  auto
+  oid(const BucketGen& bg)
+  {
     return datalog->get_oid(0, datalog->choose_oid(bg.shard));
   }
 
-  auto sem_set_oid(const BucketGen& bg) {
+  auto
+  sem_set_oid(const BucketGen& bg)
+  {
     return datalog->get_sem_set_oid(datalog->choose_oid(bg.shard));
   }
 
-  auto loc() {
+  auto
+  loc()
+  {
     return datalog->loc;
   }
 
-  auto recover(const DoutPrefixProvider* dpp) {
+  auto
+  recover(const DoutPrefixProvider* dpp)
+  {
     return datalog->recover(dpp);
   }
 
-  void add_to_cur_cycle(const BucketGen& bg) {
+  void
+  add_to_cur_cycle(const BucketGen& bg)
+  {
     std::unique_lock l(datalog->lock);
     datalog->cur_cycle.insert(bg);
   }
 
-  void add_to_semaphores(const BucketGen& bg) {
+  void
+  add_to_semaphores(const BucketGen& bg)
+  {
     std::unique_lock l(datalog->lock);
     datalog->semaphores[datalog->choose_oid(bg.shard)].insert(bg.get_key());
   }
 
 public:
-
   /// \brief Create RADOS handle and pool for the test
-  boost::asio::awaitable<void> CoSetUp() override {
-    rados_ = co_await neorados::RADOS::Builder{}
-      .build(asio_context, boost::asio::use_awaitable);
+  boost::asio::awaitable<void>
+  CoSetUp() override
+  {
+    rados_ = co_await neorados::RADOS::Builder{}.build(
+        asio_context, boost::asio::use_awaitable);
     dpp_ = std::make_unique<DoutPrefix>(rados().cct(), 0, prefix().data());
     pool_.set_pool(co_await create_pool());
     datalog = co_await create_datalog();
@@ -199,7 +261,9 @@ public:
   ~DataLogTestBase() override = default;
 
   /// \brief Delete pool used for testing
-  boost::asio::awaitable<void> CoTearDown() override {
+  boost::asio::awaitable<void>
+  CoTearDown() override
+  {
     co_await datalog->async_shutdown();
     co_await clean_pool();
     co_return;
@@ -208,9 +272,11 @@ public:
 
 class DataLogTest : public DataLogTestBase {
 private:
-  asio::awaitable<std::unique_ptr<RGWDataChangesLog>> create_datalog() override {
-    auto datalog = std::make_unique<RGWDataChangesLog>(rados().cct(), true,
-						       rados());
+  asio::awaitable<std::unique_ptr<RGWDataChangesLog>>
+  create_datalog() override
+  {
+    auto datalog =
+        std::make_unique<RGWDataChangesLog>(rados().cct(), true, rados());
     co_await datalog->start(dpp(), rgw_pool(pool_name()), false, true, false);
     co_return std::move(datalog);
   }
@@ -218,9 +284,11 @@ private:
 
 class DataLogWatchless : public DataLogTestBase {
 private:
-  asio::awaitable<std::unique_ptr<RGWDataChangesLog>> create_datalog() override {
-    auto datalog = std::make_unique<RGWDataChangesLog>(rados().cct(), true,
-						       rados());
+  asio::awaitable<std::unique_ptr<RGWDataChangesLog>>
+  create_datalog() override
+  {
+    auto datalog =
+        std::make_unique<RGWDataChangesLog>(rados().cct(), true, rados());
     co_await datalog->start(dpp(), rgw_pool(pool_name()), false, false, false);
     co_return std::move(datalog);
   }
@@ -228,46 +296,49 @@ private:
 
 class DataLogBulky : public DataLogTestBase {
 private:
-  asio::awaitable<std::unique_ptr<RGWDataChangesLog>> create_datalog() override {
+  asio::awaitable<std::unique_ptr<RGWDataChangesLog>>
+  create_datalog() override
+  {
     // Decrease max push/list and force everything into one shard so we
     // can test iterated increment/decrement/list code.
-    auto datalog = std::make_unique<RGWDataChangesLog>(rados().cct(), true,
-						       rados(), 1, 7);
+    auto datalog =
+        std::make_unique<RGWDataChangesLog>(rados().cct(), true, rados(), 1, 7);
     co_await datalog->start(dpp(), rgw_pool(pool_name()), false, true, false);
     co_return std::move(datalog);
   }
 };
 
-
-
 const std::vector<BucketGen> ref{
-  {{{"fred", "foo"}, 32}, 3},
-  {{{"fred", "foo"}, 32}, 0},
-  {{{"fred", "foo"}, 13}, 0},
-  {{{"", "bar"}, 13}, 0},
-  {{{"", "bar", "zardoz"}, 11}, 0}};
+    {{{"fred", "foo"}, 32}, 3},
+    {{{"fred", "foo"}, 32}, 0},
+    {{{"fred", "foo"}, 13}, 0},
+    {{{"", "bar"}, 13}, 0},
+    {{{"", "bar", "zardoz"}, 11}, 0}};
 
-const auto bulky =
-  []() {
-    std::vector<BucketGen> ref;
-    for (auto i = 0; i < 30; ++i) {
-      ref.push_back({{{"", fmt::format("bucket{}", i)}, i}, 0});
-      ref.push_back({{{fmt::format("tenant{}", i),
-	               fmt::format("bucket{}", i)}, i}, 0});
-      ref.push_back({{{fmt::format("tenant{}", i),
-	               fmt::format("bucket{}", i),
-	               fmt::format("instance{}", i)}, i}, 0});
-    }
-    return ref;
-  }();
+const auto bulky = []() {
+  std::vector<BucketGen> ref;
+  for (auto i = 0; i < 30; ++i) {
+    ref.push_back({{{"", fmt::format("bucket{}", i)}, i}, 0});
+    ref.push_back(
+        {{{fmt::format("tenant{}", i), fmt::format("bucket{}", i)}, i}, 0});
+    ref.push_back(
+        {{{fmt::format("tenant{}", i), fmt::format("bucket{}", i),
+           fmt::format("instance{}", i)},
+          i},
+         0});
+  }
+  return ref;
+}();
 
-TEST(DataLogBG, TestRoundTrip) {
+TEST(DataLogBG, TestRoundTrip)
+{
   for (const auto& bg : ref) {
     ASSERT_EQ(bg, BucketGen{bg.get_key()});
   }
 }
 
-CORO_TEST_F(DataLog, TestSem, DataLogTest) {
+CORO_TEST_F(DataLog, TestSem, DataLogTest)
+{
   for (const auto& bg : ref) {
     co_await add_entry(dpp(), bg);
     // Second send adds it to working set and creates the semaphore
@@ -291,11 +362,12 @@ CORO_TEST_F(DataLog, TestSem, DataLogTest) {
   co_return;
 }
 
-CORO_TEST_F(DataLog, SimpleRecovery, DataLogTest) {
+CORO_TEST_F(DataLog, SimpleRecovery, DataLogTest)
+{
   for (const auto& bg : ref) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   co_await recover(dpp());
   auto sems = co_await read_all_sems_all_shards();
@@ -309,11 +381,12 @@ CORO_TEST_F(DataLog, SimpleRecovery, DataLogTest) {
   co_return;
 }
 
-CORO_TEST_F(DataLog, CycleRecovery, DataLogTest) {
+CORO_TEST_F(DataLog, CycleRecovery, DataLogTest)
+{
   for (const auto& bg : ref) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   add_to_cur_cycle(ref[0]);
   add_to_cur_cycle(ref[1]);
@@ -334,11 +407,12 @@ CORO_TEST_F(DataLog, CycleRecovery, DataLogTest) {
   co_return;
 }
 
-CORO_TEST_F(DataLog, SemaphoresRecovery, DataLogTest) {
+CORO_TEST_F(DataLog, SemaphoresRecovery, DataLogTest)
+{
   for (const auto& bg : ref) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   add_to_semaphores(ref[0]);
   add_to_semaphores(ref[1]);
@@ -359,7 +433,8 @@ CORO_TEST_F(DataLog, SemaphoresRecovery, DataLogTest) {
   co_return;
 }
 
-CORO_TEST_F(DataLogWatchless, NotWatching, DataLogWatchless) {
+CORO_TEST_F(DataLogWatchless, NotWatching, DataLogWatchless)
+{
   for (const auto& bg : ref) {
     co_await add_entry(dpp(), bg);
     // With watch down, we should bypass the data window and get two entries
@@ -374,7 +449,8 @@ CORO_TEST_F(DataLogWatchless, NotWatching, DataLogWatchless) {
   co_return;
 }
 
-CORO_TEST_F(DataLogBulky, TestSemBulky, DataLogBulky) {
+CORO_TEST_F(DataLogBulky, TestSemBulky, DataLogBulky)
+{
   for (const auto& bg : bulky) {
     co_await add_entry(dpp(), bg);
     // Second send adds it to working set and creates the semaphore
@@ -396,11 +472,12 @@ CORO_TEST_F(DataLogBulky, TestSemBulky, DataLogBulky) {
   co_return;
 }
 
-CORO_TEST_F(DataLogBulky, BulkyRecovery, DataLogBulky) {
+CORO_TEST_F(DataLogBulky, BulkyRecovery, DataLogBulky)
+{
   for (const auto& bg : bulky) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   co_await recover(dpp());
   auto sems = co_await read_all_sems_all_shards();
@@ -414,11 +491,12 @@ CORO_TEST_F(DataLogBulky, BulkyRecovery, DataLogBulky) {
   co_return;
 }
 
-CORO_TEST_F(DataLogBulky, BulkyCycleRecovery, DataLogBulky) {
+CORO_TEST_F(DataLogBulky, BulkyCycleRecovery, DataLogBulky)
+{
   for (const auto& bg : bulky) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   for (auto i = 0u; i < bulky.size(); ++i) {
     if (i % 2 == 0) {
@@ -442,11 +520,12 @@ CORO_TEST_F(DataLogBulky, BulkyCycleRecovery, DataLogBulky) {
   co_return;
 }
 
-CORO_TEST_F(DataLogBulky, BulkySemaphoresRecovery, DataLogBulky) {
+CORO_TEST_F(DataLogBulky, BulkySemaphoresRecovery, DataLogBulky)
+{
   for (const auto& bg : bulky) {
-    co_await rados().execute(sem_set_oid(bg), loc(),
-			     WriteOp{}.exec(ss::increment(bg.get_key())),
-			     asio::use_awaitable);
+    co_await rados().execute(
+        sem_set_oid(bg), loc(), WriteOp{}.exec(ss::increment(bg.get_key())),
+        asio::use_awaitable);
   }
   for (auto i = 0u; i < bulky.size(); ++i) {
     if (i % 2 == 0) {

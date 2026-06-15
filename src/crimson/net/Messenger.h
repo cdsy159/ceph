@@ -15,17 +15,18 @@
 
 #pragma once
 
-#include "Fwd.h"
 #include "crimson/common/throttle.h"
 #include "msg/Message.h"
 #include "msg/Policy.h"
+
+#include "Fwd.h"
 
 class AuthAuthorizer;
 
 namespace crimson::auth {
 class AuthClient;
 class AuthServer;
-}
+} // namespace crimson::auth
 
 namespace crimson::net {
 
@@ -44,26 +45,33 @@ public:
 
   virtual const entity_name_t& get_myname() const = 0;
 
-  entity_type_t get_mytype() const { return get_myname().type(); }
+  entity_type_t
+  get_mytype() const
+  {
+    return get_myname().type();
+  }
 
-  virtual const entity_addrvec_t &get_myaddrs() const = 0;
+  virtual const entity_addrvec_t& get_myaddrs() const = 0;
 
-  entity_addr_t get_myaddr() const { return get_myaddrs().front(); }
+  entity_addr_t
+  get_myaddr() const
+  {
+    return get_myaddrs().front();
+  }
 
   virtual void set_myaddrs(const entity_addrvec_t& addrs) = 0;
 
-  virtual bool set_addr_unknowns(const entity_addrvec_t &addrs) = 0;
+  virtual bool set_addr_unknowns(const entity_addrvec_t& addrs) = 0;
 
-  virtual void set_auth_client(crimson::auth::AuthClient *) = 0;
+  virtual void set_auth_client(crimson::auth::AuthClient*) = 0;
 
-  virtual void set_auth_server(crimson::auth::AuthServer *) = 0;
+  virtual void set_auth_server(crimson::auth::AuthServer*) = 0;
 
-  virtual seastar::future<> mark_down(const entity_addr_t &addr) = 0;
+  virtual seastar::future<> mark_down(const entity_addr_t& addr) = 0;
 
   using bind_ertr = crimson::errorator<
-    crimson::ct_error::address_in_use, // The address (range) is already bound
-    crimson::ct_error::address_not_available
-    >;
+      crimson::ct_error::address_in_use, // The address (range) is already bound
+      crimson::ct_error::address_not_available>;
   /// bind to the given address
   virtual bind_ertr::future<> bind(const entity_addrvec_t& addr) = 0;
 
@@ -72,17 +80,17 @@ public:
 
   /// either return an existing connection to the peer,
   /// or a new pending connection
-  virtual ConnectionRef
-  connect(const entity_addr_t& peer_addr,
-          const entity_name_t& peer_name) = 0;
+  virtual ConnectionRef connect(
+      const entity_addr_t& peer_addr,
+      const entity_name_t& peer_name) = 0;
 
   ConnectionRef
-  connect(const entity_addr_t& peer_addr,
-          const entity_type_t& peer_type) {
+  connect(const entity_addr_t& peer_addr, const entity_type_t& peer_type)
+  {
     return connect(peer_addr, entity_name_t(peer_type, -1));
   }
 
-  virtual bool owns_connection(Connection &) const = 0;
+  virtual bool owns_connection(Connection&) const = 0;
 
   // wait for messenger shutdown
   virtual seastar::future<> wait() = 0;
@@ -106,20 +114,24 @@ public:
 
   virtual void set_policy(entity_type_t peer_type, const SocketPolicy& p) = 0;
 
-  virtual void set_policy_throttler(entity_type_t peer_type, Throttle* throttle) = 0;
+  virtual void set_policy_throttler(
+      entity_type_t peer_type,
+      Throttle* throttle) = 0;
 
-  static MessengerRef
-  create(const entity_name_t& name,
-         const std::string& lname,
-         uint64_t nonce,
-         bool dispatch_only_on_this_shard);
+  static MessengerRef create(
+      const entity_name_t& name,
+      const std::string& lname,
+      uint64_t nonce,
+      bool dispatch_only_on_this_shard);
 
 #ifdef UNIT_TESTS_BUILT
-  virtual void set_interceptor(Interceptor *) = 0;
+  virtual void set_interceptor(Interceptor*) = 0;
 #endif
 };
 
-inline std::ostream& operator<<(std::ostream& out, const Messenger& msgr) {
+inline std::ostream&
+operator<<(std::ostream& out, const Messenger& msgr)
+{
   out << "[";
   msgr.print(out);
   out << "]";
@@ -129,5 +141,6 @@ inline std::ostream& operator<<(std::ostream& out, const Messenger& msgr) {
 } // namespace crimson::net
 
 #if FMT_VERSION >= 90000
-template <> struct fmt::formatter<crimson::net::Messenger> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<crimson::net::Messenger> : fmt::ostream_formatter {};
 #endif

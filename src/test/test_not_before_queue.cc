@@ -5,17 +5,24 @@
 #include <string_view>
 
 #include "common/not_before_queue.h"
-#include "include/types.h" // for operator<<
 #include "gtest/gtest.h"
+#include "include/types.h" // for operator<<
 
 // Just to have a default constructor that sets it to 0
 struct test_time_t {
   unsigned time = 0;
 
   operator unsigned() const { return time; }
+
   test_time_t() = default;
-  test_time_t(unsigned t) : time(t) {}
-  test_time_t &operator=(unsigned t) {
+
+  test_time_t(unsigned t) :
+    time(t)
+  {}
+
+  test_time_t&
+  operator=(unsigned t)
+  {
     time = t;
     return *this;
   }
@@ -29,60 +36,85 @@ struct tv_t {
   std::string some_data{"-"};
 
   tv_t() = default;
-  tv_t(const tv_t &) = default;
-  tv_t(unsigned not_before, unsigned ov, unsigned rc)
-    : not_before(not_before), ordering_value(ov), removal_class(rc) {}
-  tv_t(unsigned not_before, unsigned ov, unsigned rc, std::string_view sd)
-      : not_before(not_before), ordering_value(ov), removal_class(rc)
-      , some_data{sd} {}
-  auto to_tuple() const {
+  tv_t(const tv_t&) = default;
+
+  tv_t(unsigned not_before, unsigned ov, unsigned rc) :
+    not_before(not_before), ordering_value(ov), removal_class(rc)
+  {}
+
+  tv_t(unsigned not_before, unsigned ov, unsigned rc, std::string_view sd) :
+    not_before(not_before), ordering_value(ov), removal_class(rc), some_data{sd}
+  {}
+
+  auto
+  to_tuple() const
+  {
     return std::make_tuple(not_before, ordering_value, removal_class, some_data);
   }
-  bool operator==(const tv_t &rhs) const {
+
+  bool
+  operator==(const tv_t& rhs) const
+  {
     return to_tuple() == rhs.to_tuple();
   }
 };
 
-std::ostream &operator<<(std::ostream &lhs, const tv_t &val) {
+std::ostream&
+operator<<(std::ostream& lhs, const tv_t& val)
+{
   return lhs << val.to_tuple();
 }
 
-const unsigned &project_not_before(const tv_t &v) {
+const unsigned&
+project_not_before(const tv_t& v)
+{
   return v.not_before;
 }
 
-const unsigned &project_removal_class(const tv_t &v) {
+const unsigned&
+project_removal_class(const tv_t& v)
+{
   return v.removal_class;
 }
 
-bool operator<(const tv_t &lhs, const tv_t &rhs) {
+bool
+operator<(const tv_t& lhs, const tv_t& rhs)
+{
   return lhs.ordering_value < rhs.ordering_value;
 }
 
 class NotBeforeTest : public testing::Test {
- public:
+public:
   using queue_t = not_before_queue_t<tv_t, test_time_t>;
 
-  ~NotBeforeTest() {
+  ~NotBeforeTest()
+  {
     // Advance time until all queued items become eligible for processing.
     // This ensures complete dequeuing during test teardown, preventing memory leaks.
     // We assume test cutoff timepoints remain within reasonable bounds. If a specified
     // timepoint precedes current time, the process continues advancing normally.
-    for (unsigned when = 1; queue.eligible_count() < queue.total_count(); when += 1) {
+    for (unsigned when = 1; queue.eligible_count() < queue.total_count();
+         when += 1) {
       queue.advance_time(when);
     }
-    while (queue.dequeue()) {}
+    while (queue.dequeue()) {
+    }
   }
-  void load_test_data(const std::vector<tv_t> &dt) {
-    for (const auto &d : dt) {
+
+  void
+  load_test_data(const std::vector<tv_t>& dt)
+  {
+    for (const auto& d : dt) {
       queue.enqueue(d);
     }
   }
 
- protected:
+protected:
   queue_t queue;
 
-  void dump() {
+  void
+  dump()
+  {
     std::cout << "Dumping queue: " << std::endl;
     queue.for_each([](auto v, bool eligible) {
       std::cout << "    item: " << v << ", eligible: " << eligible << std::endl;
@@ -90,7 +122,8 @@ class NotBeforeTest : public testing::Test {
   }
 };
 
-TEST_F(NotBeforeTest, Basic) {
+TEST_F(NotBeforeTest, Basic)
+{
   tv_t e0{0, 0, 0};
   tv_t e1{0, 1, 0};
 
@@ -102,7 +135,8 @@ TEST_F(NotBeforeTest, Basic) {
   ASSERT_EQ(queue.dequeue(), std::nullopt);
 }
 
-TEST_F(NotBeforeTest, NotBefore) {
+TEST_F(NotBeforeTest, NotBefore)
+{
   tv_t e0{0, 0, 0};
   tv_t e1{1, 1, 0};
   tv_t e2{1, 2, 0};
@@ -132,7 +166,8 @@ TEST_F(NotBeforeTest, NotBefore) {
   ASSERT_EQ(queue.dequeue(), std::nullopt);
 }
 
-TEST_F(NotBeforeTest, RemoveByClass) {
+TEST_F(NotBeforeTest, RemoveByClass)
+{
   tv_t e0{0, 0, 1};
   tv_t e1{1, 1, 0};
   tv_t e2{1, 2, 1};
@@ -160,9 +195,10 @@ TEST_F(NotBeforeTest, RemoveByClass) {
   ASSERT_EQ(queue.dequeue(), std::nullopt);
 }
 
-TEST_F(NotBeforeTest, DequeueByPred) {
+TEST_F(NotBeforeTest, DequeueByPred)
+{
   // the predicate we'll use is against the removal class
-  const auto pred = [](const tv_t &v) { return 0 == (v.removal_class % 2); };
+  const auto pred = [](const tv_t& v) { return 0 == (v.removal_class % 2); };
 
   tv_t e0t{1, 0, 10};
   tv_t e1t{2, 2, 20};
@@ -203,7 +239,7 @@ TEST_F(NotBeforeTest, DequeueByPred) {
 }
 
 namespace {
-  // clang-format off
+// clang-format off
   const std::vector<tv_t> by_class_test_data_1{
     {0, 20, 17}, {2, 10, 17},
     {0, 20, 23}, {2, 10, 23},
@@ -217,10 +253,11 @@ namespace {
     {7, 43, 57}, {4, 43, 57},
     {7, 44, 53}, {2, 44, 53}
   };
-  // clang-format on
-}  // namespace
+// clang-format on
+} // namespace
 
-TEST_F(NotBeforeTest, RemoveIfByClass_no_cond) {
+TEST_F(NotBeforeTest, RemoveIfByClass_no_cond)
+{
   load_test_data(by_class_test_data_1);
   queue.advance_time(1);
   ASSERT_EQ(queue.total_count(), 22);
@@ -228,43 +265,41 @@ TEST_F(NotBeforeTest, RemoveIfByClass_no_cond) {
 
   // removing less than / more than available matches
   EXPECT_EQ(
-      queue.remove_if_by_class(
-	  17U, [](const tv_t &v) { return true; }, 1),
-      1);
+      queue.remove_if_by_class(17U, [](const tv_t& v) { return true; }, 1), 1);
+  EXPECT_EQ(
+      queue.remove_if_by_class(17U, [](const tv_t& v) { return true; }, 10), 3);
   EXPECT_EQ(
       queue.remove_if_by_class(
-	  17U, [](const tv_t &v) { return true; }, 10),
-      3);
-  EXPECT_EQ(
-      queue.remove_if_by_class(
-	  57U, [](const tv_t &v) { return v.ordering_value == 41; }),
+          57U, [](const tv_t& v) { return v.ordering_value == 41; }),
       3);
 }
 
-TEST_F(NotBeforeTest, RemoveIfByClass_with_cond) {
+TEST_F(NotBeforeTest, RemoveIfByClass_with_cond)
+{
   load_test_data(by_class_test_data_1);
   queue.advance_time(2);
-  queue.advance_time(2);  // again, as theoretically that may happen
+  queue.advance_time(2); // again, as theoretically that may happen
   ASSERT_EQ(queue.eligible_count(), 12);
 
   // rm from both eligible and non-eligible
   EXPECT_EQ(
       queue.remove_if_by_class(
-	  57U, [](const tv_t &v) { return v.ordering_value == 43; }),
+          57U, [](const tv_t& v) { return v.ordering_value == 43; }),
       3);
   EXPECT_EQ(
       queue.remove_if_by_class(
-	  53U, [](const tv_t &v) { return v.ordering_value == 44; }),
+          53U, [](const tv_t& v) { return v.ordering_value == 44; }),
       2);
 
   ASSERT_EQ(queue.total_count(), 17U);
   EXPECT_EQ(
       queue.remove_if_by_class(
-	  57U, [](const tv_t &v) { return v.ordering_value > 10; }, 20),
+          57U, [](const tv_t& v) { return v.ordering_value > 10; }, 20),
       5);
 }
 
-TEST_F(NotBeforeTest, accumulate_1) {
+TEST_F(NotBeforeTest, accumulate_1)
+{
   // clang-format off
   const std::vector<tv_t> accum_test_data {
     /*1*/ {11, 105, 1010, "o5d"},
@@ -277,8 +312,8 @@ TEST_F(NotBeforeTest, accumulate_1) {
     /*8*/ {31, 107, 1010, "e7f"}
   };
   // clang-format on
-  const auto acc_just_elig_templ = [](std::string &&acc, const tv_t &v,
-				      bool is_eligible) {
+  const auto acc_just_elig_templ = [](std::string&& acc, const tv_t& v,
+                                      bool is_eligible) {
     if (is_eligible) {
       acc += v.some_data[0];
     }
@@ -297,7 +332,7 @@ TEST_F(NotBeforeTest, accumulate_1) {
 
   // an accumulator that has a non-empty closure:
   int acc_index = 1;
-  auto acc_all = [&acc_index](std::string &&acc, const tv_t &v, bool) {
+  auto acc_all = [&acc_index](std::string&& acc, const tv_t& v, bool) {
     acc += v.some_data[acc_index];
     return std::move(acc);
   };
@@ -342,12 +377,13 @@ const std::vector<tv_t> for_each_test_data{
   {31, 107, 6010, "before"}
 };
 // clang-format on
-}  // namespace
+} // namespace
 
-TEST_F(NotBeforeTest, forEachN_low_max) {
+TEST_F(NotBeforeTest, forEachN_low_max)
+{
   load_test_data(for_each_test_data);
   int jobs_cnt[2] = {0, 0};
-  const auto f_template = [&](const tv_t &v, bool is_eligible) {
+  const auto f_template = [&](const tv_t& v, bool is_eligible) {
     jobs_cnt[is_eligible ? 1 : 0]++;
   };
 
@@ -359,10 +395,11 @@ TEST_F(NotBeforeTest, forEachN_low_max) {
   EXPECT_EQ(jobs_cnt[1], 4);
 }
 
-TEST_F(NotBeforeTest, forEachN_high_max) {
+TEST_F(NotBeforeTest, forEachN_high_max)
+{
   load_test_data(for_each_test_data);
   int jobs_cnt[2] = {0, 0};
-  const auto f_template = [&](const tv_t &v, bool is_eligible) {
+  const auto f_template = [&](const tv_t& v, bool is_eligible) {
     jobs_cnt[is_eligible ? 1 : 0]++;
   };
 
@@ -373,4 +410,3 @@ TEST_F(NotBeforeTest, forEachN_high_max) {
   EXPECT_EQ(jobs_cnt[0], 4);
   EXPECT_EQ(jobs_cnt[1], 4);
 }
-

@@ -42,32 +42,37 @@
 
 using namespace std;
 
-void DataScan::usage()
+void
+DataScan::usage()
 {
-  std::cout << "Usage: \n"
-    << "  cephfs-data-scan init [--force-init]\n"
-    << "  cephfs-data-scan scan_extents [--force-pool] [--worker_n N --worker_m M] [<data pool name> [<extra data pool name> ...]]\n"
-    << "  cephfs-data-scan scan_inodes [--force-pool] [--force-corrupt] [--worker_n N --worker_m M] [<data pool name>]\n"
-    << "  cephfs-data-scan pg_files <path> <pg id> [<pg id>...]\n"
-    << "  cephfs-data-scan scan_links\n"
-    << "\n"
-    << "    --force-corrupt: overrite apparently corrupt structures\n"
-    << "    --force-init: write root inodes even if they exist\n"
-    << "    --force-pool: use data pool even if it is not in FSMap\n"
-    << "    --worker_m: Maximum number of workers\n"
-    << "    --worker_n: Worker number, range 0-(worker_m-1)\n"
-    << "\n"
-    << "  cephfs-data-scan scan_frags [--force-corrupt]\n"
-    << "  cephfs-data-scan cleanup [<data pool name>]\n"
-    << std::endl;
+  std::cout
+      << "Usage: \n"
+      << "  cephfs-data-scan init [--force-init]\n"
+      << "  cephfs-data-scan scan_extents [--force-pool] [--worker_n N "
+         "--worker_m M] [<data pool name> [<extra data pool name> ...]]\n"
+      << "  cephfs-data-scan scan_inodes [--force-pool] [--force-corrupt] "
+         "[--worker_n N --worker_m M] [<data pool name>]\n"
+      << "  cephfs-data-scan pg_files <path> <pg id> [<pg id>...]\n"
+      << "  cephfs-data-scan scan_links\n"
+      << "\n"
+      << "    --force-corrupt: overrite apparently corrupt structures\n"
+      << "    --force-init: write root inodes even if they exist\n"
+      << "    --force-pool: use data pool even if it is not in FSMap\n"
+      << "    --worker_m: Maximum number of workers\n"
+      << "    --worker_n: Worker number, range 0-(worker_m-1)\n"
+      << "\n"
+      << "  cephfs-data-scan scan_frags [--force-corrupt]\n"
+      << "  cephfs-data-scan cleanup [<data pool name>]\n"
+      << std::endl;
 
   generic_client_usage();
 }
 
-bool DataScan::parse_kwarg(
-    const std::vector<const char*> &args,
-    std::vector<const char *>::const_iterator &i,
-    int *r)
+bool
+DataScan::parse_kwarg(
+    const std::vector<const char*>& args,
+    std::vector<const char*>::const_iterator& i,
+    int* r)
 {
   if (i + 1 == args.end()) {
     return false;
@@ -121,9 +126,11 @@ bool DataScan::parse_kwarg(
     return true;
   } else if (arg == std::string("--progress_update_interval")) {
     std::string err;
-    progress_update_interval = std::chrono::seconds(strict_strtoll(val.c_str(), 10, &err));
+    progress_update_interval =
+        std::chrono::seconds(strict_strtoll(val.c_str(), 10, &err));
     if (!err.empty()) {
-      std::cerr << "Invalid progress update interval '" << val << "'" << std::endl;
+      std::cerr << "Invalid progress update interval '" << val << "'"
+                << std::endl;
       *r = -EINVAL;
       return false;
     }
@@ -133,9 +140,10 @@ bool DataScan::parse_kwarg(
   }
 }
 
-bool DataScan::parse_arg(
-    const std::vector<const char*> &args,
-    std::vector<const char *>::const_iterator &i)
+bool
+DataScan::parse_arg(
+    const std::vector<const char*>& args,
+    std::vector<const char*>::const_iterator& i)
 {
   const std::string arg(*i);
   if (arg == "--force-pool") {
@@ -152,7 +160,8 @@ bool DataScan::parse_arg(
   }
 }
 
-int DataScan::main(const std::vector<const char*> &args)
+int
+DataScan::main(const std::vector<const char*>& args)
 {
   // Parse args
   // ==========
@@ -170,7 +179,7 @@ int DataScan::main(const std::vector<const char*> &args)
   }
 
 
-  std::string const &command = args[0];
+  std::string const& command = args[0];
   std::string data_pool_name;
   std::set<std::string> extra_data_pool_names;
 
@@ -178,7 +187,7 @@ int DataScan::main(const std::vector<const char*> &args)
   std::set<pg_t> pg_files_pgs;
 
   // Consume any known --key val or --flag arguments
-  for (std::vector<const char *>::const_iterator i = args.begin() + 1;
+  for (std::vector<const char*>::const_iterator i = args.begin() + 1;
        i != args.end(); ++i) {
     if (parse_kwarg(args, i, &r)) {
       // Skip the kwarg value field
@@ -195,17 +204,16 @@ int DataScan::main(const std::vector<const char*> &args)
     // Trailing positional arguments
     if (command == "scan_extents") {
       if (data_pool_name.empty()) {
-	data_pool_name = *i;
+        data_pool_name = *i;
       } else if (*i != data_pool_name) {
-	extra_data_pool_names.insert(*i);
+        extra_data_pool_names.insert(*i);
       }
       continue;
     }
 
     // Trailing positional argument
     if (i + 1 == args.end() &&
-        (command == "scan_inodes"
-         || command == "cleanup")) {
+        (command == "scan_inodes" || command == "cleanup")) {
       data_pool_name = *i;
       continue;
     }
@@ -225,7 +233,6 @@ int DataScan::main(const std::vector<const char*> &args)
           continue;
         }
       }
-
     }
 
     // Fall through: unhandled
@@ -275,8 +282,7 @@ int DataScan::main(const std::vector<const char*> &args)
   bool autodetect_data_pools = false;
 
   // Initialize data_io for those commands that need it
-  if (command == "scan_inodes" ||
-      command == "scan_extents" ||
+  if (command == "scan_inodes" || command == "scan_extents" ||
       command == "cleanup") {
     data_pool_id = fs.get_mds_map().get_first_data_pool();
 
@@ -284,7 +290,7 @@ int DataScan::main(const std::vector<const char*> &args)
     r = rados.pool_reverse_lookup(data_pool_id, &pool_name);
     if (r < 0) {
       std::cerr << "Failed to resolve data pool: " << cpp_strerror(r)
-		<< std::endl;
+                << std::endl;
       return r;
     }
 
@@ -292,8 +298,10 @@ int DataScan::main(const std::vector<const char*> &args)
       autodetect_data_pools = true;
       data_pool_name = pool_name;
     } else if (data_pool_name != pool_name) {
-      std::cerr << "Warning: pool '" << data_pool_name << "' is not the "
-        "main CephFS data pool!" << std::endl;
+      std::cerr << "Warning: pool '" << data_pool_name
+                << "' is not the "
+                   "main CephFS data pool!"
+                << std::endl;
       if (!force_pool) {
         std::cerr << "Use --force-pool to continue" << std::endl;
         return -EINVAL;
@@ -301,14 +309,14 @@ int DataScan::main(const std::vector<const char*> &args)
 
       data_pool_id = rados.pool_lookup(data_pool_name.c_str());
       if (data_pool_id < 0) {
-	std::cerr << "Data pool '" << data_pool_name << "' not found!"
-		  << std::endl;
-	return -ENOENT;
+        std::cerr << "Data pool '" << data_pool_name << "' not found!"
+                  << std::endl;
+        return -ENOENT;
       }
     }
 
     dout(4) << "data pool '" << data_pool_name << "' has ID " << data_pool_id
-	    << dendl;
+            << dendl;
 
     dout(4) << "opening data pool '" << data_pool_name << "'" << dendl;
     r = rados.ioctx_create(data_pool_name.c_str(), data_io);
@@ -322,46 +330,49 @@ int DataScan::main(const std::vector<const char*> &args)
     if (autodetect_data_pools) {
       ceph_assert(extra_data_pool_names.empty());
 
-      for (auto &pool_id : fs.get_mds_map().get_data_pools()) {
-	if (pool_id == data_pool_id) {
-	  continue;
-	}
+      for (auto& pool_id : fs.get_mds_map().get_data_pools()) {
+        if (pool_id == data_pool_id) {
+          continue;
+        }
 
-	std::string pool_name;
-	r = rados.pool_reverse_lookup(pool_id, &pool_name);
-	if (r < 0) {
-	  std::cerr << "Failed to resolve data pool: " << cpp_strerror(r)
-		    << std::endl;
-	  return r;
-	}
-	extra_data_pool_names.insert(pool_name);
+        std::string pool_name;
+        r = rados.pool_reverse_lookup(pool_id, &pool_name);
+        if (r < 0) {
+          std::cerr << "Failed to resolve data pool: " << cpp_strerror(r)
+                    << std::endl;
+          return r;
+        }
+        extra_data_pool_names.insert(pool_name);
       }
     }
 
-    for (auto &data_pool_name: extra_data_pool_names) {
+    for (auto& data_pool_name : extra_data_pool_names) {
       int64_t pool_id = rados.pool_lookup(data_pool_name.c_str());
       if (data_pool_id < 0) {
-	std::cerr << "Data pool '" << data_pool_name << "' not found!" << std::endl;
-	return -ENOENT;
+        std::cerr << "Data pool '" << data_pool_name << "' not found!"
+                  << std::endl;
+        return -ENOENT;
       } else {
-	dout(4) << "data pool '" << data_pool_name << "' has ID " << pool_id
-		<< dendl;
+        dout(4) << "data pool '" << data_pool_name << "' has ID " << pool_id
+                << dendl;
       }
 
       if (!fs.get_mds_map().is_data_pool(pool_id)) {
-	std::cerr << "Warning: pool '" << data_pool_name << "' is not a "
-	  "CephFS data pool!" << std::endl;
-	if (!force_pool) {
-	  std::cerr << "Use --force-pool to continue" << std::endl;
-	  return -EINVAL;
-	}
+        std::cerr << "Warning: pool '" << data_pool_name
+                  << "' is not a "
+                     "CephFS data pool!"
+                  << std::endl;
+        if (!force_pool) {
+          std::cerr << "Use --force-pool to continue" << std::endl;
+          return -EINVAL;
+        }
       }
 
       dout(4) << "opening data pool '" << data_pool_name << "'" << dendl;
       extra_data_ios.push_back({});
       r = rados.ioctx_create(data_pool_name.c_str(), extra_data_ios.back());
       if (r != 0) {
-	return r;
+        return r;
       }
     }
   }
@@ -375,7 +386,7 @@ int DataScan::main(const std::vector<const char*> &args)
     int r = rados.pool_reverse_lookup(metadata_pool_id, &metadata_pool_name);
     if (r < 0) {
       std::cerr << "Pool " << metadata_pool_id
-        << " identified in MDS map not found in RADOS!" << std::endl;
+                << " identified in MDS map not found in RADOS!" << std::endl;
       return r;
     }
 
@@ -406,8 +417,11 @@ int DataScan::main(const std::vector<const char*> &args)
   }
 }
 
-int MetadataDriver::inject_unlinked_inode(
-    inodeno_t inono, int mode, int64_t data_pool_id)
+int
+MetadataDriver::inject_unlinked_inode(
+    inodeno_t inono,
+    int mode,
+    int64_t data_pool_id)
 {
   const object_t oid = InodeStore::get_object_name(inono, frag_t(), ".inode");
 
@@ -418,9 +432,11 @@ int MetadataDriver::inject_unlinked_inode(
     return r;
   }
   if (already_exists && !force_init) {
-    std::cerr << "Inode 0x" << std::hex << inono << std::dec << " already"
-               " exists, skipping create.  Use --force-init to overwrite"
-               " the existing object." << std::endl;
+    std::cerr << "Inode 0x" << std::hex << inono << std::dec
+              << " already"
+                 " exists, skipping create.  Use --force-init to overwrite"
+                 " the existing object."
+              << std::endl;
     return 0;
   }
 
@@ -473,7 +489,8 @@ int MetadataDriver::inject_unlinked_inode(
   return r;
 }
 
-int MetadataDriver::root_exists(inodeno_t ino, bool *result)
+int
+MetadataDriver::root_exists(inodeno_t ino, bool* result)
 {
   object_t oid = InodeStore::get_object_name(ino, frag_t(), ".inode");
   uint64_t size;
@@ -490,10 +507,11 @@ int MetadataDriver::root_exists(inodeno_t ino, bool *result)
   return 0;
 }
 
-int MetadataDriver::init_roots(int64_t data_pool_id)
+int
+MetadataDriver::init_roots(int64_t data_pool_id)
 {
   int r = 0;
-  r = inject_unlinked_inode(CEPH_INO_ROOT, S_IFDIR|0755, data_pool_id);
+  r = inject_unlinked_inode(CEPH_INO_ROOT, S_IFDIR | 0755, data_pool_id);
   if (r != 0) {
     return r;
   }
@@ -510,7 +528,8 @@ int MetadataDriver::init_roots(int64_t data_pool_id)
   return 0;
 }
 
-int MetadataDriver::check_roots(bool *result)
+int
+MetadataDriver::check_roots(bool* result)
 {
   int r;
   r = root_exists(CEPH_INO_ROOT, result);
@@ -555,7 +574,8 @@ int MetadataDriver::check_roots(bool *result)
  */
 
 
-int parse_oid(const std::string &oid, uint64_t *inode_no, uint64_t *obj_id)
+int
+parse_oid(const std::string& oid, uint64_t* inode_no, uint64_t* obj_id)
 {
   if (oid.find(".") == std::string::npos || oid.find(".") == oid.size() - 1) {
     return -EINVAL;
@@ -581,22 +601,24 @@ std::string
 DataScan::get_progress_operation_name(std::string_view op_name) const
 {
   if (worker_m > 1) {
-        return fmt::format("{} {}/{}", op_name, worker_n, worker_m);
+    return fmt::format("{} {}/{}", op_name, worker_n, worker_m);
   } else {
     return std::string(op_name);
   }
 }
 
-int DataScan::scan_extents()
+int
+DataScan::scan_extents()
 {
-  std::vector<librados::IoCtx *> data_ios;
+  std::vector<librados::IoCtx*> data_ios;
   data_ios.push_back(&data_io);
-  for (auto &extra_data_io : extra_data_ios) {
+  for (auto& extra_data_io : extra_data_ios) {
     data_ios.push_back(&extra_data_io);
   }
 
   uint64_t total_objects = get_pool_objects(data_ios);
-  auto progress_tracker = std::make_unique<ProgressTracker>(get_progress_operation_name("scan_extents"));
+  auto progress_tracker = std::make_unique<ProgressTracker>(
+      get_progress_operation_name("scan_extents"));
   progress_tracker->set_enable_progress_update(true);
   progress_tracker->start(total_objects);
 
@@ -606,54 +628,50 @@ int DataScan::scan_extents()
   }
 
   for (auto ioctx : data_ios) {
-    int r = forall_objects(*ioctx, false, [this, ioctx, &progress_tracker](
-        std::string const &oid,
-        uint64_t obj_name_ino,
-        uint64_t obj_name_offset) -> int
-    {
-      // Read size
-      uint64_t size;
-      time_t mtime;
-      int r = ioctx->stat(oid, &size, &mtime);
-      dout(10) << "handling object " << obj_name_ino
-	       << "." << obj_name_offset << dendl;
-      if (r != 0) {
-	dout(4) << "Cannot stat '" << oid << "': skipping" << dendl;
-	return r;
-      }
-      int64_t obj_pool_id = data_io.get_id() != ioctx->get_id() ?
-	ioctx->get_id() : -1;
+    int r = forall_objects(
+        *ioctx, false,
+        [this, ioctx, &progress_tracker](
+            std::string const& oid, uint64_t obj_name_ino,
+            uint64_t obj_name_offset) -> int {
+          // Read size
+          uint64_t size;
+          time_t mtime;
+          int r = ioctx->stat(oid, &size, &mtime);
+          dout(10) << "handling object " << obj_name_ino << "."
+                   << obj_name_offset << dendl;
+          if (r != 0) {
+            dout(4) << "Cannot stat '" << oid << "': skipping" << dendl;
+            return r;
+          }
+          int64_t obj_pool_id = data_io.get_id() != ioctx->get_id()
+                                    ? ioctx->get_id()
+                                    : -1;
 
-      // I need to keep track of
-      //  * The highest object ID seen
-      //  * The size of the highest object ID seen
-      //  * The largest object seen
-      //  * The pool of the objects seen (if it is not the main data pool)
-      //
-      //  Given those things, I can later infer the object chunking
-      //  size, the offset of the last object (chunk size * highest ID seen),
-      //  the actual size (offset of last object + size of highest ID seen),
-      //  and the layout pool id.
-      //
-      //  This logic doesn't take account of striping.
-      r = ClsCephFSClient::accumulate_inode_metadata(
-          data_io,
-	  obj_name_ino,
-	  obj_name_offset,
-	  size,
-	  obj_pool_id,
-	  mtime);
-      if (r < 0) {
-	derr << "Failed to accumulate metadata data from '"
-	     << oid << "': " << cpp_strerror(r) << dendl;
-	return r;
-      }
+          // I need to keep track of
+          //  * The highest object ID seen
+          //  * The size of the highest object ID seen
+          //  * The largest object seen
+          //  * The pool of the objects seen (if it is not the main data pool)
+          //
+          //  Given those things, I can later infer the object chunking
+          //  size, the offset of the last object (chunk size * highest ID seen),
+          //  the actual size (offset of last object + size of highest ID seen),
+          //  and the layout pool id.
+          //
+          //  This logic doesn't take account of striping.
+          r = ClsCephFSClient::accumulate_inode_metadata(
+              data_io, obj_name_ino, obj_name_offset, size, obj_pool_id, mtime);
+          if (r < 0) {
+            derr << "Failed to accumulate metadata data from '" << oid
+                 << "': " << cpp_strerror(r) << dendl;
+            return r;
+          }
 
-      progress_tracker->increment();
-      progress_tracker->display_progress();
+          progress_tracker->increment();
+          progress_tracker->display_progress();
 
-      return r;
-    });
+          return r;
+        });
     if (r < 0) {
       return r;
     }
@@ -661,7 +679,8 @@ int DataScan::scan_extents()
   return 0;
 }
 
-int DataScan::probe_filter(librados::IoCtx &ioctx)
+int
+DataScan::probe_filter(librados::IoCtx& ioctx)
 {
   bufferlist filter_bl;
   ClsCephFSClient::build_tag_filter("test", &filter_bl);
@@ -670,17 +689,18 @@ int DataScan::probe_filter(librados::IoCtx &ioctx)
 
   std::vector<librados::ObjectItem> tmp_result;
   librados::ObjectCursor tmp_next;
-  int r = ioctx.object_list(ioctx.object_list_begin(), ioctx.object_list_end(),
-                            1, filter_bl, &tmp_result, &tmp_next);
+  int r = ioctx.object_list(
+      ioctx.object_list_begin(), ioctx.object_list_end(), 1, filter_bl,
+      &tmp_result, &tmp_next);
 
   return r >= 0;
 }
 
-int DataScan::forall_objects(
-    librados::IoCtx &ioctx,
+int
+DataScan::forall_objects(
+    librados::IoCtx& ioctx,
     bool untagged_only,
-    std::function<int(std::string, uint64_t, uint64_t)> handler
-    )
+    std::function<int(std::string, uint64_t, uint64_t)> handler)
 {
   librados::ObjectCursor range_i;
   librados::ObjectCursor range_end;
@@ -702,17 +722,17 @@ int DataScan::forall_objects(
   }
 
   int r = 0;
-  while(range_i < range_end) {
+  while (range_i < range_end) {
     std::vector<librados::ObjectItem> result;
-    int r = ioctx.object_list(range_i, range_end, 1,
-                                filter_bl, &result, &range_i);
+    int r =
+        ioctx.object_list(range_i, range_end, 1, filter_bl, &result, &range_i);
     if (r < 0) {
       derr << "Unexpected error listing objects: " << cpp_strerror(r) << dendl;
       return r;
     }
 
-    for (const auto &i : result) {
-      const std::string &oid = i.oid;
+    for (const auto& i : result) {
+      const std::string& oid = i.oid;
       uint64_t obj_name_ino = 0;
       uint64_t obj_name_offset = 0;
       r = parse_oid(oid, &obj_name_ino, &obj_name_offset);
@@ -743,7 +763,7 @@ int DataScan::forall_objects(
                        << dendl;
               continue;
             }
-          } catch (const buffer::error &err) {
+          } catch (const buffer::error& err) {
           }
           dout(20) << "read non-matching tag '" << read_tag << "'" << dendl;
         } else {
@@ -843,24 +863,27 @@ DataScan::get_metadata_pool_objects(
   }
 }
 
-int DataScan::scan_inodes()
+int
+DataScan::scan_inodes()
 {
   bool roots_present;
   int r = driver->check_roots(&roots_present);
   if (r != 0) {
-    derr << "Unexpected error checking roots: '"
-      << cpp_strerror(r) << "'" << dendl;
+    derr << "Unexpected error checking roots: '" << cpp_strerror(r) << "'"
+         << dendl;
     return r;
   }
 
   if (!roots_present) {
     std::cerr << "Some or all system inodes are absent.  Run 'init' from "
-      "one node before running 'scan_inodes'" << std::endl;
+                 "one node before running 'scan_inodes'"
+              << std::endl;
     return -EIO;
   }
 
   uint64_t total_objects = get_pool_objects({&data_io});
-  auto progress_tracker = std::make_unique<ProgressTracker>(get_progress_operation_name("scan_inodes"));
+  auto progress_tracker = std::make_unique<ProgressTracker>(
+      get_progress_operation_name("scan_inodes"));
   progress_tracker->set_enable_progress_update(true);
   progress_tracker->start(total_objects);
 
@@ -884,8 +907,7 @@ int DataScan::scan_inodes()
         file_layout_t loaded_layout = file_layout_t::get_default();
         std::string symlink;
         r = ClsCephFSClient::fetch_inode_accumulate_result(
-            data_io, oid, &backtrace, &loaded_layout, &symlink,
-            &accum_res);
+            data_io, oid, &backtrace, &loaded_layout, &symlink, &accum_res);
 
         if (r == -EINVAL) {
           dout(4) << "Accumulated metadata missing from '" << oid
@@ -971,8 +993,8 @@ int DataScan::scan_inodes()
           } else {
             // We have a stashed layout that we can't disprove, so apply it
             guessed_layout = loaded_layout;
-            dout(20) << "loaded layout from xattr:"
-                     << " pi: " << guessed_layout.pool_id
+            dout(20) << "loaded layout from xattr:" << " pi: "
+                     << guessed_layout.pool_id
                      << " os: " << guessed_layout.object_size
                      << " sc: " << guessed_layout.stripe_count
                      << " su: " << guessed_layout.stripe_unit << dendl;
@@ -1096,7 +1118,8 @@ int DataScan::scan_inodes()
 
         InodeStore dentry;
         build_file_dentry(
-          obj_name_ino, file_size, file_mtime, guessed_layout, &dentry, symlink);
+            obj_name_ino, file_size, file_mtime, guessed_layout, &dentry,
+            symlink);
 
         // Inject inode to the metadata pool
         if (have_backtrace) {
@@ -1153,10 +1176,12 @@ int DataScan::scan_inodes()
   return r;
 }
 
-int DataScan::cleanup()
+int
+DataScan::cleanup()
 {
   uint64_t total_objects = get_pool_objects({&data_io});
-  auto progress_tracker = std::make_unique<ProgressTracker>(get_progress_operation_name("scan_cleanup"));
+  auto progress_tracker = std::make_unique<ProgressTracker>(
+      get_progress_operation_name("scan_cleanup"));
   progress_tracker->set_enable_progress_update(true);
   progress_tracker->start(total_objects);
 
@@ -1184,17 +1209,16 @@ int DataScan::cleanup()
       });
 }
 
-bool DataScan::valid_ino(inodeno_t ino) const
+bool
+DataScan::valid_ino(inodeno_t ino) const
 {
-  return (ino >= inodeno_t((1ull << 40)))
-    || (MDS_INO_IS_STRAY(ino))
-    || (MDS_INO_IS_MDSDIR(ino))
-    || ino == CEPH_INO_ROOT
-    || ino == CEPH_INO_CEPH
-    || ino == CEPH_INO_LOST_AND_FOUND;
+  return (ino >= inodeno_t((1ull << 40))) || (MDS_INO_IS_STRAY(ino)) ||
+         (MDS_INO_IS_MDSDIR(ino)) || ino == CEPH_INO_ROOT ||
+         ino == CEPH_INO_CEPH || ino == CEPH_INO_LOST_AND_FOUND;
 }
 
-int DataScan::scan_links()
+int
+DataScan::scan_links()
 {
   MetadataDriver* metadata_driver = dynamic_cast<MetadataDriver*>(driver);
   if (!metadata_driver) {
@@ -1207,7 +1231,8 @@ int DataScan::scan_links()
   // scan_links processes ALL metadata objects in each worker (no slicing)
   uint64_t total_objects = get_metadata_pool_objects(metadata_io, false);
 
-  auto progress_tracker = std::make_unique<ProgressTracker>(get_progress_operation_name("scan_links"));
+  auto progress_tracker = std::make_unique<ProgressTracker>(
+      get_progress_operation_name("scan_links"));
   progress_tracker->set_enable_progress_update(true);
   // Since scan_links processes each object twice (SCAN_INOS + CHECK_LINK phases),
   // we'll track total iterations as 2 * object_count
@@ -1345,62 +1370,65 @@ int DataScan::scan_links()
 
             inodeno_t ino = inode.inode->ino;
 
-	    if (step == SCAN_INOS) {
-	      if (used_inos.contains(ino, 1)) {
-		dup_primaries.emplace(
-                  std::piecewise_construct, std::forward_as_tuple(ino),
-                  std::forward_as_tuple());
-	      } else {
-		used_inos.insert(ino);
-	      }
-	    } else if (step == CHECK_LINK) {
-	      sr_t srnode;
-	      if (inode.snap_blob.length()) {
-		auto p = inode.snap_blob.cbegin();
-		decode(srnode, p);
-		for (auto it = srnode.snaps.begin();
-		     it != srnode.snaps.end(); ) {
-		  if (it->second.ino != ino ||
-		      it->second.snapid != it->first) {
-		    srnode.snaps.erase(it++);
-		  } else {
-		    ++it;
-		  }
-		}
-		if (!srnode.past_parents.empty()) {
-		  snapid_t last = srnode.past_parents.rbegin()->first;
-		  if (last + 1 > snaprealm_v2_since)
-		    snaprealm_v2_since = last + 1;
-		}
-	      }
-	      if (inode.old_inodes && !inode.old_inodes->empty()) {
-		auto _last_snap = inode.old_inodes->rbegin()->first;
-		if (_last_snap > last_snap)
-		  last_snap = _last_snap;
-	      }
-	      auto q = dup_primaries.find(ino);
-	      if (q != dup_primaries.end()) {
-		q->second.push_back(link_info_t(dir_ino, frag_id, dname, inode.inode));
-		q->second.back().snaps.swap(srnode.snaps);
-	      } else {
-		int nlink = 0;
-		auto r = remote_links.find(ino);
-		if (r != remote_links.end())
-		  nlink = r->second;
-		if (!MDS_INO_IS_STRAY(dir_ino))
-		  nlink++;
-		if (inode.inode->nlink != nlink) {
-		  derr << "Bad nlink on " << ino << " expected " << nlink
-		       << " has " << inode.inode->nlink << dendl;
-		  bad_nlink_inos[ino] = link_info_t(dir_ino, frag_id, dname, inode.inode);
-		  bad_nlink_inos[ino].nlink = nlink;
-		}
-		snaps.insert(make_move_iterator(begin(srnode.snaps)),
-			     make_move_iterator(end(srnode.snaps)));
-	      }
-	      if (dnfirst == CEPH_NOSNAP) {
-                injected_inos.insert({ino, link_info_t(dir_ino, frag_id, dname, inode.inode)});
-                dout(20) << "adding " << ino << " for future processing to fix dnfirst" << dendl;
+            if (step == SCAN_INOS) {
+              if (used_inos.contains(ino, 1)) {
+                dup_primaries.emplace(
+                    std::piecewise_construct, std::forward_as_tuple(ino),
+                    std::forward_as_tuple());
+              } else {
+                used_inos.insert(ino);
+              }
+            } else if (step == CHECK_LINK) {
+              sr_t srnode;
+              if (inode.snap_blob.length()) {
+                auto p = inode.snap_blob.cbegin();
+                decode(srnode, p);
+                for (auto it = srnode.snaps.begin(); it != srnode.snaps.end();) {
+                  if (it->second.ino != ino || it->second.snapid != it->first) {
+                    srnode.snaps.erase(it++);
+                  } else {
+                    ++it;
+                  }
+                }
+                if (!srnode.past_parents.empty()) {
+                  snapid_t last = srnode.past_parents.rbegin()->first;
+                  if (last + 1 > snaprealm_v2_since)
+                    snaprealm_v2_since = last + 1;
+                }
+              }
+              if (inode.old_inodes && !inode.old_inodes->empty()) {
+                auto _last_snap = inode.old_inodes->rbegin()->first;
+                if (_last_snap > last_snap)
+                  last_snap = _last_snap;
+              }
+              auto q = dup_primaries.find(ino);
+              if (q != dup_primaries.end()) {
+                q->second.push_back(
+                    link_info_t(dir_ino, frag_id, dname, inode.inode));
+                q->second.back().snaps.swap(srnode.snaps);
+              } else {
+                int nlink = 0;
+                auto r = remote_links.find(ino);
+                if (r != remote_links.end())
+                  nlink = r->second;
+                if (!MDS_INO_IS_STRAY(dir_ino))
+                  nlink++;
+                if (inode.inode->nlink != nlink) {
+                  derr << "Bad nlink on " << ino << " expected " << nlink
+                       << " has " << inode.inode->nlink << dendl;
+                  bad_nlink_inos[ino] =
+                      link_info_t(dir_ino, frag_id, dname, inode.inode);
+                  bad_nlink_inos[ino].nlink = nlink;
+                }
+                snaps.insert(
+                    make_move_iterator(begin(srnode.snaps)),
+                    make_move_iterator(end(srnode.snaps)));
+              }
+              if (dnfirst == CEPH_NOSNAP) {
+                injected_inos.insert(
+                    {ino, link_info_t(dir_ino, frag_id, dname, inode.inode)});
+                dout(20) << "adding " << ino
+                         << " for future processing to fix dnfirst" << dendl;
               }
             } else if (step == CHECK_LINK) {
               sr_t srnode;
@@ -1456,12 +1484,10 @@ int DataScan::scan_links()
                          << " for future processing to fix dnfirst" << dendl;
               }
             }
-          } else if (
-              dentry_type == 'L' || dentry_type == 'l') {
+          } else if (dentry_type == 'L' || dentry_type == 'l') {
             inodeno_t ino;
             unsigned char d_type;
-            CDentry::decode_remote(
-                dentry_type, ino, d_type, alternate_name, q);
+            CDentry::decode_remote(dentry_type, ino, d_type, alternate_name, q);
 
             if (step == SCAN_INOS) {
               remote_links[ino]++;
@@ -1715,10 +1741,12 @@ int DataScan::scan_links()
   return 0;
 }
 
-int DataScan::scan_frags()
+int
+DataScan::scan_frags()
 {
   uint64_t total_objects = get_metadata_pool_objects(metadata_io, true);
-  auto progress_tracker = std::make_unique<ProgressTracker>(get_progress_operation_name("scan_frags"));
+  auto progress_tracker = std::make_unique<ProgressTracker>(
+      get_progress_operation_name("scan_frags"));
   progress_tracker->set_enable_progress_update(true);
   progress_tracker->start(total_objects);
   if (total_objects == 0) {
@@ -1729,167 +1757,179 @@ int DataScan::scan_frags()
   bool roots_present;
   int r = driver->check_roots(&roots_present);
   if (r != 0) {
-    derr << "Unexpected error checking roots: '"
-      << cpp_strerror(r) << "'" << dendl;
+    derr << "Unexpected error checking roots: '" << cpp_strerror(r) << "'"
+         << dendl;
     return r;
   }
 
   if (!roots_present) {
     std::cerr << "Some or all system inodes are absent.  Run 'init' from "
-      "one node before running 'scan_inodes'" << std::endl;
+                 "one node before running 'scan_inodes'"
+              << std::endl;
     return -EIO;
   }
 
-  return forall_objects(metadata_io, true, [this, &progress_tracker](
-        std::string const &oid,
-        uint64_t obj_name_ino,
-        uint64_t obj_name_offset) -> int
-  {
-    int r = 0;
-    r = parse_oid(oid, &obj_name_ino, &obj_name_offset);
-    if (r != 0) {
-      dout(4) << "Bad object name '" << oid << "', skipping" << dendl;
-      return r;
-    }
-
-    if (obj_name_ino < (1ULL << 40)) {
-      // FIXME: we're skipping stray dirs here: if they're
-      // orphaned then we should be resetting them some other
-      // way
-      dout(10) << "Skipping system ino " << obj_name_ino << dendl;
-      return 0;
-    }
-
-    AccumulateResult accum_res;
-    inode_backtrace_t backtrace;
-
-    // Default to inherit layout (i.e. no explicit layout on dir) which is
-    // expressed as a zeroed layout struct (see inode_t::has_layout)
-    file_layout_t loaded_layout;
-
-    int parent_r = 0;
-    bufferlist parent_bl;
-    int layout_r = 0;
-    bufferlist layout_bl;
-    bufferlist op_bl;
-
-    librados::ObjectReadOperation op;
-    op.getxattr("parent", &parent_bl, &parent_r);
-    op.getxattr("layout", &layout_bl, &layout_r);
-    r = metadata_io.operate(oid, &op, &op_bl);
-    if (r != 0 && r != -ENODATA) {
-      derr << "Unexpected error reading backtrace: " << cpp_strerror(parent_r) << dendl;
-      return r;
-    }
-
-    if (parent_r != -ENODATA) {
-      try {
-        auto q = parent_bl.cbegin();
-        backtrace.decode(q);
-      } catch (buffer::error &e) {
-        dout(4) << "Corrupt backtrace on '" << oid << "': " << e.what() << dendl;
-        if (!force_corrupt) {
-          return -EINVAL;
-        } else {
-          // Treat backtrace as absent: we'll inject into lost+found
-          backtrace = inode_backtrace_t();
+  return forall_objects(
+      metadata_io, true,
+      [this, &progress_tracker](
+          std::string const& oid, uint64_t obj_name_ino,
+          uint64_t obj_name_offset) -> int {
+        int r = 0;
+        r = parse_oid(oid, &obj_name_ino, &obj_name_offset);
+        if (r != 0) {
+          dout(4) << "Bad object name '" << oid << "', skipping" << dendl;
+          return r;
         }
-      }
-    }
 
-    if (layout_r != -ENODATA) {
-      try {
-        auto q = layout_bl.cbegin();
-        decode(loaded_layout, q);
-      } catch (buffer::error &e) {
-        dout(4) << "Corrupt layout on '" << oid << "': " << e.what() << dendl;
-        if (!force_corrupt) {
-          return -EINVAL;
+        if (obj_name_ino < (1ULL << 40)) {
+          // FIXME: we're skipping stray dirs here: if they're
+          // orphaned then we should be resetting them some other
+          // way
+          dout(10) << "Skipping system ino " << obj_name_ino << dendl;
+          return 0;
         }
-      }
-    }
 
-    bool have_backtrace = !(backtrace.ancestors.empty());
+        AccumulateResult accum_res;
+        inode_backtrace_t backtrace;
 
-    // Santity checking backtrace ino against object name
-    if (have_backtrace && backtrace.ino != obj_name_ino) {
-      dout(4) << "Backtrace ino 0x" << std::hex << backtrace.ino
-        << " doesn't match object name ino 0x" << obj_name_ino
-        << std::dec << dendl;
-      have_backtrace = false;
-    }
+        // Default to inherit layout (i.e. no explicit layout on dir) which is
+        // expressed as a zeroed layout struct (see inode_t::has_layout)
+        file_layout_t loaded_layout;
 
-    uint64_t fnode_version = 0;
-    fnode_t fnode;
-    r = read_fnode(obj_name_ino, frag_t(), &fnode, &fnode_version);
-    if (r == -EINVAL) {
-      derr << "Corrupt fnode on " << oid << dendl;
-      if (force_corrupt) {
-	fnode.fragstat.mtime = 0;
-	fnode.fragstat.nfiles = 1;
-	fnode.fragstat.nsubdirs = 0;
-	fnode.accounted_fragstat = fnode.fragstat;
-      } else {
-        return r;
-      }
-    }
+        int parent_r = 0;
+        bufferlist parent_bl;
+        int layout_r = 0;
+        bufferlist layout_bl;
+        bufferlist op_bl;
 
-    InodeStore dentry;
-    build_dir_dentry(obj_name_ino, fnode.accounted_fragstat,
-		loaded_layout, &dentry);
+        librados::ObjectReadOperation op;
+        op.getxattr("parent", &parent_bl, &parent_r);
+        op.getxattr("layout", &layout_bl, &layout_r);
+        r = metadata_io.operate(oid, &op, &op_bl);
+        if (r != 0 && r != -ENODATA) {
+          derr << "Unexpected error reading backtrace: "
+               << cpp_strerror(parent_r) << dendl;
+          return r;
+        }
 
-    // Inject inode to the metadata pool
-    if (have_backtrace) {
-      inode_backpointer_t root_bp = *(backtrace.ancestors.rbegin());
-      if (MDS_INO_IS_MDSDIR(root_bp.dirino)) {
-        /* Special case for strays: even if we have a good backtrace,
+        if (parent_r != -ENODATA) {
+          try {
+            auto q = parent_bl.cbegin();
+            backtrace.decode(q);
+          } catch (buffer::error& e) {
+            dout(4) << "Corrupt backtrace on '" << oid << "': " << e.what()
+                    << dendl;
+            if (!force_corrupt) {
+              return -EINVAL;
+            } else {
+              // Treat backtrace as absent: we'll inject into lost+found
+              backtrace = inode_backtrace_t();
+            }
+          }
+        }
+
+        if (layout_r != -ENODATA) {
+          try {
+            auto q = layout_bl.cbegin();
+            decode(loaded_layout, q);
+          } catch (buffer::error& e) {
+            dout(4) << "Corrupt layout on '" << oid << "': " << e.what()
+                    << dendl;
+            if (!force_corrupt) {
+              return -EINVAL;
+            }
+          }
+        }
+
+        bool have_backtrace = !(backtrace.ancestors.empty());
+
+        // Santity checking backtrace ino against object name
+        if (have_backtrace && backtrace.ino != obj_name_ino) {
+          dout(4) << "Backtrace ino 0x" << std::hex << backtrace.ino
+                  << " doesn't match object name ino 0x" << obj_name_ino
+                  << std::dec << dendl;
+          have_backtrace = false;
+        }
+
+        uint64_t fnode_version = 0;
+        fnode_t fnode;
+        r = read_fnode(obj_name_ino, frag_t(), &fnode, &fnode_version);
+        if (r == -EINVAL) {
+          derr << "Corrupt fnode on " << oid << dendl;
+          if (force_corrupt) {
+            fnode.fragstat.mtime = 0;
+            fnode.fragstat.nfiles = 1;
+            fnode.fragstat.nsubdirs = 0;
+            fnode.accounted_fragstat = fnode.fragstat;
+          } else {
+            return r;
+          }
+        }
+
+        InodeStore dentry;
+        build_dir_dentry(
+            obj_name_ino, fnode.accounted_fragstat, loaded_layout, &dentry);
+
+        // Inject inode to the metadata pool
+        if (have_backtrace) {
+          inode_backpointer_t root_bp = *(backtrace.ancestors.rbegin());
+          if (MDS_INO_IS_MDSDIR(root_bp.dirino)) {
+            /* Special case for strays: even if we have a good backtrace,
          * don't put it in the stray dir, because while that would technically
          * give it linkage it would still be invisible to the user */
-        r = driver->inject_lost_and_found(obj_name_ino, dentry);
-        if (r < 0) {
-          dout(4) << "Error injecting 0x" << std::hex << backtrace.ino
-            << std::dec << " into lost+found: " << cpp_strerror(r) << dendl;
-          if (r == -EINVAL) {
-            dout(4) << "Use --force-corrupt to overwrite structures that "
-                       "appear to be corrupt" << dendl;
+            r = driver->inject_lost_and_found(obj_name_ino, dentry);
+            if (r < 0) {
+              dout(4) << "Error injecting 0x" << std::hex << backtrace.ino
+                      << std::dec << " into lost+found: " << cpp_strerror(r)
+                      << dendl;
+              if (r == -EINVAL) {
+                dout(4) << "Use --force-corrupt to overwrite structures that "
+                           "appear to be corrupt"
+                        << dendl;
+              }
+            }
+          } else {
+            /* Happy case: we will inject a named dentry for this inode */
+            r = driver->inject_with_backtrace(backtrace, dentry);
+            if (r < 0) {
+              dout(4) << "Error injecting 0x" << std::hex << backtrace.ino
+                      << std::dec << " with backtrace: " << cpp_strerror(r)
+                      << dendl;
+              if (r == -EINVAL) {
+                dout(4) << "Use --force-corrupt to overwrite structures that "
+                           "appear to be corrupt"
+                        << dendl;
+              }
+            }
+          }
+        } else {
+          /* Backtrace-less case: we will inject a lost+found dentry */
+          r = driver->inject_lost_and_found(obj_name_ino, dentry);
+          if (r < 0) {
+            dout(4) << "Error injecting 0x" << std::hex << obj_name_ino
+                    << std::dec << " into lost+found: " << cpp_strerror(r)
+                    << dendl;
+            if (r == -EINVAL) {
+              dout(4) << "Use --force-corrupt to overwrite structures that "
+                         "appear to be corrupt"
+                      << dendl;
+            }
           }
         }
-      } else {
-        /* Happy case: we will inject a named dentry for this inode */
-        r = driver->inject_with_backtrace(backtrace, dentry);
-        if (r < 0) {
-          dout(4) << "Error injecting 0x" << std::hex << backtrace.ino
-            << std::dec << " with backtrace: " << cpp_strerror(r) << dendl;
-          if (r == -EINVAL) {
-            dout(4) << "Use --force-corrupt to overwrite structures that "
-                       "appear to be corrupt" << dendl;
-          }
-        }
-      }
-    } else {
-      /* Backtrace-less case: we will inject a lost+found dentry */
-      r = driver->inject_lost_and_found(
-          obj_name_ino, dentry);
-      if (r < 0) {
-        dout(4) << "Error injecting 0x" << std::hex << obj_name_ino
-          << std::dec << " into lost+found: " << cpp_strerror(r) << dendl;
-        if (r == -EINVAL) {
-          dout(4) << "Use --force-corrupt to overwrite structures that "
-                     "appear to be corrupt" << dendl;
-        }
-      }
-    }
 
-    progress_tracker->increment();
-    progress_tracker->display_progress();
+        progress_tracker->increment();
+        progress_tracker->display_progress();
 
-    return r;
-  });
+        return r;
+      });
 }
 
-int MetadataTool::read_fnode(
-    inodeno_t ino, frag_t frag, fnode_t *fnode,
-    uint64_t *last_version)
+int
+MetadataTool::read_fnode(
+    inodeno_t ino,
+    frag_t frag,
+    fnode_t* fnode,
+    uint64_t* last_version)
 {
   ceph_assert(fnode != NULL);
 
@@ -1904,15 +1944,20 @@ int MetadataTool::read_fnode(
   auto old_fnode_iter = fnode_bl.cbegin();
   try {
     (*fnode).decode(old_fnode_iter);
-  } catch (const buffer::error &err) {
+  } catch (const buffer::error& err) {
     return -EINVAL;
   }
 
   return 0;
 }
 
-int MetadataTool::read_dentry(inodeno_t parent_ino, frag_t frag,
-                const std::string &dname, InodeStore *inode, snapid_t *dnfirst)
+int
+MetadataTool::read_dentry(
+    inodeno_t parent_ino,
+    frag_t frag,
+    const std::string& dname,
+    InodeStore* inode,
+    snapid_t* dnfirst)
 {
   ceph_assert(inode != NULL);
 
@@ -1924,10 +1969,8 @@ int MetadataTool::read_dentry(inodeno_t parent_ino, frag_t frag,
   keys.insert(key);
   std::map<std::string, bufferlist> vals;
   object_t frag_oid = InodeStore::get_object_name(parent_ino, frag, "");
-  int r = metadata_io.omap_get_vals_by_keys(frag_oid.name, keys, &vals);  
-  dout(20) << "oid=" << frag_oid.name
-           << " dname=" << dname
-           << " frag=" << frag
+  int r = metadata_io.omap_get_vals_by_keys(frag_oid.name, keys, &vals);
+  dout(20) << "oid=" << frag_oid.name << " dname=" << dname << " frag=" << frag
            << ", r=" << r << dendl;
   if (r < 0) {
     return r;
@@ -1957,13 +2000,15 @@ int MetadataTool::read_dentry(inodeno_t parent_ino, frag_t frag,
         inode->decode_bare(q);
       }
     } else {
-      dout(20) << "dentry type '" << dentry_type << "': cannot"
-                  "read an inode out of that" << dendl;
+      dout(20) << "dentry type '" << dentry_type
+               << "': cannot"
+                  "read an inode out of that"
+               << dendl;
       return -EINVAL;
     }
     if (dnfirst)
       *dnfirst = first;
-  } catch (const buffer::error &err) {
+  } catch (const buffer::error& err) {
     dout(20) << "encoding error in dentry 0x" << std::hex << parent_ino
              << std::dec << "/" << dname << dendl;
     return -EINVAL;
@@ -1972,15 +2017,16 @@ int MetadataTool::read_dentry(inodeno_t parent_ino, frag_t frag,
   return 0;
 }
 
-int MetadataDriver::load_table(MDSTable *table)
+int
+MetadataDriver::load_table(MDSTable* table)
 {
   object_t table_oid = table->get_object_name();
 
   bufferlist table_bl;
   int r = metadata_io.read(table_oid.name, table_bl, 0, 0);
   if (r < 0) {
-    derr << "unable to read mds table '" << table_oid.name << "': "
-      << cpp_strerror(r) << dendl;
+    derr << "unable to read mds table '" << table_oid.name
+         << "': " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -1990,15 +2036,16 @@ int MetadataDriver::load_table(MDSTable *table)
     decode(table_ver, p);
     table->decode_state(p);
     table->force_replay_version(table_ver);
-  } catch (const buffer::error &err) {
-    derr << "unable to decode mds table '" << table_oid.name << "': "
-      << err.what() << dendl;
+  } catch (const buffer::error& err) {
+    derr << "unable to decode mds table '" << table_oid.name
+         << "': " << err.what() << dendl;
     return -EIO;
   }
   return 0;
 }
 
-int MetadataDriver::save_table(MDSTable *table)
+int
+MetadataDriver::save_table(MDSTable* table)
 {
   object_t table_oid = table->get_object_name();
 
@@ -2007,15 +2054,15 @@ int MetadataDriver::save_table(MDSTable *table)
   table->encode_state(table_bl);
   int r = metadata_io.write_full(table_oid.name, table_bl);
   if (r != 0) {
-    derr << "error updating mds table " << table_oid.name
-      << ": " << cpp_strerror(r) << dendl;
+    derr << "error updating mds table " << table_oid.name << ": "
+         << cpp_strerror(r) << dendl;
     return r;
   }
   return 0;
 }
 
-int MetadataDriver::inject_lost_and_found(
-    inodeno_t ino, const InodeStore &dentry)
+int
+MetadataDriver::inject_lost_and_found(inodeno_t ino, const InodeStore& dentry)
 {
   // Create lost+found if doesn't exist
   bool created = false;
@@ -2064,11 +2111,11 @@ int MetadataDriver::inject_lost_and_found(
   return inject_linkage(lf_ino.inode->ino, dname, frag_t(), dentry);
 }
 
-
-int MetadataDriver::get_frag_of(
+int
+MetadataDriver::get_frag_of(
     inodeno_t dirino,
-    const std::string &target_dname,
-    frag_t *result_ft)
+    const std::string& target_dname,
+    frag_t* result_ft)
 {
   object_t root_frag_oid = InodeStore::get_object_name(dirino, frag_t(), "");
 
@@ -2076,14 +2123,14 @@ int MetadataDriver::get_frag_of(
 
   // Find and load fragtree if existing dirfrag
   // ==========================================
-  bool have_backtrace = false; 
+  bool have_backtrace = false;
   bufferlist parent_bl;
   int r = metadata_io.getxattr(root_frag_oid.name, "parent", parent_bl);
   if (r == -ENODATA) {
     dout(10) << "No backtrace on '" << root_frag_oid << "'" << dendl;
   } else if (r < 0) {
-    dout(4) << "Unexpected error on '" << root_frag_oid << "': "
-      << cpp_strerror(r) << dendl;
+    dout(4) << "Unexpected error on '" << root_frag_oid
+            << "': " << cpp_strerror(r) << dendl;
     return r;
   }
 
@@ -2094,9 +2141,9 @@ int MetadataDriver::get_frag_of(
       auto q = parent_bl.cbegin();
       backtrace.decode(q);
       have_backtrace = true;
-    } catch (buffer::error &e) {
-      dout(4) << "Corrupt backtrace on '" << root_frag_oid << "': "
-	      << e.what() << dendl;
+    } catch (buffer::error& e) {
+      dout(4) << "Corrupt backtrace on '" << root_frag_oid << "': " << e.what()
+              << dendl;
     }
   }
 
@@ -2108,16 +2155,16 @@ int MetadataDriver::get_frag_of(
   }
 
   // The parentage of dirino
-  const inode_backpointer_t &bp = *(backtrace.ancestors.begin());
+  const inode_backpointer_t& bp = *(backtrace.ancestors.begin());
 
   // The inode of dirino's parent
   const inodeno_t parent_ino = bp.dirino;
 
   // The dname of dirino in its parent.
-  const std::string &parent_dname = bp.dname;
+  const std::string& parent_dname = bp.dname;
 
-  dout(20) << "got backtrace parent " << parent_ino << "/"
-           << parent_dname << dendl;
+  dout(20) << "got backtrace parent " << parent_ino << "/" << parent_dname
+           << dendl;
 
   // The primary dentry for dirino
   InodeStore existing_dentry;
@@ -2131,12 +2178,12 @@ int MetadataDriver::get_frag_of(
     // Great, fast path: return the fragtree from here
     if (existing_dentry.inode->ino != dirino) {
       dout(4) << "Unexpected inode in dentry! 0x" << std::hex
-              << existing_dentry.inode->ino
-              << " vs expected 0x" << dirino << std::dec << dendl;
+              << existing_dentry.inode->ino << " vs expected 0x" << dirino
+              << std::dec << dendl;
       return -ENOENT;
     }
-    dout(20) << "fast path, fragtree is "
-             << existing_dentry.dirfragtree << dendl;
+    dout(20) << "fast path, fragtree is " << existing_dentry.dirfragtree
+             << dendl;
     *result_ft = existing_dentry.pick_dirfrag(target_dname);
     dout(20) << "frag is " << *result_ft << dendl;
     return 0;
@@ -2154,7 +2201,7 @@ int MetadataDriver::get_frag_of(
         return 0;
       } else {
         if (r == -EINVAL || r == -ENOENT) {
-          return -ENOENT;  // dentry missing or corrupt, so frag is missing
+          return -ENOENT; // dentry missing or corrupt, so frag is missing
         } else {
           return r;
         }
@@ -2172,10 +2219,11 @@ int MetadataDriver::get_frag_of(
   }
 }
 
+int
+MetadataDriver::inject_with_backtrace(
+    const inode_backtrace_t& backtrace,
+    const InodeStore& dentry)
 
-int MetadataDriver::inject_with_backtrace(
-    const inode_backtrace_t &backtrace, const InodeStore &dentry)
-    
 {
 
   // On dirfrags
@@ -2228,11 +2276,12 @@ int MetadataDriver::inject_with_backtrace(
 
   inodeno_t ino = backtrace.ino;
   dout(10) << "  inode: 0x" << std::hex << ino << std::dec << dendl;
-  for (std::vector<inode_backpointer_t>::const_iterator i = backtrace.ancestors.begin();
-      i != backtrace.ancestors.end(); ++i) {
-    const inode_backpointer_t &backptr = *i;
-    dout(10) << "  backptr: 0x" << std::hex << backptr.dirino << std::dec
-      << "/" << backptr.dname << dendl;
+  for (std::vector<inode_backpointer_t>::const_iterator i =
+           backtrace.ancestors.begin();
+       i != backtrace.ancestors.end(); ++i) {
+    const inode_backpointer_t& backptr = *i;
+    dout(10) << "  backptr: 0x" << std::hex << backptr.dirino << std::dec << "/"
+             << backptr.dname << dendl;
 
     // Examine root dirfrag for parent
     const inodeno_t parent_ino = backptr.dirino;
@@ -2242,9 +2291,8 @@ int MetadataDriver::inject_with_backtrace(
     int r = get_frag_of(parent_ino, dname, &fragment);
     if (r == -ENOENT) {
       // Don't know fragment, fall back to assuming root
-      dout(20) << "don't know fragment for 0x" << std::hex <<
-        parent_ino << std::dec << "/" << dname << ", will insert to root"
-        << dendl;
+      dout(20) << "don't know fragment for 0x" << std::hex << parent_ino
+               << std::dec << "/" << dname << ", will insert to root" << dendl;
     }
 
     // Find or create dirfrag
@@ -2267,21 +2315,18 @@ int MetadataDriver::inject_with_backtrace(
       // Missing or corrupt dentry
       write_dentry = true;
     } else if (r < 0) {
-      derr << "Unexpected error reading dentry 0x" << std::hex
-        << parent_ino << std::dec << "/"
-        << dname << ": " << cpp_strerror(r) << dendl;
+      derr << "Unexpected error reading dentry 0x" << std::hex << parent_ino
+           << std::dec << "/" << dname << ": " << cpp_strerror(r) << dendl;
       break;
     } else {
       // Dentry already present, does it link to me?
       if (existing_dentry.inode->ino == ino) {
-        dout(20) << "Dentry 0x" << std::hex
-          << parent_ino << std::dec << "/"
-          << dname << " already exists and points to me" << dendl;
+        dout(20) << "Dentry 0x" << std::hex << parent_ino << std::dec << "/"
+                 << dname << " already exists and points to me" << dendl;
       } else {
-        derr << "Dentry 0x" << std::hex
-          << parent_ino << std::dec << "/"
-          << dname << " already exists but points to 0x"
-          << std::hex << existing_dentry.inode->ino << std::dec << dendl;
+        derr << "Dentry 0x" << std::hex << parent_ino << std::dec << "/"
+             << dname << " already exists but points to 0x" << std::hex
+             << existing_dentry.inode->ino << std::dec << dendl;
         // Fall back to lost+found!
         return inject_lost_and_found(backtrace.ino, dentry);
       }
@@ -2293,17 +2338,16 @@ int MetadataDriver::inject_with_backtrace(
     if (write_dentry) {
       if (i == backtrace.ancestors.begin()) {
         // This is the linkage for the file of interest
-        dout(10) << "Linking inode 0x" << std::hex << ino
-          << " at 0x" << parent_ino << "/" << dname << std::dec
-          << " with size=" << dentry.inode->size << " bytes" << dendl;
+        dout(10) << "Linking inode 0x" << std::hex << ino << " at 0x"
+                 << parent_ino << "/" << dname << std::dec
+                 << " with size=" << dentry.inode->size << " bytes" << dendl;
 
         /* NOTE: dnfirst fixed in scan_links */
         r = inject_linkage(parent_ino, dname, fragment, dentry);
       } else {
         // This is the linkage for an ancestor directory
         dout(10) << "Linking ancestor directory of inode 0x" << std::hex << ino
-                 << " at 0x" << std::hex << parent_ino
-                 << ":" << dname << dendl;
+                 << " at 0x" << std::hex << parent_ino << ":" << dname << dendl;
 
         InodeStore ancestor_dentry;
         auto inode = ancestor_dentry.get_inode();
@@ -2314,8 +2358,7 @@ int MetadataDriver::inject_with_backtrace(
         // accurate, but it should avoid functional issues.
 
         inode->dirstat.nfiles = 1;
-        inode->dir_layout.dl_dir_hash =
-                               g_conf()->mds_default_dir_hash;
+        inode->dir_layout.dl_dir_hash = g_conf()->mds_default_dir_hash;
 
         inode->nlink = 1;
         inode->ino = ino;
@@ -2344,10 +2387,11 @@ int MetadataDriver::inject_with_backtrace(
   return 0;
 }
 
-int MetadataDriver::find_or_create_dirfrag(
+int
+MetadataDriver::find_or_create_dirfrag(
     inodeno_t ino,
     frag_t fragment,
-    bool *created)
+    bool* created)
 {
   ceph_assert(created != NULL);
 
@@ -2400,7 +2444,8 @@ int MetadataDriver::find_or_create_dirfrag(
       return 0;
     } else if (r < 0) {
       // We were unable to create or write it, error out
-      derr << "Failed to create dirfrag " << ino << ": " << cpp_strerror(r) << dendl;
+      derr << "Failed to create dirfrag " << ino << ": " << cpp_strerror(r)
+           << dendl;
       return r;
     } else {
       // Success: the dirfrag object now exists with a value header
@@ -2408,7 +2453,8 @@ int MetadataDriver::find_or_create_dirfrag(
       *created = true;
     }
   } else if (r < 0) {
-    derr << "Unexpected error reading dirfrag " << ino << " : " << cpp_strerror(r) << dendl;
+    derr << "Unexpected error reading dirfrag " << ino << " : "
+         << cpp_strerror(r) << dendl;
     return r;
   } else {
     dout(20) << "Dirfrag already exists: " << ino << "." << fragment << dendl;
@@ -2417,9 +2463,13 @@ int MetadataDriver::find_or_create_dirfrag(
   return 0;
 }
 
-int MetadataDriver::inject_linkage(
-    inodeno_t dir_ino, const std::string &dname,
-    const frag_t fragment, const InodeStore &inode, const snapid_t dnfirst)
+int
+MetadataDriver::inject_linkage(
+    inodeno_t dir_ino,
+    const std::string& dname,
+    const frag_t fragment,
+    const InodeStore& inode,
+    const snapid_t dnfirst)
 {
   object_t frag_oid = InodeStore::get_object_name(dir_ino, fragment, "");
 
@@ -2437,28 +2487,32 @@ int MetadataDriver::inject_linkage(
   vals[key] = dentry_bl;
   int r = metadata_io.omap_set(frag_oid.name, vals);
   if (r != 0) {
-    derr << "Error writing dentry " << dir_ino << "/" << dname << ": " << cpp_strerror(r) << dendl;
+    derr << "Error writing dentry " << dir_ino << "/" << dname << ": "
+         << cpp_strerror(r) << dendl;
     return r;
   } else {
-    dout(20) << "Injected dentry " << dir_ino << "/" << dname << " pointing to " << inode.inode->ino << dendl;
+    dout(20) << "Injected dentry " << dir_ino << "/" << dname << " pointing to "
+             << inode.inode->ino << dendl;
     return 0;
   }
 }
 
-
-int MetadataDriver::init(
-  librados::Rados &rados, std::string &metadata_pool_name, const FSMap *fsmap,
-  fs_cluster_id_t fscid)
+int
+MetadataDriver::init(
+    librados::Rados& rados,
+    std::string& metadata_pool_name,
+    const FSMap* fsmap,
+    fs_cluster_id_t fscid)
 {
   if (metadata_pool_name.empty()) {
-    auto& fs =  fsmap->get_filesystem(fscid);
+    auto& fs = fsmap->get_filesystem(fscid);
     int64_t const metadata_pool_id = fs.get_mds_map().get_metadata_pool();
 
     dout(4) << "resolving metadata pool " << metadata_pool_id << dendl;
     int r = rados.pool_reverse_lookup(metadata_pool_id, &metadata_pool_name);
     if (r < 0) {
       derr << "Pool " << metadata_pool_id
-	   << " identified in MDS map not found in RADOS!" << dendl;
+           << " identified in MDS map not found in RADOS!" << dendl;
       return r;
     }
     dout(4) << "found metadata pool '" << metadata_pool_name << "'" << dendl;
@@ -2468,15 +2522,19 @@ int MetadataDriver::init(
   return rados.ioctx_create(metadata_pool_name.c_str(), metadata_io);
 }
 
-int LocalFileDriver::init(
-  librados::Rados &rados, std::string &metadata_pool_name, const FSMap *fsmap,
-  fs_cluster_id_t fscid)
+int
+LocalFileDriver::init(
+    librados::Rados& rados,
+    std::string& metadata_pool_name,
+    const FSMap* fsmap,
+    fs_cluster_id_t fscid)
 {
   return 0;
 }
 
-int LocalFileDriver::inject_data(
-    const std::string &file_path,
+int
+LocalFileDriver::inject_data(
+    const std::string& file_path,
     uint64_t size,
     uint32_t chunk_size,
     inodeno_t ino)
@@ -2490,21 +2548,20 @@ int LocalFileDriver::inject_data(
     bufferlist bl;
 
     char buf[32];
-    snprintf(buf, sizeof(buf),
-        "%llx.%08llx",
-        (unsigned long long)ino,
+    snprintf(
+        buf, sizeof(buf), "%llx.%08llx", (unsigned long long)ino,
         (unsigned long long)(offset / chunk_size));
     std::string oid(buf);
 
     int r = data_io.read(oid, bl, chunk_size, 0);
 
     if (r <= 0 && r != -ENOENT) {
-      derr << "error reading data object '" << oid << "': "
-        << cpp_strerror(r) << dendl;
+      derr << "error reading data object '" << oid << "': " << cpp_strerror(r)
+           << dendl;
       f.close();
       return r;
-    } else if (r >=0) {
-      
+    } else if (r >= 0) {
+
       f.seekp(offset);
       bl.write_stream(f);
     }
@@ -2514,19 +2571,18 @@ int LocalFileDriver::inject_data(
   return 0;
 }
 
-
-int LocalFileDriver::inject_with_backtrace(
-    const inode_backtrace_t &bt,
-    const InodeStore &dentry)
+int
+LocalFileDriver::inject_with_backtrace(
+    const inode_backtrace_t& bt,
+    const InodeStore& dentry)
 {
   std::string path_builder = path;
 
   // Iterate through backtrace creating directory parents
   std::vector<inode_backpointer_t>::const_reverse_iterator i;
-  for (i = bt.ancestors.rbegin();
-      i != bt.ancestors.rend(); ++i) {
+  for (i = bt.ancestors.rbegin(); i != bt.ancestors.rend(); ++i) {
 
-    const inode_backpointer_t &backptr = *i;
+    const inode_backpointer_t& backptr = *i;
     path_builder += "/";
     path_builder += backptr.dname;
 
@@ -2535,13 +2591,14 @@ int LocalFileDriver::inject_with_backtrace(
     if (is_file) {
       // FIXME: inject_data won't cope with interesting (i.e. striped)
       // layouts (need a librados-compatible Filer to read these)
-      inject_data(path_builder, dentry.inode->size,
-		  dentry.inode->layout.object_size, bt.ino);
+      inject_data(
+          path_builder, dentry.inode->size, dentry.inode->layout.object_size,
+          bt.ino);
     } else {
       int r = mkdir(path_builder.c_str(), 0755);
       if (r != 0 && r != -EPERM) {
-        derr << "error creating directory: '" << path_builder << "': "
-          << cpp_strerror(r) << dendl;
+        derr << "error creating directory: '" << path_builder
+             << "': " << cpp_strerror(r) << dendl;
         return r;
       }
     }
@@ -2550,24 +2607,24 @@ int LocalFileDriver::inject_with_backtrace(
   return 0;
 }
 
-int LocalFileDriver::inject_lost_and_found(
-    inodeno_t ino,
-    const InodeStore &dentry)
+int
+LocalFileDriver::inject_lost_and_found(inodeno_t ino, const InodeStore& dentry)
 {
   std::string lf_path = path + "/lost+found";
   int r = mkdir(lf_path.c_str(), 0755);
   if (r != 0 && r != -EPERM) {
-    derr << "error creating directory: '" << lf_path << "': "
-      << cpp_strerror(r) << dendl;
+    derr << "error creating directory: '" << lf_path << "': " << cpp_strerror(r)
+         << dendl;
     return r;
   }
-  
+
   std::string file_path = lf_path + "/" + lost_found_dname(ino);
-  return inject_data(file_path, dentry.inode->size,
-		     dentry.inode->layout.object_size, ino);
+  return inject_data(
+      file_path, dentry.inode->size, dentry.inode->layout.object_size, ino);
 }
 
-int LocalFileDriver::init_roots(int64_t data_pool_id)
+int
+LocalFileDriver::init_roots(int64_t data_pool_id)
 {
   // Ensure that the path exists and is a directory
   bool exists;
@@ -2583,10 +2640,11 @@ int LocalFileDriver::init_roots(int64_t data_pool_id)
   }
 }
 
-int LocalFileDriver::check_roots(bool *result)
+int
+LocalFileDriver::check_roots(bool* result)
 {
   // Check if the path exists and is a directory
-  DIR *d = ::opendir(path.c_str());
+  DIR* d = ::opendir(path.c_str());
   if (d == NULL) {
     *result = false;
   } else {
@@ -2602,18 +2660,22 @@ int LocalFileDriver::check_roots(bool *result)
   return 0;
 }
 
-void MetadataTool::build_file_dentry(
-    inodeno_t ino, uint64_t file_size, time_t file_mtime,
-    const file_layout_t &layout, InodeStore *out, std::string symlink)
+void
+MetadataTool::build_file_dentry(
+    inodeno_t ino,
+    uint64_t file_size,
+    time_t file_mtime,
+    const file_layout_t& layout,
+    InodeStore* out,
+    std::string symlink)
 {
   ceph_assert(out != NULL);
 
   auto inode = out->get_inode();
-  if(!symlink.empty()) {
+  if (!symlink.empty()) {
     inode->mode = 0777 | S_IFLNK;
     out->symlink = symlink;
-  }
-  else {
+  } else {
     inode->mode = 0500 | S_IFREG;
   }
 
@@ -2638,9 +2700,12 @@ void MetadataTool::build_file_dentry(
   inode->gid = g_conf()->mds_root_ino_gid;
 }
 
-void MetadataTool::build_dir_dentry(
-    inodeno_t ino, const frag_info_t &fragstat,
-    const file_layout_t &layout, InodeStore *out)
+void
+MetadataTool::build_dir_dentry(
+    inodeno_t ino,
+    const frag_info_t& fragstat,
+    const file_layout_t& layout,
+    InodeStore* out)
 {
   ceph_assert(out != NULL);
 

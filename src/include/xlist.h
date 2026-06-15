@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -16,42 +16,61 @@
 #ifndef CEPH_XLIST_H
 #define CEPH_XLIST_H
 
-#include <iterator>
 #include <cstdlib>
+#include <iterator>
 #include <ostream>
 
 #include "include/ceph_assert.h"
 
-template<typename T>
+template <typename T>
 class xlist {
 public:
   class item {
   public:
-    item(T i) : _item(i) {}
-    ~item() { 
-      ceph_assert(!is_on_list());
-    }
+    item(T i) :
+      _item(i)
+    {}
+
+    ~item() { ceph_assert(!is_on_list()); }
 
     item(const item& other) = delete;
     item(item&& other) = delete;
-    const item& operator= (const item& right) = delete;
-    item& operator= (item&& right) = delete;
+    const item& operator=(const item& right) = delete;
+    item& operator=(item&& right) = delete;
 
-    xlist* get_list() { return _list; }
-    bool is_on_list() const { return _list ? true:false; }
-    bool remove_myself() {
-      if (_list) {
-	_list->remove(this);
-	ceph_assert(_list == 0);
-	return true;
-      } else
-	return false;
+    xlist*
+    get_list()
+    {
+      return _list;
     }
-    void move_to_front() {
+
+    bool
+    is_on_list() const
+    {
+      return _list ? true : false;
+    }
+
+    bool
+    remove_myself()
+    {
+      if (_list) {
+        _list->remove(this);
+        ceph_assert(_list == 0);
+        return true;
+      } else
+        return false;
+    }
+
+    void
+    move_to_front()
+    {
       ceph_assert(_list);
       _list->push_front(this);
     }
-    void move_to_back() {
+
+    void
+    move_to_back()
+    {
       ceph_assert(_list);
       _list->push_back(this);
     }
@@ -60,7 +79,7 @@ public:
     friend xlist;
     T _item;
     item *_prev = nullptr, *_next = nullptr;
-    xlist *_list = nullptr;
+    xlist* _list = nullptr;
   };
 
   typedef item* value_type;
@@ -71,65 +90,85 @@ private:
   size_t _size;
 
 public:
-  xlist(const xlist& other) {
+  xlist(const xlist& other)
+  {
     _front = other._front;
     _back = other._back;
     _size = other._size;
   }
 
-  xlist() : _front(0), _back(0), _size(0) {}
-  ~xlist() { 
+  xlist() :
+    _front(0), _back(0), _size(0)
+  {}
+
+  ~xlist()
+  {
     ceph_assert(_size == 0);
     ceph_assert(_front == 0);
     ceph_assert(_back == 0);
   }
 
-  size_t size() const {
+  size_t
+  size() const
+  {
     ceph_assert((bool)_front == (bool)_size);
     return _size;
   }
-  bool empty() const { 
+
+  bool
+  empty() const
+  {
     ceph_assert((bool)_front == (bool)_size);
-    return _front == 0; 
+    return _front == 0;
   }
 
-  void clear() {
+  void
+  clear()
+  {
     while (_front)
       remove(_front);
     ceph_assert((bool)_front == (bool)_size);
   }
 
-  void push_front(item *i) {
-    if (i->_list) 
+  void
+  push_front(item* i)
+  {
+    if (i->_list)
       i->_list->remove(i);
 
     i->_list = this;
     i->_next = _front;
     i->_prev = 0;
-    if (_front) 
+    if (_front)
       _front->_prev = i;
     else
       _back = i;
     _front = i;
     _size++;
   }
-  void push_back(item *i) {
-    if (i->_list) 
+
+  void
+  push_back(item* i)
+  {
+    if (i->_list)
       i->_list->remove(i);
 
     i->_list = this;
     i->_next = 0;
     i->_prev = _back;
-    if (_back) 
+    if (_back)
       _back->_next = i;
     else
       _front = i;
     _back = i;
     _size++;
   }
-  void remove(item *i) {
+
+  void
+  remove(item* i)
+  {
     ceph_assert(i->_list == this);
-    
+
     if (i->_prev)
       i->_prev->_next = i->_next;
     else
@@ -145,53 +184,109 @@ public:
     ceph_assert((bool)_front == (bool)_size);
   }
 
-  T front() { return static_cast<T>(_front->_item); }
-  const T front() const { return static_cast<const T>(_front->_item); }
+  T
+  front()
+  {
+    return static_cast<T>(_front->_item);
+  }
 
-  T back() { return static_cast<T>(_back->_item); }
-  const T back() const { return static_cast<const T>(_back->_item); }
+  const T
+  front() const
+  {
+    return static_cast<const T>(_front->_item);
+  }
 
-  void pop_front() {
+  T
+  back()
+  {
+    return static_cast<T>(_back->_item);
+  }
+
+  const T
+  back() const
+  {
+    return static_cast<const T>(_back->_item);
+  }
+
+  void
+  pop_front()
+  {
     ceph_assert(!empty());
     remove(_front);
   }
-  void pop_back() {
+
+  void
+  pop_back()
+  {
     ceph_assert(!empty());
     remove(_back);
   }
 
   class iterator {
   private:
-    item *cur;
+    item* cur;
+
   public:
     using iterator_category = std::forward_iterator_tag;
     using value_type = T;
     using difference_type = std::ptrdiff_t;
     using pointer = T*;
     using reference = T&;
-    iterator(item *i = 0) : cur(i) {}
-    T operator*() { return static_cast<T>(cur->_item); }
-    iterator& operator++() {
+
+    iterator(item* i = 0) :
+      cur(i)
+    {}
+
+    T
+    operator*()
+    {
+      return static_cast<T>(cur->_item);
+    }
+
+    iterator&
+    operator++()
+    {
       ceph_assert(cur);
       ceph_assert(cur->_list);
       cur = cur->_next;
       return *this;
     }
-    bool end() const { return cur == 0; }
-    friend bool operator==(const iterator& lhs, const iterator& rhs) {
+
+    bool
+    end() const
+    {
+      return cur == 0;
+    }
+
+    friend bool
+    operator==(const iterator& lhs, const iterator& rhs)
+    {
       return lhs.cur == rhs.cur;
     }
-    friend bool operator!=(const iterator& lhs, const iterator& rhs) {
+
+    friend bool
+    operator!=(const iterator& lhs, const iterator& rhs)
+    {
       return lhs.cur != rhs.cur;
     }
   };
 
-  iterator begin() { return iterator(_front); }
-  iterator end() { return iterator(NULL); }
+  iterator
+  begin()
+  {
+    return iterator(_front);
+  }
+
+  iterator
+  end()
+  {
+    return iterator(NULL);
+  }
 
   class const_iterator {
   private:
-    item *cur;
+    item* cur;
+
   public:
     using iterator_category = std::forward_iterator_tag;
     using value_type = T;
@@ -199,31 +294,61 @@ public:
     using pointer = const T*;
     using reference = const T&;
 
-    const_iterator(item *i = 0) : cur(i) {}
-    const T operator*() { return static_cast<const T>(cur->_item); }
-    const_iterator& operator++() {
+    const_iterator(item* i = 0) :
+      cur(i)
+    {}
+
+    const T
+    operator*()
+    {
+      return static_cast<const T>(cur->_item);
+    }
+
+    const_iterator&
+    operator++()
+    {
       ceph_assert(cur);
       ceph_assert(cur->_list);
       cur = cur->_next;
       return *this;
     }
-    bool end() const { return cur == 0; }
-    friend bool operator==(const const_iterator& lhs,
-                           const const_iterator& rhs) {
+
+    bool
+    end() const
+    {
+      return cur == 0;
+    }
+
+    friend bool
+    operator==(const const_iterator& lhs, const const_iterator& rhs)
+    {
       return lhs.cur == rhs.cur;
     }
-    friend bool operator!=(const const_iterator& lhs,
-                           const const_iterator& rhs) {
+
+    friend bool
+    operator!=(const const_iterator& lhs, const const_iterator& rhs)
+    {
       return lhs.cur != rhs.cur;
     }
   };
 
-  const_iterator begin() const { return const_iterator(_front); }
-  const_iterator end() const { return const_iterator(NULL); }
+  const_iterator
+  begin() const
+  {
+    return const_iterator(_front);
+  }
 
-  friend std::ostream &operator<<(std::ostream &oss, const xlist<T> &list) {
+  const_iterator
+  end() const
+  {
+    return const_iterator(NULL);
+  }
+
+  friend std::ostream&
+  operator<<(std::ostream& oss, const xlist<T>& list)
+  {
     bool first = true;
-    for (const auto &item : list) {
+    for (const auto& item : list) {
       if (!first) {
         oss << ", ";
       }

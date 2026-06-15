@@ -14,12 +14,16 @@
 
 #pragma once
 
-#include "types.h"
-
 #include "common/ceph_json.h"
 
-template<template<typename> class Allocator>
-void inode_t<Allocator>::client_ranges_cb(typename inode_t<Allocator>::client_range_map& c, JSONObj *obj){
+#include "types.h"
+
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::client_ranges_cb(
+    typename inode_t<Allocator>::client_range_map& c,
+    JSONObj* obj)
+{
 
   int64_t client;
   JSONDecoder::decode_json("client", client, obj, true);
@@ -29,16 +33,21 @@ void inode_t<Allocator>::client_ranges_cb(typename inode_t<Allocator>::client_ra
   c[client] = client_range_tmp;
 }
 
-template<template<typename> class Allocator>
-void inode_t<Allocator>::old_pools_cb(compact_set<int64_t, std::less<int64_t>, Allocator<int64_t> >& c, JSONObj *obj){
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::old_pools_cb(
+    compact_set<int64_t, std::less<int64_t>, Allocator<int64_t>>& c,
+    JSONObj* obj)
+{
 
   int64_t tmp;
   decode_json_obj(tmp, obj);
   c.insert(tmp);
 }
 
-template<template<typename> class Allocator>
-void inode_t<Allocator>::decode_json(JSONObj *obj)
+template <template <typename> class Allocator>
+void
+inode_t<Allocator>::decode_json(JSONObj* obj)
 {
 
   JSONDecoder::decode_json("ino", ino.val, obj, true);
@@ -51,7 +60,8 @@ void inode_t<Allocator>::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("nlink", nlink, obj, true);
   JSONDecoder::decode_json("dir_layout", dir_layout, obj, true);
   JSONDecoder::decode_json("layout", layout, obj, true);
-  JSONDecoder::decode_json("old_pools", old_pools, inode_t<Allocator>::old_pools_cb, obj, true);
+  JSONDecoder::decode_json(
+      "old_pools", old_pools, inode_t<Allocator>::old_pools_cb, obj, true);
   JSONDecoder::decode_json("size", size, obj, true);
   JSONDecoder::decode_json("truncate_seq", truncate_seq, obj, true);
   JSONDecoder::decode_json("truncate_size", truncate_size, obj, true);
@@ -62,7 +72,9 @@ void inode_t<Allocator>::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("time_warp_seq", time_warp_seq, obj, true);
   JSONDecoder::decode_json("change_attr", change_attr, obj, true);
   JSONDecoder::decode_json("export_pin", export_pin, obj, true);
-  JSONDecoder::decode_json("client_ranges", client_ranges, inode_t<Allocator>::client_ranges_cb, obj, true);
+  JSONDecoder::decode_json(
+      "client_ranges", client_ranges, inode_t<Allocator>::client_ranges_cb, obj,
+      true);
   JSONDecoder::decode_json("dirstat", dirstat, obj, true);
   JSONDecoder::decode_json("rstat", rstat, obj, true);
   JSONDecoder::decode_json("accounted_rstat", accounted_rstat, obj, true);

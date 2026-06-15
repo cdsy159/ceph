@@ -12,37 +12,38 @@
  * Foundation.  See file COPYING.
  *
  */
-#include "include/int_types.h"
-
-#include "gtest/gtest.h"
-#include "include/compat.h"
-#include "include/ceph_fs.h"
-#include "include/cephfs/libcephfs.h"
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "gtest/gtest.h"
+#include "include/ceph_fs.h"
+#include "include/cephfs/libcephfs.h"
+#include "include/compat.h"
+#include "include/int_types.h"
 #ifdef __linux__
 #include <sys/xattr.h>
 #endif
 #include <signal.h>
 
-TEST(Caps, ReadZero) {
+TEST(Caps, ReadZero)
+{
 
   int mypid = getpid();
-  struct ceph_mount_info *cmount;
+  struct ceph_mount_info* cmount;
   ASSERT_EQ(0, ceph_create(&cmount, NULL));
   ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
   ASSERT_EQ(0, ceph_mount(cmount, "/"));
 
   int i = 0;
-  for(; i < 30; ++i) {
+  for (; i < 30; ++i) {
 
     char c_path[1024];
     sprintf(c_path, "/caps_rzfile_%d_%d", mypid, i);
-    int fd = ceph_open(cmount, c_path, O_CREAT|O_TRUNC|O_WRONLY, 0644);
+    int fd = ceph_open(cmount, c_path, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     ASSERT_LT(0, fd);
 
     int expect = CEPH_CAP_FILE_EXCL | CEPH_CAP_FILE_WR | CEPH_CAP_FILE_BUFFER;
@@ -56,7 +57,7 @@ TEST(Caps, ReadZero) {
 
     char cw_path[1024];
     sprintf(cw_path, "/caps_wzfile_%d_%d", mypid, i);
-    int wfd = ceph_open(cmount, cw_path, O_CREAT|O_TRUNC|O_WRONLY, 0644);
+    int wfd = ceph_open(cmount, cw_path, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     ASSERT_LT(0, wfd);
 
     char wbuf[4096];
@@ -73,7 +74,7 @@ TEST(Caps, ReadZero) {
 
   ASSERT_EQ(0, ceph_conf_set(cmount, "client_debug_inject_tick_delay", "20"));
 
-  for(i = 0; i < 30; ++i) {
+  for (i = 0; i < 30; ++i) {
 
     char c_path[1024];
     sprintf(c_path, "/caps_rzfile_%d_%d", mypid, i);
@@ -90,7 +91,6 @@ TEST(Caps, ReadZero) {
     caps = ceph_debug_get_fd_caps(cmount, fd);
     ASSERT_EQ(expect, caps & expect);
     ASSERT_EQ(0, ceph_close(cmount, fd));
-
   }
   ceph_shutdown(cmount);
 }

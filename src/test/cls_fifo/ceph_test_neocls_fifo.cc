@@ -10,10 +10,7 @@
  *
  */
 
-#include "neorados/cls/fifo.h"
-
 #include <array>
-#include <boost/system/detail/errc.hpp>
 #include <memory>
 #include <new>
 #include <string_view>
@@ -22,17 +19,15 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/use_awaitable.hpp>
-
+#include <boost/system/detail/errc.hpp>
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
 
-#include "include/neorados/RADOS.hpp"
-
 #include "cls/version/cls_version_types.h"
-
-#include "test/neorados/common_tests.h"
-
 #include "gtest/gtest.h"
+#include "include/neorados/RADOS.hpp"
+#include "neorados/cls/fifo.h"
+#include "test/neorados/common_tests.h"
 
 namespace asio = boost::asio;
 namespace sys = boost::system;
@@ -45,47 +40,55 @@ namespace fifo = rados::cls::fifo;
 
 class FIFOtest {
 public:
-  template<typename... Args>
-  static auto create_meta(neorados::RADOS rados, Args&&... args) {
-    return detail::FIFOImpl::create_meta(rados,
-					 std::forward<Args>(args)...);
+  template <typename... Args>
+  static auto
+  create_meta(neorados::RADOS rados, Args&&... args)
+  {
+    return detail::FIFOImpl::create_meta(rados, std::forward<Args>(args)...);
   }
 
-  template<typename... Args>
-  static auto get_meta(neorados::RADOS rados, Args&&... args) {
+  template <typename... Args>
+  static auto
+  get_meta(neorados::RADOS rados, Args&&... args)
+  {
     return FIFO::get_meta(rados, std::forward<Args>(args)...);
   }
 
-
-  template<asio::completion_token_for<void(sys::error_code)> CompletionToken>
-  static auto read_meta(FIFO& f, const DoutPrefixProvider* dpp,
-			CompletionToken&& token) {
-    return f.impl->read_meta(dpp,
-			     f.consign(std::forward<CompletionToken>(token)));
+  template <asio::completion_token_for<void(sys::error_code)> CompletionToken>
+  static auto
+  read_meta(FIFO& f, const DoutPrefixProvider* dpp, CompletionToken&& token)
+  {
+    return f.impl->read_meta(
+        dpp, f.consign(std::forward<CompletionToken>(token)));
   }
 
-  static auto meta(FIFO& f) {
+  static auto
+  meta(FIFO& f)
+  {
     return f.impl->info;
   }
 
-  template<asio::completion_token_for<
-    void(sys::error_code, fifo::part_header)> CompletionToken>
-  static auto get_part_info(FIFO& f, std::int64_t num, CompletionToken&& token) {
-    return f.impl->get_part_info(num,f.consign(
-				   std::forward<CompletionToken>(token)));
+  template <asio::completion_token_for<void(sys::error_code, fifo::part_header)>
+                CompletionToken>
+  static auto
+  get_part_info(FIFO& f, std::int64_t num, CompletionToken&& token)
+  {
+    return f.impl->get_part_info(
+        num, f.consign(std::forward<CompletionToken>(token)));
   }
 
-  static auto get_part_layout_info(FIFO& f) {
+  static auto
+  get_part_layout_info(FIFO& f)
+  {
     return std::make_tuple(
-	     f.impl->part_header_size,
-	     f.impl->part_entry_overhead);
+        f.impl->part_header_size, f.impl->part_entry_overhead);
   }
 };
-}
+} // namespace neorados::cls::fifo
 
+using neorados::cls::fifo::entry;
 using neorados::cls::fifo::FIFO;
 using neorados::cls::fifo::FIFOtest;
-using neorados::cls::fifo::entry;
 
 auto cct = new CephContext(CEPH_ENTITY_TYPE_CLIENT);
 const DoutPrefix dp(cct, 1, "test legacy cls fifo: ");
@@ -96,22 +99,21 @@ CORO_TEST_F(cls_fifo, create, NeoRadosTest)
 
 
   sys::error_code ec;
-  co_await FIFOtest::create_meta(rados(), fifo_id, pool(), std::nullopt,
-                                 std::nullopt, false, 0,
-                                 FIFO::default_max_entry_size,
-                                 asio::redirect_error(asio::use_awaitable, ec));
+  co_await FIFOtest::create_meta(
+      rados(), fifo_id, pool(), std::nullopt, std::nullopt, false, 0,
+      FIFO::default_max_entry_size,
+      asio::redirect_error(asio::use_awaitable, ec));
   EXPECT_EQ(sys::errc::invalid_argument, ec);
-  co_await FIFOtest::create_meta(rados(), fifo_id, pool(), std::nullopt,
-                                 std::nullopt, false,
-                                 FIFO::default_max_part_size, 0,
-                                 asio::redirect_error(asio::use_awaitable, ec));
+  co_await FIFOtest::create_meta(
+      rados(), fifo_id, pool(), std::nullopt, std::nullopt, false,
+      FIFO::default_max_part_size, 0,
+      asio::redirect_error(asio::use_awaitable, ec));
 
   EXPECT_EQ(sys::errc::invalid_argument, ec);
-  co_await FIFOtest::create_meta(rados(), fifo_id, pool(), std::nullopt,
-                                 std::nullopt, false,
-                                 FIFO::default_max_part_size,
-                                 FIFO::default_max_entry_size,
-                                 asio::redirect_error(asio::use_awaitable, ec));
+  co_await FIFOtest::create_meta(
+      rados(), fifo_id, pool(), std::nullopt, std::nullopt, false,
+      FIFO::default_max_part_size, FIFO::default_max_entry_size,
+      asio::redirect_error(asio::use_awaitable, ec));
   EXPECT_FALSE(ec);
   neorados::ReadOp op;
   std::uint64_t size;
@@ -119,11 +121,10 @@ CORO_TEST_F(cls_fifo, create, NeoRadosTest)
   co_await execute(fifo_id, std::move(op), nullptr);
   EXPECT_GT(size, 0);
   /* test idempotency */
-  co_await FIFOtest::create_meta(rados(), fifo_id, pool(), std::nullopt,
-                                 std::nullopt, false,
-                                 FIFO::default_max_part_size,
-                                 FIFO::default_max_entry_size,
-                                 asio::redirect_error(asio::use_awaitable, ec));
+  co_await FIFOtest::create_meta(
+      rados(), fifo_id, pool(), std::nullopt, std::nullopt, false,
+      FIFO::default_max_part_size, FIFO::default_max_entry_size,
+      asio::redirect_error(asio::use_awaitable, ec));
   EXPECT_FALSE(ec);
 }
 
@@ -132,41 +133,41 @@ CORO_TEST_F(cls_fifo, get_info, NeoRadosTest)
   auto r = rados();
   std::string_view fifo_id = "fifo";
 
-  co_await FIFOtest::create_meta(r, fifo_id, pool(), std::nullopt,
-                                 std::nullopt, false,
-                                 FIFO::default_max_part_size,
-                                 FIFO::default_max_entry_size,
-                                 asio::use_awaitable);
+  co_await FIFOtest::create_meta(
+      r, fifo_id, pool(), std::nullopt, std::nullopt, false,
+      FIFO::default_max_part_size, FIFO::default_max_entry_size,
+      asio::use_awaitable);
   auto [info, part_header_size, part_entry_overhead] =
-    co_await FIFOtest::get_meta(r, fifo_id, pool(), std::nullopt,
-                                asio::use_awaitable);
+      co_await FIFOtest::get_meta(
+          r, fifo_id, pool(), std::nullopt, asio::use_awaitable);
   EXPECT_GT(part_header_size, 0);
   EXPECT_GT(part_entry_overhead, 0);
   EXPECT_FALSE(info.version.instance.empty());
 
   std::tie(info, part_header_size, part_entry_overhead) =
-    co_await FIFOtest::get_meta(r, fifo_id, pool(), info.version,
-                                asio::use_awaitable);
+      co_await FIFOtest::get_meta(
+          r, fifo_id, pool(), info.version, asio::use_awaitable);
 
 
   decltype(info.version) objv;
   objv.instance = "foo";
   objv.ver = 12;
 
-  EXPECT_THROW({
-      std::tie(info, part_header_size, part_entry_overhead) =
-	co_await FIFOtest::get_meta(r, fifo_id, pool(), objv,
-				    asio::use_awaitable);
-
-    }, sys::system_error);
+  EXPECT_THROW(
+      {
+        std::tie(info, part_header_size, part_entry_overhead) =
+            co_await FIFOtest::get_meta(
+                r, fifo_id, pool(), objv, asio::use_awaitable);
+      },
+      sys::system_error);
 }
 
 CORO_TEST_F(fifo, open_default, NeoRadosTest)
 {
   std::string_view fifo_id = "fifo";
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable);
+  auto f =
+      co_await FIFO::create(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
   // force reading from backend
   co_await FIFOtest::read_meta(*f, &dp, asio::use_awaitable);
   auto info = FIFOtest::meta(*f);
@@ -184,10 +185,9 @@ CORO_TEST_F(fifo, open_params, NeoRadosTest)
   objv.instance = "fooz"s;
   objv.ver = 10;
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable,
-				 objv, oid_prefix, false,
-				 max_part_size, max_entry_size);
+  auto f = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, objv, oid_prefix,
+      false, max_part_size, max_entry_size);
 
   // force reading from backend
   co_await FIFOtest::read_meta(*f, &dp, asio::use_awaitable);
@@ -198,8 +198,9 @@ CORO_TEST_F(fifo, open_params, NeoRadosTest)
   EXPECT_EQ(info.version, objv);
 }
 
-template<class T>
-inline T decode_entry(const entry& entry)
+template <class T>
+inline T
+decode_entry(const entry& entry)
 {
   T val;
   auto iter = entry.data.cbegin();
@@ -211,8 +212,8 @@ CORO_TEST_F(fifo, push_list_trim, NeoRadosTest)
 {
   std::string_view fifo_id = "fifo";
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable);
+  auto f =
+      co_await FIFO::create(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
   static constexpr auto max_entries = 10u;
   for (auto i = 0u; i < max_entries; ++i) {
     buffer::list bl;
@@ -224,9 +225,8 @@ CORO_TEST_F(fifo, push_list_trim, NeoRadosTest)
   /* get entries one by one */
   std::string inmark;
   for (auto i = 0u; i < max_entries; ++i) {
-    auto [result, marker] =
-      co_await f->list(&dp, inmark, std::span{entries}.first(1),
-		       asio::use_awaitable);
+    auto [result, marker] = co_await f->list(
+        &dp, inmark, std::span{entries}.first(1), asio::use_awaitable);
     bool expected_marker = (i != (max_entries - 1));
     EXPECT_EQ(expected_marker, !marker.empty());
     EXPECT_EQ(1, result.size());
@@ -241,8 +241,7 @@ CORO_TEST_F(fifo, push_list_trim, NeoRadosTest)
   std::array<std::string, max_entries> markers;
 
   std::uint32_t min_entry = 0;
-  auto [res, marker] = co_await f->list(&dp, {}, entries,
-                                        asio::use_awaitable);
+  auto [res, marker] = co_await f->list(&dp, {}, entries, asio::use_awaitable);
 
   EXPECT_TRUE(marker.empty());
   EXPECT_EQ(max_entries, res.size());
@@ -256,8 +255,8 @@ CORO_TEST_F(fifo, push_list_trim, NeoRadosTest)
   co_await f->trim(&dp, markers[min_entry], false, asio::use_awaitable);
   ++min_entry;
 
-  std::tie(res, marker) = co_await f->list(&dp, {}, entries,
-                                           asio::use_awaitable);
+  std::tie(res, marker) =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
 
   EXPECT_TRUE(marker.empty());
   EXPECT_EQ(max_entries - min_entry, res.size());
@@ -275,10 +274,9 @@ CORO_TEST_F(fifo, push_too_big, NeoRadosTest)
   static constexpr auto max_entry_size = 128ull;
   std::string_view fifo_id = "fifo";
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable, std::nullopt,
-				 std::nullopt, false, max_part_size,
-				 max_entry_size);
+  auto f = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, std::nullopt,
+      std::nullopt, false, max_part_size, max_entry_size);
 
   std::array<char, max_entry_size + 1> buf;
   buf.fill('\0');
@@ -296,16 +294,16 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
   static constexpr auto max_entry_size = 128ull;
   std::string_view fifo_id = "fifo";
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable, std::nullopt,
-				 std::nullopt, false, max_part_size,
-				 max_entry_size);
+  auto f = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, std::nullopt,
+      std::nullopt, false, max_part_size, max_entry_size);
   std::array<char, max_entry_size> buf;
   buf.fill('\0');
   const auto [part_header_size, part_entry_overhead] =
-    FIFOtest::get_part_layout_info(*f);
-  const auto entries_per_part = ((max_part_size - part_header_size) /
-				 (max_entry_size + part_entry_overhead));
+      FIFOtest::get_part_layout_info(*f);
+  const auto entries_per_part =
+      ((max_part_size - part_header_size) /
+       (max_entry_size + part_entry_overhead));
   const auto max_entries = entries_per_part * 4 + 1;
   /* push enough entries */
   for (auto i = 0u; i < max_entries; ++i) {
@@ -323,8 +321,8 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
   std::vector<entry> entries{max_entries};
   {
     /* list all at once */
-    auto [result, marker] = co_await f->list(&dp, {}, entries,
-					     asio::use_awaitable);
+    auto [result, marker] =
+        co_await f->list(&dp, {}, entries, asio::use_awaitable);
 
     EXPECT_TRUE(marker.empty());
     EXPECT_EQ(max_entries, result.size());
@@ -339,9 +337,8 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
   /* get entries one by one */
   for (auto i = 0u; i < max_entries; ++i) {
     std::span<entry> result;
-    std::tie(result, marker) = co_await f->list(&dp, marker,
-						std::span(entries).first(1),
-						asio::use_awaitable);
+    std::tie(result, marker) = co_await f->list(
+        &dp, marker, std::span(entries).first(1), asio::use_awaitable);
 
     EXPECT_EQ(1, result.size());
     const bool expected_more = (i != (max_entries - 1));
@@ -357,9 +354,8 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
   for (auto i = 0u; i < max_entries; ++i) {
     /* read single entry */
     std::span<entry> result;
-    std::tie(result, marker) = co_await f->list(&dp, {},
-						std::span(entries).first(1),
-						asio::use_awaitable);
+    std::tie(result, marker) = co_await f->list(
+        &dp, {}, std::span(entries).first(1), asio::use_awaitable);
     EXPECT_EQ(result.size(), 1);
     const bool expected_more = (i != (max_entries - 1));
     EXPECT_EQ(expected_more, !marker.empty());
@@ -373,8 +369,8 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
     EXPECT_EQ(info.tail_part_num, i / entries_per_part);
 
     /* try to read all again, see how many entries left */
-    std::tie(result, marker) = co_await f->list(&dp, marker, entries,
-						asio::use_awaitable);
+    std::tie(result, marker) =
+        co_await f->list(&dp, marker, entries, asio::use_awaitable);
     EXPECT_EQ(max_entries - i - 1, result.size());
     EXPECT_TRUE(marker.empty());
   }
@@ -386,8 +382,8 @@ CORO_TEST_F(fifo, multiple_parts, NeoRadosTest)
   /* check old tails are removed */
   for (auto i = 0; i < info.tail_part_num; ++i) {
     sys::error_code ec;
-    co_await FIFOtest::get_part_info(*f, i, asio::redirect_error(
-				       asio::use_awaitable, ec));
+    co_await FIFOtest::get_part_info(
+        *f, i, asio::redirect_error(asio::use_awaitable, ec));
     EXPECT_EQ(sys::errc::no_such_file_or_directory, ec);
   }
   /* check current tail exists */
@@ -400,21 +396,21 @@ CORO_TEST_F(fifo, two_pushers, NeoRadosTest)
   static constexpr auto max_entry_size = 128ull;
   std::string_view fifo_id = "fifo";
 
-  auto f1 = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				  asio::use_awaitable, std::nullopt,
-				  std::nullopt, false, max_part_size,
-				  max_entry_size);
+  auto f1 = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, std::nullopt,
+      std::nullopt, false, max_part_size, max_entry_size);
   std::array<char, max_entry_size> buf;
   buf.fill('\0');
   const auto [part_header_size, part_entry_overhead] =
-    FIFOtest::get_part_layout_info(*f1);
-  const auto entries_per_part = ((max_part_size - part_header_size) /
-				 (max_entry_size + part_entry_overhead));
+      FIFOtest::get_part_layout_info(*f1);
+  const auto entries_per_part =
+      ((max_part_size - part_header_size) /
+       (max_entry_size + part_entry_overhead));
   const auto max_entries = entries_per_part * 4 + 1;
 
 
-  auto f2 = co_await FIFO::open(&dp, rados(), fifo_id, pool(),
-				      asio::use_awaitable);
+  auto f2 =
+      co_await FIFO::open(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
   std::vector fifos{f1.get(), f2.get()};
 
   for (auto i = 0u; i < max_entries; ++i) {
@@ -427,13 +423,13 @@ CORO_TEST_F(fifo, two_pushers, NeoRadosTest)
 
   /* list all by both */
   std::vector<entry> entries{max_entries};
-  auto [result, marker] = co_await f1->list(&dp, {}, entries,
-					    asio::use_awaitable);
+  auto [result, marker] =
+      co_await f1->list(&dp, {}, entries, asio::use_awaitable);
   EXPECT_TRUE(marker.empty());
   EXPECT_EQ(max_entries, result.size());
 
-  std::tie(result, marker) = co_await f2->list(&dp, {}, entries,
-					       asio::use_awaitable);
+  std::tie(result, marker) =
+      co_await f2->list(&dp, {}, entries, asio::use_awaitable);
   EXPECT_TRUE(marker.empty());
   EXPECT_EQ(max_entries, result.size());
 
@@ -449,21 +445,21 @@ CORO_TEST_F(fifo, two_pushers_trim, NeoRadosTest)
   static constexpr auto max_entry_size = 128ull;
   std::string_view fifo_id = "fifo";
 
-  auto f1 = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				  asio::use_awaitable, std::nullopt,
-				  std::nullopt, false, max_part_size,
-				  max_entry_size);
+  auto f1 = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, std::nullopt,
+      std::nullopt, false, max_part_size, max_entry_size);
   std::array<char, max_entry_size> buf;
   buf.fill('\0');
   const auto [part_header_size, part_entry_overhead] =
-    FIFOtest::get_part_layout_info(*f1);
-  const auto entries_per_part = ((max_part_size - part_header_size) /
-				 (max_entry_size + part_entry_overhead));
+      FIFOtest::get_part_layout_info(*f1);
+  const auto entries_per_part =
+      ((max_part_size - part_header_size) /
+       (max_entry_size + part_entry_overhead));
   const auto max_entries = entries_per_part * 4 + 1;
 
 
-  auto f2 = co_await FIFO::open(&dp, rados(), fifo_id, pool(),
-				asio::use_awaitable);
+  auto f2 =
+      co_await FIFO::open(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
   /* push one entry to f2 and the rest to f1 */
   for (auto i = 0u; i < max_entries; ++i) {
     buffer::list bl;
@@ -476,9 +472,8 @@ CORO_TEST_F(fifo, two_pushers_trim, NeoRadosTest)
   /* trim half by fifo1 */
   auto num = max_entries / 2;
   std::vector<entry> entries{max_entries};
-  auto [result, marker] = co_await f1->list(&dp, {},
-					    std::span(entries).first(num),
-					    asio::use_awaitable);
+  auto [result, marker] = co_await f1->list(
+      &dp, {}, std::span(entries).first(num), asio::use_awaitable);
   EXPECT_TRUE(!marker.empty());
   EXPECT_EQ(num, result.size());
 
@@ -493,9 +488,8 @@ CORO_TEST_F(fifo, two_pushers_trim, NeoRadosTest)
   /* list what's left by fifo2 */
 
   const auto left = max_entries - num;
-  std::tie(result, marker) = co_await f2->list(&dp, marker,
-					       std::span(entries).first(left),
-					       asio::use_awaitable);
+  std::tie(result, marker) = co_await f2->list(
+      &dp, marker, std::span(entries).first(left), asio::use_awaitable);
 
   EXPECT_EQ(left, result.size());
   EXPECT_TRUE(marker.empty());
@@ -512,16 +506,16 @@ CORO_TEST_F(fifo, push_batch, NeoRadosTest)
   static constexpr auto max_entry_size = 128ull;
   std::string_view fifo_id = "fifo";
 
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable, std::nullopt,
-				 std::nullopt, false, max_part_size,
-				 max_entry_size);
+  auto f = co_await FIFO::create(
+      &dp, rados(), fifo_id, pool(), asio::use_awaitable, std::nullopt,
+      std::nullopt, false, max_part_size, max_entry_size);
   std::array<char, max_entry_size> buf;
   buf.fill('\0');
   const auto [part_header_size, part_entry_overhead] =
-    FIFOtest::get_part_layout_info(*f);
-  const auto entries_per_part = ((max_part_size - part_header_size) /
-				 (max_entry_size + part_entry_overhead));
+      FIFOtest::get_part_layout_info(*f);
+  const auto entries_per_part =
+      ((max_part_size - part_header_size) /
+       (max_entry_size + part_entry_overhead));
   const auto max_entries = entries_per_part * 4 + 1;
 
 
@@ -537,8 +531,8 @@ CORO_TEST_F(fifo, push_batch, NeoRadosTest)
 
   /* list all */
   std::vector<entry> entries{max_entries};
-  auto [result, marker] = co_await f->list(&dp, {}, entries,
-					   asio::use_awaitable);
+  auto [result, marker] =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
   EXPECT_TRUE(marker.empty());
   EXPECT_EQ(max_entries, result.size());
   for (auto i = 0u; i < max_entries; ++i) {
@@ -552,8 +546,8 @@ CORO_TEST_F(fifo, push_batch, NeoRadosTest)
 CORO_TEST_F(fifo, trim_exclusive, NeoRadosTest)
 {
   std::string_view fifo_id = "fifo";
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable);
+  auto f =
+      co_await FIFO::create(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
 
   static constexpr auto max_entries = 10u;
   for (auto i = 0u; i < max_entries; ++i) {
@@ -563,28 +557,28 @@ CORO_TEST_F(fifo, trim_exclusive, NeoRadosTest)
   }
 
   std::array<entry, max_entries> entries;
-  auto [result, marker] = co_await f->list(&dp, {}, std::span{entries}.first(1),
-					   asio::use_awaitable);
+  auto [result, marker] = co_await f->list(
+      &dp, {}, std::span{entries}.first(1), asio::use_awaitable);
   auto val = decode_entry<std::uint32_t>(result.front());
   EXPECT_EQ(0, val);
   EXPECT_EQ(marker, result.front().marker);
 
   co_await f->trim(&dp, marker, true, asio::use_awaitable);
 
-  std::tie(result, marker) = co_await f->list(&dp, {}, entries,
-					      asio::use_awaitable);
+  std::tie(result, marker) =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
   val = decode_entry<std::uint32_t>(result.front());
   EXPECT_EQ(0, val);
   co_await f->trim(&dp, result[4].marker, true, asio::use_awaitable);
 
-  std::tie(result, marker) = co_await f->list(&dp, {}, entries,
-					      asio::use_awaitable);
+  std::tie(result, marker) =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
   val = decode_entry<std::uint32_t>(result.front());
   EXPECT_EQ(4, val);
   co_await f->trim(&dp, result.back().marker, true, asio::use_awaitable);
 
-  std::tie(result, marker) = co_await f->list(&dp, {}, entries,
-					      asio::use_awaitable);
+  std::tie(result, marker) =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
   val = decode_entry<std::uint32_t>(result.front());
   EXPECT_EQ(1, result.size());
   EXPECT_EQ(max_entries - 1, val);
@@ -593,8 +587,8 @@ CORO_TEST_F(fifo, trim_exclusive, NeoRadosTest)
 CORO_TEST_F(fifo, trim_all, NeoRadosTest)
 {
   std::string_view fifo_id = "fifo";
-  auto f = co_await FIFO::create(&dp, rados(), fifo_id, pool(),
-				 asio::use_awaitable);
+  auto f =
+      co_await FIFO::create(&dp, rados(), fifo_id, pool(), asio::use_awaitable);
 
   static constexpr auto max_entries = 10u;
   for (auto i = 0u; i < max_entries; ++i) {
@@ -604,13 +598,14 @@ CORO_TEST_F(fifo, trim_all, NeoRadosTest)
   }
 
   sys::error_code ec;
-  co_await f->trim(&dp, f->max_marker(), false,
-		   asio::redirect_error(asio::use_awaitable, ec));
+  co_await f->trim(
+      &dp, f->max_marker(), false,
+      asio::redirect_error(asio::use_awaitable, ec));
   EXPECT_EQ(sys::errc::no_message_available, ec);
 
   std::array<entry, max_entries> entries;
-  auto [result, marker] = co_await f->list(&dp, {}, entries,
-					   asio::use_awaitable);
+  auto [result, marker] =
+      co_await f->list(&dp, {}, entries, asio::use_awaitable);
   EXPECT_TRUE(result.empty());
   EXPECT_TRUE(marker.empty());
 }
@@ -626,59 +621,55 @@ TEST(neocls_fifo_bare, lambdata)
   static constexpr auto max_entries = 10u;
   std::array<entry, max_entries> list_entries;
   bool completed = false;
-  neorados::RADOS::Builder{}.build(
-    c,
-    [&](sys::error_code ec, neorados::RADOS r_) {
-      ASSERT_FALSE(ec);
-      rados = std::move(r_);
-      create_pool(
-	*rados, get_temp_pool_name(),
-	[&](sys::error_code ec, int64_t poolid) {
-	  ASSERT_FALSE(ec);
-	  pool.set_pool(poolid);
-	  FIFO::create(
-	    &dp, *rados, fifo_id, pool,
-	    [&](sys::error_code ec, std::unique_ptr<FIFO> f_) {
-	      ASSERT_FALSE(ec);
-	      f = std::move(f_);
-	      std::array<buffer::list, max_entries> entries;
-	      for (auto i = 0u; i < max_entries; ++i) {
-		encode(i, entries[i]);
-	      }
-	      f->push(
-		&dp, entries,
-		[&](sys::error_code ec) {
-		  ASSERT_FALSE(ec);
-		  f->list(
-		    &dp, {}, list_entries,
-		    [&](sys::error_code ec, std::span<entry> result,
-			std::string marker) {
-		      ASSERT_FALSE(ec);
-		      ASSERT_EQ(max_entries, result.size());
-		      ASSERT_TRUE(marker.empty());
-		      for (auto i = 0u; i < max_entries; ++i) {
-			auto val = decode_entry<std::uint32_t>(result[i]);
-			EXPECT_EQ(i, val);
-		      }
-		      f->trim(
-			&dp, f->max_marker(), false,
-			[&](sys::error_code ec) {
-			  ASSERT_EQ(sys::errc::no_message_available, ec);
-			  f->list(
-			    &dp, {}, list_entries,
-			    [&](sys::error_code ec, std::span<entry> result,
-				std::string marker) {
-			      ASSERT_FALSE(ec);
-			      ASSERT_TRUE(result.empty());
-			      ASSERT_TRUE(marker.empty());
-			      completed = true;
-			    });
-			});
-		    });
-		});
-	    });
-	});
-    });
+  neorados::RADOS::Builder{}.build(c, [&](sys::error_code ec, neorados::RADOS r_) {
+    ASSERT_FALSE(ec);
+    rados = std::move(r_);
+    create_pool(
+        *rados, get_temp_pool_name(), [&](sys::error_code ec, int64_t poolid) {
+          ASSERT_FALSE(ec);
+          pool.set_pool(poolid);
+          FIFO::create(
+              &dp, *rados, fifo_id, pool,
+              [&](sys::error_code ec, std::unique_ptr<FIFO> f_) {
+                ASSERT_FALSE(ec);
+                f = std::move(f_);
+                std::array<buffer::list, max_entries> entries;
+                for (auto i = 0u; i < max_entries; ++i) {
+                  encode(i, entries[i]);
+                }
+                f->push(&dp, entries, [&](sys::error_code ec) {
+                  ASSERT_FALSE(ec);
+                  f->list(
+                      &dp, {}, list_entries,
+                      [&](sys::error_code ec, std::span<entry> result,
+                          std::string marker) {
+                        ASSERT_FALSE(ec);
+                        ASSERT_EQ(max_entries, result.size());
+                        ASSERT_TRUE(marker.empty());
+                        for (auto i = 0u; i < max_entries; ++i) {
+                          auto val = decode_entry<std::uint32_t>(result[i]);
+                          EXPECT_EQ(i, val);
+                        }
+                        f->trim(
+                            &dp, f->max_marker(), false,
+                            [&](sys::error_code ec) {
+                              ASSERT_EQ(sys::errc::no_message_available, ec);
+                              f->list(
+                                  &dp, {}, list_entries,
+                                  [&](sys::error_code ec,
+                                      std::span<entry> result,
+                                      std::string marker) {
+                                    ASSERT_FALSE(ec);
+                                    ASSERT_TRUE(result.empty());
+                                    ASSERT_TRUE(marker.empty());
+                                    completed = true;
+                                  });
+                            });
+                      });
+                });
+              });
+        });
+  });
   c.run();
   ASSERT_TRUE(completed);
 }

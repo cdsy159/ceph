@@ -25,8 +25,7 @@
 #include "include/ceph_assert.h"
 
 /* We put our cross-process semaphore into a page of memory mapped with mmap. */
-struct cross_process_sem_data_t
-{
+struct cross_process_sem_data_t {
   sem_t sem;
 };
 
@@ -36,24 +35,25 @@ struct cross_process_sem_data_t
  * care about destroying semaphores before the process finishes. It's pretty
  * difficult to get it right and there is usually no benefit.
  */
-int CrossProcessSem::
-create(int initial_val, CrossProcessSem** res)
+int
+CrossProcessSem::create(int initial_val, CrossProcessSem** res)
 {
-  #ifndef _WIN32
-  struct cross_process_sem_data_t *data = static_cast < cross_process_sem_data_t*> (
-    mmap(NULL, sizeof(struct cross_process_sem_data_t),
-       PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0));
+#ifndef _WIN32
+  struct cross_process_sem_data_t* data =
+      static_cast<cross_process_sem_data_t*>(mmap(
+          NULL, sizeof(struct cross_process_sem_data_t), PROT_READ | PROT_WRITE,
+          MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   if (data == MAP_FAILED) {
     int err = errno;
     return err;
   }
   int ret = sem_init(&data->sem, 1, initial_val);
-  #else
+#else
   // We can't use multiple processes on Windows for the time being.
-  struct cross_process_sem_data_t *data = (cross_process_sem_data_t*)malloc(
-    sizeof(cross_process_sem_data_t));
+  struct cross_process_sem_data_t* data =
+      (cross_process_sem_data_t*)malloc(sizeof(cross_process_sem_data_t));
   int ret = sem_init(&data->sem, 0, initial_val);
-  #endif /* _WIN32 */
+#endif /* _WIN32 */
   if (ret) {
     return ret;
   }
@@ -61,21 +61,20 @@ create(int initial_val, CrossProcessSem** res)
   return 0;
 }
 
-CrossProcessSem::
-~CrossProcessSem()
+CrossProcessSem::~CrossProcessSem()
 {
-  #ifndef _WIN32
+#ifndef _WIN32
   munmap(m_data, sizeof(struct cross_process_sem_data_t));
-  #else
+#else
   free(m_data);
-  #endif
+#endif
   m_data = NULL;
 }
 
-void CrossProcessSem::
-wait()
+void
+CrossProcessSem::wait()
 {
-  while(true) {
+  while (true) {
     int ret = sem_wait(&m_data->sem);
     if (ret == 0)
       return;
@@ -86,8 +85,8 @@ wait()
   }
 }
 
-void CrossProcessSem::
-post()
+void
+CrossProcessSem::post()
 {
   int ret = sem_post(&m_data->sem);
   if (ret == -1) {
@@ -95,8 +94,8 @@ post()
   }
 }
 
-int CrossProcessSem::
-reinit(int dval)
+int
+CrossProcessSem::reinit(int dval)
 {
   if (dval < 0)
     return -EINVAL;
@@ -107,8 +106,7 @@ reinit(int dval)
     int diff = dval - cval;
     for (int i = 0; i < diff; ++i)
       sem_post(&m_data->sem);
-  }
-  else {
+  } else {
     int diff = cval - dval;
     for (int i = 0; i < diff; ++i)
       sem_wait(&m_data->sem);
@@ -116,8 +114,6 @@ reinit(int dval)
   return 0;
 }
 
-CrossProcessSem::
-CrossProcessSem(struct cross_process_sem_data_t *data)
-  : m_data(data)
-{
-}
+CrossProcessSem::CrossProcessSem(struct cross_process_sem_data_t* data) :
+  m_data(data)
+{}

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -14,7 +14,6 @@
  */
 
 
-
 #ifndef CEPH_LRU_H
 #define CEPH_LRU_H
 
@@ -22,36 +21,76 @@
 #include <stdint.h>
 
 #include "common/config.h"
+
 #include "xlist.h"
 
 class LRUObject {
 public:
-  LRUObject() : lru_link(this) {}
+  LRUObject() :
+    lru_link(this)
+  {}
+
   virtual ~LRUObject();
 
   // pin/unpin item in cache
   void lru_pin();
   void lru_unpin();
-  bool lru_is_expireable() const { return !lru_pinned; }
+
+  bool
+  lru_is_expireable() const
+  {
+    return !lru_pinned;
+  }
 
   friend class LRU;
+
 private:
-  class LRU *lru{};
-  xlist<LRUObject *>::item lru_link;
+  class LRU* lru{};
+  xlist<LRUObject*>::item lru_link;
   bool lru_pinned = false;
 };
 
 class LRU {
 public:
-  uint64_t lru_get_size() const { return lru_get_top()+lru_get_bot()+lru_get_pintail(); }
-  uint64_t lru_get_top() const { return top.size(); }
-  uint64_t lru_get_bot() const{ return bottom.size(); }
-  uint64_t lru_get_pintail() const { return pintail.size(); }
-  uint64_t lru_get_num_pinned() const { return num_pinned; }
+  uint64_t
+  lru_get_size() const
+  {
+    return lru_get_top() + lru_get_bot() + lru_get_pintail();
+  }
 
-  void lru_set_midpoint(double f) { midpoint = fmin(1.0, fmax(0.0, f)); }
-  
-  void lru_clear() {
+  uint64_t
+  lru_get_top() const
+  {
+    return top.size();
+  }
+
+  uint64_t
+  lru_get_bot() const
+  {
+    return bottom.size();
+  }
+
+  uint64_t
+  lru_get_pintail() const
+  {
+    return pintail.size();
+  }
+
+  uint64_t
+  lru_get_num_pinned() const
+  {
+    return num_pinned;
+  }
+
+  void
+  lru_set_midpoint(double f)
+  {
+    midpoint = fmin(1.0, fmax(0.0, f));
+  }
+
+  void
+  lru_clear()
+  {
     while (!top.empty()) {
       lru_remove(top.front());
     }
@@ -65,46 +104,61 @@ public:
   }
 
   // insert at top of lru
-  void lru_insert_top(LRUObject *o) {
+  void
+  lru_insert_top(LRUObject* o)
+  {
     ceph_assert(!o->lru);
     o->lru = this;
     top.push_front(&o->lru_link);
-    if (o->lru_pinned) num_pinned++;
+    if (o->lru_pinned)
+      num_pinned++;
     adjust();
   }
 
   // insert at mid point in lru
-  void lru_insert_mid(LRUObject *o) {
+  void
+  lru_insert_mid(LRUObject* o)
+  {
     ceph_assert(!o->lru);
     o->lru = this;
     bottom.push_front(&o->lru_link);
-    if (o->lru_pinned) num_pinned++;
+    if (o->lru_pinned)
+      num_pinned++;
     adjust();
   }
 
   // insert at bottom of lru
-  void lru_insert_bot(LRUObject *o) {
+  void
+  lru_insert_bot(LRUObject* o)
+  {
     ceph_assert(!o->lru);
     o->lru = this;
     bottom.push_back(&o->lru_link);
-    if (o->lru_pinned) num_pinned++;
+    if (o->lru_pinned)
+      num_pinned++;
     adjust();
   }
 
   // remove an item
-  LRUObject *lru_remove(LRUObject *o) {
-    if (!o->lru) return o;
+  LRUObject*
+  lru_remove(LRUObject* o)
+  {
+    if (!o->lru)
+      return o;
     auto list = o->lru_link.get_list();
     ceph_assert(list == &top || list == &bottom || list == &pintail);
     o->lru_link.remove_myself();
-    if (o->lru_pinned) num_pinned--;
+    if (o->lru_pinned)
+      num_pinned--;
     o->lru = nullptr;
     adjust();
     return o;
   }
 
   // touch item -- move to head of lru
-  bool lru_touch(LRUObject *o) {
+  bool
+  lru_touch(LRUObject* o)
+  {
     if (!o->lru) {
       lru_insert_top(o);
     } else {
@@ -118,14 +172,17 @@ public:
   }
 
   // touch item -- move to midpoint (unless already higher)
-  bool lru_midtouch(LRUObject *o) {
+  bool
+  lru_midtouch(LRUObject* o)
+  {
     if (!o->lru) {
       lru_insert_mid(o);
     } else {
       ceph_assert(o->lru == this);
       auto list = o->lru_link.get_list();
       ceph_assert(list == &top || list == &bottom || list == &pintail);
-      if (list == &top) return false;
+      if (list == &top)
+        return false;
       bottom.push_front(&o->lru_link);
       adjust();
     }
@@ -133,7 +190,9 @@ public:
   }
 
   // touch item -- move to bottom
-  bool lru_bottouch(LRUObject *o) {
+  bool
+  lru_bottouch(LRUObject* o)
+  {
     if (!o->lru) {
       lru_insert_bot(o);
     } else {
@@ -146,7 +205,9 @@ public:
     return true;
   }
 
-  void lru_touch_entire_pintail() {
+  void
+  lru_touch_entire_pintail()
+  {
     // promote entire pintail to the top lru
     while (pintail.size() > 0) {
       top.push_back(&pintail.front()->lru_link);
@@ -155,12 +216,15 @@ public:
   }
 
   // expire -- expire a single item
-  LRUObject *lru_get_next_expire() {
+  LRUObject*
+  lru_get_next_expire()
+  {
     adjust();
     // look through tail of bot
     while (bottom.size()) {
-      LRUObject *p = bottom.back();
-      if (!p->lru_pinned) return p;
+      LRUObject* p = bottom.back();
+      if (!p->lru_pinned)
+        return p;
 
       // move to pintail
       pintail.push_front(&p->lru_link);
@@ -168,27 +232,32 @@ public:
 
     // ok, try head then
     while (top.size()) {
-      LRUObject *p = top.back();
-      if (!p->lru_pinned) return p;
+      LRUObject* p = top.back();
+      if (!p->lru_pinned)
+        return p;
 
       // move to pintail
       pintail.push_front(&p->lru_link);
     }
-    
+
     // no luck!
     return NULL;
   }
-  
-  LRUObject *lru_expire() {
-    LRUObject *p = lru_get_next_expire();
-    if (p) 
+
+  LRUObject*
+  lru_expire()
+  {
+    LRUObject* p = lru_get_next_expire();
+    if (p)
       return lru_remove(p);
     return NULL;
   }
 
 protected:
   // adjust top/bot balance, as necessary
-  void adjust() {
+  void
+  adjust()
+  {
     uint64_t toplen = top.size();
     uint64_t topwant = (midpoint * (double)(lru_get_size() - num_pinned));
     /* move items from below midpoint (bottom) to top: move midpoint forward */
@@ -205,25 +274,31 @@ protected:
   double midpoint = 0.6;
 
   friend class LRUObject;
+
 private:
   using LRUList = xlist<LRUObject*>;
   LRUList top, bottom, pintail;
 };
 
-inline LRUObject::~LRUObject() {
+inline LRUObject::~LRUObject()
+{
   if (lru) {
     lru->lru_remove(this);
   }
 }
 
-inline void LRUObject::lru_pin() {
+inline void
+LRUObject::lru_pin()
+{
   if (lru && !lru_pinned) {
     lru->num_pinned++;
   }
   lru_pinned = true;
 }
 
-inline void LRUObject::lru_unpin() {
+inline void
+LRUObject::lru_unpin()
+{
   if (lru && lru_pinned) {
     lru->num_pinned--;
 

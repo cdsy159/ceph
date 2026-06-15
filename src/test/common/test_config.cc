@@ -25,8 +25,8 @@
 
 #include "common/config_proxy.h"
 #include "common/errno.h"
-#include "gtest/gtest.h"
 #include "common/hostname.h"
+#include "gtest/gtest.h"
 
 using namespace std;
 
@@ -34,12 +34,13 @@ extern std::string exec(const char* cmd); // defined in test_hostname.cc
 
 class test_config_proxy : public ConfigProxy, public ::testing::Test {
 public:
-
-  test_config_proxy()
-    : ConfigProxy{true}, Test()
+  test_config_proxy() :
+    ConfigProxy{true}, Test()
   {}
 
-  void test_expand_meta() {
+  void
+  test_expand_meta()
+  {
     // successfull meta expansion $run_dir and ${run_dir}
     {
       ostringstream oss;
@@ -91,7 +92,8 @@ public:
       std::string lockdep = "true";
       EXPECT_EQ(0, set_val("lockdep", lockdep.c_str()));
 
-      std::string cluster_network = "$public_network $public_network $lockdep $host";
+      std::string cluster_network =
+          "$public_network $public_network $lockdep $host";
       EXPECT_EQ(0, set_val("cluster_network", cluster_network.c_str()));
 
       std::string public_network = "NETWORK";
@@ -100,10 +102,10 @@ public:
       ostringstream oss;
       std::string val = "$mon_host";
       early_expand_meta(val, &oss);
-      EXPECT_EQ(public_network + " " +
-                public_network + " " +
-                lockdep + " " +
-                "localhost", val);
+      EXPECT_EQ(
+          public_network + " " + public_network + " " + lockdep + " " +
+              "localhost",
+          val);
       EXPECT_EQ("", oss.str());
     }
     // variable expansion loops are non fatal
@@ -121,21 +123,18 @@ public:
       std::string val = "$mon_host";
       early_expand_meta(val, &oss);
       EXPECT_EQ("$mon_host", val);
-      const char *expected_oss =
-        "variable expansion loop at mon_host=$cluster_network\n"
-        "expansion stack:\n"
-        "public_network=$mon_host\n"
-        "cluster_network=$public_network\n"
-        "mon_host=$cluster_network\n";
+      const char* expected_oss =
+          "variable expansion loop at mon_host=$cluster_network\n"
+          "expansion stack:\n"
+          "public_network=$mon_host\n"
+          "cluster_network=$public_network\n"
+          "mon_host=$cluster_network\n";
       EXPECT_EQ(expected_oss, oss.str());
     }
   }
 };
 
-TEST_F(test_config_proxy, expand_meta)
-{
-  test_expand_meta();
-}
+TEST_F(test_config_proxy, expand_meta) { test_expand_meta(); }
 
 TEST(md_config_t, parse_env)
 {
@@ -161,10 +160,10 @@ TEST(md_config_t, set_val)
   int buf_size = 1024;
   ConfigProxy conf{false};
   {
-    char *run_dir = (char*)malloc(buf_size);
+    char* run_dir = (char*)malloc(buf_size);
     EXPECT_EQ(0, conf.get_val("run_dir", &run_dir, buf_size));
     EXPECT_EQ(0, conf.set_val("admin_socket", "$run_dir"));
-    char *admin_socket = (char*)malloc(buf_size);
+    char* admin_socket = (char*)malloc(buf_size);
     EXPECT_EQ(0, conf.get_val("admin_socket", &admin_socket, buf_size));
     EXPECT_EQ(std::string(run_dir), std::string(admin_socket));
     free(run_dir);
@@ -183,14 +182,16 @@ TEST(md_config_t, set_val)
     using namespace std::chrono;
     const string s{"1 days 2 hours 4 minutes"};
     using days_t = duration<int, std::ratio<3600 * 24>>;
-    auto expected = (duration_cast<seconds>(days_t{1}) +
-                    duration_cast<seconds>(hours{2}) +
-                    duration_cast<seconds>(minutes{4}));
-    EXPECT_EQ(0, conf.set_val("mgr_tick_period",
-                             "1 days 2 hours 4 minutes", nullptr));
-    EXPECT_EQ(expected.count(), conf.get_val<seconds>("mgr_tick_period").count());
+    auto expected =
+        (duration_cast<seconds>(days_t{1}) + duration_cast<seconds>(hours{2}) +
+         duration_cast<seconds>(minutes{4}));
+    EXPECT_EQ(
+        0, conf.set_val("mgr_tick_period", "1 days 2 hours 4 minutes", nullptr));
+    EXPECT_EQ(
+        expected.count(), conf.get_val<seconds>("mgr_tick_period").count());
     EXPECT_EQ(-EINVAL, conf.set_val("mgr_tick_period", "21 centuries", nullptr));
-    EXPECT_EQ(expected.count(), conf.get_val<seconds>("mgr_tick_period").count());
+    EXPECT_EQ(
+        expected.count(), conf.get_val<seconds>("mgr_tick_period").count());
   }
 
   using namespace std::chrono;
@@ -201,39 +202,38 @@ TEST(md_config_t, set_val)
     std::string s;
     std::chrono::seconds r;
   };
+
   std::vector<testcase> good = {
-    { "23"s, duration_cast<seconds>(seconds{23}) },
-    { " 23 "s, duration_cast<seconds>(seconds{23}) },
-    { " 23s "s, duration_cast<seconds>(seconds{23}) },
-    { " 23 s "s, duration_cast<seconds>(seconds{23}) },
-    { " 23 sec "s, duration_cast<seconds>(seconds{23}) },
-    { "23 second "s, duration_cast<seconds>(seconds{23}) },
-    { "23 seconds"s, duration_cast<seconds>(seconds{23}) },
-    { "2m5s"s,  duration_cast<seconds>(seconds{2*60+5}) },
-    { "2 m 5 s "s,  duration_cast<seconds>(seconds{2*60+5}) },
-    { "2 m5"s,  duration_cast<seconds>(seconds{2*60+5}) },
-    { "2 min5"s,  duration_cast<seconds>(seconds{2*60+5}) },
-    { "2 minutes  5"s,  duration_cast<seconds>(seconds{2*60+5}) },
-    { "1w"s, duration_cast<seconds>(seconds{3600*24*7}) },
-    { "1wk"s, duration_cast<seconds>(seconds{3600*24*7}) },
-    { "1week"s, duration_cast<seconds>(seconds{3600*24*7}) },
-    { "1weeks"s, duration_cast<seconds>(seconds{3600*24*7}) },
-    { "1month"s, duration_cast<seconds>(seconds{3600*24*30}) },
-    { "1months"s, duration_cast<seconds>(seconds{3600*24*30}) },
-    { "1mo"s, duration_cast<seconds>(seconds{3600*24*30}) },
-    { "1y"s, duration_cast<seconds>(seconds{3600*24*365}) },
-    { "1yr"s, duration_cast<seconds>(seconds{3600*24*365}) },
-    { "1year"s, duration_cast<seconds>(seconds{3600*24*365}) },
-    { "1years"s, duration_cast<seconds>(seconds{3600*24*365}) },
-    { "1d2h3m4s"s,
-      duration_cast<seconds>(days_t{1}) +
-      duration_cast<seconds>(hours{2}) +
-      duration_cast<seconds>(minutes{3}) +
-      duration_cast<seconds>(seconds{4}) },
-    { "1 days 2 hours 4 minutes"s,
-      duration_cast<seconds>(days_t{1}) +
-      duration_cast<seconds>(hours{2}) +
-      duration_cast<seconds>(minutes{4}) },
+      {"23"s, duration_cast<seconds>(seconds{23})},
+      {" 23 "s, duration_cast<seconds>(seconds{23})},
+      {" 23s "s, duration_cast<seconds>(seconds{23})},
+      {" 23 s "s, duration_cast<seconds>(seconds{23})},
+      {" 23 sec "s, duration_cast<seconds>(seconds{23})},
+      {"23 second "s, duration_cast<seconds>(seconds{23})},
+      {"23 seconds"s, duration_cast<seconds>(seconds{23})},
+      {"2m5s"s, duration_cast<seconds>(seconds{2 * 60 + 5})},
+      {"2 m 5 s "s, duration_cast<seconds>(seconds{2 * 60 + 5})},
+      {"2 m5"s, duration_cast<seconds>(seconds{2 * 60 + 5})},
+      {"2 min5"s, duration_cast<seconds>(seconds{2 * 60 + 5})},
+      {"2 minutes  5"s, duration_cast<seconds>(seconds{2 * 60 + 5})},
+      {"1w"s, duration_cast<seconds>(seconds{3600 * 24 * 7})},
+      {"1wk"s, duration_cast<seconds>(seconds{3600 * 24 * 7})},
+      {"1week"s, duration_cast<seconds>(seconds{3600 * 24 * 7})},
+      {"1weeks"s, duration_cast<seconds>(seconds{3600 * 24 * 7})},
+      {"1month"s, duration_cast<seconds>(seconds{3600 * 24 * 30})},
+      {"1months"s, duration_cast<seconds>(seconds{3600 * 24 * 30})},
+      {"1mo"s, duration_cast<seconds>(seconds{3600 * 24 * 30})},
+      {"1y"s, duration_cast<seconds>(seconds{3600 * 24 * 365})},
+      {"1yr"s, duration_cast<seconds>(seconds{3600 * 24 * 365})},
+      {"1year"s, duration_cast<seconds>(seconds{3600 * 24 * 365})},
+      {"1years"s, duration_cast<seconds>(seconds{3600 * 24 * 365})},
+      {"1d2h3m4s"s, duration_cast<seconds>(days_t{1}) +
+                        duration_cast<seconds>(hours{2}) +
+                        duration_cast<seconds>(minutes{3}) +
+                        duration_cast<seconds>(seconds{4})},
+      {"1 days 2 hours 4 minutes"s, duration_cast<seconds>(days_t{1}) +
+                                        duration_cast<seconds>(hours{2}) +
+                                        duration_cast<seconds>(minutes{4})},
   };
 
   for (auto& i : good) {
@@ -243,11 +243,7 @@ TEST(md_config_t, set_val)
   }
 
   std::vector<std::string> bad = {
-    "12x",
-    "_ 12",
-    "1 2",
-    "21 centuries",
-    "1 y m",
+      "12x", "_ 12", "1 2", "21 centuries", "1 y m",
   };
   for (auto& i : bad) {
     std::stringstream err;
@@ -259,7 +255,8 @@ TEST(md_config_t, set_val)
     std::chrono::seconds j = std::chrono::seconds(rand());
     string s = exact_timespan_str(j);
     std::chrono::seconds k = parse_timespan(s);
-    cout << "rt: " << j.count() << " -> " << s << " -> " << k.count() << std::endl;
+    cout << "rt: " << j.count() << " -> " << s << " -> " << k.count()
+         << std::endl;
     EXPECT_EQ(j.count(), k.count());
   }
 }
@@ -278,29 +275,31 @@ TEST(Option, validation)
   opt_enum.set_enum_allowed({"red", "blue"});
   EXPECT_EQ(0, opt_enum.validate(Option::value_t(std::string("red")), &msg));
   EXPECT_EQ(0, opt_enum.validate(Option::value_t(std::string("blue")), &msg));
-  EXPECT_EQ(-EINVAL, opt_enum.validate(Option::value_t(std::string("green")), &msg));
+  EXPECT_EQ(
+      -EINVAL, opt_enum.validate(Option::value_t(std::string("green")), &msg));
 
   Option opt_validator("foo", Option::TYPE_INT, Option::LEVEL_BASIC);
-  opt_validator.set_validator([](std::string *value, std::string *error_message){
-      if (*value == std::string("one")) {
-        *value = "1";
-        return 0;
-      } else if (*value == std::string("666")) {
-        return -EINVAL;
-      } else {
-        return 0;
-      }
+  opt_validator.set_validator([](std::string* value,
+                                 std::string* error_message) {
+    if (*value == std::string("one")) {
+      *value = "1";
+      return 0;
+    } else if (*value == std::string("666")) {
+      return -EINVAL;
+    } else {
+      return 0;
+    }
   });
 
-  std::string input = "666";  // An explicitly forbidden value
+  std::string input = "666"; // An explicitly forbidden value
   EXPECT_EQ(-EINVAL, opt_validator.pre_validate(&input, &msg));
   EXPECT_EQ(input, "666");
 
-  input = "123";  // A permitted value with no special behaviour
+  input = "123"; // A permitted value with no special behaviour
   EXPECT_EQ(0, opt_validator.pre_validate(&input, &msg));
   EXPECT_EQ(input, "123");
 
-  input = "one";  // A value that has a magic conversion
+  input = "one"; // A value that has a magic conversion
   EXPECT_EQ(0, opt_validator.pre_validate(&input, &msg));
   EXPECT_EQ(input, "1");
 }

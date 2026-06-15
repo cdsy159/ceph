@@ -4,10 +4,11 @@
 #ifndef RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_APPLY_IMAGE_STATE_REQUEST_H
 #define RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_APPLY_IMAGE_STATE_REQUEST_H
 
-#include "common/ceph_mutex.h"
-#include "librbd/mirror/snapshot/Types.h"
 #include <map>
 #include <string>
+
+#include "common/ceph_mutex.h"
+#include "librbd/mirror/snapshot/Types.h"
 
 struct Context;
 
@@ -22,23 +23,28 @@ namespace mirror {
 namespace image_replayer {
 namespace snapshot {
 
-template <typename> class EventPreprocessor;
-template <typename> class ReplayStatusFormatter;
-template <typename> class StateBuilder;
+template <typename>
+class EventPreprocessor;
+template <typename>
+class ReplayStatusFormatter;
+template <typename>
+class StateBuilder;
 
 template <typename ImageCtxT>
 class ApplyImageStateRequest {
 public:
-  static ApplyImageStateRequest* create(
+  static ApplyImageStateRequest*
+  create(
       const std::string& local_mirror_uuid,
       const std::string& remote_mirror_uuid,
       ImageCtxT* local_image_ctx,
       ImageCtxT* remote_image_ctx,
       librbd::mirror::snapshot::ImageState image_state,
-      Context* on_finish) {
-    return new ApplyImageStateRequest(local_mirror_uuid, remote_mirror_uuid,
-                                      local_image_ctx, remote_image_ctx,
-                                      image_state, on_finish);
+      Context* on_finish)
+  {
+    return new ApplyImageStateRequest(
+        local_mirror_uuid, remote_mirror_uuid, local_image_ctx,
+        remote_image_ctx, image_state, on_finish);
   }
 
   ApplyImageStateRequest(
@@ -150,6 +156,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_replayer::snapshot::ApplyImageStateRequest<librbd::ImageCtx>;
+extern template class rbd::mirror::image_replayer::snapshot::
+    ApplyImageStateRequest<librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_REPLAYER_SNAPSHOT_APPLY_IMAGE_STATE_REQUEST_H

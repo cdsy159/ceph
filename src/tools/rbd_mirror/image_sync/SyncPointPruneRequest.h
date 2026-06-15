@@ -4,14 +4,26 @@
 #ifndef RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_PRUNE_REQUEST_H
 #define RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_PRUNE_REQUEST_H
 
-#include "tools/rbd_mirror/image_sync/Types.h"
 #include <list>
 #include <string>
 
+#include "tools/rbd_mirror/image_sync/Types.h"
+
 class Context;
-namespace journal { class Journaler; }
-namespace librbd { class ImageCtx; }
-namespace librbd { namespace journal { struct MirrorPeerClientMeta; } }
+
+namespace journal {
+class Journaler;
+}
+
+namespace librbd {
+class ImageCtx;
+}
+
+namespace librbd {
+namespace journal {
+struct MirrorPeerClientMeta;
+}
+} // namespace librbd
 
 namespace rbd {
 namespace mirror {
@@ -20,20 +32,22 @@ namespace image_sync {
 template <typename ImageCtxT = librbd::ImageCtx>
 class SyncPointPruneRequest {
 public:
-  static SyncPointPruneRequest* create(
-      ImageCtxT *remote_image_ctx,
+  static SyncPointPruneRequest*
+  create(
+      ImageCtxT* remote_image_ctx,
       bool sync_complete,
       SyncPointHandler* sync_point_handler,
-      Context *on_finish) {
-    return new SyncPointPruneRequest(remote_image_ctx, sync_complete,
-                                     sync_point_handler, on_finish);
+      Context* on_finish)
+  {
+    return new SyncPointPruneRequest(
+        remote_image_ctx, sync_complete, sync_point_handler, on_finish);
   }
 
   SyncPointPruneRequest(
-      ImageCtxT *remote_image_ctx,
+      ImageCtxT* remote_image_ctx,
       bool sync_complete,
       SyncPointHandler* sync_point_handler,
-      Context *on_finish);
+      Context* on_finish);
 
   void send();
 
@@ -60,10 +74,10 @@ private:
    * @endverbatim
    */
 
-  ImageCtxT *m_remote_image_ctx;
+  ImageCtxT* m_remote_image_ctx;
   bool m_sync_complete;
   SyncPointHandler* m_sync_point_handler;
-  Context *m_on_finish;
+  Context* m_on_finish;
 
   SyncPoints m_sync_points_copy;
   std::list<std::string> m_snap_names;
@@ -86,6 +100,7 @@ private:
 } // namespace mirror
 } // namespace rbd
 
-extern template class rbd::mirror::image_sync::SyncPointPruneRequest<librbd::ImageCtx>;
+extern template class rbd::mirror::image_sync::SyncPointPruneRequest<
+    librbd::ImageCtx>;
 
 #endif // RBD_MIRROR_IMAGE_SYNC_SYNC_POINT_PRUNE_REQUEST_H

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -19,8 +19,7 @@
 #ifndef CEPH_JERASURE_INIT_H
 #define CEPH_JERASURE_INIT_H
 
-extern "C" int jerasure_init(int count, int *words);
+extern "C" int jerasure_init(int count, int* words);
 void jerasure_finish() __attribute__((destructor));
 
 #endif
-

@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab
 
 /*
@@ -21,7 +21,6 @@
 #include <string_view>
 
 #include "include/uuid.h"
-
 #include "msg/Message.h"
 
 class MLogAck final : public Message {
@@ -30,24 +29,42 @@ public:
   version_t last = 0;
   std::string channel;
 
-  MLogAck() : Message{MSG_LOGACK} {}
-  MLogAck(uuid_d& f, version_t l) : Message{MSG_LOGACK}, fsid(f), last(l) {}
+  MLogAck() :
+    Message{MSG_LOGACK}
+  {}
+
+  MLogAck(uuid_d& f, version_t l) :
+    Message{MSG_LOGACK}, fsid(f), last(l)
+  {}
+
 private:
   ~MLogAck() final {}
 
 public:
-  std::string_view get_type_name() const override { return "log_ack"; }
-  void print(std::ostream& out) const override {
+  std::string_view
+  get_type_name() const override
+  {
+    return "log_ack";
+  }
+
+  void
+  print(std::ostream& out) const override
+  {
     out << "log(last " << last << ")";
   }
 
-  void encode_payload(uint64_t features) override {
+  void
+  encode_payload(uint64_t features) override
+  {
     using ceph::encode;
     encode(fsid, payload);
     encode(last, payload);
     encode(channel, payload);
   }
-  void decode_payload() override {
+
+  void
+  decode_payload() override
+  {
     using ceph::decode;
     auto p = payload.cbegin();
     decode(fsid, p);
@@ -55,8 +72,9 @@ public:
     if (!p.end())
       decode(channel, p);
   }
+
 private:
-  template<class T, typename... Args>
+  template <class T, typename... Args>
   friend boost::intrusive_ptr<T> ceph::make_message(Args&&... args);
 };
 

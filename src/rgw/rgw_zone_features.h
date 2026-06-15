@@ -8,6 +8,7 @@
 #pragma once
 
 #include <string>
+
 #include <boost/container/flat_set.hpp>
 
 namespace rgw::zone_features {
@@ -24,7 +25,9 @@ inline constexpr std::initializer_list<std::string_view> supported = {
     notification_v2,
 };
 
-inline constexpr bool supports(std::string_view feature) {
+inline constexpr bool
+supports(std::string_view feature)
+{
   for (auto i : supported) {
     if (feature.compare(i) == 0) {
       return true;
@@ -38,7 +41,6 @@ inline constexpr std::initializer_list<std::string_view> enabled = {
     resharding,
     notification_v2,
 };
-
 
 // enable string_view overloads for find() contains() etc
 struct feature_less : std::less<std::string_view> {

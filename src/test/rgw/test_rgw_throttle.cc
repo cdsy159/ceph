@@ -13,20 +13,23 @@
  *
  */
 
-#include "rgw_aio_throttle.h"
+#include <gtest/gtest.h>
 
 #include <optional>
 #include <thread>
+
 #include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/spawn.hpp>
+
 #include "include/scope_guard.h"
 
-#include <gtest/gtest.h>
+#include "rgw_aio_throttle.h"
 
-static rgw_raw_obj make_obj(const std::string& oid)
+static rgw_raw_obj
+make_obj(const std::string& oid)
 {
   return {{"testpool"}, oid};
 }
@@ -36,29 +39,45 @@ namespace rgw {
 struct scoped_completion {
   Aio* aio = nullptr;
   AioResult* result = nullptr;
-  ~scoped_completion() { if (aio) { complete(-ECANCELED); } }
-  void complete(int r) {
+
+  ~scoped_completion()
+  {
+    if (aio) {
+      complete(-ECANCELED);
+    }
+  }
+
+  void
+  complete(int r)
+  {
     result->result = r;
     aio->put(*result);
     aio = nullptr;
   }
 };
 
-auto wait_on(scoped_completion& c) {
-  return [&c] (Aio* aio, AioResult& r) { c.aio = aio; c.result = &r; };
+auto
+wait_on(scoped_completion& c)
+{
+  return [&c](Aio* aio, AioResult& r) {
+    c.aio = aio;
+    c.result = &r;
+  };
 }
 
-auto wait_for(boost::asio::io_context& context, ceph::timespan duration) {
-  return [&context, duration] (Aio* aio, AioResult& r) {
+auto
+wait_for(boost::asio::io_context& context, ceph::timespan duration)
+{
+  return [&context, duration](Aio* aio, AioResult& r) {
     using Clock = ceph::coarse_mono_clock;
     using Timer = boost::asio::basic_waitable_timer<Clock>;
     auto t = std::make_unique<Timer>(context);
     t->expires_after(duration);
-    t->async_wait([aio, &r, t=std::move(t)] (boost::system::error_code ec) {
-        if (ec != boost::asio::error::operation_aborted) {
-          aio->put(r);
-        }
-      });
+    t->async_wait([aio, &r, t = std::move(t)](boost::system::error_code ec) {
+      if (ec != boost::asio::error::operation_aborted) {
+        aio->put(r);
+      }
+    });
   };
 }
 
@@ -120,9 +139,9 @@ TEST(Aio_Throttle, ThrottleOverMax)
   std::optional<Work> work(context.get_executor());
   std::thread worker([&context] { context.run(); });
   auto g = make_scope_guard([&work, &worker] {
-      work.reset();
-      worker.join();
-    });
+    work.reset();
+    worker.join();
+  });
 
   for (uint64_t i = 0; i < total; i++) {
     using namespace std::chrono_literals;
@@ -144,16 +163,19 @@ TEST(Aio_Throttle, YieldCostOverWindow)
   auto obj = make_obj(__PRETTY_FUNCTION__);
 
   boost::asio::io_context context;
-  boost::asio::spawn(context,
-    [&] (boost::asio::yield_context yield) {
-      YieldingAioThrottle throttle(4, yield);
-      scoped_completion op;
-      auto c = throttle.get(obj, wait_on(op), 8, 0);
-      ASSERT_EQ(1u, c.size());
-      EXPECT_EQ(-EDEADLK, c.front().result);
-    }, [] (std::exception_ptr eptr) {
-      if (eptr) std::rethrow_exception(eptr);
-    });
+  boost::asio::spawn(
+      context,
+      [&](boost::asio::yield_context yield) {
+        YieldingAioThrottle throttle(4, yield);
+        scoped_completion op;
+        auto c = throttle.get(obj, wait_on(op), 8, 0);
+        ASSERT_EQ(1u, c.size());
+        EXPECT_EQ(-EDEADLK, c.front().result);
+      },
+      [](std::exception_ptr eptr) {
+        if (eptr)
+          std::rethrow_exception(eptr);
+      });
   context.run();
 }
 
@@ -169,23 +191,26 @@ TEST(Aio_Throttle, YieldingThrottleOverMax)
   uint64_t outstanding = 0;
 
   boost::asio::io_context context;
-  boost::asio::spawn(context,
-    [&] (boost::asio::yield_context yield) {
-      YieldingAioThrottle throttle(window, yield);
-      for (uint64_t i = 0; i < total; i++) {
-        using namespace std::chrono_literals;
-        auto c = throttle.get(obj, wait_for(context, 10ms), 1, 0);
-        outstanding++;
-        outstanding -= c.size();
-        if (max_outstanding < outstanding) {
-          max_outstanding = outstanding;
+  boost::asio::spawn(
+      context,
+      [&](boost::asio::yield_context yield) {
+        YieldingAioThrottle throttle(window, yield);
+        for (uint64_t i = 0; i < total; i++) {
+          using namespace std::chrono_literals;
+          auto c = throttle.get(obj, wait_for(context, 10ms), 1, 0);
+          outstanding++;
+          outstanding -= c.size();
+          if (max_outstanding < outstanding) {
+            max_outstanding = outstanding;
+          }
         }
-      }
-      auto c = throttle.drain();
-      outstanding -= c.size();
-    }, [] (std::exception_ptr eptr) {
-      if (eptr) std::rethrow_exception(eptr);
-    });
+        auto c = throttle.drain();
+        outstanding -= c.size();
+      },
+      [](std::exception_ptr eptr) {
+        if (eptr)
+          std::rethrow_exception(eptr);
+      });
   context.poll(); // run until we block
   EXPECT_EQ(window, outstanding);
 

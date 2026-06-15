@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "IoOp.h"
 #include "include/random.h"
+
+#include "IoOp.h"
 
 /* Overview
  *
@@ -53,7 +54,9 @@ enum class Sequence {
   SEQUENCE_BEGIN = SEQUENCE_SEQ0
 };
 
-inline Sequence operator++(Sequence& s) {
+inline Sequence
+operator++(Sequence& s)
+{
   return s = (Sequence)(((int)(s) + 1));
 }
 
@@ -62,7 +65,7 @@ std::ostream& operator<<(std::ostream& os, const Sequence& seq);
 /* I/O Sequences */
 
 class IoSequence {
- public:
+public:
   virtual ~IoSequence() = default;
 
   virtual Sequence get_id() const = 0;
@@ -76,9 +79,12 @@ class IoSequence {
 
   virtual bool is_supported(Sequence sequence) const;
   static std::unique_ptr<IoSequence> generate_sequence(
-      Sequence s, std::pair<int, int> obj_size_range, int seed, bool check_consistency);
+      Sequence s,
+      std::pair<int, int> obj_size_range,
+      int seed,
+      bool check_consistency);
 
- protected:
+protected:
   uint64_t min_obj_size;
   uint64_t max_obj_size;
   bool create;
@@ -96,7 +102,10 @@ class IoSequence {
   ceph::util::random_number_generator<int> rng =
       ceph::util::random_number_generator<int>();
 
-  IoSequence(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
+  IoSequence(
+      std::pair<int, int> obj_size_range,
+      int seed,
+      bool check_consistency);
 
   virtual std::unique_ptr<IoOp> _next() = 0;
 
@@ -108,78 +117,78 @@ class IoSequence {
 };
 
 class Seq0 : public IoSequence {
- public:
+public:
   Seq0(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset;
   uint64_t length;
 };
 
 class Seq1 : public IoSequence {
- public:
+public:
   Seq1(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   int count;
 };
 
 class Seq2 : public IoSequence {
- public:
+public:
   Seq2(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset;
   uint64_t length;
 };
 
 class Seq3 : public IoSequence {
- public:
+public:
   Seq3(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset1;
   uint64_t offset2;
 };
 
 class Seq4 : public IoSequence {
- public:
+public:
   Seq4(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset1;
   uint64_t offset2;
 };
 
 class Seq5 : public IoSequence {
- public:
+public:
   Seq5(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset;
   uint64_t length;
   bool doneread;
@@ -187,14 +196,14 @@ class Seq5 : public IoSequence {
 };
 
 class Seq6 : public IoSequence {
- public:
+public:
   Seq6(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset;
   uint64_t length;
   bool doneread;
@@ -202,28 +211,28 @@ class Seq6 : public IoSequence {
 };
 
 class Seq7 : public IoSequence {
- public:
+public:
   Seq7(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset;
   bool doneread = true;
   bool donebarrier = false;
 };
 
 class Seq8 : public IoSequence {
- public:
+public:
   Seq8(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 
- private:
+private:
   uint64_t offset1;
   uint64_t offset2;
   bool doneread = true;
@@ -231,27 +240,27 @@ class Seq8 : public IoSequence {
 };
 
 class Seq9 : public IoSequence {
- private:
+private:
   uint64_t offset;
   uint64_t length;
   bool doneread = true;
   bool donebarrier = false;
 
- public:
+public:
   Seq9(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
-      Sequence get_id() const override;
-      std::string get_name() const override;
-      std::unique_ptr<IoOp> _next() override;
-    };
+  Sequence get_id() const override;
+  std::string get_name() const override;
+  std::unique_ptr<IoOp> _next() override;
+};
 
 class Seq11 : public IoSequence {
- private:
+private:
   uint64_t count;
   bool doneread = true;
   bool donebarrier = false;
 
- public:
+public:
   Seq11(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
@@ -260,13 +269,13 @@ class Seq11 : public IoSequence {
 };
 
 class Seq12 : public IoSequence {
- private:
+private:
   uint64_t count;
   uint64_t overlap;
   bool doneread = true;
   bool donebarrier = false;
 
- public:
+public:
   Seq12(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
@@ -275,13 +284,13 @@ class Seq12 : public IoSequence {
 };
 
 class Seq13 : public IoSequence {
- private:
+private:
   uint64_t count;
   uint64_t gap;
   bool doneread = true;
   bool donebarrier = false;
 
- public:
+public:
   Seq13(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
@@ -290,7 +299,7 @@ class Seq13 : public IoSequence {
 };
 
 class Seq14 : public IoSequence {
- private:
+private:
   uint64_t offset;
   uint64_t step;
   uint64_t target_obj_size;
@@ -300,7 +309,7 @@ class Seq14 : public IoSequence {
   size_t startidx;
   bool doneread = false;
 
- public:
+public:
   Seq14(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   void setup_starts();
@@ -310,7 +319,7 @@ class Seq14 : public IoSequence {
 };
 
 class Seq15 : public IoSequence {
- private:
+private:
   uint64_t offset;
   uint64_t length;
   uint64_t primary_size;
@@ -330,12 +339,12 @@ class Seq15 : public IoSequence {
   };
   Stage stage;
 
- public:
+public:
   Seq15(std::pair<int, int> obj_size_range, int seed, bool check_consistency);
 
   Sequence get_id() const override;
   std::string get_name() const override;
   std::unique_ptr<IoOp> _next() override;
 };
-}  // namespace io_exerciser
-}  // namespace ceph
+} // namespace io_exerciser
+} // namespace ceph

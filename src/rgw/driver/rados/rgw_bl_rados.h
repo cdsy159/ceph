@@ -6,36 +6,42 @@
 #include <string>
 
 // forward declarations
-namespace rgw { class SiteConfig; }
+namespace rgw {
+class SiteConfig;
+}
+
 namespace rgw::sal {
-  class RadosStore;
+class RadosStore;
 }
 class DoutPrefixProvider;
 
 namespace rgw::bucketlogging {
 
-  // initialize the bucket logging commit manager
-  bool init(const DoutPrefixProvider* dpp, rgw::sal::RadosStore* store,
-            const rgw::SiteConfig& site);
+// initialize the bucket logging commit manager
+bool init(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::RadosStore* store,
+    const rgw::SiteConfig& site);
 
-  // shutdown the bucket logging commit manager
-  void shutdown();
+// shutdown the bucket logging commit manager
+void shutdown();
 
-  int add_commit_target_entry(const DoutPrefixProvider* dpp,
-                              rgw::sal::RadosStore* store,
-                              const rgw::sal::Bucket* log_bucket,
-                              const std::string& prefix,
-                              const std::string& obj_name,
-                              const std::string& tail_obj_name,
-                              const rgw_pool& temp_data_pool,
-                              optional_yield y);
+int add_commit_target_entry(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::RadosStore* store,
+    const rgw::sal::Bucket* log_bucket,
+    const std::string& prefix,
+    const std::string& obj_name,
+    const std::string& tail_obj_name,
+    const rgw_pool& temp_data_pool,
+    optional_yield y);
 
-int list_pending_commit_objects(const DoutPrefixProvider* dpp,
-                                rgw::sal::RadosStore* store,
-                                const rgw::sal::Bucket* log_bucket,
-                                const std::string& prefix,
-                                std::set<std::string>& entries,
-                                optional_yield y);
+int list_pending_commit_objects(
+    const DoutPrefixProvider* dpp,
+    rgw::sal::RadosStore* store,
+    const rgw::sal::Bucket* log_bucket,
+    const std::string& prefix,
+    std::set<std::string>& entries,
+    optional_yield y);
 
-}
-
+} // namespace rgw::bucketlogging

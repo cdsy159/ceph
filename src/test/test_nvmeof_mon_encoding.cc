@@ -14,13 +14,15 @@
  */
 
 #include <iostream>
-#include "common/ceph_argparse.h"
+
 #include "common/debug.h"
-#include "include/ceph_assert.h"
+
+#include "common/ceph_argparse.h"
 #include "global/global_init.h"
-#include "mon/NVMeofGwMon.h"
-#include "messages/MNVMeofGwMap.h"
+#include "include/ceph_assert.h"
 #include "messages/MNVMeofGwBeacon.h"
+#include "messages/MNVMeofGwMap.h"
+#include "mon/NVMeofGwMon.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mon
@@ -29,7 +31,9 @@
 
 using namespace std;
 
-void test_NVMeofGwMap() {
+void
+test_NVMeofGwMap()
+{
   dout(0) << __func__ << "\n\n" << dendl;
 
   NVMeofGwMap pending_map;
@@ -37,24 +41,25 @@ void test_NVMeofGwMap() {
   std::string group = "grp1";
   auto group_key = std::make_pair(pool, group);
   std::string nqn = "nqn-nqn";
-  BeaconSubsystem sub = { nqn, {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED };
+  BeaconSubsystem sub = {nqn, {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED};
   BeaconSubsystems subs = {sub};
 
-  pending_map.cfg_add_gw("GW1" ,group_key, CEPH_FEATURES_ALL);
-  pending_map.cfg_add_gw("GW2" ,group_key, CEPH_FEATURES_ALL);
-  pending_map.cfg_add_gw("GW3" ,group_key, CEPH_FEATURES_ALL);
-  NvmeNonceVector new_nonces = {"abc", "def","hij"};
+  pending_map.cfg_add_gw("GW1", group_key, CEPH_FEATURES_ALL);
+  pending_map.cfg_add_gw("GW2", group_key, CEPH_FEATURES_ALL);
+  pending_map.cfg_add_gw("GW3", group_key, CEPH_FEATURES_ALL);
+  NvmeNonceVector new_nonces = {"abc", "def", "hij"};
   pending_map.created_gws[group_key]["GW1"].nonce_map[1] = new_nonces;
   pending_map.created_gws[group_key]["GW1"].performed_full_startup = true;
   pending_map.created_gws[group_key]["GW1"].subsystems = subs;
   int i = 0;
-  for (auto & blklst_itr : pending_map.created_gws[group_key]["GW1"].blocklist_data){
-    blklst_itr.second.osd_epoch = 2*(i++);
+  for (auto& blklst_itr :
+       pending_map.created_gws[group_key]["GW1"].blocklist_data) {
+    blklst_itr.second.osd_epoch = 2 * (i++);
     blklst_itr.second.is_failover = false;
   }
 
   pending_map.created_gws[group_key]["GW2"].nonce_map[2] = new_nonces;
-  dout(0) << " == Dump map before Encode : == " <<dendl;
+  dout(0) << " == Dump map before Encode : == " << dendl;
   dout(0) << pending_map << dendl;
 
   ceph::buffer::list bl;
@@ -63,12 +68,14 @@ void test_NVMeofGwMap() {
   pending_map.encode(bl, CEPH_FEATURES_ALL);
   auto p = bl.cbegin();
   pending_map.decode(p);
-  dout(0) << " == Dump map after Decode: == " <<dendl;
+  dout(0) << " == Dump map after Decode: == " << dendl;
   dout(0) << pending_map << dendl;
   dout(0) << pending_map.created_gws[group_key]["GW1"].subsystems << dendl;
 }
 
-void test_MNVMeofGwMap() {
+void
+test_MNVMeofGwMap()
+{
   //test message to the Mon Client
   dout(0) << __func__ << "\n\n" << dendl;
   std::map<NvmeGroupKey, NvmeGwMonClientStates> map;
@@ -86,35 +93,36 @@ void test_MNVMeofGwMap() {
   map[group_key][gw_id] = state;
 
 
-
   ceph::buffer::list bl;
   encode(map, bl, CEPH_FEATURES_ALL);
   dout(0) << "encoded: " << map << dendl;
   decode(map, bl);
   dout(0) << "decoded: " << map << dendl;
 
-  BeaconSubsystem sub = { nqn, {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
+  BeaconSubsystem sub = {nqn, {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
   NVMeofGwMap pending_map;
   pending_map.epoch = 2;
   auto msg1 = make_message<MNVMeofGwMap>(pending_map);
-  dout(0) << "before encode empty msg: " << *msg1 << " epoch " << msg1->get_gwmap_epoch() << dendl;
+  dout(0) << "before encode empty msg: " << *msg1 << " epoch "
+          << msg1->get_gwmap_epoch() << dendl;
   msg1->encode_payload(CEPH_FEATURES_ALL);
   dout(0) << "after encode empty msg: " << *msg1 << dendl;
   msg1->decode_payload();
   int epoch = msg1->get_gwmap_epoch();
-  dout(0) << "after decode empty msg: " << *msg1 << " epoch " << epoch <<  dendl;
+  dout(0) << "after decode empty msg: " << *msg1 << " epoch " << epoch << dendl;
 
-  pending_map.cfg_add_gw("GW1" ,group_key, CEPH_FEATURES_ALL);
-  pending_map.cfg_add_gw("GW2" ,group_key, CEPH_FEATURES_ALL);
-  pending_map.cfg_add_gw("GW3" ,group_key, CEPH_FEATURES_ALL);
-  NvmeNonceVector new_nonces = {"abc", "def","hij"};
+  pending_map.cfg_add_gw("GW1", group_key, CEPH_FEATURES_ALL);
+  pending_map.cfg_add_gw("GW2", group_key, CEPH_FEATURES_ALL);
+  pending_map.cfg_add_gw("GW3", group_key, CEPH_FEATURES_ALL);
+  NvmeNonceVector new_nonces = {"abc", "def", "hij"};
   pending_map.created_gws[group_key]["GW1"].nonce_map[1] = new_nonces;
   pending_map.created_gws[group_key]["GW1"].subsystems.push_back(sub);
 
   int i = 0;
-  for (auto & blklst_itr : pending_map.created_gws[group_key]["GW1"].blocklist_data){
-     blklst_itr.second.osd_epoch = 2*(i++);
-     blklst_itr.second.is_failover = false;
+  for (auto& blklst_itr :
+       pending_map.created_gws[group_key]["GW1"].blocklist_data) {
+    blklst_itr.second.osd_epoch = 2 * (i++);
+    blklst_itr.second.is_failover = false;
   }
 
   pending_map.created_gws[group_key]["GW2"].nonce_map[2] = new_nonces;
@@ -126,7 +134,7 @@ void test_MNVMeofGwMap() {
   dout(0) << "after encode msg: " << *msg << dendl;
   msg->decode_payload();
   dout(0) << "after decode msg: " << *msg << dendl;
-  
+
   //dout(0)   << "\n == Test GW Delete ==" << dendl;
   //pending_map.cfg_delete_gw("GW1" ,group_key);
   //dout(0) << "deleted GW1 " << pending_map << dendl;
@@ -142,31 +150,25 @@ void test_MNVMeofGwMap() {
 
   //pending_map.cfg_delete_gw("GW3" ,group_key);
   //dout(0) << "deleted GW3 . we should see the empty map " << pending_map << dendl;
-
-
 }
 
-void test_MNVMeofGwBeacon() {
+void
+test_MNVMeofGwBeacon()
+{
   std::string gw_id = "GW";
   std::string gw_pool = "pool";
   std::string gw_group = "group";
   gw_availability_t availability = gw_availability_t::GW_AVAILABLE;
   std::string nqn = "nqn";
-  BeaconSubsystem sub = { nqn, {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED };
-  BeaconSubsystems subs = { sub };
+  BeaconSubsystem sub = {nqn, {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED};
+  BeaconSubsystems subs = {sub};
   epoch_t osd_epoch = 17;
   epoch_t gwmap_epoch = 42;
   uint64_t sequence = 12345;
-  
+
   // Test legacy beacon (without diff support)
   auto msg = make_message<MNVMeofGwBeacon>(
-      gw_id,
-      gw_pool,
-      gw_group,
-      subs,
-      availability,
-      osd_epoch,
-      gwmap_epoch
+      gw_id, gw_pool, gw_group, subs, availability, osd_epoch, gwmap_epoch
       // sequence defaults to 0
       // enable_diff defaults to false
   );
@@ -182,24 +184,18 @@ void test_MNVMeofGwBeacon() {
   // Legacy beacons don't preserve sequence field - it gets reset to 0
   ceph_assert(msg->get_sequence() == 0);
   const auto& dsubs = msg->get_subsystems();
-  auto it = std::find_if(dsubs.begin(), dsubs.end(),
-                           [&nqn](const auto& element) {
-                               return element.nqn == nqn;
-                           });
+  auto it =
+      std::find_if(dsubs.begin(), dsubs.end(), [&nqn](const auto& element) {
+        return element.nqn == nqn;
+      });
   ceph_assert(it != dsubs.end());
   ceph_assert(it->change_descriptor == subsystem_change_t::SUBSYSTEM_CHANGED);
-  
+
   // Test enhanced beacon (with diff support)
   auto msg2 = make_message<MNVMeofGwBeacon>(
-      gw_id,
-      gw_pool,
-      gw_group,
-      subs,
-      availability,
-      osd_epoch,
-      gwmap_epoch,
+      gw_id, gw_pool, gw_group, subs, availability, osd_epoch, gwmap_epoch,
       sequence,
-      true  // enable_diff = true
+      true // enable_diff = true
   );
   msg2->encode_payload(CEPH_FEATURES_ALL);
   msg2->decode_payload();
@@ -212,21 +208,23 @@ void test_MNVMeofGwBeacon() {
   ceph_assert(msg2->get_last_gwmap_epoch() == gwmap_epoch);
   ceph_assert(msg2->get_sequence() == sequence);
   const auto& dsubs2 = msg2->get_subsystems();
-  auto it2 = std::find_if(dsubs2.begin(), dsubs2.end(),
-                           [&nqn](const auto& element) {
-                               return element.nqn == nqn;
-                           });
+  auto it2 =
+      std::find_if(dsubs2.begin(), dsubs2.end(), [&nqn](const auto& element) {
+        return element.nqn == nqn;
+      });
   ceph_assert(it2 != dsubs2.end());
   ceph_assert(it2->change_descriptor == subsystem_change_t::SUBSYSTEM_CHANGED);
 }
 
-void test_subsystem_change_descriptors() {
+void
+test_subsystem_change_descriptors()
+{
   dout(0) << __func__ << "\n\n" << dendl;
   // Test different change descriptors
-  BeaconSubsystem sub1 = { "nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystem sub2 = { "nqn2", {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED };
-  BeaconSubsystem sub3 = { "nqn3", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED };
-  BeaconSubsystems subs = { sub1, sub2, sub3 };
+  BeaconSubsystem sub1 = {"nqn1", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystem sub2 = {"nqn2", {}, {}, subsystem_change_t::SUBSYSTEM_CHANGED};
+  BeaconSubsystem sub3 = {"nqn3", {}, {}, subsystem_change_t::SUBSYSTEM_ADDED};
+  BeaconSubsystems subs = {sub1, sub2, sub3};
   // Encode and decode
   ceph::buffer::list bl;
   encode(subs, bl);
@@ -234,12 +232,18 @@ void test_subsystem_change_descriptors() {
   BeaconSubsystems decoded_subs;
   decode(decoded_subs, p);
   // Verify change descriptors are preserved
-  auto it1 = std::find_if(decoded_subs.begin(), decoded_subs.end(),
-                          [](const auto& s) { return s.nqn == "nqn1"; });
-  auto it2 = std::find_if(decoded_subs.begin(), decoded_subs.end(),
-                          [](const auto& s) { return s.nqn == "nqn2"; });
-  auto it3 = std::find_if(decoded_subs.begin(), decoded_subs.end(),
-                          [](const auto& s) { return s.nqn == "nqn3"; });
+  auto it1 =
+      std::find_if(decoded_subs.begin(), decoded_subs.end(), [](const auto& s) {
+        return s.nqn == "nqn1";
+      });
+  auto it2 =
+      std::find_if(decoded_subs.begin(), decoded_subs.end(), [](const auto& s) {
+        return s.nqn == "nqn2";
+      });
+  auto it3 =
+      std::find_if(decoded_subs.begin(), decoded_subs.end(), [](const auto& s) {
+        return s.nqn == "nqn3";
+      });
   ceph_assert(it1 != decoded_subs.end());
   ceph_assert(it2 != decoded_subs.end());
   ceph_assert(it3 != decoded_subs.end());
@@ -249,35 +253,46 @@ void test_subsystem_change_descriptors() {
   dout(0) << "Subsystem change descriptors test passed" << dendl;
 }
 
-void test_NVMeofGwTimers()
+void
+test_NVMeofGwTimers()
 {
-    NVMeofGwMap pending_map;
-    //pending_map.Gmetadata;
-    const NvmeGroupKey group_key = std::make_pair("a","b");
-    std::string gwid = "GW1";
-    NvmeAnaGrpId  grpid = 2;
-    pending_map.start_timer(gwid, group_key, grpid, 30);
-    auto end_time  = pending_map.fsm_timers[group_key][gwid].data[grpid].end_time;
-    uint64_t  millisecondsSinceEpoch = std::chrono::duration_cast<std::chrono::milliseconds>(end_time.time_since_epoch()).count();
-    dout(0) << "Metadata milliseconds " << millisecondsSinceEpoch << " " << (int)pending_map.fsm_timers[group_key][gwid].data[grpid].timer_value << dendl;
-    ceph::buffer::list bl;
-    pending_map.encode(bl, CEPH_FEATURES_ALL);
-    auto p = bl.cbegin();
-    pending_map.decode(p);
+  NVMeofGwMap pending_map;
+  //pending_map.Gmetadata;
+  const NvmeGroupKey group_key = std::make_pair("a", "b");
+  std::string gwid = "GW1";
+  NvmeAnaGrpId grpid = 2;
+  pending_map.start_timer(gwid, group_key, grpid, 30);
+  auto end_time = pending_map.fsm_timers[group_key][gwid].data[grpid].end_time;
+  uint64_t millisecondsSinceEpoch =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          end_time.time_since_epoch())
+          .count();
+  dout(0) << "Metadata milliseconds " << millisecondsSinceEpoch << " "
+          << (int)pending_map.fsm_timers[group_key][gwid].data[grpid].timer_value
+          << dendl;
+  ceph::buffer::list bl;
+  pending_map.encode(bl, CEPH_FEATURES_ALL);
+  auto p = bl.cbegin();
+  pending_map.decode(p);
 
-    end_time  = pending_map.fsm_timers[group_key][gwid].data[2].end_time;
-    millisecondsSinceEpoch = std::chrono::duration_cast<std::chrono::milliseconds>(end_time.time_since_epoch()).count();
-    dout(0) << "After encode decode Metadata milliseconds " << millisecondsSinceEpoch << " " <<  (int)pending_map.fsm_timers[group_key][gwid].data[grpid].timer_value<<dendl;
-
+  end_time = pending_map.fsm_timers[group_key][gwid].data[2].end_time;
+  millisecondsSinceEpoch = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               end_time.time_since_epoch())
+                               .count();
+  dout(0) << "After encode decode Metadata milliseconds "
+          << millisecondsSinceEpoch << " "
+          << (int)pending_map.fsm_timers[group_key][gwid].data[grpid].timer_value
+          << dendl;
 }
 
-int main(int argc, const char **argv)
+int
+main(int argc, const char** argv)
 {
   // Init ceph
   auto args = argv_to_vec(argc, argv);
-  auto cct = global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT,
-                         CODE_ENVIRONMENT_UTILITY,
-                         CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
+  auto cct = global_init(
+      NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+      CINIT_FLAG_NO_DEFAULT_CONFIG_FILE);
   common_init_finish(g_ceph_context);
 
   // Run tests
@@ -287,4 +302,3 @@ int main(int argc, const char **argv)
   test_subsystem_change_descriptors();
   test_NVMeofGwTimers();
 }
-
