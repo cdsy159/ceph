@@ -1909,6 +1909,7 @@ PrimaryLogPG::do_request(OpRequestRef& op, ThreadPool::TPHandle& handle)
 
 
   // make sure we have a new enough map
+  // 当前这个op归属的source本身就在等map 那来自他的后续请求全部挂在等待上面
   auto p = waiting_for_map.find(op->get_source());
   if (p != waiting_for_map.end()) {
     // preserve ordering
@@ -1919,6 +1920,7 @@ PrimaryLogPG::do_request(OpRequestRef& op, ThreadPool::TPHandle& handle)
     return;
   }
   if (!have_same_or_newer_map(op->min_epoch)) {
+    // 当前map不满足client的min_map要求 挂在wait队列
     dout(20) << __func__ << " min " << op->min_epoch
              << ", queue on waiting_for_map " << op->get_source() << dendl;
     waiting_for_map[op->get_source()].push_back(op);

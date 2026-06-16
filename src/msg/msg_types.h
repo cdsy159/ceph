@@ -50,6 +50,7 @@ typedef uint8_t entity_type_t;
 
 class entity_name_t {
 public:
+  // (type, num)的二元组标识不同的客户端 比如mon.1, mon.2或者osd.0, osd.1或者client.12345, client.123
   entity_type_t _type;
   int64_t _num;
 

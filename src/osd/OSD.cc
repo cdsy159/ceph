@@ -11258,9 +11258,16 @@ retry_pg:
   PGRef pg = slot->pg;
 
   // lock pg (if we have it)
+  // 这里的if唯一目的就是拿pg锁
+  // (pg,shard)锁的锁序是 pg锁->shard锁 因此先放shard锁在拿pg锁在拿shard锁 保持锁序一直 但是放锁->拿锁这段时间是无锁的 不能保证和其他锁pg/shard锁流程互斥
+  // 因此这里要处理race
+  // 两个方法处理:
+  // 1.requeue_seq 这里是处理和_wake_pg_slot流程的互斥 如果不持有锁期间 发生了_wake_pg_slot流程 则拿锁后seq不相同 判断出现了race
+  // 2.num_running 这里是处理和pg removal流程的互斥 如果不持有锁期间 发生了pg removal, pg removal线程看到了num_running不为0 就知道有线程拿着资源正处在无锁的状态下 判断出现了race
   if (pg) {
     // note the requeue seq now...
     uint64_t requeue_seq = slot->requeue_seq;
+    // 持有shard锁 释放shard锁前num_running++
     ++slot->num_running;
 
     sdata->shard_lock.unlock();
@@ -11279,6 +11286,7 @@ retry_pg:
       return;
     }
     slot = q->second.get();
+    // 拿到锁后--
     --slot->num_running;
 
     if (slot->to_process.empty()) {
@@ -11289,6 +11297,7 @@ retry_pg:
       handle_oncommits(oncommits);
       return;
     }
+    // requeue_seq作为race判断 不相等说明出现了竞态 这里流程不再处理 等后续重新处理
     if (requeue_seq != slot->requeue_seq) {
       dout(20) << __func__ << " " << token << " requeue_seq "
                << slot->requeue_seq << " > our " << requeue_seq
@@ -11311,6 +11320,7 @@ retry_pg:
            << " waiting " << slot->waiting << " waiting_peering "
            << slot->waiting_peering << dendl;
 
+  // tp_handle会在io路径上处理timeout 防止io过程被误判为卡住而被kill
   ThreadPool::TPHandle tp_handle(
       osd->cct, hb, timeout_interval.load(), suicide_interval.load(),
       &osd->osd_op_tp);
@@ -11325,16 +11335,21 @@ retry_pg:
   while (!pg) {
     // should this pg shard exist on this osd in this (or a later) epoch?
     osdmap = sdata->shard_osdmap;
+    // 这里pg不存在则创建pg 但是pg只在pg peering这个事件下才触发 普通io是不触发pg的创建的
+    // 这里也就是为什么集群刚部署时 即使没有数据也会有一段时间的peering 是monitor推送osd map触发不同pg间的Peering
     const PGCreateInfo* create_info = qi.creates_pg();
     if (!slot->waiting_for_split.empty()) {
+      // 当前pg正在分裂 不确定分裂后这个item是父Pg处理还是子pg处理 因此加到等待队列处理
       dout(20) << __func__ << " " << token << " splitting "
                << slot->waiting_for_split << dendl;
       _add_slot_waiter(token, slot, std::move(qi));
     } else if (qi.get_map_epoch() > osdmap->get_epoch()) {
+      // 当前要求处理的map版本比这个osd上最新的map还要新 当前的osd map看不到最新的map 无法决定怎么处理这个item 也要挂在等待队列上
       dout(20) << __func__ << " " << token << " map " << qi.get_map_epoch()
                << " > " << osdmap->get_epoch() << dendl;
       _add_slot_waiter(token, slot, std::move(qi));
     } else if (qi.is_peering()) {
+      // 当前事件是个pg peering事件(is_peering不是指正在做peering 而是这个item就是来做peering的)
       if (!qi.peering_requires_pg()) {
         // for pg-less events, we run them under the ordering lock, since
         // we don't have the pg lock to keep them ordered.
@@ -11343,10 +11358,14 @@ retry_pg:
         if (create_info) {
           if (create_info->by_mon &&
               osdmap->get_pg_acting_primary(token.pgid) != osd->whoami) {
+            // 由monitor触发的pg创建 但是这个osd不是priamry osd, monitor推送的pg创建事件必须走primary创建->推送非priamry
+            // 这里是在第一版认为这个osd是primary 但是在这个位置已经不是了
+            // TODO:跟踪pg创建事件
             dout(20) << __func__ << " " << token
                      << " no pg, no longer primary, ignoring mon create on "
                      << qi << dendl;
           } else {
+            // 非monitor推送的pg创建事件 或是monitor create且目前自己还是primary
             dout(20) << __func__ << " " << token << " no pg, should create on "
                      << qi << dendl;
             pg = osd->handle_pg_create_info(osdmap, create_info);
@@ -11373,11 +11392,14 @@ retry_pg:
                  << " no pg, peering, doesn't map here e" << osdmap->get_epoch()
                  << ", discarding " << qi << dendl;
       }
+
     } else if (osdmap->is_up_acting_osd_shard(token, osd->whoami)) {
+      // 非pg peering事件(前面的else if处理pg peering) 但是pg还没创建 无法继续 只能挂在wait队列上
       dout(20) << __func__ << " " << token << " no pg, should exist e"
                << osdmap->get_epoch() << ", will wait on " << qi << dendl;
       _add_slot_waiter(token, slot, std::move(qi));
     } else {
+      // 这个事件被错误发到了这个osd 可能是client的map epoch太旧
       dout(20) << __func__ << " " << token << " no pg, shouldn't exist e"
                << osdmap->get_epoch() << ", dropping " << qi << dendl;
       // share map with client?
@@ -11410,6 +11432,7 @@ retry_pg:
   }
   sdata->shard_lock.unlock();
 
+  // 释放了shard锁 之后都是pg锁
   if (!new_children.empty()) {
     for (auto shard : osd->shards) {
       shard->prime_splits(osdmap, &new_children);
