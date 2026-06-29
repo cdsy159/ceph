@@ -182,6 +182,11 @@ struct Session : public RefCountedObject {
   ceph::ref_t<Backoff>
   have_backoff(spg_t pgid, const hobject_t& oid)
   {
+    // 实际是一个key, objrange的kv; key = pgid 映射一个map, 而这个map内是所以这个pgidx下的backoff rados obj的合集 这个map的key只是第一个起始的obj id
+    // 比如key = pg, 那么得到的是[obj_a, obj_b, ... obj_z], 这个map的key是obj_a
+    // Backoff是一个前闭后开的集合[begin, end), 整体流程是按照pgid找到这个pg下需要backoff的obj集合 对外体现为一个map<oid, set<Backoff>>
+    // 这里为什么用set<Backoff>? 因为要在恢复后通知client, backoff不可用的rados obj是固定的 但是只有被backoff的client才要被通知 因此backoff还会用session id进行区分
+    // 即obja-objz被backoff 但是有2个client被通知了 那么就是2个backoff, session id不同但是[begin end)相同
     if (!backoff_count.load()) {
       return nullptr;
     }
@@ -192,6 +197,7 @@ struct Session : public RefCountedObject {
       return nullptr;
     }
     auto p = i->second.lower_bound(oid);
+    // 找到的是一个range 如果这个p是大于oid的一个range 找他前一个迭代器位置
     if (p != i->second.begin() && (p == i->second.end() || p->first > oid)) {
       --p;
     }
@@ -199,6 +205,8 @@ struct Session : public RefCountedObject {
       int r = cmp(oid, p->first);
       if (r == 0 || r > 0) {
         for (auto& q : p->second) {
+          // r == 0说明完全命中
+          // r > 0说明oid在第一个rados object的右边 如果他还同时在这个range的end的左边 那么说明他命中了这个backoff的rados object
           if (r == 0 || oid < q->end) {
             return &(*q);
           }

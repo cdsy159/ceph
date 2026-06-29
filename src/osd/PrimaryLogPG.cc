@@ -1772,6 +1772,11 @@ PrimaryLogPG::get_rw_locks(bool write_ordered, OpContext* ctx)
    * this (read or write) if we get the first we will be guaranteed
    * to get the second.
    */
+  /*
+   * 1.读操作: 读锁
+   * 2.写操作: 写锁
+   * 3.读改写: 独占锁
+   * */
   if (write_ordered && ctx->op->may_read()) {
     if (ctx->op->may_read_data()) {
       ctx->lock_type = RWState::RWEXCL;
@@ -1946,6 +1951,10 @@ PrimaryLogPG::do_request(OpRequestRef& op, ThreadPool::TPHandle& handle)
         return;
       }
 
+      // TODO:这里还是要看pg的peering协商流程
+      // down: 没有凑齐足够的副本
+      // incomplete: 有一些已经回复客户端ack的写入出现问题 比如osd挂掉 无法提供服务
+      // !is_active || is_peered: 还在协商状态
       bool backoff = is_down() || is_incomplete() ||
                      (!is_active() && is_peered());
       if (g_conf()->osd_backoff_on_peering && !backoff) {
@@ -2081,6 +2090,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
 
   const hobject_t head = m->get_hobj().get_head();
 
+  // 判断是否归属于当前这个pg 这里是防止pg分裂 导致这个obj被分到子pg上
   if (!info.pgid.pgid.contains(
           info.pgid.pgid.get_split_bits(pool.info.get_pg_num()), head)) {
     derr << __func__ << " " << info.pgid.pgid << " does not contain " << head
@@ -2149,6 +2159,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
     }
   } else {
     // normal case; must be primary
+    // 写和普通读都在这里被拦下来 如果普通操作且非priamary 则被拒绝
     if (!is_primary()) {
       osd->handle_misdirected_op(this, op);
       return;
@@ -2156,6 +2167,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
   }
 
   if (!is_primary()) {
+    // normal 读写已经在上面被拦住了 能走到这里一定是副本读
     osd->logger->inc(l_osd_replica_read);
   }
 
@@ -2212,6 +2224,8 @@ PrimaryLogPG::do_op(OpRequestRef& op)
   }
 
   // order this op as a write?
+  // 这个op是否需要保序
+  // write/class write/cache/强制保序flag
   bool write_ordered = op->rwordered();
 
   // discard due to cluster full transition?  (we discard any op that
@@ -2399,6 +2413,13 @@ PrimaryLogPG::do_op(OpRequestRef& op)
   hobject_t missing_oid;
 
   // kludge around the fact that LIST_SNAPS sets CEPH_SNAPDIR for LIST_SNAPS
+  /*
+   * snapid = 0: head, 非快照
+   * snapid = CEPH_SNAPDIR, 读snapdir对象 其中存储的是快照的元数据 即打了哪些快照 不是实际数据
+   * snapid = x, 具体的快照读
+   * head是清理了snapid 设置为 ret.snap = CEPH_NOSNAP;
+   * SNAPDIR就是LIST_SNAPS的操作 也是通过head去读的快照的元数据
+   * */
   const hobject_t& oid = m->get_snapid() == CEPH_SNAPDIR ? head : m->get_hobj();
 
   // make sure LIST_SNAPS is on CEPH_SNAPDIR and nothing else
@@ -2407,11 +2428,13 @@ PrimaryLogPG::do_op(OpRequestRef& op)
 
     if (osd_op.op.op == CEPH_OSD_OP_LIST_SNAPS) {
       if (m->get_snapid() != CEPH_SNAPDIR) {
+        // LIST_SNAPS必须是snap_id = CEPH_SNAPDDIR
         dout(10) << "LIST_SNAPS with incorrect context" << dendl;
         osd->reply_op_error(op, -EINVAL);
         return;
       }
     } else {
+      // CEPH_SNAPDIR的snap_id必须和op一致
       if (m->get_snapid() == CEPH_SNAPDIR) {
         dout(10) << "non-LIST_SNAPS on snapdir" << dendl;
         osd->reply_op_error(op, -EINVAL);
@@ -2441,6 +2464,8 @@ PrimaryLogPG::do_op(OpRequestRef& op)
     osd->logger->inc(l_osd_replica_read_served);
   }
 
+  // object_context是object持久化结构对应的内存管理结构 用lru管理
+  // 不存在则在里面create, db->Get从rocksdb读Onode里的元数据
   int r = find_object_context(
       oid, &obc, can_create, m->has_flag(CEPH_OSD_FLAG_MAP_SNAP_CLONE),
       &missing_oid);
@@ -2489,6 +2514,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
     if (!op->hitset_inserted) {
       hit_set->insert(oid);
       op->hitset_inserted = true;
+      // 满了 或者 recv时间超过了这个周期 那么要持久化
       if (hit_set->is_full() || hit_set_start_stamp + pool.info.hit_set_period <=
                                     m->get_recv_stamp()) {
         hit_set_persist();
@@ -2496,6 +2522,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
     }
   }
 
+  // cache tiering逻辑
   if (agent_state) {
     if (agent_choose_mode(false, op))
       return;
@@ -2530,6 +2557,8 @@ PrimaryLogPG::do_op(OpRequestRef& op)
   }
 
   // make sure locator is consistent
+  // locator 作用是定位obj的真正位置 比如obj可能在cache tiering下从data池升到缓存池 或是从缓存池降级到data池
+  // 通过Localtor来判断obj的位置
   object_locator_t oloc(obc->obs.oi.soid);
   if (m->get_object_locator() != oloc) {
     dout(10) << " provided locator " << m->get_object_locator()
@@ -2539,6 +2568,8 @@ PrimaryLogPG::do_op(OpRequestRef& op)
   }
 
   // io blocked on obc?
+  // 也是cache tiering的逻辑; blocked代表这个Obj正在进行互斥操作 要求串行 比如promote(提升到cache pool)/flush(从缓存刷回data pool) 这里需要阻塞操作
+  // 但是对于FLUSH要放行 因为flush自己就是要把数据刷回data 不能阻塞在这里 比如promote把cache pool弄成了full 那如果不放行flush 则无法释放
   if (obc->is_blocked() && !m->has_flag(CEPH_OSD_FLAG_FLUSH)) {
     wait_for_blocked_object(obc->obs.oi.soid, op);
     return;
@@ -2562,6 +2593,7 @@ PrimaryLogPG::do_op(OpRequestRef& op)
       return;
     }
   } else if (!get_rw_locks(write_ordered, ctx)) {
+    // 拿锁 get_rw_locks更改这个op的锁状态
     dout(20) << __func__ << " waiting for rw locks " << dendl;
     op->mark_delayed("waiting for rw locks");
     close_op_ctx(ctx);
@@ -4365,6 +4397,8 @@ PrimaryLogPG::execute_ctx(OpContext* ctx)
   // before we finally apply the resulting transaction.
   ctx->op_t.reset(new PGTransaction);
 
+  // may_cache: 客户端带来的对缓存的操作 比如pin住cache obj 不进行淘汰.
+  // cache操作还是要写入obj的元数据 因此也认为是写 所以跟write同一个语义
   if (op->may_write() || op->may_cache()) {
     // snap
     if (!(m->has_flag(CEPH_OSD_FLAG_ENFORCE_SNAPC)) &&
@@ -4377,6 +4411,8 @@ PrimaryLogPG::execute_ctx(OpContext* ctx)
       ctx->snapc.snaps = m->get_snaps();
       filter_snapc(ctx->snapc.snaps);
     }
+    // 带有flag则必须保证快照写有序
+    // TODO: 这里要细看 整个快照io的流程
     if ((m->has_flag(CEPH_OSD_FLAG_ORDERSNAP)) &&
         ctx->snapc.seq < obc->ssc->snapset.seq) {
       dout(10) << " ORDERSNAP flag set and snapc seq " << ctx->snapc.seq
@@ -4412,6 +4448,7 @@ PrimaryLogPG::execute_ctx(OpContext* ctx)
   }
 
 
+  // 正式io流程
   int result = prepare_transaction(ctx);
 
   {

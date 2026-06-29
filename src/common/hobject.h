@@ -122,12 +122,23 @@ public:
   static bool
   match_hash(uint32_t to_check, uint32_t bits, uint32_t match)
   {
+    // 判断这个rados_obj是否归属于这个pg
+    // (~0) = 0xfff....
+    // (~0) << bits, 把低bits位全部置为0
+    // ~((~0) <<bits), 取反, 低bits位全部置为1 其他置为0
+    // 对比这个pg的seed的bits位是否和这个rados obj hash value的低bits位一致 一致则说明归属于这个pg
+    // 比如pg_num = 4, 那么对于rados obj 1(hash value假设为0b000)和rados obj2(hash value假设为0b100) 他们都归属于pg0 因为seed = 0b00, rados obj 1 0b000 & 0b11 = 0b00, rados obj2 0b100 & 0b11 = 0b00
+    // 而一旦出现pg分裂pg num 4->8, bits = 3, rados obj1 0b000 & 0b111 = 0b000, 还是在pg0(seed = 0b000)
+    // 而rados obj2 0b100 & 0b111 = 0b100, 则划分到子pg pg4了(0b100)
     return (match & ~((~0) << bits)) == (to_check & ~((~0) << bits));
   }
 
   bool
   match(uint32_t bits, uint32_t match) const
   {
+    // hash是这个rados object的hash value 用于寻找归属pg; match是pg的seed 也就是这个pg所对应的value
+    // 比如pg num = 8, 那么idx = 0的pg的seed = 0b000, idx = 1的pg的seed = 0b001
+    // bits是表征这个pg组所需要的bit数量 比如pg_num = 4 那么需要2个bit 即00 01 10 11; pg_num =8 那么需要3个bit 000 001 010 011 100 101 110 111
     return match_hash(hash, bits, match);
   }
 

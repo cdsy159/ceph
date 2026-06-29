@@ -337,6 +337,11 @@ hobject_t::parse(const string& s)
   return true;
 }
 
+/*
+ * -1: l在r前面
+ *  0: l == r 
+ *  1: l在r后面
+ * */
 int
 cmp(const hobject_t& l, const hobject_t& r)
 {
