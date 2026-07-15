@@ -11896,9 +11896,9 @@ BlueStore::_fsck_on_open(BlueStore::FSCKDepth depth, bool repair)
         c = _key_decode_u64(c, &omap_head);
         auto p = pool > 0 ? pool
                           : META_POOL_ID; // we erroneously use pool==0 for
-            // meta (aka pool==-1) objects
-            // (see #64153)
-            // hence treat it as meta
+        // meta (aka pool==-1) objects
+        // (see #64153)
+        // hence treat it as meta
         pool_fsck_stats_t& ppfs = per_pool_fsck_stats[p];
         ppfs.omaps++;
         ppfs.omap_key_size += it->key().size();
@@ -11930,9 +11930,9 @@ BlueStore::_fsck_on_open(BlueStore::FSCKDepth depth, bool repair)
         c = _key_decode_u64(c, &omap_head);
         auto p = pool > 0 ? pool
                           : META_POOL_ID; // we erroneously use pool==0 for
-            // meta (aka pool==-1) objects
-            // (see #64153)
-            // hence treat it as meta
+        // meta (aka pool==-1) objects
+        // (see #64153)
+        // hence treat it as meta
         pool_fsck_stats_t& ppfs = per_pool_fsck_stats[p];
         ppfs.omaps++;
         ppfs.omap_key_size += it->key().size();
@@ -14762,6 +14762,7 @@ BlueStore::_txc_update_store_statfs(TransContext* txc)
   txc->statfs_delta.reset();
 }
 
+// txc的状态机处理函数
 void
 BlueStore::_txc_state_proc(TransContext* txc)
 {
@@ -15525,6 +15526,8 @@ BlueStore::_kv_sync_thread()
       // it.  in either case, we increase the max in the earlier txn
       // we submit.
       uint64_t new_nid_max = 0, new_blobid_max = 0;
+      // nid是onode的唯一id 这里bluestore_nid_preallc是预分配的数量 如果当前可用的nid不足一半 那么新分配一批bluestore_nid_prealloc的nid
+      // nid = node id
       if (nid_last + cct->_conf->bluestore_nid_prealloc / 2 > nid_max) {
         KeyValueDB::Transaction t = kv_submitting.empty()
                                         ? synct
@@ -15535,6 +15538,7 @@ BlueStore::_kv_sync_thread()
         t->set(PREFIX_SUPER, "nid_max", bl);
         dout(10) << __func__ << " new_nid_max " << new_nid_max << dendl;
       }
+      // 和onode一样 只是是给blob用的唯一id
       if (blobid_last + cct->_conf->bluestore_blobid_prealloc / 2 > blobid_max) {
         KeyValueDB::Transaction t = kv_submitting.empty()
                                         ? synct

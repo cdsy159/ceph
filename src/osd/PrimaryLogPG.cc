@@ -4411,8 +4411,6 @@ PrimaryLogPG::execute_ctx(OpContext* ctx)
       ctx->snapc.snaps = m->get_snaps();
       filter_snapc(ctx->snapc.snaps);
     }
-    // 带有flag则必须保证快照写有序
-    // TODO: 这里要细看 整个快照io的流程
     if ((m->has_flag(CEPH_OSD_FLAG_ORDERSNAP)) &&
         ctx->snapc.seq < obc->ssc->snapset.seq) {
       dout(10) << " ORDERSNAP flag set and snapc seq " << ctx->snapc.seq
@@ -4448,7 +4446,6 @@ PrimaryLogPG::execute_ctx(OpContext* ctx)
   }
 
 
-  // 正式io流程
   int result = prepare_transaction(ctx);
 
   {
@@ -6248,6 +6245,8 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
   ObjectState& obs = ctx->new_obs;
   object_info_t& oi = obs.oi;
   const hobject_t& soid = oi.soid;
+  // 跳过数据校验 1)底层store引擎 比如bluestroe开启了checksum校验 2) 配置明确要求关闭
+  // 这里关闭的还不是bluestore底层的checksum校验 bluestore底层还是有明确的checksum 只是关闭的是rados obj这个逻辑对象的checksum校验
   const bool skip_data_digest = osd->store->has_builtin_csum() &&
                                 *osd->osd_skip_data_digest;
 
@@ -6263,6 +6262,7 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
 
     OpFinisher* op_finisher = nullptr;
     {
+      // TODO:OpFinisher是重入机制 这里暂时先不管 后续看EC异步读的时候再来看
       auto op_finisher_it = ctx->op_finishers.find(ctx->current_osd_subop_num);
       if (op_finisher_it != ctx->op_finishers.end()) {
         op_finisher = op_finisher_it->second.get();
@@ -6307,11 +6307,21 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
     // munge -1 truncate to 0 truncate
     if (ceph_osd_op_uses_extent(op.op) && op.extent.truncate_seq == 1 &&
         op.extent.truncate_size == (-1ULL)) {
+      /*
+       *  协议转换:
+       *    旧协议(1, UINT64_MAX)表示这次不携带truncate的特殊处理语义 新协议用(0, 0)来表示
+       *  truncate_seq是某一个客户端对某个文件或者对象的逻辑时钟 
+       *  比如先写[6k, 8k] 在用truncate截断为[0, 4k]
+       *  但是如果truncate先到达 6k~8k的写后到达 语义就会反转
+       *  因此依赖两个请求的truncate_seq的逻辑时钟标识先后 但这只针对单client
+       *  不同客户端本来就做不到按照客户端的顺序来执行 多客户端场景下谁先到达 谁先抢到锁 谁就是先执行的
+       * */
       op.extent.truncate_size = 0;
       op.extent.truncate_seq = 0;
     }
 
     // munge ZERO -> TRUNCATE?  (don't munge to DELETE or we risk hosing attributes)
+    // 转义 CEPH_OSD_OP_ZERO转义成CEPH_OSD_OP_TRUNCATE
     if (op.op == CEPH_OSD_OP_ZERO && obs.exists &&
         op.extent.offset < *osd->osd_max_object_size && op.extent.length >= 1 &&
         op.extent.length <= *osd->osd_max_object_size &&
@@ -7025,6 +7035,7 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
         if (seq && (seq > op.extent.truncate_seq) &&
             (op.extent.offset + op.extent.length > oi.size)) {
           // old write, arrived after trimtrunc
+          // 乱序到达语义 这是一个旧写 且写的范围超过了被截断的范围 那么去掉这个旧写的阶段区域外的部分 只写size内的部分
           op.extent.length =
               (op.extent.offset > oi.size ? 0 : oi.size - op.extent.offset);
           dout(10) << " old truncate_seq " << op.extent.truncate_seq
@@ -7036,20 +7047,41 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
         }
         if (op.extent.truncate_seq > seq) {
           // write arrives before trimtrunc
+          /*
+           *  whiteout 指逻辑上不应该存在 但是还没有删除
+           *     obs.exists    oi.is_whiteout()    含义
+              ━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                false              无意义    物理和逻辑上都不存在
+              ────────────  ──────────────────  ───────────────────────────────────────────────────
+                true               false    正常存在
+              ────────────  ──────────────────  ───────────────────────────────────────────────────
+                true                true    底层保留了对象/元数据，但客户端逻辑上应看到不存在
+           * */
           if (obs.exists && !oi.is_whiteout()) {
             dout(10) << " truncate_seq " << op.extent.truncate_seq
                      << " > current " << seq << ", truncating to "
                      << op.extent.truncate_size << dendl;
+            /*
+             *  这里虽然是一个write请求 但是write自身是携带truncate的标准的 即TRIMTRUNCATE协议下的写请求 是带有前置条件的
+             *  即要在截断状态op.extent.truncat_size的情况下进行这次写 如果不满足要求 那么先进行截断
+             *  t->trucnate中
+             *        op.buffer_updates.erase(off, std::numeric_limits<uint64_t>::max() - off);
+             *  这里就是在清理 在truncate截断范围外 这个事务之前的写入
+             * */
             t->truncate(soid, op.extent.truncate_size);
             oi.truncate_seq = op.extent.truncate_seq;
             oi.truncate_size = op.extent.truncate_size;
             if (oi.size > op.extent.truncate_size) {
+              // interval_set 存储集合 比如[0, 100], [105, 400] 存储若干个子集合 能合并会合并
               interval_set<uint64_t> trim;
               trim.insert(
                   op.extent.truncate_size, oi.size - op.extent.truncate_size);
+              // union_of 并集操作
               ctx->modified_ranges.union_of(trim);
+              // mark_data_region_dirty 删除这段区域
               ctx->clean_regions.mark_data_region_dirty(
                   op.extent.truncate_size, oi.size - op.extent.truncate_size);
+              // 因为进行了truncate 旧的checksum不在生效
               oi.clear_data_digest();
             }
             if (op.extent.truncate_size != oi.size) {
@@ -7074,6 +7106,9 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
         maybe_create_new_object(ctx);
 
         if (op.extent.length == 0) {
+          /*
+           *  offset != 0, length = 0 在offset > oi.size的情况下只是把对象扩展到offset处 从[oi.size， offset)的区域是0
+           * */
           if (op.extent.offset > oi.size) {
             if (seq && (seq > op.extent.truncate_seq)) {
               //do nothing
@@ -7092,6 +7127,13 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
               soid, op.extent.offset, op.extent.length, osd_op.indata, op.flags);
         }
 
+        /*
+         *  rados级别的checksum的处理：
+         *    1.offset, len完全覆盖之前的对象: 用indata的checksum覆盖之前的checksum 因为之前的数据被完全覆盖
+         *    2.offset, len在之前的数据上append: 基于之前数据的checksum(obs.oi.digest)进行增量计算
+         *    3.其他场景: 清除checksum 因为其他场景要全量读取之前rados的数据 然后加上新写入的数据 重新计算checksum 成本太高; 清空后依赖deep scrub重建csum
+         *
+         * */
         if (op.extent.offset == 0 && op.extent.length >= oi.size &&
             !skip_data_digest) {
           obs.oi.set_data_digest(osd_op.indata.crc32c(-1));
@@ -14800,8 +14842,7 @@ PrimaryLogPG::scan_range_replica(
   bi->clear_objects();
 
   vector<hobject_t> ls;
-  ls.reserve(max);
-  int r = pgbackend->objects_list_partial(bi->begin, min, max, &ls, &bi->end);
+  l int r = pgbackend->objects_list_partial(bi->begin, min, max, &ls, &bi->end);
   ceph_assert(r >= 0);
   dout(10) << " got " << ls.size() << " items, next " << bi->end << dendl;
   dout(20) << ls << dendl;
@@ -15948,7 +15989,6 @@ PrimaryLogPG::do_replica_scrub_map(OpRequestRef op)
 
   if (!is_scrub_active()) {
     dout(10) << __func__ << " scrub isn't active" << dendl;
-    return;
   }
   m_scrubber->map_from_replica(op);
 }
