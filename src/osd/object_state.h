@@ -7,6 +7,7 @@
 
 struct ObjectState {
   object_info_t oi;
+  // 当前obj是否还存在
   bool exists; ///< the stored object exists (i.e., we will remember the object_info_t)
 
   ObjectState() :

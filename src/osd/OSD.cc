@@ -11242,6 +11242,7 @@ OSD::ShardedOpWQ::_process(
     return; // OSD shutdown, discard.
   }
 
+  // token目前的实现是pg id
   const auto token = item.get_ordering_token();
   auto r = sdata->pg_slots.emplace(token, nullptr);
   if (r.second) {

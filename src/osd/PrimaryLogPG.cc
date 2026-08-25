@@ -5638,6 +5638,7 @@ void
 PrimaryLogPG::maybe_create_new_object(OpContext* ctx, bool ignore_transaction)
 {
   ObjectState& obs = ctx->new_obs;
+  //new_obs初始化时拷贝上个obj的状态 这里说明这个io之前这个obj已经不是exists了
   if (!obs.exists) {
     ctx->delta_stats.num_objects++;
     obs.exists = true;
@@ -6054,6 +6055,9 @@ PrimaryLogPG::do_read(OpContext* ctx, OSDOp& osd_op)
   if (op.extent.length == 0) //length is zero mean read the whole object
     op.extent.length = size;
 
+  /*
+   *  extent length = 0可以表示读整个obj 也可以表示不读 依赖trimmed_read做区分
+   * */
   if (op.extent.offset >= size) {
     op.extent.length = 0;
     trimmed_read = true;
@@ -6242,6 +6246,8 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
 {
   int result = 0;
   SnapSetContext* ssc = ctx->obc->ssc;
+  // new_obs是这次io完成后obj的新状态 也就是目的状态 准备好后在io完成后切换
+  // 每次新的io开始 在OpContext里进行初始化 初始化时是拷贝的上个状态的obs 也就是旧的obs
   ObjectState& obs = ctx->new_obs;
   object_info_t& oi = obs.oi;
   const hobject_t& soid = oi.soid;
@@ -7123,6 +7129,11 @@ PrimaryLogPG::do_osd_ops(OpContext* ctx, vector<OSDOp>& ops)
             t->nop(soid);
           }
         } else {
+          /*
+           * 内存上记录buffer, interval_map的方式存储要写的数据
+           * internval map的结构类似于k->v, key = offset, value = (len, buffer)
+           * 写到PGTransaction->op_map[soid]
+           */
           t->write(
               soid, op.extent.offset, op.extent.length, osd_op.indata, op.flags);
         }
@@ -9018,6 +9029,7 @@ PrimaryLogPG::make_writeable(OpContext* ctx)
   dout(20) << "make_writeable " << soid << " snapset=" << ctx->new_snapset
            << "  snapc=" << snapc << dendl;
 
+  // was_dirty是cache tier机制
   bool was_dirty = ctx->obc->obs.oi.is_dirty();
   if (ctx->new_obs.exists) {
     // we will mark the object dirty
@@ -9042,12 +9054,21 @@ PrimaryLogPG::make_writeable(OpContext* ctx)
     }
   }
 
+  /*
+   *  omap是提供给客户端的附加属性 存储在rocksdb 
+   *  omap是一对自定义的kv对集合 由客户端来制定
+   *  比如key = user, val = "zzzzzzz"
+   *  这种kv是客户端能感知到的 相当于一个附加的辅助信息
+   *  并不是obj通用的元数据
+   * */
   if ((ctx->new_obs.exists && ctx->new_obs.oi.is_omap()) &&
       (!ctx->obc->obs.exists || !ctx->obc->obs.oi.is_omap())) {
+    // 这次的状态会拥有omap 但是之前这个对象不存在 或者对象不拥有Omap 则omap++
     ++ctx->delta_stats.num_objects_omap;
   }
   if ((!ctx->new_obs.exists || !ctx->new_obs.oi.is_omap()) &&
       (ctx->obc->obs.exists && ctx->obc->obs.oi.is_omap())) {
+    // 这次会失去Omap 但之前有
     --ctx->delta_stats.num_objects_omap;
   }
 
@@ -9064,6 +9085,8 @@ PrimaryLogPG::make_writeable(OpContext* ctx)
     coid.snap = snapc.seq;
 
     const auto snaps = [&] {
+      // 找到第一个不满足条件的位置 这里找到第一个小于之前new_snapset.seq的快照 且是前闭后开
+      // new_snapset还是之前obj旧状态的快照状态 这里相当于处理客户端的快照seq大于当前obj上快照seq 即客户端打了新的快照
       auto last = find_if_not(
           begin(snapc.snaps), end(snapc.snaps),
           [&](snapid_t snap_id) { return snap_id > ctx->new_snapset.seq; });
@@ -9084,6 +9107,12 @@ PrimaryLogPG::make_writeable(OpContext* ctx)
       if (pool.info.is_erasure())
         ctx->clone_obc->attr_cache = ctx->obc->attr_cache;
       snap_oi = &ctx->clone_obc->obs.oi;
+      /*
+       *  manifest是管理引用的机制
+       *  1.none: 不使用
+       *  2.redirect: 重定向到另一个obj
+       *  3.chunk: 重定向到不同chunk
+       * */
       if (ctx->obc->obs.oi.has_manifest()) {
         if ((ctx->obc->obs.oi.flags &
              object_info_t::FLAG_REDIRECT_HAS_REFERENCE) &&
@@ -9421,6 +9450,14 @@ PrimaryLogPG::finish_ctx(OpContext* ctx, int log_op_type, int result)
   // finish and log the op.
   if (ctx->user_modify) {
     // update the user_version for any modify ops, except for the watch op
+    /*
+     *  user_at_version: 用户可见的一个逻辑时钟
+     *  他的作用应该类似于条件写 或者 cas 
+     *  客户端的写如果有某个前置条件 那么要带上这个用来在服务端进行判断
+     *  info.laster_user_version 是pg粒度的 相当于这个pg管理的所有rados obj里最大的user version
+     *  new_obs.oi.user_version 是obj粒度 是当前正在操作对象的user version
+     *  ctx->user_at_version会被以reply的形式带回给客户端
+     * */
     ctx->user_at_version =
         std::max(info.last_user_version, ctx->new_obs.oi.user_version) + 1;
     /* In order for new clients and old clients to interoperate properly
